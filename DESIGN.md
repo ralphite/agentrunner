@@ -192,9 +192,10 @@ effect
 ```
 
 - **关卡判定在记录边界之内，按持久化时点拆分**：pre-hook 结果 +
-  permission 判定 + budget 判定在关卡通过后、`ActivityStarted` **之前**
-  作为一条 `EffectResolved` event 落盘（ask 路径在审批应答到达后落盘，
-  引用 `ApprovalRequested` 的 id）；post-hook 结果随 `ActivityCompleted`
+  permission 判定 + budget 判定在关卡判定终结后（放行或拦下——拦下时
+  其后没有 `ActivityStarted`）、执行开始**之前**作为一条 `EffectResolved`
+  event 落盘（ask 路径在审批应答到达后落盘，引用 `ApprovalRequested`
+  的 id）；post-hook 结果随 `ActivityCompleted`
   落盘。单一落盘点装不下整条管线——它跨越 durable 的 `ActivityStarted`
   和可能挂几天的审批。恢复时读记录值，不重跑 hook 脚本、不重读 policy
   文件——hook 是有副作用的外部脚本，绝不能在恢复路径上再执行一次；
@@ -206,8 +207,9 @@ effect
   预留一起比对上限；`ActivityCompleted` 时按实际结算，预留集是 fold
   state 的一部分。否则 N 个并行 call 各自对着同一个过期计数器放行，
   合起来超支 N 倍。
-- **hooks 是管线机件，不是 effect**——不递归进管线自身；其执行记录在
-  `EffectResolved` 里。v0 只支持 observe + block，改写输入（mutation）
+- **hooks 是管线机件，不是 effect**——不递归进管线自身；执行记录随
+  管线判定持久化（pre-hook 在 `EffectResolved`，post-hook 随
+  `ActivityCompleted`）。v0 只支持 observe + block，改写输入（mutation）
   连同它带来的顺序与缓存问题一起推迟。
 - **每种关卡结果都定义"模型看到什么"**。所有 provider 都要求 tool call
   与结果配对（Anthropic 按 call id、Gemini 按数量+位置且更严格），
@@ -215,8 +217,9 @@ effect
   - deny → `tool_result{is_error: true, reason}`，loop 继续；
   - hook block → hook 的消息作为 error tool_result，loop 继续；
   - 审批被拒 → 同上，附拒绝理由；
-  - budget 超限 → 让模型收尾的最后一条消息 + 优雅停止（`LimitExceeded`
-    event），不是掐断；
+  - budget 超限（run 级 token/cost/turns）→ 让模型收尾的最后一条消息 +
+    优雅停止（`LimitExceeded` event），不是掐断；结构性限制（spawn
+    深度/扇出，同在 budget 关卡校验）→ error 结果，loop 继续；
   - activity 失败（重试耗尽）→ error tool_result，loop 继续。
   "给模型的错误"和"给用户的错误"是两个 surface，分开设计。error 结果的
   线上形态由各 provider 定义（Anthropic 有 `is_error` 标志；Gemini 没有，
@@ -299,11 +302,12 @@ limits:
   （read/edit/execute-class，供 `acceptEdits` 等 mode 使用）、per-tool
   配置（bash timeout、输出截断上限）。内置 tool 以数据文件形式随包分发，
   spec 里的 `tools:` 是对这些定义的引用 + 收窄。
-- 配置分层从简：**spec + 单个 project settings 文件**两层起步，
-  标量覆盖、permission rules 按文档化顺序拼接（local > project > spec）；
-  三层与更细的合并语义等真实冲突出现再加。
+- 配置分层从简：**spec + user settings + project settings** 三个来源，
+  标量覆盖、permission rules 按文档化顺序拼接（user > project > spec）；
+  更细的合并语义等真实冲突出现再加。user settings 属于用户机器，
+  project settings 随 repo 走——这个出身差异是信任模型的依据。
 - **信任模型**：spec 与 settings 等同于"你选择执行的代码"。可执行配置
-  （hooks）只从 spec 与 user/local 层生效；**project 层（随 repo 走的
+  （hooks）只从 spec 与 user 层生效；**project 层（随 repo 走的
   文件）里的 hooks 被忽略**，除非用户对该 workspace 做过一次显式 trust
   确认——否则 clone 一个不受信任的 repo 就等于交出任意代码执行权，
   整个 permission 系统被绕过。memory 文件按不可信内容对待（只进 prompt，
@@ -370,8 +374,8 @@ limits:
 - 内置 tool 套件（file read/write/edit、bash、glob/grep、web
   fetch/search）建立在 workspace 抽象上：工作目录、路径边界、bash 沙箱
   等级。worktree 级隔离支持多 agent 并行改文件。
-- workspace 的持久化与 rewind 语义见 L1（per-turn git commit，
-  bash 逃逸不在承诺内）。
+- workspace 的持久化与 rewind 语义见 L1（`SnapshotStore` 快照，
+  只在 `CheckpointBarrier` 打点；bash 逃逸不在承诺内）。
 
 ### MCP
 
@@ -511,7 +515,7 @@ limits:
 | 16 | Skill 格式 | 沿用 Claude Code 约定 | 生态兼容，不发明格式。 |
 | 17 | MCP 生命周期 | 带外运行时状态；只有 tool 调用是 activity；发现的 schema 记录为 event | server 状态不可 event 化；schema 是影响结果的输入。 |
 | 18 | Event schema 版本化 | 不 migration；`RunStarted` 记版本，不匹配拒绝 resume | 原型 re-run 比 migrate 便宜；失败要响亮不要发散。 |
-| 19 | 信任模型 | 可执行配置（hooks）只认 spec 与 user/local 层；project 层需显式 trust；memory 文件按不可信内容对待 | clone 不受信 repo 不等于交出任意代码执行权。 |
+| 19 | 信任模型 | 可执行配置（hooks）只认 spec 与 user 层；project 层需显式 trust；memory 文件按不可信内容对待 | clone 不受信 repo 不等于交出任意代码执行权。 |
 | 20 | 树级约束 | 权限 rules 在 spawn 时冻结交集下传；预算 = min(child 限额, parent 剩余) 沿树聚合；深度/扇出有上限 | spawn 白名单可成环；树的总成本必须有界。 |
 
 ## Roadmap
