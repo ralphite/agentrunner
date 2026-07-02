@@ -107,6 +107,9 @@
   精确恢复——已完成的 LLM 调用不会重复付费。
 - **agent loop 本身就是一个 durable workflow**：每个 LLM turn、每次 tool
   执行都是 activity。agent 的 durability 不需要任何额外机制。
+- **retry 是 activity 的通用属性**：retry/backoff、rate limit 处理、
+  model fallback 都实现为 activity 级的重试策略，不是 LLM 调用专属——
+  所有副作用操作共享同一套健壮性语义。
 - workflow 代码必须确定性：不读墙钟、不用 RNG、不在 activity 之外做 I/O。
   runtime 从构造上强制这一点（workflow 只拿到一个 `ctx`，其上只暴露
   activity、timer 和 messaging）。
@@ -175,7 +178,7 @@ limits:
 
 ## 横切 features
 
-在核心 primitives 之上，以下六项确定纳入高层 feature 清单
+在核心 primitives 之上，以下各项确定纳入高层 feature 清单
 （细节设计后续逐项展开）：
 
 1. **可观测性（Observability）** — event log 本身就是 trace；提供
@@ -187,12 +190,37 @@ limits:
    免费。
 3. **预算限制（Budgets & limits）** — 由 runtime（而非 agent 自己）强制执行
    spec 里的 `limits:`，超限时发出 `LimitExceeded` 并停止 actor。
+   token/cost 记账由 runtime 从 LLM activity 的 events 中统计，
+   per-run、per-agent 都可查。
 4. **触发调度（Triggers & scheduling）** — cron 或事件触发的 run；
    scheduler 就是一个发布 `RunAgent` command 的普通 actor。
 5. **确定性回放测试（Deterministic replay testing）** — 录制一次 run，
    测试中用 stub activity replay；agent 行为变化直接体现为 event log 的 diff。
 6. **上下文/记忆管理（Context & memory）** — compaction、summarization、
    跨 run memory，作为 spec 的可配置 section。
+7. **Permission 系统** — per-tool 的 allow/ask/deny 规则、路径级规则
+   （如允许读但写需审批）、permission modes（default / acceptEdits /
+   plan / bypass）。每个 tool call activity 执行前过一道 policy check：
+   allow 直接执行，ask 走"人工审批"（feature 2 即 policy 判定为 ask 时的
+   产物），deny 拒绝。policy 来自 spec + 运行时配置。
+8. **Hooks（生命周期钩子）** — PreToolUse / PostToolUse / SessionStart /
+   Stop 等钩子，可观察、阻断或改写行为。实现为挂在 bus 上、订阅特定
+   command/event 的拦截器。command 处理管线需要从一开始就留出拦截点——
+   这是 hooks 能"阻断"的前提，后补代价高。
+9. **Session 管理** — session 的列表、resume、fork。event sourcing 让
+   resume 天然免费；fork 即"从 event seq N 复制 stream 开出新分支"。
+10. **交互与 steering** — streaming 输出、运行中途用户插话改方向、
+    interrupt/cancel。frontend 就是另一个 actor（CLI、HTTP 皆可），
+    用户输入是发进 agent mailbox 的消息；agent loop 需设计成在 turn 边界
+    消费 steering 消息。
+11. **Workspace 与沙箱** — 内置工具套件（file read/write/edit、bash、
+    glob/grep、web fetch/search）背后的 workspace 抽象：工作目录、
+    路径边界、bash 沙箱等级、worktree 级隔离（多 agent 并行改文件不打架）。
+    支持 rewind 需把 workspace 快照纳入 checkpoint 语义——checkpoint
+    不只覆盖对话状态。
+12. **配置分层与 memory 文件** — CLAUDE.md 式项目指令文件（自动注入
+    system prompt，按目录层级合并），以及 user / project / local 三层
+    settings 合并。纯数据层，但合并语义要在 spec loader 里定清楚。
 
 ---
 
@@ -207,6 +235,7 @@ limits:
 | 5 | 存储后端 | 每个 stream 一个 JSONL 文件，藏在 `EventStore` 接口后 | run 可读、可 diff；需要时换 SQLite。 |
 | 6 | Durability 模型 | Temporal 风格的 activity record/replay | 让 agent loop 本身 crash-safe 且可恢复的最简模型。 |
 | 7 | Spec 格式 | YAML → pydantic model | 声明式、可 review，新 agent 不需要写代码。 |
+| 8 | 运行形态 | core 是库；CLI、headless、server 都是薄壳 | 一套 core 支撑所有 deployment surface，API 形状从第一天就按库来设计。 |
 
 ## 待拍板的问题
 
