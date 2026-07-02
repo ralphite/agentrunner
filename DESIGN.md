@@ -203,10 +203,11 @@ name: researcher
 description: Deep-dives a topic and reports findings.
 
 model:
-  provider: anthropic          # 薄 provider 接口，原型只有 anthropic 实现
-  id: claude-sonnet-5
+  provider: gemini             # 薄 provider 接口；gemini 为主、anthropic 次
+  id: gemini-2.5-pro
   max_tokens: 8192
-  thinking: { budget_tokens: 4096 }   # reasoning 预算是一等配置
+  thinking: { budget_tokens: 4096 }   # 通用能力，见 Provider；provider 各自映射
+  # API key 只从环境变量读（如 GEMINI_API_KEY），绝不写进 spec/仓库
 
 system_prompt_file: prompts/researcher.md   # 只是拼装的一层，见下
 
@@ -263,8 +264,11 @@ limits:
   spawn 它——目录注入是 multi-agent 可用的前提）→ spec 的 system prompt。
 - **Prefix 稳定性是显式不变量**（prompt caching 的经济性约 10x，
   没有它 agent loop 在经济上不可用）：system prompt 与 tool schema 排序
-  稳定，cache breakpoint 由 loop 放置；任何会打爆 prefix 的操作
-  （配置中途变更）要么禁止要么显式换代。LLM activity 的 event 记录
+  稳定，cache 断点由 loop 放置；任何会打爆 prefix 的操作
+  （配置中途变更）要么禁止要么显式换代。context assembly 只负责保证
+  prefix 稳定这个**与 provider 无关**的不变量；缓存怎么落地
+  （Anthropic 的显式 `cache_control` 断点 vs. Gemini 的 context cache
+  句柄）由各 provider 实现。LLM activity 的 event 记录归一化的
   cache_read/cache_write token，budget 关卡按真实计费口径记账。
 - **Tool 结果截断**：per-tool 输出上限，超限截断并告知模型被截断了
   ——一条 `cat large.json` 不能毁掉上下文和预算。
@@ -311,8 +315,17 @@ limits:
 
 ### Provider
 
-- 薄接口（`complete(request) → stream`），streaming 原生，原型只有
-  Anthropic 实现。请求对象携带 cache breakpoint 与 thinking 配置。
+- 薄接口（`complete(request) → stream`），streaming 原生。**Gemini 为主
+  实现，Anthropic 为次**（同一接口的第二个实现，验证抽象不漏）。
+- **能力是通用的、可选的**：请求以 provider 无关的方式携带 `caching`、
+  `thinking`、`tools`、`max_tokens` 等意图；每个 provider 把它们映射到
+  自家 API（Gemini 的 context caching / thinking config，Anthropic 的
+  `cache_control` / extended thinking）。provider 用 `capabilities()`
+  声明支持哪些能力，请求了不支持的能力时明确降级或报错，而不是静默忽略。
+- **返回归一化**：token 计数（含 cache_read/cache_write）、finish reason、
+  tool_use、thinking 块统一成一套内部表示，L2/L3 及记账不感知具体 provider。
+- **凭据只走环境变量**（如 `GEMINI_API_KEY` / `ANTHROPIC_API_KEY`），
+  provider 实现从环境读取，绝不进 spec、event log 或仓库。
 
 ### Multi-agent
 
@@ -394,7 +407,9 @@ limits:
 | 12 | 存储后端 | JSONL per stream，藏在 `EventStore` 接口后 | 可读可 diff；需要时换 SQLite。 |
 | 13 | Spec 格式 | YAML → pydantic；tool 定义也是数据 | 声明式、可 review；原则 4 落到 tool 层。 |
 | 14 | 运行形态 | core 是库；CLI/headless/server 是薄壳 | 一套 core 支撑所有 surface。 |
-| 15 | Provider | 薄接口 + 仅 Anthropic，streaming 原生，cache/thinking 一等 | 不过度抽象；caching 是经济性前提。 |
+| 15 | Provider | 薄接口 + 多 provider（Gemini 主、Anthropic 次），streaming 原生 | 两个实现验证抽象不漏；caching 是经济性前提。 |
+| 15b | 能力抽象 | caching/thinking 等为 provider 无关的可选 capability，各 provider 映射到自家 API，请求归一化 | 上层不写死某家语义；不支持的能力显式降级/报错而非静默。 |
+| 15c | 凭据 | 只从环境变量读（`GEMINI_API_KEY` 等），绝不进 spec/event/仓库 | 密钥永不落盘于受控内容。 |
 | 16 | Skill 格式 | 沿用 Claude Code 约定 | 生态兼容，不发明格式。 |
 | 17 | MCP 生命周期 | 带外运行时状态；只有 tool 调用是 activity；发现的 schema 记录为 event | server 状态不可 event 化；schema 是影响结果的输入。 |
 | 18 | Event schema 版本化 | 不 migration；`RunStarted` 记版本，不匹配拒绝 resume | 原型 re-run 比 migrate 便宜；失败要响亮不要发散。 |
@@ -404,10 +419,12 @@ limits:
 以 walking skeleton 优先——让真实的 agent 负载塑造下层 API，
 而不是给玩具 actor 造两个 milestone 的框架：
 
-1. **M1 — Walking skeleton**：最小 spec loader、Anthropic provider、
-   朴素 asyncio agent loop、2-3 个内置 tool（read_file/edit_file/bash）、
-   append-only JSONL event journal（先只记录，不做 source of truth）、
-   最小 CLI。端到端跑通一个真 agent。
+1. **M1 — Walking skeleton**：最小 spec loader、Gemini provider（凭
+   `GEMINI_API_KEY` 从环境读）、朴素 asyncio agent loop、2-3 个内置 tool
+   （read_file/edit_file/bash）、append-only JSONL event journal
+   （先只记录，不做 source of truth）、最小 CLI。端到端跑通一个真 agent。
+   provider 接口从第一天按多实现设计，Anthropic 作为第二实现在 M3
+   context assembly（caching）阶段补上以验证能力抽象不漏。
 2. **M2 — Durability + pipeline**：event fold 成为 state 的正源、
    turn 边界 snapshot、resume、显式等待状态；effect pipeline 四关卡 +
    `EffectResolved`；permission rules + 审批流；budgets；
