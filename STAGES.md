@@ -43,6 +43,10 @@ S7 被有意延迟。为了让它届时是**加装**而非**返工**，前六段
 另一条纪律：**每个阶段结束做一次对抗式 review**（与 DESIGN.md 定稿时
 相同的多视角审查），审完才进下一段。
 
+完成标志一律实现为**可执行的 acceptance 场景**（定义见 PLAN.md 0.6），
+用 `agentrunner accept --stage N` 验收——TTY 下为 TUI 清单，非 TTY
+纯文本 + JSON 报告。
+
 ---
 
 ## Stage 1 — 会干活的 agent（walking skeleton）
@@ -82,8 +86,11 @@ S7 被有意延迟。为了让它届时是**加装**而非**返工**，前六段
 - command/event 严格分离；**所有外部输入先 journal 成 event 再消费**。
 - state = event log 的纯 fold；journal 从"只记录"升级为 source of truth。
 - turn 边界 snapshot + resume（snapshot 是可弃缓存，fold 可全量重建）。
-- 显式等待状态注册表（先有 `WAITING_INPUT` / `WAITING_APPROVAL` 槽位，
-  可中断性表从第一天定义）。
+- 显式等待状态注册表：四个变体与完整可中断性表一次画全
+  （`WAITING_INPUT/APPROVAL/TASKS/TIMER`，TASKS/TIMER 标注 S6 前不可产生）。
+- run 收尾 epilogue 骨架（全 no-op：quiesce → publish → [barrier] →
+  终态 event；**钩子 2 在此落位**，后续阶段填实槽位）。
+- CLI `resume` / `sessions list` 收口。
 - activity 语义全套：`ActivityStarted/Completed/Failed/Cancelled` 双落盘、
   at-least-once + in-doubt 上浮（绝不静默重跑；`idempotent: true` 是唯一
   例外通道）、通用 retry/backoff、**进程组级协作取消**（钩子 3）、
@@ -120,15 +127,17 @@ snapshot 三件套；为什么"输入先落盘"消灭了一整类竞态；为什
 - budget：reserve-then-settle（预留集入 fold state）；run 级资源限额 →
   优雅收尾；结构性限制 → error 结果。
 - hooks v0：observe + block；是管线机件不是 effect。
-- 信任模型：可执行配置只认 spec 与 user 层，project 层需显式 trust；
-  memory 文件按不可信内容对待。
+- 配置分层（spec + user + project 三源合并，从 S5 提前——信任模型
+  依赖它）+ 信任模型：可执行配置只认 spec 与 user 层，project 层需
+  显式 trust；memory 文件按不可信内容对待。
 - 每种关卡结果的模型可见渲染（error tool_result 家族）。
 
 **教学重点**："policy 是数据"的完整示范；一条管线如何同时长出四个
 产品级 feature；"给模型的错误"与"给用户的错误"是两个 surface。
 
 **完成标志**：`plan` mode 全流程可用；审批挂两天后批准，run 原地继续；
-预算并发场景不超支（TOCTOU 测试）；不受信 repo 的 hooks 不执行。
+预算 gate 级合成并发不超支（真实并行在 S4 复验）；不受信 repo 的
+hooks 不执行。
 
 ---
 
@@ -150,14 +159,17 @@ snapshot 三件套；为什么"输入先落盘"消灭了一整类竞态；为什
   （thoughtSignature）。
 - 异常 finish reason 的 loop 策略（malformed_tool_call 重试、
   safety/blocked 上浮）。
-- session list / resume 的用户面（CLI）。
+- session UX 打磨（`show`、resume 的流式续接；`resume`/`sessions list`
+  已在 S2 收口）。
+- `inspect` v0：timeline、每个 call 的判定、token/cost/cache 列。
 - Anthropic 作为第二 provider 实现落地，验证能力抽象不漏。
 
 **教学重点**：生产级 loop 的全部脏现实——缓存的经济学（约 10x）、
 主 provider 的严格配对与终止形态、被打断的流如何诚实呈现。
 
 **完成标志**：体验接近"单 agent 版 Claude Code"的 CLI；缓存命中率
-可在 `inspect` 中验证；Esc 能在 500ms 内杀掉任何 tool call。
+可在 `inspect` 中验证；Esc 能在 500ms 内杀掉任何 tool call；
+双 provider scripted 矩阵全绿。
 
 ---
 
@@ -169,8 +181,8 @@ snapshot 三件套；为什么"输入先落盘"消灭了一整类竞态；为什
 **范围**
 - MCP：官方 SDK 管理生命周期（带外运行时状态）、发现的 schema 入
   event、`mcp__<server>__<tool>` 全限定名、无标签 tool 按 execute-class。
-- skills（Claude Code 约定）、memory 文件层级合并、配置分层
-  （spec + user + project，信任模型已在 S3）。
+- skills（Claude Code 约定）、memory 文件层级合并（配置三源合并
+  已提前至 S3）。
 - 子 agent：spawn/await、handoff、pub/sub 三模式；权限 rules spawn 时
   冻结交集下传；mode 不交集；树级预算 min 聚合；深度/扇出上限；
   审批沿 correlation 冒泡到 frontend。
@@ -179,8 +191,9 @@ snapshot 三件套；为什么"输入先落盘"消灭了一整类竞态；为什
   交付物 contract（收尾 epilogue 自动 publish）、
   `ApprovalRequested{payload_ref}`（plan 审批流）、artifact 作输入
   （materialize activity）。
-- run 收尾 epilogue 完整成形：quiesce → auto-publish →
-  [barrier: no-op] → 终态 event（钩子 2 显式落位）。
+- run 收尾 epilogue 的 **auto-publish 槽位填实**（骨架与钩子 2 已在
+  S2 落位；quiesce 在 S6 填实，barrier 在 S7）。
+- `inspect` 扩展：子 agent 树（correlation/causation 渲染）。
 
 **教学重点**：multi-agent 不是子系统；contract（交付物）与协调对象
 （plan）分离；"SnapshotStore 模式"如何复用为 ArtifactStore。
@@ -208,9 +221,11 @@ contract 检查的报告 artifact；plan 审批（发布 → 审 → 拒 → v2 
 - **IterationDriver**：统一事件族；goal mode（verifiers：command /
   llm_judge / human；停滞检测）；loop mode（self_paced 的
   `schedule_next` / `finish_series`；overlap 策略）；best-of-N
-  （`schedule: parallel{n}`）；跨迭代 carry 走 ArtifactStore、
-  series memory 注入时截断；`on_child_failure` / `on_reserve_failure`。
-- headless / server 壳补全（HTTP/WS 同一协议）。
+  （`schedule: parallel{n}`，**阶段内可延后项**，见 PLAN cut line）；
+  跨迭代 carry 走 ArtifactStore、series memory 注入时截断；
+  `on_child_failure` / `on_reserve_failure`。
+- headless / server 壳补全（HTTP/WS 同一协议；**阶段内可延后项**，
+  见 PLAN cut line——均不影响完成标志）。
 
 **教学重点**：frontend 只是订阅者，"后台"不是执行模式而是 attach 问题；
 one-shot / goal / loop / best-of-N 是同一个 driver 的四种 schedule。

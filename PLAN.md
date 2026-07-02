@@ -69,25 +69,111 @@ scripts/check.sh          # golangci-lint + go test 全绿 = 一步完成
 
 ---
 
+## 0.5 Loop-mode 执行协议（执行 agent 的操作契约）
+
+本计划由 coding agent 在 session 内以 loop 方式逐步执行。契约如下：
+
+1. **启动顺序**：读 PLAN.md §0 + 当前 stage 的步骤表 → STAGES.md 对应
+   段 → 步骤引用到的 DESIGN.md 章节 → `PROGRESS.md` 定位当前步。
+2. **进度台账**：repo 根维护 `PROGRESS.md`，每步一节：状态、
+   **所做的每个决定**（凡计划未指定而自行选择的，必须记录为 decision）、
+   留给 stage review 的 open questions。随该步一起提交。
+3. **一步一 commit**：格式 `S<stage>.<step>: <交付物摘要>`，body 列
+   decisions/deviations；`scripts/check.sh` 全绿才 commit
+   （1.0 自举例外：该步创建 check.sh）。
+4. **不可验证项**：验证列需要环境缺失的资源（如 `GEMINI_API_KEY`、
+   人工验收）→ 照常实现 + 单测，验证标 `DEFERRED: <原因>` 记入
+   PROGRESS.md，继续前进——**绝不停等人类**；stage 出口的人工检查点
+   集中补验全部 DEFERRED 项。
+5. **阻塞分流**：*欠规格*（计划没说）→ 选合理默认、记录、继续，
+   review 裁决；*违反 DESIGN.md 不变量* → 停下该步，按不变量变更流程
+   写清冲突，**终止 loop 并以冲突为最终报告**。
+6. **前向依赖**：步 N 依赖 M>N 的产物 → 用最小 stub + `TODO(<M>)`
+   标记，M 的出口清单加"替换 stub"；相邻步可对调，记录于 PROGRESS.md；
+   跨 stage 顺序不得自行变更。
+
+## 0.6 Acceptance tests 与验收 UI
+
+**原则：每个 stage 的完成标志逐句映射为可执行的 acceptance 场景**——
+完成标志里的每一句话都必须有对应场景 id，否则该句视为不可验收。
+
+- **场景即数据**：`testdata/acceptance/s<stage>/*.yaml`：
+  `{id, title(人话描述，用户读得懂), requires: [live?], steps: [命令/操作],
+  expect: [断言：退出码/文件内容/journal 含记录/输出匹配]}`。
+- **Runner**：`agentrunner accept --stage <n>`。TTY 下为 **bubbletea
+  TUI**：清单式进度（pending / spinner / PASS / FAIL + 耗时），失败项
+  展开命令输出与日志路径；非 TTY 降级为纯文本逐行，**总是**写
+  `acceptance-report.json`（loop-mode agent 靠它自判结果）。
+- **SKIPPED 语义**：`requires: [live]` 的场景在无凭据环境标 SKIPPED
+  （区别于 FAIL）；stage 出口要求 FAIL=0，SKIPPED 项归入人工检查点。
+- **演进**：v0 在 S1（步 1.11）落地，支持命令执行 + 退出码/文件/journal
+  断言；S2 加崩溃注入场景包装，S4 加流式输出断言，逐 stage 生长。
+
+---
+
 ## Stage 1 — 会干活的 agent（walking skeleton）
 
 | # | 步骤 | 交付物 | 验证 |
 |---|------|--------|------|
 | 1.0 | 工程基座 | go module、golangci-lint（含 forbidigo 规则）、`scripts/check.sh`、slog 日志约定、`agentrunner --version` | check.sh 全绿 |
-| 1.1 | 最小 spec | `AgentSpec{name, model{provider,id,max_tokens}, system_prompt|_file, tools[]}` + loader + 校验 | 坏 spec 黄金错误测试（缺字段/未知 tool/文件不存在，报错含路径与字段名） |
+| 1.1 | 最小 spec | `AgentSpec{name, model{provider,id,max_tokens}, system_prompt|_file, tools[], max_turns?}` + loader + 校验；unknown-tool 先对硬编码 `knownTools`（`TODO(1.5)` 换注册表） | 坏 spec 黄金错误测试（缺字段/未知 tool/文件不存在，断言全文，格式见执行包） |
 | 1.2 | provider 接口（按最终形态设计） | `Complete(ctx, req) → 流（iter.Seq[StreamEvent]）` + `CollectTurn()` 帮手（S1 loop 用）；归一化 `Message/Part`，**`Part` 自带 harness call_id 与 opaque `Extras/Signature` 字段**（S4 的 thoughtSignature 落位处）；`Capabilities()` 先返回空 | 类型单测；接口在 S2/S4 不再变更是本步的验收承诺 |
-| 1.3 | Gemini provider | env 读 key、请求映射、流式实现、functionCall↔call_id 映射、usage 提取 | live 冒烟测试（`-tags live`） |
+| 1.3 | Gemini provider | env 读 key、请求映射、流式实现、functionCall↔call_id 映射、usage 提取 | live 冒烟测试（`-tags live`；**无 key 时 t.Skip 并标 DEFERRED**，见 0.5 第 4 条） |
 | 1.3a | ScriptedProvider + 录制工具 | 同接口回放实现（序列匹配 + 字段断言）；`agentrunner record-fixture` 包装 live run 生成 fixture（过凭据 redaction） | 录一个 fixture 并回放通过 |
 | 1.4 | workspace 抽象 | root、`Resolve(path)`（realpath + `..` 归一 + 边界检查，越界拒） | symlink/`..` 逃逸全拒（钩子 1 生效） |
 | 1.5 | tool 定义即数据 | `ToolDef{name, desc, json_schema, class}`，内置定义 `go:embed` | schema 渲染进 provider 请求 |
 | 1.6 | 三个 tool 实现 | read_file（截断）、edit_file（old/new 精确替换）、bash（`Setpgid`、**临时墙钟超时**、组 kill、输出截断） | 各自单测；超时杀干净子进程 |
-| 1.7 | journal v0 | append-only JSONL：run 元信息、每 turn 摘要/assistant 消息/tool 调用与结果；**只记录不读回** | 逐行可解析 |
+| 1.7 | journal v0 | append-only JSONL（记录类型见执行包）；**只记录不读回**。**先执行 1.7a 定目录再做本步**（相邻步对调，按 0.5 第 6 条记录） | 逐行可解析 |
 | 1.7a | 数据目录与命名 | `$XDG_DATA_HOME/agentrunner/sessions/<id>/`；session id = `YYYYMMDD-HHMMSS-<slug>`；user 配置 `$XDG_CONFIG_HOME/agentrunner/settings.yaml`、project 配置 `.agentrunner/settings.yaml`、trust 注册表在 user data dir | 单测：路径解析与创建（0700 目录） |
 | 1.8 | agent loop | turn 循环：LLM（CollectTurn）→ N 个 call 顺序执行 → 按 call_id 回填 → 继续；max_turns | ScriptedProvider 集成测试：多 turn 修文件 |
 | 1.9 | CLI | `agentrunner run <spec> "task"`，turn 粒度打印 | 手动验收 |
-| 1.10 | E2E | 样例 repo：agent 修一个失败测试 | scripted 版入 CI 层；live 版手动跑通 |
+| 1.10 | E2E | 样例 repo：agent 修一个失败测试；scripted fixture **手写**（3 turn：read→edit→bash，不依赖录制工具） | scripted 版入 CI 层；live 版标 DEFERRED 至出口检查点 |
+| 1.11 | acceptance harness v0 | `agentrunner accept --stage 1`（0.6 的 runner：TUI + 纯文本 + report.json）+ S1 场景包（≥3：e2e-fix-test(scripted)、journal-readable、workspace-escape-denied） | `accept --stage 1` FAIL=0；TUI 手动查看一次 |
 
-**S1 完成标志**：真实仓库端到端 + journal 可读。
+**S1 完成标志**：`accept --stage 1` FAIL=0（live 场景可 SKIPPED，
+出口人工检查点补跑）；journal 可读。
+
+### S1 执行包（预定默认值——执行 agent 不得再猜；偏离须记入 PROGRESS.md）
+
+- **module**：`github.com/ralphite/agentrunner`；version：`dev`
+  （`-ldflags -X main.version` 覆盖），`--version` 打印
+  `agentrunner <version> (<go version>)`。
+- **check.sh**：`gofmt -l` 检查 + `go vet` + `golangci-lint run` +
+  `go test ./...`（不含 live tag）；`.golangci.yml` = 默认 linter 集 +
+  forbidigo 规则 `time\.(Now|Sleep)` 按路径限定
+  `internal/(kernel|state|pipeline)/`（目录出现即生效）。
+- **provider 类型**：`StreamEvent{TextDelta | ToolCall | Usage |
+  FinishReason}`；`Part{Kind: text|tool_call|tool_result, Text, CallID,
+  ToolName, Args/Result json.RawMessage, Extras map[string]json.RawMessage}`；
+  roles `system|user|assistant|tool`；
+  `CollectTurn → (Message, []ToolCall, Usage, FinishReason, error)`。
+- **call_id**：harness 生成 `call_<turn>_<index>`（确定性，回放友好）；
+  Gemini 适配层按位置映射回 functionResponse。
+- **spec 细则**：`system_prompt` 与 `system_prompt_file` 恰一；
+  `model.id` 必填（示例与 live 测试用 `gemini-2.5-flash`）；
+  `max_turns` 可选、默认 40；错误格式
+  `spec <path>: field <name>: <problem>`。
+- **fixture 格式**：每 session 一个 YAML：
+  `steps: [{expect: {tools_include, last_message_contains}, respond: [StreamEvents]}]`；
+  record-fixture CLI：`agentrunner record-fixture <spec> "task" -o <file>`（过 redaction）。
+- **workspace**：root = `run` 的 cwd（1.9 加 `--workspace` 覆盖）；
+  越界错误 `path escapes workspace: <requested> -> <resolved>`，读写皆拒。
+- **tool 细则**：定义文件 `internal/tool/defs/*.json` + `go:embed`；
+  class ∈ `read|edit|execute`；read_file 上限 2000 行 / 50KB；
+  edit_file 的 `old` 必须**恰好匹配一次**（0 或 N 次报错并说明次数）；
+  bash：cwd = workspace root、默认 timeout 120s、SIGTERM→5s→SIGKILL
+  （pgid）、输出 head+tail 共 30KB 截断带标记。
+- **journal**：`sessions/<id>/journal.jsonl`；记录类型
+  `run_meta{spec_name, model, task, version}` / `assistant_message{turn,
+  message}` / `tool_call{turn, call_id, name, args}` / `tool_result{turn,
+  call_id, result, is_error}` / `run_end{reason, turns, usage}`。
+- **路径**：`$XDG_DATA_HOME`（未设则 `~/.local/share`，macOS 同规则，
+  不用 `~/Library`）；session id = `YYYYMMDD-HHMMSS-<slug>`
+  （slug = task 前 30 字符，小写、非字母数字 → `-`）。
+- **loop 终止**：assistant 消息零 tool call 即完成；或达 max_turns →
+  journal `run_end{reason: max_turns}`。
+- **CLI**：`agentrunner run <spec> "task"`（spec 位置参数）；退出码
+  0 = 完成 / 1 = 运行失败 / 2 = 用法或 spec 错误。
 
 ---
 
@@ -241,9 +327,11 @@ verifier 通过；CLI 重开 attach 回同一 run。
 ## 横切纪律
 
 - **一步 = 一个可合并提交单元**（代码+测试+文档行），`scripts/check.sh`
-  全绿才算完。
-- **stage 收口**：完成标志全绿 → 三视角对抗 review → 修复 → 下一段
-  kickoff refinement。
+  全绿才算完（提交与台账契约见 0.5）。
+- **stage 收口**：acceptance 场景（0.6）FAIL=0（SKIPPED 项人工检查点
+  补验）→ 三视角对抗 review → 修复 → 下一段 kickoff refinement。
+  每个后续 stage 在收口前把自己的完成标志场景化并入
+  `testdata/acceptance/s<n>/`。
 - **四个钩子验收点**：钩子 1 = 1.4（workspace 强制）；钩子 2 = **2.16**
   （epilogue 骨架，5.6/6.3 填实）；钩子 3 = **2.4 + 2.12**（in-flight
   集合入 fold + 进程组终态）；钩子 4 = 2.1–2.7（event 纪律）。每次
