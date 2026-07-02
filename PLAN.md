@@ -1,18 +1,25 @@
 # AgentRunner — 实施计划（Implementation Plan）
 
-本文档是 `STAGES.md` 七阶段的 **step-by-step 实施计划**：每一步做什么、
-产出什么、怎么验证、以什么顺序。原则：**计划先行、review 定稿、然后开工**
-——代码写完再调结构比在计划阶段理清贵得多。
+本文档是 `STAGES.md` 七阶段的 **step-by-step 实施计划**。已经过三视角
+对抗式 review（依赖顺序 / 覆盖忠实度 / 可执行性，共 32 条发现）修订。
 
 粒度约定：**S1–S3 细到单步**（每步一个可验证交付物），**S4–S6 细到
-模块序列**，**S7 保持里程碑级**（延迟批次，届时带着 dogfood 经验再细化）。
-这是有意的：越远的步骤信息越少，过度细化远期步骤是伪精确。
+模块序列**，**S7 保持里程碑级**（延迟批次，届时 kickoff refinement）。
 
 执行方式：每个 stage 用 loop 式迭代实现（实现一步 → 测试 → 小结 →
-下一步）；stage 结束跑对抗式 review（多视角 agent 审查），审过才进
-下一个 stage；进入 stage N 前，先用 stage N-1 的经验把 N 的步骤
-再细化一轮（**kickoff refinement**，只许细化步骤，不许动 DESIGN.md
-不变量——要动不变量必须显式提出、单独 review）。
+下一步）；stage 结束跑对抗式 review；进入 stage N 前做 kickoff
+refinement（只许细化步骤，不许动 DESIGN.md 不变量——要动必须停下、
+写清冲突、单独 review）。
+
+## 预期返工声明（全局，计划内而非事故）
+
+1. **S2 重写 S1 loop 的编排**到 activity + fold state 之上
+   （provider/tool/workspace 接口不动——S1 的接口从第一天按 S4 的
+   最终形态设计，见 1.2）。
+2. **S4.3 把 loop 从顺序执行翻成并发执行**（到达序落盘 + assembly
+   重排）。缓解：从 2.10 起 tool 结果一律按 call_id map 存储，
+   不存有序列表——重排从来都是 assembly 的事。
+3. **1.6 的 bash 墙钟超时是临时的**，2.11 durable timer 落地后迁移。
 
 ---
 
@@ -20,94 +27,98 @@
 
 | 项 | 选择 | 说明 |
 |----|------|------|
-| 语言 | Python 3.12+ | asyncio 全程 |
-| 包管理 | uv | `pyproject.toml`，锁定依赖 |
-| 校验 | pydantic v2 | spec、event、config 全部强类型 |
-| 测试 | pytest + pytest-asyncio | 单测/集成/崩溃注入三层 |
-| 静态检查 | ruff（lint+format）+ mypy（core 目录 strict） | 提交前本地跑 |
-| LLM SDK | `google-genai`（S1）、`anthropic`（S4）、`mcp`（S5） | 官方 SDK |
-| 入口 | `agentrunner` console script | `uv run agentrunner …` |
+| 语言 | **Go 1.23+** | goroutine/channel 与 actor/mailbox 天然同构；单静态 binary 跨平台分发；编译期检查利于 AI 迭代 |
+| SDK | `google.golang.org/genai`（S1）、`anthropic-sdk-go`（S4）、`modelcontextprotocol/go-sdk`（S5） | 三个关键依赖均有官方 Go SDK |
+| 配置/序列化 | `gopkg.in/yaml.v3` + 手写校验；event 用 `encoding/json` | 坏 spec 的精确报错由 1.1 黄金测试逼出 |
+| 测试 | `go test` + `go-cmp`；三层：unit / integration / crash | |
+| 静态检查 | `golangci-lint`（含 forbidigo：kernel/state/pipeline 内禁用 `time.Now`/`time.Sleep`，强制走 Clock） | |
+| 日志 | `log/slog`，`AGENTRUNNER_DEBUG=1` 提升级别；日志文件在 data dir，与 journal 分离，过 redaction | |
+| 平台 | **Linux/macOS only**；Windows 原型阶段显式不支持（进程组/flock 全 POSIX） | |
+| 内置数据 | tool 定义等数据文件用 `go:embed` 打进 binary | |
 
-仓库最终布局（逐阶段长出来，此处为全貌）：
+仓库布局（Go 惯例，逐阶段长出来）：
 
 ```
-agentrunner/
-  kernel/        # S2: actor, mailbox, bus, envelope
-  events.py      # event/command 类型注册（逐阶段增长，单一出处）
-  store/         # S2: EventStore(JSONL); S5: ArtifactStore(CAS); S7: SnapshotStore
-  state/         # S2: fold/apply、state snapshot、resume
-  pipeline/      # S3: 四关卡、EffectResolved、permission、budget、hooks
-  agent/         # spec、loop、context assembly、multi-agent
-  providers/     # base + gemini(S1) + anthropic(S4)
-  workspace/     # workspace 抽象、路径边界（S1 起）
-  tools/         # 内置 tool 定义（数据）+ 实现
-  runtime/       # 装配、session；S6: daemon、notifier、scheduler、driver
+cmd/agentrunner/          # main
+internal/
+  kernel/    # S2: actor, mailbox, bus, envelope
+  event/     # event/command 类型注册（单一出处）
+  store/     # S2: EventStore(JSONL); S5: ArtifactStore(CAS)
+  state/     # S2: fold/apply(分命名空间 sub-state)、snapshot、resume
+  clock/     # S2: Clock 接口 + FakeClock
+  errs/      # S2: 错误分类学
+  pipeline/  # S3: 四关卡
+  agent/     # spec、loop、context assembly、multi-agent
+  provider/  # base + gemini(S1) + anthropic(S4) + scripted(测试)
+  workspace/ # 路径边界（S1 起）
+  tool/      # 内置 tool 定义（数据）+ 实现
+  runtime/   # 装配、session、epilogue；S6: daemon、notifier、scheduler、driver
   cli/
-tests/
-  unit/  integration/  crash/   # crash/ 为崩溃注入 harness（S2 起）
-  fixtures/                     # 录制的 provider 应答、样例 repo
-specs/                          # 示例 agent spec
+testdata/fixtures/        # 录制的 provider 应答、样例 repo（版本入库）
+specs/                    # 示例 agent spec
+scripts/check.sh          # golangci-lint + go test 全绿 = 一步完成
 ```
 
-跨阶段测试基座（S1 就建）：
-- **ScriptedProvider**：从 fixture 回放 provider 应答的假 provider——
-  即设计中"activity 结果缓存式 replay 测试"的最小形态。所有集成测试
-  默认用它；真 Gemini 测试放 `@pytest.mark.live`，本地凭 env 变量跑。
-- **样例 repo fixture**：一个小 Python 工程（含可跑的失败测试），
-  作为 agent 的操作对象。
+跨阶段测试基座：
+- **ScriptedProvider**（1.3a 建）：按 session 内**序列**匹配回放，
+  每条 fixture 可附对请求关键字段的断言（tool 名集合、末条消息含 X），
+  漂移即响亮失败；fixture 由录制工具生成（见 1.3a），刻意的 prompt
+  变更 ⇒ 重录，小单测可手写 YAML fixture。
+- **样例 repo fixture**：小 Go 工程（含可跑的失败测试），版本入库于
+  `testdata/`，**每个测试复制到 tmp workspace 再操作**，绝不弄脏库内副本。
 
 ---
 
 ## Stage 1 — 会干活的 agent（walking skeleton）
 
-目标回顾：spec → LLM → tool → 结果端到端；几百行、全部可读懂。
-**S1 刻意不做**：actor、event 作为 source of truth、管线、审批、并行
-tool call、streaming 渲染（turn 粒度输出即可）。
-
 | # | 步骤 | 交付物 | 验证 |
 |---|------|--------|------|
-| 1.0 | 工程基座 | pyproject/uv/ruff/mypy/pytest 就绪，`agentrunner --version` | CI 式本地脚本 `scripts/check.sh` 全绿 |
-| 1.1 | 最小 spec | `agent/spec.py`：`AgentSpec{name, model{provider,id,max_tokens}, system_prompt|_file, tools[]}` + loader | 坏 spec 黄金错误测试（缺字段/未知 tool/文件不存在） |
-| 1.2 | provider 类型 | `providers/base.py`：归一化 `Message/Part(text|tool_call|tool_result)/ToolDef/CompleteRequest/TurnResult`；**tool_call 自带 harness call_id**（Gemini 配对从第一天按 id 设计） | 类型单测 |
-| 1.3 | Gemini provider | `providers/gemini.py`：env 读 key、请求映射、流式收集为整 turn、functionCall↔call_id 映射、usage 提取 | ScriptedProvider 同接口；live 冒烟测试 |
-| 1.4 | workspace 抽象 | `workspace/`：root、`resolve(path)`（realpath + `..` 归一 + 边界检查，越界即拒） | 单测：symlink/`..` 逃逸全拒（钩子 1 从这里生效） |
-| 1.5 | tool 定义即数据 | `tools/defs.py`：`ToolDef{name, desc, json_schema, klass: read|edit|execute}`（内置定义以数据声明） | schema 能渲染进 provider 请求 |
-| 1.6 | 三个 tool 实现 | read_file（截断上限）、edit_file（old/new 精确替换）、bash（subprocess、`start_new_session=True`、超时 kill 进程组、输出截断） | 各自单测；bash 超时杀干净子进程 |
-| 1.7 | journal v0 | `store/journal.py`：append-only JSONL，记录 run 元信息、每 turn 的请求摘要/assistant 消息/tool 调用与结果 | 文件逐行可解析；**只记录，不读回** |
-| 1.8 | agent loop | `agent/loop.py`：turn 循环——LLM → N 个 tool_call 顺序执行 → 按原顺序回填 tool_result → 继续；max_turns 上限 | ScriptedProvider 集成测试：多 turn 修文件场景 |
-| 1.9 | CLI | `cli/`：`agentrunner run <spec> "task"`，turn 粒度打印 | 手动验收 |
-| 1.10 | E2E | 样例 repo：让 agent 修一个失败测试 | scripted 版入 CI 层；live 版手动跑通 |
+| 1.0 | 工程基座 | go module、golangci-lint（含 forbidigo 规则）、`scripts/check.sh`、slog 日志约定、`agentrunner --version` | check.sh 全绿 |
+| 1.1 | 最小 spec | `AgentSpec{name, model{provider,id,max_tokens}, system_prompt|_file, tools[]}` + loader + 校验 | 坏 spec 黄金错误测试（缺字段/未知 tool/文件不存在，报错含路径与字段名） |
+| 1.2 | provider 接口（按最终形态设计） | `Complete(ctx, req) → 流（iter.Seq[StreamEvent]）` + `CollectTurn()` 帮手（S1 loop 用）；归一化 `Message/Part`，**`Part` 自带 harness call_id 与 opaque `Extras/Signature` 字段**（S4 的 thoughtSignature 落位处）；`Capabilities()` 先返回空 | 类型单测；接口在 S2/S4 不再变更是本步的验收承诺 |
+| 1.3 | Gemini provider | env 读 key、请求映射、流式实现、functionCall↔call_id 映射、usage 提取 | live 冒烟测试（`-tags live`） |
+| 1.3a | ScriptedProvider + 录制工具 | 同接口回放实现（序列匹配 + 字段断言）；`agentrunner record-fixture` 包装 live run 生成 fixture（过凭据 redaction） | 录一个 fixture 并回放通过 |
+| 1.4 | workspace 抽象 | root、`Resolve(path)`（realpath + `..` 归一 + 边界检查，越界拒） | symlink/`..` 逃逸全拒（钩子 1 生效） |
+| 1.5 | tool 定义即数据 | `ToolDef{name, desc, json_schema, class}`，内置定义 `go:embed` | schema 渲染进 provider 请求 |
+| 1.6 | 三个 tool 实现 | read_file（截断）、edit_file（old/new 精确替换）、bash（`Setpgid`、**临时墙钟超时**、组 kill、输出截断） | 各自单测；超时杀干净子进程 |
+| 1.7 | journal v0 | append-only JSONL：run 元信息、每 turn 摘要/assistant 消息/tool 调用与结果；**只记录不读回** | 逐行可解析 |
+| 1.7a | 数据目录与命名 | `$XDG_DATA_HOME/agentrunner/sessions/<id>/`；session id = `YYYYMMDD-HHMMSS-<slug>`；user 配置 `$XDG_CONFIG_HOME/agentrunner/settings.yaml`、project 配置 `.agentrunner/settings.yaml`、trust 注册表在 user data dir | 单测：路径解析与创建（0700 目录） |
+| 1.8 | agent loop | turn 循环：LLM（CollectTurn）→ N 个 call 顺序执行 → 按 call_id 回填 → 继续；max_turns | ScriptedProvider 集成测试：多 turn 修文件 |
+| 1.9 | CLI | `agentrunner run <spec> "task"`，turn 粒度打印 | 手动验收 |
+| 1.10 | E2E | 样例 repo：agent 修一个失败测试 | scripted 版入 CI 层；live 版手动跑通 |
 
-**S1 完成标志**（= STAGES.md）：真实仓库端到端 + journal 可读。
-**预期返工声明**：S2 会把 loop 的内部重写到 activity 之上——1.2–1.6 的
-接口（provider/tool/workspace）保持不变，loop 的编排代码允许重写。
-这是计划内的，不是事故。
+**S1 完成标志**：真实仓库端到端 + journal 可读。
 
 ---
 
 ## Stage 2 — 一切皆事实（event-sourced 内核）
 
-进入条件：S1 review 通过。核心动作：**journal 从记录升级为 source of
-truth，loop 重写到 activity 之上**。
+核心动作：journal 升级为 source of truth，loop 重写到 activity 之上
+（重写主体在 **2.10**，2.13 起依赖它）。
 
 | # | 步骤 | 交付物 | 验证 |
 |---|------|--------|------|
-| 2.1 | event/command 类型 | `events.py`：Envelope、Command/Event 基类、`RunStarted{versions}`、`InputReceived`、`AssistantMessage`、`ActivityStarted/Completed/Failed/Cancelled`、`WaitingStateEntered/Exited`、`ActorCrashed`… 全部 pydantic | 序列化 round-trip 单测 |
-| 2.2 | EventStore | `store/event_store.py`：接口 + JSONL backend；per-stream、seq 单调、append 原子（写临时行+fsync）、读迭代 | 单测：并发 append、崩溃截断行的容错（尾部半行丢弃并告警） |
-| 2.3 | kernel | `kernel/`：Actor(task+Queue)、bus（send/publish）、Envelope 投递、command 按 `Envelope.id` 幂等去重（已处理 id 入自身 stream）、未捕获异常 → `ActorCrashed` | 单测：重复 command 只处理一次；崩溃不重启 |
-| 2.4 | fold/state | `state/fold.py`：`state = fold(apply, events)`，apply 纯函数；agent 对话 state 的 fold 实现 | 性质测试：任意事件序列 fold 两遍结果相同；fold(全量) == fold(snapshot+尾部) |
-| 2.5 | journal-inputs-first | 用户输入/审批应答/timer 到期一律先 append `InputReceived` 类 event 再消费 | 集成测试：输入在崩溃后仍在 |
-| 2.6 | activity 执行器 | `state/activity.py`：Started 先落盘 → 执行 → 终态落盘；通用 retry/backoff；`idempotent` 标志；**凭据 redaction**（落盘前替换已知 env 值）；LLM 调用与 tool 执行全部改走它 | 单测：redaction；retry 次数；幂等标志行为 |
-| 2.7 | 进程组取消 | bash activity：cancel signal → 组 SIGTERM→宽限→SIGKILL → 确认组退出 → 才落 `ActivityCancelled{partial_output}`（有界 drain） | 测试：孤儿进程不存活（`ps` 断言）；钩子 3 落位 |
-| 2.8 | durable timer | timer = `TimerSet` event + runtime 侧调度，到期 append `TimerFired` 再消费；timeout 用它实现 | 崩溃后 timer 仍到期 |
-| 2.9 | snapshot-resume | turn 边界序列化 fold state（JSON）；`resume(session)` = 最新 snapshot + fold 尾部 + 继续 loop；版本不匹配拒绝并报错 | fold 全量 == snapshot+尾部 等价测试 |
-| 2.10 | 等待状态注册表 | `WAITING_INPUT/WAITING_APPROVAL` 变体 + 可中断性表（表驱动）；interrupt journal 后带出等待 | 单测覆盖表中每格 |
-| 2.11 | in-doubt | resume 时 Started-无终态 → 标记 in-doubt 上浮（除 `idempotent: true` 自动重跑） | 崩溃注入：执行中 kill，resume 上浮不重跑 |
-| 2.12 | 崩溃注入 harness | `tests/crash/`：子进程跑 runner，按注入点（env 变量指定"append 第 N 条 event 后 abort"）kill，再 resume 断言 | S2 完成标志的载体 |
-| 2.13 | loop 重写收口 | S1 loop 的编排全部改为 activity + fold state；CLI 加 `agentrunner resume <session>`、`sessions list` | S1 的 E2E 场景在新内核上重跑通过 |
+| 2.1 | event/command 类型 | Envelope 字段全数落定：`id/causation_id/correlation_id/sender/target/type/payload/ts` + **传播规则**（child.causation = parent.id，correlation 继承）；`RunStarted{versions}`、`InputReceived`、`AssistantMessage`、`Activity*`、`WaitingState*`、`ActorCrashed`… | 序列化 round-trip |
+| 2.2 | EventStore | 接口 + JSONL backend：per-stream seq 单调、原子 append + fsync、**文件 0600/目录 0700**、尾部半行容错、**per-session flock**（写者持锁，`run`/`resume` 撞锁即报 "held by pid N"，含 stale 检测；读者免锁） | 并发 append、截断容错、锁冲突、权限位各一测 |
+| 2.3 | kernel | Actor(goroutine+channel)、bus（send/publish）、command 按 `Envelope.id` 幂等去重、`ActorCrashed`（无自动重启） | 重复 command 只处理一次；**causation/correlation 链路断言** |
+| 2.4 | fold/state | `state = fold(apply, events)`，apply 纯函数；**fold state 分命名空间 sub-state**（conversation / waiting / in-flight activities / …，各带 schema 版本，版本汇入 snapshot 头）；**in-flight activity 集合作为 sub-state 即钩子 3 落位**；后续阶段新增 sub-state 在本表声明：S3 加 reservations+mode、S4 加 compaction 视图、S6 加 tasks | 性质测试：fold 幂等；fold(全量)==fold(snapshot+尾部) |
+| 2.5 | 调试工具 | `agentrunner events <session>` 美化打印 + `--state` fold 转储；测试帮手 `AssertFoldEqual`（结构化 diff） | 自测；后续所有 fold 断言经它 |
+| 2.6 | 崩溃注入 harness 骨架 | 子进程跑 runner；**命名谓词注入**：`CRASH_AFTER=ActivityStarted:2`（第 2 条该类型 event 后 abort）+ 代码级命名注入点注册表（`after_exec_before_journal`、`between_gate_and_resolved`…，删点即测试响亮失败） | harness 自测（注入点触发与断言） |
+| 2.7 | journal-inputs-first | 一切外部输入先 append 再消费 | 崩溃注入：输入落盘后 kill，resume 输入仍在 |
+| 2.8 | 错误分类学 | `internal/errs`：typed 层级 + `Retryable` 标志；provider 错误映射（HTTP 状态/Gemini 码 → 分类）入 provider/base | 表驱动单测；3.9 只消费分类 |
+| 2.9 | Clock 抽象 | `Clock{Now, WaitUntil}` 接口经 runtime 注入；`FakeClock.Advance()`；forbidigo 已在 1.0 拦直接调用 | FakeClock 快进单测 |
+| 2.10 | activity 执行器 + loop 重写主体 | Started 先落盘 → 执行 → 终态落盘；通用 retry/backoff（**retry 可发 discard 标记**——S4 `TurnDiscarded` 的接缝）；**可选 ephemeral 进度通道**（S2 不用，S4 delta/S6 task tail 复用）；`idempotent` 标志；凭据 redaction；**tool 结果按 call_id map 存**；LLM/tool 全部改走执行器，loop 编排改为 fold state 驱动 | redaction/retry/幂等各一测；S1 集成测试在新 loop 上重跑 |
+| 2.11 | durable timer | `TimerSet`/`TimerFired` event + runtime 调度（走 Clock）；activity timeout、1.6 的 bash 墙钟超时迁移至此 | FakeClock 快进 + 崩溃后 timer 仍到期 |
+| 2.12 | 进程组取消 | cancel signal → 组 SIGTERM→宽限（timer）→SIGKILL → 确认组退出才落 `ActivityCancelled{partial_output}`（有界 drain） | 孤儿断言：**按 session 标记的 pgid/env marker** 查，不 grep 全局 ps |
+| 2.13 | snapshot-resume | turn 边界序列化 fold state（JSON，snapshot 头含各 sub-state 版本）；resume = snapshot + fold 尾部 + 继续 loop；版本不匹配拒绝 | 等价测试；崩溃 harness 扩展 resume 断言 |
+| 2.14 | 等待状态注册表 | **四个变体一次画全**：`WAITING_INPUT/APPROVAL/TASKS/TIMER` + 完整可中断性表（TASKS/TIMER 行已定义、标注"S6 前不可产生"）；interrupt journal 后带出等待 | 表驱动测试覆盖每格（暂不可产生的用合成 event） |
+| 2.15 | in-doubt | resume 见 Started-无终态 → 上浮（`idempotent: true` 除外） | 崩溃注入 `after_exec_before_journal`：不重跑、上浮 |
+| 2.16 | run 收尾 epilogue 骨架 | 固定序列落位：quiesce(no-op) → auto-publish(no-op) → **[barrier no-op]** → 终态 event；**此后任何加 run 结束步骤的 feature 必须挂进此序列**（钩子 2 验收点从此在这里） | 终态路径单测 |
+| 2.17 | CLI 收口 + 出口矩阵 | `resume <session>`、`sessions list`；S1 E2E 场景在新内核重跑；**全崩溃注入矩阵 = S2 出口门** | 矩阵全绿 |
 
-**S2 完成标志**：崩溃注入矩阵全绿——每个注入点 kill -9 后 resume，
-对话状态分毫不差、in-doubt 正确上浮、等待跨进程存活。
+**S2 完成标志**：崩溃矩阵全绿——任意命名注入点 kill 后 resume 分毫
+不差、in-doubt 上浮、等待状态跨进程存活（**用合成 event 验证；
+"审批全流程挂起存活"是 3.5 的验证项**——STAGES.md 已同步勘误）。
 
 ---
 
@@ -115,113 +126,131 @@ truth，loop 重写到 activity 之上**。
 
 | # | 步骤 | 交付物 | 验证 |
 |---|------|--------|------|
-| 3.1 | 管线框架 | `pipeline/`：effect 描述对象、四关卡接口、`EffectResolved`（判定终结后、执行前落盘；拦下也落盘）；post-hook 结果挂 `ActivityCompleted` | 单测：每条路径的落盘时点 |
-| 3.2 | in-doubt 扩展 | 进关卡无 `EffectResolved` → in-doubt（复用 2.11 机制） | 崩溃注入点扩展到关卡间 |
-| 3.3 | permission rules | 规则引擎：tool/path（基于 workspace.resolve）/bash command 模式；allow/ask/deny；规则序 user > project > spec | 表驱动单测；`src/../../etc` 拒绝案例 |
-| 3.4 | 配置分层 + 信任 | spec + user + project 三源合并（标量覆盖、rules 拼接）；**project 层 hooks 默认忽略**，`agentrunner trust <dir>` 显式信任 | 不受信 repo 的 hook 不执行（测试） |
-| 3.5 | 审批流 | ask → `ApprovalRequested`（预留 `payload_ref` 字段）→ `WAITING_APPROVAL` → 应答 journal → 继续/拒绝渲染 | 崩溃注入：挂起中 kill，resume 后批准继续 |
-| 3.6 | modes | mode = 数据（工具面过滤 + prompt 注入 + 跃迁规则）；`default/plan/acceptEdits/bypass`；`ExitPlanMode` 工具 + 跃迁 event；bypass 不跳 hooks | plan 全流程集成测试 |
-| 3.7 | budget | reserve-then-settle（预留集入 fold state）；LLM 按 max_tokens 预留、tool 按类别估值；资源超限 → 收尾消息 + `LimitExceeded`；结构限制 → error 结果 | 并发 TOCTOU 测试：N 并发不超支 |
-| 3.8 | hooks v0 | pre/post 执行器（observe + block by exit code）；结果入 `EffectResolved`/`ActivityCompleted` | 恢复路径不重跑 hook（崩溃注入） |
-| 3.9 | 错误渲染表 | deny/hook block/审批拒/activity 失败/超预算 → 模型可见渲染的统一函数 | 每行一测；loop 继续性断言 |
-| 3.10 | CLI 审批 UI | 挂起时终端交互批准/拒绝（附理由） | 手动验收 + scripted 测试 |
+| 3.1 | 管线框架 | effect 描述、四关卡接口、`EffectResolved`（判定终结后——放行或拦下都落盘——执行前；ask 路径在应答后）；post-hook 结果挂 `ActivityCompleted` | 每条路径落盘时点单测 |
+| 3.2 | in-doubt 扩展 | 进关卡无 `EffectResolved` → in-doubt | 注入点 `between_gate_and_resolved` |
+| 3.3 | permission rules | tool/path（经 workspace.Resolve）/bash command 模式；allow/ask/deny；序 user > project > spec | 表驱动；`src/../../etc` 拒绝 |
+| 3.4 | 配置分层 + 信任 | spec + user + project 三源合并（**注：从 S5 提前，S5 只剩 skills/memory 合并**）；project 层 hooks 默认忽略，`agentrunner trust <dir>` 显式信任（注册表在 1.7a 的位置） | 不受信 repo 的 hook 不执行 |
+| 3.5 | 审批流 | ask → `ApprovalRequested`（**预留 `payload_ref`**）→ `WAITING_APPROVAL` → 应答 journal → 继续/拒绝渲染；**denied-by-interrupt**：等待中 interrupt → 审批按拒绝解决、call 渲染 `[interrupted by user]`、loop 继续 | 崩溃注入：挂起中 kill → resume → 批准继续（S2 出口欠的验证在此补齐）；FakeClock 挂两天；interrupt 路径测试 |
+| 3.6a | mode 数据模型 | mode = 工具面过滤（按 ToolDef.class）+ 数据描述；`default/plan/acceptEdits/bypass` | 过滤表驱动测试 |
+| 3.6b | mode prompt 注入 | S3 注入点：system prompt 尾部追加段（**S4.4a 会把它收编进 assembly 拼装序**，声明为计划内迁移） | 注入内容断言 |
+| 3.6c | 跃迁 | `ExitPlanMode` tool + 审批通过 → `ModeChanged` event + 跃迁规则表 | plan→default 集成测试 |
+| 3.6d | 优先级 | bypass 不跳 hooks 的精确语义 | 组合测试 |
+| 3.7a | 预算 sub-state | reservation 集合入 fold state（2.4 声明的 S3 sub-state） | fold 等价测试更新 |
+| 3.7b | 预留与结算 | LLM 按 max_tokens 预留、tool 按类别估值；`ActivityCompleted` 实结 | 单测 |
+| 3.7c | 优雅收尾 | 资源超限 → 收尾消息 + `LimitExceeded`，**挂进 2.16 epilogue 序列**；结构限制 → error 结果 | 终态路径测试 |
+| 3.7d | TOCTOU（合成） | **gate 级合成并发测试**（真实并行 S4.3 才存在，届时复验——见 S4.3） | N 合成并发不超支 |
+| 3.8 | hooks v0 | pre/post 执行器（observe + block by exit code） | 恢复路径不重跑 hook（崩溃注入） |
+| 3.9 | 错误渲染表 | error 分类（2.8）→ 模型可见渲染的统一函数（**归一化形态；per-provider 线上形态的映射在 S4.7**） | 每行一测；loop 继续性断言 |
+| 3.10 | CLI 审批 UI | 终端交互批准/拒绝（附理由） | 手动 + scripted |
 
-**S3 完成标志**：plan mode 全流程；审批挂两天（模拟时钟）后批准原地
-继续；TOCTOU 不超支；不受信 hooks 不执行。
+**S3 完成标志**：plan mode 全流程；审批挂两天（FakeClock）后批准原地
+继续；合成 TOCTOU 不超支；不受信 hooks 不执行。
 
 ---
 
 ## Stage 4 — 交互与上下文（模块序列）
 
-1. **交互协议 v1**：输出事件流类型定稿（turn 边界、delta、
-   `TurnDiscarded`、审批请求）；CLI 改为流式渲染；delta 只走 bus。
-2. **steering/interrupt**：输入 journal 后 turn 边界消费；Esc →
-   活动 activity 协作取消 → `[interrupted by user]` 渲染。
-3. **并行 tool call**：loop 内并发执行 allow 的 call（ask 不阻塞其余）；
-   完成按到达落盘；assembly 按原 call 顺序重排回填。
-4. **context assembly 组件化**：fold → 请求的独立模块；拼装顺序落地
-   （env 块 session start 冻结）；tool 输出截断；prefix 稳定 +
-   cache 断点；**opaque signature 透传**（event 里持久化）。
-5. **compaction**：`ContextCompacted` recorded activity，改变 fold 视图；
-   阈值触发；跨边界 resume 测试。
-6. **finish reason 策略**：归一化枚举 + malformed_tool_call 重试
-   （`TurnDiscarded` 路径）、safety/blocked 上浮；空 candidate 注入测试。
-7. **Anthropic provider**：第二实现 + `capabilities()` 协商；同一
-   scripted 测试矩阵跑两个 provider，验证抽象不漏。
-8. **session UX**：`sessions list/show`，resume 的流式续接。
+1. **协议 v1 + streaming**：输出事件流类型定稿；CLI 流式渲染；delta 走
+   2.10 的 ephemeral 进度通道；**`TurnDiscarded` 接线**——LLM activity
+   在已流出 delta 后 retry → 发 discard 标记 → 前端重开流（scripted
+   partial-stream-retry 测试）；**用户可见错误 surface**（与模型可见
+   渲染分离）。
+2. **steering/interrupt**：输入 journal 后 turn 边界消费；Esc → 协作
+   取消;2.14 可中断性表的 interrupt 列在此端到端复验。
+3. **并行 tool call**（预期返工 #2 落地）：并发执行 allow 的 call
+   （ask 不阻塞）；到达序落盘；assembly 按 call_id 原序重排回填；
+   **3.7d 的 TOCTOU 在真实并行下复验**。
+4a. **assembly 组件 + 拼装序**：fold → 请求的独立模块；固定拼装顺序；
+   env 块 session start 冻结；3.6b 的 mode 注入收编至此。
+4b. **tool 输出截断**（per-tool 上限 + 告知模型被截断）。
+4c. **prefix 稳定 + caching**：byte-stability 回归测试；cache 断点；
+   **cache_read/write 归一化入 usage event，budget 结算按真实计费口径**。
+4d. **signature 往返**：`Part.Extras` 持久化进 event、assembly 原样
+   回传（Gemini thoughtSignature 多轮测试）。
+5. **compaction**：`ContextCompacted` recorded activity 改变 fold 视图
+   （2.4 sub-state）；**fold 等价性质测试跨 compaction 边界**。
+6. **finish reason 策略**：归一化枚举；malformed_tool_call → retry
+   （复用 discard 路径）；safety/blocked 上浮；空 candidate 注试。
+7. **Anthropic provider + capabilities 矩阵**：第二实现；**`thinking`
+   进 spec model 块并按 provider 映射/显式降级**；**per-provider error
+   线上形态**（Anthropic `is_error` / Gemini functionResponse error
+   载荷）；同一 scripted 矩阵跑双 provider。
+8. **session UX + inspect v0**：`sessions list/show`、resume 流式续接；
+   `agentrunner inspect <session>`：turns、每个 call 的 `EffectResolved`
+   判定、token/cost/cache 列（2.5 的 events 命令进化版）。
 
-**S4 完成标志**：单 agent 体验接近 Claude Code；`inspect` 可见缓存
-命中；Esc 500ms 内杀掉任意 tool call；双 provider 测试矩阵全绿。
+**S4 完成标志**：单 agent 体验接近 Claude Code；**inspect v0** 可见
+缓存命中；Esc 500ms 内杀掉任意 tool call；双 provider 矩阵全绿。
 
 ---
 
 ## Stage 5 — 生态与多 agent（模块序列）
 
-1. **MCP client**：官方 SDK、生命周期带外、发现 schema 入 event、
-   `mcp__<server>__<tool>` 命名、无标签按 execute-class。
-2. **skills + memory 文件**：目录发现、frontmatter 解析、按需加载；
-   CLAUDE.md 层级合并入 assembly。
-3. **spawn/await**：子 agent 作为 activity；权限 rules spawn 时冻结
-   交集；树预算 min 聚合 + 深度/扇出上限；审批沿 correlation 冒泡。
-4. **handoff + pub/sub**：移交语义；blackboard topic 模式。
-5. **ArtifactStore**：CAS（sha256、原子写）、`publish_artifact` tool、
-   per-stream 版本、目录 manifest。
-6. **outputs contract + epilogue**：run 收尾序列成形（quiesce 占位 →
-   auto-publish → **[barrier no-op]** → 终态）；缺 required →
-   parent error 结果。
-7. **审批载荷**：`payload_ref` 启用（3.5 已预留字段）；plan 审批
-   全流程（发布→审→拒→v2→批）。
+1. **MCP client**：官方 Go SDK、生命周期带外、schema 入 event、
+   `mcp__<server>__<tool>` 命名、无标签按 execute-class、
+   **spec `allowed_tools` 收窄（含否定测试）**。
+2. **skills + memory 文件**：目录发现、frontmatter、按需加载；CLAUDE.md
+   层级合并入 assembly；**skill 目录注入 assembly 层（prefix 稳定）**。
+3. **spawn/await**：子 agent 作为 activity；**子 agent 目录注入 system
+   prompt**（不注入模型不知道能 spawn 谁）；权限 rules spawn 冻结交集；
+   树预算 min 聚合 + 深度/扇出上限；审批沿 correlation 冒泡。
+4. **handoff + pub/sub**：移交语义；blackboard topic。
+5. **ArtifactStore**：CAS、`publish_artifact`、per-stream 版本、manifest。
+6. **outputs contract**：2.16 epilogue 的 auto-publish 槽位**填实**；
+   缺 required → parent error 结果。
+7. **审批载荷**：3.5 预留的 `payload_ref` 启用；plan 审批全流程
+   （发布→审→拒→v2→批）。
 8. **artifact 输入**：spawn/CLI 传 ref、materialize activity。
+9. **inspect 扩展**：子 agent 树（correlation/causation 渲染）。
 
-**S5 完成标志**：researcher 编队（parent+2 子）产出带 contract 检查的
-报告；plan 审批全流程；越权/预算击穿的否定测试全绿。
+**S5 完成标志**：researcher 编队产出带 contract 检查的报告；plan 审批
+全流程；越权/预算击穿否定测试全绿。
 
 ---
 
 ## Stage 6 — 服务化与运行模式（模块序列）
 
 1. **daemon**：本地 socket server 托管 runtime；CLI attach/detach
-   （journal 补读 + 订阅）；`runtime.daemon: never` 降级路径。
-2. **notifier**：生命周期 topic 订阅、`NotificationSent` 去重 stream、
-   启动对账；通道 = user 层配置的命令/webhook（文档化 carve-out）。
+   （journal 补读 + 订阅）；`runtime.daemon: never` 降级。
+2. **notifier**：生命周期 topic、`NotificationSent` 去重 stream、
+   启动对账；通道 = user 层配置（文档化 carve-out）。
 3. **background effects**：`background: true`、handle = ActivityStarted
-   渲染、完成 = user-role 输入、`WAITING_TASKS`、`task_output/kill`、
-   `on_run_end`；epilogue 的 quiesce 占位落实。
-4. **scheduler**：cron/interval → 幂等 `RunAgent`；webhook 入口。
-5. **IterationDriver**：driver actor + 统一事件族；goal（verifiers:
-   command/llm_judge/human + 停滞检测）；loop（self_paced 的
-   `schedule_next`/`finish_series`、overlap）；best-of-N
-   （`parallel{n}` + 选择 verifier）；carry 走 ArtifactStore、
-   series memory 注入时截断。
-6. **HTTP/WS 壳**：同一交互协议的远程暴露；headless 模式收口。
+   渲染、完成 = user-role 输入、`WAITING_TASKS` 行激活（2.14 表已定义）、
+   `task_output/kill`、`on_run_end`；epilogue quiesce 槽位填实；
+   task tail 复用 2.10 进度通道。
+4. **scheduler**：cron/interval（走 Clock）→ 幂等 `RunAgent`；webhook。
+5. **IterationDriver**：driver actor + 统一事件族；goal（三种 verifier +
+   停滞检测）；loop（`schedule_next`/`finish_series`、overlap）；
+   carry 走 ArtifactStore、series memory 注入时截断。
+6. **HTTP/WS 壳**：同一协议远程暴露；headless 收口。
+
+**阶段内可延后项（cut line）**：best-of-N（`parallel{n}`）与 HTTP/WS
+壳可移出 S6 收口、随后补——不影响完成标志。
 
 **S6 完成标志**：series 无人 attach 跑过夜出通知；goal 三轮迭代到
 verifier 通过；CLI 重开 attach 回同一 run。
 
 ---
 
-## Stage 7 — 世界状态生命周期（里程碑级，进入前做 kickoff refinement）
+## Stage 7 — 世界状态生命周期（里程碑级）
 
-按 `STAGES.md`：SnapshotStore(shadow repo) → CheckpointBarrier
-（弱化语义，届时设计）→ fork/rewind（双轴）→ 云 workspace 生命周期 →
-OS 沙箱 backend（可提前）→ IndexStore →（可选）IDE 方向条目。
-本计划不预写步骤——进入前基于 S1–S6 dogfood 数据细化并单独 review。
+按 `STAGES.md`。进入前 kickoff refinement + 单独 review，此处不预写。
 
 ---
 
 ## 横切纪律
 
-- **每步的定义**：一步 = 一个可合并的提交单元（代码 + 测试 + 必要的
-  文档行），`scripts/check.sh`（ruff+mypy+pytest）全绿才算完。
-- **stage 收口**：完成标志全绿 → 对抗式 review（实现 vs DESIGN.md
-  一致性、代码质量、测试盲区三视角）→ 修复 → 下一 stage 的 kickoff
-  refinement。
-- **四个钩子的验收点**：1.4（workspace 强制）、2.7（静默记账）、
-  5.6（epilogue 槽位）、2.1–2.5（event 纪律）；每次 stage review
-  显式检查未被绕过。
-- **规模预期**（粗估，用于校准而非承诺）：S1 ≈ 0.8–1.2k 行 + 测试；
-  S2 ≈ 1.5–2k；S3 ≈ 1.5k；S4 ≈ 2k；S5 ≈ 2.5k；S6 ≈ 2.5k。
-  单个 stage 若明显超出预估 50%，视为计划信号，回头审视切分。
-- **不变量变更流程**：实现中发现设计不变量站不住 → 停下该步，写清
-  冲突（现象、涉及不变量、备选方案）→ 单独讨论/review 后改
-  DESIGN.md → 再继续。禁止"代码里先绕过去"。
+- **一步 = 一个可合并提交单元**（代码+测试+文档行），`scripts/check.sh`
+  全绿才算完。
+- **stage 收口**：完成标志全绿 → 三视角对抗 review → 修复 → 下一段
+  kickoff refinement。
+- **四个钩子验收点**：钩子 1 = 1.4（workspace 强制）；钩子 2 = **2.16**
+  （epilogue 骨架，5.6/6.3 填实）；钩子 3 = **2.4 + 2.12**（in-flight
+  集合入 fold + 进程组终态）；钩子 4 = 2.1–2.7（event 纪律）。每次
+  stage review 显式检查未被绕过。
+- **规模预期**（Go 口径，校准信号而非承诺）：S1 ≈ 1.5–2k 行 + 测试；
+  S2 ≈ 2.5–3k；S3 ≈ 2.5–3k；S4 ≈ 3.5–4k；S5 ≈ 3.5–4k；S6 ≈ 4.5–5k
+  （含 cut line 项）。单 stage 超预估 50% = 计划信号，回头审视切分。
+- **不变量变更流程**：实现中发现设计不变量站不住 → 停下该步 → 写清
+  冲突（现象、涉及不变量、备选）→ 单独 review 后改 DESIGN.md →
+  再继续。禁止代码里先绕。

@@ -51,18 +51,18 @@ S7 被有意延迟。为了让它届时是**加装**而非**返工**，前六段
 就开始塑造接口形状。
 
 **范围**
-- 最小 spec loader：YAML → pydantic（name / model / system_prompt /
-  tools 四个字段就够）。
+- 最小 spec loader：YAML → 强类型 struct + 校验（name / model /
+  system_prompt / tools 四个字段就够）。
 - 薄 provider 接口 + Gemini 实现（`complete(request) → stream`，
   凭 `GEMINI_API_KEY` 从环境读；接口从第一天按多实现设计，但只做一个）。
-- 朴素 asyncio agent loop：LLM turn → tool 执行 → 循环，turn 粒度输出。
+- 朴素 agent loop：LLM turn → tool 执行 → 循环，turn 粒度输出。
 - 三个内置 tool：`read_file` / `edit_file` / `bash`（tool 定义即数据；
   已经走一个最小 workspace 抽象——钩子 1 从这里开始）。
 - append-only JSONL journal：**只记录，不作为 source of truth**
   （为 S2 铺路，先积累"哪些东西值得成为 event"的直觉）。
 - 最小 CLI：`agentrunner run <spec> "task"`。
 
-**教学重点**：agent loop 的完整解剖。一个人读完全部代码（几百行量级），
+**教学重点**：agent loop 的完整解剖。一个人读完全部代码（一两千行量级），
 能自己写出 mini coding agent。这一段没有任何"框架"，只有问题本身。
 
 **完成标志**：agent 能在真实仓库里完成"读代码 → 改文件 → 跑测试"的
@@ -75,7 +75,7 @@ S7 被有意延迟。为了让它届时是**加装**而非**返工**，前六段
 **目标**：把 S1 的裸 loop 放到 durable 内核上：进程死掉，run 不死。
 
 **范围**
-- L0 正式化：actor / mailbox（asyncio.Queue）/ bus（send + publish）/
+- L0 正式化：actor / mailbox（channel）/ bus（send + publish）/
   Envelope（id、causation、correlation）；command 按 `Envelope.id`
   幂等去重；actor 崩溃 → `ActorCrashed` event，无自动重启
   （恢复只住在 session resume 一个地方）。
@@ -95,7 +95,8 @@ snapshot 三件套；为什么"输入先落盘"消灭了一整类竞态；为什
 只能住在一个地方。
 
 **完成标志**：崩溃注入测试全绿——任意时刻 `kill -9`，resume 后对话
-状态分毫不差、in-doubt activity 正确上浮、审批挂起跨进程存活。
+状态分毫不差、in-doubt activity 正确上浮、等待状态跨进程存活
+（用合成 event 验证；"审批全流程挂起存活"是 S3 审批流步骤的验证项）。
 
 ---
 

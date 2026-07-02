@@ -76,7 +76,7 @@ compatibility。本文档是活的设计记录，随讨论逐步生长。
 
 ## L0 — Kernel
 
-- **Actor**：一个 id、一个 mailbox（`asyncio.Queue`）、一个 behavior。
+- **Actor**：一个 id、一个 mailbox（channel）、一个 behavior。
   逐条处理消息，没有共享可变状态。并发来自"很多个 actor"。
 - **Bus**：进程内 transport。`send(to, msg)` 点对点；`publish(topic, msg)`
   pub/sub 扇出。bus 是 ephemeral 的——**任何会影响 run 结果的输入，
@@ -261,7 +261,7 @@ effect
 
 ### Agent spec
 
-agent 完全由声明式 spec（YAML → pydantic model）定义，加载时校验、
+agent 完全由声明式 spec（YAML → 强类型 struct）定义，加载时校验、
 坏 spec 报精确错误。spec 是模板，**agent instance** = spec + 运行时输入
 （task、correlation id、parent）。
 
@@ -438,7 +438,7 @@ limits:
 
 - **server 生命周期是带外运行时状态，不进 event 模型**：resume/重启后
   server 重新拉起；原型假定 MCP server 无状态（per-call stateless），
-  这是文档化的契约。实现用官方 MCP Python SDK 管理 client/session。
+  这是文档化的契约。实现用官方 MCP Go SDK 管理 client/session。
 - **发现的 tool schema 记录为 event**（它们进入 LLM 的 tool 列表，
   是影响 run 结果的外部输入）；`tools/list_changed` 同理。
 - 只有 `McpToolCalled/Returned` 是 activity。spec schema 里保留
@@ -604,7 +604,7 @@ limits:
 
 | # | 决策点 | 选择 | 理由 |
 |---|--------|------|------|
-| 1 | 语言 | Python 3.12+, asyncio | actor 映射到 task + queue；pydantic；MCP + Anthropic SDK 成熟。 |
+| 1 | 语言 | Go 1.23+ | goroutine/channel 与 actor/mailbox 天然同构；单静态 binary 跨平台分发；Gemini/Anthropic/MCP 官方 Go SDK 齐备；编译期检查利于迭代。（原选 Python 的论据是 SDK 成熟度，现已不构成差异。） |
 | 2 | 进程模型 | 单进程，in-memory bus | 原型简单；边界清晰，分布式化是换 transport。 |
 | 3 | 持久状态 | event log + workspace + 接口后的 ref-addressed blob store（SnapshotStore/ArtifactStore/任务日志共用 CAS 模块）；bus/delta ephemeral | fold 永不读 store；event 只引用 ref，blob 先于引用它的 event 落盘；"什么会丢"一目了然。 |
 | 4 | 输入语义 | 一切外部输入先 journal 成 event 再消费 | 审批/steering 不丢、可审计；bus 才允许 ephemeral。 |
@@ -616,7 +616,7 @@ limits:
 | 10 | Permission modes | mode = 工具面过滤 + prompt 注入 + 跃迁规则（数据） | plan/acceptEdits 是 loop 行为，枚举值表达不了。 |
 | 11 | Hooks | v0 只 observe + block；是管线机件不是 effect | 改写带来顺序/缓存/重放问题，推迟；避免管线递归。 |
 | 12 | 存储后端 | JSONL per stream，藏在 `EventStore` 接口后 | 可读可 diff；需要时换 SQLite。 |
-| 13 | Spec 格式 | YAML → pydantic；tool 定义也是数据 | 声明式、可 review；原则 4 落到 tool 层。 |
+| 13 | Spec 格式 | YAML → 强类型 struct + 校验；tool 定义也是数据 | 声明式、可 review；原则 4 落到 tool 层。 |
 | 14 | 运行形态 | core 是库；CLI/headless/server 是薄壳 | 一套 core 支撑所有 surface。 |
 | 15 | Provider | 薄接口 + 多 provider（Gemini 主、Anthropic 次），streaming 原生 | 两个实现验证抽象不漏；caching 是经济性前提。 |
 | 15b | 能力抽象 | caching/thinking 等为 provider 无关的可选 capability，各 provider 映射到自家 API，请求归一化 | 上层不写死某家语义；不支持的能力显式降级/报错而非静默。 |
@@ -637,7 +637,7 @@ limits:
 而不是给玩具 actor 造两个 milestone 的框架：
 
 1. **M1 — Walking skeleton**：最小 spec loader、Gemini provider（凭
-   `GEMINI_API_KEY` 从环境读）、朴素 asyncio agent loop、2-3 个内置 tool
+   `GEMINI_API_KEY` 从环境读）、朴素 agent loop、2-3 个内置 tool
    （read_file/edit_file/bash）、append-only JSONL event journal
    （先只记录，不做 source of truth）、最小 CLI。端到端跑通一个真 agent。
    provider 接口从第一天按多实现设计，Anthropic 作为第二实现在 M3
