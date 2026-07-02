@@ -33,9 +33,9 @@ compatibility。本文档是活的设计记录，随讨论逐步生长。
 1. **一切可运行的是 actor。** agent、workflow、scheduler、frontend——
    统一模型，统一生命周期。
 2. **一切历史皆 event。** 持久状态只有两处：event log（历史与决策的
-   source of truth）和 workspace（世界状态，git 管理）。除此之外的一切
-   ——bus 上的消息、token delta、内存中的 state——都是 ephemeral 或
-   可从 event log 重建的派生物。
+   source of truth）和 workspace（世界状态，快照走 `SnapshotStore`）。
+   除此之外的一切——bus 上的消息、token delta、内存中的 state——都是
+   ephemeral 或可从 event log 重建的派生物。
 3. **一切副作用是 activity，流经同一条 effect pipeline。** hooks、
    permission、审批、预算是这条管线上的关卡，不是四个子系统。
 4. **一切行为由数据定义。** spec + 配置决定 agent 的全部行为——包括
@@ -111,10 +111,19 @@ turn/tool-call 边界。run 进入 `WAITING_APPROVAL` / `WAITING_INPUT` 状态
 成本相同，进程死了也一样——这正是原设计想要的"durable park"，
 但不需要 replay 引擎。
 
+**等待状态本身可被中断**：`WAITING_*` 期间 journal 进来的 interrupt
+会把 run 带出等待——未决审批按 denied-by-interrupt 解决，对应 call
+渲染为 `[interrupted by user]` 的 error 结果；durable timeout 在等待中
+到期走同一条路径。
+
 ### Activity 语义
 
 - activity = 一次副作用执行的记录单元：`ActivityStarted` 先落盘 →
   执行 → `ActivityCompleted{result}` / `ActivityFailed` 落盘。
+- **凭据 redaction**：结果落盘前，对进程已知的凭据值（`*_API_KEY` 类
+  环境变量的字面值）替换为 `[REDACTED:VAR]`。harness 自身绝不把凭据写入
+  spec/event；但 tool 输出可能携带任意 secret——redaction 是尽力而为的
+  兜底，属文档化残余风险。log 文件权限 0600，永不入 git。
 - **at-least-once + in-doubt 检测**：崩溃发生在"执行后、落盘前"时，
   恢复看到有 `Started` 无 `Completed`，将其标记为 in-doubt 并上浮
   （报错或转人工），**绝不静默重跑**——bash 不幂等，LLM 调用要花钱。
@@ -123,6 +132,13 @@ turn/tool-call 边界。run 进入 `WAITING_APPROVAL` / `WAITING_INPUT` 状态
 - **协作取消是 activity 的一等能力**：activity 持有 cancel signal，
   被打断时记录 `ActivityCancelled{partial_output}`。跑了 10 分钟的 bash
   必须能被 Esc 杀掉——interrupt 语义建立在这之上（见 L3/L4）。
+- **取消的终态以进程组为准**：bash 以独立进程组启动
+  （start_new_session），取消 = 对整组 SIGTERM → 宽限 → SIGKILL，
+  **确认组内进程全部退出后**才 journal `ActivityCancelled`（管道以
+  有界超时 drain 出 partial_output）。否则 `npm install` 的孤儿进程会在
+  "取消"之后继续写 workspace，污染 barrier 和 rewind。MCP 的取消通知
+  多数 server 不理会——按 best-effort 处理，journal 为
+  cancelled-unconfirmed。
 - **timeout 是 durable timer**，与 run 竞速的一条记录在案的定时器，
   绝不在关卡代码里读墙钟（重建时时间不同会得出不同结论）。
 
@@ -133,10 +149,20 @@ turn/tool-call 边界。run 进入 `WAITING_APPROVAL` / `WAITING_INPUT` 状态
 - **对话 state snapshot**：event log 的派生缓存，加速 resume。
   可随意丢弃——删掉只损失 fold 时间，不损失任何东西。
 - **Workspace 快照**：**一等状态，不是派生物**。文件系统永远不可能从
-  event log 重建（activity 结果被记录，但不重放）。实现为 workspace 内
-  per-turn `git commit`（便宜、可 diff），只服务 **rewind/fork**，
-  只在显式 barrier 打点（turn 边界 + 子 agent 静默）。**不可随意删除**
-  ——删掉即永久失去该回退点。
+  event log 重建（activity 结果被记录，但不重放）。快照藏在
+  **`SnapshotStore` 接口**后，event 只引用 opaque 的 snapshot ref——
+  上层语义不与任何具体机制耦合，只服务 **rewind/fork**，只在显式
+  barrier 打点（见 L4 `CheckpointBarrier`）。快照 **pinned until
+  explicit GC**——rewind 之后较新的快照不会变得不可达。
+- **默认 backend 是 shadow repo**：独立的 `GIT_DIR` 放在 harness 数据
+  目录下、`GIT_WORK_TREE` 指向 workspace——对用户自己的 repo 完全隐形：
+  不污染 HEAD/index、不会被误 push，agent 通过 bash 做 `git checkout` /
+  `git reset` 也打不断快照链。备选 backend：archive copy；`none`
+  （rewind/fork 优雅不可用，其余功能不受影响）。git 只是默认实现，
+  不是设计依赖。
+- **排除策略显式化**：harness 级 exclude 列表（node_modules/venv/build
+  类），被排除的路径文档化为 rewind 范围外。快照延迟在 M2 用真实大仓库
+  基准测试后再定粒度。
 - **崩溃恢复绝不碰文件系统。** 单进程下崩溃时文件系统本来就活着、
   已在 head 附近；恢复只重建对话 state。回滚文件系统是 rewind 的
   用户主动行为，不是恢复的一部分。
@@ -165,29 +191,52 @@ effect
 [5] Hooks (post)
 ```
 
-- **关卡判定在记录边界之内**：整条管线对一个 effect 产生**一条**
-  `EffectResolved` event，携带全部关卡判定（hook 结果、permission 判定、
-  budget 判定）。恢复时读记录值，不重跑 hook 脚本、不重读 policy 文件
-  ——hook 是有副作用的外部脚本，绝不能在恢复路径上再执行一次。
-  单条 event 也避免每个 tool call 4-5 条官僚 event 淹没日志。
+- **关卡判定在记录边界之内，按持久化时点拆分**：pre-hook 结果 +
+  permission 判定 + budget 判定在关卡通过后、`ActivityStarted` **之前**
+  作为一条 `EffectResolved` event 落盘（ask 路径在审批应答到达后落盘，
+  引用 `ApprovalRequested` 的 id）；post-hook 结果随 `ActivityCompleted`
+  落盘。单一落盘点装不下整条管线——它跨越 durable 的 `ActivityStarted`
+  和可能挂几天的审批。恢复时读记录值，不重跑 hook 脚本、不重读 policy
+  文件——hook 是有副作用的外部脚本，绝不能在恢复路径上再执行一次；
+  进了关卡但没有 `EffectResolved` 的 effect 与 activity 同等享受
+  in-doubt 上浮，绝不静默重过关卡。happy path 下一个 effect 仍只有
+  一条关卡 event，不淹没日志。
+- **预算是 reserve-then-settle 的**：关卡时刻对预估成本（LLM 调用按
+  max_tokens、tool 按类别估值）做原子预留，与已 fold 的消耗 + 未结清
+  预留一起比对上限；`ActivityCompleted` 时按实际结算，预留集是 fold
+  state 的一部分。否则 N 个并行 call 各自对着同一个过期计数器放行，
+  合起来超支 N 倍。
 - **hooks 是管线机件，不是 effect**——不递归进管线自身；其执行记录在
   `EffectResolved` 里。v0 只支持 observe + block，改写输入（mutation）
   连同它带来的顺序与缓存问题一起推迟。
-- **每种关卡结果都定义"模型看到什么"**。Anthropic API 要求每个
-  `tool_use` 都有对应 `tool_result`，且 agent loop 在多数失败后应当继续：
+- **每种关卡结果都定义"模型看到什么"**。所有 provider 都要求 tool call
+  与结果配对（Anthropic 按 call id、Gemini 按数量+位置且更严格），
+  且 agent loop 在多数失败后应当继续：
   - deny → `tool_result{is_error: true, reason}`，loop 继续；
   - hook block → hook 的消息作为 error tool_result，loop 继续；
   - 审批被拒 → 同上，附拒绝理由；
   - budget 超限 → 让模型收尾的最后一条消息 + 优雅停止（`LimitExceeded`
     event），不是掐断；
   - activity 失败（重试耗尽）→ error tool_result，loop 继续。
-  "给模型的错误"和"给用户的错误"是两个 surface，分开设计。
+  "给模型的错误"和"给用户的错误"是两个 surface，分开设计。error 结果的
+  线上形态由各 provider 定义（Anthropic 有 `is_error` 标志；Gemini 没有，
+  约定为 `functionResponse.response` 内的 error 载荷）。
 - **permission modes 是 loop 行为，不是 policy 枚举值**。每个 mode 是
   一组数据：工具面过滤 + prompt 注入 + 跃迁规则。例：`plan` = 只读工具面
   + 计划指令注入 + 专用 `ExitPlanMode` 工具（其审批通过即触发 mode 跃迁，
   跃迁本身是 event）；`acceptEdits` 依赖 tool 的**类别**标签
   （edit-class / execute-class / read-class，tool 定义数据的一部分）。
   hook 与 mode 的优先级明确：`bypass` 不跳过 hooks。
+- **path 规则的边界诚实**：path 规则只约束文件类 tool；bash 天然是旁路
+  （一条 `sed -i` 就能改写 `src/**`）。因此 rules schema 对 bash 提供
+  **命令模式匹配**（`{tool: bash, command: "git *", action: allow}` 式），
+  bash 的可写范围最终由 workspace 沙箱等级闭环（沙箱等级决定 bash
+  可写路径，与 path 规则同源配置）。这层关系明文写出，不假装 path 规则
+  覆盖一切。
+- **路径匹配基于 realpath**：所有文件类 tool 的路径在 permission 匹配与
+  边界检查前一律 resolve（symlink、`..` 归一化）；resolve 后落在
+  workspace 外 → deny。`src/../../etc/passwd` 匹配不上 `src/**`，
+  workspace 内指向外部的 symlink 也写不穿边界。
 
 ## L3 — Agent layer
 
@@ -229,7 +278,8 @@ permissions:
   rules:
     - { tool: read_file, action: allow }
     - { tool: edit_file, path: "src/**", action: allow }
-    - { tool: bash, action: ask }
+    - { tool: bash, command: "git status*", action: allow }
+    - { tool: bash, action: ask }        # 兜底；path 规则约束不了 bash（见 L2）
 
 hooks:
   pre_tool_use: ["./hooks/lint-check.sh"]   # v0: observe + block
@@ -252,6 +302,12 @@ limits:
 - 配置分层从简：**spec + 单个 project settings 文件**两层起步，
   标量覆盖、permission rules 按文档化顺序拼接（local > project > spec）；
   三层与更细的合并语义等真实冲突出现再加。
+- **信任模型**：spec 与 settings 等同于"你选择执行的代码"。可执行配置
+  （hooks）只从 spec 与 user/local 层生效；**project 层（随 repo 走的
+  文件）里的 hooks 被忽略**，除非用户对该 workspace 做过一次显式 trust
+  确认——否则 clone 一个不受信任的 repo 就等于交出任意代码执行权，
+  整个 permission 系统被绕过。memory 文件按不可信内容对待（只进 prompt，
+  不获得任何执行权）。原型是单用户自担模式，但边界必须明文。
 
 ### Context assembly（一等组件）
 
@@ -259,9 +315,12 @@ limits:
 负责 `fold(event log) → provider 请求`：
 
 - **System prompt 是拼装的**，顺序固定：harness 基础指令 → 环境块
-  （cwd、git 状态、日期）→ memory 文件层（CLAUDE.md 按目录层级合并）→
-  tool/skill/子 agent 目录（模型不知道 `summarizer` 存在就永远不会
-  spawn 它——目录注入是 multi-agent 可用的前提）→ spec 的 system prompt。
+  （cwd、git 状态、日期——**在 session start 冻结进 fold state**，之后的
+  环境变化以追加消息进入上下文，绝不改写 prefix：git 状态每 turn 都变，
+  不冻结的话 harness 会亲手打爆下面的 caching 不变量）→ memory 文件层
+  （CLAUDE.md 按目录层级合并）→ tool/skill/子 agent 目录（模型不知道
+  `summarizer` 存在就永远不会 spawn 它——目录注入是 multi-agent 可用的
+  前提）→ spec 的 system prompt。
 - **Prefix 稳定性是显式不变量**（prompt caching 的经济性约 10x，
   没有它 agent loop 在经济上不可用）：system prompt 与 tool schema 排序
   稳定，cache 断点由 loop 放置；任何会打爆 prefix 的操作
@@ -282,9 +341,20 @@ limits:
 - agent loop 是一个普通的 async loop，其中每次 LLM 调用、每个 tool 执行、
   每次 spawn 都是走 L2 管线的 activity。durability 来自 L1 的
   journal + snapshot，loop 代码不背确定性纪律。
-- **并行 tool call 是常态**：一条 assistant 消息含 N 个 `tool_use` 时，
+- **并行 tool call 是常态**：一条 assistant 消息含 N 个 tool call 时，
   每个 call 独立过管线；判定为 allow 的并发执行，判定为 ask 的按序等审批
   （审批挂起不阻塞已放行的 call）；完成 event 按到达顺序落盘。
+  **call 的身份由 harness 生成的 call id 定义**（随 event 持久化，
+  provider 各自映射到自家配对机制）；到达顺序只是日志事实——context
+  assembly 在下一次 LLM 调用前收齐该 turn 全部结果，**按原 call 顺序
+  重排**（Gemini 要求 functionResponse 与 functionCall 数量 1:1、
+  按位置配对，乱序或缺失直接 400）。
+- **异常终止形态是 loop 策略的一部分**：归一化 finish_reason 显式收录
+  blocked / malformed_tool_call / recitation 等（Gemini 有一整类
+  Anthropic 不存在的形态：MALFORMED_FUNCTION_CALL、SAFETY、零 candidate
+  的 promptFeedback.blockReason）。策略：malformed_tool_call 走 activity
+  retry（复用 `TurnDiscarded` 渲染路径）；safety/blocked 上浮为用户可见
+  错误，不重试。
 - **Steering 与 interrupt**：用户插话 journal 成 event 后在 turn 边界
   被 loop 消费；interrupt 则通过 activity 协作取消立即生效
   （`ActivityCancelled`），被打断的 tool call 以
@@ -312,6 +382,11 @@ limits:
   是影响 run 结果的外部输入）；`tools/list_changed` 同理。
 - 只有 `McpToolCalled/Returned` 是 activity。spec schema 里保留
   `transport: http` + auth 字段，实现（OAuth 流程、凭据存储）推迟。
+- **命名空间与类别**：MCP tool 在 permission rules 里只以全限定名
+  `mcp__<server>__<tool>` 出现，与内置 tool 不可能撞名（server 上报
+  一个叫 `read_file` 的 tool 不会命中内置规则）；动态发现的 tool 没有
+  类别标签，一律按最保守的 execute-class 对待（plan 等只读 mode 默认
+  排除），除非 spec 显式为其标注类别。
 
 ### Provider
 
@@ -322,10 +397,18 @@ limits:
   自家 API（Gemini 的 context caching / thinking config，Anthropic 的
   `cache_control` / extended thinking）。provider 用 `capabilities()`
   声明支持哪些能力，请求了不支持的能力时明确降级或报错，而不是静默忽略。
-- **返回归一化**：token 计数（含 cache_read/cache_write）、finish reason、
-  tool_use、thinking 块统一成一套内部表示，L2/L3 及记账不感知具体 provider。
+- **返回归一化**：token 计数（含 cache_read/cache_write）、finish
+  reason（含异常形态，见 Agent loop）、tool call、thinking 块统一成一套
+  内部表示，L2/L3 及记账不感知具体 provider。
+- **opaque signature 随 event 持久化**：归一化的 assistant part 带一个
+  per-provider 的 opaque extras/signature 字段（Gemini 的
+  `thoughtSignature`、Anthropic 的 thinking signature），context
+  assembly 回传时原样携带——丢掉它，Gemini 的多轮工具调用在第二次请求
+  就 400。推论：mid-run 切换 provider 不能带着对方的 signature 历史，
+  需在 compaction 边界（摘要天然无 signature）重新开始。
 - **凭据只走环境变量**（如 `GEMINI_API_KEY` / `ANTHROPIC_API_KEY`），
-  provider 实现从环境读取，绝不进 spec、event log 或仓库。
+  provider 实现从环境读取，harness 自身绝不把凭据写进 spec、event log
+  或仓库；tool 输出可能携带 secret，由 L1 的 redaction 兜底。
 
 ### Multi-agent
 
@@ -336,8 +419,17 @@ limits:
   `description`/输出约定里声明）。
 - **审批路由**：child 的 `ask` 沿 correlation id 冒泡到 session 的
   frontend——审批的永远是人，不是 parent agent。
-- **权限继承**：child 的有效权限 = child spec ∩ parent 有效权限，
-  子 agent 不能越过 parent 的边界。
+- **权限继承拆成两条规则**（mode 没有"交集"运算，不能笼统写 ∩）：
+  (1) **rules 做真交集**——spawn 时由 parent 按当时的有效权限计算，
+  冻结成不可变数据传给 child；child 的管线只认这份，child spec 无法
+  放宽，parent 事后的 mode 跃迁也不回溯影响 child。(2) **mode 不交集**
+  ——child 的 mode 独立，但工具面先经冻结 rules 过滤，mode 跃迁只能在
+  冻结 rules 内移动；child spec 声明 `bypass` 非法。
+- **树级预算与递归上限**：spawn 深度与并发扇出有数据化上限（budget
+  关卡校验，超限渲染为 error 结果）——spec 白名单允许 A↔B 成环，
+  上限是唯一防线。child 的有效预算 = min(child spec 限额, parent
+  剩余额度)，沿 correlation 树聚合，与权限冻结同构；parent 的 token
+  上限约束的是整棵树，不是单个 stream。
 - 可审计性保证是 per-stream 的：每个 agent 的 stream 完整、
   causation/correlation 链路完整；跨 actor 的消息交错不保证确定性重现
   （见非目标）。
@@ -348,9 +440,14 @@ limits:
 
 - session = correlation id + 它名下的 stream 闭包（含子 agent）。
 - **list**：枚举 store。**resume**：snapshot + fold（见 L1）。
-- **fork/rewind 只发生在 checkpoint barrier 上**（turn 边界 + 全部子
-  agent 静默 + workspace commit 存在）：fork 复制 stream 闭包在 barrier
-  处的一致切面；rewind = fork + workspace 恢复到对应 commit。
+- **fork/rewind 的唯一合法目标是 `CheckpointBarrier` event**：barrier
+  达成时（turn 边界 + 全部子 agent 静默——含 bash 进程组确认退出 +
+  所有 worktree 快照完成）落一条 event，记录跨 stream 的一致切面：
+  {stream → seq} 向量 + snapshot ref 集合。fork = 在新 run id 下复制
+  该切面内的 events，以 `ForkedFrom{run, barrier}` 为创世 event
+  （原 id 作为 provenance 保留），并从 snapshot 物化**自己的**
+  worktree——fork 与原 run 不共享目录；rewind = fork 后用户显式切换
+  并放弃原 run。被排除的路径（见 L1）在 fork 里天然缺席。
   任意 seq N 处的 fork 不提供——跨 stream 的因果一致切割不值得做。
 
 ### 交互协议
@@ -387,7 +484,8 @@ limits:
   "activity 结果被记录"，不需要确定性 code replay 引擎。
 - agent 行为变化体现为 event log 的 diff，review 的是决策序列。
 - kernel/L1/L2 普通单测；spec loader 用坏 spec 的错误信息做黄金测试；
-  in-doubt activity、审批挂起恢复、interrupt 各有专门的崩溃注入测试。
+  in-doubt activity、审批挂起恢复、interrupt、异常终止形态
+  （空 candidate / malformed function call）各有专门的崩溃注入测试。
 
 ## 已定决策
 
@@ -399,9 +497,9 @@ limits:
 | 4 | 输入语义 | 一切外部输入先 journal 成 event 再消费 | 审批/steering 不丢、可审计；bus 才允许 ephemeral。 |
 | 5 | Durability 模型 | journal + turn 边界 snapshot-resume + 显式等待状态；**不做** Temporal 式 code replay | 同样的用户可见能力（crash 恢复、长审批、fork），~10% 成本；loop 不背确定性纪律。 |
 | 6 | Activity 语义 | Started/Completed 双落盘，at-least-once + in-doubt 上浮，协作取消，通用 retry | bash 不幂等、LLM 要花钱，静默重跑不可接受；interrupt 建立在取消上。 |
-| 7 | Checkpoint 语义 | 对话 snapshot 是可弃缓存；workspace 快照是一等状态（per-turn git commit），只服务 rewind/fork | 文件系统不可从 log 重建；崩溃恢复不碰文件系统。 |
-| 8 | 副作用治理 | 单一 effect pipeline，四关卡，一条 `EffectResolved` event，关卡在记录边界内 | permission/审批/hooks/预算是一个机制；恢复不重放 hook 副作用；日志不被官僚 event 淹没。 |
-| 9 | 失败面向模型 | deny/block/失败渲染为 error tool_result，loop 继续；超预算优雅收尾 | API 要求 tool_use↔tool_result 配对；agent 要能对失败自适应。 |
+| 7 | Checkpoint 语义 | 对话 snapshot 是可弃缓存；workspace 快照是一等状态，走 `SnapshotStore` 接口（event 只引用 opaque ref），默认 shadow-repo backend，只服务 rewind/fork | 文件系统不可从 log 重建；不与 git 耦合；用户 repo 与 agent 的 git 操作零污染。 |
+| 8 | 副作用治理 | 单一 effect pipeline，四关卡；判定按持久化时点拆分——`EffectResolved` 落在 `ActivityStarted` 前，post-hook 随 `ActivityCompleted` | permission/审批/hooks/预算是一个机制；恢复不重放 hook 副作用；happy path 仍是单条关卡 event。 |
+| 9 | 失败面向模型 | 每个 tool call 必有配对结果（harness call id，assembly 按原顺序重排）；error 渲染 per-provider 定义；超预算优雅收尾 | Gemini 按数量+位置严格配对且无 error 标志；agent 要能对失败自适应。 |
 | 10 | Permission modes | mode = 工具面过滤 + prompt 注入 + 跃迁规则（数据） | plan/acceptEdits 是 loop 行为，枚举值表达不了。 |
 | 11 | Hooks | v0 只 observe + block；是管线机件不是 effect | 改写带来顺序/缓存/重放问题，推迟；避免管线递归。 |
 | 12 | 存储后端 | JSONL per stream，藏在 `EventStore` 接口后 | 可读可 diff；需要时换 SQLite。 |
@@ -409,10 +507,12 @@ limits:
 | 14 | 运行形态 | core 是库；CLI/headless/server 是薄壳 | 一套 core 支撑所有 surface。 |
 | 15 | Provider | 薄接口 + 多 provider（Gemini 主、Anthropic 次），streaming 原生 | 两个实现验证抽象不漏；caching 是经济性前提。 |
 | 15b | 能力抽象 | caching/thinking 等为 provider 无关的可选 capability，各 provider 映射到自家 API，请求归一化 | 上层不写死某家语义；不支持的能力显式降级/报错而非静默。 |
-| 15c | 凭据 | 只从环境变量读（`GEMINI_API_KEY` 等），绝不进 spec/event/仓库 | 密钥永不落盘于受控内容。 |
+| 15c | 凭据 | harness 自身绝不写入 spec/event/仓库；activity 结果落盘前对已知凭据值 redaction；log 权限 0600 | 绝对的"永不落盘"做不到（bash env 输出），诚实的兜底可以。 |
 | 16 | Skill 格式 | 沿用 Claude Code 约定 | 生态兼容，不发明格式。 |
 | 17 | MCP 生命周期 | 带外运行时状态；只有 tool 调用是 activity；发现的 schema 记录为 event | server 状态不可 event 化；schema 是影响结果的输入。 |
 | 18 | Event schema 版本化 | 不 migration；`RunStarted` 记版本，不匹配拒绝 resume | 原型 re-run 比 migrate 便宜；失败要响亮不要发散。 |
+| 19 | 信任模型 | 可执行配置（hooks）只认 spec 与 user/local 层；project 层需显式 trust；memory 文件按不可信内容对待 | clone 不受信 repo 不等于交出任意代码执行权。 |
+| 20 | 树级约束 | 权限 rules 在 spawn 时冻结交集下传；预算 = min(child 限额, parent 剩余) 沿树聚合；深度/扇出有上限 | spawn 白名单可成环；树的总成本必须有界。 |
 
 ## Roadmap
 
@@ -427,13 +527,16 @@ limits:
    context assembly（caching）阶段补上以验证能力抽象不漏。
 2. **M2 — Durability + pipeline**：event fold 成为 state 的正源、
    turn 边界 snapshot、resume、显式等待状态；effect pipeline 四关卡 +
-   `EffectResolved`；permission rules + 审批流；budgets；
-   hooks（observe/block）。崩溃注入测试。
+   拆分落盘的 `EffectResolved`；permission rules（含 bash 命令模式与
+   realpath 匹配）+ 审批流；budgets（reserve-then-settle）；
+   hooks（observe/block）；凭据 redaction；`SnapshotStore`
+   （shadow-repo backend，用真实大仓库的延迟基准定快照粒度）。
+   崩溃注入测试。
 3. **M3 — 交互与上下文**：streaming 协议、steering/interrupt/协作取消、
    并行 tool call、context assembly（拼装、截断、compaction、caching）、
    session list/resume。
 4. **M4 — 生态接入**：MCP（生命周期 + schema 记录）、skills、
    memory 文件、配置分层（两层）。
 5. **M5 — Multi-agent + surfaces 收尾**：spawn/await、handoff、
-   pub/sub；审批路由与权限继承；scheduler；fork/rewind（barrier 语义）；
-   `inspect` 时间线；server 壳。
+   pub/sub；审批路由、权限冻结与树级预算；scheduler；
+   fork/rewind（`CheckpointBarrier` 语义）；`inspect` 时间线；server 壳。
