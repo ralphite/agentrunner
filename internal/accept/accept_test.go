@@ -10,8 +10,8 @@ func TestLoadStage1(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(scenarios) != 3 {
-		t.Fatalf("scenarios = %d, want 3", len(scenarios))
+	if len(scenarios) != 4 {
+		t.Fatalf("scenarios = %d, want 4", len(scenarios))
 	}
 	for _, s := range scenarios {
 		if s.ID == "" || s.Title == "" {

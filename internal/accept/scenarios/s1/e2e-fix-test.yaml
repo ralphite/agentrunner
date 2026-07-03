@@ -1,0 +1,54 @@
+id: s1-04-e2e-fix-test
+title: agent 经 CLI 修复真实 Go 工程的失败测试(read → edit → go test 全链路)
+files:
+  spec.yaml: |
+    name: fixer
+    model: { provider: scripted, id: x }
+    system_prompt: You are a coding agent.
+    tools: [read_file, edit_file, bash]
+  fix.yaml: |
+    steps:
+      - respond:
+          - text: "inspecting the code"
+          - tool_call: { name: read_file, args: { path: mathx/mathx.go } }
+          - finish: tool_use
+      - respond:
+          - tool_call:
+              name: edit_file
+              args: { path: mathx/mathx.go, old: "return a - b", new: "return a + b" }
+          - finish: tool_use
+      - respond:
+          - tool_call: { name: bash, args: { command: "go test ./..." } }
+          - finish: tool_use
+      - respond:
+          - text: "tests pass after the fix"
+          - finish: end_turn
+  ws/go.mod: |
+    module samplerepo
+
+    go 1.24
+  ws/mathx/mathx.go: |
+    // Package mathx provides arithmetic helpers.
+    package mathx
+
+    // Add returns the sum of a and b.
+    func Add(a, b int) int {
+    	return a - b // BUG: should be a + b
+    }
+  ws/mathx/mathx_test.go: |
+    package mathx
+
+    import "testing"
+
+    func TestAdd(t *testing.T) {
+    	if got := Add(2, 3); got != 5 {
+    		t.Errorf("Add(2, 3) = %d, want 5", got)
+    	}
+    }
+steps:
+  - run: AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/fix.yaml $BIN run --workspace ws spec.yaml "Fix the failing test in this repo."
+expect:
+  - exit_code: 0
+  - output_contains: '"exit_code":0'
+  - output_contains: "tests pass after the fix"
+  - file_contains: { path: ws/mathx/mathx.go, text: "return a + b" }

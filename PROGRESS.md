@@ -254,11 +254,18 @@ dotenv 支持引号/export;provider 构造失败 exit 1(区别于未知名 exit 
 加性变更);CollectTurn 以 struct 返回(语义等价执行包的四元组,
 正式记为偏离);journal tool_result 多一个 name 字段(保留)。
 
-**待办(2:40am 恢复会话的队列,S2 开工前完成)**:
-1. blind-spots 审计的钉住测试:请求组装 golden(S2.10 重写前必须)、
-   `accept --stage 1` 进 go test(e2e 包)、acceptCmd 退出码测试、
-   loop 错误路径测试、record-fixture CLI 往返、gemini 转换错误表、
-   scripted 单次消费语义、workspace root-symlink/兄弟前缀、
-   bash ctx-cancel 测试。
-2. 新场景 s1-04-e2e-fix-test(经 CLI 修 samplerepo 失败测试,含 bash)。
-3. 重跑 `accept --stage 1` 确认后进入 S2 kickoff refinement。
+**待办队列 ✅ 已清空(用户指示立即恢复,未等定时)**:
+钉住测试批全部落地——请求组装 golden(`testdata/request_assembly.golden`,
+S2.10 重写的行为契约)、`accept --stage 1` 进 go test(e2e 包构建真
+binary 执行,S1 完成标志可在 CI 复现)、Report.Green 门测试、scenario
+严格解析测试(typo 键/空断言/双断言全拒)、journal 终态校验测试、loop
+错误路径(provider 错误 → turn 包装 + 终态 run_end;journal 写失败
+中止)、record-fixture CLI 往返 + 写失败 exit 1、provider 构造失败
+退出码、gemini 转换错误表 + 空 parts 校验(新增:零 part 消息报错,
+Gemini 会 400)+ Complete 流内错误、scripted 每次迭代消费一步的语义
+钉住、workspace root-symlink/兄弟前缀、bash ctx-cancel(canceled 而非
+伪 timeout + 进程组死亡断言)。新场景 **s1-04-e2e-fix-test**(经 CLI
+全链路修 Go 工程失败测试,含 bash go test)入 suite——S1 acceptance
+现为 4 场景。
+
+**Stage 1 正式关闭**。下一步:S2 kickoff refinement。

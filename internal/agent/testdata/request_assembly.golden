@@ -1,0 +1,93 @@
+[
+  {
+    "max_tokens": 256,
+    "messages": [
+      {
+        "role": "user",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "make it loud"
+          }
+        ]
+      }
+    ],
+    "model": "model-x",
+    "system": "be precise",
+    "tools": [
+      "read_file",
+      "edit_file"
+    ],
+    "turn": 1
+  },
+  {
+    "max_tokens": 256,
+    "messages": [
+      {
+        "role": "user",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "make it loud"
+          }
+        ]
+      },
+      {
+        "role": "assistant",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "reading then editing"
+          },
+          {
+            "kind": "tool_call",
+            "call_id": "call_1_0",
+            "tool_name": "read_file",
+            "args": {
+              "path": "greet.txt"
+            }
+          },
+          {
+            "kind": "tool_call",
+            "call_id": "call_1_1",
+            "tool_name": "edit_file",
+            "args": {
+              "new": "HELLO WORLD",
+              "old": "hello world",
+              "path": "greet.txt"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "parts": [
+          {
+            "kind": "tool_result",
+            "call_id": "call_1_0",
+            "tool_name": "read_file",
+            "result": {
+              "content": "hello world",
+              "truncated": false
+            }
+          },
+          {
+            "kind": "tool_result",
+            "call_id": "call_1_1",
+            "tool_name": "edit_file",
+            "result": {
+              "output": "edited greet.txt"
+            }
+          }
+        ]
+      }
+    ],
+    "model": "model-x",
+    "system": "be precise",
+    "tools": [
+      "read_file",
+      "edit_file"
+    ],
+    "turn": 2
+  }
+]

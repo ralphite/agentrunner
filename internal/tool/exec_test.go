@@ -176,3 +176,41 @@ func TestUnknownTool(t *testing.T) {
 		t.Error("unknown tool should be an error result")
 	}
 }
+
+// Context cancellation (the Esc/interrupt path) must kill the process group
+// promptly and render as canceled — not as a fabricated timeout.
+func TestBashContextCancelKillsGroup(t *testing.T) {
+	e, root := newExec(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(150 * time.Millisecond)
+		cancel()
+	}()
+
+	start := time.Now()
+	res := e.Execute(ctx, "bash", json.RawMessage(
+		fmt.Sprintf(`{"command":"echo $$ > %s/pgid.txt; sleep 30"}`, root)))
+	if elapsed := time.Since(start); elapsed > 10*time.Second {
+		t.Fatalf("took %s, cancel path did not engage", elapsed)
+	}
+
+	var m map[string]any
+	if err := json.Unmarshal(res.Payload, &m); err != nil {
+		t.Fatal(err)
+	}
+	if !res.IsError || m["canceled"] != true || m["timed_out"] == true {
+		t.Fatalf("m=%v isErr=%v, want canceled without timed_out", m, res.IsError)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(root, "pgid.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pid int
+	if _, err := fmt.Sscanf(string(raw), "%d", &pid); err != nil {
+		t.Fatal(err)
+	}
+	if err := syscall.Kill(-pid, syscall.Signal(0)); err == nil {
+		t.Errorf("process group %d still alive after cancel", pid)
+	}
+}

@@ -86,3 +86,29 @@ func TestScriptedDoneDetectsUnconsumed(t *testing.T) {
 		t.Fatal("Done() should fail with unconsumed steps")
 	}
 }
+
+// Pin: iterating the same returned stream twice consumes TWO fixture steps
+// (consumption is per-iteration, not per-Complete-call). S2's activity
+// executor must not blindly re-iterate a stream on retry. The provider is
+// also single-goroutine by contract — no mutex on p.next.
+func TestScriptedStreamConsumptionPerIteration(t *testing.T) {
+	p := New(twoStepFixture())
+	req := provider.CompleteRequest{
+		Turn:     1,
+		Tools:    []provider.ToolDef{{Name: "read_file"}},
+		Messages: []provider.Message{userMsg("please fix the bug")},
+	}
+	stream := p.Complete(context.Background(), req)
+
+	if _, err := provider.CollectTurn(stream); err != nil {
+		t.Fatal(err)
+	}
+	// Second iteration of the SAME seq serves step 2 (its expect has no
+	// constraints, so it succeeds and consumes the fixture).
+	if _, err := provider.CollectTurn(stream); err != nil {
+		t.Fatalf("second iteration: %v", err)
+	}
+	if err := p.Done(); err != nil {
+		t.Fatalf("both steps should be consumed: %v", err)
+	}
+}

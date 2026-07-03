@@ -1,6 +1,7 @@
 package gemini
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -143,5 +144,46 @@ func TestFinishMapping(t *testing.T) {
 		if got := st.finish(); got != tc.want {
 			t.Errorf("finish(%s, saw=%v) = %q, want %q", tc.reason, tc.sawCall, got, tc.want)
 		}
+	}
+}
+
+func TestToContentErrors(t *testing.T) {
+	cases := []struct {
+		name string
+		msg  provider.Message
+	}{
+		{"no parts", provider.Message{Role: provider.RoleUser}},
+		{"unknown role", provider.Message{Role: "narrator",
+			Parts: []provider.Part{{Kind: provider.PartText, Text: "x"}}}},
+		{"unknown part kind", provider.Message{Role: provider.RoleUser,
+			Parts: []provider.Part{{Kind: "hologram"}}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := toContent(tc.msg); err == nil {
+				t.Errorf("expected error for %s", tc.name)
+			}
+		})
+	}
+}
+
+// Conversion failures must surface through the Complete iterator (the
+// client is never touched when conversion fails, so a nil client is safe).
+func TestCompleteYieldsConversionError(t *testing.T) {
+	p := &Provider{client: nil}
+	_, err := provider.CollectTurn(p.Complete(context.Background(), provider.CompleteRequest{
+		Model:    "m",
+		Messages: []provider.Message{{Role: "narrator"}},
+	}))
+	if err == nil {
+		t.Fatal("expected conversion error from stream")
+	}
+}
+
+// Empty tool results pin the {"output": nil} convention.
+func TestToResponseMapEmptyResult(t *testing.T) {
+	m := toResponseMap(provider.Part{})
+	if _, ok := m["output"]; !ok {
+		t.Errorf("empty result map = %v, want output key", m)
 	}
 }

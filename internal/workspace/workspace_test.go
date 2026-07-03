@@ -86,3 +86,48 @@ func TestRootItselfResolves(t *testing.T) {
 		t.Errorf("resolve(.) = %q, want %q", got, root)
 	}
 }
+
+// A workspace root that is itself a symlink must resolve consistently:
+// Root() and Resolve() both live in the fully-resolved space.
+func TestRootSymlinkResolves(t *testing.T) {
+	real := t.TempDir()
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatal(err)
+	}
+	ws, err := New(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolvedReal, _ := filepath.EvalSymlinks(real)
+	if ws.Root() != resolvedReal {
+		t.Errorf("Root() = %q, want %q", ws.Root(), resolvedReal)
+	}
+	got, err := ws.Resolve("a.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != filepath.Join(resolvedReal, "a.txt") {
+		t.Errorf("Resolve = %q", got)
+	}
+}
+
+// /x/ws-evil must not pass a boundary check for root /x/ws (the classic
+// HasPrefix-without-separator bug).
+func TestSiblingPrefixRejected(t *testing.T) {
+	parent := t.TempDir()
+	root := filepath.Join(parent, "ws")
+	evil := filepath.Join(parent, "ws-evil")
+	for _, d := range []string{root, evil} {
+		if err := os.Mkdir(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ws, err := New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ws.Resolve(filepath.Join(evil, "f.txt")); err == nil {
+		t.Fatal("sibling-prefix path must be rejected")
+	}
+}

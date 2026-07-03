@@ -204,6 +204,9 @@ func toContents(msgs []provider.Message) ([]*genai.Content, error) {
 }
 
 func toContent(msg provider.Message) (*genai.Content, error) {
+	if len(msg.Parts) == 0 {
+		return nil, fmt.Errorf("gemini: message with role %q has no parts", msg.Role)
+	}
 	content := &genai.Content{}
 	switch msg.Role {
 	case provider.RoleUser, provider.RoleTool:
