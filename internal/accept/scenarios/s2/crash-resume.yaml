@@ -1,0 +1,35 @@
+id: s2-01-crash-resume
+title: 中途被杀的 run 可以 resume 并分毫不差地完成(崩溃矩阵的端到端样本)
+files:
+  spec.yaml: |
+    name: fixer
+    model: { provider: scripted, id: x }
+    system_prompt: fix things
+    tools: [read_file, edit_file]
+  greet.txt: "hello world"
+  crash-fix.yaml: |
+    steps:
+      - respond:
+          - tool_call: { name: read_file, args: { path: greet.txt } }
+          - tool_call: { name: edit_file, args: { path: greet.txt, old: hello world, new: HELLO WORLD } }
+          - finish: tool_use
+      - respond:
+          - text: unreachable
+          - finish: end_turn
+  resume-fix.yaml: |
+    steps:
+      - respond:
+          - text: all done
+          - finish: end_turn
+steps:
+  - run: >
+      AGENTRUNNER_CRASH=after:turn_started:2
+      AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/crash-fix.yaml
+      $BIN run --workspace . spec.yaml "make it loud"; test $? -eq 137
+  - run: >
+      AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/resume-fix.yaml
+      $BIN resume $(ls $XDG_DATA_HOME/agentrunner/sessions | head -1)
+expect:
+  - exit_code: 0
+  - file_contains: { path: greet.txt, text: "HELLO WORLD" }
+  - events_valid: xdg/agentrunner/sessions/*/events.jsonl

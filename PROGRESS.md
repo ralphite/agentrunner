@@ -617,3 +617,23 @@ RunStarted 加性扩展两字段),provider 走 defaultProviderFactory;
 - spec 全文进 RunStarted(而非只记路径):resume 不依赖 spec 文件
   未被改动/移动;prototype 无隐私顾虑(spec 不含凭据,系统约定)。
 - 旧 session(无 spec 字段)resume 明确报错,不猜。
+
+## S2.17b 全崩溃注入矩阵(S2 出口门)— DONE
+
+`TestCrashMatrix`:**10 行矩阵**,覆盖全部 4 个命名点 + 3 类计数谓词,
+沿标准两 turn read+edit run 的事件序逐点 kill(真子进程 exit 137)后
+resume:每行断言 completed/2 turns/文件修好/seq 无缝隙/run_ended 收尾
+/fold ended/in-flight 空——"分毫不差";`edit-executed-unjournaled`
+行断言 InDoubtError。行清单:input 落盘后(谓词+命名点两种)、llm
+已执行未记账(幂等重跑)、assistant 落盘后、read 已执行未记账(幂等
+重跑)、read 结果落盘后、edit 已执行未记账(**in-doubt**)、turn 2
+边界、snapshot 写后(真 snapshot+空尾 resume)、run_end 之前(resume
+零 LLM 调用直接收尾)。
+
+S2 acceptance 场景包(4 个,`accept --stage 2` 全 PASS,e2e gate 扩到
+双 stage):s2-01 崩溃 resume 端到端(binary 级)、s2-02 in-doubt 上浮
+拒绝重跑(marker 恰一行)、s2-03 等待状态跨进程存活(合成 event +
+sessions list 显示 waiting:approval)、s2-04 events 调试工具。
+
+**S2 完成标志核对**:崩溃矩阵全绿 ✓;in-doubt 上浮 ✓;等待状态跨
+进程存活(合成 event)✓。**Stage 2 实现完成**,待出口对抗式 review。

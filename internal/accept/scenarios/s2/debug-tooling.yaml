@@ -1,0 +1,19 @@
+id: s2-04-debug-tooling
+title: events 调试工具能美化打印事件流并转储 fold 状态
+files:
+  spec.yaml: |
+    name: chatter
+    model: { provider: scripted, id: x }
+    system_prompt: help
+  hi.yaml: |
+    steps:
+      - respond:
+          - text: "hello there"
+          - finish: end_turn
+steps:
+  - run: AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/hi.yaml $BIN run --workspace . spec.yaml "say hi"
+  - run: $BIN events $(ls $XDG_DATA_HOME/agentrunner/sessions | head -1)
+  - run: $BIN events $(ls $XDG_DATA_HOME/agentrunner/sessions | head -1) --state
+expect:
+  - exit_code: 0
+  - output_contains: "run_ended"

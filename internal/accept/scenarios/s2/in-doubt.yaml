@@ -1,0 +1,26 @@
+id: s2-02-in-doubt
+title: 执行了却没记账的副作用在 resume 时上浮为 in-doubt,拒绝重跑
+files:
+  spec.yaml: |
+    name: doubter
+    model: { provider: scripted, id: x }
+    system_prompt: leave a mark
+    tools: [bash]
+  mark.yaml: |
+    steps:
+      - respond:
+          - tool_call: { name: bash, args: { command: "echo ran >> marker.txt" } }
+          - finish: tool_use
+steps:
+  - run: >
+      AGENTRUNNER_CRASH=point:after_exec_before_journal:2
+      AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/mark.yaml
+      $BIN run --workspace . spec.yaml "leave a mark"; test $? -eq 137
+  - run: test "$(grep -c ran marker.txt)" = "1"
+  - run: >
+      AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/mark.yaml
+      $BIN resume $(ls $XDG_DATA_HOME/agentrunner/sessions | head -1) 2>&1;
+      code=$?; test "$(grep -c ran marker.txt)" = "1" && test $code -eq 1
+expect:
+  - exit_code: 0
+  - output_contains: "in doubt"
