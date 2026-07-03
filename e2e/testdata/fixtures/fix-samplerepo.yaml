@@ -1,0 +1,26 @@
+# Hand-authored 3-turn fixture (PLAN 1.10): read → edit → verify with go test.
+steps:
+  - expect:
+      tools_include: [read_file, edit_file, bash]
+      last_message_contains: "failing test"
+    respond:
+      - text: "Let me look at the code first."
+      - tool_call: { name: read_file, args: { path: mathx/mathx.go } }
+      - finish: tool_use
+  - expect:
+      last_message_contains: "return a - b"
+    respond:
+      - tool_call:
+          name: edit_file
+          args: { path: mathx/mathx.go, old: "return a - b", new: "return a + b" }
+      - finish: tool_use
+  - expect:
+      last_message_contains: "edited mathx/mathx.go"
+    respond:
+      - tool_call: { name: bash, args: { command: "go test ./..." } }
+      - finish: tool_use
+  - expect:
+      last_message_contains: '"exit_code":0'
+    respond:
+      - text: "Fixed: Add now returns a + b and the tests pass."
+      - finish: end_turn

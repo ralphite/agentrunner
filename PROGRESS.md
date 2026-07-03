@@ -194,3 +194,14 @@ review 的 open questions。
   - provider 工厂可注入（测试用 scripted 工厂）；未知 provider 报
     usage 错（exit 2）。
 - **DEFERRED**：无。
+
+## S1.10 — 样例 repo E2E　✅
+
+- **状态**：完成。`e2e/`：samplerepo（含故意失败的测试）+ 手写 4-step
+  fixture（read → edit → go test → 收尾）+ 端到端测试：先断言原始 repo
+  测试失败，跑完断言修复落地且 repo 自身测试转绿、fixture 全消费。
+- **决定**：testdata 放 `e2e/testdata/`（Go 惯例包内 testdata；PLAN
+  写的根目录 testdata/，记为偏离）；samplerepo 是独立 go module，
+  testdata 目录天然被 go 工具忽略；每次测试复制到 tmp，从不弄脏库内副本。
+- **DEFERRED**：live 版 E2E（真 Gemini 修 samplerepo）留 stage 出口
+  人工检查点——scripted 版已入 CI 层。
