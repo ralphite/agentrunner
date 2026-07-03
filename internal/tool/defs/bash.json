@@ -1,0 +1,12 @@
+{
+  "name": "bash",
+  "description": "Run a shell command in the workspace root. Output is truncated if long; the command is killed on timeout.",
+  "class": "execute",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "command": { "type": "string", "description": "The shell command to execute." }
+    },
+    "required": ["command"]
+  }
+}

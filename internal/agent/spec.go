@@ -6,14 +6,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 
 	"gopkg.in/yaml.v3"
-)
 
-// knownTools is the S1 stand-in for the tool registry.
-// TODO(1.5): replace with the data-driven tool registry.
-var knownTools = []string{"read_file", "edit_file", "bash"}
+	"github.com/ralphite/agentrunner/internal/tool"
+)
 
 // DefaultMaxTurns applies when a spec omits max_turns (S1 defaults pack).
 const DefaultMaxTurns = 40
@@ -108,9 +105,9 @@ func (s *AgentSpec) validate(path string) error {
 		return fail("system_prompt", "exactly one of system_prompt and system_prompt_file must be set, got neither")
 	}
 
-	for _, tool := range s.Tools {
-		if !slices.Contains(knownTools, tool) {
-			return fail("tools", fmt.Sprintf("unknown tool %q (known: %v)", tool, knownTools))
+	for _, name := range s.Tools {
+		if _, ok := tool.Get(name); !ok {
+			return fail("tools", fmt.Sprintf("unknown tool %q (known: %v)", name, tool.Names()))
 		}
 	}
 

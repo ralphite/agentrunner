@@ -112,3 +112,17 @@ review 的 open questions。
   解析的空间里进行）；错误格式按执行包
   `path escapes workspace: <requested> -> <resolved>`。
 - **DEFERRED**：无。
+
+## S1.5 — tool 定义即数据　✅
+
+- **状态**：完成。`internal/tool`：三个内置定义（`defs/*.json` +
+  go:embed）、类别标签（含预留的 wait）、注册表（启动时校验：完整性/
+  重名 panic）、`ProviderDefs` 向 wire 级转换。1.1 的 knownTools stub
+  已按出口清单换成注册表（`TODO(1.5)` 关闭，unknown_tool 黄金重生成）。
+- **决定**：
+  - `Names()` 排序输出（embed FS 按文件名序，显式排序更稳）。
+  - edit_file 语义在 schema 描述里锁定：`old` 恰好匹配一次；
+    **空 `old` + 不存在的 path = 创建新文件**（执行包只说了替换，
+    创建语义是补充决定——没有创建能力 agent 无法新增文件）。
+  - registry 校验失败用 panic（embed 的定义坏 = 程序坏，不是运行时错）。
+- **DEFERRED**：无。
