@@ -163,3 +163,18 @@ review 的 open questions。
   `time.Now`——store 包 S2 才进 Clock 纪律，v0 本来就会被 EventStore
   替换。
 - **DEFERRED**：无。
+
+## S1.8 — agent loop　✅
+
+- **状态**：完成。`internal/agent/loop.go`：turn 循环组装 provider +
+  tool executor + journal + Sink（turn 粒度输出接口）。4 组集成测试
+  用 ScriptedProvider：多 turn 改文件、纯文本停止、tool 错误后续跑、
+  max_turns。
+- **决定**：
+  - loop 终止：assistant 消息零 tool call = 完成；否则并行 call 顺序
+    执行、结果合成一条 `RoleTool` 消息回填（S1 顺序执行，S4.3 才并发）。
+  - `Sink` 接口把渲染与循环解耦（CLI 1.9 实现；测试传 nil）。
+  - usage 逐 turn 累加进 RunResult。
+  - **明确标注**：本 orchestration 是 S1 naive 版，S2.10 会重写到
+    activity + fold state 之上（接口不变）——预期返工 #1 的落点。
+- **DEFERRED**：无。
