@@ -62,12 +62,15 @@ type ToolDef struct {
 }
 
 // CompleteRequest is a normalized, provider-agnostic completion request.
+// Turn is the 1-based turn number of this call within the run; adapters use
+// it to mint deterministic call ids via CallID.
 type CompleteRequest struct {
 	Model     string
 	MaxTokens int
 	System    string
 	Messages  []Message
 	Tools     []ToolDef
+	Turn      int
 }
 
 // ToolCall is one tool invocation requested by the model.

@@ -51,7 +51,7 @@ func TestLoadSpecValid(t *testing.T) {
 	if spec.Name != "hello" {
 		t.Errorf("name = %q", spec.Name)
 	}
-	if spec.Model.Provider != "gemini" || spec.Model.ID != "gemini-2.5-flash" {
+	if spec.Model.Provider != "gemini" || spec.Model.ID != "gemini-flash-latest" {
 		t.Errorf("model = %+v", spec.Model)
 	}
 	if spec.MaxTurns != DefaultMaxTurns {

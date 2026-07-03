@@ -1,6 +1,6 @@
 name: hello
 model:
   provider: gemini
-  id: gemini-2.5-flash
+  id: gemini-flash-latest
 system_prompt: You are a helpful coding agent.
 tools: [read_file, edit_file, bash]

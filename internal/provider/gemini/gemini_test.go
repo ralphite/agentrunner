@@ -1,0 +1,147 @@
+package gemini
+
+import (
+	"encoding/json"
+	"testing"
+
+	"google.golang.org/genai"
+
+	"github.com/ralphite/agentrunner/internal/provider"
+)
+
+func TestToContentsRolesAndSignature(t *testing.T) {
+	sig, _ := json.Marshal([]byte{0xde, 0xad})
+	msgs := []provider.Message{
+		{Role: provider.RoleUser, Parts: []provider.Part{{Kind: provider.PartText, Text: "fix it"}}},
+		{Role: provider.RoleAssistant, Parts: []provider.Part{
+			{Kind: provider.PartText, Text: "reading"},
+			{Kind: provider.PartToolCall, CallID: "call_1_0", ToolName: "read_file",
+				Args:   json.RawMessage(`{"path":"a.go"}`),
+				Extras: map[string]json.RawMessage{extrasSignatureKey: sig}},
+		}},
+		{Role: provider.RoleTool, Parts: []provider.Part{
+			{Kind: provider.PartToolResult, CallID: "call_1_0", ToolName: "read_file",
+				Result: json.RawMessage(`{"content":"package a"}`)},
+		}},
+	}
+
+	contents, err := toContents(msgs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(contents) != 3 {
+		t.Fatalf("contents = %d, want 3", len(contents))
+	}
+	if contents[0].Role != genai.RoleUser || contents[1].Role != genai.RoleModel || contents[2].Role != genai.RoleUser {
+		t.Errorf("roles = %s/%s/%s", contents[0].Role, contents[1].Role, contents[2].Role)
+	}
+
+	fc := contents[1].Parts[1]
+	if fc.FunctionCall == nil || fc.FunctionCall.Name != "read_file" {
+		t.Fatalf("function call part = %+v", fc)
+	}
+	if string(fc.ThoughtSignature) != "\xde\xad" {
+		t.Errorf("thought signature not restored: %v", fc.ThoughtSignature)
+	}
+
+	fr := contents[2].Parts[0]
+	if fr.FunctionResponse == nil || fr.FunctionResponse.Response["content"] != "package a" {
+		t.Errorf("function response = %+v", fr)
+	}
+}
+
+func TestToResponseMapConventions(t *testing.T) {
+	cases := []struct {
+		name string
+		part provider.Part
+		key  string
+	}{
+		{"object passthrough", provider.Part{Result: json.RawMessage(`{"a":1}`)}, "a"},
+		{"scalar wraps as output", provider.Part{Result: json.RawMessage(`"hi"`)}, "output"},
+		{"error wraps as error", provider.Part{Result: json.RawMessage(`"boom"`), IsError: true}, "error"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := toResponseMap(tc.part)
+			if _, ok := m[tc.key]; !ok {
+				t.Errorf("response map = %v, want key %q", m, tc.key)
+			}
+		})
+	}
+}
+
+func TestToConfigTools(t *testing.T) {
+	req := provider.CompleteRequest{
+		System:    "be brief",
+		MaxTokens: 100,
+		Tools: []provider.ToolDef{{
+			Name:        "read_file",
+			Description: "read a file",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"}}}`),
+		}},
+	}
+	config, err := toConfig(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.SystemInstruction == nil || config.SystemInstruction.Parts[0].Text != "be brief" {
+		t.Errorf("system instruction = %+v", config.SystemInstruction)
+	}
+	if config.MaxOutputTokens != 100 {
+		t.Errorf("max tokens = %d", config.MaxOutputTokens)
+	}
+	decls := config.Tools[0].FunctionDeclarations
+	if len(decls) != 1 || decls[0].Name != "read_file" || decls[0].ParametersJsonSchema == nil {
+		t.Errorf("declarations = %+v", decls)
+	}
+}
+
+func TestStreamStateMapping(t *testing.T) {
+	st := newStreamState(2)
+	resp := &genai.GenerateContentResponse{
+		Candidates: []*genai.Candidate{{
+			FinishReason: genai.FinishReasonStop,
+			Content: &genai.Content{Parts: []*genai.Part{
+				{Text: "on it"},
+				{FunctionCall: &genai.FunctionCall{Name: "bash", Args: map[string]any{"command": "ls"}}},
+				{FunctionCall: &genai.FunctionCall{Name: "read_file", Args: map[string]any{"path": "x"}}},
+			}},
+		}},
+		UsageMetadata: &genai.GenerateContentResponseUsageMetadata{
+			PromptTokenCount: 5, CandidatesTokenCount: 7, CachedContentTokenCount: 3,
+		},
+	}
+
+	events := st.mapResponse(resp)
+	if len(events) != 4 {
+		t.Fatalf("events = %d, want 4 (text + 2 calls + usage)", len(events))
+	}
+	if events[1].ToolCall.CallID != "call_2_0" || events[2].ToolCall.CallID != "call_2_1" {
+		t.Errorf("call ids = %q, %q", events[1].ToolCall.CallID, events[2].ToolCall.CallID)
+	}
+	if events[3].Usage.CacheReadTokens != 3 {
+		t.Errorf("usage = %+v", events[3].Usage)
+	}
+	if got := st.finish(); got != provider.FinishToolUse {
+		t.Errorf("finish = %q, want tool_use", got)
+	}
+}
+
+func TestFinishMapping(t *testing.T) {
+	cases := []struct {
+		reason  genai.FinishReason
+		sawCall bool
+		want    provider.FinishReason
+	}{
+		{genai.FinishReasonStop, false, provider.FinishEndTurn},
+		{genai.FinishReasonStop, true, provider.FinishToolUse},
+		{genai.FinishReasonMaxTokens, false, provider.FinishMaxTokens},
+		{genai.FinishReasonSafety, false, provider.FinishOther},
+	}
+	for _, tc := range cases {
+		st := &streamState{sawToolCall: tc.sawCall, finishReason: tc.reason}
+		if got := st.finish(); got != tc.want {
+			t.Errorf("finish(%s, saw=%v) = %q, want %q", tc.reason, tc.sawCall, got, tc.want)
+		}
+	}
+}

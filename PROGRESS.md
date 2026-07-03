@@ -60,3 +60,26 @@ review 的 open questions。
     按到达序附加（Extras 原样保留）。
 - **DEFERRED**：无。
 - **验收承诺**：本接口在 S2/S4 不再变更（1.2 的验证列）。
+
+## S1.3 — Gemini provider　✅
+
+- **状态**：完成。`internal/provider/gemini`：官方 genai SDK 适配、
+  流式映射、functionCall↔call_id、thoughtSignature 进出 Extras、
+  usage/finish 归一化。5 组纯函数单测 + **live 冒烟已实跑通过**
+  （无需 DEFERRED——本环境 `.env` 有 key 且网络可达）。
+- **决定**：
+  - tool schema 用 SDK 的 **`ParametersJsonSchema` 直通**而非执行包
+    预设的手写 Schema converter——SDK 原生支持 raw JSON schema，
+    直通严格更优（偏离已记）。
+  - **默认模型改为 `gemini-flash-latest`**：执行包写的
+    `gemini-2.5-flash` 在本 key 上 404（该 key 的模型清单无裸 2.5-flash，
+    有 latest 别名/2.5-flash-lite/3-preview 系）。示例与测试全部
+    改用 latest 别名。
+  - `CompleteRequest` 增加 `Turn` 字段（加性变更，call id 生成需要；
+    不违反 1.2 的稳定承诺）。
+  - Gemini 无 error 标志 → 错误结果约定为
+    `functionResponse.response = {"error": …}`；对象结果直通，
+    标量包 `{"output": …}`（决策 #9 的 Gemini 侧落地）。
+  - live 测试自带 `.env` 加载（不覆盖已有 env），`//go:build live`
+    隔离,check.sh 不编译。
+- **DEFERRED**：无。

@@ -1,2 +1,2 @@
 name: x
-model: { provider: gemini, id: gemini-2.5-flash }
+model: { provider: gemini, id: gemini-flash-latest }
