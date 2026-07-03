@@ -66,6 +66,17 @@ scripts/check.sh          # golangci-lint + go test 全绿 = 一步完成
   变更 ⇒ 重录，小单测可手写 YAML fixture。
 - **样例 repo fixture**：小 Go 工程（含可跑的失败测试），版本入库于
   `testdata/`，**每个测试复制到 tmp workspace 再操作**，绝不弄脏库内副本。
+- **真实仓库 testbed**（中等规模、可复现）：`scripts/testbed.sh` 把钉死
+  的外部仓库 clone 到 scratch 目录——默认
+  `gin-gonic/gin@v1.10.1`（`b5af7796…`，约 2 万行，MIT，测试齐全）；
+  更大任务用 `caddyserver/caddy`（约 6 万行，Apache-2.0）作第二档。
+  **可复现的任务构造**：clone 钉死 commit → 应用 `testdata/testbed/`
+  里的已知 bug patch → agent 修复 → 跑该仓库测试。testbed 场景不进
+  单测 CI，只挂 acceptance（`requires: [testbed]`），从 S1 出口检查点
+  起用于真实环境验收，S4/S6 起用于 dogfood。
+- **本地凭据**：repo 根 `.env`（已 gitignore、0600）存
+  `GEMINI_API_KEY` 等；CLI 与测试启动时若存在 `.env` 则加载。
+  **绝不提交、绝不进 fixture/journal**（redaction 兜底）。
 
 ---
 
@@ -104,8 +115,9 @@ scripts/check.sh          # golangci-lint + go test 全绿 = 一步完成
   TUI**：清单式进度（pending / spinner / PASS / FAIL + 耗时），失败项
   展开命令输出与日志路径；非 TTY 降级为纯文本逐行，**总是**写
   `acceptance-report.json`（loop-mode agent 靠它自判结果）。
-- **SKIPPED 语义**：`requires: [live]` 的场景在无凭据环境标 SKIPPED
-  （区别于 FAIL）；stage 出口要求 FAIL=0，SKIPPED 项归入人工检查点。
+- **SKIPPED 语义**：`requires: [live]`（需凭据）或 `requires: [testbed]`
+  （需外网 clone testbed）的场景在条件缺失时标 SKIPPED（区别于 FAIL）；
+  stage 出口要求 FAIL=0，SKIPPED 项归入人工检查点。
 - **演进**：v0 在 S1（步 1.11）落地，支持命令执行 + 退出码/文件/journal
   断言；S2 加崩溃注入场景包装，S4 加流式输出断言，逐 stage 生长。
 
@@ -173,7 +185,8 @@ scripts/check.sh          # golangci-lint + go test 全绿 = 一步完成
 - **loop 终止**：assistant 消息零 tool call 即完成；或达 max_turns →
   journal `run_end{reason: max_turns}`。
 - **CLI**：`agentrunner run <spec> "task"`（spec 位置参数）；退出码
-  0 = 完成 / 1 = 运行失败 / 2 = 用法或 spec 错误。
+  0 = 完成 / 1 = 运行失败 / 2 = 用法或 spec 错误；启动时若 cwd 有
+  `.env` 则加载（仅本地便利，不覆盖已存在的环境变量）。
 
 ---
 

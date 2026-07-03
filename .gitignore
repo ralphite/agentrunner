@@ -1,2 +1,4 @@
 runs/
 __pycache__/
+.env
+acceptance-report.json
