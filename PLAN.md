@@ -89,9 +89,11 @@ scripts/check.sh          # golangci-lint + go test 全绿 = 一步完成
 2. **进度台账**：repo 根维护 `PROGRESS.md`，每步一节：状态、
    **所做的每个决定**（凡计划未指定而自行选择的，必须记录为 decision）、
    留给 stage review 的 open questions。随该步一起提交。
-3. **一步一 commit**：格式 `S<stage>.<step>: <交付物摘要>`，body 列
-   decisions/deviations；`scripts/check.sh` 全绿才 commit
-   （1.0 自举例外：该步创建 check.sh）。
+3. **一步一 commit，commit 即 push**：格式 `S<stage>.<step>:
+   <交付物摘要>`，body 列 decisions/deviations；`scripts/check.sh`
+   全绿才 commit（1.0 自举例外：该步创建 check.sh）。**每次 commit
+   后立即 push 到 `origin/main`**——只用 main，不开分支，session
+   开始先 fetch + fast-forward（项目硬规则，见 CLAUDE.md）。
 4. **不可验证项**：验证列需要环境缺失的资源（如 `GEMINI_API_KEY`、
    人工验收）→ 照常实现 + 单测，验证标 `DEFERRED: <原因>` 记入
    PROGRESS.md，继续前进——**绝不停等人类**；stage 出口的人工检查点
