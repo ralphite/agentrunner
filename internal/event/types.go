@@ -30,6 +30,7 @@ const (
 	TypeEffectResolved    = "effect_resolved"
 	TypeApprovalRequested = "approval_requested"
 	TypeApprovalResponded = "approval_responded"
+	TypeModeChanged       = "mode_changed"
 )
 
 // Effect verdicts and gate decisions.
@@ -182,6 +183,14 @@ type ApprovalResponded struct {
 	Source     string `json:"source"` // tty | env | interrupt
 }
 
+// ModeChanged records a run-mode transition (3.6c). Cause names the
+// authority: "startup" | "exit_plan_mode approved" | "user".
+type ModeChanged struct {
+	From  string `json:"from,omitempty"`
+	To    string `json:"to"`
+	Cause string `json:"cause"`
+}
+
 // GateResult is one gate's judgment inside an effect resolution.
 type GateResult struct {
 	Gate     string `json:"gate"`
@@ -221,4 +230,5 @@ var Registry = map[string]func() any{
 	TypeEffectResolved:    func() any { return &EffectResolved{} },
 	TypeApprovalRequested: func() any { return &ApprovalRequested{} },
 	TypeApprovalResponded: func() any { return &ApprovalResponded{} },
+	TypeModeChanged:       func() any { return &ModeChanged{} },
 }

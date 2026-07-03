@@ -6,6 +6,8 @@ files:
     model: { provider: scripted, id: x }
     system_prompt: leave a mark
     tools: [bash]
+    permissions:
+      - { action: allow }
   mark.yaml: |
     steps:
       - respond:

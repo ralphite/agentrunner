@@ -53,6 +53,15 @@ func (g *PermissionGate) Check(_ context.Context, eff Effect) Decision {
 		return Deny(fmt.Sprintf("path escapes workspace: %s", args.Path))
 	}
 
+	// exit_plan_mode is transition policy, not rule material: leaving plan
+	// mode always requires approval (3.6c); outside plan it is meaningless.
+	if eff.ToolName == "exit_plan_mode" {
+		if g.effectiveMode(eff) == ModePlan {
+			return Ask("exit plan mode → default")
+		}
+		return Deny("not in plan mode")
+	}
+
 	for i, rule := range g.Rules {
 		if rule.matches(eff.ToolName, relPath, args.Path, args.Command) {
 			switch rule.Action {
@@ -67,10 +76,15 @@ func (g *PermissionGate) Check(_ context.Context, eff Effect) Decision {
 			}
 		}
 	}
-	return modeDefault(g.mode(), eff.Class)
+	return modeDefault(g.effectiveMode(eff), eff.Class)
 }
 
-func (g *PermissionGate) mode() string {
+// effectiveMode prefers the effect's mode (live fold state — the mode can
+// change mid-run) over the gate's construction-time fallback.
+func (g *PermissionGate) effectiveMode(eff Effect) string {
+	if eff.Mode != "" {
+		return eff.Mode
+	}
 	if g.Mode == "" {
 		return ModeDefault
 	}

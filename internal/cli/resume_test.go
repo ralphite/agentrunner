@@ -16,6 +16,8 @@ const resumeSpecYAML = `name: fixer
 model: { provider: scripted, id: x }
 system_prompt: fix things
 tools: [read_file, edit_file]
+permissions:
+  - { action: allow }
 `
 
 const crashFixtureYAML = `steps:

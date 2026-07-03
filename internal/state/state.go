@@ -22,6 +22,7 @@ func SubStateVersions() map[string]int {
 		"timers":       1,
 		"run":          1,
 		"effects":      1, // S3.2 (declared in the 2.4 table as an S3 addition)
+		"mode":         1, // S3.6a
 	}
 }
 
@@ -39,6 +40,16 @@ type State struct {
 	Timers       Timers       `json:"timers"`
 	Run          Run          `json:"run"`
 	Effects      Effects      `json:"effects"`
+	// Mode is the current run mode (3.6a); empty folds as "default".
+	Mode string `json:"mode,omitempty"`
+}
+
+// CurrentMode returns the effective mode ("default" when unset).
+func (s State) CurrentMode() string {
+	if s.Mode == "" {
+		return "default"
+	}
+	return s.Mode
 }
 
 // Effects tracks adjudication state (3.2/3.5). Pending: entered the gates,
@@ -217,6 +228,9 @@ func Apply(s State, env event.Envelope) (State, error) {
 	case *event.ApprovalRequested, *event.ApprovalResponded:
 		// State lives in the surrounding waiting_entered/resolved and
 		// effect_resolved facts; these are the audit trail.
+
+	case *event.ModeChanged:
+		s.Mode = p.To
 
 	case *event.ActorCrashed:
 		s.Run.LastCrash = p.Actor + ": " + p.Error

@@ -24,7 +24,8 @@ type Effect struct {
 	Class     string // tool class: read | edit | execute | wait
 	Args      []byte
 	CallID    string
-	EstTokens int // budget reservation basis (3.7)
+	EstTokens int    // budget reservation basis (3.7)
+	Mode      string // current run mode at adjudication time (3.6)
 }
 
 // Decision is one gate's judgment.

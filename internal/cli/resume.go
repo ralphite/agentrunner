@@ -74,6 +74,13 @@ func resumeCmd(args []string, version string, stdout, stderr io.Writer) int {
 	defer func() { _ = events.Close() }()
 
 	fmt.Fprintf(stderr, "resuming session %s\n", sessionID)
+	// The live mode comes from the fold; spec.Mode is only the gate's
+	// static fallback.
+	pipe, err := buildPipeline(ws, spec.Permissions, spec.Mode, stderr)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return ExitRun
+	}
 	loop := &agent.Loop{
 		Spec:       &spec,
 		Provider:   prov,
@@ -84,6 +91,7 @@ func resumeCmd(args []string, version string, stdout, stderr io.Writer) int {
 		SessionID:  sessionID,
 		Version:    version,
 		Interrupts: interrupts,
+		Pipeline:   pipe,
 	}
 	result, runErr := loop.Resume(ctx)
 	if runErr != nil {

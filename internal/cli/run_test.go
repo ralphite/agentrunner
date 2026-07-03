@@ -19,6 +19,8 @@ func writeSpec(t *testing.T, dir string) string {
 model: { provider: scripted, id: x }
 system_prompt: help
 tools: [read_file, edit_file, bash]
+permissions:
+  - { action: allow }
 `
 	if err := os.WriteFile(path, []byte(spec), 0o644); err != nil {
 		t.Fatal(err)

@@ -7,7 +7,7 @@ import (
 )
 
 func TestRegistryLoads(t *testing.T) {
-	want := []string{"bash", "edit_file", "read_file"}
+	want := []string{"bash", "edit_file", "exit_plan_mode", "read_file"}
 	if got := Names(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("Names() = %v, want %v", got, want)
 	}
@@ -21,6 +21,9 @@ func TestRegistryLoads(t *testing.T) {
 	}
 	if def, _ := Get("edit_file"); def.Class != ClassEdit {
 		t.Errorf("edit_file class = %q", def.Class)
+	}
+	if def, _ := Get("exit_plan_mode"); def.Class != ClassWait {
+		t.Errorf("exit_plan_mode class = %q", def.Class)
 	}
 }
 

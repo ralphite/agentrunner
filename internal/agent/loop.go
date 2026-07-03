@@ -52,6 +52,9 @@ type Loop struct {
 	// WAITING_APPROVAL resolves the approval as denied-by-interrupt and
 	// the run continues. nil = never fires.
 	Interrupts <-chan struct{}
+	// Mode is the STARTING mode (3.6): journaled as the first ModeChanged.
+	// The live mode is fold state; empty means "default".
+	Mode string
 }
 
 // RunResult summarizes a completed run.
@@ -133,6 +136,16 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 	ds.lastID = input.ID
 	if ds.s, err = state.Apply(ds.s, input); err != nil {
 		return RunResult{}, err
+	}
+	if l.Mode != "" && l.Mode != pipeline.ModeDefault {
+		if !pipeline.ValidMode(l.Mode) {
+			return RunResult{}, fmt.Errorf("unknown mode %q", l.Mode)
+		}
+		if _, err := appendE(event.TypeModeChanged, &event.ModeChanged{
+			To: l.Mode, Cause: "startup",
+		}); err != nil {
+			return RunResult{}, err
+		}
 	}
 
 	return l.drive(ctx, ds, appendE)
@@ -362,12 +375,13 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				ID: fmt.Sprintf("llm-t%d", act.turn), Kind: event.KindLLM,
 				Name: "complete", Idempotent: true,
 				Run: func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
+					mode := ds.s.CurrentMode()
 					req := provider.CompleteRequest{
 						Model:     l.Spec.Model.ID,
 						MaxTokens: l.Spec.Model.MaxTokens,
-						System:    l.Spec.SystemPrompt,
+						System:    l.Spec.SystemPrompt + modePromptSuffix(mode),
 						Messages:  assembleMessages(ds.s),
-						Tools:     toolDefs,
+						Tools:     advertisedTools(toolDefs, mode),
 						Turn:      act.turn,
 					}
 					collected, err := provider.CollectTurn(l.Provider.Complete(ctx, req))
@@ -400,6 +414,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				ID: "eff-" + call.CallID, Kind: "tool_call",
 				ToolName: call.Name, Class: toolClass(call.Name),
 				Args: call.Args, CallID: call.CallID,
+				Mode: ds.s.CurrentMode(),
 			}
 			if outcome, allowed, err := l.adjudicate(ctx, ds, appendE, eff); err != nil {
 				return RunResult{}, abort(act.turn, err)
@@ -412,21 +427,41 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				continue
 			}
 			var res tool.Result
+			run := func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
+				res = l.Exec.Execute(ctx, call.Name, call.Args)
+				return res.Payload, nil, res.IsError, nil
+			}
+			if call.Name == "exit_plan_mode" {
+				// Harness-level tool: the approved transition IS the effect.
+				run = func(context.Context) (json.RawMessage, *provider.Usage, bool, error) {
+					res = tool.Result{Payload: json.RawMessage(
+						`{"output":"plan approved; now in default mode"}`)}
+					return res.Payload, nil, false, nil
+				}
+			}
 			err := exec.Do(ctx, Activity{
 				ID: "tool-" + call.CallID, Kind: event.KindTool,
 				Name: call.Name, Args: call.Args, CallID: call.CallID,
 				Idempotent: toolIdempotent(call.Name),
 				Timeout:    toolTimeout(call.Name),
-				Run: func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
-					res = l.Exec.Execute(ctx, call.Name, call.Args)
-					return res.Payload, nil, res.IsError, nil
-				},
+				Run:        run,
 			})
 			if err != nil {
 				return RunResult{}, abort(act.turn, fmt.Errorf("turn %d: %s: %w", act.turn, call.Name, err))
 			}
 			if l.Sink != nil {
 				l.Sink.ToolResult(act.turn, call.CallID, res)
+			}
+			if call.Name == "exit_plan_mode" && !res.IsError {
+				from := ds.s.CurrentMode()
+				if !pipeline.ValidTransition(from, pipeline.ModeDefault) {
+					return RunResult{}, abort(act.turn, fmt.Errorf("invalid mode transition %s → default", from))
+				}
+				if _, err := appendE(event.TypeModeChanged, &event.ModeChanged{
+					From: from, To: pipeline.ModeDefault, Cause: "exit_plan_mode approved",
+				}); err != nil {
+					return RunResult{}, abort(act.turn, err)
+				}
 			}
 
 		case doWait:

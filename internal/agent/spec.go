@@ -39,6 +39,9 @@ type AgentSpec struct {
 	// Permissions is the spec-level rule source (3.4): lowest precedence
 	// in the user > project > spec merge.
 	Permissions []pipeline.PermissionRule `yaml:"permissions,omitempty"`
+	// Mode is the starting run mode (3.6); CLI --mode overrides. Empty =
+	// "default".
+	Mode string `yaml:"mode,omitempty"`
 }
 
 // LoadSpec reads, parses, validates, and resolves an agent spec.
@@ -113,6 +116,10 @@ func (s *AgentSpec) validate(path string) error {
 		if _, ok := tool.Get(name); !ok {
 			return fail("tools", fmt.Sprintf("unknown tool %q (known: %v)", name, tool.Names()))
 		}
+	}
+
+	if s.Mode != "" && !pipeline.ValidMode(s.Mode) {
+		return fail("mode", fmt.Sprintf("unknown mode %q (known: default, plan, acceptEdits, bypass)", s.Mode))
 	}
 
 	if s.MaxTurns < 0 {

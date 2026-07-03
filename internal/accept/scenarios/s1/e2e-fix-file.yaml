@@ -6,6 +6,8 @@ files:
     model: { provider: scripted, id: x }
     system_prompt: You are a coding agent.
     tools: [read_file, edit_file]
+    permissions:
+      - { action: allow }
   fix.yaml: |
     steps:
       - respond:

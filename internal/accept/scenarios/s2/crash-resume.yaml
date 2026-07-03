@@ -6,6 +6,8 @@ files:
     model: { provider: scripted, id: x }
     system_prompt: fix things
     tools: [read_file, edit_file]
+    permissions:
+      - { action: allow }
   greet.txt: "hello world"
   crash-fix.yaml: |
     steps:

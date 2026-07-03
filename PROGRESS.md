@@ -843,3 +843,32 @@ after:waiting_entered:1(挂起中 kill)→ resume 重新提示 → 批准 →
   跨 goroutine——race detector 抓过一次,修法记档)。
 - resume 到 doWait(approval)复用 awaitApproval(请求 payload 存于
   Waiting.Detail,不重复 journal approval_requested)。
+
+## S3.6a–d mode — DONE(+ CLI 全管线接线)
+
+- **3.6a 数据模型**:mode = fold sub-state(第 7 个,`mode_changed`
+  event 驱动,空 = default);工具面过滤 `ClassAdvertised`(plan 只
+  广告 read/wait——**双门**:面过滤 + 关卡 mode 默认,模型幻觉隐藏
+  tool 也会被拒);Effect.Mode 携带活 mode(mode 可中途变,gate 构造
+  时快照不可靠)。
+- **3.6b prompt 注入**:plan mode 在 system prompt 尾部追加段
+  (S4.4a 收编,计划内迁移);默认模式零注入(golden 不受扰)。
+- **3.6c 跃迁**:内置 tool `exit_plan_mode`(class wait,defs JSON);
+  permission gate 视之为跃迁政策(plan → Ask,非 plan → Deny);
+  批准后 harness 级执行(不进 tool.Executor)+ `mode_changed{plan→
+  default, cause: exit_plan_mode approved}`;跃迁规则表
+  `ValidTransition`(any→bypass 仅 CLI 启动)。
+- **3.6d bypass 语义**:bypass 在 permission/budget 层全 allow,但
+  hooks 关卡照跑(组合测试钉住);**越界拒绝连 bypass 也不豁免**
+  (3.3 已定)。
+- **CLI 接线**(3.3 递延项落地):`buildPipeline` = 三源 config 合并 +
+  PermissionGate;`--mode` flag;spec `mode:` 字段(校验);resume 重建
+  管线(活 mode 走 fold);不受信 project 有配置时 stderr 提示。
+- **迁移面**:CLI 级测试 spec 与 s1/s2 acceptance 场景 spec 加
+  `permissions: [{action: allow}]`(关卡激活后 edit/execute 默认 ask
+  → env 拒);tool 注册表钉住测试 + spec golden 更新(exit_plan_mode
+  入册)。
+
+**验证**:过滤表全 mode×class;跃迁表 allowed/denied 双向;plan 全流程
+集成(turn 1 过滤面+注入 → exit_plan_mode 审批 → mode_changed → turn 2
+全面无注入);拒绝路径留在 plan;bypass+hooks 组合。

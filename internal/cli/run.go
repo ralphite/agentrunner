@@ -55,6 +55,7 @@ type runOptions struct {
 	task       string
 	workspace  string
 	maxTurns   int
+	mode       string
 	fixtureOut string // record-fixture mode when non-empty
 	version    string
 	factory    providerFactory
@@ -72,6 +73,7 @@ func runCmd(args []string, recordMode bool, version string, stdout, stderr io.Wr
 	fs.SetOutput(stderr)
 	workspaceDir := fs.String("workspace", ".", "workspace root (default: current directory)")
 	maxTurns := fs.Int("max-turns", 0, "override spec max_turns")
+	mode := fs.String("mode", "", "run mode: default|plan|acceptEdits|bypass (overrides spec)")
 	fixtureOut := fs.String("o", "", "fixture output path (record-fixture only)")
 	if err := fs.Parse(args); err != nil {
 		return ExitUsage
@@ -94,6 +96,7 @@ func runCmd(args []string, recordMode bool, version string, stdout, stderr io.Wr
 		task:       rest[1],
 		workspace:  *workspaceDir,
 		maxTurns:   *maxTurns,
+		mode:       *mode,
 		fixtureOut: *fixtureOut,
 		version:    version,
 		factory:    defaultProviderFactory,
@@ -151,6 +154,16 @@ func runAgent(opts runOptions) int {
 
 	fmt.Fprintf(opts.stderr, "session %s\n", sessionID)
 
+	mode := spec.Mode
+	if opts.mode != "" {
+		mode = opts.mode
+	}
+	pipe, err := buildPipeline(ws, spec.Permissions, mode, opts.stderr)
+	if err != nil {
+		fmt.Fprintln(opts.stderr, err)
+		return ExitRun
+	}
+
 	loop := &agent.Loop{
 		Spec:       spec,
 		Provider:   prov,
@@ -161,6 +174,8 @@ func runAgent(opts runOptions) int {
 		SessionID:  sessionID,
 		Version:    opts.version,
 		Interrupts: interrupts,
+		Pipeline:   pipe,
+		Mode:       mode,
 	}
 	result, runErr := loop.Run(ctx, opts.task)
 
