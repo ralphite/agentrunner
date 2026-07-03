@@ -26,8 +26,10 @@ const (
 	TypeRunEnded          = "run_ended"
 
 	// S3 additions (the S2 set above never changes).
-	TypeEffectRequested = "effect_requested"
-	TypeEffectResolved  = "effect_resolved"
+	TypeEffectRequested   = "effect_requested"
+	TypeEffectResolved    = "effect_resolved"
+	TypeApprovalRequested = "approval_requested"
+	TypeApprovalResponded = "approval_responded"
 )
 
 // Effect verdicts and gate decisions.
@@ -160,6 +162,26 @@ type EffectRequested struct {
 	SideEffecting bool   `json:"side_effecting,omitempty"`
 }
 
+// ApprovalRequested parks an ask-verdict effect for a human decision. It
+// carries every gate's judgment (the prompt must show the full picture)
+// and a reserved payload_ref for large payloads via the S7 ArtifactStore.
+type ApprovalRequested struct {
+	ApprovalID  string       `json:"approval_id"`
+	EffectID    string       `json:"effect_id"`
+	CallID      string       `json:"call_id,omitempty"`
+	GateResults []GateResult `json:"gate_results,omitempty"`
+	PayloadRef  string       `json:"payload_ref,omitempty"`
+}
+
+// ApprovalResponded is the journaled human decision (an external input:
+// journal-inputs-first applies).
+type ApprovalResponded struct {
+	ApprovalID string `json:"approval_id"`
+	Decision   string `json:"decision"` // approve | deny
+	Reason     string `json:"reason,omitempty"`
+	Source     string `json:"source"` // tty | env | interrupt
+}
+
 // GateResult is one gate's judgment inside an effect resolution.
 type GateResult struct {
 	Gate     string `json:"gate"`
@@ -197,4 +219,6 @@ var Registry = map[string]func() any{
 	TypeRunEnded:          func() any { return &RunEnded{} },
 	TypeEffectRequested:   func() any { return &EffectRequested{} },
 	TypeEffectResolved:    func() any { return &EffectResolved{} },
+	TypeApprovalRequested: func() any { return &ApprovalRequested{} },
+	TypeApprovalResponded: func() any { return &ApprovalResponded{} },
 }

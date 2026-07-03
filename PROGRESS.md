@@ -808,3 +808,38 @@ spec 永不携带 hooks(可移植内容 ≠ 工作站策略)。trust 注册表
 - spec 不设 hooks 字段:hooks 是本机策略,spec 是可分享内容——
   不受信 spec 经 hooks 提权的面根本不开。
 - trust 判定用 EvalSymlinks 双向归一(注册与查询都 realpath)。
+
+## S3.5 审批流 — DONE
+
+事件链:ask → `approval_requested{approval_id, effect_id, call_id,
+gate_results, payload_ref 预留}` → `waiting_entered{approval, detail=
+完整请求}` → resolver 应答(**先 journal** `approval_responded`)→
+`waiting_resolved` → `effect_resolved{allow|deny, gates+approval 关
+判定}` → 放行执行 / 拒绝渲染。`ApprovalResolver` 接口;默认
+`EnvApprovals`(AGENTRUNNER_APPROVE=always|never,缺省 **fail
+closed** 拒绝——loop-mode 不悬挂);TTY 交互版在 3.10。
+
+**Effects sub-state 扩展**:`{Pending, Allowed}`——resolved-allow 到
+activity 终态之间的窗口进 `Allowed`,adjudicate 先查:**已批准的
+effect 崩溃后 resume 绝不重新问一遍**(activity 终态经 call_id/
+activity_id 约定回收 Allowed 项)。3.2 的 sub-state 形态就地改
+(同 stage 内迭代,版本仍 1,无线上会话,记档)。
+
+**denied-by-interrupt**:`Loop.Interrupts` 通道;等待中 interrupt →
+journal input(interrupt) → approval_responded{deny, interrupt} →
+waiting_resolved{denied_by_interrupt} → effect_resolved{deny,
+"[interrupted by user]"} → **loop 继续**(拒绝结果模型可见)。CLI:
+`signalContext()`——首个 Ctrl-C = interrupt,第二个/SIGTERM = 硬取消
+(run 与 resume 都接线)。
+
+**验证**:approve 全链事实序断言 + 文件真落盘;FakeClock 挂 48h 后
+批准原地继续(S3 完成标志句);interrupt 路径(模型下一 turn 看到
+"[interrupted by user]"、run 完成、文件未写);**崩溃注入
+after:waiting_entered:1(挂起中 kill)→ resume 重新提示 → 批准 →
+继续完成**(S2 出口欠的验证在此补齐,计划原文)。全部 -race 通过。
+
+**Decisions**:
+- resolver 在 goroutine 跑、prompt 在 drive goroutine 预构(ds 不
+  跨 goroutine——race detector 抓过一次,修法记档)。
+- resume 到 doWait(approval)复用 awaitApproval(请求 payload 存于
+  Waiting.Detail,不重复 journal approval_requested)。

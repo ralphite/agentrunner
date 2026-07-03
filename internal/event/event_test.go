@@ -40,6 +40,10 @@ var samples = map[string]any{
 	TypeWaitingResolved: &WaitingResolved{Kind: WaitApproval, Resolution: "approved"},
 	TypeActorCrashed:    &ActorCrashed{Actor: "session", Error: "boom"},
 	TypeEffectRequested: &EffectRequested{EffectID: "eff-call_3_1", CallID: "call_3_1", SideEffecting: true},
+	TypeApprovalRequested: &ApprovalRequested{ApprovalID: "apr-eff-call_3_1", EffectID: "eff-call_3_1",
+		CallID: "call_3_1", GateResults: []GateResult{{Gate: "permission", Decision: VerdictAsk, Reason: "edit"}}},
+	TypeApprovalResponded: &ApprovalResponded{ApprovalID: "apr-eff-call_3_1", Decision: "approve",
+		Reason: "looks safe", Source: "tty"},
 	TypeEffectResolved: &EffectResolved{EffectID: "eff-call_3_1", CallID: "call_3_1",
 		Verdict: VerdictDeny, GateResults: []GateResult{
 			{Gate: "permission", Decision: VerdictDeny, Reason: "path escapes workspace"}}},

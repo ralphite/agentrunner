@@ -1,16 +1,13 @@
 package cli
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"sort"
-	"syscall"
 
 	"github.com/ralphite/agentrunner/internal/agent"
 	"github.com/ralphite/agentrunner/internal/clock"
@@ -30,7 +27,7 @@ func resumeCmd(args []string, version string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "usage: agentrunner resume <session-id-or-prefix>")
 		return ExitUsage
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, interrupts, stop := signalContext()
 	defer stop()
 	loadDotEnv(".env")
 
@@ -78,14 +75,15 @@ func resumeCmd(args []string, version string, stdout, stderr io.Writer) int {
 
 	fmt.Fprintf(stderr, "resuming session %s\n", sessionID)
 	loop := &agent.Loop{
-		Spec:      &spec,
-		Provider:  prov,
-		Exec:      &tool.Executor{WS: ws, Session: sessionID},
-		Store:     events,
-		Clock:     clock.Real{},
-		Sink:      &textSink{out: stdout},
-		SessionID: sessionID,
-		Version:   version,
+		Spec:       &spec,
+		Provider:   prov,
+		Exec:       &tool.Executor{WS: ws, Session: sessionID},
+		Store:      events,
+		Clock:      clock.Real{},
+		Sink:       &textSink{out: stdout},
+		SessionID:  sessionID,
+		Version:    version,
+		Interrupts: interrupts,
 	}
 	result, runErr := loop.Resume(ctx)
 	if runErr != nil {

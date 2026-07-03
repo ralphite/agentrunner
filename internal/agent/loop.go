@@ -46,6 +46,12 @@ type Loop struct {
 	// Pipeline adjudicates every effect before execution (S3). nil is an
 	// empty pipeline: everything allowed, resolutions still journaled.
 	Pipeline *pipeline.Pipeline
+	// Approvals resolves ask verdicts (3.5). nil = EnvApprovals.
+	Approvals ApprovalResolver
+	// Interrupts delivers user interrupts (first Ctrl-C). A receive during
+	// WAITING_APPROVAL resolves the approval as denied-by-interrupt and
+	// the run continues. nil = never fires.
+	Interrupts <-chan struct{}
 }
 
 // RunResult summarizes a completed run.
@@ -260,7 +266,7 @@ func (e *InDoubtError) Error() string {
 
 func collectPendingSideEffecting(s state.State) []event.EffectRequested {
 	var out []event.EffectRequested
-	for _, eff := range s.Effects {
+	for _, eff := range s.Effects.Pending {
 		if eff.SideEffecting {
 			out = append(out, eff)
 		}
@@ -341,7 +347,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			}
 
 		case doLLM:
-			if _, allowed, err := l.adjudicate(ctx, appendE, pipeline.Effect{
+			if _, allowed, err := l.adjudicate(ctx, ds, appendE, pipeline.Effect{
 				ID: fmt.Sprintf("eff-llm-t%d", act.turn), Kind: "llm_call",
 				EstTokens: l.Spec.Model.MaxTokens,
 			}); err != nil {
@@ -395,7 +401,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				ToolName: call.Name, Class: toolClass(call.Name),
 				Args: call.Args, CallID: call.CallID,
 			}
-			if outcome, allowed, err := l.adjudicate(ctx, appendE, eff); err != nil {
+			if outcome, allowed, err := l.adjudicate(ctx, ds, appendE, eff); err != nil {
 				return RunResult{}, abort(act.turn, err)
 			} else if !allowed {
 				// The denial was journaled as the call's resolution (the
@@ -424,9 +430,20 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			}
 
 		case doWait:
-			// Nothing in S2 produces waits mid-run; a parked session can
-			// only be met here on resume. Resolution flows (approval UI,
-			// interactive input) arrive in S3/S4 — refuse rather than spin.
+			// A parked approval (fresh or resumed across a crash) re-enters
+			// the same await path: the request payload lives in the fold's
+			// Waiting.Detail. Other wait kinds have no resolver until their
+			// stage (input S4, tasks/timer S6).
+			if ds.s.Waiting.Kind == event.WaitApproval {
+				var req event.ApprovalRequested
+				if err := json.Unmarshal(ds.s.Waiting.Detail, &req); err != nil {
+					return RunResult{}, abort(ds.s.Run.Turn, fmt.Errorf("waiting_approval detail: %w", err))
+				}
+				if _, err := l.awaitApproval(ctx, ds, appendE, req); err != nil {
+					return RunResult{}, abort(ds.s.Run.Turn, err)
+				}
+				continue
+			}
 			return RunResult{}, fmt.Errorf("session is waiting for %s; no resolver available yet", ds.s.Waiting.Kind)
 
 		case doEnd:
@@ -545,7 +562,12 @@ func toolCallsOf(m provider.Message) []provider.ToolCall {
 // resolution — allow or deny — AFTER adjudication, BEFORE execution. An
 // ask verdict downgrades to deny until the 3.5 approval flow exists (the
 // downgrade is itself recorded as a gate result, never silent).
-func (l *Loop) adjudicate(ctx context.Context, appendE AppendFunc, eff pipeline.Effect) (pipeline.Outcome, bool, error) {
+func (l *Loop) adjudicate(ctx context.Context, ds *driveState, appendE AppendFunc, eff pipeline.Effect) (pipeline.Outcome, bool, error) {
+	// Already resolved allow (e.g. approval granted, then crash before the
+	// activity's terminal event): never re-ask, never re-journal.
+	if ds.s.Effects.Allowed[eff.ID] {
+		return pipeline.Outcome{Verdict: event.VerdictAllow}, true, nil
+	}
 	if _, err := appendE(event.TypeEffectRequested, &event.EffectRequested{
 		EffectID: eff.ID, CallID: eff.CallID,
 		SideEffecting: l.Pipeline.SideEffecting(),
@@ -558,12 +580,8 @@ func (l *Loop) adjudicate(ctx context.Context, appendE AppendFunc, eff pipeline.
 	}
 	crash.Point(crash.PointBetweenGateAndResolved)
 	if outcome.Verdict == event.VerdictAsk {
-		// TODO(3.5): ask → ApprovalRequested → WAITING_APPROVAL.
-		outcome.Verdict = event.VerdictDeny
-		outcome.GateResults = append(outcome.GateResults, event.GateResult{
-			Gate: "pipeline", Decision: event.VerdictDeny,
-			Reason: "approval required but no approval flow yet (3.5)",
-		})
+		allowed, err := l.requestApproval(ctx, ds, appendE, eff, outcome)
+		return outcome, allowed, err
 	}
 	if _, err := appendE(event.TypeEffectResolved, &event.EffectResolved{
 		EffectID: eff.ID, CallID: eff.CallID,

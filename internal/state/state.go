@@ -41,10 +41,15 @@ type State struct {
 	Effects      Effects      `json:"effects"`
 }
 
-// Effects is the mid-adjudication set (3.2): EffectRequested adds,
-// EffectResolved removes. An entry present at resume means the gate
-// sequence was entered but never resolved.
-type Effects map[string]event.EffectRequested
+// Effects tracks adjudication state (3.2/3.5). Pending: entered the gates,
+// no resolution yet (resume in-doubt signal for side-effecting pipelines).
+// Allowed: resolved allow but the execution has not reached its terminal
+// event — after a crash, adjudication is NOT repeated (an approval already
+// granted must not be re-asked).
+type Effects struct {
+	Pending map[string]event.EffectRequested `json:"pending,omitempty"`
+	Allowed map[string]bool                  `json:"allowed,omitempty"`
+}
 
 // Conversation is the transcript plus tool results keyed by call_id —
 // the 2.10 request assembly reads exactly this.
@@ -91,7 +96,10 @@ func New() State {
 		Conversation: Conversation{ToolResults: map[string]ToolResult{}},
 		Activities:   Activities{},
 		Timers:       Timers{},
-		Effects:      Effects{},
+		Effects: Effects{
+			Pending: map[string]event.EffectRequested{},
+			Allowed: map[string]bool{},
+		},
 	}
 }
 
@@ -141,6 +149,7 @@ func Apply(s State, env event.Envelope) (State, error) {
 	case *event.ActivityCompleted:
 		started, inFlight := s.Activities[p.ActivityID]
 		s.Activities = s.Activities.without(p.ActivityID)
+		s.Effects = s.Effects.withoutAllowed(effectIDFor(started, p.ActivityID))
 		if p.Usage != nil {
 			s.Run.Usage = addUsage(s.Run.Usage, *p.Usage)
 		}
@@ -160,6 +169,7 @@ func Apply(s State, env event.Envelope) (State, error) {
 		// effect on resume. The rendering matches the 3.5 contract.
 		started, inFlight := s.Activities[p.ActivityID]
 		s.Activities = s.Activities.without(p.ActivityID)
+		s.Effects = s.Effects.withoutAllowed(effectIDFor(started, p.ActivityID))
 		if inFlight && started.Kind == event.KindTool && started.CallID != "" {
 			result, _ := json.Marshal(map[string]string{
 				"error":          "[interrupted by user]",
@@ -187,10 +197,13 @@ func Apply(s State, env event.Envelope) (State, error) {
 		s.Run.Status = StatusRunning
 
 	case *event.EffectRequested:
-		s.Effects = s.Effects.with(p.EffectID, *p)
+		s.Effects = s.Effects.withPending(p.EffectID, *p)
 
 	case *event.EffectResolved:
-		s.Effects = s.Effects.without(p.EffectID)
+		s.Effects = s.Effects.withoutPending(p.EffectID)
+		if p.Verdict == event.VerdictAllow {
+			s.Effects = s.Effects.withAllowed(p.EffectID)
+		}
 		// A denial IS the call's model-visible outcome: journaling it
 		// resolves the call_id, so decide() never re-attempts a denied
 		// effect (and a post-deny crash resumes past it).
@@ -200,6 +213,10 @@ func Apply(s State, env event.Envelope) (State, error) {
 			s.Conversation = s.Conversation.withToolResult(p.CallID,
 				ToolResult{Result: result, IsError: true})
 		}
+
+	case *event.ApprovalRequested, *event.ApprovalResponded:
+		// State lives in the surrounding waiting_entered/resolved and
+		// effect_resolved facts; these are the audit trail.
 
 	case *event.ActorCrashed:
 		s.Run.LastCrash = p.Actor + ": " + p.Error
@@ -284,26 +301,61 @@ func (a Activities) without(id string) Activities {
 	return out
 }
 
-func (e Effects) with(id string, v event.EffectRequested) Effects {
-	out := make(Effects, len(e)+1)
-	for k, x := range e {
+// effectIDFor recovers the effect id from an activity's identity (the
+// eff-<call_id> / eff-llm-t<n> convention).
+func effectIDFor(started event.ActivityStarted, activityID string) string {
+	if started.CallID != "" {
+		return "eff-" + started.CallID
+	}
+	return "eff-" + activityID
+}
+
+func (e Effects) withPending(id string, v event.EffectRequested) Effects {
+	out := make(map[string]event.EffectRequested, len(e.Pending)+1)
+	for k, x := range e.Pending {
 		out[k] = x
 	}
 	out[id] = v
-	return out
+	e.Pending = out
+	return e
 }
 
-func (e Effects) without(id string) Effects {
-	if _, ok := e[id]; !ok {
+func (e Effects) withoutPending(id string) Effects {
+	if _, ok := e.Pending[id]; !ok {
 		return e
 	}
-	out := make(Effects, len(e))
-	for k, x := range e {
+	out := make(map[string]event.EffectRequested, len(e.Pending))
+	for k, x := range e.Pending {
 		if k != id {
 			out[k] = x
 		}
 	}
-	return out
+	e.Pending = out
+	return e
+}
+
+func (e Effects) withAllowed(id string) Effects {
+	out := make(map[string]bool, len(e.Allowed)+1)
+	for k := range e.Allowed {
+		out[k] = true
+	}
+	out[id] = true
+	e.Allowed = out
+	return e
+}
+
+func (e Effects) withoutAllowed(id string) Effects {
+	if _, ok := e.Allowed[id]; !ok {
+		return e
+	}
+	out := make(map[string]bool, len(e.Allowed))
+	for k := range e.Allowed {
+		if k != id {
+			out[k] = true
+		}
+	}
+	e.Allowed = out
+	return e
 }
 
 func (t Timers) with(id string, v event.TimerSet) Timers {

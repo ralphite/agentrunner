@@ -100,9 +100,11 @@ func TestDeniedEffectSkipsExecutionAndContinues(t *testing.T) {
 	}
 }
 
-// Ask path (interim): downgrades to deny with an explicit extra gate
-// result until 3.5 — never a silent allow, never an unexplained deny.
+// Ask path with the fail-closed env resolver (AGENTRUNNER_APPROVE unset):
+// the ask escalates to an approval which auto-denies, recorded as an
+// approval gate result — never a silent allow, never an unexplained deny.
 func TestAskDowngradesToDenyUntilApprovalFlow(t *testing.T) {
+	t.Setenv("AGENTRUNNER_APPROVE", "never")
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{Name: "edit_file", Args: map[string]any{
@@ -140,7 +142,8 @@ func TestAskDowngradesToDenyUntilApprovalFlow(t *testing.T) {
 		t.Fatalf("resolved = %+v", resolved)
 	}
 	if len(resolved.GateResults) != 2 || resolved.GateResults[0].Decision != event.VerdictAsk ||
-		!strings.Contains(resolved.GateResults[1].Reason, "3.5") {
+		resolved.GateResults[1].Gate != "approval" ||
+		!strings.Contains(resolved.GateResults[1].Reason, "auto-denied") {
 		t.Fatalf("gate results = %+v", resolved.GateResults)
 	}
 }

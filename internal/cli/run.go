@@ -103,9 +103,7 @@ func runCmd(args []string, recordMode bool, version string, stdout, stderr io.Wr
 }
 
 func runAgent(opts runOptions) int {
-	// Ctrl-C / SIGTERM must reach tool process groups (they run in their own
-	// pgid, so terminal signal delivery does not).
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, interrupts, stop := signalContext()
 	defer stop()
 	loadDotEnv(".env")
 
@@ -154,14 +152,15 @@ func runAgent(opts runOptions) int {
 	fmt.Fprintf(opts.stderr, "session %s\n", sessionID)
 
 	loop := &agent.Loop{
-		Spec:      spec,
-		Provider:  prov,
-		Exec:      &tool.Executor{WS: ws, Session: sessionID},
-		Store:     events,
-		Clock:     clock.Real{},
-		Sink:      &textSink{out: opts.stdout},
-		SessionID: sessionID,
-		Version:   opts.version,
+		Spec:       spec,
+		Provider:   prov,
+		Exec:       &tool.Executor{WS: ws, Session: sessionID},
+		Store:      events,
+		Clock:      clock.Real{},
+		Sink:       &textSink{out: opts.stdout},
+		SessionID:  sessionID,
+		Version:    opts.version,
+		Interrupts: interrupts,
 	}
 	result, runErr := loop.Run(ctx, opts.task)
 
@@ -188,6 +187,34 @@ func runAgent(opts runOptions) int {
 		return ExitRun
 	}
 	return ExitOK
+}
+
+// signalContext maps terminal signals onto run semantics: the FIRST
+// Ctrl-C is an interrupt (denies a pending approval, the run continues);
+// the second Ctrl-C — or any SIGTERM — cancels the run outright (tool
+// process groups are killed via ctx).
+func signalContext() (context.Context, <-chan struct{}, func()) {
+	ctx, cancel := context.WithCancel(context.Background())
+	interrupts := make(chan struct{})
+	sigc := make(chan os.Signal, 2)
+	signal.Notify(sigc, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		first := true
+		for sig := range sigc {
+			if sig == os.Interrupt && first {
+				first = false
+				close(interrupts)
+				continue
+			}
+			cancel()
+			return
+		}
+	}()
+	return ctx, interrupts, func() {
+		signal.Stop(sigc)
+		close(sigc)
+		cancel()
+	}
 }
 
 // textSink renders turn-granularity output to stdout (S1; streaming in S4).
