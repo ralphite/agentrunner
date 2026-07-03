@@ -425,3 +425,16 @@ stream 错误经 `classify()` 上分类(genai.APIError 值类型 errors.As)。
   包本身不该带分类政策,tool/timeout 类也要用——记为位置偏离)。
 - ErrorInfo(event payload)与 errs.Error 的桥接留给 2.10
   (`ErrorInfo{Class: string(errs.ClassOf(err)), Retryable: ...}`)。
+
+## S2.9 Clock 抽象 — DONE
+
+`internal/clock`:`Clock{Now, WaitUntil(ctx, t)}`;`Real`(生产)、
+`Fake`(手动 `Advance(d)`,按到期先后唤醒 waiter;`Waiters()` 供测试
+同步)。过去目标立即返回;ctx 取消返回 ctx.Err()。48h 审批挂起场景
+(3.5)一次 Advance 快进验证。
+
+**Decisions**:
+- 接口只两个方法——`Sleep` 不提供,一切等待都以绝对时刻表达
+  (durable timer 的 `fire_at` 语义;相对时长在 resume 后会漂移)。
+- `Fake.Waiters()` 暴露 parked 数供测试无 sleep 同步(spin+Gosched)。
+- clock 包在 forbidigo 区外,是唯一合法 wall-clock 出口。
