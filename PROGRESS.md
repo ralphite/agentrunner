@@ -101,3 +101,14 @@ review 的 open questions。
   - `Expect.LastMessageContains` 对 tool_result part 也匹配其 Result
     原文（下一轮请求的"末条消息"往往是 tool 结果）。
 - **DEFERRED**：无。
+
+## S1.4 — workspace 抽象　✅（钩子 1 落位）
+
+- **状态**：完成。`internal/workspace`：realpath + `..` 归一 + 边界
+  检查；**不存在的路径解析最深已存在祖先**（新文件写在 out-of-tree
+  symlink 目录后面同样拒绝）。6 个测试覆盖 `..`/绝对路径/symlink
+  已存在与新文件目标/root 自身。
+- **决定**：root 在 New 时即做 abs + EvalSymlinks（边界比较在完全
+  解析的空间里进行）；错误格式按执行包
+  `path escapes workspace: <requested> -> <resolved>`。
+- **DEFERRED**：无。
