@@ -3,10 +3,13 @@ package gemini
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"testing"
 
 	"google.golang.org/genai"
 
+	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/provider"
 )
 
@@ -185,5 +188,31 @@ func TestToResponseMapEmptyResult(t *testing.T) {
 	m := toResponseMap(provider.Part{})
 	if _, ok := m["output"]; !ok {
 		t.Errorf("empty result map = %v, want output key", m)
+	}
+}
+
+// 2.8: SDK errors map onto the taxonomy — retry (2.10) and rendering (3.9)
+// consume only the class.
+func TestClassifyTable(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want errs.Class
+	}{
+		{"429", genai.APIError{Code: 429}, errs.ProviderRateLimit},
+		{"503", genai.APIError{Code: 503}, errs.ProviderServer},
+		{"401", genai.APIError{Code: 401}, errs.ProviderAuth},
+		{"400", genai.APIError{Code: 400}, errs.ProviderInvalid},
+		{"wrapped api error", fmt.Errorf("stream: %w", genai.APIError{Code: 429}), errs.ProviderRateLimit},
+		{"context canceled", context.Canceled, errs.Canceled},
+		{"deadline", context.DeadlineExceeded, errs.Timeout},
+		{"transport", errors.New("connection reset"), errs.ProviderServer},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := errs.ClassOf(classify(tc.err)); got != tc.want {
+				t.Errorf("classify → %s, want %s", got, tc.want)
+			}
+		})
 	}
 }

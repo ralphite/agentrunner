@@ -12,6 +12,7 @@ import (
 
 	"google.golang.org/genai"
 
+	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/provider"
 )
 
@@ -62,7 +63,7 @@ func (p *Provider) Complete(ctx context.Context, req provider.CompleteRequest) i
 		st := newStreamState(req.Turn)
 		for resp, err := range p.client.Models.GenerateContentStream(ctx, req.Model, contents, config) {
 			if err != nil {
-				yield(provider.StreamEvent{}, fmt.Errorf("gemini: %w", err))
+				yield(provider.StreamEvent{}, classify(err))
 				return
 			}
 			for _, ev := range st.mapResponse(resp) {
@@ -73,6 +74,19 @@ func (p *Provider) Complete(ctx context.Context, req provider.CompleteRequest) i
 		}
 		yield(provider.StreamEvent{Kind: provider.EventFinish, Finish: st.finish()}, nil)
 	}
+}
+
+// classify maps SDK errors onto the 2.8 taxonomy. Downstream retry and
+// rendering consume only the class.
+func classify(err error) error {
+	var ae genai.APIError
+	if errors.As(err, &ae) {
+		return errs.Wrap(errs.FromHTTPStatus(ae.Code), err, "gemini")
+	}
+	if class := errs.ClassOf(err); class == errs.Canceled || class == errs.Timeout {
+		return errs.Wrap(class, err, "gemini")
+	}
+	return errs.Wrap(errs.ProviderServer, err, "gemini") // transport-level: worth a retry
 }
 
 // streamState tracks per-call accumulation across stream chunks.

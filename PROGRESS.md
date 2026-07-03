@@ -409,3 +409,19 @@ store 可直接 reopen(2.7 崩溃场景 + harness 自测一体)。
   子进程测试用真 os.Exit。
 - 谓词 env 解析 sync.Once 缓存(进程内不变)。
 - crash 包无 store 依赖(store → crash 单向)。
+
+## S2.8 错误分类学 — DONE
+
+`internal/errs`:8 类(执行包清单)+ `Class.Retryable()`(仅
+rate_limit/server/timeout)+ `Error{Class,Msg,Err}` 可 wrap/Unwrap +
+`ClassOf`(errors.As 提取,context 哨兵映射 canceled/timeout,默认
+internal)+ `FromHTTPStatus`(429/5xx/401·403/4xx)。gemini 适配器
+stream 错误经 `classify()` 上分类(genai.APIError 值类型 errors.As)。
+
+**Decisions**:
+- 传输层错误(非 APIError、非 context)分类为 `provider_server`
+  ——连接重置类故障值得重试,比 internal 更符合语义。
+- 分类学放 `internal/errs` 独立包(计划说 provider/base;provider
+  包本身不该带分类政策,tool/timeout 类也要用——记为位置偏离)。
+- ErrorInfo(event payload)与 errs.Error 的桥接留给 2.10
+  (`ErrorInfo{Class: string(errs.ClassOf(err)), Retryable: ...}`)。
