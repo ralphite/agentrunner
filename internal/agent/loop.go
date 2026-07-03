@@ -279,6 +279,12 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				l.Sink.ToolResult(act.turn, call.CallID, res)
 			}
 
+		case doWait:
+			// Nothing in S2 produces waits mid-run; a parked session can
+			// only be met here on resume. Resolution flows (approval UI,
+			// interactive input) arrive in S3/S4 — refuse rather than spin.
+			return RunResult{}, fmt.Errorf("session is waiting for %s; no resolver available yet", ds.s.Waiting.Kind)
+
 		case doEnd:
 			if act.reason == "max_turns" {
 				slog.Warn("run hit max_turns", "max_turns", l.Spec.MaxTurns)
@@ -302,6 +308,7 @@ const (
 	doLLM         // run the LLM activity for action.turn
 	doTool        // run action.call
 	doEnd         // journal RunEnded with action.reason
+	doWait        // parked: the wait must resolve before anything else
 )
 
 type action struct {
@@ -314,6 +321,9 @@ type action struct {
 // decide is THE loop policy: given only the fold state, what happens next.
 // Resume re-enters here with the same state and therefore the same answer.
 func decide(s state.State, maxTurns int) action {
+	if s.Waiting != nil {
+		return action{kind: doWait, turn: s.Run.Turn}
+	}
 	turn := s.Run.Turn
 	if turn == 0 {
 		return action{kind: doTurn, turn: 1}

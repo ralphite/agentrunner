@@ -538,3 +538,24 @@ loop 产物上 fold(snapshot+尾)== fold(全量)(AssertFoldEqual)。
 - resume 时未到期 timer 不重挂(owner activity 重跑时自会重挂),
   过期的即刻 fire。
 - Resume 对已 ended session 返回结果 + error(CLI 可打印结果并退出)。
+
+## S2.14 等待状态注册表 — DONE
+
+`agent/waiting.go`:`WaitRules` 封闭注册表,四变体一次画全
+(INPUT@S4 / APPROVAL@S3 / TASKS@S6 / TIMER@S6),每行:可产生
+stage、可中断性、中断决议名(approval → `denied_by_interrupt`,3.5
+语义预埋)、非中断决议源。`CanProduce(kind, stage)` 供未来生产方守门
+(S2 全部不可产生)。`ResolveWaitingOnInterrupt`:interrupt 先 journal
+(`InputReceived{source: interrupt}`)再 `WaitingResolved{按表决议}`;
+未知 kind 响亮报错。decide() 加 `doWait` 守卫:parked 状态下 drive
+拒绝继续(S3/S4 才有 resolver),resume 不会越过等待乱跑。
+
+**验证**:表驱动覆盖每格(合成 WaitingEntered);跨进程存活(S2 出口
+标准的合成版:journal → close → reopen → fold 仍 parked → decide=
+doWait);non-waiting no-op;interrupt 不进 conversation。
+
+**Decisions**:
+- interrupt 是控制输入不是会话内容:fold 对 `source=="interrupt"` 的
+  InputReceived 不生成 user message(journal-inputs-first 仍满足)。
+- 四 kind 目前全部 Interruptible=true;表结构保留 false 的表达力
+  (S6 若有不可中断等待再启用)。

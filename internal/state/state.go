@@ -112,10 +112,14 @@ func Apply(s State, env event.Envelope) (State, error) {
 		s.Run.SpecName, s.Run.Model, s.Run.Task, s.Run.Version = p.SpecName, p.Model, p.Task, p.Version
 
 	case *event.InputReceived:
-		s.Conversation = s.Conversation.withMessage(provider.Message{
-			Role:  provider.RoleUser,
-			Parts: []provider.Part{{Kind: provider.PartText, Text: p.Text}},
-		})
+		// Interrupts are journaled control inputs (journal-inputs-first),
+		// not conversation content — they never become user messages.
+		if p.Source != "interrupt" {
+			s.Conversation = s.Conversation.withMessage(provider.Message{
+				Role:  provider.RoleUser,
+				Parts: []provider.Part{{Kind: provider.PartText, Text: p.Text}},
+			})
+		}
 
 	case *event.TurnStarted:
 		s.Run.Turn = p.Turn
