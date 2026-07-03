@@ -389,3 +389,23 @@ snapshot JSON round-trip 不得算分歧),失败报出具体 sub-state。
 - events 的 bool flag 支持位置参数后置(partition 后再 Parse,
   stdlib flag 遇首个非 flag 即停)。
 - `resolveSessionDir` 为 2.17 `sessions list`/`resume` 预留复用。
+
+## S2.6+2.7 崩溃注入 harness + journal-inputs-first — DONE(按预授权合并)
+
+`internal/crash`:两轨注入(`after:<EventType>:<n>` 计数谓词,挂在
+EventStore.Append fsync 之后;`point:<name>` 命名点);S2 四个点注册
+(`after_journal_input`/`after_exec_before_journal`/`after_snapshot_write`
+/`before_run_end`);注册表封闭——未注册名 Point() panic、
+`TestRegistryPinsS2Points` 钉死名单(删点即红);malformed env panic。
+`runtime.IngestInput`:外部输入先 append(fsync)再消费,journaled
+fact 以 cmd-id 为 causation。
+
+**验证**:真子进程 harness(helper-process 模式)——armed 谓词处
+exit 137;kill 后 ReadEvents 输入仍在、flock 随进程死亡自动释放、
+store 可直接 reopen(2.7 崩溃场景 + harness 自测一体)。
+
+**Decisions**:
+- exit code 137(模拟 SIGKILL);`exit` var 可换(白盒测计数逻辑),
+  子进程测试用真 os.Exit。
+- 谓词 env 解析 sync.Once 缓存(进程内不变)。
+- crash 包无 store 依赖(store → crash 单向)。

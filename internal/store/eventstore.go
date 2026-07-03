@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ralphite/agentrunner/internal/crash"
 	"github.com/ralphite/agentrunner/internal/event"
 )
 
@@ -144,7 +145,8 @@ func (s *EventStore) Append(env event.Envelope) (event.Envelope, error) {
 	if err := s.f.Sync(); err != nil {
 		return event.Envelope{}, fmt.Errorf("eventstore: fsync: %w", err)
 	}
-	crashAfter(env.Type)
+	// Crash matrix counting predicate: the fact is durable, the ack is not.
+	crash.After(env.Type)
 	return env, nil
 }
 
