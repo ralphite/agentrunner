@@ -374,3 +374,18 @@ Conversation 含 `ToolResults` map by call_id(2.10 assembly 的读取面)。
 - `TestApplyCoversRegistry`:Registry 每个类型零值过 Apply,漏写
   fold case 直接红——event 词汇表与 fold 的漂移在 CI 抓。
 - `RunEnded` 把 `Run.Turn` 设为最终 turns(与 TurnStarted 同字段)。
+
+## S2.5 调试工具 — DONE(按预授权提前至 2.4 之后)
+
+`agentrunner events <session-id-or-prefix> [--state] [--json]`:美化
+打印(seq/ts/type/compact payload 截断 100)、`--state` fold 转储
+(缩进 JSON)、`--json` 原样 JSONL;session id 接受唯一前缀,歧义时
+列出候选。`internal/state/statetest.AssertFoldEqual`:按命名空间
+JSON 对比,**归一化**(空 map/slice、显式 null、缺键三者等价——
+snapshot JSON round-trip 不得算分歧),失败报出具体 sub-state。
+
+**Decisions**:
+- AssertFoldEqual 放独立子包 `statetest`(不进生产依赖面)。
+- events 的 bool flag 支持位置参数后置(partition 后再 Parse,
+  stdlib flag 遇首个非 flag 即停)。
+- `resolveSessionDir` 为 2.17 `sessions list`/`resume` 预留复用。
