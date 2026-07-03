@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"github.com/ralphite/agentrunner/internal/crash"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/store"
 )
@@ -23,5 +24,6 @@ func IngestInput(s *store.EventStore, correlationID, text, source string) (event
 	if err != nil {
 		return event.Envelope{}, err
 	}
+	crash.Point(crash.PointAfterJournalInput)
 	return appended, nil
 }

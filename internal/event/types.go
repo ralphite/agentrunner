@@ -47,6 +47,10 @@ type RunStarted struct {
 	Task             string         `json:"task"`
 	Version          string         `json:"version"`
 	SubStateVersions map[string]int `json:"sub_state_versions"`
+	// Spec and WorkspaceRoot let `resume <session>` reconstruct the run
+	// without the original spec file (2.17).
+	Spec          json.RawMessage `json:"spec,omitempty"`
+	WorkspaceRoot string          `json:"workspace_root,omitempty"`
 }
 
 type InputReceived struct {

@@ -89,9 +89,18 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 	ds := &driveState{s: state.New()}
 	appendE := l.appender(ds)
 
+	specJSON, err := json.Marshal(l.Spec)
+	if err != nil {
+		return RunResult{}, err
+	}
+	var wsRoot string
+	if l.Exec != nil && l.Exec.WS != nil {
+		wsRoot = l.Exec.WS.Root()
+	}
 	if _, err := appendE(event.TypeRunStarted, &event.RunStarted{
 		SpecName: l.Spec.Name, Model: l.Spec.Model.ID, Task: task,
 		Version: l.Version, SubStateVersions: state.SubStateVersions(),
+		Spec: specJSON, WorkspaceRoot: wsRoot,
 	}); err != nil {
 		return RunResult{}, err
 	}

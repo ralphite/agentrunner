@@ -598,3 +598,22 @@ abort 路径 best-effort 硬推到底(能落 run_ended 就落)。
 **Decisions**:
 - epilogueSequence 为包级 var,测试以替换+恢复方式插桩(slot 体
   可换、序不可变的机械保证)。
+
+## S2.17a CLI 收口 — DONE
+
+`agentrunner resume <session-id-or-prefix>`:从 run_started 里 journal
+的 **spec JSON + workspace_root** 重建 Loop(无需原 spec 文件;
+RunStarted 加性扩展两字段),provider 走 defaultProviderFactory;
+退出码语义同 run。`agentrunner sessions list`:mtime 倒序表格
+(SESSION/STATUS/TURNS),status 来自 fold(waiting 显示
+`waiting:<kind>`)。`after_journal_input` 命名点补上调用位
+(IngestInput append 之后——2.6 注册时欠的 call site)。
+
+**验证**:CLI 级真子进程 crash(`after:turn_started:2`)→ CLI resume
+(唯一前缀)→ 2 turns 完成、文件修好、sessions list 显示 ended;
+未知 session exit 2;空列表友好输出。
+
+**Decisions**:
+- spec 全文进 RunStarted(而非只记路径):resume 不依赖 spec 文件
+  未被改动/移动;prototype 无隐私顾虑(spec 不含凭据,系统约定)。
+- 旧 session(无 spec 字段)resume 明确报错,不猜。
