@@ -21,6 +21,7 @@ func SubStateVersions() map[string]int {
 		"waiting":      1,
 		"timers":       1,
 		"run":          1,
+		"effects":      1, // S3.2 (declared in the 2.4 table as an S3 addition)
 	}
 }
 
@@ -37,7 +38,13 @@ type State struct {
 	Waiting      *Waiting     `json:"waiting,omitempty"`
 	Timers       Timers       `json:"timers"`
 	Run          Run          `json:"run"`
+	Effects      Effects      `json:"effects"`
 }
+
+// Effects is the mid-adjudication set (3.2): EffectRequested adds,
+// EffectResolved removes. An entry present at resume means the gate
+// sequence was entered but never resolved.
+type Effects map[string]event.EffectRequested
 
 // Conversation is the transcript plus tool results keyed by call_id —
 // the 2.10 request assembly reads exactly this.
@@ -84,6 +91,7 @@ func New() State {
 		Conversation: Conversation{ToolResults: map[string]ToolResult{}},
 		Activities:   Activities{},
 		Timers:       Timers{},
+		Effects:      Effects{},
 	}
 }
 
@@ -178,7 +186,11 @@ func Apply(s State, env event.Envelope) (State, error) {
 		s.Waiting = nil
 		s.Run.Status = StatusRunning
 
+	case *event.EffectRequested:
+		s.Effects = s.Effects.with(p.EffectID, *p)
+
 	case *event.EffectResolved:
+		s.Effects = s.Effects.without(p.EffectID)
 		// A denial IS the call's model-visible outcome: journaling it
 		// resolves the call_id, so decide() never re-attempts a denied
 		// effect (and a post-deny crash resumes past it).
@@ -265,6 +277,28 @@ func (a Activities) without(id string) Activities {
 	}
 	out := make(Activities, len(a))
 	for k, x := range a {
+		if k != id {
+			out[k] = x
+		}
+	}
+	return out
+}
+
+func (e Effects) with(id string, v event.EffectRequested) Effects {
+	out := make(Effects, len(e)+1)
+	for k, x := range e {
+		out[k] = x
+	}
+	out[id] = v
+	return out
+}
+
+func (e Effects) without(id string) Effects {
+	if _, ok := e[id]; !ok {
+		return e
+	}
+	out := make(Effects, len(e))
+	for k, x := range e {
 		if k != id {
 			out[k] = x
 		}

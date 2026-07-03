@@ -39,6 +39,7 @@ var samples = map[string]any{
 	TypeWaitingEntered:  &WaitingEntered{Kind: WaitApproval, Detail: json.RawMessage(`{"call_id":"call_3_1"}`)},
 	TypeWaitingResolved: &WaitingResolved{Kind: WaitApproval, Resolution: "approved"},
 	TypeActorCrashed:    &ActorCrashed{Actor: "session", Error: "boom"},
+	TypeEffectRequested: &EffectRequested{EffectID: "eff-call_3_1", CallID: "call_3_1", SideEffecting: true},
 	TypeEffectResolved: &EffectResolved{EffectID: "eff-call_3_1", CallID: "call_3_1",
 		Verdict: VerdictDeny, GateResults: []GateResult{
 			{Gate: "permission", Decision: VerdictDeny, Reason: "path escapes workspace"}}},

@@ -31,6 +31,7 @@ func TestRegistryPinsS2Points(t *testing.T) {
 		"after_journal_input",
 		"after_snapshot_write",
 		"before_run_end",
+		"between_gate_and_resolved", // S3.2
 	}
 	if got := Points(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("points = %v, want %v", got, want)

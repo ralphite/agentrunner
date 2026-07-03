@@ -25,12 +25,13 @@ const (
 	ExitCode = 137
 )
 
-// S2 named injection points. S3 adds PointBetweenGateAndResolved.
+// Named injection points (S2 set + S3 additions).
 const (
 	PointAfterJournalInput      = "after_journal_input"
 	PointAfterExecBeforeJournal = "after_exec_before_journal"
 	PointAfterSnapshotWrite     = "after_snapshot_write"
 	PointBeforeRunEnd           = "before_run_end"
+	PointBetweenGateAndResolved = "between_gate_and_resolved" // S3.2
 )
 
 var registry = map[string]struct{}{
@@ -38,6 +39,7 @@ var registry = map[string]struct{}{
 	PointAfterExecBeforeJournal: {},
 	PointAfterSnapshotWrite:     {},
 	PointBeforeRunEnd:           {},
+	PointBetweenGateAndResolved: {},
 }
 
 // Points returns the registered point names, sorted.

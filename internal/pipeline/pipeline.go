@@ -59,6 +59,26 @@ type Pipeline struct {
 	Gates []Gate
 }
 
+// SideEffectingGate marks gates whose Check has external side effects
+// (hook processes). Their adjudication window is in-doubt after a crash;
+// pure windows just re-adjudicate.
+type SideEffectingGate interface {
+	SideEffecting() bool
+}
+
+// SideEffecting reports whether any gate declares side effects.
+func (p *Pipeline) SideEffecting() bool {
+	if p == nil {
+		return false
+	}
+	for _, g := range p.Gates {
+		if se, ok := g.(SideEffectingGate); ok && se.SideEffecting() {
+			return true
+		}
+	}
+	return false
+}
+
 // Evaluate runs the gates in order. Deny short-circuits; ask is recorded
 // and evaluation continues (an approval prompt must show every gate's
 // judgment, and a later deny still wins).

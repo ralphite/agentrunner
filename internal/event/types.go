@@ -26,7 +26,8 @@ const (
 	TypeRunEnded          = "run_ended"
 
 	// S3 additions (the S2 set above never changes).
-	TypeEffectResolved = "effect_resolved"
+	TypeEffectRequested = "effect_requested"
+	TypeEffectResolved  = "effect_resolved"
 )
 
 // Effect verdicts and gate decisions.
@@ -149,6 +150,16 @@ type RunEnded struct {
 	Usage  provider.Usage `json:"usage"`
 }
 
+// EffectRequested marks entry into the gate sequence (3.2): an effect
+// with this fact but no EffectResolved crashed mid-adjudication. When the
+// pipeline contains side-effecting gates (hooks), that window is in-doubt;
+// pure-gate windows simply re-adjudicate on resume.
+type EffectRequested struct {
+	EffectID      string `json:"effect_id"`
+	CallID        string `json:"call_id,omitempty"`
+	SideEffecting bool   `json:"side_effecting,omitempty"`
+}
+
 // GateResult is one gate's judgment inside an effect resolution.
 type GateResult struct {
 	Gate     string `json:"gate"`
@@ -184,5 +195,6 @@ var Registry = map[string]func() any{
 	TypeWaitingResolved:   func() any { return &WaitingResolved{} },
 	TypeActorCrashed:      func() any { return &ActorCrashed{} },
 	TypeRunEnded:          func() any { return &RunEnded{} },
+	TypeEffectRequested:   func() any { return &EffectRequested{} },
 	TypeEffectResolved:    func() any { return &EffectResolved{} },
 }

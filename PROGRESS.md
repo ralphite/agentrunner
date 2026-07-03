@@ -750,3 +750,26 @@ LLM 暂 hard abort(TODO 3.7c 优雅收尾)。
 **验证**:落盘时点单测——allow: resolution 先于 activity_started;
 deny: 无 activity 事件、下一 turn 模型看到 denied 文本、run 正常完成;
 ask: 降级链完整可见;llm: 每 turn 有 resolution。
+
+## S3.2 in-doubt 扩展 — DONE
+
+新 event `effect_requested{effect_id, call_id, side_effecting}`(进
+关卡前落盘);第 6 个 fold sub-state `effects`(requested 加、
+resolved 消,SubStateVersions 加键——**旧 session 无法用新 binary
+resume,版本检查按设计拒绝**,原型可接受记档);命名注入点
+`between_gate_and_resolved` 落位(Evaluate 之后、resolution 落盘
+之前)。resume 语义:pending effect 且 `side_effecting`(管线含
+hook 类关卡,`pipeline.SideEffectingGate` 接口声明)→ 并入
+InDoubtError(Effects 字段,"mid-adjudication, hooks may have run");
+纯关卡窗口 → 静默重评估(重新 adjudicate 覆盖旧 pending)。
+
+**验证**:真子进程 kill 于该点(hit 2 = tool effect 窗口)×
+{side-effecting → InDoubtError 含 1 个 effect;pure → resume 重评估
+2 turns 完成}。
+
+**Decisions**:
+- "进关卡" 需要可观测事实 → effect_requested(执行包漏列,加性
+  补充记档)。
+- side_effecting 布尔由管线静态推导(任一 gate 实现
+  SideEffecting()==true),journal 进事实供 resume 决策——resume
+  时的管线配置可能不同,以崩溃时刻的事实为准。

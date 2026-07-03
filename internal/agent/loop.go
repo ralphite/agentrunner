@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ralphite/agentrunner/internal/clock"
+	"github.com/ralphite/agentrunner/internal/crash"
 	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/pipeline"
@@ -218,8 +219,13 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 	// may or may not have happened. Idempotent activities simply re-run
 	// (decide() reaches them again); anything else surfaces to the human —
 	// re-running an edit or a shell command on doubt is how state diverges.
-	if inDoubt := collectInDoubt(s); len(inDoubt) > 0 {
-		return RunResult{}, &InDoubtError{Activities: inDoubt}
+	// 3.2 extends this to the adjudication window: an effect that entered
+	// SIDE-EFFECTING gates (hooks) without an EffectResolved is equally in
+	// doubt; pure-gate windows re-adjudicate on their own.
+	inDoubt := collectInDoubt(s)
+	pendingEffects := collectPendingSideEffecting(s)
+	if len(inDoubt) > 0 || len(pendingEffects) > 0 {
+		return RunResult{}, &InDoubtError{Activities: inDoubt, Effects: pendingEffects}
 	}
 
 	// Timer sweep: expired pending timers fire now; future ones belong to
@@ -231,20 +237,36 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 	return l.drive(ctx, ds, appendE)
 }
 
-// InDoubtError reports non-idempotent activities whose outcome is unknown.
-// S3 adds the per-tool-class resolution policy; until then the human
-// inspects (agentrunner events) and decides.
+// InDoubtError reports non-idempotent activities — and side-effecting
+// adjudication windows — whose outcome is unknown. The human inspects
+// (agentrunner events) and decides.
 type InDoubtError struct {
 	Activities []event.ActivityStarted
+	Effects    []event.EffectRequested
 }
 
 func (e *InDoubtError) Error() string {
-	names := make([]string, 0, len(e.Activities))
+	var names []string
 	for _, a := range e.Activities {
 		names = append(names, fmt.Sprintf("%s (%s, attempt %d)", a.ActivityID, a.Name, a.Attempt))
 	}
-	return fmt.Sprintf("resume: %d activit%s in doubt — started but no terminal state, refusing to re-run: %s",
-		len(e.Activities), plural(len(e.Activities), "y is", "ies are"), strings.Join(names, ", "))
+	for _, eff := range e.Effects {
+		names = append(names, fmt.Sprintf("%s (mid-adjudication, hooks may have run)", eff.EffectID))
+	}
+	n := len(names)
+	return fmt.Sprintf("resume: %d item%s in doubt — no terminal state, refusing to re-run: %s",
+		n, plural(n, " is", "s are"), strings.Join(names, ", "))
+}
+
+func collectPendingSideEffecting(s state.State) []event.EffectRequested {
+	var out []event.EffectRequested
+	for _, eff := range s.Effects {
+		if eff.SideEffecting {
+			out = append(out, eff)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].EffectID < out[j].EffectID })
+	return out
 }
 
 func plural(n int, one, many string) string {
@@ -524,10 +546,17 @@ func toolCallsOf(m provider.Message) []provider.ToolCall {
 // ask verdict downgrades to deny until the 3.5 approval flow exists (the
 // downgrade is itself recorded as a gate result, never silent).
 func (l *Loop) adjudicate(ctx context.Context, appendE AppendFunc, eff pipeline.Effect) (pipeline.Outcome, bool, error) {
+	if _, err := appendE(event.TypeEffectRequested, &event.EffectRequested{
+		EffectID: eff.ID, CallID: eff.CallID,
+		SideEffecting: l.Pipeline.SideEffecting(),
+	}); err != nil {
+		return pipeline.Outcome{}, false, err
+	}
 	outcome, err := l.Pipeline.Evaluate(ctx, eff)
 	if err != nil {
 		return outcome, false, err
 	}
+	crash.Point(crash.PointBetweenGateAndResolved)
 	if outcome.Verdict == event.VerdictAsk {
 		// TODO(3.5): ask → ApprovalRequested → WAITING_APPROVAL.
 		outcome.Verdict = event.VerdictDeny
