@@ -39,3 +39,24 @@ review 的 open questions。
 - **DEFERRED**：无。
 - **Open questions**：`model.provider` 目前只查非空，不查已知 provider
   名单——provider 注册表 1.3 才出现，届时是否收紧留给 stage review。
+
+## S1.2 — provider 接口（最终形态）　✅
+
+- **状态**：完成。`internal/provider`：归一化类型全套 + `Provider`
+  接口（流式）+ `CollectTurn` + `CallID` 帮手，4 组单测含 Extras
+  round-trip。
+- **决定**：
+  - 流用 **`iter.Seq2[StreamEvent, error]`**（Go 1.23 迭代器；错误随
+    流内联，终止即停）——执行包写的 `iter.Seq`，带错误通道的 Seq2 更
+    准确，记为偏离。
+  - `Part.IsError` 作为归一化的 tool_result 错误标志（线上形态由各
+    provider 映射，S4 落地）。
+  - `FinishReason` 枚举 S1 先放 4 个常规值（end_turn/tool_use/
+    max_tokens/other），异常形态 S4 扩展——类型从第一天存在，event
+    形状不变。
+  - `provider.ToolDef` 是 wire 级最小定义（name/desc/schema）；1.5 的
+    数据化注册表持有富定义并向下转换，避免 import 环。
+  - `CollectTurn` 把 text delta 合并为单个 text part，tool_call parts
+    按到达序附加（Extras 原样保留）。
+- **DEFERRED**：无。
+- **验收承诺**：本接口在 S2/S4 不再变更（1.2 的验证列）。
