@@ -132,3 +132,18 @@ func TestCLISessionsListEmpty(t *testing.T) {
 		t.Errorf("out = %q", out.String())
 	}
 }
+
+func TestCLITrust(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	ws := t.TempDir()
+	var out, errOut bytes.Buffer
+	if code := Run([]string{"trust", ws}, "dev", &out, &errOut); code != ExitOK {
+		t.Fatalf("exit = %d, stderr = %s", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), "trusted") {
+		t.Errorf("out = %q", out.String())
+	}
+	if code := Run([]string{"trust"}, "dev", &out, &errOut); code != ExitUsage {
+		t.Fatalf("no-arg exit = %d", code)
+	}
+}

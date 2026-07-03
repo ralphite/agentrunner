@@ -9,6 +9,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/tool"
 )
 
@@ -35,6 +36,9 @@ type AgentSpec struct {
 	SystemPromptFile string    `yaml:"system_prompt_file"`
 	Tools            []string  `yaml:"tools"`
 	MaxTurns         int       `yaml:"max_turns"`
+	// Permissions is the spec-level rule source (3.4): lowest precedence
+	// in the user > project > spec merge.
+	Permissions []pipeline.PermissionRule `yaml:"permissions,omitempty"`
 }
 
 // LoadSpec reads, parses, validates, and resolves an agent spec.

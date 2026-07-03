@@ -792,3 +792,19 @@ path glob(`*`/`?` 不跨 `/`,`**` 跨)对 workspace 相对路径
 - **CLI 尚未接线 PermissionGate**:ask 在 3.5 前会降级 deny,接线会
   打破 S1/S2 acceptance(edit 全拒);3.5 审批流落地后随 3.6 mode
   一起接入 CLI。3.3 验收 = 表驱动单测(计划原文如此)。
+
+## S3.4 配置分层 + 信任 — DONE(从 S5 提前,计划原文注明)
+
+`internal/config`:`Settings{permissions, hooks{pre_tool, post_tool}}`
+严格解析(未知键/非法 action 拒);`Merge(user, project, spec, trusted)`
+——规则拼接序 user > project > spec(首条命中配合 = user 优先);
+**不受信 project 的 allow 降级 ask(只收紧不放宽),hooks 整段丢弃**;
+spec 永不携带 hooks(可移植内容 ≠ 工作站策略)。trust 注册表
+`trusted.yaml`(0600,realpath 存储,symlink 同判);CLI
+`agentrunner trust <dir>`(幂等)。AgentSpec 加 `permissions:` 字段
+(最低优先级源)。
+
+**Decisions**:
+- spec 不设 hooks 字段:hooks 是本机策略,spec 是可分享内容——
+  不受信 spec 经 hooks 提权的面根本不开。
+- trust 判定用 EvalSymlinks 双向归一(注册与查询都 realpath)。
