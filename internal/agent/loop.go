@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/ralphite/agentrunner/internal/clock"
@@ -156,15 +158,55 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 	ds := &driveState{s: s, lastID: events[len(events)-1].ID}
 	appendE := l.appender(ds)
 
+	// In-doubt (2.15): Started without a terminal event means the effect
+	// may or may not have happened. Idempotent activities simply re-run
+	// (decide() reaches them again); anything else surfaces to the human —
+	// re-running an edit or a shell command on doubt is how state diverges.
+	if inDoubt := collectInDoubt(s); len(inDoubt) > 0 {
+		return RunResult{}, &InDoubtError{Activities: inDoubt}
+	}
+
 	// Timer sweep: expired pending timers fire now; future ones belong to
 	// in-flight activities, which re-arm on their re-run.
 	if _, err := FirePendingTimers(ds.s, l.Clock, appendE); err != nil {
 		return RunResult{}, err
 	}
-	// TODO(2.15): surface in-doubt activities (Started without terminal,
-	// idempotent: false) instead of re-running them.
 
 	return l.drive(ctx, ds, appendE)
+}
+
+// InDoubtError reports non-idempotent activities whose outcome is unknown.
+// S3 adds the per-tool-class resolution policy; until then the human
+// inspects (agentrunner events) and decides.
+type InDoubtError struct {
+	Activities []event.ActivityStarted
+}
+
+func (e *InDoubtError) Error() string {
+	names := make([]string, 0, len(e.Activities))
+	for _, a := range e.Activities {
+		names = append(names, fmt.Sprintf("%s (%s, attempt %d)", a.ActivityID, a.Name, a.Attempt))
+	}
+	return fmt.Sprintf("resume: %d activit%s in doubt — started but no terminal state, refusing to re-run: %s",
+		len(e.Activities), plural(len(e.Activities), "y is", "ies are"), strings.Join(names, ", "))
+}
+
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
+}
+
+func collectInDoubt(s state.State) []event.ActivityStarted {
+	var out []event.ActivityStarted
+	for _, a := range s.Activities {
+		if !a.Idempotent {
+			out = append(out, a)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ActivityID < out[j].ActivityID })
+	return out
 }
 
 func checkVersions(got map[string]int) error {

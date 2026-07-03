@@ -559,3 +559,24 @@ doWait);non-waiting no-op;interrupt 不进 conversation。
   InputReceived 不生成 user message(journal-inputs-first 仍满足)。
 - 四 kind 目前全部 Interruptible=true;表结构保留 false 的表达力
   (S6 若有不可中断等待再启用)。
+
+## S2.15 in-doubt — DONE
+
+Resume 在 timer 扫和 drive 之前查 in-flight 集合(2.4 的钩子 3 兑现):
+非 idempotent 的 Started-无终态 → 返回 `InDoubtError`(列出
+activity_id/name/attempt,"refusing to re-run"),**不重跑**;
+idempotent(read 类、LLM)→ 不算 in-doubt,decide() 自然重跑。S3
+的 per-tool-class 决议政策来之前,人用 `agentrunner events` 检查后
+自行处置。
+
+**验证**:真子进程 `point:after_exec_before_journal:2` kill(bash 已
+写 marker,终态未落盘)→ resume 拿到 InDoubtError、marker 恰一行
+(重跑会变两行);合成 idempotent in-flight(read_file Started 无
+终态)→ resume 重跑、结果落盘、in-flight 排干、2 turns 完成。
+
+**Decisions**:
+- crash harness 扩展:`point:<name>[:<n>]` 支持命中计数(该点在
+  LLM 与 tool 活动都会经过,第 1 次命中是 llm-t1)——加性扩展,
+  crash 包测试钉住。
+- idempotent 重跑时 attempt 从 1 重新计(旧 Started 的 map 项被新
+  Started 覆盖,终态后排干)——记为已知小瑕疵,不影响正确性。

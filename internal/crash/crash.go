@@ -3,7 +3,7 @@
 // SIGKILL) at the matching point:
 //
 //	AGENTRUNNER_CRASH=after:<EventType>:<n>  — after the n-th append of that event type
-//	AGENTRUNNER_CRASH=point:<name>           — at a named code-level injection point
+//	AGENTRUNNER_CRASH=point:<name>[:<n>]     — at the n-th hit (default 1st) of a named injection point
 //
 // Named points form a closed registry: calling Point with an unregistered
 // name panics (catches typos), and the registry test pins the expected
@@ -82,12 +82,19 @@ func armedSpec() *spec {
 				panic(fmt.Sprintf("crash: bad count in %s=%q", EnvVar, v))
 			}
 			armed = &spec{kind: "after", name: parts[1], n: n}
-		case len(parts) == 2 && parts[0] == "point":
+		case (len(parts) == 2 || len(parts) == 3) && parts[0] == "point":
 			if _, ok := registry[parts[1]]; !ok {
 				panic(fmt.Sprintf("crash: unregistered point in %s=%q (known: %s)",
 					EnvVar, v, strings.Join(Points(), ", ")))
 			}
-			armed = &spec{kind: "point", name: parts[1]}
+			n := 1
+			if len(parts) == 3 {
+				var err error
+				if n, err = strconv.Atoi(parts[2]); err != nil || n < 1 {
+					panic(fmt.Sprintf("crash: bad count in %s=%q", EnvVar, v))
+				}
+			}
+			armed = &spec{kind: "point", name: parts[1], n: n}
 		default:
 			panic(fmt.Sprintf("crash: malformed %s=%q", EnvVar, v))
 		}
@@ -102,7 +109,14 @@ func Point(name string) {
 		panic("crash: Point called with unregistered name " + name)
 	}
 	sp := armedSpec()
-	if sp != nil && sp.kind == "point" && sp.name == name {
+	if sp == nil || sp.kind != "point" || sp.name != name {
+		return
+	}
+	mu.Lock()
+	counts["point:"+name]++
+	hit := counts["point:"+name] >= sp.n
+	mu.Unlock()
+	if hit {
 		exit()
 	}
 }

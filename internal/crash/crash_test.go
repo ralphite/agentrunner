@@ -97,3 +97,15 @@ func TestMalformedSpecPanics(t *testing.T) {
 		})
 	}
 }
+
+func TestPointCountsToN(t *testing.T) {
+	fired := resetForTest(t, "point:after_exec_before_journal:2")
+	Point(PointAfterExecBeforeJournal)
+	if *fired {
+		t.Fatal("fired on 1st hit, want 2nd")
+	}
+	Point(PointAfterExecBeforeJournal)
+	if !*fired {
+		t.Fatal("did not fire on 2nd hit")
+	}
+}
