@@ -4,6 +4,7 @@
 package accept
 
 import (
+	"bytes"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -57,6 +58,7 @@ const (
 	StatusPass    Status = "PASS"
 	StatusFail    Status = "FAIL"
 	StatusSkipped Status = "SKIPPED"
+	StatusAborted Status = "ABORTED" // scenario never ran (user quit the TUI)
 )
 
 // Result is the outcome of one scenario.
@@ -81,17 +83,52 @@ func LoadStage(stage int) ([]Scenario, error) {
 		if err != nil {
 			return nil, err
 		}
-		var s Scenario
-		if err := yaml.Unmarshal(raw, &s); err != nil {
-			return nil, fmt.Errorf("scenario %s: %v", e.Name(), err)
-		}
-		if s.ID == "" || s.Title == "" || len(s.Steps) == 0 || len(s.Expect) == 0 {
-			return nil, fmt.Errorf("scenario %s: id/title/steps/expect are required", e.Name())
+		s, err := parseScenario(e.Name(), raw)
+		if err != nil {
+			return nil, err
 		}
 		scenarios = append(scenarios, s)
 	}
 	sort.Slice(scenarios, func(i, j int) bool { return scenarios[i].ID < scenarios[j].ID })
 	return scenarios, nil
+}
+
+// parseScenario decodes strictly (unknown keys are errors — a typo'd expect
+// key must never become a silently-passing zero assertion) and validates
+// that every Expect sets exactly one field.
+func parseScenario(name string, raw []byte) (Scenario, error) {
+	var s Scenario
+	dec := yaml.NewDecoder(bytes.NewReader(raw))
+	dec.KnownFields(true)
+	if err := dec.Decode(&s); err != nil {
+		return Scenario{}, fmt.Errorf("scenario %s: %v", name, err)
+	}
+	if s.ID == "" || s.Title == "" || len(s.Steps) == 0 || len(s.Expect) == 0 {
+		return Scenario{}, fmt.Errorf("scenario %s: id/title/steps/expect are required", name)
+	}
+	for i, exp := range s.Expect {
+		if n := exp.fieldsSet(); n != 1 {
+			return Scenario{}, fmt.Errorf("scenario %s: expect[%d] must set exactly one assertion, has %d", name, i, n)
+		}
+	}
+	return s, nil
+}
+
+func (e Expect) fieldsSet() int {
+	n := 0
+	if e.ExitCode != nil {
+		n++
+	}
+	if e.OutputContains != "" {
+		n++
+	}
+	if e.FileContains != nil {
+		n++
+	}
+	if e.JournalValid != "" {
+		n++
+	}
+	return n
 }
 
 // Runner executes scenarios against a built agentrunner binary.
@@ -208,8 +245,9 @@ func checkExpect(exp Expect, scratch, output string, lastExit int) string {
 	return ""
 }
 
-// checkJournals verifies every matched journal has ≥1 line and every line
-// is a well-formed {type, ts, data} record.
+// checkJournals verifies every matched journal is complete: ≥1 line, every
+// line a well-formed {type, ts, data} record, first record run_meta and
+// last record run_end (a truncated journal must not pass).
 func checkJournals(glob string) string {
 	matches, err := filepath.Glob(glob)
 	if err != nil || len(matches) == 0 {
@@ -224,6 +262,7 @@ func checkJournals(glob string) string {
 		if len(lines) == 0 || lines[0] == "" {
 			return fmt.Sprintf("journal_valid: %s is empty", path)
 		}
+		var types []string
 		for i, line := range lines {
 			var rec struct {
 				Type string          `json:"type"`
@@ -233,6 +272,13 @@ func checkJournals(glob string) string {
 			if err := json.Unmarshal([]byte(line), &rec); err != nil || rec.Type == "" || rec.TS == "" {
 				return fmt.Sprintf("journal_valid: %s line %d malformed: %s", path, i+1, line)
 			}
+			types = append(types, rec.Type)
+		}
+		if types[0] != "run_meta" {
+			return fmt.Sprintf("journal_valid: %s first record is %q, want run_meta", path, types[0])
+		}
+		if last := types[len(types)-1]; last != "run_end" {
+			return fmt.Sprintf("journal_valid: %s last record is %q, want run_end (truncated?)", path, last)
 		}
 	}
 	return ""

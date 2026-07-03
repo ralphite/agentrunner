@@ -229,3 +229,36 @@ review 的 open questions。
 出口条件：`accept --stage 1` FAIL=0 ✅（3 PASS）；journal 可读 ✅。
 待办：对抗式 stage review（PLAN 收口纪律）+ 出口人工检查点
 （TUI 目视 + live E2E）。
+
+## Stage 1 出口对抗式 review　✅（三视角,35 条发现,修复批已落地)
+
+**修复的真缺陷**(quality/fidelity 两审):TUI 中止不再假 PASS
+(`StatusAborted` + `Report.Green()` 门);acceptance 场景严格解析
+(未知键报错、每条 expect 恰一断言——空转断言不可能再出现);
+`journal_valid` 要求首 `run_meta` 尾 `run_end`;Ctrl-C 经
+`signal.NotifyContext` 传导到工具进程组;bash 的取消与超时分离渲染
+(不再伪造 timeout)、done/timer 竞态偏向 done、killGroup 只认 ESRCH、
+stdout/stderr 各 15KB(合计 30KB 对齐执行包);read_file/截断不再撕裂
+UTF-8;edit_file 创建走 O_EXCL(消 TOCTOU);录制器 expect 片段过
+redaction(修密钥泄漏)、tool_call Extras 进 fixture schema;Gemini
+thinking tokens 计入 output(真实计费口径);loop 失败路径 best-effort
+写 `run_end{reason:error}`;record-fixture 在 run 失败时也写 fixture;
+`run_meta.Version` 接通 ldflags;session id 加 4hex 熵防同秒碰撞;
+dotenv 支持引号/export;provider 构造失败 exit 1(区别于未知名 exit 2)。
+
+**决策修订**:max_turns 强制停止改为 **exit 1**(推翻 S1.9 的 exit 0
+——脚本/CI 不应把卡死的 agent 当成功)。
+
+**记档的已知缺口**(不修,S4 处理):text part 上的 thoughtSignature
+无法经 StreamEvent 携带(计划 S4 给 StreamEvent 加可选 Extras——
+加性变更);CollectTurn 以 struct 返回(语义等价执行包的四元组,
+正式记为偏离);journal tool_result 多一个 name 字段(保留)。
+
+**待办(2:40am 恢复会话的队列,S2 开工前完成)**:
+1. blind-spots 审计的钉住测试:请求组装 golden(S2.10 重写前必须)、
+   `accept --stage 1` 进 go test(e2e 包)、acceptCmd 退出码测试、
+   loop 错误路径测试、record-fixture CLI 往返、gemini 转换错误表、
+   scripted 单次消费语义、workspace root-symlink/兄弟前缀、
+   bash ctx-cancel 测试。
+2. 新场景 s1-04-e2e-fix-test(经 CLI 修 samplerepo 失败测试,含 bash)。
+3. 重跑 `accept --stage 1` 确认后进入 S2 kickoff refinement。

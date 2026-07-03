@@ -16,7 +16,14 @@ type Report struct {
 	Pass       int       `json:"pass"`
 	Fail       int       `json:"fail"`
 	Skipped    int       `json:"skipped"`
+	Aborted    int       `json:"aborted"`
 	FinishedAt time.Time `json:"finished_at"`
+}
+
+// Green reports whether the stage gate is satisfied: no failures and no
+// aborted/unrun scenarios (an aborted TUI run must not read as success).
+func (rep Report) Green() bool {
+	return rep.Fail == 0 && rep.Aborted == 0 && rep.Pass+rep.Fail+rep.Skipped == len(rep.Results)
 }
 
 // BuildReport aggregates results.
@@ -30,6 +37,8 @@ func BuildReport(stage int, results []Result) Report {
 			rep.Fail++
 		case StatusSkipped:
 			rep.Skipped++
+		default:
+			rep.Aborted++
 		}
 	}
 	return rep
@@ -47,7 +56,7 @@ func (rep Report) WriteJSON(path string) error {
 // RenderPlain prints one line per scenario plus a summary (non-TTY path).
 func RenderPlain(w io.Writer, rep Report) {
 	for _, r := range rep.Results {
-		mark := map[Status]string{StatusPass: "✓", StatusFail: "✗", StatusSkipped: "–"}[r.Status]
+		mark := map[Status]string{StatusPass: "✓", StatusFail: "✗", StatusSkipped: "–", StatusAborted: "!"}[r.Status]
 		fmt.Fprintf(w, "%s %-7s %-28s %s (%.1fs)\n", mark, r.Status, r.ID, r.Title, r.Duration.Seconds())
 		if r.Status == StatusFail {
 			fmt.Fprintf(w, "  %s\n", r.Detail)
@@ -56,5 +65,5 @@ func RenderPlain(w io.Writer, rep Report) {
 			fmt.Fprintf(w, "  (%s)\n", r.Detail)
 		}
 	}
-	fmt.Fprintf(w, "\nstage %d: %d PASS, %d FAIL, %d SKIPPED\n", rep.Stage, rep.Pass, rep.Fail, rep.Skipped)
+	fmt.Fprintf(w, "\nstage %d: %d PASS, %d FAIL, %d SKIPPED, %d ABORTED\n", rep.Stage, rep.Pass, rep.Fail, rep.Skipped, rep.Aborted)
 }

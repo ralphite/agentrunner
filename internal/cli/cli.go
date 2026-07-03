@@ -30,9 +30,9 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "agentrunner %s (%s)\n", version, runtime.Version())
 		return ExitOK
 	case "run":
-		return runCmd(args[1:], false, stdout, stderr)
+		return runCmd(args[1:], false, version, stdout, stderr)
 	case "record-fixture":
-		return runCmd(args[1:], true, stdout, stderr)
+		return runCmd(args[1:], true, version, stdout, stderr)
 	case "accept":
 		return acceptCmd(args[1:], stdout, stderr)
 	default:
@@ -42,7 +42,7 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 }
 
 func usage() string {
-	return "usage: agentrunner <run|record-fixture|--version> [flags] [<spec.yaml> \"task\"]\n"
+	return "usage: agentrunner <run|record-fixture|accept|--version> [flags] [<spec.yaml> \"task\"]\n"
 }
 
 // setupLogging configures the process-wide slog default. Logs go to stderr

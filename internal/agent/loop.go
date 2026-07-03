@@ -65,7 +65,7 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 
 		result, err := provider.CollectTurn(l.Provider.Complete(ctx, req))
 		if err != nil {
-			return RunResult{}, fmt.Errorf("turn %d: %w", turn, err)
+			return RunResult{}, l.abort(turn, total, fmt.Errorf("turn %d: %w", turn, err))
 		}
 		accumulate(&total, result.Usage)
 
@@ -73,7 +73,7 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 			l.Sink.AssistantText(turn, text)
 		}
 		if err := l.Journal.RecordAssistantMessage(turn, result.Message); err != nil {
-			return RunResult{}, err
+			return RunResult{}, l.abort(turn, total, err)
 		}
 		messages = append(messages, result.Message)
 
@@ -89,7 +89,7 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 				l.Sink.ToolCall(turn, call)
 			}
 			if err := l.Journal.RecordToolCall(turn, call); err != nil {
-				return RunResult{}, err
+				return RunResult{}, l.abort(turn, total, err)
 			}
 
 			res := l.Exec.Execute(ctx, call.Name, call.Args)
@@ -97,7 +97,7 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 				l.Sink.ToolResult(turn, call.CallID, res)
 			}
 			if err := l.Journal.RecordToolResult(turn, call.CallID, call.Name, res.Payload, res.IsError); err != nil {
-				return RunResult{}, err
+				return RunResult{}, l.abort(turn, total, err)
 			}
 
 			toolMsg.Parts = append(toolMsg.Parts, provider.Part{
@@ -113,6 +113,13 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 
 	slog.Warn("run hit max_turns", "max_turns", l.Spec.MaxTurns)
 	return l.finish("max_turns", l.Spec.MaxTurns, total)
+}
+
+// abort best-effort-journals a terminal record so a failed run's journal is
+// distinguishable from a truncated one, then passes the error through.
+func (l *Loop) abort(turn int, usage provider.Usage, cause error) error {
+	_ = l.Journal.RecordRunEnd("error", turn, usage)
+	return cause
 }
 
 func (l *Loop) finish(reason string, turns int, usage provider.Usage) (RunResult, error) {

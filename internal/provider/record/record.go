@@ -50,7 +50,7 @@ func (r *Recorder) Capabilities() provider.Capabilities {
 // Complete passes the call through while capturing a fixture step.
 func (r *Recorder) Complete(ctx context.Context, req provider.CompleteRequest) iter.Seq2[provider.StreamEvent, error] {
 	return func(yield func(provider.StreamEvent, error) bool) {
-		step := scripted.Step{Expect: deriveExpect(req)}
+		step := scripted.Step{Expect: r.deriveExpect(req)}
 		for ev, err := range r.inner.Complete(ctx, req) {
 			if err != nil {
 				yield(provider.StreamEvent{}, err)
@@ -81,7 +81,7 @@ func (r *Recorder) WriteFixture(path string) error {
 
 // deriveExpect auto-fills drift assertions: offered tool names plus a snippet
 // of the last message.
-func deriveExpect(req provider.CompleteRequest) scripted.Expect {
+func (r *Recorder) deriveExpect(req provider.CompleteRequest) scripted.Expect {
 	e := scripted.Expect{}
 	for _, td := range req.Tools {
 		e.ToolsInclude = append(e.ToolsInclude, td.Name)
@@ -90,7 +90,7 @@ func deriveExpect(req provider.CompleteRequest) scripted.Expect {
 		last := req.Messages[len(req.Messages)-1]
 		for _, p := range last.Parts {
 			if p.Kind == provider.PartText && p.Text != "" {
-				snippet := p.Text
+				snippet := r.redactString(p.Text)
 				if len(snippet) > 60 {
 					snippet = snippet[:60]
 				}
@@ -113,6 +113,7 @@ func (r *Recorder) toEvent(ev provider.StreamEvent) (scripted.Event, bool) {
 		}
 		return scripted.Event{ToolCall: &scripted.ToolCallEvent{
 			CallID: ev.ToolCall.CallID, Name: ev.ToolCall.Name, Args: args,
+			Extras: ev.ToolCall.Extras,
 		}}, true
 	case provider.EventUsage:
 		return scripted.Event{Usage: &scripted.UsageEvent{

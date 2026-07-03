@@ -107,8 +107,9 @@ func (st *streamState) mapResponse(resp *genai.GenerateContentResponse) []provid
 		events = append(events, provider.StreamEvent{
 			Kind: provider.EventUsage,
 			Usage: &provider.Usage{
-				InputTokens:     int(resp.UsageMetadata.PromptTokenCount),
-				OutputTokens:    int(resp.UsageMetadata.CandidatesTokenCount),
+				InputTokens: int(resp.UsageMetadata.PromptTokenCount),
+				// Thinking tokens bill as output (真实计费口径).
+				OutputTokens:    int(resp.UsageMetadata.CandidatesTokenCount + resp.UsageMetadata.ThoughtsTokenCount),
 				CacheReadTokens: int(resp.UsageMetadata.CachedContentTokenCount),
 			},
 		})

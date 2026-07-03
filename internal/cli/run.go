@@ -4,12 +4,15 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/ralphite/agentrunner/internal/agent"
@@ -26,6 +29,10 @@ import (
 // providerFactory builds the provider named by the spec; tests override it.
 type providerFactory func(ctx context.Context, name string) (provider.Provider, error)
 
+// errUnknownProvider marks a spec/usage error (exit 2) as opposed to a
+// provider construction failure (exit 1, e.g. missing credentials).
+var errUnknownProvider = errors.New("unknown provider")
+
 func defaultProviderFactory(ctx context.Context, name string) (provider.Provider, error) {
 	switch name {
 	case "gemini":
@@ -38,7 +45,7 @@ func defaultProviderFactory(ctx context.Context, name string) (provider.Provider
 		}
 		return scripted.Load(path)
 	default:
-		return nil, fmt.Errorf("unknown provider %q (available: gemini, scripted)", name)
+		return nil, fmt.Errorf("%w %q (available: gemini, scripted)", errUnknownProvider, name)
 	}
 }
 
@@ -49,13 +56,14 @@ type runOptions struct {
 	workspace  string
 	maxTurns   int
 	fixtureOut string // record-fixture mode when non-empty
+	version    string
 	factory    providerFactory
 	stdout     io.Writer
 	stderr     io.Writer
 }
 
 // runCmd parses `run` / `record-fixture` args and executes the agent.
-func runCmd(args []string, recordMode bool, stdout, stderr io.Writer) int {
+func runCmd(args []string, recordMode bool, version string, stdout, stderr io.Writer) int {
 	name := "run"
 	if recordMode {
 		name = "record-fixture"
@@ -87,6 +95,7 @@ func runCmd(args []string, recordMode bool, stdout, stderr io.Writer) int {
 		workspace:  *workspaceDir,
 		maxTurns:   *maxTurns,
 		fixtureOut: *fixtureOut,
+		version:    version,
 		factory:    defaultProviderFactory,
 		stdout:     stdout,
 		stderr:     stderr,
@@ -94,7 +103,10 @@ func runCmd(args []string, recordMode bool, stdout, stderr io.Writer) int {
 }
 
 func runAgent(opts runOptions) int {
-	ctx := context.Background()
+	// Ctrl-C / SIGTERM must reach tool process groups (they run in their own
+	// pgid, so terminal signal delivery does not).
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	loadDotEnv(".env")
 
 	spec, err := agent.LoadSpec(opts.specPath)
@@ -115,7 +127,10 @@ func runAgent(opts runOptions) int {
 	prov, err := opts.factory(ctx, spec.Model.Provider)
 	if err != nil {
 		fmt.Fprintln(opts.stderr, err)
-		return ExitUsage
+		if errors.Is(err, errUnknownProvider) {
+			return ExitUsage
+		}
+		return ExitRun // construction failure (e.g. missing credentials)
 	}
 	var recorder *record.Recorder
 	if opts.fixtureOut != "" {
@@ -137,7 +152,7 @@ func runAgent(opts runOptions) int {
 	defer func() { _ = journal.Close() }()
 
 	if err := journal.RecordRunMeta(store.RunMeta{
-		SpecName: spec.Name, Model: spec.Model.ID, Task: opts.task, Version: "dev",
+		SpecName: spec.Name, Model: spec.Model.ID, Task: opts.task, Version: opts.version,
 	}); err != nil {
 		fmt.Fprintln(opts.stderr, err)
 		return ExitRun
@@ -152,12 +167,10 @@ func runAgent(opts runOptions) int {
 		Journal:  journal,
 		Sink:     &textSink{out: opts.stdout},
 	}
-	result, err := loop.Run(ctx, opts.task)
-	if err != nil {
-		fmt.Fprintf(opts.stderr, "run failed: %v\n", err)
-		return ExitRun
-	}
+	result, runErr := loop.Run(ctx, opts.task)
 
+	// A recorded session is valuable even when the run errored (real tokens
+	// were spent); write the fixture regardless.
 	if recorder != nil {
 		if err := recorder.WriteFixture(opts.fixtureOut); err != nil {
 			fmt.Fprintln(opts.stderr, err)
@@ -166,8 +179,18 @@ func runAgent(opts runOptions) int {
 		fmt.Fprintf(opts.stderr, "fixture written to %s\n", opts.fixtureOut)
 	}
 
+	if runErr != nil {
+		fmt.Fprintf(opts.stderr, "run failed: %v\n", runErr)
+		return ExitRun
+	}
+
 	fmt.Fprintf(opts.stderr, "run %s: %d turns, %d in / %d out tokens\n",
 		result.Reason, result.Turns, result.Usage.InputTokens, result.Usage.OutputTokens)
+	if result.Reason != "completed" {
+		// max_turns 等强制停止不算成功完成（review 修订：脚本/CI 不应
+		// 把卡死的 agent 当成功）。
+		return ExitRun
+	}
 	return ExitOK
 }
 
@@ -215,9 +238,15 @@ func loadDotEnv(path string) {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
+		line = strings.TrimPrefix(line, "export ")
 		k, v, ok := strings.Cut(line, "=")
-		if ok && os.Getenv(k) == "" {
-			_ = os.Setenv(k, v)
+		if !ok || os.Getenv(k) != "" {
+			continue
 		}
+		v = strings.TrimSpace(v)
+		if len(v) >= 2 && (v[0] == '"' && v[len(v)-1] == '"' || v[0] == '\'' && v[len(v)-1] == '\'') {
+			v = v[1 : len(v)-1]
+		}
+		_ = os.Setenv(k, v)
 	}
 }

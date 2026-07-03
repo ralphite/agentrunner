@@ -45,9 +45,10 @@ type Event struct {
 // ToolCallEvent scripts one tool call. CallID is optional — when empty the
 // provider mints the deterministic harness id from (turn, index).
 type ToolCallEvent struct {
-	CallID string         `yaml:"call_id,omitempty"`
-	Name   string         `yaml:"name"`
-	Args   map[string]any `yaml:"args,omitempty"`
+	CallID string                     `yaml:"call_id,omitempty"`
+	Name   string                     `yaml:"name"`
+	Args   map[string]any             `yaml:"args,omitempty"`
+	Extras map[string]json.RawMessage `yaml:"extras,omitempty"`
 }
 
 // UsageEvent scripts token accounting.
@@ -162,7 +163,7 @@ func (e Event) toStreamEvent(turn int, callIndex *int) (provider.StreamEvent, er
 		}
 		*callIndex++
 		return provider.StreamEvent{Kind: provider.EventToolCall, ToolCall: &provider.ToolCall{
-			CallID: id, Name: e.ToolCall.Name, Args: args,
+			CallID: id, Name: e.ToolCall.Name, Args: args, Extras: e.ToolCall.Extras,
 		}}, nil
 	case e.Usage != nil:
 		return provider.StreamEvent{Kind: provider.EventUsage, Usage: &provider.Usage{

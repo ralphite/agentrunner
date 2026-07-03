@@ -16,6 +16,12 @@ func RunTUI(runner *Runner, stage int, scenarios []Scenario) ([]Result, error) {
 	if _, err := prog.Run(); err != nil {
 		return nil, err
 	}
+	for i := range m.results {
+		if m.results[i].Status == "" {
+			m.results[i] = Result{ID: m.scenarios[i].ID, Title: m.scenarios[i].Title,
+				Status: StatusAborted, Detail: "run aborted before this scenario executed"}
+		}
+	}
 	return m.results, nil
 }
 

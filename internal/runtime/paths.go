@@ -3,6 +3,8 @@
 package runtime
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -55,10 +57,14 @@ func ProjectConfigPath(workspaceRoot string) string {
 	return filepath.Join(workspaceRoot, ".agentrunner", "settings.yaml")
 }
 
-// NewSessionID builds the sortable session id: YYYYMMDD-HHMMSS-<slug>
-// (slug = first 30 chars of the task, lowercased, non-alphanumerics → "-").
+// NewSessionID builds the sortable session id:
+// YYYYMMDD-HHMMSS-<slug>-<4hex> (slug = first 30 bytes of the task,
+// lowercased; the random suffix prevents same-second collisions from
+// interleaving two runs into one journal).
 func NewSessionID(now time.Time, task string) string {
-	return now.UTC().Format("20060102-150405") + "-" + slugify(task, 30)
+	var b [2]byte
+	_, _ = rand.Read(b[:])
+	return now.UTC().Format("20060102-150405") + "-" + slugify(task, 30) + "-" + hex.EncodeToString(b[:])
 }
 
 func slugify(s string, maxLen int) string {

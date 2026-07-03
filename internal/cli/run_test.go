@@ -96,10 +96,10 @@ func TestRunAgentSpecErrorExits2(t *testing.T) {
 
 func TestRunCmdUsageErrors(t *testing.T) {
 	var out, errOut bytes.Buffer
-	if code := runCmd([]string{"only-spec.yaml"}, false, &out, &errOut); code != ExitUsage {
+	if code := runCmd([]string{"only-spec.yaml"}, false, "dev", &out, &errOut); code != ExitUsage {
 		t.Errorf("missing task: exit = %d", code)
 	}
-	if code := runCmd([]string{"s.yaml", "task"}, true, &out, &errOut); code != ExitUsage {
+	if code := runCmd([]string{"s.yaml", "task"}, true, "dev", &out, &errOut); code != ExitUsage {
 		t.Errorf("record-fixture without -o: exit = %d", code)
 	}
 }

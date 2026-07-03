@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode/utf8"
 
 	"github.com/ralphite/agentrunner/internal/workspace"
 )
@@ -19,7 +21,7 @@ import (
 const (
 	readMaxLines     = 2000
 	readMaxBytes     = 50 * 1024
-	bashOutputBytes  = 30 * 1024 // head+tail combined
+	bashOutputBytes  = 30 * 1024 // combined budget: split across stdout+stderr
 	defaultBashTO    = 120 * time.Second
 	bashKillGrace    = 5 * time.Second
 	bashPipeDeadline = 2 * time.Second
@@ -84,7 +86,7 @@ func (e *Executor) readFile(rawArgs json.RawMessage) Result {
 	content := string(raw)
 	truncated := false
 	if len(content) > readMaxBytes {
-		content = content[:readMaxBytes]
+		content = trimToValidUTF8(content[:readMaxBytes])
 		truncated = true
 	}
 	if lines := strings.Split(content, "\n"); len(lines) > readMaxLines {
@@ -113,14 +115,22 @@ func (e *Executor) editFile(rawArgs json.RawMessage) Result {
 	}
 
 	if args.Old == "" {
-		if _, err := os.Stat(path); err == nil {
-			return errResult("edit_file: %s exists; empty \"old\" creates new files only", args.Path)
-		}
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			return errResult("edit_file: %v", err)
 		}
-		if err := os.WriteFile(path, []byte(args.New), 0o644); err != nil {
+		f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+		if err != nil {
+			if os.IsExist(err) {
+				return errResult("edit_file: %s exists; empty \"old\" creates new files only", args.Path)
+			}
 			return errResult("edit_file: %v", err)
+		}
+		_, werr := f.WriteString(args.New)
+		if cerr := f.Close(); werr == nil {
+			werr = cerr
+		}
+		if werr != nil {
+			return errResult("edit_file: %v", werr)
 		}
 		return okResult(map[string]any{"output": fmt.Sprintf("created %s", args.Path)})
 	}
@@ -176,30 +186,42 @@ func (e *Executor) bash(ctx context.Context, rawArgs json.RawMessage) Result {
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
 
-	timedOut := false
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	timedOut, canceled := false, false
 	select {
 	case <-done:
-	case <-time.After(timeout):
-		timedOut = true
-		killGroup(pgid)
-		<-done
+	case <-timer.C:
+		// The command may have finished in the same instant; prefer done.
+		select {
+		case <-done:
+		default:
+			timedOut = true
+			killGroup(pgid)
+			<-done
+		}
 	case <-ctx.Done():
-		timedOut = true
+		canceled = true
 		killGroup(pgid)
 		<-done
 	}
 
 	out := map[string]any{
-		"stdout":    truncateHeadTail(stdout.String()),
-		"stderr":    truncateHeadTail(stderr.String()),
+		"stdout":    truncateHeadTail(stdout.String(), bashOutputBytes/2),
+		"stderr":    truncateHeadTail(stderr.String(), bashOutputBytes/2),
 		"exit_code": cmd.ProcessState.ExitCode(),
 	}
-	if timedOut {
+	switch {
+	case timedOut:
 		out["timed_out"] = true
 		out["error"] = fmt.Sprintf("command killed after timeout %s", timeout)
+	case canceled:
+		out["canceled"] = true
+		out["error"] = "command canceled"
 	}
 	payload, _ := json.Marshal(out)
-	return Result{Payload: payload, IsError: timedOut || cmd.ProcessState.ExitCode() != 0}
+	return Result{Payload: payload, IsError: timedOut || canceled || cmd.ProcessState.ExitCode() != 0}
 }
 
 // killGroup terminates the process group: SIGTERM, grace, then SIGKILL.
@@ -214,20 +236,34 @@ func killGroup(pgid int) {
 			_ = syscall.Kill(-pgid, syscall.SIGKILL)
 			return
 		case <-tick.C:
-			// Signal 0 probes for existence; ESRCH means the group is gone.
-			if err := syscall.Kill(-pgid, syscall.Signal(0)); err != nil {
+			// Signal 0 probes for existence; only ESRCH means the group is
+			// gone (EPERM = alive but unsignalable — keep escalating).
+			if err := syscall.Kill(-pgid, syscall.Signal(0)); errors.Is(err, syscall.ESRCH) {
 				return
 			}
 		}
 	}
 }
 
-func truncateHeadTail(s string) string {
-	if len(s) <= bashOutputBytes {
+func truncateHeadTail(s string, budget int) string {
+	if len(s) <= budget {
 		return s
 	}
-	half := bashOutputBytes / 2
-	return s[:half] +
-		fmt.Sprintf("\n[... truncated %d bytes ...]\n", len(s)-bashOutputBytes) +
-		s[len(s)-half:]
+	half := budget / 2
+	head := trimToValidUTF8(s[:half])
+	tail := s[len(s)-half:]
+	for len(tail) > 0 && !utf8.ValidString(tail) {
+		tail = tail[1:]
+	}
+	return head +
+		fmt.Sprintf("\n[... truncated %d bytes ...]\n", len(s)-budget) +
+		tail
+}
+
+// trimToValidUTF8 drops at most 3 trailing bytes to avoid a torn rune.
+func trimToValidUTF8(s string) string {
+	for i := 0; i < 4 && len(s) > 0 && !utf8.ValidString(s); i++ {
+		s = s[:len(s)-1]
+	}
+	return s
 }

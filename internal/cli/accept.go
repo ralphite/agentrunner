@@ -61,7 +61,7 @@ func acceptCmd(args []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintf(stderr, "report written to %s\n", *report)
 
-	if rep.Fail > 0 {
+	if !rep.Green() {
 		return ExitRun
 	}
 	return ExitOK
