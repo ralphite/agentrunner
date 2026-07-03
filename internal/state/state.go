@@ -178,6 +178,17 @@ func Apply(s State, env event.Envelope) (State, error) {
 		s.Waiting = nil
 		s.Run.Status = StatusRunning
 
+	case *event.EffectResolved:
+		// A denial IS the call's model-visible outcome: journaling it
+		// resolves the call_id, so decide() never re-attempts a denied
+		// effect (and a post-deny crash resumes past it).
+		if p.Verdict == event.VerdictDeny && p.CallID != "" {
+			reason := deniedReason(p.GateResults)
+			result, _ := json.Marshal(map[string]string{"error": "denied: " + reason})
+			s.Conversation = s.Conversation.withToolResult(p.CallID,
+				ToolResult{Result: result, IsError: true})
+		}
+
 	case *event.ActorCrashed:
 		s.Run.LastCrash = p.Actor + ": " + p.Error
 
@@ -198,6 +209,18 @@ type UnhandledEventError struct{ Type string }
 
 func (e *UnhandledEventError) Error() string {
 	return "state: registered event type has no fold case: " + e.Type
+}
+
+func deniedReason(results []event.GateResult) string {
+	for _, r := range results {
+		if r.Decision == event.VerdictDeny {
+			if r.Reason != "" {
+				return r.Reason
+			}
+			return "blocked by " + r.Gate
+		}
+	}
+	return "policy"
 }
 
 func addUsage(a, b provider.Usage) provider.Usage {

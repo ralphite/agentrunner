@@ -12,6 +12,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/redact"
 	"github.com/ralphite/agentrunner/internal/runtime"
@@ -41,6 +42,9 @@ type Loop struct {
 	Sink      Sink
 	SessionID string
 	Version   string
+	// Pipeline adjudicates every effect before execution (S3). nil is an
+	// empty pipeline: everything allowed, resolutions still journaled.
+	Pipeline *pipeline.Pipeline
 }
 
 // RunResult summarizes a completed run.
@@ -315,6 +319,16 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			}
 
 		case doLLM:
+			if _, allowed, err := l.adjudicate(ctx, appendE, pipeline.Effect{
+				ID: fmt.Sprintf("eff-llm-t%d", act.turn), Kind: "llm_call",
+				EstTokens: l.Spec.Model.MaxTokens,
+			}); err != nil {
+				return RunResult{}, abort(act.turn, err)
+			} else if !allowed {
+				// TODO(3.7c): budget denial becomes the graceful farewell
+				// ending; until then an LLM denial is a hard stop.
+				return RunResult{}, abort(act.turn, fmt.Errorf("turn %d: llm call denied by pipeline", act.turn))
+			}
 			var turn provider.Turn
 			err := exec.Do(ctx, Activity{
 				ID: fmt.Sprintf("llm-t%d", act.turn), Kind: event.KindLLM,
@@ -353,6 +367,21 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			call := act.call
 			if l.Sink != nil {
 				l.Sink.ToolCall(act.turn, call)
+			}
+			eff := pipeline.Effect{
+				ID: "eff-" + call.CallID, Kind: "tool_call",
+				ToolName: call.Name, Class: toolClass(call.Name),
+				Args: call.Args, CallID: call.CallID,
+			}
+			if outcome, allowed, err := l.adjudicate(ctx, appendE, eff); err != nil {
+				return RunResult{}, abort(act.turn, err)
+			} else if !allowed {
+				// The denial was journaled as the call's resolution (the
+				// fold writes the model-visible error); nothing executes.
+				if l.Sink != nil {
+					l.Sink.ToolResult(act.turn, call.CallID, deniedResult(outcome))
+				}
+				continue
 			}
 			var res tool.Result
 			err := exec.Do(ctx, Activity{
@@ -488,6 +517,50 @@ func toolCallsOf(m provider.Message) []provider.ToolCall {
 		}
 	}
 	return out
+}
+
+// adjudicate runs the effect through the pipeline and journals the
+// resolution — allow or deny — AFTER adjudication, BEFORE execution. An
+// ask verdict downgrades to deny until the 3.5 approval flow exists (the
+// downgrade is itself recorded as a gate result, never silent).
+func (l *Loop) adjudicate(ctx context.Context, appendE AppendFunc, eff pipeline.Effect) (pipeline.Outcome, bool, error) {
+	outcome, err := l.Pipeline.Evaluate(ctx, eff)
+	if err != nil {
+		return outcome, false, err
+	}
+	if outcome.Verdict == event.VerdictAsk {
+		// TODO(3.5): ask → ApprovalRequested → WAITING_APPROVAL.
+		outcome.Verdict = event.VerdictDeny
+		outcome.GateResults = append(outcome.GateResults, event.GateResult{
+			Gate: "pipeline", Decision: event.VerdictDeny,
+			Reason: "approval required but no approval flow yet (3.5)",
+		})
+	}
+	if _, err := appendE(event.TypeEffectResolved, &event.EffectResolved{
+		EffectID: eff.ID, CallID: eff.CallID,
+		Verdict: outcome.Verdict, GateResults: outcome.GateResults,
+	}); err != nil {
+		return outcome, false, err
+	}
+	return outcome, outcome.Verdict == event.VerdictAllow, nil
+}
+
+func deniedResult(outcome pipeline.Outcome) tool.Result {
+	payload, _ := json.Marshal(map[string]string{"error": "denied by policy"})
+	for _, r := range outcome.GateResults {
+		if r.Decision == event.VerdictDeny {
+			payload, _ = json.Marshal(map[string]string{"error": "denied: " + r.Reason})
+			break
+		}
+	}
+	return tool.Result{Payload: payload, IsError: true}
+}
+
+func toolClass(name string) string {
+	if def, ok := tool.Get(name); ok {
+		return string(def.Class)
+	}
+	return ""
 }
 
 // toolIdempotent is the S2 placeholder policy: reads re-run safely on

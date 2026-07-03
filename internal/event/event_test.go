@@ -39,7 +39,10 @@ var samples = map[string]any{
 	TypeWaitingEntered:  &WaitingEntered{Kind: WaitApproval, Detail: json.RawMessage(`{"call_id":"call_3_1"}`)},
 	TypeWaitingResolved: &WaitingResolved{Kind: WaitApproval, Resolution: "approved"},
 	TypeActorCrashed:    &ActorCrashed{Actor: "session", Error: "boom"},
-	TypeRunEnded:        &RunEnded{Reason: "completed", Turns: 4, Usage: provider.Usage{InputTokens: 10}},
+	TypeEffectResolved: &EffectResolved{EffectID: "eff-call_3_1", CallID: "call_3_1",
+		Verdict: VerdictDeny, GateResults: []GateResult{
+			{Gate: "permission", Decision: VerdictDeny, Reason: "path escapes workspace"}}},
+	TypeRunEnded: &RunEnded{Reason: "completed", Turns: 4, Usage: provider.Usage{InputTokens: 10}},
 }
 
 func TestRoundTripAllTypes(t *testing.T) {

@@ -724,3 +724,29 @@ between_gate_and_resolved → in-doubt)。回访项:非幂等 tool 的
 ActivityFailed-重试窗口(S2 review 递延)。
 
 下一步:S3.1 管线框架。
+
+## S3.1 管线框架 — DONE
+
+`internal/pipeline`(forbidigo 区,纯评估无 I/O):`Effect{ID, Kind,
+ToolName, Class, Args, CallID, EstTokens}`、`Gate{Name, Check} →
+Decision{allow|ask|deny, reason}`、`Pipeline.Evaluate`——deny 短路
+(后续关不跑)、ask 聚合(继续评估,后续 deny 仍胜)、gate 返回
+非法 action 报错、nil pipeline = 全放行。新 event `effect_resolved
+{effect_id, call_id, verdict, gate_results}`;fold:**deny 即该 call
+的模型可见结果**(`denied: <reason>` IsError 入 ToolResults——
+decide() 不会重试被拒 effect,拒后崩溃 resume 也直接跳过)。loop:
+`adjudicate()` 在 LLM 与 tool 活动前统一评估并落盘(判定终结后、
+执行前);deny 的 tool 不产生任何 activity 事件,loop 继续;deny 的
+LLM 暂 hard abort(TODO 3.7c 优雅收尾)。
+
+**Decisions**:
+- ask 在 3.5 前**显式降级 deny**:附加 gate_result(gate:
+  "pipeline", reason 注明 "no approval flow yet (3.5)")——绝不静默
+  放行、也绝不无解释拒绝;3.5 落地时替换此块。
+- GateResult 类型放 event 包(pipeline 复用),event 保持叶子包。
+- LLM effect 每 turn 都落 resolution(即使空 pipeline)——事实完整
+  优先于日志体积。
+
+**验证**:落盘时点单测——allow: resolution 先于 activity_started;
+deny: 无 activity 事件、下一 turn 模型看到 denied 文本、run 正常完成;
+ask: 降级链完整可见;llm: 每 turn 有 resolution。

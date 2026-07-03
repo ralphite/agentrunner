@@ -24,6 +24,16 @@ const (
 	TypeWaitingResolved   = "waiting_resolved"
 	TypeActorCrashed      = "actor_crashed"
 	TypeRunEnded          = "run_ended"
+
+	// S3 additions (the S2 set above never changes).
+	TypeEffectResolved = "effect_resolved"
+)
+
+// Effect verdicts and gate decisions.
+const (
+	VerdictAllow = "allow"
+	VerdictAsk   = "ask"
+	VerdictDeny  = "deny"
 )
 
 // Activity kinds.
@@ -139,6 +149,23 @@ type RunEnded struct {
 	Usage  provider.Usage `json:"usage"`
 }
 
+// GateResult is one gate's judgment inside an effect resolution.
+type GateResult struct {
+	Gate     string `json:"gate"`
+	Decision string `json:"decision"` // allow | ask | deny
+	Reason   string `json:"reason,omitempty"`
+}
+
+// EffectResolved journals the pipeline's final verdict — allow or deny,
+// with every gate's judgment — AFTER adjudication and BEFORE execution
+// (the ask path resolves to one of these after the approval response).
+type EffectResolved struct {
+	EffectID    string       `json:"effect_id"`
+	CallID      string       `json:"call_id,omitempty"`
+	Verdict     string       `json:"verdict"` // allow | deny
+	GateResults []GateResult `json:"gate_results,omitempty"`
+}
+
 // Registry maps every event type to a constructor for its payload struct.
 // Decode helpers and the round-trip test are driven by this table.
 var Registry = map[string]func() any{
@@ -157,4 +184,5 @@ var Registry = map[string]func() any{
 	TypeWaitingResolved:   func() any { return &WaitingResolved{} },
 	TypeActorCrashed:      func() any { return &ActorCrashed{} },
 	TypeRunEnded:          func() any { return &RunEnded{} },
+	TypeEffectResolved:    func() any { return &EffectResolved{} },
 }
