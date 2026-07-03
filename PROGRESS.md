@@ -580,3 +580,21 @@ idempotent(read 类、LLM)→ 不算 in-doubt,decide() 自然重跑。S3
   crash 包测试钉住。
 - idempotent 重跑时 attempt 从 1 重新计(旧 Started 的 map 项被新
   Started 覆盖,终态后排干)——记为已知小瑕疵,不影响正确性。
+
+## S2.16 run 收尾 epilogue 骨架 — DONE
+
+`agent/epilogue.go`:固定序列 `quiesce → auto_publish → barrier →
+RunEnded`(钩子 2 落位)。三个 slot S2 皆 no-op(quiesce 待 S6 并行
+任务用 Activities sub-state 填;auto_publish/barrier 是 S7 预留位);
+**此后所有 run 结束行为必须挂 slot,不得绕序列**。doEnd 与 abort
+两条终态路径都走 `runEpilogue`:正常结束 hook 报错即中止(终态不落);
+abort 路径 best-effort 硬推到底(能落 run_ended 就落)。
+`before_run_end` 注入点收进 epilogue(barrier 之后、终态之前)。
+
+**验证**:hook 顺序钉死;正常结束遇 hook 错误不写终态;best-effort
+穿透错误仍写终态;三种 reason(completed/max_turns/error|canceled)
+共用同一路径(既有 loop 测试覆盖)。
+
+**Decisions**:
+- epilogueSequence 为包级 var,测试以替换+恢复方式插桩(slot 体
+  可换、序不可变的机械保证)。

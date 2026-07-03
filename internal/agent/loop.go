@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/ralphite/agentrunner/internal/clock"
-	"github.com/ralphite/agentrunner/internal/crash"
 	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/provider"
@@ -229,17 +228,16 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 	if err != nil {
 		return RunResult{}, err
 	}
-	// abort best-effort-journals a terminal event so a failed run's log is
-	// distinguishable from a truncated one. User cancellation is its own
-	// reason — an interrupted run is not a failed one.
+	// abort routes a dying run through the same epilogue, best-effort, so
+	// a failed log is distinguishable from a truncated one. User
+	// cancellation is its own reason — an interrupted run is not a failed
+	// one.
 	abort := func(turn int, cause error) error {
 		reason := "error"
 		if errs.ClassOf(cause) == errs.Canceled {
 			reason = "canceled"
 		}
-		_, _ = appendE(event.TypeRunEnded, &event.RunEnded{
-			Reason: reason, Turns: turn, Usage: ds.s.Run.Usage,
-		})
+		_, _ = runEpilogue(ctx, ds, appendE, reason, turn, true)
 		return cause
 	}
 
@@ -331,15 +329,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			if act.reason == "max_turns" {
 				slog.Warn("run hit max_turns", "max_turns", l.Spec.MaxTurns)
 			}
-			crash.Point(crash.PointBeforeRunEnd)
-			// TODO(2.16): this becomes the run epilogue sequence
-			// (quiesce → auto-publish → barrier → terminal event).
-			if _, err := appendE(event.TypeRunEnded, &event.RunEnded{
-				Reason: act.reason, Turns: act.turn, Usage: ds.s.Run.Usage,
-			}); err != nil {
-				return RunResult{}, err
-			}
-			return RunResult{Reason: act.reason, Turns: act.turn, Usage: ds.s.Run.Usage}, nil
+			return runEpilogue(ctx, ds, appendE, act.reason, act.turn, false)
 		}
 	}
 }
