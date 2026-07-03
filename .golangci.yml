@@ -1,0 +1,26 @@
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - forbidigo
+  settings:
+    errcheck:
+      # Writes to CLI stdout/stderr: checking these returns is noise.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+    forbidigo:
+      forbid:
+        - pattern: 'time\.Now'
+          msg: wall clock is banned in kernel/state/pipeline — inject internal/clock.Clock (PLAN 2.9)
+        - pattern: 'time\.Sleep'
+          msg: sleeping is banned in kernel/state/pipeline — use Clock.WaitUntil (PLAN 2.9)
+  exclusions:
+    rules:
+      # forbidigo only applies inside the deterministic core; everywhere else
+      # wall-clock use is legitimate (providers, tools, CLI).
+      - path-except: '^internal/(kernel|state|pipeline)/'
+        linters:
+          - forbidigo
