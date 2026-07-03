@@ -44,11 +44,17 @@ func okResult(v any) Result {
 	return Result{Payload: payload}
 }
 
+// SessionEnvVar marks every process a session spawns, so cleanup
+// assertions can find strays by marker instead of grepping global ps.
+const SessionEnvVar = "AGENTRUNNER_SESSION"
+
 // Executor runs built-in tools against a workspace. Wall-clock limits are
 // NOT owned here (2.11): the activity executor arms a durable timer and
 // cancels ctx with cause errs.ErrActivityTimeout; bash only reacts.
 type Executor struct {
 	WS *workspace.Workspace
+	// Session tags spawned processes via SessionEnvVar (2.12).
+	Session string
 }
 
 // Execute dispatches one tool call. Unknown tools and malformed args are
@@ -165,6 +171,9 @@ func (e *Executor) bash(ctx context.Context, rawArgs json.RawMessage) Result {
 	var stdout, stderr bytes.Buffer
 	cmd := exec.Command("bash", "-c", args.Command)
 	cmd.Dir = e.WS.Root()
+	if e.Session != "" {
+		cmd.Env = append(os.Environ(), SessionEnvVar+"="+e.Session)
+	}
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}

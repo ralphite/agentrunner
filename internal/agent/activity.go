@@ -86,6 +86,19 @@ func (x *ActivityExecutor) Do(ctx context.Context, act Activity) error {
 			// is timeout (retryable), not canceled.
 			err = errs.Wrap(errs.Timeout, err, "activity timeout")
 		}
+		if !timedOut && ctx.Err() != nil {
+			// Canceled from above (2.12). The effect implementation has
+			// already killed its process group and drained (bounded); the
+			// terminal fact is ActivityCancelled with whatever partial
+			// output survived — journaled only now, after the group died.
+			if _, aerr := x.Append(event.TypeActivityCancelled, &event.ActivityCancelled{
+				ActivityID:    act.ID,
+				PartialOutput: string(x.Redact.JSON(result)),
+			}); aerr != nil {
+				return aerr
+			}
+			return errs.Wrap(errs.Canceled, context.Cause(ctx), act.Name)
+		}
 		if err == nil {
 			crash.Point(crash.PointAfterExecBeforeJournal)
 			_, aerr := x.Append(event.TypeActivityCompleted, &event.ActivityCompleted{

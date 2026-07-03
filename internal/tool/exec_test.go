@@ -227,3 +227,63 @@ func TestBashContextCancelKillsGroup(t *testing.T) {
 		t.Errorf("process group %d still alive after cancel", pid)
 	}
 }
+
+// findSessionProcs scans /proc for live processes carrying the session
+// env marker — targeted lookup, not a global ps pattern match.
+func findSessionProcs(t *testing.T, session string) []string {
+	t.Helper()
+	needle := SessionEnvVar + "=" + session
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pids []string
+	for _, e := range entries {
+		if !e.IsDir() || e.Name()[0] < '0' || e.Name()[0] > '9' {
+			continue
+		}
+		environ, err := os.ReadFile(filepath.Join("/proc", e.Name(), "environ"))
+		if err != nil {
+			continue // gone or not ours
+		}
+		for _, kv := range strings.Split(string(environ), "\x00") {
+			if kv == needle {
+				pids = append(pids, e.Name())
+				break
+			}
+		}
+	}
+	return pids
+}
+
+// 2.12 orphan assertion: after a cancel kills the group, no process tagged
+// with the session marker survives — including background grandchildren.
+func TestBashCancelLeavesNoSessionOrphans(t *testing.T) {
+	e, _ := newExec(t)
+	e.Session = "orphan-test-" + fmt.Sprint(os.Getpid())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		cancel()
+	}()
+	res := e.Execute(ctx, "bash", json.RawMessage(
+		`{"command":"sleep 60 & sleep 60 & sleep 60"}`))
+	if !res.IsError {
+		t.Fatalf("result = %s", res.Payload)
+	}
+
+	if pids := findSessionProcs(t, e.Session); len(pids) != 0 {
+		t.Fatalf("session orphans survived cancel: pids %v", pids)
+	}
+}
+
+// The marker reaches spawned processes.
+func TestBashSessionMarkerSet(t *testing.T) {
+	e, _ := newExec(t)
+	e.Session = "marker-test"
+	m, isErr := run(t, e, "bash", `{"command":"echo -n $AGENTRUNNER_SESSION"}`)
+	if isErr || m["stdout"] != "marker-test" {
+		t.Fatalf("m=%v isErr=%v", m, isErr)
+	}
+}

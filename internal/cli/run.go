@@ -156,7 +156,7 @@ func runAgent(opts runOptions) int {
 	loop := &agent.Loop{
 		Spec:      spec,
 		Provider:  prov,
-		Exec:      &tool.Executor{WS: ws},
+		Exec:      &tool.Executor{WS: ws, Session: sessionID},
 		Store:     events,
 		Clock:     clock.Real{},
 		Sink:      &textSink{out: opts.stdout},

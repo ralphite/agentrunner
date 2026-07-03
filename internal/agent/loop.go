@@ -9,6 +9,7 @@ import (
 
 	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/crash"
+	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/redact"
@@ -82,10 +83,15 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 		return appended, nil
 	}
 	// abort best-effort-journals a terminal event so a failed run's log is
-	// distinguishable from a truncated one.
+	// distinguishable from a truncated one. User cancellation is its own
+	// reason — an interrupted run is not a failed one.
 	abort := func(turn int, cause error) error {
+		reason := "error"
+		if errs.ClassOf(cause) == errs.Canceled {
+			reason = "canceled"
+		}
 		_, _ = appendE(event.TypeRunEnded, &event.RunEnded{
-			Reason: "error", Turns: turn, Usage: s.Run.Usage,
+			Reason: reason, Turns: turn, Usage: s.Run.Usage,
 		})
 		return cause
 	}
