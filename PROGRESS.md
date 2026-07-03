@@ -773,3 +773,22 @@ InDoubtError(Effects 字段,"mid-adjudication, hooks may have run");
 - side_effecting 布尔由管线静态推导(任一 gate 实现
   SideEffecting()==true),journal 进事实供 resume 决策——resume
   时的管线配置可能不同,以崩溃时刻的事实为准。
+
+## S3.3 permission rules — DONE
+
+`pipeline.PermissionGate`:规则表(首条命中即生效——顺序即优先级)
++ 无命中按 mode 默认表(default/plan/acceptEdits/bypass × 四 class
+全表);规则 = `{tool?, path?, command?, action}`,多条件合取;
+path glob(`*`/`?` 不跨 `/`,`**` 跨)对 workspace 相对路径
+(先经 WS.Resolve 归一),command glob(`*` 匹配任意含空格)对
+整条命令;**越界路径无条件 deny——先于规则、先于 mode、bypass
+也不豁免**(钩子 1 的关卡层复检,`src/../../etc` 表驱动钉住)。
+
+**Decisions**:
+- command glob 的 `*` 不带 path 语义(匹配任意字符)——"go test *"
+  要能配 "go test ./..."(执行包已定,实现记档确认)。
+- 规则合取:path 条款对无 path 参数的 tool(bash)永不匹配。
+- malformed args 在关卡层按空值处理(执行层会给模型可见错误)。
+- **CLI 尚未接线 PermissionGate**:ask 在 3.5 前会降级 deny,接线会
+  打破 S1/S2 acceptance(edit 全拒);3.5 审批流落地后随 3.6 mode
+  一起接入 CLI。3.3 验收 = 表驱动单测(计划原文如此)。
