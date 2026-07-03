@@ -352,3 +352,25 @@ envelope 为 causation),不自动重启,后续 Send 报错。
   丢子事实不可接受。
 - forbidigo 从本步起在 internal/kernel 生效(测试也不用 sleep,
   全部靠 channel 同步 + mailbox FIFO 序断言)。
+
+## S2.4 fold/state — DONE
+
+`internal/state`:`State{Conversation, Activities, Waiting, Timers, Run}`
++ `SubStateVersions()`(全部 v1,入 RunStarted 与 snapshot 头);
+`Apply` 纯函数(copy-on-write helpers,输入 state 永不变);`Fold` =
+从空态折叠。in-flight Activities 集合 = 钩子 3 落位(resume 时非空
+即 in-doubt 信号);Timers = 未 fired 集合(2.11 resume 重调度依据);
+Conversation 含 `ToolResults` map by call_id(2.10 assembly 的读取面)。
+
+**Decisions**:
+- **第五个 sub-state `timers`**(执行包只列了四个):2.11 resume 需要
+  从 fold 读未 fired timer,归入 waiting 或 run 都语义不合,独立命名
+  空间最干净。记为对执行包的加性偏离。
+- ActivityFailed 一律移出 in-flight(该 attempt 已终结;retry 由新
+  Started 重新加入)——in-doubt 语义因此简单:resume 时 in-flight
+  非空 = Started 无终态。
+- tool result 进 Conversation 的条件 = in-flight 里查到 kind=tool 且
+  有 call_id(不解析 activity_id 字符串)。
+- `TestApplyCoversRegistry`:Registry 每个类型零值过 Apply,漏写
+  fold case 直接红——event 词汇表与 fold 的漂移在 CI 抓。
+- `RunEnded` 把 `Run.Turn` 设为最终 turns(与 TurnStarted 同字段)。
