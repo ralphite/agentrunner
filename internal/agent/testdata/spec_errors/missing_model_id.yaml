@@ -1,0 +1,3 @@
+name: x
+model: { provider: gemini }
+system_prompt: hi

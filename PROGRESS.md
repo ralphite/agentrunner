@@ -21,3 +21,21 @@ review 的 open questions。
     噪音；项目级惯例）。
 - **DEFERRED**：无。
 - **Open questions**：无。
+
+## S1.1 — 最小 spec loader　✅
+
+- **状态**：完成。`internal/agent/spec.go` + 8 个黄金错误用例 +
+  3 个正例（默认值、prompt file 解析）；`specs/hello.yaml` 示例。
+- **决定**：
+  - 校验返回**第一个**错误（字段定义序），不聚合——黄金测试断言全文，
+    单错误最稳定。
+  - `model.max_tokens` 可选，默认 8192（执行包未定，取 DESIGN 示例值）。
+  - `system_prompt_file` 相对路径**相对 spec 文件所在目录**解析；
+    加载后内容并入 `SystemPrompt` 并清空 file 字段（下游只看一个字段）。
+  - 未知 YAML 字段用 `KnownFields(true)` 严格拒绝，错误保留 yaml 库
+    原文（含行号），一样进黄金测试。
+  - 空 `tools` 合法（纯对话 agent）。
+  - 黄金测试带 `-update` 再生成机制。
+- **DEFERRED**：无。
+- **Open questions**：`model.provider` 目前只查非空，不查已知 provider
+  名单——provider 注册表 1.3 才出现，届时是否收紧留给 stage review。

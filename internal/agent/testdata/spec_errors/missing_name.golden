@@ -1,0 +1,1 @@
+spec testdata/spec_errors/missing_name.yaml: field name: required

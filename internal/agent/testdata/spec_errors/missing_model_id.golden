@@ -1,0 +1,1 @@
+spec testdata/spec_errors/missing_model_id.yaml: field model.id: required

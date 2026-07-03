@@ -1,0 +1,1 @@
+spec testdata/spec_errors/unknown_tool.yaml: field tools: unknown tool "web_search" (known: [read_file edit_file bash])

@@ -1,0 +1,2 @@
+spec testdata/spec_errors/unknown_field.yaml: yaml: unmarshal errors:
+  line 2: field bogus not found in type agent.AgentSpec

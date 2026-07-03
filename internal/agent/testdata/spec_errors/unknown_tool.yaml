@@ -1,0 +1,4 @@
+name: x
+model: { provider: gemini, id: gemini-2.5-flash }
+system_prompt: hi
+tools: [read_file, web_search]

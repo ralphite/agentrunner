@@ -1,0 +1,1 @@
+spec testdata/spec_errors/no_prompt.yaml: field system_prompt: exactly one of system_prompt and system_prompt_file must be set, got neither
