@@ -313,3 +313,21 @@ helper + `NewCommandID`/`EventID`。
 - `WaitingEntered.Detail` 用 `json.RawMessage`(各 kind 结构不同,
   S3 审批 payload 落这里)。
 - ErrorInfo 提前定义(2.8 的 journaled 形态),ActivityFailed 即用。
+
+## S2.2 EventStore — DONE
+
+`internal/store/eventstore.go`:JSONL backend,per-session flock 独占
+写者(`ErrLocked: held by pid N`)、append = seq++/id/ts 赋值 + 单行写
++ fsync、`ReadEvents` 免锁读、torn tail 容错(读者跳过;写者 open 时
+truncate 修复——该 event 从未被 ack,丢弃安全)。
+
+**Decisions**:
+- stale lock 无需 pid 探活:flock 由内核在持有者死亡时自动释放,
+  lock 文件里的 pid 纯为诊断信息(撞锁报错用)。执行包里的
+  "kill -0 stale 检测"因此不需要——语义更强,记为简化偏离。
+- 换行结尾的坏行 = 真损坏 → 读写都响亮报错;只有无换行的尾部
+  是 torn tail(崩溃中断写)→ 修复。
+- `crashAfter()` stub 落在 store(TODO(2.6)),append fsync 成功后
+  调用——计数谓词的正确注入时点先钉住。
+- Append 失败(write/fsync)不回滚 seq:文件可能已有半行,下次
+  open 会修复;marshal 失败(未写盘)回滚 seq。
