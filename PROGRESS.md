@@ -297,3 +297,19 @@ Gemini 会 400)+ Complete 流内错误、scripted 每次迭代消费一步的语
 
 Open questions 留给 stage review:kernel 的 actor 粒度(单 session
 单 actor 还是 per-concern 多 actor)在 2.3 实现时按最小可用决定并记档。
+
+## S2.1 event/command 类型 — DONE
+
+`internal/event`:Envelope(wire 形态 `{seq,id,causation_id,
+correlation_id,sender,target,type,payload,ts}`)+ 14 个 payload struct
++ `Registry` 表 + `DecodePayload`(未知 type 报错)+ `ChildOf` 传播
+helper + `NewCommandID`/`EventID`。
+
+**Decisions**:
+- `New()` 拒绝未注册 type——事实的词汇表封闭,加类型必须过注册表。
+- round-trip 测试要求 samples 表与 Registry 等长——加 event 类型时
+  漏写测试样本会直接 fail。
+- `ts` 用 json `omitzero`(Go 1.24):未 append 的 envelope 不带 ts。
+- `WaitingEntered.Detail` 用 `json.RawMessage`(各 kind 结构不同,
+  S3 审批 payload 落这里)。
+- ErrorInfo 提前定义(2.8 的 journaled 形态),ActivityFailed 即用。
