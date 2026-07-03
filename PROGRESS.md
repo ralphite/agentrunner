@@ -126,3 +126,19 @@ review 的 open questions。
     创建语义是补充决定——没有创建能力 agent 无法新增文件）。
   - registry 校验失败用 panic（embed 的定义坏 = 程序坏，不是运行时错）。
 - **DEFERRED**：无。
+
+## S1.6 — 三个 tool 实现　✅
+
+- **状态**：完成。`internal/tool/exec.go`：Executor（绑定 workspace）+
+  read_file（2000 行/50KB 截断）+ edit_file（恰好一次替换，报 0/N 次；
+  空 old 创建）+ bash（Setpgid、120s 默认超时、SIGTERM→5s→SIGKILL 组杀、
+  30KB 头尾截断）。9 组测试含**进程组死亡断言**（timeout 后 kill -0
+  探测组已消失）与转义拒绝。
+- **决定**：
+  - 统一 `Result{Payload, IsError}` 返回——tool 级错误全部是模型可见的
+    error 结果（决策 #9），Go error 只留给 harness 自身故障（S1 无）。
+  - bash 非零退出码 → IsError（对齐 Claude Code 行为）。
+  - `cmd.WaitDelay = 2s` 解决后台子进程持有管道导致 Wait 悬挂的经典
+    问题（`bash -c 'x &'` 场景）。
+  - bash 超时是墙钟（PLAN 已声明 provisional，S2.11 迁移 durable timer）。
+- **DEFERRED**：无。
