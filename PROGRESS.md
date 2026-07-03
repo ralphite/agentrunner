@@ -83,3 +83,21 @@ review 的 open questions。
   - live 测试自带 `.env` 加载（不覆盖已有 env），`//go:build live`
     隔离,check.sh 不编译。
 - **DEFERRED**：无。
+
+## S1.3a — ScriptedProvider + 录制器　✅
+
+- **状态**：完成。`internal/provider/scripted`（序列匹配 + expect 断言 +
+  Done() 消费校验）与 `internal/provider/record`（Provider 中间件式
+  录制器：自动派生 expect、凭据 redaction、WriteFixture）。6 组测试
+  含录制→回放 round-trip 与 drift 检测。
+- **决定**：
+  - **录制器做成 Provider 中间件**而非 CLI 子命令——`record-fixture`
+    CLI 需要 agent loop（1.9 才有），中间件现在就可单测；CLI 接线
+    推迟到 1.9（记入其出口清单）。
+  - 录制时自动派生 expect：tools 全名单 + 末条消息首个 text part 的
+    前 60 字符；redaction 覆盖 `*_API_KEY/_TOKEN/_SECRET` 的环境值。
+  - scripted 的 tool_call 事件 `call_id` 可省略——默认按
+    `CallID(req.Turn, index)` 铸造，手写 fixture 更省事。
+  - `Expect.LastMessageContains` 对 tool_result part 也匹配其 Result
+    原文（下一轮请求的"末条消息"往往是 tool 结果）。
+- **DEFERRED**：无。
