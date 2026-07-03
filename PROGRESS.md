@@ -478,3 +478,23 @@ loop 上全绿。
 - 模型可见的 tool 结果也过 redaction(fold ToolResults 存的是
   redacted 版)——凭据不该回流进上下文,记为行为变更。
 - state.addUsage 补 CacheWriteTokens(S1 会计口径 bug,顺手修)。
+
+## S2.11 durable timer — DONE
+
+executor 每 attempt 可挂 `Activity.Timeout`:`TimerSet`(fire_at 绝对
+时刻)落盘 → WaitUntil goroutine 只发信号(**所有 append 留在 executor
+goroutine**,无并发写)→ 到期 `TimerFired` 落盘 + runCtx 以
+`errs.ErrActivityTimeout` 为 cause 取消;先完成则 `TimerCancelled`。
+bash 墙钟超时迁移完成:tool.Executor 不再持有 timer(BashTimeout 字段
+删除),按 `context.Cause` 区分 timed_out/canceled;loop 给 execute
+类 tool 配 120s(常量归 agent 层)。`FirePendingTimers`:resume 扫
+fold 未 fired timer,过期即刻 fire、未到期返回给 owner 重挂(2.13 用)。
+
+**Decisions**:
+- **新 event 类型 `timer_cancelled`**(S2 全集 14→15 的加性偏离):
+  没有它,先完成的 activity 会在 fold 留 stale pending timer,resume
+  会误触发。
+- LLM 超时错误重分类:timer fired + Run 报 canceled → errs.Timeout
+  (retryable);tool 超时是模型可见 IsError 结果(活动成功),与 S1
+  行为一致,不触发 retry。
+- timer id 确定性:`tm-<activity_id>-a<attempt>`。

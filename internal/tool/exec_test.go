@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/workspace"
 )
 
@@ -131,12 +132,24 @@ func TestBashBasics(t *testing.T) {
 
 func TestBashTimeoutKillsProcessGroup(t *testing.T) {
 	e, root := newExec(t)
-	e.BashTimeout = 300 * time.Millisecond
+
+	// 2.11: the wall-clock limit is owned by the durable timer, which
+	// cancels ctx with cause ErrActivityTimeout; bash renders timed_out.
+	ctx, cancel := context.WithCancelCause(context.Background())
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		cancel(errs.ErrActivityTimeout)
+	}()
 
 	// The marker file lets us find the grandchild's pid.
 	cmd := fmt.Sprintf(`{"command":"echo $$ > %s/pgid.txt; sleep 30"}`, root)
 	start := time.Now()
-	m, isErr := run(t, e, "bash", cmd)
+	res := e.Execute(ctx, "bash", json.RawMessage(cmd))
+	var m map[string]any
+	if err := json.Unmarshal(res.Payload, &m); err != nil {
+		t.Fatalf("payload not JSON: %s", res.Payload)
+	}
+	isErr := res.IsError
 	if elapsed := time.Since(start); elapsed > 10*time.Second {
 		t.Fatalf("took %s, kill path did not engage", elapsed)
 	}

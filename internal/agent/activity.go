@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/ralphite/agentrunner/internal/clock"
@@ -27,6 +28,10 @@ type Activity struct {
 	Args       json.RawMessage
 	CallID     string
 	Idempotent bool
+	// Timeout arms a durable timer for each attempt (2.11): TimerSet is
+	// journaled, and on fire the run ctx is canceled with cause
+	// errs.ErrActivityTimeout. Zero means no timeout.
+	Timeout time.Duration
 	// Run performs the effect: (result, usage, isError, err). isError is a
 	// model-visible failed result (tool_failed) — the activity SUCCEEDED;
 	// err is an activity failure fed to the retry policy.
@@ -75,7 +80,12 @@ func (x *ActivityExecutor) Do(ctx context.Context, act Activity) error {
 			return err
 		}
 
-		result, usage, isError, err := act.Run(ctx)
+		result, usage, isError, err, timedOut := x.runAttempt(ctx, act, attempt)
+		if timedOut && err != nil {
+			// The run surfaced its cancellation as an error: the true class
+			// is timeout (retryable), not canceled.
+			err = errs.Wrap(errs.Timeout, err, "activity timeout")
+		}
 		if err == nil {
 			crash.Point(crash.PointAfterExecBeforeJournal)
 			_, aerr := x.Append(event.TypeActivityCompleted, &event.ActivityCompleted{
@@ -112,5 +122,64 @@ func (x *ActivityExecutor) Do(ctx context.Context, act Activity) error {
 		if werr := x.Clock.WaitUntil(ctx, x.Clock.Now().Add(wait)); werr != nil {
 			return werr
 		}
+	}
+}
+
+// runAttempt executes one attempt, racing it against the durable timeout
+// timer when armed. All journal appends stay on this goroutine; the timer
+// waiter only signals a channel. Returns timedOut=true when the timer
+// fired before the run finished.
+func (x *ActivityExecutor) runAttempt(ctx context.Context, act Activity, attempt int) (json.RawMessage, *provider.Usage, bool, error, bool) {
+	if act.Timeout <= 0 {
+		r, u, ie, err := act.Run(ctx)
+		return r, u, ie, err, false
+	}
+
+	timerID := fmt.Sprintf("tm-%s-a%d", act.ID, attempt)
+	fireAt := x.Clock.Now().Add(act.Timeout)
+	if _, err := x.Append(event.TypeTimerSet, &event.TimerSet{
+		TimerID: timerID, FireAt: fireAt, Purpose: "activity_timeout:" + act.ID,
+	}); err != nil {
+		return nil, nil, false, err, false
+	}
+
+	runCtx, cancelRun := context.WithCancelCause(ctx)
+	defer cancelRun(nil)
+	waitCtx, cancelWait := context.WithCancel(ctx)
+	defer cancelWait()
+
+	fired := make(chan struct{}, 1)
+	go func() {
+		if x.Clock.WaitUntil(waitCtx, fireAt) == nil {
+			fired <- struct{}{}
+		}
+	}()
+
+	type outcome struct {
+		result  json.RawMessage
+		usage   *provider.Usage
+		isError bool
+		err     error
+	}
+	outc := make(chan outcome, 1)
+	go func() {
+		r, u, ie, err := act.Run(runCtx)
+		outc <- outcome{r, u, ie, err}
+	}()
+
+	select {
+	case out := <-outc:
+		cancelWait()
+		if _, err := x.Append(event.TypeTimerCancelled, &event.TimerCancelled{TimerID: timerID}); err != nil {
+			return nil, nil, false, err, false
+		}
+		return out.result, out.usage, out.isError, out.err, false
+	case <-fired:
+		if _, err := x.Append(event.TypeTimerFired, &event.TimerFired{TimerID: timerID}); err != nil {
+			return nil, nil, false, err, true
+		}
+		cancelRun(errs.ErrActivityTimeout)
+		out := <-outc // bounded drain: effect impls kill their process groups on cancel
+		return out.result, out.usage, out.isError, out.err, true
 	}
 }

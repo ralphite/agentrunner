@@ -150,6 +150,9 @@ func Apply(s State, env event.Envelope) (State, error) {
 	case *event.TimerFired:
 		s.Timers = s.Timers.without(p.TimerID)
 
+	case *event.TimerCancelled:
+		s.Timers = s.Timers.without(p.TimerID)
+
 	case *event.WaitingEntered:
 		s.Waiting = &Waiting{Kind: p.Kind, Detail: p.Detail, Since: env.Seq}
 		s.Run.Status = StatusWaiting

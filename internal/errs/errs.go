@@ -31,6 +31,11 @@ func (c Class) Retryable() bool {
 	return false
 }
 
+// ErrActivityTimeout is the cancellation CAUSE used when a durable
+// activity-timeout timer fires (2.11). Effect implementations inspect
+// context.Cause to render "timed out" instead of "canceled".
+var ErrActivityTimeout = New(Timeout, "activity timeout")
+
 // Error carries a class through wrapping.
 type Error struct {
 	Class Class

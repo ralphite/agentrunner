@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/crash"
@@ -162,6 +163,7 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 				ID: "tool-" + call.CallID, Kind: event.KindTool,
 				Name: call.Name, Args: call.Args, CallID: call.CallID,
 				Idempotent: toolIdempotent(call.Name),
+				Timeout:    toolTimeout(call.Name),
 				Run: func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
 					res = l.Exec.Execute(ctx, call.Name, call.Args)
 					return res.Payload, nil, res.IsError, nil
@@ -295,6 +297,35 @@ func toolCallsOf(m provider.Message) []provider.ToolCall {
 func toolIdempotent(name string) bool {
 	def, ok := tool.Get(name)
 	return ok && def.Class == tool.ClassRead
+}
+
+// executeToolTimeout is the S1 default bash wall-clock limit, now owned by
+// the durable-timer substrate (2.11) instead of the tool implementation.
+const executeToolTimeout = 120 * time.Second
+
+func toolTimeout(name string) time.Duration {
+	if def, ok := tool.Get(name); ok && def.Class == tool.ClassExecute {
+		return executeToolTimeout
+	}
+	return 0
+}
+
+// FirePendingTimers is the resume-side timer sweep (2.13 calls it): every
+// timer still pending in the fold whose fire_at has passed is fired NOW;
+// future timers are returned for their owners to re-arm.
+func FirePendingTimers(s state.State, clk clock.Clock, appendE AppendFunc) ([]event.TimerSet, error) {
+	now := clk.Now()
+	var future []event.TimerSet
+	for _, tm := range s.Timers {
+		if tm.FireAt.After(now) {
+			future = append(future, tm)
+			continue
+		}
+		if _, err := appendE(event.TypeTimerFired, &event.TimerFired{TimerID: tm.TimerID}); err != nil {
+			return nil, err
+		}
+	}
+	return future, nil
 }
 
 func assistantText(msg provider.Message) string {

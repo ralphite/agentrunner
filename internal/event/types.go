@@ -19,6 +19,7 @@ const (
 	TypeActivityCancelled = "activity_cancelled"
 	TypeTimerSet          = "timer_set"
 	TypeTimerFired        = "timer_fired"
+	TypeTimerCancelled    = "timer_cancelled"
 	TypeWaitingEntered    = "waiting_entered"
 	TypeWaitingResolved   = "waiting_resolved"
 	TypeActorCrashed      = "actor_crashed"
@@ -107,6 +108,12 @@ type TimerFired struct {
 	TimerID string `json:"timer_id"`
 }
 
+// TimerCancelled clears a pending timer whose purpose completed before it
+// fired (e.g. the activity finished inside its timeout).
+type TimerCancelled struct {
+	TimerID string `json:"timer_id"`
+}
+
 type WaitingEntered struct {
 	Kind   string          `json:"kind"`
 	Detail json.RawMessage `json:"detail,omitempty"`
@@ -141,6 +148,7 @@ var Registry = map[string]func() any{
 	TypeActivityCancelled: func() any { return &ActivityCancelled{} },
 	TypeTimerSet:          func() any { return &TimerSet{} },
 	TypeTimerFired:        func() any { return &TimerFired{} },
+	TypeTimerCancelled:    func() any { return &TimerCancelled{} },
 	TypeWaitingEntered:    func() any { return &WaitingEntered{} },
 	TypeWaitingResolved:   func() any { return &WaitingResolved{} },
 	TypeActorCrashed:      func() any { return &ActorCrashed{} },

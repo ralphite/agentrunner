@@ -14,6 +14,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/workspace"
 )
 
@@ -22,7 +23,6 @@ const (
 	readMaxLines     = 2000
 	readMaxBytes     = 50 * 1024
 	bashOutputBytes  = 30 * 1024 // combined budget: split across stdout+stderr
-	defaultBashTO    = 120 * time.Second
 	bashKillGrace    = 5 * time.Second
 	bashPipeDeadline = 2 * time.Second
 )
@@ -44,12 +44,11 @@ func okResult(v any) Result {
 	return Result{Payload: payload}
 }
 
-// Executor runs built-in tools against a workspace.
-// NOTE(S1): bash timeout uses the wall clock; migrates to the durable-timer
-// substrate in S2.11 (declared provisional in PLAN).
+// Executor runs built-in tools against a workspace. Wall-clock limits are
+// NOT owned here (2.11): the activity executor arms a durable timer and
+// cancels ctx with cause errs.ErrActivityTimeout; bash only reacts.
 type Executor struct {
-	WS          *workspace.Workspace
-	BashTimeout time.Duration
+	WS *workspace.Workspace
 }
 
 // Execute dispatches one tool call. Unknown tools and malformed args are
@@ -163,11 +162,6 @@ func (e *Executor) bash(ctx context.Context, rawArgs json.RawMessage) Result {
 		return errResult("bash: invalid args: need {\"command\": string}")
 	}
 
-	timeout := e.BashTimeout
-	if timeout == 0 {
-		timeout = defaultBashTO
-	}
-
 	var stdout, stderr bytes.Buffer
 	cmd := exec.Command("bash", "-c", args.Command)
 	cmd.Dir = e.WS.Root()
@@ -186,23 +180,17 @@ func (e *Executor) bash(ctx context.Context, rawArgs json.RawMessage) Result {
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
 
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-
 	timedOut, canceled := false, false
 	select {
 	case <-done:
-	case <-timer.C:
-		// The command may have finished in the same instant; prefer done.
-		select {
-		case <-done:
-		default:
-			timedOut = true
-			killGroup(pgid)
-			<-done
-		}
 	case <-ctx.Done():
-		canceled = true
+		// The durable timer cancels with cause ErrActivityTimeout; render
+		// that as a timeout, anything else as user cancellation.
+		if errors.Is(context.Cause(ctx), errs.ErrActivityTimeout) {
+			timedOut = true
+		} else {
+			canceled = true
+		}
 		killGroup(pgid)
 		<-done
 	}
@@ -215,7 +203,7 @@ func (e *Executor) bash(ctx context.Context, rawArgs json.RawMessage) Result {
 	switch {
 	case timedOut:
 		out["timed_out"] = true
-		out["error"] = fmt.Sprintf("command killed after timeout %s", timeout)
+		out["error"] = "command killed after timeout"
 	case canceled:
 		out["canceled"] = true
 		out["error"] = "command canceled"

@@ -35,6 +35,7 @@ var samples = map[string]any{
 	TypeTimerSet: &TimerSet{TimerID: "tm-1",
 		FireAt: time.Date(2026, 7, 3, 12, 0, 0, 0, time.UTC), Purpose: "activity_timeout"},
 	TypeTimerFired:      &TimerFired{TimerID: "tm-1"},
+	TypeTimerCancelled:  &TimerCancelled{TimerID: "tm-1"},
 	TypeWaitingEntered:  &WaitingEntered{Kind: WaitApproval, Detail: json.RawMessage(`{"call_id":"call_3_1"}`)},
 	TypeWaitingResolved: &WaitingResolved{Kind: WaitApproval, Resolution: "approved"},
 	TypeActorCrashed:    &ActorCrashed{Actor: "session", Error: "boom"},
