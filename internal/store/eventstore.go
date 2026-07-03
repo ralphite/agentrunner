@@ -20,6 +20,7 @@ import (
 // one session, exclusive-writer via flock. Readers never take the lock.
 type EventStore struct {
 	mu   sync.Mutex
+	dir  string
 	f    *os.File
 	lock *os.File
 	seq  int64
@@ -72,8 +73,11 @@ func OpenEventStore(sessionDir string) (*EventStore, error) {
 		_ = lock.Close()
 		return nil, fmt.Errorf("eventstore: %w", err)
 	}
-	return &EventStore{f: f, lock: lock, seq: seq, now: time.Now}, nil
+	return &EventStore{dir: sessionDir, f: f, lock: lock, seq: seq, now: time.Now}, nil
 }
+
+// Dir returns the session directory this store writes under.
+func (s *EventStore) Dir() string { return s.dir }
 
 func acquireLock(path string) (*os.File, error) {
 	lock, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)

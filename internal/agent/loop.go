@@ -49,38 +49,143 @@ type RunResult struct {
 	Usage  provider.Usage
 }
 
-// Run drives the loop to completion for a single task.
-func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
-	if l.Clock == nil {
-		l.Clock = clock.Real{}
-	}
-	toolDefs, err := tool.ProviderDefs(l.Spec.Tools)
-	if err != nil {
-		return RunResult{}, err
-	}
+// driveState is the loop's working memory: the fold state plus the tip of
+// the causation chain. drive() owns it; appendE mutates it.
+type driveState struct {
+	s      state.State
+	lastID string
+}
 
-	// appendE journals one event and folds it — the single write path.
-	// Causation is a linear chain: each event is caused by the previous.
-	s := state.New()
-	var lastID string
-	appendE := func(typ string, payload any) (event.Envelope, error) {
+// appender builds the single write path: journal one event, fold it, and
+// advance the linear causation chain.
+func (l *Loop) appender(ds *driveState) AppendFunc {
+	return func(typ string, payload any) (event.Envelope, error) {
 		env, err := event.New(typ, payload)
 		if err != nil {
 			return env, err
 		}
-		env.CausationID = lastID
+		env.CausationID = ds.lastID
 		env.CorrelationID = l.SessionID
 		appended, err := l.Store.Append(env)
 		if err != nil {
 			return appended, err
 		}
-		lastID = appended.ID
-		next, err := state.Apply(s, appended)
+		ds.lastID = appended.ID
+		next, err := state.Apply(ds.s, appended)
 		if err != nil {
 			return appended, err
 		}
-		s = next
+		ds.s = next
 		return appended, nil
+	}
+}
+
+// Run drives the loop to completion for a single task.
+func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
+	if l.Clock == nil {
+		l.Clock = clock.Real{}
+	}
+	ds := &driveState{s: state.New()}
+	appendE := l.appender(ds)
+
+	if _, err := appendE(event.TypeRunStarted, &event.RunStarted{
+		SpecName: l.Spec.Name, Model: l.Spec.Model.ID, Task: task,
+		Version: l.Version, SubStateVersions: state.SubStateVersions(),
+	}); err != nil {
+		return RunResult{}, err
+	}
+	input, err := runtime.IngestInput(l.Store, l.SessionID, task, "cli")
+	if err != nil {
+		return RunResult{}, err
+	}
+	ds.lastID = input.ID
+	if ds.s, err = state.Apply(ds.s, input); err != nil {
+		return RunResult{}, err
+	}
+
+	return l.drive(ctx, ds, appendE)
+}
+
+// Resume rebuilds the fold — snapshot plus event tail when a snapshot
+// exists, full fold otherwise — and re-enters the same drive loop. A
+// sub-state version mismatch is refused, never silently migrated.
+func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
+	if l.Clock == nil {
+		l.Clock = clock.Real{}
+	}
+	dir := l.Store.Dir()
+	events, err := store.ReadEvents(dir)
+	if err != nil {
+		return RunResult{}, err
+	}
+	if len(events) == 0 {
+		return RunResult{}, fmt.Errorf("resume: session has no events")
+	}
+
+	var s state.State
+	snap, ok, err := store.LatestSnapshot(dir)
+	if err != nil {
+		return RunResult{}, err
+	}
+	if ok {
+		if err := checkVersions(snap.SubStateVersions); err != nil {
+			return RunResult{}, err
+		}
+		if err := json.Unmarshal(snap.State, &s); err != nil {
+			return RunResult{}, fmt.Errorf("resume: snapshot state: %w", err)
+		}
+		for _, e := range events {
+			if e.Seq <= snap.UptoSeq {
+				continue
+			}
+			if s, err = state.Apply(s, e); err != nil {
+				return RunResult{}, err
+			}
+		}
+	} else {
+		if s, err = state.Fold(events); err != nil {
+			return RunResult{}, err
+		}
+	}
+
+	if s.Run.Status == state.StatusEnded {
+		return RunResult{Reason: s.Run.Reason, Turns: s.Run.Turn, Usage: s.Run.Usage},
+			fmt.Errorf("resume: session already ended (%s)", s.Run.Reason)
+	}
+
+	ds := &driveState{s: s, lastID: events[len(events)-1].ID}
+	appendE := l.appender(ds)
+
+	// Timer sweep: expired pending timers fire now; future ones belong to
+	// in-flight activities, which re-arm on their re-run.
+	if _, err := FirePendingTimers(ds.s, l.Clock, appendE); err != nil {
+		return RunResult{}, err
+	}
+	// TODO(2.15): surface in-doubt activities (Started without terminal,
+	// idempotent: false) instead of re-running them.
+
+	return l.drive(ctx, ds, appendE)
+}
+
+func checkVersions(got map[string]int) error {
+	want := state.SubStateVersions()
+	if len(got) != len(want) {
+		return fmt.Errorf("resume: snapshot sub-state set %v does not match binary %v", got, want)
+	}
+	for name, v := range want {
+		if got[name] != v {
+			return fmt.Errorf("resume: sub-state %q version %d does not match binary version %d",
+				name, got[name], v)
+		}
+	}
+	return nil
+}
+
+// drive is the decision loop shared by Run and Resume.
+func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (RunResult, error) {
+	toolDefs, err := tool.ProviderDefs(l.Spec.Tools)
+	if err != nil {
+		return RunResult{}, err
 	}
 	// abort best-effort-journals a terminal event so a failed run's log is
 	// distinguishable from a truncated one. User cancellation is its own
@@ -91,36 +196,28 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 			reason = "canceled"
 		}
 		_, _ = appendE(event.TypeRunEnded, &event.RunEnded{
-			Reason: reason, Turns: turn, Usage: s.Run.Usage,
+			Reason: reason, Turns: turn, Usage: ds.s.Run.Usage,
 		})
 		return cause
-	}
-
-	if _, err := appendE(event.TypeRunStarted, &event.RunStarted{
-		SpecName: l.Spec.Name, Model: l.Spec.Model.ID, Task: task,
-		Version: l.Version, SubStateVersions: state.SubStateVersions(),
-	}); err != nil {
-		return RunResult{}, err
-	}
-	input, err := runtime.IngestInput(l.Store, l.SessionID, task, "cli")
-	if err != nil {
-		return RunResult{}, abort(0, err)
-	}
-	lastID = input.ID
-	if s, err = state.Apply(s, input); err != nil {
-		return RunResult{}, abort(0, err)
 	}
 
 	exec := &ActivityExecutor{Append: appendE, Clock: l.Clock, Redact: redact.FromEnv()}
 
 	for {
 		if err := ctx.Err(); err != nil {
-			return RunResult{}, abort(s.Run.Turn, err)
+			return RunResult{}, abort(ds.s.Run.Turn, err)
 		}
-		act := decide(s, l.Spec.MaxTurns)
+		act := decide(ds.s, l.Spec.MaxTurns)
 		switch act.kind {
 		case doTurn:
-			if _, err := appendE(event.TypeTurnStarted, &event.TurnStarted{Turn: act.turn}); err != nil {
+			appended, err := appendE(event.TypeTurnStarted, &event.TurnStarted{Turn: act.turn})
+			if err != nil {
+				return RunResult{}, abort(act.turn, err)
+			}
+			// Turn boundary: serialize the fold (2.13). The snapshot is an
+			// optimization — losing it costs a longer fold, nothing else.
+			if err := store.WriteSnapshot(l.Store.Dir(), appended.Seq,
+				state.SubStateVersions(), ds.s); err != nil {
 				return RunResult{}, abort(act.turn, err)
 			}
 
@@ -134,7 +231,7 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 						Model:     l.Spec.Model.ID,
 						MaxTokens: l.Spec.Model.MaxTokens,
 						System:    l.Spec.SystemPrompt,
-						Messages:  assembleMessages(s),
+						Messages:  assembleMessages(ds.s),
 						Tools:     toolDefs,
 						Turn:      act.turn,
 					}
@@ -190,11 +287,11 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 			// TODO(2.16): this becomes the run epilogue sequence
 			// (quiesce → auto-publish → barrier → terminal event).
 			if _, err := appendE(event.TypeRunEnded, &event.RunEnded{
-				Reason: act.reason, Turns: act.turn, Usage: s.Run.Usage,
+				Reason: act.reason, Turns: act.turn, Usage: ds.s.Run.Usage,
 			}); err != nil {
 				return RunResult{}, err
 			}
-			return RunResult{Reason: act.reason, Turns: act.turn, Usage: s.Run.Usage}, nil
+			return RunResult{Reason: act.reason, Turns: act.turn, Usage: ds.s.Run.Usage}, nil
 		}
 	}
 }

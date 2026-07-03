@@ -516,3 +516,25 @@ timeout。loop.abort 区分 reason:canceled 类 → `run_ended{canceled}`
   /failed(llm)路径——三种终态语义互斥。
 - partial_output 存 string(event payload 已定 string 字段),tool
   结果 JSON 原样入内。
+
+## S2.13 snapshot-resume — DONE
+
+`store/snapshot.go`:`snapshots/<upto_seq>.json`(0600,temp+rename
+原子写,`after_snapshot_write` 注入点);头含 sub_state_versions。
+loop 在每个 turn 边界(TurnStarted 落盘后)写 snapshot。`Loop.Resume`:
+最新 snapshot + seq 尾部 apply(无 snapshot 则全量 fold)→ 版本不
+匹配拒绝(集合与逐版本都查)→ 已 ended 报错并附结果 → timer 扫
+(`FirePendingTimers`)→ 进同一个 `drive()` 决策循环。Run/drive
+重构:appendE/fold 状态收进 `driveState`,Run 与 Resume 共享 drive。
+
+**验证**:真子进程崩溃场景——`after:turn_started:2` 处 kill(turn 1
+的 read+edit 已落盘),父进程用**只含剩余 turn 的 fixture** resume:
+任何 turn 1 重跑都会 drift/exhaust;断言 llm-t1 恰好 Started 一次、
+2 turns 完成、文件改动幸存、log 以 run_ended 收尾。等价性质:真实
+loop 产物上 fold(snapshot+尾)== fold(全量)(AssertFoldEqual)。
+
+**Decisions**:
+- snapshot 是优化不是事实源:丢失只导致更长的 fold。
+- resume 时未到期 timer 不重挂(owner activity 重跑时自会重挂),
+  过期的即刻 fire。
+- Resume 对已 ended session 返回结果 + error(CLI 可打印结果并退出)。
