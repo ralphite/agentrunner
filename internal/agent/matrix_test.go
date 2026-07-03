@@ -44,9 +44,11 @@ func TestCrashMatrix(t *testing.T) {
 		resumeFixture string // full | turn2 | none
 		wantInDoubt   bool
 	}{
+		{"run-started-only", "after:run_started:1", "full", false},
 		{"input-journaled", "after:input_received:1", "full", false},
 		{"input-point", "point:" + crash.PointAfterJournalInput, "full", false},
 		{"llm-executed-unjournaled", "point:" + crash.PointAfterExecBeforeJournal + ":1", "full", false},
+		{"llm-completed-unmessaged", "after:activity_completed:1", "full", false},
 		{"assistant-journaled", "after:assistant_message:1", "turn2", false},
 		{"read-executed-unjournaled", "point:" + crash.PointAfterExecBeforeJournal + ":2", "turn2", false},
 		{"read-result-journaled", "after:activity_completed:2", "turn2", false},

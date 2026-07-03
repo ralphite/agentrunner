@@ -146,7 +146,20 @@ func Apply(s State, env event.Envelope) (State, error) {
 		s.Activities = s.Activities.without(p.ActivityID)
 
 	case *event.ActivityCancelled:
+		// A cancelled tool call resolves to a model-visible error result:
+		// decide() must never see it as "still pending" — a crash after
+		// this event would otherwise re-run a provably half-executed
+		// effect on resume. The rendering matches the 3.5 contract.
+		started, inFlight := s.Activities[p.ActivityID]
 		s.Activities = s.Activities.without(p.ActivityID)
+		if inFlight && started.Kind == event.KindTool && started.CallID != "" {
+			result, _ := json.Marshal(map[string]string{
+				"error":          "[interrupted by user]",
+				"partial_output": p.PartialOutput,
+			})
+			s.Conversation = s.Conversation.withToolResult(started.CallID,
+				ToolResult{Result: result, IsError: true})
+		}
 
 	case *event.TimerSet:
 		s.Timers = s.Timers.with(p.TimerID, *p)

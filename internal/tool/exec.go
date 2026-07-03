@@ -187,21 +187,32 @@ func (e *Executor) bash(ctx context.Context, rawArgs json.RawMessage) Result {
 	pgid := cmd.Process.Pid
 
 	done := make(chan error, 1)
-	go func() { done <- cmd.Wait() }()
+	reaped := make(chan struct{})
+	go func() {
+		err := cmd.Wait()
+		close(reaped) // leader reaped: its pid is no longer safe to signal
+		done <- err
+	}()
 
 	timedOut, canceled := false, false
 	select {
 	case <-done:
 	case <-ctx.Done():
-		// The durable timer cancels with cause ErrActivityTimeout; render
-		// that as a timeout, anything else as user cancellation.
-		if errors.Is(context.Cause(ctx), errs.ErrActivityTimeout) {
-			timedOut = true
-		} else {
-			canceled = true
+		// The command may have finished in the same instant; prefer done —
+		// a completed command must not be journaled as canceled.
+		select {
+		case <-done:
+		default:
+			// The durable timer cancels with cause ErrActivityTimeout;
+			// render that as a timeout, anything else as user cancellation.
+			if errors.Is(context.Cause(ctx), errs.ErrActivityTimeout) {
+				timedOut = true
+			} else {
+				canceled = true
+			}
+			killGroup(pgid, reaped)
+			<-done
 		}
-		killGroup(pgid)
-		<-done
 	}
 
 	out := map[string]any{
@@ -222,7 +233,11 @@ func (e *Executor) bash(ctx context.Context, rawArgs json.RawMessage) Result {
 }
 
 // killGroup terminates the process group: SIGTERM, grace, then SIGKILL.
-func killGroup(pgid int) {
+// Once `reaped` fires, the leader has been waited on and its pid may be
+// recycled as an unrelated pgid — signaling it again could kill innocent
+// processes, so we stop escalating (TERM-resistant grandchildren that
+// outlive the leader escape the KILL; that beats shooting a stranger).
+func killGroup(pgid int, reaped <-chan struct{}) {
 	_ = syscall.Kill(-pgid, syscall.SIGTERM)
 	deadline := time.After(bashKillGrace)
 	tick := time.NewTicker(50 * time.Millisecond)
@@ -230,7 +245,13 @@ func killGroup(pgid int) {
 	for {
 		select {
 		case <-deadline:
-			_ = syscall.Kill(-pgid, syscall.SIGKILL)
+			select {
+			case <-reaped:
+			default:
+				_ = syscall.Kill(-pgid, syscall.SIGKILL)
+			}
+			return
+		case <-reaped:
 			return
 		case <-tick.C:
 			// Signal 0 probes for existence; only ESRCH means the group is

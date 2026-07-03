@@ -74,14 +74,15 @@ func TestCheckEventsRequiresTerminalEvent(t *testing.T) {
 		}
 	}
 
-	good := `{"seq":1,"type":"run_started","ts":"t","payload":{}}
-{"seq":2,"type":"run_ended","ts":"t","payload":{}}
+	const ts = "2026-07-03T00:00:00Z"
+	good := `{"seq":1,"id":"evt-1","type":"run_started","ts":"` + ts + `","payload":{}}
+{"seq":2,"id":"evt-2","type":"run_ended","ts":"` + ts + `","payload":{}}
 `
-	truncated := `{"seq":1,"type":"run_started","ts":"t","payload":{}}
-{"seq":2,"type":"activity_started","ts":"t","payload":{}}
+	truncated := `{"seq":1,"id":"evt-1","type":"run_started","ts":"` + ts + `","payload":{}}
+{"seq":2,"id":"evt-2","type":"activity_started","ts":"` + ts + `","payload":{}}
 `
-	gapped := `{"seq":1,"type":"run_started","ts":"t","payload":{}}
-{"seq":3,"type":"run_ended","ts":"t","payload":{}}
+	gapped := `{"seq":1,"id":"evt-1","type":"run_started","ts":"` + ts + `","payload":{}}
+{"seq":3,"id":"evt-3","type":"run_ended","ts":"` + ts + `","payload":{}}
 `
 	write("good.jsonl", good)
 	if msg := checkEvents(dir + "/good.jsonl"); msg != "" {
@@ -94,5 +95,18 @@ func TestCheckEventsRequiresTerminalEvent(t *testing.T) {
 	write("gap.jsonl", gapped)
 	if msg := checkEvents(dir + "/gap.jsonl"); !strings.Contains(msg, "gapless") {
 		t.Errorf("gapped log accepted: %q", msg)
+	}
+
+	badTS := `{"seq":1,"id":"evt-1","type":"run_started","ts":"garbage","payload":{}}
+`
+	write("badts.jsonl", badTS)
+	if msg := checkEvents(dir + "/badts.jsonl"); !strings.Contains(msg, "bad ts") {
+		t.Errorf("garbage ts accepted: %q", msg)
+	}
+	unknownType := `{"seq":1,"id":"evt-1","type":"seance","ts":"` + ts + `","payload":{}}
+`
+	write("unknown.jsonl", unknownType)
+	if msg := checkEvents(dir + "/unknown.jsonl"); !strings.Contains(msg, "unknown event type") {
+		t.Errorf("unknown type accepted: %q", msg)
 	}
 }

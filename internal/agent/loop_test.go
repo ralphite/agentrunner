@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -138,5 +139,37 @@ func TestLoopMaxTurns(t *testing.T) {
 	}
 	if res.Reason != "max_turns" || res.Turns != 3 {
 		t.Errorf("result = %+v", res)
+	}
+}
+
+// The blanket appender redaction: a credential entering via the TASK (the
+// classic shell-expansion leak) must not reach run_started, input_received,
+// the fold's user message, or the provider request.
+func TestTaskCredentialRedactedEverywhere(t *testing.T) {
+	t.Setenv("LEAKY_API_KEY", "sk-open-sesame-12345")
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: "on it"}, {Finish: "end_turn"}}},
+	}}
+	l := testLoop(t, fix, t.TempDir())
+	if _, err := l.Run(context.Background(), "use sk-open-sesame-12345 to call the api"); err != nil {
+		t.Fatal(err)
+	}
+	events, err := store.ReadEvents(l.Store.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range events {
+		if strings.Contains(string(e.Payload), "sk-open-sesame-12345") {
+			t.Fatalf("credential leaked into %s: %s", e.Type, e.Payload)
+		}
+	}
+	var sawMarker bool
+	for _, e := range events {
+		if strings.Contains(string(e.Payload), "[REDACTED:LEAKY_API_KEY]") {
+			sawMarker = true
+		}
+	}
+	if !sawMarker {
+		t.Fatal("expected redaction marker in the journaled task")
 	}
 }

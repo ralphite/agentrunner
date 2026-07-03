@@ -58,13 +58,20 @@ type driveState struct {
 }
 
 // appender builds the single write path: journal one event, fold it, and
-// advance the linear causation chain.
+// advance the linear causation chain. EVERY payload passes through
+// credential redaction here — args/results are also redacted upstream in
+// the executor, but this blanket is what keeps run_started (task, spec),
+// input_received, and assistant messages (a model echoing a secret it
+// read) out of the durable log and, via the fold, out of snapshots and
+// later provider requests.
 func (l *Loop) appender(ds *driveState) AppendFunc {
+	r := redact.FromEnv()
 	return func(typ string, payload any) (event.Envelope, error) {
 		env, err := event.New(typ, payload)
 		if err != nil {
 			return env, err
 		}
+		env.Payload = r.JSON(env.Payload)
 		env.CausationID = ds.lastID
 		env.CorrelationID = l.SessionID
 		appended, err := l.Store.Append(env)
@@ -86,6 +93,10 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 	if l.Clock == nil {
 		l.Clock = clock.Real{}
 	}
+	// The task is external input and may carry a shell-expanded credential;
+	// IngestInput appends via the store directly (not the appender), so it
+	// must be scrubbed here.
+	task = redact.FromEnv().String(task)
 	ds := &driveState{s: state.New()}
 	appendE := l.appender(ds)
 
@@ -132,27 +143,46 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 		return RunResult{}, fmt.Errorf("resume: session has no events")
 	}
 
+	// The versions journaled at run start guard EVERY resume, snapshot or
+	// not — a full fold across an incompatible sub-state shape is just as
+	// wrong as a snapshot load.
+	if events[0].Type == event.TypeRunStarted {
+		if decoded, derr := event.DecodePayload(events[0]); derr == nil {
+			if started := decoded.(*event.RunStarted); len(started.SubStateVersions) > 0 {
+				if err := checkVersions(started.SubStateVersions); err != nil {
+					return RunResult{}, err
+				}
+			}
+		}
+	}
+
 	var s state.State
 	snap, ok, err := store.LatestSnapshot(dir)
 	if err != nil {
-		return RunResult{}, err
+		// Snapshots are an optimization, never a source of truth: a
+		// corrupt one degrades to the full fold instead of blocking.
+		slog.Warn("resume: ignoring unreadable snapshot, folding from scratch", "err", err)
+		ok = false
 	}
 	if ok {
 		if err := checkVersions(snap.SubStateVersions); err != nil {
 			return RunResult{}, err
 		}
 		if err := json.Unmarshal(snap.State, &s); err != nil {
-			return RunResult{}, fmt.Errorf("resume: snapshot state: %w", err)
-		}
-		for _, e := range events {
-			if e.Seq <= snap.UptoSeq {
-				continue
+			slog.Warn("resume: snapshot state unreadable, folding from scratch", "err", err)
+			ok = false
+		} else {
+			for _, e := range events {
+				if e.Seq <= snap.UptoSeq {
+					continue
+				}
+				if s, err = state.Apply(s, e); err != nil {
+					return RunResult{}, err
+				}
 			}
-			if s, err = state.Apply(s, e); err != nil {
-				return RunResult{}, err
-			}
 		}
-	} else {
+	}
+	if !ok {
 		if s, err = state.Fold(events); err != nil {
 			return RunResult{}, err
 		}
@@ -165,6 +195,20 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 
 	ds := &driveState{s: s, lastID: events[len(events)-1].ID}
 	appendE := l.appender(ds)
+
+	// A crash between run_started and input_received leaves the task
+	// durable in RunStarted but never journaled as input — re-ingest it
+	// rather than silently calling the model with an empty conversation.
+	if len(s.Conversation.Messages) == 0 && s.Run.Task != "" {
+		input, err := runtime.IngestInput(l.Store, l.SessionID, s.Run.Task, "cli")
+		if err != nil {
+			return RunResult{}, err
+		}
+		ds.lastID = input.ID
+		if ds.s, err = state.Apply(ds.s, input); err != nil {
+			return RunResult{}, err
+		}
+	}
 
 	// In-doubt (2.15): Started without a terminal event means the effect
 	// may or may not have happened. Idempotent activities simply re-run

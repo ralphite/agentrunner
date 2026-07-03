@@ -19,12 +19,13 @@ import (
 // EventStore is the S2 source of truth: an append-only JSONL event log for
 // one session, exclusive-writer via flock. Readers never take the lock.
 type EventStore struct {
-	mu   sync.Mutex
-	dir  string
-	f    *os.File
-	lock *os.File
-	seq  int64
-	now  func() time.Time
+	mu     sync.Mutex
+	dir    string
+	f      *os.File
+	lock   *os.File
+	seq    int64
+	broken bool
+	now    func() time.Time
 }
 
 const (
@@ -72,6 +73,12 @@ func OpenEventStore(sessionDir string) (*EventStore, error) {
 		_ = f.Close()
 		_ = lock.Close()
 		return nil, fmt.Errorf("eventstore: %w", err)
+	}
+	// fsync the directory so the log's dir entry is as durable as its
+	// contents — otherwise power loss can vanish an entire acked log.
+	if d, derr := os.Open(sessionDir); derr == nil {
+		_ = d.Sync()
+		_ = d.Close()
 	}
 	return &EventStore{dir: sessionDir, f: f, lock: lock, seq: seq, now: time.Now}, nil
 }
@@ -134,6 +141,9 @@ func (s *EventStore) Append(env event.Envelope) (event.Envelope, error) {
 	if s.f == nil {
 		return event.Envelope{}, errors.New("eventstore: closed")
 	}
+	if s.broken {
+		return event.Envelope{}, errors.New("eventstore: broken by earlier write failure")
+	}
 	s.seq++
 	env.Seq = s.seq
 	env.ID = event.EventID(s.seq)
@@ -143,10 +153,15 @@ func (s *EventStore) Append(env event.Envelope) (event.Envelope, error) {
 		s.seq--
 		return event.Envelope{}, fmt.Errorf("eventstore: marshal: %w", err)
 	}
+	// A failed write may leave a torn half-line at the tail; latch the
+	// store broken so no later append can glue onto it — the next open
+	// repairs the tail instead.
 	if _, err := s.f.Write(append(line, '\n')); err != nil {
+		s.broken = true
 		return event.Envelope{}, fmt.Errorf("eventstore: append: %w", err)
 	}
 	if err := s.f.Sync(); err != nil {
+		s.broken = true
 		return event.Envelope{}, fmt.Errorf("eventstore: fsync: %w", err)
 	}
 	// Crash matrix counting predicate: the fact is durable, the ack is not.

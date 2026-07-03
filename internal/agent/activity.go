@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -81,9 +82,12 @@ func (x *ActivityExecutor) Do(ctx context.Context, act Activity) error {
 		}
 
 		result, usage, isError, err, timedOut := x.runAttempt(ctx, act, attempt)
-		if timedOut && err != nil {
-			// The run surfaced its cancellation as an error: the true class
-			// is timeout (retryable), not canceled.
+		if timedOut && err != nil && isCancellation(err) {
+			// The run surfaced OUR cancellation as an error: the true class
+			// is timeout (retryable), not canceled. Errors that do not
+			// descend from the cancellation (a 401 racing the timer, a
+			// store failure) keep their own class — stamping them
+			// retryable would retry the unretryable.
 			err = errs.Wrap(errs.Timeout, err, "activity timeout")
 		}
 		if !timedOut && ctx.Err() != nil {
@@ -189,10 +193,22 @@ func (x *ActivityExecutor) runAttempt(ctx context.Context, act Activity, attempt
 		return out.result, out.usage, out.isError, out.err, false
 	case <-fired:
 		if _, err := x.Append(event.TypeTimerFired, &event.TimerFired{TimerID: timerID}); err != nil {
-			return nil, nil, false, err, true
+			// Store failure, not a timeout: drain the run (cancelRun via
+			// defer) and surface the append error with its own class.
+			cancelRun(errs.ErrActivityTimeout)
+			<-outc
+			return nil, nil, false, err, false
 		}
 		cancelRun(errs.ErrActivityTimeout)
 		out := <-outc // bounded drain: effect impls kill their process groups on cancel
 		return out.result, out.usage, out.isError, out.err, true
 	}
+}
+
+// isCancellation reports whether err descends from a context cancellation
+// (which is how our timeout reaches the run).
+func isCancellation(err error) bool {
+	return errors.Is(err, context.Canceled) ||
+		errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(err, errs.ErrActivityTimeout)
 }

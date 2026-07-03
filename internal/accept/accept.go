@@ -17,6 +17,8 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/ralphite/agentrunner/internal/event"
 )
 
 //go:embed scenarios/s*/*.yaml
@@ -266,15 +268,25 @@ func checkEvents(glob string) string {
 		for i, line := range lines {
 			var rec struct {
 				Seq     int64           `json:"seq"`
+				ID      string          `json:"id"`
 				Type    string          `json:"type"`
 				TS      string          `json:"ts"`
 				Payload json.RawMessage `json:"payload"`
 			}
-			if err := json.Unmarshal([]byte(line), &rec); err != nil || rec.Type == "" || rec.TS == "" {
+			if err := json.Unmarshal([]byte(line), &rec); err != nil || rec.Type == "" || len(rec.Payload) == 0 {
 				return fmt.Sprintf("events_valid: %s line %d malformed: %s", path, i+1, line)
+			}
+			if _, err := time.Parse(time.RFC3339Nano, rec.TS); err != nil {
+				return fmt.Sprintf("events_valid: %s line %d bad ts %q", path, i+1, rec.TS)
 			}
 			if rec.Seq != int64(i+1) {
 				return fmt.Sprintf("events_valid: %s line %d seq = %d, want %d (gapless)", path, i+1, rec.Seq, i+1)
+			}
+			if want := fmt.Sprintf("evt-%d", rec.Seq); rec.ID != want {
+				return fmt.Sprintf("events_valid: %s line %d id = %q, want %q", path, i+1, rec.ID, want)
+			}
+			if _, known := event.Registry[rec.Type]; !known {
+				return fmt.Sprintf("events_valid: %s line %d unknown event type %q", path, i+1, rec.Type)
 			}
 			types = append(types, rec.Type)
 		}

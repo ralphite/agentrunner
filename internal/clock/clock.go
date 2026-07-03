@@ -75,6 +75,16 @@ func (f *Fake) WaitUntil(ctx context.Context, t time.Time) error {
 	case <-w.ch:
 		return nil
 	case <-ctx.Done():
+		// Remove the parked entry — a phantom waiter would corrupt
+		// Waiters()-based test synchronization forever after.
+		f.mu.Lock()
+		for i := range f.waiters {
+			if f.waiters[i].ch == w.ch {
+				f.waiters = append(f.waiters[:i], f.waiters[i+1:]...)
+				break
+			}
+		}
+		f.mu.Unlock()
 		return ctx.Err()
 	}
 }

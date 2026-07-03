@@ -233,3 +233,25 @@ func TestConcurrentAppendsAreSerial(t *testing.T) {
 		}
 	}
 }
+
+// A write failure latches the store broken: no later append may glue onto
+// a possible torn half-line. Reopen repairs instead.
+func TestBrokenLatchAfterWriteFailure(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "sess")
+	s, err := OpenEventStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = s.Close() }()
+	if _, err := s.Append(mustEnv(t, 1)); err != nil {
+		t.Fatal(err)
+	}
+	// Force the next write to fail by closing the fd behind the store's back.
+	_ = s.f.Close()
+	if _, err := s.Append(mustEnv(t, 2)); err == nil {
+		t.Fatal("append on closed fd must fail")
+	}
+	if _, err := s.Append(mustEnv(t, 3)); err == nil || !strings.Contains(err.Error(), "broken") {
+		t.Fatalf("err = %v, want broken latch", err)
+	}
+}

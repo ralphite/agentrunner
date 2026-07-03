@@ -637,3 +637,69 @@ sessions list 显示 waiting:approval)、s2-04 events 调试工具。
 
 **S2 完成标志核对**:崩溃矩阵全绿 ✓;in-doubt 上浮 ✓;等待状态跨
 进程存活(合成 event)✓。**Stage 2 实现完成**,待出口对抗式 review。
+
+---
+
+## Stage 2 出口对抗式 review — 三镜头(durability / concurrency / semantics)
+
+三个并行 reviewer 共报 24 项;triage 后 **16 项修复**(本 commit)、
+8 项记档递延。
+
+**已修复(按镜头)**:
+- [D-P1] `ActivityCancelled` 后崩溃 → resume 重跑半执行命令:fold 现在
+  把取消的 tool call 解析为 `{"error":"[interrupted by user]",
+  partial_output}` 的 IsError 结果,decide() 不再视为 pending。
+- [D-P1] run_started 与 input_received 之间崩溃 → resume 空会话调模型:
+  Resume 检测无 input 且 `Run.Task` 非空时从 RunStarted 重新 ingest;
+  矩阵加行 `run-started-only`(现 12 行)。
+- [D-P2] snapshot 无 fsync + 损坏 snapshot 卡死 resume:WriteSnapshot
+  改 write+fsync+rename;LatestSnapshot 跳过不可读的、回退旧的;
+  Resume 对 snapshot 层错误降级全量 fold(snapshot 永远只是优化)。
+- [D-P2] events.jsonl 目录项无 fsync:open 时 fsync session dir。
+- [D-P2] 全量 fold 路径不查版本:Resume 现在也校验 RunStarted 里的
+  sub_state_versions。
+- [C-P0] kernel bus 三方死锁(持 b.mu 阻塞投递):重写锁规则——b.mu
+  只保护表,投递永不持锁;actor 循环 ctx 感知,Close 不关 channel;
+  Register-after-Close panic。
+- [C-P1] killGroup pid 复用:reaper 先 close(reaped) 再送 done;
+  killGroup 观察到 leader 已被 reap 即停止向该 pgid 发信号(打错
+  无辜进程 > 漏杀抗 TERM 孤儿)。
+- [C-P1] timer fired 路径把任意错误盖章成 retryable Timeout:仅当
+  错误源于我们的取消(isCancellation)才重分类;TimerFired append
+  失败按 store 错误原样上浮并排干 run。
+- [C-P2] Append 写失败后 torn 半行被下次 append 粘连:broken latch,
+  写/fsync 失败后拒绝所有后续 append,重开修复。
+- [C-P2] bash done-vs-cancel select 无偏向(完成的命令被记成
+  canceled):cancel 臂先非阻塞查 done。
+- [C-P2] Fake.WaitUntil ctx 取消泄漏 waiter 项:取消时移除。
+- [S-P1] task 文本绕过 redaction(shell 展开凭据入 run_started/
+  input_received/上下文/snapshot):appender 对**所有** payload 统一
+  redact(assistant_message 一并覆盖)+ task 在 IngestInput 前先 scrub;
+  回归测试断言凭据在全事件流无泄漏且有 marker。
+- [S-P2] events_valid 弱断言:补 ts RFC3339 解析、id==evt-<seq>、
+  payload 非空、type 对照 event.Registry。
+- [S-P2] 矩阵缺 `after:activity_completed:1` 窗口:加行
+  `llm-completed-unmessaged`。
+- [S-P2] resume 已结束 session 不打印结果:CLI 打印结果行,completed
+  → exit 0(无事可做 ≠ 失败),其余 exit 1。
+- [S-P2] s2-04 场景 `--state` 空转:补 `"reason": "completed"` 断言。
+
+**记档递延(均已核实,决策如下)**:
+- [D-P2] abort 对 transient error/cancel 落 run_ended 致不可 resume
+  (kill -9 反而可续):**接受现状**——S2 的 run 语义是单发;S4 交互
+  session 引入 reopen 时统一解决。ActivityFailed 同窗口(非幂等 tool
+  错误)在 S2 不可达,S3 tool 活动错误落地时必须回访(挂 S3 kickoff)。
+- [D-P2] resume 后 attempt 从 1 重计(审计口径分歧 + 重试预算跨
+  restart 重置):接受,fold 无感;S3 预算需要时再从 fold 推 attempt。
+- [C-P2 latent] Run 闭包读 ds.s、LLM 活动禁配 Timeout(配了即数据
+  竞争):已加代码注释;S4 流式重构时以类型手段消除。
+- [C-P3] kernel seen 无界/crash 事件在 Close 竞态下可能丢;bus 尚无
+  生产流量,S6 服务化时回访。
+- [C-P3] 成功 bash 的后台孙进程存活(marker 只用于测试断言):
+  session 级进程清扫挂 S6(quiesce slot 顺带)。
+- [S-P2] LLM retryable 失败 attempt 的 usage 丢失(低报计费):挂
+  S3.7b 预算结算时修(provider 需在 error 路径带出已收 usage)。
+- [S-P2] binary version 漂移 resume 不设防:**决策**——兼容契约是
+  sub_state_versions,binary version 仅信息;记档即可。
+- [S-P2] record 录制器按单 delta redact(秘密跨 delta 分片可漏):
+  S4 流式协议重构 recorder 时合并修。

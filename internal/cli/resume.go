@@ -89,6 +89,17 @@ func resumeCmd(args []string, version string, stdout, stderr io.Writer) int {
 	}
 	result, runErr := loop.Resume(ctx)
 	if runErr != nil {
+		// An already-finished session is not a resume failure: report its
+		// result, and exit 0 when it completed (nothing left to do).
+		if result.Reason != "" {
+			fmt.Fprintf(stderr, "%v\n", runErr)
+			fmt.Fprintf(stderr, "run %s: %d turns, %d in / %d out tokens\n",
+				result.Reason, result.Turns, result.Usage.InputTokens, result.Usage.OutputTokens)
+			if result.Reason == "completed" {
+				return ExitOK
+			}
+			return ExitRun
+		}
 		fmt.Fprintf(stderr, "resume failed: %v\n", runErr)
 		return ExitRun
 	}

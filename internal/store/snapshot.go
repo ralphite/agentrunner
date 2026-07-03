@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -38,7 +39,21 @@ func WriteSnapshot(sessionDir string, uptoSeq int64, versions map[string]int, st
 	}
 	final := filepath.Join(dir, fmt.Sprintf("%d.json", uptoSeq))
 	tmp := final + ".tmp"
-	if err := os.WriteFile(tmp, full, 0o600); err != nil {
+	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
+	if err != nil {
+		return fmt.Errorf("snapshot: %w", err)
+	}
+	if _, err := f.Write(full); err != nil {
+		_ = f.Close()
+		return fmt.Errorf("snapshot: %w", err)
+	}
+	// fsync before rename: without it a power loss can make the rename
+	// durable while the data is not (zero-length file after rename).
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		return fmt.Errorf("snapshot: %w", err)
+	}
+	if err := f.Close(); err != nil {
 		return fmt.Errorf("snapshot: %w", err)
 	}
 	if err := os.Rename(tmp, final); err != nil {
@@ -48,8 +63,10 @@ func WriteSnapshot(sessionDir string, uptoSeq int64, versions map[string]int, st
 	return nil
 }
 
-// LatestSnapshot loads the highest-seq snapshot, reporting ok=false when
-// none exists.
+// LatestSnapshot loads the newest READABLE snapshot: corrupt or torn ones
+// are skipped in favor of older siblings (snapshots are an optimization —
+// the full fold is always available as the last resort). ok=false when
+// none is usable.
 func LatestSnapshot(sessionDir string) (Snapshot, bool, error) {
 	entries, err := os.ReadDir(filepath.Join(sessionDir, snapshotsDir))
 	if os.IsNotExist(err) {
@@ -58,7 +75,7 @@ func LatestSnapshot(sessionDir string) (Snapshot, bool, error) {
 	if err != nil {
 		return Snapshot{}, false, fmt.Errorf("snapshot: %w", err)
 	}
-	best := int64(-1)
+	var seqs []int64
 	for _, e := range entries {
 		name, ok := strings.CutSuffix(e.Name(), ".json")
 		if !ok {
@@ -68,20 +85,19 @@ func LatestSnapshot(sessionDir string) (Snapshot, bool, error) {
 		if err != nil {
 			continue
 		}
-		if seq > best {
-			best = seq
+		seqs = append(seqs, seq)
+	}
+	sort.Slice(seqs, func(i, j int) bool { return seqs[i] > seqs[j] })
+	for _, seq := range seqs {
+		raw, err := os.ReadFile(filepath.Join(sessionDir, snapshotsDir, fmt.Sprintf("%d.json", seq)))
+		if err != nil {
+			continue
 		}
+		var snap Snapshot
+		if err := json.Unmarshal(raw, &snap); err != nil || snap.UptoSeq != seq {
+			continue
+		}
+		return snap, true, nil
 	}
-	if best < 0 {
-		return Snapshot{}, false, nil
-	}
-	raw, err := os.ReadFile(filepath.Join(sessionDir, snapshotsDir, fmt.Sprintf("%d.json", best)))
-	if err != nil {
-		return Snapshot{}, false, fmt.Errorf("snapshot: %w", err)
-	}
-	var snap Snapshot
-	if err := json.Unmarshal(raw, &snap); err != nil {
-		return Snapshot{}, false, fmt.Errorf("snapshot %d: %w", best, err)
-	}
-	return snap, true, nil
+	return Snapshot{}, false, nil
 }

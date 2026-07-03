@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/ralphite/agentrunner/internal/event"
@@ -229,5 +230,33 @@ func TestUnknownEventTypeIsError(t *testing.T) {
 	_, err := Apply(New(), event.Envelope{Type: "from_the_future", Payload: json.RawMessage(`{}`)})
 	if err == nil {
 		t.Fatal("unknown type must be a fold error")
+	}
+}
+
+// A cancelled tool call must resolve its call_id: decide() re-running a
+// provably half-executed command after a post-cancel crash is the bug.
+func TestCancelledToolCallResolvesResult(t *testing.T) {
+	s := New()
+	var err error
+	if s, err = Apply(s, env(t, event.TypeActivityStarted, &event.ActivityStarted{
+		ActivityID: "tool-call_1_0", Kind: event.KindTool, Name: "bash",
+		CallID: "call_1_0", Attempt: 1})); err != nil {
+		t.Fatal(err)
+	}
+	if s, err = Apply(s, env(t, event.TypeActivityCancelled, &event.ActivityCancelled{
+		ActivityID: "tool-call_1_0", PartialOutput: "partial stdout"})); err != nil {
+		t.Fatal(err)
+	}
+	tr, ok := s.Conversation.ToolResults["call_1_0"]
+	if !ok || !tr.IsError {
+		t.Fatalf("cancelled call not resolved: %+v (ok=%v)", tr, ok)
+	}
+	for _, want := range []string{"[interrupted by user]", "partial stdout"} {
+		if !strings.Contains(string(tr.Result), want) {
+			t.Errorf("result %s missing %q", tr.Result, want)
+		}
+	}
+	if len(s.Activities) != 0 {
+		t.Errorf("in-flight not drained: %+v", s.Activities)
 	}
 }

@@ -95,3 +95,23 @@ func TestRealWaitCancellable(t *testing.T) {
 		t.Fatalf("err = %v, want context.Canceled", err)
 	}
 }
+
+// A ctx-canceled WaitUntil must remove its parked entry — phantom waiters
+// corrupt Waiters()-based synchronization.
+func TestFakeCancelRemovesWaiter(t *testing.T) {
+	f := NewFake(epoch)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- f.WaitUntil(ctx, epoch.Add(time.Hour)) }()
+	for f.Waiters() == 0 {
+		runtime.Gosched()
+	}
+	cancel()
+	<-done
+	for i := 0; f.Waiters() != 0 && i < 1e6; i++ {
+		runtime.Gosched()
+	}
+	if got := f.Waiters(); got != 0 {
+		t.Fatalf("waiters after cancel = %d, want 0", got)
+	}
+}

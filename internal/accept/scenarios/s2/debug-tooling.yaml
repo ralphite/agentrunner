@@ -17,3 +17,4 @@ steps:
 expect:
   - exit_code: 0
   - output_contains: "run_ended"
+  - output_contains: '"reason": "completed"' 
