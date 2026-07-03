@@ -319,6 +319,68 @@ scripts/check.sh          # golangci-lint + go test 全绿 = 一步完成
 **S3 完成标志**：plan mode 全流程；审批挂两天（FakeClock）后批准原地
 继续；合成 TOCTOU 不超支；不受信 hooks 不执行。
 
+### S3 执行包（kickoff refinement 预定默认值——偏离须记入 PROGRESS.md）
+
+- **包布局**：`internal/pipeline`（effect 描述 + 四关卡 + 管线,
+  forbidigo 生效区）、`internal/config`（三源合并 + trust 注册表）、
+  `internal/hook`（3.8 执行器）。mode/budget 的 fold sub-state 进
+  `internal/state`（2.4 已声明:S3 加 `reservations` + `mode`,
+  SubStateVersions 加两键）。
+- **新 event 类型（加性,S2 的 15 个不动）**:
+  `effect_resolved{effect_id, activity_id, verdict: allow|deny,
+  gate_results: [{gate, decision, reason}]}`（判定终结后、执行前落盘;
+  deny 也落盘再渲染）/
+  `approval_requested{approval_id, call_id, effect_id, gate_results,
+  payload_ref?}`（payload_ref 预留字符串,S2 无 ArtifactStore 留空）/
+  `approval_responded{approval_id, decision: approve|deny,
+  reason?, source}`（外部输入,journal-inputs-first;WaitingResolved
+  仍负责解除 WAITING_APPROVAL）/
+  `mode_changed{from, to, cause}` /
+  `limit_exceeded{kind: tokens, limit, used}`。
+- **effect 描述**:`Effect{Kind: tool_call|llm_call, ToolName, Class,
+  Args, CallID, EstTokens}`;effect_id = `eff-<call_id>` / `eff-llm-t<n>`。
+- **关卡语义**:序 = pre-hooks → permission → budget;每关
+  `Decision{Allow|Ask|Deny, Reason}`;**deny 短路**（后续关不跑）,
+  ask 聚合（任一 ask 且无 deny → 审批,携带全部 gate_results——
+  review 已并入的决定）;全 allow → `effect_resolved{allow}` → 执行。
+  bypass mode 跳过 permission/budget 的 ask/deny 但 **hooks 照跑**
+  （3.6d 语义）。
+- **permission rules YAML**（settings.yaml 的 `permissions:` 列表,
+  首条匹配即生效——顺序即优先级;三源拼接序 user > project > spec）:
+  `- {tool: bash, command: "go test *", action: allow}`（command 用
+  path.Match 风格 glob,对整条命令）/ `- {tool: edit_file,
+  path: "src/**", action: ask}`（path 相对 workspace root,经
+  workspace.Resolve 归一后匹配,`**` 支持）。**无规则命中时按 mode
+  默认**:default mode = read:allow, edit:ask, execute:ask;
+  acceptEdits = edit 升 allow;plan = edit/execute 一律 deny(工具面
+  已过滤,双保险);bypass = 全 allow。
+- **mode**:spec 可设 `mode:`,CLI `--mode` 覆盖;跃迁规则表:
+  plan→default(经 ExitPlanMode 审批)、default↔acceptEdits(用户
+  命令)、任意→bypass 仅 CLI 启动时可设。`exit_plan_mode` 是 S3 新
+  内置 tool(class wait)。
+- **trust**:`$XDG_DATA_HOME/agentrunner/trusted.yaml`(列 realpath
+  目录);`agentrunner trust <dir>` 写入;project 层 settings 的
+  hooks 段仅在 workspace root 受信时生效(permissions 段可用——
+  只收紧不放宽:不受信 project 的 allow 降级为 ask)。
+- **budget**:spec `budget: {max_total_tokens: N}`(可选,缺省无限);
+  LLM 活动预留 `max_tokens`、tool 按类估值(read 500 / edit 1000 /
+  execute 2000 tokens 记账口径,S3 粗价目表);`ActivityCompleted`
+  实结(usage 抵预留);超限 → 3.7c 优雅收尾(epilogue quiesce 前
+  加 farewell slot——2.16 序列的既定挂点)。
+- **hooks v0**:settings `hooks: {pre_tool: [cmd], post_tool: [cmd]}`;
+  pre 以 JSON(stdin: effect)调用,exit 0 = observe/allow、exit 2 =
+  block(渲染 stderr 给模型),其他 exit = hook 错误(observe + 警告);
+  post 收 result JSON,输出挂 ActivityCompleted 的 `hook_note` 字段
+  (加性)。超时 10s(经 Clock 不可行——hook 是外部进程,用真实
+  timer,记为 forbidigo 豁免点,hook 包不在禁区)。
+- **审批 CLI**:TTY 下交互 `[y]es/[n]o + reason`;非 TTY(loop-mode)
+  读 `AGENTRUNNER_APPROVE=always|never`(acceptance 用),缺省 never。
+- **恢复语义**:挂起中 kill → resume 重现 WAITING_APPROVAL(fold 已
+  支持)→ CLI 重新提示;审批经过关卡但 crash 于 `effect_resolved`
+  前(`between_gate_and_resolved` 注入点)→ in-doubt 报告该 effect。
+- **S3 kickoff 回访项**(出口 review 递延):tool 活动可返回 activity
+  错误后,ActivityFailed-重试窗口的非幂等重跑保护(见 S2 review 记录)。
+
 ---
 
 ## Stage 4 — 交互与上下文（模块序列）

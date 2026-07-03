@@ -703,3 +703,24 @@ sessions list 显示 waiting:approval)、s2-04 events 调试工具。
   sub_state_versions,binary version 仅信息;记档即可。
 - [S-P2] record 录制器按单 delta redact(秘密跨 delta 分片可漏):
   S4 流式协议重构 recorder 时合并修。
+
+---
+
+**Stage 2 正式关闭**(实现 + 出口 review + 修复全部落地,
+`accept --stage 1/2` 全绿,崩溃矩阵 12 行全绿)。
+
+## S3 kickoff refinement — DONE
+
+PLAN.md 新增 **S3 执行包**:包布局(pipeline/config/hook)、5 个加性
+event 类型(effect_resolved/approval_requested/approval_responded/
+mode_changed/limit_exceeded)、Effect 描述与 effect_id 方案、关卡序
+与 deny 短路/ask 聚合语义、permissions YAML 形态(首条命中,三源
+拼接序 user>project>spec,无命中按 mode 默认)、mode 跃迁表 +
+exit_plan_mode 内置 tool、trust 注册表(不受信 project 的 allow
+降级 ask)、budget 粗价目表与 farewell 挂点、hooks v0 协议(exit 2
+= block,10s 真实 timer 豁免记档)、审批 CLI(非 TTY 走
+AGENTRUNNER_APPROVE)、恢复语义(挂起 kill → resume 重提示;
+between_gate_and_resolved → in-doubt)。回访项:非幂等 tool 的
+ActivityFailed-重试窗口(S2 review 递延)。
+
+下一步:S3.1 管线框架。
