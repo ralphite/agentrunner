@@ -1,5 +1,17 @@
 # AgentRunner 设计能力审查 — 对照 Claude Code / Codex 功能全集
 
+> **⚠️ 鉴定注记（并入后归档）**：本审查基于 `2bae06e` 之前的旧版
+> DESIGN.md。其中第一节 #1（per-turn git commit → shadow repo）、#2
+> （barrier 静默 → S7 弱化语义）、#4 的环境块冻结部分，以及第二节
+> #11（进程组语义）、#14（blob sidecar）在 `2bae06e`/`036f5ba` 中已有
+> 等价或更强的解决——现行设计**已不存在 per-turn git commit**（决策 #7
+> 为 `SnapshotStore` + shadow-repo backend，且整块延迟至 S7）。其余
+> 有效条目（in-doubt 类别策略、turn 定义与 turn sweep/`EffectAbandoned`、
+> `ApprovalRequested` 携带关卡判定、两级工具面与注入通道、
+> `CredentialProvider`、upcast/PolicyChanged/优雅停机/bus 双通道契约、
+> wait-class）已并入 DESIGN.md（见本 commit）。第三节 Minor 按原文
+> 记录在案。本文件仅作历史留档，**以 DESIGN.md 为准**。
+
 > 审查方法：8 个领域分析（agent loop、上下文、工具与 workspace、权限与 hooks、
 > 多 agent、session 与 surfaces、MCP/skills/plugins 生态、provider 映射）逐项
 > 对照 Claude Code（含 Agent SDK、云端会话）与 OpenAI Codex（CLI/cloud）的功能

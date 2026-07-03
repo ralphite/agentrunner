@@ -1,5 +1,9 @@
 # DESIGN.md 修订建议清单
 
+> **⚠️ 已处理归档**：本清单基于旧版 DESIGN.md（`2bae06e` 之前）。
+> 过时项与有效项的鉴定见 [CAPABILITY-REVIEW.md](CAPABILITY-REVIEW.md)
+> 顶部注记；有效项已并入 DESIGN.md。本文件仅作历史留档。
+
 > 来源：对照 Claude Code / Codex 166 个功能点的能力审查
 > （[CAPABILITY-REVIEW.md](CAPABILITY-REVIEW.md)，逐项明细见
 > [CAPABILITY-REVIEW-DETAILS.md](CAPABILITY-REVIEW-DETAILS.md)）。
