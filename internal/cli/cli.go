@@ -33,6 +33,8 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 		return runCmd(args[1:], false, stdout, stderr)
 	case "record-fixture":
 		return runCmd(args[1:], true, stdout, stderr)
+	case "accept":
+		return acceptCmd(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "agentrunner: unknown command %q\n%s", args[0], usage())
 		return ExitUsage

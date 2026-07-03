@@ -16,6 +16,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/provider/gemini"
 	"github.com/ralphite/agentrunner/internal/provider/record"
+	"github.com/ralphite/agentrunner/internal/provider/scripted"
 	"github.com/ralphite/agentrunner/internal/runtime"
 	"github.com/ralphite/agentrunner/internal/store"
 	"github.com/ralphite/agentrunner/internal/tool"
@@ -29,8 +30,15 @@ func defaultProviderFactory(ctx context.Context, name string) (provider.Provider
 	switch name {
 	case "gemini":
 		return gemini.New(ctx)
+	case "scripted":
+		// Test seam for acceptance scenarios and offline demos.
+		path := os.Getenv("AGENTRUNNER_SCRIPTED_FIXTURE")
+		if path == "" {
+			return nil, fmt.Errorf("provider scripted: AGENTRUNNER_SCRIPTED_FIXTURE not set")
+		}
+		return scripted.Load(path)
 	default:
-		return nil, fmt.Errorf("unknown provider %q (available: gemini)", name)
+		return nil, fmt.Errorf("unknown provider %q (available: gemini, scripted)", name)
 	}
 }
 

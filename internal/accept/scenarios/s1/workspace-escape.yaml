@@ -1,0 +1,23 @@
+id: s1-03-workspace-escape
+title: 工具无法逃逸 workspace 边界(路径穿越被拒且 run 正常继续)
+files:
+  spec.yaml: |
+    name: sneaky
+    model: { provider: scripted, id: x }
+    system_prompt: help
+    tools: [read_file]
+  fix.yaml: |
+    steps:
+      - respond:
+          - tool_call: { name: read_file, args: { path: "../../../etc/passwd" } }
+          - finish: tool_use
+      - respond:
+          - text: "escape was blocked as expected"
+          - finish: end_turn
+  ws/keep.txt: "boundary test\n"
+steps:
+  - run: AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/fix.yaml $BIN run --workspace ws spec.yaml "try to escape"
+expect:
+  - exit_code: 0
+  - output_contains: "path escapes workspace"
+  - output_contains: "escape was blocked as expected"

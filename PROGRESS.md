@@ -205,3 +205,27 @@ review 的 open questions。
   testdata 目录天然被 go 工具忽略；每次测试复制到 tmp，从不弄脏库内副本。
 - **DEFERRED**：live 版 E2E（真 Gemini 修 samplerepo）留 stage 出口
   人工检查点——scripted 版已入 CI 层。
+
+## S1.11 — acceptance harness v0　✅（Stage 1 收官步）
+
+- **状态**：完成。`internal/accept`（场景模型/runner/plain 渲染/JSON
+  报告/bubbletea TUI）+ `agentrunner accept --stage N` 子命令 +
+  3 个 S1 场景（e2e-fix-file / journal-readable / workspace-escape）。
+  **实跑 `accept --stage 1`：3 PASS / 0 FAIL**，report.json 生成。
+- **决定**：
+  - 场景 **go:embed 进 binary**（自包含，任何目录可跑）；场景自带
+    `files:` 段生成输入，不依赖外部 fixture 路径。
+  - CLI provider 工厂加 `scripted`（`AGENTRUNNER_SCRIPTED_FIXTURE`
+    env）——acceptance 经真 CLI 跑 scripted fixture 的测试接缝。
+  - runner 给每个场景独立 scratch dir + 独立 `XDG_DATA_HOME`，注入
+    `BIN`/`SCRATCH` env；中间步必须成功，末步 exit code 归 expect 管。
+  - expect 四种：exit_code / output_contains / file_contains /
+    journal_valid（内建逐行 JSON 校验）。
+  - 非 TTY 自动降级 plain（本环境即此路径）；`--plain` 可强制。
+- **DEFERRED**：TUI 的人工目视验收（本环境无 TTY）→ stage 出口检查点。
+
+## Stage 1 状态：**全部 12 步完成**
+
+出口条件：`accept --stage 1` FAIL=0 ✅（3 PASS）；journal 可读 ✅。
+待办：对抗式 stage review（PLAN 收口纪律）+ 出口人工检查点
+（TUI 目视 + live E2E）。

@@ -1,0 +1,17 @@
+id: s1-02-journal-readable
+title: 每次 run 产生可读的 journal(逐行 JSON,记录完整)
+files:
+  spec.yaml: |
+    name: chatter
+    model: { provider: scripted, id: x }
+    system_prompt: help
+  fix.yaml: |
+    steps:
+      - respond:
+          - text: "hello there"
+          - finish: end_turn
+steps:
+  - run: AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/fix.yaml $BIN run --workspace . spec.yaml "say hi"
+expect:
+  - exit_code: 0
+  - journal_valid: xdg/agentrunner/sessions/*/journal.jsonl

@@ -1,0 +1,29 @@
+id: s1-01-e2e-fix-file
+title: agent 端到端完成"读文件并修正内容"任务(scripted)
+files:
+  spec.yaml: |
+    name: fixer
+    model: { provider: scripted, id: x }
+    system_prompt: You are a coding agent.
+    tools: [read_file, edit_file]
+  fix.yaml: |
+    steps:
+      - respond:
+          - text: "reading"
+          - tool_call: { name: read_file, args: { path: note.txt } }
+          - finish: tool_use
+      - respond:
+          - tool_call:
+              name: edit_file
+              args: { path: note.txt, old: "magic 41", new: "magic 42" }
+          - finish: tool_use
+      - respond:
+          - text: "fixed the magic number"
+          - finish: end_turn
+  ws/note.txt: "magic 41\n"
+steps:
+  - run: AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/fix.yaml $BIN run --workspace ws spec.yaml "fix the magic number"
+expect:
+  - exit_code: 0
+  - output_contains: "fixed the magic number"
+  - file_contains: { path: ws/note.txt, text: "magic 42" }
