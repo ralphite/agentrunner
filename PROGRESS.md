@@ -142,3 +142,24 @@ review 的 open questions。
     问题（`bash -c 'x &'` 场景）。
   - bash 超时是墙钟（PLAN 已声明 provisional，S2.11 迁移 durable timer）。
 - **DEFERRED**：无。
+
+## S1.7a — 数据目录与命名　✅
+
+- **状态**：完成。`internal/runtime/paths.go`：XDG data dir（macOS 同
+  规则）、session 目录 0700、session id（`YYYYMMDD-HHMMSS-<slug>`，
+  slug 30 字节小写规整）、user/project 配置路径。
+- **决定**：slug 截断按字节（超长任务名截 30 字节，UTF-8 断字符的
+  残片被过滤规则自然丢弃）；空 slug 兜底为 `task`。按台账既定顺序
+  先于 1.7 执行。
+
+## S1.7 — journal v0　✅
+
+- **状态**：完成。`internal/store/journal.go`：append-only JSONL、
+  0600、五种记录类型（run_meta / assistant_message / tool_call /
+  tool_result / run_end）、只写不读。测试验证逐行可解析、类型序、
+  权限位。
+- **决定**：行形状用 `{"type","ts","data":{…}}` **嵌套 data**（执行包
+  未定平铺 vs 嵌套；嵌套无歧义且前向可解析）。journal v0 用
+  `time.Now`——store 包 S2 才进 Clock 纪律，v0 本来就会被 EventStore
+  替换。
+- **DEFERRED**：无。
