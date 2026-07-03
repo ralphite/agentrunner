@@ -1,0 +1,116 @@
+package agent
+
+import (
+	"context"
+	"encoding/json"
+	"time"
+
+	"github.com/ralphite/agentrunner/internal/clock"
+	"github.com/ralphite/agentrunner/internal/crash"
+	"github.com/ralphite/agentrunner/internal/errs"
+	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/provider"
+	"github.com/ralphite/agentrunner/internal/redact"
+)
+
+// AppendFunc journals one event AND folds it into the caller's state —
+// the loop owns both, the executor never touches the store directly.
+type AppendFunc func(typ string, payload any) (event.Envelope, error)
+
+// Activity describes one side-effecting unit: Started is journaled before
+// execution, a terminal event after (the in-doubt window between the two
+// is exactly what 2.15 surfaces on resume).
+type Activity struct {
+	ID         string // deterministic: llm-t<turn> | tool-<call_id>
+	Kind       string // event.KindLLM | event.KindTool
+	Name       string
+	Args       json.RawMessage
+	CallID     string
+	Idempotent bool
+	// Run performs the effect: (result, usage, isError, err). isError is a
+	// model-visible failed result (tool_failed) — the activity SUCCEEDED;
+	// err is an activity failure fed to the retry policy.
+	Run func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error)
+	// Progress is the optional ephemeral channel seam (S4 deltas, S6 task
+	// tails). Never journaled; unused in S2.
+	Progress func(delta string)
+}
+
+// ActivityExecutor is the single path every side effect takes (2.10).
+type ActivityExecutor struct {
+	Append AppendFunc
+	Clock  clock.Clock
+	Redact *redact.Redactor
+	// MaxAttempts/Backoff default to 3 attempts with 1s/4s waits.
+	MaxAttempts int
+	Backoff     []time.Duration
+	// DiscardOnRetry is the S4 TurnDiscarded seam: called before each
+	// retry so the caller can journal a discard mark. Nil in S2.
+	DiscardOnRetry func() error
+}
+
+// Do runs the activity: Started → execute → terminal, retrying retryable
+// failures with backoff through the Clock. Args and results pass through
+// credential redaction before journaling.
+func (x *ActivityExecutor) Do(ctx context.Context, act Activity) error {
+	maxAttempts := x.MaxAttempts
+	if maxAttempts == 0 {
+		maxAttempts = 3
+	}
+	backoff := x.Backoff
+	if backoff == nil {
+		backoff = []time.Duration{time.Second, 4 * time.Second}
+	}
+
+	for attempt := 1; ; attempt++ {
+		if _, err := x.Append(event.TypeActivityStarted, &event.ActivityStarted{
+			ActivityID: act.ID,
+			Kind:       act.Kind,
+			Name:       act.Name,
+			Args:       x.Redact.JSON(act.Args),
+			CallID:     act.CallID,
+			Idempotent: act.Idempotent,
+			Attempt:    attempt,
+		}); err != nil {
+			return err
+		}
+
+		result, usage, isError, err := act.Run(ctx)
+		if err == nil {
+			crash.Point(crash.PointAfterExecBeforeJournal)
+			_, aerr := x.Append(event.TypeActivityCompleted, &event.ActivityCompleted{
+				ActivityID: act.ID,
+				Result:     x.Redact.JSON(result),
+				Usage:      usage,
+				IsError:    isError,
+			})
+			return aerr
+		}
+
+		class := errs.ClassOf(err)
+		if _, aerr := x.Append(event.TypeActivityFailed, &event.ActivityFailed{
+			ActivityID: act.ID,
+			Attempt:    attempt,
+			Error: event.ErrorInfo{
+				Class:     string(class),
+				Message:   x.Redact.String(err.Error()),
+				Retryable: class.Retryable(),
+			},
+		}); aerr != nil {
+			return aerr
+		}
+
+		if !class.Retryable() || attempt >= maxAttempts {
+			return err
+		}
+		if x.DiscardOnRetry != nil {
+			if derr := x.DiscardOnRetry(); derr != nil {
+				return derr
+			}
+		}
+		wait := backoff[min(attempt-1, len(backoff)-1)]
+		if werr := x.Clock.WaitUntil(ctx, x.Clock.Now().Add(wait)); werr != nil {
+			return werr
+		}
+	}
+}

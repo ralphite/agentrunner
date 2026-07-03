@@ -184,6 +184,7 @@ func addUsage(a, b provider.Usage) provider.Usage {
 	a.InputTokens += b.InputTokens
 	a.OutputTokens += b.OutputTokens
 	a.CacheReadTokens += b.CacheReadTokens
+	a.CacheWriteTokens += b.CacheWriteTokens
 	return a
 }
 

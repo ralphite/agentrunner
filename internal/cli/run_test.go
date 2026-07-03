@@ -74,10 +74,10 @@ func TestRunAgentEndToEnd(t *testing.T) {
 		t.Errorf("file = %q", content)
 	}
 
-	// journal exists under the session dir
-	matches, _ := filepath.Glob(filepath.Join(os.Getenv("XDG_DATA_HOME"), "agentrunner", "sessions", "*", "journal.jsonl"))
+	// event log exists under the session dir
+	matches, _ := filepath.Glob(filepath.Join(os.Getenv("XDG_DATA_HOME"), "agentrunner", "sessions", "*", "events.jsonl"))
 	if len(matches) != 1 {
-		t.Errorf("journal files = %v", matches)
+		t.Errorf("event logs = %v", matches)
 	}
 }
 

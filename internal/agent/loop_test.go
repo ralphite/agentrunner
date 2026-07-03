@@ -5,7 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
 	"github.com/ralphite/agentrunner/internal/store"
 	"github.com/ralphite/agentrunner/internal/tool"
@@ -18,11 +20,11 @@ func testLoop(t *testing.T, fix scripted.Fixture, root string) *Loop {
 	if err != nil {
 		t.Fatal(err)
 	}
-	j, err := store.OpenJournal(filepath.Join(t.TempDir(), "journal.jsonl"))
+	es, err := store.OpenEventStore(filepath.Join(t.TempDir(), "sess"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = j.Close() })
+	t.Cleanup(func() { _ = es.Close() })
 	return &Loop{
 		Spec: &AgentSpec{
 			Name:         "test",
@@ -31,9 +33,11 @@ func testLoop(t *testing.T, fix scripted.Fixture, root string) *Loop {
 			Tools:        []string{"read_file", "edit_file", "bash"},
 			MaxTurns:     10,
 		},
-		Provider: scripted.New(fix),
-		Exec:     &tool.Executor{WS: ws},
-		Journal:  j,
+		Provider:  scripted.New(fix),
+		Exec:      &tool.Executor{WS: ws},
+		Store:     es,
+		Clock:     clock.NewFake(time.Date(2026, 7, 3, 0, 0, 0, 0, time.UTC)),
+		SessionID: "test-session",
 	}
 }
 

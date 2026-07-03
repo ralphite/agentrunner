@@ -42,7 +42,7 @@ type Expect struct {
 	ExitCode       *int        `yaml:"exit_code,omitempty"`       // of the last step
 	OutputContains string      `yaml:"output_contains,omitempty"` // across all steps
 	FileContains   *FileExpect `yaml:"file_contains,omitempty"`
-	JournalValid   string      `yaml:"journal_valid,omitempty"` // glob under SCRATCH
+	EventsValid    string      `yaml:"events_valid,omitempty"` // glob under SCRATCH
 }
 
 // FileExpect asserts file content under SCRATCH.
@@ -125,7 +125,7 @@ func (e Expect) fieldsSet() int {
 	if e.FileContains != nil {
 		n++
 	}
-	if e.JournalValid != "" {
+	if e.EventsValid != "" {
 		n++
 	}
 	return n
@@ -239,19 +239,19 @@ func checkExpect(exp Expect, scratch, output string, lastExit int) string {
 		if !strings.Contains(string(raw), exp.FileContains.Text) {
 			return fmt.Sprintf("%s does not contain %q", exp.FileContains.Path, exp.FileContains.Text)
 		}
-	case exp.JournalValid != "":
-		return checkJournals(filepath.Join(scratch, exp.JournalValid))
+	case exp.EventsValid != "":
+		return checkEvents(filepath.Join(scratch, exp.EventsValid))
 	}
 	return ""
 }
 
-// checkJournals verifies every matched journal is complete: ≥1 line, every
-// line a well-formed {type, ts, data} record, first record run_meta and
-// last record run_end (a truncated journal must not pass).
-func checkJournals(glob string) string {
+// checkEvents verifies every matched event log is complete: ≥1 line, every
+// line a well-formed envelope with gapless seq, first event run_started and
+// last event run_ended (a truncated log must not pass).
+func checkEvents(glob string) string {
 	matches, err := filepath.Glob(glob)
 	if err != nil || len(matches) == 0 {
-		return fmt.Sprintf("journal_valid: no files match %s", glob)
+		return fmt.Sprintf("events_valid: no files match %s", glob)
 	}
 	for _, path := range matches {
 		raw, err := os.ReadFile(path)
@@ -260,25 +260,29 @@ func checkJournals(glob string) string {
 		}
 		lines := strings.Split(strings.TrimRight(string(raw), "\n"), "\n")
 		if len(lines) == 0 || lines[0] == "" {
-			return fmt.Sprintf("journal_valid: %s is empty", path)
+			return fmt.Sprintf("events_valid: %s is empty", path)
 		}
 		var types []string
 		for i, line := range lines {
 			var rec struct {
-				Type string          `json:"type"`
-				TS   string          `json:"ts"`
-				Data json.RawMessage `json:"data"`
+				Seq     int64           `json:"seq"`
+				Type    string          `json:"type"`
+				TS      string          `json:"ts"`
+				Payload json.RawMessage `json:"payload"`
 			}
 			if err := json.Unmarshal([]byte(line), &rec); err != nil || rec.Type == "" || rec.TS == "" {
-				return fmt.Sprintf("journal_valid: %s line %d malformed: %s", path, i+1, line)
+				return fmt.Sprintf("events_valid: %s line %d malformed: %s", path, i+1, line)
+			}
+			if rec.Seq != int64(i+1) {
+				return fmt.Sprintf("events_valid: %s line %d seq = %d, want %d (gapless)", path, i+1, rec.Seq, i+1)
 			}
 			types = append(types, rec.Type)
 		}
-		if types[0] != "run_meta" {
-			return fmt.Sprintf("journal_valid: %s first record is %q, want run_meta", path, types[0])
+		if types[0] != "run_started" {
+			return fmt.Sprintf("events_valid: %s first event is %q, want run_started", path, types[0])
 		}
-		if last := types[len(types)-1]; last != "run_end" {
-			return fmt.Sprintf("journal_valid: %s last record is %q, want run_end (truncated?)", path, last)
+		if last := types[len(types)-1]; last != "run_ended" {
+			return fmt.Sprintf("events_valid: %s last event is %q, want run_ended (truncated?)", path, last)
 		}
 	}
 	return ""

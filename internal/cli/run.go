@@ -10,12 +10,12 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/ralphite/agentrunner/internal/agent"
+	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/provider/gemini"
 	"github.com/ralphite/agentrunner/internal/provider/record"
@@ -144,28 +144,24 @@ func runAgent(opts runOptions) int {
 		fmt.Fprintln(opts.stderr, err)
 		return ExitRun
 	}
-	journal, err := store.OpenJournal(filepath.Join(sessionDir, "journal.jsonl"))
+	events, err := store.OpenEventStore(sessionDir)
 	if err != nil {
 		fmt.Fprintln(opts.stderr, err)
 		return ExitRun
 	}
-	defer func() { _ = journal.Close() }()
-
-	if err := journal.RecordRunMeta(store.RunMeta{
-		SpecName: spec.Name, Model: spec.Model.ID, Task: opts.task, Version: opts.version,
-	}); err != nil {
-		fmt.Fprintln(opts.stderr, err)
-		return ExitRun
-	}
+	defer func() { _ = events.Close() }()
 
 	fmt.Fprintf(opts.stderr, "session %s\n", sessionID)
 
 	loop := &agent.Loop{
-		Spec:     spec,
-		Provider: prov,
-		Exec:     &tool.Executor{WS: ws},
-		Journal:  journal,
-		Sink:     &textSink{out: opts.stdout},
+		Spec:      spec,
+		Provider:  prov,
+		Exec:      &tool.Executor{WS: ws},
+		Store:     events,
+		Clock:     clock.Real{},
+		Sink:      &textSink{out: opts.stdout},
+		SessionID: sessionID,
+		Version:   opts.version,
 	}
 	result, runErr := loop.Run(ctx, opts.task)
 

@@ -65,7 +65,7 @@ expect:
 	}
 }
 
-func TestCheckJournalsRequiresTerminalRecord(t *testing.T) {
+func TestCheckEventsRequiresTerminalEvent(t *testing.T) {
 	dir := t.TempDir()
 	write := func(name, content string) {
 		t.Helper()
@@ -74,18 +74,25 @@ func TestCheckJournalsRequiresTerminalRecord(t *testing.T) {
 		}
 	}
 
-	good := `{"type":"run_meta","ts":"t","data":{}}
-{"type":"run_end","ts":"t","data":{}}
+	good := `{"seq":1,"type":"run_started","ts":"t","payload":{}}
+{"seq":2,"type":"run_ended","ts":"t","payload":{}}
 `
-	truncated := `{"type":"run_meta","ts":"t","data":{}}
-{"type":"tool_call","ts":"t","data":{}}
+	truncated := `{"seq":1,"type":"run_started","ts":"t","payload":{}}
+{"seq":2,"type":"activity_started","ts":"t","payload":{}}
+`
+	gapped := `{"seq":1,"type":"run_started","ts":"t","payload":{}}
+{"seq":3,"type":"run_ended","ts":"t","payload":{}}
 `
 	write("good.jsonl", good)
-	if msg := checkJournals(dir + "/good.jsonl"); msg != "" {
-		t.Errorf("good journal rejected: %s", msg)
+	if msg := checkEvents(dir + "/good.jsonl"); msg != "" {
+		t.Errorf("good log rejected: %s", msg)
 	}
 	write("trunc.jsonl", truncated)
-	if msg := checkJournals(dir + "/trunc.jsonl"); !strings.Contains(msg, "run_end") {
-		t.Errorf("truncated journal accepted: %q", msg)
+	if msg := checkEvents(dir + "/trunc.jsonl"); !strings.Contains(msg, "run_ended") {
+		t.Errorf("truncated log accepted: %q", msg)
+	}
+	write("gap.jsonl", gapped)
+	if msg := checkEvents(dir + "/gap.jsonl"); !strings.Contains(msg, "gapless") {
+		t.Errorf("gapped log accepted: %q", msg)
 	}
 }

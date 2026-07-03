@@ -1,5 +1,5 @@
 // Package e2e_test drives the full S1 stack — loop, scripted provider,
-// tools, journal — against the committed sample repo (PLAN 1.10). The
+// tools, event log — against the committed sample repo (PLAN 1.10). The
 // sample repo is copied to a temp workspace per test; the checked-in copy
 // is never touched.
 package e2e_test
@@ -58,11 +58,11 @@ func TestFixFailingTestEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	journal, err := store.OpenJournal(filepath.Join(t.TempDir(), "journal.jsonl"))
+	es, err := store.OpenEventStore(filepath.Join(t.TempDir(), "sess"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = journal.Close() }()
+	defer func() { _ = es.Close() }()
 
 	loop := &agent.Loop{
 		Spec: &agent.AgentSpec{
@@ -72,9 +72,10 @@ func TestFixFailingTestEndToEnd(t *testing.T) {
 			Tools:        []string{"read_file", "edit_file", "bash"},
 			MaxTurns:     10,
 		},
-		Provider: prov,
-		Exec:     &tool.Executor{WS: ws},
-		Journal:  journal,
+		Provider:  prov,
+		Exec:      &tool.Executor{WS: ws},
+		Store:     es,
+		SessionID: "e2e-sess",
 	}
 
 	res, err := loop.Run(context.Background(), "Fix the failing test in this repo.")

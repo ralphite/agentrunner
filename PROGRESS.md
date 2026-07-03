@@ -438,3 +438,43 @@ stream 错误经 `classify()` 上分类(genai.APIError 值类型 errors.As)。
   (durable timer 的 `fire_at` 语义;相对时长在 resume 后会漂移)。
 - `Fake.Waiters()` 暴露 parked 数供测试无 sleep 同步(spin+Gosched)。
 - clock 包在 forbidigo 区外,是唯一合法 wall-clock 出口。
+
+---
+
+## S2.10 activity 执行器 + loop 重写主体 — DONE
+
+S2 的核心步。`internal/agent/activity.go`:ActivityExecutor——一切
+副作用的唯一通道:`ActivityStarted`(先落盘)→ 执行 → 终态落盘;
+`crash.Point(after_exec_before_journal)` 卡在执行成功与终态落盘之间
+(2.15 in-doubt 窗口);通用 retry/backoff(1s/4s 经 Clock,仅
+Retryable 类,3 attempts,每 attempt 独立 Started/Failed 对);
+`DiscardOnRetry` 接缝(S4 TurnDiscarded);`Progress` 字段(S4/S6
+ephemeral 通道,S2 不用);args/results/错误消息全部过凭据 redaction
+(新 `internal/redact` 包,`*_API_KEY/_TOKEN/_SECRET`)。
+
+`loop.go` 重写:fold state 驱动——`decide(state, maxTurns) → action`
+是唯一决策函数(doTurn/doLLM/doTool/doEnd),resume 用同一函数天然
+续跑;`assembleMessages(state)` 从 Conversation.Messages + ToolResults
+组装请求(**golden 测试未动一字节通过**——重写行为契约兑现);
+appendE = journal+fold 单写入路径,causation 线性链;LLM/tool 全走
+执行器;`before_run_end` 注入点落位;journal v0 删除(store/journal.go
+及全部写入),events.jsonl 即 source of truth。
+
+**迁移面**:CLI run 开 EventStore(传 SessionID/Version/Real clock);
+acceptance `journal_valid` → `events_valid`(检查 envelope 形态 +
+seq 无缝隙 + run_started 首 / run_ended 尾);场景 s1-02 改名
+events-readable;e2e/loop 测试全部迁 EventStore;S1 集成测试在新
+loop 上全绿。
+
+**Decisions**:
+- causation 链 = 线性(每 event 因于前一 event);kernel actor 拓扑
+  暂不接入 loop(2.3 的 Bus 待 2.14+/S6 按需接),记 open question。
+- LLM activity 标 `idempotent: true`(重跑安全,费用非正确性问题);
+  tool 按 class:read=true,edit/execute=false(S3 细化)。
+- tool 的 isError 结果 = 活动成功(模型可见错误),不是 activity
+  失败——不触发 retry。
+- LLM activity 的 Result 留空(消息走 AssistantMessage event),
+  usage 挂 ActivityCompleted。
+- 模型可见的 tool 结果也过 redaction(fold ToolResults 存的是
+  redacted 版)——凭据不该回流进上下文,记为行为变更。
+- state.addUsage 补 CacheWriteTokens(S1 会计口径 bug,顺手修)。

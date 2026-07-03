@@ -2,35 +2,42 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 
+	"github.com/ralphite/agentrunner/internal/clock"
+	"github.com/ralphite/agentrunner/internal/crash"
+	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/provider"
+	"github.com/ralphite/agentrunner/internal/redact"
+	"github.com/ralphite/agentrunner/internal/runtime"
+	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
 	"github.com/ralphite/agentrunner/internal/tool"
 )
 
 // Sink receives turn-granularity output for rendering (the CLI implements it).
-// S1 is turn-level; the streaming protocol arrives in S4.
+// S2 is still turn-level; the streaming protocol arrives in S4.
 type Sink interface {
 	AssistantText(turn int, text string)
 	ToolCall(turn int, call provider.ToolCall)
 	ToolResult(turn int, callID string, result tool.Result)
 }
 
-// Loop runs the S1 agent loop: LLM turn → execute tool calls in order →
-// feed results back → repeat until the model stops or max_turns is hit.
-//
-// NOTE(S1): this orchestration is deliberately naive (no activities, no
-// fold state). S2.10 rewrites the body onto the activity executor and
-// event-sourced state; the collaborators (provider, tools, journal) keep
-// their interfaces.
+// Loop is the S2 event-sourced agent loop: every input and side effect is
+// journaled as an event, the fold state is the only working memory, and
+// each step is decided from that state alone — which is exactly what makes
+// snapshot-resume (2.13) a restart of the same decision function.
 type Loop struct {
-	Spec     *AgentSpec
-	Provider provider.Provider
-	Exec     *tool.Executor
-	Journal  *store.Journal
-	Sink     Sink
+	Spec      *AgentSpec
+	Provider  provider.Provider
+	Exec      *tool.Executor
+	Store     *store.EventStore
+	Clock     clock.Clock
+	Sink      Sink
+	SessionID string
+	Version   string
 }
 
 // RunResult summarizes a completed run.
@@ -42,91 +49,252 @@ type RunResult struct {
 
 // Run drives the loop to completion for a single task.
 func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
+	if l.Clock == nil {
+		l.Clock = clock.Real{}
+	}
 	toolDefs, err := tool.ProviderDefs(l.Spec.Tools)
 	if err != nil {
 		return RunResult{}, err
 	}
 
-	messages := []provider.Message{{
-		Role:  provider.RoleUser,
-		Parts: []provider.Part{{Kind: provider.PartText, Text: task}},
-	}}
-
-	var total provider.Usage
-	for turn := 1; turn <= l.Spec.MaxTurns; turn++ {
-		req := provider.CompleteRequest{
-			Model:     l.Spec.Model.ID,
-			MaxTokens: l.Spec.Model.MaxTokens,
-			System:    l.Spec.SystemPrompt,
-			Messages:  messages,
-			Tools:     toolDefs,
-			Turn:      turn,
-		}
-
-		result, err := provider.CollectTurn(l.Provider.Complete(ctx, req))
+	// appendE journals one event and folds it — the single write path.
+	// Causation is a linear chain: each event is caused by the previous.
+	s := state.New()
+	var lastID string
+	appendE := func(typ string, payload any) (event.Envelope, error) {
+		env, err := event.New(typ, payload)
 		if err != nil {
-			return RunResult{}, l.abort(turn, total, fmt.Errorf("turn %d: %w", turn, err))
+			return env, err
 		}
-		accumulate(&total, result.Usage)
+		env.CausationID = lastID
+		env.CorrelationID = l.SessionID
+		appended, err := l.Store.Append(env)
+		if err != nil {
+			return appended, err
+		}
+		lastID = appended.ID
+		next, err := state.Apply(s, appended)
+		if err != nil {
+			return appended, err
+		}
+		s = next
+		return appended, nil
+	}
+	// abort best-effort-journals a terminal event so a failed run's log is
+	// distinguishable from a truncated one.
+	abort := func(turn int, cause error) error {
+		_, _ = appendE(event.TypeRunEnded, &event.RunEnded{
+			Reason: "error", Turns: turn, Usage: s.Run.Usage,
+		})
+		return cause
+	}
 
-		if text := assistantText(result.Message); text != "" && l.Sink != nil {
-			l.Sink.AssistantText(turn, text)
-		}
-		if err := l.Journal.RecordAssistantMessage(turn, result.Message); err != nil {
-			return RunResult{}, l.abort(turn, total, err)
-		}
-		messages = append(messages, result.Message)
+	if _, err := appendE(event.TypeRunStarted, &event.RunStarted{
+		SpecName: l.Spec.Name, Model: l.Spec.Model.ID, Task: task,
+		Version: l.Version, SubStateVersions: state.SubStateVersions(),
+	}); err != nil {
+		return RunResult{}, err
+	}
+	input, err := runtime.IngestInput(l.Store, l.SessionID, task, "cli")
+	if err != nil {
+		return RunResult{}, abort(0, err)
+	}
+	lastID = input.ID
+	if s, err = state.Apply(s, input); err != nil {
+		return RunResult{}, abort(0, err)
+	}
 
-		// No tool calls → the model produced a final answer.
-		if len(result.ToolCalls) == 0 {
-			return l.finish("completed", turn, total)
-		}
+	exec := &ActivityExecutor{Append: appendE, Clock: l.Clock, Redact: redact.FromEnv()}
 
-		// Execute each call in order; feed all results back as one tool message.
+	for {
+		if err := ctx.Err(); err != nil {
+			return RunResult{}, abort(s.Run.Turn, err)
+		}
+		act := decide(s, l.Spec.MaxTurns)
+		switch act.kind {
+		case doTurn:
+			if _, err := appendE(event.TypeTurnStarted, &event.TurnStarted{Turn: act.turn}); err != nil {
+				return RunResult{}, abort(act.turn, err)
+			}
+
+		case doLLM:
+			var turn provider.Turn
+			err := exec.Do(ctx, Activity{
+				ID: fmt.Sprintf("llm-t%d", act.turn), Kind: event.KindLLM,
+				Name: "complete", Idempotent: true,
+				Run: func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
+					req := provider.CompleteRequest{
+						Model:     l.Spec.Model.ID,
+						MaxTokens: l.Spec.Model.MaxTokens,
+						System:    l.Spec.SystemPrompt,
+						Messages:  assembleMessages(s),
+						Tools:     toolDefs,
+						Turn:      act.turn,
+					}
+					collected, err := provider.CollectTurn(l.Provider.Complete(ctx, req))
+					if err != nil {
+						return nil, nil, false, err
+					}
+					turn = collected
+					usage := collected.Usage
+					return nil, &usage, false, nil
+				},
+			})
+			if err != nil {
+				return RunResult{}, abort(act.turn, fmt.Errorf("turn %d: %w", act.turn, err))
+			}
+			if _, err := appendE(event.TypeAssistantMessage, &event.AssistantMessage{
+				Turn: act.turn, Message: turn.Message,
+			}); err != nil {
+				return RunResult{}, abort(act.turn, err)
+			}
+			if text := assistantText(turn.Message); text != "" && l.Sink != nil {
+				l.Sink.AssistantText(act.turn, text)
+			}
+
+		case doTool:
+			call := act.call
+			if l.Sink != nil {
+				l.Sink.ToolCall(act.turn, call)
+			}
+			var res tool.Result
+			err := exec.Do(ctx, Activity{
+				ID: "tool-" + call.CallID, Kind: event.KindTool,
+				Name: call.Name, Args: call.Args, CallID: call.CallID,
+				Idempotent: toolIdempotent(call.Name),
+				Run: func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
+					res = l.Exec.Execute(ctx, call.Name, call.Args)
+					return res.Payload, nil, res.IsError, nil
+				},
+			})
+			if err != nil {
+				return RunResult{}, abort(act.turn, fmt.Errorf("turn %d: %s: %w", act.turn, call.Name, err))
+			}
+			if l.Sink != nil {
+				l.Sink.ToolResult(act.turn, call.CallID, res)
+			}
+
+		case doEnd:
+			if act.reason == "max_turns" {
+				slog.Warn("run hit max_turns", "max_turns", l.Spec.MaxTurns)
+			}
+			crash.Point(crash.PointBeforeRunEnd)
+			// TODO(2.16): this becomes the run epilogue sequence
+			// (quiesce → auto-publish → barrier → terminal event).
+			if _, err := appendE(event.TypeRunEnded, &event.RunEnded{
+				Reason: act.reason, Turns: act.turn, Usage: s.Run.Usage,
+			}); err != nil {
+				return RunResult{}, err
+			}
+			return RunResult{Reason: act.reason, Turns: act.turn, Usage: s.Run.Usage}, nil
+		}
+	}
+}
+
+// action kinds for decide.
+const (
+	doTurn = iota // journal TurnStarted for action.turn
+	doLLM         // run the LLM activity for action.turn
+	doTool        // run action.call
+	doEnd         // journal RunEnded with action.reason
+)
+
+type action struct {
+	kind   int
+	turn   int
+	call   provider.ToolCall
+	reason string
+}
+
+// decide is THE loop policy: given only the fold state, what happens next.
+// Resume re-enters here with the same state and therefore the same answer.
+func decide(s state.State, maxTurns int) action {
+	turn := s.Run.Turn
+	if turn == 0 {
+		return action{kind: doTurn, turn: 1}
+	}
+	assistants := assistantMessages(s)
+	if len(assistants) < turn {
+		return action{kind: doLLM, turn: turn}
+	}
+	calls := toolCallsOf(assistants[len(assistants)-1])
+	if len(calls) == 0 {
+		return action{kind: doEnd, turn: turn, reason: "completed"}
+	}
+	for _, c := range calls {
+		if _, done := s.Conversation.ToolResults[c.CallID]; !done {
+			return action{kind: doTool, turn: turn, call: c}
+		}
+	}
+	if turn >= maxTurns {
+		return action{kind: doEnd, turn: turn, reason: "max_turns"}
+	}
+	return action{kind: doTurn, turn: turn + 1}
+}
+
+// assembleMessages builds the provider-visible transcript from the fold:
+// conversation messages in order, with each assistant message's fully
+// resolved tool calls followed by one tool message (results by call_id).
+// Pinned by testdata/request_assembly.golden.
+func assembleMessages(s state.State) []provider.Message {
+	var out []provider.Message
+	for _, m := range s.Conversation.Messages {
+		out = append(out, m)
+		if m.Role != provider.RoleAssistant {
+			continue
+		}
+		calls := toolCallsOf(m)
+		if len(calls) == 0 {
+			continue
+		}
 		toolMsg := provider.Message{Role: provider.RoleTool}
-		for _, call := range result.ToolCalls {
-			if l.Sink != nil {
-				l.Sink.ToolCall(turn, call)
+		complete := true
+		for _, c := range calls {
+			res, ok := s.Conversation.ToolResults[c.CallID]
+			if !ok {
+				complete = false
+				break
 			}
-			if err := l.Journal.RecordToolCall(turn, call); err != nil {
-				return RunResult{}, l.abort(turn, total, err)
-			}
-
-			res := l.Exec.Execute(ctx, call.Name, call.Args)
-			if l.Sink != nil {
-				l.Sink.ToolResult(turn, call.CallID, res)
-			}
-			if err := l.Journal.RecordToolResult(turn, call.CallID, call.Name, res.Payload, res.IsError); err != nil {
-				return RunResult{}, l.abort(turn, total, err)
-			}
-
 			toolMsg.Parts = append(toolMsg.Parts, provider.Part{
 				Kind:     provider.PartToolResult,
-				CallID:   call.CallID,
-				ToolName: call.Name,
-				Result:   res.Payload,
+				CallID:   c.CallID,
+				ToolName: c.Name,
+				Result:   res.Result,
 				IsError:  res.IsError,
 			})
 		}
-		messages = append(messages, toolMsg)
+		if complete {
+			out = append(out, toolMsg)
+		}
 	}
-
-	slog.Warn("run hit max_turns", "max_turns", l.Spec.MaxTurns)
-	return l.finish("max_turns", l.Spec.MaxTurns, total)
+	return out
 }
 
-// abort best-effort-journals a terminal record so a failed run's journal is
-// distinguishable from a truncated one, then passes the error through.
-func (l *Loop) abort(turn int, usage provider.Usage, cause error) error {
-	_ = l.Journal.RecordRunEnd("error", turn, usage)
-	return cause
+func assistantMessages(s state.State) []provider.Message {
+	var out []provider.Message
+	for _, m := range s.Conversation.Messages {
+		if m.Role == provider.RoleAssistant {
+			out = append(out, m)
+		}
+	}
+	return out
 }
 
-func (l *Loop) finish(reason string, turns int, usage provider.Usage) (RunResult, error) {
-	if err := l.Journal.RecordRunEnd(reason, turns, usage); err != nil {
-		return RunResult{}, err
+func toolCallsOf(m provider.Message) []provider.ToolCall {
+	var out []provider.ToolCall
+	for _, p := range m.Parts {
+		if p.Kind == provider.PartToolCall {
+			out = append(out, provider.ToolCall{CallID: p.CallID, Name: p.ToolName, Args: p.Args})
+		}
 	}
-	return RunResult{Reason: reason, Turns: turns, Usage: usage}, nil
+	return out
+}
+
+// toolIdempotent is the S2 placeholder policy: reads re-run safely on
+// resume; edits and executions do not. S3 refines this per tool class.
+func toolIdempotent(name string) bool {
+	def, ok := tool.Get(name)
+	return ok && def.Class == tool.ClassRead
 }
 
 func assistantText(msg provider.Message) string {
@@ -136,11 +304,4 @@ func assistantText(msg provider.Message) string {
 		}
 	}
 	return ""
-}
-
-func accumulate(total *provider.Usage, u provider.Usage) {
-	total.InputTokens += u.InputTokens
-	total.OutputTokens += u.OutputTokens
-	total.CacheReadTokens += u.CacheReadTokens
-	total.CacheWriteTokens += u.CacheWriteTokens
 }

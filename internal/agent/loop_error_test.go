@@ -1,44 +1,37 @@
 package agent
 
 import (
-	"bufio"
 	"context"
-	"encoding/json"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/ralphite/agentrunner/internal/clock"
+	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
 	"github.com/ralphite/agentrunner/internal/store"
 	"github.com/ralphite/agentrunner/internal/tool"
 	"github.com/ralphite/agentrunner/internal/workspace"
 )
 
-func journalTypes(t *testing.T, path string) []string {
+func eventTypes(t *testing.T, dir string) []string {
 	t.Helper()
-	f, err := os.Open(path)
+	events, err := store.ReadEvents(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = f.Close() }()
 	var types []string
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		var rec struct {
-			Type string `json:"type"`
-		}
-		if err := json.Unmarshal(sc.Bytes(), &rec); err != nil {
-			t.Fatalf("bad journal line: %s", sc.Text())
-		}
-		types = append(types, rec.Type)
+	for _, e := range events {
+		types = append(types, e.Type)
 	}
 	return types
 }
 
 // A provider error mid-run must surface wrapped with the turn number AND
-// leave a terminal run_end{error} record (a failed journal must be
-// distinguishable from a truncated one).
+// leave a terminal run_ended{error} event (a failed log must be
+// distinguishable from a truncated one). The failure itself must be
+// journaled as activity_failed before the terminal event.
 func TestLoopProviderErrorWritesTerminalRecord(t *testing.T) {
 	// One scripted step; the second Complete call exhausts the fixture.
 	fix := scripted.Fixture{Steps: []scripted.Step{
@@ -52,19 +45,21 @@ func TestLoopProviderErrorWritesTerminalRecord(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	journalPath := filepath.Join(t.TempDir(), "journal.jsonl")
-	journal, err := store.OpenJournal(journalPath)
+	sessDir := filepath.Join(t.TempDir(), "sess")
+	es, err := store.OpenEventStore(sessDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = journal.Close() }()
+	defer func() { _ = es.Close() }()
 
 	loop := &Loop{
 		Spec: &AgentSpec{Name: "t", Model: ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 10},
 			SystemPrompt: "s", Tools: []string{"bash"}, MaxTurns: 5},
-		Provider: scripted.New(fix),
-		Exec:     &tool.Executor{WS: ws},
-		Journal:  journal,
+		Provider:  scripted.New(fix),
+		Exec:      &tool.Executor{WS: ws},
+		Store:     es,
+		Clock:     clock.NewFake(time.Date(2026, 7, 3, 0, 0, 0, 0, time.UTC)),
+		SessionID: "sess-err",
 	}
 
 	_, err = loop.Run(context.Background(), "loop until exhausted")
@@ -72,15 +67,24 @@ func TestLoopProviderErrorWritesTerminalRecord(t *testing.T) {
 		t.Fatalf("err = %v, want wrapped turn 2", err)
 	}
 
-	types := journalTypes(t, journalPath)
-	if len(types) == 0 || types[len(types)-1] != "run_end" {
-		t.Fatalf("journal types = %v, want terminal run_end", types)
+	types := eventTypes(t, sessDir)
+	if len(types) == 0 || types[len(types)-1] != event.TypeRunEnded {
+		t.Fatalf("event types = %v, want terminal run_ended", types)
+	}
+	var sawFailed bool
+	for _, typ := range types {
+		if typ == event.TypeActivityFailed {
+			sawFailed = true
+		}
+	}
+	if !sawFailed {
+		t.Errorf("event types = %v, want activity_failed for the exhausted provider call", types)
 	}
 }
 
-// A journal write failure aborts the run with an error (best-effort terminal
-// record may also fail — the error must still propagate).
-func TestLoopJournalWriteFailureAborts(t *testing.T) {
+// An event append failure aborts the run with an error (the best-effort
+// terminal event may also fail — the error must still propagate).
+func TestLoopEventAppendFailureAborts(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{{Text: "hi"}, {Finish: "end_turn"}}},
 	}}
@@ -88,20 +92,22 @@ func TestLoopJournalWriteFailureAborts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	journal, err := store.OpenJournal(filepath.Join(t.TempDir(), "journal.jsonl"))
+	es, err := store.OpenEventStore(filepath.Join(t.TempDir(), "sess"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = journal.Close() // every subsequent write fails
+	_ = es.Close() // every subsequent append fails
 
 	loop := &Loop{
 		Spec: &AgentSpec{Name: "t", Model: ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 10},
 			SystemPrompt: "s", MaxTurns: 3},
-		Provider: scripted.New(fix),
-		Exec:     &tool.Executor{WS: ws},
-		Journal:  journal,
+		Provider:  scripted.New(fix),
+		Exec:      &tool.Executor{WS: ws},
+		Store:     es,
+		Clock:     clock.NewFake(time.Date(2026, 7, 3, 0, 0, 0, 0, time.UTC)),
+		SessionID: "sess-closed",
 	}
 	if _, err := loop.Run(context.Background(), "hi"); err == nil {
-		t.Fatal("expected error from failing journal writes")
+		t.Fatal("expected error from failing event appends")
 	}
 }

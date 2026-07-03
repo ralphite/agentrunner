@@ -51,11 +51,11 @@ func TestLoopRequestAssemblyGolden(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	journal, err := store.OpenJournal(filepath.Join(t.TempDir(), "journal.jsonl"))
+	es, err := store.OpenEventStore(filepath.Join(t.TempDir(), "sess"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = journal.Close() }()
+	defer func() { _ = es.Close() }()
 
 	cap := &capturingProvider{inner: scripted.New(fix)}
 	loop := &Loop{
@@ -66,9 +66,10 @@ func TestLoopRequestAssemblyGolden(t *testing.T) {
 			Tools:        []string{"read_file", "edit_file"},
 			MaxTurns:     5,
 		},
-		Provider: cap,
-		Exec:     &tool.Executor{WS: ws},
-		Journal:  journal,
+		Provider:  cap,
+		Exec:      &tool.Executor{WS: ws},
+		Store:     es,
+		SessionID: "golden-sess",
 	}
 	if _, err := loop.Run(context.Background(), "make it loud"); err != nil {
 		t.Fatal(err)
