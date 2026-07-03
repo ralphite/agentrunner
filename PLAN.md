@@ -221,6 +221,78 @@ scripts/check.sh          # golangci-lint + go test 全绿 = 一步完成
 不差、in-doubt 上浮、等待状态跨进程存活（**用合成 event 验证；
 "审批全流程挂起存活"是 3.5 的验证项**——STAGES.md 已同步勘误）。
 
+### S2 执行包（kickoff refinement 预定默认值——偏离须记入 PROGRESS.md）
+
+- **包布局**：`internal/event`（Envelope + 全部 event/command payload
+  类型 + 类型注册表）、`internal/store` 升级为 EventStore（journal v0
+  同包共存到 2.10，loop 切换后删除 journal 写入）、`internal/kernel`
+  （actor/bus，forbidigo 生效区）、`internal/state`（fold + sub-states，
+  forbidigo 生效区）、`internal/errs`（2.8）、`internal/clock`
+  （Clock/FakeClock，在 forbidigo 区外——唯一合法 wall-clock 出口）、
+  `internal/crash`（命名注入点注册表；生产构建为 no-op，含
+  `AGENTRUNNER_CRASH` 时 `os.Exit(137)`）。
+- **Envelope 线上形态**（events.jsonl 每行一个）：
+  `{seq, id, causation_id, correlation_id, sender, target, type,
+  payload, ts}`；`seq` 由 EventStore 追加时赋值（per-session 单调，
+  从 1 起）；event id = `evt-<seq>`（追加后确定）；command id 由发送方
+  生成 `cmd-<8hex>`（crypto/rand——command 属外部输入，先 journal 再
+  消费，不破坏回放确定性）。传播：`child.causation_id = parent.id`、
+  `correlation_id` 全链继承（根 = run 的 correlation，即 session id）。
+- **文件布局**：`sessions/<id>/events.jsonl`（0600）、
+  `sessions/<id>/lock`（flock + 写入 `pid\n`，撞锁读 pid 报
+  `session held by pid N`；持锁进程不存在（`kill -0` 失败）即 stale，
+  抢占并覆写）、`sessions/<id>/snapshots/<upto_seq>.json`（0600，
+  snapshot 不是 event，不进流）。读者（`events`/`accept` 检查）免锁。
+- **event 类型清单（S2 全集，S3+ 只加不改）**：
+  `RunStarted{spec_name, model, task, version, sub_state_versions}` /
+  `InputReceived{text, source}` / `TurnStarted{turn}` /
+  `AssistantMessage{turn, message}` /
+  `ActivityStarted{activity_id, kind: llm|tool, name, args, call_id?,
+  idempotent, attempt}` /
+  `ActivityCompleted{activity_id, result, usage?, is_error}` /
+  `ActivityFailed{activity_id, error{class, message, retryable}, attempt}` /
+  `ActivityCancelled{activity_id, partial_output}` /
+  `TimerSet{timer_id, fire_at, purpose}` / `TimerFired{timer_id}` /
+  `WaitingEntered{kind: input|approval|tasks|timer, detail}` /
+  `WaitingResolved{kind, resolution}` / `ActorCrashed{actor, error}` /
+  `RunEnded{reason, turns, usage}`。payload 一律独立 struct + 注册表
+  `map[type]func() any`（round-trip 测试逐类型驱动）。
+- **activity id 确定性**：LLM = `llm-t<turn>`；tool = `tool-<call_id>`
+  （call_id 已确定性）；重试不换 id，靠 `attempt` 区分。
+- **fold state 形态**：`state.State{Conversation, Activities, Waiting,
+  Run}` 四个命名空间 sub-state，各实现 `Version() int`（全部从 1 起）；
+  snapshot 头 = `{upto_seq, sub_state_versions map[string]int}`；
+  `Activities` = in-flight 集合（钩子 3）：`map[activity_id]StartedInfo`，
+  终态 event 移除；`Run` = 状态机 `running|waiting|ended` + turn 计数 +
+  usage 累计。apply 纯函数：`func Apply(s State, e event.Envelope)
+  (State, error)`——未知 event type 是 error（拒绝静默丢失实）。
+- **崩溃注入两轨**：(a) 计数谓词 `AGENTRUNNER_CRASH=after:<EventType>:<n>`
+  ——EventStore append 成功后检查；(b) 命名点
+  `AGENTRUNNER_CRASH=point:<name>`——代码内 `crash.Point("<name>")`。
+  S2 注册点：`after_journal_input`、`after_exec_before_journal`、
+  `after_snapshot_write`、`before_run_end`（S3 加
+  `between_gate_and_resolved`）。harness 断言注册表含全部期望名——
+  删点即测试响亮失败。
+- **Clock**：`clock.Clock{Now() time.Time; WaitUntil(ctx, t) error}`；
+  `FakeClock.Advance(d)` 唤醒到期 waiter；runtime 注入，kernel/state
+  只经接口。durable timer：`TimerSet` 落盘 → 调度器 `WaitUntil` →
+  `TimerFired` 落盘；resume 时扫 fold 里未 fired 的 timer 重新调度
+  （过期即刻 fire）。
+- **错误分类学**：`errs.Class` ∈ `provider_rate_limit | provider_server |
+  provider_auth | provider_invalid | tool_failed | timeout | canceled |
+  internal`；`Retryable()`：rate_limit/server/timeout = true，其余 false；
+  Gemini 映射：429→rate_limit、5xx→server、401/403→auth、400→invalid。
+- **retry/backoff**：仅 `Retryable` 类重试；上限 3 次尝试，backoff
+  1s/4s（经 Clock，可 FakeClock 快进）；每次尝试都是新
+  `ActivityStarted{attempt: n}`。
+- **CLI**：`agentrunner events <session-id> [--state] [--json]`（美化
+  打印默认；`--state` 输出 fold 终态 JSON）；`agentrunner resume
+  <session-id>`；`agentrunner sessions list`（按 mtime 倒序表格：id、
+  状态（读 fold）、turns）。session-id 参数接受唯一前缀。
+- **顺序微调预授权**：2.5（调试工具）可提前到 2.4 之后立即做（fold
+  断言全靠它）；2.6 与 2.7 可合并为一个 commit（harness 骨架的自测
+  就是 journal-inputs-first 的第一个用例）。其余顺序不变。
+
 ---
 
 ## Stage 3 — 治理副作用（effect pipeline）

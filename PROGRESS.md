@@ -269,3 +269,31 @@ Gemini 会 400)+ Complete 流内错误、scripted 每次迭代消费一步的语
 现为 4 场景。
 
 **Stage 1 正式关闭**。下一步:S2 kickoff refinement。
+
+---
+
+## S2 kickoff refinement — DONE
+
+按 §0.5 惯例在进入 Stage 2 前细化步骤(只动 PLAN.md Stage 2 段,
+不触 DESIGN.md 不变量)。产出:PLAN.md 新增 **S2 执行包**,把 2.1–2.17
+里所有"实现时才会遇到"的欠规格项预先钉死。关键决定:
+
+- **包布局**:`internal/event`(类型+注册表)、store 升级 EventStore
+  (journal v0 共存到 2.10)、`internal/kernel`+`internal/state`
+  (forbidigo 生效区)、`internal/clock`(区外,唯一 wall-clock 出口)、
+  `internal/crash`(注入点注册表)。
+- **id 方案**:event id = `evt-<seq>`(append 后确定,seq per-session
+  单调);command id = `cmd-<8hex>` 随机(外部输入先 journal 再消费,
+  不破坏回放);activity id 确定性(`llm-t<turn>` / `tool-<call_id>`),
+  重试不换 id 靠 attempt 区分。
+- **文件布局**:`events.jsonl` + `lock`(flock+pid,stale 检测=
+  kill -0)+ `snapshots/<upto_seq>.json`(snapshot 不进 event 流)。
+- **event 全集 14 个类型**(S3+ 只加不改),payload 独立 struct +
+  注册表驱动 round-trip 测试;apply 遇未知 type 报错(拒绝静默丢失实)。
+- **崩溃注入两轨**:计数谓词 `after:<EventType>:<n>`(store 层检查)
+  + 命名点 `point:<name>`(`crash.Point()`);S2 注册 4 个点。
+- **错误分类学 8 类 + retry 政策**(仅 retryable,3 次,1s/4s 经 Clock)。
+- **顺序微调预授权**:2.5 可提至 2.4 后;2.6+2.7 可合并 commit。
+
+Open questions 留给 stage review:kernel 的 actor 粒度(单 session
+单 actor 还是 per-concern 多 actor)在 2.3 实现时按最小可用决定并记档。
