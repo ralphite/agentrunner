@@ -331,3 +331,24 @@ truncate 修复——该 event 从未被 ack,丢弃安全)。
   调用——计数谓词的正确注入时点先钉住。
 - Append 失败(write/fsync)不回滚 seq:文件可能已有半行,下次
   open 会修复;marshal 失败(未写盘)回滚 seq。
+
+## S2.3 kernel — DONE
+
+`internal/kernel`:Actor = goroutine + 64-buffer mailbox;
+`Bus{Register, Subscribe, Send, Publish, Close}`;handler 返回子
+envelope,actor 负责 `ChildOf` 盖章后路由(有 Target → send,
+无 → publish by type);command 按 Envelope.ID 去重;handler
+error/panic → actor 标 dead + publish `ActorCrashed`(以肇事
+envelope 为 causation),不自动重启,后续 Send 报错。
+
+**Decisions**:
+- actor 粒度(kickoff open question):kernel 不预设,Bus 支持任意
+  个;2.10 loop 重写时按最小可用定拓扑。
+- dedup 集合在内存(非 fold):回放期的去重由 fold 天然给出,
+  mailbox 级 dedup 只防运行期重复投递。
+- mailbox 满时 send 持锁阻塞——原型级死锁风险,记档;S6 服务化
+  若需要再换无锁投递。
+- 子 envelope 路由失败(目标不存在/已死)按 crash 处理——静默
+  丢子事实不可接受。
+- forbidigo 从本步起在 internal/kernel 生效(测试也不用 sleep,
+  全部靠 channel 同步 + mailbox FIFO 序断言)。
