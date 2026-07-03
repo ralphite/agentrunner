@@ -29,6 +29,10 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 	case "--version", "version":
 		fmt.Fprintf(stdout, "agentrunner %s (%s)\n", version, runtime.Version())
 		return ExitOK
+	case "run":
+		return runCmd(args[1:], false, stdout, stderr)
+	case "record-fixture":
+		return runCmd(args[1:], true, stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "agentrunner: unknown command %q\n%s", args[0], usage())
 		return ExitUsage
@@ -36,7 +40,7 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 }
 
 func usage() string {
-	return "usage: agentrunner --version\n"
+	return "usage: agentrunner <run|record-fixture|--version> [flags] [<spec.yaml> \"task\"]\n"
 }
 
 // setupLogging configures the process-wide slog default. Logs go to stderr

@@ -178,3 +178,19 @@ review 的 open questions。
   - **明确标注**：本 orchestration 是 S1 naive 版，S2.10 会重写到
     activity + fold state 之上（接口不变）——预期返工 #1 的落点。
 - **DEFERRED**：无。
+
+## S1.9 — CLI run 命令　✅
+
+- **状态**：完成。`run` / `record-fixture` 子命令、`--workspace` /
+  `--max-turns` / `-o` 旗标、`.env` 加载（不覆盖已有 env）、textSink
+  turn 粒度渲染、session 创建 + journal 接线。5 组测试（scripted 端到端、
+  退出码、dotenv 语义）+ **live 手动验收通过**（真 Gemini 3 turn 修文件）。
+- **决定**：
+  - `record-fixture` 与 `run` 共用一条执行路径（recordMode 包装
+    provider），1.3a 遗留的 CLI 接线在此关闭。
+  - 人机信息（session id、run 摘要、fixture 路径）走 **stderr**，
+    stdout 只留 agent 输出——脚本可管道消费。
+  - max_turns 停止按正常完成处理（exit 0）。
+  - provider 工厂可注入（测试用 scripted 工厂）；未知 provider 报
+    usage 错（exit 2）。
+- **DEFERRED**：无。
