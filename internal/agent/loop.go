@@ -78,6 +78,10 @@ type Loop struct {
 	// refs resolve tree-wide. Blob durability precedes the ArtifactPublished
 	// fact, always.
 	Artifacts *store.ArtifactStore
+	// Inputs are artifact refs to materialize into the workspace before the
+	// first turn (S5.8): journaled into RunStarted, written by an idempotent
+	// materialize activity. Set by a spawning parent (or a future CLI flag).
+	Inputs []event.ArtifactInput
 }
 
 // MCPManager is the slice of mcp.Manager the loop needs (an interface so
@@ -223,6 +227,7 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 		Env:    renderEnvBlock(wsRoot, l.Clock.Now()),
 		Memory: memoryBlock, Skills: skillsBlock,
 		Agents: renderAgentsDirectory(l.Spec.Agents, l.SubSpecs),
+		Inputs: l.Inputs,
 	}); err != nil {
 		return RunResult{}, err
 	}
@@ -245,6 +250,9 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 		}
 	}
 	if err := l.discoverMCP(ctx, appendE); err != nil {
+		return RunResult{}, err
+	}
+	if err := l.materializeInputs(ctx, ds, appendE); err != nil {
 		return RunResult{}, err
 	}
 	l.emit(protocol.Event{Kind: protocol.KindRunStart, Mode: ds.s.CurrentMode()})
@@ -412,6 +420,12 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 	// Timer sweep: expired pending timers fire now; future ones belong to
 	// in-flight activities, which re-arm on their re-run.
 	if _, err := FirePendingTimers(ds.s, l.Clock, appendE); err != nil {
+		return RunResult{}, err
+	}
+
+	// A crash between run_started and the materialize completion leaves the
+	// inputs unwritten — re-run (idempotent: same refs, same bytes).
+	if err := l.materializeInputs(ctx, ds, appendE); err != nil {
 		return RunResult{}, err
 	}
 

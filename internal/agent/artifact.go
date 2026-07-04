@@ -3,10 +3,14 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/ralphite/agentrunner/internal/crash"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/provider"
+	"github.com/ralphite/agentrunner/internal/redact"
 	"github.com/ralphite/agentrunner/internal/store"
 	"github.com/ralphite/agentrunner/internal/tool"
 )
@@ -23,6 +27,47 @@ func (l *Loop) ensureArtifacts() error {
 	}
 	l.Artifacts = a
 	return nil
+}
+
+// materializeInputs writes the run's artifact inputs into the workspace
+// (S5.8) as ONE idempotent activity — Started/terminal journaled like any
+// side effect, so resume sees whether it happened (fold Run.Materialized)
+// and can safely re-run it when it did not (same refs → same bytes).
+func (l *Loop) materializeInputs(ctx context.Context, ds *driveState, appendE AppendFunc) error {
+	inputs := ds.s.Run.Inputs
+	if len(inputs) == 0 || ds.s.Run.Materialized {
+		return nil
+	}
+	if l.Artifacts == nil || l.Exec == nil || l.Exec.WS == nil {
+		return fmt.Errorf("materialize: run has artifact inputs but no artifact store/workspace")
+	}
+	exec := &ActivityExecutor{Append: appendE, Clock: l.Clock, Redact: redact.FromEnv()}
+	return exec.Do(ctx, Activity{
+		ID: "materialize", Kind: event.KindTool, Name: "materialize",
+		Idempotent: true,
+		Run: func(context.Context) (json.RawMessage, *provider.Usage, bool, error) {
+			var written []string
+			for _, in := range inputs {
+				content, err := l.Artifacts.Get(in.Ref)
+				if err != nil {
+					return nil, nil, false, fmt.Errorf("materialize %s: %w", in.Path, err)
+				}
+				dest, err := l.Exec.WS.Resolve(in.Path)
+				if err != nil {
+					return nil, nil, false, fmt.Errorf("materialize %s: %w", in.Path, err)
+				}
+				if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+					return nil, nil, false, err
+				}
+				if err := os.WriteFile(dest, content, 0o644); err != nil {
+					return nil, nil, false, err
+				}
+				written = append(written, in.Path)
+			}
+			payload, _ := json.Marshal(map[string]any{"materialized": written})
+			return payload, nil, false, nil
+		},
+	})
 }
 
 // buildPublishRun is publish_artifact's Run closure (S5.5). Ordering is the

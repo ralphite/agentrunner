@@ -12,6 +12,24 @@
       "task": {
         "type": "string",
         "description": "The task for the sub-agent to perform."
+      },
+      "inputs": {
+        "type": "array",
+        "description": "Artifacts to place into the sub-agent's workspace before it starts.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "description": "Artifact ref (from a publish result)."
+            },
+            "path": {
+              "type": "string",
+              "description": "Workspace-relative destination path."
+            }
+          },
+          "required": ["ref", "path"]
+        }
       }
     },
     "required": ["agent", "task"]

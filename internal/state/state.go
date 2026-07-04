@@ -185,6 +185,11 @@ type Run struct {
 	// Published maps stream → latest published version (S5.5): the outputs
 	// contract (S5.6) checks required streams against it at the epilogue.
 	Published map[string]int `json:"published,omitempty"`
+	// Inputs are the artifact refs to materialize (S5.8, from RunStarted);
+	// Materialized records that the materialize activity completed, so a
+	// crash-resume knows whether to (re-)run it (it is idempotent anyway).
+	Inputs       []event.ArtifactInput `json:"inputs,omitempty"`
+	Materialized bool                  `json:"materialized,omitempty"`
 }
 
 // New is the empty pre-RunStarted state.
@@ -227,6 +232,7 @@ func Apply(s State, env event.Envelope) (State, error) {
 		s.Run.SpecName, s.Run.Model, s.Run.Task, s.Run.Version = p.SpecName, p.Model, p.Task, p.Version
 		s.Run.Env = p.Env
 		s.Run.Memory, s.Run.Skills, s.Run.Agents = p.Memory, p.Skills, p.Agents
+		s.Run.Inputs = p.Inputs
 
 	case *event.InputReceived:
 		// Interrupts are journaled control inputs (journal-inputs-first),
@@ -300,6 +306,9 @@ func Apply(s State, env event.Envelope) (State, error) {
 		s.Budget = s.Budget.release(effectIDFor(started, p.ActivityID))
 		if p.Usage != nil {
 			s.Run.Usage = addUsage(s.Run.Usage, *p.Usage)
+		}
+		if p.ActivityID == "materialize" {
+			s.Run.Materialized = true // artifact inputs are in the workspace (S5.8)
 		}
 		if inFlight && started.Kind == event.KindTool && started.CallID != "" {
 			s.Conversation = s.Conversation.withToolResult(started.CallID,

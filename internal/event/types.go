@@ -89,6 +89,15 @@ type RunStarted struct {
 	// Agents is the rendered sub-agent directory block (S5.3), frozen like
 	// Skills — the model spawns only what it can see.
 	Agents string `json:"agents,omitempty"`
+	// Inputs are artifact refs to materialize into the workspace before the
+	// first turn (S5.8) — how a parent hands documents to a child.
+	Inputs []ArtifactInput `json:"inputs,omitempty"`
+}
+
+// ArtifactInput is one artifact handed to a run as input (S5.8).
+type ArtifactInput struct {
+	Ref  string `json:"ref"`
+	Path string `json:"path"` // workspace-relative destination
 }
 
 type InputReceived struct {

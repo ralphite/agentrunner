@@ -70,24 +70,44 @@ func (l *Loop) spawnAllowance(s state.State, childSpec *AgentSpec) int {
 // through the whitelist. A failure is a MODEL-visible problem (bad args,
 // unknown agent), returned as a message, never a harness error.
 func (l *Loop) resolveSpawnTarget(toolName string, rawArgs json.RawMessage) (agent, task string, spec *AgentSpec, problem string) {
+	agent, task, _, spec, problem = l.resolveSpawnTargetFull(toolName, rawArgs)
+	return agent, task, spec, problem
+}
+
+// resolveSpawnTargetFull additionally returns validated artifact inputs
+// (S5.8): every ref must resolve in the tree store BEFORE the child starts —
+// a dangling input is the parent model's mistake, reported to it.
+func (l *Loop) resolveSpawnTargetFull(toolName string, rawArgs json.RawMessage) (agent, task string, inputs []event.ArtifactInput, spec *AgentSpec, problem string) {
 	var args struct {
-		Agent string `json:"agent"`
-		Task  string `json:"task"`
+		Agent  string                `json:"agent"`
+		Task   string                `json:"task"`
+		Inputs []event.ArtifactInput `json:"inputs"`
 	}
 	if err := json.Unmarshal(rawArgs, &args); err != nil || args.Agent == "" || args.Task == "" {
-		return "", "", nil, toolName + ": invalid args: need {\"agent\", \"task\"}"
+		return "", "", nil, nil, toolName + ": invalid args: need {\"agent\", \"task\"}"
 	}
 	if !slices.Contains(l.Spec.Agents, args.Agent) {
-		return "", "", nil, fmt.Sprintf("%s: %q is not in this agent's directory", toolName, args.Agent)
+		return "", "", nil, nil, fmt.Sprintf("%s: %q is not in this agent's directory", toolName, args.Agent)
 	}
 	if l.SubSpecs == nil {
-		return "", "", nil, toolName + ": no sub-agent specs available"
+		return "", "", nil, nil, toolName + ": no sub-agent specs available"
 	}
 	spec, err := l.SubSpecs(args.Agent)
 	if err != nil {
-		return "", "", nil, fmt.Sprintf("%s: %v", toolName, err)
+		return "", "", nil, nil, fmt.Sprintf("%s: %v", toolName, err)
 	}
-	return args.Agent, args.Task, spec, ""
+	for _, in := range args.Inputs {
+		if in.Ref == "" || in.Path == "" {
+			return "", "", nil, nil, toolName + ": each input needs {\"ref\", \"path\"}"
+		}
+		if l.Artifacts == nil {
+			return "", "", nil, nil, toolName + ": inputs given but no artifact store"
+		}
+		if _, err := l.Artifacts.Get(in.Ref); err != nil {
+			return "", "", nil, nil, fmt.Sprintf("%s: input ref %s does not resolve", toolName, in.Ref)
+		}
+	}
+	return args.Agent, args.Task, args.Inputs, spec, ""
 }
 
 // buildSpawnRun is the spawn activity's Run closure (S5.3). Everything that
@@ -102,7 +122,7 @@ func (l *Loop) buildSpawnRun(call provider.ToolCall, res *tool.Result,
 	attempt := 0
 	return func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
 		attempt++
-		agentName, task, childSpec, problem := l.resolveSpawnTarget(call.Name, call.Args)
+		agentName, task, inputs, childSpec, problem := l.resolveSpawnTargetFull(call.Name, call.Args)
 		if problem != "" {
 			*res = errorResult(problem)
 			return res.Payload, nil, true, nil
@@ -124,6 +144,7 @@ func (l *Loop) buildSpawnRun(call provider.ToolCall, res *tool.Result,
 		}
 
 		child := l.childLoop(childSpec, childStore, childSession, allowance, parentMode)
+		child.Inputs = inputs
 		cres, cerr := child.Run(ctx, task)
 		if cerr != nil {
 			if ctx.Err() != nil {

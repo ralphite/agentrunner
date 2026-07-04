@@ -1728,3 +1728,24 @@ child journal reason=contract_violation。epilogue 既有三测更新签名。
 **批**:plan stream 两版本内容各异;两条 ApprovalRequested 的 payload_ref
 分别钉住 v1/v2 的 ref;deny 带理由、approve 后 mode plan→default;3 turn
 completed。
+
+## S5.8 artifact 输入 — DONE(materialize activity)
+
+- **spawn_agent 参数扩 `inputs: [{ref, path}]`**(schema 更新);
+  `resolveSpawnTargetFull` 在 child 启动前**校验每个 ref 可解析**——悬空
+  ref 是父模型的错误(model-visible,child 不启动)。
+- **journal 进 child RunStarted**:`RunStarted.Inputs []ArtifactInput` →
+  fold `Run.Inputs`;child(或将来 CLI)持 `Loop.Inputs`。
+- **materialize activity**(DESIGN 原文"in-doubt 语义随之而来"):ID 固定
+  `materialize`、Kind tool、**Idempotent=true**(同 ref 同 bytes,重跑收敛)
+  ——Started/Completed 走 ActivityExecutor 正常 journal;fold 在其
+  ActivityCompleted 上置 `Run.Materialized`。**Run 与 Resume 都在 drive 前
+  检查**:有 Inputs 且未 Materialized → 执行(崩溃在 RunStarted 与
+  materialize 之间 → resume 补跑;幂等故安全)。写入:WS.Resolve(路径边界)
+  + MkdirAll + WriteFile。
+- CLI `--input` flag 留后续(spawn 路径已满足编队故事),记档。
+
+**验证**:e2e(parent publish → 以 ref spawn → child journal 中 materialize
+completed **先于** turn 1(seq 断言)、fold Materialized/Inputs、child
+read_file 读到物化内容——ref 由 CAS 决定论预先计算注入 fixture);悬空 ref
+拒绝(model-visible、无 child 目录、父继续)。
