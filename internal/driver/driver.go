@@ -131,16 +131,26 @@ func (d *Driver) Run(ctx context.Context) (Result, error) {
 				}
 				return d.finish(appendE, st, "stopped", n)
 			}
-			// on_child_failure defaults to stop (v0): record the failure as the
-			// iteration's verdict and end child_failed. retry/surface policies
-			// arrive with the budget/failure step.
+			// The child run failed on its own merits (retries, if any, are
+			// already exhausted inside runIteration). Record the failure as the
+			// iteration's verdict — with the child's real spend so the budget
+			// stays honest — then apply on_child_failure.
 			if _, err := appendE(event.TypeIterationCompleted, &event.IterationCompleted{
 				DriverID: d.DriverID, Iter: n, ChildSession: childSession,
-				ChildReason: "error",
+				ChildReason: "error", Usage: childSpent(childDir),
 				Verdict: event.IterationVerdict{
 					Detail: "child failed: " + redact.FromEnv().String(cerr.Error())},
 			}); err != nil {
 				return Result{}, err
+			}
+			if d.Spec.OnChildFailure.Mode == OnFailSurface {
+				// Resilient goal: a failed child is a spent iteration, but the
+				// driver keeps trying the next one (bounded by max_iterations
+				// and the budget).
+				if d.stalled(st) {
+					return d.finish(appendE, st, "stalled", n)
+				}
+				continue
 			}
 			return d.finish(appendE, st, "child_failed", n)
 		}
@@ -173,19 +183,55 @@ func (d *Driver) finish(appendE appendFunc, st *State, reason string, iterations
 	return Result{Reason: reason, Iterations: iterations, BestIter: st.BestIter}, nil
 }
 
-// runIteration opens the child's own journal under sub/ and runs it to
-// completion; the fresh store keeps a re-run from appending onto a dead log.
+// runIteration runs the iteration's child to completion, applying the
+// on_child_failure retry policy: attempt 1 lands under sub/iter-N; each retry
+// gets its own sub/iter-N-aM store so a re-run never appends onto a dead log.
+// A ctx cancel stops retrying immediately. Returns the last attempt's result,
+// its child dir, and its error (nil on the first success).
 func (d *Driver) runIteration(ctx context.Context, n int, childSession string, allowance int) (agent.RunResult, string, error) {
-	childDir := filepath.Join(d.Store.Dir(), "sub", fmt.Sprintf("iter-%d", n))
-	childStore, err := store.OpenEventStore(childDir)
-	if err != nil {
-		return agent.RunResult{}, childDir, fmt.Errorf("driver: open child store: %w", err)
+	attempts := 1
+	if d.Spec.OnChildFailure.Mode == OnFailRetry && d.Spec.OnChildFailure.Max > 0 {
+		attempts += d.Spec.OnChildFailure.Max
 	}
-	defer func() { _ = childStore.Close() }()
-
-	child := d.NewChild(childStore, childSession, n, allowance)
-	res, rerr := child.Run(ctx, d.Spec.Task)
+	var (
+		res      agent.RunResult
+		childDir string
+		rerr     error
+	)
+	for a := 1; a <= attempts; a++ {
+		childDir = filepath.Join(d.Store.Dir(), "sub", iterDir(n, a))
+		childStore, err := store.OpenEventStore(childDir)
+		if err != nil {
+			return agent.RunResult{}, childDir, fmt.Errorf("driver: open child store: %w", err)
+		}
+		session := childSession
+		if a > 1 {
+			session = fmt.Sprintf("%s-a%d", childSession, a)
+		}
+		child := d.NewChild(childStore, session, n, allowance)
+		res, rerr = child.Run(ctx, d.Spec.Task)
+		_ = childStore.Close()
+		if rerr == nil {
+			return res, childDir, nil
+		}
+		if ctx.Err() != nil {
+			return res, childDir, rerr // cancel is not a retryable failure
+		}
+		if a < attempts {
+			slog.Warn("driver: child attempt failed, retrying",
+				"driver", d.DriverID, "iter", n, "attempt", a, "err", rerr)
+		}
+	}
 	return res, childDir, rerr
+}
+
+// iterDir names an iteration's child journal: sub/iter-N for the first
+// attempt, sub/iter-N-aM for retries.
+func iterDir(n, attempt int) string {
+	if attempt <= 1 {
+		return fmt.Sprintf("iter-%d", n)
+	}
+	return fmt.Sprintf("iter-%d-a%d", n, attempt)
 }
 
 // reserve computes the next child's min-aggregated allowance and reports
@@ -316,6 +362,21 @@ func (d *Driver) verifyCommand(ctx context.Context, v VerifierSpec) event.Iterat
 		Pass: pass, Verifier: VerifierCommand, Score: score,
 		Detail: fmt.Sprintf("exit=%d", out.ExitCode),
 	}
+}
+
+// childSpent folds the child journal for its settled usage — the truth even
+// when the child aborted (RunResult carries zero on error paths), so a failed
+// child's spend still counts against the tree budget.
+func childSpent(childDir string) provider.Usage {
+	events, err := store.ReadEvents(childDir)
+	if err != nil {
+		return provider.Usage{}
+	}
+	s, err := state.Fold(events)
+	if err != nil {
+		return provider.Usage{}
+	}
+	return s.Run.Usage
 }
 
 // childReport extracts the child's final assistant text from its journal —

@@ -16,10 +16,33 @@ import (
 	"github.com/ralphite/agentrunner/internal/workspace"
 )
 
-// harness wires a driver whose child, each iteration, appends one line to
-// progress.txt (a fresh scripted run over the shared workspace). The command
-// verifier is supplied by the caller.
+// workFixture is one iteration's happy path: append a line to progress.txt
+// and report a fixed 150 billed tokens.
+func workFixture() scripted.Fixture {
+	return scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{
+			{ToolCall: &scripted.ToolCallEvent{CallID: "c1", Name: "bash",
+				Args: map[string]any{"command": "echo tick >> progress.txt"}}},
+			{Finish: "tool_use"},
+		}},
+		{Respond: []scripted.Event{
+			{Text: "appended a line"},
+			{Usage: &scripted.UsageEvent{InputTokens: 100, OutputTokens: 50}}, // billed 150
+			{Finish: "end_turn"},
+		}},
+	}}
+}
+
+// harness wires a driver whose child runs workFixture each iteration over a
+// shared workspace. The command verifier is supplied by the caller.
 func harness(t *testing.T, spec *driver.DriverSpec) (*driver.Driver, *store.EventStore) {
+	return harnessFix(t, spec, workFixture())
+}
+
+// harnessFix is harness with a caller-chosen child fixture — an empty fixture
+// makes every child run fail (the provider exhausts on the first turn), which
+// drives the on_child_failure paths.
+func harnessFix(t *testing.T, spec *driver.DriverSpec, fix scripted.Fixture) (*driver.Driver, *store.EventStore) {
 	t.Helper()
 	root := t.TempDir()
 	ws, err := workspace.New(root)
@@ -41,18 +64,6 @@ func harness(t *testing.T, spec *driver.DriverSpec) (*driver.Driver, *store.Even
 		MaxTurns:     5,
 	}
 	spec.Agent = childSpec
-	fix := scripted.Fixture{Steps: []scripted.Step{
-		{Respond: []scripted.Event{
-			{ToolCall: &scripted.ToolCallEvent{CallID: "c1", Name: "bash",
-				Args: map[string]any{"command": "echo tick >> progress.txt"}}},
-			{Finish: "tool_use"},
-		}},
-		{Respond: []scripted.Event{
-			{Text: "appended a line"},
-			{Usage: &scripted.UsageEvent{InputTokens: 100, OutputTokens: 50}}, // billed 150
-			{Finish: "end_turn"},
-		}},
-	}}
 	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
 
 	d := &driver.Driver{
@@ -248,6 +259,114 @@ func TestDriverBudgetStop(t *testing.T) {
 	last := events[len(events)-1]
 	if last.Type != event.TypeDriverCompleted {
 		t.Fatalf("last = %s, want driver_completed", last.Type)
+	}
+}
+
+// on_child_failure default (stop): a failing child ends the driver as
+// child_failed at the first iteration.
+func TestDriverChildFailStop(t *testing.T) {
+	d, dStore := harnessFix(t, &driver.DriverSpec{
+		Name: "goal", Task: "work", MaxIterations: 5,
+		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierCommand, Command: "true"}},
+	}, scripted.Fixture{}) // empty fixture → child errors on its first turn
+
+	res, err := d.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "child_failed" || res.Iterations != 1 {
+		t.Fatalf("res = %+v, want child_failed at 1", res)
+	}
+	events, _ := store.ReadEvents(dStore.Dir())
+	st, _ := driver.Fold(events)
+	if len(st.Iterations) != 1 || st.Iterations[0].ChildReason != "error" {
+		t.Fatalf("iteration 0 = %+v, want one error iteration", st.Iterations)
+	}
+}
+
+// on_child_failure surface: a failing child is a spent iteration but the
+// driver keeps going, exhausting max_iterations across failures.
+func TestDriverChildFailSurface(t *testing.T) {
+	d, dStore := harnessFix(t, &driver.DriverSpec{
+		Name: "goal", Task: "work", MaxIterations: 3,
+		OnChildFailure: driver.FailurePolicy{Mode: driver.OnFailSurface},
+		Verifiers:      []driver.VerifierSpec{{Kind: driver.VerifierCommand, Command: "true"}},
+	}, scripted.Fixture{})
+
+	res, err := d.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "max_iterations" || res.Iterations != 3 {
+		t.Fatalf("res = %+v, want max_iterations at 3 (all surfaced)", res)
+	}
+	events, _ := store.ReadEvents(dStore.Dir())
+	st, _ := driver.Fold(events)
+	if len(st.Iterations) != 3 {
+		t.Fatalf("iterations = %d, want 3", len(st.Iterations))
+	}
+	for i, it := range st.Iterations {
+		if it.ChildReason != "error" {
+			t.Errorf("iteration %d reason = %q, want error", i+1, it.ChildReason)
+		}
+	}
+}
+
+// on_child_failure retry: the first two attempts fail, the third succeeds —
+// the iteration recovers and the goal is satisfied, with all three attempt
+// journals on disk.
+func TestDriverChildFailRetryRecovers(t *testing.T) {
+	root := t.TempDir()
+	ws, err := workspace.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exec := &tool.Executor{WS: ws}
+	dStore, err := store.OpenEventStore(filepath.Join(root, "driver"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = dStore.Close() })
+
+	childSpec := &agent.AgentSpec{
+		Name: "worker", Model: agent.ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
+		SystemPrompt: "work", Tools: []string{"bash"}, MaxTurns: 5,
+	}
+	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
+	calls := 0
+	d := &driver.Driver{
+		Spec: &driver.DriverSpec{
+			Name: "goal", Task: "work", MaxIterations: 5, Agent: childSpec,
+			OnChildFailure: driver.FailurePolicy{Mode: driver.OnFailRetry, Max: 2},
+			Verifiers:      []driver.VerifierSpec{{Kind: driver.VerifierCommand, Command: "test -f progress.txt"}},
+		},
+		Store: dStore, Clock: clk, DriverID: "drv-1", Exec: exec,
+		NewChild: func(cs *store.EventStore, session string, iter, budget int) *agent.Loop {
+			calls++
+			fix := scripted.Fixture{} // attempts 1-2 fail
+			if calls >= 3 {
+				fix = workFixture() // attempt 3 writes progress.txt and succeeds
+			}
+			return &agent.Loop{Spec: childSpec, Provider: scripted.New(fix),
+				Exec: exec, Store: cs, Clock: clk, SessionID: session}
+		},
+	}
+
+	res, err := d.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "satisfied" || res.Iterations != 1 {
+		t.Fatalf("res = %+v, want satisfied at 1 (retry recovered)", res)
+	}
+	if calls != 3 {
+		t.Errorf("child built %d times, want 3 (2 failures + 1 success)", calls)
+	}
+	// All three attempt journals exist on disk.
+	for _, sub := range []string{"iter-1", "iter-1-a2", "iter-1-a3"} {
+		if _, err := store.ReadEvents(filepath.Join(dStore.Dir(), "sub", sub)); err != nil {
+			t.Errorf("attempt journal %s missing: %v", sub, err)
+		}
 	}
 }
 

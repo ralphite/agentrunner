@@ -1998,6 +1998,23 @@ child)。`ChildFactory` 签名加 `budgetTokens`,工厂据此钳制 child(测试
 300 ≥ 250 停,reason=budget)+ `reserve()` 表驱动单测(7 例:无限/child
 紧/树紧/耗尽/超支)。全量 check + race 通过。
 
-**未接(后续步骤)**:on_child_failure(stop/surface/retry{max,backoff})、
-on_reserve_failure(loop mode 的 skip 语义)、retry 的 spend 计账、llm_judge
-/human verifier、carry_ref 入 ArtifactStore、resume。
+**未接(后续步骤)**:on_reserve_failure(loop mode 的 skip 语义)、
+llm_judge/human verifier、carry_ref 入 ArtifactStore、resume。
+
+## S6 模块②(续)— on_child_failure 策略 — DONE
+
+`DriverSpec.OnChildFailure{Mode, Max}`(区分 child RUN 失败 vs 验证未过):
+- **stop**(默认):child 崩 → `DriverCompleted{child_failed}`。
+- **surface**:失败迭代照记 `IterationCompleted{error}`(带 child 真实
+  spend,预算不漏账),但驱动继续下一迭代(受 max_iterations/budget 界)。
+- **retry{max}**:失败在 `runIteration` 内**就地重试** max 次,每次 attempt
+  独立 store(`sub/iter-N` 首跑、`sub/iter-N-aM` 重试),ctx 取消不重试;
+  耗尽仍失败则落回 stop→child_failed。**backoff 延后**(需 scheduler 的
+  durable timer,记档)。
+
+失败判定用 `errs.Internal`(fixture exhausted)非 retryable → child 快速
+失败不卡 fake clock。新增 `childSpent(childDir)` 折 child journal 取真实
+spend(error 路 RunResult 为零)。三测试:stop(空 fixture→child_failed@1)、
+surface(空 fixture×3→max_iterations,三条 error 迭代)、retry-recovers
+(计数工厂:attempt 1-2 空 fixture 失败、attempt 3 workFixture 成功→
+satisfied@1,三 attempt journal 皆在盘)。全量 check + race 通过。

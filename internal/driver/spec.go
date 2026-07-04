@@ -48,11 +48,31 @@ type DriverSpec struct {
 	// unlimited. Each iteration's child is capped at the min-aggregation of
 	// the driver's remaining and the child spec's own cap.
 	Budget BudgetSpec `yaml:"budget,omitempty"`
+	// OnChildFailure is the policy for a child RUN that errors (a transport
+	// failure or crash — not a verification miss, which is a normal
+	// re-iterate). DESIGN: policy retry of a terminal failed run is not a
+	// second recovery mechanism (principle 6 permits it).
+	OnChildFailure FailurePolicy `yaml:"on_child_failure,omitempty"`
 }
 
 // BudgetSpec caps token spend.
 type BudgetSpec struct {
 	MaxTotalTokens int `yaml:"max_total_tokens,omitempty"`
+}
+
+// Child-failure policy modes.
+const (
+	OnFailStop    = "stop"    // default: end the driver as child_failed
+	OnFailSurface = "surface" // record the failure, continue to the next iteration
+	OnFailRetry   = "retry"   // re-run the same iteration up to Max extra times
+)
+
+// FailurePolicy governs a failed child run. Empty Mode is stop. Backoff is
+// deferred to the scheduler module (it needs the durable-timer substrate);
+// retry here is immediate and count-bounded.
+type FailurePolicy struct {
+	Mode string `yaml:"mode,omitempty"`
+	Max  int    `yaml:"max,omitempty"`
 }
 
 // VerifierSpec is one goal-mode gate. v0: command (bash). A metric regex with
