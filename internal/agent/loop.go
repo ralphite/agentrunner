@@ -402,15 +402,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				ID: fmt.Sprintf("llm-t%d", act.turn), Kind: event.KindLLM,
 				Name: "complete", Idempotent: true,
 				Run: func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
-					mode := ds.s.CurrentMode()
-					req := provider.CompleteRequest{
-						Model:     l.Spec.Model.ID,
-						MaxTokens: l.Spec.Model.MaxTokens,
-						System:    l.Spec.SystemPrompt + modePromptSuffix(mode),
-						Messages:  assembleMessages(ds.s),
-						Tools:     advertisedTools(toolDefs, mode),
-						Turn:      act.turn,
-					}
+					req := Assemble(ds.s, l.Spec, toolDefs, act.turn)
 					collected, err := provider.CollectTurn(l.Provider.Complete(ctx, req))
 					if err != nil {
 						return nil, nil, false, err
@@ -573,44 +565,6 @@ func decide(s state.State, maxTurns int) action {
 		return action{kind: doEnd, turn: turn, reason: "max_turns"}
 	}
 	return action{kind: doTurn, turn: turn + 1}
-}
-
-// assembleMessages builds the provider-visible transcript from the fold:
-// conversation messages in order, with each assistant message's fully
-// resolved tool calls followed by one tool message (results by call_id).
-// Pinned by testdata/request_assembly.golden.
-func assembleMessages(s state.State) []provider.Message {
-	var out []provider.Message
-	for _, m := range s.Conversation.Messages {
-		out = append(out, m)
-		if m.Role != provider.RoleAssistant {
-			continue
-		}
-		calls := toolCallsOf(m)
-		if len(calls) == 0 {
-			continue
-		}
-		toolMsg := provider.Message{Role: provider.RoleTool}
-		complete := true
-		for _, c := range calls {
-			res, ok := s.Conversation.ToolResults[c.CallID]
-			if !ok {
-				complete = false
-				break
-			}
-			toolMsg.Parts = append(toolMsg.Parts, provider.Part{
-				Kind:     provider.PartToolResult,
-				CallID:   c.CallID,
-				ToolName: c.Name,
-				Result:   res.Result,
-				IsError:  res.IsError,
-			})
-		}
-		if complete {
-			out = append(out, toolMsg)
-		}
-	}
-	return out
 }
 
 func assistantMessages(s state.State) []provider.Message {

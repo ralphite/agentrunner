@@ -1041,3 +1041,17 @@ PLAN.md 新增 **S4 执行包**:细化交互与上下文的 8 模块序列。关
 redact 跨分片泄漏(4.1 流式重构 recorder 时合并修)。
 
 下一步:S4.1(先做 4a assembly 抽取)。
+
+## S4.4a assembly 组件 + 拼装序 — DONE(按预授权提前到 4.1 前)
+
+`agent/assembly.go`:`Assemble(state, spec, toolDefs, turn) →
+CompleteRequest`——fold → 请求的唯一模块。固定拼装序:system prompt →
+mode 注入(3.6b 收编)→ conversation transcript;工具面按活 mode 过滤
+(3.6a)。`assembleMessages`/`advertisedTools` 从 loop.go/mode.go 迁入。
+loop 的 doLLM 改调 `Assemble()`。**request_assembly.golden 一字节未改
+通过**——纯抽取,行为保持。
+
+**Decisions**:
+- Assemble 为包级函数(非方法):assembly 是 fold→wire 的纯变换,不持
+  Loop 状态,便于 4c 的 byte-stability 独立测试。
+- env 块(session start 冻结)留 4c;S4.4a 先落拼装序骨架。
