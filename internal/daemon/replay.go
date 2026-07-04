@@ -3,6 +3,7 @@ package daemon
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
@@ -76,6 +77,14 @@ func ReplayJournal(sessionDir string, sink protocol.Sink) error {
 			sink.Emit(protocol.Event{Kind: protocol.KindDiscard, Turn: p.Turn, Text: p.Reason})
 		case *event.RunEnded:
 			sink.Emit(protocol.Event{Kind: protocol.KindRunEnd, Turn: p.Turns, Reason: p.Reason})
+		// Driver streams (S6): iteration terminals and the series ending
+		// project the same way the live tee emits them.
+		case *event.IterationCompleted:
+			sink.Emit(protocol.Event{Kind: protocol.KindIteration, Turn: p.Iter, Reason: p.ChildReason,
+				Text: fmt.Sprintf("iteration %d %s (pass=%v score=%g)",
+					p.Iter, p.ChildReason, p.Verdict.Pass, p.Verdict.Score)})
+		case *event.DriverCompleted:
+			sink.Emit(protocol.Event{Kind: protocol.KindRunEnd, Turn: p.Iterations, Reason: p.Reason})
 		}
 	}
 	return nil

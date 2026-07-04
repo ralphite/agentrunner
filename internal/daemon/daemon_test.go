@@ -287,6 +287,7 @@ func TestDaemonNotifyTee(t *testing.T) {
 	run := func(ctx context.Context, req RunRequest, sink protocol.Sink) error {
 		sink.Emit(protocol.Event{Kind: protocol.KindTurnStart, Turn: 1})
 		sink.Emit(protocol.Event{Kind: protocol.KindApprovalRequest, ApprovalID: "apr-7", Tool: "bash"})
+		sink.Emit(protocol.Event{Kind: protocol.KindIteration, Turn: 2, Text: "iteration 2 completed"})
 		sink.Emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: "completed"})
 		return nil
 	}
@@ -315,14 +316,17 @@ func TestDaemonNotifyTee(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if len(teed) != 2 {
-		t.Fatalf("teed = %+v, want approval_request + run_end only", teed)
+	if len(teed) != 3 {
+		t.Fatalf("teed = %+v, want approval_request + iteration + run_end only", teed)
 	}
 	if teed[0].ApprovalID != "apr-7" || teed[0].Session != "sess-n" {
 		t.Errorf("tee[0] = %+v", teed[0])
 	}
-	if teed[1].Kind != protocol.KindRunEnd {
+	if teed[1].Kind != protocol.KindIteration || teed[1].Turn != 2 {
 		t.Errorf("tee[1] = %+v", teed[1])
+	}
+	if teed[2].Kind != protocol.KindRunEnd {
+		t.Errorf("tee[2] = %+v", teed[2])
 	}
 }
 

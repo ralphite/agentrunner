@@ -2476,3 +2476,33 @@ security 0×P0/P1+3×P2;contract 1×P0+4×P1+多 P2 及完成标志清单。
   采样竞态(外观级)、series-memory UTF-8 截断/fence 逃逸(健壮性)。
 
 全量 check + race + stage 1-6 acceptance 回归全绿。
+
+## S6 完成标志① 兑现 — daemon 托管 driver + 系列通知 + s6-05 场景 — DONE
+
+review 认定的收口 blocker(无人 attach 的系列过夜出通知,结构上不可达)
+至此打通:
+- **driver 生命周期出口**:`Driver.Out protocol.Sink`,在**单写路径**统一
+  tee(所有 journal 点必经,failure/cancel 路一并覆盖):
+  IterationCompleted → 新 protocol `KindIteration{Turn=迭代号}`;
+  DriverCompleted → KindRunEnd{reason}。ReplayJournal 补 driver 两事件
+  投影(attach 补读同一故事)。
+- **daemon `drive` 线命令**:handleDrive 与 handleRun 同 hub/registry/
+  runsWG/notify 语义;`submit --drive <driver.yaml>`(exit 契约复用
+  driveSucceeded,本地 LoadSpec 判 schedule)。hub tee 过滤加
+  KindIteration → notifier;toNotification 加
+  `iteration/<session>/<n>` 键。hostDriveFunc = drive 前台装配减 tty
+  (审批走 broker,human verifier/finish_series 跨 socket 可答)。
+- **场景抓出真 bug**:child run 的 KindRunEnd{completed} 抢先消费
+  notifier 的 `run_end/<session>` 去重键,driver 真结局(max_iterations)
+  被当重复丢弃。修:`childLifecycleFilter`——child 的 run_start/run_end
+  框架事件不入 hub(系列的生命周期属 driver;child 的 turns/messages/
+  tool 事件照流)。
+- **s6-05-series-overnight**:interval 100ms ×3,notify command 通道
+  `cat >> notes.log`(XDG_CONFIG_HOME 注入 user settings,carve-out
+  路径),submit --drive 后台、无人读流,等 run_end 通知落盘再收;断言
+  3 条 iteration 通知 + max_iterations 结局 + journal 3 次 launch 无
+  重复 + driver_completed。**记档**:daemon 存活即"过夜"的可达子集;
+  cron 系列跨 daemon 重启的 durable 唤醒(driver stream 无 journaled
+  timer)仍在 backlog。
+
+stage 6 五场景全绿;stage 1-5 回归绿;全量 check + race 通过。

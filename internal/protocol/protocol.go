@@ -27,7 +27,8 @@ const (
 	KindDiscard         Kind = "discard" // a streamed turn was thrown away; reopen the stream
 	KindError           Kind = "error"   // USER-visible error (not the model-visible render)
 	KindRunEnd          Kind = "run_end"
-	KindNote            Kind = "note" // blackboard publish mirrored to watchers (S6, ephemeral)
+	KindNote            Kind = "note"      // blackboard publish mirrored to watchers (S6, ephemeral)
+	KindIteration       Kind = "iteration" // one driver iteration completed (S6; Turn = iteration N)
 )
 
 // Event is one output event. Fields are sparse — only those relevant to

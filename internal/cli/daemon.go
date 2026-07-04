@@ -15,6 +15,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/config"
 	"github.com/ralphite/agentrunner/internal/daemon"
+	"github.com/ralphite/agentrunner/internal/driver"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/hook"
 	"github.com/ralphite/agentrunner/internal/notify"
@@ -86,6 +87,7 @@ func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 		},
 		ScanTimers: scanSessionTimers,
 		Resume:     hostResumeFunc(version, stderr, broker),
+		Drive:      hostDriveFunc(version, stderr, broker),
 		Approvals:  broker,
 		Notify:     notifyTee,
 	}
@@ -154,6 +156,12 @@ func buildNotifier(ctx context.Context, stderr io.Writer) (*notify.Notifier, fun
 // The keys MUST match reconcileNotifications' keys for the same moment.
 func toNotification(e protocol.Event) notify.Notification {
 	switch e.Kind {
+	case protocol.KindIteration:
+		return notify.Notification{
+			Key:  fmt.Sprintf("iteration/%s/%d", e.Session, e.Turn),
+			Kind: "iteration", Session: e.Session,
+			Text: fmt.Sprintf("%s: %s", e.Session, e.Text),
+		}
 	case protocol.KindApprovalRequest:
 		return notify.Notification{
 			Key:  "approval/" + e.Session + "/" + e.ApprovalID,
@@ -452,6 +460,100 @@ func attachCmd(args []string, stdout, stderr io.Writer) int {
 	return ExitOK
 }
 
+// childLifecycleFilter strips a child run's lifecycle FRAMING (run_start /
+// run_end) from the shared hub stream: within a hosted series the DRIVER
+// owns the lifecycle (iteration / run_end events) — a child's run_end would
+// otherwise consume the notifier's run_end/<session> dedup key and shadow
+// the series' real ending (found by the s6-05 scenario). The child's work
+// (turns, messages, tool calls) still streams.
+type childLifecycleFilter struct{ inner protocol.Sink }
+
+func (f childLifecycleFilter) Emit(e protocol.Event) {
+	if e.Kind == protocol.KindRunEnd || e.Kind == protocol.KindRunStart {
+		return
+	}
+	f.inner.Emit(e)
+}
+
+// hostDriveFunc is the daemon's IterationDriver wiring — the same assembly
+// as a foreground `drive` minus the tty: asks (human verifier,
+// finish_series) route over the approval broker, and the driver's lifecycle
+// tees to watchers and the notifier through the hub sink.
+func hostDriveFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker) func(context.Context, daemon.DriveRequest, protocol.Sink) error {
+	return func(ctx context.Context, req daemon.DriveRequest, sink protocol.Sink) error {
+		spec, err := driver.LoadSpec(req.SpecPath)
+		if err != nil {
+			return err
+		}
+		wsRoot := req.Workspace
+		if wsRoot == "" {
+			wsRoot = "."
+		}
+		ws, err := workspace.New(wsRoot)
+		if err != nil {
+			return err
+		}
+		prov, err := defaultProviderFactory(ctx, spec.Agent.Model.Provider)
+		if err != nil {
+			return err
+		}
+		sessionDir, err := runtime.SessionDir(req.SessionID)
+		if err != nil {
+			return err
+		}
+		dStore, err := store.OpenEventStore(sessionDir)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = dStore.Close() }()
+		artifacts, err := store.OpenArtifactStore(filepath.Join(sessionDir, "artifacts"))
+		if err != nil {
+			return err
+		}
+		approvals := socketApprovals{broker: broker, session: req.SessionID, sink: sink}
+		exec := &tool.Executor{WS: ws, Session: req.SessionID}
+		d := &driver.Driver{
+			Spec:      spec,
+			Store:     dStore,
+			Clock:     clock.Real{},
+			DriverID:  req.SessionID,
+			Exec:      exec,
+			Judge:     prov,
+			Approvals: approvals,
+			Artifacts: artifacts,
+			Out:       sink,
+			NewChild: func(cs *store.EventStore, session string, iter, budgetTokens int) *agent.Loop {
+				frozen := *spec.Agent
+				if budgetTokens > 0 {
+					frozen.Budget.MaxTotalTokens = budgetTokens
+				}
+				pipe, hooks, perr := buildPipeline(ws, frozen.Permissions, frozen.Mode,
+					frozen.Budget.MaxTotalTokens, stderr)
+				if perr != nil {
+					fmt.Fprintln(stderr, perr)
+				}
+				return &agent.Loop{
+					Spec:      &frozen,
+					Provider:  prov,
+					Exec:      &tool.Executor{WS: ws, Session: session},
+					Store:     cs,
+					Clock:     clock.Real{},
+					Out:       childLifecycleFilter{inner: sink},
+					SessionID: session,
+					Version:   version,
+					Pipeline:  pipe,
+					Mode:      frozen.Mode,
+					Hooks:     hooks,
+					Approvals: approvals,
+					SubSpecs:  siblingSpecResolver(req.SpecPath),
+				}
+			},
+		}
+		_, runErr := d.Run(ctx)
+		return runErr
+	}
+}
+
 // approveCmd answers a daemon-hosted ask: `agentrunner approve
 // <session-id-or-prefix> <approval-id> <approve|deny> [reason]`.
 func approveCmd(args []string, stdout, stderr io.Writer) int {
@@ -496,21 +598,23 @@ func approveCmd(args []string, stdout, stderr io.Writer) int {
 	return code
 }
 
-// submitCmd hands a run to the daemon and streams it until it ends —
-// `run`, hosted: the run survives this client. `agentrunner submit [flags]
-// <spec.yaml> "task"`.
+// submitCmd hands a run — or, with --drive, an IterationDriver series — to
+// the daemon and streams it until it ends; the work survives this client.
+// `agentrunner submit [flags] <spec.yaml> "task"` /
+// `agentrunner submit --drive [flags] <driver.yaml>`.
 func submitCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("submit", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	workspaceDir := fs.String("workspace", ".", "workspace root (default: current directory)")
 	mode := fs.String("mode", "", "run mode: default|plan|acceptEdits (overrides spec)")
 	jsonOut := fs.Bool("json", false, "emit the event stream as JSON lines")
+	drive := fs.Bool("drive", false, "submit a driver spec (task lives in the spec)")
 	if err := fs.Parse(args); err != nil {
 		return ExitUsage
 	}
 	rest := fs.Args()
-	if len(rest) != 2 {
-		fmt.Fprintln(stderr, "usage: agentrunner submit [flags] <spec.yaml> \"task\"")
+	if (*drive && len(rest) != 1) || (!*drive && len(rest) != 2) {
+		fmt.Fprintln(stderr, "usage: agentrunner submit [flags] <spec.yaml> \"task\"  |  submit --drive [flags] <driver.yaml>")
 		return ExitUsage
 	}
 	specPath, err := filepath.Abs(rest[0])
@@ -535,9 +639,13 @@ func submitCmd(args []string, stdout, stderr io.Writer) int {
 		sink = newTextRenderer(stdout)
 	}
 	reason := ""
-	err = daemon.Dial(sock, daemon.Command{
-		Cmd: "run", SpecPath: specPath, Task: rest[1], Workspace: wsAbs, Mode: *mode,
-	}, func(e protocol.Event) {
+	cmd := daemon.Command{Cmd: "run", SpecPath: specPath, Workspace: wsAbs, Mode: *mode}
+	if *drive {
+		cmd = daemon.Command{Cmd: "drive", SpecPath: specPath, Workspace: wsAbs}
+	} else {
+		cmd.Task = rest[1]
+	}
+	err = daemon.Dial(sock, cmd, func(e protocol.Event) {
 		if e.Kind == protocol.KindRunStart && e.Session != "" {
 			fmt.Fprintf(stderr, "session %s\n", e.Session)
 		}
@@ -552,7 +660,14 @@ func submitCmd(args []string, stdout, stderr io.Writer) int {
 	}
 	// No run_end in the stream means the run died before its terminal event
 	// (e.g. spec/provider failure inside the daemon) — that is a failure,
-	// same contract as a foreground run.
+	// same contract as a foreground run/drive.
+	if *drive {
+		dspec, derr := driver.LoadSpec(specPath)
+		if derr != nil || !driveSucceeded(dspec, reason) {
+			return ExitRun
+		}
+		return ExitOK
+	}
 	if reason != "completed" {
 		return ExitRun
 	}

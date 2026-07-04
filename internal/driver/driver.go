@@ -17,6 +17,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/cron"
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/redact"
 	"github.com/ralphite/agentrunner/internal/state"
@@ -61,6 +62,10 @@ type Driver struct {
 	// and IterationCompleted keeps only the ref + a short excerpt (DESIGN).
 	// nil → carry stays inline-only.
 	Artifacts *store.ArtifactStore
+	// Out receives the driver's LIFECYCLE as output events (S6 模块⑤):
+	// iteration completions and the terminal — what a hosting surface tees
+	// to watchers and the notifier. nil = silent (journal stays the truth).
+	Out protocol.Sink
 
 	// Loop-mode cadence runtime state (never fold state: cron ticks are
 	// absolute wall times, recomputable from the clock; the self_paced pace
@@ -80,6 +85,13 @@ type Result struct {
 // appendFunc journals one driver-stream fact and folds it into the in-memory
 // state — the single write path, mirroring the run loop's appender.
 type appendFunc func(typ string, payload any) (event.Envelope, error)
+
+// emit sends a lifecycle output event (nil-safe).
+func (d *Driver) emit(e protocol.Event) {
+	if d.Out != nil {
+		d.Out.Emit(e)
+	}
+}
 
 // prepare validates the spec and builds the single write path over st (the
 // folded in-memory state). Shared by Run (fresh state) and Resume (folded).
@@ -147,6 +159,19 @@ func (d *Driver) prepare(st *State) (appendFunc, error) {
 			return appended, err
 		}
 		st.apply(payload)
+		// Lifecycle tee (S6 模块⑤): the single write path is the one place
+		// every journal site passes through, so watchers and the notifier
+		// see EVERY iteration terminal and the driver's ending — including
+		// the failure and cancel paths.
+		switch p := payload.(type) {
+		case *event.IterationCompleted:
+			d.emit(protocol.Event{Kind: protocol.KindIteration, Turn: p.Iter,
+				Reason: p.ChildReason,
+				Text: fmt.Sprintf("iteration %d %s (pass=%v score=%g)",
+					p.Iter, p.ChildReason, p.Verdict.Pass, p.Verdict.Score)})
+		case *event.DriverCompleted:
+			d.emit(protocol.Event{Kind: protocol.KindRunEnd, Turn: p.Iterations, Reason: p.Reason})
+		}
 		return appended, nil
 	}
 	return appendE, nil

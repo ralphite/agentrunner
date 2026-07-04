@@ -1,0 +1,54 @@
+id: s6-05-series-overnight
+title: 完成标志①——无人 attach 的 interval 系列在 daemon 里跑完,通知经 command 通道落盘
+files:
+  driver.yaml: |
+    name: overnight
+    agent_spec: worker.yaml
+    schedule: interval
+    interval: 100ms
+    task: do a round
+    max_iterations: 3
+  worker.yaml: |
+    name: worker
+    model: { provider: scripted, id: x, max_tokens: 100 }
+    system_prompt: do rounds
+    tools: [bash]
+    permissions:
+      - { action: allow }
+  series.yaml: |
+    steps:
+      - respond:
+          - text: "round 1"
+          - usage: { input_tokens: 20, output_tokens: 10 }
+          - finish: end_turn
+      - respond:
+          - text: "round 2"
+          - usage: { input_tokens: 20, output_tokens: 10 }
+          - finish: end_turn
+      - respond:
+          - text: "round 3"
+          - usage: { input_tokens: 20, output_tokens: 10 }
+          - finish: end_turn
+  xdgc/agentrunner/settings.yaml: |
+    notify:
+      command: ["sh", "-c", "cat >> notes.log"]
+steps:
+  - run: >
+      export XDG_CONFIG_HOME=$SCRATCH/xdgc;
+      AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/series.yaml
+      $BIN daemon >daemon.log 2>&1 &
+      DPID=$!;
+      i=0; until [ -S xdg/agentrunner/daemon.sock ] || [ $i -ge 50 ]; do sleep 0.1; i=$((i+1)); done;
+      $BIN submit --drive driver.yaml >submit.out 2>&1 &
+      SPID=$!;
+      i=0; until grep -q '"kind":"run_end"' notes.log 2>/dev/null || [ $i -ge 100 ]; do sleep 0.1; i=$((i+1)); done;
+      wait $SPID; RC=$?;
+      kill $DPID 2>/dev/null;
+      test $RC -eq 0
+  - run: test "$(grep -c '"kind":"iteration"' notes.log)" -eq 3
+  - run: grep -q '"kind":"run_end"' notes.log && grep -q 'max_iterations' notes.log
+  - run: test "$(grep -c '"type":"iteration_launched"' xdg/agentrunner/sessions/*/events.jsonl)" -eq 3
+  - run: grep -q '"type":"driver_completed"' xdg/agentrunner/sessions/*/events.jsonl
+expect:
+  - exit_code: 0
+  - events_valid: xdg/agentrunner/sessions/*/events.jsonl

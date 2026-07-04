@@ -23,7 +23,7 @@ import (
 
 // Command is one client→server line.
 type Command struct {
-	Cmd string `json:"cmd"` // ping | run | attach | approve
+	Cmd string `json:"cmd"` // ping | run | drive | attach | approve
 
 	// run
 	SpecPath  string `json:"spec_path,omitempty"`
@@ -54,6 +54,14 @@ type RunRequest struct {
 // fakes. It MUST journal through the normal store so attach replay works.
 type RunFunc func(ctx context.Context, req RunRequest, sink protocol.Sink) error
 
+// DriveRequest is a hosted IterationDriver series (S6 完成标志①: a series
+// runs unattended, its lifecycle reaching watchers and the notifier).
+type DriveRequest struct {
+	SessionID string
+	SpecPath  string
+	Workspace string
+}
+
 // NewSessionID mints a session id for a hosted run; injected for
 // deterministic tests.
 type NewSessionID func(task string) string
@@ -73,7 +81,10 @@ type Server struct {
 	// sweep journals TimerFired. Clock nil = real time.
 	ScanTimers func() ([]SessionTimer, error)
 	Resume     func(ctx context.Context, sessionID string, sink protocol.Sink) error
-	Clock      clock.Clock
+	// Drive hosts an IterationDriver series (nil = the drive command is
+	// refused). Same hub/registry semantics as Run.
+	Drive func(ctx context.Context, req DriveRequest, sink protocol.Sink) error
+	Clock clock.Clock
 	// Approvals is the cross-process ask rendezvous: hosted runs park here
 	// (the CLI's resolver adapter calls Ask) and `approve` commands answer.
 	// nil = the approve command is refused.
@@ -122,7 +133,8 @@ func (h *hostedRun) Emit(e protocol.Event) {
 	}
 	h.mu.Unlock()
 	if h.notify != nil &&
-		(e.Kind == protocol.KindRunEnd || e.Kind == protocol.KindApprovalRequest) {
+		(e.Kind == protocol.KindRunEnd || e.Kind == protocol.KindApprovalRequest ||
+			e.Kind == protocol.KindIteration) {
 		h.notify(e)
 	}
 }
@@ -254,6 +266,8 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Text: "pong"})
 	case "run":
 		s.handleRun(ctx, cmd, enc)
+	case "drive":
+		s.handleDrive(ctx, cmd, enc)
 	case "attach":
 		s.handleAttach(cmd, enc)
 	case "approve":
@@ -348,6 +362,57 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 	for e := range ch {
 		if err := enc.Encode(e); err != nil {
 			return // client went away; the run keeps going
+		}
+	}
+}
+
+// handleDrive hosts an IterationDriver series exactly like a run: it belongs
+// to the daemon's lifetime, its lifecycle events tee to the notifier, and a
+// disconnected client only stops watching — the series keeps its cadence
+// (S6 完成标志①: 无人 attach 跑过夜).
+func (s *Server) handleDrive(ctx context.Context, cmd Command, enc *json.Encoder) {
+	if s.Drive == nil {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "daemon has no driver runner configured"})
+		return
+	}
+	if cmd.SpecPath == "" {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "drive needs spec_path"})
+		return
+	}
+	id := s.NewID("drive")
+	hub := &hostedRun{id: id, notify: s.Notify, subs: map[chan protocol.Event]struct{}{}}
+	s.mu.Lock()
+	if s.stopping {
+		s.mu.Unlock()
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "daemon is shutting down"})
+		return
+	}
+	s.runs[id] = hub
+	s.runsWG.Add(1)
+	s.mu.Unlock()
+
+	ch, cancel, _ := hub.subscribe()
+	defer cancel()
+
+	go func() {
+		defer s.runsWG.Done()
+		defer func() {
+			s.mu.Lock()
+			delete(s.runs, id)
+			s.mu.Unlock()
+		}()
+		defer hub.finish()
+		if err := s.Drive(ctx, DriveRequest{
+			SessionID: id, SpecPath: cmd.SpecPath, Workspace: cmd.Workspace,
+		}, hub); err != nil {
+			hub.Emit(protocol.Event{Kind: protocol.KindError, Text: "drive failed: " + err.Error()})
+		}
+	}()
+
+	_ = enc.Encode(protocol.Event{Kind: protocol.KindRunStart, Session: id})
+	for e := range ch {
+		if err := enc.Encode(e); err != nil {
+			return // client went away; the series keeps going
 		}
 	}
 }
