@@ -27,6 +27,7 @@ func resetForTest(t *testing.T, env string) (fired *bool) {
 // The registry is the harness's contract: deleting a point must fail here.
 func TestRegistryPinsS2Points(t *testing.T) {
 	want := []string{
+		"after_blob_before_event", // S5.5
 		"after_exec_before_journal",
 		"after_journal_input",
 		"after_snapshot_write",

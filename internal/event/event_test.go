@@ -57,6 +57,8 @@ var samples = map[string]any{
 	TypeSubagentCompleted: &SubagentCompleted{CallID: "call_2_0", Agent: "summarizer",
 		ChildSession: "sess-sub-call_2_0", Reason: "completed", Turns: 2,
 		Usage: provider.Usage{InputTokens: 100, OutputTokens: 50}},
+	TypeArtifactPublished: &ArtifactPublished{Stream: "report", Version: 2,
+		Ref: "sha256-deadbeef", Bytes: 512, Source: "tool"},
 	TypeEffectResolved: &EffectResolved{EffectID: "eff-call_3_1", CallID: "call_3_1",
 		Verdict: VerdictDeny, GateResults: []GateResult{
 			{Gate: "permission", Decision: VerdictDeny, Reason: "path escapes workspace"}}},

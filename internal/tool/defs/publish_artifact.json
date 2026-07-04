@@ -1,0 +1,19 @@
+{
+  "name": "publish_artifact",
+  "description": "Publish content as a durable, versioned artifact on a named stream. Each publish to the same stream creates the next version. Returns the content-addressed ref. Use for deliverables (reports, plans, generated documents) that must outlive the conversation.",
+  "class": "edit",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "stream": {
+        "type": "string",
+        "description": "Stream name for the deliverable (e.g. \"report\"). Versions accumulate per stream."
+      },
+      "content": {
+        "type": "string",
+        "description": "The artifact content."
+      }
+    },
+    "required": ["stream", "content"]
+  }
+}

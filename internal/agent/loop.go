@@ -73,6 +73,11 @@ type Loop struct {
 	// store is ephemeral runtime state — durable influence flows through
 	// each run's journaled read_notes results, never the store itself.
 	Board *blackboard.Board
+	// Artifacts is the tree-shared deliverable CAS (S5.5): opened lazily at
+	// the ROOT session (Store.Dir()/artifacts), inherited by children so
+	// refs resolve tree-wide. Blob durability precedes the ArtifactPublished
+	// fact, always.
+	Artifacts *store.ArtifactStore
 }
 
 // MCPManager is the slice of mcp.Manager the loop needs (an interface so
@@ -192,6 +197,9 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 		l.Clock = clock.Real{}
 	}
 	l.ensureBoard()
+	if err := l.ensureArtifacts(); err != nil {
+		return RunResult{}, err
+	}
 	// The task is external input and may carry a shell-expanded credential;
 	// IngestInput appends via the store directly (not the appender), so it
 	// must be scrubbed here.
@@ -299,8 +307,12 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 	}
 	// A resumed collaboration gets a FRESH board: notes are ephemeral by
 	// doctrine (what mattered was journaled as read results), and the face
-	// must match the original run's.
+	// must match the original run's. The artifact store is durable and
+	// simply reopens.
 	l.ensureBoard()
+	if err := l.ensureArtifacts(); err != nil {
+		return RunResult{}, err
+	}
 	dir := l.Store.Dir()
 	events, err := store.ReadEvents(dir)
 	if err != nil {
@@ -850,6 +862,9 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 		run := l.buildToolRun(p.call, p.res)
 		if isAgentLaunch(p.call.Name) {
 			run = l.buildSpawnRun(p.call, p.res, serialAppend, p.allowance, parentMode)
+		}
+		if p.call.Name == "publish_artifact" {
+			run = l.buildPublishRun(p.call, p.res, serialAppend)
 		}
 		acts[i] = Activity{
 			ID: "tool-" + p.call.CallID, Kind: event.KindTool,

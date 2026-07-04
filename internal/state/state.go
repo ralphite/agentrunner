@@ -182,6 +182,9 @@ type Run struct {
 	Agents string `json:"agents,omitempty"`
 	// Spawns counts SpawnRequested facts (S5.3): the fan-out gate's input.
 	Spawns int `json:"spawns,omitempty"`
+	// Published maps stream → latest published version (S5.5): the outputs
+	// contract (S5.6) checks required streams against it at the epilogue.
+	Published map[string]int `json:"published,omitempty"`
 }
 
 // New is the empty pre-RunStarted state.
@@ -253,6 +256,15 @@ func Apply(s State, env event.Envelope) (State, error) {
 		// Informational (inspect's tree render reads it from the log); the
 		// parent's accounting settles through the spawn activity's
 		// ActivityCompleted, never here.
+
+	case *event.ArtifactPublished:
+		// Copy-on-write: Apply is pure, the input map must not mutate.
+		published := make(map[string]int, len(s.Run.Published)+1)
+		for k, v := range s.Run.Published {
+			published[k] = v
+		}
+		published[p.Stream] = p.Version
+		s.Run.Published = published
 
 	case *event.ToolsDiscovered:
 		// Replace this server's tools (re-discovery wins), keep other

@@ -1,1 +1,1 @@
-spec testdata/spec_errors/unknown_tool.yaml: field tools: unknown tool "web_search" (known: [bash edit_file exit_plan_mode handoff_agent publish_note read_file read_notes spawn_agent])
+spec testdata/spec_errors/unknown_tool.yaml: field tools: unknown tool "web_search" (known: [bash edit_file exit_plan_mode handoff_agent publish_artifact publish_note read_file read_notes spawn_agent])

@@ -214,7 +214,8 @@ func (l *Loop) childLoop(childSpec *AgentSpec, childStore *store.EventStore,
 		Mode:      parentMode,
 		Depth:     l.Depth + 1,
 		SubSpecs:  l.SubSpecs,
-		Board:     l.Board, // the collaboration blackboard is tree-shared (S5.4)
+		Board:     l.Board,     // the collaboration blackboard is tree-shared (S5.4)
+		Artifacts: l.Artifacts, // the deliverable CAS is tree-shared too (S5.5)
 	}
 }
 

@@ -32,6 +32,7 @@ const (
 	PointAfterSnapshotWrite     = "after_snapshot_write"
 	PointBeforeRunEnd           = "before_run_end"
 	PointBetweenGateAndResolved = "between_gate_and_resolved" // S3.2
+	PointAfterBlobBeforeEvent   = "after_blob_before_event"   // S5.5
 )
 
 var registry = map[string]struct{}{
@@ -40,6 +41,7 @@ var registry = map[string]struct{}{
 	PointAfterSnapshotWrite:     {},
 	PointBeforeRunEnd:           {},
 	PointBetweenGateAndResolved: {},
+	PointAfterBlobBeforeEvent:   {},
 }
 
 // Points returns the registered point names, sorted.

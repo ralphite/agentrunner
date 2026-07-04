@@ -42,6 +42,7 @@ const (
 	TypeToolsDiscovered   = "tools_discovered"
 	TypeSpawnRequested    = "spawn_requested"
 	TypeSubagentCompleted = "subagent_completed"
+	TypeArtifactPublished = "artifact_published"
 )
 
 // Effect verdicts and gate decisions.
@@ -310,6 +311,20 @@ type SubagentCompleted struct {
 	Usage        provider.Usage `json:"usage"`
 }
 
+// ArtifactPublished records one durable deliverable version (S5.5). The
+// blob (and manifest) were fsynced BEFORE this event was appended — the ref
+// always resolves; a crash in between leaves an orphan blob, never a
+// dangling ref (mirror of the journal's fsync-before-ack).
+type ArtifactPublished struct {
+	Stream  string `json:"stream"`
+	Version int    `json:"version"`
+	Ref     string `json:"ref"`
+	Bytes   int    `json:"bytes,omitempty"`
+	// Source says what published it: "tool" (publish_artifact) or
+	// "epilogue" (the outputs-contract auto-publish, S5.6).
+	Source string `json:"source,omitempty"`
+}
+
 // GateResult is one gate's judgment inside an effect resolution.
 type GateResult struct {
 	Gate     string `json:"gate"`
@@ -360,4 +375,5 @@ var Registry = map[string]func() any{
 	TypeToolsDiscovered:   func() any { return &ToolsDiscovered{} },
 	TypeSpawnRequested:    func() any { return &SpawnRequested{} },
 	TypeSubagentCompleted: func() any { return &SubagentCompleted{} },
+	TypeArtifactPublished: func() any { return &ArtifactPublished{} },
 }
