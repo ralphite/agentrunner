@@ -897,3 +897,22 @@ after:waiting_entered:1(挂起中 kill)→ resume 重新提示 → 批准 →
 - bypass mode 预算不 bind(3.6d 语义延伸,gate 内判)。
 - LLM 预算拒绝时的 farewell 消息:S3 先以 slog + limit_exceeded 事实
   + 终态 reason 呈现;面向模型的告别 turn 留 S4 流式协议一并做(记档)。
+
+## S3.8 hooks v0 — DONE
+
+`internal/hook`:`Runner{pre_tool, post_tool}`——pre 以 JSON(effect
+描述)stdin 调用,**exit 0 = observe、exit 2 = block(stderr 即模型
+可见理由)、其他 = observe + 警告**(坏 hook 不得静默否决);首个
+block 短路后续;post 收结果 JSON,stdout 汇成 `ActivityCompleted.
+hook_note`(加性字段,过 redaction);10s 真实超时(hook 是外部进程,
+forbidigo 区外,豁免记档)+ WaitDelay 2s 防孙进程扣住管道。
+`hook.Gate` 实现 pipeline.Gate + SideEffecting(有 pre hook 即声明)
+——3.2 的 in-doubt 机制自动覆盖。executor 加 `PostRun` 接缝(成功
+执行后、终态落盘前)。CLI:hook gate 列关卡序首位(pre-hooks →
+permission → budget,执行包既定序),post runner 进 Loop.Hooks。
+
+**验证**:协议表驱动(observe/block/警告/首 block 短路/超时=警告);
+gate 适配(llm 效应直通、无 pre hook 不声明副作用);**恢复路径不重
+跑 hook**:真 pre hook 写 marker,kill 于 between_gate_and_resolved
+→ resume InDoubtError、marker 恰一行(计划的崩溃注入验证);post
+note 入 journal 断言。

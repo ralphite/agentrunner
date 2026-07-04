@@ -97,6 +97,8 @@ type ActivityCompleted struct {
 	Result     json.RawMessage `json:"result,omitempty"`
 	Usage      *provider.Usage `json:"usage,omitempty"`
 	IsError    bool            `json:"is_error,omitempty"`
+	// HookNote carries post-tool hook output (3.8): audit-only, additive.
+	HookNote string `json:"hook_note,omitempty"`
 }
 
 // ErrorInfo is the journaled form of a classified error (2.8 taxonomy).

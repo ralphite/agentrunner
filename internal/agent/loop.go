@@ -13,6 +13,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/crash"
 	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/hook"
 	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/redact"
@@ -55,6 +56,9 @@ type Loop struct {
 	// Mode is the STARTING mode (3.6): journaled as the first ModeChanged.
 	// The live mode is fold state; empty means "default".
 	Mode string
+	// Hooks runs post-tool hooks (3.8); pre hooks live in the pipeline's
+	// hook gate. nil = no hooks.
+	Hooks *hook.Runner
 }
 
 // RunResult summarizes a completed run.
@@ -453,12 +457,23 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 					return res.Payload, nil, false, nil
 				}
 			}
+			var postRun func(context.Context, json.RawMessage, bool) string
+			if l.Hooks != nil && len(l.Hooks.PostTool) > 0 {
+				postRun = func(ctx context.Context, result json.RawMessage, isError bool) string {
+					notes := l.Hooks.RunPost(ctx, hook.PostInput{
+						ToolName: call.Name, CallID: call.CallID,
+						Result: result, IsError: isError,
+					})
+					return strings.Join(notes, "; ")
+				}
+			}
 			err := exec.Do(ctx, Activity{
 				ID: "tool-" + call.CallID, Kind: event.KindTool,
 				Name: call.Name, Args: call.Args, CallID: call.CallID,
 				Idempotent: toolIdempotent(call.Name),
 				Timeout:    toolTimeout(call.Name),
 				Run:        run,
+				PostRun:    postRun,
 			})
 			if err != nil {
 				return RunResult{}, abort(act.turn, fmt.Errorf("turn %d: %s: %w", act.turn, call.Name, err))

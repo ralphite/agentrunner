@@ -40,6 +40,9 @@ type Activity struct {
 	// Progress is the optional ephemeral channel seam (S4 deltas, S6 task
 	// tails). Never journaled; unused in S2.
 	Progress func(delta string)
+	// PostRun runs after a successful Run, before the terminal event; its
+	// return value lands in ActivityCompleted.hook_note (3.8 post hooks).
+	PostRun func(ctx context.Context, result json.RawMessage, isError bool) string
 }
 
 // ActivityExecutor is the single path every side effect takes (2.10).
@@ -104,12 +107,17 @@ func (x *ActivityExecutor) Do(ctx context.Context, act Activity) error {
 			return errs.Wrap(errs.Canceled, context.Cause(ctx), act.Name)
 		}
 		if err == nil {
+			var note string
+			if act.PostRun != nil {
+				note = act.PostRun(ctx, result, isError)
+			}
 			crash.Point(crash.PointAfterExecBeforeJournal)
 			_, aerr := x.Append(event.TypeActivityCompleted, &event.ActivityCompleted{
 				ActivityID: act.ID,
 				Result:     x.Redact.JSON(result),
 				Usage:      usage,
 				IsError:    isError,
+				HookNote:   x.Redact.String(note),
 			})
 			return aerr
 		}
