@@ -113,6 +113,12 @@ const (
 	FinishToolUse   FinishReason = "tool_use"
 	FinishMaxTokens FinishReason = "max_tokens"
 	FinishOther     FinishReason = "other"
+	// FinishMalformedToolCall: the provider emitted a tool call it could not
+	// parse (S4.6). The loop records it and retries the turn.
+	FinishMalformedToolCall FinishReason = "malformed_tool_call"
+	// FinishBlocked: the model stopped for a safety/policy reason. The loop
+	// surfaces it as a user-visible error and ends the run (S4.6).
+	FinishBlocked FinishReason = "blocked"
 )
 
 // StreamEventKind discriminates StreamEvent variants.

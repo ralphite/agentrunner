@@ -1287,3 +1287,39 @@ tail,跨 ContextCompacted 边界 fold 等价)、`TestCompactionTriggeredInLoop`
 - **新 sub-state 使版本集长度 8→9**:checkVersions set-length 变化 → 旧
   session 不可 resume。属计划内(2.4 明列"S4 加 compaction 视图"),原型
   无持久 session,可接受。
+
+## S4.6 finish reason 策略 — DONE
+
+**异常 finish reason 的 loop 策略。** `provider.FinishReason` 加两枚:
+`malformed_tool_call`、`blocked`。
+
+- **malformed_tool_call → MalformedToolCall event + 有界重试**:LLM 调用
+  完成但 Finish==malformed → 落 `MalformedToolCall{turn, raw, error}`
+  (raw 取累积 assistant text)、发 KindDiscard(复用 discard 信号)、
+  **不落 AssistantMessage** → `continue` 使 decide 见 turn 无 assistant msg
+  → 重跑同 turn。durable 计数 `Run.MalformedRetries`(fold:
+  MalformedToolCall++,TurnStarted/AssistantMessage 归零)超
+  `maxMalformedRetries=2`(即第 3 次)→ 发 KindError、epilogue 收尾
+  reason `malformed_tool_call`。
+- **blocked(safety)→ 用户可见 error 收尾**:Finish==blocked 或 other →
+  先落 AssistantMessage 保留已有文本 → 发 KindError → epilogue reason
+  `blocked`。DESIGN/PLAN 口径:provider 把 safety/blocked 映射到
+  FinishOther/blocked,S4 上浮为用户可见 error。
+- **空 candidate**:无 text 无 tool call 的 end_turn → assistant message 空
+  → decide 见无 tool call → doEnd(completed),干净收尾不空转。
+
+**验证**(`finish_test.go`):malformed 重试后成功(1 个 event、completed)、
+malformed 耗尽(3 个 event、reason malformed_tool_call、1 个 KindError、
+末事件 run_ended)、blocked 收尾(reason blocked、KindError + 保留 message)、
+空 candidate 单 turn completed。
+
+**Decisions**:
+- **malformed 重试在 loop 层而非 activity retry**:malformed 不是 provider
+  error(流成功完成、Finish 标注),故不能走 ActivityExecutor 的 class-based
+  retry;在 doLLM 收到 turn 后判 Finish,不落 assistant message + continue
+  即天然重跑,durable 计数保证有界且跨 resume(resume 后计数从 fold 恢复)。
+- **FinishOther 与 FinishBlocked 同等上浮**:PLAN 明言 safety/blocked 用
+  既有 FinishOther 表示;为让线上 provider 可显式标 blocked,加 FinishBlocked
+  枚举,二者都触发用户可见 error 收尾。
+- **Run.MalformedRetries 加性字段不 bump 版本**:与 Env 同理,omitempty
+  加性可选,双向兼容。

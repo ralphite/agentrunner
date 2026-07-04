@@ -34,8 +34,9 @@ const (
 	TypeLimitExceeded     = "limit_exceeded"
 
 	// S4 additions.
-	TypeTurnDiscarded    = "turn_discarded"
-	TypeContextCompacted = "context_compacted"
+	TypeTurnDiscarded     = "turn_discarded"
+	TypeContextCompacted  = "context_compacted"
+	TypeMalformedToolCall = "malformed_tool_call"
 )
 
 // Effect verdicts and gate decisions.
@@ -241,6 +242,16 @@ type ContextCompacted struct {
 	SummaryRef   string `json:"summary_ref,omitempty"`
 }
 
+// MalformedToolCall records that a completed LLM call finished with an
+// unparseable tool call (S4.6). It drives a bounded retry of the same turn
+// (reusing the discard signal); Raw is the model's best-effort output for
+// debugging, Error the parse failure.
+type MalformedToolCall struct {
+	Turn  int    `json:"turn"`
+	Raw   string `json:"raw,omitempty"`
+	Error string `json:"error,omitempty"`
+}
+
 // GateResult is one gate's judgment inside an effect resolution.
 type GateResult struct {
 	Gate     string `json:"gate"`
@@ -287,4 +298,5 @@ var Registry = map[string]func() any{
 	TypeLimitExceeded:     func() any { return &LimitExceeded{} },
 	TypeTurnDiscarded:     func() any { return &TurnDiscarded{} },
 	TypeContextCompacted:  func() any { return &ContextCompacted{} },
+	TypeMalformedToolCall: func() any { return &MalformedToolCall{} },
 }

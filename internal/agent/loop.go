@@ -512,6 +512,29 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				return RunResult{}, abort(act.turn, fmt.Errorf("turn %d: %w", act.turn, err))
 			}
 			stopInt()
+
+			// Malformed tool call (S4.6): the call finished with a tool call
+			// the provider could not parse. Record it, signal the surface to
+			// discard the partial stream, and retry the SAME turn (no
+			// assistant message is journaled, so decide() re-runs the LLM) —
+			// bounded, then escalated to a user-visible error.
+			if turn.Finish == provider.FinishMalformedToolCall {
+				if _, err := appendE(event.TypeMalformedToolCall, &event.MalformedToolCall{
+					Turn: act.turn, Raw: assistantText(turn.Message),
+					Error: "provider could not parse tool call",
+				}); err != nil {
+					return RunResult{}, abort(act.turn, err)
+				}
+				l.emit(protocol.Event{Kind: protocol.KindDiscard, Turn: act.turn,
+					Text: "malformed tool call; retrying"})
+				if ds.s.Run.MalformedRetries > maxMalformedRetries {
+					l.emit(protocol.Event{Kind: protocol.KindError, Turn: act.turn,
+						Text: "model repeatedly returned malformed tool calls; giving up"})
+					return runEpilogue(ctx, ds, appendE, "malformed_tool_call", act.turn, false)
+				}
+				continue
+			}
+
 			if _, err := appendE(event.TypeAssistantMessage, &event.AssistantMessage{
 				Turn: act.turn, Message: turn.Message,
 			}); err != nil {
@@ -519,6 +542,15 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			}
 			if text := assistantText(turn.Message); text != "" {
 				l.emit(protocol.Event{Kind: protocol.KindMessage, Turn: act.turn, Text: text})
+			}
+
+			// Blocked/safety finish (S4.6): the assistant text (if any) is
+			// preserved above, but the model stopped for a policy reason —
+			// surface a user-visible error and end the run gracefully.
+			if turn.Finish == provider.FinishOther || turn.Finish == provider.FinishBlocked {
+				l.emit(protocol.Event{Kind: protocol.KindError, Turn: act.turn,
+					Text: "model stopped for a safety or policy reason (blocked)"})
+				return runEpilogue(ctx, ds, appendE, "blocked", act.turn, false)
 			}
 
 		case doTool:
@@ -905,6 +937,10 @@ func toolEffectID(callID string) string { return "eff-tool-" + callID }
 // executeToolTimeout is the S1 default bash wall-clock limit, now owned by
 // the durable-timer substrate (2.11) instead of the tool implementation.
 const executeToolTimeout = 120 * time.Second
+
+// maxMalformedRetries bounds consecutive malformed_tool_call retries on one
+// turn before the run ends with a user-visible error (S4.6).
+const maxMalformedRetries = 2
 
 func toolTimeout(name string) time.Duration {
 	if def, ok := tool.Get(name); ok && def.Class == tool.ClassExecute {

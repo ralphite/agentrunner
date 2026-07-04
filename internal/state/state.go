@@ -161,6 +161,10 @@ type Run struct {
 	Reason    string         `json:"reason,omitempty"`
 	Usage     provider.Usage `json:"usage"`
 	LastCrash string         `json:"last_crash,omitempty"`
+	// MalformedRetries counts consecutive malformed_tool_call finishes on the
+	// current turn (S4.6). Reset when a turn starts or an assistant message
+	// lands; the loop escalates to a user-visible error past a bound.
+	MalformedRetries int `json:"malformed_retries,omitempty"`
 	// Env is the frozen environment block (S4.4c): rendered once at session
 	// start and injected verbatim into the prompt prefix on every turn, so
 	// the cacheable prefix stays byte-stable as the conversation grows.
@@ -219,9 +223,14 @@ func Apply(s State, env event.Envelope) (State, error) {
 
 	case *event.TurnStarted:
 		s.Run.Turn = p.Turn
+		s.Run.MalformedRetries = 0
 
 	case *event.AssistantMessage:
 		s.Conversation = s.Conversation.withMessage(p.Message)
+		s.Run.MalformedRetries = 0
+
+	case *event.MalformedToolCall:
+		s.Run.MalformedRetries++
 
 	case *event.ContextCompacted:
 		// The full message log stays intact (truth); the boundary freezes at
