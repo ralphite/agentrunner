@@ -1221,3 +1221,24 @@ TurnDiscarded 全链(partial→discard→final,final 消息干净、turn_discard
   dirs 尚未落地,当前实为 env → spec prompt → mode suffix。mode suffix 仅
   在显式 mode 跃迁时变(决策 #10 接受的 cache 断裂),放最后使 env+spec
   前缀最大化稳定。
+
+## S4.4d signature 往返 — DONE(基础设施 S1 已备,本步补验证)
+
+**opaque provider payload(Gemini thoughtSignature)逐字节往返。** 链路 S1
+起即备齐:`Part.Extras map[string]json.RawMessage` → `CollectTurnStreaming`
+把 `ToolCall.Extras` 拷进 assistant message 的 tool_call part →
+`AssistantMessage` event 持久化(JSON round-trip)→ fold 存入
+`Conversation.Messages` → `assembleMessages` 原样 append 整条 assistant
+message,故下一 turn 请求里 tool_call part 的 Extras 逐字节回传。harness
+从不解析或再生成签名。
+
+`toolCallsOf`(decide/adjudicate/execute 用)丢弃 Extras 属正确:签名只在
+assembly 回传时需要,而 assembly 读整条 message,不经 toolCallsOf。
+
+验证 `TestSignatureRoundTrip`:turn1 tool_call 带 Extras{thought_signature},
+断言(a)turn2 assembled 请求的 tool_call part Extras 与原值 `bytes.Equal`,
+(b)assistant_message event 持久化的 Extras 亦逐字节一致。
+
+**Decisions**:
+- 本步无生产代码改动——4d 是"接口按最终形态设计(1.2)"承诺的兑现点:
+  S1 就把 Extras/Signature 落位,S4 只需驱动多轮测试证明不变量成立。
