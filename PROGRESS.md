@@ -2600,3 +2600,16 @@ verifier 现为 **journaled、经管线判定的 effect**:
 
 全量 check + race + stage 5/6 acceptance 回归绿。还债包剩:await
 durable timer、driver stream header、idem 持久化。
+
+## S7 还债② — driver stream header(版本纪律)— DONE
+
+`DriverStarted{driver_id, spec_name, spec(JSON, redacted),
+workspace_root, fold_version}` 为 driver stream 首事件(镜像 RunStarted
+2.17:版本守卫 + spec 溯源,未来免 spec 文件 resume 的地基)。
+`driver.FoldVersion = 1`(单整数——driver fold 是一个结构体,不需要
+run 的 per-sub-state map);Resume 读 events[0]:header 版本不符 →
+响亮拒绝;**S6 无 header 旧流按 v1 接受**(既有 resume 测试即向后
+兼容证明)。fold apply 记 DriverID;accept checkEvents 首事件规则加
+driver_started(iteration_scheduled 保留为 legacy 合法首事件)。
+两测试:mismatch 拒(FoldVersion 99)、新流 header 溯源完整。全量
+check + race + stage 6 acceptance 绿。

@@ -47,6 +47,7 @@ const (
 	// S6 additions (IterationDriver, DESIGN §运行形态). These belong to the
 	// driver's OWN stream — folded by internal/driver, never by the run fold,
 	// so they carry no run SubStateVersions entry.
+	TypeDriverStarted      = "driver_started"
 	TypeIterationScheduled = "iteration_scheduled"
 	TypeIterationLaunched  = "iteration_launched"
 	TypeIterationCompleted = "iteration_completed"
@@ -363,6 +364,19 @@ type ArtifactPublished struct {
 	Source string `json:"source,omitempty"`
 }
 
+// DriverStarted is the driver stream's header fact (S7 还债: version
+// discipline + provenance, mirroring RunStarted 2.17): the spec and fold
+// version journaled at series start guard every resume — a fold-shape change
+// refuses old streams instead of silently misreading them. Streams predating
+// the header (S6) are accepted as fold version 1.
+type DriverStarted struct {
+	DriverID      string          `json:"driver_id"`
+	SpecName      string          `json:"spec_name"`
+	Spec          json.RawMessage `json:"spec,omitempty"`
+	WorkspaceRoot string          `json:"workspace_root,omitempty"`
+	FoldVersion   int             `json:"fold_version"`
+}
+
 // IterationScheduled marks one driver iteration as due (S6, DESIGN §运行
 // 形态). Goal mode schedules immediately; loop mode via interval/cron/
 // self_paced schedules the same fact from a timer.
@@ -487,6 +501,7 @@ var Registry = map[string]func() any{
 	TypeSubagentCompleted: func() any { return &SubagentCompleted{} },
 	TypeArtifactPublished: func() any { return &ArtifactPublished{} },
 
+	TypeDriverStarted:      func() any { return &DriverStarted{} },
 	TypeIterationScheduled: func() any { return &IterationScheduled{} },
 	TypeIterationLaunched:  func() any { return &IterationLaunched{} },
 	TypeIterationCompleted: func() any { return &IterationCompleted{} },
@@ -502,6 +517,7 @@ var Registry = map[string]func() any{
 // no case for them — the run-fold coverage test skips exactly this set, and
 // internal/driver carries the matching coverage assertion.
 var DriverStream = map[string]bool{
+	TypeDriverStarted:      true,
 	TypeIterationScheduled: true,
 	TypeIterationLaunched:  true,
 	TypeIterationCompleted: true,

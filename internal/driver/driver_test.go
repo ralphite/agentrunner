@@ -1376,6 +1376,48 @@ func TestVerifierAskTightensToDeny(t *testing.T) {
 	}
 }
 
+// S7 还债: the stream header guards resume — a fold-version mismatch is
+// refused loudly, never silently migrated; headerless S6 streams (the other
+// resume tests) keep resuming as version 1.
+func TestDriverResumeRefusesVersionMismatch(t *testing.T) {
+	d, dStore := harness(t, &driver.DriverSpec{
+		Name: "goal", Task: "t", MaxIterations: 2,
+		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierCommand, Command: "true"}},
+	})
+	journal(t, dStore, event.TypeDriverStarted, &event.DriverStarted{
+		DriverID: "drv-1", SpecName: "goal", FoldVersion: 99,
+	})
+	if _, err := d.Resume(context.Background()); err == nil ||
+		!strings.Contains(err.Error(), "fold version 99") {
+		t.Fatalf("err = %v, want a version-mismatch refusal", err)
+	}
+}
+
+// A fresh run's stream now opens with the header carrying spec provenance.
+func TestDriverStreamHeader(t *testing.T) {
+	d, dStore := harness(t, &driver.DriverSpec{
+		Name: "goal", Task: "add a line", MaxIterations: 5,
+		Verifiers: []driver.VerifierSpec{{
+			Kind: driver.VerifierCommand, Command: "test -f progress.txt",
+		}},
+	})
+	if _, err := d.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	events, _ := store.ReadEvents(dStore.Dir())
+	if events[0].Type != event.TypeDriverStarted {
+		t.Fatalf("first event = %s, want driver_started", events[0].Type)
+	}
+	decoded, err := event.DecodePayload(events[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := decoded.(*event.DriverStarted)
+	if h.FoldVersion != driver.FoldVersion || h.SpecName != "goal" || len(h.Spec) == 0 {
+		t.Fatalf("header = %+v", h)
+	}
+}
+
 // Every event in event.DriverStream must fold into driver state — the mirror
 // of the run fold's TestApplyCoversRegistry, so no driver-stream type is left
 // unhandled anywhere.

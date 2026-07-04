@@ -192,6 +192,21 @@ func (d *Driver) Run(ctx context.Context) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	// The stream header (S7 还债): spec + fold version guard every resume,
+	// and the spec provenance makes a future spec-less resume possible
+	// (mirrors RunStarted 2.17). Redacted like every persisted payload.
+	specJSON, _ := json.Marshal(d.Spec)
+	wsRoot := ""
+	if d.Exec != nil && d.Exec.WS != nil {
+		wsRoot = d.Exec.WS.Root()
+	}
+	if _, err := appendE(event.TypeDriverStarted, &event.DriverStarted{
+		DriverID: d.DriverID, SpecName: d.Spec.Name,
+		Spec: redact.FromEnv().JSON(specJSON), WorkspaceRoot: wsRoot,
+		FoldVersion: FoldVersion,
+	}); err != nil {
+		return Result{}, err
+	}
 	return d.drive(ctx, st, appendE, 1)
 }
 
@@ -207,6 +222,16 @@ func (d *Driver) Resume(ctx context.Context) (Result, error) {
 	folded, err := Fold(events)
 	if err != nil {
 		return Result{}, err
+	}
+	// Version discipline: a header carrying a different fold version refuses
+	// the resume (never silently migrated); a headerless S6 stream is v1.
+	if len(events) > 0 && events[0].Type == event.TypeDriverStarted {
+		if decoded, derr := event.DecodePayload(events[0]); derr == nil {
+			if started := decoded.(*event.DriverStarted); started.FoldVersion != FoldVersion {
+				return Result{}, fmt.Errorf("driver resume: stream fold version %d does not match binary version %d",
+					started.FoldVersion, FoldVersion)
+			}
+		}
 	}
 	st := &folded
 	st.DriverID = d.DriverID

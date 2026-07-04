@@ -2,6 +2,13 @@ package driver
 
 import "github.com/ralphite/agentrunner/internal/event"
 
+// FoldVersion is the driver fold's shape version, journaled in the stream
+// header (DriverStarted) and checked on resume — a shape change refuses old
+// streams instead of silently misreading them (S7 还债: version discipline,
+// 与 run 的 SubStateVersions 同纪律). Streams predating the header (S6) are
+// accepted as version 1.
+const FoldVersion = 1
+
 // Status is the driver's lifecycle position.
 type Status string
 
@@ -57,6 +64,10 @@ func Fold(events []event.Envelope) (State, error) {
 // malformed Iter < 1 is skipped rather than allowed to panic the fold.
 func (s *State) apply(p any) {
 	switch v := p.(type) {
+	case *event.DriverStarted:
+		if s.DriverID == "" {
+			s.DriverID = v.DriverID
+		}
 	case *event.IterationScheduled:
 		if v.Iter < 1 {
 			return

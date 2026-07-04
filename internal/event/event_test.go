@@ -69,7 +69,9 @@ var samples = map[string]any{
 	TypeEffectResolved: &EffectResolved{EffectID: "eff-call_3_1", CallID: "call_3_1",
 		Verdict: VerdictDeny, GateResults: []GateResult{
 			{Gate: "permission", Decision: VerdictDeny, Reason: "path escapes workspace"}}},
-	TypeRunEnded:           &RunEnded{Reason: "completed", Turns: 4, Usage: provider.Usage{InputTokens: 10}},
+	TypeRunEnded: &RunEnded{Reason: "completed", Turns: 4, Usage: provider.Usage{InputTokens: 10}},
+	TypeDriverStarted: &DriverStarted{DriverID: "drv-1", SpecName: "nightly",
+		Spec: json.RawMessage(`{"name":"nightly"}`), WorkspaceRoot: "/w", FoldVersion: 1},
 	TypeIterationScheduled: &IterationScheduled{DriverID: "drv-1", Iter: 2, Schedule: "immediate"},
 	TypeIterationLaunched:  &IterationLaunched{DriverID: "drv-1", Iter: 2, ChildSession: "drv-1-iter-2"},
 	TypeIterationCompleted: &IterationCompleted{DriverID: "drv-1", Iter: 2, ChildSession: "drv-1-iter-2",
