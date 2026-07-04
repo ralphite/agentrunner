@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -82,6 +83,9 @@ type Loop struct {
 	// first turn (S5.8): journaled into RunStarted, written by an idempotent
 	// materialize activity. Set by a spawning parent (or a future CLI flag).
 	Inputs []event.ArtifactInput
+	// bg is the background-task runtime (S6.1): cancel handles + the done
+	// channel. Ephemeral — the durable truth is the tasks sub-state.
+	bg *bgRuntime
 }
 
 // MCPManager is the slice of mcp.Manager the loop needs (an interface so
@@ -567,6 +571,11 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 	if len(l.Spec.Agents) > 0 {
 		extra = append(extra, "spawn_agent", "handoff_agent")
 	}
+	// bash can launch background tasks (S6.1) — the management tools ride
+	// along so the model can inspect/cancel what it started.
+	if slices.Contains(l.Spec.Tools, "bash") {
+		extra = append(extra, "task_output", "task_kill")
+	}
 	if l.Board != nil || len(l.Spec.Agents) > 0 {
 		extra = append(extra, "publish_note", "read_notes")
 	}
@@ -607,7 +616,12 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 		if err := ctx.Err(); err != nil {
 			return RunResult{}, abort(ds.s.Run.Turn, err)
 		}
-		act := decide(ds.s, l.Spec.MaxTurns)
+		// Finished background tasks settle at the loop's safe point (S6.1):
+		// their outcomes become user-role inputs before the next decision.
+		if err := l.drainBackground(appendE); err != nil {
+			return RunResult{}, abort(ds.s.Run.Turn, err)
+		}
+		act := decide(ds.s, l.Spec.MaxTurns, l.Spec.OnRunEnd)
 		switch act.kind {
 		case doTurn:
 			// Turn boundary is the compaction point (S4.5): summarize the
@@ -753,6 +767,11 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			if err := l.doTools(ctx, ds, appendE, abort, act); err != nil {
 				return RunResult{}, err
 			}
+		case doWaitTasks:
+			if err := l.awaitBackground(ctx, appendE, act.turn); err != nil {
+				return RunResult{}, abort(act.turn, err)
+			}
+			continue
 		case doWait:
 			// A parked approval (fresh or resumed across a crash) re-enters
 			// the same await path: the request payload lives in the fold's
@@ -881,8 +900,25 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 	// closures journal through serialAppend and capture the parent's live
 	// mode NOW — frozen-at-spawn semantics.
 	parentMode := ds.s.CurrentMode()
-	acts := make([]Activity, len(allowed))
+	tasksSnapshot := ds.s.Tasks
+	acts := make([]Activity, 0, len(allowed))
+	actIdx := make([]int, 0, len(allowed))
 	for i, p := range allowed {
+		// Background launches never join the batch (S6.1): the handle pairs
+		// the call via the Started fold, the work outlives this turn, and
+		// the terminal settles later at a drive-loop safe point. The task
+		// context is the RUN's, not the batch's interrupt scope.
+		if isBackgroundCall(p.call.Name, p.call.Args) {
+			if err := l.launchBackground(ctx, serialAppend, p.call.CallID, p.call.Name, p.call.Args); err != nil {
+				stopInt()
+				return abort(act.turn, err)
+			}
+			if tr, ok := ds.s.Conversation.ToolResults[p.call.CallID]; ok {
+				l.emit(protocol.Event{Kind: protocol.KindToolResult, Turn: act.turn,
+					Tool: p.call.Name, CallID: p.call.CallID, Result: compact(tr.Result)})
+			}
+			continue
+		}
 		run := l.buildToolRun(p.call, p.res)
 		if isAgentLaunch(p.call.Name) {
 			run = l.buildSpawnRun(p.call, p.res, serialAppend, p.allowance, parentMode)
@@ -890,22 +926,34 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 		if p.call.Name == "publish_artifact" {
 			run = l.buildPublishRun(p.call, p.res, serialAppend)
 		}
-		acts[i] = Activity{
+		if isTaskTool(p.call.Name) {
+			// Task tools read the fold snapshot taken NOW, on the drive
+			// goroutine — the closure runs on an activity goroutine while
+			// serialAppend mutates ds.s.
+			call := p.call
+			res := p.res
+			run = func(context.Context) (json.RawMessage, *provider.Usage, bool, error) {
+				*res = l.runTaskTool(tasksSnapshot, call.Name, call.Args)
+				return res.Payload, nil, res.IsError, nil
+			}
+		}
+		acts = append(acts, Activity{
 			ID: "tool-" + p.call.CallID, Kind: event.KindTool,
 			Name: p.call.Name, Args: p.call.Args, CallID: p.call.CallID,
 			Idempotent: toolIdempotentIn(ds.s, p.call.Name),
 			Timeout:    toolTimeoutIn(ds.s, p.call.Name),
 			Run:        run,
 			PostRun:    l.buildPostRun(p.call),
-		}
+		})
+		actIdx = append(actIdx, i)
 	}
 	var wg sync.WaitGroup
-	for i := range acts {
+	for j := range acts {
 		wg.Add(1)
-		go func(i int) {
+		go func(j int) {
 			defer wg.Done()
-			errsOut[i] = execP.Do(actCtx, acts[i])
-		}(i)
+			errsOut[actIdx[j]] = execP.Do(actCtx, acts[j])
+		}(j)
 	}
 	wg.Wait()
 	stopInt()
@@ -1008,11 +1056,12 @@ func (l *Loop) buildPostRun(call provider.ToolCall) func(context.Context, json.R
 
 // action kinds for decide.
 const (
-	doTurn = iota // journal TurnStarted for action.turn
-	doLLM         // run the LLM activity for action.turn
-	doTool        // run action.call
-	doEnd         // journal RunEnded with action.reason
-	doWait        // parked: the wait must resolve before anything else
+	doTurn      = iota // journal TurnStarted for action.turn
+	doLLM              // run the LLM activity for action.turn
+	doTool             // run action.call
+	doEnd              // journal RunEnded with action.reason
+	doWait             // parked: the wait must resolve before anything else
+	doWaitTasks        // parked on background tasks (S6.1): settle one, re-decide
 )
 
 type action struct {
@@ -1025,9 +1074,10 @@ type action struct {
 	reason string
 }
 
-// decide is THE loop policy: given only the fold state, what happens next.
+// decide is THE loop policy: given only the fold state (plus the spec
+// constants maxTurns and onRunEnd, fixed for the run), what happens next.
 // Resume re-enters here with the same state and therefore the same answer.
-func decide(s state.State, maxTurns int) action {
+func decide(s state.State, maxTurns int, onRunEnd string) action {
 	if s.Waiting != nil {
 		return action{kind: doWait, turn: s.Run.Turn}
 	}
@@ -1041,6 +1091,14 @@ func decide(s state.State, maxTurns int) action {
 	}
 	calls := toolCallsOf(assistants[len(assistants)-1])
 	if len(calls) == 0 {
+		// Natural ending: the model produced no tool calls. With live
+		// background tasks, on_run_end decides (S6.1): await parks in
+		// WAITING_TASKS (2.14) until a task completes and its outcome
+		// re-enters as a user-role message; the default (cancel) ends now
+		// and the epilogue quiesce cancels the stragglers (fire-and-forget).
+		if len(s.Tasks) > 0 && onRunEnd == "await" {
+			return action{kind: doWaitTasks, turn: turn}
+		}
 		return action{kind: doEnd, turn: turn, reason: "completed"}
 	}
 	var unresolved []provider.ToolCall
@@ -1062,6 +1120,10 @@ func decide(s state.State, maxTurns int) action {
 			}
 		}
 	}
+	// A forced ending (max_turns) delegates any live background tasks to the
+	// epilogue quiesce slot, which honors on_run_end (cancel or silent
+	// await) — the loop never parks waiting on a straggler at a forced end
+	// the way a natural await ending does (S6.1).
 	if turn >= maxTurns {
 		return action{kind: doEnd, turn: turn, reason: "max_turns"}
 	}

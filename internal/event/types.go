@@ -122,6 +122,11 @@ type ActivityStarted struct {
 	CallID     string          `json:"call_id,omitempty"`
 	Idempotent bool            `json:"idempotent,omitempty"`
 	Attempt    int             `json:"attempt"`
+	// Background marks a task-style activity (S6.1): the tool call pairs
+	// with a handle result IMMEDIATELY (the fold renders it from this very
+	// event) and the terminal event arrives later, rendered as a user-role
+	// input. No separate Task event family — this flag IS the task fact.
+	Background bool `json:"background,omitempty"`
 }
 
 type ActivityCompleted struct {

@@ -24,9 +24,8 @@ type epilogueHook struct {
 }
 
 // epilogueSequence: quiesce → auto-publish → barrier → (terminal event).
-//   - quiesce: wait for in-flight activity quiescence. No-op in S2: the
-//     drive loop is serial, nothing is in flight at an ending. S6
-//     (parallel tasks) fills this in using the Activities sub-state.
+//   - quiesce: background tasks settle or cancel per on_run_end before the
+//     terminal event (S6.1 填实 — the log never ends with tasks in flight).
 //   - auto_publish: publish the spec's declared outputs and check the
 //     deliverable contract (S5.6).
 //   - barrier: the S7 run-end snapshot barrier slot, reserved no-op.
@@ -34,7 +33,7 @@ type epilogueHook struct {
 // S3.7c's LimitExceeded farewell message hooks in as a quiesce-slot
 // predecessor per PLAN (挂进此序列).
 var epilogueSequence = []epilogueHook{
-	{name: "quiesce", run: noopEpilogueHook},
+	{name: "quiesce", run: quiesceTasks},
 	{name: "auto_publish", run: autoPublishOutputs},
 	{name: "barrier", run: noopEpilogueHook},
 }

@@ -68,6 +68,9 @@ type AgentSpec struct {
 	// Agents whitelists the sub-agent specs this agent may spawn (S5.3).
 	// The model only sees — and can only spawn — what is listed here.
 	Agents []string `yaml:"agents,omitempty"`
+	// OnRunEnd says what happens to still-running background tasks at a
+	// run ending (S6.1): "cancel" (default) or "await".
+	OnRunEnd string `yaml:"on_run_end,omitempty"`
 	// Outputs is the deliverable contract (S5.6): at a graceful ending the
 	// epilogue auto-publishes each declared output (from its workspace Path
 	// unless the run already published the stream) and a missing Required
@@ -175,6 +178,11 @@ func (s *AgentSpec) validate(path string) error {
 
 	if s.MaxTurns < 0 {
 		return fail("max_turns", "must be positive")
+	}
+	switch s.OnRunEnd {
+	case "", "cancel", "await":
+	default:
+		return fail("on_run_end", fmt.Sprintf("unknown value %q (known: cancel, await)", s.OnRunEnd))
 	}
 	return nil
 }

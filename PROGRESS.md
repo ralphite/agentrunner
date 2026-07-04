@@ -1905,3 +1905,43 @@ recovered);s4-04 blocked 收尾(文本保留、run_ended{blocked}、exit 1
   manifest plan stream、payload_ref≥2、拒绝理由在 events。0.6 "完成标志
   逐句可执行"缺口闭合。
 - 全量 check + race + stage 1-5 acceptance 回归全绿。
+
+## S6 模块① — background effects + tasks sub-state — DONE
+
+**新 fold sub-state `tasks`(version 1,版本集 9→10)**:`ActivityStarted
+{Background:true}` 折出 in-flight task 集,同一 event 当场把 handle
+(`{task_id, status: running}`)配为 tool_result——配对不阻塞 loop。终态
+event(Completed/Failed/Cancelled)从 tasks 移除,并把结果渲染成**新的
+user-role 消息**(`[background task <id> <status>]\n<body>`)进 conversation,
+下一 turn 可见。`internal/agent/task.go` 为 ephemeral runtime(cancel 句柄
+map + done channel);settle 只在 drive goroutine 落 journal(fold 单写者
+不破)。内置 tool `task_output`(read-class,v0 返回 running 状态,live tail
+待流式工具)/`task_kill`(execute-class,协作取消);bash 带 `background:
+true` 即走后台。`bash` 在 tools 时 face 追加这两个管理 tool。epilogue
+quiesce 槽位填实:`on_run_end=await` 静默等全部 task 终态,默认 cancel
+协作取消,均在 `RunEnded` 前 settle。
+
+**决策台账 — WAITING_TASKS 与 on_run_end 的调和**(触发不变量调和,非
+代码绕行):
+- **现象**:`decide()` 只见 fold,无法区分「模型 end_turn 想等 task」与
+  「模型 end_turn 想走人」——两者都是无 tool call 的 end_turn + 在飞 task。
+  `TestBackgroundTaskCancelledAtRunEnd`(默认 cancel、sleep 30)原会 park
+  在 WAITING_TASKS 空等 30s,与「cancel = fire-and-forget」的默认语义相悖。
+- **涉及口径**:DESIGN §effect 无条件「end_turn+活任务 → WAITING_TASKS」
+  vs §run 收尾「按 on_run_end quiesce(await 静默等 / cancel 协作取消)」——
+  cancel 默认在自然收尾从不生效,与「默认即 cancel」矛盾。
+- **备选**:(A)自然收尾恒 park,on_run_end 只管强制结束(max_turns/error)
+  ——需把两个 run-end 测试改写成 max_turns、违背作者自然 end_turn 的意图;
+  (B)自然收尾按 on_run_end 分流——await 才 park,默认 cancel 直接收尾由
+  quiesce 取消。
+- **裁定:取 B**(最贴合默认 cancel 的 fire-and-forget 与测试作者意图)。
+  `decide(s, maxTurns, onRunEnd)`:无 call + 活任务 + `await` → doWaitTasks;
+  否则 → doEnd(completed)。**强制结束(max_turns)去掉活任务 park,一律
+  doEnd 交 epilogue quiesce 按 on_run_end 处置**,绝不为残留 task 阻塞 loop。
+  DESIGN §effect 相应改为 on_run_end 分流口径(三文档一致)。spec 校验
+  `on_run_end ∈ {"", cancel, await}`。`TestBackgroundTaskHandleAndOutcome`
+  设 `await` 以看到 outcome 回流(默认 cancel 会取消 task)。
+- **未接**:await park 的 durable timer 兜底(DESIGN 要求)留待 daemon
+  模块(timer 派生索引);当前靠 ctx 取消逃逸。
+- 四测试(handle/outcome、cancel-at-end、task_kill、await-at-end)全绿,
+  全量 check + race 通过。

@@ -5,8 +5,17 @@
   "input_schema": {
     "type": "object",
     "properties": {
-      "command": { "type": "string", "description": "The shell command to execute." }
+      "command": {
+        "type": "string",
+        "description": "The shell command to execute."
+      },
+      "background": {
+        "type": "boolean",
+        "description": "Run the command as a background task: returns a task handle immediately; the result arrives as a message when it finishes."
+      }
     },
-    "required": ["command"]
+    "required": [
+      "command"
+    ]
   }
 }

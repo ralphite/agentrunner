@@ -418,10 +418,15 @@ limits:
   `ActivityStarted` 的 fold 渲染（`{task_id, status: running}`）——
   Gemini 的 1:1 配对当场满足、永不再动；完成时 `ActivityCompleted`
   兼任 pending input，在 turn 边界以**新的 user-role 消息**进入 loop
-  （与 steering 同路）。模型结束 turn 时仍有活任务且无其他输入 →
-  `WAITING_TASKS`。`task_output`（读 log，read-class）/ `task_kill`
-  （协作取消，execute-class）是普通数据定义 tool；进度 tail 走
-  ephemeral topic（与 token delta 同 doctrine）。
+  （与 steering 同路）。模型结束 turn 时仍有活任务且无其他输入，其处置
+  由 `on_run_end` 决定（下一条 quiesce 同源）：`await` → 进入
+  `WAITING_TASKS` park（等某个 task 终态、结果回流为新 user-role 消息后
+  再决策，直到 task 清空才自然收尾）；默认 `cancel` → 直接走 run 收尾
+  epilogue，由 quiesce 槽位协作取消残留 task（fire-and-forget）。被强制
+  结束（max_turns 等）同样交 epilogue quiesce 按 `on_run_end` 处置——
+  绝不为残留 task 阻塞 loop。`task_output`（读 log，read-class）/
+  `task_kill`（协作取消，execute-class）是普通数据定义 tool；进度 tail
+  走 ephemeral topic（与 token delta 同 doctrine）。
 - **run 的收尾是固定 epilogue**：(1) 按 `on_run_end` quiesce 后台任务
   （`await` 是纯静默等待——完成只入 journal 不再进 loop，且必有
   durable timer 兜底）→ (2) 自动 publish `outputs:` 声明的交付物并
