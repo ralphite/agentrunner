@@ -6,6 +6,7 @@
 package driver
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/ralphite/agentrunner/internal/agent"
@@ -16,11 +17,13 @@ import (
 const DefaultMaxIterations = 10
 
 // Schedule kinds. immediate = goal mode; interval / cron = loop mode on a
-// fixed cadence. self_paced arrives with its built-in tools step.
+// fixed cadence; self_paced = loop mode where the CHILD declares the pace
+// via the schedule_next / finish_series built-in tools.
 const (
 	ScheduleImmediate = "immediate"
 	ScheduleInterval  = "interval"
 	ScheduleCron      = "cron"
+	ScheduleSelfPaced = "self_paced"
 )
 
 // Overlap policies for a loop-mode tick that fires while the previous
@@ -59,6 +62,15 @@ type DriverSpec struct {
 	// IterationSkipped) or coalesce (missed ticks fold into one immediate
 	// iteration).
 	Overlap string `yaml:"overlap,omitempty"`
+	// PaceMin / PaceMax clamp a self_paced child's schedule_next request
+	// (Go durations). Empty = unclamped on that side.
+	PaceMin string `yaml:"pace_min,omitempty"`
+	PaceMax string `yaml:"pace_max,omitempty"`
+	// OnNoIntent is the self_paced fallback when an iteration ends without a
+	// schedule_next or an approved finish_series: "finish" (default — a
+	// child that stops asking is done) or "continue" (re-run at PaceMin,
+	// which must then be set: a forgetful child must not spin the series).
+	OnNoIntent string `yaml:"on_no_intent,omitempty"`
 	// Agent is the spec each iteration runs as a fresh child (same spec →
 	// byte-stable prefix across iterations).
 	Agent *agent.AgentSpec `yaml:"-"`
@@ -141,4 +153,28 @@ func (s *DriverSpec) interval() (time.Duration, error) {
 		return 0, nil
 	}
 	return time.ParseDuration(s.Interval)
+}
+
+// OnNoIntent modes (self_paced).
+const (
+	NoIntentFinish   = "finish"
+	NoIntentContinue = "continue"
+)
+
+// paceBounds parses the self_paced clamp; empty sides are unbounded.
+func (s *DriverSpec) paceBounds() (min, max time.Duration, err error) {
+	if s.PaceMin != "" {
+		if min, err = time.ParseDuration(s.PaceMin); err != nil {
+			return 0, 0, fmt.Errorf("pace_min %q: %w", s.PaceMin, err)
+		}
+	}
+	if s.PaceMax != "" {
+		if max, err = time.ParseDuration(s.PaceMax); err != nil {
+			return 0, 0, fmt.Errorf("pace_max %q: %w", s.PaceMax, err)
+		}
+	}
+	if max > 0 && min > max {
+		return 0, 0, fmt.Errorf("pace_min %s exceeds pace_max %s", s.PaceMin, s.PaceMax)
+	}
+	return min, max, nil
 }

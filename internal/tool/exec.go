@@ -68,9 +68,43 @@ func (e *Executor) Execute(ctx context.Context, name string, args json.RawMessag
 		return e.editFile(args)
 	case "bash":
 		return e.bash(ctx, args)
+	case "schedule_next":
+		return e.scheduleNext(args)
+	case "finish_series":
+		return e.finishSeries(args)
 	default:
 		return errResult("unknown tool %q", name)
 	}
+}
+
+// scheduleNext and finishSeries are pure data-definition tools (S6 loop
+// mode): the ack is the whole execution — the MEANING is read by the
+// IterationDriver from this run's journal when the iteration ends.
+func (e *Executor) scheduleNext(rawArgs json.RawMessage) Result {
+	var args struct {
+		After string `json:"after"`
+	}
+	if err := json.Unmarshal(rawArgs, &args); err != nil || args.After == "" {
+		return errResult("schedule_next: invalid args: need {\"after\": duration}")
+	}
+	if _, err := time.ParseDuration(args.After); err != nil {
+		return errResult("schedule_next: bad duration %q (want Go form like \"30m\", \"2h\")", args.After)
+	}
+	return okResult(map[string]any{
+		"output": fmt.Sprintf("next iteration requested after %s (the driver clamps and applies it when this iteration ends)", args.After),
+	})
+}
+
+func (e *Executor) finishSeries(rawArgs json.RawMessage) Result {
+	var args struct {
+		Reason string `json:"reason"`
+	}
+	if err := json.Unmarshal(rawArgs, &args); err != nil || args.Reason == "" {
+		return errResult("finish_series: invalid args: need {\"reason\": string}")
+	}
+	return okResult(map[string]any{
+		"output": "series completion claimed; a human verifier reviews it when this iteration ends",
+	})
 }
 
 func (e *Executor) readFile(rawArgs json.RawMessage) Result {

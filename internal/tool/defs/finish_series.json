@@ -1,0 +1,15 @@
+{
+  "name": "finish_series",
+  "description": "Declare this self-paced series complete. A human verifier reviews the claim when this iteration ends; if it is denied, the series continues.",
+  "class": "read",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "reason": {
+        "type": "string",
+        "description": "Why the series' work is done."
+      }
+    },
+    "required": ["reason"]
+  }
+}

@@ -2121,3 +2121,34 @@ overlap 校验 ∈ {"", skip, coalesce}。
 skipped/completed 逐位断言)、coalesce(错过双 tick 折一次立即跑,
 仅一次 park、无 IterationSkipped)。cron loop 的 resume/durable 唤醒
 依赖 daemon(DESIGN 已文档化降级模式)。全量 check + race 通过。
+
+## S6 模块③(续)— self_paced(schedule_next / finish_series)— DONE
+
+**两个内置数据定义 tool**(registry 11→13,goldens 更新):
+`schedule_next{after}`(read-class,executor 只验参 + ack;**意义由 driver
+在迭代结束后从 child journal 读出**——与 task 工具同 doctrine)、
+`finish_series{reason}`(read-class,同 ack)。
+
+**driver `schedule: self_paced`**:prepare 把两 tool 注入 child spec 工具
+面(child 自己定节奏);`childIntent(childDir)` 折 child journal 取**最后
+一个成功配对**的声明(未答/error 结果不算,后声明覆盖前声明)。
+`applyPaceIntent`(迭代完成后):
+- finish_series → **human 把关**(`confirmFinish` 走同一 ask 路径,
+  EnvApprovals unset fail-closed):approve → `DriverCompleted{satisfied}`;
+  deny → 系列以 pace 下限继续(child 无感,靠 series memory 后续补齐)。
+- schedule_next → `clampPace(after, pace_min, pace_max)` 存 `nextPace`,
+  awaitTick 于 `now+nextPace` park。
+- 无声明 → `on_no_intent`:finish(默认,不再要求即完成 → satisfied)
+  / continue(以 pace_min 重跑;**prepare 强制 continue 必配 pace_min**,
+  健忘 child 不得空转)。
+
+spec 新字段 `pace_min/pace_max/on_no_intent`(parse + min≤max 校验)。
+四测试:基本流(1m pace park→Advance→finish approve→satisfied@2)、
+no-intent 默认 finish(satisfied@1)、clamp(10h 请求 clamp 到 1h,
+Advance(1h) 即醒)、denied finish(拒后 floor 0 立即续跑,下迭代
+no-intent 收束)。全量 check + race 通过。
+
+**PLAN 模块③ 的 loop mode 语义至此齐**(interval/cron/self_paced +
+overlap + 钳位 + 兜底)。未接:scheduler actor(幂等 RunAgent command,
+含义在 daemon 语境下才完整)、series memory 注入(权威边界截断)、
+durable timer 跨进程唤醒(daemon)。

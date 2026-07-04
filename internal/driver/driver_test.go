@@ -805,6 +805,189 @@ func TestDriverCronOverlapCoalesce(t *testing.T) {
 	}
 }
 
+// selfPacedHarness wires a self_paced driver whose per-iteration fixture is
+// chosen by call number (1-based). Fixtures should be text/data-tools only so
+// the fake clock's Waiters reflects the pace park alone.
+func selfPacedHarness(t *testing.T, spec *driver.DriverSpec, clk *clock.Fake,
+	fixFor func(call int) scripted.Fixture) (*driver.Driver, *store.EventStore) {
+	t.Helper()
+	root := t.TempDir()
+	ws, err := workspace.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dStore, err := store.OpenEventStore(filepath.Join(root, "driver"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = dStore.Close() })
+	childSpec := &agent.AgentSpec{
+		Name: "worker", Model: agent.ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
+		SystemPrompt: "pace yourself", MaxTurns: 5,
+	}
+	spec.Agent = childSpec
+	exec := &tool.Executor{WS: ws}
+	calls := 0
+	d := &driver.Driver{
+		Spec: spec, Store: dStore, Clock: clk, DriverID: "drv-1", Exec: exec,
+		NewChild: func(cs *store.EventStore, session string, iter, budget int) *agent.Loop {
+			calls++
+			return &agent.Loop{Spec: childSpec, Provider: scripted.New(fixFor(calls)),
+				Exec: exec, Store: cs, Clock: clk, SessionID: session}
+		},
+	}
+	return d, dStore
+}
+
+func paceFixture(after string) scripted.Fixture {
+	return scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{
+			{ToolCall: &scripted.ToolCallEvent{CallID: "p1", Name: "schedule_next",
+				Args: map[string]any{"after": after}}},
+			{Finish: "tool_use"},
+		}},
+		{Respond: []scripted.Event{{Text: "scheduled the next pass"}, {Finish: "end_turn"}}},
+	}}
+}
+
+func finishFixture() scripted.Fixture {
+	return scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{
+			{ToolCall: &scripted.ToolCallEvent{CallID: "f1", Name: "finish_series",
+				Args: map[string]any{"reason": "all caught up"}}},
+			{Finish: "tool_use"},
+		}},
+		{Respond: []scripted.Event{{Text: "done with the series"}, {Finish: "end_turn"}}},
+	}}
+}
+
+// self_paced: iteration 1 declares schedule_next{1m} (the driver parks on
+// it); iteration 2 claims finish_series and the human gate approves —
+// the series ends satisfied.
+func TestDriverSelfPaced(t *testing.T) {
+	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
+	d, dStore := selfPacedHarness(t, &driver.DriverSpec{
+		Name: "series", Schedule: driver.ScheduleSelfPaced, Task: "keep up", MaxIterations: 5,
+	}, clk, func(call int) scripted.Fixture {
+		if call == 1 {
+			return paceFixture("1m")
+		}
+		return finishFixture()
+	})
+	d.Approvals = stubResolver{approve: true}
+
+	resCh := make(chan driver.Result, 1)
+	go func() {
+		res, rerr := d.Run(context.Background())
+		if rerr != nil {
+			t.Errorf("driver run: %v", rerr)
+		}
+		resCh <- res
+	}()
+
+	waitParked(t, clk) // parked on the declared 1m pace
+	clk.Advance(time.Minute)
+
+	res := <-resCh
+	if res.Reason != "satisfied" || res.Iterations != 2 {
+		t.Fatalf("res = %+v, want satisfied at 2 (approved finish_series)", res)
+	}
+	events, _ := store.ReadEvents(dStore.Dir())
+	st, _ := driver.Fold(events)
+	if len(st.Iterations) != 2 || !st.Iterations[0].Completed || !st.Iterations[1].Completed {
+		t.Fatalf("iterations = %+v", st.Iterations)
+	}
+}
+
+// self_paced default on_no_intent (finish): a child that neither schedules
+// nor claims completion ends the series after its iteration.
+func TestDriverSelfPacedNoIntentFinish(t *testing.T) {
+	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
+	d, _ := selfPacedHarness(t, &driver.DriverSpec{
+		Name: "series", Schedule: driver.ScheduleSelfPaced, Task: "one shot?", MaxIterations: 5,
+	}, clk, func(int) scripted.Fixture {
+		return scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{{Text: "nothing more to plan"}, {Finish: "end_turn"}}},
+		}}
+	})
+
+	res, err := d.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "satisfied" || res.Iterations != 1 {
+		t.Fatalf("res = %+v, want satisfied at 1 (no intent → finish)", res)
+	}
+}
+
+// self_paced clamp: a 10h request under pace_max=1h parks exactly 1h.
+func TestDriverSelfPacedClamp(t *testing.T) {
+	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
+	d, _ := selfPacedHarness(t, &driver.DriverSpec{
+		Name: "series", Schedule: driver.ScheduleSelfPaced, Task: "pace", MaxIterations: 5,
+		PaceMax: "1h",
+	}, clk, func(call int) scripted.Fixture {
+		if call == 1 {
+			return paceFixture("10h")
+		}
+		return scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{{Text: "no more"}, {Finish: "end_turn"}}},
+		}}
+	})
+
+	resCh := make(chan driver.Result, 1)
+	go func() {
+		res, rerr := d.Run(context.Background())
+		if rerr != nil {
+			t.Errorf("driver run: %v", rerr)
+		}
+		resCh <- res
+	}()
+
+	waitParked(t, clk)
+	clk.Advance(time.Hour) // 1h suffices only because the 10h ask was clamped
+
+	select {
+	case res := <-resCh:
+		if res.Reason != "satisfied" || res.Iterations != 2 {
+			t.Fatalf("res = %+v, want satisfied at 2", res)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("driver still parked after 1h — the pace was not clamped to pace_max")
+	}
+}
+
+// self_paced denied finish: the human gate rejects the claim, the series
+// continues (floor pace 0 → immediately) and ends on the next iteration's
+// no-intent finish.
+func TestDriverSelfPacedFinishDenied(t *testing.T) {
+	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
+	d, dStore := selfPacedHarness(t, &driver.DriverSpec{
+		Name: "series", Schedule: driver.ScheduleSelfPaced, Task: "try to quit", MaxIterations: 5,
+	}, clk, func(call int) scripted.Fixture {
+		if call == 1 {
+			return finishFixture()
+		}
+		return scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{{Text: "ok, wrapping up quietly"}, {Finish: "end_turn"}}},
+		}}
+	})
+	d.Approvals = stubResolver{approve: false}
+
+	res, err := d.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "satisfied" || res.Iterations != 2 {
+		t.Fatalf("res = %+v, want the denied finish to force iteration 2", res)
+	}
+	events, _ := store.ReadEvents(dStore.Dir())
+	st, _ := driver.Fold(events)
+	if len(st.Iterations) != 2 {
+		t.Fatalf("iterations = %d, want 2 (finish denied → continued)", len(st.Iterations))
+	}
+}
+
 // waitParked spins until the driver goroutine is blocked on the fake clock.
 func waitParked(t *testing.T, clk *clock.Fake) {
 	t.Helper()

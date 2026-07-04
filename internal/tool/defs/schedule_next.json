@@ -1,0 +1,15 @@
+{
+  "name": "schedule_next",
+  "description": "Declare when the next iteration of this self-paced series should run (e.g. after '2h'). The driver reads your latest declaration when this iteration ends; calling again overrides an earlier one.",
+  "class": "read",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "after": {
+        "type": "string",
+        "description": "Delay before the next iteration, as a Go duration string like '30m' or '2h'. The driver clamps it to the configured pace_min/pace_max."
+      }
+    },
+    "required": ["after"]
+  }
+}

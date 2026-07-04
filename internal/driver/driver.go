@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -61,9 +62,11 @@ type Driver struct {
 	Artifacts *store.ArtifactStore
 
 	// Loop-mode cadence runtime state (never fold state: cron ticks are
-	// absolute wall times, recomputable from the clock).
+	// absolute wall times, recomputable from the clock; the self_paced pace
+	// re-derives from the last child journal).
 	cronSched *cron.Schedule
 	lastTick  time.Time
+	nextPace  time.Duration
 }
 
 // Result summarizes a finished driver run.
@@ -100,6 +103,27 @@ func (d *Driver) prepare(st *State) (appendFunc, error) {
 			return nil, fmt.Errorf("driver: %w", err)
 		}
 		d.cronSched = sched
+	case ScheduleSelfPaced:
+		if _, _, err := d.Spec.paceBounds(); err != nil {
+			return nil, fmt.Errorf("driver: %w", err)
+		}
+		switch d.Spec.OnNoIntent {
+		case "", NoIntentFinish:
+		case NoIntentContinue:
+			if d.Spec.PaceMin == "" {
+				return nil, fmt.Errorf("driver: on_no_intent=continue requires pace_min — a forgetful child must not spin the series")
+			}
+		default:
+			return nil, fmt.Errorf("driver: on_no_intent %q unknown (known: finish, continue)", d.Spec.OnNoIntent)
+		}
+		// The child paces the series: put the pace tools on its face.
+		if d.Spec.Agent != nil {
+			for _, name := range []string{"schedule_next", "finish_series"} {
+				if !slices.Contains(d.Spec.Agent.Tools, name) {
+					d.Spec.Agent.Tools = append(d.Spec.Agent.Tools, name)
+				}
+			}
+		}
 	default:
 		return nil, fmt.Errorf("driver: schedule %q not implemented", d.Spec.Schedule)
 	}
@@ -293,8 +317,8 @@ func (d *Driver) drive(ctx context.Context, st *State, appendE appendFunc, start
 			return Result{}, err
 		}
 		// Goal mode ends when the goal is met or progress stalls; loop mode
-		// runs on cadence until max_iterations / budget / cancel (finish_series
-		// arrives with the self_paced step).
+		// runs on cadence until max_iterations / budget / cancel — or, in
+		// self_paced, an approved finish_series / no-intent finish.
 		if !loopMode {
 			if verdict.Pass {
 				return d.finish(appendE, st, "satisfied", n)
@@ -302,8 +326,125 @@ func (d *Driver) drive(ctx context.Context, st *State, appendE appendFunc, start
 			if d.stalled(st) {
 				return d.finish(appendE, st, "stalled", n)
 			}
+		} else if d.Spec.schedule() == ScheduleSelfPaced {
+			done, res, perr := d.applyPaceIntent(ctx, appendE, st, n, childDir)
+			if perr != nil {
+				return Result{}, perr
+			}
+			if done {
+				return res, nil
+			}
 		}
 	}
+}
+
+// applyPaceIntent reads the finished child's schedule_next / finish_series
+// declaration (from its journal) and either ends the series or stashes the
+// next pace for awaitTick. finish_series is human-gated (DESIGN: "自称完成"
+// 由 human verifier 把关,不另设 confirm 机制): approved → satisfied; denied
+// → the series continues at the pace floor. No intent → on_no_intent
+// (default finish: a child that stops asking is done).
+func (d *Driver) applyPaceIntent(ctx context.Context, appendE appendFunc, st *State, n int, childDir string) (bool, Result, error) {
+	intent := childIntent(childDir)
+	floor, ceil, _ := d.Spec.paceBounds() // validated in prepare
+	switch {
+	case intent.finish:
+		if d.confirmFinish(ctx, childDir) {
+			res, err := d.finish(appendE, st, "satisfied", n)
+			return true, res, err
+		}
+		d.nextPace = floor
+		return false, Result{}, nil
+	case intent.has:
+		d.nextPace = clampPace(intent.after, floor, ceil)
+		return false, Result{}, nil
+	default:
+		if d.Spec.OnNoIntent == NoIntentContinue {
+			d.nextPace = floor
+			return false, Result{}, nil
+		}
+		res, err := d.finish(appendE, st, "satisfied", n)
+		return true, res, err
+	}
+}
+
+func clampPace(after, floor, ceil time.Duration) time.Duration {
+	if after < floor {
+		return floor
+	}
+	if ceil > 0 && after > ceil {
+		return ceil
+	}
+	return after
+}
+
+// confirmFinish runs the human gate on a finish_series claim through the
+// same ask path as every approval (fail-closed under EnvApprovals unset).
+func (d *Driver) confirmFinish(ctx context.Context, childDir string) bool {
+	resolver := d.Approvals
+	if resolver == nil {
+		resolver = &agent.EnvApprovals{}
+	}
+	args, _ := json.Marshal(map[string]string{
+		"claim":  "the series is complete",
+		"report": excerpt(childReport(childDir)),
+	})
+	dec, err := resolver.Resolve(ctx, agent.ApprovalRequest{
+		ApprovalID: "finish-" + d.DriverID,
+		Agent:      d.Spec.Name + " (series completion)",
+		ToolName:   "finish_series",
+		Args:       args,
+	})
+	return err == nil && dec.Approve
+}
+
+// paceIntent is a self_paced child's declared intent.
+type paceIntent struct {
+	finish bool          // finish_series succeeded
+	after  time.Duration // schedule_next's requested delay
+	has    bool          // any intent at all (the LAST declaration wins)
+}
+
+// childIntent folds the child journal and extracts the last successful
+// schedule_next / finish_series call — unanswered or error-result calls
+// carry no intent.
+func childIntent(childDir string) paceIntent {
+	events, err := store.ReadEvents(childDir)
+	if err != nil {
+		return paceIntent{}
+	}
+	s, err := state.Fold(events)
+	if err != nil {
+		return paceIntent{}
+	}
+	var intent paceIntent
+	for _, m := range s.Conversation.Messages {
+		if m.Role != provider.RoleAssistant {
+			continue
+		}
+		for _, p := range m.Parts {
+			if p.Kind != provider.PartToolCall ||
+				(p.ToolName != "schedule_next" && p.ToolName != "finish_series") {
+				continue
+			}
+			tr, ok := s.Conversation.ToolResults[p.CallID]
+			if !ok || tr.IsError {
+				continue
+			}
+			if p.ToolName == "finish_series" {
+				intent = paceIntent{finish: true, has: true}
+				continue
+			}
+			var args struct {
+				After string `json:"after"`
+			}
+			_ = json.Unmarshal(p.Args, &args)
+			if dur, derr := time.ParseDuration(args.After); derr == nil {
+				intent = paceIntent{after: dur, has: true}
+			}
+		}
+	}
+	return intent
 }
 
 // awaitTick blocks until iteration n's tick is due (loop mode). It returns
@@ -362,6 +503,19 @@ func (d *Driver) awaitTick(ctx context.Context, appendE appendFunc, n int, first
 			return false, err
 		}
 		d.lastTick = next
+		return true, nil
+
+	case ScheduleSelfPaced:
+		// The pace was stashed by applyPaceIntent at the previous iteration's
+		// end; the first iteration fires immediately.
+		if first {
+			return true, nil
+		}
+		if d.nextPace > 0 {
+			if err := d.Clock.WaitUntil(ctx, d.Clock.Now().Add(d.nextPace)); err != nil {
+				return false, err
+			}
+		}
 		return true, nil
 
 	default:
