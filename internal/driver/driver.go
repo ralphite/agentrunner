@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -573,7 +574,7 @@ func (d *Driver) runIteration(ctx context.Context, n int, childSession string, a
 			res, rerr = child.Resume(ctx)
 		} else {
 			child := d.NewChild(childStore, session, n, allowance)
-			res, rerr = child.Run(ctx, d.Spec.Task)
+			res, rerr = child.Run(ctx, d.buildTask())
 		}
 		_ = childStore.Close()
 		if rerr == nil {
@@ -603,6 +604,41 @@ func settledChild(childDir string) (bool, agent.RunResult) {
 		return false, agent.RunResult{}
 	}
 	return true, agent.RunResult{Reason: s.Run.Reason, Turns: s.Run.Turn, Usage: s.Run.Usage}
+}
+
+// seriesMemoryMaxBytes caps the injected series memory: the authority
+// boundary is AT injection (DESIGN: 权威边界在注入时截断) — an agent that
+// lets its own doc grow cannot bloat the next iteration's context.
+const seriesMemoryMaxBytes = 8 * 1024
+
+// buildTask renders one iteration's task: the spec task plus the truncated
+// series-memory block when configured. A missing file is simply no block —
+// the first iteration has nothing to remember yet.
+func (d *Driver) buildTask() string {
+	task := d.Spec.Task
+	if d.Spec.SeriesMemory == "" || d.Exec == nil || d.Exec.WS == nil {
+		return task
+	}
+	path, err := d.Exec.WS.Resolve(d.Spec.SeriesMemory)
+	if err != nil {
+		return task
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return task
+	}
+	mem := string(raw)
+	truncated := false
+	if len(mem) > seriesMemoryMaxBytes {
+		mem = mem[:seriesMemoryMaxBytes]
+		truncated = true
+	}
+	block := "\n\n<series-memory path=\"" + d.Spec.SeriesMemory + "\">\n" + mem
+	if truncated {
+		block += "\n[truncated at " + strconv.Itoa(seriesMemoryMaxBytes) + " bytes — keep this file short]"
+	}
+	block += "\n</series-memory>"
+	return task + block
 }
 
 // iterDir names an iteration's child journal: sub/iter-N for the first

@@ -988,6 +988,74 @@ func TestDriverSelfPacedFinishDenied(t *testing.T) {
 	}
 }
 
+// Series memory: iteration 1 writes the memory doc; iteration 2's task must
+// carry it (the child's scripted Expect asserts the injected block — a
+// mismatch fails the child and the driver would end child_failed).
+func TestDriverSeriesMemoryInjection(t *testing.T) {
+	root := t.TempDir()
+	ws, err := workspace.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exec := &tool.Executor{WS: ws}
+	dStore, err := store.OpenEventStore(filepath.Join(root, "driver"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = dStore.Close() })
+	childSpec := &agent.AgentSpec{
+		Name: "worker", Model: agent.ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
+		SystemPrompt: "keep a series log", Tools: []string{"bash"}, MaxTurns: 5,
+	}
+	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
+	calls := 0
+	d := &driver.Driver{
+		Spec: &driver.DriverSpec{
+			Name: "series", Schedule: driver.ScheduleInterval, Task: "do the rounds",
+			MaxIterations: 2, Agent: childSpec, SeriesMemory: "SERIES.md",
+		},
+		Store: dStore, Clock: clk, DriverID: "drv-1", Exec: exec,
+		NewChild: func(cs *store.EventStore, session string, iter, budget int) *agent.Loop {
+			calls++
+			var fix scripted.Fixture
+			if calls == 1 {
+				fix = scripted.Fixture{Steps: []scripted.Step{
+					{Respond: []scripted.Event{
+						{ToolCall: &scripted.ToolCallEvent{CallID: "w1", Name: "bash",
+							Args: map[string]any{"command": "echo remember-the-milk > SERIES.md"}}},
+						{Finish: "tool_use"},
+					}},
+					{Respond: []scripted.Event{{Text: "noted"}, {Finish: "end_turn"}}},
+				}}
+			} else {
+				fix = scripted.Fixture{Steps: []scripted.Step{
+					{
+						// The injected series memory rides the task — the run's
+						// first (and here last) user message.
+						Expect:  scripted.Expect{LastMessageContains: "remember-the-milk"},
+						Respond: []scripted.Event{{Text: "picked up where I left off"}, {Finish: "end_turn"}},
+					},
+				}}
+			}
+			return &agent.Loop{Spec: childSpec, Provider: scripted.New(fix),
+				Exec: exec, Store: cs, Clock: clk, SessionID: session}
+		},
+	}
+
+	res, err := d.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "max_iterations" || res.Iterations != 2 {
+		t.Fatalf("res = %+v, want both iterations completed (Expect matched)", res)
+	}
+	events, _ := store.ReadEvents(dStore.Dir())
+	st, _ := driver.Fold(events)
+	if !st.Iterations[1].Completed || st.Iterations[1].ChildReason != "completed" {
+		t.Fatalf("iteration 2 = %+v — the memory block did not reach the child", st.Iterations[1])
+	}
+}
+
 // waitParked spins until the driver goroutine is blocked on the fake clock.
 func waitParked(t *testing.T, clk *clock.Fake) {
 	t.Helper()

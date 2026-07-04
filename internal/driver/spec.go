@@ -71,6 +71,12 @@ type DriverSpec struct {
 	// child that stops asking is done) or "continue" (re-run at PaceMin,
 	// which must then be set: a forgetful child must not spin the series).
 	OnNoIntent string `yaml:"on_no_intent,omitempty"`
+	// SeriesMemory is a workspace-relative path to the agent-managed series
+	// document (DESIGN: series memory). When set, each iteration's task
+	// carries the file's content — TRUNCATED at injection (the authority
+	// boundary is here, not in the agent's discipline). Missing file = no
+	// block (a first iteration has nothing to remember).
+	SeriesMemory string `yaml:"series_memory,omitempty"`
 	// Agent is the spec each iteration runs as a fresh child (same spec →
 	// byte-stable prefix across iterations).
 	Agent *agent.AgentSpec `yaml:"-"`

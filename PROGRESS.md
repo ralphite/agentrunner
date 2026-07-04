@@ -2152,3 +2152,21 @@ no-intent 收束)。全量 check + race 通过。
 overlap + 钳位 + 兜底)。未接:scheduler actor(幂等 RunAgent command,
 含义在 daemon 语境下才完整)、series memory 注入(权威边界截断)、
 durable timer 跨进程唤醒(daemon)。
+
+## S6 模块③(终)— series memory 注入时截断 — DONE
+
+`DriverSpec.SeriesMemory`(workspace 相对路径,agent 自管文档)。
+`buildTask()`:每迭代 task = spec.Task + `<series-memory>` 块——**8KB 截断
+在注入点执行**(权威边界:agent 放任文档膨胀也污染不了下迭代 context,
+截断标记提示"keep this file short")。文件缺失/路径逃逸 workspace → 无块
+(首迭代无可记)。redact 由 child Run 的 IngestInput 兜底(既有路径)。
+
+两测试:注入 e2e(iter 1 bash 写 SERIES.md → iter 2 scripted Expect
+断言 task 含记忆内容,Expect 不匹配即 child_failed 故通过即证明)、
+truncation 单测(>8KB 截断 + 标记 + 长度上界;缺失文件/逃逸路径 → 裸
+task)。全量 check + race 通过。
+
+**模块③ 收口**。scheduler actor(RunAgent command 发布)按 kickoff 记档
+归 daemon 语境,与模块④ 一并做。下一步:模块④ daemon(最大风险块——
+unix socket server、attach/detach、durable timer 触发、优雅停机、S5 回访
+项物化)。
