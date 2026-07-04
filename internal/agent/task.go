@@ -178,22 +178,55 @@ func (l *Loop) cancelAllBackground() {
 // quiesceTasks fills the epilogue quiesce slot (S6.1, 钩子 2): at a run
 // ending, still-running background tasks are awaited or cancelled per the
 // spec's on_run_end (default cancel), and every terminal settles BEFORE the
-// terminal RunEnded — the log never ends with tasks in flight.
+// terminal RunEnded — the log never ends with tasks in flight. The await
+// wait is BOUNDED by a durable timer (S7 还债, DESIGN: await 必有 durable
+// timer 兜底): the TimerSet fact makes a crashed-while-awaiting session
+// visible to the daemon sweep, and an expired timer cancels the stragglers
+// instead of awaiting forever.
 func quiesceTasks(ctx context.Context, l *Loop, ds *driveState,
 	appendE AppendFunc, _ *string) error {
 
 	if l.bg == nil || len(ds.s.Tasks) == 0 {
 		return nil
 	}
-	if l.Spec == nil || l.Spec.OnRunEnd != "await" {
+	await := l.Spec != nil && l.Spec.OnRunEnd == "await"
+	if !await {
 		l.cancelAllBackground()
 	}
+	var timeoutCh chan struct{}
+	const timerID = "tm-await-quiesce"
+	if await {
+		fireAt := l.Clock.Now().Add(l.Spec.awaitTimeout())
+		if _, err := appendE(event.TypeTimerSet, &event.TimerSet{
+			TimerID: timerID, FireAt: fireAt, Purpose: "await_quiesce",
+		}); err != nil {
+			return err
+		}
+		timeoutCh = make(chan struct{})
+		tctx, tcancel := context.WithCancel(ctx)
+		defer tcancel()
+		go func() {
+			if l.Clock.WaitUntil(tctx, fireAt) == nil {
+				close(timeoutCh)
+			}
+		}()
+	}
+	fired := false
 	for len(ds.s.Tasks) > 0 {
 		select {
 		case out := <-l.bg.done:
 			if err := l.settleBackground(appendE, out); err != nil {
 				return err
 			}
+		case <-timeoutCh:
+			// The await bound expired: journal the firing, cancel what is
+			// left, and keep draining — the cancellations settle normally.
+			if _, err := appendE(event.TypeTimerFired, &event.TimerFired{TimerID: timerID}); err != nil {
+				return err
+			}
+			fired = true
+			timeoutCh = nil
+			l.cancelAllBackground()
 		case <-ctx.Done():
 			// Hard cancel while quiescing: cancel everything, then BLOCK on
 			// the next report — the killed tasks always report (killGroup
@@ -204,6 +237,11 @@ func quiesceTasks(ctx context.Context, l *Loop, ds *driveState,
 			if err := l.settleBackground(appendE, out); err != nil {
 				return err
 			}
+		}
+	}
+	if await && !fired {
+		if _, err := appendE(event.TypeTimerCancelled, &event.TimerCancelled{TimerID: timerID}); err != nil {
+			return err
 		}
 	}
 	return nil

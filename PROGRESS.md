@@ -2621,3 +2621,22 @@ check + race + stage 6 acceptance 绿。
 = 空表,幂等降级为 daemon 生命周期,绝不报错)。测试:daemon #1 以
 key 提交后停机 → daemon #2 同 IdemPath 重试同 key → 不重复启动、流
 回持久化的 session(replay 语义)。还债包剩:await durable timer。
+
+## S7 还债④ — await durable timer 兜底 — DONE(还债包收口)
+
+DESIGN "await 必有 durable timer 兜底" 兑现于 epilogue quiesce:
+- spec 新字段 `await_timeout`(Go duration,校验正值,默认 30m)。
+- quiesce 的 await 分支**先 journal `TimerSet{tm-await-quiesce,
+  purpose=await_quiesce}`** 再等——durable 事实让 park-中崩溃的 session
+  对 daemon sweep 可见(sweep 发现过期→尝试 resume;in-doubt 拒绝则记
+  failed 留人工,既有语义);到点(Clock.WaitUntil goroutine → select
+  分支)journal `TimerFired` → cancelAllBackground → 照常 drain 取消
+  settle;任务按时清完 → journal `TimerCancelled`,fold.Timers 终局为空。
+- 记档:**mid-run 的 WAITING_TASKS park 仍无界**(interrupt/attach 为
+  逃生口,与 DESIGN 430 的收尾语义不同段);如 dogfood 显示需要同界,
+  S7 出口 review 再议。
+
+两测试(FakeClock):超时腿(timer_set → fired → activity_cancelled →
+run_ended 严格递增序)、按时腿(timer_cancelled 落盘、无 pending timer
+存活)。**S7 还债包(①~④)全部收口**。全量 check + race + stage 6
+acceptance 绿。下一步:S7 模块 1——SnapshotStore + shadow repo backend。

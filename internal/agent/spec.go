@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -71,6 +72,10 @@ type AgentSpec struct {
 	// OnRunEnd says what happens to still-running background tasks at a
 	// run ending (S6.1): "cancel" (default) or "await".
 	OnRunEnd string `yaml:"on_run_end,omitempty"`
+	// AwaitTimeout bounds the epilogue's await quiesce (S7 还债, DESIGN:
+	// await 必有 durable timer 兜底) — a Go duration; empty = 30m. When the
+	// timer fires the remaining tasks are cancelled and the run ends.
+	AwaitTimeout string `yaml:"await_timeout,omitempty"`
 	// Outputs is the deliverable contract (S5.6): at a graceful ending the
 	// epilogue auto-publishes each declared output (from its workspace Path
 	// unless the run already published the stream) and a missing Required
@@ -184,5 +189,25 @@ func (s *AgentSpec) validate(path string) error {
 	default:
 		return fail("on_run_end", fmt.Sprintf("unknown value %q (known: cancel, await)", s.OnRunEnd))
 	}
+	if s.AwaitTimeout != "" {
+		if d, err := time.ParseDuration(s.AwaitTimeout); err != nil || d <= 0 {
+			return fail("await_timeout", fmt.Sprintf("not a positive Go duration: %q", s.AwaitTimeout))
+		}
+	}
 	return nil
+}
+
+// defaultAwaitTimeout bounds the await quiesce when the spec is silent.
+const defaultAwaitTimeout = 30 * time.Minute
+
+// awaitTimeout is the effective quiesce bound (validated at load).
+func (s *AgentSpec) awaitTimeout() time.Duration {
+	if s == nil || s.AwaitTimeout == "" {
+		return defaultAwaitTimeout
+	}
+	d, err := time.ParseDuration(s.AwaitTimeout)
+	if err != nil || d <= 0 {
+		return defaultAwaitTimeout
+	}
+	return d
 }
