@@ -12,7 +12,8 @@ const (
 	DefaultMaxSpawns     = 8
 )
 
-// SpawnGate denies spawn_agent effects past the depth or fan-out cap. It
+// SpawnGate denies agent-launching effects (spawn_agent and handoff_agent —
+// both start a child run, S5.3/S5.4) past the depth or fan-out cap. It
 // ignores every other effect.
 type SpawnGate struct {
 	MaxDepth  int // zero → DefaultMaxSpawnDepth
@@ -22,7 +23,7 @@ type SpawnGate struct {
 func (g *SpawnGate) Name() string { return "spawn" }
 
 func (g *SpawnGate) Check(_ context.Context, eff Effect) Decision {
-	if eff.ToolName != "spawn_agent" {
+	if eff.ToolName != "spawn_agent" && eff.ToolName != "handoff_agent" {
 		return Allow
 	}
 	maxDepth := g.MaxDepth

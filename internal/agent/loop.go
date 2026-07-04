@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ralphite/agentrunner/internal/blackboard"
 	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/crash"
 	"github.com/ralphite/agentrunner/internal/errs"
@@ -67,6 +68,11 @@ type Loop struct {
 	// tree (0 = root); the spawn gate caps it.
 	SubSpecs SubSpecResolver
 	Depth    int
+	// Board is the agent tree's shared blackboard (S5.4): created at the
+	// root when the spec whitelists agents, inherited by every child. The
+	// store is ephemeral runtime state — durable influence flows through
+	// each run's journaled read_notes results, never the store itself.
+	Board *blackboard.Board
 }
 
 // MCPManager is the slice of mcp.Manager the loop needs (an interface so
@@ -185,6 +191,7 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 	if l.Clock == nil {
 		l.Clock = clock.Real{}
 	}
+	l.ensureBoard()
 	// The task is external input and may carry a shell-expanded credential;
 	// IngestInput appends via the store directly (not the appender), so it
 	// must be scrubbed here.
@@ -290,6 +297,10 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 	if l.Clock == nil {
 		l.Clock = clock.Real{}
 	}
+	// A resumed collaboration gets a FRESH board: notes are ephemeral by
+	// doctrine (what mattered was journaled as read results), and the face
+	// must match the original run's.
+	l.ensureBoard()
 	dir := l.Store.Dir()
 	events, err := store.ReadEvents(dir)
 	if err != nil {
@@ -518,16 +529,25 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			Name: mt.Name, Description: mt.Description, InputSchema: mt.InputSchema,
 		})
 	}
-	// spawn_agent advertises whenever the spec whitelists agents (S5.3).
-	// The face must depend on the JOURNALED spec only — resume rebuilds the
-	// same face without knowing where sub-spec files live; a missing
-	// resolver surfaces as a model-visible error at execution instead.
+	// The multi-agent face (S5.3/S5.4): spawn/handoff advertise whenever
+	// the spec whitelists agents; the blackboard tools whenever the run is
+	// part of a collaboration (own whitelist, or an inherited board in a
+	// child). The face must depend on journaled-spec-or-tree facts only —
+	// resume rebuilds the same face; a missing resolver/board surfaces as a
+	// model-visible error at execution instead.
+	var extra []string
 	if len(l.Spec.Agents) > 0 {
-		spawnDefs, derr := tool.ProviderDefs([]string{"spawn_agent"})
+		extra = append(extra, "spawn_agent", "handoff_agent")
+	}
+	if l.Board != nil || len(l.Spec.Agents) > 0 {
+		extra = append(extra, "publish_note", "read_notes")
+	}
+	if len(extra) > 0 {
+		extraDefs, derr := tool.ProviderDefs(extra)
 		if derr != nil {
 			return RunResult{}, derr
 		}
-		toolDefs = append(toolDefs, spawnDefs...)
+		toolDefs = append(toolDefs, extraDefs...)
 	}
 	// abort routes a dying run through the same epilogue, best-effort, so
 	// a failed log is distinguishable from a truncated one. User
@@ -776,14 +796,15 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 			Budget:    budgetView(ds.s),
 		}
 		allowance := 0
-		if call.Name == "spawn_agent" {
-			// The spawn effect reserves the child's WHOLE allowance up
-			// front (min aggregation, S5.3) and feeds the tree caps to the
-			// spawn gate. An unresolvable target keeps the class default;
-			// execution reports the problem to the model.
+		if isAgentLaunch(call.Name) {
+			// Spawn and handoff both launch a child run (S5.3/S5.4): the
+			// effect reserves the child's WHOLE allowance up front (min
+			// aggregation) and feeds the tree caps to the spawn gate. An
+			// unresolvable target keeps the class default; execution
+			// reports the problem to the model.
 			eff.SpawnDepth = l.Depth
 			eff.SpawnCount = ds.s.Run.Spawns + batchSpawns
-			if _, _, childSpec, problem := l.resolveSpawnTarget(call.Args); problem == "" {
+			if _, _, childSpec, problem := l.resolveSpawnTarget(call.Name, call.Args); problem == "" {
 				allowance = l.spawnAllowance(ds.s, childSpec)
 				eff.EstTokens = allowance
 			}
@@ -800,7 +821,7 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 				Tool: call.Name, CallID: call.CallID, Result: compact(dr.Payload), IsError: true})
 			continue
 		}
-		if call.Name == "spawn_agent" {
+		if isAgentLaunch(call.Name) {
 			batchSpawns++
 		}
 		allowed = append(allowed, pending{call: call, res: new(tool.Result), allowance: allowance})
@@ -827,7 +848,7 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 	acts := make([]Activity, len(allowed))
 	for i, p := range allowed {
 		run := l.buildToolRun(p.call, p.res)
-		if p.call.Name == "spawn_agent" {
+		if isAgentLaunch(p.call.Name) {
 			run = l.buildSpawnRun(p.call, p.res, serialAppend, p.allowance, parentMode)
 		}
 		acts[i] = Activity{
@@ -901,6 +922,14 @@ func (l *Loop) buildToolRun(call provider.ToolCall, res *tool.Result) func(conte
 			*res = tool.Result{Payload: json.RawMessage(
 				`{"output":"plan approved; now in default mode"}`)}
 			return res.Payload, nil, false, nil
+		}
+	}
+	// Blackboard tools (S5.4) act on the tree-shared board; a missing board
+	// (e.g. a resumed run before any collaboration) is model-visible.
+	if call.Name == "publish_note" || call.Name == "read_notes" {
+		return func(context.Context) (json.RawMessage, *provider.Usage, bool, error) {
+			*res = l.runBlackboardTool(call.Name, call.Args)
+			return res.Payload, nil, res.IsError, nil
 		}
 	}
 	// mcp__ calls dispatch to the out-of-band MCP face (S5.1). A tool-level
@@ -984,10 +1013,34 @@ func decide(s state.State, maxTurns int) action {
 	if len(unresolved) > 0 {
 		return action{kind: doTool, turn: turn, calls: unresolved}
 	}
+	// A completed successful handoff ends the run (S5.4): control moved to
+	// the successor, this agent does not act again. A denied/failed handoff
+	// resolves as an error result and the loop continues normally.
+	for _, c := range calls {
+		if c.Name == "handoff_agent" {
+			if tr, ok := s.Conversation.ToolResults[c.CallID]; ok && !tr.IsError {
+				return action{kind: doEnd, turn: turn, reason: "handoff"}
+			}
+		}
+	}
 	if turn >= maxTurns {
 		return action{kind: doEnd, turn: turn, reason: "max_turns"}
 	}
 	return action{kind: doTurn, turn: turn + 1}
+}
+
+// isAgentLaunch reports whether a tool launches a child run (spawn keeps
+// control and awaits; handoff transfers control and ends the caller).
+func isAgentLaunch(name string) bool {
+	return name == "spawn_agent" || name == "handoff_agent"
+}
+
+// ensureBoard creates the shared blackboard at a collaboration root (S5.4);
+// children inherit the parent's through childLoop.
+func (l *Loop) ensureBoard() {
+	if l.Board == nil && len(l.Spec.Agents) > 0 {
+		l.Board = blackboard.New()
+	}
 }
 
 func assistantMessages(s state.State) []provider.Message {
@@ -1161,9 +1214,9 @@ const executeToolTimeout = 120 * time.Second
 const maxMalformedRetries = 2
 
 func toolTimeoutIn(s state.State, name string) time.Duration {
-	if name == "spawn_agent" {
+	if isAgentLaunch(name) {
 		// A child run is bounded by its own max_turns and budget, not a
-		// wall clock — 120s would kill legitimate children (S5.3).
+		// wall clock — 120s would kill legitimate children (S5.3/S5.4).
 		return 0
 	}
 	if def, ok := tool.Get(name); ok {

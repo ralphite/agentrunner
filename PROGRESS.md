@@ -1623,3 +1623,37 @@ spec 错误 golden 随注册表扩展更新。
 (spawn 阻塞使 parent→child→parent 步序确定)是测试的关键构造;child 不
 继承 MCP face(SetAllowed 共享突变危险,S5.1 记档过)与 hooks(父 workspace
 语义,记档)。
+
+## S5.4 handoff + pub/sub — DONE
+
+**handoff = 移交后退出;pub/sub = blackboard topic,读入 journal 即持久。**
+
+- **handoff_agent tool**(execute class,与 spawn 同 advertise 规则/同
+  SpawnGate caps/同 allowance 预留/同 buildSpawnRun 执行路径——successor 就是
+  树上的一个 child run,复用 SpawnRequested/SubagentCompleted 事实,不新增
+  event 类型)。区别在 loop 语义:**decide() 见 handoff_agent 的非错误结果
+  → doEnd{reason:"handoff"}**——纯 fold 判定,resume 自然安全;父 run 以
+  RunEnded{handoff} 终结,不再行动。失败/被拒的 handoff 是 error 结果,
+  run 照常继续(控制权只在成功时转移)。
+- **`internal/blackboard`**:Board(mutex 化 topic→有序 Note store,全局
+  seq 保跨 topic 因果序;Read 返回副本)。**store 本身 ephemeral**(生命周期
+  = root run 进程);持久性走 event-log doctrine——**影响 run 结果的是读**,
+  read_notes 结果落读者自己的 journal。没人读过的 note 丢了也没影响过谁。
+- **publish_note(edit class)/ read_notes(read class)tools**:发布者
+  身份 = spec name(协作语义身份);Board 树内共享(childLoop 传递),root
+  在 spec.agents 非空时 ensureBoard 创建(Run 与 Resume 都建,face 一致;
+  resume 后 board 为空——ephemeral 语义,记档)。
+- **advertise 规则**:handoff/spawn 按 spec.agents;blackboard tools 按
+  `Board != nil || agents 非空`(叶子 child 继承 board 也可协作)。
+- **偏离记档**:执行包"pub/sub 走 L0 kernel bus"——v0 Board 为纯同步
+  store,**不过 bus**:CLI run 路径今日无存活 bus 实例,且读需同步;S6
+  daemon 化(notifier/frontend actor)时 Publish 加 bus 镜像(ephemeral
+  topic),store 仍是读回真相。§0.5 偏离条款记录于此。
+
+**验证**:blackboard 单测(序/副本/50 并发唯一 seq);handoff e2e(父 1 turn
+即终、reason handoff、fixture 全消费证明父未再行动、successor 独立 journal
+completed、usage 结算入父账、RunEnded{handoff} 为末事件);handoff 失败继续
+(未知 agent → error 结果 → 父下 turn 自己完成);协作 e2e(父 publish →
+child read 见父 note 且**durable 在 child journal** → child publish → 父
+read-back 双 note 有序带作者);无协作 face 不 advertise。registry golden
+扩到 8 tools。

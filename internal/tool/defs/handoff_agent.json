@@ -1,0 +1,19 @@
+{
+  "name": "handoff_agent",
+  "description": "Hand control over to another agent from the directory and END this run. The successor receives your task description and works under your permission rules and remaining budget. Use when the work is better finished by a different specialist; you will not act again after a successful handoff.",
+  "class": "execute",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "agent": {
+        "type": "string",
+        "description": "Name of the agent to hand control to (must be listed in the agents directory)."
+      },
+      "task": {
+        "type": "string",
+        "description": "The task and context the successor needs to continue the work."
+      }
+    },
+    "required": ["agent", "task"]
+  }
+}

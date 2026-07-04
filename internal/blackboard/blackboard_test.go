@@ -1,0 +1,65 @@
+package blackboard
+
+import (
+	"fmt"
+	"sync"
+	"testing"
+)
+
+func TestPublishReadOrder(t *testing.T) {
+	b := New()
+	b.Publish("plan", "lead", "first")
+	b.Publish("findings", "researcher", "other topic")
+	b.Publish("plan", "reviewer", "second")
+
+	notes := b.Read("plan")
+	if len(notes) != 2 || notes[0].Text != "first" || notes[1].Text != "second" {
+		t.Fatalf("notes = %+v", notes)
+	}
+	if notes[0].Seq >= notes[1].Seq {
+		t.Errorf("seq not monotonic: %+v", notes)
+	}
+	if notes[1].From != "reviewer" {
+		t.Errorf("from = %q", notes[1].From)
+	}
+	if got := b.Read("empty"); len(got) != 0 {
+		t.Errorf("empty topic = %+v", got)
+	}
+	if topics := b.Topics(); len(topics) != 2 || topics[0] != "findings" {
+		t.Errorf("topics = %v", topics)
+	}
+}
+
+func TestReadReturnsCopy(t *testing.T) {
+	b := New()
+	b.Publish("t", "a", "original")
+	got := b.Read("t")
+	got[0].Text = "mutated"
+	if b.Read("t")[0].Text != "original" {
+		t.Error("Read must return a copy")
+	}
+}
+
+func TestConcurrentPublish(t *testing.T) {
+	b := New()
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			b.Publish("t", "w", fmt.Sprintf("note-%d", i))
+		}(i)
+	}
+	wg.Wait()
+	notes := b.Read("t")
+	if len(notes) != 50 {
+		t.Fatalf("len = %d", len(notes))
+	}
+	seen := map[int]bool{}
+	for _, n := range notes {
+		if seen[n.Seq] {
+			t.Fatalf("duplicate seq %d", n.Seq)
+		}
+		seen[n.Seq] = true
+	}
+}

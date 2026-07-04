@@ -66,26 +66,26 @@ func (l *Loop) spawnAllowance(s state.State, childSpec *AgentSpec) int {
 	}
 }
 
-// resolveSpawnTarget parses spawn args and resolves the child spec through
-// the whitelist. A failure is a MODEL-visible problem (bad args, unknown
-// agent), returned as a message, never a harness error.
-func (l *Loop) resolveSpawnTarget(rawArgs json.RawMessage) (agent, task string, spec *AgentSpec, problem string) {
+// resolveSpawnTarget parses spawn/handoff args and resolves the child spec
+// through the whitelist. A failure is a MODEL-visible problem (bad args,
+// unknown agent), returned as a message, never a harness error.
+func (l *Loop) resolveSpawnTarget(toolName string, rawArgs json.RawMessage) (agent, task string, spec *AgentSpec, problem string) {
 	var args struct {
 		Agent string `json:"agent"`
 		Task  string `json:"task"`
 	}
 	if err := json.Unmarshal(rawArgs, &args); err != nil || args.Agent == "" || args.Task == "" {
-		return "", "", nil, "spawn_agent: invalid args: need {\"agent\", \"task\"}"
+		return "", "", nil, toolName + ": invalid args: need {\"agent\", \"task\"}"
 	}
 	if !slices.Contains(l.Spec.Agents, args.Agent) {
-		return "", "", nil, fmt.Sprintf("spawn_agent: %q is not in this agent's directory", args.Agent)
+		return "", "", nil, fmt.Sprintf("%s: %q is not in this agent's directory", toolName, args.Agent)
 	}
 	if l.SubSpecs == nil {
-		return "", "", nil, "spawn_agent: no sub-agent specs available"
+		return "", "", nil, toolName + ": no sub-agent specs available"
 	}
 	spec, err := l.SubSpecs(args.Agent)
 	if err != nil {
-		return "", "", nil, fmt.Sprintf("spawn_agent: %v", err)
+		return "", "", nil, fmt.Sprintf("%s: %v", toolName, err)
 	}
 	return args.Agent, args.Task, spec, ""
 }
@@ -102,7 +102,7 @@ func (l *Loop) buildSpawnRun(call provider.ToolCall, res *tool.Result,
 	attempt := 0
 	return func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
 		attempt++
-		agentName, task, childSpec, problem := l.resolveSpawnTarget(call.Args)
+		agentName, task, childSpec, problem := l.resolveSpawnTarget(call.Name, call.Args)
 		if problem != "" {
 			*res = errorResult(problem)
 			return res.Payload, nil, true, nil
@@ -214,6 +214,7 @@ func (l *Loop) childLoop(childSpec *AgentSpec, childStore *store.EventStore,
 		Mode:      parentMode,
 		Depth:     l.Depth + 1,
 		SubSpecs:  l.SubSpecs,
+		Board:     l.Board, // the collaboration blackboard is tree-shared (S5.4)
 	}
 }
 

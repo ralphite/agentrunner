@@ -1,0 +1,15 @@
+{
+  "name": "read_notes",
+  "description": "Read all notes published so far to a shared blackboard topic, in publish order.",
+  "class": "read",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "topic": {
+        "type": "string",
+        "description": "Topic to read."
+      }
+    },
+    "required": ["topic"]
+  }
+}

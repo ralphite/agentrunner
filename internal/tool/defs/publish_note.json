@@ -1,0 +1,19 @@
+{
+  "name": "publish_note",
+  "description": "Publish a note to a shared blackboard topic that collaborating agents (parent and sub-agents) can read with read_notes.",
+  "class": "edit",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "topic": {
+        "type": "string",
+        "description": "Topic to publish under."
+      },
+      "text": {
+        "type": "string",
+        "description": "The note content."
+      }
+    },
+    "required": ["topic", "text"]
+  }
+}
