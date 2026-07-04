@@ -12,6 +12,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/driver"
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
 	"github.com/ralphite/agentrunner/internal/snapshot"
 	"github.com/ralphite/agentrunner/internal/store"
@@ -208,5 +209,114 @@ func TestDriverParallelValidation(t *testing.T) {
 				t.Fatal("want validation error")
 			}
 		})
+	}
+}
+
+// S7 出口 review P1: an attempt whose worktree vanished across a restart
+// is failed, never resumed against a rematerialized base tree.
+func TestDriverParallelWorktreeLostFailsAttempt(t *testing.T) {
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		// Only attempt 2's script exists — attempt 1 must NOT reach the
+		// provider (it is failed on the worktree-lost guard).
+		{Respond: []scripted.Event{
+			{ToolCall: &scripted.ToolCallEvent{CallID: "c1", Name: "bash",
+				Args: map[string]any{"command": "echo right > answer.txt"}}},
+			{Finish: "tool_use"},
+		}},
+		{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
+	}}
+	d, dStore, _ := parallelHarness(t, &driver.DriverSpec{
+		Name: "pick", Schedule: driver.ScheduleParallel, N: 2,
+		Task: "write the right answer",
+		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierCommand,
+			Command: "grep -qx right answer.txt"}},
+	}, fix)
+
+	// Simulate the crash aftermath: attempt 1 was scheduled+launched with a
+	// child journal, but its worktree is gone (never materialized again).
+	ref, err := d.Snapshots.Snapshot(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	seed := func(typ string, payload any) {
+		t.Helper()
+		env, eerr := event.New(typ, payload)
+		if eerr != nil {
+			t.Fatal(eerr)
+		}
+		if _, aerr := dStore.Append(env); aerr != nil {
+			t.Fatal(aerr)
+		}
+	}
+	seed(event.TypeDriverStarted, &event.DriverStarted{DriverID: "drv-1", FoldVersion: driver.FoldVersion})
+	seed(event.TypeIterationScheduled, &event.IterationScheduled{DriverID: "drv-1", Iter: 1,
+		Schedule: driver.ScheduleParallel, BaseRef: ref})
+	seed(event.TypeIterationLaunched, &event.IterationLaunched{DriverID: "drv-1", Iter: 1,
+		ChildSession: "drv-1-att-1"})
+	childStore, err := store.OpenEventStore(filepath.Join(dStore.Dir(), "sub", "iter-1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	env, _ := event.New(event.TypeRunStarted, &event.RunStarted{SpecName: "worker"})
+	if _, err := childStore.Append(env); err != nil {
+		t.Fatal(err)
+	}
+	_ = childStore.Close()
+
+	res, err := d.Resume(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "satisfied" || res.BestIter != 2 {
+		t.Fatalf("res = %+v, want attempt 2 to win after attempt 1 fails on the guard", res)
+	}
+	events, err := store.ReadEvents(dStore.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var att1 *event.IterationCompleted
+	for _, e := range events {
+		if e.Type == event.TypeIterationCompleted {
+			dec, _ := event.DecodePayload(e)
+			if ic := dec.(*event.IterationCompleted); ic.Iter == 1 {
+				att1 = ic
+			}
+		}
+	}
+	if att1 == nil || att1.ChildReason != "error" || !strings.Contains(att1.Verdict.Detail, "worktree lost") {
+		t.Errorf("attempt 1 completion = %+v, want worktree-lost failure", att1)
+	}
+}
+
+// S7 出口 review P1: user network rules bind command verifiers — a
+// verifier bash runs WITH egress and {network:"*", deny} must match it.
+func TestVerifierNetworkRuleDenies(t *testing.T) {
+	d, _ := harness(t, &driver.DriverSpec{
+		Name: "goal", Task: "make progress", MaxIterations: 1,
+		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierCommand, Command: "true"}},
+	})
+	d.Pipeline = &pipeline.Pipeline{Gates: []pipeline.Gate{
+		&pipeline.PermissionGate{Rules: []pipeline.PermissionRule{
+			{Network: "*", Action: "deny"},
+			{Action: "allow"},
+		}},
+	}}
+	res, err := d.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The verifier is denied → verdict fails → goal never satisfies.
+	if res.Reason == "satisfied" {
+		t.Fatalf("res = %+v — a network-denied verifier must not pass", res)
+	}
+	events, _ := store.ReadEvents(d.Store.Dir())
+	var denied bool
+	for _, e := range events {
+		if e.Type == event.TypeEffectResolved && strings.Contains(string(e.Payload), `"verdict":"deny"`) {
+			denied = true
+		}
+	}
+	if !denied {
+		t.Error("no denied EffectResolved for the verifier in the driver stream")
 	}
 }

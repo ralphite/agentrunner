@@ -37,11 +37,16 @@ var skipDirs = map[string]bool{
 	"__pycache__": true, ".ssh": true, ".aws": true,
 }
 
-// skipFiles are credential-shaped paths (same doctrine as the snapshot
-// hard excludes): their content must never surface in search snippets,
-// which land verbatim in the journal.
+// skipFiles are credential-shaped paths (kept in LOCKSTEP with the
+// snapshot hard excludes): their content must never surface in search
+// snippets, which land verbatim in the journal.
+var skipFileNames = map[string]bool{
+	".env": true, ".envrc": true, ".git-credentials": true, ".netrc": true,
+	".npmrc": true, ".pypirc": true, "credentials.json": true,
+}
+
 func skipFile(name string) bool {
-	if name == ".env" || strings.HasPrefix(name, ".env.") {
+	if skipFileNames[name] || strings.HasPrefix(name, ".env.") {
 		return true
 	}
 	for _, pat := range []string{"*.pem", "*.key", "id_rsa*", "id_ed25519*"} {

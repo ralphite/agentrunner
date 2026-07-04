@@ -50,11 +50,19 @@ func (None) Materialize(context.Context, string, string) error {
 var hardExcludes = []string{
 	".env",
 	".env.*",
+	".envrc",
 	"*.pem",
 	"*.key",
 	"id_rsa*",
 	"id_ed25519*",
-	".aws/credentials",
+	".git-credentials",
+	".netrc",
+	".npmrc",
+	".pypirc",
+	"credentials.json",
+	// Unanchored (**): a nested subproject's credentials are just as much
+	// credentials (S7 出口 review — the bare pattern anchored to the root).
+	"**/.aws/credentials",
 	".ssh/",
 }
 
@@ -187,20 +195,26 @@ func (s *ShadowRepo) PushRefs(ctx context.Context, dstGitDir string, refs []stri
 func (s *ShadowRepo) GitDir() string { return s.gitDir }
 
 // Materialize extracts ref into dir via `git archive` — no index or HEAD
-// mutation, no linked-worktree metadata to clean up.
+// mutation, no linked-worktree metadata to clean up. Extraction is ATOMIC
+// at the directory level: it lands in a temp sibling and renames into
+// place, so a crash mid-extraction leaves dir ABSENT, never truncated —
+// callers may treat an existing dir as a complete tree (S7 出口 review).
 func (s *ShadowRepo) Materialize(ctx context.Context, ref, dir string) error {
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	parent := filepath.Dir(dir)
+	if err := os.MkdirAll(parent, 0o700); err != nil {
 		return fmt.Errorf("snapshot: %w", err)
 	}
-	entries, err := os.ReadDir(dir)
+	if entries, err := os.ReadDir(dir); err == nil && len(entries) > 0 {
+		return fmt.Errorf("snapshot: materialize target %s is not empty", dir)
+	}
+	tmp, err := os.MkdirTemp(parent, ".materialize-*")
 	if err != nil {
 		return fmt.Errorf("snapshot: %w", err)
 	}
-	if len(entries) > 0 {
-		return fmt.Errorf("snapshot: materialize target %s is not empty", dir)
-	}
+	defer func() { _ = os.RemoveAll(tmp) }() // no-op after a successful rename
+
 	arch := exec.CommandContext(ctx, "git", "--git-dir="+s.gitDir, "archive", "--format=tar", ref)
-	tarCmd := exec.CommandContext(ctx, "tar", "-x", "-C", dir)
+	tarCmd := exec.CommandContext(ctx, "tar", "-x", "-C", tmp)
 	pipe, err := arch.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("snapshot: %w", err)
@@ -213,6 +227,9 @@ func (s *ShadowRepo) Materialize(ctx context.Context, ref, dir string) error {
 		return fmt.Errorf("snapshot: %w", err)
 	}
 	if err := tarCmd.Start(); err != nil {
+		// Nothing will drain git's stdout: kill it or Wait blocks forever
+		// on a tree larger than the pipe buffer (S7 出口 review).
+		_ = arch.Process.Kill()
 		_ = arch.Wait()
 		return fmt.Errorf("snapshot: %w", err)
 	}
@@ -223,6 +240,11 @@ func (s *ShadowRepo) Materialize(ctx context.Context, ref, dir string) error {
 	}
 	if tErr != nil {
 		return fmt.Errorf("snapshot: tar extract: %v: %s", tErr, strings.TrimSpace(tarErr.String()))
+	}
+	// An existing-but-empty target was allowed above; clear it for the rename.
+	_ = os.Remove(dir)
+	if err := os.Rename(tmp, dir); err != nil {
+		return fmt.Errorf("snapshot: %w", err)
 	}
 	return nil
 }

@@ -256,7 +256,8 @@ func (l *Loop) containmentByCall(ds *driveState, callID string) *event.Containme
 	for _, m := range assistantMessages(ds.s) {
 		for _, c := range toolCallsOf(m) {
 			if c.CallID == callID {
-				if toolClassIn(ds.s, c.Name) == string(tool.ClassExecute) {
+				if toolClassIn(ds.s, c.Name) == string(tool.ClassExecute) &&
+					!strings.HasPrefix(c.Name, "mcp__") {
 					return &event.Containment{Network: "none", Backend: "netns"}
 				}
 				return nil

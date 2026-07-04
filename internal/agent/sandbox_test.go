@@ -130,3 +130,29 @@ func TestNetworkRuleDeniesOnlyUncontained(t *testing.T) {
 		t.Errorf("contained bash verdict = %q, want allow (rule does not fire)", verdict)
 	}
 }
+
+// S7 出口 review: MCP tools execute out-of-process — the netns never
+// bounds them, so under the ratchet they keep egress scope "all" (network
+// rules still match) and the journal must NOT claim containment for them.
+func TestMCPToolsStayOutsideContainment(t *testing.T) {
+	l := testLoop(t, scripted.Fixture{}, t.TempDir())
+	l.Spec.Sandbox.Network = "none"
+	l.applySandbox()
+	if !l.Exec.NetworkContained() {
+		t.Fatal("ratchet not applied")
+	}
+	if got := l.networkScope("execute", "mcp__srv__deploy"); got != "all" {
+		t.Errorf("mcp scope under ratchet = %q, want all (out-of-process egress)", got)
+	}
+	if got := l.networkScope("execute", "bash"); got != "" {
+		t.Errorf("bash scope under ratchet = %q, want contained", got)
+	}
+	if c := l.containment(pipeline.Effect{Kind: "tool_call", Class: "execute",
+		ToolName: "mcp__srv__deploy"}); c != nil {
+		t.Errorf("mcp containment = %+v, want nil (journal must not over-claim)", c)
+	}
+	if c := l.containment(pipeline.Effect{Kind: "tool_call", Class: "execute",
+		ToolName: "bash"}); c == nil || c.Backend != "netns" {
+		t.Errorf("bash containment = %+v, want netns", c)
+	}
+}

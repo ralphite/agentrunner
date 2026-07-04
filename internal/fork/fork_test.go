@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -172,5 +173,133 @@ func TestCutUnknownBarrier(t *testing.T) {
 		NewDir: filepath.Join(t.TempDir(), "x"), NewSession: "s", Barrier: bogus,
 		Now: time.Date(2026, 7, 4, 12, 0, 0, 0, time.UTC)}); err == nil {
 		t.Fatal("a barrier absent from the journal must be refused")
+	}
+}
+
+// S7 出口 review P0: a fork of a fork carries exactly ONE genesis — its
+// own, naming the IMMEDIATE parent — with run_started right behind it.
+func TestCutOfForkKeepsSingleGenesis(t *testing.T) {
+	parentDir, fold := seedParent(t)
+	fork1Dir := filepath.Join(t.TempDir(), "fork1")
+	const fork1 = "20260704-110000-fork-bbbb"
+	if _, err := Cut(Options{ParentDir: parentDir, ParentSession: parentSession,
+		NewDir: fork1Dir, NewSession: fork1, Barrier: fold.Barriers[1], // bar-t2 @6
+		WorkspaceRoot: "/w-fork1", Now: time.Date(2026, 7, 4, 12, 0, 0, 0, time.UTC)}); err != nil {
+		t.Fatal(err)
+	}
+	f1Events, err := store.ReadEvents(fork1Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f1Fold, err := state.Fold(f1Events)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fork2Dir := filepath.Join(t.TempDir(), "fork2")
+	const fork2 = "20260704-120000-fork-cccc"
+	if _, err := Cut(Options{ParentDir: fork1Dir, ParentSession: fork1,
+		NewDir: fork2Dir, NewSession: fork2, Barrier: f1Fold.Barriers[0], // bar-t1 in fork1
+		WorkspaceRoot: "/w-fork2", Now: time.Date(2026, 7, 4, 13, 0, 0, 0, time.UTC)}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.ReadEvents(fork2Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got[0].Type != event.TypeForkedFrom || got[1].Type != event.TypeRunStarted {
+		t.Fatalf("head = [%s %s], want [forked_from run_started]", got[0].Type, got[1].Type)
+	}
+	geneses := 0
+	for _, e := range got {
+		if e.Type == event.TypeForkedFrom {
+			geneses++
+		}
+	}
+	if geneses != 1 {
+		t.Fatalf("geneses = %d, want exactly one", geneses)
+	}
+	for i, e := range got {
+		if e.Seq != int64(i+1) {
+			t.Fatalf("seq gap at %d: %d", i, e.Seq)
+		}
+	}
+	fold2, err := state.Fold(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fold2.Run.ForkedFrom == nil || fold2.Run.ForkedFrom.ParentSession != fork1 {
+		t.Errorf("provenance = %+v, want immediate parent %s", fold2.Run.ForkedFrom, fork1)
+	}
+}
+
+// S7 出口 review P1: the barrier's cancel_at_fork disposition is APPLIED —
+// the fork's journal renders the in-flight task cancelled, so the fold has
+// no in-doubt activity and the model sees the outcome.
+func TestCutAppliesCancelAtFork(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "parent")
+	es, err := store.OpenEventStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = es.Close() }()
+	appendT := func(typ string, payload any) {
+		t.Helper()
+		env, err := event.New(typ, payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		env.CorrelationID = parentSession
+		if _, err := es.Append(env); err != nil {
+			t.Fatal(err)
+		}
+	}
+	appendT(event.TypeRunStarted, &event.RunStarted{SpecName: "fixer", WorkspaceRoot: "/w"})
+	appendT(event.TypeTurnStarted, &event.TurnStarted{Turn: 1})
+	appendT(event.TypeActivityStarted, &event.ActivityStarted{
+		ActivityID: "tool-bg1", Kind: event.KindTool, Name: "bash",
+		CallID: "bg1", Background: true, Attempt: 1})
+	appendT(event.TypeCheckpointBarrier, &event.CheckpointBarrier{
+		BarrierID: "bar-t2", Turn: 2, Vector: map[string]int64{".": 3},
+		SnapshotRef: "ref-live",
+		Tasks:       []event.BarrierTask{{TaskID: "bg1", Policy: "cancel_at_fork"}}})
+
+	events, _ := store.ReadEvents(dir)
+	fold, err := state.Fold(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newDir := filepath.Join(t.TempDir(), "forked")
+	if _, err := Cut(Options{ParentDir: dir, ParentSession: parentSession,
+		NewDir: newDir, NewSession: "fork-sess", Barrier: fold.Barriers[0],
+		WorkspaceRoot: "/w-fork", Now: time.Date(2026, 7, 4, 12, 0, 0, 0, time.UTC)}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.ReadEvents(newDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	last := got[len(got)-1]
+	if last.Type != event.TypeActivityCancelled {
+		t.Fatalf("tail = %s, want activity_cancelled (disposition applied)", last.Type)
+	}
+	fold2, err := state.Fold(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fold2.Tasks) != 0 || len(fold2.Activities) != 0 {
+		t.Errorf("fork fold still has tasks=%d activities=%d — resume would refuse as in-doubt",
+			len(fold2.Tasks), len(fold2.Activities))
+	}
+	var sawOutcome bool
+	for _, m := range fold2.Conversation.Messages {
+		for _, p := range m.Parts {
+			if strings.Contains(p.Text, "bg1") && strings.Contains(p.Text, "canceled") {
+				sawOutcome = true
+			}
+		}
+	}
+	if !sawOutcome {
+		t.Error("cancellation outcome not visible to the model")
 	}
 }

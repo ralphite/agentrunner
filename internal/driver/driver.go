@@ -496,11 +496,29 @@ func (d *Driver) driveParallel(ctx context.Context, st *State, appendE appendFun
 			}
 		}
 		worktree := filepath.Join(d.Store.Dir(), "wt", fmt.Sprintf("att-%d", n))
-		if _, serr := os.Stat(worktree); os.IsNotExist(serr) {
+		_, serr := os.Stat(worktree)
+		wtMissing := os.IsNotExist(serr)
+		if wtMissing {
+			// Materialize is atomic (temp + rename): an existing dir IS a
+			// complete tree, so existence doubles as the resume marker.
 			if err := d.Snapshots.Materialize(ctx, baseRef, worktree); err != nil {
 				return Result{}, fmt.Errorf("driver: materialize attempt %d worktree: %w", n, err)
 			}
-		} // an existing worktree is a resume: the in-flight child continues in it
+			// A child journal without its worktree = the tree was lost across
+			// a restart. Resuming the child (or judging a settled one) on the
+			// fresh BASE would silently roll back its own edits — fail the
+			// attempt instead (S7 出口 review P1).
+			if evs, rerr := store.ReadEvents(filepath.Join(d.Store.Dir(), "sub", iterDir(n, 1))); rerr == nil && len(evs) > 0 {
+				if _, err := appendE(event.TypeIterationCompleted, &event.IterationCompleted{
+					DriverID: d.DriverID, Iter: n, ChildSession: session,
+					ChildReason: "error",
+					Verdict:     event.IterationVerdict{Detail: "attempt worktree lost across restart; refusing to judge a rolled-back tree"},
+				}); err != nil {
+					return Result{}, err
+				}
+				continue
+			}
+		}
 		if existing, inFold := st.at(n); !inFold || !existing.Launched {
 			if _, err := appendE(event.TypeIterationLaunched, &event.IterationLaunched{
 				DriverID: d.DriverID, Iter: n, ChildSession: session,
@@ -1078,9 +1096,16 @@ func (d *Driver) adjudicateVerifier(ctx context.Context, appendE appendFunc,
 	if _, err := appendE(event.TypeEffectRequested, &event.EffectRequested{EffectID: effID}); err != nil {
 		return false, "", err
 	}
+	network := ""
+	if class == "execute" {
+		// Verifier executors are never netns-ratcheted: a command verifier
+		// runs WITH egress, and the network resource class must see that
+		// (S7 出口 review: user {network:"*"} denies bind verifiers too).
+		network = "all"
+	}
 	outcome, err := d.Pipeline.Evaluate(ctx, pipeline.Effect{
 		ID: effID, Kind: kind, ToolName: toolName, Class: class,
-		Args: args, EstTokens: estTokens,
+		Args: args, EstTokens: estTokens, Network: network,
 	})
 	if err != nil {
 		return false, "", err

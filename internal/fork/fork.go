@@ -55,6 +55,17 @@ func Cut(opts Options) ([]string, error) {
 		return nil, fmt.Errorf("fork: barrier %s (seq %d) not found in parent journal",
 			opts.Barrier.BarrierID, opts.Barrier.Seq)
 	}
+	// A parent that is itself a fork carries its OWN genesis at seq 1; the
+	// new fork gets exactly ONE genesis (its own — provenance names the
+	// immediate parent, the full lineage is walkable through the parents'
+	// journals). Copying it would bury run_started two deep and break every
+	// consumer that skips a single genesis (S7 出口 review P0).
+	src := events[:cut+1]
+	shift := int64(1)
+	if len(src) > 0 && src[0].Type == event.TypeForkedFrom {
+		src = src[1:]
+		shift = 0
+	}
 
 	genesis, err := event.New(event.TypeForkedFrom, &event.ForkedFrom{
 		ParentSession: opts.ParentSession,
@@ -70,12 +81,12 @@ func Cut(opts Options) ([]string, error) {
 	genesis.Sender, genesis.Target = "cli", "session"
 	genesis.TS = opts.Now.UTC()
 
-	lines := make([]event.Envelope, 0, cut+2)
+	lines := make([]event.Envelope, 0, len(src)+2)
 	lines = append(lines, genesis)
 	var refs []string
 	seen := map[string]bool{}
-	for _, e := range events[:cut+1] {
-		lines = append(lines, remap(e, opts.ParentSession, opts.NewSession))
+	for _, e := range src {
+		lines = append(lines, remap(e, opts.ParentSession, opts.NewSession, shift))
 		if e.Type == event.TypeCheckpointBarrier {
 			if dec, derr := event.DecodePayload(e); derr == nil {
 				if ref := dec.(*event.CheckpointBarrier).SnapshotRef; ref != "" && !seen[ref] {
@@ -85,6 +96,16 @@ func Cut(opts Options) ([]string, error) {
 			}
 		}
 	}
+	// The barrier's task disposition vector is APPLIED here, not just
+	// copied (S7 出口 review P1): a cancel_at_fork task gets a synthetic
+	// terminal right after the cut, so the fork's fold has no in-flight
+	// non-idempotent activity (which would refuse every resume as
+	// in-doubt) and the model sees the cancellation outcome instead.
+	cancels, err := cancelAtFork(lines, opts)
+	if err != nil {
+		return nil, err
+	}
+	lines = append(lines, cancels...)
 	if err := writeJournal(opts.NewDir, lines); err != nil {
 		return nil, err
 	}
@@ -108,16 +129,56 @@ func Cut(opts Options) ([]string, error) {
 // one (the genesis claimed seq 1), causation ids that reference events move
 // with them, and the correlation id becomes the fork's session. Payloads
 // are provenance and stay byte-identical.
-func remap(e event.Envelope, parentSession, newSession string) event.Envelope {
-	e.Seq++
+func remap(e event.Envelope, parentSession, newSession string, shift int64) event.Envelope {
+	e.Seq += shift
 	e.ID = event.EventID(e.Seq)
 	if n, ok := eventSeq(e.CausationID); ok {
-		e.CausationID = event.EventID(n + 1)
+		e.CausationID = event.EventID(n + shift)
 	}
 	if e.CorrelationID == parentSession {
 		e.CorrelationID = newSession
 	}
 	return e
+}
+
+// cancelAtFork folds the copied cut and appends one ActivityCancelled per
+// barrier task whose policy is cancel_at_fork — the task's process never
+// existed in the fork, and the fold renders the cancellation as the
+// model-visible outcome ("fork 后模型可自行重启", DESIGN §fork/rewind).
+func cancelAtFork(lines []event.Envelope, opts Options) ([]event.Envelope, error) {
+	if len(opts.Barrier.Tasks) == 0 {
+		return nil, nil
+	}
+	folded, err := state.Fold(lines)
+	if err != nil {
+		return nil, fmt.Errorf("fork: fold cut for task disposition: %w", err)
+	}
+	seq := lines[len(lines)-1].Seq
+	var out []event.Envelope
+	for _, task := range opts.Barrier.Tasks {
+		if task.Policy != "cancel_at_fork" {
+			continue // unknown policies stay untouched; the fold will refuse resume loudly
+		}
+		started, ok := folded.Tasks[task.TaskID]
+		if !ok {
+			continue // already settled inside the cut
+		}
+		env, err := event.New(event.TypeActivityCancelled, &event.ActivityCancelled{
+			ActivityID:    started.ActivityID,
+			PartialOutput: "cancelled at fork (policy cancel_at_fork): the task's process belongs to the original run",
+		})
+		if err != nil {
+			return nil, err
+		}
+		seq++
+		env.Seq, env.ID = seq, event.EventID(seq)
+		env.CausationID = event.EventID(1) // the fork genesis caused the disposition
+		env.CorrelationID = opts.NewSession
+		env.Sender, env.Target = "cli", "session"
+		env.TS = opts.Now.UTC()
+		out = append(out, env)
+	}
+	return out, nil
 }
 
 func eventSeq(id string) (int64, bool) {

@@ -152,3 +152,22 @@ func TestEmptyQueryAndNoMatches(t *testing.T) {
 }
 
 func contains(s, sub string) bool { return strings.Contains(s, sub) }
+
+// S7 出口 review: index skip list stays in lockstep with the snapshot
+// hard excludes.
+func TestExcludesWidenedLockstep(t *testing.T) {
+	root := t.TempDir()
+	for _, f := range []string{".git-credentials", ".netrc", ".npmrc", ".pypirc",
+		"credentials.json", ".envrc"} {
+		write(t, root, f, "supersecretvalue token\n")
+	}
+	write(t, root, "ok.txt", "clean\n")
+	ix := New(root)
+	hits, files, err := ix.Search("supersecretvalue", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 0 || files != 1 {
+		t.Errorf("hits=%v files=%d — credential store content indexed", hits, files)
+	}
+}

@@ -255,3 +255,48 @@ func TestPushRefsTransfersSnapshots(t *testing.T) {
 		t.Fatalf("idempotent push: %v", err)
 	}
 }
+
+// S7 出口 review: widened credential excludes — common credential stores
+// beyond the original list, and .aws/credentials at ANY depth.
+func TestHardExcludesWidened(t *testing.T) {
+	ws := t.TempDir()
+	for _, f := range []string{".git-credentials", ".netrc", ".npmrc", ".pypirc",
+		"credentials.json", ".envrc", "sub/.aws/credentials"} {
+		write(t, ws, f, "supersecretvalue")
+	}
+	write(t, ws, "ok.txt", "fine")
+	s := newStore(t, ws)
+	ctx := context.Background()
+	ref, err := s.Snapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(t.TempDir(), "out")
+	if err := s.Materialize(ctx, ref, out); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{".git-credentials", ".netrc", ".npmrc", ".pypirc",
+		"credentials.json", ".envrc", "sub/.aws/credentials"} {
+		if _, err := os.Stat(filepath.Join(out, f)); !os.IsNotExist(err) {
+			t.Errorf("%s leaked into the snapshot", f)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(out, "ok.txt")); err != nil {
+		t.Errorf("ok.txt missing: %v", err)
+	}
+}
+
+// Materialize failure (bad ref) must leave the target ABSENT — partial
+// trees would be mistaken for complete worktrees on resume.
+func TestMaterializeFailureLeavesNoTarget(t *testing.T) {
+	ws := t.TempDir()
+	write(t, ws, "a.txt", "x")
+	s := newStore(t, ws)
+	out := filepath.Join(t.TempDir(), "out")
+	if err := s.Materialize(context.Background(), "deadbeef", out); err == nil {
+		t.Fatal("bad ref must fail")
+	}
+	if _, err := os.Stat(out); !os.IsNotExist(err) {
+		t.Errorf("failed materialize left target behind")
+	}
+}

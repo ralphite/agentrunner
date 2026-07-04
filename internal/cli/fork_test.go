@@ -162,3 +162,70 @@ func TestCLIForkUnknownBarrier(t *testing.T) {
 		t.Fatalf("exit = %d", code)
 	}
 }
+
+// S7 出口 review: the explicit barrier entry (PLAN 模块 2 承诺) — barrier
+// an ENDED session at its current workspace state, then fork that barrier.
+func TestCLIManualBarrierThenFork(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	t.Setenv("XDG_DATA_HOME", filepath.Join(t.TempDir(), "xdg"))
+	base := t.TempDir()
+	ws := filepath.Join(base, "ws")
+	if err := os.Mkdir(ws, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ws, "note.txt"), []byte("v1"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	specPath := filepath.Join(base, "spec.yaml")
+	if err := os.WriteFile(specPath, []byte(forkSpecYAML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fix := filepath.Join(base, "fix.yaml")
+	if err := os.WriteFile(fix, []byte(forkParentFixtureYAML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("AGENTRUNNER_SCRIPTED_FIXTURE", fix)
+
+	var stdout, stderr bytes.Buffer
+	if code := Run([]string{"run", "--workspace", ws, specPath, "bump"}, "dev", &stdout, &stderr); code != ExitOK {
+		t.Fatalf("run exit = %d\n%s", code, stderr.String())
+	}
+	var session string
+	for _, line := range strings.Split(stderr.String(), "\n") {
+		if rest, ok := strings.CutPrefix(line, "session "); ok {
+			session = rest
+			break
+		}
+	}
+
+	// The run ended with note.txt = v2; edit it OUT OF BAND to v3, then cut
+	// a manual barrier — it must capture the PRESENT state.
+	if err := os.WriteFile(filepath.Join(ws, "note.txt"), []byte("v3"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout.Reset()
+	if code := Run([]string{"barrier", session}, "dev", &stdout, &stderr); code != ExitOK {
+		t.Fatalf("barrier exit = %d\n%s", code, stderr.String())
+	}
+	var barrierID string
+	for _, line := range strings.Split(stdout.String(), "\n") {
+		if rest, ok := strings.CutPrefix(line, "barrier "); ok {
+			barrierID = rest
+			break
+		}
+	}
+	if !strings.HasPrefix(barrierID, "bar-m") {
+		t.Fatalf("barrier id = %q", barrierID)
+	}
+
+	stdout.Reset()
+	if code := Run([]string{"fork", "--workspace", filepath.Join(base, "forkws"), session, barrierID}, "dev", &stdout, &stderr); code != ExitOK {
+		t.Fatalf("fork exit = %d\n%s", code, stderr.String())
+	}
+	got, err := os.ReadFile(filepath.Join(base, "forkws", "note.txt"))
+	if err != nil || string(got) != "v3" {
+		t.Errorf("fork note.txt = %q err=%v, want the manual barrier's v3", got, err)
+	}
+}

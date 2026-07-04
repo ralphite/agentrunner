@@ -890,7 +890,7 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 			Mode:      ds.s.CurrentMode(),
 			EstTokens: pipeline.EstTokensForClass(class),
 			Budget:    budgetView(ds.s),
-			Network:   l.networkScope(class),
+			Network:   l.networkScope(class, call.Name),
 		}
 		allowance := 0
 		if isAgentLaunch(call.Name) {
@@ -1373,9 +1373,15 @@ func (l *Loop) adjudicate(ctx context.Context, ds *driveState, appendE AppendFun
 
 // networkScope is the egress an execute-class effect would run with: "all"
 // when uncontained, "" once the tree's executor is ratcheted (S7 模块 5).
-func (l *Loop) networkScope(class string) string {
+// MCP tools execute in an out-of-process server the netns wrapper never
+// covers — they carry "all" EVEN under the ratchet, so network rules keep
+// matching them (S7 出口 review: 边界诚实 must not stop at bash).
+func (l *Loop) networkScope(class, toolName string) string {
 	if class != string(tool.ClassExecute) {
 		return ""
+	}
+	if strings.HasPrefix(toolName, "mcp__") {
+		return "all"
 	}
 	if l.Exec != nil && l.Exec.NetworkContained() {
 		return ""
@@ -1384,9 +1390,14 @@ func (l *Loop) networkScope(class string) string {
 }
 
 // containment records the OS containment in force for an execute effect;
-// nil for uncontained runs (absence = uncontained, the pre-S7 shape).
+// nil for uncontained runs (absence = uncontained, the pre-S7 shape) AND
+// for MCP tools — the sandbox never bounded their server process, and the
+// journal must not claim it did.
 func (l *Loop) containment(eff pipeline.Effect) *event.Containment {
 	if eff.Kind != "tool_call" || eff.Class != string(tool.ClassExecute) {
+		return nil
+	}
+	if strings.HasPrefix(eff.ToolName, "mcp__") {
 		return nil
 	}
 	if l.Exec == nil || !l.Exec.NetworkContained() {
