@@ -28,8 +28,9 @@ const carryExcerptBytes = 512
 // the factory owns wiring — provider, pipeline, budget, workspace — so the
 // same driver logic drives a scripted test child and a live-provider child.
 // A fresh child per iteration is the DESIGN doctrine: same spec → byte-stable
-// prefix, no compaction chain, failure isolation.
-type ChildFactory func(childStore *store.EventStore, childSession string, iter int) *agent.Loop
+// prefix, no compaction chain, failure isolation. budgetTokens is the
+// min-aggregated allowance the factory must cap the child at (0 = unlimited).
+type ChildFactory func(childStore *store.EventStore, childSession string, iter, budgetTokens int) *agent.Loop
 
 // Driver is the IterationDriver actor. It has its own journal and pure fold;
 // each iteration spawns a fresh child run and verifies its result.
@@ -96,6 +97,14 @@ func (d *Driver) Run(ctx context.Context) (Result, error) {
 			slog.Warn("driver hit max_iterations", "driver", d.DriverID, "max", maxIter)
 			return d.finish(appendE, st, "max_iterations", maxIter)
 		}
+		// Reserve-at-launch against the tree budget (DESIGN: the driver is the
+		// budget root). A goal that has spent its whole allowance ends as
+		// budget rather than launching a child that can do no useful work.
+		allowance, ok := d.reserve(st)
+		if !ok {
+			slog.Warn("driver budget exhausted", "driver", d.DriverID, "spent", st.SpentTokens)
+			return d.finish(appendE, st, "budget", n-1)
+		}
 		if _, err := appendE(event.TypeIterationScheduled, &event.IterationScheduled{
 			DriverID: d.DriverID, Iter: n, Schedule: ScheduleImmediate,
 		}); err != nil {
@@ -108,7 +117,7 @@ func (d *Driver) Run(ctx context.Context) (Result, error) {
 			return Result{}, err
 		}
 
-		childRes, childDir, cerr := d.runIteration(ctx, n, childSession)
+		childRes, childDir, cerr := d.runIteration(ctx, n, childSession, allowance)
 		if cerr != nil {
 			if ctx.Err() != nil {
 				// A cancel of the driver reached the child: end as stopped, not
@@ -166,7 +175,7 @@ func (d *Driver) finish(appendE appendFunc, st *State, reason string, iterations
 
 // runIteration opens the child's own journal under sub/ and runs it to
 // completion; the fresh store keeps a re-run from appending onto a dead log.
-func (d *Driver) runIteration(ctx context.Context, n int, childSession string) (agent.RunResult, string, error) {
+func (d *Driver) runIteration(ctx context.Context, n int, childSession string, allowance int) (agent.RunResult, string, error) {
 	childDir := filepath.Join(d.Store.Dir(), "sub", fmt.Sprintf("iter-%d", n))
 	childStore, err := store.OpenEventStore(childDir)
 	if err != nil {
@@ -174,9 +183,37 @@ func (d *Driver) runIteration(ctx context.Context, n int, childSession string) (
 	}
 	defer func() { _ = childStore.Close() }()
 
-	child := d.NewChild(childStore, childSession, n)
+	child := d.NewChild(childStore, childSession, n, allowance)
 	res, rerr := child.Run(ctx, d.Spec.Task)
 	return res, childDir, rerr
+}
+
+// reserve computes the next child's min-aggregated allowance and reports
+// whether there is any budget left to launch. Zero driver budget means
+// unlimited (allowance 0 passes through to the child unclamped). With a
+// budget, the allowance is the driver's remaining, further clamped by the
+// child spec's own cap; an exhausted budget (remaining ≤ 0) refuses launch.
+func (d *Driver) reserve(st *State) (allowance int, ok bool) {
+	treeCap := d.Spec.Budget.MaxTotalTokens
+	if treeCap <= 0 {
+		return d.childCap(), true // unlimited tree: only the child spec caps
+	}
+	remaining := treeCap - st.SpentTokens
+	if remaining <= 0 {
+		return 0, false
+	}
+	if cc := d.childCap(); cc > 0 && cc < remaining {
+		return cc, true
+	}
+	return remaining, true
+}
+
+// childCap is the child spec's own token cap (0 = unlimited).
+func (d *Driver) childCap() int {
+	if d.Spec.Agent == nil {
+		return 0
+	}
+	return d.Spec.Agent.Budget.MaxTotalTokens
 }
 
 // stalled is pure fold: DESIGN's patience rule — this many consecutive most

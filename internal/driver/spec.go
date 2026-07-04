@@ -43,6 +43,16 @@ type DriverSpec struct {
 	// Patience is stall detection: this many consecutive iterations with no
 	// score improvement ends the run as stalled. Zero disables it.
 	Patience int `yaml:"patience,omitempty"`
+	// Budget caps the WHOLE driver tree (DESIGN: the driver is the tree
+	// budget root; reserve-at-launch / settle-at-completion). Zero =
+	// unlimited. Each iteration's child is capped at the min-aggregation of
+	// the driver's remaining and the child spec's own cap.
+	Budget BudgetSpec `yaml:"budget,omitempty"`
+}
+
+// BudgetSpec caps token spend.
+type BudgetSpec struct {
+	MaxTotalTokens int `yaml:"max_total_tokens,omitempty"`
 }
 
 // VerifierSpec is one goal-mode gate. v0: command (bash). A metric regex with

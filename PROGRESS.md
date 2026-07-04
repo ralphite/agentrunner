@@ -1982,3 +1982,22 @@ redact),`carry_ref`(ArtifactStore 全量)留待 stall 呈现步骤。
   (in-flight 迭代重跑)、loop mode——依次后续步骤。
 - 四 driver 测试(satisfied@3、max_iterations、metric、stalled)+ 事件
   round-trip + 覆盖对称测试全绿,全量 check + race 通过。
+
+## S6 模块②(续)— driver 树预算根 — DONE
+
+driver 是**树预算根**(DESIGN):reserve-at-launch / settle-at-completion。
+新 `DriverSpec.Budget{MaxTotalTokens}`;fold 新增 `State.SpentTokens`——每
+`IterationCompleted` 累加 `Usage.Billed()`(纯 fold,resume 精确恢复预算
+位置)。每迭代启动前 `reserve(st)`:allowance = min(树剩余, child spec cap)
+(0=无限);剩余 ≤ 0 → `DriverCompleted{budget}`(不再启动做无用功的
+child)。`ChildFactory` 签名加 `budgetTokens`,工厂据此钳制 child(测试
+工厂 pass-through,child 级 budget 强制由 agent 预算测试覆盖,driver 测试
+只隔离 driver 侧 reserve/settle/stop)。
+
+测试:`TestDriverBudgetStop`(budget 250、child 150/迭代 → 2 迭代后 spent
+300 ≥ 250 停,reason=budget)+ `reserve()` 表驱动单测(7 例:无限/child
+紧/树紧/耗尽/超支)。全量 check + race 通过。
+
+**未接(后续步骤)**:on_child_failure(stop/surface/retry{max,backoff})、
+on_reserve_failure(loop mode 的 skip 语义)、retry 的 spend 计账、llm_judge
+/human verifier、carry_ref 入 ArtifactStore、resume。

@@ -47,7 +47,11 @@ func harness(t *testing.T, spec *driver.DriverSpec) (*driver.Driver, *store.Even
 				Args: map[string]any{"command": "echo tick >> progress.txt"}}},
 			{Finish: "tool_use"},
 		}},
-		{Respond: []scripted.Event{{Text: "appended a line"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{
+			{Text: "appended a line"},
+			{Usage: &scripted.UsageEvent{InputTokens: 100, OutputTokens: 50}}, // billed 150
+			{Finish: "end_turn"},
+		}},
 	}}
 	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
 
@@ -57,7 +61,10 @@ func harness(t *testing.T, spec *driver.DriverSpec) (*driver.Driver, *store.Even
 		Clock:    clk,
 		DriverID: "drv-1",
 		Exec:     exec,
-		NewChild: func(cs *store.EventStore, session string, iter int) *agent.Loop {
+		// The scripted child bills a fixed 150/iteration and does not enforce
+		// its own cap (agent budget tests cover that) — this isolates the
+		// DRIVER's reserve/settle/stop accounting.
+		NewChild: func(cs *store.EventStore, session string, iter, budgetTokens int) *agent.Loop {
 			return &agent.Loop{
 				Spec:      childSpec,
 				Provider:  scripted.New(fix),
@@ -211,6 +218,36 @@ func TestDriverGoalStalled(t *testing.T) {
 	st, _ := driver.Fold(events)
 	if st.BestIter != 1 {
 		t.Errorf("best iter = %d, want 1", st.BestIter)
+	}
+}
+
+// Goal mode with a tree budget: each child bills 150; a 250-token budget
+// admits two iterations, then the reserve refuses the third (spent 300 ≥ 250)
+// and the run ends as budget.
+func TestDriverBudgetStop(t *testing.T) {
+	d, dStore := harness(t, &driver.DriverSpec{
+		Name: "goal", Task: "add a line", MaxIterations: 10,
+		Budget: driver.BudgetSpec{MaxTotalTokens: 250},
+		Verifiers: []driver.VerifierSpec{{
+			Kind: driver.VerifierCommand, Command: "test -f never-created",
+		}},
+	})
+
+	res, err := d.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "budget" || res.Iterations != 2 {
+		t.Fatalf("res = %+v, want budget at iteration 2", res)
+	}
+	events, _ := store.ReadEvents(dStore.Dir())
+	st, _ := driver.Fold(events)
+	if st.SpentTokens != 300 {
+		t.Errorf("spent = %d, want 300 (2×150)", st.SpentTokens)
+	}
+	last := events[len(events)-1]
+	if last.Type != event.TypeDriverCompleted {
+		t.Fatalf("last = %s, want driver_completed", last.Type)
 	}
 }
 

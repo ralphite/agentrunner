@@ -32,6 +32,10 @@ type State struct {
 	// BestIter is the 1-based iteration with the highest verdict score so
 	// far (ties keep the earliest); 0 means none completed yet.
 	BestIter int `json:"best_iter,omitempty"`
+	// SpentTokens is the settled tree spend: the sum of every completed
+	// iteration's billed usage (DESIGN: settle-at-completion). Pure fold, so
+	// resume recovers the exact budget position.
+	SpentTokens int `json:"spent_tokens,omitempty"`
 }
 
 // Fold rebuilds driver state from its event stream.
@@ -81,6 +85,10 @@ func (s *State) apply(p any) {
 		if s.BestIter == 0 || v.Verdict.Score > s.Iterations[s.BestIter-1].Verdict.Score {
 			s.BestIter = v.Iter
 		}
+		// Settle-at-completion: accumulate this iteration's billed spend into
+		// the tree total (DESIGN: the driver is the tree budget root). One
+		// IterationCompleted per iteration number, so no double count.
+		s.SpentTokens += v.Usage.Billed()
 	case *event.IterationSkipped:
 		if v.Iter < 1 {
 			return
