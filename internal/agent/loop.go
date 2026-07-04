@@ -410,6 +410,17 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 
 	exec := &ActivityExecutor{Append: appendE, Clock: l.Clock, Redact: redact.FromEnv()}
 
+	// Capability downgrade (S4.7): if the spec asks for thinking but the
+	// provider can't do it, drop it — explicitly and once, never silently.
+	var caps provider.Capabilities
+	if l.Provider != nil {
+		caps = l.Provider.Capabilities()
+	}
+	if l.Spec.Model.Thinking.Enabled && !caps.Thinking {
+		slog.Warn("provider lacks thinking; downgrading (request will omit thinking config)",
+			"provider", l.Spec.Model.Provider)
+	}
+
 	for {
 		if err := ctx.Err(); err != nil {
 			return RunResult{}, abort(ds.s.Run.Turn, err)
@@ -486,6 +497,9 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				},
 				Run: func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
 					req := Assemble(ds.s, l.Spec, toolDefs, act.turn)
+					if !caps.Thinking {
+						req.Thinking = provider.ThinkingConfig{}
+					}
 					collected, err := provider.CollectTurnStreaming(
 						l.Provider.Complete(ctx, req),
 						func(delta string) {

@@ -17,6 +17,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider"
+	"github.com/ralphite/agentrunner/internal/provider/anthropic"
 	"github.com/ralphite/agentrunner/internal/provider/gemini"
 	"github.com/ralphite/agentrunner/internal/provider/record"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
@@ -37,6 +38,8 @@ func defaultProviderFactory(ctx context.Context, name string) (provider.Provider
 	switch name {
 	case "gemini":
 		return gemini.New(ctx)
+	case "anthropic":
+		return anthropic.New(ctx)
 	case "scripted":
 		// Test seam for acceptance scenarios and offline demos.
 		path := os.Getenv("AGENTRUNNER_SCRIPTED_FIXTURE")
@@ -45,7 +48,7 @@ func defaultProviderFactory(ctx context.Context, name string) (provider.Provider
 		}
 		return scripted.Load(path)
 	default:
-		return nil, fmt.Errorf("%w %q (available: gemini, scripted)", errUnknownProvider, name)
+		return nil, fmt.Errorf("%w %q (available: gemini, anthropic, scripted)", errUnknownProvider, name)
 	}
 }
 

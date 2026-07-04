@@ -29,6 +29,15 @@ type ModelSpec struct {
 	// standing in for DESIGN's trigger_ratio × context_window (which needs a
 	// per-model window not yet modeled). Zero disables compaction.
 	CompactAtTokens int `yaml:"compact_at_tokens,omitempty"`
+	// Thinking requests extended thinking (S4.7); providers map it or
+	// downgrade explicitly when their Capabilities.Thinking is false.
+	Thinking ThinkingSpec `yaml:"thinking,omitempty"`
+}
+
+// ThinkingSpec is the spec-level extended-thinking request (S4.7).
+type ThinkingSpec struct {
+	Enabled      bool `yaml:"enabled,omitempty"`
+	BudgetTokens int  `yaml:"budget_tokens,omitempty"`
 }
 
 // AgentSpec is the declarative agent definition (S1 minimal shape).

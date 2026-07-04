@@ -41,9 +41,14 @@ func New(ctx context.Context) (*Provider, error) {
 	return &Provider{client: client}, nil
 }
 
-// Capabilities reports optional features (stub until S4).
+// Capabilities reports optional features (S4.7). Gemini supports thinking
+// (thought tokens), context caching, and parallel function calls.
 func (p *Provider) Capabilities() provider.Capabilities {
-	return provider.Capabilities{}
+	return provider.Capabilities{
+		Thinking:      true,
+		PromptCaching: true,
+		ParallelTools: true,
+	}
 }
 
 // Complete streams one Gemini call, normalizing chunks to StreamEvents.
@@ -175,6 +180,17 @@ func (st *streamState) finish() provider.FinishReason {
 func toConfig(req provider.CompleteRequest) (*genai.GenerateContentConfig, error) {
 	config := &genai.GenerateContentConfig{
 		MaxOutputTokens: int32(req.MaxTokens),
+	}
+	if req.Thinking.Enabled {
+		// Gemini supports thinking natively (no downgrade needed): a budget of
+		// 0 means "let the model decide"; a positive budget caps thought
+		// tokens. IncludeThoughts surfaces thought summaries in the stream.
+		tc := &genai.ThinkingConfig{IncludeThoughts: true}
+		if req.Thinking.BudgetTokens > 0 {
+			budget := int32(req.Thinking.BudgetTokens)
+			tc.ThinkingBudget = &budget
+		}
+		config.ThinkingConfig = tc
 	}
 	if req.System != "" {
 		config.SystemInstruction = &genai.Content{

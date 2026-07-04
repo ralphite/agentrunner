@@ -24,6 +24,10 @@ func Assemble(s state.State, spec *AgentSpec, toolDefs []provider.ToolDef, turn 
 		Messages:  assembleMessages(s),
 		Tools:     advertisedTools(toolDefs, mode),
 		Turn:      turn,
+		Thinking: provider.ThinkingConfig{
+			Enabled:      spec.Model.Thinking.Enabled,
+			BudgetTokens: spec.Model.Thinking.BudgetTokens,
+		},
 	}
 }
 

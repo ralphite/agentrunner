@@ -1323,3 +1323,51 @@ malformed 耗尽(3 个 event、reason malformed_tool_call、1 个 KindError、
   枚举,二者都触发用户可见 error 收尾。
 - **Run.MalformedRetries 加性字段不 bump 版本**:与 Env 同理,omitempty
   加性可选,双向兼容。
+
+## S4.7 Anthropic provider + capabilities 矩阵 — DONE
+
+**第二 provider 实现 + capabilities 抽象验证。**
+
+- **`internal/provider/anthropic`(anthropic-sdk-go v1.56.0)**:New(从
+  ANTHROPIC_API_KEY)、Capabilities、Complete(streaming)。Complete 用
+  SDK 的 `Message.Accumulate` 累积完整消息:response text 逐 delta 实时
+  流出(thinking delta 不外露——内部推理),流闭合后从累积消息派生
+  tool call / usage / finish。转换:normalized Message/Part ↔ Anthropic
+  blocks(tool_result 进 user 角色;assistant 按 thinking→text→tool_use
+  固定序,API 校验此序)。
+- **thinking 签名往返**:Anthropic thinking block(text+signature)按
+  签名校验内容,故必须逐字节回放。捕获进 assistant tool_call 的
+  `Extras["anthropic.thinking"]={thinking,signature}`,回传时在 tool_use
+  前 `NewThinkingBlock(sig,thinking)` 复原。
+- **capabilities 矩阵**:`Capabilities{Thinking, PromptCaching, ParallelTools}`
+  三旗标(此前空 struct);gemini/anthropic 均声明三者 true。
+  `internal/provider/capabilities_matrix_test.go`(package provider_test)
+  跨 provider 断言矩阵——零值 Provider 即可(Capabilities 静态,无需 client)。
+- **thinking 进 spec.model + 显式降级**:`ModelSpec.Thinking{Enabled,
+  BudgetTokens}` → `CompleteRequest.Thinking` → Assemble 注入。各 provider
+  自映射(gemini `ThinkingConfig`、anthropic `ThinkingConfigParamOfEnabled`,
+  budget floor 1024);**provider !Capabilities.Thinking 时 loop 显式降级**
+  (drive 起始 slog.Warn 一次 + doLLM 清空 req.Thinking),非静默。
+- **per-provider error 映射**:anthropic `*sdk.Error.StatusCode` →
+  `errs.FromHTTPStatus`(3.9 归一化的线上侧);transport 层归 ProviderServer
+  (可重试)。cache_control:system block 打 ephemeral 断点(4c prefix
+  稳定使其生效)。
+- **CLI 接线**:provider factory 加 `anthropic` 分支。
+
+**验证**:anthropic 单测(capabilities、mapFinish、classify 状态映射、
+toParams thinking+cache、toTools schema、thinking 往返序、emitAccumulated
+tool call 带 thinking、坏 part 拒绝、转换错误经 stream 上抛);capabilities
+矩阵;loop thinking 降级(supported 透传 / unsupported 清空);live 冒烟
+(pong + 双 turn tool+thinking 往返,`-tags live`,无 key 则 skip)。
+
+**Decisions**:
+- **thinking delta 不作为 text 外露**:内部推理不污染 response 文本;
+  签名往返从累积消息取,不需流式外露。summarized thinking 的用户可见
+  呈现留后续。
+- **Anthropic tool_use CallID 用 provider 原生 block.ID**(id-based 配对,
+  与 Gemini 的 positional call_<turn>_<idx> 相对);send-back 的 tool_result
+  引用同 id,天然一致。
+- **降级在 loop 而非 Assemble**:Assemble 保持纯 + 无 caps 依赖(签名不动、
+  测试不改);loop 查一次 caps,doLLM 清 req.Thinking。both provider 均支持
+  thinking,降级路径靠 scripted(caps 全 false)与 caps 覆盖 wrapper 测试。
+- **新增依赖 anthropic-sdk-go v1.56.0**(go.mod/go.sum);go mod tidy 干净。

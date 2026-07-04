@@ -71,6 +71,8 @@ type CompleteRequest struct {
 	Messages  []Message
 	Tools     []ToolDef
 	Turn      int
+	// Thinking requests extended thinking (S4.7); providers map or downgrade.
+	Thinking ThinkingConfig
 }
 
 // ToolCall is one tool invocation requested by the model.
@@ -140,9 +142,23 @@ type StreamEvent struct {
 	Finish    FinishReason
 }
 
-// Capabilities declares optional provider abilities. Stub in S1; caching,
-// thinking, and structured-output negotiation land here in S4 (决策 15b).
-type Capabilities struct{}
+// Capabilities declares optional provider abilities (S4.7). The loop reads
+// these to decide whether to send a thinking config, place cache
+// breakpoints, or rely on parallel tool calls — and to DOWNGRADE explicitly
+// (never silently) when a spec asks for a feature a provider lacks.
+type Capabilities struct {
+	Thinking      bool // extended thinking / reasoning tokens
+	PromptCaching bool // explicit prompt-cache breakpoints
+	ParallelTools bool // multiple tool calls in one assistant turn
+}
+
+// ThinkingConfig is the normalized extended-thinking request (S4.7). Enabled
+// with a token budget; providers map it (Anthropic thinking config, Gemini
+// thinking budget) or downgrade when unsupported.
+type ThinkingConfig struct {
+	Enabled      bool
+	BudgetTokens int
+}
 
 // Provider is the thin, streaming-native LLM interface (决策 15).
 type Provider interface {
