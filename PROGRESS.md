@@ -2331,3 +2331,28 @@ EnvApprovals fail-closed。已被他进程 flock 的 session → OpenEventStore
 
 两 sweeper 单测(FakeClock):过期即恢复/未来到点恢复/在飞不重复恢复;
 失败不重试(3 轮 sweep 后 attempts==1)。全量 check + race 通过。
+
+## S6 模块④(终)— 审批 correlation 跨 socket 路由 — DONE(S5 回访②兑现)
+
+**daemon.ApprovalBroker**:hosted run 的 ask 以 (session, approval_id) 键
+park 在 broker(`Ask` 阻塞至 `Answer` 或 ctx 终),`approve` 线命令
+(Command 加 ApprovalID/Decision/Reason)从任意第二连接应答;错 id 拒、
+双答 no-op(buffered-1)。
+
+**上卷路径**:cli `socketApprovals` 适配器实现 agent.ApprovalResolver——
+**Resolve 先把 ask emit 到 hosted run 的 hub 再 park**。child loop 无 Out
+sink(静默),但共享 parent 的 resolver(childLoop 既有语义),故 child
+的 ask 自然上卷到 attach 流,`req.Agent` 字段标明谁在问(S5 review 的
+Agent 标识在此闭环)。protocol.Event 加 `ApprovalID`(additive),文本
+渲染直接给出 `agentrunner approve <session> <id> approve|deny` 提示。
+
+新 CLI 命令 `approve <session-prefix> <approval-id> <approve|deny>
+[reason]`。daemon/resume 装配的 Approvals 从 EnvApprovals 换 broker
+resolver(ctx 终 = ask 撤销,循 loop 原语义)。round-trip 测试:双连接
+(run 侧见 ask → 错 id 拒 → 对 id approve → 理由回传 → run 完成)。
+全量 check + race 通过。
+
+**模块④ daemon 收口**(骨架/CLI/重放/停机/timer 触发/审批路由)。
+scheduler actor 的独立形态并入 S6 出口 review 议题(现状:人工 submit +
+driver 内 cron/interval + daemon timer resume 已覆盖其职责的可达子集)。
+下一步:模块⑤ notifier。

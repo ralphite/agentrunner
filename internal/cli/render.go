@@ -55,7 +55,8 @@ func (r *textRenderer) Emit(e protocol.Event) {
 		}
 		fmt.Fprintf(r.out, "  ← %s %s\n", status, truncate(e.Result, 200))
 	case protocol.KindApprovalRequest:
-		fmt.Fprintf(r.out, "  ⏸ approval required: %s\n", e.Tool)
+		fmt.Fprintf(r.out, "  ⏸ approval required: %s %s (%s — answer with: agentrunner approve %s %s approve|deny)\n",
+			e.Tool, truncate(e.Args, 80), e.Text, e.Session, e.ApprovalID)
 	case protocol.KindModeChanged:
 		fmt.Fprintf(r.out, "  » mode → %s\n", e.Mode)
 	case protocol.KindDiscard:

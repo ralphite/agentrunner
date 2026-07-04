@@ -42,6 +42,9 @@ type Event struct {
 	IsError bool   `json:"is_error,omitempty"` // tool_result / error
 	Mode    string `json:"mode,omitempty"`
 	Reason  string `json:"reason,omitempty"` // run_end reason
+	// ApprovalID names a pending ask (approval_request) so a detached
+	// client can answer it (`agentrunner approve <session> <id> ...`).
+	ApprovalID string `json:"approval_id,omitempty"`
 	// Session tags which run the event belongs to. Local single-run
 	// rendering leaves it empty; the daemon (S6) sets it on every forwarded
 	// event so a multiplexed client can tell streams apart.

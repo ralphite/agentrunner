@@ -35,10 +35,12 @@ func TestDaemonHostsRunAndAttachReplays(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var errOut bytes.Buffer
+	broker := daemon.NewApprovalBroker()
 	srv := &daemon.Server{
 		SocketPath: sock,
 		NewID:      func(task string) string { return runtime.NewSessionID(time.Now(), task) },
-		Run:        hostRunFunc("test", &errOut),
+		Run:        hostRunFunc("test", &errOut, broker),
+		Approvals:  broker,
 		Replay: func(sessionID string, sink protocol.Sink) error {
 			d, err := resolveSessionDir(sessionID)
 			if err != nil {

@@ -61,10 +61,11 @@ func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, err)
 		return ExitRun
 	}
+	broker := daemon.NewApprovalBroker()
 	srv := &daemon.Server{
 		SocketPath: sock,
 		NewID:      func(task string) string { return runtime.NewSessionID(time.Now(), task) },
-		Run:        hostRunFunc(version, stderr),
+		Run:        hostRunFunc(version, stderr, broker),
 		Replay: func(sessionID string, sink protocol.Sink) error {
 			dir, err := resolveSessionDir(sessionID)
 			if err != nil {
@@ -73,7 +74,8 @@ func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 			return daemon.ReplayJournal(dir, sink)
 		},
 		ScanTimers: scanSessionTimers,
-		Resume:     hostResumeFunc(version, stderr),
+		Resume:     hostResumeFunc(version, stderr, broker),
+		Approvals:  broker,
 	}
 	fmt.Fprintf(stderr, "daemon on %s\n", sock)
 	if err := srv.ListenAndServe(ctx); err != nil {
@@ -83,10 +85,34 @@ func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 	return ExitOK
 }
 
+// socketApprovals adapts the daemon's ApprovalBroker to the agent's
+// resolver seam. It EMITS the ask onto the hosted run's event stream before
+// parking — child loops are silent (no Out sink) but share this resolver,
+// so a child's ask surfaces on the attach stream too (上卷). req.Agent says
+// WHO is asking.
+type socketApprovals struct {
+	broker  *daemon.ApprovalBroker
+	session string
+	sink    protocol.Sink
+}
+
+func (s socketApprovals) Resolve(ctx context.Context, req agent.ApprovalRequest) (agent.ApprovalDecision, error) {
+	s.sink.Emit(protocol.Event{
+		Kind: protocol.KindApprovalRequest, ApprovalID: req.ApprovalID,
+		Tool: req.ToolName, CallID: req.CallID,
+		Args: string(req.Args), Text: req.Agent,
+	})
+	a, err := s.broker.Ask(ctx, s.session, req.ApprovalID)
+	if err != nil {
+		return agent.ApprovalDecision{}, err
+	}
+	return agent.ApprovalDecision{Approve: a.Approve, Reason: a.Reason, Source: "socket"}, nil
+}
+
 // hostRunFunc is the daemon's real run wiring — the same assembly as a
-// foreground `run` minus the tty concerns (no interrupts, env-only
-// approvals; the daemon is headless).
-func hostRunFunc(version string, stderr io.Writer) daemon.RunFunc {
+// foreground `run` minus the tty concerns (no interrupts; asks park on the
+// approval broker and resolve over the socket).
+func hostRunFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker) daemon.RunFunc {
 	return func(ctx context.Context, req daemon.RunRequest, sink protocol.Sink) error {
 		spec, err := agent.LoadSpec(req.SpecPath)
 		if err != nil {
@@ -134,7 +160,7 @@ func hostRunFunc(version string, stderr io.Writer) daemon.RunFunc {
 			Pipeline:  pipe,
 			Mode:      mode,
 			Hooks:     hooks,
-			Approvals: &agent.EnvApprovals{},
+			Approvals: socketApprovals{broker: broker, session: req.SessionID, sink: sink},
 			SubSpecs:  siblingSpecResolver(req.SpecPath),
 		}
 		_, runErr := loop.Run(ctx, req.Task)
@@ -186,7 +212,7 @@ func scanSessionTimers() ([]daemon.SessionTimer, error) {
 // hostResumeFunc is the daemon's timer-driven resume wiring — the same
 // assembly as a foreground `resume` minus the tty: spec and workspace come
 // from the journaled RunStarted, permissions from the journaled layers.
-func hostResumeFunc(version string, stderr io.Writer) func(context.Context, string, protocol.Sink) error {
+func hostResumeFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker) func(context.Context, string, protocol.Sink) error {
 	return func(ctx context.Context, sessionID string, sink protocol.Sink) error {
 		dir, err := resolveSessionDir(sessionID)
 		if err != nil {
@@ -242,7 +268,7 @@ func hostResumeFunc(version string, stderr io.Writer) func(context.Context, stri
 			Version:   version,
 			Pipeline:  pipe,
 			Hooks:     hooks,
-			Approvals: &agent.EnvApprovals{},
+			Approvals: socketApprovals{broker: broker, session: sessionID, sink: sink},
 		}
 		_, runErr := loop.Resume(ctx)
 		return runErr
@@ -287,6 +313,50 @@ func attachCmd(args []string, stdout, stderr io.Writer) int {
 		return ExitRun
 	}
 	return ExitOK
+}
+
+// approveCmd answers a daemon-hosted ask: `agentrunner approve
+// <session-id-or-prefix> <approval-id> <approve|deny> [reason]`.
+func approveCmd(args []string, stdout, stderr io.Writer) int {
+	if len(args) < 3 || len(args) > 4 {
+		fmt.Fprintln(stderr, "usage: agentrunner approve <session-id-or-prefix> <approval-id> <approve|deny> [reason]")
+		return ExitUsage
+	}
+	dir, err := resolveSessionDir(args[0])
+	if err != nil {
+		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+		return ExitUsage
+	}
+	session := filepath.Base(dir)
+	decision := args[2]
+	if decision != "approve" && decision != "deny" {
+		fmt.Fprintln(stderr, "agentrunner: decision must be approve or deny")
+		return ExitUsage
+	}
+	reason := ""
+	if len(args) == 4 {
+		reason = args[3]
+	}
+	sock, err := socketPath()
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return ExitRun
+	}
+	code := ExitOK
+	err = daemon.Dial(sock, daemon.Command{
+		Cmd: "approve", Session: session, ApprovalID: args[1],
+		Decision: decision, Reason: reason,
+	}, func(e protocol.Event) {
+		if e.Kind == protocol.KindError {
+			code = ExitRun
+		}
+		fmt.Fprintln(stdout, e.Text)
+	})
+	if err != nil {
+		fmt.Fprintf(stderr, "agentrunner: %v (is the daemon running?)\n", err)
+		return ExitRun
+	}
+	return code
 }
 
 // submitCmd hands a run to the daemon and streams it until it ends —

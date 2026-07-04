@@ -23,7 +23,7 @@ import (
 
 // Command is one client→server line.
 type Command struct {
-	Cmd string `json:"cmd"` // ping | run | attach
+	Cmd string `json:"cmd"` // ping | run | attach | approve
 
 	// run
 	SpecPath  string `json:"spec_path,omitempty"`
@@ -31,8 +31,13 @@ type Command struct {
 	Workspace string `json:"workspace,omitempty"`
 	Mode      string `json:"mode,omitempty"`
 
-	// attach
+	// attach / approve
 	Session string `json:"session,omitempty"`
+
+	// approve
+	ApprovalID string `json:"approval_id,omitempty"`
+	Decision   string `json:"decision,omitempty"` // approve | deny
+	Reason     string `json:"reason,omitempty"`
 }
 
 // RunRequest is what the daemon hands the injected runner.
@@ -69,6 +74,10 @@ type Server struct {
 	ScanTimers func() ([]SessionTimer, error)
 	Resume     func(ctx context.Context, sessionID string, sink protocol.Sink) error
 	Clock      clock.Clock
+	// Approvals is the cross-process ask rendezvous: hosted runs park here
+	// (the CLI's resolver adapter calls Ask) and `approve` commands answer.
+	// nil = the approve command is refused.
+	Approvals *ApprovalBroker
 
 	mu     sync.Mutex
 	runs   map[string]*hostedRun
@@ -214,10 +223,35 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		s.handleRun(ctx, cmd, enc)
 	case "attach":
 		s.handleAttach(cmd, enc)
+	case "approve":
+		s.handleApprove(cmd, enc)
 	default:
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
-			Text: fmt.Sprintf("unknown command %q (known: ping, run, attach)", cmd.Cmd)})
+			Text: fmt.Sprintf("unknown command %q (known: ping, run, attach, approve)", cmd.Cmd)})
 	}
+}
+
+// handleApprove routes a human's verdict to the parked ask.
+func (s *Server) handleApprove(cmd Command, enc *json.Encoder) {
+	if s.Approvals == nil {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "daemon has no approval broker"})
+		return
+	}
+	if cmd.Session == "" || cmd.ApprovalID == "" || (cmd.Decision != "approve" && cmd.Decision != "deny") {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
+			Text: "approve needs session, approval_id and decision approve|deny"})
+		return
+	}
+	ok := s.Approvals.Answer(cmd.Session, cmd.ApprovalID, ApprovalAnswer{
+		Approve: cmd.Decision == "approve", Reason: cmd.Reason,
+	})
+	if !ok {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
+			Text: fmt.Sprintf("no pending approval %s on session %s", cmd.ApprovalID, cmd.Session)})
+		return
+	}
+	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage,
+		Text: "answered " + cmd.ApprovalID + ": " + cmd.Decision, Session: cmd.Session})
 }
 
 // handleRun hosts a new run and streams its events to the submitting client
