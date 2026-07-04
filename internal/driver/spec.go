@@ -6,8 +6,13 @@
 package driver
 
 import (
+	"bytes"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/ralphite/agentrunner/internal/agent"
 )
@@ -51,6 +56,9 @@ type DriverSpec struct {
 	Name string `yaml:"name"`
 	// Schedule selects the mode; empty defaults to immediate (goal).
 	Schedule string `yaml:"schedule,omitempty"`
+	// AgentSpecPath names the child agent spec file, resolved relative to
+	// the driver spec at load time into Agent.
+	AgentSpecPath string `yaml:"agent_spec,omitempty"`
 	// Interval is the loop-mode cadence (schedule=interval), a Go duration
 	// string like "5m". Empty/zero runs iterations back to back.
 	Interval string `yaml:"interval,omitempty"`
@@ -135,6 +143,44 @@ type VerifierSpec struct {
 	MetricRegex string  `yaml:"metric_regex,omitempty"`
 	Threshold   float64 `yaml:"threshold,omitempty"`
 	Rubric      string  `yaml:"rubric,omitempty"`
+}
+
+// LoadSpec reads and validates a driver spec, resolving agent_spec into
+// Agent (relative paths anchor at the driver spec's directory). Error format
+// mirrors agent.LoadSpec: "driver spec <path>: field <name>: <problem>".
+func LoadSpec(path string) (*DriverSpec, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("driver spec %s: %w", path, err)
+	}
+	var spec DriverSpec
+	dec := yaml.NewDecoder(bytes.NewReader(raw))
+	dec.KnownFields(true)
+	if err := dec.Decode(&spec); err != nil {
+		return nil, fmt.Errorf("driver spec %s: %v", path, err)
+	}
+	fail := func(field, problem string) error {
+		return fmt.Errorf("driver spec %s: field %s: %s", path, field, problem)
+	}
+	if spec.Name == "" {
+		return nil, fail("name", "required")
+	}
+	if spec.Task == "" {
+		return nil, fail("task", "required")
+	}
+	if spec.AgentSpecPath == "" {
+		return nil, fail("agent_spec", "required")
+	}
+	agentPath := spec.AgentSpecPath
+	if !filepath.IsAbs(agentPath) {
+		agentPath = filepath.Join(filepath.Dir(path), agentPath)
+	}
+	child, err := agent.LoadSpec(agentPath)
+	if err != nil {
+		return nil, fmt.Errorf("driver spec %s: field agent_spec: %v", path, err)
+	}
+	spec.Agent = child
+	return &spec, nil
 }
 
 // schedule returns the effective schedule (immediate default).

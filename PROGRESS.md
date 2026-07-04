@@ -2170,3 +2170,22 @@ task)。全量 check + race 通过。
 归 daemon 语境,与模块④ 一并做。下一步:模块④ daemon(最大风险块——
 unix socket server、attach/detach、durable timer 触发、优雅停机、S5 回访
 项物化)。
+
+## S6 — CLI `drive` 子命令(driver 可 dogfood)— DONE
+
+`driver.LoadSpec(path)`:driver YAML(`agent_spec` 相对路径解析进
+`Agent`;name/task/agent_spec 必填,错误格式与 agent.LoadSpec 一致)。
+`agentrunner drive [flags] <driver.yaml>`(task 在 spec 内,不走命令行):
+- driverID = NewSessionID(now, spec.Name),session 树同 run(driver
+  journal 在 sessions/<id>/,child 在其 sub/iter-N)。
+- ChildFactory 复刻 run 的装配:frozen spec + allowance 钳制、
+  buildPipeline(权限/mode/预算 gate)、共享 approvalResolver、共享
+  provider(scripted 跨迭代同 cursor——fixture 顺序脚本整个系列,
+  acceptance 友好)、Judge = 同 provider、Artifacts 开在 session 下。
+- **exit code 契约**:satisfied → 0;loop mode 的 max_iterations 也是
+  正常收束 → 0;goal mode 的 max_iterations = 目标未达 → 1;
+  stopped/child_failed/budget/stalled → 1。spec 错误 → 2。
+
+四 CLI e2e 测试:goal satisfied(2 迭代,progress.txt 落盘 + summary
+行)、goal 不达 exit 1、loop 有界系列 exit 0、缺 agent_spec exit 2。
+全量 check + race 通过。
