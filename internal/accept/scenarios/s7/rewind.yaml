@@ -1,0 +1,40 @@
+id: s7-01-rewind
+title: rewind——fork 回任意 barrier,workspace 与对话一致(编辑被回退,turn 数回到切面)
+files:
+  spec.yaml: |
+    name: writer
+    model: { provider: scripted, id: x }
+    system_prompt: write things
+    tools: [edit_file]
+    permissions:
+      - { action: allow }
+  fix.yaml: |
+    steps:
+      - respond:
+          - tool_call: { name: edit_file, args: { path: note.txt, old: v1, new: v2 } }
+          - finish: tool_use
+      - respond:
+          - text: "bumped to v2"
+          - finish: end_turn
+  ws/note.txt: "v1"
+steps:
+  - run: >
+      AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/fix.yaml
+      $BIN run --workspace ws spec.yaml "bump the note" 2>run.err;
+      SESSION=$(sed -n 's/^session //p' run.err | head -1);
+      test -n "$SESSION" && echo "$SESSION" >session.txt
+  - run: $BIN fork --list "$(cat session.txt)" | tee barriers.out | grep -q bar-t1
+  - run: grep -q bar-final barriers.out
+  # fork 回 bar-t1(编辑发生之前的切面),独立 worktree。
+  - run: $BIN fork --workspace forkws "$(cat session.txt)" bar-t1 >fork.out 2>fork.err
+  # workspace 一致:fork 的 worktree 回到 v1,原 run 的 worktree 保持 v2。
+  - run: grep -qx v1 forkws/note.txt
+  - run: grep -qx v2 ws/note.txt
+  # 对话一致:切面内只有 turn 1,turn 2 的事实不在 fork journal 里。
+  - run: >
+      FORKDIR=xdg/agentrunner/sessions/$(sed -n 's/^session //p' fork.out);
+      head -1 "$FORKDIR/events.jsonl" | grep -q '"type":"forked_from"' &&
+      test "$(grep -c '"type":"turn_started"' "$FORKDIR/events.jsonl")" = 1 &&
+      test "$(grep -c '"type":"checkpoint_barrier"' "$FORKDIR/events.jsonl")" = 1
+expect:
+  - exit_code: 0

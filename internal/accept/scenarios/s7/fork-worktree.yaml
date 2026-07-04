@@ -1,0 +1,47 @@
+id: s7-02-fork-worktree
+title: fork——分支在独立 worktree 继续跑到完成,原 run 的目录一字不动
+files:
+  spec.yaml: |
+    name: writer
+    model: { provider: scripted, id: x }
+    system_prompt: write things
+    tools: [edit_file]
+    permissions:
+      - { action: allow }
+  fix.yaml: |
+    steps:
+      - respond:
+          - tool_call: { name: edit_file, args: { path: note.txt, old: v1, new: v2 } }
+          - finish: tool_use
+      - respond:
+          - text: "bumped to v2"
+          - finish: end_turn
+  resume.yaml: |
+    steps:
+      - respond:
+          - tool_call: { name: edit_file, args: { path: note.txt, old: v1, new: FORKED } }
+          - finish: tool_use
+      - respond:
+          - text: "forked path done"
+          - finish: end_turn
+  ws/note.txt: "v1"
+steps:
+  - run: >
+      AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/fix.yaml
+      $BIN run --workspace ws spec.yaml "bump the note" 2>run.err;
+      SESSION=$(sed -n 's/^session //p' run.err | head -1);
+      test -n "$SESSION" && echo "$SESSION" >session.txt
+  - run: >
+      $BIN fork --workspace forkws "$(cat session.txt)" bar-t1 >fork.out 2>fork.err;
+      sed -n 's/^session //p' fork.out >forksession.txt;
+      test -s forksession.txt
+  # fork 分支用自己的剧本在独立 worktree 继续到完成。
+  - run: >
+      AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/resume.yaml
+      $BIN resume "$(cat forksession.txt)"
+  - run: grep -qx FORKED forkws/note.txt
+  - run: grep -qx v2 ws/note.txt
+expect:
+  - exit_code: 0
+  # fork journal 完整:forked_from 创世,run_ended 收尾,seq 无缝。
+  - events_valid: xdg/agentrunner/sessions/*/events.jsonl

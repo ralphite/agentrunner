@@ -224,3 +224,34 @@ func itoa(n int) string {
 	}
 	return string(b)
 }
+
+// PushRefs moves a snapshot's object closure into ANOTHER shadow repo
+// (S7.3 fork): the destination can materialize the ref without ever
+// touching the source again.
+func TestPushRefsTransfersSnapshots(t *testing.T) {
+	wsA, wsB := t.TempDir(), t.TempDir()
+	write(t, wsA, "main.go", "v1")
+	src := newStore(t, wsA)
+	dst := newStore(t, wsB)
+	ctx := context.Background()
+
+	ref, err := src.Snapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := src.PushRefs(ctx, dst.GitDir(), []string{ref}); err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(t.TempDir(), "out")
+	if err := dst.Materialize(ctx, ref, out); err != nil {
+		t.Fatalf("materialize from destination store: %v", err)
+	}
+	raw, err := os.ReadFile(filepath.Join(out, "main.go"))
+	if err != nil || string(raw) != "v1" {
+		t.Errorf("main.go = %q err=%v", raw, err)
+	}
+	// Re-pushing the same ref is a no-op, not an error.
+	if err := src.PushRefs(ctx, dst.GitDir(), []string{ref, ""}); err != nil {
+		t.Fatalf("idempotent push: %v", err)
+	}
+}

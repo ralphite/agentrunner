@@ -166,6 +166,26 @@ func (s *ShadowRepo) Snapshot(ctx context.Context) (string, error) {
 	return commit, nil
 }
 
+// PushRefs copies snapshot commits into another shadow GIT_DIR, pinning
+// each under refs/pinned/<ref> (S7.3): a fork's inherited barriers stay
+// materializable from the fork workspace's OWN store, so a fork of a fork
+// never reaches back into the original's repo. Local-path push moves the
+// full object closure; an already-present ref is a cheap no-op.
+func (s *ShadowRepo) PushRefs(ctx context.Context, dstGitDir string, refs []string) error {
+	for _, ref := range refs {
+		if ref == "" {
+			continue
+		}
+		if _, err := s.git(ctx, "push", "--quiet", dstGitDir, ref+":refs/pinned/"+ref); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// GitDir exposes the store's GIT_DIR for ref transfer between stores.
+func (s *ShadowRepo) GitDir() string { return s.gitDir }
+
 // Materialize extracts ref into dir via `git archive` — no index or HEAD
 // mutation, no linked-worktree metadata to clean up.
 func (s *ShadowRepo) Materialize(ctx context.Context, ref, dir string) error {

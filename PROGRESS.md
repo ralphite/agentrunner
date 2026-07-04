@@ -2712,3 +2712,50 @@ stream seq 进 vector(bar-t1 无、其后有)。全量 check 绿 + stage 1–6
 全部 24 个 acceptance 场景回归绿。下一步:模块 3——fork/rewind
 (`ForkedFrom` 创世、id remapping、独立 worktree 物化;s7-01/s7-02
 完成标志场景随该步落地)。
+
+## S7 模块 3 — fork / rewind — DONE
+
+新 event `forked_from`:`{parent_session, barrier_id, snapshot_ref,
+workspace_root}`——fork journal 的**创世 event**(第 1 条),其后是父
+journal 里 barrier 切面内(seq ≤ barrier.Seq,含 barrier 本身)的全部
+events。**两轴正交**:事件切面复制(`internal/fork.Cut`)与 worktree
+物化(`Materialize`)各自独立;rewind = fork + 用户显式切换,无
+in-place rewind。
+
+**id remapping**:seq/id 整体 +1(创世占 seq 1)、`evt-N` 形态的
+causation id 随移、correlation id == 父 session 者换成新 session;
+**payload 字节原样**(provenance)。`sub/` 子 journal 与 `artifacts/`
+CAS 随切面 verbatim 复制;fold snapshot(snap-*.json)**不复制**——
+缓存的是父 seq,fork 首次 resume 从头 fold。journal 写入走 temp →
+fsync → rename,半成品 fork 不可 resume;目标已有 journal 则拒绝。
+
+**fold**:`Run.ForkedFrom{parent_session, barrier_id}`(additive,
+不 bump);`Apply` 处理 forked_from 仅记 provenance。**resume 容忍
+forked head**:loop.Resume 版本检查看 genesis 之后的 run_started;
+CLI readRunStarted 同样跳过 genesis 并**用 genesis 的 workspace_root
+覆盖** RunStarted 里的父 root(fork 活在自己的 worktree)。accept
+events_valid head 规则加 forked_from(tail 仍要求 run_ended)。
+
+**CLI**:`fork <session> <barrier-id> [--workspace <dir>]` +
+`fork <session> --list`(列 barrier:id/turn/seq/ref)。默认 worktree
+= `<父ws>-fork-<id后4位>`;物化目标必须为空(Materialize 既有约束)。
+**snapshot ref 迁移**:`ShadowRepo.PushRefs` 把切面内全部 refs push 进
+fork workspace 自己的 shadow repo(`refs/pinned/<sha>`,本地 push 带
+全对象闭包)——fork-of-fork 不用回摸父仓库;迁移失败仅告警(fork 本身
+已成立)。同名 barrier(重跑 bar-final)取 fold 中最后一个。
+
+记档:①copied RunStarted 的 Env block 仍是父 cwd(cosmetic,工具执行
+以 fork worktree 为准;dogfood 若困扰再议);②driver iteration 的
+fork 目标语义未定义(iteration 天然是 barrier 的说法在 DESIGN §驱动,
+留 S7 出口 review);③跨 compaction fork 无需额外代码——切面含
+ContextCompacted,fold 自然重建(DESIGN 379)。
+
+测试:fork 包两测(切面复制全断言:创世字段、gapless remap、causation
+随移、payload 原样、sub/artifacts 随行、fold snapshot 不漏、重复 fork
+拒绝、未知 barrier 拒绝);snapshot PushRefs 迁移后从目标仓 Materialize
+成功且重复 push 幂等;CLI e2e(fork 回 bar-t1 → fork ws 回到 v1、原 ws
+保持 v2 → resume fork 在独立 worktree 改成 FORKED、原 ws 不动、fork
+journal head/tail 正确)。**完成标志场景 s7-01-rewind / s7-02-fork-
+worktree 落地并绿**;全量 check + race + stage 1–7 全部 26 场景回归绿。
+下一步:模块 4+(IndexStore/semantic_search、OS 沙箱)或 best-of-N
+(依赖本模块的 worktree 隔离);按 dogfood 优先级定。

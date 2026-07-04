@@ -354,9 +354,14 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 
 	// The versions journaled at run start guard EVERY resume, snapshot or
 	// not — a full fold across an incompatible sub-state shape is just as
-	// wrong as a snapshot load.
-	if events[0].Type == event.TypeRunStarted {
-		if decoded, derr := event.DecodePayload(events[0]); derr == nil {
+	// wrong as a snapshot load. A forked session's RunStarted sits right
+	// behind its ForkedFrom genesis (S7.3) and guards the fork the same way.
+	head := events[0]
+	if head.Type == event.TypeForkedFrom && len(events) > 1 {
+		head = events[1]
+	}
+	if head.Type == event.TypeRunStarted {
+		if decoded, derr := event.DecodePayload(head); derr == nil {
 			if started := decoded.(*event.RunStarted); len(started.SubStateVersions) > 0 {
 				if err := checkVersions(started.SubStateVersions); err != nil {
 					return RunResult{}, err

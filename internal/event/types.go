@@ -59,6 +59,7 @@ const (
 
 	// S7 additions (world-state lifecycle).
 	TypeCheckpointBarrier = "checkpoint_barrier"
+	TypeForkedFrom        = "forked_from"
 )
 
 // Effect verdicts and gate decisions.
@@ -467,6 +468,19 @@ type BarrierTask struct {
 	Policy string `json:"policy"` // v0: cancel_at_fork — the fork renders it cancelled
 }
 
+// ForkedFrom is a forked session's genesis event (S7 模块 3, DESIGN
+// §fork/rewind): the first fact in the new journal, ahead of the events
+// copied from the parent's barrier cut. The parent session id is kept as
+// provenance; WorkspaceRoot is the fork's OWN worktree (materialized from
+// SnapshotRef — forks never share a directory with the original), and
+// resume prefers it over the copied RunStarted's stale root.
+type ForkedFrom struct {
+	ParentSession string `json:"parent_session"`
+	BarrierID     string `json:"barrier_id"`
+	SnapshotRef   string `json:"snapshot_ref,omitempty"`
+	WorkspaceRoot string `json:"workspace_root,omitempty"`
+}
+
 // NotificationSent is the notifier's dedup fact (S6 模块⑤): one line per
 // delivered (or fallback-delivered) notification, in the notifier's own
 // stream. The Key is the dedup identity; startup reconciliation replays
@@ -541,6 +555,7 @@ var Registry = map[string]func() any{
 	TypeNotificationSent: func() any { return &NotificationSent{} },
 
 	TypeCheckpointBarrier: func() any { return &CheckpointBarrier{} },
+	TypeForkedFrom:        func() any { return &ForkedFrom{} },
 }
 
 // DriverStream lists the event types that belong to the IterationDriver's OWN

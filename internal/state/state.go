@@ -238,6 +238,15 @@ type Run struct {
 	// ChildSessions lists completed child runs' sessions in completion order
 	// (S7.2, additive): the barrier's cross-stream vector reads it.
 	ChildSessions []string `json:"child_sessions,omitempty"`
+	// ForkedFrom is a forked session's provenance (S7.3, additive): set by
+	// the genesis event, nil for a run born from `run`.
+	ForkedFrom *ForkOrigin `json:"forked_from,omitempty"`
+}
+
+// ForkOrigin records where a forked session came from.
+type ForkOrigin struct {
+	ParentSession string `json:"parent_session"`
+	BarrierID     string `json:"barrier_id"`
 }
 
 // New is the empty pre-RunStarted state.
@@ -315,6 +324,11 @@ func Apply(s State, env event.Envelope) (State, error) {
 			BarrierID: p.BarrierID, Seq: env.Seq, Turn: p.Turn,
 			SnapshotRef: p.SnapshotRef, Vector: p.Vector, Tasks: p.Tasks,
 		})
+
+	case *event.ForkedFrom:
+		// Genesis of a forked session (S7.3): provenance only — every other
+		// aspect of the state comes from the copied cut that follows.
+		s.Run.ForkedFrom = &ForkOrigin{ParentSession: p.ParentSession, BarrierID: p.BarrierID}
 
 	case *event.SubagentCompleted:
 		// The parent's accounting settles through the spawn activity's

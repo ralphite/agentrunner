@@ -141,14 +141,33 @@ func readRunStarted(dir string) (*event.RunStarted, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(events) == 0 || events[0].Type != event.TypeRunStarted {
+	if len(events) == 0 {
+		return nil, fmt.Errorf("session log is empty")
+	}
+	// A forked session opens with its ForkedFrom genesis (S7.3); the copied
+	// RunStarted sits right behind it. The genesis' workspace root overrides
+	// the copied one — the fork lives in its own materialized worktree, and
+	// the RunStarted root is parent provenance.
+	var forked *event.ForkedFrom
+	head := events[0]
+	if head.Type == event.TypeForkedFrom && len(events) > 1 {
+		if decoded, derr := event.DecodePayload(head); derr == nil {
+			forked = decoded.(*event.ForkedFrom)
+		}
+		head = events[1]
+	}
+	if head.Type != event.TypeRunStarted {
 		return nil, fmt.Errorf("session log does not begin with run_started")
 	}
-	decoded, err := event.DecodePayload(events[0])
+	decoded, err := event.DecodePayload(head)
 	if err != nil {
 		return nil, err
 	}
-	return decoded.(*event.RunStarted), nil
+	started := decoded.(*event.RunStarted)
+	if forked != nil && forked.WorkspaceRoot != "" {
+		started.WorkspaceRoot = forked.WorkspaceRoot
+	}
+	return started, nil
 }
 
 // sessionsCmd implements `agentrunner sessions list`: newest first, with
