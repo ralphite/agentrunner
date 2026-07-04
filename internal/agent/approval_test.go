@@ -136,10 +136,18 @@ func TestApprovalHangsTwoDaysThenApproved(t *testing.T) {
 	}
 }
 
-// blockingApprover never answers — the interrupt must win.
-type blockingApprover struct{}
+// blockingApprover never answers — the interrupt must win. ready (if set)
+// is signaled once the resolver is consulted, so a test can send the
+// interrupt precisely when the run is parked at the approval.
+type blockingApprover struct{ ready chan struct{} }
 
-func (blockingApprover) Resolve(ctx context.Context, _ ApprovalRequest) (ApprovalDecision, error) {
+func (b blockingApprover) Resolve(ctx context.Context, _ ApprovalRequest) (ApprovalDecision, error) {
+	if b.ready != nil {
+		select {
+		case b.ready <- struct{}{}:
+		default:
+		}
+	}
 	<-ctx.Done()
 	return ApprovalDecision{}, ctx.Err()
 }
@@ -161,8 +169,9 @@ func TestApprovalDeniedByInterrupt(t *testing.T) {
 	root := t.TempDir()
 	l := testLoop(t, fix, root)
 	l.Pipeline = askEverything
-	l.Approvals = blockingApprover{}
-	interrupts := make(chan struct{})
+	ready := make(chan struct{}, 1)
+	l.Approvals = blockingApprover{ready: ready}
+	interrupts := make(chan struct{}, 1)
 	l.Interrupts = interrupts
 
 	done := make(chan error, 1)
@@ -172,7 +181,8 @@ func TestApprovalDeniedByInterrupt(t *testing.T) {
 		res, err = l.Run(context.Background(), "write a note")
 		done <- err
 	}()
-	close(interrupts) // user hits Ctrl-C while the approval is pending
+	<-ready                  // wait until parked at the approval
+	interrupts <- struct{}{} // user hits Ctrl-C while the approval is pending
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
@@ -323,8 +333,8 @@ func TestInterruptDenialRendering(t *testing.T) {
 func stateWithPendingApproval(t *testing.T, m *memAppend) *driveState {
 	t.Helper()
 	ds := &driveState{s: state.New()}
-	interrupts := make(chan struct{})
-	close(interrupts)
+	interrupts := make(chan struct{}, 1)
+	interrupts <- struct{}{}
 	l := &Loop{Approvals: blockingApprover{}, Interrupts: interrupts}
 	appendE := func(typ string, payload any) (event.Envelope, error) {
 		env, err := m.append(typ, payload)

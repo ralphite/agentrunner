@@ -36,6 +36,12 @@ func (c Class) Retryable() bool {
 // context.Cause to render "timed out" instead of "canceled".
 var ErrActivityTimeout = New(Timeout, "activity timeout")
 
+// ErrUserInterrupt is the cancellation CAUSE for a collaborative steering
+// interrupt (S4.2, first Ctrl-C): the current activity is cancelled but
+// the run CONTINUES. Effect implementations use a shorter kill grace for
+// it than for a hard cancel, and the loop resumes rather than aborting.
+var ErrUserInterrupt = New(Canceled, "user interrupt")
+
 // Error carries a class through wrapping.
 type Error struct {
 	Class Class

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -83,6 +84,46 @@ func (l *Loop) emit(e protocol.Event) {
 	if l.Out != nil {
 		l.Out.Emit(e)
 	}
+}
+
+// interruptScope derives a per-activity context cancelled with cause
+// errs.ErrUserInterrupt when a steering interrupt (S4.2, first Ctrl-C)
+// arrives. stop() must be called after the activity. A hard cancel of the
+// parent ctx (second Ctrl-C / SIGTERM) propagates unchanged and keeps its
+// own cause, so the loop can tell steering (continue) from quit (abort).
+func (l *Loop) interruptScope(ctx context.Context) (context.Context, func()) {
+	if l.Interrupts == nil {
+		return ctx, func() {}
+	}
+	actCtx, cancel := context.WithCancelCause(ctx)
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-l.Interrupts:
+			cancel(errs.ErrUserInterrupt)
+		case <-done:
+		}
+	}()
+	return actCtx, func() { close(done); cancel(nil) }
+}
+
+// steered reports whether an activity ended because of a steering interrupt
+// (as opposed to a hard cancel or a normal error).
+func steered(actCtx context.Context) bool {
+	return errors.Is(context.Cause(actCtx), errs.ErrUserInterrupt)
+}
+
+// onSteeringInterrupt journals the interrupt as a control input (audit;
+// journal-inputs-first) and emits a surface notice. The interrupt is NOT
+// a conversation message (the fold drops source=="interrupt").
+func (l *Loop) onSteeringInterrupt(appendE AppendFunc, turn int) error {
+	if _, err := appendE(event.TypeInputReceived, &event.InputReceived{
+		Text: "[interrupt]", Source: "interrupt",
+	}); err != nil {
+		return err
+	}
+	l.emit(protocol.Event{Kind: protocol.KindDiscard, Turn: turn, Text: "interrupted by user"})
+	return nil
 }
 
 // appender builds the single write path: journal one event, fold it, and
@@ -409,9 +450,10 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				}
 				return RunResult{}, abort(act.turn, fmt.Errorf("turn %d: llm call denied by pipeline", act.turn))
 			}
+			actCtx, stopInt := l.interruptScope(ctx)
 			var turn provider.Turn
 			var streamed bool // any delta emitted this attempt?
-			err := exec.Do(ctx, Activity{
+			err := exec.Do(actCtx, Activity{
 				ID: fmt.Sprintf("llm-t%d", act.turn), Kind: event.KindLLM,
 				Name: "complete", Idempotent: true,
 				DiscardOnRetry: func() error {
@@ -446,8 +488,17 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				},
 			})
 			if err != nil {
+				if steered(actCtx) {
+					stopInt()
+					if ierr := l.onSteeringInterrupt(appendE, act.turn); ierr != nil {
+						return RunResult{}, abort(act.turn, ierr)
+					}
+					continue // re-decide: turn N has no assistant message → re-run
+				}
+				stopInt()
 				return RunResult{}, abort(act.turn, fmt.Errorf("turn %d: %w", act.turn, err))
 			}
+			stopInt()
 			if _, err := appendE(event.TypeAssistantMessage, &event.AssistantMessage{
 				Turn: act.turn, Message: turn.Message,
 			}); err != nil {
@@ -502,7 +553,8 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 					return strings.Join(notes, "; ")
 				}
 			}
-			err := exec.Do(ctx, Activity{
+			actCtx, stopInt := l.interruptScope(ctx)
+			err := exec.Do(actCtx, Activity{
 				ID: "tool-" + call.CallID, Kind: event.KindTool,
 				Name: call.Name, Args: call.Args, CallID: call.CallID,
 				Idempotent: toolIdempotent(call.Name),
@@ -510,7 +562,21 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				Run:        run,
 				PostRun:    postRun,
 			})
+			stopInt()
 			if err != nil {
+				if steered(actCtx) {
+					// The cancelled tool already rendered [interrupted by user]
+					// in the fold (its ActivityCancelled result); journal the
+					// interrupt and continue — the model reacts next turn.
+					if ierr := l.onSteeringInterrupt(appendE, act.turn); ierr != nil {
+						return RunResult{}, abort(act.turn, ierr)
+					}
+					if tr, ok := ds.s.Conversation.ToolResults[call.CallID]; ok {
+						l.emit(protocol.Event{Kind: protocol.KindToolResult, Turn: act.turn,
+							Tool: call.Name, CallID: call.CallID, Result: compact(tr.Result), IsError: true})
+					}
+					continue
+				}
 				// A terminally-failed tool whose call resolved in the fold
 				// (rendered error result) is model-visible: the loop
 				// continues and the model reacts. Cancellation and harness

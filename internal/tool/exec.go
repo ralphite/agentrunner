@@ -20,11 +20,12 @@ import (
 
 // S1 defaults pack limits.
 const (
-	readMaxLines     = 2000
-	readMaxBytes     = 50 * 1024
-	bashOutputBytes  = 30 * 1024 // combined budget: split across stdout+stderr
-	bashKillGrace    = 5 * time.Second
-	bashPipeDeadline = 2 * time.Second
+	readMaxLines       = 2000
+	readMaxBytes       = 50 * 1024
+	bashOutputBytes    = 30 * 1024 // combined budget: split across stdout+stderr
+	bashKillGrace      = 5 * time.Second
+	bashInterruptGrace = 500 * time.Millisecond
+	bashPipeDeadline   = 2 * time.Second
 )
 
 // Result is a tool execution outcome. IsError results render as error
@@ -205,12 +206,18 @@ func (e *Executor) bash(ctx context.Context, rawArgs json.RawMessage) Result {
 		default:
 			// The durable timer cancels with cause ErrActivityTimeout;
 			// render that as a timeout, anything else as user cancellation.
+			// A steering interrupt gets a much shorter kill grace than a
+			// timeout — interactive cancellation must feel instant.
+			grace := bashKillGrace
 			if errors.Is(context.Cause(ctx), errs.ErrActivityTimeout) {
 				timedOut = true
 			} else {
 				canceled = true
+				if errors.Is(context.Cause(ctx), errs.ErrUserInterrupt) {
+					grace = bashInterruptGrace
+				}
 			}
-			killGroup(pgid, reaped)
+			killGroup(pgid, reaped, grace)
 			<-done
 		}
 	}
@@ -237,9 +244,9 @@ func (e *Executor) bash(ctx context.Context, rawArgs json.RawMessage) Result {
 // recycled as an unrelated pgid — signaling it again could kill innocent
 // processes, so we stop escalating (TERM-resistant grandchildren that
 // outlive the leader escape the KILL; that beats shooting a stranger).
-func killGroup(pgid int, reaped <-chan struct{}) {
+func killGroup(pgid int, reaped <-chan struct{}, grace time.Duration) {
 	_ = syscall.Kill(-pgid, syscall.SIGTERM)
-	deadline := time.After(bashKillGrace)
+	deadline := time.After(grace)
 	tick := time.NewTicker(50 * time.Millisecond)
 	defer tick.Stop()
 	for {

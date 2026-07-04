@@ -1088,3 +1088,45 @@ TurnDiscarded 全链(partial→discard→final,final 消息干净、turn_discard
   字段(2.10 预留)暂未用——delta 走 CollectTurnStreaming 更直接,
   Progress 留 S6 task tail。
 - TurnDiscarded retry 测试用 Real clock(FakeClock 会阻塞 backoff)。
+
+## S4.2 steering/interrupt — DONE
+
+**interrupt 语义分层**(CLI signalContext 改 send-once 缓冲):首个 Ctrl-C
+= **steering interrupt**(一次,缓冲送)→ 取消当前 activity、run 继续;
+第二个 Ctrl-C / SIGTERM = 硬取消 → ctx cancel → abort。新 cancel cause
+`errs.ErrUserInterrupt`(canceled 类)。
+
+- `Loop.interruptScope(ctx)`:每个 LLM/tool activity 外包一层——interrupt
+  到达 → `cancel(ErrUserInterrupt)`;`steered(actCtx)` 判定。LLM 被 steer
+  → journal InputReceived{interrupt}(audit,source==interrupt 不进
+  conversation)→ **continue**(decide 见 turn 无 assistant msg → 重跑,
+  interrupt 已消费不循环)。tool 被 steer → ActivityCancelled 已渲染
+  `[interrupted by user]`(S3 fold)→ journal interrupt → continue,模型
+  下一 turn 反应。
+- **500ms 交互取消宽限**:bash killGroup 按 cause 选 grace——
+  ErrUserInterrupt → `bashInterruptGrace`(500ms),timeout → 5s;
+  killGroup 签名加 grace 参数。
+- awaitApproval 的 denied-by-interrupt(3.5)与 steering 互斥(审批在
+  adjudicate 内、activity 之前,parked 时无 interruptScope 活动)。
+
+**验证**:steering during LLM(卡住的 model call → 中断 → 取消 activity
++ interrupt input + discard surface → 重跑完成);steering during bash
+(pid marker → 中断 → 5s 内杀掉、ActivityCancelled、模型见
+[interrupted by user] → 完成);测试改 send-once 语义(blockingApprover
+加 ready 信号,parked 后再送 interrupt)。
+
+**回访项结论**:
+- AGENTRUNNER_APPROVE=always footgun(S3 递延,4.2 后复审):**维持
+  文档级,不改**。交互路径是 3.10 TTY resolver;EnvApprovals 专为
+  非-TTY loop-mode,`=always` 是显式 opt-in(CI/自动化的自觉选择),
+  与 --mode bypass 同类"你明确要求了才生效"。复审确认非对称收紧
+  (project allow→ask)对**交互**用户仍有效,footgun 仅在显式
+  auto-approve 下失效,可接受。
+
+**Decisions**:
+- interrupt 通道 send-once(缓冲 1)而非 close-once:steering 需可消费
+  的单次事件,close 会让所有后续 activity 立即取消(closed channel 恒
+  可读)。
+- steering LLM 不把 interrupt 放进 conversation(source==interrupt 语义
+  沿用 S2.14):CLI 无 steering 文本;带文本的 steering 属交互 WAIT_INPUT,
+  留后续。

@@ -224,7 +224,10 @@ func runAgent(opts runOptions) int {
 // process groups are killed via ctx).
 func signalContext() (context.Context, <-chan struct{}, func()) {
 	ctx, cancel := context.WithCancel(context.Background())
-	interrupts := make(chan struct{})
+	// Buffered 1: the first Ctrl-C delivers ONE steering interrupt (the loop
+	// cancels the current activity and continues); a second Ctrl-C — or any
+	// SIGTERM — is a hard quit that cancels the run context.
+	interrupts := make(chan struct{}, 1)
 	sigc := make(chan os.Signal, 2)
 	signal.Notify(sigc, os.Interrupt, syscall.SIGTERM)
 	go func() {
@@ -232,7 +235,10 @@ func signalContext() (context.Context, <-chan struct{}, func()) {
 		for sig := range sigc {
 			if sig == os.Interrupt && first {
 				first = false
-				close(interrupts)
+				select {
+				case interrupts <- struct{}{}:
+				default:
+				}
 				continue
 			}
 			cancel()
