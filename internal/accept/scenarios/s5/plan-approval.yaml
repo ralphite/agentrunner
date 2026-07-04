@@ -1,5 +1,5 @@
 id: s5-02-plan-approval-payload
-title: plan 审批——plan 文本入 artifact store,批准后转出 plan mode 并执行
+title: plan 审批全流程——发布→审→拒(附理由)→v2→批,payload_ref 钉住版本
 files:
   planner.yaml: |
     name: planner
@@ -9,7 +9,12 @@ files:
   plan.yaml: |
     steps:
       - respond:
-          - tool_call: { name: exit_plan_mode, args: { plan: "write the file, verify it" } }
+          - tool_call: { name: exit_plan_mode, args: { plan: "v1 rough idea" } }
+          - finish: tool_use
+      - expect:
+          last_message_contains: "denied"
+        respond:
+          - tool_call: { name: exit_plan_mode, args: { plan: "v2 detailed steps, verified" } }
           - finish: tool_use
       - respond:
           - tool_call: { name: bash, args: { command: "echo executed > done.txt" } }
@@ -20,10 +25,11 @@ files:
 steps:
   - run: >
       AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/plan.yaml
-      AGENTRUNNER_APPROVE=always
+      AGENTRUNNER_APPROVE='deny:needs more detail,approve'
       $BIN run --workspace . --mode plan planner.yaml "make it so"
-  - run: grep -q plan xdg/agentrunner/sessions/*/artifacts/manifest.json
-  - run: grep -q payload_ref xdg/agentrunner/sessions/*/events.jsonl
+  - run: grep -q '"stream". "plan"' xdg/agentrunner/sessions/*/artifacts/manifest.json
+  - run: test "$(grep -o 'payload_ref' xdg/agentrunner/sessions/*/events.jsonl | wc -l)" -ge 2
+  - run: grep -q 'needs more detail' xdg/agentrunner/sessions/*/events.jsonl
 expect:
   - exit_code: 0
   - file_contains: { path: done.txt, text: "executed" }

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
+	"sync"
 
 	"github.com/ralphite/agentrunner/internal/crash"
 	"github.com/ralphite/agentrunner/internal/event"
@@ -37,16 +39,43 @@ type ApprovalResolver interface {
 	Resolve(ctx context.Context, req ApprovalRequest) (ApprovalDecision, error)
 }
 
-// EnvApprovals is the non-interactive resolver: AGENTRUNNER_APPROVE=
-// always|never (unset = never — loop-mode must fail closed, not hang).
-type EnvApprovals struct{}
+// EnvApprovals is the non-interactive resolver. AGENTRUNNER_APPROVE=
+//   - always / never (unset = never — loop-mode must fail closed, not hang)
+//   - a comma-separated SEQUENCE of approve|deny[:reason] (S6 还债③):
+//     answers are consumed in order and the last repeats once exhausted,
+//     which makes multi-approval flows (plan 拒→v2→批) scriptable in
+//     acceptance scenarios. The sequence position is resolver state — the
+//     loop keeps ONE instance per tree (children share it).
+type EnvApprovals struct {
+	mu  sync.Mutex
+	idx int
+}
 
-func (EnvApprovals) Resolve(_ context.Context, _ ApprovalRequest) (ApprovalDecision, error) {
-	switch os.Getenv("AGENTRUNNER_APPROVE") {
+func (e *EnvApprovals) Resolve(_ context.Context, _ ApprovalRequest) (ApprovalDecision, error) {
+	v := os.Getenv("AGENTRUNNER_APPROVE")
+	switch v {
 	case "always":
 		return ApprovalDecision{Approve: true, Reason: "AGENTRUNNER_APPROVE=always", Source: "env"}, nil
-	default:
+	case "", "never":
 		return ApprovalDecision{Approve: false, Reason: "auto-denied (AGENTRUNNER_APPROVE unset or never)", Source: "env"}, nil
+	}
+	parts := strings.Split(v, ",")
+	e.mu.Lock()
+	i := e.idx
+	if i >= len(parts) {
+		i = len(parts) - 1 // exhausted: the last answer repeats
+	}
+	e.idx++
+	e.mu.Unlock()
+	verb, reason, _ := strings.Cut(strings.TrimSpace(parts[i]), ":")
+	switch verb {
+	case "approve", "y", "yes":
+		return ApprovalDecision{Approve: true, Reason: reason, Source: "env"}, nil
+	default:
+		if reason == "" {
+			reason = "denied by AGENTRUNNER_APPROVE sequence"
+		}
+		return ApprovalDecision{Approve: false, Reason: reason, Source: "env"}, nil
 	}
 }
 
@@ -123,7 +152,7 @@ func (l *Loop) awaitApproval(ctx context.Context, ds *driveState, appendE Append
 
 	resolver := l.Approvals
 	if resolver == nil {
-		resolver = EnvApprovals{}
+		resolver = &EnvApprovals{}
 	}
 	rctx, rcancel := context.WithCancel(ctx)
 	defer rcancel()

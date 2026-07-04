@@ -420,7 +420,7 @@ func hookedApprovalLoop(t *testing.T, sessDir, root string) *Loop {
 			&pipeline.PermissionGate{Rules: []pipeline.PermissionRule{{Tool: "edit_file", Action: "ask"}}, WS: ws},
 		}},
 		Hooks:     runner,
-		Approvals: EnvApprovals{},
+		Approvals: &EnvApprovals{},
 	}
 }
 
@@ -469,7 +469,7 @@ func TestApprovalDecisionDurableAcrossResolveGap(t *testing.T) {
 			Spec: approvalSpec(), Provider: scripted.New(approvalFixture()),
 			Exec: &tool.Executor{WS: ws}, Store: es, SessionID: "gap",
 			Pipeline:  askEverything,
-			Approvals: EnvApprovals{},
+			Approvals: &EnvApprovals{},
 		}
 		_, _ = l.Run(context.Background(), "write a note")
 		os.Exit(0)

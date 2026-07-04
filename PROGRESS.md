@@ -1889,3 +1889,19 @@ recovered);s4-04 blocked 收尾(文本保留、run_ended{blocked}、exit 1
 ——非 completed 一律 exit 1 是既有 CLI 语义,场景以 `|| test $? -eq 1`
 断言)。**steering/interrupt 不可场景化**(需向进程发 SIGINT,时序脆),
 维持单测端到端覆盖,记档。
+
+## S6 还债②③ — 渲染重复修复 + EnvApprovals 序列语法 — DONE
+
+- **还债②**:textRenderer 加 `sawDelta`(per-turn)——delta 已流出的文本
+  不再被 KindMessage 二次打印(delta 优先、message 兜底);scripted 走
+  delta 路径,原注释假设不成立,已修。手动验证 fleet 输出重复消失。
+- **还债③**:`AGENTRUNNER_APPROVE` 支持序列语法
+  `approve|deny[:reason],...`(逗号分隔,耗尽重复最后一项;always/never
+  语义不变)。序列位置是 resolver 状态——EnvApprovals 改指针接收器
+  (mutex+idx),`ensureApprovals` 在 Run/Resume 钉一树一实例(childLoop
+  共享 parent resolver,序列跨树消费)。
+- **s5-02 补全为拒→v2→批全流程场景**:序列 `deny:needs more detail,approve`
+  → v1 被拒(理由入 journal)→ v2 重审获批 → 转出 plan mode 执行;断言
+  manifest plan stream、payload_ref≥2、拒绝理由在 events。0.6 "完成标志
+  逐句可执行"缺口闭合。
+- 全量 check + race + stage 1-5 acceptance 回归全绿。

@@ -11,8 +11,9 @@ import (
 // textRenderer turns the output protocol into human-readable terminal
 // output. Text deltas stream inline; everything else is a labeled line.
 type textRenderer struct {
-	out     io.Writer
-	inDelta bool // currently mid text-delta line?
+	out      io.Writer
+	inDelta  bool // currently mid text-delta line?
+	sawDelta bool // this turn's text already streamed as deltas?
 }
 
 func newTextRenderer(out io.Writer) *textRenderer { return &textRenderer{out: out} }
@@ -26,12 +27,20 @@ func (r *textRenderer) Emit(e protocol.Event) {
 	switch e.Kind {
 	case protocol.KindTurnStart:
 		fmt.Fprintf(r.out, "\n[turn %d]\n", e.Turn)
+		r.sawDelta = false
 	case protocol.KindTextDelta:
 		fmt.Fprint(r.out, e.Text)
 		r.inDelta = true
+		r.sawDelta = true
 	case protocol.KindMessage:
-		// The assembled message already streamed as deltas for live
-		// providers; scripted/non-streaming providers emit only this.
+		// Deltas take precedence: any provider that streamed this turn's
+		// text already put it on screen — printing the assembled message
+		// again would double it (S6 还债②). The message prints only as the
+		// fallback for a turn that produced no deltas.
+		if r.sawDelta {
+			r.sawDelta = false
+			break
+		}
 		if !strings.HasSuffix(e.Text, "\n") {
 			fmt.Fprintln(r.out, e.Text)
 		} else {

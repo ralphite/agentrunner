@@ -201,6 +201,7 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 		l.Clock = clock.Real{}
 	}
 	l.ensureBoard()
+	l.ensureApprovals()
 	if err := l.ensureArtifacts(); err != nil {
 		return RunResult{}, err
 	}
@@ -318,6 +319,7 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 	// must match the original run's. The artifact store is durable and
 	// simply reopens.
 	l.ensureBoard()
+	l.ensureApprovals()
 	if err := l.ensureArtifacts(); err != nil {
 		return RunResult{}, err
 	}
@@ -1077,6 +1079,15 @@ func isAgentLaunch(name string) bool {
 func (l *Loop) ensureBoard() {
 	if l.Board == nil && len(l.Spec.Agents) > 0 {
 		l.Board = blackboard.New()
+	}
+}
+
+// ensureApprovals pins ONE fallback resolver for the whole tree: the
+// AGENTRUNNER_APPROVE answer-sequence position is resolver state, so a
+// per-ask instance would replay the first answer forever (S6 还债③).
+func (l *Loop) ensureApprovals() {
+	if l.Approvals == nil {
+		l.Approvals = &EnvApprovals{}
 	}
 }
 
