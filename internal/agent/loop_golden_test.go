@@ -6,8 +6,11 @@ import (
 	"iter"
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
+	"time"
 
+	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
 	"github.com/ralphite/agentrunner/internal/store"
@@ -76,6 +79,7 @@ func TestLoopRequestAssemblyGolden(t *testing.T) {
 		Provider:  cap,
 		Exec:      &tool.Executor{WS: ws},
 		Store:     es,
+		Clock:     clock.NewFake(time.Date(2026, 7, 3, 0, 0, 0, 0, time.UTC)),
 		SessionID: "golden-sess",
 	}
 	if _, err := loop.Run(context.Background(), "make it loud"); err != nil {
@@ -103,8 +107,13 @@ func TestLoopRequestAssemblyGolden(t *testing.T) {
 	}
 }
 
+// envBlockRe matches the frozen env block whose contents (cwd = a random
+// temp dir) are environment-specific; the golden pins shape, not the host.
+var envBlockRe = regexp.MustCompile(`(?s)<env>.*?</env>`)
+
 // normalizeRequests strips tool schemas (owned by the registry, not the
-// loop) so the golden pins orchestration shape only.
+// loop) and normalizes the volatile env block so the golden pins
+// orchestration shape only.
 func normalizeRequests(reqs []provider.CompleteRequest) []map[string]any {
 	out := make([]map[string]any, 0, len(reqs))
 	for _, r := range reqs {
@@ -116,7 +125,7 @@ func normalizeRequests(reqs []provider.CompleteRequest) []map[string]any {
 			"turn":       r.Turn,
 			"model":      r.Model,
 			"max_tokens": r.MaxTokens,
-			"system":     r.System,
+			"system":     envBlockRe.ReplaceAllString(r.System, "<env>NORMALIZED</env>"),
 			"tools":      toolNames,
 			"messages":   r.Messages,
 		})

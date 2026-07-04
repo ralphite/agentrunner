@@ -54,8 +54,9 @@ type ToolCallEvent struct {
 
 // UsageEvent scripts token accounting.
 type UsageEvent struct {
-	InputTokens  int `yaml:"input_tokens"`
-	OutputTokens int `yaml:"output_tokens"`
+	InputTokens     int `yaml:"input_tokens"`
+	OutputTokens    int `yaml:"output_tokens"`
+	CacheReadTokens int `yaml:"cache_read_tokens,omitempty"`
 }
 
 // Provider serves a Fixture step by step.
@@ -178,6 +179,7 @@ func (e Event) toStreamEvent(turn int, callIndex *int) (provider.StreamEvent, er
 	case e.Usage != nil:
 		return provider.StreamEvent{Kind: provider.EventUsage, Usage: &provider.Usage{
 			InputTokens: e.Usage.InputTokens, OutputTokens: e.Usage.OutputTokens,
+			CacheReadTokens: e.Usage.CacheReadTokens,
 		}}, nil
 	case e.Finish != "":
 		return provider.StreamEvent{Kind: provider.EventFinish, Finish: provider.FinishReason(e.Finish)}, nil

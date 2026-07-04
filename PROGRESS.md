@@ -1183,3 +1183,41 @@ TurnDiscarded 全链(partial→discard→final,final 消息干净、turn_discard
 - **同 turn 同资源的 tool call 竞态属模型责任**:模型同时发起 read+edit
   同一文件即声明二者独立;harness 并发执行(与主流 agent 一致),不做
   隐式排序。
+
+## S4.4c caching — DONE
+
+**两部分:计费口径 + prefix 字节稳定。**
+
+- **计费口径 `input + output − cache_read`**:`provider.Usage.Billed()`
+  成为预算计费单一真相(clamp 于 0,cache_read 多于 input 时不倒贴预算);
+  `budgetView.SettledTokens` 与 LimitExceeded 的 used 均改用 `Billed()`。
+  raw Input/Output 仍供 CLI 展示与遥测。scripted/record 的 UsageEvent 补
+  `cache_read_tokens` 字段以便 fixture 驱动缓存场景。
+  验证 `TestBudgetBillsCacheReadDiscount`:raw 1100 会超 1000 预算,但
+  800 为 cache_read → billed 300,run 正常完成;`TestUsageBilledClamp`。
+- **env 块 session-start 冻结(DESIGN §context-assembly 不变量)**:cwd +
+  date 在 session start 渲染成 `<env>…</env>` 冻进 `RunStarted.Env` →
+  fold 进 `Run.Env`;`Assemble` 按 DESIGN 固定序把它放 system prompt 最前
+  (env → spec prompt → mode suffix)。date 用 Clock.Now() 冻结,故同日多
+  turn 的 prefix 逐字节稳定(prompt caching 经济性所系)。
+  验证 `TestRenderEnvBlockDeterministic`(同日不同时刻不变、空 cwd 空块)、
+  `TestAssemblyPrefixByteStable`(跨 turn conversation 增长而 system 前缀
+  字节相同)。golden 用 FakeClock 固定日期 + normalizeRequests 归一化
+  `<env>…</env>`(cwd=tempdir 属环境特定)。
+
+**Decisions**:
+- **`Run.Env` 加字段不 bump run 版本**:sub-state 版本规则原文是"shape
+  changes **incompatibly** 才 bump"。`Env`(omitempty)是加性可选字段——
+  旧 snapshot 无该字段 fold 成 `Env=""`(恰为零值),旧 binary 丢弃未知
+  字段,双向兼容,非不兼容变更,故不 bump。保持已有 8 个 sub-state 均
+  version 1。
+- **env 块只放会话稳定项(cwd+date),不含 git 状态**:DESIGN 举例含 git
+  状态,但 git 每 turn 变、需冻结才稳定;当前 workspace 抽象无 git seam,
+  贸然跑 git 既 scope creep 又对非 git 目录脆弱。cwd+date 已锁住 DESIGN
+  真正在意的不变量(volatile 数据 session-start 冻结);git 状态待
+  workspace 长出 git 接缝再补(追加消息进上下文,不改 prefix)。
+- **env 块置于 system 最前、mode suffix 殿后**:DESIGN 序为 harness base
+  → env → memory → tool dirs → spec prompt;harness base / memory / tool
+  dirs 尚未落地,当前实为 env → spec prompt → mode suffix。mode suffix 仅
+  在显式 mode 跃迁时变(决策 #10 接受的 cache 断裂),放最后使 env+spec
+  前缀最大化稳定。

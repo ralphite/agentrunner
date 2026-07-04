@@ -134,6 +134,47 @@ func TestBudgetGracefulEnding(t *testing.T) {
 	}
 }
 
+// S4.4c: the budget bills input + output − cache_read. A turn whose input
+// is mostly a cached prefix must NOT be charged the full input rate, so a
+// run that would overflow on raw input+output stays under budget once the
+// cache read is discounted.
+func TestBudgetBillsCacheReadDiscount(t *testing.T) {
+	// Raw input+output = 900+200 = 1100 > 1000 budget; but 800 of the input
+	// is a cache read, so billed = 1100 − 800 = 300. The run completes.
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{
+			{Text: "cached hit"},
+			{Usage: &scripted.UsageEvent{InputTokens: 900, OutputTokens: 200, CacheReadTokens: 800}},
+			{Finish: "end_turn"},
+		}},
+	}}
+	l := testLoop(t, fix, t.TempDir())
+	l.Spec.Model.MaxTokens = 100
+	l.Spec.Budget.MaxTotalTokens = 1000
+	l.Pipeline = &pipeline.Pipeline{Gates: []pipeline.Gate{
+		&pipeline.BudgetGate{MaxTotalTokens: 1000},
+	}}
+
+	res, err := l.Run(context.Background(), "hi")
+	if err != nil {
+		t.Fatalf("cache-discounted run must complete, got: %v", err)
+	}
+	if res.Reason != "completed" {
+		t.Fatalf("res = %+v (raw 1100 would exceed 1000; billed 300 must not)", res)
+	}
+	if got := res.Usage.Billed(); got != 300 {
+		t.Errorf("billed = %d, want 300 (900+200−800)", got)
+	}
+}
+
+// Billed clamps at zero and never credits the budget.
+func TestUsageBilledClamp(t *testing.T) {
+	u := provider.Usage{InputTokens: 100, OutputTokens: 50, CacheReadTokens: 500}
+	if got := u.Billed(); got != 0 {
+		t.Errorf("billed = %d, want 0 (clamped)", got)
+	}
+}
+
 // Bypass mode: the budget does not bind (3.6d).
 func TestBudgetGateBypass(t *testing.T) {
 	gate := &pipeline.BudgetGate{MaxTotalTokens: 100}

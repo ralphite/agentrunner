@@ -197,7 +197,7 @@ func TestParallelToolBudgetNoOverspend(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if peak := s.Run.Usage.InputTokens + s.Run.Usage.OutputTokens + s.Budget.ReservedTotal(); peak > 5000 {
+		if peak := s.Run.Usage.Billed() + s.Budget.ReservedTotal(); peak > 5000 {
 			t.Fatalf("overspent: settled+reserved = %d > 5000 after %s", peak, e.Type)
 		}
 	}

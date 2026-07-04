@@ -182,6 +182,7 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 		SpecName: l.Spec.Name, Model: l.Spec.Model.ID, Task: task,
 		Version: l.Version, SubStateVersions: state.SubStateVersions(),
 		Spec: specJSON, WorkspaceRoot: wsRoot,
+		Env: renderEnvBlock(wsRoot, l.Clock.Now()),
 	}); err != nil {
 		return RunResult{}, err
 	}
@@ -440,7 +441,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				// A budget denial ends the run gracefully through the
 				// epilogue (3.7c) — never mid-effect, never as a crash.
 				if gate := denyingGate(outcome); gate == "budget" {
-					used := ds.s.Run.Usage.InputTokens + ds.s.Run.Usage.OutputTokens
+					used := ds.s.Run.Usage.Billed()
 					if _, err := appendE(event.TypeLimitExceeded, &event.LimitExceeded{
 						Kind: "tokens", Limit: l.Spec.Budget.MaxTotalTokens, Used: used,
 					}); err != nil {
@@ -844,7 +845,7 @@ func (l *Loop) resolveFromDecision(appendE AppendFunc, eff pipeline.Effect, deci
 // budgetView snapshots the fold's accounting for the budget gate.
 func budgetView(s state.State) pipeline.BudgetView {
 	return pipeline.BudgetView{
-		SettledTokens:  s.Run.Usage.InputTokens + s.Run.Usage.OutputTokens,
+		SettledTokens:  s.Run.Usage.Billed(),
 		ReservedTokens: s.Budget.ReservedTotal(),
 	}
 }

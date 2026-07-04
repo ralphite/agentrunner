@@ -89,6 +89,20 @@ type Usage struct {
 	CacheWriteTokens int `json:"cache_write_tokens,omitempty"`
 }
 
+// Billed is the budget-accounting caliber (S4.4c): input + output minus the
+// cache-read portion, which was served from a warm prefix and does not cost
+// the full input rate. This is the single source of truth for what the
+// budget gate charges; raw Input/Output remain for display and telemetry.
+// Clamped at zero — a provider reporting more cache reads than input (never
+// expected) must not credit the budget.
+func (u Usage) Billed() int {
+	billed := u.InputTokens + u.OutputTokens - u.CacheReadTokens
+	if billed < 0 {
+		return 0
+	}
+	return billed
+}
+
 // FinishReason is the normalized termination shape of one LLM call.
 // The abnormal variants (blocked, malformed_tool_call, …) get loop policy
 // in S4; the type exists from day one so events never change shape.

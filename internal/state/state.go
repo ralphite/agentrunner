@@ -145,6 +145,10 @@ type Run struct {
 	Reason    string         `json:"reason,omitempty"`
 	Usage     provider.Usage `json:"usage"`
 	LastCrash string         `json:"last_crash,omitempty"`
+	// Env is the frozen environment block (S4.4c): rendered once at session
+	// start and injected verbatim into the prompt prefix on every turn, so
+	// the cacheable prefix stays byte-stable as the conversation grows.
+	Env string `json:"env,omitempty"`
 }
 
 // New is the empty pre-RunStarted state.
@@ -185,6 +189,7 @@ func Apply(s State, env event.Envelope) (State, error) {
 	case *event.RunStarted:
 		s.Run.Status = StatusRunning
 		s.Run.SpecName, s.Run.Model, s.Run.Task, s.Run.Version = p.SpecName, p.Model, p.Task, p.Version
+		s.Run.Env = p.Env
 
 	case *event.InputReceived:
 		// Interrupts are journaled control inputs (journal-inputs-first),

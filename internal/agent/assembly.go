@@ -1,6 +1,10 @@
 package agent
 
 import (
+	"fmt"
+	"strings"
+	"time"
+
 	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/state"
@@ -8,19 +12,47 @@ import (
 
 // Assemble builds the provider request from the fold — the single place
 // fold state becomes a wire request (S4.4a). The assembly order is fixed
-// and byte-stable so a cached prefix stays cached (4c): system prompt →
-// mode-injected suffix (3.6b,收编) → conversation transcript. The
-// advertised tool face is filtered by the live mode (3.6a).
+// and byte-stable so a cached prefix stays cached (4c): frozen env block →
+// spec system prompt → mode-injected suffix (3.6b,收编) → conversation
+// transcript. The advertised tool face is filtered by the live mode (3.6a).
 func Assemble(s state.State, spec *AgentSpec, toolDefs []provider.ToolDef, turn int) provider.CompleteRequest {
 	mode := s.CurrentMode()
 	return provider.CompleteRequest{
 		Model:     spec.Model.ID,
 		MaxTokens: spec.Model.MaxTokens,
-		System:    spec.SystemPrompt + modePromptSuffix(mode),
+		System:    assembleSystem(s.Run.Env, spec.SystemPrompt, mode),
 		Messages:  assembleMessages(s),
 		Tools:     advertisedTools(toolDefs, mode),
 		Turn:      turn,
 	}
+}
+
+// assembleSystem lays out the system prompt in DESIGN's fixed order: the
+// frozen env block first (most-stable prefix), then the spec's own prompt,
+// then the mode suffix. The env block was frozen at session start, so this
+// prefix is byte-identical every turn; only the mode suffix moves, and only
+// on an explicit mode transition (an accepted cache break, decision #10).
+func assembleSystem(env, specPrompt, mode string) string {
+	var b strings.Builder
+	if env != "" {
+		b.WriteString(env)
+		b.WriteString("\n\n")
+	}
+	b.WriteString(specPrompt)
+	b.WriteString(modePromptSuffix(mode))
+	return b.String()
+}
+
+// renderEnvBlock freezes the environment into a stable block at session
+// start (S4.4c). Only session-stable facts belong here — cwd and the date;
+// per-turn-volatile state (git status) enters as appended messages instead,
+// never rewriting this prefix. Git status is deferred until the workspace
+// grows a git seam; cwd + date already pin the invariant DESIGN cares about.
+func renderEnvBlock(cwd string, now time.Time) string {
+	if cwd == "" {
+		return ""
+	}
+	return fmt.Sprintf("<env>\ncwd: %s\ndate: %s\n</env>", cwd, now.Format("2006-01-02"))
 }
 
 // assembleMessages builds the provider-visible transcript from the fold:

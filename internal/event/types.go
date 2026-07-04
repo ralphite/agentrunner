@@ -69,6 +69,10 @@ type RunStarted struct {
 	// without the original spec file (2.17).
 	Spec          json.RawMessage `json:"spec,omitempty"`
 	WorkspaceRoot string          `json:"workspace_root,omitempty"`
+	// Env is the environment block (cwd, date) rendered and FROZEN at session
+	// start (S4.4c / DESIGN §context-assembly): volatile data captured once
+	// so it never rewrites the cacheable prompt prefix on later turns.
+	Env string `json:"env,omitempty"`
 }
 
 type InputReceived struct {

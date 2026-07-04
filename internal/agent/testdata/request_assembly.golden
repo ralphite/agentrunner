@@ -13,7 +13,7 @@
       }
     ],
     "model": "model-x",
-    "system": "be precise",
+    "system": "\u003cenv\u003eNORMALIZED\u003c/env\u003e\n\nbe precise",
     "tools": [
       "read_file",
       "edit_file"
@@ -83,7 +83,7 @@
       }
     ],
     "model": "model-x",
-    "system": "be precise",
+    "system": "\u003cenv\u003eNORMALIZED\u003c/env\u003e\n\nbe precise",
     "tools": [
       "read_file",
       "edit_file"

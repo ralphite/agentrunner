@@ -137,6 +137,7 @@ func (r *Recorder) toEvent(ev provider.StreamEvent) (scripted.Event, bool) {
 	case provider.EventUsage:
 		return scripted.Event{Usage: &scripted.UsageEvent{
 			InputTokens: ev.Usage.InputTokens, OutputTokens: ev.Usage.OutputTokens,
+			CacheReadTokens: ev.Usage.CacheReadTokens,
 		}}, true
 	case provider.EventFinish:
 		return scripted.Event{Finish: string(ev.Finish)}, true
