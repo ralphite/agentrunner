@@ -27,6 +27,9 @@ type Iteration struct {
 	Skipped      bool                   `json:"skipped,omitempty"`
 	Verdict      event.IterationVerdict `json:"verdict,omitzero"`
 	CarryRef     string                 `json:"carry_ref,omitempty"`
+	// BaseRef is the parallel attempt's worktree base (S7 best-of-N,
+	// additive — same fold version discipline as run sub-states).
+	BaseRef string `json:"base_ref,omitempty"`
 }
 
 // State is the driver's pure fold — the sole working memory, rebuilt from the
@@ -75,6 +78,9 @@ func (s *State) apply(p any) {
 		s.ensure(v.Iter)
 		if s.DriverID == "" {
 			s.DriverID = v.DriverID
+		}
+		if v.BaseRef != "" {
+			s.Iterations[v.Iter-1].BaseRef = v.BaseRef
 		}
 	case *event.IterationLaunched:
 		if v.Iter < 1 {

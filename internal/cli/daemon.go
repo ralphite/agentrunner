@@ -558,6 +558,39 @@ func hostDriveFunc(version string, stderr io.Writer, broker *daemon.ApprovalBrok
 					SubSpecs:  siblingSpecResolver(req.SpecPath),
 				}
 			},
+			// Best-of-N (schedule=parallel): attempt face binds to its worktree.
+			Snapshots: snapshotStoreFor(ws, stderr),
+			NewChildAt: func(cs *store.EventStore, session string, iter, budgetTokens int, worktree string) *agent.Loop {
+				frozen := *spec.Agent
+				if budgetTokens > 0 {
+					frozen.Budget.MaxTotalTokens = budgetTokens
+				}
+				wtWS, werr := workspace.New(worktree)
+				if werr != nil {
+					fmt.Fprintln(stderr, werr)
+					wtWS = ws
+				}
+				pipe, hooks, perr := buildPipeline(wtWS, frozen.Permissions, frozen.Mode,
+					frozen.Budget.MaxTotalTokens, stderr)
+				if perr != nil {
+					fmt.Fprintln(stderr, perr)
+				}
+				return &agent.Loop{
+					Spec:      &frozen,
+					Provider:  prov,
+					Exec:      &tool.Executor{WS: wtWS, Session: session},
+					Store:     cs,
+					Clock:     clock.Real{},
+					Out:       childLifecycleFilter{inner: sink},
+					SessionID: session,
+					Version:   version,
+					Pipeline:  pipe,
+					Mode:      frozen.Mode,
+					Hooks:     hooks,
+					Approvals: approvals,
+					SubSpecs:  siblingSpecResolver(req.SpecPath),
+				}
+			},
 		}
 		_, runErr := d.Run(ctx)
 		return runErr

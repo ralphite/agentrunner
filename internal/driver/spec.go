@@ -29,6 +29,12 @@ const (
 	ScheduleInterval  = "interval"
 	ScheduleCron      = "cron"
 	ScheduleSelfPaced = "self_paced"
+	// ScheduleParallel is best-of-N (S7, DESIGN §运行形态): N attempts in
+	// isolated worktrees materialized from ONE base snapshot, judged by the
+	// verifiers; the best verdict wins (pass beats score, ties keep the
+	// earliest). v0 executes the attempts sequentially — the isolation is
+	// the semantics, wall-clock concurrency is a deferred optimization.
+	ScheduleParallel = "parallel"
 )
 
 // Overlap policies for a loop-mode tick that fires while the previous
@@ -92,6 +98,8 @@ type DriverSpec struct {
 	Task string `yaml:"task"`
 	// MaxIterations caps goal mode; zero means DefaultMaxIterations.
 	MaxIterations int `yaml:"max_iterations,omitempty"`
+	// N is the best-of-N attempt count (schedule=parallel); must be >= 2.
+	N int `yaml:"n,omitempty"`
 	// Verifiers are the goal-mode gates; ALL must pass for an iteration to
 	// satisfy the goal. Required in goal mode.
 	Verifiers []VerifierSpec `yaml:"verifiers,omitempty"`

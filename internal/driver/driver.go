@@ -21,9 +21,11 @@ import (
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/redact"
+	"github.com/ralphite/agentrunner/internal/snapshot"
 	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
 	"github.com/ralphite/agentrunner/internal/tool"
+	"github.com/ralphite/agentrunner/internal/workspace"
 )
 
 // carryExcerptBytes caps the inline carry kept in IterationCompleted; the
@@ -39,6 +41,12 @@ const carryExcerptBytes = 512
 // min-aggregated allowance the factory must cap the child at (0 = unlimited).
 type ChildFactory func(childStore *store.EventStore, childSession string, iter, budgetTokens int) *agent.Loop
 
+// WorktreeChildFactory builds a child whose workspace (executor AND
+// permission-gate path resolution) is an isolated worktree — the best-of-N
+// launch path (S7). The caller owns materializing worktreeRoot first.
+type WorktreeChildFactory func(childStore *store.EventStore, childSession string,
+	iter, budgetTokens int, worktreeRoot string) *agent.Loop
+
 // Driver is the IterationDriver actor. It has its own journal and pure fold;
 // each iteration spawns a fresh child run and verifies its result.
 type Driver struct {
@@ -51,6 +59,11 @@ type Driver struct {
 	// that only reads/tests it.
 	Exec     *tool.Executor
 	NewChild ChildFactory
+	// NewChildAt and Snapshots serve best-of-N (schedule=parallel): each
+	// attempt runs in its own worktree materialized from one base snapshot.
+	// Both are required for parallel and unused otherwise.
+	NewChildAt WorktreeChildFactory
+	Snapshots  snapshot.Store
 	// Judge is the LLM behind llm_judge verifiers (a single scoring call per
 	// iteration, not an agent loop). nil → an llm_judge verifier fails
 	// model-visibly rather than silently passing.
@@ -144,6 +157,18 @@ func (d *Driver) prepare(st *State) (appendFunc, error) {
 				}
 			}
 		}
+	case ScheduleParallel:
+		// Best-of-N: the verifiers ARE the selection; isolation needs the
+		// snapshot store and a worktree-aware child factory.
+		if d.Spec.N < 2 {
+			return nil, fmt.Errorf("driver: schedule parallel requires n >= 2 (got %d)", d.Spec.N)
+		}
+		if len(d.Spec.Verifiers) == 0 {
+			return nil, fmt.Errorf("driver: schedule parallel requires verifiers — they select the winner")
+		}
+		if d.Snapshots == nil || d.NewChildAt == nil {
+			return nil, fmt.Errorf("driver: schedule parallel requires a snapshot store and a worktree child factory")
+		}
 	default:
 		return nil, fmt.Errorf("driver: schedule %q not implemented", d.Spec.Schedule)
 	}
@@ -206,6 +231,9 @@ func (d *Driver) Run(ctx context.Context) (Result, error) {
 		FoldVersion: FoldVersion,
 	}); err != nil {
 		return Result{}, err
+	}
+	if d.Spec.schedule() == ScheduleParallel {
+		return d.driveParallel(ctx, st, appendE, 1)
 	}
 	return d.drive(ctx, st, appendE, 1)
 }
@@ -283,6 +311,9 @@ func (d *Driver) Resume(ctx context.Context) (Result, error) {
 			}
 		}
 	}
+	if d.Spec.schedule() == ScheduleParallel {
+		return d.driveParallel(ctx, st, appendE, startN)
+	}
 	return d.drive(ctx, st, appendE, startN)
 }
 
@@ -344,7 +375,7 @@ func (d *Driver) drive(ctx context.Context, st *State, appendE appendFunc, start
 			session = existing.ChildSession // in-flight: reuse the recorded session
 		}
 
-		childRes, childDir, spent, cerr := d.runIteration(ctx, n, session, allowance)
+		childRes, childDir, spent, cerr := d.runIteration(ctx, n, session, allowance, "")
 		if cerr != nil {
 			if ctx.Err() != nil {
 				// A cancel of the driver reached the child: end as stopped, not
@@ -389,7 +420,7 @@ func (d *Driver) drive(ctx context.Context, st *State, appendE appendFunc, start
 		var verdict event.IterationVerdict
 		if len(d.Spec.Verifiers) > 0 {
 			var judgeUsage provider.Usage
-			verdict, judgeUsage = d.verify(ctx, appendE, n, childDir)
+			verdict, judgeUsage = d.verify(ctx, appendE, n, childDir, d.Exec)
 			spent = addUsage(spent, judgeUsage)
 		}
 		carryText := childReport(childDir)
@@ -423,6 +454,141 @@ func (d *Driver) drive(ctx context.Context, st *State, appendE appendFunc, start
 			}
 		}
 	}
+}
+
+// driveParallel is best-of-N (S7, schedule=parallel): N attempts, each a
+// fresh child in an isolated worktree materialized from ONE base snapshot,
+// judged by the verifiers IN ITS OWN TREE; the best verdict wins (pass
+// beats score, ties keep the earliest attempt). Attempts run sequentially
+// (v0 — deterministic and resume-friendly; the isolation is the semantics,
+// wall-clock concurrency a deferred optimization) and a failed attempt is
+// a spent slot, never the round's end — other attempts are the point.
+func (d *Driver) driveParallel(ctx context.Context, st *State, appendE appendFunc, startN int) (Result, error) {
+	total := d.Spec.N
+	// One base for the whole round, pinned in attempt 1's Scheduled fact so
+	// a resume re-materializes the SAME tree, not the drifted workspace.
+	baseRef := ""
+	if it, ok := st.at(1); ok {
+		baseRef = it.BaseRef
+	}
+	if baseRef == "" {
+		ref, err := d.Snapshots.Snapshot(ctx)
+		if err != nil {
+			return Result{}, fmt.Errorf("driver: base snapshot for parallel round: %w", err)
+		}
+		baseRef = ref
+	}
+	for n := startN; n <= total; n++ {
+		if err := ctx.Err(); err != nil {
+			return d.finish(appendE, st, "stopped", n-1)
+		}
+		allowance, ok := d.reserve(st)
+		if !ok {
+			slog.Warn("driver budget exhausted mid-round", "driver", d.DriverID, "spent", st.SpentTokens)
+			return d.finish(appendE, st, "budget", n-1)
+		}
+		session := fmt.Sprintf("%s-att-%d", d.DriverID, n)
+		if _, inFold := st.at(n); !inFold {
+			if _, err := appendE(event.TypeIterationScheduled, &event.IterationScheduled{
+				DriverID: d.DriverID, Iter: n, Schedule: ScheduleParallel, BaseRef: baseRef,
+			}); err != nil {
+				return Result{}, err
+			}
+		}
+		worktree := filepath.Join(d.Store.Dir(), "wt", fmt.Sprintf("att-%d", n))
+		if _, serr := os.Stat(worktree); os.IsNotExist(serr) {
+			if err := d.Snapshots.Materialize(ctx, baseRef, worktree); err != nil {
+				return Result{}, fmt.Errorf("driver: materialize attempt %d worktree: %w", n, err)
+			}
+		} // an existing worktree is a resume: the in-flight child continues in it
+		if existing, inFold := st.at(n); !inFold || !existing.Launched {
+			if _, err := appendE(event.TypeIterationLaunched, &event.IterationLaunched{
+				DriverID: d.DriverID, Iter: n, ChildSession: session,
+			}); err != nil {
+				return Result{}, err
+			}
+		} else {
+			session = existing.ChildSession
+		}
+
+		childRes, childDir, spent, cerr := d.runIteration(ctx, n, session, allowance, worktree)
+		if cerr != nil {
+			if _, err := appendE(event.TypeIterationCompleted, &event.IterationCompleted{
+				DriverID: d.DriverID, Iter: n, ChildSession: session,
+				ChildReason: failReason(ctx), Usage: spent,
+				Verdict: event.IterationVerdict{
+					Detail: "attempt failed: " + redact.FromEnv().String(cerr.Error())},
+			}); err != nil {
+				return Result{}, err
+			}
+			if ctx.Err() != nil {
+				return d.finish(appendE, st, "stopped", n)
+			}
+			continue // a failed attempt is one spent slot; the round goes on
+		}
+
+		wtExec, werr := worktreeExecutor(worktree, session)
+		if werr != nil {
+			return Result{}, werr
+		}
+		verdict, judgeUsage := d.verify(ctx, appendE, n, childDir, wtExec)
+		spent = addUsage(spent, judgeUsage)
+		carryText := childReport(childDir)
+		if _, err := appendE(event.TypeIterationCompleted, &event.IterationCompleted{
+			DriverID: d.DriverID, Iter: n, ChildSession: session,
+			ChildReason: childRes.Reason, Verdict: verdict, Usage: spent,
+			CarryRef: d.publishCarry(carryText), Carry: excerpt(carryText),
+		}); err != nil {
+			return Result{}, err
+		}
+	}
+
+	// Selection: pass beats any score; among equals the higher score wins;
+	// ties keep the earliest. The choice overrides the fold's max-score
+	// BestIter and rides DriverCompleted (the fold applies it on resume).
+	best, bestPass, bestScore := 0, false, 0.0
+	for n := 1; n <= total; n++ {
+		it, ok := st.at(n)
+		if !ok || !it.Completed {
+			continue
+		}
+		v := it.Verdict
+		better := best == 0 ||
+			(v.Pass && !bestPass) ||
+			(v.Pass == bestPass && v.Score > bestScore)
+		if better {
+			best, bestPass, bestScore = n, v.Pass, v.Score
+		}
+	}
+	st.BestIter = best
+	reason := "stalled"
+	if bestPass {
+		reason = "satisfied"
+	}
+	if best > 0 {
+		d.emit(protocol.Event{Kind: protocol.KindNote,
+			Text: fmt.Sprintf("best-of-%d winner: attempt %d (worktree %s)",
+				total, best, filepath.Join(d.Store.Dir(), "wt", fmt.Sprintf("att-%d", best)))})
+	}
+	return d.finish(appendE, st, reason, total)
+}
+
+// failReason distinguishes a driver cancel from a child's own failure.
+func failReason(ctx context.Context) string {
+	if ctx.Err() != nil {
+		return "canceled"
+	}
+	return "error"
+}
+
+// worktreeExecutor builds the per-attempt verifier executor: a command
+// verifier must test the attempt's OWN tree, not the shared workspace.
+func worktreeExecutor(root, session string) (*tool.Executor, error) {
+	ws, err := workspace.New(root)
+	if err != nil {
+		return nil, fmt.Errorf("driver: worktree workspace: %w", err)
+	}
+	return &tool.Executor{WS: ws, Session: session}, nil
 }
 
 // applyPaceIntent reads the finished child's schedule_next / finish_series
@@ -628,7 +794,13 @@ func (d *Driver) finish(appendE appendFunc, st *State, reason string, iterations
 // and dir, the SUMMED spend across every attempt (failed retries burned real
 // tokens — the budget must see them; S6 review), and the error (nil on the
 // first success).
-func (d *Driver) runIteration(ctx context.Context, n int, childSession string, allowance int) (agent.RunResult, string, provider.Usage, error) {
+func (d *Driver) runIteration(ctx context.Context, n int, childSession string, allowance int, worktree string) (agent.RunResult, string, provider.Usage, error) {
+	newChild := func(cs *store.EventStore, sess string) *agent.Loop {
+		if worktree != "" {
+			return d.NewChildAt(cs, sess, n, allowance, worktree)
+		}
+		return d.NewChild(cs, sess, n, allowance)
+	}
 	attempts := 1
 	if d.Spec.OnChildFailure.Mode == OnFailRetry && d.Spec.OnChildFailure.Max > 0 {
 		attempts += d.Spec.OnChildFailure.Max
@@ -657,7 +829,7 @@ func (d *Driver) runIteration(ctx context.Context, n int, childSession string, a
 		// review); otherwise resume it (its own in-doubt discipline guards
 		// correctness) rather than duplicating a fresh run.
 		if childStore.LastSeq() > 0 {
-			child := d.NewChild(childStore, session, n, allowance)
+			child := newChild(childStore, session)
 			if done, dres := settledChild(childDir); done {
 				_ = childStore.Close()
 				spent = addUsage(spent, dres.Usage)
@@ -672,7 +844,7 @@ func (d *Driver) runIteration(ctx context.Context, n int, childSession string, a
 			}
 			res, rerr = child.Resume(ctx)
 		} else {
-			child := d.NewChild(childStore, session, n, allowance)
+			child := newChild(childStore, session)
 			res, rerr = child.Run(ctx, d.buildTask())
 		}
 		_ = childStore.Close()
@@ -817,11 +989,11 @@ func (d *Driver) stalled(st *State) bool {
 // satisfy the goal. The aggregate score is the minimum across verifiers (the
 // weakest gate), so stall detection tracks the true bottleneck — seeded from
 // the first verifier so a single metric score above 1 is not clamped.
-func (d *Driver) verify(ctx context.Context, appendE appendFunc, n int, childDir string) (event.IterationVerdict, provider.Usage) {
+func (d *Driver) verify(ctx context.Context, appendE appendFunc, n int, childDir string, exec *tool.Executor) (event.IterationVerdict, provider.Usage) {
 	agg := event.IterationVerdict{Pass: true}
 	var spent provider.Usage
 	for i, v := range d.Spec.Verifiers {
-		vv, usage := d.verifyOne(ctx, appendE, n, i, v, childDir)
+		vv, usage := d.verifyOne(ctx, appendE, n, i, v, childDir, exec)
 		spent = addUsage(spent, usage)
 		if i == 0 || vv.Score < agg.Score {
 			agg.Score = vv.Score
@@ -841,7 +1013,7 @@ func (d *Driver) verify(ctx context.Context, appendE appendFunc, n int, childDir
 // bracket the execution — the event log is the trace (DESIGN §Observability).
 // A denial fails the gate verdict, never a silent pass; the human verifier IS
 // the ask path already, so it gets the activity trace without re-adjudication.
-func (d *Driver) verifyOne(ctx context.Context, appendE appendFunc, n, idx int, v VerifierSpec, childDir string) (event.IterationVerdict, provider.Usage) {
+func (d *Driver) verifyOne(ctx context.Context, appendE appendFunc, n, idx int, v VerifierSpec, childDir string, exec *tool.Executor) (event.IterationVerdict, provider.Usage) {
 	actID := fmt.Sprintf("verify-i%d-k%d", n, idx)
 	failed := func(detail string) (event.IterationVerdict, provider.Usage) {
 		return event.IterationVerdict{Verifier: v.Kind, Detail: detail}, provider.Usage{}
@@ -862,7 +1034,7 @@ func (d *Driver) verifyOne(ctx context.Context, appendE appendFunc, n, idx int, 
 		}); err != nil {
 			return failed("verifier journal: " + err.Error())
 		}
-		vv := d.verifyCommand(ctx, v)
+		vv := d.verifyCommand(ctx, v, exec)
 		d.completeVerifier(appendE, actID, vv, nil)
 		return vv, provider.Usage{}
 	case VerifierLLMJudge:
@@ -951,12 +1123,12 @@ func (d *Driver) completeVerifier(appendE appendFunc, actID string, vv event.Ite
 // otherwise exit code 0 passes. The command is driver-configured (trusted
 // config, not a model-chosen effect), so it runs via the executor directly;
 // full pipeline adjudication of verifiers is a later refinement.
-func (d *Driver) verifyCommand(ctx context.Context, v VerifierSpec) event.IterationVerdict {
-	if d.Exec == nil {
+func (d *Driver) verifyCommand(ctx context.Context, v VerifierSpec, exec *tool.Executor) event.IterationVerdict {
+	if exec == nil {
 		return event.IterationVerdict{Verifier: VerifierCommand, Detail: "no executor for command verifier"}
 	}
 	args, _ := json.Marshal(map[string]string{"command": v.Command})
-	res := d.Exec.Execute(ctx, "bash", args)
+	res := exec.Execute(ctx, "bash", args)
 	var out struct {
 		ExitCode int    `json:"exit_code"`
 		Stdout   string `json:"stdout"`

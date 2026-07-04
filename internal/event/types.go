@@ -388,6 +388,11 @@ type IterationScheduled struct {
 	DriverID string `json:"driver_id"`
 	Iter     int    `json:"iter"`
 	Schedule string `json:"schedule,omitempty"`
+	// BaseRef pins the workspace snapshot a parallel attempt's worktree
+	// materializes from (S7 best-of-N): every attempt of one round shares
+	// the same base, and a resume re-materializes the SAME tree instead of
+	// snapshotting whatever the workspace has drifted to.
+	BaseRef string `json:"base_ref,omitempty"`
 }
 
 // IterationLaunched records the fresh child run for an iteration, journaled

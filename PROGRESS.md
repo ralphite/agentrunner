@@ -2833,3 +2833,39 @@ executor(netns 内仅 lo 可见、fail-closed 报错);agent e2e(spec →
 未收容/放过已收容——per-verdict 断言)。全量 check + race + stage
 1–7 全 26 场景回归绿。S7 剩余:云 workspace 与 IDE(cut line)、
 best-of-N(backlog)、出口 review。
+
+## S7 best-of-N — `schedule: parallel` + n — DONE(backlog 兑现)
+
+**语义**(DESIGN §运行形态"Best-of-N"):N 次尝试各在**隔离 worktree**
+(从**同一个** base snapshot 物化,`<driver>/wt/att-N`),verifier 在
+**各自的树里**判定(per-attempt executor——verifyCommand 不再绑死
+d.Exec,exec 参数化),胜者 = pass 优先 > 分数 > 平局取最早;终态
+DriverCompleted{satisfied|stalled, BestIter=胜者} 覆写 fold 的
+max-score BestIter(fold 应用 DriverCompleted.BestIter,resume 一致)。
+胜者 worktree 路径经 Out note 呈现。
+
+**决策记档**:①v0 尝试**顺序执行**——隔离是语义,墙钟并发是优化
+(共享 provider 的确定性、resume 幂等、scripted 测试可重复都因此免费;
+与 overlap:interrupt 同理推迟);②失败尝试 = 消耗一个槽位、round 继续
+(best-of-N 天然 surface 语义;runIteration 内部 retry 策略仍生效);
+③"胜者晋升(fork 或 apply diff)"推迟——worktree 留盘上由用户晋升,
+自动 promote 挂模块 3 的 fork 机制之后再议。
+
+**resume 确定性**:base ref 钉在每个 IterationScheduled.BaseRef
+(additive 字段,fold Iteration.BaseRef 跟进,FoldVersion 仍 1)——
+崩溃后重物化**同一棵树**而非漂移后的 workspace;已存在的 worktree
+直接续用(in-flight child resume 语义不变);startN 跳过已完成槽位
+(既有机制)。goal-mode 终态 re-derivation 对 parallel 不适用(守卫
+本就限 ScheduleImmediate)。
+
+**装配**:Driver 加 `Snapshots snapshot.Store` + `NewChildAt`
+(worktree-aware factory:executor **与 permission gate 的路径解析**
+都绑 worktree——不是只换 Exec);prepare 校验 n>=2、verifiers 必填、
+两个依赖必备。CLI drive 与 daemon hostDrive 双双接线(worktree 版
+buildPipeline)。
+
+测试:e2e(两尝试一对一错 → satisfied best=2、两 worktree 各自答案、
+base 文件来自 snapshot、主 workspace 一字未动、BaseRef 两条一致、
+DriverCompleted 记选择)、全败 → stalled + 平局取最早、四路验证拒绝
+(n/verifiers/snapshots/factory)。全量 check + race + stage 1–7 全
+26 场景回归绿。S7 剩余:云/IDE(cut line)与出口 review。

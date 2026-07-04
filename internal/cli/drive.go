@@ -158,6 +158,41 @@ func driveAgent(opts driveOptions) int {
 				SubSpecs:  siblingSpecResolver(opts.specPath),
 			}
 		},
+		// Best-of-N (schedule=parallel): the attempt's whole face — executor
+		// AND permission-gate path resolution — binds to its own worktree.
+		Snapshots: snapshotStoreFor(ws, opts.stderr),
+		NewChildAt: func(cs *store.EventStore, session string, iter, budgetTokens int, worktree string) *agent.Loop {
+			frozen := *spec.Agent
+			if budgetTokens > 0 {
+				frozen.Budget.MaxTotalTokens = budgetTokens
+			}
+			wtWS, werr := workspace.New(worktree)
+			if werr != nil {
+				fmt.Fprintln(opts.stderr, werr)
+				wtWS = ws // surfaced by the attempt's failure; never nil-deref
+			}
+			pipe, hooks, perr := buildPipeline(wtWS, frozen.Permissions, frozen.Mode,
+				frozen.Budget.MaxTotalTokens, opts.stderr)
+			if perr != nil {
+				fmt.Fprintln(opts.stderr, perr)
+			}
+			fmt.Fprintf(opts.stderr, "attempt %d (%s) in %s\n", iter, session, worktree)
+			return &agent.Loop{
+				Spec:      &frozen,
+				Provider:  prov,
+				Exec:      &tool.Executor{WS: wtWS, Session: session},
+				Store:     cs,
+				Clock:     clock.Real{},
+				Out:       opts.sink,
+				SessionID: session,
+				Version:   opts.version,
+				Pipeline:  pipe,
+				Mode:      frozen.Mode,
+				Hooks:     hooks,
+				Approvals: approvals,
+				SubSpecs:  siblingSpecResolver(opts.specPath),
+			}
+		},
 	}
 
 	res, runErr := d.Run(ctx)

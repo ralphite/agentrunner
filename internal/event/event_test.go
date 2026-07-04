@@ -73,7 +73,7 @@ var samples = map[string]any{
 	TypeRunEnded: &RunEnded{Reason: "completed", Turns: 4, Usage: provider.Usage{InputTokens: 10}},
 	TypeDriverStarted: &DriverStarted{DriverID: "drv-1", SpecName: "nightly",
 		Spec: json.RawMessage(`{"name":"nightly"}`), WorkspaceRoot: "/w", FoldVersion: 1},
-	TypeIterationScheduled: &IterationScheduled{DriverID: "drv-1", Iter: 2, Schedule: "immediate"},
+	TypeIterationScheduled: &IterationScheduled{DriverID: "drv-1", Iter: 2, Schedule: "immediate", BaseRef: "0badc0de"},
 	TypeIterationLaunched:  &IterationLaunched{DriverID: "drv-1", Iter: 2, ChildSession: "drv-1-iter-2"},
 	TypeIterationCompleted: &IterationCompleted{DriverID: "drv-1", Iter: 2, ChildSession: "drv-1-iter-2",
 		ChildReason: "completed", Verdict: IterationVerdict{Pass: true, Score: 1, Verifier: "command", Detail: "exit=0"},
