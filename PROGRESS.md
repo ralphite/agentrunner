@@ -2266,3 +2266,28 @@ live 事件无缺口)、socket 独占。全量 check + race 通过。
 未接(模块④续):CLI `daemon`/`attach` 命令 + journal→protocol 重放
 渲染、durable timer 触发索引、优雅停机(SIGTERM→协作取消→snapshot)、
 审批 correlation 跨 socket 路由。
+
+## S6 模块④(续)— CLI daemon/submit/attach + journal 重放 — DONE
+
+- **`daemon.ReplayJournal(sessionDir, sink)`**:journal → protocol.Event
+  纯投影(attach 补读)。ephemeral 类(text delta、废弃半流)不在 journal
+  故天然缺席——可丢 doctrine 的对偶。tool 结果按 ActivityStarted 配对
+  名字;Failed(Final)/Cancelled 渲染为 error 结果;Assistant tool_call
+  部分渲染 KindToolCall。
+- **三个 CLI 命令**:`daemon`(常驻,真 RunFunc = run 同款装配减 tty:
+  无 interrupts、EnvApprovals fail-closed——**审批经 socket 路由前,
+  headless daemon 只认 AGENTRUNNER_APPROVE,记档**);`submit`(把 run
+  交给 daemon 托管并跟流;**exit 契约:流终无 run_end = run 未得善终 =
+  失败**);`attach [--json] <session-prefix>`(本地解析前缀,补读+跟流,
+  文本渲染或 JSON lines)。
+- **socketPath 建目录**(daemon 可能是本机第一个 agentrunner 进程);
+  unix socket 108 字节路径上限记档(奇长 XDG_DATA_HOME 会 bind 失败,
+  原样报错)。
+- **s6-04-reattach acceptance**:单 step 编排(后台 daemon → until -S
+  socket → submit → attach → kill),**fixture env 必须给 daemon 进程**
+  (provider 在 daemon 侧解析——排障发现,这就是跨进程 runtime 的第一
+  课)。attach 输出断言 run_end + 原文本。stage 6 四场景全绿,全量
+  check + race 通过。
+
+未接(模块④续):durable timer 触发索引、优雅停机、审批 correlation
+跨 socket 路由、scheduler actor(RunAgent command)。

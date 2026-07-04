@@ -43,6 +43,12 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 		return inspectCmd(args[1:], stdout, stderr)
 	case "resume":
 		return resumeCmd(args[1:], version, stdout, stderr)
+	case "daemon":
+		return daemonCmd(args[1:], version, stdout, stderr)
+	case "attach":
+		return attachCmd(args[1:], stdout, stderr)
+	case "submit":
+		return submitCmd(args[1:], stdout, stderr)
 	case "sessions":
 		return sessionsCmd(args[1:], stdout, stderr)
 	case "trust":
@@ -54,7 +60,7 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 }
 
 func usage() string {
-	return "usage: agentrunner <run|drive|resume|sessions|events|inspect|trust|record-fixture|accept|--version> [flags] [<spec.yaml> \"task\"]\n"
+	return "usage: agentrunner <run|drive|daemon|submit|attach|resume|sessions|events|inspect|trust|record-fixture|accept|--version> [flags] [<spec.yaml> \"task\"]\n"
 }
 
 // setupLogging configures the process-wide slog default. Logs go to stderr
