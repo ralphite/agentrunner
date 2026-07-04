@@ -511,6 +511,101 @@ scripts/check.sh          # golangci-lint + go test 全绿 = 一步完成
 **S5 完成标志**：researcher 编队产出带 contract 检查的报告；plan 审批
 全流程；越权/预算击穿否定测试全绿。
 
+### S5 执行包（kickoff refinement 预定默认值——偏离须记入 PROGRESS.md）
+
+**跨切不变量（S5 的四条硬线，每步都要守）**：
+
+- **权限交集冻结、绝不上扬**：spawn 时子 agent 的 permission rules =
+  `intersect(parent 的 live rules, child spec rules)`——只会更严不会更松;
+  **mode 不交集**（子 agent mode 不得比 parent 更宽,plan/acceptEdits/bypass
+  的放宽只能由 parent 显式下传,且仍受 hardFloor 约束）;交集在 spawn 时
+  **冻结**进子 run 的 RunStarted,子 agent 运行中不可再拓宽。否定测试:
+  parent=plan 时子 agent 仍不能 execute;parent 的 deny rule 子 agent 继承。
+- **树预算不可击穿**：树预算按 **min 聚合**下传——子树可用 =
+  `min(parent 剩余, child spec 上限)`;子 agent 的 reservation 记进
+  **parent 的 budget 视图**(reserve-then-settle 沿 correlation 上卷),
+  深度/扇出上限硬约束(超限 = spawn 被 pipeline deny,非 crash)。否定测试:
+  N 个子 agent 并发申请超过树预算 → 后来者被拒,总结算不超树上限。
+- **artifact blob 先于 event**（镜像 journal 的 fsync-先于-ack）:CAS blob
+  **写入+fsync 完成后**才 journal publish event——event 里的 ref 永远可解析,
+  绝无悬空引用。崩溃在 blob 写与 event 之间 = blob 成孤儿(GC 回收),不破坏
+  一致性(与 2.13 snapshot"优化而非真相"同构)。
+- **prefix 稳定 under 目录注入**：skill 目录、子 agent 目录、memory
+  (CLAUDE.md 层级)注入 assembly 的**冻结 prefix 段**(session start 冻结,
+  4.4c 的 env 块同款)——byte-stable,caching 不被打爆。模型不知道能 spawn
+  谁就永远不 spawn(目录注入是 multi-agent 可用的前提,DESIGN §context)。
+
+**逐模块细化**：
+
+1. **MCP client（预期返工 #1）**:官方 `modelcontextprotocol/go-sdk`。
+   **生命周期带外**:MCP server 连接是 runtime 状态(非 event-sourced),
+   **只有发现的 tool schema 入 event**(resume 知道 tool face);resume 时
+   带外重连 server、把线上 schema 与 journaled schema 对账(漂移 = 拒绝
+   或显式换代,同 2.13 版本纪律)。命名 `mcp__<server>__<tool>` 全限定;
+   无 annotation 的 tool 按 **execute-class**(最保守,过 permission)。
+   **spec `allowed_tools` 收窄**(含否定测试:未列的 MCP tool 不 advertise、
+   即便模型硬调也被 deny)。
+2. **skills + memory 文件**:目录发现 + frontmatter 解析 + **按需加载**
+   (skill body 不进 prefix,只有目录/描述进——避免 prefix 膨胀);CLAUDE.md
+   **层级合并**(cwd 向上到 repo root,近者优先)入 assembly 的 memory 层;
+   skill 目录注入 assembly(在 env 块之后、spec prompt 之前,固定序,
+   prefix 稳定)。
+3. **spawn/await（预期返工 #2:actor 边界的 correlation 路由）**:子 agent
+   = 一个 activity(走 L2 管线,`spawn` 效果过 permission),内部是一个
+   **fresh child run**(同 spec → prefix 逐字节稳定、故障隔离、迭代边界
+   天然 barrier——决策表 #21)。子 agent 目录注入 parent 的 system prompt
+   (模型不知道能 spawn 谁就不 spawn)。权限交集冻结 + 树预算 min 聚合(见
+   上)。**审批沿 correlation 冒泡**:子 agent 的 ApprovalRequested 沿
+   correlation 链上卷到 frontend,人答一次,答案回流(3.5 审批流的分布式
+   化;这是预期返工点——跨 actor 的 waiting 路由)。
+4. **handoff + pub/sub**:移交(handoff = 把控制权 + context ref 交给另一
+   agent,非 spawn 子树)与 blackboard topic(pub/sub 走 L0 kernel bus,
+   订阅进 fold 的 waiting 或 activity 集合)。两模式复用 spawn 的权限/预算
+   下传纪律。
+5. **ArtifactStore（复用 SnapshotStore 的 CAS 模式）**:content-addressed
+   (hash = ref)、opaque ref、blob 先于 event(见上)、per-stream 版本、
+   manifest(stream → 版本链)。`publish_artifact` 过管线(发布即持久、
+   即 durable)。**"SnapshotStore 模式复用为 ArtifactStore"**是本 stage 的
+   教义重点——同一 CAS 抽象。
+6. **outputs contract**:2.16 epilogue 的 **auto-publish 槽位填实**(骨架
+   与钩子 2 已在 S2 落位):收尾自动 publish spec 声明的 `outputs:`;
+   **缺 required output → parent 拿到 error 结果**(非静默成功——contract
+   是交付物的硬检查)。
+7. **审批载荷(payload_ref)**:3.5 预留的 `ApprovalRequested{payload_ref}`
+   **启用**——大载荷(plan 全文)存 ArtifactStore,审批请求只带 ref + 短
+   摘录(2.4 的 payload_ref 预留兑现)。plan 审批全流程:发布 plan artifact
+   → 审 → 拒(附理由)→ agent 出 v2 → 批。**contract(交付物)与协调对象
+   (plan)分离**——plan 是 artifact,审批是协调,二者解耦。
+8. **artifact 输入**:spawn/CLI 传 artifact ref;**materialize activity**
+   把 ref 解成 workspace 文件或 context(过管线,可审计)。
+9. **inspect 扩展**:子 agent 树渲染(correlation/causation 展开父子 run 的
+   timeline);artifact 列(publish 的 ref + stream 版本)。
+
+**新增 event / 存储（本表声明,shape 逐步细化）**:`SpawnRequested`/
+`SubagentCompleted`(子 agent activity 的专属终态,携 child run ref)、
+`ArtifactPublished{stream, version, ref, manifest}`、`ApprovalRequested`
+扩 `payload_ref`。**ArtifactStore 是独立 CAS**(非 fold sub-state,与
+SnapshotStore 同层);子 agent 树骑在既有 Activities + correlation 上,
+S5 **不新增 fold sub-state**(tasks 是 S6)。
+
+**顺序微调预授权**:配置三源合并已在 3.4 提前落地,S5 module 2 只剩
+skills/memory 合并,直接建在 3.4 的 Merge/trust 之上。MCP(module 1)先行
+是因为 tool face 的扩展(MCP tool 入 advertised 面)是 assembly/permission
+的输入,skills/spawn 都依赖稳定的 tool face。
+
+**acceptance 场景（accept --stage 5,对应完成标志逐句）**:
+- `s5_fleet`:researcher 编队(parent + 2 子 agent)→ 带 contract 检查的
+  报告 artifact(缺 required output 时 parent 拿 error 结果的分支单测)。
+- `s5_plan_approval`:发布 plan artifact → 审 → 拒(理由)→ v2 → 批全流程,
+  payload_ref 走通。
+- `s5_no_escalation`(否定):parent=plan / 带 deny rule → 子 agent 不能
+  execute、不能拓宽 mode、不能调用未继承的 tool。
+- `s5_budget_seal`(否定):树预算 min 聚合下 N 子 agent 并发不击穿树上限。
+
+**回访项**:MCP 无 annotation tool 的 execute-class 默认(线上遇到富
+annotation 的 server 时复审是否细分 class);审批 correlation 冒泡在跨
+process(S6 daemon)下的路由(S5 单 process 内先走通,S6 daemon 化时复验)。
+
 ---
 
 ## Stage 6 — 服务化与运行模式（模块序列）

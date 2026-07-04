@@ -1443,3 +1443,26 @@ off-by-one);sub-state 版本 8→9 + checkVersions 正确;statetest.AssertFoldEq
   彻底修需新持久 event 或 fold 标记,代价不成比例,v0 记档接受。
 
 **Stage 4 正式关闭**。下一步:S5 kickoff refinement。
+
+## S5 kickoff refinement — DONE
+
+PLAN.md 新增 **S5 执行包**:细化生态与多 agent 的 9 模块序列。四条跨切
+硬线:①权限交集冻结绝不上扬(mode 不交集)②树预算 min 聚合不可击穿
+③artifact blob 先于 event(镜像 journal fsync-先于-ack,ref 永不悬空)
+④prefix 稳定 under skill/子 agent/memory 目录注入(session start 冻结)。
+
+关键决定:MCP 生命周期带外(仅 schema 入 event,resume 带外重连+对账);
+子 agent = fresh child run 的 activity(prefix 稳定、故障隔离);审批沿
+correlation 冒泡(预期返工:跨 actor waiting 路由);ArtifactStore 复用
+SnapshotStore 的 CAS 模式;outputs contract 填实 2.16 epilogue auto-publish
+槽位(缺 required → parent error);payload_ref 兑现(plan 存 artifact、审批
+带 ref);**S5 不新增 fold sub-state**(骑既有 Activities+correlation,tasks
+是 S6)。acceptance:s5_fleet / s5_plan_approval / s5_no_escalation(否定)/
+s5_budget_seal(否定)。
+
+三文档一致性:S5 pack 仅细化 PLAN,引用既有 DESIGN 不变量(multi-agent
+即 actor、prefix 稳定、CAS 复用、权限非上扬),与 STAGES Stage 5 范围一致,
+与 2.4 表"S6 加 tasks、S5 无新 sub-state"一致,未动 DESIGN 不变量。
+
+下一步:S5.1 MCP client(官方 go-sdk、生命周期带外、schema 入 event、
+mcp__server__tool 命名、无标签 execute-class、allowed_tools 收窄+否定测试)。
