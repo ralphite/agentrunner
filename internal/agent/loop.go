@@ -778,7 +778,23 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				return RunResult{}, err
 			}
 		case doWaitTasks:
-			if err := l.awaitBackground(ctx, appendE, act.turn); err != nil {
+			// The park is an EXPLICIT state (DESIGN: 挂起是显式状态,本身是
+			// event; S6 review P0): WaitingEntered/Resolved bracket the wait
+			// so projections and reconciliation can see it. The bracket is
+			// sequenced by this goroutine — decide() never observes the open
+			// waiting state.
+			if _, err := appendE(event.TypeWaitingEntered, &event.WaitingEntered{
+				Kind: event.WaitTasks,
+			}); err != nil {
+				return RunResult{}, abort(act.turn, err)
+			}
+			resolution, err := l.awaitBackground(ctx, appendE, act.turn)
+			if err != nil {
+				return RunResult{}, abort(act.turn, err)
+			}
+			if _, err := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
+				Kind: event.WaitTasks, Resolution: resolution,
+			}); err != nil {
 				return RunResult{}, abort(act.turn, err)
 			}
 			continue
@@ -1109,6 +1125,14 @@ func decide(s state.State, maxTurns int, onRunEnd string) action {
 		if len(s.Tasks) > 0 && onRunEnd == "await" {
 			return action{kind: doWaitTasks, turn: turn}
 		}
+		// A user-role input that arrived AFTER the model's last message —
+		// a settled task's outcome (DESIGN: 完成时结果以新的 user-role 消息
+		// 进入 loop,下一 turn 可见) — deserves a turn before the run ends
+		// (S6 review: without this the awaited outcome never reached the
+		// model). Bounded by max_turns like every turn.
+		if turn < maxTurns && hasInputAfterLastAssistant(s) {
+			return action{kind: doTurn, turn: turn + 1}
+		}
 		return action{kind: doEnd, turn: turn, reason: "completed"}
 	}
 	var unresolved []provider.ToolCall
@@ -1142,20 +1166,21 @@ func decide(s state.State, maxTurns int, onRunEnd string) action {
 
 // marshalPermissionLayers renders the pipeline's permission gates as ordered
 // rule layers (outermost first). Empty-rule gates carry only mode defaults —
-// identical for every gate of the run — so they add no layer. nil when there
-// is nothing to materialize.
+// identical for every gate of the run — so they add no layer; a pipeline
+// with NO rules still marshals an explicit empty array: the journaled field
+// must always exist for a run that had a pipeline, so resume takes the
+// frozen-layers path instead of re-merging LIVE config (S6 review: config
+// drift between run and resume must never widen a rule-less run). nil only
+// when there was no pipeline at all.
 func marshalPermissionLayers(p *pipeline.Pipeline) json.RawMessage {
 	if p == nil {
 		return nil
 	}
-	var layers [][]pipeline.PermissionRule
+	layers := [][]pipeline.PermissionRule{}
 	for _, g := range p.Gates {
 		if pg, ok := g.(*pipeline.PermissionGate); ok && len(pg.Rules) > 0 {
 			layers = append(layers, pg.Rules)
 		}
-	}
-	if len(layers) == 0 {
-		return nil
 	}
 	raw, err := json.Marshal(layers)
 	if err != nil {
@@ -1186,6 +1211,21 @@ func (l *Loop) ensureApprovals() {
 	if l.Approvals == nil {
 		l.Approvals = &EnvApprovals{}
 	}
+}
+
+// hasInputAfterLastAssistant reports a user-role message newer than the
+// model's last message — pending input the model has not seen.
+func hasInputAfterLastAssistant(s state.State) bool {
+	msgs := s.Conversation.Messages
+	for i := len(msgs) - 1; i >= 0; i-- {
+		switch msgs[i].Role {
+		case provider.RoleAssistant:
+			return false
+		case provider.RoleUser:
+			return true
+		}
+	}
+	return false
 }
 
 func assistantMessages(s state.State) []provider.Message {

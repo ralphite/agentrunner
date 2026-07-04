@@ -139,10 +139,11 @@ func (s *Schedule) matches(t time.Time) bool {
 	return domOK && dowOK
 }
 
-// lookahead bounds Next's scan. Four years covers every reachable five-field
-// expression (including Feb 29); anything unmatched within it is unsatisfiable
-// (e.g. "0 0 31 2 *").
-const lookahead = 4 * 366 * 24 * time.Hour
+// lookahead bounds Next's scan. NINE years covers every satisfiable
+// five-field expression: the worst reachable gap is Feb 29 across a non-leap
+// century year (2096 → 2104 is eight years). Anything unmatched within it is
+// unsatisfiable (e.g. "0 0 31 2 *").
+const lookahead = 9 * 366 * 24 * time.Hour
 
 // Next returns the first fire time strictly after t, or false when the
 // expression can never fire (scan bounded by the lookahead).

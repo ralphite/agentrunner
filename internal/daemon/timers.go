@@ -85,6 +85,11 @@ func (s *Server) hostResume(ctx context.Context, id string) {
 	slog.Info("daemon: timer expired, resuming session", "session", id)
 	go func() {
 		defer s.runsWG.Done()
+		defer func() {
+			s.mu.Lock()
+			delete(s.runs, id)
+			s.mu.Unlock()
+		}()
 		defer hub.finish()
 		if err := s.Resume(ctx, id, hub); err != nil {
 			slog.Warn("daemon: timer-driven resume failed", "session", id, "err", err)

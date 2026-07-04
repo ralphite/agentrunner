@@ -104,22 +104,24 @@ func (l *Loop) drainBackground(appendE AppendFunc) error {
 }
 
 // awaitBackground blocks until ONE task finishes (or an interrupt/cancel),
-// then settles it. The WAITING_TASKS park (2.14): no pending calls, no new
+// then settles it, returning the WaitingResolved resolution (WaitRules
+// vocabulary). The WAITING_TASKS park (2.14): no pending calls, no new
 // input, tasks in flight. An interrupt cancels every task — the user wants
 // the run back; the cancellations settle through the same channel.
-func (l *Loop) awaitBackground(ctx context.Context, appendE AppendFunc, turn int) error {
+func (l *Loop) awaitBackground(ctx context.Context, appendE AppendFunc, turn int) (string, error) {
 	l.ensureBackground()
 	select {
 	case out := <-l.bg.done:
-		return l.settleBackground(appendE, out)
+		return "tasks_done", l.settleBackground(appendE, out)
 	case <-l.Interrupts:
 		if err := l.onSteeringInterrupt(appendE, turn); err != nil {
-			return err
+			return "", err
 		}
 		l.cancelAllBackground()
-		return nil // re-decide: tasks still nonempty → park again → drain the cancellations
+		// re-decide: tasks still nonempty → park again → drain the cancellations
+		return "tasks_cancelled_by_interrupt", nil
 	case <-ctx.Done():
-		return context.Cause(ctx)
+		return "", context.Cause(ctx)
 	}
 }
 
@@ -193,15 +195,14 @@ func quiesceTasks(ctx context.Context, l *Loop, ds *driveState,
 				return err
 			}
 		case <-ctx.Done():
-			// Hard cancel while quiescing: cancel everything and settle
-			// whatever still reports; the loop below keeps draining.
+			// Hard cancel while quiescing: cancel everything, then BLOCK on
+			// the next report — the killed tasks always report (killGroup
+			// guarantees bash exits), and a default-branch here would spin
+			// the CPU until they do (S6 review).
 			l.cancelAllBackground()
-			select {
-			case out := <-l.bg.done:
-				if err := l.settleBackground(appendE, out); err != nil {
-					return err
-				}
-			default:
+			out := <-l.bg.done
+			if err := l.settleBackground(appendE, out); err != nil {
+				return err
 			}
 		}
 	}

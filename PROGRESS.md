@@ -2402,3 +2402,77 @@ notifier 不订 note,非生命周期时刻)。
 测试:blackboard 镜像单测(逐条有序、锁外——回调内 Read 不死锁)。
 **模块⑤ notifier 收口**。剩:模块⑥ HTTP/WS 壳(cut line,预授权可
 延后)→ S6 出口对抗式 review。
+
+## Stage 6 出口对抗式 review — 三镜头(correctness/concurrency · security · contract/DESIGN)
+
+三并行镜头,产出:correctness 1×P0(探针验证)+6×P1+若干 P2;
+security 0×P0/P1+3×P2;contract 1×P0+4×P1+多 P2 及完成标志清单。
+
+### 修复批 ①(本 commit,全部带回归测试或既有测试覆盖)
+
+- **[C-P0] loop-mode driver resume 误判终态**(探针验证):带质量
+  verifier 的 interval/cron/self_paced 系列,重启后 Resume 把上迭代的
+  Pass 再推导成 satisfied 杀死健康系列。修:再推导仅限 goal mode
+  (schedule==immediate)。`TestDriverLoopResumeContinues`。
+- **[K-P0] WAITING_TASKS park 不落 journal**(违反"挂起是显式状态,
+  本身是 event"):drive 的 doWaitTasks 现以 WaitingEntered/Resolved
+  包裹(resolution 用 WaitRules 词表 tasks_done /
+  tasks_cancelled_by_interrupt),projections/对账可见。
+- **[C-P1] await 的 outcome 永远到不了模型**(探针验证,且被自测掩盖
+  ——scripted 只在耗尽时报错,剩步不报):decide() 无 call 且**末
+  assistant 消息之后有 user-role 输入**→ doTurn(受 max_turns 界)。
+  DESIGN 420"下一 turn 可见"至此才真兑现。await 测试改断言 3 turns +
+  waiting 事件;s6-03 场景补第三步(expect bg-done)。
+- **[C-P1] daemon 停机被挂死连接 wedge**:停机序列 = 拒新 run →
+  runsWG.Wait → **关闭全部残留连接** → conns drain。
+  `TestDaemonShutdownWithHungClient`。
+- **[C-P1] ApprovalBroker 键冲突丢 ask**(并发兄弟 ask 的确定性
+  call id 相同):Register/Wait 两阶段——占用 id 加 `#n` 后缀,**上浮
+  的 id 即注册 id**(cli 先 Register 再 emit);Wait 只删自己的注册。
+  `TestApprovalBrokerCollision`。
+- **[C-P1] 重试花费漏记账**:runIteration 返回**全 attempts 折叠
+  usage 之和**,IterationCompleted.Usage 用之(三处 journal 点统一),
+  预算 reserve 不再超发。`TestDriverRetrySpendSettlesAllAttempts`
+  (100+150=250)。
+- **[C-P1] self_paced resume 丢 pace**:Resume 从末完成迭代的 child
+  journal 重推 childIntent → clamp 存 nextPace;awaitTick 的 first
+  改为 n==1(系列首个,非 resume 首个)。
+  `TestDriverSelfPacedResumeRespectsPace`(park 于 1h 再醒)。
+- **[C-P1] IterationSkipped 后崩溃重跑已 skip 槽位**:startN 越过
+  Completed **和 Skipped**。`TestDriverResumeSkipsSkippedIterations`。
+- **[C-P2] quiesce 硬取消忙转**:ctx.Done 后阻塞收 done(killGroup
+  保证 bash 必报)。**[C-P2] s.runs 永不清理**:run 结束即删注册
+  (attach 转纯补读)。**[C-P2] notifier 停机丢队列**:ctx.Done 后
+  drain 完再退。**[C-P2] settledChild 无视失败 reason**:error/canceled
+  的已终 child 按失败结算,on_child_failure 跨崩溃一致。
+  **[C-P2] cron lookahead 4 年不够**(2096→2104 闰年断档):9 年。
+- **[S-P2] wire 可传 bypass mode**:daemon run 命令 mode 白名单
+  (default/plan/acceptEdits)。**[S-P2] 空规则 run 的 resume 从 live
+  config 重推权限**(冻结失效):marshalPermissionLayers 对存在
+  pipeline 的 run 恒发显式 `[]`,resume 恒走冻结层路径。
+  **[S-P2] socket 权限**:Listen 后显式 chmod 0600。
+- **[K-P2] verifier 审批 id 复用**:verify/finish 的 ApprovalID 带
+  迭代号(broker 键唯一)。**[K-P2]** cli/daemon.go 过时注释更正。
+
+### 记账未修(收口议题/backlog,均有意识决定)
+
+- **[K-P1] RunAgent + Envelope.id=hash 幂等被机制替换**:driver 侧幂等
+  由 st.at(n)+确定性 child dir 实现(已测);但 daemon submit **无幂等
+  键**,重试= 新 session。收口议题:给 submit 加幂等键 或 按变更流程改
+  DESIGN 590/603 口径。
+- **[K-P1] 完成标志① "无人 attach 的 cron 系列过夜出通知"不可达**:
+  需 daemon 托管 driver + IterationCompleted 通知 + s6_series_overnight
+  场景。**S6 收口 blocker,下一工作项**。
+- **[K-P1] verifier 未过管线、judge LLM 调用无 journal 痕迹**(DESIGN
+  599/604):command 腿已记档为 v0 偏差;judge 腿补记于此。收口议题:
+  journaled activity 化 或 按变更流程改 DESIGN(verifier= driver 可信
+  配置 effect)。
+- **[K-P1] 悬空 deferral 关账**:await durable timer 兜底(DESIGN 430
+  "必有"——未接,S7/backlog)、on_reserve_failure(未实现,reserve
+  耗尽恒 stop)、overlap:interrupt(prepare 响亮拒,S7)、retry
+  backoff(仅 Max)。**[K-P2] backlog**:停滞失败指纹腿、
+  runtime.daemon:never 旋钮、双 wire tool_result(fold 正确,前端
+  配对语义)、s6-01"三轮"/s6-04 live-park 场景加强、canceled 标志
+  采样竞态(外观级)、series-memory UTF-8 截断/fence 逃逸(健壮性)。
+
+全量 check + race + stage 1-6 acceptance 回归全绿。

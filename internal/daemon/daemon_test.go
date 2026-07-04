@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"net"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -322,6 +323,42 @@ func TestDaemonNotifyTee(t *testing.T) {
 	}
 	if teed[1].Kind != protocol.KindRunEnd {
 		t.Errorf("tee[1] = %+v", teed[1])
+	}
+}
+
+// S6 review P1: a client that connects and never sends (or never reads)
+// must not wedge graceful shutdown — the daemon closes lingering
+// connections after the runs settle.
+func TestDaemonShutdownWithHungClient(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "d.sock")
+	ctx, cancel := context.WithCancel(context.Background())
+	srv := &Server{SocketPath: sock, NewID: func(string) string { return "x" }}
+	served := make(chan error, 1)
+	go func() { served <- srv.ListenAndServe(ctx) }()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if err := Dial(sock, Command{Cmd: "ping"}, func(protocol.Event) {}); err == nil {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	// A rude client: connects, sends nothing, never hangs up.
+	hung, err := net.Dial("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = hung.Close() }()
+	time.Sleep(50 * time.Millisecond) // let serveConn park in Scan
+
+	cancel()
+	select {
+	case err := <-served:
+		if err != nil {
+			t.Fatalf("shutdown: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("graceful shutdown wedged on the hung connection")
 	}
 }
 

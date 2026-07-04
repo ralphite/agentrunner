@@ -99,3 +99,45 @@ func TestDaemonApprovalRoundTrip(t *testing.T) {
 // e2k reports whether the text looks like a success ack (guards the
 // wrong-id assertion above against accidentally matching).
 func e2k(s string) bool { return s == "answered nope: deny" }
+
+// S6 review: two concurrent sibling asks with IDENTICAL deterministic ids
+// must both be individually addressable — the second registration gets a
+// suffixed id, and each answer reaches its own waiter.
+func TestApprovalBrokerCollision(t *testing.T) {
+	b := NewApprovalBroker()
+	id1, ch1 := b.Register("sess", "apr-eff-tool-call_1_0")
+	id2, ch2 := b.Register("sess", "apr-eff-tool-call_1_0")
+	if id1 == id2 {
+		t.Fatalf("colliding registrations share id %q", id1)
+	}
+
+	type got struct {
+		a   ApprovalAnswer
+		err error
+	}
+	res1 := make(chan got, 1)
+	res2 := make(chan got, 1)
+	go func() {
+		a, err := b.Wait(context.Background(), "sess", id1, ch1)
+		res1 <- got{a, err}
+	}()
+	go func() {
+		a, err := b.Wait(context.Background(), "sess", id2, ch2)
+		res2 <- got{a, err}
+	}()
+
+	if !b.Answer("sess", id2, ApprovalAnswer{Approve: false, Reason: "second"}) {
+		t.Fatal("answer to the suffixed id was refused")
+	}
+	if !b.Answer("sess", id1, ApprovalAnswer{Approve: true, Reason: "first"}) {
+		t.Fatal("answer to the original id was refused")
+	}
+	g1 := <-res1
+	g2 := <-res2
+	if g1.err != nil || !g1.a.Approve || g1.a.Reason != "first" {
+		t.Fatalf("waiter 1 got %+v", g1)
+	}
+	if g2.err != nil || g2.a.Approve || g2.a.Reason != "second" {
+		t.Fatalf("waiter 2 got %+v", g2)
+	}
+}

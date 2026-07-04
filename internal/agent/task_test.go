@@ -189,7 +189,9 @@ func TestTaskKill(t *testing.T) {
 }
 
 // S6.1: on_run_end=await lets a still-running task FINISH before the run
-// ends — its real output settles, not a cancellation.
+// ends — its real output settles AND feeds back to the model as a user-role
+// input that earns one more turn (S6 review: the outcome must actually
+// reach the model, and the park is an explicit journaled waiting state).
 func TestBackgroundTaskAwaitAtRunEnd(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
@@ -198,21 +200,39 @@ func TestBackgroundTaskAwaitAtRunEnd(t *testing.T) {
 			{Finish: "tool_use"},
 		}},
 		{Respond: []scripted.Event{{Text: "ending now, but await the task"}, {Finish: "end_turn"}}},
+		// The awaited outcome arrived as a user message → one more turn.
+		{
+			Expect:  scripted.Expect{LastMessageContains: "awaited-output"},
+			Respond: []scripted.Event{{Text: "saw the result, done"}, {Finish: "end_turn"}},
+		},
 	}}
 	l := testLoop(t, fix, t.TempDir())
 	l.Spec.OnRunEnd = "await"
 
-	if _, err := l.Run(context.Background(), "await on end"); err != nil {
+	res, err := l.Run(context.Background(), "await on end")
+	if err != nil {
 		t.Fatal(err)
 	}
+	if res.Turns != 3 {
+		t.Fatalf("turns = %d, want 3 (the outcome earned a turn)", res.Turns)
+	}
 	events, _ := store.ReadEvents(l.Store.Dir())
-	var sawCompleteWithOutput bool
+	var sawCompleteWithOutput, sawWaitEntered, sawWaitResolved bool
 	for _, e := range events {
 		if e.Type == event.TypeActivityCompleted && strings.Contains(string(e.Payload), "awaited-output") {
 			sawCompleteWithOutput = true
 		}
+		if e.Type == event.TypeWaitingEntered && strings.Contains(string(e.Payload), `"tasks"`) {
+			sawWaitEntered = true
+		}
+		if e.Type == event.TypeWaitingResolved && strings.Contains(string(e.Payload), "tasks_done") {
+			sawWaitResolved = true
+		}
 	}
 	if !sawCompleteWithOutput {
 		t.Error("await must let the task finish with real output, not cancel it")
+	}
+	if !sawWaitEntered || !sawWaitResolved {
+		t.Errorf("WAITING_TASKS park must be journaled: entered=%v resolved=%v", sawWaitEntered, sawWaitResolved)
 	}
 }

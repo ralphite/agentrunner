@@ -44,8 +44,9 @@ func socketPath() (string, error) {
 }
 
 // daemonCmd runs the resident runtime (S6 模块④): `agentrunner daemon`.
-// Approvals resolve through AGENTRUNNER_APPROVE (fail-closed when unset) —
-// interactive approval routing over the socket is a later step.
+// Hosted runs' asks park on the approval broker and resolve over the socket
+// (`agentrunner approve`); a run cancelled before its ask is answered
+// resolves denied through the loop's normal ctx path.
 func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("daemon", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -126,7 +127,17 @@ func buildNotifier(ctx context.Context, stderr io.Writer) (*notify.Notifier, fun
 			case e := <-ch:
 				notifier.Notify(toNotification(e))
 			case <-ctx.Done():
-				return
+				// Shutdown: deliver what is already queued (a run_end has no
+				// startup reconciliation — dropping it here loses the moment
+				// permanently; S6 review).
+				for {
+					select {
+					case e := <-ch:
+						notifier.Notify(toNotification(e))
+					default:
+						return
+					}
+				}
 			}
 		}
 	}()
@@ -212,12 +223,16 @@ type socketApprovals struct {
 }
 
 func (s socketApprovals) Resolve(ctx context.Context, req agent.ApprovalRequest) (agent.ApprovalDecision, error) {
+	// Register FIRST: concurrent sibling asks can carry identical
+	// deterministic ids, and the broker de-dupes with a suffix — the id we
+	// SURFACE must be the one an answer can address (S6 review).
+	id, ch := s.broker.Register(s.session, req.ApprovalID)
 	s.sink.Emit(protocol.Event{
-		Kind: protocol.KindApprovalRequest, ApprovalID: req.ApprovalID,
+		Kind: protocol.KindApprovalRequest, ApprovalID: id,
 		Tool: req.ToolName, CallID: req.CallID,
 		Args: string(req.Args), Text: req.Agent,
 	})
-	a, err := s.broker.Ask(ctx, s.session, req.ApprovalID)
+	a, err := s.broker.Wait(ctx, s.session, id, ch)
 	if err != nil {
 		return agent.ApprovalDecision{}, err
 	}

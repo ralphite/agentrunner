@@ -2,6 +2,7 @@ package driver_test
 
 import (
 	"context"
+	"encoding/json"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/driver"
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
 	"github.com/ralphite/agentrunner/internal/store"
 	"github.com/ralphite/agentrunner/internal/tool"
@@ -1066,6 +1068,202 @@ func waitParked(t *testing.T, clk *clock.Fake) {
 		time.Sleep(time.Millisecond)
 	}
 	t.Fatal("driver never parked on the interval")
+}
+
+// S6 review P0: a loop-mode series whose last iteration PASSED its quality
+// verifier must survive a restart — resume must NOT re-derive "satisfied"
+// (that is goal-mode semantics only).
+func TestDriverLoopResumeContinues(t *testing.T) {
+	d, dStore := harness(t, &driver.DriverSpec{
+		Name: "rounds", Schedule: driver.ScheduleInterval, Task: "tick", MaxIterations: 3,
+		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierCommand, Command: "true"}},
+	})
+	journal(t, dStore, event.TypeIterationScheduled, &event.IterationScheduled{DriverID: "drv-1", Iter: 1})
+	journal(t, dStore, event.TypeIterationLaunched, &event.IterationLaunched{DriverID: "drv-1", Iter: 1, ChildSession: "drv-1-iter-1"})
+	journal(t, dStore, event.TypeIterationCompleted, &event.IterationCompleted{
+		DriverID: "drv-1", Iter: 1, ChildSession: "drv-1-iter-1", ChildReason: "completed",
+		Verdict: event.IterationVerdict{Pass: true, Score: 1},
+	})
+
+	res, err := d.Resume(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "max_iterations" || res.Iterations != 3 {
+		t.Fatalf("res = %+v, want the series to CONTINUE to max_iterations, not end satisfied", res)
+	}
+}
+
+// S6 review: a skipped iteration is a consumed slot — resume must not
+// re-run it (the fold would end self-contradictory: Skipped AND Completed).
+func TestDriverResumeSkipsSkippedIterations(t *testing.T) {
+	d, dStore := harness(t, &driver.DriverSpec{
+		Name: "rounds", Schedule: driver.ScheduleInterval, Task: "tick", MaxIterations: 3,
+	})
+	journal(t, dStore, event.TypeIterationScheduled, &event.IterationScheduled{DriverID: "drv-1", Iter: 1})
+	journal(t, dStore, event.TypeIterationLaunched, &event.IterationLaunched{DriverID: "drv-1", Iter: 1, ChildSession: "drv-1-iter-1"})
+	journal(t, dStore, event.TypeIterationCompleted, &event.IterationCompleted{
+		DriverID: "drv-1", Iter: 1, ChildSession: "drv-1-iter-1", ChildReason: "completed"})
+	journal(t, dStore, event.TypeIterationSkipped, &event.IterationSkipped{DriverID: "drv-1", Iter: 2, Reason: "overlap"})
+
+	res, err := d.Resume(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "max_iterations" {
+		t.Fatalf("res = %+v", res)
+	}
+	events, _ := store.ReadEvents(dStore.Dir())
+	st, _ := driver.Fold(events)
+	if st.Iterations[1].Completed || !st.Iterations[1].Skipped {
+		t.Fatalf("iteration 2 = %+v — a skipped slot was re-run on resume", st.Iterations[1])
+	}
+	if !st.Iterations[2].Completed {
+		t.Fatalf("iteration 3 = %+v, want completed", st.Iterations[2])
+	}
+}
+
+// S6 review: the pace a self_paced child declared must survive a driver
+// restart — resume re-derives it from the child journal and parks on it
+// instead of firing immediately.
+func TestDriverSelfPacedResumeRespectsPace(t *testing.T) {
+	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
+	d, dStore := selfPacedHarness(t, &driver.DriverSpec{
+		Name: "series", Schedule: driver.ScheduleSelfPaced, Task: "keep up", MaxIterations: 5,
+	}, clk, func(int) scripted.Fixture {
+		return scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{{Text: "no more"}, {Finish: "end_turn"}}},
+		}}
+	})
+
+	// Synthesize the pre-crash state: iteration 1 completed, and its child
+	// journal carries a successful schedule_next{1h} declaration.
+	journal(t, dStore, event.TypeIterationScheduled, &event.IterationScheduled{DriverID: "drv-1", Iter: 1})
+	journal(t, dStore, event.TypeIterationLaunched, &event.IterationLaunched{DriverID: "drv-1", Iter: 1, ChildSession: "drv-1-iter-1"})
+	journal(t, dStore, event.TypeIterationCompleted, &event.IterationCompleted{
+		DriverID: "drv-1", Iter: 1, ChildSession: "drv-1-iter-1", ChildReason: "completed"})
+	childDir := filepath.Join(dStore.Dir(), "sub", "iter-1")
+	ces, err := store.OpenEventStore(childDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cj := func(typ string, p any) {
+		t.Helper()
+		env, err := event.New(typ, p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := ces.Append(env); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cj(event.TypeRunStarted, &event.RunStarted{SpecName: "worker", Model: "x", Task: "keep up"})
+	cj(event.TypeAssistantMessage, &event.AssistantMessage{Turn: 1, Message: provider.Message{
+		Role: provider.RoleAssistant,
+		Parts: []provider.Part{{Kind: provider.PartToolCall, CallID: "p1",
+			ToolName: "schedule_next", Args: json.RawMessage(`{"after":"1h"}`)}},
+	}})
+	cj(event.TypeActivityStarted, &event.ActivityStarted{
+		ActivityID: "tool-p1", Kind: event.KindTool, Name: "schedule_next", CallID: "p1", Attempt: 1})
+	cj(event.TypeActivityCompleted, &event.ActivityCompleted{
+		ActivityID: "tool-p1", Result: json.RawMessage(`{"output":"ok"}`)})
+	cj(event.TypeRunEnded, &event.RunEnded{Reason: "completed", Turns: 1})
+	_ = ces.Close()
+
+	resCh := make(chan driver.Result, 1)
+	go func() {
+		res, rerr := d.Resume(context.Background())
+		if rerr != nil {
+			t.Errorf("resume: %v", rerr)
+		}
+		resCh <- res
+	}()
+
+	// The resumed driver must PARK on the declared 1h pace, not fire now.
+	waitParked(t, clk)
+	select {
+	case res := <-resCh:
+		t.Fatalf("resume fired iteration 2 without honoring the pace: %+v", res)
+	default:
+	}
+	clk.Advance(time.Hour)
+	res := <-resCh
+	// Iteration 2's child declares nothing → on_no_intent finish → satisfied.
+	if res.Reason != "satisfied" || res.Iterations != 2 {
+		t.Fatalf("res = %+v, want satisfied at 2 after honoring the pace", res)
+	}
+}
+
+// S6 review: retried attempts burn real tokens — the iteration's journaled
+// usage must sum EVERY attempt, not just the last.
+func TestDriverRetrySpendSettlesAllAttempts(t *testing.T) {
+	root := t.TempDir()
+	ws, err := workspace.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exec := &tool.Executor{WS: ws}
+	dStore, err := store.OpenEventStore(filepath.Join(root, "driver"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = dStore.Close() })
+	childSpec := &agent.AgentSpec{
+		Name: "worker", Model: agent.ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
+		SystemPrompt: "work", MaxTurns: 5,
+	}
+	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
+	calls := 0
+	d := &driver.Driver{
+		Spec: &driver.DriverSpec{
+			Name: "goal", Task: "work", MaxIterations: 2, Agent: childSpec,
+			OnChildFailure: driver.FailurePolicy{Mode: driver.OnFailRetry, Max: 1},
+			Verifiers:      []driver.VerifierSpec{{Kind: driver.VerifierCommand, Command: "true"}},
+		},
+		Store: dStore, Clock: clk, DriverID: "drv-1", Exec: exec,
+		NewChild: func(cs *store.EventStore, session string, iter, budget int) *agent.Loop {
+			calls++
+			var fix scripted.Fixture
+			if calls == 1 {
+				// Attempt 1: bill 100, then die (fixture exhausted mid-run —
+				// the next request errors after this turn's usage settled).
+				fix = scripted.Fixture{Steps: []scripted.Step{
+					{Respond: []scripted.Event{
+						{ToolCall: &scripted.ToolCallEvent{CallID: "c1", Name: "bash",
+							Args: map[string]any{"command": "true"}}},
+						{Usage: &scripted.UsageEvent{InputTokens: 60, OutputTokens: 40}},
+						{Finish: "tool_use"},
+					}},
+				}}
+			} else {
+				// Attempt 2: bill 150 and complete.
+				fix = scripted.Fixture{Steps: []scripted.Step{
+					{Respond: []scripted.Event{
+						{Text: "done"},
+						{Usage: &scripted.UsageEvent{InputTokens: 100, OutputTokens: 50}},
+						{Finish: "end_turn"},
+					}},
+				}}
+			}
+			childSpec2 := *childSpec
+			childSpec2.Tools = []string{"bash"}
+			return &agent.Loop{Spec: &childSpec2, Provider: scripted.New(fix),
+				Exec: exec, Store: cs, Clock: clk, SessionID: session}
+		},
+	}
+	res, err := d.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "satisfied" {
+		t.Fatalf("res = %+v", res)
+	}
+	events, _ := store.ReadEvents(dStore.Dir())
+	st, _ := driver.Fold(events)
+	// 100 (failed attempt) + 150 (successful attempt) = 250 billed.
+	if st.SpentTokens != 250 {
+		t.Fatalf("spent = %d, want 250 (both attempts settled)", st.SpentTokens)
+	}
 }
 
 // Every event in event.DriverStream must fold into driver state — the mirror

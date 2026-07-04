@@ -20,6 +20,11 @@ files:
           - text: "kicked it off; ending my turn"
           - usage: { input_tokens: 20, output_tokens: 10 }
           - finish: end_turn
+      - expect: { last_message_contains: bg-done }
+        respond:
+          - text: "the awaited result came back; done"
+          - usage: { input_tokens: 20, output_tokens: 10 }
+          - finish: end_turn
 steps:
   - run: >
       AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/bg.yaml

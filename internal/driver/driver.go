@@ -187,23 +187,43 @@ func (d *Driver) Resume(ctx context.Context) (Result, error) {
 	}
 	// A crash can land between a terminal-deciding IterationCompleted and the
 	// DriverCompleted that records it. Re-derive that decision from the fold
-	// so resume does not launch a redundant iteration. (max_iterations and
-	// budget are re-checked at the top of drive(), so only the post-iteration
-	// decisions — satisfied, stalled — need re-deriving here.)
-	if last, ok := st.lastCompleted(); ok {
-		if last.Verdict.Pass {
-			return d.finish(appendE, st, "satisfied", last.N)
-		}
-		if d.stalled(st) {
-			return d.finish(appendE, st, "stalled", last.N)
+	// so resume does not launch a redundant iteration — GOAL MODE ONLY: in
+	// loop mode a passing verdict is a quality gate, never a terminal, and
+	// re-deriving it here would kill a healthy series on every restart
+	// (S6 review P0). max_iterations and budget re-check at the top of
+	// drive(), so only satisfied/stalled need re-deriving.
+	if d.Spec.schedule() == ScheduleImmediate {
+		if last, ok := st.lastCompleted(); ok {
+			if last.Verdict.Pass {
+				return d.finish(appendE, st, "satisfied", last.N)
+			}
+			if d.stalled(st) {
+				return d.finish(appendE, st, "stalled", last.N)
+			}
 		}
 	}
-	// Completed iterations are a sequential prefix; resume at the first one
-	// that has not completed (which may be an in-flight launch).
+	// Completed AND skipped iterations are consumed slots; resume at the
+	// first untouched number — re-running a skipped iteration would violate
+	// the overlap policy across the crash (S6 review).
 	startN := 1
 	for i := range st.Iterations {
-		if st.Iterations[i].Completed {
+		if st.Iterations[i].Completed || st.Iterations[i].Skipped {
 			startN = st.Iterations[i].N + 1
+		}
+	}
+	// self_paced: the pace the last child declared must survive the restart
+	// (the field comment promises re-derivation; S6 review). A declared
+	// finish was either approved (driver ended) or denied (floor pace).
+	if d.Spec.schedule() == ScheduleSelfPaced && startN > 1 {
+		if last, ok := st.lastCompleted(); ok {
+			floor, ceil, _ := d.Spec.paceBounds()
+			intent := childIntent(filepath.Join(d.Store.Dir(), "sub", iterDir(last.N, 1)))
+			switch {
+			case intent.has && !intent.finish:
+				d.nextPace = clampPace(intent.after, floor, ceil)
+			default:
+				d.nextPace = floor
+			}
 		}
 	}
 	return d.drive(ctx, st, appendE, startN)
@@ -228,7 +248,9 @@ func (d *Driver) drive(ctx context.Context, st *State, appendE appendFunc, start
 		// policy to ticks the previous iteration ran past. A cancel during
 		// the wait ends the series.
 		if loopMode {
-			run, terr := d.awaitTick(ctx, appendE, n, n == startN)
+			// "first" means the SERIES' first iteration, not the first after
+			// a resume: a restart must respect the pace/tick, not fire early.
+			run, terr := d.awaitTick(ctx, appendE, n, n == 1)
 			if terr != nil {
 				if ctx.Err() != nil {
 					return d.finish(appendE, st, "stopped", n-1)
@@ -265,15 +287,15 @@ func (d *Driver) drive(ctx context.Context, st *State, appendE appendFunc, start
 			session = existing.ChildSession // in-flight: reuse the recorded session
 		}
 
-		childRes, childDir, cerr := d.runIteration(ctx, n, session, allowance)
+		childRes, childDir, spent, cerr := d.runIteration(ctx, n, session, allowance)
 		if cerr != nil {
 			if ctx.Err() != nil {
 				// A cancel of the driver reached the child: end as stopped, not
 				// child_failed — the child did not fail on its own merits.
 				if _, err := appendE(event.TypeIterationCompleted, &event.IterationCompleted{
 					DriverID: d.DriverID, Iter: n, ChildSession: session,
-					ChildReason: "canceled",
-					Verdict:     event.IterationVerdict{Detail: "driver canceled"},
+					ChildReason: "canceled", Usage: spent,
+					Verdict: event.IterationVerdict{Detail: "driver canceled"},
 				}); err != nil {
 					return Result{}, err
 				}
@@ -281,11 +303,11 @@ func (d *Driver) drive(ctx context.Context, st *State, appendE appendFunc, start
 			}
 			// The child run failed on its own merits (retries, if any, are
 			// already exhausted inside runIteration). Record the failure as the
-			// iteration's verdict — with the child's real spend so the budget
-			// stays honest — then apply on_child_failure.
+			// iteration's verdict — with EVERY attempt's real spend so the
+			// budget stays honest — then apply on_child_failure.
 			if _, err := appendE(event.TypeIterationCompleted, &event.IterationCompleted{
 				DriverID: d.DriverID, Iter: n, ChildSession: session,
-				ChildReason: "error", Usage: childSpent(childDir),
+				ChildReason: "error", Usage: spent,
 				Verdict: event.IterationVerdict{
 					Detail: "child failed: " + redact.FromEnv().String(cerr.Error())},
 			}); err != nil {
@@ -307,12 +329,15 @@ func (d *Driver) drive(ctx context.Context, st *State, appendE appendFunc, start
 		// quality, they do not decide "done"); goal mode always verifies.
 		var verdict event.IterationVerdict
 		if len(d.Spec.Verifiers) > 0 {
-			verdict = d.verify(ctx, childDir)
+			verdict = d.verify(ctx, n, childDir)
 		}
 		carryText := childReport(childDir)
 		if _, err := appendE(event.TypeIterationCompleted, &event.IterationCompleted{
 			DriverID: d.DriverID, Iter: n, ChildSession: session,
-			ChildReason: childRes.Reason, Verdict: verdict, Usage: childRes.Usage,
+			// spent sums EVERY attempt's folded usage (a retried iteration's
+			// failed attempts burned real tokens — S6 review P1); on the
+			// no-retry happy path it equals childRes.Usage.
+			ChildReason: childRes.Reason, Verdict: verdict, Usage: spent,
 			CarryRef: d.publishCarry(carryText), Carry: excerpt(carryText),
 		}); err != nil {
 			return Result{}, err
@@ -350,7 +375,7 @@ func (d *Driver) applyPaceIntent(ctx context.Context, appendE appendFunc, st *St
 	floor, ceil, _ := d.Spec.paceBounds() // validated in prepare
 	switch {
 	case intent.finish:
-		if d.confirmFinish(ctx, childDir) {
+		if d.confirmFinish(ctx, n, childDir) {
 			res, err := d.finish(appendE, st, "satisfied", n)
 			return true, res, err
 		}
@@ -381,7 +406,7 @@ func clampPace(after, floor, ceil time.Duration) time.Duration {
 
 // confirmFinish runs the human gate on a finish_series claim through the
 // same ask path as every approval (fail-closed under EnvApprovals unset).
-func (d *Driver) confirmFinish(ctx context.Context, childDir string) bool {
+func (d *Driver) confirmFinish(ctx context.Context, n int, childDir string) bool {
 	resolver := d.Approvals
 	if resolver == nil {
 		resolver = &agent.EnvApprovals{}
@@ -391,7 +416,7 @@ func (d *Driver) confirmFinish(ctx context.Context, childDir string) bool {
 		"report": excerpt(childReport(childDir)),
 	})
 	dec, err := resolver.Resolve(ctx, agent.ApprovalRequest{
-		ApprovalID: "finish-" + d.DriverID,
+		ApprovalID: fmt.Sprintf("finish-%s-i%d", d.DriverID, n),
 		Agent:      d.Spec.Name + " (series completion)",
 		ToolName:   "finish_series",
 		Args:       args,
@@ -538,9 +563,11 @@ func (d *Driver) finish(appendE appendFunc, st *State, reason string, iterations
 // runIteration runs the iteration's child to completion, applying the
 // on_child_failure retry policy: attempt 1 lands under sub/iter-N; each retry
 // gets its own sub/iter-N-aM store so a re-run never appends onto a dead log.
-// A ctx cancel stops retrying immediately. Returns the last attempt's result,
-// its child dir, and its error (nil on the first success).
-func (d *Driver) runIteration(ctx context.Context, n int, childSession string, allowance int) (agent.RunResult, string, error) {
+// A ctx cancel stops retrying immediately. Returns the last attempt's result
+// and dir, the SUMMED spend across every attempt (failed retries burned real
+// tokens — the budget must see them; S6 review), and the error (nil on the
+// first success).
+func (d *Driver) runIteration(ctx context.Context, n int, childSession string, allowance int) (agent.RunResult, string, provider.Usage, error) {
 	attempts := 1
 	if d.Spec.OnChildFailure.Mode == OnFailRetry && d.Spec.OnChildFailure.Max > 0 {
 		attempts += d.Spec.OnChildFailure.Max
@@ -548,13 +575,14 @@ func (d *Driver) runIteration(ctx context.Context, n int, childSession string, a
 	var (
 		res      agent.RunResult
 		childDir string
+		spent    provider.Usage
 		rerr     error
 	)
 	for a := 1; a <= attempts; a++ {
 		childDir = filepath.Join(d.Store.Dir(), "sub", iterDir(n, a))
 		childStore, err := store.OpenEventStore(childDir)
 		if err != nil {
-			return agent.RunResult{}, childDir, fmt.Errorf("driver: open child store: %w", err)
+			return agent.RunResult{}, childDir, spent, fmt.Errorf("driver: open child store: %w", err)
 		}
 		session := childSession
 		if a > 1 {
@@ -563,13 +591,23 @@ func (d *Driver) runIteration(ctx context.Context, n int, childSession string, a
 		// A pre-existing journal means the driver crashed with this child
 		// in-flight (only attempt 1 can carry prior events — retries always get
 		// a fresh dir). If that child already reached a terminal state, settle
-		// from its fold; otherwise resume it (its own in-doubt discipline
-		// guards correctness) rather than duplicating a fresh run.
+		// from its fold — an error/canceled ending settles as a FAILURE so the
+		// on_child_failure policy applies identically across the crash (S6
+		// review); otherwise resume it (its own in-doubt discipline guards
+		// correctness) rather than duplicating a fresh run.
 		if childStore.LastSeq() > 0 {
 			child := d.NewChild(childStore, session, n, allowance)
 			if done, dres := settledChild(childDir); done {
 				_ = childStore.Close()
-				return dres, childDir, nil
+				spent = addUsage(spent, dres.Usage)
+				if dres.Reason == "error" || dres.Reason == "canceled" {
+					res, rerr = dres, fmt.Errorf("child ended %s (settled from journal)", dres.Reason)
+					if ctx.Err() != nil {
+						return res, childDir, spent, rerr
+					}
+					continue
+				}
+				return dres, childDir, spent, nil
 			}
 			res, rerr = child.Resume(ctx)
 		} else {
@@ -577,18 +615,29 @@ func (d *Driver) runIteration(ctx context.Context, n int, childSession string, a
 			res, rerr = child.Run(ctx, d.buildTask())
 		}
 		_ = childStore.Close()
+		spent = addUsage(spent, childSpent(childDir))
 		if rerr == nil {
-			return res, childDir, nil
+			return res, childDir, spent, nil
 		}
 		if ctx.Err() != nil {
-			return res, childDir, rerr // cancel is not a retryable failure
+			return res, childDir, spent, rerr // cancel is not a retryable failure
 		}
 		if a < attempts {
 			slog.Warn("driver: child attempt failed, retrying",
 				"driver", d.DriverID, "iter", n, "attempt", a, "err", rerr)
 		}
 	}
-	return res, childDir, rerr
+	return res, childDir, spent, rerr
+}
+
+// addUsage sums token accounting across attempts.
+func addUsage(a, b provider.Usage) provider.Usage {
+	return provider.Usage{
+		InputTokens:      a.InputTokens + b.InputTokens,
+		OutputTokens:     a.OutputTokens + b.OutputTokens,
+		CacheReadTokens:  a.CacheReadTokens + b.CacheReadTokens,
+		CacheWriteTokens: a.CacheWriteTokens + b.CacheWriteTokens,
+	}
 }
 
 // settledChild reports whether a child journal is already at a terminal state
@@ -707,10 +756,10 @@ func (d *Driver) stalled(st *State) bool {
 // satisfy the goal. The aggregate score is the minimum across verifiers (the
 // weakest gate), so stall detection tracks the true bottleneck — seeded from
 // the first verifier so a single metric score above 1 is not clamped.
-func (d *Driver) verify(ctx context.Context, childDir string) event.IterationVerdict {
+func (d *Driver) verify(ctx context.Context, n int, childDir string) event.IterationVerdict {
 	agg := event.IterationVerdict{Pass: true}
 	for i, v := range d.Spec.Verifiers {
-		vv := d.verifyOne(ctx, v, childDir)
+		vv := d.verifyOne(ctx, n, v, childDir)
 		if i == 0 || vv.Score < agg.Score {
 			agg.Score = vv.Score
 		}
@@ -724,14 +773,14 @@ func (d *Driver) verify(ctx context.Context, childDir string) event.IterationVer
 	return agg
 }
 
-func (d *Driver) verifyOne(ctx context.Context, v VerifierSpec, childDir string) event.IterationVerdict {
+func (d *Driver) verifyOne(ctx context.Context, n int, v VerifierSpec, childDir string) event.IterationVerdict {
 	switch v.Kind {
 	case VerifierCommand:
 		return d.verifyCommand(ctx, v)
 	case VerifierLLMJudge:
 		return d.verifyLLMJudge(ctx, v, childDir)
 	case VerifierHuman:
-		return d.verifyHuman(ctx, v, childDir)
+		return d.verifyHuman(ctx, n, v, childDir)
 	default:
 		return event.IterationVerdict{Verifier: v.Kind, Detail: "unknown verifier kind " + v.Kind}
 	}
@@ -832,7 +881,7 @@ func (d *Driver) verifyLLMJudge(ctx context.Context, v VerifierSpec, childDir st
 // agent's ask path (DESIGN: human verifier = the existing ask path; it may
 // hang for days for free). Approve passes; deny or an unset non-interactive
 // resolver fails closed.
-func (d *Driver) verifyHuman(ctx context.Context, v VerifierSpec, childDir string) event.IterationVerdict {
+func (d *Driver) verifyHuman(ctx context.Context, n int, v VerifierSpec, childDir string) event.IterationVerdict {
 	resolver := d.Approvals
 	if resolver == nil {
 		resolver = &agent.EnvApprovals{}
@@ -842,7 +891,7 @@ func (d *Driver) verifyHuman(ctx context.Context, v VerifierSpec, childDir strin
 		"result": excerpt(childReport(childDir)),
 	})
 	dec, err := resolver.Resolve(ctx, agent.ApprovalRequest{
-		ApprovalID: "verify-" + d.DriverID,
+		ApprovalID: fmt.Sprintf("verify-%s-i%d", d.DriverID, n),
 		Agent:      d.Spec.Name + " (driver goal check)",
 		ToolName:   "verify_goal",
 		Args:       args,

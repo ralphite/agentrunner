@@ -86,6 +86,7 @@ type Server struct {
 	mu     sync.Mutex
 	runs   map[string]*hostedRun
 	failed map[string]bool // sessions whose timer-driven resume errored
+	conns  map[net.Conn]struct{}
 	ln     net.Listener
 	wg     sync.WaitGroup
 	// runsWG tracks HOSTED RUNS (not connections): graceful shutdown waits
@@ -161,6 +162,9 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	if s.runs == nil {
 		s.runs = map[string]*hostedRun{}
 	}
+	if s.conns == nil {
+		s.conns = map[net.Conn]struct{}{}
+	}
 	if s.Clock == nil {
 		s.Clock = clock.Real{}
 	}
@@ -176,6 +180,10 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 			return fmt.Errorf("daemon: %w", err)
 		}
 	}
+	// Owner-only, explicitly: anyone who can connect can submit runs and
+	// answer approvals, so the socket must not lean on the umask or the
+	// parent dir alone (S6 review).
+	_ = os.Chmod(s.SocketPath, 0o600)
 	s.ln = ln
 	go func() {
 		<-ctx.Done()
@@ -193,11 +201,18 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 				// Graceful shutdown: the ctx cancel is already propagating
 				// into every hosted run (cooperative cancel → terminal
 				// events). Refuse new runs, wait for the live ones to finish
-				// journaling, then drain the connections.
+				// journaling, then CLOSE the remaining connections — a
+				// client parked in a read/write must not wedge the deploy
+				// (S6 review P1) — and drain the handlers.
 				s.mu.Lock()
 				s.stopping = true
 				s.mu.Unlock()
 				s.runsWG.Wait()
+				s.mu.Lock()
+				for c := range s.conns {
+					_ = c.Close()
+				}
+				s.mu.Unlock()
 				s.wg.Wait()
 				return nil
 			}
@@ -214,7 +229,15 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 // serveConn handles one connection: ONE command line in, an event stream
 // out (v0 — interactive multiplexing arrives with approval routing).
 func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
-	defer func() { _ = conn.Close() }()
+	s.mu.Lock()
+	s.conns[conn] = struct{}{}
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		delete(s.conns, conn)
+		s.mu.Unlock()
+		_ = conn.Close()
+	}()
 	enc := json.NewEncoder(conn)
 	var cmd Command
 	sc := bufio.NewScanner(conn)
@@ -276,6 +299,15 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "run needs spec_path and task"})
 		return
 	}
+	// bypass is a workstation-only escape hatch (spec validation refuses it
+	// too); it must not be reachable over the wire (S6 review).
+	switch cmd.Mode {
+	case "", "default", "plan", "acceptEdits":
+	default:
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
+			Text: fmt.Sprintf("mode %q not allowed over the daemon (known: default, plan, acceptEdits)", cmd.Mode)})
+		return
+	}
 	id := s.NewID(cmd.Task)
 	hub := &hostedRun{id: id, notify: s.Notify, subs: map[chan protocol.Event]struct{}{}}
 	s.mu.Lock()
@@ -292,9 +324,16 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 	defer cancel()
 
 	// The run runs on the daemon's ctx (not the connection's): it survives
-	// the client going away.
+	// the client going away. The registry entry is removed when the run
+	// finishes — attach then serves replay only, and a long-lived daemon's
+	// map does not grow unboundedly (S6 review).
 	go func() {
 		defer s.runsWG.Done()
+		defer func() {
+			s.mu.Lock()
+			delete(s.runs, id)
+			s.mu.Unlock()
+		}()
 		defer hub.finish()
 		if err := s.Run(ctx, RunRequest{
 			SessionID: id, SpecPath: cmd.SpecPath, Task: cmd.Task,

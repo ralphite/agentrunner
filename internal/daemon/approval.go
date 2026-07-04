@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"fmt"
 	"sync"
 )
 
@@ -27,18 +28,32 @@ func NewApprovalBroker() *ApprovalBroker {
 
 func key(session, approvalID string) string { return session + "/" + approvalID }
 
-// Ask parks until an answer arrives or ctx ends (the run's own cancel and
-// the durable-park semantics stay with the agent loop — this is only the
-// cross-process rendezvous).
-func (b *ApprovalBroker) Ask(ctx context.Context, session, approvalID string) (ApprovalAnswer, error) {
-	ch := make(chan ApprovalAnswer, 1)
-	k := key(session, approvalID)
+// Register parks a NEW ask and returns the id the answer must address —
+// unique even when deterministic call ids collide across concurrently-asking
+// siblings (S6 review: two children asking at turn 1/index 0 share
+// apr-eff-tool-call_1_0): a taken id gets a #<n> suffix, and the CALLER must
+// surface the returned id, not the original. Pair with Wait.
+func (b *ApprovalBroker) Register(session, approvalID string) (string, <-chan ApprovalAnswer) {
 	b.mu.Lock()
-	b.pending[k] = ch
-	b.mu.Unlock()
+	defer b.mu.Unlock()
+	id := approvalID
+	for i := 2; ; i++ {
+		if _, taken := b.pending[key(session, id)]; !taken {
+			break
+		}
+		id = fmt.Sprintf("%s#%d", approvalID, i)
+	}
+	ch := make(chan ApprovalAnswer, 1)
+	b.pending[key(session, id)] = ch
+	return id, ch
+}
+
+// Wait blocks until the registered ask is answered or ctx ends, then removes
+// the registration (its own only — the id is unique per Register).
+func (b *ApprovalBroker) Wait(ctx context.Context, session, id string, ch <-chan ApprovalAnswer) (ApprovalAnswer, error) {
 	defer func() {
 		b.mu.Lock()
-		delete(b.pending, k)
+		delete(b.pending, key(session, id))
 		b.mu.Unlock()
 	}()
 	select {
@@ -47,6 +62,12 @@ func (b *ApprovalBroker) Ask(ctx context.Context, session, approvalID string) (A
 	case <-ctx.Done():
 		return ApprovalAnswer{}, ctx.Err()
 	}
+}
+
+// Ask is Register + Wait for callers that control their own id uniqueness.
+func (b *ApprovalBroker) Ask(ctx context.Context, session, approvalID string) (ApprovalAnswer, error) {
+	id, ch := b.Register(session, approvalID)
+	return b.Wait(ctx, session, id, ch)
 }
 
 // Answer resolves a parked ask; false when nothing is waiting under that key
