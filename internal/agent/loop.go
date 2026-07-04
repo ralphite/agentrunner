@@ -570,7 +570,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 		if errs.ClassOf(cause) == errs.Canceled {
 			reason = "canceled"
 		}
-		_, _ = runEpilogue(ctx, ds, appendE, reason, turn, true)
+		_, _ = l.runEpilogue(ctx, ds, appendE, reason, turn, true)
 		return cause
 	}
 
@@ -636,7 +636,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 						return RunResult{}, abort(act.turn, err)
 					}
 					slog.Warn("token budget exhausted; ending run", "limit", l.Spec.Budget.MaxTotalTokens, "used", used)
-					return runEpilogue(ctx, ds, appendE, "limit_exceeded", act.turn, false)
+					return l.runEpilogue(ctx, ds, appendE, "limit_exceeded", act.turn, false)
 				}
 				return RunResult{}, abort(act.turn, fmt.Errorf("turn %d: llm call denied by pipeline", act.turn))
 			}
@@ -710,7 +710,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				if ds.s.Run.MalformedRetries > maxMalformedRetries {
 					l.emit(protocol.Event{Kind: protocol.KindError, Turn: act.turn,
 						Text: "model repeatedly returned malformed tool calls; giving up"})
-					return runEpilogue(ctx, ds, appendE, "malformed_tool_call", act.turn, false)
+					return l.runEpilogue(ctx, ds, appendE, "malformed_tool_call", act.turn, false)
 				}
 				continue
 			}
@@ -730,7 +730,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			if turn.Finish == provider.FinishOther || turn.Finish == provider.FinishBlocked {
 				l.emit(protocol.Event{Kind: protocol.KindError, Turn: act.turn,
 					Text: "model stopped for a safety or policy reason (blocked)"})
-				return runEpilogue(ctx, ds, appendE, "blocked", act.turn, false)
+				return l.runEpilogue(ctx, ds, appendE, "blocked", act.turn, false)
 			}
 
 		case doTool:
@@ -758,7 +758,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			if act.reason == "max_turns" {
 				slog.Warn("run hit max_turns", "max_turns", l.Spec.MaxTurns)
 			}
-			res, err := runEpilogue(ctx, ds, appendE, act.reason, act.turn, false)
+			res, err := l.runEpilogue(ctx, ds, appendE, act.reason, act.turn, false)
 			l.emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: res.Reason, Turn: res.Turns})
 			return res, err
 		}

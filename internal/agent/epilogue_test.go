@@ -16,7 +16,7 @@ func instrumentEpilogue(t *testing.T, order *[]string, failAt string) {
 	t.Cleanup(func() { copy(epilogueSequence, saved) })
 	for i := range epilogueSequence {
 		name := epilogueSequence[i].name
-		epilogueSequence[i].run = func(context.Context, *driveState, AppendFunc, string) error {
+		epilogueSequence[i].run = func(context.Context, *Loop, *driveState, AppendFunc, *string) error {
 			*order = append(*order, name)
 			if name == failAt {
 				return errors.New(name + " exploded")
@@ -44,7 +44,7 @@ func TestEpilogueSequenceOrder(t *testing.T) {
 	m := &memAppend{}
 	ds := &driveState{s: state.New()}
 
-	res, err := runEpilogue(context.Background(), ds, foldingAppend(m, ds), "completed", 3, false)
+	res, err := (&Loop{Spec: &AgentSpec{}}).runEpilogue(context.Background(), ds, foldingAppend(m, ds), "completed", 3, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestEpilogueHookErrorAbortsNormalEnding(t *testing.T) {
 	m := &memAppend{}
 	ds := &driveState{s: state.New()}
 
-	_, err := runEpilogue(context.Background(), ds, foldingAppend(m, ds), "completed", 1, false)
+	_, err := (&Loop{Spec: &AgentSpec{}}).runEpilogue(context.Background(), ds, foldingAppend(m, ds), "completed", 1, false)
 	if err == nil || !equal(order, []string{"quiesce", "auto_publish"}) {
 		t.Fatalf("err = %v, order = %v", err, order)
 	}
@@ -86,7 +86,7 @@ func TestEpilogueBestEffortPressesOn(t *testing.T) {
 	m := &memAppend{}
 	ds := &driveState{s: state.New()}
 
-	res, err := runEpilogue(context.Background(), ds, foldingAppend(m, ds), "error", 2, true)
+	res, err := (&Loop{Spec: &AgentSpec{}}).runEpilogue(context.Background(), ds, foldingAppend(m, ds), "error", 2, true)
 	if err != nil {
 		t.Fatal(err)
 	}

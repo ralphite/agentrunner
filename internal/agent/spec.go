@@ -68,6 +68,18 @@ type AgentSpec struct {
 	// Agents whitelists the sub-agent specs this agent may spawn (S5.3).
 	// The model only sees — and can only spawn — what is listed here.
 	Agents []string `yaml:"agents,omitempty"`
+	// Outputs is the deliverable contract (S5.6): at a graceful ending the
+	// epilogue auto-publishes each declared output (from its workspace Path
+	// unless the run already published the stream) and a missing Required
+	// one downgrades the ending to contract_violation.
+	Outputs []OutputSpec `yaml:"outputs,omitempty"`
+}
+
+// OutputSpec is one declared deliverable (DESIGN: name, path, required).
+type OutputSpec struct {
+	Name     string `yaml:"name"`
+	Path     string `yaml:"path,omitempty"`
+	Required bool   `yaml:"required,omitempty"`
 }
 
 // BudgetSpec is the spec-level resource cap.

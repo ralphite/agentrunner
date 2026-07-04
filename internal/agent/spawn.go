@@ -151,14 +151,18 @@ func (l *Loop) buildSpawnRun(call provider.ToolCall, res *tool.Result,
 			return nil, nil, false, err
 		}
 
+		// A contract-violating child renders as the parent's ERROR result
+		// (S5.6): the deliverables were the point of the delegation. The
+		// loop continues — the parent model decides what to do about it.
+		isError := cres.Reason == "contract_violation"
 		payload, _ := json.Marshal(map[string]any{
 			"agent": agentName, "child_session": childSession,
 			"reason": cres.Reason, "turns": cres.Turns,
 			"report": childReport(childDir),
 		})
-		*res = tool.Result{Payload: payload}
+		*res = tool.Result{Payload: payload, IsError: isError}
 		usage := cres.Usage
-		return res.Payload, &usage, false, nil
+		return res.Payload, &usage, isError, nil
 	}
 }
 

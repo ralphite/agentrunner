@@ -1688,3 +1688,28 @@ Latest/Streams、reopen 持久、空 stream 拒、逃逸 ref 拒);**崩溃注入
 journal 无 ArtifactPublished、fold 干净——孤儿而非悬空);e2e(双版本、
 journaled ref 全部可解析、fold Published=2);树共享(child 发布 → root
 store 可解析、fact 在 child journal)。registry golden 扩到 9 tools。
+
+## S5.6 outputs contract — DONE(2.16 epilogue auto-publish 槽位填实)
+
+- **spec `outputs:`**(DESIGN 形状:name/path/required):
+  `OutputSpec{Name, Path, Required}`。
+- **epilogue 槽位换体不换序**:hook 签名扩为
+  `run(ctx, *Loop, *driveState, AppendFunc, *string reason)`——槽位可**改写
+  reason**(contract 降级)但不得增删/重排兄弟槽;runEpilogue 转为 Loop
+  方法(auto_publish 需要 Artifacts/WS/emit)。
+- **auto_publish 语义**:仅优雅收尾(completed/max_turns)执行——error/
+  canceled/handoff/blocked 不欠交付物。逐 output:run 内已显式 publish
+  (fold Run.Published)→ 满足,不重复发布;否则有 Path 且 workspace 文件
+  存在 → 自动 Publish(blob 先于 event 同款纪律 + crash point)+
+  `ArtifactPublished{source:"epilogue"}`;仍缺且 Required → 收集。
+- **缺 required → `contract_violation`**:reason 改写 + KindError(缺失
+  stream 列表);RunEnded 落改写后 reason。**parent error 结果**:
+  buildSpawnRun 见 child reason==contract_violation → 父 tool result
+  IsError=true(交付物是委托的意义所在),loop 继续由父模型定夺(DESIGN
+  原文"渲染为 parent 的 error 结果,loop 继续")。
+
+**验证**:workspace 文件自动发布(source=epilogue、ref 可解析、事实先于
+run_ended);显式 publish 满足合约(仅 1 条发布事实,无 double-publish);
+缺 required → contract_violation + KindError + RunEnded 载新 reason,
+optional 缺失不违约;child 违约 → 父 error 结果携 reason、父 loop 继续、
+child journal reason=contract_violation。epilogue 既有三测更新签名。
