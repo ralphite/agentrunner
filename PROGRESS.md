@@ -2640,3 +2640,31 @@ DESIGN "await 必有 durable timer 兜底" 兑现于 epilogue quiesce:
 run_ended 严格递增序)、按时腿(timer_cancelled 落盘、无 pending timer
 存活)。**S7 还债包(①~④)全部收口**。全量 check + race + stage 6
 acceptance 绿。下一步:S7 模块 1——SnapshotStore + shadow repo backend。
+
+## S7 模块 1 — SnapshotStore 接口 + shadow repo backend — DONE
+
+新包 `internal/snapshot`。**接口**:`Snapshot(ctx) → ref(opaque)` /
+`Materialize(ctx, ref, dir)`(目标必须为空——fork 永不共享目录)。
+`None` 后端 + git 缺失时 `Open` 自动降级(`ErrUnavailable` 响亮优雅,
+barrier 届时记无 ref)。
+
+**shadow repo**:独立 `GIT_DIR`(bare,harness 数据目录),对用户 repo
+与 agent 的 git 操作双向隐形——用户 `.git` 从不入快照(git 拒绝含
+.git 组件的路径;测试同时断言 shadow 操作不改用户 .git 一个字节)。
+**纯 plumbing**:`add -A → write-tree → (HEAD tree 相同则去重复用 ref)
+→ commit-tree -p HEAD → update-ref`,无 hooks 无 porcelain 猜测;身份
+pinned(GIT_AUTHOR/COMMITTER env)、GIT_CONFIG_GLOBAL/SYSTEM=/dev/null、
+HOME 指向 shadow(全局配置零干扰)。**Materialize = `git archive | tar
+-x`**(不动 index/HEAD、无 linked-worktree 残留)。
+
+**硬排除表**(info/exclude,.gitignore 语义):`.env(.*)`, `*.pem`,
+`*.key`, `id_rsa*/id_ed25519*`, `.aws/credentials`, `.ssh/` ——凭据永不
+入快照,rewind 不复活已删凭据(DESIGN 346)。记档:深层内嵌 repo
+(vendor/x/.git)降级为 gitlink 不物化(文档化限制);ref pinned
+until GC(旧 ref 在新快照后仍可物化,测试断言)。
+
+**延迟基准(记档)**:200 文件树首拍 ≈18ms、增量 ≈14ms(本容器);
+大 repo 基准待真实 dogfood。七测试全绿(快照/物化/去重/pinned、硬
+排除、用户 repo 隐形、非空目标拒绝、none、git 缺失降级、延迟观察)。
+全量 check + race 通过。下一步:模块 2——CheckpointBarrier(弱化版,
+DESIGN §fork/rewind 修订随该步走变更流程)。

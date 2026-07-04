@@ -1,0 +1,208 @@
+// Package snapshot is the SnapshotStore seam (S7 模块 1, DESIGN L1): events
+// reference only OPAQUE snapshot refs, so no upper layer couples to the
+// mechanism. Snapshots serve rewind/fork exclusively, are taken only at
+// explicit barriers (module 2), and stay pinned until explicit GC.
+//
+// The default backend is a SHADOW REPO: a separate GIT_DIR in the harness
+// data directory, invisible to the user's repo AND to the agent's own git
+// commands (which see only the workspace's .git). backend=none degrades
+// gracefully — rewind/fork become unavailable, nothing else is affected;
+// a missing git binary degrades the same way.
+package snapshot
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+)
+
+// ErrUnavailable marks a store that cannot snapshot (backend=none, git
+// missing). Callers record barriers WITHOUT refs — fork/rewind of those
+// barriers is then refused, gracefully.
+var ErrUnavailable = errors.New("snapshot backend unavailable")
+
+// Store captures and reconstructs workspace states.
+type Store interface {
+	// Snapshot captures the workspace now and returns an opaque ref. Two
+	// snapshots of an identical tree may return the SAME ref (dedup).
+	Snapshot(ctx context.Context) (string, error)
+	// Materialize reconstructs ref's file tree into dir (created if needed,
+	// must be empty) — forks never share directories with the original.
+	Materialize(ctx context.Context, ref, dir string) error
+}
+
+// None is the degraded backend.
+type None struct{}
+
+func (None) Snapshot(context.Context) (string, error) { return "", ErrUnavailable }
+func (None) Materialize(context.Context, string, string) error {
+	return ErrUnavailable
+}
+
+// hardExcludes are paths NEVER snapshotted (DESIGN: 凭据路径显式排除出
+// 快照/rewind 范围 — a rewind must not resurrect deleted credentials).
+// Written to the shadow repo's info/exclude; .gitignore semantics.
+var hardExcludes = []string{
+	".env",
+	".env.*",
+	"*.pem",
+	"*.key",
+	"id_rsa*",
+	"id_ed25519*",
+	".aws/credentials",
+	".ssh/",
+}
+
+// ShadowRepo snapshots via a separate GIT_DIR. The workspace's own .git is
+// never tracked (git refuses paths containing a .git component), so the
+// user's repo and the agent's git operations stay invisible in both
+// directions. Embedded repos deeper in the tree (vendor/x/.git) degrade to
+// gitlinks and are NOT materialized — documented limit.
+type ShadowRepo struct {
+	gitDir string
+	work   string
+}
+
+// Open builds the default store for a workspace: a shadow repo under
+// dataDir, or None (with ErrUnavailable at use) when git is missing.
+func Open(dataDir, workspaceRoot string) (Store, error) {
+	if _, err := exec.LookPath("git"); err != nil {
+		return None{}, nil
+	}
+	gitDir := filepath.Join(dataDir, "shadow.git")
+	s := &ShadowRepo{gitDir: gitDir, work: workspaceRoot}
+	if err := s.init(); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+// NewShadowRepo opens a shadow repo at an explicit GIT_DIR (tests).
+func NewShadowRepo(gitDir, workspaceRoot string) (*ShadowRepo, error) {
+	s := &ShadowRepo{gitDir: gitDir, work: workspaceRoot}
+	if err := s.init(); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+func (s *ShadowRepo) init() error {
+	if _, err := os.Stat(filepath.Join(s.gitDir, "HEAD")); err == nil {
+		return s.writeExcludes() // already initialized; refresh excludes
+	}
+	// A bare init takes no --work-tree; run it raw.
+	cmd := exec.Command("git", "init", "--bare", "-q", s.gitDir)
+	var errb bytes.Buffer
+	cmd.Stderr = &errb
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("snapshot: git init: %v: %s", err, strings.TrimSpace(errb.String()))
+	}
+	return s.writeExcludes()
+}
+
+func (s *ShadowRepo) writeExcludes() error {
+	info := filepath.Join(s.gitDir, "info")
+	if err := os.MkdirAll(info, 0o700); err != nil {
+		return fmt.Errorf("snapshot: %w", err)
+	}
+	content := "# agentrunner hard excludes — credentials never enter snapshots\n" +
+		strings.Join(hardExcludes, "\n") + "\n"
+	return os.WriteFile(filepath.Join(info, "exclude"), []byte(content), 0o600)
+}
+
+// git runs one git command against the shadow GIT_DIR with a pinned
+// identity and no global/user config interference.
+func (s *ShadowRepo) git(ctx context.Context, args ...string) (string, error) {
+	full := append([]string{"--git-dir=" + s.gitDir, "--work-tree=" + s.work}, args...)
+	cmd := exec.CommandContext(ctx, "git", full...)
+	cmd.Env = append(os.Environ(),
+		"GIT_AUTHOR_NAME=agentrunner", "GIT_AUTHOR_EMAIL=snapshot@agentrunner",
+		"GIT_COMMITTER_NAME=agentrunner", "GIT_COMMITTER_EMAIL=snapshot@agentrunner",
+		"GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null",
+		"HOME="+s.gitDir, // keep hooks/config lookups inside the shadow
+	)
+	var out, errb bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &errb
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("snapshot: git %s: %v: %s", args[0], err, strings.TrimSpace(errb.String()))
+	}
+	return strings.TrimSpace(out.String()), nil
+}
+
+// Snapshot: stage the whole workspace (info/exclude applies), write the
+// tree, and commit it — deduplicating on an unchanged tree (same state,
+// same ref). Plumbing only: no hooks, no porcelain "nothing to commit".
+func (s *ShadowRepo) Snapshot(ctx context.Context) (string, error) {
+	if _, err := s.git(ctx, "add", "-A", "."); err != nil {
+		return "", err
+	}
+	tree, err := s.git(ctx, "write-tree")
+	if err != nil {
+		return "", err
+	}
+	head, headErr := s.git(ctx, "rev-parse", "HEAD")
+	if headErr == nil {
+		if prevTree, err := s.git(ctx, "rev-parse", "HEAD^{tree}"); err == nil && prevTree == tree {
+			return head, nil // identical state: reuse the ref (pinned anyway)
+		}
+	}
+	args := []string{"commit-tree", tree, "-m", "agentrunner snapshot"}
+	if headErr == nil {
+		args = append(args, "-p", head)
+	}
+	commit, err := s.git(ctx, args...)
+	if err != nil {
+		return "", err
+	}
+	if _, err := s.git(ctx, "update-ref", "HEAD", commit); err != nil {
+		return "", err
+	}
+	return commit, nil
+}
+
+// Materialize extracts ref into dir via `git archive` — no index or HEAD
+// mutation, no linked-worktree metadata to clean up.
+func (s *ShadowRepo) Materialize(ctx context.Context, ref, dir string) error {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return fmt.Errorf("snapshot: %w", err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return fmt.Errorf("snapshot: %w", err)
+	}
+	if len(entries) > 0 {
+		return fmt.Errorf("snapshot: materialize target %s is not empty", dir)
+	}
+	arch := exec.CommandContext(ctx, "git", "--git-dir="+s.gitDir, "archive", "--format=tar", ref)
+	tarCmd := exec.CommandContext(ctx, "tar", "-x", "-C", dir)
+	pipe, err := arch.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("snapshot: %w", err)
+	}
+	tarCmd.Stdin = pipe
+	var archErr, tarErr bytes.Buffer
+	arch.Stderr = &archErr
+	tarCmd.Stderr = &tarErr
+	if err := arch.Start(); err != nil {
+		return fmt.Errorf("snapshot: %w", err)
+	}
+	if err := tarCmd.Start(); err != nil {
+		_ = arch.Wait()
+		return fmt.Errorf("snapshot: %w", err)
+	}
+	tErr := tarCmd.Wait()
+	aErr := arch.Wait()
+	if aErr != nil {
+		return fmt.Errorf("snapshot: git archive %s: %v: %s", ref, aErr, strings.TrimSpace(archErr.String()))
+	}
+	if tErr != nil {
+		return fmt.Errorf("snapshot: tar extract: %v: %s", tErr, strings.TrimSpace(tarErr.String()))
+	}
+	return nil
+}
