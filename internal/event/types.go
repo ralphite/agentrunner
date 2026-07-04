@@ -37,6 +37,9 @@ const (
 	TypeTurnDiscarded     = "turn_discarded"
 	TypeContextCompacted  = "context_compacted"
 	TypeMalformedToolCall = "malformed_tool_call"
+
+	// S5 additions.
+	TypeToolsDiscovered = "tools_discovered"
 )
 
 // Effect verdicts and gate decisions.
@@ -252,6 +255,26 @@ type MalformedToolCall struct {
 	Error string `json:"error,omitempty"`
 }
 
+// ToolsDiscovered journals one MCP server's discovered tool schemas (S5.1).
+// The server CONNECTION is out-of-band runtime state — only the schemas are
+// facts: resume reads them to know the run's tool face, then re-connects out
+// of band and reconciles the live schemas against these (drift is refused,
+// never silently absorbed — same discipline as 2.13 versioning).
+type ToolsDiscovered struct {
+	Server string       `json:"server"`
+	Tools  []MCPToolDef `json:"tools"`
+}
+
+// MCPToolDef is one discovered MCP tool as journaled: fully-qualified name,
+// the class the harness assigned (untagged → execute), and the schema.
+type MCPToolDef struct {
+	Server      string          `json:"server"`
+	Name        string          `json:"name"` // fully-qualified mcp__<server>__<tool>
+	Description string          `json:"description,omitempty"`
+	Class       string          `json:"class"`
+	InputSchema json.RawMessage `json:"input_schema,omitempty"`
+}
+
 // GateResult is one gate's judgment inside an effect resolution.
 type GateResult struct {
 	Gate     string `json:"gate"`
@@ -299,4 +322,5 @@ var Registry = map[string]func() any{
 	TypeTurnDiscarded:     func() any { return &TurnDiscarded{} },
 	TypeContextCompacted:  func() any { return &ContextCompacted{} },
 	TypeMalformedToolCall: func() any { return &MalformedToolCall{} },
+	TypeToolsDiscovered:   func() any { return &ToolsDiscovered{} },
 }

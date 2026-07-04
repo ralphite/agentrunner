@@ -34,7 +34,7 @@ func TestAdvertisedToolsByMode(t *testing.T) {
 		{pipeline.ModeBypass, []string{"read_file", "edit_file", "bash", "exit_plan_mode"}},
 	}
 	for _, tc := range cases {
-		if got := names(advertisedTools(defs, tc.mode)); !equal(got, tc.want) {
+		if got := names(advertisedTools(state.New(), defs, tc.mode)); !equal(got, tc.want) {
 			t.Errorf("%s: advertised = %v, want %v", tc.mode, got, tc.want)
 		}
 	}

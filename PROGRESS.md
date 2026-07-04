@@ -1497,3 +1497,44 @@ journaled schema 带外重连+漂移检测。本步先落纯 client 抽象(与 a
 
 新增依赖:modelcontextprotocol/go-sdk v1.6.1(+ jsonschema-go、uritemplate、
 oauth2、segmentio/encoding 传递依赖);go mod tidy 干净。
+
+## S5.1 MCP client — DONE(part 2:schema 入 event + loop 集成 + resume 对账)
+
+- **`ToolsDiscovered{server, tools[]}` event(S5 首个新 event)**:
+  `MCPToolDef{Server, Name, Description, Class, InputSchema}`。Registry +
+  round-trip sample 齐。fold 进 `Run.MCPTools`(加性 omitempty 字段,同 Env
+  先例不 bump 版本;**未新增 sub-state**,信守 S5 执行包):per-server 替换、
+  全脸按 Name 排序(稳定 face → 稳定 prompt)。
+- **发现在 Run() journaled**:`discoverMCP`——SetAllowed(spec.allowed_tools)
+  → Discover → 逐 server 落 ToolsDiscovered。连接本身仍带外。
+- **loop 集成**:toolDefs = builtin + **fold 的** MCPTools(resume 拿到与原
+  run 逐字节相同的 face,无需再协商);`toolClassIn/toolIdempotentIn/
+  toolTimeoutIn`(state-aware,取代旧 free functions)——mcp read(源自
+  ReadOnlyHint)幂等、其余不幂等;**所有 mcp call 均给 execute 墙钟**(跨
+  进程边界,read 也可能挂死);`advertisedTools` 过 fold 取 class(mode 过滤
+  与 builtin 同款:plan mode 隐藏 execute-class MCP tool,测试锁定);
+  `buildToolRun` 按 `mcp__` 前缀分发到 Manager.Call(tool-level IsError =
+  model-visible,transport error = activity failure 走 retry/final 渲染)。
+- **S4.3 并发不变量守护**:Activity 配置读 ds.s,原先在 goroutine 内构造
+  会与 serialAppend 的 ds.s 突变竞争——改为**主 goroutine 先构造全部
+  Activity**、goroutine 只执行(race 在写测试时发现并修)。
+- **resume 对账**:`reconcileMCP`——journaled face 是本 run 的真相;缺
+  tool / class 漂移 / schema 漂移(compact JSON 比对)/ 无 manager 均**拒绝
+  resume**(2.13 版本纪律同款,绝不静默吸收)。
+- **spec `allowed_tools`**:AgentSpec 新字段(fully-qualified mcp 名单,
+  builtin 不受影响);缩窄作用于 advertise + journal + Call 三层。
+- **MCPManager 接口**(SetAllowed/Discover/Call)+ 编译期断言
+  `*mcp.Manager` 实现之;测试用 fakeMCP。
+
+**验证**:e2e(发现落盘、face 并入 advertise、mcp call 分发、结果入 fold)、
+allowed_tools 否定(不 advertise、不入 journal、伪造调用被拒且 run 继续)、
+plan mode face 过滤、resume 四例(匹配通过 / schema 漂移拒 / 缺 tool 拒 /
+无 manager 拒)。全量 check + race 绿。
+
+**Decisions**:
+- **face 从 fold 读而非 live manager**:resume 语义要求 face 与原 run 一致;
+  live 只用于执行与对账。
+- **typed-nil 陷阱**:MCPManager 参数必须以接口传递(*fakeMCP nil 指针装进
+  接口非 nil),测试注释记档。
+- **CLI 的真实 stdio server 接线留后续**(spec 声明 mcp server 命令 + 启动
+  transport 属配置层,harness 接缝已完备可测)。

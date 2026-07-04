@@ -17,6 +17,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/hook"
+	"github.com/ralphite/agentrunner/internal/mcp"
 	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider"
@@ -55,7 +56,23 @@ type Loop struct {
 	// Hooks runs post-tool hooks (3.8); pre hooks live in the pipeline's
 	// hook gate. nil = no hooks.
 	Hooks *hook.Runner
+	// MCP is the connected MCP tool face (S5.1). The connections are
+	// out-of-band runtime state owned by the caller; the loop journals the
+	// discovered schemas (ToolsDiscovered), dispatches mcp__ calls here, and
+	// on resume reconciles the live face against the journaled one. nil =
+	// no MCP tools.
+	MCP MCPManager
 }
+
+// MCPManager is the slice of mcp.Manager the loop needs (an interface so
+// tests can fake a face without live transports).
+type MCPManager interface {
+	SetAllowed(names []string)
+	Discover(ctx context.Context) ([]mcp.DiscoveredTool, error)
+	Call(ctx context.Context, qualified string, args json.RawMessage) (json.RawMessage, bool, error)
+}
+
+var _ MCPManager = (*mcp.Manager)(nil)
 
 // RunResult summarizes a completed run.
 type RunResult struct {
@@ -204,9 +221,58 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 			return RunResult{}, err
 		}
 	}
+	if err := l.discoverMCP(ctx, appendE); err != nil {
+		return RunResult{}, err
+	}
 	l.emit(protocol.Event{Kind: protocol.KindRunStart, Mode: ds.s.CurrentMode()})
 
 	return l.drive(ctx, ds, appendE)
+}
+
+// discoverMCP journals the MCP tool face at session start (S5.1): the
+// spec's allowed_tools narrowing is applied first, then each server's
+// discovered schemas land as one ToolsDiscovered fact. The connections
+// themselves stay out-of-band.
+func (l *Loop) discoverMCP(ctx context.Context, appendE AppendFunc) error {
+	if l.MCP == nil {
+		return nil
+	}
+	l.MCP.SetAllowed(l.Spec.AllowedTools)
+	tools, err := l.MCP.Discover(ctx)
+	if err != nil {
+		return fmt.Errorf("mcp discovery: %w", err)
+	}
+	for _, group := range groupByServer(tools) {
+		if _, err := appendE(event.TypeToolsDiscovered, &group); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// groupByServer buckets discovered tools into per-server ToolsDiscovered
+// payloads, in server order (input is already name-sorted).
+func groupByServer(tools []mcp.DiscoveredTool) []event.ToolsDiscovered {
+	byServer := map[string]*event.ToolsDiscovered{}
+	var order []string
+	for _, t := range tools {
+		g, ok := byServer[t.Server]
+		if !ok {
+			g = &event.ToolsDiscovered{Server: t.Server}
+			byServer[t.Server] = g
+			order = append(order, t.Server)
+		}
+		g.Tools = append(g.Tools, event.MCPToolDef{
+			Server: t.Server, Name: t.Name, Description: t.Description,
+			Class: t.Class, InputSchema: t.InputSchema,
+		})
+	}
+	sort.Strings(order)
+	out := make([]event.ToolsDiscovered, 0, len(order))
+	for _, s := range order {
+		out = append(out, *byServer[s])
+	}
+	return out
 }
 
 // Resume rebuilds the fold — snapshot plus event tail when a snapshot
@@ -305,6 +371,13 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 		return RunResult{}, &InDoubtError{Activities: inDoubt, Effects: pendingEffects}
 	}
 
+	// MCP re-connect reconciliation (S5.1): the journaled schemas are the
+	// run's tool face; the live face must still honor them. Drift is
+	// refused, never silently absorbed (2.13 version discipline).
+	if err := l.reconcileMCP(ctx, ds.s); err != nil {
+		return RunResult{}, err
+	}
+
 	// Timer sweep: expired pending timers fire now; future ones belong to
 	// in-flight activities, which re-arm on their re-run.
 	if _, err := FirePendingTimers(ds.s, l.Clock, appendE); err != nil {
@@ -312,6 +385,40 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 	}
 
 	return l.drive(ctx, ds, appendE)
+}
+
+// reconcileMCP verifies every journaled MCP tool still exists live with the
+// same class and schema. Extra live tools are ignored (the journaled face is
+// this run's truth); a missing or drifted tool refuses the resume.
+func (l *Loop) reconcileMCP(ctx context.Context, s state.State) error {
+	if len(s.Run.MCPTools) == 0 {
+		return nil
+	}
+	if l.MCP == nil {
+		return fmt.Errorf("resume: session uses MCP tools but no MCP servers are connected")
+	}
+	l.MCP.SetAllowed(l.Spec.AllowedTools)
+	live, err := l.MCP.Discover(ctx)
+	if err != nil {
+		return fmt.Errorf("resume: mcp discovery: %w", err)
+	}
+	byName := make(map[string]mcp.DiscoveredTool, len(live))
+	for _, t := range live {
+		byName[t.Name] = t
+	}
+	for _, want := range s.Run.MCPTools {
+		got, ok := byName[want.Name]
+		if !ok {
+			return fmt.Errorf("resume: mcp tool %q journaled but not offered by the live server", want.Name)
+		}
+		if got.Class != want.Class {
+			return fmt.Errorf("resume: mcp tool %q class drifted (%s → %s)", want.Name, want.Class, got.Class)
+		}
+		if compact(want.InputSchema) != compact(got.InputSchema) {
+			return fmt.Errorf("resume: mcp tool %q schema drifted from the journaled face", want.Name)
+		}
+	}
+	return nil
 }
 
 // InDoubtError reports non-idempotent activities — and side-effecting
@@ -394,6 +501,14 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 	toolDefs, err := tool.ProviderDefs(l.Spec.Tools)
 	if err != nil {
 		return RunResult{}, err
+	}
+	// The MCP face comes from the FOLD, not the live manager: what was
+	// journaled at discovery is what the run advertises — resume gets the
+	// identical face without re-negotiation (S5.1).
+	for _, mt := range ds.s.Run.MCPTools {
+		toolDefs = append(toolDefs, provider.ToolDef{
+			Name: mt.Name, Description: mt.Description, InputSchema: mt.InputSchema,
+		})
 	}
 	// abort routes a dying run through the same epilogue, best-effort, so
 	// a failed log is distinguishable from a truncated one. User
@@ -627,12 +742,13 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 	for _, call := range act.calls {
 		l.emit(protocol.Event{Kind: protocol.KindToolCall, Turn: act.turn,
 			Tool: call.Name, CallID: call.CallID, Args: compact(call.Args)})
+		class := toolClassIn(ds.s, call.Name)
 		eff := pipeline.Effect{
 			ID: toolEffectID(call.CallID), Kind: "tool_call",
-			ToolName: call.Name, Class: toolClass(call.Name),
+			ToolName: call.Name, Class: class,
 			Args: call.Args, CallID: call.CallID,
 			Mode:      ds.s.CurrentMode(),
-			EstTokens: pipeline.EstTokensForClass(toolClass(call.Name)),
+			EstTokens: pipeline.EstTokensForClass(class),
 			Budget:    budgetView(ds.s),
 		}
 		outcome, ok, err := l.adjudicate(ctx, ds, appendE, eff)
@@ -663,20 +779,26 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 	}
 	execP := &ActivityExecutor{Append: serialAppend, Clock: l.Clock, Redact: redact.FromEnv()}
 	errsOut := make([]error, len(allowed))
-	var wg sync.WaitGroup
+	// Activities are BUILT on this goroutine (their config reads ds.s, which
+	// the concurrent serialAppend mutates) and only RUN concurrently.
+	acts := make([]Activity, len(allowed))
 	for i, p := range allowed {
+		acts[i] = Activity{
+			ID: "tool-" + p.call.CallID, Kind: event.KindTool,
+			Name: p.call.Name, Args: p.call.Args, CallID: p.call.CallID,
+			Idempotent: toolIdempotentIn(ds.s, p.call.Name),
+			Timeout:    toolTimeoutIn(ds.s, p.call.Name),
+			Run:        l.buildToolRun(p.call, p.res),
+			PostRun:    l.buildPostRun(p.call),
+		}
+	}
+	var wg sync.WaitGroup
+	for i := range acts {
 		wg.Add(1)
-		go func(i int, p pending) {
+		go func(i int) {
 			defer wg.Done()
-			errsOut[i] = execP.Do(actCtx, Activity{
-				ID: "tool-" + p.call.CallID, Kind: event.KindTool,
-				Name: p.call.Name, Args: p.call.Args, CallID: p.call.CallID,
-				Idempotent: toolIdempotent(p.call.Name),
-				Timeout:    toolTimeout(p.call.Name),
-				Run:        l.buildToolRun(p.call, p.res),
-				PostRun:    l.buildPostRun(p.call),
-			})
-		}(i, p)
+			errsOut[i] = execP.Do(actCtx, acts[i])
+		}(i)
 	}
 	wg.Wait()
 	stopInt()
@@ -732,6 +854,21 @@ func (l *Loop) buildToolRun(call provider.ToolCall, res *tool.Result) func(conte
 			*res = tool.Result{Payload: json.RawMessage(
 				`{"output":"plan approved; now in default mode"}`)}
 			return res.Payload, nil, false, nil
+		}
+	}
+	// mcp__ calls dispatch to the out-of-band MCP face (S5.1). A tool-level
+	// IsError is a model-visible result; a transport error is an activity
+	// failure (retry policy applies, final failure renders for the model).
+	// With no manager connected the call falls through to the executor,
+	// whose unknown-tool error is equally model-visible.
+	if l.MCP != nil && strings.HasPrefix(call.Name, "mcp__") {
+		return func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
+			payload, isErr, err := l.MCP.Call(ctx, call.Name, call.Args)
+			if err != nil {
+				return nil, nil, false, err
+			}
+			*res = tool.Result{Payload: payload, IsError: isErr}
+			return res.Payload, nil, res.IsError, nil
 		}
 	}
 	return func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
@@ -928,20 +1065,40 @@ func deniedResult(outcome pipeline.Outcome) tool.Result {
 	return tool.Result{Payload: payload, IsError: true}
 }
 
-func toolClass(name string) string {
+// toolClassIn resolves a tool's permission class from the built-in registry
+// or, for mcp__ names, from the fold's journaled MCP face (S5.1). Unknown
+// names return "" and every consumer fails closed on it.
+func toolClassIn(s state.State, name string) string {
 	if def, ok := tool.Get(name); ok {
 		return string(def.Class)
+	}
+	if mt, ok := mcpToolIn(s, name); ok {
+		return mt.Class
 	}
 	return ""
 }
 
-// toolIdempotent is the S2 placeholder policy: reads re-run safely on
-// resume; edits and executions do not. S3 refines this per tool class.
-func toolIdempotent(name string) bool {
-	def, ok := tool.Get(name)
-	// Reads and wait-class tools (exit_plan_mode) re-run safely on resume;
-	// edits and executions do not (correctness #4).
-	return ok && (def.Class == tool.ClassRead || def.Class == tool.ClassWait)
+func mcpToolIn(s state.State, name string) (event.MCPToolDef, bool) {
+	for _, mt := range s.Run.MCPTools {
+		if mt.Name == name {
+			return mt, true
+		}
+	}
+	return event.MCPToolDef{}, false
+}
+
+// toolIdempotentIn: reads and wait-class tools re-run safely on resume;
+// edits and executions do not (correctness #4). MCP read-class tools carry
+// the server's ReadOnlyHint ("does not modify its environment"), so they
+// re-run safely too; everything else MCP is execute and does not.
+func toolIdempotentIn(s state.State, name string) bool {
+	if def, ok := tool.Get(name); ok {
+		return def.Class == tool.ClassRead || def.Class == tool.ClassWait
+	}
+	if mt, ok := mcpToolIn(s, name); ok {
+		return mt.Class == string(tool.ClassRead)
+	}
+	return false
 }
 
 // toolEffectID namespaces tool effects away from LLM effects (eff-llm-t<n>),
@@ -956,8 +1113,17 @@ const executeToolTimeout = 120 * time.Second
 // turn before the run ends with a user-visible error (S4.6).
 const maxMalformedRetries = 2
 
-func toolTimeout(name string) time.Duration {
-	if def, ok := tool.Get(name); ok && def.Class == tool.ClassExecute {
+func toolTimeoutIn(s state.State, name string) time.Duration {
+	if def, ok := tool.Get(name); ok {
+		if def.Class == tool.ClassExecute {
+			return executeToolTimeout
+		}
+		return 0
+	}
+	if _, ok := mcpToolIn(s, name); ok {
+		// Every MCP call crosses a process/network boundary; even a
+		// read-class tool can hang on a stuck server, so all get the
+		// execute wall clock.
 		return executeToolTimeout
 	}
 	return 0

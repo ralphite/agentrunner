@@ -58,6 +58,10 @@ type AgentSpec struct {
 	Mode string `yaml:"mode,omitempty"`
 	// Budget caps the run (3.7); zero values mean unlimited.
 	Budget BudgetSpec `yaml:"budget,omitempty"`
+	// AllowedTools narrows the MCP tool face (S5.1) to these fully-qualified
+	// names (mcp__<server>__<tool>). Empty = every discovered tool. Built-in
+	// tools are unaffected — they are selected by Tools.
+	AllowedTools []string `yaml:"allowed_tools,omitempty"`
 }
 
 // BudgetSpec is the spec-level resource cap.

@@ -49,6 +49,9 @@ var samples = map[string]any{
 	TypeTurnDiscarded:     &TurnDiscarded{Turn: 3, Reason: "llm retry after partial stream"},
 	TypeContextCompacted:  &ContextCompacted{UptoTurn: 4, Summary: "user asked X; did Y", DroppedTurns: 3},
 	TypeMalformedToolCall: &MalformedToolCall{Turn: 3, Raw: "{bad json", Error: "unexpected end of input"},
+	TypeToolsDiscovered: &ToolsDiscovered{Server: "demo", Tools: []MCPToolDef{{
+		Server: "demo", Name: "mcp__demo__peek", Description: "read-only peek",
+		Class: "read", InputSchema: json.RawMessage(`{"type":"object"}`)}}},
 	TypeEffectResolved: &EffectResolved{EffectID: "eff-call_3_1", CallID: "call_3_1",
 		Verdict: VerdictDeny, GateResults: []GateResult{
 			{Gate: "permission", Decision: VerdictDeny, Reason: "path escapes workspace"}}},

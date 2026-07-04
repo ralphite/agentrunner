@@ -6,6 +6,7 @@ package state
 
 import (
 	"encoding/json"
+	"sort"
 	"strings"
 
 	"github.com/ralphite/agentrunner/internal/errs"
@@ -169,6 +170,11 @@ type Run struct {
 	// start and injected verbatim into the prompt prefix on every turn, so
 	// the cacheable prefix stays byte-stable as the conversation grows.
 	Env string `json:"env,omitempty"`
+	// MCPTools is the journaled MCP tool face (S5.1): the schemas discovered
+	// at session start. The connections themselves are out-of-band runtime
+	// state; the fold only knows the facts a resume needs to rebuild the
+	// advertised face and reconcile a re-connect. Sorted by Name.
+	MCPTools []event.MCPToolDef `json:"mcp_tools,omitempty"`
 }
 
 // New is the empty pre-RunStarted state.
@@ -231,6 +237,20 @@ func Apply(s State, env event.Envelope) (State, error) {
 
 	case *event.MalformedToolCall:
 		s.Run.MalformedRetries++
+
+	case *event.ToolsDiscovered:
+		// Replace this server's tools (re-discovery wins), keep other
+		// servers', and keep the whole face sorted by name — a stable face
+		// keeps the advertised tool list (and thus the prompt) stable.
+		kept := make([]event.MCPToolDef, 0, len(s.Run.MCPTools)+len(p.Tools))
+		for _, t := range s.Run.MCPTools {
+			if t.Server != p.Server {
+				kept = append(kept, t)
+			}
+		}
+		kept = append(kept, p.Tools...)
+		sort.Slice(kept, func(i, j int) bool { return kept[i].Name < kept[j].Name })
+		s.Run.MCPTools = kept
 
 	case *event.ContextCompacted:
 		// The full message log stays intact (truth); the boundary freezes at

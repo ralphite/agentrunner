@@ -22,7 +22,7 @@ func Assemble(s state.State, spec *AgentSpec, toolDefs []provider.ToolDef, turn 
 		MaxTokens: spec.Model.MaxTokens,
 		System:    assembleSystem(s.Run.Env, spec.SystemPrompt, mode),
 		Messages:  assembleMessages(s),
-		Tools:     advertisedTools(toolDefs, mode),
+		Tools:     advertisedTools(s, toolDefs, mode),
 		Turn:      turn,
 		Thinking: provider.ThinkingConfig{
 			Enabled:      spec.Model.Thinking.Enabled,
@@ -112,11 +112,12 @@ func assembleMessages(s state.State) []provider.Message {
 }
 
 // advertisedTools filters the tool face by mode (3.6a): what the model
-// cannot use, it does not see.
-func advertisedTools(defs []provider.ToolDef, mode string) []provider.ToolDef {
+// cannot use, it does not see. Classes resolve through the fold so MCP
+// tools (journaled face, S5.1) filter the same way as built-ins.
+func advertisedTools(s state.State, defs []provider.ToolDef, mode string) []provider.ToolDef {
 	out := make([]provider.ToolDef, 0, len(defs))
 	for _, d := range defs {
-		if pipeline.ClassAdvertised(mode, toolClass(d.Name)) {
+		if pipeline.ClassAdvertised(mode, toolClassIn(s, d.Name)) {
 			out = append(out, d)
 		}
 	}
