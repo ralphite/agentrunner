@@ -19,7 +19,8 @@ var samples = map[string]any{
 		Spec: json.RawMessage(`{"name":"hello"}`), WorkspaceRoot: "/w",
 		Env: "<env>\ncwd: /w\n</env>", Memory: "<memory>rules</memory>",
 		Skills: "<skills>- s</skills>", Agents: "<agents>- a</agents>",
-		Inputs: []ArtifactInput{{Ref: "sha256-aa", Path: "in.md"}}},
+		Inputs:           []ArtifactInput{{Ref: "sha256-aa", Path: "in.md"}},
+		PermissionLayers: json.RawMessage(`[[{"tool":"edit_file","action":"deny"}]]`)},
 	TypeInputReceived: &InputReceived{Text: "please fix", Source: "cli"},
 	TypeTurnStarted:   &TurnStarted{Turn: 3},
 	TypeAssistantMessage: &AssistantMessage{Turn: 3, Message: provider.Message{

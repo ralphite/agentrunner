@@ -233,6 +233,11 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 		Memory: memoryBlock, Skills: skillsBlock,
 		Agents: renderAgentsDirectory(l.Spec.Agents, l.SubSpecs),
 		Inputs: l.Inputs,
+		// The effective permission rules, materialized as data (S6): a child
+		// pipeline holds the parent's gates, so this captures the WHOLE
+		// intersection chain — a standalone resume of this session rebuilds
+		// the same gates without the parent process.
+		PermissionLayers: marshalPermissionLayers(l.Pipeline),
 	}); err != nil {
 		return RunResult{}, err
 	}
@@ -1128,6 +1133,30 @@ func decide(s state.State, maxTurns int, onRunEnd string) action {
 		return action{kind: doEnd, turn: turn, reason: "max_turns"}
 	}
 	return action{kind: doTurn, turn: turn + 1}
+}
+
+// marshalPermissionLayers renders the pipeline's permission gates as ordered
+// rule layers (outermost first). Empty-rule gates carry only mode defaults —
+// identical for every gate of the run — so they add no layer. nil when there
+// is nothing to materialize.
+func marshalPermissionLayers(p *pipeline.Pipeline) json.RawMessage {
+	if p == nil {
+		return nil
+	}
+	var layers [][]pipeline.PermissionRule
+	for _, g := range p.Gates {
+		if pg, ok := g.(*pipeline.PermissionGate); ok && len(pg.Rules) > 0 {
+			layers = append(layers, pg.Rules)
+		}
+	}
+	if len(layers) == 0 {
+		return nil
+	}
+	raw, err := json.Marshal(layers)
+	if err != nil {
+		return nil
+	}
+	return raw
 }
 
 // isAgentLaunch reports whether a tool launches a child run (spawn keeps

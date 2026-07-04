@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -226,6 +227,76 @@ func TestSpawnChildCannotEscalatePermissions(t *testing.T) {
 	}
 	if !sawDeny {
 		t.Error("child journal missing the deny resolution")
+	}
+}
+
+// S6 (S5 回访): the child's RunStarted materializes the WHOLE permission
+// intersection chain as data — parent layer first, child layer second — so a
+// standalone resume of the child session rebuilds the same bounds without
+// the parent process's gate pointers.
+func TestSpawnMaterializesPermissionLayers(t *testing.T) {
+	root := t.TempDir()
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{
+			{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
+				Args: map[string]any{"agent": "summarizer", "task": "small job"}}},
+			{Finish: "tool_use"},
+		}},
+		{Respond: []scripted.Event{{Text: "child done"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "all done"}, {Finish: "end_turn"}}},
+	}}
+	l, _ := spawnLoop(t, fix, root)
+	ws := l.Exec.WS
+	parentRules := []pipeline.PermissionRule{
+		{Tool: "edit_file", Action: "deny"},
+		{Action: "allow"},
+	}
+	l.Pipeline = &pipeline.Pipeline{Gates: []pipeline.Gate{
+		&pipeline.SpawnGate{},
+		&pipeline.PermissionGate{Rules: parentRules, WS: ws},
+	}}
+	childSpec := summarizerSpec()
+	childSpec.Permissions = []pipeline.PermissionRule{
+		{Tool: "bash", Action: "deny"},
+		{Action: "allow"},
+	}
+	l.SubSpecs = staticResolver(map[string]*AgentSpec{"summarizer": childSpec})
+
+	if _, err := l.Run(context.Background(), "delegate"); err != nil {
+		t.Fatal(err)
+	}
+
+	layersOf := func(dir string) [][]pipeline.PermissionRule {
+		t.Helper()
+		events, err := store.ReadEvents(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		decoded, err := event.DecodePayload(events[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw := decoded.(*event.RunStarted).PermissionLayers
+		if len(raw) == 0 {
+			return nil
+		}
+		var layers [][]pipeline.PermissionRule
+		if err := json.Unmarshal(raw, &layers); err != nil {
+			t.Fatal(err)
+		}
+		return layers
+	}
+
+	parentLayers := layersOf(l.Store.Dir())
+	if len(parentLayers) != 1 || parentLayers[0][0].Tool != "edit_file" {
+		t.Fatalf("parent layers = %+v, want the single parent rule layer", parentLayers)
+	}
+	childLayers := layersOf(filepath.Join(l.Store.Dir(), "sub", "s1-a1"))
+	if len(childLayers) != 2 {
+		t.Fatalf("child layers = %+v, want [parent, child]", childLayers)
+	}
+	if childLayers[0][0].Tool != "edit_file" || childLayers[1][0].Tool != "bash" {
+		t.Fatalf("child layers order = %+v, want parent (edit_file deny) then child (bash deny)", childLayers)
 	}
 }
 

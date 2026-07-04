@@ -101,6 +101,14 @@ type RunStarted struct {
 	// Inputs are artifact refs to materialize into the workspace before the
 	// first turn (S5.8) — how a parent hands documents to a child.
 	Inputs []ArtifactInput `json:"inputs,omitempty"`
+	// PermissionLayers materializes the run's EFFECTIVE permission rules as
+	// data (S6, S5 回访): a JSON [][]pipeline.PermissionRule, ordered
+	// outermost (root) → innermost (this run). Chained first-match layers
+	// cannot be flattened into one list, so the layers stay separate; a
+	// cross-process resume rebuilds one gate per layer instead of chasing
+	// in-memory gate pointers that no longer exist. Raw JSON because event
+	// must not import pipeline (which imports event).
+	PermissionLayers json.RawMessage `json:"permission_layers,omitempty"`
 }
 
 // ArtifactInput is one artifact handed to a run as input (S5.8).

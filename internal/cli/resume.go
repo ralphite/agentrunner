@@ -12,6 +12,8 @@ import (
 	"github.com/ralphite/agentrunner/internal/agent"
 	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/hook"
+	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/runtime"
 	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
@@ -75,8 +77,22 @@ func resumeCmd(args []string, version string, stdout, stderr io.Writer) int {
 
 	fmt.Fprintf(stderr, "resuming session %s\n", sessionID)
 	// The live mode comes from the fold; spec.Mode is only the gate's
-	// static fallback.
-	pipe, hooks, err := buildPipeline(ws, spec.Permissions, spec.Mode, spec.Budget.MaxTotalTokens, stderr)
+	// static fallback. Journaled permission layers (S6) are the run's frozen
+	// effective rules — a child session resumed standalone keeps its
+	// parent's bounds; sessions predating the field fall back to the
+	// config-merge path.
+	var pipe *pipeline.Pipeline
+	var hooks *hook.Runner
+	if len(started.PermissionLayers) > 0 {
+		var layers [][]pipeline.PermissionRule
+		if err := json.Unmarshal(started.PermissionLayers, &layers); err != nil {
+			fmt.Fprintf(stderr, "agentrunner: journaled permission layers: %v\n", err)
+			return ExitRun
+		}
+		pipe, hooks, err = buildPipelineFromLayers(ws, layers, spec.Mode, spec.Budget.MaxTotalTokens, stderr)
+	} else {
+		pipe, hooks, err = buildPipeline(ws, spec.Permissions, spec.Mode, spec.Budget.MaxTotalTokens, stderr)
+	}
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return ExitRun

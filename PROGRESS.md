@@ -2211,3 +2211,31 @@ type、ts)同规。stage 1-5 acceptance 回归全绿。
 s6_reattach(daemon attach)场景待模块④。**记档**:driver stream 无
 header 事实(spec/versions 不入 journal)——resume 依赖 CLI 每次重给
 spec;version discipline 是否要补 driver header 事实,S6 出口 review 议。
+
+## S6 模块④(先行)— S5 回访:权限交集物化为数据 — DONE
+
+**语义前提**:PermissionGate 是 first-match(命中即裁),链式 gate 是
+AND(pipeline deny 短路、ask 聚合)。两份 first-match 规则表**扁平合并
+不保语义**(parent allow + child deny 合并后 first-match 可回 allow)——
+所以物化必须**按层**:`[][]PermissionRule`,外层(root)→ 内层(本 run)。
+
+实现:
+- `RunStarted.PermissionLayers json.RawMessage`(event 不能 import
+  pipeline——反向依赖,故存 raw JSON)。
+- `agent.Run()` 从 **live pipeline** 派生层(`marshalPermissionLayers`:
+  收集 Gates 中每个非空 PermissionGate.Rules)。child pipeline 本身持有
+  parent 的 gate 实例,所以 root(1 层)与 child(parent 层+child 层)
+  **同一代码路径自然正确**,无须穿参。空规则 gate 只有 mode 默认
+  (每 gate 相同)不成层。
+- resume:journaled layers 存在 → `buildPipelineFromLayers`(每层一个
+  gate 链装;hooks 仍取 live config——hook 是代码不可物化);缺失(旧
+  session)→ 原 config-merge 路径。`assemblePipeline` 提取共用装配
+  (floor → spawn → hooks → 权限层×N → budget;零层配一个空 gate 保
+  mode 默认)。**语义改进记档**:resume 权限自此以 journal 冻结为准,
+  live config 漂移不再静默改写在飞 run 的权限。
+- 测试:spawn e2e(parent 1 层、child [parent, child] 两层有序入
+  journal)+ 层重建语义单测(parent deny 管 child、child deny 管
+  parent——扁平合并会回 allow 的反例、read 双层放行)。
+
+全量 check + race 通过。模块④ 剩余:daemon 本体(socket/attach/timer/
+停机)+ 审批 correlation 跨进程路由。
