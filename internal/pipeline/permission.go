@@ -18,7 +18,12 @@ type PermissionRule struct {
 	Tool    string `yaml:"tool,omitempty"`    // exact tool name; empty = any
 	Path    string `yaml:"path,omitempty"`    // glob over the workspace-relative path (** crosses /)
 	Command string `yaml:"command,omitempty"` // glob over the whole command (* matches anything)
-	Action  string `yaml:"action"`            // allow | ask | deny
+	// Network matches the effect's egress scope (S7 模块 5): an uncontained
+	// execute-class effect carries "all"; a netns-contained one carries no
+	// scope and network rules never match it. `network: "*"` therefore
+	// means "any execution that WOULD have network egress".
+	Network string `yaml:"network,omitempty"`
+	Action  string `yaml:"action"` // allow | ask | deny
 }
 
 // Run modes and their no-rule-matched defaults per tool class.
@@ -63,7 +68,7 @@ func (g *PermissionGate) Check(_ context.Context, eff Effect) Decision {
 	}
 
 	for i, rule := range g.Rules {
-		if rule.matches(eff.ToolName, relPath, args.Path, args.Command) {
+		if rule.matches(eff.ToolName, relPath, args.Path, args.Command, eff.Network) {
 			switch rule.Action {
 			case event.VerdictAllow:
 				return Allow
@@ -187,7 +192,7 @@ func (g *PermissionGate) resolveRel(path string) (string, bool) {
 	return strings.TrimPrefix(rel, "/"), false
 }
 
-func (r PermissionRule) matches(toolName, relPath, rawPath, command string) bool {
+func (r PermissionRule) matches(toolName, relPath, rawPath, command, network string) bool {
 	if r.Tool != "" && r.Tool != toolName {
 		return false
 	}
@@ -198,6 +203,11 @@ func (r PermissionRule) matches(toolName, relPath, rawPath, command string) bool
 	}
 	if r.Command != "" {
 		if command == "" || !globMatch(r.Command, command, false) {
+			return false
+		}
+	}
+	if r.Network != "" {
+		if network == "" || !globMatch(r.Network, network, false) {
 			return false
 		}
 	}
@@ -214,6 +224,9 @@ func (r PermissionRule) describe() string {
 	}
 	if r.Command != "" {
 		parts = append(parts, "command="+r.Command)
+	}
+	if r.Network != "" {
+		parts = append(parts, "network="+r.Network)
 	}
 	if len(parts) == 0 {
 		parts = append(parts, "any")

@@ -511,6 +511,17 @@ type EffectResolved struct {
 	// ReservedTokens is the budget reservation granted with an allow
 	// (3.7b); released when the activity reaches a terminal event.
 	ReservedTokens int `json:"reserved_tokens,omitempty"`
+	// Containment records the OS-level containment in force for this
+	// execution (S7 模块 5) — the journal states what actually bounded the
+	// effect, not what was wished for. Absent = uncontained (pre-S7 runs
+	// and runs without a sandbox spec).
+	Containment *Containment `json:"containment,omitempty"`
+}
+
+// Containment is the effective sandbox scope applied to an execution.
+type Containment struct {
+	Network string `json:"network"`           // effective egress: none | all
+	Backend string `json:"backend,omitempty"` // netns | none
 }
 
 // Registry maps every event type to a constructor for its payload struct.

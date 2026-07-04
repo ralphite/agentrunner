@@ -3,6 +3,7 @@ package tool
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -333,5 +334,39 @@ func TestSemanticSearch(t *testing.T) {
 
 	if out, isErr := run(t, e, "semantic_search", `{"query":""}`); !isErr {
 		t.Errorf("empty query accepted: %v", out)
+	}
+}
+
+// Network containment (S7 模块 5): a contained executor runs bash in a
+// fresh netns — only loopback is visible; the ratchet never widens; a
+// host that cannot contain FAILS CLOSED instead of running with egress.
+func TestBashNetworkContainment(t *testing.T) {
+	e, _ := newExec(t)
+	if err := e.netNSAvailable(); err != nil {
+		t.Skipf("no unprivileged netns here: %v", err)
+	}
+	e.ContainNetwork()
+	if !e.NetworkContained() {
+		t.Fatal("ratchet did not hold")
+	}
+	out, isErr := run(t, e, "bash", `{"command":"tail -n +3 /proc/net/dev | cut -d: -f1 | tr -d ' '"}`)
+	if isErr {
+		t.Fatalf("contained bash failed: %v", out)
+	}
+	if got := strings.TrimSpace(out["stdout"].(string)); got != "lo" {
+		t.Errorf("interfaces inside netns = %q, want only lo", got)
+	}
+}
+
+func TestBashFailsClosedWithoutNetNS(t *testing.T) {
+	e, _ := newExec(t)
+	e.ProbeNetNS = func() error { return errors.New("namespaces disabled") }
+	e.ContainNetwork()
+	out, isErr := run(t, e, "bash", `{"command":"echo should not run"}`)
+	if !isErr {
+		t.Fatalf("bash ran despite uncontainable host: %v", out)
+	}
+	if msg := out["error"].(string); !strings.Contains(msg, "refusing to run") {
+		t.Errorf("error = %q", msg)
 	}
 }

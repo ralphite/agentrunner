@@ -2800,3 +2800,36 @@ golden 因 registry 扩了一名而更新(unknown_tool.golden、
 TestRegistryLoads)。全量 check + **全包 race** + stage 1–7 全 26
 场景回归绿。下一步:模块 5(OS 沙箱 + 网络出口)或 best-of-N;
 云 workspace/IDE 为 cut line,S7 收口前按 dogfood 优先级定。
+
+## S7 模块 5 — OS 沙箱(网络出口)+ rules network 资源类 — DONE
+
+**spec**:`sandbox: {network: none|all}`(校验入 LoadSpec)。none 时
+bash(前台与后台任务共用同一 exec 点)包 `unshare -r -n` 跑在全新
+netns(仅 loopback)。**棘轮语义**:executor 全树共享,任一 spec 要求
+none 即全树收容(`ContainNetwork()` 只紧不松,child spec 永远不能放
+宽);Run 与 Resume 都过 `applySandbox()`。**fail closed**:宿主不支持
+unprivileged netns(probe 一次,`ProbeNetNS` 为测试缝)时 bash 拒绝
+执行——绝不带出口静默运行。
+
+**rules network 资源类**:`PermissionRule.Network` glob 匹配 effect 的
+出口范围;未收容 execute effect 带 "all",收容后不带(network 规则
+不再触发)——`{tool: bash, network: "*", action: deny/ask}` 表达"任何
+将带出口的执行须拦/须批"。describe() 带 network 子句(审批文案)。
+
+**EffectResolved.Containment{network, backend}**(omitempty):记录
+生效 containment,三个落盘点全覆盖(直接判定、审批后 resolve——从
+fold 反查 call 的 tool class、崩溃恢复 resolveFromDecision);缺席 =
+未收容(pre-S7 形态,golden 零扰动)。DESIGN L2 "边界诚实"条目补
+network 段(additive)。
+
+记档:①出口策略 v0 为二值(none/all)——per-host 白名单需要 egress
+proxy,推迟到有真实需求;②文件系统沙箱等级(bash 可写路径闭环)未
+入本模块,S7 出口 review 归置;③contained bash 下 `unshare -r` 映射
+root,uid 敏感脚本的行为差异文档化于此。
+
+测试:pipeline(network 规则命中未收容/放过已收容 + describe);
+executor(netns 内仅 lo 可见、fail-closed 报错);agent e2e(spec →
+棘轮 → journal containment {none,netns} 全链路、同一 deny 规则拦
+未收容/放过已收容——per-verdict 断言)。全量 check + race + stage
+1–7 全 26 场景回归绿。S7 剩余:云 workspace 与 IDE(cut line)、
+best-of-N(backlog)、出口 review。

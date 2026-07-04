@@ -274,7 +274,12 @@ effect
   **命令模式匹配**（`{tool: bash, command: "git *", action: allow}` 式），
   bash 的可写范围最终由 workspace 沙箱等级闭环（沙箱等级决定 bash
   可写路径，与 path 规则同源配置）。这层关系明文写出，不假装 path 规则
-  覆盖一切。
+  覆盖一切。**network 资源类同理（S7 模块 5）**：rules 的 `network`
+  模式匹配 effect 的出口范围——未受限的 execute effect 带 `all`，
+  spec `sandbox.network: none` 经 netns 收容后不带出口、network 规则
+  不再触发；收容是共享 executor 上的**棘轮**（树内任一 spec 收紧即
+  全树收紧，永不放宽），宿主无法提供 netns 时 bash **fail closed**；
+  生效的 containment 记录在 `EffectResolved`（缺席 = 未收容）。
 - **路径匹配基于 realpath**：所有文件类 tool 的路径在 permission 匹配与
   边界检查前一律 resolve（symlink、`..` 归一化）；resolve 后落在
   workspace 外 → deny。`src/../../etc/passwd` 匹配不上 `src/**`，

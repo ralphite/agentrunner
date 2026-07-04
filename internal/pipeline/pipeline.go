@@ -36,6 +36,10 @@ type Effect struct {
 	SpawnDepth     int
 	SpawnCount     int
 	HandoffPending bool
+	// Network is the egress scope this execution would run with (S7 模块 5):
+	// "all" for an uncontained execute-class effect, "" when the sandbox
+	// already removes egress (netns) — network rules match the former only.
+	Network string
 }
 
 // Decision is one gate's judgment.

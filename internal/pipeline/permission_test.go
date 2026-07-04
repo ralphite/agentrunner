@@ -197,3 +197,27 @@ func TestUnknownClassFailsClosed(t *testing.T) {
 		}
 	}
 }
+
+// Network resource class (S7 模块 5): rules match the effect's egress
+// scope — an uncontained execute effect carries "all"; a netns-contained
+// one carries none and network rules never fire on it.
+func TestNetworkRuleMatchesEgressScope(t *testing.T) {
+	g := &PermissionGate{WS: newPermWS(t), Rules: []PermissionRule{
+		{Tool: "bash", Network: "*", Action: "ask"},
+		{Action: "allow"},
+	}}
+	open := toolEffect("bash", "execute", `{"command":"curl example.com"}`)
+	open.Network = "all"
+	if got := g.Check(context.Background(), open); got.Action != event.VerdictAsk {
+		t.Errorf("uncontained bash = %+v, want ask (network rule)", got)
+	}
+	if !strings.Contains(g.Rules[0].describe(), "network=*") {
+		t.Errorf("describe = %q, want network clause", g.Rules[0].describe())
+	}
+
+	contained := toolEffect("bash", "execute", `{"command":"curl example.com"}`)
+	// Network stays "" — the sandbox already removed egress.
+	if got := g.Check(context.Background(), contained); got.Action != event.VerdictAllow {
+		t.Errorf("contained bash = %+v, want fall through to allow", got)
+	}
+}

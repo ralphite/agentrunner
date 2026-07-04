@@ -81,6 +81,16 @@ type AgentSpec struct {
 	// unless the run already published the stream) and a missing Required
 	// one downgrades the ending to contract_violation.
 	Outputs []OutputSpec `yaml:"outputs,omitempty"`
+	// Sandbox is the OS containment spec (S7 模块 5). Network "none" removes
+	// bash egress via a network namespace — a RATCHET across the shared
+	// executor: any spec in the tree demanding none contains the whole
+	// tree and a child spec can never widen it back. Empty/"all" = open.
+	Sandbox SandboxSpec `yaml:"sandbox,omitempty"`
+}
+
+// SandboxSpec declares OS-level containment for executions.
+type SandboxSpec struct {
+	Network string `yaml:"network,omitempty"` // "" | all | none
 }
 
 // OutputSpec is one declared deliverable (DESIGN: name, path, required).
@@ -193,6 +203,11 @@ func (s *AgentSpec) validate(path string) error {
 		if d, err := time.ParseDuration(s.AwaitTimeout); err != nil || d <= 0 {
 			return fail("await_timeout", fmt.Sprintf("not a positive Go duration: %q", s.AwaitTimeout))
 		}
+	}
+	switch s.Sandbox.Network {
+	case "", "all", "none":
+	default:
+		return fail("sandbox.network", fmt.Sprintf("unknown value %q (known: all, none)", s.Sandbox.Network))
 	}
 	return nil
 }

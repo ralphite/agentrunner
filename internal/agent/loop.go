@@ -217,6 +217,7 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 	}
 	l.ensureBoard()
 	l.ensureApprovals()
+	l.applySandbox()
 	if err := l.ensureArtifacts(); err != nil {
 		return RunResult{}, err
 	}
@@ -340,6 +341,7 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 	// simply reopens.
 	l.ensureBoard()
 	l.ensureApprovals()
+	l.applySandbox()
 	if err := l.ensureArtifacts(); err != nil {
 		return RunResult{}, err
 	}
@@ -888,6 +890,7 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 			Mode:      ds.s.CurrentMode(),
 			EstTokens: pipeline.EstTokensForClass(class),
 			Budget:    budgetView(ds.s),
+			Network:   l.networkScope(class),
 		}
 		allowance := 0
 		if isAgentLaunch(call.Name) {
@@ -1361,10 +1364,44 @@ func (l *Loop) adjudicate(ctx context.Context, ds *driveState, appendE AppendFun
 		EffectID: eff.ID, CallID: eff.CallID,
 		Verdict: outcome.Verdict, GateResults: outcome.GateResults,
 		ReservedTokens: reserved,
+		Containment:    l.containment(eff),
 	}); err != nil {
 		return outcome, false, err
 	}
 	return outcome, outcome.Verdict == event.VerdictAllow, nil
+}
+
+// networkScope is the egress an execute-class effect would run with: "all"
+// when uncontained, "" once the tree's executor is ratcheted (S7 模块 5).
+func (l *Loop) networkScope(class string) string {
+	if class != string(tool.ClassExecute) {
+		return ""
+	}
+	if l.Exec != nil && l.Exec.NetworkContained() {
+		return ""
+	}
+	return "all"
+}
+
+// containment records the OS containment in force for an execute effect;
+// nil for uncontained runs (absence = uncontained, the pre-S7 shape).
+func (l *Loop) containment(eff pipeline.Effect) *event.Containment {
+	if eff.Kind != "tool_call" || eff.Class != string(tool.ClassExecute) {
+		return nil
+	}
+	if l.Exec == nil || !l.Exec.NetworkContained() {
+		return nil
+	}
+	return &event.Containment{Network: "none", Backend: "netns"}
+}
+
+// applySandbox ratchets the shared executor per this loop's spec (S7 模块
+// 5); Run and Resume both pass through here, and children re-apply their
+// own spec on entry — tightening only, the ratchet never widens.
+func (l *Loop) applySandbox() {
+	if l.Spec != nil && l.Spec.Sandbox.Network == "none" && l.Exec != nil {
+		l.Exec.ContainNetwork()
+	}
 }
 
 func verdictFor(decision string) string {
@@ -1390,6 +1427,7 @@ func (l *Loop) resolveFromDecision(appendE AppendFunc, eff pipeline.Effect, deci
 		EffectID: eff.ID, CallID: eff.CallID, Verdict: verdict,
 		GateResults:    []event.GateResult{{Gate: "approval", Decision: gate, Reason: reason}},
 		ReservedTokens: reserved,
+		Containment:    l.containment(eff),
 	})
 	return approved, err
 }

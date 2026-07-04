@@ -12,6 +12,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/redact"
+	"github.com/ralphite/agentrunner/internal/tool"
 )
 
 // ApprovalRequest is what a resolver shows the human.
@@ -192,7 +193,7 @@ func (l *Loop) awaitApproval(ctx context.Context, ds *driveState, appendE Append
 		}); err != nil {
 			return false, err
 		}
-		return l.resolveEffectAfterApproval(appendE, req, out.d.Approve, out.d.Reason)
+		return l.resolveEffectAfterApproval(ds, appendE, req, out.d.Approve, out.d.Reason)
 
 	case <-l.Interrupts:
 		// Denied-by-interrupt (3.5): journal the interrupt (inputs first),
@@ -214,11 +215,11 @@ func (l *Loop) awaitApproval(ctx context.Context, ds *driveState, appendE Append
 		}); err != nil {
 			return false, err
 		}
-		return l.resolveEffectAfterApproval(appendE, req, false, "[interrupted by user]")
+		return l.resolveEffectAfterApproval(ds, appendE, req, false, "[interrupted by user]")
 	}
 }
 
-func (l *Loop) resolveEffectAfterApproval(appendE AppendFunc,
+func (l *Loop) resolveEffectAfterApproval(ds *driveState, appendE AppendFunc,
 	req event.ApprovalRequested, approved bool, reason string) (bool, error) {
 
 	verdict := event.VerdictDeny
@@ -238,10 +239,31 @@ func (l *Loop) resolveEffectAfterApproval(appendE AppendFunc,
 		EffectID: req.EffectID, CallID: req.CallID,
 		Verdict: verdict, GateResults: results,
 		ReservedTokens: reserved,
+		Containment:    l.containmentByCall(ds, req.CallID),
 	}); err != nil {
 		return false, err
 	}
 	return approved, nil
+}
+
+// containmentByCall recovers the containment stamp for an approval-path
+// resolution, where only the journaled request (not the effect) survives a
+// crash: the call's tool name comes from the fold (S7 模块 5).
+func (l *Loop) containmentByCall(ds *driveState, callID string) *event.Containment {
+	if callID == "" || l.Exec == nil || !l.Exec.NetworkContained() {
+		return nil
+	}
+	for _, m := range assistantMessages(ds.s) {
+		for _, c := range toolCallsOf(m) {
+			if c.CallID == callID {
+				if toolClassIn(ds.s, c.Name) == string(tool.ClassExecute) {
+					return &event.Containment{Network: "none", Backend: "netns"}
+				}
+				return nil
+			}
+		}
+	}
+	return nil
 }
 
 // approvalPrompt enriches the journaled request with the call's tool name
