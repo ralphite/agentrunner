@@ -1879,3 +1879,13 @@ doctrine、carve-out、policy 重试≠恢复),与 STAGES Stage 6 范围/完成
 
 下一步:还债①——S4 acceptance 场景包回补(scenarios/s4/:streaming/
 interrupt、并行 tool call、compaction、finish reason 之可脚本化子集)。
+
+## S6 还债① — S4 acceptance 场景包回补 — DONE
+
+`scenarios/s4/` 四场景(accept --stage 4 全绿):s4-01 并行 tool call
+(同 turn 双 bash 副作用都落地);s4-02 compaction(低阈值 → 
+context_compacted 落盘、run 完成);s4-03 malformed 重试(记档 + 重试后
+recovered);s4-04 blocked 收尾(文本保留、run_ended{blocked}、exit 1
+——非 completed 一律 exit 1 是既有 CLI 语义,场景以 `|| test $? -eq 1`
+断言)。**steering/interrupt 不可场景化**(需向进程发 SIGINT,时序脆),
+维持单测端到端覆盖,记档。

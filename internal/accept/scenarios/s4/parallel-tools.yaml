@@ -1,0 +1,28 @@
+id: s4-01-parallel-tool-calls
+title: 同一 assistant turn 的多个 tool call 全部执行,结果按原序回填
+files:
+  worker.yaml: |
+    name: worker
+    model: { provider: scripted, id: x, max_tokens: 100 }
+    system_prompt: do both
+    tools: [bash]
+    permissions:
+      - { action: allow }
+  par.yaml: |
+    steps:
+      - respond:
+          - tool_call: { name: bash, args: { command: "echo alpha > a.txt" } }
+          - tool_call: { name: bash, args: { command: "echo beta > b.txt" } }
+          - finish: tool_use
+      - respond:
+          - text: "both done"
+          - finish: end_turn
+steps:
+  - run: >
+      AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/par.yaml
+      $BIN run --workspace . worker.yaml "run both commands"
+expect:
+  - exit_code: 0
+  - file_contains: { path: a.txt, text: "alpha" }
+  - file_contains: { path: b.txt, text: "beta" }
+  - events_valid: xdg/agentrunner/sessions/*/events.jsonl

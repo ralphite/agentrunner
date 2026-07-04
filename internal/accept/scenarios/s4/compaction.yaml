@@ -1,0 +1,30 @@
+id: s4-02-compaction
+title: 上下文超阈值时 turn 边界压缩——ContextCompacted 落盘,run 照常完成
+files:
+  chatty.yaml: |
+    name: chatty
+    model: { provider: scripted, id: x, max_tokens: 100, compact_at_tokens: 200 }
+    system_prompt: elaborate
+    tools: [bash]
+    permissions:
+      - { action: allow }
+  compact.yaml: |
+    steps:
+      - respond:
+          - text: "long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long long"
+          - tool_call: { name: bash, args: { command: "true" } }
+          - finish: tool_use
+      - respond:
+          - text: "summary of everything so far"
+          - finish: end_turn
+      - respond:
+          - text: "done after compaction"
+          - finish: end_turn
+steps:
+  - run: >
+      AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/compact.yaml
+      $BIN run --workspace . chatty.yaml "talk a lot"
+  - run: grep -q context_compacted xdg/agentrunner/sessions/*/events.jsonl
+expect:
+  - exit_code: 0
+  - events_valid: xdg/agentrunner/sessions/*/events.jsonl

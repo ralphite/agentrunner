@@ -1,0 +1,25 @@
+id: s4-03-malformed-retry
+title: malformed_tool_call 记档并重试同 turn,后续正常完成
+files:
+  flaky.yaml: |
+    name: flaky
+    model: { provider: scripted, id: x, max_tokens: 100 }
+    system_prompt: try
+    tools: [read_file]
+  mal.yaml: |
+    steps:
+      - respond:
+          - text: "garbled"
+          - finish: malformed_tool_call
+      - respond:
+          - text: "recovered cleanly"
+          - finish: end_turn
+steps:
+  - run: >
+      AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/mal.yaml
+      $BIN run --workspace . flaky.yaml "go"
+  - run: grep -q malformed_tool_call xdg/agentrunner/sessions/*/events.jsonl
+expect:
+  - exit_code: 0
+  - output_contains: "recovered cleanly"
+  - events_valid: xdg/agentrunner/sessions/*/events.jsonl
