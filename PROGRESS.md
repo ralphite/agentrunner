@@ -1016,3 +1016,28 @@ TestBudgetTOCTOUSyntheticConcurrency),作为"合成场景"记入台账。
   是有意的(env 凭据已剥离)。
 
 **Stage 3 正式关闭**。下一步:S4 kickoff refinement。
+
+## S4 kickoff refinement — DONE
+
+PLAN.md 新增 **S4 执行包**:细化交互与上下文的 8 模块序列。关键决定:
+- 包布局:`internal/protocol`(输出事件流)、`agent/assembly.go`(4a 抽出)、
+  `provider/anthropic`(4.7)。
+- 加性 event:`TurnDiscarded`(delta 流出后 retry 的前端重开流信号)、
+  `ContextCompacted`(5)、`MalformedToolCall`(6)。
+- **输出 protocol** 区别于 provider 输入侧:面向 surface 的 StreamEvent
+  (text_delta/tool_call/.../error/discard),用户可见错误(protocol)与
+  模型可见错误(errs.RenderForModel)分离。
+- ephemeral 通道兑现:2.10 的 Activity.Progress 在 4.1 接线,delta 不落
+  journal(TurnDiscarded 契约)。
+- 并行 tool call(4.3):同 turn 多 allow call 并发、到达序落盘、assembly
+  原序重排;**appendE 串行化是核心不变量**(fold 单线程);一个 turn 内
+  多 ask 顺序审批;3.7d TOCTOU 真并发复验。
+- interrupt(4.2)复用 Loop.Interrupts + 500ms 交互取消宽限(区别于
+  timeout 取消的 5s 宽限)。
+- caching(4c):budget 结算修正为 input+output-cache_read 真实计费口径。
+- 顺序微调预授权:4a 可提前到 4.1 前(streaming 依赖独立 assembly 更干净)。
+
+回访项:AGENTRUNNER_APPROVE footgun(4.2 后复审)、recorder 单-delta
+redact 跨分片泄漏(4.1 流式重构 recorder 时合并修)。
+
+下一步:S4.1(先做 4a assembly 抽取)。

@@ -417,6 +417,76 @@ scripts/check.sh          # golangci-lint + go test 全绿 = 一步完成
 **S4 完成标志**：单 agent 体验接近 Claude Code；**inspect v0** 可见
 缓存命中；Esc 500ms 内杀掉任意 tool call；双 provider 矩阵全绿。
 
+### S4 执行包（kickoff refinement 预定默认值——偏离须记入 PROGRESS.md）
+
+- **包布局**:`internal/protocol`(输出事件流类型 + 编码)、
+  `internal/agent/assembly.go`(4a 独立 assembly,把现 `assembleMessages`
+  抽出)、provider 下加 `anthropic/`(4.7)。streaming 渲染在 cli。
+- **加性 event 类型(S2/S3 不改)**:
+  `TurnDiscarded{turn, reason}`(LLM 已流出 delta 后 retry;fold 丢弃
+  该 turn 的半成品 assistant 累积——但 assistant_message 只在成功后
+  落盘,故 fold 层无半成品,TurnDiscarded 主要驱动**前端重开流**信号,
+  记为 ephemeral-伴生 durable 标记) /
+  `ContextCompacted{upto_turn, summary_ref, dropped_turns}`(5;summary_ref
+  预留 ArtifactStore,S4 先内联 summary 字段) /
+  `MalformedToolCall{turn, raw, error}`(6;驱动 retry,复用 discard 路径)。
+- **输出协议(protocol 包)**:`StreamEvent` 输出侧(区别于 provider 输入
+  侧的同名类型——protocol 是**面向 surface** 的):`{kind, turn, ...}`,
+  kind ∈ `text_delta | tool_call | tool_result | turn_start | turn_end |
+  approval_request | mode_changed | run_end | error | discard`。JSON 行
+  编码(`--json` 流)+ 人读渲染两套 sink。**用户可见错误**(protocol
+  error kind)与**模型可见错误**(errs.RenderForModel,3.9)分离:前者进
+  stream 给人看,后者进 fold 给模型看。
+- **ephemeral 进度通道兑现**:2.10 预留的 `Activity.Progress` 在 S4.1
+  接线——LLM activity 的 text delta 经 Progress 回调 → protocol
+  text_delta,**不落 journal**(delta 是 ephemeral,成功后的 assembled
+  message 才落 assistant_message,TurnDiscarded 契约)。
+- **steering/interrupt(4.2)**:复用 3.5 的 `Loop.Interrupts` 通道 +
+  2.14 可中断性表。turn 边界消费:interrupt 在 turn 中到达 → journal
+  `InputReceived{source: interrupt}` → 当前 activity 取消(2.12 路径)→
+  turn 边界把 interrupt 文本作为新 user input 注入。Esc = 首个 interrupt
+  (协作取消,run 继续);第二 Esc/SIGTERM = 硬取消(3.10 signalContext
+  已实现,S4 扩展 interrupt 语义)。**500ms 杀 tool call** = 现 killGroup
+  路径(SIGTERM→5s 宽限太慢,S4 把交互取消的宽限缩到 500ms,与 timeout
+  取消区分:交互取消急、超时取消可宽限)。
+- **并行 tool call(4.3,预期返工 #2)**:同一 assistant turn 的多个 allow
+  的 tool call **并发执行**(经 `parallel`-式 goroutine + errgroup 风格
+  收集);ask 的 call 不阻塞其他(但 ask 本身串行审批,避免多弹窗竞争
+  ——S4 决定:一个 turn 内多个 ask 顺序审批)。到达序落盘(ActivityCompleted
+  按完成先后),assembly 按 call_id **原序**重排回填(fold 的 ToolResults
+  是 map,assembly 按 assistant message 里 tool_call 的顺序读)。**3.7d
+  TOCTOU 真实并行复验**:BudgetGate 的 reserve-then-settle 在真并发下不
+  超支(现合成测试升级为真 goroutine)。**appendE 串行化**:并行 activity
+  的 journal 写必须过单一 appendE(mutex 或 channel 序列化)——fold 是
+  单线程折叠,这是 S4.3 的核心不变量。
+- **assembly(4a)**:`assembly.Build(state.State, mode, tools) → 
+  CompleteRequest`,固定拼装序:system prompt → mode 注入(3.6b 收编)→
+  env 块(session start 冻结,byte-stable)→ conversation。golden 测试
+  从 loop_golden 迁至 assembly 包。
+- **caching(4c)**:usage event 已有 cache_read/write 字段(S1 provider
+  类型),S4 确保 budget 结算按 `input + output - cache_read` 真实计费
+  口径(现 budget 用 input+output,4c 修正);prefix byte-stability 回归
+  (env 块冻结是关键)。
+- **finish reason(6)**:`provider.FinishReason` 归一枚举已在 S1
+  (end_turn/tool_use/max_tokens/other);S4 加 `malformed_tool_call`
+  (provider 解析 tool call 失败)→ MalformedToolCall event + retry;
+  safety/blocked → FinishOther 已有,S4 上浮为用户可见 error。
+- **Anthropic provider(4.7)**:`internal/provider/anthropic`,`anthropic-sdk-go`;
+  capabilities 矩阵(thinking/cache/parallel_tools 各 provider 声明);
+  thinking 进 `spec.model.thinking`(bool/budget)按 provider 映射;
+  per-provider error 线上形态映射到 errs.Class(3.9 归一化的线上侧,
+  S4.7 补齐)。同一 scripted 矩阵双 provider 跑。
+- **inspect(4.8)**:`agentrunner inspect <session>`——events 命令进化:
+  turns 表 + 每 call 的 EffectResolved 判定 + token/cost/cache 列(从
+  fold 的 usage + effect_resolved 读)。
+- **顺序微调预授权**:4a(assembly 抽取)可提前到 4.1 之前做(streaming
+  依赖 assembly 已是独立模块更干净);4c(caching)依赖 4a 的 env 块冻结,
+  顺序不变。
+- **回访项**:S3 记档的 AGENTRUNNER_APPROVE footgun 在 4.2 interrupt
+  落地后复审(交互式审批 UI 已在 3.10,loop-mode 的 auto-approve 语义
+  是否收紧);record recorder 按单 delta redact 的跨分片泄漏(S2 review
+  递延)在 4.1 流式协议重构 recorder 时合并修。
+
 ---
 
 ## Stage 5 — 生态与多 agent（模块序列）
