@@ -2,6 +2,7 @@ package record
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -92,6 +93,31 @@ func TestRecordedExpectCatchesDrift(t *testing.T) {
 	_, err = provider.CollectTurn(replay.Complete(context.Background(), drifted))
 	if err == nil || !strings.Contains(err.Error(), "request drift") {
 		t.Fatalf("err = %v, want request drift", err)
+	}
+}
+
+// A credential echoed into a tool call's opaque Extras (e.g. Anthropic
+// thinking text, S4.4d) must be scrubbed before it reaches a fixture — the
+// recorder redacts Extras values like args and text (S4 review P1). Tested at
+// the redactExtras seam directly: the fixture stores Extras as opaque JSON
+// bytes, so a string search over the file would miss the secret regardless;
+// what matters is that the secret never survives into the captured value.
+func TestRecorderRedactsExtras(t *testing.T) {
+	t.Setenv("THINK_API_KEY", "sk-thinking-leak-99")
+	rec := New(scripted.New(scripted.Fixture{}))
+	in := map[string]json.RawMessage{
+		"anthropic.thinking": json.RawMessage(`{"thinking":"the key is sk-thinking-leak-99","signature":"ok"}`),
+	}
+	out := rec.redactExtras(in)
+	got := string(out["anthropic.thinking"])
+	if strings.Contains(got, "sk-thinking-leak-99") {
+		t.Fatalf("credential survived redaction: %s", got)
+	}
+	if !strings.Contains(got, "[REDACTED:THINK_API_KEY]") {
+		t.Fatalf("expected redaction marker: %s", got)
+	}
+	if rec.redactExtras(nil) != nil {
+		t.Errorf("empty Extras must stay nil")
 	}
 }
 

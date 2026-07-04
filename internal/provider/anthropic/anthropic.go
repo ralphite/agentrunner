@@ -117,8 +117,15 @@ func emitAccumulated(acc sdk.Message, yield func(provider.StreamEvent, error) bo
 			}
 		}
 	}
+	// Normalize InputTokens to the TOTAL input including the cached prefix,
+	// matching Gemini's convention (PromptTokenCount includes cached). The
+	// Anthropic API instead reports input_tokens EXCLUDING cache_read and
+	// cache_creation, so we add them back — otherwise Usage.Billed()
+	// (input+output−cache_read) would double-discount the cache and a
+	// warm-cache run would charge ~0 against the budget (S4 review P1).
 	return yield(provider.StreamEvent{Kind: provider.EventUsage, Usage: &provider.Usage{
-		InputTokens:      int(acc.Usage.InputTokens),
+		InputTokens: int(acc.Usage.InputTokens + acc.Usage.CacheReadInputTokens +
+			acc.Usage.CacheCreationInputTokens),
 		OutputTokens:     int(acc.Usage.OutputTokens),
 		CacheReadTokens:  int(acc.Usage.CacheReadInputTokens),
 		CacheWriteTokens: int(acc.Usage.CacheCreationInputTokens),
@@ -141,7 +148,7 @@ func classify(err error) error {
 // (surfaced as a user-visible error by the loop, S4.6).
 func mapFinish(reason sdk.StopReason) provider.FinishReason {
 	switch reason {
-	case sdk.StopReasonEndTurn, sdk.StopReasonStopSequence, sdk.StopReasonPauseTurn:
+	case sdk.StopReasonEndTurn, sdk.StopReasonStopSequence:
 		return provider.FinishEndTurn
 	case sdk.StopReasonToolUse:
 		return provider.FinishToolUse
@@ -150,6 +157,10 @@ func mapFinish(reason sdk.StopReason) provider.FinishReason {
 	case sdk.StopReasonRefusal:
 		return provider.FinishBlocked
 	default:
+		// pause_turn (server-side/long-running tools want the turn resumed)
+		// and any unknown reason map to Other, which the loop surfaces as a
+		// user-visible error — better than silently ending the run as
+		// "completed" and truncating pending work (S4 review P2).
 		return provider.FinishOther
 	}
 }

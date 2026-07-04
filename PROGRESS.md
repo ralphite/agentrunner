@@ -1401,3 +1401,45 @@ deny+permission gate、billed=input+output−cache_read)、`TestRenderInspect`
 - **无 $ cost 列,用 billed token**:代码库无 per-model 价目表(预算用
   token-equivalent),故 "cost" 呈现为 billed token(input+output−cache_read,
   4c 口径);真实 $ 定价留后续价目表。
+
+## Stage 4 出口对抗式 review — 三镜头(correctness/concurrency · security · contract/DESIGN)
+
+三个并行 reviewer 覆盖 S4 全量 diff(3ef3578..HEAD)。核心不变量确认成立:
+S4.3 并行 tool call 无 data race(所有并发 journal 写过单一 mutex 化
+serialAppend,ds.s/ds.lastID 读改写全在临界区,ds.s 仅 wg.Wait() 后读);
+S4.5 compaction 自终止且崩溃安全;S4.6 malformed 有界(第 3 次逃逸,无
+off-by-one);sub-state 版本 8→9 + checkVersions 正确;statetest.AssertFoldEqual
+覆盖全 9 个 sub-state;capability 降级在 doLLM 与 compactContext 两条装配路径
+均不漏;assembly 序与 prefix 稳定成立;protocol 用户/模型可见错误分道。
+
+**修复(3 项)**:
+- **[P1] Anthropic Usage.Billed() 少记预算**(correctness + contract 双报):
+  `Billed()=input+output−cache_read` 依 Gemini 口径(PromptTokenCount 含
+  cached)。Anthropic `input_tokens` **不含** cache_read/cache_creation,原
+  adapter 逐字透传 → 双重折扣,暖 cache run 计费趋 0、可能永不触
+  LimitExceeded。修:adapter 把 InputTokens 归一为**总输入**(+
+  CacheReadInputTokens + CacheCreationInputTokens),与 Gemini 口径一致;
+  Billed 变 uncached+creation+output(cache_read 折扣、creation 计费)。
+  测试断言归一(input 18 / billed 19)。
+- **[P1] recorder Extras 未脱敏**(security):`toEvent` 逐字拷 tool call
+  Extras,而 Anthropic adapter 往 `Extras["anthropic.thinking"]` 塞模型
+  完整推理文本(可回显读到的凭据),经 WriteFixture 写入**提交的 fixture**
+  = credential-to-repo。修:新增 `redactExtras`,每个 Extras 值过
+  redactString。主 journal 路径不受影响(appender 整 payload text-redact)。
+- **[P2] Anthropic pause_turn → end_turn 静默截断**(latent):pause_turn
+  语义是"续跑本 turn",映射到 end_turn 会让无 tool call 的暂停响应被
+  decide 判为 completed 提前结束。修:pause_turn 归 FinishOther → loop 上浮
+  为用户可见 error,不静默截断。
+
+**记档为 v0 已知限制(不改)**:
+- **[P2 latent] Anthropic interleaved 多 thinking block**:`assistantBlocks`
+  的 `len(thinking)==0` guard 使回放只重发首个 thinking block。仅在
+  interleaved-thinking beta header 下才有多 thinking block,当前 adapter 不
+  启用该 beta(响应恒单前导 thinking block),故不触发。启用该 beta 属后续。
+- **[LOW] blocked finish 非持久**:blocked/other 收尾先落 assistant_message
+  再走 epilogue(reason "blocked"),二者间崩溃则 resume 把无 tool call 的
+  assistant message 判为 completed,丢失 blocked reason 与 KindError。窗口
+  窄、run 仍终止;与 malformed(有持久 MalformedToolCall event)不对称。
+  彻底修需新持久 event 或 fold 标记,代价不成比例,v0 记档接受。
+
+**Stage 4 正式关闭**。下一步:S5 kickoff refinement。

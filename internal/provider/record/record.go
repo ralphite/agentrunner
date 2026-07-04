@@ -132,7 +132,10 @@ func (r *Recorder) toEvent(ev provider.StreamEvent) (scripted.Event, bool) {
 		}
 		return scripted.Event{ToolCall: &scripted.ToolCallEvent{
 			CallID: ev.ToolCall.CallID, Name: ev.ToolCall.Name, Args: args,
-			Extras: ev.ToolCall.Extras,
+			// Extras carries opaque provider payloads — notably Anthropic
+			// thinking text (S4.4d), which is model output that can echo a
+			// credential. Redact each value like args/text (S4 review P1).
+			Extras: r.redactExtras(ev.ToolCall.Extras),
 		}}, true
 	case provider.EventUsage:
 		return scripted.Event{Usage: &scripted.UsageEvent{
@@ -144,6 +147,20 @@ func (r *Recorder) toEvent(ev provider.StreamEvent) (scripted.Event, bool) {
 	default:
 		return scripted.Event{}, false
 	}
+}
+
+// redactExtras scrubs credential values out of every opaque Extras payload
+// before it reaches a fixture (S4 review P1). Returns nil for an empty map so
+// the fixture stays clean.
+func (r *Recorder) redactExtras(in map[string]json.RawMessage) map[string]json.RawMessage {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]json.RawMessage, len(in))
+	for k, v := range in {
+		out[k] = json.RawMessage(r.redactString(string(v)))
+	}
+	return out
 }
 
 func (r *Recorder) redactString(s string) string {

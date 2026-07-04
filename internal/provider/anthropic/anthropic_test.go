@@ -26,6 +26,7 @@ func TestMapFinish(t *testing.T) {
 		sdk.StopReasonMaxTokens:    provider.FinishMaxTokens,
 		sdk.StopReasonRefusal:      provider.FinishBlocked,
 		sdk.StopReasonStopSequence: provider.FinishEndTurn,
+		sdk.StopReasonPauseTurn:    provider.FinishOther,
 		"something_new":            provider.FinishOther,
 	}
 	for in, want := range cases {
@@ -161,7 +162,7 @@ func TestEmitAccumulatedToolCallCarriesThinking(t *testing.T) {
 			{Type: "thinking", Thinking: "reasoning", Signature: "abc=="},
 			{Type: "tool_use", ID: "toolu_9", Name: "bash", Input: json.RawMessage(`{"command":"ls"}`)},
 		},
-		Usage:      sdk.Usage{InputTokens: 12, OutputTokens: 5, CacheReadInputTokens: 4},
+		Usage:      sdk.Usage{InputTokens: 12, OutputTokens: 5, CacheReadInputTokens: 4, CacheCreationInputTokens: 2},
 		StopReason: sdk.StopReasonToolUse,
 	}
 	var got []provider.StreamEvent
@@ -193,8 +194,15 @@ func TestEmitAccumulatedToolCallCarriesThinking(t *testing.T) {
 	if !ok || !strings.Contains(string(extra), "abc==") {
 		t.Errorf("thinking signature not attached: %v", toolCall.Extras)
 	}
-	if usage == nil || usage.InputTokens != 12 || usage.CacheReadTokens != 4 {
-		t.Errorf("usage = %+v", usage)
+	// InputTokens is normalized to the TOTAL input including the cached
+	// prefix: 12 (uncached) + 4 (cache read) + 2 (cache creation) = 18.
+	if usage == nil || usage.InputTokens != 18 || usage.CacheReadTokens != 4 || usage.CacheWriteTokens != 2 {
+		t.Errorf("usage = %+v, want input 18 / cache_read 4 / cache_write 2", usage)
+	}
+	// Billed = input + output − cache_read = 18 + 5 − 4 = 19 (cache read
+	// discounted, cache creation charged).
+	if got := usage.Billed(); got != 19 {
+		t.Errorf("billed = %d, want 19", got)
 	}
 }
 
