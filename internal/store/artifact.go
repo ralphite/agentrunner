@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 // ArtifactStore is the content-addressed deliverable store (S5.5) — the
@@ -21,6 +22,11 @@ import (
 // ref.
 type ArtifactStore struct {
 	root string
+	// mu serializes manifest read-modify-write: the store is TREE-SHARED
+	// (parent and concurrently-running children publish into it), and an
+	// unlocked Publish would lose versions or tear manifest.json (S5 review
+	// P0). Blob writes need no lock (content-addressed, unique tmp names).
+	mu sync.Mutex
 }
 
 // ArtifactVersion is one entry of a stream's version chain.
@@ -83,9 +89,18 @@ func (a *ArtifactStore) Publish(stream string, content []byte) (ArtifactVersion,
 	if err != nil {
 		return ArtifactVersion{}, err
 	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	m, err := a.readManifest()
 	if err != nil {
 		return ArtifactVersion{}, err
+	}
+	// Same content at the chain tip republishes the SAME version (S5 review):
+	// a crash between manifest write and journal append re-publishes on
+	// resume — without this, the manifest would grow a duplicate version the
+	// journal never knew about.
+	if chain := m.Streams[stream]; len(chain) > 0 && chain[len(chain)-1].Ref == ref {
+		return chain[len(chain)-1], nil
 	}
 	v := ArtifactVersion{Stream: stream, Version: len(m.Streams[stream]) + 1,
 		Ref: ref, Bytes: len(content)}
@@ -102,6 +117,8 @@ func (a *ArtifactStore) Publish(stream string, content []byte) (ArtifactVersion,
 
 // Latest returns a stream's newest version.
 func (a *ArtifactStore) Latest(stream string) (ArtifactVersion, bool, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	m, err := a.readManifest()
 	if err != nil {
 		return ArtifactVersion{}, false, err
@@ -115,6 +132,8 @@ func (a *ArtifactStore) Latest(stream string) (ArtifactVersion, bool, error) {
 
 // Streams returns the full manifest (stream → version chain).
 func (a *ArtifactStore) Streams() (map[string][]ArtifactVersion, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	m, err := a.readManifest()
 	if err != nil {
 		return nil, err
@@ -141,10 +160,16 @@ func (a *ArtifactStore) readManifest() (manifest, error) {
 }
 
 // atomicWrite is the snapshot-store discipline: tmp + fsync + rename, 0600.
+// The tmp name is unique per call — a FIXED tmp path would let two
+// concurrent writers truncate each other mid-write and promote a torn file.
 func atomicWrite(final string, data []byte) error {
-	tmp := final + ".tmp"
-	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
+	f, err := os.CreateTemp(filepath.Dir(final), filepath.Base(final)+".tmp*")
 	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	if err := f.Chmod(0o600); err != nil {
+		_ = f.Close()
 		return err
 	}
 	if _, err := f.Write(data); err != nil {

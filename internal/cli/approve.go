@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 
 	"golang.org/x/term"
 
@@ -19,10 +20,19 @@ import (
 type ttyApprovals struct {
 	in  io.Reader
 	out io.Writer
+	// mu serializes concurrent asks: sibling sub-agents share this resolver
+	// (S5 review) — without it two prompts interleave and two stdin readers
+	// race for one typed answer, approving the wrong request.
+	mu sync.Mutex
 }
 
 func (a *ttyApprovals) Resolve(ctx context.Context, req agent.ApprovalRequest) (agent.ApprovalDecision, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	fmt.Fprintf(a.out, "\n─── approval required ───\n")
+	if req.Agent != "" {
+		fmt.Fprintf(a.out, "  agent: %s\n", req.Agent)
+	}
 	if req.ToolName != "" {
 		fmt.Fprintf(a.out, "  tool: %s\n  args: %s\n", req.ToolName, truncate(string(req.Args), 200))
 	}

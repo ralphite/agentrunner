@@ -153,6 +153,10 @@ type ActivityFailed struct {
 type ActivityCancelled struct {
 	ActivityID    string `json:"activity_id"`
 	PartialOutput string `json:"partial_output,omitempty"`
+	// Usage settles tokens the cancelled activity ALREADY spent (S5 review):
+	// a steered/aborted child run burned real budget — losing it would let a
+	// re-spawn over-grant against the tree cap.
+	Usage *provider.Usage `json:"usage,omitempty"`
 }
 
 type TimerSet struct {

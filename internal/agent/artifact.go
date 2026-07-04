@@ -9,6 +9,7 @@ import (
 
 	"github.com/ralphite/agentrunner/internal/crash"
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/redact"
 	"github.com/ralphite/agentrunner/internal/store"
@@ -40,6 +41,26 @@ func (l *Loop) materializeInputs(ctx context.Context, ds *driveState, appendE Ap
 	}
 	if l.Artifacts == nil || l.Exec == nil || l.Exec.WS == nil {
 		return fmt.Errorf("materialize: run has artifact inputs but no artifact store/workspace")
+	}
+	// Every input write is an EDIT-class effect through the pipeline (PLAN
+	// S5.8 "过管线,可审计"; S5 review): a path-scoped deny rule must bind a
+	// write that arrives via spawn inputs exactly like one via edit_file.
+	// This is pre-turn harness work, so a denial fails the run closed.
+	for i, in := range inputs {
+		args, _ := json.Marshal(map[string]string{"path": in.Path, "ref": in.Ref})
+		eff := pipeline.Effect{
+			ID: fmt.Sprintf("eff-materialize-%d", i), Kind: "tool_call",
+			ToolName: "materialize", Class: string(tool.ClassEdit),
+			Args: args, Mode: ds.s.CurrentMode(),
+			Budget: budgetView(ds.s),
+		}
+		outcome, allowed, err := l.adjudicate(ctx, ds, appendE, eff)
+		if err != nil {
+			return err
+		}
+		if !allowed {
+			return fmt.Errorf("materialize %s: denied by %s", in.Path, denyingGate(outcome))
+		}
 	}
 	exec := &ActivityExecutor{Append: appendE, Clock: l.Clock, Redact: redact.FromEnv()}
 	return exec.Do(ctx, Activity{
@@ -91,7 +112,10 @@ func (l *Loop) buildPublishRun(call provider.ToolCall, res *tool.Result,
 			*res = errorResult("publish_artifact: no artifact store in this run")
 			return res.Payload, nil, true, nil
 		}
-		v, err := l.Artifacts.Publish(args.Stream, []byte(args.Content))
+		// Artifact blobs are a durable session-tier sink like the journal:
+		// model output passes credential redaction before persisting (S5
+		// review — the CAS must not be the one unredacted tier).
+		v, err := l.Artifacts.Publish(args.Stream, []byte(redact.FromEnv().String(args.Content)))
 		if err != nil {
 			return nil, nil, false, err // harness failure (disk), not model-visible
 		}

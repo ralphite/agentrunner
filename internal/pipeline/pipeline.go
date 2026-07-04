@@ -30,9 +30,12 @@ type Effect struct {
 	Budget BudgetView
 	// SpawnDepth/SpawnCount feed the spawn gate (S5.3): this run's depth in
 	// the agent tree and the spawns it has already requested. Zero for
-	// non-spawn effects.
-	SpawnDepth int
-	SpawnCount int
+	// non-spawn effects. HandoffPending marks that an earlier call of the
+	// SAME batch already transferred control (S5.4): once a handoff is
+	// allowed, no further agent launch in that turn may run.
+	SpawnDepth     int
+	SpawnCount     int
+	HandoffPending bool
 }
 
 // Decision is one gate's judgment.

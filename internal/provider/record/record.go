@@ -10,6 +10,7 @@ import (
 	"iter"
 	"os"
 	"strings"
+	"sync"
 
 	"gopkg.in/yaml.v3"
 
@@ -22,8 +23,11 @@ var redactEnvSuffixes = []string{"_API_KEY", "_TOKEN", "_SECRET"}
 
 // Recorder is a pass-through Provider that accumulates fixture steps.
 type Recorder struct {
-	inner   provider.Provider
-	redact  map[string]string // secret value → replacement
+	inner  provider.Provider
+	redact map[string]string // secret value → replacement
+	// mu guards the fixture: parent and concurrently-running children share
+	// one Recorder (S5 review) — an unlocked append would race.
+	mu      sync.Mutex
 	fixture scripted.Fixture
 }
 
@@ -80,12 +84,16 @@ func (r *Recorder) Complete(ctx context.Context, req provider.CompleteRequest) i
 			}
 		}
 		flushText()
+		r.mu.Lock()
 		r.fixture.Steps = append(r.fixture.Steps, step)
+		r.mu.Unlock()
 	}
 }
 
 // WriteFixture serializes the captured session to a YAML fixture file.
 func (r *Recorder) WriteFixture(path string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	data, err := yaml.Marshal(r.fixture)
 	if err != nil {
 		return fmt.Errorf("record: %w", err)

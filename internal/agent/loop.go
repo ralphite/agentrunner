@@ -807,8 +807,12 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 	var allowed []pending
 	// batchSpawns counts spawns allowed THIS batch: SpawnRequested only
 	// lands at execution, so the gate would otherwise see a stale count
-	// for the second spawn of one turn (fan-out TOCTOU).
+	// for the second spawn of one turn (fan-out TOCTOU). handoffAllowed
+	// makes control transfer EXCLUSIVE: once a handoff passes, no further
+	// agent launch in the same turn may run (S5 review — two successors
+	// would otherwise execute concurrently).
 	batchSpawns := 0
+	handoffAllowed := false
 	for _, call := range act.calls {
 		l.emit(protocol.Event{Kind: protocol.KindToolCall, Turn: act.turn,
 			Tool: call.Name, CallID: call.CallID, Args: compact(call.Args)})
@@ -830,6 +834,7 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 			// reports the problem to the model.
 			eff.SpawnDepth = l.Depth
 			eff.SpawnCount = ds.s.Run.Spawns + batchSpawns
+			eff.HandoffPending = handoffAllowed
 			if _, _, childSpec, problem := l.resolveSpawnTarget(call.Name, call.Args); problem == "" {
 				allowance = l.spawnAllowance(ds.s, childSpec)
 				eff.EstTokens = allowance
@@ -849,6 +854,9 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 		}
 		if isAgentLaunch(call.Name) {
 			batchSpawns++
+			if call.Name == "handoff_agent" {
+				handoffAllowed = true
+			}
 		}
 		allowed = append(allowed, pending{call: call, res: new(tool.Result), allowance: allowance})
 	}

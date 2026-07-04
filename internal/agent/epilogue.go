@@ -10,6 +10,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/crash"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
+	"github.com/ralphite/agentrunner/internal/redact"
 )
 
 // epilogueHook is one slot in the fixed run-ending sequence (standing
@@ -65,6 +66,8 @@ func autoPublishOutputs(_ context.Context, l *Loop, ds *driveState,
 		}
 		if out.Path != "" && l.Exec != nil && l.Exec.WS != nil && l.Artifacts != nil {
 			if content, ok := readWorkspaceFile(l, out.Path); ok {
+				// Same redaction-before-persist as publish_artifact (S5).
+				content = []byte(redact.FromEnv().String(string(content)))
 				v, err := l.Artifacts.Publish(out.Name, content)
 				if err != nil {
 					return err // disk failure is a harness error

@@ -147,22 +147,28 @@ func (l *Loop) buildSpawnRun(call provider.ToolCall, res *tool.Result,
 		child.Inputs = inputs
 		cres, cerr := child.Run(ctx, task)
 		if cerr != nil {
+			// The child journaled real spend before dying — RunResult is
+			// zero on aborts, so settle from the child's own fold (S5
+			// review: an unsettled failed child would let a re-spawn
+			// over-grant against the tree cap).
+			spent := childFoldUsage(childDir)
 			if ctx.Err() != nil {
-				return nil, nil, false, cerr // cancellation: parent's cancel path owns it
+				// Cancellation: the parent's cancel path owns the terminal
+				// event; the usage rides ActivityCancelled and settles.
+				return nil, &spent, false, cerr
 			}
 			// A failed child is a model-visible result, NOT an activity
 			// failure: blindly re-running a whole child run would duplicate
 			// its side effects; the parent model decides whether to re-spawn.
 			if _, aerr := appendE(event.TypeSubagentCompleted, &event.SubagentCompleted{
 				CallID: call.CallID, Agent: agentName, ChildSession: childSession,
-				Reason: "error", Turns: cres.Turns, Usage: cres.Usage,
+				Reason: "error", Turns: cres.Turns, Usage: spent,
 			}); aerr != nil {
 				return nil, nil, false, aerr
 			}
 			*res = errorResult(fmt.Sprintf("sub-agent %s failed: %s",
 				agentName, redact.FromEnv().String(cerr.Error())))
-			usage := cres.Usage
-			return res.Payload, &usage, true, nil
+			return res.Payload, &spent, true, nil
 		}
 
 		if _, err := appendE(event.TypeSubagentCompleted, &event.SubagentCompleted{
@@ -201,7 +207,12 @@ func (l *Loop) childLoop(childSpec *AgentSpec, childStore *store.EventStore,
 	if allowance > 0 {
 		frozen.Budget.MaxTotalTokens = allowance
 	}
-	frozen.Mode = "" // the parent's live mode wins; the child spec cannot widen
+	// Mode never widens, but a child spec MAY be narrower than the parent
+	// (DESIGN: "mode 不交集——child 的 mode 独立" bounded by the frozen
+	// rules): the child starts in the narrower of the two. bypass in a
+	// child spec is rejected at LoadSpec; the clear here is the backstop.
+	childMode := narrowerMode(parentMode, childSpec.Mode)
+	frozen.Mode = ""
 
 	var gates []pipeline.Gate
 	if l.Pipeline != nil {
@@ -236,12 +247,49 @@ func (l *Loop) childLoop(childSpec *AgentSpec, childStore *store.EventStore,
 		Version:   l.Version,
 		Pipeline:  &pipeline.Pipeline{Gates: gates},
 		Approvals: l.Approvals, // approvals bubble to the same frontend seam
-		Mode:      parentMode,
+		Mode:      childMode,
 		Depth:     l.Depth + 1,
 		SubSpecs:  l.SubSpecs,
 		Board:     l.Board,     // the collaboration blackboard is tree-shared (S5.4)
 		Artifacts: l.Artifacts, // the deliverable CAS is tree-shared too (S5.5)
 	}
+}
+
+// childFoldUsage reads the child's settled usage from its journal — the
+// truth even when the child aborted (RunResult carries zero on error paths).
+func childFoldUsage(childDir string) provider.Usage {
+	events, err := store.ReadEvents(childDir)
+	if err != nil {
+		return provider.Usage{}
+	}
+	s, err := state.Fold(events)
+	if err != nil {
+		return provider.Usage{}
+	}
+	return s.Run.Usage
+}
+
+// narrowerMode picks the stricter of two run modes (S5 review): the mode
+// ladder is plan < default < acceptEdits < bypass, empty meaning default.
+func narrowerMode(a, b string) string {
+	rank := func(m string) int {
+		switch m {
+		case pipeline.ModePlan:
+			return 0
+		case "", pipeline.ModeDefault:
+			return 1
+		case pipeline.ModeAcceptEdits:
+			return 2
+		case pipeline.ModeBypass:
+			return 3
+		default:
+			return 1 // unknown folds to default; LoadSpec rejects it anyway
+		}
+	}
+	if rank(b) < rank(a) {
+		return b
+	}
+	return a
 }
 
 // childReport extracts the child's final assistant text from its journal.

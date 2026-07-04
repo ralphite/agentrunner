@@ -1790,3 +1790,69 @@ stage 1/2/3 acceptance 回归全绿。
 一次(delta + message 双打印),疑 S4.1 renderer 去重逻辑不含 scripted
 路径——记入 S5 出口 review 待查。④S4 未补自己的 acceptance 场景(横切
 纪律要求 stage 收口前场景化)——S5 review 一并裁定是否回补。
+
+## Stage 5 出口对抗式 review — 三镜头(correctness/concurrency · security · contract/DESIGN)
+
+四硬线核实:①权限交集**行为上成立**(Evaluate 只紧不松:deny 短路、ask
+定档、allow 无操作——child allow 无法降级 parent ask;mode 经 effectiveMode
+取 live mode,静态 gate mode 不构成逃逸);②树预算 min 聚合/整额预留/深度
+扇出 caps 数学成立(但见修复 2);③blob 先于 event 三路径 + 崩溃注入在;
+④prefix 稳定完全合规。MCP 不下传 child、workspace 逃逸被 Resolve 拦、
+blackboard 无死锁、materialize 幂等恢复正确、epilogue 无重入,均 clean。
+
+**修复(9 项)**:
+- **[P0] ArtifactStore manifest RMW race**:树共享 store 下并发 Publish 丢
+  版本/固定 tmp 路径互相截断。修:store 级 mutex(Publish/Latest/Streams)
+  + CreateTemp 唯一 tmp 名;并发 24 发布回归测试(密集版本链断言)。
+- **[P1] 失败/被取消 child 的 usage 不入父账 → 失败路径可击穿树预算**:
+  child.Run abort 返回零值 RunResult。修:`childFoldUsage` 从 child journal
+  读实耗——错误路径入 SubagentCompleted + activity usage 结算;取消路径经
+  **ActivityCancelled 新增 Usage 字段**(加性)结算入 fold。回归:child
+  烧 600 tokens 后 abort → 父账 615。
+- **[P1] recorder fixture 并发 append race**:Recorder 加 mutex(Complete
+  append + WriteFixture);scripted provider `next` 步进原子化(兄弟并发时
+  步骤认领不撕裂;哪个兄弟拿哪步在真并发下本就不定,确定性 fixture 应
+  顺序 spawn——注释记档)。
+- **[P1] 兄弟审批 stdin 竞争 + 身份缺失**:ttyApprovals 加 mutex(一次一
+  prompt,答案不再可能喂错请求);`ApprovalRequest.Agent`(spec name +
+  session)新增并渲染——人能分辨谁在要权限。跨进程 correlation 路由仍属
+  S6(执行包已记)。
+- **[P1 contract] materialize 不过管线**:每个 input 以 edit-class effect
+  逐个 adjudicate(`eff-materialize-<i>`,args 带 path/ref)——path-scoped
+  deny rule 现在绑定 spawn inputs 写入;deny = fail-closed。回归测试。
+- **[P2 security] artifact CAS 未脱敏**:publish_artifact 内容、epilogue
+  auto-publish 文件、plan payload 三 sink 全部过 redact.FromEnv() 再 Put
+  ——CAS 不再是 session 层唯一未脱敏面。
+- **[P2] crash-replay 重复 manifest 版本**:Publish 对链尾同 ref 去重
+  (返回既有版本)——resume 重发布收敛,版本号与 journal 不再漂移。
+- **[P2] 同 turn 多 handoff 并发执行**:`Effect.HandoffPending` + SpawnGate
+  deny("control already transferred")——控制权转移在批内独占;回归测试。
+- **[contract] child 更窄 mode 被无声取消**:`narrowerMode`(plan < default
+  < acceptEdits < bypass)——child spec 可比 parent 更窄(plan child under
+  default parent 保持 plan),不上扬不变;bypass 仍被 LoadSpec 拒。回归测试。
+- 另:event 样本补齐 S5 新字段(RunStarted 全块/Inputs、ApprovalRequested
+  payload_ref/est_tokens、ActivityCancelled usage)。
+
+**台账更正与裁定**:
+- **权限冻结"物化为数据进 child RunStarted"未实现**——正式记为对 PLAN
+  硬线 1 半句的偏离:行为等价(gate 链只紧不松、gates 今日不可变),
+  但交集未成为 journaled 数据,child journal 无法独立回答自己的权限面;
+  物化留 S6(daemon/跨进程时必须做)。child 目录不在 sessions 顶层、
+  不可独立 resume,故 latent。
+- **更正 S5.3 台账**:child 经继承的 gate 链**会**执行 parent 的
+  pre-tool hooks(hook.Gate 在 gates 里);未继承的只是 post-tool hooks
+  (Loop.Hooks)。原"child 不继承 hooks"表述不实。
+- **handoff 实现为受约束 child run**:与 PLAN"非 spawn 子树"措辞的出入
+  记为解释性裁定——"非 spawn"指控制转移语义(父不再行动、结果即父的
+  结果),实现复用 child-run 基建;深度上限约束 handoff 链(A→B→C 在
+  cap 处 deny)是接受的边界。
+- **场景收窄记档**:s5-02 只走 approve 路径(EnvApprovals 序列语法记入
+  S6 backlog);s5-03 只覆盖 deny-rule 一腿(mode/tool 面收窄由单测覆盖);
+  **S4 场景包缺口裁定:S6 kickoff 时回补**。
+- **允许量边际超支**(est-vs-actual 单次调用缺口)记为继承的 S3.7 语义,
+  min 聚合在边际是软的;S6 复审是否需要 per-call 实耗预扣。
+- resumed run 无 SubSpecs 的 spawn(model-visible 错)维持 v0;渲染重复
+  ("researched"×2,delta+message 双打印)确认为 S4.1 renderer 对 scripted
+  的已知美观问题,记 S6 backlog。
+
+**Stage 5 正式关闭**。下一步:S6 kickoff refinement。

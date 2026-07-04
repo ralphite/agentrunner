@@ -349,6 +349,10 @@ func Apply(s State, env event.Envelope) (State, error) {
 		s.Activities = s.Activities.without(p.ActivityID)
 		s.Effects = s.Effects.withoutAllowed(effectIDFor(started, p.ActivityID))
 		s.Budget = s.Budget.release(effectIDFor(started, p.ActivityID))
+		if p.Usage != nil {
+			// Tokens spent before the cancellation are real spend (S5).
+			s.Run.Usage = addUsage(s.Run.Usage, *p.Usage)
+		}
 		if inFlight && started.Kind == event.KindTool && started.CallID != "" {
 			result, _ := json.Marshal(map[string]string{
 				"error":          "[interrupted by user]",

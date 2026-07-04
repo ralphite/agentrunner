@@ -26,6 +26,9 @@ func (g *SpawnGate) Check(_ context.Context, eff Effect) Decision {
 	if eff.ToolName != "spawn_agent" && eff.ToolName != "handoff_agent" {
 		return Allow
 	}
+	if eff.HandoffPending {
+		return Deny("control already transferred by an earlier handoff this turn")
+	}
 	maxDepth := g.MaxDepth
 	if maxDepth == 0 {
 		maxDepth = DefaultMaxSpawnDepth

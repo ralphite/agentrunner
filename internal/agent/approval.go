@@ -9,12 +9,17 @@ import (
 	"github.com/ralphite/agentrunner/internal/crash"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/pipeline"
+	"github.com/ralphite/agentrunner/internal/redact"
 )
 
 // ApprovalRequest is what a resolver shows the human.
 type ApprovalRequest struct {
-	ApprovalID  string
-	CallID      string
+	ApprovalID string
+	CallID     string
+	// Agent identifies WHO is asking (spec name + session): sub-agent asks
+	// bubble to the same frontend, and the human must be able to tell a
+	// child's destructive edit from the parent's harmless read (S5 review).
+	Agent       string
 	ToolName    string
 	Args        json.RawMessage
 	GateResults []event.GateResult
@@ -96,7 +101,7 @@ func (l *Loop) publishApprovalPayload(eff pipeline.Effect, appendE AppendFunc) (
 	if err := json.Unmarshal(eff.Args, &args); err != nil || args.Plan == "" {
 		return "", nil // no plan text: nothing to anchor
 	}
-	v, err := l.Artifacts.Publish("plan", []byte(args.Plan))
+	v, err := l.Artifacts.Publish("plan", []byte(redact.FromEnv().String(args.Plan)))
 	if err != nil {
 		return "", err
 	}
@@ -217,6 +222,9 @@ func (l *Loop) approvalPrompt(ds *driveState, req event.ApprovalRequested) Appro
 		ApprovalID:  req.ApprovalID,
 		CallID:      req.CallID,
 		GateResults: req.GateResults,
+	}
+	if l.Spec != nil {
+		out.Agent = fmt.Sprintf("%s (%s)", l.Spec.Name, l.SessionID)
 	}
 	if req.CallID == "" {
 		return out

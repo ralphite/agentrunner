@@ -11,6 +11,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 
 	"gopkg.in/yaml.v3"
 
@@ -63,7 +64,12 @@ type UsageEvent struct {
 type Provider struct {
 	fixture Fixture
 	source  string
-	next    int
+	// mu guards next: concurrently-running sibling children share one
+	// provider instance (S5 review) — step claiming must be atomic. Which
+	// sibling gets which step stays nondeterministic under real
+	// concurrency; deterministic fixtures sequence their spawns.
+	mu   sync.Mutex
+	next int
 }
 
 // Load reads a fixture file into a Provider.
@@ -92,15 +98,19 @@ func (p *Provider) Capabilities() provider.Capabilities {
 // Complete serves the next scripted step, asserting expectations first.
 func (p *Provider) Complete(_ context.Context, req provider.CompleteRequest) iter.Seq2[provider.StreamEvent, error] {
 	return func(yield func(provider.StreamEvent, error) bool) {
+		p.mu.Lock()
 		if p.next >= len(p.fixture.Steps) {
-			yield(provider.StreamEvent{}, fmt.Errorf(
+			exhausted := fmt.Errorf(
 				"scripted %s: fixture exhausted at request %d (have %d steps)",
-				p.source, p.next+1, len(p.fixture.Steps)))
+				p.source, p.next+1, len(p.fixture.Steps))
+			p.mu.Unlock()
+			yield(provider.StreamEvent{}, exhausted)
 			return
 		}
 		step := p.fixture.Steps[p.next]
 		stepNo := p.next + 1
 		p.next++
+		p.mu.Unlock()
 
 		if err := step.Expect.check(req, p.source, stepNo); err != nil {
 			yield(provider.StreamEvent{}, err)

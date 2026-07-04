@@ -99,9 +99,12 @@ func (x *ActivityExecutor) Do(ctx context.Context, act Activity) error {
 			// already killed its process group and drained (bounded); the
 			// terminal fact is ActivityCancelled with whatever partial
 			// output survived — journaled only now, after the group died.
+			// Usage the run managed to report settles (a steered child run's
+			// spend is real, S5 review).
 			if _, aerr := x.Append(event.TypeActivityCancelled, &event.ActivityCancelled{
 				ActivityID:    act.ID,
 				PartialOutput: string(x.Redact.JSON(result)),
+				Usage:         usage,
 			}); aerr != nil {
 				return aerr
 			}

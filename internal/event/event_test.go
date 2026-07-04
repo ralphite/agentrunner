@@ -15,7 +15,11 @@ import (
 // forces adding its sample.
 var samples = map[string]any{
 	TypeRunStarted: &RunStarted{SpecName: "hello", Model: "gemini-flash-latest",
-		Task: "fix it", Version: "dev", SubStateVersions: map[string]int{"conversation": 1}},
+		Task: "fix it", Version: "dev", SubStateVersions: map[string]int{"conversation": 1},
+		Spec: json.RawMessage(`{"name":"hello"}`), WorkspaceRoot: "/w",
+		Env: "<env>\ncwd: /w\n</env>", Memory: "<memory>rules</memory>",
+		Skills: "<skills>- s</skills>", Agents: "<agents>- a</agents>",
+		Inputs: []ArtifactInput{{Ref: "sha256-aa", Path: "in.md"}}},
 	TypeInputReceived: &InputReceived{Text: "please fix", Source: "cli"},
 	TypeTurnStarted:   &TurnStarted{Turn: 3},
 	TypeAssistantMessage: &AssistantMessage{Turn: 3, Message: provider.Message{
@@ -31,7 +35,8 @@ var samples = map[string]any{
 		Usage:  &provider.Usage{InputTokens: 5, OutputTokens: 7}},
 	TypeActivityFailed: &ActivityFailed{ActivityID: "llm-t3",
 		Error: ErrorInfo{Class: "provider_server", Message: "503", Retryable: true}, Attempt: 2},
-	TypeActivityCancelled: &ActivityCancelled{ActivityID: "tool-call_3_1", PartialOutput: "partial"},
+	TypeActivityCancelled: &ActivityCancelled{ActivityID: "tool-call_3_1", PartialOutput: "partial",
+		Usage: &provider.Usage{InputTokens: 40, OutputTokens: 10}},
 	TypeTimerSet: &TimerSet{TimerID: "tm-1",
 		FireAt: time.Date(2026, 7, 3, 12, 0, 0, 0, time.UTC), Purpose: "activity_timeout"},
 	TypeTimerFired:      &TimerFired{TimerID: "tm-1"},
@@ -41,7 +46,8 @@ var samples = map[string]any{
 	TypeActorCrashed:    &ActorCrashed{Actor: "session", Error: "boom"},
 	TypeEffectRequested: &EffectRequested{EffectID: "eff-call_3_1", CallID: "call_3_1", SideEffecting: true},
 	TypeApprovalRequested: &ApprovalRequested{ApprovalID: "apr-eff-call_3_1", EffectID: "eff-call_3_1",
-		CallID: "call_3_1", GateResults: []GateResult{{Gate: "permission", Decision: VerdictAsk, Reason: "edit"}}},
+		CallID: "call_3_1", GateResults: []GateResult{{Gate: "permission", Decision: VerdictAsk, Reason: "edit"}},
+		PayloadRef: "sha256-planref", EstTokens: 1000},
 	TypeApprovalResponded: &ApprovalResponded{ApprovalID: "apr-eff-call_3_1", Decision: "approve",
 		Reason: "looks safe", Source: "tty"},
 	TypeModeChanged:       &ModeChanged{From: "plan", To: "default", Cause: "exit_plan_mode approved"},
