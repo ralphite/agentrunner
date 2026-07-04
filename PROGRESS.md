@@ -2039,3 +2039,14 @@ human deny(never satisfied → max_iterations@2,stub resolver 免 env 耦合)。
 **driver goal mode 至此功能完整**(五终态 + 三 verifier + 预算根 + 失败
 策略 + 停滞)。未接:carry_ref 入 ArtifactStore、driver resume(in-flight
 迭代重跑)、loop mode(→ scheduler 模块)。
+
+## S6 模块②(续)— carry 文档入 ArtifactStore — DONE
+
+`Driver.Artifacts` (S5.5 CAS,nil→仅内联):每完成迭代把 child 全量 report
+publish 到 `carry` stream(逐版本链),`IterationCompleted.CarryRef` 留 ref、
+`Carry` 留 ≤512B 摘录(DESIGN:carry 文档存 ArtifactStore,只带 ref+短摘录)。
+redact-before-Put。`TestDriverCarryToArtifactStore`:满足后末迭代 CarryRef
+非空、`cas.Get(ref)` 解析回 report 文本。全量 check + race 通过。
+
+未接:driver resume(in-flight 迭代重跑,涉 in-doubt 语义)、loop mode
+(→ scheduler 模块③)。

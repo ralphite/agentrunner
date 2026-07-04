@@ -3,6 +3,7 @@ package driver_test
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -448,6 +449,44 @@ func TestDriverHumanVerifierDeny(t *testing.T) {
 	}
 	if res.Reason != "max_iterations" || res.Iterations != 2 {
 		t.Fatalf("res = %+v, want max_iterations at 2", res)
+	}
+}
+
+// With an ArtifactStore, each completed iteration publishes its full carry to
+// the CAS and IterationCompleted keeps the ref (resolving to the report) plus
+// a short excerpt.
+func TestDriverCarryToArtifactStore(t *testing.T) {
+	d, dStore := harness(t, &driver.DriverSpec{
+		Name: "goal", Task: "work", MaxIterations: 5,
+		Verifiers: []driver.VerifierSpec{{
+			Kind: driver.VerifierCommand, Command: "test $(wc -l < progress.txt) -ge 2",
+		}},
+	})
+	cas, err := store.OpenArtifactStore(filepath.Join(dStore.Dir(), "artifacts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Artifacts = cas
+
+	res, err := d.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "satisfied" {
+		t.Fatalf("res = %+v, want satisfied", res)
+	}
+	events, _ := store.ReadEvents(dStore.Dir())
+	st, _ := driver.Fold(events)
+	last := st.Iterations[len(st.Iterations)-1]
+	if last.CarryRef == "" {
+		t.Fatal("last iteration has no carry ref")
+	}
+	blob, err := cas.Get(last.CarryRef)
+	if err != nil {
+		t.Fatalf("carry ref does not resolve: %v", err)
+	}
+	if !strings.Contains(string(blob), "appended a line") {
+		t.Errorf("carry blob = %q, want the child report", blob)
 	}
 }
 

@@ -52,6 +52,11 @@ type Driver struct {
 	// Approvals resolves human verifiers via the same ask path the agent
 	// loop uses. nil → EnvApprovals (fail-closed when unset).
 	Approvals agent.ApprovalResolver
+	// Artifacts is the deliverable CAS (S5.5) the carry docs land in: each
+	// completed iteration's full report is published to the "carry" stream
+	// and IterationCompleted keeps only the ref + a short excerpt (DESIGN).
+	// nil → carry stays inline-only.
+	Artifacts *store.ArtifactStore
 }
 
 // Result summarizes a finished driver run.
@@ -164,10 +169,11 @@ func (d *Driver) Run(ctx context.Context) (Result, error) {
 		}
 
 		verdict := d.verify(ctx, childDir)
+		carryText := childReport(childDir)
 		if _, err := appendE(event.TypeIterationCompleted, &event.IterationCompleted{
 			DriverID: d.DriverID, Iter: n, ChildSession: childSession,
 			ChildReason: childRes.Reason, Verdict: verdict, Usage: childRes.Usage,
-			Carry: excerpt(childReport(childDir)),
+			CarryRef: d.publishCarry(carryText), Carry: excerpt(carryText),
 		}); err != nil {
 			return Result{}, err
 		}
@@ -472,6 +478,23 @@ func assistantText(m provider.Message) string {
 		}
 	}
 	return ""
+}
+
+// publishCarry stores the full carry doc in the CAS and returns its ref (empty
+// when there is no store or no text). The full text lives in the blob; only
+// the ref + a short excerpt ride IterationCompleted, keeping the log lean
+// (DESIGN: carry 文档存 ArtifactStore). Redaction precedes the write, as with
+// every persisted payload.
+func (d *Driver) publishCarry(text string) string {
+	if d.Artifacts == nil || text == "" {
+		return ""
+	}
+	v, err := d.Artifacts.Publish("carry", []byte(redact.FromEnv().String(text)))
+	if err != nil {
+		slog.Warn("driver: carry publish failed", "driver", d.DriverID, "err", err)
+		return ""
+	}
+	return v.Ref
 }
 
 // childSpent folds the child journal for its settled usage — the truth even
