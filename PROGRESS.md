@@ -1749,3 +1749,21 @@ completed。
 completed **先于** turn 1(seq 断言)、fold Materialized/Inputs、child
 read_file 读到物化内容——ref 由 CAS 决定论预先计算注入 fixture);悬空 ref
 拒绝(model-visible、无 child 目录、父继续)。
+
+## S5.9 inspect 子 agent 树 — DONE
+
+- **`buildInspectTree`**:递归打开 child journal——SubagentCompleted 的
+  ChildSession 尾缀 `-a<n>` 映射 `<dir>/sub/<call_id>-a<n>`;损坏的 child
+  journal 跳过不沉没父视图。`inspectReport` 加 `Children []childReportRef
+  {call_id, agent, session, reason, report}`(递归)与
+  `Artifacts []artifactReport{stream, version, ref, source}`。
+- **渲染**:`CHILD <call> → <agent> [reason] (session)` 后缩进递归渲染
+  child 全报告;`ARTIFACTS` 段列 `stream@vN ref (source)`。`--json` 输出
+  嵌套结构。
+
+**验证**:`TestBuildInspectTree`(盘上父子 journal → 递归 report、child
+状态、artifact 列、渲染含嵌套 CHILD 与 report@v1)。
+
+**S5 模块 1–9 全部完成**。下一步:S5 acceptance 场景包(accept --stage 5,
+对应完成标志:s5_fleet / s5_plan_approval / s5_no_escalation / s5_budget_seal)
+→ S5 出口对抗式 review。

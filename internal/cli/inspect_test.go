@@ -1,12 +1,14 @@
 package cli
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/state"
+	"github.com/ralphite/agentrunner/internal/store"
 )
 
 func mkEnv(t *testing.T, typ string, payload any) event.Envelope {
@@ -68,6 +70,73 @@ func TestBuildInspectReport(t *testing.T) {
 	// Usage totals + billed = input+output-cache_read.
 	if r.Usage.InputTokens != 500 || r.Usage.CacheRead != 100 || r.Usage.Billed != 440 {
 		t.Errorf("usage = %+v", r.Usage)
+	}
+}
+
+// S5.9: the tree report recurses into child journals under sub/, and the
+// artifacts section lists published versions.
+func TestBuildInspectTree(t *testing.T) {
+	dir := t.TempDir()
+	write := func(sub string, evs []event.Envelope) {
+		t.Helper()
+		d := dir
+		if sub != "" {
+			d = filepath.Join(dir, "sub", sub)
+		}
+		es, err := store.OpenEventStore(d)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = es.Close() }()
+		for _, e := range evs {
+			if _, err := es.Append(e); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	// Parent journal: a spawn (SubagentCompleted names the child session)
+	// and an artifact.
+	write("", []event.Envelope{
+		mkEnv(t, event.TypeRunStarted, &event.RunStarted{SpecName: "lead",
+			SubStateVersions: state.SubStateVersions()}),
+		mkEnv(t, event.TypeArtifactPublished, &event.ArtifactPublished{
+			Stream: "report", Version: 1, Ref: "sha256-abc", Source: "tool"}),
+		mkEnv(t, event.TypeSubagentCompleted, &event.SubagentCompleted{
+			CallID: "s1", Agent: "researcher", ChildSession: "lead-sub-s1-a1",
+			Reason: "completed", Turns: 2}),
+		mkEnv(t, event.TypeRunEnded, &event.RunEnded{Reason: "completed", Turns: 3}),
+	})
+	// Child journal under sub/s1-a1.
+	write("s1-a1", []event.Envelope{
+		mkEnv(t, event.TypeRunStarted, &event.RunStarted{SpecName: "researcher",
+			SubStateVersions: state.SubStateVersions()}),
+		mkEnv(t, event.TypeRunEnded, &event.RunEnded{Reason: "completed", Turns: 2}),
+	})
+
+	report, err := buildInspectTree(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Spec != "lead" || len(report.Children) != 1 {
+		t.Fatalf("report = spec %q, children %d", report.Spec, len(report.Children))
+	}
+	child := report.Children[0]
+	if child.Agent != "researcher" || child.Report.Spec != "researcher" ||
+		child.Report.Status != state.StatusEnded {
+		t.Errorf("child = %+v", child)
+	}
+	if len(report.Artifacts) != 1 || report.Artifacts[0].Stream != "report" {
+		t.Errorf("artifacts = %+v", report.Artifacts)
+	}
+
+	// The render shows the nested tree and the artifact line.
+	var sb strings.Builder
+	renderInspect(&sb, report)
+	out := sb.String()
+	for _, want := range []string{"CHILD   s1 → researcher", "researcher", "report@v1", "sha256-abc"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("render missing %q:\n%s", want, out)
+		}
 	}
 }
 

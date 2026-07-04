@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 
 	"github.com/ralphite/agentrunner/internal/event"
@@ -41,18 +42,11 @@ func inspectCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 		return ExitUsage
 	}
-	events, err := store.ReadEvents(dir)
+	report, err := buildInspectTree(dir)
 	if err != nil {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 		return ExitRun
 	}
-	s, err := state.Fold(events)
-	if err != nil {
-		fmt.Fprintf(stderr, "agentrunner: fold: %v\n", err)
-		return ExitRun
-	}
-
-	report := buildInspectReport(events, s)
 	if *asJSON {
 		raw, err := json.MarshalIndent(report, "", "  ")
 		if err != nil {
@@ -67,15 +61,35 @@ func inspectCmd(args []string, stdout, stderr io.Writer) int {
 }
 
 // inspectReport is the structured `inspect` output (also the --json shape).
+// Children are the sub-agent runs (S5.9), recursively — the tree render.
 type inspectReport struct {
-	Spec    string        `json:"spec"`
-	Model   string        `json:"model"`
-	Mode    string        `json:"mode"`
-	Status  string        `json:"status"`
-	Reason  string        `json:"reason,omitempty"`
-	Turns   int           `json:"turns"`
-	Entries []entryReport `json:"entries"`
-	Usage   usageReport   `json:"usage"`
+	Spec      string           `json:"spec"`
+	Model     string           `json:"model"`
+	Mode      string           `json:"mode"`
+	Status    string           `json:"status"`
+	Reason    string           `json:"reason,omitempty"`
+	Turns     int              `json:"turns"`
+	Entries   []entryReport    `json:"entries"`
+	Usage     usageReport      `json:"usage"`
+	Artifacts []artifactReport `json:"artifacts,omitempty"`
+	Children  []childReportRef `json:"children,omitempty"`
+}
+
+// artifactReport is one published deliverable version (S5.9 column).
+type artifactReport struct {
+	Stream  string `json:"stream"`
+	Version int    `json:"version"`
+	Ref     string `json:"ref"`
+	Source  string `json:"source,omitempty"`
+}
+
+// childReportRef ties a spawn call to the child run's own report.
+type childReportRef struct {
+	CallID  string        `json:"call_id"`
+	Agent   string        `json:"agent"`
+	Session string        `json:"session"`
+	Reason  string        `json:"reason"`
+	Report  inspectReport `json:"report"`
 }
 
 type entryReport struct {
@@ -104,6 +118,61 @@ type usageReport struct {
 type verdictInfo struct {
 	verdict string
 	gate    string
+}
+
+// buildInspectTree builds a session's report and recurses into its child
+// runs (S5.9): each SubagentCompleted names a child whose journal lives
+// under <dir>/sub/; the tree render opens each child once, recursively.
+func buildInspectTree(dir string) (inspectReport, error) {
+	events, err := store.ReadEvents(dir)
+	if err != nil {
+		return inspectReport{}, err
+	}
+	s, err := state.Fold(events)
+	if err != nil {
+		return inspectReport{}, fmt.Errorf("fold: %w", err)
+	}
+	report := buildInspectReport(events, s)
+	for _, e := range events {
+		switch e.Type {
+		case event.TypeArtifactPublished:
+			if dec, derr := event.DecodePayload(e); derr == nil {
+				p := dec.(*event.ArtifactPublished)
+				report.Artifacts = append(report.Artifacts, artifactReport{
+					Stream: p.Stream, Version: p.Version, Ref: p.Ref, Source: p.Source,
+				})
+			}
+		case event.TypeSubagentCompleted:
+			dec, derr := event.DecodePayload(e)
+			if derr != nil {
+				continue
+			}
+			sub := dec.(*event.SubagentCompleted)
+			childDir := childDirFor(dir, sub)
+			if childDir == "" {
+				continue
+			}
+			childReport, cerr := buildInspectTree(childDir)
+			if cerr != nil {
+				continue // a broken child journal must not sink the parent's view
+			}
+			report.Children = append(report.Children, childReportRef{
+				CallID: sub.CallID, Agent: sub.Agent, Session: sub.ChildSession,
+				Reason: sub.Reason, Report: childReport,
+			})
+		}
+	}
+	return report, nil
+}
+
+// childDirFor maps a SubagentCompleted to its journal dir: the child
+// session suffix "-a<n>" names <dir>/sub/<call_id>-a<n>.
+func childDirFor(dir string, sub *event.SubagentCompleted) string {
+	i := strings.LastIndex(sub.ChildSession, "-a")
+	if i < 0 {
+		return ""
+	}
+	return filepath.Join(dir, "sub", sub.CallID+sub.ChildSession[i:])
 }
 
 func buildInspectReport(events []event.Envelope, s state.State) inspectReport {
@@ -228,18 +297,22 @@ func decidingGate(results []event.GateResult, verdict string) string {
 }
 
 func renderInspect(w io.Writer, r inspectReport) {
-	fmt.Fprintf(w, "spec    %s    model %s    mode %s\n", r.Spec, r.Model, r.Mode)
+	renderInspectIndent(w, r, "")
+}
+
+func renderInspectIndent(w io.Writer, r inspectReport, pad string) {
+	fmt.Fprintf(w, "%sspec    %s    model %s    mode %s\n", pad, r.Spec, r.Model, r.Mode)
 	status := r.Status
 	if r.Reason != "" {
 		status += " (" + r.Reason + ")"
 	}
-	fmt.Fprintf(w, "status  %s    turns %d\n\n", status, r.Turns)
+	fmt.Fprintf(w, "%sstatus  %s    turns %d\n\n", pad, status, r.Turns)
 
-	fmt.Fprintln(w, "TIMELINE")
+	fmt.Fprintln(w, pad+"TIMELINE")
 	lastTurn := -1
 	for _, e := range r.Entries {
 		if e.Turn != lastTurn {
-			fmt.Fprintf(w, "  turn %d\n", e.Turn)
+			fmt.Fprintf(w, "%s  turn %d\n", pad, e.Turn)
 			lastTurn = e.Turn
 		}
 		verdict := e.Verdict
@@ -250,14 +323,26 @@ func renderInspect(w io.Writer, r inspectReport) {
 		if e.InputTokens > 0 || e.OutputTokens > 0 {
 			toks = fmt.Sprintf("in %d out %d cache_r %d", e.InputTokens, e.OutputTokens, e.CacheRead)
 		}
-		id := e.CallID
-		fmt.Fprintf(w, "    %-8s %-12s %-10s %-24s %s\n", e.Kind, e.Name, id, verdict, toks)
+		fmt.Fprintf(w, "%s    %-8s %-12s %-10s %-24s %s\n", pad, e.Kind, e.Name, e.CallID, verdict, toks)
+	}
+
+	if len(r.Artifacts) > 0 {
+		fmt.Fprintln(w, "\n"+pad+"ARTIFACTS")
+		for _, a := range r.Artifacts {
+			fmt.Fprintf(w, "%s  %s@v%d  %s  (%s)\n", pad, a.Stream, a.Version, a.Ref, a.Source)
+		}
 	}
 
 	u := r.Usage
-	fmt.Fprintf(w, "\nUSAGE   input %d  output %d  cache_read %d  cache_write %d  billed %d\n",
-		u.InputTokens, u.OutputTokens, u.CacheRead, u.CacheWrite, u.Billed)
+	fmt.Fprintf(w, "\n%sUSAGE   input %d  output %d  cache_read %d  cache_write %d  billed %d\n",
+		pad, u.InputTokens, u.OutputTokens, u.CacheRead, u.CacheWrite, u.Billed)
 	if u.BudgetReserved > 0 {
-		fmt.Fprintf(w, "        reserved %d\n", u.BudgetReserved)
+		fmt.Fprintf(w, "%s        reserved %d\n", pad, u.BudgetReserved)
+	}
+
+	// The agent tree (S5.9): each child run renders recursively, indented.
+	for _, c := range r.Children {
+		fmt.Fprintf(w, "\n%sCHILD   %s → %s  [%s]  (%s)\n", pad, c.CallID, c.Agent, c.Reason, c.Session)
+		renderInspectIndent(w, c.Report, pad+"    ")
 	}
 }
