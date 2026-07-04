@@ -1466,3 +1466,34 @@ s5_budget_seal(否定)。
 
 下一步:S5.1 MCP client(官方 go-sdk、生命周期带外、schema 入 event、
 mcp__server__tool 命名、无标签 execute-class、allowed_tools 收窄+否定测试)。
+
+## S5.1 MCP client — 进行中(part 1:client wrapper 落地)
+
+新增 `internal/mcp`(官方 `modelcontextprotocol/go-sdk` v1.6.1):
+
+- **生命周期带外**:`Conn` 包一个已连接的 `*sdk.ClientSession`(连接
+  transport——stdio/in-memory——是调用方职责,不进 event log)。`clientSession`
+  接口便于测试替身。
+- **发现 + 归一**:`Discover` → ListTools → `DiscoveredTool{Server, Tool,
+  Name(mcp__srv__tool), Description, InputSchema, Class}`,按 Name 排序(稳定
+  tool face → 稳定 prefix)。
+- **class 映射**:ReadOnlyHint → read;**无标签 → execute**(最保守默认)。
+- **命名**:`QualifiedName`/`SplitName`(只首个 `__` 分割,tool 名可含 `__`)。
+- **Call 分发**:`Conn.Call` 渲染 content(TextContent 拼接)+ 透传 MCP
+  tool-level IsError(失败是 model-visible 结果,与 built-in 同契约)。
+- **Manager**:多 server 联合发现 + **allowed_tools 收窄**;`Call` 对未列
+  工具**防御性拒绝**(即便模型伪造调用未 advertise 的 MCP tool 也不执行)。
+  重复 server 名拒绝(命名 namespace 工具,冲突则分发歧义)。
+
+**验证**(in-memory MCP server,双工具 peek[read-only]/run[untagged]):
+命名+class 默认、Call 分发+IsError 透传、Manager allowed 收窄+越权 Call
+拒绝(否定测试)、SplitName 边界、重复 server 拒绝。
+
+**S5.1 剩余(下一步)**:①discovered schema **入 event**(resume 知 tool
+face + 带外重连对账);②MCP tool 接入 loop 的 advertised 面 + permission
+class + assembly(mcp__ 工具进 tool registry/ProviderDefs);③resume 时按
+journaled schema 带外重连+漂移检测。本步先落纯 client 抽象(与 agent 内核
+解耦,可单测),集成留后续步。
+
+新增依赖:modelcontextprotocol/go-sdk v1.6.1(+ jsonschema-go、uritemplate、
+oauth2、segmentio/encoding 传递依赖);go mod tidy 干净。
