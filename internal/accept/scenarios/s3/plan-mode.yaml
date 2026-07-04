@@ -1,0 +1,32 @@
+id: s3-01-plan-mode
+title: plan mode 全流程:只读面 + 注入提示 → exit_plan_mode 审批 → default 模式下编辑
+files:
+  spec.yaml: |
+    name: planner
+    model: { provider: scripted, id: x }
+    system_prompt: help
+    mode: plan
+    tools: [read_file, edit_file, exit_plan_mode]
+  greet.txt: "hello world"
+  plan.yaml: |
+    steps:
+      - respond:
+          - text: "plan ready"
+          - tool_call: { name: exit_plan_mode, args: { plan: "edit greet.txt" } }
+          - finish: tool_use
+      - respond:
+          - tool_call: { name: edit_file, args: { path: greet.txt, old: hello world, new: HELLO WORLD } }
+          - finish: tool_use
+      - respond:
+          - text: "done"
+          - finish: end_turn
+steps:
+  - run: >
+      AGENTRUNNER_APPROVE=always
+      AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/plan.yaml
+      $BIN run --workspace . spec.yaml "improve the greeting"
+  - run: $BIN events $(ls $XDG_DATA_HOME/agentrunner/sessions | head -1)
+expect:
+  - exit_code: 0
+  - file_contains: { path: greet.txt, text: "HELLO WORLD" }
+  - output_contains: "mode_changed"

@@ -177,6 +177,7 @@ func runAgent(opts runOptions) int {
 		Pipeline:   pipe,
 		Mode:       mode,
 		Hooks:      hooks,
+		Approvals:  approvalResolver(opts.stderr),
 	}
 	result, runErr := loop.Run(ctx, opts.task)
 

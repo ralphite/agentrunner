@@ -1,0 +1,25 @@
+id: s3-02-approval-deny-continues
+title: 审批拒绝渲染给模型,run 正常继续收尾;文件未被改动
+files:
+  spec.yaml: |
+    name: careful
+    model: { provider: scripted, id: x }
+    system_prompt: help
+    tools: [edit_file]
+  greet.txt: "hello world"
+  ask.yaml: |
+    steps:
+      - respond:
+          - tool_call: { name: edit_file, args: { path: greet.txt, old: hello world, new: HELLO WORLD } }
+          - finish: tool_use
+      - respond:
+          - text: "understood, not editing"
+          - finish: end_turn
+steps:
+  - run: >
+      AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/ask.yaml
+      $BIN run --workspace . spec.yaml "change the greeting"
+expect:
+  - exit_code: 0
+  - file_contains: { path: greet.txt, text: "hello world" }
+  - events_valid: xdg/agentrunner/sessions/*/events.jsonl

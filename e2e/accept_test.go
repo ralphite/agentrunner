@@ -20,7 +20,7 @@ func TestAcceptStagesEndToEnd(t *testing.T) {
 		t.Fatalf("build failed: %v\n%s", err, out)
 	}
 
-	for stage, minPass := range map[int]int{1: 4, 2: 4} {
+	for stage, minPass := range map[int]int{1: 4, 2: 4, 3: 3} {
 		t.Run(fmt.Sprintf("stage%d", stage), func(t *testing.T) {
 			report := filepath.Join(tmp, fmt.Sprintf("report-%d.json", stage))
 			cmd := exec.Command(bin, "accept", "--stage", fmt.Sprint(stage), "--plain", "--report", report)

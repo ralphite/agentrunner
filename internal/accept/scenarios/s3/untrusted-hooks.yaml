@@ -1,0 +1,35 @@
+id: s3-03-untrusted-hooks
+title: 不受信 repo 的 hooks 不执行;trust 之后才执行
+files:
+  spec.yaml: |
+    name: hooked
+    model: { provider: scripted, id: x }
+    system_prompt: help
+    tools: [bash]
+    permissions:
+      - { action: allow }
+  .agentrunner/settings.yaml: |
+    hooks:
+      pre_tool:
+        - echo hooked >> hook-ran.txt
+  fix.yaml: |
+    steps:
+      - respond:
+          - tool_call: { name: bash, args: { command: "true" } }
+          - finish: tool_use
+      - respond:
+          - text: "done"
+          - finish: end_turn
+steps:
+  - run: >
+      AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/fix.yaml
+      $BIN run --workspace . spec.yaml "run true" 2>&1;
+      test ! -f hook-ran.txt
+  - run: $BIN trust $SCRATCH
+  - run: >
+      AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/fix.yaml
+      $BIN run --workspace . spec.yaml "run true again"
+expect:
+  - exit_code: 0
+  - file_contains: { path: hook-ran.txt, text: "hooked" }
+  - output_contains: "untrusted"

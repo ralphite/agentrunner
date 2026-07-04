@@ -937,3 +937,24 @@ decide 不再重试)。
 **Decisions**:
 - 渲染在 fold 内调用(确定性纯函数,与 fold 契约相容)——渲染表
   变更会改变历史 fold 结果,记为已知耦合,S4.7 重构渲染层时回访。
+
+## S3.10 CLI 审批 UI + S3 acceptance 场景包 — DONE
+
+`ttyApprovals`:展示 tool/args/全 gate 判定,读 `y`/`n [reason]`;
+读取在 goroutine 与 ctx 竞速(终端读不可取消,进程退出时回收);
+**真终端检测用 term.IsTerminal**(初版用 ModeCharDevice,acceptance
+跑挂——/dev/null 也是字符设备,修正记档);非 TTY 回退 fail-closed
+EnvApprovals。run/resume 双接线(提示走 stderr,stdout 属 run 输出)。
+手动 TTY 验收 DEFERRED(出口人工检查点,与 S1 TUI 同批)。
+
+`accept --stage 3` 三场景全 PASS,e2e gate 扩三 stage:
+- s3-01 plan mode 全流程(完成标志句 1)
+- s3-02 审批拒绝渲染+run 继续(3.5/3.10 行为)
+- s3-03 不受信 hooks 不执行、trust 后执行(完成标志句 4)
+
+**0.6 偏离记档**:完成标志句 2(FakeClock 挂 48h)与句 3(合成
+TOCTOU)本质是合成时间/合成并发,无法经 binary 场景表达,映射到
+命名 go test(TestApprovalHangsTwoDaysThenApproved /
+TestBudgetTOCTOUSyntheticConcurrency),作为"合成场景"记入台账。
+
+**Stage 3 实现完成**,待出口对抗式 review。
