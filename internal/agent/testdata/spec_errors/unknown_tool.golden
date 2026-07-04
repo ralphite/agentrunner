@@ -1,1 +1,1 @@
-spec testdata/spec_errors/unknown_tool.yaml: field tools: unknown tool "web_search" (known: [bash edit_file exit_plan_mode read_file])
+spec testdata/spec_errors/unknown_tool.yaml: field tools: unknown tool "web_search" (known: [bash edit_file exit_plan_mode read_file spawn_agent])

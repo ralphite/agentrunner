@@ -39,7 +39,9 @@ const (
 	TypeMalformedToolCall = "malformed_tool_call"
 
 	// S5 additions.
-	TypeToolsDiscovered = "tools_discovered"
+	TypeToolsDiscovered   = "tools_discovered"
+	TypeSpawnRequested    = "spawn_requested"
+	TypeSubagentCompleted = "subagent_completed"
 )
 
 // Effect verdicts and gate decisions.
@@ -83,6 +85,9 @@ type RunStarted struct {
 	// editing the files mid-run must not rewrite the prefix.
 	Memory string `json:"memory,omitempty"`
 	Skills string `json:"skills,omitempty"`
+	// Agents is the rendered sub-agent directory block (S5.3), frozen like
+	// Skills — the model spawns only what it can see.
+	Agents string `json:"agents,omitempty"`
 }
 
 type InputReceived struct {
@@ -280,6 +285,31 @@ type MCPToolDef struct {
 	InputSchema json.RawMessage `json:"input_schema,omitempty"`
 }
 
+// SpawnRequested records an adjudicated-allow sub-agent spawn (S5.3), right
+// before the child run starts. ChildSession is the child's own journal —
+// the parent log holds the REF, never the child's events (fresh child run,
+// fault isolation). BudgetTokens is the frozen min-aggregated allowance.
+type SpawnRequested struct {
+	CallID       string `json:"call_id"`
+	Agent        string `json:"agent"`
+	Task         string `json:"task"`
+	ChildSession string `json:"child_session"`
+	Depth        int    `json:"depth"`
+	BudgetTokens int    `json:"budget_tokens,omitempty"`
+}
+
+// SubagentCompleted records the child run's terminal outcome in the PARENT
+// log (S5.3): the ref plus the summary facts inspect needs to render the
+// tree without opening every child journal.
+type SubagentCompleted struct {
+	CallID       string         `json:"call_id"`
+	Agent        string         `json:"agent"`
+	ChildSession string         `json:"child_session"`
+	Reason       string         `json:"reason"`
+	Turns        int            `json:"turns"`
+	Usage        provider.Usage `json:"usage"`
+}
+
 // GateResult is one gate's judgment inside an effect resolution.
 type GateResult struct {
 	Gate     string `json:"gate"`
@@ -328,4 +358,6 @@ var Registry = map[string]func() any{
 	TypeContextCompacted:  func() any { return &ContextCompacted{} },
 	TypeMalformedToolCall: func() any { return &MalformedToolCall{} },
 	TypeToolsDiscovered:   func() any { return &ToolsDiscovered{} },
+	TypeSpawnRequested:    func() any { return &SpawnRequested{} },
+	TypeSubagentCompleted: func() any { return &SubagentCompleted{} },
 }

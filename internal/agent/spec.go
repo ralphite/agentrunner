@@ -62,6 +62,12 @@ type AgentSpec struct {
 	// names (mcp__<server>__<tool>). Empty = every discovered tool. Built-in
 	// tools are unaffected — they are selected by Tools.
 	AllowedTools []string `yaml:"allowed_tools,omitempty"`
+	// Description is what a PARENT's agents directory shows for this spec
+	// when it appears as a spawnable sub-agent (S5.3).
+	Description string `yaml:"description,omitempty"`
+	// Agents whitelists the sub-agent specs this agent may spawn (S5.3).
+	// The model only sees — and can only spawn — what is listed here.
+	Agents []string `yaml:"agents,omitempty"`
 }
 
 // BudgetSpec is the spec-level resource cap.

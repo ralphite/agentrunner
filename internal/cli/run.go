@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -49,6 +50,16 @@ func defaultProviderFactory(ctx context.Context, name string) (provider.Provider
 		return scripted.Load(path)
 	default:
 		return nil, fmt.Errorf("%w %q (available: gemini, anthropic, scripted)", errUnknownProvider, name)
+	}
+}
+
+// siblingSpecResolver resolves a sub-agent name to <name>.yaml next to the
+// parent spec (S5.3). The spec.Agents whitelist gates WHO may be spawned;
+// this only answers WHERE the spec lives.
+func siblingSpecResolver(parentSpecPath string) agent.SubSpecResolver {
+	dir := filepath.Dir(parentSpecPath)
+	return func(name string) (*agent.AgentSpec, error) {
+		return agent.LoadSpec(filepath.Join(dir, name+".yaml"))
 	}
 }
 
@@ -193,6 +204,7 @@ func runAgent(opts runOptions) int {
 		Mode:       mode,
 		Hooks:      hooks,
 		Approvals:  approvalResolver(opts.stderr),
+		SubSpecs:   siblingSpecResolver(opts.specPath),
 	}
 	result, runErr := loop.Run(ctx, opts.task)
 

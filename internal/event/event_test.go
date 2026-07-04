@@ -52,6 +52,11 @@ var samples = map[string]any{
 	TypeToolsDiscovered: &ToolsDiscovered{Server: "demo", Tools: []MCPToolDef{{
 		Server: "demo", Name: "mcp__demo__peek", Description: "read-only peek",
 		Class: "read", InputSchema: json.RawMessage(`{"type":"object"}`)}}},
+	TypeSpawnRequested: &SpawnRequested{CallID: "call_2_0", Agent: "summarizer",
+		Task: "summarize the findings", ChildSession: "sess-sub-call_2_0", Depth: 1, BudgetTokens: 4000},
+	TypeSubagentCompleted: &SubagentCompleted{CallID: "call_2_0", Agent: "summarizer",
+		ChildSession: "sess-sub-call_2_0", Reason: "completed", Turns: 2,
+		Usage: provider.Usage{InputTokens: 100, OutputTokens: 50}},
 	TypeEffectResolved: &EffectResolved{EffectID: "eff-call_3_1", CallID: "call_3_1",
 		Verdict: VerdictDeny, GateResults: []GateResult{
 			{Gate: "permission", Decision: VerdictDeny, Reason: "path escapes workspace"}}},

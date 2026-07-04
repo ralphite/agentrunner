@@ -176,9 +176,12 @@ type Run struct {
 	// advertised face and reconcile a re-connect. Sorted by Name.
 	MCPTools []event.MCPToolDef `json:"mcp_tools,omitempty"`
 	// Memory and Skills are the frozen prompt-prefix blocks (S5.2), same
-	// lifecycle as Env.
+	// lifecycle as Env. Agents is the sub-agent directory block (S5.3).
 	Memory string `json:"memory,omitempty"`
 	Skills string `json:"skills,omitempty"`
+	Agents string `json:"agents,omitempty"`
+	// Spawns counts SpawnRequested facts (S5.3): the fan-out gate's input.
+	Spawns int `json:"spawns,omitempty"`
 }
 
 // New is the empty pre-RunStarted state.
@@ -220,7 +223,7 @@ func Apply(s State, env event.Envelope) (State, error) {
 		s.Run.Status = StatusRunning
 		s.Run.SpecName, s.Run.Model, s.Run.Task, s.Run.Version = p.SpecName, p.Model, p.Task, p.Version
 		s.Run.Env = p.Env
-		s.Run.Memory, s.Run.Skills = p.Memory, p.Skills
+		s.Run.Memory, s.Run.Skills, s.Run.Agents = p.Memory, p.Skills, p.Agents
 
 	case *event.InputReceived:
 		// Interrupts are journaled control inputs (journal-inputs-first),
@@ -242,6 +245,14 @@ func Apply(s State, env event.Envelope) (State, error) {
 
 	case *event.MalformedToolCall:
 		s.Run.MalformedRetries++
+
+	case *event.SpawnRequested:
+		s.Run.Spawns++
+
+	case *event.SubagentCompleted:
+		// Informational (inspect's tree render reads it from the log); the
+		// parent's accounting settles through the spawn activity's
+		// ActivityCompleted, never here.
 
 	case *event.ToolsDiscovered:
 		// Replace this server's tools (re-discovery wins), keep other

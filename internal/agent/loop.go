@@ -62,6 +62,11 @@ type Loop struct {
 	// on resume reconciles the live face against the journaled one. nil =
 	// no MCP tools.
 	MCP MCPManager
+	// SubSpecs resolves the spec.Agents whitelist to child specs (S5.3);
+	// nil = spawning unavailable. Depth is this run's position in the agent
+	// tree (0 = root); the spawn gate caps it.
+	SubSpecs SubSpecResolver
+	Depth    int
 }
 
 // MCPManager is the slice of mcp.Manager the loop needs (an interface so
@@ -202,6 +207,7 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 		Spec: specJSON, WorkspaceRoot: wsRoot,
 		Env:    renderEnvBlock(wsRoot, l.Clock.Now()),
 		Memory: memoryBlock, Skills: skillsBlock,
+		Agents: renderAgentsDirectory(l.Spec.Agents, l.SubSpecs),
 	}); err != nil {
 		return RunResult{}, err
 	}
@@ -512,6 +518,17 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			Name: mt.Name, Description: mt.Description, InputSchema: mt.InputSchema,
 		})
 	}
+	// spawn_agent advertises whenever the spec whitelists agents (S5.3).
+	// The face must depend on the JOURNALED spec only — resume rebuilds the
+	// same face without knowing where sub-spec files live; a missing
+	// resolver surfaces as a model-visible error at execution instead.
+	if len(l.Spec.Agents) > 0 {
+		spawnDefs, derr := tool.ProviderDefs([]string{"spawn_agent"})
+		if derr != nil {
+			return RunResult{}, derr
+		}
+		toolDefs = append(toolDefs, spawnDefs...)
+	}
 	// abort routes a dying run through the same epilogue, best-effort, so
 	// a failed log is distinguishable from a truncated one. User
 	// cancellation is its own reason — an interrupted run is not a failed
@@ -737,10 +754,15 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 
 	// Phase 1 — serial adjudication.
 	type pending struct {
-		call provider.ToolCall
-		res  *tool.Result
+		call      provider.ToolCall
+		res       *tool.Result
+		allowance int // spawn only: the frozen min-aggregated child budget
 	}
 	var allowed []pending
+	// batchSpawns counts spawns allowed THIS batch: SpawnRequested only
+	// lands at execution, so the gate would otherwise see a stale count
+	// for the second spawn of one turn (fan-out TOCTOU).
+	batchSpawns := 0
 	for _, call := range act.calls {
 		l.emit(protocol.Event{Kind: protocol.KindToolCall, Turn: act.turn,
 			Tool: call.Name, CallID: call.CallID, Args: compact(call.Args)})
@@ -752,6 +774,19 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 			Mode:      ds.s.CurrentMode(),
 			EstTokens: pipeline.EstTokensForClass(class),
 			Budget:    budgetView(ds.s),
+		}
+		allowance := 0
+		if call.Name == "spawn_agent" {
+			// The spawn effect reserves the child's WHOLE allowance up
+			// front (min aggregation, S5.3) and feeds the tree caps to the
+			// spawn gate. An unresolvable target keeps the class default;
+			// execution reports the problem to the model.
+			eff.SpawnDepth = l.Depth
+			eff.SpawnCount = ds.s.Run.Spawns + batchSpawns
+			if _, _, childSpec, problem := l.resolveSpawnTarget(call.Args); problem == "" {
+				allowance = l.spawnAllowance(ds.s, childSpec)
+				eff.EstTokens = allowance
+			}
 		}
 		outcome, ok, err := l.adjudicate(ctx, ds, appendE, eff)
 		if err != nil {
@@ -765,7 +800,10 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 				Tool: call.Name, CallID: call.CallID, Result: compact(dr.Payload), IsError: true})
 			continue
 		}
-		allowed = append(allowed, pending{call: call, res: new(tool.Result)})
+		if call.Name == "spawn_agent" {
+			batchSpawns++
+		}
+		allowed = append(allowed, pending{call: call, res: new(tool.Result), allowance: allowance})
 	}
 	if len(allowed) == 0 {
 		return nil
@@ -782,15 +820,22 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 	execP := &ActivityExecutor{Append: serialAppend, Clock: l.Clock, Redact: redact.FromEnv()}
 	errsOut := make([]error, len(allowed))
 	// Activities are BUILT on this goroutine (their config reads ds.s, which
-	// the concurrent serialAppend mutates) and only RUN concurrently.
+	// the concurrent serialAppend mutates) and only RUN concurrently. Spawn
+	// closures journal through serialAppend and capture the parent's live
+	// mode NOW — frozen-at-spawn semantics.
+	parentMode := ds.s.CurrentMode()
 	acts := make([]Activity, len(allowed))
 	for i, p := range allowed {
+		run := l.buildToolRun(p.call, p.res)
+		if p.call.Name == "spawn_agent" {
+			run = l.buildSpawnRun(p.call, p.res, serialAppend, p.allowance, parentMode)
+		}
 		acts[i] = Activity{
 			ID: "tool-" + p.call.CallID, Kind: event.KindTool,
 			Name: p.call.Name, Args: p.call.Args, CallID: p.call.CallID,
 			Idempotent: toolIdempotentIn(ds.s, p.call.Name),
 			Timeout:    toolTimeoutIn(ds.s, p.call.Name),
-			Run:        l.buildToolRun(p.call, p.res),
+			Run:        run,
 			PostRun:    l.buildPostRun(p.call),
 		}
 	}
@@ -1116,6 +1161,11 @@ const executeToolTimeout = 120 * time.Second
 const maxMalformedRetries = 2
 
 func toolTimeoutIn(s state.State, name string) time.Duration {
+	if name == "spawn_agent" {
+		// A child run is bounded by its own max_turns and budget, not a
+		// wall clock — 120s would kill legitimate children (S5.3).
+		return 0
+	}
 	if def, ok := tool.Get(name); ok {
 		if def.Class == tool.ClassExecute {
 			return executeToolTimeout

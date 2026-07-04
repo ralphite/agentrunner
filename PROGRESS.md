@@ -1569,3 +1569,57 @@ prefix、body 不漏、**中途 bash 改 CLAUDE.md 后 turn2 prefix 逐字节不
   merge 骨架在 3.4,本步只做 project 层(workspace + 祖先);user 层注入
   属加性扩展,记档。
 - **memory 无大小上限(v0)**:prefix 膨胀风险记档,S5 出口 review 复查。
+
+## S5.3 spawn/await — DONE
+
+**子 agent = 过管线的 activity,内部是 fresh child run。**
+
+- **events**:`SpawnRequested{call_id, agent, task, child_session, depth,
+  budget_tokens}`(裁决 allow 后、child 启动前落盘;fold 计入 `Run.Spawns`
+  扇出计数)+ `SubagentCompleted{call_id, agent, child_session, reason,
+  turns, usage}`(父 log 只存 ref 与摘要,child events 在自己的 journal
+  ——fresh run 故障隔离)。
+- **spawn_agent tool**(defs/spawn_agent.json,execute class):仅当
+  `spec.agents` 白名单非空才 advertise(**face 只依赖 journaled spec**,
+  resume 无 resolver 也重建同一 face;resolver 缺失是执行期 model-visible
+  错误)。`<agents>` 目录块 session-start 冻结进 RunStarted.Agents →
+  assembly 固定序第 4 段(env→memory→skills→**agents**→spec→mode)。
+- **权限交集冻结**:child pipeline = **parent gates ++ child gates**——
+  管线 deny 短路使"全部 gate 都 allow 才执行"天然等于交集语义,只紧不松;
+  spawn 时构造即冻结。child spec 的 PermissionGate 沿用 parent 的 WS。
+- **mode 不上扬**:child `Mode = parent live mode(批次冻结)`,child spec
+  的 mode 字段被清除;**plan mode 根本不能 spawn**(spawn_agent 是 execute
+  class,hardFloor 不可绕——spawning does work,语义自洽,测试锁定)。
+- **树预算 min 聚合**:`spawnAllowance = min(parent 剩余, child spec 上限)`
+  (0=无限);spawn effect **整额预留**(EstTokens=allowance)→ 落进 fold
+  reservation → child 实际 usage 经 ActivityCompleted **结算入父账**,
+  预留释放。child 自己的 BudgetGate(allowance) + frozen spec budget 使
+  child 内部也优雅 limit_exceeded。
+- **深度/扇出 SpawnGate**(纯 gate,CLI 管线排 FloorGate 后):默认
+  depth<2、spawns<8,超限 = deny(model-visible)非 crash。**批内扇出
+  TOCTOU 修复**:SpawnRequested 在执行期才落盘,同批第二个 spawn 裁决时
+  fold 计数过期——phase 1 维护 `batchSpawns` 计数入 Effect.SpawnCount。
+- **审批冒泡 v0**:child.Approvals = parent resolver(单进程内共享 seam
+  即冒泡;跨进程路由 S6 daemon 时复验,执行包已记)。
+- **child 失败不自动重试**:child run 中途 abort → model-visible error
+  result(盲目重跑整个 child 会重复其副作用,由父模型决定是否重 spawn);
+  cancellation 走 ctx 正常取消路径。**per-attempt child dir**
+  (`sub/<call_id>-a<n>`)避免重试往死 child 的 journal 续写。
+- **spawn 无墙钟**(child 由自身 max_turns/budget 约束,120s 会误杀)。
+- **CLI**:SpawnGate 入 buildPipeline;`siblingSpecResolver`(父 spec 同目录
+  `<name>.yaml`)接 run 路径;resume 无 resolver(限档:resumed run 内再
+  spawn 报 model-visible 错,spec 目录未 journal——S5 出口 review 复查)。
+
+**验证**:e2e(目录冻结入 prefix、advertise、child journal 独立、report 回
+父、child usage 结算入父账、预留释放);无越权(parent deny rule 绑 child,
+文件未被改,child journal 有 deny);mode 不上扬两例(plan 不能 spawn、
+child spec bypass 被忽略);预算 min 聚合(逐事件 replay settled+reserved
+≤上限、allowance=4900 正确、终账 165);depth/fanout caps(达 depth 上限
+deny 提 depth、同批第二 spawn deny 提 fan-out、denied 不计数);whitelist
+(名单外 model-visible 错、无名单不 advertise)。tool registry golden +
+spec 错误 golden 随注册表扩展更新。
+
+**Decisions**(除上述内嵌):shared scripted provider 顺序消费 fixture
+(spawn 阻塞使 parent→child→parent 步序确定)是测试的关键构造;child 不
+继承 MCP face(SetAllowed 共享突变危险,S5.1 记档过)与 hooks(父 workspace
+语义,记档)。

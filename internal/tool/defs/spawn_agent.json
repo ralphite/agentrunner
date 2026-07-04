@@ -1,0 +1,19 @@
+{
+  "name": "spawn_agent",
+  "description": "Spawn a sub-agent from the available agents directory to work on a delegated task. Blocks until the sub-agent finishes and returns its final report. Sub-agents run under your permission rules and share your token budget.",
+  "class": "execute",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "agent": {
+        "type": "string",
+        "description": "Name of the sub-agent to spawn (must be listed in the agents directory)."
+      },
+      "task": {
+        "type": "string",
+        "description": "The task for the sub-agent to perform."
+      }
+    },
+    "required": ["agent", "task"]
+  }
+}

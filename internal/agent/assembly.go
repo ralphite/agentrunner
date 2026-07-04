@@ -35,14 +35,14 @@ func Assemble(s state.State, spec *AgentSpec, toolDefs []provider.ToolDef, turn 
 }
 
 // assembleSystem lays out the system prompt in DESIGN's fixed order: env
-// block → memory layer (CLAUDE.md merge) → skills directory → spec prompt →
-// mode suffix. Env, memory, and skills were all frozen at session start
-// (S4.4c / S5.2), so the prefix is byte-identical every turn; only the mode
-// suffix moves, and only on an explicit mode transition (an accepted cache
-// break, decision #10).
+// block → memory layer (CLAUDE.md merge) → skills directory → agents
+// directory → spec prompt → mode suffix. Env, memory, skills, and agents
+// were all frozen at session start (S4.4c / S5.2 / S5.3), so the prefix is
+// byte-identical every turn; only the mode suffix moves, and only on an
+// explicit mode transition (an accepted cache break, decision #10).
 func assembleSystem(run state.Run, specPrompt, mode string) string {
 	var b strings.Builder
-	for _, block := range []string{run.Env, run.Memory, run.Skills} {
+	for _, block := range []string{run.Env, run.Memory, run.Skills, run.Agents} {
 		if block != "" {
 			b.WriteString(block)
 			b.WriteString("\n\n")

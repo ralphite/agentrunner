@@ -28,6 +28,11 @@ type Effect struct {
 	Mode      string // current run mode at adjudication time (3.6)
 	// Budget is the fold's live accounting at adjudication time (3.7).
 	Budget BudgetView
+	// SpawnDepth/SpawnCount feed the spawn gate (S5.3): this run's depth in
+	// the agent tree and the spawns it has already requested. Zero for
+	// non-spawn effects.
+	SpawnDepth int
+	SpawnCount int
 }
 
 // Decision is one gate's judgment.

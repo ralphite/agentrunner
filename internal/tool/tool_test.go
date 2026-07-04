@@ -7,7 +7,7 @@ import (
 )
 
 func TestRegistryLoads(t *testing.T) {
-	want := []string{"bash", "edit_file", "exit_plan_mode", "read_file"}
+	want := []string{"bash", "edit_file", "exit_plan_mode", "read_file", "spawn_agent"}
 	if got := Names(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("Names() = %v, want %v", got, want)
 	}
