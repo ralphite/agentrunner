@@ -2613,3 +2613,11 @@ run 的 per-sub-state map);Resume 读 events[0]:header 版本不符 →
 driver_started(iteration_scheduled 保留为 legacy 合法首事件)。
 两测试:mismatch 拒(FoldVersion 99)、新流 header 溯源完整。全量
 check + race + stage 6 acceptance 绿。
+
+## S7 还债③ — daemon idem 持久化 — DONE
+
+`Server.IdemPath`(cli 接 `data/idem.json`):注册即整表原子重写
+(tmp+rename,0600;小表整写是最简正确),启动 `loadIdem`(缺失/损坏
+= 空表,幂等降级为 daemon 生命周期,绝不报错)。测试:daemon #1 以
+key 提交后停机 → daemon #2 同 IdemPath 重试同 key → 不重复启动、流
+回持久化的 session(replay 语义)。还债包剩:await durable timer。

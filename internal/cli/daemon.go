@@ -89,6 +89,7 @@ func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 		Resume:     hostResumeFunc(version, stderr, broker),
 		Drive:      hostDriveFunc(version, stderr, broker),
 		Approvals:  broker,
+		IdemPath:   filepath.Join(filepath.Dir(sock), "idem.json"),
 		Notify:     notifyTee,
 	}
 	reconcileNotifications(notifier)

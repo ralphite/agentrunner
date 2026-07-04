@@ -94,6 +94,10 @@ type Server struct {
 	// (the CLI's resolver adapter calls Ask) and `approve` commands answer.
 	// nil = the approve command is refused.
 	Approvals *ApprovalBroker
+	// IdemPath persists the idem_key → session index (S7 还债: a submit
+	// retry AFTER a daemon restart still finds its session). Empty = the
+	// index lives for the daemon's lifetime only.
+	IdemPath string
 	// Notify receives LIFECYCLE events (run_end, approval_request) from
 	// every hosted run — the notifier's live tee (S6 模块⑤). It MUST NOT
 	// block: the caller is the run's emit path.
@@ -186,6 +190,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	if s.Clock == nil {
 		s.Clock = clock.Real{}
 	}
+	s.loadIdem()
 	ln, err := net.Listen("unix", s.SocketPath)
 	if err != nil {
 		if conn, derr := net.Dial("unix", s.SocketPath); derr == nil {
@@ -347,10 +352,7 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 	s.runs[id] = hub
 	s.runsWG.Add(1)
 	if cmd.IdemKey != "" {
-		if s.idem == nil {
-			s.idem = map[string]string{}
-		}
-		s.idem[cmd.IdemKey] = id
+		s.registerIdemLocked(cmd.IdemKey, id)
 	}
 	s.mu.Unlock()
 
@@ -416,10 +418,7 @@ func (s *Server) handleDrive(ctx context.Context, cmd Command, enc *json.Encoder
 	s.runs[id] = hub
 	s.runsWG.Add(1)
 	if cmd.IdemKey != "" {
-		if s.idem == nil {
-			s.idem = map[string]string{}
-		}
-		s.idem[cmd.IdemKey] = id
+		s.registerIdemLocked(cmd.IdemKey, id)
 	}
 	s.mu.Unlock()
 
@@ -497,6 +496,51 @@ func (s *Server) idemSession(key string) (string, bool) {
 	defer s.mu.Unlock()
 	id, ok := s.idem[key]
 	return id, ok
+}
+
+// registerIdem records a key → session binding and, when IdemPath is set,
+// persists the whole index atomically (tiny map, whole-file rewrite is
+// simplest-correct). Caller holds s.mu.
+func (s *Server) registerIdemLocked(key, id string) {
+	if s.idem == nil {
+		s.idem = map[string]string{}
+	}
+	s.idem[key] = id
+	if s.IdemPath == "" {
+		return
+	}
+	raw, err := json.Marshal(s.idem)
+	if err != nil {
+		return
+	}
+	tmp := s.IdemPath + ".tmp"
+	if err := os.WriteFile(tmp, raw, 0o600); err != nil {
+		slog.Warn("daemon: idem index write failed", "err", err)
+		return
+	}
+	if err := os.Rename(tmp, s.IdemPath); err != nil {
+		slog.Warn("daemon: idem index rename failed", "err", err)
+	}
+}
+
+// loadIdem restores the persisted index; a missing or corrupt file is an
+// empty index (idempotency degrades to daemon-lifetime, never an error).
+func (s *Server) loadIdem() {
+	if s.IdemPath == "" {
+		return
+	}
+	raw, err := os.ReadFile(s.IdemPath)
+	if err != nil {
+		return
+	}
+	idx := map[string]string{}
+	if err := json.Unmarshal(raw, &idx); err != nil {
+		slog.Warn("daemon: idem index unreadable, starting empty", "err", err)
+		return
+	}
+	s.mu.Lock()
+	s.idem = idx
+	s.mu.Unlock()
 }
 
 // sinkFunc adapts a func to protocol.Sink.

@@ -420,6 +420,79 @@ func TestDaemonSubmitIdempotency(t *testing.T) {
 	}
 }
 
+// S7 还债: the idem index survives a daemon restart — a retry against the
+// NEW daemon still finds the old session (served from replay).
+func TestDaemonIdemPersistsAcrossRestart(t *testing.T) {
+	dir := t.TempDir()
+	idemPath := filepath.Join(dir, "idem.json")
+	var mu sync.Mutex
+	launches := 0
+	run := func(ctx context.Context, req RunRequest, sink protocol.Sink) error {
+		mu.Lock()
+		launches++
+		mu.Unlock()
+		sink.Emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: "completed"})
+		return nil
+	}
+	replay := func(id string, sink protocol.Sink) error {
+		sink.Emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: "completed"})
+		return nil
+	}
+
+	// Daemon #1: submit with a key, then shut down.
+	sock1 := filepath.Join(dir, "d1.sock")
+	ctx1, cancel1 := context.WithCancel(context.Background())
+	srv1 := &Server{SocketPath: sock1, Run: run, Replay: replay, IdemPath: idemPath,
+		NewID: func(string) string { return "sess-persist" }}
+	done1 := make(chan error, 1)
+	go func() { done1 <- srv1.ListenAndServe(ctx1) }()
+	waitDial(t, sock1)
+	var first []protocol.Event
+	if err := Dial(sock1, Command{Cmd: "run", SpecPath: "s.yaml", Task: "job", IdemKey: "k-persist"},
+		func(e protocol.Event) { first = append(first, e) }); err != nil {
+		t.Fatal(err)
+	}
+	cancel1()
+	<-done1
+
+	// Daemon #2 on a fresh socket, same IdemPath: the retry reattaches.
+	sock2 := filepath.Join(dir, "d2.sock")
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	srv2 := &Server{SocketPath: sock2, Run: run, Replay: replay, IdemPath: idemPath,
+		NewID: func(string) string { return "sess-should-not-exist" }}
+	done2 := make(chan error, 1)
+	go func() { done2 <- srv2.ListenAndServe(ctx2) }()
+	defer func() { cancel2(); <-done2 }()
+	waitDial(t, sock2)
+
+	var retry []protocol.Event
+	if err := Dial(sock2, Command{Cmd: "run", SpecPath: "s.yaml", Task: "job", IdemKey: "k-persist"},
+		func(e protocol.Event) { retry = append(retry, e) }); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if launches != 1 {
+		t.Fatalf("launches = %d, want 1 (restart must not duplicate the run)", launches)
+	}
+	if len(retry) == 0 || retry[0].Session != "sess-persist" {
+		t.Fatalf("retry = %+v, want the persisted session", retry)
+	}
+}
+
+// waitDial polls until the daemon accepts connections.
+func waitDial(t *testing.T, sock string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if err := Dial(sock, Command{Cmd: "ping"}, func(protocol.Event) {}); err == nil {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("daemon never came up")
+}
+
 // Two daemons must not share a socket; a stale socket file is reclaimed.
 func TestDaemonSocketExclusive(t *testing.T) {
 	sock, _ := startServer(t, nil, nil)
