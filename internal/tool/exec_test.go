@@ -287,3 +287,51 @@ func TestBashSessionMarkerSet(t *testing.T) {
 		t.Fatalf("m=%v isErr=%v", m, isErr)
 	}
 }
+
+// semantic_search (S7 模块 4): the executor lazily builds the derived
+// index and returns ranked hits; snippets are redacted like every output.
+func TestSemanticSearch(t *testing.T) {
+	e, root := newExec(t)
+	if err := os.WriteFile(filepath.Join(root, "auth.go"),
+		[]byte("package auth\nfunc CheckToken(t string) bool { return t != \"\" }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "other.txt"),
+		[]byte("nothing relevant\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, isErr := run(t, e, "semantic_search", `{"query":"token check"}`)
+	if isErr {
+		t.Fatalf("unexpected error: %v", out)
+	}
+	hits, ok := out["hits"].([]any)
+	if !ok || len(hits) != 1 {
+		t.Fatalf("hits = %#v, want one", out["hits"])
+	}
+	hit := hits[0].(map[string]any)
+	if hit["path"] != "auth.go" || !strings.Contains(hit["snippet"].(string), "CheckToken") {
+		t.Errorf("hit = %#v", hit)
+	}
+	if out["indexed_files"].(float64) != 2 {
+		t.Errorf("indexed_files = %v", out["indexed_files"])
+	}
+
+	// The index refreshes incrementally within one executor lifetime.
+	future := time.Now().Add(2 * time.Second)
+	if err := os.WriteFile(filepath.Join(root, "auth.go"),
+		[]byte("package auth\n// the old logic moved away\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(filepath.Join(root, "auth.go"), future, future); err != nil {
+		t.Fatal(err)
+	}
+	out, _ = run(t, e, "semantic_search", `{"query":"CheckToken"}`)
+	if hits := out["hits"].([]any); len(hits) != 0 {
+		t.Errorf("stale hits = %#v", hits)
+	}
+
+	if out, isErr := run(t, e, "semantic_search", `{"query":""}`); !isErr {
+		t.Errorf("empty query accepted: %v", out)
+	}
+}

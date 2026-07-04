@@ -10,11 +10,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 	"unicode/utf8"
 
 	"github.com/ralphite/agentrunner/internal/errs"
+	"github.com/ralphite/agentrunner/internal/index"
+	"github.com/ralphite/agentrunner/internal/redact"
 	"github.com/ralphite/agentrunner/internal/workspace"
 )
 
@@ -56,6 +59,11 @@ type Executor struct {
 	WS *workspace.Workspace
 	// Session tags spawned processes via SessionEnvVar (2.12).
 	Session string
+	// index is the lazily-built IndexStore for semantic_search (S7 模块 4):
+	// in-memory, derived, rebuilt per process — the executor is shared down
+	// the agent tree, so the whole tree shares one index per workspace.
+	indexOnce sync.Once
+	index     *index.Indexer
 }
 
 // Execute dispatches one tool call. Unknown tools and malformed args are
@@ -72,9 +80,41 @@ func (e *Executor) Execute(ctx context.Context, name string, args json.RawMessag
 		return e.scheduleNext(args)
 	case "finish_series":
 		return e.finishSeries(args)
+	case "semantic_search":
+		return e.semanticSearch(args)
 	default:
 		return errResult("unknown tool %q", name)
 	}
+}
+
+// semanticSearch queries the workspace's IndexStore (S7 模块 4). The
+// indexer builds lazily on first use — the index is the fourth state class
+// (derived, rebuildable, disposable), so there is nothing to wire up or
+// persist; snippets pass the same redaction as every journaled output.
+func (e *Executor) semanticSearch(args json.RawMessage) Result {
+	var in struct {
+		Query      string `json:"query"`
+		MaxResults int    `json:"max_results"`
+	}
+	if err := json.Unmarshal(args, &in); err != nil || strings.TrimSpace(in.Query) == "" {
+		return errResult("semantic_search: invalid args: need {\"query\": string}")
+	}
+	if e.WS == nil {
+		return errResult("semantic_search: no workspace")
+	}
+	e.indexOnce.Do(func() { e.index = index.New(e.WS.Root()) })
+	hits, files, err := e.index.Search(in.Query, in.MaxResults)
+	if err != nil {
+		return errResult("semantic_search: %v", err)
+	}
+	r := redact.FromEnv()
+	for i := range hits {
+		hits[i].Snippet = r.String(hits[i].Snippet)
+	}
+	if hits == nil {
+		hits = []index.Hit{}
+	}
+	return okResult(map[string]any{"hits": hits, "indexed_files": files})
 }
 
 // scheduleNext and finishSeries are pure data-definition tools (S6 loop

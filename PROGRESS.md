@@ -2759,3 +2759,44 @@ journal head/tail 正确)。**完成标志场景 s7-01-rewind / s7-02-fork-
 worktree 落地并绿**;全量 check + race + stage 1–7 全部 26 场景回归绿。
 下一步:模块 4+(IndexStore/semantic_search、OS 沙箱)或 best-of-N
 (依赖本模块的 worktree 隔离);按 dogfood 优先级定。
+
+## S7 模块 4 — IndexStore + indexer actor + semantic_search — DONE
+
+新包 `internal/index`:**第四类状态**——可从 workspace 随时重建的派生
+索引。删除只损失重建时间,故**不入 run 版本集、不入 journal、不入
+快照、fork 不携带**(与 driver/notifier stream 同例;DESIGN L1 新增
+条目成文)。
+
+**v0 backend = 词法 BM25**(k1=1.2, b=0.75,按 30 行 chunk):
+identifier-aware tokenization(camelCase/snake_case 拆词,单字母
+丢弃),query-term-only 的 df 统计,score 并列时按 path/line 稳定
+排序。**决策记档**:embedding backend 推迟(需要网络/凭据,离线
+scripted 测试与降级教义优先;接口按可替换设计——Search 签名不含
+词法细节);**盘上持久化推迟**(in-memory 即"最可丢弃"的派生态,
+daemon 重建成本待 dogfood 度量)。
+
+**常驻 indexer actor**:`Indexer` 挂在 tool.Executor 上惰性创建
+(首查建索引),mutex 串行化 refresh+query;增量刷新按 size+mtime
+fingerprint,删除文件即出索引。**Executor 树共享**——子 agent 经
+childLoop 共享同一 Executor,全树一份索引,零 CLI 接线(run/daemon/
+drive 全路径自动可用)。
+
+**排除与红线**:跳过 .git/node_modules/vendor/venv/dist/build/target/
+__pycache__/.ssh/.aws 与全部隐藏目录、symlink、>512KB、二进制(NUL
+嗅探);凭据形状路径(.env*、*.pem、*.key、id_rsa*、id_ed25519*)
+沿用快照硬排除表——**snippet 会进 journal,凭据内容不得入索引**;
+snippet 输出再过 redact.FromEnv(与 bash 输出同纪律)。
+
+**tool 面**:`semantic_search` def(class=read → 默认模式免审批、
+resume 幂等自动继承)args={query, max_results(默认 8 上限 20)},
+result={hits:[{path,line,score,snippet}], indexed_files}。空查询/
+无命中返回空数组非错误。
+
+测试:index 包七测(命中与行号、tokenize、密度排序、增量刷新含删除、
+凭据/vendored 排除、二进制/超大跳过、空查询);executor 测(命中、
+同 executor 生命周期内增量、空 query 报错);agent e2e(read-class
+免审批走通、ActivityStarted.Idempotent=true、结果达模型)。两处
+golden 因 registry 扩了一名而更新(unknown_tool.golden、
+TestRegistryLoads)。全量 check + **全包 race** + stage 1–7 全 26
+场景回归绿。下一步:模块 5(OS 沙箱 + 网络出口)或 best-of-N;
+云 workspace/IDE 为 cut line,S7 收口前按 dogfood 优先级定。
