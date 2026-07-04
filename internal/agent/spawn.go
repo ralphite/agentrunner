@@ -252,6 +252,8 @@ func (l *Loop) childLoop(childSpec *AgentSpec, childStore *store.EventStore,
 		SubSpecs:  l.SubSpecs,
 		Board:     l.Board,     // the collaboration blackboard is tree-shared (S5.4)
 		Artifacts: l.Artifacts, // the deliverable CAS is tree-shared too (S5.5)
+		// Snapshots deliberately NOT inherited: barriers are cut by the tree
+		// root only — the root's vector already covers child streams (S7.2).
 	}
 }
 

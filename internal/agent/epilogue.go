@@ -28,18 +28,23 @@ type epilogueHook struct {
 //     terminal event (S6.1 填实 — the log never ends with tasks in flight).
 //   - auto_publish: publish the spec's declared outputs and check the
 //     deliverable contract (S5.6).
-//   - barrier: the S7 run-end snapshot barrier slot, reserved no-op.
+//   - barrier: the S7.2 run-end CheckpointBarrier — the run's final state
+//     (tasks settled, outputs published) becomes a fork/rewind target.
 //
 // S3.7c's LimitExceeded farewell message hooks in as a quiesce-slot
 // predecessor per PLAN (挂进此序列).
 var epilogueSequence = []epilogueHook{
 	{name: "quiesce", run: quiesceTasks},
 	{name: "auto_publish", run: autoPublishOutputs},
-	{name: "barrier", run: noopEpilogueHook},
+	{name: "barrier", run: terminalBarrier},
 }
 
-func noopEpilogueHook(context.Context, *Loop, *driveState, AppendFunc, *string) error {
-	return nil
+// terminalBarrier fills the barrier slot: one last CheckpointBarrier after
+// quiesce and auto-publish. Feature-gated like every barrier — no snapshot
+// store, no barrier — and it never rewrites the ending reason.
+func terminalBarrier(ctx context.Context, l *Loop, ds *driveState,
+	appendE AppendFunc, _ *string) error {
+	return l.takeBarrier(ctx, ds, appendE, "bar-final", 0)
 }
 
 // autoPublishOutputs fills the auto-publish slot (S5.6): on a GRACEFUL

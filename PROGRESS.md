@@ -2668,3 +2668,47 @@ until GC(旧 ref 在新快照后仍可物化,测试断言)。
 排除、用户 repo 隐形、非空目标拒绝、none、git 缺失降级、延迟观察)。
 全量 check + race 通过。下一步:模块 2——CheckpointBarrier(弱化版,
 DESIGN §fork/rewind 修订随该步走变更流程)。
+
+## S7 模块 2 — CheckpointBarrier(弱化版) — DONE
+
+新 event `checkpoint_barrier`:`{barrier_id, turn, vector, snapshot_ref,
+tasks[]}`。**弱化语义落地**(consistent-enough cut,不要求全树静默):
+turn 边界(TurnStarted+fold snapshot 之后)与 run 终态(epilogue 第三
+槽位填实——S1 起预留的 no-op 至此兑现,quiesce → auto_publish →
+**barrier** → 终态 event)各打一个;`bar-t<n>` / `bar-final`。
+
+**载荷**:vector 记 `"."` = 自身 LastSeq、`sub/<dir>` = 已完成子 stream
+的 final seq(fold 新增 `Run.ChildSessions`,additive 不 bump);
+`tasks[]` = in-flight 后台任务的处置向量(v0 一律 `cancel_at_fork`,
+排序稳定);snapshot_ref 为硬前置——**无 snapshot 则不落 barrier**
+(Snapshots 未接线 / ErrUnavailable / 快照失败均静默跳过,失败仅
+slog warn):不承诺无法兑现的 rewind。终态 barrier 在 quiesce 之后,
+tasks 天然为空;它不改写 ending reason。
+
+**fold sub-state `barriers`(版本集 10→11)**:`Barrier{barrier_id,
+seq(=env.Seq), turn, snapshot_ref, vector, tasks}` append-only;旧
+session resume 将因版本集不符被拒——纪律本身。
+
+**CLI 接线**:`snapshotStoreFor(ws)`——shadow repo 按 workspace 路径
+hash 落在 `<data>/shadow/<12hex>`(同 workspace 各 session 共享去重,
+refs 存活于 workspace 之外);任何失败降级为 nil(告警一行,run 照常)。
+接入 run / resume / daemon hostRun / hostResume 四个构造点。**子 agent
+不继承 Snapshots**(树根统一打点,vector 已覆盖子 stream;spawn.go
+注释固化)。记档:driver iteration loop 暂不接 Snapshots(fork 目标
+的 CLI 语义在模块 3 定,届时一并考虑);**显式打点入口(手动 barrier
+命令)同样推迟到模块 3 CLI**。
+
+**DESIGN §fork/rewind 弱化修订随本 commit 落地**(变更流程,预告注
+兑现):"全树静默"改为 consistent-enough cut + tasks 处置向量 + 无
+snapshot 不落 barrier;STAGES/PLAN 相应表述核对一致,无需改动。
+
+**修复**:takeBarrier 的 childDirOf 初版漏拼 `sub/` 路径段(子 journal
+实际在 `<parent>/sub/<call>-a<n>`)——child vector 测试当场抓住。
+
+四测试:逐 turn+终态 barrier(ref 非空、"." seq>0、编辑后 ref 变/未变
+则去重复用、fold 与 journal 一致)、无 store 零 barrier(feature gate,
+兼容既有 run 形态)、live task 入 tasks 向量且终态 barrier 为空、子
+stream seq 进 vector(bar-t1 无、其后有)。全量 check 绿 + stage 1–6
+全部 24 个 acceptance 场景回归绿。下一步:模块 3——fork/rewind
+(`ForkedFrom` 创世、id remapping、独立 worktree 物化;s7-01/s7-02
+完成标志场景随该步落地)。

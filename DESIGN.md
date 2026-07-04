@@ -539,17 +539,21 @@ limits:
 - session = correlation id + 它名下的 stream 闭包（含子 agent）。
 - **list**：枚举 store。**resume**：snapshot + fold（见 L1）。
 - **fork/rewind 的唯一合法目标是 `CheckpointBarrier` event**：barrier
-  达成时（turn 边界 + 全部子 agent 静默——含 bash 进程组确认退出 +
-  所有 worktree 快照完成）落一条 event，记录跨 stream 的一致切面：
-  {stream → seq} 向量 + snapshot ref 集合。fork = 在新 run id 下复制
-  该切面内的 events，以 `ForkedFrom{run, barrier}` 为创世 event
-  （原 id 作为 provenance 保留），并从 snapshot 物化**自己的**
-  worktree——fork 与原 run 不共享目录；rewind = fork 后用户显式切换
-  并放弃原 run。被排除的路径（见 L1）在 fork 里天然缺席。
-  任意 seq N 处的 fork 不提供——跨 stream 的因果一致切割不值得做。
-  （注：barrier 的"全树静默"要求已确认会挡住长活后台任务场景，将在
-  S7 按 dogfood 经验弱化为 consistent-enough cut——届时按不变量变更
-  流程修订本节，见 STAGES.md S7。）
+  是 **consistent-enough cut**，在 turn 边界与 run 终态（epilogue 固定
+  槽位）打点，**不要求全树静默**——原"全树静默"要求已按 S7 预告的
+  不变量变更流程弱化（原因：它会挡住长活后台任务场景，且 spawn 阻塞
+  的执行模型下 turn 边界天然无 in-flight 子 agent）。barrier event
+  记录：{stream → seq} 向量（"." 为自身，`sub/<dir>` 为已完成子
+  stream 的final seq）+ workspace snapshot ref + **in-flight 后台任务
+  的处置向量**（v0 一律 `cancel_at_fork`：fork 出的 run 不复活任务，
+  任务的 handle 已在对话里，fork 后模型可自行重启）。无 snapshot
+  （backend=none / git 缺失 / 快照失败）则**不落 barrier**——不承诺
+  无法兑现的 rewind。fork = 在新 run id 下复制该切面内的 events，以
+  `ForkedFrom{run, barrier}` 为创世 event（原 id 作为 provenance
+  保留），并从 snapshot 物化**自己的** worktree——fork 与原 run 不
+  共享目录；rewind = fork 后用户显式切换并放弃原 run。被排除的路径
+  （见 L1）在 fork 里天然缺席。任意 seq N 处的 fork 不提供——跨
+  stream 的因果一致切割不值得做。
 
 ### 交互协议
 

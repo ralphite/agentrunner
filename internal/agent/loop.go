@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -25,6 +26,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/redact"
 	"github.com/ralphite/agentrunner/internal/runtime"
+	"github.com/ralphite/agentrunner/internal/snapshot"
 	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
 	"github.com/ralphite/agentrunner/internal/tool"
@@ -88,6 +90,10 @@ type Loop struct {
 	// first turn (S5.8): journaled into RunStarted, written by an idempotent
 	// materialize activity. Set by a spawning parent (or a future CLI flag).
 	Inputs []event.ArtifactInput
+	// Snapshots is the workspace SnapshotStore (S7.2): barriers are taken
+	// only when it is present AND a snapshot succeeds — no ref, no barrier
+	// (backend=none degrades to zero barriers, nothing else changes).
+	Snapshots snapshot.Store
 	// bg is the background-task runtime (S6.1): cancel handles + the done
 	// channel. Ephemeral — the durable truth is the tasks sub-state.
 	bg *bgRuntime
@@ -656,6 +662,12 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				state.SubStateVersions(), ds.s); err != nil {
 				return RunResult{}, abort(act.turn, err)
 			}
+			// Turn boundaries are barrier points (S7.2): a workspace snapshot
+			// plus the cut vector make this turn a legal fork/rewind target.
+			if err := l.takeBarrier(ctx, ds, appendE,
+				fmt.Sprintf("bar-t%d", act.turn), act.turn); err != nil {
+				return RunResult{}, abort(act.turn, err)
+			}
 
 		case doLLM:
 			if outcome, allowed, err := l.adjudicate(ctx, ds, appendE, pipeline.Effect{
@@ -1162,6 +1174,62 @@ func decide(s state.State, maxTurns int, onRunEnd string) action {
 		return action{kind: doEnd, turn: turn, reason: "max_turns"}
 	}
 	return action{kind: doTurn, turn: turn + 1}
+}
+
+// takeBarrier journals a CheckpointBarrier at the current cut (S7.2,
+// weakened semantics): no whole-tree quiescence — the vector records this
+// stream's seq, every completed child stream's final seq, and the in-flight
+// background tasks with their fork-time disposition. No snapshot, no
+// barrier: a barrier without a materializable workspace would promise a
+// rewind it cannot deliver.
+func (l *Loop) takeBarrier(ctx context.Context, ds *driveState, appendE AppendFunc,
+	barrierID string, turn int) error {
+
+	if l.Snapshots == nil {
+		return nil
+	}
+	ref, err := l.Snapshots.Snapshot(ctx)
+	if err != nil {
+		if errors.Is(err, snapshot.ErrUnavailable) {
+			return nil // degraded backend: run on, without barriers
+		}
+		slog.Warn("barrier skipped: snapshot failed", "barrier", barrierID, "err", err)
+		return nil
+	}
+	vector := map[string]int64{".": l.Store.LastSeq()}
+	for _, childSession := range ds.s.Run.ChildSessions {
+		dir, rel := childDirOf(l.Store.Dir(), childSession)
+		if dir == "" {
+			continue
+		}
+		events, rerr := store.ReadEvents(dir)
+		if rerr != nil || len(events) == 0 {
+			continue
+		}
+		vector[rel] = events[len(events)-1].Seq
+	}
+	var tasks []event.BarrierTask
+	for id := range ds.s.Tasks {
+		tasks = append(tasks, event.BarrierTask{TaskID: id, Policy: "cancel_at_fork"})
+	}
+	sort.Slice(tasks, func(i, j int) bool { return tasks[i].TaskID < tasks[j].TaskID })
+	_, err = appendE(event.TypeCheckpointBarrier, &event.CheckpointBarrier{
+		BarrierID: barrierID, Turn: turn,
+		Vector: vector, SnapshotRef: ref, Tasks: tasks,
+	})
+	return err
+}
+
+// childDirOf maps a child session id back to its journal dir. Child sessions
+// are "<parent>-sub-<call>-a<n>" living at sub/<call>-a<n>; anything else is
+// unmappable (skipped from the vector).
+func childDirOf(parentDir, childSession string) (dir, rel string) {
+	idx := strings.LastIndex(childSession, "-sub-")
+	if idx < 0 {
+		return "", ""
+	}
+	suffix := childSession[idx+len("-sub-"):]
+	return filepath.Join(parentDir, "sub", suffix), "sub/" + suffix
 }
 
 // marshalPermissionLayers renders the pipeline's permission gates as ordered

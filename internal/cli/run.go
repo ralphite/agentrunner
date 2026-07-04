@@ -205,6 +205,7 @@ func runAgent(opts runOptions) int {
 		Hooks:      hooks,
 		Approvals:  approvalResolver(opts.stderr),
 		SubSpecs:   siblingSpecResolver(opts.specPath),
+		Snapshots:  snapshotStoreFor(ws, opts.stderr),
 	}
 	result, runErr := loop.Run(ctx, opts.task)
 

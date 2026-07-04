@@ -29,7 +29,19 @@ func SubStateVersions() map[string]int {
 		"budget":       1, // S3.7a (reservations; settled usage lives in run)
 		"compaction":   1, // S4.5 (context-compaction view)
 		"tasks":        1, // S6.1 (background task set)
+		"barriers":     1, // S7.2 (checkpoint barriers — fork/rewind targets)
 	}
+}
+
+// Barrier is one folded checkpoint-barrier record (S7.2): everything a
+// fork/rewind needs to locate the cut without re-reading the raw event.
+type Barrier struct {
+	BarrierID   string              `json:"barrier_id"`
+	Seq         int64               `json:"seq"` // the barrier event's own seq
+	Turn        int                 `json:"turn,omitempty"`
+	SnapshotRef string              `json:"snapshot_ref"`
+	Vector      map[string]int64    `json:"vector"`
+	Tasks       []event.BarrierTask `json:"tasks,omitempty"`
 }
 
 // Run statuses.
@@ -52,6 +64,8 @@ type State struct {
 	Budget Budget `json:"budget"`
 	// Tasks is the in-flight background task set (S6.1).
 	Tasks Tasks `json:"tasks"`
+	// Barriers are the fork/rewind targets taken so far (S7.2), in order.
+	Barriers []Barrier `json:"barriers,omitempty"`
 	// Compaction is the context-compaction view (S4.5): the summary that
 	// replaces the message prefix and the boundary it replaces up to. The
 	// full Conversation.Messages slice is kept intact (the log is truth);
@@ -221,6 +235,9 @@ type Run struct {
 	// crash-resume knows whether to (re-)run it (it is idempotent anyway).
 	Inputs       []event.ArtifactInput `json:"inputs,omitempty"`
 	Materialized bool                  `json:"materialized,omitempty"`
+	// ChildSessions lists completed child runs' sessions in completion order
+	// (S7.2, additive): the barrier's cross-stream vector reads it.
+	ChildSessions []string `json:"child_sessions,omitempty"`
 }
 
 // New is the empty pre-RunStarted state.
@@ -290,10 +307,22 @@ func Apply(s State, env event.Envelope) (State, error) {
 	case *event.SpawnRequested:
 		s.Run.Spawns++
 
+	case *event.CheckpointBarrier:
+		// Copy-on-write: barriers append into a fresh slice.
+		barriers := make([]Barrier, 0, len(s.Barriers)+1)
+		barriers = append(barriers, s.Barriers...)
+		s.Barriers = append(barriers, Barrier{
+			BarrierID: p.BarrierID, Seq: env.Seq, Turn: p.Turn,
+			SnapshotRef: p.SnapshotRef, Vector: p.Vector, Tasks: p.Tasks,
+		})
+
 	case *event.SubagentCompleted:
-		// Informational (inspect's tree render reads it from the log); the
-		// parent's accounting settles through the spawn activity's
-		// ActivityCompleted, never here.
+		// The parent's accounting settles through the spawn activity's
+		// ActivityCompleted, never here; the fold only records the child
+		// stream's existence for the barrier vector (S7.2, copy-on-write).
+		children := make([]string, 0, len(s.Run.ChildSessions)+1)
+		children = append(children, s.Run.ChildSessions...)
+		s.Run.ChildSessions = append(children, p.ChildSession)
 
 	case *event.ArtifactPublished:
 		// Copy-on-write: Apply is pure, the input map must not mutate.

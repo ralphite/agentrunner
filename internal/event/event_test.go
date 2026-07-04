@@ -81,6 +81,9 @@ var samples = map[string]any{
 	TypeDriverCompleted:  &DriverCompleted{DriverID: "drv-1", Reason: "satisfied", Iterations: 2, BestIter: 2},
 	TypeNotificationSent: &NotificationSent{Key: "run_end/sess-1", Kind: "run_end",
 		Session: "sess-1", Text: "run completed", Channel: "command"},
+	TypeCheckpointBarrier: &CheckpointBarrier{BarrierID: "bar-t3", Turn: 3,
+		Vector: map[string]int64{".": 41, "sub/s1-a1": 12}, SnapshotRef: "0badc0de",
+		Tasks: []BarrierTask{{TaskID: "bg1", Policy: "cancel_at_fork"}}},
 }
 
 func TestRoundTripAllTypes(t *testing.T) {

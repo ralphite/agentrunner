@@ -110,6 +110,7 @@ func resumeCmd(args []string, version string, stdout, stderr io.Writer) int {
 		Pipeline:   pipe,
 		Hooks:      hooks,
 		Approvals:  approvalResolver(stderr),
+		Snapshots:  snapshotStoreFor(ws, stderr),
 	}
 	result, runErr := loop.Resume(ctx)
 	if runErr != nil {

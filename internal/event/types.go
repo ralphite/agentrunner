@@ -56,6 +56,9 @@ const (
 
 	// S6 模块⑤: the notifier's OWN stream (never in a run journal).
 	TypeNotificationSent = "notification_sent"
+
+	// S7 additions (world-state lifecycle).
+	TypeCheckpointBarrier = "checkpoint_barrier"
 )
 
 // Effect verdicts and gate decisions.
@@ -437,6 +440,33 @@ type DriverCompleted struct {
 	BestIter   int    `json:"best_iter,omitempty"`
 }
 
+// CheckpointBarrier is the ONLY legal fork/rewind target (S7 模块 2,
+// DESIGN §fork/rewind, weakened semantics): a consistent-enough cut taken
+// at a turn boundary — NOT requiring whole-tree quiescence. It records the
+// cross-stream cut vector, the workspace snapshot ref, and the in-flight
+// background tasks with their fork-time disposition; a fork of this barrier
+// treats those tasks per policy instead of pretending they never ran.
+type CheckpointBarrier struct {
+	BarrierID string `json:"barrier_id"`
+	Turn      int    `json:"turn,omitempty"`
+	// Vector maps stream (relative dir; "." = this run, "sub/<dir>" =
+	// children) → last seq inside the cut. Terminal child streams' cut is
+	// their whole journal.
+	Vector map[string]int64 `json:"vector"`
+	// SnapshotRef is the workspace snapshot (SnapshotStore-opaque). A
+	// barrier is only taken when a snapshot succeeded — no ref, no barrier.
+	SnapshotRef string `json:"snapshot_ref"`
+	// Tasks is the weakened-semantics vector: background tasks in flight at
+	// the cut and how a fork disposes of them.
+	Tasks []BarrierTask `json:"tasks,omitempty"`
+}
+
+// BarrierTask is one in-flight task's fork-time disposition.
+type BarrierTask struct {
+	TaskID string `json:"task_id"`
+	Policy string `json:"policy"` // v0: cancel_at_fork — the fork renders it cancelled
+}
+
 // NotificationSent is the notifier's dedup fact (S6 模块⑤): one line per
 // delivered (or fallback-delivered) notification, in the notifier's own
 // stream. The Key is the dedup identity; startup reconciliation replays
@@ -509,6 +539,8 @@ var Registry = map[string]func() any{
 	TypeDriverCompleted:    func() any { return &DriverCompleted{} },
 
 	TypeNotificationSent: func() any { return &NotificationSent{} },
+
+	TypeCheckpointBarrier: func() any { return &CheckpointBarrier{} },
 }
 
 // DriverStream lists the event types that belong to the IterationDriver's OWN

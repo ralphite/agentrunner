@@ -301,6 +301,7 @@ func hostRunFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker
 			Hooks:     hooks,
 			Approvals: socketApprovals{broker: broker, session: req.SessionID, sink: sink},
 			SubSpecs:  siblingSpecResolver(req.SpecPath),
+			Snapshots: snapshotStoreFor(ws, stderr),
 			// Blackboard publishes mirror onto the attach stream (S6 模块⑤
 			// 回访): watchers see the tree's collaboration live; the board
 			// stays the read-back truth.
@@ -415,6 +416,7 @@ func hostResumeFunc(version string, stderr io.Writer, broker *daemon.ApprovalBro
 			Pipeline:  pipe,
 			Hooks:     hooks,
 			Approvals: socketApprovals{broker: broker, session: sessionID, sink: sink},
+			Snapshots: snapshotStoreFor(ws, stderr),
 		}
 		_, runErr := loop.Resume(ctx)
 		return runErr
