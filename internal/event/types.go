@@ -34,7 +34,8 @@ const (
 	TypeLimitExceeded     = "limit_exceeded"
 
 	// S4 additions.
-	TypeTurnDiscarded = "turn_discarded"
+	TypeTurnDiscarded    = "turn_discarded"
+	TypeContextCompacted = "context_compacted"
 )
 
 // Effect verdicts and gate decisions.
@@ -226,6 +227,20 @@ type TurnDiscarded struct {
 	Reason string `json:"reason,omitempty"`
 }
 
+// ContextCompacted records a compaction (S4.5): the output of a summarizer
+// LLM call (a nondeterministic recorded activity) that REPLACES the
+// conversation prefix folded so far with Summary. It changes subsequent
+// fold results — fold to seq N and you get the pre- or post-compaction view
+// depending on which side of this event N lands, which is what makes
+// fork/rewind across the boundary well-defined. Summary is inlined in S4;
+// SummaryRef (ArtifactStore) is reserved for later.
+type ContextCompacted struct {
+	UptoTurn     int    `json:"upto_turn"`
+	Summary      string `json:"summary"`
+	DroppedTurns int    `json:"dropped_turns,omitempty"`
+	SummaryRef   string `json:"summary_ref,omitempty"`
+}
+
 // GateResult is one gate's judgment inside an effect resolution.
 type GateResult struct {
 	Gate     string `json:"gate"`
@@ -271,4 +286,5 @@ var Registry = map[string]func() any{
 	TypeModeChanged:       func() any { return &ModeChanged{} },
 	TypeLimitExceeded:     func() any { return &LimitExceeded{} },
 	TypeTurnDiscarded:     func() any { return &TurnDiscarded{} },
+	TypeContextCompacted:  func() any { return &ContextCompacted{} },
 }

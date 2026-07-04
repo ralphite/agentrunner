@@ -61,9 +61,21 @@ func renderEnvBlock(cwd string, now time.Time) string {
 // whose tool calls are not all resolved yet is emitted without its tool
 // message (the loop only reaches here once results are in). Pinned by
 // testdata/request_assembly.golden.
+//
+// Compaction (S4.5): when a boundary is set, messages[0:Boundary] are
+// replaced by a single summary user message — the log keeps every message,
+// but the model sees the summary plus everything after the boundary.
 func assembleMessages(s state.State) []provider.Message {
+	msgs := s.Conversation.Messages
 	var out []provider.Message
-	for _, m := range s.Conversation.Messages {
+	if b := s.Compaction.Boundary; b > 0 && b <= len(msgs) {
+		out = append(out, provider.Message{Role: provider.RoleUser, Parts: []provider.Part{{
+			Kind: provider.PartText,
+			Text: "[conversation summary so far]\n" + s.Compaction.Summary,
+		}}})
+		msgs = msgs[b:]
+	}
+	for _, m := range msgs {
 		out = append(out, m)
 		if m.Role != provider.RoleAssistant {
 			continue

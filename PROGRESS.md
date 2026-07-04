@@ -1242,3 +1242,48 @@ assembly 回传时需要,而 assembly 读整条 message,不经 toolCallsOf。
 **Decisions**:
 - 本步无生产代码改动——4d 是"接口按最终形态设计(1.2)"承诺的兑现点:
   S1 就把 Extras/Signature 落位,S4 只需驱动多轮测试证明不变量成立。
+
+## S4.5 compaction — DONE
+
+**ContextCompacted 作为 recorded activity 改变 fold 视图 + 跨边界 fold 等价。**
+
+- **event**:`ContextCompacted{upto_turn, summary, dropped_turns, summary_ref}`
+  ——S4 内联 summary,summary_ref 预留 ArtifactStore(计划原文)。注册进
+  Registry + 加进 round-trip sample。
+- **新 sub-state `compaction`(version 1,2.4 声明的 S4 新增)**:
+  `Compaction{Summary, Boundary, UptoTurn}`。fold ContextCompacted 时
+  `Boundary = len(当前 messages)`(冻结当下消息数),full message log 保持
+  完整(log 是 truth),latest compaction wins(二次压缩的 summary 已含前
+  一次,boundary 前推)。
+- **assembly 视图**:`assembleMessages` 在 Boundary>0 时以单条 summary user
+  message 取代 messages[0:Boundary],其后消息照常拼装。
+- **recorded activity `compactContext`**:以当前(可能已压缩的)视图为输入
+  跑 summarizer LLM(harness-owned system prompt),idempotent,产出
+  ContextCompacted。**不过 permission pipeline**(harness 内部维护调用,
+  非模型指令),但其 usage 结算进预算。
+- **触发**:turn 边界(doTurn 且 turn>1),`compactionDue` 纯判定——
+  `estimateContextTokens(assembled view) > spec.model.compact_at_tokens`
+  且 messages 超出 Boundary+1(保证每次压缩吃掉≥2 条新消息、不逐 turn 抖)。
+  基于**已压缩视图**估算 → 新 summary 使估算落回阈值下,压缩自终止。
+
+**验证**:`TestCompactionFoldView`(边界后视图=summary+边界后消息,前缀内容
+不泄漏)、`TestCompactionFoldEquivalence`(在每个 seq 切开 prefix→snapshot→
+tail,跨 ContextCompacted 边界 fold 等价)、`TestCompactionTriggeredInLoop`
+(低阈值 + 大 turn1 → ContextCompacted 落盘、turn2 请求带 summary 不带原文)。
+另修 `statetest.AssertFoldEqual`:补齐 effects/mode/budget/compaction 四个
+此前**漏比**的 sub-state(等价断言此前静默不覆盖它们)。
+
+**Decisions**:
+- **触发阈值用绝对 `compact_at_tokens` 而非 DESIGN 的 trigger_ratio×window**:
+  ratio 需 per-model context window,尚未建模;v0 用估算 token 绝对阈值,
+  记为 trigger_ratio 的占位简化。估算用 bytes/4 粗口径(provider 无关,
+  压缩触发只需数量级信号)。
+- **compaction 不过 permission/budget pipeline**:它是 harness 内部维护
+  调用,模型从未指令;usage 仍结算进预算(压缩耗 token 计费),但不被
+  budget gate 拦(v0 简化,记档)。
+- **compact activity idempotent**:崩溃在 Started 与 ContextCompacted 之间
+  → resume 重跑 summarizer(非 in-doubt);ContextCompacted 仅在 activity
+  完成后落盘,重跑收敛(代价:崩溃时 summarizer usage 轻微重复计,可接受)。
+- **新 sub-state 使版本集长度 8→9**:checkVersions set-length 变化 → 旧
+  session 不可 resume。属计划内(2.4 明列"S4 加 compaction 视图"),原型
+  无持久 session,可接受。

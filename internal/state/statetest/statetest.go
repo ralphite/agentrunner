@@ -25,6 +25,10 @@ func AssertFoldEqual(t testing.TB, got, want state.State) {
 		{"waiting", got.Waiting, want.Waiting},
 		{"timers", got.Timers, want.Timers},
 		{"run", got.Run, want.Run},
+		{"effects", got.Effects, want.Effects},
+		{"mode", got.Mode, want.Mode},
+		{"budget", got.Budget, want.Budget},
+		{"compaction", got.Compaction, want.Compaction},
 	}
 	for _, p := range pairs {
 		g, w := mustJSON(t, p.got), mustJSON(t, p.want)

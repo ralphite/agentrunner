@@ -24,6 +24,11 @@ type ModelSpec struct {
 	Provider  string `yaml:"provider"`
 	ID        string `yaml:"id"`
 	MaxTokens int    `yaml:"max_tokens"`
+	// CompactAtTokens triggers context compaction (S4.5) when the assembled
+	// transcript's estimated size exceeds it — a v0 absolute threshold
+	// standing in for DESIGN's trigger_ratio × context_window (which needs a
+	// per-model window not yet modeled). Zero disables compaction.
+	CompactAtTokens int `yaml:"compact_at_tokens,omitempty"`
 }
 
 // AgentSpec is the declarative agent definition (S1 minimal shape).

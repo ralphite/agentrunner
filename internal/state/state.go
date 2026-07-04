@@ -26,6 +26,7 @@ func SubStateVersions() map[string]int {
 		"effects":      1, // S3.2 (declared in the 2.4 table as an S3 addition)
 		"mode":         1, // S3.6a
 		"budget":       1, // S3.7a (reservations; settled usage lives in run)
+		"compaction":   1, // S4.5 (context-compaction view)
 	}
 }
 
@@ -47,6 +48,21 @@ type State struct {
 	Mode string `json:"mode,omitempty"`
 	// Budget holds live reservations (3.7a); settled usage is Run.Usage.
 	Budget Budget `json:"budget"`
+	// Compaction is the context-compaction view (S4.5): the summary that
+	// replaces the message prefix and the boundary it replaces up to. The
+	// full Conversation.Messages slice is kept intact (the log is truth);
+	// assembly reads the compacted view through this.
+	Compaction Compaction `json:"compaction"`
+}
+
+// Compaction is the folded result of ContextCompacted (S4.5): messages
+// [0:Boundary] are replaced by Summary when assembling the provider request.
+// Latest compaction wins — a second compaction re-summarizes (its summary
+// already folds in the prior one) and advances the boundary.
+type Compaction struct {
+	Summary  string `json:"summary,omitempty"`
+	Boundary int    `json:"boundary,omitempty"`
+	UptoTurn int    `json:"upto_turn,omitempty"`
 }
 
 // Budget is the reservation set: effect_resolved{allow, reserved_tokens}
@@ -206,6 +222,16 @@ func Apply(s State, env event.Envelope) (State, error) {
 
 	case *event.AssistantMessage:
 		s.Conversation = s.Conversation.withMessage(p.Message)
+
+	case *event.ContextCompacted:
+		// The full message log stays intact (truth); the boundary freezes at
+		// the message count folded so far, and assembly reads only
+		// messages[Boundary:] preceded by Summary. Latest compaction wins.
+		s.Compaction = Compaction{
+			Summary:  p.Summary,
+			Boundary: len(s.Conversation.Messages),
+			UptoTurn: p.UptoTurn,
+		}
 
 	case *event.ActivityStarted:
 		s.Activities = s.Activities.with(p.ActivityID, *p)

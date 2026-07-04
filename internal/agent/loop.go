@@ -417,6 +417,17 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 		act := decide(ds.s, l.Spec.MaxTurns)
 		switch act.kind {
 		case doTurn:
+			// Turn boundary is the compaction point (S4.5): summarize the
+			// context before assembling the next turn's request, so the LLM
+			// call already sees the compacted view. Runs at most once per
+			// boundary — the fresh summary drops the estimate below the
+			// threshold, so the next decide() no longer finds it due.
+			if act.turn > 1 && compactionDue(ds.s, l.Spec) {
+				if err := l.compactContext(ctx, ds, appendE, exec, act.turn); err != nil {
+					return RunResult{}, abort(act.turn, err)
+				}
+				continue
+			}
 			appended, err := appendE(event.TypeTurnStarted, &event.TurnStarted{Turn: act.turn})
 			if err != nil {
 				return RunResult{}, abort(act.turn, err)
