@@ -214,6 +214,9 @@ func TestTimersPendingSet(t *testing.T) {
 // zero payload through Apply and require no UnhandledEventError.
 func TestApplyCoversRegistry(t *testing.T) {
 	for typ, mk := range event.Registry {
+		if event.DriverStream[typ] {
+			continue // driver-stream events fold in internal/driver, not the run fold
+		}
 		s := New()
 		if _, err := Apply(s, env(t, typ, mk())); err != nil {
 			var unhandled *UnhandledEventError

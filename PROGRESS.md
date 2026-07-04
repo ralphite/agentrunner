@@ -1945,3 +1945,40 @@ quiesce 槽位填实:`on_run_end=await` 静默等全部 task 终态,默认 cance
   模块(timer 派生索引);当前靠 ctx 取消逃逸。
 - 四测试(handle/outcome、cancel-at-end、task_kill、await-at-end)全绿,
   全量 check + race 通过。
+
+## S6 模块② — IterationDriver goal mode(骨架 + command verifier + 停滞)— DONE
+
+新包 `internal/driver`:driver 是独立 actor,自有 EventStore(child runs
+在其 `sub/iter-N/`)与纯 fold(iterations、verdicts、BestIter、status)。
+**统一事件族进 event.Registry**:`IterationScheduled/Launched/Completed/
+Skipped`、`DriverCompleted{reason}`——但属 driver 自有 stream,**不入 run
+fold**:新增 `event.DriverStream` 集,run 侧 `TestApplyCoversRegistry` 跳过
+之,driver 侧 `TestFoldCoversDriverStream` 对称兜底(每个类型必在某处折叠)。
+
+**goal mode**(schedule=immediate + verifier 必填):`Driver.Run` 逐迭代
+——journal `IterationScheduled` → `IterationLaunched`(journal-before-send)
+→ 经 `ChildFactory` 起 fresh child run(同 spec、共享 workspace、各自
+journal)→ verify → journal `IterationCompleted{verdict}`。satisfied →
+`DriverCompleted{satisfied}`;超 max_iterations → `{max_iterations}`;
+patience 轮无改善 → `{stalled}`(纯 fold:best 之后无改善的完成迭代计数);
+child 崩 → `{child_failed}`(on_child_failure v0=stop);ctx 取消 →
+`{stopped}`。BestIter 按 verdict.Score 最大(并列取先)。
+
+**command verifier**:bash-class,`metric_regex` 捕获组 1 → float score
+(≥threshold 过),否则 exit 0 过。verifier 是 driver 配置(可信,非模型
+选择的 effect),v0 直接过 executor 跑;**过四关卡管线的 verifier 化留待
+后续 refinement**。carry v0 = child 末条 assistant 文本摘录(≤512B,已
+redact),`carry_ref`(ArtifactStore 全量)留待 stall 呈现步骤。
+
+**决策/记档**:
+- **fresh child = ChildFactory 注入**:driver 只管迭代逻辑与 journal-
+  before-send,child 装配(provider/pipeline/budget/workspace)交工厂——
+  scripted 测试与真 provider 同一 driver 逻辑;scripted cursor 每迭代新建
+  自然满足「fresh run 同 spec」。
+- **verify 聚合**:多 verifier 全过才 satisfied,聚合 score 取 min(首个
+  seed,避免单 metric>1 被 clamp);首个失败 gate 定 verdict。
+- **未接**:budget 树根(reserve-at-launch/settle)、on_child_failure
+  retry/surface、on_reserve_failure、llm_judge/human verifier、resume
+  (in-flight 迭代重跑)、loop mode——依次后续步骤。
+- 四 driver 测试(satisfied@3、max_iterations、metric、stalled)+ 事件
+  round-trip + 覆盖对称测试全绿,全量 check + race 通过。

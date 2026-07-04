@@ -43,6 +43,15 @@ const (
 	TypeSpawnRequested    = "spawn_requested"
 	TypeSubagentCompleted = "subagent_completed"
 	TypeArtifactPublished = "artifact_published"
+
+	// S6 additions (IterationDriver, DESIGN §运行形态). These belong to the
+	// driver's OWN stream — folded by internal/driver, never by the run fold,
+	// so they carry no run SubStateVersions entry.
+	TypeIterationScheduled = "iteration_scheduled"
+	TypeIterationLaunched  = "iteration_launched"
+	TypeIterationCompleted = "iteration_completed"
+	TypeIterationSkipped   = "iteration_skipped"
+	TypeDriverCompleted    = "driver_completed"
 )
 
 // Effect verdicts and gate decisions.
@@ -343,6 +352,66 @@ type ArtifactPublished struct {
 	Source string `json:"source,omitempty"`
 }
 
+// IterationScheduled marks one driver iteration as due (S6, DESIGN §运行
+// 形态). Goal mode schedules immediately; loop mode via interval/cron/
+// self_paced schedules the same fact from a timer.
+type IterationScheduled struct {
+	DriverID string `json:"driver_id"`
+	Iter     int    `json:"iter"`
+	Schedule string `json:"schedule,omitempty"`
+}
+
+// IterationLaunched records the fresh child run for an iteration, journaled
+// BEFORE the child starts (journal-before-send): a crash mid-iteration is
+// recoverable because the child session is a deterministic sub-path.
+type IterationLaunched struct {
+	DriverID     string `json:"driver_id"`
+	Iter         int    `json:"iter"`
+	ChildSession string `json:"child_session"`
+}
+
+// IterationVerdict is one iteration's verification outcome (S6). Score
+// normalizes binary (0/1) and metric verifiers alike so stall detection can
+// compare iterations on one axis.
+type IterationVerdict struct {
+	Pass     bool    `json:"pass"`
+	Score    float64 `json:"score"`
+	Verifier string  `json:"verifier,omitempty"`
+	Detail   string  `json:"detail,omitempty"`
+}
+
+// IterationCompleted records the child's terminal outcome plus the verdict
+// (S6: verdict journals here). CarryRef points at the ArtifactStore carry
+// doc; Carry is a short inline excerpt kept for inspect without a blob read.
+type IterationCompleted struct {
+	DriverID     string           `json:"driver_id"`
+	Iter         int              `json:"iter"`
+	ChildSession string           `json:"child_session"`
+	ChildReason  string           `json:"child_reason"`
+	Verdict      IterationVerdict `json:"verdict"`
+	Usage        provider.Usage   `json:"usage,omitzero"`
+	CarryRef     string           `json:"carry_ref,omitempty"`
+	Carry        string           `json:"carry,omitempty"`
+}
+
+// IterationSkipped records a schedule tick that did not launch (loop-mode
+// overlap=skip) — a fact, never silence (S6, DESIGN §运行形态).
+type IterationSkipped struct {
+	DriverID string `json:"driver_id"`
+	Iter     int    `json:"iter"`
+	Reason   string `json:"reason"`
+}
+
+// DriverCompleted is the driver's terminal fact (S6). Reason ∈ satisfied |
+// stalled | max_iterations | budget | stopped | child_failed. BestIter is
+// the 1-based iteration the stall/summary presentation carries forward.
+type DriverCompleted struct {
+	DriverID   string `json:"driver_id"`
+	Reason     string `json:"reason"`
+	Iterations int    `json:"iterations"`
+	BestIter   int    `json:"best_iter,omitempty"`
+}
+
 // GateResult is one gate's judgment inside an effect resolution.
 type GateResult struct {
 	Gate     string `json:"gate"`
@@ -394,4 +463,23 @@ var Registry = map[string]func() any{
 	TypeSpawnRequested:    func() any { return &SpawnRequested{} },
 	TypeSubagentCompleted: func() any { return &SubagentCompleted{} },
 	TypeArtifactPublished: func() any { return &ArtifactPublished{} },
+
+	TypeIterationScheduled: func() any { return &IterationScheduled{} },
+	TypeIterationLaunched:  func() any { return &IterationLaunched{} },
+	TypeIterationCompleted: func() any { return &IterationCompleted{} },
+	TypeIterationSkipped:   func() any { return &IterationSkipped{} },
+	TypeDriverCompleted:    func() any { return &DriverCompleted{} },
+}
+
+// DriverStream lists the event types that belong to the IterationDriver's OWN
+// stream (S6, DESIGN §运行形态): folded by internal/driver, never by the run
+// fold. They never appear in a run journal, so the run fold legitimately has
+// no case for them — the run-fold coverage test skips exactly this set, and
+// internal/driver carries the matching coverage assertion.
+var DriverStream = map[string]bool{
+	TypeIterationScheduled: true,
+	TypeIterationLaunched:  true,
+	TypeIterationCompleted: true,
+	TypeIterationSkipped:   true,
+	TypeDriverCompleted:    true,
 }

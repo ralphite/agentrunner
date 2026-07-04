@@ -68,7 +68,14 @@ var samples = map[string]any{
 	TypeEffectResolved: &EffectResolved{EffectID: "eff-call_3_1", CallID: "call_3_1",
 		Verdict: VerdictDeny, GateResults: []GateResult{
 			{Gate: "permission", Decision: VerdictDeny, Reason: "path escapes workspace"}}},
-	TypeRunEnded: &RunEnded{Reason: "completed", Turns: 4, Usage: provider.Usage{InputTokens: 10}},
+	TypeRunEnded:           &RunEnded{Reason: "completed", Turns: 4, Usage: provider.Usage{InputTokens: 10}},
+	TypeIterationScheduled: &IterationScheduled{DriverID: "drv-1", Iter: 2, Schedule: "immediate"},
+	TypeIterationLaunched:  &IterationLaunched{DriverID: "drv-1", Iter: 2, ChildSession: "drv-1-iter-2"},
+	TypeIterationCompleted: &IterationCompleted{DriverID: "drv-1", Iter: 2, ChildSession: "drv-1-iter-2",
+		ChildReason: "completed", Verdict: IterationVerdict{Pass: true, Score: 1, Verifier: "command", Detail: "exit=0"},
+		Usage: provider.Usage{InputTokens: 30, OutputTokens: 12}, CarryRef: "sha256-carry", Carry: "wrote 3 lines"},
+	TypeIterationSkipped: &IterationSkipped{DriverID: "drv-1", Iter: 3, Reason: "overlap"},
+	TypeDriverCompleted:  &DriverCompleted{DriverID: "drv-1", Reason: "satisfied", Iterations: 2, BestIter: 2},
 }
 
 func TestRoundTripAllTypes(t *testing.T) {
