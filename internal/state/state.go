@@ -6,6 +6,7 @@ package state
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
@@ -77,10 +78,34 @@ func (s State) CurrentMode() string {
 // no resolution yet (resume in-doubt signal for side-effecting pipelines).
 // Allowed: resolved allow but the execution has not reached its terminal
 // event — after a crash, adjudication is NOT repeated (an approval already
-// granted must not be re-asked).
+// granted must not be re-asked). Decisions: the durable human answer to an
+// approval, keyed by effect id — set the instant ApprovalResponded is
+// journaled, so a crash between the response and EffectResolved never
+// re-asks (the answer is authoritative from the moment it is a fact).
 type Effects struct {
-	Pending map[string]event.EffectRequested `json:"pending,omitempty"`
-	Allowed map[string]bool                  `json:"allowed,omitempty"`
+	Pending   map[string]event.EffectRequested `json:"pending,omitempty"`
+	Allowed   map[string]bool                  `json:"allowed,omitempty"`
+	Decisions map[string]string                `json:"decisions,omitempty"`
+}
+
+// EffectIDFromApprovalID recovers the effect id from an approval id
+// (approval ids are minted as "apr-<effect_id>").
+func EffectIDFromApprovalID(approvalID string) string {
+	return strings.TrimPrefix(approvalID, "apr-")
+}
+
+// AwaitingApprovalEffect returns the effect id of the currently parked
+// approval, if any. Reaching a WAITING_APPROVAL means every gate — hooks
+// included — already ran, so this effect is NOT in-doubt.
+func (s State) AwaitingApprovalEffect() string {
+	if s.Waiting == nil || s.Waiting.Kind != event.WaitApproval {
+		return ""
+	}
+	var req event.ApprovalRequested
+	if err := json.Unmarshal(s.Waiting.Detail, &req); err != nil {
+		return ""
+	}
+	return req.EffectID
 }
 
 // Conversation is the transcript plus tool results keyed by call_id —
@@ -129,8 +154,9 @@ func New() State {
 		Activities:   Activities{},
 		Timers:       Timers{},
 		Effects: Effects{
-			Pending: map[string]event.EffectRequested{},
-			Allowed: map[string]bool{},
+			Pending:   map[string]event.EffectRequested{},
+			Allowed:   map[string]bool{},
+			Decisions: map[string]string{},
 		},
 		Budget: Budget{Reserved: map[string]int{}},
 	}
@@ -191,6 +217,13 @@ func Apply(s State, env event.Envelope) (State, error) {
 			s.Conversation = s.Conversation.withToolResult(started.CallID,
 				ToolResult{Result: p.Result, IsError: p.IsError})
 		}
+		// The mode transition is folded from exit_plan_mode's OWN completion
+		// so it is atomic — a crash can never leave the tool result saying
+		// "now in default mode" while s.Mode is still "plan" (correctness
+		// review #2). The gate already guarantees this only fires from plan.
+		if inFlight && started.Name == "exit_plan_mode" && !p.IsError {
+			s.Mode = ""
+		}
 
 	case *event.ActivityFailed:
 		if !p.Final {
@@ -249,7 +282,7 @@ func Apply(s State, env event.Envelope) (State, error) {
 		s.Effects = s.Effects.withPending(p.EffectID, *p)
 
 	case *event.EffectResolved:
-		s.Effects = s.Effects.withoutPending(p.EffectID)
+		s.Effects = s.Effects.withoutPending(p.EffectID).withoutDecision(p.EffectID)
 		if p.Verdict == event.VerdictAllow {
 			s.Effects = s.Effects.withAllowed(p.EffectID)
 			if p.ReservedTokens > 0 {
@@ -266,9 +299,18 @@ func Apply(s State, env event.Envelope) (State, error) {
 				ToolResult{Result: result, IsError: true})
 		}
 
-	case *event.ApprovalRequested, *event.ApprovalResponded:
-		// State lives in the surrounding waiting_entered/resolved and
-		// effect_resolved facts; these are the audit trail.
+	case *event.ApprovalRequested:
+		// The request itself is audit; the wait it enters carries the state.
+
+	case *event.ApprovalResponded:
+		// The human answer is authoritative the moment it is a fact: record
+		// it and clear the approval wait here, so a crash before the derived
+		// waiting_resolved / effect_resolved never re-asks (correctness #1/#3).
+		s.Effects = s.Effects.withDecision(EffectIDFromApprovalID(p.ApprovalID), p.Decision)
+		if s.Waiting != nil && s.Waiting.Kind == event.WaitApproval {
+			s.Waiting = nil
+			s.Run.Status = StatusRunning
+		}
 
 	case *event.ModeChanged:
 		s.Mode = p.To
@@ -387,7 +429,7 @@ func (b Budget) release(id string) Budget {
 // eff-<call_id> / eff-llm-t<n> convention).
 func effectIDFor(started event.ActivityStarted, activityID string) string {
 	if started.CallID != "" {
-		return "eff-" + started.CallID
+		return "eff-tool-" + started.CallID
 	}
 	return "eff-" + activityID
 }
@@ -413,6 +455,30 @@ func (e Effects) withoutPending(id string) Effects {
 		}
 	}
 	e.Pending = out
+	return e
+}
+
+func (e Effects) withDecision(id, decision string) Effects {
+	out := make(map[string]string, len(e.Decisions)+1)
+	for k, v := range e.Decisions {
+		out[k] = v
+	}
+	out[id] = decision
+	e.Decisions = out
+	return e
+}
+
+func (e Effects) withoutDecision(id string) Effects {
+	if _, ok := e.Decisions[id]; !ok {
+		return e
+	}
+	out := make(map[string]string, len(e.Decisions))
+	for k, v := range e.Decisions {
+		if k != id {
+			out[k] = v
+		}
+	}
+	e.Decisions = out
 	return e
 }
 

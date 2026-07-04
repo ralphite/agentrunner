@@ -16,6 +16,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/crash"
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/hook"
 	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
 	"github.com/ralphite/agentrunner/internal/state"
@@ -74,7 +75,7 @@ func TestApprovalApprovePath(t *testing.T) {
 			event.TypeApprovalResponded, event.TypeWaitingResolved:
 			order = append(order, e.Type)
 		case event.TypeEffectResolved:
-			if strings.Contains(string(e.Payload), "eff-call_1_0") {
+			if strings.Contains(string(e.Payload), "eff-tool-call_1_0") {
 				order = append(order, e.Type)
 			}
 		case event.TypeActivityStarted:
@@ -333,10 +334,187 @@ func stateWithPendingApproval(t *testing.T, m *memAppend) *driveState {
 		ds.s, err = state.Apply(ds.s, env)
 		return env, err
 	}
-	req := event.ApprovalRequested{ApprovalID: "apr-eff-call_1_0", EffectID: "eff-call_1_0", CallID: "call_1_0"}
+	req := event.ApprovalRequested{ApprovalID: "apr-eff-call_1_0", EffectID: "eff-tool-call_1_0", CallID: "call_1_0"}
 	allowed, err := l.awaitApproval(context.Background(), ds, appendE, req)
 	if err != nil || allowed {
 		t.Fatalf("allowed=%v err=%v", allowed, err)
 	}
 	return ds
+}
+
+// Correctness-review #1 regression: an approval parked when the pipeline
+// has a REAL side-effecting hook gate must still auto-resume after a crash.
+// (The prior test used a hook-less pipeline and hid this.) The pre-hook
+// already ran before the permission gate's Ask, so the parked effect is
+// NOT in-doubt.
+func TestApprovalWithHooksSurvivesCrash(t *testing.T) {
+	if os.Getenv("GO_CRASH_HELPER") == "1" {
+		helperHookedApprovalRun()
+		return
+	}
+	base := t.TempDir()
+	sessDir := filepath.Join(base, "sess")
+	root := filepath.Join(base, "ws")
+	if err := os.Mkdir(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command(os.Args[0], "-test.run=TestApprovalWithHooksSurvivesCrash")
+	cmd.Env = append(os.Environ(),
+		"GO_CRASH_HELPER=1", "CRASH_SESS_DIR="+sessDir, "CRASH_WS="+root,
+		crash.EnvVar+"=after:waiting_entered:1")
+	out, err := cmd.CombinedOutput()
+	var ee *exec.ExitError
+	if !errors.As(err, &ee) || ee.ExitCode() != crash.ExitCode {
+		t.Fatalf("subprocess: err = %v, out = %s", err, out)
+	}
+
+	t.Setenv("AGENTRUNNER_APPROVE", "always")
+	l := hookedApprovalLoop(t, sessDir, root)
+	defer func() { _ = l.Store.Close() }()
+	res, err := l.Resume(context.Background())
+	if err != nil {
+		t.Fatalf("parked approval with hooks must auto-resume, got: %v", err)
+	}
+	if res.Reason != "completed" || res.Turns != 2 {
+		t.Fatalf("res = %+v", res)
+	}
+	if got, _ := os.ReadFile(filepath.Join(root, "note.txt")); string(got) != "hello" {
+		t.Fatalf("file = %q — approved-after-resume effect did not execute", got)
+	}
+}
+
+func hookedApprovalLoop(t *testing.T, sessDir, root string) *Loop {
+	t.Helper()
+	es, err := store.OpenEventStore(sessDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws, err := workspace.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runner := &hook.Runner{PreTool: []string{"true"}, Dir: root} // side-effecting gate, always allows
+	steps := approvalFixture().Steps
+	if os.Getenv("GO_CRASH_HELPER") != "1" {
+		steps = steps[1:] // resume: only the remaining turn
+	}
+	return &Loop{
+		Spec:      approvalSpec(),
+		Provider:  scripted.New(scripted.Fixture{Steps: steps}),
+		Exec:      &tool.Executor{WS: ws},
+		Store:     es,
+		SessionID: "hooked-apr",
+		Pipeline: &pipeline.Pipeline{Gates: []pipeline.Gate{
+			&hook.Gate{Runner: runner},
+			&pipeline.PermissionGate{Rules: []pipeline.PermissionRule{{Tool: "edit_file", Action: "ask"}}, WS: ws},
+		}},
+		Hooks:     runner,
+		Approvals: EnvApprovals{},
+	}
+}
+
+func helperHookedApprovalRun() {
+	es, err := store.OpenEventStore(os.Getenv("CRASH_SESS_DIR"))
+	if err != nil {
+		fmt.Println("helper:", err)
+		os.Exit(1)
+	}
+	ws, err := workspace.New(os.Getenv("CRASH_WS"))
+	if err != nil {
+		fmt.Println("helper:", err)
+		os.Exit(1)
+	}
+	runner := &hook.Runner{PreTool: []string{"true"}, Dir: os.Getenv("CRASH_WS")}
+	l := &Loop{
+		Spec:      approvalSpec(),
+		Provider:  scripted.New(approvalFixture()),
+		Exec:      &tool.Executor{WS: ws},
+		Store:     es,
+		SessionID: "hooked-apr",
+		Pipeline: &pipeline.Pipeline{Gates: []pipeline.Gate{
+			&hook.Gate{Runner: runner},
+			&pipeline.PermissionGate{Rules: []pipeline.PermissionRule{{Tool: "edit_file", Action: "ask"}}, WS: ws},
+		}},
+		Hooks:     runner,
+		Approvals: blockingApprover{},
+	}
+	_, _ = l.Run(context.Background(), "write a note")
+	fmt.Println("UNREACHABLE")
+	os.Exit(0)
+}
+
+// Correctness-review #3 regression: a crash between ApprovalResponded and
+// EffectResolved must NOT re-ask — the human answer is durable from the
+// moment ApprovalResponded is journaled (folded into Effects.Decisions).
+func TestApprovalDecisionDurableAcrossResolveGap(t *testing.T) {
+	if os.Getenv("GO_CRASH_HELPER") == "1" {
+		// Approve (env=always), crash right after ApprovalResponded lands.
+		es, err := store.OpenEventStore(os.Getenv("CRASH_SESS_DIR"))
+		if err != nil {
+			os.Exit(1)
+		}
+		ws, _ := workspace.New(os.Getenv("CRASH_WS"))
+		l := &Loop{
+			Spec: approvalSpec(), Provider: scripted.New(approvalFixture()),
+			Exec: &tool.Executor{WS: ws}, Store: es, SessionID: "gap",
+			Pipeline:  askEverything,
+			Approvals: EnvApprovals{},
+		}
+		_, _ = l.Run(context.Background(), "write a note")
+		os.Exit(0)
+	}
+
+	base := t.TempDir()
+	sessDir := filepath.Join(base, "sess")
+	root := filepath.Join(base, "ws")
+	if err := os.Mkdir(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("AGENTRUNNER_APPROVE", "always")
+	cmd := exec.Command(os.Args[0], "-test.run=TestApprovalDecisionDurableAcrossResolveGap")
+	cmd.Env = append(os.Environ(),
+		"GO_CRASH_HELPER=1", "CRASH_SESS_DIR="+sessDir, "CRASH_WS="+root,
+		"AGENTRUNNER_APPROVE=always",
+		crash.EnvVar+"=after:approval_responded:1") // die right after the human answer
+	out, err := cmd.CombinedOutput()
+	var ee *exec.ExitError
+	if !errors.As(err, &ee) || ee.ExitCode() != crash.ExitCode {
+		t.Fatalf("subprocess: err = %v, out = %s", err, out)
+	}
+
+	// Resume with a resolver that FAILS if consulted — proving no re-ask.
+	es, err := store.OpenEventStore(sessDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = es.Close() }()
+	ws, _ := workspace.New(root)
+	l := &Loop{
+		Spec:      approvalSpec(),
+		Provider:  scripted.New(scripted.Fixture{Steps: approvalFixture().Steps[1:]}),
+		Exec:      &tool.Executor{WS: ws},
+		Store:     es,
+		SessionID: "gap",
+		Pipeline:  askEverything,
+		Approvals: mustNotAskResolver{t},
+	}
+	res, err := l.Resume(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "completed" {
+		t.Fatalf("res = %+v", res)
+	}
+	if got, _ := os.ReadFile(filepath.Join(root, "note.txt")); string(got) != "hello" {
+		t.Fatalf("file = %q — approved effect did not execute after resume", got)
+	}
+}
+
+type mustNotAskResolver struct{ t *testing.T }
+
+func (m mustNotAskResolver) Resolve(context.Context, ApprovalRequest) (ApprovalDecision, error) {
+	m.t.Fatal("resolver consulted on resume — the durable decision was re-asked")
+	return ApprovalDecision{}, nil
 }

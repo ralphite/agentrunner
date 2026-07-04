@@ -77,3 +77,15 @@ func TestLoadSpecPromptFile(t *testing.T) {
 		t.Errorf("SystemPromptFile should be cleared after resolution, got %q", spec.SystemPromptFile)
 	}
 }
+
+func TestSpecRejectsBypassMode(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/spec.yaml"
+	if err := os.WriteFile(path, []byte("name: x\nmodel: {provider: scripted, id: y}\nsystem_prompt: hi\nmode: bypass\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := LoadSpec(path)
+	if err == nil || !strings.Contains(err.Error(), "bypass cannot be set from a spec") {
+		t.Fatalf("err = %v, want spec-bypass rejection", err)
+	}
+}

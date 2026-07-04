@@ -46,7 +46,7 @@ func TestEffectResolvedBeforeExecution(t *testing.T) {
 	}
 	resolvedAt, startedAt := -1, -1
 	for i, e := range events {
-		if e.Type == event.TypeEffectResolved && strings.Contains(string(e.Payload), "eff-call_1_0") {
+		if e.Type == event.TypeEffectResolved && strings.Contains(string(e.Payload), "eff-tool-call_1_0") {
 			resolvedAt = i
 		}
 		if e.Type == event.TypeActivityStarted && strings.Contains(string(e.Payload), "tool-call_1_0") {
@@ -132,7 +132,7 @@ func TestAskDowngradesToDenyUntilApprovalFlow(t *testing.T) {
 	}
 	var resolved event.EffectResolved
 	for _, e := range events {
-		if e.Type == event.TypeEffectResolved && strings.Contains(string(e.Payload), "eff-call_1_0") {
+		if e.Type == event.TypeEffectResolved && strings.Contains(string(e.Payload), "eff-tool-call_1_0") {
 			if err := json.Unmarshal(e.Payload, &resolved); err != nil {
 				t.Fatal(err)
 			}

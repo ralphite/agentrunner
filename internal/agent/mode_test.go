@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
+	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
 )
 
@@ -124,19 +124,20 @@ func TestPlanModeFullFlow(t *testing.T) {
 		t.Errorf("turn 2 face still filtered: %+v", req2.Tools)
 	}
 
-	// The transition is a journaled fact.
+	// The transition is durable and ATOMIC: it is folded from
+	// exit_plan_mode's OWN completion (no separate mode_changed event that
+	// could be lost in a crash between the two). Fold the log independently
+	// and confirm the mode landed at default.
 	events, err := store.ReadEvents(l.Store.Dir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	var sawChange bool
-	for _, e := range events {
-		if e.Type == event.TypeModeChanged && strings.Contains(string(e.Payload), "exit_plan_mode") {
-			sawChange = true
-		}
+	final, err := state.Fold(events)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !sawChange {
-		t.Fatal("mode_changed(exit_plan_mode) missing")
+	if final.CurrentMode() != "default" {
+		t.Fatalf("mode after exit_plan_mode = %q, want default", final.CurrentMode())
 	}
 }
 

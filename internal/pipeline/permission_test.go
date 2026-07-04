@@ -136,3 +136,64 @@ func TestPermissionEmptyToolMatchesAny(t *testing.T) {
 		t.Fatalf("decision = %+v", d)
 	}
 }
+
+// Security review: a command deny rule must not be evadable by putting the
+// dangerous part on a second line (regex `.` must cross newlines).
+func TestCommandDenyResistsNewlineEvasion(t *testing.T) {
+	g := &PermissionGate{WS: newPermWS(t), Rules: []PermissionRule{
+		{Tool: "bash", Command: "*rm -rf*", Action: "deny"},
+	}}
+	d := g.Check(context.Background(), toolEffect("bash", "execute",
+		`{"command":"git status\nrm -rf /"}`))
+	if d.Action != event.VerdictDeny {
+		t.Fatalf("newline-hidden command evaded deny: %+v", d)
+	}
+}
+
+// Security review: plan mode's edit/execute prohibition cannot be overridden
+// by an allow rule (the hard floor precedes the rule list).
+func TestPlanModeDenyUnbypassableByRule(t *testing.T) {
+	g := &PermissionGate{WS: newPermWS(t), Mode: ModePlan, Rules: []PermissionRule{
+		{Tool: "edit_file", Action: "allow"},
+		{Tool: "bash", Action: "allow"},
+	}}
+	for _, tc := range []struct{ tool, class string }{
+		{"edit_file", "edit"}, {"bash", "execute"},
+	} {
+		d := g.Check(context.Background(), toolEffect(tc.tool, tc.class, `{"path":"a.txt"}`))
+		if d.Action != event.VerdictDeny {
+			t.Errorf("plan mode %s allowed by rule: %+v", tc.tool, d)
+		}
+	}
+	// exit_plan_mode is exempt (the sanctioned way out).
+	if d := g.Check(context.Background(), toolEffect("exit_plan_mode", "wait", `{}`)); d.Action != event.VerdictAsk {
+		t.Errorf("exit_plan_mode in plan mode = %+v, want ask", d)
+	}
+}
+
+// FloorGate short-circuits hard denials before any later (side-effecting) gate.
+func TestFloorGatePrecedesHooks(t *testing.T) {
+	ws := newPermWS(t)
+	floor := &FloorGate{WS: ws, Mode: ModePlan}
+	d := floor.Check(context.Background(), toolEffect("edit_file", "edit", `{"path":"a.txt"}`))
+	if d.Action != event.VerdictDeny {
+		t.Fatalf("floor must deny plan-mode edit: %+v", d)
+	}
+	// Escape denied even in bypass, via the floor.
+	floorBypass := &FloorGate{WS: ws, Mode: ModeBypass}
+	esc := floorBypass.Check(context.Background(), toolEffect("read_file", "read", `{"path":"../../etc/passwd"}`))
+	if esc.Action != event.VerdictDeny {
+		t.Fatalf("floor must deny escape even in bypass: %+v", esc)
+	}
+}
+
+// Unknown/empty tool class fails closed (ask), not open (allow).
+func TestUnknownClassFailsClosed(t *testing.T) {
+	g := &PermissionGate{WS: newPermWS(t)}
+	for _, mode := range []string{ModeDefault, ModePlan, ModeAcceptEdits} {
+		g.Mode = mode
+		if d := g.Check(context.Background(), toolEffect("mystery_tool", "", `{}`)); d.Action == event.VerdictAllow {
+			t.Errorf("mode %s: unknown class allowed: %+v", mode, d)
+		}
+	}
+}

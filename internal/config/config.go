@@ -71,17 +71,20 @@ func validateRules(rules []pipeline.PermissionRule) error {
 }
 
 // Merge builds the effective config. Precedence: user rules first, then
-// project (tightened when untrusted), then spec. Hooks: user always;
-// project only when trusted; spec never carries hooks (it is portable
-// content, not workstation policy).
+// project, then spec. Trust asymmetry (S3 exit review): the project
+// settings.yaml is auto-discovered from the workspace WITHOUT the user
+// naming it, so it is silent repo content — its allow rules tighten to ask
+// until the workspace is trusted, and its hooks never run untrusted. A
+// spec is different: the user explicitly names it on the command line (an
+// act of trust, like running a script), so its rules pass through — except
+// mode: bypass, which spec validation forbids outright as a gate kill
+// switch rather than a permission rule.
 func Merge(user, project Settings, specRules []pipeline.PermissionRule, projectTrusted bool) Merged {
 	m := Merged{ProjectTrusted: projectTrusted}
 	m.Permissions = append(m.Permissions, user.Permissions...)
 	for _, r := range project.Permissions {
 		if !projectTrusted && r.Action == event.VerdictAllow {
-			// An untrusted repo may not grant itself anything: its allow
-			// becomes ask (tighten-only).
-			r.Action = event.VerdictAsk
+			r.Action = event.VerdictAsk // silent repo content may not grant itself
 		}
 		m.Permissions = append(m.Permissions, r)
 	}

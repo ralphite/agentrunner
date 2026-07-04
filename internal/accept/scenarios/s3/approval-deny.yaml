@@ -12,7 +12,9 @@ files:
       - respond:
           - tool_call: { name: edit_file, args: { path: greet.txt, old: hello world, new: HELLO WORLD } }
           - finish: tool_use
-      - respond:
+      - expect:
+          last_message_contains: "denied"
+        respond:
           - text: "understood, not editing"
           - finish: end_turn
 steps:

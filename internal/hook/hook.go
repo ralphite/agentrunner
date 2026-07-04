@@ -11,11 +11,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/ralphite/agentrunner/internal/pipeline"
+	"github.com/ralphite/agentrunner/internal/redact"
 )
 
 // DefaultTimeout bounds each hook process.
@@ -101,6 +104,25 @@ func (r *Runner) RunPost(ctx context.Context, in PostInput) []string {
 	return notes
 }
 
+// scrubbedEnv is the parent environment minus credential variables.
+func scrubbedEnv() []string {
+	out := make([]string, 0, len(os.Environ()))
+	for _, kv := range os.Environ() {
+		k, _, _ := strings.Cut(kv, "=")
+		secret := false
+		for _, suffix := range redact.Suffixes {
+			if strings.HasSuffix(k, suffix) {
+				secret = true
+				break
+			}
+		}
+		if !secret {
+			out = append(out, kv)
+		}
+	}
+	return out
+}
+
 // runOne executes a single hook command with the JSON payload on stdin.
 func (r *Runner) runOne(ctx context.Context, command string, stdin []byte) (exit int, stdout, stderr string, err error) {
 	timeout := r.Timeout
@@ -113,15 +135,25 @@ func (r *Runner) runOne(ctx context.Context, command string, stdin []byte) (exit
 	cmd := exec.CommandContext(hctx, "sh", "-c", command)
 	cmd.Dir = r.Dir
 	cmd.Stdin = bytes.NewReader(stdin)
-	// A killed hook's children may hold the output pipes; don't let them
-	// hold Wait hostage past the deadline.
+	// Strip harness credentials from the hook's environment: a lint/audit
+	// hook has no need for GEMINI_API_KEY etc., and the journal never sees
+	// them either — the hook must not be a cleartext side channel.
+	cmd.Env = scrubbedEnv()
+	// Own process group so a forking hook's children die with it, and a
+	// killed hook's grandchildren don't hold the output pipes hostage.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.WaitDelay = 2 * time.Second
 	var outBuf, errBuf bytes.Buffer
 	cmd.Stdout = &outBuf
 	cmd.Stderr = &errBuf
 
-	runErr := cmd.Run()
+	if err := cmd.Start(); err != nil {
+		return -1, "", "", err
+	}
+	pgid := cmd.Process.Pid
+	runErr := cmd.Wait()
 	if hctx.Err() == context.DeadlineExceeded {
+		_ = syscall.Kill(-pgid, syscall.SIGKILL) // reap the whole group
 		return -1, outBuf.String(), errBuf.String(), fmt.Errorf("timed out after %s", timeout)
 	}
 	if exitErr, ok := runErr.(*exec.ExitError); ok {

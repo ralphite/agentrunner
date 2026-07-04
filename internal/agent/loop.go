@@ -282,11 +282,22 @@ func (e *InDoubtError) Error() string {
 }
 
 func collectPendingSideEffecting(s state.State) []event.EffectRequested {
+	// An effect parked at an approval, or already answered, is NOT
+	// in-doubt: reaching those states proves every side-effecting gate
+	// (hooks) already completed (correctness #1/#3).
+	parked := s.AwaitingApprovalEffect()
 	var out []event.EffectRequested
-	for _, eff := range s.Effects.Pending {
-		if eff.SideEffecting {
-			out = append(out, eff)
+	for id, eff := range s.Effects.Pending {
+		if !eff.SideEffecting {
+			continue
 		}
+		if id == parked {
+			continue
+		}
+		if _, decided := s.Effects.Decisions[id]; decided {
+			continue
+		}
+		out = append(out, eff)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].EffectID < out[j].EffectID })
 	return out
@@ -427,7 +438,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				l.Sink.ToolCall(act.turn, call)
 			}
 			eff := pipeline.Effect{
-				ID: "eff-" + call.CallID, Kind: "tool_call",
+				ID: toolEffectID(call.CallID), Kind: "tool_call",
 				ToolName: call.Name, Class: toolClass(call.Name),
 				Args: call.Args, CallID: call.CallID,
 				Mode:      ds.s.CurrentMode(),
@@ -493,18 +504,6 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			if l.Sink != nil {
 				l.Sink.ToolResult(act.turn, call.CallID, res)
 			}
-			if call.Name == "exit_plan_mode" && !res.IsError {
-				from := ds.s.CurrentMode()
-				if !pipeline.ValidTransition(from, pipeline.ModeDefault) {
-					return RunResult{}, abort(act.turn, fmt.Errorf("invalid mode transition %s → default", from))
-				}
-				if _, err := appendE(event.TypeModeChanged, &event.ModeChanged{
-					From: from, To: pipeline.ModeDefault, Cause: "exit_plan_mode approved",
-				}); err != nil {
-					return RunResult{}, abort(act.turn, err)
-				}
-			}
-
 		case doWait:
 			// A parked approval (fresh or resumed across a crash) re-enters
 			// the same await path: the request payload lives in the fold's
@@ -644,6 +643,13 @@ func (l *Loop) adjudicate(ctx context.Context, ds *driveState, appendE AppendFun
 	if ds.s.Effects.Allowed[eff.ID] {
 		return pipeline.Outcome{Verdict: event.VerdictAllow}, true, nil
 	}
+	// The human already answered this approval before a crash (the decision
+	// is durable from the moment ApprovalResponded was journaled): resolve
+	// from the recorded answer instead of re-asking (correctness #1/#3).
+	if dec, ok := ds.s.Effects.Decisions[eff.ID]; ok {
+		allowed, err := l.resolveFromDecision(appendE, eff, dec)
+		return pipeline.Outcome{Verdict: verdictFor(dec)}, allowed, err
+	}
 	if _, err := appendE(event.TypeEffectRequested, &event.EffectRequested{
 		EffectID: eff.ID, CallID: eff.CallID,
 		SideEffecting: l.Pipeline.SideEffecting(),
@@ -671,6 +677,33 @@ func (l *Loop) adjudicate(ctx context.Context, ds *driveState, appendE AppendFun
 		return outcome, false, err
 	}
 	return outcome, outcome.Verdict == event.VerdictAllow, nil
+}
+
+func verdictFor(decision string) string {
+	if decision == "approve" {
+		return event.VerdictAllow
+	}
+	return event.VerdictDeny
+}
+
+// resolveFromDecision journals the EffectResolved implied by a durable
+// approval answer, without re-prompting. Used only on the recovery path.
+func (l *Loop) resolveFromDecision(appendE AppendFunc, eff pipeline.Effect, decision string) (bool, error) {
+	approved := decision == "approve"
+	verdict, gate := event.VerdictDeny, event.VerdictDeny
+	reason := "recovered denial"
+	reserved := 0
+	if approved {
+		verdict, gate = event.VerdictAllow, event.VerdictAllow
+		reason = "recovered approval"
+		reserved = eff.EstTokens
+	}
+	_, err := appendE(event.TypeEffectResolved, &event.EffectResolved{
+		EffectID: eff.ID, CallID: eff.CallID, Verdict: verdict,
+		GateResults:    []event.GateResult{{Gate: "approval", Decision: gate, Reason: reason}},
+		ReservedTokens: reserved,
+	})
+	return approved, err
 }
 
 // budgetView snapshots the fold's accounting for the budget gate.
@@ -713,8 +746,14 @@ func toolClass(name string) string {
 // resume; edits and executions do not. S3 refines this per tool class.
 func toolIdempotent(name string) bool {
 	def, ok := tool.Get(name)
-	return ok && def.Class == tool.ClassRead
+	// Reads and wait-class tools (exit_plan_mode) re-run safely on resume;
+	// edits and executions do not (correctness #4).
+	return ok && (def.Class == tool.ClassRead || def.Class == tool.ClassWait)
 }
+
+// toolEffectID namespaces tool effects away from LLM effects (eff-llm-t<n>),
+// so a model-chosen call_id can never collide with an LLM effect's id.
+func toolEffectID(callID string) string { return "eff-tool-" + callID }
 
 // executeToolTimeout is the S1 default bash wall-clock limit, now owned by
 // the durable-timer substrate (2.11) instead of the tool implementation.

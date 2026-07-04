@@ -31,6 +31,7 @@ type Step struct {
 // Expect asserts on selected request fields (S1 执行包 matching contract).
 type Expect struct {
 	ToolsInclude        []string `yaml:"tools_include,omitempty"`
+	ToolsExclude        []string `yaml:"tools_exclude,omitempty"`
 	LastMessageContains string   `yaml:"last_message_contains,omitempty"`
 }
 
@@ -136,6 +137,15 @@ func (e Expect) check(req provider.CompleteRequest, source string, stepNo int) e
 		if !found {
 			return fmt.Errorf("scripted %s step %d: request drift: tool %q not offered (got %v)",
 				source, stepNo, want, toolNames(req.Tools))
+		}
+	}
+	for _, unwanted := range e.ToolsExclude {
+		found := slices.ContainsFunc(req.Tools, func(td provider.ToolDef) bool {
+			return td.Name == unwanted
+		})
+		if found {
+			return fmt.Errorf("scripted %s step %d: request drift: tool %q offered but should be filtered out (got %v)",
+				source, stepNo, unwanted, toolNames(req.Tools))
 		}
 	}
 	if e.LastMessageContains != "" {

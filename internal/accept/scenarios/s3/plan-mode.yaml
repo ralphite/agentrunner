@@ -10,11 +10,16 @@ files:
   greet.txt: "hello world"
   plan.yaml: |
     steps:
-      - respond:
+      - expect:
+          tools_include: [read_file, exit_plan_mode]
+          tools_exclude: [edit_file]
+        respond:
           - text: "plan ready"
           - tool_call: { name: exit_plan_mode, args: { plan: "edit greet.txt" } }
           - finish: tool_use
-      - respond:
+      - expect:
+          tools_include: [edit_file]
+        respond:
           - tool_call: { name: edit_file, args: { path: greet.txt, old: hello world, new: HELLO WORLD } }
           - finish: tool_use
       - respond:

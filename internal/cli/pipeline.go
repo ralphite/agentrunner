@@ -49,6 +49,9 @@ func buildPipeline(ws *workspace.Workspace, specRules []pipeline.PermissionRule,
 		Dir:      ws.Root(),
 	}
 	return &pipeline.Pipeline{Gates: []pipeline.Gate{
+		// FloorGate runs FIRST so hard denials (workspace escape, plan-mode
+		// edit/execute) short-circuit BEFORE any side-effecting pre-hook.
+		&pipeline.FloorGate{Mode: mode, WS: ws},
 		&hook.Gate{Runner: runner, Notes: func(n string) {
 			fmt.Fprintf(stderr, "hook: %s\n", n)
 		}},

@@ -44,14 +44,14 @@ func (g *PermissionGate) Check(_ context.Context, eff Effect) Decision {
 		return Allow // LLM calls are budget's business (3.7)
 	}
 
-	args := effArgs(eff)
-
-	// Workspace escape denies unconditionally — before rules, before mode,
-	// even in bypass (standing hook 1: the boundary is not a preference).
-	relPath, escaped := g.resolveRel(args.Path)
-	if escaped {
-		return Deny(fmt.Sprintf("path escapes workspace: %s", args.Path))
+	// Hard denials that NO rule may override run first (they also live in
+	// FloorGate, ahead of hooks; this is defense in depth).
+	if d, hard := g.hardFloor(eff); hard {
+		return d
 	}
+
+	args := effArgs(eff)
+	relPath, _ := g.resolveRel(args.Path)
 
 	// exit_plan_mode is transition policy, not rule material: leaving plan
 	// mode always requires approval (3.6c); outside plan it is meaningless.
@@ -79,6 +79,44 @@ func (g *PermissionGate) Check(_ context.Context, eff Effect) Decision {
 	return modeDefault(g.effectiveMode(eff), eff.Class)
 }
 
+// hardFloor returns the unconditional denials that precede rules AND mode
+// defaults: a workspace escape, and plan mode's edit/execute prohibition.
+// No permission rule and no mode (not even bypass, for the escape) may
+// override these. exit_plan_mode is exempt from the plan-mode floor — it
+// is the sanctioned way out.
+func (g *PermissionGate) hardFloor(eff Effect) (Decision, bool) {
+	args := effArgs(eff)
+	if _, escaped := g.resolveRel(args.Path); escaped {
+		return Deny(fmt.Sprintf("path escapes workspace: %s", args.Path)), true
+	}
+	if g.effectiveMode(eff) == ModePlan && eff.ToolName != "exit_plan_mode" &&
+		(eff.Class == "edit" || eff.Class == "execute") {
+		return Deny("plan mode: " + eff.Class + " tools are disabled (no rule can override)"), true
+	}
+	return Decision{}, false
+}
+
+// FloorGate enforces the hard-deny floor BEFORE any other gate (hooks
+// included), so a to-be-denied effect never triggers a side-effecting
+// pre-hook and no rule can grant what the floor forbids. It is pure.
+type FloorGate struct {
+	Mode string
+	WS   *workspace.Workspace
+}
+
+func (g *FloorGate) Name() string { return "floor" }
+
+func (g *FloorGate) Check(_ context.Context, eff Effect) Decision {
+	if eff.Kind != "tool_call" {
+		return Allow
+	}
+	pg := &PermissionGate{Mode: g.Mode, WS: g.WS}
+	if d, hard := pg.hardFloor(eff); hard {
+		return d
+	}
+	return Allow
+}
+
 // effectiveMode prefers the effect's mode (live fold state — the mode can
 // change mid-run) over the gate's construction-time fallback.
 func (g *PermissionGate) effectiveMode(eff Effect) string {
@@ -91,33 +129,36 @@ func (g *PermissionGate) effectiveMode(eff Effect) string {
 	return g.Mode
 }
 
-// modeDefault is the no-rule-matched policy table (S3 执行包).
+// modeDefault is the no-rule-matched policy table (S3 执行包). Bypass
+// allows everything; otherwise read/wait always allow and any UNKNOWN
+// class fails closed (never a silent allow for an unclassified tool).
 func modeDefault(mode, class string) Decision {
-	switch mode {
-	case ModeBypass:
+	if mode == ModeBypass {
 		return Allow
+	}
+	if class == "read" || class == "wait" {
+		return Allow
+	}
+	known := class == "edit" || class == "execute"
+	switch mode {
 	case ModePlan:
-		switch class {
-		case "edit", "execute":
+		if known {
 			return Deny("plan mode: " + class + " tools are disabled")
 		}
-		return Allow
+		return Deny("plan mode: unclassified tool disabled")
 	case ModeAcceptEdits:
-		switch class {
-		case "edit":
+		if class == "edit" {
 			return Allow
-		case "execute":
+		}
+		if class == "execute" {
 			return Ask("execute requires approval")
 		}
-		return Allow
+		return Ask("unclassified tool requires approval")
 	default: // ModeDefault
-		switch class {
-		case "edit":
-			return Ask("edit requires approval")
-		case "execute":
-			return Ask("execute requires approval")
+		if known {
+			return Ask(class + " requires approval")
 		}
-		return Allow
+		return Ask("unclassified tool requires approval")
 	}
 }
 
@@ -185,7 +226,14 @@ func (r PermissionRule) describe() string {
 // anything including spaces and slashes.
 func globMatch(pattern, s string, pathish bool) bool {
 	var sb strings.Builder
-	sb.WriteString("^")
+	// (?s): `.`/`.*` cross newlines, so a command deny rule cannot be
+	// evaded by putting the dangerous part on a second line. (?i) on paths
+	// closes case-folding evasion on case-insensitive filesystems.
+	if pathish {
+		sb.WriteString("(?is)^")
+	} else {
+		sb.WriteString("(?s)^")
+	}
 	for i := 0; i < len(pattern); i++ {
 		switch c := pattern[i]; c {
 		case '*':

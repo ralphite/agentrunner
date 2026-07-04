@@ -131,6 +131,11 @@ func (s *AgentSpec) validate(path string) error {
 	if s.Mode != "" && !pipeline.ValidMode(s.Mode) {
 		return fail("mode", fmt.Sprintf("unknown mode %q (known: default, plan, acceptEdits, bypass)", s.Mode))
 	}
+	if s.Mode == pipeline.ModeBypass {
+		// bypass disables permission/budget; it may only be chosen at the
+		// workstation via --mode, never from a spec shipped in a repo.
+		return fail("mode", "bypass cannot be set from a spec; use --mode bypass on the command line")
+	}
 
 	if s.MaxTurns < 0 {
 		return fail("max_turns", "must be positive")
