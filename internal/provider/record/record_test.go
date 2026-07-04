@@ -2,6 +2,7 @@ package record
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -91,5 +92,35 @@ func TestRecordedExpectCatchesDrift(t *testing.T) {
 	_, err = provider.CollectTurn(replay.Complete(context.Background(), drifted))
 	if err == nil || !strings.Contains(err.Error(), "request drift") {
 		t.Fatalf("err = %v, want request drift", err)
+	}
+}
+
+// A credential split across two text deltas must still be redacted — the
+// recorder accumulates deltas and redacts the whole (S2 review item). The
+// scripted provider emits one delta per text event, so two text events
+// split the secret across delta boundaries.
+func TestRecorderRedactsCrossDeltaSecret(t *testing.T) {
+	t.Setenv("SPLIT_API_KEY", "sk-abcdef123456")
+	source := scripted.New(scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{
+			{Text: "the key is sk-abc"},
+			{Text: "def123456 ok"},
+			{Finish: "end_turn"},
+		}},
+	}})
+	rec := New(source)
+	if _, err := provider.CollectTurn(rec.Complete(context.Background(), provider.CompleteRequest{})); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "fix.yaml")
+	if err := rec.WriteFixture(path); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := os.ReadFile(path)
+	if strings.Contains(string(raw), "sk-abcdef123456") {
+		t.Fatalf("cross-delta secret leaked into fixture:\n%s", raw)
+	}
+	if !strings.Contains(string(raw), "[REDACTED:SPLIT_API_KEY]") {
+		t.Fatalf("expected redaction marker:\n%s", raw)
 	}
 }

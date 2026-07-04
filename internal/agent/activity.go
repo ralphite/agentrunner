@@ -43,6 +43,10 @@ type Activity struct {
 	// PostRun runs after a successful Run, before the terminal event; its
 	// return value lands in ActivityCompleted.hook_note (3.8 post hooks).
 	PostRun func(ctx context.Context, result json.RawMessage, isError bool) string
+	// DiscardOnRetry (S4.1) runs before each retry — the LLM activity uses
+	// it to journal TurnDiscarded and signal the surface to reopen the
+	// stream when deltas were already emitted.
+	DiscardOnRetry func() error
 }
 
 // ActivityExecutor is the single path every side effect takes (2.10).
@@ -53,9 +57,6 @@ type ActivityExecutor struct {
 	// MaxAttempts/Backoff default to 3 attempts with 1s/4s waits.
 	MaxAttempts int
 	Backoff     []time.Duration
-	// DiscardOnRetry is the S4 TurnDiscarded seam: called before each
-	// retry so the caller can journal a discard mark. Nil in S2.
-	DiscardOnRetry func() error
 }
 
 // Do runs the activity: Started → execute → terminal, retrying retryable
@@ -140,8 +141,8 @@ func (x *ActivityExecutor) Do(ctx context.Context, act Activity) error {
 		if final {
 			return err
 		}
-		if x.DiscardOnRetry != nil {
-			if derr := x.DiscardOnRetry(); derr != nil {
+		if act.DiscardOnRetry != nil {
+			if derr := act.DiscardOnRetry(); derr != nil {
 				return derr
 			}
 		}

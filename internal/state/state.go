@@ -318,6 +318,10 @@ func Apply(s State, env event.Envelope) (State, error) {
 	case *event.LimitExceeded:
 		// Audit fact; the terminal state lands via RunEnded.
 
+	case *event.TurnDiscarded:
+		// Surface signal + audit only: no fold state to undo (the discarded
+		// turn never produced a durable assistant_message).
+
 	case *event.ActorCrashed:
 		s.Run.LastCrash = p.Actor + ": " + p.Error
 

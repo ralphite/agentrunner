@@ -46,6 +46,7 @@ var samples = map[string]any{
 		Reason: "looks safe", Source: "tty"},
 	TypeModeChanged:   &ModeChanged{From: "plan", To: "default", Cause: "exit_plan_mode approved"},
 	TypeLimitExceeded: &LimitExceeded{Kind: "tokens", Limit: 10000, Used: 10250},
+	TypeTurnDiscarded: &TurnDiscarded{Turn: 3, Reason: "llm retry after partial stream"},
 	TypeEffectResolved: &EffectResolved{EffectID: "eff-call_3_1", CallID: "call_3_1",
 		Verdict: VerdictDeny, GateResults: []GateResult{
 			{Gate: "permission", Decision: VerdictDeny, Reason: "path escapes workspace"}}},

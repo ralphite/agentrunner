@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/hook"
 	"github.com/ralphite/agentrunner/internal/pipeline"
+	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/redact"
 	"github.com/ralphite/agentrunner/internal/runtime"
@@ -22,14 +24,6 @@ import (
 	"github.com/ralphite/agentrunner/internal/store"
 	"github.com/ralphite/agentrunner/internal/tool"
 )
-
-// Sink receives turn-granularity output for rendering (the CLI implements it).
-// S2 is still turn-level; the streaming protocol arrives in S4.
-type Sink interface {
-	AssistantText(turn int, text string)
-	ToolCall(turn int, call provider.ToolCall)
-	ToolResult(turn int, callID string, result tool.Result)
-}
 
 // Loop is the S2 event-sourced agent loop: every input and side effect is
 // journaled as an event, the fold state is the only working memory, and
@@ -41,7 +35,7 @@ type Loop struct {
 	Exec      *tool.Executor
 	Store     *store.EventStore
 	Clock     clock.Clock
-	Sink      Sink
+	Out       protocol.Sink
 	SessionID string
 	Version   string
 	// Pipeline adjudicates every effect before execution (S3). nil is an
@@ -73,6 +67,22 @@ type RunResult struct {
 type driveState struct {
 	s      state.State
 	lastID string
+}
+
+// compact renders raw JSON on one line, dropping surrounding whitespace.
+func compact(raw json.RawMessage) string {
+	var buf bytes.Buffer
+	if err := json.Compact(&buf, raw); err != nil {
+		return string(raw)
+	}
+	return buf.String()
+}
+
+// emit sends an output event to the surface (nil-safe).
+func (l *Loop) emit(e protocol.Event) {
+	if l.Out != nil {
+		l.Out.Emit(e)
+	}
 }
 
 // appender builds the single write path: journal one event, fold it, and
@@ -151,6 +161,7 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 			return RunResult{}, err
 		}
 	}
+	l.emit(protocol.Event{Kind: protocol.KindRunStart, Mode: ds.s.CurrentMode()})
 
 	return l.drive(ctx, ds, appendE)
 }
@@ -367,6 +378,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			if err != nil {
 				return RunResult{}, abort(act.turn, err)
 			}
+			l.emit(protocol.Event{Kind: protocol.KindTurnStart, Turn: act.turn})
 			// Turn boundary: serialize the fold (2.13). The snapshot is an
 			// optimization — losing it costs a longer fold, nothing else.
 			if err := store.WriteSnapshot(l.Store.Dir(), appended.Seq,
@@ -398,12 +410,33 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				return RunResult{}, abort(act.turn, fmt.Errorf("turn %d: llm call denied by pipeline", act.turn))
 			}
 			var turn provider.Turn
+			var streamed bool // any delta emitted this attempt?
 			err := exec.Do(ctx, Activity{
 				ID: fmt.Sprintf("llm-t%d", act.turn), Kind: event.KindLLM,
 				Name: "complete", Idempotent: true,
+				DiscardOnRetry: func() error {
+					// A retry after deltas were streamed: tell the surface to
+					// throw away the partial stream and reopen (TurnDiscarded).
+					if streamed {
+						if _, err := appendE(event.TypeTurnDiscarded, &event.TurnDiscarded{
+							Turn: act.turn, Reason: "llm retry after partial stream",
+						}); err != nil {
+							return err
+						}
+						l.emit(protocol.Event{Kind: protocol.KindDiscard, Turn: act.turn,
+							Text: "partial stream discarded; retrying"})
+						streamed = false
+					}
+					return nil
+				},
 				Run: func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
 					req := Assemble(ds.s, l.Spec, toolDefs, act.turn)
-					collected, err := provider.CollectTurn(l.Provider.Complete(ctx, req))
+					collected, err := provider.CollectTurnStreaming(
+						l.Provider.Complete(ctx, req),
+						func(delta string) {
+							streamed = true
+							l.emit(protocol.Event{Kind: protocol.KindTextDelta, Turn: act.turn, Text: delta})
+						})
 					if err != nil {
 						return nil, nil, false, err
 					}
@@ -420,15 +453,14 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			}); err != nil {
 				return RunResult{}, abort(act.turn, err)
 			}
-			if text := assistantText(turn.Message); text != "" && l.Sink != nil {
-				l.Sink.AssistantText(act.turn, text)
+			if text := assistantText(turn.Message); text != "" {
+				l.emit(protocol.Event{Kind: protocol.KindMessage, Turn: act.turn, Text: text})
 			}
 
 		case doTool:
 			call := act.call
-			if l.Sink != nil {
-				l.Sink.ToolCall(act.turn, call)
-			}
+			l.emit(protocol.Event{Kind: protocol.KindToolCall, Turn: act.turn,
+				Tool: call.Name, CallID: call.CallID, Args: compact(call.Args)})
 			eff := pipeline.Effect{
 				ID: toolEffectID(call.CallID), Kind: "tool_call",
 				ToolName: call.Name, Class: toolClass(call.Name),
@@ -442,9 +474,9 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			} else if !allowed {
 				// The denial was journaled as the call's resolution (the
 				// fold writes the model-visible error); nothing executes.
-				if l.Sink != nil {
-					l.Sink.ToolResult(act.turn, call.CallID, deniedResult(outcome))
-				}
+				dr := deniedResult(outcome)
+				l.emit(protocol.Event{Kind: protocol.KindToolResult, Turn: act.turn,
+					Tool: call.Name, CallID: call.CallID, Result: compact(dr.Payload), IsError: true})
 				continue
 			}
 			var res tool.Result
@@ -483,19 +515,16 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				// (rendered error result) is model-visible: the loop
 				// continues and the model reacts. Cancellation and harness
 				// failures still abort.
-				if _, resolved := ds.s.Conversation.ToolResults[call.CallID]; resolved &&
+				if tr, resolved := ds.s.Conversation.ToolResults[call.CallID]; resolved &&
 					errs.ClassOf(err) != errs.Canceled {
-					if l.Sink != nil {
-						l.Sink.ToolResult(act.turn, call.CallID, tool.Result{
-							Payload: ds.s.Conversation.ToolResults[call.CallID].Result, IsError: true})
-					}
+					l.emit(protocol.Event{Kind: protocol.KindToolResult, Turn: act.turn,
+						Tool: call.Name, CallID: call.CallID, Result: compact(tr.Result), IsError: true})
 					continue
 				}
 				return RunResult{}, abort(act.turn, fmt.Errorf("turn %d: %s: %w", act.turn, call.Name, err))
 			}
-			if l.Sink != nil {
-				l.Sink.ToolResult(act.turn, call.CallID, res)
-			}
+			l.emit(protocol.Event{Kind: protocol.KindToolResult, Turn: act.turn,
+				Tool: call.Name, CallID: call.CallID, Result: compact(res.Payload), IsError: res.IsError})
 		case doWait:
 			// A parked approval (fresh or resumed across a crash) re-enters
 			// the same await path: the request payload lives in the fold's
@@ -517,7 +546,9 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			if act.reason == "max_turns" {
 				slog.Warn("run hit max_turns", "max_turns", l.Spec.MaxTurns)
 			}
-			return runEpilogue(ctx, ds, appendE, act.reason, act.turn, false)
+			res, err := runEpilogue(ctx, ds, appendE, act.reason, act.turn, false)
+			l.emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: res.Reason, Turn: res.Turns})
+			return res, err
 		}
 	}
 }

@@ -203,10 +203,10 @@ func TestActivityDiscardSeam(t *testing.T) {
 	x := testExecutor(m)
 	x.Backoff = []time.Duration{0}
 	discards := 0
-	x.DiscardOnRetry = func() error { discards++; return nil }
 	attempts := 0
 	if err := x.Do(context.Background(), Activity{
 		ID: "llm-t1", Kind: event.KindLLM, Name: "complete",
+		DiscardOnRetry: func() error { discards++; return nil },
 		Run: func(context.Context) (json.RawMessage, *provider.Usage, bool, error) {
 			attempts++
 			if attempts < 3 {

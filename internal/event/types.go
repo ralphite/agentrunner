@@ -32,6 +32,9 @@ const (
 	TypeApprovalResponded = "approval_responded"
 	TypeModeChanged       = "mode_changed"
 	TypeLimitExceeded     = "limit_exceeded"
+
+	// S4 additions.
+	TypeTurnDiscarded = "turn_discarded"
 )
 
 // Effect verdicts and gate decisions.
@@ -209,6 +212,16 @@ type LimitExceeded struct {
 	Used  int    `json:"used"`
 }
 
+// TurnDiscarded marks an LLM turn whose partial stream was thrown away
+// before a retry (S4.1): a durable companion to the ephemeral delta
+// channel, telling a resuming surface to reopen the stream. The fold has
+// no half-built assistant message to undo (assistant_message lands only on
+// success), so this event is audit + surface-signal only.
+type TurnDiscarded struct {
+	Turn   int    `json:"turn"`
+	Reason string `json:"reason,omitempty"`
+}
+
 // GateResult is one gate's judgment inside an effect resolution.
 type GateResult struct {
 	Gate     string `json:"gate"`
@@ -253,4 +266,5 @@ var Registry = map[string]func() any{
 	TypeApprovalResponded: func() any { return &ApprovalResponded{} },
 	TypeModeChanged:       func() any { return &ModeChanged{} },
 	TypeLimitExceeded:     func() any { return &LimitExceeded{} },
+	TypeTurnDiscarded:     func() any { return &TurnDiscarded{} },
 }

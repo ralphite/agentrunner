@@ -48,21 +48,38 @@ func (r *Recorder) Capabilities() provider.Capabilities {
 }
 
 // Complete passes the call through while capturing a fixture step.
+// Consecutive text deltas are ACCUMULATED and redacted as one string, so a
+// credential split across two deltas (which no single-delta redaction would
+// catch) is still scrubbed before it reaches the fixture (S2 review item).
 func (r *Recorder) Complete(ctx context.Context, req provider.CompleteRequest) iter.Seq2[provider.StreamEvent, error] {
 	return func(yield func(provider.StreamEvent, error) bool) {
 		step := scripted.Step{Expect: r.deriveExpect(req)}
+		var textBuf strings.Builder
+		flushText := func() {
+			if textBuf.Len() > 0 {
+				step.Respond = append(step.Respond,
+					scripted.Event{Text: r.redactString(textBuf.String())})
+				textBuf.Reset()
+			}
+		}
 		for ev, err := range r.inner.Complete(ctx, req) {
 			if err != nil {
 				yield(provider.StreamEvent{}, err)
 				return
 			}
-			if rec, ok := r.toEvent(ev); ok {
-				step.Respond = append(step.Respond, rec)
+			if ev.Kind == provider.EventTextDelta {
+				textBuf.WriteString(ev.TextDelta)
+			} else {
+				flushText()
+				if rec, ok := r.toEvent(ev); ok {
+					step.Respond = append(step.Respond, rec)
+				}
 			}
 			if !yield(ev, nil) {
 				return
 			}
 		}
+		flushText()
 		r.fixture.Steps = append(r.fixture.Steps, step)
 	}
 }
@@ -105,7 +122,9 @@ func (r *Recorder) deriveExpect(req provider.CompleteRequest) scripted.Expect {
 func (r *Recorder) toEvent(ev provider.StreamEvent) (scripted.Event, bool) {
 	switch ev.Kind {
 	case provider.EventTextDelta:
-		return scripted.Event{Text: r.redactString(ev.TextDelta)}, true
+		// Text is accumulated and flushed in Complete (cross-delta
+		// redaction); toEvent is never called for text deltas.
+		return scripted.Event{}, false
 	case provider.EventToolCall:
 		var args map[string]any
 		if len(ev.ToolCall.Args) > 0 {

@@ -24,7 +24,7 @@ type ttyApprovals struct {
 func (a *ttyApprovals) Resolve(ctx context.Context, req agent.ApprovalRequest) (agent.ApprovalDecision, error) {
 	fmt.Fprintf(a.out, "\n─── approval required ───\n")
 	if req.ToolName != "" {
-		fmt.Fprintf(a.out, "  tool: %s\n  args: %s\n", req.ToolName, compactJSON(req.Args, 200))
+		fmt.Fprintf(a.out, "  tool: %s\n  args: %s\n", req.ToolName, truncate(string(req.Args), 200))
 	}
 	for _, g := range req.GateResults {
 		fmt.Fprintf(a.out, "  %s: %s", g.Gate, g.Decision)

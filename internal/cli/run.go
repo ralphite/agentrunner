@@ -3,7 +3,6 @@ package cli
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/ralphite/agentrunner/internal/agent"
 	"github.com/ralphite/agentrunner/internal/clock"
+	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/provider/gemini"
 	"github.com/ralphite/agentrunner/internal/provider/record"
@@ -61,6 +61,7 @@ type runOptions struct {
 	factory    providerFactory
 	stdout     io.Writer
 	stderr     io.Writer
+	sink       protocol.Sink // output protocol renderer (nil → text on stdout)
 }
 
 // runCmd parses `run` / `record-fixture` args and executes the agent.
@@ -74,6 +75,7 @@ func runCmd(args []string, recordMode bool, version string, stdout, stderr io.Wr
 	workspaceDir := fs.String("workspace", ".", "workspace root (default: current directory)")
 	maxTurns := fs.Int("max-turns", 0, "override spec max_turns")
 	mode := fs.String("mode", "", "run mode: default|plan|acceptEdits|bypass (overrides spec)")
+	jsonOut := fs.Bool("json", false, "emit the output event stream as JSON lines")
 	fixtureOut := fs.String("o", "", "fixture output path (record-fixture only)")
 	if err := fs.Parse(args); err != nil {
 		return ExitUsage
@@ -91,6 +93,12 @@ func runCmd(args []string, recordMode bool, version string, stdout, stderr io.Wr
 		*fixtureOut = ""
 	}
 
+	var sink protocol.Sink
+	if *jsonOut {
+		sink = protocol.NewJSONSink(stdout)
+	} else {
+		sink = newTextRenderer(stdout)
+	}
 	return runAgent(runOptions{
 		specPath:   rest[0],
 		task:       rest[1],
@@ -101,11 +109,15 @@ func runCmd(args []string, recordMode bool, version string, stdout, stderr io.Wr
 		version:    version,
 		factory:    defaultProviderFactory,
 		stdout:     stdout,
+		sink:       sink,
 		stderr:     stderr,
 	})
 }
 
 func runAgent(opts runOptions) int {
+	if opts.sink == nil {
+		opts.sink = newTextRenderer(opts.stdout)
+	}
 	ctx, interrupts, stop := signalContext()
 	defer stop()
 	loadDotEnv(".env")
@@ -170,7 +182,7 @@ func runAgent(opts runOptions) int {
 		Exec:       &tool.Executor{WS: ws, Session: sessionID},
 		Store:      events,
 		Clock:      clock.Real{},
-		Sink:       &textSink{out: opts.stdout},
+		Out:        opts.sink,
 		SessionID:  sessionID,
 		Version:    opts.version,
 		Interrupts: interrupts,
@@ -232,36 +244,6 @@ func signalContext() (context.Context, <-chan struct{}, func()) {
 		close(sigc)
 		cancel()
 	}
-}
-
-// textSink renders turn-granularity output to stdout (S1; streaming in S4).
-type textSink struct {
-	out io.Writer
-}
-
-func (s *textSink) AssistantText(turn int, text string) {
-	fmt.Fprintf(s.out, "\n[turn %d]\n%s\n", turn, text)
-}
-
-func (s *textSink) ToolCall(turn int, call provider.ToolCall) {
-	fmt.Fprintf(s.out, "  → %s %s\n", call.Name, compactJSON(call.Args, 120))
-}
-
-func (s *textSink) ToolResult(_ int, _ string, res tool.Result) {
-	status := "ok"
-	if res.IsError {
-		status = "error"
-	}
-	fmt.Fprintf(s.out, "  ← %s %s\n", status, compactJSON(res.Payload, 200))
-}
-
-func compactJSON(raw json.RawMessage, max int) string {
-	s := string(raw)
-	s = strings.ReplaceAll(s, "\n", " ")
-	if len(s) > max {
-		s = s[:max] + "…"
-	}
-	return s
 }
 
 // loadDotEnv populates missing env vars from a .env file in the cwd

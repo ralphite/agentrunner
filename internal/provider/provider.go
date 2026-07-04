@@ -150,6 +150,15 @@ type Turn struct {
 // CollectTurn drains a stream into a Turn. It exists for turn-granularity
 // callers (the S1 loop); streaming callers consume the iterator directly.
 func CollectTurn(stream iter.Seq2[StreamEvent, error]) (Turn, error) {
+	return CollectTurnStreaming(stream, nil)
+}
+
+// CollectTurnStreaming drains a stream into a Turn, invoking onDelta for
+// each text delta as it arrives (S4.1). onDelta may be nil. Deltas are
+// ephemeral — only the assembled Turn.Message is durable (TurnDiscarded
+// contract): if the call errors mid-stream, whatever was emitted to
+// onDelta is discarded by the caller.
+func CollectTurnStreaming(stream iter.Seq2[StreamEvent, error], onDelta func(string)) (Turn, error) {
 	var (
 		turn Turn
 		text string
@@ -161,6 +170,9 @@ func CollectTurn(stream iter.Seq2[StreamEvent, error]) (Turn, error) {
 		switch ev.Kind {
 		case EventTextDelta:
 			text += ev.TextDelta
+			if onDelta != nil && ev.TextDelta != "" {
+				onDelta(ev.TextDelta)
+			}
 		case EventToolCall:
 			if ev.ToolCall != nil {
 				turn.ToolCalls = append(turn.ToolCalls, *ev.ToolCall)

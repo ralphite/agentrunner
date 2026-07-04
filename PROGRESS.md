@@ -1055,3 +1055,36 @@ loop 的 doLLM 改调 `Assemble()`。**request_assembly.golden 一字节未改
 - Assemble 为包级函数(非方法):assembly 是 fold→wire 的纯变换,不持
   Loop 状态,便于 4c 的 byte-stability 独立测试。
 - env 块(session start 冻结)留 4c;S4.4a 先落拼装序骨架。
+
+## S4.1 协议 v1 + streaming — DONE
+
+`internal/protocol`:**输出事件流**(面向 surface,区别于 provider 输入
+侧 StreamEvent):`Event{kind, turn, text, tool, ...}`,kind ∈ run_start/
+turn_start/text_delta/message/tool_call/tool_result/approval_request/
+mode_changed/discard/error/run_end;`JSONSink`(每行一 JSON,并发安全)
++ `Discard`。`provider.CollectTurnStreaming(stream, onDelta)`:边收边回调
+text delta。loop 接线:doLLM 经 onDelta 发 text_delta(**ephemeral,不落
+journal**——成功后 assistant_message 才落,TurnDiscarded 契约);turn/
+tool/run 各 emit;旧 `agent.Sink` 接口删除,统一 `Loop.Out protocol.Sink`。
+CLI:`textRenderer`(delta 内联流式渲染)+ `--json`(JSONSink);旧
+textSink/compactJSON 删除。
+
+**TurnDiscarded event(加性)**:LLM 已流出 delta 后 retry → 经 Activity
+的 `DiscardOnRetry`(从 executor 字段移到 per-activity)journal
+`turn_discarded` + emit discard(前端重开流信号);fold 无半成品可撤
+(assistant_message 只在成功后落)。
+
+**回访项关账**:recorder 单-delta redact 跨分片泄漏(S2 review 递延)——
+Complete 现**累积连续 text delta 再整体 redact**,密钥跨 delta 边界仍
+被 scrub;`TestRecorderRedactsCrossDeltaSecret`。
+
+**验证**:JSONSink 行编码/sparse;流式 delta 序(2 delta→message);
+TurnDiscarded 全链(partial→discard→final,final 消息干净、turn_discarded
+入日志);cross-delta redaction。用户可见错误(protocol error)与模型
+可见错误(errs.RenderForModel)分离——protocol 注释钉死。
+
+**Decisions**:
+- text delta 用回调而非 channel(executor 单线程,回调最简);Progress
+  字段(2.10 预留)暂未用——delta 走 CollectTurnStreaming 更直接,
+  Progress 留 S6 task tail。
+- TurnDiscarded retry 测试用 Real clock(FakeClock 会阻塞 backoff)。

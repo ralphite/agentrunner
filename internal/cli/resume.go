@@ -87,7 +87,7 @@ func resumeCmd(args []string, version string, stdout, stderr io.Writer) int {
 		Exec:       &tool.Executor{WS: ws, Session: sessionID},
 		Store:      events,
 		Clock:      clock.Real{},
-		Sink:       &textSink{out: stdout},
+		Out:        newTextRenderer(stdout),
 		SessionID:  sessionID,
 		Version:    version,
 		Interrupts: interrupts,
