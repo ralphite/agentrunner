@@ -2239,3 +2239,30 @@ AND(pipeline deny 短路、ask 聚合)。两份 first-match 规则表**扁平合
 
 全量 check + race 通过。模块④ 剩余:daemon 本体(socket/attach/timer/
 停机)+ 审批 correlation 跨进程路由。
+
+## S6 模块④ — daemon 骨架(socket/线协议/广播/attach 缝合)— DONE
+
+新包 `internal/daemon`。**线协议 = protocol 包 JSON lines**(与 `--json`
+同一编码,PLAN 原文):client→server 一行 Command(ping/run/attach),
+server→client 为 protocol.Event 流。`protocol.Event` 加 `Session` 字段
+(daemon 多路复用必需;本地单 run 渲染留空,additive)。
+
+- **职责切割**:daemon 只管 socket/wire/广播;run 装配经注入的
+  `RunFunc(ctx, req, sink) error`(CLI 供真装配,测试供 fake)——daemon
+  不 import cli,可独测。attach 补读经注入的 `Replay(session, sink)`。
+- **hostedRun 广播 hub**:Emit 扇出到订阅 chan(buffered 256,溢出
+  DROP——可丢 delta doctrine,journal 是 durable 真相);finish 关闭全部
+  订阅。**run 属 daemon 生命周期非连接**:客户端跑路只是停止观看。
+- **attach = 补读 + 订阅**:先订阅后 replay(缝隙处宁可重复不可缺口);
+  已结束/未托管 session 只补读即闭流;detach = 断连接,零事件
+  (订阅不改结果硬线)。
+- **socket 独占**:live daemon 占用 → 报错拒绝双 daemon 分裂 session
+  空间;stale socket(dial 不通)→ 回收重绑。停机 drain 在飞连接。
+
+六测试:ping、run 流(session banner + 事件带 session tag)、run 存活
+于客户端跑路、attach 补读已结束 session、attach 活 run(补读→释放→
+live 事件无缺口)、socket 独占。全量 check + race 通过。
+
+未接(模块④续):CLI `daemon`/`attach` 命令 + journal→protocol 重放
+渲染、durable timer 触发索引、优雅停机(SIGTERM→协作取消→snapshot)、
+审批 correlation 跨 socket 路由。

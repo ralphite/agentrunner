@@ -42,6 +42,10 @@ type Event struct {
 	IsError bool   `json:"is_error,omitempty"` // tool_result / error
 	Mode    string `json:"mode,omitempty"`
 	Reason  string `json:"reason,omitempty"` // run_end reason
+	// Session tags which run the event belongs to. Local single-run
+	// rendering leaves it empty; the daemon (S6) sets it on every forwarded
+	// event so a multiplexed client can tell streams apart.
+	Session string `json:"session,omitempty"`
 }
 
 // Sink receives output events. Implementations must be safe for calls from
