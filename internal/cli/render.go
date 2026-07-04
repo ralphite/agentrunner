@@ -59,6 +59,8 @@ func (r *textRenderer) Emit(e protocol.Event) {
 			e.Tool, truncate(e.Args, 80), e.Text, e.Session, e.ApprovalID)
 	case protocol.KindModeChanged:
 		fmt.Fprintf(r.out, "  » mode → %s\n", e.Mode)
+	case protocol.KindNote:
+		fmt.Fprintf(r.out, "  ✎ %s\n", e.Text)
 	case protocol.KindDiscard:
 		fmt.Fprintf(r.out, "  ↺ %s\n", e.Text)
 	case protocol.KindError:

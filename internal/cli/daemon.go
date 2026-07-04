@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ralphite/agentrunner/internal/agent"
+	"github.com/ralphite/agentrunner/internal/blackboard"
 	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/config"
 	"github.com/ralphite/agentrunner/internal/daemon"
@@ -276,6 +277,13 @@ func hostRunFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker
 			Hooks:     hooks,
 			Approvals: socketApprovals{broker: broker, session: req.SessionID, sink: sink},
 			SubSpecs:  siblingSpecResolver(req.SpecPath),
+			// Blackboard publishes mirror onto the attach stream (S6 模块⑤
+			// 回访): watchers see the tree's collaboration live; the board
+			// stays the read-back truth.
+			BoardMirror: func(n blackboard.Note) {
+				sink.Emit(protocol.Event{Kind: protocol.KindNote,
+					Text: fmt.Sprintf("[%s] %s: %s", n.Topic, n.From, n.Text)})
+			},
 		}
 		_, runErr := loop.Run(ctx, req.Task)
 		return runErr

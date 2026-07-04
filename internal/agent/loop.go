@@ -74,6 +74,11 @@ type Loop struct {
 	// store is ephemeral runtime state — durable influence flows through
 	// each run's journaled read_notes results, never the store itself.
 	Board *blackboard.Board
+	// BoardMirror, when set, receives every note the tree publishes (S6
+	// 模块⑤: a hosting surface like the daemon forwards notes to attached
+	// watchers). Wired into the board at creation; the tool face is
+	// unaffected — it still depends on the spec's agents whitelist only.
+	BoardMirror func(blackboard.Note)
 	// Artifacts is the tree-shared deliverable CAS (S5.5): opened lazily at
 	// the ROOT session (Store.Dir()/artifacts), inherited by children so
 	// refs resolve tree-wide. Blob durability precedes the ArtifactPublished
@@ -1170,6 +1175,7 @@ func isAgentLaunch(name string) bool {
 func (l *Loop) ensureBoard() {
 	if l.Board == nil && len(l.Spec.Agents) > 0 {
 		l.Board = blackboard.New()
+		l.Board.Mirror = l.BoardMirror
 	}
 }
 

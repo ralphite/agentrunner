@@ -30,6 +30,13 @@ type Note struct {
 // Board is a concurrency-safe topic store. The zero value is NOT usable;
 // call New.
 type Board struct {
+	// Mirror, when set BEFORE the board is used, receives every published
+	// note (S6 模块⑤ 回访: Publish 镜像到 ephemeral topic — a hosting
+	// surface forwards notes to live watchers). Called OUTSIDE the lock;
+	// the store stays the read-back truth, the mirror is fire-and-forget
+	// and MUST NOT publish back into the board.
+	Mirror func(Note)
+
 	mu     sync.Mutex
 	nextSq int
 	topics map[string][]Note
@@ -42,10 +49,13 @@ func New() *Board {
 // Publish appends a note to a topic, returning its sequence number.
 func (b *Board) Publish(topic, from, text string) Note {
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	b.nextSq++
 	n := Note{Seq: b.nextSq, Topic: topic, From: from, Text: text}
 	b.topics[topic] = append(b.topics[topic], n)
+	b.mu.Unlock()
+	if b.Mirror != nil {
+		b.Mirror(n)
+	}
 	return n
 }
 

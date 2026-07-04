@@ -30,6 +30,22 @@ func TestPublishReadOrder(t *testing.T) {
 	}
 }
 
+// The mirror sees every publish, in order, outside the lock — re-reading
+// the board from the mirror callback must not deadlock.
+func TestPublishMirror(t *testing.T) {
+	b := New()
+	var seen []Note
+	b.Mirror = func(n Note) {
+		_ = b.Read(n.Topic) // lock re-entry check: must not deadlock
+		seen = append(seen, n)
+	}
+	b.Publish("plan", "lead", "step one")
+	b.Publish("plan", "worker", "done")
+	if len(seen) != 2 || seen[0].Text != "step one" || seen[1].Seq != 2 {
+		t.Fatalf("mirror saw %+v", seen)
+	}
+}
+
 func TestReadReturnsCopy(t *testing.T) {
 	b := New()
 	b.Publish("t", "a", "original")
