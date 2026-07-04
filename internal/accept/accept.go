@@ -290,11 +290,21 @@ func checkEvents(glob string) string {
 			}
 			types = append(types, rec.Type)
 		}
-		if types[0] != "run_started" {
-			return fmt.Sprintf("events_valid: %s first event is %q, want run_started", path, types[0])
-		}
-		if last := types[len(types)-1]; last != "run_ended" {
-			return fmt.Sprintf("events_valid: %s last event is %q, want run_ended (truncated?)", path, last)
+		// Two journal shapes share the format: a RUN journal opens with
+		// run_started and closes with run_ended; a DRIVER stream (S6) opens
+		// with iteration_scheduled and closes with driver_completed.
+		first, last := types[0], types[len(types)-1]
+		switch first {
+		case "run_started":
+			if last != "run_ended" {
+				return fmt.Sprintf("events_valid: %s last event is %q, want run_ended (truncated?)", path, last)
+			}
+		case "iteration_scheduled":
+			if last != "driver_completed" {
+				return fmt.Sprintf("events_valid: %s last event is %q, want driver_completed (truncated?)", path, last)
+			}
+		default:
+			return fmt.Sprintf("events_valid: %s first event is %q, want run_started or iteration_scheduled", path, first)
 		}
 	}
 	return ""

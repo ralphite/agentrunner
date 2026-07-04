@@ -1,0 +1,31 @@
+id: s6-03-background-task
+title: 后台 effect——handle 当场配对,on_run_end=await 让任务善终,结果入 journal
+files:
+  agent.yaml: |
+    name: bg
+    model: { provider: scripted, id: x, max_tokens: 100 }
+    system_prompt: run things in the background
+    tools: [bash]
+    on_run_end: await
+    permissions:
+      - { action: allow }
+  bg.yaml: |
+    steps:
+      - respond:
+          - tool_call: { name: bash, args: { command: "sleep 0.2; echo bg-done", background: true } }
+          - usage: { input_tokens: 40, output_tokens: 20 }
+          - finish: tool_use
+      - expect: { last_message_contains: task_id }
+        respond:
+          - text: "kicked it off; ending my turn"
+          - usage: { input_tokens: 20, output_tokens: 10 }
+          - finish: end_turn
+steps:
+  - run: >
+      AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/bg.yaml
+      $BIN run --workspace . agent.yaml "run a background job"
+  - run: grep -q '"background":true' xdg/agentrunner/sessions/*/events.jsonl
+  - run: grep -q 'bg-done' xdg/agentrunner/sessions/*/events.jsonl
+expect:
+  - exit_code: 0
+  - events_valid: xdg/agentrunner/sessions/*/events.jsonl

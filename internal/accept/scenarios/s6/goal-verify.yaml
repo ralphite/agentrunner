@@ -1,0 +1,47 @@
+id: s6-01-goal-verify
+title: goal mode——command verifier 两迭代达标,fresh child journal 逐迭代落盘
+files:
+  driver.yaml: |
+    name: fill-progress
+    agent_spec: worker.yaml
+    task: add a line to progress.txt
+    max_iterations: 3
+    verifiers:
+      - { kind: command, command: "test $(wc -l < progress.txt) -ge 2" }
+  worker.yaml: |
+    name: worker
+    model: { provider: scripted, id: x, max_tokens: 100 }
+    system_prompt: make progress
+    tools: [bash]
+    permissions:
+      - { action: allow }
+  goal.yaml: |
+    steps:
+      - respond:
+          - tool_call: { name: bash, args: { command: "echo tick >> progress.txt" } }
+          - usage: { input_tokens: 40, output_tokens: 20 }
+          - finish: tool_use
+      - respond:
+          - text: "one line in"
+          - usage: { input_tokens: 20, output_tokens: 10 }
+          - finish: end_turn
+      - respond:
+          - tool_call: { name: bash, args: { command: "echo tick >> progress.txt" } }
+          - usage: { input_tokens: 40, output_tokens: 20 }
+          - finish: tool_use
+      - respond:
+          - text: "two lines in"
+          - usage: { input_tokens: 20, output_tokens: 10 }
+          - finish: end_turn
+steps:
+  - run: >
+      AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/goal.yaml
+      $BIN drive --workspace . driver.yaml
+  - run: test "$(wc -l < progress.txt)" -eq 2
+  - run: grep -q '"type":"driver_completed"' xdg/agentrunner/sessions/*/events.jsonl
+  - run: grep -q '"reason":"satisfied"' xdg/agentrunner/sessions/*/events.jsonl
+  - run: test -d xdg/agentrunner/sessions/*/sub/iter-1 && test -d xdg/agentrunner/sessions/*/sub/iter-2
+expect:
+  - exit_code: 0
+  - output_contains: "driver satisfied: 2 iterations"
+  - events_valid: xdg/agentrunner/sessions/*/sub/*/events.jsonl
