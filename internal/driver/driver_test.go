@@ -677,6 +677,134 @@ func TestDriverLoopIntervalCadence(t *testing.T) {
 	}
 }
 
+// cronHarness wires a loop-mode cron driver with a text-only child (no bash
+// timeout timer polluting Waiters). advanceOnCall1 simulates iteration 1
+// running long: the factory advances the fake clock past later ticks.
+func cronHarness(t *testing.T, spec *driver.DriverSpec, clk *clock.Fake, advanceOnCall1 time.Duration) (*driver.Driver, *store.EventStore) {
+	t.Helper()
+	root := t.TempDir()
+	ws, err := workspace.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dStore, err := store.OpenEventStore(filepath.Join(root, "driver"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = dStore.Close() })
+	childSpec := &agent.AgentSpec{
+		Name: "worker", Model: agent.ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
+		SystemPrompt: "tick", MaxTurns: 5,
+	}
+	spec.Agent = childSpec
+	calls := 0
+	d := &driver.Driver{
+		Spec: spec, Store: dStore, Clock: clk, DriverID: "drv-1",
+		Exec: &tool.Executor{WS: ws},
+		NewChild: func(cs *store.EventStore, session string, iter, budget int) *agent.Loop {
+			calls++
+			if calls == 1 && advanceOnCall1 > 0 {
+				clk.Advance(advanceOnCall1)
+			}
+			fix := scripted.Fixture{Steps: []scripted.Step{
+				{Respond: []scripted.Event{{Text: "tick"}, {Finish: "end_turn"}}},
+			}}
+			return &agent.Loop{Spec: childSpec, Provider: scripted.New(fix),
+				Exec: &tool.Executor{WS: ws}, Store: cs, Clock: clk, SessionID: session}
+		},
+	}
+	return d, dStore
+}
+
+// Cron cadence with overlap=skip (default): iteration 1 waits for its tick
+// and then runs 2h long, so the 02:00 and 03:00 ticks pass — each becomes a
+// journaled IterationSkipped, and the next real run waits for 04:00.
+func TestDriverCronOverlapSkip(t *testing.T) {
+	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 30, 0, 0, time.UTC))
+	d, dStore := cronHarness(t, &driver.DriverSpec{
+		Name: "nightly", Schedule: driver.ScheduleCron, Cron: "0 * * * *",
+		Task: "tick", MaxIterations: 4,
+	}, clk, 2*time.Hour)
+
+	resCh := make(chan driver.Result, 1)
+	go func() {
+		res, rerr := d.Run(context.Background())
+		if rerr != nil {
+			t.Errorf("driver run: %v", rerr)
+		}
+		resCh <- res
+	}()
+
+	// Park 1: waiting for the 01:00 tick. Iteration 1 then runs "2h long".
+	waitParked(t, clk)
+	clk.Advance(30 * time.Minute)
+	// Ticks 02:00 and 03:00 were missed (skipped as iterations 2 and 3);
+	// park 2 waits for 04:00.
+	waitParked(t, clk)
+	clk.Advance(time.Hour)
+
+	res := <-resCh
+	if res.Reason != "max_iterations" || res.Iterations != 4 {
+		t.Fatalf("res = %+v, want max_iterations at 4", res)
+	}
+	events, _ := store.ReadEvents(dStore.Dir())
+	st, _ := driver.Fold(events)
+	if len(st.Iterations) != 4 {
+		t.Fatalf("iterations = %d, want 4", len(st.Iterations))
+	}
+	wantSkipped := []bool{false, true, true, false}
+	for i, it := range st.Iterations {
+		if it.Skipped != wantSkipped[i] {
+			t.Errorf("iteration %d skipped = %v, want %v", i+1, it.Skipped, wantSkipped[i])
+		}
+		if it.Completed != !wantSkipped[i] {
+			t.Errorf("iteration %d completed = %v, want %v", i+1, it.Completed, !wantSkipped[i])
+		}
+	}
+}
+
+// Cron cadence with overlap=coalesce: the missed 02:00 and 03:00 ticks fold
+// into ONE immediate iteration 2 — no skip events, no extra park.
+func TestDriverCronOverlapCoalesce(t *testing.T) {
+	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 30, 0, 0, time.UTC))
+	d, dStore := cronHarness(t, &driver.DriverSpec{
+		Name: "nightly", Schedule: driver.ScheduleCron, Cron: "0 * * * *",
+		Task: "tick", MaxIterations: 2, Overlap: driver.OverlapCoalesce,
+	}, clk, 2*time.Hour)
+
+	resCh := make(chan driver.Result, 1)
+	go func() {
+		res, rerr := d.Run(context.Background())
+		if rerr != nil {
+			t.Errorf("driver run: %v", rerr)
+		}
+		resCh <- res
+	}()
+
+	// One park only (the 01:00 tick); iteration 2 coalesces and runs at once.
+	waitParked(t, clk)
+	clk.Advance(30 * time.Minute)
+
+	select {
+	case res := <-resCh:
+		if res.Reason != "max_iterations" || res.Iterations != 2 {
+			t.Fatalf("res = %+v, want max_iterations at 2", res)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("coalesce should not park again — the missed tick runs immediately")
+	}
+	events, _ := store.ReadEvents(dStore.Dir())
+	for _, e := range events {
+		if e.Type == event.TypeIterationSkipped {
+			t.Error("coalesce must not journal IterationSkipped")
+		}
+	}
+	st, _ := driver.Fold(events)
+	if len(st.Iterations) != 2 || !st.Iterations[0].Completed || !st.Iterations[1].Completed {
+		t.Fatalf("iterations = %+v, want 2 completed", st.Iterations)
+	}
+}
+
 // waitParked spins until the driver goroutine is blocked on the fake clock.
 func waitParked(t *testing.T, clk *clock.Fake) {
 	t.Helper()

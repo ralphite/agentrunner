@@ -17,6 +17,7 @@ type Iteration struct {
 	ChildReason  string                 `json:"child_reason,omitempty"`
 	Launched     bool                   `json:"launched,omitempty"`
 	Completed    bool                   `json:"completed,omitempty"`
+	Skipped      bool                   `json:"skipped,omitempty"`
 	Verdict      event.IterationVerdict `json:"verdict,omitzero"`
 	CarryRef     string                 `json:"carry_ref,omitempty"`
 }
@@ -94,6 +95,7 @@ func (s *State) apply(p any) {
 			return
 		}
 		s.ensure(v.Iter)
+		s.Iterations[v.Iter-1].Skipped = true
 	case *event.DriverCompleted:
 		s.Status = StatusEnded
 		s.Reason = v.Reason

@@ -15,11 +15,23 @@ import (
 // a goal that never verifies must still terminate.
 const DefaultMaxIterations = 10
 
-// Schedule kinds. immediate = goal mode; interval = loop mode on a fixed
-// cadence. cron / self_paced arrive with the scheduler module.
+// Schedule kinds. immediate = goal mode; interval / cron = loop mode on a
+// fixed cadence. self_paced arrives with its built-in tools step.
 const (
 	ScheduleImmediate = "immediate"
 	ScheduleInterval  = "interval"
+	ScheduleCron      = "cron"
+)
+
+// Overlap policies for a loop-mode tick that fires while the previous
+// iteration is still running (or, sequentially, ticks that passed during it):
+// skip journals IterationSkipped per missed tick and waits for the next
+// future one; coalesce folds all missed ticks into ONE immediate iteration.
+// interrupt (cancel the running iteration) needs concurrent launches and is
+// deferred to the daemon module.
+const (
+	OverlapSkip     = "skip"
+	OverlapCoalesce = "coalesce"
 )
 
 // Verifier kinds (DESIGN: a verifier is an effect through the four gates).
@@ -39,6 +51,14 @@ type DriverSpec struct {
 	// Interval is the loop-mode cadence (schedule=interval), a Go duration
 	// string like "5m". Empty/zero runs iterations back to back.
 	Interval string `yaml:"interval,omitempty"`
+	// Cron is the loop-mode cadence (schedule=cron), five fields:
+	// minute hour dom month dow.
+	Cron string `yaml:"cron,omitempty"`
+	// Overlap says what happens to ticks that pass while an iteration is
+	// still running: skip (default; each missed tick journals
+	// IterationSkipped) or coalesce (missed ticks fold into one immediate
+	// iteration).
+	Overlap string `yaml:"overlap,omitempty"`
 	// Agent is the spec each iteration runs as a fresh child (same spec →
 	// byte-stable prefix across iterations).
 	Agent *agent.AgentSpec `yaml:"-"`

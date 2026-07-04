@@ -2094,3 +2094,30 @@ timer 污染 Waiters())。全量 check + race 通过。
 未接(模块③续):cron schedule(五字段自解析)、self_paced(schedule_next
 /finish_series 内置 tool + durable timer)、overlap(skip/coalesce/
 interrupt)、scheduler actor(RunAgent command)。
+
+## S6 模块③(续)— cron schedule + overlap(skip/coalesce)— DONE
+
+**新包 `internal/cron`**:五字段最小自解析(PLAN 预授权二选一,决策:自
+实现,无依赖)。支持 `* , - /`、数字、`n/step`(vixie:n..max)、dow 7≡0、
+dom+dow 双限制 = OR(标准 cron)。名字(MON/JAN)、秒、宏、L/W/# 明确
+不支持——parse 时响亮报错。`Next(t)` 逐分钟扫,4 年 lookahead 界定
+不可满足(如 2/31)→ (zero, false)。13 例 Next 表测(含闰年 2/29、
+边界严格 after)+ 12 例 parse 错误 + n/step。
+
+**driver cron cadence**:`schedule: cron` + `cron: "0 3 * * *"` spec 字段;
+`awaitTick` 取代 waitForTick——interval 首迭代即刻(固定延迟,顺序执行
+天然无 overlap);**cron 每迭代(含首个)等绝对 tick**(22:00 启动的
+nightly 首跑在次日 03:00)。`lastTick`/`cronSched` 为 runtime 态非 fold
+(绝对时刻可从 clock 重算)。
+
+**overlap**:迭代跑过点后——`skip`(默认):每个错过的 tick 消耗一个
+迭代号,journal `IterationSkipped{reason: tick 时刻}`(不沉默),fold 记
+`Iteration.Skipped`;`coalesce`:所有已到期 tick 折成一次立即迭代,无
+skip 事件。`interrupt` 需并发 launch,**延后 daemon 模块**(记档)。
+overlap 校验 ∈ {"", skip, coalesce}。
+
+两测试(FakeClock 编排,工厂首调用 Advance(2h) 模拟长迭代):skip
+(01:00 跑长 → 02:00/03:00 成 skipped 迭代 2/3 → 04:00 real run,
+skipped/completed 逐位断言)、coalesce(错过双 tick 折一次立即跑,
+仅一次 park、无 IterationSkipped)。cron loop 的 resume/durable 唤醒
+依赖 daemon(DESIGN 已文档化降级模式)。全量 check + race 通过。

@@ -9,9 +9,11 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ralphite/agentrunner/internal/agent"
 	"github.com/ralphite/agentrunner/internal/clock"
+	"github.com/ralphite/agentrunner/internal/cron"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/redact"
@@ -57,6 +59,11 @@ type Driver struct {
 	// and IterationCompleted keeps only the ref + a short excerpt (DESIGN).
 	// nil → carry stays inline-only.
 	Artifacts *store.ArtifactStore
+
+	// Loop-mode cadence runtime state (never fold state: cron ticks are
+	// absolute wall times, recomputable from the clock).
+	cronSched *cron.Schedule
+	lastTick  time.Time
 }
 
 // Result summarizes a finished driver run.
@@ -87,8 +94,19 @@ func (d *Driver) prepare(st *State) (appendFunc, error) {
 		if _, err := d.Spec.interval(); err != nil {
 			return nil, fmt.Errorf("driver: bad interval %q: %w", d.Spec.Interval, err)
 		}
+	case ScheduleCron:
+		sched, err := cron.Parse(d.Spec.Cron)
+		if err != nil {
+			return nil, fmt.Errorf("driver: %w", err)
+		}
+		d.cronSched = sched
 	default:
 		return nil, fmt.Errorf("driver: schedule %q not implemented", d.Spec.Schedule)
+	}
+	switch d.Spec.Overlap {
+	case "", OverlapSkip, OverlapCoalesce:
+	default:
+		return nil, fmt.Errorf("driver: overlap %q unknown (known: skip, coalesce)", d.Spec.Overlap)
 	}
 	if d.NewChild == nil {
 		return nil, fmt.Errorf("driver: NewChild factory is required")
@@ -180,11 +198,20 @@ func (d *Driver) drive(ctx context.Context, st *State, appendE appendFunc, start
 			slog.Warn("driver hit max_iterations", "driver", d.DriverID, "max", maxIter)
 			return d.finish(appendE, st, "max_iterations", maxIter)
 		}
-		// Loop-mode cadence: iteration 1 fires now; each later iteration waits
-		// for its scheduled tick. A cancel during the wait ends the series.
-		if loopMode && n > 1 {
-			if err := d.waitForTick(ctx); err != nil {
-				return d.finish(appendE, st, "stopped", n-1)
+		// Loop-mode cadence: interval fires iteration 1 now and fixed-delays
+		// the rest; cron waits for each absolute tick, applying the overlap
+		// policy to ticks the previous iteration ran past. A cancel during
+		// the wait ends the series.
+		if loopMode {
+			run, terr := d.awaitTick(ctx, appendE, n, n == startN)
+			if terr != nil {
+				if ctx.Err() != nil {
+					return d.finish(appendE, st, "stopped", n-1)
+				}
+				return Result{}, terr
+			}
+			if !run {
+				continue // overlap=skip consumed n as a skipped iteration
 			}
 		}
 		// Reserve-at-launch against the tree budget (DESIGN: the driver is the
@@ -279,15 +306,66 @@ func (d *Driver) drive(ctx context.Context, st *State, appendE appendFunc, start
 	}
 }
 
-// waitForTick blocks until the next loop-mode iteration is due. v0 supports
-// the interval schedule; cron / self_paced arrive with the scheduler module.
-func (d *Driver) waitForTick(ctx context.Context) error {
+// awaitTick blocks until iteration n's tick is due (loop mode). It returns
+// false when overlap=skip consumed n as a skipped iteration (the missed tick
+// is journaled, never silent — DESIGN §运行形态).
+func (d *Driver) awaitTick(ctx context.Context, appendE appendFunc, n int, first bool) (bool, error) {
 	switch d.Spec.schedule() {
 	case ScheduleInterval:
+		// Fixed delay after the previous completion: the first iteration (of
+		// a run or a resume) fires immediately, and — being sequential with
+		// no absolute timeline — an interval series cannot miss a tick.
+		if first {
+			return true, nil
+		}
 		every, _ := d.Spec.interval() // validated in prepare
-		return d.Clock.WaitUntil(ctx, d.Clock.Now().Add(every))
+		if err := d.Clock.WaitUntil(ctx, d.Clock.Now().Add(every)); err != nil {
+			return false, err
+		}
+		return true, nil
+
+	case ScheduleCron:
+		// Absolute timeline: every iteration (including the first) waits for
+		// a real tick — a nightly job started at 10:00 first runs at 03:00.
+		now := d.Clock.Now()
+		if d.lastTick.IsZero() {
+			d.lastTick = now
+		}
+		next, ok := d.cronSched.Next(d.lastTick)
+		if !ok {
+			return false, fmt.Errorf("driver: cron %q never fires", d.Spec.Cron)
+		}
+		if !next.After(now) {
+			// The tick passed while the previous iteration ran.
+			d.lastTick = next
+			if d.Spec.Overlap == OverlapCoalesce {
+				// Fold EVERY due tick into one immediate iteration.
+				for {
+					nn, ok := d.cronSched.Next(d.lastTick)
+					if !ok || nn.After(now) {
+						break
+					}
+					d.lastTick = nn
+				}
+				return true, nil
+			}
+			// skip (default): one skipped iteration per missed tick.
+			if _, err := appendE(event.TypeIterationSkipped, &event.IterationSkipped{
+				DriverID: d.DriverID, Iter: n,
+				Reason: "overlap: tick " + next.UTC().Format(time.RFC3339) + " passed while an iteration ran",
+			}); err != nil {
+				return false, err
+			}
+			return false, nil
+		}
+		if err := d.Clock.WaitUntil(ctx, next); err != nil {
+			return false, err
+		}
+		d.lastTick = next
+		return true, nil
+
 	default:
-		return fmt.Errorf("driver: schedule %q has no cadence", d.Spec.schedule())
+		return false, fmt.Errorf("driver: schedule %q has no cadence", d.Spec.schedule())
 	}
 }
 
