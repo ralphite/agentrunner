@@ -1856,3 +1856,26 @@ blackboard 无死锁、materialize 幂等恢复正确、epilogue 无重入,均 c
   的已知美观问题,记 S6 backlog。
 
 **Stage 5 正式关闭**。下一步:S6 kickoff refinement。
+
+## S6 kickoff refinement — DONE
+
+PLAN.md 新增 **S6 执行包**。四条跨切硬线:①订阅不改结果(attach 补读+
+订阅、detach 零事件)②command 幂等(Envelope.id = hash(driver_id,n)、
+journal-before-send)③notifier 自有去重 stream + 通道文档化 carve-out
+④driver 纯 fold 不碰 LLM/workspace、fresh child run、树预算根。
+
+关键决定:**实施序倒排**(还债 → background/tasks → driver goal →
+scheduler+loop → daemon → notifier → 壳)——daemon 是最大风险块,纯逻辑
+先落稳;goal 完成标志不依赖 daemon。**先还 S5 三笔小债**(S4 场景回补、
+渲染重复、EnvApprovals 序列语法)。新 fold sub-state 仅 tasks(9→10);
+driver/notifier 各自独立 stream 不入 run 版本集;后台任务复用 Activity
+事件族不新设 Task 事件。S5 全部回访项已分配兑现位置(权限物化与审批
+路由挂 daemon 模块)。cut line 维持:best-of-N 与 HTTP/WS 可延后。
+
+三文档一致性:执行包只细化 PLAN,引用 DESIGN §运行形态/§scheduler/
+§IterationDriver/§Observability 原文口径(fresh child run、可丢 delta
+doctrine、carve-out、policy 重试≠恢复),与 STAGES Stage 6 范围/完成
+标志一致,未动 DESIGN 不变量。
+
+下一步:还债①——S4 acceptance 场景包回补(scenarios/s4/:streaming/
+interrupt、并行 tool call、compaction、finish reason 之可脚本化子集)。
