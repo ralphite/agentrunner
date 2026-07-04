@@ -21,6 +21,16 @@ import (
 type Settings struct {
 	Permissions []pipeline.PermissionRule `yaml:"permissions,omitempty"`
 	Hooks       Hooks                     `yaml:"hooks,omitempty"`
+	// Notify is the notifier channel (S6 模块⑤) — a documented carve-out:
+	// ONLY the user-level settings are consulted (a cloned repo must never
+	// redirect notifications), so Merge ignores it entirely.
+	Notify NotifySpec `yaml:"notify,omitempty"`
+}
+
+// NotifySpec configures the notification channel: an argv receiving the
+// notification JSON on stdin (ntfy, mail, anything). Empty = stderr only.
+type NotifySpec struct {
+	Command []string `yaml:"command,omitempty"`
 }
 
 // Hooks lists shell commands for the 3.8 executor.

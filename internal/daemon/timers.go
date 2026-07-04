@@ -77,7 +77,7 @@ func (s *Server) hostResume(ctx context.Context, id string) {
 		s.mu.Unlock()
 		return
 	}
-	hub := &hostedRun{id: id, subs: map[chan protocol.Event]struct{}{}}
+	hub := &hostedRun{id: id, notify: s.Notify, subs: map[chan protocol.Event]struct{}{}}
 	s.runs[id] = hub
 	s.runsWG.Add(1)
 	s.mu.Unlock()

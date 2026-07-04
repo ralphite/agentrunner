@@ -77,6 +77,8 @@ var samples = map[string]any{
 		Usage: provider.Usage{InputTokens: 30, OutputTokens: 12}, CarryRef: "sha256-carry", Carry: "wrote 3 lines"},
 	TypeIterationSkipped: &IterationSkipped{DriverID: "drv-1", Iter: 3, Reason: "overlap"},
 	TypeDriverCompleted:  &DriverCompleted{DriverID: "drv-1", Reason: "satisfied", Iterations: 2, BestIter: 2},
+	TypeNotificationSent: &NotificationSent{Key: "run_end/sess-1", Kind: "run_end",
+		Session: "sess-1", Text: "run completed", Channel: "command"},
 }
 
 func TestRoundTripAllTypes(t *testing.T) {

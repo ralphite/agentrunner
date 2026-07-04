@@ -12,8 +12,11 @@ import (
 
 	"github.com/ralphite/agentrunner/internal/agent"
 	"github.com/ralphite/agentrunner/internal/clock"
+	"github.com/ralphite/agentrunner/internal/config"
 	"github.com/ralphite/agentrunner/internal/daemon"
+	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/hook"
+	"github.com/ralphite/agentrunner/internal/notify"
 	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/runtime"
@@ -62,6 +65,12 @@ func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 		return ExitRun
 	}
 	broker := daemon.NewApprovalBroker()
+	notifier, notifyTee, err := buildNotifier(ctx, stderr)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return ExitRun
+	}
+	defer func() { _ = notifier.Close() }()
 	srv := &daemon.Server{
 		SocketPath: sock,
 		NewID:      func(task string) string { return runtime.NewSessionID(time.Now(), task) },
@@ -76,13 +85,118 @@ func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 		ScanTimers: scanSessionTimers,
 		Resume:     hostResumeFunc(version, stderr, broker),
 		Approvals:  broker,
+		Notify:     notifyTee,
 	}
+	reconcileNotifications(notifier)
 	fmt.Fprintf(stderr, "daemon on %s\n", sock)
 	if err := srv.ListenAndServe(ctx); err != nil {
 		fmt.Fprintln(stderr, err)
 		return ExitRun
 	}
 	return ExitOK
+}
+
+// buildNotifier opens the notifier stream, reads the USER-level channel
+// config (carve-out: project settings never redirect notifications), and
+// returns the non-blocking tee the daemon calls from run emit paths — a
+// buffered queue drained by one goroutine; overflow drops (the journal +
+// startup reconciliation are the safety net for the moments that matter).
+func buildNotifier(ctx context.Context, stderr io.Writer) (*notify.Notifier, func(protocol.Event), error) {
+	userPath, err := runtime.UserConfigPath()
+	if err != nil {
+		return nil, nil, err
+	}
+	user, err := config.LoadFile(userPath)
+	if err != nil {
+		return nil, nil, err
+	}
+	data, err := runtime.DataDir()
+	if err != nil {
+		return nil, nil, err
+	}
+	notifier, err := notify.Open(filepath.Join(data, "notifier"), user.Notify.Command, stderr)
+	if err != nil {
+		return nil, nil, err
+	}
+	ch := make(chan protocol.Event, 64)
+	go func() {
+		for {
+			select {
+			case e := <-ch:
+				notifier.Notify(toNotification(e))
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	tee := func(e protocol.Event) {
+		select {
+		case ch <- e:
+		default:
+		}
+	}
+	return notifier, tee, nil
+}
+
+// toNotification maps a lifecycle event to its deduplicated notification.
+// The keys MUST match reconcileNotifications' keys for the same moment.
+func toNotification(e protocol.Event) notify.Notification {
+	switch e.Kind {
+	case protocol.KindApprovalRequest:
+		return notify.Notification{
+			Key:  "approval/" + e.Session + "/" + e.ApprovalID,
+			Kind: "approval", Session: e.Session,
+			Text: fmt.Sprintf("approval needed on %s: %s %s (agentrunner approve %s %s approve|deny)",
+				e.Session, e.Tool, truncate(e.Args, 80), e.Session, e.ApprovalID),
+		}
+	default: // run_end
+		return notify.Notification{
+			Key:  "run_end/" + e.Session,
+			Kind: "run_end", Session: e.Session,
+			Text: fmt.Sprintf("run %s ended: %s", e.Session, e.Reason),
+		}
+	}
+}
+
+// reconcileNotifications is the startup sweep (启动对账): sessions parked on
+// an approval get their notification (re)sent unless the journaled sent set
+// already has it — a daemon that died between the ask and the notify never
+// loses the moment. Ended-run reconciliation is deliberately NOT done: on
+// first adoption it would replay every historical session's ending as a
+// fresh notification (记档).
+func reconcileNotifications(notifier *notify.Notifier) {
+	data, err := runtime.DataDir()
+	if err != nil {
+		return
+	}
+	entries, err := os.ReadDir(filepath.Join(data, "sessions"))
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		dir := filepath.Join(data, "sessions", e.Name())
+		events, err := store.ReadEvents(dir)
+		if err != nil {
+			continue
+		}
+		s, err := state.Fold(events)
+		if err != nil || s.Waiting == nil || s.Waiting.Kind != event.WaitApproval {
+			continue
+		}
+		var req event.ApprovalRequested
+		if err := json.Unmarshal(s.Waiting.Detail, &req); err != nil {
+			continue
+		}
+		notifier.Notify(notify.Notification{
+			Key:  "approval/" + e.Name() + "/" + req.ApprovalID,
+			Kind: "approval", Session: e.Name(),
+			Text: fmt.Sprintf("approval waiting on %s (parked; resume or approve %s %s)",
+				e.Name(), e.Name(), req.ApprovalID),
+		})
+	}
 }
 
 // socketApprovals adapts the daemon's ApprovalBroker to the agent's

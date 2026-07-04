@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -274,6 +275,53 @@ func TestDaemonGracefulShutdownWaitsForRuns(t *testing.T) {
 	}
 	if !settled.Load() {
 		t.Fatal("daemon exited before the hosted run finished its terminal work")
+	}
+}
+
+// Lifecycle events tee to the Notify hook exactly as emitted; ordinary
+// events do not.
+func TestDaemonNotifyTee(t *testing.T) {
+	var mu sync.Mutex
+	var teed []protocol.Event
+	run := func(ctx context.Context, req RunRequest, sink protocol.Sink) error {
+		sink.Emit(protocol.Event{Kind: protocol.KindTurnStart, Turn: 1})
+		sink.Emit(protocol.Event{Kind: protocol.KindApprovalRequest, ApprovalID: "apr-7", Tool: "bash"})
+		sink.Emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: "completed"})
+		return nil
+	}
+	sock := filepath.Join(t.TempDir(), "d.sock")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	srv := &Server{
+		SocketPath: sock, Run: run,
+		NewID: func(string) string { return "sess-n" },
+		Notify: func(e protocol.Event) {
+			mu.Lock()
+			teed = append(teed, e)
+			mu.Unlock()
+		},
+	}
+	go func() { _ = srv.ListenAndServe(ctx) }()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if err := Dial(sock, Command{Cmd: "ping"}, func(protocol.Event) {}); err == nil {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if err := Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Task: "job"}, func(protocol.Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(teed) != 2 {
+		t.Fatalf("teed = %+v, want approval_request + run_end only", teed)
+	}
+	if teed[0].ApprovalID != "apr-7" || teed[0].Session != "sess-n" {
+		t.Errorf("tee[0] = %+v", teed[0])
+	}
+	if teed[1].Kind != protocol.KindRunEnd {
+		t.Errorf("tee[1] = %+v", teed[1])
 	}
 }
 

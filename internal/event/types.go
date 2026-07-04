@@ -52,6 +52,9 @@ const (
 	TypeIterationCompleted = "iteration_completed"
 	TypeIterationSkipped   = "iteration_skipped"
 	TypeDriverCompleted    = "driver_completed"
+
+	// S6 模块⑤: the notifier's OWN stream (never in a run journal).
+	TypeNotificationSent = "notification_sent"
 )
 
 // Effect verdicts and gate decisions.
@@ -420,6 +423,18 @@ type DriverCompleted struct {
 	BestIter   int    `json:"best_iter,omitempty"`
 }
 
+// NotificationSent is the notifier's dedup fact (S6 模块⑤): one line per
+// delivered (or fallback-delivered) notification, in the notifier's own
+// stream. The Key is the dedup identity; startup reconciliation replays
+// missed lifecycle moments against this set.
+type NotificationSent struct {
+	Key     string `json:"key"` // e.g. run_end/<session>, approval/<session>/<id>
+	Kind    string `json:"kind"`
+	Session string `json:"session,omitempty"`
+	Text    string `json:"text,omitempty"`
+	Channel string `json:"channel"` // command | stderr
+}
+
 // GateResult is one gate's judgment inside an effect resolution.
 type GateResult struct {
 	Gate     string `json:"gate"`
@@ -477,6 +492,8 @@ var Registry = map[string]func() any{
 	TypeIterationCompleted: func() any { return &IterationCompleted{} },
 	TypeIterationSkipped:   func() any { return &IterationSkipped{} },
 	TypeDriverCompleted:    func() any { return &DriverCompleted{} },
+
+	TypeNotificationSent: func() any { return &NotificationSent{} },
 }
 
 // DriverStream lists the event types that belong to the IterationDriver's OWN
@@ -490,4 +507,10 @@ var DriverStream = map[string]bool{
 	TypeIterationCompleted: true,
 	TypeIterationSkipped:   true,
 	TypeDriverCompleted:    true,
+}
+
+// NotifierStream marks the notifier's own stream types (S6 模块⑤), excluded
+// from the run fold for the same reason as DriverStream.
+var NotifierStream = map[string]bool{
+	TypeNotificationSent: true,
 }

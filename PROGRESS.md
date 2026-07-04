@@ -2356,3 +2356,31 @@ resolver(ctx 终 = ask 撤销,循 loop 原语义)。round-trip 测试:双连接
 scheduler actor 的独立形态并入 S6 出口 review 议题(现状:人工 submit +
 driver 内 cron/interval + daemon timer resume 已覆盖其职责的可达子集)。
 下一步:模块⑤ notifier。
+
+## S6 模块⑤ — notifier(生命周期通知 + 去重 stream + 启动对账)— DONE
+
+新包 `internal/notify`。**通道 = user 配置 shell command**(config
+`notify: command: [...]`,JSON 上 stdin,ntfy/mail 皆可挂;**文档化
+carve-out:只认 user 层,Merge 完全不碰**——克隆来的 repo 不得重定向
+通知)+ stderr 兜底(无命令/命令失败均落 stderr,通知绝不静默丢)。
+
+- **去重 stream**:notifier 自有 EventStore(`data/notifier/`),
+  `NotificationSent{Key,...}` 每投递一行;Open 折 sent 集,重启后同 key
+  静默。**journal-before-send**:崩溃至多丢一条,绝不重复。
+  `event.NotifierStream` 集合(run fold 覆盖测试跳过,同 DriverStream)。
+- **live tee**:daemon `Server.Notify` 钩子——hub.Emit 锁外对
+  run_end/approval_request 回调;cli 侧 buffered-64 队列 + 单 goroutine
+  消费(emit 路径不阻塞,溢出丢弃——journal+对账兜底)。key:
+  `run_end/<session>`、`approval/<session>/<id>`(live 与对账两路径
+  同 key 才去重)。
+- **启动对账**:扫 sessions,WAITING_APPROVAL 的 park 补通知(daemon
+  死在 ask 与 notify 之间不丢时刻);**ended-run 对账明确不做**(首次
+  启用会把全部历史结局重放成新通知,记档)。命令超时 30s(挂死通道
+  不卡 notifier)。
+
+测试:notify 包三测(去重跨 reopen + 投递内容、stderr 兜底、命令失败
+回退);daemon tee(只 tee 生命周期两类,带 session);对账两测(park
+补一次、二次启动静默;ended/garbage 跳过)。全量 check + race 通过。
+
+未接:blackboard bus 镜像(模块⑤ 回访项)、IterationCompleted 通知
+(driver 无 protocol sink,S6 出口 review 议)。

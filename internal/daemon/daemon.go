@@ -78,6 +78,10 @@ type Server struct {
 	// (the CLI's resolver adapter calls Ask) and `approve` commands answer.
 	// nil = the approve command is refused.
 	Approvals *ApprovalBroker
+	// Notify receives LIFECYCLE events (run_end, approval_request) from
+	// every hosted run — the notifier's live tee (S6 模块⑤). It MUST NOT
+	// block: the caller is the run's emit path.
+	Notify func(protocol.Event)
 
 	mu     sync.Mutex
 	runs   map[string]*hostedRun
@@ -95,24 +99,30 @@ type Server struct {
 
 // hostedRun is one live run's broadcast hub.
 type hostedRun struct {
-	id   string
-	mu   sync.Mutex
-	subs map[chan protocol.Event]struct{}
-	done bool
+	id     string
+	notify func(protocol.Event)
+	mu     sync.Mutex
+	subs   map[chan protocol.Event]struct{}
+	done   bool
 }
 
 // Emit implements protocol.Sink: fan out to every subscriber. A slow
 // subscriber's overflow is DROPPED (可丢 delta doctrine — the journal is the
-// durable truth; the live stream is ephemeral rendering).
+// durable truth; the live stream is ephemeral rendering). Lifecycle events
+// additionally tee to the notifier hook, outside the lock.
 func (h *hostedRun) Emit(e protocol.Event) {
 	e.Session = h.id
 	h.mu.Lock()
-	defer h.mu.Unlock()
 	for ch := range h.subs {
 		select {
 		case ch <- e:
 		default:
 		}
+	}
+	h.mu.Unlock()
+	if h.notify != nil &&
+		(e.Kind == protocol.KindRunEnd || e.Kind == protocol.KindApprovalRequest) {
+		h.notify(e)
 	}
 }
 
@@ -267,7 +277,7 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 		return
 	}
 	id := s.NewID(cmd.Task)
-	hub := &hostedRun{id: id, subs: map[chan protocol.Event]struct{}{}}
+	hub := &hostedRun{id: id, notify: s.Notify, subs: map[chan protocol.Event]struct{}{}}
 	s.mu.Lock()
 	if s.stopping {
 		s.mu.Unlock()
