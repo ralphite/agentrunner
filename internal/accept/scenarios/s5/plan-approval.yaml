@@ -1,0 +1,30 @@
+id: s5-02-plan-approval-payload
+title: plan 审批——plan 文本入 artifact store,批准后转出 plan mode 并执行
+files:
+  planner.yaml: |
+    name: planner
+    model: { provider: scripted, id: x }
+    system_prompt: plan first
+    tools: [bash]
+  plan.yaml: |
+    steps:
+      - respond:
+          - tool_call: { name: exit_plan_mode, args: { plan: "write the file, verify it" } }
+          - finish: tool_use
+      - respond:
+          - tool_call: { name: bash, args: { command: "echo executed > done.txt" } }
+          - finish: tool_use
+      - respond:
+          - text: "plan executed"
+          - finish: end_turn
+steps:
+  - run: >
+      AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/plan.yaml
+      AGENTRUNNER_APPROVE=always
+      $BIN run --workspace . --mode plan planner.yaml "make it so"
+  - run: grep -q plan xdg/agentrunner/sessions/*/artifacts/manifest.json
+  - run: grep -q payload_ref xdg/agentrunner/sessions/*/events.jsonl
+expect:
+  - exit_code: 0
+  - file_contains: { path: done.txt, text: "executed" }
+  - events_valid: xdg/agentrunner/sessions/*/events.jsonl

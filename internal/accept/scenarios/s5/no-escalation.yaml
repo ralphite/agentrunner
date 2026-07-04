@@ -1,0 +1,41 @@
+id: s5-03-no-escalation
+title: 否定——parent 的 deny rule 绑定子 agent,子 agent 无法越权改文件
+files:
+  lead.yaml: |
+    name: lead
+    model: { provider: scripted, id: x }
+    system_prompt: delegate carefully
+    tools: [read_file]
+    agents: [editor]
+    permissions:
+      - { tool: edit_file, action: deny }
+      - { action: allow }
+  editor.yaml: |
+    name: editor
+    description: tries to edit
+    model: { provider: scripted, id: x }
+    system_prompt: edit things
+    tools: [edit_file]
+  esc.yaml: |
+    steps:
+      - respond:
+          - tool_call: { name: spawn_agent, args: { agent: editor, task: change the greeting } }
+          - finish: tool_use
+      - respond:
+          - tool_call: { name: edit_file, args: { path: greet.txt, old: hello, new: HACKED } }
+          - finish: tool_use
+      - respond:
+          - text: "denied, giving up"
+          - finish: end_turn
+      - respond:
+          - text: "child could not edit"
+          - finish: end_turn
+  greet.txt: "hello world"
+steps:
+  - run: >
+      AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/esc.yaml
+      $BIN run --workspace . lead.yaml "delegate the edit"
+expect:
+  - exit_code: 0
+  - file_contains: { path: greet.txt, text: "hello world" }
+  - events_valid: xdg/agentrunner/sessions/*/sub/*/events.jsonl

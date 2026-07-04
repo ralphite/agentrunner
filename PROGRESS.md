@@ -1767,3 +1767,26 @@ read_file 读到物化内容——ref 由 CAS 决定论预先计算注入 fixtur
 **S5 模块 1–9 全部完成**。下一步:S5 acceptance 场景包(accept --stage 5,
 对应完成标志:s5_fleet / s5_plan_approval / s5_no_escalation / s5_budget_seal)
 → S5 出口对抗式 review。
+
+## S5 acceptance 场景包 — DONE(accept --stage 5 全绿)
+
+四场景对应完成标志逐句(0.6 框架,嵌入 internal/accept/scenarios/s5/):
+- `s5-01-researcher-fleet`:parent + 2 子 agent 编队 → 两个 child journal
+  存在且合法、report.md 产出、outputs contract 满足(exit 0)、artifact
+  manifest 含 report。
+- `s5-02-plan-approval-payload`:plan mode → exit_plan_mode(plan 文本)→
+  APPROVE=always 批准 → 转出 plan mode 执行 bash;manifest 含 plan stream、
+  events 含 payload_ref。(拒→v2→批全循环由单测 TestPlanApprovalFullFlow
+  覆盖——EnvApprovals 无法脚本化序列应答,记档。)
+- `s5-03-no-escalation`(否定):parent deny rule 绑 child,文件未被改。
+- `s5-04-budget-seal`(否定):同 turn 双 spawn,预算 min 聚合 + 整额预留
+  使第二个被 BudgetGate 拒——仅 1 个 child 目录。
+stage 1/2/3 acceptance 回归全绿。
+
+**踩坑记档**:①scenario spec 必须显式 `permissions: [{action: allow}]`
+——execute-class 默认 ask + EnvApprovals 兜底 deny(loop-mode fail-closed
+正确行为,但场景作者易忘);②必须显式 `max_tokens`(缺省值的 LLM 预留
+会瞬间打爆小预算)。③观察:CLI 渲染对 scripted provider 的 text 输出重复
+一次(delta + message 双打印),疑 S4.1 renderer 去重逻辑不含 scripted
+路径——记入 S5 出口 review 待查。④S4 未补自己的 acceptance 场景(横切
+纪律要求 stage 收口前场景化)——S5 review 一并裁定是否回补。

@@ -1,0 +1,42 @@
+id: s5-04-budget-seal
+title: 否定——树预算 min 聚合:同 turn 双 spawn,第二个被预算拒,总额不击穿
+files:
+  lead.yaml: |
+    name: lead
+    model: { provider: scripted, id: x, max_tokens: 100 }
+    system_prompt: delegate twice
+    tools: [read_file]
+    agents: [worker]
+    budget: { max_total_tokens: 3000 }
+    permissions:
+      - { action: allow }
+  worker.yaml: |
+    name: worker
+    description: does one job
+    model: { provider: scripted, id: x, max_tokens: 100 }
+    system_prompt: work
+    tools: [read_file]
+  seal.yaml: |
+    steps:
+      - respond:
+          - tool_call: { name: spawn_agent, args: { agent: worker, task: job one } }
+          - tool_call: { name: spawn_agent, args: { agent: worker, task: job two } }
+          - usage: { input_tokens: 60, output_tokens: 40 }
+          - finish: tool_use
+      - respond:
+          - text: "only child reporting"
+          - usage: { input_tokens: 30, output_tokens: 20 }
+          - finish: end_turn
+      - respond:
+          - text: "one succeeded, one was denied by budget"
+          - usage: { input_tokens: 10, output_tokens: 5 }
+          - finish: end_turn
+steps:
+  - run: >
+      AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/seal.yaml
+      $BIN run --workspace . lead.yaml "spawn both"
+  - run: test "$(ls xdg/agentrunner/sessions/*/sub | wc -l)" -eq 1
+expect:
+  - exit_code: 0
+  - events_valid: xdg/agentrunner/sessions/*/events.jsonl
+  - events_valid: xdg/agentrunner/sessions/*/sub/*/events.jsonl
