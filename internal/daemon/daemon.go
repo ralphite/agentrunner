@@ -38,6 +38,11 @@ type Command struct {
 	ApprovalID string `json:"approval_id,omitempty"`
 	Decision   string `json:"decision,omitempty"` // approve | deny
 	Reason     string `json:"reason,omitempty"`
+
+	// IdemKey makes run/drive submission idempotent within the daemon's
+	// lifetime (DESIGN S6 修订): a retry with the same key attaches to the
+	// session the first submission created instead of minting a new one.
+	IdemKey string `json:"idem_key,omitempty"`
 }
 
 // RunRequest is what the daemon hands the injected runner.
@@ -96,7 +101,8 @@ type Server struct {
 
 	mu     sync.Mutex
 	runs   map[string]*hostedRun
-	failed map[string]bool // sessions whose timer-driven resume errored
+	failed map[string]bool   // sessions whose timer-driven resume errored
+	idem   map[string]string // idem_key → session (daemon lifetime)
 	conns  map[net.Conn]struct{}
 	ln     net.Listener
 	wg     sync.WaitGroup
@@ -322,6 +328,14 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 			Text: fmt.Sprintf("mode %q not allowed over the daemon (known: default, plan, acceptEdits)", cmd.Mode)})
 		return
 	}
+	// Idempotent resubmission: the same key returns the FIRST submission's
+	// session — live, that means following its stream; finished, its replay.
+	if cmd.IdemKey != "" {
+		if existing, ok := s.idemSession(cmd.IdemKey); ok {
+			s.handleAttach(Command{Cmd: "attach", Session: existing}, enc)
+			return
+		}
+	}
 	id := s.NewID(cmd.Task)
 	hub := &hostedRun{id: id, notify: s.Notify, subs: map[chan protocol.Event]struct{}{}}
 	s.mu.Lock()
@@ -332,6 +346,12 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 	}
 	s.runs[id] = hub
 	s.runsWG.Add(1)
+	if cmd.IdemKey != "" {
+		if s.idem == nil {
+			s.idem = map[string]string{}
+		}
+		s.idem[cmd.IdemKey] = id
+	}
 	s.mu.Unlock()
 
 	ch, cancel, _ := hub.subscribe()
@@ -379,6 +399,12 @@ func (s *Server) handleDrive(ctx context.Context, cmd Command, enc *json.Encoder
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "drive needs spec_path"})
 		return
 	}
+	if cmd.IdemKey != "" {
+		if existing, ok := s.idemSession(cmd.IdemKey); ok {
+			s.handleAttach(Command{Cmd: "attach", Session: existing}, enc)
+			return
+		}
+	}
 	id := s.NewID("drive")
 	hub := &hostedRun{id: id, notify: s.Notify, subs: map[chan protocol.Event]struct{}{}}
 	s.mu.Lock()
@@ -389,6 +415,12 @@ func (s *Server) handleDrive(ctx context.Context, cmd Command, enc *json.Encoder
 	}
 	s.runs[id] = hub
 	s.runsWG.Add(1)
+	if cmd.IdemKey != "" {
+		if s.idem == nil {
+			s.idem = map[string]string{}
+		}
+		s.idem[cmd.IdemKey] = id
+	}
 	s.mu.Unlock()
 
 	ch, cancel, _ := hub.subscribe()
@@ -457,6 +489,14 @@ func (s *Server) handleAttach(cmd Command, enc *json.Encoder) {
 			return
 		}
 	}
+}
+
+// idemSession looks up an idempotency key's session.
+func (s *Server) idemSession(key string) (string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	id, ok := s.idem[key]
+	return id, ok
 }
 
 // sinkFunc adapts a func to protocol.Sink.

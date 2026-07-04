@@ -352,9 +352,13 @@ func (d *Driver) drive(ctx context.Context, st *State, appendE appendFunc, start
 
 		// Loop mode verifies only when verifiers are configured (they gate
 		// quality, they do not decide "done"); goal mode always verifies.
+		// A judge's LLM spend joins the iteration's usage — verifier tokens
+		// are real tree spend (S6 review).
 		var verdict event.IterationVerdict
 		if len(d.Spec.Verifiers) > 0 {
-			verdict = d.verify(ctx, n, childDir)
+			var judgeUsage provider.Usage
+			verdict, judgeUsage = d.verify(ctx, n, childDir)
+			spent = addUsage(spent, judgeUsage)
 		}
 		carryText := childReport(childDir)
 		if _, err := appendE(event.TypeIterationCompleted, &event.IterationCompleted{
@@ -781,10 +785,12 @@ func (d *Driver) stalled(st *State) bool {
 // satisfy the goal. The aggregate score is the minimum across verifiers (the
 // weakest gate), so stall detection tracks the true bottleneck — seeded from
 // the first verifier so a single metric score above 1 is not clamped.
-func (d *Driver) verify(ctx context.Context, n int, childDir string) event.IterationVerdict {
+func (d *Driver) verify(ctx context.Context, n int, childDir string) (event.IterationVerdict, provider.Usage) {
 	agg := event.IterationVerdict{Pass: true}
+	var spent provider.Usage
 	for i, v := range d.Spec.Verifiers {
-		vv := d.verifyOne(ctx, n, v, childDir)
+		vv, usage := d.verifyOne(ctx, n, v, childDir)
+		spent = addUsage(spent, usage)
 		if i == 0 || vv.Score < agg.Score {
 			agg.Score = vv.Score
 		}
@@ -795,19 +801,19 @@ func (d *Driver) verify(ctx context.Context, n int, childDir string) event.Itera
 			break // first failing gate settles the verdict
 		}
 	}
-	return agg
+	return agg, spent
 }
 
-func (d *Driver) verifyOne(ctx context.Context, n int, v VerifierSpec, childDir string) event.IterationVerdict {
+func (d *Driver) verifyOne(ctx context.Context, n int, v VerifierSpec, childDir string) (event.IterationVerdict, provider.Usage) {
 	switch v.Kind {
 	case VerifierCommand:
-		return d.verifyCommand(ctx, v)
+		return d.verifyCommand(ctx, v), provider.Usage{}
 	case VerifierLLMJudge:
 		return d.verifyLLMJudge(ctx, v, childDir)
 	case VerifierHuman:
-		return d.verifyHuman(ctx, n, v, childDir)
+		return d.verifyHuman(ctx, n, v, childDir), provider.Usage{}
 	default:
-		return event.IterationVerdict{Verifier: v.Kind, Detail: "unknown verifier kind " + v.Kind}
+		return event.IterationVerdict{Verifier: v.Kind, Detail: "unknown verifier kind " + v.Kind}, provider.Usage{}
 	}
 }
 
@@ -863,9 +869,9 @@ func (d *Driver) verifyCommand(ctx context.Context, v VerifierSpec) event.Iterat
 // asked for a strict JSON verdict; an explicit "pass" wins, otherwise score ≥
 // threshold. A judge that cannot be reached or parsed fails the gate — never
 // a silent pass.
-func (d *Driver) verifyLLMJudge(ctx context.Context, v VerifierSpec, childDir string) event.IterationVerdict {
+func (d *Driver) verifyLLMJudge(ctx context.Context, v VerifierSpec, childDir string) (event.IterationVerdict, provider.Usage) {
 	if d.Judge == nil {
-		return event.IterationVerdict{Verifier: VerifierLLMJudge, Detail: "no judge provider configured"}
+		return event.IterationVerdict{Verifier: VerifierLLMJudge, Detail: "no judge provider configured"}, provider.Usage{}
 	}
 	model, maxTokens := "", 1024
 	if d.Spec.Agent != nil {
@@ -881,7 +887,8 @@ func (d *Driver) verifyLLMJudge(ctx context.Context, v VerifierSpec, childDir st
 	}
 	turn, err := provider.CollectTurnStreaming(d.Judge.Complete(ctx, req), func(string) {})
 	if err != nil {
-		return event.IterationVerdict{Verifier: VerifierLLMJudge, Detail: "judge call failed: " + redact.FromEnv().String(err.Error())}
+		return event.IterationVerdict{Verifier: VerifierLLMJudge,
+			Detail: "judge call failed: " + redact.FromEnv().String(err.Error())}, turn.Usage
 	}
 	var j struct {
 		Score  float64 `json:"score"`
@@ -890,7 +897,7 @@ func (d *Driver) verifyLLMJudge(ctx context.Context, v VerifierSpec, childDir st
 	}
 	raw := firstJSONObject(assistantText(turn.Message))
 	if err := json.Unmarshal([]byte(raw), &j); err != nil {
-		return event.IterationVerdict{Verifier: VerifierLLMJudge, Detail: "judge output not parseable"}
+		return event.IterationVerdict{Verifier: VerifierLLMJudge, Detail: "judge output not parseable"}, turn.Usage
 	}
 	pass := j.Score >= v.Threshold
 	if j.Pass != nil {
@@ -899,7 +906,7 @@ func (d *Driver) verifyLLMJudge(ctx context.Context, v VerifierSpec, childDir st
 	return event.IterationVerdict{
 		Pass: pass, Verifier: VerifierLLMJudge, Score: j.Score,
 		Detail: redact.FromEnv().String(j.Reason),
-	}
+	}, turn.Usage
 }
 
 // verifyHuman asks a person whether the iteration meets the goal, reusing the

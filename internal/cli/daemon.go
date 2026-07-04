@@ -609,6 +609,7 @@ func submitCmd(args []string, stdout, stderr io.Writer) int {
 	mode := fs.String("mode", "", "run mode: default|plan|acceptEdits (overrides spec)")
 	jsonOut := fs.Bool("json", false, "emit the event stream as JSON lines")
 	drive := fs.Bool("drive", false, "submit a driver spec (task lives in the spec)")
+	idem := fs.String("idem", "", "idempotency key: a retried submit with the same key reattaches instead of starting a duplicate")
 	if err := fs.Parse(args); err != nil {
 		return ExitUsage
 	}
@@ -639,9 +640,9 @@ func submitCmd(args []string, stdout, stderr io.Writer) int {
 		sink = newTextRenderer(stdout)
 	}
 	reason := ""
-	cmd := daemon.Command{Cmd: "run", SpecPath: specPath, Workspace: wsAbs, Mode: *mode}
+	cmd := daemon.Command{Cmd: "run", SpecPath: specPath, Workspace: wsAbs, Mode: *mode, IdemKey: *idem}
 	if *drive {
-		cmd = daemon.Command{Cmd: "drive", SpecPath: specPath, Workspace: wsAbs}
+		cmd = daemon.Command{Cmd: "drive", SpecPath: specPath, Workspace: wsAbs, IdemKey: *idem}
 	} else {
 		cmd.Task = rest[1]
 	}

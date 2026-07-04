@@ -587,8 +587,11 @@ limits:
 ### Scheduler 与 triggers
 
 - scheduler 是发布 `RunAgent` command 的普通 actor；webhook 触发 =
-  server 壳收到请求后发同一条 command。command 按 Envelope.id 幂等，
-  重试不会拉起重复 run。
+  server 壳收到请求后发同一条 command。command 幂等（重试不会拉起
+  重复 run）。（S6 修订：v0 无独立 scheduler actor——cadence 在
+  driver 内、timer 唤醒在 daemon sweep；daemon 线协议的 run/drive
+  提交以 `idem_key` 幂等（daemon 生命周期内），重试返回同一 session
+  的流。独立 RunAgent command 家族随 webhook/壳 一并落地。）
 
 ### 运行模式：IterationDriver（one-shot / goal / loop）
 
@@ -596,15 +599,22 @@ limits:
   最平凡的情形。driver 有自己的 stream 和纯 fold 状态，每轮迭代 spawn
   一个 **fresh child run**（同 spec → prefix 逐字节稳定可跨迭代命中
   缓存、免 compaction 链、失败迭代不污染后续、迭代边界天然是 barrier
-  候选点）；driver 自己从不碰 LLM 和 workspace。
+  候选点）；driver 自己从不碰 LLM 和 workspace——**v0 例外已裁定
+  （S6）**：verifier 是 driver 规格里"用户可信配置"声明的效果，v0 直连
+  执行（command 过 executor、llm_judge 单次打分调用），花费计入迭代
+  usage、verdict journal 进 IterationCompleted；过四关卡的 verifier
+  管线化（journaled activity + 管线判定）列 S7。
 - **统一事件族**：`IterationScheduled / Launched / Completed`、
   `DriverCompleted{reason: satisfied|stalled|max_iterations|budget|
-  stopped|child_failed}`。launch 遵循 journal-before-send，
-  `Envelope.id = hash(driver_id, n)` 使崩溃后的重发幂等。
-- **Goal mode** = `schedule: immediate` + verifiers 必填。verifier 是
-  过四关卡的 effect：`command`（bash-class，exit code / metric regex）、
-  `llm_judge`（LLM activity + rubric + threshold）、`human`（就是现有
-  ask 路径，挂几天免费）。verdict journal 进 `IterationCompleted`；
+  stopped|child_failed}`。launch 遵循 journal-before-send；崩溃后的
+  重发幂等由**纯 fold 检查（st.at(n) 已在 journal 则不重发）+ 确定性
+  child 目录（sub/iter-N，已终态则从其 fold 结算）**保证（S6 修订：
+  等价于原 `Envelope.id = hash(driver_id, n)` 方案，且无需 command
+  基础设施）。
+- **Goal mode** = `schedule: immediate` + verifiers 必填。verifier 三态：
+  `command`（bash-class，exit code / metric regex）、`llm_judge`
+  （LLM 打分 + rubric + threshold）、`human`（就是现有 ask 路径，
+  挂几天免费）。verdict journal 进 `IterationCompleted`；
   停滞检测是纯 fold——分数 patience 轮无改善（或 binary verifier 的
   失败指纹连续相同）→ stalled，附最佳迭代的 carry。
 - **Best-of-N** = `schedule: parallel{n}`：N 个隔离 worktree 的并行

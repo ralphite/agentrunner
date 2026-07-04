@@ -366,6 +366,60 @@ func TestDaemonShutdownWithHungClient(t *testing.T) {
 	}
 }
 
+// An idempotent resubmission (same idem_key) attaches to the FIRST
+// submission's session instead of minting a duplicate run.
+func TestDaemonSubmitIdempotency(t *testing.T) {
+	var mu sync.Mutex
+	launches := 0
+	run := func(ctx context.Context, req RunRequest, sink protocol.Sink) error {
+		mu.Lock()
+		launches++
+		mu.Unlock()
+		sink.Emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: "completed"})
+		return nil
+	}
+	replay := func(id string, sink protocol.Sink) error {
+		sink.Emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: "completed"})
+		return nil
+	}
+	sock, _ := startServer(t, run, replay)
+
+	var first []protocol.Event
+	if err := Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Task: "job", IdemKey: "k-1"},
+		func(e protocol.Event) { first = append(first, e) }); err != nil {
+		t.Fatal(err)
+	}
+	session := first[0].Session
+
+	// Retry with the same key: no second launch; the stream carries the
+	// SAME session (served from replay, the run being finished).
+	var retry []protocol.Event
+	if err := Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Task: "job", IdemKey: "k-1"},
+		func(e protocol.Event) { retry = append(retry, e) }); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	if launches != 1 {
+		mu.Unlock()
+		t.Fatalf("launches = %d, want 1 (retry must not duplicate)", launches)
+	}
+	mu.Unlock()
+	if len(retry) == 0 || retry[0].Session != session {
+		t.Fatalf("retry stream = %+v, want session %s", retry, session)
+	}
+
+	// A DIFFERENT key launches fresh.
+	if err := Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Task: "job", IdemKey: "k-2"},
+		func(protocol.Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if launches != 2 {
+		t.Fatalf("launches = %d, want 2", launches)
+	}
+}
+
 // Two daemons must not share a socket; a stale socket file is reclaimed.
 func TestDaemonSocketExclusive(t *testing.T) {
 	sock, _ := startServer(t, nil, nil)
