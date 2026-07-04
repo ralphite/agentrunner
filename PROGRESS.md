@@ -1371,3 +1371,33 @@ tool call 带 thinking、坏 part 拒绝、转换错误经 stream 上抛);capabi
   测试不改);loop 查一次 caps,doLLM 清 req.Thinking。both provider 均支持
   thinking,降级路径靠 scripted(caps 全 false)与 caps 覆盖 wrapper 测试。
 - **新增依赖 anthropic-sdk-go v1.56.0**(go.mod/go.sum);go mod tidy 干净。
+
+## S4.8 inspect v0 — DONE
+
+**`agentrunner inspect <session> [--json]`——events 命令的人读进化。** events
+dump 原始日志,inspect 按人理解 run 的方式渲染:
+
+- **头部**:spec / model / mode / status(带 reason)/ turns。
+- **timeline**:按 turn 分组,每条 activity 一行——`kind name call_id
+  verdict[gate] tokens`。llm/compact/tool 三类(按 ActivityID 前缀 llm-t /
+  compact-t / 其余判)。
+- **每 call 判定**:从 EffectResolved 建索引(tool 按 CallID、llm 按
+  eff-llm-tN),`decidingGate` 取产生该 verdict 的 gate(deny 取首个 deny
+  gate,否则末 gate)+ reason。
+- **token/cost/cache 列**:per-call 从 ActivityCompleted.Usage 读
+  input/output/cache_read;汇总从 fold 的 Run.Usage(input/output/
+  cache_read/write + Billed())+ Budget.ReservedTotal()。
+- `--json` 输出结构化 inspectReport。CLI dispatch + usage 加 inspect。
+
+**实现要点**:ActivityCompleted 无 name/call_id(在 ActivityStarted 上),
+故走一遍把 ActivityStarted 按 ActivityID 建索引,ActivityCompleted 查回
+name/callID。纯函数 `buildInspectReport(events, state)` 便于单测。
+
+**验证**:`TestBuildInspectReport`(craft 事件日志→llm allow+tokens、tool
+deny+permission gate、billed=input+output−cache_read)、`TestRenderInspect`
+(timeline/turn/billed/reason 出现在人读输出)。
+
+**Decisions**:
+- **无 $ cost 列,用 billed token**:代码库无 per-model 价目表(预算用
+  token-equivalent),故 "cost" 呈现为 billed token(input+output−cache_read,
+  4c 口径);真实 $ 定价留后续价目表。

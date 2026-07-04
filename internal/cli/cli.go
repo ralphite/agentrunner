@@ -37,6 +37,8 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 		return acceptCmd(args[1:], stdout, stderr)
 	case "events":
 		return eventsCmd(args[1:], stdout, stderr)
+	case "inspect":
+		return inspectCmd(args[1:], stdout, stderr)
 	case "resume":
 		return resumeCmd(args[1:], version, stdout, stderr)
 	case "sessions":
@@ -50,7 +52,7 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 }
 
 func usage() string {
-	return "usage: agentrunner <run|resume|sessions|events|trust|record-fixture|accept|--version> [flags] [<spec.yaml> \"task\"]\n"
+	return "usage: agentrunner <run|resume|sessions|events|inspect|trust|record-fixture|accept|--version> [flags] [<spec.yaml> \"task\"]\n"
 }
 
 // setupLogging configures the process-wide slog default. Logs go to stderr
