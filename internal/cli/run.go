@@ -158,7 +158,7 @@ func runAgent(opts runOptions) int {
 	if opts.mode != "" {
 		mode = opts.mode
 	}
-	pipe, err := buildPipeline(ws, spec.Permissions, mode, opts.stderr)
+	pipe, err := buildPipeline(ws, spec.Permissions, mode, spec.Budget.MaxTotalTokens, opts.stderr)
 	if err != nil {
 		fmt.Fprintln(opts.stderr, err)
 		return ExitRun

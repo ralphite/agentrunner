@@ -872,3 +872,28 @@ after:waiting_entered:1(挂起中 kill)→ resume 重新提示 → 批准 →
 **验证**:过滤表全 mode×class;跃迁表 allowed/denied 双向;plan 全流程
 集成(turn 1 过滤面+注入 → exit_plan_mode 审批 → mode_changed → turn 2
 全面无注入);拒绝路径留在 plan;bypass+hooks 组合。
+
+## S3.7a–d 预算 — DONE
+
+- **3.7a sub-state**:第 8 个 fold 命名空间 `budget`(reservations
+  map;settled = Run.Usage 既有口径)。`effect_resolved{allow}` 加性
+  字段 `reserved_tokens` 记入,activity 终态(Completed/Cancelled)
+  经 effectIDFor 释放。
+- **3.7b 预留与结算**:LLM 按 `model.max_tokens` 预留;tool 按类价目
+  (read 500 / edit 1000 / execute 2000 / wait 0);ApprovalRequested
+  携带 `est_tokens`(挂起跨 crash 后批准仍能预留)。
+- **3.7c 优雅收尾**:BudgetGate deny(LLM)→ `limit_exceeded{tokens,
+  limit, used}` → runEpilogue(reason "limit_exceeded")——不是 error、
+  不是 crash;tool 的预算拒绝走普通 deny(模型可见,可收尾);spec
+  `budget: {max_total_tokens}`(0=无限)+ 校验;CLI 管线加 BudgetGate。
+- **3.7d TOCTOU 合成**:8 goroutine 经互斥串行 adjudicate(模拟
+  S4.3 共享 fold 的并发裁决),reserve-then-settle 使第二个 600 token
+  请求看见第一个的预留 → 恰好 1 个放行(600+600>1000 不双越)。
+  S4.3 真并行落地时按计划复验。
+
+**Decisions**:
+- BudgetView 由 loop 从 fold 快照进 Effect(gate 保持纯函数,不持
+  状态引用)。
+- bypass mode 预算不 bind(3.6d 语义延伸,gate 内判)。
+- LLM 预算拒绝时的 farewell 消息:S3 先以 slog + limit_exceeded 事实
+  + 终态 reason 呈现;面向模型的告别 turn 留 S4 流式协议一并做(记档)。

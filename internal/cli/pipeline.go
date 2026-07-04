@@ -11,10 +11,10 @@ import (
 )
 
 // buildPipeline assembles the effect pipeline from the merged three-source
-// configuration (3.4) and the run mode (3.6). Hook and budget gates join
-// at 3.7/3.8.
+// configuration (3.4), the run mode (3.6), and the budget (3.7). The hook
+// gate joins at 3.8.
 func buildPipeline(ws *workspace.Workspace, specRules []pipeline.PermissionRule,
-	mode string, stderr io.Writer) (*pipeline.Pipeline, error) {
+	mode string, maxTokens int, stderr io.Writer) (*pipeline.Pipeline, error) {
 
 	userPath, err := runtime.UserConfigPath()
 	if err != nil {
@@ -43,5 +43,6 @@ func buildPipeline(ws *workspace.Workspace, specRules []pipeline.PermissionRule,
 
 	return &pipeline.Pipeline{Gates: []pipeline.Gate{
 		&pipeline.PermissionGate{Rules: merged.Permissions, Mode: mode, WS: ws},
+		&pipeline.BudgetGate{MaxTotalTokens: maxTokens},
 	}}, nil
 }

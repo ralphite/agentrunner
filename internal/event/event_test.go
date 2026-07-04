@@ -44,7 +44,8 @@ var samples = map[string]any{
 		CallID: "call_3_1", GateResults: []GateResult{{Gate: "permission", Decision: VerdictAsk, Reason: "edit"}}},
 	TypeApprovalResponded: &ApprovalResponded{ApprovalID: "apr-eff-call_3_1", Decision: "approve",
 		Reason: "looks safe", Source: "tty"},
-	TypeModeChanged: &ModeChanged{From: "plan", To: "default", Cause: "exit_plan_mode approved"},
+	TypeModeChanged:   &ModeChanged{From: "plan", To: "default", Cause: "exit_plan_mode approved"},
+	TypeLimitExceeded: &LimitExceeded{Kind: "tokens", Limit: 10000, Used: 10250},
 	TypeEffectResolved: &EffectResolved{EffectID: "eff-call_3_1", CallID: "call_3_1",
 		Verdict: VerdictDeny, GateResults: []GateResult{
 			{Gate: "permission", Decision: VerdictDeny, Reason: "path escapes workspace"}}},

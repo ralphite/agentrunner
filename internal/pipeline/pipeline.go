@@ -26,6 +26,8 @@ type Effect struct {
 	CallID    string
 	EstTokens int    // budget reservation basis (3.7)
 	Mode      string // current run mode at adjudication time (3.6)
+	// Budget is the fold's live accounting at adjudication time (3.7).
+	Budget BudgetView
 }
 
 // Decision is one gate's judgment.

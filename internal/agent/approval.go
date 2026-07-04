@@ -55,6 +55,7 @@ func (l *Loop) requestApproval(ctx context.Context, ds *driveState, appendE Appe
 		EffectID:    eff.ID,
 		CallID:      eff.CallID,
 		GateResults: outcome.GateResults,
+		EstTokens:   eff.EstTokens,
 		// PayloadRef reserved: large payloads move to the ArtifactStore (S7).
 	}
 	if _, err := appendE(event.TypeApprovalRequested, &req); err != nil {
@@ -158,9 +159,14 @@ func (l *Loop) resolveEffectAfterApproval(appendE AppendFunc,
 	results := append(append([]event.GateResult{}, req.GateResults...), event.GateResult{
 		Gate: "approval", Decision: decision, Reason: reason,
 	})
+	reserved := 0
+	if approved {
+		reserved = req.EstTokens
+	}
 	if _, err := appendE(event.TypeEffectResolved, &event.EffectResolved{
 		EffectID: req.EffectID, CallID: req.CallID,
 		Verdict: verdict, GateResults: results,
+		ReservedTokens: reserved,
 	}); err != nil {
 		return false, err
 	}

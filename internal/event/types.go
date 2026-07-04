@@ -31,6 +31,7 @@ const (
 	TypeApprovalRequested = "approval_requested"
 	TypeApprovalResponded = "approval_responded"
 	TypeModeChanged       = "mode_changed"
+	TypeLimitExceeded     = "limit_exceeded"
 )
 
 // Effect verdicts and gate decisions.
@@ -172,6 +173,9 @@ type ApprovalRequested struct {
 	CallID      string       `json:"call_id,omitempty"`
 	GateResults []GateResult `json:"gate_results,omitempty"`
 	PayloadRef  string       `json:"payload_ref,omitempty"`
+	// EstTokens preserves the budget reservation basis across a parked
+	// wait (the approval may resolve after a crash+resume).
+	EstTokens int `json:"est_tokens,omitempty"`
 }
 
 // ApprovalResponded is the journaled human decision (an external input:
@@ -191,6 +195,14 @@ type ModeChanged struct {
 	Cause string `json:"cause"`
 }
 
+// LimitExceeded records a resource-budget breach (3.7c): the run then
+// ends gracefully through the epilogue, never mid-effect.
+type LimitExceeded struct {
+	Kind  string `json:"kind"` // tokens
+	Limit int    `json:"limit"`
+	Used  int    `json:"used"`
+}
+
 // GateResult is one gate's judgment inside an effect resolution.
 type GateResult struct {
 	Gate     string `json:"gate"`
@@ -206,6 +218,9 @@ type EffectResolved struct {
 	CallID      string       `json:"call_id,omitempty"`
 	Verdict     string       `json:"verdict"` // allow | deny
 	GateResults []GateResult `json:"gate_results,omitempty"`
+	// ReservedTokens is the budget reservation granted with an allow
+	// (3.7b); released when the activity reaches a terminal event.
+	ReservedTokens int `json:"reserved_tokens,omitempty"`
 }
 
 // Registry maps every event type to a constructor for its payload struct.
@@ -231,4 +246,5 @@ var Registry = map[string]func() any{
 	TypeApprovalRequested: func() any { return &ApprovalRequested{} },
 	TypeApprovalResponded: func() any { return &ApprovalResponded{} },
 	TypeModeChanged:       func() any { return &ModeChanged{} },
+	TypeLimitExceeded:     func() any { return &LimitExceeded{} },
 }

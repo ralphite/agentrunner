@@ -76,7 +76,7 @@ func resumeCmd(args []string, version string, stdout, stderr io.Writer) int {
 	fmt.Fprintf(stderr, "resuming session %s\n", sessionID)
 	// The live mode comes from the fold; spec.Mode is only the gate's
 	// static fallback.
-	pipe, err := buildPipeline(ws, spec.Permissions, spec.Mode, stderr)
+	pipe, err := buildPipeline(ws, spec.Permissions, spec.Mode, spec.Budget.MaxTotalTokens, stderr)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return ExitRun

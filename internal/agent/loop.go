@@ -360,14 +360,26 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			}
 
 		case doLLM:
-			if _, allowed, err := l.adjudicate(ctx, ds, appendE, pipeline.Effect{
+			if outcome, allowed, err := l.adjudicate(ctx, ds, appendE, pipeline.Effect{
 				ID: fmt.Sprintf("eff-llm-t%d", act.turn), Kind: "llm_call",
 				EstTokens: l.Spec.Model.MaxTokens,
+				Mode:      ds.s.CurrentMode(),
+				Budget:    budgetView(ds.s),
 			}); err != nil {
 				return RunResult{}, abort(act.turn, err)
 			} else if !allowed {
-				// TODO(3.7c): budget denial becomes the graceful farewell
-				// ending; until then an LLM denial is a hard stop.
+				// A budget denial ends the run gracefully through the
+				// epilogue (3.7c) — never mid-effect, never as a crash.
+				if gate := denyingGate(outcome); gate == "budget" {
+					used := ds.s.Run.Usage.InputTokens + ds.s.Run.Usage.OutputTokens
+					if _, err := appendE(event.TypeLimitExceeded, &event.LimitExceeded{
+						Kind: "tokens", Limit: l.Spec.Budget.MaxTotalTokens, Used: used,
+					}); err != nil {
+						return RunResult{}, abort(act.turn, err)
+					}
+					slog.Warn("token budget exhausted; ending run", "limit", l.Spec.Budget.MaxTotalTokens, "used", used)
+					return runEpilogue(ctx, ds, appendE, "limit_exceeded", act.turn, false)
+				}
 				return RunResult{}, abort(act.turn, fmt.Errorf("turn %d: llm call denied by pipeline", act.turn))
 			}
 			var turn provider.Turn
@@ -414,7 +426,9 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				ID: "eff-" + call.CallID, Kind: "tool_call",
 				ToolName: call.Name, Class: toolClass(call.Name),
 				Args: call.Args, CallID: call.CallID,
-				Mode: ds.s.CurrentMode(),
+				Mode:      ds.s.CurrentMode(),
+				EstTokens: pipeline.EstTokensForClass(toolClass(call.Name)),
+				Budget:    budgetView(ds.s),
 			}
 			if outcome, allowed, err := l.adjudicate(ctx, ds, appendE, eff); err != nil {
 				return RunResult{}, abort(act.turn, err)
@@ -618,13 +632,36 @@ func (l *Loop) adjudicate(ctx context.Context, ds *driveState, appendE AppendFun
 		allowed, err := l.requestApproval(ctx, ds, appendE, eff, outcome)
 		return outcome, allowed, err
 	}
+	reserved := 0
+	if outcome.Verdict == event.VerdictAllow {
+		reserved = eff.EstTokens
+	}
 	if _, err := appendE(event.TypeEffectResolved, &event.EffectResolved{
 		EffectID: eff.ID, CallID: eff.CallID,
 		Verdict: outcome.Verdict, GateResults: outcome.GateResults,
+		ReservedTokens: reserved,
 	}); err != nil {
 		return outcome, false, err
 	}
 	return outcome, outcome.Verdict == event.VerdictAllow, nil
+}
+
+// budgetView snapshots the fold's accounting for the budget gate.
+func budgetView(s state.State) pipeline.BudgetView {
+	return pipeline.BudgetView{
+		SettledTokens:  s.Run.Usage.InputTokens + s.Run.Usage.OutputTokens,
+		ReservedTokens: s.Budget.ReservedTotal(),
+	}
+}
+
+// denyingGate names the gate that produced the deny, if any.
+func denyingGate(outcome pipeline.Outcome) string {
+	for _, r := range outcome.GateResults {
+		if r.Decision == event.VerdictDeny {
+			return r.Gate
+		}
+	}
+	return ""
 }
 
 func deniedResult(outcome pipeline.Outcome) tool.Result {

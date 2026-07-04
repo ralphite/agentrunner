@@ -42,6 +42,13 @@ type AgentSpec struct {
 	// Mode is the starting run mode (3.6); CLI --mode overrides. Empty =
 	// "default".
 	Mode string `yaml:"mode,omitempty"`
+	// Budget caps the run (3.7); zero values mean unlimited.
+	Budget BudgetSpec `yaml:"budget,omitempty"`
+}
+
+// BudgetSpec is the spec-level resource cap.
+type BudgetSpec struct {
+	MaxTotalTokens int `yaml:"max_total_tokens,omitempty"`
 }
 
 // LoadSpec reads, parses, validates, and resolves an agent spec.
@@ -118,6 +125,9 @@ func (s *AgentSpec) validate(path string) error {
 		}
 	}
 
+	if s.Budget.MaxTotalTokens < 0 {
+		return fail("budget.max_total_tokens", "must be non-negative")
+	}
 	if s.Mode != "" && !pipeline.ValidMode(s.Mode) {
 		return fail("mode", fmt.Sprintf("unknown mode %q (known: default, plan, acceptEdits, bypass)", s.Mode))
 	}

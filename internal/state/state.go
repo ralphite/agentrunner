@@ -23,6 +23,7 @@ func SubStateVersions() map[string]int {
 		"run":          1,
 		"effects":      1, // S3.2 (declared in the 2.4 table as an S3 addition)
 		"mode":         1, // S3.6a
+		"budget":       1, // S3.7a (reservations; settled usage lives in run)
 	}
 }
 
@@ -42,6 +43,25 @@ type State struct {
 	Effects      Effects      `json:"effects"`
 	// Mode is the current run mode (3.6a); empty folds as "default".
 	Mode string `json:"mode,omitempty"`
+	// Budget holds live reservations (3.7a); settled usage is Run.Usage.
+	Budget Budget `json:"budget"`
+}
+
+// Budget is the reservation set: effect_resolved{allow, reserved_tokens}
+// adds, the activity's terminal event releases. The budget gate sees
+// settled + reserved — the reserve-then-settle discipline is what makes
+// concurrent adjudication (S4.3) TOCTOU-safe.
+type Budget struct {
+	Reserved map[string]int `json:"reserved,omitempty"`
+}
+
+// ReservedTotal sums outstanding reservations.
+func (b Budget) ReservedTotal() int {
+	total := 0
+	for _, n := range b.Reserved {
+		total += n
+	}
+	return total
 }
 
 // CurrentMode returns the effective mode ("default" when unset).
@@ -111,6 +131,7 @@ func New() State {
 			Pending: map[string]event.EffectRequested{},
 			Allowed: map[string]bool{},
 		},
+		Budget: Budget{Reserved: map[string]int{}},
 	}
 }
 
@@ -161,6 +182,7 @@ func Apply(s State, env event.Envelope) (State, error) {
 		started, inFlight := s.Activities[p.ActivityID]
 		s.Activities = s.Activities.without(p.ActivityID)
 		s.Effects = s.Effects.withoutAllowed(effectIDFor(started, p.ActivityID))
+		s.Budget = s.Budget.release(effectIDFor(started, p.ActivityID))
 		if p.Usage != nil {
 			s.Run.Usage = addUsage(s.Run.Usage, *p.Usage)
 		}
@@ -181,6 +203,7 @@ func Apply(s State, env event.Envelope) (State, error) {
 		started, inFlight := s.Activities[p.ActivityID]
 		s.Activities = s.Activities.without(p.ActivityID)
 		s.Effects = s.Effects.withoutAllowed(effectIDFor(started, p.ActivityID))
+		s.Budget = s.Budget.release(effectIDFor(started, p.ActivityID))
 		if inFlight && started.Kind == event.KindTool && started.CallID != "" {
 			result, _ := json.Marshal(map[string]string{
 				"error":          "[interrupted by user]",
@@ -214,6 +237,9 @@ func Apply(s State, env event.Envelope) (State, error) {
 		s.Effects = s.Effects.withoutPending(p.EffectID)
 		if p.Verdict == event.VerdictAllow {
 			s.Effects = s.Effects.withAllowed(p.EffectID)
+			if p.ReservedTokens > 0 {
+				s.Budget = s.Budget.withReservation(p.EffectID, p.ReservedTokens)
+			}
 		}
 		// A denial IS the call's model-visible outcome: journaling it
 		// resolves the call_id, so decide() never re-attempts a denied
@@ -231,6 +257,9 @@ func Apply(s State, env event.Envelope) (State, error) {
 
 	case *event.ModeChanged:
 		s.Mode = p.To
+
+	case *event.LimitExceeded:
+		// Audit fact; the terminal state lands via RunEnded.
 
 	case *event.ActorCrashed:
 		s.Run.LastCrash = p.Actor + ": " + p.Error
@@ -313,6 +342,30 @@ func (a Activities) without(id string) Activities {
 		}
 	}
 	return out
+}
+
+func (b Budget) withReservation(id string, tokens int) Budget {
+	out := make(map[string]int, len(b.Reserved)+1)
+	for k, v := range b.Reserved {
+		out[k] = v
+	}
+	out[id] = tokens
+	b.Reserved = out
+	return b
+}
+
+func (b Budget) release(id string) Budget {
+	if _, ok := b.Reserved[id]; !ok {
+		return b
+	}
+	out := make(map[string]int, len(b.Reserved))
+	for k, v := range b.Reserved {
+		if k != id {
+			out[k] = v
+		}
+	}
+	b.Reserved = out
+	return b
 }
 
 // effectIDFor recovers the effect id from an activity's identity (the
