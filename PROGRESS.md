@@ -1713,3 +1713,18 @@ run_ended);显式 publish 满足合约(仅 1 条发布事实,无 double-publish)
 缺 required → contract_violation + KindError + RunEnded 载新 reason,
 optional 缺失不违约;child 违约 → 父 error 结果携 reason、父 loop 继续、
 child journal reason=contract_violation。epilogue 既有三测更新签名。
+
+## S5.7 审批载荷 payload_ref — DONE(3.5 预留兑现)
+
+- **`publishApprovalPayload`**:exit_plan_mode 的 ask 在 journal
+  ApprovalRequested **之前**把 plan 文本 Publish 到 `plan` stream(blob 先于
+  event + crash point),`ApprovalRequested.PayloadRef = ref`——审批记录
+  **精确指向它审的是哪一版**(DESIGN 原文)。ArtifactPublished 加 source
+  `"approval"`。其余 ask 载荷照旧内联(阈值化通用载荷留后续,记档)。
+- **contract(交付物)与协调对象(plan)分离**:plan 是 `plan` stream 的
+  artifact 版本链,审批是协调动作——两条路径不混(stage 教学点)。
+
+**验证**:`TestPlanApprovalFullFlow` 全循环 发布→审→**拒(附理由)**→v2→
+**批**:plan stream 两版本内容各异;两条 ApprovalRequested 的 payload_ref
+分别钉住 v1/v2 的 ref;deny 带理由、approve 后 mode plan→default;3 turn
+completed。

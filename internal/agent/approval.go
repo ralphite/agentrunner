@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ralphite/agentrunner/internal/crash"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/pipeline"
 )
@@ -56,7 +57,15 @@ func (l *Loop) requestApproval(ctx context.Context, ds *driveState, appendE Appe
 		CallID:      eff.CallID,
 		GateResults: outcome.GateResults,
 		EstTokens:   eff.EstTokens,
-		// PayloadRef reserved: large payloads move to the ArtifactStore (S7).
+	}
+	// Plan approval payload (S5.7): the plan text publishes as a versioned
+	// artifact BEFORE the request is journaled (blob-before-event), and the
+	// approval fact pins the exact version ref it adjudicated — a rejected
+	// plan's revision publishes v2 and the re-approval points there.
+	if ref, err := l.publishApprovalPayload(eff, appendE); err != nil {
+		return false, err
+	} else if ref != "" {
+		req.PayloadRef = ref
 	}
 	if _, err := appendE(event.TypeApprovalRequested, &req); err != nil {
 		return false, err
@@ -71,6 +80,34 @@ func (l *Loop) requestApproval(ctx context.Context, ds *driveState, appendE Appe
 		return false, err
 	}
 	return l.awaitApproval(ctx, ds, appendE, req)
+}
+
+// publishApprovalPayload stores an approval's large payload in the
+// ArtifactStore (S5.7). Today that is the exit_plan_mode plan text (stream
+// "plan"); other asks carry their args inline. Returns "" when there is
+// nothing to publish.
+func (l *Loop) publishApprovalPayload(eff pipeline.Effect, appendE AppendFunc) (string, error) {
+	if eff.ToolName != "exit_plan_mode" || l.Artifacts == nil {
+		return "", nil
+	}
+	var args struct {
+		Plan string `json:"plan"`
+	}
+	if err := json.Unmarshal(eff.Args, &args); err != nil || args.Plan == "" {
+		return "", nil // no plan text: nothing to anchor
+	}
+	v, err := l.Artifacts.Publish("plan", []byte(args.Plan))
+	if err != nil {
+		return "", err
+	}
+	crash.Point(crash.PointAfterBlobBeforeEvent)
+	if _, err := appendE(event.TypeArtifactPublished, &event.ArtifactPublished{
+		Stream: v.Stream, Version: v.Version, Ref: v.Ref, Bytes: v.Bytes,
+		Source: "approval",
+	}); err != nil {
+		return "", err
+	}
+	return v.Ref, nil
 }
 
 // awaitApproval races the resolver against a user interrupt. Every exit
