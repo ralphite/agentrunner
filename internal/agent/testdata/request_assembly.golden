@@ -44,7 +44,7 @@
             "call_id": "call_1_0",
             "tool_name": "read_file",
             "args": {
-              "path": "greet.txt"
+              "path": "notes.txt"
             }
           },
           {
@@ -67,7 +67,7 @@
             "call_id": "call_1_0",
             "tool_name": "read_file",
             "result": {
-              "content": "hello world",
+              "content": "just notes",
               "truncated": false
             }
           },

@@ -35,11 +35,18 @@ func TestLoopRequestAssemblyGolden(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "greet.txt"), []byte("hello world"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// S4.3 runs a turn's tool calls concurrently, so the read and the edit
+	// must target DIFFERENT files — otherwise the read's result races the
+	// edit and the golden is nondeterministic. This still pins the assembly
+	// shape: two calls, two results, correct roles and ordering.
+	if err := os.WriteFile(filepath.Join(root, "notes.txt"), []byte("just notes"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{Text: "reading then editing"},
-			{ToolCall: &scripted.ToolCallEvent{Name: "read_file", Args: map[string]any{"path": "greet.txt"}}},
+			{ToolCall: &scripted.ToolCallEvent{Name: "read_file", Args: map[string]any{"path": "notes.txt"}}},
 			{ToolCall: &scripted.ToolCallEvent{Name: "edit_file", Args: map[string]any{
 				"path": "greet.txt", "old": "hello world", "new": "HELLO WORLD"}}},
 			{Finish: "tool_use"},

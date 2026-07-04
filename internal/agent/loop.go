@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ralphite/agentrunner/internal/clock"
@@ -509,88 +510,9 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			}
 
 		case doTool:
-			call := act.call
-			l.emit(protocol.Event{Kind: protocol.KindToolCall, Turn: act.turn,
-				Tool: call.Name, CallID: call.CallID, Args: compact(call.Args)})
-			eff := pipeline.Effect{
-				ID: toolEffectID(call.CallID), Kind: "tool_call",
-				ToolName: call.Name, Class: toolClass(call.Name),
-				Args: call.Args, CallID: call.CallID,
-				Mode:      ds.s.CurrentMode(),
-				EstTokens: pipeline.EstTokensForClass(toolClass(call.Name)),
-				Budget:    budgetView(ds.s),
+			if err := l.doTools(ctx, ds, appendE, abort, act); err != nil {
+				return RunResult{}, err
 			}
-			if outcome, allowed, err := l.adjudicate(ctx, ds, appendE, eff); err != nil {
-				return RunResult{}, abort(act.turn, err)
-			} else if !allowed {
-				// The denial was journaled as the call's resolution (the
-				// fold writes the model-visible error); nothing executes.
-				dr := deniedResult(outcome)
-				l.emit(protocol.Event{Kind: protocol.KindToolResult, Turn: act.turn,
-					Tool: call.Name, CallID: call.CallID, Result: compact(dr.Payload), IsError: true})
-				continue
-			}
-			var res tool.Result
-			run := func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
-				res = l.Exec.Execute(ctx, call.Name, call.Args)
-				return res.Payload, nil, res.IsError, nil
-			}
-			if call.Name == "exit_plan_mode" {
-				// Harness-level tool: the approved transition IS the effect.
-				run = func(context.Context) (json.RawMessage, *provider.Usage, bool, error) {
-					res = tool.Result{Payload: json.RawMessage(
-						`{"output":"plan approved; now in default mode"}`)}
-					return res.Payload, nil, false, nil
-				}
-			}
-			var postRun func(context.Context, json.RawMessage, bool) string
-			if l.Hooks != nil && len(l.Hooks.PostTool) > 0 {
-				postRun = func(ctx context.Context, result json.RawMessage, isError bool) string {
-					notes := l.Hooks.RunPost(ctx, hook.PostInput{
-						ToolName: call.Name, CallID: call.CallID,
-						Result: result, IsError: isError,
-					})
-					return strings.Join(notes, "; ")
-				}
-			}
-			actCtx, stopInt := l.interruptScope(ctx)
-			err := exec.Do(actCtx, Activity{
-				ID: "tool-" + call.CallID, Kind: event.KindTool,
-				Name: call.Name, Args: call.Args, CallID: call.CallID,
-				Idempotent: toolIdempotent(call.Name),
-				Timeout:    toolTimeout(call.Name),
-				Run:        run,
-				PostRun:    postRun,
-			})
-			stopInt()
-			if err != nil {
-				if steered(actCtx) {
-					// The cancelled tool already rendered [interrupted by user]
-					// in the fold (its ActivityCancelled result); journal the
-					// interrupt and continue — the model reacts next turn.
-					if ierr := l.onSteeringInterrupt(appendE, act.turn); ierr != nil {
-						return RunResult{}, abort(act.turn, ierr)
-					}
-					if tr, ok := ds.s.Conversation.ToolResults[call.CallID]; ok {
-						l.emit(protocol.Event{Kind: protocol.KindToolResult, Turn: act.turn,
-							Tool: call.Name, CallID: call.CallID, Result: compact(tr.Result), IsError: true})
-					}
-					continue
-				}
-				// A terminally-failed tool whose call resolved in the fold
-				// (rendered error result) is model-visible: the loop
-				// continues and the model reacts. Cancellation and harness
-				// failures still abort.
-				if tr, resolved := ds.s.Conversation.ToolResults[call.CallID]; resolved &&
-					errs.ClassOf(err) != errs.Canceled {
-					l.emit(protocol.Event{Kind: protocol.KindToolResult, Turn: act.turn,
-						Tool: call.Name, CallID: call.CallID, Result: compact(tr.Result), IsError: true})
-					continue
-				}
-				return RunResult{}, abort(act.turn, fmt.Errorf("turn %d: %s: %w", act.turn, call.Name, err))
-			}
-			l.emit(protocol.Event{Kind: protocol.KindToolResult, Turn: act.turn,
-				Tool: call.Name, CallID: call.CallID, Result: compact(res.Payload), IsError: res.IsError})
 		case doWait:
 			// A parked approval (fresh or resumed across a crash) re-enters
 			// the same await path: the request payload lives in the fold's
@@ -619,6 +541,161 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 	}
 }
 
+// doTools runs one assistant turn's tool calls (S4.3). It is two-phase:
+//
+//  1. Adjudicate every call SERIALLY — asks park inline on the resolver, so
+//     a turn's multiple asks are approved one at a time (no multi-prompt
+//     race), and each allow's budget reservation is folded before the next
+//     adjudication reads the budget (reserve-then-settle stays correct under
+//     the fold, no TOCTOU — this is why adjudication is not parallelized).
+//  2. Execute the allow-verdict calls CONCURRENTLY. The fold is single-
+//     threaded, so every concurrent journal write funnels through one
+//     mutex-serialized appendE (the S4.3 core invariant); terminal events
+//     therefore land in arrival order, and assembly reorders results by the
+//     assistant message's call_id sequence. One interruptScope covers the
+//     whole batch.
+//
+// Returns nil to continue the drive loop, or the (already-epilogued) abort
+// error to stop it.
+func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
+	abort func(int, error) error, act action) error {
+
+	// Phase 1 — serial adjudication.
+	type pending struct {
+		call provider.ToolCall
+		res  *tool.Result
+	}
+	var allowed []pending
+	for _, call := range act.calls {
+		l.emit(protocol.Event{Kind: protocol.KindToolCall, Turn: act.turn,
+			Tool: call.Name, CallID: call.CallID, Args: compact(call.Args)})
+		eff := pipeline.Effect{
+			ID: toolEffectID(call.CallID), Kind: "tool_call",
+			ToolName: call.Name, Class: toolClass(call.Name),
+			Args: call.Args, CallID: call.CallID,
+			Mode:      ds.s.CurrentMode(),
+			EstTokens: pipeline.EstTokensForClass(toolClass(call.Name)),
+			Budget:    budgetView(ds.s),
+		}
+		outcome, ok, err := l.adjudicate(ctx, ds, appendE, eff)
+		if err != nil {
+			return abort(act.turn, err)
+		}
+		if !ok {
+			// The denial was journaled as the call's resolution (the fold
+			// writes the model-visible error); nothing executes.
+			dr := deniedResult(outcome)
+			l.emit(protocol.Event{Kind: protocol.KindToolResult, Turn: act.turn,
+				Tool: call.Name, CallID: call.CallID, Result: compact(dr.Payload), IsError: true})
+			continue
+		}
+		allowed = append(allowed, pending{call: call, res: new(tool.Result)})
+	}
+	if len(allowed) == 0 {
+		return nil
+	}
+
+	// Phase 2 — concurrent execution behind one serialized write path.
+	actCtx, stopInt := l.interruptScope(ctx)
+	var mu sync.Mutex
+	serialAppend := func(typ string, payload any) (event.Envelope, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		return appendE(typ, payload)
+	}
+	execP := &ActivityExecutor{Append: serialAppend, Clock: l.Clock, Redact: redact.FromEnv()}
+	errsOut := make([]error, len(allowed))
+	var wg sync.WaitGroup
+	for i, p := range allowed {
+		wg.Add(1)
+		go func(i int, p pending) {
+			defer wg.Done()
+			errsOut[i] = execP.Do(actCtx, Activity{
+				ID: "tool-" + p.call.CallID, Kind: event.KindTool,
+				Name: p.call.Name, Args: p.call.Args, CallID: p.call.CallID,
+				Idempotent: toolIdempotent(p.call.Name),
+				Timeout:    toolTimeout(p.call.Name),
+				Run:        l.buildToolRun(p.call, p.res),
+				PostRun:    l.buildPostRun(p.call),
+			})
+		}(i, p)
+	}
+	wg.Wait()
+	stopInt()
+
+	// All goroutines joined: ds.s is safe to read again. Process outcomes in
+	// call order (surface ordering; the journal already holds arrival order).
+	interrupted := steered(actCtx)
+	for i, p := range allowed {
+		err := errsOut[i]
+		if err == nil {
+			l.emit(protocol.Event{Kind: protocol.KindToolResult, Turn: act.turn,
+				Tool: p.call.Name, CallID: p.call.CallID,
+				Result: compact(p.res.Payload), IsError: p.res.IsError})
+			continue
+		}
+		if interrupted {
+			// A steering interrupt cancelled the whole batch: each cancelled
+			// call already rendered [interrupted by user] in the fold. Emit it
+			// and continue — the interrupt itself is journaled once, below.
+			if tr, ok := ds.s.Conversation.ToolResults[p.call.CallID]; ok {
+				l.emit(protocol.Event{Kind: protocol.KindToolResult, Turn: act.turn,
+					Tool: p.call.Name, CallID: p.call.CallID,
+					Result: compact(tr.Result), IsError: true})
+			}
+			continue
+		}
+		// A terminally-failed tool whose call resolved in the fold (rendered
+		// error result) is model-visible: the loop continues and the model
+		// reacts. Cancellation and harness failures still abort.
+		if tr, resolved := ds.s.Conversation.ToolResults[p.call.CallID]; resolved &&
+			errs.ClassOf(err) != errs.Canceled {
+			l.emit(protocol.Event{Kind: protocol.KindToolResult, Turn: act.turn,
+				Tool: p.call.Name, CallID: p.call.CallID,
+				Result: compact(tr.Result), IsError: true})
+			continue
+		}
+		return abort(act.turn, fmt.Errorf("turn %d: %s: %w", act.turn, p.call.Name, err))
+	}
+	if interrupted {
+		if ierr := l.onSteeringInterrupt(appendE, act.turn); ierr != nil {
+			return abort(act.turn, ierr)
+		}
+	}
+	return nil
+}
+
+// buildToolRun is the per-call Run closure, writing its outcome into *res.
+// exit_plan_mode is a harness-level transition: the approved mode change IS
+// the effect, so it has no executor call.
+func (l *Loop) buildToolRun(call provider.ToolCall, res *tool.Result) func(context.Context) (json.RawMessage, *provider.Usage, bool, error) {
+	if call.Name == "exit_plan_mode" {
+		return func(context.Context) (json.RawMessage, *provider.Usage, bool, error) {
+			*res = tool.Result{Payload: json.RawMessage(
+				`{"output":"plan approved; now in default mode"}`)}
+			return res.Payload, nil, false, nil
+		}
+	}
+	return func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
+		*res = l.Exec.Execute(ctx, call.Name, call.Args)
+		return res.Payload, nil, res.IsError, nil
+	}
+}
+
+// buildPostRun wires post-tool hooks (3.8) for a call, or nil when none.
+func (l *Loop) buildPostRun(call provider.ToolCall) func(context.Context, json.RawMessage, bool) string {
+	if l.Hooks == nil || len(l.Hooks.PostTool) == 0 {
+		return nil
+	}
+	return func(ctx context.Context, result json.RawMessage, isError bool) string {
+		notes := l.Hooks.RunPost(ctx, hook.PostInput{
+			ToolName: call.Name, CallID: call.CallID,
+			Result: result, IsError: isError,
+		})
+		return strings.Join(notes, "; ")
+	}
+}
+
 // action kinds for decide.
 const (
 	doTurn = iota // journal TurnStarted for action.turn
@@ -629,9 +706,12 @@ const (
 )
 
 type action struct {
-	kind   int
-	turn   int
-	call   provider.ToolCall
+	kind int
+	turn int
+	// calls carries EVERY unresolved tool call of the current assistant turn
+	// (S4.3): the allow-verdict ones execute concurrently. One call is the
+	// common case; the slice degenerates to it without a separate path.
+	calls  []provider.ToolCall
 	reason string
 }
 
@@ -653,10 +733,14 @@ func decide(s state.State, maxTurns int) action {
 	if len(calls) == 0 {
 		return action{kind: doEnd, turn: turn, reason: "completed"}
 	}
+	var unresolved []provider.ToolCall
 	for _, c := range calls {
 		if _, done := s.Conversation.ToolResults[c.CallID]; !done {
-			return action{kind: doTool, turn: turn, call: c}
+			unresolved = append(unresolved, c)
 		}
+	}
+	if len(unresolved) > 0 {
+		return action{kind: doTool, turn: turn, calls: unresolved}
 	}
 	if turn >= maxTurns {
 		return action{kind: doEnd, turn: turn, reason: "max_turns"}

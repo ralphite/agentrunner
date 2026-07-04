@@ -19,18 +19,28 @@ import (
 )
 
 // TestCrashMatrix is the S2 exit gate: every named injection point and the
-// counting predicates over the standard two-turn read+edit run. Each row
-// kills a subprocess at the armed point, then resumes in-process and
-// requires either an exact continuation or an in-doubt refusal.
+// counting predicates over a canonical run. Each row kills a subprocess at
+// the armed point, then resumes in-process and requires either an exact
+// continuation or an in-doubt refusal.
 //
-// Standard run event order (activity exec points in brackets):
+// S4.3 made same-turn tool calls execute CONCURRENTLY, which races the
+// per-activity crash-point counter (two goroutines hit
+// after_exec_before_journal in nondeterministic order). To keep the matrix
+// a DETERMINISTIC sequential gate, the canonical run issues one tool per
+// turn — read in t1, edit in t2, done in t3 — so every activity runs
+// strictly in sequence. Concurrent multi-tool behavior is covered
+// separately by TestParallelToolCalls.
 //
-//	run_started, input_received, turn_started(1),
+// Canonical run event order (activity exec points in brackets):
+//
+//	run_started, input_received, turn_started(1) + snapshot,
 //	activity_started(llm-t1) [exec hit 1] activity_completed, assistant_message(1),
 //	activity_started(read) [exec hit 2] activity_completed,
-//	activity_started(edit) [exec hit 3] activity_completed,
 //	turn_started(2) + snapshot,
-//	activity_started(llm-t2) [exec hit 4] activity_completed, assistant_message(2),
+//	activity_started(llm-t2) [exec hit 3] activity_completed, assistant_message(2),
+//	activity_started(edit) [exec hit 4] activity_completed,
+//	turn_started(3) + snapshot,
+//	activity_started(llm-t3) [exec hit 5] activity_completed, assistant_message(3),
 //	run_ended
 func TestCrashMatrix(t *testing.T) {
 	if os.Getenv("GO_CRASH_HELPER") == "1" {
@@ -41,7 +51,7 @@ func TestCrashMatrix(t *testing.T) {
 	rows := []struct {
 		name          string
 		predicate     string
-		resumeFixture string // full | turn2 | none
+		resumeFixture string // full | fromT2 | none
 		wantInDoubt   bool
 	}{
 		{"run-started-only", "after:run_started:1", "full", false},
@@ -49,12 +59,12 @@ func TestCrashMatrix(t *testing.T) {
 		{"input-point", "point:" + crash.PointAfterJournalInput, "full", false},
 		{"llm-executed-unjournaled", "point:" + crash.PointAfterExecBeforeJournal + ":1", "full", false},
 		{"llm-completed-unmessaged", "after:activity_completed:1", "full", false},
-		{"assistant-journaled", "after:assistant_message:1", "turn2", false},
-		{"read-executed-unjournaled", "point:" + crash.PointAfterExecBeforeJournal + ":2", "turn2", false},
-		{"read-result-journaled", "after:activity_completed:2", "turn2", false},
-		{"edit-executed-unjournaled", "point:" + crash.PointAfterExecBeforeJournal + ":3", "none", true},
-		{"turn2-boundary", "after:turn_started:2", "turn2", false},
-		{"snapshot-written", "point:" + crash.PointAfterSnapshotWrite + ":2", "turn2", false},
+		{"assistant-journaled", "after:assistant_message:1", "fromT2", false},
+		{"read-executed-unjournaled", "point:" + crash.PointAfterExecBeforeJournal + ":2", "fromT2", false},
+		{"read-result-journaled", "after:activity_completed:2", "fromT2", false},
+		{"edit-executed-unjournaled", "point:" + crash.PointAfterExecBeforeJournal + ":4", "none", true},
+		{"turn2-boundary", "after:turn_started:2", "fromT2", false},
+		{"snapshot-written", "point:" + crash.PointAfterSnapshotWrite + ":2", "fromT2", false},
 		{"before-run-end", "point:" + crash.PointBeforeRunEnd, "none", false},
 	}
 
@@ -112,7 +122,7 @@ func TestCrashMatrix(t *testing.T) {
 			if err != nil {
 				t.Fatalf("resume: %v", err)
 			}
-			if res.Reason != "completed" || res.Turns != 2 {
+			if res.Reason != "completed" || res.Turns != 3 {
 				t.Fatalf("res = %+v", res)
 			}
 			if err := prov.Done(); err != nil {
@@ -159,19 +169,28 @@ func matrixSpec() *AgentSpec {
 }
 
 func matrixFixture(kind string) scripted.Fixture {
+	// One tool per turn keeps every activity strictly sequential, so the
+	// crash-point counter is deterministic even after S4.3's concurrent
+	// same-turn execution (TestParallelToolCalls covers that path).
 	turn1 := scripted.Step{Respond: []scripted.Event{
-		{Text: "reading then editing"},
+		{Text: "reading first"},
 		{ToolCall: &scripted.ToolCallEvent{Name: "read_file", Args: map[string]any{"path": "greet.txt"}}},
+		{Finish: "tool_use"},
+	}}
+	turn2 := scripted.Step{Respond: []scripted.Event{
+		{Text: "now editing"},
 		{ToolCall: &scripted.ToolCallEvent{Name: "edit_file", Args: map[string]any{
 			"path": "greet.txt", "old": "hello world", "new": "HELLO WORLD"}}},
 		{Finish: "tool_use"},
 	}}
-	turn2 := scripted.Step{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}}
+	turn3 := scripted.Step{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}}
 	switch kind {
 	case "full":
-		return scripted.Fixture{Steps: []scripted.Step{turn1, turn2}}
-	case "turn2":
-		return scripted.Fixture{Steps: []scripted.Step{turn2}}
+		return scripted.Fixture{Steps: []scripted.Step{turn1, turn2, turn3}}
+	case "fromT2":
+		return scripted.Fixture{Steps: []scripted.Step{turn2, turn3}}
+	case "fromT3":
+		return scripted.Fixture{Steps: []scripted.Step{turn3}}
 	default:
 		return scripted.Fixture{}
 	}

@@ -1130,3 +1130,56 @@ TurnDiscarded 全链(partial→discard→final,final 消息干净、turn_discard
 - steering LLM 不把 interrupt 放进 conversation(source==interrupt 语义
   沿用 S2.14):CLI 无 steering 文本;带文本的 steering 属交互 WAIT_INPUT,
   留后续。
+
+## S4.3 并行 tool call — DONE(预期返工 #2 落地)
+
+**同一 assistant turn 的多个 allow 的 tool call 并发执行。** `decide()`
+不再逐个返回 tool call,而是把当前 turn 全部未决 call 一次性返回
+(`action.calls []provider.ToolCall`);单 call 是退化情形,无独立路径。
+
+`Loop.doTools` 两阶段:
+- **阶段一 串行裁决**:每个 call 顺序过 `adjudicate`——ask 就地 park
+  在 resolver 上(一个 turn 的多个 ask 顺序审批,不抢弹窗);每个 allow
+  的预算预留在下一个裁决读预算前已折进 fold。**裁决串行正是
+  reserve-then-settle 在真并行下不超支的原因(3.7d TOCTOU 复验):不并行化
+  裁决,就没有共享 fold 的读改写竞态。** deny 就地渲染 model-visible
+  错误结果,不执行。
+- **阶段二 并发执行**:allow 的 call 各起一个 goroutine 跑 `exec.Do`。
+  **fold 单线程,所以并发的 journal 写全部过单一 mutex 串行化的 appendE
+  ——这是 S4.3 的核心不变量。** 因此 ActivityCompleted 按**到达序**落盘;
+  assembly 从 fold 的 ToolResults(map,call_id 键)按 assistant message
+  的 tool_call **原序**重排回填。一个 `interruptScope` 覆盖整批:steering
+  中断取消整批,每个被取消的 call 已在 fold 渲染 `[interrupted by user]`,
+  中断本身在批次 join 后 journal 一次。
+
+**验证**(`parallel_test.go`):
+- `TestParallelToolCalls`:三个 `sleep 0.3` bash 并发跑完 <0.7s(串行需
+  ~0.9s),三个结果都进 fold 且非错误——墙钟即并发证明。
+- `TestParallelToolArrivalOrder`:发起序 c1/c2/c3,完成序 c2/c3/c1
+  (0.1/0.3/0.5s 错开);断言 journal 的 ActivityCompleted 顺序 = 完成序
+  (到达序),而 `Assemble` 回填的 tool_result 顺序 = 发起序(call_id 键
+  map 不受落盘序扰动)。
+- `TestParallelToolBudgetNoOverspend`:一个 turn 三个 execute call(各
+  2000),预算 5000——串行裁决使 b1+b2(4000)通过、b3(将达 6100)被拒;
+  逐事件 replay 断言 settled+reserved 全程 ≤5000。3.7d 的合成并发测试
+  (mutex 模拟)在此升级为真 goroutine 并行。
+
+**Decisions**:
+- **统一路径,不留单 call 快路径**:N=1 走同一 goroutine+mutex 批处理
+  (mutex 无争用)。理由:并发机制被最常见的 N=1 路径充分覆盖,而非仅在
+  罕见多 call turn 才走到;两条路径的维护成本与漏测风险更大。
+- **裁决串行、执行并行**(而非全程并行):预算预留在裁决阶段发生,串行
+  裁决让 reserve-then-settle 无 TOCTOU;执行阶段无预算门,可安全并行。
+  符合执行包"ask 本身串行审批"且把 3.7d 不变量落到"裁决不并行"。
+- **crash matrix 改一 turn 一 tool**:原 matrix 的 read+edit 同 turn 在
+  S4.3 下并发,race 了 `after_exec_before_journal` 的每活动计数器(两
+  goroutine 命中序不定),且非幂等 edit 在 read 崩溃点变 in-doubt。为保
+  matrix 作为**确定性顺序**崩溃门,改为 read(t1)/edit(t2)/done(t3)
+  一 turn 一 tool;并发多 tool 行为由 `TestParallelToolCalls` 单独覆盖。
+- **golden fixture read/edit 改指不同文件**:`TestLoopRequestAssemblyGolden`
+  原 read 与 edit 同文件,并发下 read 结果 race edit(可能读到改后
+  内容),golden 不确定;改为 read `notes.txt`、edit `greet.txt`,拼装
+  形状(两 call 两 result、角色与序)覆盖不减而结果确定。
+- **同 turn 同资源的 tool call 竞态属模型责任**:模型同时发起 read+edit
+  同一文件即声明二者独立;harness 并发执行(与主流 agent 一致),不做
+  隐式排序。
