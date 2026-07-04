@@ -228,6 +228,55 @@ func TestDaemonAttachFollowsLiveRun(t *testing.T) {
 	}
 }
 
+// Graceful shutdown: cancelling the daemon ctx cooperatively cancels every
+// hosted run and ListenAndServe returns only AFTER the runs finished their
+// terminal work — a routine deploy leaves zero in-doubt sessions.
+func TestDaemonGracefulShutdownWaitsForRuns(t *testing.T) {
+	var settled atomic.Bool
+	run := func(ctx context.Context, req RunRequest, sink protocol.Sink) error {
+		<-ctx.Done()
+		// Simulate the abort epilogue journaling terminal events.
+		time.Sleep(50 * time.Millisecond)
+		sink.Emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: "canceled"})
+		settled.Store(true)
+		return ctx.Err()
+	}
+	sock := filepath.Join(t.TempDir(), "d.sock")
+	ctx, cancel := context.WithCancel(context.Background())
+	srv := &Server{
+		SocketPath: sock, Run: run,
+		NewID: func(string) string { return "sess-g" },
+	}
+	served := make(chan error, 1)
+	go func() { served <- srv.ListenAndServe(ctx) }()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if err := Dial(sock, Command{Cmd: "ping"}, func(protocol.Event) {}); err == nil {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	// Park a hosted run, then pull the plug.
+	go func() {
+		_ = Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Task: "long"}, func(protocol.Event) {})
+	}()
+	time.Sleep(50 * time.Millisecond) // let the run register
+	cancel()
+
+	select {
+	case err := <-served:
+		if err != nil {
+			t.Fatalf("shutdown: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("daemon did not shut down")
+	}
+	if !settled.Load() {
+		t.Fatal("daemon exited before the hosted run finished its terminal work")
+	}
+}
+
 // Two daemons must not share a socket; a stale socket file is reclaimed.
 func TestDaemonSocketExclusive(t *testing.T) {
 	sock, _ := startServer(t, nil, nil)

@@ -2291,3 +2291,20 @@ live 事件无缺口)、socket 独占。全量 check + race 通过。
 
 未接(模块④续):durable timer 触发索引、优雅停机、审批 correlation
 跨 socket 路由、scheduler actor(RunAgent command)。
+
+## S6 模块④(续)— daemon 优雅停机 — DONE
+
+SIGTERM/ctx 取消 → 协作取消传入每个 hosted run(loop abort 路径 journal
+ActivityCancelled + RunEnded{canceled})→ **daemon 等全部 run 落终态
+journal 再退出**(`runsWG`),连接随后 drain——例行 deploy 零 in-doubt。
+停机中拒绝新 run(`daemon is shutting down`)。
+
+**race 修复(-race 抓到)**:WaitGroup Add-after-Wait——晚到连接可在停机
+Wait 后 Add。修法:Add 与 `stopping` 标志同在 server mutex 临界区,停机
+先置 stopping 再 Wait,晚到 run 被拒,happens-before 成立。测试:park
+的 hosted run + cancel → ListenAndServe 返回晚于 run 终态落定(atomic
+标志);-race ×3 通过。snapshot-on-shutdown 不需要:终态 event 已 journal,
+snapshot 只是优化(2.13);S7 barrier 槽位另议。
+
+未接:durable timer 触发索引、审批 correlation 跨 socket 路由、
+scheduler actor。

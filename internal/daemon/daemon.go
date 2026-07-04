@@ -65,6 +65,13 @@ type Server struct {
 	runs map[string]*hostedRun
 	ln   net.Listener
 	wg   sync.WaitGroup
+	// runsWG tracks HOSTED RUNS (not connections): graceful shutdown waits
+	// for every run to reach its terminal journal event after the ctx
+	// cancel propagates — a routine deploy leaves zero in-doubt sessions
+	// (DESIGN §运行形态: 优雅停机). Add happens under mu against stopping,
+	// so a late connection can never Add after the shutdown Wait began.
+	runsWG   sync.WaitGroup
+	stopping bool
 }
 
 // hostedRun is one live run's broadcast hub.
@@ -148,7 +155,15 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 		conn, err := ln.Accept()
 		if err != nil {
 			if ctx.Err() != nil {
-				s.wg.Wait() // drain in-flight connections before returning
+				// Graceful shutdown: the ctx cancel is already propagating
+				// into every hosted run (cooperative cancel → terminal
+				// events). Refuse new runs, wait for the live ones to finish
+				// journaling, then drain the connections.
+				s.mu.Lock()
+				s.stopping = true
+				s.mu.Unlock()
+				s.runsWG.Wait()
+				s.wg.Wait()
 				return nil
 			}
 			return fmt.Errorf("daemon accept: %w", err)
@@ -204,7 +219,13 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 	id := s.NewID(cmd.Task)
 	hub := &hostedRun{id: id, subs: map[chan protocol.Event]struct{}{}}
 	s.mu.Lock()
+	if s.stopping {
+		s.mu.Unlock()
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "daemon is shutting down"})
+		return
+	}
 	s.runs[id] = hub
+	s.runsWG.Add(1)
 	s.mu.Unlock()
 
 	ch, cancel, _ := hub.subscribe()
@@ -213,6 +234,7 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 	// The run runs on the daemon's ctx (not the connection's): it survives
 	// the client going away.
 	go func() {
+		defer s.runsWG.Done()
 		defer hub.finish()
 		if err := s.Run(ctx, RunRequest{
 			SessionID: id, SpecPath: cmd.SpecPath, Task: cmd.Task,
