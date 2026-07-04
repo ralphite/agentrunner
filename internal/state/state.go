@@ -7,6 +7,7 @@ package state
 import (
 	"encoding/json"
 
+	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/provider"
 )
@@ -192,8 +193,22 @@ func Apply(s State, env event.Envelope) (State, error) {
 		}
 
 	case *event.ActivityFailed:
-		// The attempt concluded; a retry re-adds via a fresh Started.
+		if !p.Final {
+			// Mid-retry: the entry STAYS in flight — a crash in the backoff
+			// window must surface as in-doubt for non-idempotent activities
+			// instead of silently re-running (S3 回访项); the next Started
+			// overwrites it.
+			break
+		}
+		started, inFlight := s.Activities[p.ActivityID]
 		s.Activities = s.Activities.without(p.ActivityID)
+		s.Budget = s.Budget.release(effectIDFor(started, p.ActivityID))
+		if inFlight && started.Kind == event.KindTool && started.CallID != "" {
+			// The rendered failure IS the call's model-visible result: the
+			// loop continues, the model reacts (3.9).
+			s.Conversation = s.Conversation.withToolResult(started.CallID,
+				ToolResult{Result: errs.RenderForModel(errs.Class(p.Error.Class), p.Error.Message), IsError: true})
+		}
 
 	case *event.ActivityCancelled:
 		// A cancelled tool call resolves to a model-visible error result:

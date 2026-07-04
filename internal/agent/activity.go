@@ -123,6 +123,7 @@ func (x *ActivityExecutor) Do(ctx context.Context, act Activity) error {
 		}
 
 		class := errs.ClassOf(err)
+		final := !class.Retryable() || attempt >= maxAttempts
 		if _, aerr := x.Append(event.TypeActivityFailed, &event.ActivityFailed{
 			ActivityID: act.ID,
 			Attempt:    attempt,
@@ -131,11 +132,12 @@ func (x *ActivityExecutor) Do(ctx context.Context, act Activity) error {
 				Message:   x.Redact.String(err.Error()),
 				Retryable: class.Retryable(),
 			},
+			Final: final,
 		}); aerr != nil {
 			return aerr
 		}
 
-		if !class.Retryable() || attempt >= maxAttempts {
+		if final {
 			return err
 		}
 		if x.DiscardOnRetry != nil {

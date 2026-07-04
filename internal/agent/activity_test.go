@@ -12,6 +12,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/redact"
+	"github.com/ralphite/agentrunner/internal/state"
 )
 
 // memAppend collects appended events in memory.
@@ -231,4 +232,41 @@ func equal(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+// 3.9 loop continuity: a tool activity that fails TERMINALLY resolves its
+// call with the rendered error (fold), so decide() moves past it instead
+// of re-running — the model reacts on its next turn.
+func TestFinalToolFailureRendersAndResolves(t *testing.T) {
+	m := &memAppend{}
+	x := testExecutor(m)
+	x.MaxAttempts = 1
+
+	ds := &driveState{s: state.New()}
+	x.Append = func(typ string, payload any) (event.Envelope, error) {
+		env, err := m.append(typ, payload)
+		if err != nil {
+			return env, err
+		}
+		ds.s, err = state.Apply(ds.s, env)
+		return env, err
+	}
+
+	err := x.Do(context.Background(), Activity{
+		ID: "tool-call_1_0", Kind: event.KindTool, Name: "mcp_search",
+		CallID: "call_1_0",
+		Run: func(context.Context) (json.RawMessage, *provider.Usage, bool, error) {
+			return nil, nil, false, errs.New(errs.ToolFailed, "backend unreachable")
+		},
+	})
+	if err == nil {
+		t.Fatal("terminal failure must surface to the caller")
+	}
+	tr, ok := ds.s.Conversation.ToolResults["call_1_0"]
+	if !ok || !tr.IsError || !strings.Contains(string(tr.Result), "tool failed") {
+		t.Fatalf("rendered result = %+v (ok=%v)", tr, ok)
+	}
+	if len(ds.s.Activities) != 0 {
+		t.Fatalf("in-flight not drained: %+v", ds.s.Activities)
+	}
 }

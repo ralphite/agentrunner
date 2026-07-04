@@ -476,6 +476,18 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				PostRun:    postRun,
 			})
 			if err != nil {
+				// A terminally-failed tool whose call resolved in the fold
+				// (rendered error result) is model-visible: the loop
+				// continues and the model reacts. Cancellation and harness
+				// failures still abort.
+				if _, resolved := ds.s.Conversation.ToolResults[call.CallID]; resolved &&
+					errs.ClassOf(err) != errs.Canceled {
+					if l.Sink != nil {
+						l.Sink.ToolResult(act.turn, call.CallID, tool.Result{
+							Payload: ds.s.Conversation.ToolResults[call.CallID].Result, IsError: true})
+					}
+					continue
+				}
 				return RunResult{}, abort(act.turn, fmt.Errorf("turn %d: %s: %w", act.turn, call.Name, err))
 			}
 			if l.Sink != nil {

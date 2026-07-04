@@ -112,6 +112,10 @@ type ActivityFailed struct {
 	ActivityID string    `json:"activity_id"`
 	Error      ErrorInfo `json:"error"`
 	Attempt    int       `json:"attempt"`
+	// Final marks the attempt that exhausted the retry policy (3.9): the
+	// activity is over, and for tool calls the fold renders the failure
+	// as the call's model-visible result.
+	Final bool `json:"final,omitempty"`
 }
 
 type ActivityCancelled struct {

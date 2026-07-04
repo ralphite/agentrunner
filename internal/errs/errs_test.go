@@ -2,8 +2,10 @@ package errs
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -80,5 +82,33 @@ func TestErrorFormatAndUnwrap(t *testing.T) {
 	}
 	if !Retryable(e) {
 		t.Error("wrapped provider_server must be retryable")
+	}
+}
+
+// 3.9: every class has a rendering row.
+func TestRenderForModelTable(t *testing.T) {
+	cases := []struct {
+		class Class
+		want  string
+	}{
+		{ProviderRateLimit, "rate limited"},
+		{ProviderServer, "server error"},
+		{ProviderAuth, "rejected the harness credentials"},
+		{ProviderInvalid, "invalid"},
+		{ToolFailed, "tool failed"},
+		{Timeout, "timed out"},
+		{Canceled, "canceled"},
+		{Internal, "internal harness error"},
+		{Class("martian"), "internal harness error"}, // unknown → internal
+	}
+	for _, tc := range cases {
+		raw := RenderForModel(tc.class, "extra detail")
+		var m map[string]string
+		if err := json.Unmarshal(raw, &m); err != nil {
+			t.Fatalf("%s: %v", tc.class, err)
+		}
+		if !strings.Contains(m["error"], tc.want) || !strings.Contains(m["error"], "extra detail") {
+			t.Errorf("%s: rendered = %q", tc.class, m["error"])
+		}
 	}
 }

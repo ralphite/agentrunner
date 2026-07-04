@@ -141,7 +141,7 @@ func TestInFlightIsInDoubtSignal(t *testing.T) {
 func TestFailedAndCancelledDrainInFlight(t *testing.T) {
 	terminals := []event.Envelope{}
 	for i, terminal := range []any{
-		&event.ActivityFailed{ActivityID: "a", Attempt: 1,
+		&event.ActivityFailed{ActivityID: "a", Attempt: 3, Final: true,
 			Error: event.ErrorInfo{Class: "timeout", Retryable: true}},
 		&event.ActivityCancelled{ActivityID: "a"},
 	} {
@@ -258,5 +258,43 @@ func TestCancelledToolCallResolvesResult(t *testing.T) {
 	}
 	if len(s.Activities) != 0 {
 		t.Errorf("in-flight not drained: %+v", s.Activities)
+	}
+}
+
+// 3.9 + S3 回访项: a NON-final failure keeps the activity in flight (the
+// backoff window is in-doubt territory for non-idempotent activities); a
+// FINAL tool failure renders as the call's model-visible result.
+func TestActivityFailedFinality(t *testing.T) {
+	s := New()
+	var err error
+	if s, err = Apply(s, env(t, event.TypeActivityStarted, &event.ActivityStarted{
+		ActivityID: "tool-call_1_0", Kind: event.KindTool, Name: "bash",
+		CallID: "call_1_0", Attempt: 1})); err != nil {
+		t.Fatal(err)
+	}
+	if s, err = Apply(s, env(t, event.TypeActivityFailed, &event.ActivityFailed{
+		ActivityID: "tool-call_1_0", Attempt: 1, Final: false,
+		Error: event.ErrorInfo{Class: "timeout", Retryable: true}})); err != nil {
+		t.Fatal(err)
+	}
+	if _, inFlight := s.Activities["tool-call_1_0"]; !inFlight {
+		t.Fatal("non-final failure must keep the activity in flight")
+	}
+	if s, err = Apply(s, env(t, event.TypeActivityFailed, &event.ActivityFailed{
+		ActivityID: "tool-call_1_0", Attempt: 3, Final: true,
+		Error: event.ErrorInfo{Class: "timeout", Message: "killed after 120s"}})); err != nil {
+		t.Fatal(err)
+	}
+	if len(s.Activities) != 0 {
+		t.Fatal("final failure must drain in-flight")
+	}
+	tr, ok := s.Conversation.ToolResults["call_1_0"]
+	if !ok || !tr.IsError {
+		t.Fatalf("final tool failure not rendered: %+v (ok=%v)", tr, ok)
+	}
+	for _, want := range []string{"timed out", "killed after 120s", `"class":"timeout"`} {
+		if !strings.Contains(string(tr.Result), want) {
+			t.Errorf("rendered result %s missing %q", tr.Result, want)
+		}
 	}
 }
