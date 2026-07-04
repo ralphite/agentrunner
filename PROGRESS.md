@@ -2308,3 +2308,26 @@ snapshot 只是优化(2.13);S7 barrier 槽位另议。
 
 未接:durable timer 触发索引、审批 correlation 跨 socket 路由、
 scheduler actor。
+
+## S6 模块④(续)— durable timer 触发索引 — DONE
+
+daemon 是 durable timer 的触发者(DESIGN):`sweepTimers` goroutine——
+`ScanTimers()`(注入;cli 实现 = 逐 session 折 journal:非 ended 且有
+pending timer → 最早 FireAt;**派生索引每 sweep 重算,journal 是真相**,
+坏日志跳过不倒 sweep)→ 到期且未托管 → `hostResume`(与 submit run 同
+hub/runsWG/attach 语义)→ resume 自身的 `FirePendingTimers` 落
+`TimerFired`(复用 2.13 sweep,不另设机制)。睡到 min(最早未来 deadline,
+1min 重扫)——他进程新 park 的 session 下轮可见。Clock 注入可测。
+
+裁定:**resume 失败的 session 记入 failed 集(mu 保护),daemon 重启前
+不再重试**——in-doubt 需要人(inspect/events),每分钟锤它无益。首版
+`failed` map 曾从 resume goroutine 裸写(设计时即被 -race 视角揪出),
+改为 Server 字段 + mu。
+
+cli 接线:`hostResumeFunc` = resume 同款装配减 tty(spec/workspace 取
+journaled RunStarted,权限取 journaled layers——S6.14 物化在此兑现),
+EnvApprovals fail-closed。已被他进程 flock 的 session → OpenEventStore
+拒 → 记 failed(正确:活 run 不抢锁)。
+
+两 sweeper 单测(FakeClock):过期即恢复/未来到点恢复/在飞不重复恢复;
+失败不重试(3 轮 sweep 后 attempts==1)。全量 check + race 通过。

@@ -17,6 +17,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/protocol"
 )
 
@@ -60,11 +61,20 @@ type Server struct {
 	// Replay renders a session's journal as output events for attach
 	// catch-up (补读). nil = attach serves live events only.
 	Replay func(sessionID string, sink protocol.Sink) error
+	// ScanTimers derives the parked sessions' pending-timer index from
+	// their journals; Resume hosts a session resume (same wiring as a
+	// foreground `resume`). Both non-nil → the daemon runs the durable
+	// timer sweeper: expired timers trigger a hosted resume, whose own
+	// sweep journals TimerFired. Clock nil = real time.
+	ScanTimers func() ([]SessionTimer, error)
+	Resume     func(ctx context.Context, sessionID string, sink protocol.Sink) error
+	Clock      clock.Clock
 
-	mu   sync.Mutex
-	runs map[string]*hostedRun
-	ln   net.Listener
-	wg   sync.WaitGroup
+	mu     sync.Mutex
+	runs   map[string]*hostedRun
+	failed map[string]bool // sessions whose timer-driven resume errored
+	ln     net.Listener
+	wg     sync.WaitGroup
 	// runsWG tracks HOSTED RUNS (not connections): graceful shutdown waits
 	// for every run to reach its terminal journal event after the ctx
 	// cancel propagates — a routine deploy leaves zero in-doubt sessions
@@ -132,6 +142,9 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	if s.runs == nil {
 		s.runs = map[string]*hostedRun{}
 	}
+	if s.Clock == nil {
+		s.Clock = clock.Real{}
+	}
 	ln, err := net.Listen("unix", s.SocketPath)
 	if err != nil {
 		if conn, derr := net.Dial("unix", s.SocketPath); derr == nil {
@@ -149,6 +162,9 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 		<-ctx.Done()
 		_ = ln.Close()
 	}()
+	if s.ScanTimers != nil && s.Resume != nil {
+		go s.sweepTimers(ctx)
+	}
 	slog.Info("daemon listening", "socket", s.SocketPath)
 
 	for {

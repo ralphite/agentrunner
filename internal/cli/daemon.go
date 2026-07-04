@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -12,8 +13,11 @@ import (
 	"github.com/ralphite/agentrunner/internal/agent"
 	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/daemon"
+	"github.com/ralphite/agentrunner/internal/hook"
+	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/runtime"
+	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
 	"github.com/ralphite/agentrunner/internal/tool"
 	"github.com/ralphite/agentrunner/internal/workspace"
@@ -68,6 +72,8 @@ func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 			}
 			return daemon.ReplayJournal(dir, sink)
 		},
+		ScanTimers: scanSessionTimers,
+		Resume:     hostResumeFunc(version, stderr),
 	}
 	fmt.Fprintf(stderr, "daemon on %s\n", sock)
 	if err := srv.ListenAndServe(ctx); err != nil {
@@ -132,6 +138,113 @@ func hostRunFunc(version string, stderr io.Writer) daemon.RunFunc {
 			SubSpecs:  siblingSpecResolver(req.SpecPath),
 		}
 		_, runErr := loop.Run(ctx, req.Task)
+		return runErr
+	}
+}
+
+// scanSessionTimers derives the pending-timer index from the session
+// journals (timer 派生索引): every non-ended session with pending timers
+// reports its earliest fire time. Unreadable or unfoldable sessions are
+// skipped — the sweep must not die on one corrupt log.
+func scanSessionTimers() ([]daemon.SessionTimer, error) {
+	data, err := runtime.DataDir()
+	if err != nil {
+		return nil, err
+	}
+	entries, err := os.ReadDir(filepath.Join(data, "sessions"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var out []daemon.SessionTimer
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		dir := filepath.Join(data, "sessions", e.Name())
+		events, err := store.ReadEvents(dir)
+		if err != nil {
+			continue
+		}
+		s, err := state.Fold(events)
+		if err != nil || s.Run.Status == state.StatusEnded || len(s.Timers) == 0 {
+			continue
+		}
+		var earliest time.Time
+		for _, tm := range s.Timers {
+			if earliest.IsZero() || tm.FireAt.Before(earliest) {
+				earliest = tm.FireAt
+			}
+		}
+		out = append(out, daemon.SessionTimer{SessionID: e.Name(), FireAt: earliest})
+	}
+	return out, nil
+}
+
+// hostResumeFunc is the daemon's timer-driven resume wiring — the same
+// assembly as a foreground `resume` minus the tty: spec and workspace come
+// from the journaled RunStarted, permissions from the journaled layers.
+func hostResumeFunc(version string, stderr io.Writer) func(context.Context, string, protocol.Sink) error {
+	return func(ctx context.Context, sessionID string, sink protocol.Sink) error {
+		dir, err := resolveSessionDir(sessionID)
+		if err != nil {
+			return err
+		}
+		started, err := readRunStarted(dir)
+		if err != nil {
+			return err
+		}
+		if len(started.Spec) == 0 || started.WorkspaceRoot == "" {
+			return fmt.Errorf("session %s predates resumable metadata", sessionID)
+		}
+		var spec agent.AgentSpec
+		if err := json.Unmarshal(started.Spec, &spec); err != nil {
+			return fmt.Errorf("journaled spec: %w", err)
+		}
+		ws, err := workspace.New(started.WorkspaceRoot)
+		if err != nil {
+			return err
+		}
+		prov, err := defaultProviderFactory(ctx, spec.Model.Provider)
+		if err != nil {
+			return err
+		}
+		events, err := store.OpenEventStore(dir)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = events.Close() }()
+
+		var pipe *pipeline.Pipeline
+		var hooks *hook.Runner
+		if len(started.PermissionLayers) > 0 {
+			var layers [][]pipeline.PermissionRule
+			if err := json.Unmarshal(started.PermissionLayers, &layers); err != nil {
+				return fmt.Errorf("journaled permission layers: %w", err)
+			}
+			pipe, hooks, err = buildPipelineFromLayers(ws, layers, spec.Mode, spec.Budget.MaxTotalTokens, stderr)
+		} else {
+			pipe, hooks, err = buildPipeline(ws, spec.Permissions, spec.Mode, spec.Budget.MaxTotalTokens, stderr)
+		}
+		if err != nil {
+			return err
+		}
+		loop := &agent.Loop{
+			Spec:      &spec,
+			Provider:  prov,
+			Exec:      &tool.Executor{WS: ws, Session: sessionID},
+			Store:     events,
+			Clock:     clock.Real{},
+			Out:       sink,
+			SessionID: sessionID,
+			Version:   version,
+			Pipeline:  pipe,
+			Hooks:     hooks,
+			Approvals: &agent.EnvApprovals{},
+		}
+		_, runErr := loop.Resume(ctx)
 		return runErr
 	}
 }
