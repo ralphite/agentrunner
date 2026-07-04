@@ -2548,3 +2548,25 @@ cron 跨重启唤醒、task_output tail)。
 **acceptance 全景:stage 1-6 共 24 场景全绿;全量 check + race 通过。**
 下一步:S7 kickoff refinement(以 dogfood 经验修订 barrier/快照向量,
 见 STAGES S7 章)。
+
+## S7 kickoff refinement — DONE
+
+PLAN.md 新增 **S7 执行包**(替换"此处不预写"占位)。四条硬线:①快照
+永远是优化,journal 是真相(ref opaque、pinned until GC、backend=none
+全程可用)②barrier 弱化 = consistent-enough cut(向量记 in-flight
+tasks + 处置策略——S6 tasks fold 的 dogfood 直接输入;fork 目标仍只限
+barrier)③fork 两轴正交(事件切面 × 快照物化,对话/代码独立回退,
+永不共享目录)④shadow repo 隐形(独立 GIT_DIR,排除策略成文,rewind
+不复活凭据)。
+
+实施序:还债包(verifier 管线化、await durable timer、driver header、
+idem 持久化)→ SnapshotStore+shadow repo → CheckpointBarrier 弱化
+(epilogue barrier 槽位兑现,**DESIGN §fork/rewind 修订在该步随 commit
+走变更流程**,kickoff 不预改)→ fork/rewind(完成标志①②)→
+IndexStore → 沙箱/网络 → 云 workspace(cut)→ IDE(cut)。新 event:
+CheckpointBarrier、ForkedFrom;fold 版本集 +barriers(10→11)。S6
+backlog 逐项归置(best-of-N 挂模块 3 后——依赖 worktree 隔离)。
+
+三文档一致性:执行包引用 DESIGN §L1/§fork/rewind/§compaction 原文
+口径与 STAGES S7 范围/完成标志,DESIGN 本身未动(barrier 弱化修订
+按预告留给模块 2 的变更流程)。下一步:S7 还债包①——verifier 管线化。
