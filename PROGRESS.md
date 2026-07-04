@@ -2018,3 +2018,24 @@ spend(error 路 RunResult 为零)。三测试:stop(空 fixture→child_failed@1)
 surface(空 fixture×3→max_iterations,三条 error 迭代)、retry-recovers
 (计数工厂:attempt 1-2 空 fixture 失败、attempt 3 workFixture 成功→
 satisfied@1,三 attempt journal 皆在盘)。全量 check + race 通过。
+
+## S6 模块②(续)— llm_judge + human verifier — DONE
+
+verifier 三态齐(command 已有):
+- **llm_judge**:`Driver.Judge` provider 单次打分调用(非 agent loop)。
+  system=rubric + 严格 JSON 指令,user=child report;`CollectTurnStreaming`
+  收文本 → `firstJSONObject`(容忍散文包裹)→ 解析 `{score,pass,reason}`,
+  显式 pass 优先否则 score≥threshold。Judge nil / 调用失败 / 不可解析 →
+  gate 失败(绝不静默放行)。
+- **human**:复用 agent `ApprovalResolver`(ask 路径,挂几天免费);
+  `Driver.Approvals` nil → `EnvApprovals` fail-closed;approve→pass。
+  rubric 作问题,child report 摘录作证据。
+
+`VerifierSpec.Rubric` 新字段。三测试:llm_judge(判 0.5 拒→0.9 过,
+satisfied@2、BestIter=2、散文包裹 JSON 解析)、human approve(satisfied@1)、
+human deny(never satisfied → max_iterations@2,stub resolver 免 env 耦合)。
+全量 check + race 通过。
+
+**driver goal mode 至此功能完整**(五终态 + 三 verifier + 预算根 + 失败
+策略 + 停滞)。未接:carry_ref 入 ArtifactStore、driver resume(in-flight
+迭代重跑)、loop mode(→ scheduler 模块)。

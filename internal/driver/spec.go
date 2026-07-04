@@ -19,8 +19,9 @@ const (
 
 // Verifier kinds (DESIGN: a verifier is an effect through the four gates).
 const (
-	VerifierCommand = "command" // bash exit code / metric regex
-	// VerifierLLMJudge and VerifierHuman arrive in a follow-up step.
+	VerifierCommand  = "command"   // bash exit code / metric regex
+	VerifierLLMJudge = "llm_judge" // LLM scores the result against a rubric
+	VerifierHuman    = "human"     // a person answers via the ask path
 )
 
 // DriverSpec configures an IterationDriver. Goal mode = schedule immediate +
@@ -75,14 +76,19 @@ type FailurePolicy struct {
 	Max  int    `yaml:"max,omitempty"`
 }
 
-// VerifierSpec is one goal-mode gate. v0: command (bash). A metric regex with
-// capture group 1 turns the command into a scored verifier (score ≥ threshold
-// passes); without it, exit code 0 passes.
+// VerifierSpec is one goal-mode gate.
+//   - command: a bash effect. A metric regex with capture group 1 turns it
+//     into a scored verifier (score ≥ threshold passes); without it, exit
+//     code 0 passes.
+//   - llm_judge: an LLM scores the child's result against Rubric and returns
+//     {score, pass, reason}; pass, if present, wins, else score ≥ threshold.
+//   - human: a person answers the ask path with Rubric as the question.
 type VerifierSpec struct {
 	Kind        string  `yaml:"kind"`
 	Command     string  `yaml:"command,omitempty"`
 	MetricRegex string  `yaml:"metric_regex,omitempty"`
 	Threshold   float64 `yaml:"threshold,omitempty"`
+	Rubric      string  `yaml:"rubric,omitempty"`
 }
 
 // schedule returns the effective schedule (immediate default).

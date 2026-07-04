@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/ralphite/agentrunner/internal/agent"
 	"github.com/ralphite/agentrunner/internal/clock"
@@ -44,6 +45,13 @@ type Driver struct {
 	// that only reads/tests it.
 	Exec     *tool.Executor
 	NewChild ChildFactory
+	// Judge is the LLM behind llm_judge verifiers (a single scoring call per
+	// iteration, not an agent loop). nil → an llm_judge verifier fails
+	// model-visibly rather than silently passing.
+	Judge provider.Provider
+	// Approvals resolves human verifiers via the same ask path the agent
+	// loop uses. nil → EnvApprovals (fail-closed when unset).
+	Approvals agent.ApprovalResolver
 }
 
 // Result summarizes a finished driver run.
@@ -294,7 +302,7 @@ func (d *Driver) stalled(st *State) bool {
 func (d *Driver) verify(ctx context.Context, childDir string) event.IterationVerdict {
 	agg := event.IterationVerdict{Pass: true}
 	for i, v := range d.Spec.Verifiers {
-		vv := d.verifyOne(ctx, v)
+		vv := d.verifyOne(ctx, v, childDir)
 		if i == 0 || vv.Score < agg.Score {
 			agg.Score = vv.Score
 		}
@@ -308,10 +316,14 @@ func (d *Driver) verify(ctx context.Context, childDir string) event.IterationVer
 	return agg
 }
 
-func (d *Driver) verifyOne(ctx context.Context, v VerifierSpec) event.IterationVerdict {
+func (d *Driver) verifyOne(ctx context.Context, v VerifierSpec, childDir string) event.IterationVerdict {
 	switch v.Kind {
 	case VerifierCommand:
 		return d.verifyCommand(ctx, v)
+	case VerifierLLMJudge:
+		return d.verifyLLMJudge(ctx, v, childDir)
+	case VerifierHuman:
+		return d.verifyHuman(ctx, v, childDir)
 	default:
 		return event.IterationVerdict{Verifier: v.Kind, Detail: "unknown verifier kind " + v.Kind}
 	}
@@ -362,6 +374,104 @@ func (d *Driver) verifyCommand(ctx context.Context, v VerifierSpec) event.Iterat
 		Pass: pass, Verifier: VerifierCommand, Score: score,
 		Detail: fmt.Sprintf("exit=%d", out.ExitCode),
 	}
+}
+
+// verifyLLMJudge scores the child's result against a rubric with a single LLM
+// call (DESIGN: llm_judge = LLM activity + rubric + threshold). The judge is
+// asked for a strict JSON verdict; an explicit "pass" wins, otherwise score ≥
+// threshold. A judge that cannot be reached or parsed fails the gate — never
+// a silent pass.
+func (d *Driver) verifyLLMJudge(ctx context.Context, v VerifierSpec, childDir string) event.IterationVerdict {
+	if d.Judge == nil {
+		return event.IterationVerdict{Verifier: VerifierLLMJudge, Detail: "no judge provider configured"}
+	}
+	model, maxTokens := "", 1024
+	if d.Spec.Agent != nil {
+		model = d.Spec.Agent.Model.ID
+	}
+	req := provider.CompleteRequest{
+		Model:     model,
+		MaxTokens: maxTokens,
+		System: v.Rubric + "\n\nYou are a strict verifier. Respond with ONLY a JSON object " +
+			`{"score": <number 0-1>, "pass": <true|false>, "reason": <short string>}.`,
+		Messages: []provider.Message{{Role: provider.RoleUser, Parts: []provider.Part{
+			{Kind: provider.PartText, Text: "Result to verify:\n" + childReport(childDir)}}}},
+	}
+	turn, err := provider.CollectTurnStreaming(d.Judge.Complete(ctx, req), func(string) {})
+	if err != nil {
+		return event.IterationVerdict{Verifier: VerifierLLMJudge, Detail: "judge call failed: " + redact.FromEnv().String(err.Error())}
+	}
+	var j struct {
+		Score  float64 `json:"score"`
+		Pass   *bool   `json:"pass"`
+		Reason string  `json:"reason"`
+	}
+	raw := firstJSONObject(assistantText(turn.Message))
+	if err := json.Unmarshal([]byte(raw), &j); err != nil {
+		return event.IterationVerdict{Verifier: VerifierLLMJudge, Detail: "judge output not parseable"}
+	}
+	pass := j.Score >= v.Threshold
+	if j.Pass != nil {
+		pass = *j.Pass
+	}
+	return event.IterationVerdict{
+		Pass: pass, Verifier: VerifierLLMJudge, Score: j.Score,
+		Detail: redact.FromEnv().String(j.Reason),
+	}
+}
+
+// verifyHuman asks a person whether the iteration meets the goal, reusing the
+// agent's ask path (DESIGN: human verifier = the existing ask path; it may
+// hang for days for free). Approve passes; deny or an unset non-interactive
+// resolver fails closed.
+func (d *Driver) verifyHuman(ctx context.Context, v VerifierSpec, childDir string) event.IterationVerdict {
+	resolver := d.Approvals
+	if resolver == nil {
+		resolver = &agent.EnvApprovals{}
+	}
+	args, _ := json.Marshal(map[string]string{
+		"goal":   v.Rubric,
+		"result": excerpt(childReport(childDir)),
+	})
+	dec, err := resolver.Resolve(ctx, agent.ApprovalRequest{
+		ApprovalID: "verify-" + d.DriverID,
+		Agent:      d.Spec.Name + " (driver goal check)",
+		ToolName:   "verify_goal",
+		Args:       args,
+	})
+	if err != nil {
+		return event.IterationVerdict{Verifier: VerifierHuman, Detail: "human verify failed: " + redact.FromEnv().String(err.Error())}
+	}
+	score := 0.0
+	if dec.Approve {
+		score = 1
+	}
+	return event.IterationVerdict{
+		Pass: dec.Approve, Verifier: VerifierHuman, Score: score,
+		Detail: redact.FromEnv().String(dec.Reason),
+	}
+}
+
+// firstJSONObject returns the substring from the first '{' to the last '}'
+// (inclusive), so a judge that wraps its verdict in prose still parses. The
+// whole string is returned when no braces are present (json.Unmarshal then
+// reports the real error).
+func firstJSONObject(s string) string {
+	start, end := strings.IndexByte(s, '{'), strings.LastIndexByte(s, '}')
+	if start < 0 || end < start {
+		return s
+	}
+	return s[start : end+1]
+}
+
+// assistantText returns the first text part of a message (the judge's verdict).
+func assistantText(m provider.Message) string {
+	for _, p := range m.Parts {
+		if p.Kind == provider.PartText {
+			return p.Text
+		}
+	}
+	return ""
 }
 
 // childSpent folds the child journal for its settled usage — the truth even

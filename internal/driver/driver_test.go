@@ -370,6 +370,87 @@ func TestDriverChildFailRetryRecovers(t *testing.T) {
 	}
 }
 
+// llm_judge: the judge scores below threshold on iteration 1 and above on
+// iteration 2, so the goal is satisfied on the second iteration.
+func TestDriverLLMJudge(t *testing.T) {
+	judge := scripted.New(scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: `{"score":0.5,"pass":false,"reason":"needs more"}`}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: `here: {"score":0.9,"pass":true,"reason":"good now"}`}, {Finish: "end_turn"}}},
+	}})
+	d, dStore := harness(t, &driver.DriverSpec{
+		Name: "goal", Task: "work", MaxIterations: 5,
+		Verifiers: []driver.VerifierSpec{{
+			Kind: driver.VerifierLLMJudge, Rubric: "Is the work complete?", Threshold: 0.8,
+		}},
+	})
+	d.Judge = judge
+
+	res, err := d.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "satisfied" || res.Iterations != 2 {
+		t.Fatalf("res = %+v, want satisfied at 2", res)
+	}
+	events, _ := store.ReadEvents(dStore.Dir())
+	st, _ := driver.Fold(events)
+	if st.Iterations[0].Verdict.Pass || !st.Iterations[1].Verdict.Pass {
+		t.Errorf("verdicts = [%+v, %+v], want fail then pass", st.Iterations[0].Verdict, st.Iterations[1].Verdict)
+	}
+	if st.Iterations[1].Verdict.Score != 0.9 {
+		t.Errorf("iteration 2 score = %v, want 0.9 (judge parsed from wrapped prose)", st.Iterations[1].Verdict.Score)
+	}
+	if st.BestIter != 2 {
+		t.Errorf("best iter = %d, want 2", st.BestIter)
+	}
+}
+
+// stubResolver answers the human verifier's ask path without a tty or env.
+type stubResolver struct{ approve bool }
+
+func (s stubResolver) Resolve(context.Context, agent.ApprovalRequest) (agent.ApprovalDecision, error) {
+	return agent.ApprovalDecision{Approve: s.approve, Reason: "stub", Source: "test"}, nil
+}
+
+// human verifier: an approving human satisfies the goal on the first iteration.
+func TestDriverHumanVerifier(t *testing.T) {
+	d, dStore := harness(t, &driver.DriverSpec{
+		Name: "goal", Task: "work", MaxIterations: 3,
+		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierHuman, Rubric: "Does this meet the bar?"}},
+	})
+	d.Approvals = stubResolver{approve: true}
+
+	res, err := d.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "satisfied" || res.Iterations != 1 {
+		t.Fatalf("res = %+v, want satisfied at 1", res)
+	}
+	events, _ := store.ReadEvents(dStore.Dir())
+	st, _ := driver.Fold(events)
+	if !st.Iterations[0].Verdict.Pass || st.Iterations[0].Verdict.Verifier != driver.VerifierHuman {
+		t.Errorf("iteration 1 verdict = %+v, want human pass", st.Iterations[0].Verdict)
+	}
+}
+
+// A denying human never satisfies the goal — the run exhausts max_iterations.
+func TestDriverHumanVerifierDeny(t *testing.T) {
+	d, _ := harness(t, &driver.DriverSpec{
+		Name: "goal", Task: "work", MaxIterations: 2,
+		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierHuman, Rubric: "ok?"}},
+	})
+	d.Approvals = stubResolver{approve: false}
+
+	res, err := d.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "max_iterations" || res.Iterations != 2 {
+		t.Fatalf("res = %+v, want max_iterations at 2", res)
+	}
+}
+
 // Every event in event.DriverStream must fold into driver state — the mirror
 // of the run fold's TestApplyCoversRegistry, so no driver-stream type is left
 // unhandled anywhere.
