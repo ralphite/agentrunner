@@ -490,6 +490,107 @@ func TestDriverCarryToArtifactStore(t *testing.T) {
 	}
 }
 
+// journal appends a raw driver-stream fact — used to synthesize the partial
+// journals a crash would leave, without actually crashing a run.
+func journal(t *testing.T, es *store.EventStore, typ string, p any) {
+	t.Helper()
+	env, err := event.New(typ, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := es.Append(env); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Resuming an already-ended driver returns its recorded result and appends
+// nothing.
+func TestDriverResumeEnded(t *testing.T) {
+	d, dStore := harness(t, &driver.DriverSpec{
+		Name: "goal", Task: "work", MaxIterations: 5,
+		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierCommand, Command: "test $(wc -l < progress.txt) -ge 1"}},
+	})
+	res1, err := d.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, _ := store.ReadEvents(dStore.Dir())
+
+	res2, err := d.Resume(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res2.Reason != res1.Reason || res2.Iterations != res1.Iterations {
+		t.Fatalf("resume = %+v, want the recorded %+v", res2, res1)
+	}
+	after, _ := store.ReadEvents(dStore.Dir())
+	if len(after) != len(before) {
+		t.Errorf("resume of an ended driver appended %d events", len(after)-len(before))
+	}
+}
+
+// A crash between the satisfying IterationCompleted and DriverCompleted:
+// resume re-derives satisfied from the fold without launching a new iteration.
+func TestDriverResumeReDerivesSatisfied(t *testing.T) {
+	d, dStore := harness(t, &driver.DriverSpec{
+		Name: "goal", Task: "work", MaxIterations: 5,
+		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierCommand, Command: "test $(wc -l < progress.txt) -ge 1"}},
+	})
+	journal(t, dStore, event.TypeIterationScheduled, &event.IterationScheduled{DriverID: "drv-1", Iter: 1, Schedule: "immediate"})
+	journal(t, dStore, event.TypeIterationLaunched, &event.IterationLaunched{DriverID: "drv-1", Iter: 1, ChildSession: "drv-1-iter-1"})
+	journal(t, dStore, event.TypeIterationCompleted, &event.IterationCompleted{
+		DriverID: "drv-1", Iter: 1, ChildSession: "drv-1-iter-1", ChildReason: "completed",
+		Verdict: event.IterationVerdict{Pass: true, Score: 1},
+	})
+
+	res, err := d.Resume(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "satisfied" || res.Iterations != 1 {
+		t.Fatalf("res = %+v, want satisfied at 1 (re-derived, no new iteration)", res)
+	}
+	events, _ := store.ReadEvents(dStore.Dir())
+	if events[len(events)-1].Type != event.TypeDriverCompleted {
+		t.Fatalf("last = %s, want driver_completed", events[len(events)-1].Type)
+	}
+	// No iteration 2 was ever launched.
+	for _, e := range events {
+		if e.Type == event.TypeIterationLaunched && strings.Contains(string(e.Payload), `"iter":2`) {
+			t.Fatal("resume launched a redundant iteration 2")
+		}
+	}
+}
+
+// A crash after a FAILING iteration completed: resume continues from the next
+// iteration and reaches the goal.
+func TestDriverResumeContinues(t *testing.T) {
+	d, dStore := harness(t, &driver.DriverSpec{
+		Name: "goal", Task: "work", MaxIterations: 5,
+		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierCommand, Command: "test $(wc -l < progress.txt) -ge 1"}},
+	})
+	journal(t, dStore, event.TypeIterationScheduled, &event.IterationScheduled{DriverID: "drv-1", Iter: 1, Schedule: "immediate"})
+	journal(t, dStore, event.TypeIterationLaunched, &event.IterationLaunched{DriverID: "drv-1", Iter: 1, ChildSession: "drv-1-iter-1"})
+	journal(t, dStore, event.TypeIterationCompleted, &event.IterationCompleted{
+		DriverID: "drv-1", Iter: 1, ChildSession: "drv-1-iter-1", ChildReason: "completed",
+		Verdict: event.IterationVerdict{Pass: false, Score: 0},
+	})
+
+	res, err := d.Resume(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Iteration 2 runs a real child (writes the first line) and satisfies.
+	if res.Reason != "satisfied" || res.Iterations != 2 {
+		t.Fatalf("res = %+v, want satisfied at 2 (resumed past the failed iteration)", res)
+	}
+	events, _ := store.ReadEvents(dStore.Dir())
+	st, _ := driver.Fold(events)
+	if len(st.Iterations) != 2 || !st.Iterations[1].Verdict.Pass {
+		t.Fatalf("iterations = %+v, want 2 with the second passing", st.Iterations)
+	}
+}
+
 // Every event in event.DriverStream must fold into driver state — the mirror
 // of the run fold's TestApplyCoversRegistry, so no driver-stream type is left
 // unhandled anywhere.

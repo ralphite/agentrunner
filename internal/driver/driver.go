@@ -70,23 +70,21 @@ type Result struct {
 // state — the single write path, mirroring the run loop's appender.
 type appendFunc func(typ string, payload any) (event.Envelope, error)
 
-// Run drives goal mode to a terminal DriverCompleted. Loop mode (schedules
-// other than immediate) is not yet implemented and is refused explicitly.
-func (d *Driver) Run(ctx context.Context) (Result, error) {
+// prepare validates the spec and builds the single write path over st (the
+// folded in-memory state). Shared by Run (fresh state) and Resume (folded).
+func (d *Driver) prepare(st *State) (appendFunc, error) {
 	if d.Clock == nil {
 		d.Clock = clock.Real{}
 	}
 	if d.Spec.schedule() != ScheduleImmediate {
-		return Result{}, fmt.Errorf("driver: only goal mode (schedule immediate) is implemented; got %q", d.Spec.Schedule)
+		return nil, fmt.Errorf("driver: only goal mode (schedule immediate) is implemented; got %q", d.Spec.Schedule)
 	}
 	if len(d.Spec.Verifiers) == 0 {
-		return Result{}, fmt.Errorf("driver: goal mode requires at least one verifier")
+		return nil, fmt.Errorf("driver: goal mode requires at least one verifier")
 	}
 	if d.NewChild == nil {
-		return Result{}, fmt.Errorf("driver: NewChild factory is required")
+		return nil, fmt.Errorf("driver: NewChild factory is required")
 	}
-
-	st := &State{Status: StatusRunning, DriverID: d.DriverID}
 	appendE := func(typ string, payload any) (event.Envelope, error) {
 		env, err := event.New(typ, payload)
 		if err != nil {
@@ -100,9 +98,72 @@ func (d *Driver) Run(ctx context.Context) (Result, error) {
 		st.apply(payload)
 		return appended, nil
 	}
+	return appendE, nil
+}
 
+// Run drives goal mode from scratch to a terminal DriverCompleted. Loop mode
+// (schedules other than immediate) is not yet implemented and is refused.
+func (d *Driver) Run(ctx context.Context) (Result, error) {
+	st := &State{Status: StatusRunning, DriverID: d.DriverID}
+	appendE, err := d.prepare(st)
+	if err != nil {
+		return Result{}, err
+	}
+	return d.drive(ctx, st, appendE, 1)
+}
+
+// Resume rebuilds the driver fold from its journal and continues — an ended
+// driver returns its recorded result; otherwise the drive loop picks up at the
+// first not-yet-completed iteration, and runIteration recovers any in-flight
+// child (resume it, or settle it from its own terminal fold).
+func (d *Driver) Resume(ctx context.Context) (Result, error) {
+	events, err := store.ReadEvents(d.Store.Dir())
+	if err != nil {
+		return Result{}, err
+	}
+	folded, err := Fold(events)
+	if err != nil {
+		return Result{}, err
+	}
+	st := &folded
+	st.DriverID = d.DriverID
+	appendE, err := d.prepare(st)
+	if err != nil {
+		return Result{}, err
+	}
+	if st.Status == StatusEnded {
+		return Result{Reason: st.Reason, Iterations: len(st.Iterations), BestIter: st.BestIter}, nil
+	}
+	// A crash can land between a terminal-deciding IterationCompleted and the
+	// DriverCompleted that records it. Re-derive that decision from the fold
+	// so resume does not launch a redundant iteration. (max_iterations and
+	// budget are re-checked at the top of drive(), so only the post-iteration
+	// decisions — satisfied, stalled — need re-deriving here.)
+	if last, ok := st.lastCompleted(); ok {
+		if last.Verdict.Pass {
+			return d.finish(appendE, st, "satisfied", last.N)
+		}
+		if d.stalled(st) {
+			return d.finish(appendE, st, "stalled", last.N)
+		}
+	}
+	// Completed iterations are a sequential prefix; resume at the first one
+	// that has not completed (which may be an in-flight launch).
+	startN := 1
+	for i := range st.Iterations {
+		if st.Iterations[i].Completed {
+			startN = st.Iterations[i].N + 1
+		}
+	}
+	return d.drive(ctx, st, appendE, startN)
+}
+
+// drive is the goal loop shared by Run and Resume. On resume it does not
+// re-journal an iteration's Scheduled/Launched facts that the fold already
+// holds — the write path stays append-only and idempotent across a crash.
+func (d *Driver) drive(ctx context.Context, st *State, appendE appendFunc, startN int) (Result, error) {
 	maxIter := d.Spec.maxIterations()
-	for n := 1; ; n++ {
+	for n := startN; ; n++ {
 		if err := ctx.Err(); err != nil {
 			return d.finish(appendE, st, "stopped", n-1)
 		}
@@ -118,25 +179,31 @@ func (d *Driver) Run(ctx context.Context) (Result, error) {
 			slog.Warn("driver budget exhausted", "driver", d.DriverID, "spent", st.SpentTokens)
 			return d.finish(appendE, st, "budget", n-1)
 		}
-		if _, err := appendE(event.TypeIterationScheduled, &event.IterationScheduled{
-			DriverID: d.DriverID, Iter: n, Schedule: ScheduleImmediate,
-		}); err != nil {
-			return Result{}, err
+		session := fmt.Sprintf("%s-iter-%d", d.DriverID, n)
+		if _, inFold := st.at(n); !inFold {
+			if _, err := appendE(event.TypeIterationScheduled, &event.IterationScheduled{
+				DriverID: d.DriverID, Iter: n, Schedule: ScheduleImmediate,
+			}); err != nil {
+				return Result{}, err
+			}
 		}
-		childSession := fmt.Sprintf("%s-iter-%d", d.DriverID, n)
-		if _, err := appendE(event.TypeIterationLaunched, &event.IterationLaunched{
-			DriverID: d.DriverID, Iter: n, ChildSession: childSession,
-		}); err != nil {
-			return Result{}, err
+		if existing, inFold := st.at(n); !inFold || !existing.Launched {
+			if _, err := appendE(event.TypeIterationLaunched, &event.IterationLaunched{
+				DriverID: d.DriverID, Iter: n, ChildSession: session,
+			}); err != nil {
+				return Result{}, err
+			}
+		} else {
+			session = existing.ChildSession // in-flight: reuse the recorded session
 		}
 
-		childRes, childDir, cerr := d.runIteration(ctx, n, childSession, allowance)
+		childRes, childDir, cerr := d.runIteration(ctx, n, session, allowance)
 		if cerr != nil {
 			if ctx.Err() != nil {
 				// A cancel of the driver reached the child: end as stopped, not
 				// child_failed — the child did not fail on its own merits.
 				if _, err := appendE(event.TypeIterationCompleted, &event.IterationCompleted{
-					DriverID: d.DriverID, Iter: n, ChildSession: childSession,
+					DriverID: d.DriverID, Iter: n, ChildSession: session,
 					ChildReason: "canceled",
 					Verdict:     event.IterationVerdict{Detail: "driver canceled"},
 				}); err != nil {
@@ -149,7 +216,7 @@ func (d *Driver) Run(ctx context.Context) (Result, error) {
 			// iteration's verdict — with the child's real spend so the budget
 			// stays honest — then apply on_child_failure.
 			if _, err := appendE(event.TypeIterationCompleted, &event.IterationCompleted{
-				DriverID: d.DriverID, Iter: n, ChildSession: childSession,
+				DriverID: d.DriverID, Iter: n, ChildSession: session,
 				ChildReason: "error", Usage: childSpent(childDir),
 				Verdict: event.IterationVerdict{
 					Detail: "child failed: " + redact.FromEnv().String(cerr.Error())},
@@ -171,7 +238,7 @@ func (d *Driver) Run(ctx context.Context) (Result, error) {
 		verdict := d.verify(ctx, childDir)
 		carryText := childReport(childDir)
 		if _, err := appendE(event.TypeIterationCompleted, &event.IterationCompleted{
-			DriverID: d.DriverID, Iter: n, ChildSession: childSession,
+			DriverID: d.DriverID, Iter: n, ChildSession: session,
 			ChildReason: childRes.Reason, Verdict: verdict, Usage: childRes.Usage,
 			CarryRef: d.publishCarry(carryText), Carry: excerpt(carryText),
 		}); err != nil {
@@ -222,8 +289,22 @@ func (d *Driver) runIteration(ctx context.Context, n int, childSession string, a
 		if a > 1 {
 			session = fmt.Sprintf("%s-a%d", childSession, a)
 		}
-		child := d.NewChild(childStore, session, n, allowance)
-		res, rerr = child.Run(ctx, d.Spec.Task)
+		// A pre-existing journal means the driver crashed with this child
+		// in-flight (only attempt 1 can carry prior events — retries always get
+		// a fresh dir). If that child already reached a terminal state, settle
+		// from its fold; otherwise resume it (its own in-doubt discipline
+		// guards correctness) rather than duplicating a fresh run.
+		if childStore.LastSeq() > 0 {
+			child := d.NewChild(childStore, session, n, allowance)
+			if done, dres := settledChild(childDir); done {
+				_ = childStore.Close()
+				return dres, childDir, nil
+			}
+			res, rerr = child.Resume(ctx)
+		} else {
+			child := d.NewChild(childStore, session, n, allowance)
+			res, rerr = child.Run(ctx, d.Spec.Task)
+		}
 		_ = childStore.Close()
 		if rerr == nil {
 			return res, childDir, nil
@@ -237,6 +318,21 @@ func (d *Driver) runIteration(ctx context.Context, n int, childSession string, a
 		}
 	}
 	return res, childDir, rerr
+}
+
+// settledChild reports whether a child journal is already at a terminal state
+// and, if so, its result folded from that journal — the recovery path for a
+// crash between the child ending and the driver recording IterationCompleted.
+func settledChild(childDir string) (bool, agent.RunResult) {
+	events, err := store.ReadEvents(childDir)
+	if err != nil {
+		return false, agent.RunResult{}
+	}
+	s, err := state.Fold(events)
+	if err != nil || s.Run.Status != state.StatusEnded {
+		return false, agent.RunResult{}
+	}
+	return true, agent.RunResult{Reason: s.Run.Reason, Turns: s.Run.Turn, Usage: s.Run.Usage}
 }
 
 // iterDir names an iteration's child journal: sub/iter-N for the first

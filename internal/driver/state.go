@@ -109,3 +109,23 @@ func (s *State) ensure(n int) {
 		s.Iterations = append(s.Iterations, Iteration{N: len(s.Iterations) + 1})
 	}
 }
+
+// at returns iteration n (1-based) by value and whether it is in the fold —
+// the resume cursor consults it to avoid re-journaling facts already durable.
+func (s *State) at(n int) (Iteration, bool) {
+	if n < 1 || n > len(s.Iterations) {
+		return Iteration{}, false
+	}
+	return s.Iterations[n-1], true
+}
+
+// lastCompleted returns the highest-numbered completed iteration and whether
+// one exists — the resume anchor for re-deriving an already-decided terminal.
+func (s *State) lastCompleted() (Iteration, bool) {
+	for i := len(s.Iterations) - 1; i >= 0; i-- {
+		if s.Iterations[i].Completed {
+			return s.Iterations[i], true
+		}
+	}
+	return Iteration{}, false
+}

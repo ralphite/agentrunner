@@ -2050,3 +2050,27 @@ redact-before-Put。`TestDriverCarryToArtifactStore`:满足后末迭代 CarryRef
 
 未接:driver resume(in-flight 迭代重跑,涉 in-doubt 语义)、loop mode
 (→ scheduler 模块③)。
+
+## S6 模块②(续)— driver resume — DONE
+
+`Run`/`Resume` 共享 `drive(ctx, st, appendE, startN)` 循环(仿 agent
+Run/Resume)。`prepare()` 提取校验 + 单写路径。**Resume**:折 driver
+journal → ended 直接返回记录结果;否则**再推导已决终态**(崩溃可能落在
+定终态的 IterationCompleted 与 DriverCompleted 之间):末完成迭代 verdict
+过 → finish{satisfied};stalled → finish{stalled}(max_iterations/budget
+在 drive 顶重查,无须此处)。startN = 已完成前缀 + 1。
+
+**drive 幂等**:`st.at(n)` 已在 fold 则不重发 Scheduled/Launched(append-
+only 跨崩溃幂等)。**runIteration 恢复 in-flight child**:attempt 1 的
+store 若有旧 events(仅 attempt 1 可能带,重试皆新目录)——child 已 ended
+则 `settledChild` 从其 fold 结算(崩在 child 结束与 IterationCompleted
+之间),否则 `child.Resume`(child 自身 in-doubt 纪律保正确),而非重复
+fresh run。
+
+三测试:resume-ended(不追加事件)、re-derive-satisfied(手造 pass 迭代
++ 无 DriverCompleted → 补终态、不发冗余 iter 2)、resume-continues(手造
+fail 迭代 → 续跑 iter 2 达标)。`journal()` 辅助合成崩溃残留。全量 check
++ race 通过。
+
+**driver 模块② 至此完成**(goal mode 全功能 + 崩溃恢复)。下一步:
+scheduler + loop mode(模块③)。
