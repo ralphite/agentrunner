@@ -1538,3 +1538,34 @@ plan mode face 过滤、resume 四例(匹配通过 / schema 漂移拒 / 缺 tool
   接口非 nil),测试注释记档。
 - **CLI 的真实 stdio server 接线留后续**(spec 声明 mcp server 命令 + 启动
   transport 属配置层,harness 接缝已完备可测)。
+
+## S5.2 skills + memory 文件 — DONE
+
+- **`internal/skill`**:Claude Code 约定发现(`.claude/skills/<name>/SKILL.md`
+  + YAML frontmatter{name, description});**目录只进 name/description/相对
+  path,body 绝不进 prefix**(按需加载:模型经 read_file 读 body——不加新
+  tool 的 v0 兑现)。name 缺省回落目录名;malformed skill 跳过并列名报错
+  (不阻断 run,loop 层降级为 warn);目录块 `<skills>` 按名排序 byte-stable。
+- **`internal/memory`**:CLAUDE.md 层级合并——从 workspace root 向上走到
+  **git root(含)**收集,**无 enclosing repo 则只取 workspace 自身**(不
+  吸上层无关目录);渲染 outermost first、**近者最后**(近者优先语义:后
+  出现覆盖前面),`<memory>` 块每段标注相对路径。
+- **冻结与注入**:RunStarted 加 `Memory`/`Skills`(与 Env 同生命周期,加性
+  omitempty 不 bump 版本)→ fold 进 Run → `assembleSystem` 固定序:
+  **env → memory → skills → spec prompt → mode suffix**(DESIGN §context
+  序;harness base 与 tool/子 agent 目录段留后续模块)。中途改文件不扰
+  prefix(session start 冻结)。经 appendE 落盘 → 全量 redaction 覆盖
+  (memory/skill 文本里的凭据被脱敏)。
+
+**验证**:skill(发现+排序+name 回落+相对路径、body 不进目录、无目录
+nil、malformed 跳过存好)、memory(三层级顺序、near-last 渲染、无 repo 停
+在 root)、assembly(五段固定序)、e2e(CLAUDE.md+skill 冻进 RunStarted 入
+prefix、body 不漏、**中途 bash 改 CLAUDE.md 后 turn2 prefix 逐字节不变**)。
+
+**Decisions**:
+- **按需加载 v0 = read_file 路径引用**,不做专用 skill tool:目录携相对
+  path,模型自读;避免新 tool face 扰动。
+- **user-level skills(~/.claude/skills)与 user CLAUDE.md 留后续**:三源
+  merge 骨架在 3.4,本步只做 project 层(workspace + 祖先);user 层注入
+  属加性扩展,记档。
+- **memory 无大小上限(v0)**:prefix 膨胀风险记档,S5 出口 review 复查。

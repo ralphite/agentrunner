@@ -2,11 +2,14 @@ package agent
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
+	"github.com/ralphite/agentrunner/internal/memory"
 	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/provider"
+	"github.com/ralphite/agentrunner/internal/skill"
 	"github.com/ralphite/agentrunner/internal/state"
 )
 
@@ -20,7 +23,7 @@ func Assemble(s state.State, spec *AgentSpec, toolDefs []provider.ToolDef, turn 
 	return provider.CompleteRequest{
 		Model:     spec.Model.ID,
 		MaxTokens: spec.Model.MaxTokens,
-		System:    assembleSystem(s.Run.Env, spec.SystemPrompt, mode),
+		System:    assembleSystem(s.Run, spec.SystemPrompt, mode),
 		Messages:  assembleMessages(s),
 		Tools:     advertisedTools(s, toolDefs, mode),
 		Turn:      turn,
@@ -31,16 +34,19 @@ func Assemble(s state.State, spec *AgentSpec, toolDefs []provider.ToolDef, turn 
 	}
 }
 
-// assembleSystem lays out the system prompt in DESIGN's fixed order: the
-// frozen env block first (most-stable prefix), then the spec's own prompt,
-// then the mode suffix. The env block was frozen at session start, so this
-// prefix is byte-identical every turn; only the mode suffix moves, and only
-// on an explicit mode transition (an accepted cache break, decision #10).
-func assembleSystem(env, specPrompt, mode string) string {
+// assembleSystem lays out the system prompt in DESIGN's fixed order: env
+// block → memory layer (CLAUDE.md merge) → skills directory → spec prompt →
+// mode suffix. Env, memory, and skills were all frozen at session start
+// (S4.4c / S5.2), so the prefix is byte-identical every turn; only the mode
+// suffix moves, and only on an explicit mode transition (an accepted cache
+// break, decision #10).
+func assembleSystem(run state.Run, specPrompt, mode string) string {
 	var b strings.Builder
-	if env != "" {
-		b.WriteString(env)
-		b.WriteString("\n\n")
+	for _, block := range []string{run.Env, run.Memory, run.Skills} {
+		if block != "" {
+			b.WriteString(block)
+			b.WriteString("\n\n")
+		}
 	}
 	b.WriteString(specPrompt)
 	b.WriteString(modePromptSuffix(mode))
@@ -57,6 +63,26 @@ func renderEnvBlock(cwd string, now time.Time) string {
 		return ""
 	}
 	return fmt.Sprintf("<env>\ncwd: %s\ndate: %s\n</env>", cwd, now.Format("2006-01-02"))
+}
+
+// renderContextBlocks freezes the memory (CLAUDE.md merge) and skills
+// directory blocks at session start (S5.2). Discovery problems degrade to a
+// warning — a malformed skill must not block the run.
+func renderContextBlocks(wsRoot string) (memoryBlock, skillsBlock string) {
+	if wsRoot == "" {
+		return "", ""
+	}
+	files, err := memory.Collect(wsRoot)
+	if err != nil {
+		slog.Warn("memory discovery failed; continuing without", "err", err)
+	}
+	memoryBlock = memory.Render(files, wsRoot)
+	skills, err := skill.Discover(wsRoot)
+	if err != nil {
+		slog.Warn("skill discovery issues; continuing with the well-formed ones", "err", err)
+	}
+	skillsBlock = skill.RenderDirectory(skills)
+	return memoryBlock, skillsBlock
 }
 
 // assembleMessages builds the provider-visible transcript from the fold:

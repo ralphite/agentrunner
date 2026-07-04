@@ -195,11 +195,13 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 	if l.Exec != nil && l.Exec.WS != nil {
 		wsRoot = l.Exec.WS.Root()
 	}
+	memoryBlock, skillsBlock := renderContextBlocks(wsRoot)
 	if _, err := appendE(event.TypeRunStarted, &event.RunStarted{
 		SpecName: l.Spec.Name, Model: l.Spec.Model.ID, Task: task,
 		Version: l.Version, SubStateVersions: state.SubStateVersions(),
 		Spec: specJSON, WorkspaceRoot: wsRoot,
-		Env: renderEnvBlock(wsRoot, l.Clock.Now()),
+		Env:    renderEnvBlock(wsRoot, l.Clock.Now()),
+		Memory: memoryBlock, Skills: skillsBlock,
 	}); err != nil {
 		return RunResult{}, err
 	}

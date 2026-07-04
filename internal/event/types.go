@@ -78,6 +78,11 @@ type RunStarted struct {
 	// start (S4.4c / DESIGN §context-assembly): volatile data captured once
 	// so it never rewrites the cacheable prompt prefix on later turns.
 	Env string `json:"env,omitempty"`
+	// Memory and Skills are the rendered CLAUDE.md merge and the skills
+	// directory block (S5.2), frozen at session start exactly like Env —
+	// editing the files mid-run must not rewrite the prefix.
+	Memory string `json:"memory,omitempty"`
+	Skills string `json:"skills,omitempty"`
 }
 
 type InputReceived struct {
