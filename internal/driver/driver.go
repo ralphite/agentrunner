@@ -17,6 +17,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/cron"
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/redact"
@@ -66,6 +67,12 @@ type Driver struct {
 	// iteration completions and the terminal — what a hosting surface tees
 	// to watchers and the notifier. nil = silent (journal stays the truth).
 	Out protocol.Sink
+	// Pipeline adjudicates verifier effects (S7 还债①: verifier 过四关卡,
+	// 收回 S6 的直连例外): a command verifier is a tool_call effect, a
+	// judge an llm_call. The CLI builds it with the merged user/project
+	// rules ahead of a trailing driver-trust allow — explicit user denies
+	// bind, config-declared verifiers otherwise run. nil = allow-all.
+	Pipeline *pipeline.Pipeline
 
 	// Loop-mode cadence runtime state (never fold state: cron ticks are
 	// absolute wall times, recomputable from the clock; the self_paced pace
@@ -357,7 +364,7 @@ func (d *Driver) drive(ctx context.Context, st *State, appendE appendFunc, start
 		var verdict event.IterationVerdict
 		if len(d.Spec.Verifiers) > 0 {
 			var judgeUsage provider.Usage
-			verdict, judgeUsage = d.verify(ctx, n, childDir)
+			verdict, judgeUsage = d.verify(ctx, appendE, n, childDir)
 			spent = addUsage(spent, judgeUsage)
 		}
 		carryText := childReport(childDir)
@@ -785,11 +792,11 @@ func (d *Driver) stalled(st *State) bool {
 // satisfy the goal. The aggregate score is the minimum across verifiers (the
 // weakest gate), so stall detection tracks the true bottleneck — seeded from
 // the first verifier so a single metric score above 1 is not clamped.
-func (d *Driver) verify(ctx context.Context, n int, childDir string) (event.IterationVerdict, provider.Usage) {
+func (d *Driver) verify(ctx context.Context, appendE appendFunc, n int, childDir string) (event.IterationVerdict, provider.Usage) {
 	agg := event.IterationVerdict{Pass: true}
 	var spent provider.Usage
 	for i, v := range d.Spec.Verifiers {
-		vv, usage := d.verifyOne(ctx, n, v, childDir)
+		vv, usage := d.verifyOne(ctx, appendE, n, i, v, childDir)
 		spent = addUsage(spent, usage)
 		if i == 0 || vv.Score < agg.Score {
 			agg.Score = vv.Score
@@ -804,16 +811,113 @@ func (d *Driver) verify(ctx context.Context, n int, childDir string) (event.Iter
 	return agg, spent
 }
 
-func (d *Driver) verifyOne(ctx context.Context, n int, v VerifierSpec, childDir string) (event.IterationVerdict, provider.Usage) {
+// verifyOne runs one verifier as a JOURNALED, ADJUDICATED effect (S7 还债①):
+// EffectRequested/Resolved record the gate verdict, ActivityStarted/Completed
+// bracket the execution — the event log is the trace (DESIGN §Observability).
+// A denial fails the gate verdict, never a silent pass; the human verifier IS
+// the ask path already, so it gets the activity trace without re-adjudication.
+func (d *Driver) verifyOne(ctx context.Context, appendE appendFunc, n, idx int, v VerifierSpec, childDir string) (event.IterationVerdict, provider.Usage) {
+	actID := fmt.Sprintf("verify-i%d-k%d", n, idx)
+	failed := func(detail string) (event.IterationVerdict, provider.Usage) {
+		return event.IterationVerdict{Verifier: v.Kind, Detail: detail}, provider.Usage{}
+	}
 	switch v.Kind {
 	case VerifierCommand:
-		return d.verifyCommand(ctx, v), provider.Usage{}
+		args, _ := json.Marshal(map[string]string{"command": v.Command})
+		ok, reason, err := d.adjudicateVerifier(ctx, appendE, "eff-"+actID, "bash", "execute", "tool_call", args, 0)
+		if err != nil {
+			return failed("verifier journal: " + err.Error())
+		}
+		if !ok {
+			return failed("denied: " + reason)
+		}
+		if _, err := appendE(event.TypeActivityStarted, &event.ActivityStarted{
+			ActivityID: actID, Kind: event.KindTool, Name: "verifier:command",
+			Args: redact.FromEnv().JSON(args), Attempt: 1, Idempotent: true,
+		}); err != nil {
+			return failed("verifier journal: " + err.Error())
+		}
+		vv := d.verifyCommand(ctx, v)
+		d.completeVerifier(appendE, actID, vv, nil)
+		return vv, provider.Usage{}
 	case VerifierLLMJudge:
-		return d.verifyLLMJudge(ctx, v, childDir)
+		ok, reason, err := d.adjudicateVerifier(ctx, appendE, "eff-"+actID, "", "", "llm_call", nil, 1024)
+		if err != nil {
+			return failed("verifier journal: " + err.Error())
+		}
+		if !ok {
+			return failed("denied: " + reason)
+		}
+		if _, err := appendE(event.TypeActivityStarted, &event.ActivityStarted{
+			ActivityID: actID, Kind: event.KindLLM, Name: "verifier:llm_judge",
+			Attempt: 1, Idempotent: true,
+		}); err != nil {
+			return failed("verifier journal: " + err.Error())
+		}
+		vv, usage := d.verifyLLMJudge(ctx, v, childDir)
+		d.completeVerifier(appendE, actID, vv, &usage)
+		return vv, usage
 	case VerifierHuman:
-		return d.verifyHuman(ctx, n, v, childDir), provider.Usage{}
+		if _, err := appendE(event.TypeActivityStarted, &event.ActivityStarted{
+			ActivityID: actID, Kind: event.KindTool, Name: "verifier:human",
+			Attempt: 1, Idempotent: true,
+		}); err != nil {
+			return failed("verifier journal: " + err.Error())
+		}
+		vv := d.verifyHuman(ctx, n, v, childDir)
+		d.completeVerifier(appendE, actID, vv, nil)
+		return vv, provider.Usage{}
 	default:
-		return event.IterationVerdict{Verifier: v.Kind, Detail: "unknown verifier kind " + v.Kind}, provider.Usage{}
+		return failed("unknown verifier kind " + v.Kind)
+	}
+}
+
+// adjudicateVerifier runs a verifier effect through the pipeline, journaling
+// the request and resolution into the driver stream. ask TIGHTENS to deny:
+// a verifier is config-declared, nobody sits behind it to answer (记档).
+func (d *Driver) adjudicateVerifier(ctx context.Context, appendE appendFunc,
+	effID, toolName, class, kind string, args json.RawMessage, estTokens int) (bool, string, error) {
+
+	if _, err := appendE(event.TypeEffectRequested, &event.EffectRequested{EffectID: effID}); err != nil {
+		return false, "", err
+	}
+	outcome, err := d.Pipeline.Evaluate(ctx, pipeline.Effect{
+		ID: effID, Kind: kind, ToolName: toolName, Class: class,
+		Args: args, EstTokens: estTokens,
+	})
+	if err != nil {
+		return false, "", err
+	}
+	verdict := outcome.Verdict
+	reason := ""
+	if verdict == event.VerdictAsk {
+		verdict = event.VerdictDeny
+		reason = "ask tightened to deny for a config-declared verifier"
+	}
+	if verdict == event.VerdictDeny && reason == "" {
+		for _, g := range outcome.GateResults {
+			if g.Decision == event.VerdictDeny {
+				reason = g.Gate + ": " + g.Reason
+			}
+		}
+	}
+	if _, err := appendE(event.TypeEffectResolved, &event.EffectResolved{
+		EffectID: effID, Verdict: verdict, GateResults: outcome.GateResults,
+	}); err != nil {
+		return false, "", err
+	}
+	return verdict == event.VerdictAllow, reason, nil
+}
+
+// completeVerifier journals the verifier activity's terminal with the verdict
+// as its result (and the judge's usage when present). A journal failure here
+// is logged, not fatal — the verdict itself still rides IterationCompleted.
+func (d *Driver) completeVerifier(appendE appendFunc, actID string, vv event.IterationVerdict, usage *provider.Usage) {
+	result, _ := json.Marshal(vv)
+	if _, err := appendE(event.TypeActivityCompleted, &event.ActivityCompleted{
+		ActivityID: actID, Result: redact.FromEnv().JSON(result), Usage: usage,
+	}); err != nil {
+		slog.Warn("driver: verifier activity terminal journal failed", "activity", actID, "err", err)
 	}
 }
 

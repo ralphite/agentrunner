@@ -599,11 +599,15 @@ limits:
   最平凡的情形。driver 有自己的 stream 和纯 fold 状态，每轮迭代 spawn
   一个 **fresh child run**（同 spec → prefix 逐字节稳定可跨迭代命中
   缓存、免 compaction 链、失败迭代不污染后续、迭代边界天然是 barrier
-  候选点）；driver 自己从不碰 LLM 和 workspace——**v0 例外已裁定
-  （S6）**：verifier 是 driver 规格里"用户可信配置"声明的效果，v0 直连
-  执行（command 过 executor、llm_judge 单次打分调用），花费计入迭代
-  usage、verdict journal 进 IterationCompleted；过四关卡的 verifier
-  管线化（journaled activity + 管线判定）列 S7。
+  候选点）；driver 自己从不碰 LLM 和 workspace——verifier 是这条线的
+  **成文例外（S6 裁定、S7 管线化兑现）**：verifier 是 driver 规格里
+  "用户可信配置"声明的效果，**作为 journaled、经管线判定的 effect 执行**
+  （command = tool_call、llm_judge = llm_call；EffectRequested/Resolved
+  + ActivityStarted/Completed 入 driver stream——event log 即 trace）。
+  判定的规则层 = user/project 合并规则在前、driver-trust 的兜底 allow
+  在后（显式 deny 约束 verifier，未命中即放行——verifier 与 spec
+  permissions 同信任级）；ask 收紧为 deny（配置声明的效果无人应答）。
+  花费计入迭代 usage、verdict journal 进 IterationCompleted。
 - **统一事件族**：`IterationScheduled / Launched / Completed`、
   `DriverCompleted{reason: satisfied|stalled|max_iterations|budget|
   stopped|child_failed}`。launch 遵循 journal-before-send；崩溃后的

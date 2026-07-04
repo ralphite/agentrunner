@@ -12,6 +12,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/driver"
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
 	"github.com/ralphite/agentrunner/internal/store"
@@ -1263,6 +1264,115 @@ func TestDriverRetrySpendSettlesAllAttempts(t *testing.T) {
 	// 100 (failed attempt) + 150 (successful attempt) = 250 billed.
 	if st.SpentTokens != 250 {
 		t.Fatalf("spent = %d, want 250 (both attempts settled)", st.SpentTokens)
+	}
+}
+
+// S7 还债①: verifiers are adjudicated effects with a journaled trace. An
+// explicit user deny rule blocks the command verifier (fail closed, reason
+// visible); the journal carries EffectRequested/Resolved and the activity
+// bracket for every verifier execution.
+func TestVerifierPipelineDenyBinds(t *testing.T) {
+	d, dStore := harness(t, &driver.DriverSpec{
+		Name: "goal", Task: "add a line", MaxIterations: 2,
+		Verifiers: []driver.VerifierSpec{{
+			Kind: driver.VerifierCommand, Command: "test -f progress.txt",
+		}},
+	})
+	d.Pipeline = &pipeline.Pipeline{Gates: []pipeline.Gate{
+		&pipeline.PermissionGate{Rules: []pipeline.PermissionRule{
+			{Command: "test *", Action: "deny"},
+			{Action: "allow"},
+		}},
+	}}
+
+	res, err := d.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The verifier can never pass (denied), so the goal exhausts iterations.
+	if res.Reason != "max_iterations" {
+		t.Fatalf("res = %+v, want max_iterations (denied verifier must not pass)", res)
+	}
+	events, _ := store.ReadEvents(dStore.Dir())
+	st, _ := driver.Fold(events)
+	if !strings.Contains(st.Iterations[0].Verdict.Detail, "denied") {
+		t.Fatalf("verdict detail = %q, want the denial reason", st.Iterations[0].Verdict.Detail)
+	}
+	var sawDenyResolved bool
+	for _, e := range events {
+		if e.Type == event.TypeEffectResolved && strings.Contains(string(e.Payload), `"deny"`) {
+			sawDenyResolved = true
+		}
+	}
+	if !sawDenyResolved {
+		t.Fatal("the denial was not journaled as an EffectResolved")
+	}
+}
+
+// S7 还债①: an allowed verifier leaves the full trace — effect resolution
+// plus the ActivityStarted/Completed bracket with the verdict as result.
+func TestVerifierActivityTrace(t *testing.T) {
+	d, dStore := harness(t, &driver.DriverSpec{
+		Name: "goal", Task: "add a line", MaxIterations: 3,
+		Verifiers: []driver.VerifierSpec{{
+			Kind: driver.VerifierCommand, Command: "test $(wc -l < progress.txt) -ge 2",
+		}},
+	})
+	// nil Pipeline = allow-all; the trace must exist regardless.
+	res, err := d.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "satisfied" {
+		t.Fatalf("res = %+v", res)
+	}
+	events, _ := store.ReadEvents(dStore.Dir())
+	var requested, resolvedAllow, started, completed int
+	for _, e := range events {
+		switch e.Type {
+		case event.TypeEffectRequested:
+			requested++
+		case event.TypeEffectResolved:
+			if strings.Contains(string(e.Payload), `"allow"`) {
+				resolvedAllow++
+			}
+		case event.TypeActivityStarted:
+			if strings.Contains(string(e.Payload), "verifier:command") {
+				started++
+			}
+		case event.TypeActivityCompleted:
+			if strings.Contains(string(e.Payload), "verify-i") {
+				completed++
+			}
+		}
+	}
+	// Two iterations verified (satisfied on the second).
+	if requested != 2 || resolvedAllow != 2 || started != 2 || completed != 2 {
+		t.Fatalf("trace = requested %d, allow %d, started %d, completed %d — want 2 each",
+			requested, resolvedAllow, started, completed)
+	}
+}
+
+// S7 还债①: ask tightens to deny — a config-declared verifier has nobody
+// behind it to answer.
+func TestVerifierAskTightensToDeny(t *testing.T) {
+	d, _ := harness(t, &driver.DriverSpec{
+		Name: "goal", Task: "add a line", MaxIterations: 1,
+		Verifiers: []driver.VerifierSpec{{
+			Kind: driver.VerifierCommand, Command: "true",
+		}},
+	})
+	d.Pipeline = &pipeline.Pipeline{Gates: []pipeline.Gate{
+		&pipeline.PermissionGate{Rules: []pipeline.PermissionRule{
+			{Command: "*", Action: "ask"},
+		}},
+	}}
+	res, err := d.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "max_iterations" {
+		t.Fatalf("res = %+v, want the ask-tightened denial to block satisfaction", res)
 	}
 }
 

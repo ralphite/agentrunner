@@ -2570,3 +2570,33 @@ backlog 逐项归置(best-of-N 挂模块 3 后——依赖 worktree 隔离)。
 三文档一致性:执行包引用 DESIGN §L1/§fork/rewind/§compaction 原文
 口径与 STAGES S7 范围/完成标志,DESIGN 本身未动(barrier 弱化修订
 按预告留给模块 2 的变更流程)。下一步:S7 还债包①——verifier 管线化。
+
+## S7 还债① — verifier 管线化 — DONE(S6 v0 例外收回)
+
+verifier 现为 **journaled、经管线判定的 effect**:
+- `Driver.Pipeline`:每个 verifier 执行前 `adjudicateVerifier` ——
+  journal `EffectRequested` → `Pipeline.Evaluate`(command = tool_call/
+  execute 类携 args;llm_judge = llm_call 携 EstTokens)→ journal
+  `EffectResolved{verdict, gate 结果}`。**deny → verdict fail 带 gate
+  理由(绝不静默过)**;**ask 收紧为 deny**(配置声明的效果无人应答,
+  记档)。
+- **执行有迹**:`ActivityStarted{verifier:command|llm_judge|human}` /
+  `ActivityCompleted{Result=verdict JSON, Usage(judge)}` 括住执行——
+  DESIGN "event log 就是 trace" 在 verifier 腿闭合。human verifier 本
+  就是 ask 路径,只加 activity 迹不重复判定。driver fold 忽略这些
+  trace 事件(非决策态);acceptance 的 driver stream 首尾规则不受影响。
+- **信任层语义**:CLI(drive 前台 + daemon hostDriveFunc)构造 verifier
+  pipeline = buildPipeline(user/project 合并规则在前, **trailing
+  `{action: allow}` 走 spec 槽位** = driver-trust 层)——显式 user/
+  project deny 约束 verifier,未命中放行,mode 默认永不触达。检查过
+  config.Merge:spec 槽规则不受 untrusted 降级(与 agent spec 同信任
+  级,一致)。
+- DESIGN §运行形态 v0 例外注记改写为兑现口径(成文例外:journaled +
+  管线判定 + 信任层 + ask 收紧)。
+- 三测试:deny 规则生效(verdict 带 denied 理由、EffectResolved{deny}
+  入 journal、goal 不可满足)、activity trace 完整(2 迭代 = 各 2 个
+  requested/allow/started/completed)、ask 收紧 deny。nil Pipeline =
+  allow-all(单测 harness 不受影响)。
+
+全量 check + race + stage 5/6 acceptance 回归绿。还债包剩:await
+durable timer、driver stream header、idem 持久化。

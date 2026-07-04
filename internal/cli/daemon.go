@@ -512,6 +512,12 @@ func hostDriveFunc(version string, stderr io.Writer, broker *daemon.ApprovalBrok
 		}
 		approvals := socketApprovals{broker: broker, session: req.SessionID, sink: sink}
 		exec := &tool.Executor{WS: ws, Session: req.SessionID}
+		// Same verifier-adjudication construction as the foreground drive:
+		// user/project rules first, trailing driver-trust allow.
+		verifierPipe, _, err := buildPipeline(ws, []pipeline.PermissionRule{{Action: "allow"}}, "", 0, stderr)
+		if err != nil {
+			return err
+		}
 		d := &driver.Driver{
 			Spec:      spec,
 			Store:     dStore,
@@ -522,6 +528,7 @@ func hostDriveFunc(version string, stderr io.Writer, broker *daemon.ApprovalBrok
 			Approvals: approvals,
 			Artifacts: artifacts,
 			Out:       sink,
+			Pipeline:  verifierPipe,
 			NewChild: func(cs *store.EventStore, session string, iter, budgetTokens int) *agent.Loop {
 				frozen := *spec.Agent
 				if budgetTokens > 0 {

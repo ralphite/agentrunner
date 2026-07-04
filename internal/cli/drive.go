@@ -11,6 +11,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/agent"
 	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/driver"
+	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/runtime"
 	"github.com/ralphite/agentrunner/internal/store"
@@ -106,6 +107,15 @@ func driveAgent(opts driveOptions) int {
 
 	exec := &tool.Executor{WS: ws, Session: driverID}
 	approvals := approvalResolver(opts.stderr)
+	// Verifier adjudication (S7 还债①): merged user/project rules bind
+	// first-match; the trailing allow is the DRIVER-TRUST layer — verifiers
+	// are spec-declared config (same trust level as spec permissions), so an
+	// unmatched verifier runs instead of hitting the interactive mode default.
+	verifierPipe, _, err := buildPipeline(ws, []pipeline.PermissionRule{{Action: "allow"}}, "", 0, opts.stderr)
+	if err != nil {
+		fmt.Fprintln(opts.stderr, err)
+		return ExitRun
+	}
 	d := &driver.Driver{
 		Spec:      spec,
 		Store:     dStore,
@@ -115,6 +125,7 @@ func driveAgent(opts driveOptions) int {
 		Judge:     prov,
 		Approvals: approvals,
 		Artifacts: artifacts,
+		Pipeline:  verifierPipe,
 		// Each iteration's child mirrors a plain `run`: same pipeline
 		// construction, same approval seam; the min-aggregated allowance
 		// clamps the frozen spec AND its budget gate.
