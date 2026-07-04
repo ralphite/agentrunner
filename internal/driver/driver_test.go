@@ -591,6 +591,104 @@ func TestDriverResumeContinues(t *testing.T) {
 	}
 }
 
+// Loop mode with no interval runs iterations back to back and, with no
+// verifier, ends only at max_iterations — it never "satisfies".
+func TestDriverLoopBackToBack(t *testing.T) {
+	d, dStore := harness(t, &driver.DriverSpec{
+		Name: "loop", Schedule: driver.ScheduleInterval, Task: "tick", MaxIterations: 3,
+	})
+	res, err := d.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "max_iterations" || res.Iterations != 3 {
+		t.Fatalf("res = %+v, want max_iterations at 3", res)
+	}
+	events, _ := store.ReadEvents(dStore.Dir())
+	st, _ := driver.Fold(events)
+	if len(st.Iterations) != 3 {
+		t.Fatalf("iterations = %d, want 3", len(st.Iterations))
+	}
+	for i, it := range st.Iterations {
+		if it.Verdict.Pass {
+			t.Errorf("iteration %d marked pass with no verifier", i+1)
+		}
+	}
+}
+
+// Loop mode with an interval parks on the clock between iterations: the driver
+// runs iteration 1 immediately, then each later iteration waits for its tick.
+func TestDriverLoopIntervalCadence(t *testing.T) {
+	root := t.TempDir()
+	ws, err := workspace.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exec := &tool.Executor{WS: ws}
+	dStore, err := store.OpenEventStore(filepath.Join(root, "driver"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = dStore.Close() })
+
+	childSpec := &agent.AgentSpec{
+		Name: "worker", Model: agent.ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
+		SystemPrompt: "tick", MaxTurns: 5,
+	}
+	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
+	// A text-only child arms no activity-timeout timer, so the fake clock's
+	// only waiter is the driver's interval park — waitParked stays unambiguous.
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: "tick"}, {Finish: "end_turn"}}},
+	}}
+	d := &driver.Driver{
+		Spec: &driver.DriverSpec{
+			Name: "loop", Schedule: driver.ScheduleInterval, Interval: "1m",
+			Task: "tick", MaxIterations: 3, Agent: childSpec,
+		},
+		Store: dStore, Clock: clk, DriverID: "drv-1", Exec: exec,
+		NewChild: func(cs *store.EventStore, session string, iter, budget int) *agent.Loop {
+			return &agent.Loop{Spec: childSpec, Provider: scripted.New(fix),
+				Exec: exec, Store: cs, Clock: clk, SessionID: session}
+		},
+	}
+
+	resCh := make(chan driver.Result, 1)
+	go func() {
+		res, rerr := d.Run(context.Background())
+		if rerr != nil {
+			t.Errorf("driver run: %v", rerr)
+		}
+		resCh <- res
+	}()
+
+	// Iteration 1 fires immediately; iterations 2 and 3 each wait for a tick.
+	for i := 0; i < 2; i++ {
+		waitParked(t, clk)
+		clk.Advance(time.Minute)
+	}
+	select {
+	case res := <-resCh:
+		if res.Reason != "max_iterations" || res.Iterations != 3 {
+			t.Fatalf("res = %+v, want max_iterations at 3", res)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("driver did not finish after advancing the clock")
+	}
+}
+
+// waitParked spins until the driver goroutine is blocked on the fake clock.
+func waitParked(t *testing.T, clk *clock.Fake) {
+	t.Helper()
+	for i := 0; i < 5000; i++ {
+		if clk.Waiters() > 0 {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("driver never parked on the interval")
+}
+
 // Every event in event.DriverStream must fold into driver state — the mirror
 // of the run fold's TestApplyCoversRegistry, so no driver-stream type is left
 // unhandled anywhere.

@@ -76,11 +76,19 @@ func (d *Driver) prepare(st *State) (appendFunc, error) {
 	if d.Clock == nil {
 		d.Clock = clock.Real{}
 	}
-	if d.Spec.schedule() != ScheduleImmediate {
-		return nil, fmt.Errorf("driver: only goal mode (schedule immediate) is implemented; got %q", d.Spec.Schedule)
-	}
-	if len(d.Spec.Verifiers) == 0 {
-		return nil, fmt.Errorf("driver: goal mode requires at least one verifier")
+	switch d.Spec.schedule() {
+	case ScheduleImmediate:
+		// Goal mode: a verifier is what decides "done".
+		if len(d.Spec.Verifiers) == 0 {
+			return nil, fmt.Errorf("driver: goal mode requires at least one verifier")
+		}
+	case ScheduleInterval:
+		// Loop mode: verifiers are optional; the cadence must parse.
+		if _, err := d.Spec.interval(); err != nil {
+			return nil, fmt.Errorf("driver: bad interval %q: %w", d.Spec.Interval, err)
+		}
+	default:
+		return nil, fmt.Errorf("driver: schedule %q not implemented", d.Spec.Schedule)
 	}
 	if d.NewChild == nil {
 		return nil, fmt.Errorf("driver: NewChild factory is required")
@@ -162,6 +170,7 @@ func (d *Driver) Resume(ctx context.Context) (Result, error) {
 // re-journal an iteration's Scheduled/Launched facts that the fold already
 // holds — the write path stays append-only and idempotent across a crash.
 func (d *Driver) drive(ctx context.Context, st *State, appendE appendFunc, startN int) (Result, error) {
+	loopMode := d.Spec.schedule() != ScheduleImmediate
 	maxIter := d.Spec.maxIterations()
 	for n := startN; ; n++ {
 		if err := ctx.Err(); err != nil {
@@ -170,6 +179,13 @@ func (d *Driver) drive(ctx context.Context, st *State, appendE appendFunc, start
 		if n > maxIter {
 			slog.Warn("driver hit max_iterations", "driver", d.DriverID, "max", maxIter)
 			return d.finish(appendE, st, "max_iterations", maxIter)
+		}
+		// Loop-mode cadence: iteration 1 fires now; each later iteration waits
+		// for its scheduled tick. A cancel during the wait ends the series.
+		if loopMode && n > 1 {
+			if err := d.waitForTick(ctx); err != nil {
+				return d.finish(appendE, st, "stopped", n-1)
+			}
 		}
 		// Reserve-at-launch against the tree budget (DESIGN: the driver is the
 		// budget root). A goal that has spent its whole allowance ends as
@@ -235,7 +251,12 @@ func (d *Driver) drive(ctx context.Context, st *State, appendE appendFunc, start
 			return d.finish(appendE, st, "child_failed", n)
 		}
 
-		verdict := d.verify(ctx, childDir)
+		// Loop mode verifies only when verifiers are configured (they gate
+		// quality, they do not decide "done"); goal mode always verifies.
+		var verdict event.IterationVerdict
+		if len(d.Spec.Verifiers) > 0 {
+			verdict = d.verify(ctx, childDir)
+		}
 		carryText := childReport(childDir)
 		if _, err := appendE(event.TypeIterationCompleted, &event.IterationCompleted{
 			DriverID: d.DriverID, Iter: n, ChildSession: session,
@@ -244,12 +265,29 @@ func (d *Driver) drive(ctx context.Context, st *State, appendE appendFunc, start
 		}); err != nil {
 			return Result{}, err
 		}
-		if verdict.Pass {
-			return d.finish(appendE, st, "satisfied", n)
+		// Goal mode ends when the goal is met or progress stalls; loop mode
+		// runs on cadence until max_iterations / budget / cancel (finish_series
+		// arrives with the self_paced step).
+		if !loopMode {
+			if verdict.Pass {
+				return d.finish(appendE, st, "satisfied", n)
+			}
+			if d.stalled(st) {
+				return d.finish(appendE, st, "stalled", n)
+			}
 		}
-		if d.stalled(st) {
-			return d.finish(appendE, st, "stalled", n)
-		}
+	}
+}
+
+// waitForTick blocks until the next loop-mode iteration is due. v0 supports
+// the interval schedule; cron / self_paced arrive with the scheduler module.
+func (d *Driver) waitForTick(ctx context.Context) error {
+	switch d.Spec.schedule() {
+	case ScheduleInterval:
+		every, _ := d.Spec.interval() // validated in prepare
+		return d.Clock.WaitUntil(ctx, d.Clock.Now().Add(every))
+	default:
+		return fmt.Errorf("driver: schedule %q has no cadence", d.Spec.schedule())
 	}
 }
 

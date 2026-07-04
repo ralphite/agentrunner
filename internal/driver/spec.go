@@ -5,16 +5,21 @@
 // it orchestrates child runs and verifies their results.
 package driver
 
-import "github.com/ralphite/agentrunner/internal/agent"
+import (
+	"time"
+
+	"github.com/ralphite/agentrunner/internal/agent"
+)
 
 // DefaultMaxIterations bounds a goal-mode driver that omits max_iterations —
 // a goal that never verifies must still terminate.
 const DefaultMaxIterations = 10
 
-// Schedule kinds. v0 implements goal mode only (immediate); loop mode
-// (interval/cron/self_paced) arrives with the scheduler module.
+// Schedule kinds. immediate = goal mode; interval = loop mode on a fixed
+// cadence. cron / self_paced arrive with the scheduler module.
 const (
 	ScheduleImmediate = "immediate"
+	ScheduleInterval  = "interval"
 )
 
 // Verifier kinds (DESIGN: a verifier is an effect through the four gates).
@@ -31,6 +36,9 @@ type DriverSpec struct {
 	Name string `yaml:"name"`
 	// Schedule selects the mode; empty defaults to immediate (goal).
 	Schedule string `yaml:"schedule,omitempty"`
+	// Interval is the loop-mode cadence (schedule=interval), a Go duration
+	// string like "5m". Empty/zero runs iterations back to back.
+	Interval string `yaml:"interval,omitempty"`
 	// Agent is the spec each iteration runs as a fresh child (same spec →
 	// byte-stable prefix across iterations).
 	Agent *agent.AgentSpec `yaml:"-"`
@@ -105,4 +113,12 @@ func (s *DriverSpec) maxIterations() int {
 		return DefaultMaxIterations
 	}
 	return s.MaxIterations
+}
+
+// interval parses the loop-mode cadence; empty is zero (back-to-back).
+func (s *DriverSpec) interval() (time.Duration, error) {
+	if s.Interval == "" {
+		return 0, nil
+	}
+	return time.ParseDuration(s.Interval)
 }
