@@ -65,7 +65,8 @@ agent G2）。durability/驱动/安全这一半（UJ-02/05/10/14/15/20）是
 inline_data/anthropic image block + `ar send --image` + 长贴 >10KB 折叠
 file part。闸门：QA-07(vision 三要素+ref-not-bytes) + QA-03 真实 API
 PASS;孪生 TestConversationalImageInputEndToEnd/TestLongPasteFolds。
-PDF/附件泛化仍开放(见原文)。原文:
+**余项**：PDF/附件泛化;blob 在 fork/rewind 下的归属语义;`ar new`
+开场消息不折叠/不带图(不对称,DESIGN §9.1 记档)。原文:
 `provider.Part` 只有 text/tool_call/tool_result；`InputReceived` 只有
 Text；协议仅一行"附件/图片消息类型预留"。缺：消息模型、CAS 存放教义
 （blob-before-event、fold 只带 ref、发送时 inflate）、Anthropic/Gemini
@@ -77,7 +78,9 @@ wire 映射、长粘贴按附件折叠、redaction/fork 语义。
 ActivityStarted{Background} 立即配 handle)、SubagentCompleted 先于
 activity 终态、task_kill/ar kill 双杀路径(kill 有 InputReceived
 {control} 起源)、崩溃 settle-from-child-fold(M5.1)。闸门：QA-04/05/
-08/09 真实 API PASS。原文:
+08/09 真实 API PASS。**余项**：barrier tasks 对"任务=子 agent"的处置
+语义(fork/rewind 扩展层连带);daemon kill -9 孤儿化在飞 bash 子进程
+(重启后 pgid 清扫未做)。原文:
 L1 一句承诺（bash/spawn_agent 支持 background:true）；bash 侧机制完整，
 spawn 侧未定：SpawnRequested/SubagentCompleted 与后台终态的事件序、
 usage 结算时点、task_kill 杀子 run 的终态与部分产出归属、父崩溃时
@@ -85,10 +88,12 @@ in-flight 子 run 的 settle-from-child-fold、barrier tasks 处置对
 "任务=子 agent"的语义。实现完全缺失。
 → UJ-18
 
-**G3 运行中 steering 文本消息 — ✅ 已关闭（v2 M2，2026-07-05）**
-关闭位置：daemon send command + inbox(64 type-ahead) + 忙时排队边界
-生效 + interrupt 分立(闸门 QA-02/06 真实 API PASS)。子 agent 不可
-steer(v0 明确否,父 kill+re-spawn 代替)。机器发送方(G14)仍开放。原文:
+**G3 运行中 steering 文本消息 — ✅ 已关闭（v2 M2+收口，2026-07-05）**
+关闭位置：daemon send command + durable mailbox(确认即持久,收口
+F.3) + inbox(64 type-ahead) + 忙时排队边界生效 + interrupt 分立
+(闸门 QA-02/06/08 真实 API PASS)。子 agent 不可 steer(v0 明确否,
+父 kill+re-spawn 代替)。**余项**：机器发送方(G14);WAITING_APPROVAL
+park 期间消息只排队不唤醒(审批答复才解栈,唤醒语义待定)。原文:
 目标有、消费点提了一句、机制全缺：传输通道（daemon 线协议无
 steer/input command）、park（WAITING_TASKS/APPROVAL）被消息唤醒、
 type-ahead 队列语义、steer 与 interrupt 的组合手势、子 agent 是否可

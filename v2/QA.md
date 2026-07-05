@@ -98,7 +98,9 @@ tools: [read_file, bash]
 | 5 | `ar send $sid "把你前两个回答合并成三句话总结"` | 新 turn；总结内容同时涉及前两轮 → 上下文连续的客观证据 |
 
 **通过标准**：journal 里恰好 3 条 `user_message` 输入、≥3 个 turn、
-**0 个会话终态事件**；步骤 5 的回答包含前两轮各自的要素。
+**0 个会话终态事件**；步骤 5 的回答包含前两轮各自的要素——脚本用
+钉入的暗号词（步骤 2/3 各埋一个，最终回答必须同时复述）把"要素"
+变成客观断言（收口 F.3 起 FAIL 级）。
 **清理**：`ar close $sid && ws.sh cleanup ws1`
 
 ## QA-02 忙时插话排队 `覆盖 C2, C8(输入侧)`
@@ -112,9 +114,12 @@ tools: [read_file, bash]
 | 4 | 等 bash 自然结束 | 输出含 SLOW_DONE；**下一 turn 开头**两条排队消息按序进入上下文 |
 | 5 | 观察后续 turn | agent 数了 _test.go 数量且用中文——两条插话都生效 |
 
-**通过标准**：journal 中两条插话的 `InputReceived` 时间戳落在 bash
-activity 的 Started/Completed 之间；bash 无 Cancelled；后续回答同时
-满足两条插话的要求；消费顺序 = 投递顺序。
+**通过标准**（收口 F.3 修正——实现语义是 journal-on-boundary 而非
+journal-on-arrival，见 PROGRESS M2.1）：两条插话在 bash 期间投递
+（mailbox 持久，确认即不丢），其 `InputReceived` 在 turn 边界按投递
+顺序落 journal（必然在 bash `Completed` 之后，这是设计而非缺陷）；
+bash 无 Cancelled；两条都进入下一 turn 的上下文。回答是否同时满足
+两条插话属模型行为，不设 FAIL 闸（§0.1）。
 
 ## QA-03 修复注入 bug + 建新文件 `覆盖 C1(尾部)、核心9(write_file)`
 **环境**：`ws.sh prepare cobra-broken ws3`；base.yaml。
@@ -123,7 +128,7 @@ activity 的 Started/Completed 之间；bash 无 Cancelled；后续回答同时
 |---|---|---|
 | 1 | `go test ./qa_inject/`（人工确认红） | FAIL 基线 |
 | 2 | `ar send $sid "qa_inject 包的测试挂了，修复实现（文档说 Add 是加法），不要改测试"` | agent 读码 → 改 calc.go → 自己跑测试验证 |
-| 3 | `go test ./qa_inject/`（人工复核） | **绿**；calc_test.go 未被修改（`git diff --stat` 只有 calc.go） |
+| 3 | `go test ./qa_inject/`（人工复核） | **绿**；calc_test.go 未被修改（内容哈希前后对比——qa_inject 是 untracked，git diff 看不见它） |
 | 4 | `ar send $sid "在仓库根新建 QA_NOTES.md，两句话记录你改了什么"` | 用 write_file 创建**新文件**（不是 bash heredoc）|
 | 5 | 检查 QA_NOTES.md 存在且非空；journal 中该文件由 write_file 工具落盘 | 核心 9 的 write_file 路径真实走通 |
 
@@ -140,9 +145,13 @@ activity 的 Started/Completed 之间；bash 无 Cancelled；后续回答同时
 | 4 | 等第一个 child_result 回灌 | 父**立即**起新 turn 消化（不等三个全回来）|
 | 5 | 等其余两个 | 每个 child_result 各触发一个 turn（或与排队合并），最终父给出三路汇总 |
 
-**通过标准**：3 条 ChildSpawned 同 turn；子时间区间两两相交；
-`child_result` 进入 inbox 的顺序 = 各自完成顺序；父的 turn 数 ≥ 1(spawn)
-+2（至少两次被完成回执激活）；汇总内容涵盖 A/B/C 三路。
+**通过标准**（收口 F.3 对齐——真实 API 闸门钉结构事实，时序/内容级
+性质由确定性 scripted 孪生守）：真实闸门 FAIL 级 = ≥3 spawn、≥3
+subagent_completed、≥3 个子 journal、父 turn ≥2（spawn+消费）、全部
+spawn 落在首个父 turn（越界降 WARN 抗真实时序抖动）。"同 turn 并行
+启动、两两重叠、先回先处理、双报告达模型"由 scripted 孪生
+TestBackgroundSpawnParallelAndSettle 以确定性断言背书；汇总内容不设
+FAIL 闸（§0.1）。
 
 ## QA-05 steer 杀一换一 `覆盖 C5, C6`
 **环境**：同 QA-04（gin）。
@@ -156,17 +165,20 @@ activity 的 Started/Completed 之间；bash 无 Cancelled；后续回答同时
 | 5 | 等 A、C 完成 | 父汇总只含 A 与 C 的结论，并提到 B 被取消 |
 | 6 | 变体（用户直接杀）：重复步骤 1，然后 `ar kill $sid <handleA>` | 不经模型，A 直接取消；父下个 turn 看到 canceled 回执 |
 
-**通过标准**：B 的取消链完整（cancel → 子终态 → canceled 回执 → 父
-可见）；C 正常完成；两条杀路径都触发同一 cancel 注册表、都有持久
-起源（模型路径 = tool_call + Effect，直杀路径 = InputReceived
-{source:control}），自取消点起的取消链事件形状一致。
+**通过标准**（收口 F.3 对齐——脚本分工）：run-qa05.sh 实测**用户
+直杀**路径（步骤 6）：ar ps 列出在飞 handle、kill 后该子结算为非
+completed、部分产出 best-effort（WARN 级）、另一子不受影响、会话
+续跑;直杀有持久起源 InputReceived{source:control}。**模型杀路径**
+（步骤 1–5,C6）由 scripted 孪生 TestSteerChangesOrchestration 确定
+性背书 + QA-09 真实 API 断言 task_kill 调用;两路径共用同一 cancel
+注册表（代码层同一原语）。
 
 ## QA-06 interrupt 与消息分立 `覆盖 C8`
 **环境**：`ws.sh prepare cobra ws6`；base.yaml；放入 `qa_slow.sh`（sleep 30）。
 
 | # | 动作 | 验证 |
 |---|---|---|
-| 1 | `ar send $sid "运行 ./qa_slow.sh"`；5 秒后 `ar send $sid "完事说 OK"` | **消息不打断** bash（对照组，同 QA-02）|
+| 1 | `ar send $sid "运行 ./qa_slow.sh"`；5 秒后 `ar send $sid "完事说 OK"` | **消息不打断** bash（对照组——run-qa06.sh 委托 QA-02 覆盖此步,不重复） |
 | 2 | bash 自然结束后，再次 `ar send $sid "再跑一次 ./qa_slow.sh"` | 第二次长任务在飞 |
 | 3 | 5 秒后 `ar interrupt $sid` | bash **被取消**：journal 有 Cancelled + 部分输出；进程组确认退出（`pgrep -f qa_slow` 为空）|
 | 4 | `ar send $sid "刚才怎么了？"` | 会话正常继续；agent 能说明命令被打断 |
@@ -201,7 +213,11 @@ activity 的 Started/Completed 之间；bash 无 Cancelled；后续回答同时
 | c2 | 观察后续 | 父最终收到每个子的回执（完成/取消/崩溃结算），无孤儿进程（`pgrep` 空）|
 
 **通过标准**：三态各自恢复后**同一会话都能继续对话**；无输入丢失
-（崩溃前排队的消息重启后仍被消费）；无进程泄漏。
+——崩溃前排队的消息重启后恰好一次落 journal 且被后续 turn 消费
+（结构断言;模型是否复述其内容不设闸）。**孤儿进程记档**：kill -9
+daemon 会孤儿化在飞 bash 的子进程（进程组随 daemon 死而失管,
+sleep 类自然退出;长驻型需重启后 pgid 清扫——已列 GAPS 余项,
+原"pgrep 空"标准对 kill -9 场景不可达成,收口 F.3 修正）。
 
 ## QA-09 完整编排（压轴，用户原始用例） `覆盖 C7 = C1..C6+C9+C10a 串联`
 **环境**：`ws.sh prepare gin ws9`；base.yaml + worker.yaml；

@@ -113,7 +113,11 @@ inbox 是 v2 的关键新原语。v1 的病根是**没有输入通道**——只
    从不阻塞在"agent 现在忙不忙"上。
 2. **journal-inputs-first**（承自 v1，唯一保留的输入纪律）：一条输入先
    落 journal 成 `InputReceived` event，再被 fold 看见、被 turn 消费。
-   崩溃不丢输入。
+   崩溃不丢输入。**落地机制（收口 F.3）**：daemon 把每条投递先
+   redact+fsync 进 per-session mailbox（`inbox.jsonl`，单调
+   delivery_seq）再回执"delivered"；消费侧 journal 回写 seq，fold 记
+   高水位；resume 重放未消费尾巴、按 seq 去重——确认即持久，at-least-
+   once + 去重 = 恰好一次。
 3. **有序 + 至少一次**。inbox 是 per-session 的有序队列；投递去重靠
    幂等 id（发送方给，或 runtime 按内容+来源生成）。
 
@@ -228,7 +232,11 @@ v1 缺 write_file、cancel_child、ask_user 的应答路径——v2 视为核心
     **续聊天然恢复**——因为待命就是循环的常态，不是特殊状态。
   - turn 中途崩溃：承自 v1 的 in-doubt 纪律（有 Started 无终态 → 按
     工具类别处置：LLM 重发、只读重跑、写/执行不重跑渲染
-    `[interrupted by crash]`、非幂等绝不静默重跑）。
+    `[interrupted by crash]`、非幂等绝不静默重跑）。**分模式（M5.1）**：
+    上述自愈渲染只对 conversational 会话生效（长期会话必须自愈）；
+    task 模式保留 v1 的 refuse-and-surface（InDoubtError 上浮给调用
+    方处置）。进了副作用关卡没 EffectResolved 的两种模式都上浮
+    （hooks 可能半跑）。
   - 在飞子 session：§3 的 settle-from-child-fold。
 - **workspace 快照 / fork / rewind**：一等状态走 SnapshotStore（shadow
   repo backend），只在显式 barrier 打点。**这是扩展层**——核心十项不
@@ -320,10 +328,18 @@ turn 边界快照、权限 rules(path/command/network) + mode 阶梯、
 一等化、best-of-N 晋升、语义索引、IDE、通知渠道、定时任务跨重启唤醒、
 审批规则写回、记忆写回。
 
-### 9.1 M3 实现状态注记（M3 出口 review 后追加，诚实对照）
+### 9.1 实现状态注记（M3 出口起持续维护，诚实对照）
 
-本文档描述目标形态；fix-in-place 的 M1–M3 实现（MIGRATION.md）与
-字面表述有以下已知偏差，记录在此、不做静默漂移：
+本文档描述目标形态；fix-in-place 的实现（MIGRATION.md）与字面表述
+有以下已知偏差，记录在此、不做静默漂移：
+
+- **事件名对照**：本文与 QA.md 叙述用的 `ChildSpawned`/`child_result`
+  在实现中分别是 `spawn_requested`（+配对的 `ActivityStarted
+  {Background}`）与 `subagent_completed`（+activity 终态渲染的
+  user-role 消息）。
+- **长贴折叠只在 send 路径**：`ar new` 的开场消息走 RunStarted.Task
+  → IngestInput，超长开场不折叠、也不支持 --image；不对称记档，
+  待真实使用反馈再决定是否统一。
 
 - **工具名对照**：`spawn_child` → 实现名 `spawn_agent`；
   `cancel_child` → 实现名 `task_kill`（handle 即 task_id，与 bash

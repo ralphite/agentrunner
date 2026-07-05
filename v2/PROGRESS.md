@@ -347,3 +347,51 @@ ask_user/finish 记档不预做。
 
 **C1–C10 全部达成,QA-01..09 真实 API 全绿。剩:F.3 出口三视角
 review + 修复。**
+
+## V2-收口 F.3 — 出口三视角对抗 review + triage — 完成
+
+三个独立 review agent(正确性/并发、安全、契约)审查 a5a497d..HEAD。
+**修复(commit 593c7c0 + 本 commit 文档)**:
+
+- **P0 契约(铁律 2 静默为假)**:"崩溃不丢输入"此前只覆盖消费侧
+  journal——投递在内存 channel,turn 期间崩溃即丢,M1.2/M2.1 两次
+  记档"留给 M5"后在收口蒸发。修:durable mailbox(inbox.jsonl,
+  redact→fsync→ack,单调 delivery_seq;journal 回写 seq,fold 记
+  高水位;resume 重放未消费尾巴,消费侧 seq 去重)。QA-08 新增
+  FAIL 级断言:排队消息跨 kill -9 恰好一次落 journal 且被 turn 消费。
+- **P1 正确性**:send 复活挂 Background ctx → 优雅停机永久卡死
+  runsWG.Wait。修:挂 daemon ctx;TestSendRevivalDiesWithDaemon。
+- **P1 契约+正确性(新回归)**:复活 hub 无条件造通道 → task 模式/
+  已 ended session 的 send 假确认静默丢。修:SessionShape 注入按
+  journal 形状把关;两个拒绝测试。
+- **P2 正确性(lost wakeup)**:恢复的 doWait{input} 无条件重
+  park——输入已持久但 WaitingResolved 被崩溃吃掉、或 crash 回执刚
+  结算时,模型永远看不到。修:先查 hasInputAfterLastAssistant,
+  解栈旧 park(resolution=pending_input)。
+- **P2 安全(双 lens 同报)**:settleCrashedSpawn 用崩溃窗口里未
+  验证的 CallID 推导子目录(safeCallIDRe 只在 spawn 闭包内)→ 路径
+  逃逸读他会话 journal。修:恢复侧重新校验;诱饵测试钉死。
+- **P2**:LastInputTurn 旧 snapshot 折 0 → 误判 max_turns 终结。
+  修:可疑形状丢弃 snapshot 走全量 fold(fold 精确重算,snapshot
+  是可弃缓存)。**SubStateVersions 不 bump 的理由(记档)**:新字段
+  (Images/Files/DeliverySeq/Conversational/SpecPath/LastInputTurn/
+  ConsumedInputSeq)全部 additive-optional,旧 journal 全量 fold 语义
+  正确;bump 会拒绝所有旧 session 的 resume,伤害大于收益。
+- **文档对账**:DESIGN §2 落地机制注记、§6 恢复分模式(task=上浮/
+  conversational=自愈,此前只活在 commit message)、§9.1 改为持续
+  维护+事件名对照+长贴不对称;QA.md 五处通过标准与脚本显式对齐
+  (QA-01 暗号断言升 FAIL 级、QA-02 journal-on-boundary 修正、
+  QA-04/05 结构事实+孪生分工、QA-08 孤儿进程标准修正);GAPS
+  G1/G2/G3 注记补余项(fork-blob、barrier-tasks、APPROVAL park
+  唤醒、孤儿清扫);CORE §四 闸门引用修正。
+- **接受不修(记档)**:32MB 命令缓冲 × 并发连接的内存面(0600
+  socket 同 UID 前提下 P2,原型接受);anthropic 非 text/* file part
+  会当 image 块(当前不可达,文档附件落地时加守卫);M5.1 无独立
+  台账条目(本条目补记:RunStarted.Conversational/SpecPath 两个新
+  字段即为其内容)。
+
+复跑:QA-01(暗号)/QA-05(ps)/QA-08(mailbox)真实 API 全绿;
+全量 go test -race 绿;acceptance 26 场景绿。
+
+**v2 七阶段(M1–M5+收口)全部关闭。C1–C10 达成,QA-01..09 真实
+API 闸门全绿,三视角出口 review 已 triage。**

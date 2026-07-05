@@ -82,15 +82,15 @@ redaction、in-doubt 纪律、快照/fork）全部保留——但重新定位为
 | # | 核心功能 | v2 状态 | 闸门 |
 |---|---|---|---|
 | 1 | 多次输入续聊 | ✅ Conversational park + new/send/close | QA-01 |
-| 2 | 忙时投递排队 | ✅ inbox type-ahead,边界生效,不打断 | QA-02 |
+| 2 | 忙时投递排队 | ✅ durable mailbox 确认即持久 + type-ahead,边界生效,不打断 | QA-02, QA-08(不丢) |
 | 3 | 并行子 agent | ✅ spawn background 非阻塞,handle 立即配对 | QA-04 |
-| 4 | 杀死子 agent | ✅ ar kill / task_kill 双路径,部分产出留存 | QA-05 |
-| 5 | 回复激活新 turn | ✅ 回执唤醒 park,先回先处理 | QA-04 |
+| 4 | 杀死子 agent | ✅ ar kill(QA-05 实测)/ task_kill(QA-09 实测+孪生),部分产出 best-effort | QA-05, QA-09 |
+| 5 | 回复激活新 turn | ✅ 回执唤醒 park;先回先处理由孪生确定性背书 | QA-04 + scripted 孪生 |
 | 6 | 消息改变编排 | ✅ steer → 模型 task_kill + spawn | QA-09(scripted 孪生 C6) |
 | 7 | interrupt/输入分立 | ✅ 两通道两手势,互不串扰 | QA-06 |
 | 8 | 多模态输入 | ✅ 图片 CAS ref + 长贴折叠 file part | QA-07 |
 | 9 | 前台工具闭环 | ✅ read/edit/bash + write_file 一等化 | QA-03 |
-| 10 | 会话可恢复 | ✅ 三态 crash 矩阵,send 即复活 | QA-08 |
+| 10 | 会话可恢复 | ✅ 三态 crash 矩阵,send 即复活,排队输入不丢 | QA-08 |
 
 **C7 压轴串联(QA-09)**：一个真实 session 里 图片输入 → 3 并行子
 agent → 先回先处理 → steer 杀一换一 → 全回执 → 续聊 → kill -9 →
