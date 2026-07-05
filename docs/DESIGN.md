@@ -1,0 +1,1065 @@
+# AgentRunner — Design（统一架构 source of truth）
+
+一个 coding agent runtime，目标能力对标 Claude Code / Codex。原型级
+实现：设计和代码尽量干净，零 legacy，不考虑 backward compatibility。
+
+> **版本注记（2026-07-05）**：本文档由 v1 架构设计与 v2 中心模型设计
+> 合并而成（原件封存于 `archive/v1/DESIGN.md`、`archive/v2/DESIGN.md`）。
+> 合并纪律：只重组、不改语义——契约条款逐字保留；v1 中被 v2 取代的
+> 表述（run=task-to-completion、阻塞 spawn 为唯一形态、旧分层图）以
+> v2 文本为准改写，取代关系在对应章节注明。当前状态：v1 七阶段
+> （S1–S7）与 v2 核心计划（M1–M5+收口）均已完成，核心验收 C1–C10
+> 全部达成（§16）。
+
+## 目标
+
+- 通过声明式 spec 定义并运行一个或多个 LLM agent，agent 的一切行为皆可配置。
+- 每次运行都是 durable 的：挺过进程死亡、可审计、可恢复、可 fork。
+- 交互式：长期会话续聊、streaming 输出、运行中途 steering 与 interrupt、
+  审批、多模态输入。
+- 长任务形态：后台运行与 attach/detach、artifact 产出、
+  goal/loop 驱动的迭代执行。
+- 内核小而正交：少数几个 primitive，Claude Code 级的 feature 由组合得出，
+  而不是逐个特判实现。
+
+## 非目标（原型阶段）
+
+- 分布式/多节点执行（设计上留出空间，实现上单进程）。
+- spec、event、API 的向后兼容。event schema 变更即丢弃旧 run 日志重跑，
+  不做 migration。`RunStarted` 记录代码/spec 版本，resume 时版本不匹配
+  直接报清晰错误拒绝恢复，而不是 replay 到一半发散。
+- 生产级加固（鉴权、多租户/团队共享会话、跨用户配额）。
+- **确定性 code replay**（Temporal 式）。见 §6——这是有意的取舍，
+  不是遗漏。
+- **整树确定性 replay**。多 agent 树保证的是 per-stream 可审计
+  （causation/correlation 链路完整），不是跨 actor 消息交错的确定性重现。
+- 语音输入。
+
+---
+
+## 0. 本分（这是全文的锚）
+
+> **一个 agent runtime 的本分：在一个长期存在的会话里，可靠地协调
+> 三方——用户、模型、并发的工作（工具与子 agent）——任何一方随时可以
+> 说话，会话据此持续推进，直到用户离开。**
+
+一切设计从这句话推导。任何机制若不服务于它，降级为扩展层。
+
+历史教训（v1 的失败诊断）：它把"本分"默认成了"把一个 task 跑到完成"，
+于是多轮交互、并发编排、随时插话这些**日常动作**变成了要额外打补丁的
+边缘特性，补丁之间不自洽，基本功能不 work。v2 把"持续的多方协调"放进
+内核，v1 已验证的机制（durability / 管线 / 安全 / 驱动）重新定位为
+服务这个内核。
+
+## 设计原则
+
+1. **一切可运行的是 actor。** session、scheduler、frontend——统一模型，
+   统一生命周期（session 是唯一的中心 actor 类型，见 §1）。
+2. **一切历史皆 event。** 持久状态 = event log（历史与决策的 source
+   of truth）+ workspace（世界状态）+ 接口后的 ref-addressed blob store
+   （`SnapshotStore`、`ArtifactStore`、任务日志共用一个 CAS blob 模块）。
+   fold 永不读 store；event 只引用 opaque ref，blob 先于引用它的 event
+   落盘。除此之外的一切——bus 上的消息、token delta、内存中的 state
+   ——都是 ephemeral 或可从 event log 重建的派生物。
+3. **一切副作用是 activity，流经同一条 effect pipeline。** hooks、
+   permission、审批、预算是这条管线上的关卡，不是四个子系统。
+4. **一切行为由数据定义。** spec + 配置决定 agent 的全部行为——包括
+   tool 定义本身。core 里不硬编码任何具体 agent。
+5. **core 是库。** CLI、headless、server、scheduler 都是挂在 core 上的
+   薄壳（也都是 actor），不存在"特权 frontend"。
+6. **恢复只住在一个地方。** 崩溃后的恢复统一走 session resume
+   （snapshot + 事件补放）；不存在与之竞争的第二套恢复机制。
+7. **能表达成 inbox 投递的，不发明新机制。** 每加一个概念，先问：
+   "它能不能是一条 Input 或一个 turn 内动作？"（§1 的自检。）
+
+---
+
+## 1. 中心模型：Session 是一个持续消费 inbox 的 actor
+
+整个 runtime 只有一种活的东西：**Session**。
+
+```
+Session:
+  - id
+  - inbox   : 一个持久、有序的输入队列（所有"说话"都进这里）
+  - journal : 一个 append-only event log（这个 session 发生的一切）
+  - state   : journal 的纯 fold（唯一工作内存）
+  - loop    : 见下
+```
+
+**唯一的循环**（这是整个产品的心脏，务必看懂这 8 行）：
+
+```
+loop forever:
+  drain inbox → journal 每条输入为 event（journal-inputs-first）
+  s = fold(journal)
+  if s 有未处理输入 or 有已就绪待处理的完成回执:
+      run ONE turn:                    # 一个 turn = 一次模型调用 + 其工具
+          assemble(s) → call model → 得到 assistant 消息(可能带 tool calls)
+          执行 tool calls（前台并发；后台的只是启动，拿 handle 就返回）
+          journal 全过程
+  else:
+      park：阻塞等 inbox 来新东西（可能等几秒，也可能等几天）
+```
+
+**这个循环直接给出核心十项里的九项**（十项核心的原始定义见
+`archive/v2/CORE.md`；对应的功能点活登记在 SPEC.md）：
+
+- **多次输入 / 续聊**：turn 跑完，循环回到顶部；没有新输入就
+  park，有就再跑一个 turn。"答完 → 待命 → 再说话"是循环的默认行为，
+  **不是**一个额外状态机。run 这个概念被消解——session 就是会话本身
+  （task 模式作为一种运行形态保留，见 §12）。
+- **忙时投递排队**：inbox 是持久队列，写入与消费解耦。turn
+  在飞时到达的输入静静排队，下一次 drain（turn 边界）被看见。天然的
+  安全边界、天然的顺序、天然不打断。
+- **回复激活新 turn**：一个工作（子 agent / 后台 bash）完成，
+  它的完成回执**就是投进本 session inbox 的一条输入**。于是"子 agent
+  回来"和"用户说话"是同一件事——都让循环起一个新 turn。先回来的先进
+  inbox 先处理，不等全体。
+- **子 agent = 递归的 Session**：启动子 agent = 创建一个
+  子 Session + 把它挂到父 session 的"在飞工作"集合，**立即拿到 handle
+  返回**（非阻塞）。子 session 有自己的 inbox/journal/loop。它结束时，
+  向父 inbox 投一条完成输入。杀死 = 向子 session inbox 投一条 cancel
+  输入（或直接 cancel 它的执行 ctx）——它会 park→收尾→给父投一条
+  "被取消"的完成回执。**父子用同一套 inbox 机制通信**，没有第二套。
+- **消息改变编排**：用户 steer 消息进父 inbox → 下个 turn
+  模型看到它 → 模型自己决定发 `cancel_child(h2)` + `spawn_child(...)`
+  工具调用。编排的智能在模型，runtime 只提供"随时能投、随时能杀、
+  随时能起"的原语。
+- **interrupt 与输入分立**：输入进 inbox（追加语义，不打断）；
+  interrupt 是一个**带外信号**（不进 inbox），直接 cancel 当前 turn 的
+  活动 ctx，把部分输出收尾成 journal，然后循环回顶——通常此时 inbox 里
+  正躺着用户那条"改方向"的消息。两个通道，两种语义，同一个交汇点
+  （turn 边界）。
+
+只剩**多模态输入**、**前台工具**、**恢复**不是循环的直接推论——它们是
+循环里"输入的形态"、"turn 里做什么"、"循环怎么冷启动"，分别见
+§4 / §5 / §6。
+
+这一节是全文最重要的。**如果一个功能不能表达成"往某个 inbox 投一条
+输入"或"在 turn 里做一件事"，先怀疑是不是设计错了。**
+
+---
+
+## 2. Inbox：统一输入投递
+
+inbox 是关键原语。v1 的病根是**没有输入通道**——只有 run 启动时的一条
+task。现在"任何一方对 session 说话"统一成"往 inbox 投一条 `Input`"。
+
+**Input 的种类**（一个 tagged union，都 journal 为 `InputReceived`）：
+
+| 种类 | 来源 | 例子 |
+|---|---|---|
+| `user_message` | 人 | 文本 + 附件（图片/长贴），终端或 web |
+| `child_result` | 子 session | 完成/失败/被取消 的回执 + 产出摘要 |
+| `tool_result` | 后台工具 | 后台 bash 的终态（复用同一路径）|
+| `timer` | runtime | 定时/超时到期 |
+| `control` | 人/系统 | cancel、pause（interrupt 是带外信号，不走这里）|
+
+**三条铁律**：
+
+1. **投递与消费解耦**。投递方（终端、web、子 session、timer、webhook）
+   只管 append 到持久 inbox；消费方（loop）在 turn 边界 drain。发送方
+   从不阻塞在"agent 现在忙不忙"上。
+2. **journal-inputs-first**：一条输入先落 journal 成 `InputReceived`
+   event，再被 fold 看见、被 turn 消费。崩溃不丢输入。**落地机制**：
+   daemon 把每条投递先 redact+fsync 进 per-session mailbox
+   （`inbox.jsonl`，单调 delivery_seq）再回执"delivered"；消费侧
+   journal 回写 seq，fold 记高水位；resume 重放未消费尾巴、按 seq
+   去重——确认即持久，at-least-once + 去重 = 恰好一次。
+3. **有序 + 至少一次**。inbox 是 per-session 的有序队列；投递去重靠
+   幂等 id（发送方给，或 runtime 按内容+来源生成）。
+
+**这一个原语统一了三类发送方**：steering（人投 `user_message`）、
+续聊（turn 后 park 等 inbox）、外部事件（webhook 往既有 session 的
+inbox 投递，和人投的是同一种——机器发送方为扩展层余项，见 GAPS G14）。
+三者本就是"输入投递"的三个发送方，是一个问题，不是三个。
+
+---
+
+## 3. 子 Agent：递归的 Session
+
+**没有"子 agent"这个独立概念——子 agent 就是一个 parent 指针非空的
+Session。** v1 曾有 spawn 阻塞路径、后台 task 路径、driver 的 child
+路径三套各自为政的"子执行"；目标形态只有一套（当前收敛程度见 §17
+实现状态注记）。
+
+**生命周期全部是 inbox 动作**：
+
+- **启动**（非阻塞）：父 turn 里模型调 `spawn_child{agent, task, budget}`
+  工具 → runtime 创建子 Session（自己的 dir、inbox、journal，预算从父
+  树预算切一块）→ 向子 inbox 投第一条 `user_message`（= task）→ 父侧
+  journal 一条 `ChildSpawned{handle, child_id}` → **工具立即返回 handle**
+  → 父 turn 继续（可以再 spawn、可以读码、可以结束 turn 去 park）。
+- **并行**：N 个子 session 各自在自己的 loop 里跑，互不阻塞。父不"等"
+  任何一个。
+- **完成 → 激活父**：子 session 走到它的待命点且被标记为"一次性任务"
+  （见下）时，向**父 inbox** 投一条 `child_result`。父 loop 下个 turn
+  drain 到它 → 模型看到"h2 回来了，结论是……" → 起 turn 反应。先完成
+  的先投先处理。
+- **杀死**：父 turn 里模型调 `cancel_child{handle}`，或用户
+  投一条 `control{cancel, handle}` → runtime cancel 子 session 的执行
+  ctx → 子把在飞活动收尾（进程组确认退出、部分输出留存）→ 子向父 inbox
+  投 `child_result{canceled, partial}`。**杀死不是特例，是给子 session
+  投了一条 control 输入。**
+- **改变编排**：steer → 模型在下个 turn 同时发
+  `cancel_child{h2}` 和 `spawn_child{迁移文档}`。runtime 不需要懂
+  "重定向"，它只提供杀和起。
+
+**一次性任务 vs 持续会话**：子 session 默认是"一次性任务"——完成即向父
+投回执并进入终态。但因为它就是个 Session，它**也可以**是持续的（父保持
+它的 handle，多次投 `user_message` 复用它）。不为这两者建两套东西，
+只是子 session 的一个 flag：`report_to_parent_on_idle`。
+
+**父崩溃**：子 session 有独立 journal，父恢复时对每个"在飞 handle"
+检查子 journal——子已终态则从子 fold 结算并合成一条 child_result 投回
+父 inbox；子还在跑则重新挂接（settle-from-child-fold 纪律）。
+
+**树级约束**（v1 验证正确，逐字保留）：
+
+- **审批路由**：child 的 `ask` 沿 correlation id 冒泡到 session 的
+  frontend——审批的永远是人，不是 parent agent。
+- **权限继承拆成两条规则**（mode 没有"交集"运算，不能笼统写 ∩）：
+  (1) **rules 做真交集**——spawn 时由 parent 按当时的有效权限计算，
+  冻结成不可变数据传给 child；child 的管线只认这份，child spec 无法
+  放宽，parent 事后的 mode 跃迁也不回溯影响 child。(2) **mode 不交集**
+  ——child 的 mode 独立，但工具面先经冻结 rules 过滤，mode 跃迁只能在
+  冻结 rules 内移动；child spec 声明 `bypass` 非法。
+- **树级预算与递归上限**：spawn 深度与并发扇出有数据化上限（budget
+  关卡校验，超限渲染为 error 结果）——spec 白名单允许 A↔B 成环，
+  上限是唯一防线。child 的有效预算 = min(child spec 限额, parent
+  剩余额度)，沿 correlation 树聚合，与权限冻结同构；parent 的 token
+  上限约束的是整棵树，不是单个 stream。树预算 reserve-at-spawn /
+  settle-at-child-idle。
+- **子 agent 的意义在上下文隔离**：child 烧自己的 window，只有符合
+  result contract 的最终报告回流 parent（contract 在子 agent spec 的
+  `description`/输出约定里声明）。
+- 可审计性保证是 per-stream 的：每个 agent 的 stream 完整、
+  causation/correlation 链路完整；跨 actor 的消息交错不保证确定性重现
+  （见非目标）。
+
+多 agent 的其余两种协作模式（**handoff**——移交后退出；**pub/sub
+协作**——blackboard topic）是 spawn 之外的补充形态，底座同上。
+
+---
+
+## 4. Turn 与消息：模型看到什么、多模态
+
+**Turn** = 一次模型调用 + 该调用产生的工具执行，是 journal 里的原子
+推进单元，也是**唯一的中断/快照/审批边界**。snapshot、max_turns、
+steering 消费点、barrier 候选点引用的都是同一个定义；steering 的消费点
+精确为**最早可配对点**（当前 call 结束后、下一次 LLM 调用前），不必等
+同 turn 的其余 call。
+
+**消息模型**：一条消息由 parts 组成，part 种类：
+`text` / `tool_call` / `tool_result` / **`image`** / **`file`**。
+
+- 图片/文件的字节走 **CAS**（content-addressed blob store）：journal 与
+  fold 只存 `ref + media_type`（blob 先于引用它的 event 落盘——
+  blob-before-event），组装请求时才从 CAS inflate 成 wire 字节。
+  fold 永不读 store 的纪律不破。
+- 长粘贴文本：超阈值自动转成 `file` part（folded 显示为摘要+ref），
+  不撑爆上下文。
+- provider 适配层把 part 映射到各家 wire（Anthropic image block /
+  Gemini inline_data）——一个薄适配，不是核心。
+
+### Context assembly（一等组件）
+
+上下文不是"一个 system prompt 文件 + 消息列表"，而是一个有名字的组件，
+负责 `fold(event log) → provider 请求`：
+
+- **System prompt 是拼装的**，顺序固定：harness 基础指令 → 环境块
+  （cwd、git 状态、日期——**在 session start 冻结进 fold state**，之后的
+  环境变化以追加消息进入上下文，绝不改写 prefix：git 状态每 turn 都变，
+  不冻结的话 harness 会亲手打爆下面的 caching 不变量）→ memory 文件层
+  （CLAUDE.md 按目录层级合并）→ tool/skill/子 agent 目录（模型不知道
+  `summarizer` 存在就永远不会 spawn 它——目录注入是 multi-agent 可用的
+  前提）→ spec 的 system prompt。
+- **Prefix 稳定性是显式不变量**（prompt caching 的经济性约 10x，
+  没有它 agent loop 在经济上不可用）：system prompt 与 tool schema 排序
+  稳定，cache 断点由 loop 放置；任何会打爆 prefix 的操作
+  （配置中途变更）要么禁止要么显式换代。context assembly 只负责保证
+  prefix 稳定这个**与 provider 无关**的不变量；缓存怎么落地
+  （Anthropic 的显式 `cache_control` 断点 vs. Gemini 的 context cache
+  句柄）由各 provider 实现。LLM activity 的 event 记录归一化的
+  cache_read/cache_write token，budget 关卡按真实计费口径记账。
+- **Tool 结果截断**：per-tool 输出上限，超限截断并告知模型被截断了
+  ——一条 `cat large.json` 不能毁掉上下文和预算。
+- **Compaction 是 recorded activity**：它本身是一次 LLM 调用
+  （非确定性副作用），产出 `ContextCompacted{summary, kept_range}` event，
+  **改变后续 fold 的结果**。跨 compaction 边界的 fork/rewind 语义因此
+  是良定义的：fold 到哪个 seq，就得到哪个视图。手动触发 = 投一条
+  `control{compact,指示}`——又是 inbox（扩展层余项，见 GAPS G7）。
+
+### Turn 内的执行纪律
+
+- **并行 tool call 是常态**：一条 assistant 消息含 N 个 tool call 时，
+  每个 call 独立过管线；判定为 allow 的并发执行，判定为 ask 的按序等审批
+  （审批挂起不阻塞已放行的 call）；完成 event 按到达顺序落盘。
+  **call 的身份由 harness 生成的 call id 定义**（随 event 持久化，
+  provider 各自映射到自家配对机制）；到达顺序只是日志事实——context
+  assembly 在下一次 LLM 调用前收齐该 turn 全部结果，**按原 call 顺序
+  重排**（Gemini 要求 functionResponse 与 functionCall 数量 1:1、
+  按位置配对，乱序或缺失直接 400）。
+- **异常终止形态是 loop 策略的一部分**：归一化 finish_reason 显式收录
+  blocked / malformed_tool_call / recitation 等（Gemini 有一整类
+  Anthropic 不存在的形态：MALFORMED_FUNCTION_CALL、SAFETY、零 candidate
+  的 promptFeedback.blockReason）。策略：malformed_tool_call 走 activity
+  retry（复用 `TurnDiscarded` 渲染路径）；safety/blocked 上浮为用户可见
+  错误，不重试。
+- **Interrupt 触发 turn sweep**——该时刻所有未终态的
+  call 一律得到终态：执行中的走协作取消（`ActivityCancelled`）；
+  已放行未启动与审批挂起中的落 `EffectAbandoned`（其
+  `ApprovalRequested` 随之作废，迟到的应答按 request id no-op——
+  否则 crash-resume 后一条迟到的批准会执行用户已用 Esc 放弃的危险
+  调用）；全部渲染为 `[interrupted by user]` 呈现给模型的下一 turn。
+- **Streaming 的持久化边界**：token delta 只走 bus（**显式 ephemeral**，
+  这是原则 2 的正版应用而非违反）；持久化的是组装完成的 assistant
+  message（一条 event）。LLM activity 重试发生在已流出部分输出之后时，
+  发 `TurnDiscarded` event，前端据此渲染（"重试中"并重新开流），
+  绝不静默替换用户已看到的文本。
+- **后台 effect 不阻塞 loop**：background call 的立即配对结果就是
+  `ActivityStarted` 的 fold 渲染（`{task_id, status: running}`）——
+  Gemini 的 1:1 配对当场满足、永不再动；完成时终态兼任 pending input，
+  在 turn 边界以**新的 user-role 消息**进入 loop（与 steering 同路）。
+  `task_output`（读 log，read-class）/ `task_kill`（协作取消，
+  execute-class）是普通数据定义 tool；进度 tail 走 ephemeral topic
+  （与 token delta 同 doctrine）。
+
+---
+
+## 5. Effect Pipeline：turn 里的一切副作用
+
+turn 里每个副作用（模型调用、工具调用、spawn、发布 artifact）都是一个
+**Effect**，流经同一条判定管线。这是 v1 最扎实的资产之一，设计正确、
+逐字保留；它是"turn 内机制"，服务于 §1 的循环，不是设计的出发点。
+
+```
+effect
+  │
+  ▼
+[1] Hooks (pre)      # v0: observe + block（exit code），不做改写
+  ▼
+[2] Permission       # allow / ask / deny（policy 是数据）
+  │                  #   ask ⇒ ApprovalRequested event，session 进
+  │                  #   WAITING_APPROVAL，应答以 event 到达后继续
+  ▼
+[3] Budget           # turns/tokens/cost 从 event stream 统计；
+  │                  # timeout 走 durable timer（见 §6）
+  ▼
+[4] Execute          # 以 activity 执行（retry/cancel 语义见 §6）
+  ▼
+[5] Hooks (post)
+```
+
+- **关卡判定在记录边界之内，按持久化时点拆分**：pre-hook 结果 +
+  permission 判定 + budget 判定在关卡判定终结后（放行或拦下——拦下时
+  其后没有 `ActivityStarted`）、执行开始**之前**作为一条 `EffectResolved`
+  event 落盘（ask 路径：`ApprovalRequested` **自身携带此前已完成关卡
+  的判定**——pre-hook 可能已执行副作用，这个事实必须先于可能数天的
+  挂起落盘；应答到达后 `EffectResolved` 作终态汇总并引用该 id）；
+  post-hook 结果随 `ActivityCompleted` 落盘。单一落盘点装不下整条管线
+  ——它跨越 durable 的 `ActivityStarted` 和可能挂几天的审批。恢复时读
+  记录值，不重跑 hook 脚本、不重读 policy 文件——hook 是有副作用的
+  外部脚本，绝不能在恢复路径上再执行一次；进了关卡但没有
+  `EffectResolved` 的 effect 与 activity 同等享受 in-doubt 上浮，
+  绝不静默重过关卡。happy path 下一个 effect 仍只有一条关卡 event，
+  不淹没日志。
+- **预算是 reserve-then-settle 的**：关卡时刻对预估成本（LLM 调用按
+  max_tokens、tool 按类别估值）做原子预留，与已 fold 的消耗 + 未结清
+  预留一起比对上限；`ActivityCompleted` 时按实际结算，预留集是 fold
+  state 的一部分。否则 N 个并行 call 各自对着同一个过期计数器放行，
+  合起来超支 N 倍。
+- **hooks 是管线机件，不是 effect**——不递归进管线自身；执行记录随
+  管线判定持久化（pre-hook 在 `EffectResolved`，post-hook 随
+  `ActivityCompleted`）。v0 只支持 observe + block，改写输入（mutation）
+  连同它带来的顺序与缓存问题一起推迟。
+- **每种关卡结果都定义"模型看到什么"**。所有 provider 都要求 tool call
+  与结果配对（Anthropic 按 call id、Gemini 按数量+位置且更严格），
+  且 agent loop 在多数失败后应当继续：
+  - deny → `tool_result{is_error: true, reason}`，loop 继续；
+  - hook block → hook 的消息作为 error tool_result，loop 继续；
+  - 审批被拒 → 同上，附拒绝理由；
+  - budget 超限（session 级 token/cost/turns）→ 让模型收尾的最后一条
+    消息 + 优雅停止（`LimitExceeded` event），不是掐断；结构性限制
+    （spawn 深度/扇出，同在 budget 关卡校验）→ error 结果，loop 继续；
+  - activity 失败（重试耗尽）→ error tool_result，loop 继续。
+  "给模型的错误"和"给用户的错误"是两个 surface，分开设计。error 结果的
+  线上形态由各 provider 定义（Anthropic 有 `is_error` 标志；Gemini 没有，
+  约定为 `functionResponse.response` 内的 error 载荷）。
+- **permission modes 是 loop 行为，不是 policy 枚举值**。每个 mode 是
+  一组数据：工具面过滤 + prompt 注入 + 跃迁规则。例：`plan` = 只读工具面
+  + 计划指令注入 + 专用 `ExitPlanMode` 工具（其审批通过即触发 mode 跃迁，
+  跃迁本身是 event）；`acceptEdits` 依赖 tool 的**类别**标签
+  （edit-class / execute-class / read-class，tool 定义数据的一部分）。
+  hook 与 mode 的优先级明确：`bypass` 不跳过 hooks。
+  **工具面分两级**：mode 的过滤作用于 **permitted 面**（关卡数据，
+  随 mode 任意变、deny 拦截）；**advertised 面**（进 prefix 的 tools
+  参数与目录）session 内稳定——否则每次进出 plan mode 都打爆
+  tools 级缓存。`ExitPlanMode` 常驻 advertised 面。
+- **path 规则的边界诚实**：path 规则只约束文件类 tool；bash 天然是旁路
+  （一条 `sed -i` 就能改写 `src/**`）。因此 rules schema 对 bash 提供
+  **命令模式匹配**（`{tool: bash, command: "git *", action: allow}` 式），
+  bash 的可写范围最终由 workspace 沙箱等级闭环（沙箱等级决定 bash
+  可写路径，与 path 规则同源配置）。这层关系明文写出，不假装 path 规则
+  覆盖一切。**network 资源类同理**：rules 的 `network`
+  模式匹配 effect 的出口范围——未受限的 execute effect 带 `all`，
+  spec `sandbox.network: none` 经 netns 收容后不带出口、network 规则
+  不再触发；收容是共享 executor 上的**棘轮**（树内任一 spec 收紧即
+  全树收紧，永不放宽），宿主无法提供 netns 时 bash **fail closed**；
+  生效的 containment 记录在 `EffectResolved`（缺席 = 未收容）。
+  MCP 工具在 out-of-process server 里执行、不受收容约束——恒记
+  Network "all"、containment 缺席（journal 不过度声明）。
+- **路径匹配基于 realpath**：所有文件类 tool 的路径在 permission 匹配与
+  边界检查前一律 resolve（symlink、`..` 归一化）；resolve 后落在
+  workspace 外 → deny。`src/../../etc/passwd` 匹配不上 `src/**`，
+  workspace 内指向外部的 symlink 也写不穿边界。
+
+**核心工具集**（runtime 必须自带、必须 work，不能借 bash）：
+`read_file` / `write_file` / `edit_file` / `bash`(前台+后台) /
+`spawn_child` / `cancel_child` / `ask_user`(wait-class，向用户提问=park
+等 inbox 里的 user_message) / `finish`(结束当前 turn 让 session 待命)。
+（实现名对照与未实现项见 §17。）
+
+- **tool 定义本身是数据**：description、JSON schema、类别标签
+  （read/edit/execute/**wait**-class——wait-class 即"向用户提问"类
+  工具，execute = 进入 `WAITING_INPUT` park 而非阻塞 activity，
+  跨崩溃不被 in-doubt 误杀；类别同时供 `acceptEdits` 等 mode 与
+  in-doubt 策略使用）、per-tool 配置（bash timeout、输出截断上限）。
+  内置 tool 以数据文件形式随包分发，spec 里的 `tools:` 是对这些定义
+  的引用 + 收窄。
+- 内置 tool 套件（file read/write/edit、bash、glob/grep、web
+  fetch/search）建立在 workspace 抽象上：工作目录、路径边界、bash 沙箱
+  等级。worktree 级隔离支持多 agent 并行改文件。（glob/grep/web 尚未
+  一等化，见 GAPS G18。）
+
+---
+
+## 6. 持久化与恢复：journal + fold + snapshot
+
+### Durability 模型：journal 一切输入，snapshot-resume，不做 code replay
+
+这是全设计最重要的取舍。Temporal 式确定性 code replay 需要稳定 activity
+id、确定性协程调度、divergence 检测——一个数周级的引擎项目；而 agent loop
+的全部状态不过是（消息列表、turn 计数、待处理 tool call）。我们用三件更
+便宜的东西拿到同样的用户可见能力：
+
+1. **所有外部输入 journal 成 event，先落盘再消费。** 用户消息、steering、
+   interrupt、审批应答、timer 到期——任何 loop 能观察到的输入，
+   都以 `InputReceived` 类 event append 进该 session 的 stream，然后才
+   进入处理。崩溃时不丢审批、不丢插话；历史完整可审计。（投递侧的
+   durable mailbox 见 §2 铁律 2。）
+2. **State 是 event log 的纯 fold。** `state = fold(apply, events)`，
+   apply 是纯函数、不读时钟、不执行任何代码副作用。因此对话状态永远可
+   从 log 重建。
+3. **Snapshot-resume。** 在 turn 边界给对话 state 打 snapshot；
+   resume = 加载最新 snapshot + fold `seq > N` 的 events + 继续 loop。
+   不重放代码路径，没有确定性纪律要负担。snapshot 是**可弃缓存**——
+   可疑形状（旧版本字段缺失等）直接丢弃走全量 fold，fold 精确重算。
+
+**挂起是显式状态，不是任意点 park。** 审批、timer、人工输入全都发生在
+turn/tool-call 边界。session 进入 `WAITING_APPROVAL` / `WAITING_INPUT`
+状态（本身是 event），待等的输入作为 event 到达后 loop 继续。等几分钟或
+几天成本相同，进程死了也一样——durable park 不需要 replay 引擎。
+
+**等待状态是一个注册表，配一张可中断性表**：`WAITING_INPUT` /
+`WAITING_APPROVAL` / `WAITING_TASKS`（后台任务未清）/ `WAITING_TIMER`
+（driver 定时）都是同一个等待事件的 reason 变体。interrupt 在等待中
+journal 进来即把 session 带出等待——未决审批按 denied-by-interrupt 解决，
+对应 call 渲染为 `[interrupted by user]` 的 error 结果；**已配对的后台
+任务例外**：它的 handle 已是唯一配对结果，取消通知走 task-notice 输入
+通道，绝不发第二个 tool result。durable timeout 在等待中到期走同一条
+路径。
+
+### Activity 语义
+
+- activity = 一次副作用执行的记录单元：`ActivityStarted` 先落盘 →
+  执行 → `ActivityCompleted{result}` / `ActivityFailed` 落盘。
+- **凭据 redaction**：结果落盘前，对进程已知的凭据值（`*_API_KEY` 类
+  环境变量的字面值）替换为 `[REDACTED:VAR]`。harness 自身绝不把凭据写入
+  spec/event；但 tool 输出可能携带任意 secret——redaction 是尽力而为的
+  兜底，属文档化残余风险。log 文件权限 0600，永不入 git。落盘路径预留
+  （当前为恒等的）**scrub 阶段**；`EventStore` 接口预留 at-rest 加密位
+  ——fold 完整性堵死事后擦除，唯一自洽的擦除点在写入之前。
+- **at-least-once + in-doubt 检测**：崩溃发生在"执行后、落盘前"时，
+  恢复看到有 `Started` 无 `Completed` → in-doubt。崩溃几乎必然砸中
+  in-flight activity（agent 的墙钟全在 LLM 调用和 bash 里），所以
+  in-doubt 的处置是**按 tool 类别的数据化策略**，不是一刀切转人工：
+  LLM 调用 → 自动重发（复用 `TurnDiscarded` 渲染）；read-class 与
+  `idempotent: true` → 直接重跑；execute/edit-class → **不重跑**，
+  渲染 `[interrupted by crash]` error 结果、loop 继续；"上浮转人工"
+  只留给显式配置的高危工具。非幂等操作绝不静默重跑的红线不变——
+  它们根本不重跑；headless/无人值守 run 也因此不会卡死在人工 triage。
+- **retry 是 activity 的通用属性**：retry/backoff、rate limit 处理、
+  model fallback 是 activity 级策略，所有副作用共享。
+- **声明式幂等是 in-doubt 自动重跑的唯一通道**：tool/activity 定义可
+  标注 `idempotent: true`（默认 false）——只读 verifier、artifact
+  重发布等都引用这一个机制；未声明者 in-doubt 一律上浮，绝不静默重跑。
+- **后台 activity**：`bash` / spawn 支持 `background: true`。
+  `ActivityStarted` 额外记录 task_id（= call id）、pgid、log_ref、
+  `on_run_end: cancel|await`；输出重定向到 log_ref（完成时全量入 blob
+  store，tail 截断后入 event）。取消、timeout、retry、redaction 语义
+  与前台完全相同——不同的只是模型何时看到结果（见 §4）。
+- **协作取消是 activity 的一等能力**：activity 持有 cancel signal，
+  被打断时记录 `ActivityCancelled{partial_output}`。跑了 10 分钟的 bash
+  必须能被 Esc 杀掉——interrupt 语义建立在这之上。
+- **取消的终态以进程组为准**：bash 以独立进程组启动
+  （start_new_session），取消 = 对整组 SIGTERM → 宽限 → SIGKILL，
+  **确认组内进程全部退出后**才 journal `ActivityCancelled`（管道以
+  有界超时 drain 出 partial_output）。否则 `npm install` 的孤儿进程会在
+  "取消"之后继续写 workspace，污染 barrier 和 rewind。MCP 的取消通知
+  多数 server 不理会——按 best-effort 处理，journal 为
+  cancelled-unconfirmed。
+- **timeout 是 durable timer**，与 session 竞速的一条记录在案的定时器，
+  绝不在关卡代码里读墙钟（重建时时间不同会得出不同结论）。
+
+### 恢复（进程重启后的冷启动）
+
+进程重启 → 对每个 session 读 journal + fold →
+
+- **空闲 session**（上次 turn 后在 park）：直接回到 loop 顶部等 inbox。
+  **续聊天然恢复**——因为待命就是循环的常态，不是特殊状态。重启后一条
+  `send` 即复活（复活按 journal 形状把关：task 模式/已 ended 的 session
+  拒绝假确认）。
+- **turn 中途崩溃**：in-doubt 纪律（见上）。**分模式**：
+  自愈渲染（`[interrupted by crash]` 后续聊）只对 conversational 会话
+  生效——长期会话必须自愈；task 模式保留 refuse-and-surface
+  （InDoubtError 上浮给调用方处置）。进了副作用关卡没 `EffectResolved`
+  的两种模式都上浮（hooks 可能半跑）。
+- **在飞子 session**：§3 的 settle-from-child-fold。
+- **崩溃恢复绝不碰文件系统。** 单进程下崩溃时文件系统本来就活着、
+  已在 head 附近；恢复只重建对话 state。回滚文件系统是 rewind 的
+  用户主动行为，不是恢复的一部分。
+
+### Checkpoint 与 workspace
+
+两种"快照"，语义完全不同，不混为一谈：
+
+- **对话 state snapshot**：event log 的派生缓存，加速 resume。
+  可随意丢弃——删掉只损失 fold 时间，不损失任何东西。
+- **Workspace 快照**：**一等状态，不是派生物**。文件系统永远不可能从
+  event log 重建（activity 结果被记录，但不重放）。快照藏在
+  **`SnapshotStore` 接口**后，event 只引用 opaque 的 snapshot ref——
+  上层语义不与任何具体机制耦合，只服务 **rewind/fork 与 best-of-N 的
+  base 物化**（后者在 round 开始时取一次快照、ref 钉进
+  `IterationScheduled`——blob-before-event 同纪律），常规打点只在显式
+  barrier（见 §12 `CheckpointBarrier`）。快照 **pinned until
+  explicit GC**——rewind 之后较新的快照不会变得不可达。
+- **默认 backend 是 shadow repo**：独立的 `GIT_DIR` 放在 harness 数据
+  目录下、`GIT_WORK_TREE` 指向 workspace——对用户自己的 repo 完全隐形：
+  不污染 HEAD/index、不会被误 push，agent 通过 bash 做 `git checkout` /
+  `git reset` 也打不断快照链。备选 backend：archive copy；`none`
+  （rewind/fork 优雅不可用，其余功能不受影响）。git 只是默认实现，
+  不是设计依赖。
+- **排除策略显式化**：harness 级 exclude 列表（node_modules/venv/build
+  类 + 凭据文件硬排除表），被排除的路径文档化为 rewind 范围外。
+- **IndexStore（第四类状态）**：可从 workspace 随时重建的
+  派生索引（`semantic_search` 的底座）。删除只损失重建时间——因此
+  **不入 run 版本集、不入 journal、不入快照、fork 不携带**（与 driver/
+  notifier stream 同例）。常驻 indexer actor 按查询增量刷新（fingerprint
+  比对）；v0 backend 为 identifier-aware 的词法排序（BM25），embedding
+  backend 可替换而不动上层。凭据路径沿用快照硬排除表——snippet 会进
+  journal，凭据内容不得入索引。**边界诚实（与 bash 条款同性质）**：
+  indexer 以 workspace root 为界直接遍历文件（不经文件类 tool 的
+  per-path resolve），path 规则因此**不约束** snippet 暴露；边界由
+  rooted walk + 永不跟随 symlink + 硬排除表 + snippet 过 redact 保证。
+- **bash 可以逃逸 workspace**（pip install、网络调用、写外部路径）。
+  rewind 回退的是 workspace 内的文件，逃逸的副作用明确不在承诺内。
+
+---
+
+## 7. 分层
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ 交互面   终端 / web / webhook —— 都只是 inbox 的投递方   │
+│          + 输出订阅（turn/delta/工具判定，ephemeral）    │
+├─────────────────────────────────────────────────────────┤
+│ 会话内核 Session actor · inbox · loop · turn · 子 session│  ← 中心
+│          （§1–§3，核心十项住在这里）                     │
+├─────────────────────────────────────────────────────────┤
+│ Turn 机制 上下文组装 · effect pipeline(关卡) · 工具       │
+├─────────────────────────────────────────────────────────┤
+│ 持久化   journal · fold · snapshot · CAS · in-doubt      │
+├─────────────────────────────────────────────────────────┤
+│ 扩展层   workspace 快照/fork · goal/loop/best-of-N 驱动  │
+│          · 云环境 · Git 一等化 · 索引 · MCP · 通知       │
+└─────────────────────────────────────────────────────────┘
+```
+
+会话内核居中，交互面和持久化是它的两翼；actor model 是内核的实现手段，
+不是设计的起点。扩展层机制（驱动、时间旅行、索引、MCP、通知等）已随
+v1 落地并保持可用，定位是**服务核心循环的机制**。
+
+### Kernel 基座（actor/bus/envelope）
+
+- **Actor**：一个 id、一个 mailbox（channel）、一个 behavior。
+  逐条处理消息，没有共享可变状态。并发来自"很多个 actor"。
+- **Bus**：进程内 transport。`send(to, msg)` 点对点；`publish(topic, msg)`
+  pub/sub 扇出。bus 是 ephemeral 的——**任何会影响 run 结果的输入，
+  必须先 journal 成 event 再被消费**，bus 只负责搬运。
+  跨进程部署时 bus 契约分**双通道**：ephemeral topic（可丢，delta 类）
+  与 guaranteed send（接收方 journal 后 ack）；frontend 重连必须从
+  event log 对账未决状态，不依赖 bus 补投。
+- **Envelope**：不可变，携带 `id / causation_id / correlation_id / sender /
+  target / type / payload / ts`。command 处理按 `Envelope.id` 幂等去重
+  （actor 在自己的 stream 里记录已处理的 command id），"command 可重试"
+  才成立。
+- **失败处理**：actor 未捕获异常 → 发 `ActorCrashed` event → session
+  标记 failed。**没有自动 restart 策略**——恢复统一走 session resume
+  （原则 6），避免两套恢复机制互相竞争。反复崩溃的 session 停在 failed
+  状态等人工处理，不会热循环。
+
+---
+
+## 8. 一个完整例子（把中心模型跑给自己看）
+
+用户开一个 session，跑一个多 agent + steer + 续聊的完整流程，看每一步
+都是"inbox 投递 + turn 推进"（这就是核心验收 C7，已真实 API 走通）：
+
+```
+1. 用户投 user_message("修这个 bug", +截图)      → inbox
+   loop drain → turn1: 模型看图读码，发 3 个 spawn_child → 拿 h1/h2/h3
+   → 3 个子 session 起跑 → turn1 结束 → park
+2. h1(复现) 先跑完 → 向父 inbox 投 child_result(h1)
+   loop drain → turn2: 模型"复现成功，继续等其它" → park
+3. 用户投 user_message("别查依赖了，看迁移文档")  → inbox
+   loop drain → turn3: 模型发 cancel_child(h2) + spawn_child(迁移)→h4
+   → h2 收到 control→收尾→投 child_result(h2, canceled)
+   → h4 起跑 → turn3 结束 → park
+4. h3、h4 陆续完成 → 各投一条 child_result → 各激活一个 turn
+5. 全部回来后某个 turn 模型调 finish → session 待命
+6. 用户过一小时投 user_message("为什么这么修?")   → inbox
+   loop drain → turn: 基于全部上下文作答 → park
+7. 进程重启 → session fold → 在 park → 直接回 loop 顶等 inbox（续聊无缝）
+```
+
+全程没有一个"特殊状态机"：多输入、并行、杀死、回灌、续聊、恢复，
+都是同一个循环消费同一个 inbox。
+
+---
+
+## 9. Agent spec 与配置
+
+agent 完全由声明式 spec（YAML → 强类型 struct）定义，加载时校验、
+坏 spec 报精确错误。spec 是模板，**agent instance** = spec + 运行时输入
+（task、correlation id、parent）。
+
+```yaml
+# agents/researcher.yaml
+name: researcher
+description: Deep-dives a topic and reports findings.
+
+model:
+  provider: gemini             # 薄 provider 接口；gemini 为主、anthropic 次
+  id: gemini-2.5-pro
+  max_tokens: 8192
+  thinking: { budget_tokens: 4096 }   # 通用能力，见 §11；provider 各自映射
+  # API key 只从环境变量读（如 GEMINI_API_KEY），绝不写进 spec/仓库
+
+system_prompt_file: prompts/researcher.md   # 只是拼装的一层，见 §4
+
+tools: [read_file, edit_file, bash, web_search]   # 引用 tool 定义（数据）
+
+mcp:
+  - name: github
+    transport: stdio           # schema 同时定义 http + auth，实现推迟
+    command: ["github-mcp-server"]
+    allowed_tools: [search_code, get_file_contents]
+
+skills:                        # Claude Code skill 约定：目录 + markdown + frontmatter
+  - ./skills/research
+
+agents: [summarizer]           # 允许 spawn 的子 agent 白名单
+
+permissions:
+  mode: default                # mode 是 loop 行为的数据描述（见 §5）
+  rules:
+    - { tool: read_file, action: allow }
+    - { tool: edit_file, path: "src/**", action: allow }
+    - { tool: bash, command: "git status*", action: allow }
+    - { tool: bash, action: ask }        # 兜底；path 规则约束不了 bash（见 §5）
+
+hooks:
+  pre_tool_use: ["./hooks/lint-check.sh"]   # v0: observe + block
+
+context:
+  compaction: { trigger_ratio: 0.8 }   # 见 §4 context assembly
+  tool_output_limit: 30000             # 每个 tool result 的截断上限
+  memory_files: true                   # CLAUDE.md 式指令文件注入
+
+limits:
+  max_turns: 40
+  max_tokens_total: 500_000
+  timeout_s: 900
+```
+
+- 配置分层从简：**spec + user settings + project settings** 三个来源，
+  标量覆盖、permission rules 按文档化顺序拼接（user > project > spec）；
+  更细的合并语义等真实冲突出现再加。user settings 属于用户机器，
+  project settings 随 repo 走——这个出身差异是信任模型的依据。
+- **policy 热更新是 event**："always allow"类写回 settings 的操作先
+  journal `PolicyChanged` event 再写盘（崩溃后幂等补做）；harness 配置
+  路径显式排除出快照/rewind 范围——否则 rewind 会让已收紧的 deny
+  静默复活。（审批现场写回的完整设计尚缺，见 GAPS G5。）
+- **信任模型**：spec 与 settings 等同于"你选择执行的代码"。可执行配置
+  （hooks）只从 spec 与 user 层生效；**project 层（随 repo 走的
+  文件）里的 hooks 被忽略**，除非用户对该 workspace 做过一次显式 trust
+  确认——否则 clone 一个不受信任的 repo 就等于交出任意代码执行权，
+  整个 permission 系统被绕过。memory 文件按不可信内容对待（只进 prompt，
+  不获得任何执行权）。原型是单用户自担模式，但边界必须明文。
+
+---
+
+## 10. 生态接入：Artifacts / MCP / Skills
+
+### Artifacts
+
+- **`ArtifactStore` 是 SnapshotStore 模式的第二个实例**：接口后的
+  content-addressed blob store（ref = `sha256:<hex>`）。一切语义
+  （名字、版本、mime、provenance）都在 event log 里——per-session 的
+  artifact 索引是 `ArtifactPublished` events 的纯 fold。目录型 artifact
+  是一个 manifest（`{relpath, ref}` 列表，其自身 hash 即 ref）。
+  多模态输入的 blob（§4）与任务日志共用同一个 CAS 模块。
+- **publish 是 tool，因此是 effect，因此是 activity**：内置
+  `publish_artifact{name, path, …}` 走完整四关卡（DLP 类 pre-hook 可拦、
+  file-class path 规则 + realpath 适用、per-publish 大小上限）。
+  **发布即持久**（blob 先落盘、event 随后 append），与 session 是否
+  结束无关。
+- **版本按 publishing stream 本地排序**：version 是 (name, stream)
+  内的序数，由该 stream 自己的 seq 决定——符合 per-stream 审计保证；
+  session 级索引是展示层合并，跨 stream 同名不产生全局版本序。
+- **`outputs:` 声明 = 交付物 contract**：spec 声明期望产出（name、
+  path、required），task 模式收尾 epilogue 自动 publish 并检查 contract
+  ——缺 required 输出渲染为 parent 的 error 结果，loop 继续。
+  交付物 contract 与过程中的协调对象（plan 等）是两条路径，不混用。
+- **审批载荷是 artifact ref**：`ApprovalRequested{payload_ref}` 引用
+  一份版本化、可渲染的 artifact——plan 审批 = mid-run publish +
+  带 ref 的审批请求 + `WAITING_APPROVAL`；被拒（附理由）→ 修订 →
+  `plan@v2` → 再审，审批记录精确指向它审的是哪一版。
+- **artifact 可作输入**：spawn 参数 / CLI 以 ref 传入，journal 进
+  child 的 `RunStarted` 后由 materialize activity 物化进 workspace
+  （in-doubt 语义随之而来）。driver 的跨迭代 carry 文档同样存这里。
+
+### MCP
+
+- **server 生命周期是带外运行时状态，不进 event 模型**：resume/重启后
+  server 重新拉起；原型假定 MCP server 无状态（per-call stateless），
+  这是文档化的契约。实现用官方 MCP Go SDK 管理 client/session。
+- **发现的 tool schema 记录为 event**（它们进入 LLM 的 tool 列表，
+  是影响 run 结果的外部输入）；`tools/list_changed` 同理。
+- 只有 `McpToolCalled/Returned` 是 activity。spec schema 里保留
+  `transport: http` + auth 字段，实现（OAuth 流程、凭据存储）推迟。
+- **命名空间与类别**：MCP tool 在 permission rules 里只以全限定名
+  `mcp__<server>__<tool>` 出现，与内置 tool 不可能撞名（server 上报
+  一个叫 `read_file` 的 tool 不会命中内置规则）；动态发现的 tool 没有
+  类别标签，一律按最保守的 execute-class 对待（plan 等只读 mode 默认
+  排除），除非 spec 显式为其标注类别。网络出口记账见 §5（恒 "all"）。
+
+### Skills
+
+- 沿用 Claude Code skill 约定（目录 + markdown + frontmatter），
+  生态兼容，不发明格式。注入位置见 §4 context assembly。
+
+---
+
+## 11. Provider
+
+- 薄接口（`complete(request) → stream`），streaming 原生。**Gemini 为主
+  实现，Anthropic 为次**（同一接口的第二个实现，验证抽象不漏）。
+- **能力是通用的、可选的**：请求以 provider 无关的方式携带 `caching`、
+  `thinking`、`tools`、`max_tokens` 等意图；每个 provider 把它们映射到
+  自家 API（Gemini 的 context caching / thinking config，Anthropic 的
+  `cache_control` / extended thinking）。provider 用 `capabilities()`
+  声明支持哪些能力，请求了不支持的能力时明确降级或报错，而不是静默忽略。
+- **返回归一化**：token 计数（含 cache_read/cache_write）、finish
+  reason（含异常形态，见 §4）、tool call、thinking 块统一成一套
+  内部表示，管线及记账不感知具体 provider。
+- **opaque signature 随 event 持久化**：归一化的 assistant part 带一个
+  per-provider 的 opaque extras/signature 字段（Gemini 的
+  `thoughtSignature`、Anthropic 的 thinking signature），context
+  assembly 回传时原样携带——丢掉它，Gemini 的多轮工具调用在第二次请求
+  就 400。推论：mid-run 切换 provider 不能带着对方的 signature 历史，
+  需在 compaction 边界（摘要天然无 signature）重新开始。
+- **凭据经 `CredentialProvider` 接口解析**：静态环境变量（如
+  `GEMINI_API_KEY`）是其一种实现；OAuth/订阅登录的 refresh token 走
+  受管 token store（event log 与 workspace 之外的又一持久位置，0600，
+  支持刷新回写）。意图不变：密钥绝不进 spec、event log 或仓库；
+  tool 输出可能携带 secret，由 §6 的 redaction 兜底。
+
+---
+
+## 12. Surfaces：运行形态与远程面
+
+### Session 管理
+
+- session = correlation id + 它名下的 stream 闭包（含子 session）。
+- **list**：枚举 store。**resume**：snapshot + fold（见 §6）。
+- **两种运行形态**：**conversational**（默认交互形态——答完 park 待命，
+  显式 close 才终结）与 **task**（一次性任务跑到完成，子 session 与
+  driver 迭代用）。形态记录在 `RunStarted`；恢复语义按形态分流（§6）。
+- **task 形态的收尾是固定 epilogue**：(1) 按 `on_run_end` quiesce 后台
+  任务（`await` 是纯静默等待——完成只入 journal 不再进 loop，且必有
+  durable timer 兜底；默认 `cancel` → 协作取消残留 task）→ (2) 自动
+  publish `outputs:` 声明的交付物并检查 contract → (3) 切终态
+  `CheckpointBarrier` → (4) journal 终态 event。任何给"结束"加步骤的
+  feature 都必须挂进这个序列，不得自行定义结束时序。
+
+### Fork / Rewind（时间旅行，扩展层）
+
+- **fork/rewind 的唯一合法目标是 `CheckpointBarrier` event**：barrier
+  是 **consistent-enough cut**，在 turn 边界与 task 终态（epilogue 固定
+  槽位）打点，另有手动打点入口（`barrier` 命令，对非运行中 session 在
+  当前 workspace 状态切 barrier）；**不要求全树静默**。barrier event
+  记录：{stream → seq} 向量（"." 为自身，`sub/<dir>` 为已完成子
+  stream 的 final seq）+ workspace snapshot ref + **in-flight 后台任务
+  的处置向量**（v0 一律 `cancel_at_fork`：fork 出的 session 不复活任务，
+  任务的 handle 已在对话里，fork 后模型可自行重启）。无 snapshot
+  （backend=none / git 缺失 / 快照失败）则**不落 barrier**——不承诺
+  无法兑现的 rewind。
+- **fork** = 在新 id 下复制该切面内的 events，以
+  `ForkedFrom{run, barrier}` 为创世 event（原 id 作为 provenance
+  保留；fork journal 恒只有**一个**创世——父自身的创世不复制，血统
+  经父 journal 链回溯），tasks 处置向量在复制时**落实**（cancel_at_fork
+  任务获得合成终态，fork 的 fold 无 in-doubt 活动）；`sub/` 子 journal
+  与 artifacts CAS 作为随行库 verbatim 复制（超出切面的部分是无害
+  provenance——事件切面本身仍以 barrier 为界）。并从 snapshot 物化
+  **自己的** worktree——fork 与原 session 不共享目录；rewind = fork 后
+  用户显式切换并放弃原 session。被排除的路径（见 §6）在 fork 里天然
+  缺席。任意 seq N 处的 fork 不提供——跨 stream 的因果一致切割不值得做。
+
+### 交互协议
+
+- frontend 是普通 actor：订阅输出 topic，向 session 发输入（journal 后
+  生效——实际经 §2 的 durable mailbox）。
+- 输出事件流：turn 开始/结束、token delta（ephemeral）、tool call 及其
+  permission 判定、`ApprovalRequested`、`TurnDiscarded`、后台任务进度
+  topic。CLI 先做 turn 粒度渲染，token streaming 是纯增量，协议不变。
+- `ApprovalRequested` 携带 `payload_ref` 时，frontend 渲染对应 artifact
+  ——审批对象是一份版本化文档，不只是 tool call 参数。
+- 协议预留（尚未实现）：slash command 调用（GAPS G21）、远程 stop
+  command（GAPS G12）。
+
+### 运行形态与 background
+
+- core 是库。CLI、headless 单发、server（HTTP/WS 暴露同一协议，
+  backlog）都是薄壳。
+- **session 默认由常驻 runtime 托管**（daemon + 本地 socket），CLI 是
+  attach/detach 的薄客户端：attach = 从 journal 补读到 seq N + 订阅
+  live topic（错过的 token delta 按 doctrine 丢失，组装消息不丢）；
+  detach **不产生任何事件**——订阅状态不影响结果，无事可记。
+  `runtime.daemon: never` 时降级为现有 durable park（下次进程启动时
+  resume）。
+- **常驻 runtime 也是 durable timer 的触发者**：维护 timer 的派生索引，
+  到期 journal `TimerFired` 并发起 resume——timeout/cron/审批过期的
+  "等几天成本相同"由它兑现；CLI-only 部署显式降级为"下次 resume 补火"。
+- **优雅停机是定义好的**：SIGTERM → 协作取消全部在飞 activity
+  （落 `ActivityCancelled`）→ snapshot → 退出——例行 deploy 不产生
+  in-doubt。server 形态推荐 **session-per-process** 拓扑（core 是库 +
+  文件态持久状态天然支持），单个大 fold 不会饿死其他 session。
+- **notifier 是一个 L4 actor**：订阅 session/driver 生命周期 topic（终态、
+  `WAITING_APPROVAL`、`IterationCompleted`…），按 user 层配置的通道发
+  通知；`NotificationSent` 记在自己的 stream 里跨重启去重（启动时与
+  store 对账）。通知通道是 surface 机件——与 hooks 同类的**文档化
+  carve-out**，不过四关卡，只能来自 user 层配置。
+
+### Scheduler 与 triggers
+
+- scheduler 是发布 `RunAgent` command 的普通 actor；webhook 触发 =
+  server 壳收到请求后发同一条 command。command 幂等（重试不会拉起
+  重复 run）。（S6 修订：v0 无独立 scheduler actor——cadence 在
+  driver 内、timer 唤醒在 daemon sweep；daemon 线协议的 run/drive
+  提交以 `idem_key` 幂等（daemon 生命周期内），重试返回同一 session
+  的流。独立 RunAgent command 家族随 webhook/壳 一并落地。外部事件
+  唤醒**既有** session = 往其 inbox 投递，见 §2 与 GAPS G14。）
+
+### Observability
+
+- event log 就是 trace。`inspect` 渲染时间线：turns、每个 tool call
+  的 `EffectResolved`（为什么放行/拦下）、子 agent 树
+  （correlation/causation）、token/cost（含 cache 命中）消耗。
+  `ps` 从 fold 列出在飞任务（handle/工具/spawn 目标），纯 journal 读。
+
+---
+
+## 13. 运行模式：IterationDriver（one-shot / goal / loop / best-of-N，扩展层）
+
+- **goal 和 loop 是同一个 driver actor 的两种 schedule**，one-shot 是
+  最平凡的情形。driver 有自己的 stream 和纯 fold 状态，每轮迭代 spawn
+  一个 **fresh child run**（同 spec → prefix 逐字节稳定可跨迭代命中
+  缓存、免 compaction 链、失败迭代不污染后续、迭代边界天然是 barrier
+  候选点）；driver 自己从不碰 LLM 和 workspace——verifier 是这条线的
+  **成文例外（S6 裁定、S7 管线化兑现）**：verifier 是 driver 规格里
+  "用户可信配置"声明的效果，**作为 journaled、经管线判定的 effect 执行**
+  （command = tool_call、llm_judge = llm_call；EffectRequested/Resolved
+  + ActivityStarted/Completed 入 driver stream——event log 即 trace）。
+  判定的规则层 = user/project 合并规则在前、driver-trust 的兜底 allow
+  在后（显式 deny 约束 verifier，未命中即放行——verifier 与 spec
+  permissions 同信任级）；ask 收紧为 deny（配置声明的效果无人应答）。
+  花费计入迭代 usage、verdict journal 进 IterationCompleted。
+- **统一事件族**：`IterationScheduled / Launched / Completed`、
+  `DriverCompleted{reason: satisfied|stalled|max_iterations|budget|
+  stopped|child_failed}`。launch 遵循 journal-before-send；崩溃后的
+  重发幂等由**纯 fold 检查（st.at(n) 已在 journal 则不重发）+ 确定性
+  child 目录（sub/iter-N，已终态则从其 fold 结算）**保证。
+- **Goal mode** = `schedule: immediate` + verifiers 必填。verifier 三态：
+  `command`（bash-class，exit code / metric regex）、`llm_judge`
+  （LLM 打分 + rubric + threshold）、`human`（就是现有 ask 路径，
+  挂几天免费）。verdict journal 进 `IterationCompleted`；
+  停滞检测是纯 fold——分数 patience 轮无改善（或 binary verifier 的
+  失败指纹连续相同）→ stalled，附最佳迭代的 carry。
+- **Best-of-N** = `schedule: parallel{n}`：N 个隔离 worktree 的并行
+  尝试（从同一个 base snapshot 物化，base ref 钉在每条
+  `IterationScheduled.BaseRef`），选择即 verifier（human / llm_judge /
+  command——机检 command 也是合法选择闸），胜者晋升（fork 或 apply
+  diff）。（注：v0 顺序执行 N 次尝试——隔离是语义、墙钟并发是优化；
+  自动晋升推迟，胜者 worktree 留盘由用户晋升——均记档。）
+- **Loop mode** = `schedule: interval|cron|self_paced` + verifiers
+  选填。self_paced 靠两个数据定义的内置 tool：`schedule_next{after}`
+  （过管线 → scheduler journal durable timer，min/max 钳位 +
+  `on_no_intent` 兜底）与 `finish_series`（"自称完成"由 human
+  verifier 把关，不另设 confirm 机制）。`overlap: skip|coalesce|
+  interrupt`；跳过是 `IterationSkipped` event，不是沉默。
+- **预算与失败策略共享**：driver 是树预算的根，reserve-at-launch /
+  settle-at-completion；`on_reserve_failure: skip|stop`、
+  `on_child_failure: stop|surface|retry{max, backoff}`——对**终态**
+  失败 run 的策略性重试不是第二套恢复机制（恢复只关乎崩溃的 run
+  找回自身状态，原则 6 不禁止 policy 级重试）。
+- **跨迭代数据两条通道**：carry 文档（child report / verifier 输出
+  摘要）存 `ArtifactStore`，`IterationCompleted` 只带 ref + 短摘录；
+  series memory 是 workspace 里 agent 自管的文档，注入为 context
+  assembly 的一层——**权威边界在注入时截断**（tool-gate 拒绝只是
+  引导，bash 旁路条款同样适用）。`barrier_per_iteration` 可选；
+  snapshot backend 为 `none` 时 `barrier_ref` 缺席，stall 呈现降级为
+  carry + verdicts（无 fork 按钮）。
+- **driver 依赖常驻 runtime**：没有它，interval/cron 只在进程活着时
+  触发、human verifier 的审批无人接收——这是文档化的降级模式，
+  不是默认。
+- **驱动与会话内核的关系（目标形态）**：driver 是"一种特殊的、由程序
+  而非人投递 inbox 的父 session"——当前实现仍为独立子系统（v1 兼容），
+  收敛与否见 §17 与 GAPS。
+
+---
+
+## 14. 测试策略与基建
+
+- **双闸门纪律**（v2 验证有效，成文于 PROCESS.md）：每项能力 =
+  确定性 **scripted 孪生**（离线、进 check.sh 常跑）+ **真实 API QA
+  场景**（QA.md 菜单，里程碑出口跑）。
+- **scripted provider**：按 session 内**序列**匹配回放，每条 fixture
+  可附对请求关键字段的断言（tool 名集合、末条消息含 X），漂移即响亮
+  失败；fixture 由录制工具生成，刻意的 prompt 变更 ⇒ 重录。
+- **routing provider**：按子 session 的 id/task 路由各自的脚本，
+  让并发子 agent 的响应确定、可复现。
+- **fifo/barrier 编排**：测试侧控制子 session 完成顺序，复现"先回来
+  先处理"、"杀死中途的"等时序。
+- **crash 注入**：in-doubt activity、审批挂起恢复、interrupt、异常终止
+  形态（空 candidate / malformed function call）各有专门的崩溃注入测试。
+- **样例 repo fixture**：小 Go 工程（含可跑的失败测试），版本入库于
+  `testdata/`，**每个测试复制到 tmp workspace 再操作**，绝不弄脏库内副本。
+- **真实仓库 testbed**：`scripts/testbed.sh` 把钉死的外部仓库 clone 到
+  scratch 目录（默认 `gin-gonic/gin@v1.10.1`，第二档
+  `caddyserver/caddy`）；QA 的 workspace 准备见 `qa/ws.sh`（SHA 钉死）。
+  testbed 场景不进单测 CI，只挂 acceptance（`requires: [testbed]`）。
+- agent 行为变化体现为 event log 的 diff，review 的是决策序列；
+  真实 API 断言只钉 runtime 红线（事件序列、文件状态），不钉模型措辞。
+- spec loader 用坏 spec 的错误信息做黄金测试。
+
+---
+
+## 15. 已定决策
+
+| # | 决策点 | 选择 | 理由 |
+|---|--------|------|------|
+| 1 | 语言 | Go 1.23+ | goroutine/channel 与 actor/mailbox 天然同构；单静态 binary 跨平台分发；Gemini/Anthropic/MCP 官方 Go SDK 齐备；编译期检查利于迭代。 |
+| 2 | 进程模型 | 单进程，in-memory bus | 原型简单；边界清晰，分布式化是换 transport。 |
+| 3 | 持久状态 | event log + workspace + 接口后的 ref-addressed blob store（SnapshotStore/ArtifactStore/任务日志共用 CAS 模块）；bus/delta ephemeral | fold 永不读 store；event 只引用 ref，blob 先于引用它的 event 落盘；"什么会丢"一目了然。 |
+| 4 | 输入语义 | 一切外部输入先 journal 成 event 再消费 | 审批/steering 不丢、可审计；bus 才允许 ephemeral。 |
+| 5 | Durability 模型 | journal + turn 边界 snapshot-resume + 显式等待状态；**不做** Temporal 式 code replay | 同样的用户可见能力（crash 恢复、长审批、fork），~10% 成本；loop 不背确定性纪律。 |
+| 6 | Activity 语义 | Started/Completed 双落盘，at-least-once；in-doubt 按 tool 类别数据化处置（LLM 重发+TurnDiscarded、read/idempotent 重跑、execute/edit 渲染 interrupted 继续、高危显式转人工），协作取消，通用 retry，background 变体 | 崩溃必然砸中 in-flight；headless 不能靠人工 triage；非幂等者不重跑（而非转人工）。 |
+| 7 | Checkpoint 语义 | 对话 snapshot 是可弃缓存；workspace 快照是一等状态，走 `SnapshotStore` 接口（event 只引用 opaque ref），默认 shadow-repo backend，只服务 rewind/fork | 文件系统不可从 log 重建；不与 git 耦合；用户 repo 与 agent 的 git 操作零污染。 |
+| 8 | 副作用治理 | 单一 effect pipeline，四关卡；判定按持久化时点拆分——`EffectResolved` 落在 `ActivityStarted` 前，post-hook 随 `ActivityCompleted` | permission/审批/hooks/预算是一个机制；恢复不重放 hook 副作用；happy path 仍是单条关卡 event。 |
+| 9 | 失败面向模型 | 每个 tool call 必有配对结果（harness call id，assembly 按原顺序重排）；error 渲染 per-provider 定义；超预算优雅收尾 | Gemini 按数量+位置严格配对且无 error 标志；agent 要能对失败自适应。 |
+| 10 | Permission modes | mode = 工具面过滤（作用于 permitted 面；advertised 面 prefix 内稳定）+ prompt 注入 + 跃迁规则（数据） | plan/acceptEdits 是 loop 行为；mode 切换不得打爆 tools 级缓存。 |
+| 11 | Hooks | v0 只 observe + block；是管线机件不是 effect | 改写带来顺序/缓存/重放问题，推迟；避免管线递归。 |
+| 12 | 存储后端 | JSONL per stream，藏在 `EventStore` 接口后 | 可读可 diff；需要时换 SQLite。 |
+| 13 | Spec 格式 | YAML → 强类型 struct + 校验；tool 定义也是数据 | 声明式、可 review；原则 4 落到 tool 层。 |
+| 14 | 运行形态 | core 是库；CLI/headless/server 是薄壳 | 一套 core 支撑所有 surface。 |
+| 15 | Provider | 薄接口 + 多 provider（Gemini 主、Anthropic 次），streaming 原生 | 两个实现验证抽象不漏；caching 是经济性前提。 |
+| 15b | 能力抽象 | caching/thinking 等为 provider 无关的可选 capability，各 provider 映射到自家 API，请求归一化 | 上层不写死某家语义；不支持的能力显式降级/报错而非静默。 |
+| 15c | 凭据 | `CredentialProvider` 接口（静态 env / 受管 token store 皆为实现）；harness 自身绝不写入 spec/event/仓库；落盘前 redaction；log 0600 | OAuth refresh token 需持久化+回写，"只读 env"表达不了；密钥不进受控内容的意图不变。 |
+| 16 | Skill 格式 | 沿用 Claude Code 约定 | 生态兼容，不发明格式。 |
+| 17 | MCP 生命周期 | 带外运行时状态；只有 tool 调用是 activity；发现的 schema 记录为 event | server 状态不可 event 化；schema 是影响结果的输入。 |
+| 18 | Event schema 版本化 | 不 migration；`RunStarted` 记 event-schema 版本，不匹配拒绝 resume；所有 fold 消费者走 `EventStore` 单一读路径，预留恒等 upcast 阶段；additive-optional 字段不 bump 版本 | 原型 re-run 比 migrate 便宜；将来要 migration 时只有一个改动点；bump 误伤旧 session resume。 |
+| 19 | 信任模型 | 可执行配置（hooks）只认 spec 与 user 层；project 层需显式 trust；memory 文件按不可信内容对待 | clone 不受信 repo 不等于交出任意代码执行权。 |
+| 20 | 树级约束 | 权限 rules 在 spawn 时冻结交集下传；预算 = min(child 限额, parent 剩余) 沿树聚合；深度/扇出有上限 | spawn 白名单可成环；树的总成本必须有界。 |
+| 21 | 运行模式 | one-shot/goal/loop/best-of-N（`parallel{n}`）是同一 `IterationDriver` 的四种 schedule；每轮迭代 = fresh child run | 避免多套近似驱动机制；fresh run 保 prefix 稳定与故障隔离。 |
+| 22 | Background | session 由常驻 runtime 托管，frontend 任意 attach/detach（detach 无事件）；后台 effect 的 handle 即其配对结果，完成是新的 user-role 输入 | 订阅状态不影响结果；已配对的 call 不可二次触碰（Gemini 严格配对）。 |
+| 23 | Artifacts | `ArtifactStore`（CAS，opaque ref）；publish 是过管线的 tool，发布即持久；`outputs:` 在收尾自动 publish；审批载荷 = artifact ref；版本 per-stream | 交付物 contract 与过程协调对象分离；审批需要不可变锚点。 |
+| 24 | 收尾时序 | task 形态固定 epilogue：quiesce 后台任务 → auto-publish outputs → 终态 barrier → 终态 event | 多个 feature 都往末尾加步骤，顺序必须唯一定义。 |
+| 25 | 中心模型（v2） | Session = 持续消费 inbox 的 actor；续聊是循环的默认形态（conversational），task 跑到完成是另一种形态 | "本分"是持续的多方协调；run=task-to-completion 的默认让日常交互全变成补丁。 |
+| 26 | 输入投递（v2） | inbox 原语：一切"说话"= 投一条 Input；journal-inputs-first + durable mailbox（确认即持久、恰好一次） | steering/续聊/外部事件是同一问题的三个发送方；崩溃不丢输入是铁律。 |
+| 27 | 子 agent（v2） | 递归 Session；background spawn 拿 handle 即返回，完成回执是父 inbox 输入；杀死 = control 输入 | 一套机制取代三套"子执行"；编排智能在模型，runtime 只供原语。 |
+| 28 | 多模态（v2） | 消息 = parts（含 image/file）；字节走 CAS、journal 只存 ref、组装时 inflate；长贴超阈值折叠为 file part | fold 永不读 store 的纪律下引入多模态；上下文不被长贴撑爆。 |
+| 29 | 恢复分模式（v2） | conversational 崩溃自愈（渲染 [interrupted by crash] 续聊）；task 保持 refuse-and-surface | 长期会话必须自愈；无人值守任务需要显式处置。 |
+
+---
+
+## 16. 核心验收场景（C1–C10）——已全部达成（2026-07-05）
+
+这是 v2 计划的**完成定义**，QA-01..09（QA.md）为其真实 API 闸门，
+scripted 孪生为其确定性闸门。全部绿灯，扩展层随之解冻。
+
+- **C1 多输入续聊**：一个 session，用户发 3 条消息（间隔 park），每条
+  起一个 turn，同一上下文延续，session 从不 end。
+- **C2 忙时排队**：turn 在飞时投 2 条消息 → 按序在后续 turn 边界消费，
+  不丢不乱序，不打断在跑的活动。
+- **C3 并行 spawn**：一个 turn 发 3 个 spawn_child → 3 个子 session
+  并行跑 → 父 turn 不阻塞（拿 handle 即结束 turn）。
+- **C4 子完成激活父**：子 session 完成 → child_result 进父 inbox →
+  父起新 turn 看到结论；先完成先处理。
+- **C5 杀子 agent**：cancel_child(handle) → 子收尾（部分输出留存）→
+  投 canceled 回执 → 父 turn 可见；被杀的子不再影响后续。
+- **C6 steer 改编排**：park 中投 user_message → 下个 turn 模型
+  cancel 一个子 + spawn 一个新子 → 走通 C5+C3 组合。
+- **C7 完整编排**：§8 的七步全程（多输入+并行+杀+回灌+续聊+恢复）
+  端到端绿。
+- **C8 interrupt vs 输入**：Esc 打断在跑 bash（部分输出留存）与投
+  user_message（排队不打断）两条路径互不干扰。
+- **C9 多模态**：user_message 带图片 → CAS 存 ref → 组装时 inflate →
+  模型看到图；长贴自动转 file part。
+- **C10 恢复**：(a) 空闲 session 进程重启后续聊无缝；(b) turn 中途崩溃
+  按 in-doubt 恢复；(c) 在飞子 session 按 settle-from-child-fold 恢复。
+
+---
+
+## 17. 实现状态注记（持续维护，诚实对照）
+
+本文档描述目标形态；实现与字面表述有以下已知偏差，记录在此、不做
+静默漂移（功能点级的完整现状见 SPEC.md）：
+
+- **事件名对照**：叙述用的 `ChildSpawned`/`child_result` 在实现中分别是
+  `spawn_requested`（+配对的 `ActivityStarted{Background}`）与
+  `subagent_completed`（+activity 终态渲染的 user-role 消息）。
+- **工具名对照**：`spawn_child` → 实现名 `spawn_agent`；
+  `cancel_child` → 实现名 `task_kill`（handle 即 task_id，与 bash
+  后台任务共用取消原语）。`ask_user` / `finish` 未实现（记档：idle
+  park 本身就是"待命"，两者的增量价值待真实使用反馈，不预做）；
+  `write_file` 已一等化。
+- **长贴折叠只在 send 路径**：`ar new` 的开场消息走 RunStarted.Task
+  → IngestInput，超长开场不折叠、也不支持 --image；不对称记档，
+  待真实使用反馈再决定是否统一。
+- **§2 inbox 字面统一度**：`user_message` 与 `control{kill}` 已按
+  字面 journal 为 `InputReceived`（后者 source=control，不进对话）。
+  `child_result`/`tool_result` 语义上是 inbox 输入，机制上暂由
+  background activity（`ActivityStarted{Background}`→终态，fold 渲染
+  user-role 消息）兑现——语义等价、事件形状不同；字面统一与否待
+  真实压力再决。
+- **§3 "一套机制取代三套"尚未收敛**：阻塞 spawn、后台 spawn、driver
+  子系统并存（阻塞路径与 driver 保留 v1 兼容）。
+- **§1 interrupt 语义**：实现新增"idle 处 interrupt = close 会话"
+  （交互惯例）；turn 中 interrupt 仍是 steer。
+- **WAITING_APPROVAL park 期间**消息只排队不唤醒（审批答复才解栈，
+  唤醒语义待定，见 GAPS G3 余项）。
+- **daemon kill -9 孤儿化在飞 bash 的子进程**：sleep 类自然退出，
+  长驻型需重启后 pgid 清扫——收口观察项，未做。

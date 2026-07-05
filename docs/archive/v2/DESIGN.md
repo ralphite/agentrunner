@@ -1,3 +1,5 @@
+> **[归档 2026-07-05]** v2 中心模型设计原文。已与 v1 架构设计合并为 docs/DESIGN.md(统一 source of truth),本件封存只读。
+
 # AgentRunner v2 — 设计
 
 一个 coding agent runtime，目标能力对标 Claude Code / Codex。这是一次

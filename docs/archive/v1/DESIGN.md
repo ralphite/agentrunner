@@ -1,3 +1,5 @@
+> **[归档 2026-07-05]** v1 架构设计原文。已与 v2 中心模型设计合并为 docs/DESIGN.md(统一 source of truth),本件封存只读。
+
 # AgentRunner — Design
 
 一个灵活的 agent runner/harness，目标能力对标 Claude Code 一类的 agent
