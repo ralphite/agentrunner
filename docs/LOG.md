@@ -122,3 +122,36 @@ fresh-run 教义对 goal 形态不适用;goal 的 context 必须延续。fresh-r
   对照,与 spawn_agent/task_kill 同例。
 - 文档层(DESIGN §4/§17、SPEC、QA)的措辞统一随下一个增量落地,
   不单独起一轮全文替换;此前对话与文档中的 turn 按上下文读。
+
+## 2026-07-05 术语裁定修正:废除裸 "step",改用 generation step / tool step
+
+上一条裁定把 step 定义为"一次模型调用+其全部工具执行"(捆绑),开发
+者质疑;外部调研结果:**step 一词行业内同样分裂**——
+- **捆绑派**:smolagents 的 ActionStep(一步 = thought/LLM completion
+  + tool 执行 + observation,max_steps 数这个)、ReAct 轨迹的
+  thought-action-observation 步。上一条裁定借的是这派,但并非共识。
+- **分立派**:LangGraph 的 super-step(agent 节点=LLM 调用与 tools
+  节点是**不同的** step,checkpoint 落在 super-step 边界)、tracing/
+  observability 惯例(LLM span 与 tool span 分立)、RL 语境(env
+  step = 动作执行)。开发者的理解与此派一致。
+- 另注意:ML 推理文献里 generation/inference step 常指 **token 级**
+  decoding step——agent 语境不用此义,但引用外部文献时须防混淆。
+
+**修正裁定**:
+- **裸词 "step" 不单独使用**(行业歧义),必须带限定词:
+  - **generation step**(模型调用步)= 一次完整的模型调用(inference
+    request);
+  - **tool step**(工具步)= 一次工具执行(journal 里本就是一等
+    activity)。
+- 捆绑单位**不再赋予专名**;需要指称时写"一个 generation step 及其
+  tool steps"。设计/代码旧词"turn(内部)"精确映射为 generation
+  step——计数本就一致:state.Run.Turn 每次模型调用递增,工具执行不
+  递增;"turn 边界"= generation step 之间的决策点(decide()/
+  assemble,LangGraph 的 checkpoint-at-super-step-boundary 同构)。
+- max_turns 语义 = **per-turn 的 generation step 预算**。
+- turn(对话级)与 event/wire 名的裁定不变(见上一条)。
+
+**流程教训(已入 PROCESS 执行协议)**:新术语(或改变既有术语含义)
+入档前必须先做外部主流用法调研;与主流对齐,或写明偏离理由;裸词有
+行业歧义时带限定词。本次 step 是反面教材:裁定 turn 时顺手引入,
+未调研即入档,当天被推翻。
