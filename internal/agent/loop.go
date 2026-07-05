@@ -655,6 +655,13 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 		if errs.ClassOf(cause) == errs.Canceled {
 			reason = "canceled"
 		}
+		// v2 conversational (M3 review): a ctx cancel mid-turn is process
+		// teardown (daemon shutdown, deploy), NOT an ending — leave NO
+		// terminal so Resume can re-enter the turn, the same discipline as
+		// parkForInput's crash path. Genuine errors still end the session.
+		if l.Conversational && reason == "canceled" && ctx.Err() != nil {
+			return cause
+		}
 		_, _ = l.runEpilogue(ctx, ds, appendE, reason, turn, true)
 		return cause
 	}
@@ -684,7 +691,9 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 		// Out-of-band kills (v2 M3.2): fire any requested handle cancels here,
 		// at a safe point; the cancelled child settles through bg.done as a
 		// canceled outcome on a subsequent iteration.
-		l.drainCancels()
+		if err := l.drainCancels(appendE); err != nil {
+			return RunResult{}, abort(ds.s.Run.Turn, err)
+		}
 		act := decide(ds.s, l.Spec.MaxTurns, l.Spec.OnRunEnd, l.Conversational)
 		switch act.kind {
 		case doTurn:
@@ -1227,8 +1236,15 @@ func decide(s state.State, maxTurns int, onRunEnd string, conversational bool) a
 			// that already arrived (journaled at the park) gets its turn
 			// FIRST; only a truly idle session parks. The park also wakes on
 			// background settlements, so live tasks need no extra branch.
-			if turn < maxTurns && hasInputAfterLastAssistant(s) {
-				return action{kind: doTurn, turn: turn + 1}
+			// The turn budget is PER EXCHANGE (anti-runaway), counted from
+			// the last user input — a cumulative cap would silently wedge a
+			// long-lived session (M3 review). Exhaustion ends the session
+			// visibly (max_turns), never a silent park over pending input.
+			if hasInputAfterLastAssistant(s) {
+				if turn-s.Run.LastInputTurn < maxTurns {
+					return action{kind: doTurn, turn: turn + 1}
+				}
+				return action{kind: doEnd, turn: turn, reason: "max_turns"}
 			}
 			return action{kind: doWaitInput, turn: turn}
 		}
@@ -1267,8 +1283,13 @@ func decide(s state.State, maxTurns int, onRunEnd string, conversational bool) a
 	// A forced ending (max_turns) delegates any live background tasks to the
 	// epilogue quiesce slot, which honors on_run_end (cancel or silent
 	// await) — the loop never parks waiting on a straggler at a forced end
-	// the way a natural await ending does (S6.1).
-	if turn >= maxTurns {
+	// the way a natural await ending does (S6.1). Conversational budget is
+	// per exchange (see the yield branch above), task mode stays cumulative.
+	spent := turn
+	if conversational {
+		spent = turn - s.Run.LastInputTurn
+	}
+	if spent >= maxTurns {
 		return action{kind: doEnd, turn: turn, reason: "max_turns"}
 	}
 	return action{kind: doTurn, turn: turn + 1}

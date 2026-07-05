@@ -184,24 +184,33 @@ func (l *Loop) settleBackground(appendE AppendFunc, out bgOutcome) error {
 // drainCancels non-blockingly fires the cancel for every handle requested on
 // the Cancels channel (v2 M3.2). An unknown handle is a no-op (the task may
 // have already settled). The cancelled child/task settles through bg.done.
-func (l *Loop) drainCancels() {
+func (l *Loop) drainCancels(appendE AppendFunc) error {
 	if l.Cancels == nil {
-		return
+		return nil
 	}
 	for {
 		select {
 		case handle := <-l.Cancels:
-			l.cancelHandle(handle)
+			if err := l.cancelHandle(appendE, handle); err != nil {
+				return err
+			}
 		default:
-			return
+			return nil
 		}
 	}
 }
 
-// cancelHandle fires one handle's cancel if it is still live.
-func (l *Loop) cancelHandle(handle string) {
+// cancelHandle journals the user's kill as a control input (journal-inputs-
+// first, DESIGN v2 §2 — the durable origin of the cancellation, same
+// discipline as interrupts), then fires the handle's cancel if still live.
+func (l *Loop) cancelHandle(appendE AppendFunc, handle string) error {
+	if _, err := appendE(event.TypeInputReceived, &event.InputReceived{
+		Text: "[kill " + handle + "]", Source: "control",
+	}); err != nil {
+		return err
+	}
 	if l.bg == nil {
-		return
+		return nil
 	}
 	l.bg.mu.Lock()
 	cancel, ok := l.bg.cancel[handle]
@@ -209,6 +218,7 @@ func (l *Loop) cancelHandle(handle string) {
 	if ok {
 		cancel()
 	}
+	return nil
 }
 
 // cancelAllBackground fires every live task's cancel; terminals settle

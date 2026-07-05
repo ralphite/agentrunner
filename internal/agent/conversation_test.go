@@ -3,11 +3,14 @@ package agent
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
+	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
 )
 
@@ -352,5 +355,156 @@ func TestConversationalIdleInterruptCloses(t *testing.T) {
 	}
 	if resolution != "closed_by_interrupt" {
 		t.Errorf("resolution = %q, want closed_by_interrupt", resolution)
+	}
+}
+
+// v2 M3 review fix: a ctx cancel MID-TURN (daemon shutdown/deploy while the
+// LLM call is in flight) leaves NO terminal — the same crash discipline as
+// the park path — so the conversation resumes and re-runs the turn.
+func TestConversationalMidTurnCancelResumes(t *testing.T) {
+	root := t.TempDir()
+	sessDir := filepath.Join(t.TempDir(), "sess")
+	prov := &blockingLLM{entered: make(chan struct{}, 1)}
+
+	// Phase 1: the model call blocks; cancel the loop ctx mid-turn.
+	es1, err := store.OpenEventStore(sessDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	l1 := testLoop(t, scripted.Fixture{}, root)
+	l1.Store = es1
+	l1.Provider = prov
+	l1.Conversational = true
+	l1.UserInputs = make(chan string) // never fed
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-prov.entered
+		cancel()
+	}()
+	if _, err := l1.Run(ctx, "first question"); err == nil {
+		t.Fatal("run survived a ctx cancel")
+	}
+	_ = es1.Close()
+	evs, _ := store.ReadEvents(sessDir)
+	for _, e := range evs {
+		if e.Type == event.TypeRunEnded {
+			t.Fatal("mid-turn cancel journaled a terminal — session is unresumable")
+		}
+	}
+
+	// Phase 2: resume re-enters the turn (LLM attempt 2 completes), then a
+	// close ends the session normally.
+	es2, err := store.OpenEventStore(sessDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = es2.Close() }()
+	inputs := make(chan string)
+	close(inputs)
+	l2 := testLoop(t, scripted.Fixture{}, root)
+	l2.Store = es2
+	l2.Provider = prov
+	l2.Conversational = true
+	l2.UserInputs = inputs
+	res, err := l2.Resume(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "closed" {
+		t.Fatalf("res = %+v, want closed after the resumed turn", res)
+	}
+	final, _ := store.ReadEvents(sessDir)
+	var answered bool
+	for _, e := range final {
+		if e.Type == event.TypeAssistantMessage && strings.Contains(string(e.Payload), "done") {
+			answered = true
+		}
+	}
+	if !answered {
+		t.Error("resumed session never answered the interrupted turn")
+	}
+}
+
+// v2 M3 review fix: the conversational turn budget is PER EXCHANGE, not
+// cumulative — a session whose total turns exceed max_turns keeps answering
+// as long as each exchange stays within budget. (The old cumulative cap
+// silently wedged the session: inputs journaled, never answered.)
+func TestConversationalBudgetPerExchange(t *testing.T) {
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: "answer one"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "answer two"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "answer three"}, {Finish: "end_turn"}}},
+	}}
+	inputs := make(chan string)
+	l := testLoop(t, fix, t.TempDir())
+	l.Spec.MaxTurns = 2 // < total turns (3): cumulative budgeting would wedge
+	l.Conversational = true
+	l.UserInputs = inputs
+	go func() {
+		waitAnswers(t, l.Store.Dir(), 1)
+		inputs <- "second question"
+		waitAnswers(t, l.Store.Dir(), 2)
+		inputs <- "third question"
+		waitAnswers(t, l.Store.Dir(), 3)
+		close(inputs)
+	}()
+	res, err := l.Run(context.Background(), "first question")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "closed" || res.Turns != 3 {
+		t.Fatalf("res = %+v, want closed after 3 turns (per-exchange budget)", res)
+	}
+}
+
+// decide's conversational budget arithmetic, directly on crafted folds:
+// budget counts from the last user input; exhaustion over a pending input
+// ends visibly (max_turns), never a silent park.
+func TestDecideConversationalBudget(t *testing.T) {
+	mk := func(turn, lastInput int, pending bool) state.State {
+		s := state.New()
+		s.Run.Status = state.StatusRunning
+		s.Run.Turn = turn
+		s.Run.LastInputTurn = lastInput
+		var msgs []provider.Message
+		msgs = append(msgs, provider.Message{Role: provider.RoleUser,
+			Parts: []provider.Part{{Kind: provider.PartText, Text: "q"}}})
+		for i := 0; i < turn; i++ {
+			msgs = append(msgs, provider.Message{Role: provider.RoleAssistant,
+				Parts: []provider.Part{{Kind: provider.PartText, Text: "a"}}})
+		}
+		if pending {
+			msgs = append(msgs, provider.Message{Role: provider.RoleUser,
+				Parts: []provider.Part{{Kind: provider.PartText, Text: "next"}}})
+		}
+		s.Conversation.Messages = msgs
+		return s
+	}
+	cases := []struct {
+		name            string
+		turn, lastInput int
+		pending         bool
+		wantKind        int
+		wantReason      string
+	}{
+		// Deep into a long conversation (turn 40 > maxTurns) a fresh input
+		// still gets its turn — the old cumulative cap returned doWaitInput
+		// here, wedging the session.
+		{"fresh input late in session", 40, 39, true, doTurn, ""},
+		// A pending input with the exchange budget spent ends visibly.
+		{"exhausted exchange ends", 40, 0, true, doEnd, "max_turns"},
+		// Truly idle parks regardless of totals.
+		{"idle parks", 40, 39, false, doWaitInput, ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			act := decide(mk(c.turn, c.lastInput, c.pending), 10, "", true)
+			if act.kind != c.wantKind {
+				t.Fatalf("kind = %v, want %v", act.kind, c.wantKind)
+			}
+			if c.wantReason != "" && act.reason != c.wantReason {
+				t.Fatalf("reason = %q, want %q", act.reason, c.wantReason)
+			}
+		})
 	}
 }

@@ -2,6 +2,8 @@ package agent
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -299,6 +301,73 @@ func TestBackgroundSpawnUserKill(t *testing.T) {
 	for _, e := range events {
 		if strings.Contains(string(e.Payload), "SLOW_DONE") {
 			t.Error("killed child's command still completed")
+		}
+	}
+	// The kill has a durable origin (M3 review, journal-inputs-first): an
+	// InputReceived{control} fact — which must NOT surface as a user message.
+	kills := 0
+	for _, e := range events {
+		if e.Type == event.TypeInputReceived && strings.Contains(string(e.Payload), `"source":"control"`) {
+			kills++
+		}
+	}
+	if kills != 1 {
+		t.Errorf("control inputs = %d, want exactly 1 (the user kill)", kills)
+	}
+	fold, err := state.Fold(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range fold.Conversation.Messages {
+		for _, p := range m.Parts {
+			if strings.Contains(p.Text, "[kill ") {
+				t.Error("control input leaked into the conversation as a user message")
+			}
+		}
+	}
+}
+
+// v2 M3 security review (P2, defense-in-depth): a provider-issued CallID
+// carrying path syntax must not steer the child journal directory outside
+// <session>/sub/ — the spawn resolves as a model-visible error instead.
+func TestSpawnMalformedCallID(t *testing.T) {
+	router := scripted.NewRouter(
+		scripted.RoutePair{Key: "you orchestrate", Fixture: scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{
+				{ToolCall: &scripted.ToolCallEvent{CallID: "../evil", Name: "spawn_agent",
+					Args: map[string]any{"agent": "worker", "task": "investigate ALPHA", "background": true}}},
+				{Finish: "tool_use"},
+			}},
+			{Respond: []scripted.Event{{Text: "saw the error, stopping"}, {Finish: "end_turn"}}},
+		}}},
+	)
+	l := bgSpawnLoop(t, router, []string{"worker"})
+	res, err := l.Run(context.Background(), "orchestrate")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "completed" {
+		t.Fatalf("res = %+v", res)
+	}
+	events, _ := store.ReadEvents(l.Store.Dir())
+	var sawError bool
+	for _, e := range events {
+		if e.Type == event.TypeActivityCompleted && strings.Contains(string(e.Payload), "malformed call id") {
+			sawError = true
+		}
+	}
+	if !sawError {
+		t.Error("malformed CallID did not resolve as a model-visible error")
+	}
+	// The escape target must not exist: Join(dir, "sub", "../evil-a1")
+	// would have landed at <session>/evil-a1.
+	if _, err := os.Stat(filepath.Join(l.Store.Dir(), "evil-a1")); err == nil {
+		t.Error("malformed CallID escaped sub/: child dir created outside")
+	}
+	if _, err := os.Stat(filepath.Join(l.Store.Dir(), "sub")); err == nil {
+		entries, _ := os.ReadDir(filepath.Join(l.Store.Dir(), "sub"))
+		if len(entries) > 0 {
+			t.Errorf("malformed spawn still created a child dir: %v", entries)
 		}
 	}
 }

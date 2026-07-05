@@ -109,9 +109,12 @@ func (l *Loop) awaitInput(ctx context.Context, appendE AppendFunc, turn int) (cl
 		}
 		return false, resolve("task_settled")
 	case handle := <-l.Cancels:
-		// A user's kill at idle: cancel the handle; the cancelled child
-		// settles through bg.done, which re-parks and wakes the next turn.
-		l.cancelHandle(handle)
+		// A user's kill at idle: journal it and cancel the handle; the
+		// cancelled child settles through bg.done, which re-parks and wakes
+		// the next turn.
+		if err := l.cancelHandle(appendE, handle); err != nil {
+			return false, err
+		}
 		return false, resolve("child_cancelled")
 	case <-l.Interrupts:
 		// Ctrl-C at the idle prompt closes the session (the interactive

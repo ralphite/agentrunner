@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -21,6 +22,12 @@ import (
 // to its AgentSpec (S5.3). The CLI resolves <name>.yaml next to the parent
 // spec; tests inject directly.
 type SubSpecResolver func(name string) (*AgentSpec, error)
+
+// safeCallIDRe: the provider-issued CallID lands in the child journal's
+// directory name (<parent>/sub/<call_id>-aN), so it must never carry path
+// syntax (M3 security review, defense-in-depth — both wire formats today
+// are already safe).
+var safeCallIDRe = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 // renderAgentsDirectory freezes the sub-agent directory block (S5.3): the
 // model spawns only what it can see here. Unresolvable names are listed
@@ -123,6 +130,9 @@ func (l *Loop) buildSpawnRun(call provider.ToolCall, res *tool.Result,
 	return func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
 		attempt++
 		agentName, task, inputs, childSpec, problem := l.resolveSpawnTargetFull(call.Name, call.Args)
+		if problem == "" && !safeCallIDRe.MatchString(call.CallID) {
+			problem = call.Name + ": malformed call id"
+		}
 		if problem != "" {
 			*res = errorResult(problem)
 			return res.Payload, nil, true, nil
@@ -219,6 +229,9 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 
 	l.ensureBackground()
 	agentName, task, inputs, childSpec, problem := l.resolveSpawnTargetFull(call.Name, call.Args)
+	if problem == "" && !safeCallIDRe.MatchString(call.CallID) {
+		problem = call.Name + ": malformed call id"
+	}
 	if problem != "" {
 		// A resolve failure is the call's model-visible result, paired now.
 		payload, _ := json.Marshal(map[string]any{"error": problem})
