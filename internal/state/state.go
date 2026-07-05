@@ -244,7 +244,7 @@ type Session struct {
 	ForkedFrom *ForkOrigin `json:"forked_from,omitempty"`
 	// LastInputGenStep is the turn at which the latest conversation-visible
 	// user input landed (v2 M3 triage): the conversational turn budget is
-	// per exchange, counted from here — a cumulative cap would wedge a
+	// per turn, counted from here — a cumulative cap would wedge a
 	// long-lived session once GenStep passed max_generation_steps.
 	LastInputGenStep int `json:"last_input_gen_step,omitempty"`
 	// ConsumedInputSeq is the mailbox high-water mark (v2 收口): the

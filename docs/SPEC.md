@@ -24,6 +24,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | conversational 续聊（答完待命；close = 意图记录） | ✅ | UJ-01/03/09 | QA-01 · C1 · 孪生（见 e2e） |
 | 忙时投递排队（安全边界按序消费，不丢不乱序） | ✅ | UJ-07 | QA-02/06 · C2 |
 | durable mailbox（确认即持久、恰好一次，跨 kill -9） | ✅ | 不变量 | QA-08 FAIL 级断言 · inbox.jsonl 机制（DESIGN §2） |
+| 终止语义（待命唯一静止态；TaskCompleted 回执 / SessionClosed 意图；预算耗尽 = LimitExceeded 可见截断） | ✅ | 不变量 | 决策 #30 · TestDecideConversationalBudget · 2026-07-05 落地 |
 | interrupt 与输入分立（Esc 杀活动 / 消息追加） | ✅ | UJ-07 | QA-02/06 · C8 · S3 |
 | idle 处 interrupt = close（交互惯例） | ✅ | UJ-03 | 孪生（DESIGN §17 记档） |
 | 图片输入（`ar send --image`，CAS ref、组装 inflate） | ✅ | UJ-04 | QA-07/03 · C9 · TestConversationalImageInputEndToEnd |
@@ -91,7 +92,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | journal + 纯 fold + snapshot-resume | ✅ | 不变量 | S2 · crash 注入 |
 | in-doubt 按类别处置（LLM 重发/只读重跑/执行不重跑） | ✅ | 不变量 | S2 · QA-08(b) |
 | crash 矩阵三态复活（idle/在飞 bash/在飞子 agent） | ✅ | UJ-09 | QA-08 · C10 |
-| send 即复活（journal 形状把关，拒绝 task/已 ended） | ✅ | UJ-09 | QA-08 · TestSendRevivalDiesWithDaemon + 拒绝测试 |
+| 显式重开（send 对 conversational 一律成立，**含已 close**；自动路径跳过一切 terminal） | 🟡 | UJ-09/03 | TestSendReopensClosedConversational · TestSendRevivalDiesWithDaemon；**task 形态重开待裁决（GAPS G24）** |
 | 恢复分模式（conversational 自愈 / task 上浮） | ✅ | 不变量 | QA-08 · 决策 #29 |
 | workspace 快照（shadow repo、排除表、pinned） | ✅ | UJ-15 | S2/S7 |
 | daemon kill -9 后孤儿 bash 子进程清扫（pgid） | 🟡 | — | 记档观察项（DESIGN §17） |

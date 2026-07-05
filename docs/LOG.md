@@ -248,3 +248,18 @@ fresh-run 教义对 goal 形态不适用;goal 的 context 必须延续。fresh-r
   scripted 孪生 + acceptance 26 场景全绿为据。
 - crash.PointBeforeRunEnd → PointBeforeTerminal;accept 框架终态校验
   改为 task_completed|session_closed。全量 check + e2e + 三包 -race 绿。
+
+**C4 对账收尾**:
+- SPEC:新增终止语义行(✅,决策 #30);"send 即复活"行改写为
+  "显式重开"(🟡,task 形态待裁决);GAPS 新增 G24(task 显式重开的
+  形态问题)。
+- 残留扫描:代码/脚本/文档零 run_ended/RunEnded/max_turns/park/
+  exchange 残留(archive 与 LOG 历史条目除外——归档纪律不改历史);
+  acceptance 场景 fixture 的 sub_state_versions 键 run→session 修正。
+- 教训记档:check.sh 经管道取尾时退出码失真,两次未拦住未格式化
+  提交(已补两个 gofmt 修复提交)——后续闸门命令一律直跑取
+  退出码,不接管道。
+- **大清理四步(C1–C4)全部完成**:文档与代码零 legacy 对齐 §18 术语
+  表与决策 #30。待明日 review:①术语表 18.2–18.10 逐节;②G24 task
+  重开形态;③CLI 子命令名(run/resume 等)是否随词汇改;④QA-01..09
+  真实 API 重跑(本环境无凭据)。

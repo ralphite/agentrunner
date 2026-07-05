@@ -422,7 +422,7 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 		}
 	}
 	// A snapshot written by a binary that predates Run.LastInputGenStep folds
-	// it as 0, which would mis-compute the per-exchange budget (收口
+	// it as 0, which would mis-compute the per-turn budget (收口
 	// review). Snapshots are disposable caches: on the suspicious shape,
 	// discard and fold from scratch — the fold recomputes the field exactly.
 	if ok && l.Conversational && s.Session.LastInputGenStep == 0 && s.Session.GenStep > 0 {
@@ -1361,7 +1361,7 @@ func decide(s state.State, maxTurns int, onRunEnd string, conversational bool) a
 	// epilogue quiesce slot, which honors on_run_end (cancel or silent
 	// await) — the loop never goes idle waiting on a straggler at a forced end
 	// the way a natural await ending does (S6.1). Conversational budget is
-	// per exchange (see the yield branch above), task mode stays cumulative.
+	// per turn (see the final-generation branch above), task form stays cumulative.
 	spent := turn
 	if conversational {
 		spent = turn - s.Session.LastInputGenStep

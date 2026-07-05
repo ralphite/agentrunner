@@ -428,7 +428,7 @@ func TestConversationalMidTurnCancelResumes(t *testing.T) {
 
 // v2 M3 review fix: the conversational turn budget is PER EXCHANGE, not
 // cumulative — a session whose total turns exceed max_generation_steps keeps answering
-// as long as each exchange stays within budget. (The old cumulative cap
+// as long as each turn stays within budget. (The old cumulative cap
 // silently wedged the session: inputs journaled, never answered.)
 func TestConversationalBudgetPerExchange(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
@@ -454,7 +454,7 @@ func TestConversationalBudgetPerExchange(t *testing.T) {
 		t.Fatal(err)
 	}
 	if res.Reason != "closed" || res.GenSteps != 3 {
-		t.Fatalf("res = %+v, want closed after 3 turns (per-exchange budget)", res)
+		t.Fatalf("res = %+v, want closed after 3 turns (per-turn budget)", res)
 	}
 }
 
@@ -492,7 +492,7 @@ func TestDecideConversationalBudget(t *testing.T) {
 		// still gets its turn — the old cumulative cap returned doIdle
 		// here, wedging the session.
 		{"fresh input late in session", 40, 39, true, doTurn, ""},
-		// A pending input with the exchange budget spent truncates visibly
+		// A pending input with the turn budget spent truncates visibly
 		// (决策 #30): LimitExceeded + idle, never a terminal state.
 		{"exhausted turn truncates", 40, 0, true, doTruncate, ""},
 		// Truly idle goes idle regardless of totals.
