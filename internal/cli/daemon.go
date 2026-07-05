@@ -304,6 +304,7 @@ func hostRunFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker
 			Snapshots:      snapshotStoreFor(ws, stderr),
 			Conversational: req.Conversational,
 			UserInputs:     req.Inbox,
+			Interrupts:     req.Interrupts,
 			// Blackboard publishes mirror onto the attach stream (S6 模块⑤
 			// 回访): watchers see the tree's collaboration live; the board
 			// stays the read-back truth.

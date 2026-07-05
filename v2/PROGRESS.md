@@ -123,3 +123,23 @@ bash(sleep 6)跑一个 turn,期间 send 两条 → 断言 bash 未被取消
 (无 activity_cancelled)、3 输入按到达序(两 send 的 input_received
 落在 bash activity_started 之后)、1 终态收尾。连续两次 PASS。
 QA-06(interrupt)待 M2.3 daemon interrupt command 接线后跑。
+
+## V2-M2.3 — daemon interrupt command — DONE
+
+hostedRun 加 interrupts chan(buffered 1)+ signalInterrupt();Command
+新增 interrupt 命令(查 runs → signalInterrupt);RunRequest 加
+Interrupts,hostRunFunc 接进 Loop.Interrupts;CLI interrupt <sid>。
+interrupt 与 send 是**不同 channel、不同语义**:turn 中 interrupt 经
+interruptScope 取消当前活动(steer,续跑),idle 时 awaitInput 收到即
+关闭——两个消费者但同一时刻只一个活跃(turn 跑 XOR park)。
+
+## V2-M2 里程碑出口 — 双闸门 GREEN
+
+- **闸门 A(scripted 孪生)**:TypeAheadBatches/IdleInterruptCloses +
+  M1 全部 + daemon send/close 测试,check.sh 常绿。
+- **闸门 B(真实 API)**:**QA-02**(忙时排队,bash 未取消/3 输入到达
+  序/1 终态,×2 PASS)+ **QA-06**(interrupt 取消在跑 bash、进程被杀、
+  会话续跑,×2 PASS)。
+
+**C2、C8 达成**。全量 check + race + stage 1–7 全 26 acceptance 回归绿。
+下一步:M3 后台子 agent(routing provider 前置 → QA-04/05,核心里程碑)。

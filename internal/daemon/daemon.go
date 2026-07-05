@@ -65,6 +65,7 @@ type RunRequest struct {
 	// classic task run.
 	Conversational bool
 	Inbox          <-chan string
+	Interrupts     <-chan struct{}
 }
 
 // RunFunc hosts one run to completion, emitting output events to sink. The
@@ -143,6 +144,26 @@ type hostedRun struct {
 	// M1.2). Buffered so `send` never blocks on the loop's turn; nil for a
 	// task run. Closed at `close`/shutdown.
 	inbox chan string
+	// interrupts carries the out-of-band interrupt signal (v2 M2.3): a
+	// during-turn interrupt steers (cancels the current activity); an idle
+	// interrupt closes. Buffered 1 like the terminal Ctrl-C channel.
+	interrupts chan struct{}
+}
+
+// signalInterrupt delivers one interrupt to the hosted loop (best-effort:
+// a full buffer means one is already pending).
+func (h *hostedRun) signalInterrupt() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.done || h.interrupts == nil {
+		return false
+	}
+	select {
+	case h.interrupts <- struct{}{}:
+		return true
+	default:
+		return true // one already pending — the loop will see it
+	}
 }
 
 // post delivers a conversational input to the hosted session. The loop
@@ -340,10 +361,31 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		s.handleSend(cmd, enc)
 	case "close":
 		s.handleClose(cmd, enc)
+	case "interrupt":
+		s.handleInterrupt(cmd, enc)
 	default:
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
-			Text: fmt.Sprintf("unknown command %q (known: ping, run, attach, approve, send, close)", cmd.Cmd)})
+			Text: fmt.Sprintf("unknown command %q (known: ping, run, attach, approve, send, close, interrupt)", cmd.Cmd)})
 	}
+}
+
+// handleInterrupt delivers an out-of-band interrupt to a live session
+// (v2 M2.3): distinct from `send` — it steers a running turn or closes an
+// idle one, it does not enter the conversation.
+func (s *Server) handleInterrupt(cmd Command, enc *json.Encoder) {
+	if cmd.Session == "" {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "interrupt needs session"})
+		return
+	}
+	s.mu.Lock()
+	hub, ok := s.runs[cmd.Session]
+	s.mu.Unlock()
+	if !ok || !hub.signalInterrupt() {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
+			Text: fmt.Sprintf("no live interruptible session %s", cmd.Session)})
+		return
+	}
+	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Text: "interrupted", Session: cmd.Session})
 }
 
 // handleSend delivers a user message to a live conversational session
@@ -444,6 +486,7 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 	hub := &hostedRun{id: id, notify: s.Notify, subs: map[chan protocol.Event]struct{}{}}
 	if cmd.Conversational {
 		hub.inbox = make(chan string, 64) // type-ahead buffer
+		hub.interrupts = make(chan struct{}, 1)
 	}
 	s.mu.Lock()
 	if s.stopping {
@@ -476,7 +519,7 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 		if err := s.Run(ctx, RunRequest{
 			SessionID: id, SpecPath: cmd.SpecPath, Task: cmd.Task,
 			Workspace: cmd.Workspace, Mode: cmd.Mode,
-			Conversational: cmd.Conversational, Inbox: hub.inbox,
+			Conversational: cmd.Conversational, Inbox: hub.inbox, Interrupts: hub.interrupts,
 		}, hub); err != nil {
 			hub.Emit(protocol.Event{Kind: protocol.KindError, Text: "run failed: " + err.Error()})
 		}

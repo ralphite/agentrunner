@@ -74,6 +74,17 @@ func sendCmd(args []string, stdout, stderr io.Writer) int {
 	return oneShot(stderr, daemon.Command{Cmd: "send", Session: resolvePrefixLenient(args[0]), Text: args[1]}, stdout)
 }
 
+// interruptCmd delivers an out-of-band interrupt to a live session (v2
+// M2.3): `agentrunner interrupt <session-id-or-prefix>` — steers a running
+// turn or closes an idle one; it is NOT a message.
+func interruptCmd(args []string, stdout, stderr io.Writer) int {
+	if len(args) != 1 {
+		fmt.Fprintln(stderr, "usage: agentrunner interrupt <session-id-or-prefix>")
+		return ExitUsage
+	}
+	return oneShot(stderr, daemon.Command{Cmd: "interrupt", Session: resolvePrefixLenient(args[0])}, stdout)
+}
+
 // closeCmd ends a conversational session gracefully (v2 M1.2):
 // `agentrunner close <session-id-or-prefix>`.
 func closeCmd(args []string, stdout, stderr io.Writer) int {
