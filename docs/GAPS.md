@@ -2,8 +2,9 @@
 
 > **v2 收口注记（2026-07-05）**：G1/G2/G3/G6 已在 v2 M1–M5 关闭
 > （标注见各条目），G18 的 write_file 部分关闭；C1–C10 全部达成
-> （v2/DESIGN.md §11，QA-01..09 真实 API 闸门全绿）。其余条目仍为
-> 扩展层缺口，冻结在核心绿灯之后（v2/CORE.md 铁律解除后逐条排期）。
+> （DESIGN.md §核心验收，QA-01..09 真实 API 闸门全绿）。其余条目仍为
+> 扩展层缺口（v2 核心绿灯已达成、铁律已解除——见 archive/v2/CORE.md，
+> 逐条按 PROCESS.md 的增量流程排期）。
 
 **这是什么**：以 JOURNEYS.md 的 20 条 user journey 为标尺，对 AgentRunner
 （DESIGN.md 的设计 + S1–S7 的实现）做的支持度审计。journey 目录回答

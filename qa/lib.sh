@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# v2/qa/lib.sh — shared helpers for real-API QA gates. Source, don't run.
+# qa/lib.sh — shared helpers for real-API QA gates. Source, don't run.
 # Provides: qa_setup <profile>, qa_daemon, qa_new, qa_wait_turns, count_type.
 # Requires GEMINI_API_KEY. Callers set AR (binary) and QA (name) first.
 

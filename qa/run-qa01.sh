@@ -3,7 +3,7 @@
 # continuity against the live Gemini API. Drives the actual ar binary +
 # daemon end to end. Structural asserts only (journal facts), per QA.md §0.1.
 #
-#   v2/qa/run-qa01.sh <ar-binary>
+#   qa/run-qa01.sh <ar-binary>
 # Requires GEMINI_API_KEY in the environment (loaded from repo .env).
 set -euo pipefail
 

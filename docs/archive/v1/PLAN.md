@@ -1,3 +1,5 @@
+> **[归档 2026-07-05]** v1 七阶段实施计划,S1–S7 已全部完成并关闭。封存只读;执行协议(§0.5)与 acceptance 框架(§0.6)的有效内容由 docs/PROCESS.md 承接。
+
 # AgentRunner — 实施计划（Implementation Plan）
 
 本文档是 `STAGES.md` 七阶段的 **step-by-step 实施计划**。已经过三视角

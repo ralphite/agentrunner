@@ -4,7 +4,7 @@
 # first-back-first-served → steer (cancel B, spawn D) → all receipts →
 # continued chat → kill -9 → revived chat writes SUMMARY.md via write_file.
 #
-#   v2/qa/run-qa09.sh <ar-binary>
+#   qa/run-qa09.sh <ar-binary>
 set -euo pipefail
 QA=QA-09
 AR="${1:?usage: run-qa09.sh <ar-binary>}"

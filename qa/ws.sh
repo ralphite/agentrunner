@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# v2/qa/ws.sh — QA workspace 准备/清理脚本。
+# qa/ws.sh — QA workspace 准备/清理脚本。
 #
 # 保证每次测试环境完全一致：固定 repo + 固定 commit（按 SHA 浅 fetch，
 # 与上游 HEAD 漂移无关），可选注入确定性的 bug 包。

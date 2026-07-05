@@ -6,7 +6,7 @@
 # C6, is covered deterministically by the scripted twin
 # TestSteerChangesOrchestration.) Structural asserts.
 #
-#   v2/qa/run-qa05.sh <ar-binary>
+#   qa/run-qa05.sh <ar-binary>
 set -euo pipefail
 QA=QA-05
 AR="${1:?usage: run-qa05.sh <ar-binary>}"

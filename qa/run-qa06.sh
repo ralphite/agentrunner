@@ -4,7 +4,7 @@
 # whereas `send` (QA-02) only queues. Then the session continues. Structural
 # asserts only.
 #
-#   v2/qa/run-qa06.sh <ar-binary>
+#   qa/run-qa06.sh <ar-binary>
 set -euo pipefail
 QA=QA-06
 AR="${1:?usage: run-qa06.sh <ar-binary>}"

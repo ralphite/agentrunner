@@ -3,7 +3,7 @@
 # 3 background sub-agents in one turn (non-blocking), each investigates a
 # topic and reports, and the parent consumes each result. Structural asserts.
 #
-#   v2/qa/run-qa04.sh <ar-binary>
+#   qa/run-qa04.sh <ar-binary>
 set -euo pipefail
 QA=QA-04
 AR="${1:?usage: run-qa04.sh <ar-binary>}"

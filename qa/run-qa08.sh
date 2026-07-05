@@ -5,7 +5,7 @@
 # in-doubt renders interrupted-by-crash, never re-runs; (c) background
 # sub-agents in flight — each settles with a receipt from its own journal.
 #
-#   v2/qa/run-qa08.sh <ar-binary>
+#   qa/run-qa08.sh <ar-binary>
 set -euo pipefail
 QA=QA-08
 AR="${1:?usage: run-qa08.sh <ar-binary>}"

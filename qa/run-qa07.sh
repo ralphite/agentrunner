@@ -5,7 +5,7 @@
 # the CAS ref (never bytes), and the image's content must persist into a
 # later text-only turn. Structural asserts + the three vision facts.
 #
-#   v2/qa/run-qa07.sh <ar-binary>
+#   qa/run-qa07.sh <ar-binary>
 set -euo pipefail
 QA=QA-07
 AR="${1:?usage: run-qa07.sh <ar-binary>}"

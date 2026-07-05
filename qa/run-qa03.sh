@@ -3,7 +3,7 @@
 # with write_file. Covers C1 (continued conversation doing real work) and
 # core tool 9 (write_file as a first-class path, not a bash heredoc).
 #
-#   v2/qa/run-qa03.sh <ar-binary>
+#   qa/run-qa03.sh <ar-binary>
 set -euo pipefail
 QA=QA-03
 AR="${1:?usage: run-qa03.sh <ar-binary>}"

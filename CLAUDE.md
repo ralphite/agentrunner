@@ -7,26 +7,36 @@
   的本地提交，不留未提交的工作区改动。单人原型项目——分叉和滞后的
   代价远大于中间态提交的噪音。
 - **每个 session 开始时先 `git fetch origin main` 并 fast-forward**，
-  确保永远在最新代码上工作（曾发生过基于过时 DESIGN.md 产出整份
+  确保永远在最新代码上工作（曾发生过基于过时设计文档产出整份
   review 的事故）。
 - `.env` 已 gitignore（存本地凭据如 `GEMINI_API_KEY`），永不提交。
 
-## 文档体系（改动任何一份都要检查与其他两份的一致性）
+## 文档体系（全部住在 `docs/`，流程与冲突裁决见 `docs/PROCESS.md`）
 
-- `DESIGN.md` — 架构 source of truth（是什么、为什么）。
-- `STAGES.md` — 七阶段分期（切成什么块、每块完成标志）。
-- `PLAN.md` — step-by-step 实施计划（怎么做）；§0.5 是 loop-mode
-  执行协议，§0.6 是 acceptance test 框架。实施顺序以 PLAN 为准。
-- 动 DESIGN.md 不变量必须走 PLAN §末尾的"不变量变更流程"
+三层产品定义 + 三份支撑件，共 7 份活文档：
+
+- `docs/JOURNEYS.md` — 第一层：端到端 user journey（产品要做什么）。
+- `docs/SPEC.md` — 第二层：功能点登记簿（有什么、什么状态、验收锚）。
+- `docs/DESIGN.md` — 第三层：架构 source of truth（怎么成立、为什么）。
+- `docs/QA.md` — journey 级真实 API 验收场景菜单（脚本在 `qa/`）。
+- `docs/GAPS.md` — 审计件：journey × 设计/实现的缺口登记。
+- `docs/LOG.md` — 增量与决策台账（只追加）。
+- `docs/PROCESS.md` — 以上一切的流程：三层模型、增量开发流程、
+  双闸门测试纪律、执行协议。**改任何文档前先读它。**
+
+硬性规则：
+- 动 `docs/DESIGN.md` 不变量必须走 PROCESS.md 的"不变量变更流程"
   （停下、写清冲突、单独 review），禁止代码里先绕。
+- 新需求/新功能一律走 PROCESS.md 的增量流程（三层 delta 明确后再
+  开发），不直接动手写代码。
 
 ## 语言与实现约定
 
 - 叙述用中文，技术术语/代码/标识符用英文。
-- 实现语言 Go 1.23+（决策 #1）；主 provider Gemini、次 Anthropic。
-- 实现进度记录在 `PROGRESS.md`（执行协议规定的决策台账）。
+- 实现语言 Go 1.23+（DESIGN 决策 #1）；主 provider Gemini、次 Anthropic。
+- 一步完成的标准：`./scripts/check.sh` 全绿 + 相关文档行齐活。
 
-## 历史留档（只读，以 DESIGN.md 为准）
+## 历史归档
 
-- `CAPABILITY-REVIEW*.md`、`DESIGN-SUGGESTIONS.md`、`FEATURES.md`
-  是基于旧版设计的外部审查，有效结论已并入 DESIGN.md，顶部有鉴定注记。
+- `docs/archive/` 存已完成计划（v1 S1–S7、v2 M1–M5）与旧审查件，
+  只读；与活文档冲突时以活文档为准。索引见 `docs/archive/README.md`。

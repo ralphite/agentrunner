@@ -4,7 +4,7 @@
 # in order, and must be consumed at the boundary after the bash. Structural
 # asserts only (QA.md §0.1).
 #
-#   v2/qa/run-qa02.sh <ar-binary>
+#   qa/run-qa02.sh <ar-binary>
 set -euo pipefail
 QA=QA-02
 AR="${1:?usage: run-qa02.sh <ar-binary>}"
