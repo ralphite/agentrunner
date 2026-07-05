@@ -1074,18 +1074,40 @@ generation step），全文统一随下一增量落地——冲突时**以本表
 
 ### 18.1 执行模型（计数与边界）
 
+命名原则（本表全局适用，2026-07-05 裁定）：**术语优先与产品功能
+关联**；实现侧的词（park、decide、WAITING_* 等）只作锚注出现，
+不充当术语。
+
 | 术语 | 定义 |
 |---|---|
-| **session** | runtime 唯一的中心 actor：id + inbox + journal + state(=fold(journal)) + loop。长期存在；子 agent 也是 session（parent 指针非空）。 |
-| **turn**（对话级） | 一次输入（用户消息/回执/timer）激活 agent 起，到模型 yield、session 回到待命止的**整段**。对话历史的基本节拍；与业界 "multi-turn" 用法对齐。 |
+| **session** | 一次会话（对标 Claude Code 里开启的一个 session）：用户开启后长期存在，多个 turn 共享同一上下文与历史，跨空闲期、跨进程重启，直到显式 close。实现上是 runtime 唯一的中心 actor（id + inbox + journal + state + 会话循环）；子 agent 也是 session。 |
+| **会话循环** | session 的生命节拍（§1 的 8 行心脏）：收输入 → 跑一个 turn → 没有新输入就待命 → 再有输入再跑。**与 loop mode（驱动的定时系列 schedule）无关**——loop 一词的歧义见 18.10。 |
+| **turn** | 一次输入（用户消息/回执/timer）激活 agent 起，到 final generation、session 回到待命止的**整段**。对话历史的基本节拍；与业界 "multi-turn" 用法对齐。 |
 | **generation step** | 一次完整的模型调用（一个 inference request 及其流式输出的组装）。内部计数器按它递增（wire 遗留名 `Run.Turn`）。**不指** token 级 decoding step。 |
 | **tool step** | 一次工具执行。journal 里的一等 activity；同一 generation step 返回的 N 个 tool call 并发执行 = N 个 tool step。 |
 | **step**（裸词） | **禁用**——行业歧义（smolagents 捆绑义 vs LangGraph/tracing 分立义），必须带限定词。 |
-| **决策点** | 两个 generation step 之间 loop 的唯一策略函数（`decide()`）。steering 消费、对话 snapshot、park 都锚在这里；旧文"turn 边界"指此。 |
-| **yield** | 模型返回不带 tool call 的消息；conversational 形态下随即 park。 |
-| **park** | session 空闲等 inbox 的待命（WAITING_INPUT）。loop 的常态，不是终态。 |
-| **exchange**（废） | 旧代码注释用词，即现在的 turn（对话级）。 |
+| **final generation** | 一个 turn 的**最后一个** generation step：模型给出面向用户的收尾回答，不再带 tool call。它标志 turn 结束。（旧词 yield 废除。） |
+| **待命** | final generation 之后 session 的状态：留在会话里等下一条输入，随时续聊；跨空闲期与进程重启保持。（实现词 park / WAITING_INPUT，见 18.10。） |
+| **安全边界** | 两个 generation step 之间的位置。一切外部影响只在安全边界生效：插话（steering）在此被消费、审批结果在此回灌、对话 snapshot 在此打点——绝不打断一个 step 的中途。（实现锚：会话循环的策略函数 `decide()`；旧文"turn 边界"/"决策点"指此。） |
 | **max_turns**（spec 字段） | 语义 = **per-turn 的 generation step 预算**（conversational 从最后一条用户输入起算，防单 turn runaway；task 形态累计）。字段名是 wire 遗留。 |
+| **exchange / yield / park**（废·实现词） | exchange = turn 的旧称；yield → final generation；park → 待命。代码注释与旧文有残留。 |
+
+#### 18.1a step 与 event 的关系（event sourcing 对照）
+
+step 是**执行模型**词汇（系统怎么推进）；event 是**持久化**词汇
+（journal 记了什么——event sourcing 的记录单元）。**step 不是
+event**：一个 step 是"产生某一小簇 event 的那段执行"，对照如下：
+
+| 执行单元 | journal 里对应的 event（wire 名） |
+|---|---|
+| turn 的起点 | `InputReceived`（激活它的那条输入；投递时已先经 durable mailbox 持久） |
+| generation step | `TurnStarted`（遗留名）→ assistant 消息 event；流式重试时 `TurnDiscarded` |
+| tool step | `EffectRequested` → `EffectResolved`（关卡判定）→ `ActivityStarted` → 终态（`ActivityCompleted`/`Failed`/`Cancelled`） |
+| final generation | 不带 tool call 的 assistant 消息 event（turn 的收尾） |
+| 待命/唤醒 | `WaitingEntered{input}` / `WaitingResolved` |
+
+fold 把这串 event 折回 state，会话循环据 state 决定下一个 step——
+event sourcing 的闭环：**执行产生事件，事件重建状态，状态驱动执行**。
 
 ### 18.2 输入与交互
 
@@ -1094,7 +1116,7 @@ generation step），全文统一随下一增量落地——冲突时**以本表
 | **inbox** | per-session 持久、有序的输入队列；"任何一方对 session 说话" = 投一条 Input。 |
 | **Input** | tagged union：`user_message` / `child_result` / `tool_result` / `timer` / `control`，全部 journal 为 `InputReceived`。 |
 | **durable mailbox** | 投递侧落地机制（`inbox.jsonl`）：redact→fsync→ack，单调 delivery_seq；消费侧回写+去重 = 恰好一次。 |
-| **steering** | agent 忙时投 user_message：排队、在决策点被消费，不打断在跑的活动。 |
+| **steering** | agent 忙时投 user_message：排队、在安全边界被消费，不打断在跑的活动。 |
 | **interrupt** | **带外信号**（不进 inbox）：turn 中 = 打断当前活动（turn sweep，部分输出保留）；idle 处 = close 会话。 |
 | **control 输入** | 非对话输入（kill、close，未来 pause/compact 等）；journal 带 source=control，不进对话上下文。 |
 
@@ -1156,7 +1178,7 @@ generation step），全文统一随下一增量落地——冲突时**以本表
 |---|---|
 | **等待注册表** | WAITING_INPUT / APPROVAL / TASKS / TIMER——同一等待事件的 reason 变体，配可中断性表。 |
 | **resume** | **唯一**恢复机制：snapshot + fold(seq>N) + 继续 loop；restart = resume（无 supervision 自动重启）。 |
-| **复活（revival）** | daemon 重启后 `send` 即复活 parked session；按 journal 形状把关（task 形态/已 ended 拒绝）。 |
+| **复活（revival）** | daemon 重启后 `send` 即复活待命中的 session；按 journal 形状把关（task 形态/已 ended 拒绝）。 |
 | **crash vs kill** | 判别器 = journal 终态：显式终止（kill/close/interrupt）**有**终态 event，永不被自动恢复；crash 的特征是**无**终态 → 有恢复资格。（UJ-21/G22 待成文为不变量） |
 | **epilogue** | task 形态固定收尾：quiesce 后台任务 → auto-publish outputs → 终态 barrier → 终态 event。 |
 
@@ -1196,4 +1218,6 @@ generation step），全文统一随下一增量落地——冲突时**以本表
 | **snapshot** | ① 对话 snapshot（可弃缓存）② workspace 快照（一等状态）——永不混称。 |
 | **mailbox** | ① kernel actor 的 channel mailbox（ephemeral）② durable mailbox（inbox.jsonl，持久）——持久性完全不同。 |
 | **barrier** | 指 CheckpointBarrier（时间旅行锚点），不是并发同步原语。 |
+| **loop** | ① 会话循环（session 的心脏，§18.1）② loop mode（IterationDriver 的定时系列 schedule，§13）③ 代码里的 `Loop` 结构体（agent 包）——裸词尽量避免，歧义处写全称。 |
+| **park / yield / exchange** | 实现侧旧词：待命 / final generation / turn 的旧称（§18.1）；只在代码与旧文出现。 |
 | **spawn_child / cancel_child / ChildSpawned** | 设计叙述名；实现/wire 名为 spawn_agent / task_kill / spawn_requested（§17 对照）。 |

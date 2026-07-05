@@ -162,3 +162,21 @@ fresh-run 教义对 goal 形态不适用;goal 的 context 必须延续。fresh-r
 含易混词踩坑表)。定位:全部术语的唯一定义处,与本文其余章节旧措辞
 冲突时以 §18 为准;全文措辞统一仍随下一增量。纯文档新增,无语义
 变更,不触发不变量变更流程。
+
+## 2026-07-05 术语表 18.1 清理(开发者 review 四条意见落地)
+
+1. **命名原则成文**:术语优先与产品功能关联;实现侧词汇(park/
+   decide/WAITING_*)只作锚注,不充当术语。写入 §18.1 表头。
+2. **session** 定义改为产品义领句(对标 Claude Code 的一次会话),
+   actor 结构降为实现注。
+3. **loop 歧义暴露并入踩坑表**:①会话循环(session 心脏)②loop
+   mode(driver 定时系列 schedule)③代码 Loop 结构体。开发者对
+   "决策点与 loop 的关系"的困惑源于 ①② 相撞——新增术语**会话循环**
+   指 ①,裸词 loop 避免使用。
+4. **yield/park 废除**(太 technical):yield → **final generation**
+   (turn 的最后一个 generation step,不带 tool call,标志 turn 结束,
+   开发者命名);park → **待命**。"决策点"更名 **安全边界**(产品义:
+   一切外部影响只在 step 之间生效),decide() 降为实现锚注。
+5. **新增 §18.1a step↔event 对照**:step 是执行模型词汇,event 是
+   持久化词汇(event sourcing 记录单元);step 不是 event,是"产生
+   某一小簇 event 的那段执行";逐 step 给出 event 簇对照表。
