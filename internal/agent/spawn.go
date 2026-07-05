@@ -57,7 +57,7 @@ func renderAgentsDirectory(names []string, resolve SubSpecResolver) string {
 func (l *Loop) spawnAllowance(s state.State, childSpec *AgentSpec) int {
 	parentRemaining := 0
 	if l.Spec.Budget.MaxTotalTokens > 0 {
-		parentRemaining = l.Spec.Budget.MaxTotalTokens - s.Run.Usage.Billed() - s.Budget.ReservedTotal()
+		parentRemaining = l.Spec.Budget.MaxTotalTokens - s.Session.Usage.Billed() - s.Budget.ReservedTotal()
 		if parentRemaining < 1 {
 			parentRemaining = 1 // exhausted: reserve something so the gate denies
 		}
@@ -172,7 +172,7 @@ func (l *Loop) buildSpawnRun(call provider.ToolCall, res *tool.Result,
 			// its side effects; the parent model decides whether to re-spawn.
 			if _, aerr := appendE(event.TypeSubagentCompleted, &event.SubagentCompleted{
 				CallID: call.CallID, Agent: agentName, ChildSession: childSession,
-				Reason: "error", Turns: cres.Turns, Usage: spent,
+				Reason: "error", GenSteps: cres.GenSteps, Usage: spent,
 			}); aerr != nil {
 				return nil, nil, false, aerr
 			}
@@ -183,7 +183,7 @@ func (l *Loop) buildSpawnRun(call provider.ToolCall, res *tool.Result,
 
 		if _, err := appendE(event.TypeSubagentCompleted, &event.SubagentCompleted{
 			CallID: call.CallID, Agent: agentName, ChildSession: childSession,
-			Reason: cres.Reason, Turns: cres.Turns, Usage: cres.Usage,
+			Reason: cres.Reason, GenSteps: cres.GenSteps, Usage: cres.Usage,
 		}); err != nil {
 			return nil, nil, false, err
 		}
@@ -194,7 +194,7 @@ func (l *Loop) buildSpawnRun(call provider.ToolCall, res *tool.Result,
 		isError := cres.Reason == "contract_violation"
 		payload, _ := json.Marshal(map[string]any{
 			"agent": agentName, "child_session": childSession,
-			"reason": cres.Reason, "turns": cres.Turns,
+			"reason": cres.Reason, "turns": cres.GenSteps,
 			"report": childReport(childDir),
 		})
 		*res = tool.Result{Payload: payload, IsError: isError}
@@ -295,7 +295,7 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 		}
 		payload, _ := json.Marshal(map[string]any{
 			"agent": agentName, "child_session": childSession,
-			"reason": reason, "turns": cres.Turns,
+			"reason": reason, "turns": cres.GenSteps,
 			"report": childReport(childDir),
 		})
 		usage := spent
@@ -305,7 +305,7 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 			canceled: canceled, usage: &usage,
 			subagent: &event.SubagentCompleted{
 				CallID: call.CallID, Agent: agentName, ChildSession: childSession,
-				Reason: reason, Turns: cres.Turns, Usage: spent,
+				Reason: reason, GenSteps: cres.GenSteps, Usage: spent,
 			},
 		}
 	}()
@@ -387,7 +387,7 @@ func childFoldUsage(childDir string) provider.Usage {
 	if err != nil {
 		return provider.Usage{}
 	}
-	return s.Run.Usage
+	return s.Session.Usage
 }
 
 // narrowerMode picks the stricter of two run modes (S5 review): the mode

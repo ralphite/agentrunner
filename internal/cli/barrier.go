@@ -48,7 +48,7 @@ func barrierCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "agentrunner: fold %s: %v\n", session, err)
 		return ExitRun
 	}
-	started, err := readRunStarted(dir)
+	started, err := readSessionStarted(dir)
 	if err != nil {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 		return ExitRun
@@ -69,7 +69,7 @@ func barrierCmd(args []string, stdout, stderr io.Writer) int {
 	}
 
 	vector := map[string]int64{".": es.LastSeq()}
-	for _, child := range fold.Run.ChildSessions {
+	for _, child := range fold.Session.ChildSessions {
 		idx := strings.LastIndex(child, "-sub-")
 		if idx < 0 {
 			continue
@@ -89,7 +89,7 @@ func barrierCmd(args []string, stdout, stderr io.Writer) int {
 
 	barrierID := fmt.Sprintf("bar-m%d", es.LastSeq()+1)
 	env, err := event.New(event.TypeCheckpointBarrier, &event.CheckpointBarrier{
-		BarrierID: barrierID, Turn: fold.Run.Turn,
+		BarrierID: barrierID, GenStep: fold.Session.GenStep,
 		Vector: vector, SnapshotRef: ref, Tasks: tasks,
 	})
 	if err != nil {

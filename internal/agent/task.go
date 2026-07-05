@@ -111,7 +111,7 @@ func (l *Loop) drainBackground(appendE AppendFunc) error {
 
 // awaitBackground blocks until ONE task finishes (or an interrupt/cancel),
 // then settles it, returning the WaitingResolved resolution (WaitRules
-// vocabulary). The WAITING_TASKS park (2.14): no pending calls, no new
+// vocabulary). The WAITING_TASKS idle (2.14): no pending calls, no new
 // input, tasks in flight. An interrupt cancels every task — the user wants
 // the run back; the cancellations settle through the same channel.
 func (l *Loop) awaitBackground(ctx context.Context, appendE AppendFunc, turn int) (string, error) {
@@ -124,7 +124,7 @@ func (l *Loop) awaitBackground(ctx context.Context, appendE AppendFunc, turn int
 			return "", err
 		}
 		l.cancelAllBackground()
-		// re-decide: tasks still nonempty → park again → drain the cancellations
+		// re-decide: tasks still nonempty → idle again → drain the cancellations
 		return "tasks_cancelled_by_interrupt", nil
 	case <-ctx.Done():
 		return "", context.Cause(ctx)

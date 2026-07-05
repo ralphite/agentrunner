@@ -206,3 +206,22 @@ fresh-run 教义对 goal 形态不适用;goal 的 context 必须延续。fresh-r
   (C3 兑现)。§6 恢复/§12 session 管理/§18.1a/18.7 同步。
 - SPEC/QA/JOURNEYS/GAPS 措辞同步(G23/UJ-22 的 yield/exchange 遗留
   用语更新;G8 SessionStarted)。
+
+**C2 代码改名(行为不变)落地**:
+- 事件:TurnStarted/turn_started → GenerationStarted/generation_started;
+  TurnDiscarded → GenerationDiscarded;RunStarted/run_started →
+  SessionStarted/session_started(RunEnded 随 C3 处置)。
+- state:子状态 Run → Session(json "run"→"session",SubStateVersions
+  键同步);字段 Turn → GenStep(json "gen_step")、LastInputTurn →
+  LastInputGenStep;各事件载荷 Turns → GenSteps。
+- spec:MaxTurns/max_turns → MaxGenerationSteps/max_generation_steps
+  (fixture/golden 同步改名)。
+- protocol:KindRunStart/run_start → KindSessionStart/session_start;
+  KindTurnStart → KindGenerationStart/generation_start;Event.Turn →
+  N(generation step 序号或 iteration 序号)。
+- 词汇:park* → idle*(含测试名),doWaitInput → doIdle;CLI 展示
+  turn → gen-step。注:Go range-over-func 的 yield 参数名是语言惯用词,
+  保留(一次误替换已回滚)。
+- 旧 journal 自此不可读(事件名/子状态键变更),按决策 #18 作废重跑,
+  不做 migration。qa 脚本的 generation_started/session_started 同步;
+  run_ended 断言随 C3 更新。全量 check + e2e 绿。

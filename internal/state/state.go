@@ -15,7 +15,7 @@ import (
 )
 
 // SubStateVersions is the schema version of each namespace; the set is
-// copied into RunStarted and into every snapshot header. Bump a version
+// copied into SessionStarted and into every snapshot header. Bump a version
 // when a sub-state's shape changes incompatibly.
 func SubStateVersions() map[string]int {
 	return map[string]int{
@@ -23,7 +23,7 @@ func SubStateVersions() map[string]int {
 		"activities":   1,
 		"waiting":      1,
 		"timers":       1,
-		"run":          1,
+		"session":      1,
 		"effects":      1, // S3.2 (declared in the 2.4 table as an S3 addition)
 		"mode":         1, // S3.6a
 		"budget":       1, // S3.7a (reservations; settled usage lives in run)
@@ -38,7 +38,7 @@ func SubStateVersions() map[string]int {
 type Barrier struct {
 	BarrierID   string              `json:"barrier_id"`
 	Seq         int64               `json:"seq"` // the barrier event's own seq
-	Turn        int                 `json:"turn,omitempty"`
+	GenStep     int                 `json:"gen_step,omitempty"`
 	SnapshotRef string              `json:"snapshot_ref"`
 	Vector      map[string]int64    `json:"vector"`
 	Tasks       []event.BarrierTask `json:"tasks,omitempty"`
@@ -56,7 +56,7 @@ type State struct {
 	Activities   Activities   `json:"activities"`
 	Waiting      *Waiting     `json:"waiting,omitempty"`
 	Timers       Timers       `json:"timers"`
-	Run          Run          `json:"run"`
+	Session      Session      `json:"session"`
 	Effects      Effects      `json:"effects"`
 	// Mode is the current run mode (3.6a); empty folds as "default".
 	Mode string `json:"mode,omitempty"`
@@ -78,9 +78,9 @@ type State struct {
 // Latest compaction wins — a second compaction re-summarizes (its summary
 // already folds in the prior one) and advances the boundary.
 type Compaction struct {
-	Summary  string `json:"summary,omitempty"`
-	Boundary int    `json:"boundary,omitempty"`
-	UptoTurn int    `json:"upto_turn,omitempty"`
+	Summary     string `json:"summary,omitempty"`
+	Boundary    int    `json:"boundary,omitempty"`
+	UptoGenStep int    `json:"upto_gen_step,omitempty"`
 }
 
 // Budget is the reservation set: effect_resolved{allow, reserved_tokens}
@@ -128,7 +128,7 @@ func EffectIDFromApprovalID(approvalID string) string {
 	return strings.TrimPrefix(approvalID, "apr-")
 }
 
-// AwaitingApprovalEffect returns the effect id of the currently parked
+// AwaitingApprovalEffect returns the effect id of the currently idle
 // approval, if any. Reaching a WAITING_APPROVAL means every gate — hooks
 // included — already ran, so this effect is NOT in-doubt.
 func (s State) AwaitingApprovalEffect() string {
@@ -190,20 +190,20 @@ func (t Tasks) without(id string) Tasks {
 // Timers is the pending set; resume reschedules whatever is still here.
 type Timers map[string]event.TimerSet
 
-// Waiting is the parked run (2.14): nil when not waiting.
+// Waiting is the idle run (2.14): nil when not waiting.
 type Waiting struct {
 	Kind   string          `json:"kind"`
 	Detail json.RawMessage `json:"detail,omitempty"`
 	Since  int64           `json:"since"` // seq of WaitingEntered
 }
 
-type Run struct {
+type Session struct {
 	Status    string         `json:"status"`
 	SpecName  string         `json:"spec_name,omitempty"`
 	Model     string         `json:"model,omitempty"`
 	Task      string         `json:"task,omitempty"`
 	Version   string         `json:"version,omitempty"`
-	Turn      int            `json:"turn"`
+	GenStep   int            `json:"gen_step"`
 	Reason    string         `json:"reason,omitempty"`
 	Usage     provider.Usage `json:"usage"`
 	LastCrash string         `json:"last_crash,omitempty"`
@@ -230,7 +230,7 @@ type Run struct {
 	// Published maps stream → latest published version (S5.5): the outputs
 	// contract (S5.6) checks required streams against it at the epilogue.
 	Published map[string]int `json:"published,omitempty"`
-	// Inputs are the artifact refs to materialize (S5.8, from RunStarted);
+	// Inputs are the artifact refs to materialize (S5.8, from SessionStarted);
 	// Materialized records that the materialize activity completed, so a
 	// crash-resume knows whether to (re-)run it (it is idempotent anyway).
 	Inputs       []event.ArtifactInput `json:"inputs,omitempty"`
@@ -241,11 +241,11 @@ type Run struct {
 	// ForkedFrom is a forked session's provenance (S7.3, additive): set by
 	// the genesis event, nil for a run born from `run`.
 	ForkedFrom *ForkOrigin `json:"forked_from,omitempty"`
-	// LastInputTurn is the turn at which the latest conversation-visible
+	// LastInputGenStep is the turn at which the latest conversation-visible
 	// user input landed (v2 M3 triage): the conversational turn budget is
 	// per exchange, counted from here — a cumulative cap would wedge a
-	// long-lived session once Turn passed max_turns.
-	LastInputTurn int `json:"last_input_turn,omitempty"`
+	// long-lived session once GenStep passed max_generation_steps.
+	LastInputGenStep int `json:"last_input_gen_step,omitempty"`
 	// ConsumedInputSeq is the mailbox high-water mark (v2 收口): the
 	// largest DeliverySeq among journaled inputs. Resume replays mailbox
 	// entries above it — 崩溃不丢输入 becomes literally true.
@@ -258,7 +258,7 @@ type ForkOrigin struct {
 	BarrierID     string `json:"barrier_id"`
 }
 
-// New is the empty pre-RunStarted state.
+// New is the empty pre-SessionStarted state.
 func New() State {
 	return State{
 		Conversation: Conversation{ToolResults: map[string]ToolResult{}},
@@ -294,19 +294,19 @@ func Apply(s State, env event.Envelope) (State, error) {
 		return State{}, err
 	}
 	switch p := decoded.(type) {
-	case *event.RunStarted:
-		s.Run.Status = StatusRunning
-		s.Run.SpecName, s.Run.Model, s.Run.Task, s.Run.Version = p.SpecName, p.Model, p.Task, p.Version
-		s.Run.Env = p.Env
-		s.Run.Memory, s.Run.Skills, s.Run.Agents = p.Memory, p.Skills, p.Agents
-		s.Run.Inputs = p.Inputs
+	case *event.SessionStarted:
+		s.Session.Status = StatusRunning
+		s.Session.SpecName, s.Session.Model, s.Session.Task, s.Session.Version = p.SpecName, p.Model, p.Task, p.Version
+		s.Session.Env = p.Env
+		s.Session.Memory, s.Session.Skills, s.Session.Agents = p.Memory, p.Skills, p.Agents
+		s.Session.Inputs = p.Inputs
 
 	case *event.InputReceived:
 		// Interrupts and control signals (user kill) are journaled control
 		// inputs (journal-inputs-first), not conversation content — they
 		// never become user messages and never grant turn budget.
-		if p.DeliverySeq > s.Run.ConsumedInputSeq {
-			s.Run.ConsumedInputSeq = p.DeliverySeq
+		if p.DeliverySeq > s.Session.ConsumedInputSeq {
+			s.Session.ConsumedInputSeq = p.DeliverySeq
 		}
 		if p.Source != "interrupt" && p.Source != "control" {
 			parts := []provider.Part{{Kind: provider.PartText, Text: p.Text}}
@@ -326,76 +326,76 @@ func Apply(s State, env event.Envelope) (State, error) {
 				Role:  provider.RoleUser,
 				Parts: parts,
 			})
-			s.Run.LastInputTurn = s.Run.Turn
+			s.Session.LastInputGenStep = s.Session.GenStep
 		}
 
-	case *event.TurnStarted:
-		s.Run.Turn = p.Turn
-		s.Run.MalformedRetries = 0
+	case *event.GenerationStarted:
+		s.Session.GenStep = p.GenStep
+		s.Session.MalformedRetries = 0
 
 	case *event.AssistantMessage:
 		s.Conversation = s.Conversation.withMessage(p.Message)
-		s.Run.MalformedRetries = 0
+		s.Session.MalformedRetries = 0
 
 	case *event.MalformedToolCall:
-		s.Run.MalformedRetries++
+		s.Session.MalformedRetries++
 
 	case *event.SpawnRequested:
-		s.Run.Spawns++
+		s.Session.Spawns++
 
 	case *event.CheckpointBarrier:
 		// Copy-on-write: barriers append into a fresh slice.
 		barriers := make([]Barrier, 0, len(s.Barriers)+1)
 		barriers = append(barriers, s.Barriers...)
 		s.Barriers = append(barriers, Barrier{
-			BarrierID: p.BarrierID, Seq: env.Seq, Turn: p.Turn,
+			BarrierID: p.BarrierID, Seq: env.Seq, GenStep: p.GenStep,
 			SnapshotRef: p.SnapshotRef, Vector: p.Vector, Tasks: p.Tasks,
 		})
 
 	case *event.ForkedFrom:
 		// Genesis of a forked session (S7.3): provenance only — every other
 		// aspect of the state comes from the copied cut that follows.
-		s.Run.ForkedFrom = &ForkOrigin{ParentSession: p.ParentSession, BarrierID: p.BarrierID}
+		s.Session.ForkedFrom = &ForkOrigin{ParentSession: p.ParentSession, BarrierID: p.BarrierID}
 
 	case *event.SubagentCompleted:
 		// The parent's accounting settles through the spawn activity's
 		// ActivityCompleted, never here; the fold only records the child
 		// stream's existence for the barrier vector (S7.2, copy-on-write).
-		children := make([]string, 0, len(s.Run.ChildSessions)+1)
-		children = append(children, s.Run.ChildSessions...)
-		s.Run.ChildSessions = append(children, p.ChildSession)
+		children := make([]string, 0, len(s.Session.ChildSessions)+1)
+		children = append(children, s.Session.ChildSessions...)
+		s.Session.ChildSessions = append(children, p.ChildSession)
 
 	case *event.ArtifactPublished:
 		// Copy-on-write: Apply is pure, the input map must not mutate.
-		published := make(map[string]int, len(s.Run.Published)+1)
-		for k, v := range s.Run.Published {
+		published := make(map[string]int, len(s.Session.Published)+1)
+		for k, v := range s.Session.Published {
 			published[k] = v
 		}
 		published[p.Stream] = p.Version
-		s.Run.Published = published
+		s.Session.Published = published
 
 	case *event.ToolsDiscovered:
 		// Replace this server's tools (re-discovery wins), keep other
 		// servers', and keep the whole face sorted by name — a stable face
 		// keeps the advertised tool list (and thus the prompt) stable.
-		kept := make([]event.MCPToolDef, 0, len(s.Run.MCPTools)+len(p.Tools))
-		for _, t := range s.Run.MCPTools {
+		kept := make([]event.MCPToolDef, 0, len(s.Session.MCPTools)+len(p.Tools))
+		for _, t := range s.Session.MCPTools {
 			if t.Server != p.Server {
 				kept = append(kept, t)
 			}
 		}
 		kept = append(kept, p.Tools...)
 		sort.Slice(kept, func(i, j int) bool { return kept[i].Name < kept[j].Name })
-		s.Run.MCPTools = kept
+		s.Session.MCPTools = kept
 
 	case *event.ContextCompacted:
 		// The full message log stays intact (truth); the boundary freezes at
 		// the message count folded so far, and assembly reads only
 		// messages[Boundary:] preceded by Summary. Latest compaction wins.
 		s.Compaction = Compaction{
-			Summary:  p.Summary,
-			Boundary: len(s.Conversation.Messages),
-			UptoTurn: p.UptoTurn,
+			Summary:     p.Summary,
+			Boundary:    len(s.Conversation.Messages),
+			UptoGenStep: p.UptoGenStep,
 		}
 
 	case *event.ActivityStarted:
@@ -417,10 +417,10 @@ func Apply(s State, env event.Envelope) (State, error) {
 		s.Effects = s.Effects.withoutAllowed(effectIDFor(started, p.ActivityID))
 		s.Budget = s.Budget.release(effectIDFor(started, p.ActivityID))
 		if p.Usage != nil {
-			s.Run.Usage = addUsage(s.Run.Usage, *p.Usage)
+			s.Session.Usage = addUsage(s.Session.Usage, *p.Usage)
 		}
 		if p.ActivityID == "materialize" {
-			s.Run.Materialized = true // artifact inputs are in the workspace (S5.8)
+			s.Session.Materialized = true // artifact inputs are in the workspace (S5.8)
 		}
 		if inFlight && started.Background && started.CallID != "" {
 			// A background task's outcome arrives as a USER-role input
@@ -475,7 +475,7 @@ func Apply(s State, env event.Envelope) (State, error) {
 		s.Budget = s.Budget.release(effectIDFor(started, p.ActivityID))
 		if p.Usage != nil {
 			// Tokens spent before the cancellation are real spend (S5).
-			s.Run.Usage = addUsage(s.Run.Usage, *p.Usage)
+			s.Session.Usage = addUsage(s.Session.Usage, *p.Usage)
 		}
 		if inFlight && started.Background && started.CallID != "" {
 			s.Tasks = s.Tasks.without(started.CallID)
@@ -501,11 +501,11 @@ func Apply(s State, env event.Envelope) (State, error) {
 
 	case *event.WaitingEntered:
 		s.Waiting = &Waiting{Kind: p.Kind, Detail: p.Detail, Since: env.Seq}
-		s.Run.Status = StatusWaiting
+		s.Session.Status = StatusWaiting
 
 	case *event.WaitingResolved:
 		s.Waiting = nil
-		s.Run.Status = StatusRunning
+		s.Session.Status = StatusRunning
 
 	case *event.EffectRequested:
 		s.Effects = s.Effects.withPending(p.EffectID, *p)
@@ -538,7 +538,7 @@ func Apply(s State, env event.Envelope) (State, error) {
 		s.Effects = s.Effects.withDecision(EffectIDFromApprovalID(p.ApprovalID), p.Decision)
 		if s.Waiting != nil && s.Waiting.Kind == event.WaitApproval {
 			s.Waiting = nil
-			s.Run.Status = StatusRunning
+			s.Session.Status = StatusRunning
 		}
 
 	case *event.ModeChanged:
@@ -547,17 +547,17 @@ func Apply(s State, env event.Envelope) (State, error) {
 	case *event.LimitExceeded:
 		// Audit fact; the terminal state lands via RunEnded.
 
-	case *event.TurnDiscarded:
+	case *event.GenerationDiscarded:
 		// Surface signal + audit only: no fold state to undo (the discarded
 		// turn never produced a durable assistant_message).
 
 	case *event.ActorCrashed:
-		s.Run.LastCrash = p.Actor + ": " + p.Error
+		s.Session.LastCrash = p.Actor + ": " + p.Error
 
 	case *event.RunEnded:
-		s.Run.Status = StatusEnded
-		s.Run.Reason = p.Reason
-		s.Run.Turn = p.Turns
+		s.Session.Status = StatusEnded
+		s.Session.Reason = p.Reason
+		s.Session.GenStep = p.GenSteps
 
 	default:
 		// A type registered in event.Registry but missing here.

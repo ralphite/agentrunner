@@ -25,7 +25,7 @@ files:
           - finish: end_turn
 steps:
   - run: >
-      AGENTRUNNER_CRASH=after:turn_started:2
+      AGENTRUNNER_CRASH=after:generation_started:2
       AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/crash-fix.yaml
       $BIN run --workspace . spec.yaml "make it loud"; test $? -eq 137
   - run: >

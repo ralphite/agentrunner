@@ -54,8 +54,8 @@ func TestLoadSpecValid(t *testing.T) {
 	if spec.Model.Provider != "gemini" || spec.Model.ID != "gemini-flash-latest" {
 		t.Errorf("model = %+v", spec.Model)
 	}
-	if spec.MaxTurns != DefaultMaxTurns {
-		t.Errorf("max_turns default = %d, want %d", spec.MaxTurns, DefaultMaxTurns)
+	if spec.MaxGenerationSteps != DefaultMaxGenerationSteps {
+		t.Errorf("max_generation_steps default = %d, want %d", spec.MaxGenerationSteps, DefaultMaxGenerationSteps)
 	}
 	if spec.Model.MaxTokens != DefaultMaxTokens {
 		t.Errorf("max_tokens default = %d, want %d", spec.Model.MaxTokens, DefaultMaxTokens)

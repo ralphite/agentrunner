@@ -112,7 +112,7 @@ func TestSpawnFailedChildUsageSettles(t *testing.T) {
 		t.Fatalf("spawn result = %+v", tr)
 	}
 	// Parent settled its own 15 + the dead child's 600.
-	if got := fold.Run.Usage.InputTokens + fold.Run.Usage.OutputTokens; got != 15+600 {
+	if got := fold.Session.Usage.InputTokens + fold.Session.Usage.OutputTokens; got != 15+600 {
 		t.Errorf("settled = %d, want 615 (failed child's spend must count)", got)
 	}
 	// And the SubagentCompleted fact carries the real spend for inspect.
@@ -155,8 +155,8 @@ func TestHandoffExclusiveInBatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fold.Run.Spawns != 1 {
-		t.Errorf("spawns = %d, want 1 (second handoff denied)", fold.Run.Spawns)
+	if fold.Session.Spawns != 1 {
+		t.Errorf("spawns = %d, want 1 (second handoff denied)", fold.Session.Spawns)
 	}
 	r2 := fold.Conversation.ToolResults["h2"]
 	if !r2.IsError || !strings.Contains(string(r2.Result), "already transferred") {

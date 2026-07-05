@@ -51,7 +51,7 @@ func CanProduce(kind string, stage int) bool {
 	return ok && stage >= rule.ProducibleStage
 }
 
-// ResolveWaitingOnInterrupt handles a user interrupt against a parked run:
+// ResolveWaitingOnInterrupt handles a user interrupt against a idle run:
 // the interrupt is journaled FIRST (journal-inputs-first), then the wait
 // resolves per its registry row. A nil Waiting is a no-op; an unknown kind
 // is corruption and errors loudly.

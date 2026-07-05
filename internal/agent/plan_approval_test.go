@@ -32,19 +32,19 @@ func (s *seqApprover) Resolve(_ context.Context, req ApprovalRequest) (ApprovalD
 // exact plan version it adjudicated via payload_ref.
 func TestPlanApprovalFullFlow(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
-		// Turn 1: propose plan v1.
+		// GenStep 1: propose plan v1.
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "p1", Name: "exit_plan_mode",
 				Args: map[string]any{"plan": "v1: wing it"}}},
 			{Finish: "tool_use"},
 		}},
-		// Turn 2 (still in plan mode after the denial): propose v2.
+		// GenStep 2 (still in plan mode after the denial): propose v2.
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "p2", Name: "exit_plan_mode",
 				Args: map[string]any{"plan": "v2: measured, reviewed steps"}}},
 			{Finish: "tool_use"},
 		}},
-		// Turn 3 (default mode now): wrap up.
+		// GenStep 3 (default mode now): wrap up.
 		{Respond: []scripted.Event{{Text: "executing the approved plan"}, {Finish: "end_turn"}}},
 	}}
 	l := testLoop(t, fix, t.TempDir())
@@ -63,7 +63,7 @@ func TestPlanApprovalFullFlow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Reason != "completed" || res.Turns != 3 {
+	if res.Reason != "completed" || res.GenSteps != 3 {
 		t.Fatalf("res = %+v", res)
 	}
 

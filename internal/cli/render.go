@@ -25,8 +25,8 @@ func (r *textRenderer) Emit(e protocol.Event) {
 		r.inDelta = false
 	}
 	switch e.Kind {
-	case protocol.KindTurnStart:
-		fmt.Fprintf(r.out, "\n[turn %d]\n", e.Turn)
+	case protocol.KindGenerationStart:
+		fmt.Fprintf(r.out, "\n[gen-step %d]\n", e.N)
 		r.sawDelta = false
 	case protocol.KindTextDelta:
 		fmt.Fprint(r.out, e.Text)

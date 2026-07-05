@@ -43,20 +43,20 @@ func TestAssemblyPrefixByteStable(t *testing.T) {
 	env := renderEnvBlock("/work/ws", time.Date(2026, 7, 3, 0, 0, 0, 0, time.UTC))
 
 	s := state.New()
-	s = mustApply(t, s, event.TypeRunStarted, &event.RunStarted{
+	s = mustApply(t, s, event.TypeSessionStarted, &event.SessionStarted{
 		SpecName: spec.Name, Model: spec.Model.ID, Env: env,
 		SubStateVersions: state.SubStateVersions(),
 	})
 	s = mustApply(t, s, event.TypeInputReceived, &event.InputReceived{Text: "first task", Source: "cli"})
-	s = mustApply(t, s, event.TypeTurnStarted, &event.TurnStarted{Turn: 1})
+	s = mustApply(t, s, event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1})
 
 	req1 := Assemble(s, spec, nil, 1)
 
 	// Grow the conversation by a couple of turns' worth of messages.
 	s = mustApply(t, s, event.TypeAssistantMessage, &event.AssistantMessage{
-		Turn: 1, Message: provider.Message{Role: provider.RoleAssistant,
+		GenStep: 1, Message: provider.Message{Role: provider.RoleAssistant,
 			Parts: []provider.Part{{Kind: provider.PartText, Text: "sure"}}}})
-	s = mustApply(t, s, event.TypeTurnStarted, &event.TurnStarted{Turn: 2})
+	s = mustApply(t, s, event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 2})
 	s = mustApply(t, s, event.TypeInputReceived, &event.InputReceived{Text: "more", Source: "cli"})
 
 	req2 := Assemble(s, spec, nil, 2)

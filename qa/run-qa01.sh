@@ -76,7 +76,7 @@ done
 # ---- Structural assertions (QA.md §0.1: facts, not model wording) ----
 inputs="$(count_type input_received "$sdir/events.jsonl")"
 ends="$(count_type run_ended "$sdir/events.jsonl")"
-turns="$(count_type turn_started "$sdir/events.jsonl")"
+turns="$(count_type generation_started "$sdir/events.jsonl")"
 tail_type="$(tail -1 "$sdir/events.jsonl" | grep -o '"type":"[^"]*"' | head -1)"
 
 fail=0

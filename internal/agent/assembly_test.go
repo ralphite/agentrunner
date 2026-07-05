@@ -61,7 +61,7 @@ func TestAssembleToolResults(t *testing.T) {
 	var err error
 	for _, e := range []event.Envelope{
 		mustEnvOf(t, event.TypeInputReceived, &event.InputReceived{Text: "hi", Source: "cli"}),
-		mustEnvOf(t, event.TypeAssistantMessage, &event.AssistantMessage{Turn: 1, Message: asst}),
+		mustEnvOf(t, event.TypeAssistantMessage, &event.AssistantMessage{GenStep: 1, Message: asst}),
 		mustEnvOf(t, event.TypeActivityStarted, &event.ActivityStarted{
 			ActivityID: "tool-call_1_0", Kind: event.KindTool, Name: "read_file", CallID: "call_1_0"}),
 		mustEnvOf(t, event.TypeActivityCompleted, &event.ActivityCompleted{

@@ -54,8 +54,8 @@ bg="$(grep -c '"background":true' "$SDIR/events.jsonl" 2>/dev/null || echo 0)"; 
 [ "$subs" -ge 3 ]   || { echo "$QA: FAIL subagent_completed = $subs, want >= 3" >&2; fail=1; }
 
 # All spawns launched in the FIRST parent turn (non-blocking parallel): every
-# spawn_requested precedes the second turn_started.
-t2_line="$(grep -n '"type":"turn_started"' "$SDIR/events.jsonl" | sed -n '2p' | cut -d: -f1)"
+# spawn_requested precedes the second generation_started.
+t2_line="$(grep -n '"type":"generation_started"' "$SDIR/events.jsonl" | sed -n '2p' | cut -d: -f1)"
 last_spawn_line="$(grep -n '"type":"spawn_requested"' "$SDIR/events.jsonl" | tail -1 | cut -d: -f1)"
 if [ -n "$t2_line" ] && [ -n "$last_spawn_line" ] && [ "$last_spawn_line" -gt "$t2_line" ]; then
   echo "$QA: WARN a spawn landed after turn 2 (parent may have spawned across turns)" >&2
@@ -66,7 +66,7 @@ nchild="$(ls -d "$SDIR"/sub/*/ 2>/dev/null | wc -l | tr -d ' ')"
 [ "$nchild" -ge 3 ] || { echo "$QA: FAIL child journals = $nchild, want >= 3" >&2; fail=1; }
 
 # The parent had at least one turn AFTER the spawns (consumed results).
-turns="$(count_type turn_started "$SDIR/events.jsonl")"
+turns="$(count_type generation_started "$SDIR/events.jsonl")"
 [ "$turns" -ge 2 ] || { echo "$QA: FAIL parent turns = $turns, want >= 2 (spawn + consume)" >&2; fail=1; }
 
 if [ "$fail" = 0 ]; then

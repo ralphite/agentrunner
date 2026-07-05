@@ -70,11 +70,11 @@ func TestLoopRequestAssemblyGolden(t *testing.T) {
 	cap := &capturingProvider{inner: scripted.New(fix)}
 	loop := &Loop{
 		Spec: &AgentSpec{
-			Name:         "golden",
-			Model:        ModelSpec{Provider: "scripted", ID: "model-x", MaxTokens: 256},
-			SystemPrompt: "be precise",
-			Tools:        []string{"read_file", "edit_file"},
-			MaxTurns:     5,
+			Name:               "golden",
+			Model:              ModelSpec{Provider: "scripted", ID: "model-x", MaxTokens: 256},
+			SystemPrompt:       "be precise",
+			Tools:              []string{"read_file", "edit_file"},
+			MaxGenerationSteps: 5,
 		},
 		Provider:  cap,
 		Exec:      &tool.Executor{WS: ws},
@@ -122,7 +122,7 @@ func normalizeRequests(reqs []provider.CompleteRequest) []map[string]any {
 			toolNames = append(toolNames, td.Name)
 		}
 		out = append(out, map[string]any{
-			"turn":       r.Turn,
+			"turn":       r.GenStep,
 			"model":      r.Model,
 			"max_tokens": r.MaxTokens,
 			"system":     envBlockRe.ReplaceAllString(r.System, "<env>NORMALIZED</env>"),

@@ -23,10 +23,10 @@ func Assemble(s state.State, spec *AgentSpec, toolDefs []provider.ToolDef, turn 
 	return provider.CompleteRequest{
 		Model:     spec.Model.ID,
 		MaxTokens: spec.Model.MaxTokens,
-		System:    assembleSystem(s.Run, spec.SystemPrompt, mode),
+		System:    assembleSystem(s.Session, spec.SystemPrompt, mode),
 		Messages:  assembleMessages(s),
 		Tools:     advertisedTools(s, toolDefs, mode),
-		Turn:      turn,
+		GenStep:   turn,
 		Thinking: provider.ThinkingConfig{
 			Enabled:      spec.Model.Thinking.Enabled,
 			BudgetTokens: spec.Model.Thinking.BudgetTokens,
@@ -40,7 +40,7 @@ func Assemble(s state.State, spec *AgentSpec, toolDefs []provider.ToolDef, turn 
 // were all frozen at session start (S4.4c / S5.2 / S5.3), so the prefix is
 // byte-identical every turn; only the mode suffix moves, and only on an
 // explicit mode transition (an accepted cache break, decision #10).
-func assembleSystem(run state.Run, specPrompt, mode string) string {
+func assembleSystem(run state.Session, specPrompt, mode string) string {
 	var b strings.Builder
 	for _, block := range []string{run.Env, run.Memory, run.Skills, run.Agents} {
 		if block != "" {

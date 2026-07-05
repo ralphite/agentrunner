@@ -86,8 +86,8 @@ func TestInterruptResolvesEveryKind(t *testing.T) {
 			if resolved.Kind != kind || resolved.Resolution != rule.OnInterrupt {
 				t.Errorf("resolved = %+v", resolved)
 			}
-			if s.Waiting != nil || s.Run.Status != state.StatusRunning {
-				t.Errorf("state after interrupt: waiting=%+v status=%s", s.Waiting, s.Run.Status)
+			if s.Waiting != nil || s.Session.Status != state.StatusRunning {
+				t.Errorf("state after interrupt: waiting=%+v status=%s", s.Waiting, s.Session.Status)
 			}
 			// Control input must not pollute the transcript.
 			if len(s.Conversation.Messages) != 0 {
@@ -116,7 +116,7 @@ func TestInterruptUnknownKindErrors(t *testing.T) {
 }
 
 // The S2 exit criterion, synthetic edition: a waiting state journaled by
-// one process is visible to the next (kill → reopen → fold → still parked),
+// one process is visible to the next (kill → reopen → fold → still idle),
 // and the drive loop refuses to run past it.
 func TestWaitingSurvivesProcessBoundary(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "sess")
@@ -128,7 +128,7 @@ func TestWaitingSurvivesProcessBoundary(t *testing.T) {
 		typ     string
 		payload any
 	}{
-		{event.TypeRunStarted, &event.RunStarted{SpecName: "t", SubStateVersions: state.SubStateVersions()}},
+		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "t", SubStateVersions: state.SubStateVersions()}},
 		{event.TypeWaitingEntered, &event.WaitingEntered{Kind: event.WaitApproval,
 			Detail: json.RawMessage(`{"call_id":"call_1_0"}`)}},
 	} {
@@ -150,10 +150,10 @@ func TestWaitingSurvivesProcessBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Waiting == nil || s.Waiting.Kind != event.WaitApproval || s.Run.Status != state.StatusWaiting {
-		t.Fatalf("state across process boundary: %+v", s.Run)
+	if s.Waiting == nil || s.Waiting.Kind != event.WaitApproval || s.Session.Status != state.StatusWaiting {
+		t.Fatalf("state across process boundary: %+v", s.Session)
 	}
 	if got := decide(s, 5, "", false); got.kind != doWait {
-		t.Fatalf("decide on parked state = %+v, want doWait", got)
+		t.Fatalf("decide on idle state = %+v, want doWait", got)
 	}
 }

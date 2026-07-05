@@ -53,7 +53,7 @@ func buildPipeline(ws *workspace.Workspace, specRules []pipeline.PermissionRule,
 }
 
 // buildPipelineFromLayers rebuilds a resumed session's pipeline from the
-// permission layers journaled in its RunStarted (S6, S5 回访: 权限交集物化
+// permission layers journaled in its SessionStarted (S6, S5 回访: 权限交集物化
 // 为数据). The layers — one gate each, chained — are the run's FROZEN
 // effective rules: a child session resumed standalone keeps its parent's
 // bounds, and live config drift does not silently rewrite a run's

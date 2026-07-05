@@ -21,12 +21,12 @@ import (
 
 func summarizerSpec() *AgentSpec {
 	return &AgentSpec{
-		Name:         "summarizer",
-		Description:  "condenses findings into a short report",
-		Model:        ModelSpec{Provider: "scripted", ID: "m", MaxTokens: 100},
-		SystemPrompt: "you summarize",
-		Tools:        []string{"read_file", "edit_file", "bash"},
-		MaxTurns:     3,
+		Name:               "summarizer",
+		Description:        "condenses findings into a short report",
+		Model:              ModelSpec{Provider: "scripted", ID: "m", MaxTokens: 100},
+		SystemPrompt:       "you summarize",
+		Tools:              []string{"read_file", "edit_file", "bash"},
+		MaxGenerationSteps: 3,
 	}
 }
 
@@ -57,11 +57,11 @@ func spawnLoop(t *testing.T, fix scripted.Fixture, root string) (*Loop, *capturi
 	cap := &capturingProvider{inner: scripted.New(fix)}
 	return &Loop{
 		Spec: &AgentSpec{
-			Name:     "lead",
-			Model:    ModelSpec{Provider: "scripted", ID: "m", MaxTokens: 100},
-			Tools:    []string{"read_file"},
-			MaxTurns: 5,
-			Agents:   []string{"summarizer"},
+			Name:               "lead",
+			Model:              ModelSpec{Provider: "scripted", ID: "m", MaxTokens: 100},
+			Tools:              []string{"read_file"},
+			MaxGenerationSteps: 5,
+			Agents:             []string{"summarizer"},
 		},
 		Provider:  cap,
 		Exec:      &tool.Executor{WS: ws},
@@ -101,7 +101,7 @@ func TestSpawnEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Reason != "completed" || res.Turns != 2 {
+	if res.Reason != "completed" || res.GenSteps != 2 {
 		t.Fatalf("res = %+v", res)
 	}
 
@@ -152,8 +152,8 @@ func TestSpawnEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if childFold.Run.Status != state.StatusEnded || childFold.Run.SpecName != "summarizer" {
-		t.Errorf("child fold = %+v", childFold.Run)
+	if childFold.Session.Status != state.StatusEnded || childFold.Session.SpecName != "summarizer" {
+		t.Errorf("child fold = %+v", childFold.Session)
 	}
 
 	// The report reached the parent's fold as the tool result…
@@ -166,7 +166,7 @@ func TestSpawnEndToEnd(t *testing.T) {
 		t.Errorf("spawn result = %+v", tr)
 	}
 	// …and the child's usage settled into the parent's accounting.
-	if got := fold.Run.Usage.InputTokens; got != 30+20+8 {
+	if got := fold.Session.Usage.InputTokens; got != 30+20+8 {
 		t.Errorf("parent settled input = %d, want 58 (own 38 + child 20)", got)
 	}
 	if fold.Budget.ReservedTotal() != 0 {
@@ -230,7 +230,7 @@ func TestSpawnChildCannotEscalatePermissions(t *testing.T) {
 	}
 }
 
-// S6 (S5 回访): the child's RunStarted materializes the WHOLE permission
+// S6 (S5 回访): the child's SessionStarted materializes the WHOLE permission
 // intersection chain as data — parent layer first, child layer second — so a
 // standalone resume of the child session rebuilds the same bounds without
 // the parent process's gate pointers.
@@ -276,7 +276,7 @@ func TestSpawnMaterializesPermissionLayers(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		raw := decoded.(*event.RunStarted).PermissionLayers
+		raw := decoded.(*event.SessionStarted).PermissionLayers
 		if len(raw) == 0 {
 			return nil
 		}
@@ -409,12 +409,12 @@ func TestSpawnBudgetMinAggregation(t *testing.T) {
 		if s, err = state.Apply(s, e); err != nil {
 			t.Fatal(err)
 		}
-		if peak := s.Run.Usage.Billed() + s.Budget.ReservedTotal(); peak > 5000 {
+		if peak := s.Session.Usage.Billed() + s.Budget.ReservedTotal(); peak > 5000 {
 			t.Fatalf("tree budget punctured: %d > 5000 after %s", peak, e.Type)
 		}
 	}
 	// Final settled = parent own (100 + 15) + child (50).
-	if got := s.Run.Usage.Billed(); got != 165 {
+	if got := s.Session.Usage.Billed(); got != 165 {
 		t.Errorf("settled = %d, want 165", got)
 	}
 	// The journaled allowance was the min aggregation: parent remaining
@@ -457,8 +457,8 @@ func TestSpawnDepthAndFanoutCaps(t *testing.T) {
 		if !tr.IsError || !strings.Contains(string(tr.Result), "depth") {
 			t.Errorf("depth-capped spawn = %+v, want deny mentioning depth", tr)
 		}
-		if fold.Run.Spawns != 0 {
-			t.Errorf("denied spawn must not count: %d", fold.Run.Spawns)
+		if fold.Session.Spawns != 0 {
+			t.Errorf("denied spawn must not count: %d", fold.Session.Spawns)
 		}
 	})
 
@@ -485,8 +485,8 @@ func TestSpawnDepthAndFanoutCaps(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if fold.Run.Spawns != 1 {
-			t.Errorf("spawns = %d, want exactly 1 (second denied in-batch)", fold.Run.Spawns)
+		if fold.Session.Spawns != 1 {
+			t.Errorf("spawns = %d, want exactly 1 (second denied in-batch)", fold.Session.Spawns)
 		}
 		r1, r2 := fold.Conversation.ToolResults["s1"], fold.Conversation.ToolResults["s2"]
 		if r1.IsError {

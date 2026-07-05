@@ -75,13 +75,13 @@ func TestCheckEventsRequiresTerminalEvent(t *testing.T) {
 	}
 
 	const ts = "2026-07-03T00:00:00Z"
-	good := `{"seq":1,"id":"evt-1","type":"run_started","ts":"` + ts + `","payload":{}}
+	good := `{"seq":1,"id":"evt-1","type":"session_started","ts":"` + ts + `","payload":{}}
 {"seq":2,"id":"evt-2","type":"run_ended","ts":"` + ts + `","payload":{}}
 `
-	truncated := `{"seq":1,"id":"evt-1","type":"run_started","ts":"` + ts + `","payload":{}}
+	truncated := `{"seq":1,"id":"evt-1","type":"session_started","ts":"` + ts + `","payload":{}}
 {"seq":2,"id":"evt-2","type":"activity_started","ts":"` + ts + `","payload":{}}
 `
-	gapped := `{"seq":1,"id":"evt-1","type":"run_started","ts":"` + ts + `","payload":{}}
+	gapped := `{"seq":1,"id":"evt-1","type":"session_started","ts":"` + ts + `","payload":{}}
 {"seq":3,"id":"evt-3","type":"run_ended","ts":"` + ts + `","payload":{}}
 `
 	write("good.jsonl", good)
@@ -97,7 +97,7 @@ func TestCheckEventsRequiresTerminalEvent(t *testing.T) {
 		t.Errorf("gapped log accepted: %q", msg)
 	}
 
-	badTS := `{"seq":1,"id":"evt-1","type":"run_started","ts":"garbage","payload":{}}
+	badTS := `{"seq":1,"id":"evt-1","type":"session_started","ts":"garbage","payload":{}}
 `
 	write("badts.jsonl", badTS)
 	if msg := checkEvents(dir + "/badts.jsonl"); !strings.Contains(msg, "bad ts") {

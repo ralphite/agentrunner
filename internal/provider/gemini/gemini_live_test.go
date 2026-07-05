@@ -53,7 +53,7 @@ func TestLiveSmoke(t *testing.T) {
 			Role:  provider.RoleUser,
 			Parts: []provider.Part{{Kind: provider.PartText, Text: "Say the single word: pong"}},
 		}},
-		Turn: 1,
+		GenStep: 1,
 	}))
 	if err != nil {
 		t.Fatal(err)

@@ -16,8 +16,8 @@ import (
 type Kind string
 
 const (
-	KindRunStart        Kind = "run_start"
-	KindTurnStart       Kind = "turn_start"
+	KindSessionStart    Kind = "session_start"
+	KindGenerationStart Kind = "generation_start"
 	KindTextDelta       Kind = "text_delta" // ephemeral: streamed assistant text
 	KindMessage         Kind = "message"    // durable: the assembled assistant text
 	KindToolCall        Kind = "tool_call"
@@ -28,7 +28,7 @@ const (
 	KindError           Kind = "error"   // USER-visible error (not the model-visible render)
 	KindRunEnd          Kind = "run_end"
 	KindNote            Kind = "note"      // blackboard publish mirrored to watchers (S6, ephemeral)
-	KindIdle            Kind = "idle"      // conversational session parked for input (v2 M1.1)
+	KindIdle            Kind = "idle"      // conversational session idle for input (v2 M1.1)
 	KindIteration       Kind = "iteration" // one driver iteration completed (S6; Turn = iteration N)
 )
 
@@ -36,7 +36,7 @@ const (
 // Kind are set. JSON tags drive the `--json` line stream.
 type Event struct {
 	Kind    Kind   `json:"kind"`
-	Turn    int    `json:"turn,omitempty"`
+	N       int    `json:"n,omitempty"`    // generation step 序号,或 KindIteration 的迭代序号
 	Text    string `json:"text,omitempty"` // text_delta / message / error / discard reason
 	Tool    string `json:"tool,omitempty"` // tool_call / tool_result
 	CallID  string `json:"call_id,omitempty"`

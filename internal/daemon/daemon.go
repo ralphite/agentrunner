@@ -31,7 +31,7 @@ type Command struct {
 	Workspace string `json:"workspace,omitempty"`
 	Mode      string `json:"mode,omitempty"`
 
-	// Conversational hosts the run as a v2 session that parks for input
+	// Conversational hosts the run as a v2 session that goes idle for input
 	// after each turn instead of ending (the `new` command sets it).
 	Conversational bool `json:"conversational,omitempty"`
 
@@ -65,7 +65,7 @@ type RunRequest struct {
 	Task      string
 	Workspace string
 	Mode      string
-	// Conversational makes the hosted session park for input after each
+	// Conversational makes the hosted session idle for input after each
 	// turn (v2 M1.2). Inbox delivers those inputs — the runner wires it to
 	// the Loop's UserInputs; closing it is the close gesture. nil for a
 	// classic task run.
@@ -110,7 +110,7 @@ type Server struct {
 	// Replay renders a session's journal as output events for attach
 	// catch-up (补读). nil = attach serves live events only.
 	Replay func(sessionID string, sink protocol.Sink) error
-	// ScanTimers derives the parked sessions' pending-timer index from
+	// ScanTimers derives the idle sessions' pending-timer index from
 	// their journals; Resume hosts a session resume (same wiring as a
 	// foreground `resume`). Both non-nil → the daemon runs the durable
 	// timer sweeper: expired timers trigger a hosted resume, whose own
@@ -134,7 +134,7 @@ type Server struct {
 	// refused). Same hub/registry semantics as Run.
 	Drive func(ctx context.Context, req DriveRequest, sink protocol.Sink) error
 	Clock clock.Clock
-	// Approvals is the cross-process ask rendezvous: hosted runs park here
+	// Approvals is the cross-process ask rendezvous: hosted runs idle here
 	// (the CLI's resolver adapter calls Ask) and `approve` commands answer.
 	// nil = the approve command is refused.
 	Approvals *ApprovalBroker
@@ -276,7 +276,7 @@ func (h *hostedRun) finish() {
 	defer h.mu.Unlock()
 	h.done = true
 	if h.inbox != nil {
-		close(h.inbox) // unblock a parked conversational loop into close
+		close(h.inbox) // unblock a idle conversational loop into close
 		h.inbox = nil
 	}
 	for ch := range h.subs {
@@ -286,7 +286,7 @@ func (h *hostedRun) finish() {
 }
 
 // closeInbox is the `close` gesture for a conversational session: shut the
-// inbox so the parked loop resolves into its epilogue. The run's own
+// inbox so the idle loop resolves into its epilogue. The run's own
 // finish() then clears the registry.
 func (h *hostedRun) closeInbox() bool {
 	h.mu.Lock()
@@ -347,7 +347,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 				// into every hosted run (cooperative cancel → terminal
 				// events). Refuse new runs, wait for the live ones to finish
 				// journaling, then CLOSE the remaining connections — a
-				// client parked in a read/write must not wedge the deploy
+				// client idle in a read/write must not wedge the deploy
 				// (S6 review P1) — and drain the handlers.
 				s.mu.Lock()
 				s.stopping = true
@@ -516,7 +516,7 @@ func (s *Server) handleSend(ctx context.Context, cmd Command, enc *json.Encoder)
 }
 
 // handleClose ends a conversational session gracefully (v2 M1.2): shutting
-// the inbox resolves the parked loop into its epilogue.
+// the inbox resolves the idle loop into its epilogue.
 func (s *Server) handleClose(cmd Command, enc *json.Encoder) {
 	if cmd.Session == "" {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "close needs session"})
@@ -533,7 +533,7 @@ func (s *Server) handleClose(cmd Command, enc *json.Encoder) {
 	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Text: "closing", Session: cmd.Session})
 }
 
-// handleApprove routes a human's verdict to the parked ask.
+// handleApprove routes a human's verdict to the idle ask.
 func (s *Server) handleApprove(cmd Command, enc *json.Encoder) {
 	if s.Approvals == nil {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "daemon has no approval broker"})
@@ -630,7 +630,7 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 	}()
 
 	// Tell the client which session it got, then stream until the run ends.
-	_ = enc.Encode(protocol.Event{Kind: protocol.KindRunStart, Session: id})
+	_ = enc.Encode(protocol.Event{Kind: protocol.KindSessionStart, Session: id})
 	for e := range ch {
 		if err := enc.Encode(e); err != nil {
 			return // client went away; the run keeps going
@@ -690,7 +690,7 @@ func (s *Server) handleDrive(ctx context.Context, cmd Command, enc *json.Encoder
 		}
 	}()
 
-	_ = enc.Encode(protocol.Event{Kind: protocol.KindRunStart, Session: id})
+	_ = enc.Encode(protocol.Event{Kind: protocol.KindSessionStart, Session: id})
 	for e := range ch {
 		if err := enc.Encode(e); err != nil {
 			return // client went away; the series keeps going

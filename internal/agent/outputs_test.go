@@ -172,7 +172,7 @@ func TestOutputsChildViolationIsParentError(t *testing.T) {
 		t.Fatal(err)
 	}
 	childFold, _ := state.Fold(childEvents)
-	if childFold.Run.Reason != "contract_violation" {
-		t.Errorf("child reason = %q", childFold.Run.Reason)
+	if childFold.Session.Reason != "contract_violation" {
+		t.Errorf("child reason = %q", childFold.Session.Reason)
 	}
 }

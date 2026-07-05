@@ -69,7 +69,7 @@ func TestArtifactInputMaterializedForChild(t *testing.T) {
 		t.Fatalf("res = %+v", res)
 	}
 
-	// The child's journal: RunStarted carries the input, a materialize
+	// The child's journal: SessionStarted carries the input, a materialize
 	// activity completed BEFORE the first turn, and the read saw the content.
 	childDir := filepath.Join(l.Store.Dir(), "sub", "s1-a1")
 	childEvents, err := store.ReadEvents(childDir)
@@ -81,7 +81,7 @@ func TestArtifactInputMaterializedForChild(t *testing.T) {
 		if e.Type == event.TypeActivityCompleted && strings.Contains(string(e.Payload), "materialize") {
 			matSeq = e.Seq
 		}
-		if e.Type == event.TypeTurnStarted && turnSeq == 0 {
+		if e.Type == event.TypeGenerationStarted && turnSeq == 0 {
 			turnSeq = e.Seq
 		}
 	}
@@ -92,8 +92,8 @@ func TestArtifactInputMaterializedForChild(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !childFold.Run.Materialized || len(childFold.Run.Inputs) != 1 {
-		t.Errorf("child fold: materialized=%v inputs=%+v", childFold.Run.Materialized, childFold.Run.Inputs)
+	if !childFold.Session.Materialized || len(childFold.Session.Inputs) != 1 {
+		t.Errorf("child fold: materialized=%v inputs=%+v", childFold.Session.Materialized, childFold.Session.Inputs)
 	}
 	c1 := childFold.Conversation.ToolResults["c1"]
 	if c1.IsError || !strings.Contains(string(c1.Result), "focus: the auth module") {

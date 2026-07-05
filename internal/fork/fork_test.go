@@ -41,16 +41,16 @@ func seedParent(t *testing.T) (string, state.State) {
 		return appended
 	}
 
-	appendT(event.TypeRunStarted, &event.RunStarted{SpecName: "fixer",
+	appendT(event.TypeSessionStarted, &event.SessionStarted{SpecName: "fixer",
 		WorkspaceRoot: "/w", Spec: []byte(`{"name":"fixer"}`)}, "")
 	appendT(event.TypeInputReceived, &event.InputReceived{Text: "fix it", Source: "cli"}, "")
-	appendT(event.TypeTurnStarted, &event.TurnStarted{Turn: 1}, "evt-2")
+	appendT(event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}, "evt-2")
 	appendT(event.TypeCheckpointBarrier, &event.CheckpointBarrier{
-		BarrierID: "bar-t1", Turn: 1, Vector: map[string]int64{".": 3}, SnapshotRef: "ref-aaa"}, "evt-3")
-	appendT(event.TypeTurnStarted, &event.TurnStarted{Turn: 2}, "evt-4")
+		BarrierID: "bar-t1", GenStep: 1, Vector: map[string]int64{".": 3}, SnapshotRef: "ref-aaa"}, "evt-3")
+	appendT(event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 2}, "evt-4")
 	appendT(event.TypeCheckpointBarrier, &event.CheckpointBarrier{
-		BarrierID: "bar-t2", Turn: 2, Vector: map[string]int64{".": 5}, SnapshotRef: "ref-bbb"}, "evt-5")
-	appendT(event.TypeRunEnded, &event.RunEnded{Reason: "completed", Turns: 2}, "evt-6")
+		BarrierID: "bar-t2", GenStep: 2, Vector: map[string]int64{".": 5}, SnapshotRef: "ref-bbb"}, "evt-5")
+	appendT(event.TypeRunEnded, &event.RunEnded{Reason: "completed", GenSteps: 2}, "evt-6")
 
 	for _, f := range []string{"sub/s1-a1/events.jsonl", "artifacts/blobs/sha256-xx"} {
 		path := filepath.Join(dir, f)
@@ -127,19 +127,19 @@ func TestCutCopiesBarrierSlice(t *testing.T) {
 	}
 	// Causation ids that referenced events moved with the shift.
 	if got[3].CausationID != "evt-3" { // was evt-2 in the parent
-		t.Errorf("turn_started causation = %q, want evt-3", got[3].CausationID)
+		t.Errorf("generation_started causation = %q, want evt-3", got[3].CausationID)
 	}
 
 	fold2, err := state.Fold(got)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fold2.Run.ForkedFrom == nil || fold2.Run.ForkedFrom.ParentSession != parentSession ||
-		fold2.Run.ForkedFrom.BarrierID != "bar-t1" {
-		t.Errorf("fold provenance = %+v", fold2.Run.ForkedFrom)
+	if fold2.Session.ForkedFrom == nil || fold2.Session.ForkedFrom.ParentSession != parentSession ||
+		fold2.Session.ForkedFrom.BarrierID != "bar-t1" {
+		t.Errorf("fold provenance = %+v", fold2.Session.ForkedFrom)
 	}
-	if fold2.Run.Status != state.StatusRunning || fold2.Run.Turn != 1 {
-		t.Errorf("fork state = %s turn %d, want running turn 1", fold2.Run.Status, fold2.Run.Turn)
+	if fold2.Session.Status != state.StatusRunning || fold2.Session.GenStep != 1 {
+		t.Errorf("fork state = %s turn %d, want running turn 1", fold2.Session.Status, fold2.Session.GenStep)
 	}
 	if len(fold2.Barriers) != 1 || fold2.Barriers[0].Seq != 5 {
 		t.Errorf("fork barriers = %+v, want bar-t1 at shifted seq 5", fold2.Barriers)
@@ -177,7 +177,7 @@ func TestCutUnknownBarrier(t *testing.T) {
 }
 
 // S7 出口 review P0: a fork of a fork carries exactly ONE genesis — its
-// own, naming the IMMEDIATE parent — with run_started right behind it.
+// own, naming the IMMEDIATE parent — with session_started right behind it.
 func TestCutOfForkKeepsSingleGenesis(t *testing.T) {
 	parentDir, fold := seedParent(t)
 	fork1Dir := filepath.Join(t.TempDir(), "fork1")
@@ -207,8 +207,8 @@ func TestCutOfForkKeepsSingleGenesis(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got[0].Type != event.TypeForkedFrom || got[1].Type != event.TypeRunStarted {
-		t.Fatalf("head = [%s %s], want [forked_from run_started]", got[0].Type, got[1].Type)
+	if got[0].Type != event.TypeForkedFrom || got[1].Type != event.TypeSessionStarted {
+		t.Fatalf("head = [%s %s], want [forked_from session_started]", got[0].Type, got[1].Type)
 	}
 	geneses := 0
 	for _, e := range got {
@@ -228,8 +228,8 @@ func TestCutOfForkKeepsSingleGenesis(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fold2.Run.ForkedFrom == nil || fold2.Run.ForkedFrom.ParentSession != fork1 {
-		t.Errorf("provenance = %+v, want immediate parent %s", fold2.Run.ForkedFrom, fork1)
+	if fold2.Session.ForkedFrom == nil || fold2.Session.ForkedFrom.ParentSession != fork1 {
+		t.Errorf("provenance = %+v, want immediate parent %s", fold2.Session.ForkedFrom, fork1)
 	}
 }
 
@@ -254,13 +254,13 @@ func TestCutAppliesCancelAtFork(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	appendT(event.TypeRunStarted, &event.RunStarted{SpecName: "fixer", WorkspaceRoot: "/w"})
-	appendT(event.TypeTurnStarted, &event.TurnStarted{Turn: 1})
+	appendT(event.TypeSessionStarted, &event.SessionStarted{SpecName: "fixer", WorkspaceRoot: "/w"})
+	appendT(event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1})
 	appendT(event.TypeActivityStarted, &event.ActivityStarted{
 		ActivityID: "tool-bg1", Kind: event.KindTool, Name: "bash",
 		CallID: "bg1", Background: true, Attempt: 1})
 	appendT(event.TypeCheckpointBarrier, &event.CheckpointBarrier{
-		BarrierID: "bar-t2", Turn: 2, Vector: map[string]int64{".": 3},
+		BarrierID: "bar-t2", GenStep: 2, Vector: map[string]int64{".": 3},
 		SnapshotRef: "ref-live",
 		Tasks:       []event.BarrierTask{{TaskID: "bg1", Policy: "cancel_at_fork"}}})
 

@@ -87,25 +87,25 @@ func (l *Loop) settleCrashedSpawn(appendE AppendFunc, act event.ActivityStarted)
 		return fmt.Errorf("crash settle %s: child fold: %w", callID, ferr)
 	}
 
-	if cf.Run.Status == state.StatusEnded {
+	if cf.Session.Status == state.StatusEnded {
 		// The child finished before the crash — deliver the receipt it
 		// already earned (SubagentCompleted before the activity terminal,
 		// same order as the live settle path).
 		if _, err := appendE(event.TypeSubagentCompleted, &event.SubagentCompleted{
 			CallID: callID, Agent: agentName, ChildSession: childSession,
-			Reason: cf.Run.Reason, Turns: cf.Run.Turn, Usage: cf.Run.Usage,
+			Reason: cf.Session.Reason, GenSteps: cf.Session.GenStep, Usage: cf.Session.Usage,
 		}); err != nil {
 			return err
 		}
 		payload, _ := json.Marshal(map[string]any{
 			"agent": agentName, "child_session": childSession,
-			"reason": cf.Run.Reason, "turns": cf.Run.Turn,
+			"reason": cf.Session.Reason, "turns": cf.Session.GenStep,
 			"report": childReport(childDir),
 		})
-		usage := cf.Run.Usage
+		usage := cf.Session.Usage
 		_, err := appendE(event.TypeActivityCompleted, &event.ActivityCompleted{
 			ActivityID: act.ActivityID, Result: payload,
-			IsError: cf.Run.Reason == "error" || cf.Run.Reason == "contract_violation",
+			IsError: cf.Session.Reason == "error" || cf.Session.Reason == "contract_violation",
 			Usage:   &usage,
 		})
 		return err
@@ -113,10 +113,10 @@ func (l *Loop) settleCrashedSpawn(appendE AppendFunc, act event.ActivityStarted)
 
 	// The child died with the process: settle as a crash cancellation with
 	// the child's real settled spend (tree budget stays honest, S5).
-	spent := cf.Run.Usage
+	spent := cf.Session.Usage
 	if _, err := appendE(event.TypeSubagentCompleted, &event.SubagentCompleted{
 		CallID: callID, Agent: agentName, ChildSession: childSession,
-		Reason: "crash", Turns: cf.Run.Turn, Usage: spent,
+		Reason: "crash", GenSteps: cf.Session.GenStep, Usage: spent,
 	}); err != nil {
 		return err
 	}

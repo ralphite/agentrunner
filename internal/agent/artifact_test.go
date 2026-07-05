@@ -74,8 +74,8 @@ func TestPublishArtifactEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fold.Run.Published["report"] != 2 {
-		t.Errorf("fold published = %+v", fold.Run.Published)
+	if fold.Session.Published["report"] != 2 {
+		t.Errorf("fold published = %+v", fold.Session.Published)
 	}
 }
 
@@ -134,8 +134,8 @@ func TestPublishArtifactCrashBetweenBlobAndEvent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(fold.Run.Published) != 0 {
-		t.Fatalf("fold published = %+v, want none", fold.Run.Published)
+	if len(fold.Session.Published) != 0 {
+		t.Fatalf("fold published = %+v, want none", fold.Session.Published)
 	}
 }
 
@@ -158,7 +158,7 @@ func helperArtifactCrashRun() {
 	l := &Loop{
 		Spec: &AgentSpec{Name: "crash",
 			Model: ModelSpec{Provider: "scripted", ID: "m", MaxTokens: 100},
-			Tools: []string{"read_file", "publish_artifact"}, MaxTurns: 2},
+			Tools: []string{"read_file", "publish_artifact"}, MaxGenerationSteps: 2},
 		Provider:  scripted.New(fix),
 		Exec:      &tool.Executor{WS: ws},
 		Store:     es,

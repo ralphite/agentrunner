@@ -50,10 +50,10 @@ func TestSignatureRoundTrip(t *testing.T) {
 	cap := &capturingProvider{inner: scripted.New(fix)}
 	l := &Loop{
 		Spec: &AgentSpec{
-			Name:     "sig",
-			Model:    ModelSpec{Provider: "scripted", ID: "m", MaxTokens: 100},
-			Tools:    []string{"bash"},
-			MaxTurns: 5,
+			Name:               "sig",
+			Model:              ModelSpec{Provider: "scripted", ID: "m", MaxTokens: 100},
+			Tools:              []string{"bash"},
+			MaxGenerationSteps: 5,
 		},
 		Provider:  cap,
 		Exec:      &tool.Executor{WS: ws},

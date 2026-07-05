@@ -14,16 +14,16 @@ import (
 // pass if a registered type has no sample here — adding an event type
 // forces adding its sample.
 var samples = map[string]any{
-	TypeRunStarted: &RunStarted{SpecName: "hello", Model: "gemini-flash-latest",
+	TypeSessionStarted: &SessionStarted{SpecName: "hello", Model: "gemini-flash-latest",
 		Task: "fix it", Version: "dev", SubStateVersions: map[string]int{"conversation": 1},
 		Spec: json.RawMessage(`{"name":"hello"}`), WorkspaceRoot: "/w",
 		Env: "<env>\ncwd: /w\n</env>", Memory: "<memory>rules</memory>",
 		Skills: "<skills>- s</skills>", Agents: "<agents>- a</agents>",
 		Inputs:           []ArtifactInput{{Ref: "sha256-aa", Path: "in.md"}},
 		PermissionLayers: json.RawMessage(`[[{"tool":"edit_file","action":"deny"}]]`)},
-	TypeInputReceived: &InputReceived{Text: "please fix", Source: "cli"},
-	TypeTurnStarted:   &TurnStarted{Turn: 3},
-	TypeAssistantMessage: &AssistantMessage{Turn: 3, Message: provider.Message{
+	TypeInputReceived:     &InputReceived{Text: "please fix", Source: "cli"},
+	TypeGenerationStarted: &GenerationStarted{GenStep: 3},
+	TypeAssistantMessage: &AssistantMessage{GenStep: 3, Message: provider.Message{
 		Role: provider.RoleAssistant,
 		Parts: []provider.Part{{Kind: provider.PartToolCall, CallID: "call_3_0",
 			ToolName: "read_file", Args: json.RawMessage(`{"path":"a.go"}`)}},
@@ -51,18 +51,18 @@ var samples = map[string]any{
 		PayloadRef: "sha256-planref", EstTokens: 1000},
 	TypeApprovalResponded: &ApprovalResponded{ApprovalID: "apr-eff-call_3_1", Decision: "approve",
 		Reason: "looks safe", Source: "tty"},
-	TypeModeChanged:       &ModeChanged{From: "plan", To: "default", Cause: "exit_plan_mode approved"},
-	TypeLimitExceeded:     &LimitExceeded{Kind: "tokens", Limit: 10000, Used: 10250},
-	TypeTurnDiscarded:     &TurnDiscarded{Turn: 3, Reason: "llm retry after partial stream"},
-	TypeContextCompacted:  &ContextCompacted{UptoTurn: 4, Summary: "user asked X; did Y", DroppedTurns: 3},
-	TypeMalformedToolCall: &MalformedToolCall{Turn: 3, Raw: "{bad json", Error: "unexpected end of input"},
+	TypeModeChanged:         &ModeChanged{From: "plan", To: "default", Cause: "exit_plan_mode approved"},
+	TypeLimitExceeded:       &LimitExceeded{Kind: "tokens", Limit: 10000, Used: 10250},
+	TypeGenerationDiscarded: &GenerationDiscarded{GenStep: 3, Reason: "llm retry after partial stream"},
+	TypeContextCompacted:    &ContextCompacted{UptoGenStep: 4, Summary: "user asked X; did Y", DroppedTurns: 3},
+	TypeMalformedToolCall:   &MalformedToolCall{GenStep: 3, Raw: "{bad json", Error: "unexpected end of input"},
 	TypeToolsDiscovered: &ToolsDiscovered{Server: "demo", Tools: []MCPToolDef{{
 		Server: "demo", Name: "mcp__demo__peek", Description: "read-only peek",
 		Class: "read", InputSchema: json.RawMessage(`{"type":"object"}`)}}},
 	TypeSpawnRequested: &SpawnRequested{CallID: "call_2_0", Agent: "summarizer",
 		Task: "summarize the findings", ChildSession: "sess-sub-call_2_0", Depth: 1, BudgetTokens: 4000},
 	TypeSubagentCompleted: &SubagentCompleted{CallID: "call_2_0", Agent: "summarizer",
-		ChildSession: "sess-sub-call_2_0", Reason: "completed", Turns: 2,
+		ChildSession: "sess-sub-call_2_0", Reason: "completed", GenSteps: 2,
 		Usage: provider.Usage{InputTokens: 100, OutputTokens: 50}},
 	TypeArtifactPublished: &ArtifactPublished{Stream: "report", Version: 2,
 		Ref: "sha256-deadbeef", Bytes: 512, Source: "tool"},
@@ -70,7 +70,7 @@ var samples = map[string]any{
 		Verdict: VerdictDeny, GateResults: []GateResult{
 			{Gate: "permission", Decision: VerdictDeny, Reason: "path escapes workspace"}},
 		Containment: &Containment{Network: "none", Backend: "netns"}},
-	TypeRunEnded: &RunEnded{Reason: "completed", Turns: 4, Usage: provider.Usage{InputTokens: 10}},
+	TypeRunEnded: &RunEnded{Reason: "completed", GenSteps: 4, Usage: provider.Usage{InputTokens: 10}},
 	TypeDriverStarted: &DriverStarted{DriverID: "drv-1", SpecName: "nightly",
 		Spec: json.RawMessage(`{"name":"nightly"}`), WorkspaceRoot: "/w", FoldVersion: 1},
 	TypeIterationScheduled: &IterationScheduled{DriverID: "drv-1", Iter: 2, Schedule: "immediate", BaseRef: "0badc0de"},
@@ -82,7 +82,7 @@ var samples = map[string]any{
 	TypeDriverCompleted:  &DriverCompleted{DriverID: "drv-1", Reason: "satisfied", Iterations: 2, BestIter: 2},
 	TypeNotificationSent: &NotificationSent{Key: "run_end/sess-1", Kind: "run_end",
 		Session: "sess-1", Text: "run completed", Channel: "command"},
-	TypeCheckpointBarrier: &CheckpointBarrier{BarrierID: "bar-t3", Turn: 3,
+	TypeCheckpointBarrier: &CheckpointBarrier{BarrierID: "bar-t3", GenStep: 3,
 		Vector: map[string]int64{".": 41, "sub/s1-a1": 12}, SnapshotRef: "0badc0de",
 		Tasks: []BarrierTask{{TaskID: "bg1", Policy: "cancel_at_fork"}}},
 	TypeForkedFrom: &ForkedFrom{ParentSession: "20260703-120000-fix-abcd",
@@ -133,7 +133,7 @@ func TestDecodeUnknownTypeIsError(t *testing.T) {
 
 func TestChildOfPropagation(t *testing.T) {
 	parent := Envelope{ID: "evt-9", CorrelationID: "20260703-120000-fix-abcd"}
-	child, err := New(TypeTurnStarted, &TurnStarted{Turn: 1})
+	child, err := New(TypeGenerationStarted, &GenerationStarted{GenStep: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +166,7 @@ func TestEventID(t *testing.T) {
 func TestEnvelopeWireFields(t *testing.T) {
 	env := Envelope{Seq: 1, ID: "evt-1", CausationID: "cmd-aabbccdd",
 		CorrelationID: "sess", Sender: "kernel", Target: "session",
-		Type: TypeTurnStarted, Payload: json.RawMessage(`{"turn":1}`),
+		Type: TypeGenerationStarted, Payload: json.RawMessage(`{"turn":1}`),
 		TS: time.Date(2026, 7, 3, 0, 0, 0, 0, time.UTC)}
 	raw, err := json.Marshal(env)
 	if err != nil {

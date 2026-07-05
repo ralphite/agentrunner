@@ -10,9 +10,9 @@ import (
 func TestJSONSinkLines(t *testing.T) {
 	var buf bytes.Buffer
 	s := NewJSONSink(&buf)
-	s.Emit(Event{Kind: KindTurnStart, Turn: 1})
-	s.Emit(Event{Kind: KindTextDelta, Turn: 1, Text: "hi"})
-	s.Emit(Event{Kind: KindRunEnd, Reason: "completed", Turn: 1})
+	s.Emit(Event{Kind: KindGenerationStart, N: 1})
+	s.Emit(Event{Kind: KindTextDelta, N: 1, Text: "hi"})
+	s.Emit(Event{Kind: KindRunEnd, Reason: "completed", N: 1})
 
 	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
 	if len(lines) != 3 {

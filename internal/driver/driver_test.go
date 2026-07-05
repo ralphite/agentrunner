@@ -61,11 +61,11 @@ func harnessFix(t *testing.T, spec *driver.DriverSpec, fix scripted.Fixture) (*d
 	t.Cleanup(func() { _ = dStore.Close() })
 
 	childSpec := &agent.AgentSpec{
-		Name:         "worker",
-		Model:        agent.ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
-		SystemPrompt: "make progress",
-		Tools:        []string{"bash"},
-		MaxTurns:     5,
+		Name:               "worker",
+		Model:              agent.ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
+		SystemPrompt:       "make progress",
+		Tools:              []string{"bash"},
+		MaxGenerationSteps: 5,
 	}
 	spec.Agent = childSpec
 	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
@@ -334,7 +334,7 @@ func TestDriverChildFailRetryRecovers(t *testing.T) {
 
 	childSpec := &agent.AgentSpec{
 		Name: "worker", Model: agent.ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
-		SystemPrompt: "work", Tools: []string{"bash"}, MaxTurns: 5,
+		SystemPrompt: "work", Tools: []string{"bash"}, MaxGenerationSteps: 5,
 	}
 	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
 	calls := 0
@@ -619,7 +619,7 @@ func TestDriverLoopBackToBack(t *testing.T) {
 	}
 }
 
-// Loop mode with an interval parks on the clock between iterations: the driver
+// Loop mode with an interval goes idle on the clock between iterations: the driver
 // runs iteration 1 immediately, then each later iteration waits for its tick.
 func TestDriverLoopIntervalCadence(t *testing.T) {
 	root := t.TempDir()
@@ -636,11 +636,11 @@ func TestDriverLoopIntervalCadence(t *testing.T) {
 
 	childSpec := &agent.AgentSpec{
 		Name: "worker", Model: agent.ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
-		SystemPrompt: "tick", MaxTurns: 5,
+		SystemPrompt: "tick", MaxGenerationSteps: 5,
 	}
 	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
 	// A text-only child arms no activity-timeout timer, so the fake clock's
-	// only waiter is the driver's interval park — waitParked stays unambiguous.
+	// only waiter is the driver's interval idle — waitIdle stays unambiguous.
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{{Text: "tick"}, {Finish: "end_turn"}}},
 	}}
@@ -667,7 +667,7 @@ func TestDriverLoopIntervalCadence(t *testing.T) {
 
 	// Iteration 1 fires immediately; iterations 2 and 3 each wait for a tick.
 	for i := 0; i < 2; i++ {
-		waitParked(t, clk)
+		waitIdle(t, clk)
 		clk.Advance(time.Minute)
 	}
 	select {
@@ -697,7 +697,7 @@ func cronHarness(t *testing.T, spec *driver.DriverSpec, clk *clock.Fake, advance
 	t.Cleanup(func() { _ = dStore.Close() })
 	childSpec := &agent.AgentSpec{
 		Name: "worker", Model: agent.ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
-		SystemPrompt: "tick", MaxTurns: 5,
+		SystemPrompt: "tick", MaxGenerationSteps: 5,
 	}
 	spec.Agent = childSpec
 	calls := 0
@@ -738,12 +738,12 @@ func TestDriverCronOverlapSkip(t *testing.T) {
 		resCh <- res
 	}()
 
-	// Park 1: waiting for the 01:00 tick. Iteration 1 then runs "2h long".
-	waitParked(t, clk)
+	// Idle 1: waiting for the 01:00 tick. Iteration 1 then runs "2h long".
+	waitIdle(t, clk)
 	clk.Advance(30 * time.Minute)
 	// Ticks 02:00 and 03:00 were missed (skipped as iterations 2 and 3);
-	// park 2 waits for 04:00.
-	waitParked(t, clk)
+	// idle 2 waits for 04:00.
+	waitIdle(t, clk)
 	clk.Advance(time.Hour)
 
 	res := <-resCh
@@ -767,7 +767,7 @@ func TestDriverCronOverlapSkip(t *testing.T) {
 }
 
 // Cron cadence with overlap=coalesce: the missed 02:00 and 03:00 ticks fold
-// into ONE immediate iteration 2 — no skip events, no extra park.
+// into ONE immediate iteration 2 — no skip events, no extra idle.
 func TestDriverCronOverlapCoalesce(t *testing.T) {
 	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 30, 0, 0, time.UTC))
 	d, dStore := cronHarness(t, &driver.DriverSpec{
@@ -784,8 +784,8 @@ func TestDriverCronOverlapCoalesce(t *testing.T) {
 		resCh <- res
 	}()
 
-	// One park only (the 01:00 tick); iteration 2 coalesces and runs at once.
-	waitParked(t, clk)
+	// One idle only (the 01:00 tick); iteration 2 coalesces and runs at once.
+	waitIdle(t, clk)
 	clk.Advance(30 * time.Minute)
 
 	select {
@@ -794,7 +794,7 @@ func TestDriverCronOverlapCoalesce(t *testing.T) {
 			t.Fatalf("res = %+v, want max_iterations at 2", res)
 		}
 	case <-time.After(5 * time.Second):
-		t.Fatal("coalesce should not park again — the missed tick runs immediately")
+		t.Fatal("coalesce should not idle again — the missed tick runs immediately")
 	}
 	events, _ := store.ReadEvents(dStore.Dir())
 	for _, e := range events {
@@ -810,7 +810,7 @@ func TestDriverCronOverlapCoalesce(t *testing.T) {
 
 // selfPacedHarness wires a self_paced driver whose per-iteration fixture is
 // chosen by call number (1-based). Fixtures should be text/data-tools only so
-// the fake clock's Waiters reflects the pace park alone.
+// the fake clock's Waiters reflects the pace idle alone.
 func selfPacedHarness(t *testing.T, spec *driver.DriverSpec, clk *clock.Fake,
 	fixFor func(call int) scripted.Fixture) (*driver.Driver, *store.EventStore) {
 	t.Helper()
@@ -826,7 +826,7 @@ func selfPacedHarness(t *testing.T, spec *driver.DriverSpec, clk *clock.Fake,
 	t.Cleanup(func() { _ = dStore.Close() })
 	childSpec := &agent.AgentSpec{
 		Name: "worker", Model: agent.ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
-		SystemPrompt: "pace yourself", MaxTurns: 5,
+		SystemPrompt: "pace yourself", MaxGenerationSteps: 5,
 	}
 	spec.Agent = childSpec
 	exec := &tool.Executor{WS: ws}
@@ -864,7 +864,7 @@ func finishFixture() scripted.Fixture {
 	}}
 }
 
-// self_paced: iteration 1 declares schedule_next{1m} (the driver parks on
+// self_paced: iteration 1 declares schedule_next{1m} (the driver goes idle on
 // it); iteration 2 claims finish_series and the human gate approves —
 // the series ends satisfied.
 func TestDriverSelfPaced(t *testing.T) {
@@ -888,7 +888,7 @@ func TestDriverSelfPaced(t *testing.T) {
 		resCh <- res
 	}()
 
-	waitParked(t, clk) // parked on the declared 1m pace
+	waitIdle(t, clk) // idle on the declared 1m pace
 	clk.Advance(time.Minute)
 
 	res := <-resCh
@@ -923,7 +923,7 @@ func TestDriverSelfPacedNoIntentFinish(t *testing.T) {
 	}
 }
 
-// self_paced clamp: a 10h request under pace_max=1h parks exactly 1h.
+// self_paced clamp: a 10h request under pace_max=1h goes idle exactly 1h.
 func TestDriverSelfPacedClamp(t *testing.T) {
 	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
 	d, _ := selfPacedHarness(t, &driver.DriverSpec{
@@ -947,7 +947,7 @@ func TestDriverSelfPacedClamp(t *testing.T) {
 		resCh <- res
 	}()
 
-	waitParked(t, clk)
+	waitIdle(t, clk)
 	clk.Advance(time.Hour) // 1h suffices only because the 10h ask was clamped
 
 	select {
@@ -956,7 +956,7 @@ func TestDriverSelfPacedClamp(t *testing.T) {
 			t.Fatalf("res = %+v, want satisfied at 2", res)
 		}
 	case <-time.After(5 * time.Second):
-		t.Fatal("driver still parked after 1h — the pace was not clamped to pace_max")
+		t.Fatal("driver still idle after 1h — the pace was not clamped to pace_max")
 	}
 }
 
@@ -1008,7 +1008,7 @@ func TestDriverSeriesMemoryInjection(t *testing.T) {
 	t.Cleanup(func() { _ = dStore.Close() })
 	childSpec := &agent.AgentSpec{
 		Name: "worker", Model: agent.ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
-		SystemPrompt: "keep a series log", Tools: []string{"bash"}, MaxTurns: 5,
+		SystemPrompt: "keep a series log", Tools: []string{"bash"}, MaxGenerationSteps: 5,
 	}
 	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
 	calls := 0
@@ -1059,8 +1059,8 @@ func TestDriverSeriesMemoryInjection(t *testing.T) {
 	}
 }
 
-// waitParked spins until the driver goroutine is blocked on the fake clock.
-func waitParked(t *testing.T, clk *clock.Fake) {
+// waitIdle spins until the driver goroutine is blocked on the fake clock.
+func waitIdle(t *testing.T, clk *clock.Fake) {
 	t.Helper()
 	for i := 0; i < 5000; i++ {
 		if clk.Waiters() > 0 {
@@ -1068,7 +1068,7 @@ func waitParked(t *testing.T, clk *clock.Fake) {
 		}
 		time.Sleep(time.Millisecond)
 	}
-	t.Fatal("driver never parked on the interval")
+	t.Fatal("driver never idle on the interval")
 }
 
 // S6 review P0: a loop-mode series whose last iteration PASSED its quality
@@ -1125,7 +1125,7 @@ func TestDriverResumeSkipsSkippedIterations(t *testing.T) {
 }
 
 // S6 review: the pace a self_paced child declared must survive a driver
-// restart — resume re-derives it from the child journal and parks on it
+// restart — resume re-derives it from the child journal and goes idle on it
 // instead of firing immediately.
 func TestDriverSelfPacedResumeRespectsPace(t *testing.T) {
 	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
@@ -1158,8 +1158,8 @@ func TestDriverSelfPacedResumeRespectsPace(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	cj(event.TypeRunStarted, &event.RunStarted{SpecName: "worker", Model: "x", Task: "keep up"})
-	cj(event.TypeAssistantMessage, &event.AssistantMessage{Turn: 1, Message: provider.Message{
+	cj(event.TypeSessionStarted, &event.SessionStarted{SpecName: "worker", Model: "x", Task: "keep up"})
+	cj(event.TypeAssistantMessage, &event.AssistantMessage{GenStep: 1, Message: provider.Message{
 		Role: provider.RoleAssistant,
 		Parts: []provider.Part{{Kind: provider.PartToolCall, CallID: "p1",
 			ToolName: "schedule_next", Args: json.RawMessage(`{"after":"1h"}`)}},
@@ -1168,7 +1168,7 @@ func TestDriverSelfPacedResumeRespectsPace(t *testing.T) {
 		ActivityID: "tool-p1", Kind: event.KindTool, Name: "schedule_next", CallID: "p1", Attempt: 1})
 	cj(event.TypeActivityCompleted, &event.ActivityCompleted{
 		ActivityID: "tool-p1", Result: json.RawMessage(`{"output":"ok"}`)})
-	cj(event.TypeRunEnded, &event.RunEnded{Reason: "completed", Turns: 1})
+	cj(event.TypeRunEnded, &event.RunEnded{Reason: "completed", GenSteps: 1})
 	_ = ces.Close()
 
 	resCh := make(chan driver.Result, 1)
@@ -1181,7 +1181,7 @@ func TestDriverSelfPacedResumeRespectsPace(t *testing.T) {
 	}()
 
 	// The resumed driver must PARK on the declared 1h pace, not fire now.
-	waitParked(t, clk)
+	waitIdle(t, clk)
 	select {
 	case res := <-resCh:
 		t.Fatalf("resume fired iteration 2 without honoring the pace: %+v", res)
@@ -1211,7 +1211,7 @@ func TestDriverRetrySpendSettlesAllAttempts(t *testing.T) {
 	t.Cleanup(func() { _ = dStore.Close() })
 	childSpec := &agent.AgentSpec{
 		Name: "worker", Model: agent.ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
-		SystemPrompt: "work", MaxTurns: 5,
+		SystemPrompt: "work", MaxGenerationSteps: 5,
 	}
 	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
 	calls := 0

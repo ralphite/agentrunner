@@ -97,11 +97,11 @@ func TestInDoubtSurfacesAndDoesNotRerun(t *testing.T) {
 
 func inDoubtSpec() *AgentSpec {
 	return &AgentSpec{
-		Name:         "doubter",
-		Model:        ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
-		SystemPrompt: "s",
-		Tools:        []string{"bash", "read_file"},
-		MaxTurns:     5,
+		Name:               "doubter",
+		Model:              ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
+		SystemPrompt:       "s",
+		Tools:              []string{"bash", "read_file"},
+		MaxGenerationSteps: 5,
 	}
 }
 
@@ -153,14 +153,14 @@ func TestIdempotentInFlightRerunsOnResume(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	asst := event.AssistantMessage{Turn: 1, Message: providerAssistantToolCall("call_1_0", "read_file", `{"path":"greet.txt"}`)}
+	asst := event.AssistantMessage{GenStep: 1, Message: providerAssistantToolCall("call_1_0", "read_file", `{"path":"greet.txt"}`)}
 	for _, pair := range []struct {
 		typ     string
 		payload any
 	}{
-		{event.TypeRunStarted, &event.RunStarted{SpecName: "t", SubStateVersions: state.SubStateVersions()}},
+		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "t", SubStateVersions: state.SubStateVersions()}},
 		{event.TypeInputReceived, &event.InputReceived{Text: "read it", Source: "cli"}},
-		{event.TypeTurnStarted, &event.TurnStarted{Turn: 1}},
+		{event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}},
 		{event.TypeAssistantMessage, &asst},
 		{event.TypeActivityStarted, &event.ActivityStarted{ActivityID: "tool-call_1_0",
 			Kind: event.KindTool, Name: "read_file", CallID: "call_1_0", Idempotent: true, Attempt: 1}},
@@ -198,7 +198,7 @@ func TestIdempotentInFlightRerunsOnResume(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Reason != "completed" || res.Turns != 2 {
+	if res.Reason != "completed" || res.GenSteps != 2 {
 		t.Fatalf("res = %+v", res)
 	}
 	if err := prov.Done(); err != nil {

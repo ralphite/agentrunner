@@ -75,7 +75,7 @@ func TestConversationalMultiInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Reason != "closed" || res.Turns != 3 {
+	if res.Reason != "closed" || res.GenSteps != 3 {
 		t.Fatalf("res = %+v, want closed after 3 turns", res)
 	}
 
@@ -83,14 +83,14 @@ func TestConversationalMultiInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var userInputs, parks, resolves, ends int
+	var userInputs, idles, resolves, ends int
 	var lastType string
 	for _, e := range events {
 		switch e.Type {
 		case event.TypeInputReceived:
 			userInputs++
 		case event.TypeWaitingEntered:
-			parks++
+			idles++
 		case event.TypeWaitingResolved:
 			resolves++
 		case event.TypeRunEnded:
@@ -98,20 +98,20 @@ func TestConversationalMultiInput(t *testing.T) {
 		}
 		lastType = e.Type
 	}
-	// 1 initial + 2 follow-ups; 3 parks (after each yield), 3 resolutions
+	// 1 initial + 2 follow-ups; 3 goes idle (after each yield), 3 resolutions
 	// (2 inputs + 1 close); exactly ONE terminal, and it is the tail.
 	if userInputs != 3 {
 		t.Errorf("user inputs = %d, want 3", userInputs)
 	}
-	if parks != 3 || resolves != 3 {
-		t.Errorf("parks/resolves = %d/%d, want 3/3", parks, resolves)
+	if idles != 3 || resolves != 3 {
+		t.Errorf("idles/resolves = %d/%d, want 3/3", idles, resolves)
 	}
 	if ends != 1 || lastType != event.TypeRunEnded {
 		t.Errorf("run_ended count=%d tail=%s — the session must end exactly once, at close", ends, lastType)
 	}
 }
 
-// The park resolution vocabulary: closing the channel resolves the park as
+// The idle resolution vocabulary: closing the channel resolves the idle as
 // "closed"; the session ends via the epilogue with reason "closed".
 func TestConversationalCloseResolution(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
@@ -127,7 +127,7 @@ func TestConversationalCloseResolution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Reason != "closed" || res.Turns != 1 {
+	if res.Reason != "closed" || res.GenSteps != 1 {
 		t.Fatalf("res = %+v", res)
 	}
 	events, _ := store.ReadEvents(l.Store.Dir())
@@ -154,19 +154,19 @@ func TestTaskModeStillEndsOnYield(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Reason != "completed" || res.Turns != 1 {
+	if res.Reason != "completed" || res.GenSteps != 1 {
 		t.Fatalf("res = %+v, want v1 completed semantics", res)
 	}
 }
 
-// v2 M1.3 (C10a): a conversational session that parked for input, then had
-// its process die, RESUMES back into the idle park and continues on the
+// v2 M1.3 (C10a): a conversational session that idle for input, then had
+// its process die, RESUMES back into the idle idle and continues on the
 // next input — "answer, wait" survives a restart with no special action.
-func TestConversationalParkResumes(t *testing.T) {
+func TestConversationalIdleResumes(t *testing.T) {
 	root := t.TempDir()
 	sessDir := filepath.Join(t.TempDir(), "sess")
 
-	// Phase 1: open, take one turn, park — then cancel (simulated crash).
+	// Phase 1: open, take one turn, idle — then cancel (simulated crash).
 	fix1 := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{{Text: "answer one"}, {Finish: "end_turn"}}},
 	}}
@@ -177,9 +177,9 @@ func TestConversationalParkResumes(t *testing.T) {
 	l1 := testLoop(t, fix1, root)
 	l1.Store = es1
 	l1.Conversational = true
-	l1.UserInputs = make(chan protocol.UserInput) // never fed: the session parks and stays
+	l1.UserInputs = make(chan protocol.UserInput) // never fed: the session goes idle and stays
 	ctx, cancel := context.WithCancel(context.Background())
-	// Cancel once the park is durable (WaitingEntered{input} in the journal).
+	// Cancel once the idle is durable (WaitingEntered{input} in the journal).
 	go func() {
 		deadline := time.Now().Add(5 * time.Second)
 		for time.Now().Before(deadline) {
@@ -200,15 +200,15 @@ func TestConversationalParkResumes(t *testing.T) {
 	_, _ = l1.Run(ctx, "first question") // returns with the cancel cause
 	_ = es1.Close()
 
-	// The journal parked and did NOT end.
+	// The journal idle and did NOT end.
 	evs, _ := store.ReadEvents(sessDir)
 	for _, e := range evs {
 		if e.Type == event.TypeRunEnded {
-			t.Fatal("parked session ended before resume")
+			t.Fatal("idle session ended before resume")
 		}
 	}
 
-	// Phase 2: reopen on the SAME dir and resume — re-park, then one input
+	// Phase 2: reopen on the SAME dir and resume — re-idle, then one input
 	// continues the conversation and closes.
 	fix2 := scripted.Fixture{Steps: []scripted.Step{
 		{
@@ -255,7 +255,7 @@ func TestConversationalParkResumes(t *testing.T) {
 		}
 	}
 	if inputsN != 2 || ends != 1 || !sawAnswerTwo {
-		t.Fatalf("inputs=%d ends=%d answerTwo=%v — resume must re-park then continue to close", inputsN, ends, sawAnswerTwo)
+		t.Fatalf("inputs=%d ends=%d answerTwo=%v — resume must re-idle then continue to close", inputsN, ends, sawAnswerTwo)
 	}
 }
 
@@ -263,7 +263,7 @@ func TestConversationalParkResumes(t *testing.T) {
 // enter the NEXT turn together (batch drain), in arrival order — type-ahead
 // never splits into extra turns or reorders.
 func TestConversationalTypeAheadBatches(t *testing.T) {
-	// Turn 1 runs a tool (a beat during which two messages queue); the batch
+	// GenStep 1 runs a tool (a beat during which two messages queue); the batch
 	// turn must see BOTH queued messages.
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
@@ -289,7 +289,7 @@ func TestConversationalTypeAheadBatches(t *testing.T) {
 	l.UserInputs = inputs
 	go func() {
 		// After turn 1's answer, queue two messages back-to-back BEFORE the
-		// loop parks-and-drains, then close.
+		// loop goes idle-and-drains, then close.
 		waitAnswers(t, l.Store.Dir(), 1)
 		inputs <- protocol.UserInput{Text: "queued one"}
 		inputs <- protocol.UserInput{Text: "queued two"}
@@ -335,7 +335,7 @@ func TestConversationalIdleInterruptCloses(t *testing.T) {
 	l.UserInputs = make(chan protocol.UserInput) // never fed
 	l.Interrupts = interrupts
 	go func() {
-		waitAnswers(t, l.Store.Dir(), 1) // wait until it parks at idle
+		waitAnswers(t, l.Store.Dir(), 1) // wait until it goes idle at idle
 		interrupts <- struct{}{}
 	}()
 
@@ -361,7 +361,7 @@ func TestConversationalIdleInterruptCloses(t *testing.T) {
 
 // v2 M3 review fix: a ctx cancel MID-TURN (daemon shutdown/deploy while the
 // LLM call is in flight) leaves NO terminal — the same crash discipline as
-// the park path — so the conversation resumes and re-runs the turn.
+// the idle path — so the conversation resumes and re-runs the turn.
 func TestConversationalMidTurnCancelResumes(t *testing.T) {
 	root := t.TempDir()
 	sessDir := filepath.Join(t.TempDir(), "sess")
@@ -427,7 +427,7 @@ func TestConversationalMidTurnCancelResumes(t *testing.T) {
 }
 
 // v2 M3 review fix: the conversational turn budget is PER EXCHANGE, not
-// cumulative — a session whose total turns exceed max_turns keeps answering
+// cumulative — a session whose total turns exceed max_generation_steps keeps answering
 // as long as each exchange stays within budget. (The old cumulative cap
 // silently wedged the session: inputs journaled, never answered.)
 func TestConversationalBudgetPerExchange(t *testing.T) {
@@ -438,7 +438,7 @@ func TestConversationalBudgetPerExchange(t *testing.T) {
 	}}
 	inputs := make(chan protocol.UserInput)
 	l := testLoop(t, fix, t.TempDir())
-	l.Spec.MaxTurns = 2 // < total turns (3): cumulative budgeting would wedge
+	l.Spec.MaxGenerationSteps = 2 // < total turns (3): cumulative budgeting would wedge
 	l.Conversational = true
 	l.UserInputs = inputs
 	go func() {
@@ -453,20 +453,20 @@ func TestConversationalBudgetPerExchange(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Reason != "closed" || res.Turns != 3 {
+	if res.Reason != "closed" || res.GenSteps != 3 {
 		t.Fatalf("res = %+v, want closed after 3 turns (per-exchange budget)", res)
 	}
 }
 
 // decide's conversational budget arithmetic, directly on crafted folds:
 // budget counts from the last user input; exhaustion over a pending input
-// ends visibly (max_turns), never a silent park.
+// ends visibly (max_generation_steps), never a silent idle.
 func TestDecideConversationalBudget(t *testing.T) {
 	mk := func(turn, lastInput int, pending bool) state.State {
 		s := state.New()
-		s.Run.Status = state.StatusRunning
-		s.Run.Turn = turn
-		s.Run.LastInputTurn = lastInput
+		s.Session.Status = state.StatusRunning
+		s.Session.GenStep = turn
+		s.Session.LastInputGenStep = lastInput
 		var msgs []provider.Message
 		msgs = append(msgs, provider.Message{Role: provider.RoleUser,
 			Parts: []provider.Part{{Kind: provider.PartText, Text: "q"}}})
@@ -489,13 +489,13 @@ func TestDecideConversationalBudget(t *testing.T) {
 		wantReason      string
 	}{
 		// Deep into a long conversation (turn 40 > maxTurns) a fresh input
-		// still gets its turn — the old cumulative cap returned doWaitInput
+		// still gets its turn — the old cumulative cap returned doIdle
 		// here, wedging the session.
 		{"fresh input late in session", 40, 39, true, doTurn, ""},
 		// A pending input with the exchange budget spent ends visibly.
-		{"exhausted exchange ends", 40, 0, true, doEnd, "max_turns"},
-		// Truly idle parks regardless of totals.
-		{"idle parks", 40, 39, false, doWaitInput, ""},
+		{"exhausted exchange ends", 40, 0, true, doEnd, "max_generation_steps"},
+		// Truly idle goes idle regardless of totals.
+		{"idle stays idle", 40, 39, false, doIdle, ""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

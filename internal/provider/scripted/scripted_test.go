@@ -32,7 +32,7 @@ func twoStepFixture() Fixture {
 func TestScriptedReplay(t *testing.T) {
 	p := New(twoStepFixture())
 	req := provider.CompleteRequest{
-		Turn:     1,
+		GenStep:  1,
 		Tools:    []provider.ToolDef{{Name: "read_file"}},
 		Messages: []provider.Message{userMsg("please fix the bug")},
 	}
@@ -45,7 +45,7 @@ func TestScriptedReplay(t *testing.T) {
 		t.Fatalf("turn = %+v", turn)
 	}
 
-	turn2, err := provider.CollectTurn(p.Complete(context.Background(), provider.CompleteRequest{Turn: 2}))
+	turn2, err := provider.CollectTurn(p.Complete(context.Background(), provider.CompleteRequest{GenStep: 2}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func TestScriptedReplay(t *testing.T) {
 func TestScriptedDriftFailsLoudly(t *testing.T) {
 	p := New(twoStepFixture())
 	_, err := provider.CollectTurn(p.Complete(context.Background(), provider.CompleteRequest{
-		Turn:     1,
+		GenStep:  1,
 		Tools:    []provider.ToolDef{{Name: "bash"}}, // read_file missing
 		Messages: []provider.Message{userMsg("please fix the bug")},
 	}))
@@ -71,10 +71,10 @@ func TestScriptedDriftFailsLoudly(t *testing.T) {
 
 func TestScriptedExhaustion(t *testing.T) {
 	p := New(Fixture{Steps: []Step{{Respond: []Event{{Finish: "end_turn"}}}}})
-	if _, err := provider.CollectTurn(p.Complete(context.Background(), provider.CompleteRequest{Turn: 1})); err != nil {
+	if _, err := provider.CollectTurn(p.Complete(context.Background(), provider.CompleteRequest{GenStep: 1})); err != nil {
 		t.Fatal(err)
 	}
-	_, err := provider.CollectTurn(p.Complete(context.Background(), provider.CompleteRequest{Turn: 2}))
+	_, err := provider.CollectTurn(p.Complete(context.Background(), provider.CompleteRequest{GenStep: 2}))
 	if err == nil || !strings.Contains(err.Error(), "exhausted") {
 		t.Fatalf("err = %v, want exhaustion", err)
 	}
@@ -94,7 +94,7 @@ func TestScriptedDoneDetectsUnconsumed(t *testing.T) {
 func TestScriptedStreamConsumptionPerIteration(t *testing.T) {
 	p := New(twoStepFixture())
 	req := provider.CompleteRequest{
-		Turn:     1,
+		GenStep:  1,
 		Tools:    []provider.ToolDef{{Name: "read_file"}},
 		Messages: []provider.Message{userMsg("please fix the bug")},
 	}

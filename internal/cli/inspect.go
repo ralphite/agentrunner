@@ -68,7 +68,7 @@ type inspectReport struct {
 	Mode      string           `json:"mode"`
 	Status    string           `json:"status"`
 	Reason    string           `json:"reason,omitempty"`
-	Turns     int              `json:"turns"`
+	GenSteps  int              `json:"gen_steps"`
 	Entries   []entryReport    `json:"entries"`
 	Usage     usageReport      `json:"usage"`
 	Artifacts []artifactReport `json:"artifacts,omitempty"`
@@ -93,7 +93,7 @@ type childReportRef struct {
 }
 
 type entryReport struct {
-	Turn         int    `json:"turn"`
+	GenStep      int    `json:"gen_step"`
 	Kind         string `json:"kind"` // llm | compact | tool
 	Name         string `json:"name"`
 	CallID       string `json:"call_id,omitempty"`
@@ -198,12 +198,12 @@ func buildInspectReport(events []event.Envelope, s state.State) inspectReport {
 
 	// Pass 2: walk activity completions into per-turn timeline entries.
 	report := inspectReport{
-		Spec:   s.Run.SpecName,
-		Model:  s.Run.Model,
-		Mode:   s.CurrentMode(),
-		Status: s.Run.Status,
-		Reason: s.Run.Reason,
-		Turns:  s.Run.Turn,
+		Spec:     s.Session.SpecName,
+		Model:    s.Session.Model,
+		Mode:     s.CurrentMode(),
+		Status:   s.Session.Status,
+		Reason:   s.Session.Reason,
+		GenSteps: s.Session.GenStep,
 	}
 	// ActivityCompleted carries no name/call id — those live on the matching
 	// ActivityStarted; index them as we walk.
@@ -211,9 +211,9 @@ func buildInspectReport(events []event.Envelope, s state.State) inspectReport {
 	curTurn := 0
 	for _, e := range events {
 		switch e.Type {
-		case event.TypeTurnStarted:
+		case event.TypeGenerationStarted:
 			if dec, err := event.DecodePayload(e); err == nil {
-				curTurn = dec.(*event.TurnStarted).Turn
+				curTurn = dec.(*event.GenerationStarted).GenStep
 			}
 		case event.TypeActivityStarted:
 			if dec, err := event.DecodePayload(e); err == nil {
@@ -231,11 +231,11 @@ func buildInspectReport(events []event.Envelope, s state.State) inspectReport {
 	}
 
 	report.Usage = usageReport{
-		InputTokens:    s.Run.Usage.InputTokens,
-		OutputTokens:   s.Run.Usage.OutputTokens,
-		CacheRead:      s.Run.Usage.CacheReadTokens,
-		CacheWrite:     s.Run.Usage.CacheWriteTokens,
-		Billed:         s.Run.Usage.Billed(),
+		InputTokens:    s.Session.Usage.InputTokens,
+		OutputTokens:   s.Session.Usage.OutputTokens,
+		CacheRead:      s.Session.Usage.CacheReadTokens,
+		CacheWrite:     s.Session.Usage.CacheWriteTokens,
+		Billed:         s.Session.Usage.Billed(),
 		BudgetReserved: s.Budget.ReservedTotal(),
 	}
 	return report
@@ -246,7 +246,7 @@ func activityEntry(turn int, a *event.ActivityCompleted, started *event.Activity
 	if started != nil {
 		callID, name = started.CallID, started.Name
 	}
-	e := entryReport{Turn: turn, CallID: callID}
+	e := entryReport{GenStep: turn, CallID: callID}
 	switch {
 	case strings.HasPrefix(a.ActivityID, "llm-t"):
 		e.Kind, e.Name = "llm", "complete"
@@ -306,14 +306,14 @@ func renderInspectIndent(w io.Writer, r inspectReport, pad string) {
 	if r.Reason != "" {
 		status += " (" + r.Reason + ")"
 	}
-	fmt.Fprintf(w, "%sstatus  %s    turns %d\n\n", pad, status, r.Turns)
+	fmt.Fprintf(w, "%sstatus  %s    gen-steps %d\n\n", pad, status, r.GenSteps)
 
 	fmt.Fprintln(w, pad+"TIMELINE")
 	lastTurn := -1
 	for _, e := range r.Entries {
-		if e.Turn != lastTurn {
-			fmt.Fprintf(w, "%s  turn %d\n", pad, e.Turn)
-			lastTurn = e.Turn
+		if e.GenStep != lastTurn {
+			fmt.Fprintf(w, "%s  gen-step %d\n", pad, e.GenStep)
+			lastTurn = e.GenStep
 		}
 		verdict := e.Verdict
 		if e.Gate != "" {

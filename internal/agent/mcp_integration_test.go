@@ -83,10 +83,10 @@ func mcpLoop(t *testing.T, fix scripted.Fixture, face *fakeMCP) (*Loop, *capturi
 	cap := &capturingProvider{inner: scripted.New(fix)}
 	return &Loop{
 		Spec: &AgentSpec{
-			Name:     "mcp-test",
-			Model:    ModelSpec{Provider: "scripted", ID: "m", MaxTokens: 100},
-			Tools:    []string{"read_file"},
-			MaxTurns: 5,
+			Name:               "mcp-test",
+			Model:              ModelSpec{Provider: "scripted", ID: "m", MaxTokens: 100},
+			Tools:              []string{"read_file"},
+			MaxGenerationSteps: 5,
 		},
 		Provider:  cap,
 		Exec:      &tool.Executor{WS: ws},
@@ -209,8 +209,8 @@ func TestMCPAllowedToolsNarrowing(t *testing.T) {
 	if !ok || !tr.IsError {
 		t.Errorf("fabricated call result = %+v, want model-visible error", tr)
 	}
-	if len(fold.Run.MCPTools) != 1 || fold.Run.MCPTools[0].Name != "mcp__demo__peek" {
-		t.Errorf("journaled face = %+v, want only peek", fold.Run.MCPTools)
+	if len(fold.Session.MCPTools) != 1 || fold.Session.MCPTools[0].Name != "mcp__demo__peek" {
+		t.Errorf("journaled face = %+v, want only peek", fold.Session.MCPTools)
 	}
 }
 
@@ -218,7 +218,7 @@ func TestMCPAllowedToolsNarrowing(t *testing.T) {
 // while the read-class one stays visible (same mode filter as built-ins).
 func TestMCPAdvertisedFaceRespectsMode(t *testing.T) {
 	s := state.New()
-	s = mustApply(t, s, event.TypeRunStarted, &event.RunStarted{SubStateVersions: state.SubStateVersions()})
+	s = mustApply(t, s, event.TypeSessionStarted, &event.SessionStarted{SubStateVersions: state.SubStateVersions()})
 	s = mustApply(t, s, event.TypeToolsDiscovered, &event.ToolsDiscovered{
 		Server: "demo", Tools: []event.MCPToolDef{
 			{Server: "demo", Name: "mcp__demo__peek", Class: "read"},
@@ -255,7 +255,7 @@ func TestMCPResumeReconcile(t *testing.T) {
 			typ     string
 			payload any
 		}{
-			{event.TypeRunStarted, &event.RunStarted{SpecName: "mcp-test", Task: "go",
+			{event.TypeSessionStarted, &event.SessionStarted{SpecName: "mcp-test", Task: "go",
 				SubStateVersions: state.SubStateVersions()}},
 			{event.TypeInputReceived, &event.InputReceived{Text: "go", Source: "cli"}},
 			{event.TypeToolsDiscovered, &event.ToolsDiscovered{Server: "demo",
@@ -287,7 +287,7 @@ func TestMCPResumeReconcile(t *testing.T) {
 		}}
 		l := &Loop{
 			Spec: &AgentSpec{Name: "mcp-test",
-				Model: ModelSpec{Provider: "scripted", ID: "m", MaxTokens: 100}, MaxTurns: 3},
+				Model: ModelSpec{Provider: "scripted", ID: "m", MaxTokens: 100}, MaxGenerationSteps: 3},
 			Provider:  scripted.New(fix),
 			Exec:      &tool.Executor{WS: ws},
 			Store:     es,

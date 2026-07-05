@@ -16,7 +16,7 @@ func TestFakeAdvanceWakesDueWaiter(t *testing.T) {
 		done <- f.WaitUntil(context.Background(), epoch.Add(10*time.Minute))
 	}()
 	for f.Waiters() == 0 {
-		runtime.Gosched() // spin until the waiter parks
+		runtime.Gosched() // spin until the waiter goes idle
 	}
 	f.Advance(9 * time.Minute)
 	select {
@@ -96,7 +96,7 @@ func TestRealWaitCancellable(t *testing.T) {
 	}
 }
 
-// A ctx-canceled WaitUntil must remove its parked entry — phantom waiters
+// A ctx-canceled WaitUntil must remove its idle entry — phantom waiters
 // corrupt Waiters()-based synchronization.
 func TestFakeCancelRemovesWaiter(t *testing.T) {
 	f := NewFake(epoch)

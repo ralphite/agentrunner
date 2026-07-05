@@ -54,13 +54,13 @@ func TestSendRevivalDiesWithDaemon(t *testing.T) {
 	entered := make(chan struct{}, 1)
 	resume := func(ctx context.Context, req ResumeRequest, sink protocol.Sink) error {
 		entered <- struct{}{}
-		<-ctx.Done() // a parked conversational loop: only ctx ends it
+		<-ctx.Done() // a idle conversational loop: only ctx ends it
 		return ctx.Err()
 	}
 	shape := func(string) (bool, bool, error) { return true, false, nil }
 	sock, cancel, errCh := revivalHarness(t, resume, shape)
 
-	if reply, isErr := sendCmdTo(t, sock, "parked-sess", "hi"); isErr {
+	if reply, isErr := sendCmdTo(t, sock, "idle-sess", "hi"); isErr {
 		t.Fatalf("send refused: %s", reply)
 	}
 	select {

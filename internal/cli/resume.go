@@ -22,7 +22,7 @@ import (
 )
 
 // resumeCmd implements `agentrunner resume <session-id-or-prefix>`: the
-// spec and workspace root come from the session's RunStarted event, so no
+// spec and workspace root come from the session's SessionStarted event, so no
 // spec file argument is needed.
 func resumeCmd(args []string, version string, stdout, stderr io.Writer) int {
 	if len(args) != 1 {
@@ -40,13 +40,13 @@ func resumeCmd(args []string, version string, stdout, stderr io.Writer) int {
 	}
 	sessionID := filepath.Base(dir)
 
-	started, err := readRunStarted(dir)
+	started, err := readSessionStarted(dir)
 	if err != nil {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 		return ExitRun
 	}
 	if len(started.Spec) == 0 || started.WorkspaceRoot == "" {
-		fmt.Fprintf(stderr, "agentrunner: session %s predates resumable metadata (no spec in run_started)\n", sessionID)
+		fmt.Fprintf(stderr, "agentrunner: session %s predates resumable metadata (no spec in session_started)\n", sessionID)
 		return ExitRun
 	}
 	var spec agent.AgentSpec
@@ -119,7 +119,7 @@ func resumeCmd(args []string, version string, stdout, stderr io.Writer) int {
 		if result.Reason != "" {
 			fmt.Fprintf(stderr, "%v\n", runErr)
 			fmt.Fprintf(stderr, "run %s: %d turns, %d in / %d out tokens\n",
-				result.Reason, result.Turns, result.Usage.InputTokens, result.Usage.OutputTokens)
+				result.Reason, result.GenSteps, result.Usage.InputTokens, result.Usage.OutputTokens)
 			if result.Reason == "completed" {
 				return ExitOK
 			}
@@ -129,14 +129,14 @@ func resumeCmd(args []string, version string, stdout, stderr io.Writer) int {
 		return ExitRun
 	}
 	fmt.Fprintf(stderr, "run %s: %d turns, %d in / %d out tokens\n",
-		result.Reason, result.Turns, result.Usage.InputTokens, result.Usage.OutputTokens)
+		result.Reason, result.GenSteps, result.Usage.InputTokens, result.Usage.OutputTokens)
 	if result.Reason != "completed" {
 		return ExitRun
 	}
 	return ExitOK
 }
 
-func readRunStarted(dir string) (*event.RunStarted, error) {
+func readSessionStarted(dir string) (*event.SessionStarted, error) {
 	events, err := store.ReadEvents(dir)
 	if err != nil {
 		return nil, err
@@ -145,9 +145,9 @@ func readRunStarted(dir string) (*event.RunStarted, error) {
 		return nil, fmt.Errorf("session log is empty")
 	}
 	// A forked session opens with its ForkedFrom genesis (S7.3); the copied
-	// RunStarted sits right behind it. The genesis' workspace root overrides
+	// SessionStarted sits right behind it. The genesis' workspace root overrides
 	// the copied one — the fork lives in its own materialized worktree, and
-	// the RunStarted root is parent provenance.
+	// the SessionStarted root is parent provenance.
 	var forked *event.ForkedFrom
 	head := events[0]
 	if head.Type == event.TypeForkedFrom && len(events) > 1 {
@@ -156,14 +156,14 @@ func readRunStarted(dir string) (*event.RunStarted, error) {
 		}
 		head = events[1]
 	}
-	if head.Type != event.TypeRunStarted {
-		return nil, fmt.Errorf("session log does not begin with run_started")
+	if head.Type != event.TypeSessionStarted {
+		return nil, fmt.Errorf("session log does not begin with session_started")
 	}
 	decoded, err := event.DecodePayload(head)
 	if err != nil {
 		return nil, err
 	}
-	started := decoded.(*event.RunStarted)
+	started := decoded.(*event.SessionStarted)
 	if forked != nil && forked.WorkspaceRoot != "" {
 		started.WorkspaceRoot = forked.WorkspaceRoot
 	}
@@ -204,11 +204,11 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 		}
 		if events, err := store.ReadEvents(filepath.Join(root, e.Name())); err == nil {
 			if s, err := state.Fold(events); err == nil {
-				r.status = s.Run.Status
+				r.status = s.Session.Status
 				if s.Waiting != nil {
 					r.status = "waiting:" + s.Waiting.Kind
 				}
-				r.turns = s.Run.Turn
+				r.turns = s.Session.GenStep
 			}
 		}
 		rows = append(rows, r)

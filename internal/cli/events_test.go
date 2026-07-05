@@ -32,9 +32,9 @@ func seedSessionIn(t *testing.T, id string) {
 		typ     string
 		payload any
 	}{
-		{event.TypeRunStarted, &event.RunStarted{SpecName: "hello", Model: "m", Task: "t", Version: "dev"}},
-		{event.TypeTurnStarted, &event.TurnStarted{Turn: 1}},
-		{event.TypeRunEnded, &event.RunEnded{Reason: "completed", Turns: 1}},
+		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "hello", Model: "m", Task: "t", Version: "dev"}},
+		{event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}},
+		{event.TypeRunEnded, &event.RunEnded{Reason: "completed", GenSteps: 1}},
 	} {
 		env, err := event.New(pair.typ, pair.payload)
 		if err != nil {
@@ -63,7 +63,7 @@ func TestEventsPrettyPrint(t *testing.T) {
 		t.Fatalf("exit = %d, stderr = %s", code, errOut.String())
 	}
 	text := out.String()
-	for _, want := range []string{"run_started", "turn_started", "run_ended", `"spec_name":"hello"`} {
+	for _, want := range []string{"session_started", "generation_started", "run_ended", `"spec_name":"hello"`} {
 		if !strings.Contains(text, want) {
 			t.Errorf("output missing %q:\n%s", want, text)
 		}
@@ -78,16 +78,16 @@ func TestEventsUniquePrefixAndState(t *testing.T) {
 		t.Fatalf("exit = %d, stderr = %s", code, errOut.String())
 	}
 	var folded struct {
-		Run struct {
+		Session struct {
 			Status string `json:"status"`
 			Reason string `json:"reason"`
-		} `json:"run"`
+		} `json:"session"`
 	}
 	if err := json.Unmarshal(out.Bytes(), &folded); err != nil {
 		t.Fatalf("--state output not JSON: %v\n%s", err, out.String())
 	}
-	if folded.Run.Status != "ended" || folded.Run.Reason != "completed" {
-		t.Errorf("folded run = %+v", folded.Run)
+	if folded.Session.Status != "ended" || folded.Session.Reason != "completed" {
+		t.Errorf("folded run = %+v", folded.Session)
 	}
 }
 

@@ -34,7 +34,7 @@ steps:
   - run: >
       FORKDIR=xdg/agentrunner/sessions/$(sed -n 's/^session //p' fork.out);
       head -1 "$FORKDIR/events.jsonl" | grep -q '"type":"forked_from"' &&
-      test "$(grep -c '"type":"turn_started"' "$FORKDIR/events.jsonl")" = 1 &&
+      test "$(grep -c '"type":"generation_started"' "$FORKDIR/events.jsonl")" = 1 &&
       test "$(grep -c '"type":"checkpoint_barrier"' "$FORKDIR/events.jsonl")" = 1
 expect:
   - exit_code: 0

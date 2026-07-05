@@ -48,7 +48,7 @@ func TestEpilogueSequenceOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Reason != "completed" || res.Turns != 3 {
+	if res.Reason != "completed" || res.GenSteps != 3 {
 		t.Errorf("res = %+v", res)
 	}
 	want := []string{"quiesce", "auto_publish", "barrier"}
@@ -58,8 +58,8 @@ func TestEpilogueSequenceOrder(t *testing.T) {
 	if types := m.types(); !equal(types, []string{"run_ended"}) {
 		t.Fatalf("events = %v", types)
 	}
-	if ds.s.Run.Status != state.StatusEnded {
-		t.Errorf("fold status = %q", ds.s.Run.Status)
+	if ds.s.Session.Status != state.StatusEnded {
+		t.Errorf("fold status = %q", ds.s.Session.Status)
 	}
 }
 

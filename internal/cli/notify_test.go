@@ -14,13 +14,13 @@ import (
 	"github.com/ralphite/agentrunner/internal/store"
 )
 
-// Startup reconciliation notifies every session parked on an approval —
+// Startup reconciliation notifies every session idle on an approval —
 // once: the journaled sent set silences the second daemon start.
-func TestReconcileNotificationsParkedApproval(t *testing.T) {
+func TestReconcileNotificationsIdleApproval(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 
-	// Synthesize a session parked in WAITING_APPROVAL.
-	dir, err := runtime.SessionDir("sess-parked")
+	// Synthesize a session idle in WAITING_APPROVAL.
+	dir, err := runtime.SessionDir("sess-idle")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestReconcileNotificationsParkedApproval(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	journal(event.TypeRunStarted, &event.RunStarted{SpecName: "x", Model: "m", Task: "t"})
+	journal(event.TypeSessionStarted, &event.SessionStarted{SpecName: "x", Model: "m", Task: "t"})
 	detail, _ := json.Marshal(event.ApprovalRequested{ApprovalID: "apr-42", EffectID: "eff-x"})
 	journal(event.TypeWaitingEntered, &event.WaitingEntered{Kind: event.WaitApproval, Detail: detail})
 	if err := es.Close(); err != nil {
@@ -52,8 +52,8 @@ func TestReconcileNotificationsParkedApproval(t *testing.T) {
 		t.Fatal(err)
 	}
 	reconcileNotifications(n)
-	if !strings.Contains(errOut.String(), "apr-42") || !strings.Contains(errOut.String(), "sess-parked") {
-		t.Fatalf("reconcile missed the parked approval: %q", errOut.String())
+	if !strings.Contains(errOut.String(), "apr-42") || !strings.Contains(errOut.String(), "sess-idle") {
+		t.Fatalf("reconcile missed the idle approval: %q", errOut.String())
 	}
 	if err := n.Close(); err != nil {
 		t.Fatal(err)
@@ -88,7 +88,7 @@ func TestReconcileSkipsEndedAndGarbage(t *testing.T) {
 		typ string
 		p   any
 	}{
-		{event.TypeRunStarted, &event.RunStarted{SpecName: "x", Model: "m", Task: "t"}},
+		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "x", Model: "m", Task: "t"}},
 		{event.TypeRunEnded, &event.RunEnded{Reason: "completed"}},
 	} {
 		env, _ := event.New(ev.typ, ev.p)

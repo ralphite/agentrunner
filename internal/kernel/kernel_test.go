@@ -65,7 +65,7 @@ func TestCausationCorrelationChain(t *testing.T) {
 		return nil, nil
 	})
 	bus.Register("a", func(_ context.Context, _ event.Envelope) ([]event.Envelope, error) {
-		child, err := event.New(event.TypeTurnStarted, &event.TurnStarted{Turn: 1})
+		child, err := event.New(event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1})
 		if err != nil {
 			return nil, err
 		}
@@ -101,18 +101,18 @@ func TestPublishFanOut(t *testing.T) {
 		got2 <- env.Type
 		return nil, nil
 	})
-	bus.Subscribe("sub1", event.TypeTurnStarted)
-	bus.Subscribe("sub2", event.TypeTurnStarted)
+	bus.Subscribe("sub1", event.TypeGenerationStarted)
+	bus.Subscribe("sub2", event.TypeGenerationStarted)
 
-	env, err := event.New(event.TypeTurnStarted, &event.TurnStarted{Turn: 2})
+	env, err := event.New(event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
 	bus.Publish(env)
-	if typ := <-got1; typ != event.TypeTurnStarted {
+	if typ := <-got1; typ != event.TypeGenerationStarted {
 		t.Errorf("sub1 got %q", typ)
 	}
-	if typ := <-got2; typ != event.TypeTurnStarted {
+	if typ := <-got2; typ != event.TypeGenerationStarted {
 		t.Errorf("sub2 got %q", typ)
 	}
 }

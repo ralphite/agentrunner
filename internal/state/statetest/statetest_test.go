@@ -47,7 +47,7 @@ func TestNilVsEmptyMapIsEqual(t *testing.T) {
 func TestDivergenceNamesTheSubState(t *testing.T) {
 	a := state.New()
 	b := state.New()
-	b.Run.Status = state.StatusEnded
+	b.Session.Status = state.StatusEnded
 	r := &recorder{TB: t}
 	AssertFoldEqual(r, a, b)
 	if !r.failed {

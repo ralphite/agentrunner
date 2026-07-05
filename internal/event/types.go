@@ -9,9 +9,9 @@ import (
 
 // The S2 event type set. S3+ may only ADD types, never change these.
 const (
-	TypeRunStarted        = "run_started"
+	TypeSessionStarted    = "session_started"
 	TypeInputReceived     = "input_received"
-	TypeTurnStarted       = "turn_started"
+	TypeGenerationStarted = "generation_started"
 	TypeAssistantMessage  = "assistant_message"
 	TypeActivityStarted   = "activity_started"
 	TypeActivityCompleted = "activity_completed"
@@ -34,9 +34,9 @@ const (
 	TypeLimitExceeded     = "limit_exceeded"
 
 	// S4 additions.
-	TypeTurnDiscarded     = "turn_discarded"
-	TypeContextCompacted  = "context_compacted"
-	TypeMalformedToolCall = "malformed_tool_call"
+	TypeGenerationDiscarded = "generation_discarded"
+	TypeContextCompacted    = "context_compacted"
+	TypeMalformedToolCall   = "malformed_tool_call"
 
 	// S5 additions.
 	TypeToolsDiscovered   = "tools_discovered"
@@ -84,7 +84,7 @@ const (
 	WaitTimer    = "timer"
 )
 
-type RunStarted struct {
+type SessionStarted struct {
 	SpecName         string         `json:"spec_name"`
 	Model            string         `json:"model"`
 	Task             string         `json:"task"`
@@ -151,12 +151,12 @@ type AttachmentRef struct {
 	MediaType string `json:"media_type"`
 }
 
-type TurnStarted struct {
-	Turn int `json:"turn"`
+type GenerationStarted struct {
+	GenStep int `json:"gen_step"`
 }
 
 type AssistantMessage struct {
-	Turn    int              `json:"turn"`
+	GenStep int              `json:"gen_step"`
 	Message provider.Message `json:"message"`
 }
 
@@ -242,9 +242,9 @@ type ActorCrashed struct {
 }
 
 type RunEnded struct {
-	Reason string         `json:"reason"`
-	Turns  int            `json:"turns"`
-	Usage  provider.Usage `json:"usage"`
+	Reason   string         `json:"reason"`
+	GenSteps int            `json:"gen_steps"`
+	Usage    provider.Usage `json:"usage"`
 }
 
 // EffectRequested marks entry into the gate sequence (3.2): an effect
@@ -257,7 +257,7 @@ type EffectRequested struct {
 	SideEffecting bool   `json:"side_effecting,omitempty"`
 }
 
-// ApprovalRequested parks an ask-verdict effect for a human decision. It
+// ApprovalRequested goes idle an ask-verdict effect for a human decision. It
 // carries every gate's judgment (the prompt must show the full picture)
 // and a reserved payload_ref for large payloads via the S7 ArtifactStore.
 type ApprovalRequested struct {
@@ -266,7 +266,7 @@ type ApprovalRequested struct {
 	CallID      string       `json:"call_id,omitempty"`
 	GateResults []GateResult `json:"gate_results,omitempty"`
 	PayloadRef  string       `json:"payload_ref,omitempty"`
-	// EstTokens preserves the budget reservation basis across a parked
+	// EstTokens preserves the budget reservation basis across a idle
 	// wait (the approval may resolve after a crash+resume).
 	EstTokens int `json:"est_tokens,omitempty"`
 }
@@ -296,14 +296,14 @@ type LimitExceeded struct {
 	Used  int    `json:"used"`
 }
 
-// TurnDiscarded marks an LLM turn whose partial stream was thrown away
+// GenerationDiscarded marks an LLM turn whose partial stream was thrown away
 // before a retry (S4.1): a durable companion to the ephemeral delta
 // channel, telling a resuming surface to reopen the stream. The fold has
 // no half-built assistant message to undo (assistant_message lands only on
 // success), so this event is audit + surface-signal only.
-type TurnDiscarded struct {
-	Turn   int    `json:"turn"`
-	Reason string `json:"reason,omitempty"`
+type GenerationDiscarded struct {
+	GenStep int    `json:"gen_step"`
+	Reason  string `json:"reason,omitempty"`
 }
 
 // ContextCompacted records a compaction (S4.5): the output of a summarizer
@@ -314,7 +314,7 @@ type TurnDiscarded struct {
 // fork/rewind across the boundary well-defined. Summary is inlined in S4;
 // SummaryRef (ArtifactStore) is reserved for later.
 type ContextCompacted struct {
-	UptoTurn     int    `json:"upto_turn"`
+	UptoGenStep  int    `json:"upto_gen_step"`
 	Summary      string `json:"summary"`
 	DroppedTurns int    `json:"dropped_turns,omitempty"`
 	SummaryRef   string `json:"summary_ref,omitempty"`
@@ -325,9 +325,9 @@ type ContextCompacted struct {
 // (reusing the discard signal); Raw is the model's best-effort output for
 // debugging, Error the parse failure.
 type MalformedToolCall struct {
-	Turn  int    `json:"turn"`
-	Raw   string `json:"raw,omitempty"`
-	Error string `json:"error,omitempty"`
+	GenStep int    `json:"gen_step"`
+	Raw     string `json:"raw,omitempty"`
+	Error   string `json:"error,omitempty"`
 }
 
 // ToolsDiscovered journals one MCP server's discovered tool schemas (S5.1).
@@ -371,7 +371,7 @@ type SubagentCompleted struct {
 	Agent        string         `json:"agent"`
 	ChildSession string         `json:"child_session"`
 	Reason       string         `json:"reason"`
-	Turns        int            `json:"turns"`
+	GenSteps     int            `json:"gen_steps"`
 	Usage        provider.Usage `json:"usage"`
 }
 
@@ -390,7 +390,7 @@ type ArtifactPublished struct {
 }
 
 // DriverStarted is the driver stream's header fact (S7 还债: version
-// discipline + provenance, mirroring RunStarted 2.17): the spec and fold
+// discipline + provenance, mirroring SessionStarted 2.17): the spec and fold
 // version journaled at series start guard every resume — a fold-shape change
 // refuses old streams instead of silently misreading them. Streams predating
 // the header (S6) are accepted as fold version 1.
@@ -475,7 +475,7 @@ type DriverCompleted struct {
 // treats those tasks per policy instead of pretending they never ran.
 type CheckpointBarrier struct {
 	BarrierID string `json:"barrier_id"`
-	Turn      int    `json:"turn,omitempty"`
+	GenStep   int    `json:"gen_step,omitempty"`
 	// Vector maps stream (relative dir; "." = this run, "sub/<dir>" =
 	// children) → last seq inside the cut. Terminal child streams' cut is
 	// their whole journal.
@@ -499,7 +499,7 @@ type BarrierTask struct {
 // copied from the parent's barrier cut. The parent session id is kept as
 // provenance; WorkspaceRoot is the fork's OWN worktree (materialized from
 // SnapshotRef — forks never share a directory with the original), and
-// resume prefers it over the copied RunStarted's stale root.
+// resume prefers it over the copied SessionStarted's stale root.
 type ForkedFrom struct {
 	ParentSession string `json:"parent_session"`
 	BarrierID     string `json:"barrier_id"`
@@ -553,34 +553,34 @@ type Containment struct {
 // Registry maps every event type to a constructor for its payload struct.
 // Decode helpers and the round-trip test are driven by this table.
 var Registry = map[string]func() any{
-	TypeRunStarted:        func() any { return &RunStarted{} },
-	TypeInputReceived:     func() any { return &InputReceived{} },
-	TypeTurnStarted:       func() any { return &TurnStarted{} },
-	TypeAssistantMessage:  func() any { return &AssistantMessage{} },
-	TypeActivityStarted:   func() any { return &ActivityStarted{} },
-	TypeActivityCompleted: func() any { return &ActivityCompleted{} },
-	TypeActivityFailed:    func() any { return &ActivityFailed{} },
-	TypeActivityCancelled: func() any { return &ActivityCancelled{} },
-	TypeTimerSet:          func() any { return &TimerSet{} },
-	TypeTimerFired:        func() any { return &TimerFired{} },
-	TypeTimerCancelled:    func() any { return &TimerCancelled{} },
-	TypeWaitingEntered:    func() any { return &WaitingEntered{} },
-	TypeWaitingResolved:   func() any { return &WaitingResolved{} },
-	TypeActorCrashed:      func() any { return &ActorCrashed{} },
-	TypeRunEnded:          func() any { return &RunEnded{} },
-	TypeEffectRequested:   func() any { return &EffectRequested{} },
-	TypeEffectResolved:    func() any { return &EffectResolved{} },
-	TypeApprovalRequested: func() any { return &ApprovalRequested{} },
-	TypeApprovalResponded: func() any { return &ApprovalResponded{} },
-	TypeModeChanged:       func() any { return &ModeChanged{} },
-	TypeLimitExceeded:     func() any { return &LimitExceeded{} },
-	TypeTurnDiscarded:     func() any { return &TurnDiscarded{} },
-	TypeContextCompacted:  func() any { return &ContextCompacted{} },
-	TypeMalformedToolCall: func() any { return &MalformedToolCall{} },
-	TypeToolsDiscovered:   func() any { return &ToolsDiscovered{} },
-	TypeSpawnRequested:    func() any { return &SpawnRequested{} },
-	TypeSubagentCompleted: func() any { return &SubagentCompleted{} },
-	TypeArtifactPublished: func() any { return &ArtifactPublished{} },
+	TypeSessionStarted:      func() any { return &SessionStarted{} },
+	TypeInputReceived:       func() any { return &InputReceived{} },
+	TypeGenerationStarted:   func() any { return &GenerationStarted{} },
+	TypeAssistantMessage:    func() any { return &AssistantMessage{} },
+	TypeActivityStarted:     func() any { return &ActivityStarted{} },
+	TypeActivityCompleted:   func() any { return &ActivityCompleted{} },
+	TypeActivityFailed:      func() any { return &ActivityFailed{} },
+	TypeActivityCancelled:   func() any { return &ActivityCancelled{} },
+	TypeTimerSet:            func() any { return &TimerSet{} },
+	TypeTimerFired:          func() any { return &TimerFired{} },
+	TypeTimerCancelled:      func() any { return &TimerCancelled{} },
+	TypeWaitingEntered:      func() any { return &WaitingEntered{} },
+	TypeWaitingResolved:     func() any { return &WaitingResolved{} },
+	TypeActorCrashed:        func() any { return &ActorCrashed{} },
+	TypeRunEnded:            func() any { return &RunEnded{} },
+	TypeEffectRequested:     func() any { return &EffectRequested{} },
+	TypeEffectResolved:      func() any { return &EffectResolved{} },
+	TypeApprovalRequested:   func() any { return &ApprovalRequested{} },
+	TypeApprovalResponded:   func() any { return &ApprovalResponded{} },
+	TypeModeChanged:         func() any { return &ModeChanged{} },
+	TypeLimitExceeded:       func() any { return &LimitExceeded{} },
+	TypeGenerationDiscarded: func() any { return &GenerationDiscarded{} },
+	TypeContextCompacted:    func() any { return &ContextCompacted{} },
+	TypeMalformedToolCall:   func() any { return &MalformedToolCall{} },
+	TypeToolsDiscovered:     func() any { return &ToolsDiscovered{} },
+	TypeSpawnRequested:      func() any { return &SpawnRequested{} },
+	TypeSubagentCompleted:   func() any { return &SubagentCompleted{} },
+	TypeArtifactPublished:   func() any { return &ArtifactPublished{} },
 
 	TypeDriverStarted:      func() any { return &DriverStarted{} },
 	TypeIterationScheduled: func() any { return &IterationScheduled{} },

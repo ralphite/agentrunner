@@ -58,7 +58,7 @@ func Cut(opts Options) ([]string, error) {
 	// A parent that is itself a fork carries its OWN genesis at seq 1; the
 	// new fork gets exactly ONE genesis (its own — provenance names the
 	// immediate parent, the full lineage is walkable through the parents'
-	// journals). Copying it would bury run_started two deep and break every
+	// journals). Copying it would bury session_started two deep and break every
 	// consumer that skips a single genesis (S7 出口 review P0).
 	src := events[:cut+1]
 	shift := int64(1)

@@ -54,7 +54,7 @@ func effectCrashLoop(sessDir, root string, gates []pipeline.Gate, fix scripted.F
 	}
 	return &Loop{
 		Spec: &AgentSpec{Name: "eff", Model: ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 50},
-			SystemPrompt: "s", Tools: []string{"bash"}, MaxTurns: 5},
+			SystemPrompt: "s", Tools: []string{"bash"}, MaxGenerationSteps: 5},
 		Provider:  scripted.New(fix),
 		Exec:      &tool.Executor{WS: ws},
 		Store:     es,
@@ -116,7 +116,7 @@ func TestEffectAdjudicationCrashWindow(t *testing.T) {
 			if tc.gates == "hooks" {
 				gates = []pipeline.Gate{hookishGate{}}
 			}
-			// Turn 1's assistant message is already journaled: resume only
+			// GenStep 1's assistant message is already journaled: resume only
 			// needs the remaining turn.
 			l, err := effectCrashLoop(sessDir, root, gates, effectFixture("turn2"))
 			if err != nil {
@@ -138,7 +138,7 @@ func TestEffectAdjudicationCrashWindow(t *testing.T) {
 			if err != nil {
 				t.Fatalf("pure-gate resume: %v", err)
 			}
-			if res.Reason != "completed" || res.Turns != 2 {
+			if res.Reason != "completed" || res.GenSteps != 2 {
 				t.Fatalf("res = %+v", res)
 			}
 		})

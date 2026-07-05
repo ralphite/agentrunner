@@ -66,11 +66,11 @@ func TestFixFailingTestEndToEnd(t *testing.T) {
 
 	loop := &agent.Loop{
 		Spec: &agent.AgentSpec{
-			Name:         "fixer",
-			Model:        agent.ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 512},
-			SystemPrompt: "You are a coding agent.",
-			Tools:        []string{"read_file", "edit_file", "bash"},
-			MaxTurns:     10,
+			Name:               "fixer",
+			Model:              agent.ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 512},
+			SystemPrompt:       "You are a coding agent.",
+			Tools:              []string{"read_file", "edit_file", "bash"},
+			MaxGenerationSteps: 10,
 		},
 		Provider:  prov,
 		Exec:      &tool.Executor{WS: ws},
@@ -82,7 +82,7 @@ func TestFixFailingTestEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Reason != "completed" || res.Turns != 4 {
+	if res.Reason != "completed" || res.GenSteps != 4 {
 		t.Errorf("result = %+v", res)
 	}
 	if err := prov.Done(); err != nil {

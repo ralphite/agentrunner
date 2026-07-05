@@ -63,7 +63,7 @@ func forkCmd(args []string, stdout, stderr io.Writer) int {
 		}
 		fmt.Fprintf(stdout, "%-12s %-6s %-6s %s\n", "BARRIER", "TURN", "SEQ", "SNAPSHOT")
 		for _, b := range fold.Barriers {
-			fmt.Fprintf(stdout, "%-12s %-6d %-6d %s\n", b.BarrierID, b.Turn, b.Seq, short(b.SnapshotRef))
+			fmt.Fprintf(stdout, "%-12s %-6d %-6d %s\n", b.BarrierID, b.GenStep, b.Seq, short(b.SnapshotRef))
 		}
 		return ExitOK
 	}
@@ -80,9 +80,9 @@ func forkCmd(args []string, stdout, stderr io.Writer) int {
 		return ExitUsage
 	}
 
-	// The parent's shadow store holds the snapshot; readRunStarted resolves
+	// The parent's shadow store holds the snapshot; readSessionStarted resolves
 	// the parent's REAL worktree even when the parent is itself a fork.
-	started, err := readRunStarted(parentDir)
+	started, err := readSessionStarted(parentDir)
 	if err != nil {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 		return ExitRun

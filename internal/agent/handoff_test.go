@@ -39,7 +39,7 @@ func TestHandoffEndsParentRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Reason != "handoff" || res.Turns != 1 {
+	if res.Reason != "handoff" || res.GenSteps != 1 {
 		t.Fatalf("res = %+v, want reason handoff after one turn", res)
 	}
 	// Every fixture step consumed: the successor ran, the parent did NOT
@@ -73,7 +73,7 @@ func TestHandoffEndsParentRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := fold.Run.Usage.InputTokens; got != 30+20 {
+	if got := fold.Session.Usage.InputTokens; got != 30+20 {
 		t.Errorf("settled input = %d, want 50 (parent 30 + successor 20)", got)
 	}
 	// The successor's own journal holds its run.
@@ -85,8 +85,8 @@ func TestHandoffEndsParentRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if childFold.Run.Status != state.StatusEnded || childFold.Run.Reason != "completed" {
-		t.Errorf("successor fold = %+v", childFold.Run)
+	if childFold.Session.Status != state.StatusEnded || childFold.Session.Reason != "completed" {
+		t.Errorf("successor fold = %+v", childFold.Session)
 	}
 }
 
@@ -107,7 +107,7 @@ func TestHandoffFailureContinuesRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Reason != "completed" || res.Turns != 2 {
+	if res.Reason != "completed" || res.GenSteps != 2 {
 		t.Fatalf("res = %+v, want a normal completion after the failed handoff", res)
 	}
 }

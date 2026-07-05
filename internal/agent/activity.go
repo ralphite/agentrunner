@@ -44,7 +44,7 @@ type Activity struct {
 	// return value lands in ActivityCompleted.hook_note (3.8 post hooks).
 	PostRun func(ctx context.Context, result json.RawMessage, isError bool) string
 	// DiscardOnRetry (S4.1) runs before each retry — the LLM activity uses
-	// it to journal TurnDiscarded and signal the surface to reopen the
+	// it to journal GenerationDiscarded and signal the surface to reopen the
 	// stream when deltas were already emitted.
 	DiscardOnRetry func() error
 }

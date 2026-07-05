@@ -54,7 +54,7 @@ func TestLoopProviderErrorWritesTerminalRecord(t *testing.T) {
 
 	loop := &Loop{
 		Spec: &AgentSpec{Name: "t", Model: ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 10},
-			SystemPrompt: "s", Tools: []string{"bash"}, MaxTurns: 5},
+			SystemPrompt: "s", Tools: []string{"bash"}, MaxGenerationSteps: 5},
 		Provider:  scripted.New(fix),
 		Exec:      &tool.Executor{WS: ws},
 		Store:     es,
@@ -100,7 +100,7 @@ func TestLoopEventAppendFailureAborts(t *testing.T) {
 
 	loop := &Loop{
 		Spec: &AgentSpec{Name: "t", Model: ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 10},
-			SystemPrompt: "s", MaxTurns: 3},
+			SystemPrompt: "s", MaxGenerationSteps: 3},
 		Provider:  scripted.New(fix),
 		Exec:      &tool.Executor{WS: ws},
 		Store:     es,

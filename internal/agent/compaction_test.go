@@ -23,14 +23,14 @@ import (
 // the model's view, though the log still holds them.
 func TestCompactionFoldView(t *testing.T) {
 	s := state.New()
-	s = mustApply(t, s, event.TypeRunStarted, &event.RunStarted{SubStateVersions: state.SubStateVersions()})
+	s = mustApply(t, s, event.TypeSessionStarted, &event.SessionStarted{SubStateVersions: state.SubStateVersions()})
 	s = mustApply(t, s, event.TypeInputReceived, &event.InputReceived{Text: "old question", Source: "cli"})
-	s = mustApply(t, s, event.TypeAssistantMessage, &event.AssistantMessage{Turn: 1,
+	s = mustApply(t, s, event.TypeAssistantMessage, &event.AssistantMessage{GenStep: 1,
 		Message: provider.Message{Role: provider.RoleAssistant,
 			Parts: []provider.Part{{Kind: provider.PartText, Text: "old answer"}}}})
 	// Boundary lands here: 2 messages so far.
 	s = mustApply(t, s, event.TypeContextCompacted, &event.ContextCompacted{
-		UptoTurn: 1, Summary: "we discussed the old thing"})
+		UptoGenStep: 1, Summary: "we discussed the old thing"})
 	s = mustApply(t, s, event.TypeInputReceived, &event.InputReceived{Text: "new question", Source: "cli"})
 
 	if s.Compaction.Boundary != 2 {
@@ -62,16 +62,16 @@ func TestCompactionFoldEquivalence(t *testing.T) {
 		typ     string
 		payload any
 	}{
-		{event.TypeRunStarted, &event.RunStarted{SubStateVersions: state.SubStateVersions()}},
+		{event.TypeSessionStarted, &event.SessionStarted{SubStateVersions: state.SubStateVersions()}},
 		{event.TypeInputReceived, &event.InputReceived{Text: "q1", Source: "cli"}},
-		{event.TypeTurnStarted, &event.TurnStarted{Turn: 1}},
-		{event.TypeAssistantMessage, &event.AssistantMessage{Turn: 1,
+		{event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}},
+		{event.TypeAssistantMessage, &event.AssistantMessage{GenStep: 1,
 			Message: provider.Message{Role: provider.RoleAssistant,
 				Parts: []provider.Part{{Kind: provider.PartText, Text: "a1"}}}}},
-		{event.TypeContextCompacted, &event.ContextCompacted{UptoTurn: 1, Summary: "sum1"}},
-		{event.TypeTurnStarted, &event.TurnStarted{Turn: 2}},
+		{event.TypeContextCompacted, &event.ContextCompacted{UptoGenStep: 1, Summary: "sum1"}},
+		{event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 2}},
 		{event.TypeInputReceived, &event.InputReceived{Text: "q2", Source: "cli"}},
-		{event.TypeAssistantMessage, &event.AssistantMessage{Turn: 2,
+		{event.TypeAssistantMessage, &event.AssistantMessage{GenStep: 2,
 			Message: provider.Message{Role: provider.RoleAssistant,
 				Parts: []provider.Part{{Kind: provider.PartText, Text: "a2"}}}}},
 	}
@@ -104,7 +104,7 @@ func TestCompactionFoldEquivalence(t *testing.T) {
 // bulky original text.
 func TestCompactionTriggeredInLoop(t *testing.T) {
 	big := strings.Repeat("verbose reasoning that inflates the context. ", 200) // ~9KB
-	// Turn 1 emits a bulky answer AND a tool call, so the loop advances to a
+	// GenStep 1 emits a bulky answer AND a tool call, so the loop advances to a
 	// turn-2 boundary (the compaction point) instead of ending. Step 2 is the
 	// summarizer call; step 3 is turn 2's LLM call, which sees the summary.
 	fix := scripted.Fixture{Steps: []scripted.Step{
@@ -131,10 +131,10 @@ func TestCompactionTriggeredInLoop(t *testing.T) {
 	cap := &capturingProvider{inner: scripted.New(fix)}
 	l := &Loop{
 		Spec: &AgentSpec{
-			Name:     "compact",
-			Model:    ModelSpec{Provider: "scripted", ID: "m", MaxTokens: 100, CompactAtTokens: 500},
-			Tools:    []string{"bash"},
-			MaxTurns: 3,
+			Name:               "compact",
+			Model:              ModelSpec{Provider: "scripted", ID: "m", MaxTokens: 100, CompactAtTokens: 500},
+			Tools:              []string{"bash"},
+			MaxGenerationSteps: 3,
 		},
 		Provider:  cap,
 		Exec:      &tool.Executor{WS: ws},

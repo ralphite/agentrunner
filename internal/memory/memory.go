@@ -2,7 +2,7 @@
 // the outermost ancestor (the git repo root, or the workspace itself when no
 // repo encloses it) DOWN to the workspace root. Outer files render first and
 // nearer files later, so the nearest instructions take precedence for the
-// model. The merged text is frozen into RunStarted at session start — memory
+// model. The merged text is frozen into SessionStarted at session start — memory
 // edits mid-run never rewrite the prompt prefix.
 package memory
 

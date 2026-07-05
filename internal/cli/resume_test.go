@@ -37,7 +37,7 @@ const resumeFixtureYAML = `steps:
 `
 
 // End-to-end CLI crash + resume: `run` dies at the turn-2 boundary in a
-// subprocess; `resume <prefix>` reconstructs the loop from run_started
+// subprocess; `resume <prefix>` reconstructs the loop from session_started
 // (spec + workspace root journaled) and finishes the run.
 func TestCLIResumeAfterCrash(t *testing.T) {
 	if os.Getenv("GO_CRASH_HELPER") == "1" {
@@ -70,7 +70,7 @@ func TestCLIResumeAfterCrash(t *testing.T) {
 		"CRASH_WS="+ws,
 		"CRASH_SPEC="+specPath,
 		"AGENTRUNNER_SCRIPTED_FIXTURE="+crashFix,
-		crash.EnvVar+"=after:turn_started:2",
+		crash.EnvVar+"=after:generation_started:2",
 	)
 	out, err := cmd.CombinedOutput()
 	var ee *exec.ExitError

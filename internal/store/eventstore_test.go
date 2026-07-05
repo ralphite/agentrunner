@@ -14,7 +14,7 @@ import (
 
 func mustEnv(t *testing.T, turn int) event.Envelope {
 	t.Helper()
-	env, err := event.New(event.TypeTurnStarted, &event.TurnStarted{Turn: turn})
+	env, err := event.New(event.TypeGenerationStarted, &event.GenerationStarted{GenStep: turn})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -75,7 +75,7 @@ func (f *Fake) WaitUntil(ctx context.Context, t time.Time) error {
 	case <-w.ch:
 		return nil
 	case <-ctx.Done():
-		// Remove the parked entry — a phantom waiter would corrupt
+		// Remove the idle entry — a phantom waiter would corrupt
 		// Waiters()-based test synchronization forever after.
 		f.mu.Lock()
 		for i := range f.waiters {
@@ -110,7 +110,7 @@ func (f *Fake) Advance(d time.Duration) {
 	}
 }
 
-// Waiters reports how many WaitUntil calls are currently parked — tests
+// Waiters reports how many WaitUntil calls are currently idle — tests
 // use it to synchronize before Advance.
 func (f *Fake) Waiters() int {
 	f.mu.Lock()

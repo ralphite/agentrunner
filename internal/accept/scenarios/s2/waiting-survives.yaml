@@ -6,7 +6,7 @@ files:
     sess="$XDG_DATA_HOME/agentrunner/sessions/20260703-000000-park-cafe"
     mkdir -p "$sess"
     printf '%s\n%s\n' \
-      '{"seq":1,"id":"evt-1","type":"run_started","payload":{"spec_name":"parked","sub_state_versions":{"conversation":1,"activities":1,"waiting":1,"timers":1,"run":1}},"ts":"2026-07-03T00:00:00Z"}' \
+      '{"seq":1,"id":"evt-1","type":"session_started","payload":{"spec_name":"parked","sub_state_versions":{"conversation":1,"activities":1,"waiting":1,"timers":1,"run":1}},"ts":"2026-07-03T00:00:00Z"}' \
       '{"seq":2,"id":"evt-2","type":"waiting_entered","payload":{"kind":"approval","detail":{"call_id":"call_1_0"}},"ts":"2026-07-03T00:00:01Z"}' \
       > "$sess/events.jsonl"
 steps:

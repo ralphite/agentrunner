@@ -54,7 +54,7 @@ type Loop struct {
 	// WAITING_APPROVAL resolves the approval as denied-by-interrupt and
 	// the run continues. nil = never fires.
 	Interrupts <-chan struct{}
-	// SpecPath is the spec file's location, journaled into RunStarted so a
+	// SpecPath is the spec file's location, journaled into SessionStarted so a
 	// revived session can resolve sibling sub-agent specs (v2 M5.1). Empty
 	// for spec-injected callers (tests).
 	SpecPath string
@@ -67,14 +67,14 @@ type Loop struct {
 	// UserInputs delivers conversational user inputs. Each received text is
 	// journaled as InputReceived{source:"user"} and wakes a new turn;
 	// CLOSING the channel is the close gesture: epilogue, then
-	// RunEnded{reason:"closed"}. nil = park wakes only on tasks/interrupt.
+	// RunEnded{reason:"closed"}. nil = idle wakes only on tasks/interrupt.
 	UserInputs <-chan protocol.UserInput
 	// inboxClosed records that a boundary drain saw UserInputs close, so the
-	// next park closes the session instead of waiting (v2 M2.1).
+	// next idle closes the session instead of waiting (v2 M2.1).
 	inboxClosed bool
 	// Cancels delivers handles to cancel out of band (v2 M3.2): a user's
 	// `kill <handle>` cancels one running child/task without entering the
-	// conversation. Consumed at drive-loop safe points and during the park.
+	// conversation. Consumed at drive-loop safe points and during the idle.
 	Cancels <-chan string
 	// Mode is the STARTING mode (3.6): journaled as the first ModeChanged.
 	// The live mode is fold state; empty means "default".
@@ -109,7 +109,7 @@ type Loop struct {
 	// fact, always.
 	Artifacts *store.ArtifactStore
 	// Inputs are artifact refs to materialize into the workspace before the
-	// first turn (S5.8): journaled into RunStarted, written by an idempotent
+	// first turn (S5.8): journaled into SessionStarted, written by an idempotent
 	// materialize activity. Set by a spawning parent (or a future CLI flag).
 	Inputs []event.ArtifactInput
 	// Snapshots is the workspace SnapshotStore (S7.2): barriers are taken
@@ -133,9 +133,9 @@ var _ MCPManager = (*mcp.Manager)(nil)
 
 // RunResult summarizes a completed run.
 type RunResult struct {
-	Reason string // "completed" | "max_turns"
-	Turns  int
-	Usage  provider.Usage
+	Reason   string // "completed" | "max_generation_steps"
+	GenSteps int
+	Usage    provider.Usage
 }
 
 // driveState is the loop's working memory: the fold state plus the tip of
@@ -197,14 +197,14 @@ func (l *Loop) onSteeringInterrupt(appendE AppendFunc, turn int) error {
 	}); err != nil {
 		return err
 	}
-	l.emit(protocol.Event{Kind: protocol.KindDiscard, Turn: turn, Text: "interrupted by user"})
+	l.emit(protocol.Event{Kind: protocol.KindDiscard, N: turn, Text: "interrupted by user"})
 	return nil
 }
 
 // appender builds the single write path: journal one event, fold it, and
 // advance the linear causation chain. EVERY payload passes through
 // credential redaction here — args/results are also redacted upstream in
-// the executor, but this blanket is what keeps run_started (task, spec),
+// the executor, but this blanket is what keeps session_started (task, spec),
 // input_received, and assistant messages (a model echoing a secret it
 // read) out of the durable log and, via the fold, out of snapshots and
 // later provider requests.
@@ -259,7 +259,7 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 		wsRoot = l.Exec.WS.Root()
 	}
 	memoryBlock, skillsBlock := renderContextBlocks(wsRoot)
-	if _, err := appendE(event.TypeRunStarted, &event.RunStarted{
+	if _, err := appendE(event.TypeSessionStarted, &event.SessionStarted{
 		SpecName: l.Spec.Name, Model: l.Spec.Model.ID, Task: task,
 		Version: l.Version, SubStateVersions: state.SubStateVersions(),
 		Spec: specJSON, WorkspaceRoot: wsRoot,
@@ -300,7 +300,7 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 	if err := l.materializeInputs(ctx, ds, appendE); err != nil {
 		return RunResult{}, err
 	}
-	l.emit(protocol.Event{Kind: protocol.KindRunStart, Mode: ds.s.CurrentMode()})
+	l.emit(protocol.Event{Kind: protocol.KindSessionStart, Mode: ds.s.CurrentMode()})
 
 	return l.drive(ctx, ds, appendE)
 }
@@ -379,15 +379,15 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 
 	// The versions journaled at run start guard EVERY resume, snapshot or
 	// not — a full fold across an incompatible sub-state shape is just as
-	// wrong as a snapshot load. A forked session's RunStarted sits right
+	// wrong as a snapshot load. A forked session's SessionStarted sits right
 	// behind its ForkedFrom genesis (S7.3) and guards the fork the same way.
 	head := events[0]
 	if head.Type == event.TypeForkedFrom && len(events) > 1 {
 		head = events[1]
 	}
-	if head.Type == event.TypeRunStarted {
+	if head.Type == event.TypeSessionStarted {
 		if decoded, derr := event.DecodePayload(head); derr == nil {
-			if started := decoded.(*event.RunStarted); len(started.SubStateVersions) > 0 {
+			if started := decoded.(*event.SessionStarted); len(started.SubStateVersions) > 0 {
 				if err := checkVersions(started.SubStateVersions); err != nil {
 					return RunResult{}, err
 				}
@@ -421,11 +421,11 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 			}
 		}
 	}
-	// A snapshot written by a binary that predates Run.LastInputTurn folds
+	// A snapshot written by a binary that predates Run.LastInputGenStep folds
 	// it as 0, which would mis-compute the per-exchange budget (收口
 	// review). Snapshots are disposable caches: on the suspicious shape,
 	// discard and fold from scratch — the fold recomputes the field exactly.
-	if ok && l.Conversational && s.Run.LastInputTurn == 0 && s.Run.Turn > 0 {
+	if ok && l.Conversational && s.Session.LastInputGenStep == 0 && s.Session.GenStep > 0 {
 		ok = false
 		s = state.State{}
 	}
@@ -435,19 +435,19 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 		}
 	}
 
-	if s.Run.Status == state.StatusEnded {
-		return RunResult{Reason: s.Run.Reason, Turns: s.Run.Turn, Usage: s.Run.Usage},
-			fmt.Errorf("resume: session already ended (%s)", s.Run.Reason)
+	if s.Session.Status == state.StatusEnded {
+		return RunResult{Reason: s.Session.Reason, GenSteps: s.Session.GenStep, Usage: s.Session.Usage},
+			fmt.Errorf("resume: session already ended (%s)", s.Session.Reason)
 	}
 
 	ds := &driveState{s: s, lastID: events[len(events)-1].ID}
 	appendE := l.appender(ds)
 
-	// A crash between run_started and input_received leaves the task
-	// durable in RunStarted but never journaled as input — re-ingest it
+	// A crash between session_started and input_received leaves the task
+	// durable in SessionStarted but never journaled as input — re-ingest it
 	// rather than silently calling the model with an empty conversation.
-	if len(s.Conversation.Messages) == 0 && s.Run.Task != "" {
-		input, err := runtime.IngestInput(l.Store, l.SessionID, s.Run.Task, "cli")
+	if len(s.Conversation.Messages) == 0 && s.Session.Task != "" {
+		input, err := runtime.IngestInput(l.Store, l.SessionID, s.Session.Task, "cli")
 		if err != nil {
 			return RunResult{}, err
 		}
@@ -483,7 +483,7 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 	// journal-inputs-first. The seq high-water mark makes this effectively
 	// once — an input both journaled and in the mailbox replays never.
 	if l.Conversational {
-		pending, perr := store.ReadInbox(l.Store.Dir(), ds.s.Run.ConsumedInputSeq)
+		pending, perr := store.ReadInbox(l.Store.Dir(), ds.s.Session.ConsumedInputSeq)
 		if perr != nil {
 			return RunResult{}, fmt.Errorf("resume: mailbox: %w", perr)
 		}
@@ -507,7 +507,7 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 		return RunResult{}, err
 	}
 
-	// A crash between run_started and the materialize completion leaves the
+	// A crash between session_started and the materialize completion leaves the
 	// inputs unwritten — re-run (idempotent: same refs, same bytes).
 	if err := l.materializeInputs(ctx, ds, appendE); err != nil {
 		return RunResult{}, err
@@ -520,7 +520,7 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 // same class and schema. Extra live tools are ignored (the journaled face is
 // this run's truth); a missing or drifted tool refuses the resume.
 func (l *Loop) reconcileMCP(ctx context.Context, s state.State) error {
-	if len(s.Run.MCPTools) == 0 {
+	if len(s.Session.MCPTools) == 0 {
 		return nil
 	}
 	if l.MCP == nil {
@@ -535,7 +535,7 @@ func (l *Loop) reconcileMCP(ctx context.Context, s state.State) error {
 	for _, t := range live {
 		byName[t.Name] = t
 	}
-	for _, want := range s.Run.MCPTools {
+	for _, want := range s.Session.MCPTools {
 		got, ok := byName[want.Name]
 		if !ok {
 			return fmt.Errorf("resume: mcp tool %q journaled but not offered by the live server", want.Name)
@@ -572,16 +572,16 @@ func (e *InDoubtError) Error() string {
 }
 
 func collectPendingSideEffecting(s state.State) []event.EffectRequested {
-	// An effect parked at an approval, or already answered, is NOT
+	// An effect idle at an approval, or already answered, is NOT
 	// in-doubt: reaching those states proves every side-effecting gate
 	// (hooks) already completed (correctness #1/#3).
-	parked := s.AwaitingApprovalEffect()
+	idle := s.AwaitingApprovalEffect()
 	var out []event.EffectRequested
 	for id, eff := range s.Effects.Pending {
 		if !eff.SideEffecting {
 			continue
 		}
-		if id == parked {
+		if id == idle {
 			continue
 		}
 		if _, decided := s.Effects.Decisions[id]; decided {
@@ -634,7 +634,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 	// The MCP face comes from the FOLD, not the live manager: what was
 	// journaled at discovery is what the run advertises — resume gets the
 	// identical face without re-negotiation (S5.1).
-	for _, mt := range ds.s.Run.MCPTools {
+	for _, mt := range ds.s.Session.MCPTools {
 		toolDefs = append(toolDefs, provider.ToolDef{
 			Name: mt.Name, Description: mt.Description, InputSchema: mt.InputSchema,
 		})
@@ -695,7 +695,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 		// v2 conversational (M3 review): a ctx cancel mid-turn is process
 		// teardown (daemon shutdown, deploy), NOT an ending — leave NO
 		// terminal so Resume can re-enter the turn, the same discipline as
-		// parkForInput's crash path. Genuine errors still end the session.
+		// idleForInput's crash path. Genuine errors still end the session.
 		if l.Conversational && reason == "canceled" && ctx.Err() != nil {
 			return cause
 		}
@@ -718,23 +718,23 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 
 	for {
 		if err := ctx.Err(); err != nil {
-			return RunResult{}, abort(ds.s.Run.Turn, err)
+			return RunResult{}, abort(ds.s.Session.GenStep, err)
 		}
 		// Finished background tasks settle at the loop's safe point (S6.1):
 		// their outcomes become user-role inputs before the next decision.
 		if err := l.drainBackground(appendE); err != nil {
-			return RunResult{}, abort(ds.s.Run.Turn, err)
+			return RunResult{}, abort(ds.s.Session.GenStep, err)
 		}
 		// Out-of-band kills (v2 M3.2): fire any requested handle cancels here,
 		// at a safe point; the cancelled child settles through bg.done as a
 		// canceled outcome on a subsequent iteration.
 		if err := l.drainCancels(appendE); err != nil {
-			return RunResult{}, abort(ds.s.Run.Turn, err)
+			return RunResult{}, abort(ds.s.Session.GenStep, err)
 		}
-		act := decide(ds.s, l.Spec.MaxTurns, l.Spec.OnRunEnd, l.Conversational)
+		act := decide(ds.s, l.Spec.MaxGenerationSteps, l.Spec.OnRunEnd, l.Conversational)
 		switch act.kind {
 		case doTurn:
-			// Turn boundary is the compaction point (S4.5): summarize the
+			// GenStep boundary is the compaction point (S4.5): summarize the
 			// context before assembling the next turn's request, so the LLM
 			// call already sees the compacted view. Runs at most once per
 			// boundary — the fresh summary drops the estimate below the
@@ -745,18 +745,18 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				}
 				continue
 			}
-			appended, err := appendE(event.TypeTurnStarted, &event.TurnStarted{Turn: act.turn})
+			appended, err := appendE(event.TypeGenerationStarted, &event.GenerationStarted{GenStep: act.turn})
 			if err != nil {
 				return RunResult{}, abort(act.turn, err)
 			}
-			l.emit(protocol.Event{Kind: protocol.KindTurnStart, Turn: act.turn})
-			// Turn boundary: serialize the fold (2.13). The snapshot is an
+			l.emit(protocol.Event{Kind: protocol.KindGenerationStart, N: act.turn})
+			// GenStep boundary: serialize the fold (2.13). The snapshot is an
 			// optimization — losing it costs a longer fold, nothing else.
 			if err := store.WriteSnapshot(l.Store.Dir(), appended.Seq,
 				state.SubStateVersions(), ds.s); err != nil {
 				return RunResult{}, abort(act.turn, err)
 			}
-			// Turn boundaries are barrier points (S7.2): a workspace snapshot
+			// GenStep boundaries are barrier points (S7.2): a workspace snapshot
 			// plus the cut vector make this turn a legal fork/rewind target.
 			if err := l.takeBarrier(ctx, ds, appendE,
 				fmt.Sprintf("bar-t%d", act.turn), act.turn); err != nil {
@@ -775,7 +775,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				// A budget denial ends the run gracefully through the
 				// epilogue (3.7c) — never mid-effect, never as a crash.
 				if gate := denyingGate(outcome); gate == "budget" {
-					used := ds.s.Run.Usage.Billed()
+					used := ds.s.Session.Usage.Billed()
 					if _, err := appendE(event.TypeLimitExceeded, &event.LimitExceeded{
 						Kind: "tokens", Limit: l.Spec.Budget.MaxTotalTokens, Used: used,
 					}); err != nil {
@@ -787,21 +787,21 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				return RunResult{}, abort(act.turn, fmt.Errorf("turn %d: llm call denied by pipeline", act.turn))
 			}
 			actCtx, stopInt := l.interruptScope(ctx)
-			var turn provider.Turn
+			var turn provider.GenStep
 			var streamed bool // any delta emitted this attempt?
 			err := exec.Do(actCtx, Activity{
 				ID: fmt.Sprintf("llm-t%d", act.turn), Kind: event.KindLLM,
 				Name: "complete", Idempotent: true,
 				DiscardOnRetry: func() error {
 					// A retry after deltas were streamed: tell the surface to
-					// throw away the partial stream and reopen (TurnDiscarded).
+					// throw away the partial stream and reopen (GenerationDiscarded).
 					if streamed {
-						if _, err := appendE(event.TypeTurnDiscarded, &event.TurnDiscarded{
-							Turn: act.turn, Reason: "llm retry after partial stream",
+						if _, err := appendE(event.TypeGenerationDiscarded, &event.GenerationDiscarded{
+							GenStep: act.turn, Reason: "llm retry after partial stream",
 						}); err != nil {
 							return err
 						}
-						l.emit(protocol.Event{Kind: protocol.KindDiscard, Turn: act.turn,
+						l.emit(protocol.Event{Kind: protocol.KindDiscard, N: act.turn,
 							Text: "partial stream discarded; retrying"})
 						streamed = false
 					}
@@ -822,7 +822,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 						l.Provider.Complete(ctx, req),
 						func(delta string) {
 							streamed = true
-							l.emit(protocol.Event{Kind: protocol.KindTextDelta, Turn: act.turn, Text: delta})
+							l.emit(protocol.Event{Kind: protocol.KindTextDelta, N: act.turn, Text: delta})
 						})
 					if err != nil {
 						return nil, nil, false, err
@@ -852,15 +852,15 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			// bounded, then escalated to a user-visible error.
 			if turn.Finish == provider.FinishMalformedToolCall {
 				if _, err := appendE(event.TypeMalformedToolCall, &event.MalformedToolCall{
-					Turn: act.turn, Raw: assistantText(turn.Message),
+					GenStep: act.turn, Raw: assistantText(turn.Message),
 					Error: "provider could not parse tool call",
 				}); err != nil {
 					return RunResult{}, abort(act.turn, err)
 				}
-				l.emit(protocol.Event{Kind: protocol.KindDiscard, Turn: act.turn,
+				l.emit(protocol.Event{Kind: protocol.KindDiscard, N: act.turn,
 					Text: "malformed tool call; retrying"})
-				if ds.s.Run.MalformedRetries > maxMalformedRetries {
-					l.emit(protocol.Event{Kind: protocol.KindError, Turn: act.turn,
+				if ds.s.Session.MalformedRetries > maxMalformedRetries {
+					l.emit(protocol.Event{Kind: protocol.KindError, N: act.turn,
 						Text: "model repeatedly returned malformed tool calls; giving up"})
 					return l.runEpilogue(ctx, ds, appendE, "malformed_tool_call", act.turn, false)
 				}
@@ -868,19 +868,19 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			}
 
 			if _, err := appendE(event.TypeAssistantMessage, &event.AssistantMessage{
-				Turn: act.turn, Message: turn.Message,
+				GenStep: act.turn, Message: turn.Message,
 			}); err != nil {
 				return RunResult{}, abort(act.turn, err)
 			}
 			if text := assistantText(turn.Message); text != "" {
-				l.emit(protocol.Event{Kind: protocol.KindMessage, Turn: act.turn, Text: text})
+				l.emit(protocol.Event{Kind: protocol.KindMessage, N: act.turn, Text: text})
 			}
 
 			// Blocked/safety finish (S4.6): the assistant text (if any) is
 			// preserved above, but the model stopped for a policy reason —
 			// surface a user-visible error and end the run gracefully.
 			if turn.Finish == provider.FinishOther || turn.Finish == provider.FinishBlocked {
-				l.emit(protocol.Event{Kind: protocol.KindError, Turn: act.turn,
+				l.emit(protocol.Event{Kind: protocol.KindError, N: act.turn,
 					Text: "model stopped for a safety or policy reason (blocked)"})
 				return l.runEpilogue(ctx, ds, appendE, "blocked", act.turn, false)
 			}
@@ -890,7 +890,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				return RunResult{}, err
 			}
 		case doWaitTasks:
-			// The park is an EXPLICIT state (DESIGN: 挂起是显式状态,本身是
+			// The idle is an EXPLICIT state (DESIGN: 挂起是显式状态,本身是
 			// event; S6 review P0): WaitingEntered/Resolved bracket the wait
 			// so projections and reconciliation can see it. The bracket is
 			// sequenced by this goroutine — decide() never observes the open
@@ -911,64 +911,64 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			}
 			continue
 		case doWait:
-			// A parked approval (fresh or resumed across a crash) re-enters
+			// A idle approval (fresh or resumed across a crash) re-enters
 			// the same await path: the request payload lives in the fold's
 			// Waiting.Detail. Other wait kinds have no resolver until their
 			// stage (input S4, tasks/timer S6).
 			if ds.s.Waiting.Kind == event.WaitApproval {
 				var req event.ApprovalRequested
 				if err := json.Unmarshal(ds.s.Waiting.Detail, &req); err != nil {
-					return RunResult{}, abort(ds.s.Run.Turn, fmt.Errorf("waiting_approval detail: %w", err))
+					return RunResult{}, abort(ds.s.Session.GenStep, fmt.Errorf("waiting_approval detail: %w", err))
 				}
 				if _, err := l.awaitApproval(ctx, ds, appendE, req); err != nil {
-					return RunResult{}, abort(ds.s.Run.Turn, err)
+					return RunResult{}, abort(ds.s.Session.GenStep, err)
 				}
 				continue
 			}
 			if ds.s.Waiting.Kind == event.WaitInput {
-				// A conversational session parked for input, resumed across a
+				// A conversational session idle for input, resumed across a
 				// restart (v2 M1.3): re-enter the wait WITHOUT re-journaling
 				// WaitingEntered — the fact is already in the fold. But first
 				// (收口 review): an input that became durable without its
 				// WaitingResolved (crash in that window), or a crash receipt
 				// settled by settleCrashInDoubt, is ALREADY waiting in the
-				// fold — resolve the stale park instead of blocking over it,
+				// fold — resolve the stale idle instead of blocking over it,
 				// or the model never sees it until the next external poke.
 				if hasInputAfterLastAssistant(ds.s) {
 					if _, err := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
 						Kind: event.WaitInput, Resolution: "pending_input",
 					}); err != nil {
-						return RunResult{}, abort(ds.s.Run.Turn, err)
+						return RunResult{}, abort(ds.s.Session.GenStep, err)
 					}
 					continue
 				}
-				if res, done, err := l.parkForInput(ctx, ds, appendE, ds.s.Run.Turn); done {
+				if res, done, err := l.idleForInput(ctx, ds, appendE, ds.s.Session.GenStep); done {
 					return res, err
 				}
 				continue
 			}
 			return RunResult{}, fmt.Errorf("session is waiting for %s; no resolver available yet", ds.s.Waiting.Kind)
 
-		case doWaitInput:
-			// Fresh park: journal the WaitingEntered fact, then wait. (A
-			// resumed park re-enters via doWait below — the fact is already
+		case doIdle:
+			// Fresh idle: journal the WaitingEntered fact, then wait. (A
+			// resumed idle re-enters via doWait below — the fact is already
 			// durable, so it is NOT re-journaled.)
 			if _, err := appendE(event.TypeWaitingEntered, &event.WaitingEntered{
 				Kind: event.WaitInput,
 			}); err != nil {
 				return RunResult{}, abort(act.turn, err)
 			}
-			if res, done, err := l.parkForInput(ctx, ds, appendE, act.turn); done {
+			if res, done, err := l.idleForInput(ctx, ds, appendE, act.turn); done {
 				return res, err
 			}
 			continue
 
 		case doEnd:
-			if act.reason == "max_turns" {
-				slog.Warn("run hit max_turns", "max_turns", l.Spec.MaxTurns)
+			if act.reason == "max_generation_steps" {
+				slog.Warn("run hit max_generation_steps", "max_generation_steps", l.Spec.MaxGenerationSteps)
 			}
 			res, err := l.runEpilogue(ctx, ds, appendE, act.reason, act.turn, false)
-			l.emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: res.Reason, Turn: res.Turns})
+			l.emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: res.Reason, N: res.GenSteps})
 			return res, err
 		}
 	}
@@ -976,7 +976,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 
 // doTools runs one assistant turn's tool calls (S4.3). It is two-phase:
 //
-//  1. Adjudicate every call SERIALLY — asks park inline on the resolver, so
+//  1. Adjudicate every call SERIALLY — asks idle inline on the resolver, so
 //     a turn's multiple asks are approved one at a time (no multi-prompt
 //     race), and each allow's budget reservation is folded before the next
 //     adjudication reads the budget (reserve-then-settle stays correct under
@@ -1009,7 +1009,7 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 	batchSpawns := 0
 	handoffAllowed := false
 	for _, call := range act.calls {
-		l.emit(protocol.Event{Kind: protocol.KindToolCall, Turn: act.turn,
+		l.emit(protocol.Event{Kind: protocol.KindToolCall, N: act.turn,
 			Tool: call.Name, CallID: call.CallID, Args: compact(call.Args)})
 		class := toolClassIn(ds.s, call.Name)
 		eff := pipeline.Effect{
@@ -1029,7 +1029,7 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 			// unresolvable target keeps the class default; execution
 			// reports the problem to the model.
 			eff.SpawnDepth = l.Depth
-			eff.SpawnCount = ds.s.Run.Spawns + batchSpawns
+			eff.SpawnCount = ds.s.Session.Spawns + batchSpawns
 			eff.HandoffPending = handoffAllowed
 			if _, _, childSpec, problem := l.resolveSpawnTarget(call.Name, call.Args); problem == "" {
 				allowance = l.spawnAllowance(ds.s, childSpec)
@@ -1044,7 +1044,7 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 			// The denial was journaled as the call's resolution (the fold
 			// writes the model-visible error); nothing executes.
 			dr := deniedResult(outcome)
-			l.emit(protocol.Event{Kind: protocol.KindToolResult, Turn: act.turn,
+			l.emit(protocol.Event{Kind: protocol.KindToolResult, N: act.turn,
 				Tool: call.Name, CallID: call.CallID, Result: compact(dr.Payload), IsError: true})
 			continue
 		}
@@ -1089,7 +1089,7 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 				return abort(act.turn, err)
 			}
 			if tr, ok := ds.s.Conversation.ToolResults[p.call.CallID]; ok {
-				l.emit(protocol.Event{Kind: protocol.KindToolResult, Turn: act.turn,
+				l.emit(protocol.Event{Kind: protocol.KindToolResult, N: act.turn,
 					Tool: p.call.Name, CallID: p.call.CallID, Result: compact(tr.Result)})
 			}
 			continue
@@ -1104,7 +1104,7 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 				return abort(act.turn, err)
 			}
 			if tr, ok := ds.s.Conversation.ToolResults[p.call.CallID]; ok {
-				l.emit(protocol.Event{Kind: protocol.KindToolResult, Turn: act.turn,
+				l.emit(protocol.Event{Kind: protocol.KindToolResult, N: act.turn,
 					Tool: p.call.Name, CallID: p.call.CallID, Result: compact(tr.Result)})
 			}
 			continue
@@ -1154,7 +1154,7 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 	for i, p := range allowed {
 		err := errsOut[i]
 		if err == nil {
-			l.emit(protocol.Event{Kind: protocol.KindToolResult, Turn: act.turn,
+			l.emit(protocol.Event{Kind: protocol.KindToolResult, N: act.turn,
 				Tool: p.call.Name, CallID: p.call.CallID,
 				Result: compact(p.res.Payload), IsError: p.res.IsError})
 			continue
@@ -1164,7 +1164,7 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 			// call already rendered [interrupted by user] in the fold. Emit it
 			// and continue — the interrupt itself is journaled once, below.
 			if tr, ok := ds.s.Conversation.ToolResults[p.call.CallID]; ok {
-				l.emit(protocol.Event{Kind: protocol.KindToolResult, Turn: act.turn,
+				l.emit(protocol.Event{Kind: protocol.KindToolResult, N: act.turn,
 					Tool: p.call.Name, CallID: p.call.CallID,
 					Result: compact(tr.Result), IsError: true})
 			}
@@ -1175,7 +1175,7 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 		// reacts. Cancellation and harness failures still abort.
 		if tr, resolved := ds.s.Conversation.ToolResults[p.call.CallID]; resolved &&
 			errs.ClassOf(err) != errs.Canceled {
-			l.emit(protocol.Event{Kind: protocol.KindToolResult, Turn: act.turn,
+			l.emit(protocol.Event{Kind: protocol.KindToolResult, N: act.turn,
 				Tool: p.call.Name, CallID: p.call.CallID,
 				Result: compact(tr.Result), IsError: true})
 			continue
@@ -1246,13 +1246,13 @@ func (l *Loop) buildPostRun(call provider.ToolCall) func(context.Context, json.R
 
 // action kinds for decide.
 const (
-	doTurn      = iota // journal TurnStarted for action.turn
+	doTurn      = iota // journal GenerationStarted for action.turn
 	doLLM              // run the LLM activity for action.turn
 	doTool             // run action.call
 	doEnd              // journal RunEnded with action.reason
-	doWait             // parked: the wait must resolve before anything else
-	doWaitTasks        // parked on background tasks (S6.1): settle one, re-decide
-	doWaitInput        // conversational idle (v2 M1.1): park for the next user input
+	doWait             // idle: the wait must resolve before anything else
+	doWaitTasks        // idle on background tasks (S6.1): settle one, re-decide
+	doIdle             // conversational idle (v2 M1.1): idle for the next user input
 )
 
 type action struct {
@@ -1270,9 +1270,9 @@ type action struct {
 // Resume re-enters here with the same state and therefore the same answer.
 func decide(s state.State, maxTurns int, onRunEnd string, conversational bool) action {
 	if s.Waiting != nil {
-		return action{kind: doWait, turn: s.Run.Turn}
+		return action{kind: doWait, turn: s.Session.GenStep}
 	}
-	turn := s.Run.Turn
+	turn := s.Session.GenStep
 	if turn == 0 {
 		return action{kind: doTurn, turn: 1}
 	}
@@ -1283,26 +1283,26 @@ func decide(s state.State, maxTurns int, onRunEnd string, conversational bool) a
 	calls := toolCallsOf(assistants[len(assistants)-1])
 	if len(calls) == 0 {
 		// Natural ending: the model produced no tool calls. With live
-		// background tasks, on_run_end decides (S6.1): await parks in
+		// background tasks, on_run_end decides (S6.1): await goes idle in
 		// WAITING_TASKS (2.14) until a task completes and its outcome
 		// re-enters as a user-role message; the default (cancel) ends now
 		// and the epilogue quiesce cancels the stragglers (fire-and-forget).
 		if conversational {
 			// v2 conversational shape: a yield is never an ending. An input
-			// that already arrived (journaled at the park) gets its turn
-			// FIRST; only a truly idle session parks. The park also wakes on
+			// that already arrived (journaled at the idle) gets its turn
+			// FIRST; only a truly idle session goes idle. The idle also wakes on
 			// background settlements, so live tasks need no extra branch.
 			// The turn budget is PER EXCHANGE (anti-runaway), counted from
 			// the last user input — a cumulative cap would silently wedge a
 			// long-lived session (M3 review). Exhaustion ends the session
-			// visibly (max_turns), never a silent park over pending input.
+			// visibly (max_generation_steps), never a silent idle over pending input.
 			if hasInputAfterLastAssistant(s) {
-				if turn-s.Run.LastInputTurn < maxTurns {
+				if turn-s.Session.LastInputGenStep < maxTurns {
 					return action{kind: doTurn, turn: turn + 1}
 				}
-				return action{kind: doEnd, turn: turn, reason: "max_turns"}
+				return action{kind: doEnd, turn: turn, reason: "max_generation_steps"}
 			}
-			return action{kind: doWaitInput, turn: turn}
+			return action{kind: doIdle, turn: turn}
 		}
 		if len(s.Tasks) > 0 && onRunEnd == "await" {
 			return action{kind: doWaitTasks, turn: turn}
@@ -1311,7 +1311,7 @@ func decide(s state.State, maxTurns int, onRunEnd string, conversational bool) a
 		// a settled task's outcome (DESIGN: 完成时结果以新的 user-role 消息
 		// 进入 loop,下一 turn 可见) — deserves a turn before the run ends
 		// (S6 review: without this the awaited outcome never reached the
-		// model). Bounded by max_turns like every turn.
+		// model). Bounded by max_generation_steps like every turn.
 		if turn < maxTurns && hasInputAfterLastAssistant(s) {
 			return action{kind: doTurn, turn: turn + 1}
 		}
@@ -1336,17 +1336,17 @@ func decide(s state.State, maxTurns int, onRunEnd string, conversational bool) a
 			}
 		}
 	}
-	// A forced ending (max_turns) delegates any live background tasks to the
+	// A forced ending (max_generation_steps) delegates any live background tasks to the
 	// epilogue quiesce slot, which honors on_run_end (cancel or silent
-	// await) — the loop never parks waiting on a straggler at a forced end
+	// await) — the loop never goes idle waiting on a straggler at a forced end
 	// the way a natural await ending does (S6.1). Conversational budget is
 	// per exchange (see the yield branch above), task mode stays cumulative.
 	spent := turn
 	if conversational {
-		spent = turn - s.Run.LastInputTurn
+		spent = turn - s.Session.LastInputGenStep
 	}
 	if spent >= maxTurns {
-		return action{kind: doEnd, turn: turn, reason: "max_turns"}
+		return action{kind: doEnd, turn: turn, reason: "max_generation_steps"}
 	}
 	return action{kind: doTurn, turn: turn + 1}
 }
@@ -1372,7 +1372,7 @@ func (l *Loop) takeBarrier(ctx context.Context, ds *driveState, appendE AppendFu
 		return nil
 	}
 	vector := map[string]int64{".": l.Store.LastSeq()}
-	for _, childSession := range ds.s.Run.ChildSessions {
+	for _, childSession := range ds.s.Session.ChildSessions {
 		dir, rel := childDirOf(l.Store.Dir(), childSession)
 		if dir == "" {
 			continue
@@ -1389,7 +1389,7 @@ func (l *Loop) takeBarrier(ctx context.Context, ds *driveState, appendE AppendFu
 	}
 	sort.Slice(tasks, func(i, j int) bool { return tasks[i].TaskID < tasks[j].TaskID })
 	_, err = appendE(event.TypeCheckpointBarrier, &event.CheckpointBarrier{
-		BarrierID: barrierID, Turn: turn,
+		BarrierID: barrierID, GenStep: turn,
 		Vector: vector, SnapshotRef: ref, Tasks: tasks,
 	})
 	return err
@@ -1613,7 +1613,7 @@ func (l *Loop) resolveFromDecision(appendE AppendFunc, eff pipeline.Effect, deci
 // budgetView snapshots the fold's accounting for the budget gate.
 func budgetView(s state.State) pipeline.BudgetView {
 	return pipeline.BudgetView{
-		SettledTokens:  s.Run.Usage.Billed(),
+		SettledTokens:  s.Session.Usage.Billed(),
 		ReservedTokens: s.Budget.ReservedTotal(),
 	}
 }
@@ -1653,7 +1653,7 @@ func toolClassIn(s state.State, name string) string {
 }
 
 func mcpToolIn(s state.State, name string) (event.MCPToolDef, bool) {
-	for _, mt := range s.Run.MCPTools {
+	for _, mt := range s.Session.MCPTools {
 		if mt.Name == name {
 			return mt, true
 		}
@@ -1689,7 +1689,7 @@ const maxMalformedRetries = 2
 
 func toolTimeoutIn(s state.State, name string) time.Duration {
 	if isAgentLaunch(name) {
-		// A child run is bounded by its own max_turns and budget, not a
+		// A child run is bounded by its own max_generation_steps and budget, not a
 		// wall clock — 120s would kill legitimate children (S5.3/S5.4).
 		return 0
 	}

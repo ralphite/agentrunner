@@ -66,8 +66,8 @@ func TestDaemonPing(t *testing.T) {
 // session), and reports the assigned session id first.
 func TestDaemonRunStreams(t *testing.T) {
 	run := func(ctx context.Context, req RunRequest, sink protocol.Sink) error {
-		sink.Emit(protocol.Event{Kind: protocol.KindTurnStart, Turn: 1})
-		sink.Emit(protocol.Event{Kind: protocol.KindMessage, Turn: 1, Text: "hello from " + req.Task})
+		sink.Emit(protocol.Event{Kind: protocol.KindGenerationStart, N: 1})
+		sink.Emit(protocol.Event{Kind: protocol.KindMessage, N: 1, Text: "hello from " + req.Task})
 		sink.Emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: "completed"})
 		return nil
 	}
@@ -82,7 +82,7 @@ func TestDaemonRunStreams(t *testing.T) {
 	if len(got) != 4 {
 		t.Fatalf("events = %+v, want session banner + 3 run events", got)
 	}
-	if got[0].Kind != protocol.KindRunStart || got[0].Session == "" {
+	if got[0].Kind != protocol.KindSessionStart || got[0].Session == "" {
 		t.Fatalf("first event = %+v, want run_start with a session id", got[0])
 	}
 	for _, e := range got[1:] {
@@ -140,8 +140,8 @@ func TestDaemonRunSurvivesClientDisconnect(t *testing.T) {
 // finished/unknown session is replay-only and the stream then closes.
 func TestDaemonAttachReplaysFinishedSession(t *testing.T) {
 	replay := func(id string, sink protocol.Sink) error {
-		sink.Emit(protocol.Event{Kind: protocol.KindTurnStart, Turn: 1})
-		sink.Emit(protocol.Event{Kind: protocol.KindMessage, Turn: 1, Text: "replayed"})
+		sink.Emit(protocol.Event{Kind: protocol.KindGenerationStart, N: 1})
+		sink.Emit(protocol.Event{Kind: protocol.KindMessage, N: 1, Text: "replayed"})
 		return nil
 	}
 	sock, _ := startServer(t, nil, replay)
@@ -162,26 +162,26 @@ func TestDaemonAttachFollowsLiveRun(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})
 	run := func(ctx context.Context, req RunRequest, sink protocol.Sink) error {
-		sink.Emit(protocol.Event{Kind: protocol.KindTurnStart, Turn: 1})
+		sink.Emit(protocol.Event{Kind: protocol.KindGenerationStart, N: 1})
 		close(started)
 		<-release
-		sink.Emit(protocol.Event{Kind: protocol.KindMessage, Turn: 1, Text: "late news"})
+		sink.Emit(protocol.Event{Kind: protocol.KindMessage, N: 1, Text: "late news"})
 		sink.Emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: "completed"})
 		return nil
 	}
 	replay := func(id string, sink protocol.Sink) error {
-		sink.Emit(protocol.Event{Kind: protocol.KindTurnStart, Turn: 1, Text: "from journal"})
+		sink.Emit(protocol.Event{Kind: protocol.KindGenerationStart, N: 1, Text: "from journal"})
 		return nil
 	}
 	sock, _ := startServer(t, run, replay)
 
-	// Submit the run in the background; it parks on release.
+	// Submit the run in the background; it goes idle on release.
 	go func() {
 		_ = Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Task: "job"}, func(protocol.Event) {})
 	}()
 	<-started
 
-	// Attach while the run is parked, then release it: the attach stream
+	// Attach while the run is idle, then release it: the attach stream
 	// must carry the replay AND the post-attach live events.
 	got := make(chan protocol.Event, 16)
 	attachDone := make(chan error, 1)
@@ -259,7 +259,7 @@ func TestDaemonGracefulShutdownWaitsForRuns(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 
-	// Park a hosted run, then pull the plug.
+	// Idle a hosted run, then pull the plug.
 	go func() {
 		_ = Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Task: "long"}, func(protocol.Event) {})
 	}()
@@ -285,9 +285,9 @@ func TestDaemonNotifyTee(t *testing.T) {
 	var mu sync.Mutex
 	var teed []protocol.Event
 	run := func(ctx context.Context, req RunRequest, sink protocol.Sink) error {
-		sink.Emit(protocol.Event{Kind: protocol.KindTurnStart, Turn: 1})
+		sink.Emit(protocol.Event{Kind: protocol.KindGenerationStart, N: 1})
 		sink.Emit(protocol.Event{Kind: protocol.KindApprovalRequest, ApprovalID: "apr-7", Tool: "bash"})
-		sink.Emit(protocol.Event{Kind: protocol.KindIteration, Turn: 2, Text: "iteration 2 completed"})
+		sink.Emit(protocol.Event{Kind: protocol.KindIteration, N: 2, Text: "iteration 2 completed"})
 		sink.Emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: "completed"})
 		return nil
 	}
@@ -322,7 +322,7 @@ func TestDaemonNotifyTee(t *testing.T) {
 	if teed[0].ApprovalID != "apr-7" || teed[0].Session != "sess-n" {
 		t.Errorf("tee[0] = %+v", teed[0])
 	}
-	if teed[1].Kind != protocol.KindIteration || teed[1].Turn != 2 {
+	if teed[1].Kind != protocol.KindIteration || teed[1].N != 2 {
 		t.Errorf("tee[1] = %+v", teed[1])
 	}
 	if teed[2].Kind != protocol.KindRunEnd {
@@ -353,7 +353,7 @@ func TestDaemonShutdownWithHungClient(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = hung.Close() }()
-	time.Sleep(50 * time.Millisecond) // let serveConn park in Scan
+	time.Sleep(50 * time.Millisecond) // let serveConn idle in Scan
 
 	cancel()
 	select {

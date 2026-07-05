@@ -39,7 +39,7 @@ func TestParallelToolCalls(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Reason != "completed" || res.Turns != 2 {
+	if res.Reason != "completed" || res.GenSteps != 2 {
 		t.Fatalf("res = %+v", res)
 	}
 	// Serial would be ~900ms; concurrent ~300ms. Generous ceiling for CI.
@@ -197,7 +197,7 @@ func TestParallelToolBudgetNoOverspend(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if peak := s.Run.Usage.Billed() + s.Budget.ReservedTotal(); peak > 5000 {
+		if peak := s.Session.Usage.Billed() + s.Budget.ReservedTotal(); peak > 5000 {
 			t.Fatalf("overspent: settled+reserved = %d > 5000 after %s", peak, e.Type)
 		}
 	}

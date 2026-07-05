@@ -9,7 +9,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/protocol"
 )
 
-// An ask inside a hosted run parks on the broker, surfaces on the event
+// An ask inside a hosted run goes idle on the broker, surfaces on the event
 // stream, and an `approve` command from a SECOND connection resolves it —
 // the cross-process approval round trip.
 func TestDaemonApprovalRoundTrip(t *testing.T) {
@@ -83,7 +83,7 @@ func TestDaemonApprovalRoundTrip(t *testing.T) {
 			t.Fatalf("answer = %+v", a)
 		}
 	case <-time.After(5 * time.Second):
-		t.Fatal("the parked ask never resolved")
+		t.Fatal("the idle ask never resolved")
 	}
 	select {
 	case got := <-runDone:

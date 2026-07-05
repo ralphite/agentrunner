@@ -24,7 +24,7 @@ func AssertFoldEqual(t testing.TB, got, want state.State) {
 		{"activities", got.Activities, want.Activities},
 		{"waiting", got.Waiting, want.Waiting},
 		{"timers", got.Timers, want.Timers},
-		{"run", got.Run, want.Run},
+		{"session", got.Session, want.Session},
 		{"effects", got.Effects, want.Effects},
 		{"mode", got.Mode, want.Mode},
 		{"budget", got.Budget, want.Budget},

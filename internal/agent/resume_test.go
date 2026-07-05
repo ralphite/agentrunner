@@ -79,8 +79,8 @@ func TestResumeRefusesVersionMismatch(t *testing.T) {
 		{Respond: []scripted.Event{{Text: "hi"}, {Finish: "end_turn"}}},
 	}}, t.TempDir())
 	// Seed a session that is NOT ended so Resume reaches the version check:
-	// journal only RunStarted.
-	env, err := event.New(event.TypeRunStarted, &event.RunStarted{SpecName: "t"})
+	// journal only SessionStarted.
+	env, err := event.New(event.TypeSessionStarted, &event.SessionStarted{SpecName: "t"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +116,7 @@ func TestResumeAlreadyEnded(t *testing.T) {
 }
 
 // The 2.13 crash-matrix scenario: a subprocess is killed right after turn
-// 1's tool results land (counting predicate on the second turn_started —
+// 1's tool results land (counting predicate on the second generation_started —
 // i.e. mid-run at a turn boundary); the parent resumes the SAME session
 // dir and the run finishes turn 2 without re-running turn 1.
 func TestCrashThenResumeContinuesRun(t *testing.T) {
@@ -140,7 +140,7 @@ func TestCrashThenResumeContinuesRun(t *testing.T) {
 		"GO_CRASH_HELPER=1",
 		"CRASH_SESS_DIR="+sessDir,
 		"CRASH_WS="+root,
-		crash.EnvVar+"=after:turn_started:2", // die at the turn-2 boundary
+		crash.EnvVar+"=after:generation_started:2", // die at the turn-2 boundary
 	)
 	out, err := cmd.CombinedOutput()
 	var ee *exec.ExitError
@@ -179,7 +179,7 @@ func TestCrashThenResumeContinuesRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Reason != "completed" || res.Turns != 2 {
+	if res.Reason != "completed" || res.GenSteps != 2 {
 		t.Fatalf("res = %+v", res)
 	}
 	if err := prov.Done(); err != nil {
@@ -214,16 +214,16 @@ func TestCrashThenResumeContinuesRun(t *testing.T) {
 
 func crashSpec() *AgentSpec {
 	return &AgentSpec{
-		Name:         "crashy",
-		Model:        ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
-		SystemPrompt: "be helpful",
-		Tools:        []string{"read_file", "edit_file"},
-		MaxTurns:     5,
+		Name:               "crashy",
+		Model:              ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
+		SystemPrompt:       "be helpful",
+		Tools:              []string{"read_file", "edit_file"},
+		MaxGenerationSteps: 5,
 	}
 }
 
 // helperCrashRun executes turn 1 (read + edit) and is killed by the
-// counting predicate when TurnStarted{2} is appended.
+// counting predicate when GenerationStarted{2} is appended.
 func helperCrashRun(t *testing.T) {
 	es, err := store.OpenEventStore(os.Getenv("CRASH_SESS_DIR"))
 	if err != nil {

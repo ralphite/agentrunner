@@ -96,7 +96,7 @@ func hookLoop(sessDir, root string) (*Loop, error) {
 	}}
 	return &Loop{
 		Spec: &AgentSpec{Name: "hooked", Model: ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 50},
-			SystemPrompt: "s", Tools: []string{"bash"}, MaxTurns: 5,
+			SystemPrompt: "s", Tools: []string{"bash"}, MaxGenerationSteps: 5,
 			Permissions: []pipeline.PermissionRule{{Action: "allow"}}},
 		Provider:  scripted.New(fix),
 		Exec:      &tool.Executor{WS: ws},

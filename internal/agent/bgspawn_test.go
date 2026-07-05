@@ -35,19 +35,19 @@ func bgSpawnLoop(t *testing.T, router *scripted.Router, agents []string) *Loop {
 	t.Cleanup(func() { _ = es.Close() })
 	specs := map[string]*AgentSpec{
 		"worker": {
-			Name:         "worker",
-			Description:  "investigates a delegated topic and reports",
-			Model:        ModelSpec{Provider: "scripted", ID: "m", MaxTokens: 100},
-			SystemPrompt: "you investigate",
-			Tools:        []string{"read_file"},
-			MaxTurns:     3,
+			Name:               "worker",
+			Description:        "investigates a delegated topic and reports",
+			Model:              ModelSpec{Provider: "scripted", ID: "m", MaxTokens: 100},
+			SystemPrompt:       "you investigate",
+			Tools:              []string{"read_file"},
+			MaxGenerationSteps: 3,
 		},
 	}
 	return &Loop{
 		Spec: &AgentSpec{
 			Name: "lead", Model: ModelSpec{Provider: "scripted", ID: "m", MaxTokens: 100},
 			SystemPrompt: "you orchestrate", Tools: []string{"read_file"},
-			MaxTurns: 10, Agents: agents,
+			MaxGenerationSteps: 10, Agents: agents,
 		},
 		Provider:  router,
 		Exec:      &tool.Executor{WS: ws},
@@ -89,8 +89,8 @@ func TestBackgroundSpawnParallelAndSettle(t *testing.T) {
 		}}},
 	)
 	l := bgSpawnLoop(t, router, []string{"worker"})
-	// Conversational: the park between turns waits on the children's results
-	// (the park selects bg.done), so each child completion wakes a turn —
+	// Conversational: the idle between turns waits on the children's results
+	// (the idle selects bg.done), so each child completion wakes a turn —
 	// the natural home for "launch parallel, consume results" (v2 §3). Close
 	// once both children's reports are in the journal.
 	inputs := make(chan protocol.UserInput)
@@ -151,7 +151,7 @@ func TestBackgroundSpawnParallelAndSettle(t *testing.T) {
 			if strings.Contains(string(e.Payload), `"tool-a"`) || strings.Contains(string(e.Payload), `"tool-b"`) {
 				actCompleted++
 			}
-		case event.TypeTurnStarted:
+		case event.TypeGenerationStarted:
 			turns++
 		}
 	}
@@ -408,13 +408,13 @@ func TestNoDuplicateToolDeclaration(t *testing.T) {
 func TestSteerChangesOrchestration(t *testing.T) {
 	router := scripted.NewRouter(
 		scripted.RoutePair{Key: "you orchestrate", Fixture: scripted.Fixture{Steps: []scripted.Step{
-			// Turn 1: launch OLD (slow).
+			// GenStep 1: launch OLD (slow).
 			{Respond: []scripted.Event{
 				{ToolCall: &scripted.ToolCallEvent{CallID: "old", Name: "spawn_agent",
 					Args: map[string]any{"agent": "worker", "task": "investigate OLDTOPIC", "background": true}}},
 				{Finish: "tool_use"},
 			}},
-			// Turn 2 (woken by the steer): cancel OLD, spawn NEW. (No Expect:
+			// GenStep 2 (woken by the steer): cancel OLD, spawn NEW. (No Expect:
 			// assembly may order the spawn handle tool-result after the steer
 			// user message; the structural asserts below prove causation.)
 			{Respond: []scripted.Event{

@@ -65,7 +65,7 @@ func TestDaemonHostsRunAndAttachReplays(t *testing.T) {
 	}, func(e protocol.Event) { live = append(live, e) }); err != nil {
 		t.Fatal(err)
 	}
-	if len(live) == 0 || live[0].Kind != protocol.KindRunStart || live[0].Session == "" {
+	if len(live) == 0 || live[0].Kind != protocol.KindSessionStart || live[0].Session == "" {
 		t.Fatalf("live stream = %+v\nstderr: %s", live, errOut.String())
 	}
 	session := live[0].Session

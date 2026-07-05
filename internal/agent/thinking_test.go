@@ -45,7 +45,7 @@ func runWithThinking(t *testing.T, caps provider.Capabilities) *capturingProvide
 			Name: "think",
 			Model: ModelSpec{Provider: "scripted", ID: "m", MaxTokens: 2048,
 				Thinking: ThinkingSpec{Enabled: true, BudgetTokens: 1024}},
-			MaxTurns: 3,
+			MaxGenerationSteps: 3,
 		},
 		Provider:  &capsProvider{capturingProvider: cap, caps: caps},
 		Exec:      &tool.Executor{WS: ws},

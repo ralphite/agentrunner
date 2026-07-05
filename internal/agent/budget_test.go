@@ -46,7 +46,7 @@ func TestBudgetReserveSettleLifecycle(t *testing.T) {
 	if got := s.Budget.ReservedTotal(); got != 0 {
 		t.Fatalf("reservation not released: %d", got)
 	}
-	if got := s.Run.Usage.InputTokens + s.Run.Usage.OutputTokens; got != 100 {
+	if got := s.Session.Usage.InputTokens + s.Session.Usage.OutputTokens; got != 100 {
 		t.Fatalf("settled = %d, want 100", got)
 	}
 }
@@ -87,7 +87,7 @@ func TestBudgetTOCTOUSyntheticConcurrency(t *testing.T) {
 // 3.7c: budget exhaustion ends the run GRACEFULLY — LimitExceeded fact,
 // epilogue, run_ended{limit_exceeded} — never a crash or a hard abort.
 func TestBudgetGracefulEnding(t *testing.T) {
-	// Turn 1 spends 900 of a 1000-token budget; turn 2's reservation
+	// GenStep 1 spends 900 of a 1000-token budget; turn 2's reservation
 	// (max_tokens 200) cannot fit.
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{

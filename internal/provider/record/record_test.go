@@ -25,8 +25,8 @@ func TestRecordAndReplayRoundTrip(t *testing.T) {
 
 	rec := New(source)
 	req := provider.CompleteRequest{
-		Turn:  1,
-		Tools: []provider.ToolDef{{Name: "bash"}},
+		GenStep: 1,
+		Tools:   []provider.ToolDef{{Name: "bash"}},
 		Messages: []provider.Message{{Role: provider.RoleUser,
 			Parts: []provider.Part{{Kind: provider.PartText, Text: "run ls for me please"}}}},
 	}
@@ -71,7 +71,7 @@ func TestRecordedExpectCatchesDrift(t *testing.T) {
 	}})
 	rec := New(source)
 	req := provider.CompleteRequest{
-		Turn: 1,
+		GenStep: 1,
 		Messages: []provider.Message{{Role: provider.RoleUser,
 			Parts: []provider.Part{{Kind: provider.PartText, Text: "original prompt"}}}},
 	}

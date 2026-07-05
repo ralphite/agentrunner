@@ -66,7 +66,7 @@ func (p *Provider) Complete(ctx context.Context, req provider.CompleteRequest) i
 			return
 		}
 
-		st := newStreamState(req.Turn)
+		st := newStreamState(req.GenStep)
 		for resp, err := range p.client.Models.GenerateContentStream(ctx, req.Model, contents, config) {
 			if err != nil {
 				yield(provider.StreamEvent{}, classify(err))

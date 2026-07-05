@@ -64,16 +64,16 @@ func TestStreamingDeltasAndProtocol(t *testing.T) {
 	}
 
 	kinds := strings.Join(sink.kinds(), ",")
-	for _, want := range []string{"run_start", "turn_start", "text_delta", "tool_call", "tool_result", "message", "run_end"} {
+	for _, want := range []string{"session_start", "generation_start", "text_delta", "tool_call", "tool_result", "message", "run_end"} {
 		if !strings.Contains(kinds, want) {
 			t.Errorf("protocol stream missing %q: %s", want, kinds)
 		}
 	}
 
-	// Turn 1 streamed two deltas ("let me ", "read that") before its message.
+	// GenStep 1 streamed two deltas ("let me ", "read that") before its message.
 	var t1deltas []string
 	for _, e := range sink.events {
-		if e.Kind == protocol.KindTextDelta && e.Turn == 1 {
+		if e.Kind == protocol.KindTextDelta && e.N == 1 {
 			t1deltas = append(t1deltas, e.Text)
 		}
 	}
@@ -83,7 +83,7 @@ func TestStreamingDeltasAndProtocol(t *testing.T) {
 }
 
 // retryStreamProvider streams a delta then errs on attempt 1 (retryable),
-// and succeeds on attempt 2 — exercising the TurnDiscarded seam.
+// and succeeds on attempt 2 — exercising the GenerationDiscarded seam.
 type retryStreamProvider struct{ attempt int }
 
 func (p *retryStreamProvider) Capabilities() provider.Capabilities { return provider.Capabilities{} }
@@ -100,9 +100,9 @@ func (p *retryStreamProvider) Complete(_ context.Context, _ provider.CompleteReq
 	}
 }
 
-// S4.1: an LLM retry after deltas already streamed emits a TurnDiscarded
+// S4.1: an LLM retry after deltas already streamed emits a GenerationDiscarded
 // event (durable) and a discard protocol event (surface reopen signal).
-func TestTurnDiscardedOnPartialStreamRetry(t *testing.T) {
+func TestGenerationDiscardedOnPartialStreamRetry(t *testing.T) {
 	root := t.TempDir()
 	l := testLoop(t, scripted.Fixture{}, root)
 	l.Provider = &retryStreamProvider{}
@@ -124,19 +124,19 @@ func TestTurnDiscardedOnPartialStreamRetry(t *testing.T) {
 		t.Fatalf("expected partial→discard→final, got %s", kinds)
 	}
 
-	// TurnDiscarded is durable in the log.
+	// GenerationDiscarded is durable in the log.
 	events, err := store.ReadEvents(l.Store.Dir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	var sawDiscard bool
 	for _, e := range events {
-		if e.Type == event.TypeTurnDiscarded {
+		if e.Type == event.TypeGenerationDiscarded {
 			sawDiscard = true
 		}
 	}
 	if !sawDiscard {
-		t.Fatal("turn_discarded not journaled")
+		t.Fatal("generation_discarded not journaled")
 	}
 	// The final assembled message is the clean one (no "partial...").
 	final, _ := state.Fold(events)

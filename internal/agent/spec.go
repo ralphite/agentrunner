@@ -14,8 +14,8 @@ import (
 	"github.com/ralphite/agentrunner/internal/tool"
 )
 
-// DefaultMaxTurns applies when a spec omits max_turns (S1 defaults pack).
-const DefaultMaxTurns = 40
+// DefaultMaxGenerationSteps applies when a spec omits max_generation_steps (S1 defaults pack).
+const DefaultMaxGenerationSteps = 40
 
 // DefaultMaxTokens applies when a spec omits model.max_tokens.
 const DefaultMaxTokens = 8192
@@ -45,12 +45,12 @@ type ThinkingSpec struct {
 // After LoadSpec returns, SystemPrompt always holds the final prompt text —
 // system_prompt_file is resolved at load time.
 type AgentSpec struct {
-	Name             string    `yaml:"name"`
-	Model            ModelSpec `yaml:"model"`
-	SystemPrompt     string    `yaml:"system_prompt"`
-	SystemPromptFile string    `yaml:"system_prompt_file"`
-	Tools            []string  `yaml:"tools"`
-	MaxTurns         int       `yaml:"max_turns"`
+	Name               string    `yaml:"name"`
+	Model              ModelSpec `yaml:"model"`
+	SystemPrompt       string    `yaml:"system_prompt"`
+	SystemPromptFile   string    `yaml:"system_prompt_file"`
+	Tools              []string  `yaml:"tools"`
+	MaxGenerationSteps int       `yaml:"max_generation_steps"`
 	// Permissions is the spec-level rule source (3.4): lowest precedence
 	// in the user > project > spec merge.
 	Permissions []pipeline.PermissionRule `yaml:"permissions,omitempty"`
@@ -137,8 +137,8 @@ func LoadSpec(path string) (*AgentSpec, error) {
 		spec.SystemPromptFile = ""
 	}
 
-	if spec.MaxTurns == 0 {
-		spec.MaxTurns = DefaultMaxTurns
+	if spec.MaxGenerationSteps == 0 {
+		spec.MaxGenerationSteps = DefaultMaxGenerationSteps
 	}
 	if spec.Model.MaxTokens == 0 {
 		spec.Model.MaxTokens = DefaultMaxTokens
@@ -191,8 +191,8 @@ func (s *AgentSpec) validate(path string) error {
 		return fail("mode", "bypass cannot be set from a spec; use --mode bypass on the command line")
 	}
 
-	if s.MaxTurns < 0 {
-		return fail("max_turns", "must be positive")
+	if s.MaxGenerationSteps < 0 {
+		return fail("max_generation_steps", "must be positive")
 	}
 	switch s.OnRunEnd {
 	case "", "cancel", "await":

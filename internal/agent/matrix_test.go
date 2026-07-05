@@ -33,13 +33,13 @@ import (
 //
 // Canonical run event order (activity exec points in brackets):
 //
-//	run_started, input_received, turn_started(1) + snapshot,
+//	session_started, input_received, generation_started(1) + snapshot,
 //	activity_started(llm-t1) [exec hit 1] activity_completed, assistant_message(1),
 //	activity_started(read) [exec hit 2] activity_completed,
-//	turn_started(2) + snapshot,
+//	generation_started(2) + snapshot,
 //	activity_started(llm-t2) [exec hit 3] activity_completed, assistant_message(2),
 //	activity_started(edit) [exec hit 4] activity_completed,
-//	turn_started(3) + snapshot,
+//	generation_started(3) + snapshot,
 //	activity_started(llm-t3) [exec hit 5] activity_completed, assistant_message(3),
 //	run_ended
 func TestCrashMatrix(t *testing.T) {
@@ -54,7 +54,7 @@ func TestCrashMatrix(t *testing.T) {
 		resumeFixture string // full | fromT2 | none
 		wantInDoubt   bool
 	}{
-		{"run-started-only", "after:run_started:1", "full", false},
+		{"run-started-only", "after:session_started:1", "full", false},
 		{"input-journaled", "after:input_received:1", "full", false},
 		{"input-point", "point:" + crash.PointAfterJournalInput, "full", false},
 		{"llm-executed-unjournaled", "point:" + crash.PointAfterExecBeforeJournal + ":1", "full", false},
@@ -63,7 +63,7 @@ func TestCrashMatrix(t *testing.T) {
 		{"read-executed-unjournaled", "point:" + crash.PointAfterExecBeforeJournal + ":2", "fromT2", false},
 		{"read-result-journaled", "after:activity_completed:2", "fromT2", false},
 		{"edit-executed-unjournaled", "point:" + crash.PointAfterExecBeforeJournal + ":4", "none", true},
-		{"turn2-boundary", "after:turn_started:2", "fromT2", false},
+		{"turn2-boundary", "after:generation_started:2", "fromT2", false},
 		{"snapshot-written", "point:" + crash.PointAfterSnapshotWrite + ":2", "fromT2", false},
 		{"before-run-end", "point:" + crash.PointBeforeRunEnd, "none", false},
 	}
@@ -122,7 +122,7 @@ func TestCrashMatrix(t *testing.T) {
 			if err != nil {
 				t.Fatalf("resume: %v", err)
 			}
-			if res.Reason != "completed" || res.Turns != 3 {
+			if res.Reason != "completed" || res.GenSteps != 3 {
 				t.Fatalf("res = %+v", res)
 			}
 			if err := prov.Done(); err != nil {
@@ -151,8 +151,8 @@ func TestCrashMatrix(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if final.Run.Status != state.StatusEnded || len(final.Activities) != 0 {
-				t.Errorf("final fold: status=%s in-flight=%v", final.Run.Status, final.Activities)
+			if final.Session.Status != state.StatusEnded || len(final.Activities) != 0 {
+				t.Errorf("final fold: status=%s in-flight=%v", final.Session.Status, final.Activities)
 			}
 		})
 	}
@@ -160,11 +160,11 @@ func TestCrashMatrix(t *testing.T) {
 
 func matrixSpec() *AgentSpec {
 	return &AgentSpec{
-		Name:         "matrix",
-		Model:        ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
-		SystemPrompt: "be precise",
-		Tools:        []string{"read_file", "edit_file"},
-		MaxTurns:     5,
+		Name:               "matrix",
+		Model:              ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
+		SystemPrompt:       "be precise",
+		Tools:              []string{"read_file", "edit_file"},
+		MaxGenerationSteps: 5,
 	}
 }
 

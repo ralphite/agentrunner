@@ -61,7 +61,7 @@ func (l *Loop) compactContext(ctx context.Context, ds *driveState, appendE Appen
 		MaxTokens: l.Spec.Model.MaxTokens,
 		System:    compactionSystemPrompt,
 		Messages:  assembleMessages(ds.s),
-		Turn:      turn,
+		GenStep:   turn,
 	}
 	var summary string
 	err := exec.Do(ctx, Activity{
@@ -82,16 +82,16 @@ func (l *Loop) compactContext(ctx context.Context, ds *driveState, appendE Appen
 	}
 
 	// DroppedTurns is informational: turns wholly behind the new boundary.
-	dropped := turn - 1 - ds.s.Compaction.UptoTurn
+	dropped := turn - 1 - ds.s.Compaction.UptoGenStep
 	if dropped < 0 {
 		dropped = 0
 	}
 	if _, err := appendE(event.TypeContextCompacted, &event.ContextCompacted{
-		UptoTurn: turn - 1, Summary: summary, DroppedTurns: dropped,
+		UptoGenStep: turn - 1, Summary: summary, DroppedTurns: dropped,
 	}); err != nil {
 		return err
 	}
-	l.emit(protocol.Event{Kind: protocol.KindDiscard, Turn: turn,
+	l.emit(protocol.Event{Kind: protocol.KindDiscard, N: turn,
 		Text: "context compacted"})
 	return nil
 }

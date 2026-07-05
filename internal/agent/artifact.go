@@ -35,8 +35,8 @@ func (l *Loop) ensureArtifacts() error {
 // side effect, so resume sees whether it happened (fold Run.Materialized)
 // and can safely re-run it when it did not (same refs → same bytes).
 func (l *Loop) materializeInputs(ctx context.Context, ds *driveState, appendE AppendFunc) error {
-	inputs := ds.s.Run.Inputs
-	if len(inputs) == 0 || ds.s.Run.Materialized {
+	inputs := ds.s.Session.Inputs
+	if len(inputs) == 0 || ds.s.Session.Materialized {
 		return nil
 	}
 	if l.Artifacts == nil || l.Exec == nil || l.Exec.WS == nil {

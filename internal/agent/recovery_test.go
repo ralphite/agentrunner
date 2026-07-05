@@ -54,16 +54,16 @@ func TestConversationalCrashRendersInDoubtAndContinues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	asst := event.AssistantMessage{Turn: 1,
+	asst := event.AssistantMessage{GenStep: 1,
 		Message: providerAssistantToolCall("call_1_0", "bash", `{"command":"sleep 30"}`)}
 	appendSynthetic(t, es, []struct {
 		typ     string
 		payload any
 	}{
-		{event.TypeRunStarted, &event.RunStarted{SpecName: "t", Conversational: true,
+		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "t", Conversational: true,
 			SubStateVersions: state.SubStateVersions()}},
 		{event.TypeInputReceived, &event.InputReceived{Text: "跑个慢命令", Source: "user"}},
-		{event.TypeTurnStarted, &event.TurnStarted{Turn: 1}},
+		{event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}},
 		{event.TypeAssistantMessage, &asst},
 		{event.TypeActivityStarted, &event.ActivityStarted{ActivityID: "tool-call_1_0",
 			Kind: event.KindTool, Name: "bash", CallID: "call_1_0", Attempt: 1}},
@@ -121,16 +121,16 @@ func TestConversationalCrashRendersInDoubtAndContinues(t *testing.T) {
 // in flight (SpawnRequested + ActivityStarted{Background}, no terminal).
 func crashParentPrefix(t *testing.T, es *store.EventStore, callID string) {
 	t.Helper()
-	asst := event.AssistantMessage{Turn: 1, Message: providerAssistantToolCall(
+	asst := event.AssistantMessage{GenStep: 1, Message: providerAssistantToolCall(
 		callID, "spawn_agent", `{"agent":"worker","task":"investigate","background":true}`)}
 	appendSynthetic(t, es, []struct {
 		typ     string
 		payload any
 	}{
-		{event.TypeRunStarted, &event.RunStarted{SpecName: "lead", Conversational: true,
+		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "lead", Conversational: true,
 			SubStateVersions: state.SubStateVersions()}},
 		{event.TypeInputReceived, &event.InputReceived{Text: "去调查", Source: "user"}},
-		{event.TypeTurnStarted, &event.TurnStarted{Turn: 1}},
+		{event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}},
 		{event.TypeAssistantMessage, &asst},
 		{event.TypeSpawnRequested, &event.SpawnRequested{CallID: callID, Agent: "worker",
 			Task: "investigate", ChildSession: "p-sub-" + callID + "-a1", Depth: 1}},
@@ -205,7 +205,7 @@ func TestCrashSettleSpawnFromChildFold(t *testing.T) {
 	}
 	child := &Loop{
 		Spec: &AgentSpec{Name: "worker", Model: ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
-			SystemPrompt: "w", Tools: []string{"read_file"}, MaxTurns: 3},
+			SystemPrompt: "w", Tools: []string{"read_file"}, MaxGenerationSteps: 3},
 		Provider: scripted.New(scripted.Fixture{Steps: []scripted.Step{
 			{Respond: []scripted.Event{{Text: "ALPHA finding: all clear"}, {Finish: "end_turn"}}},
 		}}),
@@ -262,7 +262,7 @@ func TestCrashSettleSpawnChildDiedToo(t *testing.T) {
 		typ     string
 		payload any
 	}{
-		{event.TypeRunStarted, &event.RunStarted{SpecName: "worker",
+		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "worker",
 			SubStateVersions: state.SubStateVersions()}},
 		{event.TypeInputReceived, &event.InputReceived{Text: "investigate", Source: "cli"}},
 	})
@@ -291,10 +291,10 @@ func TestCrashSettleSpawnChildDiedToo(t *testing.T) {
 	}
 }
 
-// v2 收口 review: a park that lost its WaitingResolved to a crash (input
+// v2 收口 review: a idle that lost its WaitingResolved to a crash (input
 // durable, resolution not) must NOT re-block on resume — the pending input
-// resolves the stale park and gets its turn immediately.
-func TestResumedParkSeesPendingInput(t *testing.T) {
+// resolves the stale idle and gets its turn immediately.
+func TestResumedIdleSeesPendingInput(t *testing.T) {
 	base := t.TempDir()
 	sessDir := filepath.Join(base, "sess")
 	root := filepath.Join(base, "ws")
@@ -305,16 +305,16 @@ func TestResumedParkSeesPendingInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	asst := event.AssistantMessage{Turn: 1, Message: provider.Message{Role: provider.RoleAssistant,
+	asst := event.AssistantMessage{GenStep: 1, Message: provider.Message{Role: provider.RoleAssistant,
 		Parts: []provider.Part{{Kind: provider.PartText, Text: "答一"}}}}
 	appendSynthetic(t, es, []struct {
 		typ     string
 		payload any
 	}{
-		{event.TypeRunStarted, &event.RunStarted{SpecName: "t", Conversational: true,
+		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "t", Conversational: true,
 			SubStateVersions: state.SubStateVersions()}},
 		{event.TypeInputReceived, &event.InputReceived{Text: "问一", Source: "user"}},
-		{event.TypeTurnStarted, &event.TurnStarted{Turn: 1}},
+		{event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}},
 		{event.TypeAssistantMessage, &asst},
 		{event.TypeWaitingEntered, &event.WaitingEntered{Kind: event.WaitInput}},
 		// The input landed durably; the crash hit before WaitingResolved.
@@ -360,10 +360,10 @@ func TestResumedParkSeesPendingInput(t *testing.T) {
 		}
 	}
 	if !answered {
-		t.Error("pending input never answered — resumed park blocked over it")
+		t.Error("pending input never answered — resumed idle blocked over it")
 	}
 	if !resolvedPending {
-		t.Error("stale park not resolved as pending_input")
+		t.Error("stale idle not resolved as pending_input")
 	}
 }
 
@@ -380,16 +380,16 @@ func TestMailboxReplayOnResume(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	asst := event.AssistantMessage{Turn: 1, Message: provider.Message{Role: provider.RoleAssistant,
+	asst := event.AssistantMessage{GenStep: 1, Message: provider.Message{Role: provider.RoleAssistant,
 		Parts: []provider.Part{{Kind: provider.PartText, Text: "答一"}}}}
 	appendSynthetic(t, es, []struct {
 		typ     string
 		payload any
 	}{
-		{event.TypeRunStarted, &event.RunStarted{SpecName: "t", Conversational: true,
+		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "t", Conversational: true,
 			SubStateVersions: state.SubStateVersions()}},
 		{event.TypeInputReceived, &event.InputReceived{Text: "问一", Source: "user", DeliverySeq: 1}},
-		{event.TypeTurnStarted, &event.TurnStarted{Turn: 1}},
+		{event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}},
 		{event.TypeAssistantMessage, &asst},
 		{event.TypeWaitingEntered, &event.WaitingEntered{Kind: event.WaitInput}},
 	})
@@ -480,10 +480,10 @@ func TestCrashSettleSpawnMalformedCallID(t *testing.T) {
 		typ     string
 		payload any
 	}{
-		{event.TypeRunStarted, &event.RunStarted{SpecName: "decoy",
+		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "decoy",
 			SubStateVersions: state.SubStateVersions()}},
 		{event.TypeInputReceived, &event.InputReceived{Text: "secret", Source: "cli"}},
-		{event.TypeRunEnded, &event.RunEnded{Reason: "completed", Turns: 1}},
+		{event.TypeRunEnded, &event.RunEnded{Reason: "completed", GenSteps: 1}},
 	})
 	_ = decoy.Close()
 

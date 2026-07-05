@@ -57,7 +57,7 @@ func TestApprovalApprovePath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Reason != "completed" || res.Turns != 2 {
+	if res.Reason != "completed" || res.GenSteps != 2 {
 		t.Fatalf("res = %+v", res)
 	}
 	if got, _ := os.ReadFile(filepath.Join(root, "note.txt")); string(got) != "hello" {
@@ -104,7 +104,7 @@ func (a slowApprover) Resolve(ctx context.Context, _ ApprovalRequest) (ApprovalD
 	return ApprovalDecision{Approve: true, Reason: "finally reviewed", Source: "tty"}, nil
 }
 
-// The PLAN scenario: an approval parked for two days (FakeClock) resumes
+// The PLAN scenario: an approval idle for two days (FakeClock) resumes
 // in place and the run completes.
 func TestApprovalHangsTwoDaysThenApproved(t *testing.T) {
 	root := t.TempDir()
@@ -138,7 +138,7 @@ func TestApprovalHangsTwoDaysThenApproved(t *testing.T) {
 
 // blockingApprover never answers — the interrupt must win. ready (if set)
 // is signaled once the resolver is consulted, so a test can send the
-// interrupt precisely when the run is parked at the approval.
+// interrupt precisely when the run is idle at the approval.
 type blockingApprover struct{ ready chan struct{} }
 
 func (b blockingApprover) Resolve(ctx context.Context, _ ApprovalRequest) (ApprovalDecision, error) {
@@ -181,12 +181,12 @@ func TestApprovalDeniedByInterrupt(t *testing.T) {
 		res, err = l.Run(context.Background(), "write a note")
 		done <- err
 	}()
-	<-ready                  // wait until parked at the approval
+	<-ready                  // wait until idle at the approval
 	interrupts <- struct{}{} // user hits Ctrl-C while the approval is pending
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
-	if res.Reason != "completed" || res.Turns != 2 {
+	if res.Reason != "completed" || res.GenSteps != 2 {
 		t.Fatalf("res = %+v (interrupt must not end the run)", res)
 	}
 	if _, err := os.Stat(filepath.Join(root, "note.txt")); !os.IsNotExist(err) {
@@ -211,7 +211,7 @@ func TestApprovalDeniedByInterrupt(t *testing.T) {
 	}
 }
 
-// The S2 exit gate's owed scenario: killed while parked in
+// The S2 exit gate's owed scenario: killed while idle in
 // WAITING_APPROVAL, resumed, approved, and the run continues in place.
 func TestApprovalSurvivesCrashThenApproved(t *testing.T) {
 	if os.Getenv("GO_CRASH_HELPER") == "1" {
@@ -231,7 +231,7 @@ func TestApprovalSurvivesCrashThenApproved(t *testing.T) {
 		"GO_CRASH_HELPER=1",
 		"CRASH_SESS_DIR="+sessDir,
 		"CRASH_WS="+root,
-		crash.EnvVar+"=after:waiting_entered:1", // die parked
+		crash.EnvVar+"=after:waiting_entered:1", // die idle
 	)
 	out, err := cmd.CombinedOutput()
 	var ee *exec.ExitError
@@ -239,7 +239,7 @@ func TestApprovalSurvivesCrashThenApproved(t *testing.T) {
 		t.Fatalf("subprocess: err = %v, out = %s", err, out)
 	}
 
-	// Resume: the parked approval is re-prompted; approve and finish.
+	// Resume: the idle approval is re-prompted; approve and finish.
 	t.Setenv("AGENTRUNNER_APPROVE", "always")
 	es, err := store.OpenEventStore(sessDir)
 	if err != nil {
@@ -262,7 +262,7 @@ func TestApprovalSurvivesCrashThenApproved(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Reason != "completed" || res.Turns != 2 {
+	if res.Reason != "completed" || res.GenSteps != 2 {
 		t.Fatalf("res = %+v", res)
 	}
 	if got, _ := os.ReadFile(filepath.Join(root, "note.txt")); string(got) != "hello" {
@@ -272,11 +272,11 @@ func TestApprovalSurvivesCrashThenApproved(t *testing.T) {
 
 func approvalSpec() *AgentSpec {
 	return &AgentSpec{
-		Name:         "asker",
-		Model:        ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
-		SystemPrompt: "s",
-		Tools:        []string{"edit_file"},
-		MaxTurns:     5,
+		Name:               "asker",
+		Model:              ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
+		SystemPrompt:       "s",
+		Tools:              []string{"edit_file"},
+		MaxGenerationSteps: 5,
 	}
 }
 
@@ -352,10 +352,10 @@ func stateWithPendingApproval(t *testing.T, m *memAppend) *driveState {
 	return ds
 }
 
-// Correctness-review #1 regression: an approval parked when the pipeline
+// Correctness-review #1 regression: an approval idle when the pipeline
 // has a REAL side-effecting hook gate must still auto-resume after a crash.
 // (The prior test used a hook-less pipeline and hid this.) The pre-hook
-// already ran before the permission gate's Ask, so the parked effect is
+// already ran before the permission gate's Ask, so the idle effect is
 // NOT in-doubt.
 func TestApprovalWithHooksSurvivesCrash(t *testing.T) {
 	if os.Getenv("GO_CRASH_HELPER") == "1" {
@@ -384,9 +384,9 @@ func TestApprovalWithHooksSurvivesCrash(t *testing.T) {
 	defer func() { _ = l.Store.Close() }()
 	res, err := l.Resume(context.Background())
 	if err != nil {
-		t.Fatalf("parked approval with hooks must auto-resume, got: %v", err)
+		t.Fatalf("idle approval with hooks must auto-resume, got: %v", err)
 	}
-	if res.Reason != "completed" || res.Turns != 2 {
+	if res.Reason != "completed" || res.GenSteps != 2 {
 		t.Fatalf("res = %+v", res)
 	}
 	if got, _ := os.ReadFile(filepath.Join(root, "note.txt")); string(got) != "hello" {

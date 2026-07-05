@@ -212,7 +212,7 @@ func dialUntilStart(sock string, cmd daemon.Command) (string, error) {
 		if e.Kind == protocol.KindError {
 			return "", fmt.Errorf("%s", e.Text)
 		}
-		if e.Kind == protocol.KindRunStart && e.Session != "" {
+		if e.Kind == protocol.KindSessionStart && e.Session != "" {
 			return e.Session, nil // detach: defer closes the conn
 		}
 	}

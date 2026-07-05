@@ -124,7 +124,7 @@ func TestEmptyCandidateEndsCleanly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Reason != "completed" || res.Turns != 1 {
+	if res.Reason != "completed" || res.GenSteps != 1 {
 		t.Fatalf("res = %+v, want a clean single-turn completion", res)
 	}
 }

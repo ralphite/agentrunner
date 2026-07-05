@@ -12,9 +12,9 @@ type ApprovalAnswer struct {
 	Reason  string
 }
 
-// ApprovalBroker parks daemon-hosted asks until an `approve` command answers
+// ApprovalBroker goes idle daemon-hosted asks until an `approve` command answers
 // them (S6 模块④, S5 回访: 审批沿 correlation 跨进程路由 — a child's ask
-// shares the ROOT session's resolver, so it parks here keyed by the hosted
+// shares the ROOT session's resolver, so it goes idle here keyed by the hosted
 // session and surfaces on the attach stream; the answering client addresses
 // it by (session, approval_id)).
 type ApprovalBroker struct {
@@ -28,7 +28,7 @@ func NewApprovalBroker() *ApprovalBroker {
 
 func key(session, approvalID string) string { return session + "/" + approvalID }
 
-// Register parks a NEW ask and returns the id the answer must address —
+// Register goes idle a NEW ask and returns the id the answer must address —
 // unique even when deterministic call ids collide across concurrently-asking
 // siblings (S6 review: two children asking at turn 1/index 0 share
 // apr-eff-tool-call_1_0): a taken id gets a #<n> suffix, and the CALLER must
@@ -70,7 +70,7 @@ func (b *ApprovalBroker) Ask(ctx context.Context, session, approvalID string) (A
 	return b.Wait(ctx, session, id, ch)
 }
 
-// Answer resolves a parked ask; false when nothing is waiting under that key
+// Answer resolves a idle ask; false when nothing is waiting under that key
 // (wrong id, or the ask already resolved).
 func (b *ApprovalBroker) Answer(session, approvalID string, a ApprovalAnswer) bool {
 	b.mu.Lock()

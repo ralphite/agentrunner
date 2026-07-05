@@ -197,12 +197,12 @@ func (d *Driver) prepare(st *State) (appendFunc, error) {
 		// the failure and cancel paths.
 		switch p := payload.(type) {
 		case *event.IterationCompleted:
-			d.emit(protocol.Event{Kind: protocol.KindIteration, Turn: p.Iter,
+			d.emit(protocol.Event{Kind: protocol.KindIteration, N: p.Iter,
 				Reason: p.ChildReason,
 				Text: fmt.Sprintf("iteration %d %s (pass=%v score=%g)",
 					p.Iter, p.ChildReason, p.Verdict.Pass, p.Verdict.Score)})
 		case *event.DriverCompleted:
-			d.emit(protocol.Event{Kind: protocol.KindRunEnd, Turn: p.Iterations, Reason: p.Reason})
+			d.emit(protocol.Event{Kind: protocol.KindRunEnd, N: p.Iterations, Reason: p.Reason})
 		}
 		return appended, nil
 	}
@@ -219,7 +219,7 @@ func (d *Driver) Run(ctx context.Context) (Result, error) {
 	}
 	// The stream header (S7 还债): spec + fold version guard every resume,
 	// and the spec provenance makes a future spec-less resume possible
-	// (mirrors RunStarted 2.17). Redacted like every persisted payload.
+	// (mirrors SessionStarted 2.17). Redacted like every persisted payload.
 	specJSON, _ := json.Marshal(d.Spec)
 	wsRoot := ""
 	if d.Exec != nil && d.Exec.WS != nil {
@@ -900,10 +900,10 @@ func settledChild(childDir string) (bool, agent.RunResult) {
 		return false, agent.RunResult{}
 	}
 	s, err := state.Fold(events)
-	if err != nil || s.Run.Status != state.StatusEnded {
+	if err != nil || s.Session.Status != state.StatusEnded {
 		return false, agent.RunResult{}
 	}
-	return true, agent.RunResult{Reason: s.Run.Reason, Turns: s.Run.Turn, Usage: s.Run.Usage}
+	return true, agent.RunResult{Reason: s.Session.Reason, GenSteps: s.Session.GenStep, Usage: s.Session.Usage}
 }
 
 // seriesMemoryMaxBytes caps the injected series memory: the authority
@@ -1318,7 +1318,7 @@ func childSpent(childDir string) provider.Usage {
 	if err != nil {
 		return provider.Usage{}
 	}
-	return s.Run.Usage
+	return s.Session.Usage
 }
 
 // childReport extracts the child's final assistant text from its journal —

@@ -44,11 +44,11 @@ func parallelHarness(t *testing.T, spec *driver.DriverSpec, fix scripted.Fixture
 	t.Cleanup(func() { _ = dStore.Close() })
 
 	childSpec := &agent.AgentSpec{
-		Name:         "worker",
-		Model:        agent.ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
-		SystemPrompt: "answer",
-		Tools:        []string{"bash"},
-		MaxTurns:     5,
+		Name:               "worker",
+		Model:              agent.ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
+		SystemPrompt:       "answer",
+		Tools:              []string{"bash"},
+		MaxGenerationSteps: 5,
 	}
 	spec.Agent = childSpec
 	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
@@ -257,7 +257,7 @@ func TestDriverParallelWorktreeLostFailsAttempt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	env, _ := event.New(event.TypeRunStarted, &event.RunStarted{SpecName: "worker"})
+	env, _ := event.New(event.TypeSessionStarted, &event.SessionStarted{SpecName: "worker"})
 	if _, err := childStore.Append(env); err != nil {
 		t.Fatal(err)
 	}

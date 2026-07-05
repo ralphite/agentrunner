@@ -46,7 +46,7 @@ func socketPath() (string, error) {
 }
 
 // daemonCmd runs the resident runtime (S6 模块④): `agentrunner daemon`.
-// Hosted runs' asks park on the approval broker and resolve over the socket
+// Hosted runs' asks idle on the approval broker and resolve over the socket
 // (`agentrunner approve`); a run cancelled before its ask is answered
 // resolves denied through the loop's normal ctx path.
 func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
@@ -162,7 +162,7 @@ func toNotification(e protocol.Event) notify.Notification {
 	switch e.Kind {
 	case protocol.KindIteration:
 		return notify.Notification{
-			Key:  fmt.Sprintf("iteration/%s/%d", e.Session, e.Turn),
+			Key:  fmt.Sprintf("iteration/%s/%d", e.Session, e.N),
 			Kind: "iteration", Session: e.Session,
 			Text: fmt.Sprintf("%s: %s", e.Session, e.Text),
 		}
@@ -182,7 +182,7 @@ func toNotification(e protocol.Event) notify.Notification {
 	}
 }
 
-// reconcileNotifications is the startup sweep (启动对账): sessions parked on
+// reconcileNotifications is the startup sweep (启动对账): sessions idle on
 // an approval get their notification (re)sent unless the journaled sent set
 // already has it — a daemon that died between the ask and the notify never
 // loses the moment. Ended-run reconciliation is deliberately NOT done: on
@@ -217,7 +217,7 @@ func reconcileNotifications(notifier *notify.Notifier) {
 		notifier.Notify(notify.Notification{
 			Key:  "approval/" + e.Name() + "/" + req.ApprovalID,
 			Kind: "approval", Session: e.Name(),
-			Text: fmt.Sprintf("approval waiting on %s (parked; resume or approve %s %s)",
+			Text: fmt.Sprintf("approval waiting on %s (idle; resume or approve %s %s)",
 				e.Name(), e.Name(), req.ApprovalID),
 		})
 	}
@@ -225,7 +225,7 @@ func reconcileNotifications(notifier *notify.Notifier) {
 
 // socketApprovals adapts the daemon's ApprovalBroker to the agent's
 // resolver seam. It EMITS the ask onto the hosted run's event stream before
-// parking — child loops are silent (no Out sink) but share this resolver,
+// going idle — child loops are silent (no Out sink) but share this resolver,
 // so a child's ask surfaces on the attach stream too (上卷). req.Agent says
 // WHO is asking.
 type socketApprovals struct {
@@ -252,7 +252,7 @@ func (s socketApprovals) Resolve(ctx context.Context, req agent.ApprovalRequest)
 }
 
 // hostRunFunc is the daemon's real run wiring — the same assembly as a
-// foreground `run` minus the tty concerns (no interrupts; asks park on the
+// foreground `run` minus the tty concerns (no interrupts; asks idle on the
 // approval broker and resolve over the socket).
 func hostRunFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker) daemon.RunFunc {
 	return func(ctx context.Context, req daemon.RunRequest, sink protocol.Sink) error {
@@ -338,13 +338,13 @@ func persistInputFunc() func(string, protocol.UserInput) (protocol.UserInput, er
 }
 
 // sessionShape reports a session's journaled shape for honest revival
-// (v2 收口): conversational comes from RunStarted, ended from the fold.
+// (v2 收口): conversational comes from SessionStarted, ended from the fold.
 func sessionShape(sessionID string) (conversational, ended bool, err error) {
 	dir, err := resolveSessionDir(sessionID)
 	if err != nil {
 		return false, false, err
 	}
-	started, err := readRunStarted(dir)
+	started, err := readSessionStarted(dir)
 	if err != nil {
 		return false, false, err
 	}
@@ -356,7 +356,7 @@ func sessionShape(sessionID string) (conversational, ended bool, err error) {
 	if err != nil {
 		return false, false, err
 	}
-	return started.Conversational, s.Run.Status == state.StatusEnded, nil
+	return started.Conversational, s.Session.Status == state.StatusEnded, nil
 }
 
 // scanSessionTimers derives the pending-timer index from the session
@@ -386,7 +386,7 @@ func scanSessionTimers() ([]daemon.SessionTimer, error) {
 			continue
 		}
 		s, err := state.Fold(events)
-		if err != nil || s.Run.Status == state.StatusEnded || len(s.Timers) == 0 {
+		if err != nil || s.Session.Status == state.StatusEnded || len(s.Timers) == 0 {
 			continue
 		}
 		var earliest time.Time
@@ -402,7 +402,7 @@ func scanSessionTimers() ([]daemon.SessionTimer, error) {
 
 // hostResumeFunc is the daemon's timer-driven resume wiring — the same
 // assembly as a foreground `resume` minus the tty: spec and workspace come
-// from the journaled RunStarted, permissions from the journaled layers.
+// from the journaled SessionStarted, permissions from the journaled layers.
 func hostResumeFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker) func(context.Context, daemon.ResumeRequest, protocol.Sink) error {
 	return func(ctx context.Context, req daemon.ResumeRequest, sink protocol.Sink) error {
 		sessionID := req.SessionID
@@ -410,7 +410,7 @@ func hostResumeFunc(version string, stderr io.Writer, broker *daemon.ApprovalBro
 		if err != nil {
 			return err
 		}
-		started, err := readRunStarted(dir)
+		started, err := readSessionStarted(dir)
 		if err != nil {
 			return err
 		}
@@ -530,7 +530,7 @@ func attachCmd(args []string, stdout, stderr io.Writer) int {
 type childLifecycleFilter struct{ inner protocol.Sink }
 
 func (f childLifecycleFilter) Emit(e protocol.Event) {
-	if e.Kind == protocol.KindRunEnd || e.Kind == protocol.KindRunStart {
+	if e.Kind == protocol.KindRunEnd || e.Kind == protocol.KindSessionStart {
 		return
 	}
 	f.inner.Emit(e)
@@ -748,7 +748,7 @@ func submitCmd(args []string, stdout, stderr io.Writer) int {
 		cmd.Task = rest[1]
 	}
 	err = daemon.Dial(sock, cmd, func(e protocol.Event) {
-		if e.Kind == protocol.KindRunStart && e.Session != "" {
+		if e.Kind == protocol.KindSessionStart && e.Session != "" {
 			fmt.Fprintf(stderr, "session %s\n", e.Session)
 		}
 		if e.Kind == protocol.KindRunEnd {

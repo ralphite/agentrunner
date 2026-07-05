@@ -38,13 +38,13 @@ func timerHarness(t *testing.T, clk *clock.Fake, scan func() ([]SessionTimer, er
 			t.Error("server did not stop")
 		}
 	})
-	// The sweeper parks on the fake clock once it has swept.
+	// The sweeper goes idle on the fake clock once it has swept.
 	deadline := time.Now().Add(5 * time.Second)
 	for clk.Waiters() == 0 && time.Now().Before(deadline) {
 		time.Sleep(2 * time.Millisecond)
 	}
 	if clk.Waiters() == 0 {
-		t.Fatal("sweeper never parked on the clock")
+		t.Fatal("sweeper never idle on the clock")
 	}
 	return srv
 }
@@ -86,9 +86,9 @@ func TestTimerSweepResumesExpired(t *testing.T) {
 	waitFor(t, func() bool { mu.Lock(); defer mu.Unlock(); return resumed["future"] == 1 })
 
 	// Let more sweeps happen: still-hosted sessions are not double-resumed.
-	waitParkedD(t, clk)
+	waitIdleD(t, clk)
 	clk.Advance(2 * sweepMaxInterval)
-	waitParkedD(t, clk)
+	waitIdleD(t, clk)
 	mu.Lock()
 	if resumed["past"] != 1 || resumed["future"] != 1 {
 		t.Fatalf("double resume: %v", resumed)
@@ -117,10 +117,10 @@ func TestTimerSweepDoesNotRetryFailedResume(t *testing.T) {
 	waitFor(t, func() bool { mu.Lock(); defer mu.Unlock(); return attempts == 1 })
 	// Several more sweep rounds: no further attempts.
 	for i := 0; i < 3; i++ {
-		waitParkedD(t, clk)
+		waitIdleD(t, clk)
 		clk.Advance(sweepMaxInterval + time.Second)
 	}
-	waitParkedD(t, clk)
+	waitIdleD(t, clk)
 	mu.Lock()
 	if attempts != 1 {
 		t.Fatalf("failed resume retried: attempts = %d", attempts)
@@ -140,8 +140,8 @@ func waitFor(t *testing.T, cond func() bool) {
 	t.Fatal("condition never became true")
 }
 
-// waitParkedD waits until the sweeper is parked on the fake clock again.
-func waitParkedD(t *testing.T, clk *clock.Fake) {
+// waitIdleD waits until the sweeper is idle on the fake clock again.
+func waitIdleD(t *testing.T, clk *clock.Fake) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
@@ -150,5 +150,5 @@ func waitParkedD(t *testing.T, clk *clock.Fake) {
 		}
 		time.Sleep(2 * time.Millisecond)
 	}
-	t.Fatal("sweeper never re-parked")
+	t.Fatal("sweeper never re-idle")
 }

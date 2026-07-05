@@ -53,7 +53,7 @@ func TestLiveSmoke(t *testing.T) {
 			Role:  provider.RoleUser,
 			Parts: []provider.Part{{Kind: provider.PartText, Text: "Say the single word: pong"}},
 		}},
-		Turn: 1,
+		GenStep: 1,
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -91,7 +91,7 @@ func TestLiveToolAndThinkingRoundTrip(t *testing.T) {
 		Tools:     tools,
 		Messages: []provider.Message{{Role: provider.RoleUser,
 			Parts: []provider.Part{{Kind: provider.PartText, Text: "What's the weather in Paris? Use the tool."}}}},
-		Turn: 1,
+		GenStep: 1,
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -114,7 +114,7 @@ func TestLiveToolAndThinkingRoundTrip(t *testing.T) {
 			{Role: provider.RoleTool, Parts: []provider.Part{{Kind: provider.PartToolResult,
 				CallID: call.CallID, Result: []byte(`{"temp_c":18,"sky":"clear"}`)}}},
 		},
-		Turn: 2,
+		GenStep: 2,
 	}))
 	if err != nil {
 		t.Fatalf("thinking round-trip failed: %v", err)

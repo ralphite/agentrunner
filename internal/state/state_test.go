@@ -30,21 +30,21 @@ func runEvents(t *testing.T) []event.Envelope {
 			Args: json.RawMessage(`{"path":"a.go"}`)},
 	}}
 	events := []event.Envelope{
-		env(t, event.TypeRunStarted, &event.RunStarted{SpecName: "hello", Model: "m",
+		env(t, event.TypeSessionStarted, &event.SessionStarted{SpecName: "hello", Model: "m",
 			Task: "fix", Version: "dev", SubStateVersions: SubStateVersions()}),
 		env(t, event.TypeInputReceived, &event.InputReceived{Text: "fix", Source: "cli"}),
-		env(t, event.TypeTurnStarted, &event.TurnStarted{Turn: 1}),
+		env(t, event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}),
 		env(t, event.TypeActivityStarted, &event.ActivityStarted{
 			ActivityID: "llm-t1", Kind: event.KindLLM, Name: "complete", Attempt: 1}),
 		env(t, event.TypeActivityCompleted, &event.ActivityCompleted{
 			ActivityID: "llm-t1", Usage: usage}),
-		env(t, event.TypeAssistantMessage, &event.AssistantMessage{Turn: 1, Message: asst}),
+		env(t, event.TypeAssistantMessage, &event.AssistantMessage{GenStep: 1, Message: asst}),
 		env(t, event.TypeActivityStarted, &event.ActivityStarted{
 			ActivityID: "tool-call_1_0", Kind: event.KindTool, Name: "read_file",
 			CallID: "call_1_0", Attempt: 1}),
 		env(t, event.TypeActivityCompleted, &event.ActivityCompleted{
 			ActivityID: "tool-call_1_0", Result: json.RawMessage(`{"content":"pkg"}`)}),
-		env(t, event.TypeRunEnded, &event.RunEnded{Reason: "completed", Turns: 1,
+		env(t, event.TypeRunEnded, &event.RunEnded{Reason: "completed", GenSteps: 1,
 			Usage: *usage}),
 	}
 	for i := range events {
@@ -59,11 +59,11 @@ func TestFoldFullRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Run.Status != StatusEnded || s.Run.Reason != "completed" || s.Run.Turn != 1 {
-		t.Errorf("run = %+v", s.Run)
+	if s.Session.Status != StatusEnded || s.Session.Reason != "completed" || s.Session.GenStep != 1 {
+		t.Errorf("run = %+v", s.Session)
 	}
-	if s.Run.Usage.InputTokens != 10 || s.Run.Usage.OutputTokens != 5 {
-		t.Errorf("usage = %+v", s.Run.Usage)
+	if s.Session.Usage.InputTokens != 10 || s.Session.Usage.OutputTokens != 5 {
+		t.Errorf("usage = %+v", s.Session.Usage)
 	}
 	if len(s.Conversation.Messages) != 2 {
 		t.Fatalf("messages = %d, want user + assistant", len(s.Conversation.Messages))
@@ -180,15 +180,15 @@ func TestWaitingTransitions(t *testing.T) {
 	if s.Waiting == nil || s.Waiting.Kind != event.WaitApproval || s.Waiting.Since != 42 {
 		t.Fatalf("waiting = %+v", s.Waiting)
 	}
-	if s.Run.Status != StatusWaiting {
-		t.Errorf("status = %q", s.Run.Status)
+	if s.Session.Status != StatusWaiting {
+		t.Errorf("status = %q", s.Session.Status)
 	}
 	if s, err = Apply(s, env(t, event.TypeWaitingResolved,
 		&event.WaitingResolved{Kind: event.WaitApproval, Resolution: "approved"})); err != nil {
 		t.Fatal(err)
 	}
-	if s.Waiting != nil || s.Run.Status != StatusRunning {
-		t.Fatalf("after resolve: waiting=%+v status=%q", s.Waiting, s.Run.Status)
+	if s.Waiting != nil || s.Session.Status != StatusRunning {
+		t.Fatalf("after resolve: waiting=%+v status=%q", s.Waiting, s.Session.Status)
 	}
 }
 

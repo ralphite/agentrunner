@@ -24,10 +24,10 @@ func mkEnv(t *testing.T, typ string, payload any) event.Envelope {
 // and deciding gate, and totals token/cache usage from the fold.
 func TestBuildInspectReport(t *testing.T) {
 	events := []event.Envelope{
-		mkEnv(t, event.TypeRunStarted, &event.RunStarted{
+		mkEnv(t, event.TypeSessionStarted, &event.SessionStarted{
 			SpecName: "demo", Model: "gemini-x", SubStateVersions: state.SubStateVersions()}),
 		mkEnv(t, event.TypeInputReceived, &event.InputReceived{Text: "go", Source: "cli"}),
-		mkEnv(t, event.TypeTurnStarted, &event.TurnStarted{Turn: 1}),
+		mkEnv(t, event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}),
 		// LLM call resolved allow, with usage.
 		mkEnv(t, event.TypeEffectResolved, &event.EffectResolved{
 			EffectID: "eff-llm-t1", Verdict: event.VerdictAllow,
@@ -44,7 +44,7 @@ func TestBuildInspectReport(t *testing.T) {
 			ActivityID: "tool-c1", Kind: event.KindTool, Name: "read_file", CallID: "c1", Attempt: 1}),
 		mkEnv(t, event.TypeActivityCompleted, &event.ActivityCompleted{
 			ActivityID: "tool-c1", IsError: true}),
-		mkEnv(t, event.TypeRunEnded, &event.RunEnded{Reason: "completed", Turns: 1}),
+		mkEnv(t, event.TypeRunEnded, &event.RunEnded{Reason: "completed", GenSteps: 1}),
 	}
 	s, err := state.Fold(events)
 	if err != nil {
@@ -97,20 +97,20 @@ func TestBuildInspectTree(t *testing.T) {
 	// Parent journal: a spawn (SubagentCompleted names the child session)
 	// and an artifact.
 	write("", []event.Envelope{
-		mkEnv(t, event.TypeRunStarted, &event.RunStarted{SpecName: "lead",
+		mkEnv(t, event.TypeSessionStarted, &event.SessionStarted{SpecName: "lead",
 			SubStateVersions: state.SubStateVersions()}),
 		mkEnv(t, event.TypeArtifactPublished, &event.ArtifactPublished{
 			Stream: "report", Version: 1, Ref: "sha256-abc", Source: "tool"}),
 		mkEnv(t, event.TypeSubagentCompleted, &event.SubagentCompleted{
 			CallID: "s1", Agent: "researcher", ChildSession: "lead-sub-s1-a1",
-			Reason: "completed", Turns: 2}),
-		mkEnv(t, event.TypeRunEnded, &event.RunEnded{Reason: "completed", Turns: 3}),
+			Reason: "completed", GenSteps: 2}),
+		mkEnv(t, event.TypeRunEnded, &event.RunEnded{Reason: "completed", GenSteps: 3}),
 	})
 	// Child journal under sub/s1-a1.
 	write("s1-a1", []event.Envelope{
-		mkEnv(t, event.TypeRunStarted, &event.RunStarted{SpecName: "researcher",
+		mkEnv(t, event.TypeSessionStarted, &event.SessionStarted{SpecName: "researcher",
 			SubStateVersions: state.SubStateVersions()}),
-		mkEnv(t, event.TypeRunEnded, &event.RunEnded{Reason: "completed", Turns: 2}),
+		mkEnv(t, event.TypeRunEnded, &event.RunEnded{Reason: "completed", GenSteps: 2}),
 	})
 
 	report, err := buildInspectTree(dir)
@@ -143,17 +143,17 @@ func TestBuildInspectTree(t *testing.T) {
 // The human-readable render includes the timeline and usage line.
 func TestRenderInspect(t *testing.T) {
 	r := inspectReport{
-		Spec: "demo", Model: "m", Mode: "default", Status: "ended", Reason: "completed", Turns: 1,
+		Spec: "demo", Model: "m", Mode: "default", Status: "ended", Reason: "completed", GenSteps: 1,
 		Entries: []entryReport{
-			{Turn: 1, Kind: "llm", Name: "complete", Verdict: "allow", InputTokens: 10, OutputTokens: 5},
-			{Turn: 1, Kind: "tool", Name: "bash", CallID: "c1", Verdict: "allow", Gate: "permission"},
+			{GenStep: 1, Kind: "llm", Name: "complete", Verdict: "allow", InputTokens: 10, OutputTokens: 5},
+			{GenStep: 1, Kind: "tool", Name: "bash", CallID: "c1", Verdict: "allow", Gate: "permission"},
 		},
 		Usage: usageReport{InputTokens: 10, OutputTokens: 5, Billed: 15},
 	}
 	var sb strings.Builder
 	renderInspect(&sb, r)
 	out := sb.String()
-	for _, want := range []string{"TIMELINE", "turn 1", "complete", "bash", "billed 15", "completed"} {
+	for _, want := range []string{"TIMELINE", "gen-step 1", "complete", "bash", "billed 15", "completed"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("render missing %q:\n%s", want, out)
 		}

@@ -97,7 +97,7 @@ func TestDaemonConversationalSendClose(t *testing.T) {
 	sendOK("third question")
 	waitAssistants(3)
 
-	// Close: the parked loop resolves into its epilogue.
+	// Close: the idle loop resolves into its epilogue.
 	var closing bool
 	if err := daemon.Dial(sock, daemon.Command{Cmd: "close", Session: sid},
 		func(e protocol.Event) { closing = e.Kind == protocol.KindMessage }); err != nil || !closing {

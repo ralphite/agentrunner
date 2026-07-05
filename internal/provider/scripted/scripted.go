@@ -119,7 +119,7 @@ func (p *Provider) Complete(_ context.Context, req provider.CompleteRequest) ite
 
 		callIndex := 0
 		for _, ev := range step.Respond {
-			out, err := ev.toStreamEvent(req.Turn, &callIndex)
+			out, err := ev.toStreamEvent(req.GenStep, &callIndex)
 			if err != nil {
 				yield(provider.StreamEvent{}, fmt.Errorf("scripted %s step %d: %w", p.source, stepNo, err))
 				return

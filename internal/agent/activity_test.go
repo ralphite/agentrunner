@@ -96,7 +96,7 @@ func TestActivityRetryOnRetryable(t *testing.T) {
 			},
 		})
 	}()
-	for fake.Waiters() == 0 { // parked on the 1s backoff
+	for fake.Waiters() == 0 { // idle on the 1s backoff
 	}
 	fake.Advance(time.Second)
 	if err := <-done; err != nil {
@@ -197,7 +197,7 @@ func TestActivityIsErrorIsCompletion(t *testing.T) {
 	}
 }
 
-// DiscardOnRetry (the S4 TurnDiscarded seam) fires before each retry.
+// DiscardOnRetry (the S4 GenerationDiscarded seam) fires before each retry.
 func TestActivityDiscardSeam(t *testing.T) {
 	m := &memAppend{}
 	x := testExecutor(m)

@@ -60,12 +60,12 @@ func autoPublishOutputs(_ context.Context, l *Loop, ds *driveState,
 	if len(l.Spec.Outputs) == 0 {
 		return nil
 	}
-	if *reason != "completed" && *reason != "max_turns" {
+	if *reason != "completed" && *reason != "max_generation_steps" {
 		return nil
 	}
 	var missing []string
 	for _, out := range l.Spec.Outputs {
-		if ds.s.Run.Published[out.Name] > 0 {
+		if ds.s.Session.Published[out.Name] > 0 {
 			continue // explicitly published during the run — satisfied
 		}
 		if out.Path != "" && l.Exec != nil && l.Exec.WS != nil && l.Artifacts != nil {
@@ -127,9 +127,9 @@ func (l *Loop) runEpilogue(ctx context.Context, ds *driveState, appendE AppendFu
 	}
 	crash.Point(crash.PointBeforeRunEnd)
 	if _, err := appendE(event.TypeRunEnded, &event.RunEnded{
-		Reason: reason, Turns: turns, Usage: ds.s.Run.Usage,
+		Reason: reason, GenSteps: turns, Usage: ds.s.Session.Usage,
 	}); err != nil && !bestEffort {
 		return RunResult{}, err
 	}
-	return RunResult{Reason: reason, Turns: turns, Usage: ds.s.Run.Usage}, nil
+	return RunResult{Reason: reason, GenSteps: turns, Usage: ds.s.Session.Usage}, nil
 }

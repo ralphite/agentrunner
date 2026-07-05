@@ -82,7 +82,7 @@ func (e *EnvApprovals) Resolve(_ context.Context, _ ApprovalRequest) (ApprovalDe
 
 // requestApproval journals the ask (ApprovalRequested + WAITING_APPROVAL)
 // and blocks on the resolver. awaitApproval is split out so resume can
-// re-enter a parked wait without re-journaling the request.
+// re-enter a idle wait without re-journaling the request.
 func (l *Loop) requestApproval(ctx context.Context, ds *driveState, appendE AppendFunc,
 	eff pipeline.Effect, outcome pipeline.Outcome) (bool, error) {
 

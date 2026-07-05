@@ -23,7 +23,7 @@ const longPasteThreshold = 10 * 1024
 // delivery (the resume replay raced the channel copy) and is dropped —
 // at-least-once + seq dedup = effectively once.
 func (l *Loop) journalInput(ds *driveState, appendE AppendFunc, in protocol.UserInput) error {
-	if in.DeliverySeq > 0 && in.DeliverySeq <= ds.s.Run.ConsumedInputSeq {
+	if in.DeliverySeq > 0 && in.DeliverySeq <= ds.s.Session.ConsumedInputSeq {
 		return nil
 	}
 	var images, files []event.AttachmentRef
@@ -66,7 +66,7 @@ func (l *Loop) journalInput(ds *driveState, appendE AppendFunc, in protocol.User
 // drainQueued non-blockingly journals every ADDITIONAL input already queued
 // on UserInputs, in arrival order (v2 M2.1 type-ahead): messages that piled
 // up while a turn ran all enter the next turn's context together. Stops at
-// the first empty read; a close seen here is remembered for the park.
+// the first empty read; a close seen here is remembered for the idle.
 func (l *Loop) drainQueued(ds *driveState, appendE AppendFunc) error {
 	for {
 		select {
@@ -85,18 +85,18 @@ func (l *Loop) drainQueued(ds *driveState, appendE AppendFunc) error {
 	}
 }
 
-// parkForInput waits at the conversational idle and, on close, runs the
+// idleForInput waits at the conversational idle and, on close, runs the
 // epilogue and returns done=true with the terminal result. On an input or
 // task settlement it returns done=false so the drive loop continues. Shared
-// by the fresh park (doWaitInput) and the resumed park (doWait/WaitInput):
+// by the fresh idle (doIdle) and the resumed idle (doWait/WaitInput):
 // neither re-journals WaitingEntered here.
-func (l *Loop) parkForInput(ctx context.Context, ds *driveState, appendE AppendFunc,
+func (l *Loop) idleForInput(ctx context.Context, ds *driveState, appendE AppendFunc,
 	turn int) (RunResult, bool, error) {
 
 	closed, err := l.awaitInput(ctx, ds, appendE, turn)
 	if err != nil {
 		// A cancelled context is a process teardown (crash/shutdown), NOT an
-		// ending: the parked session must resume later, so it leaves NO
+		// ending: the idle session must resume later, so it leaves NO
 		// terminal. Only a genuine journal failure gets a best-effort
 		// terminal so the log still closes.
 		if ctx.Err() == nil {
@@ -106,7 +106,7 @@ func (l *Loop) parkForInput(ctx context.Context, ds *driveState, appendE AppendF
 	}
 	if closed {
 		res, eerr := l.runEpilogue(ctx, ds, appendE, "closed", turn, false)
-		l.emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: res.Reason, Turn: res.Turns})
+		l.emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: res.Reason, N: res.GenSteps})
 		return res, true, eerr
 	}
 	return RunResult{}, false, nil
@@ -128,10 +128,10 @@ func (l *Loop) awaitInput(ctx context.Context, ds *driveState, appendE AppendFun
 	}
 	if l.inboxClosed {
 		// drainInbox saw the channel close at a boundary: nothing left to
-		// wait for — resolve the park and close now.
+		// wait for — resolve the idle and close now.
 		return true, resolve("closed")
 	}
-	l.emit(protocol.Event{Kind: protocol.KindIdle, Turn: turn})
+	l.emit(protocol.Event{Kind: protocol.KindIdle, N: turn})
 	select {
 	case in, ok := <-l.UserInputs: // nil channel blocks — tasks/interrupt still wake
 		if !ok {
@@ -140,7 +140,7 @@ func (l *Loop) awaitInput(ctx context.Context, ds *driveState, appendE AppendFun
 		}
 		// journal-inputs-first: journal this input, then batch-drain any
 		// others that queued behind it (type-ahead) so they all enter the
-		// same next turn — then resolve the park.
+		// same next turn — then resolve the idle.
 		if err := l.journalInput(ds, appendE, in); err != nil {
 			return false, err
 		}
@@ -157,7 +157,7 @@ func (l *Loop) awaitInput(ctx context.Context, ds *driveState, appendE AppendFun
 		return false, resolve("task_settled")
 	case handle := <-l.Cancels:
 		// A user's kill at idle: journal it and cancel the handle; the
-		// cancelled child settles through bg.done, which re-parks and wakes
+		// cancelled child settles through bg.done, which re-goes idle and wakes
 		// the next turn.
 		if err := l.cancelHandle(appendE, handle); err != nil {
 			return false, err

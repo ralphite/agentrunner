@@ -29,20 +29,20 @@ func ReplayJournal(sessionDir string, sink protocol.Sink) error {
 			return err
 		}
 		switch p := decoded.(type) {
-		case *event.RunStarted:
-			sink.Emit(protocol.Event{Kind: protocol.KindRunStart})
-		case *event.TurnStarted:
-			turn = p.Turn
-			sink.Emit(protocol.Event{Kind: protocol.KindTurnStart, Turn: p.Turn})
+		case *event.SessionStarted:
+			sink.Emit(protocol.Event{Kind: protocol.KindSessionStart})
+		case *event.GenerationStarted:
+			turn = p.GenStep
+			sink.Emit(protocol.Event{Kind: protocol.KindGenerationStart, N: p.GenStep})
 		case *event.AssistantMessage:
 			for _, part := range p.Message.Parts {
 				switch part.Kind {
 				case provider.PartText:
 					if part.Text != "" {
-						sink.Emit(protocol.Event{Kind: protocol.KindMessage, Turn: p.Turn, Text: part.Text})
+						sink.Emit(protocol.Event{Kind: protocol.KindMessage, N: p.GenStep, Text: part.Text})
 					}
 				case provider.PartToolCall:
-					sink.Emit(protocol.Event{Kind: protocol.KindToolCall, Turn: p.Turn,
+					sink.Emit(protocol.Event{Kind: protocol.KindToolCall, N: p.GenStep,
 						Tool: part.ToolName, CallID: part.CallID, Args: compactJSON(part.Args)})
 				}
 			}
@@ -52,39 +52,39 @@ func ReplayJournal(sessionDir string, sink protocol.Sink) error {
 			}
 		case *event.ActivityCompleted:
 			if started, ok := toolByActivity[p.ActivityID]; ok {
-				sink.Emit(protocol.Event{Kind: protocol.KindToolResult, Turn: turn,
+				sink.Emit(protocol.Event{Kind: protocol.KindToolResult, N: turn,
 					Tool: started.Name, CallID: started.CallID,
 					Result: compactJSON(p.Result), IsError: p.IsError})
 			}
 		case *event.ActivityFailed:
 			if started, ok := toolByActivity[p.ActivityID]; ok && p.Final {
-				sink.Emit(protocol.Event{Kind: protocol.KindToolResult, Turn: turn,
+				sink.Emit(protocol.Event{Kind: protocol.KindToolResult, N: turn,
 					Tool: started.Name, CallID: started.CallID,
 					Result: p.Error.Message, IsError: true})
 			}
 		case *event.ActivityCancelled:
 			if started, ok := toolByActivity[p.ActivityID]; ok {
-				sink.Emit(protocol.Event{Kind: protocol.KindToolResult, Turn: turn,
+				sink.Emit(protocol.Event{Kind: protocol.KindToolResult, N: turn,
 					Tool: started.Name, CallID: started.CallID,
 					Result: "canceled", IsError: true})
 			}
 		case *event.ModeChanged:
 			sink.Emit(protocol.Event{Kind: protocol.KindModeChanged, Mode: p.To})
 		case *event.ApprovalRequested:
-			sink.Emit(protocol.Event{Kind: protocol.KindApprovalRequest, Turn: turn,
+			sink.Emit(protocol.Event{Kind: protocol.KindApprovalRequest, N: turn,
 				CallID: p.CallID})
-		case *event.TurnDiscarded:
-			sink.Emit(protocol.Event{Kind: protocol.KindDiscard, Turn: p.Turn, Text: p.Reason})
+		case *event.GenerationDiscarded:
+			sink.Emit(protocol.Event{Kind: protocol.KindDiscard, N: p.GenStep, Text: p.Reason})
 		case *event.RunEnded:
-			sink.Emit(protocol.Event{Kind: protocol.KindRunEnd, Turn: p.Turns, Reason: p.Reason})
+			sink.Emit(protocol.Event{Kind: protocol.KindRunEnd, N: p.GenSteps, Reason: p.Reason})
 		// Driver streams (S6): iteration terminals and the series ending
 		// project the same way the live tee emits them.
 		case *event.IterationCompleted:
-			sink.Emit(protocol.Event{Kind: protocol.KindIteration, Turn: p.Iter, Reason: p.ChildReason,
+			sink.Emit(protocol.Event{Kind: protocol.KindIteration, N: p.Iter, Reason: p.ChildReason,
 				Text: fmt.Sprintf("iteration %d %s (pass=%v score=%g)",
 					p.Iter, p.ChildReason, p.Verdict.Pass, p.Verdict.Score)})
 		case *event.DriverCompleted:
-			sink.Emit(protocol.Event{Kind: protocol.KindRunEnd, Turn: p.Iterations, Reason: p.Reason})
+			sink.Emit(protocol.Event{Kind: protocol.KindRunEnd, N: p.Iterations, Reason: p.Reason})
 		}
 	}
 	return nil

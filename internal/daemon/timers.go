@@ -8,7 +8,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/protocol"
 )
 
-// SessionTimer is one parked session's earliest pending timer, as derived
+// SessionTimer is one idle session's earliest pending timer, as derived
 // from its journal (timer 派生索引 — the journal is the truth, this is a
 // projection recomputed on every sweep).
 type SessionTimer struct {
@@ -17,11 +17,11 @@ type SessionTimer struct {
 }
 
 // sweepMaxInterval bounds how long the sweeper sleeps even with no known
-// deadline: sessions parked by OTHER processes appear at the next rescan.
+// deadline: sessions idle by OTHER processes appear at the next rescan.
 const sweepMaxInterval = time.Minute
 
 // sweepTimers is the daemon's durable-timer trigger (S6 模块④, DESIGN:
-// daemon 是 durable timer 的触发者): scan the parked sessions' pending
+// daemon 是 durable timer 的触发者): scan the idle sessions' pending
 // timers, host a Resume for every expired one (the resume path itself
 // journals TimerFired — 2.13's sweep), and sleep until the earliest future
 // deadline or the rescan interval, whichever is sooner.

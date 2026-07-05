@@ -19,7 +19,7 @@ import (
 // S5.2: the system prompt lays out env → memory → skills → spec prompt →
 // mode suffix, in that fixed order.
 func TestAssembleSystemOrder(t *testing.T) {
-	run := state.Run{
+	run := state.Session{
 		Env:    "<env>\ncwd: /w\ndate: 2026-07-04\n</env>",
 		Memory: "<memory>\nrules\n</memory>",
 		Skills: "<skills>\n- s: d (p)\n</skills>",
@@ -40,7 +40,7 @@ func TestAssembleSystemOrder(t *testing.T) {
 }
 
 // S5.2 e2e: a workspace with a CLAUDE.md and a skill gets both frozen into
-// RunStarted and injected into the request prefix; the skill BODY stays out
+// SessionStarted and injected into the request prefix; the skill BODY stays out
 // (on-demand loading), and editing the files mid-run does not change the
 // prefix (frozen at session start).
 func TestContextBlocksFrozenIntoRun(t *testing.T) {
@@ -80,7 +80,7 @@ func TestContextBlocksFrozenIntoRun(t *testing.T) {
 	l := &Loop{
 		Spec: &AgentSpec{Name: "ctx",
 			Model: ModelSpec{Provider: "scripted", ID: "m", MaxTokens: 100},
-			Tools: []string{"bash"}, MaxTurns: 3},
+			Tools: []string{"bash"}, MaxGenerationSteps: 3},
 		Provider:  cap,
 		Exec:      &tool.Executor{WS: ws},
 		Store:     es,

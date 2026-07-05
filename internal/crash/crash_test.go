@@ -45,7 +45,7 @@ func TestAfterCountsToN(t *testing.T) {
 	if *fired {
 		t.Fatal("fired on 1st, want 2nd")
 	}
-	After("turn_started") // other types don't count
+	After("generation_started") // other types don't count
 	if *fired {
 		t.Fatal("other event type counted")
 	}
@@ -70,7 +70,7 @@ func TestPointFiresOnlyOnMatch(t *testing.T) {
 func TestUnarmedIsNoop(t *testing.T) {
 	fired := resetForTest(t, "")
 	Point(PointAfterJournalInput)
-	After("run_started")
+	After("session_started")
 	if *fired {
 		t.Fatal("unarmed process crashed")
 	}

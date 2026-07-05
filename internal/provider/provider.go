@@ -70,7 +70,7 @@ type ToolDef struct {
 }
 
 // CompleteRequest is a normalized, provider-agnostic completion request.
-// Turn is the 1-based turn number of this call within the run; adapters use
+// GenStep is the 1-based turn number of this call within the run; adapters use
 // it to mint deterministic call ids via CallID.
 type CompleteRequest struct {
 	Model     string
@@ -78,7 +78,7 @@ type CompleteRequest struct {
 	System    string
 	Messages  []Message
 	Tools     []ToolDef
-	Turn      int
+	GenStep   int
 	// Thinking requests extended thinking (S4.7); providers map or downgrade.
 	Thinking ThinkingConfig
 }
@@ -183,33 +183,33 @@ func CallID(turn, index int) string {
 	return fmt.Sprintf("call_%d_%d", turn, index)
 }
 
-// Turn is the assembled result of one completed LLM call.
-type Turn struct {
+// GenStep is the assembled result of one completed LLM call.
+type GenStep struct {
 	Message   Message // assistant message: text part (if any) + tool_call parts
 	ToolCalls []ToolCall
 	Usage     Usage
 	Finish    FinishReason
 }
 
-// CollectTurn drains a stream into a Turn. It exists for turn-granularity
+// CollectTurn drains a stream into a GenStep. It exists for turn-granularity
 // callers (the S1 loop); streaming callers consume the iterator directly.
-func CollectTurn(stream iter.Seq2[StreamEvent, error]) (Turn, error) {
+func CollectTurn(stream iter.Seq2[StreamEvent, error]) (GenStep, error) {
 	return CollectTurnStreaming(stream, nil)
 }
 
-// CollectTurnStreaming drains a stream into a Turn, invoking onDelta for
+// CollectTurnStreaming drains a stream into a GenStep, invoking onDelta for
 // each text delta as it arrives (S4.1). onDelta may be nil. Deltas are
-// ephemeral — only the assembled Turn.Message is durable (TurnDiscarded
+// ephemeral — only the assembled GenStep.Message is durable (GenerationDiscarded
 // contract): if the call errors mid-stream, whatever was emitted to
 // onDelta is discarded by the caller.
-func CollectTurnStreaming(stream iter.Seq2[StreamEvent, error], onDelta func(string)) (Turn, error) {
+func CollectTurnStreaming(stream iter.Seq2[StreamEvent, error], onDelta func(string)) (GenStep, error) {
 	var (
-		turn Turn
+		turn GenStep
 		text string
 	)
 	for ev, err := range stream {
 		if err != nil {
-			return Turn{}, err
+			return GenStep{}, err
 		}
 		switch ev.Kind {
 		case EventTextDelta:

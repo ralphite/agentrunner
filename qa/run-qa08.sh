@@ -86,7 +86,7 @@ grep '"type":"activity_failed"' "$SDIR/events.jsonl" | grep -q "interrupted by c
 qn="$(grep '"type":"input_received"' "$SDIR/events.jsonl" | grep -c "青鸟")" || qn=0
 [ "$qn" = 1 ] || { echo "$QA: FAIL (b) queued input journaled $qn times, want exactly 1" >&2; fail=1; }
 q_line="$(grep -n '"type":"input_received"' "$SDIR/events.jsonl" | grep "青鸟" | head -1 | cut -d: -f1)"
-t_after="$(awk -v n="$q_line" 'NR>n && /"type":"turn_started"/{print NR; exit}' "$SDIR/events.jsonl")"
+t_after="$(awk -v n="$q_line" 'NR>n && /"type":"generation_started"/{print NR; exit}' "$SDIR/events.jsonl")"
 [ -n "$q_line" ] && [ -n "$t_after" ] || {
   echo "$QA: FAIL (b) queued input never consumed by a turn" >&2; fail=1; }
 grep '"type":"assistant_message"' "$SDIR/events.jsonl" | grep -q "青鸟" ||   echo "$QA: WARN (b) model did not echo the codeword (wording, not gated)" >&2

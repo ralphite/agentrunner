@@ -131,7 +131,7 @@ func TestSteeringInterruptKillsBashFast(t *testing.T) {
 	interrupts := make(chan struct{}, 1)
 	l := &Loop{
 		Spec: &AgentSpec{Name: "b", Model: ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 50},
-			SystemPrompt: "s", Tools: []string{"bash"}, MaxTurns: 5},
+			SystemPrompt: "s", Tools: []string{"bash"}, MaxGenerationSteps: 5},
 		Provider:   scripted.New(fix),
 		Exec:       &tool.Executor{WS: ws},
 		Store:      es,

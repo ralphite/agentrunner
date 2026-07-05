@@ -126,7 +126,7 @@ func TestConversationalImageInputEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Reason != "closed" || res.Turns != 2 {
+	if res.Reason != "closed" || res.GenSteps != 2 {
 		t.Fatalf("res = %+v", res)
 	}
 

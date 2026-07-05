@@ -87,7 +87,7 @@ func runCmd(args []string, recordMode bool, version string, stdout, stderr io.Wr
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	workspaceDir := fs.String("workspace", ".", "workspace root (default: current directory)")
-	maxTurns := fs.Int("max-turns", 0, "override spec max_turns")
+	maxTurns := fs.Int("max-turns", 0, "override spec max_generation_steps")
 	mode := fs.String("mode", "", "run mode: default|plan|acceptEdits|bypass (overrides spec)")
 	jsonOut := fs.Bool("json", false, "emit the output event stream as JSON lines")
 	fixtureOut := fs.String("o", "", "fixture output path (record-fixture only)")
@@ -142,7 +142,7 @@ func runAgent(opts runOptions) int {
 		return ExitUsage
 	}
 	if opts.maxTurns > 0 {
-		spec.MaxTurns = opts.maxTurns
+		spec.MaxGenerationSteps = opts.maxTurns
 	}
 
 	ws, err := workspace.New(opts.workspace)
@@ -225,9 +225,9 @@ func runAgent(opts runOptions) int {
 	}
 
 	fmt.Fprintf(opts.stderr, "run %s: %d turns, %d in / %d out tokens\n",
-		result.Reason, result.Turns, result.Usage.InputTokens, result.Usage.OutputTokens)
+		result.Reason, result.GenSteps, result.Usage.InputTokens, result.Usage.OutputTokens)
 	if result.Reason != "completed" {
-		// max_turns 等强制停止不算成功完成（review 修订：脚本/CI 不应
+		// max_generation_steps 等强制停止不算成功完成（review 修订：脚本/CI 不应
 		// 把卡死的 agent 当成功）。
 		return ExitRun
 	}

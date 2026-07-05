@@ -18,21 +18,21 @@ import (
 // and the model sees it on a later turn.
 func TestBackgroundTaskHandleAndOutcome(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
-		// Turn 1: launch a background task, then keep working (text) — proves
+		// GenStep 1: launch a background task, then keep working (text) — proves
 		// the handle paired without blocking on the sleep.
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "bg1", Name: "bash",
 				Args: map[string]any{"command": "sleep 0.2; echo done-work", "background": true}}},
 			{Finish: "tool_use"},
 		}},
-		// Turn 2: model acknowledges the handle (the task is still running or
-		// just finished) and yields with text; the loop then parks on the
+		// GenStep 2: model acknowledges the handle (the task is still running or
+		// just finished) and yields with text; the loop then goes idle on the
 		// task (WAITING_TASKS) if it hasn't settled.
 		{
 			Expect:  scripted.Expect{LastMessageContains: "task_id"},
 			Respond: []scripted.Event{{Text: "started it, waiting"}, {Finish: "end_turn"}},
 		},
-		// Turn 3: the task outcome has arrived as a user message; wrap up.
+		// GenStep 3: the task outcome has arrived as a user message; wrap up.
 		{
 			Expect:  scripted.Expect{LastMessageContains: "done-work"},
 			Respond: []scripted.Event{{Text: "task finished, all done"}, {Finish: "end_turn"}},
@@ -72,7 +72,7 @@ func TestBackgroundTaskHandleAndOutcome(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The task drained out of the tasks sub-state at the end.
-	if len(fold.Run.Env) == 0 && len(fold.Tasks) != 0 {
+	if len(fold.Session.Env) == 0 && len(fold.Tasks) != 0 {
 		t.Errorf("tasks not drained: %+v", fold.Tasks)
 	}
 	if len(fold.Tasks) != 0 {
@@ -157,7 +157,7 @@ func TestAwaitQuiesceTimerBound(t *testing.T) {
 	l := testLoop(t, fix, t.TempDir())
 	l.Spec.OnRunEnd = "await"
 	l.Spec.AwaitTimeout = "1m"
-	l.Spec.MaxTurns = 1 // forced ending → epilogue quiesce owns the await
+	l.Spec.MaxGenerationSteps = 1 // forced ending → epilogue quiesce owns the await
 
 	clk := l.Clock.(*clock.Fake)
 	resCh := make(chan RunResult, 1)
@@ -169,7 +169,7 @@ func TestAwaitQuiesceTimerBound(t *testing.T) {
 		resCh <- res
 	}()
 
-	// The quiesce parks on the await timer; advancing past it fires the
+	// The quiesce goes idle on the await timer; advancing past it fires the
 	// bound and cancels the straggler.
 	deadline := time.Now().Add(5 * time.Second)
 	for clk.Waiters() == 0 && time.Now().Before(deadline) {
@@ -182,7 +182,7 @@ func TestAwaitQuiesceTimerBound(t *testing.T) {
 
 	select {
 	case res := <-resCh:
-		if res.Reason != "max_turns" {
+		if res.Reason != "max_generation_steps" {
 			t.Fatalf("res = %+v", res)
 		}
 	case <-time.After(10 * time.Second):
@@ -226,7 +226,7 @@ func TestAwaitQuiesceTimerCancelledOnFinish(t *testing.T) {
 	}}
 	l := testLoop(t, fix, t.TempDir())
 	l.Spec.OnRunEnd = "await"
-	l.Spec.MaxTurns = 1
+	l.Spec.MaxGenerationSteps = 1
 
 	if _, err := l.Run(context.Background(), "quick task"); err != nil {
 		t.Fatal(err)
@@ -259,7 +259,7 @@ func TestTaskKill(t *testing.T) {
 				Args: map[string]any{"command": "sleep 30", "background": true}}},
 			{Finish: "tool_use"},
 		}},
-		// Turn 2: kill it.
+		// GenStep 2: kill it.
 		{
 			Expect: scripted.Expect{LastMessageContains: "task_id"},
 			Respond: []scripted.Event{
@@ -268,7 +268,7 @@ func TestTaskKill(t *testing.T) {
 				{Finish: "tool_use"},
 			},
 		},
-		// Turn 3: the cancellation arrived as a message; done.
+		// GenStep 3: the cancellation arrived as a message; done.
 		{
 			Expect:  scripted.Expect{LastMessageContains: "canceled"},
 			Respond: []scripted.Event{{Text: "killed it"}, {Finish: "end_turn"}},
@@ -301,7 +301,7 @@ func TestTaskKill(t *testing.T) {
 // S6.1: on_run_end=await lets a still-running task FINISH before the run
 // ends — its real output settles AND feeds back to the model as a user-role
 // input that earns one more turn (S6 review: the outcome must actually
-// reach the model, and the park is an explicit journaled waiting state).
+// reach the model, and the idle is an explicit journaled waiting state).
 func TestBackgroundTaskAwaitAtRunEnd(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
@@ -323,8 +323,8 @@ func TestBackgroundTaskAwaitAtRunEnd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Turns != 3 {
-		t.Fatalf("turns = %d, want 3 (the outcome earned a turn)", res.Turns)
+	if res.GenSteps != 3 {
+		t.Fatalf("turns = %d, want 3 (the outcome earned a turn)", res.GenSteps)
 	}
 	events, _ := store.ReadEvents(l.Store.Dir())
 	var sawCompleteWithOutput, sawWaitEntered, sawWaitResolved bool
@@ -343,6 +343,6 @@ func TestBackgroundTaskAwaitAtRunEnd(t *testing.T) {
 		t.Error("await must let the task finish with real output, not cancel it")
 	}
 	if !sawWaitEntered || !sawWaitResolved {
-		t.Errorf("WAITING_TASKS park must be journaled: entered=%v resolved=%v", sawWaitEntered, sawWaitResolved)
+		t.Errorf("WAITING_TASKS idle must be journaled: entered=%v resolved=%v", sawWaitEntered, sawWaitResolved)
 	}
 }
