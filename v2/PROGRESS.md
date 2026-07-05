@@ -224,3 +224,44 @@ scripted 孪生守,QA-05 真实 API 守确定性的用户直杀。
 
 全量 check + race + stage 1–7 全 26 acceptance 回归绿。下一步:
 M3 出口三视角对抗 review,然后 M4 多模态与工具面(→QA-03/07)。
+
+## V2-M3 出口三视角对抗 review — 完成 + triage
+
+三个独立 review agent(正确性/并发、安全、契约)对 635885a..e8b5a8b
+全量审查。**已修复(commit a5a497d)**:
+
+- **P1 正确性**:conversational 会话 mid-turn 被 ctx cancel(daemon
+  重启/部署)时 abort() 写 RunEnded{canceled} → 永久不可 resume。
+  修:abort 对 conversational + ctx cancel 不写 terminal(与 park
+  路径同一崩溃纪律);Resume 靠 in-doubt 处置重入该 turn(LLM 幂等
+  重发)。回归 TestConversationalMidTurnCancelResumes。
+- **P1 正确性**:turn 预算累计计数 → 长会话到 40 turn 后静默吞输入
+  (journal 了但永不应答,黑洞)。修:预算按 exchange 计
+  (state.Run.LastInputTurn,自最近一次用户输入起算);预算耗尽且
+  有 pending 输入时以 max_turns 可见结束。task 模式仍累计(v1 不变)。
+  回归 BudgetPerExchange + TestDecideConversationalBudget。
+- **P1 契约(wire bug)**:spawn_agent 工具描述教模型用不存在的
+  cancel_child → unknown-tool(疑似 C6 真实 API best-effort 的根因
+  之一)。修:描述改为 task_kill。
+- **P1 契约**:用户 ar kill 无持久起源。修:cancelHandle 先 journal
+  InputReceived{source:control}(journal-inputs-first,与 interrupt
+  同纪律);fold 排除 control 进对话/授预算。回归 UserKill 断言。
+- **P2 安全(defense-in-depth)**:CallID 进子目录名前校验
+  ^[A-Za-z0-9_-]+$,路径语法解析为 model 可见错误。回归
+  TestSpawnMalformedCallID。
+
+**文档对账(本 commit)**:DESIGN §9.1 新增"M3 实现状态注记"(工具名
+对照、inbox 字面统一度、三路径并存、idle-interrupt 语义)——目标态
+与实现态的偏差不再只活在 PROGRESS;QA.md base.yaml/QA-05 更正为
+实现工具名与修正后的通过标准。
+
+**记档不修(P2/观察项,收口时再判)**:①kill-vs-complete 竞态下
+reason 可能标 canceled(实际完成,payload 仍真);②settleBackground
+的 out.err 分支不可达;③killHandle 满 buffer 返 false 与
+signalInterrupt 语义不一致;④assembly 把后台 handle tool-result
+排在 steer 消息后(真实模型处理正常);⑤child_result 字面进 inbox
+与"一套机制收敛"列收口决策。
+
+验证:go test 全绿(-race 含 bgspawn);v1 acceptance 26 场景全
+PASS;QA-05 真实 API 复跑 PASS(kill 路径改动后)。
+**M3 正式关闭。下一步:M4.1 消息 parts(多模态)。**

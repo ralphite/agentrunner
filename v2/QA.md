@@ -62,8 +62,9 @@ name: dev
 model: { provider: gemini, id: gemini-flash-latest, max_tokens: 4096 }
 system_prompt: |
   你是一个严谨的编码助手。严格按用户指令行动；用户要求启动子 agent 时,
-  用 spawn_child 工具、数量与分工严格照做；要求取消时用 cancel_child。
-tools: [read_file, write_file, edit_file, bash, spawn_child, cancel_child]
+  用 spawn_agent 工具、数量与分工严格照做；要求取消时用 task_kill。
+# write_file 自 M4.3 起可用；此前的场景去掉它即可运行
+tools: [read_file, write_file, edit_file, bash, spawn_agent, task_kill]
 agents: [worker]
 permissions:
   - { action: allow }        # QA 聚焦 runtime 行为；权限场景另有专项
@@ -149,14 +150,16 @@ activity 的 Started/Completed 之间；bash 无 Cancelled；后续回答同时
 | # | 动作 | 验证 |
 |---|---|---|
 | 1 | `ar send $sid "启动 2 个子 agent：A=逐文件详细分析 render 目录，B=逐文件详细分析 binding 目录"`（任务刻意重，保证跑得久） | 2 条 ChildSpawned；父待命 |
-| 2 | 两子在飞时：`ar send $sid "B 不用查了，取消它；改起一个新的 C 调查 gin 的路由树实现"` | 消息进 inbox；父下一 turn：`cancel_child(B)` + `spawn_child(C)` |
+| 2 | 两子在飞时：`ar send $sid "B 不用查了，取消它；改起一个新的 C 调查 gin 的路由树实现"` | 消息进 inbox；父下一 turn：`task_kill(B)` + `spawn_agent(C)` |
 | 3 | 观察 B 的子 journal | 有取消终态（部分产出留存）；B 向父投了 `child_result{canceled}` |
 | 4 | `ar ps $sid` | B 消失，A 与 C 在列 |
 | 5 | 等 A、C 完成 | 父汇总只含 A 与 C 的结论，并提到 B 被取消 |
 | 6 | 变体（用户直接杀）：重复步骤 1，然后 `ar kill $sid <handleA>` | 不经模型，A 直接取消；父下个 turn 看到 canceled 回执 |
 
 **通过标准**：B 的取消链完整（cancel → 子终态 → canceled 回执 → 父
-可见）；C 正常完成；用户直杀路径（步骤 6）与模型杀路径事件形状一致。
+可见）；C 正常完成；两条杀路径都触发同一 cancel 注册表、都有持久
+起源（模型路径 = tool_call + Effect，直杀路径 = InputReceived
+{source:control}），自取消点起的取消链事件形状一致。
 
 ## QA-06 interrupt 与消息分立 `覆盖 C8`
 **环境**：`ws.sh prepare cobra ws6`；base.yaml；放入 `qa_slow.sh`（sleep 30）。

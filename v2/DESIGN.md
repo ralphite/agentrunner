@@ -320,6 +320,28 @@ turn 边界快照、权限 rules(path/command/network) + mode 阶梯、
 一等化、best-of-N 晋升、语义索引、IDE、通知渠道、定时任务跨重启唤醒、
 审批规则写回、记忆写回。
 
+### 9.1 M3 实现状态注记（M3 出口 review 后追加，诚实对照）
+
+本文档描述目标形态；fix-in-place 的 M1–M3 实现（MIGRATION.md）与
+字面表述有以下已知偏差，记录在此、不做静默漂移：
+
+- **工具名对照**：`spawn_child` → 实现名 `spawn_agent`；
+  `cancel_child` → 实现名 `task_kill`（handle 即 task_id，与 bash
+  后台任务共用取消原语，命名决策见 PROGRESS M3.1）。`ask_user` /
+  `finish` 未实现（收口时决策）；`write_file` 排在 M4.3。
+- **§2 inbox 字面统一度**：`user_message` 与 `control{kill}` 已按
+  字面 journal 为 `InputReceived`（后者 source=control，不进对话）。
+  `child_result`/`tool_result` 语义上是 inbox 输入，机制上暂由承自
+  v1 的 background activity（`ActivityStarted{Background}`→终态，
+  fold 渲染 user-role 消息）兑现——语义等价、事件形状不同；字面
+  统一与否列收口决策。
+- **§3 "一套机制取代三套"**：M3 阶段尚未收敛——阻塞 spawn、后台
+  spawn、driver 子系统并存（阻塞路径与 driver 保留 v1 兼容）；
+  收敛记收口任务。
+- **§1 interrupt 语义**：实现新增"idle 处 interrupt = close 会话"
+  （交互惯例）；turn 中 interrupt 仍是 steer（core-7 原文只定义
+  后者）。
+
 ---
 
 ## 10. 非目标（原型阶段，承自 v1）
