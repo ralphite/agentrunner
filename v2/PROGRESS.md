@@ -329,3 +329,21 @@ run_ended(close 时)。
 
 **M1–M5 全部关闭。剩收口:QA-09 压轴串联 + ps/events 观察面 +
 文档同步(CORE/GAPS)+ 出口三视角 review。**
+
+## V2-收口 F.1/F.2 — QA-09 压轴 GREEN(C7 达成)+ ps 观察面 + 文档同步
+
+**QA-09**(真实 Gemini,DESIGN §8 七步全程,一个 session):截图入
+上下文(CAS ref)→ 恰好 3 个 worker 并行 → steer"B 取消换 D"→ 模型
+task_kill(B)+spawn(D) → 4 张回执全落 → 基于会话史续聊 → kill -9 →
+send 复活 → write_file 写 SUMMARY.md。全程恰一个 run_ended。PASS。
+
+**ar ps**:fold 的在飞任务列表(handle/工具/spawn 目标),纯 journal
+读,无 daemon 也可用;QA-09 中途实测列出 3 个在飞子 agent。
+
+**文档同步**:GAPS.md 关闭 G1/G2/G3/G6(标注关闭位置与闸门),G18
+write_file 部分关闭,头部加收口注记;CORE.md 增 §四 十项核心全部
+达成对照表(铁律解除条件满足);DESIGN §9.1 更新 write_file 已一等化、
+ask_user/finish 记档不预做。
+
+**C1–C10 全部达成,QA-01..09 真实 API 全绿。剩:F.3 出口三视角
+review + 修复。**

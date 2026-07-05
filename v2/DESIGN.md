@@ -328,7 +328,8 @@ turn 边界快照、权限 rules(path/command/network) + mode 阶梯、
 - **工具名对照**：`spawn_child` → 实现名 `spawn_agent`；
   `cancel_child` → 实现名 `task_kill`（handle 即 task_id，与 bash
   后台任务共用取消原语，命名决策见 PROGRESS M3.1）。`ask_user` /
-  `finish` 未实现（收口时决策）；`write_file` 排在 M4.3。
+  `finish` 未实现（收口记档：idle park 本身就是"待命"，两者的
+  增量价值待真实使用反馈，不预做）；`write_file` 已于 M4.3 一等化。
 - **§2 inbox 字面统一度**：`user_message` 与 `control{kill}` 已按
   字面 journal 为 `InputReceived`（后者 source=control，不进对话）。
   `child_result`/`tool_result` 语义上是 inbox 输入，机制上暂由承自

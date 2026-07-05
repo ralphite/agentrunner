@@ -10,10 +10,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/ralphite/agentrunner/internal/daemon"
 	"github.com/ralphite/agentrunner/internal/protocol"
+	"github.com/ralphite/agentrunner/internal/state"
+	"github.com/ralphite/agentrunner/internal/store"
 )
 
 // newCmd starts a daemon-hosted CONVERSATIONAL session and detaches once it
@@ -214,4 +217,59 @@ func dialUntilStart(sock string, cmd daemon.Command) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("session did not start")
+}
+
+// psCmd lists a session's in-flight background tasks/sub-agents from the
+// fold (v2 收口, QA-05/QA-09 观察面): handle, tool, and the spawn target.
+// Pure journal read — works with or without a live daemon.
+func psCmd(args []string, stdout, stderr io.Writer) int {
+	if len(args) != 1 {
+		fmt.Fprintln(stderr, "usage: agentrunner ps <session-id-or-prefix>")
+		return ExitUsage
+	}
+	dir, err := resolveSessionDir(args[0])
+	if err != nil {
+		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+		return ExitUsage
+	}
+	events, err := store.ReadEvents(dir)
+	if err != nil {
+		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+		return ExitRun
+	}
+	s, err := state.Fold(events)
+	if err != nil {
+		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+		return ExitRun
+	}
+	if len(s.Tasks) == 0 {
+		fmt.Fprintln(stdout, "no tasks in flight")
+		return ExitOK
+	}
+	handles := make([]string, 0, len(s.Tasks))
+	for h := range s.Tasks {
+		handles = append(handles, h)
+	}
+	sort.Strings(handles)
+	for _, h := range handles {
+		act := s.Tasks[h]
+		target := ""
+		if act.Name == "spawn_agent" {
+			var a struct {
+				Agent string `json:"agent"`
+				Task  string `json:"task"`
+			}
+			_ = json.Unmarshal(act.Args, &a)
+			target = " agent=" + a.Agent + " task=" + truncateArg(a.Task, 60)
+		}
+		fmt.Fprintf(stdout, "%s\t%s\trunning%s\n", h, act.Name, target)
+	}
+	return ExitOK
+}
+
+func truncateArg(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
 }
