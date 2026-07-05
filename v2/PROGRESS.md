@@ -307,3 +307,25 @@ image block。TestLongPasteFoldsToFilePart。
 **C9 达成,核心工具 9 达成**。学到:QA-03 的 qa_inject 是 untracked
 ——断言用内容哈希对比,git diff 看不见注入文件。acceptance 1-7 全 26
 场景回归绿。下一步:M5 恢复审计(crash 矩阵)→ QA-08。
+
+## V2-M5 恢复审计 — QA-08 真实 API GREEN(C10 达成);**M5 双闸门 GREEN**
+
+**QA-08 crash 矩阵**(真实 Gemini,单一 session 三连杀):
+(a) idle park × kill -9 → 重启后 `ar send` 即复活,崩溃前上下文
+(暗号)原样接续;(b) bash 在飞 × kill -9 → interrupted-by-crash
+渲染落 journal、runtime 不重跑(结构断言:每次 qa_slow 启动都与
+assistant tool_call 1:1 配对——模型看到 crash 结果后自行决定重跑属
+合法 agency,红线只约束 runtime);(c) 2 个子 agent 在飞 × kill -9 →
+重启后两张 subagent_completed 回执补投,会话继续;全程恰一个
+run_ended(close 时)。
+
+学到:①崩溃消息"may or may not have happened"会让模型主动重跑求证
+——QA 断言必须只钉 runtime 红线(启动/模型调用 1:1),不能钉模型行为;
+②daemon 就绪探针用 `ar sessions list`(裸 `sessions` 是 usage 错误);
+③close 前先等 idle park,复活后的收尾 turn 有真实 API 延迟。
+
+记档:daemon kill -9 会孤儿化在飞 bash 的子进程(进程组随 daemon 死
+而失管;sleep 类自然退出,长驻型需重启后 pgid 清扫——列收口观察项)。
+
+**M1–M5 全部关闭。剩收口:QA-09 压轴串联 + ps/events 观察面 +
+文档同步(CORE/GAPS)+ 出口三视角 review。**
