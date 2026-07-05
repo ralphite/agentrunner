@@ -265,3 +265,22 @@ signalInterrupt 语义不一致;④assembly 把后台 handle tool-result
 验证:go test 全绿(-race 含 bgspawn);v1 acceptance 26 场景全
 PASS;QA-05 真实 API 复跑 PASS(kill 路径改动后)。
 **M3 正式关闭。下一步:M4.1 消息 parts(多模态)。**
+
+## V2-M4 图片输入 — QA-07 真实 API GREEN(C9 达成)
+
+M4.1/M4.2 全链:CLI send --image(嗅探 media type)→ daemon base64
+wire(命令行缓冲 32MB)→ inbox protocol.UserInput → journalInput 先
+CAS Put 再落 InputReceived{images:[{ref,media_type}]}(blob-before-
+event)→ fold ref-only image part → 组装时 inflateBlobs(copy-on-
+write,fold 永不含字节)→ gemini inline_data / anthropic base64 block。
+
+**QA-07**(真实 Gemini vision):build-error.png 截图三要素
+(command.go/1234/EnableTraverseRunHooks2)全说对;journal 的
+input_received 行 432 字节 ref-only、CAS blob 落盘;后续纯文本 turn
+凭上下文检索到标识符(连续性)。PASS。
+
+学到:QA 等待原语从"数 assistant_message"改为"数 waiting_entered
+(idle park)"——一个 exchange 可能跨多个 assistant 步(模型先跑工具
+再作答),数消息会提前放行(qa_wait_idle 进 lib.sh)。
+
+下一步:M4.3 write_file 工具 + 长贴折叠 → QA-03。

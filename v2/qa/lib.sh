@@ -59,3 +59,16 @@ qa_wait_turns() { # sid_dir want [timeout_ticks]
   echo "${QA}: timed out waiting for $want assistant messages (have ${n:-0})" >&2
   cat "$WORK/daemon.log" >&2; return 1
 }
+
+qa_wait_idle() { # sid_dir want_parks [timeout_ticks] — waits until the
+  # session has parked at idle N times (one park per completed exchange);
+  # message counts are unreliable, a turn may span several assistant steps.
+  local dir="$1" want="$2" ticks="${3:-450}" i n
+  for i in $(seq 1 "$ticks"); do
+    n="$(count_type waiting_entered "$dir/events.jsonl")"
+    [ "$n" -ge "$want" ] && return 0
+    sleep 0.2
+  done
+  echo "${QA}: timed out waiting for $want idle parks (have ${n:-0})" >&2
+  cat "$WORK/daemon.log" >&2; return 1
+}
