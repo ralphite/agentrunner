@@ -395,3 +395,20 @@ review + 修复。**
 
 **v2 七阶段(M1–M5+收口)全部关闭。C1–C10 达成,QA-01..09 真实
 API 闸门全绿,三视角出口 review 已 triage。**
+
+## V2 计划关闭认证 — 全闸门 HEAD 单轮扫验 GREEN(2026-07-05)
+
+F.3 代码修复(593c7c0,mailbox 进入每条 send 路径、复活把关)落在
+部分闸门最后一跑之后——按"一步一验证"的诚实性,在最终 HEAD
+(ac9cf4f)用同一二进制单轮连跑 QA-01..09:**九个全部 PASS**
+(QA-08 附一条已记档的措辞 WARN,不设闸)。同 HEAD:全量 go test
+绿、v1 acceptance 7 stage/26 场景全 0 FAIL。
+
+**AgentRunner v2 计划(M1–M5+收口)正式关闭。**
+- C1–C10 全部达成(DESIGN §11);十项核心(CORE §一)全部真实可用。
+- 双闸门纪律全程执行:每项能力 = 确定性 scripted 孪生 + 真实
+  Gemini API 场景,26 个 v1 acceptance 场景零回归。
+- 两次三视角对抗 review(M3 出口、收口)共修 1×P0、7×P1、9×P2,
+  其余记档;文档(DESIGN/QA/CORE/GAPS/PROGRESS)与实现一致。
+- 后续工作从 GAPS.md 余项排期(扩展层解冻),属新计划,不再挂在
+  本台账下。
