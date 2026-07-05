@@ -331,3 +331,112 @@ func TestNoDuplicateToolDeclaration(t *testing.T) {
 		t.Errorf("spawn_agent advertised %d times, want exactly 1", seen["spawn_agent"])
 	}
 }
+
+// v2 M3.2 (C6): a steer message makes the MODEL change the orchestration —
+// it cancels one running child (task_kill) and spawns a new one. Scripted
+// twin (the real-API model-reliability of this is best-effort in QA).
+func TestSteerChangesOrchestration(t *testing.T) {
+	router := scripted.NewRouter(
+		scripted.RoutePair{Key: "you orchestrate", Fixture: scripted.Fixture{Steps: []scripted.Step{
+			// Turn 1: launch OLD (slow).
+			{Respond: []scripted.Event{
+				{ToolCall: &scripted.ToolCallEvent{CallID: "old", Name: "spawn_agent",
+					Args: map[string]any{"agent": "worker", "task": "investigate OLDTOPIC", "background": true}}},
+				{Finish: "tool_use"},
+			}},
+			// Turn 2 (woken by the steer): cancel OLD, spawn NEW. (No Expect:
+			// assembly may order the spawn handle tool-result after the steer
+			// user message; the structural asserts below prove causation.)
+			{Respond: []scripted.Event{
+				{ToolCall: &scripted.ToolCallEvent{CallID: "k", Name: "task_kill",
+					Args: map[string]any{"task_id": "old"}}},
+				{ToolCall: &scripted.ToolCallEvent{CallID: "new", Name: "spawn_agent",
+					Args: map[string]any{"agent": "worker", "task": "investigate NEWTOPIC", "background": true}}},
+				{Finish: "tool_use"},
+			}},
+			{Respond: []scripted.Event{{Text: "reoriented"}, {Finish: "end_turn"}}},
+			{Respond: []scripted.Event{{Text: "new done"}, {Finish: "end_turn"}}},
+			{Respond: []scripted.Event{{Text: "still here"}, {Finish: "end_turn"}}},
+		}}},
+		scripted.RoutePair{Key: "OLDTOPIC", Fixture: scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{
+				{ToolCall: &scripted.ToolCallEvent{CallID: "s", Name: "bash",
+					Args: map[string]any{"command": "sleep 30; echo OLD_DONE"}}},
+				{Finish: "tool_use"},
+			}},
+			{Respond: []scripted.Event{{Text: "old done"}, {Finish: "end_turn"}}},
+		}}},
+		scripted.RoutePair{Key: "NEWTOPIC", Fixture: scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{{Text: "NEW report: ok"}, {Finish: "end_turn"}}},
+		}}},
+	)
+	l := bgSpawnLoop(t, router, []string{"worker"})
+	l.Spec.Tools = []string{"read_file", "bash"}
+	inputs := make(chan string, 1)
+	l.Conversational = true
+	l.UserInputs = inputs
+	go func() {
+		// Once OLD's bash is running, steer to change course.
+		deadline := time.Now().Add(6 * time.Second)
+		steered := false
+		for time.Now().Before(deadline) {
+			evs, _ := store.ReadEvents(l.Store.Dir() + "/sub/old-a1")
+			for _, e := range evs {
+				if e.Type == event.TypeActivityStarted && strings.Contains(string(e.Payload), `"name":"bash"`) && !steered {
+					inputs <- "change course: cancel OLDTOPIC and investigate NEWTOPIC instead"
+					steered = true
+				}
+			}
+			pevs, _ := store.ReadEvents(l.Store.Dir())
+			newDone := false
+			for _, e := range pevs {
+				if e.Type == event.TypeSubagentCompleted && strings.Contains(string(e.Payload), "new") {
+					newDone = true
+				}
+			}
+			if newDone {
+				close(inputs)
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		close(inputs)
+	}()
+
+	if _, err := l.Run(context.Background(), "orchestrate OLDTOPIC"); err != nil {
+		t.Fatal(err)
+	}
+	events, _ := store.ReadEvents(l.Store.Dir())
+	var oldReason, newReason string
+	newSpawnedAfterOld := false
+	sawOld := false
+	for _, e := range events {
+		if e.Type == event.TypeSpawnRequested {
+			if strings.Contains(string(e.Payload), `"old"`) {
+				sawOld = true
+			}
+			if strings.Contains(string(e.Payload), `"new"`) && sawOld {
+				newSpawnedAfterOld = true
+			}
+		}
+		if e.Type == event.TypeSubagentCompleted {
+			dec, _ := event.DecodePayload(e)
+			sc := dec.(*event.SubagentCompleted)
+			if sc.CallID == "old" {
+				oldReason = sc.Reason
+			}
+			if sc.CallID == "new" {
+				newReason = sc.Reason
+			}
+		}
+	}
+	if oldReason == "completed" || oldReason == "" {
+		t.Errorf("OLD child reason = %q, want cancelled by the steer", oldReason)
+	}
+	if !newSpawnedAfterOld {
+		t.Error("NEW child was not spawned after OLD (steer did not change orchestration)")
+	}
+	if newReason != "completed" {
+		t.Errorf("NEW child reason = %q, want completed", newReason)
+	}
+}

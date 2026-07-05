@@ -206,3 +206,21 @@ TestNoDuplicateToolDeclaration。
 子 agent(background=true)→ 3 spawn_requested/3 subagent_completed/
 3 子 journal、父跨 5 turn 消费结果、全在第一 turn 启动(非阻塞并行)。
 PASS。
+
+## V2-M3 里程碑出口 — 双闸门 GREEN
+
+- **闸门 A(scripted 孪生)**:ParallelAndSettle(C3/C4)、UserKill(C5)、
+  SteerChangesOrchestration(C6 模型 steer→cancel+spawn)、
+  NoDuplicateToolDeclaration,-race 稳定。
+- **闸门 B(真实 API)**:**QA-04**(真实 Gemini 一 turn 启 3 个后台子
+  agent、3 完成、父跨 5 turn 消费,PASS)+ **QA-05**(用户 ar kill 直杀
+  运行中子 agent by handle → canceled、其它存活、会话续跑,×2 PASS)。
+
+**C3/C4/C5/C6 达成**——多 agent 编排核心真实跑通。记档:①assembly
+把后台 spawn handle 的 tool-result 排在 steer user 消息之后(潜在
+消息序疑问,QA-04 下真实模型处理正常,列 M3 review 观察项);②C6
+真实 API 模型可靠性(自己 kill+spawn)为 best-effort,确定性由
+scripted 孪生守,QA-05 真实 API 守确定性的用户直杀。
+
+全量 check + race + stage 1–7 全 26 acceptance 回归绿。下一步:
+M3 出口三视角对抗 review,然后 M4 多模态与工具面(→QA-03/07)。
