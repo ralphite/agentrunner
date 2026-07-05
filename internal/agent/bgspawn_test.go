@@ -302,3 +302,32 @@ func TestBackgroundSpawnUserKill(t *testing.T) {
 		}
 	}
 }
+
+// v2 M3 fix: a spec that explicitly lists an auto-added tool (spawn_agent)
+// must NOT produce a duplicate wire declaration — some providers reject it.
+func TestNoDuplicateToolDeclaration(t *testing.T) {
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: "hi"}, {Finish: "end_turn"}}},
+	}}
+	cap := &capturingProvider{inner: scripted.New(fix)}
+	l := bgSpawnLoop(t, scripted.NewRouter(), []string{"worker"})
+	// Spec lists spawn_agent explicitly AND has agents (which auto-adds it).
+	l.Spec.Tools = []string{"read_file", "spawn_agent"}
+	l.Provider = cap
+
+	if _, err := l.Run(context.Background(), "go"); err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]int{}
+	for _, td := range cap.requests[0].Tools {
+		seen[td.Name]++
+	}
+	for name, n := range seen {
+		if n > 1 {
+			t.Errorf("tool %q advertised %d times, want exactly 1", name, n)
+		}
+	}
+	if seen["spawn_agent"] != 1 {
+		t.Errorf("spawn_agent advertised %d times, want exactly 1", seen["spawn_agent"])
+	}
+}

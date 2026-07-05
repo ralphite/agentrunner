@@ -623,11 +623,28 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 		extra = append(extra, "publish_note", "read_notes")
 	}
 	if len(extra) > 0 {
-		extraDefs, derr := tool.ProviderDefs(extra)
-		if derr != nil {
-			return RunResult{}, derr
+		// Dedup against the spec's own tools AND within extra itself: a spec
+		// that already lists an auto-added tool (e.g. spawn_agent) must not
+		// produce a DUPLICATE wire declaration — some providers reject it
+		// (Gemini 400 "duplicate function declaration"). v2 M3 fix.
+		seen := make(map[string]bool, len(l.Spec.Tools))
+		for _, n := range l.Spec.Tools {
+			seen[n] = true
 		}
-		toolDefs = append(toolDefs, extraDefs...)
+		deduped := extra[:0]
+		for _, n := range extra {
+			if !seen[n] {
+				seen[n] = true
+				deduped = append(deduped, n)
+			}
+		}
+		if len(deduped) > 0 {
+			extraDefs, derr := tool.ProviderDefs(deduped)
+			if derr != nil {
+				return RunResult{}, derr
+			}
+			toolDefs = append(toolDefs, extraDefs...)
+		}
 	}
 	// abort routes a dying run through the same epilogue, best-effort, so
 	// a failed log is distinguishable from a truncated one. User

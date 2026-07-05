@@ -194,3 +194,15 @@ killHandle);RunRequest.Cancels 接进 Loop.Cancels;CLI kill <sid>
 canceled/error、fast completed 不受影响、SLOW_DONE 从未出现),
 -race ×3 稳定;ParallelAndSettle 加 spare 步抗并发唤醒时序波动。
 全量 check + stage 5/6 回归绿。下一步:M3 出口 QA-04/05 真实 API。
+
+## V2-M3 出口(部分)— QA-04 真实 API GREEN + tool dedup 修复
+
+**真实 bug 修复**:spec 显式列 spawn_agent + agents 触发自动追加 →
+Gemini 收到重复 function 声明 → 400 INVALID_ARGUMENT。修:advertise
+时对 extra 去重(against spec.Tools + extra 内部)。回归测试
+TestNoDuplicateToolDeclaration。
+
+**QA-04**:真实 ar+daemon+真实 Gemini,一个 turn 启动 3 个后台 worker
+子 agent(background=true)→ 3 spawn_requested/3 subagent_completed/
+3 子 journal、父跨 5 turn 消费结果、全在第一 turn 启动(非阻塞并行)。
+PASS。
