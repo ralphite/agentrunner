@@ -93,3 +93,24 @@ Gemini 要求 functionResponse 与 functionCall 严格配对,tool 结果作为
 会话继续"与开发者第 3 条描述一致,分歧点集中在"待命处=close"惯例
 与措辞;close 已是可重开意图(决策 #30);kill 工具族(task_kill/
 ar kill)与 interrupt 的关系待统一梳理。）
+
+## #12 fold / state（复审意见,2026-07-05）
+
+现行定义:state = 纯函数 fold(journal),不读时钟/外部存储/无副作用;
+session 唯一的工作内存。
+
+开发者意见/问题:
+
+1. **state 指的究竟是什么?** 具体地问:它是不是"针对大语言模型的
+   一个 request"?
+2. 开发者的对照理解(以 Gemini 为例):一个 request 由 system
+   instruction、history、tools 等组成——其中 system instruction 与
+   tools 更多是从 agent spec build 出来的;**state 看起来更像其中的
+   history(对话历史)那一部分**。
+
+（待分析线索,仅索引:现行 state 内容 ≠ 仅 history——fold 出的
+Session 子状态还含预算用量/在飞任务/等待状态/权限 mode/mailbox 高水位
+等 runtime 记账,"LLM request = assemble(state, spec)"是现行分层
+(context assembly 词条 §18.9);分析时需回答"state 里哪些是给模型
+的、哪些是给 runtime 的",并对照 #1 意见 4(session=event log 本体)
+与 #9(Input 弱类型化)一并裁。）
