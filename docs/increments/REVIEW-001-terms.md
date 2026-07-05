@@ -43,3 +43,30 @@
 （待分析线索,仅索引:DESIGN §4"异常终止形态"条款(malformed_tool_call
 /safety/blocked 的既有策略)、§5"每种关卡结果都定义模型看到什么"、
 决策 #9 配对红线——分析时对照"模型不再生成"与这些机制的覆盖关系。）
+
+## #9 inbox / Input（复审意见,2026-07-05）
+
+现行定义:inbox = per-session 持久有序输入队列;Input = tagged union
+五种(user_message / child_result / tool_result / timer / control),
+全部 journal 为 InputReceived。
+
+开发者意见/问题:
+
+1. **反对 Input 的显式类型分类**,理由有二:
+   - **扩展性**:后续扩展会有各处"支持度"的问题(每加一种来源就要
+     全链路认识这个新类型);
+   - **类型必要性**:Input 本质上只是给大语言模型看的内容,**不需要
+     强类型**——文本即可,多模态也一样能表达。
+2. 替代方案:**来源信息用内容前缀(prefix)表达,不用类型字段**——
+   - tool call 的结果:正文前加一段说明"这是哪个 tool call 的结果";
+   - 子 agent 的返回:像普通文本一样处理,前缀标明是哪个 agent、
+     哪个 session id、返回了什么;
+   - 其他来源同理。
+   这样灵活得多,因为本质上不需要强类型。
+3. 边界澄清:**作为整个系统的 log(event 记录/审计),可以有类型**;
+   但 Input 本身是"给 agent 的东西",类型放进这个 event 里完全不需要。
+
+（待分析线索,仅索引:provider tool_result 配对红线(决策 #9:
+Gemini 要求 functionResponse 与 functionCall 严格配对,tool 结果作为
+纯文本 prefix 是否破坏配对,需分析);control{kill} 不进对话的现行
+语义;§17"inbox 字面统一度"记档。）
