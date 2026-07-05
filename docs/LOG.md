@@ -263,3 +263,26 @@ fresh-run 教义对 goal 形态不适用;goal 的 context 必须延续。fresh-r
   表与决策 #30。待明日 review:①术语表 18.2–18.10 逐节;②G24 task
   重开形态;③CLI 子命令名(run/resume 等)是否随词汇改;④QA-01..09
   真实 API 重跑(本环境无凭据)。
+
+## 2026-07-05 Journey 真实验收(大清理后首次全量真机验证)
+
+开发者提供 GEMINI_API_KEY(.env,永不提交),按 QA.md 纪律做 journey
+级真实验收:真实 API(gemini-flash-latest)+ 真实工具 + SHA 钉死的
+真实仓库(fatih/color、spf13/cobra+注入 bug、gin、blank)。
+
+**结果:12/12 PASS**——QA-01..09 官方闸门全绿(QA-08 一条已记档
+措辞级 WARN,不设闸)+ 三条补测:T1 UJ-01 即问即答(答案精确到
+文件:函数并核验属实,零写操作)、T2 UJ-15 goal 驱动(1 轮迭代修复
+注入 bug,verifier 独立复核绿)、T3 UJ-16 best-of-2(隔离 worktree
+选优,胜者留盘)。
+
+**验证意义**:这是术语重命名+终止语义手术后的第一次真实 API 全量
+回归——session_closed 恰好一次、task_completed 回执(driver 子迭代
+链路)、send 复活、崩溃三态矩阵全部按新语义在真实链路落盘,零回归。
+
+**本轮发现**:①qa 脚本 .env 相对路径为搬家前旧值(已修复推送);
+②优雅停机对在飞 LLM 的协作取消留下 activity_cancelled 实录(设计
+承诺兑现);③QA spec 均 allow-all——审批/权限 journey(UJ-06/08)
+未被真实压到,建议补 QA-10..12(审批/interval 值守/注入对抗);
+④Anthropic 第二 provider 无凭据未测。报告 artifact:journey-验收-v1;
+运行留档 qa/runs/20260705-real/(gitignored 本机)。
