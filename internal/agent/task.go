@@ -181,6 +181,36 @@ func (l *Loop) settleBackground(appendE AppendFunc, out bgOutcome) error {
 	}
 }
 
+// drainCancels non-blockingly fires the cancel for every handle requested on
+// the Cancels channel (v2 M3.2). An unknown handle is a no-op (the task may
+// have already settled). The cancelled child/task settles through bg.done.
+func (l *Loop) drainCancels() {
+	if l.Cancels == nil {
+		return
+	}
+	for {
+		select {
+		case handle := <-l.Cancels:
+			l.cancelHandle(handle)
+		default:
+			return
+		}
+	}
+}
+
+// cancelHandle fires one handle's cancel if it is still live.
+func (l *Loop) cancelHandle(handle string) {
+	if l.bg == nil {
+		return
+	}
+	l.bg.mu.Lock()
+	cancel, ok := l.bg.cancel[handle]
+	l.bg.mu.Unlock()
+	if ok {
+		cancel()
+	}
+}
+
 // cancelAllBackground fires every live task's cancel; terminals settle
 // through the done channel.
 func (l *Loop) cancelAllBackground() {

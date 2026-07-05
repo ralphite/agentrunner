@@ -74,6 +74,16 @@ func sendCmd(args []string, stdout, stderr io.Writer) int {
 	return oneShot(stderr, daemon.Command{Cmd: "send", Session: resolvePrefixLenient(args[0]), Text: args[1]}, stdout)
 }
 
+// killCmd cancels one running child/task by handle (v2 M3.2):
+// `agentrunner kill <session-id-or-prefix> <handle>`.
+func killCmd(args []string, stdout, stderr io.Writer) int {
+	if len(args) != 2 {
+		fmt.Fprintln(stderr, "usage: agentrunner kill <session-id-or-prefix> <handle>")
+		return ExitUsage
+	}
+	return oneShot(stderr, daemon.Command{Cmd: "kill", Session: resolvePrefixLenient(args[0]), Handle: args[1]}, stdout)
+}
+
 // interruptCmd delivers an out-of-band interrupt to a live session (v2
 // M2.3): `agentrunner interrupt <session-id-or-prefix>` — steers a running
 // turn or closes an idle one; it is NOT a message.

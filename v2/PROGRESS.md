@@ -179,3 +179,18 @@ spawn_agent schema 加 background 布尔。
 2 SubagentCompleted + 2 ActivityCompleted、两 report 达模型、tasks
 排空、两子 journal 存在),-race 绿。全量 check + stage 5/6 回归绿。
 下一步:M3.2 用户直杀路径(daemon kill 命令 + CLI)+ M3 出口 QA-04/05。
+
+## V2-M3.2 — 用户直杀路径 — DONE
+
+Loop.Cancels <-chan string(带 handle 的取消通道,区别于整会话
+interrupt);drainCancels 在 drive loop 安全点 + awaitInput select
+arm 消费 → cancelHandle 查 bg.cancel 注册表触发;被杀子 agent 经
+bg.done 结算为 canceled 回执,父下 turn 可见,其它子不受影响。
+daemon:hostedRun.cancels chan + killHandle;kill 命令(查 runs →
+killHandle);RunRequest.Cancels 接进 Loop.Cancels;CLI kill <sid>
+<handle>。用户直杀与模型 task_kill 两条路径同触发 cancel 注册表。
+
+测试:UserKill e2e(slow 子跑 sleep 30、kill by handle → slow 结算
+canceled/error、fast completed 不受影响、SLOW_DONE 从未出现),
+-race ×3 稳定;ParallelAndSettle 加 spare 步抗并发唤醒时序波动。
+全量 check + stage 5/6 回归绿。下一步:M3 出口 QA-04/05 真实 API。

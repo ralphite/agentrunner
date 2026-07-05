@@ -41,6 +41,9 @@ type Command struct {
 	// send
 	Text string `json:"text,omitempty"` // a user message for a conversational session
 
+	// kill
+	Handle string `json:"handle,omitempty"` // a child/task handle to cancel
+
 	// approve
 	ApprovalID string `json:"approval_id,omitempty"`
 	Decision   string `json:"decision,omitempty"` // approve | deny
@@ -66,6 +69,7 @@ type RunRequest struct {
 	Conversational bool
 	Inbox          <-chan string
 	Interrupts     <-chan struct{}
+	Cancels        <-chan string
 }
 
 // RunFunc hosts one run to completion, emitting output events to sink. The
@@ -148,6 +152,24 @@ type hostedRun struct {
 	// during-turn interrupt steers (cancels the current activity); an idle
 	// interrupt closes. Buffered 1 like the terminal Ctrl-C channel.
 	interrupts chan struct{}
+	// cancels delivers handles to kill out of band (v2 M3.2): `kill <handle>`
+	// cancels one running child/task. Buffered for non-blocking delivery.
+	cancels chan string
+}
+
+// killHandle requests cancellation of one running child/task by handle.
+func (h *hostedRun) killHandle(handle string) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.done || h.cancels == nil {
+		return false
+	}
+	select {
+	case h.cancels <- handle:
+		return true
+	default:
+		return false
+	}
 }
 
 // signalInterrupt delivers one interrupt to the hosted loop (best-effort:
@@ -363,10 +385,31 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		s.handleClose(cmd, enc)
 	case "interrupt":
 		s.handleInterrupt(cmd, enc)
+	case "kill":
+		s.handleKill(cmd, enc)
 	default:
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
-			Text: fmt.Sprintf("unknown command %q (known: ping, run, attach, approve, send, close, interrupt)", cmd.Cmd)})
+			Text: fmt.Sprintf("unknown command %q (known: ping, run, attach, approve, send, close, interrupt, kill)", cmd.Cmd)})
 	}
+}
+
+// handleKill cancels one running child/task by handle (v2 M3.2): the user's
+// direct kill path, distinct from the model calling task_kill.
+func (s *Server) handleKill(cmd Command, enc *json.Encoder) {
+	if cmd.Session == "" || cmd.Handle == "" {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "kill needs session and handle"})
+		return
+	}
+	s.mu.Lock()
+	hub, ok := s.runs[cmd.Session]
+	s.mu.Unlock()
+	if !ok || !hub.killHandle(cmd.Handle) {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
+			Text: fmt.Sprintf("no live session %s accepting kills", cmd.Session)})
+		return
+	}
+	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage,
+		Text: "killing " + cmd.Handle, Session: cmd.Session})
 }
 
 // handleInterrupt delivers an out-of-band interrupt to a live session
@@ -487,6 +530,7 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 	if cmd.Conversational {
 		hub.inbox = make(chan string, 64) // type-ahead buffer
 		hub.interrupts = make(chan struct{}, 1)
+		hub.cancels = make(chan string, 8)
 	}
 	s.mu.Lock()
 	if s.stopping {
@@ -519,7 +563,7 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 		if err := s.Run(ctx, RunRequest{
 			SessionID: id, SpecPath: cmd.SpecPath, Task: cmd.Task,
 			Workspace: cmd.Workspace, Mode: cmd.Mode,
-			Conversational: cmd.Conversational, Inbox: hub.inbox, Interrupts: hub.interrupts,
+			Conversational: cmd.Conversational, Inbox: hub.inbox, Interrupts: hub.interrupts, Cancels: hub.cancels,
 		}, hub); err != nil {
 			hub.Emit(protocol.Event{Kind: protocol.KindError, Text: "run failed: " + err.Error()})
 		}

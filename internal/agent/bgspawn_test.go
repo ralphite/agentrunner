@@ -73,6 +73,10 @@ func TestBackgroundSpawnParallelAndSettle(t *testing.T) {
 			}},
 			{Respond: []scripted.Event{{Text: "a child came back, still waiting"}, {Finish: "end_turn"}}},
 			{Respond: []scripted.Event{{Text: "both children back: ALPHA and BETA done"}, {Finish: "end_turn"}}},
+			// Spare acks: settlement timing (which child wakes which turn) is
+			// real-concurrency, so the parent may turn once more before close.
+			{Respond: []scripted.Event{{Text: "still here"}, {Finish: "end_turn"}}},
+			{Respond: []scripted.Event{{Text: "still here"}, {Finish: "end_turn"}}},
 		}}},
 		scripted.RoutePair{Key: "ALPHA", Fixture: scripted.Fixture{Steps: []scripted.Step{
 			{Respond: []scripted.Event{{Text: "ALPHA report: ok"}, {Finish: "end_turn"}}},
@@ -184,6 +188,117 @@ func TestBackgroundSpawnParallelAndSettle(t *testing.T) {
 	for _, sub := range []string{"a-a1", "b-a1"} {
 		if _, err := store.ReadEvents(l.Store.Dir() + "/sub/" + sub); err != nil {
 			t.Errorf("child journal %s missing: %v", sub, err)
+		}
+	}
+}
+
+// v2 M3.2 (C5): a user's out-of-band kill cancels a running sub-agent by
+// handle; the cancelled child settles as a canceled outcome (partial output
+// preserved) that the parent's next turn sees, and the other child is
+// unaffected.
+func TestBackgroundSpawnUserKill(t *testing.T) {
+	// worker BLOCKS (a bash sleep) so the kill lands mid-run; the survivor
+	// finishes normally.
+	router := scripted.NewRouter(
+		scripted.RoutePair{Key: "you orchestrate", Fixture: scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{
+				{ToolCall: &scripted.ToolCallEvent{CallID: "slow", Name: "spawn_agent",
+					Args: map[string]any{"agent": "worker", "task": "run SLOWJOB", "background": true}}},
+				{ToolCall: &scripted.ToolCallEvent{CallID: "fast", Name: "spawn_agent",
+					Args: map[string]any{"agent": "worker", "task": "run FASTJOB", "background": true}}},
+				{Finish: "tool_use"},
+			}},
+			{Respond: []scripted.Event{{Text: "a result arrived"}, {Finish: "end_turn"}}},
+			{Respond: []scripted.Event{{Text: "another result"}, {Finish: "end_turn"}}},
+			{Respond: []scripted.Event{{Text: "still here"}, {Finish: "end_turn"}}},
+			{Respond: []scripted.Event{{Text: "both settled"}, {Finish: "end_turn"}}},
+		}}},
+		scripted.RoutePair{Key: "SLOWJOB", Fixture: scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{
+				{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "bash",
+					Args: map[string]any{"command": "sleep 30; echo SLOW_DONE"}}},
+				{Finish: "tool_use"},
+			}},
+			{Respond: []scripted.Event{{Text: "slow done"}, {Finish: "end_turn"}}},
+		}}},
+		scripted.RoutePair{Key: "FASTJOB", Fixture: scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{{Text: "FAST report: ok"}, {Finish: "end_turn"}}},
+		}}},
+	)
+	l := bgSpawnLoop(t, router, []string{"worker"})
+	l.Spec.Tools = []string{"read_file", "bash"} // worker needs bash for the sleep
+	cancels := make(chan string, 1)
+	inputs := make(chan string)
+	l.Conversational = true
+	l.UserInputs = inputs
+	l.Cancels = cancels
+
+	go func() {
+		// Once the slow child's bash is running, kill it by handle "slow".
+		deadline := time.Now().Add(6 * time.Second)
+		killed := false
+		for time.Now().Before(deadline) {
+			evs, _ := store.ReadEvents(l.Store.Dir() + "/sub/slow-a1")
+			running := false
+			for _, e := range evs {
+				if e.Type == event.TypeActivityStarted && strings.Contains(string(e.Payload), `"name":"bash"`) {
+					running = true
+				}
+			}
+			if running && !killed {
+				cancels <- "slow"
+				killed = true
+			}
+			// Close once both children have settled (SubagentCompleted x2).
+			pevs, _ := store.ReadEvents(l.Store.Dir())
+			done := 0
+			for _, e := range pevs {
+				if e.Type == event.TypeSubagentCompleted {
+					done++
+				}
+			}
+			if done >= 2 {
+				close(inputs)
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		close(inputs)
+	}()
+
+	res, err := l.Run(context.Background(), "orchestrate SLOWJOB and FASTJOB, kill the slow one")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "closed" {
+		t.Fatalf("res = %+v", res)
+	}
+
+	events, _ := store.ReadEvents(l.Store.Dir())
+	var slowReason, fastReason string
+	for _, e := range events {
+		if e.Type == event.TypeSubagentCompleted {
+			dec, _ := event.DecodePayload(e)
+			sc := dec.(*event.SubagentCompleted)
+			if sc.CallID == "slow" {
+				slowReason = sc.Reason
+			}
+			if sc.CallID == "fast" {
+				fastReason = sc.Reason
+			}
+		}
+	}
+	// The killed child settled as canceled/error; the survivor completed.
+	if slowReason == "" || slowReason == "completed" {
+		t.Errorf("slow child reason = %q, want a cancellation (not completed)", slowReason)
+	}
+	if fastReason != "completed" {
+		t.Errorf("fast child reason = %q, want completed (unaffected by the kill)", fastReason)
+	}
+	// No SLOW_DONE anywhere: the killed process never finished its sleep.
+	for _, e := range events {
+		if strings.Contains(string(e.Payload), "SLOW_DONE") {
+			t.Error("killed child's command still completed")
 		}
 	}
 }

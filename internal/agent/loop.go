@@ -68,6 +68,10 @@ type Loop struct {
 	// inboxClosed records that a boundary drain saw UserInputs close, so the
 	// next park closes the session instead of waiting (v2 M2.1).
 	inboxClosed bool
+	// Cancels delivers handles to cancel out of band (v2 M3.2): a user's
+	// `kill <handle>` cancels one running child/task without entering the
+	// conversation. Consumed at drive-loop safe points and during the park.
+	Cancels <-chan string
 	// Mode is the STARTING mode (3.6): journaled as the first ModeChanged.
 	// The live mode is fold state; empty means "default".
 	Mode string
@@ -660,6 +664,10 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 		if err := l.drainBackground(appendE); err != nil {
 			return RunResult{}, abort(ds.s.Run.Turn, err)
 		}
+		// Out-of-band kills (v2 M3.2): fire any requested handle cancels here,
+		// at a safe point; the cancelled child settles through bg.done as a
+		// canceled outcome on a subsequent iteration.
+		l.drainCancels()
 		act := decide(ds.s, l.Spec.MaxTurns, l.Spec.OnRunEnd, l.Conversational)
 		switch act.kind {
 		case doTurn:
