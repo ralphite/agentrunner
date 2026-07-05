@@ -843,21 +843,27 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				}
 				continue
 			}
+			if ds.s.Waiting.Kind == event.WaitInput {
+				// A conversational session parked for input, resumed across a
+				// restart (v2 M1.3): re-enter the wait WITHOUT re-journaling
+				// WaitingEntered — the fact is already in the fold.
+				if res, done, err := l.parkForInput(ctx, ds, appendE, ds.s.Run.Turn); done {
+					return res, err
+				}
+				continue
+			}
 			return RunResult{}, fmt.Errorf("session is waiting for %s; no resolver available yet", ds.s.Waiting.Kind)
 
 		case doWaitInput:
+			// Fresh park: journal the WaitingEntered fact, then wait. (A
+			// resumed park re-enters via doWait below — the fact is already
+			// durable, so it is NOT re-journaled.)
 			if _, err := appendE(event.TypeWaitingEntered, &event.WaitingEntered{
 				Kind: event.WaitInput,
 			}); err != nil {
 				return RunResult{}, abort(act.turn, err)
 			}
-			closed, err := l.awaitInput(ctx, appendE, act.turn)
-			if err != nil {
-				return RunResult{}, abort(act.turn, err)
-			}
-			if closed {
-				res, err := l.runEpilogue(ctx, ds, appendE, "closed", act.turn, false)
-				l.emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: res.Reason, Turn: res.Turns})
+			if res, done, err := l.parkForInput(ctx, ds, appendE, act.turn); done {
 				return res, err
 			}
 			continue

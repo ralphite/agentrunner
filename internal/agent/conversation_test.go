@@ -2,7 +2,9 @@ package agent
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
@@ -123,5 +125,105 @@ func TestTaskModeStillEndsOnYield(t *testing.T) {
 	}
 	if res.Reason != "completed" || res.Turns != 1 {
 		t.Fatalf("res = %+v, want v1 completed semantics", res)
+	}
+}
+
+// v2 M1.3 (C10a): a conversational session that parked for input, then had
+// its process die, RESUMES back into the idle park and continues on the
+// next input — "answer, wait" survives a restart with no special action.
+func TestConversationalParkResumes(t *testing.T) {
+	root := t.TempDir()
+	sessDir := filepath.Join(t.TempDir(), "sess")
+
+	// Phase 1: open, take one turn, park — then cancel (simulated crash).
+	fix1 := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: "answer one"}, {Finish: "end_turn"}}},
+	}}
+	es1, err := store.OpenEventStore(sessDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	l1 := testLoop(t, fix1, root)
+	l1.Store = es1
+	l1.Conversational = true
+	l1.UserInputs = make(chan string) // never fed: the session parks and stays
+	ctx, cancel := context.WithCancel(context.Background())
+	// Cancel once the park is durable (WaitingEntered{input} in the journal).
+	go func() {
+		deadline := time.Now().Add(5 * time.Second)
+		for time.Now().Before(deadline) {
+			evs, _ := store.ReadEvents(sessDir)
+			for _, e := range evs {
+				if e.Type == event.TypeWaitingEntered {
+					dec, _ := event.DecodePayload(e)
+					if dec.(*event.WaitingEntered).Kind == event.WaitInput {
+						cancel()
+						return
+					}
+				}
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+		cancel()
+	}()
+	_, _ = l1.Run(ctx, "first question") // returns with the cancel cause
+	_ = es1.Close()
+
+	// The journal parked and did NOT end.
+	evs, _ := store.ReadEvents(sessDir)
+	for _, e := range evs {
+		if e.Type == event.TypeRunEnded {
+			t.Fatal("parked session ended before resume")
+		}
+	}
+
+	// Phase 2: reopen on the SAME dir and resume — re-park, then one input
+	// continues the conversation and closes.
+	fix2 := scripted.Fixture{Steps: []scripted.Step{
+		{
+			Expect:  scripted.Expect{LastMessageContains: "second question"},
+			Respond: []scripted.Event{{Text: "answer two"}, {Finish: "end_turn"}},
+		},
+	}}
+	es2, err := store.OpenEventStore(sessDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = es2.Close() }()
+	inputs := make(chan string, 1)
+	inputs <- "second question"
+	close(inputs)
+	l2 := testLoop(t, fix2, root)
+	l2.Store = es2
+	l2.Conversational = true
+	l2.UserInputs = inputs
+
+	res, err := l2.Resume(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "closed" {
+		t.Fatalf("res = %+v, want closed after the resumed turn", res)
+	}
+	final, _ := store.ReadEvents(sessDir)
+	var inputsN, ends int
+	var sawAnswerTwo bool
+	for _, e := range final {
+		switch e.Type {
+		case event.TypeInputReceived:
+			inputsN++
+		case event.TypeRunEnded:
+			ends++
+		case event.TypeAssistantMessage:
+			dec, _ := event.DecodePayload(e)
+			for _, p := range dec.(*event.AssistantMessage).Message.Parts {
+				if p.Text == "answer two" {
+					sawAnswerTwo = true
+				}
+			}
+		}
+	}
+	if inputsN != 2 || ends != 1 || !sawAnswerTwo {
+		t.Fatalf("inputs=%d ends=%d answerTwo=%v — resume must re-park then continue to close", inputsN, ends, sawAnswerTwo)
 	}
 }

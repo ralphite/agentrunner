@@ -8,6 +8,33 @@ import (
 	"github.com/ralphite/agentrunner/internal/redact"
 )
 
+// parkForInput waits at the conversational idle and, on close, runs the
+// epilogue and returns done=true with the terminal result. On an input or
+// task settlement it returns done=false so the drive loop continues. Shared
+// by the fresh park (doWaitInput) and the resumed park (doWait/WaitInput):
+// neither re-journals WaitingEntered here.
+func (l *Loop) parkForInput(ctx context.Context, ds *driveState, appendE AppendFunc,
+	turn int) (RunResult, bool, error) {
+
+	closed, err := l.awaitInput(ctx, appendE, turn)
+	if err != nil {
+		// A cancelled context is a process teardown (crash/shutdown), NOT an
+		// ending: the parked session must resume later, so it leaves NO
+		// terminal. Only a genuine journal failure gets a best-effort
+		// terminal so the log still closes.
+		if ctx.Err() == nil {
+			_, _ = l.runEpilogue(ctx, ds, appendE, "error", turn, true)
+		}
+		return RunResult{}, true, err
+	}
+	if closed {
+		res, eerr := l.runEpilogue(ctx, ds, appendE, "closed", turn, false)
+		l.emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: res.Reason, Turn: res.Turns})
+		return res, true, eerr
+	}
+	return RunResult{}, false, nil
+}
+
 // awaitInput is the conversational idle (v2 M1.1, DESIGN v2 §1): the model
 // yielded and nothing is pending, so the session waits — for the next user
 // input, a background settlement, an interrupt (the close gesture at idle),
