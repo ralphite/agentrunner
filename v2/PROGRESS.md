@@ -284,3 +284,26 @@ input_received 行 432 字节 ref-only、CAS blob 落盘;后续纯文本 turn
 再作答),数消息会提前放行(qa_wait_idle 进 lib.sh)。
 
 下一步:M4.3 write_file 工具 + 长贴折叠 → QA-03。
+
+## V2-M4.3 — write_file + 长贴折叠 — DONE;**M4 里程碑双闸门 GREEN**
+
+**write_file**:一等核心工具(class=edit,建新文件/整文件覆盖不再借
+edit_file 空 old 特例或 bash heredoc);registry 数据驱动加 defs JSON
++ Execute case。TestWriteFile(建/覆盖/边界逃逸拒绝/缺 content 报错/
+空 content 合法)。
+
+**长贴折叠**:journalInput 对 >10KB 文本(redaction 之后)CAS Put 全
+文、journal 存 512B head + 折叠注记 + Files:[{ref,text/plain}];
+event.AttachmentRef 统一 Images/Files;fold 出 PartFile;wire 层
+text/* file part 两家都渲染为文本块(可移植),二进制走 inline_data/
+image block。TestLongPasteFoldsToFilePart。
+
+- **闸门 A**:C9 e2e 孪生 + 长贴折叠 + write_file + wire 映射单测,
+  -race 绿;全量 go test 绿。
+- **闸门 B**:**QA-07**(vision 三要素 + ref-not-bytes + 上下文连续,
+  PASS)+ **QA-03**(真实 Gemini 修注入 bug:只改 calc.go 不改测试、
+  自跑测试变绿;QA_NOTES.md 经 write_file 工具落盘。PASS)。
+
+**C9 达成,核心工具 9 达成**。学到:QA-03 的 qa_inject 是 untracked
+——断言用内容哈希对比,git diff 看不见注入文件。acceptance 1-7 全 26
+场景回归绿。下一步:M5 恢复审计(crash 矩阵)→ QA-08。

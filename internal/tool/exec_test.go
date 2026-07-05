@@ -370,3 +370,47 @@ func TestBashFailsClosedWithoutNetNS(t *testing.T) {
 		t.Errorf("error = %q", msg)
 	}
 }
+
+// v2 M4.3: write_file creates (with parents) and overwrites whole files;
+// the workspace boundary holds; empty content is valid, missing content is
+// a model-visible arg error.
+func TestWriteFile(t *testing.T) {
+	ws, err := workspace.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := &Executor{WS: ws}
+
+	res := e.Execute(context.Background(), "write_file",
+		json.RawMessage(`{"path":"docs/NOTES.md","content":"第一版\n"}`))
+	if res.IsError {
+		t.Fatalf("create: %s", res.Payload)
+	}
+	raw, err := os.ReadFile(ws.Root() + "/docs/NOTES.md")
+	if err != nil || string(raw) != "第一版\n" {
+		t.Fatalf("content = %q, %v", raw, err)
+	}
+	res = e.Execute(context.Background(), "write_file",
+		json.RawMessage(`{"path":"docs/NOTES.md","content":"第二版"}`))
+	if res.IsError {
+		t.Fatalf("overwrite: %s", res.Payload)
+	}
+	raw, _ = os.ReadFile(ws.Root() + "/docs/NOTES.md")
+	if string(raw) != "第二版" {
+		t.Fatalf("overwrite content = %q", raw)
+	}
+	res = e.Execute(context.Background(), "write_file",
+		json.RawMessage(`{"path":"../escape.txt","content":"x"}`))
+	if !res.IsError {
+		t.Fatal("workspace escape allowed")
+	}
+	res = e.Execute(context.Background(), "write_file", json.RawMessage(`{"path":"a.txt"}`))
+	if !res.IsError {
+		t.Fatal("missing content accepted")
+	}
+	res = e.Execute(context.Background(), "write_file",
+		json.RawMessage(`{"path":"a.txt","content":""}`))
+	if res.IsError {
+		t.Fatalf("empty content rejected: %s", res.Payload)
+	}
+}

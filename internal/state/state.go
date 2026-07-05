@@ -303,11 +303,16 @@ func Apply(s State, env event.Envelope) (State, error) {
 		// never become user messages and never grant turn budget.
 		if p.Source != "interrupt" && p.Source != "control" {
 			parts := []provider.Part{{Kind: provider.PartText, Text: p.Text}}
-			// Attached images fold as ref-only parts (v2 M4.1): the bytes
-			// stay in the CAS; assembly inflates them before the wire.
+			// Attached images/files fold as ref-only parts (v2 M4.1/M4.3):
+			// bytes stay in the CAS; assembly inflates them before the wire.
 			for _, img := range p.Images {
 				parts = append(parts, provider.Part{
 					Kind: provider.PartImage, Ref: img.Ref, MediaType: img.MediaType,
+				})
+			}
+			for _, f := range p.Files {
+				parts = append(parts, provider.Part{
+					Kind: provider.PartFile, Ref: f.Ref, MediaType: f.MediaType,
 				})
 			}
 			s.Conversation = s.Conversation.withMessage(provider.Message{

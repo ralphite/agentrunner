@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"iter"
 	"os"
+	"strings"
 
 	"google.golang.org/genai"
 
@@ -267,6 +268,11 @@ func toPart(p provider.Part) (*genai.Part, error) {
 		// ref without bytes here means the inflate step was skipped.
 		if len(p.Data) == 0 {
 			return nil, fmt.Errorf("gemini: %s part %q has no bytes (not inflated)", p.Kind, p.Ref)
+		}
+		// Text attachments (folded long pastes, M4.3) render as text — the
+		// most portable mapping; binary media rides inline_data.
+		if p.Kind == provider.PartFile && strings.HasPrefix(p.MediaType, "text/") {
+			return &genai.Part{Text: "[attached file " + p.Ref + "]\n" + string(p.Data)}, nil
 		}
 		return &genai.Part{InlineData: &genai.Blob{MIMEType: p.MediaType, Data: p.Data}}, nil
 

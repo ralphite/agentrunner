@@ -2,17 +2,25 @@ package agent
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/redact"
 )
 
+// longPasteThreshold is the input size past which the text body folds into
+// a file part (v2 M4.3, DESIGN §4): the journal line and the durable
+// transcript stay small; the full bytes live in the CAS and reach the model
+// through the same inflate path as any attachment.
+const longPasteThreshold = 10 * 1024
+
 // journalInput records one user message (journal-inputs-first, redacted).
-// Attached image bytes go into the CAS BEFORE the event lands (blob-before-
+// Attached blob bytes go into the CAS BEFORE the event lands (blob-before-
 // event, v2 M4.1): the journal carries only refs, never bytes.
 func (l *Loop) journalInput(appendE AppendFunc, in protocol.UserInput) error {
-	var images []event.ImageInput
+	var images, files []event.AttachmentRef
+	text := redact.FromEnv().String(in.Text)
 	for _, img := range in.Images {
 		if err := l.ensureArtifacts(); err != nil {
 			return err
@@ -21,10 +29,25 @@ func (l *Loop) journalInput(appendE AppendFunc, in protocol.UserInput) error {
 		if err != nil {
 			return err
 		}
-		images = append(images, event.ImageInput{Ref: ref, MediaType: img.MediaType})
+		images = append(images, event.AttachmentRef{Ref: ref, MediaType: img.MediaType})
+	}
+	// Long-paste folding (v2 M4.3): an oversized text body becomes a file
+	// part plus a short head, AFTER redaction (the CAS copy must be as
+	// redacted as the journal itself).
+	if len(text) > longPasteThreshold {
+		if err := l.ensureArtifacts(); err != nil {
+			return err
+		}
+		ref, err := l.Artifacts.Put([]byte(text))
+		if err != nil {
+			return err
+		}
+		files = append(files, event.AttachmentRef{Ref: ref, MediaType: "text/plain"})
+		head := text[:512]
+		text = head + fmt.Sprintf("\n…[长文本已折叠为附件 %s,共 %d 字节,完整内容见 file part]", ref, len(text))
 	}
 	_, err := appendE(event.TypeInputReceived, &event.InputReceived{
-		Text: redact.FromEnv().String(in.Text), Source: "user", Images: images,
+		Text: text, Source: "user", Images: images, Files: files,
 	})
 	return err
 }

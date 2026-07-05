@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ralphite/agentrunner/internal/protocol"
@@ -24,7 +25,7 @@ func TestFoldImageInputRefOnly(t *testing.T) {
 	s := state.New()
 	s = mustApply(t, s, event.TypeInputReceived, &event.InputReceived{
 		Text: "看看这个报错截图", Source: "user",
-		Images: []event.ImageInput{{Ref: "sha256-abc", MediaType: "image/png"}},
+		Images: []event.AttachmentRef{{Ref: "sha256-abc", MediaType: "image/png"}},
 	})
 	msgs := s.Conversation.Messages
 	if len(msgs) != 1 || len(msgs[0].Parts) != 2 {
@@ -66,7 +67,7 @@ func TestInflateBlobsCopiesNotMutates(t *testing.T) {
 	s := state.New()
 	s = mustApply(t, s, event.TypeInputReceived, &event.InputReceived{
 		Text: "这是截图", Source: "user",
-		Images: []event.ImageInput{{Ref: ref, MediaType: "image/png"}},
+		Images: []event.AttachmentRef{{Ref: ref, MediaType: "image/png"}},
 	})
 	req := Assemble(s, l.Spec, nil, 1)
 	if err := l.inflateBlobs(req.Messages); err != nil {
@@ -91,7 +92,7 @@ func TestInflateBlobsCopiesNotMutates(t *testing.T) {
 	s2 := state.New()
 	s2 = mustApply(t, s2, event.TypeInputReceived, &event.InputReceived{
 		Text: "bad", Source: "user",
-		Images: []event.ImageInput{{Ref: "sha256-missing", MediaType: "image/png"}},
+		Images: []event.AttachmentRef{{Ref: "sha256-missing", MediaType: "image/png"}},
 	})
 	req2 := Assemble(s2, l.Spec, nil, 1)
 	if err := l.inflateBlobs(req2.Messages); err == nil {
@@ -171,5 +172,67 @@ func TestConversationalImageInputEndToEnd(t *testing.T) {
 	}
 	if !sawInflated {
 		t.Error("provider request lacks the inflated image part")
+	}
+}
+
+// v2 M4.3: a paste past the threshold folds — short journaled text with a
+// head + note, full bytes in the CAS as a text/plain file part, and the
+// provider request carries the inflated content.
+func TestLongPasteFoldsToFilePart(t *testing.T) {
+	long := strings.Repeat("日志行 log line padding\n", 800) // > 10KB
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: "开始"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "读完了"}, {Finish: "end_turn"}}},
+	}}
+	cap := &capturingProvider{inner: scripted.New(fix)}
+	inputs := make(chan protocol.UserInput, 1)
+	l := testLoop(t, fix, t.TempDir())
+	l.Provider = cap
+	l.Conversational = true
+	l.UserInputs = inputs
+	go func() {
+		waitAnswers(t, l.Store.Dir(), 1)
+		inputs <- protocol.UserInput{Text: long}
+		waitAnswers(t, l.Store.Dir(), 2)
+		close(inputs)
+	}()
+	if _, err := l.Run(context.Background(), "待命"); err != nil {
+		t.Fatal(err)
+	}
+	evs, _ := store.ReadEvents(l.Store.Dir())
+	var folded *event.InputReceived
+	for _, e := range evs {
+		if e.Type == event.TypeInputReceived {
+			dec, _ := event.DecodePayload(e)
+			if in := dec.(*event.InputReceived); len(in.Files) > 0 {
+				folded = in
+			}
+		}
+	}
+	if folded == nil {
+		t.Fatal("long paste did not fold into a file attachment")
+	}
+	if len(folded.Text) > 1024 {
+		t.Errorf("journaled text is %d bytes; folding must keep it short", len(folded.Text))
+	}
+	if folded.Files[0].MediaType != "text/plain" {
+		t.Errorf("file media type = %q", folded.Files[0].MediaType)
+	}
+	got, err := l.Artifacts.Get(folded.Files[0].Ref)
+	if err != nil || string(got) != long {
+		t.Fatalf("CAS does not hold the full paste: %v", err)
+	}
+	// The provider saw the inflated file part with the full bytes.
+	last := cap.requests[len(cap.requests)-1]
+	var sawFile bool
+	for _, m := range last.Messages {
+		for _, p := range m.Parts {
+			if p.Kind == provider.PartFile && len(p.Data) == len(long) {
+				sawFile = true
+			}
+		}
+	}
+	if !sawFile {
+		t.Error("provider request lacks the inflated file part")
 	}
 }

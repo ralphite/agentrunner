@@ -1,0 +1,13 @@
+{
+  "name": "write_file",
+  "description": "Write a file with the given content, creating it (and parent directories) or fully overwriting it. Use edit_file for partial in-place edits; use this to create new files or replace whole file contents.",
+  "class": "edit",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "path":    { "type": "string", "description": "File path relative to the workspace root." },
+      "content": { "type": "string", "description": "The complete file content to write." }
+    },
+    "required": ["path", "content"]
+  }
+}

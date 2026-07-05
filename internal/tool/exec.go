@@ -110,6 +110,8 @@ func (e *Executor) Execute(ctx context.Context, name string, args json.RawMessag
 		return e.readFile(args)
 	case "edit_file":
 		return e.editFile(args)
+	case "write_file":
+		return e.writeFile(args)
 	case "bash":
 		return e.bash(ctx, args)
 	case "schedule_next":
@@ -214,6 +216,30 @@ func (e *Executor) readFile(rawArgs json.RawMessage) Result {
 			len(raw), readMaxLines, readMaxBytes)
 	}
 	return okResult(map[string]any{"content": content, "truncated": truncated})
+}
+
+// writeFile creates or fully overwrites one file inside the workspace
+// (v2 M4.3, core tool: 建新文件不再借道 edit_file 的空 old 特例或 bash
+// heredoc). Parent directories are created; the boundary is WS.Resolve.
+func (e *Executor) writeFile(rawArgs json.RawMessage) Result {
+	var args struct {
+		Path    string  `json:"path"`
+		Content *string `json:"content"`
+	}
+	if err := json.Unmarshal(rawArgs, &args); err != nil || args.Path == "" || args.Content == nil {
+		return errResult("write_file: invalid args: need {\"path\", \"content\"}")
+	}
+	path, err := e.WS.Resolve(args.Path)
+	if err != nil {
+		return errResult("write_file: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return errResult("write_file: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(*args.Content), 0o644); err != nil {
+		return errResult("write_file: %v", err)
+	}
+	return okResult(map[string]any{"output": fmt.Sprintf("wrote %s (%d bytes)", args.Path, len(*args.Content))})
 }
 
 func (e *Executor) editFile(rawArgs json.RawMessage) Result {

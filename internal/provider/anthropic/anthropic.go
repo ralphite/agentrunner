@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"iter"
 	"os"
+	"strings"
 
 	sdk "github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
@@ -263,6 +264,12 @@ func userBlocks(m provider.Message) ([]sdk.ContentBlockParamUnion, error) {
 			// v2 M4.2: assembly already inflated the bytes from the CAS.
 			if len(p.Data) == 0 {
 				return nil, fmt.Errorf("anthropic: %s part %q has no bytes (not inflated)", p.Kind, p.Ref)
+			}
+			// Text attachments (folded long pastes, M4.3) render as text;
+			// image bytes ride the image block.
+			if p.Kind == provider.PartFile && strings.HasPrefix(p.MediaType, "text/") {
+				blocks = append(blocks, sdk.NewTextBlock("[attached file "+p.Ref+"]\n"+string(p.Data)))
+				continue
 			}
 			blocks = append(blocks, sdk.NewImageBlockBase64(p.MediaType,
 				base64.StdEncoding.EncodeToString(p.Data)))
