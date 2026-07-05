@@ -246,6 +246,10 @@ type Run struct {
 	// per exchange, counted from here — a cumulative cap would wedge a
 	// long-lived session once Turn passed max_turns.
 	LastInputTurn int `json:"last_input_turn,omitempty"`
+	// ConsumedInputSeq is the mailbox high-water mark (v2 收口): the
+	// largest DeliverySeq among journaled inputs. Resume replays mailbox
+	// entries above it — 崩溃不丢输入 becomes literally true.
+	ConsumedInputSeq int64 `json:"consumed_input_seq,omitempty"`
 }
 
 // ForkOrigin records where a forked session came from.
@@ -301,6 +305,9 @@ func Apply(s State, env event.Envelope) (State, error) {
 		// Interrupts and control signals (user kill) are journaled control
 		// inputs (journal-inputs-first), not conversation content — they
 		// never become user messages and never grant turn budget.
+		if p.DeliverySeq > s.Run.ConsumedInputSeq {
+			s.Run.ConsumedInputSeq = p.DeliverySeq
+		}
 		if p.Source != "interrupt" && p.Source != "control" {
 			parts := []provider.Part{{Kind: provider.PartText, Text: p.Text}}
 			// Attached images/files fold as ref-only parts (v2 M4.1/M4.3):

@@ -21,6 +21,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/notify"
 	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/protocol"
+	"github.com/ralphite/agentrunner/internal/redact"
 	"github.com/ralphite/agentrunner/internal/runtime"
 	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
@@ -85,12 +86,14 @@ func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 			}
 			return daemon.ReplayJournal(dir, sink)
 		},
-		ScanTimers: scanSessionTimers,
-		Resume:     hostResumeFunc(version, stderr, broker),
-		Drive:      hostDriveFunc(version, stderr, broker),
-		Approvals:  broker,
-		IdemPath:   filepath.Join(filepath.Dir(sock), "idem.json"),
-		Notify:     notifyTee,
+		ScanTimers:   scanSessionTimers,
+		Resume:       hostResumeFunc(version, stderr, broker),
+		PersistInput: persistInputFunc(),
+		SessionShape: sessionShape,
+		Drive:        hostDriveFunc(version, stderr, broker),
+		Approvals:    broker,
+		IdemPath:     filepath.Join(filepath.Dir(sock), "idem.json"),
+		Notify:       notifyTee,
 	}
 	reconcileNotifications(notifier)
 	fmt.Fprintf(stderr, "daemon on %s\n", sock)
@@ -318,6 +321,42 @@ func hostRunFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker
 		_, runErr := loop.Run(ctx, req.Task)
 		return runErr
 	}
+}
+
+// persistInputFunc makes sends durable before the ack (v2 收口): redact,
+// then append + fsync to the session's mailbox. Redaction here keeps the
+// mailbox file as credential-free as the journal it feeds.
+func persistInputFunc() func(string, protocol.UserInput) (protocol.UserInput, error) {
+	return func(sessionID string, in protocol.UserInput) (protocol.UserInput, error) {
+		dir, err := resolveSessionDir(sessionID)
+		if err != nil {
+			return in, err
+		}
+		in.Text = redact.FromEnv().String(in.Text)
+		return store.AppendInbox(dir, in)
+	}
+}
+
+// sessionShape reports a session's journaled shape for honest revival
+// (v2 收口): conversational comes from RunStarted, ended from the fold.
+func sessionShape(sessionID string) (conversational, ended bool, err error) {
+	dir, err := resolveSessionDir(sessionID)
+	if err != nil {
+		return false, false, err
+	}
+	started, err := readRunStarted(dir)
+	if err != nil {
+		return false, false, err
+	}
+	events, err := store.ReadEvents(dir)
+	if err != nil {
+		return false, false, err
+	}
+	s, err := state.Fold(events)
+	if err != nil {
+		return false, false, err
+	}
+	return started.Conversational, s.Run.Status == state.StatusEnded, nil
 }
 
 // scanSessionTimers derives the pending-timer index from the session

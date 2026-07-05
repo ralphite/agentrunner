@@ -11,7 +11,12 @@ type ImageAttachment struct {
 }
 
 // UserInput is one conversational user message with optional attachments.
+// DeliverySeq is the durable-mailbox sequence (v2 收口): 0 = not persisted
+// (tests, direct wiring); >0 = the daemon fsynced it before acking, and the
+// journal's InputReceived echoes it so a resume can replay the unconsumed
+// tail exactly once.
 type UserInput struct {
-	Text   string            `json:"text"`
-	Images []ImageAttachment `json:"images,omitempty"`
+	Text        string            `json:"text"`
+	Images      []ImageAttachment `json:"images,omitempty"`
+	DeliverySeq int64             `json:"delivery_seq,omitempty"`
 }

@@ -421,6 +421,14 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 			}
 		}
 	}
+	// A snapshot written by a binary that predates Run.LastInputTurn folds
+	// it as 0, which would mis-compute the per-exchange budget (收口
+	// review). Snapshots are disposable caches: on the suspicious shape,
+	// discard and fold from scratch — the fold recomputes the field exactly.
+	if ok && l.Conversational && s.Run.LastInputTurn == 0 && s.Run.Turn > 0 {
+		ok = false
+		s = state.State{}
+	}
 	if !ok {
 		if s, err = state.Fold(events); err != nil {
 			return RunResult{}, err
@@ -466,6 +474,23 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 	if len(inDoubt) > 0 {
 		if err := l.settleCrashInDoubt(appendE, inDoubt); err != nil {
 			return RunResult{}, err
+		}
+	}
+
+	// Mailbox replay (v2 收口, 铁律 "崩溃不丢输入"): every delivery the
+	// daemon acked durably but the journal never consumed (crash between
+	// enqueue and the consume-side journal) re-enters now, in order,
+	// journal-inputs-first. The seq high-water mark makes this effectively
+	// once — an input both journaled and in the mailbox replays never.
+	if l.Conversational {
+		pending, perr := store.ReadInbox(l.Store.Dir(), ds.s.Run.ConsumedInputSeq)
+		if perr != nil {
+			return RunResult{}, fmt.Errorf("resume: mailbox: %w", perr)
+		}
+		for _, in := range pending {
+			if err := l.journalInput(ds, appendE, in); err != nil {
+				return RunResult{}, err
+			}
 		}
 	}
 
@@ -903,7 +928,20 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			if ds.s.Waiting.Kind == event.WaitInput {
 				// A conversational session parked for input, resumed across a
 				// restart (v2 M1.3): re-enter the wait WITHOUT re-journaling
-				// WaitingEntered — the fact is already in the fold.
+				// WaitingEntered — the fact is already in the fold. But first
+				// (收口 review): an input that became durable without its
+				// WaitingResolved (crash in that window), or a crash receipt
+				// settled by settleCrashInDoubt, is ALREADY waiting in the
+				// fold — resolve the stale park instead of blocking over it,
+				// or the model never sees it until the next external poke.
+				if hasInputAfterLastAssistant(ds.s) {
+					if _, err := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
+						Kind: event.WaitInput, Resolution: "pending_input",
+					}); err != nil {
+						return RunResult{}, abort(ds.s.Run.Turn, err)
+					}
+					continue
+				}
 				if res, done, err := l.parkForInput(ctx, ds, appendE, ds.s.Run.Turn); done {
 					return res, err
 				}

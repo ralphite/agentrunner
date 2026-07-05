@@ -139,6 +139,10 @@ type InputReceived struct {
 	// event lands. Files carries folded long pastes and documents.
 	Images []AttachmentRef `json:"images,omitempty"`
 	Files  []AttachmentRef `json:"files,omitempty"`
+	// DeliverySeq echoes the durable mailbox seq this input consumed (v2
+	// 收口); 0 for non-mailbox sources. The fold's high-water mark drives
+	// crash replay of the unconsumed mailbox tail.
+	DeliverySeq int64 `json:"delivery_seq,omitempty"`
 }
 
 // AttachmentRef is one attached blob: its CAS ref and media type.

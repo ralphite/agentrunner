@@ -65,16 +65,31 @@ qa_wait_idle "$SDIR" 2
 grep '"type":"assistant_message"' "$SDIR/events.jsonl" | tail -1 | grep -q "蓝色风筝" || {
   echo "$QA: FAIL (a) revived answer lost pre-crash context" >&2; fail=1; }
 
-# ---- (b) bash in flight × kill -9 → in-doubt renders, never re-runs ----
+# ---- (b) bash in flight × kill -9 → in-doubt renders, never re-runs;
+#      a message QUEUED before the crash survives it (铁律 2) ----
 "$AR" send "$sid" "运行 ./qa_slow.sh 并告诉我输出。只运行这一个命令。" >/dev/null
 for i in $(seq 1 200); do
   grep -q '"name":"bash"' "$SDIR/events.jsonl" 2>/dev/null && break; sleep 0.2
 done
+# Queue a message DURING the turn — it is acked durable, then the crash
+# eats the process before the consume-side journal sees it.
+"$AR" send "$sid" "插一个问题:暗语是'青鸟',请原样重复一遍这个暗语。" >/dev/null
 crash_restart
 "$AR" send "$sid" "刚才那个命令什么状态?不要重新运行任何命令,只根据你已有的信息回答。" >/dev/null
 qa_wait_idle "$SDIR" 3
 grep '"type":"activity_failed"' "$SDIR/events.jsonl" | grep -q "interrupted by crash" || {
   echo "$QA: FAIL (b) no interrupted-by-crash rendering" >&2; fail=1; }
+# 铁律 2 (无输入丢失): the queued message survived the crash — journaled
+# after the restart (mailbox replay), exactly once, and CONSUMED (a turn
+# started after it, so it entered the model's context). Whether the model
+# repeats the codeword verbatim is wording, not gated (§0.1).
+qn="$(grep '"type":"input_received"' "$SDIR/events.jsonl" | grep -c "青鸟")" || qn=0
+[ "$qn" = 1 ] || { echo "$QA: FAIL (b) queued input journaled $qn times, want exactly 1" >&2; fail=1; }
+q_line="$(grep -n '"type":"input_received"' "$SDIR/events.jsonl" | grep "青鸟" | head -1 | cut -d: -f1)"
+t_after="$(awk -v n="$q_line" 'NR>n && /"type":"turn_started"/{print NR; exit}' "$SDIR/events.jsonl")"
+[ -n "$q_line" ] && [ -n "$t_after" ] || {
+  echo "$QA: FAIL (b) queued input never consumed by a turn" >&2; fail=1; }
+grep '"type":"assistant_message"' "$SDIR/events.jsonl" | grep -q "青鸟" ||   echo "$QA: WARN (b) model did not echo the codeword (wording, not gated)" >&2
 # The RUNTIME never re-runs on doubt: every qa_slow start is model-initiated
 # (paired 1:1 with an assistant tool_call). A model that re-runs after
 # SEEING the crash result is exercising legitimate agency — allowed.

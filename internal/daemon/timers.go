@@ -75,15 +75,29 @@ func (s *Server) markResumeFailed(id string) {
 // wires them iff the journal says conversational, so a revived chat
 // session accepts send/interrupt/kill exactly like a freshly hosted one.
 func (s *Server) hostResume(ctx context.Context, id string) {
+	// Shape first (v2 收口 review): an ended session must not be revived,
+	// and a task-mode session must not grow conversational channels — a
+	// post to a channel the loop never reads would false-ack "delivered".
+	conversational := true
+	if s.SessionShape != nil {
+		var ended bool
+		var err error
+		conversational, ended, err = s.SessionShape(id)
+		if err != nil || ended {
+			return // handleSend reports "could not be resumed"
+		}
+	}
 	s.mu.Lock()
 	if s.stopping || s.runs[id] != nil {
 		s.mu.Unlock()
 		return
 	}
 	hub := &hostedRun{id: id, notify: s.Notify, subs: map[chan protocol.Event]struct{}{}}
-	hub.inbox = make(chan protocol.UserInput, 64)
-	hub.interrupts = make(chan struct{}, 1)
-	hub.cancels = make(chan string, 8)
+	if conversational {
+		hub.inbox = make(chan protocol.UserInput, 64)
+		hub.interrupts = make(chan struct{}, 1)
+		hub.cancels = make(chan string, 8)
+	}
 	s.runs[id] = hub
 	s.runsWG.Add(1)
 	s.mu.Unlock()

@@ -120,6 +120,16 @@ type Server struct {
 	// the daemon itself stays free of run semantics. Clock nil = real time.
 	ScanTimers func() ([]SessionTimer, error)
 	Resume     func(ctx context.Context, req ResumeRequest, sink protocol.Sink) error
+	// PersistInput makes a send durable BEFORE the ack (v2 收口, 铁律
+	// "崩溃不丢输入"): it appends to the session's mailbox, fsyncs, and
+	// returns the input stamped with its DeliverySeq. nil = no durability
+	// (tests); the ack then only means enqueued.
+	PersistInput func(sessionID string, in protocol.UserInput) (protocol.UserInput, error)
+	// SessionShape reports a session's journaled shape so revival stays
+	// honest (v2 收口): a task-mode or ended session must never get a
+	// "delivered" ack for input its loop will not read. nil = always
+	// revive with channels (tests).
+	SessionShape func(sessionID string) (conversational, ended bool, err error)
 	// Drive hosts an IterationDriver series (nil = the drive command is
 	// refused). Same hub/registry semantics as Run.
 	Drive func(ctx context.Context, req DriveRequest, sink protocol.Sink) error
@@ -398,7 +408,7 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 	case "approve":
 		s.handleApprove(cmd, enc)
 	case "send":
-		s.handleSend(cmd, enc)
+		s.handleSend(ctx, cmd, enc)
 	case "close":
 		s.handleClose(cmd, enc)
 	case "interrupt":
@@ -452,7 +462,7 @@ func (s *Server) handleInterrupt(cmd Command, enc *json.Encoder) {
 // handleSend delivers a user message to a live conversational session
 // (v2 M1.2). It is the machine/web/CLI-agnostic投递入口 — every sender
 // (human at a terminal, web UI, webhook) posts through the same path.
-func (s *Server) handleSend(cmd Command, enc *json.Encoder) {
+func (s *Server) handleSend(ctx context.Context, cmd Command, enc *json.Encoder) {
 	if cmd.Session == "" || cmd.Text == "" {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "send needs session and text"})
 		return
@@ -473,7 +483,9 @@ func (s *Server) handleSend(cmd Command, enc *json.Encoder) {
 		s.mu.Lock()
 		delete(s.failed, cmd.Session) // an explicit send retries a failed resume
 		s.mu.Unlock()
-		s.hostResume(context.Background(), cmd.Session)
+		// The revived run must live on the DAEMON's lifecycle (收口 review:
+		// a Background ctx would wedge graceful shutdown in runsWG.Wait).
+		s.hostResume(ctx, cmd.Session)
 		s.mu.Lock()
 		hub, ok = s.runs[cmd.Session]
 		s.mu.Unlock()
@@ -483,7 +495,19 @@ func (s *Server) handleSend(cmd Command, enc *json.Encoder) {
 			return
 		}
 	}
-	if !hub.post(protocol.UserInput{Text: cmd.Text, Images: cmd.Images}) {
+	in := protocol.UserInput{Text: cmd.Text, Images: cmd.Images}
+	if s.PersistInput != nil {
+		// Durability before the ack (铁律 2): once "delivered" is on the
+		// wire, a crash cannot lose this input — resume replays the
+		// mailbox tail the journal has not consumed.
+		var perr error
+		if in, perr = s.PersistInput(cmd.Session, in); perr != nil {
+			_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
+				Text: "send not accepted (mailbox write failed): " + perr.Error()})
+			return
+		}
+	}
+	if !hub.post(in) {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
 			Text: fmt.Sprintf("session %s is not accepting input (not conversational, or inbox full)", cmd.Session)})
 		return

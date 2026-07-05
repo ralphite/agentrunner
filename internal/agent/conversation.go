@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"unicode/utf8"
 
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
@@ -17,8 +18,14 @@ const longPasteThreshold = 10 * 1024
 
 // journalInput records one user message (journal-inputs-first, redacted).
 // Attached blob bytes go into the CAS BEFORE the event lands (blob-before-
-// event, v2 M4.1): the journal carries only refs, never bytes.
-func (l *Loop) journalInput(appendE AppendFunc, in protocol.UserInput) error {
+// event, v2 M4.1): the journal carries only refs, never bytes. A mailbox-
+// seq'd input at or below the fold's high-water mark is a duplicate
+// delivery (the resume replay raced the channel copy) and is dropped —
+// at-least-once + seq dedup = effectively once.
+func (l *Loop) journalInput(ds *driveState, appendE AppendFunc, in protocol.UserInput) error {
+	if in.DeliverySeq > 0 && in.DeliverySeq <= ds.s.Run.ConsumedInputSeq {
+		return nil
+	}
 	var images, files []event.AttachmentRef
 	text := redact.FromEnv().String(in.Text)
 	for _, img := range in.Images {
@@ -44,10 +51,14 @@ func (l *Loop) journalInput(appendE AppendFunc, in protocol.UserInput) error {
 		}
 		files = append(files, event.AttachmentRef{Ref: ref, MediaType: "text/plain"})
 		head := text[:512]
+		for len(head) > 0 && !utf8.ValidString(head) {
+			head = head[:len(head)-1] // never split a multi-byte rune
+		}
 		text = head + fmt.Sprintf("\n…[长文本已折叠为附件 %s,共 %d 字节,完整内容见 file part]", ref, len(text))
 	}
 	_, err := appendE(event.TypeInputReceived, &event.InputReceived{
 		Text: text, Source: "user", Images: images, Files: files,
+		DeliverySeq: in.DeliverySeq,
 	})
 	return err
 }
@@ -56,7 +67,7 @@ func (l *Loop) journalInput(appendE AppendFunc, in protocol.UserInput) error {
 // on UserInputs, in arrival order (v2 M2.1 type-ahead): messages that piled
 // up while a turn ran all enter the next turn's context together. Stops at
 // the first empty read; a close seen here is remembered for the park.
-func (l *Loop) drainQueued(appendE AppendFunc) error {
+func (l *Loop) drainQueued(ds *driveState, appendE AppendFunc) error {
 	for {
 		select {
 		case in, ok := <-l.UserInputs:
@@ -65,7 +76,7 @@ func (l *Loop) drainQueued(appendE AppendFunc) error {
 				l.UserInputs = nil
 				return nil
 			}
-			if err := l.journalInput(appendE, in); err != nil {
+			if err := l.journalInput(ds, appendE, in); err != nil {
 				return err
 			}
 		default:
@@ -82,7 +93,7 @@ func (l *Loop) drainQueued(appendE AppendFunc) error {
 func (l *Loop) parkForInput(ctx context.Context, ds *driveState, appendE AppendFunc,
 	turn int) (RunResult, bool, error) {
 
-	closed, err := l.awaitInput(ctx, appendE, turn)
+	closed, err := l.awaitInput(ctx, ds, appendE, turn)
 	if err != nil {
 		// A cancelled context is a process teardown (crash/shutdown), NOT an
 		// ending: the parked session must resume later, so it leaves NO
@@ -107,7 +118,7 @@ func (l *Loop) parkForInput(ctx context.Context, ds *driveState, appendE AppendF
 // or hard cancellation. The WaitingEntered{input} fact is journaled by the
 // caller (the resume path re-enters here without re-journaling it).
 // Returns closed=true when the session should end via the epilogue.
-func (l *Loop) awaitInput(ctx context.Context, appendE AppendFunc, turn int) (closed bool, err error) {
+func (l *Loop) awaitInput(ctx context.Context, ds *driveState, appendE AppendFunc, turn int) (closed bool, err error) {
 	l.ensureBackground()
 	resolve := func(resolution string) error {
 		_, rerr := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
@@ -130,10 +141,10 @@ func (l *Loop) awaitInput(ctx context.Context, appendE AppendFunc, turn int) (cl
 		// journal-inputs-first: journal this input, then batch-drain any
 		// others that queued behind it (type-ahead) so they all enter the
 		// same next turn — then resolve the park.
-		if err := l.journalInput(appendE, in); err != nil {
+		if err := l.journalInput(ds, appendE, in); err != nil {
 			return false, err
 		}
-		if err := l.drainQueued(appendE); err != nil {
+		if err := l.drainQueued(ds, appendE); err != nil {
 			return false, err
 		}
 		return false, resolve("input_received")

@@ -60,6 +60,14 @@ func (l *Loop) renderCrashFailure(appendE AppendFunc, act event.ActivityStarted)
 // with the process settles as a crash cancellation carrying its true spend.
 func (l *Loop) settleCrashedSpawn(appendE AppendFunc, act event.ActivityStarted) error {
 	callID := act.CallID
+	// The spawn-time CallID path guard (safeCallIDRe) runs INSIDE the spawn
+	// closure — a crash in the Started→terminal window can leave an
+	// unvalidated CallID in the journal. Re-apply it before deriving any
+	// path from it (收口 security review): a malformed one renders as a
+	// crash failure, never a directory read.
+	if callID == "" || !safeCallIDRe.MatchString(callID) {
+		return l.renderCrashFailure(appendE, act)
+	}
 	attempt := act.Attempt
 	if attempt < 1 {
 		attempt = 1

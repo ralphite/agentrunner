@@ -59,6 +59,10 @@ slow_handle="$(grep '"type":"spawn_requested"' "$SDIR/events.jsonl" | grep -i sl
   slow_handle="$(grep '"type":"spawn_requested"' "$SDIR/events.jsonl" | \
     sed -n 's/.*"call_id":"\([^"]*\)".*/\1/p' | head -1)"; }
 echo "killing handle: $slow_handle"
+# Observation surface (QA.md 步骤 4 前置): ar ps lists the in-flight set,
+# including the handle we are about to kill.
+"$AR" ps "$sid" | grep -q "$slow_handle" || {
+  echo "$QA: FAIL ar ps does not list in-flight handle $slow_handle" >&2; exit 1; }
 
 # Wait until the slow child's bash is actually running, then USER-kill it.
 subdir="$SDIR/sub/${slow_handle}-a1"

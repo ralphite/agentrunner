@@ -60,11 +60,12 @@ wait_turns() {
 }
 
 wait_turns 1
-# Turn 2: a follow-up that only makes sense with continuity.
-"$AR" send "$sid" "它和环境变量 NO_COLOR 有关系吗？一句话。" >/dev/null
+# Turn 2: a follow-up that only makes sense with continuity, carrying a
+# pinned codeword the final answer must echo.
+"$AR" send "$sid" "它和环境变量 NO_COLOR 有关系吗？一句话。另外记住暗号一:红苹果。" >/dev/null
 wait_turns 2
-# Turn 3: force a reference to BOTH prior answers.
-"$AR" send "$sid" "把你前两次回答合并成一句话总结。" >/dev/null
+# Turn 3: force a reference to BOTH prior rounds (file answer + codeword).
+"$AR" send "$sid" "记住暗号二:绿梨子。现在把两个暗号连起来说一遍,并再说一次 NoColor 在哪个文件。" >/dev/null
 wait_turns 3
 # Close.
 "$AR" close "$sid" >/dev/null
@@ -83,8 +84,12 @@ fail=0
 [ "$ends" = 1 ]  || { echo "FAIL: run_ended = $ends, want exactly 1" >&2; fail=1; }
 [ "$turns" -ge 3 ] || { echo "FAIL: turns = $turns, want >= 3" >&2; fail=1; }
 echo "$tail_type" | grep -q run_ended || { echo "FAIL: journal tail = $tail_type, want run_ended" >&2; fail=1; }
-# Continuity smoke: the 3 answers exist and the run never ended mid-way
-# (exactly one terminal, at the tail) — the structural proof of one session.
+# Continuity CONTENT (QA.md: 回答包含前两轮各自的要素): the final answer
+# echoes both pinned codewords — objective proof both rounds are in context.
+final="$(grep '"type":"assistant_message"' "$sdir/events.jsonl" | tail -1)"
+for tok in "红苹果" "绿梨子"; do
+  echo "$final" | grep -q "$tok" || { echo "FAIL: final answer misses codeword $tok (context lost)" >&2; fail=1; }
+done
 
 if [ "$fail" = 0 ]; then
   echo "QA-01 PASS: 1 session, $turns turns, 3 inputs, 1 terminal (closed)"
