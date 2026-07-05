@@ -193,6 +193,112 @@ func (l *Loop) buildSpawnRun(call provider.ToolCall, res *tool.Result,
 	}
 }
 
+// isBackgroundSpawn reports a spawn_agent call asking for parallel launch
+// (v2 M3.1): spawn_agent with background:true. handoff_agent never qualifies
+// (control transfer is inherently terminal).
+func isBackgroundSpawn(name string, rawArgs json.RawMessage) bool {
+	if name != "spawn_agent" {
+		return false
+	}
+	var args struct {
+		Background bool `json:"background"`
+	}
+	_ = json.Unmarshal(rawArgs, &args)
+	return args.Background
+}
+
+// launchBackgroundSpawn starts a sub-agent in PARALLEL (v2 M3.1): it
+// journals SpawnRequested + ActivityStarted{Background} (the fold pairs the
+// call with a handle immediately), registers a cancel, and runs the child on
+// a goroutine. When the child finishes it pushes a bgOutcome carrying the
+// SubagentCompleted fact and the report; settleBackground journals both at
+// the next drive-loop safe point, and the report re-enters as a user message
+// — activating the parent's next turn. Runs on the drive goroutine.
+func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
+	call provider.ToolCall, allowance int, parentMode string) error {
+
+	l.ensureBackground()
+	agentName, task, inputs, childSpec, problem := l.resolveSpawnTargetFull(call.Name, call.Args)
+	if problem != "" {
+		// A resolve failure is the call's model-visible result, paired now.
+		payload, _ := json.Marshal(map[string]any{"error": problem})
+		activityID := "tool-" + call.CallID
+		if _, err := appendE(event.TypeActivityStarted, &event.ActivityStarted{
+			ActivityID: activityID, Kind: event.KindTool, Name: call.Name,
+			Args: redact.FromEnv().JSON(call.Args), CallID: call.CallID,
+			Attempt: 1, Background: true,
+		}); err != nil {
+			return err
+		}
+		l.bg.done <- bgOutcome{taskID: call.CallID, activityID: activityID,
+			result: payload, isError: true}
+		return nil
+	}
+
+	childDir := filepath.Join(l.Store.Dir(), "sub", fmt.Sprintf("%s-a1", call.CallID))
+	childStore, err := store.OpenEventStore(childDir)
+	if err != nil {
+		return fmt.Errorf("spawn %s: %w", agentName, err)
+	}
+	childSession := fmt.Sprintf("%s-sub-%s-a1", l.SessionID, call.CallID)
+	activityID := "tool-" + call.CallID
+
+	if _, err := appendE(event.TypeSpawnRequested, &event.SpawnRequested{
+		CallID: call.CallID, Agent: agentName, Task: task,
+		ChildSession: childSession, Depth: l.Depth + 1, BudgetTokens: allowance,
+	}); err != nil {
+		_ = childStore.Close()
+		return err
+	}
+	if _, err := appendE(event.TypeActivityStarted, &event.ActivityStarted{
+		ActivityID: activityID, Kind: event.KindTool, Name: call.Name,
+		Args: redact.FromEnv().JSON(call.Args), CallID: call.CallID,
+		Attempt: 1, Background: true,
+	}); err != nil {
+		_ = childStore.Close()
+		return err
+	}
+
+	taskCtx, cancel := context.WithCancel(ctx)
+	l.bg.mu.Lock()
+	l.bg.cancel[call.CallID] = cancel
+	l.bg.mu.Unlock()
+
+	child := l.childLoop(childSpec, childStore, childSession, allowance, parentMode)
+	child.Inputs = inputs
+	go func() {
+		defer func() { _ = childStore.Close() }()
+		cres, cerr := child.Run(taskCtx, task)
+		spent := cres.Usage
+		reason := cres.Reason
+		canceled := taskCtx.Err() != nil
+		if cerr != nil {
+			// The child journaled real spend before dying; settle from its
+			// own fold so the tree cap stays honest (S5 review).
+			spent = childFoldUsage(childDir)
+			if reason == "" {
+				reason = "error"
+			}
+		}
+		payload, _ := json.Marshal(map[string]any{
+			"agent": agentName, "child_session": childSession,
+			"reason": reason, "turns": cres.Turns,
+			"report": childReport(childDir),
+		})
+		usage := spent
+		l.bg.done <- bgOutcome{
+			taskID: call.CallID, activityID: activityID,
+			result: payload, isError: reason == "error" || reason == "contract_violation",
+			canceled: canceled, usage: &usage,
+			subagent: &event.SubagentCompleted{
+				CallID: call.CallID, Agent: agentName, ChildSession: childSession,
+				Reason: reason, Turns: cres.Turns, Usage: spent,
+			},
+		}
+	}()
+	return nil
+}
+
 // childLoop builds the frozen child run (S5.3). The intersection contract:
 // the child pipeline is the PARENT's gates followed by the child's own —
 // every gate must allow, so the child face can only be narrower. The budget

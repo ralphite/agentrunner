@@ -8,6 +8,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
+	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/redact"
 	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/tool"
@@ -23,6 +24,11 @@ type bgOutcome struct {
 	isError    bool
 	err        error
 	canceled   bool
+	// subagent is set for a BACKGROUND SPAWN (v2 M3.1): settling it journals
+	// SubagentCompleted (provenance + tree-budget usage) alongside the
+	// activity terminal that renders the child's report as a user message.
+	subagent *event.SubagentCompleted
+	usage    *provider.Usage
 }
 
 // bgRuntime is the loop's ephemeral background-task machinery. Runtime
@@ -132,11 +138,23 @@ func (l *Loop) settleBackground(appendE AppendFunc, out bgOutcome) error {
 	delete(l.bg.cancel, out.taskID)
 	l.bg.mu.Unlock()
 
+	// A background spawn also journals SubagentCompleted (v2 M3.1): tree-budget
+	// usage + the child-stream provenance the barrier vector reads. It rides
+	// BEFORE the activity terminal so a crash between them still leaves a
+	// coherent "child done" fact; the activity terminal below settles the
+	// reservation and renders the child's report as a user message.
+	if out.subagent != nil {
+		if _, err := appendE(event.TypeSubagentCompleted, out.subagent); err != nil {
+			return err
+		}
+	}
+
 	switch {
 	case out.canceled:
 		_, err := appendE(event.TypeActivityCancelled, &event.ActivityCancelled{
 			ActivityID:    out.activityID,
 			PartialOutput: string(redact.FromEnv().JSON(out.result)),
+			Usage:         out.usage,
 		})
 		return err
 	case out.err != nil:
@@ -152,6 +170,7 @@ func (l *Loop) settleBackground(appendE AppendFunc, out bgOutcome) error {
 			ActivityID: out.activityID,
 			Result:     redact.FromEnv().JSON(out.result),
 			IsError:    out.isError,
+			Usage:      out.usage,
 		})
 		if err == nil {
 			l.emit(protocol.Event{Kind: protocol.KindToolResult,

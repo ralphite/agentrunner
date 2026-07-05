@@ -610,7 +610,9 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 	}
 	// bash can launch background tasks (S6.1) — the management tools ride
 	// along so the model can inspect/cancel what it started.
-	if slices.Contains(l.Spec.Tools, "bash") {
+	if slices.Contains(l.Spec.Tools, "bash") || len(l.Spec.Agents) > 0 {
+		// bash background tasks (S6.1) and background sub-agents (v2 M3.1)
+		// share task_kill: cancel a running child/task by its handle.
 		extra = append(extra, "task_output", "task_kill")
 	}
 	if l.Board != nil || len(l.Spec.Agents) > 0 {
@@ -993,6 +995,21 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 		// context is the RUN's, not the batch's interrupt scope.
 		if isBackgroundCall(p.call.Name, p.call.Args) {
 			if err := l.launchBackground(ctx, serialAppend, p.call.CallID, p.call.Name, p.call.Args); err != nil {
+				stopInt()
+				return abort(act.turn, err)
+			}
+			if tr, ok := ds.s.Conversation.ToolResults[p.call.CallID]; ok {
+				l.emit(protocol.Event{Kind: protocol.KindToolResult, Turn: act.turn,
+					Tool: p.call.Name, CallID: p.call.CallID, Result: compact(tr.Result)})
+			}
+			continue
+		}
+		if isBackgroundSpawn(p.call.Name, p.call.Args) {
+			// Parallel sub-agent (v2 M3.1): launch detached, the handle pairs
+			// the call now, the report re-enters as a message later. ctx is the
+			// RUN's — a parent cancel reaches the child; the batch interrupt
+			// scope does not.
+			if err := l.launchBackgroundSpawn(ctx, serialAppend, p.call, p.allowance, parentMode); err != nil {
 				stopInt()
 				return abort(act.turn, err)
 			}

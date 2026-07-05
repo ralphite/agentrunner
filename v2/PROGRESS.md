@@ -143,3 +143,39 @@ interruptScope 取消当前活动(steer,续跑),idle 时 awaitInput 收到即
 
 **C2、C8 达成**。全量 check + race + stage 1–7 全 26 acceptance 回归绿。
 下一步:M3 后台子 agent(routing provider 前置 → QA-04/05,核心里程碑)。
+
+## V2-M3.0 — routing provider — DONE
+
+scripted.Router:按请求会话里出现的路由键(agent 的 system prompt +
+user 消息文本)匹配各自的脚本子 provider,每个维护独立步进——并发
+子 agent 的响应确定可复现(GAPS G4)。NewRouter(RoutePair...) 按
+match-priority 序;无匹配显式报错(不静默给错脚本)。
+
+## V2-M3.1 + M3.3 + M3.4 — 后台子 agent(并行 spawn + 回执激活 + 结算) — DONE
+
+**spawn_agent{background:true}** 走 bg 机制(复用 bash background 的
+launch/settle/cancel 骨架,一套机制不新建):launchBackgroundSpawn 在
+drive goroutine journal SpawnRequested + ActivityStarted{Background}
+(fold 立即配 handle {task_id,status:running},turn 不阻塞),注册
+cancel,goroutine 跑 childLoop.Run;完成推 bgOutcome{subagent:
+SubagentCompleted, usage, result:child report}。**settle**:先 journal
+SubagentCompleted(树预算 usage + 子 stream provenance),再 activity
+终态(ActivityCompleted{Usage} 结算预留 + 渲染 child report 为
+user 消息 → 激活父 turn)。bgOutcome 加 subagent/usage 字段;
+ActivityCancelled/Completed 带 usage。
+
+**回执激活父 turn**:conversational park 的 awaitInput 已 select
+bg.done——子结果落定即唤醒 park → 下 turn 消费(先回先处理),这是
+"启动并行、消费结果"的自然归宿(v2 §3)。task 模式默认 onRunEnd=
+cancel 会在收尾取消子 agent,故后台子 agent 归宿是 conversational
+或 onRunEnd=await(记档)。
+
+**kill**:task_kill 扩展 advertise 到 Agents 规格(task_id=handle,
+走既有 cancel 注册表)——bash 任务与后台子 agent 共用同一取消原语
+(DESIGN 的 cancel_child 语义由 task_kill 兑现,记档命名)。
+spawn_agent schema 加 background 布尔。
+
+测试:Router 路由的并行双子 agent e2e(2 spawn 同 turn1、2 bg-started、
+2 SubagentCompleted + 2 ActivityCompleted、两 report 达模型、tasks
+排空、两子 journal 存在),-race 绿。全量 check + stage 5/6 回归绿。
+下一步:M3.2 用户直杀路径(daemon kill 命令 + CLI)+ M3 出口 QA-04/05。
