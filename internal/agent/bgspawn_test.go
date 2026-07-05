@@ -10,6 +10,7 @@ import (
 
 	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
 	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
@@ -92,7 +93,7 @@ func TestBackgroundSpawnParallelAndSettle(t *testing.T) {
 	// (the park selects bg.done), so each child completion wakes a turn —
 	// the natural home for "launch parallel, consume results" (v2 §3). Close
 	// once both children's reports are in the journal.
-	inputs := make(chan string)
+	inputs := make(chan protocol.UserInput)
 	l.Conversational = true
 	l.UserInputs = inputs
 	go func() {
@@ -230,7 +231,7 @@ func TestBackgroundSpawnUserKill(t *testing.T) {
 	l := bgSpawnLoop(t, router, []string{"worker"})
 	l.Spec.Tools = []string{"read_file", "bash"} // worker needs bash for the sleep
 	cancels := make(chan string, 1)
-	inputs := make(chan string)
+	inputs := make(chan protocol.UserInput)
 	l.Conversational = true
 	l.UserInputs = inputs
 	l.Cancels = cancels
@@ -441,7 +442,7 @@ func TestSteerChangesOrchestration(t *testing.T) {
 	)
 	l := bgSpawnLoop(t, router, []string{"worker"})
 	l.Spec.Tools = []string{"read_file", "bash"}
-	inputs := make(chan string, 1)
+	inputs := make(chan protocol.UserInput, 1)
 	l.Conversational = true
 	l.UserInputs = inputs
 	go func() {
@@ -452,7 +453,7 @@ func TestSteerChangesOrchestration(t *testing.T) {
 			evs, _ := store.ReadEvents(l.Store.Dir() + "/sub/old-a1")
 			for _, e := range evs {
 				if e.Type == event.TypeActivityStarted && strings.Contains(string(e.Payload), `"name":"bash"`) && !steered {
-					inputs <- "change course: cancel OLDTOPIC and investigate NEWTOPIC instead"
+					inputs <- protocol.UserInput{Text: "change course: cancel OLDTOPIC and investigate NEWTOPIC instead"}
 					steered = true
 				}
 			}

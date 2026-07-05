@@ -7,6 +7,7 @@ package anthropic
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -255,10 +256,19 @@ func toMessages(msgs []provider.Message) ([]sdk.MessageParam, error) {
 func userBlocks(m provider.Message) ([]sdk.ContentBlockParamUnion, error) {
 	var blocks []sdk.ContentBlockParamUnion
 	for _, p := range m.Parts {
-		if p.Kind != provider.PartText {
+		switch p.Kind {
+		case provider.PartText:
+			blocks = append(blocks, sdk.NewTextBlock(p.Text))
+		case provider.PartImage, provider.PartFile:
+			// v2 M4.2: assembly already inflated the bytes from the CAS.
+			if len(p.Data) == 0 {
+				return nil, fmt.Errorf("anthropic: %s part %q has no bytes (not inflated)", p.Kind, p.Ref)
+			}
+			blocks = append(blocks, sdk.NewImageBlockBase64(p.MediaType,
+				base64.StdEncoding.EncodeToString(p.Data)))
+		default:
 			return nil, fmt.Errorf("anthropic: user message part kind %q unsupported", p.Kind)
 		}
-		blocks = append(blocks, sdk.NewTextBlock(p.Text))
 	}
 	return blocks, nil
 }

@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ralphite/agentrunner/internal/daemon"
 	"github.com/ralphite/agentrunner/internal/protocol"
@@ -65,13 +68,55 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 }
 
 // sendCmd delivers a user message to a live conversational session (v2 M1.2):
-// `agentrunner send <session-id-or-prefix> "message"`.
+// `agentrunner send [--image f.png]... <session-id-or-prefix> "message"`.
+// Attached images ride the command line base64 (v2 M4.1); the agent stores
+// them in the session CAS before journaling the input.
 func sendCmd(args []string, stdout, stderr io.Writer) int {
-	if len(args) != 2 {
-		fmt.Fprintln(stderr, `usage: agentrunner send <session-id-or-prefix> "message"`)
+	fs := flag.NewFlagSet("send", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	var imagePaths repeatedFlag
+	fs.Var(&imagePaths, "image", "attach an image file (repeatable)")
+	if err := fs.Parse(args); err != nil {
 		return ExitUsage
 	}
-	return oneShot(stderr, daemon.Command{Cmd: "send", Session: resolvePrefixLenient(args[0]), Text: args[1]}, stdout)
+	rest := fs.Args()
+	if len(rest) != 2 {
+		fmt.Fprintln(stderr, `usage: agentrunner send [--image file]... <session-id-or-prefix> "message"`)
+		return ExitUsage
+	}
+	images, err := loadImageAttachments(imagePaths)
+	if err != nil {
+		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+		return ExitUsage
+	}
+	return oneShot(stderr, daemon.Command{Cmd: "send", Session: resolvePrefixLenient(rest[0]),
+		Text: rest[1], Images: images}, stdout)
+}
+
+// repeatedFlag collects a repeatable string flag.
+type repeatedFlag []string
+
+func (r *repeatedFlag) String() string { return strings.Join(*r, ",") }
+func (r *repeatedFlag) Set(v string) error {
+	*r = append(*r, v)
+	return nil
+}
+
+// loadImageAttachments reads each image file and sniffs its media type.
+func loadImageAttachments(paths []string) ([]protocol.ImageAttachment, error) {
+	var out []protocol.ImageAttachment
+	for _, path := range paths {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+		mt := http.DetectContentType(data)
+		if !strings.HasPrefix(mt, "image/") {
+			return nil, fmt.Errorf("%s: not an image (detected %s)", path, mt)
+		}
+		out = append(out, protocol.ImageAttachment{MediaType: mt, Data: data})
+	}
+	return out, nil
 }
 
 // killCmd cancels one running child/task by handle (v2 M3.2):

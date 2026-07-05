@@ -230,3 +230,23 @@ func TestCompleteYieldsConversionError(t *testing.T) {
 		t.Fatal("expected a conversion error before any network call")
 	}
 }
+
+// v2 M4.2: an inflated image part maps to a base64 image block; a ref-only
+// part (inflate skipped) is an error.
+func TestUserBlocksImage(t *testing.T) {
+	blocks, err := userBlocks(provider.Message{Role: provider.RoleUser,
+		Parts: []provider.Part{
+			{Kind: provider.PartText, Text: "看这个"},
+			{Kind: provider.PartImage, MediaType: "image/png", Ref: "sha256-x", Data: []byte{9}},
+		}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(blocks) != 2 || blocks[1].OfImage == nil {
+		t.Fatalf("blocks = %+v, want text + image", blocks)
+	}
+	if _, err := userBlocks(provider.Message{Role: provider.RoleUser,
+		Parts: []provider.Part{{Kind: provider.PartImage, MediaType: "image/png", Ref: "r"}}}); err == nil {
+		t.Error("ref-only image part mapped without error")
+	}
+}

@@ -262,6 +262,14 @@ func toPart(p provider.Part) (*genai.Part, error) {
 	case provider.PartText:
 		return &genai.Part{Text: p.Text}, nil
 
+	case provider.PartImage, provider.PartFile:
+		// v2 M4.2: assembly already inflated the bytes from the CAS; a
+		// ref without bytes here means the inflate step was skipped.
+		if len(p.Data) == 0 {
+			return nil, fmt.Errorf("gemini: %s part %q has no bytes (not inflated)", p.Kind, p.Ref)
+		}
+		return &genai.Part{InlineData: &genai.Blob{MIMEType: p.MediaType, Data: p.Data}}, nil
+
 	case provider.PartToolCall:
 		var args map[string]any
 		if len(p.Args) > 0 {

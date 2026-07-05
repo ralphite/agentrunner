@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
 	"github.com/ralphite/agentrunner/internal/state"
@@ -57,15 +58,15 @@ func TestConversationalMultiInput(t *testing.T) {
 	}}
 	// Spaced sends: each follow-up is delivered only AFTER the prior turn's
 	// answer is journaled — one input per turn, the QA-01 timing.
-	inputs := make(chan string)
+	inputs := make(chan protocol.UserInput)
 	l := testLoop(t, fix, t.TempDir())
 	l.Conversational = true
 	l.UserInputs = inputs
 	go func() {
 		waitAnswers(t, l.Store.Dir(), 1)
-		inputs <- "second question"
+		inputs <- protocol.UserInput{Text: "second question"}
 		waitAnswers(t, l.Store.Dir(), 2)
-		inputs <- "third question"
+		inputs <- protocol.UserInput{Text: "third question"}
 		waitAnswers(t, l.Store.Dir(), 3)
 		close(inputs)
 	}()
@@ -116,7 +117,7 @@ func TestConversationalCloseResolution(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{{Text: "hi"}, {Finish: "end_turn"}}},
 	}}
-	inputs := make(chan string)
+	inputs := make(chan protocol.UserInput)
 	close(inputs)
 	l := testLoop(t, fix, t.TempDir())
 	l.Conversational = true
@@ -176,7 +177,7 @@ func TestConversationalParkResumes(t *testing.T) {
 	l1 := testLoop(t, fix1, root)
 	l1.Store = es1
 	l1.Conversational = true
-	l1.UserInputs = make(chan string) // never fed: the session parks and stays
+	l1.UserInputs = make(chan protocol.UserInput) // never fed: the session parks and stays
 	ctx, cancel := context.WithCancel(context.Background())
 	// Cancel once the park is durable (WaitingEntered{input} in the journal).
 	go func() {
@@ -220,8 +221,8 @@ func TestConversationalParkResumes(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = es2.Close() }()
-	inputs := make(chan string, 1)
-	inputs <- "second question"
+	inputs := make(chan protocol.UserInput, 1)
+	inputs <- protocol.UserInput{Text: "second question"}
 	close(inputs)
 	l2 := testLoop(t, fix2, root)
 	l2.Store = es2
@@ -282,7 +283,7 @@ func TestConversationalTypeAheadBatches(t *testing.T) {
 		},
 		{Respond: []scripted.Event{{Text: "handled both"}, {Finish: "end_turn"}}},
 	}}
-	inputs := make(chan string, 2)
+	inputs := make(chan protocol.UserInput, 2)
 	l := testLoop(t, fix, t.TempDir())
 	l.Conversational = true
 	l.UserInputs = inputs
@@ -290,8 +291,8 @@ func TestConversationalTypeAheadBatches(t *testing.T) {
 		// After turn 1's answer, queue two messages back-to-back BEFORE the
 		// loop parks-and-drains, then close.
 		waitAnswers(t, l.Store.Dir(), 1)
-		inputs <- "queued one"
-		inputs <- "queued two"
+		inputs <- protocol.UserInput{Text: "queued one"}
+		inputs <- protocol.UserInput{Text: "queued two"}
 		waitAnswers(t, l.Store.Dir(), 2)
 		close(inputs)
 	}()
@@ -331,7 +332,7 @@ func TestConversationalIdleInterruptCloses(t *testing.T) {
 	interrupts := make(chan struct{}, 1)
 	l := testLoop(t, fix, t.TempDir())
 	l.Conversational = true
-	l.UserInputs = make(chan string) // never fed
+	l.UserInputs = make(chan protocol.UserInput) // never fed
 	l.Interrupts = interrupts
 	go func() {
 		waitAnswers(t, l.Store.Dir(), 1) // wait until it parks at idle
@@ -375,7 +376,7 @@ func TestConversationalMidTurnCancelResumes(t *testing.T) {
 	l1.Store = es1
 	l1.Provider = prov
 	l1.Conversational = true
-	l1.UserInputs = make(chan string) // never fed
+	l1.UserInputs = make(chan protocol.UserInput) // never fed
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		<-prov.entered
@@ -399,7 +400,7 @@ func TestConversationalMidTurnCancelResumes(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = es2.Close() }()
-	inputs := make(chan string)
+	inputs := make(chan protocol.UserInput)
 	close(inputs)
 	l2 := testLoop(t, scripted.Fixture{}, root)
 	l2.Store = es2
@@ -435,16 +436,16 @@ func TestConversationalBudgetPerExchange(t *testing.T) {
 		{Respond: []scripted.Event{{Text: "answer two"}, {Finish: "end_turn"}}},
 		{Respond: []scripted.Event{{Text: "answer three"}, {Finish: "end_turn"}}},
 	}}
-	inputs := make(chan string)
+	inputs := make(chan protocol.UserInput)
 	l := testLoop(t, fix, t.TempDir())
 	l.Spec.MaxTurns = 2 // < total turns (3): cumulative budgeting would wedge
 	l.Conversational = true
 	l.UserInputs = inputs
 	go func() {
 		waitAnswers(t, l.Store.Dir(), 1)
-		inputs <- "second question"
+		inputs <- protocol.UserInput{Text: "second question"}
 		waitAnswers(t, l.Store.Dir(), 2)
-		inputs <- "third question"
+		inputs <- protocol.UserInput{Text: "third question"}
 		waitAnswers(t, l.Store.Dir(), 3)
 		close(inputs)
 	}()

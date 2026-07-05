@@ -216,3 +216,21 @@ func TestClassifyTable(t *testing.T) {
 		})
 	}
 }
+
+// v2 M4.2: an inflated image part maps to inline_data; a ref-only part
+// (inflate skipped) is an error, never a silent empty blob.
+func TestToPartImage(t *testing.T) {
+	part, err := toPart(provider.Part{Kind: provider.PartImage,
+		MediaType: "image/png", Ref: "sha256-x", Data: []byte{1, 2, 3}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if part.InlineData == nil || part.InlineData.MIMEType != "image/png" ||
+		len(part.InlineData.Data) != 3 {
+		t.Fatalf("inline_data = %+v", part.InlineData)
+	}
+	if _, err := toPart(provider.Part{Kind: provider.PartImage,
+		MediaType: "image/png", Ref: "sha256-x"}); err == nil {
+		t.Error("ref-only (uninflated) image part mapped without error")
+	}
+}

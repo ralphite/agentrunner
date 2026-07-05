@@ -40,6 +40,9 @@ type Command struct {
 
 	// send
 	Text string `json:"text,omitempty"` // a user message for a conversational session
+	// Images are attachments riding a send (v2 M4.1); bytes are base64 on
+	// the wire, the agent CAS-stores them before journaling the input.
+	Images []protocol.ImageAttachment `json:"images,omitempty"`
 
 	// kill
 	Handle string `json:"handle,omitempty"` // a child/task handle to cancel
@@ -67,7 +70,7 @@ type RunRequest struct {
 	// the Loop's UserInputs; closing it is the close gesture. nil for a
 	// classic task run.
 	Conversational bool
-	Inbox          <-chan string
+	Inbox          <-chan protocol.UserInput
 	Interrupts     <-chan struct{}
 	Cancels        <-chan string
 }
@@ -147,7 +150,7 @@ type hostedRun struct {
 	// inbox delivers conversational user inputs to the hosted Loop (v2
 	// M1.2). Buffered so `send` never blocks on the loop's turn; nil for a
 	// task run. Closed at `close`/shutdown.
-	inbox chan string
+	inbox chan protocol.UserInput
 	// interrupts carries the out-of-band interrupt signal (v2 M2.3): a
 	// during-turn interrupt steers (cancels the current activity); an idle
 	// interrupt closes. Buffered 1 like the terminal Ctrl-C channel.
@@ -192,14 +195,14 @@ func (h *hostedRun) signalInterrupt() bool {
 // journals it on receipt (journal-inputs-first on the consume side); a
 // crash between this enqueue and that journal loses the input — the
 // durable send-side ack is a v2 M5 refinement (记档).
-func (h *hostedRun) post(text string) bool {
+func (h *hostedRun) post(in protocol.UserInput) bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.done || h.inbox == nil {
 		return false
 	}
 	select {
-	case h.inbox <- text:
+	case h.inbox <- in:
 		return true
 	default:
 		return false // inbox full: the caller retries
@@ -360,7 +363,9 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 	enc := json.NewEncoder(conn)
 	var cmd Command
 	sc := bufio.NewScanner(conn)
-	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	// Command lines can carry base64 image attachments (v2 M4.1) — allow
+	// well past the practical screenshot size instead of the event-line 1MB.
+	sc.Buffer(make([]byte, 0, 64*1024), 32*1024*1024)
 	if !sc.Scan() {
 		return
 	}
@@ -447,7 +452,7 @@ func (s *Server) handleSend(cmd Command, enc *json.Encoder) {
 			Text: fmt.Sprintf("no live session %s (ended sessions accept no input)", cmd.Session)})
 		return
 	}
-	if !hub.post(cmd.Text) {
+	if !hub.post(protocol.UserInput{Text: cmd.Text, Images: cmd.Images}) {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
 			Text: fmt.Sprintf("session %s is not accepting input (not conversational, or inbox full)", cmd.Session)})
 		return
@@ -528,7 +533,7 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 	id := s.NewID(cmd.Task)
 	hub := &hostedRun{id: id, notify: s.Notify, subs: map[chan protocol.Event]struct{}{}}
 	if cmd.Conversational {
-		hub.inbox = make(chan string, 64) // type-ahead buffer
+		hub.inbox = make(chan protocol.UserInput, 64) // type-ahead buffer
 		hub.interrupts = make(chan struct{}, 1)
 		hub.cancels = make(chan string, 8)
 	}

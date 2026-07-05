@@ -9,9 +9,22 @@ import (
 )
 
 // journalInput records one user message (journal-inputs-first, redacted).
-func (l *Loop) journalInput(appendE AppendFunc, text string) error {
+// Attached image bytes go into the CAS BEFORE the event lands (blob-before-
+// event, v2 M4.1): the journal carries only refs, never bytes.
+func (l *Loop) journalInput(appendE AppendFunc, in protocol.UserInput) error {
+	var images []event.ImageInput
+	for _, img := range in.Images {
+		if err := l.ensureArtifacts(); err != nil {
+			return err
+		}
+		ref, err := l.Artifacts.Put(img.Data)
+		if err != nil {
+			return err
+		}
+		images = append(images, event.ImageInput{Ref: ref, MediaType: img.MediaType})
+	}
 	_, err := appendE(event.TypeInputReceived, &event.InputReceived{
-		Text: redact.FromEnv().String(text), Source: "user",
+		Text: redact.FromEnv().String(in.Text), Source: "user", Images: images,
 	})
 	return err
 }
@@ -23,13 +36,13 @@ func (l *Loop) journalInput(appendE AppendFunc, text string) error {
 func (l *Loop) drainQueued(appendE AppendFunc) error {
 	for {
 		select {
-		case text, ok := <-l.UserInputs:
+		case in, ok := <-l.UserInputs:
 			if !ok {
 				l.inboxClosed = true
 				l.UserInputs = nil
 				return nil
 			}
-			if err := l.journalInput(appendE, text); err != nil {
+			if err := l.journalInput(appendE, in); err != nil {
 				return err
 			}
 		default:
@@ -86,7 +99,7 @@ func (l *Loop) awaitInput(ctx context.Context, appendE AppendFunc, turn int) (cl
 	}
 	l.emit(protocol.Event{Kind: protocol.KindIdle, Turn: turn})
 	select {
-	case text, ok := <-l.UserInputs: // nil channel blocks — tasks/interrupt still wake
+	case in, ok := <-l.UserInputs: // nil channel blocks — tasks/interrupt still wake
 		if !ok {
 			// Channel closed = the user is done: graceful close.
 			return true, resolve("closed")
@@ -94,7 +107,7 @@ func (l *Loop) awaitInput(ctx context.Context, appendE AppendFunc, turn int) (cl
 		// journal-inputs-first: journal this input, then batch-drain any
 		// others that queued behind it (type-ahead) so they all enter the
 		// same next turn — then resolve the park.
-		if err := l.journalInput(appendE, text); err != nil {
+		if err := l.journalInput(appendE, in); err != nil {
 			return false, err
 		}
 		if err := l.drainQueued(appendE); err != nil {

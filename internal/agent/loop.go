@@ -64,7 +64,7 @@ type Loop struct {
 	// journaled as InputReceived{source:"user"} and wakes a new turn;
 	// CLOSING the channel is the close gesture: epilogue, then
 	// RunEnded{reason:"closed"}. nil = park wakes only on tasks/interrupt.
-	UserInputs <-chan string
+	UserInputs <-chan protocol.UserInput
 	// inboxClosed records that a boundary drain saw UserInputs close, so the
 	// next park closes the session instead of waiting (v2 M2.1).
 	inboxClosed bool
