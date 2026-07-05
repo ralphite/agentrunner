@@ -108,13 +108,13 @@ func TestDaemonConversationalSendClose(t *testing.T) {
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		evs, _ := store.ReadEvents(sdir)
-		if len(evs) > 0 && evs[len(evs)-1].Type == event.TypeRunEnded {
+		if len(evs) > 0 && evs[len(evs)-1].Type == event.TypeSessionClosed {
 			var inputs, ends int
 			for _, e := range evs {
 				if e.Type == event.TypeInputReceived {
 					inputs++
 				}
-				if e.Type == event.TypeRunEnded {
+				if e.Type == event.TypeSessionClosed {
 					ends++
 				}
 			}
@@ -122,10 +122,10 @@ func TestDaemonConversationalSendClose(t *testing.T) {
 				t.Fatalf("user inputs = %d, want 3", inputs)
 			}
 			if ends != 1 {
-				t.Fatalf("run_ended count = %d, want exactly 1", ends)
+				t.Fatalf("session_closed count = %d, want exactly 1", ends)
 			}
 			dec, _ := event.DecodePayload(evs[len(evs)-1])
-			if r := dec.(*event.RunEnded).Reason; r != "closed" {
+			if r := dec.(*event.SessionClosed).Reason; r != "closed" {
 				t.Fatalf("terminal reason = %q, want closed", r)
 			}
 			return

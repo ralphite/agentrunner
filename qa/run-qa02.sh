@@ -47,7 +47,7 @@ grep -q SLOW_DONE "$SDIR/events.jsonl" || { echo "$QA: FAIL bash did not finish 
 # The two sends produce follow-up turns; wait for them to settle, then close.
 qa_wait_turns "$SDIR" 3
 "$AR" close "$sid" >/dev/null
-for i in $(seq 1 100); do tail -c 200 "$SDIR/events.jsonl" | grep -q '"type":"run_ended"' && break; sleep 0.1; done
+for i in $(seq 1 100); do tail -c 200 "$SDIR/events.jsonl" | grep -q '"type":"session_closed"' && break; sleep 0.1; done
 
 # ---- Assertions (facts only) ----
 fail=0
@@ -67,7 +67,7 @@ for ln in $send_lines; do
 done
 # d) One terminal, at the tail.
 tail_type="$(tail -1 "$SDIR/events.jsonl" | grep -o '"type":"[^"]*"' | head -1)"
-echo "$tail_type" | grep -q run_ended || { echo "$QA: FAIL tail = $tail_type, want run_ended" >&2; fail=1; }
+echo "$tail_type" | grep -q session_closed || { echo "$QA: FAIL tail = $tail_type, want session_closed" >&2; fail=1; }
 
 if [ "$fail" = 0 ]; then
   echo "$QA PASS: bash completed uninterrupted, 3 inputs in order, queued during run"

@@ -126,10 +126,10 @@ type Server struct {
 	// (tests); the ack then only means enqueued.
 	PersistInput func(sessionID string, in protocol.UserInput) (protocol.UserInput, error)
 	// SessionShape reports a session's journaled shape so revival stays
-	// honest (v2 收口): a task-mode or ended session must never get a
+	// honest (v2 收口): a task-mode session must never get a
 	// "delivered" ack for input its loop will not read. nil = always
 	// revive with channels (tests).
-	SessionShape func(sessionID string) (conversational, ended bool, err error)
+	SessionShape func(sessionID string) (conversational, terminal bool, err error)
 	// Drive hosts an IterationDriver series (nil = the drive command is
 	// refused). Same hub/registry semantics as Run.
 	Drive func(ctx context.Context, req DriveRequest, sink protocol.Sink) error
@@ -477,7 +477,7 @@ func (s *Server) handleSend(ctx context.Context, cmd Command, enc *json.Encoder)
 		// and the failure reaches watchers through the hub.
 		if s.Resume == nil {
 			_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
-				Text: fmt.Sprintf("no live session %s (ended sessions accept no input)", cmd.Session)})
+				Text: fmt.Sprintf("no live session %s and no resume runner", cmd.Session)})
 			return
 		}
 		s.mu.Lock()
@@ -485,7 +485,7 @@ func (s *Server) handleSend(ctx context.Context, cmd Command, enc *json.Encoder)
 		s.mu.Unlock()
 		// The revived run must live on the DAEMON's lifecycle (收口 review:
 		// a Background ctx would wedge graceful shutdown in runsWG.Wait).
-		s.hostResume(ctx, cmd.Session)
+		s.hostResume(ctx, cmd.Session, true)
 		s.mu.Lock()
 		hub, ok = s.runs[cmd.Session]
 		s.mu.Unlock()

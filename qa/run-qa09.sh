@@ -105,9 +105,9 @@ grep '"type":"input_received"' "$SDIR/events.jsonl" | grep '"images"' | grep -q 
   echo "$QA: FAIL image input has no CAS ref" >&2; fail=1; }
 # One session, one terminal (none yet — close now and verify).
 "$AR" close "$sid" >/dev/null 2>&1 || true
-for i in $(seq 1 300); do tail -c 200 "$SDIR/events.jsonl" | grep -q '"type":"run_ended"' && break; sleep 0.2; done
-ends="$(count_type run_ended "$SDIR/events.jsonl")"
-[ "$ends" = 1 ] || { echo "$QA: FAIL run_ended = $ends, want exactly 1" >&2; fail=1; }
+for i in $(seq 1 300); do tail -c 200 "$SDIR/events.jsonl" | grep -q '"type":"session_closed"' && break; sleep 0.2; done
+ends="$(count_type session_closed "$SDIR/events.jsonl")"
+[ "$ends" = 1 ] || { echo "$QA: FAIL session_closed = $ends, want exactly 1" >&2; fail=1; }
 # The cancelled child settled as a non-completed receipt.
 if ! grep '"type":"subagent_completed"' "$SDIR/events.jsonl" | grep -qv '"reason":"completed"'; then
   echo "$QA: FAIL no cancelled/erred receipt — was B really killed?" >&2; fail=1

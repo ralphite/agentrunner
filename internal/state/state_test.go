@@ -44,7 +44,7 @@ func runEvents(t *testing.T) []event.Envelope {
 			CallID: "call_1_0", Attempt: 1}),
 		env(t, event.TypeActivityCompleted, &event.ActivityCompleted{
 			ActivityID: "tool-call_1_0", Result: json.RawMessage(`{"content":"pkg"}`)}),
-		env(t, event.TypeRunEnded, &event.RunEnded{Reason: "completed", GenSteps: 1,
+		env(t, event.TypeTaskCompleted, &event.TaskCompleted{Reason: "completed", GenSteps: 1,
 			Usage: *usage}),
 	}
 	for i := range events {
@@ -59,7 +59,7 @@ func TestFoldFullRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Session.Status != StatusEnded || s.Session.Reason != "completed" || s.Session.GenStep != 1 {
+	if s.Session.Status != StatusCompleted || s.Session.Reason != "completed" || s.Session.GenStep != 1 {
 		t.Errorf("run = %+v", s.Session)
 	}
 	if s.Session.Usage.InputTokens != 10 || s.Session.Usage.OutputTokens != 5 {

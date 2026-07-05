@@ -85,7 +85,7 @@ func TestBudgetTOCTOUSyntheticConcurrency(t *testing.T) {
 }
 
 // 3.7c: budget exhaustion ends the run GRACEFULLY — LimitExceeded fact,
-// epilogue, run_ended{limit_exceeded} — never a crash or a hard abort.
+// epilogue, task_completed{limit_exceeded} — never a crash or a hard abort.
 func TestBudgetGracefulEnding(t *testing.T) {
 	// GenStep 1 spends 900 of a 1000-token budget; turn 2's reservation
 	// (max_tokens 200) cannot fit.
@@ -128,7 +128,7 @@ func TestBudgetGracefulEnding(t *testing.T) {
 	if !sawLimit {
 		t.Fatal("limit_exceeded fact missing")
 	}
-	if last := events[len(events)-1]; last.Type != event.TypeRunEnded ||
+	if last := events[len(events)-1]; last.Type != event.TypeTaskCompleted ||
 		!strings.Contains(string(last.Payload), "limit_exceeded") {
 		t.Fatalf("last event = %s %s", last.Type, last.Payload)
 	}

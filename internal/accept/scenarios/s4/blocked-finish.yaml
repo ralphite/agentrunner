@@ -1,5 +1,5 @@
 id: s4-04-blocked-finish
-title: blocked/safety 收尾——文本保留、用户可见 error、run_ended{blocked}
+title: blocked/safety 收尾——文本保留、用户可见 error、task_completed{blocked}
 files:
   careful.yaml: |
     name: careful

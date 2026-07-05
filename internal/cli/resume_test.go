@@ -106,12 +106,12 @@ func TestCLIResumeAfterCrash(t *testing.T) {
 		t.Errorf("file = %q", got)
 	}
 
-	// sessions list shows it ended.
+	// sessions list shows the delivery receipt.
 	stdout.Reset()
 	if code := Run([]string{"sessions", "list"}, "dev", &stdout, &stderr); code != ExitOK {
 		t.Fatalf("sessions list exit = %d", code)
 	}
-	if !strings.Contains(stdout.String(), "ended") {
+	if !strings.Contains(stdout.String(), "completed") {
 		t.Errorf("sessions list:\n%s", stdout.String())
 	}
 }

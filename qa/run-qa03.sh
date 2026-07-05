@@ -30,7 +30,7 @@ qa_wait_idle "$SDIR" 1 900
 "$AR" send "$sid" "在仓库根新建 QA_NOTES.md,用 write_file 工具,两句话记录你刚才改了什么。" >/dev/null
 qa_wait_idle "$SDIR" 2 600
 "$AR" close "$sid" >/dev/null 2>&1 || true
-for i in $(seq 1 100); do tail -c 200 "$SDIR/events.jsonl" | grep -q '"type":"run_ended"' && break; sleep 0.1; done
+for i in $(seq 1 100); do tail -c 200 "$SDIR/events.jsonl" | grep -q '"type":"session_closed"' && break; sleep 0.1; done
 
 # ---- Assertions ----
 fail=0
@@ -52,7 +52,7 @@ fi
 if ! grep '"type":"activity_started"' "$SDIR/events.jsonl" | grep '"name":"write_file"' | grep -q "QA_NOTES"; then
   echo "$QA: FAIL QA_NOTES.md was not created via the write_file tool" >&2; fail=1
 fi
-tail -1 "$SDIR/events.jsonl" | grep -q run_ended || { echo "$QA: FAIL session did not end" >&2; fail=1; }
+tail -1 "$SDIR/events.jsonl" | grep -q session_closed || { echo "$QA: FAIL session did not end" >&2; fail=1; }
 
 if [ "$fail" = 0 ]; then
   echo "$QA PASS: injected bug fixed (impl only), QA_NOTES.md created via write_file"

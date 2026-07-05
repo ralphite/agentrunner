@@ -33,7 +33,7 @@ qa_wait_idle "$SDIR" 2
 "$AR" send "$sid" "在这个仓库里搜一下:截图里那个未定义的标识符,去掉结尾数字后的名字存不存在?给出结论。" >/dev/null
 qa_wait_idle "$SDIR" 3
 "$AR" close "$sid" >/dev/null 2>&1 || true
-for i in $(seq 1 100); do tail -c 200 "$SDIR/events.jsonl" | grep -q '"type":"run_ended"' && break; sleep 0.1; done
+for i in $(seq 1 100); do tail -c 200 "$SDIR/events.jsonl" | grep -q '"type":"session_closed"' && break; sleep 0.1; done
 
 # ---- Assertions ----
 fail=0
@@ -62,7 +62,7 @@ tail_after="$(awk '/input_received/{n++} n>=3' "$SDIR/events.jsonl")"
 echo "$tail_after" | grep -q "EnableTraverseRunHooks" || {
   echo "$QA: FAIL follow-up turn never engaged the identifier from context" >&2; fail=1; }
 # Session sanity: ended exactly once, at the tail.
-tail -1 "$SDIR/events.jsonl" | grep -q run_ended || { echo "$QA: FAIL session did not end" >&2; fail=1; }
+tail -1 "$SDIR/events.jsonl" | grep -q session_closed || { echo "$QA: FAIL session did not end" >&2; fail=1; }
 
 if [ "$fail" = 0 ]; then
   echo "$QA PASS: vision three facts, ref-not-bytes journal, context continuity"

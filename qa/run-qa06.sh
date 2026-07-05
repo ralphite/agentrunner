@@ -57,7 +57,7 @@ fi
 "$AR" send "$sid" "刚才的命令怎么样了?一句话。" >/dev/null
 if qa_wait_turns "$SDIR" 2 150; then :; else echo "$QA: FAIL session did not continue after interrupt" >&2; fail=1; fi
 "$AR" close "$sid" >/dev/null
-for i in $(seq 1 100); do tail -c 200 "$SDIR/events.jsonl" | grep -q '"type":"run_ended"' && break; sleep 0.1; done
+for i in $(seq 1 100); do tail -c 200 "$SDIR/events.jsonl" | grep -q '"type":"session_closed"' && break; sleep 0.1; done
 
 if [ "$fail" = 0 ]; then
   echo "$QA PASS: interrupt cancelled the running turn (process killed), session continued"

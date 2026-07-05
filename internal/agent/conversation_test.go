@@ -93,7 +93,7 @@ func TestConversationalMultiInput(t *testing.T) {
 			idles++
 		case event.TypeWaitingResolved:
 			resolves++
-		case event.TypeRunEnded:
+		case event.TypeSessionClosed:
 			ends++
 		}
 		lastType = e.Type
@@ -106,8 +106,8 @@ func TestConversationalMultiInput(t *testing.T) {
 	if idles != 3 || resolves != 3 {
 		t.Errorf("idles/resolves = %d/%d, want 3/3", idles, resolves)
 	}
-	if ends != 1 || lastType != event.TypeRunEnded {
-		t.Errorf("run_ended count=%d tail=%s — the session must end exactly once, at close", ends, lastType)
+	if ends != 1 || lastType != event.TypeSessionClosed {
+		t.Errorf("session_closed count=%d tail=%s — exactly one close intent, at close", ends, lastType)
 	}
 }
 
@@ -203,7 +203,7 @@ func TestConversationalIdleResumes(t *testing.T) {
 	// The journal idle and did NOT end.
 	evs, _ := store.ReadEvents(sessDir)
 	for _, e := range evs {
-		if e.Type == event.TypeRunEnded {
+		if e.Type == event.TypeSessionClosed {
 			t.Fatal("idle session ended before resume")
 		}
 	}
@@ -243,7 +243,7 @@ func TestConversationalIdleResumes(t *testing.T) {
 		switch e.Type {
 		case event.TypeInputReceived:
 			inputsN++
-		case event.TypeRunEnded:
+		case event.TypeSessionClosed:
 			ends++
 		case event.TypeAssistantMessage:
 			dec, _ := event.DecodePayload(e)
@@ -388,7 +388,7 @@ func TestConversationalMidTurnCancelResumes(t *testing.T) {
 	_ = es1.Close()
 	evs, _ := store.ReadEvents(sessDir)
 	for _, e := range evs {
-		if e.Type == event.TypeRunEnded {
+		if e.Type == event.TypeSessionClosed {
 			t.Fatal("mid-turn cancel journaled a terminal — session is unresumable")
 		}
 	}
@@ -460,7 +460,7 @@ func TestConversationalBudgetPerExchange(t *testing.T) {
 
 // decide's conversational budget arithmetic, directly on crafted folds:
 // budget counts from the last user input; exhaustion over a pending input
-// ends visibly (max_generation_steps), never a silent idle.
+// truncates visibly (LimitExceeded + idle), never a silent idle.
 func TestDecideConversationalBudget(t *testing.T) {
 	mk := func(turn, lastInput int, pending bool) state.State {
 		s := state.New()
@@ -492,8 +492,9 @@ func TestDecideConversationalBudget(t *testing.T) {
 		// still gets its turn — the old cumulative cap returned doIdle
 		// here, wedging the session.
 		{"fresh input late in session", 40, 39, true, doTurn, ""},
-		// A pending input with the exchange budget spent ends visibly.
-		{"exhausted exchange ends", 40, 0, true, doEnd, "max_generation_steps"},
+		// A pending input with the exchange budget spent truncates visibly
+		// (决策 #30): LimitExceeded + idle, never a terminal state.
+		{"exhausted turn truncates", 40, 0, true, doTruncate, ""},
 		// Truly idle goes idle regardless of totals.
 		{"idle stays idle", 40, 39, false, doIdle, ""},
 	}

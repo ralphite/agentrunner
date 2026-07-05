@@ -38,7 +38,7 @@ func (s *Server) sweepTimers(ctx context.Context) {
 				continue
 			}
 			if !e.FireAt.After(now) {
-				s.hostResume(ctx, e.SessionID)
+				s.hostResume(ctx, e.SessionID, false)
 			} else if e.FireAt.Before(next) {
 				next = e.FireAt
 			}
@@ -74,17 +74,23 @@ func (s *Server) markResumeFailed(id string) {
 // always carries conversational channels (v2 M5.1) — the resume runner
 // wires them iff the journal says conversational, so a revived chat
 // session accepts send/interrupt/kill exactly like a freshly hosted one.
-func (s *Server) hostResume(ctx context.Context, id string) {
-	// Shape first (v2 收口 review): an ended session must not be revived,
-	// and a task-mode session must not grow conversational channels — a
-	// post to a channel the loop never reads would false-ack "delivered".
+//
+// explicit distinguishes the caller (决策 #30): an explicit send reopens a
+// conversational session even past its SessionClosed intent; automatic
+// paths (timer sweep) never wake a terminal session. A task-form session
+// never grows conversational channels, and its explicit reopen semantics
+// is a recorded TODO — it still refuses here.
+func (s *Server) hostResume(ctx context.Context, id string, explicit bool) {
 	conversational := true
 	if s.SessionShape != nil {
-		var ended bool
+		var terminal bool
 		var err error
-		conversational, ended, err = s.SessionShape(id)
-		if err != nil || ended {
+		conversational, terminal, err = s.SessionShape(id)
+		if err != nil {
 			return // handleSend reports "could not be resumed"
+		}
+		if terminal && (!explicit || !conversational) {
+			return
 		}
 	}
 	s.mu.Lock()

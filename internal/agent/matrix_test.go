@@ -41,7 +41,7 @@ import (
 //	activity_started(edit) [exec hit 4] activity_completed,
 //	generation_started(3) + snapshot,
 //	activity_started(llm-t3) [exec hit 5] activity_completed, assistant_message(3),
-//	run_ended
+//	task_completed
 func TestCrashMatrix(t *testing.T) {
 	if os.Getenv("GO_CRASH_HELPER") == "1" {
 		helperMatrixRun()
@@ -65,7 +65,7 @@ func TestCrashMatrix(t *testing.T) {
 		{"edit-executed-unjournaled", "point:" + crash.PointAfterExecBeforeJournal + ":4", "none", true},
 		{"turn2-boundary", "after:generation_started:2", "fromT2", false},
 		{"snapshot-written", "point:" + crash.PointAfterSnapshotWrite + ":2", "fromT2", false},
-		{"before-run-end", "point:" + crash.PointBeforeRunEnd, "none", false},
+		{"before-run-end", "point:" + crash.PointBeforeTerminal, "none", false},
 	}
 
 	for _, row := range rows {
@@ -130,7 +130,7 @@ func TestCrashMatrix(t *testing.T) {
 			}
 
 			// 分毫不差: the file is fixed, the log is gapless, it ends with
-			// run_ended, the fold is ended with nothing in flight.
+			// task_completed, the fold is ended with nothing in flight.
 			got, _ := os.ReadFile(filepath.Join(root, "greet.txt"))
 			if string(got) != "HELLO WORLD" {
 				t.Errorf("file = %q", got)
@@ -144,14 +144,14 @@ func TestCrashMatrix(t *testing.T) {
 					t.Fatalf("seq gap at %d: %d", i, e.Seq)
 				}
 			}
-			if last := events[len(events)-1]; last.Type != event.TypeRunEnded {
+			if last := events[len(events)-1]; last.Type != event.TypeTaskCompleted {
 				t.Errorf("last event = %s", last.Type)
 			}
 			final, err := state.Fold(events)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if final.Session.Status != state.StatusEnded || len(final.Activities) != 0 {
+			if final.Session.Status != state.StatusCompleted || len(final.Activities) != 0 {
 				t.Errorf("final fold: status=%s in-flight=%v", final.Session.Status, final.Activities)
 			}
 		})

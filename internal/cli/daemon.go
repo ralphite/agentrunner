@@ -337,9 +337,13 @@ func persistInputFunc() func(string, protocol.UserInput) (protocol.UserInput, er
 	}
 }
 
-// sessionShape reports a session's journaled shape for honest revival
-// (v2 收口): conversational comes from SessionStarted, ended from the fold.
-func sessionShape(sessionID string) (conversational, ended bool, err error) {
+// sessionShape reports a session's journaled shape for honest revival:
+// conversational comes from SessionStarted, terminal from the fold. 决策
+// #30: an explicit send reopens a conversational session EVEN when closed
+// (the intent record gates automatic paths only); only task-form sessions
+// still refuse a send-revival (explicit-reopen semantics for task form is
+// a recorded TODO).
+func sessionShape(sessionID string) (conversational, terminal bool, err error) {
 	dir, err := resolveSessionDir(sessionID)
 	if err != nil {
 		return false, false, err
@@ -356,7 +360,7 @@ func sessionShape(sessionID string) (conversational, ended bool, err error) {
 	if err != nil {
 		return false, false, err
 	}
-	return started.Conversational, s.Session.Status == state.StatusEnded, nil
+	return started.Conversational, state.Terminal(s.Session.Status), nil
 }
 
 // scanSessionTimers derives the pending-timer index from the session
@@ -386,7 +390,7 @@ func scanSessionTimers() ([]daemon.SessionTimer, error) {
 			continue
 		}
 		s, err := state.Fold(events)
-		if err != nil || s.Session.Status == state.StatusEnded || len(s.Timers) == 0 {
+		if err != nil || state.Terminal(s.Session.Status) || len(s.Timers) == 0 {
 			continue
 		}
 		var earliest time.Time

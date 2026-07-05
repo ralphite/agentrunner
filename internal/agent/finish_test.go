@@ -80,10 +80,10 @@ func TestMalformedToolCallExhaustionErrors(t *testing.T) {
 	if countKind(sink, protocol.KindError) != 1 {
 		t.Errorf("expected exactly one user-visible error event")
 	}
-	// The run ended: a run_ended fact terminates the log.
+	// The run ended: a task_completed fact terminates the log.
 	events, _ := store.ReadEvents(l.Store.Dir())
-	if last := events[len(events)-1]; last.Type != event.TypeRunEnded {
-		t.Errorf("last event = %s, want run_ended", last.Type)
+	if last := events[len(events)-1]; last.Type != event.TypeTaskCompleted {
+		t.Errorf("last event = %s, want task_completed", last.Type)
 	}
 }
 

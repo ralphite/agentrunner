@@ -50,7 +50,7 @@ func seedParent(t *testing.T) (string, state.State) {
 	appendT(event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 2}, "evt-4")
 	appendT(event.TypeCheckpointBarrier, &event.CheckpointBarrier{
 		BarrierID: "bar-t2", GenStep: 2, Vector: map[string]int64{".": 5}, SnapshotRef: "ref-bbb"}, "evt-5")
-	appendT(event.TypeRunEnded, &event.RunEnded{Reason: "completed", GenSteps: 2}, "evt-6")
+	appendT(event.TypeTaskCompleted, &event.TaskCompleted{Reason: "completed", GenSteps: 2}, "evt-6")
 
 	for _, f := range []string{"sub/s1-a1/events.jsonl", "artifacts/blobs/sha256-xx"} {
 		path := filepath.Join(dir, f)
@@ -97,7 +97,7 @@ func TestCutCopiesBarrierSlice(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Genesis + the 4 events up to and including bar-t1; bar-t2 and
-	// run_ended are outside the cut.
+	// task_completed are outside the cut.
 	if len(got) != 5 {
 		t.Fatalf("events = %d, want 5", len(got))
 	}

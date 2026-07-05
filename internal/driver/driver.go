@@ -900,7 +900,7 @@ func settledChild(childDir string) (bool, agent.RunResult) {
 		return false, agent.RunResult{}
 	}
 	s, err := state.Fold(events)
-	if err != nil || s.Session.Status != state.StatusEnded {
+	if err != nil || !state.Terminal(s.Session.Status) {
 		return false, agent.RunResult{}
 	}
 	return true, agent.RunResult{Reason: s.Session.Reason, GenSteps: s.Session.GenStep, Usage: s.Session.Usage}

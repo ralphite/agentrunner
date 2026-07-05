@@ -123,18 +123,18 @@ func TestBackgroundTaskCancelledAtRunEnd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The task was cancelled (quiesce slot) and settled BEFORE run_ended.
+	// The task was cancelled (quiesce slot) and settled BEFORE task_completed.
 	var cancelSeq, endSeq int64
 	for _, e := range events {
 		if e.Type == event.TypeActivityCancelled && strings.Contains(string(e.Payload), "tool-bg1") {
 			cancelSeq = e.Seq
 		}
-		if e.Type == event.TypeRunEnded {
+		if e.Type == event.TypeTaskCompleted {
 			endSeq = e.Seq
 		}
 	}
 	if cancelSeq == 0 || endSeq == 0 || cancelSeq > endSeq {
-		t.Fatalf("task must be cancelled (seq %d) before run_ended (seq %d)", cancelSeq, endSeq)
+		t.Fatalf("task must be cancelled (seq %d) before task_completed (seq %d)", cancelSeq, endSeq)
 	}
 	fold, _ := state.Fold(events)
 	if len(fold.Tasks) != 0 {
@@ -144,7 +144,7 @@ func TestBackgroundTaskCancelledAtRunEnd(t *testing.T) {
 
 // S7 还债: the epilogue's await quiesce is BOUNDED by a durable timer — a
 // task that outlives await_timeout is cancelled when the timer fires, and
-// the whole story (timer_set → timer_fired → activity_cancelled → run_ended)
+// the whole story (timer_set → timer_fired → activity_cancelled → task_completed)
 // is journaled in order.
 func TestAwaitQuiesceTimerBound(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
@@ -204,7 +204,7 @@ func TestAwaitQuiesceTimerBound(t *testing.T) {
 			if strings.Contains(string(e.Payload), "tool-bg1") {
 				cancelledSeq = e.Seq
 			}
-		case event.TypeRunEnded:
+		case event.TypeTaskCompleted:
 			endSeq = e.Seq
 		}
 	}

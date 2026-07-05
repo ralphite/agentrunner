@@ -57,7 +57,7 @@ func TestAfterCountsToN(t *testing.T) {
 
 func TestPointFiresOnlyOnMatch(t *testing.T) {
 	fired := resetForTest(t, "point:after_journal_input")
-	Point(PointBeforeRunEnd)
+	Point(PointBeforeTerminal)
 	if *fired {
 		t.Fatal("wrong point fired")
 	}

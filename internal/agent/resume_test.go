@@ -107,7 +107,7 @@ func TestResumeAlreadyEnded(t *testing.T) {
 		t.Fatal(err)
 	}
 	res, err := l.Resume(context.Background())
-	if err == nil || !strings.Contains(err.Error(), "already ended") {
+	if err == nil || !strings.Contains(err.Error(), "already completed") {
 		t.Fatalf("err = %v", err)
 	}
 	if res.Reason != "completed" {
@@ -207,7 +207,7 @@ func TestCrashThenResumeContinuesRun(t *testing.T) {
 	if llmT1 != 1 {
 		t.Errorf("llm-t1 started %d times, want 1 (turn 1 must not re-run)", llmT1)
 	}
-	if last := events[len(events)-1]; last.Type != event.TypeRunEnded {
+	if last := events[len(events)-1]; last.Type != event.TypeTaskCompleted {
 		t.Errorf("last event = %s", last.Type)
 	}
 }

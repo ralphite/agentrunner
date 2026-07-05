@@ -48,7 +48,8 @@ type Barrier struct {
 const (
 	StatusRunning = "running"
 	StatusWaiting = "waiting"
-	StatusEnded   = "ended"
+	StatusCompleted = "completed" // task delivered (TaskCompleted receipt)
+	StatusClosed    = "closed"    // explicit close intent (SessionClosed)
 )
 
 type State struct {
@@ -331,6 +332,9 @@ func Apply(s State, env event.Envelope) (State, error) {
 
 	case *event.GenerationStarted:
 		s.Session.GenStep = p.GenStep
+		// A reopened session (决策 #30) leaves its terminal shape the moment
+		// a new generation step starts.
+		s.Session.Status = StatusRunning
 		s.Session.MalformedRetries = 0
 
 	case *event.AssistantMessage:
@@ -545,7 +549,13 @@ func Apply(s State, env event.Envelope) (State, error) {
 		s.Mode = p.To
 
 	case *event.LimitExceeded:
-		// Audit fact; the terminal state lands via RunEnded.
+		// Audit fact. A generation-step exhaustion additionally resets the
+		// per-turn budget baseline (决策 #30: the turn is visibly truncated,
+		// the session goes idle; a queued input then starts a fresh turn
+		// instead of wedging against the spent budget).
+		if p.Kind == "generation_steps" {
+			s.Session.LastInputGenStep = s.Session.GenStep
+		}
 
 	case *event.GenerationDiscarded:
 		// Surface signal + audit only: no fold state to undo (the discarded
@@ -554,8 +564,13 @@ func Apply(s State, env event.Envelope) (State, error) {
 	case *event.ActorCrashed:
 		s.Session.LastCrash = p.Actor + ": " + p.Error
 
-	case *event.RunEnded:
-		s.Session.Status = StatusEnded
+	case *event.TaskCompleted:
+		s.Session.Status = StatusCompleted
+		s.Session.Reason = p.Reason
+		s.Session.GenStep = p.GenSteps
+
+	case *event.SessionClosed:
+		s.Session.Status = StatusClosed
 		s.Session.Reason = p.Reason
 		s.Session.GenStep = p.GenSteps
 
@@ -768,4 +783,12 @@ func (t Timers) without(id string) Timers {
 		}
 	}
 	return out
+}
+
+// Terminal reports whether a session's fold shape carries a terminal fact
+// (delivery receipt or close intent). Automatic paths (timer sweep, boot
+// sweep) must not wake a terminal session; an explicit send may reopen it
+// (决策 #30).
+func Terminal(status string) bool {
+	return status == StatusCompleted || status == StatusClosed
 }

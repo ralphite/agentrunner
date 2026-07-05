@@ -76,20 +76,20 @@ func TestCheckEventsRequiresTerminalEvent(t *testing.T) {
 
 	const ts = "2026-07-03T00:00:00Z"
 	good := `{"seq":1,"id":"evt-1","type":"session_started","ts":"` + ts + `","payload":{}}
-{"seq":2,"id":"evt-2","type":"run_ended","ts":"` + ts + `","payload":{}}
+{"seq":2,"id":"evt-2","type":"task_completed","ts":"` + ts + `","payload":{}}
 `
 	truncated := `{"seq":1,"id":"evt-1","type":"session_started","ts":"` + ts + `","payload":{}}
 {"seq":2,"id":"evt-2","type":"activity_started","ts":"` + ts + `","payload":{}}
 `
 	gapped := `{"seq":1,"id":"evt-1","type":"session_started","ts":"` + ts + `","payload":{}}
-{"seq":3,"id":"evt-3","type":"run_ended","ts":"` + ts + `","payload":{}}
+{"seq":3,"id":"evt-3","type":"task_completed","ts":"` + ts + `","payload":{}}
 `
 	write("good.jsonl", good)
 	if msg := checkEvents(dir + "/good.jsonl"); msg != "" {
 		t.Errorf("good log rejected: %s", msg)
 	}
 	write("trunc.jsonl", truncated)
-	if msg := checkEvents(dir + "/trunc.jsonl"); !strings.Contains(msg, "run_ended") {
+	if msg := checkEvents(dir + "/trunc.jsonl"); !strings.Contains(msg, "terminal fact") {
 		t.Errorf("truncated log accepted: %q", msg)
 	}
 	write("gap.jsonl", gapped)

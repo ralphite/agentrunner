@@ -138,7 +138,7 @@ func TestCLIForkRewindsAndContinues(t *testing.T) {
 		t.Errorf("original note.txt after fork resume = %q, want v2", got)
 	}
 
-	// The fork journal: forked_from genesis, run_ended tail.
+	// The fork journal: forked_from genesis, task_completed tail.
 	forkDir, err := resolveSessionDir(forkSession)
 	if err != nil {
 		t.Fatal(err)
@@ -150,7 +150,7 @@ func TestCLIForkRewindsAndContinues(t *testing.T) {
 	if events[0].Type != event.TypeForkedFrom {
 		t.Errorf("fork journal head = %s", events[0].Type)
 	}
-	if events[len(events)-1].Type != event.TypeRunEnded {
+	if events[len(events)-1].Type != event.TypeTaskCompleted {
 		t.Errorf("fork journal tail = %s", events[len(events)-1].Type)
 	}
 }

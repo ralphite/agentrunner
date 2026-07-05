@@ -67,7 +67,7 @@ type Loop struct {
 	// UserInputs delivers conversational user inputs. Each received text is
 	// journaled as InputReceived{source:"user"} and wakes a new turn;
 	// CLOSING the channel is the close gesture: epilogue, then
-	// RunEnded{reason:"closed"}. nil = idle wakes only on tasks/interrupt.
+	// SessionClosed{reason:"closed"}. nil = idle wakes only on tasks/interrupt.
 	UserInputs <-chan protocol.UserInput
 	// inboxClosed records that a boundary drain saw UserInputs close, so the
 	// next idle closes the session instead of waiting (v2 M2.1).
@@ -435,9 +435,13 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 		}
 	}
 
-	if s.Session.Status == state.StatusEnded {
+	if state.Terminal(s.Session.Status) && !l.Conversational {
+		// A delivered task refuses a blind resume (its receipt stands); the
+		// explicit-reopen semantics for task sessions is a recorded TODO
+		// (决策 #30 落地余项). A conversational session ALWAYS continues —
+		// close intent gates automatic paths, not this explicit gesture.
 		return RunResult{Reason: s.Session.Reason, GenSteps: s.Session.GenStep, Usage: s.Session.Usage},
-			fmt.Errorf("resume: session already ended (%s)", s.Session.Reason)
+			fmt.Errorf("resume: task session already completed (%s)", s.Session.Reason)
 	}
 
 	ds := &driveState{s: s, lastID: events[len(events)-1].ID}
@@ -963,6 +967,19 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			}
 			continue
 
+		case doTruncate:
+			// 决策 #30: budget exhaustion is a visible truncation fact, not a
+			// terminal state. LimitExceeded resets the per-turn baseline in
+			// the fold; the session then goes idle, reopenable as ever.
+			slog.Warn("turn truncated: max_generation_steps", "max_generation_steps", l.Spec.MaxGenerationSteps)
+			if _, err := appendE(event.TypeLimitExceeded, &event.LimitExceeded{
+				Kind: "generation_steps", Limit: l.Spec.MaxGenerationSteps, Used: act.turn - ds.s.Session.LastInputGenStep,
+			}); err != nil {
+				return RunResult{}, abort(act.turn, err)
+			}
+			l.emit(protocol.Event{Kind: protocol.KindError, Text: "turn truncated: max_generation_steps reached; session is idle"})
+			continue
+
 		case doEnd:
 			if act.reason == "max_generation_steps" {
 				slog.Warn("run hit max_generation_steps", "max_generation_steps", l.Spec.MaxGenerationSteps)
@@ -1249,10 +1266,11 @@ const (
 	doTurn      = iota // journal GenerationStarted for action.turn
 	doLLM              // run the LLM activity for action.turn
 	doTool             // run action.call
-	doEnd              // journal RunEnded with action.reason
+	doEnd              // task form: epilogue + TaskCompleted receipt
 	doWait             // idle: the wait must resolve before anything else
 	doWaitTasks        // idle on background tasks (S6.1): settle one, re-decide
 	doIdle             // conversational idle (v2 M1.1): idle for the next user input
+	doTruncate         // conversational per-turn budget exhausted: journal the truncation, then idle
 )
 
 type action struct {
@@ -1294,13 +1312,16 @@ func decide(s state.State, maxTurns int, onRunEnd string, conversational bool) a
 			// background settlements, so live tasks need no extra branch.
 			// The turn budget is PER EXCHANGE (anti-runaway), counted from
 			// the last user input — a cumulative cap would silently wedge a
-			// long-lived session (M3 review). Exhaustion ends the session
-			// visibly (max_generation_steps), never a silent idle over pending input.
+			// long-lived session (M3 review). Exhaustion truncates the turn
+			// VISIBLY (LimitExceeded resets the budget baseline in the fold,
+			// so a queued input starts a fresh turn) and the session goes
+			// idle — never an unmarked idle over pending input, never a
+			// terminal state (决策 #30).
 			if hasInputAfterLastAssistant(s) {
 				if turn-s.Session.LastInputGenStep < maxTurns {
 					return action{kind: doTurn, turn: turn + 1}
 				}
-				return action{kind: doEnd, turn: turn, reason: "max_generation_steps"}
+				return action{kind: doTruncate, turn: turn}
 			}
 			return action{kind: doIdle, turn: turn}
 		}
@@ -1344,6 +1365,10 @@ func decide(s state.State, maxTurns int, onRunEnd string, conversational bool) a
 	spent := turn
 	if conversational {
 		spent = turn - s.Session.LastInputGenStep
+		if spent >= maxTurns {
+			return action{kind: doTruncate, turn: turn}
+		}
+		return action{kind: doTurn, turn: turn + 1}
 	}
 	if spent >= maxTurns {
 		return action{kind: doEnd, turn: turn, reason: "max_generation_steps"}

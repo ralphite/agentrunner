@@ -249,7 +249,7 @@ func checkExpect(exp Expect, scratch, output string, lastExit int) string {
 
 // checkEvents verifies every matched event log is complete: ≥1 line, every
 // line a well-formed envelope with gapless seq, first event session_started and
-// last event run_ended (a truncated log must not pass).
+// last event a terminal fact (a truncated log must not pass).
 func checkEvents(glob string) string {
 	matches, err := filepath.Glob(glob)
 	if err != nil || len(matches) == 0 {
@@ -292,14 +292,14 @@ func checkEvents(glob string) string {
 		}
 		// Three journal shapes share the format: a RUN journal opens with
 		// session_started (a FORKED run with its forked_from genesis, S7.3) and
-		// closes with run_ended; a DRIVER stream opens with driver_started
+		// closes with task_completed/session_closed; a DRIVER stream opens with driver_started
 		// (S7 header; S6 streams opened with the first iteration_scheduled)
 		// and closes with driver_completed.
 		first, last := types[0], types[len(types)-1]
 		switch first {
 		case "session_started", "forked_from":
-			if last != "run_ended" {
-				return fmt.Sprintf("events_valid: %s last event is %q, want run_ended (truncated?)", path, last)
+			if last != "task_completed" && last != "session_closed" {
+				return fmt.Sprintf("events_valid: %s last event is %q, want a terminal fact (truncated?)", path, last)
 			}
 		case "driver_started", "iteration_scheduled":
 			if last != "driver_completed" {

@@ -52,9 +52,9 @@ func TestOutputsAutoPublishFromWorkspaceFile(t *testing.T) {
 	if err != nil || !strings.Contains(string(content), "the findings") {
 		t.Fatalf("auto-published content = %q, %v", content, err)
 	}
-	// The fact precedes run_ended (the epilogue slot runs before the
+	// The fact precedes task_completed (the epilogue slot runs before the
 	// terminal event).
-	if last := events[len(events)-1]; last.Type != event.TypeRunEnded {
+	if last := events[len(events)-1]; last.Type != event.TypeTaskCompleted {
 		t.Errorf("last event = %s", last.Type)
 	}
 }
@@ -116,7 +116,7 @@ func TestOutputsMissingRequiredViolatesContract(t *testing.T) {
 	}
 	events, _ := store.ReadEvents(l.Store.Dir())
 	last := events[len(events)-1]
-	if last.Type != event.TypeRunEnded || !strings.Contains(string(last.Payload), "contract_violation") {
+	if last.Type != event.TypeTaskCompleted || !strings.Contains(string(last.Payload), "contract_violation") {
 		t.Errorf("last = %s %s", last.Type, last.Payload)
 	}
 	// An OPTIONAL missing output does not violate.

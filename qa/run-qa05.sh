@@ -78,7 +78,7 @@ for i in $(seq 1 300); do
   sleep 0.3
 done
 "$AR" close "$sid" >/dev/null 2>&1 || true
-for i in $(seq 1 100); do tail -c 200 "$SDIR/events.jsonl" | grep -q '"type":"run_ended"' && break; sleep 0.1; done
+for i in $(seq 1 100); do tail -c 200 "$SDIR/events.jsonl" | grep -q '"type":"session_closed"' && break; sleep 0.1; done
 
 # ---- Assertions ----
 fail=0
@@ -100,7 +100,7 @@ fi
 # d) The other sub-agent completed, and the session ended cleanly.
 subs="$(count_type subagent_completed "$SDIR/events.jsonl")"
 [ "$subs" -ge 2 ] || { echo "$QA: FAIL subagent_completed = $subs, want >= 2" >&2; fail=1; }
-tail -1 "$SDIR/events.jsonl" | grep -q run_ended || { echo "$QA: FAIL session did not end" >&2; fail=1; }
+tail -1 "$SDIR/events.jsonl" | grep -q session_closed || { echo "$QA: FAIL session did not end" >&2; fail=1; }
 
 if [ "$fail" = 0 ]; then
   echo "$QA PASS: user-killed a running sub-agent (reason=$slow_reason), other survived, session ended"

@@ -52,10 +52,10 @@ func TestHandoffEndsParentRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Terminal fact: run_ended{handoff}; the successor is journaled through
+	// Terminal fact: task_completed{handoff}; the successor is journaled through
 	// the same spawn facts (it IS a child run in the tree).
 	last := events[len(events)-1]
-	if last.Type != event.TypeRunEnded || !strings.Contains(string(last.Payload), "handoff") {
+	if last.Type != event.TypeTaskCompleted || !strings.Contains(string(last.Payload), "handoff") {
 		t.Errorf("last event = %s %s", last.Type, last.Payload)
 	}
 	var completed *event.SubagentCompleted
@@ -85,7 +85,7 @@ func TestHandoffEndsParentRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if childFold.Session.Status != state.StatusEnded || childFold.Session.Reason != "completed" {
+	if childFold.Session.Status != state.StatusCompleted || childFold.Session.Reason != "completed" {
 		t.Errorf("successor fold = %+v", childFold.Session)
 	}
 }

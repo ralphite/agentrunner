@@ -23,7 +23,8 @@ const (
 	TypeWaitingEntered    = "waiting_entered"
 	TypeWaitingResolved   = "waiting_resolved"
 	TypeActorCrashed      = "actor_crashed"
-	TypeRunEnded          = "run_ended"
+	TypeTaskCompleted     = "task_completed"
+	TypeSessionClosed     = "session_closed"
 
 	// S3 additions (the S2 set above never changes).
 	TypeEffectRequested   = "effect_requested"
@@ -241,7 +242,19 @@ type ActorCrashed struct {
 	Error string `json:"error"`
 }
 
-type RunEnded struct {
+// TaskCompleted is the delivery receipt of a task-form execution (决策
+// #30): the epilogue's terminal fact. A receipt, not a seal — it never
+// forbids an explicit reopen.
+type TaskCompleted struct {
+	Reason   string         `json:"reason"`
+	GenSteps int            `json:"gen_steps"`
+	Usage    provider.Usage `json:"usage"`
+}
+
+// SessionClosed is the recorded *intent* of an explicit close (决策 #30).
+// It gates automatic recovery paths only; an explicit send lawfully
+// reopens the session.
+type SessionClosed struct {
 	Reason   string         `json:"reason"`
 	GenSteps int            `json:"gen_steps"`
 	Usage    provider.Usage `json:"usage"`
@@ -567,7 +580,8 @@ var Registry = map[string]func() any{
 	TypeWaitingEntered:      func() any { return &WaitingEntered{} },
 	TypeWaitingResolved:     func() any { return &WaitingResolved{} },
 	TypeActorCrashed:        func() any { return &ActorCrashed{} },
-	TypeRunEnded:            func() any { return &RunEnded{} },
+	TypeTaskCompleted:       func() any { return &TaskCompleted{} },
+	TypeSessionClosed:       func() any { return &SessionClosed{} },
 	TypeEffectRequested:     func() any { return &EffectRequested{} },
 	TypeEffectResolved:      func() any { return &EffectResolved{} },
 	TypeApprovalRequested:   func() any { return &ApprovalRequested{} },

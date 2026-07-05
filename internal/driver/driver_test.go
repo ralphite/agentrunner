@@ -1168,7 +1168,7 @@ func TestDriverSelfPacedResumeRespectsPace(t *testing.T) {
 		ActivityID: "tool-p1", Kind: event.KindTool, Name: "schedule_next", CallID: "p1", Attempt: 1})
 	cj(event.TypeActivityCompleted, &event.ActivityCompleted{
 		ActivityID: "tool-p1", Result: json.RawMessage(`{"output":"ok"}`)})
-	cj(event.TypeRunEnded, &event.RunEnded{Reason: "completed", GenSteps: 1})
+	cj(event.TypeTaskCompleted, &event.TaskCompleted{Reason: "completed", GenSteps: 1})
 	_ = ces.Close()
 
 	resCh := make(chan driver.Result, 1)

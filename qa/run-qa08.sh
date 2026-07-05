@@ -119,9 +119,9 @@ for i in $(seq 1 300); do
   tail -c 400 "$SDIR/events.jsonl" | grep -q '"type":"waiting_entered"' && break; sleep 0.2
 done
 "$AR" close "$sid" >/dev/null 2>&1 || true
-for i in $(seq 1 300); do tail -c 200 "$SDIR/events.jsonl" | grep -q '"type":"run_ended"' && break; sleep 0.2; done
-ends="$(count_type run_ended "$SDIR/events.jsonl")"
-[ "$ends" = 1 ] || { echo "$QA: FAIL run_ended = $ends, want exactly 1 (three crashes, one session)" >&2; fail=1; }
+for i in $(seq 1 300); do tail -c 200 "$SDIR/events.jsonl" | grep -q '"type":"session_closed"' && break; sleep 0.2; done
+ends="$(count_type session_closed "$SDIR/events.jsonl")"
+[ "$ends" = 1 ] || { echo "$QA: FAIL session_closed = $ends, want exactly 1 (three crashes, one session)" >&2; fail=1; }
 
 if [ "$fail" = 0 ]; then
   echo "$QA PASS: 3-state crash matrix — idle park, in-flight bash, in-flight sub-agents all revived by ar send"

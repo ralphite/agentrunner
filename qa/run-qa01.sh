@@ -70,20 +70,20 @@ wait_turns 3
 # Close.
 "$AR" close "$sid" >/dev/null
 for i in $(seq 1 100); do
-  tail -c 200 "$sdir/events.jsonl" | grep -q '"type":"run_ended"' && break; sleep 0.1
+  tail -c 200 "$sdir/events.jsonl" | grep -q '"type":"session_closed"' && break; sleep 0.1
 done
 
 # ---- Structural assertions (QA.md §0.1: facts, not model wording) ----
 inputs="$(count_type input_received "$sdir/events.jsonl")"
-ends="$(count_type run_ended "$sdir/events.jsonl")"
+ends="$(count_type session_closed "$sdir/events.jsonl")"
 turns="$(count_type generation_started "$sdir/events.jsonl")"
 tail_type="$(tail -1 "$sdir/events.jsonl" | grep -o '"type":"[^"]*"' | head -1)"
 
 fail=0
 [ "$inputs" = 3 ] || { echo "FAIL: user inputs = $inputs, want 3" >&2; fail=1; }
-[ "$ends" = 1 ]  || { echo "FAIL: run_ended = $ends, want exactly 1" >&2; fail=1; }
+[ "$ends" = 1 ]  || { echo "FAIL: session_closed = $ends, want exactly 1" >&2; fail=1; }
 [ "$turns" -ge 3 ] || { echo "FAIL: turns = $turns, want >= 3" >&2; fail=1; }
-echo "$tail_type" | grep -q run_ended || { echo "FAIL: journal tail = $tail_type, want run_ended" >&2; fail=1; }
+echo "$tail_type" | grep -q session_closed || { echo "FAIL: journal tail = $tail_type, want session_closed" >&2; fail=1; }
 # Continuity CONTENT (QA.md: 回答包含前两轮各自的要素): the final answer
 # echoes both pinned codewords — objective proof both rounds are in context.
 final="$(grep '"type":"assistant_message"' "$sdir/events.jsonl" | tail -1)"

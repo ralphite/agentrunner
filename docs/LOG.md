@@ -225,3 +225,26 @@ fresh-run 教义对 goal 形态不适用;goal 的 context 必须延续。fresh-r
 - 旧 journal 自此不可读(事件名/子状态键变更),按决策 #18 作废重跑,
   不做 migration。qa 脚本的 generation_started/session_started 同步;
   run_ended 断言随 C3 更新。全量 check + e2e 绿。
+
+**C3 终止语义手术落地(决策 #30 兑现)**:
+- event:RunEnded 拆除 → `TaskCompleted`(task 形态 epilogue 的交付
+  回执)+ `SessionClosed`(close 的意图记录);fold 状态 ended 拆为
+  completed/closed,新增 `state.Terminal()` 判定;GenerationStarted
+  令 Status 回 running(重开后形状诚实)。
+- **conversational 不再有终态事件**:per-turn step 预算耗尽从"终结
+  session"改为**可见截断**——journal `LimitExceeded{kind:
+  generation_steps}`(fold 借此重置预算基线,排队输入开新 turn,无
+  silent-wedge)+ 回待命;decide 新增 doTruncate 分支。
+- **显式重开**:daemon send 对 conversational session 一律成立,
+  **含已 close 的**(意图只挡自动路径;timer sweep 对 terminal 一律
+  跳过);loop resume 守卫只拒 task 形态。新测试:
+  TestSendReopensClosedConversational / TestSendToCompletedTaskRefused。
+- **记档余项(明日 review)**:①task session 的显式重开未落地(重开
+  后形态如何——升格 conversational 还是原形态续跑,涉及 epilogue 重复
+  执行语义,需要裁决);②`ar close` 对 task 形态、`interrupt` 在
+  task 收尾语义不变;③CLI 子命令名(run/resume 等)沿用,"run"仅
+  从叙述词汇中废除——命令面改名待裁决;④QA-01..09 真实 API 闸门
+  在本环境无凭据未重跑,断言已同步(session_closed),回归以
+  scripted 孪生 + acceptance 26 场景全绿为据。
+- crash.PointBeforeRunEnd → PointBeforeTerminal;accept 框架终态校验
+  改为 task_completed|session_closed。全量 check + e2e + 三包 -race 绿。

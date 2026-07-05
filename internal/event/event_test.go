@@ -70,7 +70,8 @@ var samples = map[string]any{
 		Verdict: VerdictDeny, GateResults: []GateResult{
 			{Gate: "permission", Decision: VerdictDeny, Reason: "path escapes workspace"}},
 		Containment: &Containment{Network: "none", Backend: "netns"}},
-	TypeRunEnded: &RunEnded{Reason: "completed", GenSteps: 4, Usage: provider.Usage{InputTokens: 10}},
+	TypeTaskCompleted: &TaskCompleted{Reason: "completed", GenSteps: 4, Usage: provider.Usage{InputTokens: 10}},
+	TypeSessionClosed: &SessionClosed{Reason: "closed", GenSteps: 4},
 	TypeDriverStarted: &DriverStarted{DriverID: "drv-1", SpecName: "nightly",
 		Spec: json.RawMessage(`{"name":"nightly"}`), WorkspaceRoot: "/w", FoldVersion: 1},
 	TypeIterationScheduled: &IterationScheduled{DriverID: "drv-1", Iter: 2, Schedule: "immediate", BaseRef: "0badc0de"},

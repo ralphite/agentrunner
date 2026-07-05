@@ -113,10 +113,11 @@ func readWorkspaceFile(l *Loop, path string) ([]byte, bool) {
 	return content, true
 }
 
-// runEpilogue drives every run ending: the fixed hook sequence, then the
-// terminal RunEnded fact. bestEffort (abort paths) presses on through hook
-// and journal errors so a dying run still leaves a terminal marker if it
-// possibly can.
+// runEpilogue drives every ending: the fixed hook sequence, then the
+// terminal fact — a TaskCompleted receipt for task form, a SessionClosed
+// intent for a conversational close (决策 #30). bestEffort (abort paths)
+// presses on through hook and journal errors so a dying execution still
+// leaves its fact if it possibly can.
 func (l *Loop) runEpilogue(ctx context.Context, ds *driveState, appendE AppendFunc,
 	reason string, turns int, bestEffort bool) (RunResult, error) {
 
@@ -125,8 +126,14 @@ func (l *Loop) runEpilogue(ctx context.Context, ds *driveState, appendE AppendFu
 			return RunResult{}, err
 		}
 	}
-	crash.Point(crash.PointBeforeRunEnd)
-	if _, err := appendE(event.TypeRunEnded, &event.RunEnded{
+	crash.Point(crash.PointBeforeTerminal)
+	if l.Conversational {
+		if _, err := appendE(event.TypeSessionClosed, &event.SessionClosed{
+			Reason: reason, GenSteps: turns, Usage: ds.s.Session.Usage,
+		}); err != nil && !bestEffort {
+			return RunResult{}, err
+		}
+	} else if _, err := appendE(event.TypeTaskCompleted, &event.TaskCompleted{
 		Reason: reason, GenSteps: turns, Usage: ds.s.Session.Usage,
 	}); err != nil && !bestEffort {
 		return RunResult{}, err

@@ -483,7 +483,7 @@ func TestCrashSettleSpawnMalformedCallID(t *testing.T) {
 		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "decoy",
 			SubStateVersions: state.SubStateVersions()}},
 		{event.TypeInputReceived, &event.InputReceived{Text: "secret", Source: "cli"}},
-		{event.TypeRunEnded, &event.RunEnded{Reason: "completed", GenSteps: 1}},
+		{event.TypeTaskCompleted, &event.TaskCompleted{Reason: "completed", GenSteps: 1}},
 	})
 	_ = decoy.Close()
 

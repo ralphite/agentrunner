@@ -75,7 +75,9 @@ func ReplayJournal(sessionDir string, sink protocol.Sink) error {
 				CallID: p.CallID})
 		case *event.GenerationDiscarded:
 			sink.Emit(protocol.Event{Kind: protocol.KindDiscard, N: p.GenStep, Text: p.Reason})
-		case *event.RunEnded:
+		case *event.TaskCompleted:
+			sink.Emit(protocol.Event{Kind: protocol.KindRunEnd, N: p.GenSteps, Reason: p.Reason})
+		case *event.SessionClosed:
 			sink.Emit(protocol.Event{Kind: protocol.KindRunEnd, N: p.GenSteps, Reason: p.Reason})
 		// Driver streams (S6): iteration terminals and the series ending
 		// project the same way the live tee emits them.

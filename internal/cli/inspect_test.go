@@ -44,7 +44,7 @@ func TestBuildInspectReport(t *testing.T) {
 			ActivityID: "tool-c1", Kind: event.KindTool, Name: "read_file", CallID: "c1", Attempt: 1}),
 		mkEnv(t, event.TypeActivityCompleted, &event.ActivityCompleted{
 			ActivityID: "tool-c1", IsError: true}),
-		mkEnv(t, event.TypeRunEnded, &event.RunEnded{Reason: "completed", GenSteps: 1}),
+		mkEnv(t, event.TypeTaskCompleted, &event.TaskCompleted{Reason: "completed", GenSteps: 1}),
 	}
 	s, err := state.Fold(events)
 	if err != nil {
@@ -52,7 +52,7 @@ func TestBuildInspectReport(t *testing.T) {
 	}
 	r := buildInspectReport(events, s)
 
-	if r.Spec != "demo" || r.Model != "gemini-x" || r.Status != state.StatusEnded {
+	if r.Spec != "demo" || r.Model != "gemini-x" || r.Status != state.StatusCompleted {
 		t.Fatalf("meta = %+v", r)
 	}
 	if len(r.Entries) != 2 {
@@ -104,13 +104,13 @@ func TestBuildInspectTree(t *testing.T) {
 		mkEnv(t, event.TypeSubagentCompleted, &event.SubagentCompleted{
 			CallID: "s1", Agent: "researcher", ChildSession: "lead-sub-s1-a1",
 			Reason: "completed", GenSteps: 2}),
-		mkEnv(t, event.TypeRunEnded, &event.RunEnded{Reason: "completed", GenSteps: 3}),
+		mkEnv(t, event.TypeTaskCompleted, &event.TaskCompleted{Reason: "completed", GenSteps: 3}),
 	})
 	// Child journal under sub/s1-a1.
 	write("s1-a1", []event.Envelope{
 		mkEnv(t, event.TypeSessionStarted, &event.SessionStarted{SpecName: "researcher",
 			SubStateVersions: state.SubStateVersions()}),
-		mkEnv(t, event.TypeRunEnded, &event.RunEnded{Reason: "completed", GenSteps: 2}),
+		mkEnv(t, event.TypeTaskCompleted, &event.TaskCompleted{Reason: "completed", GenSteps: 2}),
 	})
 
 	report, err := buildInspectTree(dir)
@@ -122,7 +122,7 @@ func TestBuildInspectTree(t *testing.T) {
 	}
 	child := report.Children[0]
 	if child.Agent != "researcher" || child.Report.Spec != "researcher" ||
-		child.Report.Status != state.StatusEnded {
+		child.Report.Status != state.StatusCompleted {
 		t.Errorf("child = %+v", child)
 	}
 	if len(report.Artifacts) != 1 || report.Artifacts[0].Stream != "report" {

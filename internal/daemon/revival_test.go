@@ -99,18 +99,43 @@ func TestSendToTaskModeSessionRefused(t *testing.T) {
 	}
 }
 
-// v2 收口 review: an ended session is not revivable and says so.
-func TestSendToEndedSessionRefused(t *testing.T) {
+// 决策 #30: an explicit send REOPENS a closed conversational session —
+// the close intent gates automatic paths only.
+func TestSendReopensClosedConversational(t *testing.T) {
+	var resumed atomic.Int32
 	resume := func(ctx context.Context, req ResumeRequest, sink protocol.Sink) error {
-		t.Error("ended session must not be resumed")
-		return errors.New("unreachable")
+		resumed.Add(1)
+		if req.Inbox == nil {
+			t.Error("conversational reopen must wire an inbox")
+		}
+		<-ctx.Done()
+		return nil
 	}
-	shape := func(string) (bool, bool, error) { return true, true, nil } // ended
+	shape := func(string) (bool, bool, error) { return true, true, nil } // conversational, closed
 	sock, cancel, _ := revivalHarness(t, resume, shape)
 	defer cancel()
 
-	if reply, isErr := sendCmdTo(t, sock, "ended-sess", "hi"); !isErr {
-		t.Fatalf("send to ended session acked %q", reply)
+	if reply, isErr := sendCmdTo(t, sock, "closed-sess", "hi"); isErr {
+		t.Fatalf("send to closed conversational session refused: %q", reply)
+	}
+	if resumed.Load() == 0 {
+		t.Fatal("closed conversational session was not reopened")
+	}
+}
+
+// 决策 #30 落地余项: a terminal TASK session still refuses a send (its
+// explicit-reopen semantics is a recorded TODO).
+func TestSendToCompletedTaskRefused(t *testing.T) {
+	resume := func(ctx context.Context, req ResumeRequest, sink protocol.Sink) error {
+		t.Error("completed task session must not be resumed by send")
+		return errors.New("unreachable")
+	}
+	shape := func(string) (bool, bool, error) { return false, true, nil } // task, completed
+	sock, cancel, _ := revivalHarness(t, resume, shape)
+	defer cancel()
+
+	if reply, isErr := sendCmdTo(t, sock, "done-task", "hi"); !isErr {
+		t.Fatalf("send to completed task session acked %q", reply)
 	}
 }
 

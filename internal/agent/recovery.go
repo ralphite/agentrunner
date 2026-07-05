@@ -87,7 +87,7 @@ func (l *Loop) settleCrashedSpawn(appendE AppendFunc, act event.ActivityStarted)
 		return fmt.Errorf("crash settle %s: child fold: %w", callID, ferr)
 	}
 
-	if cf.Session.Status == state.StatusEnded {
+	if state.Terminal(cf.Session.Status) {
 		// The child finished before the crash — deliver the receipt it
 		// already earned (SubagentCompleted before the activity terminal,
 		// same order as the live settle path).

@@ -37,7 +37,7 @@ func foldingAppend(m *memAppend, ds *driveState) AppendFunc {
 	}
 }
 
-// The sequence is fixed: quiesce → auto_publish → barrier → run_ended.
+// The sequence is fixed: quiesce → auto_publish → barrier → task_completed.
 func TestEpilogueSequenceOrder(t *testing.T) {
 	var order []string
 	instrumentEpilogue(t, &order, "")
@@ -55,10 +55,10 @@ func TestEpilogueSequenceOrder(t *testing.T) {
 	if !equal(order, want) {
 		t.Fatalf("hook order = %v, want %v", order, want)
 	}
-	if types := m.types(); !equal(types, []string{"run_ended"}) {
+	if types := m.types(); !equal(types, []string{"task_completed"}) {
 		t.Fatalf("events = %v", types)
 	}
-	if ds.s.Session.Status != state.StatusEnded {
+	if ds.s.Session.Status != state.StatusCompleted {
 		t.Errorf("fold status = %q", ds.s.Session.Status)
 	}
 }
@@ -96,7 +96,7 @@ func TestEpilogueBestEffortPressesOn(t *testing.T) {
 	if !equal(order, []string{"quiesce", "auto_publish", "barrier"}) {
 		t.Fatalf("order = %v", order)
 	}
-	if types := m.types(); !equal(types, []string{"run_ended"}) {
+	if types := m.types(); !equal(types, []string{"task_completed"}) {
 		t.Fatalf("events = %v", types)
 	}
 }

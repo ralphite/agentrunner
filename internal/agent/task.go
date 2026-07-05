@@ -237,7 +237,7 @@ func (l *Loop) cancelAllBackground() {
 // quiesceTasks fills the epilogue quiesce slot (S6.1, 钩子 2): at a run
 // ending, still-running background tasks are awaited or cancelled per the
 // spec's on_run_end (default cancel), and every terminal settles BEFORE the
-// terminal RunEnded — the log never ends with tasks in flight. The await
+// terminal receipt — the log never ends with tasks in flight. The await
 // wait is BOUNDED by a durable timer (S7 还债, DESIGN: await 必有 durable
 // timer 兜底): the TimerSet fact makes a crashed-while-awaiting session
 // visible to the daemon sweep, and an expired timer cancels the stragglers
