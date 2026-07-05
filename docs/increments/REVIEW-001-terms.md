@@ -70,3 +70,26 @@
 Gemini 要求 functionResponse 与 functionCall 严格配对,tool 结果作为
 纯文本 prefix 是否破坏配对,需分析);control{kill} 不进对话的现行
 语义;§17"inbox 字面统一度"记档。）
+
+## #11 interrupt（复审意见,2026-07-05）
+
+现行定义:带外信号(不进 inbox)——turn 中 = 打断当前活动(部分输出
+保留);待命处 = close(记 SessionClosed 意图)。
+
+开发者意见/问题:
+
+1. **对 interrupt 这个词对应的用户功能不理解**——从用户功能出发,
+   它到底对应什么?
+2. 能想到的对应物:用户(或其他 agent 经由 parent)把当前 agent
+   session 的在跑工作杀死,或把 running tool / background task 杀死。
+3. **杀死 ≠ session 结束,完全不是**。最常见的需求是:"我看到它在做
+   的事完全不是我想要的 → kill 掉 → 再写一条消息让它继续执行。"
+4. **不需要"完全停下来"的情况**:任何 session 在任何时候都可以继续
+   发消息、继续执行。
+5. 结论:**不接受现行定义里 interrupt 导致 session 被 end / turn 被
+   end 的情况**(含"待命处 interrupt = close"这条交互惯例)。
+
+（待分析线索,仅索引:"turn 中 interrupt = 打断活动+部分输出保留+
+会话继续"与开发者第 3 条描述一致,分歧点集中在"待命处=close"惯例
+与措辞;close 已是可重开意图(决策 #30);kill 工具族(task_kill/
+ar kill)与 interrupt 的关系待统一梳理。）
