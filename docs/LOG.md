@@ -94,3 +94,31 @@ fresh-run 教义对 goal 形态不适用;goal 的 context 必须延续。fresh-r
 
 登记位置:JOURNEYS UJ-22(硬性要求粗体写入)+ §5 索引三条;GAPS §1
 新行 + §2 G23(驱动与时间旅行分节,含冲突声明与控制面/预算形态)。
+
+## 2026-07-05 术语调研裁定:turn = 对话级(用户语义);内部单位改称 step
+
+对 turn 一词做外部调研(记档,修订上一条的临时裁定"设计内部保持现
+定义"):
+- **对话级(经典、主流)**:对话分析(Sacks et al. 1974 turn-taking)
+  ——turn = 一个说话人持续到让出话轮的整段贡献;LLM 语境的
+  "multi-turn conversation" 全部沿用此义(user/assistant 交换)。
+  用户的理解与此完全一致:被调用起 → 干到最后一条消息停下 = 一个 turn。
+- **agent SDK 圈的挪用**:OpenAI Agents SDK 明文 "a turn is defined
+  as a single interaction with the LLM, including any subsequent tool
+  executions or handoffs"(= 本项目现定义);Claude Agent SDK 的
+  maxTurns 只数 tool-use turns(最终纯文本响应不计)——SDK 之间自身
+  就不一致。本项目 v1 借的是 SDK 义。
+- **内部步进单位的业界通名是 step**(smolagents/LangGraph/AutoGPT)。
+
+**裁定**:本项目术语与主流对齐——
+- **turn**(对话级)= 一次输入激活 agent → 干到 yield 待命的整段
+  (即代码现称 exchange 者);
+- **step** = 一次模型调用 + 该调用返回的全部工具执行(即设计/代码
+  现称 turn 者);
+- spec 的 max_turns 语义即 "per-turn 的 step 预算"(代码已按
+  per-exchange 计,语义不变,仅换名);
+- **event/wire 名不改**(TurnStarted 等):改名作废全部旧 journal,
+  违背决策 #18 的成本判断——作为 wire 遗留名记入 DESIGN §17 名词
+  对照,与 spawn_agent/task_kill 同例。
+- 文档层(DESIGN §4/§17、SPEC、QA)的措辞统一随下一个增量落地,
+  不单独起一轮全文替换;此前对话与文档中的 turn 按上下文读。
