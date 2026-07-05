@@ -9,7 +9,7 @@ set -euo pipefail
 
 AR="${1:?usage: run-qa01.sh <ar-binary>}"
 here="$(cd "$(dirname "$0")" && pwd)"
-[ -f "$here/../../.env" ] && { set -a; . "$here/../../.env"; set +a; }
+[ -f "$here/../.env" ] && { set -a; . "$here/../.env"; set +a; }
 [ -n "${GEMINI_API_KEY:-}" ] || { echo "QA-01: GEMINI_API_KEY unset" >&2; exit 2; }
 
 work="$(mktemp -d)"
