@@ -180,3 +180,29 @@ fresh-run 教义对 goal 形态不适用;goal 的 context 必须延续。fresh-r
 5. **新增 §18.1a step↔event 对照**:step 是执行模型词汇,event 是
    持久化词汇(event sourcing 记录单元);step 不是 event,是"产生
    某一小簇 event 的那段执行";逐 step 给出 event 簇对照表。
+
+## 2026-07-05 大清理落地(开发者指令:零 legacy,文档与代码同步更新)
+
+开发者裁定:基于当日已确认的全部概念裁定,大幅更新文档与代码,
+**不保留任何 legacy、不做兼容 mapping**;旧 journal 直接作废(决策
+#18 本就不做 migration,原型可重跑)。执行分四步(C1 文档/C2 代码
+改名/C3 终止语义手术/C4 对账),每步 check 绿提交。
+
+**C1(本条)文档总更新**:
+- DESIGN 全文措辞统一至 §18 术语表:旧内部"turn"→ generation step;
+  "turn 边界"→ 安全边界;yield/park/exchange → final generation/
+  待命(全文清除);§1 重写(session = journal + 待命,每条输入触发
+  一个 turn = 一遍 agentic loop;"会话循环"概念取消);§4 开头重写。
+- 命名以实现名为 canonical:spawn_child/cancel_child/ChildSpawned →
+  spawn_agent/task_kill/SpawnRequested,§17 的两张对照表删除。
+- 事件改名(代码 C2 兑现):TurnStarted/TurnDiscarded →
+  GenerationStarted/GenerationDiscarded;RunStarted → SessionStarted;
+  spec 字段 max_turns → max_generation_steps;RunAgent → StartSession。
+- **终止语义成文(不变量变更,开发者直接裁定即 review,PROCESS §四
+  记录)**:待命是唯一静止状态;"结束"是 journal 形状不是状态;只记
+  两类事实——意图(SessionClosed/kill,只挡自动恢复)与回执
+  (TaskCompleted,交付时刻不封印);显式 send 对任何 session 都是
+  合法重开。决策表 #24 改写、新增 #30;RunEnded 从设计中移除
+  (C3 兑现)。§6 恢复/§12 session 管理/§18.1a/18.7 同步。
+- SPEC/QA/JOURNEYS/GAPS 措辞同步(G23/UJ-22 的 yield/exchange 遗留
+  用语更新;G8 SessionStarted)。

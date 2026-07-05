@@ -116,7 +116,7 @@ tools: [read_file, bash]
 
 **通过标准**（收口 F.3 修正——实现语义是 journal-on-boundary 而非
 journal-on-arrival，见 archive/v2/PROGRESS.md M2.1）：两条插话在 bash 期间投递
-（mailbox 持久，确认即不丢），其 `InputReceived` 在 turn 边界按投递
+（mailbox 持久，确认即不丢），其 `InputReceived` 在安全边界按投递
 顺序落 journal（必然在 bash `Completed` 之后，这是设计而非缺陷）；
 bash 无 Cancelled；两条都进入下一 turn 的上下文。回答是否同时满足
 两条插话属模型行为，不设 FAIL 闸（§0.1）。

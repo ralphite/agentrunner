@@ -21,8 +21,8 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 
 | 功能点 | 状态 | Journey | 验收锚 / 备注 |
 |---|---|---|---|
-| conversational 续聊（答完 park 待命，close 才终结） | ✅ | UJ-01/03/09 | QA-01 · C1 · TestConversationalMultiInput/ParkResumes |
-| 忙时投递排队（turn 边界按序消费，不丢不乱序） | ✅ | UJ-07 | QA-02/06 · C2 |
+| conversational 续聊（答完待命；close = 意图记录） | ✅ | UJ-01/03/09 | QA-01 · C1 · 孪生（见 e2e） |
+| 忙时投递排队（安全边界按序消费，不丢不乱序） | ✅ | UJ-07 | QA-02/06 · C2 |
 | durable mailbox（确认即持久、恰好一次，跨 kill -9） | ✅ | 不变量 | QA-08 FAIL 级断言 · inbox.jsonl 机制（DESIGN §2） |
 | interrupt 与输入分立（Esc 杀活动 / 消息追加） | ✅ | UJ-07 | QA-02/06 · C8 · S3 |
 | idle 处 interrupt = close（交互惯例） | ✅ | UJ-03 | 孪生（DESIGN §17 记档） |
@@ -31,7 +31,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | `ar new` 开场消息折叠/带图（与 send 对称） | 🧊 | UJ-04 | 不对称记档（DESIGN §17），待真实使用反馈 |
 | PDF/附件泛化 | ❌ | UJ-04 | GAPS G1 余项 |
 | 外部事件唤醒既有 session（webhook → inbox，机器发送方） | ❌ | UJ-12 | GAPS G14（inbox 原语已备，缺投递壳） |
-| WAITING_APPROVAL park 期间消息唤醒 | 🟡 | UJ-07 | 只排队不唤醒；GAPS G3 余项 |
+| WAITING_APPROVAL 挂起期间消息唤醒 | 🟡 | UJ-07 | 只排队不唤醒；GAPS G3 余项 |
 | 手动 compact（带指示）/ clear | ❌ | UJ-09 | GAPS G7 |
 | 自动 compaction（阈值触发） | ✅ | UJ-09 | S3 |
 | 手动 barrier 打点（`ar barrier`，非运行中 session） | ✅ | UJ-15 | fork 全链路测试（S7 收口） |
@@ -113,7 +113,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 
 | 功能点 | 状态 | Journey | 验收锚 / 备注 |
 |---|---|---|---|
-| CheckpointBarrier（turn 边界/终态/手动，向量+快照 ref） | ✅ | UJ-15 | S7 |
+| CheckpointBarrier（安全边界/task 收尾/手动，向量+快照 ref） | ✅ | UJ-15 | S7 |
 | fork（单创世、处置向量落实、随行库复制、独立 worktree） | ✅ | UJ-15 | S7 收口 review 修复 + fork-of-fork 测试 |
 | rewind（fork 后显式切换） | ✅ | UJ-15 | S7 |
 | 多模态 blob 在 fork/rewind 下的归属语义 | 🟡 | — | GAPS G1 余项 |
