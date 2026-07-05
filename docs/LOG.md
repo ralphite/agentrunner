@@ -59,3 +59,38 @@
 
 登记位置:JOURNEYS UJ-21(+§5 索引四条)、GAPS §1 新行 + §2 G22
 (监督与恢复分节)。
+
+## 2026-07-05 需求登记:UJ-22 会话内目标(G23)+ 需求丢失事故记档 + turn 术语澄清
+
+**事故记档(需求丢失)**:开发者指出"goal 挂在当前会话、context 必须
+延续"是项目原始需求之一,但现有 goal mode 实现为 IterationDriver +
+fresh child run(context 不延续),需求丢失。根因链:
+1. 原始需求从未成文为 journey——JOURNEYS 目录是后来按"已实现/已设计
+   形态"整理的,UJ-15(通宵冲目标)按 driver 形态倒写,倒果为因;
+2. v1 没有 conversational 会话形态(G6 是 v2 才关的最大缺口)——goal
+   在 S6 设计时,"attach 到会话"根本无处附着,只能长在 task 形态上,
+   fresh-run 的工程理由(prompt cache/隔离/防污染)随决策 #21 固化;
+3. GAPS 审计以 JOURNEYS 为标尺——需求不在标尺上,审计发现不了丢失,
+   UJ-15 反而被判"最强区"。
+**流程对策**:原始需求必须第一时间落 journey(第一层),否则处于审计
+盲区——这正是三层流程要堵的洞;本次补登记即执行。
+
+**开发者裁定(实施时走不变量变更流程)**:决策 #21 / DESIGN §13 的
+fresh-run 教义对 goal 形态不适用;goal 的 context 必须延续。fresh-run
+保留给 best-of-N(隔离是其语义)与批式 loop。
+
+**术语澄清(记档,增量落地时在 DESIGN §4 成文)**:
+- 设计/代码的 **turn** = 一次模型调用 + 该次调用返回的全部 tool call
+  的执行(loop.go decide()/state.Run.Turn;TurnStarted 逐次落盘)。
+  agent 连续调用工具 = 多个 turn:每次带工具结果回到模型是新 turn。
+- 用户语义的"turn" = 一条用户输入 → agent 干到 yield 待命的整段,
+  即代码里已有的 **exchange** 概念(conversational 的 max_turns 预算
+  就是 per-exchange 计的,从 LastInputTurn 起算——防 runaway)。
+- 两者都合法,词汇冲突已澄清;对话中说"turn"以用户语义为准,设计文
+  档内部保持现定义并补 exchange 术语。in-session goal 的检查点在
+  **exchange 边界**(yield 点),不挟持模型调用级 turn——用户方案 (b)
+  ("不满足就不让 turn 结束")在 exchange 语义下正是目标形态,与
+  (a)/(b) 之争消解。
+
+登记位置:JOURNEYS UJ-22(硬性要求粗体写入)+ §5 索引三条;GAPS §1
+新行 + §2 G23(驱动与时间旅行分节,含冲突声明与控制面/预算形态)。

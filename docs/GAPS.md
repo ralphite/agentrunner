@@ -49,6 +49,7 @@
 | UJ-19 生态接入 | 🟡 | MCP/skills/写审批/断连恢复 ✅；自定义命令 G21 |
 | UJ-20 不受信审计 | ✅ | 信任/沙箱/凭据红线/审计全通；注入威胁模型成文 G16 |
 | UJ-21 崩溃自愈与重启接续 | 🟡 | 恢复语义✅（resume/in-doubt/终态把关，QA-08）；**自动性缺**：boot sweep、子 crash 自动 resume（G22）（2026-07-05 新增行） |
+| UJ-22 会话内目标 | ❌ | **G23 形态不存在**——goal 只有 driver+fresh run 形态，context 不延续（原始需求丢失，2026-07-05 补登记） |
 
 **汇总**：6 通 · 9 部分 · 5 卡死。5 条卡死全部落在同一族——**交互与
 输入投递**（续聊 G6、多模态 G1、steering G3、事件唤醒 G14、后台子
@@ -198,6 +199,30 @@ diff→批准→PR→元数据回填 session"的组装设计（diff 审阅门、
 → UJ-10, UJ-13
 
 ### 驱动与时间旅行
+
+**G23 会话内目标（in-session goal）+ goal 控制面 — ❌ 设计缺失 · 高（原始需求，2026-07-05 补登记）**
+**需求丢失记档**："goal 挂在当前会话、context 必须延续"是项目原始
+需求之一，但从未成文为 journey；S6 在"run=task-to-completion 是唯一
+形态"的时代把 goal 建成 IterationDriver + fresh child run（决策
+#21），UJ-15 按已实现形态倒写，而本审计以 JOURNEYS 为标尺——需求不
+在标尺上，审计永远发现不了它丢了。根因与流程对策见 LOG 2026-07-05。
+**与现设计的冲突（实施时必须走 PROCESS 不变量变更流程）**：开发者
+裁定 DESIGN §13 "每轮迭代 = fresh child run"与决策 #21 对 **goal
+形态不适用**——目标模式的 context 必须延续，割裂不可接受；fresh-run
+教义保留给 best-of-N（隔离本就是其语义）与批式 loop；UJ-15 通宵形态
+的归属届时一并裁决。
+**目标形态（UJ-22）**：goal 状态挂在 conversational session 上；
+检查点 = loop `decide()` 的 yield 分支（本要 park 处）——先跑
+verifier（journaled、过管线的 effect），不满足 → 反馈作为程序来源的
+input 进 inbox → **同一上下文**下一 turn；满足 → 达成回执 + 摘 goal
++ park。模型调用级的 turn 永不被挟持，检查只住在 exchange 边界
+（术语见 LOG——用户语义的"turn"= 代码里的 exchange）。
+**控制面** = control 输入：pause / resume / update / cancel 全走既有
+send 通道；update 触及"spec 冻结于 RunStarted"不变量——goal 参数需
+定义为可变更的 session 状态（事件承载）而非冻结 spec，与 G8"变更即
+事件"同族；G12 远程 stop 顺路收编。**预算**：per-exchange max_turns
+（已有，防 runaway）之上需要 goal 级预算（轮数/token/墙钟）。
+→ UJ-22；关联 G8 / G12 / G20（human verifier 即 ask 路径）
 
 **G15 best-of-N 胜者晋升语义 — ⚠️ 设计欠定 · 低**
 "晋升（fork 或 apply diff）"四个字；apply-diff 的冲突处理、fork 接管

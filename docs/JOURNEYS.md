@@ -244,6 +244,24 @@ GAPS.md，本文件只回答"产品要做什么"。
 
 **覆盖功能**：`子 session 崩溃自动恢复(restart=resume)` `失败升级策略(retry/surface)` `重启接续扫描(boot sweep)` `kill/crash 语义分野(终态不可越过)` `crash resume` `全程审计`
 
+### UJ-22 会话内目标（goal 挂在当前会话） `进阶`
+**场景**：聊着聊着升级成"必须做到"——目标不离开正在进行的对话。
+**硬性要求（原始需求，2026-07-05 补登记）：goal 的 context 必须延续
+——不起新 session、不起 fresh run；割裂不可接受。**
+1. 用户在一个聊了半天的 session 里说："把这个 flaky test 修到连续
+   20 次全绿"——挂上 goal（verifier：跑 20 次测试的命令）。
+2. agent 干活；到了平时该"答完待命"的点，runtime 先跑 verifier：
+   不满足 → 失败输出作为程序来源的输入回灌，agent 在**同一上下文**
+   继续（它记得此前对话里已排除过的方向，绝不从零开始）。
+3. 用户中途插话"注意别动 CI 配置"——steer 照常生效，goal 不中断。
+4. 用户可 pause（session 回普通待命，还能正常聊）、update（改验收：
+   20 次→50 次）、resume、cancel——全部是 control 输入，journal 留痕。
+5. verifier 通过 → goal 达成，回执入对话，session 回到普通待命续聊。
+6. 全程同一个 session、同一份上下文；上下文增长由 compaction 治理，
+   不以割裂换整洁。goal 级预算（轮数/token/墙钟）防失控。
+
+**覆盖功能**：`会话内 goal(context 延续,硬性)` `verifier 在 yield 点检查` `verifier 反馈回灌(程序发送方)` `goal 控制面(pause/update/cancel)` `steer 与 goal 并行` `goal 级预算` `goal 达成回执`
+
 ---
 
 ## §5 功能清单 × Journey 覆盖索引
@@ -311,6 +329,9 @@ GAPS.md，本文件只回答"产品要做什么"。
 
 **驱动形态**
 - goal（verifier/停滞/预算终态）— UJ-15
+- 会话内 goal（context 延续，硬性）— UJ-22
+- goal 控制面（pause/update/cancel）— UJ-22
+- verifier 反馈回灌（程序发送方）— UJ-22
 - cron/interval + overlap + carry — UJ-14
 - best-of-N + 晋升 — UJ-16
 - 事件驱动值守（webhook 唤醒）— UJ-12
