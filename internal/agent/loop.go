@@ -65,6 +65,9 @@ type Loop struct {
 	// CLOSING the channel is the close gesture: epilogue, then
 	// RunEnded{reason:"closed"}. nil = park wakes only on tasks/interrupt.
 	UserInputs <-chan string
+	// inboxClosed records that a boundary drain saw UserInputs close, so the
+	// next park closes the session instead of waiting (v2 M2.1).
+	inboxClosed bool
 	// Mode is the STARTING mode (3.6): journaled as the first ModeChanged.
 	// The live mode is fold state; empty means "default".
 	Mode string

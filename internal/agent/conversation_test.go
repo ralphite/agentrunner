@@ -11,6 +11,27 @@ import (
 	"github.com/ralphite/agentrunner/internal/store"
 )
 
+// waitAnswers blocks until the session journal holds >= n assistant
+// messages (turn synchronization for reactive input feeders).
+func waitAnswers(t *testing.T, dir string, n int) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		evs, _ := store.ReadEvents(dir)
+		c := 0
+		for _, e := range evs {
+			if e.Type == event.TypeAssistantMessage {
+				c++
+			}
+		}
+		if c >= n {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Errorf("timed out waiting for %d assistant messages", n)
+}
+
 // v2 M1.1 (C1): a conversational session answers, PARKS, and continues on
 // the next user input — three inputs, three turns, one session, and the
 // terminal event appears only at close.
@@ -31,14 +52,20 @@ func TestConversationalMultiInput(t *testing.T) {
 			Respond: []scripted.Event{{Text: "answer three"}, {Finish: "end_turn"}},
 		},
 	}}
-	inputs := make(chan string, 2)
-	inputs <- "second question"
-	inputs <- "third question"
-	close(inputs) // after the queue drains, the user is done
-
+	// Spaced sends: each follow-up is delivered only AFTER the prior turn's
+	// answer is journaled — one input per turn, the QA-01 timing.
+	inputs := make(chan string)
 	l := testLoop(t, fix, t.TempDir())
 	l.Conversational = true
 	l.UserInputs = inputs
+	go func() {
+		waitAnswers(t, l.Store.Dir(), 1)
+		inputs <- "second question"
+		waitAnswers(t, l.Store.Dir(), 2)
+		inputs <- "third question"
+		waitAnswers(t, l.Store.Dir(), 3)
+		close(inputs)
+	}()
 
 	res, err := l.Run(context.Background(), "first question")
 	if err != nil {
@@ -225,5 +252,105 @@ func TestConversationalParkResumes(t *testing.T) {
 	}
 	if inputsN != 2 || ends != 1 || !sawAnswerTwo {
 		t.Fatalf("inputs=%d ends=%d answerTwo=%v — resume must re-park then continue to close", inputsN, ends, sawAnswerTwo)
+	}
+}
+
+// v2 M2.1 (C2 core): messages that queue while a turn is in flight all
+// enter the NEXT turn together (batch drain), in arrival order — type-ahead
+// never splits into extra turns or reorders.
+func TestConversationalTypeAheadBatches(t *testing.T) {
+	// Turn 1 runs a tool (a beat during which two messages queue); the batch
+	// turn must see BOTH queued messages.
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{
+			{ToolCall: &scripted.ToolCallEvent{CallID: "c1", Name: "bash",
+				Args: map[string]any{"command": "echo working"}}},
+			{Finish: "tool_use"},
+		}},
+		{Respond: []scripted.Event{{Text: "acknowledged one"}, {Finish: "end_turn"}}},
+		{
+			// The batch turn: BOTH queued messages must be present, in order.
+			Expect: scripted.Expect{LastMessageContains: "queued two"},
+			Respond: []scripted.Event{
+				{ToolCall: &scripted.ToolCallEvent{CallID: "c2", Name: "bash",
+					Args: map[string]any{"command": "echo both seen"}}},
+				{Finish: "tool_use"},
+			},
+		},
+		{Respond: []scripted.Event{{Text: "handled both"}, {Finish: "end_turn"}}},
+	}}
+	inputs := make(chan string, 2)
+	l := testLoop(t, fix, t.TempDir())
+	l.Conversational = true
+	l.UserInputs = inputs
+	go func() {
+		// After turn 1's answer, queue two messages back-to-back BEFORE the
+		// loop parks-and-drains, then close.
+		waitAnswers(t, l.Store.Dir(), 1)
+		inputs <- "queued one"
+		inputs <- "queued two"
+		waitAnswers(t, l.Store.Dir(), 2)
+		close(inputs)
+	}()
+
+	res, err := l.Run(context.Background(), "start working")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "closed" {
+		t.Fatalf("res = %+v", res)
+	}
+	events, _ := store.ReadEvents(l.Store.Dir())
+	// Both queued inputs are journaled as consecutive user inputs (arrival
+	// order), and they entered ONE batch turn — assert the two InputReceived
+	// for the queued messages are adjacent (nothing interleaved).
+	var texts []string
+	for _, e := range events {
+		if e.Type == event.TypeInputReceived {
+			dec, _ := event.DecodePayload(e)
+			texts = append(texts, dec.(*event.InputReceived).Text)
+		}
+	}
+	// start + queued one + queued two = 3, in order.
+	if len(texts) != 3 || texts[1] != "queued one" || texts[2] != "queued two" {
+		t.Fatalf("input order = %v, want [start..., queued one, queued two]", texts)
+	}
+}
+
+// v2 M2.2 (C8): interrupt and input are distinct gestures in a
+// conversational session. At IDLE, an interrupt closes the session (the
+// interactive convention); a queued input during a turn never cancels the
+// running activity (structural: separate channels).
+func TestConversationalIdleInterruptCloses(t *testing.T) {
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: "answered, now idle"}, {Finish: "end_turn"}}},
+	}}
+	interrupts := make(chan struct{}, 1)
+	l := testLoop(t, fix, t.TempDir())
+	l.Conversational = true
+	l.UserInputs = make(chan string) // never fed
+	l.Interrupts = interrupts
+	go func() {
+		waitAnswers(t, l.Store.Dir(), 1) // wait until it parks at idle
+		interrupts <- struct{}{}
+	}()
+
+	res, err := l.Run(context.Background(), "hello")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "closed" {
+		t.Fatalf("res = %+v, want closed (idle interrupt = close)", res)
+	}
+	events, _ := store.ReadEvents(l.Store.Dir())
+	var resolution string
+	for _, e := range events {
+		if e.Type == event.TypeWaitingResolved {
+			dec, _ := event.DecodePayload(e)
+			resolution = dec.(*event.WaitingResolved).Resolution
+		}
+	}
+	if resolution != "closed_by_interrupt" {
+		t.Errorf("resolution = %q, want closed_by_interrupt", resolution)
 	}
 }

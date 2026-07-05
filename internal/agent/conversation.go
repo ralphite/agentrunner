@@ -8,6 +8,36 @@ import (
 	"github.com/ralphite/agentrunner/internal/redact"
 )
 
+// journalInput records one user message (journal-inputs-first, redacted).
+func (l *Loop) journalInput(appendE AppendFunc, text string) error {
+	_, err := appendE(event.TypeInputReceived, &event.InputReceived{
+		Text: redact.FromEnv().String(text), Source: "user",
+	})
+	return err
+}
+
+// drainQueued non-blockingly journals every ADDITIONAL input already queued
+// on UserInputs, in arrival order (v2 M2.1 type-ahead): messages that piled
+// up while a turn ran all enter the next turn's context together. Stops at
+// the first empty read; a close seen here is remembered for the park.
+func (l *Loop) drainQueued(appendE AppendFunc) error {
+	for {
+		select {
+		case text, ok := <-l.UserInputs:
+			if !ok {
+				l.inboxClosed = true
+				l.UserInputs = nil
+				return nil
+			}
+			if err := l.journalInput(appendE, text); err != nil {
+				return err
+			}
+		default:
+			return nil
+		}
+	}
+}
+
 // parkForInput waits at the conversational idle and, on close, runs the
 // epilogue and returns done=true with the terminal result. On an input or
 // task settlement it returns done=false so the drive loop continues. Shared
@@ -43,24 +73,31 @@ func (l *Loop) parkForInput(ctx context.Context, ds *driveState, appendE AppendF
 // Returns closed=true when the session should end via the epilogue.
 func (l *Loop) awaitInput(ctx context.Context, appendE AppendFunc, turn int) (closed bool, err error) {
 	l.ensureBackground()
-	l.emit(protocol.Event{Kind: protocol.KindIdle, Turn: turn})
 	resolve := func(resolution string) error {
 		_, rerr := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
 			Kind: event.WaitInput, Resolution: resolution,
 		})
 		return rerr
 	}
+	if l.inboxClosed {
+		// drainInbox saw the channel close at a boundary: nothing left to
+		// wait for — resolve the park and close now.
+		return true, resolve("closed")
+	}
+	l.emit(protocol.Event{Kind: protocol.KindIdle, Turn: turn})
 	select {
 	case text, ok := <-l.UserInputs: // nil channel blocks — tasks/interrupt still wake
 		if !ok {
 			// Channel closed = the user is done: graceful close.
 			return true, resolve("closed")
 		}
-		// journal-inputs-first: the input becomes a durable fact, then the
-		// resolved park lets decide() see it and start the next turn.
-		if _, err := appendE(event.TypeInputReceived, &event.InputReceived{
-			Text: redact.FromEnv().String(text), Source: "user",
-		}); err != nil {
+		// journal-inputs-first: journal this input, then batch-drain any
+		// others that queued behind it (type-ahead) so they all enter the
+		// same next turn — then resolve the park.
+		if err := l.journalInput(appendE, text); err != nil {
+			return false, err
+		}
+		if err := l.drainQueued(appendE); err != nil {
 			return false, err
 		}
 		return false, resolve("input_received")
