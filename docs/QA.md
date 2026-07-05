@@ -1,6 +1,6 @@
 # v2 — QA 场景菜单（可执行验收）
 
-**这是什么**：v2 核心功能（DESIGN §11 C1–C10）的**真实使用场景**验收
+**这是什么**：v2 核心功能（DESIGN §16 C1–C10）的**真实使用场景**验收
 菜单。每个场景 = 基础配置（agent + workspace）+ 用户输入 + 执行流程 +
 客观通过标准，**逐字照做即可执行**。开发全程用它守门：一个功能没有
 对应场景绿灯，就不算 work。
@@ -115,7 +115,7 @@ tools: [read_file, bash]
 | 5 | 观察后续 turn | agent 数了 _test.go 数量且用中文——两条插话都生效 |
 
 **通过标准**（收口 F.3 修正——实现语义是 journal-on-boundary 而非
-journal-on-arrival，见 PROGRESS M2.1）：两条插话在 bash 期间投递
+journal-on-arrival，见 archive/v2/PROGRESS.md M2.1）：两条插话在 bash 期间投递
 （mailbox 持久，确认即不丢），其 `InputReceived` 在 turn 边界按投递
 顺序落 journal（必然在 bash `Completed` 之后，这是设计而非缺陷）；
 bash 无 Cancelled；两条都进入下一 turn 的上下文。回答是否同时满足
