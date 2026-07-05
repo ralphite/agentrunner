@@ -48,6 +48,7 @@
 | UJ-18 多 agent 编排 | ❌ | **G2 后台子 agent 未实现**（阻塞 spawn 无编排窗口）；steer G3、子进度 G10、图片 G1 |
 | UJ-19 生态接入 | 🟡 | MCP/skills/写审批/断连恢复 ✅；自定义命令 G21 |
 | UJ-20 不受信审计 | ✅ | 信任/沙箱/凭据红线/审计全通；注入威胁模型成文 G16 |
+| UJ-21 崩溃自愈与重启接续 | 🟡 | 恢复语义✅（resume/in-doubt/终态把关，QA-08）；**自动性缺**：boot sweep、子 crash 自动 resume（G22）（2026-07-05 新增行） |
 
 **汇总**：6 通 · 9 部分 · 5 卡死。5 条卡死全部落在同一族——**交互与
 输入投递**（续聊 G6、多模态 G1、steering G3、事件唤醒 G14、后台子
@@ -202,6 +203,29 @@ diff→批准→PR→元数据回填 session"的组装设计（diff 审阅门、
 "晋升（fork 或 apply diff）"四个字；apply-diff 的冲突处理、fork 接管
 的交接未设计（v0 留盘由用户晋升，已记档）。
 → UJ-16
+
+### 监督与恢复
+
+**G22 监督语义：崩溃自动恢复与重启接续 — ⚠️ 设计欠定 · 中（无人值守形态的地基，2026-07-05 登记）**
+已有的一半（全部在，勿重复设计）：恢复语义本身——journal/fold 状态
+无损重建、in-doubt 按类别处置、settle-from-child-fold、send 即复活的
+journal 形状把关、kill/close/interrupt 的**终态判别**（DESIGN §6/§17，
+QA-08 crash 矩阵）。缺的另一半是**自动性**：
+① **boot sweep**——daemon 启动无"未完成工作扫描"，中断在 turn 中途
+的 session 躺到有人 send 才复活；cron 跨重启唤醒（backlog）同族，
+应一并收编；
+② **子 session 崩溃的自动 resume**——daemon 存活时单个子 session
+crash → `ActorCrashed` 标 dead（kernel 明确 no auto-restart），无
+自动拉起路径；driver 的 `on_child_failure: retry{max,backoff}` 未
+泛化到 spawn_agent 子 session；屡崩升级（避免热循环）策略未定；
+③ **kill/crash 语义成文**——"显式终止产生终态 event，任何自动恢复
+不得越过终态"应升格为 DESIGN 不变量（机制已在，条款未成文）。
+**明确不做**：Erlang 式 supervision tree 自动 restart——与原则 6
+（恢复只住在一个地方）冲突；表述统一为 **restart = resume**。
+→ UJ-21
+"像没 crash 一样"刻意不承诺：非幂等副作用绝不静默重跑是红线
+（决策 #6），承诺的是"不丢历史/不丢输入/从最近安全边界继续/崩溃
+事实对模型可见"。
 
 ### 其他
 

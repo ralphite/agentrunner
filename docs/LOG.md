@@ -34,3 +34,28 @@
   分层图)以 v2 文本为准重写,取代关系在合并处注明。不变量零变更,
   不触发不变量变更流程。
 - 归档件内部相对引用不修复(保持历史原貌),纪律成文于 archive/README。
+
+## 2026-07-05 需求登记:UJ-21 崩溃自愈与重启接续(G22,积累不实施)
+
+开发者进入"功能点积累"模式:新 journey/功能点先登记,攒够一批再统一
+排期实施——本条及后续同类登记只动第一层(JOURNEYS)与审计件(GAPS),
+不动 DESIGN/SPEC(那是增量实施时的事)。
+
+**需求原文(摘要)**:①子 actor crash 后 parent restart,状态是否
+全保留、能否像没 crash 一样继续;②整个应用 crash/机器重启后,是否
+自动接续未完成任务;③用户 kill 与 crash 是不同语义,kill 的不得自动
+重启。
+
+**分析结论(记档)**:
+- 恢复语义已有(journal/fold 无损重建、in-doubt 纪律、settle-from-
+  child-fold、send 复活形状把关、kill/close 终态判别,QA-08 验证);
+  缺的是**自动性**:boot sweep、子 session crash 自动 resume、
+  on_child_failure 泛化、屡崩升级策略。
+- "像没 crash 一样"刻意不承诺——非幂等副作用绝不静默重跑(决策 #6)
+  是红线;承诺为"不丢历史/不丢输入/安全边界继续/事实对模型可见"。
+- **不采用** supervision tree 自动 restart(与原则 6 冲突);表述统一
+  为 restart = resume。kill≠crash 由 journal 终态形状天然判别,机制
+  已在,待成文为不变量。
+
+登记位置:JOURNEYS UJ-21(+§5 索引四条)、GAPS §1 新行 + §2 G22
+(监督与恢复分节)。

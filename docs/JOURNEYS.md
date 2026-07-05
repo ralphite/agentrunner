@@ -227,6 +227,23 @@ GAPS.md，本文件只回答"产品要做什么"。
 
 **覆盖功能**：`信任模型(首次决策)` `注入对抗(硬防线)` `网络沙箱` `凭据红线(排除+redaction)` `permission 拦截` `全程审计` `只读评估角色`
 
+### UJ-21 崩溃自愈与重启接续 `高级`
+**场景**：无人值守的恢复语义——crash 由系统兜底，kill 由用户说了算。
+1. 通宵任务跑到一半，一个子 agent 因 OOM crash。runtime 以 **resume**
+   方式把它拉起：journal 状态一字不丢；崩溃砸中的副作用按 in-doubt
+   纪律处置（执行类不静默重跑，崩溃事实对模型可见），任务继续。
+2. 屡崩不热循环：同因连续 crash 按策略（`retry{max, backoff}`）升级
+   为失败回执投给父 inbox，由父模型或用户决策，不无限自动拉起。
+3. 机器断电重启，daemon 被 OS 拉起后做**启动扫描**：枚举 store 里的
+   session，有未完成工作的（在飞 turn、WAITING_TASKS、驱动系列中段、
+   到期 timer）自动 resume 接续；空闲待命的保持惰性，等用户说话。
+4. 重启前用户已 `kill` 的子 agent、已 `close` 的会话：终态在 journal，
+   扫描跳过，**永不**被自动复活——kill 与 crash 是两种语义。
+5. 用户回来查时间线：哪次 crash、恢复点在哪、什么被自动接续、什么因
+   显式终止而未动——全程可审计。
+
+**覆盖功能**：`子 session 崩溃自动恢复(restart=resume)` `失败升级策略(retry/surface)` `重启接续扫描(boot sweep)` `kill/crash 语义分野(终态不可越过)` `crash resume` `全程审计`
+
 ---
 
 ## §5 功能清单 × Journey 覆盖索引
@@ -279,7 +296,10 @@ GAPS.md，本文件只回答"产品要做什么"。
 - 跨机续作 — UJ-09
 - barrier / rewind / fork — UJ-15
 - 迭代时间线复盘 — UJ-15/12
-- crash resume — （隐含于全部长任务）
+- crash resume — UJ-21（显式；隐含于全部长任务）
+- 子 session 崩溃自动恢复（restart=resume）— UJ-21
+- 重启接续扫描（boot sweep）— UJ-21
+- kill/crash 语义分野（终态不可越过）— UJ-21
 
 **多 agent**
 - 后台并行子 agent — UJ-18
