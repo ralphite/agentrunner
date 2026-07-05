@@ -29,6 +29,8 @@ const (
 	PartText       PartKind = "text"
 	PartToolCall   PartKind = "tool_call"
 	PartToolResult PartKind = "tool_result"
+	PartImage      PartKind = "image" // v2 M4.1: multimodal user input
+	PartFile       PartKind = "file"  // v2 M4.1: attached document input
 )
 
 // Part is one content part of a message. CallID pairs tool_call parts with
@@ -45,6 +47,12 @@ type Part struct {
 	Result   json.RawMessage            `json:"result,omitempty"`
 	IsError  bool                       `json:"is_error,omitempty"`
 	Extras   map[string]json.RawMessage `json:"extras,omitempty"`
+	// Image/file parts (v2 M4.1). The journal and fold carry ONLY the CAS
+	// ref (blob-before-event); Data is inflated from the CAS at assembly
+	// time and never serialized — a fold must never embed blob bytes.
+	MediaType string `json:"media_type,omitempty"`
+	Ref       string `json:"ref,omitempty"`
+	Data      []byte `json:"-"`
 }
 
 // Message is a normalized conversation message.

@@ -302,9 +302,17 @@ func Apply(s State, env event.Envelope) (State, error) {
 		// inputs (journal-inputs-first), not conversation content — they
 		// never become user messages and never grant turn budget.
 		if p.Source != "interrupt" && p.Source != "control" {
+			parts := []provider.Part{{Kind: provider.PartText, Text: p.Text}}
+			// Attached images fold as ref-only parts (v2 M4.1): the bytes
+			// stay in the CAS; assembly inflates them before the wire.
+			for _, img := range p.Images {
+				parts = append(parts, provider.Part{
+					Kind: provider.PartImage, Ref: img.Ref, MediaType: img.MediaType,
+				})
+			}
 			s.Conversation = s.Conversation.withMessage(provider.Message{
 				Role:  provider.RoleUser,
-				Parts: []provider.Part{{Kind: provider.PartText, Text: p.Text}},
+				Parts: parts,
 			})
 			s.Run.LastInputTurn = s.Run.Turn
 		}

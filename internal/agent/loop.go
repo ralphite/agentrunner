@@ -772,6 +772,12 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				},
 				Run: func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
 					req := Assemble(ds.s, l.Spec, toolDefs, act.turn)
+					// Image/file parts fold as CAS refs; the wire needs
+					// bytes (v2 M4.1). Inflation copies — the fold and
+					// journal stay byte-free.
+					if err := l.inflateBlobs(req.Messages); err != nil {
+						return nil, nil, false, err
+					}
 					if !caps.Thinking {
 						req.Thinking = provider.ThinkingConfig{}
 					}

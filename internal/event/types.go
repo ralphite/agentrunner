@@ -128,6 +128,15 @@ type ArtifactInput struct {
 type InputReceived struct {
 	Text   string `json:"text"`
 	Source string `json:"source"`
+	// Images are CAS refs of image blobs attached to this input (v2 M4.1).
+	// blob-before-event: the blob is in the CAS before this event lands.
+	Images []ImageInput `json:"images,omitempty"`
+}
+
+// ImageInput is one attached image: its CAS ref and sniffed media type.
+type ImageInput struct {
+	Ref       string `json:"ref"`
+	MediaType string `json:"media_type"`
 }
 
 type TurnStarted struct {
