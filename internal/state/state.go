@@ -46,8 +46,8 @@ type Barrier struct {
 
 // Run statuses.
 const (
-	StatusRunning = "running"
-	StatusWaiting = "waiting"
+	StatusRunning   = "running"
+	StatusWaiting   = "waiting"
 	StatusCompleted = "completed" // task delivered (TaskCompleted receipt)
 	StatusClosed    = "closed"    // explicit close intent (SessionClosed)
 )
