@@ -30,7 +30,7 @@ const (
 	PointAfterJournalInput      = "after_journal_input"
 	PointAfterExecBeforeJournal = "after_exec_before_journal"
 	PointAfterSnapshotWrite     = "after_snapshot_write"
-	PointBeforeTerminal           = "before_run_end"
+	PointBeforeTerminal         = "before_run_end"
 	PointBetweenGateAndResolved = "between_gate_and_resolved" // S3.2
 	PointAfterBlobBeforeEvent   = "after_blob_before_event"   // S5.5
 )
@@ -39,7 +39,7 @@ var registry = map[string]struct{}{
 	PointAfterJournalInput:      {},
 	PointAfterExecBeforeJournal: {},
 	PointAfterSnapshotWrite:     {},
-	PointBeforeTerminal:           {},
+	PointBeforeTerminal:         {},
 	PointBetweenGateAndResolved: {},
 	PointAfterBlobBeforeEvent:   {},
 }
