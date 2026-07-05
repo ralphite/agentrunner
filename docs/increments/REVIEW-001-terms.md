@@ -161,3 +161,29 @@ background 与 spawn 共用的取消原语载体,task_kill/task_output 工具名
 TaskCompleted 连带);与 #13(终止语义)、#11(kill 对象)、G24
 (task 重开)同族,统一分析;若 task 形态被消解,"子 agent=一次性
 任务"的表述与 report_to_parent_on_idle flag 是候选替代表达。）
+
+## #15 子 agent / 回执——投递时机（复审意见,2026-07-05）
+
+现行定义:子完成回执投父 inbox,在安全边界以 user-role 消息进入对话
+(与 steering 同路),触发/汇入 turn。
+
+开发者意见/问题:
+
+1. 理解与期望:既然已支持 steer(忙时插话、安全边界生效),那么子
+   agent / background task **完成时应当能经同一 steer 通道影响父的
+   当前 turn**——这是很好的功能:很多时候不希望等一个很长的 turn
+   结束后,才处理早已完成的后台结果。
+2. 设计取舍待裁:
+   - **优先级**:回执投递是优先走 steer 式(当前 turn 内、安全边界
+     插入)还是 pending message 式(排队等 turn 结束)?
+   - **复杂度**:如果要求 agent 在启动 background task / 子 agent 时
+     逐个指定投递 mode,过于复杂。
+3. 建议方案(二选一):
+   (a) 在 agent 配置层选定其中一种方式;
+   (b) 允许自主选择:设一个默认值,可 override。
+4. 态度:这个能力可以做。
+
+（待分析线索,仅索引:现行实现即"steer 同路"——回执在安全边界进入,
+不等整 turn 结束,与意见 1 的期望方向一致;待裁的是"是否需要
+per-launch 或 per-agent 的投递模式开关"以及默认值;与 #9(Input
+弱类型化后回执的表达形式)连带。）
