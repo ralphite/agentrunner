@@ -288,20 +288,22 @@ func hostRunFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker
 			return err
 		}
 		loop := &agent.Loop{
-			Spec:      spec,
-			Provider:  prov,
-			Exec:      &tool.Executor{WS: ws, Session: req.SessionID},
-			Store:     events,
-			Clock:     clock.Real{},
-			Out:       sink,
-			SessionID: req.SessionID,
-			Version:   version,
-			Pipeline:  pipe,
-			Mode:      mode,
-			Hooks:     hooks,
-			Approvals: socketApprovals{broker: broker, session: req.SessionID, sink: sink},
-			SubSpecs:  siblingSpecResolver(req.SpecPath),
-			Snapshots: snapshotStoreFor(ws, stderr),
+			Spec:           spec,
+			Provider:       prov,
+			Exec:           &tool.Executor{WS: ws, Session: req.SessionID},
+			Store:          events,
+			Clock:          clock.Real{},
+			Out:            sink,
+			SessionID:      req.SessionID,
+			Version:        version,
+			Pipeline:       pipe,
+			Mode:           mode,
+			Hooks:          hooks,
+			Approvals:      socketApprovals{broker: broker, session: req.SessionID, sink: sink},
+			SubSpecs:       siblingSpecResolver(req.SpecPath),
+			Snapshots:      snapshotStoreFor(ws, stderr),
+			Conversational: req.Conversational,
+			UserInputs:     req.Inbox,
 			// Blackboard publishes mirror onto the attach stream (S6 模块⑤
 			// 回访): watchers see the tree's collaboration live; the board
 			// stays the read-back truth.

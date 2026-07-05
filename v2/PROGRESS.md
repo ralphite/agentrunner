@@ -24,3 +24,30 @@ close(会话 turn 预算语义,M2 视需要再议);②task 模式零变化
 三测试:三输入三 turn 一终态、close resolution、task 模式不变。
 下一步:M1.2 外部投递(PostInput + daemon send + CLI new/send)。
 
+
+## V2-M1.2 — 外部投递(daemon send + CLI new/send/close) — DONE
+
+**设计冲突解决(记档)**:PLAN 原设想 send 经 store 直接 Append。但
+loop 的 in-memory fold 是单写者(drive goroutine),daemon 直接写
+store 会让 loop 的 ds.s 看不到该输入。改为 **send 经 hostedRun 的
+inbox channel 投给 loop,由 loop 自己的 appender journal**——
+journal-inputs-first 在**消费侧**保持(loop 收到即 journal,再被下个
+turn 消费)。**send 侧崩溃窗口**(enqueue 后、loop journal 前进程死)
+的 durable ack 留给 M5 记档。
+
+**daemon**:Command 加 Conversational/Text;RunRequest 加
+Conversational/Inbox;hostedRun 加 inbox chan(buffered 64,type-ahead)+
+post()/closeInbox();新命令 send(查 runs 注册表→post)与 close
+(关 inbox→parked loop 走 epilogue);finish 关 inbox 兜底。handleRun
+按 Conversational 建 inbox 并接进 RunRequest;hostRunFunc 把
+Conversational/Inbox 接到 Loop。send 是**投递入口的统一抽象**——
+人/web/机器(webhook)将来都走这条(v2 DESIGN §2)。
+
+**CLI**:new(起 conversational 会话,dialUntilStart 拿 RunStart 即
+detach,会话在 daemon 续命)、send <sid> "msg"、close <sid>;
+一问一答走既有 Dial。
+
+**测试**:daemon 级 C1 孪生(three inputs over wire→3 turn→close,
+断言 3 输入/1 终态/reason=closed;scripted 确定性)。全量 check +
+race + stage 5/6 acceptance 回归绿。下一步:M1.3 park 恢复,然后
+M1 出口闸门 QA-01 真实 API。

@@ -31,8 +31,15 @@ type Command struct {
 	Workspace string `json:"workspace,omitempty"`
 	Mode      string `json:"mode,omitempty"`
 
-	// attach / approve
+	// Conversational hosts the run as a v2 session that parks for input
+	// after each turn instead of ending (the `new` command sets it).
+	Conversational bool `json:"conversational,omitempty"`
+
+	// attach / approve / send
 	Session string `json:"session,omitempty"`
+
+	// send
+	Text string `json:"text,omitempty"` // a user message for a conversational session
 
 	// approve
 	ApprovalID string `json:"approval_id,omitempty"`
@@ -52,6 +59,12 @@ type RunRequest struct {
 	Task      string
 	Workspace string
 	Mode      string
+	// Conversational makes the hosted session park for input after each
+	// turn (v2 M1.2). Inbox delivers those inputs — the runner wires it to
+	// the Loop's UserInputs; closing it is the close gesture. nil for a
+	// classic task run.
+	Conversational bool
+	Inbox          <-chan string
 }
 
 // RunFunc hosts one run to completion, emitting output events to sink. The
@@ -126,6 +139,28 @@ type hostedRun struct {
 	mu     sync.Mutex
 	subs   map[chan protocol.Event]struct{}
 	done   bool
+	// inbox delivers conversational user inputs to the hosted Loop (v2
+	// M1.2). Buffered so `send` never blocks on the loop's turn; nil for a
+	// task run. Closed at `close`/shutdown.
+	inbox chan string
+}
+
+// post delivers a conversational input to the hosted session. The loop
+// journals it on receipt (journal-inputs-first on the consume side); a
+// crash between this enqueue and that journal loses the input — the
+// durable send-side ack is a v2 M5 refinement (记档).
+func (h *hostedRun) post(text string) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.done || h.inbox == nil {
+		return false
+	}
+	select {
+	case h.inbox <- text:
+		return true
+	default:
+		return false // inbox full: the caller retries
+	}
 }
 
 // Emit implements protocol.Sink: fan out to every subscriber. A slow
@@ -171,10 +206,28 @@ func (h *hostedRun) finish() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.done = true
+	if h.inbox != nil {
+		close(h.inbox) // unblock a parked conversational loop into close
+		h.inbox = nil
+	}
 	for ch := range h.subs {
 		close(ch)
 		delete(h.subs, ch)
 	}
+}
+
+// closeInbox is the `close` gesture for a conversational session: shut the
+// inbox so the parked loop resolves into its epilogue. The run's own
+// finish() then clears the registry.
+func (h *hostedRun) closeInbox() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.done || h.inbox == nil {
+		return false
+	}
+	close(h.inbox)
+	h.inbox = nil
+	return true
 }
 
 // ListenAndServe binds the socket and serves until ctx is done. A stale
@@ -283,10 +336,56 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		s.handleAttach(cmd, enc)
 	case "approve":
 		s.handleApprove(cmd, enc)
+	case "send":
+		s.handleSend(cmd, enc)
+	case "close":
+		s.handleClose(cmd, enc)
 	default:
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
-			Text: fmt.Sprintf("unknown command %q (known: ping, run, attach, approve)", cmd.Cmd)})
+			Text: fmt.Sprintf("unknown command %q (known: ping, run, attach, approve, send, close)", cmd.Cmd)})
 	}
+}
+
+// handleSend delivers a user message to a live conversational session
+// (v2 M1.2). It is the machine/web/CLI-agnostic投递入口 — every sender
+// (human at a terminal, web UI, webhook) posts through the same path.
+func (s *Server) handleSend(cmd Command, enc *json.Encoder) {
+	if cmd.Session == "" || cmd.Text == "" {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "send needs session and text"})
+		return
+	}
+	s.mu.Lock()
+	hub, ok := s.runs[cmd.Session]
+	s.mu.Unlock()
+	if !ok {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
+			Text: fmt.Sprintf("no live session %s (ended sessions accept no input)", cmd.Session)})
+		return
+	}
+	if !hub.post(cmd.Text) {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
+			Text: fmt.Sprintf("session %s is not accepting input (not conversational, or inbox full)", cmd.Session)})
+		return
+	}
+	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Text: "delivered", Session: cmd.Session})
+}
+
+// handleClose ends a conversational session gracefully (v2 M1.2): shutting
+// the inbox resolves the parked loop into its epilogue.
+func (s *Server) handleClose(cmd Command, enc *json.Encoder) {
+	if cmd.Session == "" {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "close needs session"})
+		return
+	}
+	s.mu.Lock()
+	hub, ok := s.runs[cmd.Session]
+	s.mu.Unlock()
+	if !ok || !hub.closeInbox() {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
+			Text: fmt.Sprintf("no live conversational session %s", cmd.Session)})
+		return
+	}
+	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Text: "closing", Session: cmd.Session})
 }
 
 // handleApprove routes a human's verdict to the parked ask.
@@ -343,6 +442,9 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 	}
 	id := s.NewID(cmd.Task)
 	hub := &hostedRun{id: id, notify: s.Notify, subs: map[chan protocol.Event]struct{}{}}
+	if cmd.Conversational {
+		hub.inbox = make(chan string, 64) // type-ahead buffer
+	}
 	s.mu.Lock()
 	if s.stopping {
 		s.mu.Unlock()
@@ -374,6 +476,7 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 		if err := s.Run(ctx, RunRequest{
 			SessionID: id, SpecPath: cmd.SpecPath, Task: cmd.Task,
 			Workspace: cmd.Workspace, Mode: cmd.Mode,
+			Conversational: cmd.Conversational, Inbox: hub.inbox,
 		}, hub); err != nil {
 			hub.Emit(protocol.Event{Kind: protocol.KindError, Text: "run failed: " + err.Error()})
 		}
