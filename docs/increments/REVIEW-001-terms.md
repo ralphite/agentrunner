@@ -138,3 +138,26 @@ Session 子状态还含预算用量/在飞任务/等待状态/权限 mode/mailbo
 结算/headless 退出码)②"终止/terminal"这组命名本身;kill 后父可否
 re-spawn 同名子任务 = 现状允许(handle 已终、模型可自行重启,fork
 处置向量记档同语义)。）
+
+## #追加 · yield/park(已废词)与 task 概念（复审意见,2026-07-05）
+
+现行状况:yield/park 已废(→ final generation/待命);task 一词现有
+双义——① 后台任务(background activity,handle 那个)② task 运行
+形态(一次性执行);踩坑表已标注双义。
+
+开发者意见/问题:
+
+1. **yield/park 一族**:如果"turn/session 里发消息、收到之后"的状态
+   本身就能表征,那就够了——**不需要引入这类额外概念**(含其后继
+   命名,方向是能省则省)。
+2. **task 概念被整体质疑**:什么是 task?不理解。session 和 turn 已经
+   足够表征这里面的概念,**为什么还要有 task?有大量重复的嫌疑**,
+   而且 task 的确切定义从未说清。
+3. 裁决方向:**简化,不引入冗余概念**。
+
+（待分析线索,仅索引:task 双义需分开裁——① 后台任务/handle(bash
+background 与 spawn 共用的取消原语载体,task_kill/task_output 工具名
+连带)② task 运行形态(driver 迭代/headless 的一次性执行,
+TaskCompleted 连带);与 #13(终止语义)、#11(kill 对象)、G24
+(task 重开)同族,统一分析;若 task 形态被消解,"子 agent=一次性
+任务"的表述与 report_to_parent_on_idle flag 是候选替代表达。）
