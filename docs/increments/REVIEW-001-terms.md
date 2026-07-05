@@ -24,3 +24,22 @@
 
 （待分析时的关联线索,仅索引不评述:GAPS G8「运行中 spec 变更/角色
 切换」;DESIGN §9 spec 冻结于 SessionStarted;§18.1 session 词条。）
+
+## #5 final generation（复审意见,2026-07-05）
+
+现行定义:turn 的最后一个 generation step,不带 tool call;标志 turn 结束。
+
+开发者意见/问题:
+
+1. 现在要求 final generation 不带 tool call。**有没有可能模型出问题**
+   ——比如"最后一个 generation 带着 tool call,我们执行完这个 tool
+   之后,模型就不再生成了"?这种情况会不会发生?不确定,可能与模型
+   库(SDK/provider)怎么处理有关,也可能与模型本身的稳定性有关;
+   **不知道要不要特殊处理**。
+2. 倾向:如果这属于错误,那它是一个**异常**;而如果是异常,**所有的
+   step 都可能出错**——可以考虑把"step 出错"统一作为一套异常处理,
+   不为 final generation 单独特判。
+
+（待分析线索,仅索引:DESIGN §4"异常终止形态"条款(malformed_tool_call
+/safety/blocked 的既有策略)、§5"每种关卡结果都定义模型看到什么"、
+决策 #9 配对红线——分析时对照"模型不再生成"与这些机制的覆盖关系。）
