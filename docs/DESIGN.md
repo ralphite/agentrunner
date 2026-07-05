@@ -1063,3 +1063,137 @@ scripted 孪生为其确定性闸门。全部绿灯，扩展层随之解冻。
   唤醒语义待定，见 GAPS G3 余项）。
 - **daemon kill -9 孤儿化在飞 bash 的子进程**：sleep 类自然退出，
   长驻型需重启后 pgid 清扫——收口观察项，未做。
+
+---
+
+## 18. 术语表（canonical，2026-07-05 起）
+
+系统全部核心概念的唯一定义处。turn/step 两词经外部调研裁定
+（LOG 2026-07-05 两条）；本文其余章节仍存旧措辞（"turn"多指
+generation step），全文统一随下一增量落地——冲突时**以本表为准**。
+
+### 18.1 执行模型（计数与边界）
+
+| 术语 | 定义 |
+|---|---|
+| **session** | runtime 唯一的中心 actor：id + inbox + journal + state(=fold(journal)) + loop。长期存在；子 agent 也是 session（parent 指针非空）。 |
+| **turn**（对话级） | 一次输入（用户消息/回执/timer）激活 agent 起，到模型 yield、session 回到待命止的**整段**。对话历史的基本节拍；与业界 "multi-turn" 用法对齐。 |
+| **generation step** | 一次完整的模型调用（一个 inference request 及其流式输出的组装）。内部计数器按它递增（wire 遗留名 `Run.Turn`）。**不指** token 级 decoding step。 |
+| **tool step** | 一次工具执行。journal 里的一等 activity；同一 generation step 返回的 N 个 tool call 并发执行 = N 个 tool step。 |
+| **step**（裸词） | **禁用**——行业歧义（smolagents 捆绑义 vs LangGraph/tracing 分立义），必须带限定词。 |
+| **决策点** | 两个 generation step 之间 loop 的唯一策略函数（`decide()`）。steering 消费、对话 snapshot、park 都锚在这里；旧文"turn 边界"指此。 |
+| **yield** | 模型返回不带 tool call 的消息；conversational 形态下随即 park。 |
+| **park** | session 空闲等 inbox 的待命（WAITING_INPUT）。loop 的常态，不是终态。 |
+| **exchange**（废） | 旧代码注释用词，即现在的 turn（对话级）。 |
+| **max_turns**（spec 字段） | 语义 = **per-turn 的 generation step 预算**（conversational 从最后一条用户输入起算，防单 turn runaway；task 形态累计）。字段名是 wire 遗留。 |
+
+### 18.2 输入与交互
+
+| 术语 | 定义 |
+|---|---|
+| **inbox** | per-session 持久、有序的输入队列；"任何一方对 session 说话" = 投一条 Input。 |
+| **Input** | tagged union：`user_message` / `child_result` / `tool_result` / `timer` / `control`，全部 journal 为 `InputReceived`。 |
+| **durable mailbox** | 投递侧落地机制（`inbox.jsonl`）：redact→fsync→ack，单调 delivery_seq；消费侧回写+去重 = 恰好一次。 |
+| **steering** | agent 忙时投 user_message：排队、在决策点被消费，不打断在跑的活动。 |
+| **interrupt** | **带外信号**（不进 inbox）：turn 中 = 打断当前活动（turn sweep，部分输出保留）；idle 处 = close 会话。 |
+| **control 输入** | 非对话输入（kill、close，未来 pause/compact 等）；journal 带 source=control，不进对话上下文。 |
+
+### 18.3 持久状态（四类，各自独立）
+
+| 术语 | 定义 |
+|---|---|
+| **journal / event** | append-only per-session event log（JSONL）。一切历史皆 event；唯一真相。 |
+| **fold / state** | state = 纯 fold(journal)：不读钟、不读 store、无副作用。 |
+| **对话 snapshot** | fold 的**可弃缓存**，加速 resume；丢弃只损失 fold 时间。 |
+| **workspace** | 文件系统世界状态；**不可**从 journal 重建。 |
+| **workspace 快照** | **一等状态**（SnapshotStore，opaque ref，shadow-repo backend）；只服务 rewind/fork/best-of-N base。与对话 snapshot 是两个东西，永不混称。 |
+| **CAS / blob store** | content-addressed（sha256 ref），blob-before-event；快照/artifact/任务日志/多模态附件共用。 |
+| **IndexStore** | 第四类状态：可随时从 workspace 重建的派生索引（semantic_search 底座）；不入 journal/快照/fork。 |
+| **seq / gapless** | per-stream 单调无洞序号；审计与 resume 的地基。 |
+| **causation / correlation** | envelope 链路：correlation 界定 session 树，causation 串因果。 |
+
+### 18.4 副作用
+
+| 术语 | 定义 |
+|---|---|
+| **effect** | turn 内一切副作用的**判定**单位（工具/模型调用/spawn/publish），必须过管线。 |
+| **effect pipeline** | 四关卡：hooks(pre) → permission → budget → execute → hooks(post)；判定按持久化时点拆分（`EffectResolved` 先于执行）。 |
+| **activity** | 一次副作用**执行**的记录单元：`Started` 先落盘 → 执行 → 终态（Completed/Failed/Cancelled）；at-least-once。tool step ≈ 工具类 activity（同一事物的执行模型视角 vs 持久化视角）。 |
+| **in-doubt** | 有 Started 无终态；按工具类别数据化处置（LLM 重发 / 只读重跑 / execute·edit 渲染 interrupted 不重跑 / 非幂等绝不静默重跑）。 |
+| **类别标签** | read / edit / execute / wait-class + `idempotent` 声明；mode 过滤与 in-doubt 策略共用。 |
+| **后台任务（task）** | `background:true` 的 activity：task_id(=call id) + handle 立即配对返回；终态回流为 user-role 输入。 |
+| **协作取消** | cancel signal + **进程组全部退出确认后**才 journal `ActivityCancelled`（部分输出留存）。 |
+| **durable timer** | 记录在案、与 session 竞速的定时器；关卡代码绝不读墙钟。 |
+
+### 18.5 治理
+
+| 术语 | 定义 |
+|---|---|
+| **permission rules** | 数据化规则（tool/path/command/network），realpath 归一匹配；user > project > spec 拼接。 |
+| **mode** | loop 行为的数据描述：工具面过滤 + prompt 注入 + 跃迁规则；**permitted 面**（随 mode 变）vs **advertised 面**（prefix 内稳定）两级。 |
+| **审批（ask）** | `ApprovalRequested`（可带 payload_ref 指 artifact）→ WAITING_APPROVAL → 应答/拒绝理由回灌模型。 |
+| **budget** | reserve-then-settle；树预算沿 correlation 聚合；超限 = 优雅收尾（LimitExceeded），不掐断。 |
+| **hooks** | 管线机件（observe+block），不是 effect；只认 spec/user 层（信任模型）。 |
+| **redaction / 凭据红线** | 落盘前替换进程已知凭据值；凭据路径硬排除表（快照/索引/读取一体适用）；log 0600。 |
+| **收容棘轮** | `sandbox.network` 收紧经 netns 落实后全树不放宽；宿主无 netns 则 bash fail-closed。 |
+
+### 18.6 多 agent
+
+| 术语 | 定义 |
+|---|---|
+| **子 session** | parent 指针非空的 session（递归）；没有独立的"子 agent"概念。 |
+| **spawn** | 工具名 `spawn_agent`（设计名 spawn_child）：阻塞与 background 两形态；后者立即返回 handle。 |
+| **handle** | spawn/后台任务的立即配对结果；kill/output 都凭它。 |
+| **child_result** | 子完成/失败/被杀的回执（wire 名 `subagent_completed`），投父 inbox 激活新 turn；先回先处理。 |
+| **kill** | 工具名 `task_kill`（设计名 cancel_child）：凭 handle 协作取消，与后台 bash 共用原语；用户侧 `ar kill`。 |
+| **权限冻结交集** | spawn 时按父当时有效权限计算冻结下传；child 无法放宽，父事后跃迁不回溯。 |
+| **settle-from-child-fold** | 父恢复时对每个在飞 handle 读子 journal：已终态则结算合成回执，在跑则重挂接。 |
+| **handoff / blackboard** | 移交后退出（`handoff_agent`）/ 树内共享笔记（`publish_note`/`read_notes`）。 |
+
+### 18.7 等待、恢复与终止
+
+| 术语 | 定义 |
+|---|---|
+| **等待注册表** | WAITING_INPUT / APPROVAL / TASKS / TIMER——同一等待事件的 reason 变体，配可中断性表。 |
+| **resume** | **唯一**恢复机制：snapshot + fold(seq>N) + 继续 loop；restart = resume（无 supervision 自动重启）。 |
+| **复活（revival）** | daemon 重启后 `send` 即复活 parked session；按 journal 形状把关（task 形态/已 ended 拒绝）。 |
+| **crash vs kill** | 判别器 = journal 终态：显式终止（kill/close/interrupt）**有**终态 event，永不被自动恢复；crash 的特征是**无**终态 → 有恢复资格。（UJ-21/G22 待成文为不变量） |
+| **epilogue** | task 形态固定收尾：quiesce 后台任务 → auto-publish outputs → 终态 barrier → 终态 event。 |
+
+### 18.8 时间旅行与驱动（扩展层）
+
+| 术语 | 定义 |
+|---|---|
+| **CheckpointBarrier** | fork/rewind 唯一合法目标：{stream→seq} 向量 + workspace snapshot ref + 在飞任务处置向量；无 snapshot 不落 barrier。 |
+| **fork / rewind** | 新 id 复制切面 events（单创世 `ForkedFrom`）+ 物化独立 worktree / fork 后显式切换弃原。 |
+| **IterationDriver** | one-shot / goal / loop / best-of-N 四种 schedule 的同一 driver actor（现实现形态；goal 的会话内新形态见 UJ-22/G23）。 |
+| **iteration** | driver 的一轮 = 一个 fresh child run。**第三个计数词**：iteration（driver 轮）⊃ turn（对话段）⊃ generation step（模型调用），三者不混。 |
+| **verifier / verdict** | command / llm_judge / human 三态客观判定；journaled、过管线的 effect。 |
+| **carry / series memory** | 跨迭代两通道：ArtifactStore 的 carry 文档 / workspace 里 agent 自管文档。 |
+
+### 18.9 上下文与生态
+
+| 术语 | 定义 |
+|---|---|
+| **context assembly** | fold(journal) → provider 请求的一等组件；固定拼装顺序。 |
+| **prefix 稳定性** | 显式不变量（prompt cache 经济性 ~10x）；环境块 session start 冻结。 |
+| **compaction** | recorded activity（一次 LLM 调用），`ContextCompacted` 改变后续 fold 视图。 |
+| **消息 parts** | text / tool_call / tool_result / image / file；附件字节走 CAS ref，组装时 inflate；长贴超阈值折叠为 file part。 |
+| **spec / instance** | YAML 模板 / 模板+运行时输入；冻结于 RunStarted。 |
+| **provider** | 薄接口 + capabilities 声明 + 返回归一化 + opaque signature 随 event。 |
+| **daemon / attach** | 常驻托管 runtime（socket、timer sweep、幂等提交）/ journal 补读 + live 订阅（detach 无事件）。 |
+| **artifact / outputs** | CAS ref + event 语义；publish 是过管线 tool；outputs 为交付 contract。 |
+
+### 18.10 易混词对照（踩坑表）
+
+| 词 | 坑 |
+|---|---|
+| **turn** | 对话级整段（现行义）vs wire 遗留（`TurnStarted`、`Run.Turn`、`max_turns` 字段实为 generation step 计数）。文档冲突以 §18.1 为准。 |
+| **run** | v1 遗留：现指 task 形态的一次执行；wire 名 `RunStarted`/`RunEnded` 两种形态共用（conversational 也用它开生命周期）。 |
+| **step** | 裸词禁用；说 generation step 或 tool step。 |
+| **iteration** | 只指 driver 轮（fresh child run），不与 step/turn 混用。 |
+| **task** | ① 后台任务（handle 的那个）② task 运行形态——靠语境区分，歧义处写全称。 |
+| **snapshot** | ① 对话 snapshot（可弃缓存）② workspace 快照（一等状态）——永不混称。 |
+| **mailbox** | ① kernel actor 的 channel mailbox（ephemeral）② durable mailbox（inbox.jsonl，持久）——持久性完全不同。 |
+| **barrier** | 指 CheckpointBarrier（时间旅行锚点），不是并发同步原语。 |
+| **spawn_child / cancel_child / ChildSpawned** | 设计叙述名；实现/wire 名为 spawn_agent / task_kill / spawn_requested（§17 对照）。 |
