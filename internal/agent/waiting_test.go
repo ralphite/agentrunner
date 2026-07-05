@@ -153,7 +153,7 @@ func TestWaitingSurvivesProcessBoundary(t *testing.T) {
 	if s.Waiting == nil || s.Waiting.Kind != event.WaitApproval || s.Run.Status != state.StatusWaiting {
 		t.Fatalf("state across process boundary: %+v", s.Run)
 	}
-	if got := decide(s, 5, ""); got.kind != doWait {
+	if got := decide(s, 5, "", false); got.kind != doWait {
 		t.Fatalf("decide on parked state = %+v, want doWait", got)
 	}
 }

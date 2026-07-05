@@ -28,6 +28,7 @@ const (
 	KindError           Kind = "error"   // USER-visible error (not the model-visible render)
 	KindRunEnd          Kind = "run_end"
 	KindNote            Kind = "note"      // blackboard publish mirrored to watchers (S6, ephemeral)
+	KindIdle            Kind = "idle"      // conversational session parked for input (v2 M1.1)
 	KindIteration       Kind = "iteration" // one driver iteration completed (S6; Turn = iteration N)
 )
 

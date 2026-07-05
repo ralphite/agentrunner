@@ -54,6 +54,17 @@ type Loop struct {
 	// WAITING_APPROVAL resolves the approval as denied-by-interrupt and
 	// the run continues. nil = never fires.
 	Interrupts <-chan struct{}
+	// Conversational switches the session to v2's default interaction shape
+	// (v2 M1.1): after the model yields with nothing pending, the session
+	// PARKS for the next user input instead of ending — "answer, then wait"
+	// is the loop's normal state. false (default) keeps v1 task mode:
+	// yield = run completed. Extension code (driver children) stays false.
+	Conversational bool
+	// UserInputs delivers conversational user inputs. Each received text is
+	// journaled as InputReceived{source:"user"} and wakes a new turn;
+	// CLOSING the channel is the close gesture: epilogue, then
+	// RunEnded{reason:"closed"}. nil = park wakes only on tasks/interrupt.
+	UserInputs <-chan string
 	// Mode is the STARTING mode (3.6): journaled as the first ModeChanged.
 	// The live mode is fold state; empty means "default".
 	Mode string
@@ -644,7 +655,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 		if err := l.drainBackground(appendE); err != nil {
 			return RunResult{}, abort(ds.s.Run.Turn, err)
 		}
-		act := decide(ds.s, l.Spec.MaxTurns, l.Spec.OnRunEnd)
+		act := decide(ds.s, l.Spec.MaxTurns, l.Spec.OnRunEnd, l.Conversational)
 		switch act.kind {
 		case doTurn:
 			// Turn boundary is the compaction point (S4.5): summarize the
@@ -833,6 +844,23 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				continue
 			}
 			return RunResult{}, fmt.Errorf("session is waiting for %s; no resolver available yet", ds.s.Waiting.Kind)
+
+		case doWaitInput:
+			if _, err := appendE(event.TypeWaitingEntered, &event.WaitingEntered{
+				Kind: event.WaitInput,
+			}); err != nil {
+				return RunResult{}, abort(act.turn, err)
+			}
+			closed, err := l.awaitInput(ctx, appendE, act.turn)
+			if err != nil {
+				return RunResult{}, abort(act.turn, err)
+			}
+			if closed {
+				res, err := l.runEpilogue(ctx, ds, appendE, "closed", act.turn, false)
+				l.emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: res.Reason, Turn: res.Turns})
+				return res, err
+			}
+			continue
 
 		case doEnd:
 			if act.reason == "max_turns" {
@@ -1108,6 +1136,7 @@ const (
 	doEnd              // journal RunEnded with action.reason
 	doWait             // parked: the wait must resolve before anything else
 	doWaitTasks        // parked on background tasks (S6.1): settle one, re-decide
+	doWaitInput        // conversational idle (v2 M1.1): park for the next user input
 )
 
 type action struct {
@@ -1123,7 +1152,7 @@ type action struct {
 // decide is THE loop policy: given only the fold state (plus the spec
 // constants maxTurns and onRunEnd, fixed for the run), what happens next.
 // Resume re-enters here with the same state and therefore the same answer.
-func decide(s state.State, maxTurns int, onRunEnd string) action {
+func decide(s state.State, maxTurns int, onRunEnd string, conversational bool) action {
 	if s.Waiting != nil {
 		return action{kind: doWait, turn: s.Run.Turn}
 	}
@@ -1142,6 +1171,16 @@ func decide(s state.State, maxTurns int, onRunEnd string) action {
 		// WAITING_TASKS (2.14) until a task completes and its outcome
 		// re-enters as a user-role message; the default (cancel) ends now
 		// and the epilogue quiesce cancels the stragglers (fire-and-forget).
+		if conversational {
+			// v2 conversational shape: a yield is never an ending. An input
+			// that already arrived (journaled at the park) gets its turn
+			// FIRST; only a truly idle session parks. The park also wakes on
+			// background settlements, so live tasks need no extra branch.
+			if turn < maxTurns && hasInputAfterLastAssistant(s) {
+				return action{kind: doTurn, turn: turn + 1}
+			}
+			return action{kind: doWaitInput, turn: turn}
+		}
 		if len(s.Tasks) > 0 && onRunEnd == "await" {
 			return action{kind: doWaitTasks, turn: turn}
 		}
