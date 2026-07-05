@@ -114,3 +114,12 @@ interrupt = 关闭会话**(交互惯例;turn 中 interrupt 仍是 steer/取消
 新增 TypeAheadBatches(两条排队入一 turn、到达序断言)、
 IdleInterruptCloses。全量 check + race + stage 4/6 回归绿。
 下一步:M2 出口闸门 QA-02/QA-06 真实 API。
+
+## V2-M2 出口闸门(部分)— QA-02 真实 API GREEN
+
+抽出 v2/qa/lib.sh(qa_setup/qa_spec/qa_daemon/qa_new/qa_wait_turns/
+count_type)供各 QA 复用。**QA-02**:真实 ar+daemon+真实 Gemini,慢
+bash(sleep 6)跑一个 turn,期间 send 两条 → 断言 bash 未被取消
+(无 activity_cancelled)、3 输入按到达序(两 send 的 input_received
+落在 bash activity_started 之后)、1 终态收尾。连续两次 PASS。
+QA-06(interrupt)待 M2.3 daemon interrupt command 接线后跑。
