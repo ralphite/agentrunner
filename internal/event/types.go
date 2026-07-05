@@ -109,6 +109,12 @@ type RunStarted struct {
 	// Inputs are artifact refs to materialize into the workspace before the
 	// first turn (S5.8) — how a parent hands documents to a child.
 	Inputs []ArtifactInput `json:"inputs,omitempty"`
+	// Conversational records the v2 session shape (M5.1): a send-driven
+	// revival after a daemon restart wires the inbox iff this is true.
+	Conversational bool `json:"conversational,omitempty"`
+	// SpecPath is the original spec file location (M5.1) — sibling
+	// sub-agent specs resolve relative to it on a revived session.
+	SpecPath string `json:"spec_path,omitempty"`
 	// PermissionLayers materializes the run's EFFECTIVE permission rules as
 	// data (S6, S5 回访): a JSON [][]pipeline.PermissionRule, ordered
 	// outermost (root) → innermost (this run). Chained first-match layers

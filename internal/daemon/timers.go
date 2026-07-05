@@ -70,7 +70,10 @@ func (s *Server) markResumeFailed(id string) {
 
 // hostResume hosts a session resume exactly like a submitted run: same hub,
 // same runsWG, attach-able under the session id. A session already hosted
-// (still running, or resumed by an earlier sweep) is left alone.
+// (still running, or resumed by an earlier sweep) is left alone. The hub
+// always carries conversational channels (v2 M5.1) — the resume runner
+// wires them iff the journal says conversational, so a revived chat
+// session accepts send/interrupt/kill exactly like a freshly hosted one.
 func (s *Server) hostResume(ctx context.Context, id string) {
 	s.mu.Lock()
 	if s.stopping || s.runs[id] != nil {
@@ -78,11 +81,14 @@ func (s *Server) hostResume(ctx context.Context, id string) {
 		return
 	}
 	hub := &hostedRun{id: id, notify: s.Notify, subs: map[chan protocol.Event]struct{}{}}
+	hub.inbox = make(chan protocol.UserInput, 64)
+	hub.interrupts = make(chan struct{}, 1)
+	hub.cancels = make(chan string, 8)
 	s.runs[id] = hub
 	s.runsWG.Add(1)
 	s.mu.Unlock()
 
-	slog.Info("daemon: timer expired, resuming session", "session", id)
+	slog.Info("daemon: resuming session", "session", id)
 	go func() {
 		defer s.runsWG.Done()
 		defer func() {
@@ -91,8 +97,10 @@ func (s *Server) hostResume(ctx context.Context, id string) {
 			s.mu.Unlock()
 		}()
 		defer hub.finish()
-		if err := s.Resume(ctx, id, hub); err != nil {
-			slog.Warn("daemon: timer-driven resume failed", "session", id, "err", err)
+		if err := s.Resume(ctx, ResumeRequest{
+			SessionID: id, Inbox: hub.inbox, Interrupts: hub.interrupts, Cancels: hub.cancels,
+		}, hub); err != nil {
+			slog.Warn("daemon: hosted resume failed", "session", id, "err", err)
 			s.markResumeFailed(id)
 			hub.Emit(protocol.Event{Kind: protocol.KindError, Text: "resume failed: " + err.Error()})
 		}

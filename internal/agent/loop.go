@@ -54,6 +54,10 @@ type Loop struct {
 	// WAITING_APPROVAL resolves the approval as denied-by-interrupt and
 	// the run continues. nil = never fires.
 	Interrupts <-chan struct{}
+	// SpecPath is the spec file's location, journaled into RunStarted so a
+	// revived session can resolve sibling sub-agent specs (v2 M5.1). Empty
+	// for spec-injected callers (tests).
+	SpecPath string
 	// Conversational switches the session to v2's default interaction shape
 	// (v2 M1.1): after the model yields with nothing pending, the session
 	// PARKS for the next user input instead of ending — "answer, then wait"
@@ -259,6 +263,7 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 		SpecName: l.Spec.Name, Model: l.Spec.Model.ID, Task: task,
 		Version: l.Version, SubStateVersions: state.SubStateVersions(),
 		Spec: specJSON, WorkspaceRoot: wsRoot,
+		Conversational: l.Conversational, SpecPath: l.SpecPath,
 		Env:    renderEnvBlock(wsRoot, l.Clock.Now()),
 		Memory: memoryBlock, Skills: skillsBlock,
 		Agents: renderAgentsDirectory(l.Spec.Agents, l.SubSpecs),
@@ -446,15 +451,22 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 
 	// In-doubt (2.15): Started without a terminal event means the effect
 	// may or may not have happened. Idempotent activities simply re-run
-	// (decide() reaches them again); anything else surfaces to the human —
-	// re-running an edit or a shell command on doubt is how state diverges.
-	// 3.2 extends this to the adjudication window: an effect that entered
-	// SIDE-EFFECTING gates (hooks) without an EffectResolved is equally in
-	// doubt; pure-gate windows re-adjudicate on their own.
+	// (decide() reaches them again); anything else NEVER re-runs. Task
+	// mode surfaces to the invoker (v1 contract, InDoubtError); a
+	// CONVERSATIONAL session self-heals (v2 M5.1): the doubt renders as an
+	// interrupted-by-crash result / a child settles from its own fold, and
+	// the session continues. 3.2's adjudication window (side-effecting
+	// gates entered, no EffectResolved) stays human in both modes — hooks
+	// may have half-run.
 	inDoubt := collectInDoubt(s)
 	pendingEffects := collectPendingSideEffecting(s)
-	if len(inDoubt) > 0 || len(pendingEffects) > 0 {
+	if len(pendingEffects) > 0 || (!l.Conversational && len(inDoubt) > 0) {
 		return RunResult{}, &InDoubtError{Activities: inDoubt, Effects: pendingEffects}
+	}
+	if len(inDoubt) > 0 {
+		if err := l.settleCrashInDoubt(appendE, inDoubt); err != nil {
+			return RunResult{}, err
+		}
 	}
 
 	// MCP re-connect reconciliation (S5.1): the journaled schemas are the

@@ -80,6 +80,16 @@ type RunRequest struct {
 // fakes. It MUST journal through the normal store so attach replay works.
 type RunFunc func(ctx context.Context, req RunRequest, sink protocol.Sink) error
 
+// ResumeRequest is what the daemon hands the resume runner. The channels
+// are always provided; the runner wires them into the loop only when the
+// journaled session is conversational.
+type ResumeRequest struct {
+	SessionID  string
+	Inbox      <-chan protocol.UserInput
+	Interrupts <-chan struct{}
+	Cancels    <-chan string
+}
+
 // DriveRequest is a hosted IterationDriver series (S6 完成标志①: a series
 // runs unattended, its lifecycle reaching watchers and the notifier).
 type DriveRequest struct {
@@ -104,9 +114,12 @@ type Server struct {
 	// their journals; Resume hosts a session resume (same wiring as a
 	// foreground `resume`). Both non-nil → the daemon runs the durable
 	// timer sweeper: expired timers trigger a hosted resume, whose own
-	// sweep journals TimerFired. Clock nil = real time.
+	// sweep journals TimerFired. Resume also serves send-driven revival
+	// (v2 M5.1): the request carries conversational channels which the
+	// runner wires iff the journal says the session is conversational —
+	// the daemon itself stays free of run semantics. Clock nil = real time.
 	ScanTimers func() ([]SessionTimer, error)
-	Resume     func(ctx context.Context, sessionID string, sink protocol.Sink) error
+	Resume     func(ctx context.Context, req ResumeRequest, sink protocol.Sink) error
 	// Drive hosts an IterationDriver series (nil = the drive command is
 	// refused). Same hub/registry semantics as Run.
 	Drive func(ctx context.Context, req DriveRequest, sink protocol.Sink) error
@@ -448,9 +461,27 @@ func (s *Server) handleSend(cmd Command, enc *json.Encoder) {
 	hub, ok := s.runs[cmd.Session]
 	s.mu.Unlock()
 	if !ok {
-		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
-			Text: fmt.Sprintf("no live session %s (ended sessions accept no input)", cmd.Session)})
-		return
+		// v2 M5.1 (QA.md §0.3): a send to a non-hosted session REVIVES it —
+		// after a daemon restart, `ar send` IS the resume gesture; no
+		// special action. The resume runner refuses ended/unknown sessions
+		// and the failure reaches watchers through the hub.
+		if s.Resume == nil {
+			_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
+				Text: fmt.Sprintf("no live session %s (ended sessions accept no input)", cmd.Session)})
+			return
+		}
+		s.mu.Lock()
+		delete(s.failed, cmd.Session) // an explicit send retries a failed resume
+		s.mu.Unlock()
+		s.hostResume(context.Background(), cmd.Session)
+		s.mu.Lock()
+		hub, ok = s.runs[cmd.Session]
+		s.mu.Unlock()
+		if !ok {
+			_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
+				Text: fmt.Sprintf("no live session %s and it could not be resumed", cmd.Session)})
+			return
+		}
 	}
 	if !hub.post(protocol.UserInput{Text: cmd.Text, Images: cmd.Images}) {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,

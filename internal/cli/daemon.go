@@ -301,6 +301,7 @@ func hostRunFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker
 			Hooks:          hooks,
 			Approvals:      socketApprovals{broker: broker, session: req.SessionID, sink: sink},
 			SubSpecs:       siblingSpecResolver(req.SpecPath),
+			SpecPath:       req.SpecPath,
 			Snapshots:      snapshotStoreFor(ws, stderr),
 			Conversational: req.Conversational,
 			UserInputs:     req.Inbox,
@@ -363,8 +364,9 @@ func scanSessionTimers() ([]daemon.SessionTimer, error) {
 // hostResumeFunc is the daemon's timer-driven resume wiring — the same
 // assembly as a foreground `resume` minus the tty: spec and workspace come
 // from the journaled RunStarted, permissions from the journaled layers.
-func hostResumeFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker) func(context.Context, string, protocol.Sink) error {
-	return func(ctx context.Context, sessionID string, sink protocol.Sink) error {
+func hostResumeFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker) func(context.Context, daemon.ResumeRequest, protocol.Sink) error {
+	return func(ctx context.Context, req daemon.ResumeRequest, sink protocol.Sink) error {
+		sessionID := req.SessionID
 		dir, err := resolveSessionDir(sessionID)
 		if err != nil {
 			return err
@@ -421,6 +423,19 @@ func hostResumeFunc(version string, stderr io.Writer, broker *daemon.ApprovalBro
 			Hooks:     hooks,
 			Approvals: socketApprovals{broker: broker, session: sessionID, sink: sink},
 			Snapshots: snapshotStoreFor(ws, stderr),
+			SpecPath:  started.SpecPath,
+		}
+		// A conversational session revives as a conversation (v2 M5.1):
+		// the journal is the truth of its shape, the daemon just supplies
+		// the channels.
+		if started.Conversational {
+			loop.Conversational = true
+			loop.UserInputs = req.Inbox
+			loop.Interrupts = req.Interrupts
+			loop.Cancels = req.Cancels
+		}
+		if started.SpecPath != "" {
+			loop.SubSpecs = siblingSpecResolver(started.SpecPath)
 		}
 		_, runErr := loop.Resume(ctx)
 		return runErr

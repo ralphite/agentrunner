@@ -16,6 +16,9 @@ import (
 // session ids land on the resumed channel.
 func timerHarness(t *testing.T, clk *clock.Fake, scan func() ([]SessionTimer, error),
 	resume func(ctx context.Context, id string, sink protocol.Sink) error) *Server {
+	wrapped := func(ctx context.Context, req ResumeRequest, sink protocol.Sink) error {
+		return resume(ctx, req.SessionID, sink)
+	}
 	t.Helper()
 	sock := filepath.Join(t.TempDir(), "d.sock")
 	ctx, cancel := context.WithCancel(context.Background())
@@ -23,7 +26,7 @@ func timerHarness(t *testing.T, clk *clock.Fake, scan func() ([]SessionTimer, er
 		SocketPath: sock, Clock: clk,
 		NewID:      func(string) string { return "x" },
 		ScanTimers: scan,
-		Resume:     resume,
+		Resume:     wrapped,
 	}
 	done := make(chan error, 1)
 	go func() { done <- srv.ListenAndServe(ctx) }()
