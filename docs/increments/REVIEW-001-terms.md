@@ -187,3 +187,26 @@ TaskCompleted 连带);与 #13(终止语义)、#11(kill 对象)、G24
 不等整 turn 结束,与意见 1 的期望方向一致;待裁的是"是否需要
 per-launch 或 per-agent 的投递模式开关"以及默认值;与 #9(Input
 弱类型化后回执的表达形式)连带。）
+
+---
+
+# 我方分析初稿（2026-07-05,待开发者裁决;#18/19/20 词条下轮继续）
+
+总判定:#15/#11/#13 的机制主体已是现状(分歧在词汇与个别惯例);
+#5 疑虑可消解(final generation 是形状判定非模型声明,带 tool call
+必然回到模型,不存在"执行完就停");#1 可行=G8 扩展;#9 大方向可行
+但前台 tool 配对是 provider 协议红线;#12 state 需按"history+记账"
+拆写;task 双义分开处置(后台义让位 handle,形态义降格为参数)。
+
+**处理分组(建议)**:
+1. 纯词汇/词条重写:#5 澄清句、#11 措辞、#13 "终止/terminal"词族
+   退场(改"标记+检查"表述)、#12 state 拆写、task→handle;
+2. 小行为增量:废除"待命处 interrupt=close"惯例、#15 投递模式开关
+   (默认 steer 式,spec 可 override,不做 per-launch);
+3. 真增量(不变量变更流程):#1/G8 session 换 agent(SpecChanged
+   事件族)、#9 Input 弱类型化(对话面纯内容+来源前缀,类型只留
+   journal 层,前台工具配对为协议例外)、task 形态降格(连 G24);
+4. 悬点待裁:①换 agent 可否放宽权限面;②被 kill 的子 agent,parent
+   可否重启/续发;③task 形态降格后的命名;④TaskCompleted 保留但
+   改名去"终止"色彩(回执/completion receipt,消费者:#15 通知时刻、
+   driver 迭代判定、headless 退出码)。
