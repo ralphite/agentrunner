@@ -31,9 +31,9 @@
   重现时间线与状态;`ar events` 输出与页面逐事件对照无缺漏。
 
 ## M2 会话读写(chat 主链路)
-- [ ] POST sessions(spec+worker 落盘、workspace helper、mode)
-- [ ] send(含排队 pending 气泡)、interrupt、close;错误面(stderr 透出)
-- [ ] 新会话表单(base.yaml/worker.yaml 预填、空 workspace 一键造)
+- [x] POST sessions(spec+worker 落盘、workspace helper、mode)
+- [x] send(含排队 pending 气泡)、interrupt、close;错误面(stderr 透出)
+- [x] 新会话表单(base.yaml/worker.yaml 预填、空 workspace 一键造)
 - 真验:全程网页操作——新建会话(真 Gemini)问答两轮上下文衔接;
   忙时插话排队生效(QA-02 式);interrupt 打断长 bash 后会话可续聊。
 
@@ -60,9 +60,21 @@
 
 ---
 
+## 已知问题(web/ 之外的发现,按铁律不在此修)
+
+1. **[产品 bug] Gemini 空 assistant parts 毒化会话**(2026-07-07,会话
+   20260707-231439-task-1dfc):模型某轮返回空内容 → `assistant_message`
+   以 `parts: []` 落 journal → 之后每轮组装历史都被 gemini adapter 拒绝
+   (`message with role "assistant" has no parts`,internal/retryable=false)
+   → session_closed(error),revive 后同样历史同样死,**会话永久不可
+   恢复**。已提独立修复任务(task_572ca493);涉及落账侧(不落空消息)
+   与组装侧(过滤空消息救活存量)两个面。该会话是用户实际使用驾驶舱
+   时踩到的——驾驶舱作为测试工具第一天就抓到真 bug。
+
 ## 变更记录(每轮追加;只记真实发生并验证过的事)
 
 | 日期 | 轮次 | 动作 | 真验结果 |
 |---|---|---|---|
 | 2026-07-07 | 0 | M0 落地:module/server(9 端点+SSE)/单文件 UI/fake-ar 单测 ×9/docs。M1–M5 的代码骨架同时就位,待逐项真验 | health 绿(daemon 托管成功);sessions 列表 OK;真 Gemini 全链路 smoke:POST /api/sessions 建会话→"1+1=?"→journal 里 ASST"2"→waiting:input。注意:XDG_DATA_HOME 过长会使 daemon socket bind 失败(macOS 104B 限制),测试用 /tmp/aw1 |
 | 2026-07-07 | 1 | M1 真验(代码已在轮 0 就位,本轮纯验证,零代码改动) | CLI 建真实两轮 Gemini 会话(暗号"红苹果"第二轮复述→上下文衔接);`ar events --json` vs web /events 20 事件逐一 MATCH(seq+type);after=13 过滤→7 条;state=waiting:input、inspect 树(2 llm entries+usage billed 1058)、ps 空、sessions 双会话均对;Chrome 实测 UI:时间线气泡/轮次线/source 标签(cli/你)/状态 pill/三查看面板/系统事件开关(#4 barrier、#5-6 effect、#7-8 activity 兜底行)全部正确渲染 |
+| 2026-07-07 | 2 | M2 真验全程 Chrome 网页操作;修 close 为双击确认(原生 confirm 冻结渲染进程、毁自动化);发现产品级 bug 记入已知问题 #1 | ①新会话表单:造空 workspace 一键、默认 spec、开场消息→真 Gemini 会话 42f4,两轮暗号"蓝海豚"衔接 ✓;②QA-02 式排队:sleep 20 在飞时插话→气泡"排队中"(pending)→bash 完成卡(QUEUE_TEST_DONE)→插话消化答"三加四等于七",bash 无 Cancelled ✓;③interrupt:sleep 30 在飞 8s 时点按钮→bash 卡"已取消"(部分输出留存)→[interrupt] 来源气泡→第 7 轮解释→续聊"OK" ✓;SSE 打字气泡实测出现并被 journal 落实替换(M4 部分提前验证);close 双击确认在已关闭会话上走通 UI 路径 |

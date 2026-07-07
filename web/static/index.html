@@ -489,7 +489,18 @@ $("btnInterrupt").onclick = async () => {
   catch (e) { toast(e.message); }
 };
 $("btnClose").onclick = async () => {
-  if (!state.sid || !confirm("关闭会话 " + state.sid + "?")) return;
+  // Two-step confirm instead of native confirm(): a blocking dialog freezes
+  // the renderer and breaks automation (the cockpit must stay scriptable).
+  const btn = $("btnClose");
+  if (!state.sid) return;
+  if (!btn._armed) {
+    btn._armed = true;
+    btn.textContent = "确认关闭?";
+    setTimeout(() => { btn._armed = false; btn.textContent = "关闭会话"; }, 3000);
+    return;
+  }
+  btn._armed = false;
+  btn.textContent = "关闭会话";
   try { await post(`/sessions/${state.sid}/close`); } catch (e) { toast(e.message); }
 };
 
