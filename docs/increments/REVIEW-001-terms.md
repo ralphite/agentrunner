@@ -206,7 +206,26 @@ per-launch 或 per-agent 的投递模式开关"以及默认值;与 #9(Input
 3. 真增量(不变量变更流程):#1/G8 session 换 agent(SpecChanged
    事件族)、#9 Input 弱类型化(对话面纯内容+来源前缀,类型只留
    journal 层,前台工具配对为协议例外)、task 形态降格(连 G24);
-4. 悬点待裁:①换 agent 可否放宽权限面;②被 kill 的子 agent,parent
-   可否重启/续发;③task 形态降格后的命名;④TaskCompleted 保留但
-   改名去"终止"色彩(回执/completion receipt,消费者:#15 通知时刻、
-   driver 迭代判定、headless 退出码)。
+4. 悬点待裁(完整版,2026-07-05 重写):
+
+**裁决一:session 内换 agent,权限面可否放宽?**
+背景:现有不变量"权限只窄不宽";若可放宽,存在"只读 agent 读入注入
+内容 → 换全权 agent → 注入获得执行机会"的时序。
+A 只窄不宽(放宽须开新 session,UJ-11 同会话切角色做不到)/
+B 放宽需用户显式确认(推荐)/ C 任意放宽。
+
+**裁决二:被 kill 的子 agent,parent 可否复活(续发消息)?**
+现状:只能 spawn 全新子,旧上下文不带。
+A 一律不可复活 / B 一律可复活(风险:用户 kill 的被模型绕过)/
+C 按 kill 来源分——用户 kill 的仅用户可复活,parent kill 的 parent
+可复活(推荐)。
+
+**裁决三:"task 形态"降格成什么?**
+机制差异客观在(交付时刻/outputs 发布/退出码)。
+A 降格为启动参数(如 deliver_on_idle: true;概念表只剩 session;
+G24 自动消解——交付非终点,推荐)/ B 保留两形态仅改名。
+
+**裁决四:完成回执(TaskCompleted)保不保?**
+三个消费者:#15 的通知时刻、driver 迭代判定、headless 退出码。
+A 保留改名"完成回执",SessionClosed 改"kill/close 标记","terminal/
+终止"词族删除(推荐)/ B 不要事件、纯形状推断(三处重复推断逻辑)。
