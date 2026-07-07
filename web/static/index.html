@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgentRunner 驾驶舱</title>
+<style>
+  :root { --line:#ddd; --ink:#222; --dim:#888; --bg:#fafafa; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--ink); background:var(--bg); height:100vh; display:flex; flex-direction:column; }
+  header { display:flex; align-items:center; gap:12px; padding:8px 14px; background:#fff; border-bottom:1px solid var(--line); }
+  header h1 { font-size:15px; margin:0; font-weight:600; }
+  .dot { width:9px; height:9px; border-radius:50%; background:#c33; display:inline-block; }
+  .dot.up { background:#2a2; }
+  .muted { color:var(--dim); font-size:12px; }
+  button { font:inherit; padding:3px 10px; border:1px solid #bbb; border-radius:5px; background:#fff; cursor:pointer; }
+  button:hover { background:#f0f0f0; }
+  button.primary { background:#2563eb; border-color:#2563eb; color:#fff; }
+  button.primary:hover { background:#1d4ed8; }
+  button.danger { color:#b91c1c; border-color:#e5b4b4; }
+  button:disabled { opacity:.45; cursor:default; }
+  #layout { flex:1; display:flex; min-height:0; }
+  aside { width:230px; border-right:1px solid var(--line); background:#fff; overflow-y:auto; }
+  aside .sess { padding:8px 10px; border-bottom:1px solid #f0f0f0; cursor:pointer; }
+  aside .sess:hover { background:#f6f6f6; }
+  aside .sess.cur { background:#eef2ff; }
+  aside .sess .id { font-family:ui-monospace,monospace; font-size:12px; }
+  main { flex:1; display:flex; flex-direction:column; min-width:0; }
+  #sesshead { display:flex; align-items:center; gap:8px; padding:6px 12px; background:#fff; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  #sesshead .id { font-family:ui-monospace,monospace; font-size:12px; }
+  .pill { font-size:11px; padding:1px 8px; border-radius:9px; background:#eee; color:#555; }
+  .pill.idle { background:#dcfce7; color:#166534; }
+  .pill.run { background:#fef3c7; color:#92400e; }
+  .pill.appr { background:#ede9fe; color:#5b21b6; }
+  .pill.closed { background:#e5e5e5; color:#555; }
+  .pill.crash { background:#fee2e2; color:#991b1b; }
+  #timeline { flex:1; overflow-y:auto; padding:14px 16px; }
+  .turn { text-align:center; color:var(--dim); font-size:11px; margin:14px 0 6px; }
+  .turn::before,.turn::after { content:"— "; }
+  .row { margin:6px 0; display:flex; }
+  .row.user { justify-content:flex-end; }
+  .bubble { max-width:72%; padding:7px 11px; border-radius:10px; white-space:pre-wrap; word-break:break-word; }
+  .user .bubble { background:#dbeafe; }
+  .asst .bubble { background:#fff; border:1px solid var(--line); }
+  .bubble.typing { border-style:dashed; color:#555; }
+  .bubble.pending { opacity:.6; }
+  .tag { font-size:10px; color:var(--dim); margin:0 6px; align-self:flex-end; }
+  .card { margin:6px 0 6px 24px; border:1px solid var(--line); border-radius:8px; background:#fff; max-width:80%; font-size:13px; overflow:hidden; }
+  .card .head { padding:4px 10px; background:#f4f4f5; font-family:ui-monospace,monospace; font-size:12px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .card pre { margin:0; padding:6px 10px; overflow-x:auto; font-size:12px; max-height:240px; overflow-y:auto; white-space:pre-wrap; word-break:break-all; }
+  .card.err .head { background:#fee2e2; }
+  .card.cancel .head { background:#ffedd5; }
+  .card details summary { cursor:pointer; padding:3px 10px; color:var(--dim); font-size:12px; }
+  .badge { font-size:10px; padding:0 6px; border-radius:8px; background:#e5e7eb; color:#444; }
+  .badge.ok { background:#dcfce7; color:#166534; }
+  .badge.err { background:#fee2e2; color:#991b1b; }
+  .sys { color:var(--dim); font-size:11px; margin:2px 0 2px 24px; font-family:ui-monospace,monospace; display:none; }
+  body.showsys .sys { display:block; }
+  .chip { display:inline-block; margin:4px 0 4px 24px; font-size:12px; padding:2px 10px; border-radius:10px; background:#f1f5f9; border:1px solid #e2e8f0; }
+  .chip.warn { background:#fff7ed; border-color:#fed7aa; }
+  .chip.bad { background:#fef2f2; border-color:#fecaca; }
+  .approval { border:1px solid #c4b5fd; }
+  .approval .head { background:#ede9fe; }
+  .approval .act { padding:6px 10px; display:flex; gap:8px; align-items:center; }
+  .approval input { flex:1; font:inherit; padding:3px 6px; border:1px solid #ccc; border-radius:4px; }
+  #children { border-top:1px solid var(--line); background:#fff; padding:4px 12px; font-size:12px; display:none; }
+  #children.on { display:block; }
+  #children .task { display:flex; gap:8px; align-items:center; padding:2px 0; font-family:ui-monospace,monospace; }
+  #composer { border-top:1px solid var(--line); background:#fff; padding:8px 12px; }
+  #imgchips { display:flex; gap:6px; flex-wrap:wrap; }
+  #imgchips .chip { margin:0 0 6px; cursor:pointer; }
+  #composer .box { display:flex; gap:8px; align-items:flex-end; }
+  textarea { flex:1; font:inherit; padding:7px 9px; border:1px solid #ccc; border-radius:7px; resize:vertical; min-height:38px; max-height:180px; }
+  #statusline { font-size:11px; color:var(--dim); padding:2px 2px 0; }
+  dialog { border:1px solid #bbb; border-radius:10px; padding:0; width:min(760px,92vw); }
+  dialog::backdrop { background:rgba(0,0,0,.25); }
+  dialog .dhead { display:flex; justify-content:space-between; align-items:center; padding:10px 14px; border-bottom:1px solid var(--line); font-weight:600; }
+  dialog .dbody { padding:12px 14px; max-height:72vh; overflow-y:auto; }
+  dialog label { display:block; font-size:12px; color:#555; margin:10px 0 3px; }
+  dialog input[type=text], dialog select { width:100%; font:inherit; padding:5px 8px; border:1px solid #ccc; border-radius:5px; }
+  dialog textarea { width:100%; font:12px/1.4 ui-monospace,monospace; }
+  #viewer pre { font-size:12px; white-space:pre-wrap; word-break:break-all; }
+  #toast { position:fixed; right:14px; bottom:14px; max-width:420px; background:#7f1d1d; color:#fff; padding:10px 14px; border-radius:8px; font-size:13px; white-space:pre-wrap; display:none; z-index:50; }
+  #empty { margin:auto; color:var(--dim); text-align:center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>AgentRunner 驾驶舱</h1>
+  <span class="dot" id="hdot"></span>
+  <span class="muted" id="htext">daemon…</span>
+  <button id="daemonRestart" style="display:none" class="danger">重启 daemon</button>
+  <span style="flex:1"></span>
+  <label class="muted"><input type="checkbox" id="sysToggle"> 系统事件</label>
+  <button class="primary" id="btnNew">新会话</button>
+</header>
+<div id="layout">
+  <aside id="sesslist"></aside>
+  <main>
+    <div id="sesshead" style="display:none">
+      <span class="id" id="shId"></span>
+      <span class="pill" id="shPill">—</span>
+      <span style="flex:1"></span>
+      <button id="btnRaw">原始 journal</button>
+      <button id="btnState">折叠状态</button>
+      <button id="btnTree">inspect 树</button>
+      <button id="btnInterrupt" class="danger">interrupt</button>
+      <button id="btnClose" class="danger">关闭会话</button>
+    </div>
+    <div id="timeline"><div id="empty">← 选择或新建一个会话</div></div>
+    <div id="children"></div>
+    <div id="composer" style="display:none">
+      <div id="imgchips"></div>
+      <div class="box">
+        <textarea id="input" placeholder="输入消息…(Enter 发送,Shift+Enter 换行)"></textarea>
+        <input type="file" id="file" accept="image/*" style="display:none">
+        <button id="btnImg" title="附加图片">图片</button>
+        <button class="primary" id="btnSend">发送</button>
+      </div>
+      <div id="statusline"></div>
+    </div>
+  </main>
+</div>
+
+<dialog id="newdlg">
+  <div class="dhead">新会话 <button onclick="newdlg.close()">✕</button></div>
+  <div class="dbody">
+    <label>workspace 目录(绝对路径)</label>
+    <div style="display:flex;gap:8px">
+      <input type="text" id="nWs" placeholder="/path/to/workspace">
+      <button id="nMkWs" style="white-space:nowrap">造空 workspace</button>
+    </div>
+    <label>开场消息</label>
+    <textarea id="nMsg" rows="2" style="font:inherit">你好,请先自我介绍你的工具能力,一句话。</textarea>
+    <label>mode(可选)</label>
+    <select id="nMode"><option value="">default</option><option>plan</option><option>acceptEdits</option></select>
+    <label>base.yaml(主 agent spec)</label>
+    <textarea id="nSpec" rows="12"></textarea>
+    <label>worker.yaml(子 agent spec,留空则不写)</label>
+    <textarea id="nWorker" rows="7"></textarea>
+    <div style="margin-top:12px;text-align:right"><button class="primary" id="nCreate">创建</button></div>
+  </div>
+</dialog>
+
+<dialog id="viewer">
+  <div class="dhead"><span id="vTitle">viewer</span> <button onclick="viewer.close()">✕</button></div>
+  <div class="dbody"><pre id="vBody"></pre></div>
+</dialog>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const state = {
+  sid: null, cursor: 0, evTimer: null, psTimer: null, es: null,
+  toolCards: {}, callArgs: {}, approvals: {}, pending: [],
+  typingEl: null, status: "—", images: [], lastGen: 0,
+};
+
+// ---------- helpers ----------
+async function api(path, opts) {
+  const r = await fetch("/api" + path, opts);
+  const text = await r.text();
+  let body = {};
+  try { body = text ? JSON.parse(text) : {}; } catch { body = { error: text }; }
+  if (!r.ok) throw new Error((body.error || r.statusText) + (body.stderr ? "\n" + body.stderr : ""));
+  return body;
+}
+const post = (path, body) => api(path, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(body || {}) });
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.style.display = "block";
+  clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 7000);
+}
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+function pretty(raw) {
+  if (raw == null) return "";
+  try { return JSON.stringify(typeof raw === "string" ? JSON.parse(raw) : raw, null, 2); }
+  catch { return String(raw); }
+}
+const short = id => (id || "").slice(0, 14);
+
+// ---------- timeline append ----------
+const tl = $("timeline");
+function append(node) {
+  const nearBottom = tl.scrollHeight - tl.scrollTop - tl.clientHeight < 60;
+  tl.appendChild(node);
+  if (nearBottom) tl.scrollTop = tl.scrollHeight;
+}
+function sysline(seq, type, extra) {
+  append(el("div", "sys", `#${seq} ${type}${extra ? " " + extra : ""}`));
+}
+function chip(text, cls) { append(el("div", "chip " + (cls || ""), text)); }
+
+function bubble(role, text, tags) {
+  const row = el("div", "row " + role);
+  const b = el("div", "bubble", text);
+  if (role === "user") { if (tags) row.appendChild(el("span","tag",tags)); row.appendChild(b); }
+  else { row.appendChild(b); if (tags) row.appendChild(el("span","tag",tags)); }
+  append(row);
+  return b;
+}
+
+function toolCard(name, args, opts) {
+  const card = el("div", "card");
+  const head = el("div", "head");
+  head.appendChild(el("span", "", "🔧 " + name));
+  const status = el("span", "badge", opts && opts.background ? "task" : "运行中");
+  head.appendChild(status);
+  card.appendChild(head);
+  if (args) {
+    const d = el("details"); d.appendChild(el("summary", "", "参数"));
+    const p = el("pre", "", pretty(args)); d.appendChild(p); card.appendChild(d);
+  }
+  card._status = status;
+  append(card);
+  return card;
+}
+
+// ---------- journal event rendering (DESIGN §5) ----------
+function render(env) {
+  const p = env.payload || {};
+  switch (env.type) {
+  case "session_started":
+    chip(`会话开始 · ${p.spec_name || ""} · ${p.model || ""}`);
+    break;
+  case "input_received": {
+    // settle a matching pending bubble
+    const i = state.pending.findIndex(x => x.text === p.text);
+    if (i >= 0) { state.pending[i].el.classList.remove("pending"); state.pending[i].el._tag && (state.pending[i].el._tag.textContent="你"); state.pending.splice(i, 1); }
+    else {
+      let extra = p.source && p.source !== "user" ? p.source : "你";
+      const b = bubble("user", p.text || "(空)", extra);
+      if (p.images && p.images.length) b.appendChild(el("div", "muted", `📷 ×${p.images.length} (CAS ref)`));
+    }
+    break;
+  }
+  case "generation_started":
+    state.lastGen = p.gen_step || (state.lastGen + 1);
+    append(el("div", "turn", `第 ${state.lastGen} 轮`));
+    setStatus("运行中", "run");
+    break;
+  case "assistant_message": {
+    if (state.typingEl) { state.typingEl.parentElement.remove(); state.typingEl = null; }
+    const parts = (p.message && p.message.parts) || [];
+    let text = parts.filter(x => x.text).map(x => x.text).join("");
+    const calls = parts.filter(x => x.tool_name);
+    calls.forEach(c => { state.callArgs[c.call_id] = { name: c.tool_name, args: c.args }; });
+    if (text.trim()) bubble("asst", text, "agent");
+    if (calls.length && !text.trim()) {} // tool activity cards follow
+    break;
+  }
+  case "activity_started":
+    if (p.kind === "tool") {
+      state.toolCards[p.activity_id] = toolCard(p.name, p.args, { background: p.background });
+    } else sysline(env.seq, env.type, p.name);
+    break;
+  case "activity_completed": {
+    const card = state.toolCards[p.activity_id];
+    if (card) {
+      card._status.textContent = p.is_error ? "错误" : "完成";
+      card._status.className = "badge " + (p.is_error ? "err" : "ok");
+      if (p.usage) card._status.title = `tokens in ${p.usage.input_tokens} out ${p.usage.output_tokens}`;
+      if (p.result !== undefined) {
+        const d = el("details"); d.appendChild(el("summary", "", "结果"));
+        d.appendChild(el("pre", "", pretty(p.result).slice(0, 20000)));
+        card.appendChild(d);
+        if (p.is_error) card.classList.add("err");
+      }
+    } else sysline(env.seq, env.type, p.activity_id);
+    break;
+  }
+  case "activity_failed": {
+    const card = state.toolCards[p.activity_id];
+    const msg = p.error ? `${p.error.class}: ${p.error.message}` : "失败";
+    if (card) {
+      card.classList.add("err");
+      card._status.textContent = "失败" + (p.final ? "(终)" : `(重试 ${p.attempt})`);
+      card._status.className = "badge err";
+      card.appendChild(el("pre", "", msg));
+    } else chip("活动失败: " + msg, "bad");
+    break;
+  }
+  case "activity_cancelled": {
+    const card = state.toolCards[p.activity_id];
+    if (card) {
+      card.classList.add("cancel");
+      card._status.textContent = "已取消";
+      if (p.partial_output) {
+        const d = el("details"); d.appendChild(el("summary", "", "部分输出"));
+        d.appendChild(el("pre", "", p.partial_output)); card.appendChild(d);
+      }
+    } else chip("活动已取消 " + p.activity_id, "warn");
+    break;
+  }
+  case "spawn_requested":
+    chip(`⬇ 子 agent ${p.agent} · ${short(p.child_session)} · ${p.task ? p.task.slice(0, 80) : ""}`);
+    break;
+  case "subagent_completed":
+    chip(`⬆ 子完成 ${p.agent} · ${p.reason} · ${p.usage ? (p.usage.input_tokens + p.usage.output_tokens) + " tok" : ""}`, p.reason === "completed" ? "" : "warn");
+    break;
+  case "approval_requested": renderApproval(env); break;
+  case "approval_responded": {
+    const a = state.approvals[p.approval_id];
+    if (a) {
+      a.act.innerHTML = "";
+      a.act.appendChild(el("span", "badge " + (p.decision === "approve" ? "ok" : "err"),
+        (p.decision === "approve" ? "已批准" : "已拒绝") + (p.reason ? ": " + p.reason : "") + ` (${p.source || ""})`));
+      delete state.approvals[p.approval_id];
+    } else sysline(env.seq, env.type, p.decision);
+    break;
+  }
+  case "waiting_entered": {
+    const kinds = { input: ["待命,等你输入", "idle"], approval: ["等待审批", "appr"], tasks: ["等子任务/后台", "run"], timer: ["等定时器", "run"] };
+    const [txt, cls] = kinds[p.kind] || [p.kind, ""];
+    setStatus(txt, cls);
+    break;
+  }
+  case "waiting_resolved": setStatus("运行中", "run"); break;
+  case "session_closed": chip("会话已关闭 · " + (p.reason || "")); setStatus("已关闭", "closed"); break;
+  case "task_completed": chip("任务完成 · " + (p.reason || "")); setStatus("已结束", "closed"); break;
+  case "actor_crashed": chip(`崩溃 ${p.actor}: ${p.error}`, "bad"); setStatus("崩溃", "crash"); break;
+  case "mode_changed": chip(`mode → ${p.to} (${p.cause})`); break;
+  case "context_compacted": chip(`上下文压缩 · 到第 ${p.upto_gen_step} 轮`); break;
+  case "limit_exceeded": chip(`预算超限 ${p.kind}: ${p.used}/${p.limit}`, "bad"); break;
+  case "generation_discarded": chip(`第 ${p.gen_step} 轮流式输出被丢弃重试`, "warn"); break;
+  case "malformed_tool_call": chip(`第 ${p.gen_step} 轮工具调用不可解析,重试`, "warn"); break;
+  default:
+    sysline(env.seq, env.type);
+  }
+}
+
+function renderApproval(env) {
+  const p = env.payload;
+  const card = el("div", "card approval");
+  const head = el("div", "head");
+  const known = state.callArgs[p.call_id];
+  head.appendChild(el("span", "", "⚖ 审批 " + (known ? known.name : (p.call_id || p.approval_id))));
+  card.appendChild(head);
+  if (known && known.args) card.appendChild(el("pre", "", pretty(known.args)));
+  (p.gate_results || []).forEach(g => {
+    head.appendChild(el("span", "badge", `${g.gate}:${g.decision}${g.reason ? " " + g.reason : ""}`));
+  });
+  const act = el("div", "act");
+  const reason = document.createElement("input"); reason.placeholder = "理由(可选)";
+  const ok = el("button", "primary", "批准"), no = el("button", "danger", "拒绝");
+  ok.onclick = () => decide("approve"); no.onclick = () => decide("deny");
+  act.append(ok, no, reason); card.appendChild(act);
+  async function decide(d) {
+    ok.disabled = no.disabled = true;
+    try { await post(`/sessions/${state.sid}/approve`, { approvalId: p.approval_id, decision: d, reason: reason.value }); }
+    catch (e) { toast(e.message); ok.disabled = no.disabled = false; }
+  }
+  card.act = act;
+  state.approvals[p.approval_id] = card;
+  append(card);
+}
+
+function setStatus(text, cls) {
+  state.status = text;
+  const pill = $("shPill");
+  pill.textContent = text;
+  pill.className = "pill " + (cls || "");
+  $("statusline").textContent = text;
+}
+
+// ---------- session lifecycle ----------
+async function openSession(id) {
+  closeSession();
+  state.sid = id;
+  location.hash = id;
+  tl.innerHTML = "";
+  Object.assign(state, { cursor: 0, toolCards: {}, callArgs: {}, approvals: {}, pending: [], typingEl: null, lastGen: 0 });
+  $("sesshead").style.display = "flex";
+  $("composer").style.display = "block";
+  $("shId").textContent = id;
+  setStatus("载入中…", "");
+  document.querySelectorAll("#sesslist .sess").forEach(n => n.classList.toggle("cur", n.dataset.id === id));
+  await pollEvents();
+  state.evTimer = setInterval(pollEvents, 1000);
+  state.psTimer = setInterval(pollPS, 2500);
+  openStream(id);
+}
+function closeSession() {
+  clearInterval(state.evTimer); clearInterval(state.psTimer);
+  if (state.es) { state.es.close(); state.es = null; }
+  state.sid = null;
+}
+
+let pollBusy = false;
+async function pollEvents() {
+  if (!state.sid || pollBusy) return;
+  pollBusy = true;
+  try {
+    const evs = await api(`/sessions/${state.sid}/events?after=${state.cursor}`);
+    for (const e of evs) { render(e); state.cursor = Math.max(state.cursor, e.seq || 0); }
+  } catch (e) { /* daemon down / transient: keep polling, health dot tells the story */ }
+  finally { pollBusy = false; }
+}
+
+async function pollPS() {
+  if (!state.sid) return;
+  try {
+    const tasks = await api(`/sessions/${state.sid}/ps`);
+    const box = $("children");
+    box.className = tasks.length ? "on" : "";
+    box.innerHTML = "";
+    if (tasks.length) {
+      box.appendChild(el("div", "muted", `在飞任务 ×${tasks.length}`));
+      tasks.forEach(t => {
+        const row = el("div", "task");
+        row.appendChild(el("span", "", `${t.handle}  ${t.tool}  ${t.detail || ""}`));
+        const kill = el("button", "danger", "kill");
+        kill.onclick = async () => {
+          kill.disabled = true;
+          try { await post(`/sessions/${state.sid}/kill`, { handle: t.handle }); }
+          catch (e) { toast(e.message); kill.disabled = false; }
+        };
+        row.appendChild(kill);
+        box.appendChild(row);
+      });
+    }
+  } catch (e) { /* ignore */ }
+}
+
+// ---------- SSE typing decoration ----------
+function openStream(id) {
+  const es = new EventSource(`/api/sessions/${id}/stream`);
+  state.es = es;
+  es.onmessage = m => {
+    let e; try { e = JSON.parse(m.data); } catch { return; }
+    if (e.kind === "text_delta" && e.text) {
+      if (!state.typingEl) state.typingEl = bubble("asst", "", "streaming");
+      state.typingEl.classList.add("typing");
+      state.typingEl.textContent += e.text;
+      const nearBottom = tl.scrollHeight - tl.scrollTop - tl.clientHeight < 120;
+      if (nearBottom) tl.scrollTop = tl.scrollHeight;
+    }
+    if (e.kind === "discard" && state.typingEl) { state.typingEl.parentElement.remove(); state.typingEl = null; }
+  };
+  es.addEventListener("end", () => es.close());
+}
+
+// ---------- composer actions ----------
+$("btnSend").onclick = send;
+$("input").addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+});
+async function send() {
+  const text = $("input").value.trim();
+  if (!text || !state.sid) return;
+  const images = state.images.map(i => i.path);
+  $("input").value = "";
+  const b = bubble("user", text, "投递中…");
+  b.classList.add("pending");
+  b._tag = b.parentElement.querySelector(".tag");
+  state.pending.push({ text, el: b });
+  state.images = []; renderImgChips();
+  try { await post(`/sessions/${state.sid}/send`, { text, images }); if (b._tag) b._tag.textContent = "排队中"; }
+  catch (e) { toast(e.message); b.parentElement.remove(); state.pending = state.pending.filter(x => x.el !== b); }
+}
+$("btnImg").onclick = () => $("file").click();
+$("file").onchange = async () => {
+  const f = $("file").files[0];
+  if (!f) return;
+  const fd = new FormData(); fd.append("file", f);
+  try {
+    const r = await api("/upload", { method: "POST", body: fd });
+    state.images.push(r); renderImgChips();
+  } catch (e) { toast(e.message); }
+  $("file").value = "";
+};
+function renderImgChips() {
+  const box = $("imgchips"); box.innerHTML = "";
+  state.images.forEach((img, i) => {
+    const c = el("span", "chip", "📷 " + img.name + " ✕");
+    c.onclick = () => { state.images.splice(i, 1); renderImgChips(); };
+    box.appendChild(c);
+  });
+}
+$("btnInterrupt").onclick = async () => {
+  if (!state.sid) return;
+  try { await post(`/sessions/${state.sid}/interrupt`); chip("⚡ 已发 interrupt(带外打断)", "warn"); }
+  catch (e) { toast(e.message); }
+};
+$("btnClose").onclick = async () => {
+  if (!state.sid || !confirm("关闭会话 " + state.sid + "?")) return;
+  try { await post(`/sessions/${state.sid}/close`); } catch (e) { toast(e.message); }
+};
+
+// ---------- viewers ----------
+async function view(title, path) {
+  try {
+    const data = await api(path);
+    $("vTitle").textContent = title + " · " + state.sid;
+    $("vBody").textContent = pretty(data);
+    $("viewer").showModal();
+  } catch (e) { toast(e.message); }
+}
+$("btnRaw").onclick = () => view("原始 journal", `/sessions/${state.sid}/events`);
+$("btnState").onclick = () => view("折叠状态", `/sessions/${state.sid}/state`);
+$("btnTree").onclick = () => view("inspect 树", `/sessions/${state.sid}/inspect`);
+$("sysToggle").onchange = e => document.body.classList.toggle("showsys", e.target.checked);
+
+// ---------- sessions list / health ----------
+async function refreshSessions() {
+  try {
+    const rows = await api("/sessions");
+    const box = $("sesslist");
+    box.innerHTML = "";
+    rows.forEach(r => {
+      const d = el("div", "sess" + (r.id === state.sid ? " cur" : ""));
+      d.dataset.id = r.id;
+      d.appendChild(el("div", "id", short(r.id)));
+      d.appendChild(el("div", "muted", `${r.status} · ${r.turns} 轮`));
+      d.onclick = () => openSession(r.id);
+      box.appendChild(d);
+    });
+  } catch (e) { /* health dot covers it */ }
+}
+async function refreshHealth() {
+  try {
+    const h = await api("/health");
+    $("hdot").className = "dot" + (h.daemonUp ? " up" : "");
+    $("htext").textContent = `${h.version} · daemon ${h.daemonUp ? "在线" : "不可达"}${h.daemonManaged ? "(托管)" : ""}`;
+    $("daemonRestart").style.display = h.daemonUp ? "none" : "";
+  } catch (e) {
+    $("hdot").className = "dot";
+    $("htext").textContent = "arweb 不可达";
+  }
+}
+$("daemonRestart").onclick = async () => {
+  try { await post("/daemon/start"); toast("daemon 启动请求已发"); }
+  catch (e) { toast(e.message); }
+};
+
+// ---------- new session dialog ----------
+const newdlg = $("newdlg"), viewer = $("viewer");
+const DEFAULT_SPEC = `name: dev
+model: { provider: gemini, id: gemini-flash-latest, max_tokens: 4096 }
+system_prompt: |
+  你是一个严谨的编码助手。严格按用户指令行动;用户要求启动子 agent 时,
+  用 spawn_agent 工具、数量与分工严格照做;要求取消时用 task_kill。
+tools: [read_file, write_file, edit_file, bash, spawn_agent, task_kill]
+agents: [worker]
+permissions:
+  - { action: allow }
+`;
+const DEFAULT_WORKER = `name: worker
+description: 执行父分派的调查/修改任务并汇报
+model: { provider: gemini, id: gemini-flash-latest, max_tokens: 4096 }
+system_prompt: 完成任务后用简洁的要点汇报结论。
+tools: [read_file, bash]
+`;
+$("btnNew").onclick = () => {
+  if (!$("nSpec").value) $("nSpec").value = DEFAULT_SPEC;
+  if (!$("nWorker").value) $("nWorker").value = DEFAULT_WORKER;
+  newdlg.showModal();
+};
+$("nMkWs").onclick = async () => {
+  try { $("nWs").value = (await post("/workspace")).path; }
+  catch (e) { toast(e.message); }
+};
+$("nCreate").onclick = async () => {
+  const btn = $("nCreate"); btn.disabled = true;
+  try {
+    const extraSpecs = [];
+    if ($("nWorker").value.trim()) extraSpecs.push({ name: "worker.yaml", content: $("nWorker").value });
+    const r = await post("/sessions", {
+      spec: $("nSpec").value, extraSpecs,
+      workspace: $("nWs").value.trim(), message: $("nMsg").value.trim(), mode: $("nMode").value,
+    });
+    newdlg.close();
+    await refreshSessions();
+    openSession(r.sid);
+  } catch (e) { toast(e.message); }
+  finally { btn.disabled = false; }
+};
+
+// ---------- boot ----------
+refreshHealth(); refreshSessions();
+setInterval(refreshHealth, 5000);
+setInterval(refreshSessions, 4000);
+if (location.hash.length > 1) openSession(location.hash.slice(1));
+</script>
+</body>
+</html>

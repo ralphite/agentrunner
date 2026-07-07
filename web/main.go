@@ -1,0 +1,165 @@
+// arweb is a self-contained local web cockpit for AgentRunner. It talks to
+// the system exclusively through the public `ar` CLI contract (see
+// DESIGN.md I1) and serves a single-file UI.
+package main
+
+import (
+	"bufio"
+	"context"
+	"embed"
+	"flag"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"os/exec"
+	"os/signal"
+	"path/filepath"
+	"strings"
+	"sync"
+	"syscall"
+	"time"
+)
+
+//go:embed static/index.html
+var staticFS embed.FS
+
+type server struct {
+	arPath     string
+	runtimeDir string
+
+	mu           sync.Mutex
+	daemonCmd    *exec.Cmd // the daemon we spawned; nil when unmanaged
+	daemonAlive  bool      // our child is still running
+	daemonManage bool      // we are supposed to manage one
+}
+
+func main() {
+	arPath := flag.String("ar", "ar", "path to the agentrunner binary")
+	addr := flag.String("addr", "127.0.0.1:8787", "listen address (keep it loopback)")
+	envFile := flag.String("env-file", "", "KEY=VALUE file loaded into the environment before spawning anything")
+	noDaemon := flag.Bool("no-daemon", false, "do not spawn `ar daemon`; use an external one")
+	runtimeDir := flag.String("runtime", "runtime", "scratch dir for specs/uploads/workspaces/daemon.log")
+	flag.Parse()
+
+	if *envFile != "" {
+		if err := loadEnvFile(*envFile); err != nil {
+			log.Fatalf("arweb: --env-file: %v", err)
+		}
+	}
+	rt, err := filepath.Abs(*runtimeDir)
+	if err != nil {
+		log.Fatalf("arweb: %v", err)
+	}
+	for _, d := range []string{"specs", "uploads", "ws"} {
+		if err := os.MkdirAll(filepath.Join(rt, d), 0o755); err != nil {
+			log.Fatalf("arweb: %v", err)
+		}
+	}
+
+	s := &server{arPath: *arPath, runtimeDir: rt, daemonManage: !*noDaemon}
+	if s.daemonManage {
+		if err := s.spawnDaemon(); err != nil {
+			log.Printf("arweb: daemon spawn: %v (continuing; maybe an external daemon is up)", err)
+		}
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	srv := &http.Server{Addr: *addr, Handler: s.routes()}
+	go func() {
+		<-ctx.Done()
+		shctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(shctx)
+	}()
+
+	log.Printf("arweb listening on http://%s (ar=%s, runtime=%s)", *addr, *arPath, rt)
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatalf("arweb: %v", err)
+	}
+	s.stopDaemon()
+}
+
+// spawnDaemon starts `ar daemon` with our environment. If it exits within
+// 700ms we assume an external daemon already owns the socket and step back.
+func (s *server) spawnDaemon() error {
+	logf, err := os.OpenFile(filepath.Join(s.runtimeDir, "daemon.log"),
+		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(logf, "--- arweb spawn %s ---\n", time.Now().Format(time.RFC3339))
+	cmd := exec.Command(s.arPath, "daemon")
+	cmd.Stdout, cmd.Stderr = logf, logf
+	if err := cmd.Start(); err != nil {
+		_ = logf.Close()
+		return err
+	}
+	s.mu.Lock()
+	s.daemonCmd, s.daemonAlive = cmd, true
+	s.mu.Unlock()
+	go func() {
+		_ = cmd.Wait()
+		_ = logf.Close()
+		s.mu.Lock()
+		s.daemonAlive = false
+		s.mu.Unlock()
+	}()
+	time.Sleep(700 * time.Millisecond)
+	s.mu.Lock()
+	alive := s.daemonAlive
+	s.mu.Unlock()
+	if !alive {
+		return fmt.Errorf("`ar daemon` exited immediately (external daemon already running? see runtime/daemon.log)")
+	}
+	return nil
+}
+
+func (s *server) stopDaemon() {
+	s.mu.Lock()
+	cmd, alive := s.daemonCmd, s.daemonAlive
+	s.mu.Unlock()
+	if cmd != nil && alive && cmd.Process != nil {
+		_ = cmd.Process.Signal(syscall.SIGTERM)
+	}
+}
+
+// daemonStatus reports (managedAlive, reachable). Reachability is probed
+// through the CLI: `ar interrupt <bogus>` fails with "is the daemon
+// running?" iff the socket dial failed (DESIGN §2 — zero side effects).
+func (s *server) daemonStatus(ctx context.Context) (bool, bool) {
+	s.mu.Lock()
+	alive := s.daemonAlive
+	s.mu.Unlock()
+	res := s.runAR(ctx, 5*time.Second, "interrupt", "__arweb_probe__")
+	reachable := !daemonUnreachable(res.Stderr)
+	return alive, reachable
+}
+
+// loadEnvFile applies KEY=VALUE lines (comments/blank lines skipped).
+func loadEnvFile(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		line = strings.TrimPrefix(line, "export ")
+		k, v, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		v = strings.Trim(strings.TrimSpace(v), `"'`)
+		if err := os.Setenv(strings.TrimSpace(k), v); err != nil {
+			return err
+		}
+	}
+	return sc.Err()
+}
