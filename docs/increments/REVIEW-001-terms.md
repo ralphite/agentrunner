@@ -219,11 +219,22 @@ over design / over engineer,设计必须基于真实需求):
 (即:权限放宽的审批只存在于"agent 提权自己的子",不存在于"用户
 自己的切换动作"。)
 
-**裁决二:被 kill 的子 agent,parent 可否复活(续发消息)?**
-现状:只能 spawn 全新子,旧上下文不带。
-A 一律不可复活 / B 一律可复活(风险:用户 kill 的被模型绕过)/
-C 按 kill 来源分——用户 kill 的仅用户可复活,parent kill 的 parent
-可复活(推荐)。
+**裁决二:被 kill 的子 agent,parent 可否复活?——已裁 C(2026-07-05)**
+按 kill 来源分:用户 kill 的,仅用户可复活;parent kill 的,parent
+可复活。
+
+**task 定义说明(应开发者要求,裁三/四的前置,2026-07-05)**:
+task 是两个东西共用一名——
+词义 A"task 形态":带固定任务启动 session,final generation 后自动
+交付(结算后台工作/发布 outputs/完成回执+退出码),不等下一条消息。
+v1 唯一形态的遗留;两个真实使用者:driver 每轮迭代(拿回执判分/结算)
+与 headless 脚本用法(ar run,退出码)。机制差异仅三样:交付时刻、
+outputs 自动发布、退出码。裁决三=这三样保留但"形态"概念是否降格为
+启动参数;裁决四=其中"完成回执"事件保不保(driver/退出码/#15 通知
+时刻的数据来源)。
+词义 B"后台任务":turn 内启动的后台工作(bash/spawn background),
+返回 handle(实现名 task_id),凭 handle 杀/查;v1 从 bash 后台作业
+借名扩散。开发者已表态让位给 handle,不再裁。
 
 **裁决三:"task 形态"降格成什么?**
 机制差异客观在(交付时刻/outputs 发布/退出码)。
