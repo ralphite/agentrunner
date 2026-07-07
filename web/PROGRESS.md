@@ -23,10 +23,10 @@
   绿点,sessions 列表能显示(空或已有)。
 
 ## M1 会话只读面(journal 观察器)
-- [ ] GET sessions / events?after / state / inspect / ps 五端点
-- [ ] 时间线渲染:DESIGN §5 全映射(用户/助手气泡、工具卡回填、
+- [x] GET sessions / events?after / state / inspect / ps 五端点
+- [x] 时间线渲染:DESIGN §5 全映射(用户/助手气泡、工具卡回填、
       轮次线、spawn/settle、waiting 状态条、兜底行)
-- [ ] 原始 journal / 折叠状态 / inspect 树 三个查看面板
+- [x] 原始 journal / 折叠状态 / inspect 树 三个查看面板
 - 真验:用 CLI 手工建一个真实会话跑两轮(真 Gemini),网页端完整
   重现时间线与状态;`ar events` 输出与页面逐事件对照无缺漏。
 
@@ -65,3 +65,4 @@
 | 日期 | 轮次 | 动作 | 真验结果 |
 |---|---|---|---|
 | 2026-07-07 | 0 | M0 落地:module/server(9 端点+SSE)/单文件 UI/fake-ar 单测 ×9/docs。M1–M5 的代码骨架同时就位,待逐项真验 | health 绿(daemon 托管成功);sessions 列表 OK;真 Gemini 全链路 smoke:POST /api/sessions 建会话→"1+1=?"→journal 里 ASST"2"→waiting:input。注意:XDG_DATA_HOME 过长会使 daemon socket bind 失败(macOS 104B 限制),测试用 /tmp/aw1 |
+| 2026-07-07 | 1 | M1 真验(代码已在轮 0 就位,本轮纯验证,零代码改动) | CLI 建真实两轮 Gemini 会话(暗号"红苹果"第二轮复述→上下文衔接);`ar events --json` vs web /events 20 事件逐一 MATCH(seq+type);after=13 过滤→7 条;state=waiting:input、inspect 树(2 llm entries+usage billed 1058)、ps 空、sessions 双会话均对;Chrome 实测 UI:时间线气泡/轮次线/source 标签(cli/你)/状态 pill/三查看面板/系统事件开关(#4 barrier、#5-6 effect、#7-8 activity 兜底行)全部正确渲染 |
