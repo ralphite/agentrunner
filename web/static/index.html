@@ -598,6 +598,10 @@ refreshHealth(); refreshSessions();
 setInterval(refreshHealth, 5000);
 setInterval(refreshSessions, 4000);
 if (location.hash.length > 1) openSession(location.hash.slice(1));
+window.addEventListener("hashchange", () => {
+  const id = location.hash.slice(1);
+  if (id && id !== state.sid) openSession(id);
+});
 </script>
 </body>
 </html>

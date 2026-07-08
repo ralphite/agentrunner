@@ -38,9 +38,9 @@
   忙时插话排队生效(QA-02 式);interrupt 打断长 bash 后会话可续聊。
 
 ## M3 编排面(子 agent / 审批 / 图片)
-- [ ] ps 面板 + kill 按钮(用户直杀);spawn/subagent 事件卡
-- [ ] 审批卡(approve/deny + 理由),用 ask 权限 spec 真验
-- [ ] 图片上传 + send --image(真 vision 读图)
+- [x] ps 面板 + kill 按钮(用户直杀);spawn/subagent 事件卡
+- [x] 审批卡(approve/deny + 理由),用 ask 权限 spec 真验
+- [x] 图片上传 + send --image(真 vision 读图)
 - 真验:网页指挥"起恰好 2 个子 agent"并 ps 可见、杀一个、另一个
   自然完成回灌;ask 模式下批准/拒绝各走一次;传 qa/fixtures 截图
   问答正确。
@@ -75,6 +75,7 @@
 
 | 日期 | 轮次 | 动作 | 真验结果 |
 |---|---|---|---|
+| 2026-07-07 | 3 | M3 真验 + 三个健壮性修复:hashchange 监听(同页 hash 导航原先不切会话)、daemon 守护自愈(托管 daemon 被外杀 1s 内自动重启,3 次/分钟节流)、测试环境 binary 改名 arbin 避开并行 session 的 pkill 误伤 | ①spawn:网页指挥起恰好 2 子,在飞面板 2 行+kill 按钮;网页杀 A→journal `[kill call_10_0]` source=control→activity_cancelled+subagent_completed(canceled);B 自然完成回灌;父第 12 轮激活消化;模型自作主张重启 A(模型行为,再杀+叫停后正确汇总"A 被取消,B 汇报 B_DONE")②审批:ask 权限 spec,审批卡带全 gate 徽章(permission:ask rule 1: tool=bash→ask)+args;拒绝(理由达模型:denied: 测试拒绝路径)→批准→bash 执行→APPROVAL_TEST ③图片:upload API+chip+send --image,build-error.png 三要素全对(command.go/1234/EnableTraverseRunHooks2);journal ref-not-bytes(单行 372B,sha256 CAS ref) |
 | 2026-07-07 | 0 | M0 落地:module/server(9 端点+SSE)/单文件 UI/fake-ar 单测 ×9/docs。M1–M5 的代码骨架同时就位,待逐项真验 | health 绿(daemon 托管成功);sessions 列表 OK;真 Gemini 全链路 smoke:POST /api/sessions 建会话→"1+1=?"→journal 里 ASST"2"→waiting:input。注意:XDG_DATA_HOME 过长会使 daemon socket bind 失败(macOS 104B 限制),测试用 /tmp/aw1 |
 | 2026-07-07 | 1 | M1 真验(代码已在轮 0 就位,本轮纯验证,零代码改动) | CLI 建真实两轮 Gemini 会话(暗号"红苹果"第二轮复述→上下文衔接);`ar events --json` vs web /events 20 事件逐一 MATCH(seq+type);after=13 过滤→7 条;state=waiting:input、inspect 树(2 llm entries+usage billed 1058)、ps 空、sessions 双会话均对;Chrome 实测 UI:时间线气泡/轮次线/source 标签(cli/你)/状态 pill/三查看面板/系统事件开关(#4 barrier、#5-6 effect、#7-8 activity 兜底行)全部正确渲染 |
 | 2026-07-07 | 2 | M2 真验全程 Chrome 网页操作;修 close 为双击确认(原生 confirm 冻结渲染进程、毁自动化);发现产品级 bug 记入已知问题 #1 | ①新会话表单:造空 workspace 一键、默认 spec、开场消息→真 Gemini 会话 42f4,两轮暗号"蓝海豚"衔接 ✓;②QA-02 式排队:sleep 20 在飞时插话→气泡"排队中"(pending)→bash 完成卡(QUEUE_TEST_DONE)→插话消化答"三加四等于七",bash 无 Cancelled ✓;③interrupt:sleep 30 在飞 8s 时点按钮→bash 卡"已取消"(部分输出留存)→[interrupt] 来源气泡→第 7 轮解释→续聊"OK" ✓;SSE 打字气泡实测出现并被 journal 落实替换(M4 部分提前验证);close 双击确认在已关闭会话上走通 UI 路径 |

@@ -32,6 +32,8 @@ type server struct {
 	daemonCmd    *exec.Cmd // the daemon we spawned; nil when unmanaged
 	daemonAlive  bool      // our child is still running
 	daemonManage bool      // we are supposed to manage one
+	stopping     bool      // shutdown in progress: do not respawn
+	respawns     []time.Time
 }
 
 func main() {
@@ -105,7 +107,32 @@ func (s *server) spawnDaemon() error {
 		_ = logf.Close()
 		s.mu.Lock()
 		s.daemonAlive = false
+		stopping := s.stopping
+		// Respawn throttle: at most 3 automatic restarts per minute, so a
+		// daemon that dies instantly cannot spin us into a fork loop.
+		now := time.Now()
+		var recent []time.Time
+		for _, t := range s.respawns {
+			if now.Sub(t) < time.Minute {
+				recent = append(recent, t)
+			}
+		}
+		allow := !stopping && s.daemonManage && len(recent) < 3
+		if allow {
+			recent = append(recent, now)
+		}
+		s.respawns = recent
 		s.mu.Unlock()
+		if allow {
+			// The managed daemon died under us (crash or an external kill).
+			// A cockpit that advertises a managed daemon should heal it.
+			time.Sleep(time.Second)
+			if err := s.spawnDaemon(); err != nil {
+				log.Printf("arweb: daemon auto-respawn failed: %v", err)
+			} else {
+				log.Printf("arweb: managed daemon died; auto-respawned")
+			}
+		}
 	}()
 	time.Sleep(700 * time.Millisecond)
 	s.mu.Lock()
@@ -119,6 +146,7 @@ func (s *server) spawnDaemon() error {
 
 func (s *server) stopDaemon() {
 	s.mu.Lock()
+	s.stopping = true
 	cmd, alive := s.daemonCmd, s.daemonAlive
 	s.mu.Unlock()
 	if cmd != nil && alive && cmd.Process != nil {
