@@ -939,7 +939,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				if err := json.Unmarshal(ds.s.Waiting.Detail, &req); err != nil {
 					return RunResult{}, abort(ds.s.Session.GenStep, fmt.Errorf("waiting_approval detail: %w", err))
 				}
-				if _, err := l.awaitApproval(ctx, ds, appendE, req); err != nil {
+				if _, _, err := l.awaitApproval(ctx, ds, appendE, req); err != nil {
 					return RunResult{}, abort(ds.s.Session.GenStep, err)
 				}
 				continue
@@ -1576,8 +1576,19 @@ func (l *Loop) adjudicate(ctx context.Context, ds *driveState, appendE AppendFun
 	}
 	crash.Point(crash.PointBetweenGateAndResolved)
 	if outcome.Verdict == event.VerdictAsk {
-		allowed, err := l.requestApproval(ctx, ds, appendE, eff, outcome)
-		return outcome, allowed, err
+		allowed, denyReason, err := l.requestApproval(ctx, ds, appendE, eff, outcome)
+		if err != nil {
+			return outcome, false, err
+		}
+		if !allowed {
+			// Carry the approval's real denial reason into the outcome so the
+			// model-visible tool result explains it (and, for a non-interactive
+			// run, how to proceed) instead of a bare "denied by policy" (T4).
+			outcome.GateResults = append(outcome.GateResults, event.GateResult{
+				Gate: "approval", Decision: event.VerdictDeny, Reason: denyReason,
+			})
+		}
+		return outcome, allowed, nil
 	}
 	reserved := 0
 	if outcome.Verdict == event.VerdictAllow {

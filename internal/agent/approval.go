@@ -58,7 +58,15 @@ func (e *EnvApprovals) Resolve(_ context.Context, _ ApprovalRequest) (ApprovalDe
 	case "always":
 		return ApprovalDecision{Approve: true, Reason: "AGENTRUNNER_APPROVE=always", Source: "env"}, nil
 	case "", "never":
-		return ApprovalDecision{Approve: false, Reason: "auto-denied (AGENTRUNNER_APPROVE unset or never)", Source: "env"}, nil
+		// This reason surfaces to the model AND to the user as the tool-result
+		// error, so it must say how to proceed (T4/R2-B-2). Without it, a run
+		// just prints "denied by policy" and cautious users conclude the tool
+		// won't let the agent work — not realizing an interactive session asks.
+		return ApprovalDecision{Approve: false, Source: "env",
+			Reason: "needs approval, but this run is non-interactive so it was auto-denied. " +
+				"Use `agentrunner new` for an interactive session that asks you, or auto-approve " +
+				"with AGENTRUNNER_APPROVE=always, --mode bypass, or `permissions: [{action: allow}]` in the spec",
+		}, nil
 	}
 	parts := strings.Split(v, ",")
 	e.mu.Lock()
@@ -83,8 +91,11 @@ func (e *EnvApprovals) Resolve(_ context.Context, _ ApprovalRequest) (ApprovalDe
 // requestApproval journals the ask (ApprovalRequested + WAITING_APPROVAL)
 // and blocks on the resolver. awaitApproval is split out so resume can
 // re-enter a idle wait without re-journaling the request.
+// Returns (allowed, denyReason, err): denyReason carries the resolver's
+// denial reason so the loop can surface it in the model-visible tool result
+// (empty when allowed).
 func (l *Loop) requestApproval(ctx context.Context, ds *driveState, appendE AppendFunc,
-	eff pipeline.Effect, outcome pipeline.Outcome) (bool, error) {
+	eff pipeline.Effect, outcome pipeline.Outcome) (bool, string, error) {
 
 	req := event.ApprovalRequested{
 		ApprovalID:  "apr-" + eff.ID,
@@ -98,21 +109,21 @@ func (l *Loop) requestApproval(ctx context.Context, ds *driveState, appendE Appe
 	// approval fact pins the exact version ref it adjudicated — a rejected
 	// plan's revision publishes v2 and the re-approval points there.
 	if ref, err := l.publishApprovalPayload(eff, appendE); err != nil {
-		return false, err
+		return false, "", err
 	} else if ref != "" {
 		req.PayloadRef = ref
 	}
 	if _, err := appendE(event.TypeApprovalRequested, &req); err != nil {
-		return false, err
+		return false, "", err
 	}
 	detail, err := json.Marshal(req)
 	if err != nil {
-		return false, err
+		return false, "", err
 	}
 	if _, err := appendE(event.TypeWaitingEntered, &event.WaitingEntered{
 		Kind: event.WaitApproval, Detail: detail,
 	}); err != nil {
-		return false, err
+		return false, "", err
 	}
 	return l.awaitApproval(ctx, ds, appendE, req)
 }
@@ -149,7 +160,7 @@ func (l *Loop) publishApprovalPayload(eff pipeline.Effect, appendE AppendFunc) (
 // journals: response (external input first), waiting resolution, effect
 // resolution. Returns whether the effect may execute.
 func (l *Loop) awaitApproval(ctx context.Context, ds *driveState, appendE AppendFunc,
-	req event.ApprovalRequested) (bool, error) {
+	req event.ApprovalRequested) (bool, string, error) {
 
 	resolver := l.Approvals
 	if resolver == nil {
@@ -174,7 +185,7 @@ func (l *Loop) awaitApproval(ctx context.Context, ds *driveState, appendE Append
 	select {
 	case out := <-ch:
 		if out.err != nil {
-			return false, fmt.Errorf("approval %s: %w", req.ApprovalID, out.err)
+			return false, "", fmt.Errorf("approval %s: %w", req.ApprovalID, out.err)
 		}
 		decision := "deny"
 		resolution := "denied"
@@ -186,14 +197,15 @@ func (l *Loop) awaitApproval(ctx context.Context, ds *driveState, appendE Append
 			ApprovalID: req.ApprovalID, Decision: decision,
 			Reason: out.d.Reason, Source: out.d.Source,
 		}); err != nil {
-			return false, err
+			return false, "", err
 		}
 		if _, err := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
 			Kind: event.WaitApproval, Resolution: resolution,
 		}); err != nil {
-			return false, err
+			return false, "", err
 		}
-		return l.resolveEffectAfterApproval(ds, appendE, req, out.d.Approve, out.d.Reason)
+		ok, err := l.resolveEffectAfterApproval(ds, appendE, req, out.d.Approve, out.d.Reason)
+		return ok, out.d.Reason, err
 
 	case <-l.Interrupts:
 		// Denied-by-interrupt (3.5): journal the interrupt (inputs first),
@@ -202,20 +214,21 @@ func (l *Loop) awaitApproval(ctx context.Context, ds *driveState, appendE Append
 		if _, err := appendE(event.TypeInputReceived, &event.InputReceived{
 			Text: "[interrupt]", Source: "interrupt",
 		}); err != nil {
-			return false, err
+			return false, "", err
 		}
 		if _, err := appendE(event.TypeApprovalResponded, &event.ApprovalResponded{
 			ApprovalID: req.ApprovalID, Decision: "deny",
 			Reason: "[interrupted by user]", Source: "interrupt",
 		}); err != nil {
-			return false, err
+			return false, "", err
 		}
 		if _, err := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
 			Kind: event.WaitApproval, Resolution: "denied_by_interrupt",
 		}); err != nil {
-			return false, err
+			return false, "", err
 		}
-		return l.resolveEffectAfterApproval(ds, appendE, req, false, "[interrupted by user]")
+		ok, err := l.resolveEffectAfterApproval(ds, appendE, req, false, "[interrupted by user]")
+		return ok, "[interrupted by user]", err
 	}
 }
 

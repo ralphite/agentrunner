@@ -345,7 +345,7 @@ func stateWithPendingApproval(t *testing.T, m *memAppend) *driveState {
 		return env, err
 	}
 	req := event.ApprovalRequested{ApprovalID: "apr-eff-call_1_0", EffectID: "eff-tool-call_1_0", CallID: "call_1_0"}
-	allowed, err := l.awaitApproval(context.Background(), ds, appendE, req)
+	allowed, _, err := l.awaitApproval(context.Background(), ds, appendE, req)
 	if err != nil || allowed {
 		t.Fatalf("allowed=%v err=%v", allowed, err)
 	}
