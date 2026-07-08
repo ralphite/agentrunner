@@ -227,6 +227,15 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 				} else if q, reason := state.Quiescence(s); q {
 					r.status = reason
 				}
+				// A "running" session (mid-turn, not waiting/closed/quiescent)
+				// whose host process is gone is STRANDED, not running: the
+				// daemon crashed or was restarted and nothing is advancing it
+				// (T1/T2b — 状态撒谎). resume recovers it. The probe reads the
+				// lock's pid; it never takes the lock, so it cannot disturb a
+				// live writer.
+				if r.status == "running" && !store.HasLiveWriter(filepath.Join(root, e.Name())) {
+					r.status = "stranded"
+				}
 				r.turns = s.Session.GenStep
 			}
 		}

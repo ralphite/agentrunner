@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -104,6 +105,40 @@ func acquireLock(path string) (*os.File, error) {
 		_, _ = fmt.Fprintf(lock, "%d\n", os.Getpid())
 	}
 	return lock, nil
+}
+
+// HasLiveWriter reports whether the process that last acquired a session's
+// writer lock is still alive. It is a CONTENTION-FREE liveness probe: it
+// reads the pid recorded in the lock file and signals 0 to test existence —
+// it NEVER touches the flock, so unlike a try-lock it can never make a real
+// writer's OpenEventStore fail with ErrLocked (an observability command must
+// not be able to break a live run).
+//
+// A session whose journal folds to "running" but for which this reports
+// false is STRANDED (T1/T2b, 状态撒谎): its host — the daemon, or a
+// foreground run/resume — crashed or was restarted, so nothing is advancing
+// it even though the last journaled status says otherwise. `resume` re-enters
+// and recovers it.
+//
+// Correctness note: the recorded pid is the last successful opener's, which
+// the kernel-released flock guarantees is the current holder for a live
+// session and a dead pid for a crashed one. Pid reuse can yield a rare false
+// "alive"; that degrades to the pre-existing "shows running" and never breaks
+// an operation — which is the whole reason this reads instead of locks.
+func HasLiveWriter(sessionDir string) bool {
+	raw, err := os.ReadFile(filepath.Join(sessionDir, lockFile))
+	if err != nil {
+		return false // no lock file: no writer ever held it
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(raw)))
+	if err != nil || pid <= 0 {
+		return false // empty/torn during an open, or malformed: treat as none
+	}
+	// Signal 0 delivers nothing but performs the permission/existence check:
+	// nil = alive; EPERM = alive but owned elsewhere (still a live holder);
+	// ESRCH = gone.
+	err = syscall.Kill(pid, 0)
+	return err == nil || errors.Is(err, syscall.EPERM)
 }
 
 // scanLog returns the last seq and the byte offset just past the last
