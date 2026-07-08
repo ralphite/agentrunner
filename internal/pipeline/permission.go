@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path"
 	"regexp"
 	"strings"
 
@@ -91,8 +92,17 @@ func (g *PermissionGate) Check(_ context.Context, eff Effect) Decision {
 // is the sanctioned way out.
 func (g *PermissionGate) hardFloor(eff Effect) (Decision, bool) {
 	args := effArgs(eff)
-	if _, escaped := g.resolveRel(args.Path); escaped {
+	relPath, escaped := g.resolveRel(args.Path)
+	if escaped {
 		return Deny(fmt.Sprintf("path escapes workspace: %s", args.Path)), true
+	}
+	// Credential files never reach the model (C3): read_file on a hard-excluded
+	// credential path is denied at the floor, no rule or mode may override.
+	// The snapshot layer already refuses to checkpoint these same files; this
+	// closes the read side. (bash `cat` bypasses this — that gap needs an OS
+	// filesystem sandbox, tracked separately.)
+	if eff.ToolName == "read_file" && args.Path != "" && isCredentialPath(relPath) {
+		return Deny(fmt.Sprintf("credential files are not readable (hard floor): %s", args.Path)), true
 	}
 	if g.effectiveMode(eff) == ModePlan && eff.ToolName != "exit_plan_mode" &&
 		(eff.Class == "edit" || eff.Class == "execute") {
@@ -232,6 +242,46 @@ func (r PermissionRule) describe() string {
 		parts = append(parts, "any")
 	}
 	return strings.Join(parts, " ") + " → " + r.Action
+}
+
+// credentialBasenames name files whose contents are credentials. A read of
+// any of them — at any depth in the workspace — is denied by the hard floor
+// (C3). Mirrors snapshot.hardExcludes (which refuses to checkpoint the same
+// files); keep the two lists in sync.
+var credentialBasenames = []string{
+	".env", ".env.*", ".envrc",
+	"*.pem", "*.key",
+	"id_rsa", "id_rsa.*", "id_ed25519", "id_ed25519.*",
+	".git-credentials", ".netrc", ".npmrc", ".pypirc",
+	"credentials.json",
+}
+
+// isCredentialPath reports whether a workspace-relative (forward-slash) path
+// names a credential file whose contents must never reach the model. Matches
+// the basename at any depth, plus anything under a .ssh/ dir and .aws/credentials.
+func isCredentialPath(rel string) bool {
+	if rel == "" {
+		return false
+	}
+	rel = strings.TrimPrefix(rel, "./")
+	base := rel
+	if i := strings.LastIndex(rel, "/"); i >= 0 {
+		base = rel[i+1:]
+	}
+	for _, pat := range credentialBasenames {
+		if ok, _ := path.Match(pat, base); ok {
+			return true
+		}
+	}
+	for _, seg := range strings.Split(rel, "/") {
+		if seg == ".ssh" {
+			return true
+		}
+	}
+	if base == "credentials" && strings.Contains(rel+"/", ".aws/") {
+		return true
+	}
+	return false
 }
 
 // globMatch translates a glob to a regexp. Path semantics (pathish=true):

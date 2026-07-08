@@ -187,6 +187,28 @@ func TestFloorGatePrecedesHooks(t *testing.T) {
 	}
 }
 
+// Credential files never reach the model: read_file on a hard-excluded
+// credential path is denied at the floor, no rule or mode overriding (C3).
+func TestFloorBlocksCredentialRead(t *testing.T) {
+	ws := newPermWS(t)
+	floor := &FloorGate{WS: ws}
+	for _, p := range []string{".npmrc", ".netrc", "sub/dir/.env", "deploy/id_rsa", "x.pem", ".ssh/config", "svc/.aws/credentials"} {
+		d := floor.Check(context.Background(), toolEffect("read_file", "read", `{"path":"`+p+`"}`))
+		if d.Action != event.VerdictDeny {
+			t.Errorf("read_file %q must be floor-denied, got %+v", p, d)
+		}
+	}
+	// Ordinary files still read.
+	if d := floor.Check(context.Background(), toolEffect("read_file", "read", `{"path":"src/main.go"}`)); d.Action == event.VerdictDeny {
+		t.Errorf("ordinary read wrongly denied: %+v", d)
+	}
+	// The deny targets the READ leak only — a project may legitimately create a
+	// .env; the floor does not block writing one.
+	if d := floor.Check(context.Background(), toolEffect("write_file", "edit", `{"path":".npmrc"}`)); d.Action == event.VerdictDeny {
+		t.Errorf("write to credential path must not be floor-denied here: %+v", d)
+	}
+}
+
 // Unknown/empty tool class fails closed (ask), not open (allow).
 func TestUnknownClassFailsClosed(t *testing.T) {
 	g := &PermissionGate{WS: newPermWS(t)}
