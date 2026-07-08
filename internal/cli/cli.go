@@ -29,6 +29,11 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 	case "--version", "version":
 		fmt.Fprintf(stdout, "agentrunner %s (%s)\n", version, runtime.Version())
 		return ExitOK
+	case "--help", "-h", "help":
+		fmt.Fprint(stdout, helpText())
+		return ExitOK
+	case "init":
+		return initCmd(args[1:], stdout, stderr)
 	case "run":
 		return runCmd(args[1:], false, version, stdout, stderr)
 	case "drive":
@@ -78,7 +83,56 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 }
 
 func usage() string {
-	return "usage: agentrunner <run|drive|daemon|new|send|close|interrupt|kill|ps|submit|attach|approve|resume|fork|barrier|sessions|events|inspect|trust|record-fixture|accept|--version> [flags] [<spec.yaml> \"task\"]\n"
+	return "usage: agentrunner <command> [flags] [args]\nrun `agentrunner help` for the command list, `agentrunner init` for an example spec\n"
+}
+
+// helpText is the top-level help (INC-2 BB-me-1/2): grouped commands with
+// one-line explanations and a quick start, so a first-time user can go from
+// zero to a visible reply without reading source or docs.
+func helpText() string {
+	return `agentrunner — declarative LLM agents with durable, resumable sessions
+
+Quick start:
+  agentrunner init                        write a commented example spec.yaml
+  agentrunner run spec.yaml "your task"   one-shot run, output streams here
+  agentrunner daemon &                    start the runtime that hosts conversations
+  agentrunner new spec.yaml "hello"       start a conversation, print the reply
+  agentrunner send <session> "and this?"  continue it (unique id prefix is enough)
+
+One-shot runs (no daemon needed):
+  run <spec.yaml> "task"      run to completion in the foreground
+  drive <driver.yaml>         run an iteration-driver series (plan/verify loop)
+
+Conversations (need the daemon):
+  daemon                      start the resident runtime (foreground; use & to background)
+  new <spec.yaml> "msg"       start a session, print the reply, leave it running
+  send <session> "msg"        send a message and print the reply (--image attaches files)
+  attach <session>            replay the whole conversation, then follow live (Ctrl-C detaches;
+                              the session keeps running)
+  close <session>             end a session gracefully
+  interrupt <session>         interrupt the current turn (at idle: closes the session)
+
+Background work (daemon):
+  submit <spec.yaml> "task"   hand a one-shot run to the daemon, stream until it ends
+  resume <session>            resume an interrupted or crashed session
+
+Observe:
+  sessions                    list sessions and their status
+  ps <session>                in-flight background tasks of a session
+  inspect <session>           session facts: status, turns, token usage, budget
+  events <session>            raw journal events (debugging)
+
+Control:
+  approve <session> <id> approve|deny   answer a pending permission ask
+  kill <session> <handle>               cancel one background task
+  fork <session> <barrier>    branch a session at a barrier into a new one (--list shows barriers)
+  trust <dir>                 mark a workspace as trusted
+
+Other: barrier, accept, record-fixture, version — see each command's -h.
+
+Sessions are addressed by any unique prefix of their id.
+Spec format: agentrunner init writes a commented example.
+`
 }
 
 // setupLogging configures the process-wide slog default. Logs go to stderr

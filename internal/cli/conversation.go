@@ -58,7 +58,7 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 		Workspace: wsAbs, Mode: *mode,
 	})
 	if derr != nil {
-		fmt.Fprintf(stderr, "agentrunner: %v (is the daemon running?)\n", derr)
+		daemonDialErr(stderr, derr)
 		return ExitRun
 	}
 	if sid == "" {
@@ -153,6 +153,13 @@ func closeCmd(args []string, stdout, stderr io.Writer) int {
 	return oneShot(stderr, daemon.Command{Cmd: "close", Session: resolvePrefixLenient(args[0])}, stdout)
 }
 
+// daemonDialErr reports a failed daemon dial and tells the user how to start
+// one (INC-2 BB-me-7): the daemon is a prerequisite of new/send/attach that
+// nothing else surfaces.
+func daemonDialErr(stderr io.Writer, err error) {
+	fmt.Fprintf(stderr, "agentrunner: %v\n  (no daemon running? start one with: agentrunner daemon &)\n", err)
+}
+
 // resolvePrefixLenient resolves a session prefix to a full id when possible;
 // on any failure it returns the input unchanged (the daemon reports an
 // unknown session clearly).
@@ -181,7 +188,7 @@ func oneShot(stderr io.Writer, cmd daemon.Command, stdout io.Writer) int {
 		fmt.Fprintf(stdout, "%s\n", e.Text)
 	})
 	if err != nil {
-		fmt.Fprintf(stderr, "agentrunner: %v (is the daemon running?)\n", err)
+		daemonDialErr(stderr, err)
 		return ExitRun
 	}
 	if !replied || !ok {
