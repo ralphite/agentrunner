@@ -70,6 +70,12 @@ type AgentSpec struct {
 	// Agents whitelists the sub-agent specs this agent may spawn (S5.3).
 	// The model only sees — and can only spawn — what is listed here.
 	Agents []string `yaml:"agents,omitempty"`
+	// Receipts controls WHEN background settlements (child receipts, bash
+	// outcomes) enter the conversation (裁决 #15): "steer" (default) lands
+	// them at the next safe boundary INSIDE a running turn — a long turn
+	// reacts to early results; "turn_end" defers them until the turn
+	// finishes. Agent-config level with a default — never per-launch.
+	Receipts string `yaml:"receipts,omitempty"`
 	// Outputs is the deliverable contract (S5.6): at quiescence the fixed
 	// actions auto-publish each declared output (from its workspace Path
 	// unless the run already published the stream) and a missing Required
@@ -144,7 +150,7 @@ func LoadSpec(path string) (*AgentSpec, error) {
 // hint. Keep in sync with the AgentSpec struct tags.
 const specFields = "name, model, system_prompt, system_prompt_file, tools, " +
 	"max_generation_steps, permissions, mode, budget, allowed_tools, " +
-	"description, agents, outputs, sandbox"
+	"description, agents, receipts, outputs, sandbox"
 
 // decodeHint rewrites a yaml decode error for a user who has never seen the
 // Go structs behind the spec (INC-2 BB-me-3): strip internal type names, and
@@ -211,6 +217,11 @@ func (s *AgentSpec) validate(path string) error {
 
 	if s.MaxGenerationSteps < 0 {
 		return fail("max_generation_steps", "must be positive")
+	}
+	switch s.Receipts {
+	case "", "steer", "turn_end":
+	default:
+		return fail("receipts", fmt.Sprintf("unknown value %q (known: steer, turn_end)", s.Receipts))
 	}
 	switch s.Sandbox.Network {
 	case "", "all", "none":

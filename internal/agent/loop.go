@@ -732,8 +732,13 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 		}
 		// Finished background work settles at the loop's safe point (S6.1):
 		// their outcomes become user-role inputs before the next decision.
-		if err := l.drainBackground(appendE); err != nil {
-			return RunResult{}, abort(ds.s.Session.GenStep, err)
+		// receipts: "steer" (default) lands them mid-turn at this boundary;
+		// "turn_end" defers to the idle — the turn finishes undisturbed and
+		// the settlement wakes the next one (裁决 #15).
+		if l.Spec.Receipts != "turn_end" {
+			if err := l.drainBackground(appendE); err != nil {
+				return RunResult{}, abort(ds.s.Session.GenStep, err)
+			}
 		}
 		// Out-of-band kills (v2 M3.2): fire any requested handle cancels here,
 		// at a safe point; the cancelled child settles through bg.done as a

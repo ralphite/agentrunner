@@ -188,3 +188,65 @@ func TestBackgroundTaskSettlesBeforeQuiescence(t *testing.T) {
 		t.Errorf("WAITING_TASKS idle must be journaled: entered=%v resolved=%v", sawWaitEntered, sawWaitResolved)
 	}
 }
+
+// 裁决 #15: receipts 是 agent 配置层的投递模式。默认 steer——早到的
+// 后台结果在 turn 内的安全边界即进对话;turn_end——推迟到 turn 收尾,
+// 由回执唤醒下一个 turn。断言锚在 journal 顺序:bg 终态 vs 该 turn 的
+// final generation。
+func TestReceiptsModeControlsSettlementTiming(t *testing.T) {
+	run := func(t *testing.T, receipts string) (bgSettleSeq, finalGenSeq int64) {
+		t.Helper()
+		fix := scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{
+				{ToolCall: &scripted.ToolCallEvent{CallID: "bg1", Name: "bash",
+					Args: map[string]any{"command": "echo early-result", "background": true}}},
+				{ToolCall: &scripted.ToolCallEvent{CallID: "fg1", Name: "bash",
+					Args: map[string]any{"command": "sleep 0.5; echo slow-foreground"}}},
+				{Finish: "tool_use"},
+			}},
+			{Respond: []scripted.Event{{Text: "turn over"}, {Finish: "end_turn"}}},
+			{
+				Expect:  scripted.Expect{LastMessageContains: "early-result"},
+				Respond: []scripted.Event{{Text: "saw it"}, {Finish: "end_turn"}},
+			},
+		}}
+		l := testLoop(t, fix, t.TempDir())
+		l.Spec.Receipts = receipts
+		if _, err := l.Run(context.Background(), "race the receipt"); err != nil {
+			t.Fatal(err)
+		}
+		events, err := store.ReadEvents(l.Store.Dir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, e := range events {
+			switch e.Type {
+			case event.TypeActivityCompleted:
+				if strings.Contains(string(e.Payload), "early-result") && bgSettleSeq == 0 {
+					bgSettleSeq = e.Seq
+				}
+			case event.TypeAssistantMessage:
+				if strings.Contains(string(e.Payload), "turn over") {
+					finalGenSeq = e.Seq
+				}
+			}
+		}
+		if bgSettleSeq == 0 || finalGenSeq == 0 {
+			t.Fatalf("missing anchors: settle=%d final=%d", bgSettleSeq, finalGenSeq)
+		}
+		return bgSettleSeq, finalGenSeq
+	}
+
+	t.Run("steer lands mid-turn", func(t *testing.T) {
+		settle, final := run(t, "")
+		if settle > final {
+			t.Fatalf("steer: settle seq %d after final generation %d — receipt missed the in-turn boundary", settle, final)
+		}
+	})
+	t.Run("turn_end defers to the idle", func(t *testing.T) {
+		settle, final := run(t, "turn_end")
+		if settle < final {
+			t.Fatalf("turn_end: settle seq %d before final generation %d — receipt interrupted the turn", settle, final)
+		}
+	})
+}
