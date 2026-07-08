@@ -226,12 +226,15 @@ func runAgent(opts runOptions) int {
 
 	fmt.Fprintf(opts.stderr, "run %s: %d turns, %d in / %d out tokens\n",
 		result.Reason, result.GenSteps, result.Usage.InputTokens, result.Usage.OutputTokens)
-	if result.Reason != "completed" {
-		// max_generation_steps 等强制停止不算成功完成（review 修订：脚本/CI 不应
-		// 把卡死的 agent 当成功）。
+	switch result.Reason {
+	case "completed", "handoff":
+		// handoff 是一次正常的控制权移交（子 agent 已 completed），与 completed
+		// 同属成功终止。只有 max_generation_steps 等强制停止才算失败（review 修订：
+		// 脚本/CI 不应把卡死的 agent 当成功，也不应把成功的 handoff 当失败）。
+		return ExitOK
+	default:
 		return ExitRun
 	}
-	return ExitOK
 }
 
 // signalContext maps terminal signals onto run semantics: the FIRST
