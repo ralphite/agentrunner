@@ -64,9 +64,9 @@ name: dev
 model: { provider: gemini, id: gemini-flash-latest, max_tokens: 4096 }
 system_prompt: |
   你是一个严谨的编码助手。严格按用户指令行动；用户要求启动子 agent 时,
-  用 spawn_agent 工具、数量与分工严格照做；要求取消时用 task_kill。
+  用 spawn_agent 工具、数量与分工严格照做；要求取消时用 kill。
 # write_file 自 M4.3 起可用；此前的场景去掉它即可运行
-tools: [read_file, write_file, edit_file, bash, spawn_agent, task_kill]
+tools: [read_file, write_file, edit_file, bash, spawn_agent, kill]
 agents: [worker]
 permissions:
   - { action: allow }        # QA 聚焦 runtime 行为；权限场景另有专项
@@ -100,7 +100,7 @@ tools: [read_file, bash]
 | 5 | `ar send $sid "把你前两个回答合并成三句话总结"` | 新 turn；总结内容同时涉及前两轮 → 上下文连续的客观证据 |
 
 **通过标准**：journal 里恰好 3 条 `user_message` 输入、≥3 个 turn、
-**0 个会话终态事件**；步骤 5 的回答包含前两轮各自的要素——脚本用
+**0 个 `session_closed` 标记**；步骤 5 的回答包含前两轮各自的要素——脚本用
 钉入的暗号词（步骤 2/3 各埋一个，最终回答必须同时复述）把"要素"
 变成客观断言（收口 F.3 起 FAIL 级）。
 **清理**：`ar close $sid && ws.sh cleanup ws1`
@@ -161,8 +161,8 @@ FAIL 闸（§0.1）。
 | # | 动作 | 验证 |
 |---|---|---|
 | 1 | `ar send $sid "启动 2 个子 agent：A=逐文件详细分析 render 目录，B=逐文件详细分析 binding 目录"`（任务刻意重，保证跑得久） | 2 条 ChildSpawned；父待命 |
-| 2 | 两子在飞时：`ar send $sid "B 不用查了，取消它；改起一个新的 C 调查 gin 的路由树实现"` | 消息进 inbox；父下一 turn：`task_kill(B)` + `spawn_agent(C)` |
-| 3 | 观察 B 的子 journal | 有取消终态（部分产出留存）；B 向父投了 `child_result{canceled}` |
+| 2 | 两子在飞时：`ar send $sid "B 不用查了，取消它；改起一个新的 C 调查 gin 的路由树实现"` | 消息进 inbox；父下一 turn：`kill(B)` + `spawn_agent(C)` |
+| 3 | 观察 B 的子 journal | 有取消收尾与 `killed` 标记（部分产出留存）；B 向父投了 `child_result{canceled}` |
 | 4 | `ar ps $sid` | B 消失，A 与 C 在列 |
 | 5 | 等 A、C 完成 | 父汇总只含 A 与 C 的结论，并提到 B 被取消 |
 | 6 | 变体（用户直接杀）：重复步骤 1，然后 `ar kill $sid <handleA>` | 不经模型，A 直接取消；父下个 turn 看到 canceled 回执 |
@@ -172,7 +172,7 @@ FAIL 闸（§0.1）。
 completed、部分产出 best-effort（WARN 级）、另一子不受影响、会话
 续跑;直杀有持久起源 InputReceived{source:control}。**模型杀路径**
 （步骤 1–5,C6）由 scripted 孪生 TestSteerChangesOrchestration 确定
-性背书 + QA-09 真实 API 断言 task_kill 调用;两路径共用同一 cancel
+性背书 + QA-09 真实 API 断言 kill 调用;两路径共用同一 cancel
 注册表（代码层同一原语）。
 
 ## QA-06 interrupt 与消息分立 `覆盖 C8`
@@ -211,7 +211,7 @@ completed、部分产出 best-effort（WARN 级）、另一子不受影响、会
 | a2 | `ar send $sid "接着刚才的话题，再补充一点"` | **续聊无缝**：回答衔接崩溃前内容 |
 | b1 | `ar send $sid "跑 ./qa_slow.sh"`；bash 在飞时 `kill -9` runtime → 重启 | in-doubt 处置：bash 不静默重跑，渲染 interrupted-by-crash 类结果 |
 | b2 | `ar send $sid "刚才的命令什么状态？"` | agent 基于 journal 事实回答；会话继续 |
-| c1 | 起 2 个子 agent（QA-04 步骤 1 的缩减版）；子在飞时 `kill -9` → 重启 | 子 session 有独立 journal：已终态的 settle 回执补投父 inbox；未终态的恢复或按策略结算 |
+| c1 | 起 2 个子 agent（QA-04 步骤 1 的缩减版）；子在飞时 `kill -9` → 重启 | 子 session 有独立 journal：已静止的 settle 回执补投父 inbox；未静止的恢复或按策略结算 |
 | c2 | 观察后续 | 父最终收到每个子的回执（完成/取消/崩溃结算），无孤儿进程（`pgrep` 空）|
 
 **通过标准**：三态各自恢复后**同一会话都能继续对话**；无输入丢失

@@ -341,3 +341,52 @@ fresh-run 教义对 goal 形态不适用;goal 的 context 必须延续。fresh-r
   与 attach 同一语义,订阅不改结果(§15 不变量零触碰)。
 - 预存环境性测试失败(unix socket 路径超长,/var/folders 长随机段
   下 bind/dial invalid argument)与本增量无关,已另立任务修测试基建。
+
+## 2026-07-08 REVIEW-001 落码完成(D2–D4:静止模型/词汇清理/新能力)
+
+D1(2026-07-06 文档先行)之后,全部裁决落到代码,四个提交
+(REVIEW-001.D2/D3a/D3b/D4a/D4c),每步 check.sh 全绿:
+
+- **D2 静止模型核心手术**:Loop.Conversational 与 task 形态删除
+  (decide 单一路径;"静止后 drive 返回还是继续待命"由 UserInputs 接线
+  事实决定,非 session 属性);TaskCompleted 事件与 state.Terminal 删除,
+  静止=journal 形状(新 `state.Quiescence`,driver 结算/crash 恢复/
+  acceptance 校验/观察面共用);静止动作 = auto_publish→barrier(可重复),
+  父回执由 launcher 从 drive 返回值投递;可见截断家族
+  LimitExceeded{tokens|generation_steps|malformed_tool_call} +
+  AssistantMessage.Finish=blocked,统一 step 异常处理(裁决 #5 消解),
+  截断只被"截断后到达的输入"重启(每次唤醒一次尝试,TruncatedMsgCount
+  精确判定);close/kill = SessionClosed{reason, source: user|parent}
+  标记,kill 来源经 context cause(errs.KilledError)传递,自动路径查
+  标记、显式 send 永远放行;待命处 interrupt = no-op(裁决 #11);恢复
+  单一自愈(InDoubtError 仅剩 hooks 半跑窗口)。sub_state "session"
+  版本 bump 2,旧 journal 按决策 #18 作废。
+- **D3a 阻塞 spawn 删除**:spawn_agent 一律非阻塞(background 参数
+  删除);handoff 保留同步执行(控制移交语义);同步可判定的 spawn
+  失败立即以 error result 配对。scripted fixture YAML 支持 routes
+  (G4 基建 YAML 化),并发子场景按请求形态路由,s5 acceptance 三场景
+  改写。
+- **D3b task 词汇全删**:工具 task_kill/task_output → kill/output;
+  载荷 task_id → handle;fold Tasks → Handles;BarrierTask →
+  BarrierHandle;对话前缀 [background task] → [background work]。
+- **D4a 换 agent(决策 #32)**:SpecChanged 事件(新 spec + 重冻结
+  prefix 块 + permission layers)+ `ar agent` 命令;daemon `agent`
+  命令释放 hosted loop(per-run cancel);resume/revival 装配取最新
+  SpecChanged。用户切换免确认。G8 真关闭。
+- **D4c receipts 投递模式(裁决 #15)**:spec 字段 receipts:
+  steer(默认)/turn_end,agent 配置层,不做 per-launch。
+- **裁决一.2 子提权**:冻结交集使"超父"结构上不可能(比政策更强);
+  提权申请通道无表达面、无 journey 压需求——政策条款入 DESIGN,
+  通道 🧊 记档(自顶向下:无需求不设计)。
+- **附带修复**:TestBashCancelLeavesNoSessionOrphans 跨平台化
+  (pgrep 唯一时长,macOS 无 /proc,预存失败清偿);daemon socket
+  测试路径超长为预存环境问题(TMPDIR 短路径下全绿,测试基建任务
+  另立跟踪)。
+
+**行为语义变化记档**(均 opt-in 于新语义,旧 journal 作废):
+- final generation 时在飞后台工作不再被默认 cancel——session 待命等
+  settle,善终后才静止(原 on_run_end: cancel|await 与 await_timeout
+  spec 字段删除);
+- 后台 spawn 预留期间父自身 LLM 可能被预算闸截断——可见截断 + 回执
+  settle 后自然重试,树预算语义的正确后果;
+- blocked/malformed 不再终结 session:可见截断 + 待命,send 可再试。

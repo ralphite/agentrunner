@@ -28,7 +28,7 @@ export GEMINI_API_KEY=...           # 或 ANTHROPIC_API_KEY(见 spec 的 model.p
 ./ar send <session> "make it about snow"
 #   → 同一会话继续,回复直接显示(session 用 id 的唯一前缀即可)
 ./ar attach <session>           # 回放全部历史并跟随直播(Ctrl-C 退出观看,会话不受影响)
-./ar close <session>            # 结束会话
+./ar close <session>            # 打 close 标记(send 随时可续聊)
 ```
 
 ## 常用命令
@@ -37,12 +37,13 @@ export GEMINI_API_KEY=...           # 或 ANTHROPIC_API_KEY(见 spec 的 model.p
 |---|---|
 | `ar help` | 分组的完整命令帮助 |
 | `ar init [path]` | 生成示例 spec(拒绝覆盖已有文件) |
-| `ar run <spec> "task"` | 前台一次性运行 |
+| `ar run <spec> "message"` | 开会话+发消息+等静止+读结果的便捷命令 |
 | `ar new / send / attach / close` | 对话会话(需 daemon) |
 | `ar sessions` | 列出会话与状态 |
 | `ar inspect <session>` | 会话事实:状态、轮次、token 用量 |
 | `ar approve <session> <id> approve\|deny` | 回答权限请求 |
 | `ar resume <session>` | 恢复被中断的会话 |
+| `ar agent <session> <spec>` | 会话内换 agent(免确认,下次 send 生效) |
 
 `new`/`send` 默认等到回复打印完才退出;加 `--detach` 可立即返回
 (分别只输出 session id / `delivered`),之后用 `attach` 看结果。

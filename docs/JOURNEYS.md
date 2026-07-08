@@ -200,7 +200,7 @@ GAPS.md，本文件只回答"产品要做什么"。
 2. **并行**启动 3 个后台子 agent（各有独立预算与收窄的权限），主 agent 自己继续读源码。
 3. 子 agent 进度对用户可见；复现子 agent 率先返回结论，作为消息回灌主 agent。
 4. 用户 steer："依赖那路别查了，直接看 v2.3 迁移文档。"
-5. 主 agent `task_kill` 依赖子 agent（部分产出留存），新起迁移文档子 agent。
+5. 主 agent `kill` 依赖子 agent（部分产出留存），新起迁移文档子 agent。
 6. 全部返回后主 agent 汇总，结论发布为 artifact；树上共享的 blackboard 留有各路笔记。
 7. 树级预算约束整队总花费；子 agent 永远不能越过父的权限边界。
 
@@ -237,12 +237,12 @@ GAPS.md，本文件只回答"产品要做什么"。
 3. 机器断电重启，daemon 被 OS 拉起后做**启动扫描**：枚举 store 里的
    session，有未完成工作的（在飞 turn、WAITING_TASKS、驱动系列中段、
    到期 timer）自动 resume 接续；空闲待命的保持惰性，等用户说话。
-4. 重启前用户已 `kill` 的子 agent、已 `close` 的会话：终态在 journal，
+4. 重启前用户已 `kill` 的子 agent、已 `close` 的会话：标记在 journal，
    扫描跳过，**永不**被自动复活——kill 与 crash 是两种语义。
 5. 用户回来查时间线：哪次 crash、恢复点在哪、什么被自动接续、什么因
    显式终止而未动——全程可审计。
 
-**覆盖功能**：`子 session 崩溃自动恢复(restart=resume)` `失败升级策略(retry/surface)` `重启接续扫描(boot sweep)` `kill/crash 语义分野(终态不可越过)` `crash resume` `全程审计`
+**覆盖功能**：`子 session 崩溃自动恢复(restart=resume)` `失败升级策略(retry/surface)` `重启接续扫描(boot sweep)` `kill/crash 语义分野(自动路径不越标记)` `crash resume` `全程审计`
 
 ### UJ-22 会话内目标（goal 挂在当前会话） `进阶`
 **场景**：聊着聊着升级成"必须做到"——目标不离开正在进行的对话。
@@ -293,7 +293,7 @@ GAPS.md，本文件只回答"产品要做什么"。
 **执行与工具**
 - 文件读/写/编辑 — UJ-01/02/04/05/06…
 - bash 前台（测试/构建闭环）— UJ-02/05/06
-- bash 后台任务 + task_output/kill — UJ-18（后台形态）
+- bash 后台工作 + output/kill — UJ-18（后台形态）
 - 并行工具调用 — UJ-18（隐含）
 - 失败自纠 / 重试 — UJ-02/12
 - 空 workspace 生成 — UJ-05
@@ -317,7 +317,7 @@ GAPS.md，本文件只回答"产品要做什么"。
 - crash resume — UJ-21（显式；隐含于全部长任务）
 - 子 session 崩溃自动恢复（restart=resume）— UJ-21
 - 重启接续扫描（boot sweep）— UJ-21
-- kill/crash 语义分野（终态不可越过）— UJ-21
+- kill/crash 语义分野（自动路径不越标记）— UJ-21
 
 **多 agent**
 - 后台并行子 agent — UJ-18
