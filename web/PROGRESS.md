@@ -58,6 +58,34 @@
 - [x] README 快速上手走查(按文档从零起服务);已知问题清单
 - 真验:上述场景一次成(允许按 QA §0.1 重跑一次);全 milestone 勾满。
 
+## M6 父子交互面(用户新需求 2026-07-07:实时看父子交互)
+- [x] 子 agent 审批上卷实时闭环:SSE approval_request(仅此通道有,
+      父 journal 无子审批事件)→ 实时审批卡,标注请求方(agent 名 +
+      子会话全 id);批准/拒绝+理由经父 sid 路由回子;与父自身审批
+      的 journal 卡按 approval id 去重
+- [ ] 子 agent 实时时间线(内部 turn/工具/消息)——**产品缺口**,
+      见提案 P1;驾驶舱侧就绪后跟进渲染
+- [ ] 父/用户向在飞子 agent 发第二条消息——**产品缺口**,见提案 P2
+- 真验:worker spec 带 `{tool: bash, action: ask}`;网页指挥 spawn →
+  审批卡实时弹出 → 批准路径(子执行 echo 回灌父)+ 拒绝路径(理由
+  逐级穿透:用户→子→父转述)各走一次。
+
+## 产品增量提案(动 internal/,须按 docs/PROCESS.md 走三层 delta,待用户拍板)
+
+- **P1 子会话观察面**:①`childLoop` 接 Out sink(tee 到父的 hub
+  sink,`protocol.Event.Session` 填 childSession——该字段本就为多路
+  复用预留),attach 一个父即得全树实时流;②`ar events`/`ar attach`
+  支持 child_session 全 id 寻址(解析 `-sub-` 映射到 `<parent>/sub/`
+  目录)。驾驶舱即可渲染嵌套子时间线(数据结构已预留)。
+  现状佐证:子事件不进流(spawn.go childLoop 无 Out)、inspect 树只
+  收录已 settle 的子(inspect.go 走 SubagentCompleted)、events/attach
+  的 resolveSessionDir 不达 sub/。
+- **P2 父→子第二条消息**:子 run 是一次性 task(无 inbox/mailbox),
+  当前只有 task 一条输入 + kill 两种交互。增量:给 spawn 子挂
+  UserInputs(复用 conversational 的 mailbox 语义)+ 投递面(用户侧
+  `ar send <child-id>`;可选父模型侧新工具 `send_to_agent(handle,
+  text)`)。动运行时核心语义(waiting/边界/恢复),需完整走增量流程。
+
 ---
 
 ## 已知问题(web/ 之外的发现,按铁律不在此修)
@@ -75,6 +103,7 @@
 
 | 日期 | 轮次 | 动作 | 真验结果 |
 |---|---|---|---|
+| 2026-07-07 | 6 | M6 子审批上卷实时闭环(SSE approval_request 渲染 + approvalCard 双通道去重 + 本地固化);产品增量 P1/P2 提案成文 | 真 Gemini 父子会话(worker bash=ask):子跑 bash 触发 ask 上卷→驾驶舱**实时**弹审批卡(请求方: worker + 子会话全 id + args);批准→子执行→CHILD_NEEDS_OK 回灌父;拒绝(理由"用户不允许这条命令")→子收到 denied+理由→汇报父→父转述用户,四级穿透;两路径审批卡各自正确固化(已批准(你)/已拒绝(你): 理由) |
 | 2026-07-07 | 5 | M5 压轴收官:QA-09 式场景全程网页操作,一次成(会话 20260708-000600-ready-1151,168 事件) | 图(CI 截图内容穿透进子任务书)+恰好 3 子并行(spawn 卡×3、在飞面板×3);先回先处理(A 无工具最先回→父第 4 轮消化并确认 A 推理正确:Go 版本过低;B 第 5 轮);"杀C换D"消息忙时排队(排队中→边界落账);kill C(journal `[kill call_2_2]` control)→spawn D→四路总汇总表(A 成功/B_OK/C 已取消未重启/D_OK);pkill -9 daemon→3s 自愈→续聊答"A"(崩溃前历史完整);write_file 落 SUMMARY.md(文件内容与会话结论一致,四行结局;journal write_file@159);全程 4 spawn/4 settle。README 从零走查:build→serve(daemonUp)→index 200 ✓。全部 milestone 勾满,loop 收官 |
 | 2026-07-07 | 4 | M4 真验(代码在前几轮已就位+自愈是本轮新增) | ①流式:JS 探针客观捕获——send 后 6.15s state.typingEl 出现且带增量文本(SSE text_delta);此前 M2 已两次目击 streaming 气泡截图 ②崩溃恢复:pkill -9 arbin daemon→3s 内 auto-respawn(arweb 日志"managed daemon died; auto-respawned")→同会话网页续聊,暗号"紫葡萄"正确复述(QA-08a 式);红点+「重启 daemon」按钮此前两次真实目击,API /daemon/start 真验 started ③hash 直达/自动滚动/状态 pill(idle 绿/run 黄/appr 紫/closed 灰)全程在用 |
 | 2026-07-07 | 3 | M3 真验 + 三个健壮性修复:hashchange 监听(同页 hash 导航原先不切会话)、daemon 守护自愈(托管 daemon 被外杀 1s 内自动重启,3 次/分钟节流)、测试环境 binary 改名 arbin 避开并行 session 的 pkill 误伤 | ①spawn:网页指挥起恰好 2 子,在飞面板 2 行+kill 按钮;网页杀 A→journal `[kill call_10_0]` source=control→activity_cancelled+subagent_completed(canceled);B 自然完成回灌;父第 12 轮激活消化;模型自作主张重启 A(模型行为,再杀+叫停后正确汇总"A 被取消,B 汇报 B_DONE")②审批:ask 权限 spec,审批卡带全 gate 徽章(permission:ask rule 1: tool=bash→ask)+args;拒绝(理由达模型:denied: 测试拒绝路径)→批准→bash 执行→APPROVAL_TEST ③图片:upload API+chip+send --image,build-error.png 三要素全对(command.go/1234/EnableTraverseRunHooks2);journal ref-not-bytes(单行 372B,sha256 CAS ref) |
