@@ -97,7 +97,7 @@ func helpText() string {
 Quick start:
   agentrunner init                        write a commented example spec.yaml
   agentrunner run spec.yaml "your task"   one-shot run, output streams here
-  agentrunner daemon &                    start the runtime that hosts conversations
+  agentrunner daemon --detach             start the runtime that hosts conversations
   agentrunner new spec.yaml "hello"       start a conversation, print the reply
   agentrunner send <session> "and this?"  continue it (unique id prefix is enough)
 
@@ -106,7 +106,7 @@ One-shot runs (no daemon needed):
   drive <driver.yaml>         run an iteration-driver series (plan/verify loop)
 
 Conversations (need the daemon):
-  daemon                      start the resident runtime (foreground; use & to background)
+  daemon [--detach]           start the resident runtime (--detach backgrounds it, surviving this terminal)
   new <spec.yaml> "msg"       start a session, print the reply, leave it running
   send <session> "msg"        send a message and print the reply (--image attaches files)
   attach <session>            replay the whole conversation, then follow live (Ctrl-C detaches;

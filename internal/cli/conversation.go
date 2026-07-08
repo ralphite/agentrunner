@@ -286,7 +286,7 @@ func stuckHint(stderr io.Writer, sessionArg string) {
 // one (INC-2 BB-me-7): the daemon is a prerequisite of new/send/attach that
 // nothing else surfaces.
 func daemonDialErr(stderr io.Writer, err error) {
-	fmt.Fprintf(stderr, "agentrunner: %v\n  (no daemon running? start one with: agentrunner daemon &)\n", err)
+	fmt.Fprintf(stderr, "agentrunner: %v\n  (no daemon running? start one with: agentrunner daemon --detach)\n", err)
 }
 
 // resolvePrefixLenient resolves a session prefix to a full id when possible;
