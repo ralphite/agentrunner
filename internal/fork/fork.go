@@ -110,6 +110,18 @@ func Cut(opts Options) ([]string, error) {
 		return nil, err
 	}
 
+	// The fork inherits the parent's consumed-input high-water mark (the copied
+	// input_received events carry their delivery seqs) but its mailbox file
+	// starts empty. Seed it so the fork's first `send` numbers ABOVE the mark —
+	// otherwise delivery_seq restarts at 1, the dedup treats it as already
+	// consumed, and the fork silently swallows every message (C4). A fresh fork
+	// resumes as a conversation and MUST accept input.
+	if folded, ferr := state.Fold(lines); ferr == nil {
+		if err := store.SeedInboxWatermark(opts.NewDir, folded.Session.ConsumedInputSeq); err != nil {
+			return nil, fmt.Errorf("fork: seed mailbox watermark: %w", err)
+		}
+	}
+
 	// Child journals and the artifact CAS travel with the cut: copied
 	// conversation references child results and artifact refs, and the
 	// barrier vector's sub/ streams must stay readable from the fork.

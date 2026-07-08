@@ -35,3 +35,31 @@ func TestInboxAppendRead(t *testing.T) {
 		t.Fatal("high-water filter leaked consumed entries")
 	}
 }
+
+// A fork inherits a consumed-input high-water mark but an empty inbox file;
+// the seed advances lastInboxSeq so the next real delivery numbers ABOVE the
+// mark, or the dedup would drop it as already-consumed and swallow every
+// message the fork receives (C4).
+func TestSeedInboxWatermark(t *testing.T) {
+	dir := t.TempDir()
+	if err := SeedInboxWatermark(dir, 3); err != nil {
+		t.Fatal(err)
+	}
+	// Inert on replay: nothing at or below the mark is returned.
+	if pending, _ := ReadInbox(dir, 3); len(pending) != 0 {
+		t.Fatalf("seed must not replay, got %+v", pending)
+	}
+	// The next real delivery lands ABOVE the mark (4, not 1).
+	in, err := AppendInbox(dir, protocol.UserInput{Text: "post-fork"})
+	if err != nil || in.DeliverySeq != 4 {
+		t.Fatalf("append after seed = %+v, %v; want seq 4", in, err)
+	}
+	// A zero/negative mark is a no-op — an un-forked session numbers from 1.
+	dir2 := t.TempDir()
+	if err := SeedInboxWatermark(dir2, 0); err != nil {
+		t.Fatal(err)
+	}
+	if first, _ := AppendInbox(dir2, protocol.UserInput{Text: "x"}); first.DeliverySeq != 1 {
+		t.Fatalf("zero seed must be a no-op, got seq %d", first.DeliverySeq)
+	}
+}
