@@ -218,7 +218,8 @@ func killCmd(args []string, stdout, stderr io.Writer) int {
 
 // interruptCmd delivers an out-of-band interrupt to a live session (v2
 // M2.3): `agentrunner interrupt <session-id-or-prefix>` — steers a running
-// turn or closes an idle one; it is NOT a message.
+// turn; at idle it is a no-op (裁决 #11: interrupt never ends a session,
+// close is its own command). It is NOT a message.
 func interruptCmd(args []string, stdout, stderr io.Writer) int {
 	if len(args) != 1 {
 		fmt.Fprintln(stderr, "usage: agentrunner interrupt <session-id-or-prefix>")

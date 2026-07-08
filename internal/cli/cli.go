@@ -112,7 +112,7 @@ Conversations (need the daemon):
   attach <session>            replay the whole conversation, then follow live (Ctrl-C detaches;
                               the session keeps running)
   close <session>             end a session gracefully
-  interrupt <session>         interrupt the current turn (at idle: closes the session)
+  interrupt <session>         interrupt the current turn (a no-op at idle; close is separate)
 
 Background work (daemon):
   submit <spec.yaml> "task"   hand a one-shot run to the daemon, stream until it ends
