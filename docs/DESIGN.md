@@ -897,6 +897,11 @@ limits:
   的 `EffectResolved`（为什么放行/拦下）、子 agent 树
   （correlation/causation）、token/cost（含 cache 命中）消耗。
   `ps` 从 fold 列出在飞任务（handle/工具/spawn 目标），纯 journal 读。
+- 子会话寻址（INC-1）：`<parent>-sub-<call>-a<n>` 按 `-sub-` 分段映射
+  `sessions/<parent>/sub/<call>-a<n>[/sub/…]`，任意深度；events/
+  --state/inspect/ps/attach-replay 共用此解析，对**在飞**子 run 同样
+  生效（journal 边写边读）。分段无歧义由 CallID 铸造格式
+  （`call_%d_%d`）保证。sessions list 仍只列树根。
 
 ---
 

@@ -295,3 +295,18 @@ fresh-run 教义对 goal 形态不适用;goal 的 context 必须延续。fresh-r
   恢复单一自愈、阻塞 spawn 删除(零 legacy)、待命处 interrupt=no-op。
 - D1 本条:DESIGN §1/§2/§6/§12/§13/§18 + 决策表成文;SPEC 行改写;
   GAPS G8/G24 关闭。后续 D2-D5:核心手术/词汇清理/新能力/QA 复跑。
+
+## 2026-07-07 INC-1 子会话寻址(观察面树形完备)
+
+- 需求:驾驶舱用户需要"link to open subagent session"——在飞子 run
+  的内部过程此前在观察面上完全不可寻址(resolveSessionDir 只扫顶层,
+  inspect 树只收录已 settle 的子)。
+- 落地:resolveSessionDir 支持 child_session 全 id(`-sub-` 分段映射
+  `sub/` 目录,任意深度);events/--state/inspect/ps/attach-replay 全部
+  自动生效。scripted:TestResolveChildSessionDir / TestEventsChildSession。
+  工作纸 INC-1 归档。
+- 记档:internal/tool 的 TestBashCancelLeavesNoSessionOrphans 在本增量
+  之前的 main(4974932)上已 FAIL(D 系手术中间态,沙箱内外皆挂),
+  与本增量无关,留待 D 系收口。
+- 后续增量(已在 web/PROGRESS.md 提案区):P1② 子事件进 attach 流
+  (childLoop 接 Out sink);P2 父/用户→在飞子的第二条消息(子 inbox)。

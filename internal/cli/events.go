@@ -96,12 +96,26 @@ func compactPayload(raw json.RawMessage, max int) string {
 }
 
 // resolveSessionDir maps a session id or unique prefix to its directory.
+// A CHILD session (INC-1) is addressed by its FULL id: every "-sub-"
+// segment maps to a "/sub/" path step under the parent's directory —
+// `<parent>-sub-<call>-a<n>` → `sessions/<parent>/sub/<call>-a<n>`,
+// nesting recursively for grandchildren. The split is unambiguous because
+// call ids are harness-minted (`call_%d_%d`, provider.CallID) and never
+// contain "-sub-". Child ids get no prefix matching: spawn/settle events
+// carry the full id verbatim, so it is always at hand.
 func resolveSessionDir(idOrPrefix string) (string, error) {
 	data, err := runtime.DataDir()
 	if err != nil {
 		return "", err
 	}
 	root := filepath.Join(data, "sessions")
+	if strings.Contains(idOrPrefix, "-sub-") {
+		dir := filepath.Join(root, strings.ReplaceAll(idOrPrefix, "-sub-", "/sub/"))
+		if st, serr := os.Stat(dir); serr != nil || !st.IsDir() {
+			return "", fmt.Errorf("no child session %q", idOrPrefix)
+		}
+		return dir, nil
+	}
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		return "", fmt.Errorf("no sessions found (%v)", err)

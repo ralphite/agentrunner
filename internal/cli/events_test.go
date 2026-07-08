@@ -46,6 +46,69 @@ func seedSessionIn(t *testing.T, id string) {
 	}
 }
 
+// seedChildSession writes a child journal under <parent>/sub/<leaf> and
+// returns the child's addressable full id (INC-1).
+func seedChildSession(t *testing.T, parentID, leaf string) string {
+	t.Helper()
+	sess := filepath.Join(mustDataDir(t), "sessions", parentID, "sub", leaf)
+	s, err := store.OpenEventStore(sess)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = s.Close() }()
+	env, err := event.New(event.TypeSessionStarted,
+		&event.SessionStarted{SpecName: "worker", Model: "m", Task: "child task", Version: "dev"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Append(env); err != nil {
+		t.Fatal(err)
+	}
+	return parentID + "-sub-" + leaf
+}
+
+func TestResolveChildSessionDir(t *testing.T) {
+	seedSession(t, "20260708-010101-parent-aaaa")
+	childID := seedChildSession(t, "20260708-010101-parent-aaaa", "call_2_0-a1")
+
+	dir, err := resolveSessionDir(childID)
+	if err != nil {
+		t.Fatalf("child resolve: %v", err)
+	}
+	want := filepath.Join(mustDataDir(t), "sessions", "20260708-010101-parent-aaaa", "sub", "call_2_0-a1")
+	if dir != want {
+		t.Fatalf("dir = %q, want %q", dir, want)
+	}
+
+	// Grandchild nesting: each -sub- segment steps one directory deeper.
+	grandID := seedChildSession(t, "20260708-010101-parent-aaaa/sub/call_2_0-a1", "call_1_0-a1")
+	_ = grandID // the addressable id is built from segments, not the seed path
+	gdir, err := resolveSessionDir(childID + "-sub-call_1_0-a1")
+	if err != nil {
+		t.Fatalf("grandchild resolve: %v", err)
+	}
+	if !strings.HasSuffix(gdir, filepath.Join("sub", "call_2_0-a1", "sub", "call_1_0-a1")) {
+		t.Fatalf("grandchild dir = %q", gdir)
+	}
+
+	if _, err := resolveSessionDir("20260708-010101-parent-aaaa-sub-call_9_9-a1"); err == nil {
+		t.Fatal("missing child must not resolve")
+	}
+}
+
+func TestEventsChildSession(t *testing.T) {
+	seedSession(t, "20260708-020202-parent-bbbb")
+	childID := seedChildSession(t, "20260708-020202-parent-bbbb", "call_3_1-a1")
+
+	var out, errOut bytes.Buffer
+	if code := Run([]string{"events", childID}, "dev", &out, &errOut); code != ExitOK {
+		t.Fatalf("exit = %d, stderr = %s", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), `"spec_name":"worker"`) {
+		t.Errorf("child journal not rendered:\n%s", out.String())
+	}
+}
+
 func mustDataDir(t *testing.T) string {
 	t.Helper()
 	dir, err := runtime.DataDir()

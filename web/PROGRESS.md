@@ -63,8 +63,10 @@
       父 journal 无子审批事件)→ 实时审批卡,标注请求方(agent 名 +
       子会话全 id);批准/拒绝+理由经父 sid 路由回子;与父自身审批
       的 journal 卡按 approval id 去重
-- [ ] 子 agent 实时时间线(内部 turn/工具/消息)——**产品缺口**,
-      见提案 P1;驾驶舱侧就绪后跟进渲染
+- [x] 子会话链接 + 实时时间线(INC-1 子会话寻址落地:spawn/settle
+      卡带"打开子会话 ↗",子页只读模式 + "← 父会话"导航;1s 轮询
+      即实时——在飞子的 bash 运行中卡实测可见,完成后同页自动更新)
+- [ ] 子事件进 attach 流(打字级流式装饰)——产品缺口,提案 P1②
 - [ ] 父/用户向在飞子 agent 发第二条消息——**产品缺口**,见提案 P2
 - 真验:worker spec 带 `{tool: bash, action: ask}`;网页指挥 spawn →
   审批卡实时弹出 → 批准路径(子执行 echo 回灌父)+ 拒绝路径(理由
@@ -72,14 +74,11 @@
 
 ## 产品增量提案(动 internal/,须按 docs/PROCESS.md 走三层 delta,待用户拍板)
 
-- **P1 子会话观察面**:①`childLoop` 接 Out sink(tee 到父的 hub
-  sink,`protocol.Event.Session` 填 childSession——该字段本就为多路
-  复用预留),attach 一个父即得全树实时流;②`ar events`/`ar attach`
-  支持 child_session 全 id 寻址(解析 `-sub-` 映射到 `<parent>/sub/`
-  目录)。驾驶舱即可渲染嵌套子时间线(数据结构已预留)。
-  现状佐证:子事件不进流(spawn.go childLoop 无 Out)、inspect 树只
-  收录已 settle 的子(inspect.go 走 SubagentCompleted)、events/attach
-  的 resolveSessionDir 不达 sub/。
+- **P1 子会话观察面**:②寻址部分 **已落地为 INC-1**(2026-07-07,
+  见 docs/archive/increments/INC-1;events/--state/inspect/ps/
+  attach-replay 对子会话全 id 生效)。余项 ①`childLoop` 接 Out sink
+  (tee 到父的 hub sink,`protocol.Event.Session` 填 childSession),
+  attach 一个父即得全树实时流——打字级流式装饰用,轮询已覆盖功能面。
 - **P2 父→子第二条消息**:子 run 是一次性 task(无 inbox/mailbox),
   当前只有 task 一条输入 + kill 两种交互。增量:给 spawn 子挂
   UserInputs(复用 conversational 的 mailbox 语义)+ 投递面(用户侧
@@ -103,6 +102,7 @@
 
 | 日期 | 轮次 | 动作 | 真验结果 |
 |---|---|---|---|
+| 2026-07-08 | 7 | INC-1 子会话寻址(产品增量,按 PROCESS.md 全流程:工作纸→实现→三层收口→归档):resolveSessionDir 支持 -sub- 分段映射;web 链接化 + 子页只读模式 | CLI:`ar events <child全id>` 在子在飞时输出其 journal(实抓 seq1-8),ps/inspect/--state 同工;scripted ×2(含孙级嵌套);Chrome:spawn/settle 卡"打开子会话 ↗"→子页(← 父会话导航、只读、无 SSE)→在飞 bash"运行中"卡实拍→45s 后同页自动更新为完成+LIVE_OK+任务完成 chip。记档:internal/tool TestBashCancelLeavesNoSessionOrphans 在 main(4974932)pre-existing FAIL(D 系手术中间态),与本增量无关 |
 | 2026-07-07 | 6 | M6 子审批上卷实时闭环(SSE approval_request 渲染 + approvalCard 双通道去重 + 本地固化);产品增量 P1/P2 提案成文 | 真 Gemini 父子会话(worker bash=ask):子跑 bash 触发 ask 上卷→驾驶舱**实时**弹审批卡(请求方: worker + 子会话全 id + args);批准→子执行→CHILD_NEEDS_OK 回灌父;拒绝(理由"用户不允许这条命令")→子收到 denied+理由→汇报父→父转述用户,四级穿透;两路径审批卡各自正确固化(已批准(你)/已拒绝(你): 理由) |
 | 2026-07-07 | 5 | M5 压轴收官:QA-09 式场景全程网页操作,一次成(会话 20260708-000600-ready-1151,168 事件) | 图(CI 截图内容穿透进子任务书)+恰好 3 子并行(spawn 卡×3、在飞面板×3);先回先处理(A 无工具最先回→父第 4 轮消化并确认 A 推理正确:Go 版本过低;B 第 5 轮);"杀C换D"消息忙时排队(排队中→边界落账);kill C(journal `[kill call_2_2]` control)→spawn D→四路总汇总表(A 成功/B_OK/C 已取消未重启/D_OK);pkill -9 daemon→3s 自愈→续聊答"A"(崩溃前历史完整);write_file 落 SUMMARY.md(文件内容与会话结论一致,四行结局;journal write_file@159);全程 4 spawn/4 settle。README 从零走查:build→serve(daemonUp)→index 200 ✓。全部 milestone 勾满,loop 收官 |
 | 2026-07-07 | 4 | M4 真验(代码在前几轮已就位+自愈是本轮新增) | ①流式:JS 探针客观捕获——send 后 6.15s state.typingEl 出现且带增量文本(SSE text_delta);此前 M2 已两次目击 streaming 气泡截图 ②崩溃恢复:pkill -9 arbin daemon→3s 内 auto-respawn(arweb 日志"managed daemon died; auto-respawned")→同会话网页续聊,暗号"紫葡萄"正确复述(QA-08a 式);红点+「重启 daemon」按钮此前两次真实目击,API /daemon/start 真验 started ③hash 直达/自动滚动/状态 pill(idle 绿/run 黄/appr 紫/closed 灰)全程在用 |

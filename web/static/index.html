@@ -98,6 +98,7 @@
   <aside id="sesslist"></aside>
   <main>
     <div id="sesshead" style="display:none">
+      <a id="shUp" style="display:none">← 父会话</a>
       <span class="id" id="shId"></span>
       <span class="pill" id="shPill">—</span>
       <span style="flex:1"></span>
@@ -196,6 +197,18 @@ function sysline(seq, type, extra) {
   append(el("div", "sys", `#${seq} ${type}${extra ? " " + extra : ""}`));
 }
 function chip(text, cls) { append(el("div", "chip " + (cls || ""), text)); }
+
+// childChip renders a spawn/settle chip with a link into the child session
+// (INC-1: child ids are addressable, the timeline is browsable live).
+function childChip(text, childSession, cls) {
+  const c = el("div", "chip " + (cls || ""), text + " ");
+  if (childSession) {
+    const a = el("a", "", "打开子会话 ↗");
+    a.href = "#" + childSession;
+    c.appendChild(a);
+  }
+  append(c);
+}
 
 function bubble(role, text, tags) {
   const row = el("div", "row " + role);
@@ -299,10 +312,11 @@ function render(env) {
     break;
   }
   case "spawn_requested":
-    chip(`⬇ 子 agent ${p.agent} · ${short(p.child_session)} · ${p.task ? p.task.slice(0, 80) : ""}`);
+    childChip(`⬇ 子 agent ${p.agent} · ${p.task ? p.task.slice(0, 80) : ""}`, p.child_session, "");
     break;
   case "subagent_completed":
-    chip(`⬆ 子完成 ${p.agent} · ${p.reason} · ${p.usage ? (p.usage.input_tokens + p.usage.output_tokens) + " tok" : ""}`, p.reason === "completed" ? "" : "warn");
+    childChip(`⬆ 子完成 ${p.agent} · ${p.reason} · ${p.usage ? (p.usage.input_tokens + p.usage.output_tokens) + " tok" : ""}`,
+      p.child_session, p.reason === "completed" ? "" : "warn");
     break;
   case "approval_requested": renderApproval(env); break;
   case "approval_responded": {
@@ -347,6 +361,16 @@ function approvalCard(id, toolName, argsStr, agentName) {
   card.appendChild(head);
   if (argsStr) card.appendChild(el("pre", "", pretty(argsStr)));
   const act = el("div", "act");
+  if (state.sid.includes("-sub-")) {
+    // The broker registers asks under the ROOT session — answer from the
+    // parent view; here the card is informational.
+    act.appendChild(el("span", "badge", "请在父会话中审批"));
+    card.appendChild(act);
+    card.act = act; card.head = head;
+    state.approvals[id] = card;
+    append(card);
+    return card;
+  }
   const reason = document.createElement("input"); reason.placeholder = "理由(可选)";
   const ok = el("button", "primary", "批准"), no = el("button", "danger", "拒绝");
   ok.onclick = () => decide("approve"); no.onclick = () => decide("deny");
@@ -405,15 +429,23 @@ async function openSession(id) {
   location.hash = id;
   tl.innerHTML = "";
   Object.assign(state, { cursor: 0, toolCards: {}, callArgs: {}, approvals: {}, pending: [], typingEl: null, lastGen: 0 });
+  // A child session (INC-1) is a read-only view: no inbox, no interrupt/
+  // close, no live stream — its journal still grows while in flight, so
+  // the 1s poll IS the realtime view. Everything else works unchanged.
+  const isSub = id.includes("-sub-");
   $("sesshead").style.display = "flex";
-  $("composer").style.display = "block";
+  $("composer").style.display = isSub ? "none" : "block";
+  $("btnInterrupt").style.display = $("btnClose").style.display = isSub ? "none" : "";
+  const up = $("shUp");
+  up.style.display = isSub ? "" : "none";
+  if (isSub) up.href = "#" + id.slice(0, id.lastIndexOf("-sub-"));
   $("shId").textContent = id;
   setStatus("载入中…", "");
   document.querySelectorAll("#sesslist .sess").forEach(n => n.classList.toggle("cur", n.dataset.id === id));
   await pollEvents();
   state.evTimer = setInterval(pollEvents, 1000);
   state.psTimer = setInterval(pollPS, 2500);
-  openStream(id);
+  if (!isSub) openStream(id);
 }
 function closeSession() {
   clearInterval(state.evTimer); clearInterval(state.psTimer);
@@ -441,16 +473,21 @@ async function pollPS() {
     box.innerHTML = "";
     if (tasks.length) {
       box.appendChild(el("div", "muted", `在飞任务 ×${tasks.length}`));
+      const isSub = state.sid.includes("-sub-");
       tasks.forEach(t => {
         const row = el("div", "task");
         row.appendChild(el("span", "", `${t.handle}  ${t.tool}  ${t.detail || ""}`));
-        const kill = el("button", "danger", "kill");
-        kill.onclick = async () => {
-          kill.disabled = true;
-          try { await post(`/sessions/${state.sid}/kill`, { handle: t.handle }); }
-          catch (e) { toast(e.message); kill.disabled = false; }
-        };
-        row.appendChild(kill);
+        // Child-session view is read-only: the daemon routes kill by TOP
+        // session id, so grandchild tasks are killed from the root.
+        if (!isSub) {
+          const kill = el("button", "danger", "kill");
+          kill.onclick = async () => {
+            kill.disabled = true;
+            try { await post(`/sessions/${state.sid}/kill`, { handle: t.handle }); }
+            catch (e) { toast(e.message); kill.disabled = false; }
+          };
+          row.appendChild(kill);
+        }
         box.appendChild(row);
       });
     }

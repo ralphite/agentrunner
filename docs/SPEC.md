@@ -135,7 +135,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 
 | 功能点 | 状态 | Journey | 验收锚 / 备注 |
 |---|---|---|---|
-| events / inspect（时间线、判定、子树、用量） | ✅ | UJ-17 | S3/S6 |
+| events / inspect（时间线、判定、子树、用量） | ✅ | UJ-17 | S3/S6;子会话寻址(child_session 全 id,`-sub-` 分段映射 `sub/` 目录,任意深度)INC-1 |
 | `ar ps`（fold 的在飞任务列表，无 daemon 可用） | ✅ | UJ-18 | QA-05/09 实测 |
 | attach/detach（journal 补读 + live 订阅） | ✅ | UJ-17 | S6 |
 | 远程审批（daemon approve） | ✅ | UJ-17 | S6 |
