@@ -306,12 +306,10 @@ function render(env) {
     break;
   case "approval_requested": renderApproval(env); break;
   case "approval_responded": {
-    const a = state.approvals[p.approval_id];
-    if (a) {
-      a.act.innerHTML = "";
-      a.act.appendChild(el("span", "badge " + (p.decision === "approve" ? "ok" : "err"),
-        (p.decision === "approve" ? "已批准" : "已拒绝") + (p.reason ? ": " + p.reason : "") + ` (${p.source || ""})`));
-      delete state.approvals[p.approval_id];
+    if (state.approvals[p.approval_id]) {
+      settleApproval(p.approval_id,
+        (p.decision === "approve" ? "已批准" : "已拒绝") + (p.reason ? ": " + p.reason : "") + ` (${p.source || ""})`,
+        p.decision === "approve");
     } else sysline(env.seq, env.type, p.decision);
     break;
   }
@@ -335,17 +333,19 @@ function render(env) {
   }
 }
 
-function renderApproval(env) {
-  const p = env.payload;
+// approvalCard renders one ask exactly once, whatever channel saw it first.
+// A PARENT ask arrives twice (SSE approval_request + journal
+// approval_requested); a CHILD ask arrives ONLY via SSE — child loops have
+// no Out sink, but their approvals bubble through the shared broker with
+// the requesting agent's name (上卷). Dedup by approval id.
+function approvalCard(id, toolName, argsStr, agentName) {
+  if (state.approvals[id]) return state.approvals[id];
   const card = el("div", "card approval");
   const head = el("div", "head");
-  const known = state.callArgs[p.call_id];
-  head.appendChild(el("span", "", "⚖ 审批 " + (known ? known.name : (p.call_id || p.approval_id))));
+  head.appendChild(el("span", "", "⚖ 审批 " + (toolName || id)));
+  if (agentName) head.appendChild(el("span", "badge", "请求方: " + agentName));
   card.appendChild(head);
-  if (known && known.args) card.appendChild(el("pre", "", pretty(known.args)));
-  (p.gate_results || []).forEach(g => {
-    head.appendChild(el("span", "badge", `${g.gate}:${g.decision}${g.reason ? " " + g.reason : ""}`));
-  });
+  if (argsStr) card.appendChild(el("pre", "", pretty(argsStr)));
   const act = el("div", "act");
   const reason = document.createElement("input"); reason.placeholder = "理由(可选)";
   const ok = el("button", "primary", "批准"), no = el("button", "danger", "拒绝");
@@ -353,12 +353,41 @@ function renderApproval(env) {
   act.append(ok, no, reason); card.appendChild(act);
   async function decide(d) {
     ok.disabled = no.disabled = true;
-    try { await post(`/sessions/${state.sid}/approve`, { approvalId: p.approval_id, decision: d, reason: reason.value }); }
-    catch (e) { toast(e.message); ok.disabled = no.disabled = false; }
+    try {
+      await post(`/sessions/${state.sid}/approve`, { approvalId: id, decision: d, reason: reason.value });
+      // A child's ask never gets a journal approval_responded in THIS
+      // session's log — settle the card locally on ack.
+      settleApproval(id, d === "approve" ? "已批准(你)" : "已拒绝(你)" + (reason.value ? ": " + reason.value : ""), d === "approve");
+    } catch (e) { toast(e.message); ok.disabled = no.disabled = false; }
   }
   card.act = act;
-  state.approvals[p.approval_id] = card;
+  card.head = head;
+  state.approvals[id] = card;
   append(card);
+  return card;
+}
+
+function settleApproval(id, text, approved) {
+  const a = state.approvals[id];
+  if (!a || !a.act) return;
+  a.act.innerHTML = "";
+  a.act.appendChild(el("span", "badge " + (approved ? "ok" : "err"), text));
+  delete state.approvals[id];
+}
+
+function renderApproval(env) {
+  const p = env.payload;
+  const known = state.callArgs[p.call_id];
+  const card = approvalCard(p.approval_id,
+    known ? known.name : (p.call_id || p.approval_id),
+    known && known.args ? known.args : "", null);
+  // gate verdicts ride only the journal event — attach them when it lands
+  if (card.head && !card._gated) {
+    card._gated = true;
+    (p.gate_results || []).forEach(g => {
+      card.head.appendChild(el("span", "badge", `${g.gate}:${g.decision}${g.reason ? " " + g.reason : ""}`));
+    });
+  }
 }
 
 function setStatus(text, cls) {
@@ -442,6 +471,11 @@ function openStream(id) {
       if (nearBottom) tl.scrollTop = tl.scrollHeight;
     }
     if (e.kind === "discard" && state.typingEl) { state.typingEl.parentElement.remove(); state.typingEl = null; }
+    // Child asks exist ONLY on this stream (they never touch the parent
+    // journal): render live. e.text carries the requesting agent's name.
+    if (e.kind === "approval_request" && e.approval_id) {
+      approvalCard(e.approval_id, e.tool, e.args, e.text);
+    }
   };
   es.addEventListener("end", () => es.close());
 }

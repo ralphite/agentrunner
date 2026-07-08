@@ -111,6 +111,14 @@ ar CLI ── unix socket ──> ar daemon(会话宿主)
 悬摆审批 = journal 里 approval_requested 尚无同 id 的
 approval_responded → 审批卡保持可操作。
 
+**子 agent 审批上卷(2026-07-07)**:子 loop 无 Out sink,但共享父的
+approvals resolver——子的 ask 以 SSE `approval_request` 事件出现在
+**父的 attach 流**(`text` 字段 = 请求方 agent 名 + 子会话 id),且
+**不落父 journal**。因此审批卡是双通道去重渲染(approvalCard,按
+approval id):父自身的 ask 走 journal(带 gate 徽章)+ SSE;子的 ask
+只走 SSE,应答后本地固化。approve 一律 POST 到父 sid(broker 按
+approval id 路由)。
+
 ## 6. 安全注意
 
 - exec 一律直接 argv,无 shell 展开;sid、handle、approval id 校验
