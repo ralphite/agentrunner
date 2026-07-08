@@ -831,6 +831,20 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 					if err != nil {
 						return nil, nil, false, err
 					}
+					// A TRUNCATED empty completion — no text, no tool calls, cut
+					// off at the token cap — is the Gemini defect: thoughts (or a
+					// tiny cap) ate the budget before any answer. Journaled as an
+					// assistant_message it would poison every later assembly
+					// (adapters reject part-less messages), so fail the attempt as
+					// transient — the retry re-runs the call. A CLEAN empty finish
+					// (the model chose to say nothing, end_turn) is legitimate and
+					// ends the turn normally (S4.6). The root fix is upstream: the
+					// provider disables default thinking so thoughts never starve
+					// the answer.
+					if len(collected.Message.Parts) == 0 && collected.Finish == provider.FinishMaxTokens {
+						return nil, nil, false, errs.New(errs.ProviderServer,
+							"model returned an empty message (truncated at token cap, no text or tool calls)")
+					}
 					turn = collected
 					usage := collected.Usage
 					return nil, &usage, false, nil

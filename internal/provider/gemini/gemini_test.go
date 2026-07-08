@@ -100,6 +100,37 @@ func TestToConfigTools(t *testing.T) {
 	}
 }
 
+// Flash thinks by default and thought tokens eat MaxOutputTokens; with no
+// thinking requested we must turn it OFF (budget 0) so the whole cap goes to
+// the answer — the root-cause fix for the empty-message session-death bug.
+func TestToConfigDisablesDefaultThinking(t *testing.T) {
+	flash, err := toConfig(provider.CompleteRequest{Model: "gemini-flash-latest", MaxTokens: 2048})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if flash.ThinkingConfig == nil || flash.ThinkingConfig.ThinkingBudget == nil || *flash.ThinkingConfig.ThinkingBudget != 0 {
+		t.Errorf("flash without thinking must force budget 0, got %+v", flash.ThinkingConfig)
+	}
+	// Pro cannot fully disable thinking (min budget 128) — leave its config alone.
+	pro, err := toConfig(provider.CompleteRequest{Model: "gemini-2.5-pro", MaxTokens: 2048})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pro.ThinkingConfig != nil {
+		t.Errorf("pro must not get a forced budget, got %+v", pro.ThinkingConfig)
+	}
+	// Requested thinking is honored with thought summaries and the given budget.
+	on, err := toConfig(provider.CompleteRequest{Model: "gemini-flash-latest", MaxTokens: 2048,
+		Thinking: provider.ThinkingConfig{Enabled: true, BudgetTokens: 500}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if on.ThinkingConfig == nil || !on.ThinkingConfig.IncludeThoughts ||
+		on.ThinkingConfig.ThinkingBudget == nil || *on.ThinkingConfig.ThinkingBudget != 500 {
+		t.Errorf("requested thinking must be honored, got %+v", on.ThinkingConfig)
+	}
+}
+
 func TestStreamStateMapping(t *testing.T) {
 	st := newStreamState(2)
 	resp := &genai.GenerateContentResponse{

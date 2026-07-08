@@ -106,6 +106,13 @@ func assembleMessages(s state.State) []provider.Message {
 		msgs = msgs[b:]
 	}
 	for _, m := range msgs {
+		// A part-less message carries nothing and no adapter can encode it.
+		// Journals written before the loop guarded against empty completions
+		// (2026-07 Gemini defect) may hold one — dropping it here is what
+		// keeps those sessions revivable.
+		if len(m.Parts) == 0 {
+			continue
+		}
 		out = append(out, m)
 		if m.Role != provider.RoleAssistant {
 			continue

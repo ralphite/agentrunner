@@ -50,6 +50,32 @@ func TestAssembleOrderAndFace(t *testing.T) {
 	}
 }
 
+// A journal poisoned by a pre-fix empty completion (assistant_message with
+// zero parts) must still assemble: the empty message is dropped from the
+// wire view, so the session stays revivable.
+func TestAssembleDropsEmptyMessages(t *testing.T) {
+	s := state.New()
+	var err error
+	for _, e := range []event.Envelope{
+		mustEnvOf(t, event.TypeInputReceived, &event.InputReceived{Text: "hi", Source: "cli"}),
+		mustEnvOf(t, event.TypeAssistantMessage, &event.AssistantMessage{
+			GenStep: 1, Message: provider.Message{Role: provider.RoleAssistant}}),
+	} {
+		if s, err = state.Apply(s, e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	msgs := Assemble(s, assemblySpec(), nil, 2).Messages
+	if len(msgs) != 1 {
+		t.Fatalf("messages = %d, want just the user message", len(msgs))
+	}
+	for _, m := range msgs {
+		if len(m.Parts) == 0 {
+			t.Errorf("part-less message reached the wire view: %+v", m)
+		}
+	}
+}
+
 // A resolved tool call becomes a tool message right after its assistant
 // message, keyed by call_id.
 func TestAssembleToolResults(t *testing.T) {
