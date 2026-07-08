@@ -192,6 +192,18 @@ func toConfig(req provider.CompleteRequest) (*genai.GenerateContentConfig, error
 			tc.ThinkingBudget = &budget
 		}
 		config.ThinkingConfig = tc
+	} else if !strings.Contains(strings.ToLower(req.Model), "pro") {
+		// Thinking NOT requested → turn it OFF explicitly. 2.5-era models
+		// (gemini-flash-latest included) think BY DEFAULT, and thought tokens
+		// count against MaxOutputTokens. With a modest cap the thoughts can
+		// consume the whole budget, so the completion arrives with no text and
+		// no tool calls — the empty-message defect that wedges/kills sessions
+		// (root cause behind the 2026-07 会话死亡 bug). A zero budget disables
+		// thinking so the full cap goes to the answer. Pro cannot fully disable
+		// thinking (min budget 128), so we leave it to the model there; callers
+		// who want thoughts set Thinking.Enabled.
+		var zero int32
+		config.ThinkingConfig = &genai.ThinkingConfig{ThinkingBudget: &zero}
 	}
 	if req.System != "" {
 		config.SystemInstruction = &genai.Content{
