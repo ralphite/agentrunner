@@ -243,5 +243,21 @@ func CollectTurnStreaming(stream iter.Seq2[StreamEvent, error], onDelta func(str
 			Extras:   tc.Extras,
 		})
 	}
+	// A generation step that produced ONLY dropped parts (e.g. a pure
+	// thought-signature part with no visible text) must never yield a
+	// zero-part assistant message: that message poisons history, and on the
+	// next request providers reject "assistant has no parts" (retryable:false)
+	// and the session dies with no recovery path. Synthesize a neutral
+	// placeholder so the assembled message is always shape-valid. Provider-
+	// agnostic — covers every provider's stream mapping.
+	if len(turn.Message.Parts) == 0 {
+		turn.Message.Parts = append(turn.Message.Parts,
+			Part{Kind: PartText, Text: EmptyGenerationPlaceholder})
+	}
 	return turn, nil
 }
+
+// EmptyGenerationPlaceholder stands in for a generation step whose visible
+// output was empty (all thought / dropped parts). It keeps the assistant
+// message shape-valid so it can never poison conversation history.
+const EmptyGenerationPlaceholder = "(no visible output)"

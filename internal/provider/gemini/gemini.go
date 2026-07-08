@@ -235,9 +235,6 @@ func toContents(msgs []provider.Message) ([]*genai.Content, error) {
 }
 
 func toContent(msg provider.Message) (*genai.Content, error) {
-	if len(msg.Parts) == 0 {
-		return nil, fmt.Errorf("gemini: message with role %q has no parts", msg.Role)
-	}
 	content := &genai.Content{}
 	switch msg.Role {
 	case provider.RoleUser, provider.RoleTool:
@@ -246,6 +243,15 @@ func toContent(msg provider.Message) (*genai.Content, error) {
 		content.Role = genai.RoleModel
 	default:
 		return nil, fmt.Errorf("gemini: unsupported message role %q", msg.Role)
+	}
+
+	// Defense in depth (C1): a message with no parts — a legacy/poisoned
+	// journal from before the write-side guard — must NOT 400 the whole
+	// request and kill the session. Substitute a placeholder so any existing
+	// bad journal becomes replayable.
+	if len(msg.Parts) == 0 {
+		content.Parts = append(content.Parts, &genai.Part{Text: provider.EmptyGenerationPlaceholder})
+		return content, nil
 	}
 
 	for _, p := range msg.Parts {

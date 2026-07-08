@@ -155,7 +155,6 @@ func TestToContentErrors(t *testing.T) {
 		name string
 		msg  provider.Message
 	}{
-		{"no parts", provider.Message{Role: provider.RoleUser}},
 		{"unknown role", provider.Message{Role: "narrator",
 			Parts: []provider.Part{{Kind: provider.PartText, Text: "x"}}}},
 		{"unknown part kind", provider.Message{Role: provider.RoleUser,
@@ -167,6 +166,23 @@ func TestToContentErrors(t *testing.T) {
 				t.Errorf("expected error for %s", tc.name)
 			}
 		})
+	}
+}
+
+// A message with no parts must NOT error (audit 2026-07-07 C1, request-side
+// defense in depth): a legacy/poisoned journal from before the write-side
+// guard must stay replayable, so toContent substitutes a placeholder part
+// instead of 400-ing the whole request and killing the session.
+func TestToContentEmptyPartsSynthesizesPlaceholder(t *testing.T) {
+	content, err := toContent(provider.Message{Role: provider.RoleAssistant})
+	if err != nil {
+		t.Fatalf("toContent(no parts) = %v, want no error", err)
+	}
+	if content.Role != genai.RoleModel {
+		t.Errorf("role = %q, want %q", content.Role, genai.RoleModel)
+	}
+	if len(content.Parts) != 1 || content.Parts[0].Text != provider.EmptyGenerationPlaceholder {
+		t.Fatalf("parts = %+v, want single placeholder %q", content.Parts, provider.EmptyGenerationPlaceholder)
 	}
 }
 
