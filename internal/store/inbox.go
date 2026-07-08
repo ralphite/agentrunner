@@ -56,6 +56,40 @@ func AppendInbox(sessionDir string, in protocol.UserInput) (protocol.UserInput, 
 	return in, f.Close()
 }
 
+// SeedInboxWatermark writes one inert mailbox entry at seq so a fresh mailbox
+// numbers its next real delivery ABOVE seq. A fork's journal inherits the
+// parent's consumed-input high-water mark (the copied input_received events
+// carry their delivery seqs), but its inbox FILE starts empty — without this
+// seed the next send reuses delivery_seq 1, which the dedup drops as
+// already-consumed, and the fork silently swallows every message (C4). The
+// seed is never replayed: ReadInbox returns only seq > ConsumedInputSeq, and
+// the seed's seq equals it. It exists solely to advance lastInboxSeq.
+func SeedInboxWatermark(sessionDir string, seq int64) error {
+	if seq <= 0 {
+		return nil
+	}
+	inboxMu.Lock()
+	defer inboxMu.Unlock()
+	line, err := json.Marshal(protocol.UserInput{DeliverySeq: seq})
+	if err != nil {
+		return err
+	}
+	f, err := os.OpenFile(filepath.Join(sessionDir, inboxFile),
+		os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(append(line, '\n')); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		return err
+	}
+	return f.Close()
+}
+
 // ReadInbox returns every persisted delivery with seq > after, in order.
 // A missing mailbox is an empty one.
 func ReadInbox(sessionDir string, after int64) ([]protocol.UserInput, error) {
