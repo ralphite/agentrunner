@@ -102,14 +102,14 @@ func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 			}
 			return daemon.ReplayJournal(dir, sink)
 		},
-		ScanTimers:   scanSessionTimers,
-		Resume:       hostResumeFunc(version, stderr, broker),
-		PersistInput: persistInputFunc(),
-		SessionShape: sessionShape,
-		Drive:        hostDriveFunc(version, stderr, broker),
-		Approvals:    broker,
-		IdemPath:     filepath.Join(filepath.Dir(sock), "idem.json"),
-		Notify:       notifyTee,
+		ScanTimers:    scanSessionTimers,
+		Resume:        hostResumeFunc(version, stderr, broker),
+		PersistInput:  persistInputFunc(),
+		SessionMarked: sessionMarked,
+		Drive:         hostDriveFunc(version, stderr, broker),
+		Approvals:     broker,
+		IdemPath:      filepath.Join(filepath.Dir(sock), "idem.json"),
+		Notify:        notifyTee,
 	}
 	reconcileNotifications(notifier)
 	fmt.Fprintf(stderr, "daemon on %s\n", sock)
@@ -307,25 +307,24 @@ func hostRunFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker
 			return err
 		}
 		loop := &agent.Loop{
-			Spec:           spec,
-			Provider:       prov,
-			Exec:           &tool.Executor{WS: ws, Session: req.SessionID},
-			Store:          events,
-			Clock:          clock.Real{},
-			Out:            sink,
-			SessionID:      req.SessionID,
-			Version:        version,
-			Pipeline:       pipe,
-			Mode:           mode,
-			Hooks:          hooks,
-			Approvals:      socketApprovals{broker: broker, session: req.SessionID, sink: sink},
-			SubSpecs:       siblingSpecResolver(req.SpecPath),
-			SpecPath:       req.SpecPath,
-			Snapshots:      snapshotStoreFor(ws, stderr),
-			Conversational: req.Conversational,
-			UserInputs:     req.Inbox,
-			Interrupts:     req.Interrupts,
-			Cancels:        req.Cancels,
+			Spec:       spec,
+			Provider:   prov,
+			Exec:       &tool.Executor{WS: ws, Session: req.SessionID},
+			Store:      events,
+			Clock:      clock.Real{},
+			Out:        sink,
+			SessionID:  req.SessionID,
+			Version:    version,
+			Pipeline:   pipe,
+			Mode:       mode,
+			Hooks:      hooks,
+			Approvals:  socketApprovals{broker: broker, session: req.SessionID, sink: sink},
+			SubSpecs:   siblingSpecResolver(req.SpecPath),
+			SpecPath:   req.SpecPath,
+			Snapshots:  snapshotStoreFor(ws, stderr),
+			UserInputs: req.Inbox,
+			Interrupts: req.Interrupts,
+			Cancels:    req.Cancels,
 			// Blackboard publishes mirror onto the attach stream (S6 模块⑤
 			// 回访): watchers see the tree's collaboration live; the board
 			// stays the read-back truth.
@@ -353,36 +352,30 @@ func persistInputFunc() func(string, protocol.UserInput) (protocol.UserInput, er
 	}
 }
 
-// sessionShape reports a session's journaled shape for honest revival:
-// conversational comes from SessionStarted, terminal from the fold. 决策
-// #30: an explicit send reopens a conversational session EVEN when closed
-// (the intent record gates automatic paths only); only task-form sessions
-// still refuse a send-revival (explicit-reopen semantics for task form is
-// a recorded TODO).
-func sessionShape(sessionID string) (conversational, terminal bool, err error) {
+// sessionMarked reports whether a session's journal carries a close/kill
+// mark (决策 #30): automatic revival paths check it; explicit sends never
+// ask.
+func sessionMarked(sessionID string) (bool, error) {
 	dir, err := resolveSessionDir(sessionID)
 	if err != nil {
-		return false, false, err
-	}
-	started, err := readSessionStarted(dir)
-	if err != nil {
-		return false, false, err
+		return false, err
 	}
 	events, err := store.ReadEvents(dir)
 	if err != nil {
-		return false, false, err
+		return false, err
 	}
 	s, err := state.Fold(events)
 	if err != nil {
-		return false, false, err
+		return false, err
 	}
-	return started.Conversational, state.Terminal(s.Session.Status), nil
+	return s.Session.Closed != nil, nil
 }
 
 // scanSessionTimers derives the pending-timer index from the session
-// journals (timer 派生索引): every non-ended session with pending timers
-// reports its earliest fire time. Unreadable or unfoldable sessions are
-// skipped — the sweep must not die on one corrupt log.
+// journals (timer 派生索引): every unmarked session with pending timers
+// reports its earliest fire time (a close/kill mark gates this automatic
+// path, 决策 #30). Unreadable or unfoldable sessions are skipped — the
+// sweep must not die on one corrupt log.
 func scanSessionTimers() ([]daemon.SessionTimer, error) {
 	data, err := runtime.DataDir()
 	if err != nil {
@@ -406,7 +399,7 @@ func scanSessionTimers() ([]daemon.SessionTimer, error) {
 			continue
 		}
 		s, err := state.Fold(events)
-		if err != nil || state.Terminal(s.Session.Status) || len(s.Timers) == 0 {
+		if err != nil || s.Session.Closed != nil || len(s.Timers) == 0 {
 			continue
 		}
 		var earliest time.Time
@@ -484,15 +477,12 @@ func hostResumeFunc(version string, stderr io.Writer, broker *daemon.ApprovalBro
 			Snapshots: snapshotStoreFor(ws, stderr),
 			SpecPath:  started.SpecPath,
 		}
-		// A conversational session revives as a conversation (v2 M5.1):
-		// the journal is the truth of its shape, the daemon just supplies
-		// the channels.
-		if started.Conversational {
-			loop.Conversational = true
-			loop.UserInputs = req.Inbox
-			loop.Interrupts = req.Interrupts
-			loop.Cancels = req.Cancels
-		}
+		// Every revived session gets the live channels (决策 #31: only one
+		// session shape) — it accepts send/interrupt/kill like a freshly
+		// hosted one.
+		loop.UserInputs = req.Inbox
+		loop.Interrupts = req.Interrupts
+		loop.Cancels = req.Cancels
 		if started.SpecPath != "" {
 			loop.SubSpecs = siblingSpecResolver(started.SpecPath)
 		}

@@ -54,7 +54,7 @@ func TestDaemonConversationalSendClose(t *testing.T) {
 	ws := t.TempDir()
 	// Open a conversational session and detach after RunStart.
 	sid, err := dialUntilStart(sock, daemon.Command{
-		Cmd: "run", Conversational: true, SpecPath: specPath, Task: "first question", Workspace: ws,
+		Cmd: "run", SpecPath: specPath, Task: "first question", Workspace: ws,
 	})
 	if err != nil || sid == "" {
 		t.Fatalf("new: sid=%q err=%v\nstderr: %s", sid, err, errOut.String())

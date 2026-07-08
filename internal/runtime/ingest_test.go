@@ -95,14 +95,14 @@ func TestJournalInputsFirstSurvivesCrash(t *testing.T) {
 // Named-point injection fires for real (exit 137) in a subprocess.
 func TestNamedPointSubprocess(t *testing.T) {
 	if os.Getenv("GO_CRASH_HELPER") == "1" {
-		crash.Point(crash.PointBeforeTerminal)
+		crash.Point(crash.PointBeforeCloseMark)
 		fmt.Println("UNREACHABLE: point did not fire")
 		os.Exit(0)
 	}
 	cmd := exec.Command(os.Args[0], "-test.run=TestNamedPointSubprocess")
 	cmd.Env = append(os.Environ(),
 		"GO_CRASH_HELPER=1",
-		crash.EnvVar+"=point:"+crash.PointBeforeTerminal,
+		crash.EnvVar+"=point:"+crash.PointBeforeCloseMark,
 	)
 	out, err := cmd.CombinedOutput()
 	var ee *exec.ExitError

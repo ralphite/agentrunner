@@ -60,7 +60,7 @@ func TestConversationalCrashRendersInDoubtAndContinues(t *testing.T) {
 		typ     string
 		payload any
 	}{
-		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "t", Conversational: true,
+		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "t",
 			SubStateVersions: state.SubStateVersions()}},
 		{event.TypeInputReceived, &event.InputReceived{Text: "跑个慢命令", Source: "user"}},
 		{event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}},
@@ -83,13 +83,12 @@ func TestConversationalCrashRendersInDoubtAndContinues(t *testing.T) {
 		{Respond: []scripted.Event{{Text: "如上,它被打断了"}, {Finish: "end_turn"}}},
 	}})
 	l := &Loop{
-		Spec:           inDoubtSpec(),
-		Provider:       prov,
-		Exec:           &tool.Executor{WS: ws},
-		Store:          es2,
-		SessionID:      "crash-chat",
-		Conversational: true,
-		UserInputs:     inputs,
+		Spec:       inDoubtSpec(),
+		Provider:   prov,
+		Exec:       &tool.Executor{WS: ws},
+		Store:      es2,
+		SessionID:  "crash-chat",
+		UserInputs: inputs,
 	}
 	res, err := l.Resume(context.Background())
 	if err != nil {
@@ -127,7 +126,7 @@ func crashParentPrefix(t *testing.T, es *store.EventStore, callID string) {
 		typ     string
 		payload any
 	}{
-		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "lead", Conversational: true,
+		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "lead",
 			SubStateVersions: state.SubStateVersions()}},
 		{event.TypeInputReceived, &event.InputReceived{Text: "去调查", Source: "user"}},
 		{event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}},
@@ -161,13 +160,12 @@ func resumeCrashedParent(t *testing.T, sessDir, root string) (RunResult, []event
 		{Respond: []scripted.Event{{Text: "ack"}, {Finish: "end_turn"}}},
 	}})
 	l := &Loop{
-		Spec:           inDoubtSpec(),
-		Provider:       prov,
-		Exec:           &tool.Executor{WS: ws},
-		Store:          es2,
-		SessionID:      "p",
-		Conversational: true,
-		UserInputs:     inputs,
+		Spec:       inDoubtSpec(),
+		Provider:   prov,
+		Exec:       &tool.Executor{WS: ws},
+		Store:      es2,
+		SessionID:  "p",
+		UserInputs: inputs,
 	}
 	res, err := l.Resume(context.Background())
 	if err != nil {
@@ -311,7 +309,7 @@ func TestResumedIdleSeesPendingInput(t *testing.T) {
 		typ     string
 		payload any
 	}{
-		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "t", Conversational: true,
+		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "t",
 			SubStateVersions: state.SubStateVersions()}},
 		{event.TypeInputReceived, &event.InputReceived{Text: "问一", Source: "user"}},
 		{event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}},
@@ -340,7 +338,7 @@ func TestResumedIdleSeesPendingInput(t *testing.T) {
 				Respond: []scripted.Event{{Text: "答二"}, {Finish: "end_turn"}}},
 		}}),
 		Exec: &tool.Executor{WS: ws}, Store: es2, SessionID: "pend",
-		Conversational: true, UserInputs: inputs,
+		UserInputs: inputs,
 	}
 	res, err := l.Resume(context.Background())
 	if err != nil {
@@ -386,7 +384,7 @@ func TestMailboxReplayOnResume(t *testing.T) {
 		typ     string
 		payload any
 	}{
-		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "t", Conversational: true,
+		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "t",
 			SubStateVersions: state.SubStateVersions()}},
 		{event.TypeInputReceived, &event.InputReceived{Text: "问一", Source: "user", DeliverySeq: 1}},
 		{event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}},
@@ -426,7 +424,7 @@ func TestMailboxReplayOnResume(t *testing.T) {
 			{Respond: []scripted.Event{{Text: "ack"}, {Finish: "end_turn"}}},
 		}}),
 		Exec: &tool.Executor{WS: ws}, Store: es2, SessionID: "mbox",
-		Conversational: true, UserInputs: inputs,
+		UserInputs: inputs,
 	}
 	res, err := l.Resume(context.Background())
 	if err != nil {
@@ -483,7 +481,6 @@ func TestCrashSettleSpawnMalformedCallID(t *testing.T) {
 		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "decoy",
 			SubStateVersions: state.SubStateVersions()}},
 		{event.TypeInputReceived, &event.InputReceived{Text: "secret", Source: "cli"}},
-		{event.TypeTaskCompleted, &event.TaskCompleted{Reason: "completed", GenSteps: 1}},
 	})
 	_ = decoy.Close()
 

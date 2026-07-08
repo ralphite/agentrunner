@@ -205,9 +205,17 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 		}
 		if events, err := store.ReadEvents(filepath.Join(root, e.Name())); err == nil {
 			if s, err := state.Fold(events); err == nil {
+				// The status column reads the SHAPE (决策 #31): a close/kill
+				// mark or quiescence names the finish; a live wait shows its
+				// kind; otherwise the liveness status.
 				r.status = s.Session.Status
 				if s.Waiting != nil {
 					r.status = "waiting:" + s.Waiting.Kind
+				}
+				if s.Session.Closed != nil {
+					r.status = s.Session.Closed.Reason
+				} else if q, reason := state.Quiescence(s); q {
+					r.status = reason
 				}
 				r.turns = s.Session.GenStep
 			}

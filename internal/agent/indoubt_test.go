@@ -22,9 +22,10 @@ import (
 )
 
 // The 2.15 crash-matrix scenario: killed at after_exec_before_journal —
-// bash ran (marker line written) but no terminal event landed. Resume must
-// surface in-doubt and must NOT re-run the command.
-func TestInDoubtSurfacesAndDoesNotRerun(t *testing.T) {
+// bash ran (marker line written) but no terminal event landed. Resume
+// SELF-HEALS (决策 #29): the doubt renders as an interrupted-by-crash
+// error result, the session continues, and the command is NOT re-run.
+func TestInDoubtSelfHealsAndDoesNotRerun(t *testing.T) {
 	if os.Getenv("GO_CRASH_HELPER") == "1" {
 		helperInDoubtRun(t)
 		return
@@ -37,7 +38,7 @@ func TestInDoubtSurfacesAndDoesNotRerun(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := exec.Command(os.Args[0], "-test.run=TestInDoubtSurfacesAndDoesNotRerun")
+	cmd := exec.Command(os.Args[0], "-test.run=TestInDoubtSelfHealsAndDoesNotRerun")
 	cmd.Env = append(os.Environ(),
 		"GO_CRASH_HELPER=1",
 		"CRASH_SESS_DIR="+sessDir,
@@ -59,7 +60,8 @@ func TestInDoubtSurfacesAndDoesNotRerun(t *testing.T) {
 		t.Fatalf("marker lines = %d, want 1 (pre-crash effect)", got)
 	}
 
-	// Resume: refuses with the in-doubt activity named.
+	// Resume: self-heals — the doubt renders for the model and the session
+	// continues into a final generation.
 	es, err := store.OpenEventStore(sessDir)
 	if err != nil {
 		t.Fatal(err)
@@ -70,22 +72,30 @@ func TestInDoubtSurfacesAndDoesNotRerun(t *testing.T) {
 		t.Fatal(err)
 	}
 	l := &Loop{
-		Spec:      inDoubtSpec(),
-		Provider:  scripted.New(scripted.Fixture{}), // must never be called
+		Spec: inDoubtSpec(),
+		Provider: scripted.New(scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{{Text: "noted the crash"}, {Finish: "end_turn"}}},
+		}}),
 		Exec:      &tool.Executor{WS: ws},
 		Store:     es,
 		SessionID: "in-doubt",
 	}
-	_, err = l.Resume(context.Background())
-	var inDoubt *InDoubtError
-	if !errors.As(err, &inDoubt) {
-		t.Fatalf("err = %v, want InDoubtError", err)
+	res, err := l.Resume(context.Background())
+	if err != nil {
+		t.Fatalf("resume must self-heal, got %v", err)
 	}
-	if len(inDoubt.Activities) != 1 || inDoubt.Activities[0].Name != "bash" {
-		t.Fatalf("in-doubt = %+v", inDoubt.Activities)
+	if res.Reason != "completed" {
+		t.Fatalf("res = %+v", res)
 	}
-	if !strings.Contains(err.Error(), "refusing to re-run") {
-		t.Errorf("message = %q", err)
+	events, _ := store.ReadEvents(sessDir)
+	var healed bool
+	for _, e := range events {
+		if e.Type == event.TypeActivityFailed && strings.Contains(string(e.Payload), "interrupted by crash") {
+			healed = true
+		}
+	}
+	if !healed {
+		t.Error("in-doubt activity did not render as interrupted-by-crash")
 	}
 
 	// And it did NOT re-run.

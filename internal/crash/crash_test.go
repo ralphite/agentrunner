@@ -31,7 +31,7 @@ func TestRegistryPinsS2Points(t *testing.T) {
 		"after_exec_before_journal",
 		"after_journal_input",
 		"after_snapshot_write",
-		"before_run_end",
+		"before_close_mark",
 		"between_gate_and_resolved", // S3.2
 	}
 	if got := Points(); !reflect.DeepEqual(got, want) {
@@ -57,7 +57,7 @@ func TestAfterCountsToN(t *testing.T) {
 
 func TestPointFiresOnlyOnMatch(t *testing.T) {
 	fired := resetForTest(t, "point:after_journal_input")
-	Point(PointBeforeTerminal)
+	Point(PointBeforeCloseMark)
 	if *fired {
 		t.Fatal("wrong point fired")
 	}

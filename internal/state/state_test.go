@@ -44,8 +44,10 @@ func runEvents(t *testing.T) []event.Envelope {
 			CallID: "call_1_0", Attempt: 1}),
 		env(t, event.TypeActivityCompleted, &event.ActivityCompleted{
 			ActivityID: "tool-call_1_0", Result: json.RawMessage(`{"content":"pkg"}`)}),
-		env(t, event.TypeTaskCompleted, &event.TaskCompleted{Reason: "completed", GenSteps: 1,
-			Usage: *usage}),
+		env(t, event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 2}),
+		env(t, event.TypeAssistantMessage, &event.AssistantMessage{GenStep: 2,
+			Message: provider.Message{Role: provider.RoleAssistant,
+				Parts: []provider.Part{{Kind: provider.PartText, Text: "done"}}}}),
 	}
 	for i := range events {
 		events[i].Seq = int64(i + 1)
@@ -59,14 +61,14 @@ func TestFoldFullRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Session.Status != StatusCompleted || s.Session.Reason != "completed" || s.Session.GenStep != 1 {
-		t.Errorf("run = %+v", s.Session)
+	if quiescent, reason := Quiescence(s); !quiescent || reason != "completed" || s.Session.GenStep != 2 {
+		t.Errorf("run = %+v (quiescent=%v reason=%q)", s.Session, quiescent, reason)
 	}
 	if s.Session.Usage.InputTokens != 10 || s.Session.Usage.OutputTokens != 5 {
 		t.Errorf("usage = %+v", s.Session.Usage)
 	}
-	if len(s.Conversation.Messages) != 2 {
-		t.Fatalf("messages = %d, want user + assistant", len(s.Conversation.Messages))
+	if len(s.Conversation.Messages) != 3 {
+		t.Fatalf("messages = %d, want user + 2 assistants", len(s.Conversation.Messages))
 	}
 	tr, ok := s.Conversation.ToolResults["call_1_0"]
 	if !ok || tr.IsError || string(tr.Result) != `{"content":"pkg"}` {

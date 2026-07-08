@@ -197,12 +197,20 @@ func buildInspectReport(events []event.Envelope, s state.State) inspectReport {
 	}
 
 	// Pass 2: walk activity completions into per-turn timeline entries.
+	// Status/Reason are read off the SHAPE (决策 #31): a close/kill mark
+	// or quiescence names the finish; otherwise the liveness status shows.
+	status, reason := s.Session.Status, ""
+	if s.Session.Closed != nil {
+		status, reason = "marked", s.Session.Closed.Reason
+	} else if q, r := state.Quiescence(s); q {
+		status, reason = "quiescent", r
+	}
 	report := inspectReport{
 		Spec:     s.Session.SpecName,
 		Model:    s.Session.Model,
 		Mode:     s.CurrentMode(),
-		Status:   s.Session.Status,
-		Reason:   s.Session.Reason,
+		Status:   status,
+		Reason:   reason,
 		GenSteps: s.Session.GenStep,
 	}
 	// ActivityCompleted carries no name/call id — those live on the matching

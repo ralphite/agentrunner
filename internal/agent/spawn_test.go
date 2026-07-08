@@ -152,7 +152,7 @@ func TestSpawnEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if childFold.Session.Status != state.StatusCompleted || childFold.Session.SpecName != "summarizer" {
+	if q, _ := state.Quiescence(childFold); !q || childFold.Session.SpecName != "summarizer" {
 		t.Errorf("child fold = %+v", childFold.Session)
 	}
 

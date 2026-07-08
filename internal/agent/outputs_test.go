@@ -52,10 +52,12 @@ func TestOutputsAutoPublishFromWorkspaceFile(t *testing.T) {
 	if err != nil || !strings.Contains(string(content), "the findings") {
 		t.Fatalf("auto-published content = %q, %v", content, err)
 	}
-	// The fact precedes task_completed (the epilogue slot runs before the
-	// terminal event).
-	if last := events[len(events)-1]; last.Type != event.TypeTaskCompleted {
-		t.Errorf("last event = %s", last.Type)
+	// The publish is part of the quiescent actions; the journal folds to a
+	// quiescent shape (决策 #31: no terminal event exists).
+	if fold, ferr := state.Fold(events); ferr != nil {
+		t.Fatal(ferr)
+	} else if q, reason := state.Quiescence(fold); !q || reason != "completed" {
+		t.Errorf("quiescence = %v %q, want true completed", q, reason)
 	}
 }
 
@@ -114,10 +116,13 @@ func TestOutputsMissingRequiredViolatesContract(t *testing.T) {
 	if countKind(sink, "error") != 1 {
 		t.Errorf("expected one user-visible error")
 	}
+	// contract_violation is the RunResult's observer reason; the journal
+	// itself folds quiescent (决策 #31: no terminal fact).
 	events, _ := store.ReadEvents(l.Store.Dir())
-	last := events[len(events)-1]
-	if last.Type != event.TypeTaskCompleted || !strings.Contains(string(last.Payload), "contract_violation") {
-		t.Errorf("last = %s %s", last.Type, last.Payload)
+	if fold, ferr := state.Fold(events); ferr != nil {
+		t.Fatal(ferr)
+	} else if q, _ := state.Quiescence(fold); !q {
+		t.Errorf("journal not quiescent after contract violation")
 	}
 	// An OPTIONAL missing output does not violate.
 	fix2 := scripted.Fixture{Steps: []scripted.Step{
@@ -166,13 +171,14 @@ func TestOutputsChildViolationIsParentError(t *testing.T) {
 	if !tr.IsError || !strings.Contains(string(tr.Result), "contract_violation") {
 		t.Errorf("spawn result = %+v, want error carrying contract_violation", tr)
 	}
-	// The child's own journal ends with the downgraded reason.
+	// The child's own journal folds quiescent — the downgrade is the
+	// PARENT-side receipt's reason, never a child journal fact (决策 #31).
 	childEvents, err := store.ReadEvents(filepath.Join(l.Store.Dir(), "sub", "s1-a1"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	childFold, _ := state.Fold(childEvents)
-	if childFold.Session.Reason != "contract_violation" {
-		t.Errorf("child reason = %q", childFold.Session.Reason)
+	if q, _ := state.Quiescence(childFold); !q {
+		t.Errorf("child journal not quiescent")
 	}
 }

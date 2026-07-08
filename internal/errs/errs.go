@@ -42,6 +42,26 @@ var ErrActivityTimeout = New(Timeout, "activity timeout")
 // it than for a hard cancel, and the loop resumes rather than aborting.
 var ErrUserInterrupt = New(Canceled, "user interrupt")
 
+// KilledError is the cancellation CAUSE of an explicit kill (决策 #30): it
+// records WHO asked ("user" via ar kill / the surface, "parent" via the
+// parent model's kill tool), so the dying child journals a
+// SessionClosed{killed, source} mark and revival checks can honor the
+// origin (a user-killed child revives only for the user). Process teardown
+// carries no KilledError and leaves no mark.
+type KilledError struct{ Source string } // user | parent
+
+func (e *KilledError) Error() string { return "killed by " + e.Source }
+
+// KillSource extracts the kill origin from a context's cancel cause; ""
+// when the cancellation was not an explicit kill.
+func KillSource(ctx context.Context) string {
+	var ke *KilledError
+	if errors.As(context.Cause(ctx), &ke) {
+		return ke.Source
+	}
+	return ""
+}
+
 // Error carries a class through wrapping.
 type Error struct {
 	Class Class
@@ -67,11 +87,15 @@ func Wrap(class Class, err error, msg string) *Error {
 }
 
 // ClassOf classifies any error: a wrapped *Error wins; context sentinels
-// map to canceled/timeout; everything else is internal.
+// and explicit kills map to canceled/timeout; everything else is internal.
 func ClassOf(err error) Class {
 	var e *Error
 	if errors.As(err, &e) {
 		return e.Class
+	}
+	var ke *KilledError
+	if errors.As(err, &ke) {
+		return Canceled
 	}
 	if errors.Is(err, context.Canceled) {
 		return Canceled

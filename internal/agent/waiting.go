@@ -22,8 +22,10 @@ type WaitRule struct {
 	ResolvedBy string
 }
 
-// WaitRules is the closed registry. S3 uses approval; S4 input;
-// S6 tasks and timer. The table itself is complete from S2 on.
+// WaitRules is the closed registry: input (the standby idle — background
+// settlements wake it too, 决策 #31) and approval. There is no tasks/timer
+// wait kind — in-flight work parks the session in the SAME input idle, and
+// timers belong to the daemon sweep.
 var WaitRules = map[string]WaitRule{
 	event.WaitInput: {
 		Kind: event.WaitInput, ProducibleStage: 4, Interruptible: true,
@@ -34,14 +36,6 @@ var WaitRules = map[string]WaitRule{
 		// 3.5 denied-by-interrupt: the approval resolves as a denial and
 		// the call renders "[interrupted by user]".
 		OnInterrupt: "denied_by_interrupt", ResolvedBy: "approval_response",
-	},
-	event.WaitTasks: {
-		Kind: event.WaitTasks, ProducibleStage: 6, Interruptible: true,
-		OnInterrupt: "tasks_cancelled_by_interrupt", ResolvedBy: "tasks_done",
-	},
-	event.WaitTimer: {
-		Kind: event.WaitTimer, ProducibleStage: 6, Interruptible: true,
-		OnInterrupt: "timer_cancelled_by_interrupt", ResolvedBy: "timer_fired",
 	},
 }
 

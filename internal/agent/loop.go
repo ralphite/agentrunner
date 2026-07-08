@@ -58,16 +58,15 @@ type Loop struct {
 	// revived session can resolve sibling sub-agent specs (v2 M5.1). Empty
 	// for spec-injected callers (tests).
 	SpecPath string
-	// Conversational switches the session to v2's default interaction shape
-	// (v2 M1.1): after the model yields with nothing pending, the session
-	// PARKS for the next user input instead of ending — "answer, then wait"
-	// is the loop's normal state. false (default) keeps v1 task mode:
-	// yield = run completed. Extension code (driver children) stays false.
-	Conversational bool
-	// UserInputs delivers conversational user inputs. Each received text is
-	// journaled as InputReceived{source:"user"} and wakes a new turn;
-	// CLOSING the channel is the close gesture: epilogue, then
-	// SessionClosed{reason:"closed"}. nil = idle wakes only on tasks/interrupt.
+	// UserInputs delivers live user inputs. Each received text is journaled
+	// as InputReceived{source:"user"} and wakes a new turn; CLOSING the
+	// channel is the close gesture (SessionClosed{closed} mark). nil means
+	// no live input source is wired (headless run, spawned child, driver
+	// iteration): the session still idles over in-flight background work,
+	// but at quiescence drive() RETURNS instead of idling — standby lives in
+	// the journal, and a later send/resume continues the same session.
+	// There is only ONE session shape (决策 #31); this field is process
+	// wiring, never a session property, and is not journaled.
 	UserInputs <-chan protocol.UserInput
 	// inboxClosed records that a boundary drain saw UserInputs close, so the
 	// next idle closes the session instead of waiting (v2 M2.1).
@@ -131,9 +130,13 @@ type MCPManager interface {
 
 var _ MCPManager = (*mcp.Manager)(nil)
 
-// RunResult summarizes a completed run.
+// RunResult summarizes the session shape at the moment drive() returned —
+// quiescence (决策 #31) or a close mark. Reason names the finishing shape
+// ("completed" | "max_generation_steps" | "limit_exceeded" | "blocked" |
+// "malformed_tool_call" | "handoff" | "contract_violation" | "closed"); it
+// is an observer value, never a journal fact.
 type RunResult struct {
-	Reason   string // "completed" | "max_generation_steps"
+	Reason   string
 	GenSteps int
 	Usage    provider.Usage
 }
@@ -143,6 +146,9 @@ type RunResult struct {
 type driveState struct {
 	s      state.State
 	lastID string
+	// quiesceReason names the latest quiescent shape (observer value for
+	// RunResult / the parent receipt; never journaled).
+	quiesceReason string
 }
 
 // compact renders raw JSON on one line, dropping surrounding whitespace.
@@ -263,9 +269,9 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 		SpecName: l.Spec.Name, Model: l.Spec.Model.ID, Task: task,
 		Version: l.Version, SubStateVersions: state.SubStateVersions(),
 		Spec: specJSON, WorkspaceRoot: wsRoot,
-		Conversational: l.Conversational, SpecPath: l.SpecPath,
-		Env:    renderEnvBlock(wsRoot, l.Clock.Now()),
-		Memory: memoryBlock, Skills: skillsBlock,
+		SpecPath: l.SpecPath,
+		Env:      renderEnvBlock(wsRoot, l.Clock.Now()),
+		Memory:   memoryBlock, Skills: skillsBlock,
 		Agents: renderAgentsDirectory(l.Spec.Agents, l.SubSpecs),
 		Inputs: l.Inputs,
 		// The effective permission rules, materialized as data (S6): a child
@@ -425,7 +431,7 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 	// it as 0, which would mis-compute the per-turn budget (收口
 	// review). Snapshots are disposable caches: on the suspicious shape,
 	// discard and fold from scratch — the fold recomputes the field exactly.
-	if ok && l.Conversational && s.Session.LastInputGenStep == 0 && s.Session.GenStep > 0 {
+	if ok && s.Session.LastInputGenStep == 0 && s.Session.GenStep > 0 {
 		ok = false
 		s = state.State{}
 	}
@@ -435,14 +441,9 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 		}
 	}
 
-	if state.Terminal(s.Session.Status) && !l.Conversational {
-		// A delivered task refuses a blind resume (its receipt stands); the
-		// explicit-reopen semantics for task sessions is a recorded TODO
-		// (决策 #30 落地余项). A conversational session ALWAYS continues —
-		// close intent gates automatic paths, not this explicit gesture.
-		return RunResult{Reason: s.Session.Reason, GenSteps: s.Session.GenStep, Usage: s.Session.Usage},
-			fmt.Errorf("resume: task session already completed (%s)", s.Session.Reason)
-	}
+	// No resume refusal here (决策 #30/#31): there is no terminal state.
+	// A close/kill mark gates AUTOMATIC paths at their call sites; this
+	// explicit gesture lawfully continues any session.
 
 	ds := &driveState{s: s, lastID: events[len(events)-1].ID}
 	appendE := l.appender(ds)
@@ -463,16 +464,15 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 
 	// In-doubt (2.15): Started without a terminal event means the effect
 	// may or may not have happened. Idempotent activities simply re-run
-	// (decide() reaches them again); anything else NEVER re-runs. Task
-	// mode surfaces to the invoker (v1 contract, InDoubtError); a
-	// CONVERSATIONAL session self-heals (v2 M5.1): the doubt renders as an
+	// (decide() reaches them again); anything else NEVER re-runs — the
+	// session SELF-HEALS (决策 #29, 单一自愈): the doubt renders as an
 	// interrupted-by-crash result / a child settles from its own fold, and
 	// the session continues. 3.2's adjudication window (side-effecting
-	// gates entered, no EffectResolved) stays human in both modes — hooks
-	// may have half-run.
+	// gates entered, no EffectResolved) stays human — hooks may have
+	// half-run.
 	inDoubt := collectInDoubt(s)
 	pendingEffects := collectPendingSideEffecting(s)
-	if len(pendingEffects) > 0 || (!l.Conversational && len(inDoubt) > 0) {
+	if len(pendingEffects) > 0 {
 		return RunResult{}, &InDoubtError{Activities: inDoubt, Effects: pendingEffects}
 	}
 	if len(inDoubt) > 0 {
@@ -486,15 +486,13 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 	// enqueue and the consume-side journal) re-enters now, in order,
 	// journal-inputs-first. The seq high-water mark makes this effectively
 	// once — an input both journaled and in the mailbox replays never.
-	if l.Conversational {
-		pending, perr := store.ReadInbox(l.Store.Dir(), ds.s.Session.ConsumedInputSeq)
-		if perr != nil {
-			return RunResult{}, fmt.Errorf("resume: mailbox: %w", perr)
-		}
-		for _, in := range pending {
-			if err := l.journalInput(ds, appendE, in); err != nil {
-				return RunResult{}, err
-			}
+	pending, perr := store.ReadInbox(l.Store.Dir(), ds.s.Session.ConsumedInputSeq)
+	if perr != nil {
+		return RunResult{}, fmt.Errorf("resume: mailbox: %w", perr)
+	}
+	for _, in := range pending {
+		if err := l.journalInput(ds, appendE, in); err != nil {
+			return RunResult{}, err
 		}
 	}
 
@@ -687,23 +685,20 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			toolDefs = append(toolDefs, extraDefs...)
 		}
 	}
-	// abort routes a dying run through the same epilogue, best-effort, so
-	// a failed log is distinguishable from a truncated one. User
-	// cancellation is its own reason — an interrupted run is not a failed
-	// one.
+	// abort is every dying execution's exit ramp. There is NO terminal
+	// event (决策 #30/#31): an explicit kill leaves its SessionClosed
+	// {killed, source} mark; teardown (daemon shutdown, deploy) and genuine
+	// errors leave nothing — Resume re-enters the turn later, the same
+	// discipline as a crash. In-flight background work is settled
+	// best-effort either way so the journal never ends with orphans.
 	abort := func(turn int, cause error) error {
-		reason := "error"
-		if errs.ClassOf(cause) == errs.Canceled {
-			reason = "canceled"
+		if src := errs.KillSource(ctx); src != "" {
+			_, _ = appendE(event.TypeSessionClosed, &event.SessionClosed{
+				Reason: "killed", Source: src,
+				GenSteps: ds.s.Session.GenStep, Usage: ds.s.Session.Usage,
+			})
 		}
-		// v2 conversational (M3 review): a ctx cancel mid-turn is process
-		// teardown (daemon shutdown, deploy), NOT an ending — leave NO
-		// terminal so Resume can re-enter the turn, the same discipline as
-		// idleForInput's crash path. Genuine errors still end the session.
-		if l.Conversational && reason == "canceled" && ctx.Err() != nil {
-			return cause
-		}
-		_, _ = l.runEpilogue(ctx, ds, appendE, reason, turn, true)
+		l.settleOnAbort(ctx, ds, appendE)
 		return cause
 	}
 
@@ -720,11 +715,22 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			"provider", l.Spec.Model.Provider)
 	}
 
+	// quiesced tracks whether the current finished-turn shape already ran
+	// its quiescent actions (决策 #24: outputs → barrier). Reset when a new
+	// assistant message lands; a resume of an already-quiescent shape starts
+	// true — the actions ran before the crash, or their loss is accepted
+	// (barriers/outputs are best-effort across a crash; the parent receipt
+	// is the launcher's job either way).
+	quiesced, quiescedReason := state.Quiescence(ds.s)
+	if quiesced {
+		ds.quiesceReason = quiescedReason
+	}
+
 	for {
 		if err := ctx.Err(); err != nil {
 			return RunResult{}, abort(ds.s.Session.GenStep, err)
 		}
-		// Finished background tasks settle at the loop's safe point (S6.1):
+		// Finished background work settles at the loop's safe point (S6.1):
 		// their outcomes become user-role inputs before the next decision.
 		if err := l.drainBackground(appendE); err != nil {
 			return RunResult{}, abort(ds.s.Session.GenStep, err)
@@ -735,7 +741,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 		if err := l.drainCancels(appendE); err != nil {
 			return RunResult{}, abort(ds.s.Session.GenStep, err)
 		}
-		act := decide(ds.s, l.Spec.MaxGenerationSteps, l.Spec.OnRunEnd, l.Conversational)
+		act := decide(ds.s, l.Spec.MaxGenerationSteps)
 		switch act.kind {
 		case doTurn:
 			// GenStep boundary is the compaction point (S4.5): summarize the
@@ -776,8 +782,9 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			}); err != nil {
 				return RunResult{}, abort(act.turn, err)
 			} else if !allowed {
-				// A budget denial ends the run gracefully through the
-				// epilogue (3.7c) — never mid-effect, never as a crash.
+				// A budget denial is a VISIBLE TRUNCATION (决策 #30), never a
+				// terminal: the fact lands, the turn ends here, the session
+				// idles — reopenable as ever (the gate will speak again).
 				if gate := denyingGate(outcome); gate == "budget" {
 					used := ds.s.Session.Usage.Billed()
 					if _, err := appendE(event.TypeLimitExceeded, &event.LimitExceeded{
@@ -785,8 +792,10 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 					}); err != nil {
 						return RunResult{}, abort(act.turn, err)
 					}
-					slog.Warn("token budget exhausted; ending run", "limit", l.Spec.Budget.MaxTotalTokens, "used", used)
-					return l.runEpilogue(ctx, ds, appendE, "limit_exceeded", act.turn, false)
+					slog.Warn("token budget exhausted; truncating turn", "limit", l.Spec.Budget.MaxTotalTokens, "used", used)
+					l.emit(protocol.Event{Kind: protocol.KindError, N: act.turn,
+						Text: "token budget exhausted; turn truncated, session is idle"})
+					continue
 				}
 				return RunResult{}, abort(act.turn, fmt.Errorf("turn %d: llm call denied by pipeline", act.turn))
 			}
@@ -878,56 +887,48 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				l.emit(protocol.Event{Kind: protocol.KindDiscard, N: act.turn,
 					Text: "malformed tool call; retrying"})
 				if ds.s.Session.MalformedRetries > maxMalformedRetries {
+					// Retry budget exhausted: one visible truncation, same as
+					// every step failure (统一 step 异常处理) — the turn ends,
+					// the session idles, a later send retries lawfully.
 					l.emit(protocol.Event{Kind: protocol.KindError, N: act.turn,
-						Text: "model repeatedly returned malformed tool calls; giving up"})
-					return l.runEpilogue(ctx, ds, appendE, "malformed_tool_call", act.turn, false)
+						Text: "model repeatedly returned malformed tool calls; turn truncated"})
+					if _, err := appendE(event.TypeLimitExceeded, &event.LimitExceeded{
+						Kind: "malformed_tool_call", Limit: maxMalformedRetries,
+						Used: ds.s.Session.MalformedRetries,
+					}); err != nil {
+						return RunResult{}, abort(act.turn, err)
+					}
 				}
 				continue
 			}
 
+			// Blocked/safety finish (S4.6) journals WITH the message: the
+			// finish reason is the audit fact that ends this turn (the fold
+			// records the truncation), the partial text is preserved, and
+			// the session idles — no terminal, reopenable as ever.
+			blocked := turn.Finish == provider.FinishOther || turn.Finish == provider.FinishBlocked
+			finish := ""
+			if blocked {
+				finish = "blocked"
+			}
 			if _, err := appendE(event.TypeAssistantMessage, &event.AssistantMessage{
-				GenStep: act.turn, Message: turn.Message,
+				GenStep: act.turn, Message: turn.Message, Finish: finish,
 			}); err != nil {
 				return RunResult{}, abort(act.turn, err)
 			}
 			if text := assistantText(turn.Message); text != "" {
 				l.emit(protocol.Event{Kind: protocol.KindMessage, N: act.turn, Text: text})
 			}
-
-			// Blocked/safety finish (S4.6): the assistant text (if any) is
-			// preserved above, but the model stopped for a policy reason —
-			// surface a user-visible error and end the run gracefully.
-			if turn.Finish == provider.FinishOther || turn.Finish == provider.FinishBlocked {
+			if blocked {
 				l.emit(protocol.Event{Kind: protocol.KindError, N: act.turn,
 					Text: "model stopped for a safety or policy reason (blocked)"})
-				return l.runEpilogue(ctx, ds, appendE, "blocked", act.turn, false)
 			}
+			quiesced = false
 
 		case doTool:
 			if err := l.doTools(ctx, ds, appendE, abort, act); err != nil {
 				return RunResult{}, err
 			}
-		case doWaitTasks:
-			// The idle is an EXPLICIT state (DESIGN: 挂起是显式状态,本身是
-			// event; S6 review P0): WaitingEntered/Resolved bracket the wait
-			// so projections and reconciliation can see it. The bracket is
-			// sequenced by this goroutine — decide() never observes the open
-			// waiting state.
-			if _, err := appendE(event.TypeWaitingEntered, &event.WaitingEntered{
-				Kind: event.WaitTasks,
-			}); err != nil {
-				return RunResult{}, abort(act.turn, err)
-			}
-			resolution, err := l.awaitBackground(ctx, appendE, act.turn)
-			if err != nil {
-				return RunResult{}, abort(act.turn, err)
-			}
-			if _, err := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
-				Kind: event.WaitTasks, Resolution: resolution,
-			}); err != nil {
-				return RunResult{}, abort(act.turn, err)
-			}
-			continue
 		case doWait:
 			// A idle approval (fresh or resumed across a crash) re-enters
 			// the same await path: the request payload lives in the fold's
@@ -944,8 +945,8 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				continue
 			}
 			if ds.s.Waiting.Kind == event.WaitInput {
-				// A conversational session idle for input, resumed across a
-				// restart (v2 M1.3): re-enter the wait WITHOUT re-journaling
+				// A session idle for input, resumed across a restart (v2
+				// M1.3): re-enter the wait WITHOUT re-journaling
 				// WaitingEntered — the fact is already in the fold. But first
 				// (收口 review): an input that became durable without its
 				// WaitingResolved (crash in that window), or a crash receipt
@@ -960,7 +961,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 					}
 					continue
 				}
-				if res, done, err := l.idleForInput(ctx, ds, appendE, ds.s.Session.GenStep); done {
+				if res, done, err := l.idleOrReturn(ctx, ds, appendE, ds.s.Session.GenStep, &quiesced, false); done {
 					return res, err
 				}
 				continue
@@ -968,23 +969,16 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			return RunResult{}, fmt.Errorf("session is waiting for %s; no resolver available yet", ds.s.Waiting.Kind)
 
 		case doIdle:
-			// Fresh idle: journal the WaitingEntered fact, then wait. (A
-			// resumed idle re-enters via doWait below — the fact is already
-			// durable, so it is NOT re-journaled.)
-			if _, err := appendE(event.TypeWaitingEntered, &event.WaitingEntered{
-				Kind: event.WaitInput,
-			}); err != nil {
-				return RunResult{}, abort(act.turn, err)
-			}
-			if res, done, err := l.idleForInput(ctx, ds, appendE, act.turn); done {
+			if res, done, err := l.idleOrReturn(ctx, ds, appendE, act.turn, &quiesced, true); done {
 				return res, err
 			}
 			continue
 
 		case doTruncate:
-			// 决策 #30: budget exhaustion is a visible truncation fact, not a
-			// terminal state. LimitExceeded resets the per-turn baseline in
-			// the fold; the session then goes idle, reopenable as ever.
+			// 决策 #30: per-turn budget exhaustion is a visible truncation
+			// fact, not a terminal state. LimitExceeded resets the per-turn
+			// baseline in the fold; a queued input starts a fresh turn, and
+			// with nothing queued the session goes idle, reopenable as ever.
 			slog.Warn("turn truncated: max_generation_steps", "max_generation_steps", l.Spec.MaxGenerationSteps)
 			if _, err := appendE(event.TypeLimitExceeded, &event.LimitExceeded{
 				Kind: "generation_steps", Limit: l.Spec.MaxGenerationSteps, Used: act.turn - ds.s.Session.LastInputGenStep,
@@ -993,16 +987,56 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			}
 			l.emit(protocol.Event{Kind: protocol.KindError, Text: "turn truncated: max_generation_steps reached; session is idle"})
 			continue
-
-		case doEnd:
-			if act.reason == "max_generation_steps" {
-				slog.Warn("run hit max_generation_steps", "max_generation_steps", l.Spec.MaxGenerationSteps)
-			}
-			res, err := l.runEpilogue(ctx, ds, appendE, act.reason, act.turn, false)
-			l.emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: res.Reason, N: res.GenSteps})
-			return res, err
 		}
 	}
+}
+
+// idleOrReturn is the standby seam shared by a fresh idle (doIdle) and a
+// resumed one (doWait/WaitInput). At a QUIESCENT shape (nothing in flight,
+// no pending timer) it first runs the fixed quiescent actions ONCE per
+// finished turn (决策 #24: outputs → barrier; the parent receipt is posted
+// by the launcher from drive's return). Then: with a live input source it
+// idles (journaling WaitingEntered when fresh); without one drive RETURNS —
+// standby lives in the journal, a later send/resume continues the session.
+func (l *Loop) idleOrReturn(ctx context.Context, ds *driveState, appendE AppendFunc,
+	turn int, quiesced *bool, fresh bool) (RunResult, bool, error) {
+
+	if len(ds.s.Tasks) == 0 && len(ds.s.Timers) == 0 {
+		if !*quiesced {
+			reason := quiesceReason(ds.s)
+			if err := l.quiescentActions(ctx, ds, appendE, &reason); err != nil {
+				return RunResult{}, true, err
+			}
+			*quiesced = true
+			ds.quiesceReason = reason
+		}
+		if l.UserInputs == nil && !l.inboxClosed {
+			// No live input source ever wired: standby lives in the journal.
+			// (A CLOSED input channel is the close GESTURE instead — it
+			// resolves through idleForInput into the close mark below.)
+			res := RunResult{Reason: ds.quiesceReason, GenSteps: ds.s.Session.GenStep, Usage: ds.s.Session.Usage}
+			l.emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: res.Reason, N: res.GenSteps})
+			return res, true, nil
+		}
+	}
+	if fresh {
+		if _, err := appendE(event.TypeWaitingEntered, &event.WaitingEntered{
+			Kind: event.WaitInput,
+		}); err != nil {
+			return RunResult{}, true, err
+		}
+	}
+	return l.idleForInput(ctx, ds, appendE, turn)
+}
+
+// quiesceReason names the finishing shape for observers (RunResult / the
+// parent receipt). The fold's Quiescence answers except on the abnormal
+// paths it cannot see mid-flight; default is "completed".
+func quiesceReason(s state.State) string {
+	if q, r := state.Quiescence(s); q && r != "" {
+		return r
+	}
+	return "completed"
 }
 
 // doTools runs one assistant turn's tool calls (S4.3). It is two-phase:
@@ -1277,14 +1311,12 @@ func (l *Loop) buildPostRun(call provider.ToolCall) func(context.Context, json.R
 
 // action kinds for decide.
 const (
-	doTurn      = iota // journal GenerationStarted for action.turn
-	doLLM              // run the LLM activity for action.turn
-	doTool             // run action.call
-	doEnd              // task form: epilogue + TaskCompleted receipt
-	doWait             // idle: the wait must resolve before anything else
-	doWaitTasks        // idle on background tasks (S6.1): settle one, re-decide
-	doIdle             // conversational idle (v2 M1.1): idle for the next user input
-	doTruncate         // conversational per-turn budget exhausted: journal the truncation, then idle
+	doTurn     = iota // journal GenerationStarted for action.turn
+	doLLM             // run the LLM activity for action.turn
+	doTool            // run action.call
+	doWait            // a durable wait must resolve before anything else
+	doIdle            // the turn is over: quiesce/standby for the next input
+	doTruncate        // per-turn budget exhausted: journal the truncation, then re-decide
 )
 
 type action struct {
@@ -1298,13 +1330,26 @@ type action struct {
 }
 
 // decide is THE loop policy: given only the fold state (plus the spec
-// constants maxTurns and onRunEnd, fixed for the run), what happens next.
-// Resume re-enters here with the same state and therefore the same answer.
-func decide(s state.State, maxTurns int, onRunEnd string, conversational bool) action {
+// constant maxTurns, fixed for the run), what happens next. Resume
+// re-enters here with the same state and therefore the same answer. There
+// is only ONE session shape (决策 #31): a turn runs to its final
+// generation, then the session idles; nothing here ever "ends" a session.
+func decide(s state.State, maxTurns int) action {
 	if s.Waiting != nil {
 		return action{kind: doWait, turn: s.Session.GenStep}
 	}
 	turn := s.Session.GenStep
+	// A truncated turn never continues by itself (决策 #30 可见截断): only
+	// fresh input restarts work — and only after a generation-step
+	// truncation, whose baseline reset grants the new turn its budget. A
+	// tokens/malformed truncation idles even over pending input; the next
+	// wake re-runs the gate visibly.
+	if turn > 0 && s.Session.TruncatedAtGenStep == turn {
+		if hasInputAfterLastAssistant(s) && s.Session.TruncatedKind == "generation_steps" {
+			return action{kind: doTurn, turn: turn + 1}
+		}
+		return action{kind: doIdle, turn: turn}
+	}
 	if turn == 0 {
 		return action{kind: doTurn, turn: 1}
 	}
@@ -1312,82 +1357,53 @@ func decide(s state.State, maxTurns int, onRunEnd string, conversational bool) a
 	if len(assistants) < turn {
 		return action{kind: doLLM, turn: turn}
 	}
-	calls := toolCallsOf(assistants[len(assistants)-1])
-	if len(calls) == 0 {
-		// Natural ending: the model produced no tool calls. With live
-		// background tasks, on_run_end decides (S6.1): await goes idle in
-		// WAITING_TASKS (2.14) until a task completes and its outcome
-		// re-enters as a user-role message; the default (cancel) ends now
-		// and the epilogue quiesce cancels the stragglers (fire-and-forget).
-		if conversational {
-			// v2 conversational shape: a yield is never an ending. An input
-			// that already arrived (journaled at the idle) gets its turn
-			// FIRST; only a truly idle session goes idle. The idle also wakes on
-			// background settlements, so live tasks need no extra branch.
-			// The turn budget is PER EXCHANGE (anti-runaway), counted from
-			// the last user input — a cumulative cap would silently wedge a
-			// long-lived session (M3 review). Exhaustion truncates the turn
-			// VISIBLY (LimitExceeded resets the budget baseline in the fold,
-			// so a queued input starts a fresh turn) and the session goes
-			// idle — never an unmarked idle over pending input, never a
-			// terminal state (决策 #30).
-			if hasInputAfterLastAssistant(s) {
-				if turn-s.Session.LastInputGenStep < maxTurns {
-					return action{kind: doTurn, turn: turn + 1}
-				}
-				return action{kind: doTruncate, turn: turn}
+	last := assistants[len(assistants)-1]
+	calls := toolCallsOf(last)
+	if len(calls) > 0 {
+		var unresolved []provider.ToolCall
+		for _, c := range calls {
+			if _, done := s.Conversation.ToolResults[c.CallID]; !done {
+				unresolved = append(unresolved, c)
 			}
+		}
+		if len(unresolved) > 0 {
+			return action{kind: doTool, turn: turn, calls: unresolved}
+		}
+		// A completed successful handoff finishes the turn (S5.4): control
+		// moved to the successor, this agent does not act again ON ITS OWN —
+		// the session idles (quiescent, reason "handoff") and only fresh
+		// input would make it act again. A denied/failed handoff resolves as
+		// an error result and the loop continues normally.
+		handoffOK := false
+		for _, c := range calls {
+			if c.Name == "handoff_agent" {
+				if tr, ok := s.Conversation.ToolResults[c.CallID]; ok && !tr.IsError {
+					handoffOK = true
+				}
+			}
+		}
+		if handoffOK && !hasInputAfterLastAssistant(s) {
 			return action{kind: doIdle, turn: turn}
 		}
-		if len(s.Tasks) > 0 && onRunEnd == "await" {
-			return action{kind: doWaitTasks, turn: turn}
-		}
-		// A user-role input that arrived AFTER the model's last message —
-		// a settled task's outcome (DESIGN: 完成时结果以新的 user-role 消息
-		// 进入 loop,下一 turn 可见) — deserves a turn before the run ends
-		// (S6 review: without this the awaited outcome never reached the
-		// model). Bounded by max_generation_steps like every turn.
-		if turn < maxTurns && hasInputAfterLastAssistant(s) {
-			return action{kind: doTurn, turn: turn + 1}
-		}
-		return action{kind: doEnd, turn: turn, reason: "completed"}
-	}
-	var unresolved []provider.ToolCall
-	for _, c := range calls {
-		if _, done := s.Conversation.ToolResults[c.CallID]; !done {
-			unresolved = append(unresolved, c)
-		}
-	}
-	if len(unresolved) > 0 {
-		return action{kind: doTool, turn: turn, calls: unresolved}
-	}
-	// A completed successful handoff ends the run (S5.4): control moved to
-	// the successor, this agent does not act again. A denied/failed handoff
-	// resolves as an error result and the loop continues normally.
-	for _, c := range calls {
-		if c.Name == "handoff_agent" {
-			if tr, ok := s.Conversation.ToolResults[c.CallID]; ok && !tr.IsError {
-				return action{kind: doEnd, turn: turn, reason: "handoff"}
-			}
-		}
-	}
-	// A forced ending (max_generation_steps) delegates any live background tasks to the
-	// epilogue quiesce slot, which honors on_run_end (cancel or silent
-	// await) — the loop never goes idle waiting on a straggler at a forced end
-	// the way a natural await ending does (S6.1). Conversational budget is
-	// per turn (see the final-generation branch above), task form stays cumulative.
-	spent := turn
-	if conversational {
-		spent = turn - s.Session.LastInputGenStep
-		if spent >= maxTurns {
+		// Resolved results owe the model its next generation step, bounded
+		// by the per-turn budget (anti-runaway, counted from the last input
+		// — a cumulative cap would silently wedge a long-lived session).
+		if turn-s.Session.LastInputGenStep >= maxTurns {
 			return action{kind: doTruncate, turn: turn}
 		}
 		return action{kind: doTurn, turn: turn + 1}
 	}
-	if spent >= maxTurns {
-		return action{kind: doEnd, turn: turn, reason: "max_generation_steps"}
+	// Final generation: the turn is over. An input that already arrived
+	// (journaled while the turn ran) gets its turn FIRST — with budget; only
+	// a truly quiet session idles. The idle also wakes on background
+	// settlements, so live background work needs no extra branch.
+	if hasInputAfterLastAssistant(s) {
+		if turn-s.Session.LastInputGenStep < maxTurns {
+			return action{kind: doTurn, turn: turn + 1}
+		}
+		return action{kind: doTruncate, turn: turn}
 	}
-	return action{kind: doTurn, turn: turn + 1}
+	return action{kind: doIdle, turn: turn}
 }
 
 // takeBarrier journals a CheckpointBarrier at the current cut (S7.2,

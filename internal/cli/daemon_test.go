@@ -58,28 +58,32 @@ func TestDaemonHostsRunAndAttachReplays(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 
-	// Submit a run and watch it to completion.
+	// Submit a run and watch it to its standby idle (决策 #31: the hosted
+	// session never "ends" — followers detach at idle).
 	var live []protocol.Event
-	if err := daemon.Dial(sock, daemon.Command{
+	if err := daemon.DialUntil(sock, daemon.Command{
 		Cmd: "run", SpecPath: specPath, Task: "wave", Workspace: t.TempDir(),
-	}, func(e protocol.Event) { live = append(live, e) }); err != nil {
+	}, func(e protocol.Event) bool {
+		live = append(live, e)
+		return e.Kind != protocol.KindIdle
+	}); err != nil {
 		t.Fatal(err)
 	}
 	if len(live) == 0 || live[0].Kind != protocol.KindSessionStart || live[0].Session == "" {
 		t.Fatalf("live stream = %+v\nstderr: %s", live, errOut.String())
 	}
 	session := live[0].Session
-	var sawMsg, sawEnd bool
+	var sawMsg, sawIdle bool
 	for _, e := range live {
 		if e.Kind == protocol.KindMessage && e.Text == "hello from the daemon" {
 			sawMsg = true
 		}
-		if e.Kind == protocol.KindRunEnd && e.Reason == "completed" {
-			sawEnd = true
+		if e.Kind == protocol.KindIdle {
+			sawIdle = true
 		}
 	}
-	if !sawMsg || !sawEnd {
-		t.Fatalf("live stream missing message/end: %+v\nstderr: %s", live, errOut.String())
+	if !sawMsg || !sawIdle {
+		t.Fatalf("live stream missing message/idle: %+v\nstderr: %s", live, errOut.String())
 	}
 
 	// The journal is on disk under the session id.
@@ -87,13 +91,17 @@ func TestDaemonHostsRunAndAttachReplays(t *testing.T) {
 		t.Fatalf("session dir: %v", err)
 	}
 
-	// Attach after the fact: the replay tells the same story.
+	// Attach after the fact: the replay tells the same story, up to the
+	// journaled standby idle.
 	var replayed []protocol.Event
-	if err := daemon.Dial(sock, daemon.Command{Cmd: "attach", Session: session},
-		func(e protocol.Event) { replayed = append(replayed, e) }); err != nil {
+	if err := daemon.DialUntil(sock, daemon.Command{Cmd: "attach", Session: session},
+		func(e protocol.Event) bool {
+			replayed = append(replayed, e)
+			return e.Kind != protocol.KindIdle
+		}); err != nil {
 		t.Fatal(err)
 	}
-	var reMsg, reEnd bool
+	var reMsg, reIdle bool
 	for _, e := range replayed {
 		if e.Session != session {
 			t.Errorf("replayed event missing session tag: %+v", e)
@@ -101,11 +109,11 @@ func TestDaemonHostsRunAndAttachReplays(t *testing.T) {
 		if e.Kind == protocol.KindMessage && e.Text == "hello from the daemon" {
 			reMsg = true
 		}
-		if e.Kind == protocol.KindRunEnd && e.Reason == "completed" {
-			reEnd = true
+		if e.Kind == protocol.KindIdle {
+			reIdle = true
 		}
 	}
-	if !reMsg || !reEnd {
-		t.Fatalf("replay = %+v, want the journal's message and run_end", replayed)
+	if !reMsg || !reIdle {
+		t.Fatalf("replay = %+v, want the journal's message and idle", replayed)
 	}
 }

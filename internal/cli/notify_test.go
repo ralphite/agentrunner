@@ -89,7 +89,7 @@ func TestReconcileSkipsEndedAndGarbage(t *testing.T) {
 		p   any
 	}{
 		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "x", Model: "m", Task: "t"}},
-		{event.TypeTaskCompleted, &event.TaskCompleted{Reason: "completed"}},
+		{event.TypeSessionClosed, &event.SessionClosed{Reason: "closed", Source: "user"}},
 	} {
 		env, _ := event.New(ev.typ, ev.p)
 		if _, err := es.Append(env); err != nil {

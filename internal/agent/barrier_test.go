@@ -137,36 +137,39 @@ func TestNoSnapshotStoreNoBarriers(t *testing.T) {
 }
 
 // A barrier cut while a background task is in flight records the task with
-// its fork-time disposition; the terminal barrier comes after quiesce, so
-// the settled task no longer appears.
+// its fork-time disposition; the quiescent barrier comes after the task
+// settled (决策 #31: nothing in flight at quiescence), so it records none.
 func TestBarrierRecordsLiveTasks(t *testing.T) {
 	root := t.TempDir()
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "bg1", Name: "bash",
-				Args: map[string]any{"command": "sleep 30; echo never", "background": true}}},
+				Args: map[string]any{"command": "sleep 0.3; echo eventually", "background": true}}},
 			{Finish: "tool_use"},
 		}},
-		{Respond: []scripted.Event{{Text: "not waiting"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "not waiting yet"}, {Finish: "end_turn"}}},
+		{
+			Expect:  scripted.Expect{LastMessageContains: "eventually"},
+			Respond: []scripted.Event{{Text: "saw it, done"}, {Finish: "end_turn"}},
+		},
 	}}
 	l := testLoop(t, fix, root)
-	l.Spec.OnRunEnd = "" // default = cancel at quiesce
 	withShadowRepo(t, l, root)
 
-	if _, err := l.Run(context.Background(), "fire and forget"); err != nil {
+	if _, err := l.Run(context.Background(), "fire and follow"); err != nil {
 		t.Fatal(err)
 	}
 	barriers := decodedBarriers(t, l.Store.Dir())
-	if len(barriers) != 3 {
-		t.Fatalf("barriers = %d, want 3", len(barriers))
+	if len(barriers) != 4 {
+		t.Fatalf("barriers = %d, want 4 (t1..t3 + quiescent)", len(barriers))
 	}
 	t2 := barriers[1]
 	if len(t2.Tasks) != 1 || t2.Tasks[0].TaskID != "bg1" || t2.Tasks[0].Policy != "cancel_at_fork" {
 		t.Errorf("bar-t2 tasks = %+v, want [{bg1 cancel_at_fork}]", t2.Tasks)
 	}
-	final := barriers[2]
+	final := barriers[len(barriers)-1]
 	if len(final.Tasks) != 0 {
-		t.Errorf("bar-final tasks = %+v, want none after quiesce", final.Tasks)
+		t.Errorf("quiescent barrier tasks = %+v, want none", final.Tasks)
 	}
 }
 

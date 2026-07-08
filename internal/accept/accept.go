@@ -19,6 +19,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/state"
 )
 
 //go:embed scenarios/s*/*.yaml
@@ -248,8 +249,9 @@ func checkExpect(exp Expect, scratch, output string, lastExit int) string {
 }
 
 // checkEvents verifies every matched event log is complete: ≥1 line, every
-// line a well-formed envelope with gapless seq, first event session_started and
-// last event a terminal fact (a truncated log must not pass).
+// line a well-formed envelope with gapless seq, first event session_started,
+// and the folded shape QUIESCENT or close-marked (决策 #31 — there is no
+// terminal event; a truncated mid-turn log must still not pass).
 func checkEvents(glob string) string {
 	matches, err := filepath.Glob(glob)
 	if err != nil || len(matches) == 0 {
@@ -265,6 +267,7 @@ func checkEvents(glob string) string {
 			return fmt.Sprintf("events_valid: %s is empty", path)
 		}
 		var types []string
+		var envelopes []event.Envelope
 		for i, line := range lines {
 			var rec struct {
 				Seq     int64           `json:"seq"`
@@ -289,17 +292,26 @@ func checkEvents(glob string) string {
 				return fmt.Sprintf("events_valid: %s line %d unknown event type %q", path, i+1, rec.Type)
 			}
 			types = append(types, rec.Type)
+			envelopes = append(envelopes, event.Envelope{
+				Seq: rec.Seq, ID: rec.ID, Type: rec.Type, Payload: rec.Payload,
+			})
 		}
-		// Three journal shapes share the format: a RUN journal opens with
-		// session_started (a FORKED run with its forked_from genesis, S7.3) and
-		// closes with task_completed/session_closed; a DRIVER stream opens with driver_started
-		// (S7 header; S6 streams opened with the first iteration_scheduled)
-		// and closes with driver_completed.
+		// Two journal shapes share the format: a SESSION journal opens with
+		// session_started (a FORKED one with its forked_from genesis, S7.3)
+		// and must fold to a quiescent or close-marked shape; a DRIVER
+		// stream opens with driver_started (S7 header; S6 streams opened
+		// with the first iteration_scheduled) and closes with
+		// driver_completed.
 		first, last := types[0], types[len(types)-1]
 		switch first {
 		case "session_started", "forked_from":
-			if last != "task_completed" && last != "session_closed" {
-				return fmt.Sprintf("events_valid: %s last event is %q, want a terminal fact (truncated?)", path, last)
+			s, ferr := state.Fold(envelopes)
+			if ferr != nil {
+				return fmt.Sprintf("events_valid: %s does not fold: %v", path, ferr)
+			}
+			quiescent, _ := state.Quiescence(s)
+			if !quiescent && s.Session.Closed == nil {
+				return fmt.Sprintf("events_valid: %s folds to a non-quiescent, unmarked shape (last event %q — truncated?)", path, last)
 			}
 		case "driver_started", "iteration_scheduled":
 			if last != "driver_completed" {

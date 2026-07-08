@@ -71,25 +71,17 @@ func (s *Server) markResumeFailed(id string) {
 // hostResume hosts a session resume exactly like a submitted run: same hub,
 // same runsWG, attach-able under the session id. A session already hosted
 // (still running, or resumed by an earlier sweep) is left alone. The hub
-// always carries conversational channels (v2 M5.1) — the resume runner
-// wires them iff the journal says conversational, so a revived chat
-// session accepts send/interrupt/kill exactly like a freshly hosted one.
+// always carries live channels — a revived session accepts
+// send/interrupt/kill exactly like a freshly hosted one (决策 #31: only
+// one session shape).
 //
-// explicit distinguishes the caller (决策 #30): an explicit send reopens a
-// conversational session even past its SessionClosed intent; automatic
-// paths (timer sweep) never wake a terminal session. A task-form session
-// never grows conversational channels, and its explicit reopen semantics
-// is a recorded TODO — it still refuses here.
+// explicit distinguishes the caller (决策 #30): an explicit send lawfully
+// continues ANY session, marked or not; automatic paths (timer sweep)
+// never wake a session carrying a close/kill mark.
 func (s *Server) hostResume(ctx context.Context, id string, explicit bool) {
-	conversational := true
-	if s.SessionShape != nil {
-		var terminal bool
-		var err error
-		conversational, terminal, err = s.SessionShape(id)
-		if err != nil {
-			return // handleSend reports "could not be resumed"
-		}
-		if terminal && (!explicit || !conversational) {
+	if !explicit && s.SessionMarked != nil {
+		marked, err := s.SessionMarked(id)
+		if err != nil || marked {
 			return
 		}
 	}
@@ -99,11 +91,9 @@ func (s *Server) hostResume(ctx context.Context, id string, explicit bool) {
 		return
 	}
 	hub := &hostedRun{id: id, notify: s.Notify, subs: map[chan protocol.Event]struct{}{}}
-	if conversational {
-		hub.inbox = make(chan protocol.UserInput, 64)
-		hub.interrupts = make(chan struct{}, 1)
-		hub.cancels = make(chan string, 8)
-	}
+	hub.inbox = make(chan protocol.UserInput, 64)
+	hub.interrupts = make(chan struct{}, 1)
+	hub.cancels = make(chan string, 8)
 	s.runs[id] = hub
 	s.runsWG.Add(1)
 	s.mu.Unlock()

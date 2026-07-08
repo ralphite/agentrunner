@@ -7,6 +7,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
+	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
 )
 
@@ -80,10 +81,13 @@ func TestMalformedToolCallExhaustionErrors(t *testing.T) {
 	if countKind(sink, protocol.KindError) != 1 {
 		t.Errorf("expected exactly one user-visible error event")
 	}
-	// The run ended: a task_completed fact terminates the log.
+	// The turn was visibly truncated; the session idles (决策 #30) and the
+	// shape names the reason.
 	events, _ := store.ReadEvents(l.Store.Dir())
-	if last := events[len(events)-1]; last.Type != event.TypeTaskCompleted {
-		t.Errorf("last event = %s, want task_completed", last.Type)
+	if fold, ferr := state.Fold(events); ferr != nil {
+		t.Fatal(ferr)
+	} else if q, reason := state.Quiescence(fold); !q || reason != "malformed_tool_call" {
+		t.Errorf("quiescence = %v %q, want true malformed_tool_call", q, reason)
 	}
 }
 

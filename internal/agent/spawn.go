@@ -272,7 +272,7 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 		return err
 	}
 
-	taskCtx, cancel := context.WithCancel(ctx)
+	taskCtx, cancel := context.WithCancelCause(ctx)
 	l.bg.mu.Lock()
 	l.bg.cancel[call.CallID] = cancel
 	l.bg.mu.Unlock()

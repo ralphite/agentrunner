@@ -11,13 +11,12 @@ import (
 	"github.com/ralphite/agentrunner/internal/store"
 )
 
-// settleCrashInDoubt disposes of in-doubt activities on a CONVERSATIONAL
-// resume, per class (v2 M5.1): a long-lived session must self-heal after a
-// crash instead of wedging on human triage. NOTHING re-runs — an execute/
-// edit effect with an unknown outcome renders as an interrupted-by-crash
-// error result the model sees and reacts to; a background child settles
-// from its own journal (the child fold is the truth of how far it got).
-// Task-mode resume keeps v1's refuse-and-surface InDoubtError contract.
+// settleCrashInDoubt disposes of in-doubt activities on resume, per class
+// (决策 #29 单一自愈): a long-lived session must self-heal after a crash
+// instead of wedging on human triage. NOTHING re-runs — an execute/edit
+// effect with an unknown outcome renders as an interrupted-by-crash error
+// result the model sees and reacts to; a background child settles from its
+// own journal (the child fold is the truth of how far it got).
 func (l *Loop) settleCrashInDoubt(appendE AppendFunc, acts []event.ActivityStarted) error {
 	for _, act := range acts {
 		switch {
@@ -87,25 +86,26 @@ func (l *Loop) settleCrashedSpawn(appendE AppendFunc, act event.ActivityStarted)
 		return fmt.Errorf("crash settle %s: child fold: %w", callID, ferr)
 	}
 
-	if state.Terminal(cf.Session.Status) {
-		// The child finished before the crash — deliver the receipt it
-		// already earned (SubagentCompleted before the activity terminal,
-		// same order as the live settle path).
+	if quiescent, reason := state.Quiescence(cf); quiescent {
+		// The child reached quiescence before the crash — deliver the
+		// receipt it already earned, with the reason read off its shape
+		// (SubagentCompleted before the activity terminal, same order as
+		// the live settle path).
 		if _, err := appendE(event.TypeSubagentCompleted, &event.SubagentCompleted{
 			CallID: callID, Agent: agentName, ChildSession: childSession,
-			Reason: cf.Session.Reason, GenSteps: cf.Session.GenStep, Usage: cf.Session.Usage,
+			Reason: reason, GenSteps: cf.Session.GenStep, Usage: cf.Session.Usage,
 		}); err != nil {
 			return err
 		}
 		payload, _ := json.Marshal(map[string]any{
 			"agent": agentName, "child_session": childSession,
-			"reason": cf.Session.Reason, "turns": cf.Session.GenStep,
+			"reason": reason, "turns": cf.Session.GenStep,
 			"report": childReport(childDir),
 		})
 		usage := cf.Session.Usage
 		_, err := appendE(event.TypeActivityCompleted, &event.ActivityCompleted{
 			ActivityID: act.ActivityID, Result: payload,
-			IsError: cf.Session.Reason == "error" || cf.Session.Reason == "contract_violation",
+			IsError: reason == "error" || reason == "contract_violation",
 			Usage:   &usage,
 		})
 		return err

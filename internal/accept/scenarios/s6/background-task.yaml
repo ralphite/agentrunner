@@ -1,12 +1,11 @@
 id: s6-03-background-task
-title: 后台 effect——handle 当场配对,on_run_end=await 让任务善终,结果入 journal
+title: 后台 effect——handle 当场配对,在飞工作先善终再静止(决策 #31),结果入 journal
 files:
   agent.yaml: |
     name: bg
     model: { provider: scripted, id: x, max_tokens: 100 }
     system_prompt: run things in the background
     tools: [bash]
-    on_run_end: await
     permissions:
       - { action: allow }
   bg.yaml: |

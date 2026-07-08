@@ -22,8 +22,6 @@ func TestWaitRegistryTable(t *testing.T) {
 	}{
 		{event.WaitInput, 4, true, "superseded_by_interrupt", "input"},
 		{event.WaitApproval, 3, true, "denied_by_interrupt", "approval_response"},
-		{event.WaitTasks, 6, true, "tasks_cancelled_by_interrupt", "tasks_done"},
-		{event.WaitTimer, 6, true, "timer_cancelled_by_interrupt", "timer_fired"},
 	}
 	if len(cases) != len(WaitRules) {
 		t.Fatalf("registry has %d rows, table pins %d", len(WaitRules), len(cases))
@@ -153,7 +151,7 @@ func TestWaitingSurvivesProcessBoundary(t *testing.T) {
 	if s.Waiting == nil || s.Waiting.Kind != event.WaitApproval || s.Session.Status != state.StatusWaiting {
 		t.Fatalf("state across process boundary: %+v", s.Session)
 	}
-	if got := decide(s, 5, "", false); got.kind != doWait {
+	if got := decide(s, 5); got.kind != doWait {
 		t.Fatalf("decide on idle state = %+v, want doWait", got)
 	}
 }

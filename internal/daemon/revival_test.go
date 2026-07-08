@@ -11,17 +11,17 @@ import (
 	"github.com/ralphite/agentrunner/internal/protocol"
 )
 
-// revivalHarness starts a server with a controllable Resume and SessionShape.
+// revivalHarness starts a server with a controllable Resume and SessionMarked.
 func revivalHarness(t *testing.T, resume func(ctx context.Context, req ResumeRequest, sink protocol.Sink) error,
-	shape func(string) (bool, bool, error)) (string, context.CancelFunc, chan error) {
+	marked func(string) (bool, error)) (string, context.CancelFunc, chan error) {
 	t.Helper()
 	sock := filepath.Join(t.TempDir(), "d.sock")
 	ctx, cancel := context.WithCancel(context.Background())
 	srv := &Server{
-		SocketPath:   sock,
-		NewID:        func(string) string { return "x" },
-		Resume:       resume,
-		SessionShape: shape,
+		SocketPath:    sock,
+		NewID:         func(string) string { return "x" },
+		Resume:        resume,
+		SessionMarked: marked,
 	}
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.ListenAndServe(ctx) }()
@@ -54,11 +54,11 @@ func TestSendRevivalDiesWithDaemon(t *testing.T) {
 	entered := make(chan struct{}, 1)
 	resume := func(ctx context.Context, req ResumeRequest, sink protocol.Sink) error {
 		entered <- struct{}{}
-		<-ctx.Done() // a idle conversational loop: only ctx ends it
+		<-ctx.Done() // an idle standby loop: only ctx ends it
 		return ctx.Err()
 	}
-	shape := func(string) (bool, bool, error) { return true, false, nil }
-	sock, cancel, errCh := revivalHarness(t, resume, shape)
+	marked := func(string) (bool, error) { return false, nil }
+	sock, cancel, errCh := revivalHarness(t, resume, marked)
 
 	if reply, isErr := sendCmdTo(t, sock, "idle-sess", "hi"); isErr {
 		t.Fatalf("send refused: %s", reply)
@@ -78,64 +78,48 @@ func TestSendRevivalDiesWithDaemon(t *testing.T) {
 	}
 }
 
-// v2 收口 review P1: a task-mode session must never false-ack a send —
-// the revived hub grows no inbox, so the client hears the refusal.
-func TestSendToTaskModeSessionRefused(t *testing.T) {
-	var resumed atomic.Int64
-	resume := func(ctx context.Context, req ResumeRequest, sink protocol.Sink) error {
-		resumed.Add(1)
-		if req.Inbox != nil {
-			t.Error("task-mode revival got an inbox")
-		}
-		return nil // task resume finishes on its own
-	}
-	shape := func(string) (bool, bool, error) { return false, false, nil } // task mode
-	sock, cancel, _ := revivalHarness(t, resume, shape)
-	defer cancel()
-
-	reply, isErr := sendCmdTo(t, sock, "task-sess", "hi")
-	if !isErr {
-		t.Fatalf("send to task-mode session acked %q — input would be silently dropped", reply)
-	}
-}
-
-// 决策 #30: an explicit send REOPENS a closed conversational session —
-// the close intent gates automatic paths only.
-func TestSendReopensClosedConversational(t *testing.T) {
+// 决策 #30: an explicit send REOPENS a marked session (close/kill marks
+// gate automatic paths only; there is no session a send cannot continue).
+func TestSendReopensMarkedSession(t *testing.T) {
 	var resumed atomic.Int32
 	resume := func(ctx context.Context, req ResumeRequest, sink protocol.Sink) error {
 		resumed.Add(1)
 		if req.Inbox == nil {
-			t.Error("conversational reopen must wire an inbox")
+			t.Error("reopen must wire an inbox")
 		}
 		<-ctx.Done()
 		return nil
 	}
-	shape := func(string) (bool, bool, error) { return true, true, nil } // conversational, closed
-	sock, cancel, _ := revivalHarness(t, resume, shape)
+	marked := func(string) (bool, error) { return true, nil } // close-marked
+	sock, cancel, _ := revivalHarness(t, resume, marked)
 	defer cancel()
 
 	if reply, isErr := sendCmdTo(t, sock, "closed-sess", "hi"); isErr {
-		t.Fatalf("send to closed conversational session refused: %q", reply)
+		t.Fatalf("send to marked session refused: %q", reply)
 	}
 	if resumed.Load() == 0 {
-		t.Fatal("closed conversational session was not reopened")
+		t.Fatal("marked session was not reopened by the explicit send")
 	}
 }
 
-// 决策 #30 落地余项: a terminal TASK session still refuses a send (its
-// explicit-reopen semantics is a recorded TODO).
-func TestSendToCompletedTaskRefused(t *testing.T) {
-	resume := func(ctx context.Context, req ResumeRequest, sink protocol.Sink) error {
-		t.Error("completed task session must not be resumed by send")
-		return errors.New("unreachable")
+// 决策 #30: the AUTOMATIC path (timer sweep) never wakes a marked session
+// — the same hostResume seam that lets an explicit send through. White-box:
+// the sweep is the only automatic caller, and it goes through hostResume
+// with explicit=false.
+func TestAutomaticResumeSkipsMarkedSession(t *testing.T) {
+	srv := &Server{
+		NewID: func(string) string { return "x" },
+		Resume: func(ctx context.Context, req ResumeRequest, sink protocol.Sink) error {
+			t.Error("automatic path resumed a marked session")
+			return errors.New("unreachable")
+		},
+		SessionMarked: func(string) (bool, error) { return true, nil },
+		runs:          map[string]*hostedRun{},
 	}
-	shape := func(string) (bool, bool, error) { return false, true, nil } // task, completed
-	sock, cancel, _ := revivalHarness(t, resume, shape)
-	defer cancel()
-
-	if reply, isErr := sendCmdTo(t, sock, "done-task", "hi"); !isErr {
-		t.Fatalf("send to completed task session acked %q", reply)
+	srv.hostResume(context.Background(), "marked-sess", false)
+	srv.runsWG.Wait()
+	if len(srv.runs) != 0 {
+		t.Fatal("marked session was hosted by the automatic path")
 	}
 }
 
@@ -150,10 +134,10 @@ func TestSendPersistsBeforeAck(t *testing.T) {
 	sock := filepath.Join(t.TempDir(), "d.sock")
 	ctx, cancel := context.WithCancel(context.Background())
 	srv := &Server{
-		SocketPath:   sock,
-		NewID:        func(string) string { return "x" },
-		Resume:       resume,
-		SessionShape: func(string) (bool, bool, error) { return true, false, nil },
+		SocketPath:    sock,
+		NewID:         func(string) string { return "x" },
+		Resume:        resume,
+		SessionMarked: func(string) (bool, error) { return false, nil },
 		PersistInput: func(sid string, in protocol.UserInput) (protocol.UserInput, error) {
 			if in.Text == "poison" {
 				return in, errors.New("disk full")

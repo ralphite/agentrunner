@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
 )
 
@@ -138,7 +139,7 @@ func TestCLIForkRewindsAndContinues(t *testing.T) {
 		t.Errorf("original note.txt after fork resume = %q, want v2", got)
 	}
 
-	// The fork journal: forked_from genesis, task_completed tail.
+	// The fork journal: forked_from genesis, quiescent tail (决策 #31).
 	forkDir, err := resolveSessionDir(forkSession)
 	if err != nil {
 		t.Fatal(err)
@@ -150,8 +151,10 @@ func TestCLIForkRewindsAndContinues(t *testing.T) {
 	if events[0].Type != event.TypeForkedFrom {
 		t.Errorf("fork journal head = %s", events[0].Type)
 	}
-	if events[len(events)-1].Type != event.TypeTaskCompleted {
-		t.Errorf("fork journal tail = %s", events[len(events)-1].Type)
+	if fold, ferr := state.Fold(events); ferr != nil {
+		t.Fatal(ferr)
+	} else if q, _ := state.Quiescence(fold); !q {
+		t.Errorf("fork journal not quiescent after resume")
 	}
 }
 

@@ -33,16 +33,18 @@ type bgOutcome struct {
 
 // bgRuntime is the loop's ephemeral background-task machinery. Runtime
 // state only: the DURABLE truth is the tasks sub-state folded from
-// ActivityStarted{Background} and the terminal events.
+// ActivityStarted{Background} and the terminal events. Cancels carry a
+// CAUSE (决策 #30): an explicit kill records who asked (errs.KilledError),
+// so a killed child journals its mark; teardown cancels carry none.
 type bgRuntime struct {
 	mu     sync.Mutex
-	cancel map[string]context.CancelFunc
+	cancel map[string]context.CancelCauseFunc
 	done   chan bgOutcome
 }
 
 func (l *Loop) ensureBackground() {
 	if l.bg == nil {
-		l.bg = &bgRuntime{cancel: map[string]context.CancelFunc{}, done: make(chan bgOutcome, 64)}
+		l.bg = &bgRuntime{cancel: map[string]context.CancelCauseFunc{}, done: make(chan bgOutcome, 64)}
 	}
 }
 
@@ -75,7 +77,7 @@ func (l *Loop) launchBackground(ctx context.Context, appendE AppendFunc,
 	}); err != nil {
 		return err
 	}
-	taskCtx, cancel := context.WithCancel(ctx)
+	taskCtx, cancel := context.WithCancelCause(ctx)
 	l.bg.mu.Lock()
 	l.bg.cancel[callID] = cancel
 	l.bg.mu.Unlock()
@@ -106,28 +108,6 @@ func (l *Loop) drainBackground(appendE AppendFunc) error {
 		default:
 			return nil
 		}
-	}
-}
-
-// awaitBackground blocks until ONE task finishes (or an interrupt/cancel),
-// then settles it, returning the WaitingResolved resolution (WaitRules
-// vocabulary). The WAITING_TASKS idle (2.14): no pending calls, no new
-// input, tasks in flight. An interrupt cancels every task — the user wants
-// the run back; the cancellations settle through the same channel.
-func (l *Loop) awaitBackground(ctx context.Context, appendE AppendFunc, turn int) (string, error) {
-	l.ensureBackground()
-	select {
-	case out := <-l.bg.done:
-		return "tasks_done", l.settleBackground(appendE, out)
-	case <-l.Interrupts:
-		if err := l.onSteeringInterrupt(appendE, turn); err != nil {
-			return "", err
-		}
-		l.cancelAllBackground()
-		// re-decide: tasks still nonempty → idle again → drain the cancellations
-		return "tasks_cancelled_by_interrupt", nil
-	case <-ctx.Done():
-		return "", context.Cause(ctx)
 	}
 }
 
@@ -203,6 +183,8 @@ func (l *Loop) drainCancels(appendE AppendFunc) error {
 // cancelHandle journals the user's kill as a control input (journal-inputs-
 // first, DESIGN v2 §2 — the durable origin of the cancellation, same
 // discipline as interrupts), then fires the handle's cancel if still live.
+// The cause records the USER as the kill origin (决策 #30 裁决二): a
+// killed child journals SessionClosed{killed, source:"user"} from it.
 func (l *Loop) cancelHandle(appendE AppendFunc, handle string) error {
 	if _, err := appendE(event.TypeInputReceived, &event.InputReceived{
 		Text: "[kill " + handle + "]", Source: "control",
@@ -216,94 +198,41 @@ func (l *Loop) cancelHandle(appendE AppendFunc, handle string) error {
 	cancel, ok := l.bg.cancel[handle]
 	l.bg.mu.Unlock()
 	if ok {
-		cancel()
+		cancel(&errs.KilledError{Source: "user"})
 	}
 	return nil
 }
 
-// cancelAllBackground fires every live task's cancel; terminals settle
-// through the done channel.
-func (l *Loop) cancelAllBackground() {
+// cancelAllBackground fires every live task's cancel with the given cause
+// (nil = teardown, no mark); terminals settle through the done channel.
+func (l *Loop) cancelAllBackground(cause error) {
 	if l.bg == nil {
 		return
 	}
 	l.bg.mu.Lock()
 	defer l.bg.mu.Unlock()
 	for _, cancel := range l.bg.cancel {
-		cancel()
+		cancel(cause)
 	}
 }
 
-// quiesceTasks fills the epilogue quiesce slot (S6.1, 钩子 2): at a run
-// ending, still-running background tasks are awaited or cancelled per the
-// spec's on_run_end (default cancel), and every terminal settles BEFORE the
-// terminal receipt — the log never ends with tasks in flight. The await
-// wait is BOUNDED by a durable timer (S7 还债, DESIGN: await 必有 durable
-// timer 兜底): the TimerSet fact makes a crashed-while-awaiting session
-// visible to the daemon sweep, and an expired timer cancels the stragglers
-// instead of awaiting forever.
-func quiesceTasks(ctx context.Context, l *Loop, ds *driveState,
-	appendE AppendFunc, _ *string) error {
-
+// settleOnAbort settles in-flight background work on a dying execution —
+// close, kill, teardown or harness error: cancel everything (no kill
+// cause: the dying run tears down, it does not kill on anyone's behalf)
+// and drain the terminals so the journal never ends with orphans. Best
+// effort by nature: journal failures stop the drain, nothing more can be
+// done.
+func (l *Loop) settleOnAbort(ctx context.Context, ds *driveState, appendE AppendFunc) {
 	if l.bg == nil || len(ds.s.Tasks) == 0 {
-		return nil
+		return
 	}
-	await := l.Spec != nil && l.Spec.OnRunEnd == "await"
-	if !await {
-		l.cancelAllBackground()
-	}
-	var timeoutCh chan struct{}
-	const timerID = "tm-await-quiesce"
-	if await {
-		fireAt := l.Clock.Now().Add(l.Spec.awaitTimeout())
-		if _, err := appendE(event.TypeTimerSet, &event.TimerSet{
-			TimerID: timerID, FireAt: fireAt, Purpose: "await_quiesce",
-		}); err != nil {
-			return err
-		}
-		timeoutCh = make(chan struct{})
-		tctx, tcancel := context.WithCancel(ctx)
-		defer tcancel()
-		go func() {
-			if l.Clock.WaitUntil(tctx, fireAt) == nil {
-				close(timeoutCh)
-			}
-		}()
-	}
-	fired := false
+	l.cancelAllBackground(nil)
 	for len(ds.s.Tasks) > 0 {
-		select {
-		case out := <-l.bg.done:
-			if err := l.settleBackground(appendE, out); err != nil {
-				return err
-			}
-		case <-timeoutCh:
-			// The await bound expired: journal the firing, cancel what is
-			// left, and keep draining — the cancellations settle normally.
-			if _, err := appendE(event.TypeTimerFired, &event.TimerFired{TimerID: timerID}); err != nil {
-				return err
-			}
-			fired = true
-			timeoutCh = nil
-			l.cancelAllBackground()
-		case <-ctx.Done():
-			// Hard cancel while quiescing: cancel everything, then BLOCK on
-			// the next report — the killed tasks always report (killGroup
-			// guarantees bash exits), and a default-branch here would spin
-			// the CPU until they do (S6 review).
-			l.cancelAllBackground()
-			out := <-l.bg.done
-			if err := l.settleBackground(appendE, out); err != nil {
-				return err
-			}
+		out := <-l.bg.done
+		if err := l.settleBackground(appendE, out); err != nil {
+			return
 		}
 	}
-	if await && !fired {
-		if _, err := appendE(event.TypeTimerCancelled, &event.TimerCancelled{TimerID: timerID}); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // runTaskTool executes task_output / task_kill against a fold snapshot of
@@ -335,7 +264,10 @@ func (l *Loop) runTaskTool(tasks state.Tasks, name string, rawArgs json.RawMessa
 		cancel, ok := l.bg.cancel[args.TaskID]
 		l.bg.mu.Unlock()
 		if ok {
-			cancel()
+			// The parent model asked: record it (裁决二 — a parent-killed
+			// child may be revived by the parent, a user-killed one only by
+			// the user).
+			cancel(&errs.KilledError{Source: "parent"})
 		}
 		payload, _ := json.Marshal(map[string]string{
 			"task_id": args.TaskID, "status": "cancelling",

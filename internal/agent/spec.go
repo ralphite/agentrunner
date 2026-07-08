@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -71,17 +70,10 @@ type AgentSpec struct {
 	// Agents whitelists the sub-agent specs this agent may spawn (S5.3).
 	// The model only sees — and can only spawn — what is listed here.
 	Agents []string `yaml:"agents,omitempty"`
-	// OnRunEnd says what happens to still-running background tasks at a
-	// run ending (S6.1): "cancel" (default) or "await".
-	OnRunEnd string `yaml:"on_run_end,omitempty"`
-	// AwaitTimeout bounds the epilogue's await quiesce (S7 还债, DESIGN:
-	// await 必有 durable timer 兜底) — a Go duration; empty = 30m. When the
-	// timer fires the remaining tasks are cancelled and the run ends.
-	AwaitTimeout string `yaml:"await_timeout,omitempty"`
-	// Outputs is the deliverable contract (S5.6): at a graceful ending the
-	// epilogue auto-publishes each declared output (from its workspace Path
+	// Outputs is the deliverable contract (S5.6): at quiescence the fixed
+	// actions auto-publish each declared output (from its workspace Path
 	// unless the run already published the stream) and a missing Required
-	// one downgrades the ending to contract_violation.
+	// one downgrades the finishing reason to contract_violation.
 	Outputs []OutputSpec `yaml:"outputs,omitempty"`
 	// Sandbox is the OS containment spec (S7 模块 5). Network "none" removes
 	// bash egress via a network namespace — a RATCHET across the shared
@@ -152,7 +144,7 @@ func LoadSpec(path string) (*AgentSpec, error) {
 // hint. Keep in sync with the AgentSpec struct tags.
 const specFields = "name, model, system_prompt, system_prompt_file, tools, " +
 	"max_generation_steps, permissions, mode, budget, allowed_tools, " +
-	"description, agents, on_run_end, await_timeout, outputs, sandbox"
+	"description, agents, outputs, sandbox"
 
 // decodeHint rewrites a yaml decode error for a user who has never seen the
 // Go structs behind the spec (INC-2 BB-me-3): strip internal type names, and
@@ -220,35 +212,10 @@ func (s *AgentSpec) validate(path string) error {
 	if s.MaxGenerationSteps < 0 {
 		return fail("max_generation_steps", "must be positive")
 	}
-	switch s.OnRunEnd {
-	case "", "cancel", "await":
-	default:
-		return fail("on_run_end", fmt.Sprintf("unknown value %q (known: cancel, await)", s.OnRunEnd))
-	}
-	if s.AwaitTimeout != "" {
-		if d, err := time.ParseDuration(s.AwaitTimeout); err != nil || d <= 0 {
-			return fail("await_timeout", fmt.Sprintf("not a positive Go duration: %q", s.AwaitTimeout))
-		}
-	}
 	switch s.Sandbox.Network {
 	case "", "all", "none":
 	default:
 		return fail("sandbox.network", fmt.Sprintf("unknown value %q (known: all, none)", s.Sandbox.Network))
 	}
 	return nil
-}
-
-// defaultAwaitTimeout bounds the await quiesce when the spec is silent.
-const defaultAwaitTimeout = 30 * time.Minute
-
-// awaitTimeout is the effective quiesce bound (validated at load).
-func (s *AgentSpec) awaitTimeout() time.Duration {
-	if s == nil || s.AwaitTimeout == "" {
-		return defaultAwaitTimeout
-	}
-	d, err := time.ParseDuration(s.AwaitTimeout)
-	if err != nil || d <= 0 {
-		return defaultAwaitTimeout
-	}
-	return d
 }

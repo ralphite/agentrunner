@@ -4,9 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
 	"github.com/ralphite/agentrunner/internal/state"
@@ -39,7 +37,6 @@ func TestBackgroundTaskHandleAndOutcome(t *testing.T) {
 		},
 	}}
 	l := testLoop(t, fix, t.TempDir())
-	l.Spec.OnRunEnd = "await" // stay alive for the task so its outcome feeds back
 
 	res, err := l.Run(context.Background(), "run a background job")
 	if err != nil {
@@ -97,159 +94,6 @@ func TestBackgroundTaskHandleAndOutcome(t *testing.T) {
 	}
 }
 
-// S6.1: on_run_end default (cancel) — a run ending with a task still
-// running cancels it in the epilogue quiesce slot; the log ends clean.
-func TestBackgroundTaskCancelledAtRunEnd(t *testing.T) {
-	fix := scripted.Fixture{Steps: []scripted.Step{
-		{Respond: []scripted.Event{
-			{ToolCall: &scripted.ToolCallEvent{CallID: "bg1", Name: "bash",
-				Args: map[string]any{"command": "sleep 30; echo never", "background": true}}},
-			{Finish: "tool_use"},
-		}},
-		// The model ends the run immediately — the task is still sleeping.
-		{Respond: []scripted.Event{{Text: "not waiting for it"}, {Finish: "end_turn"}}},
-	}}
-	l := testLoop(t, fix, t.TempDir())
-	l.Spec.OnRunEnd = "" // default = cancel
-
-	res, err := l.Run(context.Background(), "fire and forget")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res.Reason != "completed" {
-		t.Fatalf("res = %+v", res)
-	}
-	events, err := store.ReadEvents(l.Store.Dir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	// The task was cancelled (quiesce slot) and settled BEFORE task_completed.
-	var cancelSeq, endSeq int64
-	for _, e := range events {
-		if e.Type == event.TypeActivityCancelled && strings.Contains(string(e.Payload), "tool-bg1") {
-			cancelSeq = e.Seq
-		}
-		if e.Type == event.TypeTaskCompleted {
-			endSeq = e.Seq
-		}
-	}
-	if cancelSeq == 0 || endSeq == 0 || cancelSeq > endSeq {
-		t.Fatalf("task must be cancelled (seq %d) before task_completed (seq %d)", cancelSeq, endSeq)
-	}
-	fold, _ := state.Fold(events)
-	if len(fold.Tasks) != 0 {
-		t.Errorf("tasks not quiesced at end: %+v", fold.Tasks)
-	}
-}
-
-// S7 还债: the epilogue's await quiesce is BOUNDED by a durable timer — a
-// task that outlives await_timeout is cancelled when the timer fires, and
-// the whole story (timer_set → timer_fired → activity_cancelled → task_completed)
-// is journaled in order.
-func TestAwaitQuiesceTimerBound(t *testing.T) {
-	fix := scripted.Fixture{Steps: []scripted.Step{
-		{Respond: []scripted.Event{
-			{ToolCall: &scripted.ToolCallEvent{CallID: "bg1", Name: "bash",
-				Args: map[string]any{"command": "sleep 30; echo never", "background": true}}},
-			{Finish: "tool_use"},
-		}},
-	}}
-	l := testLoop(t, fix, t.TempDir())
-	l.Spec.OnRunEnd = "await"
-	l.Spec.AwaitTimeout = "1m"
-	l.Spec.MaxGenerationSteps = 1 // forced ending → epilogue quiesce owns the await
-
-	clk := l.Clock.(*clock.Fake)
-	resCh := make(chan RunResult, 1)
-	go func() {
-		res, err := l.Run(context.Background(), "fire and outlive")
-		if err != nil {
-			t.Errorf("run: %v", err)
-		}
-		resCh <- res
-	}()
-
-	// The quiesce goes idle on the await timer; advancing past it fires the
-	// bound and cancels the straggler.
-	deadline := time.Now().Add(5 * time.Second)
-	for clk.Waiters() == 0 && time.Now().Before(deadline) {
-		time.Sleep(2 * time.Millisecond)
-	}
-	if clk.Waiters() == 0 {
-		t.Fatal("quiesce never armed the await timer")
-	}
-	clk.Advance(time.Minute)
-
-	select {
-	case res := <-resCh:
-		if res.Reason != "max_generation_steps" {
-			t.Fatalf("res = %+v", res)
-		}
-	case <-time.After(10 * time.Second):
-		t.Fatal("run did not end after the await timer fired")
-	}
-	events, _ := store.ReadEvents(l.Store.Dir())
-	var setSeq, firedSeq, cancelledSeq, endSeq int64
-	for _, e := range events {
-		switch e.Type {
-		case event.TypeTimerSet:
-			if strings.Contains(string(e.Payload), "await_quiesce") {
-				setSeq = e.Seq
-			}
-		case event.TypeTimerFired:
-			if strings.Contains(string(e.Payload), "tm-await-quiesce") {
-				firedSeq = e.Seq
-			}
-		case event.TypeActivityCancelled:
-			if strings.Contains(string(e.Payload), "tool-bg1") {
-				cancelledSeq = e.Seq
-			}
-		case event.TypeTaskCompleted:
-			endSeq = e.Seq
-		}
-	}
-	if setSeq == 0 || firedSeq <= setSeq || cancelledSeq <= firedSeq || endSeq <= cancelledSeq {
-		t.Fatalf("order = set %d, fired %d, cancelled %d, end %d — want strictly increasing",
-			setSeq, firedSeq, cancelledSeq, endSeq)
-	}
-}
-
-// S7 还债: a task that finishes INSIDE the await bound cancels the timer —
-// the log closes clean, no pending timer survives the run.
-func TestAwaitQuiesceTimerCancelledOnFinish(t *testing.T) {
-	fix := scripted.Fixture{Steps: []scripted.Step{
-		{Respond: []scripted.Event{
-			{ToolCall: &scripted.ToolCallEvent{CallID: "bg1", Name: "bash",
-				Args: map[string]any{"command": "sleep 0.2; echo done-fast", "background": true}}},
-			{Finish: "tool_use"},
-		}},
-	}}
-	l := testLoop(t, fix, t.TempDir())
-	l.Spec.OnRunEnd = "await"
-	l.Spec.MaxGenerationSteps = 1
-
-	if _, err := l.Run(context.Background(), "quick task"); err != nil {
-		t.Fatal(err)
-	}
-	events, _ := store.ReadEvents(l.Store.Dir())
-	var sawCancelledTimer bool
-	for _, e := range events {
-		if e.Type == event.TypeTimerCancelled && strings.Contains(string(e.Payload), "tm-await-quiesce") {
-			sawCancelledTimer = true
-		}
-	}
-	if !sawCancelledTimer {
-		t.Fatal("the await timer must be cancelled when tasks finish in time")
-	}
-	fold, err := state.Fold(events)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(fold.Timers) != 0 {
-		t.Fatalf("pending timers at end: %+v", fold.Timers)
-	}
-}
-
 // S6.1: task_kill cancels a running task; the cancellation lands as a
 // message and the tasks set empties.
 func TestTaskKill(t *testing.T) {
@@ -298,11 +142,10 @@ func TestTaskKill(t *testing.T) {
 	}
 }
 
-// S6.1: on_run_end=await lets a still-running task FINISH before the run
-// ends — its real output settles AND feeds back to the model as a user-role
-// input that earns one more turn (S6 review: the outcome must actually
-// reach the model, and the idle is an explicit journaled waiting state).
-func TestBackgroundTaskAwaitAtRunEnd(t *testing.T) {
+// 决策 #31: a final generation over in-flight background work is NOT
+// quiescence — the session idles, the settlement feeds back as a user-role
+// input that earns one more turn, and only then does the session quiesce.
+func TestBackgroundTaskSettlesBeforeQuiescence(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "bg1", Name: "bash",
@@ -317,7 +160,6 @@ func TestBackgroundTaskAwaitAtRunEnd(t *testing.T) {
 		},
 	}}
 	l := testLoop(t, fix, t.TempDir())
-	l.Spec.OnRunEnd = "await"
 
 	res, err := l.Run(context.Background(), "await on end")
 	if err != nil {
@@ -332,10 +174,10 @@ func TestBackgroundTaskAwaitAtRunEnd(t *testing.T) {
 		if e.Type == event.TypeActivityCompleted && strings.Contains(string(e.Payload), "awaited-output") {
 			sawCompleteWithOutput = true
 		}
-		if e.Type == event.TypeWaitingEntered && strings.Contains(string(e.Payload), `"tasks"`) {
+		if e.Type == event.TypeWaitingEntered && strings.Contains(string(e.Payload), `"input"`) {
 			sawWaitEntered = true
 		}
-		if e.Type == event.TypeWaitingResolved && strings.Contains(string(e.Payload), "tasks_done") {
+		if e.Type == event.TypeWaitingResolved && strings.Contains(string(e.Payload), "task_settled") {
 			sawWaitResolved = true
 		}
 	}

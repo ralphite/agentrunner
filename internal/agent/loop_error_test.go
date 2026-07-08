@@ -69,9 +69,11 @@ func TestLoopProviderErrorWritesTerminalRecord(t *testing.T) {
 		t.Fatalf("err = %v, want wrapped turn 2", err)
 	}
 
+	// A genuine error leaves NO terminal fact (决策 #31): the journal stays
+	// mid-turn, lawfully resumable.
 	types := eventTypes(t, sessDir)
-	if len(types) == 0 || types[len(types)-1] != event.TypeTaskCompleted {
-		t.Fatalf("event types = %v, want terminal task_completed", types)
+	if len(types) == 0 || types[len(types)-1] == event.TypeSessionClosed {
+		t.Fatalf("event types = %v, want no close mark on an error abort", types)
 	}
 	var sawFailed bool
 	for _, typ := range types {

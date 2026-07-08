@@ -60,7 +60,6 @@ func TestConversationalMultiInput(t *testing.T) {
 	// answer is journaled — one input per turn, the QA-01 timing.
 	inputs := make(chan protocol.UserInput)
 	l := testLoop(t, fix, t.TempDir())
-	l.Conversational = true
 	l.UserInputs = inputs
 	go func() {
 		waitAnswers(t, l.Store.Dir(), 1)
@@ -120,7 +119,6 @@ func TestConversationalCloseResolution(t *testing.T) {
 	inputs := make(chan protocol.UserInput)
 	close(inputs)
 	l := testLoop(t, fix, t.TempDir())
-	l.Conversational = true
 	l.UserInputs = inputs
 
 	res, err := l.Run(context.Background(), "hello")
@@ -176,7 +174,6 @@ func TestConversationalIdleResumes(t *testing.T) {
 	}
 	l1 := testLoop(t, fix1, root)
 	l1.Store = es1
-	l1.Conversational = true
 	l1.UserInputs = make(chan protocol.UserInput) // never fed: the session goes idle and stays
 	ctx, cancel := context.WithCancel(context.Background())
 	// Cancel once the idle is durable (WaitingEntered{input} in the journal).
@@ -226,7 +223,6 @@ func TestConversationalIdleResumes(t *testing.T) {
 	close(inputs)
 	l2 := testLoop(t, fix2, root)
 	l2.Store = es2
-	l2.Conversational = true
 	l2.UserInputs = inputs
 
 	res, err := l2.Resume(context.Background())
@@ -285,7 +281,6 @@ func TestConversationalTypeAheadBatches(t *testing.T) {
 	}}
 	inputs := make(chan protocol.UserInput, 2)
 	l := testLoop(t, fix, t.TempDir())
-	l.Conversational = true
 	l.UserInputs = inputs
 	go func() {
 		// After turn 1's answer, queue two messages back-to-back BEFORE the
@@ -322,40 +317,75 @@ func TestConversationalTypeAheadBatches(t *testing.T) {
 }
 
 // v2 M2.2 (C8): interrupt and input are distinct gestures in a
-// conversational session. At IDLE, an interrupt closes the session (the
-// interactive convention); a queued input during a turn never cancels the
-// running activity (structural: separate channels).
-func TestConversationalIdleInterruptCloses(t *testing.T) {
+// 裁决 #11 (2026-07-05): interrupt NEVER ends a session. At idle it is a
+// no-op — the signal is journaled for audit, the session keeps waiting,
+// and a later input continues the conversation; close is its own command.
+func TestIdleInterruptIsNoOp(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{{Text: "answered, now idle"}, {Finish: "end_turn"}}},
+		{
+			Expect:  scripted.Expect{LastMessageContains: "still there?"},
+			Respond: []scripted.Event{{Text: "still here"}, {Finish: "end_turn"}},
+		},
 	}}
 	interrupts := make(chan struct{}, 1)
+	inputs := make(chan protocol.UserInput, 1)
 	l := testLoop(t, fix, t.TempDir())
-	l.Conversational = true
-	l.UserInputs = make(chan protocol.UserInput) // never fed
+	l.UserInputs = inputs
 	l.Interrupts = interrupts
 	go func() {
-		waitAnswers(t, l.Store.Dir(), 1) // wait until it goes idle at idle
-		interrupts <- struct{}{}
+		waitAnswers(t, l.Store.Dir(), 1) // idle reached
+		interrupts <- struct{}{}         // no-op: nothing to interrupt
+		// Wait for the audit fact so the interrupt is consumed AT IDLE
+		// before the next input races it into a running turn.
+		deadline := time.Now().Add(5 * time.Second)
+		for time.Now().Before(deadline) {
+			evs, _ := store.ReadEvents(l.Store.Dir())
+			seen := false
+			for _, e := range evs {
+				if e.Type == event.TypeInputReceived {
+					dec, _ := event.DecodePayload(e)
+					if dec.(*event.InputReceived).Source == "interrupt" {
+						seen = true
+					}
+				}
+			}
+			if seen {
+				break
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+		inputs <- protocol.UserInput{Text: "still there?"}
+		waitAnswers(t, l.Store.Dir(), 2)
+		close(inputs) // the explicit close gesture ends the wait
 	}()
 
 	res, err := l.Run(context.Background(), "hello")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Reason != "closed" {
-		t.Fatalf("res = %+v, want closed (idle interrupt = close)", res)
+	if res.Reason != "closed" || res.GenSteps != 2 {
+		t.Fatalf("res = %+v, want closed after TWO turns (interrupt closed nothing)", res)
 	}
 	events, _ := store.ReadEvents(l.Store.Dir())
-	var resolution string
+	var sawInterruptAudit bool
 	for _, e := range events {
+		if e.Type == event.TypeInputReceived {
+			dec, _ := event.DecodePayload(e)
+			in := dec.(*event.InputReceived)
+			if in.Source == "interrupt" {
+				sawInterruptAudit = true
+			}
+		}
 		if e.Type == event.TypeWaitingResolved {
 			dec, _ := event.DecodePayload(e)
-			resolution = dec.(*event.WaitingResolved).Resolution
+			if dec.(*event.WaitingResolved).Resolution == "closed_by_interrupt" {
+				t.Fatal("idle interrupt resolved the wait — the close-at-idle convention must be gone")
+			}
 		}
 	}
-	if resolution != "closed_by_interrupt" {
-		t.Errorf("resolution = %q, want closed_by_interrupt", resolution)
+	if !sawInterruptAudit {
+		t.Error("idle interrupt left no audit fact")
 	}
 }
 
@@ -375,7 +405,6 @@ func TestConversationalMidTurnCancelResumes(t *testing.T) {
 	l1 := testLoop(t, scripted.Fixture{}, root)
 	l1.Store = es1
 	l1.Provider = prov
-	l1.Conversational = true
 	l1.UserInputs = make(chan protocol.UserInput) // never fed
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -405,7 +434,6 @@ func TestConversationalMidTurnCancelResumes(t *testing.T) {
 	l2 := testLoop(t, scripted.Fixture{}, root)
 	l2.Store = es2
 	l2.Provider = prov
-	l2.Conversational = true
 	l2.UserInputs = inputs
 	res, err := l2.Resume(context.Background())
 	if err != nil {
@@ -439,7 +467,6 @@ func TestConversationalBudgetPerExchange(t *testing.T) {
 	inputs := make(chan protocol.UserInput)
 	l := testLoop(t, fix, t.TempDir())
 	l.Spec.MaxGenerationSteps = 2 // < total turns (3): cumulative budgeting would wedge
-	l.Conversational = true
 	l.UserInputs = inputs
 	go func() {
 		waitAnswers(t, l.Store.Dir(), 1)
@@ -500,7 +527,7 @@ func TestDecideConversationalBudget(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			act := decide(mk(c.turn, c.lastInput, c.pending), 10, "", true)
+			act := decide(mk(c.turn, c.lastInput, c.pending), 10)
 			if act.kind != c.wantKind {
 				t.Fatalf("kind = %v, want %v", act.kind, c.wantKind)
 			}

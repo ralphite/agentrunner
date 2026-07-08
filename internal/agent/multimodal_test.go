@@ -112,7 +112,6 @@ func TestConversationalImageInputEndToEnd(t *testing.T) {
 	inputs := make(chan protocol.UserInput, 1)
 	l := testLoop(t, fix, t.TempDir())
 	l.Provider = cap
-	l.Conversational = true
 	l.UserInputs = inputs
 	png := []byte("\x89PNG e2e bytes")
 	go func() {
@@ -188,7 +187,6 @@ func TestLongPasteFoldsToFilePart(t *testing.T) {
 	inputs := make(chan protocol.UserInput, 1)
 	l := testLoop(t, fix, t.TempDir())
 	l.Provider = cap
-	l.Conversational = true
 	l.UserInputs = inputs
 	go func() {
 		waitAnswers(t, l.Store.Dir(), 1)

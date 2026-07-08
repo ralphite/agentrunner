@@ -1,4 +1,4 @@
 spec testdata/spec_errors/unknown_field.yaml: yaml: unmarshal errors:
   line 2: unknown field "bogus"
-  valid top-level fields: name, model, system_prompt, system_prompt_file, tools, max_generation_steps, permissions, mode, budget, allowed_tools, description, agents, on_run_end, await_timeout, outputs, sandbox
+  valid top-level fields: name, model, system_prompt, system_prompt_file, tools, max_generation_steps, permissions, mode, budget, allowed_tools, description, agents, outputs, sandbox
   (run `agentrunner init` for a commented example spec)

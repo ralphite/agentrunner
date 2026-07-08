@@ -16,5 +16,5 @@ steps:
   - run: $BIN events $(ls $XDG_DATA_HOME/agentrunner/sessions | head -1) --state
 expect:
   - exit_code: 0
-  - output_contains: "task_completed"
-  - output_contains: '"reason": "completed"' 
+  - output_contains: "assistant_message"
+  - output_contains: '"gen_step": 1' 

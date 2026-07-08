@@ -99,19 +99,28 @@ func TestResumeRefusesVersionMismatch(t *testing.T) {
 	}
 }
 
-func TestResumeAlreadyEnded(t *testing.T) {
+// 决策 #30/#31: there is no "already ended" — resuming a quiescent session
+// is lawful and idles right back out (no input source), re-running nothing.
+func TestResumeQuiescentIsLawful(t *testing.T) {
 	l := testLoop(t, scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{{Text: "hi"}, {Finish: "end_turn"}}},
 	}}, t.TempDir())
 	if _, err := l.Run(context.Background(), "hi"); err != nil {
 		t.Fatal(err)
 	}
+	before, _ := store.ReadEvents(l.Store.Dir())
 	res, err := l.Resume(context.Background())
-	if err == nil || !strings.Contains(err.Error(), "already completed") {
-		t.Fatalf("err = %v", err)
+	if err != nil {
+		t.Fatalf("resume of a quiescent session must be lawful: %v", err)
 	}
-	if res.Reason != "completed" {
+	if res.Reason != "completed" || res.GenSteps != 1 {
 		t.Errorf("res = %+v", res)
+	}
+	after, _ := store.ReadEvents(l.Store.Dir())
+	for _, e := range after[len(before):] {
+		if e.Type == event.TypeGenerationStarted {
+			t.Fatalf("resume re-ran a generation step on a quiescent session")
+		}
 	}
 }
 
@@ -207,8 +216,10 @@ func TestCrashThenResumeContinuesRun(t *testing.T) {
 	if llmT1 != 1 {
 		t.Errorf("llm-t1 started %d times, want 1 (turn 1 must not re-run)", llmT1)
 	}
-	if last := events[len(events)-1]; last.Type != event.TypeTaskCompleted {
-		t.Errorf("last event = %s", last.Type)
+	if fold, ferr := state.Fold(events); ferr != nil {
+		t.Fatal(ferr)
+	} else if q, _ := state.Quiescence(fold); !q {
+		t.Errorf("journal not quiescent after resume completion")
 	}
 }
 

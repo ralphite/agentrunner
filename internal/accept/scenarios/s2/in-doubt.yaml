@@ -1,5 +1,5 @@
 id: s2-02-in-doubt
-title: 执行了却没记账的副作用在 resume 时上浮为 in-doubt,拒绝重跑
+title: 执行了却没记账的副作用在 resume 时自愈——渲染 interrupted-by-crash,绝不重跑
 files:
   spec.yaml: |
     name: doubter
@@ -13,16 +13,24 @@ files:
       - respond:
           - tool_call: { name: bash, args: { command: "echo ran >> marker.txt" } }
           - finish: tool_use
+  heal.yaml: |
+    steps:
+      - respond:
+          - text: "noted the crash, wrapping up"
+          - finish: end_turn
 steps:
   - run: >
       AGENTRUNNER_CRASH=point:after_exec_before_journal:2
       AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/mark.yaml
       $BIN run --workspace . spec.yaml "leave a mark"; test $? -eq 137
   - run: test "$(grep -c ran marker.txt)" = "1"
+  # 决策 #29 单一自愈:resume 渲染 [interrupted by crash],session 继续收尾;
+  # 副作用绝不重跑(marker 仍是 1 行)。
   - run: >
-      AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/mark.yaml
-      $BIN resume $(ls $XDG_DATA_HOME/agentrunner/sessions | head -1) 2>&1;
-      code=$?; test "$(grep -c ran marker.txt)" = "1" && test $code -eq 1
+      AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/heal.yaml
+      $BIN resume $(ls $XDG_DATA_HOME/agentrunner/sessions | head -1) 2>&1
+  - run: test "$(grep -c ran marker.txt)" = "1"
+  - run: grep -q "interrupted by crash" $XDG_DATA_HOME/agentrunner/sessions/*/events.jsonl
 expect:
   - exit_code: 0
-  - output_contains: "in doubt"
+  - output_contains: "noted the crash"

@@ -52,11 +52,13 @@ func TestHandoffEndsParentRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Terminal fact: task_completed{handoff}; the successor is journaled through
-	// the same spawn facts (it IS a child run in the tree).
-	last := events[len(events)-1]
-	if last.Type != event.TypeTaskCompleted || !strings.Contains(string(last.Payload), "handoff") {
-		t.Errorf("last event = %s %s", last.Type, last.Payload)
+	// The handoff finishes the turn; the journal folds quiescent with
+	// reason "handoff" (决策 #31: shape, not event). The successor is
+	// journaled through the same spawn facts (it IS a child run in the tree).
+	if fold, ferr := state.Fold(events); ferr != nil {
+		t.Fatal(ferr)
+	} else if q, reason := state.Quiescence(fold); !q || reason != "handoff" {
+		t.Errorf("quiescence = %v %q, want true handoff", q, reason)
 	}
 	var completed *event.SubagentCompleted
 	for _, e := range events {
@@ -85,7 +87,7 @@ func TestHandoffEndsParentRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if childFold.Session.Status != state.StatusCompleted || childFold.Session.Reason != "completed" {
+	if q, reason := state.Quiescence(childFold); !q || reason != "completed" {
 		t.Errorf("successor fold = %+v", childFold.Session)
 	}
 }

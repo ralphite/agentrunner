@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/ralphite/agentrunner/internal/crash"
-	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
 	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
@@ -62,10 +61,11 @@ func TestCrashMatrix(t *testing.T) {
 		{"assistant-journaled", "after:assistant_message:1", "fromT2", false},
 		{"read-executed-unjournaled", "point:" + crash.PointAfterExecBeforeJournal + ":2", "fromT2", false},
 		{"read-result-journaled", "after:activity_completed:2", "fromT2", false},
-		{"edit-executed-unjournaled", "point:" + crash.PointAfterExecBeforeJournal + ":4", "none", true},
+		// edit in-doubt SELF-HEALS (决策 #29): renders [interrupted by
+		// crash], never re-runs; the loop continues into turn 3.
+		{"edit-executed-unjournaled", "point:" + crash.PointAfterExecBeforeJournal + ":4", "fromT3", false},
 		{"turn2-boundary", "after:generation_started:2", "fromT2", false},
 		{"snapshot-written", "point:" + crash.PointAfterSnapshotWrite + ":2", "fromT2", false},
-		{"before-run-end", "point:" + crash.PointBeforeTerminal, "none", false},
 	}
 
 	for _, row := range rows {
@@ -129,8 +129,8 @@ func TestCrashMatrix(t *testing.T) {
 				t.Errorf("fixture: %v", err)
 			}
 
-			// 分毫不差: the file is fixed, the log is gapless, it ends with
-			// task_completed, the fold is ended with nothing in flight.
+			// 分毫不差: the file is fixed, the log is gapless, the fold is
+			// quiescent with nothing in flight (决策 #31: no terminal event).
 			got, _ := os.ReadFile(filepath.Join(root, "greet.txt"))
 			if string(got) != "HELLO WORLD" {
 				t.Errorf("file = %q", got)
@@ -144,15 +144,12 @@ func TestCrashMatrix(t *testing.T) {
 					t.Fatalf("seq gap at %d: %d", i, e.Seq)
 				}
 			}
-			if last := events[len(events)-1]; last.Type != event.TypeTaskCompleted {
-				t.Errorf("last event = %s", last.Type)
-			}
 			final, err := state.Fold(events)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if final.Session.Status != state.StatusCompleted || len(final.Activities) != 0 {
-				t.Errorf("final fold: status=%s in-flight=%v", final.Session.Status, final.Activities)
+			if q, reason := state.Quiescence(final); !q || reason != "completed" || len(final.Activities) != 0 {
+				t.Errorf("final fold: quiescent=%v reason=%s in-flight=%v", q, reason, final.Activities)
 			}
 		})
 	}

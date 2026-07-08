@@ -891,19 +891,25 @@ func addUsage(a, b provider.Usage) provider.Usage {
 	}
 }
 
-// settledChild reports whether a child journal is already at a terminal state
-// and, if so, its result folded from that journal — the recovery path for a
-// crash between the child ending and the driver recording IterationCompleted.
+// settledChild reports whether a child journal is already QUIESCENT (决策
+// #31 — the driver settles from the shape, no receipt event exists) and,
+// if so, its result folded from that journal — the recovery path for a
+// crash between the child quiescing and the driver recording
+// IterationCompleted.
 func settledChild(childDir string) (bool, agent.RunResult) {
 	events, err := store.ReadEvents(childDir)
 	if err != nil {
 		return false, agent.RunResult{}
 	}
 	s, err := state.Fold(events)
-	if err != nil || !state.Terminal(s.Session.Status) {
+	if err != nil {
 		return false, agent.RunResult{}
 	}
-	return true, agent.RunResult{Reason: s.Session.Reason, GenSteps: s.Session.GenStep, Usage: s.Session.Usage}
+	quiescent, reason := state.Quiescence(s)
+	if !quiescent {
+		return false, agent.RunResult{}
+	}
+	return true, agent.RunResult{Reason: reason, GenSteps: s.Session.GenStep, Usage: s.Session.Usage}
 }
 
 // seriesMemoryMaxBytes caps the injected series memory: the authority

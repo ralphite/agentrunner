@@ -23,7 +23,7 @@ func SubStateVersions() map[string]int {
 		"activities":   1,
 		"waiting":      1,
 		"timers":       1,
-		"session":      1,
+		"session":      2, // 2: 静止模型(决策 #31)——终态字段让位标记(Closed)与截断记账
 		"effects":      1, // S3.2 (declared in the 2.4 table as an S3 addition)
 		"mode":         1, // S3.6a
 		"budget":       1, // S3.7a (reservations; settled usage lives in run)
@@ -44,12 +44,11 @@ type Barrier struct {
 	Tasks       []event.BarrierTask `json:"tasks,omitempty"`
 }
 
-// Run statuses.
+// Session liveness statuses. There is no terminal status (决策 #30/#31):
+// close/kill are MARKS (Session.Closed), quiescence is a SHAPE (Quiescence).
 const (
-	StatusRunning   = "running"
-	StatusWaiting   = "waiting"
-	StatusCompleted = "completed" // task delivered (TaskCompleted receipt)
-	StatusClosed    = "closed"    // explicit close intent (SessionClosed)
+	StatusRunning = "running"
+	StatusWaiting = "waiting"
 )
 
 type State struct {
@@ -199,15 +198,24 @@ type Waiting struct {
 }
 
 type Session struct {
-	Status    string         `json:"status"`
-	SpecName  string         `json:"spec_name,omitempty"`
-	Model     string         `json:"model,omitempty"`
-	Task      string         `json:"task,omitempty"`
-	Version   string         `json:"version,omitempty"`
-	GenStep   int            `json:"gen_step"`
-	Reason    string         `json:"reason,omitempty"`
-	Usage     provider.Usage `json:"usage"`
-	LastCrash string         `json:"last_crash,omitempty"`
+	Status   string `json:"status"`
+	SpecName string `json:"spec_name,omitempty"`
+	Model    string `json:"model,omitempty"`
+	Task     string `json:"task,omitempty"`
+	Version  string `json:"version,omitempty"`
+	GenStep  int    `json:"gen_step"`
+	// Closed is the close/kill mark (决策 #30): set by SessionClosed,
+	// cleared by the next GenerationStarted (a lawful reopen). Automatic
+	// paths CHECK it (timer/boot sweep skip marked sessions; a user-killed
+	// child revives only for the user); it never blocks an explicit send.
+	Closed *CloseMark `json:"closed,omitempty"`
+	// TruncatedAtGenStep/TruncatedKind record a budget truncation at this
+	// gen step (决策 #30 可见截断): the turn ended by LimitExceeded, so the
+	// resolved-calls shape at this step counts as finished (Quiescence).
+	TruncatedAtGenStep int            `json:"truncated_at_gen_step,omitempty"`
+	TruncatedKind      string         `json:"truncated_kind,omitempty"`
+	Usage              provider.Usage `json:"usage"`
+	LastCrash          string         `json:"last_crash,omitempty"`
 	// MalformedRetries counts consecutive malformed_tool_call finishes on the
 	// current turn (S4.6). Reset when a turn starts or an assistant message
 	// lands; the loop escalates to a user-visible error past a bound.
@@ -257,6 +265,13 @@ type Session struct {
 type ForkOrigin struct {
 	ParentSession string `json:"parent_session"`
 	BarrierID     string `json:"barrier_id"`
+}
+
+// CloseMark is the folded close/kill mark (决策 #30): who marked the
+// session and how. A mark is checked, never a state machine.
+type CloseMark struct {
+	Reason string `json:"reason"`           // closed | killed
+	Source string `json:"source,omitempty"` // user | parent
 }
 
 // New is the empty pre-SessionStarted state.
@@ -332,14 +347,23 @@ func Apply(s State, env event.Envelope) (State, error) {
 
 	case *event.GenerationStarted:
 		s.Session.GenStep = p.GenStep
-		// A reopened session (决策 #30) leaves its terminal shape the moment
-		// a new generation step starts.
+		// A lawful reopen (决策 #30): the new generation step clears the
+		// close/kill mark and any truncation record — the shape is live again.
 		s.Session.Status = StatusRunning
+		s.Session.Closed = nil
+		s.Session.TruncatedAtGenStep = 0
+		s.Session.TruncatedKind = ""
 		s.Session.MalformedRetries = 0
 
 	case *event.AssistantMessage:
 		s.Conversation = s.Conversation.withMessage(p.Message)
 		s.Session.MalformedRetries = 0
+		if p.Finish != "" {
+			// An abnormal finish (blocked) visibly truncates the turn
+			// (决策 #30): the session will idle rather than continue.
+			s.Session.TruncatedAtGenStep = s.Session.GenStep
+			s.Session.TruncatedKind = p.Finish
+		}
 
 	case *event.MalformedToolCall:
 		s.Session.MalformedRetries++
@@ -549,10 +573,12 @@ func Apply(s State, env event.Envelope) (State, error) {
 		s.Mode = p.To
 
 	case *event.LimitExceeded:
-		// Audit fact. A generation-step exhaustion additionally resets the
-		// per-turn budget baseline (决策 #30: the turn is visibly truncated,
-		// the session goes idle; a queued input then starts a fresh turn
-		// instead of wedging against the spent budget).
+		// A visible truncation fact (决策 #30): the turn ends here, the
+		// session idles, reopenable as ever. Generation-step exhaustion
+		// additionally resets the per-turn budget baseline so a queued input
+		// starts a fresh turn instead of wedging against the spent budget.
+		s.Session.TruncatedAtGenStep = s.Session.GenStep
+		s.Session.TruncatedKind = p.Kind
 		if p.Kind == "generation_steps" {
 			s.Session.LastInputGenStep = s.Session.GenStep
 		}
@@ -564,15 +590,11 @@ func Apply(s State, env event.Envelope) (State, error) {
 	case *event.ActorCrashed:
 		s.Session.LastCrash = p.Actor + ": " + p.Error
 
-	case *event.TaskCompleted:
-		s.Session.Status = StatusCompleted
-		s.Session.Reason = p.Reason
-		s.Session.GenStep = p.GenSteps
-
 	case *event.SessionClosed:
-		s.Session.Status = StatusClosed
-		s.Session.Reason = p.Reason
-		s.Session.GenStep = p.GenSteps
+		// A close/kill MARK, not a state transition (决策 #30): liveness
+		// fields stay untouched; automatic paths check the mark, the next
+		// GenerationStarted clears it.
+		s.Session.Closed = &CloseMark{Reason: p.Reason, Source: p.Source}
 
 	default:
 		// A type registered in event.Registry but missing here.
@@ -785,10 +807,92 @@ func (t Timers) without(id string) Timers {
 	return out
 }
 
-// Terminal reports whether a session's fold shape carries a terminal fact
-// (delivery receipt or close intent). Automatic paths (timer sweep, boot
-// sweep) must not wake a terminal session; an explicit send may reopen it
-// (决策 #30).
-func Terminal(status string) bool {
-	return status == StatusCompleted || status == StatusClosed
+// Quiescence reports whether the fold shape is quiescent (决策 #31): the
+// last turn finished — final generation, visible truncation, completed
+// handoff, or a close/kill mark — with nothing in flight and no pending
+// timer. Nobody else will trigger the session and it will not run again by
+// itself. reason names the finishing shape ("completed",
+// "max_generation_steps", "tokens", "handoff", "closed", "canceled");
+// observers (driver settle, exit codes, sweeps) read it off the shape —
+// quiescence is never an event and never a state machine.
+func Quiescence(s State) (quiescent bool, reason string) {
+	if len(s.Activities) > 0 || len(s.Tasks) > 0 || len(s.Timers) > 0 {
+		return false, ""
+	}
+	if s.Waiting != nil && s.Waiting.Kind != event.WaitInput {
+		return false, "" // waiting on an approval/settlement: work in flight
+	}
+	if s.Session.Closed != nil {
+		if s.Session.Closed.Reason == "killed" {
+			return true, "canceled"
+		}
+		return true, s.Session.Closed.Reason
+	}
+	pendingInput := hasInputAfterLastAssistant(s)
+	// A visible truncation finishes the turn regardless of message shape
+	// (决策 #30); it mirrors decide(): only a generation-step truncation
+	// with queued input runs again (fresh budget) — everything else idles.
+	if s.Session.TruncatedAtGenStep > 0 && s.Session.TruncatedAtGenStep == s.Session.GenStep {
+		if pendingInput && s.Session.TruncatedKind == "generation_steps" {
+			return false, "" // the queued input starts a fresh turn
+		}
+		switch s.Session.TruncatedKind {
+		case "generation_steps":
+			return true, "max_generation_steps"
+		case "tokens":
+			return true, "limit_exceeded"
+		default:
+			return true, s.Session.TruncatedKind
+		}
+	}
+	if pendingInput {
+		return false, "" // pending input: a turn is owed
+	}
+	msgs := s.Conversation.Messages
+	var last *provider.Message
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role == provider.RoleAssistant {
+			last = &msgs[i]
+			break
+		}
+	}
+	if last == nil {
+		return false, "" // no turn yet: a fresh (or crashed-at-start) session
+	}
+	hasCalls, handoffOK := false, false
+	for _, part := range last.Parts {
+		if part.Kind != provider.PartToolCall {
+			continue
+		}
+		hasCalls = true
+		tr, done := s.Conversation.ToolResults[part.CallID]
+		if !done {
+			return false, "" // unresolved call: mid-turn
+		}
+		if part.ToolName == "handoff_agent" && !tr.IsError {
+			handoffOK = true
+		}
+	}
+	if !hasCalls {
+		return true, "completed" // final generation shape
+	}
+	if handoffOK {
+		return true, "handoff" // control moved on; this agent acts no more
+	}
+	return false, "" // resolved calls owe the model a next generation step
+}
+
+// hasInputAfterLastAssistant reports a user-role message newer than the
+// model's last message — pending input the model has not seen.
+func hasInputAfterLastAssistant(s State) bool {
+	msgs := s.Conversation.Messages
+	for i := len(msgs) - 1; i >= 0; i-- {
+		switch msgs[i].Role {
+		case provider.RoleAssistant:
+			return false
+		case provider.RoleUser:
+			return true
+		}
+	}
+	return false
 }

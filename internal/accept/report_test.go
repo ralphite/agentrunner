@@ -65,7 +65,7 @@ expect:
 	}
 }
 
-func TestCheckEventsRequiresTerminalEvent(t *testing.T) {
+func TestCheckEventsRequiresQuiescentShape(t *testing.T) {
 	dir := t.TempDir()
 	write := func(name, content string) {
 		t.Helper()
@@ -76,20 +76,20 @@ func TestCheckEventsRequiresTerminalEvent(t *testing.T) {
 
 	const ts = "2026-07-03T00:00:00Z"
 	good := `{"seq":1,"id":"evt-1","type":"session_started","ts":"` + ts + `","payload":{}}
-{"seq":2,"id":"evt-2","type":"task_completed","ts":"` + ts + `","payload":{}}
+{"seq":2,"id":"evt-2","type":"session_closed","ts":"` + ts + `","payload":{"reason":"closed","source":"user"}}
 `
 	truncated := `{"seq":1,"id":"evt-1","type":"session_started","ts":"` + ts + `","payload":{}}
 {"seq":2,"id":"evt-2","type":"activity_started","ts":"` + ts + `","payload":{}}
 `
 	gapped := `{"seq":1,"id":"evt-1","type":"session_started","ts":"` + ts + `","payload":{}}
-{"seq":3,"id":"evt-3","type":"task_completed","ts":"` + ts + `","payload":{}}
+{"seq":3,"id":"evt-3","type":"session_closed","ts":"` + ts + `","payload":{"reason":"closed","source":"user"}}
 `
 	write("good.jsonl", good)
 	if msg := checkEvents(dir + "/good.jsonl"); msg != "" {
 		t.Errorf("good log rejected: %s", msg)
 	}
 	write("trunc.jsonl", truncated)
-	if msg := checkEvents(dir + "/trunc.jsonl"); !strings.Contains(msg, "terminal fact") {
+	if msg := checkEvents(dir + "/trunc.jsonl"); !strings.Contains(msg, "truncated?") {
 		t.Errorf("truncated log accepted: %q", msg)
 	}
 	write("gap.jsonl", gapped)

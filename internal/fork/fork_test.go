@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
 )
@@ -50,7 +51,9 @@ func seedParent(t *testing.T) (string, state.State) {
 	appendT(event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 2}, "evt-4")
 	appendT(event.TypeCheckpointBarrier, &event.CheckpointBarrier{
 		BarrierID: "bar-t2", GenStep: 2, Vector: map[string]int64{".": 5}, SnapshotRef: "ref-bbb"}, "evt-5")
-	appendT(event.TypeTaskCompleted, &event.TaskCompleted{Reason: "completed", GenSteps: 2}, "evt-6")
+	appendT(event.TypeAssistantMessage, &event.AssistantMessage{GenStep: 2,
+		Message: provider.Message{Role: provider.RoleAssistant,
+			Parts: []provider.Part{{Kind: provider.PartText, Text: "done"}}}}, "evt-6")
 
 	for _, f := range []string{"sub/s1-a1/events.jsonl", "artifacts/blobs/sha256-xx"} {
 		path := filepath.Join(dir, f)

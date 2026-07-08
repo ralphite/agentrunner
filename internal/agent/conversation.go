@@ -85,39 +85,42 @@ func (l *Loop) drainQueued(ds *driveState, appendE AppendFunc) error {
 	}
 }
 
-// idleForInput waits at the conversational idle and, on close, runs the
-// epilogue and returns done=true with the terminal result. On an input or
-// task settlement it returns done=false so the drive loop continues. Shared
-// by the fresh idle (doIdle) and the resumed idle (doWait/WaitInput):
-// neither re-journals WaitingEntered here.
+// idleForInput waits at the standby idle. On the explicit close gesture it
+// journals the close MARK (决策 #30) and returns done=true; on an input or
+// settlement it returns done=false so the drive loop continues. Shared by
+// the fresh idle (doIdle) and the resumed idle (doWait/WaitInput): neither
+// re-journals WaitingEntered here.
 func (l *Loop) idleForInput(ctx context.Context, ds *driveState, appendE AppendFunc,
 	turn int) (RunResult, bool, error) {
 
 	closed, err := l.awaitInput(ctx, ds, appendE, turn)
 	if err != nil {
-		// A cancelled context is a process teardown (crash/shutdown), NOT an
-		// ending: the idle session must resume later, so it leaves NO
-		// terminal. Only a genuine journal failure gets a best-effort
-		// terminal so the log still closes.
+		// A cancelled context is a process teardown (crash/shutdown), NOT
+		// an ending: the idle session must resume later, so it leaves
+		// NOTHING. A genuine failure settles in-flight work best-effort and
+		// leaves no terminal either — there is none to leave (决策 #31).
 		if ctx.Err() == nil {
-			_, _ = l.runEpilogue(ctx, ds, appendE, "error", turn, true)
+			l.settleOnAbort(ctx, ds, appendE)
 		}
 		return RunResult{}, true, err
 	}
 	if closed {
-		res, eerr := l.runEpilogue(ctx, ds, appendE, "closed", turn, false)
+		res, cerr := l.closeSession(ctx, ds, appendE, turn)
 		l.emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: res.Reason, N: res.GenSteps})
-		return res, true, eerr
+		return res, true, cerr
 	}
 	return RunResult{}, false, nil
 }
 
-// awaitInput is the conversational idle (v2 M1.1, DESIGN v2 §1): the model
-// yielded and nothing is pending, so the session waits — for the next user
-// input, a background settlement, an interrupt (the close gesture at idle),
-// or hard cancellation. The WaitingEntered{input} fact is journaled by the
-// caller (the resume path re-enters here without re-journaling it).
-// Returns closed=true when the session should end via the epilogue.
+// awaitInput is the standby idle (v2 M1.1, DESIGN §1): the turn is over
+// and nothing is pending, so the session waits — for the next user input,
+// a background settlement, a kill, or hard cancellation. An interrupt at
+// idle is a NO-OP (裁决 #11, 2026-07-05: interrupt never ends a session —
+// during a turn it cancels the current activity, at idle there is nothing
+// to interrupt; close is its own explicit command). The
+// WaitingEntered{input} fact is journaled by the caller (the resume path
+// re-enters here without re-journaling it). Returns closed=true on the
+// explicit close gesture (the input channel closing).
 func (l *Loop) awaitInput(ctx context.Context, ds *driveState, appendE AppendFunc, turn int) (closed bool, err error) {
 	l.ensureBackground()
 	resolve := func(resolution string) error {
@@ -127,50 +130,57 @@ func (l *Loop) awaitInput(ctx context.Context, ds *driveState, appendE AppendFun
 		return rerr
 	}
 	if l.inboxClosed {
-		// drainInbox saw the channel close at a boundary: nothing left to
+		// drainQueued saw the channel close at a boundary: nothing left to
 		// wait for — resolve the idle and close now.
 		return true, resolve("closed")
 	}
 	l.emit(protocol.Event{Kind: protocol.KindIdle, N: turn})
-	select {
-	case in, ok := <-l.UserInputs: // nil channel blocks — tasks/interrupt still wake
-		if !ok {
-			// Channel closed = the user is done: graceful close.
-			return true, resolve("closed")
+	for {
+		select {
+		case in, ok := <-l.UserInputs: // nil channel blocks — settlements still wake
+			if !ok {
+				// Channel closed = the user is done: graceful close.
+				return true, resolve("closed")
+			}
+			// journal-inputs-first: journal this input, then batch-drain any
+			// others that queued behind it (type-ahead) so they all enter the
+			// same next turn — then resolve the idle.
+			if err := l.journalInput(ds, appendE, in); err != nil {
+				return false, err
+			}
+			if err := l.drainQueued(ds, appendE); err != nil {
+				return false, err
+			}
+			return false, resolve("input_received")
+		case out := <-l.bg.done:
+			// Background work settled while idle: its outcome is a user-role
+			// input (S6.1), which decide() turns into the next turn.
+			if err := l.settleBackground(appendE, out); err != nil {
+				return false, err
+			}
+			return false, resolve("task_settled")
+		case handle := <-l.Cancels:
+			// A user's kill at idle: journal it and cancel the handle; the
+			// cancelled child settles through bg.done, which wakes the next
+			// turn.
+			if err := l.cancelHandle(appendE, handle); err != nil {
+				return false, err
+			}
+			return false, resolve("child_cancelled")
+		case <-l.Interrupts:
+			// Idle interrupt = no-op: journal the signal (audit,
+			// journal-inputs-first) and keep waiting. The session never
+			// ends here.
+			if _, err := appendE(event.TypeInputReceived, &event.InputReceived{
+				Text: "[interrupt]", Source: "interrupt",
+			}); err != nil {
+				return false, err
+			}
+			l.emit(protocol.Event{Kind: protocol.KindMessage,
+				Text: "interrupt at idle: nothing to interrupt (close is a separate command)"})
+			continue
+		case <-ctx.Done():
+			return false, context.Cause(ctx)
 		}
-		// journal-inputs-first: journal this input, then batch-drain any
-		// others that queued behind it (type-ahead) so they all enter the
-		// same next turn — then resolve the idle.
-		if err := l.journalInput(ds, appendE, in); err != nil {
-			return false, err
-		}
-		if err := l.drainQueued(ds, appendE); err != nil {
-			return false, err
-		}
-		return false, resolve("input_received")
-	case out := <-l.bg.done:
-		// A background task settled while idle: its outcome is a user-role
-		// input (S6.1), which decide() turns into the next turn.
-		if err := l.settleBackground(appendE, out); err != nil {
-			return false, err
-		}
-		return false, resolve("task_settled")
-	case handle := <-l.Cancels:
-		// A user's kill at idle: journal it and cancel the handle; the
-		// cancelled child settles through bg.done, which re-goes idle and wakes
-		// the next turn.
-		if err := l.cancelHandle(appendE, handle); err != nil {
-			return false, err
-		}
-		return false, resolve("child_cancelled")
-	case <-l.Interrupts:
-		// Ctrl-C at the idle prompt closes the session (the interactive
-		// convention); during a turn it steers, only at idle it closes.
-		if err := l.onSteeringInterrupt(appendE, turn); err != nil {
-			return false, err
-		}
-		return true, resolve("closed_by_interrupt")
-	case <-ctx.Done():
-		return false, context.Cause(ctx)
 	}
 }

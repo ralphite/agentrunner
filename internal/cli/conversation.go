@@ -55,7 +55,7 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 		return ExitRun
 	}
 	cmd := daemon.Command{
-		Cmd: "run", Conversational: true, SpecPath: specPath, Task: rest[1],
+		Cmd: "run", SpecPath: specPath, Task: rest[1],
 		Workspace: wsAbs, Mode: *mode,
 	}
 	if *detach {

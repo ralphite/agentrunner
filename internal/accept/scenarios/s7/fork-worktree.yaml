@@ -43,5 +43,5 @@ steps:
   - run: grep -qx v2 ws/note.txt
 expect:
   - exit_code: 0
-  # fork journal 完整:forked_from 创世,task_completed 收尾,seq 无缝。
+  # fork journal 完整:forked_from 创世,静止形状收尾(决策 #31),seq 无缝。
   - events_valid: xdg/agentrunner/sessions/*/events.jsonl

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -229,53 +230,39 @@ func TestBashContextCancelKillsGroup(t *testing.T) {
 	}
 }
 
-// findSessionProcs scans /proc for live processes carrying the session
-// env marker — targeted lookup, not a global ps pattern match.
-func findSessionProcs(t *testing.T, session string) []string {
+// findMarkedSleeps pgreps for live processes whose command line carries
+// the unique sleep duration — a cross-platform orphan probe (macOS cannot
+// read another process's environ; a fractional duration is unique enough).
+func findMarkedSleeps(t *testing.T, marker string) []string {
 	t.Helper()
-	needle := SessionEnvVar + "=" + session
-	entries, err := os.ReadDir("/proc")
+	out, err := exec.Command("pgrep", "-f", "sleep "+marker).Output()
 	if err != nil {
-		t.Fatal(err)
+		// pgrep exits 1 on no match — that IS the clean answer.
+		return nil
 	}
-	var pids []string
-	for _, e := range entries {
-		if !e.IsDir() || e.Name()[0] < '0' || e.Name()[0] > '9' {
-			continue
-		}
-		environ, err := os.ReadFile(filepath.Join("/proc", e.Name(), "environ"))
-		if err != nil {
-			continue // gone or not ours
-		}
-		for _, kv := range strings.Split(string(environ), "\x00") {
-			if kv == needle {
-				pids = append(pids, e.Name())
-				break
-			}
-		}
-	}
-	return pids
+	return strings.Fields(string(out))
 }
 
-// 2.12 orphan assertion: after a cancel kills the group, no process tagged
-// with the session marker survives — including background grandchildren.
+// 2.12 orphan assertion: after a cancel kills the group, no process from
+// the command survives — including background grandchildren.
 func TestBashCancelLeavesNoSessionOrphans(t *testing.T) {
 	e, _ := newExec(t)
 	e.Session = "orphan-test-" + fmt.Sprint(os.Getpid())
+	marker := fmt.Sprintf("6%d.%06d", os.Getpid()%10, time.Now().Nanosecond()%1000000)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		time.Sleep(300 * time.Millisecond)
 		cancel()
 	}()
-	res := e.Execute(ctx, "bash", json.RawMessage(
-		`{"command":"sleep 60 & sleep 60 & sleep 60"}`))
+	cmd := fmt.Sprintf(`{"command":"sleep %s & sleep %s & sleep %s"}`, marker, marker, marker)
+	res := e.Execute(ctx, "bash", json.RawMessage(cmd))
 	if !res.IsError {
 		t.Fatalf("result = %s", res.Payload)
 	}
 
-	if pids := findSessionProcs(t, e.Session); len(pids) != 0 {
-		t.Fatalf("session orphans survived cancel: pids %v", pids)
+	if pids := findMarkedSleeps(t, marker); len(pids) != 0 {
+		t.Fatalf("orphans survived cancel: pids %v", pids)
 	}
 }
 

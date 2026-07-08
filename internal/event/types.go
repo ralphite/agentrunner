@@ -23,7 +23,6 @@ const (
 	TypeWaitingEntered    = "waiting_entered"
 	TypeWaitingResolved   = "waiting_resolved"
 	TypeActorCrashed      = "actor_crashed"
-	TypeTaskCompleted     = "task_completed"
 	TypeSessionClosed     = "session_closed"
 
 	// S3 additions (the S2 set above never changes).
@@ -81,8 +80,6 @@ const (
 const (
 	WaitInput    = "input"
 	WaitApproval = "approval"
-	WaitTasks    = "tasks"
-	WaitTimer    = "timer"
 )
 
 type SessionStarted struct {
@@ -110,9 +107,6 @@ type SessionStarted struct {
 	// Inputs are artifact refs to materialize into the workspace before the
 	// first turn (S5.8) — how a parent hands documents to a child.
 	Inputs []ArtifactInput `json:"inputs,omitempty"`
-	// Conversational records the v2 session shape (M5.1): a send-driven
-	// revival after a daemon restart wires the inbox iff this is true.
-	Conversational bool `json:"conversational,omitempty"`
 	// SpecPath is the original spec file location (M5.1) — sibling
 	// sub-agent specs resolve relative to it on a revived session.
 	SpecPath string `json:"spec_path,omitempty"`
@@ -159,6 +153,10 @@ type GenerationStarted struct {
 type AssistantMessage struct {
 	GenStep int              `json:"gen_step"`
 	Message provider.Message `json:"message"`
+	// Finish records an abnormal normalized finish reason ("blocked") —
+	// the audit fact that visibly truncates the turn (决策 #30). Empty on
+	// normal finishes.
+	Finish string `json:"finish,omitempty"`
 }
 
 type ActivityStarted struct {
@@ -242,20 +240,17 @@ type ActorCrashed struct {
 	Error string `json:"error"`
 }
 
-// TaskCompleted is the delivery receipt of a task-form execution (决策
-// #30): the epilogue's terminal fact. A receipt, not a seal — it never
-// forbids an explicit reopen.
-type TaskCompleted struct {
-	Reason   string         `json:"reason"`
-	GenSteps int            `json:"gen_steps"`
-	Usage    provider.Usage `json:"usage"`
-}
-
-// SessionClosed is the recorded *intent* of an explicit close (决策 #30).
-// It gates automatic recovery paths only; an explicit send lawfully
-// reopens the session.
+// SessionClosed is a close/kill MARK (决策 #30): the recorded fact that
+// someone explicitly closed (reason "closed") or killed (reason "killed")
+// the session, with the origin that did it. Marks are only ever CHECKED —
+// automatic paths (timer sweep, boot sweep) do not wake a marked session,
+// and a user-killed child revives only for the user — never a state: an
+// explicit send lawfully continues any session, and the next generation
+// step clears the mark. There is no terminal state and no delivery-receipt
+// event; quiescence is a journal shape (决策 #31).
 type SessionClosed struct {
-	Reason   string         `json:"reason"`
+	Reason   string         `json:"reason"`           // closed | killed
+	Source   string         `json:"source,omitempty"` // user | parent
 	GenSteps int            `json:"gen_steps"`
 	Usage    provider.Usage `json:"usage"`
 }
@@ -580,7 +575,6 @@ var Registry = map[string]func() any{
 	TypeWaitingEntered:      func() any { return &WaitingEntered{} },
 	TypeWaitingResolved:     func() any { return &WaitingResolved{} },
 	TypeActorCrashed:        func() any { return &ActorCrashed{} },
-	TypeTaskCompleted:       func() any { return &TaskCompleted{} },
 	TypeSessionClosed:       func() any { return &SessionClosed{} },
 	TypeEffectRequested:     func() any { return &EffectRequested{} },
 	TypeEffectResolved:      func() any { return &EffectResolved{} },

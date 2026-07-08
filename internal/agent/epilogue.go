@@ -13,36 +13,33 @@ import (
 	"github.com/ralphite/agentrunner/internal/redact"
 )
 
-// epilogueHook is one slot in the fixed run-ending sequence (standing
-// hook 2). Later stages replace slot BODIES — the order never changes,
-// and new end-of-run behavior MUST land in a slot, not around it. A slot
-// may REWRITE the ending reason (the outputs contract downgrades a
-// graceful ending to "contract_violation") but never reorders siblings.
-type epilogueHook struct {
+// quiescentHook is one slot in the fixed quiescent-actions sequence
+// (决策 #24). Later features replace slot BODIES — the order never
+// changes, and new at-quiescence behavior MUST land in a slot, not around
+// it. A slot may REWRITE the finishing reason (the outputs contract
+// downgrades "completed" to "contract_violation") but never reorders
+// siblings.
+type quiescentHook struct {
 	name string
 	run  func(ctx context.Context, l *Loop, ds *driveState, appendE AppendFunc, reason *string) error
 }
 
-// epilogueSequence: quiesce → auto-publish → barrier → (terminal event).
-//   - quiesce: background tasks settle or cancel per on_run_end before the
-//     terminal event (S6.1 填实 — the log never ends with tasks in flight).
-//   - auto_publish: publish the spec's declared outputs and check the
-//     deliverable contract (S5.6).
-//   - barrier: the S7.2 run-end CheckpointBarrier — the run's final state
-//     (tasks settled, outputs published) becomes a fork/rewind target.
-//
-// S3.7c's LimitExceeded farewell message hooks in as a quiesce-slot
-// predecessor per PLAN (挂进此序列).
-var epilogueSequence = []epilogueHook{
-	{name: "quiesce", run: quiesceTasks},
+// quiescentSequence: auto-publish → barrier. Runs at EVERY quiescence
+// (决策 #31 — a session can quiesce, wake, and quiesce again; the actions
+// repeat). The third fixed action — the parent receipt — is posted by
+// whoever launched this session, from drive's return: receipts live in the
+// PARENT's stream. Nothing here journals a terminal fact; quiescence is a
+// shape, not an event.
+var quiescentSequence = []quiescentHook{
 	{name: "auto_publish", run: autoPublishOutputs},
-	{name: "barrier", run: terminalBarrier},
+	{name: "barrier", run: quiescentBarrier},
 }
 
-// terminalBarrier fills the barrier slot: one last CheckpointBarrier after
-// quiesce and auto-publish. Feature-gated like every barrier — no snapshot
-// store, no barrier — and it never rewrites the ending reason.
-func terminalBarrier(ctx context.Context, l *Loop, ds *driveState,
+// quiescentBarrier fills the barrier slot: one CheckpointBarrier over the
+// quiescent state (outputs published, nothing in flight). Feature-gated
+// like every barrier — no snapshot store, no barrier — and it never
+// rewrites the finishing reason.
+func quiescentBarrier(ctx context.Context, l *Loop, ds *driveState,
 	appendE AppendFunc, _ *string) error {
 	return l.takeBarrier(ctx, ds, appendE, "bar-final", 0)
 }
@@ -113,30 +110,33 @@ func readWorkspaceFile(l *Loop, path string) ([]byte, bool) {
 	return content, true
 }
 
-// runEpilogue drives every ending: the fixed hook sequence, then the
-// terminal fact — a TaskCompleted receipt for task form, a SessionClosed
-// intent for a conversational close (决策 #30). bestEffort (abort paths)
-// presses on through hook and journal errors so a dying execution still
-// leaves its fact if it possibly can.
-func (l *Loop) runEpilogue(ctx context.Context, ds *driveState, appendE AppendFunc,
-	reason string, turns int, bestEffort bool) (RunResult, error) {
+// quiescentActions runs the fixed at-quiescence sequence (决策 #24/#31).
+// reason may be rewritten by a slot (contract_violation). Never journals a
+// terminal fact — quiescence is a journal shape, and the session stays
+// reopenable forever.
+func (l *Loop) quiescentActions(ctx context.Context, ds *driveState, appendE AppendFunc,
+	reason *string) error {
 
-	for _, h := range epilogueSequence {
-		if err := h.run(ctx, l, ds, appendE, &reason); err != nil && !bestEffort {
-			return RunResult{}, err
+	for _, h := range quiescentSequence {
+		if err := h.run(ctx, l, ds, appendE, reason); err != nil {
+			return err
 		}
 	}
-	crash.Point(crash.PointBeforeTerminal)
-	if l.Conversational {
-		if _, err := appendE(event.TypeSessionClosed, &event.SessionClosed{
-			Reason: reason, GenSteps: turns, Usage: ds.s.Session.Usage,
-		}); err != nil && !bestEffort {
-			return RunResult{}, err
-		}
-	} else if _, err := appendE(event.TypeTaskCompleted, &event.TaskCompleted{
-		Reason: reason, GenSteps: turns, Usage: ds.s.Session.Usage,
-	}); err != nil && !bestEffort {
+	return nil
+}
+
+// closeSession journals the user's explicit close MARK (决策 #30) after
+// settling any in-flight background work — the journal never ends with
+// orphans. The mark gates automatic paths only; a later send reopens.
+func (l *Loop) closeSession(ctx context.Context, ds *driveState, appendE AppendFunc,
+	turns int) (RunResult, error) {
+
+	l.settleOnAbort(ctx, ds, appendE)
+	crash.Point(crash.PointBeforeCloseMark)
+	if _, err := appendE(event.TypeSessionClosed, &event.SessionClosed{
+		Reason: "closed", Source: "user", GenSteps: turns, Usage: ds.s.Session.Usage,
+	}); err != nil {
 		return RunResult{}, err
 	}
-	return RunResult{Reason: reason, GenSteps: turns, Usage: ds.s.Session.Usage}, nil
+	return RunResult{Reason: "closed", GenSteps: turns, Usage: ds.s.Session.Usage}, nil
 }

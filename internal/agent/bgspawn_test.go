@@ -94,7 +94,6 @@ func TestBackgroundSpawnParallelAndSettle(t *testing.T) {
 	// the natural home for "launch parallel, consume results" (v2 §3). Close
 	// once both children's reports are in the journal.
 	inputs := make(chan protocol.UserInput)
-	l.Conversational = true
 	l.UserInputs = inputs
 	go func() {
 		deadline := time.Now().Add(5 * time.Second)
@@ -232,7 +231,6 @@ func TestBackgroundSpawnUserKill(t *testing.T) {
 	l.Spec.Tools = []string{"read_file", "bash"} // worker needs bash for the sleep
 	cancels := make(chan string, 1)
 	inputs := make(chan protocol.UserInput)
-	l.Conversational = true
 	l.UserInputs = inputs
 	l.Cancels = cancels
 
@@ -443,7 +441,6 @@ func TestSteerChangesOrchestration(t *testing.T) {
 	l := bgSpawnLoop(t, router, []string{"worker"})
 	l.Spec.Tools = []string{"read_file", "bash"}
 	inputs := make(chan protocol.UserInput, 1)
-	l.Conversational = true
 	l.UserInputs = inputs
 	go func() {
 		// Once OLD's bash is running, steer to change course.

@@ -31,15 +31,11 @@ type Command struct {
 	Workspace string `json:"workspace,omitempty"`
 	Mode      string `json:"mode,omitempty"`
 
-	// Conversational hosts the run as a v2 session that goes idle for input
-	// after each turn instead of ending (the `new` command sets it).
-	Conversational bool `json:"conversational,omitempty"`
-
 	// attach / approve / send
 	Session string `json:"session,omitempty"`
 
 	// send
-	Text string `json:"text,omitempty"` // a user message for a conversational session
+	Text string `json:"text,omitempty"` // a user message for the session
 	// Images are attachments riding a send (v2 M4.1); bytes are base64 on
 	// the wire, the agent CAS-stores them before journaling the input.
 	Images []protocol.ImageAttachment `json:"images,omitempty"`
@@ -65,21 +61,19 @@ type Command struct {
 	IdemKey string `json:"idem_key,omitempty"`
 }
 
-// RunRequest is what the daemon hands the injected runner.
+// RunRequest is what the daemon hands the injected runner. Every hosted
+// session gets the live channels (决策 #31: only one session shape).
+// Inbox delivers user inputs — the runner wires it to the Loop's
+// UserInputs; closing it is the close gesture.
 type RunRequest struct {
-	SessionID string
-	SpecPath  string
-	Task      string
-	Workspace string
-	Mode      string
-	// Conversational makes the hosted session idle for input after each
-	// turn (v2 M1.2). Inbox delivers those inputs — the runner wires it to
-	// the Loop's UserInputs; closing it is the close gesture. nil for a
-	// classic task run.
-	Conversational bool
-	Inbox          <-chan protocol.UserInput
-	Interrupts     <-chan struct{}
-	Cancels        <-chan string
+	SessionID  string
+	SpecPath   string
+	Task       string
+	Workspace  string
+	Mode       string
+	Inbox      <-chan protocol.UserInput
+	Interrupts <-chan struct{}
+	Cancels    <-chan string
 }
 
 // RunFunc hosts one run to completion, emitting output events to sink. The
@@ -88,8 +82,7 @@ type RunRequest struct {
 type RunFunc func(ctx context.Context, req RunRequest, sink protocol.Sink) error
 
 // ResumeRequest is what the daemon hands the resume runner. The channels
-// are always provided; the runner wires them into the loop only when the
-// journaled session is conversational.
+// are always provided and always wired (决策 #31: only one session shape).
 type ResumeRequest struct {
 	SessionID  string
 	Inbox      <-chan protocol.UserInput
@@ -132,11 +125,11 @@ type Server struct {
 	// returns the input stamped with its DeliverySeq. nil = no durability
 	// (tests); the ack then only means enqueued.
 	PersistInput func(sessionID string, in protocol.UserInput) (protocol.UserInput, error)
-	// SessionShape reports a session's journaled shape so revival stays
-	// honest (v2 收口): a task-mode session must never get a
-	// "delivered" ack for input its loop will not read. nil = always
-	// revive with channels (tests).
-	SessionShape func(sessionID string) (conversational, terminal bool, err error)
+	// SessionMarked reports whether a session's journal carries a
+	// close/kill mark (决策 #30). AUTOMATIC revival (timer sweep) checks it
+	// and skips marked sessions; an explicit send never does — any session
+	// lawfully continues on a user's gesture. nil = never marked (tests).
+	SessionMarked func(sessionID string) (marked bool, err error)
 	// Drive hosts an IterationDriver series (nil = the drive command is
 	// refused). Same hub/registry semantics as Run.
 	Drive func(ctx context.Context, req DriveRequest, sink protocol.Sink) error
@@ -525,7 +518,7 @@ func (s *Server) handleSend(ctx context.Context, cmd Command, enc *json.Encoder)
 	}
 	if !hub.post(in) {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
-			Text: fmt.Sprintf("session %s is not accepting input (not conversational, or inbox full)", cmd.Session)})
+			Text: fmt.Sprintf("session %s is not accepting input (shutting down, or inbox full)", cmd.Session)})
 		return
 	}
 	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Text: "delivered", Session: cmd.Session})
@@ -611,11 +604,9 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 	}
 	id := s.NewID(cmd.Task)
 	hub := &hostedRun{id: id, notify: s.Notify, subs: map[chan protocol.Event]struct{}{}}
-	if cmd.Conversational {
-		hub.inbox = make(chan protocol.UserInput, 64) // type-ahead buffer
-		hub.interrupts = make(chan struct{}, 1)
-		hub.cancels = make(chan string, 8)
-	}
+	hub.inbox = make(chan protocol.UserInput, 64) // type-ahead buffer
+	hub.interrupts = make(chan struct{}, 1)
+	hub.cancels = make(chan string, 8)
 	s.mu.Lock()
 	if s.stopping {
 		s.mu.Unlock()
@@ -647,7 +638,7 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 		if err := s.Run(ctx, RunRequest{
 			SessionID: id, SpecPath: cmd.SpecPath, Task: cmd.Task,
 			Workspace: cmd.Workspace, Mode: cmd.Mode,
-			Conversational: cmd.Conversational, Inbox: hub.inbox, Interrupts: hub.interrupts, Cancels: hub.cancels,
+			Inbox: hub.inbox, Interrupts: hub.interrupts, Cancels: hub.cancels,
 		}, hub); err != nil {
 			hub.Emit(protocol.Event{Kind: protocol.KindError, Text: "run failed: " + err.Error()})
 		}

@@ -1,5 +1,5 @@
 id: s4-04-blocked-finish
-title: blocked/safety 收尾——文本保留、用户可见 error、task_completed{blocked}
+title: blocked/safety 收尾——文本保留、用户可见 error、可见截断(finish=blocked)
 files:
   careful.yaml: |
     name: careful
@@ -15,7 +15,7 @@ steps:
   - run: >
       AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/blocked.yaml
       $BIN run --workspace . careful.yaml "do the thing" || test $? -eq 1
-  - run: grep -q '"reason":"blocked"' xdg/agentrunner/sessions/*/events.jsonl
+  - run: grep -q '"finish":"blocked"' xdg/agentrunner/sessions/*/events.jsonl
 expect:
   - exit_code: 0
   - output_contains: "I cannot continue"

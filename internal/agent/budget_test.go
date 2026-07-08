@@ -128,9 +128,12 @@ func TestBudgetGracefulEnding(t *testing.T) {
 	if !sawLimit {
 		t.Fatal("limit_exceeded fact missing")
 	}
-	if last := events[len(events)-1]; last.Type != event.TypeTaskCompleted ||
-		!strings.Contains(string(last.Payload), "limit_exceeded") {
-		t.Fatalf("last event = %s %s", last.Type, last.Payload)
+	// The truncation idles the session; the shape reads limit_exceeded
+	// (决策 #30 可见截断, no terminal event).
+	if fold, ferr := state.Fold(events); ferr != nil {
+		t.Fatal(ferr)
+	} else if q, reason := state.Quiescence(fold); !q || reason != "limit_exceeded" {
+		t.Fatalf("quiescence = %v %q, want true limit_exceeded", q, reason)
 	}
 }
 

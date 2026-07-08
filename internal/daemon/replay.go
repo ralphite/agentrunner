@@ -46,6 +46,13 @@ func ReplayJournal(sessionDir string, sink protocol.Sink) error {
 						Tool: part.ToolName, CallID: part.CallID, Args: compactJSON(part.Args)})
 				}
 			}
+		case *event.WaitingEntered:
+			// The standby idle is part of the story (决策 #31): attach
+			// replay renders it exactly like the live stream, so followers
+			// keyed on idle (INC-2) see the same shape either way.
+			if p.Kind == event.WaitInput {
+				sink.Emit(protocol.Event{Kind: protocol.KindIdle, N: turn})
+			}
 		case *event.ActivityStarted:
 			if p.Kind == event.KindTool {
 				toolByActivity[p.ActivityID] = *p
@@ -75,8 +82,6 @@ func ReplayJournal(sessionDir string, sink protocol.Sink) error {
 				CallID: p.CallID})
 		case *event.GenerationDiscarded:
 			sink.Emit(protocol.Event{Kind: protocol.KindDiscard, N: p.GenStep, Text: p.Reason})
-		case *event.TaskCompleted:
-			sink.Emit(protocol.Event{Kind: protocol.KindRunEnd, N: p.GenSteps, Reason: p.Reason})
 		case *event.SessionClosed:
 			sink.Emit(protocol.Event{Kind: protocol.KindRunEnd, N: p.GenSteps, Reason: p.Reason})
 		// Driver streams (S6): iteration terminals and the series ending
