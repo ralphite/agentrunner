@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"sort"
 
 	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
@@ -17,8 +18,21 @@ import (
 // effect with an unknown outcome renders as an interrupted-by-crash error
 // result the model sees and reacts to; a background child settles from its
 // own journal (the child fold is the truth of how far it got).
-func (l *Loop) settleCrashInDoubt(appendE AppendFunc, acts []event.ActivityStarted) error {
+func (l *Loop) settleCrashInDoubt(appendE AppendFunc, acts []event.ActivityStarted, timers state.Timers) error {
 	for _, act := range acts {
+		// The activity's durable timeout timer (2.11) outlived it: a crash
+		// between TimerSet and the activity's own terminal left it pending.
+		// The live path cancels it when the activity finishes (activity.go);
+		// the crash-settle path must too, or the orphaned FUTURE timer keeps
+		// the session from ever reaching quiescence — a resumed submit task
+		// idles on it forever instead of returning, so its stop is stuck (T1).
+		// FirePendingTimers below can't help: it only fires EXPIRED timers, and
+		// the loop's comment there assumes a re-armed re-run — but a non-
+		// idempotent activity never re-runs. Keyed by purpose, so it cancels
+		// only THIS activity's timer.
+		if err := cancelActivityTimeout(appendE, timers, act.ActivityID); err != nil {
+			return err
+		}
 		switch {
 		case act.Name == "spawn_agent":
 			if err := l.settleCrashedSpawn(appendE, act); err != nil {
@@ -37,6 +51,27 @@ func (l *Loop) settleCrashInDoubt(appendE AppendFunc, acts []event.ActivityStart
 			if err := l.renderCrashFailure(appendE, act); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+// cancelActivityTimeout journals TimerCancelled for every pending timeout
+// timer armed for an activity (activity.go names them "activity_timeout:<id>";
+// there is at most one live per activity). Deterministic order keeps the
+// settled journal stable across resumes.
+func cancelActivityTimeout(appendE AppendFunc, timers state.Timers, activityID string) error {
+	purpose := "activity_timeout:" + activityID
+	ids := make([]string, 0, 1)
+	for id, t := range timers {
+		if t.Purpose == purpose {
+			ids = append(ids, id)
+		}
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		if _, err := appendE(event.TypeTimerCancelled, &event.TimerCancelled{TimerID: id}); err != nil {
+			return err
 		}
 	}
 	return nil

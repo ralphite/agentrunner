@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
@@ -113,6 +114,85 @@ func TestConversationalCrashRendersInDoubtAndContinues(t *testing.T) {
 	}
 	if bashStarts != 1 {
 		t.Errorf("bash ActivityStarted = %d — the in-doubt command must NOT re-run", bashStarts)
+	}
+}
+
+// T1: a crash mid-timed-activity (bash carries a 120s durable timeout) must
+// cancel that timer as part of the crash-settle. Otherwise the orphaned
+// FUTURE timer keeps the session from ever reaching quiescence, and a resumed
+// submit task (no live input source) idles on it FOREVER instead of returning —
+// which is why `resume` used to hang on a stranded submit job.
+func TestCrashSettleCancelsActivityTimeout(t *testing.T) {
+	base := t.TempDir()
+	sessDir := filepath.Join(base, "sess")
+	root := filepath.Join(base, "ws")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ws, err := workspace.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	es, err := store.OpenEventStore(sessDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	asst := event.AssistantMessage{GenStep: 1,
+		Message: providerAssistantToolCall("call_1_0", "bash", `{"command":"sleep 120"}`)}
+	appendSynthetic(t, es, []struct {
+		typ     string
+		payload any
+	}{
+		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "t",
+			SubStateVersions: state.SubStateVersions()}},
+		{event.TypeInputReceived, &event.InputReceived{Text: "sleep 120", Source: "user"}},
+		{event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}},
+		{event.TypeAssistantMessage, &asst},
+		// The durable timeout timer armed for the bash activity; fireAt far in
+		// the future (the crash hit long before it would ever fire).
+		{event.TypeTimerSet, &event.TimerSet{TimerID: "tm-tool-call_1_0-a1",
+			FireAt: time.Now().Add(time.Hour), Purpose: "activity_timeout:tool-call_1_0"}},
+		{event.TypeActivityStarted, &event.ActivityStarted{ActivityID: "tool-call_1_0",
+			Kind: event.KindTool, Name: "bash", CallID: "call_1_0", Attempt: 1}},
+	})
+	_ = es.Close() // kill -9
+
+	es2, err := store.OpenEventStore(sessDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = es2.Close() }()
+	// No UserInputs: a submit task's resume. If the orphaned timer survives the
+	// settle, the loop idles on it and this Resume never returns — the ctx
+	// deadline turns that regression into a failure instead of a hung test.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	prov := scripted.New(scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: "命令被崩溃打断了"}, {Finish: "end_turn"}}},
+	}})
+	l := &Loop{
+		Spec:      inDoubtSpec(),
+		Provider:  prov,
+		Exec:      &tool.Executor{WS: ws},
+		Store:     es2,
+		SessionID: "crash-timer",
+	}
+	res, err := l.Resume(ctx)
+	if err != nil {
+		t.Fatalf("resume errored (timer likely left pending → idled): %v", err)
+	}
+	if res.Reason != "completed" {
+		t.Fatalf("res = %+v, want completed (quiescent once the timer is cleared)", res)
+	}
+	evs, _ := store.ReadEvents(sessDir)
+	var cancelled bool
+	for _, e := range evs {
+		if e.Type == event.TypeTimerCancelled && strings.Contains(string(e.Payload), "tm-tool-call_1_0-a1") {
+			cancelled = true
+		}
+	}
+	if !cancelled {
+		t.Error("crash-settle did not cancel the in-doubt activity's timeout timer")
 	}
 }
 
