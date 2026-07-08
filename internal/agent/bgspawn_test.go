@@ -507,3 +507,122 @@ func TestSteerChangesOrchestration(t *testing.T) {
 		t.Errorf("NEW child reason = %q, want completed", newReason)
 	}
 }
+
+// 决策 #30/裁决二: an explicit kill leaves a SOURCED mark in the child's
+// journal — the parent model's kill tool marks source=parent; the user's
+// out-of-band kill (ar kill → Cancels) marks source=user. Automatic paths
+// check the mark; a lawful reopen clears it.
+func TestKillLeavesSourcedMark(t *testing.T) {
+	childFix := func() scripted.Fixture {
+		return scripted.Fixture{Steps: []scripted.Step{
+			// The child parks on a slow foreground bash — a wide window for
+			// the kill to land while it is genuinely mid-work.
+			{Respond: []scripted.Event{
+				{ToolCall: &scripted.ToolCallEvent{CallID: "cz", Name: "bash",
+					Args: map[string]any{"command": "sleep 5"}}},
+				{Finish: "tool_use"},
+			}},
+			{Respond: []scripted.Event{{Text: "never reached"}, {Finish: "end_turn"}}},
+			{Respond: []scripted.Event{{Text: "never reached"}, {Finish: "end_turn"}}},
+		}}
+	}
+	slowWorker := func() map[string]*AgentSpec {
+		return map[string]*AgentSpec{"worker": {
+			Name: "worker", Description: "runs a long job",
+			Model:        ModelSpec{Provider: "scripted", ID: "m", MaxTokens: 100},
+			SystemPrompt: "you work slowly", Tools: []string{"bash"},
+			MaxGenerationSteps: 3,
+		}}
+	}
+
+	readMark := func(t *testing.T, dir string) *state.CloseMark {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for time.Now().Before(deadline) {
+			evs, _ := store.ReadEvents(dir)
+			if s, err := state.Fold(evs); err == nil && s.Session.Closed != nil {
+				return s.Session.Closed
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		return nil
+	}
+
+	t.Run("parent kill marks source=parent", func(t *testing.T) {
+		router := scripted.NewRouter(
+			scripted.RoutePair{Key: "SLOW-JOB", Fixture: childFix()},
+			// Once the cancellation receipt is in the transcript, every later
+			// parent request lands here (routing by shape beats settle timing).
+			scripted.RoutePair{Key: "canceled]", Fixture: scripted.Fixture{Steps: []scripted.Step{
+				{Respond: []scripted.Event{{Text: "killed it"}, {Finish: "end_turn"}}},
+			}}},
+			scripted.RoutePair{Key: "", Fixture: scripted.Fixture{Steps: []scripted.Step{
+				{Respond: []scripted.Event{
+					{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
+						Args: map[string]any{"agent": "worker", "task": "SLOW-JOB run"}}},
+					{Finish: "tool_use"},
+				}},
+				{Respond: []scripted.Event{
+					{ToolCall: &scripted.ToolCallEvent{CallID: "k1", Name: "kill",
+						Args: map[string]any{"handle": "s1"}}},
+					{Finish: "tool_use"},
+				}},
+				{Respond: []scripted.Event{{Text: "waiting for the cancellation"}, {Finish: "end_turn"}}},
+				{Respond: []scripted.Event{{Text: "waiting for the cancellation"}, {Finish: "end_turn"}}},
+			}}},
+		)
+		l := bgSpawnLoop(t, router, []string{"worker"})
+		l.SubSpecs = staticResolver(slowWorker())
+		if _, err := l.Run(context.Background(), "spawn then kill"); err != nil {
+			t.Fatal(err)
+		}
+		mark := readMark(t, filepath.Join(l.Store.Dir(), "sub", "s1-a1"))
+		if mark == nil || mark.Reason != "killed" || mark.Source != "parent" {
+			t.Fatalf("child mark = %+v, want killed/parent", mark)
+		}
+	})
+
+	t.Run("user kill marks source=user", func(t *testing.T) {
+		router := scripted.NewRouter(
+			scripted.RoutePair{Key: "SLOW-JOB", Fixture: childFix()},
+			scripted.RoutePair{Key: "canceled]", Fixture: scripted.Fixture{Steps: []scripted.Step{
+				{Respond: []scripted.Event{{Text: "user killed it"}, {Finish: "end_turn"}}},
+			}}},
+			scripted.RoutePair{Key: "", Fixture: scripted.Fixture{Steps: []scripted.Step{
+				{Respond: []scripted.Event{
+					{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
+						Args: map[string]any{"agent": "worker", "task": "SLOW-JOB run"}}},
+					{Finish: "tool_use"},
+				}},
+				{Respond: []scripted.Event{{Text: "waiting for the kill"}, {Finish: "end_turn"}}},
+				{Respond: []scripted.Event{{Text: "waiting for the kill"}, {Finish: "end_turn"}}},
+			}}},
+		)
+		cancels := make(chan string, 1)
+		l := bgSpawnLoop(t, router, []string{"worker"})
+		l.SubSpecs = staticResolver(slowWorker())
+		l.Cancels = cancels
+		go func() {
+			// The user's ar kill: fire once the handle exists (a kill for an
+			// unknown handle is a no-op by design).
+			deadline := time.Now().Add(5 * time.Second)
+			for time.Now().Before(deadline) {
+				evs, _ := store.ReadEvents(l.Store.Dir())
+				for _, e := range evs {
+					if e.Type == event.TypeSpawnRequested {
+						cancels <- "s1"
+						return
+					}
+				}
+				time.Sleep(5 * time.Millisecond)
+			}
+		}()
+		if _, err := l.Run(context.Background(), "spawn; the user kills"); err != nil {
+			t.Fatal(err)
+		}
+		mark := readMark(t, filepath.Join(l.Store.Dir(), "sub", "s1-a1"))
+		if mark == nil || mark.Reason != "killed" || mark.Source != "user" {
+			t.Fatalf("child mark = %+v, want killed/user", mark)
+		}
+	})
+}
