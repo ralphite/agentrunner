@@ -20,7 +20,9 @@ model:
   id: gemini-flash-latest   # any model id the provider serves
   # max_tokens: 8192        # per-turn output cap (default 8192)
 
-system_prompt: You are a helpful coding agent.
+system_prompt: >
+  You are a helpful coding agent. Answer in plain text; use tools only
+  when the task requires reading or changing files or running commands.
 # system_prompt_file: prompt.md   # or load the prompt from a file (not both)
 
 # Tools the agent may use; omit for a chat-only agent.

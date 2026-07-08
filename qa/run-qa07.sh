@@ -24,13 +24,13 @@ echo "session $sid"
 qa_wait_idle "$SDIR" 1
 
 # Step 1: the screenshot, with a question only the image can answer.
-"$AR" send --image "$PNG" "$sid" \
+"$AR" send --detach --image "$PNG" "$sid" \
   "这是 CI 的截图。哪个文件的哪一行报了什么错?给出文件名、行号、和未定义的标识符原文。" >/dev/null
 qa_wait_idle "$SDIR" 2
 
 # Step 3 (context continuity): the identifier must come from the session
 # context (we never type it here).
-"$AR" send "$sid" "在这个仓库里搜一下:截图里那个未定义的标识符,去掉结尾数字后的名字存不存在?给出结论。" >/dev/null
+"$AR" send --detach "$sid" "在这个仓库里搜一下:截图里那个未定义的标识符,去掉结尾数字后的名字存不存在?给出结论。" >/dev/null
 qa_wait_idle "$SDIR" 3
 "$AR" close "$sid" >/dev/null 2>&1 || true
 for i in $(seq 1 100); do tail -c 200 "$SDIR/events.jsonl" | grep -q '"type":"session_closed"' && break; sleep 0.1; done

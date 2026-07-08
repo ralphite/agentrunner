@@ -60,22 +60,22 @@ qa_wait_idle "$SDIR" 1
 
 # ---- (a) parked at idle × kill -9 → send revives, context intact ----
 crash_restart
-"$AR" send "$sid" "接着刚才的话题:暗号是什么?原样说出来。" >/dev/null
+"$AR" send --detach "$sid" "接着刚才的话题:暗号是什么?原样说出来。" >/dev/null
 qa_wait_idle "$SDIR" 2
 grep '"type":"assistant_message"' "$SDIR/events.jsonl" | tail -1 | grep -q "蓝色风筝" || {
   echo "$QA: FAIL (a) revived answer lost pre-crash context" >&2; fail=1; }
 
 # ---- (b) bash in flight × kill -9 → in-doubt renders, never re-runs;
 #      a message QUEUED before the crash survives it (铁律 2) ----
-"$AR" send "$sid" "运行 ./qa_slow.sh 并告诉我输出。只运行这一个命令。" >/dev/null
+"$AR" send --detach "$sid" "运行 ./qa_slow.sh 并告诉我输出。只运行这一个命令。" >/dev/null
 for i in $(seq 1 200); do
   grep -q '"name":"bash"' "$SDIR/events.jsonl" 2>/dev/null && break; sleep 0.2
 done
 # Queue a message DURING the turn — it is acked durable, then the crash
 # eats the process before the consume-side journal sees it.
-"$AR" send "$sid" "插一个问题:暗语是'青鸟',请原样重复一遍这个暗语。" >/dev/null
+"$AR" send --detach "$sid" "插一个问题:暗语是'青鸟',请原样重复一遍这个暗语。" >/dev/null
 crash_restart
-"$AR" send "$sid" "刚才那个命令什么状态?不要重新运行任何命令,只根据你已有的信息回答。" >/dev/null
+"$AR" send --detach "$sid" "刚才那个命令什么状态?不要重新运行任何命令,只根据你已有的信息回答。" >/dev/null
 qa_wait_idle "$SDIR" 3
 grep '"type":"activity_failed"' "$SDIR/events.jsonl" | grep -q "interrupted by crash" || {
   echo "$QA: FAIL (b) no interrupted-by-crash rendering" >&2; fail=1; }
@@ -99,7 +99,7 @@ model_calls="$(grep '"type":"assistant_message"' "$SDIR/events.jsonl" | grep -c 
   echo "$QA: FAIL (b) qa_slow starts=$bash_starts > model calls=$model_calls — runtime re-ran on doubt" >&2; fail=1; }
 
 # ---- (c) sub-agents in flight × kill -9 → receipts from child journals ----
-"$AR" send "$sid" "并行启动 2 个 worker 子 agent(background=true):P=先运行 'sleep 20' 再调查 README,Q=先运行 'sleep 20' 再调查 LICENSE。启动后等结果。" >/dev/null
+"$AR" send --detach "$sid" "并行启动 2 个 worker 子 agent(background=true):P=先运行 'sleep 20' 再调查 README,Q=先运行 'sleep 20' 再调查 LICENSE。启动后等结果。" >/dev/null
 for i in $(seq 1 300); do
   [ "$(count_type spawn_requested "$SDIR/events.jsonl")" -ge 2 ] && break; sleep 0.2
 done
@@ -107,7 +107,7 @@ done
   echo "$QA: FAIL (c) sub-agents never launched" >&2; cat "$WORK/daemon.log" >&2; exit 1; }
 sleep 1
 crash_restart
-"$AR" send "$sid" "两个子 agent 现在什么状态?" >/dev/null
+"$AR" send --detach "$sid" "两个子 agent 现在什么状态?" >/dev/null
 for i in $(seq 1 300); do
   [ "$(count_type subagent_completed "$SDIR/events.jsonl")" -ge 2 ] && break; sleep 0.2
 done

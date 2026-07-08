@@ -36,8 +36,8 @@ done
 [ "$started" = 1 ] || { echo "$QA: bash never started" >&2; cat "$WORK/daemon.log" >&2; exit 1; }
 
 # Two type-ahead messages during the slow bash.
-"$AR" send "$sid" "顺便数一下仓库里有多少个 .go 文件,用 bash。" >/dev/null
-"$AR" send "$sid" "全部用中文回答。" >/dev/null
+"$AR" send --detach "$sid" "顺便数一下仓库里有多少个 .go 文件,用 bash。" >/dev/null
+"$AR" send --detach "$sid" "全部用中文回答。" >/dev/null
 send_done_marker="$(count_type input_received "$SDIR/events.jsonl")"
 
 # The bash must run to completion (not cancelled by the sends).

@@ -27,7 +27,7 @@ echo "session $sid"
 qa_wait_idle "$SDIR" 1 900
 
 # Step 4: a NEW file via write_file.
-"$AR" send "$sid" "在仓库根新建 QA_NOTES.md,用 write_file 工具,两句话记录你刚才改了什么。" >/dev/null
+"$AR" send --detach "$sid" "在仓库根新建 QA_NOTES.md,用 write_file 工具,两句话记录你刚才改了什么。" >/dev/null
 qa_wait_idle "$SDIR" 2 600
 "$AR" close "$sid" >/dev/null 2>&1 || true
 for i in $(seq 1 100); do tail -c 200 "$SDIR/events.jsonl" | grep -q '"type":"session_closed"' && break; sleep 0.1; done
