@@ -1,6 +1,6 @@
 {
   "name": "spawn_agent",
-  "description": "Spawn a sub-agent from the available agents directory to work on a delegated task. Always non-blocking: returns a handle immediately while the sub-agent runs in parallel; its result arrives later as a message, and you can cancel it with task_kill (pass the handle). Sub-agents run under your permission rules and share your token budget.",
+  "description": "Spawn a sub-agent from the available agents directory to work on a delegated task. Always non-blocking: returns a handle immediately while the sub-agent runs in parallel; its result arrives later as a message, and you can cancel it with kill (pass the handle). Sub-agents run under your permission rules and share your token budget.",
   "class": "execute",
   "input_schema": {
     "type": "object",

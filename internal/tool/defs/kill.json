@@ -1,15 +1,15 @@
 {
-  "name": "task_kill",
+  "name": "kill",
   "description": "Cancel a running background task. Its cancellation notice arrives as a message.",
   "class": "execute",
   "input_schema": {
     "type": "object",
     "properties": {
-      "task_id": {
+      "handle": {
         "type": "string",
         "description": "The task handle to cancel."
       }
     },
-    "required": ["task_id"]
+    "required": ["handle"]
   }
 }

@@ -292,7 +292,7 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 		})
 		usage := spent
 		l.bg.done <- bgOutcome{
-			taskID: call.CallID, activityID: activityID,
+			handle: call.CallID, activityID: activityID,
 			result: payload, isError: reason == "error" || reason == "contract_violation",
 			canceled: canceled, usage: &usage,
 			subagent: &event.SubagentCompleted{

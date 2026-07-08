@@ -158,7 +158,7 @@ func remap(e event.Envelope, parentSession, newSession string, shift int64) even
 // existed in the fork, and the fold renders the cancellation as the
 // model-visible outcome ("fork 后模型可自行重启", DESIGN §fork/rewind).
 func cancelAtFork(lines []event.Envelope, opts Options) ([]event.Envelope, error) {
-	if len(opts.Barrier.Tasks) == 0 {
+	if len(opts.Barrier.Handles) == 0 {
 		return nil, nil
 	}
 	folded, err := state.Fold(lines)
@@ -167,11 +167,11 @@ func cancelAtFork(lines []event.Envelope, opts Options) ([]event.Envelope, error
 	}
 	seq := lines[len(lines)-1].Seq
 	var out []event.Envelope
-	for _, task := range opts.Barrier.Tasks {
+	for _, task := range opts.Barrier.Handles {
 		if task.Policy != "cancel_at_fork" {
 			continue // unknown policies stay untouched; the fold will refuse resume loudly
 		}
-		started, ok := folded.Tasks[task.TaskID]
+		started, ok := folded.Handles[task.Handle]
 		if !ok {
 			continue // already settled inside the cut
 		}

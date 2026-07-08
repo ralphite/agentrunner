@@ -28,7 +28,7 @@ func SubStateVersions() map[string]int {
 		"mode":         1, // S3.6a
 		"budget":       1, // S3.7a (reservations; settled usage lives in run)
 		"compaction":   1, // S4.5 (context-compaction view)
-		"tasks":        1, // S6.1 (background task set)
+		"handles":      1, // S6.1 (background task set)
 		"barriers":     1, // S7.2 (checkpoint barriers — fork/rewind targets)
 	}
 }
@@ -36,12 +36,12 @@ func SubStateVersions() map[string]int {
 // Barrier is one folded checkpoint-barrier record (S7.2): everything a
 // fork/rewind needs to locate the cut without re-reading the raw event.
 type Barrier struct {
-	BarrierID   string              `json:"barrier_id"`
-	Seq         int64               `json:"seq"` // the barrier event's own seq
-	GenStep     int                 `json:"gen_step,omitempty"`
-	SnapshotRef string              `json:"snapshot_ref"`
-	Vector      map[string]int64    `json:"vector"`
-	Tasks       []event.BarrierTask `json:"tasks,omitempty"`
+	BarrierID   string                `json:"barrier_id"`
+	Seq         int64                 `json:"seq"` // the barrier event's own seq
+	GenStep     int                   `json:"gen_step,omitempty"`
+	SnapshotRef string                `json:"snapshot_ref"`
+	Vector      map[string]int64      `json:"vector"`
+	Handles     []event.BarrierHandle `json:"handles,omitempty"`
 }
 
 // Session liveness statuses. There is no terminal status (决策 #30/#31):
@@ -62,8 +62,8 @@ type State struct {
 	Mode string `json:"mode,omitempty"`
 	// Budget holds live reservations (3.7a); settled usage is Run.Usage.
 	Budget Budget `json:"budget"`
-	// Tasks is the in-flight background task set (S6.1).
-	Tasks Tasks `json:"tasks"`
+	// Handles is the in-flight background work set (S6.1): handle → the ActivityStarted fact.
+	Handles Handles `json:"handles"`
 	// Barriers are the fork/rewind targets taken so far (S7.2), in order.
 	Barriers []Barrier `json:"barriers,omitempty"`
 	// Compaction is the context-compaction view (S4.5): the summary that
@@ -159,14 +159,14 @@ type ToolResult struct {
 // in-doubt signal (2.15).
 type Activities map[string]event.ActivityStarted
 
-// Tasks is the in-flight BACKGROUND task set (S6.1, the tasks sub-state):
-// task_id (= the launching call_id) → the ActivityStarted fact. Folded from
-// ActivityStarted{Background}; the activity's terminal event removes it and
-// renders the outcome as a user-role input.
-type Tasks map[string]event.ActivityStarted
+// Handles is the in-flight background work set (S6.1, the handles
+// sub-state): handle (= the launching call_id) → the ActivityStarted fact.
+// Folded from ActivityStarted{Background}; the activity's terminal event
+// removes it and renders the outcome as a user-role input.
+type Handles map[string]event.ActivityStarted
 
-func (t Tasks) with(id string, v event.ActivityStarted) Tasks {
-	out := make(Tasks, len(t)+1)
+func (t Handles) with(id string, v event.ActivityStarted) Handles {
+	out := make(Handles, len(t)+1)
 	for k, vv := range t {
 		out[k] = vv
 	}
@@ -174,11 +174,11 @@ func (t Tasks) with(id string, v event.ActivityStarted) Tasks {
 	return out
 }
 
-func (t Tasks) without(id string) Tasks {
+func (t Handles) without(id string) Handles {
 	if _, ok := t[id]; !ok {
 		return t
 	}
-	out := make(Tasks, len(t))
+	out := make(Handles, len(t))
 	for k, vv := range t {
 		if k != id {
 			out[k] = vv
@@ -290,8 +290,8 @@ func New() State {
 			Allowed:   map[string]bool{},
 			Decisions: map[string]string{},
 		},
-		Budget: Budget{Reserved: map[string]int{}},
-		Tasks:  Tasks{},
+		Budget:  Budget{Reserved: map[string]int{}},
+		Handles: Handles{},
 	}
 }
 
@@ -384,7 +384,7 @@ func Apply(s State, env event.Envelope) (State, error) {
 		barriers = append(barriers, s.Barriers...)
 		s.Barriers = append(barriers, Barrier{
 			BarrierID: p.BarrierID, Seq: env.Seq, GenStep: p.GenStep,
-			SnapshotRef: p.SnapshotRef, Vector: p.Vector, Tasks: p.Tasks,
+			SnapshotRef: p.SnapshotRef, Vector: p.Vector, Handles: p.Handles,
 		})
 
 	case *event.ForkedFrom:
@@ -438,9 +438,9 @@ func Apply(s State, env event.Envelope) (State, error) {
 		if p.Background && p.CallID != "" {
 			// The handle IS this event's fold rendering (S6.1): the call
 			// pairs immediately, and the task enters the tasks sub-state.
-			s.Tasks = s.Tasks.with(p.CallID, *p)
+			s.Handles = s.Handles.with(p.CallID, *p)
 			handle, _ := json.Marshal(map[string]string{
-				"task_id": p.CallID, "status": "running",
+				"handle": p.CallID, "status": "running",
 			})
 			s.Conversation = s.Conversation.withToolResult(p.CallID,
 				ToolResult{Result: handle})
@@ -461,8 +461,8 @@ func Apply(s State, env event.Envelope) (State, error) {
 			// A background task's outcome arrives as a USER-role input
 			// (S6.1): the handle already paired the call at start; the
 			// result becomes conversation the model sees next turn.
-			s.Tasks = s.Tasks.without(started.CallID)
-			s.Conversation = s.Conversation.withMessage(taskOutcomeMessage(
+			s.Handles = s.Handles.without(started.CallID)
+			s.Conversation = s.Conversation.withMessage(handleOutcomeMessage(
 				started.CallID, "completed", string(p.Result)))
 		} else if inFlight && started.Kind == event.KindTool && started.CallID != "" {
 			s.Conversation = s.Conversation.withToolResult(started.CallID,
@@ -488,8 +488,8 @@ func Apply(s State, env event.Envelope) (State, error) {
 		s.Activities = s.Activities.without(p.ActivityID)
 		s.Budget = s.Budget.release(effectIDFor(started, p.ActivityID))
 		if inFlight && started.Background && started.CallID != "" {
-			s.Tasks = s.Tasks.without(started.CallID)
-			s.Conversation = s.Conversation.withMessage(taskOutcomeMessage(
+			s.Handles = s.Handles.without(started.CallID)
+			s.Conversation = s.Conversation.withMessage(handleOutcomeMessage(
 				started.CallID, "failed",
 				string(errs.RenderForModel(errs.Class(p.Error.Class), p.Error.Message))))
 		} else if inFlight && started.Kind == event.KindTool && started.CallID != "" {
@@ -513,8 +513,8 @@ func Apply(s State, env event.Envelope) (State, error) {
 			s.Session.Usage = addUsage(s.Session.Usage, *p.Usage)
 		}
 		if inFlight && started.Background && started.CallID != "" {
-			s.Tasks = s.Tasks.without(started.CallID)
-			s.Conversation = s.Conversation.withMessage(taskOutcomeMessage(
+			s.Handles = s.Handles.without(started.CallID)
+			s.Conversation = s.Conversation.withMessage(handleOutcomeMessage(
 				started.CallID, "canceled", p.PartialOutput))
 		} else if inFlight && started.Kind == event.KindTool && started.CallID != "" {
 			result, _ := json.Marshal(map[string]string{
@@ -618,12 +618,12 @@ func (e *UnhandledEventError) Error() string {
 	return "state: registered event type has no fold case: " + e.Type
 }
 
-// taskOutcomeMessage renders a background task's terminal outcome as the
+// handleOutcomeMessage renders a background task's terminal outcome as the
 // user-role input the model sees next turn (S6.1).
-func taskOutcomeMessage(taskID, status, body string) provider.Message {
+func handleOutcomeMessage(taskID, status, body string) provider.Message {
 	return provider.Message{Role: provider.RoleUser, Parts: []provider.Part{{
 		Kind: provider.PartText,
-		Text: "[background task " + taskID + " " + status + "]\n" + body,
+		Text: "[background work " + taskID + " " + status + "]\n" + body,
 	}}}
 }
 
@@ -824,7 +824,7 @@ func (t Timers) without(id string) Timers {
 // observers (driver settle, exit codes, sweeps) read it off the shape —
 // quiescence is never an event and never a state machine.
 func Quiescence(s State) (quiescent bool, reason string) {
-	if len(s.Activities) > 0 || len(s.Tasks) > 0 || len(s.Timers) > 0 {
+	if len(s.Activities) > 0 || len(s.Handles) > 0 || len(s.Timers) > 0 {
 		return false, ""
 	}
 	if s.Waiting != nil && s.Waiting.Kind != event.WaitInput {

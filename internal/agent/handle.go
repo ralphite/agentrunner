@@ -18,7 +18,7 @@ import (
 // goroutine and SETTLED (journaled) only on the drive goroutine — the fold
 // stays single-writer; the channel is the sole crossing point (S6.1).
 type bgOutcome struct {
-	taskID     string
+	handle     string
 	activityID string
 	result     json.RawMessage
 	isError    bool
@@ -85,7 +85,7 @@ func (l *Loop) launchBackground(ctx context.Context, appendE AppendFunc,
 	go func() {
 		res := l.Exec.Execute(taskCtx, name, args)
 		l.bg.done <- bgOutcome{
-			taskID: callID, activityID: activityID,
+			handle: callID, activityID: activityID,
 			result: res.Payload, isError: res.IsError,
 			canceled: taskCtx.Err() != nil,
 		}
@@ -115,7 +115,7 @@ func (l *Loop) drainBackground(appendE AppendFunc) error {
 // removes it from tasks and renders the outcome as a user-role input.
 func (l *Loop) settleBackground(appendE AppendFunc, out bgOutcome) error {
 	l.bg.mu.Lock()
-	delete(l.bg.cancel, out.taskID)
+	delete(l.bg.cancel, out.handle)
 	l.bg.mu.Unlock()
 
 	// A background spawn also journals SubagentCompleted (v2 M3.1): tree-budget
@@ -154,7 +154,7 @@ func (l *Loop) settleBackground(appendE AppendFunc, out bgOutcome) error {
 		})
 		if err == nil {
 			l.emit(protocol.Event{Kind: protocol.KindToolResult,
-				Tool: "task", CallID: out.taskID,
+				Tool: "handle", CallID: out.handle,
 				Result: compact(out.result), IsError: out.isError})
 		}
 		return err
@@ -223,11 +223,11 @@ func (l *Loop) cancelAllBackground(cause error) {
 // effort by nature: journal failures stop the drain, nothing more can be
 // done.
 func (l *Loop) settleOnAbort(ctx context.Context, ds *driveState, appendE AppendFunc) {
-	if l.bg == nil || len(ds.s.Tasks) == 0 {
+	if l.bg == nil || len(ds.s.Handles) == 0 {
 		return
 	}
 	l.cancelAllBackground(nil)
-	for len(ds.s.Tasks) > 0 {
+	for len(ds.s.Handles) > 0 {
 		out := <-l.bg.done
 		if err := l.settleBackground(appendE, out); err != nil {
 			return
@@ -235,33 +235,33 @@ func (l *Loop) settleOnAbort(ctx context.Context, ds *driveState, appendE Append
 	}
 }
 
-// runTaskTool executes task_output / task_kill against a fold snapshot of
+// runHandleTool executes output / kill against a fold snapshot of
 // the task set (taken on the drive goroutine — the closure runs on an
 // activity goroutine). Model-visible in every failure mode.
-func (l *Loop) runTaskTool(tasks state.Tasks, name string, rawArgs json.RawMessage) tool.Result {
+func (l *Loop) runHandleTool(tasks state.Handles, name string, rawArgs json.RawMessage) tool.Result {
 	var args struct {
-		TaskID string `json:"task_id"`
+		Handle string `json:"handle"`
 	}
-	if err := json.Unmarshal(rawArgs, &args); err != nil || args.TaskID == "" {
-		return errorResult(name + ": invalid args: need {\"task_id\"}")
+	if err := json.Unmarshal(rawArgs, &args); err != nil || args.Handle == "" {
+		return errorResult(name + ": invalid args: need {\"handle\"}")
 	}
-	if _, running := tasks[args.TaskID]; !running {
-		return errorResult(name + ": no running task " + args.TaskID +
+	if _, running := tasks[args.Handle]; !running {
+		return errorResult(name + ": no running task " + args.Handle +
 			" (a finished task's result arrived as a message)")
 	}
 	switch name {
-	case "task_output":
+	case "output":
 		// v0: bash collects output at completion — the honest answer for a
 		// running task is its status. A live tail arrives with streaming
 		// tools (记档: 2.10 进度通道对 bash 未接).
 		payload, _ := json.Marshal(map[string]string{
-			"task_id": args.TaskID, "status": "running",
+			"handle": args.Handle, "status": "running",
 			"note": "output arrives as a message when the task finishes",
 		})
 		return tool.Result{Payload: payload}
-	case "task_kill":
+	case "kill":
 		l.bg.mu.Lock()
-		cancel, ok := l.bg.cancel[args.TaskID]
+		cancel, ok := l.bg.cancel[args.Handle]
 		l.bg.mu.Unlock()
 		if ok {
 			// The parent model asked: record it (裁决二 — a parent-killed
@@ -270,7 +270,7 @@ func (l *Loop) runTaskTool(tasks state.Tasks, name string, rawArgs json.RawMessa
 			cancel(&errs.KilledError{Source: "parent"})
 		}
 		payload, _ := json.Marshal(map[string]string{
-			"task_id": args.TaskID, "status": "cancelling",
+			"handle": args.Handle, "status": "cancelling",
 			"note": "the cancellation notice arrives as a message",
 		})
 		return tool.Result{Payload: payload}
@@ -279,7 +279,7 @@ func (l *Loop) runTaskTool(tasks state.Tasks, name string, rawArgs json.RawMessa
 	}
 }
 
-// isTaskTool reports the task-management tools (advertised alongside bash).
-func isTaskTool(name string) bool {
-	return name == "task_output" || name == "task_kill"
+// isHandleTool reports the task-management tools (advertised alongside bash).
+func isHandleTool(name string) bool {
+	return name == "output" || name == "kill"
 }

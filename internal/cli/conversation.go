@@ -333,17 +333,17 @@ func psCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 		return ExitRun
 	}
-	if len(s.Tasks) == 0 {
+	if len(s.Handles) == 0 {
 		fmt.Fprintln(stdout, "no tasks in flight")
 		return ExitOK
 	}
-	handles := make([]string, 0, len(s.Tasks))
-	for h := range s.Tasks {
+	handles := make([]string, 0, len(s.Handles))
+	for h := range s.Handles {
 		handles = append(handles, h)
 	}
 	sort.Strings(handles)
 	for _, h := range handles {
-		act := s.Tasks[h]
+		act := s.Handles[h]
 		target := ""
 		if act.Name == "spawn_agent" {
 			var a struct {

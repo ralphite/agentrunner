@@ -81,16 +81,16 @@ func barrierCmd(args []string, stdout, stderr io.Writer) int {
 		}
 		vector["sub/"+suffix] = childEvents[len(childEvents)-1].Seq
 	}
-	var tasks []event.BarrierTask
-	for id := range fold.Tasks {
-		tasks = append(tasks, event.BarrierTask{TaskID: id, Policy: "cancel_at_fork"})
+	var handles []event.BarrierHandle
+	for id := range fold.Handles {
+		handles = append(handles, event.BarrierHandle{Handle: id, Policy: "cancel_at_fork"})
 	}
-	sort.Slice(tasks, func(i, j int) bool { return tasks[i].TaskID < tasks[j].TaskID })
+	sort.Slice(handles, func(i, j int) bool { return handles[i].Handle < handles[j].Handle })
 
 	barrierID := fmt.Sprintf("bar-m%d", es.LastSeq()+1)
 	env, err := event.New(event.TypeCheckpointBarrier, &event.CheckpointBarrier{
 		BarrierID: barrierID, GenStep: fold.Session.GenStep,
-		Vector: vector, SnapshotRef: ref, Tasks: tasks,
+		Vector: vector, SnapshotRef: ref, Handles: handles,
 	})
 	if err != nil {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)

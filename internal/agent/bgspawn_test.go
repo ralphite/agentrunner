@@ -184,8 +184,8 @@ func TestBackgroundSpawnParallelAndSettle(t *testing.T) {
 		t.Errorf("child reports reached model: alpha=%v beta=%v", sawAlpha, sawBeta)
 	}
 	// Tasks drained; both child journals exist under sub/.
-	if len(fold.Tasks) != 0 {
-		t.Errorf("tasks not drained: %+v", fold.Tasks)
+	if len(fold.Handles) != 0 {
+		t.Errorf("tasks not drained: %+v", fold.Handles)
 	}
 	for _, sub := range []string{"a-a1", "b-a1"} {
 		if _, err := store.ReadEvents(l.Store.Dir() + "/sub/" + sub); err != nil {
@@ -401,7 +401,7 @@ func TestNoDuplicateToolDeclaration(t *testing.T) {
 }
 
 // v2 M3.2 (C6): a steer message makes the MODEL change the orchestration —
-// it cancels one running child (task_kill) and spawns a new one. Scripted
+// it cancels one running child (kill) and spawns a new one. Scripted
 // twin (the real-API model-reliability of this is best-effort in QA).
 func TestSteerChangesOrchestration(t *testing.T) {
 	router := scripted.NewRouter(
@@ -416,8 +416,8 @@ func TestSteerChangesOrchestration(t *testing.T) {
 			// assembly may order the spawn handle tool-result after the steer
 			// user message; the structural asserts below prove causation.)
 			{Respond: []scripted.Event{
-				{ToolCall: &scripted.ToolCallEvent{CallID: "k", Name: "task_kill",
-					Args: map[string]any{"task_id": "old"}}},
+				{ToolCall: &scripted.ToolCallEvent{CallID: "k", Name: "kill",
+					Args: map[string]any{"handle": "old"}}},
 				{ToolCall: &scripted.ToolCallEvent{CallID: "new", Name: "spawn_agent",
 					Args: map[string]any{"agent": "worker", "task": "investigate NEWTOPIC", "background": true}}},
 				{Finish: "tool_use"},

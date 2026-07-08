@@ -655,8 +655,8 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 	// along so the model can inspect/cancel what it started.
 	if slices.Contains(l.Spec.Tools, "bash") || len(l.Spec.Agents) > 0 {
 		// bash background tasks (S6.1) and background sub-agents (v2 M3.1)
-		// share task_kill: cancel a running child/task by its handle.
-		extra = append(extra, "task_output", "task_kill")
+		// share kill: cancel a running child/task by its handle.
+		extra = append(extra, "output", "kill")
 	}
 	if l.Board != nil || len(l.Spec.Agents) > 0 {
 		extra = append(extra, "publish_note", "read_notes")
@@ -1001,7 +1001,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 func (l *Loop) idleOrReturn(ctx context.Context, ds *driveState, appendE AppendFunc,
 	turn int, quiesced *bool, fresh bool) (RunResult, bool, error) {
 
-	if len(ds.s.Tasks) == 0 && len(ds.s.Timers) == 0 {
+	if len(ds.s.Handles) == 0 && len(ds.s.Timers) == 0 {
 		if !*quiesced {
 			reason := quiesceReason(ds.s)
 			if err := l.quiescentActions(ctx, ds, appendE, &reason); err != nil {
@@ -1140,7 +1140,7 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 	// closures journal through serialAppend and capture the parent's live
 	// mode NOW — frozen-at-spawn semantics.
 	parentMode := ds.s.CurrentMode()
-	tasksSnapshot := ds.s.Tasks
+	handlesSnapshot := ds.s.Handles
 	acts := make([]Activity, 0, len(allowed))
 	actIdx := make([]int, 0, len(allowed))
 	for i, p := range allowed {
@@ -1181,14 +1181,14 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 		if p.call.Name == "publish_artifact" {
 			run = l.buildPublishRun(p.call, p.res, serialAppend)
 		}
-		if isTaskTool(p.call.Name) {
+		if isHandleTool(p.call.Name) {
 			// Task tools read the fold snapshot taken NOW, on the drive
 			// goroutine — the closure runs on an activity goroutine while
 			// serialAppend mutates ds.s.
 			call := p.call
 			res := p.res
 			run = func(context.Context) (json.RawMessage, *provider.Usage, bool, error) {
-				*res = l.runTaskTool(tasksSnapshot, call.Name, call.Args)
+				*res = l.runHandleTool(handlesSnapshot, call.Name, call.Args)
 				return res.Payload, nil, res.IsError, nil
 			}
 		}
@@ -1439,14 +1439,14 @@ func (l *Loop) takeBarrier(ctx context.Context, ds *driveState, appendE AppendFu
 		}
 		vector[rel] = events[len(events)-1].Seq
 	}
-	var tasks []event.BarrierTask
-	for id := range ds.s.Tasks {
-		tasks = append(tasks, event.BarrierTask{TaskID: id, Policy: "cancel_at_fork"})
+	var handles []event.BarrierHandle
+	for id := range ds.s.Handles {
+		handles = append(handles, event.BarrierHandle{Handle: id, Policy: "cancel_at_fork"})
 	}
-	sort.Slice(tasks, func(i, j int) bool { return tasks[i].TaskID < tasks[j].TaskID })
+	sort.Slice(handles, func(i, j int) bool { return handles[i].Handle < handles[j].Handle })
 	_, err = appendE(event.TypeCheckpointBarrier, &event.CheckpointBarrier{
 		BarrierID: barrierID, GenStep: turn,
-		Vector: vector, SnapshotRef: ref, Tasks: tasks,
+		Vector: vector, SnapshotRef: ref, Handles: handles,
 	})
 	return err
 }

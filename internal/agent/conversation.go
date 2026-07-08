@@ -158,7 +158,7 @@ func (l *Loop) awaitInput(ctx context.Context, ds *driveState, appendE AppendFun
 			if err := l.settleBackground(appendE, out); err != nil {
 				return false, err
 			}
-			return false, resolve("task_settled")
+			return false, resolve("work_settled")
 		case handle := <-l.Cancels:
 			// A user's kill at idle: journal it and cancel the handle; the
 			// cancelled child settles through bg.done, which wakes the next

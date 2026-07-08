@@ -422,7 +422,7 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 }
 
 // handleKill cancels one running child/task by handle (v2 M3.2): the user's
-// direct kill path, distinct from the model calling task_kill.
+// direct kill path, distinct from the model calling kill.
 func (s *Server) handleKill(cmd Command, enc *json.Encoder) {
 	if cmd.Session == "" || cmd.Handle == "" {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "kill needs session and handle"})

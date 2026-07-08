@@ -29,7 +29,7 @@ func AssertFoldEqual(t testing.TB, got, want state.State) {
 		{"mode", got.Mode, want.Mode},
 		{"budget", got.Budget, want.Budget},
 		{"compaction", got.Compaction, want.Compaction},
-		{"tasks", got.Tasks, want.Tasks},
+		{"handles", got.Handles, want.Handles},
 		{"barriers", got.Barriers, want.Barriers},
 	}
 	for _, p := range pairs {

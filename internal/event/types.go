@@ -491,14 +491,14 @@ type CheckpointBarrier struct {
 	// SnapshotRef is the workspace snapshot (SnapshotStore-opaque). A
 	// barrier is only taken when a snapshot succeeded — no ref, no barrier.
 	SnapshotRef string `json:"snapshot_ref"`
-	// Tasks is the weakened-semantics vector: background tasks in flight at
-	// the cut and how a fork disposes of them.
-	Tasks []BarrierTask `json:"tasks,omitempty"`
+	// Handles is the weakened-semantics vector: background work in flight
+	// at the cut and how a fork disposes of it.
+	Handles []BarrierHandle `json:"handles,omitempty"`
 }
 
-// BarrierTask is one in-flight task's fork-time disposition.
-type BarrierTask struct {
-	TaskID string `json:"task_id"`
+// BarrierHandle is one in-flight handle's fork-time disposition.
+type BarrierHandle struct {
+	Handle string `json:"handle"`
 	Policy string `json:"policy"` // v0: cancel_at_fork — the fork renders it cancelled
 }
 

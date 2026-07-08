@@ -20,7 +20,7 @@ model: { provider: gemini, id: gemini-flash-latest, max_tokens: 2048 }
 system_prompt: |
   你是编排者,简洁作答。用户要求并行调查时,用 spawn_agent
   (background=true, agent=worker)严格按要求的数量和分工启动子 agent,
-  启动后不要等待。用户要求取消某个子 agent 时用 task_kill(handle)。
+  启动后不要等待。用户要求取消某个子 agent 时用 kill(handle)。
   需要写文件时用 write_file。
 tools: [read_file, write_file, spawn_agent]
 agents: [worker]
@@ -67,14 +67,14 @@ spawns="$(count_type spawn_requested "$SDIR/events.jsonl")"
 
 # Steps 3: steer while children are in flight — cancel B, spawn D.
 "$AR" ps "$sid" || true
-"$AR" send --detach "$sid" "B(binding 目录)不用查了,立刻用 task_kill 取消它;另启动一个新的 worker 子 agent D(background=true)调查 gin 的路由树实现。" >/dev/null
+"$AR" send --detach "$sid" "B(binding 目录)不用查了,立刻用 kill 工具取消它;另启动一个新的 worker 子 agent D(background=true)调查 gin 的路由树实现。" >/dev/null
 for i in $(seq 1 300); do
   [ "$(count_type spawn_requested "$SDIR/events.jsonl")" -ge 4 ] && break; sleep 0.2
 done
 spawns="$(count_type spawn_requested "$SDIR/events.jsonl")"
 [ "$spawns" -ge 4 ] || { echo "$QA: FAIL step3 spawns = $spawns, want 4 (D spawned)" >&2; fail=1; }
-grep '"type":"activity_started"' "$SDIR/events.jsonl" | grep -q '"name":"task_kill"' || {
-  echo "$QA: FAIL step3 no task_kill call — B was not cancelled by the model" >&2; fail=1; }
+grep '"type":"activity_started"' "$SDIR/events.jsonl" | grep -q '"name":"kill"' || {
+  echo "$QA: FAIL step3 no kill call — B was not cancelled by the model" >&2; fail=1; }
 
 # Step 4: all receipts land (4 spawned, all settle one way or another).
 for i in $(seq 1 400); do

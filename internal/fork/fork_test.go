@@ -265,7 +265,7 @@ func TestCutAppliesCancelAtFork(t *testing.T) {
 	appendT(event.TypeCheckpointBarrier, &event.CheckpointBarrier{
 		BarrierID: "bar-t2", GenStep: 2, Vector: map[string]int64{".": 3},
 		SnapshotRef: "ref-live",
-		Tasks:       []event.BarrierTask{{TaskID: "bg1", Policy: "cancel_at_fork"}}})
+		Handles:     []event.BarrierHandle{{Handle: "bg1", Policy: "cancel_at_fork"}}})
 
 	events, _ := store.ReadEvents(dir)
 	fold, err := state.Fold(events)
@@ -290,9 +290,9 @@ func TestCutAppliesCancelAtFork(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(fold2.Tasks) != 0 || len(fold2.Activities) != 0 {
+	if len(fold2.Handles) != 0 || len(fold2.Activities) != 0 {
 		t.Errorf("fork fold still has tasks=%d activities=%d — resume would refuse as in-doubt",
-			len(fold2.Tasks), len(fold2.Activities))
+			len(fold2.Handles), len(fold2.Activities))
 	}
 	var sawOutcome bool
 	for _, m := range fold2.Conversation.Messages {

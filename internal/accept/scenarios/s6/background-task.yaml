@@ -14,7 +14,7 @@ files:
           - tool_call: { name: bash, args: { command: "sleep 0.2; echo bg-done", background: true } }
           - usage: { input_tokens: 40, output_tokens: 20 }
           - finish: tool_use
-      - expect: { last_message_contains: task_id }
+      - expect: { last_message_contains: handle }
         respond:
           - text: "kicked it off; ending my turn"
           - usage: { input_tokens: 20, output_tokens: 10 }

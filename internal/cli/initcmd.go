@@ -37,7 +37,6 @@ tools: [read_file, write_file, edit_file, bash]
 #   - tool: bash
 #     command: "git *"
 #     action: allow
-# on_run_end: cancel        # cancel | await — what happens to background tasks
 `
 
 // initCmd writes the example spec: `agentrunner init [path]` (default

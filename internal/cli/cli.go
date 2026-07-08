@@ -118,13 +118,13 @@ Background work (daemon):
 
 Observe:
   sessions                    list sessions and their status
-  ps <session>                in-flight background tasks of a session
+  ps <session>                in-flight background work of a session
   inspect <session>           session facts: status, turns, token usage, budget
   events <session>            raw journal events (debugging)
 
 Control:
   approve <session> <id> approve|deny   answer a pending permission ask
-  kill <session> <handle>               cancel one background task
+  kill <session> <handle>               cancel one background handle
   fork <session> <barrier>    branch a session at a barrier into a new one (--list shows barriers)
   trust <dir>                 mark a workspace as trusted
 

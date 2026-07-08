@@ -27,7 +27,7 @@ func TestBackgroundTaskHandleAndOutcome(t *testing.T) {
 		// just finished) and yields with text; the loop then goes idle on the
 		// task (WAITING_TASKS) if it hasn't settled.
 		{
-			Expect:  scripted.Expect{LastMessageContains: "task_id"},
+			Expect:  scripted.Expect{LastMessageContains: "handle"},
 			Respond: []scripted.Event{{Text: "started it, waiting"}, {Finish: "end_turn"}},
 		},
 		// GenStep 3: the task outcome has arrived as a user message; wrap up.
@@ -69,11 +69,11 @@ func TestBackgroundTaskHandleAndOutcome(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The task drained out of the tasks sub-state at the end.
-	if len(fold.Session.Env) == 0 && len(fold.Tasks) != 0 {
-		t.Errorf("tasks not drained: %+v", fold.Tasks)
+	if len(fold.Session.Env) == 0 && len(fold.Handles) != 0 {
+		t.Errorf("tasks not drained: %+v", fold.Handles)
 	}
-	if len(fold.Tasks) != 0 {
-		t.Errorf("tasks sub-state not empty at end: %+v", fold.Tasks)
+	if len(fold.Handles) != 0 {
+		t.Errorf("tasks sub-state not empty at end: %+v", fold.Handles)
 	}
 	// The handle paired the call, and the outcome is a user message.
 	tr := fold.Conversation.ToolResults["bg1"]
@@ -83,7 +83,7 @@ func TestBackgroundTaskHandleAndOutcome(t *testing.T) {
 	var sawOutcome bool
 	for _, m := range fold.Conversation.Messages {
 		for _, p := range m.Parts {
-			if strings.Contains(p.Text, "background task bg1 completed") &&
+			if strings.Contains(p.Text, "background work bg1 completed") &&
 				strings.Contains(p.Text, "done-work") {
 				sawOutcome = true
 			}
@@ -94,7 +94,7 @@ func TestBackgroundTaskHandleAndOutcome(t *testing.T) {
 	}
 }
 
-// S6.1: task_kill cancels a running task; the cancellation lands as a
+// S6.1: kill cancels a running task; the cancellation lands as a
 // message and the tasks set empties.
 func TestTaskKill(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
@@ -105,10 +105,10 @@ func TestTaskKill(t *testing.T) {
 		}},
 		// GenStep 2: kill it.
 		{
-			Expect: scripted.Expect{LastMessageContains: "task_id"},
+			Expect: scripted.Expect{LastMessageContains: "handle"},
 			Respond: []scripted.Event{
-				{ToolCall: &scripted.ToolCallEvent{CallID: "k1", Name: "task_kill",
-					Args: map[string]any{"task_id": "bg1"}}},
+				{ToolCall: &scripted.ToolCallEvent{CallID: "k1", Name: "kill",
+					Args: map[string]any{"handle": "bg1"}}},
 				{Finish: "tool_use"},
 			},
 		},
@@ -132,13 +132,13 @@ func TestTaskKill(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(fold.Tasks) != 0 {
-		t.Errorf("task not removed after kill: %+v", fold.Tasks)
+	if len(fold.Handles) != 0 {
+		t.Errorf("task not removed after kill: %+v", fold.Handles)
 	}
 	// The kill tool paired normally; the cancellation is a user message.
 	kr := fold.Conversation.ToolResults["k1"]
 	if !strings.Contains(string(kr.Result), "cancelling") {
-		t.Errorf("task_kill result = %s", kr.Result)
+		t.Errorf("kill result = %s", kr.Result)
 	}
 }
 
@@ -177,7 +177,7 @@ func TestBackgroundTaskSettlesBeforeQuiescence(t *testing.T) {
 		if e.Type == event.TypeWaitingEntered && strings.Contains(string(e.Payload), `"input"`) {
 			sawWaitEntered = true
 		}
-		if e.Type == event.TypeWaitingResolved && strings.Contains(string(e.Payload), "task_settled") {
+		if e.Type == event.TypeWaitingResolved && strings.Contains(string(e.Payload), "work_settled") {
 			sawWaitResolved = true
 		}
 	}

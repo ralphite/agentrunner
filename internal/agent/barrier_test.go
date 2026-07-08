@@ -164,12 +164,12 @@ func TestBarrierRecordsLiveTasks(t *testing.T) {
 		t.Fatalf("barriers = %d, want 4 (t1..t3 + quiescent)", len(barriers))
 	}
 	t2 := barriers[1]
-	if len(t2.Tasks) != 1 || t2.Tasks[0].TaskID != "bg1" || t2.Tasks[0].Policy != "cancel_at_fork" {
-		t.Errorf("bar-t2 tasks = %+v, want [{bg1 cancel_at_fork}]", t2.Tasks)
+	if len(t2.Handles) != 1 || t2.Handles[0].Handle != "bg1" || t2.Handles[0].Policy != "cancel_at_fork" {
+		t.Errorf("bar-t2 tasks = %+v, want [{bg1 cancel_at_fork}]", t2.Handles)
 	}
 	final := barriers[len(barriers)-1]
-	if len(final.Tasks) != 0 {
-		t.Errorf("quiescent barrier tasks = %+v, want none", final.Tasks)
+	if len(final.Handles) != 0 {
+		t.Errorf("quiescent barrier tasks = %+v, want none", final.Handles)
 	}
 }
 
