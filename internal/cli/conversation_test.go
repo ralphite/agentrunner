@@ -5,6 +5,8 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -133,6 +135,149 @@ func TestDaemonConversationalSendClose(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("session did not reach a terminal after close\nstderr: %s", errOut.String())
+}
+
+// INC-2 BB-me-4/5/6: the conversational path must SHOW the reply. `new`
+// renders the opening turn's text and prints the continue hint; `send`
+// renders the reply (and not the "delivered" ack) — both detach at idle,
+// leaving the session running.
+func TestNewAndSendRenderReply(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	dir := t.TempDir()
+	specPath := writeSpec(t, dir)
+	fixture := `steps:
+  - respond: [ { text: "roses are red, violets are blue" }, { finish: end_turn } ]
+  - respond: [ { text: "PONG" }, { finish: end_turn } ]
+`
+	fixPath := filepath.Join(dir, "fix.yaml")
+	if err := os.WriteFile(fixPath, []byte(fixture), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("AGENTRUNNER_SCRIPTED_FIXTURE", fixPath)
+
+	// The daemon listens where the CLI's own socketPath() looks, so
+	// newCmd/sendCmd find it exactly like in production.
+	sock, err := socketPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var errLog bytes.Buffer
+	broker := daemon.NewApprovalBroker()
+	srv := &daemon.Server{
+		SocketPath:   sock,
+		NewID:        func(task string) string { return runtime.NewSessionID(time.Now(), task) },
+		Run:          hostRunFunc("test", &errLog, broker),
+		Approvals:    broker,
+		PersistInput: persistInputFunc(),
+	}
+	go func() { _ = srv.ListenAndServe(ctx) }()
+	waitDaemon(t, sock)
+
+	ws := t.TempDir()
+	var out, errOut bytes.Buffer
+	if code := newCmd([]string{"--workspace", ws, specPath, "write a poem"}, &out, &errOut); code != ExitOK {
+		t.Fatalf("new: exit %d\nstdout: %s\nstderr: %s\nlog: %s", code, out.String(), errOut.String(), errLog.String())
+	}
+	if !strings.Contains(out.String(), "roses are red") {
+		t.Fatalf("new stdout missing the reply:\n%s", out.String())
+	}
+	m := regexp.MustCompile(`session (\S+)`).FindStringSubmatch(errOut.String())
+	if m == nil {
+		t.Fatalf("new stderr missing the session line:\n%s", errOut.String())
+	}
+	sid := m[1]
+	if !strings.Contains(errOut.String(), "agentrunner send "+sid) {
+		t.Fatalf("new stderr missing the continue hint:\n%s", errOut.String())
+	}
+
+	out.Reset()
+	errOut.Reset()
+	if code := sendCmd([]string{sid, "say PONG"}, &out, &errOut); code != ExitOK {
+		t.Fatalf("send: exit %d\nstdout: %s\nstderr: %s\nlog: %s", code, out.String(), errOut.String(), errLog.String())
+	}
+	if !strings.Contains(out.String(), "PONG") {
+		t.Fatalf("send stdout missing the reply:\n%s", out.String())
+	}
+	if strings.Contains(out.String(), "delivered") {
+		t.Fatalf("send stdout must not show the ack:\n%s", out.String())
+	}
+
+	// The session survived both detaches: close it cleanly.
+	var closing bool
+	if err := daemon.Dial(sock, daemon.Command{Cmd: "close", Session: sid},
+		func(e protocol.Event) { closing = e.Kind == protocol.KindMessage }); err != nil || !closing {
+		t.Fatalf("close: ok=%v err=%v", closing, err)
+	}
+}
+
+// INC-2: --detach restores the fire-and-forget forms (id only / ack only).
+func TestNewAndSendDetach(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	dir := t.TempDir()
+	specPath := writeSpec(t, dir)
+	fixture := `steps:
+  - respond: [ { text: "hi" }, { finish: end_turn } ]
+`
+	fixPath := filepath.Join(dir, "fix.yaml")
+	if err := os.WriteFile(fixPath, []byte(fixture), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("AGENTRUNNER_SCRIPTED_FIXTURE", fixPath)
+	sock, err := socketPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var errLog bytes.Buffer
+	broker := daemon.NewApprovalBroker()
+	srv := &daemon.Server{
+		SocketPath:   sock,
+		NewID:        func(task string) string { return runtime.NewSessionID(time.Now(), task) },
+		Run:          hostRunFunc("test", &errLog, broker),
+		Approvals:    broker,
+		PersistInput: persistInputFunc(),
+	}
+	go func() { _ = srv.ListenAndServe(ctx) }()
+	waitDaemon(t, sock)
+
+	ws := t.TempDir()
+	var out, errOut bytes.Buffer
+	if code := newCmd([]string{"--detach", "--workspace", ws, specPath, "write a poem"}, &out, &errOut); code != ExitOK {
+		t.Fatalf("new --detach: exit %d\nstderr: %s", code, errOut.String())
+	}
+	sid := strings.TrimSpace(out.String())
+	if sid == "" || strings.Contains(sid, " ") {
+		t.Fatalf("new --detach stdout should be just the id, got %q", out.String())
+	}
+
+	// The journal dir is created by the hosting goroutine after RunStart;
+	// wait for it so the send's mailbox write has somewhere to land.
+	sdir, err := runtime.SessionDir(sid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if evs, err := store.ReadEvents(sdir); err == nil && len(evs) > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("session journal never appeared\nlog: %s", errLog.String())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	out.Reset()
+	errOut.Reset()
+	if code := sendCmd([]string{"--detach", sid, "more"}, &out, &errOut); code != ExitOK {
+		t.Fatalf("send --detach: exit %d\nstderr: %s", code, errOut.String())
+	}
+	if strings.TrimSpace(out.String()) != "delivered" {
+		t.Fatalf("send --detach stdout = %q, want delivered", out.String())
+	}
 }
 
 func waitDaemon(t *testing.T, sock string) {
