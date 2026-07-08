@@ -1,10 +1,13 @@
 package agent
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
+
+	"github.com/ralphite/agentrunner/internal/event"
 
 	"github.com/ralphite/agentrunner/internal/memory"
 	"github.com/ralphite/agentrunner/internal/pipeline"
@@ -63,6 +66,28 @@ func renderEnvBlock(cwd string, now time.Time) string {
 		return ""
 	}
 	return fmt.Sprintf("<env>\ncwd: %s\ndate: %s\n</env>", cwd, now.Format("2006-01-02"))
+}
+
+// RenderSpecChange freezes the NEW spec's prefix blocks and effective
+// permission layers for a SpecChanged fact (决策 #32) — the same rendering
+// a session start performs, done by whoever executes the switch. The
+// returned event is ready to journal; appending it IS the switch.
+func RenderSpecChange(spec *AgentSpec, specPath, wsRoot string, now time.Time,
+	resolve SubSpecResolver, pipe *pipeline.Pipeline) (*event.SpecChanged, error) {
+
+	specJSON, err := json.Marshal(spec)
+	if err != nil {
+		return nil, err
+	}
+	memoryBlock, skillsBlock := renderContextBlocks(wsRoot)
+	return &event.SpecChanged{
+		SpecName: spec.Name, Model: spec.Model.ID,
+		Spec: specJSON, SpecPath: specPath, Source: "user",
+		Env:    renderEnvBlock(wsRoot, now),
+		Memory: memoryBlock, Skills: skillsBlock,
+		Agents:           renderAgentsDirectory(spec.Agents, resolve),
+		PermissionLayers: marshalPermissionLayers(pipe),
+	}, nil
 }
 
 // renderContextBlocks freezes the memory (CLAUDE.md merge) and skills

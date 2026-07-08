@@ -430,8 +430,15 @@ func hostResumeFunc(version string, stderr io.Writer, broker *daemon.ApprovalBro
 		if len(started.Spec) == 0 || started.WorkspaceRoot == "" {
 			return fmt.Errorf("session %s predates resumable metadata", sessionID)
 		}
+		// The CURRENT agent may differ from the opening one (决策 #32): a
+		// SpecChanged fact supersedes the SessionStarted spec, spec path and
+		// permission layers — the revival runs the agent the journal names.
+		specJSON, specPath, permLayers := started.Spec, started.SpecPath, started.PermissionLayers
+		if changed, cerr := readLatestSpecChange(dir); cerr == nil && changed != nil {
+			specJSON, specPath, permLayers = changed.Spec, changed.SpecPath, changed.PermissionLayers
+		}
 		var spec agent.AgentSpec
-		if err := json.Unmarshal(started.Spec, &spec); err != nil {
+		if err := json.Unmarshal(specJSON, &spec); err != nil {
 			return fmt.Errorf("journaled spec: %w", err)
 		}
 		ws, err := workspace.New(started.WorkspaceRoot)
@@ -450,9 +457,9 @@ func hostResumeFunc(version string, stderr io.Writer, broker *daemon.ApprovalBro
 
 		var pipe *pipeline.Pipeline
 		var hooks *hook.Runner
-		if len(started.PermissionLayers) > 0 {
+		if len(permLayers) > 0 {
 			var layers [][]pipeline.PermissionRule
-			if err := json.Unmarshal(started.PermissionLayers, &layers); err != nil {
+			if err := json.Unmarshal(permLayers, &layers); err != nil {
 				return fmt.Errorf("journaled permission layers: %w", err)
 			}
 			pipe, hooks, err = buildPipelineFromLayers(ws, layers, spec.Mode, spec.Budget.MaxTotalTokens, stderr)
@@ -475,7 +482,6 @@ func hostResumeFunc(version string, stderr io.Writer, broker *daemon.ApprovalBro
 			Hooks:     hooks,
 			Approvals: socketApprovals{broker: broker, session: sessionID, sink: sink},
 			Snapshots: snapshotStoreFor(ws, stderr),
-			SpecPath:  started.SpecPath,
 		}
 		// Every revived session gets the live channels (决策 #31: only one
 		// session shape) — it accepts send/interrupt/kill like a freshly
@@ -483,8 +489,9 @@ func hostResumeFunc(version string, stderr io.Writer, broker *daemon.ApprovalBro
 		loop.UserInputs = req.Inbox
 		loop.Interrupts = req.Interrupts
 		loop.Cancels = req.Cancels
-		if started.SpecPath != "" {
-			loop.SubSpecs = siblingSpecResolver(started.SpecPath)
+		loop.SpecPath = specPath
+		if specPath != "" {
+			loop.SubSpecs = siblingSpecResolver(specPath)
 		}
 		_, runErr := loop.Resume(ctx)
 		return runErr

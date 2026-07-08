@@ -60,6 +60,9 @@ const (
 	// S7 additions (world-state lifecycle).
 	TypeCheckpointBarrier = "checkpoint_barrier"
 	TypeForkedFrom        = "forked_from"
+
+	// 决策 #32 (2026-07-05): session 不绑 agent——运行中换 spec。
+	TypeSpecChanged = "spec_changed"
 )
 
 // Effect verdicts and gate decisions.
@@ -253,6 +256,30 @@ type SessionClosed struct {
 	Source   string         `json:"source,omitempty"` // user | parent
 	GenSteps int            `json:"gen_steps"`
 	Usage    provider.Usage `json:"usage"`
+}
+
+// SpecChanged swaps the session's agent spec mid-session (决策 #32): a
+// session is NOT bound to an agent — the user switches specs with no
+// confirmation (the switch itself is the intent; approval exists only for
+// an agent escalating its own child, never for the user's own switch).
+// The event carries the full new spec and the re-frozen prefix blocks: an
+// EXPLICIT prefix generation change — the cache break is deliberate and
+// journaled, never silent drift.
+type SpecChanged struct {
+	SpecName string          `json:"spec_name"`
+	Model    string          `json:"model"`
+	Spec     json.RawMessage `json:"spec"`
+	SpecPath string          `json:"spec_path,omitempty"`
+	Source   string          `json:"source"` // user
+	// Re-frozen prefix blocks for the new generation (same lifecycle as
+	// their SessionStarted originals).
+	Env    string `json:"env,omitempty"`
+	Memory string `json:"memory,omitempty"`
+	Skills string `json:"skills,omitempty"`
+	Agents string `json:"agents,omitempty"`
+	// PermissionLayers replaces the journaled effective-rules layers for
+	// resumes after the switch (same encoding as SessionStarted's).
+	PermissionLayers json.RawMessage `json:"permission_layers,omitempty"`
 }
 
 // EffectRequested marks entry into the gate sequence (3.2): an effect
@@ -601,6 +628,7 @@ var Registry = map[string]func() any{
 
 	TypeCheckpointBarrier: func() any { return &CheckpointBarrier{} },
 	TypeForkedFrom:        func() any { return &ForkedFrom{} },
+	TypeSpecChanged:       func() any { return &SpecChanged{} },
 }
 
 // DriverStream lists the event types that belong to the IterationDriver's OWN

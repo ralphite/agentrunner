@@ -49,8 +49,14 @@ func resumeCmd(args []string, version string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "agentrunner: session %s predates resumable metadata (no spec in session_started)\n", sessionID)
 		return ExitRun
 	}
+	// A SpecChanged fact supersedes the opening spec (决策 #32).
+	specJSON, permLayers := started.Spec, started.PermissionLayers
+	specPath := started.SpecPath
+	if changed, cerr := readLatestSpecChange(dir); cerr == nil && changed != nil {
+		specJSON, specPath, permLayers = changed.Spec, changed.SpecPath, changed.PermissionLayers
+	}
 	var spec agent.AgentSpec
-	if err := json.Unmarshal(started.Spec, &spec); err != nil {
+	if err := json.Unmarshal(specJSON, &spec); err != nil {
 		fmt.Fprintf(stderr, "agentrunner: journaled spec: %v\n", err)
 		return ExitRun
 	}
@@ -83,9 +89,9 @@ func resumeCmd(args []string, version string, stdout, stderr io.Writer) int {
 	// config-merge path.
 	var pipe *pipeline.Pipeline
 	var hooks *hook.Runner
-	if len(started.PermissionLayers) > 0 {
+	if len(permLayers) > 0 {
 		var layers [][]pipeline.PermissionRule
-		if err := json.Unmarshal(started.PermissionLayers, &layers); err != nil {
+		if err := json.Unmarshal(permLayers, &layers); err != nil {
 			fmt.Fprintf(stderr, "agentrunner: journaled permission layers: %v\n", err)
 			return ExitRun
 		}
@@ -111,6 +117,10 @@ func resumeCmd(args []string, version string, stdout, stderr io.Writer) int {
 		Hooks:      hooks,
 		Approvals:  approvalResolver(stderr),
 		Snapshots:  snapshotStoreFor(ws, stderr),
+		SpecPath:   specPath,
+	}
+	if specPath != "" {
+		loop.SubSpecs = siblingSpecResolver(specPath)
 	}
 	result, runErr := loop.Resume(ctx)
 	if runErr != nil {

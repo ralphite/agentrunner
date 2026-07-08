@@ -16,6 +16,7 @@ import (
 	"net"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/protocol"
@@ -181,6 +182,21 @@ type hostedRun struct {
 	// cancels delivers handles to kill out of band (v2 M3.2): `kill <handle>`
 	// cancels one running child/task. Buffered for non-blocking delivery.
 	cancels chan string
+	// stop tears the hosted loop down (决策 #32 agent switch): a plain ctx
+	// cancel — no mark, no ending; the journal simply stops mid-standby and
+	// the next send revives it (with whatever spec the journal then names).
+	stop context.CancelFunc
+}
+
+// stopHosting cancels the hosted loop's context (teardown, not a close).
+func (h *hostedRun) stopHosting() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.done || h.stop == nil {
+		return false
+	}
+	h.stop()
+	return true
 }
 
 // killHandle requests cancellation of one running child/task by handle.
@@ -415,9 +431,11 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		s.handleInterrupt(cmd, enc)
 	case "kill":
 		s.handleKill(cmd, enc)
+	case "agent":
+		s.handleAgent(cmd, enc)
 	default:
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
-			Text: fmt.Sprintf("unknown command %q (known: ping, run, attach, approve, send, close, interrupt, kill)", cmd.Cmd)})
+			Text: fmt.Sprintf("unknown command %q (known: ping, run, attach, approve, send, close, interrupt, kill, agent)", cmd.Cmd)})
 	}
 }
 
@@ -438,6 +456,41 @@ func (s *Server) handleKill(cmd Command, enc *json.Encoder) {
 	}
 	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage,
 		Text: "killing " + cmd.Handle, Session: cmd.Session})
+}
+
+// handleAgent prepares an agent switch (决策 #32): it tears the hosted
+// loop down (plain teardown — no mark, journal untouched) and waits for
+// the journal lock to free, so the CLI can append SpecChanged and the next
+// send revives the session under the new spec. A session not hosted here
+// needs no preparation.
+func (s *Server) handleAgent(cmd Command, enc *json.Encoder) {
+	if cmd.Session == "" {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "agent needs session"})
+		return
+	}
+	s.mu.Lock()
+	hub, ok := s.runs[cmd.Session]
+	s.mu.Unlock()
+	if !ok || !hub.stopHosting() {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage,
+			Text: "not hosted", Session: cmd.Session})
+		return
+	}
+	// Wait for the loop to actually exit (flock release) before acking.
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		s.mu.Lock()
+		_, live := s.runs[cmd.Session]
+		s.mu.Unlock()
+		if !live {
+			_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage,
+				Text: "released", Session: cmd.Session})
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
+		Text: "session did not release in time"})
 }
 
 // handleInterrupt delivers an out-of-band interrupt to a live session
@@ -624,10 +677,14 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 	defer cancel()
 
 	// The run runs on the daemon's ctx (not the connection's): it survives
-	// the client going away. The registry entry is removed when the run
-	// finishes — attach then serves replay only, and a long-lived daemon's
-	// map does not grow unboundedly (S6 review).
+	// the client going away. A per-run cancel (hub.stop) lets an agent
+	// switch tear just this loop down. The registry entry is removed when
+	// the run finishes — attach then serves replay only, and a long-lived
+	// daemon's map does not grow unboundedly (S6 review).
+	runCtx, runCancel := context.WithCancel(ctx)
+	hub.stop = runCancel
 	go func() {
+		defer runCancel()
 		defer s.runsWG.Done()
 		defer func() {
 			s.mu.Lock()
@@ -635,7 +692,7 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 			s.mu.Unlock()
 		}()
 		defer hub.finish()
-		if err := s.Run(ctx, RunRequest{
+		if err := s.Run(runCtx, RunRequest{
 			SessionID: id, SpecPath: cmd.SpecPath, Task: cmd.Task,
 			Workspace: cmd.Workspace, Mode: cmd.Mode,
 			Inbox: hub.inbox, Interrupts: hub.interrupts, Cancels: hub.cancels,

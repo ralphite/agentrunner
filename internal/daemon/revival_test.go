@@ -173,3 +173,46 @@ func TestSendPersistsBeforeAck(t *testing.T) {
 		t.Fatal("persist failure still acked delivered")
 	}
 }
+
+// 决策 #32: the `agent` command releases a hosted loop (plain teardown,
+// no mark) so the CLI can append SpecChanged; the next send revives under
+// the new spec.
+func TestAgentCommandReleasesHostedLoop(t *testing.T) {
+	entered := make(chan struct{}, 1)
+	resume := func(ctx context.Context, req ResumeRequest, sink protocol.Sink) error {
+		entered <- struct{}{}
+		<-ctx.Done() // an idle standby loop
+		return ctx.Err()
+	}
+	marked := func(string) (bool, error) { return false, nil }
+	sock, cancel, _ := revivalHarness(t, resume, marked)
+	defer cancel()
+
+	// Host the session via a send-driven revival.
+	if reply, isErr := sendCmdTo(t, sock, "switch-me", "hi"); isErr {
+		t.Fatalf("send refused: %s", reply)
+	}
+	<-entered
+
+	// The agent command tears the hosted loop down and acks the release.
+	var reply string
+	var isErr bool
+	if err := Dial(sock, Command{Cmd: "agent", Session: "switch-me"}, func(e protocol.Event) {
+		reply, isErr = e.Text, e.Kind == protocol.KindError
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if isErr || reply != "released" {
+		t.Fatalf("agent reply = %q isErr=%v, want released", reply, isErr)
+	}
+
+	// Not hosted anymore: a second agent command reports so.
+	if err := Dial(sock, Command{Cmd: "agent", Session: "switch-me"}, func(e protocol.Event) {
+		reply, isErr = e.Text, e.Kind == protocol.KindError
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if isErr || reply != "not hosted" {
+		t.Fatalf("second agent reply = %q isErr=%v, want not hosted", reply, isErr)
+	}
+}

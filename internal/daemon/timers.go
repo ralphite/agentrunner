@@ -98,8 +98,11 @@ func (s *Server) hostResume(ctx context.Context, id string, explicit bool) {
 	s.runsWG.Add(1)
 	s.mu.Unlock()
 
+	runCtx, runCancel := context.WithCancel(ctx)
+	hub.stop = runCancel
 	slog.Info("daemon: resuming session", "session", id)
 	go func() {
+		defer runCancel()
 		defer s.runsWG.Done()
 		defer func() {
 			s.mu.Lock()
@@ -107,7 +110,7 @@ func (s *Server) hostResume(ctx context.Context, id string, explicit bool) {
 			s.mu.Unlock()
 		}()
 		defer hub.finish()
-		if err := s.Resume(ctx, ResumeRequest{
+		if err := s.Resume(runCtx, ResumeRequest{
 			SessionID: id, Inbox: hub.inbox, Interrupts: hub.interrupts, Cancels: hub.cancels,
 		}, hub); err != nil {
 			slog.Warn("daemon: hosted resume failed", "session", id, "err", err)

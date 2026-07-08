@@ -62,6 +62,8 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 		return closeCmd(args[1:], stdout, stderr)
 	case "interrupt":
 		return interruptCmd(args[1:], stdout, stderr)
+	case "agent":
+		return agentCmd(args[1:], stdout, stderr)
 	case "kill":
 		return killCmd(args[1:], stdout, stderr)
 	case "ps":
@@ -125,6 +127,7 @@ Observe:
 Control:
   approve <session> <id> approve|deny   answer a pending permission ask
   kill <session> <handle>               cancel one background handle
+  agent <session> <spec.yaml>           switch the session's agent (决策 #32)
   fork <session> <barrier>    branch a session at a barrier into a new one (--list shows barriers)
   trust <dir>                 mark a workspace as trusted
 

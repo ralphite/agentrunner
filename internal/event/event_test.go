@@ -87,6 +87,9 @@ var samples = map[string]any{
 		Handles: []BarrierHandle{{Handle: "bg1", Policy: "cancel_at_fork"}}},
 	TypeForkedFrom: &ForkedFrom{ParentSession: "20260703-120000-fix-abcd",
 		BarrierID: "bar-t3", SnapshotRef: "0badc0de", WorkspaceRoot: "/w-fork"},
+	TypeSpecChanged: &SpecChanged{SpecName: "reviewer", Model: "gemini-x",
+		Spec: json.RawMessage(`{"name":"reviewer"}`), SpecPath: "/specs/reviewer.yaml",
+		Source: "user", Env: "<env>cwd: /w</env>", Agents: "<agents>helper</agents>"},
 }
 
 func TestRoundTripAllTypes(t *testing.T) {

@@ -579,6 +579,14 @@ func Apply(s State, env event.Envelope) (State, error) {
 	case *event.ModeChanged:
 		s.Mode = p.To
 
+	case *event.SpecChanged:
+		// The session switches agents (决策 #32): identity and every frozen
+		// prefix block move to the new generation — assembly picks them up
+		// on the next generation step (an explicit, journaled cache break).
+		s.Session.SpecName, s.Session.Model = p.SpecName, p.Model
+		s.Session.Env, s.Session.Memory, s.Session.Skills, s.Session.Agents =
+			p.Env, p.Memory, p.Skills, p.Agents
+
 	case *event.LimitExceeded:
 		// A visible truncation fact (决策 #30): the turn ends here, the
 		// session idles, reopenable as ever. Generation-step exhaustion
