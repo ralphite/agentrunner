@@ -8,8 +8,11 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/ralphite/agentrunner/internal/agent"
@@ -68,12 +71,20 @@ func socketPath() (string, error) {
 func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("daemon", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	if err := fs.Parse(args); err != nil {
+	detach := fs.Bool("detach", false, "start the daemon in the background, detached from this terminal, then return")
+	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
 		return ExitUsage
 	}
 	if len(fs.Args()) != 0 {
-		fmt.Fprintln(stderr, "usage: agentrunner daemon")
+		fmt.Fprintln(stderr, "usage: agentrunner daemon [--detach]")
 		return ExitUsage
+	}
+	if *detach {
+		// Real backgrounding (T3): `daemon &` dies with SIGHUP when its shell
+		// exits — a new user closes the terminal and every send/new/sessions
+		// then reports "no daemon". --detach re-execs as a session leader so
+		// the runtime outlives this terminal.
+		return daemonDetach(stdout, stderr)
 	}
 	ctx, _, stop := signalContext()
 	defer stop()
@@ -118,6 +129,67 @@ func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 		return ExitRun
 	}
 	return ExitOK
+}
+
+// daemonDetach re-execs `agentrunner daemon` as a new SESSION LEADER (setsid),
+// with stdio redirected to a log file, so it survives this terminal closing
+// (T3). Go cannot fork+setsid in-process — the runtime is multi-threaded — so
+// the idiomatic daemonize is a re-exec of self. The parent waits for the
+// socket to accept, reports where the daemon lives, and returns; the child
+// keeps running, now with no controlling terminal to SIGHUP it.
+func daemonDetach(stdout, stderr io.Writer) int {
+	sock, err := socketPath()
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return ExitRun
+	}
+	// Idempotent start: a live daemon on the socket is success, not a
+	// duplicate — starting the runtime twice must not split the session space.
+	if conn, derr := net.Dial("unix", sock); derr == nil {
+		_ = conn.Close()
+		fmt.Fprintf(stderr, "daemon already running on %s\n", sock)
+		return ExitOK
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+		return ExitRun
+	}
+	logPath := filepath.Join(filepath.Dir(sock), "daemon.log")
+	logF, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+		return ExitRun
+	}
+	defer func() { _ = logF.Close() }()
+
+	cmd := exec.Command(exe, "daemon")
+	cmd.Stdin = nil
+	cmd.Stdout = logF
+	cmd.Stderr = logF
+	cmd.Env = os.Environ()                               // carry GEMINI_API_KEY etc.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true} // detach from the tty
+	if err := cmd.Start(); err != nil {
+		fmt.Fprintf(stderr, "agentrunner: start daemon: %v\n", err)
+		return ExitRun
+	}
+	pid := cmd.Process.Pid
+	_ = cmd.Process.Release() // do not reap; the child outlives us
+
+	// Wait for the socket to actually accept before declaring success, so a
+	// spec/bind failure surfaces here instead of silently later.
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if conn, derr := net.Dial("unix", sock); derr == nil {
+			_ = conn.Close()
+			fmt.Fprintf(stdout, "daemon started (pid %d)\n", pid)
+			fmt.Fprintf(stderr, "daemon on %s  (logs: %s ; stop: kill %d)\n", sock, logPath, pid)
+			return ExitOK
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	fmt.Fprintf(stderr, "agentrunner: daemon did not come up within 5s — see %s\n", logPath)
+	return ExitRun
 }
 
 // buildNotifier opens the notifier stream, reads the USER-level channel
