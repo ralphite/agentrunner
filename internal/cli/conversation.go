@@ -19,15 +19,18 @@ import (
 	"github.com/ralphite/agentrunner/internal/store"
 )
 
-// newCmd starts a daemon-hosted CONVERSATIONAL session and detaches once it
-// has an id (v2 M1.2): `agentrunner new <spec.yaml> "opening message"
-// [--workspace dir]`. The session outlives this client — `send`/`attach`/
-// `close` address it by the printed id.
+// newCmd starts a daemon-hosted CONVERSATIONAL session (v2 M1.2): `agentrunner
+// new <spec.yaml> "opening message" [--workspace dir]`. By default it follows
+// the opening turn and RENDERS THE REPLY (INC-2 BB-me-4: asking for a haiku
+// must show the haiku), detaching at the turn's idle — the session keeps
+// running and `send`/`attach`/`close` address it by the printed id.
+// --detach restores the fire-and-forget form (prints just the id).
 func newCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("new", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	workspaceDir := fs.String("workspace", ".", "workspace root")
 	mode := fs.String("mode", "", "run mode: default|plan|acceptEdits")
+	detach := fs.Bool("detach", false, "print the session id and exit without waiting for the reply")
 	if err := fs.Parse(args); err != nil {
 		return ExitUsage
 	}
@@ -51,27 +54,92 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, err)
 		return ExitRun
 	}
-	// Detach after RunStart: the conversational session never ends on its
-	// own, so streaming-until-end would block. Read just the id and leave.
-	sid, derr := dialUntilStart(sock, daemon.Command{
+	cmd := daemon.Command{
 		Cmd: "run", Conversational: true, SpecPath: specPath, Task: rest[1],
 		Workspace: wsAbs, Mode: *mode,
+	}
+	if *detach {
+		// Detach after RunStart: read just the id and leave; the session
+		// runs on under the daemon.
+		sid, derr := dialUntilStart(sock, cmd)
+		if derr != nil {
+			daemonDialErr(stderr, derr)
+			return ExitRun
+		}
+		if sid == "" {
+			fmt.Fprintln(stderr, "agentrunner: session did not start")
+			return ExitRun
+		}
+		fmt.Fprintf(stdout, "%s\n", sid)
+		fmt.Fprintf(stderr, "session %s (send: agentrunner send %s \"...\")\n", sid, sid)
+		return ExitOK
+	}
+	return followTurn(sock, cmd, "", stdout, stderr)
+}
+
+// followTurn issues cmd and renders the session's events until the turn goes
+// idle, then detaches and prints the continue hint (INC-2 BB-me-4/5/6: the
+// conversational path shows its output exactly like `run` does, and points
+// at `send`/`attach` for what comes next). ackText, when non-empty, names the
+// daemon's request/reply ack line to swallow (send's "delivered").
+func followTurn(sock string, cmd daemon.Command, ackText string, stdout, stderr io.Writer) int {
+	render := newTextRenderer(stdout)
+	sid := cmd.Session // send knows it already; new learns it from SessionStart
+	var sawIdle, sawErr, acked bool
+	err := daemon.DialUntil(sock, cmd, func(e protocol.Event) bool {
+		if e.Session != "" && sid == "" {
+			sid = e.Session
+		}
+		switch e.Kind {
+		case protocol.KindSessionStart:
+			fmt.Fprintf(stderr, "session %s\n", e.Session)
+			return true
+		case protocol.KindMessage:
+			if ackText != "" && !acked && e.Text == ackText {
+				acked = true // the request/reply ack, not the model speaking
+				return true
+			}
+		case protocol.KindIdle:
+			sawIdle = true
+			return false // turn done: detach, the session keeps running
+		case protocol.KindError:
+			sawErr = true
+		case protocol.KindRunEnd:
+			// The session ended instead of idling (failure or close).
+			sawErr = e.Reason != "completed" && e.Reason != "closed"
+			render.Emit(e)
+			return false
+		}
+		render.Emit(e)
+		return true
 	})
-	if derr != nil {
-		daemonDialErr(stderr, derr)
+	if err != nil {
+		daemonDialErr(stderr, err)
 		return ExitRun
 	}
-	if sid == "" {
-		fmt.Fprintln(stderr, "agentrunner: session did not start")
+	switch {
+	case sawErr:
+		return ExitRun
+	case sawIdle:
+		fmt.Fprintf(stderr, "(session %s is waiting — continue: agentrunner send %s \"...\"  history: agentrunner attach %s)\n",
+			sid, sid, sid)
+		return ExitOK
+	case acked:
+		// The daemon acked but closed without streaming (an older daemon
+		// without follow): the message IS delivered, the reply just is not
+		// on this connection.
+		fmt.Fprintf(stderr, "delivered; this daemon does not stream replies — read it with: agentrunner attach %s\n", sid)
+		return ExitOK
+	default:
+		fmt.Fprintln(stderr, "agentrunner: stream ended before the reply")
 		return ExitRun
 	}
-	fmt.Fprintf(stdout, "%s\n", sid)
-	fmt.Fprintf(stderr, "session %s (send: agentrunner send %s \"...\")\n", sid, sid)
-	return ExitOK
 }
 
 // sendCmd delivers a user message to a live conversational session (v2 M1.2):
 // `agentrunner send [--image f.png]... <session-id-or-prefix> "message"`.
+// By default it follows the turn and RENDERS THE REPLY (INC-2 BB-me-4),
+// detaching at idle; --detach restores the ack-only form ("delivered").
 // Attached images ride the command line base64 (v2 M4.1); the agent stores
 // them in the session CAS before journaling the input.
 func sendCmd(args []string, stdout, stderr io.Writer) int {
@@ -79,12 +147,13 @@ func sendCmd(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	var imagePaths repeatedFlag
 	fs.Var(&imagePaths, "image", "attach an image file (repeatable)")
+	detach := fs.Bool("detach", false, "deliver the message and exit without waiting for the reply")
 	if err := fs.Parse(args); err != nil {
 		return ExitUsage
 	}
 	rest := fs.Args()
 	if len(rest) != 2 {
-		fmt.Fprintln(stderr, `usage: agentrunner send [--image file]... <session-id-or-prefix> "message"`)
+		fmt.Fprintln(stderr, `usage: agentrunner send [flags] <session-id-or-prefix> "message"`)
 		return ExitUsage
 	}
 	images, err := loadImageAttachments(imagePaths)
@@ -92,8 +161,18 @@ func sendCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 		return ExitUsage
 	}
-	return oneShot(stderr, daemon.Command{Cmd: "send", Session: resolvePrefixLenient(rest[0]),
-		Text: rest[1], Images: images}, stdout)
+	cmd := daemon.Command{Cmd: "send", Session: resolvePrefixLenient(rest[0]),
+		Text: rest[1], Images: images}
+	if *detach {
+		return oneShot(stderr, cmd, stdout)
+	}
+	sock, serr := socketPath()
+	if serr != nil {
+		fmt.Fprintln(stderr, serr)
+		return ExitRun
+	}
+	cmd.Follow = true
+	return followTurn(sock, cmd, "delivered", stdout, stderr)
 }
 
 // repeatedFlag collects a repeatable string flag.

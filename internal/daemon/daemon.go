@@ -43,6 +43,13 @@ type Command struct {
 	// Images are attachments riding a send (v2 M4.1); bytes are base64 on
 	// the wire, the agent CAS-stores them before journaling the input.
 	Images []protocol.ImageAttachment `json:"images,omitempty"`
+	// Follow keeps the send connection open after the "delivered" ack,
+	// streaming the session's live events until the client disconnects
+	// (INC-2: the reply becomes visible on the send itself). Subscribe
+	// happens BEFORE the input is posted so no reply event can slip
+	// between delivery and the stream. Detach = close the connection,
+	// same semantics as attach (订阅不改结果).
+	Follow bool `json:"follow,omitempty"`
 
 	// kill
 	Handle string `json:"handle,omitempty"` // a child/task handle to cancel
@@ -495,6 +502,15 @@ func (s *Server) handleSend(ctx context.Context, cmd Command, enc *json.Encoder)
 			return
 		}
 	}
+	// Follow subscribes BEFORE the post: the turn the input triggers must
+	// not be able to emit anything the follower misses (INC-2).
+	var follow chan protocol.Event
+	if cmd.Follow {
+		if ch, cancel, ok := hub.subscribe(); ok {
+			follow = ch
+			defer cancel()
+		}
+	}
 	in := protocol.UserInput{Text: cmd.Text, Images: cmd.Images}
 	if s.PersistInput != nil {
 		// Durability before the ack (铁律 2): once "delivered" is on the
@@ -513,6 +529,14 @@ func (s *Server) handleSend(ctx context.Context, cmd Command, enc *json.Encoder)
 		return
 	}
 	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Text: "delivered", Session: cmd.Session})
+	if follow == nil {
+		return
+	}
+	for e := range follow {
+		if err := enc.Encode(e); err != nil {
+			return // client detached; the session keeps going
+		}
+	}
 }
 
 // handleClose ends a conversational session gracefully (v2 M1.2): shutting
@@ -801,6 +825,17 @@ func (f sinkFunc) Emit(e protocol.Event) { f(e) }
 // Dial connects to a daemon socket and issues one command, streaming the
 // response events to onEvent until the server closes the stream.
 func Dial(socketPath string, cmd Command, onEvent func(protocol.Event)) error {
+	return DialUntil(socketPath, cmd, func(e protocol.Event) bool {
+		onEvent(e)
+		return true
+	})
+}
+
+// DialUntil is Dial with a client-side stop: onEvent returning false closes
+// the connection (detach — the hosted session keeps running) and DialUntil
+// returns nil. INC-2: `new`/`send` follow the turn they triggered and detach
+// at its idle.
+func DialUntil(socketPath string, cmd Command, onEvent func(protocol.Event) bool) error {
 	conn, err := net.Dial("unix", socketPath)
 	if err != nil {
 		return fmt.Errorf("daemon dial: %w", err)
@@ -816,7 +851,9 @@ func Dial(socketPath string, cmd Command, onEvent func(protocol.Event)) error {
 		if err := json.Unmarshal(sc.Bytes(), &e); err != nil {
 			return fmt.Errorf("daemon: bad event line: %w", err)
 		}
-		onEvent(e)
+		if !onEvent(e) {
+			return nil
+		}
 	}
 	if err := sc.Err(); err != nil && !errors.Is(err, net.ErrClosed) {
 		return err
