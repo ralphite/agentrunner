@@ -35,6 +35,7 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/sessions/{sid}/close", s.handleClose)
 	mux.HandleFunc("POST /api/sessions/{sid}/kill", s.handleKill)
 	mux.HandleFunc("POST /api/sessions/{sid}/approve", s.handleApprove)
+	mux.HandleFunc("POST /api/sessions/{sid}/agent", s.handleAgent)
 	return mux
 }
 
@@ -89,6 +90,35 @@ func readBody(w http.ResponseWriter, r *http.Request, v any) bool {
 		return false
 	}
 	return true
+}
+
+type extraSpec struct {
+	Name    string `json:"name"`
+	Content string `json:"content"`
+}
+
+// writeSpecDir lands a main spec plus sibling specs in a fresh
+// runtime/specs/ dir and returns the main file's path. The CLI resolves
+// `agents: [...]` names against the main spec's siblings, so extras must
+// live in the same directory.
+func (s *server) writeSpecDir(prefix, main, spec string, extras []extraSpec) (string, error) {
+	dir := filepath.Join(s.runtimeDir, "specs", fmt.Sprintf("%s%d", prefix, time.Now().UnixNano()))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(filepath.Join(dir, main), []byte(spec), 0o644); err != nil {
+		return "", err
+	}
+	for _, ex := range extras {
+		name := filepath.Base(strings.TrimSpace(ex.Name))
+		if !specFileName.MatchString(name) || name == main {
+			return "", fmt.Errorf("bad extra spec name: %s", ex.Name)
+		}
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(ex.Content), 0o644); err != nil {
+			return "", err
+		}
+	}
+	return filepath.Join(dir, main), nil
 }
 
 // ---- daemon / health ----
@@ -153,14 +183,11 @@ func (s *server) handleSessions(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) handleNewSession(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Spec       string `json:"spec"`
-		ExtraSpecs []struct {
-			Name    string `json:"name"`
-			Content string `json:"content"`
-		} `json:"extraSpecs"`
-		Workspace string `json:"workspace"`
-		Message   string `json:"message"`
-		Mode      string `json:"mode"`
+		Spec       string      `json:"spec"`
+		ExtraSpecs []extraSpec `json:"extraSpecs"`
+		Workspace  string      `json:"workspace"`
+		Message    string      `json:"message"`
+		Mode       string      `json:"mode"`
 	}
 	if !readBody(w, r, &req) {
 		return
@@ -179,31 +206,20 @@ func (s *server) handleNewSession(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, "workspace is not an existing directory: "+ws)
 		return
 	}
-	specDir := filepath.Join(s.runtimeDir, "specs", fmt.Sprintf("s%d", time.Now().UnixNano()))
-	if err := os.MkdirAll(specDir, 0o755); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	specPath, err := s.writeSpecDir("s", "base.yaml", req.Spec, req.ExtraSpecs)
+	if err != nil {
+		badRequest(w, err.Error())
 		return
 	}
-	if err := os.WriteFile(filepath.Join(specDir, "base.yaml"), []byte(req.Spec), 0o644); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
-	}
-	for _, ex := range req.ExtraSpecs {
-		name := filepath.Base(strings.TrimSpace(ex.Name))
-		if !specFileName.MatchString(name) || name == "base.yaml" {
-			badRequest(w, "bad extra spec name: "+ex.Name)
-			return
-		}
-		if err := os.WriteFile(filepath.Join(specDir, name), []byte(ex.Content), 0o644); err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-			return
-		}
-	}
-	args := []string{"new", "--workspace", ws}
+	// --detach: INC-2 made `ar new` follow the first turn and print the
+	// reply for humans; the cockpit is a programmatic consumer — it wants
+	// the ack-only form (stdout = session id) and reads the reply from the
+	// journal like everything else.
+	args := []string{"new", "--detach", "--workspace", ws}
 	if req.Mode != "" {
 		args = append(args, "--mode", req.Mode)
 	}
-	args = append(args, filepath.Join(specDir, "base.yaml"), req.Message)
+	args = append(args, specPath, req.Message)
 	res := s.runAR(r.Context(), oneShotTimeout, args...)
 	if res.Err != nil {
 		arFail(w, "ar new", res)
@@ -214,7 +230,7 @@ func (s *server) handleNewSession(w http.ResponseWriter, r *http.Request) {
 		arFail(w, "ar new (no session id)", res)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"sid": id, "specDir": specDir, "workspace": ws})
+	writeJSON(w, http.StatusOK, map[string]string{"sid": id, "specDir": filepath.Dir(specPath), "workspace": ws})
 }
 
 func (s *server) handleWorkspace(w http.ResponseWriter, r *http.Request) {
@@ -431,7 +447,9 @@ func (s *server) handleSend(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, "text is required")
 		return
 	}
-	args := []string{"send"}
+	// --detach for the same reason as `new`: deliver-and-ack, the timeline
+	// poll renders the reply. Without it send follows until idle (INC-2).
+	args := []string{"send", "--detach"}
 	for _, img := range req.Images {
 		if st, err := os.Stat(img); err != nil || st.IsDir() {
 			badRequest(w, "image not readable: "+img)
@@ -493,6 +511,38 @@ func (s *server) handleKill(w http.ResponseWriter, r *http.Request) {
 	res := s.runAR(r.Context(), oneShotTimeout, "kill", id, req.Handle)
 	if res.Err != nil {
 		arFail(w, "ar kill", res)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": strings.TrimSpace(res.Stdout)})
+}
+
+// handleAgent switches the session's agent mid-conversation (决策 #32):
+// the new spec text lands next to a fresh specs/ dir and `ar agent` does
+// the rest (SpecChanged event, re-frozen prefix, same journal).
+func (s *server) handleAgent(w http.ResponseWriter, r *http.Request) {
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Spec       string      `json:"spec"`
+		ExtraSpecs []extraSpec `json:"extraSpecs"`
+	}
+	if !readBody(w, r, &req) {
+		return
+	}
+	if strings.TrimSpace(req.Spec) == "" {
+		badRequest(w, "spec is required")
+		return
+	}
+	specPath, err := s.writeSpecDir("a", "agent.yaml", req.Spec, req.ExtraSpecs)
+	if err != nil {
+		badRequest(w, err.Error())
+		return
+	}
+	res := s.runAR(r.Context(), oneShotTimeout, "agent", id, specPath)
+	if res.Err != nil {
+		arFail(w, "ar agent", res)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": strings.TrimSpace(res.Stdout)})

@@ -32,6 +32,7 @@ events)
   --json) printf '{"seq":1,"type":"session_started","payload":{"spec_name":"dev"}}\n{"seq":2,"type":"input_received","payload":{"text":"hi","source":"user"}}\n';;
   esac;;
 new) echo "sess-new-456";;
+agent) echo "agent switched to auditor";;
 send|close|interrupt|kill|approve) echo ok;;
 inspect) echo '{"tree":true}';;
 ps) printf 'task-1\tspawn_agent\trunning agent=worker task=explore\n';;
@@ -131,8 +132,38 @@ func TestNewSessionWritesSpecsAndParsesSid(t *testing.T) {
 	}
 	argv, _ := os.ReadFile(argvLog)
 	line := strings.TrimSpace(string(argv))
-	if !strings.Contains(line, "new --workspace "+ws) || !strings.Contains(line, "base.yaml hello") {
+	// --detach:INC-2 后 new 默认跟随渲染回复,驾驶舱要 ack-only 形式。
+	if !strings.Contains(line, "new --detach --workspace "+ws) || !strings.Contains(line, "base.yaml hello") {
 		t.Fatalf("argv=%q", line)
+	}
+}
+
+func TestAgentSwitchWritesSpecAndCallsAR(t *testing.T) {
+	s, argvLog := newTestServer(t)
+	req := `{"spec":"name: auditor\n","extraSpecs":[{"name":"worker.yaml","content":"name: worker\n"}]}`
+	code, body := doJSON(t, s, "POST", "/api/sessions/sess-abc-123/agent", req)
+	if code != 200 {
+		t.Fatalf("code=%d body=%s", code, body)
+	}
+	var resp struct {
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal([]byte(body), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Status != "agent switched to auditor" {
+		t.Fatalf("status=%q", resp.Status)
+	}
+	argv, _ := os.ReadFile(argvLog)
+	line := strings.TrimSpace(string(argv))
+	if !strings.HasPrefix(line, "agent sess-abc-123 ") || !strings.HasSuffix(line, "/agent.yaml") {
+		t.Fatalf("argv=%q", line)
+	}
+	specPath := strings.TrimPrefix(line, "agent sess-abc-123 ")
+	for _, f := range []string{specPath, filepath.Join(filepath.Dir(specPath), "worker.yaml")} {
+		if _, err := os.Stat(f); err != nil {
+			t.Fatalf("spec file %s: %v", f, err)
+		}
 	}
 }
 
@@ -148,7 +179,7 @@ func TestSendBuildsImageArgs(t *testing.T) {
 		t.Fatalf("code=%d body=%s", code, body)
 	}
 	argv, _ := os.ReadFile(argvLog)
-	want := "send --image " + img + " sess-abc-123 看图"
+	want := "send --detach --image " + img + " sess-abc-123 看图"
 	if got := strings.TrimSpace(string(argv)); got != want {
 		t.Fatalf("argv=%q want %q", got, want)
 	}

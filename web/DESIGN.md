@@ -74,19 +74,25 @@ ar CLI ── unix socket ──> ar daemon(会话宿主)
 | GET  /api/health | `ar --version` + interrupt 探针 | daemon 状态、版本 |
 | POST /api/daemon/start | `ar daemon`(spawn) | 重启托管 daemon |
 | GET  /api/sessions | `ar sessions list` | 解析表格为 JSON |
-| POST /api/sessions | `ar new --workspace W [--mode M] <specdir>/base.yaml "msg"` | spec 文本落 runtime/specs/,worker 等旁置文件同目录(CLI 按 SpecPath 兄弟解析) |
+| POST /api/sessions | `ar new --detach --workspace W [--mode M] <specdir>/base.yaml "msg"` | spec 文本落 runtime/specs/,worker 等旁置文件同目录(CLI 按 SpecPath 兄弟解析) |
 | POST /api/workspace | (mkdir) | 造空临时 workspace,返回绝对路径 |
 | GET  /api/sessions/{sid}/events?after=N | `ar events --json <sid>` | journal 增量 |
-| GET  /api/sessions/{sid}/state | `ar events --state <sid>` | 折叠状态 |
-| GET  /api/sessions/{sid}/inspect | `ar inspect --json <sid>` | 含子 session 树 |
-| GET  /api/sessions/{sid}/ps | `ar ps <sid>` | 在飞任务(tab 分列) |
+| GET  /api/sessions/{sid}/state | `ar events --state <sid>` | 折叠状态(D2 后:`handles` 键、`closed` 标记、无终态 status) |
+| GET  /api/sessions/{sid}/inspect | `ar inspect --json <sid>` | 含子 session 树、工具关键参数(detail)、被拒调用 |
+| GET  /api/sessions/{sid}/ps | `ar ps <sid>` | 在飞后台工作(tab 分列;空集输出仍以 "no tasks" 开头) |
 | GET  /api/sessions/{sid}/stream | `ar attach --json <sid>` | SSE 透传 |
-| POST /api/sessions/{sid}/send | `ar send [--image f]... <sid> "text"` | 图片为服务器侧路径 |
-| POST /api/sessions/{sid}/interrupt | `ar interrupt <sid>` | 带外打断 |
+| POST /api/sessions/{sid}/send | `ar send --detach [--image f]... <sid> "text"` | 图片为服务器侧路径 |
+| POST /api/sessions/{sid}/interrupt | `ar interrupt <sid>` | 带外打断(运行中转向;**待命处 no-op**,只落审计行,裁决 #11) |
 | POST /api/sessions/{sid}/close | `ar close <sid>` | 关会话 |
-| POST /api/sessions/{sid}/kill | `ar kill <sid> <handle>` | 用户直杀子任务 |
+| POST /api/sessions/{sid}/kill | `ar kill <sid> <handle>` | 用户直杀后台 handle |
 | POST /api/sessions/{sid}/approve | `ar approve <sid> <id> approve\|deny [reason]` | 审批 |
+| POST /api/sessions/{sid}/agent | `ar agent <sid> <specdir>/agent.yaml` | session 内换 agent(决策 #32);spec 文本落 runtime/specs/,下一条消息生效 |
 | POST /api/upload | (存文件) | multipart → runtime/uploads/,返回路径 |
+
+`--detach` 的由来:INC-2 起 `ar new`/`ar send` **默认跟随本轮并把回复
+渲染到 stdout**(面向人);程序性消费方一律 `--detach` 回到 ack-only
+形式(new → stdout 纯 session id;send → "delivered")。arweb 的回复
+从 journal 轮询取,与 qa/ 脚本同一姿势。
 
 错误约定:ar 非零退出 → HTTP 502,body `{error, stderr}`,前端原样
 展示 stderr(测试舱要看得到真实报错)。
@@ -97,15 +103,17 @@ ar CLI ── unix socket ──> ar daemon(会话宿主)
 |---|---|
 | input_received | 用户气泡(text + 图片 ref chip;source≠user 加"控制"标) |
 | generation_started | 轮次分隔线 "第 N 轮" |
-| assistant_message | 助手气泡(渲染 parts 里的 text;非 text part 忽略,工具活动另有事件) |
-| activity_started (kind=tool) | 工具卡(name + args,折叠;background=true 加 task 标) |
+| assistant_message | 助手气泡(渲染 parts 里的 text;非 text part 忽略,工具活动另有事件;finish=blocked 加"可见截断"chip) |
+| activity_started (kind=tool) | 工具卡(name + args,折叠;background=true 加"后台"标) |
 | activity_completed / failed / cancelled | 回填对应工具卡:结果/错误/取消 + usage 徽章 |
 | spawn_requested | 子 agent 卡(agent、task、child_session 短 id) |
 | subagent_completed | 子 agent 完结 chip(reason + tokens) |
 | approval_requested | 审批卡(批准/拒绝按钮 + 理由输入);approval_responded 后固化结论 |
-| waiting_entered / resolved | 底部状态条(input=待命可输入 / approval / tasks / timer) |
-| mode_changed / context_compacted / limit_exceeded | 灰色系统 chip |
-| session_closed / task_completed / actor_crashed | 终态/崩溃 chip + 状态条 |
+| waiting_entered / resolved | 底部状态条(kind 只剩 input=待命可输入 / approval;D2 删了 tasks/timer) |
+| mode_changed / context_compacted | 灰色系统 chip |
+| limit_exceeded | "可见截断"chip(kind ∈ tokens\|generation_steps\|malformed_tool_call;会话不终结,待命可续发) |
+| spec_changed | "换 agent → 名字·模型"chip(决策 #32) |
+| session_closed / actor_crashed | 终态/崩溃 chip + 状态条;reason ∈ closed\|killed,kill 标记带 source ∈ user\|parent(D2;task_completed 事件已删) |
 | 其他未列类型 | 兜底灰色单行 `seq type`(事实不静默丢弃) |
 
 悬摆审批 = journal 里 approval_requested 尚无同 id 的

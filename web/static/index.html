@@ -105,6 +105,7 @@
       <button id="btnRaw">原始 journal</button>
       <button id="btnState">折叠状态</button>
       <button id="btnTree">inspect 树</button>
+      <button id="btnAgent">换 agent</button>
       <button id="btnInterrupt" class="danger">interrupt</button>
       <button id="btnClose" class="danger">关闭会话</button>
     </div>
@@ -140,6 +141,17 @@
     <label>worker.yaml(子 agent spec,留空则不写)</label>
     <textarea id="nWorker" rows="7"></textarea>
     <div style="margin-top:12px;text-align:right"><button class="primary" id="nCreate">创建</button></div>
+  </div>
+</dialog>
+
+<dialog id="agentdlg">
+  <div class="dhead">换 agent(同一会话,上下文延续)<button onclick="agentdlg.close()">✕</button></div>
+  <div class="dbody">
+    <label>新 agent spec(agent.yaml)</label>
+    <textarea id="aSpec" rows="10"></textarea>
+    <label>worker.yaml(旁置子 agent spec,留空则不写)</label>
+    <textarea id="aWorker" rows="5"></textarea>
+    <div style="margin-top:12px;text-align:right"><button class="primary" id="aSwitch">切换(下一条消息生效)</button></div>
   </div>
 </dialog>
 
@@ -223,7 +235,7 @@ function toolCard(name, args, opts) {
   const card = el("div", "card");
   const head = el("div", "head");
   head.appendChild(el("span", "", "🔧 " + name));
-  const status = el("span", "badge", opts && opts.background ? "task" : "运行中");
+  const status = el("span", "badge", opts && opts.background ? "后台" : "运行中");
   head.appendChild(status);
   card.appendChild(head);
   if (args) {
@@ -266,6 +278,7 @@ function render(env) {
     calls.forEach(c => { state.callArgs[c.call_id] = { name: c.tool_name, args: c.args }; });
     if (text.trim()) bubble("asst", text, "agent");
     if (calls.length && !text.trim()) {} // tool activity cards follow
+    if (p.finish === "blocked") chip("本轮输出被截断(finish=blocked),部分文本已保留", "warn");
     break;
   }
   case "activity_started":
@@ -328,18 +341,29 @@ function render(env) {
     break;
   }
   case "waiting_entered": {
-    const kinds = { input: ["待命,等你输入", "idle"], approval: ["等待审批", "appr"], tasks: ["等子任务/后台", "run"], timer: ["等定时器", "run"] };
+    // D2 静止模型后 wait kind 只剩 input/approval(tasks/timer 已删)。
+    const kinds = { input: ["待命,等你输入", "idle"], approval: ["等待审批", "appr"] };
     const [txt, cls] = kinds[p.kind] || [p.kind, ""];
     setStatus(txt, cls);
     break;
   }
   case "waiting_resolved": setStatus("运行中", "run"); break;
-  case "session_closed": chip("会话已关闭 · " + (p.reason || "")); setStatus("已关闭", "closed"); break;
-  case "task_completed": chip("任务完成 · " + (p.reason || "")); setStatus("已结束", "closed"); break;
+  case "session_closed": {
+    // D2: reason ∈ closed|killed,kill 标记带来源 source ∈ user|parent。
+    const killed = p.reason === "killed";
+    chip(`会话${killed ? "被杀" : "已关闭"}${p.source ? " · 来源 " + p.source : ""}`, killed ? "bad" : "");
+    setStatus(killed ? "已杀" : "已关闭", "closed");
+    break;
+  }
+  case "spec_changed": chip(`🔁 换 agent → ${p.spec_name || ""} · ${p.model || ""}`); break;
   case "actor_crashed": chip(`崩溃 ${p.actor}: ${p.error}`, "bad"); setStatus("崩溃", "crash"); break;
   case "mode_changed": chip(`mode → ${p.to} (${p.cause})`); break;
   case "context_compacted": chip(`上下文压缩 · 到第 ${p.upto_gen_step} 轮`); break;
-  case "limit_exceeded": chip(`预算超限 ${p.kind}: ${p.used}/${p.limit}`, "bad"); break;
+  case "limit_exceeded":
+    // 可见截断家族(tokens|generation_steps|malformed_tool_call):turn 被
+    // 截断但会话不终结,待命后可再 send。
+    chip(`可见截断 ${p.kind}${p.limit ? `: ${p.used}/${p.limit}` : ""}(会话待命,可继续发言)`, "bad");
+    break;
   case "generation_discarded": chip(`第 ${p.gen_step} 轮流式输出被丢弃重试`, "warn"); break;
   case "malformed_tool_call": chip(`第 ${p.gen_step} 轮工具调用不可解析,重试`, "warn"); break;
   default:
@@ -435,7 +459,7 @@ async function openSession(id) {
   const isSub = id.includes("-sub-");
   $("sesshead").style.display = "flex";
   $("composer").style.display = isSub ? "none" : "block";
-  $("btnInterrupt").style.display = $("btnClose").style.display = isSub ? "none" : "";
+  $("btnInterrupt").style.display = $("btnClose").style.display = $("btnAgent").style.display = isSub ? "none" : "";
   const up = $("shUp");
   up.style.display = isSub ? "" : "none";
   if (isSub) up.href = "#" + id.slice(0, id.lastIndexOf("-sub-"));
@@ -472,7 +496,7 @@ async function pollPS() {
     box.className = tasks.length ? "on" : "";
     box.innerHTML = "";
     if (tasks.length) {
-      box.appendChild(el("div", "muted", `在飞任务 ×${tasks.length}`));
+      box.appendChild(el("div", "muted", `在飞后台工作 ×${tasks.length}`));
       const isSub = state.sid.includes("-sub-");
       tasks.forEach(t => {
         const row = el("div", "task");
@@ -556,7 +580,7 @@ function renderImgChips() {
 }
 $("btnInterrupt").onclick = async () => {
   if (!state.sid) return;
-  try { await post(`/sessions/${state.sid}/interrupt`); chip("⚡ 已发 interrupt(带外打断)", "warn"); }
+  try { await post(`/sessions/${state.sid}/interrupt`); chip("⚡ 已发 interrupt(运行中打断当前轮;待命时 no-op,只留审计行)", "warn"); }
   catch (e) { toast(e.message); }
 };
 $("btnClose").onclick = async () => {
@@ -573,6 +597,32 @@ $("btnClose").onclick = async () => {
   btn._armed = false;
   btn.textContent = "关闭会话";
   try { await post(`/sessions/${state.sid}/close`); } catch (e) { toast(e.message); }
+};
+
+// ---------- agent switch (决策 #32) ----------
+const agentdlg = $("agentdlg");
+const DEFAULT_AGENT2 = `name: auditor
+model: { provider: gemini, id: gemini-flash-latest, max_tokens: 4096 }
+system_prompt: 你是审计员。永远以"【审计员】"开头,用一句话严肃作答。
+tools: [read_file, bash]
+permissions:
+  - { action: allow }
+`;
+$("btnAgent").onclick = () => {
+  if (!state.sid) return;
+  if (!$("aSpec").value) $("aSpec").value = DEFAULT_AGENT2;
+  agentdlg.showModal();
+};
+$("aSwitch").onclick = async () => {
+  const btn = $("aSwitch"); btn.disabled = true;
+  try {
+    const extraSpecs = [];
+    if ($("aWorker").value.trim()) extraSpecs.push({ name: "worker.yaml", content: $("aWorker").value });
+    const r = await post(`/sessions/${state.sid}/agent`, { spec: $("aSpec").value, extraSpecs });
+    agentdlg.close();
+    chip(`🔁 ${r.status || "agent switched"}(journal 出现 spec_changed 即落账)`);
+  } catch (e) { toast(e.message); }
+  finally { btn.disabled = false; }
 };
 
 // ---------- viewers ----------
@@ -627,8 +677,8 @@ const DEFAULT_SPEC = `name: dev
 model: { provider: gemini, id: gemini-flash-latest, max_tokens: 4096 }
 system_prompt: |
   你是一个严谨的编码助手。严格按用户指令行动;用户要求启动子 agent 时,
-  用 spawn_agent 工具、数量与分工严格照做;要求取消时用 task_kill。
-tools: [read_file, write_file, edit_file, bash, spawn_agent, task_kill]
+  用 spawn_agent 工具、数量与分工严格照做;要求取消时用 kill。
+tools: [read_file, write_file, edit_file, bash, spawn_agent, kill, output]
 agents: [worker]
 permissions:
   - { action: allow }

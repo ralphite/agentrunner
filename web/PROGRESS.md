@@ -72,6 +72,18 @@
   审批卡实时弹出 → 批准路径(子执行 echo 回灌父)+ 拒绝路径(理由
   逐级穿透:用户→子→父转述)各走一次。
 
+## M7 契约同步(2026-07-08:跟进 INC-2 + REVIEW-001 D 系手术,9a9f18e..5eb1e76)
+- [x] 后端:`new`/`send` 加 `--detach`(INC-2 后默认跟随渲染回复,驾驶舱
+      要 ack-only);新增 POST /api/sessions/{sid}/agent → `ar agent`
+      (换 agent,决策 #32),spec 落盘抽共用 writeSpecDir(旁置 worker 同支持)
+- [x] 前端:默认 spec 工具名 task_kill→kill(+output);删 task_completed
+      渲染(事件已删);session_closed 读 reason(closed|killed)+source
+      (user|parent);新增 spec_changed chip;waiting kinds 清到 input/
+      approval;limit_exceeded 改"可见截断"表达(kind 三态、会话不终结);
+      assistant_message finish=blocked chip;「换 agent」按钮+对话框;
+      词汇 task→后台工作/handle
+- 真验:真 Gemini 全程(API+Chrome)——见变更记录轮 8。
+
 ## 产品增量提案(动 internal/,须按 docs/PROCESS.md 走三层 delta,待用户拍板)
 
 - **P1 子会话观察面**:②寻址部分 **已落地为 INC-1**(2026-07-07,
@@ -102,6 +114,7 @@
 
 | 日期 | 轮次 | 动作 | 真验结果 |
 |---|---|---|---|
+| 2026-07-08 | 8 | M7 契约同步(INC-2 + D 系手术):new/send --detach、/agent 端点+「换 agent」对话框、task_kill→kill/output、事件映射更新(spec_changed/session_closed source/可见截断/waiting kinds)、词汇清理;fake-ar 单测新增 agent 场景 | 真 Gemini 会话 af84(API+Chrome 双路):new --detach 秒回 sid、两轮暗号"紫罗兰"衔接;send --detach→"delivered"、journal 轮询渲染回复;/agent dev→auditor→dev(带 worker 旁置)三连,journal spec_changed 各恰一条、【审计员】身份即换即答、上下文延续;spawn worker 非阻塞(ps 面板 handle call_4_0)→网页 kill→父 [kill] control 气泡+activity_cancelled+subagent_completed(error),子 journal session_closed{killed,source:user},子页只读视图"已杀"pill+"会话被杀·来源 user"chip(38 轮 output busy-poll 卡全渲染);interrupt 待命处 no-op 只落 [interrupt] 审计行、会话仍 waiting(坐实 cli.go:115 help 过时,已另立任务);close→session_closed{closed,source:user};整页重载(3×spec_changed+kill 标记全量重放)console 零错误 |
 | 2026-07-08 | 7 | INC-1 子会话寻址(产品增量,按 PROCESS.md 全流程:工作纸→实现→三层收口→归档):resolveSessionDir 支持 -sub- 分段映射;web 链接化 + 子页只读模式 | CLI:`ar events <child全id>` 在子在飞时输出其 journal(实抓 seq1-8),ps/inspect/--state 同工;scripted ×2(含孙级嵌套);Chrome:spawn/settle 卡"打开子会话 ↗"→子页(← 父会话导航、只读、无 SSE)→在飞 bash"运行中"卡实拍→45s 后同页自动更新为完成+LIVE_OK+任务完成 chip。记档:internal/tool TestBashCancelLeavesNoSessionOrphans 在 main(4974932)pre-existing FAIL(D 系手术中间态),与本增量无关 |
 | 2026-07-07 | 6 | M6 子审批上卷实时闭环(SSE approval_request 渲染 + approvalCard 双通道去重 + 本地固化);产品增量 P1/P2 提案成文 | 真 Gemini 父子会话(worker bash=ask):子跑 bash 触发 ask 上卷→驾驶舱**实时**弹审批卡(请求方: worker + 子会话全 id + args);批准→子执行→CHILD_NEEDS_OK 回灌父;拒绝(理由"用户不允许这条命令")→子收到 denied+理由→汇报父→父转述用户,四级穿透;两路径审批卡各自正确固化(已批准(你)/已拒绝(你): 理由) |
 | 2026-07-07 | 5 | M5 压轴收官:QA-09 式场景全程网页操作,一次成(会话 20260708-000600-ready-1151,168 事件) | 图(CI 截图内容穿透进子任务书)+恰好 3 子并行(spawn 卡×3、在飞面板×3);先回先处理(A 无工具最先回→父第 4 轮消化并确认 A 推理正确:Go 版本过低;B 第 5 轮);"杀C换D"消息忙时排队(排队中→边界落账);kill C(journal `[kill call_2_2]` control)→spawn D→四路总汇总表(A 成功/B_OK/C 已取消未重启/D_OK);pkill -9 daemon→3s 自愈→续聊答"A"(崩溃前历史完整);write_file 落 SUMMARY.md(文件内容与会话结论一致,四行结局;journal write_file@159);全程 4 spawn/4 settle。README 从零走查:build→serve(daemonUp)→index 200 ✓。全部 milestone 勾满,loop 收官 |
