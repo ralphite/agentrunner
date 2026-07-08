@@ -2,6 +2,8 @@ package cli
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -29,11 +31,20 @@ import (
 	"github.com/ralphite/agentrunner/internal/workspace"
 )
 
+// sockPathMax caps the socket path length. The kernel's sockaddr_un.sun_path
+// is 104 bytes on darwin, 108 on Linux; 100 leaves headroom on both and the
+// bind is what actually enforces it — this only decides whether to fall back.
+const sockPathMax = 100
+
 // socketPath is the daemon's rendezvous, fixed under the data dir so every
 // client finds the same runtime. The dir is created here: the daemon may be
-// the first agentrunner process this machine ever ran. (unix sockets cap
-// paths at ~108 bytes — an extravagant XDG_DATA_HOME surfaces as a bind
-// error, which ListenAndServe reports verbatim.)
+// the first agentrunner process this machine ever ran.
+//
+// unix sockets cap paths at ~104 bytes (darwin sun_path), so an extravagant
+// XDG_DATA_HOME would make the natural path un-bindable ("bind: invalid
+// argument"). When that happens we fall back to a short, stable path under
+// the temp dir, derived by hashing the data dir — deterministic, so the
+// daemon and every client compute the SAME fallback and still rendezvous.
 func socketPath() (string, error) {
 	data, err := runtime.DataDir()
 	if err != nil {
@@ -42,7 +53,12 @@ func socketPath() (string, error) {
 	if err := os.MkdirAll(data, 0o700); err != nil {
 		return "", fmt.Errorf("daemon: %w", err)
 	}
-	return filepath.Join(data, "daemon.sock"), nil
+	sock := filepath.Join(data, "daemon.sock")
+	if len(sock) <= sockPathMax {
+		return sock, nil
+	}
+	h := sha256.Sum256([]byte(data))
+	return filepath.Join(os.TempDir(), "ar-"+hex.EncodeToString(h[:8])+".sock"), nil
 }
 
 // daemonCmd runs the resident runtime (S6 模块④): `agentrunner daemon`.
