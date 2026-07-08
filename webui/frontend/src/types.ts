@@ -1,0 +1,42 @@
+// Journal envelope as emitted by `ar events --json`. Payload shapes vary by
+// type; we keep it loose and narrow per-case in the timeline builder.
+export interface Envelope {
+  seq: number;
+  type: string;
+  payload?: any;
+}
+
+export interface Session {
+  id: string;
+  status: string;
+  turns: number;
+}
+
+export interface Health {
+  version: string;
+  daemonUp: boolean;
+  daemonManaged: boolean;
+  manageRequested: boolean;
+  daemonLogPath: string;
+  runtimeDir: string;
+}
+
+export interface Task {
+  handle: string;
+  tool: string;
+  detail: string;
+}
+
+export interface Run {
+  id: string;
+  kind: "submit" | "drive";
+  label: string;
+  workspace: string;
+  status: "running" | "done" | "failed" | "stopped";
+  startedAt: string;
+}
+
+export interface SpecFile {
+  name: string;
+  content: string;
+}
