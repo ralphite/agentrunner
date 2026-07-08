@@ -94,10 +94,14 @@ type childReportRef struct {
 }
 
 type entryReport struct {
-	GenStep      int    `json:"gen_step"`
-	Kind         string `json:"kind"` // llm | compact | tool
-	Name         string `json:"name"`
-	CallID       string `json:"call_id,omitempty"`
+	GenStep int    `json:"gen_step"`
+	Kind    string `json:"kind"` // llm | compact | tool
+	Name    string `json:"name"`
+	CallID  string `json:"call_id,omitempty"`
+	// Detail is the salient argument of a tool call (the file a file-tool
+	// touched, the command bash ran) so the audit shows WHAT happened, not
+	// just which tool (T7/R2-D-2).
+	Detail       string `json:"detail,omitempty"`
 	Verdict      string `json:"verdict,omitempty"`
 	Gate         string `json:"gate,omitempty"`
 	InputTokens  int    `json:"input_tokens,omitempty"`
@@ -219,6 +223,7 @@ func buildInspectReport(events []event.Envelope, s state.State) inspectReport {
 	// an activity, so its name comes from the assistant message that issued it.
 	started := map[string]*event.ActivityStarted{}
 	callName := map[string]string{}
+	callArgs := map[string]json.RawMessage{}
 	curTurn := 0
 	for _, e := range events {
 		switch e.Type {
@@ -231,6 +236,7 @@ func buildInspectReport(events []event.Envelope, s state.State) inspectReport {
 				for _, p := range dec.(*event.AssistantMessage).Message.Parts {
 					if p.Kind == provider.PartToolCall {
 						callName[p.CallID] = p.ToolName
+						callArgs[p.CallID] = p.Args
 					}
 				}
 			}
@@ -245,7 +251,7 @@ func buildInspectReport(events []event.Envelope, s state.State) inspectReport {
 				continue
 			}
 			a := dec.(*event.ActivityCompleted)
-			report.Entries = append(report.Entries, activityEntry(curTurn, a, started[a.ActivityID], byCall, byEffect))
+			report.Entries = append(report.Entries, activityEntry(curTurn, a, started[a.ActivityID], byCall, byEffect, callArgs))
 		case event.TypeEffectResolved:
 			// A denied tool call produces no activity, so it would silently
 			// vanish from the timeline — the audit reads "all allow" when every
@@ -258,6 +264,7 @@ func buildInspectReport(events []event.Envelope, s state.State) inspectReport {
 			if r.CallID != "" && r.Verdict == event.VerdictDeny {
 				report.Entries = append(report.Entries, entryReport{
 					GenStep: curTurn, Kind: "tool", Name: callName[r.CallID], CallID: r.CallID,
+					Detail:  toolDetail(callArgs[r.CallID]),
 					Verdict: event.VerdictDeny, Gate: decidingGate(r.GateResults, r.Verdict),
 				})
 			}
@@ -275,7 +282,7 @@ func buildInspectReport(events []event.Envelope, s state.State) inspectReport {
 	return report
 }
 
-func activityEntry(turn int, a *event.ActivityCompleted, started *event.ActivityStarted, byCall, byEffect map[string]verdictInfo) entryReport {
+func activityEntry(turn int, a *event.ActivityCompleted, started *event.ActivityStarted, byCall, byEffect map[string]verdictInfo, callArgs map[string]json.RawMessage) entryReport {
 	var callID, name string
 	if started != nil {
 		callID, name = started.CallID, started.Name
@@ -291,6 +298,7 @@ func activityEntry(turn int, a *event.ActivityCompleted, started *event.Activity
 		e.Kind, e.Name = "compact", "summarize"
 	default:
 		e.Kind, e.Name = "tool", name
+		e.Detail = toolDetail(callArgs[callID])
 		if v, ok := byCall[callID]; ok {
 			e.Verdict, e.Gate = v.verdict, v.gate
 		}
@@ -307,6 +315,36 @@ func activityEntry(turn int, a *event.ActivityCompleted, started *event.Activity
 // (eff-llm-t<n>), the namespacing the loop uses.
 func llmEffectID(activityID string) string {
 	return "eff-" + activityID
+}
+
+// toolDetail pulls the salient argument out of a tool call for the audit
+// timeline — the file a file-tool touched, the command bash ran — so the
+// reader sees WHAT happened, not just which tool (T7/R2-D-2).
+func toolDetail(args json.RawMessage) string {
+	if len(args) == 0 {
+		return ""
+	}
+	var m map[string]any
+	if json.Unmarshal(args, &m) != nil {
+		return ""
+	}
+	for _, k := range []string{"path", "command", "file", "query"} {
+		if v, ok := m[k].(string); ok && v != "" {
+			return oneLine(v, 60)
+		}
+	}
+	return ""
+}
+
+// oneLine collapses a value to a single, length-capped line for the timeline.
+func oneLine(s string, max int) string {
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		s = strings.TrimRight(s[:i], " ") + " …"
+	}
+	if len(s) > max {
+		s = s[:max] + "…"
+	}
+	return s
 }
 
 // decidingGate names the gate that produced the verdict (the denier on a
@@ -357,7 +395,14 @@ func renderInspectIndent(w io.Writer, r inspectReport, pad string) {
 		if e.InputTokens > 0 || e.OutputTokens > 0 {
 			toks = fmt.Sprintf("in %d out %d cache_r %d", e.InputTokens, e.OutputTokens, e.CacheRead)
 		}
-		fmt.Fprintf(w, "%s    %-8s %-12s %-10s %-24s %s\n", pad, e.Kind, e.Name, e.CallID, verdict, toks)
+		tail := toks
+		if e.Detail != "" {
+			if tail != "" {
+				tail += "  "
+			}
+			tail += e.Detail
+		}
+		fmt.Fprintf(w, "%s    %-8s %-12s %-10s %-24s %s\n", pad, e.Kind, e.Name, e.CallID, verdict, strings.TrimRight(tail, " "))
 	}
 
 	if len(r.Artifacts) > 0 {
