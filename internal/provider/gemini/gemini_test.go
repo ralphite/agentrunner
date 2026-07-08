@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"google.golang.org/genai"
@@ -234,6 +235,7 @@ func TestClassifyTable(t *testing.T) {
 		{"503", genai.APIError{Code: 503}, errs.ProviderServer},
 		{"401", genai.APIError{Code: 401}, errs.ProviderAuth},
 		{"400", genai.APIError{Code: 400}, errs.ProviderInvalid},
+		{"404 retired model", genai.APIError{Code: 404}, errs.ProviderInvalid},
 		{"wrapped api error", fmt.Errorf("stream: %w", genai.APIError{Code: 429}), errs.ProviderRateLimit},
 		{"context canceled", context.Canceled, errs.Canceled},
 		{"deadline", context.DeadlineExceeded, errs.Timeout},
@@ -245,6 +247,18 @@ func TestClassifyTable(t *testing.T) {
 				t.Errorf("classify → %s, want %s", got, tc.want)
 			}
 		})
+	}
+}
+
+// A 404 (retired or misspelled model id) keeps its class but gains an
+// actionable hint pointing at a current model alias (黑盒 R2 minor).
+func TestClassify404Hint(t *testing.T) {
+	err := classify(genai.APIError{Code: 404, Message: "models/gemini-2.5-flash is not found"})
+	if got := errs.ClassOf(err); got != errs.ProviderInvalid {
+		t.Fatalf("class = %s, want provider_invalid", got)
+	}
+	if !strings.Contains(err.Error(), "gemini-flash-latest") {
+		t.Errorf("404 error lacks the current-model hint: %v", err)
 	}
 }
 

@@ -604,14 +604,16 @@ func attachCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("attach", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	jsonOut := fs.Bool("json", false, "emit the event stream as JSON lines instead of rendered text")
-	if err := fs.Parse(args); err != nil {
+	replayOnly := fs.Bool("replay-only", false, "replay the recorded history and exit, without following live output")
+	fs.BoolVar(replayOnly, "no-follow", false, "alias for --replay-only")
+	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
 		return ExitUsage
 	}
 	rest := fs.Args()
 	if len(rest) != 1 {
-		fmt.Fprintln(stderr, `usage: agentrunner attach [--json] <session-id-or-prefix>
+		fmt.Fprintln(stderr, `usage: agentrunner attach [--json] [--replay-only] <session-id-or-prefix>
 replays the whole conversation, then follows live output; Ctrl-C detaches
-(the session keeps running)`)
+(the session keeps running). --replay-only prints the history and exits.`)
 		return ExitUsage
 	}
 	// Resolve prefixes locally so the wire carries the full id.
@@ -633,7 +635,7 @@ replays the whole conversation, then follows live output; Ctrl-C detaches
 	} else {
 		sink = newTextRenderer(stdout)
 	}
-	if err := daemon.Dial(sock, daemon.Command{Cmd: "attach", Session: session}, sink.Emit); err != nil {
+	if err := daemon.Dial(sock, daemon.Command{Cmd: "attach", Session: session, ReplayOnly: *replayOnly}, sink.Emit); err != nil {
 		daemonDialErr(stderr, err)
 		return ExitRun
 	}

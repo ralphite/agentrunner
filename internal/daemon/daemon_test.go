@@ -230,6 +230,51 @@ func TestDaemonAttachFollowsLiveRun(t *testing.T) {
 	}
 }
 
+// --replay-only replays a LIVE session's recorded history and RETURNS, without
+// following the live output the run keeps emitting (黑盒 R2-E-5): a transcript
+// dump that never hijacks the terminal to tail a still-running session.
+func TestAttachReplayOnly(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	run := func(ctx context.Context, req RunRequest, sink protocol.Sink) error {
+		sink.Emit(protocol.Event{Kind: protocol.KindGenerationStart, N: 1})
+		close(started)
+		<-release
+		sink.Emit(protocol.Event{Kind: protocol.KindMessage, N: 1, Text: "live news"})
+		return nil
+	}
+	replay := func(id string, sink protocol.Sink) error {
+		sink.Emit(protocol.Event{Kind: protocol.KindMessage, Text: "from journal"})
+		return nil
+	}
+	sock, _ := startServer(t, run, replay)
+	go func() {
+		_ = Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Task: "job"}, func(protocol.Event) {})
+	}()
+	<-started // the run is live and idle on release
+
+	var seen []protocol.Event
+	done := make(chan error, 1)
+	go func() {
+		done <- Dial(sock, Command{Cmd: "attach", Session: "sess-1", ReplayOnly: true},
+			func(e protocol.Event) { seen = append(seen, e) })
+	}()
+	// It must RETURN after the journal even though the run is live — if it
+	// followed live it would block here until release.
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("replay-only attach errored: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("replay-only attach did not return — it followed live output")
+	}
+	close(release)
+	if len(seen) != 1 || seen[0].Text != "from journal" {
+		t.Fatalf("replay-only attach = %+v, want just the journal replay", seen)
+	}
+}
+
 // Graceful shutdown: cancelling the daemon ctx cooperatively cancels every
 // hosted run and ListenAndServe returns only AFTER the runs finished their
 // terminal work — a routine deploy leaves zero in-doubt sessions.

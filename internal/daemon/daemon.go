@@ -48,6 +48,12 @@ type Command struct {
 	// same semantics as attach (订阅不改结果).
 	Follow bool `json:"follow,omitempty"`
 
+	// ReplayOnly (attach) replays the recorded history and stops, instead of
+	// following live output after catch-up — so `attach --replay-only` dumps a
+	// session's transcript without hijacking the terminal to tail a still-live
+	// one (黑盒 R2-E-5).
+	ReplayOnly bool `json:"replay_only,omitempty"`
+
 	// kill
 	Handle string `json:"handle,omitempty"` // a child/task handle to cancel
 
@@ -835,10 +841,11 @@ func (s *Server) handleAttach(cmd Command, enc *json.Encoder) {
 	s.mu.Unlock()
 
 	// Subscribe BEFORE replay so no live event slips between the two; the
-	// client may see an event twice around the seam, never a gap.
+	// client may see an event twice around the seam, never a gap. --replay-only
+	// skips the live subscription entirely: replay is the whole response.
 	var ch chan protocol.Event
 	var cancel func()
-	if hub != nil {
+	if hub != nil && !cmd.ReplayOnly {
 		if c, cn, ok := hub.subscribe(); ok {
 			ch, cancel = c, cn
 			defer cancel()

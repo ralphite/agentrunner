@@ -118,7 +118,13 @@ func resolveSessionDir(idOrPrefix string) (string, error) {
 	}
 	entries, err := os.ReadDir(root)
 	if err != nil {
-		return "", fmt.Errorf("no sessions found (%v)", err)
+		// The empty-state common case: the sessions dir does not exist yet.
+		// Say so plainly instead of leaking the internal XDG path in an
+		// "open …/sessions: no such file" wrap (黑盒 R2 minor).
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("no sessions yet — start one with `agentrunner run` or `agentrunner new`")
+		}
+		return "", fmt.Errorf("cannot read sessions: %w", err)
 	}
 	var matches []string
 	for _, e := range entries {
