@@ -506,13 +506,15 @@ func hostResumeFunc(version string, stderr io.Writer, broker *daemon.ApprovalBro
 func attachCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("attach", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	jsonOut := fs.Bool("json", false, "emit the event stream as JSON lines")
+	jsonOut := fs.Bool("json", false, "emit the event stream as JSON lines instead of rendered text")
 	if err := fs.Parse(args); err != nil {
 		return ExitUsage
 	}
 	rest := fs.Args()
 	if len(rest) != 1 {
-		fmt.Fprintln(stderr, "usage: agentrunner attach [--json] <session-id-or-prefix>")
+		fmt.Fprintln(stderr, `usage: agentrunner attach [--json] <session-id-or-prefix>
+replays the whole conversation, then follows live output; Ctrl-C detaches
+(the session keeps running)`)
 		return ExitUsage
 	}
 	// Resolve prefixes locally so the wire carries the full id.
@@ -535,7 +537,7 @@ func attachCmd(args []string, stdout, stderr io.Writer) int {
 		sink = newTextRenderer(stdout)
 	}
 	if err := daemon.Dial(sock, daemon.Command{Cmd: "attach", Session: session}, sink.Emit); err != nil {
-		fmt.Fprintf(stderr, "agentrunner: %v (is the daemon running?)\n", err)
+		daemonDialErr(stderr, err)
 		return ExitRun
 	}
 	return ExitOK
@@ -713,7 +715,7 @@ func approveCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout, e.Text)
 	})
 	if err != nil {
-		fmt.Fprintf(stderr, "agentrunner: %v (is the daemon running?)\n", err)
+		daemonDialErr(stderr, err)
 		return ExitRun
 	}
 	return code
@@ -777,7 +779,7 @@ func submitCmd(args []string, stdout, stderr io.Writer) int {
 		sink.Emit(e)
 	})
 	if err != nil {
-		fmt.Fprintf(stderr, "agentrunner: %v (is the daemon running?)\n", err)
+		daemonDialErr(stderr, err)
 		return ExitRun
 	}
 	// No run_end in the stream means the run died before its terminal event

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -117,7 +119,7 @@ func LoadSpec(path string) (*AgentSpec, error) {
 	dec := yaml.NewDecoder(bytes.NewReader(raw))
 	dec.KnownFields(true)
 	if err := dec.Decode(&spec); err != nil {
-		return nil, fmt.Errorf("spec %s: %v", path, err)
+		return nil, fmt.Errorf("spec %s: %s", path, decodeHint(err))
 	}
 
 	if err := spec.validate(path); err != nil {
@@ -145,6 +147,30 @@ func LoadSpec(path string) (*AgentSpec, error) {
 	}
 	return &spec, nil
 }
+
+// specFields lists AgentSpec's top-level yaml keys for the unknown-field
+// hint. Keep in sync with the AgentSpec struct tags.
+const specFields = "name, model, system_prompt, system_prompt_file, tools, " +
+	"max_generation_steps, permissions, mode, budget, allowed_tools, " +
+	"description, agents, on_run_end, await_timeout, outputs, sandbox"
+
+// decodeHint rewrites a yaml decode error for a user who has never seen the
+// Go structs behind the spec (INC-2 BB-me-3): strip internal type names, and
+// on an unknown field say what the valid fields are and where to get a
+// commented example.
+func decodeHint(err error) string {
+	msg := err.Error()
+	unknown := strings.Contains(msg, "not found in type")
+	msg = typeNameRe.ReplaceAllString(msg, `unknown field "$1"`)
+	if unknown {
+		msg += fmt.Sprintf("\n  valid top-level fields: %s\n  (run `agentrunner init` for a commented example spec)", specFields)
+	}
+	return msg
+}
+
+// typeNameRe matches yaml.v3's KnownFields error phrase, e.g.
+// "field task not found in type agent.AgentSpec".
+var typeNameRe = regexp.MustCompile(`field (\S+) not found in type \S+`)
 
 func (s *AgentSpec) validate(path string) error {
 	fail := func(field, problem string) error {
