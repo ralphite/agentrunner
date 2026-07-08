@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
@@ -11,11 +12,24 @@ import (
 	"github.com/ralphite/agentrunner/internal/protocol"
 )
 
+// shortSock returns a unix-socket path under a SHORT temp dir. macOS caps
+// sockaddr_un.sun_path at ~104 bytes, and t.TempDir() embeds the (long) test
+// name — a descriptive test would otherwise fail to bind ("invalid argument").
+func shortSock(t *testing.T) string {
+	t.Helper()
+	tmp, err := os.MkdirTemp("", "ar")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(tmp) })
+	return filepath.Join(tmp, "d.sock")
+}
+
 // revivalHarness starts a server with a controllable Resume and SessionMarked.
 func revivalHarness(t *testing.T, resume func(ctx context.Context, req ResumeRequest, sink protocol.Sink) error,
 	marked func(string) (bool, error)) (string, context.CancelFunc, chan error) {
 	t.Helper()
-	sock := filepath.Join(t.TempDir(), "d.sock")
+	sock := shortSock(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	srv := &Server{
 		SocketPath:    sock,
@@ -171,6 +185,108 @@ func TestSendPersistsBeforeAck(t *testing.T) {
 	}
 	if _, isErr := sendCmdTo(t, sock, "s1", "poison"); !isErr {
 		t.Fatal("persist failure still acked delivered")
+	}
+}
+
+// approvalHarness starts a server wired for the approval self-heal (M2):
+// a real broker, a Resume that re-registers the ask like socketApprovals, and
+// a controllable PendingApproval guard.
+func approvalHarness(t *testing.T, broker *ApprovalBroker,
+	resume func(context.Context, ResumeRequest, protocol.Sink) error,
+	pending func(string) (string, bool, error)) (string, context.CancelFunc, chan error) {
+	t.Helper()
+	sock := shortSock(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	srv := &Server{
+		SocketPath:      sock,
+		NewID:           func(string) string { return "x" },
+		Resume:          resume,
+		Approvals:       broker,
+		SessionMarked:   func(string) (bool, error) { return false, nil },
+		PendingApproval: pending,
+	}
+	errCh := make(chan error, 1)
+	go func() { errCh <- srv.ListenAndServe(ctx) }()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if err := Dial(sock, Command{Cmd: "ping"}, func(protocol.Event) {}); err == nil {
+			return sock, cancel, errCh
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("daemon never came up")
+	return "", nil, nil
+}
+
+func approveVia(t *testing.T, sock, sid, id string) (reply string, isErr bool) {
+	t.Helper()
+	err := Dial(sock, Command{Cmd: "approve", Session: sid, ApprovalID: id, Decision: "approve"},
+		func(e protocol.Event) { reply, isErr = e.Text, e.Kind == protocol.KindError })
+	if err != nil {
+		t.Fatal(err)
+	}
+	return reply, isErr
+}
+
+// M2: an approval the in-memory broker lost to a daemon restart is recovered
+// by `approve` itself — it re-hosts the session (whose resumed loop re-arms
+// the ask) and answers it, instead of dead-ending at "no pending approval".
+func TestApproveRevivesApprovalLostToRestart(t *testing.T) {
+	broker := NewApprovalBroker()
+	got := make(chan ApprovalAnswer, 1)
+	// The resumed loop re-registers the ask and blocks on the verdict, exactly
+	// like the real socketApprovals.Resolve.
+	resume := func(ctx context.Context, req ResumeRequest, sink protocol.Sink) error {
+		id, ch := broker.Register("stuck", "apr-1")
+		a, err := broker.Wait(ctx, "stuck", id, ch)
+		if err != nil {
+			return err
+		}
+		got <- a
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	sock, cancel, errCh := approvalHarness(t, broker, resume,
+		func(string) (string, bool, error) { return "apr-1", true, nil })
+	defer func() { cancel(); <-errCh }()
+
+	// The ask is NOT live in the broker (the daemon "restarted"): approve must
+	// revive the session and answer the re-armed ask.
+	reply, isErr := approveVia(t, sock, "stuck", "apr-1")
+	if isErr || reply != "answered apr-1: approve" {
+		t.Fatalf("approve reply = %q isErr=%v, want answered", reply, isErr)
+	}
+	select {
+	case a := <-got:
+		if !a.Approve {
+			t.Error("revived ask answered deny, want approve")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("revived loop never received the answer")
+	}
+}
+
+// The self-heal is guarded: a session the journal does NOT show idle on this
+// approval (wrong id, already ended) is never revived — approve reports no
+// pending approval and Resume is never called.
+func TestApproveDoesNotReviveNonApprovalSession(t *testing.T) {
+	broker := NewApprovalBroker()
+	var resumed atomic.Int32
+	resume := func(ctx context.Context, req ResumeRequest, sink protocol.Sink) error {
+		resumed.Add(1)
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	sock, cancel, errCh := approvalHarness(t, broker, resume,
+		func(string) (string, bool, error) { return "", false, nil }) // not waiting on any ask
+	defer func() { cancel(); <-errCh }()
+
+	reply, isErr := approveVia(t, sock, "whatever", "apr-1")
+	if !isErr {
+		t.Fatalf("approve reply = %q, want an error (nothing to answer)", reply)
+	}
+	if resumed.Load() != 0 {
+		t.Error("a non-approval session was revived by approve")
 	}
 }
 

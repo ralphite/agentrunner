@@ -131,6 +131,13 @@ type Server struct {
 	// and skips marked sessions; an explicit send never does — any session
 	// lawfully continues on a user's gesture. nil = never marked (tests).
 	SessionMarked func(sessionID string) (marked bool, err error)
+	// PendingApproval reports the approval id a session's journal shows it
+	// idle on (waiting:approval), if any. handleApprove uses it to tell a
+	// genuinely-stuck approval — the daemon restarted and the in-memory broker
+	// lost the ask (M2) — from a stale one, so it only revives-to-re-arm the
+	// former. nil = the self-heal is off (an unanswerable ask just reports
+	// "no pending approval", the pre-fix behavior).
+	PendingApproval func(sessionID string) (approvalID string, ok bool, err error)
 	// Drive hosts an IterationDriver series (nil = the drive command is
 	// refused). Same hub/registry semantics as Run.
 	Drive func(ctx context.Context, req DriveRequest, sink protocol.Sink) error
@@ -422,7 +429,7 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 	case "attach":
 		s.handleAttach(cmd, enc)
 	case "approve":
-		s.handleApprove(cmd, enc)
+		s.handleApprove(ctx, cmd, enc)
 	case "send":
 		s.handleSend(ctx, cmd, enc)
 	case "close":
@@ -603,8 +610,13 @@ func (s *Server) handleClose(cmd Command, enc *json.Encoder) {
 	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Text: "closing", Session: cmd.Session})
 }
 
-// handleApprove routes a human's verdict to the idle ask.
-func (s *Server) handleApprove(cmd Command, enc *json.Encoder) {
+// handleApprove routes a human's verdict to the idle ask. If the ask is no
+// longer live in the (in-memory) broker but the session's journal still shows
+// it idle on exactly this approval, the daemon was restarted and lost the
+// pending ask (M2): reviveAndAnswer re-hosts the session so its resumed loop
+// re-registers the ask, then answers it — the stuck approval self-heals
+// instead of dead-ending at "no pending approval".
+func (s *Server) handleApprove(ctx context.Context, cmd Command, enc *json.Encoder) {
 	if s.Approvals == nil {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "daemon has no approval broker"})
 		return
@@ -614,16 +626,56 @@ func (s *Server) handleApprove(cmd Command, enc *json.Encoder) {
 			Text: "approve needs session, approval_id and decision approve|deny"})
 		return
 	}
-	ok := s.Approvals.Answer(cmd.Session, cmd.ApprovalID, ApprovalAnswer{
-		Approve: cmd.Decision == "approve", Reason: cmd.Reason,
-	})
-	if !ok {
-		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
-			Text: fmt.Sprintf("no pending approval %s on session %s", cmd.ApprovalID, cmd.Session)})
+	answer := ApprovalAnswer{Approve: cmd.Decision == "approve", Reason: cmd.Reason}
+	if s.Approvals.Answer(cmd.Session, cmd.ApprovalID, answer) ||
+		s.reviveAndAnswer(ctx, cmd.Session, cmd.ApprovalID, answer) {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage,
+			Text: "answered " + cmd.ApprovalID + ": " + cmd.Decision, Session: cmd.Session})
 		return
 	}
-	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage,
-		Text: "answered " + cmd.ApprovalID + ": " + cmd.Decision, Session: cmd.Session})
+	_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
+		Text: fmt.Sprintf("no pending approval %s on session %s", cmd.ApprovalID, cmd.Session)})
+}
+
+// reviveAndAnswer recovers a pending approval the in-memory broker lost to a
+// daemon restart (M2): when the session is NOT hosted but its journal shows it
+// idle on exactly this approval, re-host it — the resumed loop re-enters the
+// wait and re-registers the ask on the fresh broker — and answer once the ask
+// reappears. The journal guard means a non-approval target (wrong id, an
+// already-ended session) is never spuriously revived.
+func (s *Server) reviveAndAnswer(ctx context.Context, session, approvalID string, a ApprovalAnswer) bool {
+	if s.Resume == nil || s.PendingApproval == nil {
+		return false
+	}
+	s.mu.Lock()
+	hosted := s.runs[session] != nil
+	s.mu.Unlock()
+	if hosted {
+		return false // hosted but not pending = the ask already resolved (stale)
+	}
+	pid, ok, err := s.PendingApproval(session)
+	if err != nil || !ok || pid != approvalID {
+		return false // the journal does not show this session idle on this ask
+	}
+	s.mu.Lock()
+	delete(s.failed, session) // an explicit answer retries a failed resume
+	s.mu.Unlock()
+	s.hostResume(ctx, session, true)
+	// The resumed loop re-registers the ask asynchronously; poll the broker
+	// until it reappears, bounded so a session that settles some other way
+	// (e.g. resume error) does not hang the client.
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if s.Approvals.Answer(session, approvalID, a) {
+			return true
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(25 * time.Millisecond):
+		}
+	}
+	return false
 }
 
 // handleRun hosts a new run and streams its events to the submitting client

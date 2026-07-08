@@ -113,14 +113,15 @@ func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 			}
 			return daemon.ReplayJournal(dir, sink)
 		},
-		ScanTimers:    scanSessionTimers,
-		Resume:        hostResumeFunc(version, stderr, broker),
-		PersistInput:  persistInputFunc(),
-		SessionMarked: sessionMarked,
-		Drive:         hostDriveFunc(version, stderr, broker),
-		Approvals:     broker,
-		IdemPath:      filepath.Join(filepath.Dir(sock), "idem.json"),
-		Notify:        notifyTee,
+		ScanTimers:      scanSessionTimers,
+		Resume:          hostResumeFunc(version, stderr, broker),
+		PersistInput:    persistInputFunc(),
+		SessionMarked:   sessionMarked,
+		PendingApproval: pendingApproval,
+		Drive:           hostDriveFunc(version, stderr, broker),
+		Approvals:       broker,
+		IdemPath:        filepath.Join(filepath.Dir(sock), "idem.json"),
+		Notify:          notifyTee,
 	}
 	reconcileNotifications(notifier)
 	fmt.Fprintf(stderr, "daemon on %s\n", sock)
@@ -441,6 +442,33 @@ func sessionMarked(sessionID string) (bool, error) {
 		return false, err
 	}
 	return s.Session.Closed != nil, nil
+}
+
+// pendingApproval reports the approval id a session's journal shows it idle on
+// (waiting:approval), if any — the daemon's seam for M2 self-heal: after a
+// restart lost the in-memory ask, `approve` uses this to confirm the session
+// really is waiting on that id before reviving it to re-arm the ask.
+func pendingApproval(sessionID string) (string, bool, error) {
+	dir, err := resolveSessionDir(sessionID)
+	if err != nil {
+		return "", false, err
+	}
+	events, err := store.ReadEvents(dir)
+	if err != nil {
+		return "", false, err
+	}
+	s, err := state.Fold(events)
+	if err != nil {
+		return "", false, err
+	}
+	if s.Waiting == nil || s.Waiting.Kind != event.WaitApproval {
+		return "", false, nil
+	}
+	var req event.ApprovalRequested
+	if err := json.Unmarshal(s.Waiting.Detail, &req); err != nil {
+		return "", false, err
+	}
+	return req.ApprovalID, true, nil
 }
 
 // scanSessionTimers derives the pending-timer index from the session
