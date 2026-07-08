@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
 )
@@ -214,14 +215,24 @@ func buildInspectReport(events []event.Envelope, s state.State) inspectReport {
 		GenSteps: s.Session.GenStep,
 	}
 	// ActivityCompleted carries no name/call id — those live on the matching
-	// ActivityStarted; index them as we walk.
+	// ActivityStarted; index them as we walk. A DENIED tool call never becomes
+	// an activity, so its name comes from the assistant message that issued it.
 	started := map[string]*event.ActivityStarted{}
+	callName := map[string]string{}
 	curTurn := 0
 	for _, e := range events {
 		switch e.Type {
 		case event.TypeGenerationStarted:
 			if dec, err := event.DecodePayload(e); err == nil {
 				curTurn = dec.(*event.GenerationStarted).GenStep
+			}
+		case event.TypeAssistantMessage:
+			if dec, err := event.DecodePayload(e); err == nil {
+				for _, p := range dec.(*event.AssistantMessage).Message.Parts {
+					if p.Kind == provider.PartToolCall {
+						callName[p.CallID] = p.ToolName
+					}
+				}
 			}
 		case event.TypeActivityStarted:
 			if dec, err := event.DecodePayload(e); err == nil {
@@ -235,6 +246,21 @@ func buildInspectReport(events []event.Envelope, s state.State) inspectReport {
 			}
 			a := dec.(*event.ActivityCompleted)
 			report.Entries = append(report.Entries, activityEntry(curTurn, a, started[a.ActivityID], byCall, byEffect))
+		case event.TypeEffectResolved:
+			// A denied tool call produces no activity, so it would silently
+			// vanish from the timeline — the audit reads "all allow" when every
+			// action was blocked (T2/R2-D-3). Surface the denial explicitly.
+			dec, err := event.DecodePayload(e)
+			if err != nil {
+				continue
+			}
+			r := dec.(*event.EffectResolved)
+			if r.CallID != "" && r.Verdict == event.VerdictDeny {
+				report.Entries = append(report.Entries, entryReport{
+					GenStep: curTurn, Kind: "tool", Name: callName[r.CallID], CallID: r.CallID,
+					Verdict: event.VerdictDeny, Gate: decidingGate(r.GateResults, r.Verdict),
+				})
+			}
 		}
 	}
 

@@ -36,14 +36,15 @@ func TestBuildInspectReport(t *testing.T) {
 			ActivityID: "llm-t1", Kind: event.KindLLM, Name: "complete", Attempt: 1}),
 		mkEnv(t, event.TypeActivityCompleted, &event.ActivityCompleted{
 			ActivityID: "llm-t1", Usage: &provider.Usage{InputTokens: 500, OutputTokens: 40, CacheReadTokens: 100}}),
-		// A denied tool call.
+		// A denied tool call: the assistant issues it, adjudication denies it,
+		// and it NEVER becomes an activity (deny precedes execution). Its name
+		// comes from the assistant message; the timeline must still surface it.
+		mkEnv(t, event.TypeAssistantMessage, &event.AssistantMessage{
+			GenStep: 1, Message: provider.Message{Role: provider.RoleAssistant, Parts: []provider.Part{
+				{Kind: provider.PartToolCall, CallID: "c1", ToolName: "read_file"}}}}),
 		mkEnv(t, event.TypeEffectResolved, &event.EffectResolved{
 			EffectID: "eff-tool-c1", CallID: "c1", Verdict: event.VerdictDeny,
 			GateResults: []event.GateResult{{Gate: "permission", Decision: event.VerdictDeny, Reason: "escapes workspace"}}}),
-		mkEnv(t, event.TypeActivityStarted, &event.ActivityStarted{
-			ActivityID: "tool-c1", Kind: event.KindTool, Name: "read_file", CallID: "c1", Attempt: 1}),
-		mkEnv(t, event.TypeActivityCompleted, &event.ActivityCompleted{
-			ActivityID: "tool-c1", IsError: true}),
 		mkEnv(t, event.TypeSessionClosed, &event.SessionClosed{Reason: "closed", Source: "user", GenSteps: 1}),
 	}
 	s, err := state.Fold(events)
