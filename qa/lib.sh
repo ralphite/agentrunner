@@ -42,7 +42,7 @@ qa_daemon() { # starts the daemon, waits for its socket; sets $SOCK
 }
 
 qa_new() { # "opening message" — opens a conversational session; echoes sid
-  local sid; sid="$("$AR" new --workspace "$WS" "$WORK/base.yaml" "$1" 2>>"$WORK/err.log")"
+  local sid; sid="$("$AR" new --detach --workspace "$WS" "$WORK/base.yaml" "$1" 2>>"$WORK/err.log")"
   [ -n "$sid" ] || { echo "${QA}: no session id" >&2; cat "$WORK/err.log" "$WORK/daemon.log" >&2; exit 1; }
   printf '%s' "$sid"
 }

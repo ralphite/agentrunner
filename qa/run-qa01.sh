@@ -37,7 +37,7 @@ for i in $(seq 1 100); do [ -S "$sock" ] && break; sleep 0.1; done
 [ -S "$sock" ] || { echo "QA-01: daemon socket never appeared" >&2; cat "$work/daemon.log" >&2; exit 1; }
 
 # Turn 1: open the conversational session.
-sid="$("$AR" new --workspace "$work/ws" "$work/base.yaml" \
+sid="$("$AR" new --detach --workspace "$work/ws" "$work/base.yaml" \
   "这个库的 NoColor 开关在哪个文件实现的？一句话回答。" 2>>"$work/err.log")"
 [ -n "$sid" ] || { echo "QA-01: no session id" >&2; cat "$work/err.log" "$work/daemon.log" >&2; exit 1; }
 echo "session $sid"
@@ -62,10 +62,10 @@ wait_turns() {
 wait_turns 1
 # Turn 2: a follow-up that only makes sense with continuity, carrying a
 # pinned codeword the final answer must echo.
-"$AR" send "$sid" "它和环境变量 NO_COLOR 有关系吗？一句话。另外记住暗号一:红苹果。" >/dev/null
+"$AR" send --detach "$sid" "它和环境变量 NO_COLOR 有关系吗？一句话。另外记住暗号一:红苹果。" >/dev/null
 wait_turns 2
 # Turn 3: force a reference to BOTH prior rounds (file answer + codeword).
-"$AR" send "$sid" "记住暗号二:绿梨子。现在把两个暗号连起来说一遍,并再说一次 NoColor 在哪个文件。" >/dev/null
+"$AR" send --detach "$sid" "记住暗号二:绿梨子。现在把两个暗号连起来说一遍,并再说一次 NoColor 在哪个文件。" >/dev/null
 wait_turns 3
 # Close.
 "$AR" close "$sid" >/dev/null

@@ -85,14 +85,19 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 func followTurn(sock string, cmd daemon.Command, ackText string, stdout, stderr io.Writer) int {
 	render := newTextRenderer(stdout)
 	sid := cmd.Session // send knows it already; new learns it from SessionStart
-	var sawIdle, sawErr, acked bool
+	var sawIdle, sawErr, acked, announced bool
 	err := daemon.DialUntil(sock, cmd, func(e protocol.Event) bool {
 		if e.Session != "" && sid == "" {
 			sid = e.Session
 		}
 		switch e.Kind {
 		case protocol.KindSessionStart:
-			fmt.Fprintf(stderr, "session %s\n", e.Session)
+			// Printed once: the daemon's ack and the loop's own emit both
+			// carry this kind.
+			if !announced {
+				fmt.Fprintf(stderr, "session %s\n", e.Session)
+				announced = true
+			}
 			return true
 		case protocol.KindMessage:
 			if ackText != "" && !acked && e.Text == ackText {

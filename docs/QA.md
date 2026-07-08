@@ -44,8 +44,10 @@ qa/ws.sh cleanup <dir>              # 用完即删
 
 ### 0.3 CLI 契约（v2 的目标接口，实现必须提供这些动作）
 ```
-ar new <spec.yaml> --workspace <dir>      # 建会话 → 输出 <sid>，进入待命
-ar send <sid> "文字" [--image <png>]       # 任意时刻投一条用户消息
+ar new <spec.yaml> --workspace <dir>      # 建会话；默认渲染开场回复至待命
+                                          # (脚本用 --detach: stdout 只有 <sid>)
+ar send <sid> "文字" [--image <png>]       # 投一条用户消息;默认渲染回复至待命
+                                          # (脚本用 --detach: 投递即回 "delivered")
 ar attach <sid>                            # 订阅输出流（turn/工具/子 agent 事件）
 ar interrupt <sid>                         # 带外打断当前活动（≠发消息）
 ar ps <sid>                                # 列在飞子 session / 后台任务

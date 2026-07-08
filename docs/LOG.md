@@ -310,3 +310,34 @@ fresh-run 教义对 goal 形态不适用;goal 的 context 必须延续。fresh-r
   与本增量无关,留待 D 系收口。
 - 后续增量(已在 web/PROGRESS.md 提案区):P1② 子事件进 attach 流
   (childLoop 接 Out sink);P2 父/用户→在飞子的第二条消息(子 inbox)。
+
+## 2026-07-07 INC-2 新手第一公里:黑盒 QA 基础工作流修复
+
+**背景**:2026-07-07 黑盒 QA(零知识新用户视角)确认 7 个基础工作流
+硬伤(BB-me-1…7,工作纸 archive/increments/INC-2 有全文):顶层
+`--help` 报 unknown command、无 README、spec 格式无从发现且报错泄漏
+内部类型名、**`ar new`/`ar send` 完全不显示 AI 回复**(只给 id /
+"delivered")、attach 不可发现、run 与 new/send 输出行为相反、daemon
+隐性前提报错不指路。UJ-01/03 的"用户提问 → agent 答完"在 CLI 对话
+形态下事实不成立。
+
+**动作**(三个提交):
+1. 可发现性包:顶层 `help`/`--help`/`-h`(分组 + Quick start)、
+   `ar init`(带注释示例 spec,拒绝覆盖,模板以测试钉住可加载)、
+   spec 未知字段错误改写(去内部类型名、附合法字段清单与 init 指引,
+   golden 更新)、daemon dial 失败附启动指引、attach usage 说明回放+
+   跟随语义、裸 `sessions` 等价 `sessions list`。
+2. 回复可见性包:`new`/`send` 默认跟随本轮渲染回复正文至 idle 再
+   detach(尾行提示 send/attach);send 线协议加 `follow`(daemon 先
+   订阅 hub 后投递,ack 照旧,随后转发直到客户端断开);`--detach`
+   恢复纯异步。daemon.DialUntil 支持客户端側停止。
+3. README.md(用户入门)+ 三层文档收口 + qa 脚本改用 `--detach`
+   (脚本语义 = 投递即回,与忙时插话场景的时序假设一致)。
+
+**决策记档**:
+- `new`/`send` 的 stdout 从 id/"delivered" 变为回复正文——**面向人的
+  默认**;脚本消费方一律 `--detach`(qa/ 已同步)。
+- send follow 的订阅先于投递,保证回复事件零窗口;detach 即断连,
+  与 attach 同一语义,订阅不改结果(§15 不变量零触碰)。
+- 预存环境性测试失败(unix socket 路径超长,/var/folders 长随机段
+  下 bind/dial invalid argument)与本增量无关,已另立任务修测试基建。

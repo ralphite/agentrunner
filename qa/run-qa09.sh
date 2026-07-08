@@ -57,7 +57,7 @@ echo "session $sid"
 qa_wait_idle "$SDIR" 1
 
 # Step 1: image + exactly 3 parallel sub-agents.
-"$AR" send --image "$PNG" "$sid" \
+"$AR" send --detach --image "$PNG" "$sid" \
   "结合截图,启动恰好 3 个 worker 子 agent(background=true)分别调查:A=截图中报错可能涉及的机制,B=binding 目录的职责,C=middleware 是什么。启动后等它们的结果。" >/dev/null
 for i in $(seq 1 300); do
   [ "$(count_type spawn_requested "$SDIR/events.jsonl")" -ge 3 ] && break; sleep 0.2
@@ -67,7 +67,7 @@ spawns="$(count_type spawn_requested "$SDIR/events.jsonl")"
 
 # Steps 3: steer while children are in flight — cancel B, spawn D.
 "$AR" ps "$sid" || true
-"$AR" send "$sid" "B(binding 目录)不用查了,立刻用 task_kill 取消它;另启动一个新的 worker 子 agent D(background=true)调查 gin 的路由树实现。" >/dev/null
+"$AR" send --detach "$sid" "B(binding 目录)不用查了,立刻用 task_kill 取消它;另启动一个新的 worker 子 agent D(background=true)调查 gin 的路由树实现。" >/dev/null
 for i in $(seq 1 300); do
   [ "$(count_type spawn_requested "$SDIR/events.jsonl")" -ge 4 ] && break; sleep 0.2
 done
@@ -85,7 +85,7 @@ subs="$(count_type subagent_completed "$SDIR/events.jsonl")"
 
 # Step 5: continued chat over this session's own history.
 for i in $(seq 1 300); do tail -c 400 "$SDIR/events.jsonl" | grep -q '"type":"waiting_entered"' && break; sleep 0.2; done
-"$AR" send "$sid" "简单说:哪个子 agent 的结果最先回来?你是怎么处理的?" >/dev/null
+"$AR" send --detach "$sid" "简单说:哪个子 agent 的结果最先回来?你是怎么处理的?" >/dev/null
 parks_before="$(count_type waiting_entered "$SDIR/events.jsonl")"
 for i in $(seq 1 300); do
   [ "$(count_type waiting_entered "$SDIR/events.jsonl")" -gt "$parks_before" ] && break; sleep 0.2
@@ -93,7 +93,7 @@ done
 
 # Step 6: kill -9 → revive → write SUMMARY.md via write_file.
 crash_restart
-"$AR" send "$sid" "把这次调查的最终结论(包括 B 被取消这件事)用 write_file 写进仓库根的 SUMMARY.md。" >/dev/null
+"$AR" send --detach "$sid" "把这次调查的最终结论(包括 B 被取消这件事)用 write_file 写进仓库根的 SUMMARY.md。" >/dev/null
 for i in $(seq 1 300); do [ -s "$WS/SUMMARY.md" ] && break; sleep 0.3; done
 
 # ---- Assertions (the journal tells the whole seven-step story) ----

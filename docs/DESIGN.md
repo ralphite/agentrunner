@@ -867,7 +867,11 @@ limits:
   live topic（错过的 token delta 按 doctrine 丢失，组装消息不丢）；
   detach **不产生任何事件**——订阅状态不影响结果，无事可记。
   `runtime.daemon: never` 时降级为 durable 待命（下次进程启动时
-  resume）。
+  resume）。（INC-2）`new`/`send` 默认**跟随所触发的那一轮**渲染到
+  idle 再 detach——回复在发起处可见；send 线协议带 `follow`：daemon
+  **先订阅 hub 后投递**（回复事件不可能漏在订阅前），"delivered"
+  ack 照旧，随后转发 live 事件直到客户端断开。`--detach` 恢复纯异步
+  （只回 id / ack）。订阅仍不改结果。
 - **常驻 runtime 也是 durable timer 的触发者**：维护 timer 的派生索引，
   到期 journal `TimerFired` 并发起 resume——timeout/cron/审批过期的
   "等几天成本相同"由它兑现；CLI-only 部署显式降级为"下次 resume 补火"。

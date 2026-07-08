@@ -174,7 +174,7 @@ func readSessionStarted(dir string) (*event.SessionStarted, error) {
 // the folded status. Bare `sessions` lists too — it is every first-timer's
 // first guess (INC-2).
 func sessionsCmd(args []string, stdout, stderr io.Writer) int {
-	if !(len(args) == 0 || (len(args) == 1 && args[0] == "list")) {
+	if len(args) > 1 || (len(args) == 1 && args[0] != "list") {
 		fmt.Fprintln(stderr, "usage: agentrunner sessions [list]")
 		return ExitUsage
 	}
