@@ -37,7 +37,7 @@ func driveCmd(args []string, version string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	workspaceDir := fs.String("workspace", ".", "workspace root (default: current directory)")
 	jsonOut := fs.Bool("json", false, "emit the child runs' output event stream as JSON lines")
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
 		return ExitUsage
 	}
 	rest := fs.Args()

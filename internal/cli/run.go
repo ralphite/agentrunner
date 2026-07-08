@@ -91,7 +91,7 @@ func runCmd(args []string, recordMode bool, version string, stdout, stderr io.Wr
 	mode := fs.String("mode", "", "run mode: default|plan|acceptEdits|bypass (overrides spec)")
 	jsonOut := fs.Bool("json", false, "emit the output event stream as JSON lines")
 	fixtureOut := fs.String("o", "", "fixture output path (record-fixture only)")
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
 		return ExitUsage
 	}
 	rest := fs.Args()

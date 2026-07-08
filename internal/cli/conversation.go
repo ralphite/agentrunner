@@ -31,7 +31,7 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 	workspaceDir := fs.String("workspace", ".", "workspace root")
 	mode := fs.String("mode", "", "run mode: default|plan|acceptEdits")
 	detach := fs.Bool("detach", false, "print the session id and exit without waiting for the reply")
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
 		return ExitUsage
 	}
 	rest := fs.Args()
@@ -153,7 +153,7 @@ func sendCmd(args []string, stdout, stderr io.Writer) int {
 	var imagePaths repeatedFlag
 	fs.Var(&imagePaths, "image", "attach an image file (repeatable)")
 	detach := fs.Bool("detach", false, "deliver the message and exit without waiting for the reply")
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
 		return ExitUsage
 	}
 	rest := fs.Args()
