@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AgentRunner 驾驶舱</title>
+<title>AgentRunner Cockpit</title>
 <style>
   :root { --line:#ddd; --ink:#222; --dim:#888; --bg:#fafafa; }
   * { box-sizing:border-box; }
@@ -86,38 +86,37 @@
 </head>
 <body>
 <header>
-  <h1>AgentRunner 驾驶舱</h1>
+  <h1>AgentRunner Cockpit</h1>
   <span class="dot" id="hdot"></span>
   <span class="muted" id="htext">daemon…</span>
-  <button id="daemonRestart" style="display:none" class="danger">重启 daemon</button>
+  <button id="daemonRestart" style="display:none" class="danger">restart daemon</button>
   <span style="flex:1"></span>
-  <label class="muted"><input type="checkbox" id="sysToggle"> 系统事件</label>
-  <button class="primary" id="btnNew">新会话</button>
+  <label class="muted"><input type="checkbox" id="sysToggle"> system events</label>
+  <button class="primary" id="btnNew">new session</button>
 </header>
 <div id="layout">
   <aside id="sesslist"></aside>
   <main>
     <div id="sesshead" style="display:none">
-      <a id="shUp" style="display:none">← 父会话</a>
+      <a id="shUp" style="display:none">← parent session</a>
       <span class="id" id="shId"></span>
       <span class="pill" id="shPill">—</span>
       <span style="flex:1"></span>
-      <button id="btnRaw">原始 journal</button>
-      <button id="btnState">折叠状态</button>
-      <button id="btnTree">inspect 树</button>
-      <button id="btnAgent">换 agent</button>
+      <button id="btnRaw">raw journal</button>
+      <button id="btnState">fold state</button>
+      <button id="btnTree">inspect tree</button>
+      <button id="btnAgent">switch agent</button>
       <button id="btnInterrupt" class="danger">interrupt</button>
-      <button id="btnClose" class="danger">关闭会话</button>
     </div>
-    <div id="timeline"><div id="empty">← 选择或新建一个会话</div></div>
+    <div id="timeline"><div id="empty">← select or create a session</div></div>
     <div id="children"></div>
     <div id="composer" style="display:none">
       <div id="imgchips"></div>
       <div class="box">
-        <textarea id="input" placeholder="输入消息…(Enter 发送,Shift+Enter 换行)"></textarea>
+        <textarea id="input" placeholder="Type a message… (Enter to send, Shift+Enter for a newline)"></textarea>
         <input type="file" id="file" accept="image/*" style="display:none">
-        <button id="btnImg" title="附加图片">图片</button>
-        <button class="primary" id="btnSend">发送</button>
+        <button id="btnImg" title="attach an image">image</button>
+        <button class="primary" id="btnSend">send</button>
       </div>
       <div id="statusline"></div>
     </div>
@@ -125,33 +124,33 @@
 </div>
 
 <dialog id="newdlg">
-  <div class="dhead">新会话 <button onclick="newdlg.close()">✕</button></div>
+  <div class="dhead">new session <button onclick="newdlg.close()">✕</button></div>
   <div class="dbody">
-    <label>workspace 目录(绝对路径)</label>
+    <label>workspace directory (absolute path)</label>
     <div style="display:flex;gap:8px">
       <input type="text" id="nWs" placeholder="/path/to/workspace">
-      <button id="nMkWs" style="white-space:nowrap">造空 workspace</button>
+      <button id="nMkWs" style="white-space:nowrap">make empty workspace</button>
     </div>
-    <label>开场消息</label>
-    <textarea id="nMsg" rows="2" style="font:inherit">你好,请先自我介绍你的工具能力,一句话。</textarea>
-    <label>mode(可选)</label>
+    <label>opening message</label>
+    <textarea id="nMsg" rows="2" style="font:inherit">Hello — in one sentence, introduce your tool capabilities.</textarea>
+    <label>mode (optional)</label>
     <select id="nMode"><option value="">default</option><option>plan</option><option>acceptEdits</option></select>
-    <label>base.yaml(主 agent spec)</label>
+    <label>base.yaml (main agent spec)</label>
     <textarea id="nSpec" rows="12"></textarea>
-    <label>worker.yaml(子 agent spec,留空则不写)</label>
+    <label>worker.yaml (sub-agent spec; leave empty to skip)</label>
     <textarea id="nWorker" rows="7"></textarea>
-    <div style="margin-top:12px;text-align:right"><button class="primary" id="nCreate">创建</button></div>
+    <div style="margin-top:12px;text-align:right"><button class="primary" id="nCreate">create</button></div>
   </div>
 </dialog>
 
 <dialog id="agentdlg">
-  <div class="dhead">换 agent(同一会话,上下文延续)<button onclick="agentdlg.close()">✕</button></div>
+  <div class="dhead">switch agent (same session, context carries over) <button onclick="agentdlg.close()">✕</button></div>
   <div class="dbody">
-    <label>新 agent spec(agent.yaml)</label>
+    <label>new agent spec (agent.yaml)</label>
     <textarea id="aSpec" rows="10"></textarea>
-    <label>worker.yaml(旁置子 agent spec,留空则不写)</label>
+    <label>worker.yaml (sibling sub-agent spec; leave empty to skip)</label>
     <textarea id="aWorker" rows="5"></textarea>
-    <div style="margin-top:12px;text-align:right"><button class="primary" id="aSwitch">切换(下一条消息生效)</button></div>
+    <div style="margin-top:12px;text-align:right"><button class="primary" id="aSwitch">switch (takes effect on the next message)</button></div>
   </div>
 </dialog>
 
@@ -215,7 +214,7 @@ function chip(text, cls) { append(el("div", "chip " + (cls || ""), text)); }
 function childChip(text, childSession, cls) {
   const c = el("div", "chip " + (cls || ""), text + " ");
   if (childSession) {
-    const a = el("a", "", "打开子会话 ↗");
+    const a = el("a", "", "open child ↗");
     a.href = "#" + childSession;
     c.appendChild(a);
   }
@@ -235,11 +234,11 @@ function toolCard(name, args, opts) {
   const card = el("div", "card");
   const head = el("div", "head");
   head.appendChild(el("span", "", "🔧 " + name));
-  const status = el("span", "badge", opts && opts.background ? "后台" : "运行中");
+  const status = el("span", "badge", opts && opts.background ? "background" : "running");
   head.appendChild(status);
   card.appendChild(head);
   if (args) {
-    const d = el("details"); d.appendChild(el("summary", "", "参数"));
+    const d = el("details"); d.appendChild(el("summary", "", "args"));
     const p = el("pre", "", pretty(args)); d.appendChild(p); card.appendChild(d);
   }
   card._status = status;
@@ -252,23 +251,23 @@ function render(env) {
   const p = env.payload || {};
   switch (env.type) {
   case "session_started":
-    chip(`会话开始 · ${p.spec_name || ""} · ${p.model || ""}`);
+    chip(`session started · ${p.spec_name || ""} · ${p.model || ""}`);
     break;
   case "input_received": {
     // settle a matching pending bubble
     const i = state.pending.findIndex(x => x.text === p.text);
-    if (i >= 0) { state.pending[i].el.classList.remove("pending"); state.pending[i].el._tag && (state.pending[i].el._tag.textContent="你"); state.pending.splice(i, 1); }
+    if (i >= 0) { state.pending[i].el.classList.remove("pending"); state.pending[i].el._tag && (state.pending[i].el._tag.textContent="you"); state.pending.splice(i, 1); }
     else {
-      let extra = p.source && p.source !== "user" ? p.source : "你";
-      const b = bubble("user", p.text || "(空)", extra);
+      let extra = p.source && p.source !== "user" ? p.source : "you";
+      const b = bubble("user", p.text || "(empty)", extra);
       if (p.images && p.images.length) b.appendChild(el("div", "muted", `📷 ×${p.images.length} (CAS ref)`));
     }
     break;
   }
   case "generation_started":
     state.lastGen = p.gen_step || (state.lastGen + 1);
-    append(el("div", "turn", `第 ${state.lastGen} 轮`));
-    setStatus("运行中", "run");
+    append(el("div", "turn", `turn ${state.lastGen}`));
+    setStatus("running", "run");
     break;
   case "assistant_message": {
     if (state.typingEl) { state.typingEl.parentElement.remove(); state.typingEl = null; }
@@ -278,7 +277,7 @@ function render(env) {
     calls.forEach(c => { state.callArgs[c.call_id] = { name: c.tool_name, args: c.args }; });
     if (text.trim()) bubble("asst", text, "agent");
     if (calls.length && !text.trim()) {} // tool activity cards follow
-    if (p.finish === "blocked") chip("本轮输出被截断(finish=blocked),部分文本已保留", "warn");
+    if (p.finish === "blocked") chip("output truncated (finish=blocked), partial text kept", "warn");
     break;
   }
   case "activity_started":
@@ -289,11 +288,11 @@ function render(env) {
   case "activity_completed": {
     const card = state.toolCards[p.activity_id];
     if (card) {
-      card._status.textContent = p.is_error ? "错误" : "完成";
+      card._status.textContent = p.is_error ? "error" : "done";
       card._status.className = "badge " + (p.is_error ? "err" : "ok");
       if (p.usage) card._status.title = `tokens in ${p.usage.input_tokens} out ${p.usage.output_tokens}`;
       if (p.result !== undefined) {
-        const d = el("details"); d.appendChild(el("summary", "", "结果"));
+        const d = el("details"); d.appendChild(el("summary", "", "result"));
         d.appendChild(el("pre", "", pretty(p.result).slice(0, 20000)));
         card.appendChild(d);
         if (p.is_error) card.classList.add("err");
@@ -303,69 +302,73 @@ function render(env) {
   }
   case "activity_failed": {
     const card = state.toolCards[p.activity_id];
-    const msg = p.error ? `${p.error.class}: ${p.error.message}` : "失败";
+    const msg = p.error ? `${p.error.class}: ${p.error.message}` : "failed";
     if (card) {
       card.classList.add("err");
-      card._status.textContent = "失败" + (p.final ? "(终)" : `(重试 ${p.attempt})`);
+      card._status.textContent = "failed" + (p.final ? " (final)" : ` (retry ${p.attempt})`);
       card._status.className = "badge err";
       card.appendChild(el("pre", "", msg));
-    } else chip("活动失败: " + msg, "bad");
+    } else chip("activity failed: " + msg, "bad");
     break;
   }
   case "activity_cancelled": {
     const card = state.toolCards[p.activity_id];
     if (card) {
       card.classList.add("cancel");
-      card._status.textContent = "已取消";
+      card._status.textContent = "cancelled";
       if (p.partial_output) {
-        const d = el("details"); d.appendChild(el("summary", "", "部分输出"));
+        const d = el("details"); d.appendChild(el("summary", "", "partial output"));
         d.appendChild(el("pre", "", p.partial_output)); card.appendChild(d);
       }
-    } else chip("活动已取消 " + p.activity_id, "warn");
+    } else chip("activity cancelled " + p.activity_id, "warn");
     break;
   }
   case "spawn_requested":
-    childChip(`⬇ 子 agent ${p.agent} · ${p.task ? p.task.slice(0, 80) : ""}`, p.child_session, "");
+    childChip(`⬇ spawn ${p.agent} · ${p.task ? p.task.slice(0, 80) : ""}`, p.child_session, "");
     break;
   case "subagent_completed":
-    childChip(`⬆ 子完成 ${p.agent} · ${p.reason} · ${p.usage ? (p.usage.input_tokens + p.usage.output_tokens) + " tok" : ""}`,
+    childChip(`⬆ ${p.agent} settled · ${p.reason} · ${p.usage ? (p.usage.input_tokens + p.usage.output_tokens) + " tok" : ""}`,
       p.child_session, p.reason === "completed" ? "" : "warn");
     break;
   case "approval_requested": renderApproval(env); break;
   case "approval_responded": {
     if (state.approvals[p.approval_id]) {
       settleApproval(p.approval_id,
-        (p.decision === "approve" ? "已批准" : "已拒绝") + (p.reason ? ": " + p.reason : "") + ` (${p.source || ""})`,
+        (p.decision === "approve" ? "approved" : "denied") + (p.reason ? ": " + p.reason : "") + ` (${p.source || ""})`,
         p.decision === "approve");
     } else sysline(env.seq, env.type, p.decision);
     break;
   }
   case "waiting_entered": {
-    // D2 静止模型后 wait kind 只剩 input/approval(tasks/timer 已删)。
-    const kinds = { input: ["待命,等你输入", "idle"], approval: ["等待审批", "appr"] };
+    // After D2's quiescence surgery the wait kinds are just input/approval
+    // (tasks/timer are gone).
+    const kinds = { input: ["waiting: input", "idle"], approval: ["waiting: approval", "appr"] };
     const [txt, cls] = kinds[p.kind] || [p.kind, ""];
     setStatus(txt, cls);
     break;
   }
-  case "waiting_resolved": setStatus("运行中", "run"); break;
+  case "waiting_resolved": setStatus("running", "run"); break;
   case "session_closed": {
-    // D2: reason ∈ closed|killed,kill 标记带来源 source ∈ user|parent。
+    // Quiescence model (D2): session_closed is a MARK, not a terminal state
+    // — reason ∈ closed|killed, kill marks carry source ∈ user|parent, and
+    // an explicit send always reopens the session.
     const killed = p.reason === "killed";
-    chip(`会话${killed ? "被杀" : "已关闭"}${p.source ? " · 来源 " + p.source : ""}`, killed ? "bad" : "");
-    setStatus(killed ? "已杀" : "已关闭", "closed");
+    chip(`session marked ${killed ? "killed" : "closed"}${p.source ? " · source: " + p.source : ""} — send to continue`, killed ? "bad" : "");
+    setStatus(killed ? "killed" : "closed", "closed");
     break;
   }
-  case "spec_changed": chip(`🔁 换 agent → ${p.spec_name || ""} · ${p.model || ""}`); break;
-  case "actor_crashed": chip(`崩溃 ${p.actor}: ${p.error}`, "bad"); setStatus("崩溃", "crash"); break;
+  case "spec_changed": chip(`🔁 agent switched → ${p.spec_name || ""} · ${p.model || ""}`); break;
+  case "actor_crashed": chip(`crashed ${p.actor}: ${p.error}`, "bad"); setStatus("crashed", "crash"); break;
   case "mode_changed": chip(`mode → ${p.to} (${p.cause})`); break;
-  case "context_compacted": chip(`上下文压缩 · 到第 ${p.upto_gen_step} 轮`); break;
+  case "context_compacted": chip(`context compacted · through turn ${p.upto_gen_step}`); break;
   case "limit_exceeded":
-    // 可见截断家族(tokens|generation_steps|malformed_tool_call):turn 被
-    // 截断但会话不终结,待命后可再 send。
-    chip(`可见截断 ${p.kind}${p.limit ? `: ${p.used}/${p.limit}` : ""}(会话待命,可继续发言)`, "bad");
+    // Visible-truncation family (tokens|generation_steps|malformed_tool_call):
+    // the turn is cut short but the session does NOT end — it idles and can
+    // be sent to again.
+    chip(`truncated: ${p.kind}${p.limit ? ` ${p.used}/${p.limit}` : ""} (session stays available — send to continue)`, "bad");
     break;
-  case "generation_discarded": chip(`第 ${p.gen_step} 轮流式输出被丢弃重试`, "warn"); break;
-  case "malformed_tool_call": chip(`第 ${p.gen_step} 轮工具调用不可解析,重试`, "warn"); break;
+  case "generation_discarded": chip(`turn ${p.gen_step} stream discarded, retrying`, "warn"); break;
+  case "malformed_tool_call": chip(`turn ${p.gen_step} tool call unparsable, retrying`, "warn"); break;
   default:
     sysline(env.seq, env.type);
   }
@@ -375,28 +378,28 @@ function render(env) {
 // A PARENT ask arrives twice (SSE approval_request + journal
 // approval_requested); a CHILD ask arrives ONLY via SSE — child loops have
 // no Out sink, but their approvals bubble through the shared broker with
-// the requesting agent's name (上卷). Dedup by approval id.
+// the requesting agent's name. Dedup by approval id.
 function approvalCard(id, toolName, argsStr, agentName) {
   if (state.approvals[id]) return state.approvals[id];
   const card = el("div", "card approval");
   const head = el("div", "head");
-  head.appendChild(el("span", "", "⚖ 审批 " + (toolName || id)));
-  if (agentName) head.appendChild(el("span", "badge", "请求方: " + agentName));
+  head.appendChild(el("span", "", "⚖ approval " + (toolName || id)));
+  if (agentName) head.appendChild(el("span", "badge", "from: " + agentName));
   card.appendChild(head);
   if (argsStr) card.appendChild(el("pre", "", pretty(argsStr)));
   const act = el("div", "act");
   if (state.sid.includes("-sub-")) {
     // The broker registers asks under the ROOT session — answer from the
     // parent view; here the card is informational.
-    act.appendChild(el("span", "badge", "请在父会话中审批"));
+    act.appendChild(el("span", "badge", "answer from the parent session"));
     card.appendChild(act);
     card.act = act; card.head = head;
     state.approvals[id] = card;
     append(card);
     return card;
   }
-  const reason = document.createElement("input"); reason.placeholder = "理由(可选)";
-  const ok = el("button", "primary", "批准"), no = el("button", "danger", "拒绝");
+  const reason = document.createElement("input"); reason.placeholder = "reason (optional)";
+  const ok = el("button", "primary", "approve"), no = el("button", "danger", "deny");
   ok.onclick = () => decide("approve"); no.onclick = () => decide("deny");
   act.append(ok, no, reason); card.appendChild(act);
   async function decide(d) {
@@ -405,7 +408,7 @@ function approvalCard(id, toolName, argsStr, agentName) {
       await post(`/sessions/${state.sid}/approve`, { approvalId: id, decision: d, reason: reason.value });
       // A child's ask never gets a journal approval_responded in THIS
       // session's log — settle the card locally on ack.
-      settleApproval(id, d === "approve" ? "已批准(你)" : "已拒绝(你)" + (reason.value ? ": " + reason.value : ""), d === "approve");
+      settleApproval(id, d === "approve" ? "approved (you)" : "denied (you)" + (reason.value ? ": " + reason.value : ""), d === "approve");
     } catch (e) { toast(e.message); ok.disabled = no.disabled = false; }
   }
   card.act = act;
@@ -448,30 +451,32 @@ function setStatus(text, cls) {
 
 // ---------- session lifecycle ----------
 async function openSession(id) {
-  closeSession();
+  leaveSession();
   state.sid = id;
   location.hash = id;
   tl.innerHTML = "";
   Object.assign(state, { cursor: 0, toolCards: {}, callArgs: {}, approvals: {}, pending: [], typingEl: null, lastGen: 0 });
-  // A child session (INC-1) is a read-only view: no inbox, no interrupt/
-  // close, no live stream — its journal still grows while in flight, so
-  // the 1s poll IS the realtime view. Everything else works unchanged.
+  // A child session (INC-1) is a read-only view: no inbox, no interrupt,
+  // no live stream — its journal still grows while in flight, so the 1s
+  // poll IS the realtime view. Everything else works unchanged.
   const isSub = id.includes("-sub-");
   $("sesshead").style.display = "flex";
   $("composer").style.display = isSub ? "none" : "block";
-  $("btnInterrupt").style.display = $("btnClose").style.display = $("btnAgent").style.display = isSub ? "none" : "";
+  $("btnInterrupt").style.display = $("btnAgent").style.display = isSub ? "none" : "";
   const up = $("shUp");
   up.style.display = isSub ? "" : "none";
   if (isSub) up.href = "#" + id.slice(0, id.lastIndexOf("-sub-"));
   $("shId").textContent = id;
-  setStatus("载入中…", "");
+  setStatus("loading…", "");
   document.querySelectorAll("#sesslist .sess").forEach(n => n.classList.toggle("cur", n.dataset.id === id));
   await pollEvents();
   state.evTimer = setInterval(pollEvents, 1000);
   state.psTimer = setInterval(pollPS, 2500);
   if (!isSub) openStream(id);
 }
-function closeSession() {
+// leaveSession tears down the polling/stream for the current view (a UI
+// navigation concern only — the session itself always keeps running).
+function leaveSession() {
   clearInterval(state.evTimer); clearInterval(state.psTimer);
   if (state.es) { state.es.close(); state.es = null; }
   state.sid = null;
@@ -496,7 +501,7 @@ async function pollPS() {
     box.className = tasks.length ? "on" : "";
     box.innerHTML = "";
     if (tasks.length) {
-      box.appendChild(el("div", "muted", `在飞后台工作 ×${tasks.length}`));
+      box.appendChild(el("div", "muted", `in-flight background work ×${tasks.length}`));
       const isSub = state.sid.includes("-sub-");
       tasks.forEach(t => {
         const row = el("div", "task");
@@ -551,12 +556,12 @@ async function send() {
   if (!text || !state.sid) return;
   const images = state.images.map(i => i.path);
   $("input").value = "";
-  const b = bubble("user", text, "投递中…");
+  const b = bubble("user", text, "delivering…");
   b.classList.add("pending");
   b._tag = b.parentElement.querySelector(".tag");
   state.pending.push({ text, el: b });
   state.images = []; renderImgChips();
-  try { await post(`/sessions/${state.sid}/send`, { text, images }); if (b._tag) b._tag.textContent = "排队中"; }
+  try { await post(`/sessions/${state.sid}/send`, { text, images }); if (b._tag) b._tag.textContent = "queued"; }
   catch (e) { toast(e.message); b.parentElement.remove(); state.pending = state.pending.filter(x => x.el !== b); }
 }
 $("btnImg").onclick = () => $("file").click();
@@ -580,30 +585,15 @@ function renderImgChips() {
 }
 $("btnInterrupt").onclick = async () => {
   if (!state.sid) return;
-  try { await post(`/sessions/${state.sid}/interrupt`); chip("⚡ 已发 interrupt(运行中打断当前轮;待命时 no-op,只留审计行)", "warn"); }
+  try { await post(`/sessions/${state.sid}/interrupt`); chip("⚡ interrupt sent (cancels the in-flight turn; a no-op at idle, audit line only)", "warn"); }
   catch (e) { toast(e.message); }
 };
-$("btnClose").onclick = async () => {
-  // Two-step confirm instead of native confirm(): a blocking dialog freezes
-  // the renderer and breaks automation (the cockpit must stay scriptable).
-  const btn = $("btnClose");
-  if (!state.sid) return;
-  if (!btn._armed) {
-    btn._armed = true;
-    btn.textContent = "确认关闭?";
-    setTimeout(() => { btn._armed = false; btn.textContent = "关闭会话"; }, 3000);
-    return;
-  }
-  btn._armed = false;
-  btn.textContent = "关闭会话";
-  try { await post(`/sessions/${state.sid}/close`); } catch (e) { toast(e.message); }
-};
 
-// ---------- agent switch (决策 #32) ----------
+// ---------- agent switch (spec decision #32) ----------
 const agentdlg = $("agentdlg");
 const DEFAULT_AGENT2 = `name: auditor
 model: { provider: gemini, id: gemini-flash-latest, max_tokens: 4096 }
-system_prompt: 你是审计员。永远以"【审计员】"开头,用一句话严肃作答。
+system_prompt: You are an auditor. Always open with "[AUDITOR]" and answer in one stern sentence.
 tools: [read_file, bash]
 permissions:
   - { action: allow }
@@ -620,7 +610,7 @@ $("aSwitch").onclick = async () => {
     if ($("aWorker").value.trim()) extraSpecs.push({ name: "worker.yaml", content: $("aWorker").value });
     const r = await post(`/sessions/${state.sid}/agent`, { spec: $("aSpec").value, extraSpecs });
     agentdlg.close();
-    chip(`🔁 ${r.status || "agent switched"}(journal 出现 spec_changed 即落账)`);
+    chip(`🔁 ${r.status || "agent switched"} (lands in the journal as spec_changed)`);
   } catch (e) { toast(e.message); }
   finally { btn.disabled = false; }
 };
@@ -634,9 +624,9 @@ async function view(title, path) {
     $("viewer").showModal();
   } catch (e) { toast(e.message); }
 }
-$("btnRaw").onclick = () => view("原始 journal", `/sessions/${state.sid}/events`);
-$("btnState").onclick = () => view("折叠状态", `/sessions/${state.sid}/state`);
-$("btnTree").onclick = () => view("inspect 树", `/sessions/${state.sid}/inspect`);
+$("btnRaw").onclick = () => view("raw journal", `/sessions/${state.sid}/events`);
+$("btnState").onclick = () => view("fold state", `/sessions/${state.sid}/state`);
+$("btnTree").onclick = () => view("inspect tree", `/sessions/${state.sid}/inspect`);
 $("sysToggle").onchange = e => document.body.classList.toggle("showsys", e.target.checked);
 
 // ---------- sessions list / health ----------
@@ -649,7 +639,7 @@ async function refreshSessions() {
       const d = el("div", "sess" + (r.id === state.sid ? " cur" : ""));
       d.dataset.id = r.id;
       d.appendChild(el("div", "id", short(r.id)));
-      d.appendChild(el("div", "muted", `${r.status} · ${r.turns} 轮`));
+      d.appendChild(el("div", "muted", `${r.status} · ${r.turns} turns`));
       d.onclick = () => openSession(r.id);
       box.appendChild(d);
     });
@@ -659,15 +649,15 @@ async function refreshHealth() {
   try {
     const h = await api("/health");
     $("hdot").className = "dot" + (h.daemonUp ? " up" : "");
-    $("htext").textContent = `${h.version} · daemon ${h.daemonUp ? "在线" : "不可达"}${h.daemonManaged ? "(托管)" : ""}`;
+    $("htext").textContent = `${h.version} · daemon ${h.daemonUp ? "up" : "unreachable"}${h.daemonManaged ? " (managed)" : ""}`;
     $("daemonRestart").style.display = h.daemonUp ? "none" : "";
   } catch (e) {
     $("hdot").className = "dot";
-    $("htext").textContent = "arweb 不可达";
+    $("htext").textContent = "arweb unreachable";
   }
 }
 $("daemonRestart").onclick = async () => {
-  try { await post("/daemon/start"); toast("daemon 启动请求已发"); }
+  try { await post("/daemon/start"); toast("daemon start requested"); }
   catch (e) { toast(e.message); }
 };
 
@@ -676,17 +666,18 @@ const newdlg = $("newdlg"), viewer = $("viewer");
 const DEFAULT_SPEC = `name: dev
 model: { provider: gemini, id: gemini-flash-latest, max_tokens: 4096 }
 system_prompt: |
-  你是一个严谨的编码助手。严格按用户指令行动;用户要求启动子 agent 时,
-  用 spawn_agent 工具、数量与分工严格照做;要求取消时用 kill。
+  You are a rigorous coding assistant. Follow the user's instructions
+  exactly; when asked to start sub-agents, use the spawn_agent tool with
+  the exact count and division of labor requested; use kill to cancel.
 tools: [read_file, write_file, edit_file, bash, spawn_agent, kill, output]
 agents: [worker]
 permissions:
   - { action: allow }
 `;
 const DEFAULT_WORKER = `name: worker
-description: 执行父分派的调查/修改任务并汇报
+description: runs investigation/edit tasks assigned by the parent and reports back
 model: { provider: gemini, id: gemini-flash-latest, max_tokens: 4096 }
-system_prompt: 完成任务后用简洁的要点汇报结论。
+system_prompt: When the task is done, report your conclusions as concise bullet points.
 tools: [read_file, bash]
 `;
 $("btnNew").onclick = () => {

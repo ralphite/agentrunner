@@ -84,6 +84,15 @@
       词汇 task→后台工作/handle
 - 真验:真 Gemini 全程(API+Chrome)——见变更记录轮 8。
 
+## M8 UI overhaul(2026-07-08 用户拍板:无 close 概念、全英文、composer 能力面)
+- [x] close 概念全移除(按钮/`/close` 端点/CLI 白名单行;铁律 I7)
+- [x] UI 全英文化(文案对齐 journal 事件/CLI/状态词;默认 spec 一并英文;铁律 I6)
+- [x] UI-GAPS.md 成文:对照 JOURNEYS/SPEC/CLI 命令面的全量欠缺盘点,待用户逐项确认
+- [ ] UI-GAPS §1 composer 能力面(agent/model 选择器等,待用户确认形态)
+- [ ] UI-GAPS §2 生命周期状态面(stranded/marked 识别 + send 复活指路)
+- [ ] UI-GAPS §3/§4 按用户拍板结果排期
+- 真验:见变更记录轮 9。
+
 ## 产品增量提案(动 internal/,须按 docs/PROCESS.md 走三层 delta,待用户拍板)
 
 - **P1 子会话观察面**:②寻址部分 **已落地为 INC-1**(2026-07-07,
@@ -114,6 +123,7 @@
 
 | 日期 | 轮次 | 动作 | 真验结果 |
 |---|---|---|---|
+| 2026-07-08 | 9 | M8 第一步(用户三点拍板之 1/2):close 概念全移除(按钮/端点/白名单/fake-ar 桩,铁律 I7)、UI 全英文化(词汇对齐 journal/CLI,含默认 spec,铁律 I6);UI-GAPS.md 全量欠缺盘点成文待确认 | fake-ar 单测绿;真 Gemini 全程 Chrome(隔离 XDG=/tmp/awui,端口 8890):新会话表单(英文默认 spec、make empty workspace 一键)→ 两轮问答(turn 1 工具介绍 → 指令回显 ENGLISH_UI_OK),session started chip/turn 线/cli·you·agent tag/waiting: input pill/composer 全英文;sesshead 五按钮无 close;pending→queued→you 落账链路走通;console 零错误零警告 |
 | 2026-07-08 | 8 | M7 契约同步(INC-2 + D 系手术):new/send --detach、/agent 端点+「换 agent」对话框、task_kill→kill/output、事件映射更新(spec_changed/session_closed source/可见截断/waiting kinds)、词汇清理;fake-ar 单测新增 agent 场景 | 真 Gemini 会话 af84(API+Chrome 双路):new --detach 秒回 sid、两轮暗号"紫罗兰"衔接;send --detach→"delivered"、journal 轮询渲染回复;/agent dev→auditor→dev(带 worker 旁置)三连,journal spec_changed 各恰一条、【审计员】身份即换即答、上下文延续;spawn worker 非阻塞(ps 面板 handle call_4_0)→网页 kill→父 [kill] control 气泡+activity_cancelled+subagent_completed(error),子 journal session_closed{killed,source:user},子页只读视图"已杀"pill+"会话被杀·来源 user"chip(38 轮 output busy-poll 卡全渲染);interrupt 待命处 no-op 只落 [interrupt] 审计行、会话仍 waiting(坐实 cli.go:115 help 过时,已另立任务);close→session_closed{closed,source:user};整页重载(3×spec_changed+kill 标记全量重放)console 零错误 |
 | 2026-07-08 | 7 | INC-1 子会话寻址(产品增量,按 PROCESS.md 全流程:工作纸→实现→三层收口→归档):resolveSessionDir 支持 -sub- 分段映射;web 链接化 + 子页只读模式 | CLI:`ar events <child全id>` 在子在飞时输出其 journal(实抓 seq1-8),ps/inspect/--state 同工;scripted ×2(含孙级嵌套);Chrome:spawn/settle 卡"打开子会话 ↗"→子页(← 父会话导航、只读、无 SSE)→在飞 bash"运行中"卡实拍→45s 后同页自动更新为完成+LIVE_OK+任务完成 chip。记档:internal/tool TestBashCancelLeavesNoSessionOrphans 在 main(4974932)pre-existing FAIL(D 系手术中间态),与本增量无关 |
 | 2026-07-07 | 6 | M6 子审批上卷实时闭环(SSE approval_request 渲染 + approvalCard 双通道去重 + 本地固化);产品增量 P1/P2 提案成文 | 真 Gemini 父子会话(worker bash=ask):子跑 bash 触发 ask 上卷→驾驶舱**实时**弹审批卡(请求方: worker + 子会话全 id + args);批准→子执行→CHILD_NEEDS_OK 回灌父;拒绝(理由"用户不允许这条命令")→子收到 denied+理由→汇报父→父转述用户,四级穿透;两路径审批卡各自正确固化(已批准(你)/已拒绝(你): 理由) |

@@ -32,7 +32,6 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /api/sessions/{sid}/stream", s.handleStream)
 	mux.HandleFunc("POST /api/sessions/{sid}/send", s.handleSend)
 	mux.HandleFunc("POST /api/sessions/{sid}/interrupt", s.handleInterrupt)
-	mux.HandleFunc("POST /api/sessions/{sid}/close", s.handleClose)
 	mux.HandleFunc("POST /api/sessions/{sid}/kill", s.handleKill)
 	mux.HandleFunc("POST /api/sessions/{sid}/approve", s.handleApprove)
 	mux.HandleFunc("POST /api/sessions/{sid}/agent", s.handleAgent)
@@ -484,12 +483,6 @@ func (s *server) oneShotHandler(what string, argsFor func(id string) []string) h
 func (s *server) handleInterrupt(w http.ResponseWriter, r *http.Request) {
 	s.oneShotHandler("ar interrupt", func(id string) []string {
 		return []string{"interrupt", id}
-	})(w, r)
-}
-
-func (s *server) handleClose(w http.ResponseWriter, r *http.Request) {
-	s.oneShotHandler("ar close", func(id string) []string {
-		return []string{"close", id}
 	})(w, r)
 }
 

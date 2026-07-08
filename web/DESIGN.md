@@ -28,6 +28,12 @@ UI 追求朴素,功能追求全覆盖。
   只用作流式装饰(text_delta 打字效果)。两者不一致时以 journal 为准
   ——这与 DESIGN.md 的"journal 即真相"哲学同构,但 arweb 只站在
   CLI 契约这一侧。
+- **I6 UI 文案一律英文,词汇对齐 journal 事件/CLI 命令/状态词**
+  (waiting:input、spec_changed、handle、interrupt……),让页面概念与
+  代码概念一一对应(2026-07-08 用户裁定)。
+- **I7 无"关闭会话"概念。** 静止模型(产品 DESIGN 决策 #30/#31)下
+  session 没有终态、永远可续;UI 不提供任何 close 操作。journal 里的
+  session_closed 是标记事件(kill 等系统路径产生),照常渲染为标记。
 
 ## 2. 架构
 
@@ -83,7 +89,6 @@ ar CLI ── unix socket ──> ar daemon(会话宿主)
 | GET  /api/sessions/{sid}/stream | `ar attach --json <sid>` | SSE 透传 |
 | POST /api/sessions/{sid}/send | `ar send --detach [--image f]... <sid> "text"` | 图片为服务器侧路径 |
 | POST /api/sessions/{sid}/interrupt | `ar interrupt <sid>` | 带外打断(运行中转向;**待命处 no-op**,只落审计行,裁决 #11) |
-| POST /api/sessions/{sid}/close | `ar close <sid>` | 关会话 |
 | POST /api/sessions/{sid}/kill | `ar kill <sid> <handle>` | 用户直杀后台 handle |
 | POST /api/sessions/{sid}/approve | `ar approve <sid> <id> approve\|deny [reason]` | 审批 |
 | POST /api/sessions/{sid}/agent | `ar agent <sid> <specdir>/agent.yaml` | session 内换 agent(决策 #32);spec 文本落 runtime/specs/,下一条消息生效 |
@@ -113,7 +118,7 @@ ar CLI ── unix socket ──> ar daemon(会话宿主)
 | mode_changed / context_compacted | 灰色系统 chip |
 | limit_exceeded | "可见截断"chip(kind ∈ tokens\|generation_steps\|malformed_tool_call;会话不终结,待命可续发) |
 | spec_changed | "换 agent → 名字·模型"chip(决策 #32) |
-| session_closed / actor_crashed | 终态/崩溃 chip + 状态条;reason ∈ closed\|killed,kill 标记带 source ∈ user\|parent(D2;task_completed 事件已删) |
+| session_closed / actor_crashed | 标记/崩溃 chip + 状态条;reason ∈ closed\|killed,kill 标记带 source ∈ user\|parent(D2 静止模型:标记非终态,send 永远放行;UI 无 close 操作——产品无"关闭会话"概念,事件只来自 kill 等系统路径或历史 journal) |
 | 其他未列类型 | 兜底灰色单行 `seq type`(事实不静默丢弃) |
 
 悬摆审批 = journal 里 approval_requested 尚无同 id 的

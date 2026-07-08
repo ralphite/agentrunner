@@ -33,7 +33,7 @@ events)
   esac;;
 new) echo "sess-new-456";;
 agent) echo "agent switched to auditor";;
-send|close|interrupt|kill|approve) echo ok;;
+send|interrupt|kill|approve) echo ok;;
 inspect) echo '{"tree":true}';;
 ps) printf 'task-1\tspawn_agent\trunning agent=worker task=explore\n';;
 attach) printf '{"kind":"idle","session":"%s"}\n' "$3"; sleep 3;;
