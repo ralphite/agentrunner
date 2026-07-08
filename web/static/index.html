@@ -222,6 +222,7 @@
   <span class="spacer"></span>
   <label class="health" style="cursor:pointer"><input type="checkbox" id="sysToggle"> system events</label>
   <button class="ghost icon" id="themeBtn" title="toggle theme">🌗</button>
+  <button id="btnDriver" title="run a goal / loop / best-of-N driver">Driver</button>
   <button class="primary" id="btnNew">+ New session</button>
 </header>
 <div id="layout">
@@ -343,6 +344,54 @@
   </div>
 </dialog>
 
+<!-- driver -->
+<dialog id="driverdlg">
+  <div class="dhead"><span>New driver run</span> <button class="ghost icon" onclick="driverdlg.close()">✕</button></div>
+  <div class="dbody">
+    <div class="seg" id="driveKind">
+      <button class="on" data-mode="goal">Goal</button>
+      <button data-mode="loop">Loop</button>
+      <button data-mode="parallel">Best-of-N</button>
+    </div>
+    <p class="hint" id="driveHint">Iterate a fresh child run each round until the verifier passes (or max iterations / budget).</p>
+
+    <div class="row2">
+      <div><label>Agent template</label><select id="dAgent"></select></div>
+      <div><label>Model</label><select id="dModel"></select></div>
+    </div>
+    <label>Workspace directory (absolute path)</label>
+    <div style="display:flex;gap:8px">
+      <input type="text" id="dWs" placeholder="/path/to/workspace">
+      <button id="dMkWs" style="white-space:nowrap">make empty</button>
+    </div>
+    <label>Task — every iteration gets this instruction</label>
+    <textarea id="dTask" rows="2" style="font:inherit">Append one line reading "tick" to progress.txt using bash.</textarea>
+
+    <div id="goalFields">
+      <label>Verifier command (runs in the workspace; exit 0 = pass)</label>
+      <input type="text" id="dVerCmd" placeholder='test $(wc -l < progress.txt) -ge 3'>
+      <div class="row2">
+        <div><label>Metric regex (optional; capture group 1 = score)</label><input type="text" id="dMetric" placeholder="score=([0-9.]+)"></div>
+        <div><label>Threshold</label><input type="text" id="dThreshold" placeholder="0.8"></div>
+      </div>
+    </div>
+    <div id="loopFields" style="display:none">
+      <label>Interval (Go duration, e.g. 5s; empty = back-to-back)</label>
+      <input type="text" id="dInterval" placeholder="5s">
+    </div>
+    <div id="nFields" style="display:none">
+      <label>N — parallel attempts (≥2)</label>
+      <input type="text" id="dN" value="3">
+    </div>
+
+    <div class="row2">
+      <div><label>Max iterations</label><input type="text" id="dMaxIter" value="4"></div>
+      <div><label>Budget (max total tokens; 0 = unlimited)</label><input type="text" id="dBudget" value="200000"></div>
+    </div>
+    <div class="dactions"><button onclick="driverdlg.close()">Cancel</button><button class="primary" id="dRun">Run driver</button></div>
+  </div>
+</dialog>
+
 <dialog id="viewer">
   <div class="dhead"><span id="vTitle">viewer</span> <button class="ghost icon" onclick="viewer.close()">✕</button></div>
   <div class="dbody"><pre id="vBody"></pre></div>
@@ -358,6 +407,7 @@ const state = {
   toolCards: {}, callArgs: {}, approvals: {}, pending: [],
   typingEl: null, status: "—", images: [], lastGen: 0,
   spec: null, model: "", mode: "", agentKey: "dev", closed: null,
+  driver: false, driverTools: {}, driverAbort: null, driverIter: 0,
 };
 
 /* ---------- agent templates & models (composer capability面) ---------- */
@@ -796,6 +846,7 @@ async function openSession(id) {
   $("sesshead").style.display = "flex";
   $("composer").style.display = isSub ? "none" : "block";
   $("btnInterrupt").style.display = $("btnBarrier").style.display = $("btnFork").style.display = isSub ? "none" : "";
+  $("btnRaw").style.display = $("btnState").style.display = $("btnTree").style.display = ""; // driver view hides these
   const up = $("shUp");
   up.style.display = isSub ? "" : "none";
   if (isSub) up.href = "#" + id.slice(0, id.lastIndexOf("-sub-"));
@@ -814,7 +865,8 @@ async function openSession(id) {
 function leaveSession() {
   clearInterval(state.evTimer); clearInterval(state.psTimer);
   if (state.es) { state.es.close(); state.es = null; }
-  state.sid = null;
+  if (state.driverAbort) { state.driverAbort.abort(); state.driverAbort = null; }
+  state.sid = null; state.driver = false;
 }
 
 let pollBusy = false;
@@ -1123,6 +1175,137 @@ $("nCreate").onclick = async () => {
     if (r.sid) openSession(r.sid);
   } catch (e) { toast(e.message); } finally { btn.disabled = false; }
 };
+
+// ---------- driver (goal / loop / best-of-N) ----------
+const driverdlg = $("driverdlg");
+let driveMode = "goal";
+const DRIVE_HINTS = {
+  goal: "Iterate a fresh child run each round until the verifier passes (or max iterations / budget).",
+  loop: "Run the task on a schedule (interval), each round a fresh child run, until max iterations.",
+  parallel: "Run N attempts in parallel in isolated worktrees; the verifier scores them, best wins.",
+};
+document.querySelectorAll("#driveKind button").forEach(b => b.onclick = () => {
+  driveMode = b.dataset.mode;
+  document.querySelectorAll("#driveKind button").forEach(x => x.classList.toggle("on", x === b));
+  $("driveHint").textContent = DRIVE_HINTS[driveMode];
+  $("goalFields").style.display = driveMode === "loop" ? "none" : "";  // goal & best-of-N use a verifier
+  $("loopFields").style.display = driveMode === "loop" ? "" : "none";
+  $("nFields").style.display = driveMode === "parallel" ? "" : "none";
+});
+$("btnDriver").onclick = () => {
+  fillTemplateSelect($("dAgent")); fillModelSelect($("dModel"));
+  $("dAgent").value = "dev"; $("dModel").value = MODELS[0];
+  driverdlg.showModal();
+};
+$("dMkWs").onclick = async () => { try { $("dWs").value = (await post("/workspace")).path; } catch (e) { toast(e.message); } };
+$("dRun").onclick = () => {
+  const key = $("dAgent").value === "custom" ? "dev" : $("dAgent").value;
+  const m = $("dModel").value;
+  const body = {
+    mode: driveMode,
+    task: $("dTask").value.trim(),
+    spec: TEMPLATES[key].yaml(m),
+    workspace: $("dWs").value.trim(),
+    interval: $("dInterval").value.trim(),
+    n: parseInt($("dN").value, 10) || 0,
+    maxIterations: parseInt($("dMaxIter").value, 10) || 0,
+    budget: parseInt($("dBudget").value, 10) || 0,
+    verifierCommand: driveMode === "loop" ? "" : $("dVerCmd").value.trim(),
+    metricRegex: $("dMetric").value.trim(),
+    threshold: parseFloat($("dThreshold").value) || 0,
+  };
+  if (!body.task || !body.workspace) { toast("task and workspace are required"); return; }
+  driverdlg.close();
+  runDriver(body);
+};
+
+// runDriver streams `ar drive --json` (NDJSON over a POST body) into the main
+// timeline. A driver run is not a resident session — no composer, no polling,
+// no sessions-list entry; the stream IS the view. Client abort cancels it.
+async function runDriver(body) {
+  leaveSession();
+  const ac = new AbortController();
+  state.driverAbort = ac; state.driver = true; state.driverTools = {}; state.driverIter = 0;
+  location.hash = "";
+  $("sesshead").style.display = "flex";
+  $("composer").style.display = "none";
+  $("children").className = "";
+  $("shUp").style.display = "none";
+  $("shUsage").style.display = "none";
+  ["btnBarrier", "btnFork", "btnInterrupt", "btnRaw", "btnState", "btnTree"].forEach(id => $(id).style.display = "none");
+  $("shId").textContent = "driver · " + body.mode;
+  $("shId").title = "";
+  document.querySelectorAll("#sesslist .sess").forEach(n => n.classList.remove("cur"));
+  stream = null; tl.innerHTML = "";
+  setStatus("running", "run");
+  chip(`⚙ driver started · ${body.mode} · task: ${body.task.slice(0, 70)}`);
+  try {
+    const resp = await fetch("/api/drive", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: ac.signal });
+    if (!resp.ok) { throw new Error(await resp.text()); }
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, nl); buf = buf.slice(nl + 1);
+        if (line.trim()) { try { driverRender(JSON.parse(line)); } catch { /* non-JSON progress line */ } }
+      }
+    }
+    if (state.status === "running") setStatus("driver ended", "closed");
+  } catch (e) {
+    if (e.name !== "AbortError") { toast(e.message); chip("driver error: " + e.message, "bad"); setStatus("driver error", "crash"); }
+  } finally { if (state.driverAbort === ac) state.driverAbort = null; }
+}
+
+// driverRender maps `ar drive --json` lines onto the timeline. The stream
+// carries each CHILD run's protocol events (session_start → … → run_end
+// reason=completed); a fresh child run == one iteration. The DRIVER's own
+// terminal verdict does NOT ride stdout — it lands on stderr, forwarded here
+// as a synthetic driver_stderr line ("driver satisfied: N iterations").
+const DRIVER_TERMINAL = ["satisfied", "stalled", "max_iterations", "child_failed", "budget", "budget_exhausted"];
+function driverConclusion(reason, n) {
+  const ok = reason === "satisfied";
+  chip(`■ driver ${reason} · ${n != null ? n : 0} iterations`, ok ? "" : "warn");
+  setStatus("driver: " + reason, ok ? "idle" : "closed");
+}
+function driverRender(e) {
+  switch (e.kind) {
+  case "session_start": state.driverIter++; append(el("div", "turn", `iteration ${state.driverIter}`)); break;
+  case "message": if (e.text && e.text.trim()) bubble("asst", e.text, "iteration " + state.driverIter); break;
+  case "tool_call": state.driverTools[e.call_id] = toolCard(e.tool, e.args); break;
+  case "tool_result": {
+    const c = state.driverTools[e.call_id];
+    if (c) {
+      c._status.textContent = e.is_error ? "error" : "done";
+      c._status.className = "badge " + (e.is_error ? "err" : "ok");
+      if (e.result !== undefined) { const d = el("details"); d.appendChild(el("summary", "", "result")); d.appendChild(el("pre", "", pretty(e.result).slice(0, 20000))); c.appendChild(d); }
+      if (e.is_error) c.classList.add("err");
+    }
+    break;
+  }
+  case "iteration": // some ar builds may emit an explicit driver iteration event
+    chip(`⟳ iteration ${e.n != null ? e.n : ""} · ${e.reason || ""}${/pass=true/.test(e.text || "") ? " · pass" : ""}`, /pass=true/.test(e.text || "") ? "" : "warn");
+    break;
+  case "run_end":
+    // A driver-terminal reason is the whole run's verdict; a plain child run
+    // ending (reason=completed/error) just closes that iteration — the turn
+    // divider already marks it, so don't add a chip.
+    if (DRIVER_TERMINAL.includes(e.reason)) driverConclusion(e.reason, e.n);
+    break;
+  case "error": chip("error: " + (e.text || ""), "bad"); break;
+  case "driver_stderr": {
+    const m = (e.text || "").match(/driver (\w+): (\d+) iteration/);
+    if (m) driverConclusion(m[1], parseInt(m[2], 10));
+    else if (e.text) chip(e.text, "warn");
+    break;
+  }
+  case "approval_request": chip("a driver child requested approval — answer it with `ar approve` (CLI)", "warn"); break;
+  }
+}
 
 // ---------- boot ----------
 fillTemplateSelect($("selAgent")); fillModelSelect($("selModel"));

@@ -103,8 +103,13 @@
 - [x] one-shot(submit)+ trust:new session 对话框 Conversation/One-shot 分段 + trust 勾选;
       后端 startOneShot(submit run 后台跑完,读 session id 即返回——submit 的 run 绑客户端连接,
       不能像 attach 那样断开)+ handleNewSession 支持 trust/oneshot
-- [ ] drive 驱动面板(goal/loop/best-of-N)—— 最后一块,轮 11
-- 真验:见变更记录轮 9/10。
+- [x] drive 驱动面板(goal/loop/best-of-N):header Driver 按钮 + 对话框(mode 分段 +
+      task + agent/model + goal verifier command/metric/threshold + loop interval +
+      best-of-N n + max_iterations + budget);后端 POST /api/drive 生成 agent.yaml+
+      driver.yaml,exec `ar drive --json` 前台流式,stdout(child run 的 protocol
+      events)以 NDJSON 透传 + stderr 结论合成 driver_stderr 行;前端 fetch-stream
+      读 NDJSON,每个 child run session_start=一轮 iteration,driver 结论从 stderr 解析
+- 真验:见变更记录轮 9/10/11。
 
 ## 产品增量提案(动 internal/,须按 docs/PROCESS.md 走三层 delta,待用户拍板)
 
@@ -136,6 +141,7 @@
 
 | 日期 | 轮次 | 动作 | 真验结果 |
 |---|---|---|---|
+| 2026-07-08 | 11 | M8 drive 驱动面板(goal/loop/best-of-N):后端 /api/drive(生成 agent+driver.yaml,exec ar drive --json 前台流式 NDJSON 透传)+ buildDriverYAML(yamlStr 借 JSON 引用安全转义);前端 Driver 对话框 + fetch-stream driver 视图;+2 单测(TestBuildDriverYAML/TestDriveStreamsNDJSON) | 真 Gemini goal 模式全程(ws-drive2):Driver 对话框 goal/task/verifier(test wc-l>=3)/max_iter 6 → runDriver fetch-stream。先抓真实 drive --json 事件流(background capture)发现 stdout 只有 child run 的 protocol events(session_start→bash→message→run_end reason=completed)、driver 结论只在 stderr——据此修 driverRender:每个 child session_start=一轮 iteration(编号 1/2/3),child run_end(completed)不冒充 driver,driver 结论从 stderr driver_stderr 行解析。修后渲染:iteration 1/2/3 分隔 + 每轮 bash 工具卡(done)+ agent 消息(行内 code)+ 单个「■ driver satisfied · 3 iterations」结论 + pill driver:satisfied;progress.txt 实达 3 行 tick(verifier 真通过)。已知噪音:drive 产生的顶层 driver session 在 sessions list 显示 unreadable(CLI 无法 fold driver session,非 web bug) |
 | 2026-07-08 | 10 | M8 主体:视觉现代化+双主题、markdown 渲染、composer 能力面(agent/model 选择器)、生命周期面(stranded/usage/revive)、fork/barrier、one-shot/trust;后端加 /barrier /barriers /fork 端点 + startOneShot + trust/oneshot;fake-ar 单测扩容(barrier/fork/submit/trust/inspect-usage,+6 测试);隔离 /tmp/arw2 避开用户 8787 环境 | 真 Gemini 全程 Chrome(端口 8890,XDG=/tmp/arw2/d):①markdown——新会话要求 h2+bullet+行内 code,DOM 验证 h2「Capabilities」/2 bullet/`default_api:*` code/MD_RENDER_OK,usage ▸2753 tok ②composer——Agent 下拉切 auditor→spec_changed chip→下条消息 [AUDITOR] 身份;model 下拉反同步 ③双主题——切 dark 全页深色 markdown 清晰 ④fork/barrier——barrier 打点 bar-m37;fork 对话框列 6 barrier(自动+手动)→选 bar-t2 分叉→新会话 stranded ⑤生命周期——fork 会话 stranded pill+复活提示条;send REVIVED_OK→journal seq17-24 复活(新 LLM+回复+idle)→pill 转 waiting:input、提示消失 ⑥one-shot——UI 建 submit 会话,write_file 工具卡(done)+回复行内 code,ws-os7/hello.txt=ONESHOT_OK;curl+fetch+CLI 三路径交叉验证 completed。**坐实 stranded 状态真实存在**(fork 会话),推翻调研 subagent 的误判。已知:频繁重启 arweb 有 daemon 交接窗口,期间 submit 会撞 activity_cancelled(非产品 bug) |
 | 2026-07-08 | 9 | M8 第一步(用户三点拍板之 1/2):close 概念全移除(按钮/端点/白名单/fake-ar 桩,铁律 I7)、UI 全英文化(词汇对齐 journal/CLI,含默认 spec,铁律 I6);UI-GAPS.md 全量欠缺盘点成文待确认 | fake-ar 单测绿;真 Gemini 全程 Chrome(隔离 XDG=/tmp/awui,端口 8890):新会话表单(英文默认 spec、make empty workspace 一键)→ 两轮问答(turn 1 工具介绍 → 指令回显 ENGLISH_UI_OK),session started chip/turn 线/cli·you·agent tag/waiting: input pill/composer 全英文;sesshead 五按钮无 close;pending→queued→you 落账链路走通;console 零错误零警告 |
 | 2026-07-08 | 8 | M7 契约同步(INC-2 + D 系手术):new/send --detach、/agent 端点+「换 agent」对话框、task_kill→kill/output、事件映射更新(spec_changed/session_closed source/可见截断/waiting kinds)、词汇清理;fake-ar 单测新增 agent 场景 | 真 Gemini 会话 af84(API+Chrome 双路):new --detach 秒回 sid、两轮暗号"紫罗兰"衔接;send --detach→"delivered"、journal 轮询渲染回复;/agent dev→auditor→dev(带 worker 旁置)三连,journal spec_changed 各恰一条、【审计员】身份即换即答、上下文延续;spawn worker 非阻塞(ps 面板 handle call_4_0)→网页 kill→父 [kill] control 气泡+activity_cancelled+subagent_completed(error),子 journal session_closed{killed,source:user},子页只读视图"已杀"pill+"会话被杀·来源 user"chip(38 轮 output busy-poll 卡全渲染);interrupt 待命处 no-op 只落 [interrupt] 审计行、会话仍 waiting(坐实 cli.go:115 help 过时,已另立任务);close→session_closed{closed,source:user};整页重载(3×spec_changed+kill 标记全量重放)console 零错误 |

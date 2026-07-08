@@ -39,6 +39,7 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/sessions/{sid}/barrier", s.handleBarrier)
 	mux.HandleFunc("GET /api/sessions/{sid}/barriers", s.handleBarriers)
 	mux.HandleFunc("POST /api/sessions/{sid}/fork", s.handleFork)
+	mux.HandleFunc("POST /api/drive", s.handleDrive)
 	return mux
 }
 
@@ -708,6 +709,152 @@ func (s *server) handleAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": strings.TrimSpace(res.Stdout)})
+}
+
+// yamlStr renders a Go string as a YAML scalar by borrowing JSON's quoting
+// (YAML is a JSON superset, so a JSON double-quoted string is valid YAML and
+// safely escapes colons, quotes, and newlines in user-supplied task/command).
+func yamlStr(v string) string {
+	b, _ := json.Marshal(v)
+	return string(b)
+}
+
+// buildDriverYAML assembles an iteration-driver spec (internal/driver/spec.go)
+// from the cockpit's driver form. Modes map to the schedule enum: goal →
+// immediate (empty), loop → interval, best-of-N → parallel.
+func buildDriverYAML(req driveReq, agentFile string) string {
+	var b strings.Builder
+	b.WriteString("name: web-driver\n")
+	fmt.Fprintf(&b, "agent_spec: %s\n", agentFile)
+	fmt.Fprintf(&b, "task: %s\n", yamlStr(req.Task))
+	switch req.Mode {
+	case "loop":
+		b.WriteString("schedule: interval\n")
+		if req.Interval != "" {
+			fmt.Fprintf(&b, "interval: %s\n", yamlStr(req.Interval))
+		}
+	case "parallel":
+		b.WriteString("schedule: parallel\n")
+		if req.N >= 2 {
+			fmt.Fprintf(&b, "n: %d\n", req.N)
+		}
+	}
+	if req.MaxIterations > 0 {
+		fmt.Fprintf(&b, "max_iterations: %d\n", req.MaxIterations)
+	}
+	if req.Patience > 0 {
+		fmt.Fprintf(&b, "patience: %d\n", req.Patience)
+	}
+	if req.Budget > 0 {
+		fmt.Fprintf(&b, "budget: { max_total_tokens: %d }\n", req.Budget)
+	}
+	if strings.TrimSpace(req.VerifierCommand) != "" {
+		b.WriteString("verifiers:\n")
+		fmt.Fprintf(&b, "  - kind: command\n    command: %s\n", yamlStr(req.VerifierCommand))
+		if req.MetricRegex != "" {
+			fmt.Fprintf(&b, "    metric_regex: %s\n    threshold: %g\n", yamlStr(req.MetricRegex), req.Threshold)
+		}
+	}
+	return b.String()
+}
+
+type driveReq struct {
+	Mode            string  `json:"mode"` // goal | loop | parallel
+	Task            string  `json:"task"`
+	Spec            string  `json:"spec"` // child agent spec YAML
+	Workspace       string  `json:"workspace"`
+	Interval        string  `json:"interval"`
+	N               int     `json:"n"`
+	MaxIterations   int     `json:"maxIterations"`
+	Budget          int     `json:"budget"`
+	Patience        int     `json:"patience"`
+	VerifierCommand string  `json:"verifierCommand"`
+	MetricRegex     string  `json:"metricRegex"`
+	Threshold       float64 `json:"threshold"`
+}
+
+// handleDrive runs `ar drive --json` in the foreground and streams its stdout
+// (one protocol.Event per line) back as NDJSON. `drive` runs in-process (no
+// daemon); the child runs and the driver's iteration/run_end lifecycle events
+// all arrive on this stream. Client disconnect cancels the driver (ctx).
+func (s *server) handleDrive(w http.ResponseWriter, r *http.Request) {
+	var req driveReq
+	if !readBody(w, r, &req) {
+		return
+	}
+	if strings.TrimSpace(req.Task) == "" || strings.TrimSpace(req.Spec) == "" || strings.TrimSpace(req.Workspace) == "" {
+		badRequest(w, "task, spec and workspace are required")
+		return
+	}
+	ws, err := filepath.Abs(req.Workspace)
+	if err != nil {
+		badRequest(w, err.Error())
+		return
+	}
+	if st, err := os.Stat(ws); err != nil || !st.IsDir() {
+		badRequest(w, "workspace is not an existing directory: "+ws)
+		return
+	}
+	// agent.yaml and driver.yaml must be siblings: agent_spec resolves
+	// relative to the driver spec's directory.
+	dir := filepath.Join(s.runtimeDir, "specs", fmt.Sprintf("drive%d", time.Now().UnixNano()))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		badRequest(w, err.Error())
+		return
+	}
+	if err := os.WriteFile(filepath.Join(dir, "agent.yaml"), []byte(req.Spec), 0o644); err != nil {
+		badRequest(w, err.Error())
+		return
+	}
+	driverPath := filepath.Join(dir, "driver.yaml")
+	if err := os.WriteFile(driverPath, []byte(buildDriverYAML(req, "agent.yaml")), 0o644); err != nil {
+		badRequest(w, err.Error())
+		return
+	}
+	fl, canFlush := w.(http.Flusher)
+	if !canFlush {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+	cmd := exec.CommandContext(r.Context(), s.arPath, "drive", "--json", "--workspace", ws, driverPath)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	var errb strings.Builder
+	cmd.Stderr = &errb
+	if err := cmd.Start(); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	defer func() { _ = cmd.Wait() }()
+	w.Header().Set("Content-Type", "application/x-ndjson")
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.WriteHeader(http.StatusOK)
+	fl.Flush()
+	sc := bufio.NewScanner(stdout)
+	sc.Buffer(make([]byte, 0, 64*1024), 4<<20)
+	for sc.Scan() {
+		line := sc.Text()
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		_, _ = io.WriteString(w, line+"\n")
+		fl.Flush()
+	}
+	// The driver's terminal reason/errors ride stderr; surface it as a final
+	// synthetic line so the cockpit can render a conclusion (the text renderer
+	// drops run_end in text mode, but --json emits it — this is the backstop).
+	if e := strings.TrimSpace(errb.String()); e != "" {
+		last := e
+		if i := strings.LastIndexByte(last, '\n'); i >= 0 {
+			last = last[i+1:]
+		}
+		b, _ := json.Marshal(map[string]string{"kind": "driver_stderr", "text": last})
+		_, _ = io.WriteString(w, string(b)+"\n")
+		fl.Flush()
+	}
 }
 
 func (s *server) handleApprove(w http.ResponseWriter, r *http.Request) {
