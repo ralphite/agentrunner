@@ -11,8 +11,14 @@ agent、图片输入、审批(含子 agent 上卷)、fork、换 agent、trust、
 
 - **后端** `arwebui`:stdlib-only Go(独立 module),把每个请求翻成一次
   `ar` 子命令,并把 Vite 构建产物嵌进二进制。
-- **前端** `frontend/`:React + TypeScript + Vite(Codex 云端布局:左侧
-  会话/后台运行列表 + 顶栏动作 + 中间对话时间线 + 底部 composer)。
+- **前端** `frontend/`:React + TypeScript + Vite。Codex 云端观感:
+  - **首页 hero composer**:居中大输入框 +「Ask / Code」双动作
+    (Ask=起 chat 会话,Code=submit 后台任务),下面是**任务卡片**网格
+    (标题取开场消息,像 Codex 用任务描述当标题)。
+  - **会话详情**:顶栏动作条 +「对话 / 改动」切换。对话是时间线
+    (气泡/工具卡/审批/子 agent);**改动**是 Codex 式的 git diff 视图
+    (改动文件列表 + 逐行 +/- 着色 + untracked 新文件)。
+  - 底部 composer、右侧在飞任务面板、审批 dock。
 
 ## 快速上手
 
@@ -48,8 +54,9 @@ open http://127.0.0.1:8788
 
 | UI | ar 命令 |
 |---|---|
-| 会话列表 | `sessions list` |
-| 新会话 / 开场消息 | `new --workspace W [--mode M] base.yaml "msg"` |
+| 首页任务卡 / 会话列表 | `sessions list`(标题/workspace 由 arwebui 侧记的元数据补全) |
+| Ask / 新会话 / 开场消息 | `new --workspace W [--mode M] base.yaml "msg"` |
+| 改动(Diff 视图) | `git -C <workspace> diff` + `status --porcelain`(workspace 仅 arwebui 建的会话可知) |
 | 发消息 / 图片 | `send [--image f]... <sid> "text"` |
 | 时间线(真相) | `events --json <sid>`(1s 增量轮询) |
 | 流式打字 / 子审批上卷 | `attach --json <sid>`(SSE) |

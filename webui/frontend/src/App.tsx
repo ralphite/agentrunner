@@ -3,6 +3,7 @@ import { useStore } from "./store";
 import { Sidebar } from "./components/Sidebar";
 import { SessionView } from "./components/SessionView";
 import { RunView } from "./components/RunView";
+import { Home } from "./components/Home";
 import { Modals } from "./components/Modals";
 import { Toasts } from "./components/Toasts";
 
@@ -41,10 +42,7 @@ export function App() {
         ) : currentSid ? (
           <SessionView sid={currentSid} key={currentSid} />
         ) : (
-          <div className="empty-hero">
-            <div className="big">◆</div>
-            <div>选择左侧的会话，或点「新任务」开始。</div>
-          </div>
+          <Home />
         )}
       </div>
       <Modals />

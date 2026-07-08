@@ -3,8 +3,8 @@ import { AR } from "./api";
 import type { Health, Run, Session } from "./types";
 
 export type ModalKind =
-  | { kind: "new" }
-  | { kind: "run" } // submit / drive launcher
+  | { kind: "new"; message?: string }
+  | { kind: "run"; task?: string } // submit / drive launcher
   | { kind: "fork"; sid: string }
   | { kind: "agent"; sid: string }
   | { kind: "trust" }

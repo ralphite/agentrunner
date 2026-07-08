@@ -1,4 +1,4 @@
-import type { Envelope, Health, Run, Session, SpecFile, Task } from "./types";
+import type { DiffResp, Envelope, Health, Run, Session, SpecFile, Task } from "./types";
 
 // api wraps the arwebui JSON contract. A non-2xx carries {error, stderr};
 // we surface both so the cockpit shows the real ar failure (never swallow it).
@@ -51,6 +51,7 @@ export const AR = {
   rawEvents: (sid: string) => api<Envelope[]>(`/sessions/${sid}/events`),
   ps: (sid: string) => api<Task[]>(`/sessions/${sid}/ps`),
   barriers: (sid: string) => api<string[]>(`/sessions/${sid}/barriers`),
+  diff: (sid: string) => api<DiffResp>(`/sessions/${sid}/diff`),
 
   send: (sid: string, text: string, images: string[]) =>
     post(`/sessions/${sid}/send`, { text, images }),

@@ -33,6 +33,7 @@ type server struct {
 	respawns     []time.Time
 
 	runs *runRegistry // background submit/drive runs
+	meta *metaStore   // sid → workspace/title we know from creating it
 }
 
 func main() {
@@ -58,7 +59,7 @@ func main() {
 		}
 	}
 
-	s := &server{arPath: *arPath, runtimeDir: rt, daemonManage: !*noDaemon, runs: newRunRegistry()}
+	s := &server{arPath: *arPath, runtimeDir: rt, daemonManage: !*noDaemon, runs: newRunRegistry(), meta: newMetaStore()}
 	if s.daemonManage {
 		if err := s.spawnDaemon(); err != nil {
 			log.Printf("arwebui: daemon spawn: %v (continuing; maybe an external daemon is up)", err)

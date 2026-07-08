@@ -6,6 +6,7 @@ import { foldEvents, type ApprovalRef } from "../timeline";
 import { TimelineView } from "./Timeline";
 import { ApprovalCard } from "./ApprovalCard";
 import { Composer } from "./Composer";
+import { DiffView } from "./DiffView";
 
 interface SSEApproval {
   id: string;
@@ -25,6 +26,7 @@ export function SessionView({ sid }: { sid: string }) {
   const [resolvedLocal, setResolvedLocal] = useState<Set<string>>(new Set());
   const [tasks, setTasks] = useState<Task[]>([]);
   const [closeArmed, setCloseArmed] = useState(false);
+  const [view, setView] = useState<"chat" | "diff">("chat");
 
   const cursor = useRef(0);
   const pollBusy = useRef(false);
@@ -201,6 +203,14 @@ export function SessionView({ sid }: { sid: string }) {
         <span className="sid">{sid}</span>
         <span className={"pill " + status.cls}>{status.text}</span>
         {isSub && <span className="readonly-tag">只读子会话</span>}
+        <div className="seg" style={{ marginLeft: 8 }}>
+          <button className={view === "chat" ? "on" : ""} onClick={() => setView("chat")}>
+            对话
+          </button>
+          <button className={view === "diff" ? "on" : ""} onClick={() => setView("diff")}>
+            改动
+          </button>
+        </div>
         <span className="spacer" />
         <label className="dim" style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 4 }}>
           <input type="checkbox" checked={showSys} onChange={toggleSys} /> 系统事件
@@ -237,9 +247,13 @@ export function SessionView({ sid }: { sid: string }) {
         </div>
       </div>
 
-      <TimelineView items={folded.items} pending={pending} typing={typing} showSys={showSys} />
+      {view === "diff" ? (
+        <DiffView sid={sid} />
+      ) : (
+        <TimelineView items={folded.items} pending={pending} typing={typing} showSys={showSys} />
+      )}
 
-      {openApprovals.length > 0 && (
+      {view === "chat" && openApprovals.length > 0 && (
         <div className="approvals">
           {openApprovals.map((a) => (
             <ApprovalCard
@@ -271,7 +285,9 @@ export function SessionView({ sid }: { sid: string }) {
         </div>
       )}
 
-      {!isSub && <Composer statusText={status.text} onSend={doSend} onError={(m) => toast(m)} />}
+      {view === "chat" && !isSub && (
+        <Composer statusText={status.text} onSend={doSend} onError={(m) => toast(m)} />
+      )}
     </>
   );
 }

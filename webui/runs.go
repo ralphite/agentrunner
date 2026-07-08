@@ -101,7 +101,9 @@ func (rr *runRegistry) stopAll() {
 }
 
 // start launches an ar process and streams its stdout lines into a fresh run.
-func (rr *runRegistry) start(arPath, kind, label, workspace string, args []string, logDir string) *run {
+// onSession fires once with the daemon-assigned session id (parsed from the
+// event stream) so the caller can record workspace/title metadata for it.
+func (rr *runRegistry) start(arPath, kind, label, workspace string, args []string, logDir string, onSession func(sid string)) *run {
 	rr.mu.Lock()
 	rr.seq++
 	id := fmt.Sprintf("run%d", rr.seq)
@@ -144,11 +146,18 @@ func (rr *runRegistry) start(arPath, kind, label, workspace string, args []strin
 		}()
 		sc := bufio.NewScanner(stdout)
 		sc.Buffer(make([]byte, 0, 64*1024), 4<<20)
+		notified := false
 		for sc.Scan() {
 			line := sc.Text()
 			r.append(line)
 			if logf != nil {
 				_, _ = io.WriteString(logf, line+"\n")
+			}
+			if !notified && onSession != nil {
+				if m := sessionIDLine.FindString(line); m != "" {
+					notified = true
+					onSession(m)
+				}
 			}
 		}
 		err := cmd.Wait()
@@ -237,7 +246,12 @@ func (s *server) handleRunStart(w http.ResponseWriter, r *http.Request) {
 		label = "driver: " + filepath.Base(basePath)
 	}
 
-	run := s.runs.start(s.arPath, req.Kind, label, ws, args, filepath.Join(s.runtimeDir, "runs"))
+	title := label
+	if req.Kind == "submit" {
+		title = req.Task
+	}
+	run := s.runs.start(s.arPath, req.Kind, label, ws, args, filepath.Join(s.runtimeDir, "runs"),
+		func(sid string) { s.meta.set(sid, ws, title) })
 	writeJSON(w, http.StatusOK, map[string]string{"runId": run.ID})
 }
 

@@ -33,6 +33,7 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /api/sessions/{sid}/inspect", s.handleInspect)
 	mux.HandleFunc("GET /api/sessions/{sid}/ps", s.handlePS)
 	mux.HandleFunc("GET /api/sessions/{sid}/barriers", s.handleBarriers)
+	mux.HandleFunc("GET /api/sessions/{sid}/diff", s.handleDiff)
 	mux.HandleFunc("GET /api/sessions/{sid}/stream", s.handleStream)
 
 	mux.HandleFunc("POST /api/sessions/{sid}/send", s.handleSend)
@@ -189,9 +190,11 @@ func (s *server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	type row struct {
-		ID     string `json:"id"`
-		Status string `json:"status"`
-		Turns  int    `json:"turns"`
+		ID        string `json:"id"`
+		Status    string `json:"status"`
+		Turns     int    `json:"turns"`
+		Title     string `json:"title"`
+		Workspace string `json:"workspace"`
 	}
 	rows := []row{}
 	for _, line := range strings.Split(res.Stdout, "\n") {
@@ -200,7 +203,11 @@ func (s *server) handleSessions(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		turns, _ := strconv.Atoi(f[len(f)-1])
-		rows = append(rows, row{ID: f[0], Status: strings.Join(f[1:len(f)-1], " "), Turns: turns})
+		m := s.meta.get(f[0])
+		rows = append(rows, row{
+			ID: f[0], Status: strings.Join(f[1:len(f)-1], " "), Turns: turns,
+			Title: m.Title, Workspace: m.Workspace,
+		})
 	}
 	writeJSON(w, http.StatusOK, rows)
 }
@@ -250,6 +257,7 @@ func (s *server) handleNewSession(w http.ResponseWriter, r *http.Request) {
 		arFail(w, "ar new (no session id)", res)
 		return
 	}
+	s.meta.set(id, ws, req.Message)
 	writeJSON(w, http.StatusOK, map[string]string{"sid": id, "specDir": specDir, "workspace": ws, "reply": strings.TrimSpace(res.Stdout)})
 }
 
@@ -649,5 +657,14 @@ func (s *server) handleFork(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	newID := parseSessionID(res)
+	if newID != "" {
+		forkWS := strings.TrimSpace(req.Workspace)
+		parent := s.meta.get(id)
+		title := parent.Title
+		if title != "" {
+			title += " (fork @" + req.Barrier + ")"
+		}
+		s.meta.set(newID, forkWS, title)
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"sid": newID, "status": strings.TrimSpace(res.Stdout + "\n" + res.Stderr)})
 }

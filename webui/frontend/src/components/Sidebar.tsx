@@ -1,16 +1,7 @@
 import { useState } from "react";
 import { useStore } from "../store";
 import { AR } from "../api";
-
-function pillClass(status: string): string {
-  const s = status.toLowerCase();
-  if (s.includes("crash") || s.includes("error")) return "crash";
-  if (s.includes("approval")) return "appr";
-  if (s.includes("run") || s.includes("busy") || s.includes("wait")) return "run";
-  if (s.includes("clos") || s.includes("done") || s.includes("end")) return "closed";
-  if (s.includes("idle") || s.includes("ready")) return "idle";
-  return "";
-}
+import { pillClass } from "./pill";
 
 export function Sidebar() {
   const {
@@ -39,7 +30,7 @@ export function Sidebar() {
 
   return (
     <div className="sidebar">
-      <div className="brand">
+      <div className="brand" onClick={() => select(null)} style={{ cursor: "pointer" }}>
         <div className="logo">◆</div>
         <h1>AgentRunner</h1>
       </div>
@@ -85,8 +76,9 @@ export function Sidebar() {
                 key={s.id}
                 className={"card-row" + (s.id === currentSid ? " cur" : "")}
                 onClick={() => select(s.id)}
+                title={s.id}
               >
-                <div className="title mono">{s.id}</div>
+                <div className="title">{s.title || s.id}</div>
                 <div className="sub">
                   <span className={"pill " + pillClass(s.status)}>{s.status}</span>
                   <span>· {s.turns} 轮</span>

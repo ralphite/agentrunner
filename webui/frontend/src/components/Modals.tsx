@@ -2,31 +2,7 @@ import { useEffect, useState } from "react";
 import { AR } from "../api";
 import { useStore } from "../store";
 import type { SpecFile } from "../types";
-
-const DEFAULT_SPEC = `name: dev
-model: { provider: gemini, id: gemini-flash-latest, max_tokens: 4096 }
-system_prompt: |
-  你是一个严谨的编码助手。严格按用户指令行动;用户要求启动子 agent 时,
-  用 spawn_agent 工具、数量与分工严格照做;要求取消时用 task_kill。
-tools: [read_file, write_file, edit_file, bash, spawn_agent, task_kill]
-agents: [worker]
-permissions:
-  - { action: allow }
-`;
-
-const DEFAULT_WORKER = `name: worker
-description: 执行父分派的调查/修改任务并汇报
-model: { provider: gemini, id: gemini-flash-latest, max_tokens: 4096 }
-system_prompt: 完成任务后用简洁的要点汇报结论。
-tools: [read_file, bash]
-`;
-
-const DEFAULT_DRIVER = `name: reviewer-loop
-model: { provider: gemini, id: gemini-flash-latest, max_tokens: 4096 }
-system_prompt: 你在一个 plan/verify 迭代循环里工作,每轮推进并自检。
-tools: [read_file, write_file, bash]
-max_iterations: 3
-`;
+import { DEFAULT_DRIVER, DEFAULT_SPEC, DEFAULT_WORKER } from "../specs";
 
 function Modal({
   title,
@@ -60,9 +36,9 @@ export function Modals() {
   if (!modal) return null;
   switch (modal.kind) {
     case "new":
-      return <NewSessionModal />;
+      return <NewSessionModal initialMessage={modal.message} />;
     case "run":
-      return <RunModal />;
+      return <RunModal initialTask={modal.task} />;
     case "fork":
       return <ForkModal sid={modal.sid} />;
     case "agent":
@@ -87,10 +63,10 @@ function useWorkspace() {
   return { ws, setWs, mk };
 }
 
-function NewSessionModal() {
+function NewSessionModal({ initialMessage }: { initialMessage?: string }) {
   const { openModal, select, refreshSessions, toast } = useStore();
   const { ws, setWs, mk } = useWorkspace();
-  const [msg, setMsg] = useState("你好,请先用一句话自我介绍你的工具能力。");
+  const [msg, setMsg] = useState(initialMessage || "你好,请先用一句话自我介绍你的工具能力。");
   const [mode, setMode] = useState("");
   const [spec, setSpec] = useState(DEFAULT_SPEC);
   const [worker, setWorker] = useState(DEFAULT_WORKER);
@@ -149,11 +125,11 @@ function NewSessionModal() {
   );
 }
 
-function RunModal() {
+function RunModal({ initialTask }: { initialTask?: string }) {
   const { openModal, selectRun, refreshRuns, toast } = useStore();
   const { ws, setWs, mk } = useWorkspace();
   const [kind, setKind] = useState<"submit" | "drive">("submit");
-  const [task, setTask] = useState("在 workspace 里创建 hello.txt 写入 hi,然后确认。");
+  const [task, setTask] = useState(initialTask || "在 workspace 里创建 hello.txt 写入 hi,然后确认。");
   const [mode, setMode] = useState("");
   const [idem, setIdem] = useState("");
   const [spec, setSpec] = useState(DEFAULT_SPEC);

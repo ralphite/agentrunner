@@ -10,6 +10,17 @@ export interface Session {
   id: string;
   status: string;
   turns: number;
+  title?: string;
+  workspace?: string;
+}
+
+export interface DiffResp {
+  workspace: string;
+  known: boolean;
+  isRepo: boolean;
+  diff: string;
+  numstat: string;
+  untracked: string[];
 }
 
 export interface Health {
