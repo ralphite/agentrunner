@@ -476,7 +476,7 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 		return RunResult{}, &InDoubtError{Activities: inDoubt, Effects: pendingEffects}
 	}
 	if len(inDoubt) > 0 {
-		if err := l.settleCrashInDoubt(appendE, inDoubt); err != nil {
+		if err := l.settleCrashInDoubt(appendE, inDoubt, ds.s.Timers); err != nil {
 			return RunResult{}, err
 		}
 	}
