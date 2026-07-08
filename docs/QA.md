@@ -240,6 +240,21 @@ SUMMARY.md 存在且内容与会话结论一致。
 
 ---
 
+## QA-10 session 内换 agent（决策 #32,UJ-11） `覆盖 G8 关闭`
+**环境**：空 workspace;poet.yaml(诗人身份)+ auditor.yaml(审计员身份)。
+脚本:`qa/run-qa10.sh`。
+
+| # | 动作 | 验证 |
+|---|---|---|
+| 1 | `ar new poet.yaml "介绍一下你自己"` | 回复带诗人身份前缀 |
+| 2 | `ar agent $sid auditor.yaml` | 单条命令、**无确认交互**;输出 agent switched |
+| 3 | `ar send $sid "现在你是谁?"` | 回复带审计员身份;`spec_changed` 恰好 1 条;`session_started` 仍 1 条(同一 session,上下文延续) |
+
+**通过标准**:runtime 红线只钉 spec_changed 落盘/新身份 spec_name/
+同一 journal;不钉模型对上文的措辞。
+
+---
+
 ## 覆盖矩阵
 
 | 核心场景 | QA 流 |

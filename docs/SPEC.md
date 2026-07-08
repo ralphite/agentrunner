@@ -152,7 +152,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | daemon 托管（socket、idem_key 幂等、优雅停机） | ✅ | UJ-17 | S6 |
 | CLI 第一公里可发现性（顶层 help/`init` 示例 spec/README/spec 错误附字段清单/daemon 报错附启动指引） | ✅ | UJ-01…（全 journey 进入门槛） | INC-2 · TestTopLevelHelp/TestInit* · spec_errors golden |
 | 静止动作（outputs→barrier→parent 回执;ar run=开+发+等静止+读结果） | ✅ | UJ-02/14/15 | 决策 #31 · 2026-07-08 落码(D2) · TestQuiescentSequenceOrder · acceptance events_valid 改静止形状判定 |
-| session 内换 agent（SpecChanged 事件 + `ar agent`,用户免确认,prefix 显式换代） | ✅ | UJ-11 | 裁决一 · 2026-07-08 落码(D4a) · TestAgentSwitchTakesEffectOnResume（G8 关闭） |
+| session 内换 agent（SpecChanged 事件 + `ar agent`,用户免确认,prefix 显式换代） | ✅ | UJ-11 | 裁决一 · 2026-07-08 落码(D4a) · QA-10 · TestAgentSwitchTakesEffectOnResume（G8 关闭） |
 | 云 workspace 生命周期 | 🧊 | UJ-13 | GAPS G11（S7 预授权裁掉，重启走新增量） |
 | IDE 集成 | 🧊 | — | 同上裁决 |
 | 多根 workspace（--add-dir 类） | ❌ | — | GAPS G17（待 journey 目录定版） |

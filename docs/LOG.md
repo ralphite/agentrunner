@@ -390,3 +390,20 @@ D1(2026-07-06 文档先行)之后,全部裁决落到代码,四个提交
 - 后台 spawn 预留期间父自身 LLM 可能被预算闸截断——可见截断 + 回执
   settle 后自然重试,树预算语义的正确后果;
 - blocked/malformed 不再终结 session:可见截断 + 待命,send 可再试。
+
+## 2026-07-08 REVIEW-001 收口:真实 API 全量复跑(B 闸)
+
+静止模型手术后的第一次真实 API 全量回归(gemini-flash-latest,
+真实工具,SHA 钉死仓库):**QA-01..09 全部 PASS**——kill 工具改名、
+静止回执、标记语义、非阻塞 spawn、可见截断在真实链路零回归;
+session_closed 恰好一次、crash 三态矩阵按新语义落盘。
+
+新增 **QA-10 session 内换 agent**(qa/run-qa10.sh,首跑 PASS):
+诗人 → `ar agent`(免确认)→ 审计员,同一 journal、上下文延续、
+spec_changed 恰好一条——裁决 #1"session 不与 agent 绑定"的
+端到端证词。运行留档 qa/runs/20260708-review001/(gitignored 本机)。
+
+余项记档:①daemon socket 单测在超长 worktree 路径下 bind 失败为
+预存环境问题(生产代码已有短路径回退;TMPDIR=/tmp 下全绿),测试
+基建修复另立任务;②Anthropic 第二 provider 无凭据未测(与
+2026-07-05 同状态)。
