@@ -110,7 +110,7 @@ Conversations (need the daemon):
   new <spec.yaml> "msg"       start a session, print the reply, leave it running
   send <session> "msg"        send a message and print the reply (--image attaches files)
   attach <session>            replay the whole conversation, then follow live (Ctrl-C detaches;
-                              the session keeps running)
+                              the session keeps running; --replay-only prints history and exits)
   close <session>             end a session gracefully
   interrupt <session>         interrupt the current turn (a no-op at idle; close is separate)
 

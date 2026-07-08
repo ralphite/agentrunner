@@ -87,6 +87,14 @@ func (p *Provider) Complete(ctx context.Context, req provider.CompleteRequest) i
 func classify(err error) error {
 	var ae genai.APIError
 	if errors.As(err, &ae) {
+		if ae.Code == 404 {
+			// A retired or misspelled model id 404s. The SDK names the id but
+			// not a fix — point at a stable alias so the user isn't left
+			// guessing which ids still exist (黑盒 R2 minor: gemini-2.5-flash
+			// was retired; gemini-flash-latest tracks the current one).
+			return errs.Wrap(errs.FromHTTPStatus(ae.Code), err,
+				"gemini: model not found — use a current id such as `gemini-flash-latest` or `gemini-2.5-pro`")
+		}
 		return errs.Wrap(errs.FromHTTPStatus(ae.Code), err, "gemini")
 	}
 	if class := errs.ClassOf(err); class == errs.Canceled || class == errs.Timeout {
