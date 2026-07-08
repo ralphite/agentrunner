@@ -53,9 +53,9 @@
   重启 → 同会话续聊无缝(QA-08a 式)。
 
 ## M5 压轴终验与收官
-- [ ] QA-09 式场景全程网页操作:图 + 恰好 3 子并行 + 先回先处理 +
-      杀 B 换 D + 汇总 + 崩溃重启续聊 + 让它写 SUMMARY.md
-- [ ] README 快速上手走查(按文档从零起服务);已知问题清单
+- [x] QA-09 式场景全程网页操作:图 + 恰好 3 子并行 + 先回先处理 +
+      杀 C 换 D + 汇总 + 崩溃重启续聊 + 让它写 SUMMARY.md
+- [x] README 快速上手走查(按文档从零起服务);已知问题清单
 - 真验:上述场景一次成(允许按 QA §0.1 重跑一次);全 milestone 勾满。
 
 ---
@@ -75,6 +75,7 @@
 
 | 日期 | 轮次 | 动作 | 真验结果 |
 |---|---|---|---|
+| 2026-07-07 | 5 | M5 压轴收官:QA-09 式场景全程网页操作,一次成(会话 20260708-000600-ready-1151,168 事件) | 图(CI 截图内容穿透进子任务书)+恰好 3 子并行(spawn 卡×3、在飞面板×3);先回先处理(A 无工具最先回→父第 4 轮消化并确认 A 推理正确:Go 版本过低;B 第 5 轮);"杀C换D"消息忙时排队(排队中→边界落账);kill C(journal `[kill call_2_2]` control)→spawn D→四路总汇总表(A 成功/B_OK/C 已取消未重启/D_OK);pkill -9 daemon→3s 自愈→续聊答"A"(崩溃前历史完整);write_file 落 SUMMARY.md(文件内容与会话结论一致,四行结局;journal write_file@159);全程 4 spawn/4 settle。README 从零走查:build→serve(daemonUp)→index 200 ✓。全部 milestone 勾满,loop 收官 |
 | 2026-07-07 | 4 | M4 真验(代码在前几轮已就位+自愈是本轮新增) | ①流式:JS 探针客观捕获——send 后 6.15s state.typingEl 出现且带增量文本(SSE text_delta);此前 M2 已两次目击 streaming 气泡截图 ②崩溃恢复:pkill -9 arbin daemon→3s 内 auto-respawn(arweb 日志"managed daemon died; auto-respawned")→同会话网页续聊,暗号"紫葡萄"正确复述(QA-08a 式);红点+「重启 daemon」按钮此前两次真实目击,API /daemon/start 真验 started ③hash 直达/自动滚动/状态 pill(idle 绿/run 黄/appr 紫/closed 灰)全程在用 |
 | 2026-07-07 | 3 | M3 真验 + 三个健壮性修复:hashchange 监听(同页 hash 导航原先不切会话)、daemon 守护自愈(托管 daemon 被外杀 1s 内自动重启,3 次/分钟节流)、测试环境 binary 改名 arbin 避开并行 session 的 pkill 误伤 | ①spawn:网页指挥起恰好 2 子,在飞面板 2 行+kill 按钮;网页杀 A→journal `[kill call_10_0]` source=control→activity_cancelled+subagent_completed(canceled);B 自然完成回灌;父第 12 轮激活消化;模型自作主张重启 A(模型行为,再杀+叫停后正确汇总"A 被取消,B 汇报 B_DONE")②审批:ask 权限 spec,审批卡带全 gate 徽章(permission:ask rule 1: tool=bash→ask)+args;拒绝(理由达模型:denied: 测试拒绝路径)→批准→bash 执行→APPROVAL_TEST ③图片:upload API+chip+send --image,build-error.png 三要素全对(command.go/1234/EnableTraverseRunHooks2);journal ref-not-bytes(单行 372B,sha256 CAS ref) |
 | 2026-07-07 | 0 | M0 落地:module/server(9 端点+SSE)/单文件 UI/fake-ar 单测 ×9/docs。M1–M5 的代码骨架同时就位,待逐项真验 | health 绿(daemon 托管成功);sessions 列表 OK;真 Gemini 全链路 smoke:POST /api/sessions 建会话→"1+1=?"→journal 里 ASST"2"→waiting:input。注意:XDG_DATA_HOME 过长会使 daemon socket bind 失败(macOS 104B 限制),测试用 /tmp/aw1 |
