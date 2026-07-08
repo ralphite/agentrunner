@@ -5,157 +5,346 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AgentRunner Cockpit</title>
 <style>
-  :root { --line:#ddd; --ink:#222; --dim:#888; --bg:#fafafa; }
+  /* ---------- design tokens (Claude-app inspired; light + dark) ---------- */
+  :root {
+    --accent:#d97757; --accent-strong:#c15f3c; --accent-tint:#f5e5dd;
+    --bg:#faf9f7; --surface:#ffffff; --surface-2:#f3f1ee; --raised:#ffffff;
+    --ink:#26231f; --ink-soft:#57534e; --dim:#8b857c; --faint:#b3ada3;
+    --line:#e7e3dc; --line-soft:#efece6;
+    --user-bubble:#eef1f6; --code-bg:#2b2a28; --code-ink:#eceae4;
+    --ok-bg:#dcfce7; --ok-ink:#166534; --run-bg:#fef3c7; --run-ink:#92400e;
+    --appr-bg:#ede9fe; --appr-ink:#5b21b6; --bad-bg:#fee2e2; --bad-ink:#991b1b;
+    --warn-bg:#fff7ed; --warn-line:#fed7aa; --closed-bg:#e7e5e4; --closed-ink:#57534e;
+    --shadow:0 1px 2px rgba(30,25,20,.06),0 4px 16px rgba(30,25,20,.05);
+    --shadow-lg:0 8px 40px rgba(30,25,20,.16);
+    --radius:10px; --radius-sm:7px;
+  }
+  :root[data-theme="dark"] {
+    --accent:#e08965; --accent-strong:#eda588; --accent-tint:#3a2b23;
+    --bg:#1c1b19; --surface:#242322; --surface-2:#2c2a28; --raised:#2c2a28;
+    --ink:#f0eee8; --ink-soft:#c4bfb6; --dim:#8f897f; --faint:#615c54;
+    --line:#38352f; --line-soft:#302d28;
+    --user-bubble:#2f3540; --code-bg:#141312; --code-ink:#e6e3dc;
+    --ok-bg:#14351f; --ok-ink:#86efac; --run-bg:#3a2f14; --run-ink:#fcd34d;
+    --appr-bg:#2e2440; --appr-ink:#c4b5fd; --bad-bg:#3d1f1f; --bad-ink:#fca5a5;
+    --warn-bg:#33261a; --warn-line:#7c4a24; --closed-bg:#312e2a; --closed-ink:#a8a29a;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.25);
+    --shadow-lg:0 8px 40px rgba(0,0,0,.5);
+  }
+  @media (prefers-color-scheme:dark) {
+    :root:not([data-theme="light"]) {
+      --accent:#e08965; --accent-strong:#eda588; --accent-tint:#3a2b23;
+      --bg:#1c1b19; --surface:#242322; --surface-2:#2c2a28; --raised:#2c2a28;
+      --ink:#f0eee8; --ink-soft:#c4bfb6; --dim:#8f897f; --faint:#615c54;
+      --line:#38352f; --line-soft:#302d28;
+      --user-bubble:#2f3540; --code-bg:#141312; --code-ink:#e6e3dc;
+      --ok-bg:#14351f; --ok-ink:#86efac; --run-bg:#3a2f14; --run-ink:#fcd34d;
+      --appr-bg:#2e2440; --appr-ink:#c4b5fd; --bad-bg:#3d1f1f; --bad-ink:#fca5a5;
+      --warn-bg:#33261a; --warn-line:#7c4a24; --closed-bg:#312e2a; --closed-ink:#a8a29a;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.25);
+      --shadow-lg:0 8px 40px rgba(0,0,0,.5);
+    }
+  }
   * { box-sizing:border-box; }
-  body { margin:0; font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--ink); background:var(--bg); height:100vh; display:flex; flex-direction:column; }
-  header { display:flex; align-items:center; gap:12px; padding:8px 14px; background:#fff; border-bottom:1px solid var(--line); }
-  header h1 { font-size:15px; margin:0; font-weight:600; }
-  .dot { width:9px; height:9px; border-radius:50%; background:#c33; display:inline-block; }
-  .dot.up { background:#2a2; }
-  .muted { color:var(--dim); font-size:12px; }
-  button { font:inherit; padding:3px 10px; border:1px solid #bbb; border-radius:5px; background:#fff; cursor:pointer; }
-  button:hover { background:#f0f0f0; }
-  button.primary { background:#2563eb; border-color:#2563eb; color:#fff; }
-  button.primary:hover { background:#1d4ed8; }
-  button.danger { color:#b91c1c; border-color:#e5b4b4; }
-  button:disabled { opacity:.45; cursor:default; }
+  html,body { height:100%; }
+  body { margin:0; font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif; color:var(--ink); background:var(--bg); display:flex; flex-direction:column; -webkit-font-smoothing:antialiased; }
+  ::selection { background:var(--accent-tint); }
+
+  /* ---------- header ---------- */
+  header { display:flex; align-items:center; gap:12px; padding:9px 16px; background:var(--surface); border-bottom:1px solid var(--line); }
+  .brand { display:flex; align-items:center; gap:8px; font-weight:650; font-size:15px; letter-spacing:-.01em; }
+  .brand .mark { width:18px; height:18px; border-radius:5px; background:var(--accent); display:inline-block; position:relative; }
+  .brand .mark::after { content:""; position:absolute; inset:5px 5px auto auto; width:8px; height:8px; border-radius:2px; background:var(--surface); }
+  .health { display:flex; align-items:center; gap:7px; font-size:12px; color:var(--dim); }
+  .dot { width:8px; height:8px; border-radius:50%; background:#c0392b; box-shadow:0 0 0 3px color-mix(in srgb, #c0392b 18%, transparent); }
+  .dot.up { background:#22a06b; box-shadow:0 0 0 3px color-mix(in srgb, #22a06b 18%, transparent); }
+  .spacer { flex:1; }
+
+  /* ---------- buttons ---------- */
+  button { font:inherit; font-size:13px; padding:5px 11px; border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--surface); color:var(--ink); cursor:pointer; transition:background .12s,border-color .12s,opacity .12s; white-space:nowrap; }
+  button:hover { background:var(--surface-2); }
+  button:active { transform:translateY(.5px); }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.primary:hover { background:var(--accent-strong); border-color:var(--accent-strong); }
+  button.danger { color:var(--bad-ink); border-color:color-mix(in srgb,var(--bad-ink) 35%,transparent); }
+  button.danger:hover { background:var(--bad-bg); }
+  button.ghost { border-color:transparent; background:transparent; color:var(--ink-soft); padding:5px 8px; }
+  button.ghost:hover { background:var(--surface-2); }
+  button:disabled { opacity:.4; cursor:default; }
+  button.icon { padding:5px 8px; line-height:1; }
+
+  /* ---------- layout ---------- */
   #layout { flex:1; display:flex; min-height:0; }
-  aside { width:230px; border-right:1px solid var(--line); background:#fff; overflow-y:auto; }
-  aside .sess { padding:8px 10px; border-bottom:1px solid #f0f0f0; cursor:pointer; }
-  aside .sess:hover { background:#f6f6f6; }
-  aside .sess.cur { background:#eef2ff; }
-  aside .sess .id { font-family:ui-monospace,monospace; font-size:12px; }
-  main { flex:1; display:flex; flex-direction:column; min-width:0; }
-  #sesshead { display:flex; align-items:center; gap:8px; padding:6px 12px; background:#fff; border-bottom:1px solid var(--line); flex-wrap:wrap; }
-  #sesshead .id { font-family:ui-monospace,monospace; font-size:12px; }
-  .pill { font-size:11px; padding:1px 8px; border-radius:9px; background:#eee; color:#555; }
-  .pill.idle { background:#dcfce7; color:#166534; }
-  .pill.run { background:#fef3c7; color:#92400e; }
-  .pill.appr { background:#ede9fe; color:#5b21b6; }
-  .pill.closed { background:#e5e5e5; color:#555; }
-  .pill.crash { background:#fee2e2; color:#991b1b; }
-  #timeline { flex:1; overflow-y:auto; padding:14px 16px; }
-  .turn { text-align:center; color:var(--dim); font-size:11px; margin:14px 0 6px; }
-  .turn::before,.turn::after { content:"— "; }
-  .row { margin:6px 0; display:flex; }
+  aside { width:264px; border-right:1px solid var(--line); background:var(--surface); overflow-y:auto; display:flex; flex-direction:column; }
+  .side-head { padding:12px 14px 8px; display:flex; align-items:center; justify-content:space-between; }
+  .side-head .t { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); font-weight:600; }
+  .sess { padding:9px 12px; margin:1px 8px; border-radius:var(--radius-sm); cursor:pointer; border:1px solid transparent; }
+  .sess:hover { background:var(--surface-2); }
+  .sess.cur { background:var(--accent-tint); border-color:color-mix(in srgb,var(--accent) 35%,transparent); }
+  .sess .top { display:flex; align-items:center; gap:6px; }
+  .sess .name { font-size:13px; font-weight:550; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
+  .sess .meta { font-size:11px; color:var(--dim); margin-top:2px; display:flex; align-items:center; gap:6px; }
+  .sdot { width:7px; height:7px; border-radius:50%; background:var(--faint); flex:none; }
+  .sdot.idle { background:#22a06b; } .sdot.run { background:#e0a500; } .sdot.appr { background:#8b5cf6; }
+  .sdot.closed { background:var(--faint); } .sdot.crash,.sdot.stranded { background:#e0563b; }
+  .side-empty { padding:16px 14px; color:var(--dim); font-size:12px; }
+
+  main { flex:1; display:flex; flex-direction:column; min-width:0; background:var(--bg); }
+  #sesshead { display:flex; align-items:center; gap:8px; padding:8px 14px; background:var(--surface); border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  #sesshead .id { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; color:var(--ink-soft); }
+  #shUp { font-size:12px; color:var(--accent); cursor:pointer; text-decoration:none; }
+  #shUp:hover { text-decoration:underline; }
+  .usage { font-size:11px; color:var(--dim); font-family:ui-monospace,monospace; padding:2px 8px; border:1px solid var(--line); border-radius:20px; cursor:pointer; }
+  .usage:hover { background:var(--surface-2); }
+
+  .pill { font-size:11px; padding:2px 9px; border-radius:20px; background:var(--surface-2); color:var(--ink-soft); font-weight:550; }
+  .pill.idle { background:var(--ok-bg); color:var(--ok-ink); }
+  .pill.run { background:var(--run-bg); color:var(--run-ink); }
+  .pill.appr { background:var(--appr-bg); color:var(--appr-ink); }
+  .pill.closed { background:var(--closed-bg); color:var(--closed-ink); }
+  .pill.crash,.pill.stranded { background:var(--bad-bg); color:var(--bad-ink); }
+
+  /* ---------- timeline ---------- */
+  #timeline { flex:1; overflow-y:auto; padding:20px 0 24px; scroll-behavior:smooth; }
+  .stream { max-width:820px; margin:0 auto; padding:0 24px; }
+  .turn { text-align:center; color:var(--faint); font-size:11px; margin:20px 0 8px; letter-spacing:.04em; display:flex; align-items:center; gap:10px; }
+  .turn::before,.turn::after { content:""; flex:1; height:1px; background:var(--line-soft); }
+
+  .row { margin:10px 0; display:flex; }
   .row.user { justify-content:flex-end; }
-  .bubble { max-width:72%; padding:7px 11px; border-radius:10px; white-space:pre-wrap; word-break:break-word; }
-  .user .bubble { background:#dbeafe; }
-  .asst .bubble { background:#fff; border:1px solid var(--line); }
-  .bubble.typing { border-style:dashed; color:#555; }
-  .bubble.pending { opacity:.6; }
-  .tag { font-size:10px; color:var(--dim); margin:0 6px; align-self:flex-end; }
-  .card { margin:6px 0 6px 24px; border:1px solid var(--line); border-radius:8px; background:#fff; max-width:80%; font-size:13px; overflow:hidden; }
-  .card .head { padding:4px 10px; background:#f4f4f5; font-family:ui-monospace,monospace; font-size:12px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-  .card pre { margin:0; padding:6px 10px; overflow-x:auto; font-size:12px; max-height:240px; overflow-y:auto; white-space:pre-wrap; word-break:break-all; }
-  .card.err .head { background:#fee2e2; }
-  .card.cancel .head { background:#ffedd5; }
-  .card details summary { cursor:pointer; padding:3px 10px; color:var(--dim); font-size:12px; }
-  .badge { font-size:10px; padding:0 6px; border-radius:8px; background:#e5e7eb; color:#444; }
-  .badge.ok { background:#dcfce7; color:#166534; }
-  .badge.err { background:#fee2e2; color:#991b1b; }
-  .sys { color:var(--dim); font-size:11px; margin:2px 0 2px 24px; font-family:ui-monospace,monospace; display:none; }
+  .bubble { max-width:82%; padding:9px 13px; border-radius:14px; white-space:pre-wrap; word-break:break-word; }
+  .user .bubble { background:var(--user-bubble); border-radius:14px 14px 3px 14px; }
+  .msg { display:flex; gap:11px; margin:14px 0; }
+  .msg .ava { width:26px; height:26px; border-radius:6px; background:var(--accent); flex:none; display:grid; place-items:center; color:#fff; font-size:12px; font-weight:700; margin-top:1px; }
+  .msg .body { min-width:0; flex:1; }
+  .msg .who { font-size:12px; font-weight:600; color:var(--ink-soft); margin-bottom:1px; }
+  .md { word-break:break-word; }
+  .md p { margin:.4em 0; } .md > :first-child { margin-top:0; } .md > :last-child { margin-bottom:0; }
+  .md h1,.md h2,.md h3 { margin:.7em 0 .3em; line-height:1.3; }
+  .md h1 { font-size:1.3em; } .md h2 { font-size:1.18em; } .md h3 { font-size:1.05em; }
+  .md ul,.md ol { margin:.4em 0; padding-left:1.5em; }
+  .md li { margin:.15em 0; }
+  .md code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.9em; background:var(--surface-2); padding:.1em .35em; border-radius:4px; }
+  .md pre { background:var(--code-bg); color:var(--code-ink); border-radius:var(--radius-sm); padding:11px 13px; overflow-x:auto; margin:.5em 0; }
+  .md pre code { background:none; padding:0; color:inherit; font-size:12.5px; line-height:1.5; }
+  .md blockquote { margin:.5em 0; padding:.1em .9em; border-left:3px solid var(--line); color:var(--ink-soft); }
+  .md a { color:var(--accent); }
+  .md table { border-collapse:collapse; margin:.5em 0; display:block; overflow-x:auto; }
+  .md th,.md td { border:1px solid var(--line); padding:4px 9px; text-align:left; }
+  .typing::after { content:"▋"; color:var(--accent); animation:blink 1s steps(2) infinite; }
+  @keyframes blink { 0%,50%{opacity:1;} 50.01%,100%{opacity:0;} }
+  .pending { opacity:.55; }
+
+  /* ---------- tool / spawn / chips ---------- */
+  .card { margin:10px 0; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); overflow:hidden; box-shadow:var(--shadow); }
+  .card .head { padding:7px 12px; background:var(--surface-2); font-size:12px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .card .head .tool { font-family:ui-monospace,monospace; font-weight:600; }
+  .card pre { margin:0; padding:9px 12px; overflow:auto; font-size:12px; max-height:280px; white-space:pre-wrap; word-break:break-word; font-family:ui-monospace,monospace; }
+  .card.err { border-color:color-mix(in srgb,var(--bad-ink) 30%,transparent); } .card.err .head { background:var(--bad-bg); }
+  .card.cancel .head { background:var(--warn-bg); }
+  .card details summary { cursor:pointer; padding:5px 12px; color:var(--dim); font-size:12px; user-select:none; }
+  .card details summary:hover { color:var(--ink-soft); }
+  .badge { font-size:10px; padding:1px 7px; border-radius:20px; background:var(--surface-2); color:var(--ink-soft); border:1px solid var(--line); font-weight:600; }
+  .badge.ok { background:var(--ok-bg); color:var(--ok-ink); border-color:transparent; }
+  .badge.err { background:var(--bad-bg); color:var(--bad-ink); border-color:transparent; }
+  .badge.run { background:var(--run-bg); color:var(--run-ink); border-color:transparent; }
+
+  .chip { display:inline-flex; align-items:center; gap:6px; margin:6px 0; font-size:12px; padding:4px 11px; border-radius:20px; background:var(--surface); border:1px solid var(--line); color:var(--ink-soft); }
+  .chip.warn { background:var(--warn-bg); border-color:var(--warn-line); }
+  .chip.bad { background:var(--bad-bg); border-color:transparent; color:var(--bad-ink); }
+  .chip a { color:var(--accent); text-decoration:none; margin-left:2px; }
+  .chip a:hover { text-decoration:underline; }
+  .sys { color:var(--faint); font-size:11px; margin:3px 0; font-family:ui-monospace,monospace; display:none; }
   body.showsys .sys { display:block; }
-  .chip { display:inline-block; margin:4px 0 4px 24px; font-size:12px; padding:2px 10px; border-radius:10px; background:#f1f5f9; border:1px solid #e2e8f0; }
-  .chip.warn { background:#fff7ed; border-color:#fed7aa; }
-  .chip.bad { background:#fef2f2; border-color:#fecaca; }
-  .approval { border:1px solid #c4b5fd; }
-  .approval .head { background:#ede9fe; }
-  .approval .act { padding:6px 10px; display:flex; gap:8px; align-items:center; }
-  .approval input { flex:1; font:inherit; padding:3px 6px; border:1px solid #ccc; border-radius:4px; }
-  #children { border-top:1px solid var(--line); background:#fff; padding:4px 12px; font-size:12px; display:none; }
+
+  .approval { border:1px solid color-mix(in srgb,var(--appr-ink) 40%,transparent); box-shadow:var(--shadow); }
+  .approval .head { background:var(--appr-bg); color:var(--appr-ink); }
+  .approval .act { padding:9px 12px; display:flex; gap:8px; align-items:center; }
+  .approval input { flex:1; font:inherit; font-size:13px; padding:5px 9px; border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--bg); color:var(--ink); }
+
+  /* ---------- children ps bar ---------- */
+  #children { border-top:1px solid var(--line); background:var(--surface); padding:6px 24px; font-size:12px; display:none; }
   #children.on { display:block; }
-  #children .task { display:flex; gap:8px; align-items:center; padding:2px 0; font-family:ui-monospace,monospace; }
-  #composer { border-top:1px solid var(--line); background:#fff; padding:8px 12px; }
+  .ps-title { color:var(--dim); font-size:11px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:3px; }
+  #children .task { display:flex; gap:8px; align-items:center; padding:3px 0; font-family:ui-monospace,monospace; font-size:12px; }
+  #children .task .h { color:var(--accent); } #children .task .flex { flex:1; }
+
+  /* ---------- composer ---------- */
+  #composer { border-top:1px solid var(--line); background:var(--surface); padding:10px 24px 14px; }
+  #composer .wrap { max-width:820px; margin:0 auto; }
+  .controls { display:flex; gap:7px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+  .ctl { display:inline-flex; align-items:center; gap:5px; font-size:12px; color:var(--ink-soft); background:var(--bg); border:1px solid var(--line); border-radius:20px; padding:3px 5px 3px 11px; }
+  .ctl label { color:var(--dim); font-size:11px; }
+  .ctl select { font:inherit; font-size:12px; border:none; background:transparent; color:var(--ink); cursor:pointer; padding:2px 4px; border-radius:14px; max-width:190px; }
+  .ctl select:hover { background:var(--surface-2); }
+  .ctl.readonly { padding-right:11px; }
   #imgchips { display:flex; gap:6px; flex-wrap:wrap; }
-  #imgchips .chip { margin:0 0 6px; cursor:pointer; }
-  #composer .box { display:flex; gap:8px; align-items:flex-end; }
-  textarea { flex:1; font:inherit; padding:7px 9px; border:1px solid #ccc; border-radius:7px; resize:vertical; min-height:38px; max-height:180px; }
-  #statusline { font-size:11px; color:var(--dim); padding:2px 2px 0; }
-  dialog { border:1px solid #bbb; border-radius:10px; padding:0; width:min(760px,92vw); }
-  dialog::backdrop { background:rgba(0,0,0,.25); }
-  dialog .dhead { display:flex; justify-content:space-between; align-items:center; padding:10px 14px; border-bottom:1px solid var(--line); font-weight:600; }
-  dialog .dbody { padding:12px 14px; max-height:72vh; overflow-y:auto; }
-  dialog label { display:block; font-size:12px; color:#555; margin:10px 0 3px; }
-  dialog input[type=text], dialog select { width:100%; font:inherit; padding:5px 8px; border:1px solid #ccc; border-radius:5px; }
-  dialog textarea { width:100%; font:12px/1.4 ui-monospace,monospace; }
-  #viewer pre { font-size:12px; white-space:pre-wrap; word-break:break-all; }
-  #toast { position:fixed; right:14px; bottom:14px; max-width:420px; background:#7f1d1d; color:#fff; padding:10px 14px; border-radius:8px; font-size:13px; white-space:pre-wrap; display:none; z-index:50; }
-  #empty { margin:auto; color:var(--dim); text-align:center; }
+  #imgchips .ichip { font-size:12px; padding:3px 9px; border-radius:20px; background:var(--accent-tint); border:1px solid color-mix(in srgb,var(--accent) 25%,transparent); cursor:pointer; }
+  .inputbox { display:flex; gap:9px; align-items:flex-end; background:var(--bg); border:1px solid var(--line); border-radius:16px; padding:8px 8px 8px 14px; transition:border-color .12s,box-shadow .12s; }
+  .inputbox:focus-within { border-color:color-mix(in srgb,var(--accent) 55%,transparent); box-shadow:0 0 0 3px var(--accent-tint); }
+  textarea#input { flex:1; font:inherit; font-size:14px; border:none; background:transparent; color:var(--ink); resize:none; min-height:24px; max-height:200px; padding:3px 0; outline:none; line-height:1.5; }
+  .revive-note { font-size:12px; color:var(--warn-ink,#92400e); background:var(--warn-bg); border:1px solid var(--warn-line); border-radius:var(--radius-sm); padding:6px 11px; margin-bottom:8px; display:none; }
+  #statusline { font-size:11px; color:var(--dim); padding:5px 4px 0; min-height:18px; }
+
+  #empty { max-width:420px; margin:12vh auto 0; text-align:center; color:var(--dim); }
+  #empty .big { font-size:34px; margin-bottom:10px; }
+  #empty h2 { color:var(--ink); font-weight:600; font-size:18px; margin:0 0 6px; }
+  #empty button { margin-top:14px; }
+
+  /* ---------- dialogs ---------- */
+  dialog { border:1px solid var(--line); border-radius:14px; padding:0; width:min(720px,94vw); background:var(--surface); color:var(--ink); box-shadow:var(--shadow-lg); }
+  dialog::backdrop { background:rgba(20,16,12,.42); backdrop-filter:blur(2px); }
+  dialog .dhead { display:flex; justify-content:space-between; align-items:center; padding:13px 18px; border-bottom:1px solid var(--line); font-weight:600; font-size:15px; }
+  dialog .dbody { padding:14px 18px 18px; max-height:74vh; overflow-y:auto; }
+  dialog label { display:block; font-size:12px; color:var(--ink-soft); margin:13px 0 4px; font-weight:550; }
+  dialog input[type=text], dialog select, dialog textarea { width:100%; font:inherit; font-size:13px; padding:7px 10px; border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--bg); color:var(--ink); }
+  dialog textarea { font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; resize:vertical; }
+  dialog .row2 { display:flex; gap:12px; } dialog .row2 > * { flex:1; }
+  dialog details { margin-top:14px; border:1px solid var(--line); border-radius:var(--radius-sm); }
+  dialog details summary { padding:8px 12px; cursor:pointer; font-size:13px; color:var(--ink-soft); user-select:none; }
+  dialog details[open] summary { border-bottom:1px solid var(--line); }
+  dialog details .inner { padding:0 12px 12px; }
+  .dactions { margin-top:18px; display:flex; justify-content:flex-end; gap:8px; }
+  .hint { font-size:12px; color:var(--dim); margin:4px 0 0; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:var(--radius-sm); overflow:hidden; }
+  .seg button { border:none; border-radius:0; background:var(--surface); padding:6px 14px; }
+  .seg button.on { background:var(--accent); color:#fff; }
+  #viewer pre { font-size:12px; white-space:pre-wrap; word-break:break-word; font-family:ui-monospace,monospace; margin:0; }
+
+  #toast { position:fixed; right:16px; bottom:16px; max-width:440px; background:var(--bad-ink); color:#fff; padding:11px 15px; border-radius:var(--radius); font-size:13px; white-space:pre-wrap; display:none; z-index:60; box-shadow:var(--shadow-lg); }
 </style>
 </head>
 <body>
 <header>
-  <h1>AgentRunner Cockpit</h1>
-  <span class="dot" id="hdot"></span>
-  <span class="muted" id="htext">daemon…</span>
+  <span class="brand"><span class="mark"></span> AgentRunner Cockpit</span>
+  <span class="health"><span class="dot" id="hdot"></span><span id="htext">daemon…</span></span>
   <button id="daemonRestart" style="display:none" class="danger">restart daemon</button>
-  <span style="flex:1"></span>
-  <label class="muted"><input type="checkbox" id="sysToggle"> system events</label>
-  <button class="primary" id="btnNew">new session</button>
+  <span class="spacer"></span>
+  <label class="health" style="cursor:pointer"><input type="checkbox" id="sysToggle"> system events</label>
+  <button class="ghost icon" id="themeBtn" title="toggle theme">🌗</button>
+  <button class="primary" id="btnNew">+ New session</button>
 </header>
 <div id="layout">
-  <aside id="sesslist"></aside>
+  <aside>
+    <div class="side-head"><span class="t">Sessions</span><button class="ghost icon" id="btnRefresh" title="refresh">↻</button></div>
+    <div id="sesslist"></div>
+  </aside>
   <main>
     <div id="sesshead" style="display:none">
-      <a id="shUp" style="display:none">← parent session</a>
+      <a id="shUp" style="display:none">← parent</a>
       <span class="id" id="shId"></span>
       <span class="pill" id="shPill">—</span>
-      <span style="flex:1"></span>
-      <button id="btnRaw">raw journal</button>
-      <button id="btnState">fold state</button>
-      <button id="btnTree">inspect tree</button>
-      <button id="btnAgent">switch agent</button>
+      <span class="usage" id="shUsage" style="display:none" title="token usage — click for inspect tree"></span>
+      <span class="spacer"></span>
+      <button id="btnBarrier" title="checkpoint the session here">barrier</button>
+      <button id="btnFork" title="branch from a barrier">fork…</button>
+      <button id="btnRaw" class="ghost">journal</button>
+      <button id="btnState" class="ghost">state</button>
+      <button id="btnTree" class="ghost">tree</button>
       <button id="btnInterrupt" class="danger">interrupt</button>
     </div>
-    <div id="timeline"><div id="empty">← select or create a session</div></div>
+    <div id="timeline">
+      <div id="empty">
+        <div class="big">🚀</div>
+        <h2>No session open</h2>
+        <div>Pick a session on the left, or start a new one to drive a real agent end-to-end.</div>
+        <button class="primary" onclick="document.getElementById('btnNew').click()">+ New session</button>
+      </div>
+    </div>
     <div id="children"></div>
     <div id="composer" style="display:none">
-      <div id="imgchips"></div>
-      <div class="box">
-        <textarea id="input" placeholder="Type a message… (Enter to send, Shift+Enter for a newline)"></textarea>
-        <input type="file" id="file" accept="image/*" style="display:none">
-        <button id="btnImg" title="attach an image">image</button>
-        <button class="primary" id="btnSend">send</button>
+      <div class="wrap">
+        <div class="revive-note" id="reviveNote"></div>
+        <div class="controls" id="controls">
+          <span class="ctl"><label>Agent</label>
+            <select id="selAgent"></select></span>
+          <span class="ctl"><label>Model</label>
+            <select id="selModel"></select></span>
+          <span class="ctl readonly" id="modeCtl"><label>Mode</label><span id="modeVal">default</span></span>
+          <span id="imgchips"></span>
+        </div>
+        <div class="inputbox">
+          <textarea id="input" rows="1" placeholder="Message the agent…  (Enter to send · Shift+Enter for newline)"></textarea>
+          <input type="file" id="file" accept="image/*" style="display:none">
+          <button id="btnImg" class="ghost icon" title="attach image">📎</button>
+          <button class="primary" id="btnSend">Send</button>
+        </div>
+        <div id="statusline"></div>
       </div>
-      <div id="statusline"></div>
     </div>
   </main>
 </div>
 
+<!-- new session -->
 <dialog id="newdlg">
-  <div class="dhead">new session <button onclick="newdlg.close()">✕</button></div>
+  <div class="dhead"><span>New session</span> <button class="ghost icon" onclick="newdlg.close()">✕</button></div>
   <div class="dbody">
-    <label>workspace directory (absolute path)</label>
+    <div class="seg" id="newKind" style="margin-bottom:4px">
+      <button class="on" data-kind="chat">Conversation</button>
+      <button data-kind="oneshot">One-shot run</button>
+    </div>
+    <p class="hint" id="kindHint">A resident conversation you can keep messaging (needs the daemon).</p>
+
+    <div class="row2">
+      <div><label>Agent template</label><select id="nAgent"></select></div>
+      <div><label>Model</label><select id="nModel"></select></div>
+    </div>
+    <label>Mode</label>
+    <select id="nMode"><option value="">default</option><option value="plan">plan</option><option value="acceptEdits">acceptEdits</option></select>
+
+    <label>Workspace directory (absolute path)</label>
     <div style="display:flex;gap:8px">
       <input type="text" id="nWs" placeholder="/path/to/workspace">
-      <button id="nMkWs" style="white-space:nowrap">make empty workspace</button>
+      <button id="nMkWs" style="white-space:nowrap">make empty</button>
     </div>
-    <label>opening message</label>
+    <label style="display:inline-flex;align-items:center;gap:7px;cursor:pointer;font-weight:normal">
+      <input type="checkbox" id="nTrust" style="width:auto"> trust this workspace (enables project hooks/settings)</label>
+
+    <label id="msgLabel">Opening message</label>
     <textarea id="nMsg" rows="2" style="font:inherit">Hello — in one sentence, introduce your tool capabilities.</textarea>
-    <label>mode (optional)</label>
-    <select id="nMode"><option value="">default</option><option>plan</option><option>acceptEdits</option></select>
-    <label>base.yaml (main agent spec)</label>
-    <textarea id="nSpec" rows="12"></textarea>
-    <label>worker.yaml (sub-agent spec; leave empty to skip)</label>
-    <textarea id="nWorker" rows="7"></textarea>
-    <div style="margin-top:12px;text-align:right"><button class="primary" id="nCreate">create</button></div>
+
+    <details id="advSpec">
+      <summary>Advanced: edit spec YAML directly</summary>
+      <div class="inner">
+        <label>base spec (base.yaml)</label>
+        <textarea id="nSpec" rows="11"></textarea>
+        <label>worker.yaml (sibling sub-agent; leave empty to skip)</label>
+        <textarea id="nWorker" rows="6"></textarea>
+        <p class="hint">Editing here overrides the template/model selectors above.</p>
+      </div>
+    </details>
+
+    <div class="dactions"><button onclick="newdlg.close()">Cancel</button><button class="primary" id="nCreate">Create</button></div>
   </div>
 </dialog>
 
+<!-- switch agent (custom) -->
 <dialog id="agentdlg">
-  <div class="dhead">switch agent (same session, context carries over) <button onclick="agentdlg.close()">✕</button></div>
+  <div class="dhead"><span>Switch agent — custom spec</span> <button class="ghost icon" onclick="agentdlg.close()">✕</button></div>
   <div class="dbody">
-    <label>new agent spec (agent.yaml)</label>
-    <textarea id="aSpec" rows="10"></textarea>
-    <label>worker.yaml (sibling sub-agent spec; leave empty to skip)</label>
+    <p class="hint">Same session, context carries over; takes effect on your next message. Lands in the journal as <code>spec_changed</code>.</p>
+    <label>agent spec (agent.yaml)</label>
+    <textarea id="aSpec" rows="11"></textarea>
+    <label>worker.yaml (sibling sub-agent; leave empty to skip)</label>
     <textarea id="aWorker" rows="5"></textarea>
-    <div style="margin-top:12px;text-align:right"><button class="primary" id="aSwitch">switch (takes effect on the next message)</button></div>
+    <div class="dactions"><button onclick="agentdlg.close()">Cancel</button><button class="primary" id="aSwitch">Switch</button></div>
+  </div>
+</dialog>
+
+<!-- fork -->
+<dialog id="forkdlg">
+  <div class="dhead"><span>Fork from a barrier</span> <button class="ghost icon" onclick="forkdlg.close()">✕</button></div>
+  <div class="dbody">
+    <p class="hint">Branch this session at a checkpoint into a new, independent session (own worktree). The original is untouched.</p>
+    <label>Barrier</label>
+    <select id="forkSel"></select>
+    <div id="forkEmpty" class="hint" style="display:none">No barriers yet. Close this and click <b>barrier</b> to checkpoint first.</div>
+    <div class="dactions"><button onclick="forkdlg.close()">Cancel</button><button class="primary" id="forkGo">Fork</button></div>
   </div>
 </dialog>
 
 <dialog id="viewer">
-  <div class="dhead"><span id="vTitle">viewer</span> <button onclick="viewer.close()">✕</button></div>
+  <div class="dhead"><span id="vTitle">viewer</span> <button class="ghost icon" onclick="viewer.close()">✕</button></div>
   <div class="dbody"><pre id="vBody"></pre></div>
 </dialog>
 
@@ -168,7 +357,83 @@ const state = {
   sid: null, cursor: 0, evTimer: null, psTimer: null, es: null,
   toolCards: {}, callArgs: {}, approvals: {}, pending: [],
   typingEl: null, status: "—", images: [], lastGen: 0,
+  spec: null, model: "", mode: "", agentKey: "dev", closed: null,
 };
+
+/* ---------- agent templates & models (composer capability面) ---------- */
+const MODELS = ["gemini-flash-latest", "gemini-2.5-pro", "gemini-2.5-flash"];
+const WORKER_YAML = `name: worker
+description: runs investigation/edit tasks assigned by the parent and reports back
+model: { provider: gemini, id: __MODEL__, max_tokens: 4096 }
+system_prompt: When the task is done, report your conclusions as concise bullet points.
+tools: [read_file, bash]
+`;
+const TEMPLATES = {
+  dev: {
+    label: "Dev — full tools + worker",
+    withWorker: true,
+    yaml: m => `name: dev
+model: { provider: gemini, id: ${m}, max_tokens: 4096 }
+system_prompt: |
+  You are a rigorous coding assistant. Follow the user's instructions
+  exactly; when asked to start sub-agents, use the spawn_agent tool with
+  the exact count and division of labor requested; use kill to cancel.
+tools: [read_file, write_file, edit_file, bash, spawn_agent, kill, output]
+agents: [worker]
+permissions:
+  - { action: allow }
+`,
+  },
+  auditor: {
+    label: "Auditor — read-only, stern",
+    withWorker: false,
+    yaml: m => `name: auditor
+model: { provider: gemini, id: ${m}, max_tokens: 4096 }
+system_prompt: You are an auditor. Always open with "[AUDITOR]" and answer in one stern sentence.
+tools: [read_file, bash]
+permissions:
+  - { action: allow }
+`,
+  },
+  reviewer: {
+    label: "Reviewer — read + grep, no writes",
+    withWorker: false,
+    yaml: m => `name: reviewer
+model: { provider: gemini, id: ${m}, max_tokens: 4096 }
+system_prompt: |
+  You are a code reviewer. Read the code, then produce structured findings
+  (severity / file:line / failure scenario). Never modify the workspace.
+tools: [read_file, bash]
+permissions:
+  - { action: allow }
+`,
+  },
+  chat: {
+    label: "Chat — no tools",
+    withWorker: false,
+    yaml: m => `name: chat
+model: { provider: gemini, id: ${m}, max_tokens: 4096 }
+system_prompt: You are a concise, helpful assistant.
+tools: []
+permissions:
+  - { action: allow }
+`,
+  },
+};
+function fillTemplateSelect(sel, withLabels) {
+  sel.innerHTML = "";
+  for (const [k, t] of Object.entries(TEMPLATES)) {
+    const o = document.createElement("option"); o.value = k; o.textContent = t.label;
+    sel.appendChild(o);
+  }
+  const o = document.createElement("option"); o.value = "custom"; o.textContent = "Custom (edit YAML)…";
+  sel.appendChild(o);
+}
+function fillModelSelect(sel) {
+  sel.innerHTML = "";
+  MODELS.forEach(m => { const o = document.createElement("option"); o.value = m; o.textContent = m; sel.appendChild(o); });
+  const o = document.createElement("option"); o.value = "__custom__"; o.textContent = "Custom id…"; sel.appendChild(o);
+}
 
 // ---------- helpers ----------
 async function api(path, opts) {
@@ -195,51 +460,114 @@ function pretty(raw) {
   try { return JSON.stringify(typeof raw === "string" ? JSON.parse(raw) : raw, null, 2); }
   catch { return String(raw); }
 }
-const short = id => (id || "").slice(0, 14);
+const short = id => (id || "").slice(0, 16);
+
+// ---------- minimal markdown renderer (zero deps — I3) ----------
+function esc(s) { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function inlineMd(s) {
+  // s is already HTML-escaped. Apply inline rules, code first to shield it.
+  const codes = [];
+  s = s.replace(/`([^`]+)`/g, (_, c) => { codes.push(c); return " " + (codes.length-1) + " "; });
+  s = s.replace(/\[([^\]]+)\]\((https?:[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>");
+  s = s.replace(/ (\d+) /g, (_, i) => "<code>" + codes[+i] + "</code>");
+  return s;
+}
+function renderMd(src) {
+  const out = [];
+  const lines = String(src == null ? "" : src).split("\n");
+  let i = 0, listType = null;
+  const closeList = () => { if (listType) { out.push("</" + listType + ">"); listType = null; } };
+  while (i < lines.length) {
+    let line = lines[i];
+    // fenced code block
+    const fence = line.match(/^```(\w*)/);
+    if (fence) {
+      closeList();
+      const buf = [];
+      i++;
+      while (i < lines.length && !/^```/.test(lines[i])) { buf.push(lines[i]); i++; }
+      i++; // consume closing fence
+      out.push("<pre><code>" + esc(buf.join("\n")) + "</code></pre>");
+      continue;
+    }
+    const h = line.match(/^(#{1,3})\s+(.*)$/);
+    if (h) { closeList(); out.push("<h" + h[1].length + ">" + inlineMd(esc(h[2])) + "</h" + h[1].length + ">"); i++; continue; }
+    if (/^\s*>\s?/.test(line)) { closeList(); out.push("<blockquote>" + inlineMd(esc(line.replace(/^\s*>\s?/, ""))) + "</blockquote>"); i++; continue; }
+    if (/^\s*[-*+]\s+/.test(line)) {
+      if (listType !== "ul") { closeList(); out.push("<ul>"); listType = "ul"; }
+      out.push("<li>" + inlineMd(esc(line.replace(/^\s*[-*+]\s+/, ""))) + "</li>"); i++; continue;
+    }
+    if (/^\s*\d+\.\s+/.test(line)) {
+      if (listType !== "ol") { closeList(); out.push("<ol>"); listType = "ol"; }
+      out.push("<li>" + inlineMd(esc(line.replace(/^\s*\d+\.\s+/, ""))) + "</li>"); i++; continue;
+    }
+    if (line.trim() === "") { closeList(); i++; continue; }
+    // paragraph: gather consecutive non-empty non-special lines
+    const para = [line];
+    i++;
+    while (i < lines.length && lines[i].trim() !== "" && !/^```|^#{1,3}\s|^\s*>|^\s*[-*+]\s|^\s*\d+\.\s/.test(lines[i])) { para.push(lines[i]); i++; }
+    closeList();
+    out.push("<p>" + inlineMd(esc(para.join("\n"))).replace(/\n/g, "<br>") + "</p>");
+  }
+  closeList();
+  return out.join("");
+}
 
 // ---------- timeline append ----------
 const tl = $("timeline");
+let stream = null;
+function ensureStream() {
+  if (!stream) { stream = el("div", "stream"); tl.innerHTML = ""; tl.appendChild(stream); }
+  return stream;
+}
 function append(node) {
-  const nearBottom = tl.scrollHeight - tl.scrollTop - tl.clientHeight < 60;
-  tl.appendChild(node);
+  const s = ensureStream();
+  const nearBottom = tl.scrollHeight - tl.scrollTop - tl.clientHeight < 80;
+  s.appendChild(node);
   if (nearBottom) tl.scrollTop = tl.scrollHeight;
 }
-function sysline(seq, type, extra) {
-  append(el("div", "sys", `#${seq} ${type}${extra ? " " + extra : ""}`));
-}
+function sysline(seq, type, extra) { append(el("div", "sys", `#${seq} ${type}${extra ? " " + extra : ""}`)); }
 function chip(text, cls) { append(el("div", "chip " + (cls || ""), text)); }
-
-// childChip renders a spawn/settle chip with a link into the child session
-// (INC-1: child ids are addressable, the timeline is browsable live).
 function childChip(text, childSession, cls) {
   const c = el("div", "chip " + (cls || ""), text + " ");
-  if (childSession) {
-    const a = el("a", "", "open child ↗");
-    a.href = "#" + childSession;
-    c.appendChild(a);
-  }
+  if (childSession) { const a = el("a", "", "open child ↗"); a.href = "#" + childSession; c.appendChild(a); }
   append(c);
 }
-
 function bubble(role, text, tags) {
-  const row = el("div", "row " + role);
-  const b = el("div", "bubble", text);
-  if (role === "user") { if (tags) row.appendChild(el("span","tag",tags)); row.appendChild(b); }
-  else { row.appendChild(b); if (tags) row.appendChild(el("span","tag",tags)); }
-  append(row);
-  return b;
+  if (role === "user") {
+    const row = el("div", "row user");
+    const b = el("div", "bubble", text);
+    row.appendChild(b);
+    if (tags) row.appendChild(el("span", "sys", tags));
+    append(row);
+    return b;
+  }
+  // assistant: full-width avatar + markdown block
+  const msg = el("div", "msg");
+  msg.appendChild(el("div", "ava", "AR"));
+  const body = el("div", "body");
+  body.appendChild(el("div", "who", tags || "agent"));
+  const md = el("div", "md");
+  md.innerHTML = renderMd(text);
+  body.appendChild(md);
+  msg.appendChild(body);
+  append(msg);
+  md._raw = text;
+  return md;
 }
 
 function toolCard(name, args, opts) {
   const card = el("div", "card");
   const head = el("div", "head");
-  head.appendChild(el("span", "", "🔧 " + name));
-  const status = el("span", "badge", opts && opts.background ? "background" : "running");
+  head.appendChild(el("span", "tool", "🔧 " + name));
+  const status = el("span", "badge run", opts && opts.background ? "background" : "running");
   head.appendChild(status);
   card.appendChild(head);
   if (args) {
     const d = el("details"); d.appendChild(el("summary", "", "args"));
-    const p = el("pre", "", pretty(args)); d.appendChild(p); card.appendChild(d);
+    d.appendChild(el("pre", "", pretty(args))); card.appendChild(d);
   }
   card._status = status;
   append(card);
@@ -251,16 +579,17 @@ function render(env) {
   const p = env.payload || {};
   switch (env.type) {
   case "session_started":
+    state.model = p.model || state.model;
+    reflectSpec(p.spec_name, p.model);
     chip(`session started · ${p.spec_name || ""} · ${p.model || ""}`);
     break;
   case "input_received": {
-    // settle a matching pending bubble
     const i = state.pending.findIndex(x => x.text === p.text);
-    if (i >= 0) { state.pending[i].el.classList.remove("pending"); state.pending[i].el._tag && (state.pending[i].el._tag.textContent="you"); state.pending.splice(i, 1); }
+    if (i >= 0) { state.pending[i].el.classList.remove("pending"); state.pending.splice(i, 1); }
     else {
-      let extra = p.source && p.source !== "user" ? p.source : "you";
-      const b = bubble("user", p.text || "(empty)", extra);
-      if (p.images && p.images.length) b.appendChild(el("div", "muted", `📷 ×${p.images.length} (CAS ref)`));
+      let extra = p.source && p.source !== "user" ? p.source : null;
+      const b = bubble("user", p.text || "(empty)", extra ? "source: " + extra : null);
+      if (p.images && p.images.length) { const m = el("div", "sys"); m.style.display="block"; m.textContent = `📷 ×${p.images.length} (CAS ref)`; b.appendChild(m); }
     }
     break;
   }
@@ -270,20 +599,18 @@ function render(env) {
     setStatus("running", "run");
     break;
   case "assistant_message": {
-    if (state.typingEl) { state.typingEl.parentElement.remove(); state.typingEl = null; }
+    if (state.typingEl) { state.typingEl._msg.remove(); state.typingEl = null; }
     const parts = (p.message && p.message.parts) || [];
     let text = parts.filter(x => x.text).map(x => x.text).join("");
     const calls = parts.filter(x => x.tool_name);
     calls.forEach(c => { state.callArgs[c.call_id] = { name: c.tool_name, args: c.args }; });
     if (text.trim()) bubble("asst", text, "agent");
-    if (calls.length && !text.trim()) {} // tool activity cards follow
     if (p.finish === "blocked") chip("output truncated (finish=blocked), partial text kept", "warn");
     break;
   }
   case "activity_started":
-    if (p.kind === "tool") {
-      state.toolCards[p.activity_id] = toolCard(p.name, p.args, { background: p.background });
-    } else sysline(env.seq, env.type, p.name);
+    if (p.kind === "tool") state.toolCards[p.activity_id] = toolCard(p.name, p.args, { background: p.background });
+    else sysline(env.seq, env.type, p.name);
     break;
   case "activity_completed": {
     const card = state.toolCards[p.activity_id];
@@ -315,11 +642,8 @@ function render(env) {
     const card = state.toolCards[p.activity_id];
     if (card) {
       card.classList.add("cancel");
-      card._status.textContent = "cancelled";
-      if (p.partial_output) {
-        const d = el("details"); d.appendChild(el("summary", "", "partial output"));
-        d.appendChild(el("pre", "", p.partial_output)); card.appendChild(d);
-      }
+      card._status.textContent = "cancelled"; card._status.className = "badge";
+      if (p.partial_output) { const d = el("details"); d.appendChild(el("summary", "", "partial output")); d.appendChild(el("pre", "", p.partial_output)); card.appendChild(d); }
     } else chip("activity cancelled " + p.activity_id, "warn");
     break;
   }
@@ -332,16 +656,12 @@ function render(env) {
     break;
   case "approval_requested": renderApproval(env); break;
   case "approval_responded": {
-    if (state.approvals[p.approval_id]) {
-      settleApproval(p.approval_id,
-        (p.decision === "approve" ? "approved" : "denied") + (p.reason ? ": " + p.reason : "") + ` (${p.source || ""})`,
-        p.decision === "approve");
-    } else sysline(env.seq, env.type, p.decision);
+    if (state.approvals[p.approval_id]) settleApproval(p.approval_id,
+      (p.decision === "approve" ? "approved" : "denied") + (p.reason ? ": " + p.reason : "") + ` (${p.source || ""})`, p.decision === "approve");
+    else sysline(env.seq, env.type, p.decision);
     break;
   }
   case "waiting_entered": {
-    // After D2's quiescence surgery the wait kinds are just input/approval
-    // (tasks/timer are gone).
     const kinds = { input: ["waiting: input", "idle"], approval: ["waiting: approval", "appr"] };
     const [txt, cls] = kinds[p.kind] || [p.kind, ""];
     setStatus(txt, cls);
@@ -349,54 +669,44 @@ function render(env) {
   }
   case "waiting_resolved": setStatus("running", "run"); break;
   case "session_closed": {
-    // Quiescence model (D2): session_closed is a MARK, not a terminal state
-    // — reason ∈ closed|killed, kill marks carry source ∈ user|parent, and
-    // an explicit send always reopens the session.
+    // Quiescence model: a MARK, not a terminal state — send always reopens.
     const killed = p.reason === "killed";
+    state.closed = { reason: p.reason, source: p.source };
     chip(`session marked ${killed ? "killed" : "closed"}${p.source ? " · source: " + p.source : ""} — send to continue`, killed ? "bad" : "");
     setStatus(killed ? "killed" : "closed", "closed");
+    updateReviveNote();
     break;
   }
-  case "spec_changed": chip(`🔁 agent switched → ${p.spec_name || ""} · ${p.model || ""}`); break;
+  case "spec_changed":
+    state.model = p.model || state.model;
+    reflectSpec(p.spec_name, p.model);
+    chip(`🔁 agent switched → ${p.spec_name || ""} · ${p.model || ""}`);
+    break;
   case "actor_crashed": chip(`crashed ${p.actor}: ${p.error}`, "bad"); setStatus("crashed", "crash"); break;
-  case "mode_changed": chip(`mode → ${p.to} (${p.cause})`); break;
+  case "mode_changed": state.mode = p.to; $("modeVal").textContent = p.to || "default"; chip(`mode → ${p.to} (${p.cause})`); break;
   case "context_compacted": chip(`context compacted · through turn ${p.upto_gen_step}`); break;
   case "limit_exceeded":
-    // Visible-truncation family (tokens|generation_steps|malformed_tool_call):
-    // the turn is cut short but the session does NOT end — it idles and can
-    // be sent to again.
     chip(`truncated: ${p.kind}${p.limit ? ` ${p.used}/${p.limit}` : ""} (session stays available — send to continue)`, "bad");
     break;
   case "generation_discarded": chip(`turn ${p.gen_step} stream discarded, retrying`, "warn"); break;
   case "malformed_tool_call": chip(`turn ${p.gen_step} tool call unparsable, retrying`, "warn"); break;
-  default:
-    sysline(env.seq, env.type);
+  default: sysline(env.seq, env.type);
   }
 }
 
-// approvalCard renders one ask exactly once, whatever channel saw it first.
-// A PARENT ask arrives twice (SSE approval_request + journal
-// approval_requested); a CHILD ask arrives ONLY via SSE — child loops have
-// no Out sink, but their approvals bubble through the shared broker with
-// the requesting agent's name. Dedup by approval id.
+// ---------- approvals ----------
 function approvalCard(id, toolName, argsStr, agentName) {
   if (state.approvals[id]) return state.approvals[id];
   const card = el("div", "card approval");
   const head = el("div", "head");
-  head.appendChild(el("span", "", "⚖ approval " + (toolName || id)));
+  head.appendChild(el("span", "tool", "⚖ approval · " + (toolName || id)));
   if (agentName) head.appendChild(el("span", "badge", "from: " + agentName));
   card.appendChild(head);
   if (argsStr) card.appendChild(el("pre", "", pretty(argsStr)));
   const act = el("div", "act");
   if (state.sid.includes("-sub-")) {
-    // The broker registers asks under the ROOT session — answer from the
-    // parent view; here the card is informational.
     act.appendChild(el("span", "badge", "answer from the parent session"));
-    card.appendChild(act);
-    card.act = act; card.head = head;
-    state.approvals[id] = card;
-    append(card);
-    return card;
+    card.appendChild(act); card.act = act; card.head = head; state.approvals[id] = card; append(card); return card;
   }
   const reason = document.createElement("input"); reason.placeholder = "reason (optional)";
   const ok = el("button", "primary", "approve"), no = el("button", "danger", "deny");
@@ -406,18 +716,12 @@ function approvalCard(id, toolName, argsStr, agentName) {
     ok.disabled = no.disabled = true;
     try {
       await post(`/sessions/${state.sid}/approve`, { approvalId: id, decision: d, reason: reason.value });
-      // A child's ask never gets a journal approval_responded in THIS
-      // session's log — settle the card locally on ack.
       settleApproval(id, d === "approve" ? "approved (you)" : "denied (you)" + (reason.value ? ": " + reason.value : ""), d === "approve");
     } catch (e) { toast(e.message); ok.disabled = no.disabled = false; }
   }
-  card.act = act;
-  card.head = head;
-  state.approvals[id] = card;
-  append(card);
+  card.act = act; card.head = head; state.approvals[id] = card; append(card);
   return card;
 }
-
 function settleApproval(id, text, approved) {
   const a = state.approvals[id];
   if (!a || !a.act) return;
@@ -425,28 +729,60 @@ function settleApproval(id, text, approved) {
   a.act.appendChild(el("span", "badge " + (approved ? "ok" : "err"), text));
   delete state.approvals[id];
 }
-
 function renderApproval(env) {
   const p = env.payload;
   const known = state.callArgs[p.call_id];
-  const card = approvalCard(p.approval_id,
-    known ? known.name : (p.call_id || p.approval_id),
-    known && known.args ? known.args : "", null);
-  // gate verdicts ride only the journal event — attach them when it lands
+  const card = approvalCard(p.approval_id, known ? known.name : (p.call_id || p.approval_id), known && known.args ? known.args : "", null);
   if (card.head && !card._gated) {
     card._gated = true;
-    (p.gate_results || []).forEach(g => {
-      card.head.appendChild(el("span", "badge", `${g.gate}:${g.decision}${g.reason ? " " + g.reason : ""}`));
-    });
+    (p.gate_results || []).forEach(g => card.head.appendChild(el("span", "badge", `${g.gate}:${g.decision}${g.reason ? " " + g.reason : ""}`)));
   }
 }
 
+// ---------- status & spec reflection ----------
+// classifyStatus maps the CLI/journal status vocabulary onto pill color classes.
+function classifyStatus(s) {
+  if (!s) return "";
+  if (s.startsWith("waiting:approval")) return "appr";
+  if (s.startsWith("waiting")) return "idle";
+  if (s === "running") return "run";
+  if (s === "stranded") return "stranded";
+  if (s === "crashed") return "crash";
+  if (["closed","killed","completed","canceled","cancelled","handoff"].includes(s)) return "closed";
+  if (["limit_exceeded","max_generation_steps","blocked"].includes(s)) return "stranded";
+  return "";
+}
 function setStatus(text, cls) {
   state.status = text;
   const pill = $("shPill");
   pill.textContent = text;
-  pill.className = "pill " + (cls || "");
+  pill.className = "pill " + (cls != null ? cls : classifyStatus(text));
   $("statusline").textContent = text;
+  if (cls !== "closed" && text === "running") { state.closed = null; }
+  updateReviveNote();
+}
+function updateReviveNote() {
+  const n = $("reviveNote");
+  const st = state.status || "";
+  if (state.closed || st === "stranded" || st === "killed" || st === "closed") {
+    n.style.display = "block";
+    n.textContent = st === "stranded"
+      ? "This session is stranded (its host is gone). Sending a message revives it and continues."
+      : "This session is marked " + (state.closed ? state.closed.reason : st) + ". There is no “close” — sending a message reopens and continues it.";
+  } else n.style.display = "none";
+}
+// reflectSpec keeps the composer's agent/model selectors in sync with the
+// session's actual spec (from session_started / spec_changed).
+function reflectSpec(specName, model) {
+  if (model) {
+    const opt = [...$("selModel").options].find(o => o.value === model);
+    if (opt) $("selModel").value = model;
+    else { $("selModel").value = MODELS.includes(model) ? model : "__custom__"; }
+  }
+  // best-effort: if the spec name matches a known template, reflect it
+  const key = Object.keys(TEMPLATES).find(k => k === specName);
+  if (key) { state.agentKey = key; $("selAgent").value = key; }
+  else { $("selAgent").value = "custom"; }
 }
 
 // ---------- session lifecycle ----------
@@ -454,28 +790,27 @@ async function openSession(id) {
   leaveSession();
   state.sid = id;
   location.hash = id;
-  tl.innerHTML = "";
-  Object.assign(state, { cursor: 0, toolCards: {}, callArgs: {}, approvals: {}, pending: [], typingEl: null, lastGen: 0 });
-  // A child session (INC-1) is a read-only view: no inbox, no interrupt,
-  // no live stream — its journal still grows while in flight, so the 1s
-  // poll IS the realtime view. Everything else works unchanged.
+  stream = null; tl.innerHTML = "";
+  Object.assign(state, { cursor: 0, toolCards: {}, callArgs: {}, approvals: {}, pending: [], typingEl: null, lastGen: 0, closed: null, mode: "", listStatus: "" });
   const isSub = id.includes("-sub-");
   $("sesshead").style.display = "flex";
   $("composer").style.display = isSub ? "none" : "block";
-  $("btnInterrupt").style.display = $("btnAgent").style.display = isSub ? "none" : "";
+  $("btnInterrupt").style.display = $("btnBarrier").style.display = $("btnFork").style.display = isSub ? "none" : "";
   const up = $("shUp");
   up.style.display = isSub ? "" : "none";
   if (isSub) up.href = "#" + id.slice(0, id.lastIndexOf("-sub-"));
-  $("shId").textContent = id;
+  $("shId").textContent = short(id);
+  $("shId").title = id;
+  $("modeVal").textContent = "default";
+  $("shUsage").style.display = "none";
   setStatus("loading…", "");
   document.querySelectorAll("#sesslist .sess").forEach(n => n.classList.toggle("cur", n.dataset.id === id));
   await pollEvents();
+  refreshUsage();
   state.evTimer = setInterval(pollEvents, 1000);
-  state.psTimer = setInterval(pollPS, 2500);
+  state.psTimer = setInterval(() => { pollPS(); refreshUsage(); }, 2500);
   if (!isSub) openStream(id);
 }
-// leaveSession tears down the polling/stream for the current view (a UI
-// navigation concern only — the session itself always keeps running).
 function leaveSession() {
   clearInterval(state.evTimer); clearInterval(state.psTimer);
   if (state.es) { state.es.close(); state.es = null; }
@@ -489,10 +824,22 @@ async function pollEvents() {
   try {
     const evs = await api(`/sessions/${state.sid}/events?after=${state.cursor}`);
     for (const e of evs) { render(e); state.cursor = Math.max(state.cursor, e.seq || 0); }
-  } catch (e) { /* daemon down / transient: keep polling, health dot tells the story */ }
+  } catch (e) { /* daemon down / transient */ }
   finally { pollBusy = false; }
 }
-
+async function refreshUsage() {
+  if (!state.sid) return;
+  try {
+    const ins = await api(`/sessions/${state.sid}/inspect`);
+    const u = ins && ins.usage;
+    if (u) {
+      const billed = u.billed != null ? u.billed : (u.input_tokens || 0) + (u.output_tokens || 0);
+      const badge = $("shUsage");
+      badge.style.display = "";
+      badge.textContent = `▸ ${billed.toLocaleString()} tok`;
+    }
+  } catch (e) { /* inspect optional */ }
+}
 async function pollPS() {
   if (!state.sid) return;
   try {
@@ -501,20 +848,15 @@ async function pollPS() {
     box.className = tasks.length ? "on" : "";
     box.innerHTML = "";
     if (tasks.length) {
-      box.appendChild(el("div", "muted", `in-flight background work ×${tasks.length}`));
+      box.appendChild(el("div", "ps-title", `In-flight background work · ${tasks.length}`));
       const isSub = state.sid.includes("-sub-");
       tasks.forEach(t => {
         const row = el("div", "task");
-        row.appendChild(el("span", "", `${t.handle}  ${t.tool}  ${t.detail || ""}`));
-        // Child-session view is read-only: the daemon routes kill by TOP
-        // session id, so grandchild tasks are killed from the root.
+        row.appendChild(el("span", "h", t.handle));
+        row.appendChild(el("span", "flex", `${t.tool}  ${t.detail || ""}`));
         if (!isSub) {
           const kill = el("button", "danger", "kill");
-          kill.onclick = async () => {
-            kill.disabled = true;
-            try { await post(`/sessions/${state.sid}/kill`, { handle: t.handle }); }
-            catch (e) { toast(e.message); kill.disabled = false; }
-          };
+          kill.onclick = async () => { kill.disabled = true; try { await post(`/sessions/${state.sid}/kill`, { handle: t.handle }); } catch (e) { toast(e.message); kill.disabled = false; } };
           row.appendChild(kill);
         }
         box.appendChild(row);
@@ -530,55 +872,49 @@ function openStream(id) {
   es.onmessage = m => {
     let e; try { e = JSON.parse(m.data); } catch { return; }
     if (e.kind === "text_delta" && e.text) {
-      if (!state.typingEl) state.typingEl = bubble("asst", "", "streaming");
+      if (!state.typingEl) { const md = bubble("asst", "", "agent"); md.classList.add("typing"); state.typingEl = md; md._acc = ""; md._msg = md.closest(".msg"); }
+      state.typingEl._acc += e.text;
+      state.typingEl.innerHTML = renderMd(state.typingEl._acc);
       state.typingEl.classList.add("typing");
-      state.typingEl.textContent += e.text;
-      const nearBottom = tl.scrollHeight - tl.scrollTop - tl.clientHeight < 120;
+      const nearBottom = tl.scrollHeight - tl.scrollTop - tl.clientHeight < 140;
       if (nearBottom) tl.scrollTop = tl.scrollHeight;
     }
-    if (e.kind === "discard" && state.typingEl) { state.typingEl.parentElement.remove(); state.typingEl = null; }
-    // Child asks exist ONLY on this stream (they never touch the parent
-    // journal): render live. e.text carries the requesting agent's name.
-    if (e.kind === "approval_request" && e.approval_id) {
-      approvalCard(e.approval_id, e.tool, e.args, e.text);
-    }
+    if (e.kind === "discard" && state.typingEl) { state.typingEl._msg.remove(); state.typingEl = null; }
+    if (e.kind === "approval_request" && e.approval_id) approvalCard(e.approval_id, e.tool, e.args, e.text);
   };
   es.addEventListener("end", () => es.close());
 }
 
-// ---------- composer actions ----------
+// ---------- composer ----------
 $("btnSend").onclick = send;
-$("input").addEventListener("keydown", e => {
-  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
-});
+const inputEl = $("input");
+inputEl.addEventListener("input", () => { inputEl.style.height = "auto"; inputEl.style.height = Math.min(inputEl.scrollHeight, 200) + "px"; });
+inputEl.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
 async function send() {
-  const text = $("input").value.trim();
+  const text = inputEl.value.trim();
   if (!text || !state.sid) return;
   const images = state.images.map(i => i.path);
-  $("input").value = "";
+  state.listStatus = ""; // sending revives a stranded/marked session — don't re-assert it
+  inputEl.value = ""; inputEl.style.height = "auto";
   const b = bubble("user", text, "delivering…");
-  b.classList.add("pending");
-  b._tag = b.parentElement.querySelector(".tag");
-  state.pending.push({ text, el: b });
+  b.parentElement.classList.add("pending");
+  state.pending.push({ text, el: b.parentElement });
   state.images = []; renderImgChips();
-  try { await post(`/sessions/${state.sid}/send`, { text, images }); if (b._tag) b._tag.textContent = "queued"; }
-  catch (e) { toast(e.message); b.parentElement.remove(); state.pending = state.pending.filter(x => x.el !== b); }
+  try { await post(`/sessions/${state.sid}/send`, { text, images }); }
+  catch (e) { toast(e.message); b.parentElement.remove(); state.pending = state.pending.filter(x => x.el !== b.parentElement); }
 }
 $("btnImg").onclick = () => $("file").click();
 $("file").onchange = async () => {
-  const f = $("file").files[0];
-  if (!f) return;
+  const f = $("file").files[0]; if (!f) return;
   const fd = new FormData(); fd.append("file", f);
-  try {
-    const r = await api("/upload", { method: "POST", body: fd });
-    state.images.push(r); renderImgChips();
-  } catch (e) { toast(e.message); }
+  try { const r = await api("/upload", { method: "POST", body: fd }); state.images.push(r); renderImgChips(); }
+  catch (e) { toast(e.message); }
   $("file").value = "";
 };
 function renderImgChips() {
   const box = $("imgchips"); box.innerHTML = "";
   state.images.forEach((img, i) => {
-    const c = el("span", "chip", "📷 " + img.name + " ✕");
+    const c = el("span", "ichip", "📷 " + img.name + " ✕");
     c.onclick = () => { state.images.splice(i, 1); renderImgChips(); };
     box.appendChild(c);
   });
@@ -589,44 +925,99 @@ $("btnInterrupt").onclick = async () => {
   catch (e) { toast(e.message); }
 };
 
-// ---------- agent switch (spec decision #32) ----------
-const agentdlg = $("agentdlg");
-const DEFAULT_AGENT2 = `name: auditor
-model: { provider: gemini, id: gemini-flash-latest, max_tokens: 4096 }
-system_prompt: You are an auditor. Always open with "[AUDITOR]" and answer in one stern sentence.
-tools: [read_file, bash]
-permissions:
-  - { action: allow }
-`;
-$("btnAgent").onclick = () => {
+// composer agent/model selectors → switch the live session's spec (决策 #32)
+function currentYaml() {
+  if (state.spec) return state.spec; // custom YAML set explicitly
+  const key = $("selAgent").value === "custom" ? state.agentKey : $("selAgent").value;
+  const t = TEMPLATES[key] || TEMPLATES.dev;
+  return t.yaml(currentModel());
+}
+function currentModel() {
+  const v = $("selModel").value;
+  return v === "__custom__" ? (state.model || MODELS[0]) : v;
+}
+function currentWorker() {
+  const key = $("selAgent").value === "custom" ? state.agentKey : $("selAgent").value;
+  const t = TEMPLATES[key];
+  return t && t.withWorker ? WORKER_YAML.replace("__MODEL__", currentModel()) : "";
+}
+async function applyAgentSwitch(yaml, worker) {
   if (!state.sid) return;
-  if (!$("aSpec").value) $("aSpec").value = DEFAULT_AGENT2;
-  agentdlg.showModal();
+  try {
+    const extraSpecs = worker && worker.trim() ? [{ name: "worker.yaml", content: worker }] : [];
+    const r = await post(`/sessions/${state.sid}/agent`, { spec: yaml, extraSpecs });
+    chip(`🔁 ${r.status || "agent switched"} (lands in the journal as spec_changed)`);
+  } catch (e) { toast(e.message); }
+}
+$("selAgent").onchange = () => {
+  if ($("selAgent").value === "custom") {
+    if (!$("aSpec").value) $("aSpec").value = currentYaml();
+    $("agentdlg").showModal();
+    return;
+  }
+  state.spec = null; state.agentKey = $("selAgent").value;
+  applyAgentSwitch(currentYaml(), currentWorker());
 };
+$("selModel").onchange = () => {
+  if ($("selModel").value === "__custom__") {
+    const id = prompt("Model id:", state.model || MODELS[0]);
+    if (!id) { reflectSpec(null, state.model); return; }
+    const o = document.createElement("option"); o.value = id; o.textContent = id;
+    $("selModel").insertBefore(o, $("selModel").lastChild); $("selModel").value = id;
+    state.model = id;
+  }
+  state.spec = null;
+  applyAgentSwitch(currentYaml(), currentWorker());
+};
+
+// ---------- switch agent (custom YAML) ----------
+const agentdlg = $("agentdlg");
 $("aSwitch").onclick = async () => {
   const btn = $("aSwitch"); btn.disabled = true;
   try {
-    const extraSpecs = [];
-    if ($("aWorker").value.trim()) extraSpecs.push({ name: "worker.yaml", content: $("aWorker").value });
-    const r = await post(`/sessions/${state.sid}/agent`, { spec: $("aSpec").value, extraSpecs });
+    state.spec = $("aSpec").value;
+    await applyAgentSwitch($("aSpec").value, $("aWorker").value);
     agentdlg.close();
-    chip(`🔁 ${r.status || "agent switched"} (lands in the journal as spec_changed)`);
+  } catch (e) { toast(e.message); } finally { btn.disabled = false; }
+};
+
+// ---------- barrier / fork ----------
+$("btnBarrier").onclick = async () => {
+  if (!state.sid) return;
+  try { const r = await post(`/sessions/${state.sid}/barrier`); chip(`⚑ barrier checkpointed${r.barrier ? " · " + r.barrier : ""}`); }
+  catch (e) { toast(e.message); }
+};
+$("btnFork").onclick = async () => {
+  if (!state.sid) return;
+  const sel = $("forkSel"), empty = $("forkEmpty");
+  sel.innerHTML = ""; empty.style.display = "none";
+  try {
+    const bars = await api(`/sessions/${state.sid}/barriers`);
+    if (!bars.length) { empty.style.display = "block"; sel.style.display = "none"; }
+    else { sel.style.display = ""; bars.forEach(b => { const o = document.createElement("option"); o.value = b.id; o.textContent = `${b.id} · turn ${b.turn} · seq ${b.seq}`; sel.appendChild(o); }); }
+    $("forkdlg").showModal();
   } catch (e) { toast(e.message); }
-  finally { btn.disabled = false; }
+};
+$("forkGo").onclick = async () => {
+  const btn = $("forkGo"); btn.disabled = true;
+  try {
+    const r = await post(`/sessions/${state.sid}/fork`, { barrier: $("forkSel").value });
+    $("forkdlg").close();
+    chip(`⑂ forked → ${short(r.sid || "")}`);
+    await refreshSessions();
+    if (r.sid) openSession(r.sid);
+  } catch (e) { toast(e.message); } finally { btn.disabled = false; }
 };
 
 // ---------- viewers ----------
 async function view(title, path) {
-  try {
-    const data = await api(path);
-    $("vTitle").textContent = title + " · " + state.sid;
-    $("vBody").textContent = pretty(data);
-    $("viewer").showModal();
-  } catch (e) { toast(e.message); }
+  try { const data = await api(path); $("vTitle").textContent = title + " · " + short(state.sid); $("vBody").textContent = pretty(data); $("viewer").showModal(); }
+  catch (e) { toast(e.message); }
 }
 $("btnRaw").onclick = () => view("raw journal", `/sessions/${state.sid}/events`);
 $("btnState").onclick = () => view("fold state", `/sessions/${state.sid}/state`);
 $("btnTree").onclick = () => view("inspect tree", `/sessions/${state.sid}/inspect`);
+$("shUsage").onclick = () => view("inspect tree", `/sessions/${state.sid}/inspect`);
 $("sysToggle").onchange = e => document.body.classList.toggle("showsys", e.target.checked);
 
 // ---------- sessions list / health ----------
@@ -634,16 +1025,37 @@ async function refreshSessions() {
   try {
     const rows = await api("/sessions");
     const box = $("sesslist");
+    if (!rows.length) { box.innerHTML = ""; box.appendChild(el("div", "side-empty", "No sessions yet. Click “+ New session”.")); return; }
     box.innerHTML = "";
     rows.forEach(r => {
+      if (r.id === state.sid) state.listStatus = r.status;
       const d = el("div", "sess" + (r.id === state.sid ? " cur" : ""));
       d.dataset.id = r.id;
-      d.appendChild(el("div", "id", short(r.id)));
-      d.appendChild(el("div", "muted", `${r.status} · ${r.turns} turns`));
+      const top = el("div", "top");
+      top.appendChild(el("span", "sdot " + classifyStatus(r.status)));
+      top.appendChild(el("span", "name", prettyName(r.id)));
+      d.appendChild(top);
+      d.appendChild(el("div", "meta", `${r.status} · ${r.turns} turns`));
       d.onclick = () => openSession(r.id);
       box.appendChild(d);
     });
+    maybeStranded();
   } catch (e) { /* health dot covers it */ }
+}
+// maybeStranded reconciles the header with the sessions-list verdict: a
+// stranded session (running shape, but no live host advancing it) has NO
+// journal event to say so — only `ar sessions list`'s live-writer probe
+// knows. When the list calls the current session stranded and the journal
+// left the pill mid-turn, adopt it so the revive hint shows.
+function maybeStranded() {
+  if (state.listStatus === "stranded" && (state.status === "running" || state.status === "loading…")) {
+    setStatus("stranded", "stranded");
+  }
+}
+// prettyName trims the timestamp prefix off a session id for a readable label.
+function prettyName(id) {
+  const m = id.match(/^\d{8}-\d{6}-(.+?)(-int|-\w{4})?$/);
+  return m ? m[1].replace(/-/g, " ") : short(id);
 }
 async function refreshHealth() {
   try {
@@ -651,69 +1063,75 @@ async function refreshHealth() {
     $("hdot").className = "dot" + (h.daemonUp ? " up" : "");
     $("htext").textContent = `${h.version} · daemon ${h.daemonUp ? "up" : "unreachable"}${h.daemonManaged ? " (managed)" : ""}`;
     $("daemonRestart").style.display = h.daemonUp ? "none" : "";
-  } catch (e) {
-    $("hdot").className = "dot";
-    $("htext").textContent = "arweb unreachable";
-  }
+  } catch (e) { $("hdot").className = "dot"; $("htext").textContent = "arweb unreachable"; }
 }
-$("daemonRestart").onclick = async () => {
-  try { await post("/daemon/start"); toast("daemon start requested"); }
-  catch (e) { toast(e.message); }
+$("daemonRestart").onclick = async () => { try { await post("/daemon/start"); toast("daemon start requested"); } catch (e) { toast(e.message); } };
+$("btnRefresh").onclick = refreshSessions;
+
+// ---------- theme ----------
+function applyTheme(t) {
+  if (t === "system") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", t);
+  localStorage.setItem("ar-theme", t);
+}
+$("themeBtn").onclick = () => {
+  const cur = localStorage.getItem("ar-theme") || "system";
+  const next = cur === "system" ? "light" : cur === "light" ? "dark" : "system";
+  applyTheme(next);
+  toast("theme: " + next);
 };
+applyTheme(localStorage.getItem("ar-theme") || "system");
 
 // ---------- new session dialog ----------
 const newdlg = $("newdlg"), viewer = $("viewer");
-const DEFAULT_SPEC = `name: dev
-model: { provider: gemini, id: gemini-flash-latest, max_tokens: 4096 }
-system_prompt: |
-  You are a rigorous coding assistant. Follow the user's instructions
-  exactly; when asked to start sub-agents, use the spawn_agent tool with
-  the exact count and division of labor requested; use kill to cancel.
-tools: [read_file, write_file, edit_file, bash, spawn_agent, kill, output]
-agents: [worker]
-permissions:
-  - { action: allow }
-`;
-const DEFAULT_WORKER = `name: worker
-description: runs investigation/edit tasks assigned by the parent and reports back
-model: { provider: gemini, id: gemini-flash-latest, max_tokens: 4096 }
-system_prompt: When the task is done, report your conclusions as concise bullet points.
-tools: [read_file, bash]
-`;
+let newKind = "chat";
+document.querySelectorAll("#newKind button").forEach(b => b.onclick = () => {
+  newKind = b.dataset.kind;
+  document.querySelectorAll("#newKind button").forEach(x => x.classList.toggle("on", x === b));
+  $("kindHint").textContent = newKind === "chat"
+    ? "A resident conversation you can keep messaging (needs the daemon)."
+    : "A one-shot run handed to the daemon: it runs to completion, then idles for follow-up.";
+  $("msgLabel").textContent = newKind === "chat" ? "Opening message" : "Task";
+});
+function newYaml() {
+  const adv = $("advSpec").open && $("nSpec").value.trim();
+  if (adv) return { spec: $("nSpec").value, worker: $("nWorker").value };
+  const key = $("nAgent").value === "custom" ? "dev" : $("nAgent").value;
+  const t = TEMPLATES[key];
+  const m = $("nModel").value;
+  return { spec: t.yaml(m), worker: t.withWorker ? WORKER_YAML.replace("__MODEL__", m) : "" };
+}
 $("btnNew").onclick = () => {
-  if (!$("nSpec").value) $("nSpec").value = DEFAULT_SPEC;
-  if (!$("nWorker").value) $("nWorker").value = DEFAULT_WORKER;
+  fillTemplateSelect($("nAgent"), true);
+  fillModelSelect($("nModel"));
+  $("nAgent").value = "dev"; $("nModel").value = MODELS[0];
+  if (!$("nSpec").value) $("nSpec").value = TEMPLATES.dev.yaml(MODELS[0]);
+  if (!$("nWorker").value) $("nWorker").value = WORKER_YAML.replace("__MODEL__", MODELS[0]);
+  $("nAgent").onchange = () => { if ($("nAgent").value === "custom") $("advSpec").open = true; };
   newdlg.showModal();
 };
-$("nMkWs").onclick = async () => {
-  try { $("nWs").value = (await post("/workspace")).path; }
-  catch (e) { toast(e.message); }
-};
+$("nMkWs").onclick = async () => { try { $("nWs").value = (await post("/workspace")).path; } catch (e) { toast(e.message); } };
 $("nCreate").onclick = async () => {
   const btn = $("nCreate"); btn.disabled = true;
   try {
-    const extraSpecs = [];
-    if ($("nWorker").value.trim()) extraSpecs.push({ name: "worker.yaml", content: $("nWorker").value });
-    const r = await post("/sessions", {
-      spec: $("nSpec").value, extraSpecs,
-      workspace: $("nWs").value.trim(), message: $("nMsg").value.trim(), mode: $("nMode").value,
-    });
+    const { spec, worker } = newYaml();
+    const extraSpecs = worker && worker.trim() ? [{ name: "worker.yaml", content: worker }] : [];
+    const body = { spec, extraSpecs, workspace: $("nWs").value.trim(), message: $("nMsg").value.trim(), mode: $("nMode").value, trust: $("nTrust").checked, oneshot: newKind === "oneshot" };
+    const r = await post("/sessions", body);
     newdlg.close();
     await refreshSessions();
-    openSession(r.sid);
-  } catch (e) { toast(e.message); }
-  finally { btn.disabled = false; }
+    if (r.sid) openSession(r.sid);
+  } catch (e) { toast(e.message); } finally { btn.disabled = false; }
 };
 
 // ---------- boot ----------
+fillTemplateSelect($("selAgent")); fillModelSelect($("selModel"));
+$("selAgent").value = "dev"; $("selModel").value = MODELS[0];
 refreshHealth(); refreshSessions();
 setInterval(refreshHealth, 5000);
 setInterval(refreshSessions, 4000);
 if (location.hash.length > 1) openSession(location.hash.slice(1));
-window.addEventListener("hashchange", () => {
-  const id = location.hash.slice(1);
-  if (id && id !== state.sid) openSession(id);
-});
+window.addEventListener("hashchange", () => { const id = location.hash.slice(1); if (id && id !== state.sid) openSession(id); });
 </script>
 </body>
 </html>

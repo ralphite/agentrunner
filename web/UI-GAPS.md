@@ -1,4 +1,9 @@
-# arweb UI overhaul — 欠缺清单(对照产品功能需求,待你逐项确认)
+# arweb UI overhaul — 欠缺清单
+
+> **状态更新(2026-07-08 轮 10)**:用户下达 goal「full features + easy to use,
+> 像 Claude Code app」。下面 §1/§2/§3 + §4 的 fork/barrier/submit/trust 已全部
+> 落地并真 Gemini 真验(见 PROGRESS 轮 10)。§4 的 drive 面板收尾中。剩余 ⛔ 项
+> 是产品缺口(页面做不出),保留说明。
 
 盘点依据:docs/JOURNEYS.md(22 条 journey)、docs/SPEC.md(功能登记簿
 + CLI 子命令附录)、internal/cli 实际命令面(2026-07-08 HEAD)。

@@ -34,7 +34,15 @@ events)
 new) echo "sess-new-456";;
 agent) echo "agent switched to auditor";;
 send|interrupt|kill|approve) echo ok;;
-inspect) echo '{"tree":true}';;
+trust) echo "trusted $2";;
+barrier) printf 'barrier bar-m7\nsnapshot deadbeef\n';;
+fork)
+  case "$3" in
+  --list) printf 'BARRIER      TURN   SEQ    SNAPSHOT\nbar-m5       3      5      abc123def456\n';;
+  *) printf 'session sess-fork-789\nworkspace /tmp/ws-fork\n';;
+  esac;;
+submit) printf '{"kind":"session_start","n":0,"session":"sess-submit-999"}\n{"kind":"idle","session":"sess-submit-999"}\n';;
+inspect) echo '{"spec":"dev","model":"gemini-flash-latest","status":"waiting","usage":{"input_tokens":100,"output_tokens":50,"cache_read":10,"cache_write":0,"billed":140,"budget_reserved":0}}';;
 ps) printf 'task-1\tspawn_agent\trunning agent=worker task=explore\n';;
 attach) printf '{"kind":"idle","session":"%s"}\n' "$3"; sleep 3;;
 esac
@@ -211,6 +219,114 @@ func TestApproveArgs(t *testing.T) {
 	argv, _ := os.ReadFile(argvLog)
 	if got := strings.TrimSpace(string(argv)); got != "approve sess-abc-123 appr-1 deny 不行" {
 		t.Fatalf("argv=%q", got)
+	}
+}
+
+func TestBarrierParse(t *testing.T) {
+	s, argvLog := newTestServer(t)
+	code, body := doJSON(t, s, "POST", "/api/sessions/sess-abc-123/barrier", "")
+	if code != 200 {
+		t.Fatalf("code=%d body=%s", code, body)
+	}
+	var resp struct{ Barrier string }
+	if err := json.Unmarshal([]byte(body), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Barrier != "bar-m7" {
+		t.Fatalf("barrier=%q", resp.Barrier)
+	}
+	argv, _ := os.ReadFile(argvLog)
+	if got := strings.TrimSpace(string(argv)); got != "barrier sess-abc-123" {
+		t.Fatalf("argv=%q", got)
+	}
+}
+
+func TestBarriersListParse(t *testing.T) {
+	s, argvLog := newTestServer(t)
+	code, body := doJSON(t, s, "GET", "/api/sessions/sess-abc-123/barriers", "")
+	if code != 200 {
+		t.Fatalf("code=%d body=%s", code, body)
+	}
+	var bars []struct {
+		ID       string `json:"id"`
+		Turn     int    `json:"turn"`
+		Seq      int    `json:"seq"`
+		Snapshot string `json:"snapshot"`
+	}
+	if err := json.Unmarshal([]byte(body), &bars); err != nil {
+		t.Fatal(err)
+	}
+	if len(bars) != 1 || bars[0].ID != "bar-m5" || bars[0].Turn != 3 || bars[0].Seq != 5 || bars[0].Snapshot != "abc123def456" {
+		t.Fatalf("bars=%+v", bars)
+	}
+	argv, _ := os.ReadFile(argvLog)
+	if got := strings.TrimSpace(string(argv)); got != "fork sess-abc-123 --list" {
+		t.Fatalf("argv=%q", got)
+	}
+}
+
+func TestForkParse(t *testing.T) {
+	s, argvLog := newTestServer(t)
+	code, body := doJSON(t, s, "POST", "/api/sessions/sess-abc-123/fork", `{"barrier":"bar-m5"}`)
+	if code != 200 {
+		t.Fatalf("code=%d body=%s", code, body)
+	}
+	var resp struct{ Sid string }
+	if err := json.Unmarshal([]byte(body), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Sid != "sess-fork-789" {
+		t.Fatalf("sid=%q", resp.Sid)
+	}
+	argv, _ := os.ReadFile(argvLog)
+	if got := strings.TrimSpace(string(argv)); got != "fork sess-abc-123 bar-m5" {
+		t.Fatalf("argv=%q", got)
+	}
+}
+
+func TestForkRejectsBadBarrier(t *testing.T) {
+	s, _ := newTestServer(t)
+	code, _ := doJSON(t, s, "POST", "/api/sessions/sess-abc-123/fork", `{"barrier":"bad barrier!"}`)
+	if code != 400 {
+		t.Fatalf("code=%d, want 400", code)
+	}
+}
+
+func TestNewOneShotUsesSubmit(t *testing.T) {
+	s, argvLog := newTestServer(t)
+	ws := t.TempDir()
+	req := fmt.Sprintf(`{"spec":"name: dev\n","workspace":%q,"message":"do a task","oneshot":true}`, ws)
+	code, body := doJSON(t, s, "POST", "/api/sessions", req)
+	if code != 200 {
+		t.Fatalf("code=%d body=%s", code, body)
+	}
+	var resp struct{ Sid string }
+	if err := json.Unmarshal([]byte(body), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Sid != "sess-submit-999" {
+		t.Fatalf("sid=%q", resp.Sid)
+	}
+	argv, _ := os.ReadFile(argvLog)
+	line := strings.TrimSpace(string(argv))
+	// submit needs flags BEFORE positionals, and --json for the id sniff.
+	if !strings.Contains(line, "submit --json --workspace "+ws) || !strings.HasSuffix(line, "base.yaml do a task") {
+		t.Fatalf("argv=%q", line)
+	}
+}
+
+func TestNewTrustCallsTrustFirst(t *testing.T) {
+	s, argvLog := newTestServer(t)
+	ws := t.TempDir()
+	req := fmt.Sprintf(`{"spec":"name: dev\n","workspace":%q,"message":"hi","trust":true}`, ws)
+	code, body := doJSON(t, s, "POST", "/api/sessions", req)
+	if code != 200 {
+		t.Fatalf("code=%d body=%s", code, body)
+	}
+	argv, _ := os.ReadFile(argvLog)
+	lines := strings.Split(strings.TrimSpace(string(argv)), "\n")
+	if len(lines) < 2 || !strings.HasPrefix(lines[0], "trust "+ws) || !strings.HasPrefix(lines[1], "new --detach") {
+		t.Fatalf("argv lines=%v", lines)
 	}
 }
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -35,6 +36,9 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/sessions/{sid}/kill", s.handleKill)
 	mux.HandleFunc("POST /api/sessions/{sid}/approve", s.handleApprove)
 	mux.HandleFunc("POST /api/sessions/{sid}/agent", s.handleAgent)
+	mux.HandleFunc("POST /api/sessions/{sid}/barrier", s.handleBarrier)
+	mux.HandleFunc("GET /api/sessions/{sid}/barriers", s.handleBarriers)
+	mux.HandleFunc("POST /api/sessions/{sid}/fork", s.handleFork)
 	return mux
 }
 
@@ -187,6 +191,8 @@ func (s *server) handleNewSession(w http.ResponseWriter, r *http.Request) {
 		Workspace  string      `json:"workspace"`
 		Message    string      `json:"message"`
 		Mode       string      `json:"mode"`
+		Trust      bool        `json:"trust"`
+		Oneshot    bool        `json:"oneshot"`
 	}
 	if !readBody(w, r, &req) {
 		return
@@ -210,6 +216,27 @@ func (s *server) handleNewSession(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, err.Error())
 		return
 	}
+	// Opt-in trust (UJ-20): mark the workspace trusted before the run so
+	// project-layer hooks/settings take effect.
+	if req.Trust {
+		if res := s.runAR(r.Context(), 10*time.Second, "trust", ws); res.Err != nil {
+			arFail(w, "ar trust", res)
+			return
+		}
+	}
+	// One-shot (UJ-02/13): `ar submit` hands a run to the daemon and streams
+	// to completion. We read just the session id off the stream, then drop
+	// the streaming client — the run keeps going in the daemon, and the
+	// timeline poll renders it like any other session.
+	if req.Oneshot {
+		id, serr := s.startOneShot(specPath, ws, req.Mode, req.Message)
+		if serr != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "ar submit: " + serr.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"sid": id, "specDir": filepath.Dir(specPath), "workspace": ws})
+		return
+	}
 	// --detach: INC-2 made `ar new` follow the first turn and print the
 	// reply for humans; the cockpit is a programmatic consumer — it wants
 	// the ack-only form (stdout = session id) and reads the reply from the
@@ -230,6 +257,148 @@ func (s *server) handleNewSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"sid": id, "specDir": filepath.Dir(specPath), "workspace": ws})
+}
+
+// startOneShot spawns `ar submit --json` (which needs the daemon and requires
+// flags BEFORE positionals), reads the session id off the first streamed
+// event, then lets the run finish in the BACKGROUND. Unlike `new` (whose
+// conversational session stays resident once started), submit's run is bound
+// to the client connection — dropping the client cancels the run. So we keep
+// the process alive, detached from this HTTP request, draining its output so
+// the pipe never blocks; the timeline poll renders progress from the journal.
+// A generous cap reaps a hung run.
+func (s *server) startOneShot(specPath, ws, mode, task string) (string, error) {
+	args := []string{"submit", "--json", "--workspace", ws}
+	if mode != "" {
+		args = append(args, "--mode", mode)
+	}
+	args = append(args, specPath, task)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	cmd := exec.CommandContext(ctx, s.arPath, args...)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		cancel()
+		return "", err
+	}
+	var errb strings.Builder
+	cmd.Stderr = &errb
+	if err := cmd.Start(); err != nil {
+		cancel()
+		return "", err
+	}
+	sc := bufio.NewScanner(stdout)
+	sc.Buffer(make([]byte, 0, 64*1024), 1<<20)
+	sid := ""
+	for sc.Scan() {
+		var ev struct {
+			Session string `json:"session"`
+		}
+		if json.Unmarshal(sc.Bytes(), &ev) == nil && ev.Session != "" {
+			sid = ev.Session
+			break
+		}
+	}
+	if sid == "" {
+		cancel()
+		_ = cmd.Wait()
+		if e := strings.TrimSpace(errb.String()); e != "" {
+			return "", fmt.Errorf("no session id in stream: %s", e)
+		}
+		return "", fmt.Errorf("submit produced no session id")
+	}
+	go func() {
+		defer cancel()
+		_, _ = io.Copy(io.Discard, stdout) // keep the pipe drained so the run isn't blocked
+		_ = cmd.Wait()
+	}()
+	return sid, nil
+}
+
+// handleBarrier checkpoints the session (`ar barrier`). Note: barrier takes
+// the session's exclusive lock, so a daemon-hosted (live) session is refused
+// with "a live session cannot be barriered externally" — surfaced as-is.
+func (s *server) handleBarrier(w http.ResponseWriter, r *http.Request) {
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	res := s.runAR(r.Context(), oneShotTimeout, "barrier", id)
+	if res.Err != nil {
+		arFail(w, "ar barrier", res)
+		return
+	}
+	bid := ""
+	for _, line := range strings.Split(res.Stdout, "\n") {
+		if strings.HasPrefix(line, "barrier ") {
+			bid = strings.TrimSpace(strings.TrimPrefix(line, "barrier "))
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"barrier": bid})
+}
+
+// handleBarriers lists a session's barriers by parsing `ar fork <sid> --list`
+// (a fixed-width table, not JSON) into structured rows.
+func (s *server) handleBarriers(w http.ResponseWriter, r *http.Request) {
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	res := s.runAR(r.Context(), 15*time.Second, "fork", id, "--list")
+	if res.Err != nil {
+		arFail(w, "ar fork --list", res)
+		return
+	}
+	type bar struct {
+		ID       string `json:"id"`
+		Turn     int    `json:"turn"`
+		Seq      int    `json:"seq"`
+		Snapshot string `json:"snapshot"`
+	}
+	bars := []bar{}
+	for _, line := range strings.Split(res.Stdout, "\n") {
+		f := strings.Fields(line)
+		if len(f) < 3 || f[0] == "BARRIER" || strings.HasPrefix(line, "no barriers") {
+			continue
+		}
+		turn, _ := strconv.Atoi(f[1])
+		seq, _ := strconv.Atoi(f[2])
+		snap := ""
+		if len(f) > 3 {
+			snap = f[3]
+		}
+		bars = append(bars, bar{ID: f[0], Turn: turn, Seq: seq, Snapshot: snap})
+	}
+	writeJSON(w, http.StatusOK, bars)
+}
+
+// handleFork branches a session at a barrier into a new one (`ar fork`).
+func (s *server) handleFork(w http.ResponseWriter, r *http.Request) {
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Barrier string `json:"barrier"`
+	}
+	if !readBody(w, r, &req) {
+		return
+	}
+	if !validID(req.Barrier) {
+		badRequest(w, "invalid barrier id")
+		return
+	}
+	res := s.runAR(r.Context(), oneShotTimeout, "fork", id, req.Barrier)
+	if res.Err != nil {
+		arFail(w, "ar fork", res)
+		return
+	}
+	newid := ""
+	for _, line := range strings.Split(res.Stdout, "\n") {
+		if strings.HasPrefix(line, "session ") {
+			newid = strings.TrimSpace(strings.TrimPrefix(line, "session "))
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"sid": newid})
 }
 
 func (s *server) handleWorkspace(w http.ResponseWriter, r *http.Request) {
