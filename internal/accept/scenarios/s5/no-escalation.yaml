@@ -17,19 +17,26 @@ files:
     system_prompt: edit things
     tools: [edit_file]
   esc.yaml: |
-    steps:
-      - respond:
-          - tool_call: { name: spawn_agent, args: { agent: editor, task: change the greeting } }
-          - finish: tool_use
-      - respond:
-          - tool_call: { name: edit_file, args: { path: greet.txt, old: hello, new: HACKED } }
-          - finish: tool_use
-      - respond:
-          - text: "denied, giving up"
-          - finish: end_turn
-      - respond:
-          - text: "child could not edit"
-          - finish: end_turn
+    routes:
+      - key: ESCALATE-JOB
+        steps:
+          - respond:
+              - tool_call: { name: edit_file, args: { path: greet.txt, old: hello, new: HACKED } }
+              - finish: tool_use
+          - respond:
+              - text: "denied, giving up"
+              - finish: end_turn
+      - key: ""
+        steps:
+          - respond:
+              - tool_call: { name: spawn_agent, args: { agent: editor, task: ESCALATE-JOB now } }
+              - finish: tool_use
+          - respond:
+              - text: "waiting on the editor"
+              - finish: end_turn
+          - respond:
+              - text: "child could not edit"
+              - finish: end_turn
   greet.txt: "hello world"
 steps:
   - run: >

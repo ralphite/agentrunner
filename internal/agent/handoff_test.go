@@ -118,19 +118,37 @@ func TestHandoffFailureContinuesRun(t *testing.T) {
 // (and vice versa), reads land durably in each reader's own journal, and
 // the tools are advertised across the tree.
 func TestBlackboardCollaboration(t *testing.T) {
-	fix := scripted.Fixture{Steps: []scripted.Step{
+	// Routing by REQUEST SHAPE keeps the parent deterministic against
+	// settle timing: once the child's receipt (containing "acknowledged")
+	// is in the transcript, every later parent request matches that route
+	// and replays its own read-back script — whether or not a handle-ack
+	// turn ran in between.
+	parentMain := scripted.Fixture{Steps: []scripted.Step{
 		// Parent turn 1: publish a note.
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "p1", Name: "publish_note",
 				Args: map[string]any{"topic": "plan", "text": "focus on the API layer"}}},
 			{Finish: "tool_use"},
 		}},
-		// Parent turn 2: spawn the child.
+		// Parent turn 2: spawn the child (non-blocking, handle pairs now).
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
-				Args: map[string]any{"agent": "summarizer", "task": "read the plan and reply"}}},
+				Args: map[string]any{"agent": "summarizer", "task": "ACK-THE-PLAN please"}}},
 			{Finish: "tool_use"},
 		}},
+		// Handle-ack turn (only reached when the receipt has not landed yet).
+		{Respond: []scripted.Event{{Text: "waiting"}, {Finish: "end_turn"}}},
+	}}
+	afterReceipt := scripted.Fixture{Steps: []scripted.Step{
+		// Read the topic back — sees both notes.
+		{Respond: []scripted.Event{
+			{ToolCall: &scripted.ToolCallEvent{CallID: "p2", Name: "read_notes",
+				Args: map[string]any{"topic": "plan"}}},
+			{Finish: "tool_use"},
+		}},
+		{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
+	}}
+	childFix := scripted.Fixture{Steps: []scripted.Step{
 		// Child turn 1: read the notes, then publish its own.
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "c1", Name: "read_notes",
@@ -141,16 +159,10 @@ func TestBlackboardCollaboration(t *testing.T) {
 		}},
 		// Child turn 2: done.
 		{Respond: []scripted.Event{{Text: "acknowledged"}, {Finish: "end_turn"}}},
-		// Parent turn 3: read the topic back — sees both notes.
-		{Respond: []scripted.Event{
-			{ToolCall: &scripted.ToolCallEvent{CallID: "p2", Name: "read_notes",
-				Args: map[string]any{"topic": "plan"}}},
-			{Finish: "tool_use"},
-		}},
-		// Parent turn 4: done.
-		{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
 	}}
-	l, cap := spawnLoop(t, fix, t.TempDir())
+	l, cap := routedSpawnLoop(t, parentMain, t.TempDir(),
+		scripted.RoutePair{Key: "ACK-THE-PLAN", Fixture: childFix},
+		scripted.RoutePair{Key: "acknowledged", Fixture: afterReceipt})
 
 	res, err := l.Run(context.Background(), "coordinate")
 	if err != nil {

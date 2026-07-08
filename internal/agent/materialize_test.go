@@ -16,7 +16,7 @@ import (
 // input, and the child finds the MATERIALIZED file in its workspace — the
 // materialize activity journaled in the child's log before its first turn.
 func TestArtifactInputMaterializedForChild(t *testing.T) {
-	fix := scripted.Fixture{Steps: []scripted.Step{
+	parentFix := scripted.Fixture{Steps: []scripted.Step{
 		// Parent turn 1: publish the briefing.
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "a1", Name: "publish_artifact",
@@ -24,14 +24,19 @@ func TestArtifactInputMaterializedForChild(t *testing.T) {
 			{Finish: "tool_use"},
 		}},
 		// Parent turn 2: spawn with the ref as input. The ref is not known
-		// statically — the test rewrites this step after computing it, so
-		// instead the fixture uses a placeholder resolved below.
+		// statically — the test rewrites this step after computing it (the
+		// ToolCall pointer is shared with the provider's copy).
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
-				Args: map[string]any{"agent": "summarizer", "task": "read briefing.md and confirm",
+				Args: map[string]any{"agent": "summarizer", "task": "CONFIRM-BRIEFING now",
 					"inputs": []map[string]any{{"ref": "PLACEHOLDER", "path": "briefing.md"}}}}},
 			{Finish: "tool_use"},
 		}},
+		{Respond: []scripted.Event{{Text: "waiting"}, {Finish: "end_turn"}}},
+		// Parent: done.
+		{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
+	}}
+	childFix := scripted.Fixture{Steps: []scripted.Step{
 		// Child turn 1: read the materialized file.
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "c1", Name: "read_file",
@@ -39,14 +44,13 @@ func TestArtifactInputMaterializedForChild(t *testing.T) {
 			{Finish: "tool_use"},
 		}},
 		{Respond: []scripted.Event{{Text: "confirmed: auth module"}, {Finish: "end_turn"}}},
-		// Parent turn 3: done.
-		{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
 	}}
 
 	// Compute the ref the same way the store will (content-addressed), then
 	// patch the fixture — deterministic by CAS design.
 	root := t.TempDir()
-	l, _ := spawnLoop(t, fix, root)
+	l, _ := routedSpawnLoop(t, parentFix, root,
+		scripted.RoutePair{Key: "CONFIRM-BRIEFING", Fixture: childFix})
 	child := summarizerSpec()
 	child.Tools = []string{"read_file"}
 	l.SubSpecs = staticResolver(map[string]*AgentSpec{"summarizer": child})
@@ -58,7 +62,7 @@ func TestArtifactInputMaterializedForChild(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fix.Steps[1].Respond[0].ToolCall.Args["inputs"] = []map[string]any{
+	parentFix.Steps[1].Respond[0].ToolCall.Args["inputs"] = []map[string]any{
 		{"ref": ref, "path": "briefing.md"}}
 
 	res, err := l.Run(context.Background(), "brief then delegate")

@@ -117,13 +117,16 @@ func (l *Loop) resolveSpawnTargetFull(toolName string, rawArgs json.RawMessage) 
 	return args.Agent, args.Task, args.Inputs, spec, ""
 }
 
-// buildSpawnRun is the spawn activity's Run closure (S5.3). Everything that
+// buildHandoffRun is the HANDOFF activity's Run closure (S5.4): control
+// transfer runs the successor synchronously — the caller acts no more, so
+// there is nothing to parallelize. (spawn_agent is always non-blocking,
+// 零 legacy 2026-07-05: the blocking spawn path is gone.) Everything that
 // reads the fold (allowance, parent mode) is captured HERE, on the drive
 // goroutine; the closure itself runs on the activity goroutine and journals
 // only through the serialized appendE. The child is a fresh run in its own
-// journal under <parent>/sub/; per-attempt directories keep a retried spawn
-// from appending onto a dead child's log.
-func (l *Loop) buildSpawnRun(call provider.ToolCall, res *tool.Result,
+// journal under <parent>/sub/; per-attempt directories keep a retried
+// handoff from appending onto a dead child's log.
+func (l *Loop) buildHandoffRun(call provider.ToolCall, res *tool.Result,
 	appendE AppendFunc, allowance int, parentMode string) func(context.Context) (json.RawMessage, *provider.Usage, bool, error) {
 
 	attempt := 0
@@ -203,20 +206,6 @@ func (l *Loop) buildSpawnRun(call provider.ToolCall, res *tool.Result,
 	}
 }
 
-// isBackgroundSpawn reports a spawn_agent call asking for parallel launch
-// (v2 M3.1): spawn_agent with background:true. handoff_agent never qualifies
-// (control transfer is inherently terminal).
-func isBackgroundSpawn(name string, rawArgs json.RawMessage) bool {
-	if name != "spawn_agent" {
-		return false
-	}
-	var args struct {
-		Background bool `json:"background"`
-	}
-	_ = json.Unmarshal(rawArgs, &args)
-	return args.Background
-}
-
 // launchBackgroundSpawn starts a sub-agent in PARALLEL (v2 M3.1): it
 // journals SpawnRequested + ActivityStarted{Background} (the fold pairs the
 // call with a handle immediately), registers a cancel, and runs the child on
@@ -233,19 +222,22 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 		problem = call.Name + ": malformed call id"
 	}
 	if problem != "" {
-		// A resolve failure is the call's model-visible result, paired now.
+		// A resolve failure (bad args, off-whitelist target) is synchronous
+		// and model-visible NOW: it pairs the call as an error result — no
+		// handle, no background work ever starts.
 		payload, _ := json.Marshal(map[string]any{"error": problem})
 		activityID := "tool-" + call.CallID
 		if _, err := appendE(event.TypeActivityStarted, &event.ActivityStarted{
 			ActivityID: activityID, Kind: event.KindTool, Name: call.Name,
 			Args: redact.FromEnv().JSON(call.Args), CallID: call.CallID,
-			Attempt: 1, Background: true,
+			Attempt: 1,
 		}); err != nil {
 			return err
 		}
-		l.bg.done <- bgOutcome{taskID: call.CallID, activityID: activityID,
-			result: payload, isError: true}
-		return nil
+		_, err := appendE(event.TypeActivityCompleted, &event.ActivityCompleted{
+			ActivityID: activityID, Result: payload, IsError: true,
+		})
+		return err
 	}
 
 	childDir := filepath.Join(l.Store.Dir(), "sub", fmt.Sprintf("%s-a1", call.CallID))

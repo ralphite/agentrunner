@@ -60,8 +60,10 @@ func TestRecordAndReplayRoundTrip(t *testing.T) {
 	if !strings.Contains(text, "[REDACTED:FAKE_API_KEY]") {
 		t.Errorf("redaction marker missing: %q", text)
 	}
-	if err := replay.Done(); err != nil {
-		t.Error(err)
+	if d, ok := replay.(interface{ Done() error }); ok {
+		if err := d.Done(); err != nil {
+			t.Error(err)
+		}
 	}
 }
 

@@ -40,10 +40,27 @@ func staticResolver(specs map[string]*AgentSpec) SubSpecResolver {
 	}
 }
 
-// spawnLoop builds a parent loop whitelisting the summarizer. The scripted
-// fixture is SHARED between parent and child (same provider instance):
-// spawn blocks, so the step order is parent turn → child turns → parent turn.
+// spawnLoop builds a parent loop whitelisting the summarizer, serving one
+// sequential fixture — for scenarios where NO child actually runs (denied
+// or failing spawns) or where the successor is synchronous (handoff).
 func spawnLoop(t *testing.T, fix scripted.Fixture, root string) (*Loop, *capturingProvider) {
+	t.Helper()
+	return spawnLoopWith(t, &capturingProvider{inner: scripted.New(fix)}, root)
+}
+
+// routedSpawnLoop wires the parent and each child to its OWN fixture:
+// spawn is always non-blocking (零 legacy), so the scripts race — routing
+// keeps them deterministic (GAPS G4). The parent fixture is the fallback
+// route; give it spare zero-usage steps because how many turns run before
+// the child settles is real-concurrency timing.
+func routedSpawnLoop(t *testing.T, parentFix scripted.Fixture, root string,
+	childRoutes ...scripted.RoutePair) (*Loop, *capturingProvider) {
+	t.Helper()
+	pairs := append(childRoutes, scripted.RoutePair{Key: "", Fixture: parentFix})
+	return spawnLoopWith(t, &capturingProvider{inner: scripted.NewRouter(pairs...)}, root)
+}
+
+func spawnLoopWith(t *testing.T, cap *capturingProvider, root string) (*Loop, *capturingProvider) {
 	t.Helper()
 	ws, err := workspace.New(root)
 	if err != nil {
@@ -54,7 +71,6 @@ func spawnLoop(t *testing.T, fix scripted.Fixture, root string) (*Loop, *capturi
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = es.Close() })
-	cap := &capturingProvider{inner: scripted.New(fix)}
 	return &Loop{
 		Spec: &AgentSpec{
 			Name:               "lead",
@@ -77,31 +93,38 @@ func spawnLoop(t *testing.T, fix scripted.Fixture, root string) (*Loop, *capturi
 // report returns as the tool result, and the child's usage settles into the
 // parent's accounting.
 func TestSpawnEndToEnd(t *testing.T) {
-	fix := scripted.Fixture{Steps: []scripted.Step{
-		// Parent turn 1: spawn.
+	parentFix := scripted.Fixture{Steps: []scripted.Step{
+		// Parent turn 1: spawn — the handle pairs immediately.
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
 				Args: map[string]any{"agent": "summarizer", "task": "summarize the findings"}}},
 			{Usage: &scripted.UsageEvent{InputTokens: 30, OutputTokens: 10}},
 			{Finish: "tool_use"},
 		}},
-		// Child turn 1 (same provider, spawn blocks).
+		// Whether the receipt lands before or after the ack turn is timing;
+		// the LAST consumed parent step carries the wrap-up usage and the
+		// spares carry none, so the settled totals stay exact.
+		{Respond: []scripted.Event{{Text: "waiting for the report"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "done"},
+			{Usage: &scripted.UsageEvent{InputTokens: 8, OutputTokens: 2}}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "done"},
+			{Usage: &scripted.UsageEvent{InputTokens: 8, OutputTokens: 2}}, {Finish: "end_turn"}}},
+	}}
+	childFix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{Text: "REPORT: all systems nominal"},
 			{Usage: &scripted.UsageEvent{InputTokens: 20, OutputTokens: 5}},
 			{Finish: "end_turn"},
 		}},
-		// Parent turn 2.
-		{Respond: []scripted.Event{{Text: "done"},
-			{Usage: &scripted.UsageEvent{InputTokens: 8, OutputTokens: 2}}, {Finish: "end_turn"}}},
 	}}
-	l, cap := spawnLoop(t, fix, t.TempDir())
+	l, cap := routedSpawnLoop(t, parentFix, t.TempDir(),
+		scripted.RoutePair{Key: "summarize the findings", Fixture: childFix})
 
 	res, err := l.Run(context.Background(), "delegate the summary")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Reason != "completed" || res.GenSteps != 2 {
+	if res.Reason != "completed" || res.GenSteps < 2 {
 		t.Fatalf("res = %+v", res)
 	}
 
@@ -156,18 +179,32 @@ func TestSpawnEndToEnd(t *testing.T) {
 		t.Errorf("child fold = %+v", childFold.Session)
 	}
 
-	// The report reached the parent's fold as the tool result…
+	// The call paired with a handle at once; the report re-entered as a
+	// user-role message (决策 #27: 完成回执是父 inbox 输入).
 	fold, err := state.Fold(events)
 	if err != nil {
 		t.Fatal(err)
 	}
 	tr := fold.Conversation.ToolResults["s1"]
-	if tr.IsError || !strings.Contains(string(tr.Result), "all systems nominal") {
-		t.Errorf("spawn result = %+v", tr)
+	if tr.IsError || !strings.Contains(string(tr.Result), "running") {
+		t.Errorf("spawn handle = %+v", tr)
 	}
-	// …and the child's usage settled into the parent's accounting.
-	if got := fold.Session.Usage.InputTokens; got != 30+20+8 {
-		t.Errorf("parent settled input = %d, want 58 (own 38 + child 20)", got)
+	var sawReport bool
+	for _, m := range fold.Conversation.Messages {
+		for _, part := range m.Parts {
+			if strings.Contains(part.Text, "all systems nominal") {
+				sawReport = true
+			}
+		}
+	}
+	if !sawReport {
+		t.Error("child report never re-entered the parent conversation")
+	}
+	// …and the child's usage settled into the parent's accounting: spawn
+	// turn 30 + child 20, plus 8 per wrap-up turn (turn count is settle
+	// timing, the CHILD's 20 must be in regardless).
+	if got := fold.Session.Usage.InputTokens; got < 50 || (got-50)%8 != 0 {
+		t.Errorf("parent settled input = %d, want 50 + n×8 (child spend settled)", got)
 	}
 	if fold.Budget.ReservedTotal() != 0 {
 		t.Errorf("spawn reservation not released: %d", fold.Budget.ReservedTotal())
@@ -181,22 +218,26 @@ func TestSpawnChildCannotEscalatePermissions(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "greet.txt"), []byte("hello"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	fix := scripted.Fixture{Steps: []scripted.Step{
+	parentFix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
 				Args: map[string]any{"agent": "summarizer", "task": "edit the file"}}},
 			{Finish: "tool_use"},
 		}},
-		// Child tries the edit the PARENT's rule denies.
+		{Respond: []scripted.Event{{Text: "waiting"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
+	}}
+	// Child tries the edit the PARENT's rule denies.
+	childFix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "c1", Name: "edit_file",
 				Args: map[string]any{"path": "greet.txt", "old": "hello", "new": "HACKED"}}},
 			{Finish: "tool_use"},
 		}},
 		{Respond: []scripted.Event{{Text: "could not edit"}, {Finish: "end_turn"}}},
-		{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
 	}}
-	l, _ := spawnLoop(t, fix, root)
+	l, _ := routedSpawnLoop(t, parentFix, root,
+		scripted.RoutePair{Key: "edit the file", Fixture: childFix})
 	ws := l.Exec.WS
 	l.Pipeline = &pipeline.Pipeline{Gates: []pipeline.Gate{
 		&pipeline.SpawnGate{},
@@ -236,16 +277,20 @@ func TestSpawnChildCannotEscalatePermissions(t *testing.T) {
 // the parent process's gate pointers.
 func TestSpawnMaterializesPermissionLayers(t *testing.T) {
 	root := t.TempDir()
-	fix := scripted.Fixture{Steps: []scripted.Step{
+	parentFix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
 				Args: map[string]any{"agent": "summarizer", "task": "small job"}}},
 			{Finish: "tool_use"},
 		}},
-		{Respond: []scripted.Event{{Text: "child done"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "waiting"}, {Finish: "end_turn"}}},
 		{Respond: []scripted.Event{{Text: "all done"}, {Finish: "end_turn"}}},
 	}}
-	l, _ := spawnLoop(t, fix, root)
+	childFix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: "child done"}, {Finish: "end_turn"}}},
+	}}
+	l, _ := routedSpawnLoop(t, parentFix, root,
+		scripted.RoutePair{Key: "small job", Fixture: childFix})
 	ws := l.Exec.WS
 	parentRules := []pipeline.PermissionRule{
 		{Tool: "edit_file", Action: "deny"},
@@ -339,16 +384,20 @@ func TestSpawnModeNonWidening(t *testing.T) {
 	})
 
 	t.Run("child spec cannot widen mode", func(t *testing.T) {
-		fix := scripted.Fixture{Steps: []scripted.Step{
+		parentFix := scripted.Fixture{Steps: []scripted.Step{
 			{Respond: []scripted.Event{
 				{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
-					Args: map[string]any{"agent": "summarizer", "task": "report"}}},
+					Args: map[string]any{"agent": "summarizer", "task": "WIDEN-JOB: write it up"}}},
 				{Finish: "tool_use"},
 			}},
-			{Respond: []scripted.Event{{Text: "report"}, {Finish: "end_turn"}}},
+			{Respond: []scripted.Event{{Text: "waiting"}, {Finish: "end_turn"}}},
 			{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
 		}}
-		l, _ := spawnLoop(t, fix, t.TempDir())
+		childFix := scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{{Text: "written up"}, {Finish: "end_turn"}}},
+		}}
+		l, _ := routedSpawnLoop(t, parentFix, t.TempDir(),
+			scripted.RoutePair{Key: "WIDEN-JOB", Fixture: childFix})
 		child := summarizerSpec()
 		child.Mode = pipeline.ModeBypass // the child spec TRIES to widen
 		l.SubSpecs = staticResolver(map[string]*AgentSpec{"summarizer": child})
@@ -373,22 +422,28 @@ func TestSpawnModeNonWidening(t *testing.T) {
 // front, so the parent's budget can never be double-committed by a spawn —
 // and the whole tree's settled+reserved never exceeds the parent cap.
 func TestSpawnBudgetMinAggregation(t *testing.T) {
-	fix := scripted.Fixture{Steps: []scripted.Step{
+	parentFix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
 				Args: map[string]any{"agent": "summarizer", "task": "small job"}}},
 			{Usage: &scripted.UsageEvent{InputTokens: 60, OutputTokens: 40}},
 			{Finish: "tool_use"},
 		}},
+		{Respond: []scripted.Event{{Text: "waiting"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "done"},
+			{Usage: &scripted.UsageEvent{InputTokens: 10, OutputTokens: 5}}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "done"},
+			{Usage: &scripted.UsageEvent{InputTokens: 10, OutputTokens: 5}}, {Finish: "end_turn"}}},
+	}}
+	childFix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{Text: "tiny report"},
 			{Usage: &scripted.UsageEvent{InputTokens: 30, OutputTokens: 20}},
 			{Finish: "end_turn"},
 		}},
-		{Respond: []scripted.Event{{Text: "done"},
-			{Usage: &scripted.UsageEvent{InputTokens: 10, OutputTokens: 5}}, {Finish: "end_turn"}}},
 	}}
-	l, _ := spawnLoop(t, fix, t.TempDir())
+	l, _ := routedSpawnLoop(t, parentFix, t.TempDir(),
+		scripted.RoutePair{Key: "small job", Fixture: childFix})
 	l.Spec.Budget.MaxTotalTokens = 5000
 	l.Pipeline = &pipeline.Pipeline{Gates: []pipeline.Gate{
 		&pipeline.SpawnGate{},
@@ -413,9 +468,11 @@ func TestSpawnBudgetMinAggregation(t *testing.T) {
 			t.Fatalf("tree budget punctured: %d > 5000 after %s", peak, e.Type)
 		}
 	}
-	// Final settled = parent own (100 + 15) + child (50).
-	if got := s.Session.Usage.Billed(); got != 165 {
-		t.Errorf("settled = %d, want 165", got)
+	// Final settled = parent spawn turn (100) + child (50) + 15 per
+	// wrap-up turn (turn count is settle timing; the child's 50 is in
+	// regardless, and the invariant above already proved the cap held).
+	if got := s.Session.Usage.Billed(); got < 150 || (got-150)%15 != 0 {
+		t.Errorf("settled = %d, want 150 + n×15", got)
 	}
 	// The journaled allowance was the min aggregation: parent remaining
 	// (5000 − 100 settled) since the child spec is unlimited.
@@ -463,7 +520,7 @@ func TestSpawnDepthAndFanoutCaps(t *testing.T) {
 	})
 
 	t.Run("fanout in one batch", func(t *testing.T) {
-		fix := scripted.Fixture{Steps: []scripted.Step{
+		parentFix := scripted.Fixture{Steps: []scripted.Step{
 			{Respond: []scripted.Event{
 				{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
 					Args: map[string]any{"agent": "summarizer", "task": "job one"}}},
@@ -471,11 +528,15 @@ func TestSpawnDepthAndFanoutCaps(t *testing.T) {
 					Args: map[string]any{"agent": "summarizer", "task": "job two"}}},
 				{Finish: "tool_use"},
 			}},
-			// Only ONE child runs (the second spawn is denied at adjudication).
-			{Respond: []scripted.Event{{Text: "only child"}, {Finish: "end_turn"}}},
+			{Respond: []scripted.Event{{Text: "waiting"}, {Finish: "end_turn"}}},
 			{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
 		}}
-		l, _ := spawnLoop(t, fix, t.TempDir())
+		// Only ONE child runs (the second spawn is denied at adjudication).
+		childFix := scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{{Text: "only child"}, {Finish: "end_turn"}}},
+		}}
+		l, _ := routedSpawnLoop(t, parentFix, t.TempDir(),
+			scripted.RoutePair{Key: "job one", Fixture: childFix})
 		l.Pipeline = &pipeline.Pipeline{Gates: []pipeline.Gate{&pipeline.SpawnGate{MaxSpawns: 1}}}
 		if _, err := l.Run(context.Background(), "go"); err != nil {
 			t.Fatal(err)

@@ -1,6 +1,6 @@
 {
   "name": "spawn_agent",
-  "description": "Spawn a sub-agent from the available agents directory to work on a delegated task. By default blocks until the sub-agent finishes and returns its final report. Set background:true to launch it in parallel and get a handle immediately — its result arrives later as a message, and you can cancel it with task_kill (pass the handle). Sub-agents run under your permission rules and share your token budget.",
+  "description": "Spawn a sub-agent from the available agents directory to work on a delegated task. Always non-blocking: returns a handle immediately while the sub-agent runs in parallel; its result arrives later as a message, and you can cancel it with task_kill (pass the handle). Sub-agents run under your permission rules and share your token budget.",
   "class": "execute",
   "input_schema": {
     "type": "object",
@@ -12,10 +12,6 @@
       "task": {
         "type": "string",
         "description": "The task for the sub-agent to perform."
-      },
-      "background": {
-        "type": "boolean",
-        "description": "Launch in parallel and return a handle immediately (default false = block until done). The result arrives later as a message."
       },
       "inputs": {
         "type": "array",
@@ -32,10 +28,16 @@
               "description": "Workspace-relative destination path."
             }
           },
-          "required": ["ref", "path"]
+          "required": [
+            "ref",
+            "path"
+          ]
         }
       }
     },
-    "required": ["agent", "task"]
+    "required": [
+      "agent",
+      "task"
+    ]
   }
 }

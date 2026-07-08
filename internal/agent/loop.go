@@ -1159,11 +1159,11 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 			}
 			continue
 		}
-		if isBackgroundSpawn(p.call.Name, p.call.Args) {
-			// Parallel sub-agent (v2 M3.1): launch detached, the handle pairs
-			// the call now, the report re-enters as a message later. ctx is the
-			// RUN's — a parent cancel reaches the child; the batch interrupt
-			// scope does not.
+		if p.call.Name == "spawn_agent" {
+			// spawn is ALWAYS non-blocking (零 legacy 2026-07-05): launch
+			// detached, the handle pairs the call now, the report re-enters
+			// as a message later. ctx is the RUN's — a parent cancel reaches
+			// the child; the batch interrupt scope does not.
 			if err := l.launchBackgroundSpawn(ctx, serialAppend, p.call, p.allowance, parentMode); err != nil {
 				stopInt()
 				return abort(act.turn, err)
@@ -1175,8 +1175,8 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 			continue
 		}
 		run := l.buildToolRun(p.call, p.res)
-		if isAgentLaunch(p.call.Name) {
-			run = l.buildSpawnRun(p.call, p.res, serialAppend, p.allowance, parentMode)
+		if p.call.Name == "handoff_agent" {
+			run = l.buildHandoffRun(p.call, p.res, serialAppend, p.allowance, parentMode)
 		}
 		if p.call.Name == "publish_artifact" {
 			run = l.buildPublishRun(p.call, p.res, serialAppend)
@@ -1340,12 +1340,13 @@ func decide(s state.State, maxTurns int) action {
 	}
 	turn := s.Session.GenStep
 	// A truncated turn never continues by itself (决策 #30 可见截断): only
-	// fresh input restarts work — and only after a generation-step
-	// truncation, whose baseline reset grants the new turn its budget. A
-	// tokens/malformed truncation idles even over pending input; the next
-	// wake re-runs the gate visibly.
+	// input that arrived after the truncation restarts it — one attempt per
+	// wake, so a tokens truncation re-runs the gate when a reservation may
+	// have settled, and a malformed-model session never hot-loops. The
+	// queued-input generation_steps case restarts too: its baseline reset
+	// granted the fresh budget.
 	if turn > 0 && s.Session.TruncatedAtGenStep == turn {
-		if hasInputAfterLastAssistant(s) && s.Session.TruncatedKind == "generation_steps" {
+		if state.TruncationRestartable(s) {
 			return action{kind: doTurn, turn: turn + 1}
 		}
 		return action{kind: doIdle, turn: turn}

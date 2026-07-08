@@ -139,18 +139,22 @@ func TestOutputsMissingRequiredViolatesContract(t *testing.T) {
 // S5.6: a contract-violating CHILD renders as the parent's error result —
 // the parent's loop continues and reacts.
 func TestOutputsChildViolationIsParentError(t *testing.T) {
-	fix := scripted.Fixture{Steps: []scripted.Step{
+	parentFix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
 				Args: map[string]any{"agent": "summarizer", "task": "produce the report"}}},
 			{Finish: "tool_use"},
 		}},
-		// Child ends without its required output.
-		{Respond: []scripted.Event{{Text: "did some thinking, no file"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "waiting"}, {Finish: "end_turn"}}},
 		// Parent reacts to the error result and completes.
 		{Respond: []scripted.Event{{Text: "delegation failed, wrapping up"}, {Finish: "end_turn"}}},
 	}}
-	l, _ := spawnLoop(t, fix, t.TempDir())
+	// Child ends without its required output.
+	childFix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: "did some thinking, no file"}, {Finish: "end_turn"}}},
+	}}
+	l, _ := routedSpawnLoop(t, parentFix, t.TempDir(),
+		scripted.RoutePair{Key: "produce the report", Fixture: childFix})
 	child := summarizerSpec()
 	child.Outputs = []OutputSpec{{Name: "report", Path: "report.md", Required: true}}
 	l.SubSpecs = staticResolver(map[string]*AgentSpec{"summarizer": child})
@@ -167,9 +171,16 @@ func TestOutputsChildViolationIsParentError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tr := fold.Conversation.ToolResults["s1"]
-	if !tr.IsError || !strings.Contains(string(tr.Result), "contract_violation") {
-		t.Errorf("spawn result = %+v, want error carrying contract_violation", tr)
+	var sawViolation bool
+	for _, m := range fold.Conversation.Messages {
+		for _, part := range m.Parts {
+			if strings.Contains(part.Text, "contract_violation") {
+				sawViolation = true
+			}
+		}
+	}
+	if !sawViolation {
+		t.Error("contract_violation never reached the parent conversation")
 	}
 	// The child's own journal folds quiescent — the downgrade is the
 	// PARENT-side receipt's reason, never a child journal fact (决策 #31).

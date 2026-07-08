@@ -71,13 +71,17 @@ func TestArtifactStoreRepublishSameContentDedups(t *testing.T) {
 // S5 review P1: a FAILED child's real spend settles into the parent — the
 // tree budget cannot be punctured through the failure path.
 func TestSpawnFailedChildUsageSettles(t *testing.T) {
-	fix := scripted.Fixture{Steps: []scripted.Step{
+	parentFix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
 				Args: map[string]any{"agent": "summarizer", "task": "burn and die"}}},
 			{Usage: &scripted.UsageEvent{InputTokens: 10, OutputTokens: 5}},
 			{Finish: "tool_use"},
 		}},
+		{Respond: []scripted.Event{{Text: "waiting"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "parent reacts to the failure"}, {Finish: "end_turn"}}},
+	}}
+	childFix := scripted.Fixture{Steps: []scripted.Step{
 		// Child turn 1 spends real tokens…
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "c1", Name: "read_file",
@@ -91,9 +95,9 @@ func TestSpawnFailedChildUsageSettles(t *testing.T) {
 			Expect:  scripted.Expect{LastMessageContains: "IMPOSSIBLE-SENTINEL"},
 			Respond: []scripted.Event{{Text: "never served"}, {Finish: "end_turn"}},
 		},
-		{Respond: []scripted.Event{{Text: "parent reacts to the failure"}, {Finish: "end_turn"}}},
 	}}
-	l, _ := spawnLoop(t, fix, t.TempDir())
+	l, _ := routedSpawnLoop(t, parentFix, t.TempDir(),
+		scripted.RoutePair{Key: "burn and die", Fixture: childFix})
 
 	res, err := l.Run(context.Background(), "go")
 	if err != nil {
@@ -107,11 +111,19 @@ func TestSpawnFailedChildUsageSettles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tr := fold.Conversation.ToolResults["s1"]
-	if !tr.IsError || !strings.Contains(string(tr.Result), "failed") {
-		t.Fatalf("spawn result = %+v", tr)
+	var sawFailure bool
+	for _, m := range fold.Conversation.Messages {
+		for _, part := range m.Parts {
+			if strings.Contains(part.Text, `"reason":"error"`) || strings.Contains(part.Text, "failed") {
+				sawFailure = true
+			}
+		}
 	}
-	// Parent settled its own 15 + the dead child's 600.
+	if !sawFailure {
+		t.Fatal("child failure never reached the parent conversation")
+	}
+	// Parent settled its own 15 + the dead child's 600 (wrap-up turns carry
+	// zero usage, so the child's spend is the whole variable part).
 	if got := fold.Session.Usage.InputTokens + fold.Session.Usage.OutputTokens; got != 15+600 {
 		t.Errorf("settled = %d, want 615 (failed child's spend must count)", got)
 	}
@@ -167,16 +179,20 @@ func TestHandoffExclusiveInBatch(t *testing.T) {
 // S5 review: a child spec MAY be narrower than the parent (plan child under
 // a default parent stays in plan mode).
 func TestSpawnChildNarrowerModeKept(t *testing.T) {
-	fix := scripted.Fixture{Steps: []scripted.Step{
+	parentFix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
 				Args: map[string]any{"agent": "summarizer", "task": "plan only"}}},
 			{Finish: "tool_use"},
 		}},
-		{Respond: []scripted.Event{{Text: "planned"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "waiting"}, {Finish: "end_turn"}}},
 		{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
 	}}
-	l, _ := spawnLoop(t, fix, t.TempDir())
+	childFix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: "planned"}, {Finish: "end_turn"}}},
+	}}
+	l, _ := routedSpawnLoop(t, parentFix, t.TempDir(),
+		scripted.RoutePair{Key: "plan only", Fixture: childFix})
 	child := summarizerSpec()
 	child.Mode = pipeline.ModePlan // narrower than the parent's default
 	l.SubSpecs = staticResolver(map[string]*AgentSpec{"summarizer": child})
@@ -197,16 +213,17 @@ func TestSpawnChildNarrowerModeKept(t *testing.T) {
 // S5 review P1: materialize passes the pipeline — a path-scoped deny rule
 // binds an artifact-input write exactly like an edit_file.
 func TestMaterializeDeniedByPathRule(t *testing.T) {
-	fix := scripted.Fixture{Steps: []scripted.Step{
+	parentFix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
-				Args: map[string]any{"agent": "summarizer", "task": "go",
+				Args: map[string]any{"agent": "summarizer", "task": "MATERIALIZE-JOB start",
 					"inputs": []map[string]any{{"ref": "REF", "path": ".github/workflows/x.yml"}}}}},
 			{Finish: "tool_use"},
 		}},
 		{Respond: []scripted.Event{{Text: "spawn failed, fine"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "spawn failed, fine"}, {Finish: "end_turn"}}},
 	}}
-	l, _ := spawnLoop(t, fix, t.TempDir())
+	l, _ := routedSpawnLoop(t, parentFix, t.TempDir())
 	if err := l.ensureArtifacts(); err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +231,7 @@ func TestMaterializeDeniedByPathRule(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fix.Steps[0].Respond[0].ToolCall.Args["inputs"] = []map[string]any{
+	parentFix.Steps[0].Respond[0].ToolCall.Args["inputs"] = []map[string]any{
 		{"ref": ref, "path": ".github/workflows/x.yml"}}
 	l.Pipeline = &pipeline.Pipeline{Gates: []pipeline.Gate{
 		&pipeline.SpawnGate{},
@@ -233,8 +250,15 @@ func TestMaterializeDeniedByPathRule(t *testing.T) {
 	}
 	events, _ := store.ReadEvents(l.Store.Dir())
 	fold, _ := state.Fold(events)
-	tr := fold.Conversation.ToolResults["s1"]
-	if !tr.IsError || !strings.Contains(string(tr.Result), "failed") {
-		t.Errorf("spawn with denied materialize = %+v, want error result", tr)
+	var sawFailed bool
+	for _, m := range fold.Conversation.Messages {
+		for _, part := range m.Parts {
+			if strings.Contains(part.Text, `"reason":"error"`) {
+				sawFailed = true
+			}
+		}
+	}
+	if !sawFailed {
+		t.Error("denied materialize never surfaced as a failed-child message")
 	}
 }

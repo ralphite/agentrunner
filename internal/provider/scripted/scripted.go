@@ -72,17 +72,41 @@ type Provider struct {
 	next int
 }
 
-// Load reads a fixture file into a Provider.
-func Load(path string) (*Provider, error) {
+// routedFixture is the YAML shape of a fixture file: either a flat step
+// sequence, or (for concurrent multi-agent scenarios, GAPS G4) a set of
+// keyed routes — each agent replays its OWN independent script, so parallel
+// children stay deterministic. Exactly one of steps/routes may be set.
+type routedFixture struct {
+	Steps  []Step `yaml:"steps,omitempty"`
+	Routes []struct {
+		Key   string `yaml:"key"`
+		Steps []Step `yaml:"steps"`
+	} `yaml:"routes,omitempty"`
+}
+
+// Load reads a fixture file into a provider: a sequential Provider for a
+// flat steps file, a Router when the file declares routes.
+func Load(path string) (provider.Provider, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("fixture %s: %w", path, err)
 	}
-	var f Fixture
+	var f routedFixture
 	if err := yaml.Unmarshal(raw, &f); err != nil {
 		return nil, fmt.Errorf("fixture %s: %v", path, err)
 	}
-	return &Provider{fixture: f, source: path}, nil
+	if len(f.Routes) > 0 {
+		if len(f.Steps) > 0 {
+			return nil, fmt.Errorf("fixture %s: steps and routes are mutually exclusive", path)
+		}
+		r := &Router{}
+		for _, rt := range f.Routes {
+			r.Routes = append(r.Routes, Route{Key: rt.Key,
+				P: &Provider{fixture: Fixture{Steps: rt.Steps}, source: path + "#" + rt.Key}})
+		}
+		return r, nil
+	}
+	return &Provider{fixture: Fixture{Steps: f.Steps}, source: path}, nil
 }
 
 // New builds a Provider from an in-memory fixture (hand-authored unit cases).

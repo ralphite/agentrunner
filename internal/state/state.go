@@ -212,8 +212,13 @@ type Session struct {
 	// TruncatedAtGenStep/TruncatedKind record a budget truncation at this
 	// gen step (决策 #30 可见截断): the turn ended by LimitExceeded, so the
 	// resolved-calls shape at this step counts as finished (Quiescence).
+	// TruncatedMsgCount pins the transcript length at the truncation:
+	// messages beyond it arrived AFTER — the only inputs that lawfully
+	// restart a truncated session (plus the queued-input generation_steps
+	// case, whose baseline reset grants the fresh budget).
 	TruncatedAtGenStep int            `json:"truncated_at_gen_step,omitempty"`
 	TruncatedKind      string         `json:"truncated_kind,omitempty"`
+	TruncatedMsgCount  int            `json:"truncated_msg_count,omitempty"`
 	Usage              provider.Usage `json:"usage"`
 	LastCrash          string         `json:"last_crash,omitempty"`
 	// MalformedRetries counts consecutive malformed_tool_call finishes on the
@@ -353,6 +358,7 @@ func Apply(s State, env event.Envelope) (State, error) {
 		s.Session.Closed = nil
 		s.Session.TruncatedAtGenStep = 0
 		s.Session.TruncatedKind = ""
+		s.Session.TruncatedMsgCount = 0
 		s.Session.MalformedRetries = 0
 
 	case *event.AssistantMessage:
@@ -363,6 +369,7 @@ func Apply(s State, env event.Envelope) (State, error) {
 			// (决策 #30): the session will idle rather than continue.
 			s.Session.TruncatedAtGenStep = s.Session.GenStep
 			s.Session.TruncatedKind = p.Finish
+			s.Session.TruncatedMsgCount = len(s.Conversation.Messages)
 		}
 
 	case *event.MalformedToolCall:
@@ -579,6 +586,7 @@ func Apply(s State, env event.Envelope) (State, error) {
 		// starts a fresh turn instead of wedging against the spent budget.
 		s.Session.TruncatedAtGenStep = s.Session.GenStep
 		s.Session.TruncatedKind = p.Kind
+		s.Session.TruncatedMsgCount = len(s.Conversation.Messages)
 		if p.Kind == "generation_steps" {
 			s.Session.LastInputGenStep = s.Session.GenStep
 		}
@@ -828,13 +836,13 @@ func Quiescence(s State) (quiescent bool, reason string) {
 		}
 		return true, s.Session.Closed.Reason
 	}
-	pendingInput := hasInputAfterLastAssistant(s)
 	// A visible truncation finishes the turn regardless of message shape
-	// (决策 #30); it mirrors decide(): only a generation-step truncation
-	// with queued input runs again (fresh budget) — everything else idles.
+	// (决策 #30). It restarts only on input that would actually run —
+	// TruncationRestartable mirrors decide(); otherwise the session is
+	// quiescent under the truncation's name.
 	if s.Session.TruncatedAtGenStep > 0 && s.Session.TruncatedAtGenStep == s.Session.GenStep {
-		if pendingInput && s.Session.TruncatedKind == "generation_steps" {
-			return false, "" // the queued input starts a fresh turn
+		if TruncationRestartable(s) {
+			return false, ""
 		}
 		switch s.Session.TruncatedKind {
 		case "generation_steps":
@@ -845,7 +853,7 @@ func Quiescence(s State) (quiescent bool, reason string) {
 			return true, s.Session.TruncatedKind
 		}
 	}
-	if pendingInput {
+	if hasInputAfterLastAssistant(s) {
 		return false, "" // pending input: a turn is owed
 	}
 	msgs := s.Conversation.Messages
@@ -880,6 +888,22 @@ func Quiescence(s State) (quiescent bool, reason string) {
 		return true, "handoff" // control moved on; this agent acts no more
 	}
 	return false, "" // resolved calls owe the model a next generation step
+}
+
+// TruncationRestartable reports whether a truncated session (决策 #30 可见
+// 截断) has input that lawfully restarts it: any message that arrived
+// AFTER the truncation (a settlement or a fresh send — one attempt per
+// wake, so a broken model never hot-loops), or a queued-before-truncation
+// input under a generation_steps truncation, whose baseline reset grants
+// the fresh budget.
+func TruncationRestartable(s State) bool {
+	if len(s.Conversation.Messages) > s.Session.TruncatedMsgCount {
+		return true
+	}
+	if s.Session.TruncatedKind != "generation_steps" {
+		return false
+	}
+	return hasInputAfterLastAssistant(s) && len(s.Conversation.Messages) > 0
 }
 
 // hasInputAfterLastAssistant reports a user-role message newer than the

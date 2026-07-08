@@ -170,22 +170,26 @@ func helperArtifactCrashRun() {
 
 // S5.5: children publish into the ROOT's store — refs resolve tree-wide.
 func TestArtifactStoreTreeShared(t *testing.T) {
-	fix := scripted.Fixture{Steps: []scripted.Step{
+	parentFix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
-				Args: map[string]any{"agent": "summarizer", "task": "publish your report"}}},
+				Args: map[string]any{"agent": "summarizer", "task": "PUBLISH-JOB now"}}},
 			{Finish: "tool_use"},
 		}},
-		// Child publishes.
+		{Respond: []scripted.Event{{Text: "waiting"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
+	}}
+	// Child publishes.
+	childFix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "c1", Name: "publish_artifact",
 				Args: map[string]any{"stream": "child-report", "content": "from the child"}}},
 			{Finish: "tool_use"},
 		}},
 		{Respond: []scripted.Event{{Text: "published"}, {Finish: "end_turn"}}},
-		{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
 	}}
-	l, _ := spawnLoop(t, fix, t.TempDir())
+	l, _ := routedSpawnLoop(t, parentFix, t.TempDir(),
+		scripted.RoutePair{Key: "PUBLISH-JOB", Fixture: childFix})
 	child := summarizerSpec()
 	child.Tools = append(child.Tools, "publish_artifact")
 	l.SubSpecs = staticResolver(map[string]*AgentSpec{"summarizer": child})

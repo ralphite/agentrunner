@@ -85,8 +85,10 @@ func TestFixFailingTestEndToEnd(t *testing.T) {
 	if res.Reason != "completed" || res.GenSteps != 4 {
 		t.Errorf("result = %+v", res)
 	}
-	if err := prov.Done(); err != nil {
-		t.Error(err)
+	if d, ok := prov.(interface{ Done() error }); ok {
+		if err := d.Done(); err != nil {
+			t.Error(err)
+		}
 	}
 
 	// The fix landed…

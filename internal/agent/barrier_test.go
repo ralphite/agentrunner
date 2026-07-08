@@ -177,32 +177,36 @@ func TestBarrierRecordsLiveTasks(t *testing.T) {
 // barriers pin the child journal's final seq under its sub/ path.
 func TestBarrierVectorIncludesChildStreams(t *testing.T) {
 	root := t.TempDir()
-	fix := scripted.Fixture{Steps: []scripted.Step{
+	parentFix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
-				Args: map[string]any{"agent": "summarizer", "task": "summarize"}}},
+				Args: map[string]any{"agent": "summarizer", "task": "PIN-THE-VECTOR job"}}},
 			{Finish: "tool_use"},
 		}},
-		{Respond: []scripted.Event{{Text: "REPORT: ok"}, {Finish: "end_turn"}}}, // child
-		{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},       // parent t2
+		{Respond: []scripted.Event{{Text: "waiting"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
 	}}
-	l, _ := spawnLoop(t, fix, root)
+	childFix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: "REPORT: ok"}, {Finish: "end_turn"}}},
+	}}
+	l, _ := routedSpawnLoop(t, parentFix, root,
+		scripted.RoutePair{Key: "PIN-THE-VECTOR", Fixture: childFix})
 	withShadowRepo(t, l, root)
 
 	if _, err := l.Run(context.Background(), "delegate"); err != nil {
 		t.Fatal(err)
 	}
 	barriers := decodedBarriers(t, l.Store.Dir())
-	if len(barriers) != 3 {
-		t.Fatalf("barriers = %d, want 3", len(barriers))
+	if len(barriers) < 3 {
+		t.Fatalf("barriers = %d, want >= 3", len(barriers))
 	}
-	// bar-t1 predates the spawn: self only.
+	// bar-t1 predates the spawn: self only. When exactly the receipt lands
+	// is settle timing; the QUIESCENT barrier must pin the child stream.
 	if _, ok := barriers[0].Vector["sub/s1-a1"]; ok {
 		t.Error("bar-t1 already has the child stream")
 	}
-	for _, b := range barriers[1:] {
-		if b.Vector["sub/s1-a1"] <= 0 {
-			t.Errorf("%s vector = %+v, want sub/s1-a1 pinned", b.BarrierID, b.Vector)
-		}
+	final := barriers[len(barriers)-1]
+	if final.Vector["sub/s1-a1"] <= 0 {
+		t.Errorf("quiescent barrier vector = %+v, want sub/s1-a1 pinned", final.Vector)
 	}
 }

@@ -23,29 +23,47 @@ files:
     model: { provider: scripted, id: x, max_tokens: 100 }
     system_prompt: review
     tools: [bash]
+  # spawn 一律非阻塞(零 legacy):route 按请求形态分流——lead 主线、
+  # 两个子各自脚本、每份子回执入史后的 lead 后续段。
   fleet.yaml: |
-    steps:
-      - respond:
-          - tool_call: { name: spawn_agent, args: { agent: researcher, task: dig in } }
-          - finish: tool_use
-      - respond:
-          - tool_call: { name: bash, args: { command: "echo finding-A > findings.md" } }
-          - finish: tool_use
-      - respond:
-          - text: "researched"
-          - finish: end_turn
-      - respond:
-          - tool_call: { name: spawn_agent, args: { agent: reviewer, task: check it } }
-          - finish: tool_use
-      - respond:
-          - text: "reviewed, looks good"
-          - finish: end_turn
-      - respond:
-          - tool_call: { name: bash, args: { command: "echo 'fleet report: finding-A (reviewed)' > report.md" } }
-          - finish: tool_use
-      - respond:
-          - text: "report assembled"
-          - finish: end_turn
+    routes:
+      - key: RESEARCH-JOB
+        steps:
+          - respond:
+              - tool_call: { name: bash, args: { command: "echo finding-A > findings.md" } }
+              - finish: tool_use
+          - respond:
+              - text: "researched: finding-A ready"
+              - finish: end_turn
+      - key: REVIEW-JOB
+        steps:
+          - respond:
+              - text: "REVIEW-DONE: looks good"
+              - finish: end_turn
+      - key: REVIEW-DONE
+        steps:
+          - respond:
+              - tool_call: { name: bash, args: { command: "echo 'fleet report: finding-A (reviewed)' > report.md" } }
+              - finish: tool_use
+          - respond:
+              - text: "report assembled"
+              - finish: end_turn
+      - key: "researched:"
+        steps:
+          - respond:
+              - tool_call: { name: spawn_agent, args: { agent: reviewer, task: REVIEW-JOB now } }
+              - finish: tool_use
+          - respond:
+              - text: "waiting on the reviewer"
+              - finish: end_turn
+      - key: ""
+        steps:
+          - respond:
+              - tool_call: { name: spawn_agent, args: { agent: researcher, task: RESEARCH-JOB now } }
+              - finish: tool_use
+          - respond:
+              - text: "waiting on the researcher"
+              - finish: end_turn
 steps:
   - run: >
       AGENTRUNNER_SCRIPTED_FIXTURE=$SCRATCH/fleet.yaml
