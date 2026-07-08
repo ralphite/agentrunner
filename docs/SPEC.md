@@ -21,12 +21,12 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 
 | 功能点 | 状态 | Journey | 验收锚 / 备注 |
 |---|---|---|---|
-| conversational 续聊（答完待命；close = 意图记录） | ✅ | UJ-01/03/09 | QA-01 · C1 · 孪生（见 e2e） |
+| 续聊（答完待命；close = 标记） | ✅ | UJ-01/03/09 | QA-01 · C1 · 孪生（见 e2e） |
 | 忙时投递排队（安全边界按序消费，不丢不乱序） | ✅ | UJ-07 | QA-02/06 · C2 |
 | durable mailbox（确认即持久、恰好一次，跨 kill -9） | ✅ | 不变量 | QA-08 FAIL 级断言 · inbox.jsonl 机制（DESIGN §2） |
-| 终止语义（待命唯一静止态；TaskCompleted 回执 / SessionClosed 意图；预算耗尽 = LimitExceeded 可见截断） | ✅ | 不变量 | 决策 #30 · TestDecideConversationalBudget · 2026-07-05 落地 |
+| 静止模型（唯一 session 形态；静止=形状；静止动作 outputs→barrier→parent 回执；close/kill=标记+检查；预算耗尽=可见截断） | ✅ | 不变量 | 决策 #30/#31 · 2026-07-05 落地 |
 | interrupt 与输入分立（Esc 杀活动 / 消息追加） | ✅ | UJ-07 | QA-02/06 · C8 · S3 |
-| idle 处 interrupt = close（交互惯例） | ✅ | UJ-03 | 孪生（DESIGN §17 记档） |
+| interrupt 永不结束 session（待命处 = no-op；close 是独立命令） | ✅ | UJ-03/07 | 裁决 #11 · 2026-07-05 落地 |
 | 图片输入（`ar send --image`，CAS ref、组装 inflate） | ✅ | UJ-04 | QA-07/03 · C9 · TestConversationalImageInputEndToEnd |
 | 长贴折叠（>10KB 转 file part） | ✅ | UJ-04 | TestLongPasteFoldsToFilePart |
 | `ar new` 开场消息折叠/带图（与 send 对称） | 🧊 | UJ-04 | 不对称记档（DESIGN §17），待真实使用反馈 |
@@ -43,13 +43,13 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 |---|---|---|---|
 | 后台 spawn（非阻塞拿 handle，`spawn_agent{background}`） | ✅ | UJ-18 | QA-04 · C3 |
 | 完成回执激活父 turn（先回先处理） | ✅ | UJ-18 | QA-04/05 · C4 |
-| 杀死子 agent（`task_kill` / `ar kill` 双路径，部分产出留存） | ✅ | UJ-18 | QA-05/09 · C5 |
+| 杀死子 agent（`kill` 工具 / `ar kill`,记来源;parent 可复活自己 kill 的子） | ✅ | UJ-18 | QA-05/09 · C5 · 裁决二 C |
 | steer 改变编排（杀一个、起一个） | ✅ | UJ-07/18 | QA-06/09 · C6 |
 | 完整编排七步（多输入+并行+杀+回灌+续聊+恢复） | ✅ | UJ-18 | QA-09 · C7 |
 | 父崩溃 settle-from-child-fold | ✅ | 不变量 | QA-08(c) · C10(c) |
-| 阻塞 spawn/await（v1 形态，保留） | ✅ | UJ-18 | S4 |
+| spawn 一律非阻塞（阻塞路径已删除,零 legacy） | ✅ | UJ-18 | 2026-07-05 落地 |
 | handoff（`handoff_agent`）/ blackboard（`publish_note`/`read_notes`） | ✅ | UJ-18 | S4 |
-| 树预算 / 权限冻结交集 / 深度扇出上限 | ✅ | UJ-18/20 | S4 |
+| 树预算 / 权限默认不超父（请求超父须用户 approve） / 深度扇出上限 | ✅ | UJ-18/20 | S4 · 裁决一.2 |
 | 子 agent 可被 steer | 🧊 | UJ-18 | v0 显式否（杀+重起代替），记档 |
 | 子 agent 实时进度镜像 | ❌ | UJ-18 | GAPS G10 |
 | 三套子执行收敛为递归 session | 🟡 | — | 阻塞/后台/driver 并存（DESIGN §17） |
@@ -60,7 +60,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | 功能点 | 状态 | Journey | 验收锚 / 备注 |
 |---|---|---|---|
 | read_file / write_file / edit_file | ✅ | UJ-02/05 | S1 · QA-03（write_file） |
-| bash 前台+后台（task_output/task_kill、进程组取消） | ✅ | UJ-02/18 | S1/S3 · QA-05 |
+| bash 前台+后台（output/kill 凭 handle、进程组取消） | ✅ | UJ-02/18 | S1/S3 · QA-05 |
 | semantic_search（IndexStore，BM25） | ✅ | UJ-01 | S7 |
 | publish_artifact（`outputs:` contract、审批载荷） | ✅ | UJ-06 | S5 |
 | exit_plan_mode（plan mode 跃迁） | ✅ | UJ-06/11 | S2/S3 |
@@ -92,8 +92,8 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | journal + 纯 fold + snapshot-resume | ✅ | 不变量 | S2 · crash 注入 |
 | in-doubt 按类别处置（LLM 重发/只读重跑/执行不重跑） | ✅ | 不变量 | S2 · QA-08(b) |
 | crash 矩阵三态复活（idle/在飞 bash/在飞子 agent） | ✅ | UJ-09 | QA-08 · C10 |
-| 显式重开（send 对 conversational 一律成立，**含已 close**；自动路径跳过一切 terminal） | 🟡 | UJ-09/03 | TestSendReopensClosedConversational · TestSendRevivalDiesWithDaemon；**task 形态重开待裁决（GAPS G24）** |
-| 恢复分模式（conversational 自愈 / task 上浮） | ✅ | 不变量 | QA-08 · 决策 #29 |
+| 显式重开（send 对任何 session 成立，含带 close 标记的；自动路径受标记约束） | ✅ | UJ-09/03 | TestSendReopensClosedConversational · TestSendRevivalDiesWithDaemon |
+| 恢复单一自愈（in-doubt 处置后渲染 interrupted-by-crash,session 继续） | ✅ | 不变量 | QA-08 · 决策 #29(2026-07-05 单一化) |
 | workspace 快照（shadow repo、排除表、pinned） | ✅ | UJ-15 | S2/S7 |
 | daemon kill -9 后孤儿 bash 子进程清扫（pgid） | 🟡 | — | 记档观察项（DESIGN §17） |
 | shadow repo 并发 flock（daemon 多 session） | 🧊 | — | backlog（加 gc 前必须先做，LOG/v2 台账记档） |
@@ -148,8 +148,8 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | 功能点 | 状态 | Journey | 验收锚 / 备注 |
 |---|---|---|---|
 | daemon 托管（socket、idem_key 幂等、优雅停机） | ✅ | UJ-17 | S6 |
-| task 模式（run/drive/submit/resume，固定 epilogue） | ✅ | UJ-02/14/15 | S1–S7 |
-| 运行中 spec 变更（换模型/角色切换的变更事件族） | ❌ | UJ-11 | GAPS G8 |
+| 静止动作（outputs→barrier→parent 回执;ar run=开+发+等静止+读结果） | ✅ | UJ-02/14/15 | 决策 #31 · S1–S7 场景改写 |
+| session 内换 agent（SpecChanged 事件,用户免确认,prefix 换代） | ✅ | UJ-11 | 裁决一 · 2026-07-05 落地（G8 关闭） |
 | 云 workspace 生命周期 | 🧊 | UJ-13 | GAPS G11（S7 预授权裁掉，重启走新增量） |
 | IDE 集成 | 🧊 | — | 同上裁决 |
 | 多根 workspace（--add-dir 类） | ❌ | — | GAPS G17（待 journey 目录定版） |

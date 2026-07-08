@@ -286,3 +286,12 @@ fresh-run 教义对 goal 形态不适用;goal 的 context 必须延续。fresh-r
 未被真实压到,建议补 QA-10..12(审批/interval 值守/注入对抗);
 ④Anthropic 第二 provider 无凭据未测。报告 artifact:journey-验收-v1;
 运行留档 qa/runs/20260705-real/(gitignored 本机)。
+
+## 2026-07-06 REVIEW-001 落地开工(开发者指令:全部裁决落码,文档代码同步)
+
+不变量变更记录(开发者裁决即 review,PROCESS §四):
+- 决策 #24/#29/#30 改写、#31 静止模型、#32 换 agent 与提权 新增;
+  TaskCompleted 事件删除、"终止/terminal"词族废除、task 形态删除、
+  恢复单一自愈、阻塞 spawn 删除(零 legacy)、待命处 interrupt=no-op。
+- D1 本条:DESIGN §1/§2/§6/§12/§13/§18 + 决策表成文;SPEC 行改写;
+  GAPS G8/G24 关闭。后续 D2-D5:核心手术/词汇清理/新能力/QA 复跑。
