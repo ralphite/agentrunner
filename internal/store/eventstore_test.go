@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -120,6 +121,47 @@ func TestLockReleasedOnClose(t *testing.T) {
 	}
 	if got.Seq != 2 {
 		t.Errorf("seq after reopen = %d, want 2 (recovered from log)", got.Seq)
+	}
+}
+
+// HasLiveWriter underpins the stranded-session detection (T1/T2b): a
+// "running" session whose recorded writer is gone is stranded, not running.
+func TestHasLiveWriter(t *testing.T) {
+	dir := t.TempDir()
+	lockPath := filepath.Join(dir, lockFile)
+
+	// No lock file yet: nothing ever held it.
+	if HasLiveWriter(dir) {
+		t.Error("absent lock file: want false")
+	}
+
+	// This process's pid is alive → a live writer.
+	if err := os.WriteFile(lockPath, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if !HasLiveWriter(dir) {
+		t.Error("own pid recorded: want true (alive)")
+	}
+
+	// A reaped child's pid is dead → no live writer (the crashed-host case).
+	cmd := exec.Command("sh", "-c", "exit 0")
+	if err := cmd.Run(); err != nil { // Run waits: the process is gone and reaped
+		t.Fatal(err)
+	}
+	deadPID := cmd.Process.Pid
+	if err := os.WriteFile(lockPath, []byte(fmt.Sprintf("%d\n", deadPID)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if HasLiveWriter(dir) {
+		t.Errorf("dead pid %d recorded: want false (stranded host)", deadPID)
+	}
+
+	// Malformed content never reports a live writer.
+	if err := os.WriteFile(lockPath, []byte("not-a-pid\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if HasLiveWriter(dir) {
+		t.Error("garbage lock content: want false")
 	}
 }
 

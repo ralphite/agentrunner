@@ -213,7 +213,11 @@ func killCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "usage: agentrunner kill <session-id-or-prefix> <handle>")
 		return ExitUsage
 	}
-	return oneShot(stderr, daemon.Command{Cmd: "kill", Session: resolvePrefixLenient(args[0]), Handle: args[1]}, stdout)
+	code := oneShot(stderr, daemon.Command{Cmd: "kill", Session: resolvePrefixLenient(args[0]), Handle: args[1]}, stdout)
+	if code != ExitOK {
+		stuckHint(stderr, args[0])
+	}
+	return code
 }
 
 // interruptCmd delivers an out-of-band interrupt to a live session (v2
@@ -225,7 +229,11 @@ func interruptCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "usage: agentrunner interrupt <session-id-or-prefix>")
 		return ExitUsage
 	}
-	return oneShot(stderr, daemon.Command{Cmd: "interrupt", Session: resolvePrefixLenient(args[0])}, stdout)
+	code := oneShot(stderr, daemon.Command{Cmd: "interrupt", Session: resolvePrefixLenient(args[0])}, stdout)
+	if code != ExitOK {
+		stuckHint(stderr, args[0])
+	}
+	return code
 }
 
 // closeCmd ends a conversational session gracefully (v2 M1.2):
@@ -235,7 +243,43 @@ func closeCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "usage: agentrunner close <session-id-or-prefix>")
 		return ExitUsage
 	}
-	return oneShot(stderr, daemon.Command{Cmd: "close", Session: resolvePrefixLenient(args[0])}, stdout)
+	code := oneShot(stderr, daemon.Command{Cmd: "close", Session: resolvePrefixLenient(args[0])}, stdout)
+	if code != ExitOK {
+		stuckHint(stderr, args[0])
+	}
+	return code
+}
+
+// stuckHint prints, after a stop command (interrupt/kill/close) could not
+// reach a live hosted session, WHICH command to use instead — the audit's
+// cross-cutting T1 finding is that these three only ever say "no such live
+// session" and dead-end, never pointing at the way out. resume is the
+// universal un-stick key: it re-enters the session IN-PROCESS (no daemon
+// needed), settles interrupted work, and makes it live again; a following
+// close ends it. Best-effort — any read failure just omits the hint and
+// leaves the primary error intact.
+func stuckHint(stderr io.Writer, sessionArg string) {
+	dir, err := resolveSessionDir(sessionArg)
+	if err != nil {
+		return // unknown session: the primary error already said so
+	}
+	id := filepath.Base(dir)
+	events, err := store.ReadEvents(dir)
+	if err != nil {
+		return
+	}
+	s, err := state.Fold(events)
+	if err != nil {
+		return
+	}
+	switch {
+	case s.Session.Closed != nil:
+		fmt.Fprintf(stderr, "  (%s already ended: %s — nothing to stop)\n", id, s.Session.Closed.Reason)
+	case store.HasLiveWriter(dir):
+		fmt.Fprintf(stderr, "  (%s is hosted by a foreground run/resume, not the daemon — stop it there with Ctrl-C)\n", id)
+	default:
+		fmt.Fprintf(stderr, "  (%s has no live host — recover it in-process: agentrunner resume %s ; then end it: agentrunner close %s)\n", id, id, id)
+	}
 }
 
 // daemonDialErr reports a failed daemon dial and tells the user how to start

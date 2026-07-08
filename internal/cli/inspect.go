@@ -48,6 +48,15 @@ func inspectCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 		return ExitRun
 	}
+	// A "running" top-level session whose host process is gone is STRANDED
+	// (T1/T2b — 状态撒谎): the daemon crashed or was restarted and nothing is
+	// advancing it. Say so, and point at the recovery — inspect is the audit
+	// command a stuck user reaches for. The probe reads the lock's pid; it
+	// never takes the lock, so it cannot disturb a live writer.
+	if report.Status == "running" && !store.HasLiveWriter(dir) {
+		report.Status = "stranded"
+		report.Reason = "no live host — recover: agentrunner resume " + filepath.Base(dir)
+	}
 	if *asJSON {
 		raw, err := json.MarshalIndent(report, "", "  ")
 		if err != nil {
