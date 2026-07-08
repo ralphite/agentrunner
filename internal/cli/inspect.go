@@ -413,7 +413,10 @@ func renderInspectIndent(w io.Writer, r inspectReport, pad string) {
 	}
 
 	u := r.Usage
-	fmt.Fprintf(w, "\n%sUSAGE   input %d  output %d  cache_read %d  cache_write %d  billed %d\n",
+	// "(tokens)" so the numbers aren't misread as a dollar amount — "billed"
+	// is billed TOKENS, not money; the harness has no provider price table
+	// (blackbox R2-D-1). Cost = billed × your provider's per-token price.
+	fmt.Fprintf(w, "\n%sUSAGE (tokens)   input %d  output %d  cache_read %d  cache_write %d  billed %d\n",
 		pad, u.InputTokens, u.OutputTokens, u.CacheRead, u.CacheWrite, u.Billed)
 	if u.BudgetReserved > 0 {
 		fmt.Fprintf(w, "%s        reserved %d\n", pad, u.BudgetReserved)
