@@ -146,7 +146,7 @@ in-doubt 崩溃纪律（非幂等绝不静默重跑）、barrier/fork/rewind 带
 |---|---|---|---|
 | grep / glob 独立工具 | G18a | ✅ 已实现 | INC-3 · TestGrep*/TestGlob* · QA-11 |
 | 远程 stop | G12 | ✅ 已实现 | INC-4 · TestStop* · 真 daemon 手验 |
-| 自定义命令 / slash | G21 | ⏳ 计划中 | INC-5 |
+| 自定义命令 / slash | G21 | ✅ 已实现 | INC-5 · TestExpand* · 真实 API |
 | 手动 compact / clear | G7 | ⏳ 计划中 | INC-6 |
 | 审批“允许且不再问” | G5 | ⏳ 计划中 | INC-7 |
 | 记忆写回（# remember） | G9 | 📐 设计优先 | 触 prefix-freeze 不变量 |

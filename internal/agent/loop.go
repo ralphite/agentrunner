@@ -16,6 +16,7 @@ import (
 
 	"github.com/ralphite/agentrunner/internal/blackboard"
 	"github.com/ralphite/agentrunner/internal/clock"
+	"github.com/ralphite/agentrunner/internal/command"
 	"github.com/ralphite/agentrunner/internal/crash"
 	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
@@ -283,6 +284,12 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 	var wsRoot string
 	if l.Exec != nil && l.Exec.WS != nil {
 		wsRoot = l.Exec.WS.Root()
+	}
+	// Custom-command expansion (G21): a /name opening prompt expands to its
+	// repo-defined macro body BEFORE journaling, re-redacted since the body
+	// is repo content. The journaled task then carries the expanded prompt.
+	if expanded, ok := command.Expand(wsRoot, task); ok {
+		task = redact.FromEnv().String(expanded)
 	}
 	memoryBlock, skillsBlock := renderContextBlocks(wsRoot)
 	if _, err := appendE(event.TypeSessionStarted, &event.SessionStarted{

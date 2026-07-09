@@ -511,3 +511,32 @@ journal 零 session_closed、`ar send` 复活并跑新 turn(gen 到 2)——PASS
 
 **review 裁决**:小增量(S),inline 自审(teardown 语义/drive cancel/
 错误路径)。裁三视角 review。
+
+## 2026-07-09 INC-5 自定义命令 / slash 面(G21 关闭)
+
+**动机**:Codex 对照——slash / prompt 宏是团队姿势沉淀。UJ-19「/deploy-check
+一键跑检查单」。G21 此前设计欠定(定义位/展开语义/与 skills 边界未定)。
+
+**落地**:
+- `internal/command`(mirror internal/skill):`Discover` 列
+  `<root>/.claude/commands/*.md`(basename 命名,限 [A-Za-z0-9_-]);
+  `Expand(root,text)→(str,ok)` 展开首 token 为 `/name` 的消息为命令体,
+  `$ARGUMENTS` 替换/无占位则追加,未知与非 slash 原样透传,strip frontmatter。
+- 两处唯一 ingest 入口接展开:`Loop.Run` 开场 task(展开后 re-redact,
+  因命令体是 repo 内容)+ `conversation.journalInput` 每条 send(CLI/web/
+  机器都经此)。**在 ingest 展开**是关键:journal 记展开后正文→fold 永不
+  读 FS(决策 #3)、resume 自包含。
+
+**决策**:
+- 命令**对模型不可见**(无工具、无 prefix 注入)——纯用户侧宏,故**不涉
+  prefix 稳定性不变量**(与 memory/skills 的模型侧注入不同)。
+- 信任:.md 体是不可信 repo 内容(决策 #19),但只在用户显式 /invoke 时
+  展开且只注入文本→与 memory/skills 同类,无需额外信任门。
+- name 限 [A-Za-z0-9_-]+ 杜绝路径穿越。
+
+**闸门**:A 孪生 command_test.go(参数替换/追加/未知透传/穿越拒绝/
+frontmatter strip/前导空白/Discover)全绿。B 真实 API:workspace 放
+`.claude/commands/locate.md`,`/locate authMiddleware` 经 new 与 send 两路
+都展开进 journal 的 input_received——PASS。
+
+**review 裁决**:小增量(S),inline 自审。裁三视角 review。

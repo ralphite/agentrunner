@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"unicode/utf8"
 
+	"github.com/ralphite/agentrunner/internal/command"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/redact"
@@ -27,7 +28,17 @@ func (l *Loop) journalInput(ds *driveState, appendE AppendFunc, in protocol.User
 		return nil
 	}
 	var images, files []event.AttachmentRef
-	text := redact.FromEnv().String(in.Text)
+	// Custom-command expansion (G21): a /name send expands to its repo macro
+	// body before redaction+journaling, so the journaled InputReceived is the
+	// expanded prompt (fold stays pure; resume self-contained). Non-slash and
+	// unknown /commands pass through unchanged.
+	raw := in.Text
+	if l.Exec != nil && l.Exec.WS != nil {
+		if expanded, ok := command.Expand(l.Exec.WS.Root(), raw); ok {
+			raw = expanded
+		}
+	}
+	text := redact.FromEnv().String(raw)
 	for _, img := range in.Images {
 		if err := l.ensureArtifacts(); err != nil {
 			return err

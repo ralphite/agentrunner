@@ -780,6 +780,24 @@ limits:
 - 沿用 Claude Code skill 约定（目录 + markdown + frontmatter），
   生态兼容，不发明格式。注入位置见 §4 context assembly。
 
+### 自定义命令 / slash（INC-3 后补，G21）
+
+- **定义位**：`<root>/.claude/commands/<name>.md`（Claude Code 约定，
+  可选 frontmatter 载 description）。一个 `.md` = 一条命令，basename 即
+  命名（限 `[A-Za-z0-9_-]+`，杜绝路径穿越）。
+- **展开语义**：**注入用户 prompt 文本**（不是工具、不是代码执行）。
+  用户发的一条消息若首 token 为 `/<name>` 且命令存在，则在 **ingest 时
+  （落 journal 之前）** 展开为命令体：`$ARGUMENTS` 占位替换为余下参数，
+  无占位符则参数另起段追加。非 slash 文本与未知 `/命令` 原样透传。
+- **为何在 ingest 展开**：journal 的 `InputReceived` 记录**展开后**的
+  正文——fold 永不读文件系统（决策 #3 保持纯），resume 自包含。展开在
+  两处唯一入口都做：`Loop.Run` 的开场 task 与 `journalInput` 的每条 send
+  （CLI/web/机器都经此）。
+- **信任**：`.md` 体是不可信 repo 内容（决策 #19），但只在用户显式
+  `/invoke` 时展开、且只注入**文本**——与 memory/skills 同类，无需额外
+  信任门。命令**对模型不可见**（无工具、无 prefix 注入），故不涉
+  prefix 稳定性不变量。
+
 ---
 
 ## 11. Provider
