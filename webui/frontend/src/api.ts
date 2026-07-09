@@ -63,6 +63,8 @@ export const AR = {
   resume: (sid: string) => post(`/sessions/${sid}/resume`),
   compact: (sid: string) => post(`/sessions/${sid}/compact`),
   clear: (sid: string) => post(`/sessions/${sid}/clear`),
+  goal: (sid: string, b: { action: "attach" | "update" | "pause" | "resume" | "cancel"; goal?: string; verifier?: string; maxChecks?: number }) =>
+    post(`/sessions/${sid}/goal`, b),
   kill: (sid: string, handle: string) => post(`/sessions/${sid}/kill`, { handle }),
   approve: (sid: string, approvalId: string, decision: "approve" | "deny", reason: string) =>
     post(`/sessions/${sid}/approve`, { approvalId, decision, reason }),

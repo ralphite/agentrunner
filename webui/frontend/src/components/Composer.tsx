@@ -276,10 +276,20 @@ export function Composer(props: ComposerProps) {
 
   // ---- goal / loop ----
   const startGoal = async (task: string, verifier: string, iterations: number) => {
-    const workspace = isSession ? (props as any).workspace || (await ensureWs()) : await ensureWs();
-    if (!workspace) return props.onError("a workspace is required to start a goal");
     setBusy(true);
     try {
+      if (isSession) {
+        // In-session goal (INC-D1): hang the goal on THIS session — context
+        // continues across the verifier's checks (Codex-style), not a fresh run.
+        await AR.goal((props as any).sid, { action: "attach", goal: task, verifier, maxChecks: iterations });
+        setLauncher(null);
+        resetInput();
+        toast("Goal attached — the session keeps working toward it (context continues)", "info");
+        return;
+      }
+      // Home: a fresh driver-goal run (batch/headless form).
+      const workspace = await ensureWs();
+      if (!workspace) return props.onError("a workspace is required to start a goal");
       const r = await AR.startRun({
         kind: "drive",
         spec: buildGoalDriver({ task, maxIterations: iterations, verifier, provider, model }),

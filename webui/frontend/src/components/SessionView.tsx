@@ -38,6 +38,7 @@ export function SessionView({ sid }: { sid: string }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [usage, setUsage] = useState<{ billed: number; steps: number } | null>(null);
   const [children, setChildren] = useState<InspectNode[]>([]);
+  const [goal, setGoal] = useState<{ goal: string; checks: number; max_checks?: number; paused?: boolean } | null>(null);
   const [view, setView] = useState<"chat" | "diff">("chat");
 
   const cursor = useRef(0);
@@ -84,6 +85,7 @@ export function SessionView({ sid }: { sid: string }) {
       const u = ins?.usage;
       if (u) setUsage({ billed: u.billed ?? (u.input_tokens || 0) + (u.output_tokens || 0), steps: ins.gen_steps || 0 });
       setChildren(Array.isArray(ins?.children) ? ins.children : []);
+      setGoal(ins?.goal || null);
     } catch {
       /* ignore — usage badge / subagents are best-effort */
     }
@@ -98,6 +100,7 @@ export function SessionView({ sid }: { sid: string }) {
     setResolvedLocal(new Set());
     setUsage(null);
     setChildren([]);
+    setGoal(null);
     poll();
     const e = setInterval(poll, 1000);
     const t = setInterval(pollTasks, 2500);
@@ -373,6 +376,32 @@ export function SessionView({ sid }: { sid: string }) {
           <div className="composer-inner dim" style={{ fontSize: 12, padding: "4px 2px" }}>
             This is an iteration driver (drive) — it runs its own loop and does not accept messages.
           </div>
+        </div>
+      )}
+
+      {view === "chat" && !isSub && goal && (
+        <div className={"goal-banner" + (goal.paused ? " paused" : "")}>
+          <span className="gb-ico">🎯</span>
+          <span className="gb-text">
+            <b>Goal</b> · {goal.goal}
+          </span>
+          <span className="gb-meta">
+            {goal.checks}
+            {goal.max_checks ? `/${goal.max_checks}` : ""} checks{goal.paused ? " · paused" : ""}
+          </span>
+          <span className="spacer" />
+          {goal.paused ? (
+            <button className="sm" onClick={() => AR.goal(sid, { action: "resume" }).then(() => pollTasks()).catch((e) => toast(e.message))}>
+              resume
+            </button>
+          ) : (
+            <button className="sm" onClick={() => AR.goal(sid, { action: "pause" }).then(() => pollTasks()).catch((e) => toast(e.message))}>
+              pause
+            </button>
+          )}
+          <button className="sm danger" onClick={() => AR.goal(sid, { action: "cancel" }).then(() => pollTasks()).catch((e) => toast(e.message))}>
+            cancel
+          </button>
         </div>
       )}
 

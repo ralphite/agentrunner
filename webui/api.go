@@ -48,6 +48,7 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/sessions/{sid}/fork", s.handleFork)
 	mux.HandleFunc("POST /api/sessions/{sid}/compact", s.handleCompact)
 	mux.HandleFunc("POST /api/sessions/{sid}/clear", s.handleClear)
+	mux.HandleFunc("POST /api/sessions/{sid}/goal", s.handleGoal)
 
 	// ---- workspace git (branch picker; cockpit-level, operates on the
 	// session/new-task workspace exactly as a user would) ----
@@ -110,6 +111,16 @@ func sid(w http.ResponseWriter, r *http.Request) (string, bool) {
 }
 
 func readBody(w http.ResponseWriter, r *http.Request, v any) bool {
+	// Require an application/json Content-Type (INC-D1 review F2): a cross-origin
+	// "simple request" (text/plain) needs no CORS preflight and would let a
+	// malicious page the user visits drive this loopback server (e.g. attach a
+	// goal whose verifier runs a shell command). Requiring application/json
+	// forces a preflight the no-CORS server never answers, so the browser blocks
+	// it — hardening every JSON endpoint (send/goal/git/…), not just this one.
+	if ct := r.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		badRequest(w, "Content-Type must be application/json")
+		return false
+	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 4<<20)).Decode(v); err != nil {
 		badRequest(w, "bad JSON body: "+err.Error())
 		return false

@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -20,6 +21,53 @@ func (s *server) handleCompact(w http.ResponseWriter, r *http.Request) {
 // `ar clear <sid>`. Exposed to the composer as the /clear slash command.
 func (s *server) handleClear(w http.ResponseWriter, r *http.Request) {
 	s.oneShotHandler("ar clear", func(id string) []string { return []string{"clear", id} })(w, r)
+}
+
+// handleGoal drives an in-session goal (INC-D1): attach/update/pause/resume/
+// cancel via `ar goal <sid> <action> …`. The goal hangs on the conversational
+// session and its context continues across the verifier's checks.
+func (s *server) handleGoal(w http.ResponseWriter, r *http.Request) {
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Action    string `json:"action"` // attach | update | pause | resume | cancel
+		Goal      string `json:"goal"`
+		Verifier  string `json:"verifier"`
+		MaxChecks int    `json:"maxChecks"`
+	}
+	if !readBody(w, r, &req) {
+		return
+	}
+	args := []string{"goal", id, req.Action}
+	switch req.Action {
+	case "attach", "update":
+		if req.Action == "attach" && strings.TrimSpace(req.Goal) == "" {
+			badRequest(w, "goal statement is required")
+			return
+		}
+		if v := strings.TrimSpace(req.Verifier); v != "" {
+			args = append(args, "--verify", v)
+		}
+		if req.MaxChecks > 0 {
+			args = append(args, "--max-checks", strconv.Itoa(req.MaxChecks))
+		}
+		if g := strings.TrimSpace(req.Goal); g != "" {
+			args = append(args, g)
+		}
+	case "pause", "resume", "cancel":
+		// verb-only
+	default:
+		badRequest(w, "action must be attach|update|pause|resume|cancel")
+		return
+	}
+	res := s.runAR(r.Context(), oneShotTimeout, args...)
+	if res.Err != nil {
+		arFail(w, "ar goal", res)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": strings.TrimSpace(res.Stdout)})
 }
 
 // ---- workspace git (branch picker) ----
