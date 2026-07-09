@@ -2001,10 +2001,32 @@ summary.fd-head:hover {
   content: attr(data-lang);
   position: absolute;
   top: 6px;
-  right: 10px;
+  right: 58px; /* leave room for the Copy button */
   font-size: 10px;
   color: var(--dim);
   text-transform: lowercase;
+}
+.md-codewrap {
+  position: relative;
+}
+.md-copy {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  z-index: 2;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink-2);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.md-codewrap:hover .md-copy {
+  opacity: 1;
+}
+.md-copy:hover {
+  color: var(--ink);
 }
 .md strong {
   font-weight: 600;

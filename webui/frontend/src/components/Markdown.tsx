@@ -1,4 +1,40 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+
+// CodeBlock renders a fenced block with a Copy button (Codex puts one on every
+// code block). Uses the async clipboard API with a textarea fallback.
+function CodeBlock({ body, lang }: { body: string; lang?: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(body);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = body;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+      } catch {
+        /* ignore */
+      }
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
+  };
+  return (
+    <div className="md-codewrap">
+      <button className="md-copy" onClick={copy} title="Copy code">
+        {copied ? "Copied" : "Copy"}
+      </button>
+      <pre className="code md-code" data-lang={lang || undefined}>
+        {body}
+      </pre>
+    </div>
+  );
+}
 
 // A small, dependency-free Markdown renderer for assistant messages — Codex
 // renders rich markdown and plain <span> text looked flat next to it. Safe by
@@ -116,11 +152,7 @@ export function Markdown({ text }: { text: string }) {
           const nl = seg.indexOf("\n");
           const lang = seg.slice(3, nl < 0 ? undefined : nl).trim();
           const body = nl < 0 ? "" : seg.slice(nl + 1).replace(/```\s*$/, "");
-          return (
-            <pre className="code md-code" key={i} data-lang={lang || undefined}>
-              {body}
-            </pre>
-          );
+          return <CodeBlock key={i} body={body} lang={lang} />;
         }
         return <Blocks key={i} text={seg} />;
       })}
