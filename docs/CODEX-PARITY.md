@@ -105,7 +105,7 @@ in-doubt 崩溃纪律（非幂等绝不静默重跑）、barrier/fork/rewind 带
 | 功能 | Codex | AgentRunner | 缺口 |
 |---|---|---|---|
 | 定时 automations | 模板/历史/自定模型 | ✅ loop driver（S6） | 历史/模板是 UI 糖 |
-| goal 长程目标 | 挂 thread、跑数天 | 🟡 in-session goal（INC-D1）已落地：挂会话、context 延续这点齐平；但完成语义/预算/状态机/模型工具面/UI 差距大 | 见 §6 Goal 深潜（2026-07-09） |
+| goal 长程目标 | 挂 thread、跑数天 | ✅ INC-D1+INC-10：context 延续 + 自证完成（goal_status/goal_complete 工具面、结构化 continuation、边界裁决）+ 可选 command verifier（**强于 Codex 的硬证据形态**）+ /goal 一句话直启 + banner edit | 余项：token/墙钟预算、blocked/usage_limited 态（§6.2-④⑤，记档 defer） |
 | best-of-N | 云端多方案 | ✅ 隔离 worktree + verifier（S7） | 胜者晋升 G15 🧊 |
 | verifier 管线 | 评分黑盒 | ✅ **领先** in-session/driver 均 journaled + approval + OS containment evidence | — |
 | 外部事件唤醒 | GitHub/Linear/Slack | ❌ inbox 原语备，投递壳缺 | **G14** |
@@ -153,7 +153,7 @@ in-doubt 崩溃纪律（非幂等绝不静默重跑）、barrier/fork/rewind 带
 | ask_user（向用户提问） | G20 | ✅ 并行线已实现 | INC-5.2 · TestAskUser* · QA-13 |
 | webui 改动视图白屏 + UX | — | ✅ 他会话已修 | diff 白屏 + UX-01..05（4e316de/672de7c）；余 UI 项（markdown/usage/搜索/归档）后续 |
 | webui composer 对标 Codex | — | ✅ 已实现 | 24aeccb · Codex 风格 composer：权限模式/model/slash/`+`菜单/Goal·Loop 启动器/语音(Web Speech)/git 分支 pill；真 Gemini 验(新会话+turn、mid-session 换 model、Goal 达成、分支列举)。PDF 二进制附件仍待产品 file-part 增量 |
-| 会话内 goal | G23 | ✅ v0 已实现，余项开挖 | INC-D1 已归档收口（engine+CLI+webui banner/launcher 全在 main）；2026-07-09 深潜审计发现 v0 与 Codex 的实质差距（含"无 verifier 恒不可达成"语义洞）→ §6 |
+| 会话内 goal | G23 | ✅ v1 已实现（含自证完成） | INC-D1（v0）+ INC-10（§6 深潜缺口 ①②③⑥⑦ 全关：自证裁决/goal 工具面/结构化 continuation/UI 收敛/控制 revive）· QA-16+QA-17 真验 · ④⑤（token/墙钟预算、blocked/usage_limited）记档 defer |
 | 事件唤醒既有 session | G14 | 📐 设计稿 | INC-D2（invariant-adjacent，机器发送方信任条款） |
 | 记忆写回（# remember） | G9 | 📐 设计稿 | INC-D4（取 A 不触不变量；待裁 A/B） |
 | 审批“允许且不再问” | G5 | 📐 设计稿 | INC-D5（取 A 下次生效不触不变量；待裁 A/B） |
@@ -261,6 +261,15 @@ chrome：objective + status + elapsed + tokens；桌面 app 原生 /goal 至今
 差距不在"页面"而在**语义与启动形态**：表单三字段 vs 一句话；外部
 verifier 强制 vs 模型自证默认。修 ①②③ 后把表单收敛成"输入目标即走"，
 goal UI 的"很不同"即消失。
+
+**收口（同日，INC-10）**：①②③⑥⑦ 已全部实现并双闸门验收
+（TestInSessionGoal* 7 条 + TestGoalResumeCheck/TestGoalClaimFold +
+QA-17 真 Gemini 自证达成 + webui Chrome 真跑）。现形态 = Codex 的对话式
+自证（/goal 一句话、goal_complete 声明、审计式 continuation）**加**我们
+独有的可选 command verifier 硬裁决——两哲学合流，verifier 存在时它仍是
+唯一裁决者。④ token/墙钟预算与 ⑤ blocked/usage_limited 记档 defer
+（LOG）。对抗 review 连带修复三处主干潜红（缓存掩盖的 red test、socket
+路径超限、INC-D1 wake seam 空转），细节见 LOG 2026-07-09 INC-10 条。
 
 ### 6.4 新证据的连带发现（非 goal，登记备查）
 

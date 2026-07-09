@@ -249,7 +249,13 @@ superset（旧会话 resume 不破，R6）。DESIGN 决策 #21/§13/glossary 走
 变更流程修订（与实现同 commit）。闸门：孪生 TestInSessionGoalContinuity
 （单 SessionStarted 证 context 延续）/BudgetTruncation/PauseCancel；真实
 API QA-16。crash 安全：GoalCheckpoint 带 GenStep+Feedback 幂等守卫，resume
-不重跑 verifier、不双注入（R1/R2）。原始缺口记档（历史）：
+不重跑 verifier、不双注入（R1/R2）。**INC-10 补全（同日）**：自证完成
+（无 verifier goal 由模型 `goal_complete` 声明、边界裁决——关闭"无
+verifier 恒不可达成"的 v0 语义洞）+ goal_status/goal_complete 模型工具面
++ 结构化 continuation + resume/update 注入再武装 + goalResumeCheck 补裁
+checkpoint 前 crash 窗 + goal 控制 revive；QA-17 真验；余项 token/墙钟
+预算与 blocked/usage_limited 态记档（CODEX-PARITY §6.2-④⑤）。
+原始缺口记档（历史）：
 **需求丢失记档**："goal 挂在当前会话、context 必须延续"是项目原始
 需求之一，但从未成文为 journey；S6 在"run=task-to-completion 是唯一
 形态"的时代把 goal 建成 IterationDriver + fresh child run（决策

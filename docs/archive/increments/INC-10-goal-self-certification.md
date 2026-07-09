@@ -1,3 +1,11 @@
+> **归档注记（2026-07-09）**：INC-10 已落地并收口——delta 并回
+> DESIGN(§13/决策 #21)/SPEC(F 域)/JOURNEYS(UJ-22 步骤 2b)/GAPS(G23 补全)/
+> QA-17/CODEX-PARITY(§2-06/§3/§6)/LOG；闸门 A（check.sh 全绿,含 rebase
+> 合流后复验）+ 闸门 B（QA-17 真 Gemini 自证达成 + webui Chrome 真跑）
+> 双绿；对抗 review（契约+正确性）P0/P1 全修。余项（token/墙钟预算、
+> blocked/usage_limited、llm_judge、banner 用量显示）记 LOG 与
+> CODEX-PARITY §6.2-④⑤。本工作纸自此只读。
+
 # INC-10 goal 自证完成（model-asserted completion）+ continuation 升级 + goal UI 收敛
 
 **动机来源**：CODEX-PARITY §6（2026-07-09 goal 深潜审计）。本增量关闭其

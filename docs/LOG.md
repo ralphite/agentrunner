@@ -995,3 +995,47 @@ bash 可读写 workspace，但读取 `/tmp/inc11-outside-real`、`.env` 均被 O
 的会话内 verifier 产生完整 allow→Seatbelt containment→Activity→pass 链并
 GoalAchieved。自动覆盖外部读写/凭据/env、linked worktree git、network deny、
 capability fail-closed、goal policy deny、driver evidence；Linux 目标交叉编译通过。
+
+## 2026-07-09 INC-10:goal 自证完成——G23 补全,CODEX-PARITY §6 缺口 ①②③⑥⑦ 关闭
+
+**增量**(工作纸 INC-10,已归档):无 verifier 的 goal 由模型 `goal_complete`
+声明完成,checkpoint 在静止边界裁决接受(GoalCompletionClaimed 事件,
+change-as-event #32 同族,checkpoint fold 消费、GoalUpdated 作废);有
+verifier 时 verifier 仍是唯一裁决者(claim 不越权,向后兼容)。模型工具面
+goal_status/goal_complete(常驻 face extras,无生命周期/verifier 设置路径,
+goalVerify 无门跑辩护前提保持);attach/miss 回灌升级为结构化 continuation
+(<goal> 标签注入卫生+反缩水+完成路径+预算报告);webui /goal 一句话直启
+(Home=新建会话+attach)、banner edit/self-certified/claim-pending。决策
+#21 完成判据扩展走不变量变更流程(工作纸单独成文,契约 review 通过,
+DESIGN/SPEC/UJ-22 与实现同 commit)。
+
+**对抗 review(契约+正确性双 agent)**:核心主张全数核查成立;P0/P1 全修——
+event 样本缺失(P0)、checkpoint 前 crash 窗漏裁(P1,新增 goalResumeCheck
+安全点补裁)、resume/update 打 idle 会话停摆(P1,goalReinject 注入再武装)、
+goal fold 就地 mutate 破 Apply 纯度(P1,copy-on-write)、SPEC 锚失真(P1)。
+P2 采纳孤儿会话修复;double-attach last-wins/inspect max_checks 显示原始
+值/Home task 双重注入记档接受。
+
+**连带主干潜红(被 go test 缓存掩盖,本轮缓存失效暴露,当场修)**:
+1. TestQuiescentSequenceOrder 期望缺 goal_verify 格(INC-D1 起潜红);
+2. daemon/cli 测试 unix socket 路径超 macOS 104B(shortSock 统一;与并发
+   session 的同因修复在 rebase 中合流);
+3. INC-D1 wake seam × malformed 截断 drive 空转(TestMalformedToolCall
+   ExhaustionErrors hang;修法与并发 session 的 hasRunnableInput 一致,
+   rebase 取其实现)。
+
+**闸门**:A 孪生 TestInSessionGoal{SelfCertify,ClaimDoesNotOverrideVerifier,
+NoVerifierBudget,ResumeContinues}+TestGoalResumeCheck/TestGoalClaimFold/
+TestGoalAttachRevivesSession,check.sh 全绿(rebase 合流后复验);B QA-17 真
+Gemini PASS(共享 daemon/store:claimed=1(model)→checkpoint model-certified
+→achieved satisfied,单 session,haiku 落盘)+ webui Chrome 真跑 PASS
+(/goal 直启、banner、goal_complete 时间线、达成收敛;CLI 真验 update 作废
++resume 注入)。归档 qa/runs/2026-07-09-QA-17/。
+
+**QA 备注**:共享 daemon 已切至 INC-10 二进制(/tmp/ar-inc10,原 /tmp/ar
+优雅停止,当时无 running 会话);验证中曾误把守护 goal attach 到并发
+session 的测试会话(...-ready-ad86),已即刻 cancel 并在归档记录。goal-*
+控制的 revive 在 rebase 后由 INC-11.2 durable-command 统一路径结构性
+提供(handleGoalControl 包装移除,TestGoalAttachRevivesSession 保留为
+行为锚)。余项:goal token/墙钟预算、blocked/usage_limited 态、llm_judge
+verifier、banner 用量显示(elapsed/tokens)——随 CODEX-PARITY §6.2-④⑤。
