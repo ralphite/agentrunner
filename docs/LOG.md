@@ -1085,3 +1085,26 @@ schema、provider/model、modalities、stream/tool-call 和可选能力。
 并完整显示 gemini modalities/capabilities。
 
 ---
+
+## 2026-07-09 Claude Code 本地核心对照审计：新增 docs/CLAUDECODE-PARITY.md
+
+以 Claude Code 本地 CLI/runtime 核心（2.1.x 至 2.1.205）为标尺的第三份
+对照审计件，与 CODEX-PARITY 互为姊妹件。按开发者裁决只对标本地核心，
+排除 cloud/IDE/桌面/生态外围（会话开场时的云端聚焦稿已按裁决整体撤销，
+未入库）。三路证据：官方文档 ~25 页逐页抓取、本机 claude 2.1.144 binary
+取证（28 内置工具 schema / 49 slash / 30 hooks 事件 / 386 env 全量 /
+6 权限模式 / autocompact 阈值常量）、CHANGELOG 全量 4822 行 + 工程博客
++ 社区实测。调研由并行 sub-agent 完成，工作纸存会话 scratchpad。
+
+结论：103 对照项 = 齐平/领先 37（10 项语义领先）· 部分 34 · 进行中 3
+（INC-12）· 缺失 28 · 非目标 1。runtime 语义层同级或反超（durable
+恰好一次 / 崩溃契约 / workspace 级时间旅行 / goal verifier / 树预算 /
+OS 沙箱同代——对方 2.1.x 的 supervisor daemon/后台默认/SendMessage
+resume 正向我们的形态收敛）；结构性差距集中在模型侧工程带：上下文
+（microcompact 四级体系）、记忆（auto-memory）、hooks（30 事件×5
+handler）、治理精度（auto mode 分类器/规则工程三件套/protected paths）、
+生态（bundled skills/plugins/LSP）。五个深潜（§3）：checkpoint vs
+barrier、上下文四级、auto mode 移植为 pipeline policy 源、agent teams
+vs INC-12（恢复语义是我们反超点）、skill 模型侧 invoke。路线图 §4.2：
+P0 三件（microcompact/G9 auto-memory/G19 hooks 扩展）全部不触不变量且
+压在对方社区 top 抱怨带上。GAPS G9/G19 已挂参照注记。

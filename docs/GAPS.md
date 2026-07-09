@@ -153,6 +153,10 @@ spec 冻结于 SessionStarted（对的），但缺一个显式变更事件族（
 
 **G9 记忆写回（# remember → CLAUDE.md/项目记忆） — ⚠️ 设计欠定 · 中**
 只设计了读侧注入（prefix 冻结）；写回哪个文件、本 run 何时生效未定。
+（2026-07-09 注：Claude Code auto-memory 的生产参照——MEMORY.md 索引
+前 200 行/25KB + 主题文件按需读 + per-agent agent-memory + 夜间巩固——
+已录 CLAUDECODE-PARITY §2.04/§4.2；其"压缩后不 consult memory"是对方
+top 抱怨（issue #29890），G9 设计时直接补此闭环。）
 → UJ-09
 
 **G16 prompt injection 威胁模型成文 — ⚠️ 设计欠定 · 中(web_fetch 面部分收口)**
@@ -168,6 +172,10 @@ egress 守卫;`untrusted_content` 软标记降低服从注入概率(不计入 ex
 只有 pre/post tool（observe+block）。session start/stop、用户输入提交、
 通知类钩子未设计。**注意：20 条 journey 无一压到 hooks——目录本身在
 此处覆盖不足**。
+（2026-07-09 注：Claude Code hooks 已长到 30 事件 × 5 handler 类型
+（command/http/mcp_tool/prompt/agent）+ 决策 JSON 契约（改写输入/输出、
+permissionDecision 档位），全表已录 CLAUDECODE-PARITY §2.08；第一批
+建议事件与我们 journal 点位的对齐见其 §4.2-P0③。）
 → （无 journey 覆盖）
 
 **G20 agent 主动提问（wait-class 工具，ask_user） — ✅ 已关闭（INC-5，2026-07-09）**
