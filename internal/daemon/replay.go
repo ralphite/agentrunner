@@ -23,6 +23,10 @@ func ReplayJournal(sessionDir string, sink protocol.Sink) error {
 	turn := 0
 	// Tool-call metadata for pairing results back to their names.
 	toolByActivity := map[string]event.ActivityStarted{}
+	// Tool-call metadata by call id, so an approval_request (which only
+	// carries the call id) can name the tool + args it is gating (UX-02).
+	type callMeta struct{ tool, args string }
+	callByID := map[string]callMeta{}
 	for _, env := range events {
 		decoded, err := event.DecodePayload(env)
 		if err != nil {
@@ -42,8 +46,10 @@ func ReplayJournal(sessionDir string, sink protocol.Sink) error {
 						sink.Emit(protocol.Event{Kind: protocol.KindMessage, N: p.GenStep, Text: part.Text})
 					}
 				case provider.PartToolCall:
+					args := compactJSON(part.Args)
+					callByID[part.CallID] = callMeta{tool: part.ToolName, args: args}
 					sink.Emit(protocol.Event{Kind: protocol.KindToolCall, N: p.GenStep,
-						Tool: part.ToolName, CallID: part.CallID, Args: compactJSON(part.Args)})
+						Tool: part.ToolName, CallID: part.CallID, Args: args})
 				}
 			}
 		case *event.WaitingEntered:
@@ -78,8 +84,10 @@ func ReplayJournal(sessionDir string, sink protocol.Sink) error {
 		case *event.ModeChanged:
 			sink.Emit(protocol.Event{Kind: protocol.KindModeChanged, Mode: p.To})
 		case *event.ApprovalRequested:
+			meta := callByID[p.CallID]
 			sink.Emit(protocol.Event{Kind: protocol.KindApprovalRequest, N: turn,
-				CallID: p.CallID})
+				CallID: p.CallID, ApprovalID: p.ApprovalID,
+				Tool: meta.tool, Args: meta.args, Text: askReason(p.GateResults)})
 		case *event.GenerationDiscarded:
 			sink.Emit(protocol.Event{Kind: protocol.KindDiscard, N: p.GenStep, Text: p.Reason})
 		case *event.SpecChanged:
@@ -98,6 +106,22 @@ func ReplayJournal(sessionDir string, sink protocol.Sink) error {
 		}
 	}
 	return nil
+}
+
+// askReason picks the human-facing reason to show with a pending approval:
+// the gate that returned "ask" (falling back to any non-allow gate that
+// carries a reason). Empty when no gate offered one.
+func askReason(gates []event.GateResult) string {
+	fallback := ""
+	for _, g := range gates {
+		if g.Decision == event.VerdictAsk && g.Reason != "" {
+			return g.Reason
+		}
+		if g.Decision != event.VerdictAllow && g.Reason != "" && fallback == "" {
+			fallback = g.Reason
+		}
+	}
+	return fallback
 }
 
 // compactJSON renders raw JSON on one line (mirrors the live emit path).

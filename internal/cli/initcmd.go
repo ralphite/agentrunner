@@ -28,15 +28,21 @@ system_prompt: >
 # Tools the agent may use; omit for a chat-only agent.
 tools: [read_file, write_file, edit_file, bash, grep, glob, semantic_search]
 
+# Heads-up: with NO permissions block below, edits (write_file/edit_file)
+# and shell commands (bash) PAUSE for your approval every time — reads are
+# free, side effects ask. Answer a pending ask with:
+#   agentrunner approve <session> <id> approve|deny
+# Uncomment permissions to pre-authorize what you trust (first match wins):
+permissions:
+  - { tool: read_file, action: allow }   # reads never touch anything
+  # - { tool: bash, command: "git *", action: allow }  # trust git
+  # - { action: allow }                  # trust everything (single-user dev box)
+
 # --- optional ---------------------------------------------------------
 # mode: plan                # default | plan | acceptEdits
 # max_generation_steps: 40  # cap on model calls per turn
 # budget:
 #   max_total_tokens: 200000
-# permissions:              # allow | ask | deny rules, first match wins
-#   - tool: bash
-#     command: "git *"
-#     action: allow
 `
 
 // initCmd writes the example spec: `agentrunner init [path]` (default
