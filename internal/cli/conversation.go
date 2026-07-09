@@ -429,6 +429,12 @@ func daemonDialErr(stderr io.Writer, err error) {
 // on any failure it returns the input unchanged (the daemon reports an
 // unknown session clearly).
 func resolvePrefixLenient(prefix string) string {
+	// A child session id is a FULL tree address (INC-12.3): its directory
+	// basename is only the last hop, so Base() would truncate it — pass it
+	// through verbatim (child ids get no prefix matching, INC-1).
+	if strings.Contains(prefix, "-sub-") {
+		return prefix
+	}
 	if dir, err := resolveSessionDir(prefix); err == nil {
 		return filepath.Base(dir)
 	}

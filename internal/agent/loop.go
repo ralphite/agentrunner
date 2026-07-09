@@ -323,6 +323,7 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 		l.Clock = clock.Real{}
 	}
 	l.ensureBoard()
+	l.ensureRouter() // before any input lands: a Target forward needs the fabric
 	l.ensureApprovals()
 	l.applySandbox()
 	ownedMCP, err := l.ensureMCP(ctx)
@@ -507,6 +508,7 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 	// must match the original run's. The artifact store is durable and
 	// simply reopens.
 	l.ensureBoard()
+	l.ensureRouter() // before any input lands: a Target forward needs the fabric
 	l.ensureApprovals()
 	l.applySandbox()
 	ownedMCP, err := l.ensureMCP(ctx)
@@ -814,11 +816,10 @@ func checkVersions(got map[string]int) error {
 
 // drive is the decision loop shared by Run and Resume.
 func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (RunResult, error) {
-	// Tree message fabric (INC-12): the root creates the router when its
-	// spec opens the multi-agent face; children inherit it via childLoop.
-	// Every driving member registers a live wake port (peer messages) and a
-	// revive post (quiescent-child mail), deregistering on the way out.
-	l.ensureRouter()
+	// Tree message fabric (INC-12): created at Run/Resume entry (the root)
+	// or inherited via childLoop. Every driving member registers a live wake
+	// port (peer messages) and a revive post (quiescent-child mail),
+	// deregistering on the way out.
 	if l.Router != nil {
 		l.peer = make(chan protocol.UserInput, 64)
 		l.revive = make(chan string, 64)
