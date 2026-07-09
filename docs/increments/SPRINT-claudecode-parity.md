@@ -53,7 +53,7 @@
 
 | # | 项 | 矩阵/GAPS 锚 | 规模 | 状态 | 备注 |
 |---|---|---|---|---|---|
-| 1 | microcompact：assembly 层将可重算旧工具结果降级为占位符（read-class 且来源未变），不调 LLM | #18 · UJ-09 | S | ⬜ | 纯 assembly 策略，零事件变更；阈值先于 autocompact 触发 |
+| 1 | microcompact：assembly 层将可重算旧工具结果降级为占位符（read-class 且来源未变），不调 LLM | #18 · UJ-09 | S | 🔧 in-progress (INC-13) | 纯 assembly 策略，零事件变更；阈值先于 autocompact 触发 |
 | 2 | G9 记忆写回 + auto-memory 机制（MEMORY.md 索引 200 行/25KB + 主题文件 + 压缩后 consult 闭环；@import 与 .claude/rules 顺收） | #26-31 · G9 · INC-D4 | M | ⬜ | INC-D4 取 A 不触不变量；对方 top 抱怨 #29890 的闭环是反超点 |
 | 3 | G19 hooks 事件族第一批（SessionStart/End、UserPromptSubmit、Stop、SubagentStart/Stop、PreCompact/PostCompact），observe+block 语义不变 | #70-74 · G19 | M | ⬜ | 事件对齐既有 journal 点位；handler 仍 command-only |
 
