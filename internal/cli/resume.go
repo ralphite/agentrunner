@@ -11,6 +11,7 @@ import (
 
 	"github.com/ralphite/agentrunner/internal/agent"
 	"github.com/ralphite/agentrunner/internal/clock"
+	"github.com/ralphite/agentrunner/internal/driver"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/hook"
 	"github.com/ralphite/agentrunner/internal/pipeline"
@@ -214,7 +215,18 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 			r.mtime = info.ModTime().UnixNano()
 		}
 		if events, err := store.ReadEvents(filepath.Join(root, e.Name())); err == nil {
-			if s, err := state.Fold(events); err == nil {
+			if isDriverJournal(events) {
+				if s, derr := driver.Fold(events); derr == nil {
+					r.status = string(s.Status)
+					if s.Status == driver.StatusEnded && s.Reason != "" {
+						r.status = s.Reason
+					}
+					if s.Status == driver.StatusRunning && !store.HasLiveWriter(filepath.Join(root, e.Name())) {
+						r.status = "stranded"
+					}
+					r.turns = len(s.Iterations)
+				}
+			} else if s, err := state.Fold(events); err == nil {
 				// The status column reads the SHAPE (决策 #31): a close/kill
 				// mark or quiescence names the finish; a live wait shows its
 				// kind; otherwise the liveness status.

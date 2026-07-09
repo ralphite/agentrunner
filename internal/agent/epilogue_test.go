@@ -37,8 +37,9 @@ func foldingAppend(m *memAppend, ds *driveState) AppendFunc {
 	}
 }
 
-// The quiescent-actions sequence is fixed: auto_publish → barrier — and it
-// journals NO terminal fact (决策 #31: quiescence is a shape).
+// The quiescent-actions sequence is fixed: auto_publish → barrier →
+// goal_verify — and it journals NO terminal fact when no goal is attached
+// (决策 #31: quiescence is a shape).
 func TestQuiescentSequenceOrder(t *testing.T) {
 	var order []string
 	instrumentQuiescent(t, &order, "")
@@ -49,7 +50,7 @@ func TestQuiescentSequenceOrder(t *testing.T) {
 	if err := (&Loop{Spec: &AgentSpec{}}).quiescentActions(context.Background(), ds, foldingAppend(m, ds), &reason); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"auto_publish", "barrier"}
+	want := []string{"auto_publish", "barrier", "goal_verify"}
 	if !equal(order, want) {
 		t.Fatalf("hook order = %v, want %v", order, want)
 	}

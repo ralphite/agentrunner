@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ralphite/agentrunner/internal/driver"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/state"
@@ -73,6 +74,7 @@ func inspectCmd(args []string, stdout, stderr io.Writer) int {
 // inspectReport is the structured `inspect` output (also the --json shape).
 // Children are the sub-agent runs (S5.9), recursively — the tree render.
 type inspectReport struct {
+	Kind      string           `json:"kind,omitempty"` // run | driver
 	Spec      string           `json:"spec"`
 	Model     string           `json:"model"`
 	Mode      string           `json:"mode"`
@@ -153,6 +155,9 @@ func buildInspectTree(dir string) (inspectReport, error) {
 	if err != nil {
 		return inspectReport{}, err
 	}
+	if isDriverJournal(events) {
+		return buildDriverInspectTree(dir, events)
+	}
 	s, err := state.Fold(events)
 	if err != nil {
 		return inspectReport{}, fmt.Errorf("fold: %w", err)
@@ -186,6 +191,63 @@ func buildInspectTree(dir string) (inspectReport, error) {
 				Reason: sub.Reason, Report: childReport,
 			})
 		}
+	}
+	return report, nil
+}
+
+func isDriverJournal(events []event.Envelope) bool {
+	return len(events) > 0 && event.DriverStream[events[0].Type]
+}
+
+// buildDriverInspectTree projects a driver's OWN journal through the driver
+// fold. Driver and run streams deliberately have different state machines;
+// sending driver_started through state.Fold made every real goal/loop series
+// appear corrupt even though its journal was healthy.
+func buildDriverInspectTree(dir string, events []event.Envelope) (inspectReport, error) {
+	s, err := driver.Fold(events)
+	if err != nil {
+		return inspectReport{}, fmt.Errorf("driver fold: %w", err)
+	}
+	report := inspectReport{
+		Kind: "driver", Status: string(s.Status), Reason: s.Reason,
+		GenSteps: len(s.Iterations), Usage: usageReport{Billed: s.SpentTokens},
+	}
+	for _, env := range events {
+		if env.Type == event.TypeDriverStarted {
+			decoded, derr := event.DecodePayload(env)
+			if derr != nil {
+				return inspectReport{}, derr
+			}
+			report.Spec = decoded.(*event.DriverStarted).SpecName
+			break
+		}
+	}
+	for _, it := range s.Iterations {
+		status := "scheduled"
+		switch {
+		case it.Skipped:
+			status = "skipped"
+		case it.Completed:
+			status = it.ChildReason
+		case it.Launched:
+			status = "running"
+		}
+		detail := fmt.Sprintf("pass=%v score=%g", it.Verdict.Pass, it.Verdict.Score)
+		report.Entries = append(report.Entries, entryReport{
+			GenStep: it.N, Kind: "iteration", Name: status, Detail: detail,
+		})
+		childDir := filepath.Join(dir, "sub", fmt.Sprintf("iter-%d", it.N))
+		if _, statErr := store.ReadEvents(childDir); statErr != nil {
+			continue
+		}
+		childReport, childErr := buildInspectTree(childDir)
+		if childErr != nil {
+			continue
+		}
+		report.Children = append(report.Children, childReportRef{
+			CallID: fmt.Sprintf("iteration-%d", it.N), Agent: "iteration",
+			Session: it.ChildSession, Reason: it.ChildReason, Report: childReport,
+		})
 	}
 	return report, nil
 }
@@ -231,6 +293,7 @@ func buildInspectReport(events []event.Envelope, s state.State) inspectReport {
 		status, reason = "quiescent", r
 	}
 	report := inspectReport{
+		Kind:     "run",
 		Spec:     s.Session.SpecName,
 		Model:    s.Session.Model,
 		Mode:     s.CurrentMode(),
@@ -399,18 +462,30 @@ func renderInspect(w io.Writer, r inspectReport) {
 }
 
 func renderInspectIndent(w io.Writer, r inspectReport, pad string) {
-	fmt.Fprintf(w, "%sspec    %s    model %s    mode %s\n", pad, r.Spec, r.Model, r.Mode)
+	if r.Kind == "driver" {
+		fmt.Fprintf(w, "%sdriver  %s\n", pad, r.Spec)
+	} else {
+		fmt.Fprintf(w, "%sspec    %s    model %s    mode %s\n", pad, r.Spec, r.Model, r.Mode)
+	}
 	status := r.Status
 	if r.Reason != "" {
 		status += " (" + r.Reason + ")"
 	}
-	fmt.Fprintf(w, "%sstatus  %s    gen-steps %d\n\n", pad, status, r.GenSteps)
+	countLabel := "gen-steps"
+	if r.Kind == "driver" {
+		countLabel = "iterations"
+	}
+	fmt.Fprintf(w, "%sstatus  %s    %s %d\n\n", pad, status, countLabel, r.GenSteps)
 
 	fmt.Fprintln(w, pad+"TIMELINE")
 	lastTurn := -1
 	for _, e := range r.Entries {
 		if e.GenStep != lastTurn {
-			fmt.Fprintf(w, "%s  gen-step %d\n", pad, e.GenStep)
+			label := "gen-step"
+			if r.Kind == "driver" {
+				label = "iteration"
+			}
+			fmt.Fprintf(w, "%s  %s %d\n", pad, label, e.GenStep)
 			lastTurn = e.GenStep
 		}
 		verdict := e.Verdict

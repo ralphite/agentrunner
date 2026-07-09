@@ -17,7 +17,7 @@ import (
 // waits until it accepts connections.
 func startServer(t *testing.T, run RunFunc, replay func(string, protocol.Sink) error) (string, context.CancelFunc) {
 	t.Helper()
-	sock := filepath.Join(t.TempDir(), "d.sock")
+	sock := shortSock(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	var n atomic.Int64
 	srv := &Server{
@@ -288,7 +288,7 @@ func TestDaemonGracefulShutdownWaitsForRuns(t *testing.T) {
 		settled.Store(true)
 		return ctx.Err()
 	}
-	sock := filepath.Join(t.TempDir(), "d.sock")
+	sock := shortSock(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	srv := &Server{
 		SocketPath: sock, Run: run,
@@ -336,7 +336,7 @@ func TestDaemonNotifyTee(t *testing.T) {
 		sink.Emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: "completed"})
 		return nil
 	}
-	sock := filepath.Join(t.TempDir(), "d.sock")
+	sock := shortSock(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	srv := &Server{
@@ -379,7 +379,7 @@ func TestDaemonNotifyTee(t *testing.T) {
 // must not wedge graceful shutdown — the daemon closes lingering
 // connections after the runs settle.
 func TestDaemonShutdownWithHungClient(t *testing.T) {
-	sock := filepath.Join(t.TempDir(), "d.sock")
+	sock := shortSock(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	srv := &Server{SocketPath: sock, NewID: func(string) string { return "x" }}
 	served := make(chan error, 1)
@@ -468,8 +468,8 @@ func TestDaemonSubmitIdempotency(t *testing.T) {
 // S7 还债: the idem index survives a daemon restart — a retry against the
 // NEW daemon still finds the old session (served from replay).
 func TestDaemonIdemPersistsAcrossRestart(t *testing.T) {
-	dir := t.TempDir()
-	idemPath := filepath.Join(dir, "idem.json")
+	dir := shortTempDir(t)
+	idemPath := filepath.Join(t.TempDir(), "idem.json")
 	var mu sync.Mutex
 	launches := 0
 	run := func(ctx context.Context, req RunRequest, sink protocol.Sink) error {

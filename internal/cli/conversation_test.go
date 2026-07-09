@@ -37,7 +37,7 @@ func TestDaemonConversationalSendClose(t *testing.T) {
 	}
 	t.Setenv("AGENTRUNNER_SCRIPTED_FIXTURE", fixPath)
 
-	sock := filepath.Join(t.TempDir(), "d.sock")
+	sock := shortCLISocket(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var errOut bytes.Buffer

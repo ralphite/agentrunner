@@ -890,3 +890,25 @@ verifier 落地 → 烧完预算截断)。缺口清单+建议(模型自证与 ve
 CODEX-PARITY §6.2;连带发现 update_plan/终端交互/node REPL 等 Codex 模型
 侧工具面差距登记 §6.4。§2-06 goal 行 ✅→🟡,§3 会话内 goal 行改
 ✅ v0+余项。纯审计与文档增量,未动代码。
+
+## 2026-07-09 INC-11.1 runtime 基线与真实旧 store projection 修复
+
+**真实复现**：`./scripts/check.sh` 卡在
+`TestMalformedToolCallExhaustionErrors`；目标测试 15s timeout 的栈在
+`idleOrReturn→Quiescence`。根因是 malformed finish 不落 assistant message，
+原始 user message 永远满足 raw `hasInputAfterLastAssistant`，绕过
+`TruncationRestartable` 的“一次 wake 一次尝试”契约而热循环。修为
+`hasRunnableInput` 统一服从 truncation policy，并补 resume 回归测试。
+
+同时修复三类基线漂移：quiescent 固定序列测试补上 INC-D1 已加入的
+`goal_verify` 最后一格；所有直接绑定 Unix socket 的 daemon/CLI 测试使用
+短临时路径，避免 macOS 104-byte `sun_path` 上限；timer sweep 的旧失败由
+同一 socket bind 问题消除。`check.sh` 全绿。
+
+**真实共享数据**：`~/.local/share/agentrunner` 中
+`20260709-104551-sched-loop-5c56` 等 driver journal 之前被 CLI 错送
+`state.Fold`，报 `registered event type has no fold case: driver_started`。
+现在按首事件 stream header 分派 `driver.Fold`；`sessions`、`inspect`、
+`events --state` 均能读取旧 journal，inspect 递归展示 `sub/iter-N` 子会话。
+实测原 `unreadable` 行恢复为 `satisfied` / `max_iterations`。这是 projection
+修复，不修改任何旧数据。

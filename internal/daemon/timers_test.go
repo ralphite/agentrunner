@@ -3,7 +3,6 @@ package daemon
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -20,7 +19,7 @@ func timerHarness(t *testing.T, clk *clock.Fake, scan func() ([]SessionTimer, er
 		return resume(ctx, req.SessionID, sink)
 	}
 	t.Helper()
-	sock := filepath.Join(t.TempDir(), "d.sock")
+	sock := shortSock(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	srv := &Server{
 		SocketPath: sock, Clock: clk,

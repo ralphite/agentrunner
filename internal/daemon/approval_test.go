@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -26,7 +25,7 @@ func TestDaemonApprovalRoundTrip(t *testing.T) {
 		sink.Emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: "completed"})
 		return nil
 	}
-	sock := filepath.Join(t.TempDir(), "d.sock")
+	sock := shortSock(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	srv := &Server{

@@ -140,7 +140,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 
 | 功能点 | 状态 | Journey | 验收锚 / 备注 |
 |---|---|---|---|
-| events / inspect（时间线、判定、子树、用量） | ✅ | UJ-17 | S3/S6;子会话寻址(child_session 全 id,`-sub-` 分段映射 `sub/` 目录,任意深度)INC-1 |
+| events / inspect（时间线、判定、子树、用量） | ✅ | UJ-17 | S3/S6;INC-11.1 按 stream header 分派 run fold / driver fold，旧 goal/loop journal 可读并展开 iteration 子树；子会话寻址(child_session 全 id,`-sub-` 分段映射 `sub/` 目录,任意深度)INC-1 |
 | `ar ps`（fold 的在飞任务列表，无 daemon 可用） | ✅ | UJ-18 | QA-05/09 实测 |
 | attach/detach（journal 补读 + live 订阅） | ✅ | UJ-17 | S6 |
 | 远程审批（daemon approve） | ✅ | UJ-17 | S6 |
@@ -154,7 +154,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 |---|---|---|---|
 | daemon 托管（socket、idem_key 幂等、优雅停机） | ✅ | UJ-17 | S6 |
 | CLI 第一公里可发现性（顶层 help/`init` 示例 spec/README/spec 错误附字段清单/daemon 报错附启动指引） | ✅ | UJ-01…（全 journey 进入门槛） | INC-2 · TestTopLevelHelp/TestInit* · spec_errors golden |
-| 静止动作（outputs→barrier→parent 回执;ar run=开+发+等静止+读结果） | ✅ | UJ-02/14/15 | 决策 #31 · 2026-07-08 落码(D2) · TestQuiescentSequenceOrder · acceptance events_valid 改静止形状判定 |
+| 静止动作（outputs→barrier→goal_verify→parent 回执;ar run=开+发+等静止+读结果） | ✅ | UJ-02/14/15/22 | 决策 #31 · 2026-07-08 落码(D2) · INC-D1/INC-11.1 同步顺序测试 · TestQuiescentSequenceOrder · acceptance events_valid 改静止形状判定 |
 | session 内换 agent（SpecChanged 事件 + `ar agent`,用户免确认,prefix 显式换代） | ✅ | UJ-11 | 裁决一 · 2026-07-08 落码(D4a) · QA-10 · TestAgentSwitchTakesEffectOnResume（G8 关闭） |
 | 云 workspace 生命周期 | 🧊 | UJ-13 | GAPS G11（S7 预授权裁掉，重启走新增量） |
 | IDE 集成 | 🧊 | — | 同上裁决 |

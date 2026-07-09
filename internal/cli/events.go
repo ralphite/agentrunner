@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ralphite/agentrunner/internal/driver"
 	"github.com/ralphite/agentrunner/internal/runtime"
 	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
@@ -53,12 +54,23 @@ func eventsCmd(args []string, stdout, stderr io.Writer) int {
 	}
 
 	if *dumpState {
-		s, err := state.Fold(events)
-		if err != nil {
-			fmt.Fprintf(stderr, "agentrunner: fold: %v\n", err)
-			return ExitRun
+		var folded any
+		if isDriverJournal(events) {
+			s, ferr := driver.Fold(events)
+			if ferr != nil {
+				fmt.Fprintf(stderr, "agentrunner: driver fold: %v\n", ferr)
+				return ExitRun
+			}
+			folded = s
+		} else {
+			s, ferr := state.Fold(events)
+			if ferr != nil {
+				fmt.Fprintf(stderr, "agentrunner: fold: %v\n", ferr)
+				return ExitRun
+			}
+			folded = s
 		}
-		raw, err := json.MarshalIndent(s, "", "  ")
+		raw, err := json.MarshalIndent(folded, "", "  ")
 		if err != nil {
 			fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 			return ExitRun

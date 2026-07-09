@@ -1070,7 +1070,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				// settled by settleCrashInDoubt, is ALREADY waiting in the
 				// fold — resolve the stale idle instead of blocking over it,
 				// or the model never sees it until the next external poke.
-				if hasInputAfterLastAssistant(ds.s) {
+				if hasRunnableInput(ds.s) {
 					if _, err := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
 						Kind: event.WaitInput, Resolution: "pending_input",
 					}); err != nil {
@@ -1134,7 +1134,7 @@ func (l *Loop) idleOrReturn(ctx context.Context, ds *driveState, appendE AppendF
 		// a driver/headless-hosted in-session goal continues too (R5). The
 		// signal is the fold itself (crash-safe: a resume re-reads the same
 		// journaled input), not a transient flag.
-		if hasInputAfterLastAssistant(ds.s) {
+		if hasRunnableInput(ds.s) {
 			*quiesced = false
 			return RunResult{}, false, nil
 		}
@@ -1757,6 +1757,21 @@ func hasInputAfterLastAssistant(s state.State) bool {
 		}
 	}
 	return false
+}
+
+// hasRunnableInput distinguishes a genuinely NEW input from the user message
+// that started a visibly-truncated turn. A malformed provider finish has no
+// durable assistant message, so the raw message-order predicate stays true;
+// treating that old input as a wake signal hot-loops the same broken turn.
+// TruncationRestartable is the canonical one-attempt-per-wake policy.
+func hasRunnableInput(s state.State) bool {
+	if !hasInputAfterLastAssistant(s) {
+		return false
+	}
+	if s.Session.TruncatedAtGenStep == s.Session.GenStep && s.Session.GenStep > 0 {
+		return state.TruncationRestartable(s)
+	}
+	return true
 }
 
 func assistantMessages(s state.State) []provider.Message {

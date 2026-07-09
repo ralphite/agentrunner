@@ -91,6 +91,23 @@ func TestMalformedToolCallExhaustionErrors(t *testing.T) {
 	}
 }
 
+// The truncation must stay idle across resume too. With no assistant message
+// in the journal, the original user input still appears newer by raw message
+// order; it is not a fresh wake and must not re-run the malformed provider.
+func TestMalformedToolCallExhaustionStaysIdleOnResume(t *testing.T) {
+	malformed := scripted.Step{Respond: []scripted.Event{{Text: "bad"}, {Finish: "malformed_tool_call"}}}
+	l := testLoop(t, scripted.Fixture{Steps: []scripted.Step{malformed, malformed, malformed}}, t.TempDir())
+	if _, err := l.Run(context.Background(), "go"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.Resume(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if n := countEvents(t, l.Store.Dir(), event.TypeMalformedToolCall); n != 3 {
+		t.Fatalf("resume retried malformed turn: events = %d, want 3", n)
+	}
+}
+
 // S4.6: a blocked/safety finish surfaces a user-visible error and ends the
 // run (reason "blocked"), preserving any assistant text.
 func TestBlockedFinishEndsRun(t *testing.T) {

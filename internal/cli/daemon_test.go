@@ -13,6 +13,16 @@ import (
 	"github.com/ralphite/agentrunner/internal/runtime"
 )
 
+func shortCLISocket(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "ar-cli")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return filepath.Join(dir, "d.sock")
+}
+
 // The daemon hosts a real run end to end: submit streams the events, the
 // journal lands under the session dir, and a later attach replays the same
 // story from the journal (补读).
@@ -31,7 +41,7 @@ func TestDaemonHostsRunAndAttachReplays(t *testing.T) {
 	}
 	t.Setenv("AGENTRUNNER_SCRIPTED_FIXTURE", fixPath)
 
-	sock := filepath.Join(t.TempDir(), "d.sock")
+	sock := shortCLISocket(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var errOut bytes.Buffer

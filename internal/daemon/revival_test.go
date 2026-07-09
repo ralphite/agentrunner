@@ -15,14 +15,19 @@ import (
 // shortSock returns a unix-socket path under a SHORT temp dir. macOS caps
 // sockaddr_un.sun_path at ~104 bytes, and t.TempDir() embeds the (long) test
 // name — a descriptive test would otherwise fail to bind ("invalid argument").
-func shortSock(t *testing.T) string {
+func shortTempDir(t *testing.T) string {
 	t.Helper()
 	tmp, err := os.MkdirTemp("", "ar")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(tmp) })
-	return filepath.Join(tmp, "d.sock")
+	return tmp
+}
+
+func shortSock(t *testing.T) string {
+	t.Helper()
+	return filepath.Join(shortTempDir(t), "d.sock")
 }
 
 // revivalHarness starts a server with a controllable Resume and SessionMarked.
@@ -145,7 +150,7 @@ func TestSendPersistsBeforeAck(t *testing.T) {
 		<-ctx.Done()
 		return ctx.Err()
 	}
-	sock := filepath.Join(t.TempDir(), "d.sock")
+	sock := shortSock(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	srv := &Server{
 		SocketPath:    sock,

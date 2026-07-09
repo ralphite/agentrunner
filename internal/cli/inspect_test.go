@@ -141,6 +141,40 @@ func TestBuildInspectTree(t *testing.T) {
 	}
 }
 
+func TestBuildInspectTreeUsesDriverFold(t *testing.T) {
+	dir := t.TempDir()
+	es, err := store.OpenEventStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range []struct {
+		typ string
+		v   any
+	}{
+		{event.TypeDriverStarted, &event.DriverStarted{DriverID: "drv", SpecName: "nightly", FoldVersion: 1}},
+		{event.TypeIterationScheduled, &event.IterationScheduled{DriverID: "drv", Iter: 1}},
+		{event.TypeIterationLaunched, &event.IterationLaunched{DriverID: "drv", Iter: 1, ChildSession: "drv-i1"}},
+		{event.TypeIterationCompleted, &event.IterationCompleted{DriverID: "drv", Iter: 1, ChildSession: "drv-i1", ChildReason: "completed", Verdict: event.IterationVerdict{Pass: true, Score: 1}}},
+		{event.TypeDriverCompleted, &event.DriverCompleted{DriverID: "drv", Reason: "satisfied", Iterations: 1, BestIter: 1}},
+	} {
+		env := mkEnv(t, item.typ, item.v)
+		if _, err := es.Append(env); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := es.Close(); err != nil {
+		t.Fatal(err)
+	}
+	report, err := buildInspectTree(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Kind != "driver" || report.Spec != "nightly" || report.Status != "ended" ||
+		report.Reason != "satisfied" || report.GenSteps != 1 || len(report.Entries) != 1 {
+		t.Fatalf("driver report = %+v", report)
+	}
+}
+
 // The human-readable render includes the timeline and usage line.
 func TestRenderInspect(t *testing.T) {
 	r := inspectReport{
