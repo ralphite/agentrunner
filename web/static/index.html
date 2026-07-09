@@ -1075,7 +1075,11 @@ $("sysToggle").onchange = e => document.body.classList.toggle("showsys", e.targe
 // ---------- sessions list / health ----------
 async function refreshSessions() {
   try {
-    const rows = await api("/sessions");
+    const all = await api("/sessions");
+    // Driver runs (top-level `web-driver` sessions) are not conversational —
+    // they surface live in the Driver panel and fold as "unreadable" here, so
+    // keep them out of the conversational session list.
+    const rows = all.filter(r => !r.id.includes("web-driver"));
     const box = $("sesslist");
     if (!rows.length) { box.innerHTML = ""; box.appendChild(el("div", "side-empty", "No sessions yet. Click “+ New session”.")); return; }
     box.innerHTML = "";
@@ -1083,11 +1087,13 @@ async function refreshSessions() {
       if (r.id === state.sid) state.listStatus = r.status;
       const d = el("div", "sess" + (r.id === state.sid ? " cur" : ""));
       d.dataset.id = r.id;
+      d.title = r.id;
       const top = el("div", "top");
       top.appendChild(el("span", "sdot " + classifyStatus(r.status)));
       top.appendChild(el("span", "name", prettyName(r.id)));
       d.appendChild(top);
-      d.appendChild(el("div", "meta", `${r.status} · ${r.turns} turns`));
+      const tm = r.id.match(/^\d{8}-(\d{2})(\d{2})/); // disambiguate same-named runs by start time
+      d.appendChild(el("div", "meta", `${r.status} · ${r.turns} turns${tm ? " · " + tm[1] + ":" + tm[2] : ""}`));
       d.onclick = () => openSession(r.id);
       box.appendChild(d);
     });
