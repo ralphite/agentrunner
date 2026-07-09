@@ -804,3 +804,73 @@ application/pdf)/`TestToPartFilePDF`(Gemini inline_data)/`TestUserBlocksFilePDF`
 全绿;check.sh 全绿。B — **QA-14 真实 coding agent** execute-class 下三跑均
 PASS(allow-all spec 命中放行,agent 照常抓规范→实现→测试绿),正常流程未
 退化。DESIGN §5/§15/§18.5、SPEC C、GAPS、INC-D3(归档)同步。
+
+## 2026-07-09 INC-D1 会话内 goal——不变量变更(决策 #21 拆分)+ G23/UJ-22 关闭
+
+**§4 不变量变更(决策 #21 修订)**:旧「one-shot/goal/loop/best-of-N 是同一
+IterationDriver 四种 schedule;每轮迭代=fresh child session」拆为:best-of-N/
+批式 loop/one-shot/**driver-goal** 保 fresh-child-run;**goal 另有会话内形态**
+(in-session goal)挂 conversational `agent.Loop`、context 全程延续。根因:UJ-22
+硬要求 context 延续,fresh-run 构造上丢对话 context(开发者 2026-07-05 已裁定
+fresh-run 教义不适用于 goal 形态)。DESIGN 决策 #21/§13/glossary 与实现同 commit。
+
+**机制**:event goal 族(7 个)+ state.Goal 子状态 fold + `goal_verify` 作为
+静止序列(决策 #24)**最后一格**(barrier 仍快照 pre-injection 干净边界)。
+miss → `GoalCheckpoint` + program 源 `InputReceived` 回灌(state.go:332 天然
+fold 进对话)→ idleOrReturn **wake seam**(`hasInputAfterLastAssistant` → 不
+idle、返回 done=false 让 drive 重 decide → 同上下文续 turn)。pass →
+`GoalAchieved{satisfied}` 摘 goal;`max_checks` 尽 → `GoalAchieved{budget}` =
+可见截断(决策 #31)。控制面 attach/pause/resume/update/cancel 走 compact/clear
+同 out-of-band control 通道(`ar goal`)。
+
+**crash 安全(R1/R2)**:`GoalCheckpoint` 带 `GenStep`+`Feedback`;goal_verify
+若本 gen step 已 checkpoint 则恢复(LastFeedback 缺则补灌),不重跑 verifier、
+不双注入。verifier 命令须幂等(与 driver verifier 同契约)。程序输入直接
+appendE(不过 mailbox,DeliverySeq=0),幂等键=CheckpointedGenStep(R3)。
+
+**R6 resume 兼容**:加 "goal":1 sub-state 版本;`checkVersions` 从精确集合相等
+放宽为 **superset-tolerant**(journal ⊆ binary,共享 namespace 版本须匹配;新增
+namespace 从零 fold)——否则所有旧会话拒绝 resume。这是加 namespace 的可证加性
+放宽。
+
+**偏差/v0 余项**:llm_judge/human verifier、token/墙钟 goal 预算列余项(命令
+verifier + max_checks 已覆盖 UJ-22 主场景);goal attach 需 live session(控制面
+不复活 idle 会话,同 compact/clear);steer 与 goal 并行随既有插话排队天然成立。
+
+**闸门**:A — `TestInSessionGoalContinuity`(单 SessionStarted 证 context 延续 +
+miss→回灌→pass)/`BudgetTruncation`/`PauseCancel`;check.sh 全绿(核心 loop/
+quiescence/mailbox/resume 无回归)。B — **QA-16 真实 Gemini**:挂 goal→真 agent
+建 done.txt=FINISHED→真命令 verifier 通过→achieved,sessions=1。驾驶舱:`ar goal`
+端点 + session `/goal` 挂 in-session goal(Home `/goal` 仍走 driver-goal)+ goal
+banner(pause/cancel)+ inspect goal 摘要。DESIGN(#21/§13/§24/glossary)/SPEC F/
+GAPS G23/JOURNEYS UJ-22/QA-16、工作纸归档同步。
+
+**三视角对抗 review（里程碑+不变量变更,强制）**——三个独立 agent 各审
+correctness/并发、安全、契约=DESIGN+QA,发现并全修:
+- **正确性 Bug 1(CONFIRMED,关键)**:crash 恢复守卫在 resume 上是死代码——
+  resume 时 shape 已静止,`quiesced` 起始 true,`idleOrReturn` 跳过
+  `quiescentActions`(含 goal_verify),恢复分支永不执行 → checkpoint→
+  follow-up 崩溃窗让 goal 自主推进停摆。**修**:新增 `goalRecover` 在 drive
+  循环安全点每轮跑(不受 quiesced 门控),重发丢失的 GoalAchieved(pass/
+  budget)/重灌丢失的 miss feedback,幂等。孪生 TestGoalRecover(三分支+
+  不双注入)。
+- **正确性 Bug 2(CONFIRMED)**:`ar goal update` 恒发 Budget(默认),只改
+  verifier 的 update 会静默重置预算甚至立即截断。**修**:update 仅在显式
+  `--max-checks` 时发 Budget;attach 才用默认 10。
+- **正确性 Bug 3(PLAUSIBLE)**:MaxChecks==0 预算永不生效,driver 直连绕过
+  默认可无界循环。**修**:`goalMaxChecks` 兜底 DefaultGoalMaxChecks=20。
+- **安全 F3(CONFIRMED)**:goal 文本/feedback/detail 未过 redaction(凭据红线
+  §18.5 不一致)。**修**:GoalAttached/Updated 的 goal 文本 + 回灌 program
+  输入 + checkpoint detail 全过 `redact.FromEnv()`(verifier 命令须运行故保
+  raw,同 bash 工具调用)。
+- **安全 F2(PLAUSIBLE,largely 既有)**:webui `readBody` 不检 Content-Type →
+  CORS simple-request CSRF(drive-by-localhost 触发 ungated bash)。**修**:
+  readBody 要求 `application/json`,强制 preflight(no-CORS server 不应答→
+  浏览器拦),硬化 goal + 既有 send/git 等全部 JSON 端点。
+- **安全 F1 / 契约**:in-session verifier ungated(driver 其实 adjudicate)——
+  修正误导注释,记档为 defensible(命令仅 operator 可设、网络仍收容)+
+  pipeline 化 verifier 列 hardening 余项。契约 review 确认核心契约(verifier
+  仅静止边界、generation 不被挟持、miss 回灌同 fold、achieved/cancel 非终态、
+  goal 参数出冻结 spec、决策 #24/#31/#32 honored)全部成立。
+- 三个 doc straggler(#24 加格、CODEX-PARITY goal 行、§13 opener)同修。
+P0/P1 全修,收口。

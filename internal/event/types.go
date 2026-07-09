@@ -71,6 +71,21 @@ const (
 	// same family as ApprovalResponded (a content-bearing reply event, not
 	// a bare InputReceived).
 	TypeAskResolved = "ask_resolved"
+
+	// INC-D1 (决策 #21 拆分, G23/UJ-22): in-session goal. A goal hangs on the
+	// conversational session; at the exchange boundary a verifier runs, and a
+	// miss re-injects a program-source InputReceived so the SAME thread
+	// continues IN CONTEXT (contrast the driver-goal's fresh-child-run form,
+	// §13). These are run-fold events (a Goal sub-state), NOT the driver
+	// stream. Control (attach/pause/resume/update/cancel) rides the same
+	// out-of-band channel as compact/clear.
+	TypeGoalAttached   = "goal_attached"
+	TypeGoalUpdated    = "goal_updated"
+	TypeGoalPaused     = "goal_paused"
+	TypeGoalResumed    = "goal_resumed"
+	TypeGoalCancelled  = "goal_cancelled"
+	TypeGoalCheckpoint = "goal_checkpoint"
+	TypeGoalAchieved   = "goal_achieved"
 )
 
 // Effect verdicts and gate decisions.
@@ -256,6 +271,81 @@ type AskResolved struct {
 	Resolution  string `json:"resolution"`
 	Answer      string `json:"answer"`
 	DeliverySeq int64  `json:"delivery_seq,omitempty"`
+}
+
+// ---- INC-D1: in-session goal (G23/UJ-22) ----
+
+// GoalVerifier is one check that decides whether the goal is met. v0 supports
+// the command kind (a bash command; exit 0 = pass) — the primary UJ-22 case
+// ("run the tests N times"). Other kinds (llm_judge / human) are deferred.
+type GoalVerifier struct {
+	Kind    string `json:"kind"`              // command
+	Command string `json:"command,omitempty"` // bash; exit 0 = pass
+}
+
+// GoalBudget bounds an in-session goal so a never-passing verifier still
+// terminates (决策 #31 可见截断). v0 caps the number of checks; token/wallclock
+// caps are deferred.
+type GoalBudget struct {
+	MaxChecks int `json:"max_checks,omitempty"`
+}
+
+// GoalAttached hangs a goal on the session. The verifier runs at the exchange
+// boundary; the context continues across checks (contrast driver-goal, §13).
+type GoalAttached struct {
+	GoalID    string         `json:"goal_id"`
+	Goal      string         `json:"goal"`
+	Verifiers []GoalVerifier `json:"verifiers"`
+	Budget    GoalBudget     `json:"budget"`
+	Source    string         `json:"source"` // user
+}
+
+// GoalUpdated is change-as-event for a live goal (决策 #32 同族): a non-empty
+// field replaces; verifiers replace wholesale when present.
+type GoalUpdated struct {
+	GoalID    string         `json:"goal_id"`
+	Goal      string         `json:"goal,omitempty"`
+	Verifiers []GoalVerifier `json:"verifiers,omitempty"`
+	Budget    *GoalBudget    `json:"budget,omitempty"`
+	Source    string         `json:"source"`
+}
+
+type GoalPaused struct {
+	GoalID string `json:"goal_id"`
+	Source string `json:"source"`
+}
+
+type GoalResumed struct {
+	GoalID string `json:"goal_id"`
+	Source string `json:"source"`
+}
+
+type GoalCancelled struct {
+	GoalID string `json:"goal_id"`
+	Reason string `json:"reason,omitempty"`
+	Source string `json:"source"`
+}
+
+// GoalCheckpoint records one verifier evaluation at a quiescence boundary. A
+// pass leads to GoalAchieved; a miss (with budget left) re-injects Feedback as
+// a program-source input so the same thread continues. GenStep is the
+// idempotency key: a resume that finds this gen step already checkpointed
+// recovers instead of re-running the verifier (INC-D1 crash-recovery, R1/R2).
+type GoalCheckpoint struct {
+	GoalID   string `json:"goal_id"`
+	GenStep  int    `json:"gen_step"`
+	Check    int    `json:"check"` // 1-based
+	Pass     bool   `json:"pass"`
+	Detail   string `json:"detail,omitempty"`
+	Feedback string `json:"feedback,omitempty"` // re-injected on a miss; kept for recovery
+}
+
+// GoalAchieved detaches the goal: reason satisfied (verifier passed), budget
+// (checks exhausted → visible truncation), or cancelled.
+type GoalAchieved struct {
+	GoalID string `json:"goal_id"`
+	Reason string `json:"reason"` // satisfied | budget | cancelled
+	Checks int    `json:"checks"`
 }
 
 type ActorCrashed struct {
@@ -655,6 +745,14 @@ var Registry = map[string]func() any{
 	TypeForkedFrom:        func() any { return &ForkedFrom{} },
 	TypeSpecChanged:       func() any { return &SpecChanged{} },
 	TypeAskResolved:       func() any { return &AskResolved{} },
+
+	TypeGoalAttached:   func() any { return &GoalAttached{} },
+	TypeGoalUpdated:    func() any { return &GoalUpdated{} },
+	TypeGoalPaused:     func() any { return &GoalPaused{} },
+	TypeGoalResumed:    func() any { return &GoalResumed{} },
+	TypeGoalCancelled:  func() any { return &GoalCancelled{} },
+	TypeGoalCheckpoint: func() any { return &GoalCheckpoint{} },
+	TypeGoalAchieved:   func() any { return &GoalAchieved{} },
 }
 
 // DriverStream lists the event types that belong to the IterationDriver's OWN

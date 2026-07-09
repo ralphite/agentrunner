@@ -68,6 +68,8 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 		return compactCmd(args[1:], stdout, stderr)
 	case "clear":
 		return clearCmd(args[1:], stdout, stderr)
+	case "goal":
+		return goalCmd(args[1:], stdout, stderr)
 	case "agent":
 		return agentCmd(args[1:], stdout, stderr)
 	case "kill":

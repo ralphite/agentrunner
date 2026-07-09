@@ -672,15 +672,22 @@ func collectInDoubt(s state.State) []event.ActivityStarted {
 	return out
 }
 
+// checkVersions guards resume/snapshot-load against a sub-state schema drift.
+// It is superset-tolerant (INC-D1 R6): a journal may carry a SUBSET of the
+// binary's namespaces — a namespace the binary added later (e.g. "goal") is
+// simply absent from an older journal and folds from its zero value. Every
+// namespace the journal DOES carry must be known to the binary at the SAME
+// version (an unknown or mismatched namespace can't be folded — hard refuse).
 func checkVersions(got map[string]int) error {
 	want := state.SubStateVersions()
-	if len(got) != len(want) {
-		return fmt.Errorf("resume: snapshot sub-state set %v does not match binary %v", got, want)
-	}
-	for name, v := range want {
-		if got[name] != v {
+	for name, v := range got {
+		wv, ok := want[name]
+		if !ok {
+			return fmt.Errorf("resume: journaled sub-state %q is unknown to this binary %v", name, want)
+		}
+		if wv != v {
 			return fmt.Errorf("resume: sub-state %q version %d does not match binary version %d",
-				name, got[name], v)
+				name, v, wv)
 		}
 	}
 	return nil
@@ -809,6 +816,15 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 		// both the busy path (fresh channel reads) and the idle path (stored
 		// on ds.pendingControls by awaitInput) funnel through one drain.
 		if err := l.drainControls(ctx, ds, appendE, exec); err != nil {
+			return RunResult{}, abort(ds.s.Session.GenStep, err)
+		}
+		// Repair a crash that landed between a goal checkpoint and its follow-up
+		// event (INC-D1 R1/R2): the goal_verify quiescent cell is SKIPPED on
+		// resume (the shape is already quiescent, so idleOrReturn's !*quiesced
+		// gate bypasses quiescentActions), so recovery must run here at the safe
+		// point, independent of the quiesced flag. No-op unless a checkpoint at
+		// the current gen step is missing its follow-up.
+		if err := l.goalRecover(ds, appendE); err != nil {
 			return RunResult{}, abort(ds.s.Session.GenStep, err)
 		}
 		act := decide(ds.s, l.Spec.MaxGenerationSteps)
@@ -1110,6 +1126,17 @@ func (l *Loop) idleOrReturn(ctx context.Context, ds *driveState, appendE AppendF
 			}
 			*quiesced = true
 			ds.quiesceReason = reason
+		}
+		// INC-D1 wake seam: a quiescent slot (goal_verify miss) may have
+		// re-injected a program input, so the fold is no longer quiescent. Do
+		// NOT standby/idle — return to the drive loop so decide() runs the next
+		// turn in the SAME context. Placed BEFORE the headless standby-return so
+		// a driver/headless-hosted in-session goal continues too (R5). The
+		// signal is the fold itself (crash-safe: a resume re-reads the same
+		// journaled input), not a transient flag.
+		if hasInputAfterLastAssistant(ds.s) {
+			*quiesced = false
+			return RunResult{}, false, nil
 		}
 		if l.UserInputs == nil && !l.inboxClosed {
 			// No live input source ever wired: standby lives in the journal.

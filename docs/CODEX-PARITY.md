@@ -105,7 +105,7 @@ in-doubt 崩溃纪律（非幂等绝不静默重跑）、barrier/fork/rewind 带
 | 功能 | Codex | AgentRunner | 缺口 |
 |---|---|---|---|
 | 定时 automations | 模板/历史/自定模型 | ✅ loop driver（S6） | 历史/模板是 UI 糖 |
-| goal 长程目标 | 挂 thread、跑数天 | 🟡 goal driver ✅ 但 fresh-run，context 不延续 | **G23/UJ-22** |
+| goal 长程目标 | 挂 thread、跑数天 | ✅ **in-session goal（INC-D1）**：挂会话、context 延续；driver-goal（fresh-run）保留为批式形态 | — |
 | best-of-N | 云端多方案 | ✅ 隔离 worktree + verifier（S7） | 胜者晋升 G15 🧊 |
 | verifier 管线 | 评分黑盒 | ✅ **领先** journaled + trust 规则层 | — |
 | 外部事件唤醒 | GitHub/Linear/Slack | ❌ inbox 原语备，投递壳缺 | **G14** |

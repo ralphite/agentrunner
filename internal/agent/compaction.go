@@ -150,19 +150,26 @@ func (l *Loop) drainControls(ctx context.Context, ds *driveState, appendE Append
 	pending := ds.pendingControls
 	ds.pendingControls = nil
 	for _, ctl := range pending {
-		// Nothing new since the last boundary → the op is a no-op (avoids a
-		// degenerate empty compaction on an idle or freshly-cleared session).
-		if len(ds.s.Conversation.Messages) <= ds.s.Compaction.Boundary {
-			continue
-		}
-		upto := ds.s.Session.GenStep
 		switch ctl.Kind {
-		case protocol.ControlClear:
-			if err := l.clearContext(ds, appendE, upto); err != nil {
+		case protocol.ControlGoalAttach, protocol.ControlGoalPause, protocol.ControlGoalResume,
+			protocol.ControlGoalUpdate, protocol.ControlGoalCancel:
+			// Goal controls (INC-D1) apply regardless of conversation size — a
+			// goal can be attached to a fresh or freshly-cleared session.
+			if err := l.applyGoalControl(ds, appendE, ctl); err != nil {
 				return err
 			}
-		case protocol.ControlCompact:
-			if err := l.compactContext(ctx, ds, appendE, exec, upto+1, ctl.Directive, true); err != nil {
+		case protocol.ControlClear, protocol.ControlCompact:
+			// Nothing new since the last boundary → the op is a no-op (avoids a
+			// degenerate empty compaction on an idle or freshly-cleared session).
+			if len(ds.s.Conversation.Messages) <= ds.s.Compaction.Boundary {
+				continue
+			}
+			upto := ds.s.Session.GenStep
+			if ctl.Kind == protocol.ControlClear {
+				if err := l.clearContext(ds, appendE, upto); err != nil {
+					return err
+				}
+			} else if err := l.compactContext(ctx, ds, appendE, exec, upto+1, ctl.Directive, true); err != nil {
 				return err
 			}
 		}

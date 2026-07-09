@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/ralphite/agentrunner/internal/daemon"
+	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
@@ -305,6 +306,62 @@ func clearCmd(args []string, stdout, stderr io.Writer) int {
 		stuckHint(stderr, args[0])
 	}
 	return code
+}
+
+// goalCmd drives an in-session goal (INC-D1, G23/UJ-22):
+//
+//	agentrunner goal <session> attach "<goal>" --verify "<cmd>" [--verify …] [--max-checks N]
+//	agentrunner goal <session> update ["<goal>"] [--verify …] [--max-checks N]
+//	agentrunner goal <session> pause|resume|cancel
+//
+// The goal hangs on the conversational session and its context continues across
+// checks; a verifier (command; exit 0 = pass) runs at each quiescence boundary.
+// One goal per session (id "goal"); attach replaces any existing one.
+func goalCmd(args []string, stdout, stderr io.Writer) int {
+	if len(args) < 2 {
+		fmt.Fprintln(stderr, "usage: agentrunner goal <session-id-or-prefix> <attach|update|pause|resume|cancel> [flags]")
+		return ExitUsage
+	}
+	session := resolvePrefixLenient(args[0])
+	sub, rest := args[1], args[2:]
+	switch sub {
+	case "pause", "resume", "cancel":
+		return oneShot(stderr, daemon.Command{Cmd: "goal-" + sub, Session: session}, stdout)
+	case "attach", "update":
+		fs := flag.NewFlagSet("goal "+sub, flag.ContinueOnError)
+		fs.SetOutput(stderr)
+		var verifiers repeatedFlag
+		fs.Var(&verifiers, "verify", "a command verifier — exit 0 = pass (repeatable)")
+		maxChecks := fs.Int("max-checks", 0, "goal-level budget: max verifier checks before a visible truncation (attach default 10)")
+		if err := fs.Parse(reorderFlags(fs, rest)); err != nil {
+			return ExitUsage
+		}
+		gc := &protocol.GoalControl{GoalID: "goal", Goal: strings.Join(fs.Args(), " ")}
+		for _, v := range verifiers {
+			gc.Verifiers = append(gc.Verifiers, event.GoalVerifier{Kind: "command", Command: v})
+		}
+		// Only send a Budget when it should change: an update that omits
+		// --max-checks must NOT silently reset the running goal's budget
+		// (review Bug 2). Attach gets a default.
+		switch {
+		case sub == "attach":
+			mc := *maxChecks
+			if mc == 0 {
+				mc = 10
+			}
+			gc.Budget = &event.GoalBudget{MaxChecks: mc}
+		case *maxChecks > 0:
+			gc.Budget = &event.GoalBudget{MaxChecks: *maxChecks}
+		}
+		if sub == "attach" && strings.TrimSpace(gc.Goal) == "" {
+			fmt.Fprintln(stderr, "goal attach: a goal statement is required")
+			return ExitUsage
+		}
+		return oneShot(stderr, daemon.Command{Cmd: "goal-" + sub, Session: session, Goal: gc}, stdout)
+	default:
+		fmt.Fprintf(stderr, "goal: unknown subcommand %q (attach|update|pause|resume|cancel)\n", sub)
+		return ExitUsage
+	}
 }
 
 // closeCmd ends a conversational session gracefully (v2 M1.2):

@@ -33,6 +33,11 @@ type quiescentHook struct {
 var quiescentSequence = []quiescentHook{
 	{name: "auto_publish", run: autoPublishOutputs},
 	{name: "barrier", run: quiescentBarrier},
+	// goal_verify (INC-D1) is LAST so the barrier snapshots a genuinely
+	// quiescent, pre-injection turn boundary (clean fork/rewind + crash
+	// anchor). On a miss it re-injects a program input; the wake seam in
+	// idleOrReturn then continues the thread instead of idling.
+	{name: "goal_verify", run: goalCheckpoint},
 }
 
 // quiescentBarrier fills the barrier slot: one CheckpointBarrier over the

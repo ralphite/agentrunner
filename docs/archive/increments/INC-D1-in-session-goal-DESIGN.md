@@ -1,8 +1,13 @@
 # INC-D1 会话内目标（in-session goal，G23 / UJ-22）— 设计稿
 
-> **状态：设计稿，走 PROCESS §4 不变量变更流程；未实现。** 本纸是"裁决"
-> 闸门的输入——**触及 DESIGN 决策 #21 / §13 不变量**，须单独 review
-> （至少契约视角）通过后，DESIGN 修订与实现同 commit 落地。
+> **归档注记（2026-07-09）：已实现并收口（INC-D1）。** 决策 #21/§13/glossary
+> 走 PROCESS §4 不变量变更流程修订，与实现同 commit 落地；delta 并回
+> DESIGN/SPEC F/GAPS G23/JOURNEYS UJ-22/QA-16/LOG。闸门 A（TestInSessionGoal*
+> + check.sh 全绿）+ 闸门 B（QA-16 真 Gemini，单 SessionStarted 证 context 延续）
+> 双绿；三视角对抗 review 见 LOG。本工作纸只读封存，与活文档冲突时以活文档为准。
+> v0 余项（llm_judge/human verifier、token/墙钟预算、idle 会话 attach 复活）记 LOG。
+>
+> ——原设计稿正文（保留）——
 
 ## 动机与 journey 锚
 - GAPS **G23**（原始需求丢失记档）+ JOURNEYS **UJ-22**。硬性要求

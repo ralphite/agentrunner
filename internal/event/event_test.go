@@ -45,6 +45,15 @@ var samples = map[string]any{
 	TypeWaitingEntered:  &WaitingEntered{Kind: WaitApproval, Detail: json.RawMessage(`{"call_id":"call_3_1"}`)},
 	TypeWaitingResolved: &WaitingResolved{Kind: WaitApproval, Resolution: "approved"},
 	TypeAskResolved:     &AskResolved{CallID: "call_2_0", Resolution: "answered", Answer: "yes, use postgres", DeliverySeq: 7},
+
+	TypeGoalAttached:   &GoalAttached{GoalID: "g1", Goal: "make tests pass", Verifiers: []GoalVerifier{{Kind: "command", Command: "go test ./..."}}, Budget: GoalBudget{MaxChecks: 5}, Source: "user"},
+	TypeGoalUpdated:    &GoalUpdated{GoalID: "g1", Goal: "make tests pass 3x", Budget: &GoalBudget{MaxChecks: 8}, Source: "user"},
+	TypeGoalPaused:     &GoalPaused{GoalID: "g1", Source: "user"},
+	TypeGoalResumed:    &GoalResumed{GoalID: "g1", Source: "user"},
+	TypeGoalCancelled:  &GoalCancelled{GoalID: "g1", Reason: "user cancelled", Source: "user"},
+	TypeGoalCheckpoint: &GoalCheckpoint{GoalID: "g1", Check: 2, Pass: false, Detail: "1 test still failing"},
+	TypeGoalAchieved:   &GoalAchieved{GoalID: "g1", Reason: "satisfied", Checks: 3},
+
 	TypeActorCrashed:    &ActorCrashed{Actor: "session", Error: "boom"},
 	TypeEffectRequested: &EffectRequested{EffectID: "eff-call_3_1", CallID: "call_3_1", SideEffecting: true},
 	TypeApprovalRequested: &ApprovalRequested{ApprovalID: "apr-eff-call_3_1", EffectID: "eff-call_3_1",

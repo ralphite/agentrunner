@@ -965,9 +965,11 @@ limits:
 
 ## 13. 运行模式：IterationDriver（one-shot / goal / loop / best-of-N，扩展层）
 
-- **goal 和 loop 是同一个 driver actor 的两种 schedule**，one-shot 是
-  最平凡的情形。driver 有自己的 stream 和纯 fold 状态，每轮迭代 spawn
-  一个 **fresh child session**（同 spec → prefix 逐字节稳定可跨迭代命中
+- **driver-goal 和 loop 是同一个 driver actor 的两种 schedule**，one-shot 是
+  最平凡的情形（**注（INC-D1）**：goal 另有会话内形态 in-session goal，挂
+  conversational session、context 延续、**不**走本节的 fresh-child-run；见下
+  文 in-session goal 项与决策 #21）。driver 有自己的 stream 和纯 fold 状态，
+  每轮迭代 spawn 一个 **fresh child session**（同 spec → prefix 逐字节稳定可跨迭代命中
   缓存、免 compaction 链、失败迭代不污染后续、迭代边界天然是 barrier
   候选点）；driver 自己从不碰 LLM 和 workspace——verifier 是这条线的
   **成文例外（S6 裁定、S7 管线化兑现）**：verifier 是 driver 规格里
@@ -983,12 +985,27 @@ limits:
   stopped|child_failed}`。launch 遵循 journal-before-send；崩溃后的
   重发幂等由**纯 fold 检查（st.at(n) 已在 journal 则不重发）+ 确定性
   child 目录（sub/iter-N，已静止则从其 fold 结算）**保证。
-- **Goal mode** = `schedule: immediate` + verifiers 必填。verifier 三态：
-  `command`（bash-class，exit code / metric regex）、`llm_judge`
-  （LLM 打分 + rubric + threshold）、`human`（就是现有 ask 路径，
-  挂几天免费）。verdict journal 进 `IterationCompleted`；
-  停滞检测是纯 fold——分数 patience 轮无改善（或 binary verifier 的
-  失败指纹连续相同）→ stalled，附最佳迭代的 carry。
+- **Goal 有两种形态（INC-D1，决策 #21 修订）**：
+  - **driver-goal**（批式/headless）= `schedule: immediate` + verifiers
+    必填，走上面的 fresh-child-run 教义。verifier 三态：`command`
+    （bash-class，exit code / metric regex）、`llm_judge`（LLM 打分 +
+    rubric + threshold）、`human`（现有 ask 路径）。verdict journal 进
+    `IterationCompleted`；停滞检测纯 fold——分数 patience 轮无改善 →
+    stalled，附最佳迭代 carry。
+  - **in-session goal**（会话内、context 延续，G23/UJ-22）= 挂在
+    conversational `agent.Loop` 上的一个 **Goal 子状态**（事件族
+    `GoalAttached/Updated/Paused/Resumed/Cancelled/Checkpoint/Achieved`，
+    change-as-event 同决策 #32 族，故 goal 参数是**可变 session 状态**而非
+    冻结 spec）。verifier 是**静止序列（决策 #24）在 exchange 边界的新一格**
+    （`goal_verify`，在 auto-publish/barrier 同一序列里、只在 final
+    generation 收尾跑，**绝不**挟持 generation step）：pass →
+    `GoalAchieved{satisfied}` + 摘 goal + 正常待命；miss（预算未尽）→
+    `GoalCheckpoint` + 把 verifier 反馈作为 **`program` 源 `InputReceived`
+    回灌进同一 fold**（`hasInputAfterLastAssistant` → 下一 turn 同上下文
+    续跑）；miss（goal 级预算 `max_checks` 尽）→ `GoalAchieved{budget}` =
+    可见截断（决策 #31）。控制面 attach/pause/resume/update/cancel 走
+    compact/clear 同一 out-of-band control 通道。crash 恢复天然保住：全程
+    journaled，resume 重 fold → `decide` 同解（verifier 命令须幂等）。
 - **Best-of-N** = `schedule: parallel{n}`：N 个隔离 worktree 的并行
   尝试（从同一个 base snapshot 物化，base ref 钉在每条
   `IterationScheduled.BaseRef`），选择即 verifier（human / llm_judge /
@@ -1077,10 +1094,10 @@ limits:
 | 18 | Event schema 版本化 | 不 migration；`SessionStarted` 记 event-schema 版本，不匹配拒绝 resume；所有 fold 消费者走 `EventStore` 单一读路径，预留恒等 upcast 阶段；additive-optional 字段不 bump 版本 | 原型 re-run 比 migrate 便宜；将来要 migration 时只有一个改动点；bump 误伤旧 session resume。 |
 | 19 | 信任模型 | 可执行配置（hooks）只认 spec 与 user 层；project 层需显式 trust；memory 文件按不可信内容对待 | clone 不受信 repo 不等于交出任意代码执行权。 |
 | 20 | 树级约束 | 权限 rules 在 spawn 时冻结交集下传；预算 = min(child 限额, parent 剩余) 沿树聚合；深度/扇出有上限 | spawn 白名单可成环；树的总成本必须有界。 |
-| 21 | 运行模式 | one-shot/goal/loop/best-of-N（`parallel{n}`）是同一 `IterationDriver` 的四种 schedule；每轮迭代 = fresh child session | 避免多套近似驱动机制；fresh session 保 prefix 稳定与故障隔离。 |
+| 21 | 运行模式（INC-D1 修订，2026-07-09） | **best-of-N（`parallel{n}`）、批式 loop、one-shot、driver-goal** 是同一 `IterationDriver` 的 schedule，每轮迭代 = **fresh child session**（隔离/prefix 稳定是其语义）。**goal 另有会话内形态**：**in-session goal** 挂在 conversational session 上、context 全程延续（**不**起 fresh child），verifier 在 exchange 边界（final generation 收尾、绝不 mid-turn）检查，miss 回灌 program 源 input 让同一 fold 续跑，pass 出达成回执并摘 goal；见 §13。 | fresh-run 保隔离/prefix，但构造上丢对话 context——UJ-22 硬要求 goal 的 context 延续（LOG 2026-07-05 裁定 fresh-run 教义不适用于 goal 形态）。 |
 | 22 | Background | session 由常驻 runtime 托管，frontend 任意 attach/detach（detach 无事件）；后台 effect 的 handle 即其配对结果，完成是新的 user-role 输入 | 订阅状态不影响结果；已配对的 call 不可二次触碰（Gemini 严格配对）。 |
 | 23 | Artifacts | `ArtifactStore`（CAS，opaque ref）；publish 是过管线的 tool，发布即持久；`outputs:` 在收尾自动 publish；审批载荷 = artifact ref；版本 per-stream | 交付物 contract 与过程协调对象分离；审批需要不可变锚点。 |
-| 24 | 静止动作时序 | session 静止时固定顺序：auto-publish outputs → barrier → 向 parent 投回执（若有 parent）；可重复发生 | 多个 feature 都往"静止时刻"加步骤，顺序必须唯一定义。 |
+| 24 | 静止动作时序（INC-D1 加格） | session 静止时固定顺序：auto-publish outputs → barrier → **goal_verify（有 in-session goal 时；INC-D1）** → 向 parent 投回执（若有 parent）；可重复发生。goal_verify 置于 barrier 之后，使 barrier 快照 pre-injection 的干净边界 | 多个 feature 都往"静止时刻"加步骤，顺序必须唯一定义。 |
 | 25 | 中心模型（v2,2026-07-05 修订并入 #31） | Session = 持续消费 inbox 的 actor；只有这一种形态——"跑完交卷"不是形态,而是"开 session+发消息+等静止+读结果"的观察方式（`ar run`） | "本分"是持续的多方协调；任何第二形态都会让日常交互退化成补丁（v1 教训）。 |
 | 26 | 输入投递（v2） | inbox 原语：一切"说话"= 投一条 Input；journal-inputs-first + durable mailbox（确认即持久、恰好一次） | steering/续聊/外部事件是同一问题的三个发送方；崩溃不丢输入是铁律。 |
 | 27 | 子 agent（v2） | 递归 Session；background spawn 拿 handle 即返回，完成回执是父 inbox 输入；杀死 = control 输入 | 一套机制取代三套"子执行"；编排智能在模型，runtime 只供原语。 |
@@ -1290,7 +1307,7 @@ event sourcing 的闭环：**执行产生事件，事件重建状态，状态驱
 |---|---|
 | **CheckpointBarrier** | fork/rewind 唯一合法目标：{stream→seq} 向量 + workspace snapshot ref + 在飞 handle 处置向量；无 snapshot 不落 barrier。 |
 | **fork / rewind** | 新 id 复制切面 events（单创世 `ForkedFrom`）+ 物化独立 worktree / fork 后显式切换弃原。 |
-| **IterationDriver** | one-shot / goal / loop / best-of-N 四种 schedule 的同一 driver actor（现实现形态；goal 的会话内新形态见 UJ-22/G23）。 |
+| **IterationDriver** | best-of-N / 批式 loop / one-shot / driver-goal 的同一 driver actor（fresh-child-run）。**goal 另有会话内形态**（in-session goal，挂 `agent.Loop`、context 延续，INC-D1）——见 §13、决策 #21。 |
 | **iteration** | driver 的一轮 = 一个 fresh child session（静止即结算）。**第三个计数词**：iteration（driver 轮）⊃ turn（对话段）⊃ generation step（模型调用），三者不混。 |
 | **verifier / verdict** | command / llm_judge / human 三态客观判定；journaled、过管线的 effect。 |
 | **carry / series memory** | 跨迭代两通道：ArtifactStore 的 carry 文档 / workspace 里 agent 自管文档。 |

@@ -49,7 +49,7 @@
 | UJ-19 生态接入 | ✅ | MCP/skills/写审批/断连恢复 ✅；自定义命令 ✅（INC-8） |
 | UJ-20 不受信审计 | ✅ | 信任/沙箱/凭据红线/审计全通；注入威胁模型成文 G16 |
 | UJ-21 崩溃自愈与重启接续 | 🟡 | 恢复语义✅（resume/in-doubt/终态把关，QA-08）；**自动性缺**：boot sweep、子 crash 自动 resume（G22）（2026-07-05 新增行） |
-| UJ-22 会话内目标 | ❌ | **G23 形态不存在**——goal 只有 driver+fresh run 形态，context 不延续（原始需求丢失，2026-07-05 补登记） |
+| UJ-22 会话内目标 | ✅ | **G23 已关闭（INC-D1）**——in-session goal 挂会话、context 延续；决策 #21 拆两形态 |
 
 **汇总**：6 通 · 9 部分 · 5 卡死。5 条卡死全部落在同一族——**交互与
 输入投递**（续聊 G6、多模态 G1、steering G3、事件唤醒 G14、后台子
@@ -237,7 +237,18 @@ diff→批准→PR→元数据回填 session"的组装设计（diff 审阅门、
 
 ### 驱动与时间旅行
 
-**G23 会话内目标（in-session goal）+ goal 控制面 — ❌ 设计缺失 · 高（原始需求，2026-07-05 补登记）**
+**G23 会话内目标（in-session goal）+ goal 控制面 — ✅ 已关闭（INC-D1，2026-07-09）**
+关闭位置：event goal 族（GoalAttached/Updated/Paused/Resumed/Cancelled/
+Checkpoint/Achieved）+ state.Goal 子状态 fold + `goal_verify` 静止序列新格
+（决策 #24）+ program 源 InputReceived 回灌（state.go:332 天然 fold 进对话）
++ idleOrReturn wake seam（hasInputAfterLastAssistant → 不 idle、续 turn）+
+goal 级预算 max_checks=可见截断 + 控制面走 compact/clear 同 out-of-band
+通道（`ar goal attach|update|pause|resume|cancel`）+ checkVersions 放宽为
+superset（旧会话 resume 不破，R6）。DESIGN 决策 #21/§13/glossary 走不变量
+变更流程修订（与实现同 commit）。闸门：孪生 TestInSessionGoalContinuity
+（单 SessionStarted 证 context 延续）/BudgetTruncation/PauseCancel；真实
+API QA-16。crash 安全：GoalCheckpoint 带 GenStep+Feedback 幂等守卫，resume
+不重跑 verifier、不双注入（R1/R2）。原始缺口记档（历史）：
 **需求丢失记档**："goal 挂在当前会话、context 必须延续"是项目原始
 需求之一，但从未成文为 journey；S6 在"run=task-to-completion 是唯一
 形态"的时代把 goal 建成 IterationDriver + fresh child run（决策

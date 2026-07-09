@@ -83,6 +83,17 @@ type inspectReport struct {
 	Usage     usageReport      `json:"usage"`
 	Artifacts []artifactReport `json:"artifacts,omitempty"`
 	Children  []childReportRef `json:"children,omitempty"`
+	Goal      *goalReport      `json:"goal,omitempty"`
+}
+
+// goalReport surfaces an active in-session goal (INC-D1) so a driver/UI can
+// show it and its progress.
+type goalReport struct {
+	GoalID    string `json:"goal_id"`
+	Goal      string `json:"goal"`
+	Checks    int    `json:"checks"`
+	MaxChecks int    `json:"max_checks,omitempty"`
+	Paused    bool   `json:"paused,omitempty"`
 }
 
 // artifactReport is one published deliverable version (S5.9 column).
@@ -226,6 +237,12 @@ func buildInspectReport(events []event.Envelope, s state.State) inspectReport {
 		Status:   status,
 		Reason:   reason,
 		GenSteps: s.Session.GenStep,
+	}
+	if s.Goal != nil {
+		report.Goal = &goalReport{
+			GoalID: s.Goal.GoalID, Goal: s.Goal.Goal, Checks: s.Goal.Checks,
+			MaxChecks: s.Goal.Budget.MaxChecks, Paused: s.Goal.Paused,
+		}
 	}
 	// ActivityCompleted carries no name/call id — those live on the matching
 	// ActivityStarted; index them as we walk. A DENIED tool call never becomes

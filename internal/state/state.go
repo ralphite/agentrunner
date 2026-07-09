@@ -30,6 +30,7 @@ func SubStateVersions() map[string]int {
 		"compaction":   1, // S4.5 (context-compaction view)
 		"handles":      1, // S6.1 (background task set)
 		"barriers":     1, // S7.2 (checkpoint barriers — fork/rewind targets)
+		"goal":         1, // INC-D1 (in-session goal — G23/UJ-22)
 	}
 }
 
@@ -71,6 +72,32 @@ type State struct {
 	// full Conversation.Messages slice is kept intact (the log is truth);
 	// assembly reads the compacted view through this.
 	Compaction Compaction `json:"compaction"`
+	// Goal is the in-session goal hanging on this session (INC-D1, G23/UJ-22);
+	// nil = none. Its verifier runs at the exchange boundary (epilogue) and a
+	// miss re-injects a program-source input so the thread continues.
+	Goal *Goal `json:"goal,omitempty"`
+}
+
+// Goal is the folded in-session goal (INC-D1). change-as-event (决策 #32):
+// Attached sets it, Updated mutates it, Paused/Resumed flip Paused, Checkpoint
+// counts a check, Cancelled/Achieved clear it.
+type Goal struct {
+	GoalID    string               `json:"goal_id"`
+	Goal      string               `json:"goal"`
+	Verifiers []event.GoalVerifier `json:"verifiers"`
+	Budget    event.GoalBudget     `json:"budget"`
+	Checks    int                  `json:"checks"`
+	Paused    bool                 `json:"paused,omitempty"`
+	// CheckpointedGenStep + LastPass + LastFeedback are the crash-recovery guard
+	// (INC-D1 R1/R2): if a resume re-runs the goal_verify hook at a gen step
+	// already checkpointed, it recovers the recorded verdict instead of
+	// re-running the verifier — LastPass → re-emit GoalAchieved{satisfied},
+	// budget-spent → GoalAchieved{budget}, else re-inject LastFeedback iff
+	// absent. So a crash between the checkpoint and the achieved/re-inject event
+	// neither re-runs the verifier, double-injects, nor drops the receipt.
+	CheckpointedGenStep int    `json:"checkpointed_gen_step,omitempty"`
+	LastPass            bool   `json:"last_pass,omitempty"`
+	LastFeedback        string `json:"last_feedback,omitempty"`
 }
 
 // Compaction is the folded result of ContextCompacted (S4.5): messages
@@ -631,6 +658,54 @@ func Apply(s State, env event.Envelope) (State, error) {
 		// fields stay untouched; automatic paths check the mark, the next
 		// GenerationStarted clears it.
 		s.Session.Closed = &CloseMark{Reason: p.Reason, Source: p.Source}
+
+	// ---- INC-D1: in-session goal (G23/UJ-22) ----
+	case *event.GoalAttached:
+		s.Goal = &Goal{GoalID: p.GoalID, Goal: p.Goal, Verifiers: p.Verifiers, Budget: p.Budget}
+
+	case *event.GoalUpdated:
+		if s.Goal != nil && s.Goal.GoalID == p.GoalID {
+			if p.Goal != "" {
+				s.Goal.Goal = p.Goal
+			}
+			if p.Verifiers != nil {
+				s.Goal.Verifiers = p.Verifiers
+			}
+			if p.Budget != nil {
+				s.Goal.Budget = *p.Budget
+			}
+		}
+
+	case *event.GoalPaused:
+		if s.Goal != nil && s.Goal.GoalID == p.GoalID {
+			s.Goal.Paused = true
+		}
+
+	case *event.GoalResumed:
+		if s.Goal != nil && s.Goal.GoalID == p.GoalID {
+			s.Goal.Paused = false
+		}
+
+	case *event.GoalCheckpoint:
+		// The check count advances and the gen step + feedback are recorded so
+		// a resume that re-enters this gen step recovers instead of re-running
+		// the verifier (crash-recovery R1/R2).
+		if s.Goal != nil && s.Goal.GoalID == p.GoalID {
+			s.Goal.Checks = p.Check
+			s.Goal.CheckpointedGenStep = p.GenStep
+			s.Goal.LastPass = p.Pass
+			s.Goal.LastFeedback = p.Feedback
+		}
+
+	case *event.GoalCancelled:
+		if s.Goal != nil && s.Goal.GoalID == p.GoalID {
+			s.Goal = nil
+		}
+
+	case *event.GoalAchieved:
+		if s.Goal != nil && s.Goal.GoalID == p.GoalID {
+			s.Goal = nil
+		}
 
 	default:
 		// A type registered in event.Registry but missing here.

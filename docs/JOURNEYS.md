@@ -244,8 +244,15 @@ GAPS.md，本文件只回答"产品要做什么"。
 
 **覆盖功能**：`子 session 崩溃自动恢复(restart=resume)` `失败升级策略(retry/surface)` `重启接续扫描(boot sweep)` `kill/crash 语义分野(自动路径不越标记)` `crash resume` `全程审计`
 
-### UJ-22 会话内目标（goal 挂在当前会话） `进阶`
+### UJ-22 会话内目标（goal 挂在当前会话） `进阶` `✅ INC-D1（2026-07-09）`
 **场景**：聊着聊着升级成"必须做到"——目标不离开正在进行的对话。
+> **实现（INC-D1）**：`ar goal <sid> attach "<goal>" --verify "<cmd>" [--max-checks N]`
+> + pause/resume/update/cancel。goal 挂在 conversational session 的 Goal 子
+> 状态；`goal_verify` 在静止序列跑 verifier，miss 回灌 program 输入让**同一
+> fold** 续跑，pass 出达成回执并摘 goal，预算尽=可见截断。决策 #21/§13 走
+> 不变量变更流程拆两形态。步骤 3（steer 与 goal 并行）随既有插话排队天然
+> 成立；llm_judge/human verifier 与 token/墙钟预算列 v0 余项（命令 verifier
+> + max_checks 已覆盖 UJ-22 主场景）。真验 QA-16。
 **硬性要求（原始需求，2026-07-05 补登记）：goal 的 context 必须延续
 ——不起新 session、不起 fresh run；割裂不可接受。**
 1. 用户在一个聊了半天的 session 里说："把这个 flaky test 修到连续

@@ -106,7 +106,8 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 
 | 功能点 | 状态 | Journey | 验收锚 / 备注 |
 |---|---|---|---|
-| goal mode（verifier 三态、停滞检测、carry） | ✅ | UJ-15 | S6 |
+| driver-goal（批式/headless，verifier 三态、停滞检测、carry；fresh child run） | ✅ | UJ-15 | S6 |
+| **in-session goal（会话内，context 延续；verifier 在静止边界、miss 回灌 program 输入续跑、goal 级预算=可见截断；控制面 attach/pause/resume/update/cancel）** | ✅ | UJ-22 | INC-D1 · 决策 #21 修订 · TestInSessionGoalContinuity/BudgetTruncation/PauseCancel · QA-16（真 Gemini context 延续） |
 | loop mode（interval/cron/self_paced、overlap skip/coalesce） | ✅ | UJ-14 | S6 |
 | verifier 管线化（journaled effect、driver-trust 规则层） | ✅ | UJ-15 | S7 |
 | best-of-N（隔离 worktree、per-attempt 判定、胜者留盘） | ✅ | UJ-16 | S7 |

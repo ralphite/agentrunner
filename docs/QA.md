@@ -349,6 +349,24 @@ agent 写出教科书级正确的 semver 实现。归档 `qa/runs/2026-07-09-QA-
 
 ---
 
+## QA-16 会话内 goal（INC-D1,UJ-22） `覆盖 G23 关闭`
+**环境**：真实 Gemini gemini-flash-latest；真实 workspace；隔离新二进制 daemon
+（goal 支持）。
+
+| # | 动作 | 验证 |
+|---|---|---|
+| 1 | 真实会话（开场 turn 打招呼）→ `ar goal attach "创建 done.txt 含 FINISHED" --verify "test -f done.txt"` | goal attached |
+| 2 | agent 真实干活 + verifier 在静止边界检查 | 真 Gemini 用 write_file/bash 建 done.txt=FINISHED;真命令 verifier `test -f` 通过 |
+| — | **硬证据（context 延续）** | **单个 session_started**（非 fresh run）+ goal 作为 program 源输入进对话 + goal_achieved.reason=satisfied |
+
+**通过标准**:goal 挂在同一会话、context 延续（单 SessionStarted）+ 真实
+verifier 在真 workspace 判定 + 达成回执;不钉模型措辞。
+**结果**:2026-07-09 真实 Gemini PASS——sessions=1、program_inputs=1、
+checkpoints=1、achieved=satisfied、done.txt=FINISHED。miss→回灌→续跑的确定性
+路径由孪生 TestInSessionGoalContinuity 覆盖。归档 `qa/runs/2026-07-09-QA-16/`。
+
+---
+
 ## 覆盖矩阵
 
 | 核心场景 | QA 流 |

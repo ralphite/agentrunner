@@ -4,6 +4,8 @@
 // (blob-before-event), so the journal itself carries only refs.
 package protocol
 
+import "github.com/ralphite/agentrunner/internal/event"
+
 // ImageAttachment is one image attached to a user input.
 type ImageAttachment struct {
 	MediaType string `json:"media_type"`
@@ -32,17 +34,34 @@ type UserInput struct {
 	DeliverySeq int64             `json:"delivery_seq,omitempty"`
 }
 
-// Control is a non-conversational session-maintenance signal (G7): manual
-// context compaction or clear. Like interrupt/kill it flows out of band
-// (its own channel, not the inbox) and never enters the conversation; its
-// EFFECT (a ContextCompacted event) is what lands in the journal.
+// Control is a non-conversational session-maintenance signal (G7 · INC-D1):
+// manual context compaction/clear, or in-session goal control. Like
+// interrupt/kill it flows out of band (its own channel, not the inbox) and
+// never enters the conversation as user content; its EFFECT (a ContextCompacted
+// or Goal* event) is what lands in the journal.
 type Control struct {
-	Kind      string `json:"kind"`                // "compact" | "clear"
-	Directive string `json:"directive,omitempty"` // optional focus for a compact
+	Kind      string       `json:"kind"`                // compact | clear | goal_*
+	Directive string       `json:"directive,omitempty"` // optional focus for a compact
+	Goal      *GoalControl `json:"goal,omitempty"`      // payload for goal_attach / goal_update
+}
+
+// GoalControl carries the parameters of an in-session goal control (INC-D1).
+// It reuses the event-layer verifier/budget shapes (event does not import
+// protocol, so this is not a cycle).
+type GoalControl struct {
+	GoalID    string               `json:"goal_id"`
+	Goal      string               `json:"goal,omitempty"`
+	Verifiers []event.GoalVerifier `json:"verifiers,omitempty"`
+	Budget    *event.GoalBudget    `json:"budget,omitempty"`
 }
 
 // Control kinds.
 const (
-	ControlCompact = "compact"
-	ControlClear   = "clear"
+	ControlCompact    = "compact"
+	ControlClear      = "clear"
+	ControlGoalAttach = "goal_attach"
+	ControlGoalPause  = "goal_pause"
+	ControlGoalResume = "goal_resume"
+	ControlGoalUpdate = "goal_update"
+	ControlGoalCancel = "goal_cancel"
 )

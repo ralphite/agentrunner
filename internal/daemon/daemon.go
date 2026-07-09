@@ -44,6 +44,9 @@ type Command struct {
 	// file). Same wire/CAS treatment as Images; MediaType drives the provider
 	// mapping.
 	Files []protocol.FileAttachment `json:"files,omitempty"`
+	// Goal carries the parameters of a goal-attach / goal-update control
+	// (INC-D1). pause/resume/cancel need only the command verb.
+	Goal *protocol.GoalControl `json:"goal,omitempty"`
 	// Follow keeps the send connection open after the "delivered" ack,
 	// streaming the session's live events until the client disconnects
 	// (INC-2: the reply becomes visible on the send itself). Subscribe
@@ -476,13 +479,23 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		s.handleControl(cmd, protocol.Control{Kind: protocol.ControlCompact, Directive: cmd.Directive}, "compacting", enc)
 	case "clear":
 		s.handleControl(cmd, protocol.Control{Kind: protocol.ControlClear}, "clearing", enc)
+	case "goal-attach":
+		s.handleControl(cmd, protocol.Control{Kind: protocol.ControlGoalAttach, Goal: cmd.Goal}, "goal attached", enc)
+	case "goal-pause":
+		s.handleControl(cmd, protocol.Control{Kind: protocol.ControlGoalPause}, "goal paused", enc)
+	case "goal-resume":
+		s.handleControl(cmd, protocol.Control{Kind: protocol.ControlGoalResume}, "goal resumed", enc)
+	case "goal-update":
+		s.handleControl(cmd, protocol.Control{Kind: protocol.ControlGoalUpdate, Goal: cmd.Goal}, "goal updated", enc)
+	case "goal-cancel":
+		s.handleControl(cmd, protocol.Control{Kind: protocol.ControlGoalCancel}, "goal cancelled", enc)
 	case "kill":
 		s.handleKill(cmd, enc)
 	case "agent":
 		s.handleAgent(cmd, enc)
 	default:
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
-			Text: fmt.Sprintf("unknown command %q (known: ping, run, drive, attach, approve, send, close, interrupt, stop, compact, clear, kill, agent)", cmd.Cmd)})
+			Text: fmt.Sprintf("unknown command %q (known: ping, run, drive, attach, approve, send, close, interrupt, stop, compact, clear, goal-*, kill, agent)", cmd.Cmd)})
 	}
 }
 
