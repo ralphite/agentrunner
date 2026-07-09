@@ -1144,6 +1144,17 @@ details pre,
   font-size: 11.5px;
   white-space: nowrap;
 }
+.gb-edit {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 8px;
+}
 
 /* ---- bottom composer ---- */
 .composer {

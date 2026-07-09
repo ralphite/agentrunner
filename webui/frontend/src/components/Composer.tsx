@@ -5,7 +5,6 @@ import {
   ACCESS_LEVELS,
   accessById,
   buildDriverAgent,
-  buildGoalDriver,
   buildLoopDriver,
   buildSpec,
   DEFAULT_ACCESS,
@@ -61,7 +60,7 @@ interface SlashCmd {
 }
 
 const SLASH: SlashCmd[] = [
-  { name: "goal", arg: "<task>", desc: "Start a goal-driven run that iterates until done", variants: ["home", "session"], needsArgs: true },
+  { name: "goal", arg: "<task>", desc: "Attach a goal — the agent keeps working until it's met", variants: ["home", "session"], needsArgs: true },
   { name: "loop", arg: "<task>", desc: "Start a run that repeats on a fixed cadence", variants: ["home", "session"], needsArgs: true },
   { name: "plan", desc: "Read-only planning mode — no changes", variants: ["home"] },
   { name: "compact", desc: "Summarize & shrink this conversation's context", variants: ["session"] },
@@ -303,34 +302,51 @@ export function Composer(props: ComposerProps) {
   };
 
   // ---- goal / loop ----
+  // In-session goal everywhere (INC-D1/INC-10): the goal hangs on a session
+  // and its context continues across checks. No verifier = self-certified —
+  // the agent calls goal_complete when it's verifiably done (audited at the
+  // turn boundary). On Home this creates the session first; the driver-goal
+  // (fresh-run, batch) form stays reachable from the Background run modal.
   const startGoal = async (task: string, verifier: string, iterations: number) => {
     setBusy(true);
     try {
+      let sid: string;
       if (isSession) {
-        // In-session goal (INC-D1): hang the goal on THIS session — context
-        // continues across the verifier's checks (Codex-style), not a fresh run.
-        await AR.goal((props as any).sid, { action: "attach", goal: task, verifier, maxChecks: iterations });
-        setLauncher(null);
-        resetInput();
-        toast("Goal attached — the session keeps working toward it (context continues)", "info");
-        return;
+        sid = (props as any).sid as string;
+      } else {
+        const workspace = await ensureWs();
+        if (!workspace) return props.onError("a workspace is required to start a goal");
+        const spec = buildSpec({ provider, model, access });
+        const r = await AR.newSession({
+          spec,
+          extraSpecs: [{ name: "worker.yaml", content: DEFAULT_WORKER }],
+          workspace,
+          message: task,
+          mode: accessById(access).mode,
+        });
+        rememberSpec(r.sid, spec);
+        rememberAccess(r.sid, access);
+        sid = r.sid;
       }
-      // Home: a fresh driver-goal run (batch/headless form).
-      const workspace = await ensureWs();
-      if (!workspace) return props.onError("a workspace is required to start a goal");
-      const r = await AR.startRun({
-        kind: "drive",
-        spec: buildGoalDriver({ task, maxIterations: iterations, verifier, provider, model }),
-        extraSpecs: [{ name: "agent.yaml", content: buildDriverAgent({ provider, model }) }],
-        task: "",
-        workspace,
-        mode: "",
-        idem: "",
-      });
+      try {
+        await AR.goal(sid, { action: "attach", goal: task, verifier, maxChecks: iterations });
+        toast(
+          verifier
+            ? "Goal attached — a verifier checks at each pause"
+            : "Goal attached — the agent self-certifies once it's verifiably done",
+          "info",
+        );
+      } catch (e: any) {
+        // The Home path already created the session — surface it anyway so
+        // the just-created (goal-less) session isn't an orphan.
+        props.onError("goal attach failed: " + e.message);
+      }
       setLauncher(null);
       resetInput();
-      await refreshRuns();
-      selectRun(r.runId);
+      if (!isSession) {
+        await refreshSessions();
+        select(sid);
+      }
     } catch (e: any) {
       props.onError(e.message);
     } finally {
@@ -369,6 +385,13 @@ export function Composer(props: ComposerProps) {
     const act = isSession ? ((props as any).actions as SessionActions | undefined) : undefined;
     switch (name) {
       case "goal":
+        // Codex parity: `/goal <text>` goes straight to work — no form. The
+        // "+ menu → Goal" panel (or a bare `/goal`) still opens the launcher
+        // for verifier / budget configuration.
+        if (rest.trim()) {
+          await startGoal(rest.trim(), "", 10);
+          return;
+        }
         setLauncher({ mode: "goal", task: rest });
         setText("");
         return;
@@ -802,7 +825,7 @@ function GoalLoopLauncher({
 }) {
   const [task, setTask] = useState(initialTask);
   const [second, setSecond] = useState(mode === "goal" ? "" : "5m"); // verifier | interval
-  const [iters, setIters] = useState(mode === "goal" ? 8 : 5);
+  const [iters, setIters] = useState(mode === "goal" ? 10 : 5);
   return (
     <div className="cx-launcher">
       <div className="cx-launcher-hd">
@@ -817,9 +840,9 @@ function GoalLoopLauncher({
       <textarea className="cx-launcher-task" rows={2} placeholder={mode === "goal" ? "What goal should the agent keep working toward?" : "What should each iteration do?"} value={task} onChange={(e) => setTask(e.target.value)} />
       <div className="cx-launcher-row">
         {mode === "goal" ? (
-          <label className="cx-launcher-field" title="A shell command that must exit 0 for the goal to count as met (optional)">
+          <label className="cx-launcher-field" title="A shell command that must exit 0 for the goal to count as met. Optional — leave it empty and the agent self-certifies: it calls goal_complete when the goal is verifiably done (audited at the turn boundary)">
             <span>Done when (command)</span>
-            <input placeholder="e.g. go test ./…  (optional)" value={second} onChange={(e) => setSecond(e.target.value)} />
+            <input placeholder="e.g. go test ./…  (empty = agent self-certifies)" value={second} onChange={(e) => setSecond(e.target.value)} />
           </label>
         ) : (
           <label className="cx-launcher-field" title="How often to run (Go duration, e.g. 30s, 5m, 1h)">

@@ -41,7 +41,10 @@ export function SessionView({ sid }: { sid: string }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [usage, setUsage] = useState<{ billed: number; steps: number } | null>(null);
   const [children, setChildren] = useState<InspectNode[]>([]);
-  const [goal, setGoal] = useState<{ goal: string; checks: number; max_checks?: number; paused?: boolean } | null>(null);
+  const [goal, setGoal] = useState<{ goal: string; checks: number; max_checks?: number; paused?: boolean; verifiers?: number; claimed?: boolean } | null>(null);
+  // Non-null while the banner's goal text is being edited (INC-10): the value
+  // is the draft; save issues a goal update (text only — verifier/budget keep).
+  const [goalEdit, setGoalEdit] = useState<string | null>(null);
   const [view, setView] = useState<"chat" | "diff">("chat");
   const [findOpen, setFindOpen] = useState(false);
 
@@ -112,6 +115,17 @@ export function SessionView({ sid }: { sid: string }) {
       /* ignore — usage badge / subagents are best-effort */
     }
   }, [sid]);
+
+  const saveGoalEdit = () => {
+    const g = (goalEdit || "").trim();
+    if (!g) return;
+    AR.goal(sid, { action: "update", goal: g })
+      .then(() => {
+        setGoalEdit(null);
+        return pollTasks();
+      })
+      .catch((e) => toast(e.message));
+  };
 
   useEffect(() => {
     cursor.current = 0;
@@ -487,26 +501,58 @@ export function SessionView({ sid }: { sid: string }) {
       {view === "chat" && !isSub && goal && (
         <div className={"goal-banner" + (goal.paused ? " paused" : "")}>
           <span className="gb-ico">🎯</span>
-          <span className="gb-text">
-            <b>Goal</b> · {goal.goal}
-          </span>
+          {goalEdit === null ? (
+            <span className="gb-text">
+              <b>Goal</b> · {goal.goal}
+            </span>
+          ) : (
+            <input
+              className="gb-edit"
+              value={goalEdit}
+              autoFocus
+              onChange={(e) => setGoalEdit(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") saveGoalEdit();
+                if (e.key === "Escape") setGoalEdit(null);
+              }}
+            />
+          )}
           <span className="gb-meta">
             {goal.checks}
-            {goal.max_checks ? `/${goal.max_checks}` : ""} checks{goal.paused ? " · paused" : ""}
+            {goal.max_checks ? `/${goal.max_checks}` : ""} checks
+            {goal.verifiers === 0 ? " · self-certified" : ""}
+            {goal.claimed ? " · claim pending" : ""}
+            {goal.paused ? " · paused" : ""}
           </span>
           <span className="spacer" />
-          {goal.paused ? (
-            <button className="sm" onClick={() => AR.goal(sid, { action: "resume" }).then(() => pollTasks()).catch((e) => toast(e.message))}>
-              resume
-            </button>
+          {goalEdit !== null ? (
+            <>
+              <button className="sm" onClick={saveGoalEdit}>
+                save
+              </button>
+              <button className="sm" onClick={() => setGoalEdit(null)}>
+                discard
+              </button>
+            </>
           ) : (
-            <button className="sm" onClick={() => AR.goal(sid, { action: "pause" }).then(() => pollTasks()).catch((e) => toast(e.message))}>
-              pause
-            </button>
+            <>
+              <button className="sm" title="Edit the goal text (verifier and budget keep)" onClick={() => setGoalEdit(goal.goal)}>
+                edit
+              </button>
+              {goal.paused ? (
+                <button className="sm" onClick={() => AR.goal(sid, { action: "resume" }).then(() => pollTasks()).catch((e) => toast(e.message))}>
+                  resume
+                </button>
+              ) : (
+                <button className="sm" onClick={() => AR.goal(sid, { action: "pause" }).then(() => pollTasks()).catch((e) => toast(e.message))}>
+                  pause
+                </button>
+              )}
+              <button className="sm danger" onClick={() => AR.goal(sid, { action: "cancel" }).then(() => pollTasks()).catch((e) => toast(e.message))}>
+                cancel
+              </button>
+            </>
           )}
-          <button className="sm danger" onClick={() => AR.goal(sid, { action: "cancel" }).then(() => pollTasks()).catch((e) => toast(e.message))}>
-            cancel
-          </button>
         </div>
       )}
 
