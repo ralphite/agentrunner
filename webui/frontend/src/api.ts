@@ -56,7 +56,6 @@ export const AR = {
   send: (sid: string, text: string, images: string[]) =>
     post(`/sessions/${sid}/send`, { text, images }),
   interrupt: (sid: string) => post(`/sessions/${sid}/interrupt`),
-  close: (sid: string) => post(`/sessions/${sid}/close`),
   resume: (sid: string) => post(`/sessions/${sid}/resume`),
   kill: (sid: string, handle: string) => post(`/sessions/${sid}/kill`, { handle }),
   approve: (sid: string, approvalId: string, decision: "approve" | "deny", reason: string) =>

@@ -50,7 +50,7 @@ export function RunView({ runId }: { runId: string }) {
   const stop = async () => {
     try {
       await AR.stopRun(runId);
-      toast("已请求停止", "info");
+      toast("stop requested", "info");
       setTimeout(refreshRuns, 800);
     } catch (e: any) {
       toast(e.message);
@@ -67,7 +67,7 @@ export function RunView({ runId }: { runId: string }) {
         <div className="actions">
           {run?.status === "running" && (
             <button className="sm danger" onClick={stop}>
-              停止
+              Stop
             </button>
           )}
         </div>
@@ -80,7 +80,7 @@ export function RunView({ runId }: { runId: string }) {
           if (el) stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
         }}
       >
-        {parsed.length === 0 && <div className="dim">等待输出…</div>}
+        {parsed.length === 0 && <div className="dim">waiting for output…</div>}
         {parsed.map((l, i) => (
           <div className="runline" key={i}>
             <span className="rk">{l.kind}</span>

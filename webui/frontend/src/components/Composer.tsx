@@ -61,7 +61,7 @@ export function Composer({
           <textarea
             ref={taRef}
             value={text}
-            placeholder="继续这个任务，或追问…(Enter 发送)"
+            placeholder="Continue this task, or ask a follow-up… (Enter to send)"
             onChange={(e) => {
               setText(e.target.value);
               const el = e.target;
@@ -82,11 +82,11 @@ export function Composer({
               e.target.value = "";
             }}
           />
-          <button className="icon-btn ghost" title="附加图片" onClick={() => fileRef.current?.click()}>
+          <button className="icon-btn ghost" title="attach image" onClick={() => fileRef.current?.click()}>
             📎
           </button>
           <button className="primary send-btn" onClick={submit} disabled={!text.trim()}>
-            发送
+            Send
           </button>
         </div>
         <div className="statusline">{statusText}</div>

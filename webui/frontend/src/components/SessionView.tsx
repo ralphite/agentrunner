@@ -18,7 +18,7 @@ interface SSEApproval {
 }
 
 export function SessionView({ sid }: { sid: string }) {
-  const { select, openModal, toast, refreshSessions, showSys, toggleSys, sessions } = useStore();
+  const { select, openModal, toast, showSys, toggleSys, sessions } = useStore();
   const isSub = sid.includes("-sub-");
   const title = sessions.find((s) => s.id === sid)?.title || sid;
 
@@ -28,7 +28,6 @@ export function SessionView({ sid }: { sid: string }) {
   const [sseApprovals, setSseApprovals] = useState<Map<string, SSEApproval>>(new Map());
   const [resolvedLocal, setResolvedLocal] = useState<Set<string>>(new Set());
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [closeArmed, setCloseArmed] = useState(false);
   const [view, setView] = useState<"chat" | "diff">("chat");
 
   const cursor = useRef(0);
@@ -135,17 +134,17 @@ export function SessionView({ sid }: { sid: string }) {
   // approval) wins — it's the most current. Otherwise the daemon's session
   // status (from `ar sessions list`) is authoritative and keeps the header in
   // sync with the sidebar (QA #8). A child session has no list entry, so a
-  // dangling "运行中" with nothing active means it finished (QA #6).
+  // dangling "running…" with nothing active means it finished (QA #6).
   const listStatus = sessions.find((s) => s.id === sid)?.status;
   const live = folded.active || openApprovals.length > 0;
   const status = live
     ? openApprovals.length > 0
-      ? { text: "需要你批准", cls: "appr" }
-      : { text: "运行中…", cls: "run" }
+      ? { text: "needs approval", cls: "appr" }
+      : { text: "running…", cls: "run" }
     : listStatus
       ? friendlyStatus(listStatus)
       : folded.status.cls === "run"
-        ? { text: "已完成", cls: "closed" }
+        ? { text: "completed", cls: "closed" }
         : folded.status;
 
   const doSend = async (text: string, images: string[]) => {
@@ -168,7 +167,7 @@ export function SessionView({ sid }: { sid: string }) {
     interrupt: async () => {
       try {
         await AR.interrupt(sid);
-        toast("已发 interrupt", "info");
+        toast("interrupt sent", "info");
       } catch (e: any) {
         toast(e.message);
       }
@@ -176,21 +175,7 @@ export function SessionView({ sid }: { sid: string }) {
     resume: async () => {
       try {
         await AR.resume(sid);
-        toast("已发 resume", "info");
-      } catch (e: any) {
-        toast(e.message);
-      }
-    },
-    close: async () => {
-      if (!closeArmed) {
-        setCloseArmed(true);
-        setTimeout(() => setCloseArmed(false), 3000);
-        return;
-      }
-      setCloseArmed(false);
-      try {
-        await AR.close(sid);
-        refreshSessions();
+        toast("resume sent", "info");
       } catch (e: any) {
         toast(e.message);
       }
@@ -231,46 +216,72 @@ export function SessionView({ sid }: { sid: string }) {
             {showSpin && <span className="spin" />}
             {status.text}
           </span>
-          {isSub && <span className="readonly-tag">只读子任务</span>}
+          {isSub && <span className="readonly-tag" title="a sub-agent session — watch it here; only its parent can drive it">read-only sub-task</span>}
         </div>
 
         <div className="seg tabs">
-          <button className={view === "chat" ? "on" : ""} onClick={() => setView("chat")}>
-            活动
+          <button className={view === "chat" ? "on" : ""} onClick={() => setView("chat")} title="the conversation timeline, rendered from the journal">
+            Activity
           </button>
-          <button className={view === "diff" ? "on" : ""} onClick={() => setView("diff")}>
-            改动
+          <button className={view === "diff" ? "on" : ""} onClick={() => setView("diff")} title="git diff of the session's workspace (changed + untracked files)">
+            Diff
           </button>
         </div>
 
         <span className="spacer" />
 
         {!isSub && running && (
-          <button className="stop-btn" onClick={act.interrupt}>
-            ■ 停止
+          <button className="stop-btn" onClick={act.interrupt} title="interrupt: cancel the in-flight turn so you can redirect the agent">
+            ■ Stop
           </button>
         )}
 
         <Menu label="⋯">
-          <MenuLabel>查看</MenuLabel>
-          <MenuItem onClick={() => act.view("原始 journal", () => AR.rawEvents(sid))}>
-            原始 journal
+          <MenuLabel>View</MenuLabel>
+          <MenuItem
+            title="the append-only event log (ar events --json) — the source of truth this timeline is rendered from"
+            onClick={() => act.view("raw journal", () => AR.rawEvents(sid))}
+          >
+            Raw journal
           </MenuItem>
-          <MenuItem onClick={() => act.view("折叠状态", () => AR.state(sid))}>折叠状态</MenuItem>
-          <MenuItem onClick={() => act.view("inspect 树", () => AR.inspect(sid))}>
-            inspect 树
+          <MenuItem
+            title="the current session state folded from the journal (ar events --state): status, spec, usage"
+            onClick={() => act.view("folded state", () => AR.state(sid))}
+          >
+            Folded state
           </MenuItem>
-          <MenuItem onClick={toggleSys}>
-            {showSys ? "✓ " : ""}显示系统事件
+          <MenuItem
+            title="the session tree (ar inspect): sub-agents, status and token usage"
+            onClick={() => act.view("inspect tree", () => AR.inspect(sid))}
+          >
+            Inspect tree
+          </MenuItem>
+          <MenuItem
+            title="also show low-level system events (mode changes, effects, barriers…) inline in the timeline"
+            onClick={toggleSys}
+          >
+            {showSys ? "✓ " : ""}Show system events
           </MenuItem>
           {!isSub && (
             <>
-              <MenuLabel>高级</MenuLabel>
-              <MenuItem onClick={() => openModal({ kind: "fork", sid })}>从 barrier fork…</MenuItem>
-              <MenuItem onClick={() => openModal({ kind: "agent", sid })}>切换 agent…</MenuItem>
-              <MenuItem onClick={act.resume}>resume(崩溃/中断后恢复)</MenuItem>
-              <MenuItem danger onClick={act.close}>
-                {closeArmed ? "确认关闭任务?" : "关闭任务"}
+              <MenuLabel>Advanced</MenuLabel>
+              <MenuItem
+                title="branch a new independent session from a barrier checkpoint; this session is untouched"
+                onClick={() => openModal({ kind: "fork", sid })}
+              >
+                Fork from barrier…
+              </MenuItem>
+              <MenuItem
+                title="swap this session's agent spec — context carries over; takes effect on your next message (spec_changed)"
+                onClick={() => openModal({ kind: "agent", sid })}
+              >
+                Switch agent…
+              </MenuItem>
+              <MenuItem
+                title="recover a crashed or interrupted session (ar resume) so it can keep going"
+                onClick={act.resume}
+              >
+                Resume (recover after crash/interrupt)
               </MenuItem>
             </>
           )}
@@ -285,7 +296,7 @@ export function SessionView({ sid }: { sid: string }) {
 
       {view === "chat" && openApprovals.length > 0 && (
         <div className="approvals">
-          <div className="approvals-title">Codex 需要你的批准</div>
+          <div className="approvals-title">The agent needs your approval</div>
           {openApprovals.map((a) => (
             <ApprovalCard
               key={a.id}
@@ -300,15 +311,15 @@ export function SessionView({ sid }: { sid: string }) {
 
       {view === "chat" && tasks.length > 0 && (
         <div className="workpanel">
-          <h4>正在后台运行 · {tasks.length}</h4>
+          <h4>In-flight background work · {tasks.length}</h4>
           {tasks.map((t) => (
             <div className="task-row" key={t.handle}>
               <span className="grow">
                 {t.tool} · {t.detail || t.handle}
               </span>
               {!isSub && (
-                <button className="sm danger" onClick={() => act.kill(t.handle)}>
-                  停止
+                <button className="sm danger" onClick={() => act.kill(t.handle)} title="cancel this background handle (ar kill) — the session itself keeps running">
+                  kill
                 </button>
               )}
             </div>

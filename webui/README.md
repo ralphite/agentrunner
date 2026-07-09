@@ -1,9 +1,14 @@
 # arwebui — AgentRunner 驾驶舱(Codex 风格)
 
 一个 Codex 云端风格的本机 web app,以真实用户的方式驱动 AgentRunner 的
-**全部**会话能力:chat、插话排队、interrupt、close、resume、起/杀子
+**全部**会话能力:chat、插话排队、interrupt、resume、起/杀子
 agent、图片输入、审批(含子 agent 上卷)、fork、换 agent、trust、后台
 运行(submit / drive),以及崩溃恢复观察。
+
+UI 文案一律英文、词汇对齐 journal 事件/CLI 命令,关键控件带 title
+tooltip 解释用途(同 `web/` 铁律 I6);无"关闭会话"操作——静止模型下
+session 没有终态(同 `web/` 铁律 I7),journal 里的 session_closed 只是
+标记事件,照常渲染为标记。
 
 与 `web/`(极简 vanilla 驾驶舱)并列、独立:同样只通过公开的 `ar` CLI
 契约(`os/exec`)与系统交互,是测试/QA 面,不是产品的一部分,不进
@@ -15,8 +20,8 @@ agent、图片输入、审批(含子 agent 上卷)、fork、换 agent、trust、
   - **首页 hero composer**:居中大输入框 +「Ask / Code」双动作
     (Ask=起 chat 会话,Code=submit 后台任务),下面是**任务卡片**网格
     (标题取开场消息,像 Codex 用任务描述当标题)。
-  - **会话详情**:顶栏动作条 +「对话 / 改动」切换。对话是时间线
-    (气泡/工具卡/审批/子 agent);**改动**是 Codex 式的 git diff 视图
+  - **会话详情**:顶栏动作条 +「Activity / Diff」切换。Activity 是时间线
+    (气泡/工具卡/审批/子 agent);**Diff** 是 Codex 式的 git diff 视图
     (改动文件列表 + 逐行 +/- 着色 + untracked 新文件)。
   - 底部 composer、右侧在飞任务面板、审批 dock。
 
@@ -60,7 +65,7 @@ open http://127.0.0.1:8788
 | 发消息 / 图片 | `send [--image f]... <sid> "text"` |
 | 时间线(真相) | `events --json <sid>`(1s 增量轮询) |
 | 流式打字 / 子审批上卷 | `attach --json <sid>`(SSE) |
-| interrupt / close / resume | `interrupt` / `close` / `resume` |
+| interrupt / resume | `interrupt` / `resume` |
 | 在飞任务 + kill | `ps` / `kill <sid> <handle>` |
 | 审批 | `approve <sid> <id> approve\|deny [reason]` |
 | fork(选 barrier) | `fork --list` + `fork <sid> <barrier> [--workspace]` |

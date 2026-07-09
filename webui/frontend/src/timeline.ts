@@ -64,7 +64,7 @@ export interface Folded {
   // generation step was just started with nothing produced yet. A child
   // session's own journal never records completion (it lands in the PARENT as
   // subagent_completed), so it ends on assistant_message and its status would
-  // otherwise dangle at "运行中" forever — callers use !active to correct that.
+  // otherwise dangle at "running" forever — callers use !active to correct that.
   active: boolean;
 }
 
@@ -94,13 +94,13 @@ export function foldEvents(events: Envelope[]): Folded {
     lastType = env.type;
     switch (env.type) {
       case "session_started":
-        chip(seq, `会话开始 · ${p.spec_name || ""} · ${p.model || ""}`);
+        chip(seq, `session started · ${p.spec_name || ""} · ${p.model || ""}`);
         break;
       case "input_received": {
         push({
           kind: "user",
           key: "u" + seq,
-          text: p.text || "(空)",
+          text: p.text || "(empty)",
           source: p.source && p.source !== "user" ? p.source : undefined,
           images: p.images && p.images.length ? p.images.length : undefined,
         });
@@ -109,7 +109,7 @@ export function foldEvents(events: Envelope[]): Folded {
       case "generation_started":
         lastGen = p.gen_step || lastGen + 1;
         push({ kind: "turn", key: "t" + seq, gen: lastGen });
-        status = { text: "运行中", cls: "run" };
+        status = { text: "running", cls: "run" };
         break;
       case "assistant_message": {
         const parts = (p.message && p.message.parts) || [];
@@ -132,7 +132,7 @@ export function foldEvents(events: Envelope[]): Folded {
             args: p.args,
             background: !!p.background,
             status: "running",
-            statusText: p.background ? "task" : "运行中",
+            statusText: p.background ? "task" : "running",
           };
           toolByActivity.set(p.activity_id, t);
           push(t);
@@ -144,7 +144,7 @@ export function foldEvents(events: Envelope[]): Folded {
         const t = toolByActivity.get(p.activity_id);
         if (t) {
           t.status = p.is_error ? "error" : "done";
-          t.statusText = p.is_error ? "错误" : "完成";
+          t.statusText = p.is_error ? "error" : "done";
           if (p.usage) t.usage = p.usage;
           if (p.result !== undefined) t.result = p.result;
           if (p.is_error) t.errorMsg = t.errorMsg || "";
@@ -155,13 +155,13 @@ export function foldEvents(events: Envelope[]): Folded {
       }
       case "activity_failed": {
         const t = toolByActivity.get(p.activity_id);
-        const msg = p.error ? `${p.error.class}: ${p.error.message}` : "失败";
+        const msg = p.error ? `${p.error.class}: ${p.error.message}` : "failed";
         if (t) {
           t.status = "failed";
-          t.statusText = "失败" + (p.final ? "(终)" : `(重试 ${p.attempt})`);
+          t.statusText = "failed" + (p.final ? " (final)" : ` (retry ${p.attempt})`);
           t.errorMsg = msg;
         } else {
-          chip(seq, "活动失败: " + msg, "bad");
+          chip(seq, "activity failed: " + msg, "bad");
         }
         break;
       }
@@ -169,17 +169,17 @@ export function foldEvents(events: Envelope[]): Folded {
         const t = toolByActivity.get(p.activity_id);
         if (t) {
           t.status = "cancelled";
-          t.statusText = "已取消";
+          t.statusText = "cancelled";
           if (p.partial_output) t.partial = p.partial_output;
         } else {
-          chip(seq, "活动已取消 " + p.activity_id, "warn");
+          chip(seq, "activity cancelled " + p.activity_id, "warn");
         }
         break;
       }
       case "spawn_requested":
         chip(
           seq,
-          `⬇ 子 agent ${p.agent} · ${p.task ? p.task.slice(0, 80) : ""}`,
+          `⬇ sub-agent ${p.agent} · ${p.task ? p.task.slice(0, 80) : ""}`,
           "",
           p.child_session,
         );
@@ -187,7 +187,7 @@ export function foldEvents(events: Envelope[]): Folded {
       case "subagent_completed":
         chip(
           seq,
-          `⬆ 子完成 ${p.agent} · ${p.reason} · ${
+          `⬆ sub-agent finished ${p.agent} · ${p.reason} · ${
             p.usage ? p.usage.input_tokens + p.usage.output_tokens + " tok" : ""
           }`,
           p.reason === "completed" ? "good" : "warn",
@@ -211,50 +211,50 @@ export function foldEvents(events: Envelope[]): Folded {
       }
       case "waiting_entered": {
         const kinds: Record<string, [string, string]> = {
-          input: ["待命,等你输入", "idle"],
-          approval: ["等待审批", "appr"],
-          tasks: ["等子任务/后台", "run"],
-          timer: ["等定时器", "run"],
+          input: ["waiting: input", "idle"],
+          approval: ["waiting: approval", "appr"],
+          tasks: ["waiting: tasks", "run"],
+          timer: ["waiting: timer", "run"],
         };
         const [txt, cls] = kinds[p.kind] || [p.kind, ""];
         status = { text: txt, cls };
         break;
       }
       case "waiting_resolved":
-        status = { text: "运行中", cls: "run" };
+        status = { text: "running", cls: "run" };
         break;
       case "session_closed":
-        chip(seq, "会话已关闭 · " + (p.reason || ""));
-        status = { text: "已关闭", cls: "closed" };
+        chip(seq, `session marked ${p.reason || "closed"} — send to continue`);
+        status = { text: p.reason === "killed" ? "killed" : "closed", cls: "closed" };
         break;
       case "task_completed":
-        chip(seq, "任务完成 · " + (p.reason || ""));
-        status = { text: "已结束", cls: "closed" };
+        chip(seq, "task completed · " + (p.reason || ""));
+        status = { text: "completed", cls: "closed" };
         break;
       case "actor_crashed":
-        chip(seq, `崩溃 ${p.actor}: ${p.error}`, "bad");
-        status = { text: "崩溃", cls: "crash" };
+        chip(seq, `crashed ${p.actor}: ${p.error}`, "bad");
+        status = { text: "crashed", cls: "crash" };
         break;
       case "mode_changed":
         chip(seq, `mode → ${p.to} (${p.cause})`);
         break;
       case "context_compacted":
-        chip(seq, `上下文压缩 · 到第 ${p.upto_gen_step} 轮`);
+        chip(seq, `context compacted · up to gen ${p.upto_gen_step}`);
         break;
       case "limit_exceeded":
         // A user interrupt is modeled as limit_exceeded{kind:interrupted} —
         // don't dress it up as a budget overrun.
         if (p.kind === "interrupted" || p.kind === "canceled" || p.kind === "cancelled") {
-          chip(seq, "已停止(你打断了这一轮)", "warn");
+          chip(seq, "stopped (you interrupted this turn)", "warn");
         } else {
-          chip(seq, `预算超限 ${p.kind}: ${p.used}/${p.limit}`, "bad");
+          chip(seq, `limit exceeded ${p.kind}: ${p.used}/${p.limit}`, "bad");
         }
         break;
       case "generation_discarded":
-        chip(seq, `第 ${p.gen_step} 轮流式输出被丢弃重试`, "warn");
+        chip(seq, `gen ${p.gen_step} streamed output discarded; retrying`, "warn");
         break;
       case "malformed_tool_call":
-        chip(seq, `第 ${p.gen_step} 轮工具调用不可解析,重试`, "warn");
+        chip(seq, `gen ${p.gen_step} tool call malformed; retrying`, "warn");
         break;
       default:
         push({ kind: "sys", key: "s" + seq, text: `#${seq} ${env.type}` });

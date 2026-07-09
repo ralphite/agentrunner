@@ -23,7 +23,7 @@ export function Sidebar() {
   const restartDaemon = async () => {
     try {
       await AR.daemonStart();
-      toast("daemon 启动请求已发", "info");
+      toast("daemon start requested", "info");
       setTimeout(refreshHealth, 800);
     } catch (e: any) {
       toast(e.message);
@@ -52,16 +52,16 @@ export function Sidebar() {
 
       <nav className="side-nav">
         <button className="nav-item" onClick={() => select(null)}>
-          <span className="ni-ico">✎</span> 新建任务
+          <span className="ni-ico">✎</span> New task
         </button>
         <button className="nav-item" onClick={() => setSearching((v) => !v)}>
-          <span className="ni-ico">⌕</span> 搜索
+          <span className="ni-ico">⌕</span> Search
         </button>
         <button className="nav-item" onClick={() => openModal({ kind: "run" })}>
-          <span className="ni-ico">⧉</span> 后台运行…
+          <span className="ni-ico">⧉</span> Background run…
         </button>
         <button className="nav-item" onClick={() => openModal({ kind: "trust" })}>
-          <span className="ni-ico">⛨</span> 信任目录
+          <span className="ni-ico">⛨</span> Trust directory
         </button>
       </nav>
 
@@ -70,16 +70,16 @@ export function Sidebar() {
           <input
             autoFocus
             value={q}
-            placeholder="搜索任务…"
+            placeholder="Search tasks…"
             onChange={(e) => setQ(e.target.value)}
           />
         </div>
       )}
 
       <div className="list">
-        <div className="grp-label">会话</div>
+        <div className="grp-label">Sessions</div>
         {shownSessions.length === 0 ? (
-          <div className="grp-empty">无</div>
+          <div className="grp-empty">none</div>
         ) : (
           shownSessions.map((s) => (
             <div
@@ -96,10 +96,10 @@ export function Sidebar() {
         )}
 
         <div className="grp-label" style={{ marginTop: 14 }}>
-          后台运行
+          Background runs
         </div>
         {shownRuns.length === 0 ? (
-          <div className="grp-empty">无</div>
+          <div className="grp-empty">none</div>
         ) : (
           shownRuns.map((r) => (
             <div
@@ -121,16 +121,16 @@ export function Sidebar() {
         <span className="sf-text">
           {health ? (
             <>
-              daemon {health.daemonUp ? "在线" : "不可达"}
-              {health.daemonManaged ? "(托管)" : ""} · {health.version.replace("agentrunner ", "")}
+              daemon {health.daemonUp ? "up" : "unreachable"}
+              {health.daemonManaged ? " (managed)" : ""} · {health.version.replace("agentrunner ", "")}
             </>
           ) : (
-            "arwebui 不可达"
+            "arwebui unreachable"
           )}
         </span>
         {health && !health.daemonUp && (
           <button className="sm danger" onClick={restartDaemon}>
-            重启
+            restart
           </button>
         )}
       </div>

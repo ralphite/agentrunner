@@ -60,7 +60,7 @@ export function Home() {
     }
   };
 
-  const wsShort = ws ? ws.split("/").filter(Boolean).slice(-1)[0] : "自动创建";
+  const wsShort = ws ? ws.split("/").filter(Boolean).slice(-1)[0] : "auto-created";
 
   const cards = [
     ...sessions.map((s) => ({
@@ -84,27 +84,27 @@ export function Home() {
   return (
     <div className="home">
       <div className="hero">
-        <h2>接下来做点什么？</h2>
+        <h2>What should we do next?</h2>
         <div className="cx-composer">
           <textarea
             value={text}
-            placeholder="随便描述一个任务，或问一个问题…"
+            placeholder="Describe a task, or ask a question…"
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
             }}
           />
           <div className="cx-controls">
-            <button className="cx-plus" title="自定义 spec" onClick={() => openModal({ kind: "new", message: text })}>
+            <button className="cx-plus" title="advanced: edit the agent spec YAML before starting" onClick={() => openModal({ kind: "new", message: text })}>
               ＋
             </button>
             <select className="cx-chip" value={mode} onChange={(e) => setMode(e.target.value as any)}>
-              <option value="chat">对话</option>
-              <option value="submit">后台任务</option>
+              <option value="chat">Chat</option>
+              <option value="submit">Background task</option>
             </select>
             <span className="spacer" />
             <span className="cx-model">gemini-flash</span>
-            <button className="cx-send" disabled={busy || !text.trim()} onClick={submit} title="提交 (⌘↵)">
+            <button className="cx-send" disabled={busy || !text.trim()} onClick={submit} title="submit (⌘↵)">
               ↑
             </button>
           </div>
@@ -113,12 +113,12 @@ export function Home() {
               🗂 {wsShort}
             </span>
             <button className="cx-ctx-btn" onClick={async () => setWs((await AR.makeWorkspace()).path)}>
-              造空 workspace
+              make empty workspace
             </button>
             <input
               className="cx-ws-input"
               value={ws}
-              placeholder="或填 workspace 绝对路径…"
+              placeholder="or an absolute workspace path…"
               onChange={(e) => setWs(e.target.value)}
             />
           </div>
@@ -126,9 +126,9 @@ export function Home() {
       </div>
 
       <div className="tasklist">
-        <div className="grp-label">任务 · {cards.length}</div>
+        <div className="grp-label">Tasks · {cards.length}</div>
         {cards.length === 0 ? (
-          <div className="dim">还没有任务。用上面的 composer 开一个。</div>
+          <div className="dim">No tasks yet. Start one with the composer above.</div>
         ) : (
           <div className="task-grid">
             {cards.map((c) => (

@@ -22,7 +22,7 @@ function AssistantText({ text }: { text: string }) {
 }
 
 // toolLabel turns a raw tool call into a Codex-style step line:
-// "$ ls -la", "读取 notes.txt", "编辑 main.go".
+// "$ ls -la", "read notes.txt", "edit main.go".
 function toolLabel(name: string, args: any): { verb: string; body: string; mono: boolean } {
   let a: any = args;
   if (typeof args === "string") {
@@ -37,15 +37,15 @@ function toolLabel(name: string, args: any): { verb: string; body: string; mono:
     case "bash":
       return { verb: "$", body: a.command || "", mono: true };
     case "read_file":
-      return { verb: "读取", body: a.path || a.file || "", mono: true };
+      return { verb: "read", body: a.path || a.file || "", mono: true };
     case "write_file":
-      return { verb: "写入", body: a.path || a.file || "", mono: true };
+      return { verb: "write", body: a.path || a.file || "", mono: true };
     case "edit_file":
-      return { verb: "编辑", body: a.path || a.file || "", mono: true };
+      return { verb: "edit", body: a.path || a.file || "", mono: true };
     case "spawn_agent":
-      return { verb: "启动子 agent", body: a.agent || a.task || "", mono: false };
+      return { verb: "spawn sub-agent", body: a.agent || a.task || "", mono: false };
     case "task_kill":
-      return { verb: "停止任务", body: a.handle || "", mono: true };
+      return { verb: "kill task", body: a.handle || "", mono: true };
     default:
       return { verb: name, body: a.command || a.path || "", mono: true };
   }
@@ -68,7 +68,7 @@ function ToolCard({ t }: { t: ToolItem }) {
         <StepIcon status={t.status} />
         <span className="step-verb">{verb}</span>
         <span className={"step-body" + (mono ? " mono" : "")}>{body}</span>
-        {t.background && <span className="step-tag">后台</span>}
+        {t.background && <span className="step-tag">background</span>}
         {t.usage && (
           <span className="step-tok" title="tokens">
             {t.usage.input_tokens + t.usage.output_tokens} tok
@@ -99,7 +99,7 @@ function pretty(raw: any): string {
 function Item({ it }: { it: TimelineItem }) {
   switch (it.kind) {
     case "turn":
-      return <div className="turn">第 {it.gen} 轮</div>;
+      return <div className="turn">turn {it.gen}</div>;
     case "user":
       return (
         <div className="msg user">
@@ -107,7 +107,7 @@ function Item({ it }: { it: TimelineItem }) {
             {it.text}
             {it.images ? <div className="imgnote">📷 ×{it.images} (CAS ref)</div> : null}
           </div>
-          <span className="who">{it.source || "你"}</span>
+          <span className="who">{it.source || "you"}</span>
         </div>
       );
     case "assistant":
@@ -126,7 +126,7 @@ function Item({ it }: { it: TimelineItem }) {
         <div className={"chip " + it.tone}>
           <span>{it.text}</span>
           {it.childSession && (
-            <a href={"#" + it.childSession}>打开子会话 ↗</a>
+            <a href={"#" + it.childSession}>open sub-session ↗</a>
           )}
         </div>
       );
@@ -181,7 +181,7 @@ export function TimelineView({
               {p.text}
               {p.images ? <div className="imgnote">📷 ×{p.images}</div> : null}
             </div>
-            <span className="who">排队中…</span>
+            <span className="who">queued…</span>
           </div>
         ))}
       </div>

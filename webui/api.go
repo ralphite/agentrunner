@@ -38,7 +38,6 @@ func (s *server) routes() *http.ServeMux {
 
 	mux.HandleFunc("POST /api/sessions/{sid}/send", s.handleSend)
 	mux.HandleFunc("POST /api/sessions/{sid}/interrupt", s.handleInterrupt)
-	mux.HandleFunc("POST /api/sessions/{sid}/close", s.handleClose)
 	mux.HandleFunc("POST /api/sessions/{sid}/resume", s.handleResume)
 	mux.HandleFunc("POST /api/sessions/{sid}/kill", s.handleKill)
 	mux.HandleFunc("POST /api/sessions/{sid}/approve", s.handleApprove)
@@ -285,7 +284,7 @@ func (s *server) handleNewSession(w http.ResponseWriter, r *http.Request) {
 	}
 	if !exists {
 		writeJSON(w, http.StatusBadGateway, map[string]string{
-			"error":  "会话创建失败:daemon 拒绝了这个 spec(检查 tools / model / permissions 是否合法)",
+			"error":  "session creation failed: the daemon rejected this spec (check tools / model / permissions)",
 			"stderr": strings.TrimSpace(res.Stdout + "\n" + res.Stderr),
 		})
 		return
@@ -567,10 +566,6 @@ func (s *server) oneShotHandler(what string, argsFor func(id string) []string) h
 
 func (s *server) handleInterrupt(w http.ResponseWriter, r *http.Request) {
 	s.oneShotHandler("ar interrupt", func(id string) []string { return []string{"interrupt", id} })(w, r)
-}
-
-func (s *server) handleClose(w http.ResponseWriter, r *http.Request) {
-	s.oneShotHandler("ar close", func(id string) []string { return []string{"close", id} })(w, r)
 }
 
 func (s *server) handleResume(w http.ResponseWriter, r *http.Request) {

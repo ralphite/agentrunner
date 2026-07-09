@@ -37,8 +37,8 @@ export function ApprovalCard({
   return (
     <div className="approval-card">
       <div className="head">
-        <span>⚖ 审批 · {approval.tool}</span>
-        {approval.agent && <span className="badge">请求方: {approval.agent}</span>}
+        <span>⚖ Approval · {approval.tool}</span>
+        {approval.agent && <span className="badge">requested by: {approval.agent}</span>}
         {approval.gates.map((g, i) => (
           <span className="badge" key={i}>
             {g.gate}:{g.decision}
@@ -49,16 +49,16 @@ export function ApprovalCard({
       {approval.args !== undefined && approval.args !== null && <pre>{pretty(approval.args)}</pre>}
       <div className="act">
         {readonly ? (
-          <span className="badge">请在父会话中审批</span>
+          <span className="badge">approve in the parent session</span>
         ) : (
           <>
             <button className="primary sm" disabled={busy} onClick={() => decide("approve")}>
-              批准
+              Approve
             </button>
             <button className="danger sm" disabled={busy} onClick={() => decide("deny")}>
-              拒绝
+              Deny
             </button>
-            <input placeholder="理由(可选)" value={reason} onChange={(e) => setReason(e.target.value)} />
+            <input placeholder="reason (optional)" value={reason} onChange={(e) => setReason(e.target.value)} />
           </>
         )}
       </div>

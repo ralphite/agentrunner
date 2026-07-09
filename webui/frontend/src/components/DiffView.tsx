@@ -46,21 +46,21 @@ export function DiffView({ sid }: { sid: string }) {
   useEffect(load, [sid]);
 
   if (err) return <div className="diffwrap"><div className="chip bad">{err}</div></div>;
-  if (!data) return <div className="diffwrap dim">载入 diff…</div>;
+  if (!data) return <div className="diffwrap dim">loading diff…</div>;
 
   if (!data.known)
     return (
       <div className="diffwrap dim">
-        arwebui 不知道这个会话的 workspace(外部创建的会话不追踪)。仅 arwebui 建的
-        会话可看 diff。
+        arwebui doesn't know this session's workspace (sessions created outside arwebui
+        aren't tracked), so there is no diff to show. Only sessions started here have one.
       </div>
     );
   if (!data.isRepo)
     return (
       <div className="diffwrap">
         <div className="dim">
-          workspace <span className="mono">{data.workspace}</span> 不是 git 仓库,无 diff
-          可展示。指向一个真实 git 仓库的 workspace 即可看到 Codex 式改动视图。
+          workspace <span className="mono">{data.workspace}</span> is not a git repository,
+          so there is no diff to show. Point the session at a real git repo to get the diff view.
         </div>
       </div>
     );
@@ -74,14 +74,14 @@ export function DiffView({ sid }: { sid: string }) {
         <span className="mono dim">{data.workspace}</span>
         <span className="spacer" />
         <button className="sm" onClick={load}>
-          刷新
+          Refresh
         </button>
       </div>
-      {empty && <div className="dim" style={{ padding: 12 }}>工作区无改动。</div>}
+      {empty && <div className="dim" style={{ padding: 12 }}>No changes in the workspace.</div>}
       {data.untracked.length > 0 && (
         <div className="filediff">
           <div className="fd-head">
-            新文件 (untracked) · {data.untracked.length}
+            new files (untracked) · {data.untracked.length}
           </div>
           <div className="fd-body">
             {data.untracked.map((f) => (

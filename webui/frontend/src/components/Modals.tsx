@@ -66,7 +66,7 @@ function useWorkspace() {
 function NewSessionModal({ initialMessage }: { initialMessage?: string }) {
   const { openModal, select, refreshSessions, toast } = useStore();
   const { ws, setWs, mk } = useWorkspace();
-  const [msg, setMsg] = useState(initialMessage || "你好,请先用一句话自我介绍你的工具能力。");
+  const [msg, setMsg] = useState(initialMessage || "Hello — in one sentence, introduce your tool capabilities.");
   const [mode, setMode] = useState("");
   const [spec, setSpec] = useState(DEFAULT_SPEC);
   const [worker, setWorker] = useState(DEFAULT_WORKER);
@@ -91,35 +91,35 @@ function NewSessionModal({ initialMessage }: { initialMessage?: string }) {
 
   return (
     <Modal
-      title="新会话 (chat)"
+      title="New session (chat)"
       onClose={close}
       footer={
         <>
-          <button onClick={() => openModal({ kind: "run" })}>改为后台运行 (submit/drive)…</button>
+          <button onClick={() => openModal({ kind: "run" })}>Run in background instead (submit/drive)…</button>
           <button className="primary" disabled={busy} onClick={create}>
-            创建
+            Create
           </button>
         </>
       }
     >
-      <label className="field">workspace 目录(绝对路径)</label>
+      <label className="field">workspace directory (absolute path)</label>
       <div className="row-flex">
         <input type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="/path/to/workspace" />
-        <button style={{ whiteSpace: "nowrap" }} onClick={mk}>
-          造空 workspace
+        <button style={{ whiteSpace: "nowrap" }} onClick={mk} title="create a fresh empty directory under runtime/ and fill it in here">
+          make empty workspace
         </button>
       </div>
-      <label className="field">开场消息</label>
+      <label className="field">opening message</label>
       <textarea rows={2} value={msg} onChange={(e) => setMsg(e.target.value)} />
       <label className="field">mode</label>
-      <select value={mode} onChange={(e) => setMode(e.target.value)}>
+      <select value={mode} onChange={(e) => setMode(e.target.value)} title="permission mode: default asks for approval on gated tools · plan = read-only planning · acceptEdits auto-approves file edits">
         <option value="">default</option>
         <option value="plan">plan</option>
         <option value="acceptEdits">acceptEdits</option>
       </select>
-      <label className="field">base.yaml(主 agent spec)</label>
+      <label className="field">base.yaml (main agent spec)</label>
       <textarea className="code" rows={11} value={spec} onChange={(e) => setSpec(e.target.value)} />
-      <label className="field">worker.yaml(子 agent spec,留空则不写)</label>
+      <label className="field">worker.yaml (sibling sub-agent spec; leave empty to skip)</label>
       <textarea className="code" rows={6} value={worker} onChange={(e) => setWorker(e.target.value)} />
     </Modal>
   );
@@ -129,7 +129,7 @@ function RunModal({ initialTask }: { initialTask?: string }) {
   const { openModal, selectRun, refreshRuns, toast } = useStore();
   const { ws, setWs, mk } = useWorkspace();
   const [kind, setKind] = useState<"submit" | "drive">("submit");
-  const [task, setTask] = useState(initialTask || "在 workspace 里创建 hello.txt 写入 hi,然后确认。");
+  const [task, setTask] = useState(initialTask || "Create hello.txt containing hi in the workspace, then confirm.");
   const [mode, setMode] = useState("");
   const [idem, setIdem] = useState("");
   const [spec, setSpec] = useState(DEFAULT_SPEC);
@@ -161,46 +161,46 @@ function RunModal({ initialTask }: { initialTask?: string }) {
 
   return (
     <Modal
-      title="后台运行"
+      title="Background run"
       onClose={close}
       footer={
         <button className="primary" disabled={busy} onClick={start}>
-          启动 {kind}
+          Start {kind}
         </button>
       }
     >
-      <label className="field">类型</label>
+      <label className="field">kind</label>
       <div className="seg">
-        <button className={kind === "submit" ? "on" : ""} onClick={() => setKind("submit")}>
-          submit (一次性任务)
+        <button className={kind === "submit" ? "on" : ""} onClick={() => setKind("submit")} title="one-shot task: a fresh session runs the task once and completes">
+          submit (one-shot task)
         </button>
-        <button className={kind === "drive" ? "on" : ""} onClick={() => setKind("drive")}>
-          drive (迭代驱动)
+        <button className={kind === "drive" ? "on" : ""} onClick={() => setKind("drive")} title="iterative driver: child runs repeat per driver.yaml (goal / loop / best-of-N)">
+          drive (iterative driver)
         </button>
       </div>
-      <label className="field">workspace 目录(绝对路径)</label>
+      <label className="field">workspace directory (absolute path)</label>
       <div className="row-flex">
         <input type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="/path/to/workspace" />
-        <button style={{ whiteSpace: "nowrap" }} onClick={mk}>
-          造空 workspace
+        <button style={{ whiteSpace: "nowrap" }} onClick={mk} title="create a fresh empty directory under runtime/ and fill it in here">
+          make empty workspace
         </button>
       </div>
       {kind === "submit" ? (
         <>
-          <label className="field">任务描述</label>
+          <label className="field">task</label>
           <textarea rows={2} value={task} onChange={(e) => setTask(e.target.value)} />
           <div className="row-flex">
             <div style={{ flex: 1 }}>
               <label className="field">mode</label>
-              <select value={mode} onChange={(e) => setMode(e.target.value)}>
+              <select value={mode} onChange={(e) => setMode(e.target.value)} title="permission mode: default asks for approval on gated tools · plan = read-only planning · acceptEdits auto-approves file edits">
                 <option value="">default</option>
                 <option value="plan">plan</option>
                 <option value="acceptEdits">acceptEdits</option>
               </select>
             </div>
             <div style={{ flex: 1 }}>
-              <label className="field">idem key(可选)</label>
-              <input type="text" value={idem} onChange={(e) => setIdem(e.target.value)} />
+              <label className="field">idem key (optional)</label>
+              <input type="text" value={idem} onChange={(e) => setIdem(e.target.value)} title="idempotency key: resubmitting with the same key reuses the run instead of starting a new one" />
             </div>
           </div>
           <label className="field">spec.yaml</label>
@@ -208,7 +208,7 @@ function RunModal({ initialTask }: { initialTask?: string }) {
         </>
       ) : (
         <>
-          <label className="field">driver.yaml(迭代驱动 spec)</label>
+          <label className="field">driver.yaml (iterative driver spec)</label>
           <textarea className="code" rows={12} value={driver} onChange={(e) => setDriver(e.target.value)} />
         </>
       )}
@@ -251,7 +251,7 @@ function ForkModal({ sid }: { sid: string }) {
 
   return (
     <Modal
-      title={`fork 会话 · ${sid}`}
+      title={`Fork session · ${sid}`}
       onClose={close}
       footer={
         <button className="primary" disabled={busy || !barrier} onClick={doFork}>
@@ -259,11 +259,11 @@ function ForkModal({ sid }: { sid: string }) {
         </button>
       }
     >
-      <label className="field">barrier(分叉点)</label>
+      <label className="field">barrier (fork point)</label>
       {barriers.length === 0 ? (
-        <div className="dim">该会话还没有 barrier(用 barrier 工具落一个后再来 fork)。</div>
+        <div className="dim">No barriers in this session yet (have the agent drop one with the barrier tool, then fork).</div>
       ) : (
-        <select value={barrier} onChange={(e) => setBarrier(e.target.value)}>
+        <select value={barrier} onChange={(e) => setBarrier(e.target.value)} title="the checkpoint to branch the new session from">
           {barriers.map((b) => (
             <option key={b} value={b}>
               {b}
@@ -271,11 +271,11 @@ function ForkModal({ sid }: { sid: string }) {
           ))}
         </select>
       )}
-      <label className="field">fork workspace(可选,留空自动)</label>
+      <label className="field">fork workspace (optional; leave empty for auto)</label>
       <div className="row-flex">
-        <input type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="留空 = 自动 <ws>-fork-<id>" />
-        <button style={{ whiteSpace: "nowrap" }} onClick={mk}>
-          造空 workspace
+        <input type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="empty = auto <ws>-fork-<id>" />
+        <button style={{ whiteSpace: "nowrap" }} onClick={mk} title="create a fresh empty directory under runtime/ and fill it in here">
+          make empty workspace
         </button>
       </div>
     </Modal>
@@ -296,7 +296,7 @@ function AgentModal({ sid }: { sid: string }) {
       if (worker.trim()) extraSpecs.push({ name: "worker.yaml", content: worker });
       await AR.switchAgent(sid, spec, extraSpecs);
       close();
-      toast("已切换 agent spec", "info");
+      toast("agent spec switched", "info");
     } catch (e: any) {
       toast(e.message);
     } finally {
@@ -306,18 +306,18 @@ function AgentModal({ sid }: { sid: string }) {
 
   return (
     <Modal
-      title={`切换 agent · ${sid}`}
+      title={`Switch agent · ${sid}`}
       onClose={close}
       footer={
         <button className="primary" disabled={busy} onClick={swap}>
-          切换
+          Switch
         </button>
       }
     >
-      <div className="dim">在下一个安全边界生效(决策 #32)。新 spec 会写入 runtime/specs。</div>
-      <label className="field">base.yaml(新主 agent spec)</label>
+      <div className="dim">Same session, context carries over; takes effect at the next safe boundary (decision #32) and lands in the journal as spec_changed. The new spec is written to runtime/specs.</div>
+      <label className="field">base.yaml (new main agent spec)</label>
       <textarea className="code" rows={12} value={spec} onChange={(e) => setSpec(e.target.value)} />
-      <label className="field">worker.yaml(子 agent spec,留空则不写)</label>
+      <label className="field">worker.yaml (sibling sub-agent spec; leave empty to skip)</label>
       <textarea className="code" rows={6} value={worker} onChange={(e) => setWorker(e.target.value)} />
     </Modal>
   );
@@ -333,7 +333,7 @@ function TrustModal() {
     try {
       await AR.trust(dir.trim());
       close();
-      toast("已信任: " + dir, "info");
+      toast("trusted: " + dir, "info");
     } catch (e: any) {
       toast(e.message);
     } finally {
@@ -342,15 +342,15 @@ function TrustModal() {
   };
   return (
     <Modal
-      title="信任 workspace 目录"
+      title="Trust workspace directory"
       onClose={close}
       footer={
-        <button className="primary" disabled={busy || !dir.trim()} onClick={go}>
+        <button className="primary" disabled={busy || !dir.trim()} onClick={go} title="enable project hooks/settings for sessions in this directory (ar trust)">
           trust
         </button>
       }
     >
-      <label className="field">目录(绝对路径)</label>
+      <label className="field">directory (absolute path)</label>
       <input type="text" value={dir} onChange={(e) => setDir(e.target.value)} placeholder="/path/to/workspace" />
     </Modal>
   );

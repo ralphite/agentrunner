@@ -13,7 +13,7 @@ export function sessionDate(id: string): Date | null {
 export function relTime(when: Date | null): string {
   if (!when || isNaN(when.getTime())) return "";
   const sec = Math.max(0, (Date.now() - when.getTime()) / 1000);
-  if (sec < 60) return "刚刚";
+  if (sec < 60) return "just now";
   const min = sec / 60;
   if (min < 60) return `${Math.floor(min)}m`;
   const hr = min / 60;
