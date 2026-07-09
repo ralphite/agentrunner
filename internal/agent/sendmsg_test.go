@@ -9,6 +9,7 @@ import (
 
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
+	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
 	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
@@ -537,5 +538,79 @@ func TestSendForwardsTargetToChild(t *testing.T) {
 	}
 	if !sawUserMail {
 		t.Fatal("child never consumed the forwarded user mail")
+	}
+}
+
+// INC-12.2 crash discipline: a crash DURING a revive settles from the child
+// fold with the BASELINE DELTA, never the child's lifetime total — the
+// parent already settled the earlier rounds (double-count guard, live and
+// crash paths must agree).
+func TestReviveCrashSettleReportsDelta(t *testing.T) {
+	root := t.TempDir()
+	es, err := store.OpenEventStore(root + "/sess")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = es.Close() }()
+	l := &Loop{Store: es, SessionID: "lead", Spec: &AgentSpec{Name: "lead"}}
+
+	// Child journal: quiescent shape with 300/30 lifetime usage.
+	childDir := es.Dir() + "/sub/c1-a1"
+	ces, err := store.OpenEventStore(childDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	specJSON := []byte(`{"name":"pm","model":{"provider":"scripted","id":"m"}}`)
+	for _, ev := range []struct {
+		typ string
+		p   any
+	}{
+		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "pm", Task: "t", Spec: specJSON,
+			SubStateVersions: state.SubStateVersions()}},
+		{event.TypeInputReceived, &event.InputReceived{Text: "t", Source: "user"}},
+		{event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}},
+		{event.TypeActivityStarted, &event.ActivityStarted{ActivityID: "llm-1", Kind: event.KindLLM, Name: "complete"}},
+		{event.TypeActivityCompleted, &event.ActivityCompleted{ActivityID: "llm-1",
+			Usage: &provider.Usage{InputTokens: 300, OutputTokens: 30}}},
+		{event.TypeAssistantMessage, &event.AssistantMessage{GenStep: 1,
+			Message: provider.Message{Role: provider.RoleAssistant,
+				Parts: []provider.Part{{Kind: provider.PartText, Text: "done"}}}}},
+	} {
+		payload, _ := json.Marshal(ev.p)
+		if _, err := ces.Append(event.Envelope{Type: ev.typ, Payload: payload}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = ces.Close()
+
+	// The in-doubt synthetic revive activity carries a 200/20 baseline
+	// (the first round, already settled by the live path).
+	args, _ := json.Marshal(map[string]any{"agent": "pm", "revive": true,
+		"baseline": provider.Usage{InputTokens: 200, OutputTokens: 20}})
+	act := event.ActivityStarted{ActivityID: "revive-x", Kind: event.KindTool,
+		Name: "spawn_agent", Args: args, CallID: "c1", Attempt: 1, Background: true}
+
+	var got []event.Envelope
+	appendE := func(typ string, p any) (event.Envelope, error) {
+		payload, _ := json.Marshal(p)
+		env := event.Envelope{Type: typ, Payload: payload}
+		got = append(got, env)
+		return env, nil
+	}
+	if err := l.settleCrashedSpawn(appendE, act); err != nil {
+		t.Fatal(err)
+	}
+	var receipt *event.SubagentCompleted
+	for _, e := range got {
+		if e.Type == event.TypeSubagentCompleted {
+			dec, _ := event.DecodePayload(e)
+			receipt = dec.(*event.SubagentCompleted)
+		}
+	}
+	if receipt == nil {
+		t.Fatal("no SubagentCompleted from the crash settle")
+	}
+	if receipt.Usage.InputTokens != 100 || receipt.Usage.OutputTokens != 10 {
+		t.Fatalf("crash settle usage = %+v, want the 100/10 delta (300/30 total minus 200/20 baseline)", receipt.Usage)
 	}
 }
