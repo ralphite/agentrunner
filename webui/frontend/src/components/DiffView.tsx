@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { AR } from "../api";
+import { useStore } from "../store";
 import type { DiffResp } from "../types";
 
 interface FileDiff {
@@ -32,8 +33,10 @@ function lineClass(l: string): string {
 }
 
 export function DiffView({ sid }: { sid: string }) {
+  const { toast } = useStore();
   const [data, setData] = useState<DiffResp | null>(null);
   const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const load = () => {
     AR.diff(sid)
@@ -44,6 +47,22 @@ export function DiffView({ sid }: { sid: string }) {
       .catch((e) => setErr(e.message));
   };
   useEffect(load, [sid]);
+
+  // Codex review→commit: stage & commit the workspace changes from the diff.
+  const commit = async () => {
+    const message = window.prompt("Commit message for these changes:", "changes from agent session");
+    if (message === null) return;
+    setBusy(true);
+    try {
+      await AR.commit(sid, message);
+      toast("committed", "info");
+      load();
+    } catch (e: any) {
+      toast(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   if (err) return <div className="diffwrap"><div className="chip bad">{err}</div></div>;
   if (!data) return <div className="diffwrap dim">loading diff…</div>;
@@ -74,6 +93,11 @@ export function DiffView({ sid }: { sid: string }) {
       <div className="diffbar">
         <span className="mono dim">{data.workspace}</span>
         <span className="spacer" />
+        {!empty && (
+          <button className="sm primary" onClick={commit} disabled={busy} title="git add -A && git commit the workspace changes (local commit, no push)">
+            Commit changes…
+          </button>
+        )}
         <button className="sm" onClick={load}>
           Refresh
         </button>

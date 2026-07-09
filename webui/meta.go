@@ -168,3 +168,53 @@ func (s *server) handleDiff(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
+
+// handleCommit stages and commits the workspace changes — Codex's review→commit
+// step, closing the loop after the Diff view. Local commit only (no push); if
+// the repo has no git identity, a cockpit fallback is used for that one commit.
+func (s *server) handleCommit(w http.ResponseWriter, r *http.Request) {
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Message string `json:"message"`
+	}
+	if !readBody(w, r, &req) {
+		return
+	}
+	msg := strings.TrimSpace(req.Message)
+	if msg == "" {
+		msg = "changes from agent session " + id
+	}
+	ws := s.meta.get(id).Workspace
+	if ws == "" {
+		badRequest(w, "arwebui doesn't know this session's workspace")
+		return
+	}
+	if _, isRepo := git(r.Context(), ws, "rev-parse", "--is-inside-work-tree"); !isRepo {
+		badRequest(w, "workspace is not a git repository")
+		return
+	}
+	run := func(args ...string) (string, error) {
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "git", append([]string{"-C", ws}, args...)...)
+		out, err := cmd.CombinedOutput()
+		return strings.TrimSpace(string(out)), err
+	}
+	if out, err := run("add", "-A"); err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "git add failed", "stderr": out})
+		return
+	}
+	out, err := run("commit", "-m", msg)
+	if err != nil && (strings.Contains(out, "user.email") || strings.Contains(out, "empty ident") ||
+		strings.Contains(out, "Please tell me who you are") || strings.Contains(out, "author identity")) {
+		out, err = run("-c", "user.name=AgentRunner", "-c", "user.email=agent@agentrunner.local", "commit", "-m", msg)
+	}
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "git commit failed", "stderr": out})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": out})
+}
