@@ -76,6 +76,11 @@ type Loop struct {
 	// `kill <handle>` cancels one running child/task without entering the
 	// conversation. Consumed at drive-loop safe points and during the idle.
 	Cancels <-chan string
+	// Controls delivers session-maintenance signals out of band (G7): manual
+	// context compact/clear. Like Cancels it never enters the conversation;
+	// consumed at safe points and stored-then-drained from the idle. nil =
+	// no control source wired.
+	Controls <-chan protocol.Control
 	// Mode is the STARTING mode (3.6): journaled as the first ModeChanged.
 	// The live mode is fold state; empty means "default".
 	Mode string
@@ -150,6 +155,9 @@ type driveState struct {
 	// quiesceReason names the latest quiescent shape (observer value for
 	// RunResult / the parent receipt; never journaled).
 	quiesceReason string
+	// pendingControls holds compact/clear controls consumed at the idle
+	// (awaitInput) that the next safe-point drain applies (G7).
+	pendingControls []protocol.Control
 }
 
 // compact renders raw JSON on one line, dropping surrounding whitespace.
@@ -773,6 +781,12 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 		if err := l.drainCancels(appendE); err != nil {
 			return RunResult{}, abort(ds.s.Session.GenStep, err)
 		}
+		// Manual compact/clear controls (G7) apply here, at the safe point:
+		// both the busy path (fresh channel reads) and the idle path (stored
+		// on ds.pendingControls by awaitInput) funnel through one drain.
+		if err := l.drainControls(ctx, ds, appendE, exec); err != nil {
+			return RunResult{}, abort(ds.s.Session.GenStep, err)
+		}
 		act := decide(ds.s, l.Spec.MaxGenerationSteps)
 		switch act.kind {
 		case doTurn:
@@ -782,7 +796,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			// boundary — the fresh summary drops the estimate below the
 			// threshold, so the next decide() no longer finds it due.
 			if act.turn > 1 && compactionDue(ds.s, l.Spec) {
-				if err := l.compactContext(ctx, ds, appendE, exec, act.turn); err != nil {
+				if err := l.compactContext(ctx, ds, appendE, exec, act.turn, "", false); err != nil {
 					return RunResult{}, abort(act.turn, err)
 				}
 				continue

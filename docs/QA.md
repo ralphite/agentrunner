@@ -271,6 +271,20 @@ SUMMARY.md 存在且内容与会话结论一致。
 
 ---
 
+## QA-12 手动 compact / clear（INC-6,UJ-09） `覆盖 G7 关闭`
+**环境**：空 workspace,聊两轮(记两个暗号)。脚本:`qa/run-qa12.sh`。
+
+| # | 动作 | 验证 |
+|---|---|---|
+| 1-2 | 两轮对话 | 2 条 assistant_message |
+| 3 | `ar compact $sid "务必保留全部暗号原文"` | journal 出现 `context_compacted`,`summary` **非空**(idle 处 compact 曾因会话以 assistant 收尾致 Gemini 返回空 summary→上下文丢失,已修:summarizer 请求补 user 收尾 + 空 summary 不落) |
+| 4 | 一轮对话 + `ar clear $sid` | `context_compacted` 追加一条 `cleared=true`、`summary=""`(clear 无新内容时为 no-op) |
+
+**通过标准**:runtime 红线钉 compact 落非空 summary + clear 落 cleared;
+不钉模型对暗号的复述措辞。
+
+---
+
 ## 覆盖矩阵
 
 | 核心场景 | QA 流 |

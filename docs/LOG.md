@@ -540,3 +540,40 @@ frontmatter strip/前导空白/Discover)全绿。B 真实 API:workspace 放
 都展开进 journal 的 input_received——PASS。
 
 **review 裁决**:小增量(S),inline 自审。裁三视角 review。
+
+## 2026-07-09 INC-6 手动 compact / clear(G7 关闭)
+
+**动机**:Codex 对照——手动 compact(带指示)/clear 是标配上下文控制。
+UJ-09「嫌摘要丢了关键约束→手动 /compact 保留 API 决定」。DESIGN §18.2
+早把"未来 pause/compact"列为预期 control 输入。
+
+**落地**(触核心 select,中增量):
+- `protocol.Control{Kind,Directive}` + `Loop.Controls` 通道(nil=不接);
+  处理点唯一 = 安全边界 `drainControls`(exec 在此可用);待命处
+  awaitInput 加 case 存 `ds.pendingControls`+resolve 唤醒→回安全边界处理
+  →decide()doIdle 继续待命(compact/clear 不起 turn)。
+- compact 复用 compactContext(参数化 directive/manual;manual 用独立
+  activity-id 名字空间防撞自动)。clear = ContextCompacted{Summary:""}
+  (assembly 见空 summary 跳摘要头)+ 事件 `Cleared` 标记(additive-optional,
+  不 bump schema);退化保护:仅当有新内容越 boundary 才落。
+- daemon `compact`/`clear` 命令(Command.Directive + hub.controls +
+  handleControl,best-effort ack)+ `ar compact [指示]`/`ar clear` CLI;
+  Controls 经 RunRequest/ResumeRequest 两路 wire 进 Loop。
+
+**真验捕获的 bug(关键)**:idle 处 compact 时会话以 assistant 消息收尾,
+Gemini 对"接自己的话"返回**空 summary**——而空 summary 会清空上下文
+(assembly 只取 msgs[Boundary:])。这是 scripted 孪生抓不到的(scripted
+恒返回非空)。**修法**:① summarizer 请求补一条 user 收尾消息(使请求
+well-formed,不论在何处触发);② 空 summary 一律**不落** compaction、
+护住上下文(auto compaction 同受益)。真验复核:compact 后 summary 含
+两个暗号原文、模型正确复述——continuity 穿过 compaction 成立。
+
+**闸门**:A 孪生 control_test.go(TestManualCompactControl 跑 summarizer
+不起 turn;TestManualClearControl clear 空摘要+二次 no-op;
+TestManualCompactEmptySummarySkipped 空 summary 不落)全绿。B 真实 API
+QA-12(qa/run-qa12.sh):compact 落非空 summary、clear 落 cleared——PASS。
+
+**review 裁决**:中增量触核心 select;inline 自审(双路 control 汇流/
+manual 活动 id/clear 空摘要 assembly/nil channel/空 summary 护栏)。裁
+三视角对抗 review(机制被孪生+真验双闸门覆盖,且真验已抓出并修掉主要
+风险点)。

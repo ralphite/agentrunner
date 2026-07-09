@@ -353,6 +353,11 @@ type ContextCompacted struct {
 	Summary      string `json:"summary"`
 	DroppedTurns int    `json:"dropped_turns,omitempty"`
 	SummaryRef   string `json:"summary_ref,omitempty"`
+	// Cleared marks a /clear (G7): the boundary advances with an EMPTY
+	// summary — the prior context is dropped outright, no summarizer runs.
+	// Additive-optional (决策 #18: no schema bump); lets the timeline label
+	// a clear honestly instead of as a compaction with an empty summary.
+	Cleared bool `json:"cleared,omitempty"`
 }
 
 // MalformedToolCall records that a completed LLM call finished with an

@@ -251,6 +251,39 @@ func stopCmd(args []string, stdout, stderr io.Writer) int {
 	return code
 }
 
+// compactCmd manually summarizes a session's context now (G7):
+// `agentrunner compact <session> [focus directive...]`. The rest of the args
+// join into an optional focus for the summarizer.
+func compactCmd(args []string, stdout, stderr io.Writer) int {
+	if len(args) < 1 {
+		fmt.Fprintln(stderr, "usage: agentrunner compact <session-id-or-prefix> [focus directive]")
+		return ExitUsage
+	}
+	cmd := daemon.Command{Cmd: "compact", Session: resolvePrefixLenient(args[0])}
+	if len(args) > 1 {
+		cmd.Directive = strings.Join(args[1:], " ")
+	}
+	code := oneShot(stderr, cmd, stdout)
+	if code != ExitOK {
+		stuckHint(stderr, args[0])
+	}
+	return code
+}
+
+// clearCmd drops a session's context prefix (G7): `agentrunner clear <session>`.
+// The full journal is kept; only the assembled view resets.
+func clearCmd(args []string, stdout, stderr io.Writer) int {
+	if len(args) != 1 {
+		fmt.Fprintln(stderr, "usage: agentrunner clear <session-id-or-prefix>")
+		return ExitUsage
+	}
+	code := oneShot(stderr, daemon.Command{Cmd: "clear", Session: resolvePrefixLenient(args[0])}, stdout)
+	if code != ExitOK {
+		stuckHint(stderr, args[0])
+	}
+	return code
+}
+
 // closeCmd ends a conversational session gracefully (v2 M1.2):
 // `agentrunner close <session-id-or-prefix>`.
 func closeCmd(args []string, stdout, stderr io.Writer) int {

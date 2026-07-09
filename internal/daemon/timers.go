@@ -94,6 +94,7 @@ func (s *Server) hostResume(ctx context.Context, id string, explicit bool) {
 	hub.inbox = make(chan protocol.UserInput, 64)
 	hub.interrupts = make(chan struct{}, 1)
 	hub.cancels = make(chan string, 8)
+	hub.controls = make(chan protocol.Control, 8)
 	s.runs[id] = hub
 	s.runsWG.Add(1)
 	s.mu.Unlock()
@@ -112,6 +113,7 @@ func (s *Server) hostResume(ctx context.Context, id string, explicit bool) {
 		defer hub.finish()
 		if err := s.Resume(runCtx, ResumeRequest{
 			SessionID: id, Inbox: hub.inbox, Interrupts: hub.interrupts, Cancels: hub.cancels,
+			Controls: hub.controls,
 		}, hub); err != nil {
 			slog.Warn("daemon: hosted resume failed", "session", id, "err", err)
 			s.markResumeFailed(id)

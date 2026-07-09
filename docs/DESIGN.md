@@ -305,8 +305,18 @@ generation step 预算（从最后一条输入起算,防单 turn runaway）。
 - **Compaction 是 recorded activity**：它本身是一次 LLM 调用
   （非确定性副作用），产出 `ContextCompacted{summary, kept_range}` event，
   **改变后续 fold 的结果**。跨 compaction 边界的 fork/rewind 语义因此
-  是良定义的：fold 到哪个 seq，就得到哪个视图。手动触发 = 投一条
-  `control{compact,指示}`——又是 inbox（扩展层余项，见 GAPS G7）。
+  是良定义的：fold 到哪个 seq，就得到哪个视图。
+- **手动 compact / clear（INC-6，G7）** = control 输入（§18.2 已预留族，
+  非对话、不进上下文），`protocol.Control{compact|clear}` 经 `Loop.Controls`
+  通道投递、在**安全边界**或**待命处**唯一的 `drainControls` 处理：
+  - compact 无条件跑同一 summarizer（directive 附加进 harness prompt）。
+    **收尾 user 消息**：idle 处会话以 assistant 收尾，summarizer 请求必须
+    以一条 user 消息收尾，否则部分 provider（Gemini）"接自己的话"返回空。
+    **空 summary 护栏**：summarizer 若产出空，一律**不落** compaction
+    ——空 summary 会清空上下文，绝不静默丢历史。
+  - clear 复用 `ContextCompacted{Summary:""}`（assembly 见空 summary
+    跳过摘要头，view = msgs[Boundary:]）+ 事件 `Cleared` 标记诚实区分；
+    退化保护：仅当有新内容越过上一 boundary 才落事件。
 
 ### Turn 内的执行纪律
 

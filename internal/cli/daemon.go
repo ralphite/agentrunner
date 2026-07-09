@@ -398,6 +398,7 @@ func hostRunFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker
 			UserInputs: req.Inbox,
 			Interrupts: req.Interrupts,
 			Cancels:    req.Cancels,
+			Controls:   req.Controls,
 			// Blackboard publishes mirror onto the attach stream (S6 模块⑤
 			// 回访): watchers see the tree's collaboration live; the board
 			// stays the read-back truth.
@@ -589,6 +590,7 @@ func hostResumeFunc(version string, stderr io.Writer, broker *daemon.ApprovalBro
 		loop.UserInputs = req.Inbox
 		loop.Interrupts = req.Interrupts
 		loop.Cancels = req.Cancels
+		loop.Controls = req.Controls
 		loop.SpecPath = specPath
 		if specPath != "" {
 			loop.SubSpecs = siblingSpecResolver(specPath)

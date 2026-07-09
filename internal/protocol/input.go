@@ -20,3 +20,18 @@ type UserInput struct {
 	Images      []ImageAttachment `json:"images,omitempty"`
 	DeliverySeq int64             `json:"delivery_seq,omitempty"`
 }
+
+// Control is a non-conversational session-maintenance signal (G7): manual
+// context compaction or clear. Like interrupt/kill it flows out of band
+// (its own channel, not the inbox) and never enters the conversation; its
+// EFFECT (a ContextCompacted event) is what lands in the journal.
+type Control struct {
+	Kind      string `json:"kind"`                // "compact" | "clear"
+	Directive string `json:"directive,omitempty"` // optional focus for a compact
+}
+
+// Control kinds.
+const (
+	ControlCompact = "compact"
+	ControlClear   = "clear"
+)

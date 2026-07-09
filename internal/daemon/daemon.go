@@ -57,6 +57,9 @@ type Command struct {
 	// kill
 	Handle string `json:"handle,omitempty"` // a child/task handle to cancel
 
+	// compact (G7): an optional focus for the manual summarizer.
+	Directive string `json:"directive,omitempty"`
+
 	// approve
 	ApprovalID string `json:"approval_id,omitempty"`
 	Decision   string `json:"decision,omitempty"` // approve | deny
@@ -81,6 +84,7 @@ type RunRequest struct {
 	Inbox      <-chan protocol.UserInput
 	Interrupts <-chan struct{}
 	Cancels    <-chan string
+	Controls   <-chan protocol.Control
 }
 
 // RunFunc hosts one run to completion, emitting output events to sink. The
@@ -95,6 +99,7 @@ type ResumeRequest struct {
 	Inbox      <-chan protocol.UserInput
 	Interrupts <-chan struct{}
 	Cancels    <-chan string
+	Controls   <-chan protocol.Control
 }
 
 // DriveRequest is a hosted IterationDriver series (S6 完成标志①: a series
@@ -195,6 +200,9 @@ type hostedRun struct {
 	// cancels delivers handles to kill out of band (v2 M3.2): `kill <handle>`
 	// cancels one running child/task. Buffered for non-blocking delivery.
 	cancels chan string
+	// controls delivers session-maintenance signals out of band (G7): manual
+	// compact/clear. Buffered for non-blocking delivery.
+	controls chan protocol.Control
 	// stop tears the hosted loop down (决策 #32 agent switch): a plain ctx
 	// cancel — no mark, no ending; the journal simply stops mid-standby and
 	// the next send revives it (with whatever spec the journal then names).
@@ -221,6 +229,22 @@ func (h *hostedRun) killHandle(handle string) bool {
 	}
 	select {
 	case h.cancels <- handle:
+		return true
+	default:
+		return false
+	}
+}
+
+// postControl delivers a compact/clear control to the hosted loop
+// (best-effort: a full buffer drops it, which the user can re-issue).
+func (h *hostedRun) postControl(c protocol.Control) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.done || h.controls == nil {
+		return false
+	}
+	select {
+	case h.controls <- c:
 		return true
 	default:
 		return false
@@ -444,13 +468,17 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		s.handleInterrupt(cmd, enc)
 	case "stop":
 		s.handleStop(cmd, enc)
+	case "compact":
+		s.handleControl(cmd, protocol.Control{Kind: protocol.ControlCompact, Directive: cmd.Directive}, "compacting", enc)
+	case "clear":
+		s.handleControl(cmd, protocol.Control{Kind: protocol.ControlClear}, "clearing", enc)
 	case "kill":
 		s.handleKill(cmd, enc)
 	case "agent":
 		s.handleAgent(cmd, enc)
 	default:
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
-			Text: fmt.Sprintf("unknown command %q (known: ping, run, drive, attach, approve, send, close, interrupt, stop, kill, agent)", cmd.Cmd)})
+			Text: fmt.Sprintf("unknown command %q (known: ping, run, drive, attach, approve, send, close, interrupt, stop, compact, clear, kill, agent)", cmd.Cmd)})
 	}
 }
 
@@ -548,6 +576,26 @@ func (s *Server) handleStop(cmd Command, enc *json.Encoder) {
 		return
 	}
 	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Text: "stopping", Session: cmd.Session})
+}
+
+// handleControl posts a compact/clear maintenance signal to a hosted session
+// (G7). Best-effort like interrupt/kill: the effect (a ContextCompacted
+// event) is journaled by the loop at its next safe boundary — the ack only
+// confirms delivery. A parked session is woken by the control.
+func (s *Server) handleControl(cmd Command, ctl protocol.Control, ack string, enc *json.Encoder) {
+	if cmd.Session == "" {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: ctl.Kind + " needs session"})
+		return
+	}
+	s.mu.Lock()
+	hub, ok := s.runs[cmd.Session]
+	s.mu.Unlock()
+	if !ok || !hub.postControl(ctl) {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
+			Text: fmt.Sprintf("no live session %s to %s", cmd.Session, ctl.Kind)})
+		return
+	}
+	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Text: ack, Session: cmd.Session})
 }
 
 // handleSend delivers a user message to a live conversational session
@@ -743,6 +791,7 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 	hub.inbox = make(chan protocol.UserInput, 64) // type-ahead buffer
 	hub.interrupts = make(chan struct{}, 1)
 	hub.cancels = make(chan string, 8)
+	hub.controls = make(chan protocol.Control, 8)
 	s.mu.Lock()
 	if s.stopping {
 		s.mu.Unlock()
@@ -779,6 +828,7 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 			SessionID: id, SpecPath: cmd.SpecPath, Task: cmd.Task,
 			Workspace: cmd.Workspace, Mode: cmd.Mode,
 			Inbox: hub.inbox, Interrupts: hub.interrupts, Cancels: hub.cancels,
+			Controls: hub.controls,
 		}, hub); err != nil {
 			hub.Emit(protocol.Event{Kind: protocol.KindError, Text: "run failed: " + err.Error()})
 		}

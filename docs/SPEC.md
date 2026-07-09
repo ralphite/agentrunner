@@ -34,7 +34,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | PDF/附件泛化 | ❌ | UJ-04 | GAPS G1 余项 |
 | 外部事件唤醒既有 session（webhook → inbox，机器发送方） | ❌ | UJ-12 | GAPS G14（inbox 原语已备，缺投递壳） |
 | WAITING_APPROVAL 挂起期间消息唤醒 | 🟡 | UJ-07 | 只排队不唤醒；GAPS G3 余项 |
-| 手动 compact（带指示）/ clear | ❌ | UJ-09 | GAPS G7 |
+| 手动 compact（带指示）/ clear | ✅ | UJ-09 | INC-6 · TestManualCompact/Clear/EmptySummarySkipped · QA-12（真实 API：compact 带指示落非空 summary、clear 落 cleared） |
 | 自动 compaction（阈值触发） | ✅ | UJ-09 | S3 |
 | 手动 barrier 打点（`ar barrier`，非运行中 session） | ✅ | UJ-15 | fork 全链路测试（S7 收口） |
 
@@ -164,13 +164,13 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 
 **CLI 子命令**（`internal/cli/cli.go`）：
 `run` `drive` `submit` `resume` `new` `send` `close` `interrupt`
-`stop`（INC-4）`kill` `agent`（决策 #32）`ps` `approve` `fork` `barrier`
+`stop`（INC-4）`compact`（INC-6）`clear`（INC-6）`kill` `agent`（决策 #32）`ps` `approve` `fork` `barrier`
 `sessions` `trust` `attach` `daemon` `events` `inspect` `accept`
 `record-fixture` `version` `help` `init`（INC-2）
 
 **daemon 线协议命令**（`internal/daemon/daemon.go`）：
 `ping` `run` `drive` `attach` `approve` `send` `close` `interrupt`
-`stop`（INC-4）`kill` `agent`
+`stop`（INC-4）`compact`（INC-6）`clear`（INC-6）`kill` `agent`
 
 **内置 tool 定义**（`internal/tool/defs/*.json`）：
 `read_file` `write_file` `edit_file` `bash` `output` `kill`

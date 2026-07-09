@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
@@ -54,18 +56,38 @@ func compactionDue(s state.State, spec *AgentSpec) bool {
 // permission pipeline: it is a harness-internal maintenance call the model
 // never directed. Its token usage still settles into the budget.
 func (l *Loop) compactContext(ctx context.Context, ds *driveState, appendE AppendFunc,
-	exec *ActivityExecutor, turn int) error {
+	exec *ActivityExecutor, turn int, directive string, manual bool) error {
 
+	system := compactionSystemPrompt
+	if d := strings.TrimSpace(directive); d != "" {
+		system += "\n\nThe user asked you to focus this summary on: " + d
+	}
+	// Terminate the summarizer request with a USER turn. Auto-compaction fires
+	// right after a user message (the request already ends with user), but a
+	// manual compact at idle summarizes a conversation ending in an ASSISTANT
+	// message — several providers (Gemini among them) return an EMPTY reply
+	// when asked to continue after their own turn. An explicit user prompt
+	// makes the request well-formed regardless of where compaction is invoked.
+	msgs := append(assembleMessages(ds.s), provider.Message{
+		Role:  provider.RoleUser,
+		Parts: []provider.Part{{Kind: provider.PartText, Text: "Now produce the summary as instructed."}},
+	})
 	req := provider.CompleteRequest{
 		Model:     l.Spec.Model.ID,
 		MaxTokens: l.Spec.Model.MaxTokens,
-		System:    compactionSystemPrompt,
-		Messages:  assembleMessages(ds.s),
+		System:    system,
+		Messages:  msgs,
 		GenStep:   turn,
+	}
+	// A manual compact uses a distinct activity-id namespace so it can never
+	// collide with (and dedup against) an auto-compaction at the same turn.
+	actID := compactActivityID(turn)
+	if manual {
+		actID = "compact-manual-t" + strconv.Itoa(turn)
 	}
 	var summary string
 	err := exec.Do(ctx, Activity{
-		ID: compactActivityID(turn), Kind: event.KindLLM,
+		ID: actID, Kind: event.KindLLM,
 		Name: "compact", Idempotent: true,
 		Run: func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
 			collected, cerr := provider.CollectTurn(l.Provider.Complete(ctx, req))
@@ -79,6 +101,15 @@ func (l *Loop) compactContext(ctx context.Context, ds *driveState, appendE Appen
 	})
 	if err != nil {
 		return err
+	}
+	// Never journal a context-LOSING compaction: an empty summary would drop
+	// the whole prefix (assembly reads only msgs[Boundary:] with no summary).
+	// If the summarizer produced nothing, keep the context and skip — the user
+	// can retry, and no history is silently lost.
+	if strings.TrimSpace(summary) == "" {
+		l.emit(protocol.Event{Kind: protocol.KindMessage,
+			Text: "compact skipped: summarizer produced no summary; context unchanged"})
+		return nil
 	}
 
 	// DroppedTurns is informational: turns wholly behind the new boundary.
@@ -98,4 +129,61 @@ func (l *Loop) compactContext(ctx context.Context, ds *driveState, appendE Appen
 
 func compactActivityID(turn int) string {
 	return fmt.Sprintf("compact-t%d", turn)
+}
+
+// drainControls applies any queued session-maintenance controls (G7) at a
+// safe boundary. Both paths funnel here: the busy path reads fresh controls
+// off l.Controls; the idle path stored them on ds.pendingControls (awaitInput
+// can't run the summarizer itself). Each control is applied against the
+// current fold — appendE folds each ContextCompacted straight into ds.s, so a
+// second control in the same batch sees the advanced boundary and no-ops.
+func (l *Loop) drainControls(ctx context.Context, ds *driveState, appendE AppendFunc, exec *ActivityExecutor) error {
+	for l.Controls != nil {
+		select {
+		case ctl := <-l.Controls:
+			ds.pendingControls = append(ds.pendingControls, ctl)
+			continue
+		default:
+		}
+		break
+	}
+	pending := ds.pendingControls
+	ds.pendingControls = nil
+	for _, ctl := range pending {
+		// Nothing new since the last boundary → the op is a no-op (avoids a
+		// degenerate empty compaction on an idle or freshly-cleared session).
+		if len(ds.s.Conversation.Messages) <= ds.s.Compaction.Boundary {
+			continue
+		}
+		upto := ds.s.Session.GenStep
+		switch ctl.Kind {
+		case protocol.ControlClear:
+			if err := l.clearContext(ds, appendE, upto); err != nil {
+				return err
+			}
+		case protocol.ControlCompact:
+			if err := l.compactContext(ctx, ds, appendE, exec, upto+1, ctl.Directive, true); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// clearContext drops the whole context prefix (G7 /clear) with NO summarizer
+// call: it advances the boundary to the current message count and leaves an
+// EMPTY summary, so assembly shows only the messages after the boundary. The
+// full log stays intact in the journal (truth); only the assembled view resets.
+func (l *Loop) clearContext(ds *driveState, appendE AppendFunc, upto int) error {
+	dropped := upto - ds.s.Compaction.UptoGenStep
+	if dropped < 0 {
+		dropped = 0
+	}
+	if _, err := appendE(event.TypeContextCompacted, &event.ContextCompacted{
+		UptoGenStep: upto, Summary: "", Cleared: true, DroppedTurns: dropped,
+	}); err != nil {
+		return err
+	}
+	l.emit(protocol.Event{Kind: protocol.KindDiscard, N: upto, Text: "context cleared"})
+	return nil
 }

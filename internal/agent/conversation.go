@@ -178,6 +178,12 @@ func (l *Loop) awaitInput(ctx context.Context, ds *driveState, appendE AppendFun
 				return false, err
 			}
 			return false, resolve("child_cancelled")
+		case ctl := <-l.Controls:
+			// A compact/clear at idle (G7): the summarizer can't run here, so
+			// stash the control and wake the loop — the safe-point drain
+			// applies it, then decide() returns to standby (no turn starts).
+			ds.pendingControls = append(ds.pendingControls, ctl)
+			return false, resolve("control")
 		case <-l.Interrupts:
 			// Idle interrupt = no-op: journal the signal (audit,
 			// journal-inputs-first) and keep waiting. The session never

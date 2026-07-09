@@ -124,10 +124,14 @@ func assembleMessages(s state.State) []provider.Message {
 	msgs := s.Conversation.Messages
 	var out []provider.Message
 	if b := s.Compaction.Boundary; b > 0 && b <= len(msgs) {
-		out = append(out, provider.Message{Role: provider.RoleUser, Parts: []provider.Part{{
-			Kind: provider.PartText,
-			Text: "[conversation summary so far]\n" + s.Compaction.Summary,
-		}}})
+		// An empty summary is a /clear (G7): drop the prefix outright with no
+		// summary message — the model sees only msgs[Boundary:].
+		if s.Compaction.Summary != "" {
+			out = append(out, provider.Message{Role: provider.RoleUser, Parts: []provider.Part{{
+				Kind: provider.PartText,
+				Text: "[conversation summary so far]\n" + s.Compaction.Summary,
+			}}})
+		}
 		msgs = msgs[b:]
 	}
 	for _, m := range msgs {
