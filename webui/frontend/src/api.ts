@@ -61,6 +61,8 @@ export const AR = {
     post(`/sessions/${sid}/send`, { text, images, files }),
   interrupt: (sid: string) => post(`/sessions/${sid}/interrupt`),
   resume: (sid: string) => post(`/sessions/${sid}/resume`),
+  closeSession: (sid: string) => post(`/sessions/${sid}/close`),
+  stopSession: (sid: string) => post(`/sessions/${sid}/stop`),
   compact: (sid: string) => post(`/sessions/${sid}/compact`),
   clear: (sid: string) => post(`/sessions/${sid}/clear`),
   goal: (sid: string, b: { action: "attach" | "update" | "pause" | "resume" | "cancel"; goal?: string; verifier?: string; maxChecks?: number }) =>

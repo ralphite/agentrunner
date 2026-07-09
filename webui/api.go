@@ -42,6 +42,8 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/sessions/{sid}/send", s.handleSend)
 	mux.HandleFunc("POST /api/sessions/{sid}/interrupt", s.handleInterrupt)
 	mux.HandleFunc("POST /api/sessions/{sid}/resume", s.handleResume)
+	mux.HandleFunc("POST /api/sessions/{sid}/close", s.handleClose)
+	mux.HandleFunc("POST /api/sessions/{sid}/stop", s.handleStop)
 	mux.HandleFunc("POST /api/sessions/{sid}/kill", s.handleKill)
 	mux.HandleFunc("POST /api/sessions/{sid}/approve", s.handleApprove)
 	mux.HandleFunc("POST /api/sessions/{sid}/agent", s.handleAgentSwitch)
@@ -662,6 +664,16 @@ func (s *server) handleInterrupt(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) handleResume(w http.ResponseWriter, r *http.Request) {
 	s.oneShotHandler("ar resume", func(id string) []string { return []string{"resume", id} })(w, r)
+}
+
+// handleClose ends a session for good (ar close); handleStop tears down its
+// hosted run but keeps it revivable — a later send brings it back (ar stop).
+func (s *server) handleClose(w http.ResponseWriter, r *http.Request) {
+	s.oneShotHandler("ar close", func(id string) []string { return []string{"close", id} })(w, r)
+}
+
+func (s *server) handleStop(w http.ResponseWriter, r *http.Request) {
+	s.oneShotHandler("ar stop", func(id string) []string { return []string{"stop", id} })(w, r)
 }
 
 func (s *server) handleKill(w http.ResponseWriter, r *http.Request) {

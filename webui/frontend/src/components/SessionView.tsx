@@ -281,6 +281,25 @@ export function SessionView({ sid }: { sid: string }) {
         toast(e.message);
       }
     },
+    stop: async () => {
+      try {
+        await AR.stopSession(sid);
+        toast("session stopped — send a message to revive it", "info");
+      } catch (e: any) {
+        toast(e.message);
+      }
+    },
+    close: async () => {
+      // Deliberate end: mark the conversation closed. (A later send reopens
+      // it — verified against the real daemon — so say that, not "forever".)
+      if (!window.confirm("Close this session? It ends the conversation and marks it closed. Sending a new message later would reopen it.")) return;
+      try {
+        await AR.closeSession(sid);
+        toast("session closed", "info");
+      } catch (e: any) {
+        toast(e.message);
+      }
+    },
     kill: async (handle: string) => {
       try {
         await AR.kill(sid, handle);
@@ -393,6 +412,20 @@ export function SessionView({ sid }: { sid: string }) {
                 onClick={act.resume}
               >
                 Resume (recover after crash/interrupt)
+              </MenuItem>
+              <MenuLabel>Lifecycle</MenuLabel>
+              <MenuItem
+                title="tear down the hosted run but keep the session revivable — sending a message brings it back (ar stop)"
+                onClick={act.stop}
+              >
+                Stop session (revivable)
+              </MenuItem>
+              <MenuItem
+                danger
+                title="gracefully end the conversation and mark it closed (ar close); a later send reopens it"
+                onClick={act.close}
+              >
+                Close session…
               </MenuItem>
             </>
           )}
