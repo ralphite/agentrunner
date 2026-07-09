@@ -48,6 +48,50 @@ func (s *metaStore) get(sid string) sessionMeta {
 	return s.m[sid]
 }
 
+// titleFromID recovers a readable title from a session id when arwebui has no
+// recorded metadata (the session was created via the CLI, not this UI — UX-03).
+// Ids look like "20260709-071306-find-the-function-that-disable-39bd": strip the
+// leading date-time and the trailing 4-hex suffix, de-slugify the rest.
+func titleFromID(id string) string {
+	parts := strings.Split(id, "-")
+	// Drop leading date + time segments (all-digit) …
+	for len(parts) > 0 && isDigits(parts[0]) {
+		parts = parts[1:]
+	}
+	// … and a trailing short hex suffix (the uniquifier).
+	if n := len(parts); n > 1 && len(parts[n-1]) <= 4 && isHex(parts[n-1]) {
+		parts = parts[:n-1]
+	}
+	if len(parts) == 0 {
+		return id
+	}
+	return strings.Join(parts, " ")
+}
+
+func isDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func isHex(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f')) {
+			return false
+		}
+	}
+	return true
+}
+
 // git runs a read-only git command in dir and returns trimmed stdout ("" on
 // any error — the caller treats a non-repo / missing dir as "no changes").
 func git(ctx context.Context, dir string, args ...string) (string, bool) {

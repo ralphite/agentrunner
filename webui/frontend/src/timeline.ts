@@ -68,6 +68,11 @@ export interface Folded {
   active: boolean;
 }
 
+// Input sources that mean "a human typed this" — regardless of entry point
+// (interactive tty, cli send, or a UI that shells out to the cli). All render
+// as "you"; only program/control sources (tool/parent/control/…) get a label.
+const HUMAN_SOURCES = new Set(["user", "cli", "tty"]);
+
 // foldEvents replays the whole journal into an ordered item list plus the
 // derived approval / status maps. Pure over `events`, recomputed each poll —
 // journal is the source of truth (DESIGN I5).
@@ -101,7 +106,9 @@ export function foldEvents(events: Envelope[]): Folded {
           kind: "user",
           key: "u" + seq,
           text: p.text || "(empty)",
-          source: p.source && p.source !== "user" ? p.source : undefined,
+          // Human-typed input via any entry point (user/cli/tty) is "you";
+          // only program/control sources get a distinct label (UX-05).
+          source: p.source && !HUMAN_SOURCES.has(p.source) ? p.source : undefined,
           images: p.images && p.images.length ? p.images.length : undefined,
         });
         break;

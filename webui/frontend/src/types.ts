@@ -27,6 +27,7 @@ export interface Health {
   version: string;
   daemonUp: boolean;
   daemonManaged: boolean;
+  daemonExternal: boolean;
   manageRequested: boolean;
   daemonLogPath: string;
   runtimeDir: string;

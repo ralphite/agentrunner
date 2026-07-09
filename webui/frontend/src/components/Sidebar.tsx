@@ -122,7 +122,7 @@ export function Sidebar() {
           {health ? (
             <>
               daemon {health.daemonUp ? "up" : "unreachable"}
-              {health.daemonManaged ? " (managed)" : ""} · {health.version.replace("agentrunner ", "")}
+              {health.daemonManaged ? " (managed)" : health.daemonExternal ? " (external)" : ""} · {health.version.replace("agentrunner ", "")}
             </>
           ) : (
             "arwebui unreachable"

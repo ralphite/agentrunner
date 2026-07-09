@@ -142,12 +142,13 @@ func (s *server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	if res := s.runAR(r.Context(), 5*time.Second, "--version"); res.Err == nil {
 		ver = strings.TrimSpace(res.Stdout)
 	}
-	managed, reachable := s.daemonStatus(r.Context())
+	managed, reachable, external := s.daemonStatus(r.Context())
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":              true,
 		"ar":              s.arPath,
 		"version":         ver,
 		"daemonManaged":   managed,
+		"daemonExternal":  external,
 		"daemonUp":        reachable,
 		"runtimeDir":      s.runtimeDir,
 		"daemonLogPath":   filepath.Join(s.runtimeDir, "daemon.log"),
@@ -219,9 +220,13 @@ func (s *server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		}
 		turns, _ := strconv.Atoi(f[len(f)-1])
 		m := s.meta.get(f[0])
+		title := m.Title
+		if title == "" { // CLI-created session arwebui never saw (UX-03)
+			title = titleFromID(f[0])
+		}
 		rows = append(rows, row{
 			ID: f[0], Status: strings.Join(f[1:len(f)-1], " "), Turns: turns,
-			Title: m.Title, Workspace: m.Workspace,
+			Title: title, Workspace: m.Workspace,
 		})
 	}
 	writeJSON(w, http.StatusOK, rows)

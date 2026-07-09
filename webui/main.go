@@ -25,12 +25,13 @@ type server struct {
 	arPath     string
 	runtimeDir string
 
-	mu           sync.Mutex
-	daemonCmd    *exec.Cmd // the daemon we spawned; nil when unmanaged
-	daemonAlive  bool      // our child is still running
-	daemonManage bool      // we are supposed to manage one
-	stopping     bool      // shutdown in progress: do not respawn
-	respawns     []time.Time
+	mu             sync.Mutex
+	daemonCmd      *exec.Cmd // the daemon we spawned; nil when unmanaged
+	daemonAlive    bool      // our child is still running
+	daemonManage   bool      // we are supposed to manage one
+	daemonExternal bool      // our spawn exited fast: an external daemon owns the socket
+	stopping       bool      // shutdown in progress: do not respawn
+	respawns       []time.Time
 
 	runs *runRegistry // background submit/drive runs
 	meta *metaStore   // sid → workspace/title we know from creating it
@@ -100,15 +101,26 @@ func (s *server) spawnDaemon() error {
 		_ = logf.Close()
 		return err
 	}
+	startedAt := time.Now()
 	s.mu.Lock()
 	s.daemonCmd, s.daemonAlive = cmd, true
 	s.mu.Unlock()
 	go func() {
 		_ = cmd.Wait()
 		_ = logf.Close()
+		ranFor := time.Since(startedAt)
 		s.mu.Lock()
 		s.daemonAlive = false
 		stopping := s.stopping
+		// A near-instant exit means an external daemon already owns the
+		// socket (bind failed). That is not a crash to recover from —
+		// respawning just churns and spams the log (UX-04). Step back:
+		// mark external, stop managing, announce it once.
+		external := ranFor < 3*time.Second
+		firstExternal := external && !s.daemonExternal
+		if external {
+			s.daemonExternal = true
+		}
 		now := time.Now()
 		var recent []time.Time
 		for _, t := range s.respawns {
@@ -116,12 +128,15 @@ func (s *server) spawnDaemon() error {
 				recent = append(recent, t)
 			}
 		}
-		allow := !stopping && s.daemonManage && len(recent) < 3
+		allow := !stopping && !external && s.daemonManage && len(recent) < 3
 		if allow {
 			recent = append(recent, now)
 		}
 		s.respawns = recent
 		s.mu.Unlock()
+		if firstExternal {
+			log.Printf("arwebui: an external daemon already owns the socket — using it, not managing our own")
+		}
 		if allow {
 			time.Sleep(time.Second)
 			if err := s.spawnDaemon(); err != nil {
@@ -154,13 +169,14 @@ func (s *server) stopDaemon() {
 // daemonStatus reports (managedAlive, reachable). Reachability is probed
 // through the CLI: `ar interrupt <bogus>` fails with "is the daemon
 // running?" iff the socket dial failed (zero side effects).
-func (s *server) daemonStatus(ctx context.Context) (bool, bool) {
+func (s *server) daemonStatus(ctx context.Context) (alive, reachable, external bool) {
 	s.mu.Lock()
-	alive := s.daemonAlive
+	alive = s.daemonAlive
+	external = s.daemonExternal
 	s.mu.Unlock()
 	res := s.runAR(ctx, 5*time.Second, "interrupt", "__arwebui_probe__")
-	reachable := !daemonUnreachable(res.Stderr)
-	return alive, reachable
+	reachable = !daemonUnreachable(res.Stderr)
+	return alive, reachable, external
 }
 
 // loadEnvFile applies KEY=VALUE lines (comments/blank lines skipped).
