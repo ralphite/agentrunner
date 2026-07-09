@@ -2318,3 +2318,41 @@ summary.fd-head:hover {
   background-color: var(--amber);
   color: #17171a;
 }
+
+/* ---- per-message Copy action (Codex's message action row) ---- */
+.msg-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.assistant .msg-col {
+  flex: 1;
+}
+.user .msg-col {
+  align-items: flex-end;
+}
+.msg-col > .bubble {
+  flex: 0 0 auto;
+}
+.msg-actions {
+  display: flex;
+  gap: 4px;
+  margin: 3px 2px 0;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.msg:hover .msg-actions {
+  opacity: 1;
+}
+.msg-copy {
+  border: none;
+  background: transparent;
+  color: var(--dim);
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+.msg-copy:hover {
+  background: var(--panel-2);
+  color: var(--ink);
+}

@@ -1,6 +1,26 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { TimelineItem, ToolItem } from "../timeline";
 import { Markdown } from "./Markdown";
+import { copyText } from "../clipboard";
+
+// MsgActions is the hover action row under a message (Codex puts Copy / reactions
+// there). We ship Copy — the whole message text to the clipboard.
+function MsgActions({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  if (!text) return null;
+  const copy = async () => {
+    await copyText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
+  };
+  return (
+    <div className="msg-actions">
+      <button className="msg-copy" onClick={copy} title="Copy message">
+        {copied ? "✓ Copied" : "⧉ Copy"}
+      </button>
+    </div>
+  );
+}
 
 // toolLabel turns a raw tool call into a Codex-style step line:
 // "$ ls -la", "read notes.txt", "edit main.go".
@@ -84,9 +104,12 @@ function Item({ it }: { it: TimelineItem }) {
     case "user":
       return (
         <div className="msg user">
-          <div className="bubble">
-            {it.text}
-            {it.images ? <div className="imgnote">📷 ×{it.images} (CAS ref)</div> : null}
+          <div className="msg-col user">
+            <div className="bubble">
+              {it.text}
+              {it.images ? <div className="imgnote">📷 ×{it.images} (CAS ref)</div> : null}
+            </div>
+            <MsgActions text={it.text} />
           </div>
           <span className="who">{it.source || "you"}</span>
         </div>
@@ -95,8 +118,11 @@ function Item({ it }: { it: TimelineItem }) {
       return (
         <div className="msg assistant">
           <div className="avatar a">◆</div>
-          <div className="bubble">
-            <Markdown text={it.text} />
+          <div className="msg-col">
+            <div className="bubble">
+              <Markdown text={it.text} />
+            </div>
+            <MsgActions text={it.text} />
           </div>
         </div>
       );

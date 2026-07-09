@@ -1,26 +1,12 @@
 import { useState, type ReactNode } from "react";
+import { copyText } from "../clipboard";
 
 // CodeBlock renders a fenced block with a Copy button (Codex puts one on every
 // code block). Uses the async clipboard API with a textarea fallback.
 function CodeBlock({ body, lang }: { body: string; lang?: string }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(body);
-    } catch {
-      const ta = document.createElement("textarea");
-      ta.value = body;
-      ta.style.position = "fixed";
-      ta.style.opacity = "0";
-      document.body.appendChild(ta);
-      ta.select();
-      try {
-        document.execCommand("copy");
-      } catch {
-        /* ignore */
-      }
-      document.body.removeChild(ta);
-    }
+    await copyText(body);
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
   };
