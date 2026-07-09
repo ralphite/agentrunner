@@ -734,3 +734,45 @@ JOURNEYS UJ-01 web_fetch 可选步。
 **闸门复验**:`TestAskUser*` 七态(新增 mailbox-crash)+ check.sh 全绿。
 P0/P1 清零,增量关闭。web_fetch 侧的程序争议(是否触收容棘轮不变量)
 另见上方「⚠️ 冲突待裁」条,待开发者裁决,不含在本 review 范围。
+
+## 2026-07-09 web_fetch 补程序:不变量变更(决策 #33)+ 安全对齐(M1/M2)
+
+**开发者裁决**(前条「⚠️ 冲突待裁」的裁定):web_fetch 走「**实现留、补
+PROCESS §4 程序**」——实现有效,补不变量变更设计稿 + 安全 review,而非
+回退。本条即程序补齐。
+
+**§4 不变量变更(决策 #33)**:收容棘轮从"bash fail-closed"升级为"**所有
+egress 类 tool 统一 fail-closed under containment**"。旧不变量(§18.5)只
+保 bash;冲突根因:web_fetch 用 `net/http` 在宿主 Go 进程内跑,出口**不被
+`unshare -n` 覆盖**(netns 只包 bash 子进程),只保 bash fail-closed 会让它
+在 `network=none` 下静默违反"收容=全树无出口"。新表述纳入 in-process 带网
+工具(`def.network` 数据位),收容下执行期自我拒跑、containment 记账缺席
+(自我拒跑非 netns)。波及:DESIGN §5/§15(#33)/§18.5、`tool.Def.network`、
+`networkScope`、`containment` 守卫、`webfetch.go`。并入 INC-D3 设计稿(归档)。
+
+**安全视角对抗 review**(§4 要求的 review;审实现 vs 设计稿差异):
+- **收容 fail-closed 无绕过**(6 点证据):check 在出网前、棘轮单调共享、
+  独立于 permission gate(bypass 绕不过)、无旁路 dispatch、无 TOCTOU。✓
+- **M1(P1,已修)**:web_fetch 原 read-class → default 模式**静默放行**,
+  每次调用无审批出网(注入后可 exfil workspace/凭据),plan 模式也出网、
+  in-doubt 会重跑。修:class **read→execute**(default 需审批;plan 拦住;
+  in-doubt 不重跑)+ 同步 `containment()` 守卫(`def.network` 非空 → 记账
+  缺席,否则 execute-class 会误记 netns——正是"class 翻转牵动记账诚实、须
+  走 §4 而非 code-slam"的实证)。
+- **M2(P1,云/CI 下 P0,已修)**:无 IP 过滤 → `web_fetch(169.254.169.254)`
+  可窃云 IAM 凭据(redact 认不出非 env 密钥)。修:`http.Client` 装
+  `Dialer.Control` egress 守卫拒连 link-local(`169.254.0.0/16`、`fe80::/10`),
+  作用于**已解析 IP**、覆盖初始请求与**重定向每跳**——一处同时堵
+  SSRF-via-redirect、DNS rebinding、十进制/IPv6 IP 混淆;零误报。
+- **S1(建议,开发者待裁 = INC-D3 待裁点)裁定**:单机 dev 威胁模型下,M1
+  的 execute 审批 + 审批面 URL 可见(随 `KindToolCall` 出到事件流)是可
+  辩护的弱替代;完整 spec 级 host allowlist 记 **backlog**,与 pipeline
+  `PermissionRule.Host` 字段(B2)、私网整体开关(B1,挂 G11 云形态)一并
+  留待需求。`untrusted_content` 软标记保留但不计入 exfil 缓解。
+
+**闸门**:A — `TestWebFetch*` + `TestWebFetchRefusesLinkLocalMetadata`/
+`TestRefuseLinkLocalPredicate` + execute-class 后的 `TestNetworkRulesGateWebFetch`
+(default ASK、allow 规则放行)/`TestWebFetchNetworkScope`(containment 守卫)
+全绿;check.sh 全绿。B — **QA-14 真实 coding agent** execute-class 下三跑均
+PASS(allow-all spec 命中放行,agent 照常抓规范→实现→测试绿),正常流程未
+退化。DESIGN §5/§15/§18.5、SPEC C、GAPS、INC-D3(归档)同步。

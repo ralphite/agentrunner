@@ -248,7 +248,9 @@ func TestNetworkRuleMatchesEgressScope(t *testing.T) {
 // its def data slot) is gateable by BOTH rule spellings — by tool name and
 // by egress scope. The scope arrives on the effect (loop.networkScope).
 func TestNetworkRulesGateWebFetch(t *testing.T) {
-	eff := toolEffect("web_fetch", "read", `{"url":"https://example.com"}`)
+	// web_fetch is execute-class (INC-5 security review M1): default mode
+	// makes it ASK, so egress is never silent — a rule can widen or narrow.
+	eff := toolEffect("web_fetch", "execute", `{"url":"https://example.com"}`)
 	eff.Network = "all"
 
 	byName := &PermissionGate{Rules: []PermissionRule{{Tool: "web_fetch", Action: "deny"}}}
@@ -260,9 +262,15 @@ func TestNetworkRulesGateWebFetch(t *testing.T) {
 		t.Errorf("network rule: got %+v, want ask", d)
 	}
 	// A contained run's web_fetch effect carries no scope (the executor
-	// fails closed); the network rule must NOT fire, mode default applies.
-	uncontained := toolEffect("web_fetch", "read", `{"url":"https://example.com"}`)
-	if d := byScope.Check(context.Background(), uncontained); d.Action != event.VerdictAllow {
-		t.Errorf("scope-less web_fetch under network rule: got %+v, want mode default allow", d)
+	// fails closed); the network rule does NOT fire, so the execute-class
+	// mode default applies — which is ASK (no silent egress even rule-less).
+	uncontained := toolEffect("web_fetch", "execute", `{"url":"https://example.com"}`)
+	if d := (&PermissionGate{}).Check(context.Background(), uncontained); d.Action != event.VerdictAsk {
+		t.Errorf("rule-less web_fetch in default mode: got %+v, want ask (no silent egress)", d)
+	}
+	// An explicit allow rule still lets a trusted setup run it unattended.
+	allowAll := &PermissionGate{Rules: []PermissionRule{{Action: "allow"}}}
+	if d := allowAll.Check(context.Background(), uncontained); d.Action != event.VerdictAllow {
+		t.Errorf("allow-all rule: got %+v, want allow", d)
 	}
 }

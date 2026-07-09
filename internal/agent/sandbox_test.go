@@ -157,25 +157,30 @@ func TestMCPToolsStayOutsideContainment(t *testing.T) {
 	}
 }
 
-// INC-5: web_fetch declares egress as def DATA (network: "all") — the
-// effect carries it while uncontained regardless of read class, and under
-// the ratchet the scope honestly empties because the executor fails closed
-// (nothing runs with egress, so nothing is over-claimed).
+// INC-5: web_fetch declares egress as def DATA (network: "all"). It is
+// execute-class (review M1) but the egress comes from the data slot, not the
+// class — scope is "all" uncontained, empties under the ratchet (executor
+// fails closed), and containment is nil either way because self-refusal is
+// NOT a netns and the journal must not over-claim it.
 func TestWebFetchNetworkScope(t *testing.T) {
 	l := testLoop(t, scripted.Fixture{}, t.TempDir())
-	if got := l.networkScope("read", "web_fetch"); got != "all" {
+	if got := l.networkScope("execute", "web_fetch"); got != "all" {
 		t.Errorf("web_fetch scope = %q, want all (def network slot)", got)
 	}
 	if got := l.networkScope("read", "read_file"); got != "" {
 		t.Errorf("read_file scope = %q, want empty", got)
 	}
+	if c := l.containment(pipeline.Effect{Kind: "tool_call", Class: "execute",
+		ToolName: "web_fetch"}); c != nil {
+		t.Errorf("web_fetch containment (uncontained) = %+v, want nil", c)
+	}
 	l.Spec.Sandbox.Network = "none"
 	l.applySandbox()
-	if got := l.networkScope("read", "web_fetch"); got != "" {
+	if got := l.networkScope("execute", "web_fetch"); got != "" {
 		t.Errorf("web_fetch scope under ratchet = %q, want empty (fail closed)", got)
 	}
-	if c := l.containment(pipeline.Effect{Kind: "tool_call", Class: "read",
+	if c := l.containment(pipeline.Effect{Kind: "tool_call", Class: "execute",
 		ToolName: "web_fetch"}); c != nil {
-		t.Errorf("web_fetch containment = %+v, want nil (self-refusal, not netns)", c)
+		t.Errorf("web_fetch containment under ratchet = %+v, want nil (self-refusal, not netns)", c)
 	}
 }

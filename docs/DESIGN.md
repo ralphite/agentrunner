@@ -437,10 +437,15 @@ effect
   生效的 containment 记录在 `EffectResolved`（缺席 = 未收容）。
   MCP 工具在 out-of-process server 里执行、不受收容约束——恒记
   Network "all"、containment 缺席（journal 不过度声明）。带网的
-  in-process read-class 工具（`web_fetch`，def 带 `network: "all"`
-  数据位，INC-5）未收容时恒带 `all`（network 规则可匹配）；收容棘轮下
+  in-process 工具（`web_fetch`，**execute-class** + def 带 `network:
+  "all"` 数据位，INC-5;class 见下方 egress 决策）未收容时恒带 `all`
+  （network 规则可匹配、default mode 需审批——不静默出网）；收容棘轮下
   其 effect 不带出口、执行期 **fail closed**（拒跑而非静默出网），
   containment 同样缺席——自我拒跑不是 netns，journal 不过度声明。
+  此外这类工具**无条件封禁 link-local/云 metadata 地址**
+  （169.254.0.0/16、fe80::/10），守卫作用于已解析 IP、覆盖初始请求与
+  每个重定向跳（堵 SSRF-via-redirect / DNS rebinding / IP 混淆),
+  这是 dev 与云形态都成立的零误报红线（INC-5 安全 review M2）。
 - **路径匹配基于 realpath**：所有文件类 tool 的路径在 permission 匹配与
   边界检查前一律 resolve（symlink、`..` 归一化）；resolve 后落在
   workspace 外 → deny。`src/../../etc/passwd` 匹配不上 `src/**`，
@@ -1084,6 +1089,7 @@ limits:
 | 30 | 标记+检查（2026-07-05 修订） | close/kill 是**标记**（含来源 user/parent），只被检查引用：自动路径不唤醒、用户 kill 的子仅用户可复活；不挡用户显式 send。无终止状态、无 TaskCompleted 事件 | "终止"无真实需求；标记+检查覆盖全部场景（裁决 #13/#11/二）。 |
 | 31 | 静止模型（2026-07-05） | 只有一种 session，无运行形态。静止=形状（无在飞工作+无定时自触发+turn 已收尾）；静止时 outputs→barrier→parent 回执（既有子回执）；`ar run` = 开 session+发消息+等静止+读结果 | task 形态与 session/turn 大量重复且定义不清（开发者裁定）；driver/headless 的需求由"静止+回执"完全覆盖。 |
 | 32 | 换 agent 与提权（2026-07-05） | session 内可换 agent（`SpecChanged` 事件，prefix 显式换代），用户切换免确认；子 agent 默认权限不超父，请求超父必须用户 approve | 用户动作即意图，再确认是冗余；提权审批只存在于 agent 提权自己的子。 |
+| 33 | egress 类统一 fail-closed（INC-5,2026-07-09,**不变量升级**,走 §4） | 收容棘轮从"bash fail-closed"升级为"**所有 egress 类 tool 统一 fail-closed under containment**"。带网 in-process 工具(`web_fetch`)= **execute-class**（default 需审批,不静默出网）+ `def.network` 数据位（network 规则可治理）+ **link-local/metadata 无条件封禁**（作用于已解析 IP,覆盖重定向每跳）;class 翻转同步 `containment()` 守卫（def.network 非空 → 记账缺席,自我拒跑非 netns） | in-process `net/http` 出口不被 `unshare -n` 覆盖(netns 只包 bash 子进程),只保"bash fail-closed"会让 web_fetch 在 `network=none` 下**静默违反"收容=全树无出口"**;execute-class 买回 default 审批检查点(read-class 静默放行);metadata 封禁堵云 IAM 凭据窃取。安全 review 详见 LOG 2026-07-09 条 |
 
 ---
 
@@ -1250,7 +1256,7 @@ event sourcing 的闭环：**执行产生事件，事件重建状态，状态驱
 | **budget** | reserve-then-settle；树预算沿 correlation 聚合；超限 = 优雅收尾（LimitExceeded），不掐断。 |
 | **hooks** | 管线机件（observe+block），不是 effect；只认 spec/user 层（信任模型）。 |
 | **redaction / 凭据红线** | 落盘前替换进程已知凭据值；凭据路径硬排除表（快照/索引/读取一体适用）；log 0600。 |
-| **收容棘轮** | `sandbox.network` 收紧经 netns 落实后全树不放宽；宿主无 netns 则 bash fail-closed。 |
+| **收容棘轮** | `sandbox.network` 收紧经 netns 落实后全树不放宽；**egress 类工具统一 fail-closed**——bash 无 netns 则拒跑,in-process 带网工具(`web_fetch`,`def.network` 数据位)恒拒跑(自我拒跑非 netns)。（决策 #33,INC-5 升级） |
 
 ### 18.6 多 agent
 

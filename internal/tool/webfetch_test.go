@@ -152,6 +152,40 @@ func TestWebFetchHTTPErrorIsModelVisible(t *testing.T) {
 	}
 }
 
+// M2 (security review): link-local / cloud-metadata addresses are never a
+// valid fetch target — the egress guard refuses them before any bytes flow,
+// even without containment. This blocks IAM-credential theft on cloud/CI.
+func TestWebFetchRefusesLinkLocalMetadata(t *testing.T) {
+	e, _ := newExec(t)
+	// 169.254.169.254 = AWS/GCP/Azure metadata; 169.254.170.2 = ECS creds.
+	for _, u := range []string{
+		"http://169.254.169.254/latest/meta-data/iam/security-credentials/",
+		"http://169.254.170.2/v2/credentials",
+	} {
+		m, isErr := run(t, e, "web_fetch", fmt.Sprintf(`{"url":%q}`, u))
+		if !isErr || !strings.Contains(m["error"].(string), "link-local") {
+			t.Errorf("url %q not refused: %v (isErr=%v)", u, m, isErr)
+		}
+	}
+}
+
+// The guard predicate itself: link-local literals refused, ordinary refused-set
+// is minimal (public IPs pass; the guard only judges IP literals it is handed).
+func TestRefuseLinkLocalPredicate(t *testing.T) {
+	refused := []string{"169.254.169.254:80", "169.254.170.2:80", "[fe80::1]:80"}
+	for _, a := range refused {
+		if refuseLinkLocal("tcp", a, nil) == nil {
+			t.Errorf("%s should be refused", a)
+		}
+	}
+	allowed := []string{"93.184.216.34:443", "8.8.8.8:53", "[2606:2800:220:1:248:1893:25c8:1946]:443"}
+	for _, a := range allowed {
+		if err := refuseLinkLocal("tcp", a, nil); err != nil {
+			t.Errorf("%s should pass, got %v", a, err)
+		}
+	}
+}
+
 // The containment ratchet reaches web_fetch as FAIL CLOSED: an in-process
 // fetch cannot be netns-wrapped like bash, so under network=none it refuses
 // to run at all — never silent egress (INC-5 / S7 模块 5 discipline).

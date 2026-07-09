@@ -1849,6 +1849,12 @@ func (l *Loop) containment(eff pipeline.Effect) *event.Containment {
 	if strings.HasPrefix(eff.ToolName, "mcp__") {
 		return nil
 	}
+	// In-process egress tools (web_fetch, def.network set, INC-5) self-refuse
+	// under the ratchet — they are NOT wrapped in a netns, so the journal must
+	// not claim they were (mirrors the mcp guard; DESIGN §5 边界诚实).
+	if def, ok := tool.Get(eff.ToolName); ok && def.Network != "" {
+		return nil
+	}
 	if l.Exec == nil || !l.Exec.NetworkContained() {
 		return nil
 	}

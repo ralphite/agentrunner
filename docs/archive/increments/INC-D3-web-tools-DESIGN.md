@@ -1,7 +1,17 @@
 # INC-D3 web_fetch / web_search 内置工具（G18b）— 设计稿
 
-> **状态：设计稿，走 PROCESS §4 不变量变更流程；未实现。** 触碰 §18.5
-> 收容棘轮不变量。
+> **状态（2026-07-09 更新）：web_fetch 已实现并经安全 review 对齐；程序
+> 补齐。** 本设计稿的不变量升级(收容棘轮 → egress 类统一 fail-closed)已
+> 正式落为 **DESIGN 决策 #33**(§4 流程),§5/§18.5 同步。实现在 INC-5
+> (web_fetch 主体)+ 本纸驱动的安全对齐:**M1** class read→execute
+> (default 需审批,不静默出网;附修 plan 泄漏 + in-doubt 重跑)、**M2**
+> link-local/metadata 无条件封禁(Dialer.Control 作用于已解析 IP,覆盖
+> 重定向每跳)。**S1 host allowlist**(spec 级默认 deny/ask)= 开发者待裁
+> 增强(execute 审批 + URL 可见是单机 dev 可辩护的弱替代);**web_search**
+> 仍延后(需外部搜索 API)。安全 review 全文结论见 LOG 2026-07-09
+> 「web_fetch 补程序」条。收容 fail-closed 不变量经 review 确认无绕过。
+>
+> 本纸使命完成,归档只读。
 
 ## 动机与 journey 锚
 GAPS **G18b**（内置工具面余项）+ UJ-01。今天靠 bash+curl（在
