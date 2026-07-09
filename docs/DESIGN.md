@@ -866,8 +866,12 @@ limits:
   topic。CLI 先做 turn 粒度渲染，token streaming 是纯增量，协议不变。
 - `ApprovalRequested` 携带 `payload_ref` 时，frontend 渲染对应 artifact
   ——审批对象是一份版本化文档，不只是 tool call 参数。
-- 协议预留（尚未实现）：slash command 调用（GAPS G21）、远程 stop
-  command（GAPS G12）。
+- 远程 stop（INC-4，G12）：`stop` 命令远程硬取消一个托管 run =
+  **teardown-no-mark**（复用换 agent 的 plain-teardown 原语，ctx cancel），
+  session 落 durable 待命、之后 `send` 合法复活——镜像终端 SIGTERM。与
+  `interrupt`（只打断当前 turn 的活动、待命处 no-op）、`close`/`kill`
+  （留标记、自动恢复不得越过）三者语义分立。drive 系列亦可 stop。
+- 协议预留（尚未实现）：slash command 调用（GAPS G21）。
 
 ### 运行形态与 background
 

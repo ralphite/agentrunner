@@ -62,6 +62,8 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 		return closeCmd(args[1:], stdout, stderr)
 	case "interrupt":
 		return interruptCmd(args[1:], stdout, stderr)
+	case "stop":
+		return stopCmd(args[1:], stdout, stderr)
 	case "agent":
 		return agentCmd(args[1:], stdout, stderr)
 	case "kill":
@@ -113,6 +115,7 @@ Conversations (need the daemon):
                               the session keeps running; --replay-only prints history and exits)
   close <session>             end a session gracefully
   interrupt <session>         interrupt the current turn (a no-op at idle; close is separate)
+  stop <session>              stop a hosted run: graceful teardown, no mark; send revives it
 
 Background work (daemon):
   submit <spec.yaml> "task"   hand a one-shot run to the daemon, stream until it ends

@@ -44,7 +44,7 @@
 | UJ-14 定时值守 | ✅ | cron/overlap/carry/通知/fail-closed 全通；跨重启唤醒 🔧backlog |
 | UJ-15 通宵冲目标 | ✅ | goal/verifier/停滞/预算/时间线/rewind 全通（最强区） |
 | UJ-16 三路并击 | 🟡 | 并行隔离+选优 ✅；胜者晋升 G15 |
-| UJ-17 远程驾驶舱 | 🟡 | attach/远程审批/用量 ✅；远程 steer G3、stop G12 |
+| UJ-17 远程驾驶舱 | 🟡 | attach/远程审批/用量 ✅；stop ✅（INC-4）；远程 steer G3 |
 | UJ-18 多 agent 编排 | ❌ | **G2 后台子 agent 未实现**（阻塞 spawn 无编排窗口）；steer G3、子进度 G10、图片 G1 |
 | UJ-19 生态接入 | 🟡 | MCP/skills/写审批/断连恢复 ✅；自定义命令 G21 |
 | UJ-20 不受信审计 | ✅ | 信任/沙箱/凭据红线/审计全通；注入威胁模型成文 G16 |
@@ -191,9 +191,13 @@ store 外置（journal/CAS 离机）、环境回收后 follow-up 的重建语义
 并行任务的环境隔离。
 → UJ-13, UJ-09（跨机续作）
 
-**G12 托管 run 远程控制面（stop/interrupt command） — ⚠️ 设计欠定 · 中**
-线协议只有 ping/run/drive/attach/approve；stop 缺失，interrupt 语义只
-绑终端信号。（steer 并入 G3。）
+**G12 托管 run 远程控制面（stop command） — ✅ 已关闭（INC-4，2026-07-09）**
+关闭位置：daemon 线协议加 `stop` 命令 + `ar stop` CLI；stop =
+teardown-no-mark（复用换 agent 的 plain-teardown 原语），session 落
+durable 待命、send 复活，镜像 SIGTERM；顺带修 handleDrive 加 per-run
+cancel（drive 系列此前不可 stop）。闸门：TestStop*（孪生，含 drive）+
+真 daemon 手验。原文：线协议只有 ping/run/drive/attach/approve；stop 缺失，
+interrupt 语义只绑终端信号。（steer 并入 G3。）
 → UJ-17
 
 **G13 SCM/PR 工作流一等公民化 — ⚠️ 设计欠定 · 中**

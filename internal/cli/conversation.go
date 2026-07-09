@@ -236,6 +236,21 @@ func interruptCmd(args []string, stdout, stderr io.Writer) int {
 	return code
 }
 
+// stopCmd remotely tears down a hosted run (G12): graceful cancel with no
+// mark — the session lands in durable standby and `send` revives it.
+// Distinct from interrupt (turn-level) and close (a mark).
+func stopCmd(args []string, stdout, stderr io.Writer) int {
+	if len(args) != 1 {
+		fmt.Fprintln(stderr, "usage: agentrunner stop <session-id-or-prefix>")
+		return ExitUsage
+	}
+	code := oneShot(stderr, daemon.Command{Cmd: "stop", Session: resolvePrefixLenient(args[0])}, stdout)
+	if code != ExitOK {
+		stuckHint(stderr, args[0])
+	}
+	return code
+}
+
 // closeCmd ends a conversational session gracefully (v2 M1.2):
 // `agentrunner close <session-id-or-prefix>`.
 func closeCmd(args []string, stdout, stderr io.Writer) int {

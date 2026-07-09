@@ -482,3 +482,32 @@ unix socket 路径越 macOS 104B 上限而 `bind: invalid argument`——与本
 
 **review 裁决**:小增量,inline 自审(正则/边界/排除/`**` 语义/截断);
 裁掉三视角对抗 review。
+
+## 2026-07-09 INC-4 远程 stop 命令(G12 关闭)
+
+**动机**:Codex 对照审计——远程/云任务的 stop 是标配;我们
+attach/审批/用量都有,线协议独缺 stop(interrupt 只"打断当前 turn",
+待命处 no-op)。UJ-17 步骤4"点 stop→优雅取消"。
+
+**落地**:
+- daemon `stop` 命令(handleStop,复用 hostedRun.stopHosting() 的
+  plain-teardown 原语——ctx cancel,**无标记、无终态**,session 落
+  durable 待命、send 复活,镜像终端 SIGTERM)+ dispatch case + 更新
+  unknown-command help。
+- `ar stop <sid>` CLI(stopCmd,mirror interruptCmd)+ cli.go 分派 + help。
+- **顺带修**:handleDrive 此前在裸 daemon ctx 上跑 s.Drive、无 per-run
+  cancel,drive 系列不可 stop;加 `runCtx,runCancel:=WithCancel(ctx);
+  hub.stop=runCancel`(mirror handleRun),drive 亦可 stop。
+
+**决策**:stop = **teardown-no-mark**(推荐/最小)——与 close/kill 的
+"留标记、自动恢复不越过"分立,与 interrupt 的"turn 级、待命 no-op"分立。
+三条控制路径语义正交,DESIGN §交互协议记档。
+
+**闸门**:A 孪生 stop_test.go(TestStopTearsDownHostedRun 拆 run+无
+SessionClosed+二次 stop 报 no live run;TestStopUnknownSession;
+TestStopThenSendRevives;TestStopTearsDownDriveSeries drive per-run
+cancel)全绿。B 真 daemon 手验:长跑 bash 会话 `ar stop`→"stopping"、
+journal 零 session_closed、`ar send` 复活并跑新 turn(gen 到 2)——PASS。
+
+**review 裁决**:小增量(S),inline 自审(teardown 语义/drive cancel/
+错误路径)。裁三视角 review。

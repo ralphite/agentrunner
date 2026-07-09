@@ -142,7 +142,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | attach/detach（journal 补读 + live 订阅） | ✅ | UJ-17 | S6 |
 | 远程审批（daemon approve） | ✅ | UJ-17 | S6 |
 | notifier（生命周期通知、跨重启去重） | ✅ | UJ-14 | S6 |
-| 远程 stop command | ❌ | UJ-17 | GAPS G12（interrupt 只绑终端信号） |
+| 远程 stop command | ✅ | UJ-17 | INC-4 · TestStop*（daemon 孪生）· 手验（真 daemon：stop 拆 run、无标记、send 复活）；drive 系列亦可 stop（handleDrive 加 per-run cancel） |
 | HTTP/WS 壳 | 🧊 | UJ-13 | backlog |
 
 ## J · 运行形态与云
@@ -162,13 +162,14 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 ## 附录 · 代码事实对照（2026-07-05 盘点）
 
 **CLI 子命令**（`internal/cli/cli.go`）：
-`run` `drive` `submit` `resume` `new` `send` `close` `interrupt` `kill`
-`agent`（决策 #32）`ps` `approve` `fork` `barrier` `sessions` `trust`
-`attach` `daemon` `events` `inspect` `accept` `record-fixture` `version`
-`help` `init`（INC-2）
+`run` `drive` `submit` `resume` `new` `send` `close` `interrupt`
+`stop`（INC-4）`kill` `agent`（决策 #32）`ps` `approve` `fork` `barrier`
+`sessions` `trust` `attach` `daemon` `events` `inspect` `accept`
+`record-fixture` `version` `help` `init`（INC-2）
 
 **daemon 线协议命令**（`internal/daemon/daemon.go`）：
-`ping` `run` `drive` `attach` `approve` `send` `close` `interrupt` `kill` `agent`
+`ping` `run` `drive` `attach` `approve` `send` `close` `interrupt`
+`stop`（INC-4）`kill` `agent`
 
 **内置 tool 定义**（`internal/tool/defs/*.json`）：
 `read_file` `write_file` `edit_file` `bash` `output` `kill`

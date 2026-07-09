@@ -442,13 +442,15 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		s.handleClose(cmd, enc)
 	case "interrupt":
 		s.handleInterrupt(cmd, enc)
+	case "stop":
+		s.handleStop(cmd, enc)
 	case "kill":
 		s.handleKill(cmd, enc)
 	case "agent":
 		s.handleAgent(cmd, enc)
 	default:
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
-			Text: fmt.Sprintf("unknown command %q (known: ping, run, attach, approve, send, close, interrupt, kill, agent)", cmd.Cmd)})
+			Text: fmt.Sprintf("unknown command %q (known: ping, run, drive, attach, approve, send, close, interrupt, stop, kill, agent)", cmd.Cmd)})
 	}
 }
 
@@ -523,6 +525,29 @@ func (s *Server) handleInterrupt(cmd Command, enc *json.Encoder) {
 		return
 	}
 	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Text: "interrupted", Session: cmd.Session})
+}
+
+// handleStop is the remote hard-cancel (G12): it tears the hosted run down
+// via the plain-teardown primitive (the same ctx cancel the agent switch
+// uses) — NO mark, NO ending. The session lands in durable standby and a
+// later `send` lawfully revives it, mirroring how a terminal run reacts to
+// SIGTERM. Distinct from `interrupt` (which only cancels the current turn's
+// activity and is a no-op at idle) and from `close`/`kill` (which leave a
+// mark that the automatic-resume path must not cross).
+func (s *Server) handleStop(cmd Command, enc *json.Encoder) {
+	if cmd.Session == "" {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "stop needs session"})
+		return
+	}
+	s.mu.Lock()
+	hub, ok := s.runs[cmd.Session]
+	s.mu.Unlock()
+	if !ok || !hub.stopHosting() {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
+			Text: fmt.Sprintf("no live hosted run %s to stop", cmd.Session)})
+		return
+	}
+	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Text: "stopping", Session: cmd.Session})
 }
 
 // handleSend delivers a user message to a live conversational session
@@ -805,7 +830,13 @@ func (s *Server) handleDrive(ctx context.Context, cmd Command, enc *json.Encoder
 	ch, cancel, _ := hub.subscribe()
 	defer cancel()
 
+	// A per-run cancel makes the drive series stoppable (G12): without it
+	// `s.Drive` ran on the raw daemon ctx and a `stop` had nothing to cancel.
+	runCtx, runCancel := context.WithCancel(ctx)
+	hub.stop = runCancel
+
 	go func() {
+		defer runCancel()
 		defer s.runsWG.Done()
 		defer func() {
 			s.mu.Lock()
@@ -813,7 +844,7 @@ func (s *Server) handleDrive(ctx context.Context, cmd Command, enc *json.Encoder
 			s.mu.Unlock()
 		}()
 		defer hub.finish()
-		if err := s.Drive(ctx, DriveRequest{
+		if err := s.Drive(runCtx, DriveRequest{
 			SessionID: id, SpecPath: cmd.SpecPath, Workspace: cmd.Workspace,
 		}, hub); err != nil {
 			hub.Emit(protocol.Event{Kind: protocol.KindError, Text: "drive failed: " + err.Error()})
