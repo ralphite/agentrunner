@@ -9,6 +9,12 @@
 - **每个 session 开始时先 `git fetch origin main` 并 fast-forward**，
   确保永远在最新代码上工作（曾发生过基于过时设计文档产出整份
   review 的事故）。
+- **永远合并进 `origin/main`。** 即使工具把你放在 worktree / feature
+  分支上工作，完成后也要把改动合并进 `origin/main` 并 push——不要停在
+  feature 分支上等确认。用户已长期授权此操作（能 fast-forward 时
+  `git push origin HEAD:main` 直接推；不能时先 rebase/cherry-pick 到
+  最新 `origin/main` 上、解冲突、rebuild 再推。留意可能有并发 session
+  也在推 main）。
 - `.env` 已 gitignore（存本地凭据如 `GEMINI_API_KEY`），永不提交。
 
 ## 文档体系（全部住在 `docs/`，流程与冲突裁决见 `docs/PROCESS.md`）
