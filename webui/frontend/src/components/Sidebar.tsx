@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useStore } from "../store";
 import { AR } from "../api";
 import { pillClass } from "./pill";
-import { relTime, sessionDate } from "../time";
+import { bucketOf, relTime, sessionDate } from "../time";
 
 export function Sidebar() {
   const {
@@ -43,6 +43,28 @@ export function Sidebar() {
     [runs, ql],
   );
 
+  // Codex groups tasks by recency, and floats anything in-progress to the top.
+  const groups = useMemo(() => {
+    const rows = shownSessions.map((s) => ({ s, d: sessionDate(s.id), cls: pillClass(s.status) }));
+    const isActive = (cls: string) => cls === "run" || cls === "appr";
+    const byDate = (a: { d: Date | null }, b: { d: Date | null }) =>
+      (b.d?.getTime() || 0) - (a.d?.getTime() || 0);
+    const active = rows.filter((x) => isActive(x.cls)).sort(byDate);
+    const rest = rows.filter((x) => !isActive(x.cls));
+    const buckets = new Map<string, { rank: number; items: typeof rest }>();
+    for (const x of rest) {
+      const b = bucketOf(x.d);
+      if (!buckets.has(b.label)) buckets.set(b.label, { rank: b.rank, items: [] });
+      buckets.get(b.label)!.items.push(x);
+    }
+    const out: { label: string; items: typeof rest }[] = [];
+    if (active.length) out.push({ label: "Active", items: active });
+    for (const [label, v] of [...buckets.entries()].sort((a, b) => a[1].rank - b[1].rank)) {
+      out.push({ label, items: v.items.sort(byDate) });
+    }
+    return out;
+  }, [shownSessions]);
+
   return (
     <div className="sidebar">
       <div className="brand" onClick={() => select(null)}>
@@ -54,7 +76,7 @@ export function Sidebar() {
         <button className="nav-item" onClick={() => select(null)}>
           <span className="ni-ico">✎</span> New task
         </button>
-        <button className="nav-item" onClick={() => setSearching((v) => !v)}>
+        <button className={"nav-item" + (searching ? " on" : "")} onClick={() => setSearching((v) => !v)}>
           <span className="ni-ico">⌕</span> Search
         </button>
         <button className="nav-item" onClick={() => openModal({ kind: "run" })}>
@@ -73,46 +95,55 @@ export function Sidebar() {
             placeholder="Search tasks…"
             onChange={(e) => setQ(e.target.value)}
           />
+          {q && (
+            <button className="ss-clear" onClick={() => setQ("")} title="clear">
+              ✕
+            </button>
+          )}
         </div>
       )}
 
       <div className="list">
-        <div className="grp-label">Sessions</div>
-        {shownSessions.length === 0 ? (
-          <div className="grp-empty">none</div>
-        ) : (
-          shownSessions.map((s) => (
-            <div
-              key={s.id}
-              className={"nav-row" + (s.id === currentSid ? " cur" : "")}
-              onClick={() => select(s.id)}
-              title={s.id}
-            >
-              <span className="nr-title">{s.title || s.id}</span>
-              <span className="nr-time">{relTime(sessionDate(s.id))}</span>
-              <span className={"nr-dot " + pillClass(s.status)} title={s.status} />
-            </div>
-          ))
+        {groups.length === 0 && shownRuns.length === 0 && (
+          <div className="grp-empty">{ql ? "no matches" : "no tasks yet"}</div>
         )}
 
-        <div className="grp-label" style={{ marginTop: 14 }}>
-          Background runs
-        </div>
-        {shownRuns.length === 0 ? (
-          <div className="grp-empty">none</div>
-        ) : (
-          shownRuns.map((r) => (
-            <div
-              key={r.id}
-              className={"nav-row" + (r.id === currentRunId ? " cur" : "")}
-              onClick={() => selectRun(r.id)}
-              title={r.kind}
-            >
-              <span className="nr-title">{r.label || r.id}</span>
-              <span className="nr-time">{r.kind}</span>
-              <span className={"nr-dot " + r.status} title={r.status} />
+        {groups.map((g) => (
+          <div key={g.label}>
+            <div className={"grp-label" + (g.label === "Active" ? " active" : "")}>{g.label}</div>
+            {g.items.map(({ s }) => (
+              <div
+                key={s.id}
+                className={"nav-row" + (s.id === currentSid ? " cur" : "")}
+                onClick={() => select(s.id)}
+                title={s.id}
+              >
+                <span className={"nr-dot " + pillClass(s.status)} title={s.status} />
+                <span className="nr-title">{s.title || s.id}</span>
+                <span className="nr-time">{relTime(sessionDate(s.id))}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+
+        {shownRuns.length > 0 && (
+          <>
+            <div className="grp-label" style={{ marginTop: 10 }}>
+              Background runs · {shownRuns.length}
             </div>
-          ))
+            {shownRuns.map((r) => (
+              <div
+                key={r.id}
+                className={"nav-row" + (r.id === currentRunId ? " cur" : "")}
+                onClick={() => selectRun(r.id)}
+                title={r.kind}
+              >
+                <span className={"nr-dot " + pillClass(r.status)} title={r.status} />
+                <span className="nr-title">{r.label || r.id}</span>
+                <span className="nr-time">{r.kind}</span>
+              </div>
+            ))}
+          </>
         )}
       </div>
 

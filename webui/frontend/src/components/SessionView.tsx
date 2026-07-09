@@ -17,6 +17,13 @@ interface SSEApproval {
   agent?: string;
 }
 
+// 1403 → "1.4k", 20 → "20" — a compact token count for the header badge.
+function fmtTokens(n: number): string {
+  if (n < 1000) return String(n);
+  if (n < 1_000_000) return (n / 1000).toFixed(n < 10_000 ? 1 : 0) + "k";
+  return (n / 1_000_000).toFixed(1) + "M";
+}
+
 export function SessionView({ sid }: { sid: string }) {
   const { select, openModal, toast, showSys, toggleSys, sessions } = useStore();
   const isSub = sid.includes("-sub-");
@@ -28,6 +35,7 @@ export function SessionView({ sid }: { sid: string }) {
   const [sseApprovals, setSseApprovals] = useState<Map<string, SSEApproval>>(new Map());
   const [resolvedLocal, setResolvedLocal] = useState<Set<string>>(new Set());
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [usage, setUsage] = useState<{ billed: number; steps: number } | null>(null);
   const [view, setView] = useState<"chat" | "diff">("chat");
 
   const cursor = useRef(0);
@@ -69,6 +77,13 @@ export function SessionView({ sid }: { sid: string }) {
     } catch {
       /* ignore */
     }
+    try {
+      const ins = await AR.inspect(sid);
+      const u = ins?.usage;
+      if (u) setUsage({ billed: u.billed ?? (u.input_tokens || 0) + (u.output_tokens || 0), steps: ins.gen_steps || 0 });
+    } catch {
+      /* ignore — usage badge is best-effort */
+    }
   }, [sid]);
 
   useEffect(() => {
@@ -78,6 +93,7 @@ export function SessionView({ sid }: { sid: string }) {
     setTyping("");
     setSseApprovals(new Map());
     setResolvedLocal(new Set());
+    setUsage(null);
     poll();
     const e = setInterval(poll, 1000);
     const t = setInterval(pollTasks, 2500);
@@ -221,6 +237,16 @@ export function SessionView({ sid }: { sid: string }) {
             {showSpin && <span className="spin" />}
             {status.text}
           </span>
+          {usage && usage.billed > 0 && (
+            <button
+              className="usage-badge"
+              title="context usage — billed tokens; click for the inspect tree (sub-agents, per-node usage)"
+              onClick={() => act.view("inspect tree", () => AR.inspect(sid))}
+            >
+              ⛁ {fmtTokens(usage.billed)}
+              {usage.steps ? ` · ${usage.steps} steps` : ""}
+            </button>
+          )}
           {isSub && <span className="readonly-tag" title="a sub-agent session — watch it here; only its parent can drive it">read-only sub-task</span>}
         </div>
 

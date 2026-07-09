@@ -1,25 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { TimelineItem, ToolItem } from "../timeline";
-
-function AssistantText({ text }: { text: string }) {
-  // Minimal markdown: split fenced ``` code blocks from prose.
-  const parts = text.split(/(```[\s\S]*?```)/g);
-  return (
-    <>
-      {parts.map((p, i) => {
-        if (p.startsWith("```")) {
-          const body = p.replace(/^```[^\n]*\n?/, "").replace(/```$/, "");
-          return (
-            <pre className="code" key={i}>
-              {body}
-            </pre>
-          );
-        }
-        return <span key={i}>{p}</span>;
-      })}
-    </>
-  );
-}
+import { Markdown } from "./Markdown";
 
 // toolLabel turns a raw tool call into a Codex-style step line:
 // "$ ls -la", "read notes.txt", "edit main.go".
@@ -115,7 +96,7 @@ function Item({ it }: { it: TimelineItem }) {
         <div className="msg assistant">
           <div className="avatar a">◆</div>
           <div className="bubble">
-            <AssistantText text={it.text} />
+            <Markdown text={it.text} />
           </div>
         </div>
       );

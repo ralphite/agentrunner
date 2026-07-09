@@ -10,6 +10,18 @@ export function sessionDate(id: string): Date | null {
   return new Date(Date.UTC(+y, +mo - 1, +d, +h, +mi, +s));
 }
 
+// bucketOf groups a session/run into a Codex-style recency section for the
+// sidebar. Returns a stable label + a sort rank (lower = more recent).
+export function bucketOf(when: Date | null): { label: string; rank: number } {
+  if (!when || isNaN(when.getTime())) return { label: "Undated", rank: 9 };
+  const day = (Date.now() - when.getTime()) / 86400000;
+  if (day < 1) return { label: "Today", rank: 0 };
+  if (day < 2) return { label: "Yesterday", rank: 1 };
+  if (day < 7) return { label: "Previous 7 days", rank: 2 };
+  if (day < 30) return { label: "Previous 30 days", rank: 3 };
+  return { label: "Older", rank: 4 };
+}
+
 export function relTime(when: Date | null): string {
   if (!when || isNaN(when.getTime())) return "";
   const sec = Math.max(0, (Date.now() - when.getTime()) / 1000);
