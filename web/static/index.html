@@ -220,9 +220,9 @@
 <header>
   <span class="brand"><span class="mark"></span> AgentRunner Cockpit</span>
   <span class="health"><span class="dot" id="hdot"></span><span id="htext">daemon…</span></span>
-  <button id="daemonRestart" style="display:none" class="danger">restart daemon</button>
+  <button id="daemonRestart" style="display:none" class="danger" title="the ar daemon is unreachable — click to start it again">restart daemon</button>
   <span class="spacer"></span>
-  <label class="health" style="cursor:pointer"><input type="checkbox" id="sysToggle"> system events</label>
+  <label class="health" style="cursor:pointer" title="also show low-level journal events (#seq type lines) inline in the timeline"><input type="checkbox" id="sysToggle"> system events</label>
   <button class="ghost icon" id="themeBtn" title="toggle theme">🌗</button>
   <button id="btnDriver" title="run a goal / loop / best-of-N driver">Driver</button>
   <button class="primary" id="btnNew">+ New session</button>
@@ -234,17 +234,17 @@
   </aside>
   <main>
     <div id="sesshead" style="display:none">
-      <a id="shUp" style="display:none">← parent</a>
+      <a id="shUp" style="display:none" title="open the parent session that spawned this sub-agent">← parent</a>
       <span class="id" id="shId"></span>
       <span class="pill" id="shPill">—</span>
       <span class="usage" id="shUsage" style="display:none" title="token usage — click for inspect tree"></span>
       <span class="spacer"></span>
-      <button id="btnBarrier" title="checkpoint the session here">barrier</button>
-      <button id="btnFork" title="branch from a barrier">fork…</button>
-      <button id="btnRaw" class="ghost">journal</button>
-      <button id="btnState" class="ghost">state</button>
-      <button id="btnTree" class="ghost">tree</button>
-      <button id="btnInterrupt" class="danger">interrupt</button>
+      <button id="btnBarrier" title="checkpoint the session here — barriers are the points fork… can branch from">barrier</button>
+      <button id="btnFork" title="branch a new independent session (own worktree) from a barrier; the original is untouched">fork…</button>
+      <button id="btnRaw" class="ghost" title="view the raw journal (ar events --json) — the event log this timeline is rendered from">journal</button>
+      <button id="btnState" class="ghost" title="view the folded state (ar events --state) — what the journal folds down to right now">state</button>
+      <button id="btnTree" class="ghost" title="view the session tree (ar inspect) — sub-agents, status and token usage">tree</button>
+      <button id="btnInterrupt" class="danger" title="cancel the in-flight turn so you can redirect the agent — a no-op while idle">interrupt</button>
     </div>
     <div id="timeline">
       <div id="empty">
@@ -259,11 +259,11 @@
       <div class="wrap">
         <div class="revive-note" id="reviveNote"></div>
         <div class="controls" id="controls">
-          <span class="ctl"><label>Agent</label>
+          <span class="ctl" title="switch this session's agent spec — takes effect on your next message (lands in the journal as spec_changed)"><label>Agent</label>
             <select id="selAgent"></select></span>
-          <span class="ctl"><label>Model</label>
+          <span class="ctl" title="switch the model — takes effect on your next message (lands in the journal as spec_changed)"><label>Model</label>
             <select id="selModel"></select></span>
-          <span class="ctl readonly" id="modeCtl"><label>Mode</label><span id="modeVal">default</span></span>
+          <span class="ctl readonly" id="modeCtl" title="permission mode — fixed when the session was created"><label>Mode</label><span id="modeVal">default</span></span>
           <span id="imgchips"></span>
         </div>
         <div class="inputbox">
@@ -292,13 +292,13 @@
       <div><label>Agent template</label><select id="nAgent"></select></div>
       <div><label>Model</label><select id="nModel"></select></div>
     </div>
-    <label>Mode</label>
-    <select id="nMode"><option value="">default</option><option value="plan">plan</option><option value="acceptEdits">acceptEdits</option></select>
+    <label title="permission mode: default asks for approval on gated tools · plan = read-only planning · acceptEdits auto-approves file edits">Mode</label>
+    <select id="nMode" title="permission mode: default asks for approval on gated tools · plan = read-only planning · acceptEdits auto-approves file edits"><option value="">default</option><option value="plan">plan</option><option value="acceptEdits">acceptEdits</option></select>
 
     <label>Workspace directory (absolute path)</label>
     <div style="display:flex;gap:8px">
       <input type="text" id="nWs" placeholder="/path/to/workspace">
-      <button id="nMkWs" style="white-space:nowrap">make empty</button>
+      <button id="nMkWs" style="white-space:nowrap" title="create a fresh empty directory under web/runtime and fill it in here">make empty</button>
     </div>
     <label style="display:inline-flex;align-items:center;gap:7px;cursor:pointer;font-weight:normal">
       <input type="checkbox" id="nTrust" style="width:auto"> trust this workspace (enables project hooks/settings)</label>
@@ -351,9 +351,9 @@
   <div class="dhead"><span>New driver run</span> <button class="ghost icon" onclick="driverdlg.close()">✕</button></div>
   <div class="dbody">
     <div class="seg" id="driveKind">
-      <button class="on" data-mode="goal">Goal</button>
-      <button data-mode="loop">Loop</button>
-      <button data-mode="parallel">Best-of-N</button>
+      <button class="on" data-mode="goal" title="iterate fresh child runs until the verifier passes">Goal</button>
+      <button data-mode="loop" title="run the task repeatedly on an interval">Loop</button>
+      <button data-mode="parallel" title="run N attempts in parallel; the verifier picks the best">Best-of-N</button>
     </div>
     <p class="hint" id="driveHint">Iterate a fresh child run each round until the verifier passes (or max iterations / budget).</p>
 
@@ -364,7 +364,7 @@
     <label>Workspace directory (absolute path)</label>
     <div style="display:flex;gap:8px">
       <input type="text" id="dWs" placeholder="/path/to/workspace">
-      <button id="dMkWs" style="white-space:nowrap">make empty</button>
+      <button id="dMkWs" style="white-space:nowrap" title="create a fresh empty directory under web/runtime and fill it in here">make empty</button>
     </div>
     <label>Task — every iteration gets this instruction</label>
     <textarea id="dTask" rows="2" style="font:inherit">Append one line reading "tick" to progress.txt using bash.</textarea>
@@ -916,6 +916,7 @@ async function pollPS() {
         row.appendChild(el("span", "flex", `${t.tool}  ${t.detail || ""}`));
         if (!isSub) {
           const kill = el("button", "danger", "kill");
+          kill.title = "cancel this background handle (ar kill) — the session itself keeps running";
           kill.onclick = async () => { kill.disabled = true; try { await post(`/sessions/${state.sid}/kill`, { handle: t.handle }); } catch (e) { toast(e.message); kill.disabled = false; } };
           row.appendChild(kill);
         }
