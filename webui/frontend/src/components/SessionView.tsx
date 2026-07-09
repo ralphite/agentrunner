@@ -8,6 +8,7 @@ import { ApprovalCard } from "./ApprovalCard";
 import { Composer } from "./Composer";
 import { DiffView } from "./DiffView";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
+import { Subagents, type InspectNode } from "./Subagents";
 import { friendlyStatus } from "./pill";
 
 interface SSEApproval {
@@ -36,6 +37,7 @@ export function SessionView({ sid }: { sid: string }) {
   const [resolvedLocal, setResolvedLocal] = useState<Set<string>>(new Set());
   const [tasks, setTasks] = useState<Task[]>([]);
   const [usage, setUsage] = useState<{ billed: number; steps: number } | null>(null);
+  const [children, setChildren] = useState<InspectNode[]>([]);
   const [view, setView] = useState<"chat" | "diff">("chat");
 
   const cursor = useRef(0);
@@ -81,8 +83,9 @@ export function SessionView({ sid }: { sid: string }) {
       const ins = await AR.inspect(sid);
       const u = ins?.usage;
       if (u) setUsage({ billed: u.billed ?? (u.input_tokens || 0) + (u.output_tokens || 0), steps: ins.gen_steps || 0 });
+      setChildren(Array.isArray(ins?.children) ? ins.children : []);
     } catch {
-      /* ignore — usage badge is best-effort */
+      /* ignore — usage badge / subagents are best-effort */
     }
   }, [sid]);
 
@@ -94,6 +97,7 @@ export function SessionView({ sid }: { sid: string }) {
     setSseApprovals(new Map());
     setResolvedLocal(new Set());
     setUsage(null);
+    setChildren([]);
     poll();
     const e = setInterval(poll, 1000);
     const t = setInterval(pollTasks, 2500);
@@ -297,10 +301,10 @@ export function SessionView({ sid }: { sid: string }) {
             <>
               <MenuLabel>Advanced</MenuLabel>
               <MenuItem
-                title="branch a new independent session from a barrier checkpoint; this session is untouched"
+                title="branch a new independent session into its own git worktree from a checkpoint; this session is untouched"
                 onClick={() => openModal({ kind: "fork", sid })}
               >
-                Fork from barrier…
+                Fork into new worktree…
               </MenuItem>
               <MenuItem
                 title="swap this session's agent spec — context carries over; takes effect on your next message (spec_changed)"
@@ -337,6 +341,12 @@ export function SessionView({ sid }: { sid: string }) {
               onError={(m) => toast(m)}
             />
           ))}
+        </div>
+      )}
+
+      {view === "chat" && children.length > 0 && (
+        <div className="workpanel subagents-panel">
+          <Subagents nodes={children} onOpen={(s) => select(s)} />
         </div>
       )}
 

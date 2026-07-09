@@ -981,6 +981,74 @@ details pre,
   white-space: nowrap;
 }
 
+/* ---- subagents panel (Codex-style) ---- */
+.subagents h4 {
+  margin: 4px 0 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--dim);
+}
+.subagents.nested {
+  margin-left: 16px;
+  border-left: 1px solid var(--line-2);
+  padding-left: 4px;
+}
+.sa-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.sa-row.clickable {
+  cursor: pointer;
+}
+.sa-row.clickable:hover {
+  background: var(--panel-2);
+}
+.sa-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--dim);
+}
+.sa-dot.run {
+  background: var(--amber);
+  animation: nr-pulse 1.5s ease-in-out infinite;
+}
+.sa-dot.appr { background: var(--violet); }
+.sa-dot.closed { background: var(--dim); }
+.sa-dot.crash { background: var(--red); }
+.sa-dot.stranded { background: var(--amber); }
+.sa-dot.idle { background: var(--green); }
+.sa-name {
+  font-weight: 500;
+  color: var(--ink);
+}
+.sa-status {
+  font-size: 12px;
+  color: var(--dim);
+}
+.sa-spacer {
+  flex: 1;
+}
+.sa-meta {
+  font-size: 11.5px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+.sa-open {
+  font-size: 11.5px;
+  color: var(--blue);
+  opacity: 0;
+}
+.sa-row.clickable:hover .sa-open {
+  opacity: 1;
+}
+
 /* ---- bottom composer ---- */
 .composer {
   border-top: 1px solid var(--line);

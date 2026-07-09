@@ -67,7 +67,7 @@ const SLASH: SlashCmd[] = [
   { name: "compact", desc: "Summarize & shrink this conversation's context", variants: ["session"] },
   { name: "clear", desc: "Drop this conversation's context and start fresh", variants: ["session"] },
   { name: "diff", desc: "Show the workspace changes (git diff)", variants: ["session"] },
-  { name: "fork", desc: "Branch a new session from a checkpoint", variants: ["session"] },
+  { name: "fork", desc: "Fork into a new worktree from a checkpoint", variants: ["session"] },
   { name: "model", arg: "<id>", desc: "Switch the model", variants: ["home", "session"], needsArgs: true },
   { name: "interrupt", desc: "Stop the in-flight turn", variants: ["session"] },
   { name: "resume", desc: "Recover a crashed / interrupted session", variants: ["session"] },

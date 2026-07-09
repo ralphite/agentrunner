@@ -241,6 +241,27 @@ function RunModal({ initialTask }: { initialTask?: string }) {
   );
 }
 
+// barrierLabel turns a raw barrier id (bar-final / bar-t3 / bar-m75) into a
+// readable "fork point" the way Codex names a fork spot, so the picker isn't a
+// list of cryptic ids.
+function barrierLabel(b: string): string {
+  if (b === "bar-final") return "Latest — end of the conversation";
+  const t = b.match(/^bar-t(\d+)$/);
+  if (t) return `After turn ${t[1]}`;
+  const m = b.match(/^bar-m(\d+)$/);
+  if (m) return `Manual checkpoint (seq ${m[1]})`;
+  return b;
+}
+
+// forkRank sorts fork points latest-first: end of conversation, then turns
+// descending, then the rest.
+function forkRank(b: string): number {
+  if (b === "bar-final") return -1;
+  const t = b.match(/^bar-t(\d+)$/);
+  if (t) return 1000 - Number(t[1]);
+  return 2000;
+}
+
 function ForkModal({ sid }: { sid: string }) {
   const { openModal, select, refreshSessions, toast } = useStore();
   const { ws, setWs, mk } = useWorkspace();
@@ -252,8 +273,9 @@ function ForkModal({ sid }: { sid: string }) {
   useEffect(() => {
     AR.barriers(sid)
       .then((b) => {
-        setBarriers(b);
-        if (b.length) setBarrier(b[0]);
+        const sorted = [...b].sort((x, y) => forkRank(x) - forkRank(y));
+        setBarriers(sorted);
+        if (sorted.length) setBarrier(sorted[0]);
       })
       .catch((e) => toast(e.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -276,29 +298,34 @@ function ForkModal({ sid }: { sid: string }) {
 
   return (
     <Modal
-      title={`Fork session · ${sid}`}
+      title="Fork into a new worktree"
       onClose={close}
       footer={
         <button className="primary" disabled={busy || !barrier} onClick={doFork}>
-          fork
+          Fork
         </button>
       }
     >
-      <label className="field">barrier (fork point)</label>
+      <div className="dim" style={{ marginBottom: 10 }}>
+        Branches a brand-new session from a checkpoint of this one, into its own
+        git worktree materialized from that point's snapshot. This session is left
+        untouched.
+      </div>
+      <label className="field">Fork from</label>
       {barriers.length === 0 ? (
-        <div className="dim">No barriers in this session yet (have the agent drop one with the barrier tool, then fork).</div>
+        <div className="dim">No fork points yet — send at least one message so the session checkpoints a turn, then fork.</div>
       ) : (
         <select value={barrier} onChange={(e) => setBarrier(e.target.value)} title="the checkpoint to branch the new session from">
           {barriers.map((b) => (
             <option key={b} value={b}>
-              {b}
+              {barrierLabel(b)}
             </option>
           ))}
         </select>
       )}
-      <label className="field">fork workspace (optional; leave empty for auto)</label>
+      <label className="field">New worktree directory (optional)</label>
       <div className="row-flex">
-        <input type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="empty = auto <ws>-fork-<id>" />
+        <input type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="empty = auto <workspace>-fork-<id>" />
         <button style={{ whiteSpace: "nowrap" }} onClick={mk} title="create a fresh empty directory under runtime/ and fill it in here">
           make empty workspace
         </button>
