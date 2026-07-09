@@ -43,6 +43,8 @@ interface AppState {
   togglePin: (id: string) => void;
   renames: Record<string, string>; // session id -> custom title (localStorage-backed)
   setRename: (id: string, title: string) => void;
+  sidebarCollapsed: boolean; // hide the sidebar for a full-width conversation (localStorage-backed)
+  toggleSidebar: () => void;
 
   visibleOrder: string[]; // sidebar's flat session order, for keyboard nav
   setVisibleOrder: (ids: string[]) => void;
@@ -85,6 +87,15 @@ function loadRenames(): Record<string, string> {
     return v && typeof v === "object" ? v : {};
   } catch {
     return {};
+  }
+}
+
+const SIDEBAR_KEY = "arwebui.sidebar";
+function loadSidebarCollapsed(): boolean {
+  try {
+    return localStorage.getItem(SIDEBAR_KEY) === "1";
+  } catch {
+    return false;
   }
 }
 
@@ -143,6 +154,16 @@ export const useStore = create<AppState>((set, get) => ({
       /* ignore quota */
     }
     set({ renames: next });
+  },
+  sidebarCollapsed: loadSidebarCollapsed(),
+  toggleSidebar: () => {
+    const next = !get().sidebarCollapsed;
+    try {
+      localStorage.setItem(SIDEBAR_KEY, next ? "1" : "0");
+    } catch {
+      /* ignore quota */
+    }
+    set({ sidebarCollapsed: next });
   },
 
   refreshHealth: async () => {

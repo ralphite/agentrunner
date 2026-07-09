@@ -31,6 +31,7 @@ export function Sidebar() {
     theme,
     cycleTheme,
     setVisibleOrder,
+    toggleSidebar,
   } = useStore();
   const [q, setQ] = useState("");
   const [searching, setSearching] = useState(false);
@@ -145,9 +146,19 @@ export function Sidebar() {
 
   return (
     <div className="sidebar">
-      <div className="brand" onClick={() => select(null)}>
-        <div className="logo">◆</div>
-        <h1>AgentRunner</h1>
+      <div className="brand">
+        <div className="brand-main" onClick={() => select(null)}>
+          <div className="logo">◆</div>
+          <h1>AgentRunner</h1>
+        </div>
+        <button
+          className="sidebar-hide"
+          onClick={toggleSidebar}
+          title="Hide sidebar (⌘B)"
+          aria-label="Hide sidebar"
+        >
+          ⧉
+        </button>
       </div>
 
       <nav className="side-nav">

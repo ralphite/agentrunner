@@ -51,6 +51,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ["mod", "alt", "up"], label: "Previous task", desc: "Select the task above in the sidebar" },
       { keys: ["mod", "alt", "down"], label: "Next task", desc: "Select the task below in the sidebar" },
       { keys: ["mod", "F"], label: "Find in conversation", desc: "Search the current task's messages" },
+      { keys: ["mod", "B"], label: "Toggle sidebar", desc: "Show or hide the task sidebar" },
       { keys: ["?"], label: "Keyboard shortcuts", desc: "Show this reference" },
     ],
   },

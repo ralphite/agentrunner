@@ -168,6 +168,12 @@ a:hover {
   grid-template-columns: 288px 1fr;
   height: 100%;
 }
+.app.collapsed {
+  grid-template-columns: 1fr;
+}
+.app.collapsed .sidebar {
+  display: none;
+}
 .sidebar {
   border-right: 1px solid var(--line);
   background: var(--panel);
@@ -178,8 +184,15 @@ a:hover {
 .brand {
   display: flex;
   align-items: center;
-  gap: 9px;
+  justify-content: space-between;
   padding: 14px 16px 10px;
+}
+.brand-main {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  min-width: 0;
 }
 .brand .logo {
   width: 22px;
@@ -288,8 +301,8 @@ a:hover {
   margin-top: 3px;
 }
 
-.brand {
-  cursor: pointer;
+.brand-main:hover h1 {
+  color: var(--ink);
 }
 
 /* ---- Codex-style sidebar nav + grouped rows ---- */
@@ -2378,4 +2391,34 @@ summary.fd-head:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ---- collapsible sidebar (Codex's ⌘B Toggle sidebar) ---- */
+.sidebar-hide,
+.sidebar-show {
+  border: none;
+  background: transparent;
+  color: var(--dim);
+  font-size: 15px;
+  line-height: 1;
+  padding: 4px 6px;
+  border-radius: 7px;
+  flex-shrink: 0;
+}
+.sidebar-hide:hover,
+.sidebar-show:hover {
+  background: var(--panel-2);
+  color: var(--ink);
+}
+.sidebar-show {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 20;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+.main {
+  position: relative;
 }

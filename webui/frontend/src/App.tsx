@@ -17,6 +17,8 @@ export function App() {
   const helpOpen = useStore((s) => s.helpOpen);
   const openHelp = useStore((s) => s.openHelp);
   const closeHelp = useStore((s) => s.closeHelp);
+  const sidebarCollapsed = useStore((s) => s.sidebarCollapsed);
+  const toggleSidebar = useStore((s) => s.toggleSidebar);
   const [palette, setPalette] = useState(false);
 
   // Global keys: ⌘K/Ctrl-K toggles the command palette; "?" opens the
@@ -32,6 +34,12 @@ export function App() {
       if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
         e.preventDefault();
         useStore.getState().selectAdjacent(e.key === "ArrowDown" ? 1 : -1);
+        return;
+      }
+      // ⌘B / Ctrl-B shows or hides the sidebar (Codex's Toggle sidebar).
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        useStore.getState().toggleSidebar();
         return;
       }
       if (e.key === "?" && !e.metaKey && !e.ctrlKey && !e.altKey) {
@@ -82,9 +90,19 @@ export function App() {
   }, []);
 
   return (
-    <div className="app">
+    <div className={"app" + (sidebarCollapsed ? " collapsed" : "")}>
       <Sidebar />
       <div className="main">
+        {sidebarCollapsed && (
+          <button
+            className="sidebar-show"
+            onClick={toggleSidebar}
+            title="Show sidebar (⌘B)"
+            aria-label="Show sidebar"
+          >
+            ⧉
+          </button>
+        )}
         <ErrorBoundary resetKey={currentRunId || currentSid || "home"}>
           {currentRunId ? (
             <RunView runId={currentRunId} />
