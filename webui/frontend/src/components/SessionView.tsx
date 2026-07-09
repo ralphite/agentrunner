@@ -141,11 +141,16 @@ export function SessionView({ sid }: { sid: string }) {
     ? openApprovals.length > 0
       ? { text: "needs approval", cls: "appr" }
       : { text: "running…", cls: "run" }
-    : listStatus
-      ? friendlyStatus(listStatus)
-      : folded.status.cls === "run"
-        ? { text: "completed", cls: "closed" }
-        : folded.status;
+    : folded.isDriver
+      ? // a driver session's `sessions list` status is "unreadable"; its own
+        // journal (driver_completed) is the authoritative status.
+        folded.status
+      : listStatus
+        ? friendlyStatus(listStatus)
+        : folded.status.cls === "run"
+          ? { text: "completed", cls: "closed" }
+          : folded.status;
+  const isDriver = folded.isDriver;
 
   const doSend = async (text: string, images: string[]) => {
     const id = ++pendSeq.current;
@@ -327,7 +332,15 @@ export function SessionView({ sid }: { sid: string }) {
         </div>
       )}
 
-      {view === "chat" && !isSub && (
+      {view === "chat" && isDriver && (
+        <div className="composer">
+          <div className="composer-inner dim" style={{ fontSize: 12, padding: "4px 2px" }}>
+            This is an iteration driver (drive) — it runs its own loop and does not accept messages.
+          </div>
+        </div>
+      )}
+
+      {view === "chat" && !isSub && !isDriver && (
         <Composer
           variant="session"
           sid={sid}

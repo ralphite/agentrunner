@@ -120,7 +120,9 @@ func (rr *runRegistry) start(arPath, kind, label, workspace string, args []strin
 	rr.list = append([]*run{r}, rr.list...) // newest first
 	rr.mu.Unlock()
 
-	logf, _ := os.OpenFile(filepath.Join(logDir, id+".log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	// O_TRUNC, not O_APPEND: run ids (run1, run2…) restart per process, so a
+	// reused id must start a clean log, not append to a prior run's output.
+	logf, _ := os.OpenFile(filepath.Join(logDir, id+".log"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	cmd := exec.CommandContext(ctx, arPath, args...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -152,6 +154,17 @@ func (rr *runRegistry) start(arPath, kind, label, workspace string, args []strin
 			r.append(line)
 			if logf != nil {
 				_, _ = io.WriteString(logf, line+"\n")
+			}
+			// A submit run's process stays attached after the task's turn goes
+			// idle (a conversational agent never "ends"), so it would otherwise
+			// show "running" forever. Reaching idle means the one-shot task is
+			// done — reconcile the run status with the session's (QA r3-#2).
+			if r.Kind == "submit" && strings.Contains(line, `"kind":"idle"`) {
+				r.mu.Lock()
+				if r.Status == "running" {
+					r.Status = "done"
+				}
+				r.mu.Unlock()
 			}
 			if !notified && onSession != nil {
 				if m := sessionIDLine.FindString(line); m != "" {
@@ -243,7 +256,11 @@ func (s *server) handleRunStart(w http.ResponseWriter, r *http.Request) {
 		label = firstLine(req.Task, 60)
 	} else {
 		args = []string{"drive", "--json", "--workspace", ws, basePath}
-		label = "driver: " + filepath.Base(basePath)
+		if name := yamlName(req.Spec); name != "" {
+			label = "drive: " + name
+		} else {
+			label = "drive: " + filepath.Base(basePath)
+		}
 	}
 
 	title := label
@@ -328,4 +345,16 @@ func firstLine(s string, max int) string {
 		s = s[:max] + "…"
 	}
 	return s
+}
+
+// yamlName pulls the top-level `name:` value out of a spec (best-effort; used
+// only to label a drive run with its driver name rather than "base.yaml").
+func yamlName(spec string) string {
+	for _, line := range strings.Split(spec, "\n") {
+		t := strings.TrimSpace(line)
+		if v, ok := strings.CutPrefix(t, "name:"); ok {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
 }

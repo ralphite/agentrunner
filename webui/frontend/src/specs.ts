@@ -92,7 +92,7 @@ system_prompt: |
   You are a rigorous coding assistant. Follow the user's instructions
   exactly; when asked to start sub-agents, use the spawn_agent tool with
   the exact count and division of labor requested; use kill to cancel.
-tools: [read_file, write_file, edit_file, bash, spawn_agent, kill]
+tools: [read_file, write_file, edit_file, bash, spawn_agent, kill, exit_plan_mode]
 agents: [worker]
 ${permissionsBlock(opts.access)}
 `;

@@ -77,7 +77,10 @@ export const useStore = create<AppState>((set, get) => ({
     if (sid) location.hash = sid;
     else location.hash = "";
   },
-  selectRun: (rid) => set({ currentRunId: rid, currentSid: null }),
+  selectRun: (rid) => {
+    set({ currentRunId: rid, currentSid: null });
+    location.hash = rid ? "run:" + rid : "";
+  },
   openModal: (m) => set({ modal: m }),
   toast: (text, kind = "error") => {
     const id = ++toastSeq;

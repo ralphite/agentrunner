@@ -9,7 +9,7 @@ import { Toasts } from "./components/Toasts";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
 export function App() {
-  const { currentSid, currentRunId, refreshHealth, refreshSessions, refreshRuns, select } =
+  const { currentSid, currentRunId, refreshHealth, refreshSessions, refreshRuns, select, selectRun } =
     useStore();
 
   useEffect(() => {
@@ -19,11 +19,17 @@ export function App() {
     const h = setInterval(refreshHealth, 5000);
     const s = setInterval(refreshSessions, 4000);
     const r = setInterval(refreshRuns, 4000);
-    if (location.hash.length > 1) select(location.hash.slice(1));
-    const onHash = () => {
-      const id = location.hash.slice(1);
-      if (id && id !== useStore.getState().currentSid) select(id);
+    // hash routing: "run:<id>" → a background run; anything else → a session.
+    const route = (raw: string) => {
+      if (raw.startsWith("run:")) {
+        const rid = raw.slice(4);
+        if (rid && rid !== useStore.getState().currentRunId) selectRun(rid);
+      } else if (raw && raw !== useStore.getState().currentSid) {
+        select(raw);
+      }
     };
+    if (location.hash.length > 1) route(location.hash.slice(1));
+    const onHash = () => route(location.hash.slice(1));
     window.addEventListener("hashchange", onHash);
     return () => {
       clearInterval(h);

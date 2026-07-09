@@ -3,8 +3,11 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -132,10 +135,34 @@ func (s *server) handleDiff(w http.ResponseWriter, r *http.Request) {
 	resp["numstat"] = numstat
 	if porcelain, ok := git(r.Context(), meta.Workspace, "status", "--porcelain"); ok {
 		untracked := []string{} // never nil — the UI does .length on this
+		var extra bytes.Buffer  // synthetic new-file diffs for untracked content
 		for _, line := range strings.Split(porcelain, "\n") {
-			if strings.HasPrefix(line, "?? ") {
-				untracked = append(untracked, strings.TrimSpace(line[3:]))
+			if !strings.HasPrefix(line, "?? ") {
+				continue
 			}
+			path := strings.TrimSpace(line[3:])
+			// Inline the content of small, regular, text files as a new-file
+			// diff so the UI shows it (git diff omits untracked entirely).
+			full := filepath.Join(meta.Workspace, path)
+			if info, err := os.Stat(full); err == nil && info.Mode().IsRegular() && info.Size() <= 256*1024 {
+				if content, err := os.ReadFile(full); err == nil && !bytes.Contains(content, []byte{0}) {
+					lines := strings.Split(strings.TrimRight(string(content), "\n"), "\n")
+					fmt.Fprintf(&extra, "diff --git a/%s b/%s\nnew file\n--- /dev/null\n+++ b/%s\n@@ -0,0 +1,%d @@\n",
+						path, path, path, len(lines))
+					for _, l := range lines {
+						extra.WriteString("+" + l + "\n")
+					}
+					continue
+				}
+			}
+			untracked = append(untracked, path) // binary / large / unreadable: name only
+		}
+		if extra.Len() > 0 {
+			d, _ := resp["diff"].(string)
+			if d != "" && !strings.HasSuffix(d, "\n") {
+				d += "\n"
+			}
+			resp["diff"] = d + extra.String()
 		}
 		resp["untracked"] = untracked
 	}

@@ -66,6 +66,10 @@ export interface Folded {
   // subagent_completed), so it ends on assistant_message and its status would
   // otherwise dangle at "running" forever — callers use !active to correct that.
   active: boolean;
+  // isDriver = this session is an iteration driver (drive), not a conversation.
+  // Its journal is driver_* / iteration_* events and it does NOT accept input,
+  // so the UI renders those events and hides the composer.
+  isDriver: boolean;
 }
 
 // Input sources that mean "a human typed this" — regardless of entry point
@@ -84,6 +88,7 @@ export function foldEvents(events: Envelope[]): Folded {
   let lastGen = 0;
   let status = { text: "—", cls: "" };
   let lastType = "";
+  let isDriver = false;
 
   const push = (it: TimelineItem) => items.push(it);
   const chip = (
@@ -201,6 +206,41 @@ export function foldEvents(events: Envelope[]): Folded {
           p.child_session,
         );
         break;
+      // ---- iteration driver (drive) events ----
+      case "driver_started":
+        isDriver = true;
+        chip(seq, `▶ driver started · ${p.spec_name || ""}`);
+        status = { text: "running", cls: "run" };
+        break;
+      case "iteration_launched":
+        isDriver = true;
+        chip(seq, `↻ iteration ${p.iter} launched`, "");
+        break;
+      case "iteration_completed":
+        isDriver = true;
+        chip(
+          seq,
+          `✓ iteration ${p.iter} · ${p.child_reason || ""}${
+            p.verdict ? " · " + JSON.stringify(p.verdict) : ""
+          }`,
+          "good",
+        );
+        break;
+      case "iteration_skipped":
+        isDriver = true;
+        chip(seq, `iteration ${p.iter} skipped`, "warn");
+        break;
+      case "driver_completed":
+        isDriver = true;
+        chip(
+          seq,
+          `■ driver ${p.reason || "done"} · ${p.iterations || 0} iteration(s)${
+            p.best_iter ? " · best #" + p.best_iter : ""
+          }`,
+          p.reason === "satisfied" ? "good" : "warn",
+        );
+        status = { text: p.reason === "satisfied" ? "satisfied" : "done", cls: "closed" };
+        break;
       case "approval_requested": {
         const known = callArgs.get(p.call_id);
         approvals.set(p.approval_id, {
@@ -238,7 +278,7 @@ export function foldEvents(events: Envelope[]): Folded {
         status = { text: "running", cls: "run" };
         break;
       case "session_closed":
-        chip(seq, `session marked ${p.reason || "closed"} — send to continue`);
+        chip(seq, `session ${p.reason || "closed"}`);
         status = { text: p.reason === "killed" ? "killed" : "closed", cls: "closed" };
         break;
       case "task_completed":
@@ -278,5 +318,5 @@ export function foldEvents(events: Envelope[]): Folded {
   const toolRunning = items.some((it) => it.kind === "tool" && it.status === "running");
   const active = toolRunning || lastType === "generation_started";
 
-  return { items, approvals, callArgs, status, lastGen, active };
+  return { items, approvals, callArgs, status, lastGen, active, isDriver };
 }
