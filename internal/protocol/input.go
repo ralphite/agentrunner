@@ -58,6 +58,12 @@ type UserInput struct {
 	Trust     string `json:"trust,omitempty"`
 	TurnID    string `json:"turn_id,omitempty"`
 	ItemID    string `json:"item_id,omitempty"`
+	// Target addresses a DESCENDANT session inside the recipient's tree
+	// (INC-12.3, `ar send <child-sid>`): the daemon durably logs the command
+	// on the TREE ROOT (single host, single writer) and the root loop
+	// forwards it to the member's inbox instead of journaling it itself.
+	// Empty = the message is for the receiving session.
+	Target string `json:"target,omitempty"`
 	// CommandID is minted by the caller and remains stable across retries.
 	// The durable mailbox rejects reuse with a different payload and returns
 	// the original DeliverySeq for an exact retry.

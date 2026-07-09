@@ -455,3 +455,87 @@ func mustJSON(v any) json.RawMessage {
 	}
 	return b
 }
+
+// INC-12.3: a Target-addressed input (the daemon's `ar send <child-sid>`
+// route) is FORWARDED by the tree root — not consumed: the root journals
+// only the CommandHandled receipt, the member gets the mail as user-class
+// (reviving it), and the root's own conversation stays clean.
+func TestSendForwardsTargetToChild(t *testing.T) {
+	router := scripted.NewRouter(
+		scripted.RoutePair{Key: "you orchestrate", Fixture: scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{
+				{ToolCall: &scripted.ToolCallEvent{CallID: "z", Name: "spawn_agent",
+					Args: map[string]any{"agent": "worker", "task": "investigate ZETA"}}},
+				{Finish: "tool_use"},
+			}},
+			{Respond: []scripted.Event{{Text: "round one"}, {Finish: "end_turn"}}},
+			{Respond: []scripted.Event{{Text: "second receipt seen"}, {Finish: "end_turn"}}},
+			{Respond: []scripted.Event{{Text: "ack"}, {Finish: "end_turn"}}},
+		}}},
+		scripted.RoutePair{Key: "ZETA", Fixture: scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{{Text: "ZETA report: done"}, {Finish: "end_turn"}}},
+			{Respond: []scripted.Event{{Text: "direct user mail handled"}, {Finish: "end_turn"}}},
+		}}},
+	)
+	l := bgSpawnLoop(t, router, []string{"worker"})
+	childSID := "lead-sub-z-a1"
+	inputs := make(chan protocol.UserInput, 1)
+	l.UserInputs = inputs
+	go func() {
+		deadline := time.Now().Add(8 * time.Second)
+		forwarded := false
+		for time.Now().Before(deadline) {
+			evs, _ := store.ReadEvents(l.Store.Dir())
+			if !forwarded && countType(evs, event.TypeSubagentCompleted) >= 1 {
+				// The daemon's route: the command logs on the ROOT, the input
+				// carries the child Target.
+				inputs <- protocol.UserInput{
+					Text: "please redo the numbers", Target: childSID,
+					CommandID: event.NewCommandID(),
+				}
+				forwarded = true
+			}
+			if forwarded && countType(evs, event.TypeSubagentCompleted) >= 2 {
+				close(inputs)
+				return
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+		close(inputs)
+	}()
+
+	if _, err := l.Run(context.Background(), "orchestrate ZETA"); err != nil {
+		t.Fatal(err)
+	}
+
+	evs, _ := store.ReadEvents(l.Store.Dir())
+	// The root forwarded, never consumed: a CommandHandled receipt exists,
+	// and NO root InputReceived carries the forwarded text.
+	var sawReceipt bool
+	for _, e := range evs {
+		if e.Type == event.TypeCommandHandled && strings.Contains(string(e.Payload), "forwarded:"+childSID) {
+			sawReceipt = true
+		}
+		if e.Type == event.TypeInputReceived && strings.Contains(string(e.Payload), "redo the numbers") {
+			t.Error("forwarded input leaked into the root journal as a consumed input")
+		}
+	}
+	if !sawReceipt {
+		t.Fatal("no CommandHandled forward receipt on the root")
+	}
+	if n := countType(evs, event.TypeChildRevived); n != 1 {
+		t.Fatalf("ChildRevived = %d, want 1", n)
+	}
+	// The member consumed the mail as user-class (the explicit-send gesture).
+	childEvs, _ := store.ReadEvents(l.Store.Dir() + "/sub/z-a1")
+	var sawUserMail bool
+	for _, e := range childEvs {
+		if e.Type == event.TypeInputReceived && strings.Contains(string(e.Payload), "redo the numbers") &&
+			strings.Contains(string(e.Payload), `"source":"user"`) {
+			sawUserMail = true
+		}
+	}
+	if !sawUserMail {
+		t.Fatal("child never consumed the forwarded user mail")
+	}
+}

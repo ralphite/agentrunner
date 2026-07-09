@@ -29,6 +29,14 @@ func (l *Loop) journalInput(ds *driveState, appendE AppendFunc, in protocol.User
 	if in.DeliverySeq > 0 && in.DeliverySeq <= ds.s.Session.ConsumedInputSeq {
 		return nil
 	}
+	// Tree forwarding (INC-12.3): a Target names a descendant — this root
+	// logged the command durably (daemon side) and now forwards it to the
+	// member's inbox instead of consuming it. Idempotent end to end: the
+	// member's inbox dedups by command id, and the CommandHandled receipt
+	// keeps a daemon restart from re-waking this session for it.
+	if in.Target != "" && in.Target != l.SessionID {
+		return l.forwardToMember(ds, in)
+	}
 	var images, files []event.AttachmentRef
 	var content []provider.Part
 	// Custom-command expansion (G21): a /name send expands to its repo macro

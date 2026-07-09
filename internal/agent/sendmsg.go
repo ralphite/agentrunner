@@ -3,8 +3,10 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 
+	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/redact"
 	"github.com/ralphite/agentrunner/internal/tool"
@@ -66,6 +68,40 @@ func (l *Loop) runSendMessage(children []string, commandID string, rawArgs json.
 		"note": "durable; a running recipient sees it at its next safe point, an idle one is woken",
 	})
 	return tool.Result{Payload: payload}
+}
+
+// forwardToMember relays a Target-addressed input (INC-12.3, `ar send
+// <child-sid>` routed through this tree root) into the member's durable
+// inbox. Failures are logged and journaled in the CommandHandled receipt —
+// the command was durably accepted, so the answer to the sender is always
+// "accepted"; the receipt is the audit truth of where it went.
+func (l *Loop) forwardToMember(ds *driveState, in protocol.UserInput) error {
+	result := "forwarded:" + in.Target
+	if l.Router == nil {
+		result = "forward_failed:no_session_tree"
+		slog.Warn("send forward failed: no tree router", "target", in.Target)
+	} else {
+		fwd := in
+		fwd.Target, fwd.DeliverySeq = "", 0
+		if fwd.Source == "" || fwd.Source == "unix-socket" {
+			// User-class mail: the explicit-send gesture that may revive even
+			// a user-killed member (决策 #30; trust taxonomy lands with the
+			// machine-sender increment).
+			fwd.Source = "user"
+		}
+		if _, err := l.Router.Send(in.Target, fwd); err != nil {
+			result = "forward_failed:" + err.Error()
+			slog.Warn("send forward failed", "target", in.Target, "err", err)
+		}
+	}
+	if in.CommandID == "" {
+		return nil
+	}
+	cmdAppend := l.commandAppender(ds, in.CommandID)
+	_, err := cmdAppend(event.TypeCommandHandled, &event.CommandHandled{
+		CommandID: in.CommandID, Kind: protocol.CommandInput, Result: result,
+	})
+	return err
 }
 
 // resolveChildHandle maps a spawn handle (call id) owned by parentSID to the

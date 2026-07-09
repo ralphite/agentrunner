@@ -15,6 +15,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -901,6 +902,17 @@ func (s *Server) handleSend(ctx context.Context, cmd Command, enc *json.Encoder)
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "send needs session and content"})
 		return
 	}
+	// A child-session address (INC-12.3, `ar send <child-sid>`) routes
+	// through the TREE ROOT: the root is the single host and single mailbox
+	// writer for its tree, so the command logs durably on the root and the
+	// root loop forwards it to the member's own inbox. The Target rides the
+	// UserInput; everything else (revive-as-resume, idempotency) is the
+	// ordinary send path.
+	var target string
+	if idx := strings.Index(cmd.Session, "-sub-"); idx > 0 {
+		target = cmd.Session
+		cmd.Session = cmd.Session[:idx]
+	}
 	s.mu.Lock()
 	hub, ok := s.runs[cmd.Session]
 	s.mu.Unlock()
@@ -943,7 +955,7 @@ func (s *Server) handleSend(ctx context.Context, cmd Command, enc *json.Encoder)
 	}
 	in := protocol.UserInput{Text: cmd.Text, Images: cmd.Images, Files: cmd.Files,
 		Content: cmd.Content, Principal: cmd.Principal, Source: cmd.Source,
-		Trust: cmd.Trust, CommandID: cmd.CommandID}
+		Trust: cmd.Trust, CommandID: cmd.CommandID, Target: target}
 	in.TurnID, in.ItemID = "turn-"+cmd.CommandID, "item-"+cmd.CommandID
 	if in.Principal == "" {
 		in.Principal = "local-user"
