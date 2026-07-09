@@ -3,6 +3,7 @@ import { AR } from "../api";
 import { useStore } from "../store";
 import type { SpecFile } from "../types";
 import { DEFAULT_DRIVER, DEFAULT_DRIVER_AGENT, DEFAULT_SPEC, DEFAULT_WORKER } from "../specs";
+import { displayTitle } from "../title";
 
 function Modal({
   title,
@@ -43,6 +44,8 @@ export function Modals() {
       return <ForkModal sid={modal.sid} />;
     case "agent":
       return <AgentModal sid={modal.sid} />;
+    case "rename":
+      return <RenameModal sid={modal.sid} />;
     case "trust":
       return <TrustModal />;
     case "viewer":
@@ -445,6 +448,48 @@ function TrustModal() {
     >
       <label className="field">directory (absolute path)</label>
       <input type="text" value={dir} onChange={(e) => setDir(e.target.value)} placeholder="/path/to/workspace" />
+    </Modal>
+  );
+}
+
+function RenameModal({ sid }: { sid: string }) {
+  const { openModal, sessions, renames, setRename, toast } = useStore();
+  const raw = sessions.find((s) => s.id === sid)?.title;
+  const [name, setName] = useState(() => displayTitle(renames, sid, raw));
+  const close = () => openModal(null);
+  const save = () => {
+    setRename(sid, name);
+    close();
+    toast(name.trim() ? "renamed" : "rename cleared", "info");
+  };
+  return (
+    <Modal
+      title="Rename task"
+      onClose={close}
+      footer={
+        <>
+          <button className="ghost" onClick={close}>
+            Cancel
+          </button>
+          <button className="primary" onClick={save}>
+            Save
+          </button>
+        </>
+      }
+    >
+      <label className="field">Keep it short and recognizable</label>
+      <input
+        type="text"
+        autoFocus
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onFocus={(e) => e.target.select()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") save();
+          else if (e.key === "Escape") close();
+        }}
+        placeholder="Task name (leave blank to reset)"
+      />
     </Modal>
   );
 }

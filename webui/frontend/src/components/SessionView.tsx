@@ -11,6 +11,7 @@ import { Menu, MenuItem, MenuLabel } from "./Menu";
 import { Subagents, type InspectNode } from "./Subagents";
 import { FindBar } from "./FindBar";
 import { friendlyStatus } from "./pill";
+import { displayTitle } from "../title";
 
 interface SSEApproval {
   id: string;
@@ -27,10 +28,10 @@ function fmtTokens(n: number): string {
 }
 
 export function SessionView({ sid }: { sid: string }) {
-  const { select, openModal, toast, showSys, toggleSys, sessions, archived, toggleArchive, pinned, togglePin } =
+  const { select, openModal, toast, showSys, toggleSys, sessions, archived, toggleArchive, pinned, togglePin, renames } =
     useStore();
   const isSub = sid.includes("-sub-");
-  const title = sessions.find((s) => s.id === sid)?.title || sid;
+  const title = displayTitle(renames, sid, sessions.find((s) => s.id === sid)?.title);
 
   const [events, setEvents] = useState<Envelope[]>([]);
   const [pending, setPending] = useState<{ id: number; text: string; images: number }[]>([]);
@@ -353,6 +354,12 @@ export function SessionView({ sid }: { sid: string }) {
             }}
           >
             {pinned.includes(sid) ? "Unpin task" : "Pin task"}
+          </MenuItem>
+          <MenuItem
+            title="give this task a custom name in the sidebar (stored in your browser)"
+            onClick={() => openModal({ kind: "rename", sid })}
+          >
+            Rename task…
           </MenuItem>
           <MenuItem
             title="hide this task from the sidebar list (it stays on disk; toggle 'Show archived' to see it again)"

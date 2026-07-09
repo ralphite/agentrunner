@@ -9,6 +9,7 @@ export type ModalKind =
   | { kind: "run"; task?: string } // submit / drive launcher
   | { kind: "fork"; sid: string }
   | { kind: "agent"; sid: string }
+  | { kind: "rename"; sid: string }
   | { kind: "trust" }
   | { kind: "viewer"; title: string; body: string }
   | null;
@@ -40,6 +41,8 @@ interface AppState {
   toggleShowArchived: () => void;
   pinned: string[]; // session ids pinned to the top of the sidebar (localStorage-backed)
   togglePin: (id: string) => void;
+  renames: Record<string, string>; // session id -> custom title (localStorage-backed)
+  setRename: (id: string, title: string) => void;
 
   refreshHealth: () => Promise<void>;
   refreshSessions: () => Promise<void>;
@@ -68,6 +71,16 @@ function loadPinned(): string[] {
     return JSON.parse(localStorage.getItem(PIN_KEY) || "[]");
   } catch {
     return [];
+  }
+}
+
+const RENAME_KEY = "arwebui.renames";
+function loadRenames(): Record<string, string> {
+  try {
+    const v = JSON.parse(localStorage.getItem(RENAME_KEY) || "{}");
+    return v && typeof v === "object" ? v : {};
+  } catch {
+    return {};
   }
 }
 
@@ -113,6 +126,19 @@ export const useStore = create<AppState>((set, get) => ({
       /* ignore quota */
     }
     set({ pinned: next });
+  },
+  renames: loadRenames(),
+  setRename: (id, title) => {
+    const next = { ...get().renames };
+    const t = title.trim();
+    if (t) next[id] = t;
+    else delete next[id]; // empty title clears the rename (revert to derived)
+    try {
+      localStorage.setItem(RENAME_KEY, JSON.stringify(next));
+    } catch {
+      /* ignore quota */
+    }
+    set({ renames: next });
   },
 
   refreshHealth: async () => {

@@ -4,6 +4,7 @@ import { AR } from "../api";
 import { pillClass } from "./pill";
 import { bucketOf, relTime, sessionDate } from "../time";
 import { themeIcon } from "../theme";
+import { displayTitle } from "../title";
 
 export function Sidebar() {
   const {
@@ -22,6 +23,7 @@ export function Sidebar() {
     toggleShowArchived,
     pinned,
     togglePin,
+    renames,
     theme,
     cycleTheme,
   } = useStore();
@@ -48,9 +50,11 @@ export function Sidebar() {
       sessions.filter(
         (s) =>
           (showArchived || !archived.includes(s.id)) &&
-          (!ql || (s.title || s.id).toLowerCase().includes(ql) || s.id.toLowerCase().includes(ql)),
+          (!ql ||
+            displayTitle(renames, s.id, s.title).toLowerCase().includes(ql) ||
+            s.id.toLowerCase().includes(ql)),
       ),
-    [sessions, ql, archived, showArchived],
+    [sessions, ql, archived, showArchived, renames],
   );
   const shownRuns = useMemo(
     () => runs.filter((r) => !ql || (r.label || r.id).toLowerCase().includes(ql)),
@@ -103,7 +107,7 @@ export function Sidebar() {
         title={s.id}
       >
         <span className={"nr-dot " + pillClass(s.status)} title={s.status} />
-        <span className="nr-title">{s.title || s.id}</span>
+        <span className="nr-title">{displayTitle(renames, s.id, s.title)}</span>
         <button
           className={"nr-pin" + (isPinned ? " on" : "")}
           title={isPinned ? "Unpin from top" : "Pin to top"}

@@ -2,16 +2,17 @@ import { useStore } from "../store";
 import { Composer } from "./Composer";
 import { friendlyStatus } from "./pill";
 import { relTime, sessionDate } from "../time";
+import { displayTitle } from "../title";
 
 // Home mirrors Codex's landing: a heading, one Codex-style composer card, and a
 // grid of task cards (titled by their opening message, like Codex).
 export function Home() {
-  const { sessions, runs, select, selectRun, toast } = useStore();
+  const { sessions, runs, select, selectRun, toast, renames } = useStore();
 
   const cards = [
     ...sessions.map((s) => ({
       key: "s" + s.id,
-      title: s.title || s.id,
+      title: displayTitle(renames, s.id, s.title),
       time: relTime(sessionDate(s.id)),
       cls: friendlyStatus(s.status).cls,
       badge: friendlyStatus(s.status).text,
