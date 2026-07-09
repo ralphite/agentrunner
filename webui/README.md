@@ -17,8 +17,13 @@ session 没有终态(同 `web/` 铁律 I7),journal 里的 session_closed 只是
 - **后端** `arwebui`:stdlib-only Go(独立 module),把每个请求翻成一次
   `ar` 子命令,并把 Vite 构建产物嵌进二进制。
 - **前端** `frontend/`:React + TypeScript + Vite。Codex 云端观感:
-  - **首页 hero composer**:居中大输入框 +「Ask / Code」双动作
-    (Ask=起 chat 会话,Code=submit 后台任务),下面是**任务卡片**网格
+  - **Codex 风格 composer**(`components/Composer.tsx`,首页与会话共用):
+    圆角卡片 + 一排 pill 控件——`+` Add 菜单(图片/文本文件/Goal/Loop/
+    Plan/YAML)、权限模式 pill(Full access/Ask/Auto-accept/Plan,风险色点)、
+    model pill(改 spec model 块 → new/agent)、麦克风(Web Speech 听写)、
+    圆形发送键;首页多一行 context bar(workspace/start-mode/git 分支)。
+    输入 `/` 出 slash 菜单(`/goal /loop /plan /model /compact /clear /diff
+    /fork …`),drop-up 弹层空间不足时自动向下翻转。下面是**任务卡片**网格
     (标题取开场消息,像 Codex 用任务描述当标题)。
   - **会话详情**:顶栏动作条 +「Activity / Diff」切换。Activity 是时间线
     (气泡/工具卡/审批/子 agent);**Diff** 是 Codex 式的 git diff 视图
@@ -61,8 +66,14 @@ open http://127.0.0.1:8788
 |---|---|
 | 首页任务卡 / 会话列表 | `sessions list`(标题/workspace 由 arwebui 侧记的元数据补全) |
 | Ask / 新会话 / 开场消息 | `new --workspace W [--mode M] base.yaml "msg"` |
+| composer 权限模式 pill | 建 spec 的 `permissions:` 块 + `--mode`(full/ask/acceptEdits/plan) |
+| composer model pill | 建/改 spec 的 `model:` 块 → `new`(新会话)或 `agent`(session 内换) |
+| composer `/goal`·`/loop`·Goal/Loop 启动器 | `drive --json`(driver.yaml schedule immediate/interval) |
+| composer `/compact`·`/clear` | `compact <sid>` / `clear <sid>` |
+| composer 分支 pill | `git -C <ws> for-each-ref`(列)+ `git checkout [-b]`(切/建) |
+| composer 语音 | 浏览器 SpeechRecognition 听写(纯前端,不经 ar) |
 | 改动(Diff 视图) | `git -C <workspace> diff` + `status --porcelain`(workspace 仅 arwebui 建的会话可知) |
-| 发消息 / 图片 | `send [--image f]... <sid> "text"` |
+| 发消息 / 图片 | `send [--image f]... <sid> "text"`(文本文件内联进消息;PDF/二进制待产品 file-part 增量) |
 | 时间线(真相) | `events --json <sid>`(1s 增量轮询) |
 | 流式打字 / 子审批上卷 | `attach --json <sid>`(SSE) |
 | interrupt / resume | `interrupt` / `resume` |

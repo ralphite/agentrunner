@@ -151,7 +151,8 @@ in-doubt 崩溃纪律（非幂等绝不静默重跑）、barrier/fork/rewind 带
 | 手动 compact / clear | G7 | ✅ 已实现 | INC-6 · TestManualCompact/Clear · QA-12（真验捕获并修 idle-compact 空 summary bug） |
 | web_fetch | G18b | ✅ 并行线已实现 | INC-5 · TestWebFetch* · QA-13（本会话 INC-D3 设计稿主张走 §4；程序争点 LOG 待裁） |
 | ask_user（向用户提问） | G20 | ✅ 并行线已实现 | INC-5.2 · TestAskUser* · QA-13 |
-| webui 改动视图白屏 + UX | — | ✅ 他会话已修 | diff 白屏 + UX-01..05（4e316de/672de7c）；余 UI 项（markdown/usage/选择器/搜索/归档）后续 |
+| webui 改动视图白屏 + UX | — | ✅ 他会话已修 | diff 白屏 + UX-01..05（4e316de/672de7c）；余 UI 项（markdown/usage/搜索/归档）后续 |
+| webui composer 对标 Codex | — | ✅ 已实现 | 24aeccb · Codex 风格 composer：权限模式/model/slash/`+`菜单/Goal·Loop 启动器/语音(Web Speech)/git 分支 pill；真 Gemini 验(新会话+turn、mid-session 换 model、Goal 达成、分支列举)。PDF 二进制附件仍待产品 file-part 增量 |
 | 会话内 goal | G23 | 📐 设计稿 | INC-D1（不变量变更流程，待裁决+review） |
 | 事件唤醒既有 session | G14 | 📐 设计稿 | INC-D2（invariant-adjacent，机器发送方信任条款） |
 | 记忆写回（# remember） | G9 | 📐 设计稿 | INC-D4（取 A 不触不变量；待裁 A/B） |
