@@ -151,7 +151,9 @@ export function SessionView({ sid }: { sid: string }) {
     const t = setInterval(pollTasks, 2500);
     pollTasks();
     let es: EventSource | null = null;
-    if (!isSub) {
+    {
+      // Child sessions stream too (INC-12.6): the daemon routes a -sub- id
+      // through the tree root's hub filtered to the member.
       es = new EventSource(`/api/sessions/${sid}/stream`);
       es.onmessage = (m) => {
         let ev: any;
@@ -160,8 +162,11 @@ export function SessionView({ sid }: { sid: string }) {
         } catch {
           return;
         }
-        if (ev.kind === "text_delta" && ev.text) setTyping((prev) => prev + ev.text);
-        if (ev.kind === "discard") setTyping("");
+        // Tree members tag their own events; keep THIS view's typing bubble
+        // to its own stream (approvals below still bubble tree-wide).
+        const foreign = ev.session && ev.session !== sid;
+        if (!foreign && ev.kind === "text_delta" && ev.text) setTyping((prev) => prev + ev.text);
+        if (!foreign && ev.kind === "discard") setTyping("");
         // Child asks exist ONLY on this stream (they never touch the parent
         // journal). e.text carries the requesting agent's name.
         if (ev.kind === "approval_request" && ev.approval_id) {
@@ -171,7 +176,7 @@ export function SessionView({ sid }: { sid: string }) {
               id: ev.approval_id,
               tool: ev.tool,
               args: ev.args,
-              agent: ev.text,
+              agent: ev.text || (foreign ? ev.session : ""),
             });
             return next;
           });

@@ -210,6 +210,19 @@ export function foldEvents(events: Envelope[]): Folded {
           p.child_session,
         );
         break;
+      case "child_revived":
+        chip(
+          seq,
+          `↻ member revived ${p.agent || ""} · woken by mail`,
+          "",
+          p.child_session,
+        );
+        break;
+      case "command_handled":
+        if (p.result && String(p.result).startsWith("forwarded:")) {
+          chip(seq, `✉ forwarded to ${String(p.result).slice("forwarded:".length)}`, "", String(p.result).slice("forwarded:".length));
+        }
+        break;
       // ---- iteration driver (drive) events ----
       case "driver_started":
         isDriver = true;

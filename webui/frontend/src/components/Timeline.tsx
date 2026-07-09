@@ -57,7 +57,9 @@ function toolLabel(name: string, args: any): { verb: string; body: string; mono:
     case "edit_file":
       return { verb: "edit", body: a.path || a.file || "", mono: true };
     case "spawn_agent":
-      return { verb: "spawn sub-agent", body: a.agent || a.task || "", mono: false };
+      return { verb: "spawn sub-agent", body: a.agent || a.role?.name || a.task || "", mono: false };
+    case "send_message":
+      return { verb: "message", body: `→ ${a.to || "?"} · ${a.text || ""}`, mono: false };
     case "task_kill":
       return { verb: "kill task", body: a.handle || "", mono: true };
     default:
