@@ -57,7 +57,8 @@ in-doubt 崩溃纪律（非幂等绝不静默重跑）、barrier/fork/rewind 带
 | shell 前后台 | 内置+多终端 | ✅ bg + output/kill | UI 无终端面板 |
 | **grep / glob** | ripgrep | **✅ INC-3（2026-07-09）** | — |
 | 语义检索 | 无等价物 | ✅ **领先** semantic_search | — |
-| web search / fetch | 默认开，cached/live | ❌ 未 spec | G18 余项（网络+注入面） |
+| web_fetch | 内置 | ✅ 并行线 INC-5（client read-class + network 数据位 + 收容 fail-closed + untrusted 标记）；程序争点待裁 | web_search 仍缺（需外部搜索 API） |
+| ask_user（向用户提问） | 内置 | ✅ 并行线 INC-5.2（wait-class：park WAITING_INPUT，应答走 inbox 配对 tool result） | 原 G20 🧊，并行线解冻 |
 | 自动 compaction | 长任务压缩 | ✅（S3） | — |
 | 手动 compact / clear | 有 | ❌ 只有自动 | G7 |
 | 项目指令注入 | AGENTS.md + /init | ✅ CLAUDE.md 合并 + `ar init` | — |
@@ -148,23 +149,30 @@ in-doubt 崩溃纪律（非幂等绝不静默重跑）、barrier/fork/rewind 带
 | 远程 stop | G12 | ✅ 已实现 | INC-4 · TestStop* · 真 daemon 手验 |
 | 自定义命令 / slash | G21 | ✅ 已实现 | INC-8 · TestExpand* · 真实 API |
 | 手动 compact / clear | G7 | ✅ 已实现 | INC-6 · TestManualCompact/Clear · QA-12（真验捕获并修 idle-compact 空 summary bug） |
+| web_fetch | G18b | ✅ 并行线已实现 | INC-5 · TestWebFetch* · QA-13（本会话 INC-D3 设计稿主张走 §4；程序争点 LOG 待裁） |
+| ask_user（向用户提问） | G20 | ✅ 并行线已实现 | INC-5.2 · TestAskUser* · QA-13 |
+| webui 改动视图白屏 + UX | — | ✅ 他会话已修 | diff 白屏 + UX-01..05（4e316de/672de7c）；余 UI 项（markdown/usage/选择器/搜索/归档）后续 |
 | 会话内 goal | G23 | 📐 设计稿 | INC-D1（不变量变更流程，待裁决+review） |
 | 事件唤醒既有 session | G14 | 📐 设计稿 | INC-D2（invariant-adjacent，机器发送方信任条款） |
-| web fetch / search | G18b | 📐 设计稿 | INC-D3（不变量变更流程，收容棘轮升级） |
 | 记忆写回（# remember） | G9 | 📐 设计稿 | INC-D4（取 A 不触不变量；待裁 A/B） |
 | 审批“允许且不再问” | G5 | 📐 设计稿 | INC-D5（取 A 下次生效不触不变量；待裁 A/B） |
-| webui 改动视图白屏 + UI | — | 🔧 他会话处理 | 用户已 spin off 独立 session 修 diff 白屏；余 UI 项随之 |
 | 任务→diff 审阅门→PR | G13 | 📐 设计优先 | 依赖 G14；未起草 |
 | 云 workspace 生命周期 | G11 | 🧊 门槛/待裁 | XL，先裁"要不要云形态" |
 
 图例：✅ 已实现 · 📐 设计稿（docs/increments/INC-D*，待裁决/不变量 review）· 🧊 推迟。
 
-**本轮已实现（4 个引擎增量，双闸门全绿并推 main）**：grep/glob（INC-3）、
+**本会话已实现（4 个引擎增量，双闸门全绿并推 main）**：grep/glob（INC-3）、
 远程 stop（INC-4）、自定义命令（INC-8）、手动 compact/clear（INC-6，真验
 捕获并修一个 idle-compact 空 summary bug）。**已起草设计稿（5 份，
 docs/increments/INC-D1–D5）**：会话内 goal、事件唤醒、web 工具、记忆写回、
 审批持久化——其中 D1/D3 触不变量须走 PROCESS §4，D2 引入 ingress 须安全
 review，D4/D5 有"下次生效"的不触不变量最小路径待裁。
+
+**并行 session 同期落地（非本会话，记录以保审计诚实）**：web_fetch +
+ask_user（INC-5）、webui diff 白屏 + UX 修复。其中 web_fetch 与本会话
+INC-D3 设计稿存**程序争点**（该改动是"收容棘轮不变量升级须走 §4"还是
+"覆盖面扩展随实现修订"）——技术方向一致（egress 统一 fail-closed），
+分歧纯在程序,LOG 已记档待开发者裁决。
 
 ---
 
