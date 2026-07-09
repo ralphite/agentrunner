@@ -223,7 +223,7 @@ func escalationRouter() *scripted.Router {
 						"role": map[string]any{
 							"name": "swe", "description": "software engineer",
 							"instructions": "you implement; write files as needed",
-							"escalate": true,
+							"escalate":     true,
 							"permissions": []map[string]any{
 								{"tool": "write_file", "action": "allow"},
 								{"action": "allow"},
