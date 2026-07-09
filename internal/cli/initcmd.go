@@ -43,6 +43,19 @@ permissions:
 # max_generation_steps: 40  # cap on model calls per turn
 # budget:
 #   max_total_tokens: 200000
+
+# MCP servers are connected automatically in run/resume/daemon/driver paths.
+# Secrets are referenced by environment-variable NAME, never embedded here.
+# mcp:
+#   - name: github
+#     transport: stdio
+#     command: [github-mcp-server]
+#     env_from: { GITHUB_PERSONAL_ACCESS_TOKEN: GITHUB_TOKEN }
+#     allowed_tools: [search_code, get_file_contents]  # bare server names
+#   - name: remote
+#     transport: http
+#     url: https://mcp.example.test/mcp
+#     oauth: { access_token_env: MCP_ACCESS_TOKEN }
 `
 
 // initCmd writes the example spec: `agentrunner init [path]` (default

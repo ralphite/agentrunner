@@ -3,8 +3,13 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -46,6 +51,164 @@ func newTestConn(t *testing.T) *Conn {
 	conn := NewConn("demo", cs)
 	t.Cleanup(func() { _ = conn.Close() })
 	return conn
+}
+
+// TestMCPHelperProcess is a real child-process MCP server used by the stdio
+// production-wiring test. It is inert in the ordinary test process.
+func TestMCPHelperProcess(t *testing.T) {
+	if os.Getenv("GO_WANT_MCP_HELPER") != "1" {
+		return
+	}
+	server := richServer()
+	if err := server.Run(context.Background(), &sdk.StdioTransport{}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func richServer() *sdk.Server {
+	server := sdk.NewServer(&sdk.Implementation{Name: "rich", Version: "v1"}, nil)
+	server.AddTool(&sdk.Tool{Name: "rich_result", Description: "structured image result",
+		InputSchema: &jsonschema.Schema{Type: "object"},
+		Annotations: &sdk.ToolAnnotations{ReadOnlyHint: true}},
+		func(context.Context, *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
+			return &sdk.CallToolResult{
+				Content: []sdk.Content{
+					&sdk.TextContent{Text: "hello"},
+					&sdk.ImageContent{Data: []byte("AQI="), MIMEType: "image/png"},
+				},
+				StructuredContent: map[string]any{"answer": 42},
+			}, nil
+		})
+	server.AddResource(&sdk.Resource{URI: "memory://hello", Name: "hello", MIMEType: "text/plain"},
+		func(context.Context, *sdk.ReadResourceRequest) (*sdk.ReadResourceResult, error) {
+			return &sdk.ReadResourceResult{Contents: []*sdk.ResourceContents{{
+				URI: "memory://hello", MIMEType: "text/plain", Text: "resource body",
+			}}}, nil
+		})
+	server.AddPrompt(&sdk.Prompt{Name: "welcome", Description: "welcome prompt"},
+		func(context.Context, *sdk.GetPromptRequest) (*sdk.GetPromptResult, error) {
+			return &sdk.GetPromptResult{Description: "rendered", Messages: []*sdk.PromptMessage{{
+				Role: sdk.Role("user"), Content: &sdk.TextContent{Text: "prompt body"},
+			}}}, nil
+		})
+	return server
+}
+
+func TestConnectStdioPreservesRichResultsResourcesAndPrompts(t *testing.T) {
+	t.Setenv("MCP_HELPER_ENABLE", "1")
+	m, err := Connect(context.Background(), []ServerConfig{{
+		Name: "stdio", Transport: "stdio",
+		Command: []string{os.Args[0], "-test.run=^TestMCPHelperProcess$"},
+		EnvFrom: map[string]string{"GO_WANT_MCP_HELPER": "MCP_HELPER_ENABLE"},
+	}}, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = m.Close() }()
+
+	tools, err := m.Discover(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]bool{
+		"mcp__stdio__rich_result": true, "mcp__stdio__resources_list": true,
+		"mcp__stdio__resources_read": true, "mcp__stdio__prompts_list": true,
+		"mcp__stdio__prompts_get": true,
+	}
+	for _, tool := range tools {
+		delete(want, tool.Name)
+	}
+	if len(want) > 0 {
+		t.Fatalf("missing discovered MCP capabilities: %v", want)
+	}
+
+	payload, isErr, err := m.Call(context.Background(), "mcp__stdio__rich_result", json.RawMessage(`{}`))
+	if err != nil || isErr {
+		t.Fatalf("rich call: %s / %v / %v", payload, isErr, err)
+	}
+	for _, fragment := range []string{`"structuredContent":{"answer":42}`, `"type":"image"`, `"mimeType":"image/png"`} {
+		if !strings.Contains(string(payload), fragment) {
+			t.Errorf("rich result lost %s: %s", fragment, payload)
+		}
+	}
+	resource, _, err := m.Call(context.Background(), "mcp__stdio__resources_read", json.RawMessage(`{"uri":"memory://hello"}`))
+	if err != nil || !strings.Contains(string(resource), "resource body") {
+		t.Fatalf("resource read: %s / %v", resource, err)
+	}
+	prompt, _, err := m.Call(context.Background(), "mcp__stdio__prompts_get", json.RawMessage(`{"name":"welcome"}`))
+	if err != nil || !strings.Contains(string(prompt), "prompt body") {
+		t.Fatalf("prompt get: %s / %v", prompt, err)
+	}
+}
+
+func TestConnectHTTPAuthListChangedAndReconnect(t *testing.T) {
+	server := richServer()
+	var authFailures atomic.Int32
+	handler := sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return server }, nil)
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer oauth-value" || r.Header.Get("X-MCP-Test") != "header-value" {
+			authFailures.Add(1)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		handler.ServeHTTP(w, r)
+	}))
+	defer httpServer.Close()
+	t.Setenv("MCP_OAUTH", "oauth-value")
+	t.Setenv("MCP_HEADER", "header-value")
+	m, err := Connect(context.Background(), []ServerConfig{{
+		Name: "remote", Transport: "http", URL: httpServer.URL,
+		HeadersFromEnv: map[string]string{"X-MCP-Test": "MCP_HEADER"},
+		OAuth:          &OAuthConfig{AccessTokenEnv: "MCP_OAUTH"},
+	}}, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = m.Close() }()
+	if _, err := m.Discover(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if authFailures.Load() != 0 {
+		t.Fatalf("authorized requests rejected: %d", authFailures.Load())
+	}
+
+	server.AddTool(&sdk.Tool{Name: "dynamic", InputSchema: &jsonschema.Schema{Type: "object"}},
+		func(context.Context, *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
+			return &sdk.CallToolResult{Content: []sdk.Content{&sdk.TextContent{Text: "new"}}}, nil
+		})
+	deadline := time.Now().Add(3 * time.Second)
+	for !m.Changed() && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !m.Changed() {
+		t.Fatal("tools/list_changed notification was not observed")
+	}
+	tools, err := m.Discover(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, tool := range tools {
+		found = found || tool.Name == "mcp__remote__dynamic"
+	}
+	if !found {
+		t.Fatal("dynamic tool absent after list_changed refresh")
+	}
+
+	conn := m.conns["remote"]
+	conn.mu.Lock()
+	old := conn.session
+	conn.mu.Unlock()
+	if err := old.Close(); err != nil {
+		t.Fatal(err)
+	}
+	deadline = time.Now().Add(3 * time.Second)
+	for !conn.Changed() && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if _, err := m.Discover(context.Background()); err != nil {
+		t.Fatalf("discover after disconnected session did not reconnect: %v", err)
+	}
 }
 
 // Discovery: fully-qualified names, and the class default — read-only → read,

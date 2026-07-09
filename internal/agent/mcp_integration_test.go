@@ -4,11 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/jsonschema-go/jsonschema"
+	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/mcp"
@@ -27,6 +32,8 @@ type fakeMCP struct {
 	tools   []mcp.DiscoveredTool
 	allowed map[string]bool
 	calls   []string
+	changed bool
+	servers []string
 }
 
 func (f *fakeMCP) SetAllowed(names []string) {
@@ -43,6 +50,7 @@ func (f *fakeMCP) SetAllowed(names []string) {
 func (f *fakeMCP) isAllowed(name string) bool { return f.allowed == nil || f.allowed[name] }
 
 func (f *fakeMCP) Discover(context.Context) ([]mcp.DiscoveredTool, error) {
+	f.changed = false
 	var out []mcp.DiscoveredTool
 	for _, t := range f.tools {
 		if f.isAllowed(t.Name) {
@@ -50,6 +58,24 @@ func (f *fakeMCP) Discover(context.Context) ([]mcp.DiscoveredTool, error) {
 		}
 	}
 	return out, nil
+}
+
+func (f *fakeMCP) Changed() bool { return f.changed }
+func (f *fakeMCP) Close() error  { return nil }
+func (f *fakeMCP) Servers() []string {
+	if len(f.servers) > 0 {
+		return append([]string(nil), f.servers...)
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, tool := range f.tools {
+		if !seen[tool.Server] {
+			seen[tool.Server] = true
+			out = append(out, tool.Server)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 func (f *fakeMCP) Call(_ context.Context, qualified string, _ json.RawMessage) (json.RawMessage, bool, error) {
@@ -128,6 +154,7 @@ func TestMCPToolEndToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 	var discovered *event.ToolsDiscovered
+	var started *event.ActivityStarted
 	for _, e := range events {
 		if e.Type == event.TypeToolsDiscovered {
 			dec, derr := event.DecodePayload(e)
@@ -136,9 +163,22 @@ func TestMCPToolEndToEnd(t *testing.T) {
 			}
 			discovered = dec.(*event.ToolsDiscovered)
 		}
+		if e.Type == event.TypeActivityStarted {
+			dec, derr := event.DecodePayload(e)
+			if derr != nil {
+				t.Fatal(derr)
+			}
+			candidate := dec.(*event.ActivityStarted)
+			if candidate.CallID == "m1" {
+				started = candidate
+			}
+		}
 	}
 	if discovered == nil || discovered.Server != "demo" || len(discovered.Tools) != 2 {
 		t.Fatalf("tools_discovered = %+v", discovered)
+	}
+	if started == nil || started.Idempotent {
+		t.Fatalf("readOnlyHint-derived MCP activity must be non-idempotent: %+v", started)
 	}
 
 	fold, err := state.Fold(events)
@@ -240,6 +280,66 @@ func TestMCPAdvertisedFaceRespectsMode(t *testing.T) {
 	}
 	if strings.Contains(joined, "mcp__demo__run") {
 		t.Errorf("execute-class MCP tool must be hidden in plan mode: %v", names)
+	}
+}
+
+func TestMCPReadOnlyHintDoesNotGrantReplay(t *testing.T) {
+	s := state.New()
+	s.Session.MCPTools = []event.MCPToolDef{{
+		Server: "liar", Name: "mcp__liar__claims_read", Class: "read",
+	}}
+	if toolIdempotentIn(s, "mcp__liar__claims_read") {
+		t.Fatal("remote readOnlyHint-derived class must not grant replay safety")
+	}
+}
+
+func TestSpecDeclaredMCPAutoConnectsInLoop(t *testing.T) {
+	server := sdk.NewServer(&sdk.Implementation{Name: "loop-http", Version: "v1"}, nil)
+	server.AddTool(&sdk.Tool{Name: "reachable", InputSchema: &jsonschema.Schema{Type: "object"}},
+		func(context.Context, *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
+			return &sdk.CallToolResult{Content: []sdk.Content{&sdk.TextContent{Text: "ok"}}}, nil
+		})
+	httpServer := httptest.NewServer(sdk.NewStreamableHTTPHandler(
+		func(*http.Request) *sdk.Server { return server }, nil))
+	defer httpServer.Close()
+
+	fix := scripted.Fixture{Steps: []scripted.Step{{Respond: []scripted.Event{
+		{Text: "done"}, {Finish: "end_turn"},
+	}}}}
+	l, cap := mcpLoop(t, fix, &fakeMCP{})
+	l.MCP = nil
+	l.Spec.MCP = []mcp.ServerConfig{{Name: "live", Transport: "http", URL: httpServer.URL}}
+	if _, err := l.Run(context.Background(), "discover production MCP"); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, def := range cap.Requests()[0].Tools {
+		found = found || def.Name == "mcp__live__reachable"
+	}
+	if !found {
+		t.Fatal("spec-declared MCP tool was not connected and advertised by Loop")
+	}
+}
+
+func TestMCPListChangedJournalsReplacementFace(t *testing.T) {
+	face := &fakeMCP{tools: demoTools(), changed: true, servers: []string{"demo"}}
+	l, _ := mcpLoop(t, scripted.Fixture{}, face)
+	ds := &driveState{s: state.New()}
+	refreshed, err := l.refreshMCP(context.Background(), l.appender(ds))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !refreshed || len(ds.s.Session.MCPTools) != 2 {
+		t.Fatalf("refresh=%v tools=%+v", refreshed, ds.s.Session.MCPTools)
+	}
+	face.tools = nil
+	face.changed = true
+	refreshed, err = l.refreshMCP(context.Background(), l.appender(ds))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !refreshed || len(ds.s.Session.MCPTools) != 0 {
+		t.Fatalf("removed face was not journaled: refresh=%v tools=%+v", refreshed, ds.s.Session.MCPTools)
 	}
 }
 

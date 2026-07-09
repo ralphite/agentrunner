@@ -65,6 +65,35 @@ func TestLoadSpecValid(t *testing.T) {
 	}
 }
 
+func TestLoadSpecMCPTransports(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mcp.yaml")
+	raw := `name: mcp-agent
+model: {provider: scripted, id: model}
+system_prompt: test
+mcp:
+  - name: local
+    transport: stdio
+    command: [mcp-server]
+    env_from: {TOKEN: MCP_TOKEN}
+    allowed_tools: [lookup]
+  - name: remote
+    transport: http
+    url: https://example.test/mcp
+    headers_from_env: {X-Tenant: MCP_TENANT}
+    oauth: {access_token_env: MCP_ACCESS_TOKEN}
+`
+	if err := os.WriteFile(path, []byte(raw), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	spec, err := LoadSpec(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(spec.MCP) != 2 || spec.MCP[0].Command[0] != "mcp-server" || spec.MCP[1].OAuth.AccessTokenEnv != "MCP_ACCESS_TOKEN" {
+		t.Fatalf("mcp config = %+v", spec.MCP)
+	}
+}
+
 func TestLoadSpecPromptFile(t *testing.T) {
 	spec, err := LoadSpec("testdata/valid_file.yaml")
 	if err != nil {

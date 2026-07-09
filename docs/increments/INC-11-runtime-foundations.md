@@ -106,7 +106,9 @@ Durable CommandLog(command_id, seq, principal, source, trust)
    缺失在 Activity 前 fail closed。共享 store 真实 session
    `20260709-214651-exercise-sandbox-28ae` 与
    `20260709-214800-stand-by-for-goal-d657` 通过。
-4. INC-11.4：MCP spec/生产 wiring 与完整协议能力；修可信重放规则。
+4. ✅ INC-11.4：MCP spec 自动接入所有 Loop 生产路径；stdio + streamable
+   HTTP、环境变量 bearer/header、resources/prompts、structured/multimodal、
+   list_changed 与断线后新 session；远端 `readOnlyHint` 不再授予重放权。
 5. INC-11.5：Turn/Item + typed ingress + provider capability envelope，兼容旧
    Message/GenStep reader。
 6. INC-11.6：durable multi-agent task/message/workspace coordinator。

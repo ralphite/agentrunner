@@ -129,8 +129,10 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 
 | 功能点 | 状态 | Journey | 验收锚 / 备注 |
 |---|---|---|---|
-| MCP（stdio 全生命周期、schema 记录、断连恢复、写审批） | ✅ | UJ-19 | S5 |
-| MCP transport: http + OAuth | 🧊 | UJ-19 | schema 预留，实现推迟 |
+| MCP（stdio/streamable HTTP、schema/list_changed、断连恢复、写审批） | ✅ | UJ-19 | INC-11.4；spec→所有 Loop 生产入口自动接线 |
+| MCP resources/prompts、structured/multimodal result | ✅ | UJ-19 | INC-11.4；namespaced protocol tools，内容块保真 |
+| MCP HTTP OAuth bearer（env 引用） | ✅ | UJ-19 | INC-11.4；token 不进 spec/journal |
+| MCP 交互 OAuth 登录 / refresh-token 持久化 | 🧊 | UJ-19 | 凭据 UX；runtime 不持久化 secret |
 | skills（Claude Code 约定） | ✅ | UJ-19 | S5 |
 | memory 文件读侧注入（CLAUDE.md 层级合并） | ✅ | UJ-09 | S3 |
 | 记忆写回（# remember → CLAUDE.md） | ❌ | UJ-09 | GAPS G9 |

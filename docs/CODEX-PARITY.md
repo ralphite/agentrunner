@@ -130,7 +130,7 @@ in-doubt 崩溃纪律（非幂等绝不静默重跑）、barrier/fork/rewind 带
 | IDE 扩展 | VS Code + 同步 | 🧊 S7 cut line | MCP server 化替代 |
 | GitHub 集成 | @codex/Action/review | ❌ | P2，依赖 G14 |
 | Slack/Linear | @Codex/回写 | ❌ MCP 可桥读写 | P2/P3 |
-| MCP client | 支持 | ✅ stdio 全生命周期（S5） | http+OAuth 🧊 |
+| MCP client | 支持 | ✅ stdio + streamable HTTP、env OAuth bearer、resources/prompts/list_changed（INC-11.4） | 交互 OAuth 登录 UX 🧊 |
 | MCP server（自暴露） | codex mcp-server | ❌ 未登记 | **建议新立** |
 | skills | $语法/自动选/record&replay | 🟡 Claude Code 约定读侧注入（S5） | $调用+自动选 |
 | plugins 捆绑 | 安装包 + marketplace | ❌ 原语都在 | P2（manifest+安装器） |

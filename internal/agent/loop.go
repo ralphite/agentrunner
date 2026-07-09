@@ -138,7 +138,10 @@ type Loop struct {
 type MCPManager interface {
 	SetAllowed(names []string)
 	Discover(ctx context.Context) ([]mcp.DiscoveredTool, error)
+	Changed() bool
+	Servers() []string
 	Call(ctx context.Context, qualified string, args json.RawMessage) (json.RawMessage, bool, error)
+	Close() error
 }
 
 var _ MCPManager = (*mcp.Manager)(nil)
@@ -308,6 +311,13 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 	l.ensureBoard()
 	l.ensureApprovals()
 	l.applySandbox()
+	ownedMCP, err := l.ensureMCP(ctx)
+	if err != nil {
+		return RunResult{}, err
+	}
+	if ownedMCP {
+		defer func() { _ = l.MCP.Close() }()
+	}
 	if err := l.ensureArtifacts(); err != nil {
 		return RunResult{}, err
 	}
@@ -392,7 +402,7 @@ func (l *Loop) discoverMCP(ctx context.Context, appendE AppendFunc) error {
 	if err != nil {
 		return fmt.Errorf("mcp discovery: %w", err)
 	}
-	for _, group := range groupByServer(tools) {
+	for _, group := range groupByServer(l.MCP.Servers(), tools) {
 		if _, err := appendE(event.TypeToolsDiscovered, &group); err != nil {
 			return err
 		}
@@ -402,9 +412,15 @@ func (l *Loop) discoverMCP(ctx context.Context, appendE AppendFunc) error {
 
 // groupByServer buckets discovered tools into per-server ToolsDiscovered
 // payloads, in server order (input is already name-sorted).
-func groupByServer(tools []mcp.DiscoveredTool) []event.ToolsDiscovered {
+func groupByServer(servers []string, tools []mcp.DiscoveredTool) []event.ToolsDiscovered {
 	byServer := map[string]*event.ToolsDiscovered{}
 	var order []string
+	for _, server := range servers {
+		if _, ok := byServer[server]; !ok {
+			byServer[server] = &event.ToolsDiscovered{Server: server}
+			order = append(order, server)
+		}
+	}
 	for _, t := range tools {
 		g, ok := byServer[t.Server]
 		if !ok {
@@ -425,6 +441,41 @@ func groupByServer(tools []mcp.DiscoveredTool) []event.ToolsDiscovered {
 	return out
 }
 
+// ensureMCP makes spec-declared MCP usable from every Loop construction path
+// (foreground, daemon, resume, driver and child agents). An injected manager
+// remains caller-owned for tests/embedders.
+func (l *Loop) ensureMCP(ctx context.Context) (owned bool, err error) {
+	if l.MCP != nil || len(l.Spec.MCP) == 0 {
+		return false, nil
+	}
+	cwd := "."
+	if l.Exec != nil && l.Exec.WS != nil {
+		cwd = l.Exec.WS.Root()
+	}
+	manager, err := mcp.Connect(ctx, l.Spec.MCP, cwd)
+	if err != nil {
+		return false, fmt.Errorf("mcp connect: %w", err)
+	}
+	l.MCP = manager
+	return true, nil
+}
+
+func (l *Loop) refreshMCP(ctx context.Context, appendE AppendFunc) (bool, error) {
+	if l.MCP == nil || !l.MCP.Changed() {
+		return false, nil
+	}
+	tools, err := l.MCP.Discover(ctx)
+	if err != nil {
+		return false, fmt.Errorf("mcp list_changed refresh: %w", err)
+	}
+	for _, group := range groupByServer(l.MCP.Servers(), tools) {
+		if _, err := appendE(event.TypeToolsDiscovered, &group); err != nil {
+			return false, err
+		}
+	}
+	return true, nil
+}
+
 // Resume rebuilds the fold — snapshot plus event tail when a snapshot
 // exists, full fold otherwise — and re-enters the same drive loop. A
 // sub-state version mismatch is refused, never silently migrated.
@@ -439,6 +490,13 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 	l.ensureBoard()
 	l.ensureApprovals()
 	l.applySandbox()
+	ownedMCP, err := l.ensureMCP(ctx)
+	if err != nil {
+		return RunResult{}, err
+	}
+	if ownedMCP {
+		defer func() { _ = l.MCP.Close() }()
+	}
 	if err := l.ensureArtifacts(); err != nil {
 		return RunResult{}, err
 	}
@@ -882,6 +940,17 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 		// (a recorded goal_complete claim would otherwise stall forever).
 		if err := l.goalResumeCheck(ctx, ds, appendE); err != nil {
 			return RunResult{}, abort(ds.s.Session.GenStep, err)
+		}
+		if refreshed, err := l.refreshMCP(ctx, appendE); err != nil {
+			return RunResult{}, abort(ds.s.Session.GenStep, err)
+		} else if refreshed {
+			toolDefs = slices.DeleteFunc(toolDefs, func(def provider.ToolDef) bool {
+				return strings.HasPrefix(def.Name, "mcp__")
+			})
+			for _, mt := range ds.s.Session.MCPTools {
+				toolDefs = append(toolDefs, provider.ToolDef{Name: mt.Name,
+					Description: mt.Description, InputSchema: mt.InputSchema})
+			}
 		}
 		act := decide(ds.s, l.Spec.MaxGenerationSteps)
 		switch act.kind {
@@ -1585,7 +1654,12 @@ func (l *Loop) buildToolRun(call provider.ToolCall, res *tool.Result) func(conte
 		return func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
 			payload, isErr, err := l.MCP.Call(ctx, call.Name, call.Args)
 			if err != nil {
-				return nil, nil, false, err
+				payload, _ = json.Marshal(map[string]any{
+					"error": err.Error(), "outcome_unknown": true,
+					"reconnect": "the next MCP operation will create a fresh session; do not repeat a side-effecting call without confirmation",
+				})
+				*res = tool.Result{Payload: payload, IsError: true}
+				return res.Payload, nil, true, nil
 			}
 			*res = tool.Result{Payload: payload, IsError: isErr}
 			return res.Payload, nil, res.IsError, nil
@@ -2083,16 +2157,12 @@ func mcpToolIn(s state.State, name string) (event.MCPToolDef, bool) {
 	return event.MCPToolDef{}, false
 }
 
-// toolIdempotentIn: reads and wait-class tools re-run safely on resume;
-// edits and executions do not (correctness #4). MCP read-class tools carry
-// the server's ReadOnlyHint ("does not modify its environment"), so they
-// re-run safely too; everything else MCP is execute and does not.
+// toolIdempotentIn: built-in reads/waits have local replay contracts. MCP
+// annotations are untrusted metadata, so no MCP call is replayable merely
+// because a remote server asserted readOnlyHint.
 func toolIdempotentIn(s state.State, name string) bool {
 	if def, ok := tool.Get(name); ok {
 		return def.Class == tool.ClassRead || def.Class == tool.ClassWait
-	}
-	if mt, ok := mcpToolIn(s, name); ok {
-		return mt.Class == string(tool.ClassRead)
 	}
 	return false
 }

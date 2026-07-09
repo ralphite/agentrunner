@@ -11,6 +11,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/ralphite/agentrunner/internal/mcp"
 	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/tool"
 )
@@ -86,6 +87,9 @@ type AgentSpec struct {
 	// executor: any spec in the tree demanding none contains the whole
 	// tree and a child spec can never widen it back. Empty/"all" = open.
 	Sandbox SandboxSpec `yaml:"sandbox,omitempty"`
+	// MCP declares out-of-band runtime connections. Secrets are referenced by
+	// environment-variable name in each server config, never embedded here.
+	MCP []mcp.ServerConfig `yaml:"mcp,omitempty"`
 }
 
 // SandboxSpec declares OS-level containment for executions.
@@ -150,7 +154,7 @@ func LoadSpec(path string) (*AgentSpec, error) {
 // hint. Keep in sync with the AgentSpec struct tags.
 const specFields = "name, model, system_prompt, system_prompt_file, tools, " +
 	"max_generation_steps, permissions, mode, budget, allowed_tools, " +
-	"description, agents, receipts, outputs, sandbox"
+	"description, agents, receipts, outputs, sandbox, mcp"
 
 // decodeHint rewrites a yaml decode error for a user who has never seen the
 // Go structs behind the spec (INC-2 BB-me-3): strip internal type names, and
@@ -227,6 +231,9 @@ func (s *AgentSpec) validate(path string) error {
 	case "", "all", "none":
 	default:
 		return fail("sandbox.network", fmt.Sprintf("unknown value %q (known: all, none)", s.Sandbox.Network))
+	}
+	if err := mcp.ValidateConfigs(s.MCP); err != nil {
+		return fail("mcp", err.Error())
 	}
 	return nil
 }

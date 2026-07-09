@@ -390,6 +390,24 @@ model)、checkpoint detail=model-certified、achieved=satisfied、haiku.txt
 banner、goal_complete 时间线可见、达成 banner 消失;另 CLI 真验 update 作
 废 claim + resume 注入再武装）。归档 `qa/runs/2026-07-09-QA-17/`。
 
+## QA-18 MCP 生产接线与重连（INC-11.4,UJ-19）
+
+**环境**：共享 daemon + 真实 Gemini；本机启动一个真实 MCP stdio server，
+另启动一个 streamable HTTP server（要求 bearer/header）；agent spec 同时声明
+两者，只用 `env_from` / `headers_from_env` / `oauth.access_token_env` 引用 secret。
+
+| # | 动作 | 验证 |
+|---|---|---|
+| 1 | `ar new` 要求调用 stdio tool | spec 自动接线；`ToolsDiscovered` 入 journal；结果回到模型 |
+| 2 | 调 HTTP structured/image tool、resource read、prompt get | JSON 与图片/resource/prompt 内容块不被扁平化 |
+| 3 | server 新增 tool 并发 `list_changed` | 下一安全边界产生新 `ToolsDiscovered`，新 tool 可见 |
+| 4 | 在两次调用间终止并重启 server | 下一次操作重建 session，会话不终止 |
+| 5 | 让伪 `readOnlyHint` tool 在 `ActivityStarted` 后模拟崩溃 | activity 为 `idempotent:false`，resume 拒绝静默重跑 |
+
+**通过标准**：前台/daemon/resume 均无需代码注入 Manager；secret 值不出现于
+spec/journal；断线中的当前调用若结果未知，模型只收到 `outcome_unknown`，
+runtime 不自动重放。
+
 ---
 
 ## 覆盖矩阵

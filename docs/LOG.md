@@ -995,7 +995,6 @@ bash 可读写 workspace，但读取 `/tmp/inc11-outside-real`、`.env` 均被 O
 的会话内 verifier 产生完整 allow→Seatbelt containment→Activity→pass 链并
 GoalAchieved。自动覆盖外部读写/凭据/env、linked worktree git、network deny、
 capability fail-closed、goal policy deny、driver evidence；Linux 目标交叉编译通过。
-
 ## 2026-07-09 INC-10:goal 自证完成——G23 补全,CODEX-PARITY §6 缺口 ①②③⑥⑦ 关闭
 
 **增量**(工作纸 INC-10,已归档):无 verifier 的 goal 由模型 `goal_complete`
@@ -1039,3 +1038,24 @@ session 的测试会话(...-ready-ad86),已即刻 cancel 并在归档记录。go
 提供(handleGoalControl 包装移除,TestGoalAttachRevivesSession 保留为
 行为锚)。余项:goal token/墙钟预算、blocked/usage_limited 态、llm_judge
 verifier、banner 用量显示(elapsed/tokens)——随 CODEX-PARITY §6.2-④⑤。
+
+## 2026-07-09 INC-11.4：MCP 产品接线与协议面收口
+
+`AgentSpec.mcp` 现可声明 stdio/streamable HTTP server，Loop 在前台、daemon、
+resume、driver 与子 agent 等所有构造路径自动连接/关闭，不再依赖单测注入。
+支持 env-only header/OAuth bearer、per-server/global allowlist、resources /
+resource templates / prompts、structured content 与 image/audio/resource blocks；
+SDK `list_changed` 在 loop 安全边界产生新的 `ToolsDiscovered` face。
+
+断线只使当前调用返回 `outcome_unknown` 的模型可见错误，下一次操作重建
+session；不会自动重放可能已产生副作用的调用。远端 `readOnlyHint` 仅用于
+permission/UI class，MCP activity 无本地 idempotency contract 时恒为非幂等。
+真实子进程 stdio 与 httptest streamable HTTP 覆盖协议面、OAuth/header、
+通知及重连；`./scripts/check.sh` 全绿，`go test -race ./internal/mcp
+./internal/agent` 全绿。共享 store 真实 Gemini 会话
+`20260709-222150-mcp-e99b` 由 spec 自动拉起 stdio server，调用
+`mcp__fixture__rich_result` 后完整收到 `structuredContent.answer=42` 与 image
+block；journal 中该 MCP `ActivityStarted` 为 `idempotent:false`，配置仅含
+环境变量名、无 secret 值。
+
+---
