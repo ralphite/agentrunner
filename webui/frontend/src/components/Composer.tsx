@@ -82,6 +82,7 @@ export function Composer(props: ComposerProps) {
   const [text, setText] = useState("");
   const [atts, setAtts] = useState<Attachment[]>([]);
   const [busy, setBusy] = useState(false);
+  const [dragging, setDragging] = useState(false);
 
   // model + access posture
   const [provider, setProvider] = useState(DEFAULT_MODEL.provider);
@@ -192,6 +193,33 @@ export function Composer(props: ComposerProps) {
         }
       }
     }
+  };
+
+  // Drag a file (or image) onto the composer to attach it — images ride
+  // --image, everything else --file, same as the picker.
+  const dragDepth = useRef(0);
+  const onDragEnter = (e: React.DragEvent) => {
+    if (![...(e.dataTransfer?.types || [])].includes("Files")) return;
+    e.preventDefault();
+    dragDepth.current += 1;
+    setDragging(true);
+  };
+  const onDragOver = (e: React.DragEvent) => {
+    if (![...(e.dataTransfer?.types || [])].includes("Files")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  };
+  const onDragLeave = () => {
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDragging(false);
+  };
+  const onDrop = (e: React.DragEvent) => {
+    const files = e.dataTransfer?.files;
+    if (!files || !files.length) return;
+    e.preventDefault();
+    dragDepth.current = 0;
+    setDragging(false);
+    for (const f of files) pick(f, f.type.startsWith("image/"));
   };
 
   // ---- submit / send ----
@@ -461,7 +489,18 @@ export function Composer(props: ComposerProps) {
         />
       )}
 
-      <div className="cx-card">
+      <div
+        className={"cx-card" + (dragging ? " dropping" : "")}
+        onDragEnter={onDragEnter}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+      >
+        {dragging && (
+          <div className="cx-drop">
+            <span>Drop files to attach</span>
+          </div>
+        )}
         {atts.length > 0 && (
           <div className="cx-atts">
             {atts.map((a, i) => (

@@ -2435,3 +2435,22 @@ summary.fd-head:hover {
   background: var(--blue);
   flex-shrink: 0;
 }
+
+/* ---- composer drag-and-drop attach (Codex "drop to attach") ---- */
+.cx-card.dropping {
+  border-color: var(--blue);
+}
+.cx-drop {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--blue-soft) 88%, transparent);
+  border: 2px dashed var(--blue);
+  color: var(--blue);
+  font-size: 13.5px;
+  font-weight: 500;
+  pointer-events: none;
+}
