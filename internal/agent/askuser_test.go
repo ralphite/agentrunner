@@ -12,6 +12,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
+	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
 	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
@@ -281,6 +282,74 @@ func TestAskUserHeadlessReturnsAndResumes(t *testing.T) {
 	tr, ok := foldOf(t, l2.Store.Dir()).Conversation.ToolResults["call_1_0"]
 	if !ok || tr.IsError || !strings.Contains(string(tr.Result), "use postgres") {
 		t.Fatalf("resumed answer not paired: %+v (ok=%v)", tr, ok)
+	}
+}
+
+// P0 regression (adversarial review): the reply arrives via the durable
+// MAILBOX (daemon acks a send before awaitAnswer journals AskResolved), then
+// the process crashes. On resume the mailbox replay must PAIR the reply as
+// the ask_user tool result — not orphan it as a standalone user message that
+// leaves the call forever unpaired. Every other ask_user test drives replies
+// through the UserInputs channel and never exercises this mailbox path.
+func TestAskUserMailboxReplyPairsAcrossCrash(t *testing.T) {
+	base := t.TempDir()
+	sessDir := filepath.Join(base, "sess")
+	root := filepath.Join(base, "ws")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	es, err := store.OpenEventStore(sessDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Headless run parks on the question and returns (no input source).
+	l := newAskLoop(t, askThenAnswer(), root, es)
+	res, err := l.Run(context.Background(), "which db should I use?")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "waiting_input" {
+		t.Fatalf("run res = %+v, want waiting_input park", res)
+	}
+
+	// The daemon durably enqueues the reply into the mailbox, but the crash
+	// hit before awaitAnswer could journal AskResolved.
+	if _, err := store.AppendInbox(sessDir, protocol.UserInput{Text: "use postgres"}); err != nil {
+		t.Fatal(err)
+	}
+	_ = es.Close()
+
+	// Fresh process resumes: the mailbox replay must pair, not orphan.
+	es2, err := store.OpenEventStore(sessDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = es2.Close() }()
+	l2 := newAskLoop(t, answerStep(), root, es2)
+	if _, err := l2.Resume(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	fold := foldOf(t, sessDir)
+	tr, ok := fold.Conversation.ToolResults["call_1_0"]
+	if !ok || tr.IsError || !strings.Contains(string(tr.Result), "use postgres") {
+		t.Fatalf("mailbox reply not paired to ask_user call: %+v (ok=%v)", tr, ok)
+	}
+	if !hasEvent(t, sessDir, event.TypeAskResolved, "answered") {
+		t.Error("no AskResolved(answered) from mailbox replay")
+	}
+	// The reply must NOT also appear as a standalone user message (the orphan
+	// bug): it is the call's result, nothing else.
+	for _, m := range fold.Conversation.Messages {
+		if m.Role != provider.RoleUser {
+			continue
+		}
+		for _, p := range m.Parts {
+			if strings.Contains(p.Text, "use postgres") {
+				t.Fatal("reply orphaned as a user message instead of pairing the call")
+			}
+		}
 	}
 }
 

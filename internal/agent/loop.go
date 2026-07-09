@@ -526,6 +526,30 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 		return RunResult{}, fmt.Errorf("resume: mailbox: %w", perr)
 	}
 	for _, in := range pending {
+		// ask_user park + mailbox-delivered reply (INC-5, 铁律 "崩溃不丢输入"):
+		// the daemon durably acks a send BEFORE awaitAnswer journals the
+		// AskResolved, so a crash in that window leaves the reply only in the
+		// mailbox. On replay the FIRST unconsumed input ANSWERS the pending
+		// question — paired as the call's tool result, exactly as awaitAnswer's
+		// channel branch would — NOT an orphan user message that leaves the
+		// call forever unpaired. The rest are type-ahead and journal normally
+		// (the fold clears Waiting on the first, so ok is false thereafter).
+		if ds.s.Waiting != nil && ds.s.Waiting.Kind == event.WaitInput {
+			if d, ok := askPark(ds.s.Waiting.Detail); ok {
+				if _, done := ds.s.Conversation.ToolResults[d.CallID]; !done {
+					answer := redact.FromEnv().String(in.Text)
+					if err := l.journalAskResolved(appendE, ds.s.Session.GenStep, d.CallID, "answered", answer, in.DeliverySeq); err != nil {
+						return RunResult{}, err
+					}
+					if _, err := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
+						Kind: event.WaitInput, Resolution: "answered",
+					}); err != nil {
+						return RunResult{}, err
+					}
+					continue
+				}
+			}
+		}
 		if err := l.journalInput(ds, appendE, in); err != nil {
 			return RunResult{}, err
 		}
@@ -1001,10 +1025,17 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				if d, ok := askPark(ds.s.Waiting.Detail); ok {
 					// Crash self-heal: the reply paired the call (AskResolved
 					// durable) but its WaitingResolved never landed — clear the
-					// park from the recorded answer instead of re-asking.
-					if _, done := ds.s.Conversation.ToolResults[d.CallID]; done {
+					// park from the recorded answer instead of re-asking. The
+					// pairing may have been an answer OR an interrupt/reject
+					// (IsError), so the resolution is inferred, not hardcoded, to
+					// keep the audit trail honest.
+					if tr, done := ds.s.Conversation.ToolResults[d.CallID]; done {
+						resolution := "answered"
+						if tr.IsError {
+							resolution = "recovered" // interrupted/rejected before WaitingResolved landed
+						}
 						if _, err := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
-							Kind: event.WaitInput, Resolution: "answered",
+							Kind: event.WaitInput, Resolution: resolution,
 						}); err != nil {
 							return RunResult{}, abort(ds.s.Session.GenStep, err)
 						}

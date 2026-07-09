@@ -211,11 +211,15 @@ func (l *Loop) awaitInput(ctx context.Context, ds *driveState, appendE AppendFun
 // woke us but the question stands — decide() re-parks).
 func (l *Loop) awaitAnswer(ctx context.Context, ds *driveState, appendE AppendFunc, d askDetail) (RunResult, bool, error) {
 	l.ensureBackground()
-	if l.UserInputs == nil && !l.inboxClosed {
-		// Headless (one-shot): no live input source. The park is durable in
-		// the journal — a later `ar send` resumes and answers. Return like a
-		// standby idle does, WITHOUT running quiescent actions (the turn is
-		// not over; a call is still open).
+	if l.UserInputs == nil && !l.inboxClosed &&
+		len(ds.s.Handles) == 0 && len(ds.s.Timers) == 0 {
+		// Headless (one-shot) with NOTHING in flight: no live input source. The
+		// park is durable in the journal — a later `ar send` resumes and
+		// answers. Return like a standby idle does (idleOrReturn), WITHOUT
+		// running quiescent actions (the turn is not over; a call is still
+		// open). With in-flight background/timers we do NOT early-return: the
+		// select below waits on bg.done so a settlement is journaled, not
+		// dropped — matching idleOrReturn/idleForInput.
 		res := RunResult{Reason: "waiting_input", GenSteps: ds.s.Session.GenStep, Usage: ds.s.Session.Usage}
 		l.emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: res.Reason, N: res.GenSteps})
 		return res, true, nil

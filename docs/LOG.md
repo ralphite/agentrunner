@@ -700,3 +700,37 @@ JOURNEYS UJ-01 web_fetch 可选步。
   INC-5-custom-commands.md→INC-8-custom-commands.md),消 SPEC 台账二义。
 - INC-6(compact/clear)、INC-3(grep-glob)、INC-4(remote-stop)不撞、不动。
 对方 LOG 中 `INC-5-custom-commands` 的历史指代按 append-only 纪律不追改。
+
+## 2026-07-09 INC-5 收口对抗 review:1 P0 + 2 P2,全修
+
+对 ask_user 做正确性/并发/恢复聚焦的对抗 review(7 个失效场景逐一追到
+代码)。结论:4 项成立无缺陷,3 项有缺陷、已全修。
+
+- **P0(测试盲区,已修)**:mailbox-crash 应答误配成孤儿 user 消息 →
+  parked call 永久悬空 / headless 死锁。根因:daemon 对 send **先
+  durable ack 再投 channel**(`AppendInbox` fsync 早于 `AskResolved`
+  落盘),crash 落在这一窗口时,Resume 的 mailbox 重放(`loop.go`
+  ~524)无差别 `journalInput`,把应答 fold 成独立 user 消息、call 不
+  配对;headless 每次 resume 重复孤儿化 → 死锁。**全部 `TestAskUser*`
+  都走 `UserInputs` channel,从不走 mailbox 重放,故盲区**。修:Resume
+  的 mailbox 重放感知 ask-park——`Waiting` 为 ask-park 时,第一条未消费
+  输入经 `journalAskResolved{answered}` + `WaitingResolved` 配对(镜像
+  `awaitAnswer` 的 channel 分支),其余 type-ahead 才 `journalInput`。
+  补 `TestAskUserMailboxReplyPairsAcrossCrash`(经 `store.AppendInbox`
+  写应答、不经 channel,crash+Resume,断言配对而非孤儿)——禁用修复即
+  红(`ok=false` 孤儿症状),修复后绿。
+- **P2(已修)**:headless `awaitAnswer` 早退不等在飞 background handle
+  (与 `idleOrReturn` 不一致,可丢 settlement)。修:早退加
+  `len(Handles)==0 && len(Timers)==0` 前置,有在飞则落 select 等
+  `bg.done`。
+- **P2(已修)**:ask-park 崩溃自愈把 `WaitingResolved.Resolution` 硬编码
+  `"answered"`,interrupt/reject 窗口下 audit 失真。修:从配对结果的
+  `IsError` 反推(error → `"recovered"`)。
+- **成立无缺陷(4)**:一批多 call(第一个 park、第二个 reject、指针取
+  `&allowed[i]` 稳定,无双配/漏配)、AskResolved-已落自愈幂等、budget/
+  decide 续跑正确、standby vs ask-park 判别(CallID 非空)稳健、interrupt
+  两族路径(wait 上下文 vs activity 上下文)不相交。
+
+**闸门复验**:`TestAskUser*` 七态(新增 mailbox-crash)+ check.sh 全绿。
+P0/P1 清零,增量关闭。web_fetch 侧的程序争议(是否触收容棘轮不变量)
+另见上方「⚠️ 冲突待裁」条,待开发者裁决,不含在本 review 范围。
