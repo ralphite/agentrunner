@@ -38,6 +38,15 @@ func TestIngestAppendsBeforeReturning(t *testing.T) {
 	if len(events) != 1 || events[0].Type != event.TypeInputReceived {
 		t.Fatalf("events = %+v", events)
 	}
+	decoded, err := event.DecodePayload(events[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := decoded.(*event.InputReceived)
+	if in.TurnID == "" || in.ItemID == "" || in.Principal != "local-user" ||
+		in.Source != "cli" || in.Trust != "local" || len(in.Content) != 1 {
+		t.Fatalf("typed ingress metadata = %+v", in)
+	}
 }
 
 // The 2.7 crash-matrix scenario: the process is killed immediately after

@@ -56,6 +56,9 @@ func TestBuildInspectReport(t *testing.T) {
 	if r.Spec != "demo" || r.Model != "gemini-x" || r.Status != "marked" {
 		t.Fatalf("meta = %+v", r)
 	}
+	if r.Turns != 1 || r.Items != 2 {
+		t.Fatalf("turn/item counts = %d/%d", r.Turns, r.Items)
+	}
 	if len(r.Entries) != 2 {
 		t.Fatalf("entries = %d, want 2: %+v", len(r.Entries), r.Entries)
 	}

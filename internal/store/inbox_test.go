@@ -12,7 +12,8 @@ import (
 // attachments round-trip byte-exact.
 func TestInboxAppendRead(t *testing.T) {
 	dir := t.TempDir()
-	a, err := AppendInbox(dir, protocol.UserInput{Text: "one"})
+	a, err := AppendInbox(dir, protocol.UserInput{Text: "one",
+		Principal: "user:1", Source: "slack", Trust: "external"})
 	if err != nil || a.DeliverySeq != 1 {
 		t.Fatalf("first append: %+v, %v", a, err)
 	}
@@ -27,6 +28,10 @@ func TestInboxAppendRead(t *testing.T) {
 	}
 	if !bytes.Equal(all[1].Images[0].Data, []byte{1, 2, 3}) {
 		t.Fatal("attachment bytes did not round-trip")
+	}
+	commands, err := ReadCommands(dir, 0)
+	if err != nil || commands[0].Principal != "user:1" || commands[0].Source != "slack" || commands[0].Trust != "external" {
+		t.Fatalf("command attribution = %+v / %v", commands, err)
 	}
 	tail, err := ReadInbox(dir, 1)
 	if err != nil || len(tail) != 1 || tail[0].Text != "two" {

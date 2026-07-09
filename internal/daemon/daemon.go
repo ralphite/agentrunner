@@ -40,7 +40,11 @@ type Command struct {
 	Session string `json:"session,omitempty"`
 
 	// send
-	Text string `json:"text,omitempty"` // a user message for the session
+	Text      string                 `json:"text,omitempty"` // a user message for the session
+	Principal string                 `json:"principal,omitempty"`
+	Source    string                 `json:"source,omitempty"`
+	Trust     string                 `json:"trust,omitempty"`
+	Content   []protocol.ContentPart `json:"content,omitempty"`
 	// Images are attachments riding a send (v2 M4.1); bytes are base64 on
 	// the wire, the agent CAS-stores them before journaling the input.
 	Images []protocol.ImageAttachment `json:"images,omitempty"`
@@ -80,6 +84,20 @@ type Command struct {
 	// lifetime (DESIGN S6 修订): a retry with the same key attaches to the
 	// session the first submission created instead of minting a new one.
 	IdemKey string `json:"idem_key,omitempty"`
+}
+
+func attributedCommand(cmd Command, command protocol.SessionCommand) protocol.SessionCommand {
+	command.Principal, command.Source, command.Trust = cmd.Principal, cmd.Source, cmd.Trust
+	if command.Principal == "" {
+		command.Principal = "local-user"
+	}
+	if command.Source == "" {
+		command.Source = "unix-socket"
+	}
+	if command.Trust == "" {
+		command.Trust = "local"
+	}
+	return command
 }
 
 // RunRequest is what the daemon hands the injected runner. Every hosted
@@ -752,9 +770,9 @@ func (s *Server) handleKill(ctx context.Context, cmd Command, enc *json.Encoder)
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "kill needs session and handle"})
 		return
 	}
-	_, delivered, err := s.acceptAndDeliver(ctx, cmd.Session, cmd.CommandID, protocol.SessionCommand{
+	_, delivered, err := s.acceptAndDeliver(ctx, cmd.Session, cmd.CommandID, attributedCommand(cmd, protocol.SessionCommand{
 		Kind: protocol.CommandKill, Handle: cmd.Handle,
-	}, func(h *hostedRun, accepted protocol.SessionCommand) bool { return h.killHandle(accepted) })
+	}), func(h *hostedRun, accepted protocol.SessionCommand) bool { return h.killHandle(accepted) })
 	if err != nil {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "kill not accepted: " + err.Error()})
 		return
@@ -811,9 +829,9 @@ func (s *Server) handleInterrupt(ctx context.Context, cmd Command, enc *json.Enc
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "interrupt needs session"})
 		return
 	}
-	_, delivered, err := s.acceptAndDeliver(ctx, cmd.Session, cmd.CommandID, protocol.SessionCommand{
+	_, delivered, err := s.acceptAndDeliver(ctx, cmd.Session, cmd.CommandID, attributedCommand(cmd, protocol.SessionCommand{
 		Kind: protocol.CommandInterrupt,
-	}, func(h *hostedRun, accepted protocol.SessionCommand) bool { return h.signalInterrupt(accepted) })
+	}), func(h *hostedRun, accepted protocol.SessionCommand) bool { return h.signalInterrupt(accepted) })
 	if err != nil {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "interrupt not accepted: " + err.Error()})
 		return
@@ -857,9 +875,9 @@ func (s *Server) handleControl(ctx context.Context, cmd Command, ctl protocol.Co
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: ctl.Kind + " needs session"})
 		return
 	}
-	_, delivered, err := s.acceptAndDeliver(ctx, cmd.Session, cmd.CommandID, protocol.SessionCommand{
+	_, delivered, err := s.acceptAndDeliver(ctx, cmd.Session, cmd.CommandID, attributedCommand(cmd, protocol.SessionCommand{
 		Kind: protocol.CommandControl, Control: &ctl,
-	}, func(h *hostedRun, accepted protocol.SessionCommand) bool {
+	}), func(h *hostedRun, accepted protocol.SessionCommand) bool {
 		accepted.Control.CommandRef = accepted.CommandRef
 		return h.postControl(accepted)
 	})
@@ -879,8 +897,8 @@ func (s *Server) handleControl(ctx context.Context, cmd Command, ctl protocol.Co
 // (v2 M1.2). It is the machine/web/CLI-agnostic投递入口 — every sender
 // (human at a terminal, web UI, webhook) posts through the same path.
 func (s *Server) handleSend(ctx context.Context, cmd Command, enc *json.Encoder) {
-	if cmd.Session == "" || cmd.Text == "" {
-		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "send needs session and text"})
+	if cmd.Session == "" || (cmd.Text == "" && len(cmd.Content) == 0 && len(cmd.Images) == 0 && len(cmd.Files) == 0) {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "send needs session and content"})
 		return
 	}
 	s.mu.Lock()
@@ -923,14 +941,26 @@ func (s *Server) handleSend(ctx context.Context, cmd Command, enc *json.Encoder)
 	if cmd.CommandID == "" {
 		cmd.CommandID = event.NewCommandID() // older clients remain accepted
 	}
-	in := protocol.UserInput{Text: cmd.Text, Images: cmd.Images, Files: cmd.Files, CommandID: cmd.CommandID}
+	in := protocol.UserInput{Text: cmd.Text, Images: cmd.Images, Files: cmd.Files,
+		Content: cmd.Content, Principal: cmd.Principal, Source: cmd.Source,
+		Trust: cmd.Trust, CommandID: cmd.CommandID}
+	in.TurnID, in.ItemID = "turn-"+cmd.CommandID, "item-"+cmd.CommandID
+	if in.Principal == "" {
+		in.Principal = "local-user"
+	}
+	if in.Source == "" {
+		in.Source = "unix-socket"
+	}
+	if in.Trust == "" {
+		in.Trust = "local"
+	}
 	durable := false
 	s.commandMu.Lock()
 	if s.PersistCommand != nil {
-		accepted, perr := s.PersistCommand(cmd.Session, protocol.SessionCommand{
+		accepted, perr := s.PersistCommand(cmd.Session, attributedCommand(cmd, protocol.SessionCommand{
 			CommandRef: protocol.CommandRef{CommandID: cmd.CommandID},
 			Kind:       protocol.CommandInput, Input: &in,
-		})
+		}))
 		if perr != nil {
 			s.commandMu.Unlock()
 			_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
@@ -1013,9 +1043,9 @@ func (s *Server) handleClose(ctx context.Context, cmd Command, enc *json.Encoder
 		return
 	}
 	ctl := protocol.Control{Kind: protocol.ControlClose}
-	_, delivered, err := s.acceptAndDeliver(ctx, cmd.Session, cmd.CommandID, protocol.SessionCommand{
+	_, delivered, err := s.acceptAndDeliver(ctx, cmd.Session, cmd.CommandID, attributedCommand(cmd, protocol.SessionCommand{
 		Kind: protocol.CommandClose, Control: &ctl,
-	}, func(h *hostedRun, accepted protocol.SessionCommand) bool {
+	}), func(h *hostedRun, accepted protocol.SessionCommand) bool {
 		accepted.Control.CommandRef = accepted.CommandRef
 		return h.postControl(accepted)
 	})
@@ -1056,12 +1086,12 @@ func (s *Server) handleApprove(ctx context.Context, cmd Command, enc *json.Encod
 		}
 	}
 	if s.PersistCommand != nil {
-		_, delivered, err := s.acceptAndDeliver(ctx, cmd.Session, cmd.CommandID, protocol.SessionCommand{
+		_, delivered, err := s.acceptAndDeliver(ctx, cmd.Session, cmd.CommandID, attributedCommand(cmd, protocol.SessionCommand{
 			Kind: protocol.CommandApproval,
 			Approval: &protocol.ApprovalCommand{
 				ApprovalID: cmd.ApprovalID, Decision: cmd.Decision, Reason: cmd.Reason,
 			},
-		}, func(h *hostedRun, accepted protocol.SessionCommand) bool { return h.postCommand(accepted) })
+		}), func(h *hostedRun, accepted protocol.SessionCommand) bool { return h.postCommand(accepted) })
 		if err != nil {
 			_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "approval not accepted: " + err.Error()})
 			return
@@ -1076,12 +1106,12 @@ func (s *Server) handleApprove(ctx context.Context, cmd Command, enc *json.Encod
 		return
 	}
 
-	accepted, durable, err := s.acceptCommand(cmd.Session, cmd.CommandID, protocol.SessionCommand{
+	accepted, durable, err := s.acceptCommand(cmd.Session, cmd.CommandID, attributedCommand(cmd, protocol.SessionCommand{
 		Kind: protocol.CommandApproval,
 		Approval: &protocol.ApprovalCommand{
 			ApprovalID: cmd.ApprovalID, Decision: cmd.Decision, Reason: cmd.Reason,
 		},
-	})
+	}))
 	if err != nil {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "approval not accepted: " + err.Error()})
 		return

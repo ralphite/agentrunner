@@ -155,6 +155,9 @@ type SessionStarted struct {
 	// in-memory gate pointers that no longer exist. Raw JSON because event
 	// must not import pipeline (which imports event).
 	PermissionLayers json.RawMessage `json:"permission_layers,omitempty"`
+	// ProviderCapabilities freezes the normalized provider/model contract at
+	// session creation. Empty means a legacy journal predating the envelope.
+	ProviderCapabilities *provider.CapabilityEnvelope `json:"provider_capabilities,omitempty"`
 }
 
 // ArtifactInput is one artifact handed to a run as input (S5.8).
@@ -166,6 +169,15 @@ type ArtifactInput struct {
 type InputReceived struct {
 	Text   string `json:"text"`
 	Source string `json:"source"`
+	// Turn/Item identity and ingress provenance. Empty fields are accepted for
+	// legacy journals and synthesized deterministically by the fold.
+	TurnID    string `json:"turn_id,omitempty"`
+	ItemID    string `json:"item_id,omitempty"`
+	Principal string `json:"principal,omitempty"`
+	Trust     string `json:"trust,omitempty"`
+	// Content is the canonical typed form. Text/Images/Files remain as a
+	// compatible projection for old journals and readers.
+	Content []provider.Part `json:"content,omitempty"`
 	// Images and Files are CAS refs of blobs attached to this input (v2
 	// M4.1/M4.3). blob-before-event: the blob is in the CAS before this
 	// event lands. Files carries folded long pastes and documents.
@@ -190,6 +202,8 @@ type GenerationStarted struct {
 type AssistantMessage struct {
 	GenStep int              `json:"gen_step"`
 	Message provider.Message `json:"message"`
+	TurnID  string           `json:"turn_id,omitempty"`
+	ItemID  string           `json:"item_id,omitempty"`
 	// Finish records an abnormal normalized finish reason ("blocked") —
 	// the audit fact that visibly truncates the turn (决策 #30). Empty on
 	// normal finishes.

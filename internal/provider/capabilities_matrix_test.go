@@ -35,6 +35,13 @@ func TestCapabilitiesMatrix(t *testing.T) {
 			if !r.caps.ParallelTools {
 				t.Errorf("%s: ParallelTools not declared", r.name)
 			}
+			if !r.caps.Images || !r.caps.Files {
+				t.Errorf("%s: input modalities not declared: %+v", r.name, r.caps)
+			}
+			env := provider.Envelope(r.name, "model", r.caps)
+			if env.SchemaVersion != 1 || !env.Streaming || !env.ToolCalls || len(env.InputModalities) != 3 {
+				t.Errorf("%s: capability envelope = %+v", r.name, env)
+			}
 		})
 	}
 }

@@ -7,6 +7,7 @@ package state
 import (
 	"encoding/json"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/ralphite/agentrunner/internal/errs"
@@ -31,6 +32,7 @@ func SubStateVersions() map[string]int {
 		"handles":      1, // S6.1 (background task set)
 		"barriers":     1, // S7.2 (checkpoint barriers — fork/rewind targets)
 		"goal":         1, // INC-D1 (in-session goal — G23/UJ-22)
+		"interactions": 1, // INC-11.5 (Turn/Item typed interaction projection)
 	}
 }
 
@@ -76,6 +78,109 @@ type State struct {
 	// nil = none. Its verifier runs at the exchange boundary (epilogue) and a
 	// miss re-injects a program-source input so the thread continues.
 	Goal *Goal `json:"goal,omitempty"`
+	// Interactions is the durable Turn/Item projection. Conversation remains
+	// the provider-compatible view; both are folded from the same events.
+	Interactions Interactions `json:"interactions"`
+}
+
+const (
+	ItemMessage    = "message"
+	ItemToolCall   = "tool_call"
+	ItemToolResult = "tool_result"
+)
+
+type Turn struct {
+	TurnID    string   `json:"turn_id"`
+	StartedAt int64    `json:"started_at"`
+	ItemIDs   []string `json:"item_ids"`
+}
+
+type Item struct {
+	ItemID     string          `json:"item_id"`
+	TurnID     string          `json:"turn_id"`
+	Kind       string          `json:"kind"`
+	Role       provider.Role   `json:"role,omitempty"`
+	Principal  string          `json:"principal,omitempty"`
+	Source     string          `json:"source,omitempty"`
+	Trust      string          `json:"trust,omitempty"`
+	Content    []provider.Part `json:"content,omitempty"`
+	ActivityID string          `json:"activity_id,omitempty"`
+	CallID     string          `json:"call_id,omitempty"`
+	Result     json.RawMessage `json:"result,omitempty"`
+	IsError    bool            `json:"is_error,omitempty"`
+	Seq        int64           `json:"seq"`
+}
+
+type Interactions struct {
+	ActiveTurnID string          `json:"active_turn_id,omitempty"`
+	Turns        []Turn          `json:"turns,omitempty"`
+	Items        map[string]Item `json:"items,omitempty"`
+}
+
+func (x Interactions) withItem(item Item) Interactions {
+	out := Interactions{ActiveTurnID: x.ActiveTurnID, Items: make(map[string]Item, len(x.Items)+1)}
+	for id, old := range x.Items {
+		out.Items[id] = old
+	}
+	_, existed := out.Items[item.ItemID]
+	out.Items[item.ItemID] = item
+	out.Turns = make([]Turn, len(x.Turns))
+	copy(out.Turns, x.Turns)
+	found := false
+	for i := range out.Turns {
+		out.Turns[i].ItemIDs = append([]string(nil), x.Turns[i].ItemIDs...)
+		if out.Turns[i].TurnID == item.TurnID {
+			found = true
+			if !existed {
+				out.Turns[i].ItemIDs = append(out.Turns[i].ItemIDs, item.ItemID)
+			}
+		}
+	}
+	if !found {
+		out.Turns = append(out.Turns, Turn{TurnID: item.TurnID,
+			StartedAt: item.Seq, ItemIDs: []string{item.ItemID}})
+	}
+	return out
+}
+
+func legacyPrincipal(source string) string {
+	switch source {
+	case "program", "control", "interrupt":
+		return "runtime"
+	case "parent", "background":
+		return "agent"
+	default:
+		return "legacy-user"
+	}
+}
+
+func legacyTrust(source string) string {
+	switch source {
+	case "program", "control", "interrupt":
+		return "system"
+	case "parent", "background":
+		return "delegated"
+	default:
+		return "legacy"
+	}
+}
+
+func (x Interactions) withToolResult(started event.ActivityStarted, activityID string,
+	result json.RawMessage, isError bool, seq int64) Interactions {
+	turnID := x.ActiveTurnID
+	if call, ok := x.Items["item-"+activityID+"-call"]; ok {
+		turnID = call.TurnID
+	}
+	if turnID == "" {
+		turnID = "turn-unassigned"
+	}
+	return x.withItem(Item{
+		ItemID: "item-" + activityID + "-result", TurnID: turnID,
+		Kind: ItemToolResult, Role: provider.RoleTool,
+		Principal: "runtime", Source: "tool", Trust: "tool",
+		ActivityID: activityID, CallID: started.CallID,
+		Result: result, IsError: isError, Seq: seq,
+	})
 }
 
 // Goal is the folded in-session goal (INC-D1). change-as-event (决策 #32):
@@ -295,7 +400,8 @@ type Session struct {
 	// ConsumedInputSeq is the mailbox high-water mark (v2 收口): the
 	// largest DeliverySeq among journaled inputs. Resume replays mailbox
 	// entries above it — 崩溃不丢输入 becomes literally true.
-	ConsumedInputSeq int64 `json:"consumed_input_seq,omitempty"`
+	ConsumedInputSeq     int64                        `json:"consumed_input_seq,omitempty"`
+	ProviderCapabilities *provider.CapabilityEnvelope `json:"provider_capabilities,omitempty"`
 }
 
 // ForkOrigin records where a forked session came from.
@@ -322,8 +428,9 @@ func New() State {
 			Allowed:   map[string]bool{},
 			Decisions: map[string]string{},
 		},
-		Budget:  Budget{Reserved: map[string]int{}},
-		Handles: Handles{},
+		Budget:       Budget{Reserved: map[string]int{}},
+		Handles:      Handles{},
+		Interactions: Interactions{Items: map[string]Item{}},
 	}
 }
 
@@ -353,6 +460,10 @@ func Apply(s State, env event.Envelope) (State, error) {
 		s.Session.Env = p.Env
 		s.Session.Memory, s.Session.Skills, s.Session.Agents = p.Memory, p.Skills, p.Agents
 		s.Session.Inputs = p.Inputs
+		if p.ProviderCapabilities != nil {
+			caps := *p.ProviderCapabilities
+			s.Session.ProviderCapabilities = &caps
+		}
 
 	case *event.InputReceived:
 		// Interrupts and control signals (user kill) are journaled control
@@ -362,24 +473,47 @@ func Apply(s State, env event.Envelope) (State, error) {
 			s.Session.ConsumedInputSeq = p.DeliverySeq
 		}
 		if p.Source != "interrupt" && p.Source != "control" {
-			parts := []provider.Part{{Kind: provider.PartText, Text: p.Text}}
-			// Attached images/files fold as ref-only parts (v2 M4.1/M4.3):
-			// bytes stay in the CAS; assembly inflates them before the wire.
-			for _, img := range p.Images {
-				parts = append(parts, provider.Part{
-					Kind: provider.PartImage, Ref: img.Ref, MediaType: img.MediaType,
-				})
-			}
-			for _, f := range p.Files {
-				parts = append(parts, provider.Part{
-					Kind: provider.PartFile, Ref: f.Ref, MediaType: f.MediaType,
-				})
+			parts := append([]provider.Part(nil), p.Content...)
+			if len(parts) == 0 {
+				parts = []provider.Part{{Kind: provider.PartText, Text: p.Text}}
+				// Attached images/files fold as ref-only parts (v2 M4.1/M4.3):
+				// bytes stay in the CAS; assembly inflates them before the wire.
+				for _, img := range p.Images {
+					parts = append(parts, provider.Part{
+						Kind: provider.PartImage, Ref: img.Ref, MediaType: img.MediaType,
+					})
+				}
+				for _, f := range p.Files {
+					parts = append(parts, provider.Part{
+						Kind: provider.PartFile, Ref: f.Ref, MediaType: f.MediaType,
+					})
+				}
 			}
 			s.Conversation = s.Conversation.withMessage(provider.Message{
 				Role:  provider.RoleUser,
 				Parts: parts,
 			})
 			s.Session.LastInputGenStep = s.Session.GenStep
+			turnID := p.TurnID
+			if turnID == "" {
+				turnID = "turn-legacy-" + strconv.FormatInt(env.Seq, 10)
+			}
+			itemID := p.ItemID
+			if itemID == "" {
+				itemID = "item-legacy-" + strconv.FormatInt(env.Seq, 10)
+			}
+			principal, trust := p.Principal, p.Trust
+			if principal == "" {
+				principal = legacyPrincipal(p.Source)
+			}
+			if trust == "" {
+				trust = legacyTrust(p.Source)
+			}
+			s.Interactions.ActiveTurnID = turnID
+			s.Interactions = s.Interactions.withItem(Item{ItemID: itemID,
+				TurnID: turnID, Kind: ItemMessage, Role: provider.RoleUser,
+				Principal: principal, Source: p.Source, Trust: trust,
+				Content: parts, Seq: env.Seq})
 		}
 
 	case *event.GenerationStarted:
@@ -395,6 +529,26 @@ func Apply(s State, env event.Envelope) (State, error) {
 
 	case *event.AssistantMessage:
 		s.Conversation = s.Conversation.withMessage(p.Message)
+		turnID := p.TurnID
+		if turnID == "" {
+			turnID = s.Interactions.ActiveTurnID
+		}
+		if turnID == "" {
+			turnID = "turn-legacy-gen-" + strconv.Itoa(p.GenStep)
+		}
+		itemID := p.ItemID
+		if itemID == "" {
+			if env.Seq == 0 {
+				itemID = "item-assistant-g" + strconv.Itoa(p.GenStep)
+			} else {
+				itemID = "item-legacy-" + strconv.FormatInt(env.Seq, 10)
+			}
+		}
+		s.Interactions.ActiveTurnID = turnID
+		s.Interactions = s.Interactions.withItem(Item{ItemID: itemID,
+			TurnID: turnID, Kind: ItemMessage, Role: provider.RoleAssistant,
+			Principal: "model", Source: "provider", Trust: "model",
+			Content: append([]provider.Part(nil), p.Message.Parts...), Seq: env.Seq})
 		s.Session.MalformedRetries = 0
 		if p.Finish != "" {
 			// An abnormal finish (blocked) visibly truncates the turn
@@ -467,6 +621,20 @@ func Apply(s State, env event.Envelope) (State, error) {
 
 	case *event.ActivityStarted:
 		s.Activities = s.Activities.with(p.ActivityID, *p)
+		if p.Kind == event.KindTool && p.CallID != "" {
+			turnID := s.Interactions.ActiveTurnID
+			if turnID == "" {
+				turnID = "turn-legacy-gen-" + strconv.Itoa(s.Session.GenStep)
+			}
+			s.Interactions = s.Interactions.withItem(Item{
+				ItemID: "item-" + p.ActivityID + "-call", TurnID: turnID,
+				Kind: ItemToolCall, Role: provider.RoleAssistant,
+				Principal: "model", Source: "provider", Trust: "model",
+				Content: []provider.Part{{Kind: provider.PartToolCall, CallID: p.CallID,
+					ToolName: p.Name, Args: p.Args}}, ActivityID: p.ActivityID,
+				CallID: p.CallID, Seq: env.Seq,
+			})
+		}
 		if p.Background && p.CallID != "" {
 			// The handle IS this event's fold rendering (S6.1): the call
 			// pairs immediately, and the task enters the tasks sub-state.
@@ -500,6 +668,10 @@ func Apply(s State, env event.Envelope) (State, error) {
 			s.Conversation = s.Conversation.withToolResult(started.CallID,
 				ToolResult{Result: p.Result, IsError: p.IsError})
 		}
+		if inFlight && started.Kind == event.KindTool && started.CallID != "" {
+			s.Interactions = s.Interactions.withToolResult(started, p.ActivityID,
+				p.Result, p.IsError, env.Seq)
+		}
 		// The mode transition is folded from exit_plan_mode's OWN completion
 		// so it is atomic — a crash can never leave the tool result saying
 		// "now in default mode" while s.Mode is still "plan" (correctness
@@ -530,6 +702,10 @@ func Apply(s State, env event.Envelope) (State, error) {
 			s.Conversation = s.Conversation.withToolResult(started.CallID,
 				ToolResult{Result: errs.RenderForModel(errs.Class(p.Error.Class), p.Error.Message), IsError: true})
 		}
+		if inFlight && started.Kind == event.KindTool && started.CallID != "" {
+			s.Interactions = s.Interactions.withToolResult(started, p.ActivityID,
+				errs.RenderForModel(errs.Class(p.Error.Class), p.Error.Message), true, env.Seq)
+		}
 
 	case *event.ActivityCancelled:
 		// A cancelled tool call resolves to a model-visible error result:
@@ -555,6 +731,8 @@ func Apply(s State, env event.Envelope) (State, error) {
 			})
 			s.Conversation = s.Conversation.withToolResult(started.CallID,
 				ToolResult{Result: result, IsError: true})
+			s.Interactions = s.Interactions.withToolResult(started, p.ActivityID,
+				result, true, env.Seq)
 		}
 
 	case *event.TimerSet:

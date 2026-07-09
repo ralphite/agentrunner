@@ -4,7 +4,21 @@
 // (blob-before-event), so the journal itself carries only refs.
 package protocol
 
-import "github.com/ralphite/agentrunner/internal/event"
+import (
+	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/provider"
+)
+
+// ContentPart is one typed ingress part before blob materialization. Binary
+// Data rides only the client→daemon command; the agent stores it in CAS and
+// journals a ref-only provider.Part.
+type ContentPart struct {
+	Kind      provider.PartKind `json:"kind"`
+	Text      string            `json:"text,omitempty"`
+	MediaType string            `json:"media_type,omitempty"`
+	Data      []byte            `json:"data,omitempty"`
+	Ref       string            `json:"ref,omitempty"`
+}
 
 // ImageAttachment is one image attached to a user input.
 type ImageAttachment struct {
@@ -31,6 +45,17 @@ type UserInput struct {
 	Text   string            `json:"text"`
 	Images []ImageAttachment `json:"images,omitempty"`
 	Files  []FileAttachment  `json:"files,omitempty"`
+	// Content is the canonical typed ingress. The three fields above remain
+	// wire-compatible shorthands; when Content is non-empty it is authoritative.
+	Content []ContentPart `json:"content,omitempty"`
+	// Principal identifies who sent the command; Source names the transport or
+	// integration; Trust is the sender's trust classification. Empty legacy
+	// values are normalized at the daemon/agent boundary, never discarded.
+	Principal string `json:"principal,omitempty"`
+	Source    string `json:"source,omitempty"`
+	Trust     string `json:"trust,omitempty"`
+	TurnID    string `json:"turn_id,omitempty"`
+	ItemID    string `json:"item_id,omitempty"`
 	// CommandID is minted by the caller and remains stable across retries.
 	// The durable mailbox rejects reuse with a different payload and returns
 	// the original DeliverySeq for an exact retry.
@@ -62,6 +87,9 @@ type ApprovalCommand struct {
 // only for non-input kinds; control/approval/handle carry the other payloads.
 type SessionCommand struct {
 	CommandRef
+	Principal string `json:"principal,omitempty"`
+	Source    string `json:"source,omitempty"`
+	Trust     string `json:"trust,omitempty"`
 	// PreviouslyAccepted is response metadata, never persisted. It tells the
 	// daemon an exact retry returned an existing receipt, so a completed
 	// command is acknowledged without another live wake after restart.

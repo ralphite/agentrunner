@@ -343,6 +343,10 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 		task = redact.FromEnv().String(expanded)
 	}
 	memoryBlock, skillsBlock := renderContextBlocks(wsRoot)
+	providerEnvelope := provider.Envelope(l.Spec.Model.Provider, l.Spec.Model.ID, provider.Capabilities{})
+	if l.Provider != nil {
+		providerEnvelope = provider.Envelope(l.Spec.Model.Provider, l.Spec.Model.ID, l.Provider.Capabilities())
+	}
 	if _, err := appendE(event.TypeSessionStarted, &event.SessionStarted{
 		SpecName: l.Spec.Name, Model: l.Spec.Model.ID, Task: task,
 		Version: l.Version, SubStateVersions: state.SubStateVersions(),
@@ -356,7 +360,8 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 		// pipeline holds the parent's gates, so this captures the WHOLE
 		// intersection chain — a standalone resume of this session rebuilds
 		// the same gates without the parent process.
-		PermissionLayers: marshalPermissionLayers(l.Pipeline),
+		PermissionLayers:     marshalPermissionLayers(l.Pipeline),
+		ProviderCapabilities: &providerEnvelope,
 	}); err != nil {
 		return RunResult{}, err
 	}
@@ -539,6 +544,15 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 		if err := checkVersions(snap.SubStateVersions); err != nil {
 			return RunResult{}, err
 		}
+		// A pre-INC-11.5 snapshot has the provider conversation but no
+		// Turn/Item projection. Replaying only its tail would permanently lose
+		// provenance for the prefix, so discard that optimization and fold the
+		// compatible legacy journal from the beginning.
+		if _, hasInteractions := snap.SubStateVersions["interactions"]; !hasInteractions {
+			ok = false
+		}
+	}
+	if ok {
 		if err := json.Unmarshal(snap.State, &s); err != nil {
 			slog.Warn("resume: snapshot state unreadable, folding from scratch", "err", err)
 			ok = false
@@ -1130,6 +1144,8 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			}
 			if _, err := appendE(event.TypeAssistantMessage, &event.AssistantMessage{
 				GenStep: act.turn, Message: turn.Message, Finish: finish,
+				TurnID: ds.s.Interactions.ActiveTurnID,
+				ItemID: fmt.Sprintf("item-assistant-g%d", act.turn),
 			}); err != nil {
 				return RunResult{}, abort(act.turn, err)
 			}

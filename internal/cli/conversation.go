@@ -175,7 +175,8 @@ func sendCmd(args []string, stdout, stderr io.Writer) int {
 		return ExitUsage
 	}
 	cmd := daemon.Command{Cmd: "send", Session: resolvePrefixLenient(rest[0]),
-		Text: rest[1], Images: images, Files: files, CommandID: event.NewCommandID()}
+		Text: rest[1], Images: images, Files: files, CommandID: event.NewCommandID(),
+		Principal: "local-user", Source: "cli", Trust: "local"}
 	if *detach {
 		return oneShot(stderr, cmd, stdout)
 	}

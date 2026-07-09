@@ -109,8 +109,10 @@ Durable CommandLog(command_id, seq, principal, source, trust)
 4. ✅ INC-11.4：MCP spec 自动接入所有 Loop 生产路径；stdio + streamable
    HTTP、环境变量 bearer/header、resources/prompts、structured/multimodal、
    list_changed 与断线后新 session；远端 `readOnlyHint` 不再授予重放权。
-5. INC-11.5：Turn/Item + typed ingress + provider capability envelope，兼容旧
-   Message/GenStep reader。
+5. ✅ INC-11.5：Turn/Item 投影覆盖 message/tool_call/tool_result；CommandLog
+   与 InputReceived 保留 principal/source/trust + typed content；provider
+   capability envelope 冻结进 SessionStarted/inspect。旧 Message/GenStep
+   事件确定性补 ID，旧 snapshot 缺 interactions 时回退全量 fold。
 6. INC-11.6：durable multi-agent task/message/workspace coordinator。
 7. INC-11.7：索引、snapshot offset、schema migration/compatibility。
 8. INC-11.8：三层文档收口、对抗 review、全自动与真实环境 QA。

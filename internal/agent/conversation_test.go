@@ -168,6 +168,41 @@ func TestJournalInputCarriesDurableCommandReceipt(t *testing.T) {
 	}
 }
 
+func TestJournalInputPreservesTypedContentAndProvenance(t *testing.T) {
+	l := testLoop(t, scripted.Fixture{}, t.TempDir())
+	ds := &driveState{s: state.New()}
+	appendE := l.appender(ds)
+	if err := l.journalInput(ds, appendE, protocol.UserInput{
+		CommandID: "cmd-webhook-1", DeliverySeq: 4,
+		TurnID: "turn-webhook-1", ItemID: "item-webhook-1",
+		Principal: "service:buildbot", Source: "webhook", Trust: "external",
+		Content: []protocol.ContentPart{
+			{Kind: provider.PartText, Text: "inspect"},
+			{Kind: provider.PartFile, MediaType: "application/json", Data: []byte(`{"ok":true}`)},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	events, err := store.ReadEvents(l.Store.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := event.DecodePayload(events[len(events)-1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := decoded.(*event.InputReceived)
+	if in.Principal != "service:buildbot" || in.Source != "webhook" || in.Trust != "external" ||
+		in.TurnID != "turn-webhook-1" || in.ItemID != "item-webhook-1" || len(in.Content) != 2 ||
+		in.Content[1].Ref == "" || len(in.Content[1].Data) != 0 {
+		t.Fatalf("journaled typed input = %+v", in)
+	}
+	item := ds.s.Interactions.Items["item-webhook-1"]
+	if item.Principal != "service:buildbot" || len(item.Content) != 2 {
+		t.Fatalf("folded typed item = %+v", item)
+	}
+}
+
 // Task mode (Conversational=false, the v1 default) is untouched: yield
 // still completes the run — every existing caller keeps its contract.
 func TestTaskModeStillEndsOnYield(t *testing.T) {

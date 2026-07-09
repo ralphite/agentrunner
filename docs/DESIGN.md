@@ -854,6 +854,10 @@ limits:
   自家 API（Gemini 的 context caching / thinking config，Anthropic 的
   `cache_control` / extended thinking）。provider 用 `capabilities()`
   声明支持哪些能力，请求了不支持的能力时明确降级或报错，而不是静默忽略。
+- **能力契约是版本化事实**：`SessionStarted.provider_capabilities` 冻结
+  schema version、provider/model、输入 modalities、stream/tool-call 核心能力
+  与 thinking/cache/parallel 等可选能力；inspect 可见。它不把 provider
+  分支写进 loop，只让一次 session 当时依赖的能力不再是带外猜测。
 - **返回归一化**：token 计数（含 cache_read/cache_write）、finish
   reason（含异常形态，见 §4）、tool call、thinking 块统一成一套
   内部表示，管线及记账不感知具体 provider。
@@ -1277,8 +1281,9 @@ event sourcing 的闭环：**执行产生事件，事件重建状态，状态驱
 | 术语 | 定义 |
 |---|---|
 | **inbox** | per-session 持久、有序的输入队列；"任何一方对 session 说话" = 投一条 Input。 |
-| **Input** | **弱类型**（裁决 #9,2026-07-05）：对话面上一条输入 = 纯内容（文本/多模态）+ 来源前缀（如 `[background work h1 completed]`）——模型不需要也不应看到类型系统。来源（user/control/interrupt…）只是 journal 的**元数据**（`InputReceived.source`,审计层）;control 类（kill/close）是标记,不进对话。**协议例外**:同一 turn 内前台 tool call 的结果必须按 provider 协议配对格式回传（Gemini functionResponse / Anthropic tool_result）,不适用纯文本前缀。 |
-| **durable mailbox** | 投递侧落地机制（`inbox.jsonl`）：redact→fsync→ack，单调 delivery_seq；消费侧回写+去重 = 恰好一次。 |
+| **Turn / Item** | session 的审计投影：每条外部输入建立 turn，message/tool_call/tool_result 为稳定 item；provider 兼容视图仍由同一事件折成 Message/GenStep。旧日志缺 id 时按 event seq/gen step 确定性补齐；旧 snapshot 没有 interactions 子状态时丢弃缓存、全量 fold。 |
+| **Input** | **存储/协议强类型，模型投影弱类型**（对裁决 #9 的兼容细化）：CommandLog/InputReceived 保存 `principal/source/trust` 与 typed `content[]`（text/image/file，binary 先入 CAS、事件只带 ref）；模型只看到纯内容/多模态，不暴露审计类型。control/interrupt 不进对话。前台 tool result 仍按 provider 配对协议回传。 |
+| **durable mailbox** | 投递侧落地机制（`inbox.jsonl`）：含 principal/source/trust 的 typed command 经 redact→fsync→ack，单调 command_seq；消费侧以 command_id/seq 回写+去重 = 恰好一次。 |
 | **steering** | agent 忙时投 user_message：排队、在安全边界被消费，不打断在跑的活动。 |
 | **receipts**（spec 字段） | 回执/后台结果的投递模式（裁决 #15）：`steer`（默认,turn 内安全边界即进对话）/ `turn_end`（等 turn 收尾,由回执唤醒下一 turn）。agent 配置层的默认值,不做 per-launch。 |
 | **interrupt** | **带外信号**（不进 inbox）,**永不结束 session**（裁决 #11）：turn 中 = 打断当前活动（interrupt sweep,部分输出保留）,会话继续;待命处 = **no-op**（journal 一条审计事实,继续等——没有可打断的东西;close 是独立命令）。 |

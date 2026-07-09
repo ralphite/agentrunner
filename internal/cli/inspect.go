@@ -74,18 +74,21 @@ func inspectCmd(args []string, stdout, stderr io.Writer) int {
 // inspectReport is the structured `inspect` output (also the --json shape).
 // Children are the sub-agent runs (S5.9), recursively — the tree render.
 type inspectReport struct {
-	Kind      string           `json:"kind,omitempty"` // run | driver
-	Spec      string           `json:"spec"`
-	Model     string           `json:"model"`
-	Mode      string           `json:"mode"`
-	Status    string           `json:"status"`
-	Reason    string           `json:"reason,omitempty"`
-	GenSteps  int              `json:"gen_steps"`
-	Entries   []entryReport    `json:"entries"`
-	Usage     usageReport      `json:"usage"`
-	Artifacts []artifactReport `json:"artifacts,omitempty"`
-	Children  []childReportRef `json:"children,omitempty"`
-	Goal      *goalReport      `json:"goal,omitempty"`
+	Kind                 string                       `json:"kind,omitempty"` // run | driver
+	Spec                 string                       `json:"spec"`
+	Model                string                       `json:"model"`
+	Mode                 string                       `json:"mode"`
+	Status               string                       `json:"status"`
+	Reason               string                       `json:"reason,omitempty"`
+	GenSteps             int                          `json:"gen_steps"`
+	Entries              []entryReport                `json:"entries"`
+	Usage                usageReport                  `json:"usage"`
+	Artifacts            []artifactReport             `json:"artifacts,omitempty"`
+	Children             []childReportRef             `json:"children,omitempty"`
+	Goal                 *goalReport                  `json:"goal,omitempty"`
+	Turns                int                          `json:"turns,omitempty"`
+	Items                int                          `json:"items,omitempty"`
+	ProviderCapabilities *provider.CapabilityEnvelope `json:"provider_capabilities,omitempty"`
 }
 
 // goalReport surfaces an active in-session goal (INC-D1) so a driver/UI can
@@ -305,6 +308,8 @@ func buildInspectReport(events []event.Envelope, s state.State) inspectReport {
 		Status:   status,
 		Reason:   reason,
 		GenSteps: s.Session.GenStep,
+		Turns:    len(s.Interactions.Turns), Items: len(s.Interactions.Items),
+		ProviderCapabilities: s.Session.ProviderCapabilities,
 	}
 	if s.Goal != nil {
 		report.Goal = &goalReport{
@@ -482,6 +487,9 @@ func renderInspectIndent(w io.Writer, r inspectReport, pad string) {
 		countLabel = "iterations"
 	}
 	fmt.Fprintf(w, "%sstatus  %s    %s %d\n\n", pad, status, countLabel, r.GenSteps)
+	if r.Kind != "driver" && (r.Turns > 0 || r.Items > 0) {
+		fmt.Fprintf(w, "%sitems   turns %d    items %d\n\n", pad, r.Turns, r.Items)
+	}
 
 	fmt.Fprintln(w, pad+"TIMELINE")
 	lastTurn := -1

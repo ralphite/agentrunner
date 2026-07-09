@@ -408,6 +408,17 @@ banner、goal_complete 时间线可见、达成 banner 消失;另 CLI 真验 upd
 spec/journal；断线中的当前调用若结果未知，模型只收到 `outcome_unknown`，
 runtime 不自动重放。
 
+## QA-19 Turn/Item 与 typed ingress（INC-11.5）
+
+**环境**：共享 store + 真实 Gemini。前台 run 后再经 daemon send 一条带文件
+的消息；发送命令显式设置 principal/source/trust（外部 connector 形态）。
+
+**通过标准**：原始 journal 的新输入含稳定 turn_id/item_id、typed content
+且 binary 仅有 CAS ref；CommandLog 同时保留 principal/source/trust；assistant、
+tool_call、tool_result 投影到同一 active turn。`inspect --json` 的 turns/items
+非零并显示 schema_version=1 的 provider capability envelope。用旧共享 session
+执行 inspect/resume 时，旧 Message/GenStep 日志可补投影；旧 snapshot 不阻断。
+
 ---
 
 ## 覆盖矩阵

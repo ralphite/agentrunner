@@ -155,9 +155,42 @@ type StreamEvent struct {
 // breakpoints, or rely on parallel tool calls — and to DOWNGRADE explicitly
 // (never silently) when a spec asks for a feature a provider lacks.
 type Capabilities struct {
-	Thinking      bool // extended thinking / reasoning tokens
-	PromptCaching bool // explicit prompt-cache breakpoints
-	ParallelTools bool // multiple tool calls in one assistant turn
+	Thinking      bool `json:"thinking,omitempty"`       // extended thinking / reasoning tokens
+	PromptCaching bool `json:"prompt_caching,omitempty"` // explicit prompt-cache breakpoints
+	ParallelTools bool `json:"parallel_tools,omitempty"` // multiple tool calls in one assistant turn
+	Images        bool `json:"images,omitempty"`         // image input
+	Files         bool `json:"files,omitempty"`          // document/file input
+}
+
+// CapabilityEnvelope is the versioned, durable description of the provider
+// contract a session started with. Core streaming/text/tool support follows
+// from the Provider interface itself; optional abilities come from
+// Capabilities. Journaling this envelope prevents provider/model identity and
+// downgrade decisions from becoming invisible runtime assumptions.
+type CapabilityEnvelope struct {
+	SchemaVersion   int          `json:"schema_version"`
+	Provider        string       `json:"provider"`
+	Model           string       `json:"model"`
+	Streaming       bool         `json:"streaming"`
+	ToolCalls       bool         `json:"tool_calls"`
+	InputModalities []PartKind   `json:"input_modalities"`
+	Capabilities    Capabilities `json:"capabilities"`
+}
+
+// Envelope freezes one provider/model's normalized capability contract.
+func Envelope(providerName, model string, caps Capabilities) CapabilityEnvelope {
+	modalities := []PartKind{PartText}
+	if caps.Images {
+		modalities = append(modalities, PartImage)
+	}
+	if caps.Files {
+		modalities = append(modalities, PartFile)
+	}
+	return CapabilityEnvelope{
+		SchemaVersion: 1, Provider: providerName, Model: model,
+		Streaming: true, ToolCalls: true, InputModalities: modalities,
+		Capabilities: caps,
+	}
 }
 
 // ThinkingConfig is the normalized extended-thinking request (S4.7). Enabled

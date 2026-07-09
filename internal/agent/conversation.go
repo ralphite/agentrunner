@@ -3,11 +3,13 @@ package agent
 import (
 	"context"
 	"fmt"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/ralphite/agentrunner/internal/command"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
+	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/redact"
 )
 
@@ -28,6 +30,7 @@ func (l *Loop) journalInput(ds *driveState, appendE AppendFunc, in protocol.User
 		return nil
 	}
 	var images, files []event.AttachmentRef
+	var content []provider.Part
 	// Custom-command expansion (G21): a /name send expands to its repo macro
 	// body before redaction+journaling, so the journaled InputReceived is the
 	// expanded prompt (fold stays pure; resume self-contained). Non-slash and
@@ -39,32 +42,82 @@ func (l *Loop) journalInput(ds *driveState, appendE AppendFunc, in protocol.User
 		}
 	}
 	text := redact.FromEnv().String(raw)
-	for _, img := range in.Images {
+	putPart := func(kind provider.PartKind, mediaType string, data []byte) (provider.Part, error) {
 		if err := l.ensureArtifacts(); err != nil {
-			return err
+			return provider.Part{}, err
 		}
-		ref, err := l.Artifacts.Put(img.Data)
+		ref, err := l.Artifacts.Put(data)
 		if err != nil {
-			return err
+			return provider.Part{}, err
 		}
-		images = append(images, event.AttachmentRef{Ref: ref, MediaType: img.MediaType})
+		return provider.Part{Kind: kind, Ref: ref, MediaType: mediaType}, nil
 	}
-	// Attached files (INC-9: PDF / any type) take the same blob-before-event
-	// path as images — CAS-put the bytes, journal only the ref + real MIME.
-	for _, f := range in.Files {
-		if err := l.ensureArtifacts(); err != nil {
-			return err
+	if len(in.Content) > 0 {
+		var legacyText []string
+		for _, part := range in.Content {
+			switch part.Kind {
+			case provider.PartText:
+				value := redact.FromEnv().String(part.Text)
+				if len(value) > longPasteThreshold {
+					stored, err := putPart(provider.PartFile, "text/plain", []byte(value))
+					if err != nil {
+						return err
+					}
+					files = append(files, event.AttachmentRef{Ref: stored.Ref, MediaType: stored.MediaType})
+					head := value[:512]
+					for len(head) > 0 && !utf8.ValidString(head) {
+						head = head[:len(head)-1]
+					}
+					value = head + fmt.Sprintf("\n…[长文本已折叠为附件 %s,共 %d 字节,完整内容见 file part]", stored.Ref, len(value))
+					content = append(content, provider.Part{Kind: provider.PartText, Text: value}, stored)
+					legacyText = append(legacyText, value)
+					continue
+				}
+				legacyText = append(legacyText, value)
+				content = append(content, provider.Part{Kind: provider.PartText, Text: value})
+			case provider.PartImage, provider.PartFile:
+				stored, err := putPart(part.Kind, part.MediaType, part.Data)
+				if err != nil {
+					return err
+				}
+				content = append(content, stored)
+				ref := event.AttachmentRef{Ref: stored.Ref, MediaType: stored.MediaType}
+				if part.Kind == provider.PartImage {
+					images = append(images, ref)
+				} else {
+					files = append(files, ref)
+				}
+			default:
+				return fmt.Errorf("input content: unsupported kind %q", part.Kind)
+			}
 		}
-		ref, err := l.Artifacts.Put(f.Data)
-		if err != nil {
-			return err
+		text = strings.Join(legacyText, "\n")
+	}
+	if len(in.Content) == 0 {
+		for _, img := range in.Images {
+			stored, err := putPart(provider.PartImage, img.MediaType, img.Data)
+			if err != nil {
+				return err
+			}
+			images = append(images, event.AttachmentRef{Ref: stored.Ref, MediaType: stored.MediaType})
+			content = append(content, stored)
 		}
-		files = append(files, event.AttachmentRef{Ref: ref, MediaType: f.MediaType})
+		// Attached files (INC-9: PDF / any type) take the same blob-before-event
+		// path as images — CAS-put the bytes, journal only the ref + real MIME.
+		for _, f := range in.Files {
+			stored, err := putPart(provider.PartFile, f.MediaType, f.Data)
+			if err != nil {
+				return err
+			}
+			files = append(files, event.AttachmentRef{Ref: stored.Ref, MediaType: stored.MediaType})
+			content = append(content, stored)
+		}
+		content = append([]provider.Part{{Kind: provider.PartText, Text: text}}, content...)
 	}
 	// Long-paste folding (v2 M4.3): an oversized text body becomes a file
 	// part plus a short head, AFTER redaction (the CAS copy must be as
 	// redacted as the journal itself).
-	if len(text) > longPasteThreshold {
+	if len(in.Content) == 0 && len(text) > longPasteThreshold {
 		if err := l.ensureArtifacts(); err != nil {
 			return err
 		}
@@ -78,13 +131,38 @@ func (l *Loop) journalInput(ds *driveState, appendE AppendFunc, in protocol.User
 			head = head[:len(head)-1] // never split a multi-byte rune
 		}
 		text = head + fmt.Sprintf("\n…[长文本已折叠为附件 %s,共 %d 字节,完整内容见 file part]", ref, len(text))
+		nonText := append([]provider.Part(nil), content[1:]...)
+		content = []provider.Part{{Kind: provider.PartText, Text: text}, {
+			Kind: provider.PartFile, Ref: ref, MediaType: "text/plain",
+		}}
+		content = append(content, nonText...)
 	}
 	inputAppend := appendE
 	if in.CommandID != "" {
 		inputAppend = l.commandAppender(ds, in.CommandID)
 	}
+	source := in.Source
+	if source == "" {
+		source = "user"
+	}
+	principal := in.Principal
+	if principal == "" {
+		principal = "local-user"
+	}
+	trust := in.Trust
+	if trust == "" {
+		trust = "unknown"
+	}
+	turnID, itemID := in.TurnID, in.ItemID
+	if turnID == "" {
+		turnID = "turn-" + event.NewCommandID()
+	}
+	if itemID == "" {
+		itemID = "item-" + event.NewCommandID()
+	}
 	_, err := inputAppend(event.TypeInputReceived, &event.InputReceived{
-		Text: text, Source: "user", Images: images, Files: files,
+		Text: text, Source: source, Principal: principal, Trust: trust,
+		TurnID: turnID, ItemID: itemID, Content: content, Images: images, Files: files,
 		DeliverySeq: in.DeliverySeq,
 	})
 	return err

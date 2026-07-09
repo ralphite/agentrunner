@@ -49,6 +49,8 @@ func (p *Provider) Capabilities() provider.Capabilities {
 		Thinking:      true,
 		PromptCaching: true,
 		ParallelTools: true,
+		Images:        true,
+		Files:         true,
 	}
 }
 

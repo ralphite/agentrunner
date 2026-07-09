@@ -49,8 +49,8 @@ type inboxIndex struct {
 func AppendInbox(sessionDir string, in protocol.UserInput) (protocol.UserInput, error) {
 	cmd, err := AppendCommand(sessionDir, protocol.SessionCommand{
 		CommandRef: protocol.CommandRef{CommandID: in.CommandID},
-		Kind:       protocol.CommandInput,
-		Input:      &in,
+		Kind:       protocol.CommandInput, Input: &in,
+		Principal: in.Principal, Source: in.Source, Trust: in.Trust,
 	})
 	if err != nil {
 		return in, err
