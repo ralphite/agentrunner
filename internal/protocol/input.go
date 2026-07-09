@@ -10,6 +10,16 @@ type ImageAttachment struct {
 	Data      []byte `json:"data"`
 }
 
+// FileAttachment is one arbitrary-type file attached to a user input (INC-9:
+// PDF / any file, generalising the image path). Same wire shape as an image —
+// bytes ride base64, the agent puts them in the session CAS before journaling,
+// and the journal carries only the ref. The MediaType (sniffed at the CLI)
+// drives the provider mapping (Gemini inline_data / Anthropic document block).
+type FileAttachment struct {
+	MediaType string `json:"media_type"`
+	Data      []byte `json:"data"`
+}
+
 // UserInput is one conversational user message with optional attachments.
 // DeliverySeq is the durable-mailbox sequence (v2 收口): 0 = not persisted
 // (tests, direct wiring); >0 = the daemon fsynced it before acking, and the
@@ -18,6 +28,7 @@ type ImageAttachment struct {
 type UserInput struct {
 	Text        string            `json:"text"`
 	Images      []ImageAttachment `json:"images,omitempty"`
+	Files       []FileAttachment  `json:"files,omitempty"`
 	DeliverySeq int64             `json:"delivery_seq,omitempty"`
 }
 

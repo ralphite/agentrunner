@@ -31,7 +31,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | 图片输入（`ar send --image`，CAS ref、组装 inflate） | ✅ | UJ-04 | QA-07/03 · C9 · TestConversationalImageInputEndToEnd |
 | 长贴折叠（>10KB 转 file part） | ✅ | UJ-04 | TestLongPasteFoldsToFilePart |
 | `ar new` 开场消息折叠/带图（与 send 对称） | 🧊 | UJ-04 | 不对称记档（DESIGN §17），待真实使用反馈 |
-| PDF/附件泛化 | ❌ | UJ-04 | GAPS G1 余项 |
+| PDF/任意文件附件（`ar send --file`，sniff MIME、CAS ref、组装 inflate；Gemini inline_data / Anthropic document block） | ✅ | UJ-04 | INC-9 · TestConversationalFileInputEndToEnd/TestToPartFilePDF/TestUserBlocksFilePDF · QA-15（真实 Gemini 读 PDF 关键词） |
 | 外部事件唤醒既有 session（webhook → inbox，机器发送方） | ❌ | UJ-12 | GAPS G14（inbox 原语已备，缺投递壳） |
 | WAITING_APPROVAL 挂起期间消息唤醒 | 🟡 | UJ-07 | 只排队不唤醒；GAPS G3 余项 |
 | 手动 compact（带指示）/ clear | ✅ | UJ-09 | INC-6 · TestManualCompact/Clear/EmptySummarySkipped · QA-12（真实 API：compact 带指示落非空 summary、clear 落 cleared） |

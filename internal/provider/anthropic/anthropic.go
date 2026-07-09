@@ -271,6 +271,14 @@ func userBlocks(m provider.Message) ([]sdk.ContentBlockParamUnion, error) {
 				blocks = append(blocks, sdk.NewTextBlock("[attached file "+p.Ref+"]\n"+string(p.Data)))
 				continue
 			}
+			// PDFs ride a document block, not an image block (INC-9): shipping a
+			// PDF as image/* is the wrong content type and Anthropic rejects it.
+			if p.Kind == provider.PartFile && p.MediaType == "application/pdf" {
+				blocks = append(blocks, sdk.NewDocumentBlock(sdk.Base64PDFSourceParam{
+					Data: base64.StdEncoding.EncodeToString(p.Data),
+				}))
+				continue
+			}
 			blocks = append(blocks, sdk.NewImageBlockBase64(p.MediaType,
 				base64.StdEncoding.EncodeToString(p.Data)))
 		default:

@@ -40,6 +40,10 @@ type Command struct {
 	// Images are attachments riding a send (v2 M4.1); bytes are base64 on
 	// the wire, the agent CAS-stores them before journaling the input.
 	Images []protocol.ImageAttachment `json:"images,omitempty"`
+	// Files are arbitrary-type attachments riding a send (INC-9: PDF / any
+	// file). Same wire/CAS treatment as Images; MediaType drives the provider
+	// mapping.
+	Files []protocol.FileAttachment `json:"files,omitempty"`
 	// Follow keeps the send connection open after the "delivered" ack,
 	// streaming the session's live events until the client disconnects
 	// (INC-2: the reply becomes visible on the send itself). Subscribe
@@ -643,7 +647,7 @@ func (s *Server) handleSend(ctx context.Context, cmd Command, enc *json.Encoder)
 			defer cancel()
 		}
 	}
-	in := protocol.UserInput{Text: cmd.Text, Images: cmd.Images}
+	in := protocol.UserInput{Text: cmd.Text, Images: cmd.Images, Files: cmd.Files}
 	if s.PersistInput != nil {
 		// Durability before the ack (铁律 2): once "delivered" is on the
 		// wire, a crash cannot lose this input — resume replays the

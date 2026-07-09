@@ -152,6 +152,8 @@ func sendCmd(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	var imagePaths repeatedFlag
 	fs.Var(&imagePaths, "image", "attach an image file (repeatable)")
+	var filePaths repeatedFlag
+	fs.Var(&filePaths, "file", "attach a file of any type — PDF, etc. (repeatable, INC-9)")
 	detach := fs.Bool("detach", false, "deliver the message and exit without waiting for the reply")
 	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
 		return ExitUsage
@@ -166,8 +168,13 @@ func sendCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 		return ExitUsage
 	}
+	files, err := loadFileAttachments(filePaths)
+	if err != nil {
+		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+		return ExitUsage
+	}
 	cmd := daemon.Command{Cmd: "send", Session: resolvePrefixLenient(rest[0]),
-		Text: rest[1], Images: images}
+		Text: rest[1], Images: images, Files: files}
 	if *detach {
 		return oneShot(stderr, cmd, stdout)
 	}
@@ -202,6 +209,22 @@ func loadImageAttachments(paths []string) ([]protocol.ImageAttachment, error) {
 			return nil, fmt.Errorf("%s: not an image (detected %s)", path, mt)
 		}
 		out = append(out, protocol.ImageAttachment{MediaType: mt, Data: data})
+	}
+	return out, nil
+}
+
+// loadFileAttachments reads each attached file and sniffs its media type
+// (INC-9). Unlike --image it accepts any type; the sniffed MIME drives the
+// provider mapping (Gemini inline_data / Anthropic document block).
+// http.DetectContentType recognises the %PDF- magic as application/pdf.
+func loadFileAttachments(paths []string) ([]protocol.FileAttachment, error) {
+	var out []protocol.FileAttachment
+	for _, path := range paths {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, protocol.FileAttachment{MediaType: http.DetectContentType(data), Data: data})
 	}
 	return out, nil
 }

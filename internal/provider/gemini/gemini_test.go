@@ -279,3 +279,17 @@ func TestToPartImage(t *testing.T) {
 		t.Error("ref-only (uninflated) image part mapped without error")
 	}
 }
+
+// INC-9: an inflated PDF file part rides inline_data with its own MIME —
+// Gemini accepts application/pdf inline, so no special-casing beyond the
+// existing generic media path.
+func TestToPartFilePDF(t *testing.T) {
+	part, err := toPart(provider.Part{Kind: provider.PartFile,
+		MediaType: "application/pdf", Ref: "sha256-x", Data: []byte("%PDF-1.7")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if part.InlineData == nil || part.InlineData.MIMEType != "application/pdf" {
+		t.Fatalf("inline_data = %+v, want application/pdf", part.InlineData)
+	}
+}

@@ -49,6 +49,18 @@ func (l *Loop) journalInput(ds *driveState, appendE AppendFunc, in protocol.User
 		}
 		images = append(images, event.AttachmentRef{Ref: ref, MediaType: img.MediaType})
 	}
+	// Attached files (INC-9: PDF / any type) take the same blob-before-event
+	// path as images — CAS-put the bytes, journal only the ref + real MIME.
+	for _, f := range in.Files {
+		if err := l.ensureArtifacts(); err != nil {
+			return err
+		}
+		ref, err := l.Artifacts.Put(f.Data)
+		if err != nil {
+			return err
+		}
+		files = append(files, event.AttachmentRef{Ref: ref, MediaType: f.MediaType})
+	}
 	// Long-paste folding (v2 M4.3): an oversized text body becomes a file
 	// part plus a short head, AFTER redaction (the CAS copy must be as
 	// redacted as the journal itself).

@@ -174,6 +174,80 @@ func TestConversationalImageInputEndToEnd(t *testing.T) {
 	}
 }
 
+// INC-9: an arbitrary file (a PDF) attached to a conversational input flows
+// end to end just like an image — CAS blob before the event, ref-only journal
+// with the real MIME, and the inflated file part on the provider request.
+func TestConversationalFileInputEndToEnd(t *testing.T) {
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: "好的"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "读到 PDF 里的关键词"}, {Finish: "end_turn"}}},
+	}}
+	cap := &capturingProvider{inner: scripted.New(fix)}
+	inputs := make(chan protocol.UserInput, 1)
+	l := testLoop(t, fix, t.TempDir())
+	l.Provider = cap
+	l.UserInputs = inputs
+	pdf := []byte("%PDF-1.7\nMAGIC-KEYWORD payload bytes\n%%EOF")
+	go func() {
+		waitAnswers(t, l.Store.Dir(), 1)
+		inputs <- protocol.UserInput{Text: "这份 PDF 里的关键词是什么?",
+			Files: []protocol.FileAttachment{{MediaType: "application/pdf", Data: pdf}}}
+		waitAnswers(t, l.Store.Dir(), 2)
+		close(inputs)
+	}()
+	res, err := l.Run(context.Background(), "先随便聊聊")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "closed" || res.GenSteps != 2 {
+		t.Fatalf("res = %+v", res)
+	}
+
+	// Journal: the input event carries the file ref + real MIME, no bytes.
+	evs, _ := store.ReadEvents(l.Store.Dir())
+	var ref string
+	for _, e := range evs {
+		if e.Type != event.TypeInputReceived {
+			continue
+		}
+		dec, _ := event.DecodePayload(e)
+		in := dec.(*event.InputReceived)
+		if len(in.Files) > 0 {
+			ref = in.Files[0].Ref
+			if in.Files[0].MediaType != "application/pdf" {
+				t.Errorf("media type = %q, want application/pdf", in.Files[0].MediaType)
+			}
+		}
+	}
+	if ref == "" {
+		t.Fatal("no journaled file ref")
+	}
+	b64 := base64.StdEncoding.EncodeToString(pdf)
+	for _, e := range evs {
+		if bytes.Contains(e.Payload, pdf) || bytes.Contains(e.Payload, []byte(b64)) {
+			t.Error("journal contains file bytes; must be ref-only")
+		}
+	}
+	// CAS: the ref resolves to the exact bytes (blob-before-event held).
+	got, err := l.Artifacts.Get(ref)
+	if err != nil || !bytes.Equal(got, pdf) {
+		t.Fatalf("CAS blob = %v, %v", got, err)
+	}
+	// Wire: the second request's user message carried the INFLATED file part.
+	last := cap.requests[len(cap.requests)-1]
+	var sawInflated bool
+	for _, m := range last.Messages {
+		for _, p := range m.Parts {
+			if p.Kind == provider.PartFile && bytes.Equal(p.Data, pdf) && p.Ref == ref {
+				sawInflated = true
+			}
+		}
+	}
+	if !sawInflated {
+		t.Error("provider request lacks the inflated file part")
+	}
+}
+
 // v2 M4.3: a paste past the threshold folds — short journaled text with a
 // head + note, full bytes in the CAS as a text/plain file part, and the
 // provider request carries the inflated content.

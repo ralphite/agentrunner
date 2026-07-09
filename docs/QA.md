@@ -331,6 +331,24 @@ agent 写出教科书级正确的 semver 实现。归档 `qa/runs/2026-07-09-QA-
 
 ---
 
+## QA-15 PDF/任意文件附件（INC-9,UJ-04） `覆盖 G1 余项 PDF/附件泛化关闭`
+**环境**：驾驶舱 API（真实 Gemini gemini-flash-latest）；一份用 ps2pdf 生成的
+真实 PDF,正文含秘密词 `ZEBRA-42-QUOKKA`。
+
+| # | 动作 | 验证 |
+|---|---|---|
+| 1 | 建会话 → `/api/upload` 传 PDF → `/api/sessions/{sid}/send` files:[...]（走 `ar send --file`） | 送达 delivered |
+| 2 | 消息问"只回 PDF 里的秘密词" | journal `InputReceived.files` 携 CAS ref + `media_type=application/pdf`（**ref-not-bytes**，journal 不含原字节） |
+| — | **硬证据** | Gemini 真实读出 PDF 文本——末条 assistant 回复 = `ZEBRA-42-QUOKKA` |
+
+**通过标准**:file part 上链为 ref（非 bytes）+ 真实 provider 读出 PDF 内容;
+不钉模型措辞。
+**结果**:2026-07-09 真实 Gemini PASS——ref=sha256-b33ee0c…、mime=application/pdf、
+回复=ZEBRA-42-QUOKKA。隔离实例跑（新二进制 daemon,避免重启打扰并发 session）,
+归档 `qa/runs/2026-07-09-QA-15/`。
+
+---
+
 ## 覆盖矩阵
 
 | 核心场景 | QA 流 |
@@ -343,7 +361,7 @@ agent 写出教科书级正确的 semver 实现。归档 `qa/runs/2026-07-09-QA-
 | C6 steer 改编排 | QA-05, QA-09 |
 | C7 完整编排 | QA-09 |
 | C8 interrupt vs 输入 | QA-02, QA-06 |
-| C9 多模态 | QA-07, QA-09 |
+| C9 多模态 | QA-07, QA-09, QA-15（PDF/文件） |
 | C10 恢复 | QA-08, QA-09(步骤6) |
 
 反向索引（一个流盖多个 feature 的示例）：QA-09 一条压 8 个场景——它是

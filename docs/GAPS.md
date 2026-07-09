@@ -68,8 +68,10 @@ agent G2）。durability/驱动/安全这一半（UJ-02/05/10/14/15/20）是
 inline_data/anthropic image block + `ar send --image` + 长贴 >10KB 折叠
 file part。闸门：QA-07(vision 三要素+ref-not-bytes) + QA-03 真实 API
 PASS;孪生 TestConversationalImageInputEndToEnd/TestLongPasteFolds。
-**余项**：PDF/附件泛化;blob 在 fork/rewind 下的归属语义;`ar new`
-开场消息不折叠/不带图(不对称,DESIGN §9.1 记档)。原文:
+**余项**：~~PDF/附件泛化~~（✅ 已收 INC-9：`ar send --file` 任意类型，
+sniff MIME → file part，Gemini inline_data / Anthropic document block；
+QA-15 真 Gemini 读 PDF 关键词 PASS）;blob 在 fork/rewind 下的归属语义;
+`ar new` 开场消息不折叠/不带图(不对称,DESIGN §9.1 记档)。原文:
 `provider.Part` 只有 text/tool_call/tool_result；`InputReceived` 只有
 Text；协议仅一行"附件/图片消息类型预留"。缺：消息模型、CAS 存放教义
 （blob-before-event、fold 只带 ref、发送时 inflate）、Anthropic/Gemini

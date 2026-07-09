@@ -250,3 +250,22 @@ func TestUserBlocksImage(t *testing.T) {
 		t.Error("ref-only image part mapped without error")
 	}
 }
+
+// INC-9: an inflated PDF file part maps to a document block (not an image
+// block) — shipping a PDF as image/* is the wrong content type.
+func TestUserBlocksFilePDF(t *testing.T) {
+	blocks, err := userBlocks(provider.Message{Role: provider.RoleUser,
+		Parts: []provider.Part{
+			{Kind: provider.PartText, Text: "读这个 PDF"},
+			{Kind: provider.PartFile, MediaType: "application/pdf", Ref: "sha256-x", Data: []byte("%PDF-1.7")},
+		}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(blocks) != 2 || blocks[1].OfDocument == nil {
+		t.Fatalf("blocks = %+v, want text + document", blocks)
+	}
+	if blocks[1].OfImage != nil {
+		t.Error("PDF mapped to an image block; must be a document block")
+	}
+}
