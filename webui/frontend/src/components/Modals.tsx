@@ -140,6 +140,18 @@ function NewSessionModal({ initialMessage }: { initialMessage?: string }) {
   );
 }
 
+// withSchedule injects the chosen schedule into a driver.yaml: it strips any
+// existing top-level schedule/interval/cron lines and appends the new ones, so
+// the UI controls stay authoritative over what the user typed.
+function withSchedule(driver: string, schedule: string, interval: string, cron: string): string {
+  if (!schedule) return driver;
+  const kept = driver.split("\n").filter((l) => !/^\s*(schedule|interval|cron)\s*:/.test(l));
+  let out = kept.join("\n").replace(/\n+$/, "") + `\nschedule: ${schedule}`;
+  if (schedule === "interval" && interval.trim()) out += `\ninterval: ${interval.trim()}`;
+  if (schedule === "cron" && cron.trim()) out += `\ncron: ${cron.trim()}`;
+  return out + "\n";
+}
+
 function RunModal({ initialTask }: { initialTask?: string }) {
   const { openModal, selectRun, refreshRuns, toast } = useStore();
   const { ws, setWs, mk } = useWorkspace();
@@ -150,6 +162,9 @@ function RunModal({ initialTask }: { initialTask?: string }) {
   const [spec, setSpec] = useState(DEFAULT_SPEC);
   const [driver, setDriver] = useState(DEFAULT_DRIVER);
   const [driverAgent, setDriverAgent] = useState(DEFAULT_DRIVER_AGENT);
+  const [schedule, setSchedule] = useState(""); // "" = goal | "interval" | "cron"
+  const [interval, setInterval] = useState("5m");
+  const [cron, setCron] = useState("0 * * * *");
   const [busy, setBusy] = useState(false);
   const close = () => openModal(null);
 
@@ -158,7 +173,7 @@ function RunModal({ initialTask }: { initialTask?: string }) {
     try {
       const r = await AR.startRun({
         kind,
-        spec: kind === "submit" ? spec : driver,
+        spec: kind === "submit" ? spec : withSchedule(driver, schedule, interval, cron),
         // drive needs the child agent spec as an agent.yaml sibling (driver's
         // agent_spec field points at it); submit needs no sibling.
         extraSpecs: kind === "drive" ? [{ name: "agent.yaml", content: driverAgent }] : [],
@@ -226,6 +241,32 @@ function RunModal({ initialTask }: { initialTask?: string }) {
         </>
       ) : (
         <>
+          <label className="field">schedule (Codex "Scheduled": repeat this driver on a cadence)</label>
+          <div className="row-flex">
+            <select value={schedule} onChange={(e) => setSchedule(e.target.value)} title="how iterations are paced">
+              <option value="">goal — run until satisfied</option>
+              <option value="interval">interval — repeat every…</option>
+              <option value="cron">cron — repeat on a cron schedule</option>
+            </select>
+            {schedule === "interval" && (
+              <input
+                type="text"
+                value={interval}
+                onChange={(e) => setInterval(e.target.value)}
+                placeholder="5m · 30s · 1h"
+                title="Go duration between iterations"
+              />
+            )}
+            {schedule === "cron" && (
+              <input
+                type="text"
+                value={cron}
+                onChange={(e) => setCron(e.target.value)}
+                placeholder="0 * * * * (min hr dom mon dow)"
+                title="5-field cron expression"
+              />
+            )}
+          </div>
           <label className="field">driver.yaml (iterative driver spec: agent_spec / task / verifiers)</label>
           <textarea className="code" rows={8} value={driver} onChange={(e) => setDriver(e.target.value)} />
           <label className="field">agent.yaml (the sub-agent each iteration runs; referenced by the driver's agent_spec)</label>
