@@ -874,3 +874,19 @@ correctness/并发、安全、契约=DESIGN+QA,发现并全修:
   goal 参数出冻结 spec、决策 #24/#31/#32 honored)全部成立。
 - 三个 doc straggler(#24 加格、CODEX-PARITY goal 行、§13 opener)同修。
 P0/P1 全修,收口。
+
+## 2026-07-09 Codex goal 深潜审计:CODEX-PARITY 新增 §6(G23 余项开挖)
+
+用户指出 webui goal UI 与 Codex 差异大,要求审计原因与缺口。三路实证
+(~/.codex/goals_1.sqlite 六态 schema、两条真实 goal thread rollout JSONL
+含完整 continuation prompt、官方 cookbook/changelog/issues)得出:差异根源
+是两种哲学——Codex 对话式+模型自治(/goal 一句话、模型持 create_goal/
+get_goal/update_goal 受限三件套、完成=Completion-audit prompt 下模型自证、
+token+墙钟预算、六态含 blocked/usage_limited),我们验证式+外部裁决
+(command verifier + MaxChecks 轮数)。**发现 bug 级语义洞:无 verifier 的
+goal 恒不可达成**(goalVerify ran==0 恒 false,而 CLI/webui 都允许空
+verifier 落地 → 烧完预算截断)。缺口清单+建议(模型自证与 verifier AND
+的混合形态、continuation prompt 升级、blocked↔ask_user 打通等)见
+CODEX-PARITY §6.2;连带发现 update_plan/终端交互/node REPL 等 Codex 模型
+侧工具面差距登记 §6.4。§2-06 goal 行 ✅→🟡,§3 会话内 goal 行改
+✅ v0+余项。纯审计与文档增量,未动代码。
