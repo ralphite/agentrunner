@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "./store";
 import { Sidebar } from "./components/Sidebar";
 import { SessionView } from "./components/SessionView";
@@ -7,10 +7,24 @@ import { Home } from "./components/Home";
 import { Modals } from "./components/Modals";
 import { Toasts } from "./components/Toasts";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { CommandPalette } from "./components/CommandPalette";
 
 export function App() {
   const { currentSid, currentRunId, refreshHealth, refreshSessions, refreshRuns, select, selectRun } =
     useStore();
+  const [palette, setPalette] = useState(false);
+
+  // ⌘K / Ctrl-K toggles the command palette (Codex-style quick switcher).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPalette((p) => !p);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   useEffect(() => {
     refreshHealth();
@@ -55,6 +69,7 @@ export function App() {
         </ErrorBoundary>
       </div>
       <Modals />
+      {palette && <CommandPalette onClose={() => setPalette(false)} />}
       <Toasts />
     </div>
   );
