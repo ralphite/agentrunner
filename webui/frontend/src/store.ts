@@ -27,6 +27,10 @@ interface AppState {
   toasts: ToastMsg[];
   showSys: boolean;
   toggleSys: () => void;
+  archived: string[]; // session ids the user has archived (localStorage-backed)
+  showArchived: boolean;
+  toggleArchive: (id: string) => void;
+  toggleShowArchived: () => void;
 
   refreshHealth: () => Promise<void>;
   refreshSessions: () => Promise<void>;
@@ -40,6 +44,15 @@ interface AppState {
 
 let toastSeq = 0;
 
+const ARCHIVE_KEY = "arwebui.archived";
+function loadArchived(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(ARCHIVE_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
 export const useStore = create<AppState>((set, get) => ({
   health: null,
   sessions: [],
@@ -50,6 +63,19 @@ export const useStore = create<AppState>((set, get) => ({
   toasts: [],
   showSys: false,
   toggleSys: () => set({ showSys: !get().showSys }),
+  archived: loadArchived(),
+  showArchived: false,
+  toggleArchive: (id) => {
+    const cur = get().archived;
+    const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+    try {
+      localStorage.setItem(ARCHIVE_KEY, JSON.stringify(next));
+    } catch {
+      /* ignore quota */
+    }
+    set({ archived: next });
+  },
+  toggleShowArchived: () => set({ showArchived: !get().showArchived }),
 
   refreshHealth: async () => {
     try {

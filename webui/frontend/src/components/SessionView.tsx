@@ -26,7 +26,8 @@ function fmtTokens(n: number): string {
 }
 
 export function SessionView({ sid }: { sid: string }) {
-  const { select, openModal, toast, showSys, toggleSys, sessions } = useStore();
+  const { select, openModal, toast, showSys, toggleSys, sessions, archived, toggleArchive } =
+    useStore();
   const isSub = sid.includes("-sub-");
   const title = sessions.find((s) => s.id === sid)?.title || sid;
 
@@ -323,6 +324,16 @@ export function SessionView({ sid }: { sid: string }) {
               </MenuItem>
             </>
           )}
+          <MenuLabel>Organize</MenuLabel>
+          <MenuItem
+            title="hide this task from the sidebar list (it stays on disk; toggle 'Show archived' to see it again)"
+            onClick={() => {
+              toggleArchive(sid);
+              toast(archived.includes(sid) ? "unarchived" : "archived", "info");
+            }}
+          >
+            {archived.includes(sid) ? "Unarchive task" : "Archive task"}
+          </MenuItem>
         </Menu>
       </div>
 

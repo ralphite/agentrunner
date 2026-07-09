@@ -16,9 +16,16 @@ export function Sidebar() {
     openModal,
     refreshHealth,
     toast,
+    archived,
+    showArchived,
+    toggleShowArchived,
   } = useStore();
   const [q, setQ] = useState("");
   const [searching, setSearching] = useState(false);
+  const archivedCount = useMemo(
+    () => sessions.filter((s) => archived.includes(s.id)).length,
+    [sessions, archived],
+  );
 
   const restartDaemon = async () => {
     try {
@@ -34,9 +41,11 @@ export function Sidebar() {
   const shownSessions = useMemo(
     () =>
       sessions.filter(
-        (s) => !ql || (s.title || s.id).toLowerCase().includes(ql) || s.id.toLowerCase().includes(ql),
+        (s) =>
+          (showArchived || !archived.includes(s.id)) &&
+          (!ql || (s.title || s.id).toLowerCase().includes(ql) || s.id.toLowerCase().includes(ql)),
       ),
-    [sessions, ql],
+    [sessions, ql, archived, showArchived],
   );
   const shownRuns = useMemo(
     () => runs.filter((r) => !ql || (r.label || r.id).toLowerCase().includes(ql)),
@@ -114,7 +123,11 @@ export function Sidebar() {
             {g.items.map(({ s }) => (
               <div
                 key={s.id}
-                className={"nav-row" + (s.id === currentSid ? " cur" : "")}
+                className={
+                  "nav-row" +
+                  (s.id === currentSid ? " cur" : "") +
+                  (archived.includes(s.id) ? " archived" : "")
+                }
                 onClick={() => select(s.id)}
                 title={s.id}
               >
@@ -144,6 +157,12 @@ export function Sidebar() {
               </div>
             ))}
           </>
+        )}
+
+        {archivedCount > 0 && (
+          <button className="archived-toggle" onClick={toggleShowArchived}>
+            {showArchived ? "Hide" : "Show"} archived · {archivedCount}
+          </button>
         )}
       </div>
 
