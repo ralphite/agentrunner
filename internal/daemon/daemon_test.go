@@ -1,7 +1,9 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"path/filepath"
@@ -106,6 +108,48 @@ func TestHostedRunDeduplicatesCommandID(t *testing.T) {
 	case got := <-h.inbox:
 		t.Fatalf("duplicate was delivered: %+v", got)
 	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+// INC-12.3: addressing a child never hosts that child independently. The
+// durable command and live wake both go through the root hub, while the
+// input keeps the child target and the client-facing receipt keeps the
+// address the caller used.
+func TestDaemonSendToChildRoutesThroughRoot(t *testing.T) {
+	const root = "sess-root"
+	const child = root + "-sub-work-a1"
+	h := newHostedRun(root, nil, true)
+	defer h.finish()
+	s := &Server{runs: map[string]*hostedRun{root: h}, failed: map[string]bool{}}
+	var persistedSession string
+	s.PersistCommand = func(session string, cmd protocol.SessionCommand) (protocol.SessionCommand, error) {
+		persistedSession = session
+		cmd.CommandSeq = 1
+		cmd.Input.DeliverySeq = 1
+		return cmd, nil
+	}
+	var reply bytes.Buffer
+	s.handleSend(context.Background(), Command{
+		Session: child, Text: "please review", CommandID: "cmd-child-1",
+	}, json.NewEncoder(&reply))
+
+	if persistedSession != root {
+		t.Fatalf("command persisted to %q, want tree root %q", persistedSession, root)
+	}
+	select {
+	case in := <-h.inbox:
+		if in.Target != child || in.Text != "please review" || in.CommandID != "cmd-child-1" {
+			t.Fatalf("root wake input = %+v", in)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("root host never received the targeted input")
+	}
+	var ack protocol.Event
+	if err := json.Unmarshal(reply.Bytes(), &ack); err != nil {
+		t.Fatal(err)
+	}
+	if ack.Kind != protocol.KindMessage || ack.Text != "delivered" || ack.Session != child {
+		t.Fatalf("ack = %+v, want child-addressed delivered receipt", ack)
 	}
 }
 

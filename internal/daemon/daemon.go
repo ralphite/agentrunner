@@ -909,12 +909,13 @@ func (s *Server) handleSend(ctx context.Context, cmd Command, enc *json.Encoder)
 	// UserInput; everything else (revive-as-resume, idempotency) is the
 	// ordinary send path.
 	var target string
+	hostSession := cmd.Session
 	if idx := strings.Index(cmd.Session, "-sub-"); idx > 0 {
 		target = cmd.Session
-		cmd.Session = cmd.Session[:idx]
+		hostSession = cmd.Session[:idx]
 	}
 	s.mu.Lock()
-	hub, ok := s.runs[cmd.Session]
+	hub, ok := s.runs[hostSession]
 	s.mu.Unlock()
 	if !ok {
 		// v2 M5.1 (QA.md §0.3): a send to a non-hosted session REVIVES it —
@@ -927,13 +928,13 @@ func (s *Server) handleSend(ctx context.Context, cmd Command, enc *json.Encoder)
 			return
 		}
 		s.mu.Lock()
-		delete(s.failed, cmd.Session) // an explicit send retries a failed resume
+		delete(s.failed, hostSession) // an explicit send retries a failed resume
 		s.mu.Unlock()
 		// The revived run must live on the DAEMON's lifecycle (收口 review:
 		// a Background ctx would wedge graceful shutdown in runsWG.Wait).
-		s.hostResume(ctx, cmd.Session, true)
+		s.hostResume(ctx, hostSession, true)
 		s.mu.Lock()
-		hub, ok = s.runs[cmd.Session]
+		hub, ok = s.runs[hostSession]
 		s.mu.Unlock()
 		if !ok {
 			_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
@@ -969,7 +970,7 @@ func (s *Server) handleSend(ctx context.Context, cmd Command, enc *json.Encoder)
 	durable := false
 	s.commandMu.Lock()
 	if s.PersistCommand != nil {
-		accepted, perr := s.PersistCommand(cmd.Session, attributedCommand(cmd, protocol.SessionCommand{
+		accepted, perr := s.PersistCommand(hostSession, attributedCommand(cmd, protocol.SessionCommand{
 			CommandRef: protocol.CommandRef{CommandID: cmd.CommandID},
 			Kind:       protocol.CommandInput, Input: &in,
 		}))
@@ -981,7 +982,7 @@ func (s *Server) handleSend(ctx context.Context, cmd Command, enc *json.Encoder)
 		}
 		in = *accepted.Input
 		durable = true
-		if !s.commandNeedsDelivery(cmd.Session, accepted) {
+		if !s.commandNeedsDelivery(hostSession, accepted) {
 			s.commandMu.Unlock()
 			_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Text: "delivered", Session: cmd.Session})
 			return
@@ -991,7 +992,7 @@ func (s *Server) handleSend(ctx context.Context, cmd Command, enc *json.Encoder)
 		// wire, a crash cannot lose this input — resume replays the
 		// mailbox tail the journal has not consumed.
 		var perr error
-		if in, perr = s.PersistInput(cmd.Session, in); perr != nil {
+		if in, perr = s.PersistInput(hostSession, in); perr != nil {
 			s.commandMu.Unlock()
 			_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
 				Text: "send not accepted (mailbox write failed): " + perr.Error()})
@@ -1007,7 +1008,7 @@ func (s *Server) handleSend(ctx context.Context, cmd Command, enc *json.Encoder)
 			// that began shutting down in the append→wake window cannot turn
 			// that success into a client-visible failure (which would invite a
 			// duplicate retry); revive it after the old host releases its lock.
-			s.reviveAcceptedAfter(ctx, cmd.Session, hub)
+			s.reviveAcceptedAfter(ctx, hostSession, hub)
 			_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Text: "delivered", Session: cmd.Session})
 			return
 		}
