@@ -243,3 +243,26 @@ func TestNetworkRuleMatchesEgressScope(t *testing.T) {
 		t.Errorf("contained bash = %+v, want fall through to allow", got)
 	}
 }
+
+// INC-5: a networked READ-class tool (web_fetch carries Network "all" via
+// its def data slot) is gateable by BOTH rule spellings — by tool name and
+// by egress scope. The scope arrives on the effect (loop.networkScope).
+func TestNetworkRulesGateWebFetch(t *testing.T) {
+	eff := toolEffect("web_fetch", "read", `{"url":"https://example.com"}`)
+	eff.Network = "all"
+
+	byName := &PermissionGate{Rules: []PermissionRule{{Tool: "web_fetch", Action: "deny"}}}
+	if d := byName.Check(context.Background(), eff); d.Action != event.VerdictDeny {
+		t.Errorf("tool-name rule: got %+v, want deny", d)
+	}
+	byScope := &PermissionGate{Rules: []PermissionRule{{Network: "*", Action: "ask"}}}
+	if d := byScope.Check(context.Background(), eff); d.Action != event.VerdictAsk {
+		t.Errorf("network rule: got %+v, want ask", d)
+	}
+	// A contained run's web_fetch effect carries no scope (the executor
+	// fails closed); the network rule must NOT fire, mode default applies.
+	uncontained := toolEffect("web_fetch", "read", `{"url":"https://example.com"}`)
+	if d := byScope.Check(context.Background(), uncontained); d.Action != event.VerdictAllow {
+		t.Errorf("scope-less web_fetch under network rule: got %+v, want mode default allow", d)
+	}
+}

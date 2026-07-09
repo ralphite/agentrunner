@@ -32,6 +32,13 @@ type Def struct {
 	Description string          `json:"description"`
 	Class       Class           `json:"class"`
 	InputSchema json.RawMessage `json:"input_schema"`
+	// Network declares the egress scope this tool's IN-PROCESS execution
+	// runs with ("all" for web_fetch; empty = no egress). It feeds the
+	// permission gate's network-rule matching exactly like an uncontained
+	// execute-class effect does (§5 network 资源类); under the containment
+	// ratchet the executor refuses such tools (fail closed), so their
+	// effects honestly carry no scope.
+	Network string `json:"network,omitempty"`
 }
 
 var registry = mustLoad()

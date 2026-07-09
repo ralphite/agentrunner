@@ -128,6 +128,8 @@ func (e *Executor) Execute(ctx context.Context, name string, args json.RawMessag
 		return e.grep(args)
 	case "glob":
 		return e.glob(args)
+	case "web_fetch":
+		return e.webFetch(ctx, args)
 	default:
 		return errResult("unknown tool %q", name)
 	}

@@ -426,7 +426,11 @@ effect
   全树收紧，永不放宽），宿主无法提供 netns 时 bash **fail closed**；
   生效的 containment 记录在 `EffectResolved`（缺席 = 未收容）。
   MCP 工具在 out-of-process server 里执行、不受收容约束——恒记
-  Network "all"、containment 缺席（journal 不过度声明）。
+  Network "all"、containment 缺席（journal 不过度声明）。带网的
+  in-process read-class 工具（`web_fetch`，def 带 `network: "all"`
+  数据位，INC-5）未收容时恒带 `all`（network 规则可匹配）；收容棘轮下
+  其 effect 不带出口、执行期 **fail closed**（拒跑而非静默出网），
+  containment 同样缺席——自我拒跑不是 netns，journal 不过度声明。
 - **路径匹配基于 realpath**：所有文件类 tool 的路径在 permission 匹配与
   边界检查前一律 resolve（symlink、`..` 归一化）；resolve 后落在
   workspace 外 → deny。`src/../../etc/passwd` 匹配不上 `src/**`，
@@ -442,13 +446,15 @@ effect
   （read/edit/execute/**wait**-class——wait-class 即"向用户提问"类
   工具，execute = 进入 `WAITING_INPUT` 待命而非阻塞 activity，
   跨崩溃不被 in-doubt 误杀；类别同时供 `acceptEdits` 等 mode 与
-  in-doubt 策略使用）、per-tool 配置（bash timeout、输出截断上限）。
+  in-doubt 策略使用）、网络出口标签（`network`，见上）、per-tool 配置
+  （bash timeout、输出截断上限）。
   内置 tool 以数据文件形式随包分发，spec 里的 `tools:` 是对这些定义
   的引用 + 收窄。
 - 内置 tool 套件（file read/write/edit、bash、glob/grep、web
   fetch/search）建立在 workspace 抽象上：工作目录、路径边界、bash 沙箱
   等级。worktree 级隔离支持多 agent 并行改文件。（`grep`/`glob` 已一等化，
-  INC-3；`web fetch/search` 尚未，见 GAPS G18。）grep/glob 是 read-class
+  INC-3；`web_fetch` 已一等化，INC-5；`web search` 尚未，见 GAPS
+  G18。）grep/glob 是 read-class
   内容工具，与 `semantic_search` 共用凭据/vendored-tree 排除谓词
   （`index.SkipDir/SkipFile`），命中行过 redaction、按 per-tool 上限截断。
 

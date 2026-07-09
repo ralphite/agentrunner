@@ -1652,7 +1652,17 @@ func (l *Loop) adjudicate(ctx context.Context, ds *driveState, appendE AppendFun
 // MCP tools execute in an out-of-process server the netns wrapper never
 // covers — they carry "all" EVEN under the ratchet, so network rules keep
 // matching them (S7 出口 review: 边界诚实 must not stop at bash).
+// Built-in defs may declare egress as DATA (`network: "all"`, INC-5
+// web_fetch): uncontained they carry it regardless of class; under the
+// ratchet the executor refuses them (fail closed), so the empty scope is
+// honest — nothing runs with egress.
 func (l *Loop) networkScope(class, toolName string) string {
+	if def, ok := tool.Get(toolName); ok && def.Network != "" {
+		if l.Exec != nil && l.Exec.NetworkContained() {
+			return ""
+		}
+		return def.Network
+	}
 	if class != string(tool.ClassExecute) {
 		return ""
 	}

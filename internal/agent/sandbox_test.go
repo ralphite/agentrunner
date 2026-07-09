@@ -156,3 +156,26 @@ func TestMCPToolsStayOutsideContainment(t *testing.T) {
 		t.Errorf("bash containment = %+v, want netns", c)
 	}
 }
+
+// INC-5: web_fetch declares egress as def DATA (network: "all") — the
+// effect carries it while uncontained regardless of read class, and under
+// the ratchet the scope honestly empties because the executor fails closed
+// (nothing runs with egress, so nothing is over-claimed).
+func TestWebFetchNetworkScope(t *testing.T) {
+	l := testLoop(t, scripted.Fixture{}, t.TempDir())
+	if got := l.networkScope("read", "web_fetch"); got != "all" {
+		t.Errorf("web_fetch scope = %q, want all (def network slot)", got)
+	}
+	if got := l.networkScope("read", "read_file"); got != "" {
+		t.Errorf("read_file scope = %q, want empty", got)
+	}
+	l.Spec.Sandbox.Network = "none"
+	l.applySandbox()
+	if got := l.networkScope("read", "web_fetch"); got != "" {
+		t.Errorf("web_fetch scope under ratchet = %q, want empty (fail closed)", got)
+	}
+	if c := l.containment(pipeline.Effect{Kind: "tool_call", Class: "read",
+		ToolName: "web_fetch"}); c != nil {
+		t.Errorf("web_fetch containment = %+v, want nil (self-refusal, not netns)", c)
+	}
+}
