@@ -17,9 +17,21 @@ system_prompt: When the task is done, report your conclusions as concise bullet 
 tools: [read_file, bash]
 `;
 
-export const DEFAULT_DRIVER = `name: reviewer-loop
-model: { provider: gemini, id: gemini-flash-latest, max_tokens: 4096 }
-system_prompt: You work in a plan/verify iteration loop; make progress and self-check each round.
-tools: [read_file, write_file, bash]
+// A driver.yaml is NOT an agent spec — it references a child agent spec via
+// agent_spec (a sibling file) and carries the loop's task/verifiers/limits.
+export const DEFAULT_DRIVER = `name: progress-loop
+agent_spec: agent.yaml
+task: Append one line describing this round's progress to progress.txt in the workspace (use bash or write_file); do not repeat the previous line.
 max_iterations: 3
+verifiers:
+  - { kind: command, command: "test -f progress.txt" }
+`;
+
+// The child agent each iteration runs as. Written as the agent.yaml sibling.
+export const DEFAULT_DRIVER_AGENT = `name: worker
+model: { provider: gemini, id: gemini-flash-latest, max_tokens: 2048 }
+system_prompt: You work in an iteration loop; each round advance the task one small step, self-check, and report concisely what you did this round.
+tools: [read_file, write_file, bash]
+permissions:
+  - { action: allow }
 `;

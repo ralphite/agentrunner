@@ -177,9 +177,15 @@ func (s *server) handleTrust(w http.ResponseWriter, r *http.Request) {
 	if !readBody(w, r, &req) {
 		return
 	}
-	dir, err := filepath.Abs(strings.TrimSpace(req.Dir))
-	if err != nil || dir == "" {
+	dir := strings.TrimSpace(req.Dir)
+	if dir == "" {
 		badRequest(w, "dir is required")
+		return
+	}
+	// Require an absolute path — don't resolve a relative one against arwebui's
+	// CWD (that both surprises the user and leaks the server's directory).
+	if !filepath.IsAbs(dir) {
+		badRequest(w, "please provide an absolute path (starting with /): "+dir)
 		return
 	}
 	res := s.runAR(r.Context(), oneShotTimeout, "trust", dir)
@@ -441,12 +447,18 @@ func (s *server) handleBarriers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	names := []string{}
+	seen := map[string]bool{}
 	for _, line := range strings.Split(res.Stdout, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "no barriers") || strings.HasPrefix(line, "BARRIER") {
 			continue
 		}
-		names = append(names, strings.Fields(line)[0])
+		name := strings.Fields(line)[0]
+		if seen[name] { // a barrier repeated across turns lists once
+			continue
+		}
+		seen[name] = true
+		names = append(names, name)
 	}
 	writeJSON(w, http.StatusOK, names)
 }

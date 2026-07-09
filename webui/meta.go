@@ -87,7 +87,7 @@ func (s *server) handleDiff(w http.ResponseWriter, r *http.Request) {
 	resp["diff"] = diff
 	resp["numstat"] = numstat
 	if porcelain, ok := git(r.Context(), meta.Workspace, "status", "--porcelain"); ok {
-		var untracked []string
+		untracked := []string{} // never nil — the UI does .length on this
 		for _, line := range strings.Split(porcelain, "\n") {
 			if strings.HasPrefix(line, "?? ") {
 				untracked = append(untracked, strings.TrimSpace(line[3:]))

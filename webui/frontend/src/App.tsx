@@ -6,6 +6,7 @@ import { RunView } from "./components/RunView";
 import { Home } from "./components/Home";
 import { Modals } from "./components/Modals";
 import { Toasts } from "./components/Toasts";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 export function App() {
   const { currentSid, currentRunId, refreshHealth, refreshSessions, refreshRuns, select } =
@@ -37,13 +38,15 @@ export function App() {
     <div className="app">
       <Sidebar />
       <div className="main">
-        {currentRunId ? (
-          <RunView runId={currentRunId} />
-        ) : currentSid ? (
-          <SessionView sid={currentSid} key={currentSid} />
-        ) : (
-          <Home />
-        )}
+        <ErrorBoundary resetKey={currentRunId || currentSid || "home"}>
+          {currentRunId ? (
+            <RunView runId={currentRunId} />
+          ) : currentSid ? (
+            <SessionView sid={currentSid} key={currentSid} />
+          ) : (
+            <Home />
+          )}
+        </ErrorBoundary>
       </div>
       <Modals />
       <Toasts />

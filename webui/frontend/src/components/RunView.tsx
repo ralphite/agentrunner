@@ -8,15 +8,55 @@ interface Line {
   text: string;
 }
 
+function argVal(a: any, ...keys: string[]): string {
+  let o = a;
+  if (typeof a === "string") {
+    try {
+      o = JSON.parse(a);
+    } catch {
+      return a;
+    }
+  }
+  o = o || {};
+  for (const k of keys) if (o[k]) return o[k];
+  return "";
+}
+
 function summarize(raw: string): Line {
   try {
     const o = JSON.parse(raw);
     const kind = o.kind || o.type || "event";
     let text = "";
-    if (o.text) text = o.text;
-    else if (o.message?.parts) text = o.message.parts.map((p: any) => p.text || "").join("");
-    else if (o.status) text = o.status;
-    else text = JSON.stringify(o);
+    switch (kind) {
+      case "session_start":
+        text = "session " + (o.session || "");
+        break;
+      case "generation_start":
+        text = "turn " + (o.n ?? "?");
+        break;
+      case "tool_call":
+        text =
+          o.tool === "bash"
+            ? "$ " + argVal(o.args, "command")
+            : `${o.tool} ${argVal(o.args, "path", "file", "command")}`.trim();
+        break;
+      case "tool_result": {
+        const r = typeof o.result === "string" ? o.result : JSON.stringify(o.result || {});
+        text = "→ " + (o.tool || "") + " " + r.slice(0, 200);
+        break;
+      }
+      case "message":
+        text = o.text || (o.message?.parts || []).map((p: any) => p.text || "").join("");
+        break;
+      case "text_delta":
+        text = o.text || "";
+        break;
+      case "end":
+        text = "end · " + (o.status || o.reason || "");
+        break;
+      default:
+        text = o.text || o.status || JSON.stringify(o);
+    }
     return { raw, kind, text };
   } catch {
     return { raw, kind: "", text: raw };

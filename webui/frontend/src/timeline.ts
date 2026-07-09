@@ -207,6 +207,13 @@ export function foldEvents(events: Envelope[]): Folded {
       case "approval_responded": {
         const a = approvals.get(p.approval_id);
         if (a) a.resolved = { decision: p.decision, reason: p.reason, source: p.source };
+        // Leave a durable audit line in the feed (approve otherwise just
+        // vanishes with no record).
+        chip(
+          seq,
+          `${p.decision === "approve" ? "✓ approved" : "✕ denied"}${p.reason ? " · " + p.reason : ""}`,
+          p.decision === "approve" ? "good" : "warn",
+        );
         break;
       }
       case "waiting_entered": {
