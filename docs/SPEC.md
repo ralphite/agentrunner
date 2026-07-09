@@ -56,9 +56,9 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | 树预算 / 权限默认不超父（冻结交集） / 深度扇出上限 | ✅ | UJ-18/20/23 | S4 · INC-12.5 · TestEscalationApproval（预算/上限/收容无例外） |
 | 子提权申请通道（`escalate` 强制人审；批准用 child rules，拒绝/interrupt 降级交集） | ✅ | UJ-23 | INC-12.5 · TestEscalationApproval |
 | 动态角色（`agents_dynamic` + inline role；冻结 RoleSpec；无 hooks/MCP/skills，工具仅父子集） | ✅ | UJ-23 | INC-12.4 · TestSpawnDynamicRole |
-| 树内 durable 消息 / 静止子唤醒 / 用户直达子 steer | ✅ | UJ-18/23 | INC-12.1–12.3 · TestSendMessage* / TestDaemonSendToChildRoutesThroughRoot |
+| 树内 durable 消息 / 静止子唤醒 / 用户直达子 steer | ✅ | UJ-18/23 | INC-12.1–12.3 · TestSendMessage*/TestRevive*/TestSendForwardsTargetToChild/TestDaemonSendToChildRoutesThroughRoot · QA-20（真 Gemini 团队协作+revive） |
 | durable team task/DAG/lease + workspace assignment（生产默认隔离 worktree，显式 shared；revive 复用） | ✅ | UJ-16/18/23 | INC-11.6 · TestIsolatedTeamWorkspaceSurvivesRevive/TestTeamTaskDependencyPlan |
-| 子 agent 实时进度镜像 / 子审批根宿主路由与 crash 重挂接 | ✅ | UJ-18/23 | INC-12.6 · TestChildAttachLive*/TestCrashResumeReattachesApprovalWaitingChild |
+| 子 agent 实时进度镜像（成员事件带 session 标签入树根 hub;`ar attach <child-sid>` live 过滤;webui 子会话 SSE;CLI 前台锚定折叠）/ 子审批根宿主路由与 crash 重挂接 | ✅ | UJ-18/23 | INC-12.6 · TestDaemonAttachChildFiltersLive/TestChildAttachLive*/TestCrashResumeReattachesApprovalWaitingChild · QA-20(G10 关闭) |
 | 子执行收敛为递归 session | 🟡 | — | 阻塞路径已删(D3a);driver 独立待收敛,挂 UJ-22/G23（DESIGN §17） |
 | 并发子 agent 确定性测试基建（routing provider） | ✅ | — | C3–C7 孪生在用（GAPS G4 关闭事实） |
 

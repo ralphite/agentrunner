@@ -1108,3 +1108,54 @@ barrier、上下文四级、auto mode 移植为 pipeline policy 源、agent team
 vs INC-12（恢复语义是我们反超点）、skill 模型侧 invoke。路线图 §4.2：
 P0 三件（microcompact/G9 auto-memory/G19 hooks 扩展）全部不触不变量且
 压在对方社区 top 抱怨带上。GAPS G9/G19 已挂参照注记。
+
+## 2026-07-09 INC-12 多 agent 工程团队（UJ-23）：动态组队 · 树内消息 · 静止子唤醒 · 提权审批 · 子会话可见
+
+**动机**：模拟软件工程团队——主 agent 动态生成 PM/架构师/SWE/reviewer
+等角色,成员互发消息做 design/code review,目标统一、结果回流主 agent,
+用户全程可点开每个成员（像看主 agent 一样）。用户裁决（2026-07-09）：
+动态生成的复杂结构,**用户确认后权限可以放宽**——兑现决策 #32 政策
+条款、修订决策 #20（不变量变更单见工作纸 §五）。
+
+**落地**（新决策 #35/#36;决策 #20 修订;G10 关闭;本增量由两个并发
+session 协作实施,以 origin/main 为汇合点）：
+- **12.1 树内消息**：`send_message{to,text}`（to=parent/全 id/handle）
+  → 目标 durable inbox（复用 store.AppendInbox:fsync+command_id 幂等+
+  DeliverySeq 去重）;TreeRouter 树共享（与 Board 同族）,live wake
+  best-effort、durable 为真相;发送者前缀进正文、source=agent 进元数据。
+- **12.2 静止子唤醒**：ChildRevived 合成 background activity（原
+  handle 不变、不二次配对、预算 reserve）→ 子 Resume 同 journal 续
+  context → 第二次 SubagentCompleted;usage 按 baseline delta 结算
+  （live/crash 同口径,防双计）;settle 后 PendingMail 收口+drive 入口
+  scanPendingChildMail 兜重启;user-kill 标记仅 user-class 邮件可越。
+- **12.3 用户直达成员**：`ar send <child-sid>` 经树根 CommandLog
+  （UserInput.Target）→ 树根转投（CommandHandled{forwarded} 回执,
+  对话零污染）——子的宿主永远是树根进程（单写者不破）。
+- **12.4 动态角色**：`agents_dynamic` 开面;role=不可信模型输出（无
+  hooks/MCP/skills 面、tools 仅父子集、沙箱棘轮继承）;构造 spec 冻结
+  进 SpawnRequested.RoleSpec 与子 SessionStarted.Spec（revive 真相）。
+- **12.5 提权审批**：escalate → spawn 无条件人审（allow 升 ask,
+  escalation gate result 载请求规则）;批准=子管线以自声明 rules 替换
+  父交集（树预算/深度扇出/工具子集/收容棘轮**无例外**）;拒绝/中断=
+  降级交集继续并告知模型。
+- **12.6 可见性（G10 关闭）**：成员事件带 session 标签入树根 hub;
+  `ar attach <child-sid>`=成员 journal replay+hub 标签过滤 live;webui
+  子会话 SSE、child_revived/forwarded/send_message 时间线渲染;CLI
+  前台锚定主 session、成员事件折叠、成员审批带标注上浮。
+
+**真验（QA-20,闸门 B）**：真 Gemini 共享 store+全局 daemon,lead 动态
+起 engineer+reviewer,成员互发消息（含模型发错 id 又自纠的真实往复）、
+协作期多次 revive（gen_steps 同 context 递增）、ar send 直达唤醒、单
+SessionStarted context 延续——全 PASS,会话保留
+（20260709-234601-task-381f）。**真验抓获三个孪生测不到的 bug**：
+① CLI resolvePrefixLenient 对子 id 做 filepath.Base 截断全树地址;
+② ensureRouter 原在 drive 内,Resume 的 mailbox replay 期转投遇
+no-router 失败且 CommandHandled{forward_failed} 吞邮件;③ typed
+ingress 的 source=cli 不在 user-class 白名单,转投归一/越标记判定不认
+——全部修复并回归。
+
+**记档**：QA 编号三次撞并发 session（17/18/19 均被占）,终号 QA-20;
+qa/run-qa20.sh 按 CLAUDE.md QA 规则走共享 store（qa/lib.sh 的 XDG
+隔离是旧惯例,新场景不再沿用）;handoff 血统子（a2+）不可 revive、
+bash 进度 tail 仍在 G10 余项——均记档。工作纸归档
+archive/increments/INC-12-agent-team.md。

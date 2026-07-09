@@ -432,6 +432,24 @@ tool_call、tool_result 投影到同一 active turn。`inspect --json` 的 turns
 | C5 杀子 agent | QA-05, QA-09 |
 | C6 steer 改编排 | QA-05, QA-09 |
 | C7 完整编排 | QA-09 |
+## QA-20 工程团队模拟（INC-12,UJ-23） `覆盖 G10 关闭 · 决策 #35/#36 真验`
+
+**环境**：共享 store + 全局 daemon（CLAUDE.md QA 规则：不隔离、数据
+保留、归档 `qa/runs/<日期>-QA20/`）+ 真实 Gemini。脚本
+`qa/run-qa20.sh <ar二进制>`。
+
+| # | 动作 | 验证（只钉 runtime 红线） |
+|---|---|---|
+| 1 | lead spec `agents_dynamic: true`,开场要求组 engineer+reviewer 两个 inline role 完成 hello.py+评审,互发 send_message | ≥2 `SpawnRequested` 携 `role_spec`（构造 spec 冻结） |
+| 2 | 团队自主协作至静止 | lead 收 ≥2 `SubagentCompleted`;某成员 journal 或 lead journal 存在 `source:"agent"` 的 `InputReceived`（树内消息真实投递） |
+| 3 | `ar send <child-sid>` 给已静止成员发总结请求 | lead journal 出现 `ChildRevived`;成员 journal 出现 user-class 输入并回答;成员 journal **恰一条** `SessionStarted`（context 延续,不起新会话） |
+
+**通过标准**：三步断言全 PASS;会话保留可复查（webui/`ar attach
+<child-sid>` 可点开每个成员的完整时间线与 live 流）。2026-07-09 首跑
+PASS（session `20260709-234601-task-381f`,协作期含成员互发消息与多次
+revive、gen_steps 同 context 递增;真验期抓获并修复三个 bug:CLI 子 id
+截断、Resume 期转投无 Router、cli 源不入 user-class——记 LOG）。
+
 | C8 interrupt vs 输入 | QA-02, QA-06 |
 | C9 多模态 | QA-07, QA-09, QA-15（PDF/文件） |
 | C10 恢复 | QA-08, QA-09(步骤6) |

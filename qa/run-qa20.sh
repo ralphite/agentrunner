@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# QA-18 real-API gate (INC-12, UJ-23): the engineering-team journey — a lead
+# QA-20 real-API gate (INC-12, UJ-23): the engineering-team journey — a lead
 # with agents_dynamic drafts team members inline (role spawn), members and
 # lead exchange tree messages (send_message), a quiescent member is REVIVED
 # by user mail (`ar send <child-sid>`), and the results flow back.
@@ -8,10 +8,10 @@
 # (no XDG sandbox), keeps every session for post-hoc inspection, and
 # archives the events export under qa/runs/.
 #
-#   qa/run-qa18.sh <ar-binary>
+#   qa/run-qa20.sh <ar-binary>
 set -euo pipefail
-QA=QA-18
-AR="${1:?usage: run-qa18.sh <ar-binary>}"
+QA=QA-20
+AR="${1:?usage: run-qa20.sh <ar-binary>}"
 qa_here="$(cd "$(dirname "$0")" && pwd)"
 
 # .env for GEMINI_API_KEY; shared store (NO XDG override). A worktree keeps
@@ -30,12 +30,12 @@ count_type() { local n; n="$(grep -c "\"type\":\"$1\"" "$2" 2>/dev/null)" || n=0
 # Global daemon: reuse a live one, else start one and LEAVE it running
 # (it is the user's resident runtime, not a fixture).
 if ! "$AR" sessions list >/dev/null 2>&1; then
-  nohup "$AR" daemon >>"$DATA/qa18-daemon.log" 2>&1 &
+  nohup "$AR" daemon >>"$DATA/qa20-daemon.log" 2>&1 &
   for i in $(seq 1 100); do [ -S "$SOCK" ] && break; sleep 0.1; done
 fi
 "$AR" sessions list >/dev/null 2>&1 || { echo "$QA: no daemon" >&2; exit 1; }
 
-WORK="$(mktemp -d /tmp/qa18-XXXX)"   # spec + workspace (kept; path recorded)
+WORK="$(mktemp -d /tmp/qa20-XXXX)"   # spec + workspace (kept; path recorded)
 WS="$WORK/ws"; mkdir -p "$WS"
 cat > "$WORK/lead.yaml" <<'YAML'
 name: lead
@@ -120,7 +120,7 @@ fi
 
 # Archive (数据保留纪律): events export + workspace listing.
 STAMP="$(date +%Y%m%d)"
-DEST="$qa_here/runs/$STAMP-QA18"
+DEST="$qa_here/runs/$STAMP-QA20"
 mkdir -p "$DEST"
 "$AR" events --json "$sid" > "$DEST/lead-events.jsonl" 2>/dev/null || cp "$EV" "$DEST/lead-events.jsonl"
 for cj in "$SDIR"/sub/*/events.jsonl; do

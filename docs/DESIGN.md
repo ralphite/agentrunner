@@ -269,6 +269,51 @@ parent kill 的 parent 可复活）,显式 send 永远能继续它。
 多 agent 的其余两种协作模式（**handoff**——移交后退出；**pub/sub
 协作**——blackboard topic）是 spawn 之外的补充形态，底座同上。
 
+### 树内消息：agent 发送方（INC-12，决策 #35）
+
+- **投递**：树内任一 session 可调 `send_message{to, text}`（execute-
+  class，过四关卡）。`to` = `"parent"` | 树内 session 全 id | 本 session
+  spawn 出的 handle。执行 = 向目标 session 目录的 **durable inbox**
+  （复用 `store.AppendInbox`：fsync-before-ack、command_id 幂等、单调
+  DeliverySeq）append 一条输入，正文带来源前缀 `[message from <agent>
+  (<session>)]`，journal 元数据 `source: "agent"`；随后 best-effort 投
+  目标的 live 输入通道（丢失无害——durable 是真相）。这是 §2"一条
+  通道、多种发送方"的 **agent 发送方**。
+- **消费**：目标运行中——安全边界/idle 消费（既有 drainQueued/
+  awaitInput 机制，DeliverySeq 去重恰好一次）；目标静止——见下节
+  唤醒。协议例外不适用：agent 消息永远是新输入，不做 tool result 配对。
+- **单写者纪律**：inbox 文件写者 = 树根宿主进程（TreeRouter，进程内
+  互斥）；journal 写者仍是各自 loop。daemon 对子会话的 send 经树根
+  CommandLog（`UserInput.Target`）→ 树根 loop 转投（自身只留
+  `CommandHandled{forwarded}` 回执）——**子的宿主永远是树根进程**。
+  `ensureRouter` 在 Run/Resume 入口先于任何输入消费建立（resume 的
+  mailbox replay 期转投也有 fabric 可用）。
+- **治理**：目标限同一 correlation 树（session id 前缀校验）；消息
+  风暴防线 = 树级预算 + per-turn generation 预算（每条消息至多激活
+  一个 turn）。用户源判定 `userClassSource`（""/user/cli/unix-socket）
+  ——机器发送方分级随其增量落地。
+
+### 静止子唤醒（revive，INC-12，决策 #35）
+
+- 静止子收到消息 → **直接父**负责 re-host：父 journal `ChildRevived
+  {call_id, activity_id, baseline_usage}`（fold 以合成 background
+  activity 重入 Handles——**原 handle 不变**、原 call **不**二次配对，
+  预算 reserve-then-settle 照常）→ 子 loop **Resume**（同 journal、
+  同 context 延续，mailbox replay 消费尾巴）→ 再静止 → **第二次
+  SubagentCompleted**（本章"回执可多次发生"的兑现），report 照常以
+  user-role 消息进父对话。
+- **usage 按 baseline delta 结算**（live 与 crash 结算同口径）——父账
+  永不双计子的历史轮次；`settle-from-child-fold` 对 revive 活动读
+  合成 args 里的 baseline。
+- 唤醒信号：TreeRouter 找目标注册口，未注册（静止）→ 投其活祖先的
+  revive 通道；父在安全边界/idle 消费。竞态收口：settle 回执后检查
+  目标 `PendingMail`；进程重启后 drive 入口 `scanPendingChildMail`
+  扫直接子（孙由中间父 resume 时同一扫描接力）。
+- **标记约束**（决策 #30）：user-kill 的子只有 user-class 邮件可唤醒；
+  parent-kill 的子树内消息可唤醒（执行者即父）。预算尽 → 不 revive，
+  program 源消息告知父模型，邮件保留 durable。revive 重冻结权限
+  （按父当时有效面重算交集/提权面）——每次唤醒是新的冻结点。
+
 ---
 
 ## 4. Turn、step 与消息：模型看到什么、多模态
@@ -1165,6 +1210,8 @@ limits:
 | 32 | 换 agent 与提权（2026-07-05） | session 内可换 agent（`SpecChanged` 事件，prefix 显式换代），用户切换免确认；子 agent 默认权限不超父，请求超父必须用户 approve | 用户动作即意图，再确认是冗余；提权审批只存在于 agent 提权自己的子。 |
 | 33 | egress 类统一 fail-closed（INC-5,2026-07-09,**不变量升级**,走 §4） | 收容棘轮从"bash fail-closed"升级为"**所有 egress 类 tool 统一 fail-closed under containment**"。带网 in-process 工具(`web_fetch`)= **execute-class**（default 需审批,不静默出网）+ `def.network` 数据位（network 规则可治理）+ **link-local/metadata 无条件封禁**（作用于已解析 IP,覆盖重定向每跳）;class 翻转同步 `containment()` 守卫（def.network 非空 → 记账缺席,自我拒跑非 netns） | in-process `net/http` 出口不被 `unshare -n` 覆盖(netns 只包 bash 子进程),只保"bash fail-closed"会让 web_fetch 在 `network=none` 下**静默违反"收容=全树无出口"**;execute-class 买回 default 审批检查点(read-class 静默放行);metadata 封禁堵云 IAM 凭据窃取。安全 review 详见 LOG 2026-07-09 条 |
 | 34 | shell filesystem 与 verifier 统一治理（INC-11.3，2026-07-09，**不变量升级**） | bash/command verifier 默认强制 OS workspace sandbox（macOS Seatbelt / Linux Bubblewrap），凭据路径与敏感 env 隔离；backend 缺失在 Activity 前 fail closed。in-session 与 driver command verifier 都必须产生 EffectRequested/Resolved（含 containment evidence）与 Activity bracket；会话内 ask 走正常审批，headless driver ask 收紧 deny。 | command pattern/path 静态规则无法约束 shell 间接文件访问；UNGATED goal verifier 还可绕过 mode/deny/approval。OS boundary 与统一 effect path 才能让 policy、审计和执行事实一致。 |
+| 35 | 树内消息与静止子唤醒（INC-12,2026-07-09） | agent 是 send 通道的一等发送方：`send_message` 向树内成员的 durable inbox 投递（AppendInbox 幂等,来源前缀+source=agent）;静止子由直接父 `ChildRevived` re-host(原 handle、同 journal context 延续、第二次回执、usage 按 baseline delta);daemon 子会话 send 经树根转投(单宿主单写者);user-kill 标记仅 user-class 邮件可越 | "回执可多次发生"与"send 对任何 session 成立"的机制兑现;树内协作(评审往复/进度汇报)不再全经父转发烧上下文。 |
+| 36 | 动态角色（INC-12,2026-07-09） | `spec.agents_dynamic` 开 inline role 面：spawn_agent{role:{name,description,instructions,tools?,permissions?,escalate?}};role=不可信模型输出（无 hooks/MCP/skills/model/budget 面,tools 仅父子集,沙箱棘轮继承）;构造 spec 冻结进 SpawnRequested.RoleSpec 与子 SessionStarted.Spec（revive/审计真相） | 工程团队场景要求运行时组队;信任面由结构封死（决策 #19/#20 同族）,预定义 spec 白名单继续并存。 |
 
 ---
 
@@ -1351,6 +1398,9 @@ event sourcing 的闭环：**执行产生事件，事件重建状态，状态驱
 | **权限冻结交集 / 提权例外** | spawn 默认按父当时有效权限冻结下传；child 不能自行放宽。唯一例外是显式 `escalate` 经人批准后使用 child 声明 rules；拒绝/interrupt 回退交集。预算、树上限、工具子集、收容棘轮永不随审批放宽。 |
 | **settle-from-child-fold** | 父恢复时对每个在飞 handle 读子 journal：已静止则结算真实回执；正等待审批的子在根宿主重挂接原 wait/lease；其余在飞状态按 crash 取消，绝不静默重放未知 effect。子审批 CommandLog 由根启动扫描重放。 |
 | **handoff / blackboard** | 移交后退出（`handoff_agent`）/ 树内共享笔记（`publish_note`/`read_notes`）。 |
+| **send_message / 树内消息** | 树内任一成员向另一成员 durable inbox 投递输入（决策 #35）：to=parent/全 id/handle,execute-class 过管线;来源前缀进正文,source=agent 进元数据。 |
+| **revive（静止子唤醒）** | 静止成员收树内/用户邮件后由直接父 re-host（`ChildRevived`,原 handle,同 journal 续 context,第二次回执,usage=baseline delta）;user-kill 标记仅 user-class 邮件可越。 |
+| **动态角色（inline role）** | `agents_dynamic` 下 spawn 时起草的成员（决策 #36）:构造 spec 冻结入双侧 journal;不可信模型输出的信任面结构封死。 |
 
 ### 18.7 等待、恢复与终止
 

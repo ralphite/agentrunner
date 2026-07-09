@@ -279,7 +279,12 @@ GAPS.md，本文件只回答"产品要做什么"。
 
 **覆盖功能**：`会话内 goal(context 延续,硬性)` `完成裁决在静止边界(verifier 唯一裁决或自证声明)` `goal_complete 自证(模型工具面)` `结构化 continuation 回灌(程序发送方)` `goal 控制面(pause/update/cancel,非 hosted revive)` `steer 与 goal 并行` `goal 级预算` `goal 达成回执`
 
-### UJ-23 工程团队模拟（动态组队 + 横向协作） `高级` `🚧 INC-12`
+### UJ-23 工程团队模拟（动态组队 + 横向协作） `高级` `✅ INC-12（2026-07-09）`
+> **实现（INC-12）**：动态角色（`agents_dynamic`+role spawn,决策 #36）、
+> 树内消息+静止子唤醒（`send_message`/`ChildRevived`,决策 #35）、提权
+> 用户审批（决策 #20 修订）、`ar send <child-sid>` 直达、子会话 live
+> 镜像（G10 关闭）。真验 QA-20（真 Gemini 组队/互发消息/revive/context
+> 延续全 PASS）。
 **场景**：一个复杂工程目标，主 agent 组一支持久的软件团队打完整场。
 1. 用户："给这个服务加限流，要设计评审和代码评审。"主 agent
    （team lead）**动态起草**三个角色并 spawn：PM（澄清验收标准）、
