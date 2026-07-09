@@ -7,9 +7,12 @@ import (
 	"strings"
 
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/protocol"
+	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/redact"
 	"github.com/ralphite/agentrunner/internal/state"
+	"github.com/ralphite/agentrunner/internal/store"
 	"github.com/ralphite/agentrunner/internal/tool"
 )
 
@@ -184,41 +187,105 @@ func (l *Loop) goalResumeCheck(ctx context.Context, ds *driveState, appendE Appe
 	return goalCheckpoint(ctx, l, ds, appendE, &r)
 }
 
-// goalVerify runs an in-session goal's verifiers in the workspace (INC-D1).
-// v0 supports command verifiers (exit 0 = pass); all must pass (AND). It runs
-// the command through the loop's own executor. NOTE (review F1): unlike the
-// driver's verifier — which IS adjudicated through the pipeline (driver.go
-// verifyOne → adjudicateVerifier) — this v0 in-session verifier runs UNGATED
-// (no permission/mode gate). Defensible because the command is operator-set
-// only (control plane, not model/untrusted-reachable) and network containment
-// still applies via the executor; but a locked-down session (plan mode / a deny
-// rule on bash) does NOT gate it. Pipeline-adjudicating the goal verifier is a
-// noted hardening follow-up (LOG). Returns pass + a short human detail.
-func goalVerify(ctx context.Context, l *Loop, g *state.Goal) (bool, string) {
+// goalVerify runs every in-session command verifier through the same durable
+// effect pipeline and ActivityExecutor as a model-requested bash call. All
+// configured checks must pass. Deterministic ids make approval/crash recovery
+// converge on the same fact instead of silently re-running another effect.
+func (l *Loop) goalVerify(ctx context.Context, ds *driveState, appendE AppendFunc, g *state.Goal) (bool, string, error) {
 	if l.Exec == nil {
-		return false, "no executor for goal verifier"
+		return false, "no executor for goal verifier", nil
 	}
 	ran := 0
-	for _, v := range g.Verifiers {
+	for i, v := range g.Verifiers {
 		if v.Kind != "command" || v.Command == "" {
 			continue // v0: only command verifiers
 		}
 		ran++
 		args, _ := json.Marshal(map[string]string{"command": v.Command})
-		res := l.Exec.Execute(ctx, "bash", args)
-		var out struct {
-			ExitCode int    `json:"exit_code"`
-			Stdout   string `json:"stdout"`
+		actID := fmt.Sprintf("goal-verify-%s-g%d-k%d", g.GoalID, ds.s.Session.GenStep, i+1)
+		if completed, ok, err := completedVerifierResult(l, actID); err != nil {
+			return false, "", err
+		} else if ok {
+			if exit := verifierExitCode(completed); exit != 0 {
+				return false, fmt.Sprintf("`%s` exit=%d", v.Command, exit), nil
+			}
+			continue
 		}
-		_ = json.Unmarshal(res.Payload, &out)
-		if out.ExitCode != 0 {
-			return false, fmt.Sprintf("`%s` exit=%d", v.Command, out.ExitCode)
+		eff := pipeline.Effect{
+			ID: "eff-" + actID, Kind: "tool_call", ToolName: "bash",
+			Class: string(tool.ClassExecute), Args: args,
+			Mode: ds.s.CurrentMode(), Budget: budgetView(ds.s),
+			Network: l.networkScope(string(tool.ClassExecute), "bash"),
+		}
+		outcome, allowed, err := l.adjudicate(ctx, ds, appendE, eff)
+		if err != nil {
+			return false, "", err
+		}
+		if !allowed {
+			return false, "verifier denied: " + string(deniedResult(outcome).Payload), nil
+		}
+
+		var res tool.Result
+		exec := &ActivityExecutor{Append: appendE, Clock: l.Clock, Redact: redact.FromEnv()}
+		if err := exec.Do(ctx, Activity{
+			ID: actID, Kind: event.KindTool, Name: "verifier:command",
+			Args: args, Idempotent: true, Timeout: toolTimeoutIn(ds.s, "bash"),
+			Run: func(runCtx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
+				res = l.Exec.Execute(runCtx, "bash", args)
+				return res.Payload, nil, res.IsError, nil
+			},
+		}); err != nil {
+			return false, "", err
+		}
+		if exit := verifierExitCode(res); exit != 0 {
+			return false, fmt.Sprintf("`%s` exit=%d", v.Command, exit), nil
 		}
 	}
 	if ran == 0 {
-		return false, "no command verifier to check"
+		return false, "no command verifier to check", nil
 	}
-	return true, "all checks passed"
+	return true, "all checks passed", nil
+}
+
+func verifierExitCode(res tool.Result) int {
+	var out struct {
+		ExitCode *int `json:"exit_code"`
+	}
+	_ = json.Unmarshal(res.Payload, &out)
+	if out.ExitCode == nil {
+		if res.IsError {
+			return -1
+		}
+		return 0
+	}
+	return *out.ExitCode
+}
+
+// completedVerifierResult closes the ActivityCompleted→GoalCheckpoint crash
+// window: a deterministic verifier activity that already has a terminal fact
+// contributes its recorded result and is never executed a second time.
+func completedVerifierResult(l *Loop, activityID string) (tool.Result, bool, error) {
+	if l == nil || l.Store == nil {
+		return tool.Result{}, false, nil
+	}
+	events, err := store.ReadEvents(l.Store.Dir())
+	if err != nil {
+		return tool.Result{}, false, err
+	}
+	for i := len(events) - 1; i >= 0; i-- {
+		if events[i].Type != event.TypeActivityCompleted {
+			continue
+		}
+		decoded, err := event.DecodePayload(events[i])
+		if err != nil {
+			return tool.Result{}, false, err
+		}
+		completed := decoded.(*event.ActivityCompleted)
+		if completed.ActivityID == activityID {
+			return tool.Result{Payload: completed.Result, IsError: completed.IsError}, true, nil
+		}
+	}
+	return tool.Result{}, false, nil
 }
 
 // verifiersHaveCommand reports whether any verifier is a runnable command —
@@ -352,9 +419,13 @@ func goalCheckpoint(ctx context.Context, l *Loop, ds *driveState, appendE Append
 	// a claim the boundary is a miss and the continuation re-injects.
 	var pass bool
 	var rawDetail string
+	var err error
 	switch {
 	case verifiersHaveCommand(g.Verifiers):
-		pass, rawDetail = goalVerify(ctx, l, g)
+		pass, rawDetail, err = l.goalVerify(ctx, ds, appendE, g)
+		if err != nil {
+			return err
+		}
 		if !pass && g.Claimed {
 			rawDetail = "completion claim rejected — " + rawDetail
 		}

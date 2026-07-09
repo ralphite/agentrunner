@@ -99,7 +99,13 @@ Durable CommandLog(command_id, seq, principal, source, trust)
    send/control/close/interrupt/approval/kill。调用方 `command_id` 与 event
    causation 分轴；所有 command 单 FIFO wake、宿主内去重；daemon 启动扫描
    CommandLog/journal 差集并 re-host。`check.sh`、race 与真实重启闸门通过。
-3. INC-11.3：verifier pipeline 化与 filesystem/network OS sandbox。
+3. ✅ INC-11.3：in-session/driver command verifier 统一 journaled effect +
+   Activity bracket；mode/permission/hooks/approval/budget/containment 全绑定。
+   bash/verifier 默认强制 filesystem=workspace，macOS Seatbelt、Linux
+   Bubblewrap，`network:none` 同 backend 收紧；凭据路径/敏感 env 隔离，能力
+   缺失在 Activity 前 fail closed。共享 store 真实 session
+   `20260709-214651-exercise-sandbox-28ae` 与
+   `20260709-214800-stand-by-for-goal-d657` 通过。
 4. INC-11.4：MCP spec/生产 wiring 与完整协议能力；修可信重放规则。
 5. INC-11.5：Turn/Item + typed ingress + provider capability envelope，兼容旧
    Message/GenStep reader。

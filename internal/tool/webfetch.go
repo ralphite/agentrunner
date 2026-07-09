@@ -3,7 +3,7 @@ package tool
 // web_fetch (INC-5): client-side HTTP(S) fetch as a read-class tool. The
 // def carries the `network: "all"` data slot, so permission rules match it
 // by egress scope; under the containment ratchet an in-process fetch cannot
-// be wrapped in the bash netns — it FAILS CLOSED instead (never silent
+// be wrapped in the bash subprocess sandbox — it FAILS CLOSED instead (never silent
 // egress). Fetched bytes are external, untrusted input: the payload says so
 // in-band (G16 first line of defense), and everything journaled passes the
 // same redaction as every other tool output.
@@ -41,7 +41,7 @@ func (e *Executor) webFetch(ctx context.Context, rawArgs json.RawMessage) Result
 		return errResult("web_fetch: invalid args: need {\"url\": string}")
 	}
 	// Containment ratchet (S7 模块 5): same fail-closed discipline as bash
-	// without netns support — refusing beats silent egress.
+	// without an in-process network sandbox — refusing beats silent egress.
 	if e.NetworkContained() {
 		return errResult("web_fetch: spec requires network=none — refusing network egress")
 	}

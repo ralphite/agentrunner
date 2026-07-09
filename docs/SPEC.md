@@ -82,7 +82,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | modes（default/plan/acceptEdits + bypass 不跳 hooks） | ✅ | UJ-06/11 | S2/S3 |
 | 审批流（ask → WAITING_APPROVAL → 应答/拒绝理由回灌） | ✅ | UJ-08 | S2 · 远程审批 S6 |
 | hooks（pre/post，observe+block） | ✅ | UJ-19 | S2 |
-| 网络沙箱（netns 收容棘轮、fail-closed） | ✅ | UJ-20 | S7 |
+| OS 沙箱（bash/verifier 默认 filesystem=workspace；Seatbelt/Bubblewrap；network none 棘轮；能力缺失 fail-closed） | ✅ | UJ-20 | INC-11.3 · TestBashFilesystemSandbox/TestBashNetworkContainment/TestSandboxCapabilityMissingDeniesBeforeActivity |
 | 凭据 redaction + 硬排除表（含 .netrc/.npmrc 等） | ✅ | UJ-20 | S2/S7 收口 |
 | 信任模型（project 层 hooks 需显式 trust，`ar trust`） | ✅ | UJ-20 | S2 |
 | 审批答复写回规则（"允许且不再问"） | ❌ | UJ-08 | GAPS G5（PolicyChanged 事件已设计） |
@@ -107,9 +107,9 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | 功能点 | 状态 | Journey | 验收锚 / 备注 |
 |---|---|---|---|
 | driver-goal（批式/headless，verifier 三态、停滞检测、carry；fresh child run） | ✅ | UJ-15 | S6 |
-| **in-session goal（会话内，context 延续；完成裁决在静止边界：command verifier 唯一裁决，或无 verifier 时模型 `goal_complete` 自证声明；结构化 continuation 回灌续跑、goal 级预算=可见截断；模型工具面 goal_status/goal_complete，无生命周期/verifier 设置路径；控制面 attach/pause/resume/update/cancel，非 hosted 会话 revive）** | ✅ | UJ-22 | INC-D1+INC-10 · 决策 #21 修订×2 · TestInSessionGoal{Continuity,BudgetTruncation,PauseCancel,SelfCertify,ClaimDoesNotOverrideVerifier,NoVerifierBudget,ResumeContinues} + TestGoalRecover/TestGoalResumeCheck/TestGoalClaimFold/TestGoalAttachRevivesSession · QA-16 + QA-17（真 Gemini 自证完成） |
+| **in-session goal（会话内，context 延续；完成裁决在静止边界：command verifier 唯一裁决且经过 effect pipeline/approval/OS sandbox，或无 verifier 时模型 `goal_complete` 自证；结构化 continuation 回灌、goal 级预算=可见截断；模型工具面 goal_status/goal_complete；控制面 attach/pause/resume/update/cancel，非 hosted 会话 revive）** | ✅ | UJ-22 | INC-D1+INC-10+INC-11.3 · 决策 #21/#34 · TestInSessionGoal{Continuity,SelfCertify,ClaimDoesNotOverrideVerifier,VerifierPipelineDenyBinds,VerifierCompletedResultIsNotRerun} + TestGoalRecover/TestGoalResumeCheck/TestGoalAttachRevivesSession · QA-16/17 |
 | loop mode（interval/cron/self_paced、overlap skip/coalesce） | ✅ | UJ-14 | S6 |
-| verifier 管线化（journaled effect、driver-trust 规则层） | ✅ | UJ-15 | S7 |
+| verifier 管线化（in-session/driver 均 journaled effect + Activity bracket + containment evidence；driver-trust 规则层） | ✅ | UJ-15/22 | S7 · INC-11.3 · TestVerifierActivityTrace |
 | best-of-N（隔离 worktree、per-attempt 判定、胜者留盘） | ✅ | UJ-16 | S7 |
 | overlap: interrupt | 🧊 | UJ-14 | backlog（与顺序执行同理推迟） |
 | 胜者晋升（fork / apply diff） | 🧊 | UJ-16 | GAPS G15（v0 用户手动晋升，记档） |

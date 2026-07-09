@@ -2,16 +2,22 @@ package agent
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
 	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
+	"github.com/ralphite/agentrunner/internal/tool"
+	"github.com/ralphite/agentrunner/internal/workspace"
 )
 
 // TestInSessionGoalContinuity is the INC-D1 core proof: an in-session goal
@@ -69,6 +75,110 @@ func TestInSessionGoalContinuity(t *testing.T) {
 	if ach := decodeGoalAchieved(t, es.Dir()); ach.Reason != "satisfied" {
 		t.Fatalf("GoalAchieved.Reason = %q, want satisfied", ach.Reason)
 	}
+	var verifierActivities int
+	for _, env := range readEvents(t, es.Dir()) {
+		if env.Type == event.TypeActivityStarted {
+			p, _ := event.DecodePayload(env)
+			if p.(*event.ActivityStarted).Name == "verifier:command" {
+				verifierActivities++
+			}
+		}
+	}
+	if verifierActivities != 2 {
+		t.Fatalf("verifier activity traces = %d, want 2", verifierActivities)
+	}
+}
+
+func TestInSessionGoalVerifierPipelineDenyBinds(t *testing.T) {
+	ws, err := workspace.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	es, err := store.OpenEventStore(filepath.Join(t.TempDir(), "sess"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = es.Close() }()
+	ds := &driveState{s: state.State{Goal: &state.Goal{
+		GoalID: "g-deny", Goal: "must not run",
+		Verifiers: []event.GoalVerifier{{Kind: "command", Command: "touch escaped"}},
+		Budget:    event.GoalBudget{MaxChecks: 1},
+	}}}
+	ds.s.Session.GenStep = 1
+	l := &Loop{
+		Spec: &AgentSpec{}, Exec: &tool.Executor{WS: ws}, Store: es,
+		Clock:     clock.NewFake(time.Date(2026, 7, 9, 0, 0, 0, 0, time.UTC)),
+		SessionID: "goal-deny",
+		Pipeline: &pipeline.Pipeline{Gates: []pipeline.Gate{
+			&pipeline.PermissionGate{Rules: []pipeline.PermissionRule{
+				{Tool: "bash", Action: "deny"}, {Action: "allow"},
+			}, WS: ws},
+		}},
+	}
+	reason := "completed"
+	if err := goalCheckpoint(context.Background(), l, ds, l.appender(ds), &reason); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(ws.Root(), "escaped")); !os.IsNotExist(err) {
+		t.Fatalf("denied verifier executed: %v", err)
+	}
+	var requested, denied, started bool
+	for _, env := range readEvents(t, es.Dir()) {
+		switch env.Type {
+		case event.TypeEffectRequested:
+			requested = true
+		case event.TypeEffectResolved:
+			p, _ := event.DecodePayload(env)
+			denied = p.(*event.EffectResolved).Verdict == event.VerdictDeny
+		case event.TypeActivityStarted:
+			p, _ := event.DecodePayload(env)
+			started = started || p.(*event.ActivityStarted).Name == "verifier:command"
+		}
+	}
+	if !requested || !denied || started {
+		t.Fatalf("trace requested=%v denied=%v verifier_started=%v", requested, denied, started)
+	}
+}
+
+func TestInSessionGoalVerifierCompletedResultIsNotRerun(t *testing.T) {
+	l := testLoop(t, scripted.Fixture{}, t.TempDir())
+	l.Pipeline = &pipeline.Pipeline{Gates: []pipeline.Gate{
+		&pipeline.PermissionGate{Rules: []pipeline.PermissionRule{{Action: "allow"}}, WS: l.Exec.WS},
+	}}
+	g := &state.Goal{GoalID: "g", Verifiers: []event.GoalVerifier{{Kind: "command", Command: "true"}}}
+	ds := &driveState{s: state.State{Goal: g}}
+	ds.s.Session.GenStep = 3
+	appendE := l.appender(ds)
+	for i := 0; i < 2; i++ {
+		pass, detail, err := l.goalVerify(context.Background(), ds, appendE, g)
+		if err != nil || !pass {
+			t.Fatalf("verify %d = pass %v detail %q err %v", i+1, pass, detail, err)
+		}
+	}
+	var effects, activities int
+	for _, env := range readEvents(t, l.Store.Dir()) {
+		switch env.Type {
+		case event.TypeEffectRequested:
+			effects++
+		case event.TypeActivityStarted:
+			p, _ := event.DecodePayload(env)
+			if p.(*event.ActivityStarted).Name == "verifier:command" {
+				activities++
+			}
+		}
+	}
+	if effects != 1 || activities != 1 {
+		t.Fatalf("replayed completed verifier: effects=%d activities=%d", effects, activities)
+	}
+}
+
+func readEvents(t *testing.T, dir string) []event.Envelope {
+	t.Helper()
+	events, err := store.ReadEvents(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return events
 }
 
 // TestInSessionGoalBudgetTruncation: a verifier that never passes stops at the

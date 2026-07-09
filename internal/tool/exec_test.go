@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -324,30 +325,33 @@ func TestSemanticSearch(t *testing.T) {
 	}
 }
 
-// Network containment (S7 模块 5): a contained executor runs bash in a
-// fresh netns — only loopback is visible; the ratchet never widens; a
-// host that cannot contain FAILS CLOSED instead of running with egress.
+// Network containment is enforced by the platform OS sandbox. Even a local
+// listener is unreachable, the ratchet never widens, and capability absence
+// fails closed.
 func TestBashNetworkContainment(t *testing.T) {
 	e, _ := newExec(t)
-	if err := e.netNSAvailable(); err != nil {
-		t.Skipf("no unprivileged netns here: %v", err)
-	}
 	e.ContainNetwork()
+	if _, err := e.SandboxInfo(); err != nil {
+		t.Skipf("no OS sandbox backend here: %v", err)
+	}
 	if !e.NetworkContained() {
 		t.Fatal("ratchet did not hold")
 	}
-	out, isErr := run(t, e, "bash", `{"command":"tail -n +3 /proc/net/dev | cut -d: -f1 | tr -d ' '"}`)
-	if isErr {
-		t.Fatalf("contained bash failed: %v", out)
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if got := strings.TrimSpace(out["stdout"].(string)); got != "lo" {
-		t.Errorf("interfaces inside netns = %q, want only lo", got)
+	defer func() { _ = ln.Close() }()
+	command := fmt.Sprintf("echo leaked > /dev/tcp/127.0.0.1/%d", ln.Addr().(*net.TCPAddr).Port)
+	out, isErr := run(t, e, "bash", fmt.Sprintf(`{"command":%q}`, command))
+	if !isErr {
+		t.Fatalf("contained bash reached local network: %v", out)
 	}
 }
 
-func TestBashFailsClosedWithoutNetNS(t *testing.T) {
+func TestBashFailsClosedWithoutOSSandbox(t *testing.T) {
 	e, _ := newExec(t)
-	e.ProbeNetNS = func() error { return errors.New("namespaces disabled") }
+	e.ProbeSandbox = func(bool) error { return errors.New("sandbox disabled") }
 	e.ContainNetwork()
 	out, isErr := run(t, e, "bash", `{"command":"echo should not run"}`)
 	if !isErr {
@@ -355,6 +359,88 @@ func TestBashFailsClosedWithoutNetNS(t *testing.T) {
 	}
 	if msg := out["error"].(string); !strings.Contains(msg, "refusing to run") {
 		t.Errorf("error = %q", msg)
+	}
+}
+
+func TestBashFilesystemSandbox(t *testing.T) {
+	e, root := newExec(t)
+	t.Setenv("INC11_API_KEY", "ENV-SECRET")
+	if _, err := e.SandboxInfo(); err != nil {
+		t.Skipf("no OS sandbox backend here: %v", err)
+	}
+	outside := filepath.Join(filepath.Dir(root), "outside-secret")
+	if err := os.WriteFile(outside, []byte("OUTSIDE"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".env"), []byte("INSIDE-SECRET"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "ok.txt"), []byte("inside"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cmd := fmt.Sprintf("cat ok.txt; echo changed > made.txt; cat %q; cat .env; printf -- \"$INC11_API_KEY\"", outside)
+	out, isErr := run(t, e, "bash", fmt.Sprintf(`{"command":%q}`, cmd))
+	if !isErr && !strings.Contains(out["stderr"].(string), "Operation not permitted") {
+		t.Fatalf("sandbox did not report denied reads: %v", out)
+	}
+	if !strings.Contains(out["stdout"].(string), "inside") {
+		t.Fatalf("workspace read failed: %v", out)
+	}
+	if raw, err := os.ReadFile(filepath.Join(root, "made.txt")); err != nil || strings.TrimSpace(string(raw)) != "changed" {
+		t.Fatalf("workspace write = %q err=%v", raw, err)
+	}
+	if strings.Contains(out["stdout"].(string), "OUTSIDE") || strings.Contains(out["stdout"].(string), "INSIDE-SECRET") ||
+		strings.Contains(out["stdout"].(string), "ENV-SECRET") {
+		t.Fatalf("sandbox leaked credential/outside content: %v", out)
+	}
+}
+
+func TestBashFilesystemSandboxAllowsLinkedWorktreeGitMetadata(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git unavailable")
+	}
+	base := t.TempDir()
+	repo := filepath.Join(base, "repo")
+	wt := filepath.Join(base, "worktree")
+	if err := os.Mkdir(repo, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"init", "-q"}, {"config", "user.email", "qa@example.com"},
+		{"config", "user.name", "QA"},
+	} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = repo
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(repo, "tracked.txt"), []byte("one\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	commit := exec.Command("git", "add", "tracked.txt")
+	commit.Dir = repo
+	if out, err := commit.CombinedOutput(); err != nil {
+		t.Fatalf("git add: %v: %s", err, out)
+	}
+	commit = exec.Command("git", "commit", "-qm", "base")
+	commit.Dir = repo
+	if out, err := commit.CombinedOutput(); err != nil {
+		t.Fatalf("git commit: %v: %s", err, out)
+	}
+	add := exec.Command("git", "worktree", "add", "-qb", "qa-worktree", wt)
+	add.Dir = repo
+	if out, err := add.CombinedOutput(); err != nil {
+		t.Fatalf("git worktree add: %v: %s", err, out)
+	}
+	ws, err := workspace.New(wt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := &Executor{WS: ws}
+	out, isErr := run(t, e, "bash", `{"command":"git status --porcelain && echo git-ok"}`)
+	if isErr || !strings.Contains(out["stdout"].(string), "git-ok") {
+		t.Fatalf("sandboxed linked-worktree git failed: %v", out)
 	}
 }
 

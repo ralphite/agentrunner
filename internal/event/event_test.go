@@ -81,7 +81,7 @@ var samples = map[string]any{
 	TypeEffectResolved: &EffectResolved{EffectID: "eff-call_3_1", CallID: "call_3_1",
 		Verdict: VerdictDeny, GateResults: []GateResult{
 			{Gate: "permission", Decision: VerdictDeny, Reason: "path escapes workspace"}},
-		Containment: &Containment{Network: "none", Backend: "netns"}},
+		Containment: &Containment{Filesystem: "workspace", Network: "none", Backend: "sandbox-exec"}},
 	TypeSessionClosed: &SessionClosed{Reason: "killed", Source: "user", GenSteps: 4},
 	TypeDriverStarted: &DriverStarted{DriverID: "drv-1", SpecName: "nightly",
 		Spec: json.RawMessage(`{"name":"nightly"}`), WorkspaceRoot: "/w", FoldVersion: 1},

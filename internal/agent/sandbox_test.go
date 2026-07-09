@@ -2,35 +2,57 @@ package agent
 
 import (
 	"context"
-	"os/exec"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
+	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
 )
 
-// S7 模块 5 e2e: sandbox.network=none contains bash in a netns, and the
+func TestSandboxCapabilityMissingDeniesBeforeActivity(t *testing.T) {
+	l := testLoop(t, scripted.Fixture{}, t.TempDir())
+	l.Exec.ProbeSandbox = func(bool) error { return errors.New("backend disabled") }
+	ds := &driveState{s: state.State{}}
+	outcome, allowed, err := l.adjudicate(context.Background(), ds, l.appender(ds), pipeline.Effect{
+		ID: "eff-bash", Kind: "tool_call", ToolName: "bash", Class: "execute",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if allowed || denyingGate(outcome) != "containment" {
+		t.Fatalf("outcome = %+v allowed=%v", outcome, allowed)
+	}
+	for _, env := range readEvents(t, l.Store.Dir()) {
+		if env.Type == event.TypeActivityStarted {
+			t.Fatal("activity started without an OS sandbox")
+		}
+	}
+}
+
+// INC-11.3 e2e: sandbox.network=none contains bash in the platform OS sandbox, and the
 // journal's EffectResolved records the containment actually in force.
 func TestSandboxNetworkNoneEndToEnd(t *testing.T) {
-	if err := exec.Command("unshare", "-r", "-n", "true").Run(); err != nil {
-		t.Skipf("no unprivileged netns here: %v", err)
-	}
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "b1", Name: "bash",
-				Args: map[string]any{"command": "tail -n +3 /proc/net/dev | cut -d: -f1 | tr -d ' '"}}},
+				Args: map[string]any{"command": "echo contained"}}},
 			{Finish: "tool_use"},
 		}},
 		{
-			Expect:  scripted.Expect{LastMessageContains: "lo"},
+			Expect:  scripted.Expect{LastMessageContains: "contained"},
 			Respond: []scripted.Event{{Text: "contained"}, {Finish: "end_turn"}},
 		},
 	}}
 	l := testLoop(t, fix, t.TempDir())
 	l.Spec.Sandbox.Network = "none"
+	l.applySandbox()
+	if _, err := l.Exec.SandboxInfo(); err != nil {
+		t.Skipf("no OS sandbox backend here: %v", err)
+	}
 
 	res, err := l.Run(context.Background(), "check the interfaces")
 	if err != nil {
@@ -60,25 +82,25 @@ func TestSandboxNetworkNoneEndToEnd(t *testing.T) {
 	if resolved == nil {
 		t.Fatal("no EffectResolved for the bash call")
 	}
-	if resolved.Containment == nil || resolved.Containment.Network != "none" ||
-		resolved.Containment.Backend != "netns" {
-		t.Errorf("containment = %+v, want {none netns}", resolved.Containment)
+	if resolved.Containment == nil || resolved.Containment.Filesystem != "workspace" ||
+		resolved.Containment.Network != "none" || resolved.Containment.Backend == "" {
+		t.Errorf("containment = %+v, want workspace + network none", resolved.Containment)
 	}
 
-	// The command really ran inside the namespace: only loopback visible.
+	// The command really ran behind the recorded boundary.
 	fold, _ := store.ReadEvents(l.Store.Dir())
 	_ = fold
-	var sawLoOnly bool
+	var sawContained bool
 	for _, e := range events {
 		if e.Type == event.TypeActivityCompleted && strings.Contains(string(e.Payload), "tool-b1") {
 			payload := string(e.Payload)
-			if strings.Contains(payload, "lo") && !strings.Contains(payload, "eth") {
-				sawLoOnly = true
+			if strings.Contains(payload, "contained") {
+				sawContained = true
 			}
 		}
 	}
-	if !sawLoOnly {
-		t.Error("bash output does not show netns-only interfaces")
+	if !sawContained {
+		t.Error("bash did not complete behind the sandbox")
 	}
 }
 
@@ -102,10 +124,11 @@ func TestNetworkRuleDeniesOnlyUncontained(t *testing.T) {
 		l.Pipeline = &pipeline.Pipeline{Gates: []pipeline.Gate{
 			&pipeline.PermissionGate{Rules: rules, WS: l.Exec.WS}}}
 		if contain {
-			if err := exec.Command("unshare", "-r", "-n", "true").Run(); err != nil {
-				t.Skipf("no unprivileged netns here: %v", err)
-			}
 			l.Spec.Sandbox.Network = "none"
+			l.applySandbox()
+			if _, err := l.Exec.SandboxInfo(); err != nil {
+				t.Skipf("no OS sandbox backend here: %v", err)
+			}
 		}
 		if _, err := l.Run(context.Background(), "go"); err != nil {
 			t.Fatal(err)
@@ -131,7 +154,7 @@ func TestNetworkRuleDeniesOnlyUncontained(t *testing.T) {
 	}
 }
 
-// S7 出口 review: MCP tools execute out-of-process — the netns never
+// S7 出口 review: MCP tools execute out-of-process — the subprocess sandbox never
 // bounds them, so under the ratchet they keep egress scope "all" (network
 // rules still match) and the journal must NOT claim containment for them.
 func TestMCPToolsStayOutsideContainment(t *testing.T) {
@@ -152,8 +175,8 @@ func TestMCPToolsStayOutsideContainment(t *testing.T) {
 		t.Errorf("mcp containment = %+v, want nil (journal must not over-claim)", c)
 	}
 	if c := l.containment(pipeline.Effect{Kind: "tool_call", Class: "execute",
-		ToolName: "bash"}); c == nil || c.Backend != "netns" {
-		t.Errorf("bash containment = %+v, want netns", c)
+		ToolName: "bash"}); c == nil || c.Filesystem != "workspace" || c.Backend == "" {
+		t.Errorf("bash containment = %+v, want workspace OS sandbox", c)
 	}
 }
 

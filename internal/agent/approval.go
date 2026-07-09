@@ -105,6 +105,11 @@ func (l *Loop) requestApproval(ctx context.Context, ds *driveState, appendE Appe
 		CallID:      eff.CallID,
 		GateResults: outcome.GateResults,
 		EstTokens:   eff.EstTokens,
+		Containment: l.containment(eff),
+	}
+	if eff.CallID == "" {
+		req.ToolName = eff.ToolName
+		req.Args = redact.FromEnv().JSON(eff.Args)
 	}
 	// Plan approval payload (S5.7): the plan text publishes as a versioned
 	// artifact BEFORE the request is journaled (blob-before-event), and the
@@ -264,6 +269,15 @@ func (l *Loop) awaitApproval(ctx context.Context, ds *driveState, appendE Append
 
 func (l *Loop) resolveEffectAfterApproval(ds *driveState, appendE AppendFunc,
 	req event.ApprovalRequested, approved bool, reason string) (bool, error) {
+	if approved && req.Containment != nil {
+		if l.Exec == nil {
+			approved = false
+			reason = "approved effect lost its required OS sandbox"
+		} else if _, err := l.Exec.SandboxInfo(); err != nil {
+			approved = false
+			reason = "approved effect cannot restore required OS sandbox: " + err.Error()
+		}
+	}
 
 	verdict := event.VerdictDeny
 	decision := event.VerdictDeny
@@ -282,26 +296,40 @@ func (l *Loop) resolveEffectAfterApproval(ds *driveState, appendE AppendFunc,
 		EffectID: req.EffectID, CallID: req.CallID,
 		Verdict: verdict, GateResults: results,
 		ReservedTokens: reserved,
-		Containment:    l.containmentByCall(ds, req.CallID),
+		Containment:    approvalContainment(l, ds, req),
 	}); err != nil {
 		return false, err
 	}
 	return approved, nil
 }
 
+func approvalContainment(l *Loop, ds *driveState, req event.ApprovalRequested) *event.Containment {
+	if req.Containment != nil {
+		if l.Exec == nil {
+			return nil
+		}
+		info, err := l.Exec.SandboxInfo()
+		if err != nil {
+			return nil
+		}
+		return &event.Containment{Filesystem: info.Filesystem, Network: info.Network, Backend: info.Backend}
+	}
+	return l.containmentByCall(ds, req.CallID)
+}
+
 // containmentByCall recovers the containment stamp for an approval-path
 // resolution, where only the journaled request (not the effect) survives a
 // crash: the call's tool name comes from the fold (S7 模块 5).
 func (l *Loop) containmentByCall(ds *driveState, callID string) *event.Containment {
-	if callID == "" || l.Exec == nil || !l.Exec.NetworkContained() {
+	if callID == "" || l.Exec == nil {
 		return nil
 	}
 	for _, m := range assistantMessages(ds.s) {
 		for _, c := range toolCallsOf(m) {
 			if c.CallID == callID {
-				if toolClassIn(ds.s, c.Name) == string(tool.ClassExecute) &&
-					!strings.HasPrefix(c.Name, "mcp__") {
-					return &event.Containment{Network: "none", Backend: "netns"}
+				if c.Name == "bash" {
+					return l.containment(pipeline.Effect{Kind: "tool_call", ToolName: "bash",
+						Class: string(tool.ClassExecute)})
 				}
 				return nil
 			}
@@ -322,6 +350,8 @@ func (l *Loop) approvalPrompt(ds *driveState, req event.ApprovalRequested) Appro
 		out.Agent = fmt.Sprintf("%s (%s)", l.Spec.Name, l.SessionID)
 	}
 	if req.CallID == "" {
+		out.ToolName = req.ToolName
+		out.Args = req.Args
 		return out
 	}
 	for _, m := range assistantMessages(ds.s) {

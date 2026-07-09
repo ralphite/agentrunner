@@ -3,6 +3,7 @@ package driver_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -1330,14 +1331,19 @@ func TestVerifierActivityTrace(t *testing.T) {
 		t.Fatalf("res = %+v", res)
 	}
 	events, _ := store.ReadEvents(dStore.Dir())
-	var requested, resolvedAllow, started, completed int
+	var requested, resolvedAllow, contained, started, completed int
 	for _, e := range events {
 		switch e.Type {
 		case event.TypeEffectRequested:
 			requested++
 		case event.TypeEffectResolved:
-			if strings.Contains(string(e.Payload), `"allow"`) {
+			decoded, _ := event.DecodePayload(e)
+			resolved := decoded.(*event.EffectResolved)
+			if resolved.Verdict == event.VerdictAllow {
 				resolvedAllow++
+				if resolved.Containment != nil && resolved.Containment.Filesystem == "workspace" && resolved.Containment.Backend != "" {
+					contained++
+				}
 			}
 		case event.TypeActivityStarted:
 			if strings.Contains(string(e.Payload), "verifier:command") {
@@ -1350,9 +1356,44 @@ func TestVerifierActivityTrace(t *testing.T) {
 		}
 	}
 	// Two iterations verified (satisfied on the second).
-	if requested != 2 || resolvedAllow != 2 || started != 2 || completed != 2 {
-		t.Fatalf("trace = requested %d, allow %d, started %d, completed %d — want 2 each",
-			requested, resolvedAllow, started, completed)
+	if requested != 2 || resolvedAllow != 2 || contained != 2 || started != 2 || completed != 2 {
+		t.Fatalf("trace = requested %d, allow %d, contained %d, started %d, completed %d — want 2 each",
+			requested, resolvedAllow, contained, started, completed)
+	}
+}
+
+func TestVerifierSandboxCapabilityMissingFailsClosed(t *testing.T) {
+	child := scripted.Fixture{Steps: []scripted.Step{{
+		Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}},
+	}}}
+	d, dStore := harnessFix(t, &driver.DriverSpec{
+		Name: "goal", Task: "check", MaxIterations: 1,
+		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierCommand, Command: "true"}},
+	}, child)
+	d.Exec.ProbeSandbox = func(bool) error { return errors.New("disabled") }
+	if _, err := d.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	var denied, verifierStarted bool
+	events, err := store.ReadEvents(dStore.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, env := range events {
+		switch env.Type {
+		case event.TypeEffectResolved:
+			p, _ := event.DecodePayload(env)
+			resolved := p.(*event.EffectResolved)
+			for _, gate := range resolved.GateResults {
+				denied = denied || gate.Gate == "containment" && gate.Decision == event.VerdictDeny
+			}
+		case event.TypeActivityStarted:
+			p, _ := event.DecodePayload(env)
+			verifierStarted = verifierStarted || p.(*event.ActivityStarted).Name == "verifier:command"
+		}
+	}
+	if !denied || verifierStarted {
+		t.Fatalf("containment deny=%v verifier_started=%v", denied, verifierStarted)
 	}
 }
 

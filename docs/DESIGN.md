@@ -431,24 +431,27 @@ effect
   随 mode 任意变、deny 拦截）；**advertised 面**（进 prefix 的 tools
   参数与目录）session 内稳定——否则每次进出 plan mode 都打爆
   tools 级缓存。`ExitPlanMode` 常驻 advertised 面。
-- **path 规则的边界诚实**：path 规则只约束文件类 tool；bash 天然是旁路
-  （一条 `sed -i` 就能改写 `src/**`）。因此 rules schema 对 bash 提供
+- **path 规则的边界诚实**：path 规则只约束文件类 tool；bash 的命令文本
+  无法可靠映射成路径（一条 `sed -i` 就能改写 `src/**`）。因此 rules schema 对 bash 提供
   **命令模式匹配**（`{tool: bash, command: "git *", action: allow}` 式），
-  bash 的可写范围最终由 workspace 沙箱等级闭环（沙箱等级决定 bash
-  可写路径，与 path 规则同源配置）。这层关系明文写出，不假装 path 规则
-  覆盖一切。**network 资源类同理**：rules 的 `network`
+  而真正的路径边界由**强制 OS workspace sandbox**闭环：bash/command verifier
+  只可读写 workspace（linked-worktree 的 git metadata 是成文 carve-out），
+  workspace 外用户数据与 workspace 内凭据形文件均不可读；敏感 env 不传给
+  子进程。Seatbelt（macOS）/Bubblewrap（Linux）缺席或不可用时在 containment
+  gate **fail closed**，不得降级裸跑。这层关系明文写出，不假装 path 规则
+  覆盖 shell。**network 资源类同理**：rules 的 `network`
   模式匹配 effect 的出口范围——未受限的 execute effect 带 `all`，
-  spec `sandbox.network: none` 经 netns 收容后不带出口、network 规则
+  spec `sandbox.network: none` 由同一 OS backend 收容后不带出口、network 规则
   不再触发；收容是共享 executor 上的**棘轮**（树内任一 spec 收紧即
-  全树收紧，永不放宽），宿主无法提供 netns 时 bash **fail closed**；
-  生效的 containment 记录在 `EffectResolved`（缺席 = 未收容）。
+  全树收紧，永不放宽）；生效的 filesystem/network/backend evidence 记录在
+  `EffectResolved`。
   MCP 工具在 out-of-process server 里执行、不受收容约束——恒记
   Network "all"、containment 缺席（journal 不过度声明）。带网的
   in-process 工具（`web_fetch`，**execute-class** + def 带 `network:
   "all"` 数据位，INC-5;class 见下方 egress 决策）未收容时恒带 `all`
   （network 规则可匹配、default mode 需审批——不静默出网）；收容棘轮下
   其 effect 不带出口、执行期 **fail closed**（拒跑而非静默出网），
-  containment 同样缺席——自我拒跑不是 netns，journal 不过度声明。
+  containment 同样缺席——自我拒跑不是 subprocess sandbox，journal 不过度声明。
   此外这类工具**无条件封禁 link-local/云 metadata 地址**
   （169.254.0.0/16、fe80::/10），守卫作用于已解析 IP、覆盖初始请求与
   每个重定向跳（堵 SSRF-via-redirect / DNS rebinding / IP 混淆),
@@ -986,7 +989,9 @@ limits:
   判定的规则层 = user/project 合并规则在前、driver-trust 的兜底 allow
   在后（显式 deny 约束 verifier，未命中即放行——verifier 与 spec
   permissions 同信任级）；ask 收紧为 deny（配置声明的效果无人应答）。
-  花费计入迭代 usage、verdict journal 进 IterationCompleted。
+  command verifier 还必须经过强制 OS workspace sandbox，containment evidence
+  与 gate verdict 同写 `EffectResolved`；能力缺失不启动 Activity。花费计入
+  迭代 usage、verdict journal 进 IterationCompleted。
 - **统一事件族**：`IterationScheduled / Launched / Completed`、
   `DriverCompleted{reason: satisfied|stalled|max_iterations|budget|
   stopped|child_failed}`。launch 遵循 journal-before-send；崩溃后的
@@ -1018,15 +1023,18 @@ limits:
     （goal 级预算 `max_checks` 尽）→ `GoalAchieved{budget}` = 可见截断
     （决策 #31，自证 goal 无声明时每边界同样计 check，故仍有界）。
     模型工具面只有 `goal_status`（读）与 `goal_complete`（声明），
-    **不含任何生命周期或 verifier 设置路径**——goalVerify 无门跑的辩护
-    前提（command 仅 operator 可设）保持成立。控制面 attach/pause/
-    resume/update/cancel 走 compact/clear 同一 out-of-band control 通道
+    **不含任何生命周期或 verifier 设置路径**；这只缩小攻击面，不构成
+    verifier 绕过治理的理由。command verifier 与普通 bash 共用
+    mode/permission/hooks/approval/budget/containment 管线和
+    ActivityStarted/Completed，确定性 effect/activity id 支撑 crash/审批恢复。
+    控制面 attach/pause/resume/update/cancel 走 compact/clear 同一 out-of-band control 通道
     （goal-* 控制对非 hosted 会话走 send 同款 revive，INC-10）。crash
     恢复：全程 journaled，resume 重 fold；两个窗口由 drive-loop 安全点
     的修复对齐（resume 时静止形状会跳过 goal_verify 格）——checkpoint
     之后崩（R1/R2，`goalRecover` 补发回执/回灌）与 turn 收尾后、
     checkpoint 之前崩（INC-10，`goalResumeCheck` 在安全点补裁该边界，
-    否则已记录的 claim 会停摆）。verifier 命令须幂等；claim 由
+    否则已记录的 claim 会停摆）。若 verifier Activity 已完成而 checkpoint
+    尚未落盘，恢复直接复用 journaled result、不再次执行命令。claim 由
     checkpoint fold 消费、GoalUpdated 作废。
 - **Best-of-N** = `schedule: parallel{n}`：N 个隔离 worktree 的并行
   尝试（从同一个 base snapshot 物化，base ref 钉在每条
@@ -1129,6 +1137,7 @@ limits:
 | 31 | 静止模型（2026-07-05） | 只有一种 session，无运行形态。静止=形状（无在飞工作+无定时自触发+turn 已收尾）；静止时 outputs→barrier→parent 回执（既有子回执）；`ar run` = 开 session+发消息+等静止+读结果 | task 形态与 session/turn 大量重复且定义不清（开发者裁定）；driver/headless 的需求由"静止+回执"完全覆盖。 |
 | 32 | 换 agent 与提权（2026-07-05） | session 内可换 agent（`SpecChanged` 事件，prefix 显式换代），用户切换免确认；子 agent 默认权限不超父，请求超父必须用户 approve | 用户动作即意图，再确认是冗余；提权审批只存在于 agent 提权自己的子。 |
 | 33 | egress 类统一 fail-closed（INC-5,2026-07-09,**不变量升级**,走 §4） | 收容棘轮从"bash fail-closed"升级为"**所有 egress 类 tool 统一 fail-closed under containment**"。带网 in-process 工具(`web_fetch`)= **execute-class**（default 需审批,不静默出网）+ `def.network` 数据位（network 规则可治理）+ **link-local/metadata 无条件封禁**（作用于已解析 IP,覆盖重定向每跳）;class 翻转同步 `containment()` 守卫（def.network 非空 → 记账缺席,自我拒跑非 netns） | in-process `net/http` 出口不被 `unshare -n` 覆盖(netns 只包 bash 子进程),只保"bash fail-closed"会让 web_fetch 在 `network=none` 下**静默违反"收容=全树无出口"**;execute-class 买回 default 审批检查点(read-class 静默放行);metadata 封禁堵云 IAM 凭据窃取。安全 review 详见 LOG 2026-07-09 条 |
+| 34 | shell filesystem 与 verifier 统一治理（INC-11.3，2026-07-09，**不变量升级**） | bash/command verifier 默认强制 OS workspace sandbox（macOS Seatbelt / Linux Bubblewrap），凭据路径与敏感 env 隔离；backend 缺失在 Activity 前 fail closed。in-session 与 driver command verifier 都必须产生 EffectRequested/Resolved（含 containment evidence）与 Activity bracket；会话内 ask 走正常审批，headless driver ask 收紧 deny。 | command pattern/path 静态规则无法约束 shell 间接文件访问；UNGATED goal verifier 还可绕过 mode/deny/approval。OS boundary 与统一 effect path 才能让 policy、审计和执行事实一致。 |
 
 ---
 
@@ -1297,8 +1306,8 @@ event sourcing 的闭环：**执行产生事件，事件重建状态，状态驱
 | **审批（ask）** | `ApprovalRequested`（可带 payload_ref 指 artifact）→ WAITING_APPROVAL → 应答/拒绝理由回灌模型。 |
 | **budget** | reserve-then-settle；树预算沿 correlation 聚合；超限 = 优雅收尾（LimitExceeded），不掐断。 |
 | **hooks** | 管线机件（observe+block），不是 effect；只认 spec/user 层（信任模型）。 |
-| **redaction / 凭据红线** | 落盘前替换进程已知凭据值；凭据路径硬排除表（快照/索引/读取一体适用）；log 0600。 |
-| **收容棘轮** | `sandbox.network` 收紧经 netns 落实后全树不放宽；**egress 类工具统一 fail-closed**——bash 无 netns 则拒跑,in-process 带网工具(`web_fetch`,`def.network` 数据位)恒拒跑(自我拒跑非 netns)。（决策 #33,INC-5 升级） |
+| **redaction / 凭据红线** | 落盘前替换进程已知凭据值；凭据路径硬排除表（快照/索引/读取/OS sandbox 一体适用）；bash 子进程不继承敏感 env；log 0600。 |
+| **收容棘轮** | bash 默认 filesystem=workspace；`sandbox.network` 收紧由 Seatbelt/Bubblewrap 落实后全树不放宽；backend 缺席 fail closed。in-process 带网工具(`web_fetch`,`def.network`)在收紧时自我拒跑（决策 #33/#34）。 |
 
 ### 18.6 多 agent
 

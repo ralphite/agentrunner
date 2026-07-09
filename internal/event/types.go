@@ -429,14 +429,19 @@ type EffectRequested struct {
 // carries every gate's judgment (the prompt must show the full picture)
 // and a reserved payload_ref for large payloads via the S7 ArtifactStore.
 type ApprovalRequested struct {
-	ApprovalID  string       `json:"approval_id"`
-	EffectID    string       `json:"effect_id"`
-	CallID      string       `json:"call_id,omitempty"`
-	GateResults []GateResult `json:"gate_results,omitempty"`
-	PayloadRef  string       `json:"payload_ref,omitempty"`
+	ApprovalID  string          `json:"approval_id"`
+	EffectID    string          `json:"effect_id"`
+	CallID      string          `json:"call_id,omitempty"`
+	ToolName    string          `json:"tool_name,omitempty"`
+	Args        json.RawMessage `json:"args,omitempty"`
+	GateResults []GateResult    `json:"gate_results,omitempty"`
+	PayloadRef  string          `json:"payload_ref,omitempty"`
 	// EstTokens preserves the budget reservation basis across a idle
 	// wait (the approval may resolve after a crash+resume).
 	EstTokens int `json:"est_tokens,omitempty"`
+	// Containment freezes the required OS boundary across a long approval wait;
+	// recovery re-probes the backend and fails closed if it cannot restore it.
+	Containment *Containment `json:"containment,omitempty"`
 }
 
 // ApprovalResponded is the journaled human decision (an external input:
@@ -719,8 +724,9 @@ type EffectResolved struct {
 
 // Containment is the effective sandbox scope applied to an execution.
 type Containment struct {
-	Network string `json:"network"`           // effective egress: none | all
-	Backend string `json:"backend,omitempty"` // netns | none
+	Filesystem string `json:"filesystem,omitempty"` // workspace
+	Network    string `json:"network"`              // effective egress: none | all
+	Backend    string `json:"backend,omitempty"`    // sandbox-exec | bwrap
 }
 
 // Registry maps every event type to a constructor for its payload struct.

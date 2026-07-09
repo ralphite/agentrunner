@@ -1045,7 +1045,7 @@ func (d *Driver) verifyOne(ctx context.Context, appendE appendFunc, n, idx int, 
 	switch v.Kind {
 	case VerifierCommand:
 		args, _ := json.Marshal(map[string]string{"command": v.Command})
-		ok, reason, err := d.adjudicateVerifier(ctx, appendE, "eff-"+actID, "bash", "execute", "tool_call", args, 0)
+		ok, reason, err := d.adjudicateVerifier(ctx, appendE, "eff-"+actID, "bash", "execute", "tool_call", args, 0, exec)
 		if err != nil {
 			return failed("verifier journal: " + err.Error())
 		}
@@ -1062,7 +1062,7 @@ func (d *Driver) verifyOne(ctx context.Context, appendE appendFunc, n, idx int, 
 		d.completeVerifier(appendE, actID, vv, nil)
 		return vv, provider.Usage{}
 	case VerifierLLMJudge:
-		ok, reason, err := d.adjudicateVerifier(ctx, appendE, "eff-"+actID, "", "", "llm_call", nil, 1024)
+		ok, reason, err := d.adjudicateVerifier(ctx, appendE, "eff-"+actID, "", "", "llm_call", nil, 1024, nil)
 		if err != nil {
 			return failed("verifier journal: " + err.Error())
 		}
@@ -1097,17 +1097,36 @@ func (d *Driver) verifyOne(ctx context.Context, appendE appendFunc, n, idx int, 
 // the request and resolution into the driver stream. ask TIGHTENS to deny:
 // a verifier is config-declared, nobody sits behind it to answer (记档).
 func (d *Driver) adjudicateVerifier(ctx context.Context, appendE appendFunc,
-	effID, toolName, class, kind string, args json.RawMessage, estTokens int) (bool, string, error) {
+	effID, toolName, class, kind string, args json.RawMessage, estTokens int,
+	exec *tool.Executor) (bool, string, error) {
 
 	if _, err := appendE(event.TypeEffectRequested, &event.EffectRequested{EffectID: effID}); err != nil {
 		return false, "", err
 	}
 	network := ""
-	if class == "execute" {
-		// Verifier executors are never netns-ratcheted: a command verifier
-		// runs WITH egress, and the network resource class must see that
-		// (S7 出口 review: user {network:"*"} denies bind verifiers too).
-		network = "all"
+	var containment *event.Containment
+	if toolName == "bash" {
+		if exec == nil {
+			reason := "command verifier requires an executor-backed OS sandbox"
+			gates := []event.GateResult{{Gate: "containment", Decision: event.VerdictDeny, Reason: reason}}
+			_, err := appendE(event.TypeEffectResolved, &event.EffectResolved{
+				EffectID: effID, Verdict: event.VerdictDeny, GateResults: gates,
+			})
+			return false, reason, err
+		}
+		info, err := exec.SandboxInfo()
+		if err != nil {
+			reason := "required OS sandbox unavailable: " + err.Error()
+			gates := []event.GateResult{{Gate: "containment", Decision: event.VerdictDeny, Reason: reason}}
+			_, jerr := appendE(event.TypeEffectResolved, &event.EffectResolved{
+				EffectID: effID, Verdict: event.VerdictDeny, GateResults: gates,
+			})
+			return false, reason, jerr
+		}
+		network = info.Network
+		containment = &event.Containment{
+			Filesystem: info.Filesystem, Network: info.Network, Backend: info.Backend,
+		}
 	}
 	outcome, err := d.Pipeline.Evaluate(ctx, pipeline.Effect{
 		ID: effID, Kind: kind, ToolName: toolName, Class: class,
@@ -1131,6 +1150,7 @@ func (d *Driver) adjudicateVerifier(ctx context.Context, appendE appendFunc,
 	}
 	if _, err := appendE(event.TypeEffectResolved, &event.EffectResolved{
 		EffectID: effID, Verdict: verdict, GateResults: outcome.GateResults,
+		Containment: containment,
 	}); err != nil {
 		return false, "", err
 	}
@@ -1151,9 +1171,9 @@ func (d *Driver) completeVerifier(appendE appendFunc, actID string, vv event.Ite
 
 // verifyCommand runs a bash-class verifier against the workspace. With a
 // metric regex, capture group 1 is parsed as the score (≥ threshold passes);
-// otherwise exit code 0 passes. The command is driver-configured (trusted
-// config, not a model-chosen effect), so it runs via the executor directly;
-// full pipeline adjudication of verifiers is a later refinement.
+// otherwise exit code 0 passes. The caller has already journaled pipeline
+// adjudication and OS containment evidence; the executor enforces that
+// boundary again and fails closed if the backend disappears.
 func (d *Driver) verifyCommand(ctx context.Context, v VerifierSpec, exec *tool.Executor) event.IterationVerdict {
 	if exec == nil {
 		return event.IterationVerdict{Verifier: VerifierCommand, Detail: "no executor for command verifier"}
@@ -1161,10 +1181,14 @@ func (d *Driver) verifyCommand(ctx context.Context, v VerifierSpec, exec *tool.E
 	args, _ := json.Marshal(map[string]string{"command": v.Command})
 	res := exec.Execute(ctx, "bash", args)
 	var out struct {
-		ExitCode int    `json:"exit_code"`
+		ExitCode *int   `json:"exit_code"`
 		Stdout   string `json:"stdout"`
 	}
 	_ = json.Unmarshal(res.Payload, &out)
+	if out.ExitCode == nil {
+		return event.IterationVerdict{Verifier: VerifierCommand,
+			Detail: "verifier execution failed: " + redact.FromEnv().String(string(res.Payload))}
+	}
 
 	if v.MetricRegex != "" {
 		re, err := regexp.Compile(v.MetricRegex)
@@ -1185,14 +1209,14 @@ func (d *Driver) verifyCommand(ctx context.Context, v VerifierSpec, exec *tool.E
 		}
 	}
 
-	pass := out.ExitCode == 0
+	pass := *out.ExitCode == 0
 	score := 0.0
 	if pass {
 		score = 1
 	}
 	return event.IterationVerdict{
 		Pass: pass, Verifier: VerifierCommand, Score: score,
-		Detail: fmt.Sprintf("exit=%d", out.ExitCode),
+		Detail: fmt.Sprintf("exit=%d", *out.ExitCode),
 	}
 }
 

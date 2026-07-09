@@ -81,8 +81,8 @@ type AgentSpec struct {
 	// unless the run already published the stream) and a missing Required
 	// one downgrades the finishing reason to contract_violation.
 	Outputs []OutputSpec `yaml:"outputs,omitempty"`
-	// Sandbox is the OS containment spec (S7 模块 5). Network "none" removes
-	// bash egress via a network namespace — a RATCHET across the shared
+	// Sandbox is the OS containment spec (S7 模块 5). Bash filesystem access is
+	// always workspace-bounded; network "none" removes egress — a RATCHET across the shared
 	// executor: any spec in the tree demanding none contains the whole
 	// tree and a child spec can never widen it back. Empty/"all" = open.
 	Sandbox SandboxSpec `yaml:"sandbox,omitempty"`

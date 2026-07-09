@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
@@ -144,7 +145,7 @@ func TestBarrierRecordsLiveTasks(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "bg1", Name: "bash",
-				Args: map[string]any{"command": "sleep 0.3; echo eventually", "background": true}}},
+				Args: map[string]any{"command": "while [ ! -f .release-bg1 ]; do sleep 0.01; done; echo eventually", "background": true}}},
 			{Finish: "tool_use"},
 		}},
 		{Respond: []scripted.Event{{Text: "not waiting yet"}, {Finish: "end_turn"}}},
@@ -155,13 +156,40 @@ func TestBarrierRecordsLiveTasks(t *testing.T) {
 	}}
 	l := testLoop(t, fix, root)
 	withShadowRepo(t, l, root)
+	released := make(chan error, 1)
+	go func() {
+		deadline := time.Now().Add(5 * time.Second)
+		for time.Now().Before(deadline) {
+			events, _ := store.ReadEvents(l.Store.Dir())
+			turnTwoFinished := false
+			for _, env := range events {
+				if env.Type == event.TypeAssistantMessage {
+					decoded, _ := event.DecodePayload(env)
+					turnTwoFinished = decoded.(*event.AssistantMessage).GenStep >= 2
+				}
+			}
+			if turnTwoFinished {
+				released <- os.WriteFile(filepath.Join(root, ".release-bg1"), []byte("go"), 0o600)
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		released <- context.DeadlineExceeded
+	}()
 
 	if _, err := l.Run(context.Background(), "fire and follow"); err != nil {
 		t.Fatal(err)
 	}
+	if err := <-released; err != nil {
+		t.Fatal(err)
+	}
 	barriers := decodedBarriers(t, l.Store.Dir())
 	if len(barriers) != 4 {
-		t.Fatalf("barriers = %d, want 4 (t1..t3 + quiescent)", len(barriers))
+		var ids []string
+		for _, b := range barriers {
+			ids = append(ids, b.BarrierID)
+		}
+		t.Fatalf("barriers = %v, want [bar-t1 bar-t2 bar-t3 bar-final]", ids)
 	}
 	t2 := barriers[1]
 	if len(t2.Handles) != 1 || t2.Handles[0].Handle != "bg1" || t2.Handles[0].Policy != "cancel_at_fork" {

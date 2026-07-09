@@ -1887,6 +1887,18 @@ func (l *Loop) adjudicate(ctx context.Context, ds *driveState, appendE AppendFun
 	}); err != nil {
 		return pipeline.Outcome{}, false, err
 	}
+	if err := l.containmentError(eff); err != nil {
+		outcome := pipeline.Outcome{Verdict: event.VerdictDeny, GateResults: []event.GateResult{{
+			Gate: "containment", Decision: event.VerdictDeny, Reason: err.Error(),
+		}}}
+		if _, jerr := appendE(event.TypeEffectResolved, &event.EffectResolved{
+			EffectID: eff.ID, CallID: eff.CallID, Verdict: event.VerdictDeny,
+			GateResults: outcome.GateResults,
+		}); jerr != nil {
+			return outcome, false, jerr
+		}
+		return outcome, false, nil
+	}
 	outcome, err := l.Pipeline.Evaluate(ctx, eff)
 	if err != nil {
 		return outcome, false, err
@@ -1924,7 +1936,7 @@ func (l *Loop) adjudicate(ctx context.Context, ds *driveState, appendE AppendFun
 
 // networkScope is the egress an execute-class effect would run with: "all"
 // when uncontained, "" once the tree's executor is ratcheted (S7 模块 5).
-// MCP tools execute in an out-of-process server the netns wrapper never
+// MCP tools execute in an out-of-process server the subprocess sandbox never
 // covers — they carry "all" EVEN under the ratchet, so network rules keep
 // matching them (S7 出口 review: 边界诚实 must not stop at bash).
 // Built-in defs may declare egress as DATA (`network: "all"`, INC-5
@@ -1950,27 +1962,32 @@ func (l *Loop) networkScope(class, toolName string) string {
 	return "all"
 }
 
-// containment records the OS containment in force for an execute effect;
-// nil for uncontained runs (absence = uncontained, the pre-S7 shape) AND
-// for MCP tools — the sandbox never bounded their server process, and the
-// journal must not claim it did.
+// containment records the mandatory OS filesystem boundary for bash and its
+// optional network ratchet. Other tools either stay in-process or execute in
+// an out-of-process MCP server and must not inherit a false claim.
 func (l *Loop) containment(eff pipeline.Effect) *event.Containment {
-	if eff.Kind != "tool_call" || eff.Class != string(tool.ClassExecute) {
+	if eff.Kind != "tool_call" || eff.ToolName != "bash" || l.Exec == nil {
 		return nil
 	}
-	if strings.HasPrefix(eff.ToolName, "mcp__") {
+	info, err := l.Exec.SandboxInfo()
+	if err != nil {
 		return nil
 	}
-	// In-process egress tools (web_fetch, def.network set, INC-5) self-refuse
-	// under the ratchet — they are NOT wrapped in a netns, so the journal must
-	// not claim they were (mirrors the mcp guard; DESIGN §5 边界诚实).
-	if def, ok := tool.Get(eff.ToolName); ok && def.Network != "" {
+	return &event.Containment{Filesystem: info.Filesystem, Network: info.Network, Backend: info.Backend}
+}
+
+func (l *Loop) containmentError(eff pipeline.Effect) error {
+	if eff.Kind != "tool_call" || eff.ToolName != "bash" {
 		return nil
 	}
-	if l.Exec == nil || !l.Exec.NetworkContained() {
-		return nil
+	if l.Exec == nil {
+		return fmt.Errorf("bash requires an executor-backed OS sandbox")
 	}
-	return &event.Containment{Network: "none", Backend: "netns"}
+	_, err := l.Exec.SandboxInfo()
+	if err != nil {
+		return fmt.Errorf("required OS sandbox unavailable: %w", err)
+	}
+	return nil
 }
 
 // applySandbox ratchets the shared executor per this loop's spec (S7 模块
@@ -1997,9 +2014,14 @@ func (l *Loop) resolveFromDecision(appendE AppendFunc, eff pipeline.Effect, deci
 	reason := "recovered denial"
 	reserved := 0
 	if approved {
-		verdict, gate = event.VerdictAllow, event.VerdictAllow
-		reason = "recovered approval"
-		reserved = eff.EstTokens
+		if err := l.containmentError(eff); err != nil {
+			approved = false
+			reason = err.Error()
+		} else {
+			verdict, gate = event.VerdictAllow, event.VerdictAllow
+			reason = "recovered approval"
+			reserved = eff.EstTokens
+		}
 	}
 	_, err := appendE(event.TypeEffectResolved, &event.EffectResolved{
 		EffectID: eff.ID, CallID: eff.CallID, Verdict: verdict,

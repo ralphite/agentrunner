@@ -20,7 +20,7 @@ type PermissionRule struct {
 	Path    string `yaml:"path,omitempty"`    // glob over the workspace-relative path (** crosses /)
 	Command string `yaml:"command,omitempty"` // glob over the whole command (* matches anything)
 	// Network matches the effect's egress scope (S7 模块 5): an uncontained
-	// execute-class effect carries "all"; a netns-contained one carries no
+	// execute-class effect carries "all"; an OS-network-contained one carries no
 	// scope and network rules never match it. `network: "*"` therefore
 	// means "any execution that WOULD have network egress".
 	Network string `yaml:"network,omitempty"`
@@ -99,8 +99,8 @@ func (g *PermissionGate) hardFloor(eff Effect) (Decision, bool) {
 	// Credential files never reach the model (C3): read_file on a hard-excluded
 	// credential path is denied at the floor, no rule or mode may override.
 	// The snapshot layer already refuses to checkpoint these same files; this
-	// closes the read side. (bash `cat` bypasses this — that gap needs an OS
-	// filesystem sandbox, tracked separately.)
+	// closes the read side. Bash is independently bounded by the mandatory OS
+	// workspace sandbox, so `cat` cannot bypass this floor.
 	if eff.ToolName == "read_file" && args.Path != "" && isCredentialPath(relPath) {
 		return Deny(fmt.Sprintf("credential files are not readable (hard floor): %s", args.Path)), true
 	}

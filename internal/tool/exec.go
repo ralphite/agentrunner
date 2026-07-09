@@ -9,7 +9,6 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -72,11 +71,12 @@ type Executor struct {
 	// Network containment (S7 模块 5). The executor is shared down the agent
 	// tree, so containment is a RATCHET: any spec in the tree demanding
 	// network=none flips it for everyone, and nothing widens it back.
-	netNone  atomic.Bool
-	netProbe sync.Once
-	netErr   error
-	// ProbeNetNS overrides the netns availability probe (tests only).
-	ProbeNetNS func() error
+	netNone       atomic.Bool
+	sandboxMu     sync.Mutex
+	sandboxProbes map[bool]sandboxProbe
+	// ProbeSandbox injects a backend capability failure after the real
+	// platform probe (tests only).
+	ProbeSandbox func(networkNone bool) error
 }
 
 // ContainNetwork ratchets bash executions into a fresh network namespace
@@ -85,26 +85,6 @@ func (e *Executor) ContainNetwork() { e.netNone.Store(true) }
 
 // NetworkContained reports whether bash egress is removed.
 func (e *Executor) NetworkContained() bool { return e.netNone.Load() }
-
-// netNSAvailable probes once whether unprivileged network namespaces work
-// here. When the spec demands containment and the host cannot provide it,
-// bash FAILS CLOSED — running with egress would violate the spec's bound.
-func (e *Executor) netNSAvailable() error {
-	e.netProbe.Do(func() {
-		probe := e.ProbeNetNS
-		if probe == nil {
-			probe = func() error {
-				out, err := exec.Command("unshare", "-r", "-n", "true").CombinedOutput()
-				if err != nil {
-					return fmt.Errorf("unshare -r -n: %v: %s", err, bytes.TrimSpace(out))
-				}
-				return nil
-			}
-		}
-		e.netErr = probe()
-	})
-	return e.netErr
-}
 
 // Execute dispatches one tool call. Unknown tools and malformed args are
 // model-visible errors, not harness failures.
@@ -526,22 +506,11 @@ func (e *Executor) bash(ctx context.Context, rawArgs json.RawMessage) Result {
 	}
 
 	var stdout, stderr bytes.Buffer
-	var cmd *exec.Cmd
-	if e.NetworkContained() {
-		// The whole command (and every process it spawns, background tasks
-		// included) runs in a fresh netns with only loopback. Fail closed:
-		// no namespace support → no execution, never silent egress.
-		if err := e.netNSAvailable(); err != nil {
-			return errResult("bash: spec requires network=none but the host cannot contain it (%v) — refusing to run with egress", err)
-		}
-		cmd = exec.Command("unshare", "-r", "-n", "bash", "-c", args.Command)
-	} else {
-		cmd = exec.Command("bash", "-c", args.Command)
+	cmd, cleanup, err := e.sandboxedBash(args.Command)
+	if err != nil {
+		return errResult("bash: required OS sandbox unavailable (%v) — refusing to run", err)
 	}
-	cmd.Dir = e.WS.Root()
-	if e.Session != "" {
-		cmd.Env = append(os.Environ(), SessionEnvVar+"="+e.Session)
-	}
+	defer cleanup()
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}

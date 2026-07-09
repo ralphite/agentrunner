@@ -73,7 +73,7 @@ in-doubt 崩溃纪律（非幂等绝不静默重跑）、barrier/fork/rewind 带
 | 审批流 | 批/拒/parallel | ✅ ask→WAITING_APPROVAL→回灌 | — |
 | “允许且不再问” | 写回 config | ❌ 单次批/拒 | G5（PolicyChanged 已设计） |
 | 审批 agent 化 | reviewer agent 路由 | ❌ | 可建模为 policy/delegate |
-| OS 级沙箱 | seatbelt/landlock/win | 🟡 网络=netns（Linux），mac fail-closed | macOS 收容 |
+| OS 级沙箱 | seatbelt/landlock/win | ✅ bash/verifier filesystem=workspace；macOS Seatbelt、Linux Bubblewrap；network 棘轮 | Windows backend 暂不支持并 fail-closed |
 | 网络策略粒度 | 包管理器/全放行 | ✅ network 规则 + 收容棘轮 | per-env 归 G11 |
 | 凭据红线 | 平台侧 | ✅ **领先** 硬排除 + redaction | 威胁模型成文 G16 |
 | 信任模型 | trust_level | ✅ `ar trust` | — |
@@ -107,7 +107,7 @@ in-doubt 崩溃纪律（非幂等绝不静默重跑）、barrier/fork/rewind 带
 | 定时 automations | 模板/历史/自定模型 | ✅ loop driver（S6） | 历史/模板是 UI 糖 |
 | goal 长程目标 | 挂 thread、跑数天 | 🟡 in-session goal（INC-D1）已落地：挂会话、context 延续这点齐平；但完成语义/预算/状态机/模型工具面/UI 差距大 | 见 §6 Goal 深潜（2026-07-09） |
 | best-of-N | 云端多方案 | ✅ 隔离 worktree + verifier（S7） | 胜者晋升 G15 🧊 |
-| verifier 管线 | 评分黑盒 | ✅ **领先** journaled + trust 规则层 | — |
+| verifier 管线 | 评分黑盒 | ✅ **领先** in-session/driver 均 journaled + approval + OS containment evidence | — |
 | 外部事件唤醒 | GitHub/Linear/Slack | ❌ inbox 原语备，投递壳缺 | **G14** |
 | thread automations | 带上下文定时 | ❌ loop 是 fresh-run 批式 | 随 G23 收编 |
 | cron 跨重启 | 云端天然 | 🧊 backlog | 随 G22 收编 |
