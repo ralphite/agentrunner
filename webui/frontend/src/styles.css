@@ -2144,3 +2144,73 @@ summary.fd-head:hover {
   background: var(--panel-2);
   border-color: transparent;
 }
+
+/* ---- keyboard-shortcuts reference (Codex: Settings › Keyboard shortcuts) ---- */
+.shortcuts {
+  width: min(620px, 94vw);
+}
+.sc-head {
+  border-bottom: 1px solid var(--line);
+}
+.sc-title {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 12px 16px 0;
+  color: var(--ink);
+}
+.sc-search {
+  border-bottom: none;
+  padding: 8px 16px 12px;
+  font-size: 14px;
+}
+.sc-list {
+  max-height: 60vh;
+  padding: 6px 6px 10px;
+}
+.sc-group {
+  margin-bottom: 4px;
+}
+.sc-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 10px;
+  border-radius: 8px;
+}
+.sc-row:hover {
+  background: var(--panel-2);
+}
+.sc-label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.sc-label > span:first-child {
+  font-size: 13.5px;
+  color: var(--ink);
+}
+.sc-desc {
+  font-size: 11.5px;
+  color: var(--dim);
+}
+.sc-keys {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.kbd {
+  font-family: var(--sans);
+  font-size: 11.5px;
+  line-height: 1;
+  color: var(--ink-2);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 7px;
+  min-width: 22px;
+  text-align: center;
+  box-shadow: 0 1px 0 var(--line-2);
+}

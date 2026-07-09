@@ -14,7 +14,7 @@ interface Item {
 // commands, keyboard-navigable (↑/↓, Enter, Esc). Opened from a global
 // key handler in App.
 export function CommandPalette({ onClose }: { onClose: () => void }) {
-  const { sessions, runs, select, selectRun, openModal, toggleShowArchived, theme, cycleTheme } =
+  const { sessions, runs, select, selectRun, openModal, toggleShowArchived, theme, cycleTheme, openHelp } =
     useStore();
   const [q, setQ] = useState("");
   const [idx, setIdx] = useState(0);
@@ -43,6 +43,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
         group: "Commands",
         run: go(() => cycleTheme()),
       },
+      { id: "c-keys", label: "Keyboard shortcuts", hint: "?", group: "Commands", run: go(() => openHelp()) },
     ].filter((c) => match(c.label));
     const sess: Item[] = sessions
       .filter((s) => match(s.title || s.id) || match(s.id))

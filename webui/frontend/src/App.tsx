@@ -8,19 +8,33 @@ import { Modals } from "./components/Modals";
 import { Toasts } from "./components/Toasts";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { CommandPalette } from "./components/CommandPalette";
+import { Shortcuts } from "./components/Shortcuts";
 import { requestNotifyPermission } from "./notify";
 
 export function App() {
   const { currentSid, currentRunId, refreshHealth, refreshSessions, refreshRuns, select, selectRun } =
     useStore();
+  const helpOpen = useStore((s) => s.helpOpen);
+  const openHelp = useStore((s) => s.openHelp);
+  const closeHelp = useStore((s) => s.closeHelp);
   const [palette, setPalette] = useState(false);
 
-  // ⌘K / Ctrl-K toggles the command palette (Codex-style quick switcher).
+  // Global keys: ⌘K/Ctrl-K toggles the command palette; "?" opens the
+  // keyboard-shortcuts reference (unless the user is typing into a field).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setPalette((p) => !p);
+        return;
+      }
+      if (e.key === "?" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const t = e.target as HTMLElement | null;
+        const typing = !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+        if (!typing) {
+          e.preventDefault();
+          openHelp();
+        }
       }
     };
     window.addEventListener("keydown", onKey);
@@ -77,6 +91,7 @@ export function App() {
       </div>
       <Modals />
       {palette && <CommandPalette onClose={() => setPalette(false)} />}
+      {helpOpen && <Shortcuts onClose={closeHelp} />}
       <Toasts />
     </div>
   );

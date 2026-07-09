@@ -31,6 +31,9 @@ interface AppState {
   toggleSys: () => void;
   theme: Theme;
   cycleTheme: () => void;
+  helpOpen: boolean; // keyboard-shortcuts reference overlay
+  openHelp: () => void;
+  closeHelp: () => void;
   archived: string[]; // session ids the user has archived (localStorage-backed)
   showArchived: boolean;
   toggleArchive: (id: string) => void;
@@ -73,6 +76,9 @@ export const useStore = create<AppState>((set, get) => ({
     saveTheme(t);
     set({ theme: t });
   },
+  helpOpen: false,
+  openHelp: () => set({ helpOpen: true }),
+  closeHelp: () => set({ helpOpen: false }),
   archived: loadArchived(),
   showArchived: false,
   toggleArchive: (id) => {
