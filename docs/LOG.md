@@ -941,3 +941,32 @@ event，无效果的重复 control 落 `CommandHandled`。
 该闸门先抓到两个仅跨 restart 出现的问题并修复：已完成旧 receipt 在新宿主
 多唤醒一次；nested `Control.CommandRef` 未从 payload hash 规范化而误报冲突。
 旧 driver `20260709-104551-sched-loop-5c56` 在同一重启后仍可完整 inspect。
+
+## 2026-07-09 web/(arweb 原型驾驶舱)退役删除——webui 补齐六项缺口后收编
+
+**决策**：删除 `web/` 整目录（用户拍板）。arweb 是 M0–M8 期的单文件
+原型驾驶舱，`webui/`(React 版)功能面已成超集；本日补齐最后六项缺口并
+真验后，双驾驶舱并存只剩维护成本。开发史（web/PROGRESS.md 台账、
+web/DESIGN.md 铁律、web/UI-GAPS.md 盘点）在 git 历史中可考
+（最后版本见本提交的父提交）。
+
+**本日补齐的六项缺口（webui, 均真 Gemini 真验）**：手动 barrier 打点
+（POST /sessions/{sid}/barrier + Checkpoint now 菜单）、图片缩略图
+（GET /api/uploads/{name} + composer chip/已发气泡预览）、drive
+best-of-N（schedule: parallel,/bestof + launcher + RunModal 预设）、
+composer agent persona 模板（dev/auditor/reviewer/chat,经 ar agent
+切换）、per-session 草稿恢复、RunView drive 富渲染（iteration 分隔 +
+driver verdict 横幅）;另收编上一 session 遗留的批量审批 ⌘↵/⌘⌫。
+
+**随 web/ 删除而指针失效、但仍有效的两个产品提案**（原载
+web/PROGRESS.md 提案区,此处保留要点,需要时按 PROCESS 增量流程开挖）：
+- **P1② 子事件进 attach 流**：`childLoop` 接 Out sink（tee 到父的 hub
+  sink,`protocol.Event.Session` 填 childSession）,attach 一个父即得
+  全树打字级实时流;轮询已覆盖功能面,纯流式装饰。
+- **P2 父/用户→在飞子 agent 第二条消息**：子 run 是一次性 task,无
+  inbox;增量 = 给 spawn 子挂 UserInputs（复用 conversational mailbox
+  语义）+ 投递面（`ar send <child-id>`;可选父模型侧 send_to_agent
+  工具）。动运行时核心语义,需完整增量流程。
+
+LOG.md 历史行中对 web/PROGRESS.md、web/UI-GAPS.md 的引用（2026-07-07/08
+两条）为历史记录,不回改;以 git 历史为准。
