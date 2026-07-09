@@ -16,15 +16,15 @@ import (
 // concatenated user > project > spec and the FIRST matching rule wins —
 // order is precedence.
 type PermissionRule struct {
-	Tool    string `yaml:"tool,omitempty"`    // exact tool name; empty = any
-	Path    string `yaml:"path,omitempty"`    // glob over the workspace-relative path (** crosses /)
-	Command string `yaml:"command,omitempty"` // glob over the whole command (* matches anything)
+	Tool    string `yaml:"tool,omitempty" json:"tool,omitempty"`       // exact tool name; empty = any
+	Path    string `yaml:"path,omitempty" json:"path,omitempty"`       // glob over the workspace-relative path (** crosses /)
+	Command string `yaml:"command,omitempty" json:"command,omitempty"` // glob over the whole command (* matches anything)
 	// Network matches the effect's egress scope (S7 模块 5): an uncontained
 	// execute-class effect carries "all"; an OS-network-contained one carries no
 	// scope and network rules never match it. `network: "*"` therefore
 	// means "any execution that WOULD have network egress".
-	Network string `yaml:"network,omitempty"`
-	Action  string `yaml:"action"` // allow | ask | deny
+	Network string `yaml:"network,omitempty" json:"network,omitempty"`
+	Action  string `yaml:"action" json:"action"` // allow | ask | deny
 }
 
 // Run modes and their no-rule-matched defaults per tool class.

@@ -1408,9 +1408,19 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 			eff.SpawnDepth = l.Depth
 			eff.SpawnCount = ds.s.Session.Spawns + batchSpawns
 			eff.HandoffPending = handoffAllowed
-			if _, _, childSpec, problem := l.resolveSpawnTarget(call.Name, call.Args); problem == "" {
+			if agentName, _, childSpec, problem := l.resolveSpawnTarget(call.Name, call.Args); problem == "" {
 				allowance = l.spawnAllowance(ds.s, childSpec)
 				eff.EstTokens = allowance
+				if childSpec.Escalate {
+					// A permission escalation must reach the USER (INC-12.5,
+					// 决策 #20 修订/决策 #32 政策条款): even an allow-verdict
+					// spawn upgrades to ask, the requested rules riding in the
+					// approval reason.
+					rules, _ := json.Marshal(childSpec.Permissions)
+					eff.ForceAsk = fmt.Sprintf(
+						"sub-agent %q requests permissions BEYOND yours (escalation). Requested rules: %s",
+						agentName, rules)
+				}
 			}
 		}
 		outcome, ok, err := l.adjudicate(ctx, ds, appendE, eff)
@@ -2065,6 +2075,15 @@ func (l *Loop) adjudicate(ctx context.Context, ds *driveState, appendE AppendFun
 	outcome, err := l.Pipeline.Evaluate(ctx, eff)
 	if err != nil {
 		return outcome, false, err
+	}
+	// A validated escalation request upgrades allow → ask (INC-12.5): the
+	// widened permission face is a USER decision, recorded through the
+	// ordinary approval flow. A deny stays a deny.
+	if eff.ForceAsk != "" && outcome.Verdict == event.VerdictAllow {
+		outcome.Verdict = event.VerdictAsk
+		outcome.GateResults = append(outcome.GateResults, event.GateResult{
+			Gate: "escalation", Decision: event.VerdictAsk, Reason: eff.ForceAsk,
+		})
 	}
 	crash.Point(crash.PointBetweenGateAndResolved)
 	if outcome.Verdict == event.VerdictAsk {

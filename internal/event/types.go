@@ -558,6 +558,10 @@ type SpawnRequested struct {
 	// role. Static directory spawns leave it empty; the child's own
 	// SessionStarted.Spec remains the revive truth in both cases.
 	RoleSpec json.RawMessage `json:"role_spec,omitempty"`
+	// Escalated marks a USER-APPROVED permission escalation (INC-12.5): this
+	// child's gates replace the parent intersection with its own approved
+	// rules (决策 #20 修订).
+	Escalated bool `json:"escalated,omitempty"`
 }
 
 // SubagentCompleted records the child run's terminal outcome in the PARENT

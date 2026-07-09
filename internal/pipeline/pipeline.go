@@ -40,6 +40,11 @@ type Effect struct {
 	// "all" for an uncontained execute-class effect, "" when the OS sandbox
 	// already removes egress — network rules match the former only.
 	Network string
+	// ForceAsk, when non-empty, upgrades an allow verdict to ask with this
+	// reason (INC-12.5): a permission ESCALATION request (a child asking for
+	// rules beyond the parent's frozen intersection) must reach the USER even
+	// when the rules would have allowed the spawn itself.
+	ForceAsk string
 }
 
 // Decision is one gate's judgment.

@@ -227,12 +227,13 @@ func (l *Loop) buildHandoffRun(call provider.ToolCall, res *tool.Result,
 		if _, err := appendE(event.TypeSpawnRequested, &event.SpawnRequested{
 			CallID: call.CallID, Agent: agentName, Task: task,
 			ChildSession: childSession, Depth: l.Depth + 1, BudgetTokens: allowance,
-			RoleSpec: dynamicRoleJSON(call.Args, childSpec),
+			RoleSpec:  dynamicRoleJSON(call.Args, childSpec),
+			Escalated: childSpec.Escalate,
 		}); err != nil {
 			return nil, nil, false, err
 		}
 
-		child := l.childLoop(childSpec, childStore, childSession, allowance, parentMode)
+		child := l.childLoopEscalated(childSpec, childStore, childSession, allowance, parentMode, childSpec.Escalate)
 		child.Inputs = inputs
 		cres, cerr := child.Run(ctx, task)
 		if cerr != nil {
@@ -327,7 +328,8 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 	if _, err := appendE(event.TypeSpawnRequested, &event.SpawnRequested{
 		CallID: call.CallID, Agent: agentName, Task: task,
 		ChildSession: childSession, Depth: l.Depth + 1, BudgetTokens: allowance,
-		RoleSpec: dynamicRoleJSON(call.Args, childSpec),
+		RoleSpec:  dynamicRoleJSON(call.Args, childSpec),
+		Escalated: childSpec.Escalate,
 	}); err != nil {
 		_ = childStore.Close()
 		return err
@@ -346,7 +348,7 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 	l.bg.cancel[call.CallID] = cancel
 	l.bg.mu.Unlock()
 
-	child := l.childLoop(childSpec, childStore, childSession, allowance, parentMode)
+	child := l.childLoopEscalated(childSpec, childStore, childSession, allowance, parentMode, childSpec.Escalate)
 	child.Inputs = inputs
 	go func() {
 		defer func() { _ = childStore.Close() }()
@@ -390,6 +392,18 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 // report returns as the tool result.
 func (l *Loop) childLoop(childSpec *AgentSpec, childStore *store.EventStore,
 	childSession string, allowance int, parentMode string) *Loop {
+	return l.childLoopEscalated(childSpec, childStore, childSession, allowance, parentMode, false)
+}
+
+// childLoopEscalated is childLoop with the USER-APPROVED escalation branch
+// (INC-12.5, 决策 #20 修订): an escalated child's pipeline REPLACES the
+// parent's frozen permission intersection with the child's own approved
+// rules. The escalation reached execution only through an ApprovalRequested
+// the user answered (the spawn effect force-asks), so "wider than the
+// parent" is always a recorded human decision. Tree budget min-aggregation,
+// depth/fan-out caps, and the containment ratchet are NOT exempted.
+func (l *Loop) childLoopEscalated(childSpec *AgentSpec, childStore *store.EventStore,
+	childSession string, allowance int, parentMode string, escalated bool) *Loop {
 
 	frozen := *childSpec
 	if allowance > 0 {
@@ -402,22 +416,31 @@ func (l *Loop) childLoop(childSpec *AgentSpec, childStore *store.EventStore,
 	childMode := narrowerMode(parentMode, childSpec.Mode)
 	frozen.Mode = ""
 
-	var gates []pipeline.Gate
+	var ws *pipeline.PermissionGate
 	if l.Pipeline != nil {
+		for _, g := range l.Pipeline.Gates {
+			if pg, ok := g.(*pipeline.PermissionGate); ok {
+				ws = pg
+			}
+		}
+	}
+	var gates []pipeline.Gate
+	if l.Pipeline != nil && !escalated {
 		gates = append(gates, l.Pipeline.Gates...)
+	} else if l.Pipeline != nil {
+		// Escalated: every NON-permission gate stays inherited (hooks,
+		// budget, spawn caps); only the permission intersection is replaced
+		// by the approved rules below.
+		for _, g := range l.Pipeline.Gates {
+			if _, isPerm := g.(*pipeline.PermissionGate); !isPerm {
+				gates = append(gates, g)
+			}
+		}
 	}
 	if allowance > 0 {
 		gates = append(gates, &pipeline.BudgetGate{MaxTotalTokens: allowance})
 	}
-	if len(childSpec.Permissions) > 0 {
-		var ws *pipeline.PermissionGate
-		if l.Pipeline != nil {
-			for _, g := range l.Pipeline.Gates {
-				if pg, ok := g.(*pipeline.PermissionGate); ok {
-					ws = pg
-				}
-			}
-		}
+	if len(childSpec.Permissions) > 0 || escalated {
 		gate := &pipeline.PermissionGate{Rules: childSpec.Permissions}
 		if ws != nil {
 			gate.WS = ws.WS
