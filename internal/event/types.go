@@ -63,6 +63,14 @@ const (
 
 	// 决策 #32 (2026-07-05): session 不绑 agent——运行中换 spec。
 	TypeSpecChanged = "spec_changed"
+
+	// INC-5: ask_user (wait-class) resolution. It pairs the pending
+	// ask_user call as a tool result — answered (the user's inbox reply),
+	// interrupted, or rejected (a second ask_user in one turn). The reply
+	// arrives via the inbox but journals here, carrying its text, in the
+	// same family as ApprovalResponded (a content-bearing reply event, not
+	// a bare InputReceived).
+	TypeAskResolved = "ask_resolved"
 )
 
 // Effect verdicts and gate decisions.
@@ -236,6 +244,18 @@ type WaitingEntered struct {
 type WaitingResolved struct {
 	Kind       string `json:"kind"`
 	Resolution string `json:"resolution"`
+}
+
+// AskResolved pairs a parked ask_user call as its tool result (INC-5).
+// Resolution: "answered" (Answer is the user's reply → {"answer": text},
+// and the reply grants a fresh turn), "interrupted" or "rejected" (Answer
+// is the model-visible error text → IsError). DeliverySeq echoes the
+// durable mailbox seq an answered reply consumed (dedup), 0 otherwise.
+type AskResolved struct {
+	CallID      string `json:"call_id"`
+	Resolution  string `json:"resolution"`
+	Answer      string `json:"answer"`
+	DeliverySeq int64  `json:"delivery_seq,omitempty"`
 }
 
 type ActorCrashed struct {
@@ -634,6 +654,7 @@ var Registry = map[string]func() any{
 	TypeCheckpointBarrier: func() any { return &CheckpointBarrier{} },
 	TypeForkedFrom:        func() any { return &ForkedFrom{} },
 	TypeSpecChanged:       func() any { return &SpecChanged{} },
+	TypeAskResolved:       func() any { return &AskResolved{} },
 }
 
 // DriverStream lists the event types that belong to the IterationDriver's OWN

@@ -1123,8 +1123,18 @@ scripted 孪生为其确定性闸门。全部绿灯，扩展层随之解冻。
 …），不设"设计名 → 实现名"对照层（2026-07-05 裁定：零 legacy
 mapping，代码与文档同名）。
 
-- **`ask_user` / `finish` 未实现**（记档：待命本身就是"待命"，两者的
-  增量价值待真实使用反馈，不预做）；`write_file` 已一等化。
+- **`ask_user` 已一等化（INC-5）**：wait-class，park 到 `WAITING_INPUT`
+  携带问题（`WaitingEntered{input, detail:{call_id, question}}`，靠
+  Detail 与普通 standby idle 区分）。应答经 inbox 递送但 journal 为
+  `AskResolved`（携带应答文本，与 `ApprovalResponded` 同族——带内容的
+  专用应答事件，不经 `InputReceived`），fold 把它配对为该 ask_user
+  call 的 tool result（`{"answer": …}`），session 不 idle、继续下一
+  generation step。一批至多一个 ask park（第二个 `AskResolved{rejected}`
+  模型可见报错）；interrupt→`AskResolved{interrupted}`+
+  `superseded_by_interrupt`；crash→park 持久、resume 补
+  `WaitingResolved` 自愈;headless(无 live input source)→run 返回、
+  park 留在 journal、`ar send` resume 应答。`finish` 仍未实现（记档:
+  待命本身就是"待命"，增量价值待真实反馈)。`write_file` 已一等化。
 - **长贴折叠只在 send 路径**：`ar new` 的开场消息走 SessionStarted.Task
   → IngestInput，超长开场不折叠、也不支持 --image；不对称记档，
   待真实使用反馈再决定是否统一。

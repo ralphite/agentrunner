@@ -44,6 +44,7 @@ var samples = map[string]any{
 	TypeTimerCancelled:  &TimerCancelled{TimerID: "tm-1"},
 	TypeWaitingEntered:  &WaitingEntered{Kind: WaitApproval, Detail: json.RawMessage(`{"call_id":"call_3_1"}`)},
 	TypeWaitingResolved: &WaitingResolved{Kind: WaitApproval, Resolution: "approved"},
+	TypeAskResolved:     &AskResolved{CallID: "call_2_0", Resolution: "answered", Answer: "yes, use postgres", DeliverySeq: 7},
 	TypeActorCrashed:    &ActorCrashed{Actor: "session", Error: "boom"},
 	TypeEffectRequested: &EffectRequested{EffectID: "eff-call_3_1", CallID: "call_3_1", SideEffecting: true},
 	TypeApprovalRequested: &ApprovalRequested{ApprovalID: "apr-eff-call_3_1", EffectID: "eff-call_3_1",

@@ -996,6 +996,25 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				continue
 			}
 			if ds.s.Waiting.Kind == event.WaitInput {
+				// ask_user park (INC-5): a WAITING_INPUT carrying a pending
+				// question, distinct from a plain standby idle by its detail.
+				if d, ok := askPark(ds.s.Waiting.Detail); ok {
+					// Crash self-heal: the reply paired the call (AskResolved
+					// durable) but its WaitingResolved never landed — clear the
+					// park from the recorded answer instead of re-asking.
+					if _, done := ds.s.Conversation.ToolResults[d.CallID]; done {
+						if _, err := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
+							Kind: event.WaitInput, Resolution: "answered",
+						}); err != nil {
+							return RunResult{}, abort(ds.s.Session.GenStep, err)
+						}
+						continue
+					}
+					if res, done, err := l.awaitAnswer(ctx, ds, appendE, d); done {
+						return res, err
+					}
+					continue
+				}
 				// A session idle for input, resumed across a restart (v2
 				// M1.3): re-enter the wait WITHOUT re-journaling
 				// WaitingEntered — the fact is already in the fold. But first
@@ -1194,7 +1213,22 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 	handlesSnapshot := ds.s.Handles
 	acts := make([]Activity, 0, len(allowed))
 	actIdx := make([]int, 0, len(allowed))
+	// ask_user (wait-class, INC-5) is NEVER an activity: the FIRST one in a
+	// batch becomes the park (journaled after everything else settles); a
+	// SECOND is rejected model-visibly, because decide() must reach a single
+	// WAITING_INPUT — two parked questions have no well-defined resolution.
+	var askCall *provider.ToolCall
 	for i, p := range allowed {
+		if p.call.Name == "ask_user" {
+			if askCall == nil {
+				askCall = &allowed[i].call
+			} else if err := l.journalAskResolved(serialAppend, act.turn, p.call.CallID, "rejected",
+				"only one ask_user question per turn; ask again after this one is answered", 0); err != nil {
+				stopInt()
+				return abort(act.turn, err)
+			}
+			continue
+		}
 		// Background launches never join the batch (S6.1): the handle pairs
 		// the call via the Started fold, the work outlives this turn, and
 		// the terminal settles later at a drive-loop safe point. The task
@@ -1268,6 +1302,9 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 	// call order (surface ordering; the journal already holds arrival order).
 	interrupted := steered(actCtx)
 	for i, p := range allowed {
+		if p.call.Name == "ask_user" {
+			continue // resolved out-of-band: rejected above, or parked/interrupted below
+		}
 		err := errsOut[i]
 		if err == nil {
 			l.emit(protocol.Event{Kind: protocol.KindToolResult, N: act.turn,
@@ -1299,6 +1336,14 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 		return abort(act.turn, fmt.Errorf("turn %d: %s: %w", act.turn, p.call.Name, err))
 	}
 	if interrupted {
+		// The batch was steered: a pending question dies interrupted too, so
+		// the ask_user call carries a result (provider contract) and the model
+		// sees it was cut off. Pair it BEFORE the turn-ending seam.
+		if askCall != nil {
+			if err := l.journalAskResolved(appendE, act.turn, askCall.CallID, "interrupted", "[interrupted by user]", 0); err != nil {
+				return abort(act.turn, err)
+			}
+		}
 		if ierr := l.onSteeringInterrupt(appendE, act.turn); ierr != nil {
 			return abort(act.turn, ierr)
 		}
@@ -1307,8 +1352,81 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 		if ierr := l.finishInterrupt(ds, appendE, act.turn); ierr != nil {
 			return abort(act.turn, ierr)
 		}
+		return nil
+	}
+	// Everything else in the batch has settled: NOW park on the question
+	// (DESIGN §5 — 提问=待命). decide() sees Waiting != nil and enters doWait;
+	// the reply pairs the call as its tool result and the session continues.
+	if askCall != nil {
+		if err := l.parkOnAsk(appendE, act.turn, *askCall); err != nil {
+			return abort(act.turn, err)
+		}
 	}
 	return nil
+}
+
+// journalAskResolved pairs an ask_user call as its tool result (INC-5):
+// the sole path by which a wait-class question resolves. resolution is
+// "answered" (text is the reply), "interrupted", or "rejected" (text is the
+// model-visible error). seq is the consumed mailbox seq for an answer, 0
+// otherwise. It also emits the surface tool-result event.
+func (l *Loop) journalAskResolved(appendE AppendFunc, turn int, callID, resolution, text string, seq int64) error {
+	_, err := appendE(event.TypeAskResolved, &event.AskResolved{
+		CallID: callID, Resolution: resolution, Answer: text, DeliverySeq: seq,
+	})
+	if err != nil {
+		return err
+	}
+	var payload json.RawMessage
+	if resolution == "answered" {
+		payload, _ = json.Marshal(map[string]string{"answer": text})
+	} else {
+		payload, _ = json.Marshal(text)
+	}
+	l.emit(protocol.Event{Kind: protocol.KindToolResult, N: turn,
+		Tool: "ask_user", CallID: callID, Result: compact(payload), IsError: resolution != "answered"})
+	return nil
+}
+
+// parkOnAsk journals the WAITING_INPUT park carrying the question (INC-5),
+// so a resumed run re-parks on the same pending call.
+func (l *Loop) parkOnAsk(appendE AppendFunc, turn int, call provider.ToolCall) error {
+	var q struct {
+		Question string `json:"question"`
+	}
+	_ = json.Unmarshal(call.Args, &q)
+	detail, err := json.Marshal(askDetail{CallID: call.CallID, Question: q.Question})
+	if err != nil {
+		return err
+	}
+	if _, err := appendE(event.TypeWaitingEntered, &event.WaitingEntered{
+		Kind: event.WaitInput, Detail: detail,
+	}); err != nil {
+		return err
+	}
+	l.emit(protocol.Event{Kind: protocol.KindMessage, N: turn,
+		Text: "waiting for your answer: " + q.Question})
+	return nil
+}
+
+// askDetail is the WaitingEntered payload for an ask_user park: the call to
+// pair when the reply lands, and the question (surfaced on resume).
+type askDetail struct {
+	CallID   string `json:"call_id"`
+	Question string `json:"question"`
+}
+
+// askPark decodes an ask_user park's detail; ok=false for a plain standby
+// idle (empty detail) — the two share WaitInput but differ by payload.
+func askPark(detail json.RawMessage) (askDetail, bool) {
+	if len(detail) == 0 {
+		return askDetail{}, false
+	}
+	var d askDetail
+	if err := json.Unmarshal(detail, &d); err != nil || d.CallID == "" {
+		return askDetail{}, false
+	}
+	return d, true
 }
 
 // buildToolRun is the per-call Run closure, writing its outcome into *res.

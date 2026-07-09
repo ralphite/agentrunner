@@ -201,3 +201,93 @@ func (l *Loop) awaitInput(ctx context.Context, ds *driveState, appendE AppendFun
 		}
 	}
 }
+
+// awaitAnswer parks on an ask_user question (INC-5). It mirrors awaitInput,
+// but the inbox reply resolves the PENDING CALL (paired as its tool result
+// via AskResolved) instead of starting a fresh turn — the session then
+// continues in place. Returns done=true when the run should return (headless
+// park, close, or hard cancel); done=false to continue the drive loop, with
+// the park either resolved (answered/interrupted) or still set (a settlement
+// woke us but the question stands — decide() re-parks).
+func (l *Loop) awaitAnswer(ctx context.Context, ds *driveState, appendE AppendFunc, d askDetail) (RunResult, bool, error) {
+	l.ensureBackground()
+	if l.UserInputs == nil && !l.inboxClosed {
+		// Headless (one-shot): no live input source. The park is durable in
+		// the journal — a later `ar send` resumes and answers. Return like a
+		// standby idle does, WITHOUT running quiescent actions (the turn is
+		// not over; a call is still open).
+		res := RunResult{Reason: "waiting_input", GenSteps: ds.s.Session.GenStep, Usage: ds.s.Session.Usage}
+		l.emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: res.Reason, N: res.GenSteps})
+		return res, true, nil
+	}
+	turn := ds.s.Session.GenStep
+	l.emit(protocol.Event{Kind: protocol.KindIdle, N: turn})
+	for {
+		select {
+		case in, ok := <-l.UserInputs:
+			if !ok {
+				// The user closed instead of answering: graceful close. The
+				// pending call is paired interrupted so the transcript is
+				// consistent, then the session closes.
+				if err := l.journalAskResolved(appendE, turn, d.CallID, "interrupted", "[interrupted by user]", 0); err != nil {
+					return RunResult{}, true, err
+				}
+				if _, err := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
+					Kind: event.WaitInput, Resolution: "superseded_by_interrupt",
+				}); err != nil {
+					return RunResult{}, true, err
+				}
+				l.inboxClosed = true
+				l.UserInputs = nil
+				res, cerr := l.closeSession(ctx, ds, appendE, turn)
+				l.emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: res.Reason, N: res.GenSteps})
+				return res, true, cerr
+			}
+			// The reply answers the question: pair the call, resolve the park.
+			// The reply text is redacted like any journaled input.
+			answer := redact.FromEnv().String(in.Text)
+			if err := l.journalAskResolved(appendE, turn, d.CallID, "answered", answer, in.DeliverySeq); err != nil {
+				return RunResult{}, true, err
+			}
+			if _, err := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
+				Kind: event.WaitInput, Resolution: "answered",
+			}); err != nil {
+				return RunResult{}, true, err
+			}
+			return RunResult{}, false, nil
+		case out := <-l.bg.done:
+			// Background settled while parked: record it (a user-role message
+			// next turn), but the question STANDS — decide() sees Waiting still
+			// set and re-parks. The settlement does not answer the question.
+			if err := l.settleBackground(appendE, out); err != nil {
+				return RunResult{}, true, err
+			}
+			return RunResult{}, false, nil
+		case handle := <-l.Cancels:
+			if err := l.cancelHandle(appendE, handle); err != nil {
+				return RunResult{}, true, err
+			}
+			return RunResult{}, false, nil
+		case <-l.Interrupts:
+			// Interrupt while parked: the question dies interrupted and the
+			// loop continues (interrupt is guidance, not shutdown). Journal
+			// the signal first (journal-inputs-first), then pair + resolve.
+			if _, err := appendE(event.TypeInputReceived, &event.InputReceived{
+				Text: "[interrupt]", Source: "interrupt",
+			}); err != nil {
+				return RunResult{}, true, err
+			}
+			if err := l.journalAskResolved(appendE, turn, d.CallID, "interrupted", "[interrupted by user]", 0); err != nil {
+				return RunResult{}, true, err
+			}
+			if _, err := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
+				Kind: event.WaitInput, Resolution: "superseded_by_interrupt",
+			}); err != nil {
+				return RunResult{}, true, err
+			}
+			return RunResult{}, false, nil
+		case <-ctx.Done():
+			return RunResult{}, true, context.Cause(ctx)
+		}
+	}
+}

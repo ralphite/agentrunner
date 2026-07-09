@@ -70,7 +70,8 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | grep / glob 独立工具 | ✅ | UJ-01 | INC-3 · TestGrep*/TestGlob* · QA-11（真实 API：模型自发调用 grep+glob，凭据红线守住） |
 | web_fetch（客户端执行；HTML→text、重定向/大小上限、`network` 数据位、收容 fail-closed、untrusted 标记） | ✅ | UJ-01 | INC-5 · TestWebFetch* · QA-12 |
 | web search | ❌ | UJ-01 | GAPS G18 余项（搜索后端选型 / provider 服务端工具例外类别，单独成增量） |
-| ask_user（wait-class 提问）/ finish | 🧊 | UJ-06 | 记档不预做（DESIGN §17；GAPS G20） |
+| ask_user（wait-class 提问：park WAITING_INPUT，应答走 inbox→配对 tool result，同 session 续跑；一批限一问、interrupt/crash/headless 全覆盖） | ✅ | UJ-06 | INC-5 · TestAskUser*（park/answer/reject/interrupt/headless/crash-resume）· QA-12 |
+| finish（结束 turn 让 session 待命） | 🧊 | UJ-06 | 记档不预做（DESIGN §17：待命本身就是待命） |
 | tool 输出截断（per-tool 上限） | ✅ | 不变量 | S3 |
 
 ## D · 权限与安全

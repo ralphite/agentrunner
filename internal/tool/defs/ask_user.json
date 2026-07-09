@@ -1,0 +1,15 @@
+{
+  "name": "ask_user",
+  "description": "Ask the user a question and wait for their reply before continuing. Use it when you genuinely cannot proceed without a decision or missing information — not for routine confirmations. The session parks until the user answers; their reply comes back as this tool's result, and you continue in the same session. Ask ONE question per turn.",
+  "class": "wait",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "question": {
+        "type": "string",
+        "description": "The question to put to the user. Be specific and self-contained."
+      }
+    },
+    "required": ["question"]
+  }
+}

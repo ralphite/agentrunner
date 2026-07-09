@@ -542,6 +542,26 @@ func Apply(s State, env event.Envelope) (State, error) {
 		s.Waiting = nil
 		s.Session.Status = StatusRunning
 
+	case *event.AskResolved:
+		// Pair the parked ask_user call as its tool result (INC-5). A crash
+		// between this and the WaitingResolved that clears the park is safe:
+		// the call is resolved and durable here, so doWait's ask branch just
+		// re-journals the resolution instead of re-parking.
+		if p.DeliverySeq > s.Session.ConsumedInputSeq {
+			s.Session.ConsumedInputSeq = p.DeliverySeq
+		}
+		var result json.RawMessage
+		if p.Resolution == "answered" {
+			result, _ = json.Marshal(map[string]string{"answer": p.Answer})
+			// The reply is fresh user input: grant it a turn so decide()
+			// continues instead of truncating against the pre-ask baseline.
+			s.Session.LastInputGenStep = s.Session.GenStep
+		} else {
+			result, _ = json.Marshal(p.Answer)
+		}
+		s.Conversation = s.Conversation.withToolResult(p.CallID,
+			ToolResult{Result: result, IsError: p.Resolution != "answered"})
+
 	case *event.EffectRequested:
 		s.Effects = s.Effects.withPending(p.EffectID, *p)
 

@@ -33,7 +33,7 @@
 | UJ-03 结对续聊 | ❌ | **G6 续聊形态不存在**——答完即 run_ended |
 | UJ-04 贴图贴日志 | ❌ | **G1 多模态输入全链路缺失**（图片+长贴折叠） |
 | UJ-05 从零起项目 | ✅ | write_file ✅（M4.3）、grep/glob ✅（INC-3） |
-| UJ-06 大重构走计划 | 🟡 | plan/审批/修订再批全通；"agent 主动提问"G20 |
+| UJ-06 大重构走计划 | ✅ | plan/审批/修订再批全通；agent 主动提问 ✅（ask_user，INC-5，G20 关闭） |
 | UJ-07 中途纠偏 | 🟡 | interrupt ✅；steer 消息与队列 G3 |
 | UJ-08 权限日常 | 🟡 | 规则/审批/审计 ✅；"允许且不再问"写回 G5 |
 | UJ-09 长会话续命 | 🟡 | 自动/手动 compaction（G7 ✅ INC-6）、跨日 resume、续聊 ✅；记忆写回 G9、跨机 G11 |
@@ -163,11 +163,15 @@ spec 冻结于 SessionStarted（对的），但缺一个显式变更事件族（
 此处覆盖不足**。
 → （无 journey 覆盖）
 
-**G20 agent 主动提问（wait-class 工具，ask_user） — ⚠️ 设计欠定 · 中**
-wait-class 词汇与 WAITING_INPUT park、免 in-doubt 误杀的类别语义已设计；
-但没有任何 wait-class 工具定义，CLI/daemon 也无应答路径（approve 只答
-审批）。实现侧 loop 对 WaitInput 直接报"no resolver"。
-→ UJ-06
+**G20 agent 主动提问（wait-class 工具，ask_user） — ✅ 已关闭（INC-5，2026-07-09）**
+关闭位置：`internal/tool/defs/ask_user.json`（wait-class def）+ loop 的
+park/应答落地（`doTools` 批末 park、`awaitAnswer`、`AskResolved` 配对）。
+应答路径 = **inbox 本身**（approve 只答审批的缺口就此补上）：park 期间
+一条 `ar send` 经 `AskResolved` 配对为该 call 的 tool result，session
+同步续跑,无新 CLI/daemon 动词。免 in-doubt 误杀成立(park 无 activity)。
+interrupt/crash-resume/headless 全覆盖(TestAskUser* 六态)。ask park
+不再落入 doWait 的 "no resolver" 兜底(该兜底仅留给真正未知的 wait
+kind)。→ UJ-06
 
 **G21 自定义命令 / slash 面 — ✅ 已关闭（INC-5，2026-07-09）**
 关闭位置：`internal/command` 包（mirror skill）+ DESIGN §10「自定义命令」
