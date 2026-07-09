@@ -2,7 +2,7 @@ import { useState } from "react";
 import { AR } from "../api";
 import { useStore } from "../store";
 import { DEFAULT_SPEC, DEFAULT_WORKER } from "../specs";
-import { pillClass } from "./pill";
+import { friendlyStatus } from "./pill";
 import { relTime, sessionDate } from "../time";
 
 // Home mirrors Codex's landing: a heading + one rounded composer card with a
@@ -67,16 +67,16 @@ export function Home() {
       key: "s" + s.id,
       title: s.title || s.id,
       time: relTime(sessionDate(s.id)),
-      cls: pillClass(s.status),
-      badge: s.status,
+      cls: friendlyStatus(s.status).cls,
+      badge: friendlyStatus(s.status).text,
       onClick: () => select(s.id),
     })),
     ...runs.map((r) => ({
       key: "r" + r.id,
       title: r.label || r.id,
       time: r.kind,
-      cls: r.status,
-      badge: r.status,
+      cls: friendlyStatus(r.status).cls,
+      badge: friendlyStatus(r.status).text,
       onClick: () => selectRun(r.id),
     })),
   ];

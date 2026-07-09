@@ -277,11 +277,14 @@ func (s *server) handleRunStream(w http.ResponseWriter, r *http.Request) {
 	for _, line := range backlog {
 		_, _ = io.WriteString(w, "data: "+line+"\n\n")
 	}
-	fl.Flush()
 	if run.finished() {
-		// backlog already carries the end marker; nothing more will arrive.
+		// Signal end so the client closes instead of auto-reconnecting and
+		// re-replaying the whole backlog forever.
+		_, _ = io.WriteString(w, "event: end\ndata: {\"reason\":\"run-finished\"}\n\n")
+		fl.Flush()
 		return
 	}
+	fl.Flush()
 	ping := time.NewTicker(15 * time.Second)
 	defer ping.Stop()
 	for {
@@ -293,6 +296,8 @@ func (s *server) handleRunStream(w http.ResponseWriter, r *http.Request) {
 			fl.Flush()
 		case line, more := <-ch:
 			if !more {
+				_, _ = io.WriteString(w, "event: end\ndata: {\"reason\":\"run-finished\"}\n\n")
+				fl.Flush()
 				return
 			}
 			_, _ = io.WriteString(w, "data: "+line+"\n\n")

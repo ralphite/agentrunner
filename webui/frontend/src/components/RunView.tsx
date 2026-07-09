@@ -34,6 +34,9 @@ export function RunView({ runId }: { runId: string }) {
     setLines([]);
     const es = new EventSource(`/api/runs/${runId}/stream`);
     es.onmessage = (m) => setLines((p) => [...p, m.data]);
+    // Close on the server's end event; otherwise EventSource auto-reconnects
+    // and re-replays the whole backlog, duplicating the log without bound.
+    es.addEventListener("end", () => es.close());
     return () => es.close();
   }, [runId]);
 

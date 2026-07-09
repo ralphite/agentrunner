@@ -5,7 +5,9 @@ export function sessionDate(id: string): Date | null {
   const m = id.match(/^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/);
   if (!m) return null;
   const [, y, mo, d, h, mi, s] = m;
-  return new Date(+y, +mo - 1, +d, +h, +mi, +s);
+  // Session ids are stamped in UTC (ar uses now.UTC()); parse as UTC so the
+  // relative time is correct in every timezone.
+  return new Date(Date.UTC(+y, +mo - 1, +d, +h, +mi, +s));
 }
 
 export function relTime(when: Date | null): string {

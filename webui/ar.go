@@ -43,9 +43,12 @@ var specFileName = regexp.MustCompile(`^[A-Za-z0-9._-]+\.ya?ml$`)
 // sessionIDLine matches a session id token (e.g. 20260708-230920-task-5913).
 var sessionIDLine = regexp.MustCompile(`\b\d{8}-\d{6}-[A-Za-z0-9._-]+\b`)
 
-// parseSessionID pulls the new session's id out of an `ar new`/`ar fork`
-// result. The CLI announces it on stderr as `session <id>` (the reply goes to
-// stdout); we scan both streams for the id token to stay robust to wording.
+// parseSessionID pulls the NEW session's id out of an `ar new`/`ar fork`
+// result. The authoritative announcement is a `session <id>` line: `ar new`
+// prints it on stderr, `ar fork` on stdout (its stderr instead says
+// `forked <PARENT> @ <barrier>` — a red herring). So we first scan BOTH
+// streams for a `session ` line (that is always the new id), and only fall
+// back to a bare id token if neither stream has one.
 func parseSessionID(res arResult) string {
 	for _, stream := range []string{res.Stderr, res.Stdout} {
 		for _, line := range strings.Split(stream, "\n") {
@@ -56,11 +59,20 @@ func parseSessionID(res arResult) string {
 				}
 			}
 		}
+	}
+	for _, stream := range []string{res.Stdout, res.Stderr} {
 		if m := sessionIDLine.FindString(stream); m != "" {
 			return m
 		}
 	}
 	return ""
+}
+
+// sessionExists probes whether the daemon actually hosts a session, via a
+// side-effect-free `ar ps` (it prints "no session matches" for unknown ids).
+func (s *server) sessionExists(ctx context.Context, id string) bool {
+	res := s.runAR(ctx, 5*time.Second, "ps", id)
+	return !strings.Contains(res.Stderr, "no session matches")
 }
 
 // daemonUnreachable classifies an ar failure: the CLI flags a failed socket

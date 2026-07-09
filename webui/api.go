@@ -71,9 +71,19 @@ func arFail(w http.ResponseWriter, what string, res arResult) {
 	if res.Err != nil {
 		msg = fmt.Sprintf("%s: %v", what, res.Err)
 	}
+	// Some subcommands (notably `ar new`) print the actionable diagnostic to
+	// stdout while stderr only carries the session id — surface both so the
+	// UI toast shows the real reason.
+	detail := strings.TrimSpace(res.Stderr)
+	if out := strings.TrimSpace(res.Stdout); out != "" && out != detail {
+		if detail != "" {
+			detail += "\n"
+		}
+		detail += out
+	}
 	writeJSON(w, http.StatusBadGateway, map[string]string{
 		"error":  msg,
-		"stderr": strings.TrimSpace(res.Stderr),
+		"stderr": detail,
 	})
 }
 
@@ -242,7 +252,12 @@ func (s *server) handleNewSession(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, err.Error())
 		return
 	}
-	args := []string{"new", "--workspace", ws}
+	// --detach: return the session id immediately and let the daemon host the
+	// opening turn. Blocking here would (a) hang until the turn idles and (b)
+	// orphan any opening-turn approval when the request times out — the ask
+	// belongs to the dying connection. Detached, the session lives in the
+	// daemon and its approvals are answerable via the shared broker.
+	args := []string{"new", "--detach", "--workspace", ws}
 	if req.Mode != "" {
 		args = append(args, "--mode", req.Mode)
 	}
@@ -257,8 +272,26 @@ func (s *server) handleNewSession(w http.ResponseWriter, r *http.Request) {
 		arFail(w, "ar new (no session id)", res)
 		return
 	}
+	// --detach prints an id and exits 0 even when the daemon then rejects the
+	// spec (bad tool/model) — the session never registers. Confirm it actually
+	// exists so a bad spec is a clear error, not a phantom the UI opens into.
+	exists := false
+	for i := 0; i < 5; i++ {
+		if s.sessionExists(r.Context(), id) {
+			exists = true
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	if !exists {
+		writeJSON(w, http.StatusBadGateway, map[string]string{
+			"error":  "会话创建失败:daemon 拒绝了这个 spec(检查 tools / model / permissions 是否合法)",
+			"stderr": strings.TrimSpace(res.Stdout + "\n" + res.Stderr),
+		})
+		return
+	}
 	s.meta.set(id, ws, req.Message)
-	writeJSON(w, http.StatusOK, map[string]string{"sid": id, "specDir": specDir, "workspace": ws, "reply": strings.TrimSpace(res.Stdout)})
+	writeJSON(w, http.StatusOK, map[string]string{"sid": id, "specDir": specDir, "workspace": ws})
 }
 
 func (s *server) handleWorkspace(w http.ResponseWriter, r *http.Request) {
@@ -497,7 +530,10 @@ func (s *server) handleSend(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, "text is required")
 		return
 	}
-	args := []string{"send"}
+	// --detach: deliver and return; the reply and any approval land in the
+	// journal, which the UI already polls. Blocking would re-introduce the
+	// orphaned-approval failure on follow-up turns (same as `ar new`).
+	args := []string{"send", "--detach"}
 	for _, img := range req.Images {
 		if st, err := os.Stat(img); err != nil || st.IsDir() {
 			badRequest(w, "image not readable: "+img)

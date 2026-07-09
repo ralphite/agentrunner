@@ -60,6 +60,12 @@ export interface Folded {
   callArgs: Map<string, { name: string; args: any }>; // call_id → tool
   status: { text: string; cls: string };
   lastGen: number;
+  // active = the session is genuinely mid-work: a tool is still running, or a
+  // generation step was just started with nothing produced yet. A child
+  // session's own journal never records completion (it lands in the PARENT as
+  // subagent_completed), so it ends on assistant_message and its status would
+  // otherwise dangle at "运行中" forever — callers use !active to correct that.
+  active: boolean;
 }
 
 // foldEvents replays the whole journal into an ordered item list plus the
@@ -72,6 +78,7 @@ export function foldEvents(events: Envelope[]): Folded {
   const callArgs = new Map<string, { name: string; args: any }>();
   let lastGen = 0;
   let status = { text: "—", cls: "" };
+  let lastType = "";
 
   const push = (it: TimelineItem) => items.push(it);
   const chip = (
@@ -84,6 +91,7 @@ export function foldEvents(events: Envelope[]): Folded {
   for (const env of events) {
     const p = env.payload || {};
     const seq = env.seq;
+    lastType = env.type;
     switch (env.type) {
       case "session_started":
         chip(seq, `会话开始 · ${p.spec_name || ""} · ${p.model || ""}`);
@@ -234,7 +242,13 @@ export function foldEvents(events: Envelope[]): Folded {
         chip(seq, `上下文压缩 · 到第 ${p.upto_gen_step} 轮`);
         break;
       case "limit_exceeded":
-        chip(seq, `预算超限 ${p.kind}: ${p.used}/${p.limit}`, "bad");
+        // A user interrupt is modeled as limit_exceeded{kind:interrupted} —
+        // don't dress it up as a budget overrun.
+        if (p.kind === "interrupted" || p.kind === "canceled" || p.kind === "cancelled") {
+          chip(seq, "已停止(你打断了这一轮)", "warn");
+        } else {
+          chip(seq, `预算超限 ${p.kind}: ${p.used}/${p.limit}`, "bad");
+        }
         break;
       case "generation_discarded":
         chip(seq, `第 ${p.gen_step} 轮流式输出被丢弃重试`, "warn");
@@ -247,5 +261,8 @@ export function foldEvents(events: Envelope[]): Folded {
     }
   }
 
-  return { items, approvals, callArgs, status, lastGen };
+  const toolRunning = items.some((it) => it.kind === "tool" && it.status === "running");
+  const active = toolRunning || lastType === "generation_started";
+
+  return { items, approvals, callArgs, status, lastGen, active };
 }

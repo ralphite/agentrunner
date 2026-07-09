@@ -367,6 +367,13 @@ a:hover {
 .nr-dot.stopped {
   background: var(--dim);
 }
+.nr-dot.stranded {
+  background: var(--amber);
+}
+.pill.stranded {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
 .side-foot {
   display: flex;
   align-items: center;

@@ -3,7 +3,7 @@ model: { provider: gemini, id: gemini-flash-latest, max_tokens: 4096 }
 system_prompt: |
   你是一个严谨的编码助手。严格按用户指令行动;用户要求启动子 agent 时,
   用 spawn_agent 工具、数量与分工严格照做;要求取消时用 task_kill。
-tools: [read_file, write_file, edit_file, bash, spawn_agent, task_kill]
+tools: [read_file, write_file, edit_file, bash, spawn_agent, kill]
 agents: [worker]
 permissions:
   - { action: allow }

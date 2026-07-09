@@ -23,6 +23,16 @@ func TestParseSessionID(t *testing.T) {
 			want: "20260708-231108-fork-ab12",
 		},
 		{
+			// fork prints `forked <PARENT> @ <bar>` on stderr and
+			// `session <NEW>` on stdout — the new id must win, not the parent.
+			name: "fork: parent on stderr, new on stdout",
+			res: arResult{
+				Stdout: "session 20260709-024710-fork-bar-t1-df98\n",
+				Stderr: "forked 20260708-224108-gin-gonic-gin-08e2 @ bar-t1\n",
+			},
+			want: "20260709-024710-fork-bar-t1-df98",
+		},
+		{
 			name: "bare id anywhere",
 			res:  arResult{Stderr: "created 20260708-010203-task-0001 ok"},
 			want: "20260708-010203-task-0001",

@@ -8,24 +8,7 @@ import { ApprovalCard } from "./ApprovalCard";
 import { Composer } from "./Composer";
 import { DiffView } from "./DiffView";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
-
-// Codex-language status: plain, user-facing, not CLI jargon.
-function statusLabel(cls: string, fallback: string): string {
-  switch (cls) {
-    case "run":
-      return "运行中…";
-    case "idle":
-      return "等待你";
-    case "appr":
-      return "需要你批准";
-    case "closed":
-      return "已完成";
-    case "crash":
-      return "已中断";
-    default:
-      return fallback;
-  }
-}
+import { friendlyStatus } from "./pill";
 
 interface SSEApproval {
   id: string;
@@ -148,7 +131,22 @@ export function SessionView({ sid }: { sid: string }) {
     openApprovals.push({ id: s.id, tool: s.tool, args: s.args, gates: [], agent: s.agent, viaSSE: true });
   }
 
-  const status = folded.status;
+  // Status precedence: a live turn (tool running / step in flight / a pending
+  // approval) wins — it's the most current. Otherwise the daemon's session
+  // status (from `ar sessions list`) is authoritative and keeps the header in
+  // sync with the sidebar (QA #8). A child session has no list entry, so a
+  // dangling "运行中" with nothing active means it finished (QA #6).
+  const listStatus = sessions.find((s) => s.id === sid)?.status;
+  const live = folded.active || openApprovals.length > 0;
+  const status = live
+    ? openApprovals.length > 0
+      ? { text: "需要你批准", cls: "appr" }
+      : { text: "运行中…", cls: "run" }
+    : listStatus
+      ? friendlyStatus(listStatus)
+      : folded.status.cls === "run"
+        ? { text: "已完成", cls: "closed" }
+        : folded.status;
 
   const doSend = async (text: string, images: string[]) => {
     const id = ++pendSeq.current;
@@ -214,7 +212,8 @@ export function SessionView({ sid }: { sid: string }) {
     },
   };
 
-  const running = status.cls === "run" || status.cls === "appr";
+  const running = status.cls === "run";
+  const showSpin = status.cls === "run";
 
   return (
     <>
@@ -229,8 +228,8 @@ export function SessionView({ sid }: { sid: string }) {
             {title}
           </div>
           <span className={"status-chip " + status.cls}>
-            {running && <span className="spin" />}
-            {statusLabel(status.cls, status.text)}
+            {showSpin && <span className="spin" />}
+            {status.text}
           </span>
           {isSub && <span className="readonly-tag">只读子任务</span>}
         </div>
@@ -318,7 +317,7 @@ export function SessionView({ sid }: { sid: string }) {
       )}
 
       {view === "chat" && !isSub && (
-        <Composer statusText={statusLabel(status.cls, status.text)} onSend={doSend} onError={(m) => toast(m)} />
+        <Composer statusText={status.text} onSend={doSend} onError={(m) => toast(m)} />
       )}
     </>
   );
