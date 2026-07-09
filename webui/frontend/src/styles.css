@@ -2422,3 +2422,16 @@ summary.fd-head:hover {
 .main {
   position: relative;
 }
+
+/* ---- unread indicator (Codex's Mark as unread) ---- */
+.nav-row.unread .nr-title {
+  font-weight: 600;
+  color: var(--ink);
+}
+.nr-unread {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--blue);
+  flex-shrink: 0;
+}

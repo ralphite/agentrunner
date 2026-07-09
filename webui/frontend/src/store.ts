@@ -45,6 +45,9 @@ interface AppState {
   setRename: (id: string, title: string) => void;
   sidebarCollapsed: boolean; // hide the sidebar for a full-width conversation (localStorage-backed)
   toggleSidebar: () => void;
+  unread: string[]; // sids with new activity you haven't opened (localStorage-backed)
+  markUnread: (id: string) => void;
+  markRead: (id: string) => void;
 
   visibleOrder: string[]; // sidebar's flat session order, for keyboard nav
   setVisibleOrder: (ids: string[]) => void;
@@ -98,6 +101,28 @@ function loadSidebarCollapsed(): boolean {
     return false;
   }
 }
+
+const UNREAD_KEY = "arwebui.unread";
+function loadUnread(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(UNREAD_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+function saveUnread(ids: string[]) {
+  try {
+    localStorage.setItem(UNREAD_KEY, JSON.stringify(ids));
+  } catch {
+    /* ignore quota */
+  }
+}
+
+// seenTurns tracks the last turn-count we've "seen" per session, so a later
+// increase (while you're not viewing it) can flag the session unread. It's
+// in-memory: rebuilt from the first fetch each load, so a reload never
+// retroactively marks history unread — only the persisted unread set restores.
+const seenTurns: Record<string, number> = {};
 
 export const useStore = create<AppState>((set, get) => ({
   health: null,
@@ -165,6 +190,22 @@ export const useStore = create<AppState>((set, get) => ({
     }
     set({ sidebarCollapsed: next });
   },
+  unread: loadUnread(),
+  markUnread: (id) => {
+    if (get().unread.includes(id)) return;
+    const next = [...get().unread, id];
+    saveUnread(next);
+    set({ unread: next });
+  },
+  markRead: (id) => {
+    // Record the current turn count as seen so it won't re-flag, and drop the dot.
+    const s = get().sessions.find((x) => x.id === id);
+    if (s) seenTurns[id] = s.turns;
+    if (!get().unread.includes(id)) return;
+    const next = get().unread.filter((x) => x !== id);
+    saveUnread(next);
+    set({ unread: next });
+  },
 
   refreshHealth: async () => {
     try {
@@ -178,6 +219,26 @@ export const useStore = create<AppState>((set, get) => ({
       const next = await AR.sessions();
       const prev = get().sessions;
       if (prev.length) notifySessionChanges(prev, next, get().currentSid);
+      // Flag sessions that gained turns since we last saw them (and aren't the
+      // one you're viewing). First sighting only records a baseline.
+      const cur = get().currentSid;
+      const unreadSet = new Set(get().unread);
+      let changed = false;
+      for (const s of next) {
+        const seen = seenTurns[s.id];
+        if (s.id === cur) {
+          if (unreadSet.delete(s.id)) changed = true;
+        } else if (seen !== undefined && s.turns > seen && !unreadSet.has(s.id)) {
+          unreadSet.add(s.id);
+          changed = true;
+        }
+        seenTurns[s.id] = s.turns;
+      }
+      if (changed) {
+        const arr = [...unreadSet];
+        saveUnread(arr);
+        set({ unread: arr });
+      }
       set({ sessions: next });
     } catch {
       /* health indicator carries the failure */
@@ -213,8 +274,12 @@ export const useStore = create<AppState>((set, get) => ({
   },
   select: (sid) => {
     set({ currentSid: sid, currentRunId: null });
-    if (sid) location.hash = sid;
-    else location.hash = "";
+    if (sid) {
+      location.hash = sid;
+      get().markRead(sid); // opening a task clears its unread flag
+    } else {
+      location.hash = "";
+    }
   },
   selectRun: (rid) => {
     set({ currentRunId: rid, currentSid: null });

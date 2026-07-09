@@ -32,6 +32,9 @@ export function Sidebar() {
     cycleTheme,
     setVisibleOrder,
     toggleSidebar,
+    unread,
+    markUnread,
+    markRead,
   } = useStore();
   const [q, setQ] = useState("");
   const [searching, setSearching] = useState(false);
@@ -112,13 +115,15 @@ export function Sidebar() {
 
   const renderRow = (s: (typeof sessions)[number]) => {
     const isPinned = pinned.includes(s.id);
+    const isUnread = unread.includes(s.id);
     return (
       <div
         key={s.id}
         className={
           "nav-row" +
           (s.id === currentSid ? " cur" : "") +
-          (archived.includes(s.id) ? " archived" : "")
+          (archived.includes(s.id) ? " archived" : "") +
+          (isUnread ? " unread" : "")
         }
         onClick={() => select(s.id)}
         onContextMenu={(e) => {
@@ -129,6 +134,7 @@ export function Sidebar() {
       >
         <span className={"nr-dot " + pillClass(s.status)} title={s.status} />
         <span className="nr-title">{displayTitle(renames, s.id, s.title)}</span>
+        {isUnread && <span className="nr-unread" title="new activity" />}
         <button
           className={"nr-pin" + (isPinned ? " on" : "")}
           title={isPinned ? "Unpin from top" : "Pin to top"}
@@ -271,6 +277,9 @@ export function Sidebar() {
             {pinned.includes(ctx.sid) ? "Unpin from top" : "Pin to top"}
           </MenuItem>
           <MenuItem onClick={() => openModal({ kind: "rename", sid: ctx.sid })}>Rename…</MenuItem>
+          <MenuItem onClick={() => (unread.includes(ctx.sid) ? markRead(ctx.sid) : markUnread(ctx.sid))}>
+            {unread.includes(ctx.sid) ? "Mark as read" : "Mark as unread"}
+          </MenuItem>
           <MenuItem onClick={() => { toggleArchive(ctx.sid); toast(archived.includes(ctx.sid) ? "unarchived" : "archived", "info"); }}>
             {archived.includes(ctx.sid) ? "Unarchive" : "Archive"}
           </MenuItem>
