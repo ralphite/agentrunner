@@ -43,6 +43,13 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/sessions/{sid}/approve", s.handleApprove)
 	mux.HandleFunc("POST /api/sessions/{sid}/agent", s.handleAgentSwitch)
 	mux.HandleFunc("POST /api/sessions/{sid}/fork", s.handleFork)
+	mux.HandleFunc("POST /api/sessions/{sid}/compact", s.handleCompact)
+	mux.HandleFunc("POST /api/sessions/{sid}/clear", s.handleClear)
+
+	// ---- workspace git (branch picker; cockpit-level, operates on the
+	// session/new-task workspace exactly as a user would) ----
+	mux.HandleFunc("GET /api/git/branches", s.handleGitBranches)
+	mux.HandleFunc("POST /api/git/checkout", s.handleGitCheckout)
 
 	// ---- background runs (submit / drive) ----
 	mux.HandleFunc("GET /api/runs", s.handleRunsList)

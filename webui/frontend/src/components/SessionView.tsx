@@ -328,7 +328,21 @@ export function SessionView({ sid }: { sid: string }) {
       )}
 
       {view === "chat" && !isSub && (
-        <Composer statusText={status.text} onSend={doSend} onError={(m) => toast(m)} />
+        <Composer
+          variant="session"
+          sid={sid}
+          workspace={sessions.find((s) => s.id === sid)?.workspace}
+          running={running}
+          onSend={doSend}
+          onError={(m) => toast(m)}
+          actions={{
+            interrupt: act.interrupt,
+            showDiff: () => setView("diff"),
+            fork: () => openModal({ kind: "fork", sid }),
+            switchAgentAdvanced: () => openModal({ kind: "agent", sid }),
+            resume: act.resume,
+          }}
+        />
       )}
     </>
   );

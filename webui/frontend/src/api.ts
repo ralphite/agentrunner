@@ -57,6 +57,8 @@ export const AR = {
     post(`/sessions/${sid}/send`, { text, images }),
   interrupt: (sid: string) => post(`/sessions/${sid}/interrupt`),
   resume: (sid: string) => post(`/sessions/${sid}/resume`),
+  compact: (sid: string) => post(`/sessions/${sid}/compact`),
+  clear: (sid: string) => post(`/sessions/${sid}/clear`),
   kill: (sid: string, handle: string) => post(`/sessions/${sid}/kill`, { handle }),
   approve: (sid: string, approvalId: string, decision: "approve" | "deny", reason: string) =>
     post(`/sessions/${sid}/approve`, { approvalId, decision, reason }),
@@ -64,6 +66,13 @@ export const AR = {
     post(`/sessions/${sid}/agent`, { spec, extraSpecs }),
   fork: (sid: string, barrier: string, workspace: string) =>
     post<{ sid: string }>(`/sessions/${sid}/fork`, { barrier, workspace }),
+
+  gitBranches: (dir: string) =>
+    api<{ isRepo: boolean; current: string; branches: string[]; dirty: number }>(
+      `/git/branches?dir=${encodeURIComponent(dir)}`,
+    ),
+  gitCheckout: (dir: string, branch: string, create: boolean) =>
+    post<{ status: string; branch: string }>(`/git/checkout`, { dir, branch, create }),
 
   runs: () => api<Run[]>("/runs"),
   startRun: (b: {
