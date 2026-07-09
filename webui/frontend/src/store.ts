@@ -38,6 +38,8 @@ interface AppState {
   showArchived: boolean;
   toggleArchive: (id: string) => void;
   toggleShowArchived: () => void;
+  pinned: string[]; // session ids pinned to the top of the sidebar (localStorage-backed)
+  togglePin: (id: string) => void;
 
   refreshHealth: () => Promise<void>;
   refreshSessions: () => Promise<void>;
@@ -55,6 +57,15 @@ const ARCHIVE_KEY = "arwebui.archived";
 function loadArchived(): string[] {
   try {
     return JSON.parse(localStorage.getItem(ARCHIVE_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+const PIN_KEY = "arwebui.pinned";
+function loadPinned(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(PIN_KEY) || "[]");
   } catch {
     return [];
   }
@@ -92,6 +103,17 @@ export const useStore = create<AppState>((set, get) => ({
     set({ archived: next });
   },
   toggleShowArchived: () => set({ showArchived: !get().showArchived }),
+  pinned: loadPinned(),
+  togglePin: (id) => {
+    const cur = get().pinned;
+    const next = cur.includes(id) ? cur.filter((x) => x !== id) : [id, ...cur];
+    try {
+      localStorage.setItem(PIN_KEY, JSON.stringify(next));
+    } catch {
+      /* ignore quota */
+    }
+    set({ pinned: next });
+  },
 
   refreshHealth: async () => {
     try {

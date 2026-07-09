@@ -20,6 +20,8 @@ export function Sidebar() {
     archived,
     showArchived,
     toggleShowArchived,
+    pinned,
+    togglePin,
     theme,
     cycleTheme,
   } = useStore();
@@ -55,9 +57,19 @@ export function Sidebar() {
     [runs, ql],
   );
 
+  // Pinned tasks float into their own section at the very top (Codex's Pinned
+  // list), in the order they were pinned. They're excluded from the recency
+  // buckets below so they don't appear twice.
+  const pinnedRows = useMemo(() => {
+    const byId = new Map(shownSessions.map((s) => [s.id, s]));
+    return pinned.map((id) => byId.get(id)).filter((s): s is (typeof shownSessions)[number] => !!s);
+  }, [shownSessions, pinned]);
+
   // Codex groups tasks by recency, and floats anything in-progress to the top.
   const groups = useMemo(() => {
-    const rows = shownSessions.map((s) => ({ s, d: sessionDate(s.id), cls: pillClass(s.status) }));
+    const rows = shownSessions
+      .filter((s) => !pinned.includes(s.id))
+      .map((s) => ({ s, d: sessionDate(s.id), cls: pillClass(s.status) }));
     const isActive = (cls: string) => cls === "run" || cls === "appr";
     const byDate = (a: { d: Date | null }, b: { d: Date | null }) =>
       (b.d?.getTime() || 0) - (a.d?.getTime() || 0);
@@ -75,7 +87,37 @@ export function Sidebar() {
       out.push({ label, items: v.items.sort(byDate) });
     }
     return out;
-  }, [shownSessions]);
+  }, [shownSessions, pinned]);
+
+  const renderRow = (s: (typeof sessions)[number]) => {
+    const isPinned = pinned.includes(s.id);
+    return (
+      <div
+        key={s.id}
+        className={
+          "nav-row" +
+          (s.id === currentSid ? " cur" : "") +
+          (archived.includes(s.id) ? " archived" : "")
+        }
+        onClick={() => select(s.id)}
+        title={s.id}
+      >
+        <span className={"nr-dot " + pillClass(s.status)} title={s.status} />
+        <span className="nr-title">{s.title || s.id}</span>
+        <button
+          className={"nr-pin" + (isPinned ? " on" : "")}
+          title={isPinned ? "Unpin from top" : "Pin to top"}
+          onClick={(e) => {
+            e.stopPropagation();
+            togglePin(s.id);
+          }}
+        >
+          📌
+        </button>
+        <span className="nr-time">{relTime(sessionDate(s.id))}</span>
+      </div>
+    );
+  };
 
   return (
     <div className="sidebar">
@@ -116,29 +158,21 @@ export function Sidebar() {
       )}
 
       <div className="list">
-        {groups.length === 0 && shownRuns.length === 0 && (
+        {groups.length === 0 && pinnedRows.length === 0 && shownRuns.length === 0 && (
           <div className="grp-empty">{ql ? "no matches" : "no tasks yet"}</div>
+        )}
+
+        {pinnedRows.length > 0 && (
+          <div>
+            <div className="grp-label pinned">📌 Pinned</div>
+            {pinnedRows.map((s) => renderRow(s))}
+          </div>
         )}
 
         {groups.map((g) => (
           <div key={g.label}>
             <div className={"grp-label" + (g.label === "Active" ? " active" : "")}>{g.label}</div>
-            {g.items.map(({ s }) => (
-              <div
-                key={s.id}
-                className={
-                  "nav-row" +
-                  (s.id === currentSid ? " cur" : "") +
-                  (archived.includes(s.id) ? " archived" : "")
-                }
-                onClick={() => select(s.id)}
-                title={s.id}
-              >
-                <span className={"nr-dot " + pillClass(s.status)} title={s.status} />
-                <span className="nr-title">{s.title || s.id}</span>
-                <span className="nr-time">{relTime(sessionDate(s.id))}</span>
-              </div>
-            ))}
+            {g.items.map(({ s }) => renderRow(s))}
           </div>
         ))}
 
