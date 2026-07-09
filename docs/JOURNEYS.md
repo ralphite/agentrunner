@@ -279,6 +279,31 @@ GAPS.md，本文件只回答"产品要做什么"。
 
 **覆盖功能**：`会话内 goal(context 延续,硬性)` `完成裁决在静止边界(verifier 唯一裁决或自证声明)` `goal_complete 自证(模型工具面)` `结构化 continuation 回灌(程序发送方)` `goal 控制面(pause/update/cancel,非 hosted revive)` `steer 与 goal 并行` `goal 级预算` `goal 达成回执`
 
+### UJ-23 工程团队模拟（动态组队 + 横向协作） `高级` `🚧 INC-12`
+**场景**：一个复杂工程目标，主 agent 组一支持久的软件团队打完整场。
+1. 用户："给这个服务加限流，要设计评审和代码评审。"主 agent
+   （team lead）**动态起草**三个角色并 spawn：PM（澄清验收标准）、
+   架构师（出设计）、SWE（写码）——角色不在预定义 spec 里，
+   spawn 时 inline 定义（name/description/instructions/工具面）。
+2. SWE 角色需要写码权限，而父是评审收窄面——spawn 请求**显式提权**
+   → 弹审批给**用户**（载荷=请求的权限清单）→ 用户批准 → 成员以
+   批准面工作；树预算与扇出上限照常约束。
+3. 成员之间**互发消息**：架构师完成设计后 `send_message` 直发 SWE；
+   SWE 有疑问回问架构师（兄弟直发，不必事事经父）；每条消息
+   durable、崩溃不丢。
+4. 成员干完一件事**静止待命**（回执给父），父随时用消息**再唤醒**
+   ——同一 journal、同一 context 延续，绝不另起炉灶；kill 过的成员
+   不被自动唤醒。
+5. code review 往复：SWE 交付 → 父唤醒 reviewer → findings 消息
+   回 SWE → 改完再审 → 通过。制品经 artifact/blackboard 留痕。
+6. 用户全程旁观：webui 团队面板列全体成员与状态；**点开任一成员
+   看它的完整时间线与打字流，与看主 agent 无异**；`ar send
+   <child-sid>` 可直接指挥某个成员。
+7. 目标达成，父汇总全队产出回报用户；全树预算、消息链、审批链
+   可审计。
+
+**覆盖功能**：`动态角色 spawn(inline role)` `子提权用户审批(escalate)` `树内消息(send_message,兄弟直发)` `静止子唤醒(revive,context 延续)` `多次回执` `用户直达成员(ar send 子会话)` `子会话 live 镜像` `团队面板` `树级预算/审计`（底座复用 UJ-18 全部机制）
+
 ---
 
 ## §5 功能清单 × Journey 覆盖索引
@@ -339,10 +364,15 @@ GAPS.md，本文件只回答"产品要做什么"。
 **多 agent**
 - 后台并行子 agent — UJ-18
 - 子 agent kill / 重定向 — UJ-18
-- 子进度可见 — UJ-18
+- 子进度可见 — UJ-18/23（23 含 live 镜像）
 - outcome 回灌 — UJ-18
 - 树级预算 / 权限只窄不宽 — UJ-18
-- blackboard / artifact — UJ-18
+- blackboard / artifact — UJ-18/23
+- 动态角色 spawn（inline role）— UJ-23
+- 子提权用户审批（escalate）— UJ-23
+- 树内消息（send_message，父子/兄弟）— UJ-23
+- 静止子唤醒（revive，context 延续）— UJ-23
+- 用户直达成员（send 子会话）— UJ-23
 
 **驱动形态**
 - goal（verifier/停滞/预算终态）— UJ-15
