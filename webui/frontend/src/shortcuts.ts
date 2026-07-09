@@ -26,6 +26,8 @@ export function keyLabel(k: string): string {
       return modLabel;
     case "shift":
       return isMac ? "⇧" : "Shift";
+    case "alt":
+      return isMac ? "⌥" : "Alt";
     case "enter":
       return "Enter";
     case "esc":
@@ -46,6 +48,9 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     title: "Global",
     items: [
       { keys: ["mod", "K"], label: "Command palette", desc: "Search sessions and run commands" },
+      { keys: ["mod", "alt", "up"], label: "Previous task", desc: "Select the task above in the sidebar" },
+      { keys: ["mod", "alt", "down"], label: "Next task", desc: "Select the task below in the sidebar" },
+      { keys: ["mod", "F"], label: "Find in conversation", desc: "Search the current task's messages" },
       { keys: ["?"], label: "Keyboard shortcuts", desc: "Show this reference" },
     ],
   },

@@ -44,6 +44,10 @@ interface AppState {
   renames: Record<string, string>; // session id -> custom title (localStorage-backed)
   setRename: (id: string, title: string) => void;
 
+  visibleOrder: string[]; // sidebar's flat session order, for keyboard nav
+  setVisibleOrder: (ids: string[]) => void;
+  selectAdjacent: (delta: number) => void;
+
   refreshHealth: () => Promise<void>;
   refreshSessions: () => Promise<void>;
   refreshRuns: () => Promise<void>;
@@ -167,6 +171,24 @@ export const useStore = create<AppState>((set, get) => ({
     } catch {
       /* ignore */
     }
+  },
+  visibleOrder: [],
+  setVisibleOrder: (ids) => {
+    const cur = get().visibleOrder;
+    if (cur.length === ids.length && cur.every((x, i) => x === ids[i])) return;
+    set({ visibleOrder: ids });
+  },
+  selectAdjacent: (delta) => {
+    const order = get().visibleOrder;
+    if (!order.length) return;
+    const cur = get().currentSid;
+    const idx = cur ? order.indexOf(cur) : -1;
+    if (idx === -1) {
+      get().select(order[0]);
+      return;
+    }
+    const next = (idx + delta + order.length) % order.length;
+    get().select(order[next]);
   },
   select: (sid) => {
     set({ currentSid: sid, currentRunId: null });

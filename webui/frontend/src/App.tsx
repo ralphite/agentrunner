@@ -28,6 +28,12 @@ export function App() {
         setPalette((p) => !p);
         return;
       }
+      // ⌥⌘↑ / ⌥⌘↓ moves to the previous / next task in the sidebar order.
+      if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+        e.preventDefault();
+        useStore.getState().selectAdjacent(e.key === "ArrowDown" ? 1 : -1);
+        return;
+      }
       if (e.key === "?" && !e.metaKey && !e.ctrlKey && !e.altKey) {
         const t = e.target as HTMLElement | null;
         const typing = !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);

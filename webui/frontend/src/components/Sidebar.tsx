@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../store";
 import { AR } from "../api";
 import { pillClass } from "./pill";
@@ -30,6 +30,7 @@ export function Sidebar() {
     renames,
     theme,
     cycleTheme,
+    setVisibleOrder,
   } = useStore();
   const [q, setQ] = useState("");
   const [searching, setSearching] = useState(false);
@@ -97,6 +98,16 @@ export function Sidebar() {
     }
     return out;
   }, [shownSessions, pinned]);
+
+  // Publish the flat, in-display-order list of session ids so ⌥⌘↑/↓ can move
+  // between adjacent tasks exactly as they appear here.
+  const orderedIds = useMemo(
+    () => [...pinnedRows.map((s) => s.id), ...groups.flatMap((g) => g.items.map((x) => x.s.id))],
+    [pinnedRows, groups],
+  );
+  useEffect(() => {
+    setVisibleOrder(orderedIds);
+  }, [orderedIds, setVisibleOrder]);
 
   const renderRow = (s: (typeof sessions)[number]) => {
     const isPinned = pinned.includes(s.id);
