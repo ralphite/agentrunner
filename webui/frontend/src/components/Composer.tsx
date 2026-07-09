@@ -39,7 +39,7 @@ type ComposerProps =
       workspace?: string;
       mode?: string; // the session's fixed approval mode (display only)
       running?: boolean;
-      onSend: (text: string, images: string[]) => Promise<void>;
+      onSend: (text: string, images: string[], files: string[]) => Promise<void>;
       actions?: SessionActions;
       onError: (m: string) => void;
     };
@@ -169,22 +169,12 @@ export function Composer(props: ComposerProps) {
   };
 
   // ---- attachments ----
+  // Images ride --image; everything else (PDF, text, binary) rides --file
+  // (INC-9). Both go through the CAS upload; the ≤10MB cap is the server's.
   const pick = async (file: File, isImage: boolean) => {
     try {
-      // Text files inline directly into the message (no product change); images
-      // ride the existing CAS upload → --image path. Other binaries aren't sent
-      // yet (the product's send only accepts image parts) — tell the user.
-      if (!isImage && /\.(txt|md|json|ya?ml|csv|log|ts|tsx|js|jsx|go|py|rs|sh|html|css)$/i.test(file.name)) {
-        const body = await file.text();
-        setText((p) => `${p}${p ? "\n\n" : ""}Attached ${file.name}:\n\n\`\`\`\n${body}\n\`\`\`\n`);
-        return;
-      }
-      if (!isImage) {
-        toast(`${file.name}: only images and text files can be attached today (PDF/binary needs the file-part product increment)`, "info");
-        return;
-      }
       const r = await AR.upload(file);
-      setAtts((p) => [...p, { path: r.path, name: r.name, isImage: true }]);
+      setAtts((p) => [...p, { path: r.path, name: r.name, isImage }]);
     } catch (e: any) {
       props.onError(e.message);
     }
@@ -220,11 +210,14 @@ export function Composer(props: ComposerProps) {
     try {
       if (isSession) {
         const imgs = atts.filter((a) => a.isImage).map((a) => a.path);
+        const files = atts.filter((a) => !a.isImage).map((a) => a.path);
         resetInput();
-        await (props as Extract<ComposerProps, { variant: "session" }>).onSend(t, imgs);
+        await (props as Extract<ComposerProps, { variant: "session" }>).onSend(t, imgs, files);
       } else if (kind === "chat") {
         const workspace = await ensureWs();
         const spec = buildSpec({ provider, model, access });
+        const imgs = atts.filter((a) => a.isImage).map((a) => a.path);
+        const files = atts.filter((a) => !a.isImage).map((a) => a.path);
         const r = await AR.newSession({
           spec,
           extraSpecs: [{ name: "worker.yaml", content: DEFAULT_WORKER }],
@@ -237,6 +230,17 @@ export function Composer(props: ComposerProps) {
         resetInput();
         await refreshSessions();
         select(r.sid);
+        // The opening message (`ar new`) can't carry attachments (DESIGN §9.1);
+        // deliver a first-message attachment on an immediate follow-up so it
+        // still works from the landing composer.
+        if (imgs.length || files.length) {
+          const n = imgs.length + files.length;
+          try {
+            await AR.send(r.sid, `(see attached file${n > 1 ? "s" : ""})`, imgs, files);
+          } catch (e: any) {
+            props.onError(e.message);
+          }
+        }
       } else {
         const workspace = await ensureWs();
         const spec = buildSpec({ provider, model, access });
@@ -452,7 +456,7 @@ export function Composer(props: ComposerProps) {
           <div className="cx-atts">
             {atts.map((a, i) => (
               <span className="cx-att" key={i} onClick={() => setAtts((p) => p.filter((_, j) => j !== i))} title="remove">
-                <span className="cx-att-ico">🖼</span>
+                <span className="cx-att-ico">{a.isImage ? "🖼" : "📄"}</span>
                 {a.name}
                 <span className="cx-att-x">✕</span>
               </span>
@@ -510,7 +514,7 @@ export function Composer(props: ComposerProps) {
               <div className="cx-menu">
                 <PopSection label="Add">
                   <PopItem icon={<span>🖼</span>} title="Image" desc="Paste, drop, or pick an image" onClick={() => { close(); imgRef.current?.click(); }} />
-                  <PopItem icon={<span>📄</span>} title="File" desc="Attach a text file (inlined)" onClick={() => { close(); anyRef.current?.click(); }} />
+                  <PopItem icon={<span>📄</span>} title="File" desc="PDF, text, or any file (≤10MB)" onClick={() => { close(); anyRef.current?.click(); }} />
                 </PopSection>
                 <PopSection label="Run as">
                   <PopItem icon={<GoalIcon />} title="Goal" desc="Iterate until the goal is met" onClick={() => { close(); setLauncher({ mode: "goal", task: text.trim() }); }} />

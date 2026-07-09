@@ -53,8 +53,8 @@ export const AR = {
   barriers: (sid: string) => api<string[]>(`/sessions/${sid}/barriers`),
   diff: (sid: string) => api<DiffResp>(`/sessions/${sid}/diff`),
 
-  send: (sid: string, text: string, images: string[]) =>
-    post(`/sessions/${sid}/send`, { text, images }),
+  send: (sid: string, text: string, images: string[], files: string[] = []) =>
+    post(`/sessions/${sid}/send`, { text, images, files }),
   interrupt: (sid: string) => post(`/sessions/${sid}/interrupt`),
   resume: (sid: string) => post(`/sessions/${sid}/resume`),
   compact: (sid: string) => post(`/sessions/${sid}/compact`),

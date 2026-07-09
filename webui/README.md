@@ -73,7 +73,7 @@ open http://127.0.0.1:8788
 | composer 分支 pill | `git -C <ws> for-each-ref`(列)+ `git checkout [-b]`(切/建) |
 | composer 语音 | 浏览器 SpeechRecognition 听写(纯前端,不经 ar) |
 | 改动(Diff 视图) | `git -C <workspace> diff` + `status --porcelain`(workspace 仅 arwebui 建的会话可知) |
-| 发消息 / 图片 | `send [--image f]... <sid> "text"`(文本文件内联进消息;PDF/二进制待产品 file-part 增量) |
+| 发消息 / 图片 / 文件 | `send [--image f]... [--file f]... <sid> "text"`(图片走 --image;PDF/文本/任意文件走 --file,INC-9) |
 | 时间线(真相) | `events --json <sid>`(1s 增量轮询) |
 | 流式打字 / 子审批上卷 | `attach --json <sid>`(SSE) |
 | interrupt / resume | `interrupt` / `resume` |

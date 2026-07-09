@@ -168,11 +168,11 @@ export function SessionView({ sid }: { sid: string }) {
           : folded.status;
   const isDriver = folded.isDriver;
 
-  const doSend = async (text: string, images: string[]) => {
+  const doSend = async (text: string, images: string[], files: string[] = []) => {
     const id = ++pendSeq.current;
-    setPending((p) => [...p, { id, text, images: images.length }]);
+    setPending((p) => [...p, { id, text, images: images.length + files.length }]);
     try {
-      await AR.send(sid, text, images);
+      await AR.send(sid, text, images, files);
     } catch (e: any) {
       toast(e.message);
       setPending((p) => p.filter((x) => x.id !== id));

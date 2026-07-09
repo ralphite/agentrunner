@@ -545,6 +545,7 @@ func (s *server) handleSend(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Text   string   `json:"text"`
 		Images []string `json:"images"`
+		Files  []string `json:"files"`
 	}
 	if !readBody(w, r, &req) {
 		return
@@ -563,6 +564,13 @@ func (s *server) handleSend(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		args = append(args, "--image", img)
+	}
+	for _, f := range req.Files {
+		if st, err := os.Stat(f); err != nil || st.IsDir() {
+			badRequest(w, "file not readable: "+f)
+			return
+		}
+		args = append(args, "--file", f)
 	}
 	args = append(args, id, req.Text)
 	res := s.runAR(r.Context(), oneShotTimeout, args...)
