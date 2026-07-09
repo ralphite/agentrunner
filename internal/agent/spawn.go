@@ -23,6 +23,19 @@ import (
 // spec; tests inject directly.
 type SubSpecResolver func(name string) (*AgentSpec, error)
 
+// InlineRole is the untrusted, model-authored role accepted by
+// spawn_agent when agents_dynamic is enabled. It deliberately has no
+// hooks/MCP/skills/model/budget/sandbox fields: those capabilities are
+// inherited under harness control, never drafted by the model.
+type InlineRole struct {
+	Name         string                    `json:"name"`
+	Description  string                    `json:"description"`
+	Instructions string                    `json:"instructions"`
+	Tools        []string                  `json:"tools,omitempty"`
+	Permissions  []pipeline.PermissionRule `json:"permissions,omitempty"`
+	Escalate     bool                      `json:"escalate,omitempty"`
+}
+
 // safeCallIDRe: the provider-issued CallID lands in the child journal's
 // directory name (<parent>/sub/<call_id>-aN), so it must never carry path
 // syntax (M3 security review, defense-in-depth — both wire formats today
@@ -32,16 +45,21 @@ var safeCallIDRe = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 // renderAgentsDirectory freezes the sub-agent directory block (S5.3): the
 // model spawns only what it can see here. Unresolvable names are listed
 // without a description rather than hidden — the whitelist is the truth.
-func renderAgentsDirectory(names []string, resolve SubSpecResolver) string {
-	if len(names) == 0 || resolve == nil {
+func renderAgentsDirectory(names []string, dynamic bool, resolve SubSpecResolver) string {
+	if len(names) == 0 && !dynamic {
 		return ""
 	}
 	var b strings.Builder
 	b.WriteString("<agents>\nSub-agents you can spawn with the spawn_agent tool:\n")
+	if dynamic {
+		b.WriteString("- Inline roles are allowed: pass role{name,description,instructions,tools?,permissions?,escalate?} instead of agent.\n")
+	}
 	for _, name := range names {
 		desc := ""
-		if spec, err := resolve(name); err == nil && spec.Description != "" {
-			desc = ": " + spec.Description
+		if resolve != nil {
+			if spec, err := resolve(name); err == nil && spec.Description != "" {
+				desc = ": " + spec.Description
+			}
 		}
 		fmt.Fprintf(&b, "- %s%s\n", name, desc)
 	}
@@ -87,21 +105,38 @@ func (l *Loop) resolveSpawnTarget(toolName string, rawArgs json.RawMessage) (age
 func (l *Loop) resolveSpawnTargetFull(toolName string, rawArgs json.RawMessage) (agent, task string, inputs []event.ArtifactInput, spec *AgentSpec, problem string) {
 	var args struct {
 		Agent  string                `json:"agent"`
+		Role   *InlineRole           `json:"role"`
 		Task   string                `json:"task"`
 		Inputs []event.ArtifactInput `json:"inputs"`
 	}
-	if err := json.Unmarshal(rawArgs, &args); err != nil || args.Agent == "" || args.Task == "" {
-		return "", "", nil, nil, toolName + ": invalid args: need {\"agent\", \"task\"}"
+	if err := json.Unmarshal(rawArgs, &args); err != nil || args.Task == "" || (args.Agent == "") == (args.Role == nil) {
+		return "", "", nil, nil, toolName + ": invalid args: need task and exactly one of agent or role"
 	}
-	if !slices.Contains(l.Spec.Agents, args.Agent) {
-		return "", "", nil, nil, fmt.Sprintf("%s: %q is not in this agent's directory", toolName, args.Agent)
-	}
-	if l.SubSpecs == nil {
-		return "", "", nil, nil, toolName + ": no sub-agent specs available"
-	}
-	spec, err := l.SubSpecs(args.Agent)
-	if err != nil {
-		return "", "", nil, nil, fmt.Sprintf("%s: %v", toolName, err)
+	if args.Role != nil {
+		if toolName != "spawn_agent" {
+			return "", "", nil, nil, toolName + ": inline roles are only supported by spawn_agent"
+		}
+		if !l.Spec.AgentsDynamic {
+			return "", "", nil, nil, toolName + ": inline roles are disabled (agents_dynamic is false)"
+		}
+		var roleProblem string
+		spec, roleProblem = l.dynamicRoleSpec(args.Role)
+		if roleProblem != "" {
+			return "", "", nil, nil, toolName + ": " + roleProblem
+		}
+		args.Agent = spec.Name
+	} else {
+		if !slices.Contains(l.Spec.Agents, args.Agent) {
+			return "", "", nil, nil, fmt.Sprintf("%s: %q is not in this agent's directory", toolName, args.Agent)
+		}
+		if l.SubSpecs == nil {
+			return "", "", nil, nil, toolName + ": no sub-agent specs available"
+		}
+		var err error
+		spec, err = l.SubSpecs(args.Agent)
+		if err != nil {
+			return "", "", nil, nil, fmt.Sprintf("%s: %v", toolName, err)
+		}
 	}
 	for _, in := range args.Inputs {
 		if in.Ref == "" || in.Path == "" {
@@ -115,6 +150,46 @@ func (l *Loop) resolveSpawnTargetFull(toolName string, rawArgs json.RawMessage) 
 		}
 	}
 	return args.Agent, args.Task, args.Inputs, spec, ""
+}
+
+func (l *Loop) dynamicRoleSpec(role *InlineRole) (*AgentSpec, string) {
+	if strings.TrimSpace(role.Name) == "" || strings.TrimSpace(role.Description) == "" || strings.TrimSpace(role.Instructions) == "" {
+		return nil, "role needs non-empty name, description, and instructions"
+	}
+	tools := append([]string(nil), l.Spec.Tools...)
+	if role.Tools != nil {
+		tools = make([]string, 0, len(role.Tools))
+		for _, name := range role.Tools {
+			if _, ok := tool.Get(name); !ok {
+				return nil, fmt.Sprintf("role tool %q is unknown", name)
+			}
+			if !slices.Contains(l.Spec.Tools, name) {
+				return nil, fmt.Sprintf("role tool %q is not in the parent's tool face", name)
+			}
+			if !slices.Contains(tools, name) {
+				tools = append(tools, name)
+			}
+		}
+	}
+	return &AgentSpec{
+		Name: strings.TrimSpace(role.Name), Description: strings.TrimSpace(role.Description),
+		SystemPrompt: role.Instructions, Model: l.Spec.Model, Tools: tools,
+		MaxGenerationSteps: l.Spec.MaxGenerationSteps,
+		Permissions:        append([]pipeline.PermissionRule(nil), role.Permissions...),
+		Budget:             l.Spec.Budget, AgentsDynamic: l.Spec.AgentsDynamic,
+		Escalate: role.Escalate, Receipts: l.Spec.Receipts, Sandbox: l.Spec.Sandbox,
+	}, ""
+}
+
+func dynamicRoleJSON(rawArgs json.RawMessage, spec *AgentSpec) json.RawMessage {
+	var args struct {
+		Role json.RawMessage `json:"role"`
+	}
+	if json.Unmarshal(rawArgs, &args) != nil || len(args.Role) == 0 || string(args.Role) == "null" {
+		return nil
+	}
+	raw, _ := json.Marshal(spec)
+	return raw
 }
 
 // buildHandoffRun is the HANDOFF activity's Run closure (S5.4): control
@@ -152,6 +227,7 @@ func (l *Loop) buildHandoffRun(call provider.ToolCall, res *tool.Result,
 		if _, err := appendE(event.TypeSpawnRequested, &event.SpawnRequested{
 			CallID: call.CallID, Agent: agentName, Task: task,
 			ChildSession: childSession, Depth: l.Depth + 1, BudgetTokens: allowance,
+			RoleSpec: dynamicRoleJSON(call.Args, childSpec),
 		}); err != nil {
 			return nil, nil, false, err
 		}
@@ -251,6 +327,7 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 	if _, err := appendE(event.TypeSpawnRequested, &event.SpawnRequested{
 		CallID: call.CallID, Agent: agentName, Task: task,
 		ChildSession: childSession, Depth: l.Depth + 1, BudgetTokens: allowance,
+		RoleSpec: dynamicRoleJSON(call.Args, childSpec),
 	}); err != nil {
 		_ = childStore.Close()
 		return err

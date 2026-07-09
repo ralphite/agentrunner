@@ -554,6 +554,10 @@ type SpawnRequested struct {
 	ChildSession string `json:"child_session"`
 	Depth        int    `json:"depth"`
 	BudgetTokens int    `json:"budget_tokens,omitempty"`
+	// RoleSpec freezes the constructed child AgentSpec for an inline dynamic
+	// role. Static directory spawns leave it empty; the child's own
+	// SessionStarted.Spec remains the revive truth in both cases.
+	RoleSpec json.RawMessage `json:"role_spec,omitempty"`
 }
 
 // SubagentCompleted records the child run's terminal outcome in the PARENT

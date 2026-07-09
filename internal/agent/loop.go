@@ -364,7 +364,7 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 		SpecPath: l.SpecPath,
 		Env:      renderEnvBlock(wsRoot, l.Clock.Now()),
 		Memory:   memoryBlock, Skills: skillsBlock,
-		Agents: renderAgentsDirectory(l.Spec.Agents, l.SubSpecs),
+		Agents: renderAgentsDirectory(l.Spec.Agents, l.Spec.AgentsDynamic, l.SubSpecs),
 		Inputs: l.Inputs,
 		// The effective permission rules, materialized as data (S6): a child
 		// pipeline holds the parent's gates, so this captures the WHOLE
@@ -847,14 +847,17 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 	if len(l.Spec.Agents) > 0 {
 		extra = append(extra, "spawn_agent", "handoff_agent")
 	}
+	if l.Spec.AgentsDynamic && len(l.Spec.Agents) == 0 {
+		extra = append(extra, "spawn_agent")
+	}
 	// bash can launch background tasks (S6.1) — the management tools ride
 	// along so the model can inspect/cancel what it started.
-	if slices.Contains(l.Spec.Tools, "bash") || len(l.Spec.Agents) > 0 {
+	if slices.Contains(l.Spec.Tools, "bash") || len(l.Spec.Agents) > 0 || l.Spec.AgentsDynamic {
 		// bash background tasks (S6.1) and background sub-agents (v2 M3.1)
 		// share kill: cancel a running child/task by its handle.
 		extra = append(extra, "output", "kill")
 	}
-	if l.Board != nil || len(l.Spec.Agents) > 0 {
+	if l.Board != nil || len(l.Spec.Agents) > 0 || l.Spec.AgentsDynamic {
 		extra = append(extra, "publish_note", "read_notes")
 	}
 	// Tree messaging (INC-12): advertised to every member of a session tree
@@ -1949,7 +1952,7 @@ func isAgentLaunch(name string) bool {
 // ensureBoard creates the shared blackboard at a collaboration root (S5.4);
 // children inherit the parent's through childLoop.
 func (l *Loop) ensureBoard() {
-	if l.Board == nil && len(l.Spec.Agents) > 0 {
+	if l.Board == nil && (len(l.Spec.Agents) > 0 || l.Spec.AgentsDynamic) {
 		l.Board = blackboard.New()
 		l.Board.Mirror = l.BoardMirror
 	}

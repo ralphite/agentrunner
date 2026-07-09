@@ -85,7 +85,7 @@ func RenderSpecChange(spec *AgentSpec, specPath, wsRoot string, now time.Time,
 		Spec: specJSON, SpecPath: specPath, Source: "user",
 		Env:    renderEnvBlock(wsRoot, now),
 		Memory: memoryBlock, Skills: skillsBlock,
-		Agents:           renderAgentsDirectory(spec.Agents, resolve),
+		Agents:           renderAgentsDirectory(spec.Agents, spec.AgentsDynamic, resolve),
 		PermissionLayers: marshalPermissionLayers(pipe),
 	}, nil
 }

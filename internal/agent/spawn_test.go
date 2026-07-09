@@ -601,3 +601,76 @@ func TestSpawnWhitelist(t *testing.T) {
 		}
 	}
 }
+
+// INC-12.4: agents_dynamic opens spawn_agent without a static directory and
+// freezes a model-authored inline role into both the parent spawn fact and
+// the child's SessionStarted spec. The role may only narrow the parent's
+// explicit tool face and cannot smuggle MCP/hooks/skills capabilities.
+func TestSpawnDynamicRole(t *testing.T) {
+	parentFix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{
+			{ToolCall: &scripted.ToolCallEvent{CallID: "dyn", Name: "spawn_agent", Args: map[string]any{
+				"task": "DYNAMIC-TASK", "role": map[string]any{
+					"name": "reviewer", "description": "reviews changes",
+					"instructions": "you review dynamically", "tools": []string{"read_file"},
+				},
+			}}},
+			{Finish: "tool_use"},
+		}},
+		{Respond: []scripted.Event{{Text: "waiting"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
+	}}
+	childFix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: "dynamic review complete"}, {Finish: "end_turn"}}},
+	}}
+	l, cap := routedSpawnLoop(t, parentFix, t.TempDir(),
+		scripted.RoutePair{Key: "you review dynamically", Fixture: childFix})
+	l.Spec.Agents = nil
+	l.Spec.AgentsDynamic = true
+	if _, err := l.Run(context.Background(), "assemble a dynamic team"); err != nil {
+		t.Fatal(err)
+	}
+
+	request := cap.Requests()[0]
+	if !strings.Contains(request.System, "Inline roles are allowed") {
+		t.Fatalf("dynamic role instructions absent from system prefix:\n%s", request.System)
+	}
+	var sawSpawn bool
+	for _, def := range request.Tools {
+		if def.Name == "spawn_agent" {
+			sawSpawn = true
+		}
+	}
+	if !sawSpawn {
+		t.Fatal("spawn_agent not advertised for agents_dynamic")
+	}
+
+	events, _ := store.ReadEvents(l.Store.Dir())
+	var spawned *event.SpawnRequested
+	for _, env := range events {
+		if env.Type == event.TypeSpawnRequested {
+			decoded, _ := event.DecodePayload(env)
+			spawned = decoded.(*event.SpawnRequested)
+		}
+	}
+	if spawned == nil || spawned.Agent != "reviewer" || len(spawned.RoleSpec) == 0 {
+		t.Fatalf("dynamic spawn fact = %+v", spawned)
+	}
+	var frozen AgentSpec
+	if err := json.Unmarshal(spawned.RoleSpec, &frozen); err != nil {
+		t.Fatal(err)
+	}
+	if frozen.Name != "reviewer" || !frozen.AgentsDynamic || len(frozen.Tools) != 1 ||
+		frozen.Tools[0] != "read_file" || len(frozen.MCP) != 0 {
+		t.Fatalf("frozen dynamic spec = %+v", frozen)
+	}
+	childEvents, _ := store.ReadEvents(filepath.Join(l.Store.Dir(), "sub", "dyn-a1"))
+	childFold, err := state.Fold(childEvents)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if childFold.Session.SpecName != "reviewer" || childFold.Session.Agents == "" {
+		t.Fatalf("child did not start from frozen dynamic spec: %+v", childFold.Session)
+	}
+}

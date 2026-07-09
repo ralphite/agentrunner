@@ -76,6 +76,10 @@ type AgentSpec struct {
 	// addition to — the static whitelist. Off by default: the multi-agent
 	// face never widens silently.
 	AgentsDynamic bool `yaml:"agents_dynamic,omitempty"`
+	// Escalate is an explicit request for a human-approved permission
+	// exception when this spec is launched as a child. It never grants
+	// authority by itself; the spawn approval path decides it.
+	Escalate bool `yaml:"escalate,omitempty"`
 	// Receipts controls WHEN background settlements (child receipts, bash
 	// outcomes) enter the conversation (裁决 #15): "steer" (default) lands
 	// them at the next safe boundary INSIDE a running turn — a long turn
@@ -159,7 +163,7 @@ func LoadSpec(path string) (*AgentSpec, error) {
 // hint. Keep in sync with the AgentSpec struct tags.
 const specFields = "name, model, system_prompt, system_prompt_file, tools, " +
 	"max_generation_steps, permissions, mode, budget, allowed_tools, " +
-	"description, agents, receipts, outputs, sandbox, mcp"
+	"description, agents, agents_dynamic, escalate, receipts, outputs, sandbox, mcp"
 
 // decodeHint rewrites a yaml decode error for a user who has never seen the
 // Go structs behind the spec (INC-2 BB-me-3): strip internal type names, and

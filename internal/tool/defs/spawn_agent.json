@@ -1,6 +1,6 @@
 {
   "name": "spawn_agent",
-  "description": "Spawn a sub-agent from the available agents directory to work on a delegated task. Always non-blocking: returns a handle immediately while the sub-agent runs in parallel; its result arrives later as a message, and you can cancel it with kill (pass the handle). Sub-agents run under your permission rules and share your token budget.",
+  "description": "Spawn a listed sub-agent, or an inline role when agents_dynamic is enabled. Always non-blocking: returns a handle immediately while the sub-agent runs in parallel; its result arrives later as a message, and you can cancel it with kill. Sub-agents share your token budget and cannot widen your tools without explicit runtime support.",
   "class": "execute",
   "input_schema": {
     "type": "object",
@@ -8,6 +8,19 @@
       "agent": {
         "type": "string",
         "description": "Name of the sub-agent to spawn (must be listed in the agents directory)."
+      },
+      "role": {
+        "type": "object",
+        "description": "Inline role; mutually exclusive with agent and available only when agents_dynamic is enabled.",
+        "properties": {
+          "name": {"type": "string"},
+          "description": {"type": "string"},
+          "instructions": {"type": "string"},
+          "tools": {"type": "array", "items": {"type": "string"}},
+          "permissions": {"type": "array", "items": {"type": "object"}},
+          "escalate": {"type": "boolean"}
+        },
+        "required": ["name", "description", "instructions"]
       },
       "task": {
         "type": "string",
@@ -35,9 +48,6 @@
         }
       }
     },
-    "required": [
-      "agent",
-      "task"
-    ]
+    "required": ["task"]
   }
 }
