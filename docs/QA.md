@@ -305,6 +305,32 @@ ask_user park→inbox 应答→续跑落盘、零 crash;不钉模型措辞。
 
 ---
 
+## QA-14 完整 coding agent 端到端（INC-5,UJ-01/02/05/06） `全工具面协同`
+**环境**：一个**真实 Go 项目**——semver 版本比较,`Compare` 是 panic 骨架、
+`version_test.go` 全红,且 pre-release 排序规则(`beta.2<beta.11` 数值比、
+`alpha.1<alpha.beta` 数字段优先级低)**不查规范必错**;本地 http server
+服务真实 semver §11 规范页;coding agent spec 带**全工具面**(read/write/
+edit/bash/grep/glob/semantic_search/web_fetch/ask_user,allow)。
+脚本:`qa/run-qa14.sh`(fixture 在 `qa/fixtures/semver-broken/`,需 python3+go)。
+
+| # | 动作 | 验证 |
+|---|---|---|
+| 1 | new 一个真实编码任务(实现 Compare,测试全红) | agent 用 glob/read_file 探索测试到底期望什么 |
+| 2 | agent 查规范 | `name:web_fetch` 抓 semver-spec.html,规范正文回模型(不凭记忆猜) |
+| 3 | agent 动手前对齐方案 | `waiting_entered{question}`(agent 简述完整实现方案)park;`ar send` 确认;`ask_resolved{answered}`,同 session 续跑 |
+| 4 | agent 实现 + 验证 | write_file 落 Compare;`name:bash` 跑 `go test` |
+| — | **硬证据** | workspace `go test ./...` **真的绿**——agent 完成了非平凡功能,pre-release 全谱排序正确 |
+| — | 健康/红线 | 无 `actor_crashed`;`GEMINI_API_KEY` 零泄漏 |
+
+**通过标准**:硬钉 workspace 测试**真转绿**(真实工作,非工具走过场)+
+全工具面在一次 agentic flow 里协同;不钉模型措辞。
+**结果**:2026-07-09 真实 Gemini,**两次跑均 PASS(可复现)**——8 个
+generation step:`glob→read×2→web_fetch→ask_user→write_file→bash go test`,
+agent 写出教科书级正确的 semver 实现。归档 `qa/runs/2026-07-09-QA-14/`
+(含 agent 实现的 version.go + go test 输出)。
+
+---
+
 ## 覆盖矩阵
 
 | 核心场景 | QA 流 |
