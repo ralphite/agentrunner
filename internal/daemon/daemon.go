@@ -604,7 +604,11 @@ func (s *Server) newHostedRun(id string, interactive bool) *hostedRun {
 			if cmd.Approval == nil {
 				return true
 			}
-			return s.Approvals.Answer(id, cmd.Approval.ApprovalID, ApprovalAnswer{
+			target := cmd.Target
+			if target == "" {
+				target = id
+			}
+			return s.Approvals.Answer(target, cmd.Approval.ApprovalID, ApprovalAnswer{
 				CommandRef: cmd.CommandRef,
 				Approve:    cmd.Approval.Decision == "approve",
 				Reason:     cmd.Approval.Reason,
@@ -732,6 +736,26 @@ func (s *Server) acceptAndDeliver(ctx context.Context, session, commandID string
 	}
 	hub, _ := s.commandHubCommandLocked(ctx, session)
 	return accepted, s.acceptedDelivery(ctx, session, hub, durable,
+		func(h *hostedRun) bool { return post(h, accepted) }), nil
+}
+
+// acceptAndDeliverVia separates the command-log owner from the live host.
+// Child commands remain durable in the child's log (so its journal receipt
+// proves completion) but wake through the tree root's single process.
+func (s *Server) acceptAndDeliverVia(ctx context.Context, commandSession, hostSession,
+	commandID string, cmd protocol.SessionCommand,
+	post func(*hostedRun, protocol.SessionCommand) bool) (protocol.SessionCommand, bool, error) {
+	s.commandMu.Lock()
+	defer s.commandMu.Unlock()
+	accepted, durable, err := s.acceptCommand(commandSession, commandID, cmd)
+	if err != nil {
+		return accepted, false, err
+	}
+	if !s.commandNeedsDelivery(commandSession, accepted) {
+		return accepted, true, nil
+	}
+	hub, _ := s.commandHubCommandLocked(ctx, hostSession)
+	return accepted, s.acceptedDelivery(ctx, hostSession, hub, durable,
 		func(h *hostedRun) bool { return post(h, accepted) }), nil
 }
 
@@ -1103,8 +1127,14 @@ func (s *Server) handleApprove(ctx context.Context, cmd Command, enc *json.Encod
 		}
 	}
 	if s.PersistCommand != nil {
-		_, delivered, err := s.acceptAndDeliver(ctx, cmd.Session, cmd.CommandID, attributedCommand(cmd, protocol.SessionCommand{
-			Kind: protocol.CommandApproval,
+		hostSession := cmd.Session
+		target := ""
+		if idx := strings.Index(cmd.Session, "-sub-"); idx > 0 {
+			hostSession, target = cmd.Session[:idx], cmd.Session
+		}
+		_, delivered, err := s.acceptAndDeliverVia(ctx, cmd.Session, hostSession, cmd.CommandID, attributedCommand(cmd, protocol.SessionCommand{
+			Target: target,
+			Kind:   protocol.CommandApproval,
 			Approval: &protocol.ApprovalCommand{
 				ApprovalID: cmd.ApprovalID, Decision: cmd.Decision, Reason: cmd.Reason,
 			},

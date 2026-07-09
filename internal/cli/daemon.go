@@ -326,16 +326,20 @@ type socketApprovals struct {
 }
 
 func (s socketApprovals) Resolve(ctx context.Context, req agent.ApprovalRequest) (agent.ApprovalDecision, error) {
+	origin := req.Session
+	if origin == "" {
+		origin = s.session
+	}
 	// Register FIRST: concurrent sibling asks can carry identical
 	// deterministic ids, and the broker de-dupes with a suffix — the id we
 	// SURFACE must be the one an answer can address (S6 review).
-	id, ch := s.broker.Register(s.session, req.ApprovalID)
+	id, ch := s.broker.Register(origin, req.ApprovalID)
 	s.sink.Emit(protocol.Event{
 		Kind: protocol.KindApprovalRequest, ApprovalID: id,
 		Tool: req.ToolName, CallID: req.CallID,
-		Args: string(req.Args), Text: req.Agent,
+		Args: string(req.Args), Text: req.Agent, Session: origin,
 	})
-	a, err := s.broker.Wait(ctx, s.session, id, ch)
+	a, err := s.broker.Wait(ctx, origin, id, ch)
 	if err != nil {
 		return agent.ApprovalDecision{}, err
 	}

@@ -5,9 +5,11 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/ralphite/agentrunner/internal/agent"
 	"github.com/ralphite/agentrunner/internal/daemon"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
@@ -15,6 +17,35 @@ import (
 	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
 )
+
+// The shared daemon resolver must preserve the asking member's identity on
+// both the live event and broker key; otherwise child attach can display an
+// approval that cannot be answered.
+func TestSocketApprovalsPreserveChildSession(t *testing.T) {
+	b := daemon.NewApprovalBroker()
+	var out bytes.Buffer
+	resolver := socketApprovals{broker: b, session: "root", sink: protocol.NewJSONSink(&out)}
+	done := make(chan error, 1)
+	go func() {
+		_, err := resolver.Resolve(context.Background(), agent.ApprovalRequest{
+			ApprovalID: "apr-1", Session: "root-sub-c-a1", Agent: "child",
+		})
+		done <- err
+	}()
+	deadline := time.Now().Add(time.Second)
+	for !b.Answer("root-sub-c-a1", "apr-1", daemon.ApprovalAnswer{Approve: true}) {
+		if time.Now().After(deadline) {
+			t.Fatal("child approval was not registered under the child session")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), `"session":"root-sub-c-a1"`) {
+		t.Fatalf("approval event lost child tag: %s", out.String())
+	}
+}
 
 func shortCLISocket(t *testing.T) string {
 	t.Helper()

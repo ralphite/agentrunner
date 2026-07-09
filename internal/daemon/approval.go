@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/ralphite/agentrunner/internal/protocol"
@@ -41,7 +42,14 @@ func (b *ApprovalBroker) Register(session, approvalID string) (string, <-chan Ap
 	defer b.mu.Unlock()
 	id := approvalID
 	for i := 2; ; i++ {
-		if _, taken := b.pending[key(session, id)]; !taken {
+		taken := false
+		for pendingKey := range b.pending {
+			if strings.HasSuffix(pendingKey, "/"+id) {
+				taken = true
+				break
+			}
+		}
+		if !taken {
 			break
 		}
 		id = fmt.Sprintf("%s#%d", approvalID, i)

@@ -20,6 +20,9 @@ import (
 type ApprovalRequest struct {
 	ApprovalID string
 	CallID     string
+	// Session is the exact asking member. A tree shares one resolver/sink,
+	// so the transport cannot infer this from its hosted root.
+	Session string
 	// Agent identifies WHO is asking (spec name + session): sub-agent asks
 	// bubble to the same frontend, and the human must be able to tell a
 	// child's destructive edit from the parent's harmless read (S5 review).
@@ -353,6 +356,7 @@ func (l *Loop) approvalPrompt(ds *driveState, req event.ApprovalRequested) Appro
 	out := ApprovalRequest{
 		ApprovalID:  req.ApprovalID,
 		CallID:      req.CallID,
+		Session:     l.SessionID,
 		ToolName:    req.ToolName,
 		Args:        req.Args,
 		GateResults: req.GateResults,

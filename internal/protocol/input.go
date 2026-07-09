@@ -95,6 +95,10 @@ type ApprovalCommand struct {
 // only for non-input kinds; control/approval/handle carry the other payloads.
 type SessionCommand struct {
 	CommandRef
+	// Target routes a command accepted in one tree member's durable log
+	// through the tree root's single hosted process. Empty means the hosted
+	// session itself. INC-12.6 uses it for child approval answers.
+	Target    string `json:"target,omitempty"`
 	Principal string `json:"principal,omitempty"`
 	Source    string `json:"source,omitempty"`
 	Trust     string `json:"trust,omitempty"`

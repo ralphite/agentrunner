@@ -1,7 +1,9 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -105,7 +107,7 @@ func e2k(s string) bool { return s == "answered nope: deny" }
 func TestApprovalBrokerCollision(t *testing.T) {
 	b := NewApprovalBroker()
 	id1, ch1 := b.Register("sess", "apr-eff-tool-call_1_0")
-	id2, ch2 := b.Register("sess", "apr-eff-tool-call_1_0")
+	id2, ch2 := b.Register("sess-sub-child-a1", "apr-eff-tool-call_1_0")
 	if id1 == id2 {
 		t.Fatalf("colliding registrations share id %q", id1)
 	}
@@ -121,11 +123,11 @@ func TestApprovalBrokerCollision(t *testing.T) {
 		res1 <- got{a, err}
 	}()
 	go func() {
-		a, err := b.Wait(context.Background(), "sess", id2, ch2)
+		a, err := b.Wait(context.Background(), "sess-sub-child-a1", id2, ch2)
 		res2 <- got{a, err}
 	}()
 
-	if !b.Answer("sess", id2, ApprovalAnswer{Approve: false, Reason: "second"}) {
+	if !b.Answer("sess-sub-child-a1", id2, ApprovalAnswer{Approve: false, Reason: "second"}) {
 		t.Fatal("answer to the suffixed id was refused")
 	}
 	if !b.Answer("sess", id1, ApprovalAnswer{Approve: true, Reason: "first"}) {
@@ -138,5 +140,51 @@ func TestApprovalBrokerCollision(t *testing.T) {
 	}
 	if g2.err != nil || g2.a.Approve || g2.a.Reason != "second" {
 		t.Fatalf("waiter 2 got %+v", g2)
+	}
+}
+
+// INC-12.6: a child approval is durable in the child's command log but is
+// delivered through the root hub. The root process remains the sole host,
+// while the child journal can prove the command receipt.
+func TestChildApprovalRoutesThroughRootHost(t *testing.T) {
+	const root = "sess-root"
+	const child = root + "-sub-swe-a1"
+	b := NewApprovalBroker()
+	s := &Server{Approvals: b, runs: map[string]*hostedRun{}, failed: map[string]bool{}}
+	h := s.newHostedRun(root, true)
+	defer h.finish()
+	s.runs[root] = h
+	var persistedSession string
+	s.PersistCommand = func(session string, cmd protocol.SessionCommand) (protocol.SessionCommand, error) {
+		persistedSession = session
+		cmd.CommandSeq = 4
+		return cmd, nil
+	}
+	s.PendingApproval = func(session string) (string, bool, error) {
+		return "apr-child", session == child, nil
+	}
+	_, waiting := b.Register(child, "apr-child")
+
+	var reply bytes.Buffer
+	s.handleApprove(context.Background(), Command{
+		Session: child, ApprovalID: "apr-child", Decision: "approve", CommandID: "cmd-child-approval",
+	}, json.NewEncoder(&reply))
+	select {
+	case answer := <-waiting:
+		if !answer.Approve || answer.CommandID != "cmd-child-approval" || answer.CommandSeq != 4 {
+			t.Fatalf("child approval answer = %+v", answer)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("root host never delivered the child approval")
+	}
+	if persistedSession != child {
+		t.Fatalf("approval persisted to %q, want child log %q", persistedSession, child)
+	}
+	var ack protocol.Event
+	if err := json.Unmarshal(reply.Bytes(), &ack); err != nil {
+		t.Fatal(err)
+	}
+	if ack.Kind != protocol.KindMessage || ack.Session != child {
+		t.Fatalf("ack = %+v", ack)
 	}
 }

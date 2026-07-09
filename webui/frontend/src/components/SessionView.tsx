@@ -18,6 +18,7 @@ interface SSEApproval {
   tool: string;
   args: any;
   agent?: string;
+  session?: string;
 }
 
 // 1403 → "1.4k", 20 → "20" — a compact token count for the header badge.
@@ -177,6 +178,7 @@ export function SessionView({ sid }: { sid: string }) {
               tool: ev.tool,
               args: ev.args,
               agent: ev.text || (foreign ? ev.session : ""),
+              session: ev.session || sid,
             });
             return next;
           });
@@ -194,13 +196,13 @@ export function SessionView({ sid }: { sid: string }) {
   const folded = useMemo(() => foldEvents(events), [events]);
 
   // Open approvals = journal asks not yet resolved + SSE-only child asks.
-  const openApprovals: (ApprovalRef & { agent?: string; viaSSE?: boolean })[] = [];
+  const openApprovals: (ApprovalRef & { agent?: string; viaSSE?: boolean; session?: string })[] = [];
   for (const a of folded.approvals.values()) {
     if (!a.resolved && !resolvedLocal.has(a.id)) openApprovals.push(a);
   }
   for (const s of sseApprovals.values()) {
     if (folded.approvals.has(s.id) || resolvedLocal.has(s.id)) continue;
-    openApprovals.push({ id: s.id, tool: s.tool, args: s.args, gates: [], agent: s.agent, viaSSE: true });
+    openApprovals.push({ id: s.id, tool: s.tool, args: s.args, gates: [], agent: s.agent, viaSSE: true, session: s.session });
   }
 
   // Status precedence: a live turn (tool running / step in flight / a pending
@@ -236,8 +238,8 @@ export function SessionView({ sid }: { sid: string }) {
     }
   };
 
-  const decideApproval = async (id: string, decision: "approve" | "deny", reason: string) => {
-    await AR.approve(sid, id, decision, reason);
+  const decideApproval = async (id: string, decision: "approve" | "deny", reason: string, target = sid) => {
+    await AR.approve(target, id, decision, reason);
     setResolvedLocal((s) => new Set(s).add(id));
   };
 
@@ -246,7 +248,7 @@ export function SessionView({ sid }: { sid: string }) {
   const decideAll = async (decision: "approve" | "deny") => {
     for (const a of openApprovals) {
       try {
-        await decideApproval(a.id, decision, "");
+        await decideApproval(a.id, decision, "", a.session || sid);
       } catch (e: any) {
         toast(e.message);
       }
@@ -255,22 +257,22 @@ export function SessionView({ sid }: { sid: string }) {
 
   // ⌘↵ approves the top pending request, ⌘⌫ denies it (Codex's Approve request).
   // A ref keeps the latest first-id / handler without rebinding each render.
-  const apprKb = useRef<{ firstId: string | null; decide: typeof decideApproval }>({
-    firstId: null,
+  const apprKb = useRef<{ first: { id: string; session?: string } | null; decide: typeof decideApproval }>({
+    first: null,
     decide: decideApproval,
   });
-  apprKb.current = { firstId: !isSub && openApprovals[0] ? openApprovals[0].id : null, decide: decideApproval };
+  apprKb.current = { first: !isSub && openApprovals[0] ? openApprovals[0] : null, decide: decideApproval };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return;
-      const { firstId, decide } = apprKb.current;
-      if (!firstId) return;
+      const { first, decide } = apprKb.current;
+      if (!first) return;
       if (e.key === "Enter") {
         e.preventDefault();
-        decide(firstId, "approve", "").catch((err) => toast(err.message));
+        decide(first.id, "approve", "", first.session || sid).catch((err) => toast(err.message));
       } else if (e.key === "Backspace" || e.key === "Delete") {
         e.preventDefault();
-        decide(firstId, "deny", "").catch((err) => toast(err.message));
+        decide(first.id, "deny", "", first.session || sid).catch((err) => toast(err.message));
       }
     };
     window.addEventListener("keydown", onKey);
@@ -520,7 +522,7 @@ export function SessionView({ sid }: { sid: string }) {
               key={a.id}
               approval={a}
               readonly={isSub}
-              onDecide={decideApproval}
+              onDecide={(id, decision, reason) => decideApproval(id, decision, reason, a.session || sid)}
               onError={(m) => toast(m)}
             />
           ))}
