@@ -1,6 +1,11 @@
-# INC-3 黑盒 QA 与 User Journey 重设计(工作纸,待裁决)
+# INC-7 黑盒 QA 与 User Journey 重设计(工作纸,待裁决)
 
 **状态**:设计稿,等待用户 review。批准后按 §9 实施。
+
+> 编号注:本工作纸最初编为 INC-3,与并行 session 已完成的 INC-3
+> (grep/glob 独立工具,已归档)撞号。按 PROCESS.md"活文档冲突当场修"
+> 让号至 INC-7(INC-3~6 均已被工具面增量链占用并归档)。早期 git 提交
+> 里的 "INC-3 工作纸——黑盒 QA" 指的即本件。
 
 **设计纪律声明**:本设计只基于用户可见面产出——README、`ar help`、
 JOURNEYS.md(产品意图)、SPEC.md 功能清单(只取"有什么功能"层面)、
@@ -461,12 +466,12 @@ docs/QA.md
 
 ## 9. 实施步骤(批准后)
 
-1. **INC-3.1 文档落地**:QA.md 改版 + JOURNEYS.md +3 条 + 本工作纸
+1. **INC-7.1 文档落地**:QA.md 改版 + JOURNEYS.md +3 条 + 本工作纸
    内容并入,原 QA-01~10 移附录;LOG 记档。
-2. **INC-3.2 资产**:ws.sh 扩 profile、bugs.lock.md(挖 bug 是主要
+2. **INC-7.2 资产**:ws.sh 扩 profile、bugs.lock.md(挖 bug 是主要
    工作量)、fixtures 重制、findings.md 台账骨架。
-3. **INC-3.3 执行 P0 波次**并出第一份 findings 报告。
-4. **INC-3.4 P1/P2/M1** 按波次推进;收口回填 SPEC 验收锚与 GAPS。
+3. **INC-7.3 执行 P0 波次**并出第一份 findings 报告。
+4. **INC-7.4 P1/P2/M1** 按波次推进;收口回填 SPEC 验收锚与 GAPS。
 
 ## review 裁决
 
