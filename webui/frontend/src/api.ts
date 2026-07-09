@@ -38,6 +38,8 @@ export const AR = {
     mode: string;
   }) => post<{ sid: string }>("/sessions", b),
   makeWorkspace: () => post<{ path: string }>("/workspace"),
+  makeWorktree: (repo: string, branch: string) =>
+    post<{ path: string; repo: string }>("/worktree", { repo, branch }),
   upload: async (file: File) => {
     const fd = new FormData();
     fd.append("file", file);

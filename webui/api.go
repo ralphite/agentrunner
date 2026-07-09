@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -25,6 +26,7 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /api/sessions", s.handleSessions)
 	mux.HandleFunc("POST /api/sessions", s.handleNewSession)
 	mux.HandleFunc("POST /api/workspace", s.handleWorkspace)
+	mux.HandleFunc("POST /api/worktree", s.handleWorktree)
 	mux.HandleFunc("POST /api/upload", s.handleUpload)
 	mux.HandleFunc("POST /api/trust", s.handleTrust)
 
@@ -318,6 +320,52 @@ func (s *server) handleWorkspace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"path": dir})
+}
+
+// handleWorktree creates a fresh git worktree of an existing repo and returns
+// its path — Codex's "New worktree" run location: an isolated checkout so the
+// agent's edits don't touch the user's working tree. Optional branch is
+// created off HEAD; empty branch = detached worktree at HEAD.
+func (s *server) handleWorktree(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Repo   string `json:"repo"`
+		Branch string `json:"branch"`
+	}
+	if !readBody(w, r, &req) {
+		return
+	}
+	repo, err := filepath.Abs(strings.TrimSpace(req.Repo))
+	if err != nil || repo == "" {
+		badRequest(w, "repo is required")
+		return
+	}
+	run := func(args ...string) (string, error) {
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "git", append([]string{"-C", repo}, args...)...)
+		out, err := cmd.CombinedOutput()
+		return strings.TrimSpace(string(out)), err
+	}
+	if out, err := run("rev-parse", "--is-inside-work-tree"); err != nil || out != "true" {
+		badRequest(w, "not a git repository: "+repo)
+		return
+	}
+	dir := filepath.Join(s.runtimeDir, "ws", fmt.Sprintf("wt%d", time.Now().UnixNano()))
+	args := []string{"worktree", "add"}
+	if b := strings.TrimSpace(req.Branch); b != "" {
+		if !validID(b) {
+			badRequest(w, "invalid branch name")
+			return
+		}
+		args = append(args, "-b", b, dir)
+	} else {
+		args = append(args, "--detach", dir)
+	}
+	if out, err := run(args...); err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "git worktree add failed", "stderr": out})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"path": dir, "repo": repo})
 }
 
 func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {

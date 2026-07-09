@@ -60,12 +60,24 @@ function useWorkspace() {
       toast(e.message);
     }
   };
-  return { ws, setWs, mk };
+  // Codex "New worktree": create an isolated git worktree of a repo so the
+  // agent's edits don't touch the user's checkout. Prompts for the repo path.
+  const mkWorktree = async () => {
+    const repo = window.prompt("Repo path to branch a new git worktree from:", ws.trim() || "");
+    if (!repo) return;
+    try {
+      setWs((await AR.makeWorktree(repo.trim(), "")).path);
+      toast("created worktree", "info");
+    } catch (e: any) {
+      toast(e.message);
+    }
+  };
+  return { ws, setWs, mk, mkWorktree };
 }
 
 function NewSessionModal({ initialMessage }: { initialMessage?: string }) {
   const { openModal, select, refreshSessions, toast } = useStore();
-  const { ws, setWs, mk } = useWorkspace();
+  const { ws, setWs, mk, mkWorktree } = useWorkspace();
   const [msg, setMsg] = useState(initialMessage || "Hello — in one sentence, introduce your tool capabilities.");
   const [mode, setMode] = useState("");
   const [spec, setSpec] = useState(DEFAULT_SPEC);
@@ -107,6 +119,9 @@ function NewSessionModal({ initialMessage }: { initialMessage?: string }) {
         <input type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="/path/to/workspace" />
         <button style={{ whiteSpace: "nowrap" }} onClick={mk} title="create a fresh empty directory under runtime/ and fill it in here">
           make empty workspace
+        </button>
+        <button style={{ whiteSpace: "nowrap" }} onClick={mkWorktree} title="Codex 'New worktree': branch a fresh, isolated git worktree of a repo so edits don't touch your checkout">
+          new worktree…
         </button>
       </div>
       <label className="field">opening message</label>
