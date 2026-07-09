@@ -407,3 +407,36 @@ spec_changed 恰好一条——裁决 #1"session 不与 agent 绑定"的
 预存环境问题(生产代码已有短路径回退;TMPDIR=/tmp 下全绿),测试
 基建修复另立任务;②Anthropic 第二 provider 无凭据未测(与
 2026-07-05 同状态)。
+
+---
+
+## 2026-07-09 · interrupt 真停 / 真转向(核心 bug 修复,对齐 DESIGN §1)
+
+黑盒 QA(以 Claude Code 级别体验为标尺,真 repo + 真 Gemini 驱动 web
+驾驶舱)发现:运行中 interrupt 只 cancel 当前活动就重跑同一 turn——
+既停不下跑飞的 turn(实测 gin 逐文件长跑,连按两次 interrupt 仍跑到
+gen_steps 预算 40 才停),也让忙时排队的 steer 要等整轮自然结束才
+可见。与 DESIGN §1「interrupt cancel 当前 turn」「steer 下个 turn
+模型看到它」相悖——是实现 bug,非不变量变更。
+
+修(internal/agent/loop.go):新增 `finishInterrupt`——steering
+interrupt 后落一条 `LimitExceeded{kind:"interrupted"}` 收尾 turn,
+再 `drainQueued`。decide() 据 TruncatedAtGenStep 走 idle-或-重启:
+有排队 steer(落在截断标记之后,len(Messages)>TruncatedMsgCount)
+→ TruncationRestartable 重启转向;无 → doIdle 交还控制。LLM 相与
+工具相两处 interrupt 汇合点统一走此路。复用既有可见截断机制,不新增
+事件类型。
+
+测:更新 TestSteeringInterruptDuringLLM(interrupt 现停 turn、模型不
+被重跑、落 interrupted 截断)+ 新增 TestSteeringInterruptRedirects
+(排队 steer 触发新 turn 转向,模型确实看到 steer)。真验(origin/main
++ 本修 + 真 Gemini):gin 逐文件长跑,gen=24 时 interrupt → 落
+interrupted 截断 → 待命(gen 冻在 24,旧行为跑到 40);随后 send 一条
+→ gen25 消费 steer 转向作答。
+
+背景记档:本轮 web 驾驶舱另有一批黑盒缺陷(markdown 渲染、per-session
+草稿、图片缩略图、stranded 可见性/恢复、会话列表可辨识),初版基于
+过时 UI(7dd7d4c)做,而 origin/main 已对 arweb 做整体 overhaul
+(见 web/UI-GAPS.md)。按用户裁决:核心 interrupt 修先落 origin/main
+(此处),web 侧改为针对 overhaul 后的新 webui 重新黑盒 QA、只修真正
+仍坏的项(另一轮)。

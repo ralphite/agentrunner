@@ -207,6 +207,26 @@ func (l *Loop) onSteeringInterrupt(appendE AppendFunc, turn int) error {
 	return nil
 }
 
+// finishInterrupt ends the CURRENT TURN on a steering interrupt (DESIGN §1:
+// interrupt cancels the turn, never the session). Before this fix the loop
+// only cancelled the in-flight activity and then re-ran the same turn, so
+// interrupt could neither stop a runaway turn nor let a queued steer land
+// mid-run — both contradicting DESIGN §1 ("cancel 当前 turn" / "下个 turn
+// 模型看到它"). Now: journal a visible "interrupted" truncation so decide()
+// will not silently re-run the turn, then drain any queued steering input. A
+// steer drained here lands AFTER the truncation mark, so decide() (via
+// TruncationRestartable) restarts a fresh turn consuming it — the documented
+// redirect. With nothing queued the session idles and the user has regained
+// control (parity with an editor's Esc: interrupt actually stops).
+func (l *Loop) finishInterrupt(ds *driveState, appendE AppendFunc, turn int) error {
+	if _, err := appendE(event.TypeLimitExceeded, &event.LimitExceeded{
+		Kind: "interrupted", Used: turn - ds.s.Session.LastInputGenStep,
+	}); err != nil {
+		return err
+	}
+	return l.drainQueued(ds, appendE)
+}
+
 // appender builds the single write path: journal one event, fold it, and
 // advance the linear causation chain. EVERY payload passes through
 // credential redaction here — args/results are also redacted upstream in
@@ -870,7 +890,12 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 					if ierr := l.onSteeringInterrupt(appendE, act.turn); ierr != nil {
 						return RunResult{}, abort(act.turn, ierr)
 					}
-					continue // re-decide: turn N has no assistant message → re-run
+					// End the turn (DESIGN §1): decide() now idles (user
+					// regained control) or restarts with a drained steer.
+					if ierr := l.finishInterrupt(ds, appendE, act.turn); ierr != nil {
+						return RunResult{}, abort(act.turn, ierr)
+					}
+					continue
 				}
 				stopInt()
 				return RunResult{}, abort(act.turn, fmt.Errorf("turn %d: %w", act.turn, err))
@@ -1254,6 +1279,11 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 	}
 	if interrupted {
 		if ierr := l.onSteeringInterrupt(appendE, act.turn); ierr != nil {
+			return abort(act.turn, ierr)
+		}
+		// End the turn (DESIGN §1): same seam as the LLM-phase interrupt —
+		// idle if nothing queued, else restart with the drained steer.
+		if ierr := l.finishInterrupt(ds, appendE, act.turn); ierr != nil {
 			return abort(act.turn, ierr)
 		}
 	}

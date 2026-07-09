@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
 	"github.com/ralphite/agentrunner/internal/store"
@@ -48,8 +49,49 @@ func (p *blockingLLM) Complete(ctx context.Context, _ provider.CompleteRequest) 
 	}
 }
 
-// S4.2: a steering interrupt during a stuck LLM call cancels it and the run
-// CONTINUES (re-runs the turn), rather than aborting.
+// redirectLLM blocks on attempt 1 (interrupted); on attempt 2 it records
+// whether the request carries the steer text, proving the model saw it.
+type redirectLLM struct {
+	mu       sync.Mutex
+	attempt  int
+	sawSteer bool
+	entered  chan struct{}
+}
+
+func (p *redirectLLM) Capabilities() provider.Capabilities { return provider.Capabilities{} }
+func (p *redirectLLM) Complete(ctx context.Context, req provider.CompleteRequest) iter.Seq2[provider.StreamEvent, error] {
+	return func(yield func(provider.StreamEvent, error) bool) {
+		p.mu.Lock()
+		p.attempt++
+		a := p.attempt
+		p.mu.Unlock()
+		if a == 1 {
+			select {
+			case p.entered <- struct{}{}:
+			default:
+			}
+			<-ctx.Done()
+			yield(provider.StreamEvent{}, ctx.Err())
+			return
+		}
+		for _, m := range req.Messages {
+			for _, part := range m.Parts {
+				if strings.Contains(part.Text, "other file instead") {
+					p.mu.Lock()
+					p.sawSteer = true
+					p.mu.Unlock()
+				}
+			}
+		}
+		yield(provider.StreamEvent{Kind: provider.EventTextDelta, TextDelta: "ok, redirected"}, nil)
+		yield(provider.StreamEvent{Kind: provider.EventFinish, Finish: provider.FinishEndTurn}, nil)
+	}
+}
+
+// S4.2 / DESIGN §1: a steering interrupt during a stuck LLM call cancels it and
+// ENDS THE TURN — with nothing queued the session idles (the user has regained
+// control), the model is NOT re-invoked. interrupt never fails or ends the
+// session.
 func TestSteeringInterruptDuringLLM(t *testing.T) {
 	root := t.TempDir()
 	l := testLoop(t, scripted.Fixture{}, root)
@@ -57,18 +99,24 @@ func TestSteeringInterruptDuringLLM(t *testing.T) {
 	l.Provider = prov
 	interrupts := make(chan struct{}, 1)
 	l.Interrupts = interrupts
+	// A live (empty) input source: the loop parks at idle rather than
+	// returning, mirroring a hosted session — the model must not be re-run.
+	inputs := make(chan protocol.UserInput)
+	l.UserInputs = inputs
 	sink := &captureSink{}
 	l.Out = sink
 
 	done := make(chan error, 1)
-	var res RunResult
 	go func() {
-		var err error
-		res, err = l.Run(context.Background(), "answer")
+		_, err := l.Run(context.Background(), "answer")
 		done <- err
 	}()
 	<-prov.entered           // LLM is streaming and stuck
 	interrupts <- struct{}{} // Ctrl-C
+	// The turn ends and the session idles; close the input channel so the
+	// idle resolves into a clean return.
+	time.Sleep(200 * time.Millisecond)
+	close(inputs)
 	select {
 	case err := <-done:
 		if err != nil {
@@ -77,15 +125,20 @@ func TestSteeringInterruptDuringLLM(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("run did not complete after steering interrupt")
 	}
-	if res.Reason != "completed" {
-		t.Fatalf("res = %+v", res)
+	// The model was NOT re-run: interrupt stopped the turn (the old behavior
+	// silently re-ran and completed on attempt 2).
+	prov.mu.Lock()
+	attempts := prov.attempt
+	prov.mu.Unlock()
+	if attempts != 1 {
+		t.Fatalf("model re-invoked after interrupt (attempts=%d): interrupt must stop the turn", attempts)
 	}
 
 	events, err := store.ReadEvents(l.Store.Dir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	var sawCancel, sawInterrupt bool
+	var sawCancel, sawInterrupt, sawTrunc bool
 	for _, e := range events {
 		if e.Type == event.TypeActivityCancelled {
 			sawCancel = true
@@ -93,14 +146,70 @@ func TestSteeringInterruptDuringLLM(t *testing.T) {
 		if e.Type == event.TypeInputReceived && strings.Contains(string(e.Payload), "interrupt") {
 			sawInterrupt = true
 		}
+		if e.Type == event.TypeLimitExceeded && strings.Contains(string(e.Payload), "interrupted") {
+			sawTrunc = true
+		}
 	}
-	if !sawCancel || !sawInterrupt {
-		t.Fatalf("expected cancelled activity + interrupt input (cancel=%v interrupt=%v)", sawCancel, sawInterrupt)
+	if !sawCancel || !sawInterrupt || !sawTrunc {
+		t.Fatalf("expected cancelled activity + interrupt input + interrupted truncation (cancel=%v interrupt=%v trunc=%v)", sawCancel, sawInterrupt, sawTrunc)
 	}
 	kinds := strings.Join(sink.kinds(), ",")
 	if !strings.Contains(kinds, "discard") {
 		t.Errorf("surface should see the interrupt discard: %s", kinds)
 	}
+}
+
+// DESIGN §1: a steering interrupt with a queued steer REDIRECTS — the
+// interrupted turn ends and a fresh turn consumes the steer, which the model
+// sees. Proves the mid-run redirect path (busy-send steer becomes visible).
+func TestSteeringInterruptRedirects(t *testing.T) {
+	root := t.TempDir()
+	l := testLoop(t, scripted.Fixture{}, root)
+	prov := &redirectLLM{entered: make(chan struct{}, 1)}
+	l.Provider = prov
+	interrupts := make(chan struct{}, 1)
+	l.Interrupts = interrupts
+	inputs := make(chan protocol.UserInput, 1)
+	l.UserInputs = inputs
+
+	done := make(chan error, 1)
+	var res RunResult
+	go func() {
+		var err error
+		res, err = l.Run(context.Background(), "answer")
+		done <- err
+	}()
+	<-prov.entered // turn 1 LLM stuck
+	// Queue the steer, THEN interrupt: finishInterrupt drains it after the
+	// truncation mark, so decide() restarts a fresh turn consuming it.
+	inputs <- protocol.UserInput{Text: "go read the other file instead", DeliverySeq: 1}
+	interrupts <- struct{}{}
+	// Wait for the fresh turn to run and see the steer, then close the input
+	// channel so the post-redirect idle resolves into a clean return.
+	deadline := time.After(10 * time.Second)
+	for {
+		prov.mu.Lock()
+		saw := prov.sawSteer
+		prov.mu.Unlock()
+		if saw {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatal("model never saw the steer on a fresh turn: redirect broken")
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+	close(inputs)
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("redirect must not fail: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("run did not return after redirect")
+	}
+	_ = res
 }
 
 // S4.2 + 500ms: a steering interrupt kills a running bash tool quickly and
