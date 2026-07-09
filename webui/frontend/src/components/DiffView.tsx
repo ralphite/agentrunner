@@ -88,10 +88,31 @@ export function DiffView({ sid }: { sid: string }) {
   const untracked = data.untracked || [];
   const empty = files.length === 0 && untracked.length === 0;
 
+  // Per-file +/- counts (from the diff itself, so untracked-content blocks count
+  // too) — Codex shows these next to each file and a total at the top.
+  const stats = files.map((f) => {
+    let add = 0;
+    let del = 0;
+    for (const l of f.lines) {
+      if (l.startsWith("+") && !l.startsWith("+++")) add++;
+      else if (l.startsWith("-") && !l.startsWith("---")) del++;
+    }
+    return { f, add, del };
+  });
+  const totalAdd = stats.reduce((s, x) => s + x.add, 0);
+  const totalDel = stats.reduce((s, x) => s + x.del, 0);
+
   return (
     <div className="diffwrap">
       <div className="diffbar">
         <span className="mono dim">{data.workspace}</span>
+        {!empty && (
+          <span className="diff-summary">
+            {files.length} file{files.length === 1 ? "" : "s"}
+            {totalAdd > 0 && <span className="add"> +{totalAdd}</span>}
+            {totalDel > 0 && <span className="del"> −{totalDel}</span>}
+          </span>
+        )}
         <span className="spacer" />
         {!empty && (
           <button className="sm primary" onClick={commit} disabled={busy} title="git add -A && git commit the workspace changes (local commit, no push)">
@@ -117,9 +138,15 @@ export function DiffView({ sid }: { sid: string }) {
           </div>
         </div>
       )}
-      {files.map((f) => (
-        <div className="filediff" key={f.path}>
-          <div className="fd-head mono">{f.path}</div>
+      {stats.map(({ f, add, del }) => (
+        <details className="filediff" key={f.path} open>
+          <summary className="fd-head mono">
+            <span className="fd-path">{f.path}</span>
+            <span className="fd-counts">
+              {add > 0 && <span className="add">+{add}</span>}
+              {del > 0 && <span className="del">−{del}</span>}
+            </span>
+          </summary>
           <div className="fd-body">
             {f.lines.map((l, i) => (
               <div className={"dl " + lineClass(l)} key={i}>
@@ -127,7 +154,7 @@ export function DiffView({ sid }: { sid: string }) {
               </div>
             ))}
           </div>
-        </div>
+        </details>
       ))}
     </div>
   );
