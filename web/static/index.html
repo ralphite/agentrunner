@@ -179,7 +179,9 @@
   .ctl select:hover { background:var(--surface-2); }
   .ctl.readonly { padding-right:11px; }
   #imgchips { display:flex; gap:6px; flex-wrap:wrap; }
-  #imgchips .ichip { font-size:12px; padding:3px 9px; border-radius:20px; background:var(--accent-tint); border:1px solid color-mix(in srgb,var(--accent) 25%,transparent); cursor:pointer; }
+  #imgchips .ichip { font-size:12px; padding:3px 9px 3px 3px; border-radius:20px; background:var(--accent-tint); border:1px solid color-mix(in srgb,var(--accent) 25%,transparent); cursor:pointer; display:inline-flex; align-items:center; gap:5px; }
+  #imgchips .ichip .thumb { width:26px; height:26px; object-fit:cover; border-radius:16px; }
+  .bubble .thumb { display:block; max-width:220px; max-height:180px; border-radius:8px; margin-top:7px; border:1px solid var(--line); }
   .inputbox { display:flex; gap:9px; align-items:flex-end; background:var(--bg); border:1px solid var(--line); border-radius:16px; padding:8px 8px 8px 14px; transition:border-color .12s,box-shadow .12s; }
   .inputbox:focus-within { border-color:color-mix(in srgb,var(--accent) 55%,transparent); box-shadow:0 0 0 3px var(--accent-tint); }
   textarea#input { flex:1; font:inherit; font-size:14px; border:none; background:transparent; color:var(--ink); resize:none; min-height:24px; max-height:200px; padding:3px 0; outline:none; line-height:1.5; }
@@ -408,6 +410,7 @@ const state = {
   typingEl: null, status: "—", images: [], lastGen: 0,
   spec: null, model: "", mode: "", agentKey: "dev", closed: null,
   driver: false, driverTools: {}, driverAbort: null, driverIter: 0,
+  drafts: {}, // per-session compose drafts: the input must never leak across sessions
 };
 
 /* ---------- agent templates & models (composer capability面) ---------- */
@@ -837,9 +840,14 @@ function reflectSpec(specName, model) {
 
 // ---------- session lifecycle ----------
 async function openSession(id) {
+  // Save the outgoing session's draft before switching: the compose box is a
+  // single element, so without this a half-typed message follows you to the
+  // next session and can be sent to the wrong one.
+  if (state.sid) state.drafts[state.sid] = inputEl.value;
   leaveSession();
   state.sid = id;
   location.hash = id;
+  inputEl.value = state.drafts[id] || ""; inputEl.style.height = "auto";
   stream = null; tl.innerHTML = "";
   Object.assign(state, { cursor: 0, toolCards: {}, callArgs: {}, approvals: {}, pending: [], typingEl: null, lastGen: 0, closed: null, mode: "", listStatus: "" });
   const isSub = id.includes("-sub-");
@@ -940,16 +948,21 @@ function openStream(id) {
 // ---------- composer ----------
 $("btnSend").onclick = send;
 const inputEl = $("input");
-inputEl.addEventListener("input", () => { inputEl.style.height = "auto"; inputEl.style.height = Math.min(inputEl.scrollHeight, 200) + "px"; });
+inputEl.addEventListener("input", () => { if (state.sid) state.drafts[state.sid] = inputEl.value; inputEl.style.height = "auto"; inputEl.style.height = Math.min(inputEl.scrollHeight, 200) + "px"; });
 inputEl.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
 async function send() {
   const text = inputEl.value.trim();
   if (!text || !state.sid) return;
-  const images = state.images.map(i => i.path);
+  const imgs = state.images.slice();
+  const images = imgs.map(i => i.path);
   state.listStatus = ""; // sending revives a stranded/marked session — don't re-assert it
   inputEl.value = ""; inputEl.style.height = "auto";
+  if (state.sid) state.drafts[state.sid] = "";
   const b = bubble("user", text, "delivering…");
   b.parentElement.classList.add("pending");
+  // Thumbnail the sent images: the journal keeps only a CAS ref, so the local
+  // upload is the only source of a real preview — attach it to the bubble.
+  imgs.forEach(im => { const t = el("img", "thumb"); t.src = uploadURL(im.path); t.alt = im.name; b.appendChild(t); });
   state.pending.push({ text, el: b.parentElement });
   state.images = []; renderImgChips();
   try { await post(`/sessions/${state.sid}/send`, { text, images }); }
@@ -963,10 +976,13 @@ $("file").onchange = async () => {
   catch (e) { toast(e.message); }
   $("file").value = "";
 };
+const uploadURL = path => "/api/uploads/" + encodeURIComponent((path || "").split("/").pop());
 function renderImgChips() {
   const box = $("imgchips"); box.innerHTML = "";
   state.images.forEach((img, i) => {
-    const c = el("span", "ichip", "📷 " + img.name + " ✕");
+    const c = el("span", "ichip");
+    const t = el("img", "thumb"); t.src = uploadURL(img.path); t.alt = img.name;
+    c.appendChild(t); c.appendChild(document.createTextNode(" " + img.name + " ✕"));
     c.onclick = () => { state.images.splice(i, 1); renderImgChips(); };
     box.appendChild(c);
   });

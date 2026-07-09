@@ -154,3 +154,14 @@
 | 2026-07-07 | 0 | M0 落地:module/server(9 端点+SSE)/单文件 UI/fake-ar 单测 ×9/docs。M1–M5 的代码骨架同时就位,待逐项真验 | health 绿(daemon 托管成功);sessions 列表 OK;真 Gemini 全链路 smoke:POST /api/sessions 建会话→"1+1=?"→journal 里 ASST"2"→waiting:input。注意:XDG_DATA_HOME 过长会使 daemon socket bind 失败(macOS 104B 限制),测试用 /tmp/aw1 |
 | 2026-07-07 | 1 | M1 真验(代码已在轮 0 就位,本轮纯验证,零代码改动) | CLI 建真实两轮 Gemini 会话(暗号"红苹果"第二轮复述→上下文衔接);`ar events --json` vs web /events 20 事件逐一 MATCH(seq+type);after=13 过滤→7 条;state=waiting:input、inspect 树(2 llm entries+usage billed 1058)、ps 空、sessions 双会话均对;Chrome 实测 UI:时间线气泡/轮次线/source 标签(cli/你)/状态 pill/三查看面板/系统事件开关(#4 barrier、#5-6 effect、#7-8 activity 兜底行)全部正确渲染 |
 | 2026-07-07 | 2 | M2 真验全程 Chrome 网页操作;修 close 为双击确认(原生 confirm 冻结渲染进程、毁自动化);发现产品级 bug 记入已知问题 #1 | ①新会话表单:造空 workspace 一键、默认 spec、开场消息→真 Gemini 会话 42f4,两轮暗号"蓝海豚"衔接 ✓;②QA-02 式排队:sleep 20 在飞时插话→气泡"排队中"(pending)→bash 完成卡(QUEUE_TEST_DONE)→插话消化答"三加四等于七",bash 无 Cancelled ✓;③interrupt:sleep 30 在飞 8s 时点按钮→bash 卡"已取消"(部分输出留存)→[interrupt] 来源气泡→第 7 轮解释→续聊"OK" ✓;SSE 打字气泡实测出现并被 journal 落实替换(M4 部分提前验证);close 双击确认在已关闭会话上走通 UI 路径 |
+
+## 黑盒复盘补漏 (2026-07-09)
+
+overhaul 后再黑盒 QA(真 Gemini 驱动),多数 UI 缺陷(markdown 渲染、
+stranded 可见性、会话可辨识标题)已在 overhaul 中解决。仍存两处小缺陷,
+本轮补上并真验:
+- **per-session 草稿**:切会话不再泄漏输入框(实测切走清空、切回恢复;
+  发送即清)。此前是单例 textarea,草稿会跟到下一个会话、可能发错。
+- **图片缩略图**:compose chip 与已发气泡改为真实缩略图,新增
+  `GET /api/uploads/{name}` 提供本地上传预览(journal 只存 CAS ref)。
+  真验:上传→chip/气泡缩略图加载成功,Gemini 也读到图作答。

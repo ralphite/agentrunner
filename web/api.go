@@ -26,6 +26,7 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/sessions", s.handleNewSession)
 	mux.HandleFunc("POST /api/workspace", s.handleWorkspace)
 	mux.HandleFunc("POST /api/upload", s.handleUpload)
+	mux.HandleFunc("GET /api/uploads/{name}", s.handleServeUpload)
 	mux.HandleFunc("GET /api/sessions/{sid}/events", s.handleEvents)
 	mux.HandleFunc("GET /api/sessions/{sid}/state", s.handleState)
 	mux.HandleFunc("GET /api/sessions/{sid}/inspect", s.handleInspect)
@@ -440,6 +441,19 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"path": dst, "name": name})
+}
+
+// handleServeUpload serves a previously uploaded image from runtime/uploads so
+// the timeline can show a real thumbnail of what the user sent (the journal
+// only carries a content-addressed ref). Names are validated to a single path
+// segment — no traversal out of the uploads dir.
+func (s *server) handleServeUpload(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" || strings.ContainsAny(name, "/\\") || name == "." || name == ".." {
+		badRequest(w, "invalid upload name")
+		return
+	}
+	http.ServeFile(w, r, filepath.Join(s.runtimeDir, "uploads", name))
 }
 
 // ---- per-session reads ----
