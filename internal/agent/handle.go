@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"sync"
 
 	"github.com/ralphite/agentrunner/internal/errs"
@@ -127,6 +128,17 @@ func (l *Loop) settleBackground(appendE AppendFunc, out bgOutcome) error {
 		if _, err := appendE(event.TypeSubagentCompleted, out.subagent); err != nil {
 			return err
 		}
+		// Quiescence race close-out (INC-12.2): mail that landed while the
+		// child was on its way out (delivered to a port nobody was reading)
+		// is durable in its inbox — queue the revive now, after the receipt.
+		if l.Router != nil && l.revive != nil && l.childHasMail(out.subagent.ChildSession) {
+			select {
+			case l.revive <- out.subagent.ChildSession:
+			default:
+				slog.Warn("revive queue full at settle; child mail deferred to next resume",
+					"child", out.subagent.ChildSession)
+			}
+		}
 	}
 
 	switch {
@@ -241,15 +253,23 @@ func (l *Loop) cancelAllBackground(cause error) {
 // settleOnAbort settles in-flight background work on a dying execution —
 // close, kill, teardown or harness error: cancel everything (no kill
 // cause: the dying run tears down, it does not kill on anyone's behalf)
-// and drain the terminals so the journal never ends with orphans. Best
-// effort by nature: journal failures stop the drain, nothing more can be
-// done.
+// and drain the terminals so the journal never ends with orphans. The
+// drain counts LIVE tasks (the cancel registry), not the fold's handle
+// set: a handle whose goroutine never started (a failed revive, a crash
+// artifact awaiting settle-from-child-fold) must not wedge the drain.
+// Best effort by nature: journal failures stop the drain, nothing more
+// can be done.
 func (l *Loop) settleOnAbort(ctx context.Context, ds *driveState, appendE AppendFunc) {
 	if l.bg == nil || len(ds.s.Handles) == 0 {
 		return
 	}
 	l.cancelAllBackground(nil)
-	for len(ds.s.Handles) > 0 {
+	live := func() int {
+		l.bg.mu.Lock()
+		defer l.bg.mu.Unlock()
+		return len(l.bg.cancel)
+	}
+	for live() > 0 {
 		out := <-l.bg.done
 		if err := l.settleBackground(appendE, out); err != nil {
 			return

@@ -141,6 +141,10 @@ func (l *Loop) journalInput(ds *driveState, appendE AppendFunc, in protocol.User
 	if in.CommandID != "" {
 		inputAppend = l.commandAppender(ds, in.CommandID)
 	}
+	// Tree-internal messages (INC-12, send_message) arrive with
+	// source="agent"; everything else defaults to a human sender. The source
+	// is journal metadata — the conversation sees the sender as the text
+	// prefix the sender wrote (weak-typed Input, 裁决 #9).
 	source := in.Source
 	if source == "" {
 		source = "user"
@@ -181,6 +185,13 @@ func (l *Loop) drainQueued(ds *driveState, appendE AppendFunc) error {
 				l.UserInputs = nil
 				return nil
 			}
+			if err := l.journalInput(ds, appendE, in); err != nil {
+				return err
+			}
+		case in := <-l.peer:
+			// A tree-internal message (INC-12) queues exactly like a user
+			// one: journaled here, consumed by the next turn. A nil peer
+			// channel (no router) never fires.
 			if err := l.journalInput(ds, appendE, in); err != nil {
 				return err
 			}
@@ -257,6 +268,25 @@ func (l *Loop) awaitInput(ctx context.Context, ds *driveState, appendE AppendFun
 				return false, err
 			}
 			return false, resolve("input_received")
+		case in := <-l.peer:
+			// A tree-internal message wakes the idle exactly like a user
+			// send (INC-12): journal it (plus any type-ahead) and start the
+			// next turn.
+			if err := l.journalInput(ds, appendE, in); err != nil {
+				return false, err
+			}
+			if err := l.drainQueued(ds, appendE); err != nil {
+				return false, err
+			}
+			return false, resolve("input_received")
+		case sid := <-l.revive:
+			// A quiescent child got mail while this session idled (INC-12.2):
+			// wake, let the safe-point drain re-host it, and return to the
+			// idle if nothing else follows.
+			if err := l.reviveChild(ctx, ds, appendE, sid); err != nil {
+				return false, err
+			}
+			return false, resolve("child_revived")
 		case out := <-l.bg.done:
 			// Background work settled while idle: its outcome is a user-role
 			// input (S6.1), which decide() turns into the next turn.
@@ -376,6 +406,14 @@ func (l *Loop) awaitAnswer(ctx context.Context, ds *driveState, appendE AppendFu
 			// next turn), but the question STANDS — decide() sees Waiting still
 			// set and re-parks. The settlement does not answer the question.
 			if err := l.settleBackground(appendE, out); err != nil {
+				return RunResult{}, true, err
+			}
+			return RunResult{}, false, nil
+		case in := <-l.peer:
+			// A tree-internal message while parked on ask_user (INC-12): it
+			// queues for the next turn but does NOT answer the question — the
+			// answer must come from the user. decide() re-parks.
+			if err := l.journalInput(ds, appendE, in); err != nil {
 				return RunResult{}, true, err
 			}
 			return RunResult{}, false, nil

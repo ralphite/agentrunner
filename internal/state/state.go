@@ -6,6 +6,7 @@ package state
 
 import (
 	"encoding/json"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -582,9 +583,38 @@ func Apply(s State, env event.Envelope) (State, error) {
 		// The parent's accounting settles through the spawn activity's
 		// ActivityCompleted, never here; the fold only records the child
 		// stream's existence for the barrier vector (S7.2, copy-on-write).
-		children := make([]string, 0, len(s.Session.ChildSessions)+1)
-		children = append(children, s.Session.ChildSessions...)
-		s.Session.ChildSessions = append(children, p.ChildSession)
+		// A revived child completes AGAIN (INC-12) — the list stays deduped
+		// so the barrier vector opens each child stream once.
+		if !slices.Contains(s.Session.ChildSessions, p.ChildSession) {
+			children := make([]string, 0, len(s.Session.ChildSessions)+1)
+			children = append(children, s.Session.ChildSessions...)
+			s.Session.ChildSessions = append(children, p.ChildSession)
+		}
+
+	case *event.ChildRevived:
+		// A quiescent child re-enters the in-flight set (INC-12, DESIGN §3
+		// 静止子唤醒) through a SYNTHETIC background activity: the original
+		// handle keeps working for kill/output, the child's next terminal
+		// settles through the ordinary ActivityCompleted path (which renders
+		// the report as a user-role message), and the ORIGINAL call is NOT
+		// re-paired — its tool result landed when the spawn first returned.
+		// Args carry the agent name + revive baseline for the crash-settle
+		// path (settle-from-child-fold reports the delta, never the total).
+		args, _ := json.Marshal(map[string]any{
+			"agent": p.Agent, "revive": true, "baseline": p.BaselineUsage,
+		})
+		started := event.ActivityStarted{
+			ActivityID: p.ActivityID, Kind: event.KindTool, Name: "spawn_agent",
+			Args: args, CallID: p.CallID, Attempt: 1, Background: true,
+		}
+		s.Activities = s.Activities.with(p.ActivityID, started)
+		s.Handles = s.Handles.with(p.CallID, started)
+		if p.BudgetTokens > 0 {
+			// Reserve-then-settle holds for revives too: the allowance
+			// reserves up front under the same effect id the activity
+			// terminal releases.
+			s.Budget = s.Budget.withReservation(effectIDFor(started, p.ActivityID), p.BudgetTokens)
+		}
 
 	case *event.ArtifactPublished:
 		// Copy-on-write: Apply is pure, the input map must not mutate.

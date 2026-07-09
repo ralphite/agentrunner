@@ -71,6 +71,11 @@ type AgentSpec struct {
 	// Agents whitelists the sub-agent specs this agent may spawn (S5.3).
 	// The model only sees — and can only spawn — what is listed here.
 	Agents []string `yaml:"agents,omitempty"`
+	// AgentsDynamic opens the inline-role spawn face (INC-12): the model may
+	// draft team members at run time (spawn_agent{role:…}) instead of — or in
+	// addition to — the static whitelist. Off by default: the multi-agent
+	// face never widens silently.
+	AgentsDynamic bool `yaml:"agents_dynamic,omitempty"`
 	// Receipts controls WHEN background settlements (child receipts, bash
 	// outcomes) enter the conversation (裁决 #15): "steer" (default) lands
 	// them at the next safe boundary INSIDE a running turn — a long turn

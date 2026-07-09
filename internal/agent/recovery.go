@@ -8,6 +8,7 @@ import (
 
 	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
 )
@@ -120,6 +121,10 @@ func (l *Loop) settleCrashedSpawn(appendE AppendFunc, act event.ActivityStarted)
 	if ferr != nil {
 		return fmt.Errorf("crash settle %s: child fold: %w", callID, ferr)
 	}
+	// A revive activity (INC-12.2) carries the child's settled spend at
+	// revive time in its synthetic args — terminals report the DELTA so the
+	// parent account never double-counts the child's earlier rounds.
+	settled := subUsage(cf.Session.Usage, reviveBaselineOf(act.Args))
 
 	if quiescent, reason := state.Quiescence(cf); quiescent {
 		// The child reached quiescence before the crash — deliver the
@@ -128,7 +133,7 @@ func (l *Loop) settleCrashedSpawn(appendE AppendFunc, act event.ActivityStarted)
 		// the live settle path).
 		if _, err := appendE(event.TypeSubagentCompleted, &event.SubagentCompleted{
 			CallID: callID, Agent: agentName, ChildSession: childSession,
-			Reason: reason, GenSteps: cf.Session.GenStep, Usage: cf.Session.Usage,
+			Reason: reason, GenSteps: cf.Session.GenStep, Usage: settled,
 		}); err != nil {
 			return err
 		}
@@ -137,7 +142,7 @@ func (l *Loop) settleCrashedSpawn(appendE AppendFunc, act event.ActivityStarted)
 			"reason": reason, "turns": cf.Session.GenStep,
 			"report": childReport(childDir),
 		})
-		usage := cf.Session.Usage
+		usage := settled
 		_, err := appendE(event.TypeActivityCompleted, &event.ActivityCompleted{
 			ActivityID: act.ActivityID, Result: payload,
 			IsError: reason == "error" || reason == "contract_violation",
@@ -148,19 +153,28 @@ func (l *Loop) settleCrashedSpawn(appendE AppendFunc, act event.ActivityStarted)
 
 	// The child died with the process: settle as a crash cancellation with
 	// the child's real settled spend (tree budget stays honest, S5).
-	spent := cf.Session.Usage
 	if _, err := appendE(event.TypeSubagentCompleted, &event.SubagentCompleted{
 		CallID: callID, Agent: agentName, ChildSession: childSession,
-		Reason: "crash", GenSteps: cf.Session.GenStep, Usage: spent,
+		Reason: "crash", GenSteps: cf.Session.GenStep, Usage: settled,
 	}); err != nil {
 		return err
 	}
 	_, err := appendE(event.TypeActivityCancelled, &event.ActivityCancelled{
 		ActivityID:    act.ActivityID,
 		PartialOutput: "[interrupted by crash] the sub-agent died with the runtime; its journal holds the partial work",
-		Usage:         &spent,
+		Usage:         &settled,
 	})
 	return err
+}
+
+// reviveBaselineOf extracts the revive baseline from a synthetic revive
+// activity's args; zero for an ordinary spawn (delta = total).
+func reviveBaselineOf(raw json.RawMessage) provider.Usage {
+	var meta struct {
+		Baseline provider.Usage `json:"baseline"`
+	}
+	_ = json.Unmarshal(raw, &meta)
+	return meta.Baseline
 }
 
 // spawnAgentNameOf recovers the target agent name from the journaled

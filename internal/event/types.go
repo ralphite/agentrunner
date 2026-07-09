@@ -42,6 +42,7 @@ const (
 	TypeToolsDiscovered   = "tools_discovered"
 	TypeSpawnRequested    = "spawn_requested"
 	TypeSubagentCompleted = "subagent_completed"
+	TypeChildRevived      = "child_revived"
 	TypeArtifactPublished = "artifact_published"
 
 	// S6 additions (IterationDriver, DESIGN §运行形态). These belong to the
@@ -567,6 +568,25 @@ type SubagentCompleted struct {
 	Usage        provider.Usage `json:"usage"`
 }
 
+// ChildRevived re-hosts a quiescent child that received tree mail (INC-12,
+// DESIGN §3 静止子唤醒): the parent journals it before resuming the child in
+// place — same child journal, same context, original handle. The fold
+// re-enters the handle into the in-flight set through a SYNTHETIC background
+// activity (ActivityID here) WITHOUT re-pairing the original call; the
+// child's next quiescence settles through the ordinary background path
+// (second SubagentCompleted + the activity terminal rendering the report).
+// BaselineUsage is the child's settled spend at revive time — terminals
+// report the delta so the parent's account never double-counts.
+type ChildRevived struct {
+	CallID        string         `json:"call_id"`
+	ActivityID    string         `json:"activity_id"`
+	Agent         string         `json:"agent"`
+	ChildSession  string         `json:"child_session"`
+	Reason        string         `json:"reason"` // message
+	BudgetTokens  int            `json:"budget_tokens,omitempty"`
+	BaselineUsage provider.Usage `json:"baseline_usage"`
+}
+
 // ArtifactPublished records one durable deliverable version (S5.5). The
 // blob (and manifest) were fsynced BEFORE this event was appended — the ref
 // always resolves; a crash in between leaves an orphan blob, never a
@@ -773,6 +793,7 @@ var Registry = map[string]func() any{
 	TypeToolsDiscovered:     func() any { return &ToolsDiscovered{} },
 	TypeSpawnRequested:      func() any { return &SpawnRequested{} },
 	TypeSubagentCompleted:   func() any { return &SubagentCompleted{} },
+	TypeChildRevived:        func() any { return &ChildRevived{} },
 	TypeArtifactPublished:   func() any { return &ArtifactPublished{} },
 
 	TypeDriverStarted:      func() any { return &DriverStarted{} },

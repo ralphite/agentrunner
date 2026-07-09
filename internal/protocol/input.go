@@ -49,8 +49,10 @@ type UserInput struct {
 	// wire-compatible shorthands; when Content is non-empty it is authoritative.
 	Content []ContentPart `json:"content,omitempty"`
 	// Principal identifies who sent the command; Source names the transport or
-	// integration; Trust is the sender's trust classification. Empty legacy
-	// values are normalized at the daemon/agent boundary, never discarded.
+	// integration ("" / "user" for humans, "agent" for tree-internal messages
+	// — INC-12 send_message); Trust is the sender's trust classification.
+	// Empty legacy values are normalized at the daemon/agent boundary, never
+	// discarded.
 	Principal string `json:"principal,omitempty"`
 	Source    string `json:"source,omitempty"`
 	Trust     string `json:"trust,omitempty"`

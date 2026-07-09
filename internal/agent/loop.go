@@ -128,6 +128,16 @@ type Loop struct {
 	// only when it is present AND a snapshot succeeds — no ref, no barrier
 	// (backend=none degrades to zero barriers, nothing else changes).
 	Snapshots snapshot.Store
+	// Router is the tree message fabric (INC-12, DESIGN §3 树内消息):
+	// created at the root when the spec opens the multi-agent face,
+	// inherited by every child — like the Board. The durable truth is each
+	// member's inbox file; the router is process wiring.
+	Router *TreeRouter
+	// peer receives tree-internal message wakes for THIS member (INC-12);
+	// revive receives "your quiescent child has mail" requests (INC-12.2).
+	// Both are registered with the Router for the duration of the drive.
+	peer   chan protocol.UserInput
+	revive chan string
 	// bg is the background-task runtime (S6.1): cancel handles + the done
 	// channel. Ephemeral — the durable truth is the tasks sub-state.
 	bg *bgRuntime
@@ -800,6 +810,21 @@ func checkVersions(got map[string]int) error {
 
 // drive is the decision loop shared by Run and Resume.
 func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (RunResult, error) {
+	// Tree message fabric (INC-12): the root creates the router when its
+	// spec opens the multi-agent face; children inherit it via childLoop.
+	// Every driving member registers a live wake port (peer messages) and a
+	// revive post (quiescent-child mail), deregistering on the way out.
+	l.ensureRouter()
+	if l.Router != nil {
+		l.peer = make(chan protocol.UserInput, 64)
+		l.revive = make(chan string, 64)
+		l.Router.Register(l.SessionID, l.peer, l.revive)
+		defer l.Router.Deregister(l.SessionID)
+		// Restart continuation (INC-12.2): mail that reached a quiescent
+		// child while nobody could wake it is picked up here — the durable
+		// truth outlives every dropped wake signal.
+		l.scanPendingChildMail()
+	}
 	toolDefs, err := tool.ProviderDefs(l.Spec.Tools)
 	if err != nil {
 		return RunResult{}, err
@@ -831,6 +856,14 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 	}
 	if l.Board != nil || len(l.Spec.Agents) > 0 {
 		extra = append(extra, "publish_note", "read_notes")
+	}
+	// Tree messaging (INC-12): advertised to every member of a session tree
+	// (root with an open multi-agent face, and every child). An orphaned
+	// child resumed outside its tree has no router and loses the tool —
+	// documented degraded mode (§17); the lawful path re-hosts through the
+	// tree root.
+	if l.Router != nil {
+		extra = append(extra, "send_message")
 	}
 	// The in-session goal face (INC-10) rides along unconditionally: goal
 	// attach is a mid-drive control and the face — computed once here — must
@@ -920,6 +953,12 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 		// at a safe point; the cancelled child settles through bg.done as a
 		// canceled outcome on a subsequent iteration.
 		if err := l.drainCancels(ds, appendE); err != nil {
+			return RunResult{}, abort(ds.s.Session.GenStep, err)
+		}
+		// Quiescent-child revives (INC-12.2): tree mail for an idle team
+		// member re-hosts it here, at the safe point — the revived child
+		// settles through bg.done like any background spawn.
+		if err := l.drainRevives(ctx, ds, appendE); err != nil {
 			return RunResult{}, abort(ds.s.Session.GenStep, err)
 		}
 		// Manual compact/clear controls (G7) apply here, at the safe point:
@@ -1478,6 +1517,27 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 				return res.Payload, nil, res.IsError, nil
 			}
 		}
+		if p.call.Name == "send_message" {
+			// The child-session snapshot (handle → session resolution) is
+			// taken NOW on the drive goroutine: completed children from the
+			// fold's list, in-flight spawns reconstructed from their handles
+			// (background spawns live at attempt 1). The command id is minted
+			// once per call so a re-run of the closure delivers exactly once
+			// (durable-inbox idempotency).
+			call := p.call
+			res := p.res
+			children := append([]string(nil), ds.s.Session.ChildSessions...)
+			for h, started := range ds.s.Handles {
+				if started.Name == "spawn_agent" {
+					children = append(children, fmt.Sprintf("%s-sub-%s-a1", l.SessionID, h))
+				}
+			}
+			commandID := event.NewCommandID()
+			run = func(context.Context) (json.RawMessage, *provider.Usage, bool, error) {
+				*res = l.runSendMessage(children, commandID, call.Args)
+				return res.Payload, nil, res.IsError, nil
+			}
+		}
 		if isHandleTool(p.call.Name) {
 			// Task tools read the fold snapshot taken NOW, on the drive
 			// goroutine — the closure runs on an activity goroutine while
@@ -1892,6 +1952,16 @@ func (l *Loop) ensureBoard() {
 	if l.Board == nil && len(l.Spec.Agents) > 0 {
 		l.Board = blackboard.New()
 		l.Board.Mirror = l.BoardMirror
+	}
+}
+
+// ensureRouter creates the tree message fabric at the ROOT (INC-12) when
+// the spec opens the multi-agent face; children inherit the parent's router
+// through childLoop and never create their own.
+func (l *Loop) ensureRouter() {
+	if l.Router == nil && l.Depth == 0 && l.Store != nil &&
+		(len(l.Spec.Agents) > 0 || l.Spec.AgentsDynamic) {
+		l.Router = NewTreeRouter(l.SessionID, l.Store.Dir())
 	}
 }
 
