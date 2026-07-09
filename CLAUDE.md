@@ -17,6 +17,19 @@
   也在推 main）。
 - `.env` 已 gitignore（存本地凭据如 `GEMINI_API_KEY`），永不提交。
 
+## QA / 测试数据规则（硬性）
+
+- **一律用共享数据目录测试。** 默认走全局 daemon 与 store
+  （`~/.local/share/agentrunner/`），**不**起 `HOME`/`XDG_DATA_HOME`
+  隔离沙箱——除非用户明确要求隔离。这样测试产生的会话能在用户日常
+  用的 CLI（`ar sessions`）与 webui 里直接看到、复现、追问。
+- **测试数据一律保留，供事后核查。** 测完**不** close、不删除会话，
+  不清理 workspace / journal / daemon store。需要清理时先问用户。
+  `ar events` 导出与 workspace diff 归档到 `qa/runs/<日期>-<QA号>/`。
+- 例外仅限**破坏性**测试（如 `kill -9` daemon）会波及用户在跑的真实
+  会话时：先告知用户、征得同意，或在用户确认的时间窗内做——不擅自
+  为"图省事"而隔离。
+
 ## 文档体系（全部住在 `docs/`，流程与冲突裁决见 `docs/PROCESS.md`）
 
 三层产品定义 + 三份支撑件，共 7 份活文档：
