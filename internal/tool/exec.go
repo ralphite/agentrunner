@@ -6,9 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -120,9 +124,223 @@ func (e *Executor) Execute(ctx context.Context, name string, args json.RawMessag
 		return e.finishSeries(args)
 	case "semantic_search":
 		return e.semanticSearch(args)
+	case "grep":
+		return e.grep(args)
+	case "glob":
+		return e.glob(args)
 	default:
 		return errResult("unknown tool %q", name)
 	}
+}
+
+// grep/glob limits (INC-3). Both are read-class content-surfacing tools:
+// they walk the workspace with the SAME credential/vendored-tree exclusion
+// as semantic_search (index.SkipDir/SkipFile) so no credential line ever
+// lands in the journal, and they cap output like every other tool.
+const (
+	grepMaxMatches   = 200
+	grepMaxLineBytes = 2000    // clamp a single matched line
+	grepScanFileCap  = 1 << 20 // bytes scanned per file (skip the tail of huge files)
+	globMaxResults   = 1000
+)
+
+// resolveSearchRoot bounds an optional workspace-relative sub-path to the
+// workspace, falling back to the root. WS.Resolve enforces the boundary.
+func (e *Executor) resolveSearchRoot(rel string) (string, error) {
+	if strings.TrimSpace(rel) == "" {
+		return e.WS.Root(), nil
+	}
+	return e.WS.Resolve(rel)
+}
+
+// readForScan reads up to grepScanFileCap bytes, refusing binary files (a
+// NUL byte is the cheap, standard heuristic) so grep never dumps a blob.
+func readForScan(path string) (string, bool) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", false
+	}
+	defer func() { _ = f.Close() }()
+	raw, err := io.ReadAll(io.LimitReader(f, grepScanFileCap))
+	if err != nil || bytes.IndexByte(raw, 0) >= 0 {
+		return "", false
+	}
+	return string(raw), true
+}
+
+type grepMatch struct {
+	Path string `json:"path"`
+	Line int    `json:"line"`
+	Text string `json:"text"`
+}
+
+// grep searches file contents by RE2 regex across the workspace, returning
+// matching lines (path + 1-based line + redacted text). Credential files and
+// vendored trees are excluded at the walk; a bad regex is a model-visible
+// error, not a harness failure.
+func (e *Executor) grep(rawArgs json.RawMessage) Result {
+	var in struct {
+		Pattern    string `json:"pattern"`
+		Path       string `json:"path"`
+		MaxResults int    `json:"max_results"`
+	}
+	if err := json.Unmarshal(rawArgs, &in); err != nil || strings.TrimSpace(in.Pattern) == "" {
+		return errResult("grep: invalid args: need {\"pattern\": string}")
+	}
+	if e.WS == nil {
+		return errResult("grep: no workspace")
+	}
+	re, err := regexp.Compile(in.Pattern)
+	if err != nil {
+		return errResult("grep: bad pattern: %v", err)
+	}
+	root, err := e.resolveSearchRoot(in.Path)
+	if err != nil {
+		return errResult("grep: %v", err)
+	}
+	limit := in.MaxResults
+	if limit <= 0 || limit > grepMaxMatches {
+		limit = grepMaxMatches
+	}
+	r := redact.FromEnv()
+	matches := []grepMatch{}
+	filesScanned := 0
+	truncated := false
+	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil // unreadable subtree: search what we can
+		}
+		name := d.Name()
+		if d.IsDir() {
+			if path != root && index.SkipDir(name) {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if !d.Type().IsRegular() || index.SkipFile(name) {
+			return nil
+		}
+		if len(matches) >= limit {
+			truncated = true
+			return fs.SkipAll
+		}
+		content, ok := readForScan(path)
+		if !ok {
+			return nil
+		}
+		filesScanned++
+		rel, _ := filepath.Rel(e.WS.Root(), path)
+		for i, line := range strings.Split(content, "\n") {
+			if !re.MatchString(line) {
+				continue
+			}
+			if len(matches) >= limit {
+				truncated = true
+				return fs.SkipAll
+			}
+			if len(line) > grepMaxLineBytes {
+				line = trimToValidUTF8(line[:grepMaxLineBytes]) + " …[line truncated]"
+			}
+			matches = append(matches, grepMatch{Path: rel, Line: i + 1, Text: r.String(line)})
+		}
+		return nil
+	})
+	if walkErr != nil {
+		return errResult("grep: %v", walkErr)
+	}
+	return okResult(map[string]any{"matches": matches, "files_scanned": filesScanned, "truncated": truncated})
+}
+
+// glob lists workspace files whose path matches a glob pattern (with `**`
+// depth support). Patterns match relative to the search root; results are
+// workspace-relative (usable directly by read_file) and sorted. Excludes
+// credential files and vendored trees.
+func (e *Executor) glob(rawArgs json.RawMessage) Result {
+	var in struct {
+		Pattern string `json:"pattern"`
+		Path    string `json:"path"`
+	}
+	if err := json.Unmarshal(rawArgs, &in); err != nil || strings.TrimSpace(in.Pattern) == "" {
+		return errResult("glob: invalid args: need {\"pattern\": string}")
+	}
+	if e.WS == nil {
+		return errResult("glob: no workspace")
+	}
+	re, err := globToRegexp(in.Pattern)
+	if err != nil {
+		return errResult("glob: bad pattern: %v", err)
+	}
+	root, err := e.resolveSearchRoot(in.Path)
+	if err != nil {
+		return errResult("glob: %v", err)
+	}
+	paths := []string{}
+	truncated := false
+	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		name := d.Name()
+		if d.IsDir() {
+			if path != root && index.SkipDir(name) {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if !d.Type().IsRegular() || index.SkipFile(name) {
+			return nil
+		}
+		relToRoot, err := filepath.Rel(root, path)
+		if err != nil || !re.MatchString(relToRoot) {
+			return nil
+		}
+		if len(paths) >= globMaxResults {
+			truncated = true
+			return fs.SkipAll
+		}
+		relToWS, _ := filepath.Rel(e.WS.Root(), path)
+		paths = append(paths, relToWS)
+		return nil
+	})
+	if walkErr != nil {
+		return errResult("glob: %v", walkErr)
+	}
+	sort.Strings(paths)
+	return okResult(map[string]any{"paths": paths, "truncated": truncated})
+}
+
+// globToRegexp translates a shell-style glob into an anchored RE2 pattern.
+// `**` matches across separators (with `**/` also matching zero segments),
+// `*` and `?` stay within one segment. Regex metacharacters are escaped.
+func globToRegexp(pat string) (*regexp.Regexp, error) {
+	var b strings.Builder
+	b.WriteString("^")
+	for i := 0; i < len(pat); i++ {
+		c := pat[i]
+		switch c {
+		case '*':
+			if i+1 < len(pat) && pat[i+1] == '*' {
+				i++ // consume second '*'
+				if i+1 < len(pat) && pat[i+1] == '/' {
+					i++ // consume the slash: `**/` may match zero segments
+					b.WriteString("(?:.*/)?")
+				} else {
+					b.WriteString(".*")
+				}
+			} else {
+				b.WriteString("[^/]*")
+			}
+		case '?':
+			b.WriteString("[^/]")
+		case '.', '+', '(', ')', '|', '^', '$', '{', '}', '\\', '[', ']':
+			b.WriteByte('\\')
+			b.WriteByte(c)
+		default:
+			b.WriteByte(c)
+		}
+	}
+	b.WriteString("$")
+	return regexp.Compile(b.String())
 }
 
 // semanticSearch queries the workspace's IndexStore (S7 模块 4). The

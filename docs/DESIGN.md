@@ -447,8 +447,10 @@ effect
   的引用 + 收窄。
 - 内置 tool 套件（file read/write/edit、bash、glob/grep、web
   fetch/search）建立在 workspace 抽象上：工作目录、路径边界、bash 沙箱
-  等级。worktree 级隔离支持多 agent 并行改文件。（glob/grep/web 尚未
-  一等化，见 GAPS G18。）
+  等级。worktree 级隔离支持多 agent 并行改文件。（`grep`/`glob` 已一等化，
+  INC-3；`web fetch/search` 尚未，见 GAPS G18。）grep/glob 是 read-class
+  内容工具，与 `semantic_search` 共用凭据/vendored-tree 排除谓词
+  （`index.SkipDir/SkipFile`），命中行过 redaction、按 per-tool 上限截断。
 
 ---
 

@@ -57,6 +57,17 @@ func skipFile(name string) bool {
 	return false
 }
 
+// SkipFile reports whether a file name is credential-shaped and must never
+// have its content surface in a journaled tool result. Exported so the grep
+// tool stays in GENUINE lockstep with semantic_search (both land verbatim
+// content in the journal) rather than copy-pasting the exclusion set.
+func SkipFile(name string) bool { return skipFile(name) }
+
+// SkipDir reports whether a directory should be excluded from a
+// content-surfacing walk: derived/vendored trees and dotdirs (which harbor
+// credential stores like .ssh/.aws). Shared with the grep/glob tools.
+func SkipDir(name string) bool { return skipDirs[name] || strings.HasPrefix(name, ".") }
+
 // Hit is one search result. Line is the 1-based first line of the chunk.
 type Hit struct {
 	Path    string  `json:"path"`
@@ -175,12 +186,12 @@ func (ix *Indexer) refresh() error {
 		}
 		name := d.Name()
 		if d.IsDir() {
-			if path != ix.root && (skipDirs[name] || strings.HasPrefix(name, ".")) {
+			if path != ix.root && SkipDir(name) {
 				return fs.SkipDir
 			}
 			return nil
 		}
-		if !d.Type().IsRegular() || skipFile(name) {
+		if !d.Type().IsRegular() || SkipFile(name) {
 			return nil
 		}
 		info, err := d.Info()

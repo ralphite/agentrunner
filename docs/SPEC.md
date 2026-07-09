@@ -67,8 +67,8 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | publish_artifact（`outputs:` contract、审批载荷） | ✅ | UJ-06 | S5 |
 | exit_plan_mode（plan mode 跃迁） | ✅ | UJ-06/11 | S2/S3 |
 | schedule_next / finish_series（loop 自定步调） | ✅ | UJ-14 | S6 |
-| grep / glob 独立工具 | ❌ | UJ-01 | GAPS G18（现借 bash） |
-| web fetch / search | ❌ | UJ-01 | GAPS G18（未 spec，牵动 network 与注入面） |
+| grep / glob 独立工具 | ✅ | UJ-01 | INC-3 · TestGrep*/TestGlob* · QA-11（真实 API：模型自发调用 grep+glob，凭据红线守住） |
+| web fetch / search | ❌ | UJ-01 | GAPS G18 余项（未 spec，牵动 network 与注入面） |
 | ask_user（wait-class 提问）/ finish | 🧊 | UJ-06 | 记档不预做（DESIGN §17；GAPS G20） |
 | tool 输出截断（per-tool 上限） | ✅ | 不变量 | S3 |
 
@@ -173,5 +173,5 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 **内置 tool 定义**（`internal/tool/defs/*.json`）：
 `read_file` `write_file` `edit_file` `bash` `output` `kill`
 `spawn_agent` `handoff_agent` `publish_artifact` `publish_note`
-`read_notes` `semantic_search` `exit_plan_mode` `schedule_next`
-`finish_series`
+`read_notes` `semantic_search` `grep`（INC-3）`glob`（INC-3）
+`exit_plan_mode` `schedule_next` `finish_series`

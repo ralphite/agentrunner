@@ -26,7 +26,7 @@ system_prompt: >
 # system_prompt_file: prompt.md   # or load the prompt from a file (not both)
 
 # Tools the agent may use; omit for a chat-only agent.
-tools: [read_file, write_file, edit_file, bash]
+tools: [read_file, write_file, edit_file, bash, grep, glob, semantic_search]
 
 # --- optional ---------------------------------------------------------
 # mode: plan                # default | plan | acceptEdits

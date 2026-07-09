@@ -255,6 +255,22 @@ SUMMARY.md 存在且内容与会话结论一致。
 
 ---
 
+## QA-11 grep / glob 独立工具（INC-3,UJ-01） `覆盖 G18 grep/glob 关闭`
+**环境**：多文件 workspace(符号散落于子目录 + vendored 树 + 一个
+凭据文件 .env);spec `tools: [read_file, grep, glob, bash]`。
+脚本:`qa/run-qa11.sh`。
+
+| # | 动作 | 验证 |
+|---|---|---|
+| 1 | `ar new "用 grep 找出引用 RefreshSentinel 的位置"` | journal 出现 `activity_started{name:grep}` + `activity_completed`(结果回模型) |
+| 2 | `ar send $sid "用 glob 列出 internal 下所有 .go"` | journal 出现 `name:glob` 调用 |
+| — | 凭据红线 | `.env` 里的 secret 值**从不**出现在 journal 任何处(grep 在 walk 层排除凭据文件) |
+
+**通过标准**:runtime 红线只钉 grep/glob 被真实调用 + 结果落盘 +
+凭据值零泄漏;不钉模型措辞。
+
+---
+
 ## 覆盖矩阵
 
 | 核心场景 | QA 流 |
