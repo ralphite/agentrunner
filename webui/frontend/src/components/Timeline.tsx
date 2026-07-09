@@ -21,47 +21,69 @@ function AssistantText({ text }: { text: string }) {
   );
 }
 
+// toolLabel turns a raw tool call into a Codex-style step line:
+// "$ ls -la", "读取 notes.txt", "编辑 main.go".
+function toolLabel(name: string, args: any): { verb: string; body: string; mono: boolean } {
+  let a: any = args;
+  if (typeof args === "string") {
+    try {
+      a = JSON.parse(args);
+    } catch {
+      a = {};
+    }
+  }
+  a = a || {};
+  switch (name) {
+    case "bash":
+      return { verb: "$", body: a.command || "", mono: true };
+    case "read_file":
+      return { verb: "读取", body: a.path || a.file || "", mono: true };
+    case "write_file":
+      return { verb: "写入", body: a.path || a.file || "", mono: true };
+    case "edit_file":
+      return { verb: "编辑", body: a.path || a.file || "", mono: true };
+    case "spawn_agent":
+      return { verb: "启动子 agent", body: a.agent || a.task || "", mono: false };
+    case "task_kill":
+      return { verb: "停止任务", body: a.handle || "", mono: true };
+    default:
+      return { verb: name, body: a.command || a.path || "", mono: true };
+  }
+}
+
+function StepIcon({ status }: { status: ToolItem["status"] }) {
+  if (status === "running") return <span className="step-ic spin" />;
+  if (status === "done") return <span className="step-ic ok">✓</span>;
+  if (status === "cancelled") return <span className="step-ic warn">◦</span>;
+  return <span className="step-ic err">✕</span>;
+}
+
 function ToolCard({ t }: { t: ToolItem }) {
-  const badgeCls =
-    t.status === "done"
-      ? "ok"
-      : t.status === "error" || t.status === "failed"
-        ? "err"
-        : t.status === "running"
-          ? "run"
-          : "";
+  const { verb, body, mono } = toolLabel(t.name, t.args);
+  const hasDetail =
+    t.result !== undefined || t.errorMsg || t.partial || (!body && t.args !== undefined);
   return (
-    <div className={"tool " + (t.status === "error" || t.status === "failed" ? "error" : t.status === "cancelled" ? "cancelled" : "")}>
-      <div className="head">
-        <span className="name">🔧 {t.name}</span>
-        {t.background && <span className="badge">task</span>}
-        <span className={"badge " + badgeCls}>{t.statusText}</span>
+    <details className={"step" + (t.status === "error" || t.status === "failed" ? " error" : "")}>
+      <summary>
+        <StepIcon status={t.status} />
+        <span className="step-verb">{verb}</span>
+        <span className={"step-body" + (mono ? " mono" : "")}>{body}</span>
+        {t.background && <span className="step-tag">后台</span>}
         {t.usage && (
-          <span className="badge" title="tokens">
-            {t.usage.input_tokens}/{t.usage.output_tokens} tok
+          <span className="step-tok" title="tokens">
+            {t.usage.input_tokens + t.usage.output_tokens} tok
           </span>
         )}
-      </div>
-      {t.args !== undefined && t.args !== null && (
-        <details>
-          <summary>参数</summary>
-          <pre>{pretty(t.args)}</pre>
-        </details>
+      </summary>
+      {hasDetail && (
+        <div className="step-detail">
+          {!body && t.args !== undefined && <pre>{pretty(t.args)}</pre>}
+          {t.result !== undefined && <pre>{pretty(t.result).slice(0, 20000)}</pre>}
+          {t.errorMsg && <pre className="err">{t.errorMsg}</pre>}
+          {t.partial && <pre>{t.partial}</pre>}
+        </div>
       )}
-      {t.result !== undefined && (
-        <details>
-          <summary>结果</summary>
-          <pre>{pretty(t.result).slice(0, 20000)}</pre>
-        </details>
-      )}
-      {t.errorMsg && <pre>{t.errorMsg}</pre>}
-      {t.partial && (
-        <details>
-          <summary>部分输出</summary>
-          <pre>{t.partial}</pre>
-        </details>
-      )}
-    </div>
+    </details>
   );
 }
 
@@ -124,7 +146,9 @@ export function TimelineView({
   typing: string;
   showSys: boolean;
 }) {
-  const visible = showSys ? items : items.filter((it) => it.kind !== "sys");
+  // Codex shows a continuous activity feed — no "turn N" dividers, no raw
+  // system events. Those stay behind the developer toggle.
+  const visible = showSys ? items : items.filter((it) => it.kind !== "sys" && it.kind !== "turn");
   const ref = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
 

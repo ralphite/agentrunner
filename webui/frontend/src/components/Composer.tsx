@@ -61,7 +61,7 @@ export function Composer({
           <textarea
             ref={taRef}
             value={text}
-            placeholder="给 agent 发消息…(Enter 发送，Shift+Enter 换行)"
+            placeholder="继续这个任务，或追问…(Enter 发送)"
             onChange={(e) => {
               setText(e.target.value);
               const el = e.target;

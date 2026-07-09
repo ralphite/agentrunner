@@ -7,6 +7,25 @@ import { TimelineView } from "./Timeline";
 import { ApprovalCard } from "./ApprovalCard";
 import { Composer } from "./Composer";
 import { DiffView } from "./DiffView";
+import { Menu, MenuItem, MenuLabel } from "./Menu";
+
+// Codex-language status: plain, user-facing, not CLI jargon.
+function statusLabel(cls: string, fallback: string): string {
+  switch (cls) {
+    case "run":
+      return "运行中…";
+    case "idle":
+      return "等待你";
+    case "appr":
+      return "需要你批准";
+    case "closed":
+      return "已完成";
+    case "crash":
+      return "已中断";
+    default:
+      return fallback;
+  }
+}
 
 interface SSEApproval {
   id: string;
@@ -16,8 +35,9 @@ interface SSEApproval {
 }
 
 export function SessionView({ sid }: { sid: string }) {
-  const { select, openModal, toast, refreshSessions, showSys, toggleSys } = useStore();
+  const { select, openModal, toast, refreshSessions, showSys, toggleSys, sessions } = useStore();
   const isSub = sid.includes("-sub-");
+  const title = sessions.find((s) => s.id === sid)?.title || sid;
 
   const [events, setEvents] = useState<Envelope[]>([]);
   const [pending, setPending] = useState<{ id: number; text: string; images: number }[]>([]);
@@ -194,57 +214,68 @@ export function SessionView({ sid }: { sid: string }) {
     },
   };
 
+  const running = status.cls === "run" || status.cls === "appr";
+
   return (
     <>
-      <div className="topbar">
-        {isSub && (
-          <a onClick={() => select(sid.slice(0, sid.lastIndexOf("-sub-")))}>← 父会话</a>
-        )}
-        <span className="sid">{sid}</span>
-        <span className={"pill " + status.cls}>{status.text}</span>
-        {isSub && <span className="readonly-tag">只读子会话</span>}
-        <div className="seg" style={{ marginLeft: 8 }}>
+      <div className="task-topbar">
+        <div className="tt-left">
+          {isSub && (
+            <a className="tt-back" onClick={() => select(sid.slice(0, sid.lastIndexOf("-sub-")))}>
+              ←
+            </a>
+          )}
+          <div className="tt-title" title={sid}>
+            {title}
+          </div>
+          <span className={"status-chip " + status.cls}>
+            {running && <span className="spin" />}
+            {statusLabel(status.cls, status.text)}
+          </span>
+          {isSub && <span className="readonly-tag">只读子任务</span>}
+        </div>
+
+        <div className="seg tabs">
           <button className={view === "chat" ? "on" : ""} onClick={() => setView("chat")}>
-            对话
+            活动
           </button>
           <button className={view === "diff" ? "on" : ""} onClick={() => setView("diff")}>
             改动
           </button>
         </div>
+
         <span className="spacer" />
-        <label className="dim" style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 4 }}>
-          <input type="checkbox" checked={showSys} onChange={toggleSys} /> 系统事件
-        </label>
-        <div className="actions">
-          <button className="sm" onClick={() => act.view("原始 journal", () => AR.rawEvents(sid))}>
-            journal
+
+        {!isSub && running && (
+          <button className="stop-btn" onClick={act.interrupt}>
+            ■ 停止
           </button>
-          <button className="sm" onClick={() => act.view("折叠状态", () => AR.state(sid))}>
-            state
-          </button>
-          <button className="sm" onClick={() => act.view("inspect 树", () => AR.inspect(sid))}>
-            inspect
-          </button>
+        )}
+
+        <Menu label="⋯">
+          <MenuLabel>查看</MenuLabel>
+          <MenuItem onClick={() => act.view("原始 journal", () => AR.rawEvents(sid))}>
+            原始 journal
+          </MenuItem>
+          <MenuItem onClick={() => act.view("折叠状态", () => AR.state(sid))}>折叠状态</MenuItem>
+          <MenuItem onClick={() => act.view("inspect 树", () => AR.inspect(sid))}>
+            inspect 树
+          </MenuItem>
+          <MenuItem onClick={toggleSys}>
+            {showSys ? "✓ " : ""}显示系统事件
+          </MenuItem>
           {!isSub && (
             <>
-              <button className="sm" onClick={() => openModal({ kind: "fork", sid })}>
-                fork
-              </button>
-              <button className="sm" onClick={() => openModal({ kind: "agent", sid })}>
-                换 agent
-              </button>
-              <button className="sm" onClick={act.resume}>
-                resume
-              </button>
-              <button className="sm danger" onClick={act.interrupt}>
-                interrupt
-              </button>
-              <button className="sm danger" onClick={act.close}>
-                {closeArmed ? "确认关闭?" : "关闭"}
-              </button>
+              <MenuLabel>高级</MenuLabel>
+              <MenuItem onClick={() => openModal({ kind: "fork", sid })}>从 barrier fork…</MenuItem>
+              <MenuItem onClick={() => openModal({ kind: "agent", sid })}>切换 agent…</MenuItem>
+              <MenuItem onClick={act.resume}>resume(崩溃/中断后恢复)</MenuItem>
+              <MenuItem danger onClick={act.close}>
+                {closeArmed ? "确认关闭任务?" : "关闭任务"}
+              </MenuItem>
             </>
           )}
-        </div>
+        </Menu>
       </div>
 
       {view === "diff" ? (
@@ -255,6 +286,7 @@ export function SessionView({ sid }: { sid: string }) {
 
       {view === "chat" && openApprovals.length > 0 && (
         <div className="approvals">
+          <div className="approvals-title">Codex 需要你的批准</div>
           {openApprovals.map((a) => (
             <ApprovalCard
               key={a.id}
@@ -267,17 +299,17 @@ export function SessionView({ sid }: { sid: string }) {
         </div>
       )}
 
-      {tasks.length > 0 && (
+      {view === "chat" && tasks.length > 0 && (
         <div className="workpanel">
-          <h4>在飞后台任务 · {tasks.length}</h4>
+          <h4>正在后台运行 · {tasks.length}</h4>
           {tasks.map((t) => (
             <div className="task-row" key={t.handle}>
               <span className="grow">
-                {t.handle} · {t.tool} · {t.detail}
+                {t.tool} · {t.detail || t.handle}
               </span>
               {!isSub && (
                 <button className="sm danger" onClick={() => act.kill(t.handle)}>
-                  kill
+                  停止
                 </button>
               )}
             </div>
@@ -286,7 +318,7 @@ export function SessionView({ sid }: { sid: string }) {
       )}
 
       {view === "chat" && !isSub && (
-        <Composer statusText={status.text} onSend={doSend} onError={(m) => toast(m)} />
+        <Composer statusText={statusLabel(status.cls, status.text)} onSend={doSend} onError={(m) => toast(m)} />
       )}
     </>
   );
