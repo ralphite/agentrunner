@@ -2356,3 +2356,26 @@ summary.fd-head:hover {
   background: var(--panel-2);
   color: var(--ink);
 }
+
+/* ---- right-click context menu on sidebar rows (Codex chat menu) ---- */
+.ctx-menu {
+  position: fixed;
+  z-index: 80;
+  min-width: 200px;
+  max-width: 240px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.22);
+  padding: 5px;
+}
+.ctx-menu .menu-label:first-child {
+  color: var(--ink-2);
+  font-weight: 500;
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

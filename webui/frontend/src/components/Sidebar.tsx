@@ -5,6 +5,9 @@ import { pillClass } from "./pill";
 import { bucketOf, relTime, sessionDate } from "../time";
 import { themeIcon } from "../theme";
 import { displayTitle } from "../title";
+import { ContextMenu } from "./ContextMenu";
+import { MenuItem, MenuLabel } from "./Menu";
+import { copyText } from "../clipboard";
 
 export function Sidebar() {
   const {
@@ -21,6 +24,7 @@ export function Sidebar() {
     archived,
     showArchived,
     toggleShowArchived,
+    toggleArchive,
     pinned,
     togglePin,
     renames,
@@ -29,6 +33,7 @@ export function Sidebar() {
   } = useStore();
   const [q, setQ] = useState("");
   const [searching, setSearching] = useState(false);
+  const [ctx, setCtx] = useState<{ x: number; y: number; sid: string } | null>(null);
   const archivedCount = useMemo(
     () => sessions.filter((s) => archived.includes(s.id)).length,
     [sessions, archived],
@@ -104,6 +109,10 @@ export function Sidebar() {
           (archived.includes(s.id) ? " archived" : "")
         }
         onClick={() => select(s.id)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setCtx({ x: e.clientX, y: e.clientY, sid: s.id });
+        }}
         title={s.id}
       >
         <span className={"nr-dot " + pillClass(s.status)} title={s.status} />
@@ -232,6 +241,22 @@ export function Sidebar() {
           {themeIcon(theme)}
         </button>
       </div>
+
+      {ctx && (
+        <ContextMenu x={ctx.x} y={ctx.y} onClose={() => setCtx(null)}>
+          <MenuLabel>{displayTitle(renames, ctx.sid, sessions.find((s) => s.id === ctx.sid)?.title)}</MenuLabel>
+          <MenuItem onClick={() => togglePin(ctx.sid)}>
+            {pinned.includes(ctx.sid) ? "Unpin from top" : "Pin to top"}
+          </MenuItem>
+          <MenuItem onClick={() => openModal({ kind: "rename", sid: ctx.sid })}>Rename…</MenuItem>
+          <MenuItem onClick={() => { toggleArchive(ctx.sid); toast(archived.includes(ctx.sid) ? "unarchived" : "archived", "info"); }}>
+            {archived.includes(ctx.sid) ? "Unarchive" : "Archive"}
+          </MenuItem>
+          <MenuLabel>Copy</MenuLabel>
+          <MenuItem onClick={() => { copyText(ctx.sid); toast("copied session id", "info"); }}>Copy session ID</MenuItem>
+          <MenuItem onClick={() => { copyText(location.origin + "/#" + ctx.sid); toast("copied link", "info"); }}>Copy link</MenuItem>
+        </ContextMenu>
+      )}
     </div>
   );
 }
