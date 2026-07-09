@@ -285,6 +285,26 @@ SUMMARY.md 存在且内容与会话结论一致。
 
 ---
 
+## QA-13 web_fetch + ask_user（INC-5,UJ-01/06） `覆盖 G18 web_fetch、G20 ask_user 关闭`
+**环境**：本地 `python3 -m http.server` 服务一含推荐正文（PostgreSQL）+
+`<script>` 噪音的页面;空 workspace;spec `tools: [web_fetch, ask_user,
+write_file]`（无 bash——逼模型真用 web_fetch,不借 curl）。
+脚本:`qa/run-qa13.sh`（需 python3 + `GEMINI_API_KEY`）。
+
+| # | 动作 | 验证 |
+|---|---|---|
+| 1 | `ar new "用 web_fetch 抓取 <url>…用 ask_user 问我…按回答 write_file"` | journal 出现 `name:web_fetch` 调用;页面正文 `PostgreSQL` 回模型;`<script>` 体（`MUST_NOT_SURFACE`）被 HTML→text 剥离、不入 journal |
+| 2 | 模型 park 提问 | `waiting_entered{input}` 且 detail 含 `question`（与普通 standby idle 区分） |
+| 3 | `ar send $sid "采用…"`（inbox 即应答,零新动词） | `ask_resolved{answered}` + `waiting_resolved{answered}` |
+| 4 | 应答后同 session 续跑 | `decision.txt` 被 write_file 落盘（答案驱动真实后续工作） |
+| — | 健康 | 无 `actor_crashed` |
+
+**通过标准**:runtime 红线钉 web_fetch 真调用 + 正文回灌 + script 剥离、
+ask_user park→inbox 应答→续跑落盘、零 crash;不钉模型措辞。
+**结果**:2026-07-09 真实 Gemini PASS（归档 `qa/runs/2026-07-09-QA-13/`）。
+
+---
+
 ## 覆盖矩阵
 
 | 核心场景 | QA 流 |
