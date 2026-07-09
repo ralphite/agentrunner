@@ -146,7 +146,7 @@ in-doubt 崩溃纪律（非幂等绝不静默重跑）、barrier/fork/rewind 带
 |---|---|---|---|
 | grep / glob 独立工具 | G18a | ✅ 已实现 | INC-3 · TestGrep*/TestGlob* · QA-11 |
 | 远程 stop | G12 | ✅ 已实现 | INC-4 · TestStop* · 真 daemon 手验 |
-| 自定义命令 / slash | G21 | ✅ 已实现 | INC-5 · TestExpand* · 真实 API |
+| 自定义命令 / slash | G21 | ✅ 已实现 | INC-8 · TestExpand* · 真实 API |
 | 手动 compact / clear | G7 | ✅ 已实现 | INC-6 · TestManualCompact/Clear · QA-12（真验捕获并修 idle-compact 空 summary bug） |
 | 会话内 goal | G23 | 📐 设计稿 | INC-D1（不变量变更流程，待裁决+review） |
 | 事件唤醒既有 session | G14 | 📐 设计稿 | INC-D2（invariant-adjacent，机器发送方信任条款） |
@@ -160,7 +160,7 @@ in-doubt 崩溃纪律（非幂等绝不静默重跑）、barrier/fork/rewind 带
 图例：✅ 已实现 · 📐 设计稿（docs/increments/INC-D*，待裁决/不变量 review）· 🧊 推迟。
 
 **本轮已实现（4 个引擎增量，双闸门全绿并推 main）**：grep/glob（INC-3）、
-远程 stop（INC-4）、自定义命令（INC-5）、手动 compact/clear（INC-6，真验
+远程 stop（INC-4）、自定义命令（INC-8）、手动 compact/clear（INC-6，真验
 捕获并修一个 idle-compact 空 summary bug）。**已起草设计稿（5 份，
 docs/increments/INC-D1–D5）**：会话内 goal、事件唤醒、web 工具、记忆写回、
 审批持久化——其中 D1/D3 触不变量须走 PROCESS §4，D2 引入 ingress 须安全

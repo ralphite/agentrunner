@@ -512,7 +512,7 @@ journal 零 session_closed、`ar send` 复活并跑新 turn(gen 到 2)——PASS
 **review 裁决**:小增量(S),inline 自审(teardown 语义/drive cancel/
 错误路径)。裁三视角 review。
 
-## 2026-07-09 INC-5 自定义命令 / slash 面(G21 关闭)
+## 2026-07-09 INC-8 自定义命令 / slash 面(G21 关闭)
 
 **动机**:Codex 对照——slash / prompt 宏是团队姿势沉淀。UJ-19「/deploy-check
 一键跑检查单」。G21 此前设计欠定(定义位/展开语义/与 skills 边界未定)。
@@ -689,3 +689,14 @@ JOURNEYS UJ-01 web_fetch 可选步。
 **review 裁决**:中增量,ask_user 触 loop 等待/fold(并发+恢复敏感),
 收口做一轮正确性/并发聚焦对抗 review(基准 = DESIGN §2/§5/§6 + 工作纸
 语义表),见下条。
+
+## 2026-07-09 让号(校正):自定义命令 INC-5→INC-8;QA-12 保留
+
+并行 web_fetch/ask_user 线的 LOG 已记:其 QA 号**让至 QA-13**(明言"QA-12
+被 INC-6 手动 compact 占"),即已尊重本会话的 QA-12(compact/clear)。故:
+- **QA-12 不动**(compact/clear 本会话所有,对方已让 QA-13)。
+- 自定义命令曾记 **INC-5**,与 web_fetch/ask_user 线的 INC-5.x 在 SPEC 上
+  重号 → **让至 INC-8**(SPEC/GAPS/CODEX-PARITY/LOG 引用 + 归档工作纸
+  INC-5-custom-commands.md→INC-8-custom-commands.md),消 SPEC 台账二义。
+- INC-6(compact/clear)、INC-3(grep-glob)、INC-4(remote-stop)不撞、不动。
+对方 LOG 中 `INC-5-custom-commands` 的历史指代按 append-only 纪律不追改。

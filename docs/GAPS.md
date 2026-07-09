@@ -46,7 +46,7 @@
 | UJ-16 三路并击 | 🟡 | 并行隔离+选优 ✅；胜者晋升 G15 |
 | UJ-17 远程驾驶舱 | 🟡 | attach/远程审批/用量 ✅；stop ✅（INC-4）；远程 steer G3 |
 | UJ-18 多 agent 编排 | ❌ | **G2 后台子 agent 未实现**（阻塞 spawn 无编排窗口）；steer G3、子进度 G10、图片 G1 |
-| UJ-19 生态接入 | ✅ | MCP/skills/写审批/断连恢复 ✅；自定义命令 ✅（INC-5） |
+| UJ-19 生态接入 | ✅ | MCP/skills/写审批/断连恢复 ✅；自定义命令 ✅（INC-8） |
 | UJ-20 不受信审计 | ✅ | 信任/沙箱/凭据红线/审计全通；注入威胁模型成文 G16 |
 | UJ-21 崩溃自愈与重启接续 | 🟡 | 恢复语义✅（resume/in-doubt/终态把关，QA-08）；**自动性缺**：boot sweep、子 crash 自动 resume（G22）（2026-07-05 新增行） |
 | UJ-22 会话内目标 | ❌ | **G23 形态不存在**——goal 只有 driver+fresh run 形态，context 不延续（原始需求丢失，2026-07-05 补登记） |
@@ -173,7 +173,7 @@ interrupt/crash-resume/headless 全覆盖(TestAskUser* 六态)。ask park
 不再落入 doWait 的 "no resolver" 兜底(该兜底仅留给真正未知的 wait
 kind)。→ UJ-06
 
-**G21 自定义命令 / slash 面 — ✅ 已关闭（INC-5，2026-07-09）**
+**G21 自定义命令 / slash 面 — ✅ 已关闭（INC-8，2026-07-09）**
 关闭位置：`internal/command` 包（mirror skill）+ DESIGN §10「自定义命令」
 子节。定义位 `<root>/.claude/commands/<name>.md`（Claude Code 约定）；
 展开语义 = **注入 prompt 文本**、在 **ingest 时**（落 journal 前）于两处

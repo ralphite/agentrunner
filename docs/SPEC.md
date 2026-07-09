@@ -133,7 +133,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | skills（Claude Code 约定） | ✅ | UJ-19 | S5 |
 | memory 文件读侧注入（CLAUDE.md 层级合并） | ✅ | UJ-09 | S3 |
 | 记忆写回（# remember → CLAUDE.md） | ❌ | UJ-09 | GAPS G9 |
-| 自定义命令 / slash 面 | ✅ | UJ-19 | INC-5 · TestExpand*/TestDiscover · 真实 API（`.claude/commands/*.md` 的 `/name` 在 new+send 两路展开进 journal） |
+| 自定义命令 / slash 面 | ✅ | UJ-19 | INC-8 · TestExpand*/TestDiscover · 真实 API（`.claude/commands/*.md` 的 `/name` 在 new+send 两路展开进 journal） |
 
 ## I · 观察与远程面
 

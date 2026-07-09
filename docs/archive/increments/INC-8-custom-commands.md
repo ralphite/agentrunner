@@ -1,4 +1,4 @@
-# INC-5 自定义命令 / slash 面（G21）
+# INC-8 自定义命令 / slash 面（G21）
 
 ## 动机与 journey 锚
 GAPS G21（设计欠定）；UJ-19 步骤2「自定义命令 `/deploy-check` 一键跑检查单」。
