@@ -650,6 +650,9 @@ func Apply(s State, env event.Envelope) (State, error) {
 		// Surface signal + audit only: no fold state to undo (the discarded
 		// turn never produced a durable assistant_message).
 
+	case *event.CommandHandled:
+		// Durable command receipt only; the domain event carries state.
+
 	case *event.ActorCrashed:
 		s.Session.LastCrash = p.Actor + ": " + p.Error
 

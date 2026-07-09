@@ -175,7 +175,7 @@ func sendCmd(args []string, stdout, stderr io.Writer) int {
 		return ExitUsage
 	}
 	cmd := daemon.Command{Cmd: "send", Session: resolvePrefixLenient(rest[0]),
-		Text: rest[1], Images: images, Files: files}
+		Text: rest[1], Images: images, Files: files, CommandID: event.NewCommandID()}
 	if *detach {
 		return oneShot(stderr, cmd, stdout)
 	}
@@ -429,6 +429,9 @@ func resolvePrefixLenient(prefix string) string {
 
 // oneShot sends a request/reply command and prints the daemon's single reply.
 func oneShot(stderr io.Writer, cmd daemon.Command, stdout io.Writer) int {
+	if cmd.Session != "" && cmd.CommandID == "" {
+		cmd.CommandID = event.NewCommandID()
+	}
 	sock, err := socketPath()
 	if err != nil {
 		fmt.Fprintln(stderr, err)

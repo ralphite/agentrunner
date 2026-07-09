@@ -129,12 +129,13 @@ func TestSpawnEndToEnd(t *testing.T) {
 	}
 
 	// Directory frozen into the prefix; spawn_agent advertised.
-	sys := cap.requests[0].System
+	requests := cap.Requests()
+	sys := requests[0].System
 	if !strings.Contains(sys, "<agents>") || !strings.Contains(sys, "summarizer: condenses findings") {
 		t.Errorf("agents directory missing from prefix:\n%s", sys)
 	}
 	var toolNames []string
-	for _, td := range cap.requests[0].Tools {
+	for _, td := range requests[0].Tools {
 		toolNames = append(toolNames, td.Name)
 	}
 	if !strings.Contains(strings.Join(toolNames, ","), "spawn_agent") {
@@ -593,7 +594,8 @@ func TestSpawnWhitelist(t *testing.T) {
 	if _, err := l2.Run(context.Background(), "hi"); err != nil {
 		t.Fatal(err)
 	}
-	for _, td := range cap2.requests[0].Tools {
+	requests := cap2.Requests()
+	for _, td := range requests[0].Tools {
 		if td.Name == "spawn_agent" {
 			t.Error("spawn_agent advertised without a whitelist")
 		}

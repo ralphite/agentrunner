@@ -164,8 +164,8 @@ func (l *Loop) settleBackground(appendE AppendFunc, out bgOutcome) error {
 // drainCancels non-blockingly fires the cancel for every handle requested on
 // the Cancels channel (v2 M3.2). An unknown handle is a no-op (the task may
 // have already settled). The cancelled child/task settles through bg.done.
-func (l *Loop) drainCancels(appendE AppendFunc) error {
-	if l.Cancels == nil {
+func (l *Loop) drainCancels(ds *driveState, appendE AppendFunc) error {
+	if l.Cancels == nil && l.CommandCancels == nil {
 		return nil
 	}
 	for {
@@ -174,10 +174,32 @@ func (l *Loop) drainCancels(appendE AppendFunc) error {
 			if err := l.cancelHandle(appendE, handle); err != nil {
 				return err
 			}
+		case cmd := <-l.CommandCancels:
+			if err := l.cancelDurableHandle(ds, appendE, cmd); err != nil {
+				return err
+			}
 		default:
 			return nil
 		}
 	}
+}
+
+func (l *Loop) cancelDurableHandle(ds *driveState, appendE AppendFunc, cmd protocol.CancelCommand) error {
+	// Journal the audit intent first, then fire the ephemeral cancel, and
+	// only then record completion. A crash on either side replays the command;
+	// cancellation is idempotent and an accepted kill is never lost.
+	if err := l.cancelHandle(appendE, cmd.Handle); err != nil {
+		return err
+	}
+	if cmd.CommandID == "" {
+		return nil
+	}
+	cmdAppend := l.commandAppender(ds, cmd.CommandID)
+	_, err := cmdAppend(event.TypeCommandHandled, &event.CommandHandled{
+		CommandID: cmd.CommandID, CommandSeq: cmd.CommandSeq,
+		Kind: protocol.CommandKill, Result: "cancel_requested",
+	})
+	return err
 }
 
 // cancelHandle journals the user's kill as a control input (journal-inputs-

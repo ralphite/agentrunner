@@ -160,7 +160,8 @@ func TestConversationalImageInputEndToEnd(t *testing.T) {
 		t.Fatalf("CAS blob = %v, %v", got, err)
 	}
 	// Wire: the second request's user message carried the INFLATED part.
-	last := cap.requests[len(cap.requests)-1]
+	requests := cap.Requests()
+	last := requests[len(requests)-1]
 	var sawInflated bool
 	for _, m := range last.Messages {
 		for _, p := range m.Parts {
@@ -234,7 +235,8 @@ func TestConversationalFileInputEndToEnd(t *testing.T) {
 		t.Fatalf("CAS blob = %v, %v", got, err)
 	}
 	// Wire: the second request's user message carried the INFLATED file part.
-	last := cap.requests[len(cap.requests)-1]
+	requests := cap.Requests()
+	last := requests[len(requests)-1]
 	var sawInflated bool
 	for _, m := range last.Messages {
 		for _, p := range m.Parts {
@@ -295,7 +297,8 @@ func TestLongPasteFoldsToFilePart(t *testing.T) {
 		t.Fatalf("CAS does not hold the full paste: %v", err)
 	}
 	// The provider saw the inflated file part with the full bytes.
-	last := cap.requests[len(cap.requests)-1]
+	requests := cap.Requests()
+	last := requests[len(requests)-1]
 	var sawFile bool
 	for _, m := range last.Messages {
 		for _, p := range m.Parts {

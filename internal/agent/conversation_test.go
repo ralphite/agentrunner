@@ -141,6 +141,33 @@ func TestConversationalCloseResolution(t *testing.T) {
 	}
 }
 
+func TestJournalInputCarriesDurableCommandReceipt(t *testing.T) {
+	l := testLoop(t, scripted.Fixture{}, t.TempDir())
+	ds := &driveState{s: state.New()}
+	appendE := l.appender(ds)
+	if _, err := appendE(event.TypeSessionStarted, &event.SessionStarted{
+		SubStateVersions: state.SubStateVersions(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.journalInput(ds, appendE, protocol.UserInput{
+		Text: "once", CommandID: "cmd-send-1", DeliverySeq: 1,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	events, err := store.ReadEvents(l.Store.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := events[len(events)-1]
+	if got.Type != event.TypeInputReceived || got.CommandID != "cmd-send-1" {
+		t.Fatalf("input receipt = type %s command %q", got.Type, got.CommandID)
+	}
+	if got.CausationID == "cmd-send-1" {
+		t.Fatal("command receipt must not replace the linear event causation chain")
+	}
+}
+
 // Task mode (Conversational=false, the v1 default) is untouched: yield
 // still completes the run — every existing caller keeps its contract.
 func TestTaskModeStillEndsOnYield(t *testing.T) {

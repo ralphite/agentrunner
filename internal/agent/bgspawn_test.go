@@ -387,7 +387,8 @@ func TestNoDuplicateToolDeclaration(t *testing.T) {
 		t.Fatal(err)
 	}
 	seen := map[string]int{}
-	for _, td := range cap.requests[0].Tools {
+	requests := cap.Requests()
+	for _, td := range requests[0].Tools {
 		seen[td.Name]++
 	}
 	for name, n := range seen {

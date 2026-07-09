@@ -17,8 +17,12 @@ import (
 // by the EventStore at append time (ID = "evt-<seq>"); a not-yet-appended
 // event has Seq 0 and empty ID. Commands carry a sender-minted ID.
 type Envelope struct {
-	Seq           int64           `json:"seq,omitempty"`
-	ID            string          `json:"id,omitempty"`
+	Seq int64  `json:"seq,omitempty"`
+	ID  string `json:"id,omitempty"`
+	// CommandID links the durable external command that produced this fact.
+	// It is independent of CausationID: causation remains the event-to-event
+	// chain, while command_id is the idempotency/replay receipt.
+	CommandID     string          `json:"command_id,omitempty"`
 	CausationID   string          `json:"causation_id,omitempty"`
 	CorrelationID string          `json:"correlation_id,omitempty"`
 	Sender        string          `json:"sender,omitempty"`

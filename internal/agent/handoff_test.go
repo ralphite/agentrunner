@@ -174,7 +174,8 @@ func TestBlackboardCollaboration(t *testing.T) {
 
 	// Blackboard tools were advertised at the root.
 	var names []string
-	for _, td := range cap.requests[0].Tools {
+	requests := cap.Requests()
+	for _, td := range requests[0].Tools {
 		names = append(names, td.Name)
 	}
 	joined := strings.Join(names, ",")
@@ -229,7 +230,8 @@ func TestBlackboardAbsent(t *testing.T) {
 	if _, err := l.Run(context.Background(), "hi"); err != nil {
 		t.Fatal(err)
 	}
-	for _, td := range cap.requests[0].Tools {
+	requests := cap.Requests()
+	for _, td := range requests[0].Tools {
 		if td.Name == "publish_note" || td.Name == "read_notes" || td.Name == "handoff_agent" {
 			t.Errorf("collaboration tool %s advertised without a whitelist", td.Name)
 		}

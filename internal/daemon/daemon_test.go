@@ -62,6 +62,112 @@ func TestDaemonPing(t *testing.T) {
 	}
 }
 
+func TestHostedRunInputQueueIsUnboundedAndFIFO(t *testing.T) {
+	h := newHostedRun("s", nil, true)
+	defer h.finish()
+	const total = 200
+	for i := 0; i < total; i++ {
+		if !h.post(protocol.UserInput{Text: fmt.Sprintf("m-%03d", i)}) {
+			t.Fatalf("post %d rejected", i)
+		}
+	}
+	for i := 0; i < total; i++ {
+		select {
+		case in := <-h.inbox:
+			want := fmt.Sprintf("m-%03d", i)
+			if in.Text != want {
+				t.Fatalf("delivery %d = %q, want %q", i, in.Text, want)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("delivery %d timed out", i)
+		}
+	}
+}
+
+func TestHostedRunDeduplicatesCommandID(t *testing.T) {
+	h := newHostedRun("s", nil, true)
+	defer h.finish()
+	in := protocol.UserInput{Text: "once", CommandID: "cmd-1", DeliverySeq: 1}
+	if !h.post(in) {
+		t.Fatal("first post was rejected")
+	}
+	if !h.post(in) {
+		t.Fatal("duplicate post was rejected")
+	}
+	select {
+	case got := <-h.inbox:
+		if got.Text != "once" {
+			t.Fatalf("input = %+v", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("input was not delivered")
+	}
+	select {
+	case got := <-h.inbox:
+		t.Fatalf("duplicate was delivered: %+v", got)
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+func TestHostedRunPreservesControlBeforeApproval(t *testing.T) {
+	h := newHostedRun("s", nil, true)
+	defer h.finish()
+	result := make(chan string, 1)
+	h.mu.Lock()
+	h.answerApproval = func(protocol.SessionCommand) bool {
+		select {
+		case ctl := <-h.controls:
+			result <- ctl.CommandID
+		default:
+			result <- "approval overtook control enqueue"
+		}
+		return true
+	}
+	h.mu.Unlock()
+	ctl := protocol.Control{CommandRef: protocol.CommandRef{CommandID: "cmd-1", CommandSeq: 1}, Kind: protocol.ControlClear}
+	if !h.postCommand(protocol.SessionCommand{CommandRef: ctl.CommandRef, Kind: protocol.CommandControl, Control: &ctl}) ||
+		!h.postCommand(protocol.SessionCommand{
+			CommandRef: protocol.CommandRef{CommandID: "cmd-2", CommandSeq: 2},
+			Kind:       protocol.CommandApproval,
+			Approval:   &protocol.ApprovalCommand{ApprovalID: "apr-1", Decision: "approve"},
+		}) {
+		t.Fatal("commands were rejected")
+	}
+	select {
+	case got := <-result:
+		if got != "cmd-1" {
+			t.Fatal(got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("approval was not delivered")
+	}
+}
+
+func TestCompletedCommandRetryDoesNotWakeAfterRestart(t *testing.T) {
+	var resumed atomic.Int32
+	s := &Server{
+		PersistCommand: func(_ string, cmd protocol.SessionCommand) (protocol.SessionCommand, error) {
+			cmd.CommandSeq = 7
+			cmd.PreviouslyAccepted = true
+			return cmd, nil
+		},
+		PendingCommands: func(string) ([]protocol.SessionCommand, error) { return nil, nil },
+		Resume: func(context.Context, ResumeRequest, protocol.Sink) error {
+			resumed.Add(1)
+			return nil
+		},
+	}
+	_, delivered, err := s.acceptAndDeliver(context.Background(), "s", "cmd-old",
+		protocol.SessionCommand{Kind: protocol.CommandInterrupt},
+		func(*hostedRun, protocol.SessionCommand) bool { return true })
+	if err != nil || !delivered {
+		t.Fatalf("retry = delivered %v err %v", delivered, err)
+	}
+	if resumed.Load() != 0 {
+		t.Fatal("completed retry woke the session")
+	}
+}
+
 // run: the daemon hosts the run, streams its events (tagged with the
 // session), and reports the assigned session id first.
 func TestDaemonRunStreams(t *testing.T) {

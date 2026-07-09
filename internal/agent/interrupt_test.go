@@ -97,8 +97,8 @@ func TestSteeringInterruptDuringLLM(t *testing.T) {
 	l := testLoop(t, scripted.Fixture{}, root)
 	prov := &blockingLLM{entered: make(chan struct{}, 1)}
 	l.Provider = prov
-	interrupts := make(chan struct{}, 1)
-	l.Interrupts = interrupts
+	interrupts := make(chan protocol.CommandRef, 1)
+	l.CommandInterrupts = interrupts
 	// A live (empty) input source: the loop parks at idle rather than
 	// returning, mirroring a hosted session — the model must not be re-run.
 	inputs := make(chan protocol.UserInput)
@@ -111,8 +111,8 @@ func TestSteeringInterruptDuringLLM(t *testing.T) {
 		_, err := l.Run(context.Background(), "answer")
 		done <- err
 	}()
-	<-prov.entered           // LLM is streaming and stuck
-	interrupts <- struct{}{} // Ctrl-C
+	<-prov.entered // LLM is streaming and stuck
+	interrupts <- protocol.CommandRef{CommandID: "cmd-interrupt", CommandSeq: 3}
 	// The turn ends and the session idles; close the input channel so the
 	// idle resolves into a clean return.
 	time.Sleep(200 * time.Millisecond)
@@ -147,6 +147,9 @@ func TestSteeringInterruptDuringLLM(t *testing.T) {
 			sawInterrupt = true
 		}
 		if e.Type == event.TypeLimitExceeded && strings.Contains(string(e.Payload), "interrupted") {
+			if e.CommandID != "cmd-interrupt" {
+				t.Fatalf("interrupt truncation command receipt = %q", e.CommandID)
+			}
 			sawTrunc = true
 		}
 	}

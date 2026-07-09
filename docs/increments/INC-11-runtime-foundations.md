@@ -94,8 +94,11 @@ Durable CommandLog(command_id, seq, principal, source, trust)
    socket 路径基线；真实旧 store 可读。`check.sh` 全绿；共享 store 中旧
    driver 已由 `unreadable` 恢复为 `satisfied/max_iterations`，inspect 可
    展开 iteration 子树。
-2. INC-11.2：统一 durable command/receipt/idempotency；迁移 legacy inbox；
-   覆盖 send/control/close/interrupt/approval/kill。
+2. ✅ INC-11.2：统一 durable command/receipt/idempotency；`inbox.jsonl` 兼容
+   读取 legacy input，append 索引从 O(n²) 降为每次启动一次线性重建；覆盖
+   send/control/close/interrupt/approval/kill。调用方 `command_id` 与 event
+   causation 分轴；所有 command 单 FIFO wake、宿主内去重；daemon 启动扫描
+   CommandLog/journal 差集并 re-host。`check.sh`、race 与真实重启闸门通过。
 3. INC-11.3：verifier pipeline 化与 filesystem/network OS sandbox。
 4. INC-11.4：MCP spec/生产 wiring 与完整协议能力；修可信重放规则。
 5. INC-11.5：Turn/Item + typed ingress + provider capability envelope，兼容旧

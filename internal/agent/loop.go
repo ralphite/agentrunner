@@ -55,6 +55,12 @@ type Loop struct {
 	// WAITING_APPROVAL resolves the approval as denied-by-interrupt and
 	// the run continues. nil = never fires.
 	Interrupts <-chan struct{}
+	// CommandInterrupts is the daemon's durable interrupt path. Foreground
+	// terminal signals keep using Interrupts; both converge on the same
+	// cancellation semantics.
+	CommandInterrupts <-chan protocol.CommandRef
+	interruptMu       sync.Mutex
+	pendingInterrupt  *protocol.CommandRef
 	// SpecPath is the spec file's location, journaled into SessionStarted so a
 	// revived session can resolve sibling sub-agent specs (v2 M5.1). Empty
 	// for spec-injected callers (tests).
@@ -75,7 +81,8 @@ type Loop struct {
 	// Cancels delivers handles to cancel out of band (v2 M3.2): a user's
 	// `kill <handle>` cancels one running child/task without entering the
 	// conversation. Consumed at drive-loop safe points and during the idle.
-	Cancels <-chan string
+	Cancels        <-chan string
+	CommandCancels <-chan protocol.CancelCommand
 	// Controls delivers session-maintenance signals out of band (G7): manual
 	// context compact/clear. Like Cancels it never enters the conversation;
 	// consumed at safe points and stored-then-drained from the idle. nil =
@@ -158,6 +165,7 @@ type driveState struct {
 	// pendingControls holds compact/clear controls consumed at the idle
 	// (awaitInput) that the next safe-point drain applies (G7).
 	pendingControls []protocol.Control
+	closeRequested  *protocol.Control
 }
 
 // compact renders raw JSON on one line, dropping surrounding whitespace.
@@ -182,7 +190,7 @@ func (l *Loop) emit(e protocol.Event) {
 // parent ctx (second Ctrl-C / SIGTERM) propagates unchanged and keeps its
 // own cause, so the loop can tell steering (continue) from quit (abort).
 func (l *Loop) interruptScope(ctx context.Context) (context.Context, func()) {
-	if l.Interrupts == nil {
+	if l.Interrupts == nil && l.CommandInterrupts == nil {
 		return ctx, func() {}
 	}
 	actCtx, cancel := context.WithCancelCause(ctx)
@@ -191,10 +199,26 @@ func (l *Loop) interruptScope(ctx context.Context) (context.Context, func()) {
 		select {
 		case <-l.Interrupts:
 			cancel(errs.ErrUserInterrupt)
+		case ref := <-l.CommandInterrupts:
+			l.interruptMu.Lock()
+			l.pendingInterrupt = &ref
+			l.interruptMu.Unlock()
+			cancel(errs.ErrUserInterrupt)
 		case <-done:
 		}
 	}()
 	return actCtx, func() { close(done); cancel(nil) }
+}
+
+func (l *Loop) interruptAppender(ds *driveState, fallback AppendFunc) AppendFunc {
+	l.interruptMu.Lock()
+	ref := l.pendingInterrupt
+	l.pendingInterrupt = nil
+	l.interruptMu.Unlock()
+	if ref == nil || ref.CommandID == "" {
+		return fallback
+	}
+	return l.commandAppender(ds, ref.CommandID)
 }
 
 // steered reports whether an activity ended because of a steering interrupt
@@ -244,6 +268,14 @@ func (l *Loop) finishInterrupt(ds *driveState, appendE AppendFunc, turn int) err
 // read) out of the durable log and, via the fold, out of snapshots and
 // later provider requests.
 func (l *Loop) appender(ds *driveState) AppendFunc {
+	return l.commandAppender(ds, "")
+}
+
+// commandAppender stamps facts produced while applying one durable external
+// command. CommandID is a second axis beside the linear event causation chain:
+// resume can prove a mailbox command was handled without breaking event-to-
+// event ancestry.
+func (l *Loop) commandAppender(ds *driveState, commandID string) AppendFunc {
 	r := redact.FromEnv()
 	return func(typ string, payload any) (event.Envelope, error) {
 		env, err := event.New(typ, payload)
@@ -251,6 +283,7 @@ func (l *Loop) appender(ds *driveState) AppendFunc {
 			return env, err
 		}
 		env.Payload = r.JSON(env.Payload)
+		env.CommandID = commandID
 		env.CausationID = ds.lastID
 		env.CorrelationID = l.SessionID
 		appended, err := l.Store.Append(env)
@@ -809,7 +842,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 		// Out-of-band kills (v2 M3.2): fire any requested handle cancels here,
 		// at a safe point; the cancelled child settles through bg.done as a
 		// canceled outcome on a subsequent iteration.
-		if err := l.drainCancels(appendE); err != nil {
+		if err := l.drainCancels(ds, appendE); err != nil {
 			return RunResult{}, abort(ds.s.Session.GenStep, err)
 		}
 		// Manual compact/clear controls (G7) apply here, at the safe point:
@@ -817,6 +850,17 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 		// on ds.pendingControls by awaitInput) funnel through one drain.
 		if err := l.drainControls(ctx, ds, appendE, exec); err != nil {
 			return RunResult{}, abort(ds.s.Session.GenStep, err)
+		}
+		if ds.closeRequested != nil {
+			ctl := ds.closeRequested
+			ds.closeRequested = nil
+			closeAppend := appendE
+			if ctl.CommandID != "" {
+				closeAppend = l.commandAppender(ds, ctl.CommandID)
+			}
+			res, cerr := l.closeSession(ctx, ds, closeAppend, ds.s.Session.GenStep)
+			l.emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: res.Reason, N: res.GenSteps})
+			return res, cerr
 		}
 		// Repair a crash that landed between a goal checkpoint and its follow-up
 		// event (INC-D1 R1/R2): the goal_verify quiescent cell is SKIPPED on
@@ -948,12 +992,13 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			if err != nil {
 				if steered(actCtx) {
 					stopInt()
+					interruptAppend := l.interruptAppender(ds, appendE)
 					if ierr := l.onSteeringInterrupt(appendE, act.turn); ierr != nil {
 						return RunResult{}, abort(act.turn, ierr)
 					}
 					// End the turn (DESIGN §1): decide() now idles (user
 					// regained control) or restarts with a drained steer.
-					if ierr := l.finishInterrupt(ds, appendE, act.turn); ierr != nil {
+					if ierr := l.finishInterrupt(ds, interruptAppend, act.turn); ierr != nil {
 						return RunResult{}, abort(act.turn, ierr)
 					}
 					continue
@@ -1394,11 +1439,12 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 		return abort(act.turn, fmt.Errorf("turn %d: %s: %w", act.turn, p.call.Name, err))
 	}
 	if interrupted {
+		interruptAppend := l.interruptAppender(ds, appendE)
 		// The batch was steered: a pending question dies interrupted too, so
 		// the ask_user call carries a result (provider contract) and the model
 		// sees it was cut off. Pair it BEFORE the turn-ending seam.
 		if askCall != nil {
-			if err := l.journalAskResolved(appendE, act.turn, askCall.CallID, "interrupted", "[interrupted by user]", 0); err != nil {
+			if err := l.journalAskResolved(interruptAppend, act.turn, askCall.CallID, "interrupted", "[interrupted by user]", 0); err != nil {
 				return abort(act.turn, err)
 			}
 		}
@@ -1407,7 +1453,7 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 		}
 		// End the turn (DESIGN §1): same seam as the LLM-phase interrupt —
 		// idle if nothing queued, else restart with the drained steer.
-		if ierr := l.finishInterrupt(ds, appendE, act.turn); ierr != nil {
+		if ierr := l.finishInterrupt(ds, interruptAppend, act.turn); ierr != nil {
 			return abort(act.turn, ierr)
 		}
 		return nil

@@ -9,8 +9,11 @@ import (
 	"time"
 
 	"github.com/ralphite/agentrunner/internal/daemon"
+	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/runtime"
+	"github.com/ralphite/agentrunner/internal/state"
+	"github.com/ralphite/agentrunner/internal/store"
 )
 
 func shortCLISocket(t *testing.T) string {
@@ -125,5 +128,65 @@ func TestDaemonHostsRunAndAttachReplays(t *testing.T) {
 	}
 	if !reMsg || !reIdle {
 		t.Fatalf("replay = %+v, want the journal's message and idle", replayed)
+	}
+}
+
+func TestPendingCommandsUsesJournalCommandReceipts(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	dir, err := runtime.SessionDir("pending-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, err := store.AppendCommand(dir, protocol.SessionCommand{
+		CommandRef: protocol.CommandRef{CommandID: "cmd-input"}, Kind: protocol.CommandInput,
+		Input: &protocol.UserInput{Text: "hello"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctl := protocol.Control{Kind: protocol.ControlClear}
+	control, err := store.AppendCommand(dir, protocol.SessionCommand{
+		CommandRef: protocol.CommandRef{CommandID: "cmd-control"}, Kind: protocol.CommandControl, Control: &ctl,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	closeCtl := protocol.Control{Kind: protocol.ControlClose}
+	if _, err := store.AppendCommand(dir, protocol.SessionCommand{
+		CommandRef: protocol.CommandRef{CommandID: "cmd-close"}, Kind: protocol.CommandClose, Control: &closeCtl,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	es, err := store.OpenEventStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendEvent := func(typ string, payload any, commandID string) {
+		t.Helper()
+		env, nerr := event.New(typ, payload)
+		if nerr != nil {
+			t.Fatal(nerr)
+		}
+		env.CommandID = commandID
+		if _, nerr = es.Append(env); nerr != nil {
+			t.Fatal(nerr)
+		}
+	}
+	appendEvent(event.TypeSessionStarted, &event.SessionStarted{SubStateVersions: state.SubStateVersions()}, "")
+	appendEvent(event.TypeInputReceived, &event.InputReceived{Text: "hello", DeliverySeq: input.CommandSeq}, input.CommandID)
+	appendEvent(event.TypeContextCompacted, &event.ContextCompacted{Cleared: true}, control.CommandID)
+	if err := es.Close(); err != nil {
+		t.Fatal(err)
+	}
+	pending, err := pendingCommands("pending-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pending) != 1 || pending[0].CommandID != "cmd-close" || pending[0].Kind != protocol.CommandClose {
+		t.Fatalf("pending = %+v", pending)
+	}
+	ids, err := scanPendingCommandSessions()
+	if err != nil || len(ids) != 1 || ids[0] != "pending-test" {
+		t.Fatalf("pending sessions = %v err=%v", ids, err)
 	}
 }

@@ -66,10 +66,11 @@ func TestSignatureRoundTrip(t *testing.T) {
 	}
 
 	// The turn-2 request the harness assembled must echo the signature back.
-	if len(cap.requests) < 2 {
-		t.Fatalf("expected 2 requests, got %d", len(cap.requests))
+	requests := cap.Requests()
+	if len(requests) < 2 {
+		t.Fatalf("expected 2 requests, got %d", len(requests))
 	}
-	got := findToolCallExtra(cap.requests[1].Messages, "call_1_0", "thought_signature")
+	got := findToolCallExtra(requests[1].Messages, "call_1_0", "thought_signature")
 	if got == nil {
 		t.Fatal("signature missing from assembled turn-2 request")
 	}

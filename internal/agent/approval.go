@@ -11,6 +11,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/crash"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/pipeline"
+	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/redact"
 	"github.com/ralphite/agentrunner/internal/tool"
 )
@@ -30,6 +31,7 @@ type ApprovalRequest struct {
 
 // ApprovalDecision is the human's answer.
 type ApprovalDecision struct {
+	protocol.CommandRef
 	Approve bool
 	Reason  string
 	Source  string // tty | env
@@ -193,18 +195,22 @@ func (l *Loop) awaitApproval(ctx context.Context, ds *driveState, appendE Append
 			decision = "approve"
 			resolution = "approved"
 		}
-		if _, err := appendE(event.TypeApprovalResponded, &event.ApprovalResponded{
+		responseAppend := appendE
+		if out.d.CommandID != "" {
+			responseAppend = l.commandAppender(ds, out.d.CommandID)
+		}
+		if _, err := responseAppend(event.TypeApprovalResponded, &event.ApprovalResponded{
 			ApprovalID: req.ApprovalID, Decision: decision,
 			Reason: out.d.Reason, Source: out.d.Source,
 		}); err != nil {
 			return false, "", err
 		}
-		if _, err := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
+		if _, err := responseAppend(event.TypeWaitingResolved, &event.WaitingResolved{
 			Kind: event.WaitApproval, Resolution: resolution,
 		}); err != nil {
 			return false, "", err
 		}
-		ok, err := l.resolveEffectAfterApproval(ds, appendE, req, out.d.Approve, out.d.Reason)
+		ok, err := l.resolveEffectAfterApproval(ds, responseAppend, req, out.d.Approve, out.d.Reason)
 		return ok, out.d.Reason, err
 
 	case <-l.Interrupts:
@@ -228,6 +234,30 @@ func (l *Loop) awaitApproval(ctx context.Context, ds *driveState, appendE Append
 			return false, "", err
 		}
 		ok, err := l.resolveEffectAfterApproval(ds, appendE, req, false, "[interrupted by user]")
+		return ok, "[interrupted by user]", err
+
+	case ref := <-l.CommandInterrupts:
+		cmdAppend := appendE
+		if ref.CommandID != "" {
+			cmdAppend = l.commandAppender(ds, ref.CommandID)
+		}
+		if _, err := cmdAppend(event.TypeInputReceived, &event.InputReceived{
+			Text: "[interrupt]", Source: "interrupt",
+		}); err != nil {
+			return false, "", err
+		}
+		if _, err := cmdAppend(event.TypeApprovalResponded, &event.ApprovalResponded{
+			ApprovalID: req.ApprovalID, Decision: "deny",
+			Reason: "[interrupted by user]", Source: "interrupt",
+		}); err != nil {
+			return false, "", err
+		}
+		if _, err := cmdAppend(event.TypeWaitingResolved, &event.WaitingResolved{
+			Kind: event.WaitApproval, Resolution: "denied_by_interrupt",
+		}); err != nil {
+			return false, "", err
+		}
+		ok, err := l.resolveEffectAfterApproval(ds, cmdAppend, req, false, "[interrupted by user]")
 		return ok, "[interrupted by user]", err
 	}
 }

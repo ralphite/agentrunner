@@ -62,10 +62,11 @@ func runWithThinking(t *testing.T, caps provider.Capabilities) *capturingProvide
 // S4.7: a provider that supports thinking receives the thinking config.
 func TestThinkingPassedWhenSupported(t *testing.T) {
 	cap := runWithThinking(t, provider.Capabilities{Thinking: true})
-	if len(cap.requests) == 0 {
+	requests := cap.Requests()
+	if len(requests) == 0 {
 		t.Fatal("no requests captured")
 	}
-	if !cap.requests[0].Thinking.Enabled {
+	if !requests[0].Thinking.Enabled {
 		t.Errorf("thinking config should reach a thinking-capable provider")
 	}
 }
@@ -74,10 +75,11 @@ func TestThinkingPassedWhenSupported(t *testing.T) {
 // downgrade), not a request it cannot honor.
 func TestThinkingDowngradedWhenUnsupported(t *testing.T) {
 	cap := runWithThinking(t, provider.Capabilities{Thinking: false})
-	if len(cap.requests) == 0 {
+	requests := cap.Requests()
+	if len(requests) == 0 {
 		t.Fatal("no requests captured")
 	}
-	if cap.requests[0].Thinking.Enabled {
-		t.Errorf("thinking must be downgraded for a non-thinking provider: %+v", cap.requests[0].Thinking)
+	if requests[0].Thinking.Enabled {
+		t.Errorf("thinking must be downgraded for a non-thinking provider: %+v", requests[0].Thinking)
 	}
 }

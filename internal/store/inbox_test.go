@@ -2,6 +2,7 @@ package store
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/ralphite/agentrunner/internal/protocol"
@@ -33,6 +34,84 @@ func TestInboxAppendRead(t *testing.T) {
 	}
 	if none, _ := ReadInbox(dir, 2); len(none) != 0 {
 		t.Fatal("high-water filter leaked consumed entries")
+	}
+}
+
+func TestInboxCommandIdempotency(t *testing.T) {
+	dir := t.TempDir()
+	in := protocol.UserInput{Text: "once", CommandID: "cmd-retry"}
+	first, err := AppendInbox(dir, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Simulate a daemon restart: drop the in-memory O(1) index. The first
+	// post-restart append rebuilds it with one linear scan and still returns
+	// the original receipt.
+	inboxMu.Lock()
+	delete(inboxCache, dir)
+	inboxMu.Unlock()
+	retry, err := AppendInbox(dir, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.DeliverySeq != 1 || retry.DeliverySeq != first.DeliverySeq {
+		t.Fatalf("receipts = first %d retry %d", first.DeliverySeq, retry.DeliverySeq)
+	}
+	cmd, err := AppendCommand(dir, protocol.SessionCommand{
+		CommandRef: protocol.CommandRef{CommandID: "cmd-control"},
+		Kind:       protocol.CommandControl,
+		Control:    &protocol.Control{Kind: protocol.ControlClear},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inboxMu.Lock()
+	delete(inboxCache, dir) // control receipts must normalize after restart too
+	inboxMu.Unlock()
+	retried, err := AppendCommand(dir, protocol.SessionCommand{
+		CommandRef: protocol.CommandRef{CommandID: "cmd-control"},
+		Kind:       protocol.CommandControl,
+		Control:    &protocol.Control{Kind: protocol.ControlClear},
+	})
+	if err != nil || cmd.PreviouslyAccepted || !retried.PreviouslyAccepted {
+		t.Fatalf("acceptance metadata = first %v retry %v err=%v",
+			cmd.PreviouslyAccepted, retried.PreviouslyAccepted, err)
+	}
+	all, err := ReadInbox(dir, 0)
+	if err != nil || len(all) != 1 {
+		t.Fatalf("idempotent retry appended duplicate: len=%d err=%v", len(all), err)
+	}
+	if _, err := AppendInbox(dir, protocol.UserInput{Text: "different", CommandID: "cmd-retry"}); err == nil || !strings.Contains(err.Error(), "different payload") {
+		t.Fatalf("command id payload conflict = %v", err)
+	}
+}
+
+func TestUnifiedCommandLogReadsLegacyAndTypedCommands(t *testing.T) {
+	dir := t.TempDir()
+	legacy, err := AppendInbox(dir, protocol.UserInput{Text: "legacy-compatible", CommandID: "cmd-input"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctl := protocol.Control{Kind: protocol.ControlClear}
+	control, err := AppendCommand(dir, protocol.SessionCommand{
+		CommandRef: protocol.CommandRef{CommandID: "cmd-control"},
+		Kind:       protocol.CommandControl, Control: &ctl,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	commands, err := ReadCommands(dir, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(commands) != 2 || commands[0].Kind != protocol.CommandInput ||
+		commands[0].Input.Text != "legacy-compatible" ||
+		commands[1].Kind != protocol.CommandControl || commands[1].Control.Kind != protocol.ControlClear {
+		t.Fatalf("commands = %+v", commands)
+	}
+	if legacy.DeliverySeq != 1 || control.CommandSeq != 2 ||
+		control.Control.CommandSeq != 2 {
+		t.Fatalf("receipts = input %d control %+v", legacy.DeliverySeq, control)
 	}
 }
 

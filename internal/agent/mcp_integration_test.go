@@ -152,7 +152,8 @@ func TestMCPToolEndToEnd(t *testing.T) {
 
 	// Both requests advertised the MCP tools next to the built-in.
 	var names []string
-	for _, td := range cap.requests[0].Tools {
+	requests := cap.Requests()
+	for _, td := range requests[0].Tools {
 		names = append(names, td.Name)
 	}
 	joined := strings.Join(names, ",")
@@ -191,7 +192,8 @@ func TestMCPAllowedToolsNarrowing(t *testing.T) {
 	}
 
 	// Not advertised…
-	for _, td := range cap.requests[0].Tools {
+	requests := cap.Requests()
+	for _, td := range requests[0].Tools {
 		if td.Name == "mcp__demo__run" {
 			t.Errorf("excluded tool advertised: %v", td)
 		}

@@ -19,12 +19,16 @@ import (
 	"time"
 
 	"github.com/ralphite/agentrunner/internal/clock"
+	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
 )
 
 // Command is one client→server line.
 type Command struct {
 	Cmd string `json:"cmd"` // ping | run | drive | attach | approve
+	// CommandID is caller-minted and stable across retries. Session-mutating
+	// commands use it as their durable idempotency key.
+	CommandID string `json:"command_id,omitempty"`
 
 	// run
 	SpecPath  string `json:"spec_path,omitempty"`
@@ -83,15 +87,17 @@ type Command struct {
 // Inbox delivers user inputs — the runner wires it to the Loop's
 // UserInputs; closing it is the close gesture.
 type RunRequest struct {
-	SessionID  string
-	SpecPath   string
-	Task       string
-	Workspace  string
-	Mode       string
-	Inbox      <-chan protocol.UserInput
-	Interrupts <-chan struct{}
-	Cancels    <-chan string
-	Controls   <-chan protocol.Control
+	SessionID         string
+	SpecPath          string
+	Task              string
+	Workspace         string
+	Mode              string
+	Inbox             <-chan protocol.UserInput
+	Interrupts        <-chan struct{}
+	Cancels           <-chan string
+	Controls          <-chan protocol.Control
+	CommandInterrupts <-chan protocol.CommandRef
+	CommandCancels    <-chan protocol.CancelCommand
 }
 
 // RunFunc hosts one run to completion, emitting output events to sink. The
@@ -102,11 +108,13 @@ type RunFunc func(ctx context.Context, req RunRequest, sink protocol.Sink) error
 // ResumeRequest is what the daemon hands the resume runner. The channels
 // are always provided and always wired (决策 #31: only one session shape).
 type ResumeRequest struct {
-	SessionID  string
-	Inbox      <-chan protocol.UserInput
-	Interrupts <-chan struct{}
-	Cancels    <-chan string
-	Controls   <-chan protocol.Control
+	SessionID         string
+	Inbox             <-chan protocol.UserInput
+	Interrupts        <-chan struct{}
+	Cancels           <-chan string
+	Controls          <-chan protocol.Control
+	CommandInterrupts <-chan protocol.CommandRef
+	CommandCancels    <-chan protocol.CancelCommand
 }
 
 // DriveRequest is a hosted IterationDriver series (S6 完成标志①: a series
@@ -144,6 +152,14 @@ type Server struct {
 	// returns the input stamped with its DeliverySeq. nil = no durability
 	// (tests); the ack then only means enqueued.
 	PersistInput func(sessionID string, in protocol.UserInput) (protocol.UserInput, error)
+	// PersistCommand is the unified durable command log. When present it is
+	// used for input, control, close, interrupt, approval, and kill; the
+	// legacy PersistInput seam remains for older embedders/tests.
+	PersistCommand func(sessionID string, cmd protocol.SessionCommand) (protocol.SessionCommand, error)
+	// PendingCommands derives unhandled accepted commands from command log
+	// receipts versus journal Envelope.CommandID facts.
+	PendingCommands            func(sessionID string) ([]protocol.SessionCommand, error)
+	ScanPendingCommandSessions func() ([]string, error)
 	// SessionMarked reports whether a session's journal carries a
 	// close/kill mark (决策 #30). AUTOMATIC revival (timer sweep) checks it
 	// and skips marked sessions; an explicit send never does — any session
@@ -187,6 +203,9 @@ type Server struct {
 	// so a late connection can never Add after the shutdown Wait began.
 	runsWG   sync.WaitGroup
 	stopping bool
+	// commandMu serializes durable append, recovery replay and live enqueue.
+	// Therefore command-log sequence is also the single delivery order.
+	commandMu sync.Mutex // serializes durable append + live enqueue order
 }
 
 // hostedRun is one live run's broadcast hub.
@@ -209,11 +228,153 @@ type hostedRun struct {
 	cancels chan string
 	// controls delivers session-maintenance signals out of band (G7): manual
 	// compact/clear. Buffered for non-blocking delivery.
-	controls chan protocol.Control
+	controls          chan protocol.Control
+	commandInterrupts chan protocol.CommandRef
+	commandCancels    chan protocol.CancelCommand
+	pendingCommands   []protocol.SessionCommand
+	postedCommands    map[string]struct{}
+	commandWake       chan struct{}
+	commandStop       chan struct{}
+	commandPumpWG     sync.WaitGroup
+	answerApproval    func(protocol.SessionCommand) bool
 	// stop tears the hosted loop down (决策 #32 agent switch): a plain ctx
 	// cancel — no mark, no ending; the journal simply stops mid-standby and
 	// the next send revives it (with whatever spec the journal then names).
 	stop context.CancelFunc
+}
+
+func newHostedRun(id string, notify func(protocol.Event), interactive bool) *hostedRun {
+	h := &hostedRun{id: id, notify: notify, subs: map[chan protocol.Event]struct{}{}}
+	if !interactive {
+		return h
+	}
+	h.inbox = make(chan protocol.UserInput, 64)
+	h.interrupts = make(chan struct{}, 1)
+	h.cancels = make(chan string, 8)
+	h.controls = make(chan protocol.Control, 8)
+	h.commandInterrupts = make(chan protocol.CommandRef, 1)
+	h.commandCancels = make(chan protocol.CancelCommand, 8)
+	h.commandWake = make(chan struct{}, 1)
+	h.commandStop = make(chan struct{})
+	h.postedCommands = map[string]struct{}{}
+	h.commandPumpWG.Add(1)
+	go h.pumpCommands()
+	return h
+}
+
+func (h *hostedRun) pumpCommands() {
+	defer h.commandPumpWG.Done()
+	for {
+		h.mu.Lock()
+		if h.done {
+			h.mu.Unlock()
+			return
+		}
+		if len(h.pendingCommands) == 0 {
+			wake, stop := h.commandWake, h.commandStop
+			h.mu.Unlock()
+			select {
+			case <-wake:
+				continue
+			case <-stop:
+				return
+			}
+		}
+		cmd := h.pendingCommands[0]
+		stop := h.commandStop
+		inbox := h.inbox
+		controls := h.controls
+		interrupts := h.commandInterrupts
+		cancels := h.commandCancels
+		answerApproval := h.answerApproval
+		h.mu.Unlock()
+
+		delivered := false
+		switch cmd.Kind {
+		case protocol.CommandInput:
+			if cmd.Input == nil {
+				delivered = true
+				break
+			}
+			select {
+			case inbox <- *cmd.Input:
+				delivered = true
+			case <-stop:
+				return
+			}
+		case protocol.CommandControl, protocol.CommandClose:
+			if cmd.Control == nil {
+				delivered = true
+				break
+			}
+			ctl := *cmd.Control
+			select {
+			case controls <- ctl:
+				delivered = true
+			case <-stop:
+				return
+			}
+		case protocol.CommandInterrupt:
+			select {
+			case interrupts <- cmd.CommandRef:
+				delivered = true
+			case <-stop:
+				return
+			}
+		case protocol.CommandKill:
+			select {
+			case cancels <- protocol.CancelCommand{CommandRef: cmd.CommandRef, Handle: cmd.Handle}:
+				delivered = true
+			case <-stop:
+				return
+			}
+		case protocol.CommandApproval:
+			if cmd.Approval == nil || answerApproval == nil {
+				delivered = true
+				break
+			}
+			delivered = answerApproval(cmd)
+			if !delivered {
+				timer := time.NewTimer(25 * time.Millisecond)
+				select {
+				case <-timer.C:
+				case <-stop:
+					timer.Stop()
+					return
+				}
+			}
+		default:
+			// PersistCommand rejects unknown kinds; keep the live pump safe if
+			// an embedding supplies one anyway.
+			slog.Warn("daemon: dropping unknown live command", "session", h.id, "kind", cmd.Kind)
+			delivered = true
+		}
+		if delivered {
+			h.mu.Lock()
+			h.pendingCommands = h.pendingCommands[1:]
+			h.mu.Unlock()
+		}
+	}
+}
+
+func (h *hostedRun) postCommand(cmd protocol.SessionCommand) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.done || h.commandWake == nil {
+		return false
+	}
+	if cmd.CommandID != "" {
+		if _, duplicate := h.postedCommands[cmd.CommandID]; duplicate {
+			return true
+		}
+		h.postedCommands[cmd.CommandID] = struct{}{}
+	}
+	h.pendingCommands = append(h.pendingCommands, cmd)
+	select {
+	case h.commandWake <- struct{}{}:
+	default:
+	}
+	return true
 }
 
 // stopHosting cancels the hosted loop's context (teardown, not a close).
@@ -228,68 +389,27 @@ func (h *hostedRun) stopHosting() bool {
 }
 
 // killHandle requests cancellation of one running child/task by handle.
-func (h *hostedRun) killHandle(handle string) bool {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.done || h.cancels == nil {
-		return false
-	}
-	select {
-	case h.cancels <- handle:
-		return true
-	default:
-		return false
-	}
+func (h *hostedRun) killHandle(cmd protocol.SessionCommand) bool {
+	return h.postCommand(cmd)
 }
 
-// postControl delivers a compact/clear control to the hosted loop
-// (best-effort: a full buffer drops it, which the user can re-issue).
-func (h *hostedRun) postControl(c protocol.Control) bool {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.done || h.controls == nil {
-		return false
-	}
-	select {
-	case h.controls <- c:
-		return true
-	default:
-		return false
-	}
+// postControl queues a compact/clear control behind earlier commands.
+func (h *hostedRun) postControl(cmd protocol.SessionCommand) bool {
+	return h.postCommand(cmd)
 }
 
-// signalInterrupt delivers one interrupt to the hosted loop (best-effort:
-// a full buffer means one is already pending).
-func (h *hostedRun) signalInterrupt() bool {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.done || h.interrupts == nil {
-		return false
-	}
-	select {
-	case h.interrupts <- struct{}{}:
-		return true
-	default:
-		return true // one already pending — the loop will see it
-	}
+// signalInterrupt queues one durable interrupt behind earlier commands.
+func (h *hostedRun) signalInterrupt(cmd protocol.SessionCommand) bool {
+	return h.postCommand(cmd)
 }
 
-// post delivers a conversational input to the hosted session. The loop
-// journals it on receipt (journal-inputs-first on the consume side); a
-// crash between this enqueue and that journal loses the input — the
-// durable send-side ack is a v2 M5 refinement (记档).
+// post queues a conversational input for the hosted session. The caller has
+// already durably persisted it; this queue is only the best-effort wake path.
 func (h *hostedRun) post(in protocol.UserInput) bool {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.done || h.inbox == nil {
-		return false
-	}
-	select {
-	case h.inbox <- in:
-		return true
-	default:
-		return false // inbox full: the caller retries
-	}
+	return h.postCommand(protocol.SessionCommand{
+		CommandRef: protocol.CommandRef{CommandID: in.CommandID, CommandSeq: in.DeliverySeq},
+		Kind:       protocol.CommandInput, Input: &in,
+	})
 }
 
 // Emit implements protocol.Sink: fan out to every subscriber. A slow
@@ -333,30 +453,25 @@ func (h *hostedRun) subscribe() (ch chan protocol.Event, cancel func(), ok bool)
 // finish marks the run done and closes every subscriber channel.
 func (h *hostedRun) finish() {
 	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.done = true
-	if h.inbox != nil {
-		close(h.inbox) // unblock a idle conversational loop into close
-		h.inbox = nil
+	if h.done {
+		h.mu.Unlock()
+		return
 	}
+	h.done = true
+	if h.commandStop != nil {
+		close(h.commandStop)
+	}
+	inbox := h.inbox
+	h.inbox = nil
 	for ch := range h.subs {
 		close(ch)
 		delete(h.subs, ch)
 	}
-}
-
-// closeInbox is the `close` gesture for a conversational session: shut the
-// inbox so the idle loop resolves into its epilogue. The run's own
-// finish() then clears the registry.
-func (h *hostedRun) closeInbox() bool {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.done || h.inbox == nil {
-		return false
+	h.mu.Unlock()
+	h.commandPumpWG.Wait()
+	if inbox != nil {
+		close(inbox)
 	}
-	close(h.inbox)
-	h.inbox = nil
-	return true
 }
 
 // ListenAndServe binds the socket and serves until ctx is done. A stale
@@ -397,6 +512,9 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	if s.ScanTimers != nil && s.Resume != nil {
 		go s.sweepTimers(ctx)
 	}
+	if s.ScanPendingCommandSessions != nil && s.Resume != nil {
+		go s.resumePendingCommandSessions(ctx)
+	}
 	slog.Info("daemon listening", "socket", s.SocketPath)
 
 	for {
@@ -429,6 +547,48 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 			s.serveConn(ctx, conn)
 		}()
 	}
+}
+
+func (s *Server) resumePendingCommandSessions(ctx context.Context) {
+	ids, err := s.ScanPendingCommandSessions()
+	if err != nil {
+		slog.Warn("daemon: pending command scan failed", "err", err)
+		return
+	}
+	for _, id := range ids {
+		s.hostResume(ctx, id, true)
+	}
+}
+
+func (s *Server) replayPendingCommands(ctx context.Context, session string, hub *hostedRun) {
+	if s.PendingCommands == nil {
+		return
+	}
+	commands, err := s.PendingCommands(session)
+	if err != nil {
+		slog.Warn("daemon: pending command replay failed", "session", session, "err", err)
+		return
+	}
+	for _, cmd := range commands {
+		_ = hub.postCommand(cmd)
+	}
+}
+
+func (s *Server) newHostedRun(id string, interactive bool) *hostedRun {
+	hub := newHostedRun(id, s.Notify, interactive)
+	if interactive && s.Approvals != nil {
+		hub.answerApproval = func(cmd protocol.SessionCommand) bool {
+			if cmd.Approval == nil {
+				return true
+			}
+			return s.Approvals.Answer(id, cmd.Approval.ApprovalID, ApprovalAnswer{
+				CommandRef: cmd.CommandRef,
+				Approve:    cmd.Approval.Decision == "approve",
+				Reason:     cmd.Approval.Reason,
+			})
+		}
+	}
+	return hub
 }
 
 // serveConn handles one connection: ONE command line in, an event stream
@@ -470,27 +630,27 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 	case "send":
 		s.handleSend(ctx, cmd, enc)
 	case "close":
-		s.handleClose(cmd, enc)
+		s.handleClose(ctx, cmd, enc)
 	case "interrupt":
-		s.handleInterrupt(cmd, enc)
+		s.handleInterrupt(ctx, cmd, enc)
 	case "stop":
 		s.handleStop(cmd, enc)
 	case "compact":
-		s.handleControl(cmd, protocol.Control{Kind: protocol.ControlCompact, Directive: cmd.Directive}, "compacting", enc)
+		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlCompact, Directive: cmd.Directive}, "compacting", enc)
 	case "clear":
-		s.handleControl(cmd, protocol.Control{Kind: protocol.ControlClear}, "clearing", enc)
+		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlClear}, "clearing", enc)
 	case "goal-attach":
-		s.handleControl(cmd, protocol.Control{Kind: protocol.ControlGoalAttach, Goal: cmd.Goal}, "goal attached", enc)
+		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlGoalAttach, Goal: cmd.Goal}, "goal attached", enc)
 	case "goal-pause":
-		s.handleControl(cmd, protocol.Control{Kind: protocol.ControlGoalPause}, "goal paused", enc)
+		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlGoalPause}, "goal paused", enc)
 	case "goal-resume":
-		s.handleControl(cmd, protocol.Control{Kind: protocol.ControlGoalResume}, "goal resumed", enc)
+		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlGoalResume}, "goal resumed", enc)
 	case "goal-update":
-		s.handleControl(cmd, protocol.Control{Kind: protocol.ControlGoalUpdate, Goal: cmd.Goal}, "goal updated", enc)
+		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlGoalUpdate, Goal: cmd.Goal}, "goal updated", enc)
 	case "goal-cancel":
-		s.handleControl(cmd, protocol.Control{Kind: protocol.ControlGoalCancel}, "goal cancelled", enc)
+		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlGoalCancel}, "goal cancelled", enc)
 	case "kill":
-		s.handleKill(cmd, enc)
+		s.handleKill(ctx, cmd, enc)
 	case "agent":
 		s.handleAgent(cmd, enc)
 	default:
@@ -499,17 +659,104 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 	}
 }
 
+func (s *Server) acceptCommand(session, commandID string, cmd protocol.SessionCommand) (protocol.SessionCommand, bool, error) {
+	if commandID == "" {
+		commandID = event.NewCommandID()
+	}
+	cmd.CommandID = commandID
+	if s.PersistCommand == nil {
+		return cmd, false, nil
+	}
+	accepted, err := s.PersistCommand(session, cmd)
+	return accepted, err == nil, err
+}
+
+// commandHubCommandLocked returns or starts the live hub. The caller holds
+// commandMu, so recovery replay cannot interleave with a new append.
+func (s *Server) commandHubCommandLocked(ctx context.Context, session string) (*hostedRun, bool) {
+	s.mu.Lock()
+	hub := s.runs[session]
+	s.mu.Unlock()
+	if hub != nil {
+		return hub, true
+	}
+	if s.Resume == nil {
+		return nil, false
+	}
+	s.mu.Lock()
+	delete(s.failed, session)
+	s.mu.Unlock()
+	s.hostResumeCommandLocked(ctx, session, true)
+	s.mu.Lock()
+	hub = s.runs[session]
+	s.mu.Unlock()
+	return hub, hub != nil
+}
+
+func (s *Server) acceptAndDeliver(ctx context.Context, session, commandID string,
+	cmd protocol.SessionCommand, post func(*hostedRun, protocol.SessionCommand) bool) (protocol.SessionCommand, bool, error) {
+	s.commandMu.Lock()
+	defer s.commandMu.Unlock()
+	accepted, durable, err := s.acceptCommand(session, commandID, cmd)
+	if err != nil {
+		return accepted, false, err
+	}
+	if !s.commandNeedsDelivery(session, accepted) {
+		return accepted, true, nil
+	}
+	hub, _ := s.commandHubCommandLocked(ctx, session)
+	return accepted, s.acceptedDelivery(ctx, session, hub, durable,
+		func(h *hostedRun) bool { return post(h, accepted) }), nil
+}
+
+// commandNeedsDelivery distinguishes an old, already-completed receipt from
+// an old receipt that is still pending. Failure to derive the projection
+// falls back to at-least-once delivery: accepted commands must never vanish.
+func (s *Server) commandNeedsDelivery(session string, accepted protocol.SessionCommand) bool {
+	if !accepted.PreviouslyAccepted || s.PendingCommands == nil {
+		return true
+	}
+	pending, err := s.PendingCommands(session)
+	if err != nil {
+		slog.Warn("daemon: cannot verify retried command completion; redelivering",
+			"session", session, "command_id", accepted.CommandID, "err", err)
+		return true
+	}
+	for _, cmd := range pending {
+		if cmd.CommandID == accepted.CommandID {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Server) acceptedDelivery(ctx context.Context, session string, hub *hostedRun,
+	durable bool, post func(*hostedRun) bool) bool {
+	if hub != nil && post(hub) {
+		return true
+	}
+	if durable {
+		s.reviveAcceptedAfter(ctx, session, hub)
+		return true
+	}
+	return false
+}
+
 // handleKill cancels one running child/task by handle (v2 M3.2): the user's
 // direct kill path, distinct from the model calling kill.
-func (s *Server) handleKill(cmd Command, enc *json.Encoder) {
+func (s *Server) handleKill(ctx context.Context, cmd Command, enc *json.Encoder) {
 	if cmd.Session == "" || cmd.Handle == "" {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "kill needs session and handle"})
 		return
 	}
-	s.mu.Lock()
-	hub, ok := s.runs[cmd.Session]
-	s.mu.Unlock()
-	if !ok || !hub.killHandle(cmd.Handle) {
+	_, delivered, err := s.acceptAndDeliver(ctx, cmd.Session, cmd.CommandID, protocol.SessionCommand{
+		Kind: protocol.CommandKill, Handle: cmd.Handle,
+	}, func(h *hostedRun, accepted protocol.SessionCommand) bool { return h.killHandle(accepted) })
+	if err != nil {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "kill not accepted: " + err.Error()})
+		return
+	}
+	if !delivered {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
 			Text: fmt.Sprintf("no live session %s accepting kills", cmd.Session)})
 		return
@@ -556,15 +803,19 @@ func (s *Server) handleAgent(cmd Command, enc *json.Encoder) {
 // handleInterrupt delivers an out-of-band interrupt to a live session
 // (v2 M2.3): distinct from `send` — it steers a running turn or closes an
 // idle one, it does not enter the conversation.
-func (s *Server) handleInterrupt(cmd Command, enc *json.Encoder) {
+func (s *Server) handleInterrupt(ctx context.Context, cmd Command, enc *json.Encoder) {
 	if cmd.Session == "" {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "interrupt needs session"})
 		return
 	}
-	s.mu.Lock()
-	hub, ok := s.runs[cmd.Session]
-	s.mu.Unlock()
-	if !ok || !hub.signalInterrupt() {
+	_, delivered, err := s.acceptAndDeliver(ctx, cmd.Session, cmd.CommandID, protocol.SessionCommand{
+		Kind: protocol.CommandInterrupt,
+	}, func(h *hostedRun, accepted protocol.SessionCommand) bool { return h.signalInterrupt(accepted) })
+	if err != nil {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "interrupt not accepted: " + err.Error()})
+		return
+	}
+	if !delivered {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
 			Text: fmt.Sprintf("no live interruptible session %s", cmd.Session)})
 		return
@@ -596,18 +847,24 @@ func (s *Server) handleStop(cmd Command, enc *json.Encoder) {
 }
 
 // handleControl posts a compact/clear maintenance signal to a hosted session
-// (G7). Best-effort like interrupt/kill: the effect (a ContextCompacted
-// event) is journaled by the loop at its next safe boundary — the ack only
-// confirms delivery. A parked session is woken by the control.
-func (s *Server) handleControl(cmd Command, ctl protocol.Control, ack string, enc *json.Encoder) {
+// (G7). The command is durable before the ack; the semantic event records
+// when the loop applies it. A parked session is woken by the control.
+func (s *Server) handleControl(ctx context.Context, cmd Command, ctl protocol.Control, ack string, enc *json.Encoder) {
 	if cmd.Session == "" {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: ctl.Kind + " needs session"})
 		return
 	}
-	s.mu.Lock()
-	hub, ok := s.runs[cmd.Session]
-	s.mu.Unlock()
-	if !ok || !hub.postControl(ctl) {
+	_, delivered, err := s.acceptAndDeliver(ctx, cmd.Session, cmd.CommandID, protocol.SessionCommand{
+		Kind: protocol.CommandControl, Control: &ctl,
+	}, func(h *hostedRun, accepted protocol.SessionCommand) bool {
+		accepted.Control.CommandRef = accepted.CommandRef
+		return h.postControl(accepted)
+	})
+	if err != nil {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: ctl.Kind + " not accepted: " + err.Error()})
+		return
+	}
+	if !delivered {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
 			Text: fmt.Sprintf("no live session %s to %s", cmd.Session, ctl.Kind)})
 		return
@@ -660,21 +917,57 @@ func (s *Server) handleSend(ctx context.Context, cmd Command, enc *json.Encoder)
 			defer cancel()
 		}
 	}
-	in := protocol.UserInput{Text: cmd.Text, Images: cmd.Images, Files: cmd.Files}
-	if s.PersistInput != nil {
+	if cmd.CommandID == "" {
+		cmd.CommandID = event.NewCommandID() // older clients remain accepted
+	}
+	in := protocol.UserInput{Text: cmd.Text, Images: cmd.Images, Files: cmd.Files, CommandID: cmd.CommandID}
+	durable := false
+	s.commandMu.Lock()
+	if s.PersistCommand != nil {
+		accepted, perr := s.PersistCommand(cmd.Session, protocol.SessionCommand{
+			CommandRef: protocol.CommandRef{CommandID: cmd.CommandID},
+			Kind:       protocol.CommandInput, Input: &in,
+		})
+		if perr != nil {
+			s.commandMu.Unlock()
+			_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
+				Text: "send not accepted (command log write failed): " + perr.Error()})
+			return
+		}
+		in = *accepted.Input
+		durable = true
+		if !s.commandNeedsDelivery(cmd.Session, accepted) {
+			s.commandMu.Unlock()
+			_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Text: "delivered", Session: cmd.Session})
+			return
+		}
+	} else if s.PersistInput != nil {
 		// Durability before the ack (铁律 2): once "delivered" is on the
 		// wire, a crash cannot lose this input — resume replays the
 		// mailbox tail the journal has not consumed.
 		var perr error
 		if in, perr = s.PersistInput(cmd.Session, in); perr != nil {
+			s.commandMu.Unlock()
 			_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
 				Text: "send not accepted (mailbox write failed): " + perr.Error()})
 			return
 		}
+		durable = true
 	}
-	if !hub.post(in) {
+	posted := hub.post(in)
+	s.commandMu.Unlock()
+	if !posted {
+		if durable {
+			// Accepted is irrevocable once the mailbox fsync succeeds. A hub
+			// that began shutting down in the append→wake window cannot turn
+			// that success into a client-visible failure (which would invite a
+			// duplicate retry); revive it after the old host releases its lock.
+			s.reviveAcceptedAfter(ctx, cmd.Session, hub)
+			_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Text: "delivered", Session: cmd.Session})
+			return
+		}
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
-			Text: fmt.Sprintf("session %s is not accepting input (shutting down, or inbox full)", cmd.Session)})
+			Text: fmt.Sprintf("session %s is not accepting input (shutting down)", cmd.Session)})
 		return
 	}
 	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Text: "delivered", Session: cmd.Session})
@@ -688,17 +981,46 @@ func (s *Server) handleSend(ctx context.Context, cmd Command, enc *json.Encoder)
 	}
 }
 
+func (s *Server) reviveAcceptedAfter(ctx context.Context, session string, old *hostedRun) {
+	go func() {
+		ticker := time.NewTicker(10 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			s.mu.Lock()
+			current := s.runs[session]
+			s.mu.Unlock()
+			if current == nil || current != old {
+				s.hostResume(ctx, session, true)
+				return
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+}
+
 // handleClose ends a conversational session gracefully (v2 M1.2): shutting
 // the inbox resolves the idle loop into its epilogue.
-func (s *Server) handleClose(cmd Command, enc *json.Encoder) {
+func (s *Server) handleClose(ctx context.Context, cmd Command, enc *json.Encoder) {
 	if cmd.Session == "" {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "close needs session"})
 		return
 	}
-	s.mu.Lock()
-	hub, ok := s.runs[cmd.Session]
-	s.mu.Unlock()
-	if !ok || !hub.closeInbox() {
+	ctl := protocol.Control{Kind: protocol.ControlClose}
+	_, delivered, err := s.acceptAndDeliver(ctx, cmd.Session, cmd.CommandID, protocol.SessionCommand{
+		Kind: protocol.CommandClose, Control: &ctl,
+	}, func(h *hostedRun, accepted protocol.SessionCommand) bool {
+		accepted.Control.CommandRef = accepted.CommandRef
+		return h.postControl(accepted)
+	})
+	if err != nil {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "close not accepted: " + err.Error()})
+		return
+	}
+	if !delivered {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
 			Text: fmt.Sprintf("no live conversational session %s", cmd.Session)})
 		return
@@ -722,11 +1044,57 @@ func (s *Server) handleApprove(ctx context.Context, cmd Command, enc *json.Encod
 			Text: "approve needs session, approval_id and decision approve|deny"})
 		return
 	}
-	answer := ApprovalAnswer{Approve: cmd.Decision == "approve", Reason: cmd.Reason}
+	if s.PersistCommand != nil && s.PendingApproval != nil {
+		pending, ok, err := s.PendingApproval(cmd.Session)
+		if err != nil || !ok || pending != cmd.ApprovalID {
+			_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
+				Text: fmt.Sprintf("no pending approval %s on session %s", cmd.ApprovalID, cmd.Session)})
+			return
+		}
+	}
+	if s.PersistCommand != nil {
+		_, delivered, err := s.acceptAndDeliver(ctx, cmd.Session, cmd.CommandID, protocol.SessionCommand{
+			Kind: protocol.CommandApproval,
+			Approval: &protocol.ApprovalCommand{
+				ApprovalID: cmd.ApprovalID, Decision: cmd.Decision, Reason: cmd.Reason,
+			},
+		}, func(h *hostedRun, accepted protocol.SessionCommand) bool { return h.postCommand(accepted) })
+		if err != nil {
+			_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "approval not accepted: " + err.Error()})
+			return
+		}
+		if !delivered {
+			_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
+				Text: fmt.Sprintf("no live session %s accepting approvals", cmd.Session)})
+			return
+		}
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage,
+			Text: "answered " + cmd.ApprovalID + ": " + cmd.Decision, Session: cmd.Session})
+		return
+	}
+
+	accepted, durable, err := s.acceptCommand(cmd.Session, cmd.CommandID, protocol.SessionCommand{
+		Kind: protocol.CommandApproval,
+		Approval: &protocol.ApprovalCommand{
+			ApprovalID: cmd.ApprovalID, Decision: cmd.Decision, Reason: cmd.Reason,
+		},
+	})
+	if err != nil {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "approval not accepted: " + err.Error()})
+		return
+	}
+	answer := ApprovalAnswer{CommandRef: accepted.CommandRef, Approve: cmd.Decision == "approve", Reason: cmd.Reason}
 	if s.Approvals.Answer(cmd.Session, cmd.ApprovalID, answer) ||
 		s.reviveAndAnswer(ctx, cmd.Session, cmd.ApprovalID, answer) {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage,
 			Text: "answered " + cmd.ApprovalID + ": " + cmd.Decision, Session: cmd.Session})
+		return
+	}
+	if durable {
+		// The response is accepted even if the in-memory rendezvous vanished
+		// in this instant. Startup pending-command sweep/revive will re-arm it.
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage,
+			Text: "accepted " + cmd.ApprovalID + ": " + cmd.Decision, Session: cmd.Session})
 		return
 	}
 	_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
@@ -804,11 +1172,7 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 		}
 	}
 	id := s.NewID(cmd.Task)
-	hub := &hostedRun{id: id, notify: s.Notify, subs: map[chan protocol.Event]struct{}{}}
-	hub.inbox = make(chan protocol.UserInput, 64) // type-ahead buffer
-	hub.interrupts = make(chan struct{}, 1)
-	hub.cancels = make(chan string, 8)
-	hub.controls = make(chan protocol.Control, 8)
+	hub := s.newHostedRun(id, true)
 	s.mu.Lock()
 	if s.stopping {
 		s.mu.Unlock()
@@ -845,7 +1209,8 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 			SessionID: id, SpecPath: cmd.SpecPath, Task: cmd.Task,
 			Workspace: cmd.Workspace, Mode: cmd.Mode,
 			Inbox: hub.inbox, Interrupts: hub.interrupts, Cancels: hub.cancels,
-			Controls: hub.controls,
+			Controls: hub.controls, CommandInterrupts: hub.commandInterrupts,
+			CommandCancels: hub.commandCancels,
 		}, hub); err != nil {
 			hub.Emit(protocol.Event{Kind: protocol.KindError, Text: "run failed: " + err.Error()})
 		}
@@ -880,7 +1245,7 @@ func (s *Server) handleDrive(ctx context.Context, cmd Command, enc *json.Encoder
 		}
 	}
 	id := s.NewID("drive")
-	hub := &hostedRun{id: id, notify: s.Notify, subs: map[chan protocol.Event]struct{}{}}
+	hub := s.newHostedRun(id, false)
 	s.mu.Lock()
 	if s.stopping {
 		s.mu.Unlock()

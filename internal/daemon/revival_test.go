@@ -337,3 +337,50 @@ func TestAgentCommandReleasesHostedLoop(t *testing.T) {
 		t.Fatalf("second agent reply = %q isErr=%v, want not hosted", reply, isErr)
 	}
 }
+
+func TestStartupResumesAndReplaysPendingDurableCommand(t *testing.T) {
+	sock := shortSock(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	got := make(chan protocol.Control, 1)
+	srv := &Server{
+		SocketPath: sock,
+		NewID:      func(string) string { return "x" },
+		ScanPendingCommandSessions: func() ([]string, error) {
+			return []string{"pending-session"}, nil
+		},
+		PendingCommands: func(string) ([]protocol.SessionCommand, error) {
+			ctl := protocol.Control{CommandRef: protocol.CommandRef{CommandID: "cmd-close", CommandSeq: 4}, Kind: protocol.ControlClose}
+			return []protocol.SessionCommand{{
+				CommandRef: ctl.CommandRef, Kind: protocol.CommandClose, Control: &ctl,
+			}}, nil
+		},
+		Resume: func(ctx context.Context, req ResumeRequest, sink protocol.Sink) error {
+			select {
+			case ctl := <-req.Controls:
+				got <- ctl
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		},
+	}
+	done := make(chan error, 1)
+	go func() { done <- srv.ListenAndServe(ctx) }()
+	select {
+	case ctl := <-got:
+		if ctl.Kind != protocol.ControlClose || ctl.CommandID != "cmd-close" || ctl.CommandSeq != 4 {
+			t.Fatalf("replayed control = %+v", ctl)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("pending command was not replayed at startup")
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("daemon did not stop")
+	}
+}

@@ -18,6 +18,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/hook"
 	"github.com/ralphite/agentrunner/internal/pipeline"
+	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
 	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
@@ -89,6 +90,37 @@ func TestApprovalApprovePath(t *testing.T) {
 	if !equal(order, want) {
 		t.Fatalf("fact chain = %v, want %v", order, want)
 	}
+}
+
+type commandApprover struct{}
+
+func (commandApprover) Resolve(context.Context, ApprovalRequest) (ApprovalDecision, error) {
+	return ApprovalDecision{
+		CommandRef: protocol.CommandRef{CommandID: "cmd-approve", CommandSeq: 5},
+		Approve:    true, Reason: "reviewed", Source: "socket",
+	}, nil
+}
+
+func TestApprovalResponseCarriesDurableCommandReceipt(t *testing.T) {
+	l := testLoop(t, approvalFixture(), t.TempDir())
+	l.Pipeline = askEverything
+	l.Approvals = commandApprover{}
+	if _, err := l.Run(context.Background(), "write a note"); err != nil {
+		t.Fatal(err)
+	}
+	events, err := store.ReadEvents(l.Store.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, env := range events {
+		if env.Type == event.TypeApprovalResponded {
+			if env.CommandID != "cmd-approve" {
+				t.Fatalf("approval command receipt = %q", env.CommandID)
+			}
+			return
+		}
+	}
+	t.Fatal("approval_responded not journaled")
 }
 
 // slowApprover approves only after the clock reaches its release time.

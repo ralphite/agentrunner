@@ -79,7 +79,11 @@ func (l *Loop) journalInput(ds *driveState, appendE AppendFunc, in protocol.User
 		}
 		text = head + fmt.Sprintf("\n…[长文本已折叠为附件 %s,共 %d 字节,完整内容见 file part]", ref, len(text))
 	}
-	_, err := appendE(event.TypeInputReceived, &event.InputReceived{
+	inputAppend := appendE
+	if in.CommandID != "" {
+		inputAppend = l.commandAppender(ds, in.CommandID)
+	}
+	_, err := inputAppend(event.TypeInputReceived, &event.InputReceived{
 		Text: text, Source: "user", Images: images, Files: files,
 		DeliverySeq: in.DeliverySeq,
 	})
@@ -190,6 +194,11 @@ func (l *Loop) awaitInput(ctx context.Context, ds *driveState, appendE AppendFun
 				return false, err
 			}
 			return false, resolve("child_cancelled")
+		case cmd := <-l.CommandCancels:
+			if err := l.cancelDurableHandle(ds, appendE, cmd); err != nil {
+				return false, err
+			}
+			return false, resolve("child_cancelled")
 		case ctl := <-l.Controls:
 			// A compact/clear at idle (G7): the summarizer can't run here, so
 			// stash the control and wake the loop — the safe-point drain
@@ -201,6 +210,19 @@ func (l *Loop) awaitInput(ctx context.Context, ds *driveState, appendE AppendFun
 			// journal-inputs-first) and keep waiting. The session never
 			// ends here.
 			if _, err := appendE(event.TypeInputReceived, &event.InputReceived{
+				Text: "[interrupt]", Source: "interrupt",
+			}); err != nil {
+				return false, err
+			}
+			l.emit(protocol.Event{Kind: protocol.KindMessage,
+				Text: "interrupt at idle: nothing to interrupt (close is a separate command)"})
+			continue
+		case ref := <-l.CommandInterrupts:
+			cmdAppend := appendE
+			if ref.CommandID != "" {
+				cmdAppend = l.commandAppender(ds, ref.CommandID)
+			}
+			if _, err := cmdAppend(event.TypeInputReceived, &event.InputReceived{
 				Text: "[interrupt]", Source: "interrupt",
 			}); err != nil {
 				return false, err
@@ -284,6 +306,11 @@ func (l *Loop) awaitAnswer(ctx context.Context, ds *driveState, appendE AppendFu
 				return RunResult{}, true, err
 			}
 			return RunResult{}, false, nil
+		case cmd := <-l.CommandCancels:
+			if err := l.cancelDurableHandle(ds, appendE, cmd); err != nil {
+				return RunResult{}, true, err
+			}
+			return RunResult{}, false, nil
 		case <-l.Interrupts:
 			// Interrupt while parked: the question dies interrupted and the
 			// loop continues (interrupt is guidance, not shutdown). Journal
@@ -297,6 +324,25 @@ func (l *Loop) awaitAnswer(ctx context.Context, ds *driveState, appendE AppendFu
 				return RunResult{}, true, err
 			}
 			if _, err := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
+				Kind: event.WaitInput, Resolution: "superseded_by_interrupt",
+			}); err != nil {
+				return RunResult{}, true, err
+			}
+			return RunResult{}, false, nil
+		case ref := <-l.CommandInterrupts:
+			cmdAppend := appendE
+			if ref.CommandID != "" {
+				cmdAppend = l.commandAppender(ds, ref.CommandID)
+			}
+			if _, err := cmdAppend(event.TypeInputReceived, &event.InputReceived{
+				Text: "[interrupt]", Source: "interrupt",
+			}); err != nil {
+				return RunResult{}, true, err
+			}
+			if err := l.journalAskResolved(cmdAppend, turn, d.CallID, "interrupted", "[interrupted by user]", 0); err != nil {
+				return RunResult{}, true, err
+			}
+			if _, err := cmdAppend(event.TypeWaitingResolved, &event.WaitingResolved{
 				Kind: event.WaitInput, Resolution: "superseded_by_interrupt",
 			}); err != nil {
 				return RunResult{}, true, err

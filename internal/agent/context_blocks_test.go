@@ -91,10 +91,11 @@ func TestContextBlocksFrozenIntoRun(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(cap.requests) != 2 {
-		t.Fatalf("requests = %d", len(cap.requests))
+	requests := cap.Requests()
+	if len(requests) != 2 {
+		t.Fatalf("requests = %d", len(requests))
 	}
-	sys := cap.requests[0].System
+	sys := requests[0].System
 	if !strings.Contains(sys, "always use tabs") {
 		t.Errorf("memory missing from prefix:\n%s", sys)
 	}
@@ -105,8 +106,8 @@ func TestContextBlocksFrozenIntoRun(t *testing.T) {
 		t.Errorf("skill body leaked into the prefix:\n%s", sys)
 	}
 	// Frozen: turn 2's prefix is byte-identical despite the mid-run edit.
-	if cap.requests[1].System != sys {
+	if requests[1].System != sys {
 		t.Errorf("prefix drifted after a mid-run memory edit:\n t1: %q\n t2: %q",
-			sys, cap.requests[1].System)
+			sys, requests[1].System)
 	}
 }

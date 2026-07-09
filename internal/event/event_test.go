@@ -100,6 +100,8 @@ var samples = map[string]any{
 	TypeSpecChanged: &SpecChanged{SpecName: "reviewer", Model: "gemini-x",
 		Spec: json.RawMessage(`{"name":"reviewer"}`), SpecPath: "/specs/reviewer.yaml",
 		Source: "user", Env: "<env>cwd: /w</env>", Agents: "<agents>helper</agents>"},
+	TypeCommandHandled: &CommandHandled{CommandID: "cmd-1", CommandSeq: 7,
+		Kind: "compact", Result: "no_op"},
 }
 
 func TestRoundTripAllTypes(t *testing.T) {

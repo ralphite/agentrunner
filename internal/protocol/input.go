@@ -28,11 +28,59 @@ type FileAttachment struct {
 // journal's InputReceived echoes it so a resume can replay the unconsumed
 // tail exactly once.
 type UserInput struct {
-	Text        string            `json:"text"`
-	Images      []ImageAttachment `json:"images,omitempty"`
-	Files       []FileAttachment  `json:"files,omitempty"`
-	DeliverySeq int64             `json:"delivery_seq,omitempty"`
+	Text   string            `json:"text"`
+	Images []ImageAttachment `json:"images,omitempty"`
+	Files  []FileAttachment  `json:"files,omitempty"`
+	// CommandID is minted by the caller and remains stable across retries.
+	// The durable mailbox rejects reuse with a different payload and returns
+	// the original DeliverySeq for an exact retry.
+	CommandID   string `json:"command_id,omitempty"`
+	DeliverySeq int64  `json:"delivery_seq,omitempty"`
 }
+
+// CommandRef is the durable receipt carried from the command log to the
+// semantic event that applies it.
+type CommandRef struct {
+	CommandID  string `json:"command_id"`
+	CommandSeq int64  `json:"command_seq"`
+}
+
+// CancelCommand is an out-of-band kill request with its durable receipt.
+type CancelCommand struct {
+	CommandRef
+	Handle string `json:"handle"`
+}
+
+// ApprovalCommand is the durable user response to one pending approval.
+type ApprovalCommand struct {
+	ApprovalID string `json:"approval_id"`
+	Decision   string `json:"decision"`
+	Reason     string `json:"reason,omitempty"`
+}
+
+// SessionCommand is the typed durable command-log record. Input is optional
+// only for non-input kinds; control/approval/handle carry the other payloads.
+type SessionCommand struct {
+	CommandRef
+	// PreviouslyAccepted is response metadata, never persisted. It tells the
+	// daemon an exact retry returned an existing receipt, so a completed
+	// command is acknowledged without another live wake after restart.
+	PreviouslyAccepted bool             `json:"-"`
+	Kind               string           `json:"kind"`
+	Input              *UserInput       `json:"input,omitempty"`
+	Control            *Control         `json:"control,omitempty"`
+	Approval           *ApprovalCommand `json:"approval,omitempty"`
+	Handle             string           `json:"handle,omitempty"`
+}
+
+const (
+	CommandInput     = "input"
+	CommandControl   = "control"
+	CommandInterrupt = "interrupt"
+	CommandClose     = "close"
+	CommandKill      = "kill"
+	CommandApproval  = "approval"
+)
 
 // Control is a non-conversational session-maintenance signal (G7 · INC-D1):
 // manual context compaction/clear, or in-session goal control. Like
@@ -40,6 +88,7 @@ type UserInput struct {
 // never enters the conversation as user content; its EFFECT (a ContextCompacted
 // or Goal* event) is what lands in the journal.
 type Control struct {
+	CommandRef
 	Kind      string       `json:"kind"`                // compact | clear | goal_*
 	Directive string       `json:"directive,omitempty"` // optional focus for a compact
 	Goal      *GoalControl `json:"goal,omitempty"`      // payload for goal_attach / goal_update
@@ -64,4 +113,5 @@ const (
 	ControlGoalResume = "goal_resume"
 	ControlGoalUpdate = "goal_update"
 	ControlGoalCancel = "goal_cancel"
+	ControlClose      = "close"
 )

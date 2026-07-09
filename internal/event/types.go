@@ -86,7 +86,17 @@ const (
 	TypeGoalCancelled  = "goal_cancelled"
 	TypeGoalCheckpoint = "goal_checkpoint"
 	TypeGoalAchieved   = "goal_achieved"
+	TypeCommandHandled = "command_handled"
 )
+
+// CommandHandled is the semantic no-op/completion receipt for a durable
+// command when no domain event would otherwise carry its CommandID.
+type CommandHandled struct {
+	CommandID  string `json:"command_id"`
+	CommandSeq int64  `json:"command_seq,omitempty"`
+	Kind       string `json:"kind"`
+	Result     string `json:"result,omitempty"`
+}
 
 // Effect verdicts and gate decisions.
 const (
@@ -753,6 +763,7 @@ var Registry = map[string]func() any{
 	TypeGoalCancelled:  func() any { return &GoalCancelled{} },
 	TypeGoalCheckpoint: func() any { return &GoalCheckpoint{} },
 	TypeGoalAchieved:   func() any { return &GoalAchieved{} },
+	TypeCommandHandled: func() any { return &CommandHandled{} },
 }
 
 // DriverStream lists the event types that belong to the IterationDriver's OWN

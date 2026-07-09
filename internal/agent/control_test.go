@@ -151,8 +151,8 @@ func TestManualClearControl(t *testing.T) {
 
 	waitForEvent(t, es, event.TypeAssistantMessage, 1)
 	// Two clears queued together: the second is a no-op (nothing new).
-	controls <- protocol.Control{Kind: protocol.ControlClear}
-	controls <- protocol.Control{Kind: protocol.ControlClear}
+	controls <- protocol.Control{CommandRef: protocol.CommandRef{CommandID: "cmd-clear-1", CommandSeq: 1}, Kind: protocol.ControlClear}
+	controls <- protocol.Control{CommandRef: protocol.CommandRef{CommandID: "cmd-clear-2", CommandSeq: 2}, Kind: protocol.ControlClear}
 	waitForEvent(t, es, event.TypeContextCompacted, 1)
 	// Give the loop a moment in case a spurious second event were coming.
 	time.Sleep(100 * time.Millisecond)
@@ -166,13 +166,48 @@ func TestManualClearControl(t *testing.T) {
 		t.Fatalf("clear events = %d, want exactly 1 (second clear is a no-op)", n)
 	}
 	evs, _ := store.ReadEvents(es.Dir())
+	var sawFirst, sawNoop bool
 	for _, e := range evs {
 		if e.Type == event.TypeContextCompacted {
+			sawFirst = e.CommandID == "cmd-clear-1"
 			dec, _ := event.DecodePayload(e)
 			cc := dec.(*event.ContextCompacted)
 			if !cc.Cleared || cc.Summary != "" {
 				t.Fatalf("clear event should be Cleared with empty summary: %+v", cc)
 			}
+		} else if e.Type == event.TypeCommandHandled && e.CommandID == "cmd-clear-2" {
+			sawNoop = true
 		}
 	}
+	if !sawFirst || !sawNoop {
+		t.Fatalf("durable control receipts: first=%v noop=%v", sawFirst, sawNoop)
+	}
+}
+
+func TestDurableCloseControlCarriesReceipt(t *testing.T) {
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: "answer"}, {Finish: "end_turn"}}},
+	}}
+	es, _, controls, done := controlLoop(t, fix, 5)
+	waitForEvent(t, es, event.TypeAssistantMessage, 1)
+	controls <- protocol.Control{
+		CommandRef: protocol.CommandRef{CommandID: "cmd-close", CommandSeq: 9},
+		Kind:       protocol.ControlClose,
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	events, err := store.ReadEvents(es.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, env := range events {
+		if env.Type == event.TypeSessionClosed {
+			if env.CommandID != "cmd-close" {
+				t.Fatalf("close command receipt = %q", env.CommandID)
+			}
+			return
+		}
+	}
+	t.Fatal("session_closed not journaled")
 }

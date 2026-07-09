@@ -99,7 +99,8 @@ func TestPlanModeFullFlow(t *testing.T) {
 	}
 
 	// GenStep 1 (plan): filtered face + injected suffix.
-	req1 := cap.requests[0]
+	requests := cap.Requests()
+	req1 := requests[0]
 	if !strings.Contains(req1.System, "PLAN MODE") {
 		t.Errorf("turn 1 system prompt missing plan suffix: %q", req1.System)
 	}
@@ -110,7 +111,7 @@ func TestPlanModeFullFlow(t *testing.T) {
 	}
 
 	// GenStep 2 (default after approved transition): full face, no suffix.
-	req2 := cap.requests[1]
+	req2 := requests[1]
 	if strings.Contains(req2.System, "PLAN MODE") {
 		t.Errorf("turn 2 still carries plan suffix")
 	}
@@ -165,7 +166,8 @@ func TestExitPlanModeDeniedStaysInPlan(t *testing.T) {
 		t.Fatal(err)
 	}
 	// GenStep 2 still in plan mode: suffix present.
-	if !strings.Contains(cap.requests[1].System, "PLAN MODE") {
+	requests := cap.Requests()
+	if !strings.Contains(requests[1].System, "PLAN MODE") {
 		t.Fatal("denied exit must keep plan mode")
 	}
 }

@@ -94,8 +94,9 @@ in-flight 子 run 的 settle-from-child-fold、barrier tasks 处置对
 → UJ-18
 
 **G3 运行中 steering 文本消息 — ✅ 已关闭（v2 M2+收口，2026-07-05）**
-关闭位置：daemon send command + durable mailbox(确认即持久,收口
-F.3) + inbox(64 type-ahead) + 忙时排队边界生效 + interrupt 分立
+关闭位置：daemon send command + durable CommandLog(确认即 accepted，
+INC-11.2 已把 control/close/interrupt/approval/kill 同收编) + FIFO wake +
+忙时排队边界生效 + interrupt 分立
 (闸门 QA-02/06/08 真实 API PASS)。子 agent 不可 steer(v0 明确否,
 父 kill+re-spawn 代替)。**余项**：机器发送方(G14);WAITING_APPROVAL
 park 期间消息只排队不唤醒(审批答复才解栈,唤醒语义待定)。原文:

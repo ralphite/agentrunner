@@ -169,10 +169,11 @@ func TestCompactionTriggeredInLoop(t *testing.T) {
 
 	// Three provider calls: turn-1 LLM, the summarizer, turn-2 LLM. The
 	// turn-2 request must carry the summary and NOT the bulky turn-1 text.
-	if len(cap.requests) != 3 {
-		t.Fatalf("provider calls = %d, want 3 (turn1, compact, turn2)", len(cap.requests))
+	requests := cap.Requests()
+	if len(requests) != 3 {
+		t.Fatalf("provider calls = %d, want 3 (turn1, compact, turn2)", len(requests))
 	}
-	turn2 := cap.requests[2]
+	turn2 := requests[2]
 	var seenSummary, seenBig bool
 	for _, m := range turn2.Messages {
 		for _, p := range m.Parts {

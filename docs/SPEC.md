@@ -24,7 +24,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | 续聊（答完待命；close = 标记） | ✅ | UJ-01/03/09 | QA-01 · C1 · 孪生（见 e2e） |
 | 回复就地可见（`new`/`send` 默认跟随本轮渲染正文至 idle，尾行提示 send/attach；`--detach` 恢复异步） | ✅ | UJ-01/03 | INC-2 · TestNewAndSendRenderReply/Detach |
 | 忙时投递排队（安全边界按序消费，不丢不乱序） | ✅ | UJ-07 | QA-02/06 · C2 |
-| durable mailbox（确认即持久、恰好一次，跨 kill -9） | ✅ | 不变量 | QA-08 FAIL 级断言 · inbox.jsonl 机制（DESIGN §2） |
+| durable CommandLog（send/control/close/interrupt/approval/kill；调用方 command_id 幂等，确认即 accepted，跨 restart 自动重放） | ✅ | 不变量 | INC-11.2 · TestInboxCommandIdempotency/TestStartupResumesAndReplaysPendingDurableCommand/TestHostedRunDeduplicatesCommandID（DESIGN §2） |
 | 静止模型（唯一 session 形态；静止=形状 `state.Quiescence`；静止动作 outputs→barrier→parent 回执；close/kill=标记+检查；预算耗尽=可见截断） | ✅ | 不变量 | 决策 #30/#31 · 2026-07-08 落码(D2) · TestResumeQuiescentIsLawful/TestQuiescentSequenceOrder/TestBackgroundTaskSettlesBeforeQuiescence |
 | interrupt 与输入分立（Esc 杀活动 / 消息追加） | ✅ | UJ-07 | QA-02/06 · C8 · S3 |
 | interrupt 永不结束 session（待命处 = no-op；close 是独立命令） | ✅ | UJ-03/07 | 裁决 #11 · 2026-07-08 落码(D2) · TestIdleInterruptIsNoOp |
@@ -152,7 +152,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 
 | 功能点 | 状态 | Journey | 验收锚 / 备注 |
 |---|---|---|---|
-| daemon 托管（socket、idem_key 幂等、优雅停机） | ✅ | UJ-17 | S6 |
+| daemon 托管（socket、run idem_key + session command_id 幂等、优雅停机） | ✅ | UJ-17 | S6 · INC-11.2 |
 | CLI 第一公里可发现性（顶层 help/`init` 示例 spec/README/spec 错误附字段清单/daemon 报错附启动指引） | ✅ | UJ-01…（全 journey 进入门槛） | INC-2 · TestTopLevelHelp/TestInit* · spec_errors golden |
 | 静止动作（outputs→barrier→goal_verify→parent 回执;ar run=开+发+等静止+读结果） | ✅ | UJ-02/14/15/22 | 决策 #31 · 2026-07-08 落码(D2) · INC-D1/INC-11.1 同步顺序测试 · TestQuiescentSequenceOrder · acceptance events_valid 改静止形状判定 |
 | session 内换 agent（SpecChanged 事件 + `ar agent`,用户免确认,prefix 显式换代） | ✅ | UJ-11 | 裁决一 · 2026-07-08 落码(D4a) · QA-10 · TestAgentSwitchTakesEffectOnResume（G8 关闭） |

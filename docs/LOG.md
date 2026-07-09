@@ -912,3 +912,32 @@ CODEX-PARITY §6.2;连带发现 update_plan/终端交互/node REPL 等 Codex 模
 `events --state` 均能读取旧 journal，inspect 递归展示 `sub/iter-N` 子会话。
 实测原 `unreadable` 行恢复为 `satisfied` / `max_iterations`。这是 projection
 修复，不修改任何旧数据。
+
+## 2026-07-09 INC-11.2 durable CommandLog 与幂等投递
+
+把仅覆盖 user input 的 mailbox 扩成 typed per-session CommandLog，兼容沿用
+`inbox.jsonl` 与旧行格式。send/control/close/interrupt/approval/kill 都先
+redact+fsync，ack 只表示 durable accepted；调用方 mint 稳定 `command_id`，
+同 payload 重试返回原 seq、冲突复用拒绝。event envelope 新增独立
+`command_id` receipt，不污染线性 `causation_id`。
+
+daemon 用单 FIFO 搬运所有已 accepted command，宿主内按 id 去重；append
+后的 wake 失败不再反悔为客户端错误。启动扫描 CommandLog 与 journal
+completion fact 的差集，自动 re-host/replay control、interrupt、approval 等
+非输入命令。inbox append 索引改为启动时线性重建，消除逐次全表扫描的
+O(n²)。agent 在应用输入/控制/中断/kill/审批时把 receipt 写入 semantic
+event，无效果的重复 control 落 `CommandHandled`。
+
+孪生覆盖跨 restart idempotency/冲突、legacy mixed read、200 条无界 FIFO、
+宿主去重、startup pending replay、durable close/interrupt/approval receipt；
+修复并发子 agent 共用 `capturingProvider` 测试桩的 slice race；相关四包
+`go test -race` 与全量 `check.sh` 通过。
+
+**真实共享 store + daemon restart**：在
+`~/.local/share/agentrunner/sessions/20260709-212328-inc11-real-start-fdc4`
+以真实 `daemon.sock` 写入 input/clear，确认 inbox 与 semantic event 各只有
+一个同 id receipt，`command_id` 与 `causation_id` 分立。三次 SIGTERM 优雅
+滚动到新 `/tmp/ar` 后重复原 wire command，journal 行数保持 23、无重复 wake。
+该闸门先抓到两个仅跨 restart 出现的问题并修复：已完成旧 receipt 在新宿主
+多唤醒一次；nested `Control.CommandRef` 未从 payload hash 规范化而误报冲突。
+旧 driver `20260709-104551-sched-loop-5c56` 在同一重启后仍可完整 inspect。

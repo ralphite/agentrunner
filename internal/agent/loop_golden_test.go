@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sync"
 	"testing"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 // assembly golden pins the exact provider-visible shape (roles, part kinds,
 // call ids, result placement) before S2.10 rewrites the loop orchestration.
 type capturingProvider struct {
+	mu       sync.Mutex
 	inner    provider.Provider
 	requests []provider.CompleteRequest
 }
@@ -29,8 +31,16 @@ type capturingProvider struct {
 func (c *capturingProvider) Capabilities() provider.Capabilities { return c.inner.Capabilities() }
 
 func (c *capturingProvider) Complete(ctx context.Context, req provider.CompleteRequest) iter.Seq2[provider.StreamEvent, error] {
+	c.mu.Lock()
 	c.requests = append(c.requests, req)
+	c.mu.Unlock()
 	return c.inner.Complete(ctx, req)
+}
+
+func (c *capturingProvider) Requests() []provider.CompleteRequest {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]provider.CompleteRequest(nil), c.requests...)
 }
 
 func TestLoopRequestAssemblyGolden(t *testing.T) {
@@ -86,7 +96,7 @@ func TestLoopRequestAssemblyGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := json.MarshalIndent(normalizeRequests(cap.requests), "", "  ")
+	got, err := json.MarshalIndent(normalizeRequests(cap.Requests()), "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}

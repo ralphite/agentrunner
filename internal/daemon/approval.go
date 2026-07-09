@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"sync"
+
+	"github.com/ralphite/agentrunner/internal/protocol"
 )
 
 // ApprovalAnswer is a human's verdict routed over the socket.
 type ApprovalAnswer struct {
+	protocol.CommandRef
 	Approve bool
 	Reason  string
 }

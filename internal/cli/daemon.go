@@ -113,15 +113,17 @@ func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 			}
 			return daemon.ReplayJournal(dir, sink)
 		},
-		ScanTimers:      scanSessionTimers,
-		Resume:          hostResumeFunc(version, stderr, broker),
-		PersistInput:    persistInputFunc(),
-		SessionMarked:   sessionMarked,
-		PendingApproval: pendingApproval,
-		Drive:           hostDriveFunc(version, stderr, broker),
-		Approvals:       broker,
-		IdemPath:        filepath.Join(filepath.Dir(sock), "idem.json"),
-		Notify:          notifyTee,
+		ScanTimers:                 scanSessionTimers,
+		Resume:                     hostResumeFunc(version, stderr, broker),
+		PersistCommand:             persistCommandFunc(),
+		PendingCommands:            pendingCommands,
+		ScanPendingCommandSessions: scanPendingCommandSessions,
+		SessionMarked:              sessionMarked,
+		PendingApproval:            pendingApproval,
+		Drive:                      hostDriveFunc(version, stderr, broker),
+		Approvals:                  broker,
+		IdemPath:                   filepath.Join(filepath.Dir(sock), "idem.json"),
+		Notify:                     notifyTee,
 	}
 	reconcileNotifications(notifier)
 	fmt.Fprintf(stderr, "daemon on %s\n", sock)
@@ -337,7 +339,7 @@ func (s socketApprovals) Resolve(ctx context.Context, req agent.ApprovalRequest)
 	if err != nil {
 		return agent.ApprovalDecision{}, err
 	}
-	return agent.ApprovalDecision{Approve: a.Approve, Reason: a.Reason, Source: "socket"}, nil
+	return agent.ApprovalDecision{CommandRef: a.CommandRef, Approve: a.Approve, Reason: a.Reason, Source: "socket"}, nil
 }
 
 // hostRunFunc is the daemon's real run wiring — the same assembly as a
@@ -380,25 +382,27 @@ func hostRunFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker
 			return err
 		}
 		loop := &agent.Loop{
-			Spec:       spec,
-			Provider:   prov,
-			Exec:       &tool.Executor{WS: ws, Session: req.SessionID},
-			Store:      events,
-			Clock:      clock.Real{},
-			Out:        sink,
-			SessionID:  req.SessionID,
-			Version:    version,
-			Pipeline:   pipe,
-			Mode:       mode,
-			Hooks:      hooks,
-			Approvals:  socketApprovals{broker: broker, session: req.SessionID, sink: sink},
-			SubSpecs:   siblingSpecResolver(req.SpecPath),
-			SpecPath:   req.SpecPath,
-			Snapshots:  snapshotStoreFor(ws, stderr),
-			UserInputs: req.Inbox,
-			Interrupts: req.Interrupts,
-			Cancels:    req.Cancels,
-			Controls:   req.Controls,
+			Spec:              spec,
+			Provider:          prov,
+			Exec:              &tool.Executor{WS: ws, Session: req.SessionID},
+			Store:             events,
+			Clock:             clock.Real{},
+			Out:               sink,
+			SessionID:         req.SessionID,
+			Version:           version,
+			Pipeline:          pipe,
+			Mode:              mode,
+			Hooks:             hooks,
+			Approvals:         socketApprovals{broker: broker, session: req.SessionID, sink: sink},
+			SubSpecs:          siblingSpecResolver(req.SpecPath),
+			SpecPath:          req.SpecPath,
+			Snapshots:         snapshotStoreFor(ws, stderr),
+			UserInputs:        req.Inbox,
+			Interrupts:        req.Interrupts,
+			Cancels:           req.Cancels,
+			Controls:          req.Controls,
+			CommandInterrupts: req.CommandInterrupts,
+			CommandCancels:    req.CommandCancels,
 			// Blackboard publishes mirror onto the attach stream (S6 模块⑤
 			// 回访): watchers see the tree's collaboration live; the board
 			// stays the read-back truth.
@@ -424,6 +428,97 @@ func persistInputFunc() func(string, protocol.UserInput) (protocol.UserInput, er
 		in.Text = redact.FromEnv().String(in.Text)
 		return store.AppendInbox(dir, in)
 	}
+}
+
+func persistCommandFunc() func(string, protocol.SessionCommand) (protocol.SessionCommand, error) {
+	return func(sessionID string, cmd protocol.SessionCommand) (protocol.SessionCommand, error) {
+		dir, err := resolveSessionDir(sessionID)
+		if err != nil {
+			return cmd, err
+		}
+		raw, err := json.Marshal(cmd)
+		if err != nil {
+			return cmd, err
+		}
+		raw = redact.FromEnv().JSON(raw)
+		if err := json.Unmarshal(raw, &cmd); err != nil {
+			return cmd, err
+		}
+		return store.AppendCommand(dir, cmd)
+	}
+}
+
+func pendingCommands(sessionID string) ([]protocol.SessionCommand, error) {
+	dir, err := resolveSessionDir(sessionID)
+	if err != nil {
+		return nil, err
+	}
+	events, err := store.ReadEvents(dir)
+	if err != nil {
+		return nil, err
+	}
+	handled := map[string]bool{}
+	var consumedInputSeq int64
+	for _, env := range events {
+		if env.Type == event.TypeInputReceived {
+			if decoded, derr := event.DecodePayload(env); derr == nil {
+				if seq := decoded.(*event.InputReceived).DeliverySeq; seq > consumedInputSeq {
+					consumedInputSeq = seq
+				}
+			}
+		}
+		if env.CommandID == "" {
+			continue
+		}
+		switch env.Type {
+		case event.TypeInputReceived, event.TypeContextCompacted,
+			event.TypeGoalAttached, event.TypeGoalUpdated, event.TypeGoalPaused,
+			event.TypeGoalResumed, event.TypeGoalCancelled, event.TypeGoalAchieved,
+			event.TypeSessionClosed, event.TypeLimitExceeded,
+			event.TypeApprovalResponded, event.TypeCommandHandled:
+			handled[env.CommandID] = true
+		}
+	}
+	commands, err := store.ReadCommands(dir, 0)
+	if err != nil {
+		return nil, err
+	}
+	var pending []protocol.SessionCommand
+	for _, cmd := range commands {
+		if cmd.Kind == protocol.CommandInput && cmd.CommandSeq <= consumedInputSeq {
+			continue
+		}
+		if cmd.CommandID != "" && handled[cmd.CommandID] {
+			continue
+		}
+		pending = append(pending, cmd)
+	}
+	return pending, nil
+}
+
+func scanPendingCommandSessions() ([]string, error) {
+	data, err := runtime.DataDir()
+	if err != nil {
+		return nil, err
+	}
+	entries, err := os.ReadDir(filepath.Join(data, "sessions"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var ids []string
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		pending, perr := pendingCommands(entry.Name())
+		if perr == nil && len(pending) > 0 {
+			ids = append(ids, entry.Name())
+		}
+	}
+	return ids, nil
 }
 
 // sessionMarked reports whether a session's journal carries a close/kill
@@ -591,6 +686,8 @@ func hostResumeFunc(version string, stderr io.Writer, broker *daemon.ApprovalBro
 		loop.Interrupts = req.Interrupts
 		loop.Cancels = req.Cancels
 		loop.Controls = req.Controls
+		loop.CommandInterrupts = req.CommandInterrupts
+		loop.CommandCancels = req.CommandCancels
 		loop.SpecPath = specPath
 		if specPath != "" {
 			loop.SubSpecs = siblingSpecResolver(specPath)
@@ -808,7 +905,7 @@ func approveCmd(args []string, stdout, stderr io.Writer) int {
 	code := ExitOK
 	err = daemon.Dial(sock, daemon.Command{
 		Cmd: "approve", Session: session, ApprovalID: args[1],
-		Decision: decision, Reason: reason,
+		Decision: decision, Reason: reason, CommandID: event.NewCommandID(),
 	}, func(e protocol.Event) {
 		if e.Kind == protocol.KindError {
 			code = ExitRun

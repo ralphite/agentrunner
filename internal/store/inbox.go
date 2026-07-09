@@ -11,12 +11,14 @@ package store
 
 import (
 	"bufio"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
 
+	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
 )
 
@@ -24,36 +26,95 @@ const inboxFile = "inbox.jsonl"
 
 // inboxMu serializes appends per session dir within this process (the
 // daemon is the only writer of mailbox files).
-var inboxMu sync.Mutex
+var (
+	inboxMu    sync.Mutex
+	inboxCache = map[string]*inboxIndex{}
+)
 
-// AppendInbox persists one delivery, assigning the next seq, and fsyncs
-// before returning. The returned input carries its DeliverySeq.
+type inboxReceipt struct {
+	seq  int64
+	hash [32]byte
+}
+
+// inboxIndex is loaded once per session per process. The old implementation
+// rescanned the whole JSONL on every append, making N deliveries O(N²).
+// A daemon is the sole writer, so an in-process append index is sufficient;
+// after restart one linear scan rebuilds it without a side database.
+type inboxIndex struct {
+	last     int64
+	receipts map[string]inboxReceipt
+}
+
+// AppendInbox is the compatibility input view over the unified command log.
 func AppendInbox(sessionDir string, in protocol.UserInput) (protocol.UserInput, error) {
-	inboxMu.Lock()
-	defer inboxMu.Unlock()
-	last, err := lastInboxSeq(sessionDir)
+	cmd, err := AppendCommand(sessionDir, protocol.SessionCommand{
+		CommandRef: protocol.CommandRef{CommandID: in.CommandID},
+		Kind:       protocol.CommandInput,
+		Input:      &in,
+	})
 	if err != nil {
 		return in, err
 	}
-	in.DeliverySeq = last + 1
-	line, err := json.Marshal(in)
+	result := *cmd.Input
+	result.CommandID = cmd.CommandID
+	result.DeliverySeq = cmd.CommandSeq
+	return result, nil
+}
+
+// AppendCommand persists one typed session command, assigning the next
+// sequence and fsyncing before return. Exact command-id retries return the
+// original receipt; conflicting payload reuse is rejected.
+func AppendCommand(sessionDir string, cmd protocol.SessionCommand) (protocol.SessionCommand, error) {
+	inboxMu.Lock()
+	defer inboxMu.Unlock()
+	idx, err := loadInboxIndex(sessionDir)
 	if err != nil {
-		return in, err
+		return cmd, err
+	}
+	if cmd.CommandID == "" {
+		cmd.CommandID = event.NewCommandID() // compatibility with older callers
+	}
+	if err := validateCommand(cmd); err != nil {
+		return cmd, err
+	}
+	hash, err := commandPayloadHash(cmd)
+	if err != nil {
+		return cmd, err
+	}
+	if prior, ok := idx.receipts[cmd.CommandID]; ok {
+		if prior.hash != hash {
+			return cmd, fmt.Errorf("inbox: command_id %q reused with different payload", cmd.CommandID)
+		}
+		cmd.CommandSeq = prior.seq
+		cmd.PreviouslyAccepted = true
+		stampInputReceipt(&cmd)
+		return cmd, nil
+	}
+	cmd.CommandSeq = idx.last + 1
+	stampInputReceipt(&cmd)
+	line, err := json.Marshal(cmd)
+	if err != nil {
+		return cmd, err
 	}
 	f, err := os.OpenFile(filepath.Join(sessionDir, inboxFile),
 		os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
 	if err != nil {
-		return in, err
+		return cmd, err
 	}
 	if _, err := f.Write(append(line, '\n')); err != nil {
 		_ = f.Close()
-		return in, err
+		return cmd, err
 	}
 	if err := f.Sync(); err != nil { // the ack promises durability
 		_ = f.Close()
-		return in, err
+		return cmd, err
 	}
-	return in, f.Close()
+	if err := f.Close(); err != nil {
+		return cmd, err
+	}
+	idx.last = cmd.CommandSeq
+	idx.receipts[cmd.CommandID] = inboxReceipt{seq: cmd.CommandSeq, hash: hash}
+	return cmd, nil
 }
 
 // SeedInboxWatermark writes one inert mailbox entry at seq so a fresh mailbox
@@ -87,12 +148,18 @@ func SeedInboxWatermark(sessionDir string, seq int64) error {
 		_ = f.Close()
 		return err
 	}
-	return f.Close()
+	if err := f.Close(); err != nil {
+		return err
+	}
+	if idx := inboxCache[sessionDir]; idx != nil && seq > idx.last {
+		idx.last = seq
+	}
+	return nil
 }
 
-// ReadInbox returns every persisted delivery with seq > after, in order.
-// A missing mailbox is an empty one.
-func ReadInbox(sessionDir string, after int64) ([]protocol.UserInput, error) {
+// ReadCommands returns every command with seq > after. It accepts legacy
+// input-only lines and upgrades them in memory without rewriting user data.
+func ReadCommands(sessionDir string, after int64) ([]protocol.SessionCommand, error) {
 	f, err := os.Open(filepath.Join(sessionDir, inboxFile))
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -101,28 +168,137 @@ func ReadInbox(sessionDir string, after int64) ([]protocol.UserInput, error) {
 		return nil, err
 	}
 	defer func() { _ = f.Close() }()
-	var out []protocol.UserInput
+	var out []protocol.SessionCommand
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 0, 64*1024), 32*1024*1024)
 	for sc.Scan() {
-		var in protocol.UserInput
-		if err := json.Unmarshal(sc.Bytes(), &in); err != nil {
+		var probe struct {
+			Kind string `json:"kind"`
+		}
+		if err := json.Unmarshal(sc.Bytes(), &probe); err != nil {
 			return nil, fmt.Errorf("inbox: bad line: %w", err)
 		}
-		if in.DeliverySeq > after {
-			out = append(out, in)
+		var cmd protocol.SessionCommand
+		if probe.Kind != "" {
+			if err := json.Unmarshal(sc.Bytes(), &cmd); err != nil {
+				return nil, fmt.Errorf("inbox: bad command: %w", err)
+			}
+		} else {
+			var in protocol.UserInput
+			if err := json.Unmarshal(sc.Bytes(), &in); err != nil {
+				return nil, fmt.Errorf("inbox: bad legacy input: %w", err)
+			}
+			cmd = protocol.SessionCommand{
+				CommandRef: protocol.CommandRef{CommandID: in.CommandID, CommandSeq: in.DeliverySeq},
+				Kind:       protocol.CommandInput, Input: &in,
+			}
+		}
+		stampInputReceipt(&cmd)
+		if cmd.CommandSeq > after {
+			out = append(out, cmd)
 		}
 	}
 	return out, sc.Err()
 }
 
-func lastInboxSeq(sessionDir string) (int64, error) {
-	entries, err := ReadInbox(sessionDir, 0)
+// ReadInbox is the legacy input projection used by Loop.Resume.
+func ReadInbox(sessionDir string, after int64) ([]protocol.UserInput, error) {
+	commands, err := ReadCommands(sessionDir, after)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	if len(entries) == 0 {
-		return 0, nil
+	var out []protocol.UserInput
+	for _, cmd := range commands {
+		if cmd.Kind == protocol.CommandInput && cmd.Input != nil {
+			out = append(out, *cmd.Input)
+		}
 	}
-	return entries[len(entries)-1].DeliverySeq, nil
+	return out, nil
+}
+
+func loadInboxIndex(sessionDir string) (*inboxIndex, error) {
+	if idx := inboxCache[sessionDir]; idx != nil {
+		return idx, nil
+	}
+	entries, err := ReadCommands(sessionDir, 0)
+	if err != nil {
+		return nil, err
+	}
+	idx := &inboxIndex{receipts: map[string]inboxReceipt{}}
+	for _, cmd := range entries {
+		if cmd.CommandSeq > idx.last {
+			idx.last = cmd.CommandSeq
+		}
+		if cmd.CommandID == "" { // legacy mailbox entry: seq-only dedup remains
+			continue
+		}
+		hash, herr := commandPayloadHash(cmd)
+		if herr != nil {
+			return nil, herr
+		}
+		idx.receipts[cmd.CommandID] = inboxReceipt{seq: cmd.CommandSeq, hash: hash}
+	}
+	inboxCache[sessionDir] = idx
+	return idx, nil
+}
+
+func commandPayloadHash(cmd protocol.SessionCommand) ([32]byte, error) {
+	cmd.CommandSeq = 0
+	cmd.PreviouslyAccepted = false
+	if cmd.Input != nil {
+		copy := *cmd.Input
+		copy.DeliverySeq = 0
+		copy.CommandID = ""
+		cmd.Input = &copy
+	}
+	if cmd.Control != nil {
+		copy := *cmd.Control
+		copy.CommandRef = protocol.CommandRef{}
+		cmd.Control = &copy
+	}
+	raw, err := json.Marshal(cmd)
+	if err != nil {
+		return [32]byte{}, err
+	}
+	return sha256.Sum256(raw), nil
+}
+
+func stampInputReceipt(cmd *protocol.SessionCommand) {
+	if cmd.Control != nil {
+		cmd.Control.CommandRef = cmd.CommandRef
+	}
+	if cmd.Input == nil {
+		return
+	}
+	cmd.Input.CommandID = cmd.CommandID
+	cmd.Input.DeliverySeq = cmd.CommandSeq
+}
+
+func validateCommand(cmd protocol.SessionCommand) error {
+	switch cmd.Kind {
+	case protocol.CommandInput:
+		if cmd.Input == nil {
+			return fmt.Errorf("inbox: input command missing payload")
+		}
+	case protocol.CommandControl:
+		if cmd.Control == nil {
+			return fmt.Errorf("inbox: control command missing payload")
+		}
+	case protocol.CommandApproval:
+		if cmd.Approval == nil {
+			return fmt.Errorf("inbox: approval command missing payload")
+		}
+	case protocol.CommandInterrupt:
+	case protocol.CommandClose:
+		if cmd.Control == nil {
+			return fmt.Errorf("inbox: close command missing payload")
+		}
+	case protocol.CommandKill:
+		if cmd.Handle == "" {
+			return fmt.Errorf("inbox: kill command missing handle")
+		}
+	default:
+		return fmt.Errorf("inbox: unknown command kind %q", cmd.Kind)
+	}
+	return nil
 }
