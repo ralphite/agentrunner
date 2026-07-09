@@ -2241,3 +2241,80 @@ summary.fd-head:hover {
   opacity: 1;
   filter: none;
 }
+
+/* ---- in-chat Find (Codex's ⌘F Search chat) ---- */
+.findbar {
+  position: fixed;
+  top: 64px;
+  right: 24px;
+  z-index: 60;
+  width: 288px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.24);
+  overflow: hidden;
+}
+.fb-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+}
+.fb-ico {
+  color: var(--dim);
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.fb-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 2px 0;
+  font-size: 13.5px;
+}
+.fb-input:focus {
+  outline: none;
+}
+.fb-x {
+  border: none;
+  background: transparent;
+  color: var(--dim);
+  padding: 2px 5px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.fb-x:hover {
+  background: var(--panel-2);
+  color: var(--ink);
+}
+.fb-nav {
+  border-top: 1px solid var(--line);
+  padding: 5px 10px;
+}
+.fb-arrow {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink-2);
+  border-radius: 6px;
+  padding: 1px 8px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.fb-arrow:disabled {
+  opacity: 0.4;
+}
+.fb-count {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--dim);
+}
+/* Custom Highlight API paints; the active match sits on the higher-priority layer. */
+::highlight(arfind) {
+  background-color: var(--amber-soft);
+  color: var(--ink);
+}
+::highlight(arfind-current) {
+  background-color: var(--amber);
+  color: #17171a;
+}

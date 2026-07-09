@@ -9,6 +9,7 @@ import { Composer } from "./Composer";
 import { DiffView } from "./DiffView";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
 import { Subagents, type InspectNode } from "./Subagents";
+import { FindBar } from "./FindBar";
 import { friendlyStatus } from "./pill";
 
 interface SSEApproval {
@@ -41,10 +42,29 @@ export function SessionView({ sid }: { sid: string }) {
   const [children, setChildren] = useState<InspectNode[]>([]);
   const [goal, setGoal] = useState<{ goal: string; checks: number; max_checks?: number; paused?: boolean } | null>(null);
   const [view, setView] = useState<"chat" | "diff">("chat");
+  const [findOpen, setFindOpen] = useState(false);
 
   const cursor = useRef(0);
   const pollBusy = useRef(false);
   const pendSeq = useRef(0);
+
+  // ⌘F / Ctrl-F opens the in-chat Find bar (Codex's Search chat). We take over
+  // the browser's native find since Find operates on the rendered timeline.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        setFindOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Leaving chat view (e.g. to the diff) closes Find — it only searches the timeline.
+  useEffect(() => {
+    if (view !== "chat") setFindOpen(false);
+  }, [view]);
 
   // ---- incremental journal poll (the realtime source of truth) ----
   const poll = useCallback(async () => {
@@ -345,6 +365,10 @@ export function SessionView({ sid }: { sid: string }) {
           </MenuItem>
         </Menu>
       </div>
+
+      {view === "chat" && findOpen && (
+        <FindBar scope={() => document.querySelector<HTMLElement>(".timeline")} onClose={() => setFindOpen(false)} />
+      )}
 
       {view === "diff" ? (
         <DiffView sid={sid} />
