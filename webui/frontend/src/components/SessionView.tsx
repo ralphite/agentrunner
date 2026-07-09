@@ -213,6 +213,43 @@ export function SessionView({ sid }: { sid: string }) {
     setResolvedLocal((s) => new Set(s).add(id));
   };
 
+  // Approve/deny every pending request at once — drivers and parallel tool
+  // calls can queue several, and clicking each is slow.
+  const decideAll = async (decision: "approve" | "deny") => {
+    for (const a of openApprovals) {
+      try {
+        await decideApproval(a.id, decision, "");
+      } catch (e: any) {
+        toast(e.message);
+      }
+    }
+  };
+
+  // ⌘↵ approves the top pending request, ⌘⌫ denies it (Codex's Approve request).
+  // A ref keeps the latest first-id / handler without rebinding each render.
+  const apprKb = useRef<{ firstId: string | null; decide: typeof decideApproval }>({
+    firstId: null,
+    decide: decideApproval,
+  });
+  apprKb.current = { firstId: !isSub && openApprovals[0] ? openApprovals[0].id : null, decide: decideApproval };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const { firstId, decide } = apprKb.current;
+      if (!firstId) return;
+      if (e.key === "Enter") {
+        e.preventDefault();
+        decide(firstId, "approve", "").catch((err) => toast(err.message));
+      } else if (e.key === "Backspace" || e.key === "Delete") {
+        e.preventDefault();
+        decide(firstId, "deny", "").catch((err) => toast(err.message));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const act = {
     interrupt: async () => {
       try {
@@ -385,7 +422,24 @@ export function SessionView({ sid }: { sid: string }) {
 
       {view === "chat" && openApprovals.length > 0 && (
         <div className="approvals">
-          <div className="approvals-title">The agent needs your approval</div>
+          <div className="approvals-title">
+            <span>The agent needs your approval</span>
+            {!isSub && (
+              <span className="ap-bulk">
+                {openApprovals.length > 1 && (
+                  <>
+                    <button className="primary sm" onClick={() => decideAll("approve")}>
+                      Approve all {openApprovals.length}
+                    </button>
+                    <button className="danger sm" onClick={() => decideAll("deny")}>
+                      Deny all
+                    </button>
+                  </>
+                )}
+                <span className="ap-hint mono">⌘↵ approve · ⌘⌫ deny</span>
+              </span>
+            )}
+          </div>
           {openApprovals.map((a) => (
             <ApprovalCard
               key={a.id}
