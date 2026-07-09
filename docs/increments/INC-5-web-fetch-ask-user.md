@@ -1,4 +1,4 @@
-# INC-4 核心工具面补全:web_fetch / ask_user
+# INC-5 核心工具面补全:web_fetch / ask_user
 
 状态:执行中(2026-07-09 起)。
 来源:用户指令「impl them, make them reusable」——把"自己执行、装得进
@@ -135,20 +135,20 @@ idle、无 crash。结果归档 `qa/runs/<日期>-QA-12/`。
 
 ## 实施步骤(一步 = 一个可合并提交,全绿才 commit,立即 push origin/main)
 
-1. **INC-4.1 web_fetch**:Def.network 数据位 + networkScope 数据驱动
+1. **INC-5.1 web_fetch**:Def.network 数据位 + networkScope 数据驱动
    + def + 实现 + 规则匹配测试;SPEC/DESIGN 行齐。
    完成标志:check.sh 绿 + httptest/规则场景全过。
-2. **INC-4.2 ask_user**:def + doTools 分流 + doWait 应答分支 + fold
+2. **INC-5.2 ask_user**:def + doTools 分流 + doWait 应答分支 + fold
    配对 + 全套 scripted 测试;SPEC/DESIGN §17/GAPS G20 行齐。
    完成标志:check.sh 绿 + 上表 6 个 scripted 场景全过。
-3. **INC-4.3 收口**:JOURNEYS(UJ-01 可选步)/QA.md(QA-12+矩阵)/
+3. **INC-5.3 收口**:JOURNEYS(UJ-01 可选步)/QA.md(QA-12+矩阵)/
    GAPS(G18b 收窄、G20 关闭)/CODEX-PARITY 对照行/LOG 齐活;
    qa/run-qa12.sh 真实 API 跑通归档;对抗 review;工作纸移
    archive/increments/。
 
 ## review 裁决
 
-中等增量,不到里程碑级,裁掉三视角全量 review;但 INC-4.2 动 loop 的
+中等增量,不到里程碑级,裁掉三视角全量 review;但 INC-5.2 动 loop 的
 等待/fold 机制(并发与恢复敏感),收口时做一轮**正确性/并发聚焦**的
 对抗 review(基准 = DESIGN §2/§5/§6 + 本工作纸语义表),P0/P1 修完
 才关闭。
