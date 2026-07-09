@@ -14,11 +14,54 @@ type textRenderer struct {
 	out      io.Writer
 	inDelta  bool // currently mid text-delta line?
 	sawDelta bool // this turn's text already streamed as deltas?
+	// session anchors the transcript (INC-12.6): tree members share the
+	// root's sink with their own tags, so a foreground render folds member
+	// events into one status line each instead of interleaving deltas.
+	// Empty = render everything (legacy single-stream wiring).
+	session string
+	seen    map[string]bool // members already announced
 }
 
 func newTextRenderer(out io.Writer) *textRenderer { return &textRenderer{out: out} }
 
+// anchor pins the renderer to one session: other tree members' live events
+// fold to a short announcement (their reports re-enter the anchored
+// conversation as messages anyway); member approvals still surface — they
+// need the user.
+func (r *textRenderer) anchor(sid string) *textRenderer {
+	r.session = sid
+	return r
+}
+
 func (r *textRenderer) Emit(e protocol.Event) {
+	// Auto-anchor on the first SessionStart (the root's own always precedes
+	// any member's events): from then on, member streams fold.
+	if r.session == "" && e.Kind == protocol.KindSessionStart && e.Session != "" {
+		r.session = e.Session
+	}
+	if r.session != "" && e.Session != "" && e.Session != r.session {
+		if e.Kind == protocol.KindApprovalRequest {
+			if r.inDelta {
+				fmt.Fprintln(r.out)
+				r.inDelta = false
+			}
+			fmt.Fprintf(r.out, "  ⏸ [member %s] approval required: %s %s (answer with: agentrunner approve %s %s approve|deny)\n",
+				e.Session, e.Tool, truncate(e.Args, 80), e.Session, e.ApprovalID)
+			return
+		}
+		if r.seen == nil {
+			r.seen = map[string]bool{}
+		}
+		if !r.seen[e.Session] {
+			r.seen[e.Session] = true
+			if r.inDelta {
+				fmt.Fprintln(r.out)
+				r.inDelta = false
+			}
+			fmt.Fprintf(r.out, "  ⇣ [member %s live — attach for detail]\n", e.Session)
+		}
+		return
+	}
 	// A non-delta event closes any open delta line.
 	if e.Kind != protocol.KindTextDelta && r.inDelta {
 		fmt.Fprintln(r.out)

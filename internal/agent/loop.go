@@ -193,6 +193,10 @@ func compact(raw json.RawMessage) string {
 // emit sends an output event to the surface (nil-safe).
 func (l *Loop) emit(e protocol.Event) {
 	if l.Out != nil {
+		// Every event names its ORIGIN session (INC-12.6): a child loop
+		// sharing the tree root's sink stays distinguishable, so attach can
+		// follow one member live. The daemon hub preserves a non-empty tag.
+		e.Session = l.SessionID
 		l.Out.Emit(e)
 	}
 }

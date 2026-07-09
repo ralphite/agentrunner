@@ -464,6 +464,7 @@ func (l *Loop) childLoopEscalated(childSpec *AgentSpec, childStore *store.EventS
 		Board:     l.Board,     // the collaboration blackboard is tree-shared (S5.4)
 		Artifacts: l.Artifacts, // the deliverable CAS is tree-shared too (S5.5)
 		Router:    l.Router,    // the tree message fabric is tree-shared (INC-12)
+		Out:       l.Out,       // live events share the root sink, tagged per member (INC-12.6)
 		// Snapshots deliberately NOT inherited: barriers are cut by the tree
 		// root only — the root's vector already covers child streams (S7.2).
 	}

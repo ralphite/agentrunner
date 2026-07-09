@@ -436,7 +436,11 @@ func (h *hostedRun) post(in protocol.UserInput) bool {
 // durable truth; the live stream is ephemeral rendering). Lifecycle events
 // additionally tee to the notifier hook, outside the lock.
 func (h *hostedRun) Emit(e protocol.Event) {
-	e.Session = h.id
+	if e.Session == "" {
+		// Tree members stamp their own id (INC-12.6); only untagged events
+		// default to the hosted root.
+		e.Session = h.id
+	}
 	h.mu.Lock()
 	for ch := range h.subs {
 		select {
@@ -1345,8 +1349,16 @@ func (s *Server) handleAttach(cmd Command, enc *json.Encoder) {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "attach needs session"})
 		return
 	}
+	// A child session (INC-12.6) is hosted by its TREE ROOT: live events flow
+	// through the root's hub tagged with each member's id, so attaching to a
+	// member = subscribe to the root, filter by origin. Replay still reads
+	// the member's own journal.
+	hubID, filter := cmd.Session, ""
+	if idx := strings.Index(cmd.Session, "-sub-"); idx > 0 {
+		hubID, filter = cmd.Session[:idx], cmd.Session
+	}
 	s.mu.Lock()
-	hub := s.runs[cmd.Session]
+	hub := s.runs[hubID]
 	s.mu.Unlock()
 
 	// Subscribe BEFORE replay so no live event slips between the two; the
@@ -1374,6 +1386,9 @@ func (s *Server) handleAttach(cmd Command, enc *json.Encoder) {
 		return // not hosted (finished or unknown): replay was everything
 	}
 	for e := range ch {
+		if filter != "" && e.Session != filter {
+			continue
+		}
 		if err := enc.Encode(e); err != nil {
 			return
 		}

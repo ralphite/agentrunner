@@ -90,6 +90,13 @@ func followTurn(sock string, cmd daemon.Command, ackText string, stdout, stderr 
 	err := daemon.DialUntil(sock, cmd, func(e protocol.Event) bool {
 		if e.Session != "" && sid == "" {
 			sid = e.Session
+			render.anchor(sid)
+		}
+		// A tree MEMBER's live event (INC-12.6) must not steer this follow:
+		// its Idle/RunEnd are not the anchored turn's. The renderer folds it.
+		if sid != "" && e.Session != "" && e.Session != sid {
+			render.Emit(e)
+			return true
 		}
 		switch e.Kind {
 		case protocol.KindSessionStart:

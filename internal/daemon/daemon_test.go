@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -694,5 +695,67 @@ func TestDaemonSocketExclusive(t *testing.T) {
 	err := second.ListenAndServe(context.Background())
 	if err == nil {
 		t.Fatal("second daemon on the same live socket must fail")
+	}
+}
+
+// attach on a CHILD session id (INC-12.6): replay reads the member's own
+// journal; live events come from the TREE ROOT's hub filtered to the member
+// — the root's own stream stays out.
+func TestDaemonAttachChildFiltersLive(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	run := func(ctx context.Context, req RunRequest, sink protocol.Sink) error {
+		sink.Emit(protocol.Event{Kind: protocol.KindGenerationStart, N: 1, Session: req.SessionID})
+		close(started)
+		<-release
+		sink.Emit(protocol.Event{Kind: protocol.KindMessage, Text: "root speaking", Session: req.SessionID})
+		sink.Emit(protocol.Event{Kind: protocol.KindMessage, Text: "member speaking", Session: req.SessionID + "-sub-pm-a1"})
+		sink.Emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: "completed", Session: req.SessionID})
+		return nil
+	}
+	replay := func(id string, sink protocol.Sink) error {
+		if !strings.Contains(id, "-sub-") {
+			t.Errorf("replay asked for %q, want the child id", id)
+		}
+		sink.Emit(protocol.Event{Kind: protocol.KindMessage, Text: "member journal line"})
+		return nil
+	}
+	sock, _ := startServer(t, run, replay)
+
+	go func() {
+		_ = Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Task: "job"}, func(protocol.Event) {})
+	}()
+	<-started
+
+	got := make(chan protocol.Event, 32)
+	go func() {
+		_ = Dial(sock, Command{Cmd: "attach", Session: "sess-1-sub-pm-a1"}, func(e protocol.Event) { got <- e })
+		close(got)
+	}()
+	time.Sleep(50 * time.Millisecond) // let the attach subscribe
+	close(release)
+
+	var texts []string
+	deadline := time.After(5 * time.Second)
+collect:
+	for {
+		select {
+		case e, ok := <-got:
+			if !ok {
+				break collect
+			}
+			if e.Kind == protocol.KindMessage {
+				texts = append(texts, e.Text)
+			}
+		case <-deadline:
+			break collect
+		}
+	}
+	joined := strings.Join(texts, "|")
+	if !strings.Contains(joined, "member journal line") || !strings.Contains(joined, "member speaking") {
+		t.Fatalf("child attach missing member content: %q", joined)
+	}
+	if strings.Contains(joined, "root speaking") {
+		t.Fatalf("child attach leaked the root stream: %q", joined)
 	}
 }
