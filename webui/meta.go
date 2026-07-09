@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -23,11 +24,39 @@ type sessionMeta struct {
 }
 
 type metaStore struct {
-	mu sync.Mutex
-	m  map[string]sessionMeta
+	mu   sync.Mutex
+	m    map[string]sessionMeta
+	path string // JSON persistence file; "" = in-memory only (tests)
 }
 
-func newMetaStore() *metaStore { return &metaStore{m: map[string]sessionMeta{}} }
+// newMetaStore loads the persisted sid→meta map (if any) so a webui restart
+// doesn't forget which workspace each session runs in — the Diff view and the
+// @-file picker depend on it.
+func newMetaStore(path string) *metaStore {
+	s := &metaStore{m: map[string]sessionMeta{}, path: path}
+	if path != "" {
+		if b, err := os.ReadFile(path); err == nil {
+			_ = json.Unmarshal(b, &s.m)
+		}
+	}
+	return s
+}
+
+// persistLocked writes the map atomically (tmp+rename). Callers hold mu.
+func (s *metaStore) persistLocked() {
+	if s.path == "" {
+		return
+	}
+	b, err := json.MarshalIndent(s.m, "", " ")
+	if err != nil {
+		return
+	}
+	tmp := s.path + ".tmp"
+	if err := os.WriteFile(tmp, b, 0o644); err != nil {
+		return
+	}
+	_ = os.Rename(tmp, s.path)
+}
 
 func (s *metaStore) set(sid, ws, title string) {
 	if sid == "" {
@@ -43,6 +72,7 @@ func (s *metaStore) set(sid, ws, title string) {
 		cur.Title = firstLine(title, 100)
 	}
 	s.m[sid] = cur
+	s.persistLocked()
 }
 
 func (s *metaStore) get(sid string) sessionMeta {
@@ -107,6 +137,53 @@ func git(ctx context.Context, dir string, args ...string) (string, bool) {
 		return "", false
 	}
 	return out.String(), true
+}
+
+// handleFiles lists workspace files for the composer's @-mention picker
+// (Codex's file references). Case-insensitive substring filter via ?q=, capped
+// scan so a huge tree can't wedge the request; dot-dirs and dependency dirs
+// are skipped.
+func (s *server) handleFiles(w http.ResponseWriter, r *http.Request) {
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	ws := s.meta.get(id).Workspace
+	resp := map[string]any{"workspace": ws, "known": ws != "", "files": []string{}}
+	if ws == "" {
+		writeJSON(w, http.StatusOK, resp)
+		return
+	}
+	q := strings.ToLower(r.URL.Query().Get("q"))
+	const maxScan, maxResults = 20000, 50
+	skip := map[string]bool{".git": true, "node_modules": true, "dist": true, ".venv": true, "__pycache__": true}
+	files := []string{}
+	scanned := 0
+	_ = filepath.WalkDir(ws, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil // unreadable subtree: skip, keep walking
+		}
+		if scanned++; scanned > maxScan || len(files) >= maxResults {
+			return filepath.SkipAll
+		}
+		name := d.Name()
+		if d.IsDir() {
+			if path != ws && (skip[name] || strings.HasPrefix(name, ".")) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		rel, err := filepath.Rel(ws, path)
+		if err != nil {
+			return nil
+		}
+		if q == "" || strings.Contains(strings.ToLower(rel), q) {
+			files = append(files, rel)
+		}
+		return nil
+	})
+	resp["files"] = files
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // handleDiff returns the workspace diff for a session — the closest analog to

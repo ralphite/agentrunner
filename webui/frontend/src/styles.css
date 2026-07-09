@@ -2531,3 +2531,14 @@ summary.fd-head:hover {
   font-size: 11px;
   color: var(--dim);
 }
+
+/* ---- @-mention file picker (Codex file references) ---- */
+.cx-at .cx-slash-name.mono {
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+.cx-at-empty {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--dim);
+}

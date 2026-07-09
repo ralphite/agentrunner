@@ -111,6 +111,13 @@ export function Composer(props: ComposerProps) {
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashIdx, setSlashIdx] = useState(0);
 
+  // @-mention file picker (Codex file references): "@<query>" before the caret
+  // opens a picker over the session workspace's files.
+  const [atQuery, setAtQuery] = useState<string | null>(null);
+  const [atFiles, setAtFiles] = useState<string[]>([]);
+  const [atIdx, setAtIdx] = useState(0);
+  const [atKnown, setAtKnown] = useState(true);
+
   const taRef = useRef<HTMLTextAreaElement>(null);
   const imgRef = useRef<HTMLInputElement>(null);
   const anyRef = useRef<HTMLInputElement>(null);
@@ -167,6 +174,52 @@ export function Composer(props: ComposerProps) {
     setSlashOpen(show);
     setSlashIdx(0);
   }, [filteredSlash.length, text]);
+
+  // Detect "@query" at the caret (session composer only — needs a workspace).
+  const atDetect = () => {
+    if (!isSession) return null;
+    const ta = taRef.current;
+    if (!ta) return null;
+    const upto = text.slice(0, ta.selectionStart ?? text.length);
+    const m = upto.match(/(^|\s)@([\w./-]*)$/);
+    return m ? m[2] : null;
+  };
+  const atSeq = useRef(0);
+  useEffect(() => {
+    const q = atDetect();
+    setAtQuery(q);
+    if (q === null) return;
+    setAtIdx(0);
+    const seq = ++atSeq.current; // drop out-of-order responses (stale query)
+    const t = setTimeout(() => {
+      AR.files((props as any).sid, q)
+        .then((r) => {
+          if (seq !== atSeq.current) return;
+          setAtKnown(r.known);
+          setAtFiles(r.files);
+        })
+        .catch(() => seq === atSeq.current && setAtFiles([]));
+    }, 120);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text, isSession]);
+
+  // Replace the "@query" token at the caret with the chosen path.
+  const applyAt = (path: string) => {
+    const ta = taRef.current;
+    const pos = ta?.selectionStart ?? text.length;
+    const upto = text.slice(0, pos);
+    const start = upto.lastIndexOf("@");
+    if (start === -1) return;
+    const next = text.slice(0, start) + path + " " + text.slice(pos);
+    setText(next);
+    setAtQuery(null);
+    requestAnimationFrame(() => {
+      ta?.focus();
+      const caret = start + path.length + 1;
+      ta?.setSelectionRange(caret, caret);
+    });
+  };
 
   const ensureWs = async (): Promise<string> => {
     if (ws.trim()) return ws.trim();
@@ -513,6 +566,27 @@ export function Composer(props: ComposerProps) {
 
   // ---- keyboard ----
   const onKey = (e: React.KeyboardEvent) => {
+    if (atQuery !== null && atFiles.length) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setAtIdx((i) => (i + 1) % atFiles.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setAtIdx((i) => (i - 1 + atFiles.length) % atFiles.length);
+        return;
+      }
+      if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+        e.preventDefault();
+        applyAt(atFiles[atIdx]);
+        return;
+      }
+      if (e.key === "Escape") {
+        setAtQuery(null);
+        return;
+      }
+    }
     if (slashOpen && filteredSlash.length) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -619,6 +693,24 @@ export function Composer(props: ComposerProps) {
             rows={1}
           />
         </div>
+
+        {atQuery !== null && (
+          <div className="cx-slash cx-at">
+            <div className="cx-slash-hd">{atKnown ? "Files · @" + atQuery : "Workspace unknown"}</div>
+            {!atKnown && <div className="cx-at-empty">This session's workspace isn't known to arwebui, so files can't be listed.</div>}
+            {atKnown && atFiles.length === 0 && <div className="cx-at-empty">No matching files</div>}
+            {atFiles.map((f, i) => (
+              <button
+                key={f}
+                className={"cx-slash-item" + (i === atIdx ? " on" : "")}
+                onMouseEnter={() => setAtIdx(i)}
+                onClick={() => applyAt(f)}
+              >
+                <span className="cx-slash-name mono">{f}</span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {slashOpen && filteredSlash.length > 0 && (
           <div className="cx-slash">

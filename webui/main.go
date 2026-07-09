@@ -60,7 +60,7 @@ func main() {
 		}
 	}
 
-	s := &server{arPath: *arPath, runtimeDir: rt, daemonManage: !*noDaemon, runs: newRunRegistry(), meta: newMetaStore()}
+	s := &server{arPath: *arPath, runtimeDir: rt, daemonManage: !*noDaemon, runs: newRunRegistry(), meta: newMetaStore(filepath.Join(rt, "webui-meta.json"))}
 	if s.daemonManage {
 		if err := s.spawnDaemon(); err != nil {
 			log.Printf("arwebui: daemon spawn: %v (continuing; maybe an external daemon is up)", err)

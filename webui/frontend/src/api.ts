@@ -54,6 +54,10 @@ export const AR = {
   ps: (sid: string) => api<Task[]>(`/sessions/${sid}/ps`),
   barriers: (sid: string) => api<string[]>(`/sessions/${sid}/barriers`),
   barrier: (sid: string) => post<{ barrier: string }>(`/sessions/${sid}/barrier`),
+  files: (sid: string, q: string) =>
+    api<{ workspace: string; known: boolean; files: string[] }>(
+      `/sessions/${sid}/files?q=${encodeURIComponent(q)}`,
+    ),
   diff: (sid: string) => api<DiffResp>(`/sessions/${sid}/diff`),
   commit: (sid: string, message: string) =>
     post<{ status: string }>(`/sessions/${sid}/commit`, { message }),
