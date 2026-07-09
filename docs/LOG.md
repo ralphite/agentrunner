@@ -577,3 +577,24 @@ QA-12(qa/run-qa12.sh):compact 落非空 summary、clear 落 cleared——PASS。
 manual 活动 id/clear 空摘要 assembly/nil channel/空 summary 护栏)。裁
 三视角对抗 review(机制被孪生+真验双闸门覆盖,且真验已抓出并修掉主要
 风险点)。
+
+## 2026-07-09 设计稿:5 个 design-first 缺口(INC-D1..D5)
+
+本轮 Codex 对照冲刺,凡触不变量或 outward-facing/design-undefined 且非
+trivial 的缺口,一律**只出设计稿、不 slam code**(PROCESS §3.5/§4 纪律):
+- INC-D1 会话内 goal(G23/UJ-22):原始丢失需求。**改决策 #21/§13 不变量**
+  ——fresh-run 教义 scope 到 best-of-N+批式 loop;in-session goal 挂
+  conversational session,verifier 是静止序列在 exchange 边界的新一格,
+  miss 回灌 program 源 input 进同 fold。走 PROCESS §4。
+- INC-D2 事件唤醒(G14/UJ-12):inbox 原语已就绪,缺投递壳;须先成文机器
+  发送方信任/鉴权 + 来源前缀 + 幂等 id + 审批期投递语义。invariant-adjacent。
+- INC-D3 web_fetch(G18b):进程内 net/http 出口不被 netns 覆盖→须把收容
+  棘轮不变量从"bash fail-closed"升级为"egress 类统一 fail-closed",MVP 只
+  做 web_fetch + host allowlist + 不可信标记。走 PROCESS §4 + G16 条款。
+- INC-D4 记忆写回(G9):取 A(append-as-message,下次 session 生效)不触
+  prefix 冻结不变量;取 B(MemoryChanged re-freeze)触之。待裁 A/B。
+- INC-D5 审批持久化(G5):取 A(写 project 配置,下次生效)不触规则冻结;
+  取 B(PolicyChanged 本 run 生效)触之。待裁 A/B + 写回层。
+
+**webui**:用户已 spin off 独立 session 修 diff 白屏 blocker,本会话不动
+webui/ 避免冲突;余 UI 项(markdown/usage/选择器/搜索/归档)随该线或后续。

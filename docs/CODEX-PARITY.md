@@ -148,16 +148,23 @@ in-doubt 崩溃纪律（非幂等绝不静默重跑）、barrier/fork/rewind 带
 | 远程 stop | G12 | ✅ 已实现 | INC-4 · TestStop* · 真 daemon 手验 |
 | 自定义命令 / slash | G21 | ✅ 已实现 | INC-5 · TestExpand* · 真实 API |
 | 手动 compact / clear | G7 | ✅ 已实现 | INC-6 · TestManualCompact/Clear · QA-12（真验捕获并修 idle-compact 空 summary bug） |
-| 审批“允许且不再问” | G5 | ⏳ 计划中 | INC-7 |
-| 记忆写回（# remember） | G9 | 📐 设计优先 | 触 prefix-freeze 不变量 |
-| webui 改动视图白屏 + UI | — | ⏳ 计划中 | webui 增量（非三层） |
-| web fetch / search | G18b | 📐 设计优先 | 触 network+注入面，先 DESIGN 增量 |
-| 会话内 goal | G23 | 📐 不变量变更流程 | UJ-22，需 PROCESS §4 |
-| 事件唤醒既有 session | G14 | 📐 设计优先 | 输入投递机器发送方 |
-| 任务→diff 审阅门→PR | G13 | 📐 设计优先 | — |
+| 会话内 goal | G23 | 📐 设计稿 | INC-D1（不变量变更流程，待裁决+review） |
+| 事件唤醒既有 session | G14 | 📐 设计稿 | INC-D2（invariant-adjacent，机器发送方信任条款） |
+| web fetch / search | G18b | 📐 设计稿 | INC-D3（不变量变更流程，收容棘轮升级） |
+| 记忆写回（# remember） | G9 | 📐 设计稿 | INC-D4（取 A 不触不变量；待裁 A/B） |
+| 审批“允许且不再问” | G5 | 📐 设计稿 | INC-D5（取 A 下次生效不触不变量；待裁 A/B） |
+| webui 改动视图白屏 + UI | — | 🔧 他会话处理 | 用户已 spin off 独立 session 修 diff 白屏；余 UI 项随之 |
+| 任务→diff 审阅门→PR | G13 | 📐 设计优先 | 依赖 G14；未起草 |
 | 云 workspace 生命周期 | G11 | 🧊 门槛/待裁 | XL，先裁"要不要云形态" |
 
-图例：✅ 已实现 · ⏳ 计划本轮 · 📐 需先走设计/不变量流程 · 🧊 推迟。
+图例：✅ 已实现 · 📐 设计稿（docs/increments/INC-D*，待裁决/不变量 review）· 🧊 推迟。
+
+**本轮已实现（4 个引擎增量，双闸门全绿并推 main）**：grep/glob（INC-3）、
+远程 stop（INC-4）、自定义命令（INC-5）、手动 compact/clear（INC-6，真验
+捕获并修一个 idle-compact 空 summary bug）。**已起草设计稿（5 份，
+docs/increments/INC-D1–D5）**：会话内 goal、事件唤醒、web 工具、记忆写回、
+审批持久化——其中 D1/D3 触不变量须走 PROCESS §4，D2 引入 ingress 须安全
+review，D4/D5 有"下次生效"的不触不变量最小路径待裁。
 
 ---
 
