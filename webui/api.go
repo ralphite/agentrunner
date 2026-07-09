@@ -28,6 +28,7 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/workspace", s.handleWorkspace)
 	mux.HandleFunc("POST /api/worktree", s.handleWorktree)
 	mux.HandleFunc("POST /api/upload", s.handleUpload)
+	mux.HandleFunc("GET /api/uploads/{name}", s.handleServeUpload)
 	mux.HandleFunc("POST /api/trust", s.handleTrust)
 
 	mux.HandleFunc("GET /api/sessions/{sid}/events", s.handleEvents)
@@ -35,6 +36,7 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /api/sessions/{sid}/inspect", s.handleInspect)
 	mux.HandleFunc("GET /api/sessions/{sid}/ps", s.handlePS)
 	mux.HandleFunc("GET /api/sessions/{sid}/barriers", s.handleBarriers)
+	mux.HandleFunc("POST /api/sessions/{sid}/barrier", s.handleBarrier)
 	mux.HandleFunc("GET /api/sessions/{sid}/diff", s.handleDiff)
 	mux.HandleFunc("POST /api/sessions/{sid}/commit", s.handleCommit)
 	mux.HandleFunc("GET /api/sessions/{sid}/stream", s.handleStream)
@@ -413,6 +415,18 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"path": dst, "name": name})
 }
 
+// handleServeUpload serves a previously uploaded file back for thumbnails —
+// the journal keeps only a CAS ref, so the browser previews from the local
+// uploads dir instead.
+func (s *server) handleServeUpload(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" || strings.ContainsAny(name, "/\\") || name == "." || name == ".." {
+		badRequest(w, "invalid upload name")
+		return
+	}
+	http.ServeFile(w, r, filepath.Join(s.runtimeDir, "uploads", name))
+}
+
 // ---- per-session reads ----
 
 func (s *server) handleEvents(w http.ResponseWriter, r *http.Request) {
@@ -535,6 +549,33 @@ func (s *server) handleBarriers(w http.ResponseWriter, r *http.Request) {
 		names = append(names, name)
 	}
 	writeJSON(w, http.StatusOK, names)
+}
+
+// handleBarrier checkpoints the session now (`ar barrier`), creating a manual
+// fork point. Note: barrier takes the session's exclusive lock, so it can be
+// refused while a turn is in flight — the CLI error is surfaced as-is.
+func (s *server) handleBarrier(w http.ResponseWriter, r *http.Request) {
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	res := s.runAR(r.Context(), oneShotTimeout, "barrier", id)
+	if res.Err != nil {
+		arFail(w, "ar barrier", res)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"barrier": parseBarrierID(res.Stdout)})
+}
+
+// parseBarrierID pulls the barrier id out of `ar barrier` output
+// ("barrier <id>\nsnapshot <ref>").
+func parseBarrierID(stdout string) string {
+	for _, line := range strings.Split(stdout, "\n") {
+		if rest, ok := strings.CutPrefix(line, "barrier "); ok {
+			return strings.TrimSpace(rest)
+		}
+	}
+	return ""
 }
 
 // handleStream pipes `ar attach --json <sid>` as SSE: journal catch-up first,

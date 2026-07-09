@@ -81,19 +81,72 @@ function permissionsBlock(access: AccessId): string {
   return "permissions:\n  - { action: allow }";
 }
 
-// buildSpec produces the main agent spec (base.yaml) for the chosen model +
-// access level. Mirrors the old DEFAULT_SPEC so behavior is unchanged when the
-// defaults are picked.
-export function buildSpec(opts: { provider: string; model: string; maxTokens?: number; access: AccessId }): string {
-  const max = opts.maxTokens && opts.maxTokens > 0 ? opts.maxTokens : 4096;
-  return `name: dev
-model: { provider: ${opts.provider}, id: ${opts.model}, max_tokens: ${max} }
-system_prompt: |
+// ---- agent personas -------------------------------------------------------
+//
+// A persona is a curated main-agent shape (name / prompt / tool set); the
+// composer's agent pill switches between them mid-session via `ar agent`
+// (spec_changed at the next message). Model and access are orthogonal — they
+// slot into whichever persona is active.
+export interface Persona {
+  id: string;
+  label: string;
+  desc: string;
+  withWorker: boolean; // dev spawns worker sub-agents; the rest are solo
+}
+
+export const PERSONAS: Persona[] = [
+  { id: "dev", label: "Dev", desc: "Full tools + worker sub-agents · default", withWorker: true },
+  { id: "auditor", label: "Auditor", desc: "Read-only, answers in one stern sentence", withWorker: false },
+  { id: "reviewer", label: "Reviewer", desc: "Read + inspect, structured findings, no writes", withWorker: false },
+  { id: "chat", label: "Chat", desc: "No tools — plain conversation", withWorker: false },
+];
+
+export const DEFAULT_PERSONA = "dev";
+
+export function personaById(id: string): Persona {
+  return PERSONAS.find((p) => p.id === id) || PERSONAS[0];
+}
+
+// personaFromSpec reads the spec's `name:` back into a persona id so the pill
+// reflects a session we configured earlier (unknown names fall through).
+export function personaFromSpec(spec: string): string | null {
+  const m = spec.match(/^name:\s*([a-zA-Z0-9_-]+)/m);
+  if (!m) return null;
+  return PERSONAS.some((p) => p.id === m[1]) ? m[1] : null;
+}
+
+function personaBody(persona: string): string {
+  switch (persona) {
+    case "auditor":
+      return `system_prompt: You are an auditor. Always open with "[AUDITOR]" and answer in one stern sentence.
+tools: [read_file, bash]`;
+    case "reviewer":
+      return `system_prompt: |
+  You are a code reviewer. Read the code, then produce structured findings
+  (severity / file:line / failure scenario). Never modify the workspace.
+tools: [read_file, bash]`;
+    case "chat":
+      return `system_prompt: You are a concise, helpful assistant.
+tools: []`;
+    default: // dev
+      return `system_prompt: |
   You are a rigorous coding assistant. Follow the user's instructions
   exactly; when asked to start sub-agents, use the spawn_agent tool with
   the exact count and division of labor requested; use kill to cancel.
 tools: [read_file, write_file, edit_file, bash, spawn_agent, kill, exit_plan_mode]
-agents: [worker]
+agents: [worker]`;
+  }
+}
+
+// buildSpec produces the main agent spec (base.yaml) for the chosen persona +
+// model + access level. Defaults mirror the old DEFAULT_SPEC so behavior is
+// unchanged when nothing is picked.
+export function buildSpec(opts: { provider: string; model: string; maxTokens?: number; access: AccessId; persona?: string }): string {
+  const max = opts.maxTokens && opts.maxTokens > 0 ? opts.maxTokens : 4096;
+  const persona = opts.persona && PERSONAS.some((p) => p.id === opts.persona) ? opts.persona : DEFAULT_PERSONA;
+  return `name: ${persona}
+model: { provider: ${opts.provider}, id: ${opts.model}, max_tokens: ${max} }
+${personaBody(persona)}
 ${permissionsBlock(opts.access)}
 `;
 }
@@ -173,6 +226,21 @@ agent_spec: agent.yaml
 task: ${JSON.stringify(opts.task)}
 max_iterations: ${opts.maxIterations}
 verifiers: []
+`;
+}
+
+// buildBestOfNDriver: schedule "parallel" — N attempts in isolated worktrees
+// from one base snapshot, judged by the verifiers; the best verdict wins.
+export function buildBestOfNDriver(opts: { task: string; n: number; verifier?: string; provider: string; model: string }): string {
+  const verifiers = opts.verifier?.trim()
+    ? `verifiers:\n  - { kind: command, command: ${JSON.stringify(opts.verifier.trim())} }`
+    : `verifiers: []`;
+  return `name: best-of-n
+schedule: parallel
+n: ${Math.max(2, opts.n)}
+agent_spec: agent.yaml
+task: ${JSON.stringify(opts.task)}
+${verifiers}
 `;
 }
 

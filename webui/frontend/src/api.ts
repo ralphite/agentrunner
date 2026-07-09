@@ -53,6 +53,7 @@ export const AR = {
   rawEvents: (sid: string) => api<Envelope[]>(`/sessions/${sid}/events`),
   ps: (sid: string) => api<Task[]>(`/sessions/${sid}/ps`),
   barriers: (sid: string) => api<string[]>(`/sessions/${sid}/barriers`),
+  barrier: (sid: string) => post<{ barrier: string }>(`/sessions/${sid}/barrier`),
   diff: (sid: string) => api<DiffResp>(`/sessions/${sid}/diff`),
   commit: (sid: string, message: string) =>
     post<{ status: string }>(`/sessions/${sid}/commit`, { message }),
@@ -94,3 +95,8 @@ export const AR = {
   }) => post<{ runId: string }>("/runs", b),
   stopRun: (rid: string) => post(`/runs/${rid}/stop`),
 };
+
+// uploadURL maps an upload's server path to its preview URL — the journal
+// keeps only a CAS ref, so thumbnails come from the local uploads dir.
+export const uploadURL = (path: string) =>
+  "/api/uploads/" + encodeURIComponent(path.split("/").pop() || "");

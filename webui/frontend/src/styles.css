@@ -784,6 +784,19 @@ a:hover {
   color: var(--dim);
   margin-top: 5px;
 }
+.bubble .thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 7px;
+}
+.bubble .thumb {
+  display: block;
+  max-width: 220px;
+  max-height: 180px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
 .msg .who {
   font-size: 10px;
   color: var(--dim);
@@ -912,17 +925,6 @@ a:hover {
   color: var(--red);
 }
 .badge.run {
-.ap-bulk {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: auto;
-  font-weight: 400;
-}
-.ap-hint {
-  font-size: 10.5px;
-  color: var(--dim);
-}
   background: var(--amber-soft);
   color: var(--amber);
 }
@@ -1244,6 +1246,35 @@ details pre,
 .runline .rt {
   white-space: pre-wrap;
   word-break: break-word;
+}
+.run-iter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--dim);
+  font-size: 11px;
+  margin: 14px 0 6px;
+}
+.run-iter::before,
+.run-iter::after {
+  content: "";
+  height: 1px;
+  background: var(--line);
+  flex: 1;
+}
+.run-verdict {
+  margin: 10px 0;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+.run-verdict.ok {
+  background: var(--green-soft);
+  color: var(--green);
+}
+.run-verdict.warn {
+  background: var(--amber-soft);
+  color: var(--amber, #b45309);
 }
 
 /* ---- modal ---- */
@@ -1570,6 +1601,12 @@ summary.fd-head:hover {
 }
 .cx-att-ico {
   font-size: 12px;
+}
+.cx-att-thumb {
+  width: 26px;
+  height: 26px;
+  object-fit: cover;
+  border-radius: 6px;
 }
 .cx-att-x {
   color: var(--dim);

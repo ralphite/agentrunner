@@ -15,3 +15,15 @@ export const rememberAccess = (sid: string, a: string) => {
   if (sid && a) access.set(sid, a);
 };
 export const recallAccess = (sid: string): string | undefined => access.get(sid);
+
+// Per-session composer drafts: switching tasks keeps what you were typing and
+// restores it when you come back (send/clear wipes it). Keyed by sid; the
+// landing composer uses its own sentinel key.
+const drafts = new Map<string, string>();
+
+export const rememberDraft = (key: string, text: string) => {
+  if (!key) return;
+  if (text) drafts.set(key, text);
+  else drafts.delete(key);
+};
+export const recallDraft = (key: string): string => drafts.get(key) || "";

@@ -22,6 +22,9 @@ export interface BubbleItem {
   text: string;
   source?: string;
   images?: number;
+  // journal seq of the input_received — lets the view attach locally-known
+  // upload thumbnails to a sent bubble (the journal itself keeps only CAS refs)
+  seq?: number;
 }
 
 export interface TurnItem {
@@ -110,6 +113,7 @@ export function foldEvents(events: Envelope[]): Folded {
         push({
           kind: "user",
           key: "u" + seq,
+          seq,
           text: p.text || "(empty)",
           // Human-typed input via any entry point (user/cli/tty) is "you";
           // only program/control sources get a distinct label (UX-05).
@@ -291,6 +295,9 @@ export function foldEvents(events: Envelope[]): Folded {
         break;
       case "mode_changed":
         chip(seq, `mode → ${p.to} (${p.cause})`);
+        break;
+      case "spec_changed":
+        chip(seq, `agent → ${p.spec_name || "?"} · ${p.model || ""}`);
         break;
       case "context_compacted":
         chip(seq, `context compacted · up to gen ${p.upto_gen_step}`);

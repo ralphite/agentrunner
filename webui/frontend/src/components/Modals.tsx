@@ -144,14 +144,15 @@ function NewSessionModal({ initialMessage }: { initialMessage?: string }) {
 }
 
 // withSchedule injects the chosen schedule into a driver.yaml: it strips any
-// existing top-level schedule/interval/cron lines and appends the new ones, so
-// the UI controls stay authoritative over what the user typed.
-function withSchedule(driver: string, schedule: string, interval: string, cron: string): string {
+// existing top-level schedule/interval/cron/n lines and appends the new ones,
+// so the UI controls stay authoritative over what the user typed.
+function withSchedule(driver: string, schedule: string, interval: string, cron: string, n: number): string {
   if (!schedule) return driver;
-  const kept = driver.split("\n").filter((l) => !/^\s*(schedule|interval|cron)\s*:/.test(l));
+  const kept = driver.split("\n").filter((l) => !/^\s*(schedule|interval|cron|n)\s*:/.test(l));
   let out = kept.join("\n").replace(/\n+$/, "") + `\nschedule: ${schedule}`;
   if (schedule === "interval" && interval.trim()) out += `\ninterval: ${interval.trim()}`;
   if (schedule === "cron" && cron.trim()) out += `\ncron: ${cron.trim()}`;
+  if (schedule === "parallel") out += `\nn: ${Math.max(2, n)}`;
   return out + "\n";
 }
 
@@ -165,9 +166,10 @@ function RunModal({ initialTask }: { initialTask?: string }) {
   const [spec, setSpec] = useState(DEFAULT_SPEC);
   const [driver, setDriver] = useState(DEFAULT_DRIVER);
   const [driverAgent, setDriverAgent] = useState(DEFAULT_DRIVER_AGENT);
-  const [schedule, setSchedule] = useState(""); // "" = goal | "interval" | "cron"
+  const [schedule, setSchedule] = useState(""); // "" = goal | "interval" | "cron" | "parallel"
   const [interval, setInterval] = useState("5m");
   const [cron, setCron] = useState("0 * * * *");
+  const [nAttempts, setNAttempts] = useState(3);
   const [busy, setBusy] = useState(false);
   const close = () => openModal(null);
 
@@ -176,7 +178,7 @@ function RunModal({ initialTask }: { initialTask?: string }) {
     try {
       const r = await AR.startRun({
         kind,
-        spec: kind === "submit" ? spec : withSchedule(driver, schedule, interval, cron),
+        spec: kind === "submit" ? spec : withSchedule(driver, schedule, interval, cron, nAttempts),
         // drive needs the child agent spec as an agent.yaml sibling (driver's
         // agent_spec field points at it); submit needs no sibling.
         extraSpecs: kind === "drive" ? [{ name: "agent.yaml", content: driverAgent }] : [],
@@ -250,6 +252,7 @@ function RunModal({ initialTask }: { initialTask?: string }) {
               <option value="">goal — run until satisfied</option>
               <option value="interval">interval — repeat every…</option>
               <option value="cron">cron — repeat on a cron schedule</option>
+              <option value="parallel">best of N — isolated attempts, keep the best</option>
             </select>
             {schedule === "interval" && (
               <input
@@ -267,6 +270,15 @@ function RunModal({ initialTask }: { initialTask?: string }) {
                 onChange={(e) => setCron(e.target.value)}
                 placeholder="0 * * * * (min hr dom mon dow)"
                 title="5-field cron expression"
+              />
+            )}
+            {schedule === "parallel" && (
+              <input
+                type="number"
+                min={2}
+                value={nAttempts}
+                onChange={(e) => setNAttempts(Math.max(2, Number(e.target.value) || 2))}
+                title="how many isolated attempts to run; the driver's verifiers judge the best"
               />
             )}
           </div>

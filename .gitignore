@@ -4,3 +4,5 @@ acceptance-report.json
 /agentrunner
 /dist/
 .claude/
+/runtime/
+/ar

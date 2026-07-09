@@ -2,6 +2,19 @@ import { useEffect, useRef, useState } from "react";
 import type { TimelineItem, ToolItem } from "../timeline";
 import { Markdown } from "./Markdown";
 import { copyText } from "../clipboard";
+import { uploadURL } from "../api";
+
+// Thumbs renders locally-known upload paths as inline image previews (the
+// journal only stores CAS refs, so these exist for messages sent from this tab).
+function Thumbs({ paths }: { paths: string[] }) {
+  return (
+    <div className="thumbs">
+      {paths.map((p, i) => (
+        <img className="thumb" key={i} src={uploadURL(p)} alt="" />
+      ))}
+    </div>
+  );
+}
 
 // MsgActions is the hover action row under a message (Codex puts Copy / reactions
 // there). We ship Copy — the whole message text to the clipboard.
@@ -97,23 +110,29 @@ function pretty(raw: any): string {
   }
 }
 
-function Item({ it }: { it: TimelineItem }) {
+function Item({ it, sentImages }: { it: TimelineItem; sentImages?: Map<number, string[]> }) {
   switch (it.kind) {
     case "turn":
       return <div className="turn">turn {it.gen}</div>;
-    case "user":
+    case "user": {
+      const thumbs = it.seq !== undefined ? sentImages?.get(it.seq) : undefined;
       return (
         <div className="msg user">
           <div className="msg-col user">
             <div className="bubble">
               {it.text}
-              {it.images ? <div className="imgnote">📷 ×{it.images} (CAS ref)</div> : null}
+              {thumbs && thumbs.length ? (
+                <Thumbs paths={thumbs} />
+              ) : it.images ? (
+                <div className="imgnote">📷 ×{it.images} (CAS ref)</div>
+              ) : null}
             </div>
             <MsgActions text={it.text} />
           </div>
           <span className="who">{it.source || "you"}</span>
         </div>
       );
+    }
     case "assistant":
       return (
         <div className="msg assistant">
@@ -147,11 +166,13 @@ export function TimelineView({
   pending,
   typing,
   showSys,
+  sentImages,
 }: {
   items: TimelineItem[];
-  pending: { id: number; text: string; images: number }[];
+  pending: { id: number; text: string; imgs: string[]; files: number }[];
   typing: string;
   showSys: boolean;
+  sentImages?: Map<number, string[]>;
 }) {
   // Codex shows a continuous activity feed — no "turn N" dividers, no raw
   // system events. Those stay behind the developer toggle.
@@ -174,7 +195,7 @@ export function TimelineView({
     <div className="timeline" ref={ref} onScroll={onScroll}>
       <div className="tl-inner">
         {visible.map((it) => (
-          <Item key={it.key} it={it} />
+          <Item key={it.key} it={it} sentImages={sentImages} />
         ))}
         {typing && (
           <div className="msg assistant">
@@ -186,7 +207,8 @@ export function TimelineView({
           <div className="msg user" key={"p" + p.id}>
             <div className="bubble pending">
               {p.text}
-              {p.images ? <div className="imgnote">📷 ×{p.images}</div> : null}
+              {p.imgs.length ? <Thumbs paths={p.imgs} /> : null}
+              {p.files ? <div className="imgnote">📄 ×{p.files}</div> : null}
             </div>
             <span className="who">queued…</span>
           </div>

@@ -6,7 +6,16 @@ interface Line {
   raw: string;
   kind: string;
   text: string;
+  // set on a drive run's child session_start: this line opens iteration N
+  iter?: number;
+  // set when the line is the driver's terminal verdict
+  verdict?: { reason: string; n: number; ok: boolean };
 }
+
+// The driver's own verdict rides stderr as "driver <reason>: <n> iterations
+// (best <i>)" (internal/cli/drive.go); a run_end may carry the same reasons.
+const DRIVER_TERMINAL = ["satisfied", "stalled", "max_iterations", "child_failed", "budget", "budget_exhausted"];
+const VERDICT_RE = /driver (\w+): (\d+) iterations?/;
 
 function argVal(a: any, ...keys: string[]): string {
   let o = a;
@@ -57,8 +66,15 @@ function summarize(raw: string): Line {
       default:
         text = o.text || o.status || JSON.stringify(o);
     }
-    return { raw, kind, text };
+    const line: Line = { raw, kind, text };
+    if (kind === "run_end" && DRIVER_TERMINAL.includes(o.reason)) {
+      line.verdict = { reason: o.reason, n: o.n ?? 0, ok: o.reason === "satisfied" };
+    }
+    return line;
   } catch {
+    // Non-JSON = forwarded stderr; the driver's terminal verdict lives here.
+    const m = raw.match(VERDICT_RE);
+    if (m) return { raw, kind: "driver", text: raw, verdict: { reason: m[1], n: parseInt(m[2], 10), ok: m[1] === "satisfied" } };
     return { raw, kind: "", text: raw };
   }
 }
@@ -85,7 +101,16 @@ export function RunView({ runId }: { runId: string }) {
     if (el && stick.current) el.scrollTop = el.scrollHeight;
   });
 
-  const parsed = useMemo(() => lines.map(summarize), [lines]);
+  // A drive run's stream is each CHILD run's events in sequence — a fresh
+  // child session_start opens the next iteration, so number them as dividers.
+  const parsed = useMemo(() => {
+    let iter = 0;
+    return lines.map((raw) => {
+      const l = summarize(raw);
+      if (run?.kind === "drive" && l.kind === "session_start") l.iter = ++iter;
+      return l;
+    });
+  }, [lines, run?.kind]);
 
   const stop = async () => {
     try {
@@ -122,9 +147,18 @@ export function RunView({ runId }: { runId: string }) {
       >
         {parsed.length === 0 && <div className="dim">waiting for output…</div>}
         {parsed.map((l, i) => (
-          <div className="runline" key={i}>
-            <span className="rk">{l.kind}</span>
-            <span className="rt">{l.text}</span>
+          <div key={i}>
+            {l.iter !== undefined && <div className="run-iter">iteration {l.iter}</div>}
+            {l.verdict ? (
+              <div className={"run-verdict" + (l.verdict.ok ? " ok" : " warn")}>
+                ■ driver {l.verdict.reason} · {l.verdict.n} iteration{l.verdict.n === 1 ? "" : "s"}
+              </div>
+            ) : (
+              <div className="runline">
+                <span className="rk">{l.kind}</span>
+                <span className="rt">{l.text}</span>
+              </div>
+            )}
           </div>
         ))}
       </div>

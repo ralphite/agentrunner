@@ -89,3 +89,16 @@ func TestValidID(t *testing.T) {
 		}
 	}
 }
+
+func TestParseBarrierID(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"barrier bar-m37\nsnapshot 1a2b3c4\n", "bar-m37"},
+		{"snapshot 1a2b3c4\n", ""},
+		{"", ""},
+	}
+	for _, c := range cases {
+		if got := parseBarrierID(c.in); got != c.want {
+			t.Errorf("parseBarrierID(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}

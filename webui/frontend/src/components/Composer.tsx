@@ -1,24 +1,29 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AR } from "../api";
+import { AR, uploadURL } from "../api";
 import { useStore } from "../store";
 import {
   ACCESS_LEVELS,
   accessById,
+  buildBestOfNDriver,
   buildDriverAgent,
   buildLoopDriver,
   buildSpec,
   DEFAULT_ACCESS,
   DEFAULT_MODEL,
+  DEFAULT_PERSONA,
   DEFAULT_WORKER,
   MODELS,
   modelById,
   modelFromSpec,
+  PERSONAS,
+  personaById,
+  personaFromSpec,
   replaceModel,
   type AccessId,
 } from "../specs";
 import { Popover, PopItem, PopSection } from "./Popover";
 import { useVoice } from "./useVoice";
-import { recallAccess, recallSpec, rememberAccess, rememberSpec } from "./sessionSpecs";
+import { recallAccess, recallDraft, recallSpec, rememberAccess, rememberDraft, rememberSpec } from "./sessionSpecs";
 
 // Actions the session variant wires in so slash commands can reach SessionView
 // state (view switches, interrupt, fork…) that lives above the composer.
@@ -62,6 +67,7 @@ interface SlashCmd {
 const SLASH: SlashCmd[] = [
   { name: "goal", arg: "<task>", desc: "Attach a goal — the agent keeps working until it's met", variants: ["home", "session"], needsArgs: true },
   { name: "loop", arg: "<task>", desc: "Start a run that repeats on a fixed cadence", variants: ["home", "session"], needsArgs: true },
+  { name: "bestof", arg: "<task>", desc: "Run N isolated attempts, keep the best", variants: ["home", "session"], needsArgs: true },
   { name: "plan", desc: "Read-only planning mode — no changes", variants: ["home"] },
   { name: "compact", desc: "Summarize & shrink this conversation's context", variants: ["session"] },
   { name: "clear", desc: "Drop this conversation's context and start fresh", variants: ["session"] },
@@ -78,23 +84,28 @@ export function Composer(props: ComposerProps) {
   const { select, selectRun, refreshSessions, refreshRuns, openModal, toast } = useStore();
   const isSession = props.variant === "session";
 
-  const [text, setText] = useState("");
+  // Per-session draft: initialize from what was typed here last time (the
+  // component remounts on task switch), keep it saved as you type.
+  const draftKey = isSession ? ((props as any).sid as string) : "~home";
+  const [text, setText] = useState(() => recallDraft(draftKey));
+  useEffect(() => rememberDraft(draftKey, text), [draftKey, text]);
   const [atts, setAtts] = useState<Attachment[]>([]);
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
 
-  // model + access posture
+  // model + access posture + persona
   const [provider, setProvider] = useState(DEFAULT_MODEL.provider);
   const [model, setModel] = useState(DEFAULT_MODEL.id);
   const [access, setAccess] = useState<AccessId>(DEFAULT_ACCESS);
+  const [persona, setPersona] = useState(DEFAULT_PERSONA);
 
   // home-only context
   const [ws, setWs] = useState("");
   const [kind, setKind] = useState<"chat" | "background">("chat");
   const [branchInfo, setBranchInfo] = useState<{ isRepo: boolean; current: string; branches: string[]; dirty: number } | null>(null);
 
-  // goal / loop launcher panel
-  const [launcher, setLauncher] = useState<null | { mode: "goal" | "loop"; task: string }>(null);
+  // goal / loop / best-of-N launcher panel
+  const [launcher, setLauncher] = useState<null | { mode: "goal" | "loop" | "best"; task: string }>(null);
 
   // slash menu
   const [slashOpen, setSlashOpen] = useState(false);
@@ -109,7 +120,7 @@ export function Composer(props: ComposerProps) {
     taRef.current?.focus();
   });
 
-  // Seed model pill from the session's remembered spec (if we made it).
+  // Seed model + persona pills from the session's remembered spec (if we made it).
   useEffect(() => {
     if (!isSession) return;
     const sp = recallSpec((props as any).sid);
@@ -118,6 +129,8 @@ export function Composer(props: ComposerProps) {
       setProvider(m.provider);
       setModel(m.id);
     }
+    const p = sp ? personaFromSpec(sp) : null;
+    if (p) setPersona(p);
   }, [isSession, isSession ? (props as any).sid : ""]);
 
   // Home: discover the workspace's branches when a real repo path is set.
@@ -242,12 +255,12 @@ export function Composer(props: ComposerProps) {
         await (props as Extract<ComposerProps, { variant: "session" }>).onSend(t, imgs, files);
       } else if (kind === "chat") {
         const workspace = await ensureWs();
-        const spec = buildSpec({ provider, model, access });
+        const spec = buildSpec({ provider, model, access, persona });
         const imgs = atts.filter((a) => a.isImage).map((a) => a.path);
         const files = atts.filter((a) => !a.isImage).map((a) => a.path);
         const r = await AR.newSession({
           spec,
-          extraSpecs: [{ name: "worker.yaml", content: DEFAULT_WORKER }],
+          extraSpecs: personaById(persona).withWorker ? [{ name: "worker.yaml", content: DEFAULT_WORKER }] : [],
           workspace,
           message: t,
           mode: accessById(access).mode,
@@ -270,7 +283,7 @@ export function Composer(props: ComposerProps) {
         }
       } else {
         const workspace = await ensureWs();
-        const spec = buildSpec({ provider, model, access });
+        const spec = buildSpec({ provider, model, access, persona });
         const r = await AR.startRun({ kind: "submit", spec, extraSpecs: [], task: t, workspace, mode: accessById(access).mode, idem: "" });
         resetInput();
         await refreshRuns();
@@ -290,7 +303,7 @@ export function Composer(props: ComposerProps) {
     if (isSession) {
       const sid = (props as any).sid as string;
       try {
-        const base = recallSpec(sid) || buildSpec({ provider: p, model: id, access: "full" });
+        const base = recallSpec(sid) || buildSpec({ provider: p, model: id, access: "full", persona });
         const spec = replaceModel(base, p, id);
         await AR.switchAgent(sid, spec, [{ name: "worker.yaml", content: DEFAULT_WORKER }]);
         rememberSpec(sid, spec);
@@ -298,6 +311,25 @@ export function Composer(props: ComposerProps) {
       } catch (e: any) {
         props.onError(e.message);
       }
+    }
+  };
+
+  // ---- persona (agent template) switch ----
+  // Mid-session this is a full spec swap via `ar agent` (decision #32): the
+  // conversation carries over, the new shape takes effect on the next message.
+  const choosePersona = async (id: string) => {
+    setPersona(id);
+    if (!isSession) return;
+    const sid = (props as any).sid as string;
+    try {
+      const acc = (recallAccess(sid) as AccessId) || "full";
+      const spec = buildSpec({ provider, model, access: acc, persona: id });
+      const sib = personaById(id).withWorker ? [{ name: "worker.yaml", content: DEFAULT_WORKER }] : [];
+      await AR.switchAgent(sid, spec, sib);
+      rememberSpec(sid, spec);
+      toast(`Agent → ${personaById(id).label} (from your next message)`, "info");
+    } catch (e: any) {
+      props.onError(e.message);
     }
   };
 
@@ -316,10 +348,10 @@ export function Composer(props: ComposerProps) {
       } else {
         const workspace = await ensureWs();
         if (!workspace) return props.onError("a workspace is required to start a goal");
-        const spec = buildSpec({ provider, model, access });
+        const spec = buildSpec({ provider, model, access, persona });
         const r = await AR.newSession({
           spec,
-          extraSpecs: [{ name: "worker.yaml", content: DEFAULT_WORKER }],
+          extraSpecs: personaById(persona).withWorker ? [{ name: "worker.yaml", content: DEFAULT_WORKER }] : [],
           workspace,
           message: task,
           mode: accessById(access).mode,
@@ -379,6 +411,33 @@ export function Composer(props: ComposerProps) {
     }
   };
 
+  // Best-of-N (schedule: parallel): N isolated attempts from one snapshot,
+  // the verifier judges, the best result wins.
+  const startBest = async (task: string, verifier: string, attempts: number) => {
+    const workspace = isSession ? (props as any).workspace || (await ensureWs()) : await ensureWs();
+    if (!workspace) return props.onError("a workspace is required to start a best-of-N run");
+    setBusy(true);
+    try {
+      const r = await AR.startRun({
+        kind: "drive",
+        spec: buildBestOfNDriver({ task, n: attempts, verifier, provider, model }),
+        extraSpecs: [{ name: "agent.yaml", content: buildDriverAgent({ provider, model }) }],
+        task: "",
+        workspace,
+        mode: "",
+        idem: "",
+      });
+      setLauncher(null);
+      resetInput();
+      await refreshRuns();
+      selectRun(r.runId);
+    } catch (e: any) {
+      props.onError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // ---- slash execution ----
   const runSlash = async (name: string, rest: string) => {
     const sid = isSession ? ((props as any).sid as string) : "";
@@ -397,6 +456,10 @@ export function Composer(props: ComposerProps) {
         return;
       case "loop":
         setLauncher({ mode: "loop", task: rest });
+        setText("");
+        return;
+      case "bestof":
+        setLauncher({ mode: "best", task: rest });
         setText("");
         return;
       case "plan":
@@ -508,7 +571,9 @@ export function Composer(props: ComposerProps) {
           initialTask={launcher.task}
           busy={busy}
           onCancel={() => setLauncher(null)}
-          onStart={(task, a, b) => (launcher.mode === "goal" ? startGoal(task, a, b) : startLoop(task, a, b))}
+          onStart={(task, a, b) =>
+            launcher.mode === "goal" ? startGoal(task, a, b) : launcher.mode === "loop" ? startLoop(task, a, b) : startBest(task, a, b)
+          }
         />
       )}
 
@@ -528,7 +593,11 @@ export function Composer(props: ComposerProps) {
           <div className="cx-atts">
             {atts.map((a, i) => (
               <span className="cx-att" key={i} onClick={() => setAtts((p) => p.filter((_, j) => j !== i))} title="remove">
-                <span className="cx-att-ico">{a.isImage ? "🖼" : "📄"}</span>
+                {a.isImage ? (
+                  <img className="cx-att-thumb" src={uploadURL(a.path)} alt={a.name} />
+                ) : (
+                  <span className="cx-att-ico">📄</span>
+                )}
                 {a.name}
                 <span className="cx-att-x">✕</span>
               </span>
@@ -591,6 +660,7 @@ export function Composer(props: ComposerProps) {
                 <PopSection label="Run as">
                   <PopItem icon={<GoalIcon />} title="Goal" desc="Iterate until the goal is met" onClick={() => { close(); setLauncher({ mode: "goal", task: text.trim() }); }} />
                   <PopItem icon={<LoopIcon />} title="Loop" desc="Repeat on a fixed cadence" onClick={() => { close(); setLauncher({ mode: "loop", task: text.trim() }); }} />
+                  <PopItem icon={<BestIcon />} title="Best of N" desc="N isolated attempts, keep the best" onClick={() => { close(); setLauncher({ mode: "best", task: text.trim() }); }} />
                   {!isSession && <PopItem icon={<PlanIcon />} title="Plan mode" desc="Read-only planning" active={access === "plan"} onClick={() => { close(); setAccess("plan"); }} />}
                 </PopSection>
                 <PopSection label="Advanced">
@@ -635,6 +705,42 @@ export function Composer(props: ComposerProps) {
               )}
             </Popover>
           )}
+
+          {/* agent persona pill */}
+          <Popover
+            align="left"
+            trigger={(open, toggle) => (
+              <button className={"cx-pill cx-persona" + (open ? " active" : "")} onClick={toggle} title="Agent template — mid-session switches take effect on your next message (spec_changed)">
+                <PersonaIcon />
+                {personaById(persona).label}
+                <Caret />
+              </button>
+            )}
+          >
+            {(close) => (
+              <div className="cx-menu wide">
+                <PopSection label="Agent">
+                  {PERSONAS.map((p) => (
+                    <PopItem
+                      key={p.id}
+                      icon={<PersonaIcon />}
+                      title={p.label}
+                      desc={p.desc}
+                      active={persona === p.id}
+                      onClick={() => { choosePersona(p.id); close(); }}
+                    />
+                  ))}
+                </PopSection>
+                <PopSection>
+                  <PopItem
+                    icon={<span>{"{}"}</span>}
+                    title="Custom spec (YAML)…"
+                    onClick={() => { close(); openModal(isSession ? { kind: "agent", sid: (props as any).sid } : { kind: "new", message: text }); }}
+                  />
+                </PopSection>
+              </div>
+            )}
+          </Popover>
 
           <span className="cx-spacer" />
 
@@ -809,7 +915,7 @@ export function Composer(props: ComposerProps) {
   );
 }
 
-// ---- goal / loop launcher --------------------------------------------------
+// ---- goal / loop / best-of-N launcher ---------------------------------------
 function GoalLoopLauncher({
   mode,
   initialTask,
@@ -817,45 +923,48 @@ function GoalLoopLauncher({
   onCancel,
   onStart,
 }: {
-  mode: "goal" | "loop";
+  mode: "goal" | "loop" | "best";
   initialTask: string;
   busy: boolean;
   onCancel: () => void;
   onStart: (task: string, second: string, iterations: number) => void;
 }) {
   const [task, setTask] = useState(initialTask);
-  const [second, setSecond] = useState(mode === "goal" ? "" : "5m"); // verifier | interval
-  const [iters, setIters] = useState(mode === "goal" ? 10 : 5);
+  const [second, setSecond] = useState(mode === "loop" ? "5m" : ""); // interval | verifier
+  const [iters, setIters] = useState(mode === "goal" ? 10 : mode === "loop" ? 5 : 3); // rounds | attempts
+  const meta = {
+    goal: { icon: <GoalIcon />, label: "Goal", hint: "iterate until the goal is met", start: "Start goal" },
+    loop: { icon: <LoopIcon />, label: "Loop", hint: "repeat on a fixed cadence", start: "Start loop" },
+    best: { icon: <BestIcon />, label: "Best of N", hint: "N isolated attempts, the verifier picks the best", start: "Start best-of-N" },
+  }[mode];
   return (
     <div className="cx-launcher">
       <div className="cx-launcher-hd">
-        {mode === "goal" ? <GoalIcon /> : <LoopIcon />}
-        <b>{mode === "goal" ? "Goal" : "Loop"}</b>
-        <span className="dim">
-          {mode === "goal" ? "iterate until the goal is met" : "repeat on a fixed cadence"}
-        </span>
+        {meta.icon}
+        <b>{meta.label}</b>
+        <span className="dim">{meta.hint}</span>
         <span className="cx-spacer" />
         <button className="ghost sm" onClick={onCancel}>✕</button>
       </div>
-      <textarea className="cx-launcher-task" rows={2} placeholder={mode === "goal" ? "What goal should the agent keep working toward?" : "What should each iteration do?"} value={task} onChange={(e) => setTask(e.target.value)} />
+      <textarea className="cx-launcher-task" rows={2} placeholder={mode === "goal" ? "What goal should the agent keep working toward?" : mode === "loop" ? "What should each iteration do?" : "What should each attempt try to do?"} value={task} onChange={(e) => setTask(e.target.value)} />
       <div className="cx-launcher-row">
-        {mode === "goal" ? (
-          <label className="cx-launcher-field" title="A shell command that must exit 0 for the goal to count as met. Optional — leave it empty and the agent self-certifies: it calls goal_complete when the goal is verifiably done (audited at the turn boundary)">
-            <span>Done when (command)</span>
-            <input placeholder="e.g. go test ./…  (empty = agent self-certifies)" value={second} onChange={(e) => setSecond(e.target.value)} />
-          </label>
-        ) : (
+        {mode === "loop" ? (
           <label className="cx-launcher-field" title="How often to run (Go duration, e.g. 30s, 5m, 1h)">
             <span>Every</span>
             <input placeholder="5m" value={second} onChange={(e) => setSecond(e.target.value)} />
           </label>
+        ) : (
+          <label className="cx-launcher-field" title={mode === "goal" ? "A shell command that must exit 0 for the goal to count as met. Optional — leave it empty and the agent self-certifies: it calls goal_complete when the goal is verifiably done (audited at the turn boundary)" : "A shell command that judges each attempt — exit 0 = pass (optional; without it the earliest attempt wins)"}>
+            <span>{mode === "goal" ? "Done when (command)" : "Judge with (command)"}</span>
+            <input placeholder={mode === "goal" ? "e.g. go test ./…  (empty = agent self-certifies)" : "e.g. go test ./…  (optional)"} value={second} onChange={(e) => setSecond(e.target.value)} />
+          </label>
         )}
-        <label className="cx-launcher-field small" title="Safety cap on iterations">
-          <span>Max rounds</span>
-          <input type="number" min={1} value={iters} onChange={(e) => setIters(Math.max(1, Number(e.target.value) || 1))} />
+        <label className="cx-launcher-field small" title={mode === "best" ? "How many isolated attempts to run" : "Safety cap on iterations"}>
+          <span>{mode === "best" ? "Attempts" : "Max rounds"}</span>
+          <input type="number" min={mode === "best" ? 2 : 1} value={iters} onChange={(e) => setIters(Math.max(mode === "best" ? 2 : 1, Number(e.target.value) || 1))} />
         </label>
         <button className="primary cx-launcher-go" disabled={busy || !task.trim() || (mode === "loop" && !second.trim())} onClick={() => onStart(task.trim(), second.trim(), iters)}>
-          Start {mode}
+          {meta.start}
         </button>
       </div>
     </div>
@@ -913,4 +1022,10 @@ const LoopIcon = () => (
 );
 const PlanIcon = () => (
   <svg width="14" height="14" viewBox="0 0 16 16"><path d="M4 4h8M4 8h8M4 12h5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg>
+);
+const BestIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 16 16"><path d="M3 3v6M8 3v10M13 3v4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /><path d="M6.5 11.5L8 13l1.5-1.5" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+);
+const PersonaIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 16 16"><circle cx="8" cy="5.5" r="2.6" fill="none" stroke="currentColor" strokeWidth="1.2" /><path d="M3 13.5a5 5 0 0 1 10 0" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg>
 );

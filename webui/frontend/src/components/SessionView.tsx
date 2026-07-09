@@ -34,7 +34,7 @@ export function SessionView({ sid }: { sid: string }) {
   const title = displayTitle(renames, sid, sessions.find((s) => s.id === sid)?.title);
 
   const [events, setEvents] = useState<Envelope[]>([]);
-  const [pending, setPending] = useState<{ id: number; text: string; images: number }[]>([]);
+  const [pending, setPending] = useState<{ id: number; text: string; imgs: string[]; files: number }[]>([]);
   const [typing, setTyping] = useState<string>("");
   const [sseApprovals, setSseApprovals] = useState<Map<string, SSEApproval>>(new Map());
   const [resolvedLocal, setResolvedLocal] = useState<Set<string>>(new Set());
@@ -51,6 +51,9 @@ export function SessionView({ sid }: { sid: string }) {
   const cursor = useRef(0);
   const pollBusy = useRef(false);
   const pendSeq = useRef(0);
+  // journal seq → local upload paths, so a confirmed user bubble keeps its
+  // image thumbnails (the journal itself only records a CAS ref).
+  const sentImages = useRef(new Map<number, string[]>());
 
   // ⌘F / Ctrl-F opens the in-chat Find bar (Codex's Search chat). We take over
   // the browser's native find since Find operates on the rendered timeline.
@@ -83,7 +86,12 @@ export function SessionView({ sid }: { sid: string }) {
             if (e.type === "input_received") {
               const t = e.payload?.text;
               const i = next.findIndex((x) => x.text === t);
-              if (i >= 0) next = next.filter((_, j) => j !== i);
+              if (i >= 0) {
+                // Hand the pending bubble's thumbnails over to the journal
+                // bubble that replaces it (idempotent under re-runs).
+                if (next[i].imgs.length && e.seq) sentImages.current.set(e.seq, next[i].imgs);
+                next = next.filter((_, j) => j !== i);
+              }
             }
             if (e.type === "assistant_message") setTyping("");
           }
@@ -129,6 +137,7 @@ export function SessionView({ sid }: { sid: string }) {
 
   useEffect(() => {
     cursor.current = 0;
+    sentImages.current = new Map();
     setEvents([]);
     setPending([]);
     setTyping("");
@@ -213,7 +222,7 @@ export function SessionView({ sid }: { sid: string }) {
 
   const doSend = async (text: string, images: string[], files: string[] = []) => {
     const id = ++pendSeq.current;
-    setPending((p) => [...p, { id, text, images: images.length + files.length }]);
+    setPending((p) => [...p, { id, text, imgs: images, files: files.length }]);
     try {
       await AR.send(sid, text, images, files);
     } catch (e: any) {
@@ -307,6 +316,14 @@ export function SessionView({ sid }: { sid: string }) {
         toast(e.message);
       }
     },
+    barrier: async () => {
+      try {
+        const r = await AR.barrier(sid);
+        toast(`checkpoint ${r.barrier || "created"} — fork from it anytime`, "info");
+      } catch (e: any) {
+        toast(e.message);
+      }
+    },
     view: async (title: string, loader: () => Promise<any>) => {
       try {
         const data = await loader();
@@ -396,6 +413,12 @@ export function SessionView({ sid }: { sid: string }) {
             <>
               <MenuLabel>Advanced</MenuLabel>
               <MenuItem
+                title="checkpoint the session right now (ar barrier) so you can fork from this exact point later"
+                onClick={act.barrier}
+              >
+                Checkpoint now (barrier)
+              </MenuItem>
+              <MenuItem
                 title="branch a new independent session into its own git worktree from a checkpoint; this session is untouched"
                 onClick={() => openModal({ kind: "fork", sid })}
               >
@@ -464,7 +487,7 @@ export function SessionView({ sid }: { sid: string }) {
       {view === "diff" ? (
         <DiffView sid={sid} />
       ) : (
-        <TimelineView items={folded.items} pending={pending} typing={typing} showSys={showSys} />
+        <TimelineView items={folded.items} pending={pending} typing={typing} showSys={showSys} sentImages={sentImages.current} />
       )}
 
       {view === "chat" && openApprovals.length > 0 && (
