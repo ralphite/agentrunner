@@ -8,6 +8,7 @@ import { Modals } from "./components/Modals";
 import { Toasts } from "./components/Toasts";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { CommandPalette } from "./components/CommandPalette";
+import { requestNotifyPermission } from "./notify";
 
 export function App() {
   const { currentSid, currentRunId, refreshHealth, refreshSessions, refreshRuns, select, selectRun } =
@@ -23,7 +24,13 @@ export function App() {
       }
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // Notification permission needs a user gesture — ask on the first click.
+    const askOnce = () => requestNotifyPermission();
+    window.addEventListener("pointerdown", askOnce, { once: true });
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", askOnce);
+    };
   }, []);
 
   useEffect(() => {

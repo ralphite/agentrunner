@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { AR } from "./api";
 import type { Health, Run, Session } from "./types";
+import { notifyRunChanges, notifySessionChanges } from "./notify";
 
 export type ModalKind =
   | { kind: "new"; message?: string }
@@ -86,14 +87,20 @@ export const useStore = create<AppState>((set, get) => ({
   },
   refreshSessions: async () => {
     try {
-      set({ sessions: await AR.sessions() });
+      const next = await AR.sessions();
+      const prev = get().sessions;
+      if (prev.length) notifySessionChanges(prev, next, get().currentSid);
+      set({ sessions: next });
     } catch {
       /* health indicator carries the failure */
     }
   },
   refreshRuns: async () => {
     try {
-      set({ runs: await AR.runs() });
+      const next = await AR.runs();
+      const prev = get().runs;
+      if (prev.length) notifyRunChanges(prev, next);
+      set({ runs: next });
     } catch {
       /* ignore */
     }
