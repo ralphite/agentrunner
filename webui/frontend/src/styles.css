@@ -24,8 +24,11 @@
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
 }
+/* Dark tokens. Applied when the OS is dark AND the user hasn't picked a theme
+   (:not([data-theme])), or when the user explicitly chose dark. Explicit
+   "light" is just the :root default, so it wins over OS-dark automatically. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     --bg: #0f0f11;
     --panel: #17171a;
     --panel-2: #1c1c20;
@@ -47,6 +50,28 @@
     --red: #f0938c;
     --red-soft: #3a1a18;
   }
+}
+:root[data-theme="dark"] {
+  --bg: #0f0f11;
+  --panel: #17171a;
+  --panel-2: #1c1c20;
+  --line: #2a2a30;
+  --line-2: #232329;
+  --ink: #ececf1;
+  --ink-2: #b4b4c0;
+  --dim: #7d7d8a;
+  --accent: #ececf1;
+  --accent-ink: #17171a;
+  --blue: #6f9bff;
+  --blue-soft: #1b2540;
+  --green: #6fd398;
+  --green-soft: #16301f;
+  --amber: #e6b968;
+  --amber-soft: #33270f;
+  --violet: #b39bf5;
+  --violet-soft: #241a3d;
+  --red: #f0938c;
+  --red-soft: #3a1a18;
 }
 
 * {
@@ -2103,4 +2128,19 @@ summary.fd-head:hover {
   font-size: 11.5px;
   color: var(--dim);
   flex-shrink: 0;
+}
+
+/* ---- theme toggle (Appearance: system/light/dark) ---- */
+.theme-btn {
+  border: none;
+  background: transparent;
+  font-size: 15px;
+  padding: 2px 5px;
+  border-radius: 6px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.theme-btn:hover {
+  background: var(--panel-2);
+  border-color: transparent;
 }

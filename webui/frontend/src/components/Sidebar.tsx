@@ -3,6 +3,7 @@ import { useStore } from "../store";
 import { AR } from "../api";
 import { pillClass } from "./pill";
 import { bucketOf, relTime, sessionDate } from "../time";
+import { themeIcon } from "../theme";
 
 export function Sidebar() {
   const {
@@ -19,6 +20,8 @@ export function Sidebar() {
     archived,
     showArchived,
     toggleShowArchived,
+    theme,
+    cycleTheme,
   } = useStore();
   const [q, setQ] = useState("");
   const [searching, setSearching] = useState(false);
@@ -183,6 +186,13 @@ export function Sidebar() {
             restart
           </button>
         )}
+        <button
+          className="theme-btn"
+          onClick={cycleTheme}
+          title={`Theme: ${theme} (click to cycle system / light / dark)`}
+        >
+          {themeIcon(theme)}
+        </button>
       </div>
     </div>
   );

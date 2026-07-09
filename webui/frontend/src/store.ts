@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { AR } from "./api";
 import type { Health, Run, Session } from "./types";
 import { notifyRunChanges, notifySessionChanges } from "./notify";
+import { loadTheme, nextTheme, saveTheme, type Theme } from "./theme";
 
 export type ModalKind =
   | { kind: "new"; message?: string }
@@ -28,6 +29,8 @@ interface AppState {
   toasts: ToastMsg[];
   showSys: boolean;
   toggleSys: () => void;
+  theme: Theme;
+  cycleTheme: () => void;
   archived: string[]; // session ids the user has archived (localStorage-backed)
   showArchived: boolean;
   toggleArchive: (id: string) => void;
@@ -64,6 +67,12 @@ export const useStore = create<AppState>((set, get) => ({
   toasts: [],
   showSys: false,
   toggleSys: () => set({ showSys: !get().showSys }),
+  theme: loadTheme(),
+  cycleTheme: () => {
+    const t = nextTheme(get().theme);
+    saveTheme(t);
+    set({ theme: t });
+  },
   archived: loadArchived(),
   showArchived: false,
   toggleArchive: (id) => {

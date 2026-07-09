@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
+import { nextTheme } from "../theme";
 
 interface Item {
   id: string;
@@ -13,7 +14,8 @@ interface Item {
 // commands, keyboard-navigable (↑/↓, Enter, Esc). Opened from a global
 // key handler in App.
 export function CommandPalette({ onClose }: { onClose: () => void }) {
-  const { sessions, runs, select, selectRun, openModal, toggleShowArchived } = useStore();
+  const { sessions, runs, select, selectRun, openModal, toggleShowArchived, theme, cycleTheme } =
+    useStore();
   const [q, setQ] = useState("");
   const [idx, setIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -34,6 +36,13 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       { id: "c-run", label: "Background run…", group: "Commands", run: go(() => openModal({ kind: "run" })) },
       { id: "c-trust", label: "Trust directory…", group: "Commands", run: go(() => openModal({ kind: "trust" })) },
       { id: "c-arch", label: "Toggle archived", group: "Commands", run: go(() => toggleShowArchived()) },
+      {
+        id: "c-theme",
+        label: `Switch theme to ${nextTheme(theme)}`,
+        hint: theme,
+        group: "Commands",
+        run: go(() => cycleTheme()),
+      },
     ].filter((c) => match(c.label));
     const sess: Item[] = sessions
       .filter((s) => match(s.title || s.id) || match(s.id))
@@ -57,7 +66,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       }));
     return [...cmds, ...sess, ...rn];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, sessions, runs]);
+  }, [q, sessions, runs, theme]);
 
   useEffect(() => setIdx(0), [q]);
 
