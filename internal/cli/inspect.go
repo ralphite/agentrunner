@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/ralphite/agentrunner/internal/driver"
@@ -89,6 +90,7 @@ type inspectReport struct {
 	Turns                int                          `json:"turns,omitempty"`
 	Items                int                          `json:"items,omitempty"`
 	ProviderCapabilities *provider.CapabilityEnvelope `json:"provider_capabilities,omitempty"`
+	TeamTasks            []state.TeamTask             `json:"team_tasks,omitempty"`
 }
 
 // goalReport surfaces an active in-session goal (INC-D1) so a driver/UI can
@@ -311,6 +313,12 @@ func buildInspectReport(events []event.Envelope, s state.State) inspectReport {
 		Turns:    len(s.Interactions.Turns), Items: len(s.Interactions.Items),
 		ProviderCapabilities: s.Session.ProviderCapabilities,
 	}
+	for _, task := range s.Team {
+		report.TeamTasks = append(report.TeamTasks, task)
+	}
+	sort.Slice(report.TeamTasks, func(i, j int) bool {
+		return report.TeamTasks[i].TaskID < report.TeamTasks[j].TaskID
+	})
 	if s.Goal != nil {
 		report.Goal = &goalReport{
 			GoalID: s.Goal.GoalID, Goal: s.Goal.Goal, Checks: s.Goal.Checks,
@@ -518,6 +526,17 @@ func renderInspectIndent(w io.Writer, r inspectReport, pad string) {
 			tail += e.Detail
 		}
 		fmt.Fprintf(w, "%s    %-8s %-12s %-10s %-24s %s\n", pad, e.Kind, e.Name, e.CallID, verdict, strings.TrimRight(tail, " "))
+	}
+	if len(r.TeamTasks) > 0 {
+		fmt.Fprintln(w, "\n"+pad+"TEAM TASKS")
+		for _, task := range r.TeamTasks {
+			workspaceMode, workspacePath := "", ""
+			if task.Workspace != nil {
+				workspaceMode, workspacePath = task.Workspace.Mode, task.Workspace.Path
+			}
+			fmt.Fprintf(w, "%s  %s  %-10s member %s  workspace %s %s\n",
+				pad, task.TaskID, task.Status, task.AssignedTo, workspaceMode, workspacePath)
+		}
 	}
 
 	if len(r.Artifacts) > 0 {

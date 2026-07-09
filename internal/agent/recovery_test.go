@@ -369,6 +369,109 @@ func TestCrashSettleSpawnChildDiedToo(t *testing.T) {
 	}
 }
 
+// INC-11.6/12.6: a daemon crash while a background child is durably idle on
+// approval must re-host that exact child wait. Generic crash settlement would
+// cancel the child and strand the already-accepted approval command.
+func TestCrashResumeReattachesApprovalWaitingChild(t *testing.T) {
+	base := t.TempDir()
+	sessDir := filepath.Join(base, "sess")
+	root := filepath.Join(base, "ws")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	es, err := store.OpenEventStore(sessDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	crashParentPrefix(t, es, "approve_child")
+	_ = es.Close()
+
+	childSpec := &AgentSpec{
+		Name: "approval-worker", Model: ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
+		SystemPrompt: "approval-worker-route", Tools: []string{"write_file"}, MaxGenerationSteps: 3,
+	}
+	specJSON, _ := json.Marshal(childSpec)
+	callID := "child_write"
+	effectID := toolEffectID(callID)
+	args := json.RawMessage(`{"path":"approved.txt","content":"ok\n"}`)
+	req := event.ApprovalRequested{
+		ApprovalID: "apr-" + effectID, EffectID: effectID, CallID: callID,
+		ToolName: "write_file", Args: args,
+		GateResults: []event.GateResult{{Gate: "permission", Decision: event.VerdictAsk, Reason: "test approval"}},
+	}
+	detail, _ := json.Marshal(req)
+	childDir := filepath.Join(sessDir, "sub", "approve_child-a1")
+	ces, err := store.OpenEventStore(childDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendSynthetic(t, ces, []struct {
+		typ     string
+		payload any
+	}{
+		{event.TypeSessionStarted, &event.SessionStarted{SpecName: childSpec.Name,
+			Model: childSpec.Model.ID, Task: "wait for approval", Spec: specJSON,
+			WorkspaceRoot: root, SubStateVersions: state.SubStateVersions()}},
+		{event.TypeInputReceived, &event.InputReceived{Text: "wait for approval", Source: "cli"}},
+		{event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}},
+		{event.TypeAssistantMessage, &event.AssistantMessage{GenStep: 1,
+			Message: providerAssistantToolCall(callID, "write_file", string(args))}},
+		{event.TypeEffectRequested, &event.EffectRequested{EffectID: effectID, CallID: callID, SideEffecting: true}},
+		{event.TypeApprovalRequested, &req},
+		{event.TypeWaitingEntered, &event.WaitingEntered{Kind: event.WaitApproval, Detail: detail}},
+	})
+	_ = ces.Close()
+
+	ws, err := workspace.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	es2, err := store.OpenEventStore(sessDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = es2.Close() }()
+	inputs := make(chan protocol.UserInput)
+	close(inputs)
+	router := scripted.NewRouter(
+		scripted.RoutePair{Key: "approval-worker-route", Fixture: scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{{Text: "child finished after approval"}, {Finish: "end_turn"}}},
+		}}},
+		scripted.RoutePair{Key: "", Fixture: scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{{Text: "parent received recovered child"}, {Finish: "end_turn"}}},
+		}}},
+	)
+	parentSpec := inDoubtSpec()
+	parentSpec.Agents = []string{"worker"}
+	l := &Loop{
+		Spec: parentSpec, Provider: router, Exec: &tool.Executor{WS: ws}, Store: es2,
+		SessionID: "p", UserInputs: inputs, Approvals: approveOnce{},
+	}
+	res, err := l.Resume(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "closed" {
+		t.Fatalf("res = %+v", res)
+	}
+	if got, err := os.ReadFile(filepath.Join(root, "approved.txt")); err != nil || string(got) != "ok\n" {
+		t.Fatalf("approved child write = %q, %v", got, err)
+	}
+	events, _ := store.ReadEvents(sessDir)
+	var completed, crashCancelled bool
+	for _, env := range events {
+		if env.Type == event.TypeSubagentCompleted && strings.Contains(string(env.Payload), `"approve_child"`) {
+			completed = true
+		}
+		if env.Type == event.TypeActivityCancelled && strings.Contains(string(env.Payload), "interrupted by crash") {
+			crashCancelled = true
+		}
+	}
+	if !completed || crashCancelled {
+		t.Fatalf("reattach completion=%v crash_cancelled=%v", completed, crashCancelled)
+	}
+}
+
 // v2 收口 review: a idle that lost its WaitingResolved to a crash (input
 // durable, resolution not) must NOT re-block on resume — the pending input
 // resolves the stale idle and gets its turn immediately.

@@ -76,6 +76,10 @@ type AgentSpec struct {
 	// addition to — the static whitelist. Off by default: the multi-agent
 	// face never widens silently.
 	AgentsDynamic bool `yaml:"agents_dynamic,omitempty"`
+	// AgentWorkspace controls child filesystem isolation. Loaded production
+	// specs default to "isolated"; "shared" is an explicit collaboration
+	// choice. Empty is retained only for programmatic legacy/test specs.
+	AgentWorkspace string `yaml:"agent_workspace,omitempty"`
 	// Escalate is an explicit request for a human-approved permission
 	// exception when this spec is launched as a child. It never grants
 	// authority by itself; the spawn approval path decides it.
@@ -159,6 +163,9 @@ func LoadSpec(path string) (*AgentSpec, error) {
 	if spec.Model.MaxTokens == 0 {
 		spec.Model.MaxTokens = DefaultMaxTokens
 	}
+	if spec.AgentWorkspace == "" {
+		spec.AgentWorkspace = "isolated"
+	}
 	return &spec, nil
 }
 
@@ -166,7 +173,7 @@ func LoadSpec(path string) (*AgentSpec, error) {
 // hint. Keep in sync with the AgentSpec struct tags.
 const specFields = "name, model, system_prompt, system_prompt_file, tools, " +
 	"max_generation_steps, permissions, mode, budget, allowed_tools, " +
-	"description, agents, agents_dynamic, escalate, receipts, outputs, sandbox, mcp"
+	"description, agents, agents_dynamic, agent_workspace, escalate, receipts, outputs, sandbox, mcp"
 
 // decodeHint rewrites a yaml decode error for a user who has never seen the
 // Go structs behind the spec (INC-2 BB-me-3): strip internal type names, and
@@ -241,6 +248,11 @@ func (s *AgentSpec) validate(path string) error {
 	case "", "steer", "turn_end":
 	default:
 		return fail("receipts", fmt.Sprintf("unknown value %q (known: steer, turn_end)", s.Receipts))
+	}
+	switch s.AgentWorkspace {
+	case "", "isolated", "shared":
+	default:
+		return fail("agent_workspace", fmt.Sprintf("unknown value %q (known: isolated, shared)", s.AgentWorkspace))
 	}
 	switch s.Sandbox.Network {
 	case "", "all", "none":

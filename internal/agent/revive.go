@@ -21,6 +21,8 @@ import (
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
+	"github.com/ralphite/agentrunner/internal/tool"
+	"github.com/ralphite/agentrunner/internal/workspace"
 )
 
 // childSegRe splits "<call>-a<attempt>" (one path segment under sub/).
@@ -150,6 +152,10 @@ func (l *Loop) reviveChild(ctx context.Context, ds *driveState, appendE AppendFu
 	if spec.Budget.MaxTotalTokens > 0 {
 		cap = spec.Budget.MaxTotalTokens
 	}
+	childExec, err := l.childExecutorFromJournal(dir, child)
+	if err != nil {
+		return fmt.Errorf("revive %s: %w", child, err)
+	}
 	allowance := l.reviveAllowance(ds.s, cap, spent)
 	if allowance <= 0 {
 		_, err := appendE(event.TypeInputReceived, &event.InputReceived{
@@ -195,7 +201,7 @@ func (l *Loop) reviveChild(ctx context.Context, ds *driveState, appendE AppendFu
 	if cap > 0 || l.Spec.Budget.MaxTotalTokens > 0 {
 		frozenCap = spent + allowance
 	}
-	loop := l.childLoop(spec, childStore, child, frozenCap, ds.s.CurrentMode())
+	loop := l.childLoopWithExec(spec, childStore, child, frozenCap, ds.s.CurrentMode(), childExec)
 
 	l.ensureBackground()
 	taskCtx, cancel := context.WithCancelCause(ctx)
@@ -308,6 +314,40 @@ func childSpecFromJournal(dir string) (*AgentSpec, error) {
 		return &spec, nil
 	}
 	return nil, fmt.Errorf("child journal has no SessionStarted")
+}
+
+func (l *Loop) childExecutorFromJournal(dir, session string) (*tool.Executor, error) {
+	events, err := store.ReadEvents(dir)
+	if err != nil {
+		return nil, err
+	}
+	root := ""
+	for _, env := range events {
+		if env.Type != event.TypeSessionStarted {
+			continue
+		}
+		decoded, derr := event.DecodePayload(env)
+		if derr != nil {
+			return nil, derr
+		}
+		root = decoded.(*event.SessionStarted).WorkspaceRoot
+		break
+	}
+	if root == "" || (l.Exec != nil && l.Exec.WS != nil && root == l.Exec.WS.Root()) {
+		return l.Exec, nil
+	}
+	ws, err := workspace.New(root)
+	if err != nil {
+		return nil, fmt.Errorf("reopen isolated workspace: %w", err)
+	}
+	exec := &tool.Executor{WS: ws, Session: session}
+	if l.Exec != nil {
+		exec.ProbeSandbox = l.Exec.ProbeSandbox
+		if l.Exec.NetworkContained() {
+			exec.ContainNetwork()
+		}
+	}
+	return exec, nil
 }
 
 // childFoldState folds a child journal (the settle/revive-side truth).

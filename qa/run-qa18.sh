@@ -51,6 +51,9 @@ system_prompt: |
   - 成员完成的回执会以消息进入你的对话;全部完成后向用户简洁汇总。
 tools: [read_file, write_file]
 agents_dynamic: true
+# This journey intentionally has engineer/reviewer collaborate on one tree;
+# production defaults child workspaces to isolated, so shared is explicit.
+agent_workspace: shared
 permissions:
   - { action: allow }
 YAML

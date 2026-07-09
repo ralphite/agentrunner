@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -457,6 +458,24 @@ func pendingCommands(sessionID string) ([]protocol.SessionCommand, error) {
 	if err != nil {
 		return nil, err
 	}
+	pending, err := pendingCommandsInDir(dir)
+	if err != nil || strings.Contains(sessionID, "-sub-") {
+		return pending, err
+	}
+	// A child approval is persisted in the exact asking child's CommandLog,
+	// but the collaboration has one host: the tree root. On daemon restart,
+	// fold all descendant approval tails into the root's replay queue and
+	// retain Target so the broker answers the child's rendezvous. Other child
+	// commands are deliberately not hoisted; user sends already persist on
+	// the root with UserInput.Target, preserving the single-writer route.
+	childPending, err := pendingChildApprovals(sessionID, dir)
+	if err != nil {
+		return nil, err
+	}
+	return append(pending, childPending...), nil
+}
+
+func pendingCommandsInDir(dir string) ([]protocol.SessionCommand, error) {
 	events, err := store.ReadEvents(dir)
 	if err != nil {
 		return nil, err
@@ -498,6 +517,41 @@ func pendingCommands(sessionID string) ([]protocol.SessionCommand, error) {
 		pending = append(pending, cmd)
 	}
 	return pending, nil
+}
+
+func pendingChildApprovals(parentID, parentDir string) ([]protocol.SessionCommand, error) {
+	entries, err := os.ReadDir(filepath.Join(parentDir, "sub"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var out []protocol.SessionCommand
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		childID := parentID + "-sub-" + entry.Name()
+		childDir := filepath.Join(parentDir, "sub", entry.Name())
+		pending, perr := pendingCommandsInDir(childDir)
+		if perr != nil {
+			return nil, perr
+		}
+		for _, cmd := range pending {
+			if cmd.Kind != protocol.CommandApproval {
+				continue
+			}
+			cmd.Target = childID
+			out = append(out, cmd)
+		}
+		deeper, derr := pendingChildApprovals(childID, childDir)
+		if derr != nil {
+			return nil, derr
+		}
+		out = append(out, deeper...)
+	}
+	return out, nil
 }
 
 func scanPendingCommandSessions() ([]string, error) {

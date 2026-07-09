@@ -4,18 +4,22 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
 
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/hook"
 	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/redact"
+	"github.com/ralphite/agentrunner/internal/snapshot"
 	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
 	"github.com/ralphite/agentrunner/internal/tool"
+	"github.com/ralphite/agentrunner/internal/workspace"
 )
 
 // SubSpecResolver resolves a sub-agent name from the spec's agents whitelist
@@ -34,6 +38,43 @@ type InlineRole struct {
 	Tools        []string                  `json:"tools,omitempty"`
 	Permissions  []pipeline.PermissionRule `json:"permissions,omitempty"`
 	Escalate     bool                      `json:"escalate,omitempty"`
+}
+
+type spawnPlan struct {
+	TaskID    string
+	DependsOn []string
+	Problem   string
+}
+
+func planSpawn(team map[string]state.TeamTask, call provider.ToolCall) spawnPlan {
+	plan := spawnPlan{TaskID: "task-" + call.CallID}
+	var args struct {
+		DependsOn []string `json:"depends_on"`
+	}
+	if err := json.Unmarshal(call.Args, &args); err != nil {
+		return plan
+	}
+	seen := map[string]bool{}
+	for _, raw := range args.DependsOn {
+		id := raw
+		if _, ok := team[id]; !ok {
+			if _, ok := team["task-"+raw]; ok {
+				id = "task-" + raw
+			} else {
+				plan.Problem = fmt.Sprintf("dependency %q does not name a durable team task", raw)
+				return plan
+			}
+		}
+		if team[id].Status != "quiescent" {
+			plan.Problem = fmt.Sprintf("dependency %q is %s, not quiescent", id, team[id].Status)
+			return plan
+		}
+		if !seen[id] {
+			seen[id] = true
+			plan.DependsOn = append(plan.DependsOn, id)
+		}
+	}
+	return plan
 }
 
 // safeCallIDRe: the provider-issued CallID lands in the child journal's
@@ -236,7 +277,8 @@ func (l *Loop) dynamicRoleSpec(role *InlineRole) (*AgentSpec, string) {
 		MaxGenerationSteps: l.Spec.MaxGenerationSteps,
 		Permissions:        append([]pipeline.PermissionRule(nil), role.Permissions...),
 		Budget:             l.Spec.Budget, AgentsDynamic: l.Spec.AgentsDynamic,
-		Escalate: role.Escalate, Receipts: l.Spec.Receipts, Sandbox: l.Spec.Sandbox,
+		AgentWorkspace: l.Spec.AgentWorkspace,
+		Escalate:       role.Escalate, Receipts: l.Spec.Receipts, Sandbox: l.Spec.Sandbox,
 	}, ""
 }
 
@@ -251,6 +293,46 @@ func dynamicRoleJSON(rawArgs json.RawMessage, spec *AgentSpec) json.RawMessage {
 	return raw
 }
 
+func (l *Loop) prepareChildExecutor(ctx context.Context, childDir, childSession string) (*tool.Executor, *event.TeamWorkspace, error) {
+	parentPath := ""
+	if l.Exec != nil && l.Exec.WS != nil {
+		parentPath = l.Exec.WS.Root()
+	}
+	if l.Spec.AgentWorkspace != "isolated" {
+		return l.Exec, &event.TeamWorkspace{Mode: "shared", Path: parentPath}, nil
+	}
+	if l.Snapshots == nil {
+		return nil, nil, fmt.Errorf("isolated child workspace required but snapshot backend is unavailable")
+	}
+	root := filepath.Join(childDir, "worktree")
+	baseRef := ""
+	if st, err := os.Stat(root); err == nil && st.IsDir() {
+		// Crash retry after materialize but before SpawnRequested: reuse the
+		// already-isolated tree; no shared fallback and no destructive reset.
+	} else {
+		var err error
+		baseRef, err = l.Snapshots.Snapshot(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("snapshot child workspace base: %w", err)
+		}
+		if err := l.Snapshots.Materialize(ctx, baseRef, root); err != nil {
+			return nil, nil, fmt.Errorf("materialize child workspace: %w", err)
+		}
+	}
+	ws, err := workspace.New(root)
+	if err != nil {
+		return nil, nil, fmt.Errorf("child workspace: %w", err)
+	}
+	exec := &tool.Executor{WS: ws, Session: childSession}
+	if l.Exec != nil {
+		exec.ProbeSandbox = l.Exec.ProbeSandbox
+		if l.Exec.NetworkContained() {
+			exec.ContainNetwork()
+		}
+	}
+	return exec, &event.TeamWorkspace{Mode: "isolated", Path: root, BaseRef: baseRef}, nil
+}
+
 // buildHandoffRun is the HANDOFF activity's Run closure (S5.4): control
 // transfer runs the successor synchronously — the caller acts no more, so
 // there is nothing to parallelize. (spawn_agent is always non-blocking,
@@ -262,12 +344,15 @@ func dynamicRoleJSON(rawArgs json.RawMessage, spec *AgentSpec) json.RawMessage {
 // handoff from appending onto a dead child's log.
 func (l *Loop) buildHandoffRun(call provider.ToolCall, res *tool.Result,
 	appendE AppendFunc, allowance int, parentMode string, escalationApproved bool,
-	escalationFallback string) func(context.Context) (json.RawMessage, *provider.Usage, bool, error) {
+	escalationFallback string, coordination spawnPlan) func(context.Context) (json.RawMessage, *provider.Usage, bool, error) {
 
 	attempt := 0
 	return func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
 		attempt++
 		agentName, task, inputs, childSpec, problem := l.resolveSpawnTargetFull(call.Name, call.Args)
+		if problem == "" && coordination.Problem != "" {
+			problem = call.Name + ": " + coordination.Problem
+		}
 		if problem == "" && !safeCallIDRe.MatchString(call.CallID) {
 			problem = call.Name + ": malformed call id"
 		}
@@ -286,6 +371,11 @@ func (l *Loop) buildHandoffRun(call provider.ToolCall, res *tool.Result,
 		}
 		defer func() { _ = childStore.Close() }()
 		childSession := fmt.Sprintf("%s-sub-%s-a%d", l.SessionID, call.CallID, attempt)
+		childExec, workspaceAssignment, err := l.prepareChildExecutor(ctx, childDir, childSession)
+		if err != nil {
+			*res = errorResult(fmt.Sprintf("spawn %s: %v", agentName, err))
+			return res.Payload, nil, true, nil
+		}
 
 		if _, err := appendE(event.TypeSpawnRequested, &event.SpawnRequested{
 			CallID: call.CallID, Agent: agentName, Task: task,
@@ -293,11 +383,13 @@ func (l *Loop) buildHandoffRun(call provider.ToolCall, res *tool.Result,
 			RoleSpec:  dynamicRoleJSON(call.Args, childSpec),
 			Escalated: childSpec.EscalationApproved, Escalation: escalationOutcome(childSpec),
 			EscalationReason: escalationFallback,
+			TaskID:           coordination.TaskID, DependsOn: coordination.DependsOn,
+			LeaseID: fmt.Sprintf("lease-%s-a%d", call.CallID, attempt), Workspace: workspaceAssignment,
 		}); err != nil {
 			return nil, nil, false, err
 		}
 
-		child := l.childLoop(childSpec, childStore, childSession, allowance, parentMode)
+		child := l.childLoopWithExec(childSpec, childStore, childSession, allowance, parentMode, childExec)
 		child.Inputs = inputs
 		cres, cerr := child.Run(ctx, task)
 		if cerr != nil {
@@ -342,6 +434,7 @@ func (l *Loop) buildHandoffRun(call provider.ToolCall, res *tool.Result,
 			"report":                childReport(childDir),
 			"permission_escalation": escalationOutcome(childSpec),
 			"escalation_reason":     escalationFallback,
+			"workspace":             workspaceAssignment,
 		})
 		*res = tool.Result{Payload: payload, IsError: isError}
 		usage := cres.Usage
@@ -358,10 +451,13 @@ func (l *Loop) buildHandoffRun(call provider.ToolCall, res *tool.Result,
 // — activating the parent's next turn. Runs on the drive goroutine.
 func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 	call provider.ToolCall, allowance int, parentMode string, escalationApproved bool,
-	escalationFallback string) error {
+	escalationFallback string, coordination spawnPlan) error {
 
 	l.ensureBackground()
 	agentName, task, inputs, childSpec, problem := l.resolveSpawnTargetFull(call.Name, call.Args)
+	if problem == "" && coordination.Problem != "" {
+		problem = call.Name + ": " + coordination.Problem
+	}
 	if problem == "" && !safeCallIDRe.MatchString(call.CallID) {
 		problem = call.Name + ": malformed call id"
 	}
@@ -394,6 +490,21 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 	}
 	childSession := fmt.Sprintf("%s-sub-%s-a1", l.SessionID, call.CallID)
 	activityID := "tool-" + call.CallID
+	childExec, workspaceAssignment, err := l.prepareChildExecutor(ctx, childDir, childSession)
+	if err != nil {
+		_ = childStore.Close()
+		payload, _ := json.Marshal(map[string]any{"error": fmt.Sprintf("spawn %s: %v", agentName, err)})
+		if _, aerr := appendE(event.TypeActivityStarted, &event.ActivityStarted{
+			ActivityID: activityID, Kind: event.KindTool, Name: call.Name,
+			Args: redact.FromEnv().JSON(call.Args), CallID: call.CallID, Attempt: 1,
+		}); aerr != nil {
+			return aerr
+		}
+		_, aerr := appendE(event.TypeActivityCompleted, &event.ActivityCompleted{
+			ActivityID: activityID, Result: payload, IsError: true,
+		})
+		return aerr
+	}
 
 	if _, err := appendE(event.TypeSpawnRequested, &event.SpawnRequested{
 		CallID: call.CallID, Agent: agentName, Task: task,
@@ -401,6 +512,8 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 		RoleSpec:  dynamicRoleJSON(call.Args, childSpec),
 		Escalated: childSpec.EscalationApproved, Escalation: escalationOutcome(childSpec),
 		EscalationReason: escalationFallback,
+		TaskID:           coordination.TaskID, DependsOn: coordination.DependsOn,
+		LeaseID: "lease-" + call.CallID + "-a1", Workspace: workspaceAssignment,
 	}); err != nil {
 		_ = childStore.Close()
 		return err
@@ -419,7 +532,7 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 	l.bg.cancel[call.CallID] = cancel
 	l.bg.mu.Unlock()
 
-	child := l.childLoop(childSpec, childStore, childSession, allowance, parentMode)
+	child := l.childLoopWithExec(childSpec, childStore, childSession, allowance, parentMode, childExec)
 	child.Inputs = inputs
 	go func() {
 		defer func() { _ = childStore.Close() }()
@@ -441,6 +554,7 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 			"report":                childReport(childDir),
 			"permission_escalation": escalationOutcome(childSpec),
 			"escalation_reason":     escalationFallback,
+			"workspace":             workspaceAssignment,
 		})
 		usage := spent
 		l.bg.done <- bgOutcome{
@@ -456,14 +570,12 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 	return nil
 }
 
-// childLoop builds the frozen child run (S5.3/INC-12.5). Normally the child
-// pipeline is parent gates followed by child permissions (intersection).
-// The sole widening path is a journaled human-approved escalation: retain
-// the hard floor + tree caps, use the child's declared permission rules,
-// and retain the min-aggregated budget. OS containment is a shared executor
-// ratchet and therefore cannot widen on either path.
-func (l *Loop) childLoop(childSpec *AgentSpec, childStore *store.EventStore,
-	childSession string, allowance int, parentMode string) *Loop {
+// childLoopWithExec builds the frozen child run (S5.3/INC-12.5). Normally
+// the child pipeline is parent gates followed by child permissions
+// (intersection). The sole widening path is a journaled human-approved
+// escalation; OS containment can never widen.
+func (l *Loop) childLoopWithExec(childSpec *AgentSpec, childStore *store.EventStore,
+	childSession string, allowance int, parentMode string, childExec *tool.Executor) *Loop {
 	frozen := *childSpec
 	if allowance > 0 {
 		frozen.Budget.MaxTotalTokens = allowance
@@ -476,21 +588,13 @@ func (l *Loop) childLoop(childSpec *AgentSpec, childStore *store.EventStore,
 	frozen.Mode = ""
 
 	var gates []pipeline.Gate
-	var permissionTemplate *pipeline.PermissionGate
-	if l.Pipeline != nil {
-		for _, g := range l.Pipeline.Gates {
-			if pg, ok := g.(*pipeline.PermissionGate); ok {
-				permissionTemplate = pg
-			}
-		}
-	}
 	if childSpec.EscalationApproved {
 		var floorFound, spawnFound bool
 		if l.Pipeline != nil {
 			for _, g := range l.Pipeline.Gates {
 				switch g.(type) {
 				case *pipeline.FloorGate:
-					gates = append(gates, g)
+					gates = append(gates, rebindChildGate(g, childExec))
 					floorFound = true
 				case *pipeline.SpawnGate:
 					gates = append(gates, g)
@@ -500,10 +604,8 @@ func (l *Loop) childLoop(childSpec *AgentSpec, childStore *store.EventStore,
 		}
 		if !floorFound {
 			floor := &pipeline.FloorGate{Mode: childMode}
-			if permissionTemplate != nil {
-				floor.WS = permissionTemplate.WS
-			} else if l.Exec != nil {
-				floor.WS = l.Exec.WS
+			if childExec != nil {
+				floor.WS = childExec.WS
 			}
 			gates = append(gates, floor)
 		}
@@ -511,14 +613,14 @@ func (l *Loop) childLoop(childSpec *AgentSpec, childStore *store.EventStore,
 			gates = append(gates, &pipeline.SpawnGate{})
 		}
 	} else if l.Pipeline != nil {
-		gates = append(gates, l.Pipeline.Gates...)
+		for _, g := range l.Pipeline.Gates {
+			gates = append(gates, rebindChildGate(g, childExec))
+		}
 	}
 	if len(childSpec.Permissions) > 0 {
 		gate := &pipeline.PermissionGate{Rules: childSpec.Permissions, Mode: childMode}
-		if permissionTemplate != nil {
-			gate.WS = permissionTemplate.WS
-		} else if l.Exec != nil {
-			gate.WS = l.Exec.WS
+		if childExec != nil {
+			gate.WS = childExec.WS
 		}
 		gates = append(gates, gate)
 	}
@@ -526,15 +628,33 @@ func (l *Loop) childLoop(childSpec *AgentSpec, childStore *store.EventStore,
 		gates = append(gates, &pipeline.BudgetGate{MaxTotalTokens: allowance})
 	}
 
+	var childHooks *hook.Runner
+	if !childSpec.EscalationApproved && l.Hooks != nil {
+		copy := *l.Hooks
+		if childExec != nil && childExec.WS != nil {
+			copy.Dir = childExec.WS.Root()
+		}
+		childHooks = &copy
+	}
+	var childSnapshots snapshot.Store
+	if childExec == l.Exec {
+		childSnapshots = l.Snapshots
+	} else if childExec != nil && childExec.WS != nil {
+		if repo, err := snapshot.NewShadowRepo(filepath.Join(childStore.Dir(), "workspace-shadow.git"), childExec.WS.Root()); err == nil {
+			childSnapshots = repo
+		}
+	}
+
 	return &Loop{
 		Spec:      &frozen,
 		Provider:  l.Provider,
-		Exec:      l.Exec,
+		Exec:      childExec,
 		Store:     childStore,
 		Clock:     l.Clock,
 		SessionID: childSession,
 		Version:   l.Version,
 		Pipeline:  &pipeline.Pipeline{Gates: gates},
+		Hooks:     childHooks,
 		Approvals: l.Approvals, // approvals bubble to the same frontend seam
 		Mode:      childMode,
 		Depth:     l.Depth + 1,
@@ -543,8 +663,28 @@ func (l *Loop) childLoop(childSpec *AgentSpec, childStore *store.EventStore,
 		Artifacts: l.Artifacts, // the deliverable CAS is tree-shared too (S5.5)
 		Router:    l.Router,    // the tree message fabric is tree-shared (INC-12)
 		Out:       l.Out,       // live events share the root sink, tagged per member (INC-12.6)
-		// Snapshots deliberately NOT inherited: barriers are cut by the tree
-		// root only — the root's vector already covers child streams (S7.2).
+		Snapshots: childSnapshots,
+	}
+}
+
+func rebindChildGate(g pipeline.Gate, exec *tool.Executor) pipeline.Gate {
+	var ws *workspace.Workspace
+	if exec != nil {
+		ws = exec.WS
+	}
+	switch gate := g.(type) {
+	case *pipeline.FloorGate:
+		return &pipeline.FloorGate{Mode: gate.Mode, WS: ws}
+	case *pipeline.PermissionGate:
+		return &pipeline.PermissionGate{Rules: append([]pipeline.PermissionRule(nil), gate.Rules...), Mode: gate.Mode, WS: ws}
+	case *hook.Gate:
+		copy := *gate.Runner
+		if ws != nil {
+			copy.Dir = ws.Root()
+		}
+		return &hook.Gate{Runner: &copy, Notes: gate.Notes}
+	default:
+		return g
 	}
 }
 

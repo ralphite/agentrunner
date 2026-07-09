@@ -46,6 +46,11 @@
             "path"
           ]
         }
+      },
+      "depends_on": {
+        "type": "array",
+        "description": "Durable team task ids or prior spawn handles that must be quiescent before this delegation starts.",
+        "items": {"type": "string"}
       }
     },
     "required": ["task"]

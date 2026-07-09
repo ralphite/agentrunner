@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,9 +12,103 @@ import (
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/protocol"
+	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
+	"github.com/ralphite/agentrunner/internal/snapshot"
+	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
 )
+
+// INC-11.6: production's default isolated assignment materializes a child
+// from one parent snapshot, records task/DAG/lease/workspace facts, and a
+// later revive reopens that SAME worktree rather than the parent's tree.
+func TestIsolatedTeamWorkspaceSurvivesRevive(t *testing.T) {
+	root := t.TempDir()
+	parentFix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{
+			{ToolCall: &scripted.ToolCallEvent{CallID: "iso", Name: "spawn_agent", Args: map[string]any{
+				"agent": "summarizer", "task": "ISOLATED-WORK",
+			}}}, {Finish: "tool_use"},
+		}},
+		{Respond: []scripted.Event{
+			{ToolCall: &scripted.ToolCallEvent{CallID: "follow", Name: "send_message", Args: map[string]any{
+				"to": "iso", "text": "revise it to v2",
+			}}}, {Finish: "tool_use"},
+		}},
+		{Respond: []scripted.Event{{Text: "waiting"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
+	}}
+	childFix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{
+			{ToolCall: &scripted.ToolCallEvent{CallID: "w1", Name: "write_file", Args: map[string]any{
+				"path": "child.txt", "content": "v1",
+			}}}, {Finish: "tool_use"},
+		}},
+		{Respond: []scripted.Event{{Text: "round one"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{
+			{ToolCall: &scripted.ToolCallEvent{CallID: "w2", Name: "edit_file", Args: map[string]any{
+				"path": "child.txt", "old": "v1", "new": "v2",
+			}}}, {Finish: "tool_use"},
+		}},
+		{Respond: []scripted.Event{{Text: "round two"}, {Finish: "end_turn"}}},
+	}}
+	l, _ := routedSpawnLoop(t, parentFix, root,
+		scripted.RoutePair{Key: "ISOLATED-WORK", Fixture: childFix})
+	l.Spec.AgentWorkspace = "isolated"
+	shadow, err := snapshot.NewShadowRepo(filepath.Join(t.TempDir(), "shadow.git"), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	l.Snapshots = shadow
+	inputs := make(chan protocol.UserInput)
+	l.UserInputs = inputs
+	closeWhen(l, inputs, func(events []event.Envelope) bool {
+		return countType(events, event.TypeSubagentCompleted) >= 2
+	})
+	if _, err := l.Run(context.Background(), "delegate isolated work"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "child.txt")); !os.IsNotExist(err) {
+		t.Fatalf("child edit leaked into parent workspace: %v", err)
+	}
+	childDir := filepath.Join(l.Store.Dir(), "sub", "iso-a1")
+	worktree := filepath.Join(childDir, "worktree")
+	if got, err := os.ReadFile(filepath.Join(worktree, "child.txt")); err != nil || string(got) != "v2" {
+		t.Fatalf("isolated revived worktree child.txt = %q err=%v", got, err)
+	}
+	events, _ := store.ReadEvents(l.Store.Dir())
+	fold, err := state.Fold(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	task := fold.Team["task-iso"]
+	if task.Status != "quiescent" || task.Settlements != 2 || task.LeaseID != "" ||
+		task.Workspace == nil || task.Workspace.Mode != "isolated" || task.Workspace.BaseRef == "" {
+		t.Fatalf("durable team task = %+v", task)
+	}
+	childEvents, _ := store.ReadEvents(childDir)
+	started, _ := event.DecodePayload(childEvents[0])
+	canonicalWorktree, _ := filepath.EvalSymlinks(worktree)
+	if started.(*event.SessionStarted).WorkspaceRoot != canonicalWorktree {
+		t.Fatalf("child workspace root = %q, want %q", started.(*event.SessionStarted).WorkspaceRoot, canonicalWorktree)
+	}
+}
+
+func TestTeamTaskDependencyPlan(t *testing.T) {
+	team := map[string]state.TeamTask{
+		"task-a": {TaskID: "task-a", CallID: "a", Status: "quiescent"},
+		"task-b": {TaskID: "task-b", CallID: "b", Status: "leased"},
+	}
+	call := provider.ToolCall{CallID: "c", Args: json.RawMessage(`{"depends_on":["a"]}`)}
+	if plan := planSpawn(team, call); plan.Problem != "" || len(plan.DependsOn) != 1 || plan.DependsOn[0] != "task-a" {
+		t.Fatalf("ready dependency plan = %+v", plan)
+	}
+	call.Args = json.RawMessage(`{"depends_on":["b"]}`)
+	if plan := planSpawn(team, call); !strings.Contains(plan.Problem, "not quiescent") {
+		t.Fatalf("leased dependency plan = %+v", plan)
+	}
+}
 
 // INC-12.4 (工作纸闸门 A-5): a lead with agents_dynamic (and NO static
 // whitelist) drafts a role inline; the child runs under the constructed

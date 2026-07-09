@@ -631,6 +631,18 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 	if len(pendingEffects) > 0 {
 		return RunResult{}, &InDoubtError{Activities: inDoubt, Effects: pendingEffects}
 	}
+	// A background child that was durably idle on a human approval did not
+	// lose an unknown side effect: its own journal says exactly where it
+	// stopped. Re-host that child under this root before applying the generic
+	// crash-settle rule, so the approval rendezvous and the original lease
+	// survive a daemon restart. Every other in-doubt child still settles from
+	// its fold below and is never silently re-run.
+	if len(inDoubt) > 0 {
+		inDoubt, err = l.reattachWaitingChildren(ctx, ds, inDoubt)
+		if err != nil {
+			return RunResult{}, err
+		}
+	}
 	if len(inDoubt) > 0 {
 		if err := l.settleCrashInDoubt(appendE, inDoubt, ds.s.Timers); err != nil {
 			return RunResult{}, err
@@ -1382,6 +1394,7 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 		allowance          int // spawn only: the frozen min-aggregated child budget
 		escalationApproved bool
 		escalationFallback string
+		spawnPlan          spawnPlan
 	}
 	var allowed []pending
 	// batchSpawns counts spawns allowed THIS batch: SpawnRequested only
@@ -1407,7 +1420,9 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 		}
 		allowance := 0
 		var childSpec *AgentSpec
+		var coordination spawnPlan
 		if isAgentLaunch(call.Name) {
+			coordination = planSpawn(ds.s.Team, call)
 			// Spawn and handoff both launch a child run (S5.3/S5.4): the
 			// effect reserves the child's WHOLE allowance up front (min
 			// aggregation) and feeds the tree caps to the spawn gate. An
@@ -1458,7 +1473,8 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 			}
 		}
 		allowed = append(allowed, pending{call: call, res: new(tool.Result), allowance: allowance,
-			escalationApproved: escalationApproved, escalationFallback: escalationFallback})
+			escalationApproved: escalationApproved, escalationFallback: escalationFallback,
+			spawnPlan: coordination})
 	}
 	if len(allowed) == 0 {
 		return nil
@@ -1519,7 +1535,7 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 			// as a message later. ctx is the RUN's — a parent cancel reaches
 			// the child; the batch interrupt scope does not.
 			if err := l.launchBackgroundSpawn(ctx, serialAppend, p.call, p.allowance, parentMode,
-				p.escalationApproved, p.escalationFallback); err != nil {
+				p.escalationApproved, p.escalationFallback, p.spawnPlan); err != nil {
 				stopInt()
 				return abort(act.turn, err)
 			}
@@ -1532,7 +1548,7 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 		run := l.buildToolRun(p.call, p.res)
 		if p.call.Name == "handoff_agent" {
 			run = l.buildHandoffRun(p.call, p.res, serialAppend, p.allowance, parentMode,
-				p.escalationApproved, p.escalationFallback)
+				p.escalationApproved, p.escalationFallback, p.spawnPlan)
 		}
 		if p.call.Name == "publish_artifact" {
 			run = l.buildPublishRun(p.call, p.res, serialAppend)

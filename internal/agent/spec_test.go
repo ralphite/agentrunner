@@ -63,6 +63,9 @@ func TestLoadSpecValid(t *testing.T) {
 	if len(spec.Tools) != 3 {
 		t.Errorf("tools = %v", spec.Tools)
 	}
+	if spec.AgentWorkspace != "isolated" {
+		t.Errorf("agent_workspace default = %q, want isolated", spec.AgentWorkspace)
+	}
 }
 
 func TestLoadSpecMCPTransports(t *testing.T) {

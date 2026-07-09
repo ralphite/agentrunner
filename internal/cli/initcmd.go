@@ -43,6 +43,9 @@ permissions:
 # max_generation_steps: 40  # cap on model calls per turn
 # budget:
 #   max_total_tokens: 200000
+# agents: [worker]              # sibling worker.yaml specs allowed to spawn
+# agents_dynamic: true          # also allow inline role definitions
+# agent_workspace: isolated     # isolated (default) | shared
 
 # MCP servers are connected automatically in run/resume/daemon/driver paths.
 # Secrets are referenced by environment-variable NAME, never embedded here.

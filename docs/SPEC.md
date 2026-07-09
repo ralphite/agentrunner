@@ -57,7 +57,8 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | 子提权申请通道（`escalate` 强制人审；批准用 child rules，拒绝/interrupt 降级交集） | ✅ | UJ-23 | INC-12.5 · TestEscalationApproval |
 | 动态角色（`agents_dynamic` + inline role；冻结 RoleSpec；无 hooks/MCP/skills，工具仅父子集） | ✅ | UJ-23 | INC-12.4 · TestSpawnDynamicRole |
 | 树内 durable 消息 / 静止子唤醒 / 用户直达子 steer | ✅ | UJ-18/23 | INC-12.1–12.3 · TestSendMessage* / TestDaemonSendToChildRoutesThroughRoot |
-| 子 agent 实时进度镜像 | ❌ | UJ-18 | GAPS G10 |
+| durable team task/DAG/lease + workspace assignment（生产默认隔离 worktree，显式 shared；revive 复用） | ✅ | UJ-16/18/23 | INC-11.6 · TestIsolatedTeamWorkspaceSurvivesRevive/TestTeamTaskDependencyPlan |
+| 子 agent 实时进度镜像 / 子审批根宿主路由与 crash 重挂接 | ✅ | UJ-18/23 | INC-12.6 · TestChildAttachLive*/TestCrashResumeReattachesApprovalWaitingChild |
 | 子执行收敛为递归 session | 🟡 | — | 阻塞路径已删(D3a);driver 独立待收敛,挂 UJ-22/G23（DESIGN §17） |
 | 并发子 agent 确定性测试基建（routing provider） | ✅ | — | C3–C7 孪生在用（GAPS G4 关闭事实） |
 

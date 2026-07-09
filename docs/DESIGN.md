@@ -735,6 +735,7 @@ skills:                        # Claude Code skill 约定：目录 + markdown + 
 
 agents: [summarizer]           # 允许 spawn 的子 agent 白名单
 receipts: steer                # 回执投递模式:steer(默认)|turn_end(裁决 #15)
+agent_workspace: isolated      # 子默认独立 worktree；shared 必须显式选择
 
 permissions:
   mode: default                # mode 是 loop 行为的数据描述（见 §5）
@@ -1343,10 +1344,12 @@ event sourcing 的闭环：**执行产生事件，事件重建状态，状态驱
 | **子 session** | parent 指针非空的 session（递归）；没有独立的"子 agent"概念。 |
 | **spawn** | 工具 `spawn_agent`：**一律非阻塞**（零 legacy,2026-07-08 阻塞路径删除）——立即返回 handle,子并行跑,回执按 `receipts` 模式回流。 |
 | **handle** | spawn/后台任务的立即配对结果；kill/output 都凭它。 |
+| **team task / lease** | 每次 delegation 折叠为稳定 `task_id`、依赖 DAG、当前 `lease_id`、assigned member、settlement 状态；`inspect` 可直接查看，不依赖内存队列。`spawn_agent.depends_on` 只接受已静止任务。 |
+| **child workspace** | `agent_workspace: isolated`（生产默认）从父的 shadow snapshot 物化独立 worktree，路径/base ref 随 SpawnRequested 持久化；revive/crash 恢复重开同一路径。`shared` 仅在 spec 显式声明时使用父 workspace。 |
 | **child_result** | 子静止/失败/被杀的回执（event `SubagentCompleted`,非新事件——静止回执复用它,决策 #31）,投父 inbox 触发新 turn;先回先处理,可多次发生。 |
 | **kill** | 工具 `kill{handle}`：协作取消，与后台 bash 共用原语；标记记来源（user/parent）；用户侧 `ar kill`。 |
 | **权限冻结交集 / 提权例外** | spawn 默认按父当时有效权限冻结下传；child 不能自行放宽。唯一例外是显式 `escalate` 经人批准后使用 child 声明 rules；拒绝/interrupt 回退交集。预算、树上限、工具子集、收容棘轮永不随审批放宽。 |
-| **settle-from-child-fold** | 父恢复时对每个在飞 handle 读子 journal：已静止（Quiescence 形状）则结算合成回执，在跑则重挂接。 |
+| **settle-from-child-fold** | 父恢复时对每个在飞 handle 读子 journal：已静止则结算真实回执；正等待审批的子在根宿主重挂接原 wait/lease；其余在飞状态按 crash 取消，绝不静默重放未知 effect。子审批 CommandLog 由根启动扫描重放。 |
 | **handoff / blackboard** | 移交后退出（`handoff_agent`）/ 树内共享笔记（`publish_note`/`read_notes`）。 |
 
 ### 18.7 等待、恢复与终止

@@ -113,7 +113,12 @@ Durable CommandLog(command_id, seq, principal, source, trust)
    与 InputReceived 保留 principal/source/trust + typed content；provider
    capability envelope 冻结进 SessionStarted/inspect。旧 Message/GenStep
    事件确定性补 ID，旧 snapshot 缺 interactions 时回退全量 fold。
-6. INC-11.6：durable multi-agent task/message/workspace coordinator。
+6. ✅ INC-11.6：`SpawnRequested` 持久化 task/DAG/lease/workspace assignment，
+   fold/inspect 暴露 team task；`depends_on` 只放行已静止依赖。生产 spec
+   `agent_workspace` 默认 `isolated`：从父 snapshot 物化子 worktree，revive
+   与 crash 重开同一路径，`shared` 必须显式选择。daemon crash 时等待审批
+   的子保留原 handle/lease 并由根重挂接，子 CommandLog 的已接收审批答复
+   在根启动扫描中重放。
 7. INC-11.7：索引、snapshot offset、schema migration/compatibility。
 8. INC-11.8：三层文档收口、对抗 review、全自动与真实环境 QA。
 

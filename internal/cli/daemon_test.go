@@ -221,3 +221,54 @@ func TestPendingCommandsUsesJournalCommandReceipts(t *testing.T) {
 		t.Fatalf("pending sessions = %v err=%v", ids, err)
 	}
 }
+
+func TestPendingCommandsHoistsChildApprovalToRootHost(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	rootID := "pending-root"
+	rootDir, err := runtime.SessionDir(rootID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rootStore, err := store.OpenEventStore(rootDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env, _ := event.New(event.TypeSessionStarted,
+		&event.SessionStarted{SubStateVersions: state.SubStateVersions()})
+	if _, err := rootStore.Append(env); err != nil {
+		t.Fatal(err)
+	}
+	_ = rootStore.Close()
+
+	childID := rootID + "-sub-call_1_0-a1"
+	childDir := filepath.Join(rootDir, "sub", "call_1_0-a1")
+	childStore, err := store.OpenEventStore(childDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := childStore.Append(env); err != nil {
+		t.Fatal(err)
+	}
+	_ = childStore.Close()
+	if _, err := store.AppendCommand(childDir, protocol.SessionCommand{
+		CommandRef: protocol.CommandRef{CommandID: "cmd-child-approval"},
+		Kind:       protocol.CommandApproval, Approval: &protocol.ApprovalCommand{
+			ApprovalID: "apr-child", Decision: "approve",
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	pending, err := pendingCommands(rootID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pending) != 1 || pending[0].CommandID != "cmd-child-approval" ||
+		pending[0].Target != childID || pending[0].Kind != protocol.CommandApproval {
+		t.Fatalf("root replay pending = %+v", pending)
+	}
+	ids, err := scanPendingCommandSessions()
+	if err != nil || len(ids) != 1 || ids[0] != rootID {
+		t.Fatalf("pending roots = %v err=%v", ids, err)
+	}
+}

@@ -34,6 +34,7 @@ func SubStateVersions() map[string]int {
 		"barriers":     1, // S7.2 (checkpoint barriers — fork/rewind targets)
 		"goal":         1, // INC-D1 (in-session goal — G23/UJ-22)
 		"interactions": 1, // INC-11.5 (Turn/Item typed interaction projection)
+		"team":         1, // INC-11.6 durable task/DAG/lease/workspace projection
 	}
 }
 
@@ -82,6 +83,62 @@ type State struct {
 	// Interactions is the durable Turn/Item projection. Conversation remains
 	// the provider-compatible view; both are folded from the same events.
 	Interactions Interactions `json:"interactions"`
+	// Team is the durable coordinator view: logical delegation task → DAG,
+	// active lease, assigned member, workspace and last settlement.
+	Team map[string]TeamTask `json:"team,omitempty"`
+}
+
+type TeamTask struct {
+	TaskID      string               `json:"task_id"`
+	CallID      string               `json:"call_id"`
+	Description string               `json:"description"`
+	DependsOn   []string             `json:"depends_on,omitempty"`
+	LeaseID     string               `json:"lease_id,omitempty"`
+	AssignedTo  string               `json:"assigned_to,omitempty"`
+	Workspace   *event.TeamWorkspace `json:"workspace,omitempty"`
+	Status      string               `json:"status"` // leased | quiescent | failed | cancelled
+	LastReason  string               `json:"last_reason,omitempty"`
+	Settlements int                  `json:"settlements,omitempty"`
+}
+
+func teamWith(in map[string]TeamTask, task TeamTask) map[string]TeamTask {
+	out := make(map[string]TeamTask, len(in)+1)
+	for id, old := range in {
+		out[id] = old
+	}
+	out[task.TaskID] = task
+	return out
+}
+
+func teamSettle(in map[string]TeamTask, callID, reason string) map[string]TeamTask {
+	out := make(map[string]TeamTask, len(in))
+	for id, task := range in {
+		if task.CallID == callID {
+			task.Status = "quiescent"
+			if reason == "error" || reason == "contract_violation" || reason == "crash" {
+				task.Status = "failed"
+			}
+			if reason == "cancelled" || reason == "killed" {
+				task.Status = "cancelled"
+			}
+			task.LastReason = reason
+			task.Settlements++
+			task.LeaseID = ""
+		}
+		out[id] = task
+	}
+	return out
+}
+
+func teamRevive(in map[string]TeamTask, callID, leaseID string) map[string]TeamTask {
+	out := make(map[string]TeamTask, len(in))
+	for id, task := range in {
+		if task.CallID == callID {
+			task.Status, task.LeaseID = "leased", leaseID
+		}
+		out[id] = task
+	}
+	return out
 }
 
 const (
@@ -437,6 +494,7 @@ func New() State {
 		Budget:       Budget{Reserved: map[string]int{}},
 		Handles:      Handles{},
 		Interactions: Interactions{Items: map[string]Item{}},
+		Team:         map[string]TeamTask{},
 	}
 }
 
@@ -569,6 +627,14 @@ func Apply(s State, env event.Envelope) (State, error) {
 
 	case *event.SpawnRequested:
 		s.Session.Spawns++
+		taskID := p.TaskID
+		if taskID == "" {
+			taskID = "task-" + p.CallID
+		}
+		s.Team = teamWith(s.Team, TeamTask{TaskID: taskID, CallID: p.CallID,
+			Description: p.Task, DependsOn: append([]string(nil), p.DependsOn...),
+			LeaseID: p.LeaseID, AssignedTo: p.ChildSession, Workspace: p.Workspace,
+			Status: "leased"})
 
 	case *event.CheckpointBarrier:
 		// Copy-on-write: barriers append into a fresh slice.
@@ -595,6 +661,7 @@ func Apply(s State, env event.Envelope) (State, error) {
 			children = append(children, s.Session.ChildSessions...)
 			s.Session.ChildSessions = append(children, p.ChildSession)
 		}
+		s.Team = teamSettle(s.Team, p.CallID, p.Reason)
 
 	case *event.ChildRevived:
 		// A quiescent child re-enters the in-flight set (INC-12, DESIGN §3
@@ -620,6 +687,7 @@ func Apply(s State, env event.Envelope) (State, error) {
 			// terminal releases.
 			s.Budget = s.Budget.withReservation(effectIDFor(started, p.ActivityID), p.BudgetTokens)
 		}
+		s.Team = teamRevive(s.Team, p.CallID, p.ActivityID)
 
 	case *event.ArtifactPublished:
 		// Copy-on-write: Apply is pure, the input map must not mutate.

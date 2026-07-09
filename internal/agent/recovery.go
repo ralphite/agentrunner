@@ -1,8 +1,10 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"sort"
 
@@ -12,6 +14,108 @@ import (
 	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
 )
+
+// reattachWaitingChildren preserves the one recoverable in-doubt spawn
+// shape: a background child whose own journal is idle on an approval. The
+// child did not die inside an unknown external effect, so Resume can safely
+// re-enter its existing wait without replaying work. It retains the original
+// parent activity/handle/lease; completion returns through bg.done and the
+// ordinary single-writer settlement path.
+func (l *Loop) reattachWaitingChildren(ctx context.Context, ds *driveState,
+	acts []event.ActivityStarted) ([]event.ActivityStarted, error) {
+
+	remaining := make([]event.ActivityStarted, 0, len(acts))
+	for _, act := range acts {
+		if act.Name != "spawn_agent" || !act.Background || act.CallID == "" ||
+			!safeCallIDRe.MatchString(act.CallID) {
+			remaining = append(remaining, act)
+			continue
+		}
+		attempt := act.Attempt
+		if attempt < 1 {
+			attempt = 1
+		}
+		childDir := filepath.Join(l.Store.Dir(), "sub", fmt.Sprintf("%s-a%d", act.CallID, attempt))
+		childSession := fmt.Sprintf("%s-sub-%s-a%d", l.SessionID, act.CallID, attempt)
+		childState, err := childFoldState(childDir)
+		if err != nil || childState.Waiting == nil || childState.Waiting.Kind != event.WaitApproval {
+			remaining = append(remaining, act)
+			continue
+		}
+		childSpec, err := childSpecFromJournal(childDir)
+		if err != nil {
+			slog.Warn("resume: approval-waiting child cannot be reconstructed; crash-settling",
+				"child", childSession, "err", err)
+			remaining = append(remaining, act)
+			continue
+		}
+		childExec, err := l.childExecutorFromJournal(childDir, childSession)
+		if err != nil {
+			slog.Warn("resume: approval-waiting child workspace cannot be reopened; crash-settling",
+				"child", childSession, "err", err)
+			remaining = append(remaining, act)
+			continue
+		}
+		childStore, err := store.OpenEventStore(childDir)
+		if err != nil {
+			slog.Warn("resume: approval-waiting child store unavailable; crash-settling",
+				"child", childSession, "err", err)
+			remaining = append(remaining, act)
+			continue
+		}
+
+		// The child must inherit the root's tree router before its Resume starts;
+		// drive() normally creates it later, after crash reconciliation.
+		l.ensureRouter()
+		child := l.childLoopWithExec(childSpec, childStore, childSession,
+			childSpec.Budget.MaxTotalTokens, ds.s.CurrentMode(), childExec)
+		l.ensureBackground()
+		taskCtx, cancel := context.WithCancelCause(ctx)
+		l.bg.mu.Lock()
+		l.bg.cancel[act.CallID] = cancel
+		l.bg.mu.Unlock()
+
+		agentName := spawnAgentNameOf(act.Args)
+		if agentName == "" {
+			agentName = childSpec.Name
+		}
+		baseline := reviveBaselineOf(act.Args)
+		var assignment *event.TeamWorkspace
+		for _, task := range ds.s.Team {
+			if task.CallID == act.CallID {
+				assignment = task.Workspace
+				break
+			}
+		}
+		go func(act event.ActivityStarted) {
+			defer func() { _ = childStore.Close() }()
+			cres, cerr := child.Resume(taskCtx)
+			total := childFoldUsage(childDir)
+			spent := subUsage(total, baseline)
+			reason := cres.Reason
+			if cerr != nil && reason == "" {
+				reason = "error"
+			}
+			payload, _ := json.Marshal(map[string]any{
+				"agent": agentName, "child_session": childSession,
+				"reason": reason, "turns": cres.GenSteps,
+				"report": childReport(childDir), "workspace": assignment,
+				"recovered_approval_wait": true,
+			})
+			usage := spent
+			l.bg.done <- bgOutcome{
+				handle: act.CallID, activityID: act.ActivityID,
+				result: payload, isError: reason == "error" || reason == "contract_violation",
+				canceled: taskCtx.Err() != nil, err: cerr, usage: &usage,
+				subagent: &event.SubagentCompleted{
+					CallID: act.CallID, Agent: agentName, ChildSession: childSession,
+					Reason: reason, GenSteps: cres.GenSteps, Usage: spent,
+				},
+			}
+		}(act)
+	}
+	return remaining, nil
+}
 
 // settleCrashInDoubt disposes of in-doubt activities on resume, per class
 // (决策 #29 单一自愈): a long-lived session must self-heal after a crash

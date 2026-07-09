@@ -573,6 +573,20 @@ type SpawnRequested struct {
 	// uses the child's declared permission rules; denied keeps parent∩child.
 	Escalation       string `json:"escalation,omitempty"`
 	EscalationReason string `json:"escalation_reason,omitempty"`
+	// Coordinator identity: TaskID is stable for the logical delegation,
+	// DependsOn forms its DAG edges, and LeaseID names the active assignment.
+	TaskID    string         `json:"task_id,omitempty"`
+	DependsOn []string       `json:"depends_on,omitempty"`
+	LeaseID   string         `json:"lease_id,omitempty"`
+	Workspace *TeamWorkspace `json:"workspace,omitempty"`
+}
+
+// TeamWorkspace is the durable filesystem assignment for one delegation.
+// BaseRef pins the parent snapshot used to materialize an isolated child.
+type TeamWorkspace struct {
+	Mode    string `json:"mode"` // isolated | shared | shared_degraded
+	Path    string `json:"path"`
+	BaseRef string `json:"base_ref,omitempty"`
 }
 
 // SubagentCompleted records the child run's terminal outcome in the PARENT
