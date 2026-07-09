@@ -100,17 +100,19 @@ func (l *Loop) requestApproval(ctx context.Context, ds *driveState, appendE Appe
 	eff pipeline.Effect, outcome pipeline.Outcome) (bool, string, error) {
 
 	req := event.ApprovalRequested{
-		ApprovalID:  "apr-" + eff.ID,
-		EffectID:    eff.ID,
-		CallID:      eff.CallID,
-		GateResults: outcome.GateResults,
-		EstTokens:   eff.EstTokens,
-		Containment: l.containment(eff),
+		ApprovalID:         "apr-" + eff.ID,
+		EffectID:           eff.ID,
+		CallID:             eff.CallID,
+		GateResults:        outcome.GateResults,
+		EstTokens:          eff.EstTokens,
+		Containment:        l.containment(eff),
+		DenyAllowsFallback: eff.ApprovalDenyFallback,
 	}
-	if eff.CallID == "" {
-		req.ToolName = eff.ToolName
-		req.Args = redact.FromEnv().JSON(eff.Args)
-	}
+	// Persist the exact reviewed operation even for tool calls. Recovery and
+	// remote frontends must not depend on re-deriving authority details from
+	// a possibly compacted conversation.
+	req.ToolName = eff.ToolName
+	req.Args = redact.FromEnv().JSON(eff.Args)
 	// Plan approval payload (S5.7): the plan text publishes as a versioned
 	// artifact BEFORE the request is journaled (blob-before-event), and the
 	// approval fact pins the exact version ref it adjudicated — a rejected
@@ -279,17 +281,24 @@ func (l *Loop) resolveEffectAfterApproval(ds *driveState, appendE AppendFunc,
 		}
 	}
 
+	allowed := approved || req.DenyAllowsFallback
 	verdict := event.VerdictDeny
 	decision := event.VerdictDeny
-	if approved {
+	if allowed {
 		verdict = event.VerdictAllow
+	}
+	if approved {
 		decision = event.VerdictAllow
 	}
 	results := append(append([]event.GateResult{}, req.GateResults...), event.GateResult{
 		Gate: "approval", Decision: decision, Reason: reason,
 	})
+	if !approved && req.DenyAllowsFallback {
+		results = append(results, event.GateResult{Gate: "authority_fallback",
+			Decision: event.VerdictAllow, Reason: "escalation denied; continuing under parent∩child permissions"})
+	}
 	reserved := 0
-	if approved {
+	if allowed {
 		reserved = req.EstTokens
 	}
 	if _, err := appendE(event.TypeEffectResolved, &event.EffectResolved{
@@ -300,7 +309,7 @@ func (l *Loop) resolveEffectAfterApproval(ds *driveState, appendE AppendFunc,
 	}); err != nil {
 		return false, err
 	}
-	return approved, nil
+	return allowed, nil
 }
 
 func approvalContainment(l *Loop, ds *driveState, req event.ApprovalRequested) *event.Containment {
@@ -344,14 +353,14 @@ func (l *Loop) approvalPrompt(ds *driveState, req event.ApprovalRequested) Appro
 	out := ApprovalRequest{
 		ApprovalID:  req.ApprovalID,
 		CallID:      req.CallID,
+		ToolName:    req.ToolName,
+		Args:        req.Args,
 		GateResults: req.GateResults,
 	}
 	if l.Spec != nil {
 		out.Agent = fmt.Sprintf("%s (%s)", l.Spec.Name, l.SessionID)
 	}
 	if req.CallID == "" {
-		out.ToolName = req.ToolName
-		out.Args = req.Args
 		return out
 	}
 	for _, m := range assistantMessages(ds.s) {

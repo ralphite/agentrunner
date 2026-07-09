@@ -1376,9 +1376,11 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 
 	// Phase 1 — serial adjudication.
 	type pending struct {
-		call      provider.ToolCall
-		res       *tool.Result
-		allowance int // spawn only: the frozen min-aggregated child budget
+		call               provider.ToolCall
+		res                *tool.Result
+		allowance          int // spawn only: the frozen min-aggregated child budget
+		escalationApproved bool
+		escalationFallback string
 	}
 	var allowed []pending
 	// batchSpawns counts spawns allowed THIS batch: SpawnRequested only
@@ -1403,6 +1405,7 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 			Network:   l.networkScope(class, call.Name),
 		}
 		allowance := 0
+		var childSpec *AgentSpec
 		if isAgentLaunch(call.Name) {
 			// Spawn and handoff both launch a child run (S5.3/S5.4): the
 			// effect reserves the child's WHOLE allowance up front (min
@@ -1412,18 +1415,13 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 			eff.SpawnDepth = l.Depth
 			eff.SpawnCount = ds.s.Session.Spawns + batchSpawns
 			eff.HandoffPending = handoffAllowed
-			if agentName, _, childSpec, problem := l.resolveSpawnTarget(call.Name, call.Args); problem == "" {
+			if _, _, resolved, problem := l.resolveSpawnTarget(call.Name, call.Args); problem == "" {
+				childSpec = resolved
 				allowance = l.spawnAllowance(ds.s, childSpec)
 				eff.EstTokens = allowance
 				if childSpec.Escalate {
-					// A permission escalation must reach the USER (INC-12.5,
-					// 决策 #20 修订/决策 #32 政策条款): even an allow-verdict
-					// spawn upgrades to ask, the requested rules riding in the
-					// approval reason.
-					rules, _ := json.Marshal(childSpec.Permissions)
-					eff.ForceAsk = fmt.Sprintf(
-						"sub-agent %q requests permissions BEYOND yours (escalation). Requested rules: %s",
-						agentName, rules)
+					eff.ApprovalReason = escalationApprovalReason(childSpec)
+					eff.ApprovalDenyFallback = true
 				}
 			}
 		}
@@ -1445,7 +1443,21 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 				handoffAllowed = true
 			}
 		}
-		allowed = append(allowed, pending{call: call, res: new(tool.Result), allowance: allowance})
+		escalationApproved := false
+		escalationFallback := ""
+		if childSpec != nil && childSpec.Escalate {
+			switch outcome.ApprovalDecision {
+			case "approve", event.VerdictAllow:
+				escalationApproved = true
+			case event.VerdictDeny:
+				escalationFallback = approvalReason(outcome.GateResults)
+				if escalationFallback == "" {
+					escalationFallback = "permission escalation denied by user"
+				}
+			}
+		}
+		allowed = append(allowed, pending{call: call, res: new(tool.Result), allowance: allowance,
+			escalationApproved: escalationApproved, escalationFallback: escalationFallback})
 	}
 	if len(allowed) == 0 {
 		return nil
@@ -1505,7 +1517,8 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 			// detached, the handle pairs the call now, the report re-enters
 			// as a message later. ctx is the RUN's — a parent cancel reaches
 			// the child; the batch interrupt scope does not.
-			if err := l.launchBackgroundSpawn(ctx, serialAppend, p.call, p.allowance, parentMode); err != nil {
+			if err := l.launchBackgroundSpawn(ctx, serialAppend, p.call, p.allowance, parentMode,
+				p.escalationApproved, p.escalationFallback); err != nil {
 				stopInt()
 				return abort(act.turn, err)
 			}
@@ -1517,7 +1530,8 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 		}
 		run := l.buildToolRun(p.call, p.res)
 		if p.call.Name == "handoff_agent" {
-			run = l.buildHandoffRun(p.call, p.res, serialAppend, p.allowance, parentMode)
+			run = l.buildHandoffRun(p.call, p.res, serialAppend, p.allowance, parentMode,
+				p.escalationApproved, p.escalationFallback)
 		}
 		if p.call.Name == "publish_artifact" {
 			run = l.buildPublishRun(p.call, p.res, serialAppend)
@@ -2049,14 +2063,19 @@ func (l *Loop) adjudicate(ctx context.Context, ds *driveState, appendE AppendFun
 	// Already resolved allow (e.g. approval granted, then crash before the
 	// activity's terminal event): never re-ask, never re-journal.
 	if ds.s.Effects.Allowed[eff.ID] {
-		return pipeline.Outcome{Verdict: event.VerdictAllow}, true, nil
+		return pipeline.Outcome{Verdict: event.VerdictAllow,
+			ApprovalDecision: ds.s.Effects.Authorities[eff.ID]}, true, nil
 	}
 	// The human already answered this approval before a crash (the decision
 	// is durable from the moment ApprovalResponded was journaled): resolve
 	// from the recorded answer instead of re-asking (correctness #1/#3).
 	if dec, ok := ds.s.Effects.Decisions[eff.ID]; ok {
 		allowed, err := l.resolveFromDecision(appendE, eff, dec)
-		return pipeline.Outcome{Verdict: verdictFor(dec)}, allowed, err
+		verdict := verdictFor(dec)
+		if allowed {
+			verdict = event.VerdictAllow
+		}
+		return pipeline.Outcome{Verdict: verdict, ApprovalDecision: dec}, allowed, err
 	}
 	if _, err := appendE(event.TypeEffectRequested, &event.EffectRequested{
 		EffectID: eff.ID, CallID: eff.CallID,
@@ -2080,15 +2099,6 @@ func (l *Loop) adjudicate(ctx context.Context, ds *driveState, appendE AppendFun
 	if err != nil {
 		return outcome, false, err
 	}
-	// A validated escalation request upgrades allow → ask (INC-12.5): the
-	// widened permission face is a USER decision, recorded through the
-	// ordinary approval flow. A deny stays a deny.
-	if eff.ForceAsk != "" && outcome.Verdict == event.VerdictAllow {
-		outcome.Verdict = event.VerdictAsk
-		outcome.GateResults = append(outcome.GateResults, event.GateResult{
-			Gate: "escalation", Decision: event.VerdictAsk, Reason: eff.ForceAsk,
-		})
-	}
 	crash.Point(crash.PointBetweenGateAndResolved)
 	if outcome.Verdict == event.VerdictAsk {
 		allowed, denyReason, err := l.requestApproval(ctx, ds, appendE, eff, outcome)
@@ -2099,6 +2109,12 @@ func (l *Loop) adjudicate(ctx context.Context, ds *driveState, appendE AppendFun
 			// Carry the approval's real denial reason into the outcome so the
 			// model-visible tool result explains it (and, for a non-interactive
 			// run, how to proceed) instead of a bare "denied by policy" (T4).
+			outcome.GateResults = append(outcome.GateResults, event.GateResult{
+				Gate: "approval", Decision: event.VerdictDeny, Reason: denyReason,
+			})
+		}
+		outcome.ApprovalDecision = ds.s.Effects.Authorities[eff.ID]
+		if allowed && outcome.ApprovalDecision == event.VerdictDeny {
 			outcome.GateResults = append(outcome.GateResults, event.GateResult{
 				Gate: "approval", Decision: event.VerdictDeny, Reason: denyReason,
 			})
@@ -2163,6 +2179,10 @@ func (l *Loop) containment(eff pipeline.Effect) *event.Containment {
 }
 
 func (l *Loop) containmentError(eff pipeline.Effect) error {
+	if eff.Network != "" && l.Exec != nil && l.Exec.NetworkContained() {
+		return fmt.Errorf("network containment is active; tool %s still requires egress %q",
+			eff.ToolName, eff.Network)
+	}
 	if eff.Kind != "tool_call" || eff.ToolName != "bash" {
 		return nil
 	}
@@ -2209,13 +2229,27 @@ func (l *Loop) resolveFromDecision(appendE AppendFunc, eff pipeline.Effect, deci
 			reserved = eff.EstTokens
 		}
 	}
+	allowed := approved || eff.ApprovalDenyFallback
+	if allowed && !approved {
+		verdict = event.VerdictAllow
+		reserved = eff.EstTokens
+	}
+	results := []event.GateResult{{Gate: "approval", Decision: gate, Reason: reason}}
+	if eff.ApprovalReason != "" {
+		results = append([]event.GateResult{{Gate: "authority_escalation",
+			Decision: event.VerdictAsk, Reason: eff.ApprovalReason}}, results...)
+	}
+	if allowed && !approved {
+		results = append(results, event.GateResult{Gate: "authority_fallback",
+			Decision: event.VerdictAllow, Reason: "recovered denial; continuing under parent∩child permissions"})
+	}
 	_, err := appendE(event.TypeEffectResolved, &event.EffectResolved{
 		EffectID: eff.ID, CallID: eff.CallID, Verdict: verdict,
-		GateResults:    []event.GateResult{{Gate: "approval", Decision: gate, Reason: reason}},
+		GateResults:    results,
 		ReservedTokens: reserved,
 		Containment:    l.containment(eff),
 	})
-	return approved, err
+	return allowed, err
 }
 
 // budgetView snapshots the fold's accounting for the budget gate.

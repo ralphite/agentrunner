@@ -258,6 +258,10 @@ type Effects struct {
 	Pending   map[string]event.EffectRequested `json:"pending,omitempty"`
 	Allowed   map[string]bool                  `json:"allowed,omitempty"`
 	Decisions map[string]string                `json:"decisions,omitempty"`
+	// Authorities preserves an explicit escalation approval/denial while
+	// its allowed spawn has not started/settled. It closes the crash window
+	// between EffectResolved and SpawnRequested.
+	Authorities map[string]string `json:"authorities,omitempty"`
 }
 
 // EffectIDFromApprovalID recovers the effect id from an approval id
@@ -425,9 +429,10 @@ func New() State {
 		Activities:   Activities{},
 		Timers:       Timers{},
 		Effects: Effects{
-			Pending:   map[string]event.EffectRequested{},
-			Allowed:   map[string]bool{},
-			Decisions: map[string]string{},
+			Pending:     map[string]event.EffectRequested{},
+			Allowed:     map[string]bool{},
+			Decisions:   map[string]string{},
+			Authorities: map[string]string{},
 		},
 		Budget:       Budget{Reserved: map[string]int{}},
 		Handles:      Handles{},
@@ -669,9 +674,13 @@ func Apply(s State, env event.Envelope) (State, error) {
 			// The handle IS this event's fold rendering (S6.1): the call
 			// pairs immediately, and the task enters the tasks sub-state.
 			s.Handles = s.Handles.with(p.CallID, *p)
-			handle, _ := json.Marshal(map[string]string{
+			handlePayload := map[string]string{
 				"handle": p.CallID, "status": "running",
-			})
+			}
+			if p.Notice != "" {
+				handlePayload["note"] = p.Notice
+			}
+			handle, _ := json.Marshal(handlePayload)
 			s.Conversation = s.Conversation.withToolResult(p.CallID,
 				ToolResult{Result: handle})
 		}
@@ -812,6 +821,18 @@ func Apply(s State, env event.Envelope) (State, error) {
 			if p.ReservedTokens > 0 {
 				s.Budget = s.Budget.withReservation(p.EffectID, p.ReservedTokens)
 			}
+		}
+		var authorityAsk, authorityDecision string
+		for _, result := range p.GateResults {
+			if result.Gate == "authority_escalation" {
+				authorityAsk = result.Decision
+			}
+			if result.Gate == "approval" {
+				authorityDecision = result.Decision
+			}
+		}
+		if authorityAsk != "" && authorityDecision != "" {
+			s.Effects = s.Effects.withAuthority(p.EffectID, authorityDecision)
 		}
 		// A denial IS the call's model-visible outcome: journaling it
 		// resolves the call_id, so decide() never re-attempts a denied
@@ -1124,6 +1145,16 @@ func (e Effects) withAllowed(id string) Effects {
 	return e
 }
 
+func (e Effects) withAuthority(id, decision string) Effects {
+	out := make(map[string]string, len(e.Authorities)+1)
+	for k, v := range e.Authorities {
+		out[k] = v
+	}
+	out[id] = decision
+	e.Authorities = out
+	return e
+}
+
 func (e Effects) withoutAllowed(id string) Effects {
 	if _, ok := e.Allowed[id]; !ok {
 		return e
@@ -1135,6 +1166,15 @@ func (e Effects) withoutAllowed(id string) Effects {
 		}
 	}
 	e.Allowed = out
+	if _, ok := e.Authorities[id]; ok {
+		authorities := make(map[string]string, len(e.Authorities))
+		for k, v := range e.Authorities {
+			if k != id {
+				authorities[k] = v
+			}
+		}
+		e.Authorities = authorities
+	}
 	return e
 }
 

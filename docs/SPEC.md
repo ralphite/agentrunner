@@ -53,9 +53,10 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | 父崩溃 settle-from-child-fold | ✅ | 不变量 | QA-08(c) · C10(c) |
 | spawn 一律非阻塞（阻塞路径已删除,零 legacy） | ✅ | UJ-18 | 2026-07-08 落码(D3a) · TestSpawnEndToEnd(后台形态) · s5 场景 routes 化 |
 | handoff（`handoff_agent`）/ blackboard（`publish_note`/`read_notes`） | ✅ | UJ-18 | S4 |
-| 树预算 / 权限默认不超父（冻结交集,子结构上不可能超父） / 深度扇出上限 | ✅ | UJ-18/20 | S4 · 裁决一.2 |
-| 子提权申请通道（agent 起超父权限的子 → 用户 approve） | 🧊 | UJ-18/20 | 裁决一.2 的政策条款已入 DESIGN;现机制冻结交集下无表达面,无 journey 压此需求——通道待需求出现(记档 2026-07-08) |
-| 子 agent 可被 steer | 🧊 | UJ-18 | v0 显式否（杀+重起代替），记档 |
+| 树预算 / 权限默认不超父（冻结交集） / 深度扇出上限 | ✅ | UJ-18/20/23 | S4 · INC-12.5 · TestEscalationApproval（预算/上限/收容无例外） |
+| 子提权申请通道（`escalate` 强制人审；批准用 child rules，拒绝/interrupt 降级交集） | ✅ | UJ-23 | INC-12.5 · TestEscalationApproval |
+| 动态角色（`agents_dynamic` + inline role；冻结 RoleSpec；无 hooks/MCP/skills，工具仅父子集） | ✅ | UJ-23 | INC-12.4 · TestSpawnDynamicRole |
+| 树内 durable 消息 / 静止子唤醒 / 用户直达子 steer | ✅ | UJ-18/23 | INC-12.1–12.3 · TestSendMessage* / TestDaemonSendToChildRoutesThroughRoot |
 | 子 agent 实时进度镜像 | ❌ | UJ-18 | GAPS G10 |
 | 子执行收敛为递归 session | 🟡 | — | 阻塞路径已删(D3a);driver 独立待收敛,挂 UJ-22/G23（DESIGN §17） |
 | 并发子 agent 确定性测试基建（routing provider） | ✅ | — | C3–C7 孪生在用（GAPS G4 关闭事实） |

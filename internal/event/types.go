@@ -224,6 +224,10 @@ type ActivityStarted struct {
 	// event) and the terminal event arrives later, rendered as a user-role
 	// input. No separate Task event family — this flag IS the task fact.
 	Background bool `json:"background,omitempty"`
+	// Notice augments the immediate handle result for a background launch
+	// (for example, escalation denied and the child is running under the
+	// narrower fallback). It is model-visible and journaled.
+	Notice string `json:"notice,omitempty"`
 }
 
 type ActivityCompleted struct {
@@ -457,6 +461,10 @@ type ApprovalRequested struct {
 	// Containment freezes the required OS boundary across a long approval wait;
 	// recovery re-probes the backend and fails closed if it cannot restore it.
 	Containment *Containment `json:"containment,omitempty"`
+	// DenyAllowsFallback is true only for an explicit child-authority ask:
+	// denial rejects the widening but permits the already-adjudicated spawn
+	// to continue under parent∩child permissions.
+	DenyAllowsFallback bool `json:"deny_allows_fallback,omitempty"`
 }
 
 // ApprovalResponded is the journaled human decision (an external input:
@@ -559,9 +567,12 @@ type SpawnRequested struct {
 	// SessionStarted.Spec remains the revive truth in both cases.
 	RoleSpec json.RawMessage `json:"role_spec,omitempty"`
 	// Escalated marks a USER-APPROVED permission escalation (INC-12.5): this
-	// child's gates replace the parent intersection with its own approved
-	// rules (决策 #20 修订).
+	// compatibility projection is true exactly when Escalation="approved".
 	Escalated bool `json:"escalated,omitempty"`
+	// Escalation records the explicit permission-exception outcome. Approved
+	// uses the child's declared permission rules; denied keeps parent∩child.
+	Escalation       string `json:"escalation,omitempty"`
+	EscalationReason string `json:"escalation_reason,omitempty"`
 }
 
 // SubagentCompleted records the child run's terminal outcome in the PARENT

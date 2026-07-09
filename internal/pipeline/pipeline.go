@@ -40,11 +40,13 @@ type Effect struct {
 	// "all" for an uncontained execute-class effect, "" when the OS sandbox
 	// already removes egress — network rules match the former only.
 	Network string
-	// ForceAsk, when non-empty, upgrades an allow verdict to ask with this
-	// reason (INC-12.5): a permission ESCALATION request (a child asking for
-	// rules beyond the parent's frozen intersection) must reach the USER even
-	// when the rules would have allowed the spawn itself.
-	ForceAsk string
+	// ApprovalReason forces a human ask after all ordinary gates allow. It
+	// never overrides a deny from floor, spawn, budget, or permission gates.
+	ApprovalReason string
+	// ApprovalDenyFallback means a human denial rejects only the requested
+	// authority exception; the underlying effect may continue under its
+	// ordinary narrower policy. Only explicit escalation paths set it.
+	ApprovalDenyFallback bool
 }
 
 // Decision is one gate's judgment.
@@ -72,6 +74,9 @@ type Gate interface {
 type Outcome struct {
 	Verdict     string // allow | ask | deny
 	GateResults []event.GateResult
+	// ApprovalDecision is runtime metadata for callers that need to choose
+	// approved authority vs a denied-but-allowed fallback.
+	ApprovalDecision string
 }
 
 // Pipeline is the ordered gate sequence.
@@ -104,10 +109,11 @@ func (p *Pipeline) SideEffecting() bool {
 // judgment, and a later deny still wins).
 func (p *Pipeline) Evaluate(ctx context.Context, eff Effect) (Outcome, error) {
 	out := Outcome{Verdict: event.VerdictAllow}
-	if p == nil {
-		return out, nil
+	var gates []Gate
+	if p != nil {
+		gates = p.Gates
 	}
-	for _, g := range p.Gates {
+	for _, g := range gates {
 		d := g.Check(ctx, eff)
 		switch d.Action {
 		case event.VerdictAllow, event.VerdictAsk, event.VerdictDeny:
@@ -124,6 +130,12 @@ func (p *Pipeline) Evaluate(ctx context.Context, eff Effect) (Outcome, error) {
 		if d.Action == event.VerdictAsk {
 			out.Verdict = event.VerdictAsk
 		}
+	}
+	if eff.ApprovalReason != "" {
+		out.Verdict = event.VerdictAsk
+		out.GateResults = append(out.GateResults, event.GateResult{
+			Gate: "authority_escalation", Decision: event.VerdictAsk, Reason: eff.ApprovalReason,
+		})
 	}
 	return out, nil
 }

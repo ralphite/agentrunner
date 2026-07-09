@@ -242,9 +242,17 @@ parent kill 的 parent 可复活）,显式 send 永远能继续它。
 - **权限继承拆成两条规则**（mode 没有"交集"运算，不能笼统写 ∩）：
   (1) **rules 做真交集**——spawn 时由 parent 按当时的有效权限计算，
   冻结成不可变数据传给 child；child 的管线只认这份，child spec 无法
-  放宽，parent 事后的 mode 跃迁也不回溯影响 child。(2) **mode 不交集**
+  自行放宽，parent 事后的 mode 跃迁也不回溯影响 child。**唯一例外**：
+  child/inline role 显式声明 `escalate: true` 与目标 permission rules，
+  spawn 无条件形成一次人类审批；批准后 child 仅以自身声明 rules 运行，
+  拒绝（含 interrupt）则仍启动但退回 parent∩child，并把降级写入 handle
+  结果。批准事实与构造后的 child spec 均 journaled，crash/revive 不重问。
+  (2) **mode 不交集**
   ——child 的 mode 独立，但工具面先经冻结 rules 过滤，mode 跃迁只能在
   冻结 rules 内移动；child spec 声明 `bypass` 非法。
+- **提权例外的红线**：审批只替换 permission layers；hard floor、树预算、
+  深度/扇出、工具子集和 OS filesystem/network 收容棘轮均不在例外内。
+  inline role 是不可信模型输出，不得声明 hooks/MCP/skills/model/budget。
 - **树级预算与递归上限**：spawn 深度与并发扇出有数据化上限（budget
   关卡校验，超限渲染为 error 结果）——spec 白名单允许 A↔B 成环，
   上限是唯一防线。child 的有效预算 = min(child spec 限额, parent
@@ -1141,7 +1149,7 @@ limits:
 | 17 | MCP 生命周期 | 带外运行时状态；只有 tool 调用是 activity；发现的 schema 记录为 event | server 状态不可 event 化；schema 是影响结果的输入。 |
 | 18 | Event schema 版本化 | 不 migration；`SessionStarted` 记 event-schema 版本，不匹配拒绝 resume；所有 fold 消费者走 `EventStore` 单一读路径，预留恒等 upcast 阶段；additive-optional 字段不 bump 版本 | 原型 re-run 比 migrate 便宜；将来要 migration 时只有一个改动点；bump 误伤旧 session resume。 |
 | 19 | 信任模型 | 可执行配置（hooks）只认 spec 与 user 层；project 层需显式 trust；memory 文件按不可信内容对待 | clone 不受信 repo 不等于交出任意代码执行权。 |
-| 20 | 树级约束 | 权限 rules 在 spawn 时冻结交集下传；预算 = min(child 限额, parent 剩余) 沿树聚合；深度/扇出有上限 | spawn 白名单可成环；树的总成本必须有界。 |
+| 20 | 树级约束（INC-12.5 修订，2026-07-09） | 权限 rules 默认在 spawn 时冻结交集下传；唯一放宽路径是 child 显式 `escalate`，经 `ApprovalRequested` 由人批准后改用 child 声明 rules。拒绝/interrupt 降级为交集。预算 = min(child 限额, parent 剩余)、深度/扇出、工具子集与 OS 收容棘轮均无例外 | 用户明确批准可控的权限例外，同时保持树总成本与硬安全边界有界。 |
 | 21 | 运行模式（INC-D1 修订，2026-07-09；INC-10 完成判据扩展，同日） | **best-of-N（`parallel{n}`）、批式 loop、one-shot、driver-goal** 是同一 `IterationDriver` 的 schedule，每轮迭代 = **fresh child session**（隔离/prefix 稳定是其语义）。**goal 另有会话内形态**：**in-session goal** 挂在 conversational session 上、context 全程延续（**不**起 fresh child），**完成裁决在 exchange 边界（final generation 收尾、绝不 mid-turn）**：有 command verifier 时 verifier 是唯一裁决者；无 verifier 时由模型 `goal_complete` 声明（mid-turn 记 journal、边界才裁决接受）。miss 回灌 program 源 input 让同一 fold 续跑，pass 出达成回执并摘 goal；见 §13。 | fresh-run 保隔离/prefix，但构造上丢对话 context——UJ-22 硬要求 goal 的 context 延续（LOG 2026-07-05 裁定）。完成判据扩展（INC-10）：多数真实长程目标写不成 shell 命令，verifier-唯一判据构造上把自证 goal 钉成恒不可达成（CODEX-PARITY §6.2-①）；边界纪律/回灌续跑/fold 连续性三性质原样保留。 |
 | 22 | Background | session 由常驻 runtime 托管，frontend 任意 attach/detach（detach 无事件）；后台 effect 的 handle 即其配对结果，完成是新的 user-role 输入 | 订阅状态不影响结果；已配对的 call 不可二次触碰（Gemini 严格配对）。 |
 | 23 | Artifacts | `ArtifactStore`（CAS，opaque ref）；publish 是过管线的 tool，发布即持久；`outputs:` 在收尾自动 publish；审批载荷 = artifact ref；版本 per-stream | 交付物 contract 与过程协调对象分离；审批需要不可变锚点。 |
@@ -1337,7 +1345,7 @@ event sourcing 的闭环：**执行产生事件，事件重建状态，状态驱
 | **handle** | spawn/后台任务的立即配对结果；kill/output 都凭它。 |
 | **child_result** | 子静止/失败/被杀的回执（event `SubagentCompleted`,非新事件——静止回执复用它,决策 #31）,投父 inbox 触发新 turn;先回先处理,可多次发生。 |
 | **kill** | 工具 `kill{handle}`：协作取消，与后台 bash 共用原语；标记记来源（user/parent）；用户侧 `ar kill`。 |
-| **权限冻结交集** | spawn 时按父当时有效权限计算冻结下传；child 无法放宽，父事后跃迁不回溯。 |
+| **权限冻结交集 / 提权例外** | spawn 默认按父当时有效权限冻结下传；child 不能自行放宽。唯一例外是显式 `escalate` 经人批准后使用 child 声明 rules；拒绝/interrupt 回退交集。预算、树上限、工具子集、收容棘轮永不随审批放宽。 |
 | **settle-from-child-fold** | 父恢复时对每个在飞 handle 读子 journal：已静止（Quiescence 形状）则结算合成回执，在跑则重挂接。 |
 | **handoff / blackboard** | 移交后退出（`handoff_agent`）/ 树内共享笔记（`publish_note`/`read_notes`）。 |
 

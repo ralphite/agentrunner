@@ -674,3 +674,128 @@ func TestSpawnDynamicRole(t *testing.T) {
 		t.Fatalf("child did not start from frozen dynamic spec: %+v", childFold.Session)
 	}
 }
+
+// INC-12.5: escalate is an explicit human-reviewed exception. Approval
+// drops the parent's permission layer for the child only; denial (including
+// interrupt) still launches under the ordinary parent∩child chain and is
+// visible in the immediate handle result.
+func TestEscalationApproval(t *testing.T) {
+	type expectation struct {
+		approve, interrupt, edited bool
+		outcome                    string
+	}
+	cases := map[string]expectation{
+		"approved":  {approve: true, edited: true, outcome: "approved"},
+		"denied":    {outcome: "denied"},
+		"interrupt": {interrupt: true, outcome: "denied"},
+	}
+	for name, want := range cases {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			if err := os.WriteFile(filepath.Join(root, "greet.txt"), []byte("hello"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			parentFix := scripted.Fixture{Steps: []scripted.Step{
+				{Respond: []scripted.Event{
+					{ToolCall: &scripted.ToolCallEvent{CallID: "esc", Name: "spawn_agent", Args: map[string]any{
+						"task": "ESCALATED-EDIT", "role": map[string]any{
+							"name": "engineer", "description": "edits the requested file",
+							"instructions": "you are the escalated engineer",
+							"tools":        []string{"edit_file"}, "escalate": true,
+							"permissions": []map[string]any{
+								{"tool": "edit_file", "action": "allow"}, {"action": "deny"},
+							},
+						},
+					}}},
+					{Finish: "tool_use"},
+				}},
+				{Respond: []scripted.Event{{Text: "waiting"}, {Finish: "end_turn"}}},
+				{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
+				{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
+			}}
+			childFix := scripted.Fixture{Steps: []scripted.Step{
+				{Respond: []scripted.Event{
+					{ToolCall: &scripted.ToolCallEvent{CallID: "edit", Name: "edit_file", Args: map[string]any{
+						"path": "greet.txt", "old": "hello", "new": "ENGINEERED",
+					}}}, {Finish: "tool_use"},
+				}},
+				{Respond: []scripted.Event{{Text: "edit attempt complete"}, {Finish: "end_turn"}}},
+			}}
+			l, _ := routedSpawnLoop(t, parentFix, root,
+				scripted.RoutePair{Key: "ESCALATED-EDIT", Fixture: childFix})
+			l.Spec.Agents = nil
+			l.Spec.AgentsDynamic = true
+			l.Spec.Tools = []string{"edit_file"}
+			l.Spec.Sandbox.Network = "none"
+			l.Pipeline = &pipeline.Pipeline{Gates: []pipeline.Gate{
+				&pipeline.FloorGate{WS: l.Exec.WS}, &pipeline.SpawnGate{},
+				&pipeline.PermissionGate{Rules: []pipeline.PermissionRule{
+					{Tool: "spawn_agent", Action: "allow"},
+					{Tool: "edit_file", Action: "deny"},
+					{Action: "allow"},
+				}, WS: l.Exec.WS},
+			}}
+			if want.interrupt {
+				ready := make(chan struct{}, 1)
+				interrupts := make(chan struct{}, 1)
+				l.Approvals = blockingApprover{ready: ready}
+				l.Interrupts = interrupts
+				go func() { <-ready; interrupts <- struct{}{} }()
+			} else if want.approve {
+				t.Setenv("AGENTRUNNER_APPROVE", "always")
+			} else {
+				t.Setenv("AGENTRUNNER_APPROVE", "never")
+			}
+
+			if _, err := l.Run(context.Background(), "delegate with explicit authority review"); err != nil {
+				t.Fatal(err)
+			}
+			got, _ := os.ReadFile(filepath.Join(root, "greet.txt"))
+			if (string(got) == "ENGINEERED") != want.edited {
+				t.Fatalf("file = %q, edited want %v", got, want.edited)
+			}
+			events, _ := store.ReadEvents(l.Store.Dir())
+			var spawned *event.SpawnRequested
+			var approval *event.ApprovalRequested
+			for _, env := range events {
+				switch env.Type {
+				case event.TypeSpawnRequested:
+					decoded, _ := event.DecodePayload(env)
+					spawned = decoded.(*event.SpawnRequested)
+				case event.TypeApprovalRequested:
+					decoded, _ := event.DecodePayload(env)
+					approval = decoded.(*event.ApprovalRequested)
+				}
+			}
+			if spawned == nil || spawned.Escalation != want.outcome {
+				t.Fatalf("spawn escalation = %+v", spawned)
+			}
+			if approval == nil || !approval.DenyAllowsFallback ||
+				!strings.Contains(string(approval.Args), "permissions") {
+				t.Fatalf("approval request lacks reviewed rules/fallback contract: %+v", approval)
+			}
+			fold, err := state.Fold(events)
+			if err != nil {
+				t.Fatal(err)
+			}
+			handle := fold.Conversation.ToolResults["esc"]
+			if want.outcome == "denied" && !strings.Contains(string(handle.Result), "parent∩child") {
+				t.Fatalf("denied fallback not model-visible: %+v", handle)
+			}
+			childEvents, _ := store.ReadEvents(filepath.Join(l.Store.Dir(), "sub", "esc-a1"))
+			started, _ := event.DecodePayload(childEvents[0])
+			var layers [][]pipeline.PermissionRule
+			_ = json.Unmarshal(started.(*event.SessionStarted).PermissionLayers, &layers)
+			wantLayers := 2
+			if want.approve {
+				wantLayers = 1
+			}
+			if len(layers) != wantLayers {
+				t.Fatalf("permission layers = %+v, want %d", layers, wantLayers)
+			}
+			if !l.Exec.NetworkContained() {
+				t.Fatal("authority approval widened the shared network containment ratchet")
+			}
+		})
+	}
+}

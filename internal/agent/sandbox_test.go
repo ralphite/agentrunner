@@ -154,9 +154,10 @@ func TestNetworkRuleDeniesOnlyUncontained(t *testing.T) {
 	}
 }
 
-// S7 出口 review: MCP tools execute out-of-process — the subprocess sandbox never
-// bounds them, so under the ratchet they keep egress scope "all" (network
-// rules still match) and the journal must NOT claim containment for them.
+// S7/INC-12.5 security review: MCP tools execute out-of-process — the
+// subprocess sandbox never bounds them, so under the ratchet they keep
+// egress scope "all", carry no false containment claim, and are hard-denied
+// before activity. A child escalation cannot punch through network:none.
 func TestMCPToolsStayOutsideContainment(t *testing.T) {
 	l := testLoop(t, scripted.Fixture{}, t.TempDir())
 	l.Spec.Sandbox.Network = "none"
@@ -177,6 +178,17 @@ func TestMCPToolsStayOutsideContainment(t *testing.T) {
 	if c := l.containment(pipeline.Effect{Kind: "tool_call", Class: "execute",
 		ToolName: "bash"}); c == nil || c.Filesystem != "workspace" || c.Backend == "" {
 		t.Errorf("bash containment = %+v, want workspace OS sandbox", c)
+	}
+	ds := &driveState{s: state.New()}
+	outcome, allowed, err := l.adjudicate(context.Background(), ds, l.appender(ds), pipeline.Effect{
+		ID: "eff-mcp-contained", Kind: "tool_call", ToolName: "mcp__srv__deploy",
+		Class: "execute", Network: "all",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if allowed || denyingGate(outcome) != "containment" {
+		t.Fatalf("contained MCP outcome = %+v allowed=%v", outcome, allowed)
 	}
 }
 

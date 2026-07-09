@@ -299,10 +299,15 @@ func TestEscalationApproved(t *testing.T) {
 	if !childWriteAllowed {
 		t.Error("child write_file was not allow-resolved under the escalated gates")
 	}
+	frozen, err := childSpecFromJournal(l.Store.Dir() + "/sub/swe-a1")
+	if err != nil || !frozen.EscalationApproved {
+		t.Fatalf("approved authority not frozen for revive: spec=%+v err=%v", frozen, err)
+	}
 }
 
-// INC-12.5: a DENIED escalation never spawns — the refusal (with the user's
-// reason) is the model-visible result; the parent's intersection stands.
+// INC-12.5: a DENIED escalation rejects only the widening. The child still
+// spawns under parent∩child permissions, and the fallback + user reason are
+// model-visible (工作纸 D4 / 决策 #20 修订).
 func TestEscalationDenied(t *testing.T) {
 	l := escalationLoop(t, escalationRouter())
 	l.Approvals = denyAll{}
@@ -310,17 +315,27 @@ func TestEscalationDenied(t *testing.T) {
 		t.Fatal(err)
 	}
 	evs, _ := store.ReadEvents(l.Store.Dir())
-	if n := countType(evs, event.TypeSpawnRequested); n != 0 {
-		t.Fatalf("SpawnRequested = %d, want 0 (denied escalation must not spawn)", n)
+	if n := countType(evs, event.TypeSpawnRequested); n != 1 {
+		t.Fatalf("SpawnRequested = %d, want 1 (denial falls back to intersection)", n)
 	}
-	var deniedVisible bool
+	var deniedVisible, fallbackVisible bool
 	for _, e := range evs {
 		if e.Type == event.TypeEffectResolved && strings.Contains(string(e.Payload), "no write access") {
 			deniedVisible = true
 		}
+		if e.Type == event.TypeActivityStarted && strings.Contains(string(e.Payload), "parent∩child") {
+			fallbackVisible = true
+		}
+		if e.Type == event.TypeSpawnRequested {
+			decoded, _ := event.DecodePayload(e)
+			spawned := decoded.(*event.SpawnRequested)
+			if spawned.Escalated || spawned.Escalation != "denied" {
+				t.Fatalf("denied spawn fact = %+v", spawned)
+			}
+		}
 	}
-	if !deniedVisible {
-		t.Error("denial reason did not reach the journal / model")
+	if !deniedVisible || !fallbackVisible {
+		t.Errorf("denial/fallback not visible: denial=%v fallback=%v", deniedVisible, fallbackVisible)
 	}
 	if _, err := os.Stat(filepath.Join(l.Exec.WS.Root(), "widget.txt")); err == nil {
 		t.Error("file written despite denied escalation")

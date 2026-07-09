@@ -42,6 +42,42 @@ type InlineRole struct {
 // are already safe).
 var safeCallIDRe = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
+func escalationApprovalReason(spec *AgentSpec) string {
+	rules, _ := json.Marshal(spec.Permissions)
+	tools, _ := json.Marshal(spec.Tools)
+	return fmt.Sprintf("child %q (%s) requests a permission exception; tools remain the parent subset %s; approve its declared rules %s (budget, depth, fan-out, and OS containment remain bounded)",
+		spec.Name, spec.Description, tools, rules)
+}
+
+func approvalReason(results []event.GateResult) string {
+	for i := len(results) - 1; i >= 0; i-- {
+		if results[i].Gate == "approval" && results[i].Decision == event.VerdictDeny {
+			return results[i].Reason
+		}
+	}
+	return ""
+}
+
+func escalationOutcome(spec *AgentSpec) string {
+	if !spec.Escalate {
+		return ""
+	}
+	if spec.EscalationApproved {
+		return "approved"
+	}
+	return "denied"
+}
+
+func escalationNotice(spec *AgentSpec, reason string) string {
+	if !spec.Escalate || spec.EscalationApproved {
+		return ""
+	}
+	if reason == "" {
+		reason = "denied by user"
+	}
+	return "permission escalation denied (" + reason + "); child is running under parent∩child permissions"
+}
+
 // renderAgentsDirectory freezes the sub-agent directory block (S5.3): the
 // model spawns only what it can see here. Unresolvable names are listed
 // without a description rather than hidden — the whitelist is the truth.
@@ -137,6 +173,11 @@ func (l *Loop) resolveSpawnTargetFull(toolName string, rawArgs json.RawMessage) 
 		if err != nil {
 			return "", "", nil, nil, fmt.Sprintf("%s: %v", toolName, err)
 		}
+		if spec.Escalate {
+			if problem := l.validateEscalatedChild(spec); problem != "" {
+				return "", "", nil, nil, toolName + ": " + problem
+			}
+		}
 	}
 	for _, in := range args.Inputs {
 		if in.Ref == "" || in.Path == "" {
@@ -152,9 +193,27 @@ func (l *Loop) resolveSpawnTargetFull(toolName string, rawArgs json.RawMessage) 
 	return args.Agent, args.Task, args.Inputs, spec, ""
 }
 
+func (l *Loop) validateEscalatedChild(spec *AgentSpec) string {
+	if len(spec.Permissions) == 0 {
+		return "escalate requires at least one explicit permission rule"
+	}
+	for _, name := range spec.Tools {
+		if !slices.Contains(l.Spec.Tools, name) {
+			return fmt.Sprintf("escalated child tool %q is not in the parent's tool face", name)
+		}
+	}
+	if len(spec.MCP) > 0 {
+		return "escalated child cannot declare MCP servers (approval widens permission rules only)"
+	}
+	return ""
+}
+
 func (l *Loop) dynamicRoleSpec(role *InlineRole) (*AgentSpec, string) {
 	if strings.TrimSpace(role.Name) == "" || strings.TrimSpace(role.Description) == "" || strings.TrimSpace(role.Instructions) == "" {
 		return nil, "role needs non-empty name, description, and instructions"
+	}
+	if role.Escalate && len(role.Permissions) == 0 {
+		return nil, "role escalate requires at least one explicit permission rule"
 	}
 	tools := append([]string(nil), l.Spec.Tools...)
 	if role.Tools != nil {
@@ -202,7 +261,8 @@ func dynamicRoleJSON(rawArgs json.RawMessage, spec *AgentSpec) json.RawMessage {
 // journal under <parent>/sub/; per-attempt directories keep a retried
 // handoff from appending onto a dead child's log.
 func (l *Loop) buildHandoffRun(call provider.ToolCall, res *tool.Result,
-	appendE AppendFunc, allowance int, parentMode string) func(context.Context) (json.RawMessage, *provider.Usage, bool, error) {
+	appendE AppendFunc, allowance int, parentMode string, escalationApproved bool,
+	escalationFallback string) func(context.Context) (json.RawMessage, *provider.Usage, bool, error) {
 
 	attempt := 0
 	return func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
@@ -215,6 +275,9 @@ func (l *Loop) buildHandoffRun(call provider.ToolCall, res *tool.Result,
 			*res = errorResult(problem)
 			return res.Payload, nil, true, nil
 		}
+		frozenChild := *childSpec
+		frozenChild.EscalationApproved = escalationApproved
+		childSpec = &frozenChild
 
 		childDir := filepath.Join(l.Store.Dir(), "sub", fmt.Sprintf("%s-a%d", call.CallID, attempt))
 		childStore, err := store.OpenEventStore(childDir)
@@ -228,12 +291,13 @@ func (l *Loop) buildHandoffRun(call provider.ToolCall, res *tool.Result,
 			CallID: call.CallID, Agent: agentName, Task: task,
 			ChildSession: childSession, Depth: l.Depth + 1, BudgetTokens: allowance,
 			RoleSpec:  dynamicRoleJSON(call.Args, childSpec),
-			Escalated: childSpec.Escalate,
+			Escalated: childSpec.EscalationApproved, Escalation: escalationOutcome(childSpec),
+			EscalationReason: escalationFallback,
 		}); err != nil {
 			return nil, nil, false, err
 		}
 
-		child := l.childLoopEscalated(childSpec, childStore, childSession, allowance, parentMode, childSpec.Escalate)
+		child := l.childLoop(childSpec, childStore, childSession, allowance, parentMode)
 		child.Inputs = inputs
 		cres, cerr := child.Run(ctx, task)
 		if cerr != nil {
@@ -275,7 +339,9 @@ func (l *Loop) buildHandoffRun(call provider.ToolCall, res *tool.Result,
 		payload, _ := json.Marshal(map[string]any{
 			"agent": agentName, "child_session": childSession,
 			"reason": cres.Reason, "turns": cres.GenSteps,
-			"report": childReport(childDir),
+			"report":                childReport(childDir),
+			"permission_escalation": escalationOutcome(childSpec),
+			"escalation_reason":     escalationFallback,
 		})
 		*res = tool.Result{Payload: payload, IsError: isError}
 		usage := cres.Usage
@@ -291,7 +357,8 @@ func (l *Loop) buildHandoffRun(call provider.ToolCall, res *tool.Result,
 // the next drive-loop safe point, and the report re-enters as a user message
 // — activating the parent's next turn. Runs on the drive goroutine.
 func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
-	call provider.ToolCall, allowance int, parentMode string) error {
+	call provider.ToolCall, allowance int, parentMode string, escalationApproved bool,
+	escalationFallback string) error {
 
 	l.ensureBackground()
 	agentName, task, inputs, childSpec, problem := l.resolveSpawnTargetFull(call.Name, call.Args)
@@ -316,6 +383,9 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 		})
 		return err
 	}
+	frozenChild := *childSpec
+	frozenChild.EscalationApproved = escalationApproved
+	childSpec = &frozenChild
 
 	childDir := filepath.Join(l.Store.Dir(), "sub", fmt.Sprintf("%s-a1", call.CallID))
 	childStore, err := store.OpenEventStore(childDir)
@@ -329,7 +399,8 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 		CallID: call.CallID, Agent: agentName, Task: task,
 		ChildSession: childSession, Depth: l.Depth + 1, BudgetTokens: allowance,
 		RoleSpec:  dynamicRoleJSON(call.Args, childSpec),
-		Escalated: childSpec.Escalate,
+		Escalated: childSpec.EscalationApproved, Escalation: escalationOutcome(childSpec),
+		EscalationReason: escalationFallback,
 	}); err != nil {
 		_ = childStore.Close()
 		return err
@@ -337,7 +408,7 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 	if _, err := appendE(event.TypeActivityStarted, &event.ActivityStarted{
 		ActivityID: activityID, Kind: event.KindTool, Name: call.Name,
 		Args: redact.FromEnv().JSON(call.Args), CallID: call.CallID,
-		Attempt: 1, Background: true,
+		Attempt: 1, Background: true, Notice: escalationNotice(childSpec, escalationFallback),
 	}); err != nil {
 		_ = childStore.Close()
 		return err
@@ -348,7 +419,7 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 	l.bg.cancel[call.CallID] = cancel
 	l.bg.mu.Unlock()
 
-	child := l.childLoopEscalated(childSpec, childStore, childSession, allowance, parentMode, childSpec.Escalate)
+	child := l.childLoop(childSpec, childStore, childSession, allowance, parentMode)
 	child.Inputs = inputs
 	go func() {
 		defer func() { _ = childStore.Close() }()
@@ -367,7 +438,9 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 		payload, _ := json.Marshal(map[string]any{
 			"agent": agentName, "child_session": childSession,
 			"reason": reason, "turns": cres.GenSteps,
-			"report": childReport(childDir),
+			"report":                childReport(childDir),
+			"permission_escalation": escalationOutcome(childSpec),
+			"escalation_reason":     escalationFallback,
 		})
 		usage := spent
 		l.bg.done <- bgOutcome{
@@ -383,28 +456,14 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 	return nil
 }
 
-// childLoop builds the frozen child run (S5.3). The intersection contract:
-// the child pipeline is the PARENT's gates followed by the child's own —
-// every gate must allow, so the child face can only be narrower. The budget
-// cap is the min-aggregated allowance; the mode is the parent's live mode at
-// spawn (never wider). Interrupts stay with the parent (a parent cancel
-// reaches the child through ctx); the child's surface is silent — its
-// report returns as the tool result.
+// childLoop builds the frozen child run (S5.3/INC-12.5). Normally the child
+// pipeline is parent gates followed by child permissions (intersection).
+// The sole widening path is a journaled human-approved escalation: retain
+// the hard floor + tree caps, use the child's declared permission rules,
+// and retain the min-aggregated budget. OS containment is a shared executor
+// ratchet and therefore cannot widen on either path.
 func (l *Loop) childLoop(childSpec *AgentSpec, childStore *store.EventStore,
 	childSession string, allowance int, parentMode string) *Loop {
-	return l.childLoopEscalated(childSpec, childStore, childSession, allowance, parentMode, false)
-}
-
-// childLoopEscalated is childLoop with the USER-APPROVED escalation branch
-// (INC-12.5, 决策 #20 修订): an escalated child's pipeline REPLACES the
-// parent's frozen permission intersection with the child's own approved
-// rules. The escalation reached execution only through an ApprovalRequested
-// the user answered (the spawn effect force-asks), so "wider than the
-// parent" is always a recorded human decision. Tree budget min-aggregation,
-// depth/fan-out caps, and the containment ratchet are NOT exempted.
-func (l *Loop) childLoopEscalated(childSpec *AgentSpec, childStore *store.EventStore,
-	childSession string, allowance int, parentMode string, escalated bool) *Loop {
-
 	frozen := *childSpec
 	if allowance > 0 {
 		frozen.Budget.MaxTotalTokens = allowance
@@ -416,36 +475,55 @@ func (l *Loop) childLoopEscalated(childSpec *AgentSpec, childStore *store.EventS
 	childMode := narrowerMode(parentMode, childSpec.Mode)
 	frozen.Mode = ""
 
-	var ws *pipeline.PermissionGate
+	var gates []pipeline.Gate
+	var permissionTemplate *pipeline.PermissionGate
 	if l.Pipeline != nil {
 		for _, g := range l.Pipeline.Gates {
 			if pg, ok := g.(*pipeline.PermissionGate); ok {
-				ws = pg
+				permissionTemplate = pg
 			}
 		}
 	}
-	var gates []pipeline.Gate
-	if l.Pipeline != nil && !escalated {
-		gates = append(gates, l.Pipeline.Gates...)
-	} else if l.Pipeline != nil {
-		// Escalated: every NON-permission gate stays inherited (hooks,
-		// budget, spawn caps); only the permission intersection is replaced
-		// by the approved rules below.
-		for _, g := range l.Pipeline.Gates {
-			if _, isPerm := g.(*pipeline.PermissionGate); !isPerm {
-				gates = append(gates, g)
+	if childSpec.EscalationApproved {
+		var floorFound, spawnFound bool
+		if l.Pipeline != nil {
+			for _, g := range l.Pipeline.Gates {
+				switch g.(type) {
+				case *pipeline.FloorGate:
+					gates = append(gates, g)
+					floorFound = true
+				case *pipeline.SpawnGate:
+					gates = append(gates, g)
+					spawnFound = true
+				}
 			}
 		}
+		if !floorFound {
+			floor := &pipeline.FloorGate{Mode: childMode}
+			if permissionTemplate != nil {
+				floor.WS = permissionTemplate.WS
+			} else if l.Exec != nil {
+				floor.WS = l.Exec.WS
+			}
+			gates = append(gates, floor)
+		}
+		if !spawnFound {
+			gates = append(gates, &pipeline.SpawnGate{})
+		}
+	} else if l.Pipeline != nil {
+		gates = append(gates, l.Pipeline.Gates...)
+	}
+	if len(childSpec.Permissions) > 0 {
+		gate := &pipeline.PermissionGate{Rules: childSpec.Permissions, Mode: childMode}
+		if permissionTemplate != nil {
+			gate.WS = permissionTemplate.WS
+		} else if l.Exec != nil {
+			gate.WS = l.Exec.WS
+		}
+		gates = append(gates, gate)
 	}
 	if allowance > 0 {
 		gates = append(gates, &pipeline.BudgetGate{MaxTotalTokens: allowance})
-	}
-	if len(childSpec.Permissions) > 0 || escalated {
-		gate := &pipeline.PermissionGate{Rules: childSpec.Permissions}
-		if ws != nil {
-			gate.WS = ws.WS
-		}
-		gates = append(gates, gate)
 	}
 
 	return &Loop{

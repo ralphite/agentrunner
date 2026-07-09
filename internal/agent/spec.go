@@ -80,6 +80,9 @@ type AgentSpec struct {
 	// exception when this spec is launched as a child. It never grants
 	// authority by itself; the spawn approval path decides it.
 	Escalate bool `yaml:"escalate,omitempty"`
+	// EscalationApproved is runtime-frozen proof that the human approved this
+	// child permission exception. YAML/model input cannot set it.
+	EscalationApproved bool `yaml:"-" json:"escalation_approved,omitempty"`
 	// Receipts controls WHEN background settlements (child receipts, bash
 	// outcomes) enter the conversation (裁决 #15): "steer" (default) lands
 	// them at the next safe boundary INSIDE a running turn — a long turn
@@ -226,6 +229,9 @@ func (s *AgentSpec) validate(path string) error {
 		// bypass disables permission/budget; it may only be chosen at the
 		// workstation via --mode, never from a spec shipped in a repo.
 		return fail("mode", "bypass cannot be set from a spec; use --mode bypass on the command line")
+	}
+	if s.Escalate && len(s.Permissions) == 0 {
+		return fail("escalate", "requires at least one explicit permission rule")
 	}
 
 	if s.MaxGenerationSteps < 0 {
