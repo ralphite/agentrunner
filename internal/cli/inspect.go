@@ -96,6 +96,11 @@ type goalReport struct {
 	Checks    int    `json:"checks"`
 	MaxChecks int    `json:"max_checks,omitempty"`
 	Paused    bool   `json:"paused,omitempty"`
+	// Verifiers counts command verifiers; 0 = self-certified goal (INC-10,
+	// the model's audited goal_complete claim decides). Claimed = a claim is
+	// pending adjudication at the next turn boundary.
+	Verifiers int  `json:"verifiers"`
+	Claimed   bool `json:"claimed,omitempty"`
 }
 
 // artifactReport is one published deliverable version (S5.9 column).
@@ -305,6 +310,7 @@ func buildInspectReport(events []event.Envelope, s state.State) inspectReport {
 		report.Goal = &goalReport{
 			GoalID: s.Goal.GoalID, Goal: s.Goal.Goal, Checks: s.Goal.Checks,
 			MaxChecks: s.Goal.Budget.MaxChecks, Paused: s.Goal.Paused,
+			Verifiers: len(s.Goal.Verifiers), Claimed: s.Goal.Claimed,
 		}
 	}
 	// ActivityCompleted carries no name/call id — those live on the matching

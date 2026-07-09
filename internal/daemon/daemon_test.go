@@ -574,7 +574,6 @@ func TestDaemonSubmitIdempotency(t *testing.T) {
 // S7 还债: the idem index survives a daemon restart — a retry against the
 // NEW daemon still finds the old session (served from replay).
 func TestDaemonIdemPersistsAcrossRestart(t *testing.T) {
-	dir := shortTempDir(t)
 	idemPath := filepath.Join(t.TempDir(), "idem.json")
 	var mu sync.Mutex
 	launches := 0
@@ -591,7 +590,7 @@ func TestDaemonIdemPersistsAcrossRestart(t *testing.T) {
 	}
 
 	// Daemon #1: submit with a key, then shut down.
-	sock1 := filepath.Join(dir, "d1.sock")
+	sock1 := shortSock(t)
 	ctx1, cancel1 := context.WithCancel(context.Background())
 	srv1 := &Server{SocketPath: sock1, Run: run, Replay: replay, IdemPath: idemPath,
 		NewID: func(string) string { return "sess-persist" }}
@@ -607,7 +606,7 @@ func TestDaemonIdemPersistsAcrossRestart(t *testing.T) {
 	<-done1
 
 	// Daemon #2 on a fresh socket, same IdemPath: the retry reattaches.
-	sock2 := filepath.Join(dir, "d2.sock")
+	sock2 := shortSock(t)
 	ctx2, cancel2 := context.WithCancel(context.Background())
 	srv2 := &Server{SocketPath: sock2, Run: run, Replay: replay, IdemPath: idemPath,
 		NewID: func(string) string { return "sess-should-not-exist" }}

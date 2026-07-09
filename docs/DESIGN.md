@@ -1001,18 +1001,33 @@ limits:
     stalled，附最佳迭代 carry。
   - **in-session goal**（会话内、context 延续，G23/UJ-22）= 挂在
     conversational `agent.Loop` 上的一个 **Goal 子状态**（事件族
-    `GoalAttached/Updated/Paused/Resumed/Cancelled/Checkpoint/Achieved`，
-    change-as-event 同决策 #32 族，故 goal 参数是**可变 session 状态**而非
-    冻结 spec）。verifier 是**静止序列（决策 #24）在 exchange 边界的新一格**
-    （`goal_verify`，在 auto-publish/barrier 同一序列里、只在 final
-    generation 收尾跑，**绝不**挟持 generation step）：pass →
-    `GoalAchieved{satisfied}` + 摘 goal + 正常待命；miss（预算未尽）→
-    `GoalCheckpoint` + 把 verifier 反馈作为 **`program` 源 `InputReceived`
-    回灌进同一 fold**（`hasInputAfterLastAssistant` → 下一 turn 同上下文
-    续跑）；miss（goal 级预算 `max_checks` 尽）→ `GoalAchieved{budget}` =
-    可见截断（决策 #31）。控制面 attach/pause/resume/update/cancel 走
-    compact/clear 同一 out-of-band control 通道。crash 恢复天然保住：全程
-    journaled，resume 重 fold → `decide` 同解（verifier 命令须幂等）。
+    `GoalAttached/Updated/Paused/Resumed/Cancelled/Checkpoint/Achieved/
+    CompletionClaimed`，change-as-event 同决策 #32 族，故 goal 参数是
+    **可变 session 状态**而非冻结 spec）。**完成裁决是静止序列（决策
+    #24）在 exchange 边界的一格**（`goal_verify`，在 auto-publish/barrier
+    同一序列里、只在 final generation 收尾跑，**绝不**挟持 generation
+    step）。裁决者按 goal 形态分两支（INC-10）：有 command verifier →
+    verifier 是唯一裁决者（AND，模型的声明只在 miss 上作 rejected 注记）；
+    无 verifier（自证 goal）→ 模型经审计后调 `goal_complete{summary}` 声明，
+    声明记 `GoalCompletionClaimed`（mid-turn 落账、**边界才裁决**），
+    checkpoint 接受 → pass。两支同一后续：pass → `GoalAchieved{satisfied}`
+    + 摘 goal + 正常待命；miss（预算未尽）→ `GoalCheckpoint` + 把结构化
+    continuation 反馈（objective 重述 + 反缩水条款 + 完成路径 + 预算报告）
+    作为 **`program` 源 `InputReceived` 回灌进同一 fold**
+    （`hasInputAfterLastAssistant` → 下一 turn 同上下文续跑）；miss
+    （goal 级预算 `max_checks` 尽）→ `GoalAchieved{budget}` = 可见截断
+    （决策 #31，自证 goal 无声明时每边界同样计 check，故仍有界）。
+    模型工具面只有 `goal_status`（读）与 `goal_complete`（声明），
+    **不含任何生命周期或 verifier 设置路径**——goalVerify 无门跑的辩护
+    前提（command 仅 operator 可设）保持成立。控制面 attach/pause/
+    resume/update/cancel 走 compact/clear 同一 out-of-band control 通道
+    （goal-* 控制对非 hosted 会话走 send 同款 revive，INC-10）。crash
+    恢复：全程 journaled，resume 重 fold；两个窗口由 drive-loop 安全点
+    的修复对齐（resume 时静止形状会跳过 goal_verify 格）——checkpoint
+    之后崩（R1/R2，`goalRecover` 补发回执/回灌）与 turn 收尾后、
+    checkpoint 之前崩（INC-10，`goalResumeCheck` 在安全点补裁该边界，
+    否则已记录的 claim 会停摆）。verifier 命令须幂等；claim 由
+    checkpoint fold 消费、GoalUpdated 作废。
 - **Best-of-N** = `schedule: parallel{n}`：N 个隔离 worktree 的并行
   尝试（从同一个 base snapshot 物化，base ref 钉在每条
   `IterationScheduled.BaseRef`），选择即 verifier（human / llm_judge /
@@ -1101,7 +1116,7 @@ limits:
 | 18 | Event schema 版本化 | 不 migration；`SessionStarted` 记 event-schema 版本，不匹配拒绝 resume；所有 fold 消费者走 `EventStore` 单一读路径，预留恒等 upcast 阶段；additive-optional 字段不 bump 版本 | 原型 re-run 比 migrate 便宜；将来要 migration 时只有一个改动点；bump 误伤旧 session resume。 |
 | 19 | 信任模型 | 可执行配置（hooks）只认 spec 与 user 层；project 层需显式 trust；memory 文件按不可信内容对待 | clone 不受信 repo 不等于交出任意代码执行权。 |
 | 20 | 树级约束 | 权限 rules 在 spawn 时冻结交集下传；预算 = min(child 限额, parent 剩余) 沿树聚合；深度/扇出有上限 | spawn 白名单可成环；树的总成本必须有界。 |
-| 21 | 运行模式（INC-D1 修订，2026-07-09） | **best-of-N（`parallel{n}`）、批式 loop、one-shot、driver-goal** 是同一 `IterationDriver` 的 schedule，每轮迭代 = **fresh child session**（隔离/prefix 稳定是其语义）。**goal 另有会话内形态**：**in-session goal** 挂在 conversational session 上、context 全程延续（**不**起 fresh child），verifier 在 exchange 边界（final generation 收尾、绝不 mid-turn）检查，miss 回灌 program 源 input 让同一 fold 续跑，pass 出达成回执并摘 goal；见 §13。 | fresh-run 保隔离/prefix，但构造上丢对话 context——UJ-22 硬要求 goal 的 context 延续（LOG 2026-07-05 裁定 fresh-run 教义不适用于 goal 形态）。 |
+| 21 | 运行模式（INC-D1 修订，2026-07-09；INC-10 完成判据扩展，同日） | **best-of-N（`parallel{n}`）、批式 loop、one-shot、driver-goal** 是同一 `IterationDriver` 的 schedule，每轮迭代 = **fresh child session**（隔离/prefix 稳定是其语义）。**goal 另有会话内形态**：**in-session goal** 挂在 conversational session 上、context 全程延续（**不**起 fresh child），**完成裁决在 exchange 边界（final generation 收尾、绝不 mid-turn）**：有 command verifier 时 verifier 是唯一裁决者；无 verifier 时由模型 `goal_complete` 声明（mid-turn 记 journal、边界才裁决接受）。miss 回灌 program 源 input 让同一 fold 续跑，pass 出达成回执并摘 goal；见 §13。 | fresh-run 保隔离/prefix，但构造上丢对话 context——UJ-22 硬要求 goal 的 context 延续（LOG 2026-07-05 裁定）。完成判据扩展（INC-10）：多数真实长程目标写不成 shell 命令，verifier-唯一判据构造上把自证 goal 钉成恒不可达成（CODEX-PARITY §6.2-①）；边界纪律/回灌续跑/fold 连续性三性质原样保留。 |
 | 22 | Background | session 由常驻 runtime 托管，frontend 任意 attach/detach（detach 无事件）；后台 effect 的 handle 即其配对结果，完成是新的 user-role 输入 | 订阅状态不影响结果；已配对的 call 不可二次触碰（Gemini 严格配对）。 |
 | 23 | Artifacts | `ArtifactStore`（CAS，opaque ref）；publish 是过管线的 tool，发布即持久；`outputs:` 在收尾自动 publish；审批载荷 = artifact ref；版本 per-stream | 交付物 contract 与过程协调对象分离；审批需要不可变锚点。 |
 | 24 | 静止动作时序（INC-D1 加格） | session 静止时固定顺序：auto-publish outputs → barrier → **goal_verify（有 in-session goal 时；INC-D1）** → 向 parent 投回执（若有 parent）；可重复发生。goal_verify 置于 barrier 之后，使 barrier 快照 pre-injection 的干净边界 | 多个 feature 都往"静止时刻"加步骤，顺序必须唯一定义。 |

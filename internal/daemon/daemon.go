@@ -639,6 +639,9 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlCompact, Directive: cmd.Directive}, "compacting", enc)
 	case "clear":
 		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlClear}, "clearing", enc)
+	// goal-* controls revive a non-hosted session like send does (INC-10):
+	// structural since the durable-command unification — handleControl's
+	// delivery path (commandHubCommandLocked) resumes the session first.
 	case "goal-attach":
 		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlGoalAttach, Goal: cmd.Goal}, "goal attached", enc)
 	case "goal-pause":

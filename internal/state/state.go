@@ -98,6 +98,11 @@ type Goal struct {
 	CheckpointedGenStep int    `json:"checkpointed_gen_step,omitempty"`
 	LastPass            bool   `json:"last_pass,omitempty"`
 	LastFeedback        string `json:"last_feedback,omitempty"`
+	// Claimed + ClaimSummary carry a pending goal_complete claim (INC-10)
+	// until the next quiescence boundary adjudicates it. A GoalCheckpoint
+	// consumes the claim; a GoalUpdated voids it (the objective changed).
+	Claimed      bool   `json:"claimed,omitempty"`
+	ClaimSummary string `json:"claim_summary,omitempty"`
 }
 
 // Compaction is the folded result of ContextCompacted (S4.5): messages
@@ -666,27 +671,40 @@ func Apply(s State, env event.Envelope) (State, error) {
 	case *event.GoalAttached:
 		s.Goal = &Goal{GoalID: p.GoalID, Goal: p.Goal, Verifiers: p.Verifiers, Budget: p.Budget}
 
+	// The goal cases below are copy-on-write like every other sub-state
+	// (INC-10 review): s.Goal is a pointer shared with the caller's previous
+	// State value, so mutating in place would break Apply's purity contract.
 	case *event.GoalUpdated:
 		if s.Goal != nil && s.Goal.GoalID == p.GoalID {
+			g := *s.Goal
 			if p.Goal != "" {
-				s.Goal.Goal = p.Goal
+				g.Goal = p.Goal
 			}
 			if p.Verifiers != nil {
-				s.Goal.Verifiers = p.Verifiers
+				g.Verifiers = p.Verifiers
 			}
 			if p.Budget != nil {
-				s.Goal.Budget = *p.Budget
+				g.Budget = *p.Budget
 			}
+			// The objective (or its judge) changed — a pending completion
+			// claim no longer speaks for it (INC-10).
+			g.Claimed = false
+			g.ClaimSummary = ""
+			s.Goal = &g
 		}
 
 	case *event.GoalPaused:
 		if s.Goal != nil && s.Goal.GoalID == p.GoalID {
-			s.Goal.Paused = true
+			g := *s.Goal
+			g.Paused = true
+			s.Goal = &g
 		}
 
 	case *event.GoalResumed:
 		if s.Goal != nil && s.Goal.GoalID == p.GoalID {
-			s.Goal.Paused = false
+			g := *s.Goal
+			g.Paused = false
+			s.Goal = &g
 		}
 
 	case *event.GoalCheckpoint:
@@ -694,10 +712,15 @@ func Apply(s State, env event.Envelope) (State, error) {
 		// a resume that re-enters this gen step recovers instead of re-running
 		// the verifier (crash-recovery R1/R2).
 		if s.Goal != nil && s.Goal.GoalID == p.GoalID {
-			s.Goal.Checks = p.Check
-			s.Goal.CheckpointedGenStep = p.GenStep
-			s.Goal.LastPass = p.Pass
-			s.Goal.LastFeedback = p.Feedback
+			g := *s.Goal
+			g.Checks = p.Check
+			g.CheckpointedGenStep = p.GenStep
+			g.LastPass = p.Pass
+			g.LastFeedback = p.Feedback
+			// The boundary adjudicated any pending claim — consume it.
+			g.Claimed = false
+			g.ClaimSummary = ""
+			s.Goal = &g
 		}
 
 	case *event.GoalCancelled:
@@ -708,6 +731,14 @@ func Apply(s State, env event.Envelope) (State, error) {
 	case *event.GoalAchieved:
 		if s.Goal != nil && s.Goal.GoalID == p.GoalID {
 			s.Goal = nil
+		}
+
+	case *event.GoalCompletionClaimed:
+		if s.Goal != nil && s.Goal.GoalID == p.GoalID {
+			g := *s.Goal
+			g.Claimed = true
+			g.ClaimSummary = p.Summary
+			s.Goal = &g
 		}
 
 	default:

@@ -53,6 +53,8 @@ var samples = map[string]any{
 	TypeGoalCancelled:  &GoalCancelled{GoalID: "g1", Reason: "user cancelled", Source: "user"},
 	TypeGoalCheckpoint: &GoalCheckpoint{GoalID: "g1", Check: 2, Pass: false, Detail: "1 test still failing"},
 	TypeGoalAchieved:   &GoalAchieved{GoalID: "g1", Reason: "satisfied", Checks: 3},
+	TypeGoalCompletionClaimed: &GoalCompletionClaimed{GoalID: "g1",
+		Summary: "suite green 3x, artifact rendered", Source: "model"},
 
 	TypeActorCrashed:    &ActorCrashed{Actor: "session", Error: "boom"},
 	TypeEffectRequested: &EffectRequested{EffectID: "eff-call_3_1", CallID: "call_3_1", SideEffecting: true},

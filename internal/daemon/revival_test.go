@@ -97,6 +97,39 @@ func TestSendRevivalDiesWithDaemon(t *testing.T) {
 	}
 }
 
+// INC-10: a goal control to a non-hosted session revives it like a send —
+// after a daemon restart `ar goal <sid> attach` must work without a priming
+// send, and the queued control reaches the revived loop's control channel.
+func TestGoalAttachRevivesSession(t *testing.T) {
+	var resumed atomic.Int32
+	resume := func(ctx context.Context, req ResumeRequest, sink protocol.Sink) error {
+		resumed.Add(1)
+		if req.Controls == nil {
+			t.Error("revive must wire a controls channel")
+		}
+		<-ctx.Done()
+		return nil
+	}
+	marked := func(string) (bool, error) { return false, nil }
+	sock, cancel, _ := revivalHarness(t, resume, marked)
+	defer cancel()
+
+	var reply string
+	var isErr bool
+	err := Dial(sock, Command{Cmd: "goal-attach", Session: "idle-sess",
+		Goal: &protocol.GoalControl{GoalID: "goal", Goal: "keep the suite green"}},
+		func(e protocol.Event) { reply, isErr = e.Text, e.Kind == protocol.KindError })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if isErr {
+		t.Fatalf("goal-attach to a non-hosted session refused: %q", reply)
+	}
+	if resumed.Load() == 0 {
+		t.Fatal("goal-attach did not revive the session")
+	}
+}
+
 // 决策 #30: an explicit send REOPENS a marked session (close/kill marks
 // gate automatic paths only; there is no session a send cannot continue).
 func TestSendReopensMarkedSession(t *testing.T) {

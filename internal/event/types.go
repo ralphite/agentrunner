@@ -79,14 +79,15 @@ const (
 	// §13). These are run-fold events (a Goal sub-state), NOT the driver
 	// stream. Control (attach/pause/resume/update/cancel) rides the same
 	// out-of-band channel as compact/clear.
-	TypeGoalAttached   = "goal_attached"
-	TypeGoalUpdated    = "goal_updated"
-	TypeGoalPaused     = "goal_paused"
-	TypeGoalResumed    = "goal_resumed"
-	TypeGoalCancelled  = "goal_cancelled"
-	TypeGoalCheckpoint = "goal_checkpoint"
-	TypeGoalAchieved   = "goal_achieved"
-	TypeCommandHandled = "command_handled"
+	TypeGoalAttached          = "goal_attached"
+	TypeGoalUpdated           = "goal_updated"
+	TypeGoalPaused            = "goal_paused"
+	TypeGoalResumed           = "goal_resumed"
+	TypeGoalCancelled         = "goal_cancelled"
+	TypeGoalCheckpoint        = "goal_checkpoint"
+	TypeGoalAchieved          = "goal_achieved"
+	TypeGoalCompletionClaimed = "goal_completion_claimed"
+	TypeCommandHandled        = "command_handled"
 )
 
 // CommandHandled is the semantic no-op/completion receipt for a durable
@@ -356,6 +357,18 @@ type GoalAchieved struct {
 	GoalID string `json:"goal_id"`
 	Reason string `json:"reason"` // satisfied | budget | cancelled
 	Checks int    `json:"checks"`
+}
+
+// GoalCompletionClaimed records the model's completion claim (INC-10,
+// goal_complete tool). It lands mid-turn but is adjudicated only at the next
+// quiescence boundary (the goal_verify cell, 决策 #24): with no command
+// verifier the audited claim is accepted; with verifiers the verifier remains
+// the sole adjudicator. Consumed (cleared from the fold) by the checkpoint
+// that adjudicates it, and voided by a GoalUpdated (the objective changed).
+type GoalCompletionClaimed struct {
+	GoalID  string `json:"goal_id"`
+	Summary string `json:"summary,omitempty"`
+	Source  string `json:"source"` // model
 }
 
 type ActorCrashed struct {
@@ -756,14 +769,15 @@ var Registry = map[string]func() any{
 	TypeSpecChanged:       func() any { return &SpecChanged{} },
 	TypeAskResolved:       func() any { return &AskResolved{} },
 
-	TypeGoalAttached:   func() any { return &GoalAttached{} },
-	TypeGoalUpdated:    func() any { return &GoalUpdated{} },
-	TypeGoalPaused:     func() any { return &GoalPaused{} },
-	TypeGoalResumed:    func() any { return &GoalResumed{} },
-	TypeGoalCancelled:  func() any { return &GoalCancelled{} },
-	TypeGoalCheckpoint: func() any { return &GoalCheckpoint{} },
-	TypeGoalAchieved:   func() any { return &GoalAchieved{} },
-	TypeCommandHandled: func() any { return &CommandHandled{} },
+	TypeGoalAttached:          func() any { return &GoalAttached{} },
+	TypeGoalUpdated:           func() any { return &GoalUpdated{} },
+	TypeGoalPaused:            func() any { return &GoalPaused{} },
+	TypeGoalResumed:           func() any { return &GoalResumed{} },
+	TypeGoalCancelled:         func() any { return &GoalCancelled{} },
+	TypeGoalCheckpoint:        func() any { return &GoalCheckpoint{} },
+	TypeGoalAchieved:          func() any { return &GoalAchieved{} },
+	TypeGoalCompletionClaimed: func() any { return &GoalCompletionClaimed{} },
+	TypeCommandHandled:        func() any { return &CommandHandled{} },
 }
 
 // DriverStream lists the event types that belong to the IterationDriver's OWN

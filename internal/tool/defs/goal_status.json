@@ -1,0 +1,9 @@
+{
+  "name": "goal_status",
+  "description": "Report the session's active goal, if any: the objective, checks used vs the check budget, whether it is paused, and whether a completion claim is pending adjudication. Use it to re-read the goal you are working toward.",
+  "class": "read",
+  "input_schema": {
+    "type": "object",
+    "properties": {}
+  }
+}

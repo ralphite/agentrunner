@@ -128,6 +128,54 @@ func TestApplyIsPure(t *testing.T) {
 	}
 }
 
+// TestGoalClaimFold covers the goal_complete claim lifecycle (INC-10): a
+// claim folds into the goal, a GoalUpdated voids it, a GoalCheckpoint
+// consumes it — and every goal fold is copy-on-write (Apply purity).
+func TestGoalClaimFold(t *testing.T) {
+	s := State{}
+	var err error
+	if s, err = Apply(s, env(t, event.TypeGoalAttached, &event.GoalAttached{
+		GoalID: "goal", Goal: "x", Budget: event.GoalBudget{MaxChecks: 5}, Source: "user"})); err != nil {
+		t.Fatal(err)
+	}
+	prev := s // shares the *Goal pointer with s until a goal fold copies
+	if s, err = Apply(s, env(t, event.TypeGoalCompletionClaimed, &event.GoalCompletionClaimed{
+		GoalID: "goal", Summary: "done", Source: "model"})); err != nil {
+		t.Fatal(err)
+	}
+	if !s.Goal.Claimed || s.Goal.ClaimSummary != "done" {
+		t.Fatalf("claim did not fold: %+v", s.Goal)
+	}
+	if prev.Goal.Claimed {
+		t.Fatal("Apply mutated the input state's goal (copy-on-write violated)")
+	}
+	// A mismatched goal id is a harmless orphan (no-op).
+	if s2, _ := Apply(s, env(t, event.TypeGoalCompletionClaimed, &event.GoalCompletionClaimed{
+		GoalID: "other", Summary: "nope", Source: "model"})); s2.Goal.ClaimSummary != "done" {
+		t.Fatal("orphan claim touched the goal")
+	}
+	// An update voids the pending claim (the objective changed).
+	if s, err = Apply(s, env(t, event.TypeGoalUpdated, &event.GoalUpdated{
+		GoalID: "goal", Goal: "y", Source: "user"})); err != nil {
+		t.Fatal(err)
+	}
+	if s.Goal.Claimed || s.Goal.ClaimSummary != "" {
+		t.Fatalf("update did not void the claim: %+v", s.Goal)
+	}
+	// A checkpoint consumes a (re-)claim.
+	if s, err = Apply(s, env(t, event.TypeGoalCompletionClaimed, &event.GoalCompletionClaimed{
+		GoalID: "goal", Summary: "again", Source: "model"})); err != nil {
+		t.Fatal(err)
+	}
+	if s, err = Apply(s, env(t, event.TypeGoalCheckpoint, &event.GoalCheckpoint{
+		GoalID: "goal", GenStep: 1, Check: 1, Pass: true, Detail: "model-certified: again"})); err != nil {
+		t.Fatal(err)
+	}
+	if s.Goal.Claimed || s.Goal.ClaimSummary != "" {
+		t.Fatalf("checkpoint did not consume the claim: %+v", s.Goal)
+	}
+}
+
 func TestInFlightIsInDoubtSignal(t *testing.T) {
 	events := runEvents(t)[:7] // ends right after tool ActivityStarted
 	s, err := Fold(events)

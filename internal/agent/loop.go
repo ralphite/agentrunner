@@ -760,6 +760,11 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 	if l.Board != nil || len(l.Spec.Agents) > 0 {
 		extra = append(extra, "publish_note", "read_notes")
 	}
+	// The in-session goal face (INC-10) rides along unconditionally: goal
+	// attach is a mid-drive control and the face — computed once here — must
+	// not depend on it. A call with no goal attached is a model-visible
+	// no-op/error instead.
+	extra = append(extra, "goal_status", "goal_complete")
 	if len(extra) > 0 {
 		// Dedup against the spec's own tools AND within extra itself: a spec
 		// that already lists an auto-added tool (e.g. spawn_agent) must not
@@ -869,6 +874,13 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 		// point, independent of the quiesced flag. No-op unless a checkpoint at
 		// the current gen step is missing its follow-up.
 		if err := l.goalRecover(ds, appendE); err != nil {
+			return RunResult{}, abort(ds.s.Session.GenStep, err)
+		}
+		// The sibling window (INC-10 review): a crash BETWEEN a graceful turn
+		// end and its goal checkpoint resumes into an already-quiescent shape
+		// where the goal_verify cell never ran — adjudicate that boundary here
+		// (a recorded goal_complete claim would otherwise stall forever).
+		if err := l.goalResumeCheck(ctx, ds, appendE); err != nil {
 			return RunResult{}, abort(ds.s.Session.GenStep, err)
 		}
 		act := decide(ds.s, l.Spec.MaxGenerationSteps)
@@ -1368,6 +1380,18 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 		}
 		if p.call.Name == "publish_artifact" {
 			run = l.buildPublishRun(p.call, p.res, serialAppend)
+		}
+		if p.call.Name == "goal_status" || p.call.Name == "goal_complete" {
+			// Goal tools read the fold snapshot taken NOW, on the drive
+			// goroutine (same discipline as handle tools); goal_complete
+			// journals its claim through serialAppend.
+			call := p.call
+			res := p.res
+			goalSnap := snapshotGoal(ds.s.Goal)
+			run = func(context.Context) (json.RawMessage, *provider.Usage, bool, error) {
+				*res = l.runGoalTool(goalSnap, call.Name, call.Args, serialAppend)
+				return res.Payload, nil, res.IsError, nil
+			}
 		}
 		if isHandleTool(p.call.Name) {
 			// Task tools read the fold snapshot taken NOW, on the drive

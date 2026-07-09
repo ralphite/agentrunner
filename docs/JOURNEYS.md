@@ -244,15 +244,16 @@ GAPS.md，本文件只回答"产品要做什么"。
 
 **覆盖功能**：`子 session 崩溃自动恢复(restart=resume)` `失败升级策略(retry/surface)` `重启接续扫描(boot sweep)` `kill/crash 语义分野(自动路径不越标记)` `crash resume` `全程审计`
 
-### UJ-22 会话内目标（goal 挂在当前会话） `进阶` `✅ INC-D1（2026-07-09）`
+### UJ-22 会话内目标（goal 挂在当前会话） `进阶` `✅ INC-D1+INC-10（2026-07-09）`
 **场景**：聊着聊着升级成"必须做到"——目标不离开正在进行的对话。
-> **实现（INC-D1）**：`ar goal <sid> attach "<goal>" --verify "<cmd>" [--max-checks N]`
+> **实现（INC-D1）**：`ar goal <sid> attach "<goal>" [--verify "<cmd>"] [--max-checks N]`
 > + pause/resume/update/cancel。goal 挂在 conversational session 的 Goal 子
-> 状态；`goal_verify` 在静止序列跑 verifier，miss 回灌 program 输入让**同一
+> 状态；`goal_verify` 在静止序列跑完成裁决，miss 回灌 program 输入让**同一
 > fold** 续跑，pass 出达成回执并摘 goal，预算尽=可见截断。决策 #21/§13 走
 > 不变量变更流程拆两形态。步骤 3（steer 与 goal 并行）随既有插话排队天然
-> 成立；llm_judge/human verifier 与 token/墙钟预算列 v0 余项（命令 verifier
-> + max_checks 已覆盖 UJ-22 主场景）。真验 QA-16。
+> 成立。**INC-10**：无 verifier 的 goal = 自证完成（步骤 2b），miss 回灌
+> 升级为结构化 continuation，goal-* 控制对非 hosted 会话 revive；
+> llm_judge/human verifier 与 token/墙钟预算列余项。真验 QA-16 + QA-17。
 **硬性要求（原始需求，2026-07-05 补登记）：goal 的 context 必须延续
 ——不起新 session、不起 fresh run；割裂不可接受。**
 1. 用户在一个聊了半天的 session 里说："把这个 flaky test 修到连续
@@ -260,14 +261,23 @@ GAPS.md，本文件只回答"产品要做什么"。
 2. agent 干活；到了 final generation 该出现的点，runtime 先跑 verifier：
    不满足 → 失败输出作为程序来源的输入回灌，agent 在**同一上下文**
    继续（它记得此前对话里已排除过的方向，绝不从零开始）。
+2b. 目标写不成命令（"重构完所有 handler 并保持行为不变"）——不带
+   `--verify` 挂 goal（INC-10 自证形态）。agent 逐轮工作；每个静止边界
+   若无完成声明则回灌结构化 continuation（目标重述 + 反缩水条款 + 预算
+   报告）继续；agent 验证完成后调 `goal_complete`（带证据摘要）声明，
+   **裁决仍只在静止边界**：无 verifier → 接受声明达成；有 verifier →
+   verifier 仍是唯一裁决者（声明不越权）。
 3. 用户中途插话"注意别动 CI 配置"——steer 照常生效，goal 不中断。
 4. 用户可 pause（session 回普通待命，还能正常聊）、update（改验收：
-   20 次→50 次）、resume、cancel——全部是 control 输入，journal 留痕。
-5. verifier 通过 → goal 达成，回执入对话，session 回到普通待命续聊。
+   20 次→50 次；update 作废未决的完成声明）、resume、cancel——全部是
+   control 输入，journal 留痕。
+5. verifier 通过（或自证声明被边界接受）→ goal 达成，回执入对话，
+   session 回到普通待命续聊。
 6. 全程同一个 session、同一份上下文；上下文增长由 compaction 治理，
-   不以割裂换整洁。goal 级预算（轮数/token/墙钟）防失控。
+   不以割裂换整洁。goal 级预算（轮数/token/墙钟）防失控——自证形态
+   无声明时每边界同样计数，预算尽同样可见截断。
 
-**覆盖功能**：`会话内 goal(context 延续,硬性)` `verifier 在 final generation 处检查` `verifier 反馈回灌(程序发送方)` `goal 控制面(pause/update/cancel)` `steer 与 goal 并行` `goal 级预算` `goal 达成回执`
+**覆盖功能**：`会话内 goal(context 延续,硬性)` `完成裁决在静止边界(verifier 唯一裁决或自证声明)` `goal_complete 自证(模型工具面)` `结构化 continuation 回灌(程序发送方)` `goal 控制面(pause/update/cancel,非 hosted revive)` `steer 与 goal 并行` `goal 级预算` `goal 达成回执`
 
 ---
 

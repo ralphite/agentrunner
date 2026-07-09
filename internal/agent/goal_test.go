@@ -1,11 +1,14 @@
 package agent
 
 import (
+	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
+	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
 	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
@@ -196,6 +199,245 @@ func TestGoalRecover(t *testing.T) {
 		}
 		if ach := decodeGoalAchieved(t, es.Dir()); ach.Reason != "budget" {
 			t.Fatalf("recovered achieved reason = %q, want budget", ach.Reason)
+		}
+	})
+}
+
+// TestInSessionGoalSelfCertify is the INC-10 core proof: a goal WITHOUT a
+// command verifier is legal and completable — the boundary before any claim is
+// a miss whose feedback teaches the goal_complete path; the model's claim then
+// passes the next boundary as model-certified (GoalAchieved{satisfied}), all
+// on ONE continuing session.
+func TestInSessionGoalSelfCertify(t *testing.T) {
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		// turn 1 — the opening "first question".
+		{Respond: []scripted.Event{{Text: "starting"}, {Finish: "end_turn"}}},
+		// turn 2 — runs on the attached goal's statement; no claim yet → MISS.
+		{Respond: []scripted.Event{{Text: "working on it"}, {Finish: "end_turn"}}},
+		// turn 3 — runs on the continuation feedback; declares completion.
+		{Respond: []scripted.Event{
+			{ToolCall: &scripted.ToolCallEvent{CallID: "c1", Name: "goal_complete",
+				Args: map[string]any{"summary": "wrote the summary file and re-read it"}}},
+			{Finish: "tool_use"},
+		}},
+		// turn 3 cont — after the claim's tool result; boundary adjudicates.
+		{Respond: []scripted.Event{{Text: "declared done"}, {Finish: "end_turn"}}},
+	}}
+	es, inbox, controls, done := controlLoop(t, fix, 10)
+	waitForEvent(t, es, event.TypeAssistantMessage, 1)
+
+	controls <- protocol.Control{Kind: protocol.ControlGoalAttach, Goal: &protocol.GoalControl{
+		GoalID: "goal", Goal: "summarize the repo into notes.md",
+		Budget: &event.GoalBudget{MaxChecks: 5}, // NO verifiers: self-certified
+	}}
+
+	waitForEvent(t, es, event.TypeGoalAchieved, 1)
+	close(inbox)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+
+	checks := decodeGoalCheckpoints(t, es.Dir())
+	if len(checks) != 2 {
+		t.Fatalf("checkpoints = %d, want 2: %+v", len(checks), checks)
+	}
+	if checks[0].Pass || !checks[1].Pass {
+		t.Fatalf("checkpoint verdicts = [%v %v], want [miss pass]", checks[0].Pass, checks[1].Pass)
+	}
+	// The miss feedback must teach the completion path (the continuation).
+	if !strings.Contains(checks[0].Feedback, "goal_complete") {
+		t.Fatalf("miss feedback does not mention goal_complete:\n%s", checks[0].Feedback)
+	}
+	if !strings.Contains(checks[1].Detail, "model-certified") {
+		t.Fatalf("pass detail = %q, want model-certified", checks[1].Detail)
+	}
+	if n := countEvents(t, es.Dir(), event.TypeGoalCompletionClaimed); n != 1 {
+		t.Fatalf("GoalCompletionClaimed = %d, want 1", n)
+	}
+	if ach := decodeGoalAchieved(t, es.Dir()); ach.Reason != "satisfied" {
+		t.Fatalf("GoalAchieved.Reason = %q, want satisfied", ach.Reason)
+	}
+	// Context continuity: one session, no fresh child run.
+	if n := countEvents(t, es.Dir(), event.TypeSessionStarted); n != 1 {
+		t.Fatalf("SessionStarted = %d, want 1", n)
+	}
+}
+
+// TestInSessionGoalClaimDoesNotOverrideVerifier: with a command verifier the
+// verifier stays the SOLE judge — a goal_complete claim on a missing artifact
+// is rejected (annotated in the miss detail), and the budget truncation still
+// lands (决策 #31).
+func TestInSessionGoalClaimDoesNotOverrideVerifier(t *testing.T) {
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: "turn 1"}, {Finish: "end_turn"}}},
+		// turn 2 — claims completion though the verifier's file was never made.
+		{Respond: []scripted.Event{
+			{ToolCall: &scripted.ToolCallEvent{CallID: "c1", Name: "goal_complete",
+				Args: map[string]any{"summary": "done (it is not)"}}},
+			{Finish: "tool_use"},
+		}},
+		{Respond: []scripted.Event{{Text: "claimed"}, {Finish: "end_turn"}}},
+		// turn 3 — runs on the rejection feedback; still never makes the file.
+		{Respond: []scripted.Event{{Text: "still not making it"}, {Finish: "end_turn"}}},
+	}}
+	es, inbox, controls, done := controlLoop(t, fix, 10)
+	waitForEvent(t, es, event.TypeAssistantMessage, 1)
+	controls <- protocol.Control{Kind: protocol.ControlGoalAttach, Goal: &protocol.GoalControl{
+		GoalID: "goal", Goal: "make never.txt",
+		Verifiers: []event.GoalVerifier{{Kind: "command", Command: "test -f never.txt"}},
+		Budget:    &event.GoalBudget{MaxChecks: 2},
+	}}
+	waitForEvent(t, es, event.TypeGoalAchieved, 1)
+	close(inbox)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	checks := decodeGoalCheckpoints(t, es.Dir())
+	if len(checks) != 2 {
+		t.Fatalf("checkpoints = %d, want 2", len(checks))
+	}
+	for _, c := range checks {
+		if c.Pass {
+			t.Fatal("a checkpoint passed; the verifier never passes and the claim must not override it")
+		}
+	}
+	if !strings.Contains(checks[0].Detail, "completion claim rejected") {
+		t.Fatalf("first miss detail = %q, want the claim-rejected annotation", checks[0].Detail)
+	}
+	if ach := decodeGoalAchieved(t, es.Dir()); ach.Reason != "budget" {
+		t.Fatalf("GoalAchieved.Reason = %q, want budget", ach.Reason)
+	}
+}
+
+// TestInSessionGoalResumeContinues (INC-10 review P1): resuming a paused goal
+// on an idle session must RE-ARM the boundary discipline — the resume injects
+// a program input so the loop runs a turn and the next boundary adjudicates
+// (here: the verifier passes after the resumed turn creates the file).
+func TestInSessionGoalResumeContinues(t *testing.T) {
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: "turn 1"}, {Finish: "end_turn"}}},
+		// turn 2 — runs on the goal statement while the goal is already paused
+		// (attach+pause drain at the same safe point); boundary skips.
+		{Respond: []scripted.Event{{Text: "noted, goal is paused"}, {Finish: "end_turn"}}},
+		// turn 3 — runs on the resume re-injection; does the work.
+		{Respond: []scripted.Event{
+			{ToolCall: &scripted.ToolCallEvent{CallID: "b1", Name: "bash", Args: map[string]any{"command": "touch resumed.txt"}}},
+			{Finish: "tool_use"},
+		}},
+		{Respond: []scripted.Event{{Text: "done after resume"}, {Finish: "end_turn"}}},
+	}}
+	es, inbox, controls, done := controlLoop(t, fix, 10)
+	waitForEvent(t, es, event.TypeAssistantMessage, 1)
+	controls <- protocol.Control{Kind: protocol.ControlGoalAttach, Goal: &protocol.GoalControl{
+		GoalID: "goal", Goal: "create resumed.txt",
+		Verifiers: []event.GoalVerifier{{Kind: "command", Command: "test -f resumed.txt"}},
+		Budget:    &event.GoalBudget{MaxChecks: 5},
+	}}
+	controls <- protocol.Control{Kind: protocol.ControlGoalPause}
+	waitForEvent(t, es, event.TypeGoalPaused, 1)
+	controls <- protocol.Control{Kind: protocol.ControlGoalResume}
+	// The whole point: after resume the session must continue on its own and
+	// reach an adjudicated boundary — without any user send.
+	waitForEvent(t, es, event.TypeGoalAchieved, 1)
+	close(inbox)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if ach := decodeGoalAchieved(t, es.Dir()); ach.Reason != "satisfied" {
+		t.Fatalf("GoalAchieved.Reason = %q, want satisfied", ach.Reason)
+	}
+}
+
+// TestInSessionGoalNoVerifierBudget: a self-certified goal whose model never
+// claims completion still terminates — every boundary is a counted miss and
+// the check budget ends it with a visible truncation (决策 #31 preserved).
+func TestInSessionGoalNoVerifierBudget(t *testing.T) {
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: "turn 1"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "working 1"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "working 2"}, {Finish: "end_turn"}}},
+	}}
+	es, inbox, controls, done := controlLoop(t, fix, 10)
+	waitForEvent(t, es, event.TypeAssistantMessage, 1)
+	controls <- protocol.Control{Kind: protocol.ControlGoalAttach, Goal: &protocol.GoalControl{
+		GoalID: "goal", Goal: "a goal never claimed done",
+		Budget: &event.GoalBudget{MaxChecks: 2},
+	}}
+	waitForEvent(t, es, event.TypeGoalAchieved, 1)
+	close(inbox)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if n := countEvents(t, es.Dir(), event.TypeGoalCompletionClaimed); n != 0 {
+		t.Fatalf("GoalCompletionClaimed = %d, want 0", n)
+	}
+	if ach := decodeGoalAchieved(t, es.Dir()); ach.Reason != "budget" {
+		t.Fatalf("GoalAchieved.Reason = %q, want budget", ach.Reason)
+	}
+}
+
+// TestGoalResumeCheck proves the OTHER crash-window repair (INC-10 review
+// P1): a crash after a graceful turn end but BEFORE its goal checkpoint
+// resumes into an already-quiescent shape where the goal_verify cell never
+// runs — goalResumeCheck at the drive-loop safe point must adjudicate that
+// boundary (here: a recorded claim on a self-certified goal → achieved).
+func TestGoalResumeCheck(t *testing.T) {
+	newDS := func(t *testing.T, g *state.Goal) (*Loop, *driveState, *store.EventStore) {
+		es, err := store.OpenEventStore(filepath.Join(t.TempDir(), "s"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = es.Close() })
+		ds := &driveState{s: state.State{Goal: g}}
+		ds.s.Session.GenStep = 2
+		// The quiescent "completed" shape: a final assistant message with no
+		// tool calls and nothing after it.
+		ds.s.Conversation.Messages = []provider.Message{
+			{Role: provider.RoleUser, Parts: []provider.Part{{Kind: provider.PartText, Text: "go"}}},
+			{Role: provider.RoleAssistant, Parts: []provider.Part{{Kind: provider.PartText, Text: "done"}}},
+		}
+		return &Loop{Store: es, SessionID: "g"}, ds, es
+	}
+
+	t.Run("pending claim adjudicated on resume", func(t *testing.T) {
+		l, ds, es := newDS(t, &state.Goal{GoalID: "goal", Goal: "x",
+			Budget: event.GoalBudget{MaxChecks: 5}, Claimed: true, ClaimSummary: "did it"})
+		if err := l.goalResumeCheck(context.Background(), ds, l.appender(ds)); err != nil {
+			t.Fatal(err)
+		}
+		if ach := decodeGoalAchieved(t, es.Dir()); ach.Reason != "satisfied" {
+			t.Fatalf("GoalAchieved.Reason = %q, want satisfied", ach.Reason)
+		}
+		if ds.s.Goal != nil {
+			t.Fatal("goal not detached after the recovered adjudication")
+		}
+		// Idempotent: the goal is gone, a second pass is a no-op.
+		if err := l.goalResumeCheck(context.Background(), ds, l.appender(ds)); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("queued input defers to the live boundary", func(t *testing.T) {
+		l, ds, es := newDS(t, &state.Goal{GoalID: "goal", Goal: "x",
+			Budget: event.GoalBudget{MaxChecks: 5}, Claimed: true, ClaimSummary: "did it"})
+		ds.s.Conversation.Messages = append(ds.s.Conversation.Messages,
+			provider.Message{Role: provider.RoleUser, Parts: []provider.Part{{Kind: provider.PartText, Text: "more"}}})
+		if err := l.goalResumeCheck(context.Background(), ds, l.appender(ds)); err != nil {
+			t.Fatal(err)
+		}
+		if n := countEvents(t, es.Dir(), event.TypeGoalCheckpoint); n != 0 {
+			t.Fatalf("checkpointed despite a queued input: %d", n)
+		}
+	})
+
+	t.Run("already-checkpointed gen step is a no-op", func(t *testing.T) {
+		l, ds, es := newDS(t, &state.Goal{GoalID: "goal", Goal: "x",
+			Budget: event.GoalBudget{MaxChecks: 5}, Claimed: true, CheckpointedGenStep: 2})
+		if err := l.goalResumeCheck(context.Background(), ds, l.appender(ds)); err != nil {
+			t.Fatal(err)
+		}
+		if n := countEvents(t, es.Dir(), event.TypeGoalCheckpoint); n != 0 {
+			t.Fatalf("re-checkpointed an adjudicated gen step: %d", n)
 		}
 	})
 }
