@@ -16,9 +16,21 @@ system_prompt: 完成任务后用简洁的要点汇报结论。
 tools: [read_file, bash]
 `;
 
-export const DEFAULT_DRIVER = `name: reviewer-loop
-model: { provider: gemini, id: gemini-flash-latest, max_tokens: 4096 }
-system_prompt: 你在一个 plan/verify 迭代循环里工作,每轮推进并自检。
-tools: [read_file, write_file, bash]
+// A driver.yaml is NOT an agent spec — it references a child agent spec via
+// agent_spec (a sibling file) and carries the loop's task/verifiers/limits.
+export const DEFAULT_DRIVER = `name: progress-loop
+agent_spec: agent.yaml
+task: 在 workspace 的 progress.txt 里追加一行本轮进展(用 bash 或 write_file),不要重复上一行。
 max_iterations: 3
+verifiers:
+  - { kind: command, command: "test -f progress.txt" }
+`;
+
+// The child agent each iteration runs as. Written as the agent.yaml sibling.
+export const DEFAULT_DRIVER_AGENT = `name: worker
+model: { provider: gemini, id: gemini-flash-latest, max_tokens: 2048 }
+system_prompt: 你在一个迭代循环里工作,每轮把任务推进一小步并自检,简洁汇报本轮做了什么。
+tools: [read_file, write_file, bash]
+permissions:
+  - { action: allow }
 `;

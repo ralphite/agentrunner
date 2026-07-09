@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { AR } from "../api";
 import { useStore } from "../store";
 import type { SpecFile } from "../types";
-import { DEFAULT_DRIVER, DEFAULT_SPEC, DEFAULT_WORKER } from "../specs";
+import { DEFAULT_DRIVER, DEFAULT_DRIVER_AGENT, DEFAULT_SPEC, DEFAULT_WORKER } from "../specs";
 
 function Modal({
   title,
@@ -134,6 +134,7 @@ function RunModal({ initialTask }: { initialTask?: string }) {
   const [idem, setIdem] = useState("");
   const [spec, setSpec] = useState(DEFAULT_SPEC);
   const [driver, setDriver] = useState(DEFAULT_DRIVER);
+  const [driverAgent, setDriverAgent] = useState(DEFAULT_DRIVER_AGENT);
   const [busy, setBusy] = useState(false);
   const close = () => openModal(null);
 
@@ -143,7 +144,9 @@ function RunModal({ initialTask }: { initialTask?: string }) {
       const r = await AR.startRun({
         kind,
         spec: kind === "submit" ? spec : driver,
-        extraSpecs: [],
+        // drive needs the child agent spec as an agent.yaml sibling (driver's
+        // agent_spec field points at it); submit needs no sibling.
+        extraSpecs: kind === "drive" ? [{ name: "agent.yaml", content: driverAgent }] : [],
         task,
         workspace: ws.trim(),
         mode,
@@ -208,8 +211,15 @@ function RunModal({ initialTask }: { initialTask?: string }) {
         </>
       ) : (
         <>
-          <label className="field">driver.yaml(迭代驱动 spec)</label>
-          <textarea className="code" rows={12} value={driver} onChange={(e) => setDriver(e.target.value)} />
+          <label className="field">driver.yaml(迭代驱动 spec:agent_spec / task / verifiers)</label>
+          <textarea className="code" rows={8} value={driver} onChange={(e) => setDriver(e.target.value)} />
+          <label className="field">agent.yaml(每轮迭代跑的子 agent,被 driver 的 agent_spec 引用)</label>
+          <textarea
+            className="code"
+            rows={7}
+            value={driverAgent}
+            onChange={(e) => setDriverAgent(e.target.value)}
+          />
         </>
       )}
     </Modal>

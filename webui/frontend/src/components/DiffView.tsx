@@ -65,8 +65,9 @@ export function DiffView({ sid }: { sid: string }) {
       </div>
     );
 
-  const files = splitDiff(data.diff);
-  const empty = files.length === 0 && data.untracked.length === 0;
+  const files = splitDiff(data.diff || "");
+  const untracked = data.untracked || [];
+  const empty = files.length === 0 && untracked.length === 0;
 
   return (
     <div className="diffwrap">
@@ -78,13 +79,13 @@ export function DiffView({ sid }: { sid: string }) {
         </button>
       </div>
       {empty && <div className="dim" style={{ padding: 12 }}>工作区无改动。</div>}
-      {data.untracked.length > 0 && (
+      {untracked.length > 0 && (
         <div className="filediff">
           <div className="fd-head">
-            新文件 (untracked) · {data.untracked.length}
+            新文件 (untracked) · {untracked.length}
           </div>
           <div className="fd-body">
-            {data.untracked.map((f) => (
+            {untracked.map((f) => (
               <div className="dl add" key={f}>
                 + {f}
               </div>

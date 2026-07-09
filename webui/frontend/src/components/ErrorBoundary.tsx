@@ -1,0 +1,44 @@
+import { Component, type ReactNode } from "react";
+
+// ErrorBoundary keeps a single component's render error from unmounting the
+// whole cockpit to a blank screen. It resets when `resetKey` changes (e.g. on
+// navigating to a different session) so a bad view doesn't stick.
+interface Props {
+  resetKey: string;
+  children: ReactNode;
+}
+interface State {
+  error: Error | null;
+}
+
+export class ErrorBoundary extends Component<Props, State> {
+  state: State = { error: null };
+
+  static getDerivedStateFromError(error: Error): State {
+    return { error };
+  }
+
+  componentDidUpdate(prev: Props) {
+    if (prev.resetKey !== this.props.resetKey && this.state.error) {
+      this.setState({ error: null });
+    }
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="empty-hero">
+          <div className="big">⚠️</div>
+          <div>这个视图渲染出错了。</div>
+          <pre style={{ fontSize: 12, color: "var(--red)", whiteSpace: "pre-wrap", marginTop: 8 }}>
+            {String(this.state.error.message || this.state.error)}
+          </pre>
+          <button style={{ marginTop: 10 }} onClick={() => this.setState({ error: null })}>
+            重试
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
