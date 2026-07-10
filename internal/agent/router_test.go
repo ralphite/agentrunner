@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
+	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
 	"github.com/ralphite/agentrunner/internal/tool"
 	"github.com/ralphite/agentrunner/internal/workspace"
@@ -155,5 +157,65 @@ func TestUnderDir(t *testing.T) {
 		if got := underDir(c.path, c.dir); got != c.want {
 			t.Errorf("underDir(%q,%q)=%v want %v", c.path, c.dir, got, c.want)
 		}
+	}
+}
+
+// INC-12 review P1: a single unreadable/corrupt member journal must NOT abort
+// the whole tree host. reviveChild runs from drainRevives (error → drive
+// abort → teardown), so every child-journal read must skip softly.
+func TestReviveSoftSkipsUnreadableMember(t *testing.T) {
+	storeDir := t.TempDir()
+	es, err := store.OpenEventStore(storeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = es.Close() })
+	l := &Loop{Store: es, SessionID: "root", Spec: &AgentSpec{Name: "root"},
+		Router: NewTreeRouter("root", storeDir)}
+	l.revive = make(chan string, 4)
+	l.ensureBackground()
+
+	// A member dir with a CORRUPT journal (a complete garbage line) + mail.
+	childDir := filepath.Join(storeDir, "sub", "bad-a1")
+	if err := os.MkdirAll(childDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(childDir, "events.jsonl"),
+		[]byte("{not valid json at all}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.AppendInbox(childDir, protocol.UserInput{Text: "m", CommandID: "cm"}); err != nil {
+		t.Fatal(err)
+	}
+
+	ds := &driveState{s: state.New()}
+	appendE := func(typ string, p any) (event.Envelope, error) {
+		return l.Store.Append(event.Envelope{Type: typ, Payload: mustJSON(p)})
+	}
+	// Must return nil (soft skip), NOT an error that would abort the host.
+	if err := l.reviveChild(context.Background(), ds, appendE, "root-sub-bad-a1"); err != nil {
+		t.Fatalf("reviveChild on corrupt member returned error (would abort tree host): %v", err)
+	}
+	// No ChildRevived was journaled (skipped), and no revive re-enqueued.
+	evs, _ := store.ReadEvents(storeDir)
+	for _, e := range evs {
+		if e.Type == event.TypeChildRevived {
+			t.Fatal("corrupt member was revived")
+		}
+	}
+}
+
+// underDir must handle a MISSING leaf under a symlinked prefix (INC-12 review
+// P2): canonicalizing the existing ancestor keeps the comparison consistent.
+func TestUnderDirMissingLeaf(t *testing.T) {
+	base := t.TempDir() // on macOS this is under /var → /private/var symlink
+	// A path whose leaf does NOT exist but whose parent (base) does.
+	missing := filepath.Join(base, "sub", "gone-a1", "worktree")
+	if !underDir(missing, base) {
+		t.Errorf("underDir(missing-leaf, base)=false, want true (existing-ancestor canonicalization)")
+	}
+	// A genuinely outside missing path stays outside.
+	if underDir(filepath.Join(filepath.Dir(base), "elsewhere", "x"), base) {
+		t.Errorf("underDir(outside-missing, base)=true, want false")
 	}
 }

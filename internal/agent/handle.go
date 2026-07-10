@@ -135,13 +135,15 @@ func (l *Loop) settleBackground(appendE AppendFunc, out bgOutcome) error {
 		// Quiescence race close-out (INC-12.2): mail that landed while the
 		// child was on its way out (delivered to a port nobody was reading)
 		// is durable in its inbox — queue the revive now, after the receipt.
-		// ONLY after a SUCCESSFUL settle (INC-12 review P1): a FAILED revive
-		// (the child's Resume errored BEFORE consuming its mailbox — in-doubt,
-		// MCP drift, version mismatch) leaves the mail unconsumed, so
-		// re-enqueuing would hot-loop (re-host → fail → close-out → re-host …).
-		// A failed member's mail stays durable for the next restart scan or an
-		// explicit send once the root cause is fixed — never a busy loop.
-		if !out.isError && l.Router != nil && l.revive != nil && l.childHasMail(out.subagent.ChildSession) {
+		// ONLY when this round actually CONSUMED the mailbox (INC-12 review
+		// P1/P2): a Resume that errored BEFORE consuming (reason "error" —
+		// in-doubt, MCP drift, version mismatch) or a canceled child did not,
+		// so re-enqueuing would hot-loop (re-host → fail → close-out → …). A
+		// child that ran to quiescence (completed OR contract_violation) DID
+		// consume it, so a still-pending inbox reflects genuinely NEW mail
+		// worth waking. A failed member's mail stays durable for the next
+		// restart scan / explicit send once the root cause is fixed.
+		if reviveConsumedMailbox(out) && l.Router != nil && l.revive != nil && l.childHasMail(out.subagent.ChildSession) {
 			select {
 			case l.revive <- out.subagent.ChildSession:
 			default:
@@ -181,6 +183,18 @@ func (l *Loop) settleBackground(appendE AppendFunc, out bgOutcome) error {
 		}
 		return err
 	}
+}
+
+// reviveConsumedMailbox reports whether a settled revive actually consumed
+// its mailbox this round (INC-12 review P1/P2). A Resume that errored before
+// consuming (reason "error") or a canceled child did not — re-enqueuing them
+// would hot-loop. A child that ran to quiescence (completed / contract_violation)
+// consumed its mailbox, so a still-pending inbox is genuinely new mail.
+func reviveConsumedMailbox(out bgOutcome) bool {
+	if out.canceled || out.subagent == nil {
+		return false
+	}
+	return out.subagent.Reason != "error"
 }
 
 // drainCancels non-blockingly fires the cancel for every handle requested on

@@ -1540,3 +1540,39 @@ permission 加「命令粒度匹配」段。
 
 **余项**：参数级匹配 `Tool(param:value)`（#55）、path 规则 gitignore 风
 锚点增强（#54）——独立小增量。
+## 2026-07-09 INC-12 第三轮 review 收敛：relay 硬错误软跳 + fork 守卫加固
+
+第三轮双路 review（修复回归 + 最终整体扫）。整体扫结论 **P0=0/P1=0/P2=2**
+（判定 INC-12 已收敛、可交付）；修复回归路发现 **P1×1 + P2×2**（针对第二轮
+新修复），全部修复：
+
+- **P1 relay 中间父硬错误炸全树**：第二轮只软化了 relay **收件人** fold
+  的硬错误,但 `reviveChild` 对深层 relay 先 fold/取 spec/开 executor 的是
+  **first-hop 中间父**（本身也是 descendant）,这三处硬错误在收件人分支
+  **之前**触达 → `drainRevives` 上抛 → `drive` abort 整棵 tree host,一个
+  中间父 journal 坏行/缺 spec 就连累健康 sibling 停摆。修：`childFoldState`
+  /`childSpecFromJournal`/`childExecutorFromJournal`（非-foreign）三处 CHILD
+  journal 读全改 warn+return nil（best-effort per-member,只 PARENT 侧
+  appendE 失败才 fatal）。测 TestReviveSoftSkipsUnreadableMember（corrupt
+  member journal 不 abort host）。
+- **P2 underDir/sameDir symlink 非对称**：原来对每侧各自 EvalSymlinks、失败
+  保留字面值,当一侧 leaf 缺失 + 前缀含 symlink（macOS /var→/private/var 或
+  symlinked XDG_DATA_HOME）会把合法 isolated 子误判 foreign。修：引入
+  `canonical()` 解析**最长存在前缀**、保留缺失尾巴,两侧一致归一。测
+  TestUnderDirMissingLeaf。
+- **P2 热循环守卫过度抑制 contract_violation**：`!out.isError` 把
+  contract_violation（子**已消费** mailbox、静止时缺交付物违约的终态）的
+  竞态重入也掐掉,该终态若有并发新 mail 要等重启才醒。修：`reviveConsumedMailbox`
+  精确判定——只 reason=="error"（Resume 消费前失败）或 canceled 不重入,
+  completed/contract_violation 重入（TestSettleDoesNotReenqueueFailedRevive
+  仍守 error 不重入）。
+- **整体扫背书**：独立通读全部用户可达路径 + fold 纯度/崩溃恢复/幂等/预算/
+  安全地板逐条推演,前两轮 P0/P1 修复均代码到位+回归测试;QA-20 归档强证据
+  （child_revived=6、subagent_completed=8、每成员 session_started=1 context
+  延续、source:agent 存在、hello.py 产出）。两处剩余 P2 均记档/可选加固
+  （默认树预算无界=部署红线、live root 自身 inbox best-effort wake=可选薄层
+  加固,数据不丢）——不构成交付阻塞。
+
+**收敛判定**：三轮五视角对抗 review,累计 4 P0 + 7 P1 全修+回归测试,
+连续一轮（第三轮整体扫）无新 P0/P1;剩余 P2 记档。check.sh 全绿、-race
+干净。INC-12 达到可交付质量。

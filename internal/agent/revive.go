@@ -122,7 +122,14 @@ func (l *Loop) reviveChild(ctx context.Context, ds *driveState, appendE AppendFu
 	}
 	st, err := childFoldState(dir)
 	if err != nil {
-		return fmt.Errorf("revive %s: child fold: %w", child, err)
+		// A single unreadable/corrupt member journal must never abort the
+		// whole tree host (INC-12 review P1): reviveChild runs from
+		// drainRevives, whose error propagates to drive()→abort, tearing down
+		// every healthy sibling. All CHILD-journal reads here are best-effort
+		// per-member — skip softly, the mail stays durable. Only PARENT-side
+		// appendE failures (below) are fatal.
+		slog.Warn("revive skipped: member fold unreadable", "member", child, "err", err)
+		return nil
 	}
 	// The mail may be for CHILD itself (sid == child) or for a DEEPER
 	// descendant that only CHILD can re-host (sid != child). In the deep
@@ -189,7 +196,10 @@ func (l *Loop) reviveChild(ctx context.Context, ds *driveState, appendE AppendFu
 	cap := 0
 	spec, specErr := childSpecFromJournal(dir)
 	if specErr != nil {
-		return fmt.Errorf("revive %s: %w", child, specErr)
+		// Best-effort per-member read (see fold guard above): a corrupt /
+		// specless member journal skips softly, never aborts the tree host.
+		slog.Warn("revive skipped: member spec unreadable", "member", child, "err", specErr)
+		return nil
 	}
 	if spec.Budget.MaxTotalTokens > 0 {
 		cap = spec.Budget.MaxTotalTokens
@@ -208,7 +218,10 @@ func (l *Loop) reviveChild(ctx context.Context, ds *driveState, appendE AppendFu
 				"child", child)
 			return nil
 		}
-		return fmt.Errorf("revive %s: %w", child, err)
+		// Any other executor-open failure (unreadable journal, missing
+		// workspace) skips softly — a single member never aborts the host.
+		slog.Warn("revive skipped: member executor unavailable", "member", child, "err", err)
+		return nil
 	}
 	allowance := l.reviveAllowance(ds.s, cap, spent)
 	if allowance <= 0 {
@@ -422,35 +435,38 @@ func (l *Loop) childExecutorFromJournal(dir, session string) (*tool.Executor, er
 // P1). The automatic revive path refuses it; the durable mail is untouched.
 var errForeignWorkspace = errors.New("child workspace outside this session (fork provenance)")
 
-// sameDir reports whether two paths denote the same directory, canonicalizing
-// through EvalSymlinks (a journaled root may be un-normalized while the live
-// workspace root was canonicalized at open).
+// canonical resolves symlinks in the LONGEST EXISTING prefix of a path and
+// keeps the (possibly missing) tail. This canonicalizes both sides of a
+// comparison CONSISTENTLY even when one leaf is absent (INC-12 review P2):
+// plain EvalSymlinks on each side independently would mix a resolved
+// /private/var with a literal /var when one path's leaf is missing, and a
+// symlinked prefix (macOS /var→/private/var, or a symlinked XDG_DATA_HOME)
+// would then produce a spurious mismatch. Resolving the existing prefix
+// makes the comparison stable regardless of which leaves exist.
+func canonical(p string) string {
+	p = filepath.Clean(p)
+	if r, err := filepath.EvalSymlinks(p); err == nil {
+		return r
+	}
+	parent := filepath.Dir(p)
+	if parent == p {
+		return p // reached the root; nothing more to resolve
+	}
+	return filepath.Join(canonical(parent), filepath.Base(p))
+}
+
+// sameDir reports whether two paths denote the same directory (a journaled
+// root may be un-normalized while the live workspace root was canonicalized
+// at open).
 func sameDir(a, b string) bool {
-	ac := a
-	if r, err := filepath.EvalSymlinks(a); err == nil {
-		ac = r
-	}
-	bc := b
-	if r, err := filepath.EvalSymlinks(b); err == nil {
-		bc = r
-	}
-	return ac == bc
+	return canonical(a) == canonical(b)
 }
 
 // underDir reports whether path is dir or a descendant of it, canonicalizing
-// both through EvalSymlinks so /tmp vs /private/tmp (macOS) does not cause a
-// false negative. A path that cannot be resolved (e.g. a stale fork copy of a
-// deleted session) keeps its literal value — it will simply not match.
+// both consistently so /tmp vs /private/tmp (macOS) — or any symlinked prefix
+// — does not cause a false negative even when path's leaf is missing.
 func underDir(path, dir string) bool {
-	pc := path
-	if r, err := filepath.EvalSymlinks(path); err == nil {
-		pc = r
-	}
-	dc := dir
-	if r, err := filepath.EvalSymlinks(dir); err == nil {
-		dc = r
-	}
-	rel, err := filepath.Rel(dc, pc)
+	rel, err := filepath.Rel(canonical(dir), canonical(path))
 	if err != nil {
 		return false
 	}
