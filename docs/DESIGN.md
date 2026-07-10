@@ -992,6 +992,14 @@ limits:
   自家 API（Gemini 的 context caching / thinking config，Anthropic 的
   `cache_control` / extended thinking）。provider 用 `capabilities()`
   声明支持哪些能力，请求了不支持的能力时明确降级或报错，而不是静默忽略。
+- **原生结构化输出（INC-35，#91）**：`StructuredOutput` 能力位 + 请求的
+  `ResponseSchema`——provider 把一个**无 tools 的**轮的生成约束为符合该
+  schema 的 JSON（Gemini 的 `responseJsonSchema`；JSON mode 与 function
+  calling 互斥，故有 tools 的轮必须忽略 schema）。声明 `output_schema`
+  的 spec 是纯产出 agent：抑制自动加的工具面（send_message/spawn/goal…）
+  使轮真正 tool-less，原生约束才可达。无该能力的 provider（Anthropic）
+  由 loop 清空 schema，退回 INC-26 的 CLI 校验/重试——显式降级，不静默
+  假装约束了。
 - **能力契约是版本化事实**：`SessionStarted.provider_capabilities` 冻结
   schema version、provider/model、输入 modalities、stream/tool-call 核心能力
   与 thinking/cache/parallel 等可选能力；inspect 可见。它不把 provider

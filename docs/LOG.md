@@ -2293,3 +2293,34 @@ agent，让只读内置免逐名登记不拓宽*能力类别*，只免摩擦；o
 daemon-dispatch/消费侧，正是结构化应答要碰的层）——抢做会与 2U 冲突/
 双做，**避让**，SPRINT #10 备注标注待 HANDA 2U 落定后联动。#15 G22 boot
 sweep 与 webui 线 restart-safe Scheduled 重叠，亦避让。
+
+## 2026-07-10 INC-35 provider-native 结构化输出（SPRINT #8b，#91 余项）
+
+**动机**：INC-26 的 CLI --json-schema 走"校验+失败重发"；#8b 要 provider
+**约束生成**直接产合规 JSON 免 re-prompt。
+
+**关键工程发现（收窄范围）**：gemini `responseMimeType=application/json`+
+`responseJsonSchema` 与 `FunctionDeclarations`(tools) **互斥**——JSON mode
+强制整轮输出为一个 JSON 值,不能同轮 tool_call。故原生只作用于**无 tools
+的轮**。且 `--json-schema` 端到端需改 daemon.Command(HANDA 2U 重做中)→
+收窄为 **spec 级 output_schema**,拆 8c 避让。
+
+**落地**：CompleteRequest.ResponseSchema + Capabilities.StructuredOutput
+(additive)；gemini toConfig 在 schema+无 tools 时设 ResponseMIMEType+
+ResponseJsonSchema(genai raw-JSON 入口),有 tools 跳过；anthropic
+StructuredOutput=false(downgrade)；AgentSpec.OutputSchema(新类型 SchemaJSON:
+YAML map→JSON bytes——yaml.v3 无法把 !!map 塞进 json.RawMessage,兼 JSON
+round-trip 供 RoleSpec 冻结)；Assemble 下传；loop caps-downgrade 无原生则
+清空(CLI 兜底,不静默假约束)。
+
+**真机暴露的根因 + 修复**：QA-39 首跑模型返回带 ```json fences 的 JSON——
+原生**没生效**。根因:daemon-hosted session 有 Router→自动加 send_message
+到工具面,`len(Tools)==0` 门永不触发。修:声明 output_schema 的 spec = 纯
+产出 agent,**structuredOnly 抑制全部自动加工具**(send_message/spawn/goal/
+output/kill/notes),使 tool-less 轮可达。重跑 raw_json=True,裸 JSON
+{lines:5,name:report.txt}——原生约束真正生效,单轮无 re-prompt(对比 QA-33
+的 CLI 重试路径)。
+
+**双闸门**：孪生 gemini 5 + agent 5(含 structuredOnly 抑制自动工具的证明)。
+QA-39 真机 Gemini(私有新二进制 daemon)。拆 8c(--json-schema 端到端 +
+durable structured_output 事件,待 HANDA 2U 落定)。

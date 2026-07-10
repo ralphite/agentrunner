@@ -68,7 +68,8 @@
 | 7 | skill 模型侧 invoke（核心） | #45 · §3.5 | S | ✅ done (INC-20) | skill 工具按 name 返回 SKILL.md 正文；QA-29 真机；命令=用户宏裁决不动；fork 拆 7b |
 | 7b | context:fork（skill 在一次性子 agent 执行 = spawn_agent 变体） | #45 · §3.5 余项 | M | ✅ done (INC-31) | ingest 展开为 spawn_agent{role},动态角色全链复用,agents_dynamic 门控;QA-37 真机七红线;#45 收口;INC 号让路记 LOG |
 | 8 | 结构化输出（`ar run --json-schema`，provider JSON mode 能力位） | #91 | S | ✅ done (INC-26) | `ar new --json-schema`：CLI 层校验+失败重发+canonical structured_output;QA-33 真机;provider-native JSON mode 拆 8b |
-| 8b | provider-native JSON mode（gemini responseSchema 约束生成免 re-prompt）+ durable structured_output 事件 | #91 余项 | M | 🔧 in-progress (INC-35) | 收窄:spec output_schema+tool-less 轮下传(JSON mode 与 tools 互斥);--json-schema 端到端下传拆 8c(待 HANDA 2U) |
+| 8b | provider-native JSON mode（gemini responseSchema 约束生成免 re-prompt）+ durable structured_output 事件 | #91 余项 | M | ✅ done (INC-35) | spec output_schema→gemini 原生约束 tool-less 轮(structuredOnly 抑制自动工具使可达);QA-39 真机裸 JSON;anthropic downgrade;--json-schema 端到端下传拆 8c |
+| 8c | `ar new --json-schema` 端到端下传(改 daemon.Command)+ durable structured_output 事件 | #91 余项 | M | ⬜（避让） | INC-35 拆出;改 daemon.Command 与 HANDA 2U 重叠,待其落定 |
 | 9 | checkpoint 增强：barrier 打点密度提至每 turn 收尾 + "仅对话"fork 变体 + compact 范围指示（Summarize-from-here 等价） | #12/13 · §3.1 | M | ⬜ | §3.1 已论证不触不变量 |
 | 10 | ask_user 结构化选项（多选 + Other，向 AskUserQuestion 对齐） | #42 | S | ⬜（避让） | webui 审批 UI 可复用；**= HANDA #7,依赖其 2U 命令身份·撤销·应答统一设计单元**——避让待 HANDA 2U 落定后联动,勿抢做 |
 | 11 | read-before-edit 护栏（edit_file 要求本会话 Read 过且未变） | #32 | S | 📐 deferred (INC-21) | 实现易（sync.Map 护栏），但波及 ~10 scripted edit 测试需批量加 read 步骤（含 crash matrix 等核心）→ 测试适配成本 M，defer 专轮；设计+波及分析见 INC-21 |
@@ -96,6 +97,7 @@
 
 | 轮 | 日期 | 项 | 结果 | commit |
 |---|---|---|---|---|
+| 8b | 2026-07-10 | #8b provider-native JSON mode (INC-35) | ✅ 双闸门全绿(gemini 5 孪生 schema+无tools/有tools忽略/坏schema/能力位 + agent 5 孪生 Assemble下传/downgrade清空/保留/YAML加载/structuredOnly抑制自动工具 + QA-39 真 Gemini:output_schema+tools:[]单轮无re-prompt返裸JSON raw_json=True);关键修:daemon Router自动加send_message致tool-less门失效→structuredOnly抑制;--json-schema端到端拆8c避让HANDA 2U | (见 push) |
 | 16b | 2026-07-10 | #16b 内置默认可用 (INC-34) | 📐 变更单:内置只读 agent 默认可用触多 agent 面永不静默变宽;三选推荐 B(已声明 spawn 面→内置隐式在册免逐名登记,空 agents+非 dynamic 的 opt-out 者硬边界守住)+ builtin_agents 逃生口;#10 本轮避让(=HANDA #7 依赖其 2U 设计单元,防双做);待用户裁 | (见 push) |
 | 13 | 2026-07-10 | #13 Read 工具多模态 (INC-33) | ✅ 双闸门全绿（tool 5 测 envelope/PDF/文本零变化/裸executor/上限 + agent 2 测门控矩阵/scripted 端到端 journal 无字节·CAS 精确·第二请求含 inflate image part + QA-38 真 Gemini 四红线:模型从像素读出截图内容、journal 最长行 2056B）；复用 INC-9 全管线零新事件 | (见 push) |
 | 18 | 2026-07-10 | #18 auto mode 设计稿 (INC-32) | 📐 设计轮:分类器作为 permission 关卡新 policy 源——只接手 would-ask、黑白名单兜底、故障回 Ask(fail-closed 不变式)、连拒 3 次回退、headless 分类器过筛后仍 ask→deny(#34 底线不动);judge 判定 journaled(反超对方);实施拆 32a/32b/32c;六裁决点待用户 | (见 push) |
