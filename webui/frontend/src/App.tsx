@@ -11,6 +11,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { CommandPalette } from "./components/CommandPalette";
 import { Shortcuts } from "./components/Shortcuts";
 import { requestNotifyPermission } from "./notify";
+import { quickSwitchTasks } from "./viewModels";
 import { SidebarSimple } from "@phosphor-icons/react";
 
 export function App() {
@@ -53,6 +54,19 @@ export function App() {
       if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
         e.preventDefault();
         useStore.getState().selectAdjacent(e.key === "ArrowDown" ? 1 : -1);
+        return;
+      }
+      // ⌘1..⌘9 (Ctrl elsewhere) jump straight to a recent task — the same list
+      // and order as the command palette's ⌘-digit badges (INC-41 W8). Works
+      // globally and while the palette is open; closes the palette on jump.
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key >= "1" && e.key <= "9") {
+        const state = useStore.getState();
+        const target = quickSwitchTasks(state.sessions, { archived: state.archived })[Number(e.key) - 1];
+        if (target) {
+          e.preventDefault();
+          setPalette(false);
+          state.select(target.id);
+        }
         return;
       }
       // ⌘B / Ctrl-B shows or hides the sidebar (Codex's Toggle sidebar).

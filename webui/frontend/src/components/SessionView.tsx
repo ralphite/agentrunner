@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowClockwise, ArrowLeft, Check, DotsThree, Files, Folder, Stop, UsersThree } from "@phosphor-icons/react";
+import { ArrowClockwise, ArrowLeft, Check, CheckCircle, Crosshair, DotsThree, Files, Folder, Pause, PencilSimple, Play, Prohibit, Stop, Trash, UsersThree, WarningCircle, X } from "@phosphor-icons/react";
 import { AR } from "../api";
 import { useStore } from "../store";
 import type { Envelope, Task } from "../types";
-import { foldEvents, type ApprovalRef } from "../timeline";
+import { deriveGoalState, foldEvents, formatElapsed, isGoalTerminal, type ApprovalRef, type GoalDerived } from "../timeline";
 import { TimelineView } from "./Timeline";
 import { ApprovalCard } from "./ApprovalCard";
 import { Composer } from "./Composer";
@@ -177,6 +177,7 @@ export function SessionView({ sid }: { sid: string }) {
     setUsage(null);
     setChildren([]);
     setGoal(null);
+    setGoalDismissedAt(null);
     setInspectReady(false);
     poll();
     const e = setInterval(poll, 1000);
@@ -225,6 +226,24 @@ export function SessionView({ sid }: { sid: string }) {
   }, [sid, isSub, poll, pollTasks]);
 
   const folded = useMemo(() => foldEvents(events), [events]);
+
+  // Goal banner (W6): derive the goal's lifecycle from the durable journal so a
+  // settled goal keeps a terminal banner instead of vanishing (inspect drops
+  // it once done). A live clock ticks the active elapsed; a terminal banner is
+  // dismissable as pure view state (keyed by the settlement time, so a NEW goal
+  // re-shows and a page refresh reproduces it — no persistence).
+  const goalState = useMemo(() => deriveGoalState(events), [events]);
+  const goalTerminal = goalState ? isGoalTerminal(goalState.phase) : false;
+  const [now, setNow] = useState(() => Date.now());
+  const [goalDismissedAt, setGoalDismissedAt] = useState<number | null>(null);
+  useEffect(() => {
+    if (!goalState || goalTerminal) return;
+    setNow(Date.now());
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [goalState?.phase, goalState?.attachedAt, goalTerminal]);
+  const goalAction = (action: "pause" | "resume" | "cancel") =>
+    AR.goal(sid, { action }).then(() => pollTasks()).catch((e) => toast(e.message));
 
   // Open approvals = journal asks not yet resolved + SSE-only child asks.
   const openApprovals: (ApprovalRef & { agent?: string; viaSSE?: boolean; session?: string })[] = [];
@@ -548,6 +567,19 @@ export function SessionView({ sid }: { sid: string }) {
                   <ChangesOutcome sid={sid} refreshKey={events.length} onReview={() => setView("diff")} />
                 ) : undefined}
               />
+              {!isSub && goalState && (!goalTerminal || goalDismissedAt !== goalState.endedAt) && (
+                <GoalBanner
+                  state={goalState}
+                  elapsedMs={goalTerminal ? goalState.elapsedMs : goalState.attachedAt !== undefined ? now - goalState.attachedAt : undefined}
+                  editing={goalEdit}
+                  onEditStart={() => setGoalEdit(goalState.goal)}
+                  onEditChange={setGoalEdit}
+                  onSave={saveGoalEdit}
+                  onDiscard={() => setGoalEdit(null)}
+                  onAction={goalAction}
+                  onDismiss={() => setGoalDismissedAt(goalState.endedAt ?? -1)}
+                />
+              )}
               {isDriver && <div className="driver-note">This scheduled run manages its own iterations and does not accept follow-up messages.</div>}
               {!isSub && !isDriver && (
                 <Composer
@@ -595,6 +627,103 @@ export function SessionView({ sid }: { sid: string }) {
           />
         )}
       </div>
+    </div>
+  );
+}
+
+// GoalBanner is the persistent goal strip above the composer (W6). While active
+// it shows the goal, a live elapsed clock, and edit/pause/cancel actions; once
+// the goal settles it becomes a terminal banner (complete / stopped / cancelled)
+// with total elapsed and a single dismiss. Codex form: ◎ Goal · text · elapsed.
+const GOAL_TERMINAL_META: Record<string, { cls: string; label: string; sub?: string }> = {
+  achieved: { cls: "done", label: "Goal complete" },
+  stopped: { cls: "stopped", label: "Goal stopped", sub: "check budget exhausted" },
+  cancelled: { cls: "cancelled", label: "Goal cancelled" },
+};
+
+function GoalBanner({
+  state,
+  elapsedMs,
+  editing,
+  onEditStart,
+  onEditChange,
+  onSave,
+  onDiscard,
+  onAction,
+  onDismiss,
+}: {
+  state: GoalDerived;
+  elapsedMs?: number;
+  editing: string | null;
+  onEditStart: () => void;
+  onEditChange: (value: string) => void;
+  onSave: () => void;
+  onDiscard: () => void;
+  onAction: (action: "pause" | "resume" | "cancel") => void;
+  onDismiss: () => void;
+}) {
+  const terminal = GOAL_TERMINAL_META[state.phase];
+  const elapsed = elapsedMs !== undefined ? formatElapsed(elapsedMs) : undefined;
+
+  if (terminal) {
+    const checks = state.phase !== "cancelled" && state.checks > 0
+      ? `${state.checks} check${state.checks === 1 ? "" : "s"}`
+      : undefined;
+    return (
+      <div className={`gbar ${terminal.cls}`} role="status">
+        <span className="gbar-ico">
+          {state.phase === "achieved" ? <CheckCircle size={16} weight="fill" /> : state.phase === "stopped" ? <WarningCircle size={16} weight="fill" /> : <Prohibit size={16} />}
+        </span>
+        <span className="gbar-label">{terminal.label}</span>
+        {terminal.sub && <span className="gbar-sub">· {terminal.sub}</span>}
+        <span className="gbar-text" title={state.goal}>{state.goal}</span>
+        <span className="gbar-meta">
+          {checks && <span>{checks}</span>}
+          {elapsed && <span>{elapsed}</span>}
+        </span>
+        <button className="gbar-btn" onClick={onDismiss} title="Dismiss" aria-label="Dismiss goal banner">
+          <X size={15} />
+        </button>
+      </div>
+    );
+  }
+
+  const paused = state.phase === "paused";
+  return (
+    <div className={`gbar${paused ? " paused" : ""}`} role="status">
+      <span className="gbar-ico"><Crosshair size={16} /></span>
+      <span className="gbar-label">Goal{paused ? " · paused" : ""}</span>
+      {editing === null ? (
+        <span className="gbar-text" title={state.goal}>{state.goal}</span>
+      ) : (
+        <input
+          className="gbar-input"
+          autoFocus
+          value={editing}
+          onChange={(e) => onEditChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onSave();
+            if (e.key === "Escape") onDiscard();
+          }}
+        />
+      )}
+      {editing === null && elapsed && <span className="gbar-meta"><span>{elapsed}</span></span>}
+      <span className="gbar-actions">
+        {editing === null ? (
+          <>
+            <button className="gbar-btn" onClick={onEditStart} title="Edit goal" aria-label="Edit goal"><PencilSimple size={15} /></button>
+            <button className="gbar-btn" onClick={() => onAction(paused ? "resume" : "pause")} title={paused ? "Resume goal" : "Pause goal"} aria-label={paused ? "Resume goal" : "Pause goal"}>
+              {paused ? <Play size={15} weight="fill" /> : <Pause size={15} weight="fill" />}
+            </button>
+            <button className="gbar-btn danger" onClick={() => onAction("cancel")} title="Cancel goal" aria-label="Cancel goal"><Trash size={15} /></button>
+          </>
+        ) : (
+          <>
+            <button className="gbar-btn text" onClick={onSave}>Save</button>
+            <button className="gbar-btn text" onClick={onDiscard}>Discard</button>
+          </>
+        )}
+      </span>
     </div>
   );
 }

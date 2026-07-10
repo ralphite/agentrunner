@@ -48,6 +48,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     title: "Global",
     items: [
       { keys: ["mod", "K"], label: "Command palette", desc: "Search sessions and run commands" },
+      { keys: ["mod", "1", "…", "9"], label: "Jump to recent task", desc: "⌘1–⌘9 open the matching recent task" },
       { keys: ["mod", "alt", "up"], label: "Previous task", desc: "Select the task above in the sidebar" },
       { keys: ["mod", "alt", "down"], label: "Next task", desc: "Select the task below in the sidebar" },
       { keys: ["mod", "F"], label: "Find in conversation", desc: "Search the current task's messages" },

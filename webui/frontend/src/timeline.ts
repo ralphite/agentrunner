@@ -563,3 +563,105 @@ export function foldEvents(events: Envelope[]): Folded {
 
   return { items, approvals, callArgs, status, lastGen, active, isDriver };
 }
+
+// ---- goal lifecycle projection (W6) -----------------------------------------
+// The inspect projection drops a goal once it settles, so an achieved/cancelled
+// goal simply vanishes from the banner. deriveGoalState folds the durable
+// goal_* journal events instead, so the banner can persist a terminal state
+// and compute elapsed from the goal_attached → goal_achieved/cancelled span.
+export type GoalPhase = "active" | "paused" | "achieved" | "stopped" | "cancelled";
+
+export interface GoalDerived {
+  phase: GoalPhase;
+  goal: string;
+  checks: number; // checks recorded so far (running) or at settlement
+  maxChecks?: number;
+  verifiers?: number; // 0 / null → self-certified
+  attachedAt?: number; // ms epoch of goal_attached
+  endedAt?: number; // ms epoch of the terminal event (terminal phases only)
+  // Total elapsed for a settled goal (endedAt − attachedAt). Undefined while
+  // active — the banner ticks a live clock from attachedAt instead.
+  elapsedMs?: number;
+}
+
+const GOAL_TERMINAL: Record<string, true> = { achieved: true, stopped: true, cancelled: true };
+
+// A phase is terminal when the goal has settled (nothing more will happen).
+export function isGoalTerminal(phase: GoalPhase): boolean {
+  return GOAL_TERMINAL[phase] === true;
+}
+
+const asMs = (ts?: string): number | undefined => {
+  if (!ts) return undefined;
+  const t = new Date(ts).getTime();
+  return Number.isFinite(t) ? t : undefined;
+};
+
+// deriveGoalState replays the goal_* events into a single current state. A
+// later goal_attached fully supersedes an earlier (settled) goal. Returns null
+// when the session never carried a goal.
+export function deriveGoalState(events: Envelope[]): GoalDerived | null {
+  let state: GoalDerived | null = null;
+  for (const env of events) {
+    const p = env.payload || {};
+    switch (env.type) {
+      case "goal_attached":
+        state = {
+          phase: "active",
+          goal: p.goal || "",
+          checks: 0,
+          maxChecks: p.budget?.max_checks ?? p.max_checks,
+          verifiers: p.verifiers ?? undefined,
+          attachedAt: asMs(env.ts),
+        };
+        break;
+      case "goal_updated":
+        if (state && p.goal) state.goal = p.goal;
+        break;
+      case "goal_paused":
+        if (state && !isGoalTerminal(state.phase)) state.phase = "paused";
+        break;
+      case "goal_resumed":
+        if (state && !isGoalTerminal(state.phase)) state.phase = "active";
+        break;
+      case "goal_checkpoint":
+        // `check` is the running check ordinal; track the highest seen so an
+        // active banner can show progress before settlement.
+        if (state && typeof p.check === "number") state.checks = Math.max(state.checks, p.check);
+        break;
+      case "goal_cancelled":
+        if (state) {
+          state.phase = "cancelled";
+          state.endedAt = asMs(env.ts);
+        }
+        break;
+      case "goal_achieved":
+        if (state) {
+          // reason=budget is a visible STOP (budget ran out, not verified);
+          // reason=cancelled is a detach; anything else is a real success.
+          state.phase = p.reason === "budget" ? "stopped" : p.reason === "cancelled" ? "cancelled" : "achieved";
+          if (typeof p.checks === "number") state.checks = p.checks;
+          state.endedAt = asMs(env.ts);
+        }
+        break;
+    }
+  }
+  if (state && isGoalTerminal(state.phase) && state.attachedAt !== undefined && state.endedAt !== undefined) {
+    state.elapsedMs = Math.max(0, state.endedAt - state.attachedAt);
+  }
+  return state;
+}
+
+// formatElapsed renders a goal's running/total time. Under an hour it's mm:ss
+// (00:00 padded); an hour or more switches to "Xh Ym" (Codex's coarse form).
+export function formatElapsed(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(total / 3600);
+  if (h >= 1) {
+    const m = Math.floor((total % 3600) / 60);
+    return `${h}h ${m}m`;
+  }
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}

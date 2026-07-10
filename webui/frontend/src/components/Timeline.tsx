@@ -1,9 +1,10 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowSquareOut, CaretRight, Check, Circle, Copy, File, ImageSquare, Robot, X } from "@phosphor-icons/react";
+import { ArrowSquareOut, CaretDown, CaretRight, Check, Circle, Copy, File, ImageSquare, Robot, X } from "@phosphor-icons/react";
 import { completedTurnDurations, foldWork, formatWorkDuration, type RenderNode, type TimelineItem, type ToolItem, type WorkFold } from "../timeline";
 import { Markdown } from "./Markdown";
 import { copyText } from "../clipboard";
 import { uploadURL } from "../api";
+import { Lightbox } from "./Lightbox";
 
 // absTime renders an event timestamp for hover titles: local, second-precise.
 function absTime(ts?: string): string | undefined {
@@ -23,12 +24,33 @@ function shortTime(ts?: string): string | null {
 
 // Thumbs renders locally-known upload paths as inline image previews (the
 // journal only stores CAS refs, so these exist for messages sent from this tab).
+// Clicking a thumbnail opens the group in the full-screen Lightbox (W9), where
+// arrow keys page across the group's images.
 function Thumbs({ paths }: { paths: string[] }) {
+  const [lightbox, setLightbox] = useState<number | null>(null);
   return (
     <div className="thumbs">
       {paths.map((p, i) => (
-        <img className="thumb" key={i} src={uploadURL(p)} alt="" />
+        <img
+          className="thumb"
+          key={i}
+          src={uploadURL(p)}
+          alt=""
+          role="button"
+          tabIndex={0}
+          title="View image"
+          onClick={() => setLightbox(i)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setLightbox(i);
+            }
+          }}
+        />
       ))}
+      {lightbox !== null && (
+        <Lightbox images={paths} index={lightbox} onIndex={setLightbox} onClose={() => setLightbox(null)} />
+      )}
     </div>
   );
 }
@@ -425,6 +447,9 @@ export function TimelineView({
     : items.filter((it) => it.kind !== "sys" && it.kind !== "turn" && it.kind !== "runtime");
   const ref = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
+  // W10: floating jump-to-bottom control once the reader scrolls up (Codex
+  // shows the same affordance on long threads).
+  const [showJump, setShowJump] = useState(false);
   const durations = completedTurnDurations(visible, active);
   // W2: settled turns collapse their work behind "Worked for N ⌄"; the
   // developer (showSys) view stays flat and raw.
@@ -438,7 +463,16 @@ export function TimelineView({
   const onScroll = () => {
     const el = ref.current;
     if (!el) return;
-    stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    stick.current = nearBottom;
+    setShowJump(!nearBottom);
+  };
+
+  const jumpToBottom = () => {
+    const el = ref.current;
+    if (!el) return;
+    stick.current = true;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   };
 
   return (
@@ -475,6 +509,11 @@ export function TimelineView({
         ))}
         {!active && !typing && pending.length === 0 && outcomeSlot}
       </div>
+      {showJump && (
+        <button type="button" className="tl-jump" onClick={jumpToBottom} title="Jump to latest" aria-label="Jump to latest">
+          <CaretDown size={16} />
+        </button>
+      )}
     </div>
   );
 }

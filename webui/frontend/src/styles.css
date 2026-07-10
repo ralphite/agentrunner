@@ -737,6 +737,27 @@ a:hover {
   margin: 0 auto;
   padding: 0 22px;
 }
+/* W10: floating jump-to-latest — sticky so it rides the scroller's bottom
+   edge without occupying feed space (negative margin swallows its height). */
+.tl-jump {
+  position: sticky;
+  bottom: 14px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin: -32px auto 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--panel);
+  color: var(--ink-2);
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+.tl-jump:hover {
+  background: var(--panel-2);
+  color: var(--ink);
+}
 .turn {
   display: flex;
   align-items: center;
@@ -1548,9 +1569,22 @@ label.field {
   overflow-x: auto;
 }
 .dl {
-  padding: 0 12px;
-  white-space: pre;
+  display: grid;
+  grid-template-columns: 3.2em 3.2em 1fr;
   line-height: 1.5;
+}
+.dl-no {
+  text-align: right;
+  padding-right: 8px;
+  color: var(--dim);
+  opacity: 0.65;
+  font-size: 11px;
+  line-height: inherit;
+  user-select: none;
+}
+.dl-text {
+  white-space: pre;
+  padding-right: 12px;
 }
 .dl.add {
   background: color-mix(in srgb, var(--green) 12%, transparent);
@@ -1560,12 +1594,29 @@ label.field {
   background: color-mix(in srgb, var(--red) 12%, transparent);
   color: var(--red);
 }
-.dl.hunk {
+/* hunk separator — quiet divider with the @@ context, not a raw diff line */
+.dl-hunk {
+  padding: 3px 12px 3px 14px;
   background: var(--blue-soft);
   color: var(--blue);
+  font-size: 11px;
+  border-top: 1px solid var(--line-2);
+  border-bottom: 1px solid var(--line-2);
+  white-space: pre;
 }
-.dl.meta {
+.fd-dir {
   color: var(--dim);
+  font-weight: 400;
+}
+.fd-badge {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--dim);
+  font-size: 10.5px;
+  font-weight: 500;
 }
 /* per-file collapsible header (Codex-style diff review) */
 summary.fd-head {
@@ -3139,6 +3190,14 @@ summary.fd-head:hover {
 .status-dot.failed { background: var(--status-failed); }
 .status-dot.closed,
 .status-dot.stopped { background: var(--status-terminal); }
+/* W10: sidebar rows only badge what needs the eye — running pulse, attention,
+   unread, failure. Settled/terminal tasks drop their dot (Codex parity); the
+   hover preview keeps the dot+label pair for every status. */
+.project-task .status-dot.done,
+.project-task .status-dot.closed,
+.project-task .status-dot.stopped {
+  display: none;
+}
 .task-pin,
 .task-archive,
 .task-open {
@@ -3904,3 +3963,266 @@ summary.fd-head:hover {
 @media (max-width: 520px) {
   .home-hero-icon { width: 46px; height: 46px; margin-bottom: 12px; }
 }
+
+/* ===== INC-41 W6/W9 ===== */
+
+/* W6 — goal banner: a persistent strip above the composer. Active state carries
+   a violet accent, a live elapsed clock, and edit/pause/cancel actions; a
+   settled goal switches to a terminal tone (green complete / amber stopped /
+   dim cancelled) with total elapsed and a single dismiss. All colors come from
+   the theme tokens, so light and dark both work. */
+.gbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 760px;
+  border-top: 1px solid var(--line);
+  font-size: 12.5px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--violet) 8%, var(--panel));
+}
+.gbar.paused { opacity: 0.72; }
+.gbar.done { background: color-mix(in srgb, var(--green) 10%, var(--panel)); }
+.gbar.stopped { background: color-mix(in srgb, var(--amber) 12%, var(--panel)); }
+.gbar.cancelled { background: var(--panel-2); color: var(--dim); }
+.gbar-ico { display: inline-flex; color: var(--violet); flex: 0 0 auto; }
+.gbar.done .gbar-ico { color: var(--green); }
+.gbar.stopped .gbar-ico { color: var(--amber); }
+.gbar.cancelled .gbar-ico { color: var(--dim); }
+.gbar-label { font-weight: 600; white-space: nowrap; flex: 0 0 auto; }
+.gbar-sub { color: var(--dim); white-space: nowrap; flex: 0 0 auto; }
+.gbar-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dim);
+}
+.gbar.cancelled .gbar-text { color: var(--dim); }
+.gbar-meta { display: inline-flex; gap: 6px; flex: 0 0 auto; color: var(--dim); }
+.gbar-meta > span { white-space: nowrap; }
+.gbar-meta > span + span::before { content: "· "; }
+.gbar-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12.5px;
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel);
+  color: var(--ink);
+}
+.gbar-actions { display: inline-flex; gap: 2px; flex: 0 0 auto; }
+.gbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+}
+.gbar-btn:hover { border-color: var(--line); background: var(--panel); color: var(--ink); }
+.gbar-btn.danger:hover { color: var(--red); }
+.gbar-btn.text { padding: 3px 9px; font-size: 11.5px; font-weight: 600; }
+.gbar-btn.text:hover { color: var(--ink); }
+
+/* W9 — image lightbox: a full-screen dark overlay with the image centered, a
+   top-right download/close, prev/next arrows for multi-image groups, and a
+   bottom zoom bar. Portalled to <body>, so it floats above everything. */
+.thumb { cursor: zoom-in; }
+.thumb:focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(2px);
+}
+.lightbox:focus { outline: none; }
+.lb-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px;
+  z-index: 2;
+}
+.lb-spacer { flex: 1 1 auto; }
+.lb-count { color: rgba(255, 255, 255, 0.85); font-size: 13px; font-variant-numeric: tabular-nums; }
+.lb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  cursor: pointer;
+  text-decoration: none;
+}
+.lb-btn:hover { background: rgba(255, 255, 255, 0.24); }
+.lb-btn:disabled { opacity: 0.4; cursor: default; background: rgba(255, 255, 255, 0.12); }
+.lb-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  cursor: pointer;
+  z-index: 2;
+}
+.lb-nav:hover { background: rgba(255, 255, 255, 0.24); }
+.lb-nav.prev { left: 20px; }
+.lb-nav.next { right: 20px; }
+.lb-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 64px 72px;
+  overflow: auto;
+}
+.lb-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  transform-origin: center center;
+  transition: transform 0.12s ease;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+}
+.lb-zoom {
+  position: absolute;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 11px;
+  background: rgba(30, 30, 34, 0.9);
+  z-index: 2;
+}
+.lb-pct {
+  min-width: 46px;
+  text-align: center;
+  color: #fff;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 520px) {
+  .lb-stage { padding: 56px 20px; }
+  .lb-nav.prev { left: 8px; }
+  .lb-nav.next { right: 8px; }
+}
+
+/* ===== INC-41 W7/W8 ===== */
+
+/* W7 — Scheduled toolbar: search box + All / Active / Completed filter tabs. */
+.sched-toolbar {
+  max-width: 980px;
+  margin: 0 auto 6px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.sched-search {
+  flex: 1;
+  min-width: 190px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--dim);
+}
+.sched-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+}
+.sched-search input:focus { border: 0; outline: none; }
+.sched-tabs {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.sched-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  color: var(--dim);
+  border-radius: 7px;
+  padding: 6px 12px;
+  font-size: 12.5px;
+}
+.sched-tab.on {
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.sched-tab-count {
+  font-size: 11px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+.sched-tab.on .sched-tab-count { color: var(--ink-2); }
+/* Status label picks up the same semantic colour as its dot for the states
+   that need the user, so an attention row reads at a glance (Iteration limit
+   reached, Needs approval, Needs recovery, Failed). */
+.scheduled-status.appr,
+.scheduled-status.stranded { color: var(--status-attention); }
+.scheduled-status.crash { color: var(--status-failed); }
+.scheduled-status.run { color: var(--status-running); }
+
+/* W8 — command-palette ⌘1..9 quick-switch badge on recent-task rows. */
+.cmdk-kbd {
+  flex-shrink: 0;
+  font-family: var(--sans);
+  font-size: 11px;
+  line-height: 1;
+  color: var(--ink-2);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 3px 6px;
+  min-width: 26px;
+  text-align: center;
+}
+.cmdk-item.sel .cmdk-kbd { border-color: var(--line-2); }

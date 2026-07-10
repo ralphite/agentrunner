@@ -1,13 +1,92 @@
-import { CalendarDots, Plus, ArrowUpRight } from "@phosphor-icons/react";
+import { useMemo, useState } from "react";
+import { CalendarDots, Plus, ArrowUpRight, MagnifyingGlass } from "@phosphor-icons/react";
 import { useStore } from "../store";
 import { friendlyStatus } from "./pill";
 import { projectLabel, scheduleLabel } from "../viewModels";
+import { relTime, sessionDate } from "../time";
 
+type Filter = "all" | "active" | "completed";
+
+interface SchedRow {
+  key: string;
+  title: string;
+  meta: string; // sub-line: type · project · when
+  status: { text: string; cls: string };
+  active: boolean; // live (running / waiting on you) vs finished
+  sortTs: number;
+  onClick: () => void;
+}
+
+// whenAgo turns a relative stamp into a sub-line phrase without the awkward
+// "just now ago".
+function whenAgo(when: Date | null): string {
+  const rel = relTime(when);
+  if (!rel) return "";
+  return rel === "just now" ? "just now" : `${rel} ago`;
+}
+
+// Scheduled is Codex's Scheduled tasks hub: goals and repeating work that keep
+// running on their own. We have no cron/next-run contract, so each row shows
+// the honest facts we do hold — the schedule type, the project, and when it
+// last started — plus a search box and All / Active / Completed filters mapped
+// to our real live-vs-finished states (INC-41 W7).
 export function Scheduled() {
   const { runs, sessions, select, selectRun, openModal } = useStore();
-  const activeRuns = runs.filter((run) => run.status === "running" && run.kind === "submit");
-  const drivers = sessions.filter((session) => session.kind === "driver");
-  const empty = activeRuns.length === 0 && drivers.length === 0;
+  const [filter, setFilter] = useState<Filter>("all");
+  const [query, setQuery] = useState("");
+
+  const rows = useMemo<SchedRow[]>(() => {
+    const isActive = (cls: string) => cls === "run" || cls === "appr";
+    const out: SchedRow[] = [];
+    for (const run of runs) {
+      const status = friendlyStatus(run.status);
+      const ts = Date.parse(run.startedAt);
+      const started = isNaN(ts) ? null : new Date(ts);
+      out.push({
+        key: "run:" + run.id,
+        title: run.label || run.id,
+        meta: [run.kind === "submit" ? "One-time" : "Drive", projectLabel(run.workspace), whenAgo(started)]
+          .filter(Boolean)
+          .join(" · "),
+        status,
+        active: isActive(status.cls),
+        sortTs: isNaN(ts) ? 0 : ts,
+        onClick: () => selectRun(run.id),
+      });
+    }
+    for (const s of sessions) {
+      if (s.kind !== "driver") continue;
+      const status = friendlyStatus(s.status);
+      const d = sessionDate(s.id);
+      out.push({
+        key: s.id,
+        title: s.title || s.id,
+        meta: [scheduleLabel(s.schedule), projectLabel(s.workspace), whenAgo(d)].filter(Boolean).join(" · "),
+        status,
+        active: isActive(status.cls),
+        sortTs: d ? d.getTime() : 0,
+        onClick: () => select(s.id),
+      });
+    }
+    // Newest-first; the coloured status dot and label carry the state.
+    out.sort((a, b) => b.sortTs - a.sortTs);
+    return out;
+  }, [runs, sessions, select, selectRun]);
+
+  const counts = {
+    all: rows.length,
+    active: rows.filter((r) => r.active).length,
+    completed: rows.filter((r) => !r.active).length,
+  };
+  const ql = query.trim().toLowerCase();
+  const filtered = rows.filter((r) => {
+    if (filter === "active" && !r.active) return false;
+    if (filter === "completed" && r.active) return false;
+    if (ql && !(r.title.toLowerCase().includes(ql) || r.meta.toLowerCase().includes(ql))) return false;
+    return true;
+  });
+  const totalEmpty = rows.length === 0;
+
   return (
     <div className="scheduled-page">
       <div className="page-heading">
@@ -20,38 +99,60 @@ export function Scheduled() {
           <Plus size={15} /> New schedule
         </button>
       </div>
+
+      {!totalEmpty && (
+        <div className="sched-toolbar">
+          <div className="sched-search">
+            <MagnifyingGlass size={15} />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search scheduled work…"
+              aria-label="Search scheduled work"
+            />
+          </div>
+          <div className="sched-tabs" role="tablist" aria-label="Filter scheduled work">
+            {(["all", "active", "completed"] as Filter[]).map((f) => (
+              <button
+                key={f}
+                role="tab"
+                aria-selected={filter === f}
+                className={"sched-tab" + (filter === f ? " on" : "")}
+                onClick={() => setFilter(f)}
+              >
+                {f[0].toUpperCase() + f.slice(1)}
+                <span className="sched-tab-count">{counts[f]}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="scheduled-list">
-        {empty ? (
+        {totalEmpty ? (
           <div className="empty-state">
             <CalendarDots size={28} />
             <b>No scheduled work</b>
             <span>Start a goal or repeating task when work should continue on its own.</span>
           </div>
+        ) : filtered.length === 0 ? (
+          <div className="empty-state">
+            <CalendarDots size={28} />
+            <b>Nothing here</b>
+            <span>No {filter} work matches this view.</span>
+          </div>
         ) : (
-          <>
-            {activeRuns.length > 0 && <div className="scheduled-section-title">Running now</div>}
-            {activeRuns.map((run) => {
-              const status = friendlyStatus(run.status);
-              return (
-                <button className="scheduled-row" key={run.id} onClick={() => selectRun(run.id)}>
-                  <span className={"status-dot " + status.cls} />
-                  <span className="scheduled-copy"><b>{run.label || run.id}</b><span>One-time · {projectLabel(run.workspace)}</span></span>
-                  <span className="scheduled-status">{status.text}</span><ArrowUpRight size={15} />
-                </button>
-              );
-            })}
-            {drivers.length > 0 && <div className="scheduled-section-title">Goals & schedules</div>}
-            {drivers.map((session) => {
-              const status = friendlyStatus(session.status);
-              return (
-                <button className="scheduled-row" key={session.id} onClick={() => select(session.id)}>
-                  <span className={"status-dot " + status.cls} />
-                  <span className="scheduled-copy"><b>{session.title || session.id}</b><span>{scheduleLabel(session.schedule)} · {projectLabel(session.workspace)}</span></span>
-                  <span className="scheduled-status">{status.text}</span><ArrowUpRight size={15} />
-                </button>
-              );
-            })}
-          </>
+          filtered.map((r) => (
+            <button className="scheduled-row" key={r.key} onClick={r.onClick}>
+              <span className={"status-dot " + r.status.cls} title={r.status.text} />
+              <span className="scheduled-copy">
+                <b>{r.title}</b>
+                <span>{r.meta}</span>
+              </span>
+              <span className={"scheduled-status " + r.status.cls}>{r.status.text}</span>
+              <ArrowUpRight size={15} />
+            </button>
+          ))
         )}
       </div>
     </div>

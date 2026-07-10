@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSidebarModel, dedupeInspectNodes, deNoiseSegment, projectLabel, projectSubtitle, projectSubtitles, scheduleLabel, scratchLabel } from "./viewModels";
+import { buildSidebarModel, dedupeInspectNodes, deNoiseSegment, projectLabel, projectSubtitle, projectSubtitles, quickSwitchTasks, scheduleLabel, scratchLabel, sessionNeedsAttention } from "./viewModels";
 import { compactWorkspaceName, describeApproval } from "./approvalPresentation";
 import { conciseTitle, displayTitle, titleFromSessionId } from "./title";
 import { foldEvents } from "./timeline";
@@ -158,6 +158,58 @@ describe("project name disambiguation (W4)", () => {
 
   it("returns no detail for a lone project (single-item group)", () => {
     expect(projectSubtitle("/only/repo", ["/only/repo"])).toBe("only");
+  });
+});
+
+describe("command palette quick-switch (W8)", () => {
+  const tasks: Session[] = [
+    { id: "20260710-090000-a", status: "completed", turns: 1 },
+    { id: "20260710-080000-b", status: "waiting:approval", turns: 1 },
+    { id: "20260710-070000-c", status: "running", turns: 1 },
+    { id: "20260710-060000-d", status: "max_iterations", turns: 1 },
+    { id: "20260710-050000-drv", status: "satisfied", turns: 1, kind: "driver" },
+    { id: "20260710-040000-arch", status: "completed", turns: 1 },
+  ];
+
+  it("classifies which statuses need attention (approval / stranded / limit / crash)", () => {
+    expect(sessionNeedsAttention("waiting:approval")).toBe(true);
+    expect(sessionNeedsAttention("stranded")).toBe(true);
+    expect(sessionNeedsAttention("max_iterations")).toBe(true);
+    expect(sessionNeedsAttention("max_generation_steps")).toBe(true);
+    expect(sessionNeedsAttention("failed")).toBe(true);
+    expect(sessionNeedsAttention("completed")).toBe(false);
+    expect(sessionNeedsAttention("satisfied")).toBe(false);
+    expect(sessionNeedsAttention("running")).toBe(false);
+  });
+
+  it("floats attention tasks to the front so ⌘1/⌘2 land on the ones needing you", () => {
+    const order = quickSwitchTasks(tasks).map((s) => s.id);
+    // Attention (b=approval, d=limit) lead, newest-first among themselves; the
+    // rest follow newest-first. ⌘N = index+1 in this order.
+    expect(order).toEqual([
+      "20260710-080000-b", // ⌘1
+      "20260710-060000-d", // ⌘2
+      "20260710-090000-a", // ⌘3
+      "20260710-070000-c", // ⌘4
+      "20260710-040000-arch", // ⌘5
+    ]);
+  });
+
+  it("excludes drivers and archived tasks", () => {
+    const order = quickSwitchTasks(tasks, { archived: ["20260710-040000-arch"] }).map((s) => s.id);
+    expect(order).not.toContain("20260710-050000-drv"); // driver → Scheduled page
+    expect(order).not.toContain("20260710-040000-arch"); // archived
+  });
+
+  it("caps the quick-switch list at nine ⌘-digit slots, newest-first", () => {
+    const many: Session[] = Array.from({ length: 14 }, (_, i) => ({
+      id: `20260710-${String(140000 - i).padStart(6, "0")}-t${i}`,
+      status: "completed",
+      turns: 1,
+    }));
+    const order = quickSwitchTasks(many);
+    expect(order).toHaveLength(9);
+    expect(order[0].id).toBe(many[0].id); // newest keeps ⌘1
   });
 });
 

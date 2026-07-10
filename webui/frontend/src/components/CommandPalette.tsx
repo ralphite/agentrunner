@@ -2,15 +2,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
 import { nextTheme } from "../theme";
 import { displayTitle } from "../title";
-import { projectLabel } from "../viewModels";
-import { relTime, sessionDate } from "../time";
-import { friendlyStatus } from "./pill";
+import { projectLabel, quickSwitchTasks, sessionNeedsAttention } from "../viewModels";
+import { modLabel } from "../shortcuts";
 
 interface Item {
   id: string;
   label: string;
   hint?: string;
   group: string;
+  quickNum?: number; // ⌘1..9 quick-switch badge on recent-task rows
   run: () => void;
 }
 
@@ -18,7 +18,7 @@ interface Item {
 // commands, keyboard-navigable (↑/↓, Enter, Esc). Opened from a global
 // key handler in App.
 export function CommandPalette({ onClose }: { onClose: () => void }) {
-  const { sessions, runs, select, selectRun, showPage, openModal, toggleShowArchived, theme, cycleTheme, openHelp, renames } =
+  const { sessions, runs, archived, select, selectRun, showPage, openModal, toggleShowArchived, theme, cycleTheme, openHelp, renames } =
     useStore();
   const [q, setQ] = useState("");
   const [idx, setIdx] = useState(0);
@@ -49,20 +49,33 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       },
       { id: "c-keys", label: "Keyboard shortcuts", hint: "?", group: "Commands", run: go(() => openHelp()) },
     ].filter((c) => match(c.label));
-    const sess: Item[] = [...sessions]
-      .sort((a, b) => b.id.localeCompare(a.id)) // newest first, same as the sidebar
-      .filter((s) => match(displayTitle(renames, s.id, s.title)) || match(s.id) || match(s.workspace || ""))
-      .slice(0, 8)
-      .map((s) => {
-        const when = relTime(sessionDate(s.id));
-        return {
+    // With no query this is the ⌘1..9 quick-switch list: recent tasks, the
+    // attention-worthy ones grouped on top with the lowest numbers (matching
+    // the global cmd-digit binding). Typing a query switches to a plain fuzzy
+    // search over every task, without badges.
+    let sess: Item[];
+    if (!ql) {
+      sess = quickSwitchTasks(sessions, { archived }).map((s, i) => ({
+        id: "s" + s.id,
+        label: displayTitle(renames, s.id, s.title),
+        hint: projectLabel(s.workspace),
+        group: sessionNeedsAttention(s.status) ? "Needs attention" : "Tasks",
+        quickNum: i + 1,
+        run: go(() => select(s.id)),
+      }));
+    } else {
+      sess = [...sessions]
+        .sort((a, b) => b.id.localeCompare(a.id)) // newest first, same as the sidebar
+        .filter((s) => match(displayTitle(renames, s.id, s.title)) || match(s.id) || match(s.workspace || ""))
+        .slice(0, 8)
+        .map((s) => ({
           id: "s" + s.id,
           label: displayTitle(renames, s.id, s.title),
-          hint: `${projectLabel(s.workspace)} · ${when ? `${when} ago` : friendlyStatus(s.status).text}`,
+          hint: projectLabel(s.workspace),
           group: "Tasks",
           run: go(() => select(s.id)),
-        };
-      });
+        }));
+    }
     const rn: Item[] = runs
       .filter((r) => match(r.label || r.id))
       .slice(0, 4)
@@ -75,7 +88,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       }));
     return [...cmds, ...sess, ...rn];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, sessions, runs, theme, renames]);
+  }, [q, sessions, runs, archived, theme, renames]);
 
   useEffect(() => setIdx(0), [q]);
 
@@ -125,6 +138,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
                 >
                   <span className="cmdk-label">{it.label}</span>
                   {it.hint && <span className="cmdk-hint">{it.hint}</span>}
+                  {it.quickNum && it.quickNum <= 9 && (
+                    <span className="cmdk-kbd" aria-hidden="true">{modLabel}{it.quickNum}</span>
+                  )}
                 </button>
               </div>
             );

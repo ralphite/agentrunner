@@ -1,4 +1,5 @@
 import type { Session } from "./types";
+import { friendlyStatus } from "./components/pill";
 
 export interface ProjectGroup {
   key: string;
@@ -117,6 +118,31 @@ export function scheduleLabel(schedule?: string): string {
     case "self_paced": return "Self-paced";
     default: return "Goal";
   }
+}
+
+// sessionNeedsAttention decides whether a task's status calls for the user:
+// waiting on an approval, stranded/needing recovery, a hit iteration/step/
+// budget limit (all "stranded"), or a crash. It reuses friendlyStatus so the
+// Scheduled list and the command palette agree with the sidebar's dot colours
+// (INC-41 W7/W8).
+export function sessionNeedsAttention(status: string): boolean {
+  const cls = friendlyStatus(status).cls;
+  return cls === "appr" || cls === "stranded" || cls === "crash";
+}
+
+// quickSwitchTasks builds the ⌘1..9 quick-switch list shared by the command
+// palette's badges and the global cmd-digit key binding (INC-41 W8). It covers
+// real tasks only — drivers live on the Scheduled page — and drops archived
+// ones. Attention-worthy tasks float to the front so they claim the lowest
+// ⌘-numbers; the rest follow newest-first (session ids are creation stamps, so
+// that is a plain descending id sort). Capped at nine: there are nine digits.
+export function quickSwitchTasks(sessions: Session[], opts: { archived?: string[] } = {}): Session[] {
+  const archived = new Set(opts.archived || []);
+  const tasks = sessions.filter((s) => s.kind !== "driver" && !archived.has(s.id));
+  const byRecency = [...tasks].sort((a, b) => b.id.localeCompare(a.id));
+  const attention = byRecency.filter((s) => sessionNeedsAttention(s.status));
+  const rest = byRecency.filter((s) => !sessionNeedsAttention(s.status));
+  return [...attention, ...rest].slice(0, 9);
 }
 
 function projectIdentity(workspace?: string): Pick<ProjectGroup, "key" | "label" | "workspace"> {

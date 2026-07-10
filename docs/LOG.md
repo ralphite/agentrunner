@@ -2448,3 +2448,43 @@ qa/runs/2026-07-10-codex-ui-study/screenshots/（gitignored）。
 二进制），致 check.sh 中 TestBashFilesystemSandboxAllowsLinkedWorktree
 GitMetadata 环境性失败（Seatbelt 内 git 回落 Xcode.app 需 GUI session
 被拒）；测试代码未动、其余全绿。待用户 `xcode-select --install` 后复验。
+
+## 2026-07-10 INC-41 批 2：P1+P2（W5–W10）+ 细颗粒 backlog
+
+**落地**（本会话主线 + 两条子线整合，均真浏览器验收）：
+- **W5 diff review**（DiffView.tsx/diffSummary.ts）：`parseFileDiff` 纯函数把
+  raw unified diff 转 gutter 行号 + hunk 样式化分隔 + git meta 行(new file/
+  deleted/renamed/binary/mode)蒸馏为文件头徽标；目录灰/文件名黑；Collapse
+  all。4 新单测。范围切换(Working tree|Last turn)因缺 per-turn diff 后端契约
+  裁到 BACKLOG D1(记档不伪造)。
+- **W6 goal 终态 banner**（子线；SessionView/timeline.ts）：`deriveGoalState`
+  回放 goal_* 事件 → achieved(绿)/stopped-budget(琥珀)/cancelled(灰)三终态
+  banner + live elapsed(1s tick) + dismiss；`formatElapsed`。8 新单测。
+- **W7 Scheduled**（子线；Scheduled.tsx）：搜索 + All/Active/Completed 过滤
+  tab + 真实副行(schedule 类型·项目·相对时间)+ attention 琥珀点。**后端缺口
+  记档**：`ar sessions --json` 无 next-run/interval/last-run，"Every 5m·Next
+  in 3m" 无法支撑，退化为真实信息（见 BACKLOG，需 ar 暴露 driver schedule
+  明细）。
+- **W8 命令面板**（子线；CommandPalette/App.tsx/shortcuts/viewModels）：最近
+  9 任务 ⌘1-9 徽标 + 全局 cmd+1..9 quick-switch + Needs-attention 组置顶 +
+  项目名灰字。`sessionNeedsAttention`/`quickSwitchTasks` 纯函数,4 新单测。
+- **W9 图片 lightbox**（子线；新 Lightbox.tsx + Timeline.Thumbs）：全屏
+  overlay + 缩放(−/100%/+,25% 步进 50-300%)+ 下载 + Esc/背景关 + 方向键组内
+  切换 + 焦点管理。
+- **W10 细件**（Timeline/Sidebar/styles）：长 thread 滚底浮钮(sticky)；
+  sidebar 已完结任务不再挂灰点(只留 running/attention/unread/failed)。
+
+**双闸门**：A=整树 58 前端 vitest(新增 16)+ tsc + build 绿、webui go test
+绿；B=真浏览器(重建 arwebui + 共享 store)综合 8/9 断言 PASS(W9 因旧 session
+缩略图不渲染的测试数据限制,已由子线真发图独立验证)+ console 0；截图归
+`qa/runs/2026-07-10-codex-ui-study/screenshots/`(gitignored,不入库)。
+
+**细颗粒 backlog 交付**：`qa/runs/2026-07-10-codex-ui-study/BACKLOG.md` —— 以
+本机 Codex 桌面 app 全功能实测规格(同目录 CODEX-UI-REFERENCE.md)为标尺,列
+A–I 共 ~40 条细任务(每条带 behavior/现状截图路径/touches 文件/验收/依赖)+
+并发分组(标注文件冲突热点,供多子 Agent 无冲突并发认领)+ 明确裁掉的核心
+差异件。W11(QA-43 全景)与 backlog A–I 转入后续并发批次。
+
+**环境**：check.sh 中 TestBashFilesystemSandboxAllowsLinkedWorktreeGitMetadata
+仍因本机 CommandLineTools 缺失环境性失败(待 xcode-select --install)；前端
+与 webui go 全绿。

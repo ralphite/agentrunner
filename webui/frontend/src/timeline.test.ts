@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { completedTurnDurations, foldEvents, foldWork, formatWorkDuration } from "./timeline";
+import { completedTurnDurations, deriveGoalState, foldEvents, foldWork, formatElapsed, formatWorkDuration } from "./timeline";
 import { summarizeChanges } from "./diffSummary";
 
 describe("timeline input projection", () => {
@@ -149,5 +149,88 @@ describe("foldWork (Codex-style Worked fold, W2/W3)", () => {
     expect((byKey.get("c2") as any).fold).toBe(true);
     expect((byKey.get("c3") as any).fold).toBeUndefined();
     expect((byKey.get("c4") as any).fold).toBe(true);
+  });
+});
+
+describe("deriveGoalState (goal banner projection, W6)", () => {
+  const attach = (ts: string, goal = "ship it") =>
+    ({ seq: 1, type: "goal_attached", ts, payload: { goal, budget: { max_checks: 10 }, verifiers: null } });
+
+  it("returns null when the session never carried a goal", () => {
+    expect(deriveGoalState([{ seq: 1, type: "input_received", payload: { text: "hi" } }])).toBeNull();
+  });
+
+  it("projects an achieved goal (satisfied) with checks and total elapsed", () => {
+    const g = deriveGoalState([
+      attach("2026-07-10T06:21:02.261Z"),
+      { seq: 54, type: "goal_checkpoint", ts: "2026-07-10T06:22:20.130Z", payload: { check: 1, pass: true } },
+      { seq: 55, type: "goal_achieved", ts: "2026-07-10T06:22:20.261Z", payload: { reason: "satisfied", checks: 1 } },
+    ]);
+    expect(g).toMatchObject({ phase: "achieved", goal: "ship it", checks: 1, maxChecks: 10 });
+    expect(g!.elapsedMs).toBe(78000);
+  });
+
+  it("marks a budget-exhausted goal as stopped, not achieved", () => {
+    const g = deriveGoalState([
+      attach("2026-07-10T06:00:00Z"),
+      { seq: 9, type: "goal_achieved", ts: "2026-07-10T06:10:00Z", payload: { reason: "budget", checks: 10 } },
+    ]);
+    expect(g).toMatchObject({ phase: "stopped", checks: 10 });
+    expect(g!.elapsedMs).toBe(600000);
+  });
+
+  it("treats an explicit cancel and a cancelled-detach as cancelled", () => {
+    const viaEvent = deriveGoalState([
+      attach("2026-07-10T06:00:00Z"),
+      { seq: 5, type: "goal_cancelled", ts: "2026-07-10T06:00:30Z", payload: {} },
+    ]);
+    expect(viaEvent).toMatchObject({ phase: "cancelled" });
+    expect(viaEvent!.elapsedMs).toBe(30000);
+
+    const viaDetach = deriveGoalState([
+      attach("2026-07-10T06:00:00Z"),
+      { seq: 5, type: "goal_achieved", ts: "2026-07-10T06:00:30Z", payload: { reason: "cancelled" } },
+    ]);
+    expect(viaDetach).toMatchObject({ phase: "cancelled" });
+  });
+
+  it("keeps an unsettled goal active with attach time and no elapsed", () => {
+    const g = deriveGoalState([attach("2026-07-10T06:00:00Z")]);
+    expect(g).toMatchObject({ phase: "active", checks: 0 });
+    expect(g!.attachedAt).toBe(Date.parse("2026-07-10T06:00:00Z"));
+    expect(g!.elapsedMs).toBeUndefined();
+  });
+
+  it("reflects pause/resume and a later goal_updated text", () => {
+    const paused = deriveGoalState([
+      attach("2026-07-10T06:00:00Z"),
+      { seq: 2, type: "goal_updated", payload: { goal: "ship it well" } },
+      { seq: 3, type: "goal_paused", payload: {} },
+    ]);
+    expect(paused).toMatchObject({ phase: "paused", goal: "ship it well" });
+    const resumed = deriveGoalState([
+      attach("2026-07-10T06:00:00Z"),
+      { seq: 3, type: "goal_paused", payload: {} },
+      { seq: 4, type: "goal_resumed", payload: {} },
+    ]);
+    expect(resumed).toMatchObject({ phase: "active" });
+  });
+
+  it("lets a later goal_attached fully supersede a settled goal", () => {
+    const g = deriveGoalState([
+      attach("2026-07-10T06:00:00Z", "first"),
+      { seq: 5, type: "goal_achieved", ts: "2026-07-10T06:01:00Z", payload: { reason: "satisfied", checks: 1 } },
+      { seq: 9, type: "goal_attached", ts: "2026-07-10T07:00:00Z", payload: { goal: "second", budget: { max_checks: 3 } } },
+    ]);
+    expect(g).toMatchObject({ phase: "active", goal: "second", checks: 0, maxChecks: 3 });
+    expect(g!.endedAt).toBeUndefined();
+  });
+
+  it("formats elapsed as mm:ss under an hour and Xh Ym beyond", () => {
+    expect(formatElapsed(78000)).toBe("01:18");
+    expect(formatElapsed(9000)).toBe("00:09");
+    expect(formatElapsed(600000)).toBe("10:00");
+    expect(formatElapsed(3_660_000)).toBe("1h 1m");
+    expect(formatElapsed(7_200_000)).toBe("2h 0m");
   });
 });
