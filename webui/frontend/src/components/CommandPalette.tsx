@@ -15,7 +15,7 @@ interface Item {
 // commands, keyboard-navigable (↑/↓, Enter, Esc). Opened from a global
 // key handler in App.
 export function CommandPalette({ onClose }: { onClose: () => void }) {
-  const { sessions, runs, select, selectRun, openModal, toggleShowArchived, theme, cycleTheme, openHelp, renames } =
+  const { sessions, runs, select, selectRun, showPage, openModal, toggleShowArchived, theme, cycleTheme, openHelp, renames } =
     useStore();
   const [q, setQ] = useState("");
   const [idx, setIdx] = useState(0);
@@ -33,7 +33,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       fn();
     };
     const cmds: Item[] = [
-      { id: "c-new", label: "New task", group: "Commands", run: go(() => openModal({ kind: "new" })) },
+      { id: "c-new", label: "New task", group: "Commands", run: go(() => showPage("home")) },
       { id: "c-run", label: "Background run…", group: "Commands", run: go(() => openModal({ kind: "run" })) },
       { id: "c-trust", label: "Trust directory…", group: "Commands", run: go(() => openModal({ kind: "trust" })) },
       { id: "c-arch", label: "Toggle archived", group: "Commands", run: go(() => toggleShowArchived()) },
@@ -88,29 +88,37 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="backdrop cmdk-back" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="cmdk" onKeyDown={onKey}>
+      <div className="cmdk" onKeyDown={onKey} role="dialog" aria-modal="true" aria-label="Command palette">
         <input
           ref={inputRef}
           className="cmdk-input"
           placeholder="Search sessions or run a command…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
+          role="combobox"
+          aria-controls="command-palette-results"
+          aria-expanded="true"
+          aria-activedescendant={items[idx]?.id}
         />
-        <div className="cmdk-list">
+        <div className="cmdk-list" id="command-palette-results" role="listbox">
           {items.length === 0 && <div className="cmdk-empty">No matches</div>}
           {items.map((it, i) => {
             const showGroup = i === 0 || items[i - 1].group !== it.group;
             return (
               <div key={it.id}>
                 {showGroup && <div className="cmdk-group">{it.group}</div>}
-                <div
+                <button
+                  type="button"
+                  id={it.id}
                   className={"cmdk-item" + (i === idx ? " sel" : "")}
+                  role="option"
+                  aria-selected={i === idx}
                   onMouseEnter={() => setIdx(i)}
                   onClick={() => it.run()}
                 >
                   <span className="cmdk-label">{it.label}</span>
                   {it.hint && <span className="cmdk-hint">{it.hint}</span>}
-                </div>
+                </button>
               </div>
             );
           })}

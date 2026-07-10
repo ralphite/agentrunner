@@ -8,19 +8,30 @@ export function Menu({ label, children, ariaLabel }: { label: React.ReactNode; c
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
+    requestAnimationFrame(() => ref.current?.querySelector<HTMLElement>("[role='menuitem']")?.focus());
     const onDoc = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      setOpen(false);
+      ref.current?.querySelector<HTMLElement>(".menu-trigger")?.focus();
+    };
     document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [open]);
   return (
     <div className="menu" ref={ref}>
-      <button className="menu-trigger" onClick={() => setOpen((v) => !v)} aria-label={ariaLabel}>
+      <button className="menu-trigger" onClick={() => setOpen((v) => !v)} aria-label={ariaLabel} aria-haspopup="menu" aria-expanded={open}>
         {label}
       </button>
       {open && (
-        <div className="menu-pop" onClick={() => setOpen(false)}>
+        <div className="menu-pop" role="menu" onClick={() => setOpen(false)}>
           {children}
         </div>
       )}
@@ -40,7 +51,7 @@ export function MenuItem({
   title?: string;
 }) {
   return (
-    <button className={"menu-item" + (danger ? " danger" : "")} onClick={onClick} title={title}>
+    <button className={"menu-item" + (danger ? " danger" : "")} role="menuitem" onClick={onClick} title={title}>
       {children}
     </button>
   );

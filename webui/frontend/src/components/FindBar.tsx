@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowDown, ArrowUp, MagnifyingGlass, X } from "@phosphor-icons/react";
 
 // FindBar is Codex's in-chat Find (⌘F): a search box over the current
 // conversation that highlights matches and steps through them with ↑/↓. It
@@ -144,7 +145,7 @@ export function FindBar({ scope, onClose }: { scope: () => HTMLElement | null; o
   return (
     <div className="findbar" onKeyDown={onKey}>
       <div className="fb-row">
-        <span className="fb-ico">⌕</span>
+        <span className="fb-ico" aria-hidden="true"><MagnifyingGlass size={14} /></span>
         <input
           ref={inputRef}
           className="fb-input"
@@ -152,16 +153,16 @@ export function FindBar({ scope, onClose }: { scope: () => HTMLElement | null; o
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <button className="fb-x" title="Close (Esc)" onClick={onClose}>
-          ✕
+        <button className="fb-x" title="Close (Esc)" aria-label="Close find" onClick={onClose}>
+          <X size={14} />
         </button>
       </div>
       <div className="fb-row fb-nav">
         <button className="fb-arrow" title="Previous (⇧Enter)" disabled={count === 0} onClick={() => step(-1)}>
-          ↑
+          <ArrowUp size={14} />
         </button>
         <button className="fb-arrow" title="Next (Enter)" disabled={count === 0} onClick={() => step(1)}>
-          ↓
+          <ArrowDown size={14} />
         </button>
         <span className="fb-count">
           {unsupported ? "find unsupported" : q ? (count ? `${cur + 1} / ${count} results` : "no results") : ""}

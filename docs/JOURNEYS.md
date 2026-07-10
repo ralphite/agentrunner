@@ -309,25 +309,29 @@ GAPS.md，本文件只回答"产品要做什么"。
 
 **覆盖功能**：`动态角色 spawn(inline role)` `子提权用户审批(escalate)` `树内消息(send_message,兄弟直发)` `静止子唤醒(revive,context 延续)` `多次回执` `用户直达成员(ar send 子会话)` `子会话 live 镜像` `团队面板` `树级预算/审计`（底座复用 UJ-18 全部机制）
 
-### UJ-24 Web UI 驾驶 AgentRunner `基础` `✅ INC-19（2026-07-09）`
+### UJ-24 Web UI 驾驶 AgentRunner `基础` `✅ INC-19/23（2026-07-10）`
 
 **场景**：用户像使用 Codex 一样，从项目/任务层进入一个真实 AgentRunner
 会话，并在同一工作台完成派活、续聊、监督、审批与改动审阅。
 
-1. 左栏按 Projects → task 展示全部真实 session；Pinned 单列且不重复；
-   CLI 创建、metadata 不完整、父/子 session 都能直接打开和 deep link。
+1. 左栏按 Projects → task 展示全部真实 session；task 是完整键盘可达操作，
+   Pinned 单列且不重复；自动 workspace 合并为 Scratch；CLI 创建、metadata
+   不完整、父/子 session 都能直接打开和 deep link。
 2. New task 只出现一个 composer；默认只露输入、附件、access、model、
    send，高级 Goal/Loop/Best-of-N/spec 启动器收在 Task options。
-3. 中央 thread 按 journal 投影 user/assistant/tool/program 事实；底部
-   follow-up 延续同一 session；Changes 固定承接 diff 审阅。
+3. 中央 thread 按 journal 投影 user/assistant/tool 事实；program/agent/control
+   输入默认只在 system events 中查看，绝不冒充用户；底部 follow-up 延续
+   同一 session；Changes 固定承接 diff 审阅。
 4. 待审批 action 以内联卡片出现，先说清“做什么/影响哪里”；raw args/
    gates 折入 Details。Approve once 与 Deny 分立，不暗示未实现的权限。
 5. 宽屏右侧 Supervision 集中 Goal / Agents / Attention / Background work；
-   agent 按 session 去重，点成员进入完整只读子会话；窄屏可收起。
-6. Web UI 重启后同一 deep link、共享 store 历史和本地 pin/archive/theme
-   设置仍在；UI 只是公开 CLI/journal/inspect/ps/diff 的 projection。
+   agent 按 session 去重，审批与 recovery 共用 Attention，点成员进入完整
+   只读子会话；窄屏默认收起，移动端以带 scrim 的 sidebar/panel 打开。
+6. Web UI 重启后同一 deep link、共享 store 历史、Goal/Repeating/Scheduled
+   driver 和本地 pin/archive/theme 设置仍在；UI 只是公开 CLI/journal/
+   inspect/ps/diff 的 projection。
 
-**覆盖功能**：`Codex 式 project/task 信息架构` `单一 task thread` `渐进披露 composer` `内联人类可读审批` `Changes 审阅` `Supervision(goal/agent/attention/background)` `子会话导航` `deep link/restart` `共享真实 session` `Web UI 产品面`
+**覆盖功能**：`Codex 式 project/task 信息架构` `单一 task thread` `渐进披露 composer` `内联人类可读审批` `Changes 审阅` `Supervision(goal/agent/attention/background/recovery)` `restart-safe Scheduled` `键盘/移动端导航` `子会话导航` `deep link/restart` `共享真实 session` `Web UI 产品面`
 
 ---
 

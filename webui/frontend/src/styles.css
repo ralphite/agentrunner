@@ -8,7 +8,7 @@
   --line-2: #efefef;
   --ink: #1f1f1f;
   --ink-2: #606060;
-  --dim: #909090;
+  --dim: #737373;
   --accent: #0b0b0b;
   --accent-ink: #ffffff;
   --blue: #2f6bff;
@@ -38,7 +38,7 @@
     --line-2: #232329;
     --ink: #ececf1;
     --ink-2: #b4b4c0;
-    --dim: #7d7d8a;
+    --dim: #a0a0ad;
     --accent: #ececf1;
     --accent-ink: #17171a;
     --blue: #6f9bff;
@@ -62,7 +62,7 @@
   --line-2: #232329;
   --ink: #ececf1;
   --ink-2: #b4b4c0;
-  --dim: #7d7d8a;
+  --dim: #a0a0ad;
   --accent: #ececf1;
   --accent-ink: #17171a;
   --blue: #6f9bff;
@@ -149,6 +149,10 @@ textarea:focus,
 select:focus {
   outline: none;
   border-color: var(--blue);
+}
+:where(button, a, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
 }
 a {
   color: var(--blue);
@@ -993,6 +997,27 @@ details pre,
   margin: 3px 0 3px 36px;
   font-family: var(--mono);
 }
+.runtime-event {
+  margin: 8px 0;
+  color: var(--dim);
+  font-size: 12px;
+}
+.runtime-event summary {
+  width: fit-content;
+  padding: 3px 7px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.runtime-event summary:hover { background: var(--panel-2); color: var(--ink-2); }
+.runtime-event-body {
+  margin: 6px 0 8px 8px;
+  padding: 8px 12px;
+  border-left: 2px solid var(--line);
+  color: var(--ink-2);
+  font-size: 12.5px;
+}
+.runtime-event-body > :first-child { margin-top: 0; }
+.runtime-event-body > :last-child { margin-bottom: 0; }
 
 /* ---- approvals dock ---- */
 .approvals {
@@ -1849,8 +1874,10 @@ summary.fd-head:hover {
 .pop-panel {
   position: absolute;
   min-width: 220px;
-  max-height: min(66vh, 440px);
+  max-height: min(72vh, 540px);
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -1872,7 +1899,8 @@ summary.fd-head:hover {
 .pop-left { left: 0; }
 .pop-right { right: 0; }
 .cx-menu.wide {
-  min-width: 288px;
+  width: min(360px, calc(100vw - 24px));
+  min-width: min(320px, calc(100vw - 24px));
 }
 .pop-section + .pop-section {
   border-top: 1px solid var(--line-2);
@@ -2206,13 +2234,19 @@ summary.fd-head:hover {
   padding: 8px 10px 4px;
 }
 .cmdk-item {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
   border-radius: 8px;
   cursor: pointer;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
 }
+.cmdk-item:hover { border-color: transparent; }
 .cmdk-item.sel {
   background: var(--blue-soft);
 }
@@ -2728,30 +2762,38 @@ summary.fd-head:hover {
   background: color-mix(in srgb, var(--ink) 5%, transparent);
   color: var(--ink);
 }
-.project-task {
+.project-task-wrap {
   position: relative;
+  min-height: 34px;
+  border-radius: 8px;
+  color: var(--ink-2);
+}
+.project-task-wrap.nested {
+  margin-left: 21px;
+}
+.project-task {
+  width: 100%;
   min-height: 34px;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 8px;
+  padding: 6px 34px 6px 10px;
+  border: 0;
   border-radius: 8px;
-  cursor: pointer;
-  color: var(--ink-2);
+  background: transparent;
+  color: inherit;
+  text-align: left;
 }
-.project-task.nested {
-  margin-left: 21px;
-  padding-left: 10px;
-}
-.project-task:hover,
-.project-task.current {
+.project-task-wrap:hover,
+.project-task-wrap.current {
   background: color-mix(in srgb, var(--ink) 7%, transparent);
   color: var(--ink);
 }
-.project-task.current {
+.project-task:hover { border-color: transparent; background: transparent; }
+.project-task-wrap.current {
   font-weight: 520;
 }
-.project-task.archived {
+.project-task-wrap.archived {
   opacity: 0.55;
 }
 .project-task-title {
@@ -2762,11 +2804,10 @@ summary.fd-head:hover {
   white-space: nowrap;
   font-size: 13px;
 }
-.project-task.unread .project-task-title {
+.project-task-wrap.unread .project-task-title {
   color: var(--ink);
   font-weight: 620;
 }
-.unread-dot,
 .status-dot {
   width: 7px;
   height: 7px;
@@ -2774,7 +2815,7 @@ summary.fd-head:hover {
   flex: 0 0 auto;
   background: var(--dim);
 }
-.unread-dot { background: var(--blue); }
+.status-dot.unread { background: var(--blue); }
 .status-dot.run,
 .status-dot.running { background: var(--blue); animation: nr-pulse 1.5s ease-in-out infinite; }
 .status-dot.appr,
@@ -2792,8 +2833,11 @@ summary.fd-head:hover {
   color: var(--dim);
 }
 .task-pin {
-  width: 22px;
-  height: 22px;
+  position: absolute;
+  right: 5px;
+  top: 5px;
+  width: 24px;
+  height: 24px;
   display: grid;
   place-items: center;
   padding: 0;
@@ -2802,9 +2846,9 @@ summary.fd-head:hover {
   background: transparent;
 }
 .task-pin.active { opacity: .72; }
-.project-task:hover .task-pin,
-.project-task:hover .task-open,
-.project-task.current .task-open { opacity: .72; }
+.project-task-wrap:hover .task-pin,
+.project-task-wrap:hover .task-open,
+.project-task-wrap.current .task-open { opacity: .72; }
 .task-pin:hover { border-color: transparent; background: color-mix(in srgb, var(--ink) 7%, transparent); }
 .show-more,
 .archive-toggle {
@@ -2922,6 +2966,14 @@ summary.fd-head:hover {
   margin: 0 auto;
   border-top: 1px solid var(--line);
 }
+.scheduled-section-title {
+  padding: 18px 4px 6px;
+  color: var(--dim);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
 .scheduled-row {
   width: 100%;
   min-height: 68px;
@@ -2992,6 +3044,7 @@ summary.fd-head:hover {
   color: var(--ink);
 }
 .topbar-tool.stop { color: var(--red); }
+.topbar-tool.recovery { color: var(--amber); }
 .topbar-attention {
   min-width: 17px;
   height: 17px;
@@ -3140,6 +3193,18 @@ summary.fd-head:hover {
 .diff-empty span { max-width: 430px; font-size: 12px; }
 .diff-empty button { margin-top: 6px; }
 
+.advanced-settings {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.advanced-settings summary {
+  width: max-content;
+  color: var(--dim);
+  font-size: 12px;
+}
+.advanced-settings[open] summary { margin-bottom: 12px; color: var(--ink-2); }
+
 .supervision-panel {
   align-self: start;
   max-height: calc(100vh - 86px);
@@ -3249,6 +3314,14 @@ summary.fd-head:hover {
 }
 @media (max-width: 680px) {
   .app { grid-template-columns: minmax(0, 1fr); }
+  .sidebar-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    border: 0;
+    border-radius: 0;
+    background: rgba(0, 0, 0, .18);
+  }
   .sidebar { position: fixed; inset: 0 auto 0 0; z-index: 70; width: min(292px, 86vw); box-shadow: 10px 0 30px rgba(0,0,0,.14); }
   .app.collapsed .sidebar { display: none; }
   .task-topbar { padding-left: 52px; }

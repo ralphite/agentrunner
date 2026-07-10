@@ -13,6 +13,8 @@ export interface Session {
   turns: number;
   title?: string;
   workspace?: string;
+  kind?: "session" | "driver";
+  schedule?: string;
 }
 
 export interface DiffResp {

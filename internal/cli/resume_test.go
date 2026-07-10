@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/ralphite/agentrunner/internal/crash"
+	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/store"
 )
 
 const resumeSpecYAML = `name: fixer
@@ -126,6 +128,7 @@ func TestCLIResumeAfterCrash(t *testing.T) {
 		ID        string `json:"id"`
 		Workspace string `json:"workspace"`
 		Title     string `json:"title"`
+		Kind      string `json:"kind"`
 	}
 	if err := json.Unmarshal(stdout.Bytes(), &listed); err != nil {
 		t.Fatalf("decode sessions json: %v\n%s", err, stdout.String())
@@ -134,7 +137,7 @@ func TestCLIResumeAfterCrash(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(listed) != 1 || listed[0].Workspace != wantWorkspace || listed[0].Title != "make it loud" {
+	if len(listed) != 1 || listed[0].Workspace != wantWorkspace || listed[0].Title != "make it loud" || listed[0].Kind != "session" {
 		t.Fatalf("sessions json = %+v, want workspace %q and journaled title", listed, wantWorkspace)
 	}
 }
@@ -159,6 +162,51 @@ func TestCLISessionsListEmpty(t *testing.T) {
 	out.Reset()
 	if code := Run([]string{"sessions", "--json"}, "dev", &out, &errOut); code != ExitOK || strings.TrimSpace(out.String()) != "[]" {
 		t.Fatalf("empty json exit = %d, out = %q, err = %q", code, out.String(), errOut.String())
+	}
+}
+
+func TestCLISessionsJSONProjectsDriverMetadata(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", xdg)
+	dir := filepath.Join(xdg, "agentrunner", "sessions", "driver-1")
+	es, err := store.OpenEventStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec, _ := json.Marshal(map[string]any{
+		"Name": "nightly",
+		"Task": "Audit dependencies every night",
+	})
+	for _, item := range []struct {
+		typ string
+		v   any
+	}{
+		{event.TypeDriverStarted, &event.DriverStarted{DriverID: "driver-1", SpecName: "nightly", Spec: spec, WorkspaceRoot: "/tmp/project", FoldVersion: 1}},
+		{event.TypeDriverCompleted, &event.DriverCompleted{DriverID: "driver-1", Reason: "satisfied", Iterations: 1}},
+	} {
+		if _, err := es.Append(mkEnv(t, item.typ, item.v)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := es.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	var out, errOut bytes.Buffer
+	if code := Run([]string{"sessions", "--json"}, "dev", &out, &errOut); code != ExitOK {
+		t.Fatalf("sessions exit=%d stderr=%s", code, errOut.String())
+	}
+	var rows []struct {
+		ID       string `json:"id"`
+		Kind     string `json:"kind"`
+		Schedule string `json:"schedule"`
+		Title    string `json:"title"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &rows); err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].ID != "driver-1" || rows[0].Kind != "driver" || rows[0].Schedule != "immediate" || rows[0].Title != "Audit dependencies every night" {
+		t.Fatalf("driver row = %+v", rows)
 	}
 }
 

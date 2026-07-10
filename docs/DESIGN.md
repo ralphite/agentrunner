@@ -1070,13 +1070,14 @@ limits:
   （留标记、自动恢复不得越过）三者语义分立。drive 系列亦可 stop。
 - 协议预留（尚未实现）：slash command 调用（GAPS G21）。
 
-### Web UI 产品 surface（INC-19）
+### Web UI 产品 surface（INC-19/23）
 
 - `webui/` 是正式本机产品面，但仍是**薄 projection**：只通过公开 `ar`
   CLI/daemon contract 读取 journal、`inspect`、`ps` 与 workspace diff，绝不
   复制 session 状态机或建立第二套运行真相。
 - `ar sessions list --json` 从 `SessionStarted` / `DriverStarted` journal
-  事实给出 `workspace` 与开场 `title`。Web UI metadata 只缓存已知值以兼容
+  事实给出 `workspace`、开场 `title`、`kind` 与 driver `schedule`。Web UI
+  metadata 只缓存已知值以兼容
   旧 session/首屏，不得覆盖 journal 状态，也不得成为 Diff、附件或 project
   grouping 的唯一来源。
 - 通用信息架构严格采用 Codex：左侧 New task / Scheduled / Pinned /
@@ -1087,8 +1088,21 @@ limits:
   scope，raw args/gates 折入 Details。UI 只提供当前已实现的 Approve once /
   Deny，不用文案暗示本次会改变冻结 permission layers。
 - project grouping 以 workspace 为键；未知 workspace 进 `Other sessions`，
-  不隐藏 session。成员按 child session id 去重，点入成员只读 timeline；
+  自动生成的 `ws<timestamp>` / `wt<timestamp>` workspace 投影为单一 Scratch，
+  不泄漏实现 id、不隐藏 session。driver 只进 Scheduled，不在 Projects 重复；
+  Scheduled 的持久列表来自 journal-backed sessions，进程内 `runRegistry`
+  只补充当前 one-time run，不得作为 restart 后真相。成员按 child session id
+  去重，点入成员只读 timeline；
   不把 inspect 中的 revive/重复回执误画成多个 agent。
+- `source:user/cli/tty` 才是人类输入；`program/agent/parent/control` 仍保留在
+  journal/timeline，但默认只在 system-events developer view 中出现，不能画成
+  用户气泡。inspect 首次成功前 Supervision 显示 loading，不投影伪空态。
+- responsive 只改可见性：Supervision 默认关闭并记住用户选择；有待审批时
+  自动亮起；`<=680px` sidebar 默认关闭，以 scrim overlay 打开且导航后自动
+  收起。状态、deep link 与 command 均不因 viewport 改变。
+- recovery 与 approval 共用 Attention；stranded/interrupted 在 task header 直接
+  暴露 Resume，但 UI 不自动 resume、不代审批。生命周期菜单只显示当前状态
+  语义成立的操作。
 - pin/archive/rename/theme/sidebar/unread 等现有 localStorage key 原样保留；
   UI 重构不迁移或删除用户本地偏好、session、workspace 与 QA 数据。
 

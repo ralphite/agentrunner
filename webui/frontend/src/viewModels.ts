@@ -33,7 +33,7 @@ export function dedupeInspectNodes<T extends { session?: string; call_id?: strin
 export function scratchLabel(base: string): string {
   let m = /^(?:ws|wt)-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/.exec(base);
   if (m) return `Scratch · ${m[2]}-${m[3]} ${m[4]}:${m[5]}`;
-  m = /^(?:ws|wt)(\d{19})$/.exec(base); // legacy UnixNano names
+  m = /^(?:ws|wt)(\d{19})(?:-fork-[\w-]+)?$/.exec(base); // legacy UnixNano names
   if (m) {
     const d = new Date(Number(m[1].slice(0, 13)));
     if (!isNaN(d.getTime())) {
@@ -50,7 +50,28 @@ export function projectLabel(workspace?: string): string {
   if (!clean) return "Other sessions";
   const parts = clean.split("/").filter(Boolean);
   const base = parts[parts.length - 1] || "Other sessions";
-  return scratchLabel(base) || base;
+  return scratchLabel(base) ? "Scratch" : base;
+}
+
+export function scheduleLabel(schedule?: string): string {
+  switch ((schedule || "immediate").toLowerCase()) {
+    case "interval": return "Repeating";
+    case "cron": return "Scheduled";
+    case "parallel": return "Best of N";
+    case "self_paced": return "Self-paced";
+    default: return "Goal";
+  }
+}
+
+function projectIdentity(workspace?: string): Pick<ProjectGroup, "key" | "label" | "workspace"> {
+  const clean = (workspace || "").trim().replace(/\/+$/, "");
+  const label = projectLabel(clean);
+  // Auto-created WebUI workspaces use opaque timestamp names. Treat them as
+  // one product-level Scratch project instead of leaking implementation ids.
+  if (label === "Scratch") {
+    return { key: "__scratch__", label: "Scratch", workspace: undefined };
+  }
+  return { key: clean || "__other__", label, workspace: clean || undefined };
 }
 
 export function buildSidebarModel(
@@ -65,6 +86,7 @@ export function buildSidebarModel(
 ): SidebarModel {
   const query = options.query.trim().toLowerCase();
   const visible = sessions.filter((session) => {
+    if (session.kind === "driver") return false;
     if (!options.showArchived && options.archived.includes(session.id)) return false;
     if (!query) return true;
     return (
@@ -89,13 +111,11 @@ export function buildSidebarModel(
   const groups = new Map<string, ProjectGroup>();
   for (const session of ordered) {
     if (pinnedIds.has(session.id)) continue;
-    const workspace = (session.workspace || "").trim() || undefined;
-    const key = workspace || "__other__";
+    const identity = projectIdentity(session.workspace);
+    const key = identity.key;
     if (!groups.has(key)) {
       groups.set(key, {
-        key,
-        label: projectLabel(workspace),
-        workspace,
+        ...identity,
         sessions: [],
       });
     }

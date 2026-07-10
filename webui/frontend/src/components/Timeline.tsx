@@ -133,6 +133,14 @@ function pretty(raw: any): string {
   }
 }
 
+function runtimeLabel(source: string, text: string): string {
+  if (source === "agent") return "Agent message";
+  if (source === "parent") return "Parent instruction";
+  if (source === "control") return "Control message";
+  if (source === "program" && /<goal>|goal/i.test(text)) return "Goal continuation";
+  return "Runtime message";
+}
+
 function Item({ it, sentImages }: { it: TimelineItem; sentImages?: Map<number, string[]> }) {
   switch (it.kind) {
     case "turn":
@@ -182,6 +190,13 @@ function Item({ it, sentImages }: { it: TimelineItem; sentImages?: Map<number, s
           )}
         </div>
       );
+    case "runtime":
+      return (
+        <details className="runtime-event">
+          <summary>{runtimeLabel(it.source, it.text)}</summary>
+          <div className="runtime-event-body"><Markdown text={it.text} /></div>
+        </details>
+      );
     case "sys":
       return <div className="sys">{it.text}</div>;
   }
@@ -206,7 +221,9 @@ export function TimelineView({
 }) {
   // Codex shows a continuous activity feed — no "turn N" dividers, no raw
   // system events. Those stay behind the developer toggle.
-  const visible = showSys ? items : items.filter((it) => it.kind !== "sys" && it.kind !== "turn");
+  const visible = showSys
+    ? items
+    : items.filter((it) => it.kind !== "sys" && it.kind !== "turn" && it.kind !== "runtime");
   const ref = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
 

@@ -579,6 +579,25 @@ grep -A/-B/-C。跑完 session 拷回共享 store、export 归档
 
 **通过标准**：默认无 context = 旧行为；context 行受 redaction/截断/文件
 边界钳制；files/count 模式忽略 context。
+## QA-32 Web UI 黑盒 QA-fix 第二轮（INC-23,UJ-24）
+
+**环境**：最新 `main`、共享 `~/.local/share/agentrunner/` daemon/store、
+`http://127.0.0.1:8788`；Web UI 中途重启验证持久投影。未审批、resume、close、
+删除或清理任何真实 session/workspace/journal。证据保留在
+`qa/runs/2026-07-10-QA32/`。
+
+| # | 真实状态/动作 | 硬断言 |
+|---|---|---|
+| 1 | existing stranded `20260710-020627-bash-f92e` | 799px 默认不展开 Supervision；header 有 Resume；状态/Attention 均为 recovery，不执行 resume |
+| 2 | existing waiting:approval `20260710-043755-reply-with-exactly-standing-b-a1a8` | program continuation 不冒充用户；approval card 与 Attention 同为 1；未代决策 |
+| 3 | existing team `20260710-021026-task-ce2c` | inspect 前不投影伪空态；稳定后 engineer/reviewer 各一行；program/agent messages 默认隐藏 |
+| 4 | Web UI restart → Scheduled | 既有 driver 仍按 task/schedule/status 出现；driver 不在 Projects；scratch id 投影为 Scratch |
+| 5 | New scheduled task / menu / search / Changes | 产品词在主层、YAML 在 Advanced；dialog/menu/button/focus/Escape 成立；非 Git 空态不泄漏绝对路径 |
+| 6 | 1554×1012 / 799 / 680 + 同图对照 | Codex 三栏/thread/composer/Supervision 层级一致；移动端 sidebar 默认关闭、scrim 打开、导航后关闭；无 error overlay |
+
+**结果**：PASS。黑盒先发现 P1×7/P2×若干，全部当轮修复；scripted tests、
+frontend build、Web UI Go tests 与根 check 全绿；最终同图对照为
+`27-reference-vs-implementation.png`。
 
 ---
 

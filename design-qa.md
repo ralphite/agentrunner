@@ -37,3 +37,17 @@
 PASS。实现忠于已确认的 Codex 母版，同时只把 AgentRunner 的 Goal / Agents /
 Attention / Background work 作为原生 Supervision 扩展；无阻塞交付的视觉、
 交互或信息架构偏差。
+
+---
+
+## INC-23 B3–B6 黑盒复核
+
+- 母版不变；最终同尺寸 1554×1012 对照：
+  `qa/runs/2026-07-10-QA32/27-reference-vs-implementation.png`。
+- 首轮证据暴露 7 个结构性 P1：窄窗遮挡、recovery 无入口且 Attention 撒谎、
+  Scheduled 重启丢失、task 行不可键盘进入、非人类 input 冒充用户、raw
+  launcher 主层泄漏、移动端 sidebar 覆盖内容。均已修复并用真实 session
+  重走。
+- 最终对照：sidebar/thread/approval/composer/Supervision 的比例、层级、边框、
+  圆角、密度与 Codex 母版一致；AgentRunner 品牌与独有 supervision 数据不
+  另造设计语言。P0/P1/P2=0，PASS。

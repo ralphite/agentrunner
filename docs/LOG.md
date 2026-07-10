@@ -1937,3 +1937,25 @@ F-J1 缺陷簇（并发寻址断裂 + pump 队头冻结）确认关闭。
 在部署 bundle 中缺失（grep 0 命中）——属并发 UX 重构的在途/裁剪范围
 （重构方仍在推进 webui），非本 QA 引入的回归；移交重构负责人，不在
 本批硬修（避免与并发开发撞车）。webui 前端 console 全程无 app 报错。
+## 2026-07-10 INC-23 B3–B6 Web UI 黑盒 QA-fix 第二轮
+
+在最新 main、共享 daemon/store 与 200+ 真实 session 上重新黑盒遍历 UJ-24，
+推翻 QA-27 的表面收敛：确认 Scheduled 依赖进程内 registry、stranded 没有
+可发现恢复入口且 Supervision 反报“Nothing needs you”、program/control input
+冒充用户、task 行不是 button、窄窗默认 panel 遮挡、raw run launcher 与
+移动端 sidebar 破坏主流程。
+
+本轮按 Codex 母版做结构修复：`sessions --json` 从 DriverStarted 追加
+kind/schedule/task，Scheduled 变成 restart-safe journal projection 并把 driver
+从 Projects 移走；header/Attention 接入 recovery；非人类 input 默认藏到
+system events；task/sidebar/modal/menu/palette 补语义、Escape、focus-visible；
+scratch id 产品化；New scheduled task 首层只留 task/workspace/schedule，YAML
+进入 Advanced；799px 默认保 thread，680px sidebar 以 scrim overlay 打开并在
+导航后关闭。AgentRunner 品牌保留，Goal/Agents/Attention 仍是 Codex 视觉
+语言上的 supervision 扩展。
+
+QA-32 PASS：existing stranded/approval/team、Web UI restart、Scheduled、
+Changes、modal/menu、1554/799/680 responsive 全走；未代审批/恢复/清理。
+同图对照 `qa/runs/2026-07-10-QA32/27-reference-vs-implementation.png` 最终
+P0/P1/P2=0。frontend 9 tests、Web UI/CLI Go tests 与 `scripts/check.sh` 全绿；
+不变量不变。

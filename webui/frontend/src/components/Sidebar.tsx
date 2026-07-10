@@ -15,6 +15,7 @@ import {
   Robot,
   SidebarSimple,
   Sun,
+  X,
 } from "@phosphor-icons/react";
 import { useStore } from "../store";
 import { AR } from "../api";
@@ -26,7 +27,7 @@ import { copyText } from "../clipboard";
 import { buildSidebarModel } from "../viewModels";
 import { relTime, sessionDate } from "../time";
 
-export function Sidebar() {
+export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigate?: () => void }) {
   const {
     health,
     sessions,
@@ -92,23 +93,40 @@ export function Sidebar() {
     const isPinned = pinned.includes(session.id);
     const title = displayTitle(renames, session.id, session.title);
     const when = relTime(sessionDate(session.id));
+    const openContext = (x: number, y: number) => setCtx({ x, y, sid: session.id });
     return (
       <div
         key={session.id}
-        className={`project-task${nested ? " nested" : ""}${active ? " current" : ""}${isUnread ? " unread" : ""}${archived.includes(session.id) ? " archived" : ""}`}
-        onClick={() => select(session.id)}
+        className={`project-task-wrap${nested ? " nested" : ""}${active ? " current" : ""}${isUnread ? " unread" : ""}${archived.includes(session.id) ? " archived" : ""}`}
         onContextMenu={(event) => {
           event.preventDefault();
-          setCtx({ x: event.clientX, y: event.clientY, sid: session.id });
+          openContext(event.clientX, event.clientY);
         }}
-        title={`${title}\n${status.text}${when ? ` · started ${when} ago` : ""}\n${session.id}`}
       >
-        <span className="project-task-title">{title}</span>
-        {when && <span className="task-when">{when}</span>}
-        {isUnread && <span className="unread-dot" title="New activity" />}
-        <span className={`status-dot ${status.cls}`} title={status.text} />
+        <button
+          className="project-task"
+          onClick={() => {
+            select(session.id);
+            onNavigate?.();
+          }}
+          onKeyDown={(event) => {
+            if ((event.shiftKey && event.key === "F10") || event.key === "ContextMenu") {
+              event.preventDefault();
+              const rect = event.currentTarget.getBoundingClientRect();
+              openContext(rect.left + 20, rect.top + rect.height);
+            }
+          }}
+          title={`${title}\n${status.text}${when ? ` · started ${when} ago` : ""}\n${session.id}`}
+          aria-label={`${title} · ${isUnread ? "New activity" : status.text}${when ? ` · ${when} ago` : ""}`}
+        >
+          <span className="project-task-title">{title}</span>
+          {when && <span className="task-when">{when}</span>}
+          <span className={`status-dot ${isUnread ? "unread" : status.cls}`} title={isUnread ? "New activity" : status.text} />
+          <ArrowSquareOut className="task-open" size={13} />
+        </button>
         <button
           className={`task-pin${isPinned ? " active" : ""}`}
+          tabIndex={-1}
           title={isPinned ? "Unpin task" : "Pin task"}
           aria-label={isPinned ? "Unpin task" : "Pin task"}
           onClick={(event) => {
@@ -118,7 +136,6 @@ export function Sidebar() {
         >
           <PushPin size={13} weight={isPinned ? "fill" : "regular"} />
         </button>
-        <ArrowSquareOut className="task-open" size={13} />
       </div>
     );
   };
@@ -128,7 +145,7 @@ export function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <button className="brand-main" onClick={() => showPage("home")} aria-label="AgentRunner home">
+        <button className="brand-main" onClick={() => { showPage("home"); onNavigate?.(); }} aria-label="AgentRunner home">
           <span className="brand-mark"><Robot size={17} weight="bold" /></span>
           <span className="brand-name">AgentRunner</span>
         </button>
@@ -136,18 +153,18 @@ export function Sidebar() {
           <button className="sidebar-action" onClick={() => setSearching((value) => !value)} title="Search tasks">
             <MagnifyingGlass size={16} />
           </button>
-          <button className="sidebar-action" onClick={toggleSidebar} title="Hide sidebar (⌘B)">
+          <button className="sidebar-action" onClick={onHide || toggleSidebar} title="Hide sidebar (⌘B)">
             <SidebarSimple size={16} />
           </button>
         </div>
       </div>
 
       <nav className="primary-nav" aria-label="Primary">
-        <button className={!currentSid && currentPage === "home" ? "active" : ""} onClick={() => showPage("home")}>
+        <button className={!currentSid && currentPage === "home" ? "active" : ""} onClick={() => { showPage("home"); onNavigate?.(); }}>
           <NotePencil size={17} /> <span>New task</span>
         </button>
-        <button className={!currentSid && currentPage === "scheduled" ? "active" : ""} onClick={() => showPage("scheduled")}>
-          <CalendarDots size={17} /> <span>Runs</span>
+        <button className={!currentSid && currentPage === "scheduled" ? "active" : ""} onClick={() => { showPage("scheduled"); onNavigate?.(); }}>
+          <CalendarDots size={17} /> <span>Scheduled</span>
           {runningRuns > 0 && <span className="nav-notice" title={`${runningRuns} running`} />}
         </button>
       </nav>
@@ -155,8 +172,18 @@ export function Sidebar() {
       {searching && (
         <div className="side-search">
           <MagnifyingGlass size={14} />
-          <input autoFocus value={query} placeholder="Search tasks" onChange={(event) => setQuery(event.target.value)} />
-          {query && <button onClick={() => setQuery("")} aria-label="Clear search">×</button>}
+          <input
+            autoFocus
+            value={query}
+            placeholder="Search tasks"
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Escape") return;
+              if (query) setQuery("");
+              else setSearching(false);
+            }}
+          />
+          {query && <button onClick={() => setQuery("")} aria-label="Clear search"><X size={13} /></button>}
         </div>
       )}
 

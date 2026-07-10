@@ -20,23 +20,26 @@ export function friendlyStatus(raw: string): { text: string; cls: string } {
   // mean instead of leaking the enum. Checked before the broad keyword
   // buckets so e.g. max_generation_steps never matches "run".
   if (s.includes("max_generation_steps") || s.includes("step limit"))
-    return { text: "stopped: step limit", cls: "stranded" };
+    return { text: "Step limit reached", cls: "stranded" };
+  if (s.includes("max_iterations"))
+    return { text: "Iteration limit reached", cls: "stranded" };
   if (s.includes("budget") || s.includes("max_tokens") || s.includes("token limit"))
-    return { text: "stopped: budget limit", cls: "stranded" };
-  if (s.includes("kill")) return { text: "stopped by parent", cls: "closed" };
-  if (s.includes("cancel")) return { text: "cancelled", cls: "closed" };
-  if (s.includes("crash") || s.includes("error")) return { text: "crashed", cls: "crash" };
+    return { text: "Budget limit reached", cls: "stranded" };
+  if (s.includes("kill")) return { text: "Stopped by parent", cls: "closed" };
+  if (s.includes("cancel")) return { text: "Cancelled", cls: "closed" };
+  if (s.includes("crash") || s.includes("error") || s.includes("fail")) return { text: "Failed", cls: "crash" };
   // "stranded" covers both a crashed host AND a fresh fork that was never
   // hosted; both recover by sending a message. Keep it calm and accurate
   // rather than alarming ("host lost").
-  if (s.includes("strand")) return { text: "stranded · send to resume", cls: "stranded" };
-  if (s.includes("interrupt")) return { text: "interrupted", cls: "stranded" };
-  if (s.includes("approval")) return { text: "needs approval", cls: "appr" };
-  if (s.includes("run") || s.includes("busy")) return { text: "running…", cls: "run" };
-  if (s.includes("clos")) return { text: "closed", cls: "closed" };
+  if (s.includes("strand") || s.includes("interrupt")) return { text: "Needs recovery", cls: "stranded" };
+  if (s.includes("approval")) return { text: "Needs approval", cls: "appr" };
+  if (s.includes("run") || s.includes("busy")) return { text: "Running", cls: "run" };
+  if (s.includes("clos")) return { text: "Closed", cls: "closed" };
+  if (s.includes("satisfied")) return { text: "Completed", cls: "closed" };
+  if (s.includes("limit_exceeded")) return { text: "Budget limit reached", cls: "stranded" };
   if (s.includes("complete") || s.includes("done") || s.includes("end"))
-    return { text: "completed", cls: "closed" };
+    return { text: "Completed", cls: "closed" };
   if (s.includes("idle") || s.includes("ready") || s.includes("wait"))
-    return { text: "waiting: input", cls: "idle" };
-  return { text: raw || "—", cls: pillClass(raw || "") };
+    return { text: "Ready", cls: "idle" };
+  return { text: raw || "Unknown", cls: pillClass(raw || "") };
 }

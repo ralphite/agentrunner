@@ -233,6 +233,8 @@ func (s *server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		Turns     int    `json:"turns"`
 		Title     string `json:"title"`
 		Workspace string `json:"workspace"`
+		Kind      string `json:"kind"`
+		Schedule  string `json:"schedule,omitempty"`
 	}
 	// Runtime metadata is authoritative for every session, including sessions
 	// created by the CLI or another UI. The local meta store remains a fallback
@@ -283,7 +285,7 @@ func (s *server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		}
 		rows = append(rows, row{
 			ID: f[0], Status: strings.Join(f[1:len(f)-1], " "), Turns: turns,
-			Title: title, Workspace: m.Workspace,
+			Title: title, Workspace: m.Workspace, Kind: "session",
 		})
 	}
 	writeJSON(w, http.StatusOK, rows)

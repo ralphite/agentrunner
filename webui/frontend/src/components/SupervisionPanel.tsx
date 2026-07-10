@@ -37,12 +37,14 @@ export interface GoalState {
 }
 
 export function SupervisionPanel({
+  loading,
   goal,
   goalEdit,
   children,
   tasks,
   approvals,
   sessionIdle,
+  recovery,
   onGoalEdit,
   onGoalSave,
   onGoalDiscard,
@@ -52,6 +54,7 @@ export function SupervisionPanel({
   onInspect,
   onClose,
 }: {
+  loading: boolean;
   goal: GoalState | null;
   goalEdit: string | null;
   children: InspectNode[];
@@ -60,6 +63,7 @@ export function SupervisionPanel({
   // The conversation itself is idle (not mid-turn): background work running
   // in that state is worth the user's attention (W35).
   sessionIdle: boolean;
+  recovery: boolean;
   onGoalEdit: (value: string) => void;
   onGoalSave: () => void;
   onGoalDiscard: () => void;
@@ -78,7 +82,9 @@ export function SupervisionPanel({
 
       <section className="supervision-section">
         <div className="supervision-label"><Crosshair size={14} /> Goal</div>
-        {goal ? (
+        {loading ? (
+          <div className="supervision-empty supervision-loading"><Hourglass size={14} className="spin" /> Checking goal…</div>
+        ) : goal ? (
           <>
             {goalEdit === null ? (
               <div className="goal-copy">{goal.goal}</div>
@@ -115,7 +121,9 @@ export function SupervisionPanel({
 
       <section className="supervision-section supervision-agents">
         <div className="supervision-label"><UsersThree size={14} /> Agents</div>
-        {children.length > 0 ? <Subagents nodes={children} onOpen={onOpenChild} /> : <div className="supervision-empty">No subagents</div>}
+        {loading ? (
+          <div className="supervision-empty supervision-loading"><Hourglass size={14} className="spin" /> Checking agents…</div>
+        ) : children.length > 0 ? <Subagents nodes={children} onOpen={onOpenChild} /> : <div className="supervision-empty">No subagents</div>}
       </section>
 
       <section className="supervision-section">
@@ -133,26 +141,37 @@ export function SupervisionPanel({
               </div>,
             );
           }
-          for (const node of dedupeInspectNodes(children)) {
-            const st = friendlyStatus(node.reason || node.report?.reason || node.report?.status || "");
-            if (st.cls === "crash" || st.cls === "stranded") {
+          if (recovery) {
+            rows.push(
+              <div className="attention-row" key="recovery">
+                <span className="attention-dot" /> Task needs recovery
+              </div>,
+            );
+          }
+          if (!loading) {
+            for (const node of dedupeInspectNodes(children)) {
+              const st = friendlyStatus(node.reason || node.report?.reason || node.report?.status || "");
+              if (st.cls === "crash" || st.cls === "stranded") {
+                rows.push(
+                  <div className="attention-row" key={"agent-" + (node.call_id || node.session)}>
+                    <span className="attention-dot" /> {node.agent || "agent"} — {st.text}
+                  </div>,
+                );
+              }
+            }
+            if (tasks.length > 0 && sessionIdle) {
               rows.push(
-                <div className="attention-row" key={"agent-" + (node.call_id || node.session)}>
-                  <span className="attention-dot" /> {node.agent || "agent"} — {st.text}
+                <div className="attention-row" key="bg-idle">
+                  <span className="attention-dot" /> Background work still running — it keeps
+                  spending tokens; stop it below if it's no longer needed
                 </div>,
               );
             }
           }
-          if (tasks.length > 0 && sessionIdle) {
-            rows.push(
-              <div className="attention-row" key="bg-idle">
-                <span className="attention-dot" /> Background work still running — it keeps
-                spending tokens; stop it below if it's no longer needed
-              </div>,
-            );
-          }
           return rows.length > 0 ? rows : (
-            <div className="supervision-empty"><CheckCircle size={15} /> Nothing needs you</div>
+            loading
+              ? <div className="supervision-empty supervision-loading"><Hourglass size={14} className="spin" /> Checking attention…</div>
+              : <div className="supervision-empty"><CheckCircle size={15} /> Nothing needs you</div>
           );
         })()}
       </section>

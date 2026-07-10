@@ -103,11 +103,7 @@ export function DiffView({ sid }: { sid: string }) {
       <div className="diffwrap">
         <div className="diff-empty">
           <b>Changes can't be tracked here yet</b>
-          <span>
-            The workspace <span className="mono">{data.workspace}</span> sits inside another
-            repository (<span className="mono">{data.repoRoot}</span>), so its files aren't
-            tracked on their own. Make it a repository of its own to see changes here.
-          </span>
+          <span>This task's workspace sits inside another repository, so its files aren't tracked on their own.</span>
           <button className="primary" onClick={gitInit} disabled={busy} title="git init in the workspace — safe, local-only">
             Track changes (git init)
           </button>
@@ -118,11 +114,8 @@ export function DiffView({ sid }: { sid: string }) {
     return (
       <div className="diffwrap">
         <div className="diff-empty">
-          <b>Not a git repository</b>
-          <span>
-            The workspace <span className="mono">{data.workspace}</span> has no version control,
-            so there is no diff to show.
-          </span>
+          <b>No Git changes to review</b>
+          <span>This task's workspace has no version control yet.</span>
           <button className="primary" onClick={gitInit} disabled={busy} title="git init in the workspace — safe, local-only">
             Track changes (git init)
           </button>

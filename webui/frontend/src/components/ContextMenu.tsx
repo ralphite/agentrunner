@@ -16,6 +16,7 @@ export function ContextMenu({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    requestAnimationFrame(() => ref.current?.querySelector<HTMLElement>("[role='menuitem']")?.focus());
     const onDoc = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
     };
@@ -39,7 +40,7 @@ export function ContextMenu({
     top: Math.min(y, window.innerHeight - 250),
   };
   return (
-    <div className="ctx-menu" ref={ref} style={style} onClick={onClose}>
+    <div className="ctx-menu" ref={ref} style={style} role="menu" onClick={onClose}>
       {children}
     </div>
   );

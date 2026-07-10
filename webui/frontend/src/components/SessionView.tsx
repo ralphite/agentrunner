@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Check, DotsThree, Files, Folder, Stop, UsersThree } from "@phosphor-icons/react";
+import { ArrowClockwise, ArrowLeft, Check, DotsThree, Files, Folder, Stop, UsersThree } from "@phosphor-icons/react";
 import { AR } from "../api";
 import { useStore } from "../store";
 import type { Envelope, Task } from "../types";
@@ -14,6 +14,7 @@ import { SupervisionPanel } from "./SupervisionPanel";
 import { FindBar } from "./FindBar";
 import { friendlyStatus } from "./pill";
 import { displayTitle } from "../title";
+import { dedupeInspectNodes } from "../viewModels";
 
 interface SSEApproval {
   id: string;
@@ -44,6 +45,7 @@ export function SessionView({ sid }: { sid: string }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [usage, setUsage] = useState<{ billed: number; steps: number } | null>(null);
   const [children, setChildren] = useState<InspectNode[]>([]);
+  const [inspectReady, setInspectReady] = useState(false);
   const [goal, setGoal] = useState<{ goal: string; checks: number; max_checks?: number; paused?: boolean; verifiers?: number; claimed?: boolean } | null>(null);
   // Non-null while the banner's goal text is being edited (INC-10): the value
   // is the draft; save issues a goal update (text only — verifier/budget keep).
@@ -134,6 +136,7 @@ export function SessionView({ sid }: { sid: string }) {
       if (u) setUsage({ billed: u.billed ?? (u.input_tokens || 0) + (u.output_tokens || 0), steps: ins.gen_steps || 0 });
       setChildren(Array.isArray(ins?.children) ? ins.children : []);
       setGoal(ins?.goal || null);
+      setInspectReady(true);
     } catch {
       /* ignore — usage badge / subagents are best-effort */
     }
@@ -161,6 +164,7 @@ export function SessionView({ sid }: { sid: string }) {
     setUsage(null);
     setChildren([]);
     setGoal(null);
+    setInspectReady(false);
     poll();
     const e = setInterval(poll, 1000);
     const t = setInterval(pollTasks, 2500);
@@ -228,8 +232,8 @@ export function SessionView({ sid }: { sid: string }) {
   const live = folded.active || openApprovals.length > 0;
   const status = live
     ? openApprovals.length > 0
-      ? { text: "needs approval", cls: "appr" }
-      : { text: "running…", cls: "run" }
+      ? { text: "Needs approval", cls: "appr" }
+      : { text: "Working…", cls: "run" }
     : folded.isDriver
       ? // a driver session's `sessions list` status is "unreadable"; its own
         // journal (driver_completed) is the authoritative status.
@@ -240,6 +244,13 @@ export function SessionView({ sid }: { sid: string }) {
           ? { text: "completed", cls: "closed" }
           : folded.status;
   const isDriver = folded.isDriver;
+  const needsRecovery = !live && /strand|interrupt/i.test(listStatus || "");
+  const running = status.cls === "run";
+  const abnormalAgentCount = dedupeInspectNodes(children).filter((node) => {
+    const childStatus = friendlyStatus(node.reason || node.report?.reason || node.report?.status || "");
+    return childStatus.cls === "crash" || childStatus.cls === "stranded";
+  }).length;
+  const attentionCount = openApprovals.length + (needsRecovery ? 1 : 0) + abnormalAgentCount + (tasks.length > 0 && !running ? 1 : 0);
 
   const doSend = async (text: string, images: string[], files: string[] = []) => {
     const id = ++pendSeq.current;
@@ -344,8 +355,6 @@ export function SessionView({ sid }: { sid: string }) {
     },
   };
 
-  const running = status.cls === "run";
-
   // A pending approval must be seen: it force-opens the panel for as long as
   // approvals are open (not persisted — the user's remembered preference
   // stays whatever they chose last).
@@ -373,36 +382,23 @@ export function SessionView({ sid }: { sid: string }) {
             <Stop size={14} weight="fill" /> Stop
           </button>
         )}
+        {!isSub && needsRecovery && (
+          <button className="topbar-tool recovery" onClick={act.resume} title="Resume this task from its last durable checkpoint">
+            <ArrowClockwise size={15} /> Resume
+          </button>
+        )}
         <button className={`topbar-tool${view === "diff" ? " active" : ""}`} onClick={() => setView(view === "diff" ? "chat" : "diff")} title="Review workspace changes">
           <Files size={16} /> Changes
         </button>
         <button className={`topbar-tool${supervisionOpen ? " active" : ""}`} onClick={() => setSupervision(!supervisionOpen)} title="Show supervision">
           <UsersThree size={16} /> Supervision
-          {openApprovals.length > 0 && <span className="topbar-attention">{openApprovals.length}</span>}
+          {attentionCount > 0 && <span className="topbar-attention">{attentionCount}</span>}
         </button>
         <Menu label={<DotsThree size={18} weight="bold" />} ariaLabel="More task actions">
           <MenuLabel>View</MenuLabel>
           <MenuItem onClick={() => setView("chat")}>Conversation</MenuItem>
           <MenuItem onClick={() => setView("diff")}>Changes</MenuItem>
           <MenuItem onClick={() => setSupervision(!supervisionOpen)}>{supervisionOpen ? "Hide" : "Show"} supervision</MenuItem>
-          <MenuItem
-            title="the append-only event log (ar events --json) — the source of truth this timeline is rendered from"
-            onClick={() => act.view("raw journal", () => AR.rawEvents(sid))}
-          >
-            Raw journal
-          </MenuItem>
-          <MenuItem
-            title="the current session state folded from the journal (ar events --state): status, spec, usage"
-            onClick={() => act.view("folded state", () => AR.state(sid))}
-          >
-            Folded state
-          </MenuItem>
-          <MenuItem
-            title="the session tree (ar inspect): sub-agents, status and token usage"
-            onClick={() => act.view("inspect tree", () => AR.inspect(sid))}
-          >
-            Inspect tree
-          </MenuItem>
           <MenuItem
             title="also show low-level system events (mode changes, effects, barriers…) inline in the timeline"
             onClick={toggleSys}
@@ -416,7 +412,7 @@ export function SessionView({ sid }: { sid: string }) {
                 title="checkpoint the session right now (ar barrier) so you can fork from this exact point later"
                 onClick={act.barrier}
               >
-                Checkpoint now (barrier)
+                Create checkpoint
               </MenuItem>
               <MenuItem
                 title="branch a new independent session into its own git worktree from a checkpoint; this session is untouched"
@@ -430,19 +426,9 @@ export function SessionView({ sid }: { sid: string }) {
               >
                 Switch agent…
               </MenuItem>
-              <MenuItem
-                title="recover a crashed or interrupted session (ar resume) so it can keep going"
-                onClick={act.resume}
-              >
-                Resume (recover after crash/interrupt)
-              </MenuItem>
               <MenuLabel>Lifecycle</MenuLabel>
-              <MenuItem
-                title="tear down the hosted run but keep the session revivable — sending a message brings it back (ar stop)"
-                onClick={act.stop}
-              >
-                Stop session (revivable)
-              </MenuItem>
+              {needsRecovery && <MenuItem onClick={act.resume}>Resume task</MenuItem>}
+              {running && <MenuItem onClick={act.stop}>Stop active run</MenuItem>}
               <MenuItem
                 danger
                 title="gracefully end the conversation and mark it closed (ar close); a later send reopens it"
@@ -540,12 +526,14 @@ export function SessionView({ sid }: { sid: string }) {
         </main>
         {supervisionOpen && (
           <SupervisionPanel
+            loading={!inspectReady}
             goal={goal}
             goalEdit={goalEdit}
             children={children}
             tasks={tasks}
             approvals={openApprovals.length}
             sessionIdle={!running}
+            recovery={needsRecovery}
             onGoalEdit={setGoalEdit}
             onGoalSave={saveGoalEdit}
             onGoalDiscard={() => setGoalEdit(null)}

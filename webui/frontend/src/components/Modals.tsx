@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { X } from "@phosphor-icons/react";
 import { AR } from "../api";
 import { useStore, type ModalKind } from "../store";
 import type { SpecFile } from "../types";
@@ -17,22 +18,54 @@ function Modal({
   children: React.ReactNode;
   footer?: React.ReactNode;
 }) {
-  // Escape closes from anywhere in the dialog — not just focused inputs
-  // (W18: the close affordance must not depend on where focus happens to be).
+  const modalRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+    const previous = document.activeElement as HTMLElement | null;
+    const root = modalRef.current;
+    const focusable = () => Array.from(root?.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex='-1'])") || []);
+    requestAnimationFrame(() => {
+      const firstField = root?.querySelector<HTMLElement>(
+        ".mbody input:not(:disabled), .mbody textarea:not(:disabled)",
+      );
+      const firstChoice = root?.querySelector<HTMLElement>(
+        ".mbody select:not(:disabled), .mbody button:not(:disabled)",
+      );
+      (firstField || firstChoice || focusable()[0] || root)?.focus();
+    });
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const items = focusable();
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      previous?.focus();
+    };
+  }, []);
   return (
     <div className="backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal">
+      <div className="modal" ref={modalRef} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1}>
         <div className="mhead">
           <span>{title}</span>
-          <button className="ghost" onClick={onClose}>
-            ✕
+          <button className="ghost" onClick={onClose} aria-label="Close dialog">
+            <X size={16} />
           </button>
         </div>
         <div className="mbody">{children}</div>
@@ -133,6 +166,21 @@ function useWorkspace() {
       toast(e.message);
     }
   };
+  const ensure = async () => {
+    if (ws.trim()) return ws.trim();
+    const path = (await AR.makeWorkspace()).path;
+    setWs(path);
+    return path;
+  };
+  const choose = () => {
+    openPrompt({
+      title: "Choose workspace",
+      label: "absolute folder path",
+      initial: ws.trim(),
+      placeholder: "/path/to/workspace",
+      onSubmit: setWs,
+    });
+  };
   // Codex "New worktree": create an isolated git worktree of a repo so the
   // agent's edits don't touch the user's checkout. Prompts for the repo path.
   const mkWorktree = () => {
@@ -151,13 +199,13 @@ function useWorkspace() {
       },
     });
   };
-  return { ws, setWs, mk, mkWorktree };
+  return { ws, setWs, mk, ensure, choose, mkWorktree };
 }
 
 function NewSessionModal({ initialMessage }: { initialMessage?: string }) {
   const { openModal, select, refreshSessions, toast } = useStore();
-  const { ws, setWs, mk, mkWorktree } = useWorkspace();
-  const [msg, setMsg] = useState(initialMessage || "Hello — in one sentence, introduce your tool capabilities.");
+  const { ws, setWs, ensure, choose, mkWorktree } = useWorkspace();
+  const [msg, setMsg] = useState(initialMessage || "");
   const [mode, setMode] = useState("");
   const [spec, setSpec] = useState(DEFAULT_SPEC);
   const [worker, setWorker] = useState(DEFAULT_WORKER);
@@ -169,7 +217,8 @@ function NewSessionModal({ initialMessage }: { initialMessage?: string }) {
     try {
       const extraSpecs: SpecFile[] = [];
       if (worker.trim()) extraSpecs.push({ name: "worker.yaml", content: worker });
-      const r = await AR.newSession({ spec, extraSpecs, workspace: ws.trim(), message: msg.trim(), mode });
+      const workspace = await ensure();
+      const r = await AR.newSession({ spec, extraSpecs, workspace, message: msg.trim(), mode });
       close();
       await refreshSessions();
       select(r.sid);
@@ -182,38 +231,36 @@ function NewSessionModal({ initialMessage }: { initialMessage?: string }) {
 
   return (
     <Modal
-      title="New session (chat)"
+      title="Advanced task setup"
       onClose={close}
       footer={
         <>
-          <button onClick={() => openModal({ kind: "run" })}>Run in background instead (submit/drive)…</button>
-          <button className="primary" disabled={busy} onClick={create}>
-            Create
+          <button onClick={() => openModal({ kind: "run", task: msg })}>Create a background task…</button>
+          <button className="primary" disabled={busy || !msg.trim()} onClick={create}>
+            Start task
           </button>
         </>
       }
     >
-      <label className="field">workspace directory (absolute path)</label>
+      <label className="field">Task</label>
+      <textarea autoFocus rows={3} value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="Describe the outcome you want" />
+      <label className="field">Workspace</label>
       <div className="row-flex">
-        <input type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="/path/to/workspace" />
-        <button style={{ whiteSpace: "nowrap" }} onClick={mk} title="create a fresh empty directory under runtime/ and fill it in here">
-          make empty workspace
-        </button>
+        <input type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="New scratch workspace" />
+        <button style={{ whiteSpace: "nowrap" }} onClick={choose}>Use folder…</button>
         <button style={{ whiteSpace: "nowrap" }} onClick={mkWorktree} title="Codex 'New worktree': branch a fresh, isolated git worktree of a repo so edits don't touch your checkout">
-          new worktree…
+          New worktree…
         </button>
       </div>
-      <label className="field">opening message</label>
-      <textarea rows={2} value={msg} onChange={(e) => setMsg(e.target.value)} />
-      <label className="field">mode</label>
+      <label className="field">Approval mode</label>
       <select value={mode} onChange={(e) => setMode(e.target.value)} title="permission mode: default asks for approval on gated tools · plan = read-only planning · acceptEdits auto-approves file edits">
         <option value="">default</option>
         <option value="plan">plan</option>
         <option value="acceptEdits">acceptEdits</option>
       </select>
-      <label className="field">base.yaml (main agent spec)</label>
+      <label className="field">Agent specification (YAML)</label>
       <textarea className="code" rows={11} value={spec} onChange={(e) => setSpec(e.target.value)} />
-      <label className="field">worker.yaml (sibling sub-agent spec; leave empty to skip)</label>
+      <label className="field">Worker specification (optional YAML)</label>
       <textarea className="code" rows={6} value={worker} onChange={(e) => setWorker(e.target.value)} />
     </Modal>
   );
@@ -232,9 +279,14 @@ function withSchedule(driver: string, schedule: string, interval: string, cron: 
   return out + "\n";
 }
 
+function withDriverTask(driver: string, task: string): string {
+  const kept = driver.split("\n").filter((line) => !/^\s*task\s*:/.test(line));
+  return kept.join("\n").replace(/\n+$/, "") + `\ntask: ${JSON.stringify(task.trim())}\n`;
+}
+
 function RunModal({ initialTask }: { initialTask?: string }) {
   const { openModal, selectRun, refreshRuns, toast } = useStore();
-  const { ws, setWs, mk } = useWorkspace();
+  const { ws, setWs, ensure, choose } = useWorkspace();
   const [kind, setKind] = useState<"submit" | "drive">("submit");
   const [task, setTask] = useState(initialTask || "");
   const [mode, setMode] = useState("");
@@ -242,7 +294,7 @@ function RunModal({ initialTask }: { initialTask?: string }) {
   const [spec, setSpec] = useState(DEFAULT_SPEC);
   const [driver, setDriver] = useState(DEFAULT_DRIVER);
   const [driverAgent, setDriverAgent] = useState(DEFAULT_DRIVER_AGENT);
-  const [schedule, setSchedule] = useState(""); // "" = goal | "interval" | "cron" | "parallel"
+  const [schedule, setSchedule] = useState("immediate");
   const [interval, setInterval] = useState("5m");
   const [cron, setCron] = useState("0 * * * *");
   const [nAttempts, setNAttempts] = useState(3);
@@ -252,14 +304,16 @@ function RunModal({ initialTask }: { initialTask?: string }) {
   const start = async () => {
     setBusy(true);
     try {
+      const workspace = await ensure();
+      const driverSpec = withSchedule(withDriverTask(driver, task), schedule, interval, cron, nAttempts);
       const r = await AR.startRun({
         kind,
-        spec: kind === "submit" ? spec : withSchedule(driver, schedule, interval, cron, nAttempts),
+        spec: kind === "submit" ? spec : driverSpec,
         // drive needs the child agent spec as an agent.yaml sibling (driver's
         // agent_spec field points at it); submit needs no sibling.
         extraSpecs: kind === "drive" ? [{ name: "agent.yaml", content: driverAgent }] : [],
         task,
-        workspace: ws.trim(),
+        workspace,
         mode,
         idem,
       });
@@ -275,57 +329,59 @@ function RunModal({ initialTask }: { initialTask?: string }) {
 
   return (
     <Modal
-      title="New run"
+      title="New scheduled task"
       onClose={close}
       footer={
-        <button className="primary" disabled={busy || (kind === "submit" && !task.trim())} onClick={start}>
-          {kind === "submit" ? "Start task" : "Start driver"}
+        <button className="primary" disabled={busy || !task.trim()} onClick={start}>
+          {kind === "submit" ? "Start task" : "Start schedule"}
         </button>
       }
     >
-      <label className="field">What kind of run?</label>
+      <label className="field">Run type</label>
       <div className="seg">
-        <button className={kind === "submit" ? "on" : ""} onClick={() => setKind("submit")} title="ar submit — a fresh session runs the task once and completes">
-          One-shot task
+        <button className={kind === "submit" ? "on" : ""} onClick={() => setKind("submit")} title="one-shot task: a fresh session runs the task once and completes">
+          One-time
         </button>
-        <button className={kind === "drive" ? "on" : ""} onClick={() => setKind("drive")} title="ar drive — child runs repeat per driver.yaml (goal / loop / best-of-N)">
-          Repeating driver
+        <button className={kind === "drive" ? "on" : ""} onClick={() => setKind("drive")} title="iterative driver: child runs repeat per driver.yaml (goal / loop / best-of-N)">
+          Goal or repeating
         </button>
       </div>
-      <label className="field">workspace directory (absolute path)</label>
+      <label className="field">Task</label>
+      <textarea autoFocus rows={3} value={task} onChange={(e) => setTask(e.target.value)} placeholder="Describe the outcome you want" />
+      <label className="field">Workspace</label>
       <div className="row-flex">
-        <input type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="/path/to/workspace" />
-        <button style={{ whiteSpace: "nowrap" }} onClick={mk} title="create a fresh scratch directory (its own git repo) and fill it in here">
-          make empty workspace
-        </button>
+        <input type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="New scratch workspace" />
+        <button style={{ whiteSpace: "nowrap" }} onClick={choose}>Use folder…</button>
       </div>
       {kind === "submit" ? (
-        <>
-          <label className="field">task</label>
-          <textarea rows={2} value={task} onChange={(e) => setTask(e.target.value)} placeholder="What should the agent do? e.g. Summarize README.md into notes.md" />
-          <label className="field">mode</label>
-          <select value={mode} onChange={(e) => setMode(e.target.value)} title="permission mode: default asks for approval on gated tools · plan = read-only planning · acceptEdits auto-approves file edits">
-            <option value="">default</option>
-            <option value="plan">plan</option>
-            <option value="acceptEdits">acceptEdits</option>
-          </select>
-          <details className="adv-details">
-            <summary>Advanced — agent spec & dedupe key</summary>
-            <label className="field">dedupe key (optional)</label>
-            <input type="text" value={idem} onChange={(e) => setIdem(e.target.value)} title="idempotency key: resubmitting with the same key reuses the run instead of starting a new one" placeholder="reuse a run instead of starting twice" />
-            <label className="field">spec.yaml</label>
-            <textarea className="code" rows={10} value={spec} onChange={(e) => setSpec(e.target.value)} />
-          </details>
-        </>
+        <details className="advanced-settings">
+          <summary>Advanced settings</summary>
+          <div className="row-flex">
+            <div style={{ flex: 1 }}>
+              <label className="field">Approval mode</label>
+              <select value={mode} onChange={(e) => setMode(e.target.value)}>
+                <option value="">From agent specification</option>
+                <option value="plan">Plan (read-only)</option>
+                <option value="acceptEdits">Auto-accept edits</option>
+              </select>
+            </div>
+            <div style={{ flex: 1 }}>
+              <label className="field">Idempotency key (optional)</label>
+              <input type="text" value={idem} onChange={(e) => setIdem(e.target.value)} />
+            </div>
+          </div>
+          <label className="field">Agent specification (YAML)</label>
+          <textarea className="code" rows={9} value={spec} onChange={(e) => setSpec(e.target.value)} />
+        </details>
       ) : (
         <>
-          <label className="field">schedule — how iterations are paced</label>
+          <label className="field">Schedule</label>
           <div className="row-flex">
             <select value={schedule} onChange={(e) => setSchedule(e.target.value)} title="how iterations are paced">
-              <option value="">goal — run until satisfied</option>
-              <option value="interval">interval — repeat every…</option>
-              <option value="cron">cron — repeat on a cron schedule</option>
-              <option value="parallel">best of N — isolated attempts, keep the best</option>
+              <option value="immediate">Goal — work until verified</option>
+              <option value="interval">Repeat every…</option>
+              <option value="cron">Cron schedule…</option>
+              <option value="parallel">Best of N attempts</option>
             </select>
             {schedule === "interval" && (
               <input
@@ -355,15 +411,13 @@ function RunModal({ initialTask }: { initialTask?: string }) {
               />
             )}
           </div>
-          <label className="field">driver.yaml (iterative driver spec: agent_spec / task / verifiers)</label>
-          <textarea className="code" rows={8} value={driver} onChange={(e) => setDriver(e.target.value)} />
-          <label className="field">agent.yaml (the sub-agent each iteration runs; referenced by the driver's agent_spec)</label>
-          <textarea
-            className="code"
-            rows={7}
-            value={driverAgent}
-            onChange={(e) => setDriverAgent(e.target.value)}
-          />
+          <details className="advanced-settings">
+            <summary>Advanced settings</summary>
+            <label className="field">Driver specification (YAML)</label>
+            <textarea className="code" rows={8} value={driver} onChange={(e) => setDriver(e.target.value)} />
+            <label className="field">Iteration agent (YAML)</label>
+            <textarea className="code" rows={7} value={driverAgent} onChange={(e) => setDriverAgent(e.target.value)} />
+          </details>
         </>
       )}
     </Modal>

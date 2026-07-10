@@ -59,6 +59,14 @@ export interface SysItem {
   text: string;
 }
 
+export interface RuntimeItem {
+  kind: "runtime";
+  key: string;
+  source: string;
+  text: string;
+  ts?: string;
+}
+
 export interface ApprovalRef {
   id: string;
   tool: string;
@@ -67,7 +75,7 @@ export interface ApprovalRef {
   resolved?: { decision: string; reason?: string; source?: string };
 }
 
-export type TimelineItem = ToolItem | BubbleItem | TurnItem | ChipItem | SysItem;
+export type TimelineItem = ToolItem | BubbleItem | TurnItem | ChipItem | SysItem | RuntimeItem;
 
 export interface Folded {
   items: TimelineItem[];
@@ -127,6 +135,17 @@ export function foldEvents(events: Envelope[]): Folded {
         // render it as a peer message, not something you typed (W19).
         const raw = p.text || "(empty)";
         const peer = /^\[message from ([^ ()]+) \(([^)]+)\)\]\s*/.exec(raw);
+        const source = p.source || "user";
+        if (!peer && !HUMAN_SOURCES.has(source)) {
+          push({
+            kind: "runtime",
+            key: "r" + seq,
+            source,
+            text: raw,
+            ts: env.ts,
+          });
+          break;
+        }
         push({
           kind: "user",
           key: "u" + seq,
@@ -135,7 +154,7 @@ export function foldEvents(events: Envelope[]): Folded {
           text: peer ? raw.slice(peer[0].length) || raw : raw,
           // Human-typed input via any entry point (user/cli/tty) is "you";
           // only program/control sources get a distinct label (UX-05).
-          source: peer ? peer[1] : p.source && !HUMAN_SOURCES.has(p.source) ? p.source : undefined,
+          source: peer ? peer[1] : undefined,
           peerSession: peer ? peer[2] : undefined,
           images: p.images && p.images.length ? p.images.length : undefined,
         });

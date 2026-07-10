@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Check } from "@phosphor-icons/react";
 
 // Popover is the drop-up menu primitive the composer controls hang off of. It
 // anchors a panel to a trigger button, opens *upward* (the composer sits at the
@@ -119,7 +120,7 @@ export function PopItem({
         <span className="pop-title">{title}</span>
         {desc && <span className="pop-desc">{desc}</span>}
       </span>
-      {right !== undefined ? <span className="pop-right">{right}</span> : active ? <span className="pop-check">✓</span> : null}
+      {right !== undefined ? <span className="pop-right">{right}</span> : active ? <span className="pop-check"><Check size={14} /></span> : null}
     </button>
   );
 }

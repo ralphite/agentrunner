@@ -22,6 +22,18 @@ export function App() {
   const sidebarCollapsed = useStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useStore((s) => s.toggleSidebar);
   const [palette, setPalette] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 680px)").matches);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 680px)");
+    const sync = () => {
+      setIsMobile(query.matches);
+      if (query.matches) setMobileSidebarOpen(false);
+    };
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
 
   // Global keys: ⌘K/Ctrl-K toggles the command palette; "?" opens the
   // keyboard-shortcuts reference (unless the user is typing into a field).
@@ -41,7 +53,8 @@ export function App() {
       // ⌘B / Ctrl-B shows or hides the sidebar (Codex's Toggle sidebar).
       if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "b") {
         e.preventDefault();
-        useStore.getState().toggleSidebar();
+        if (window.matchMedia("(max-width: 680px)").matches) setMobileSidebarOpen((open) => !open);
+        else useStore.getState().toggleSidebar();
         return;
       }
       if (e.key === "?" && !e.metaKey && !e.ctrlKey && !e.altKey) {
@@ -95,14 +108,22 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const effectiveCollapsed = isMobile ? !mobileSidebarOpen : sidebarCollapsed;
+  const hideSidebar = () => isMobile ? setMobileSidebarOpen(false) : toggleSidebar();
+  const showSidebar = () => isMobile ? setMobileSidebarOpen(true) : toggleSidebar();
+  const closeAfterNavigate = () => {
+    if (isMobile) setMobileSidebarOpen(false);
+  };
+
   return (
-    <div className={"app" + (sidebarCollapsed ? " collapsed" : "")}>
-      <Sidebar />
+    <div className={"app" + (effectiveCollapsed ? " collapsed" : "")}>
+      <Sidebar onHide={hideSidebar} onNavigate={closeAfterNavigate} />
+      {isMobile && mobileSidebarOpen && <button className="sidebar-scrim" aria-label="Close sidebar" onClick={hideSidebar} />}
       <div className="main">
-        {sidebarCollapsed && (
+        {effectiveCollapsed && (
           <button
             className="sidebar-show"
-            onClick={toggleSidebar}
+            onClick={showSidebar}
             title="Show sidebar (⌘B)"
             aria-label="Show sidebar"
           >

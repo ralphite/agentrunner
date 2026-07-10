@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { describeApproval } from "./approvalPresentation";
-import { buildSidebarModel, dedupeInspectNodes, projectLabel, scratchLabel } from "./viewModels";
+import { buildSidebarModel, dedupeInspectNodes, projectLabel, scheduleLabel, scratchLabel } from "./viewModels";
 import { foldEvents } from "./timeline";
 import type { Session } from "./types";
 
@@ -8,6 +8,9 @@ const sessions: Session[] = [
   { id: "s1", status: "idle", turns: 2, title: "Alpha", workspace: "/Users/me/dev/agentrunner" },
   { id: "s2", status: "running", turns: 1, title: "Beta", workspace: "/Users/me/dev/agentrunner/" },
   { id: "s3", status: "failed", turns: 3, title: "Gamma" },
+  { id: "driver", status: "satisfied", turns: 3, title: "Nightly", workspace: "/tmp/repo", kind: "driver" },
+  { id: "scratch-1", status: "completed", turns: 1, title: "Scratch one", workspace: "/tmp/ws1783658717524713000" },
+  { id: "scratch-2", status: "completed", turns: 1, title: "Scratch two", workspace: "/tmp/wt1783658717524713999" },
 ];
 
 describe("project sidebar model", () => {
@@ -21,8 +24,9 @@ describe("project sidebar model", () => {
     });
     expect(model.pinned.map((session) => session.id)).toEqual(["s2"]);
     // Newest-first everywhere (W8): ids sort descending, so s3 leads.
-    expect(model.projects.map((project) => project.label)).toEqual(["Other sessions", "agentrunner"]);
-    expect(model.projects.flatMap((project) => project.sessions.map((session) => session.id))).toEqual(["s3", "s1"]);
+    expect(model.projects.map((project) => project.label)).toEqual(["Scratch", "Other sessions", "agentrunner"]);
+    expect(model.projects.flatMap((project) => project.sessions.map((session) => session.id))).toEqual(["scratch-2", "scratch-1", "s3", "s1"]);
+    expect(model.projects.flatMap((project) => project.sessions.map((session) => session.id))).not.toContain("driver");
   });
 
   it("orders sessions newest-first and groups by their newest session (W8)", () => {
@@ -54,7 +58,7 @@ describe("project sidebar model", () => {
     expect(scratchLabel("wt-20260710-221530")).toBe("Scratch · 07-10 22:15");
     expect(scratchLabel("ws1783659626368076000")).toMatch(/^Scratch · \d{2}-\d{2} \d{2}:\d{2}$/);
     expect(scratchLabel("agentrunner")).toBe("");
-    expect(projectLabel("/x/y/ws-20260710-221530")).toBe("Scratch · 07-10 22:15");
+    expect(projectLabel("/x/y/ws-20260710-221530")).toBe("Scratch");
   });
 
   it("renders team mail as a peer message, not something you typed (W19)", () => {
@@ -86,7 +90,16 @@ describe("project sidebar model", () => {
 
   it("derives a stable label from a trailing-slash path", () => {
     expect(projectLabel("/tmp/work/repo/")).toBe("repo");
+    expect(projectLabel("/tmp/ws1783658717524713000")).toBe("Scratch");
+    expect(projectLabel("/tmp/wt1783658717524713999-fork-1234")).toBe("Scratch");
+    expect(projectLabel("/tmp/ws-20260710-221530")).toBe("Scratch");
     expect(projectLabel()).toBe("Other sessions");
+  });
+
+  it("uses product labels for driver schedules", () => {
+    expect(scheduleLabel()).toBe("Goal");
+    expect(scheduleLabel("cron")).toBe("Scheduled");
+    expect(scheduleLabel("parallel")).toBe("Best of N");
   });
 });
 
@@ -127,10 +140,10 @@ describe("supervision agent model", () => {
 describe("status and background labels", () => {
   it("translates raw terminal reasons instead of leaking enums (W6)", async () => {
     const { friendlyStatus } = await import("./components/pill");
-    expect(friendlyStatus("max_generation_steps")).toEqual({ text: "stopped: step limit", cls: "stranded" });
-    expect(friendlyStatus("budget_exceeded")).toEqual({ text: "stopped: budget limit", cls: "stranded" });
-    expect(friendlyStatus("killed")).toEqual({ text: "stopped by parent", cls: "closed" });
-    expect(friendlyStatus("completed").text).toBe("completed");
+    expect(friendlyStatus("max_generation_steps")).toEqual({ text: "Step limit reached", cls: "stranded" });
+    expect(friendlyStatus("budget_exceeded")).toEqual({ text: "Budget limit reached", cls: "stranded" });
+    expect(friendlyStatus("killed")).toEqual({ text: "Stopped by parent", cls: "closed" });
+    expect(friendlyStatus("completed").text).toBe("Completed");
   });
 
   it("renders ps rows as sentences and never a dangling task= (W7)", async () => {

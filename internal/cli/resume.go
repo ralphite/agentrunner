@@ -234,6 +234,8 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 		Turns     int    `json:"turns"`
 		Workspace string `json:"workspace,omitempty"`
 		Title     string `json:"title,omitempty"`
+		Kind      string `json:"kind"`
+		Schedule  string `json:"schedule,omitempty"`
 		mtime     int64
 	}
 	var rows []row
@@ -241,12 +243,13 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 		if !e.IsDir() {
 			continue
 		}
-		r := row{ID: e.Name(), Status: "unreadable"}
+		r := row{ID: e.Name(), Status: "unreadable", Kind: "session"}
 		if info, err := e.Info(); err == nil {
 			r.mtime = info.ModTime().UnixNano()
 		}
 		if events, err := store.ReadEvents(filepath.Join(root, e.Name())); err == nil {
 			if isDriverJournal(events) {
+				r.Kind = "driver"
 				if s, derr := driver.Fold(events); derr == nil {
 					r.Status = string(s.Status)
 					if s.Status == driver.StatusEnded && s.Reason != "" {
@@ -262,6 +265,19 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 						started := decoded.(*event.DriverStarted)
 						r.Workspace = started.WorkspaceRoot
 						r.Title = started.SpecName
+						var spec struct {
+							Schedule string
+							Task     string
+						}
+						if json.Unmarshal(started.Spec, &spec) == nil {
+							r.Schedule = spec.Schedule
+							if r.Schedule == "" {
+								r.Schedule = driver.ScheduleImmediate
+							}
+							if task := strings.TrimSpace(strings.SplitN(spec.Task, "\n", 2)[0]); task != "" {
+								r.Title = task
+							}
+						}
 					}
 				}
 			} else if s, err := state.Fold(events); err == nil {
