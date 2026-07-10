@@ -1,6 +1,6 @@
 # INC-11 通用 coding-agent runtime 基础加固
 
-> **状态：已裁决，实施中。** 来源：2026-07-09 对 Agent runtime 的全栈
+> **状态：已完成（2026-07-09）。** 来源：2026-07-09 对 Agent runtime 的全栈
 > 审查。该增量按依赖顺序关闭一致性、安全、扩展能力与长期运行缺口；每
 > 一步独立过 `check.sh`、真实共享 store 与真实 daemon/Web 闸门后提交。
 
@@ -124,12 +124,20 @@ Durable CommandLog(command_id, seq, principal, source, trust)
    记录 offset/hash，resume O(1) 校验真实边界后 seek 只读 tail；cursor 异常
    全量 fold。additive/旧 namespace 子集兼容，旧 snapshot 缺新投影时丢缓存
    全折，未知/冲突 namespace 仍 fail closed 且不修改源数据。
-8. INC-11.8：三层文档收口、对抗 review、全自动与真实环境 QA。
+8. ✅ INC-11.8：DESIGN/SPEC/LOG/QA 并回；correctness/concurrency、security、
+   contract 三视角 review 无剩余 P0/P1。`check.sh` 与 race 全绿；墙钟型并行
+   测试改用 durable activity ordering 断言消除负载抖动。QA-21 在真实共享
+   store + 真 Gemini 证明 isolated child worktree、team task、event index、
+   snapshot cursor、无事件重复 resume；当前 WebUI 于
+   `http://127.0.0.1:8788` 验证父/子时间线、只读子页与零 console error。
 
 ## review 裁决
 
 这是里程碑级且改变 durability/security/versioning 不变量的增量。每个触及
 不变量的步骤必须做 correctness/concurrency、security、contract 三视角
-review；P0/P1 清零后才能关闭。用户要求实现全部审查项，视为对上述 delta
+review；P0/P1 清零后才能关闭。三视角收口已完成：正确性核对 CommandLog/
+snapshot/team lease 的 crash 窗与单写者；安全核对 OS 收容、MCP egress、
+isolated worktree/credential 排除和 child approval 权限；契约核对三层文档、
+旧共享数据、CLI/inspect/WebUI。用户要求实现全部审查项，视为对上述 delta
 的实施裁决；若实现发现语义冲突，按 PROCESS §4 先修本工作纸与 DESIGN，
 不得先在代码里绕过。

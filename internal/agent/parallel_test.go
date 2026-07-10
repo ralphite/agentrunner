@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/pipeline"
@@ -15,8 +14,8 @@ import (
 )
 
 // S4.3: the allow-verdict tool calls of ONE assistant turn execute
-// concurrently. Three ~300ms sleeps finish in ~one sleep run concurrently,
-// ~three run serially — the wall-clock is the proof.
+// concurrently. The durable ordering proof is stronger and non-flaky: all
+// three ActivityStarted facts must land before the first terminal fact.
 func TestParallelToolCalls(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
@@ -33,20 +32,13 @@ func TestParallelToolCalls(t *testing.T) {
 	}}
 	l := testLoop(t, fix, t.TempDir())
 
-	start := time.Now()
 	res, err := l.Run(context.Background(), "run three")
-	elapsed := time.Since(start)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if res.Reason != "completed" || res.GenSteps != 2 {
 		t.Fatalf("res = %+v", res)
 	}
-	// Serial would be ~900ms; concurrent ~300ms. Generous ceiling for CI.
-	if elapsed > 700*time.Millisecond {
-		t.Errorf("elapsed %v — tool calls ran serially, not concurrently", elapsed)
-	}
-
 	events, err := store.ReadEvents(l.Store.Dir())
 	if err != nil {
 		t.Fatal(err)
@@ -64,6 +56,38 @@ func TestParallelToolCalls(t *testing.T) {
 		if tr.IsError {
 			t.Errorf("%s errored: %s", id, tr.Result)
 		}
+	}
+	lastStarted, firstTerminal := -1, len(events)
+	for i, env := range events {
+		switch env.Type {
+		case event.TypeActivityStarted:
+			decoded, _ := event.DecodePayload(env)
+			started := decoded.(*event.ActivityStarted)
+			if started.Name == "bash" && (started.CallID == "c1" || started.CallID == "c2" || started.CallID == "c3") {
+				lastStarted = i
+			}
+		case event.TypeActivityCompleted:
+			decoded, _ := event.DecodePayload(env)
+			id := decoded.(*event.ActivityCompleted).ActivityID
+			if (id == "tool-c1" || id == "tool-c2" || id == "tool-c3") && i < firstTerminal {
+				firstTerminal = i
+			}
+		case event.TypeActivityFailed:
+			decoded, _ := event.DecodePayload(env)
+			id := decoded.(*event.ActivityFailed).ActivityID
+			if (id == "tool-c1" || id == "tool-c2" || id == "tool-c3") && i < firstTerminal {
+				firstTerminal = i
+			}
+		case event.TypeActivityCancelled:
+			decoded, _ := event.DecodePayload(env)
+			id := decoded.(*event.ActivityCancelled).ActivityID
+			if (id == "tool-c1" || id == "tool-c2" || id == "tool-c3") && i < firstTerminal {
+				firstTerminal = i
+			}
+		}
+	}
+	if lastStarted < 0 || firstTerminal <= lastStarted {
+		t.Errorf("activity order proves serialization: last start=%d first terminal=%d", lastStarted, firstTerminal)
 	}
 }
 
