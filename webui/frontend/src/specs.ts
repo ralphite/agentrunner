@@ -61,6 +61,65 @@ export function modelById(provider: string, id: string): ModelChoice | undefined
   return MODELS.find((m) => m.provider === provider && m.id === id);
 }
 
+// ---- reasoning effort (Codex's model-pill "Effort" dimension) ---------------
+//
+// Codex's model pill reads "<model> <effort>" (e.g. "5.6 Sol Extra High") and its
+// picker has a Light/Medium/High/Extra High "Effort" submenu. Our product models
+// the same thing as the spec's `thinking:` block (ModelSpec.Thinking{Enabled,
+// BudgetTokens}), which the Gemini provider maps to native extended thinking.
+//
+// Sizing rule (critical): Gemini counts thought tokens against max_output_tokens,
+// so enabling thinking with a small cap starves the answer to empty — the
+// "会话死亡" empty-message defect. We therefore size max_tokens = ANSWER_ROOM +
+// budget, guaranteeing the answer always has ANSWER_ROOM left after thinking.
+export type EffortId = "off" | "light" | "medium" | "high" | "xhigh";
+
+export interface EffortLevel {
+  id: EffortId;
+  label: string;
+  desc: string;
+  budget: number; // thinking budget tokens (0 ⇒ thinking off)
+}
+
+export const EFFORT_LEVELS: EffortLevel[] = [
+  { id: "off", label: "Off", desc: "No extended thinking — fastest replies", budget: 0 },
+  { id: "light", label: "Light", desc: "A little reasoning before answering", budget: 2048 },
+  { id: "medium", label: "Medium", desc: "Balanced reasoning on most tasks", budget: 6144 },
+  { id: "high", label: "High", desc: "Thorough reasoning on hard problems", budget: 12288 },
+  { id: "xhigh", label: "Extra High", desc: "Maximum reasoning — slower, spends more tokens", budget: 24576 },
+];
+
+export const DEFAULT_EFFORT: EffortId = "off";
+
+// Answer capacity reserved on top of the thinking budget. Matches the historical
+// 4096 max_tokens so "Off" behaves exactly as before.
+const ANSWER_ROOM = 4096;
+
+export function effortById(id: string): EffortLevel {
+  return EFFORT_LEVELS.find((e) => e.id === id) || EFFORT_LEVELS[0];
+}
+
+// modelBlock renders the spec's `model:` line for a provider/model/effort. When
+// effort is off it is byte-for-byte the old line (no thinking block, max 4096).
+function modelBlock(provider: string, model: string, effort: EffortId): string {
+  const e = effortById(effort);
+  if (e.budget <= 0) {
+    return `model: { provider: ${provider}, id: ${model}, max_tokens: ${ANSWER_ROOM} }`;
+  }
+  const max = ANSWER_ROOM + e.budget;
+  return `model: { provider: ${provider}, id: ${model}, max_tokens: ${max}, thinking: { enabled: true, budget_tokens: ${e.budget} } }`;
+}
+
+// effortFromSpec reads the effort back out of a spec so the pill shows the right
+// level for a session we built. A spec with no thinking block reads as "off".
+export function effortFromSpec(spec: string): EffortId {
+  const m = spec.match(/budget_tokens:\s*(\d+)/);
+  if (!m) return "off";
+  const b = Number(m[1]);
+  const lvl = EFFORT_LEVELS.find((e) => e.budget === b);
+  return lvl ? lvl.id : "off";
+}
+
 // permissionsBlock returns the YAML `permissions:` list for an access level.
 // `ask` allows the read-class tools by name and asks on everything else — the
 // order matters (first matching rule wins), so the specific allows precede the
@@ -139,34 +198,28 @@ agents: [worker]`;
 }
 
 // buildSpec produces the main agent spec (base.yaml) for the chosen persona +
-// model + access level. Defaults mirror the old DEFAULT_SPEC so behavior is
-// unchanged when nothing is picked.
-export function buildSpec(opts: { provider: string; model: string; maxTokens?: number; access: AccessId; persona?: string }): string {
-  const max = opts.maxTokens && opts.maxTokens > 0 ? opts.maxTokens : 4096;
+// model + access level + reasoning effort. Defaults mirror the old DEFAULT_SPEC
+// so behavior is unchanged when nothing is picked (effort "off").
+export function buildSpec(opts: { provider: string; model: string; access: AccessId; persona?: string; effort?: EffortId }): string {
   const persona = opts.persona && PERSONAS.some((p) => p.id === opts.persona) ? opts.persona : DEFAULT_PERSONA;
   return `name: ${persona}
-model: { provider: ${opts.provider}, id: ${opts.model}, max_tokens: ${max} }
+${modelBlock(opts.provider, opts.model, opts.effort || DEFAULT_EFFORT)}
 ${personaBody(persona)}
 ${permissionsBlock(opts.access)}
 `;
 }
 
-// replaceModel swaps only the `model:` line of an existing spec, preserving the
-// rest (system_prompt, tools, permissions). Used for mid-session model switches
-// where we want to keep everything else the session was configured with.
-export function replaceModel(spec: string, provider: string, model: string, maxTokens?: number): string {
-  const max = maxTokens && maxTokens > 0 ? maxTokens : undefined;
-  const line = (m?: number) =>
-    `model: { provider: ${provider}, id: ${model}${m ? `, max_tokens: ${m}` : ""} }`;
+// replaceModel swaps the `model:` block of an existing spec (provider/model plus
+// the effort-derived max_tokens + thinking block), preserving the rest
+// (system_prompt, tools, permissions). Used for mid-session model / effort
+// switches where we keep everything else the session was configured with.
+export function replaceModel(spec: string, provider: string, model: string, effort: EffortId = DEFAULT_EFFORT): string {
+  const block = modelBlock(provider, model, effort);
   if (/^model:\s*\{[^}]*\}/m.test(spec)) {
-    // Preserve an existing max_tokens if present and none was supplied.
-    return spec.replace(/^model:\s*\{[^}]*\}[^\n]*$/m, (prev) => {
-      const mt = max ?? (prev.match(/max_tokens:\s*(\d+)/)?.[1] ? Number(prev.match(/max_tokens:\s*(\d+)/)![1]) : 4096);
-      return line(mt);
-    });
+    return spec.replace(/^model:\s*\{[^}]*\}[^\n]*$/m, block);
   }
   // No model line to replace (unusual) — prepend one after the name.
-  return spec.replace(/^(name:.*)$/m, `$1\n${line(max ?? 4096)}`);
+  return spec.replace(/^(name:.*)$/m, `$1\n${block}`);
 }
 
 // modelFromSpec reads back the provider/id currently declared in a spec so the

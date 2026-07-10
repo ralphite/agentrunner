@@ -9,9 +9,13 @@ import {
   buildLoopDriver,
   buildSpec,
   DEFAULT_ACCESS,
+  DEFAULT_EFFORT,
   DEFAULT_MODEL,
   DEFAULT_PERSONA,
   DEFAULT_WORKER,
+  EFFORT_LEVELS,
+  effortById,
+  effortFromSpec,
   MODELS,
   modelById,
   modelFromSpec,
@@ -20,6 +24,7 @@ import {
   personaFromSpec,
   replaceModel,
   type AccessId,
+  type EffortId,
 } from "../specs";
 import { Popover, PopItem, PopSection } from "./Popover";
 import { useVoice } from "./useVoice";
@@ -74,6 +79,7 @@ const SLASH: SlashCmd[] = [
   { name: "diff", desc: "Show the workspace changes (git diff)", variants: ["session"] },
   { name: "fork", desc: "Fork into a new worktree from a checkpoint", variants: ["session"] },
   { name: "model", arg: "<id>", desc: "Switch the model", variants: ["home", "session"], needsArgs: true },
+  { name: "reasoning", arg: "<level>", desc: "Set reasoning effort (off/light/medium/high/xhigh)", variants: ["home", "session"], needsArgs: true },
   { name: "interrupt", desc: "Stop the in-flight turn", variants: ["session"] },
   { name: "resume", desc: "Recover a crashed / interrupted session", variants: ["session"] },
 ];
@@ -93,9 +99,10 @@ export function Composer(props: ComposerProps) {
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
 
-  // model + access posture + persona
+  // model + reasoning effort + access posture + persona
   const [provider, setProvider] = useState(DEFAULT_MODEL.provider);
   const [model, setModel] = useState(DEFAULT_MODEL.id);
+  const [effort, setEffort] = useState<EffortId>(DEFAULT_EFFORT);
   const [access, setAccess] = useState<AccessId>(DEFAULT_ACCESS);
   const [persona, setPersona] = useState(DEFAULT_PERSONA);
 
@@ -138,6 +145,7 @@ export function Composer(props: ComposerProps) {
     }
     const p = sp ? personaFromSpec(sp) : null;
     if (p) setPersona(p);
+    if (sp) setEffort(effortFromSpec(sp));
   }, [isSession, isSession ? (props as any).sid : ""]);
 
   // Home: discover the workspace's branches when a real repo path is set.
@@ -158,6 +166,7 @@ export function Composer(props: ComposerProps) {
   }, [isSession, ws]);
 
   const modelLabel = modelById(provider, model)?.label || model;
+  const effortLevel = effortById(effort);
   const accessLevel = isSession ? undefined : accessById(access);
   const remembered = isSession ? recallAccess((props as any).sid) : undefined;
   const sessionAccess = isSession ? (remembered ? accessById(remembered) : accessByMode((props as any).mode)) : undefined;
@@ -308,7 +317,7 @@ export function Composer(props: ComposerProps) {
         await (props as Extract<ComposerProps, { variant: "session" }>).onSend(t, imgs, files);
       } else if (kind === "chat") {
         const workspace = await ensureWs();
-        const spec = buildSpec({ provider, model, access, persona });
+        const spec = buildSpec({ provider, model, access, persona, effort });
         const imgs = atts.filter((a) => a.isImage).map((a) => a.path);
         const files = atts.filter((a) => !a.isImage).map((a) => a.path);
         const r = await AR.newSession({
@@ -336,7 +345,7 @@ export function Composer(props: ComposerProps) {
         }
       } else {
         const workspace = await ensureWs();
-        const spec = buildSpec({ provider, model, access, persona });
+        const spec = buildSpec({ provider, model, access, persona, effort });
         const r = await AR.startRun({ kind: "submit", spec, extraSpecs: [], task: t, workspace, mode: accessById(access).mode, idem: "" });
         resetInput();
         await refreshRuns();
@@ -349,22 +358,34 @@ export function Composer(props: ComposerProps) {
     }
   };
 
-  // ---- model switch ----
+  // ---- model / effort switch ----
+  // Model and reasoning effort both live in the spec's model block, so a change
+  // to either rebuilds that block (replaceModel) and, mid-session, re-agents the
+  // session (the conversation carries over; it takes effect on the next message).
+  const applyModelSpec = async (p: string, id: string, eff: EffortId) => {
+    if (!isSession) return;
+    const sid = (props as any).sid as string;
+    try {
+      const base = recallSpec(sid) || buildSpec({ provider: p, model: id, access: "full", persona, effort: eff });
+      const spec = replaceModel(base, p, id, eff);
+      await AR.switchAgent(sid, spec, personaById(persona).withWorker ? [{ name: "worker.yaml", content: DEFAULT_WORKER }] : []);
+      rememberSpec(sid, spec);
+    } catch (e: any) {
+      props.onError(e.message);
+    }
+  };
+
   const chooseModel = async (p: string, id: string) => {
     setProvider(p);
     setModel(id);
-    if (isSession) {
-      const sid = (props as any).sid as string;
-      try {
-        const base = recallSpec(sid) || buildSpec({ provider: p, model: id, access: "full", persona });
-        const spec = replaceModel(base, p, id);
-        await AR.switchAgent(sid, spec, [{ name: "worker.yaml", content: DEFAULT_WORKER }]);
-        rememberSpec(sid, spec);
-        toast(`Model → ${modelById(p, id)?.label || id} (from your next message)`, "info");
-      } catch (e: any) {
-        props.onError(e.message);
-      }
-    }
+    await applyModelSpec(p, id, effort);
+    if (isSession) toast(`Model → ${modelById(p, id)?.label || id} (from your next message)`, "info");
+  };
+
+  const chooseEffort = async (eff: EffortId) => {
+    setEffort(eff);
+    await applyModelSpec(provider, model, eff);
+    if (isSession) toast(`Reasoning → ${effortById(eff).label} (from your next message)`, "info");
   };
 
   // ---- persona (agent template) switch ----
@@ -376,7 +397,7 @@ export function Composer(props: ComposerProps) {
     const sid = (props as any).sid as string;
     try {
       const acc = (recallAccess(sid) as AccessId) || "full";
-      const spec = buildSpec({ provider, model, access: acc, persona: id });
+      const spec = buildSpec({ provider, model, access: acc, persona: id, effort });
       const sib = personaById(id).withWorker ? [{ name: "worker.yaml", content: DEFAULT_WORKER }] : [];
       await AR.switchAgent(sid, spec, sib);
       rememberSpec(sid, spec);
@@ -401,7 +422,7 @@ export function Composer(props: ComposerProps) {
       } else {
         const workspace = await ensureWs();
         if (!workspace) return props.onError("a workspace is required to start a goal");
-        const spec = buildSpec({ provider, model, access, persona });
+        const spec = buildSpec({ provider, model, access, persona, effort });
         const r = await AR.newSession({
           spec,
           extraSpecs: personaById(persona).withWorker ? [{ name: "worker.yaml", content: DEFAULT_WORKER }] : [],
@@ -525,6 +546,15 @@ export function Composer(props: ComposerProps) {
         setText("");
         if (m) await chooseModel(m.provider, m.id);
         else toast(`No model matching "${rest}". Try: ${MODELS.map((x) => x.id).join(", ")}`, "info");
+        return;
+      }
+      case "reasoning": {
+        const q = rest.trim().toLowerCase().replace(/\s+/g, "");
+        const aliases: Record<string, EffortId> = { off: "off", none: "off", low: "light", light: "light", medium: "medium", med: "medium", high: "high", xhigh: "xhigh", extrahigh: "xhigh", max: "xhigh" };
+        const eff = aliases[q];
+        setText("");
+        if (eff) await chooseEffort(eff);
+        else toast(`Unknown effort "${rest}". Try: ${EFFORT_LEVELS.map((e) => e.id).join(", ")}`, "info");
         return;
       }
       case "compact":
@@ -846,13 +876,14 @@ export function Composer(props: ComposerProps) {
 
           <span className="cx-spacer" />
 
-          {/* model pill */}
+          {/* model pill — shows "<model> · <effort>" like Codex's "5.6 Sol Extra High" */}
           <Popover
             align="right"
             trigger={(open, toggle) => (
-              <button className={"cx-pill cx-model" + (open ? " active" : "")} onClick={toggle} title="Model">
+              <button className={"cx-pill cx-model" + (open ? " active" : "")} onClick={toggle} title="Model & reasoning effort">
                 <ModelIcon />
                 {modelLabel}
+                {effort !== "off" && <span className="cx-pill-sub">{effortLevel.label}</span>}
                 <Caret />
               </button>
             )}
@@ -870,8 +901,6 @@ export function Composer(props: ComposerProps) {
                       onClick={() => { chooseModel(m.provider, m.id); close(); }}
                     />
                   ))}
-                </PopSection>
-                <PopSection>
                   <PopItem
                     icon={<span>✎</span>}
                     title="Custom model id…"
@@ -885,6 +914,18 @@ export function Composer(props: ComposerProps) {
                       });
                     }}
                   />
+                </PopSection>
+                <PopSection label="Reasoning effort">
+                  {EFFORT_LEVELS.map((e) => (
+                    <PopItem
+                      key={e.id}
+                      icon={<EffortIcon level={e.id} />}
+                      title={e.label}
+                      desc={e.desc}
+                      active={effort === e.id}
+                      onClick={() => { chooseEffort(e.id); close(); }}
+                    />
+                  ))}
                 </PopSection>
               </div>
             )}
@@ -1137,6 +1178,29 @@ const LoopIcon = () => (
 const PlanIcon = () => (
   <svg width="14" height="14" viewBox="0 0 16 16"><path d="M4 4h8M4 8h8M4 12h5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg>
 );
+// EffortIcon: a signal-bars glyph whose filled count grows with the level, so
+// the reasoning-effort menu reads at a glance (off → 0 bars … xhigh → 4 bars).
+const EffortIcon = ({ level }: { level: EffortId }) => {
+  const filled = { off: 0, light: 1, medium: 2, high: 3, xhigh: 4 }[level] ?? 0;
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16">
+      {[0, 1, 2, 3].map((i) => (
+        <rect
+          key={i}
+          x={2 + i * 3.4}
+          y={11 - i * 2.6}
+          width="2.2"
+          height={3 + i * 2.6}
+          rx="0.6"
+          fill={i < filled ? "currentColor" : "none"}
+          stroke="currentColor"
+          strokeWidth="1"
+          opacity={i < filled ? 1 : 0.35}
+        />
+      ))}
+    </svg>
+  );
+};
 const BestIcon = () => (
   <svg width="14" height="14" viewBox="0 0 16 16"><path d="M3 3v6M8 3v10M13 3v4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /><path d="M6.5 11.5L8 13l1.5-1.5" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
 );
