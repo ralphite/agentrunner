@@ -40,6 +40,7 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /api/sessions/{sid}/diff", s.handleDiff)
 	mux.HandleFunc("GET /api/sessions/{sid}/files", s.handleFiles)
 	mux.HandleFunc("POST /api/sessions/{sid}/commit", s.handleCommit)
+	mux.HandleFunc("POST /api/sessions/{sid}/git-init", s.handleGitInit)
 	mux.HandleFunc("GET /api/sessions/{sid}/stream", s.handleStream)
 
 	mux.HandleFunc("POST /api/sessions/{sid}/send", s.handleSend)
@@ -360,12 +361,34 @@ func (s *server) handleNewSession(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"sid": id, "specDir": specDir, "workspace": ws})
 }
 
+// newRuntimeDir picks a fresh, human-readable directory name under
+// runtime/<kind>/ — "ws-20260710-221530" reads as a scratch workspace and
+// sorts chronologically, unlike the former raw-nanosecond names (W2). A
+// same-second collision appends -2, -3, ….
+func (s *server) newRuntimeDir(kind, prefix string) string {
+	base := prefix + "-" + time.Now().Format("20060102-150405")
+	dir := filepath.Join(s.runtimeDir, kind, base)
+	for i := 2; ; i++ {
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			return dir
+		}
+		dir = filepath.Join(s.runtimeDir, kind, fmt.Sprintf("%s-%d", base, i))
+	}
+}
+
 func (s *server) handleWorkspace(w http.ResponseWriter, r *http.Request) {
-	dir := filepath.Join(s.runtimeDir, "ws", fmt.Sprintf("ws%d", time.Now().UnixNano()))
+	dir := s.newRuntimeDir("ws", "ws")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
+	// Make it a repository of its own so the Changes view can track it (W1).
+	// runtime/ usually sits inside some parent repo that ignores it, where
+	// `git diff` would otherwise silently show nothing. Best-effort: without
+	// git the directory is still perfectly usable.
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	_ = exec.CommandContext(ctx, "git", "-C", dir, "init", "-q").Run()
 	writeJSON(w, http.StatusOK, map[string]string{"path": dir})
 }
 
@@ -397,7 +420,7 @@ func (s *server) handleWorktree(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, "not a git repository: "+repo)
 		return
 	}
-	dir := filepath.Join(s.runtimeDir, "ws", fmt.Sprintf("wt%d", time.Now().UnixNano()))
+	dir := s.newRuntimeDir("ws", "wt")
 	args := []string{"worktree", "add"}
 	if b := strings.TrimSpace(req.Branch); b != "" {
 		if !validID(b) {

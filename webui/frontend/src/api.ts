@@ -61,6 +61,7 @@ export const AR = {
   diff: (sid: string) => api<DiffResp>(`/sessions/${sid}/diff`),
   commit: (sid: string, message: string) =>
     post<{ status: string }>(`/sessions/${sid}/commit`, { message }),
+  gitInit: (sid: string) => post<{ status: string }>(`/sessions/${sid}/git-init`),
 
   send: (sid: string, text: string, images: string[], files: string[] = []) =>
     post(`/sessions/${sid}/send`, { text, images, files }),

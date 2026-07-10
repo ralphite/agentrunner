@@ -18,6 +18,10 @@ export interface DiffResp {
   workspace: string;
   known: boolean;
   isRepo: boolean;
+  // The workspace sits INSIDE another repository (repoRoot) instead of being
+  // a repo of its own — git would diff the parent there, so no diff is shown.
+  nested?: boolean;
+  repoRoot?: string;
   diff: string;
   numstat: string;
   untracked: string[];

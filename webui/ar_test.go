@@ -1,7 +1,13 @@
 package main
 
 import (
+	"encoding/json"
+	"net/http/httptest"
+	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -125,5 +131,88 @@ func TestMetaStoreMergeHydratesJournalMetadataWithoutReplacingTitle(t *testing.T
 	reloaded := newMetaStore(path)
 	if got := reloaded.get("s2"); got.Workspace != "/tmp/other" || got.Title != "External task" {
 		t.Fatalf("reloaded metadata = %+v", got)
+	}
+}
+
+// TestHandleDiffNestedWorkspace pins W1: a workspace that merely sits inside
+// some parent repository (the shape of runtime/ws/* under a checkout) must
+// report nested:true instead of a silent empty "no changes" diff.
+func TestHandleDiffNestedWorkspace(t *testing.T) {
+	parent := t.TempDir()
+	mustGit := func(dir string, args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	mustGit(parent, "init", "-q")
+	ws := filepath.Join(parent, "runtime", "ws", "ws-x")
+	if err := os.MkdirAll(ws, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	s := &server{meta: newMetaStore(filepath.Join(t.TempDir(), "meta.json"))}
+	s.meta.set("20260710-000000-task-0001", ws, "t")
+
+	req := httptest.NewRequest("GET", "/api/sessions/x/diff", nil)
+	req.SetPathValue("sid", "20260710-000000-task-0001")
+	rec := httptest.NewRecorder()
+	s.handleDiff(rec, req)
+
+	var resp struct {
+		IsRepo   bool   `json:"isRepo"`
+		Nested   bool   `json:"nested"`
+		RepoRoot string `json:"repoRoot"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("bad json: %v\n%s", err, rec.Body.String())
+	}
+	if resp.IsRepo || !resp.Nested || resp.RepoRoot == "" {
+		t.Fatalf("want nested workspace verdict, got %+v (body %s)", resp, rec.Body.String())
+	}
+
+	// After `git init` in the workspace itself it must count as a repo root,
+	// and a file the agent wrote must surface as an untracked/new-file diff.
+	mustGit(ws, "init", "-q")
+	if err := os.WriteFile(filepath.Join(ws, "proof.txt"), []byte("UXR1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rec2 := httptest.NewRecorder()
+	req2 := httptest.NewRequest("GET", "/api/sessions/x/diff", nil)
+	req2.SetPathValue("sid", "20260710-000000-task-0001")
+	s.handleDiff(rec2, req2)
+	var resp2 struct {
+		IsRepo bool   `json:"isRepo"`
+		Nested bool   `json:"nested"`
+		Diff   string `json:"diff"`
+	}
+	if err := json.Unmarshal(rec2.Body.Bytes(), &resp2); err != nil {
+		t.Fatal(err)
+	}
+	if !resp2.IsRepo || resp2.Nested || !strings.Contains(resp2.Diff, "proof.txt") {
+		t.Fatalf("want repo-root diff containing proof.txt, got %+v", resp2)
+	}
+}
+
+// TestNewRuntimeDirNaming pins W2: auto-created workspaces get readable,
+// sortable names (ws-YYYYMMDD-HHMMSS), not raw nanosecond stamps, and a
+// same-second collision picks a -2 suffix instead of clobbering.
+func TestNewRuntimeDirNaming(t *testing.T) {
+	s := &server{runtimeDir: t.TempDir()}
+	first := s.newRuntimeDir("ws", "ws")
+	base := filepath.Base(first)
+	if !regexp.MustCompile(`^ws-\d{8}-\d{6}$`).MatchString(base) {
+		t.Fatalf("unexpected workspace name %q", base)
+	}
+	if err := os.MkdirAll(first, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	second := s.newRuntimeDir("ws", "ws")
+	if second == first {
+		t.Fatalf("collision not avoided: %q", second)
+	}
+	if !strings.HasPrefix(filepath.Base(second), base) {
+		t.Fatalf("collision suffix should extend %q, got %q", base, second)
 	}
 }

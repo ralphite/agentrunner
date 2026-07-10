@@ -70,6 +70,21 @@ export function DiffView({ sid }: { sid: string }) {
     }
   };
 
+  // Turn the workspace into its own repo, then re-load — offered from the
+  // non-repo / nested empty states so "no diff" is always actionable.
+  const gitInit = async () => {
+    setBusy(true);
+    try {
+      await AR.gitInit(sid);
+      toast("workspace is now a git repository — future changes will show here", "info");
+      load();
+    } catch (e: any) {
+      toast(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (err) return <div className="diffwrap"><div className="chip bad">{err}</div></div>;
   if (!data) return <div className="diffwrap dim">loading diff…</div>;
 
@@ -83,12 +98,34 @@ export function DiffView({ sid }: { sid: string }) {
         </div>
       </div>
     );
+  if (data.nested)
+    return (
+      <div className="diffwrap">
+        <div className="diff-empty">
+          <b>Changes can't be tracked here yet</b>
+          <span>
+            The workspace <span className="mono">{data.workspace}</span> sits inside another
+            repository (<span className="mono">{data.repoRoot}</span>), so its files aren't
+            tracked on their own. Make it a repository of its own to see changes here.
+          </span>
+          <button className="primary" onClick={gitInit} disabled={busy} title="git init in the workspace — safe, local-only">
+            Track changes (git init)
+          </button>
+        </div>
+      </div>
+    );
   if (!data.isRepo)
     return (
       <div className="diffwrap">
-        <div className="dim">
-          workspace <span className="mono">{data.workspace}</span> is not a git repository,
-          so there is no diff to show. Point the session at a real git repo to get the diff view.
+        <div className="diff-empty">
+          <b>Not a git repository</b>
+          <span>
+            The workspace <span className="mono">{data.workspace}</span> has no version control,
+            so there is no diff to show.
+          </span>
+          <button className="primary" onClick={gitInit} disabled={busy} title="git init in the workspace — safe, local-only">
+            Track changes (git init)
+          </button>
         </div>
       </div>
     );

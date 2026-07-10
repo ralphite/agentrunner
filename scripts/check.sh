@@ -5,7 +5,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-unformatted=$(gofmt -l .)
+# gofmt only what the repo tracks — runtime/ workspaces hold agent-written
+# .go files from QA sessions that must never fail the gate.
+unformatted=$(git ls-files '*.go' | xargs gofmt -l)
 if [[ -n "$unformatted" ]]; then
   echo "gofmt: files need formatting:" >&2
   echo "$unformatted" >&2

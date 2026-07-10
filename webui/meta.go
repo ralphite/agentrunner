@@ -217,22 +217,45 @@ func (s *server) handleFiles(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+// samePath reports whether two paths name the same directory once symlinks
+// (macOS /tmp → /private/tmp) and trailing separators are resolved.
+func samePath(a, b string) bool {
+	ra, err1 := filepath.EvalSymlinks(filepath.Clean(a))
+	rb, err2 := filepath.EvalSymlinks(filepath.Clean(b))
+	if err1 != nil || err2 != nil {
+		return filepath.Clean(a) == filepath.Clean(b)
+	}
+	return ra == rb
+}
+
 // handleDiff returns the workspace diff for a session — the closest analog to
 // Codex's changed-files view. Tracked changes come from `git diff`; untracked
 // files are listed from `git status --porcelain` and appended as synthetic
 // "new file" diffs so the UI shows them too.
+//
+// isRepo means the workspace is a repository ROOT of its own. A workspace
+// that merely sits inside some other repo (e.g. an auto-created dir under a
+// gitignored runtime/) reports nested:true instead — running `git diff` there
+// would silently diff the parent repo and always come back empty (W1).
 func (s *server) handleDiff(w http.ResponseWriter, r *http.Request) {
 	id, ok := sid(w, r)
 	if !ok {
 		return
 	}
 	meta := s.meta.get(id)
-	resp := map[string]any{"workspace": meta.Workspace, "known": meta.Workspace != "", "isRepo": false, "diff": "", "numstat": "", "untracked": []string{}}
+	resp := map[string]any{"workspace": meta.Workspace, "known": meta.Workspace != "", "isRepo": false, "nested": false, "repoRoot": "", "diff": "", "numstat": "", "untracked": []string{}}
 	if meta.Workspace == "" {
 		writeJSON(w, http.StatusOK, resp)
 		return
 	}
-	if _, isRepo := git(r.Context(), meta.Workspace, "rev-parse", "--is-inside-work-tree"); !isRepo {
+	top, insideRepo := git(r.Context(), meta.Workspace, "rev-parse", "--show-toplevel")
+	if !insideRepo {
+		writeJSON(w, http.StatusOK, resp)
+		return
+	}
+	if root := strings.TrimSpace(top); !samePath(root, meta.Workspace) {
+		resp["nested"] = true
+		resp["repoRoot"] = root
 		writeJSON(w, http.StatusOK, resp)
 		return
 	}
@@ -300,8 +323,15 @@ func (s *server) handleCommit(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, "arwebui doesn't know this session's workspace")
 		return
 	}
-	if _, isRepo := git(r.Context(), ws, "rev-parse", "--is-inside-work-tree"); !isRepo {
+	top, insideRepo := git(r.Context(), ws, "rev-parse", "--show-toplevel")
+	if !insideRepo {
 		badRequest(w, "workspace is not a git repository")
+		return
+	}
+	// A nested workspace must never commit: `git add -A` would stage (and
+	// commit) the PARENT repository's tree, not this workspace.
+	if root := strings.TrimSpace(top); !samePath(root, ws) {
+		badRequest(w, "workspace is inside another repository ("+root+"), refusing to commit there")
 		return
 	}
 	run := func(args ...string) (string, error) {
@@ -325,4 +355,32 @@ func (s *server) handleCommit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": out})
+}
+
+// handleGitInit turns the session's workspace into its own git repository so
+// the Changes view can track it — the recovery action offered when the diff
+// endpoint reports a non-repo or nested workspace (W1). The path comes from
+// session metadata only, never from the request.
+func (s *server) handleGitInit(w http.ResponseWriter, r *http.Request) {
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	ws := s.meta.get(id).Workspace
+	if ws == "" {
+		badRequest(w, "arwebui doesn't know this session's workspace")
+		return
+	}
+	if top, insideRepo := git(r.Context(), ws, "rev-parse", "--show-toplevel"); insideRepo && samePath(strings.TrimSpace(top), ws) {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "already a repository"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "git", "-C", ws, "init", "-q").CombinedOutput()
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "git init failed", "stderr": strings.TrimSpace(string(out))})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "initialized"})
 }
