@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# QA-37 real-API gate (INC-30, #45/§3.5 余项): skill context:fork — the live
+# QA-37 real-API gate (INC-31, #45/§3.5 余项): skill context:fork — the live
 # model invokes a fork skill via the skill tool; the runtime expands the call
 # at ingest into spawn_agent{role} and the skill runs in a ONE-SHOT sub-agent.
 # Journal red lines:

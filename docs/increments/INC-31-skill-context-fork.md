@@ -1,4 +1,4 @@
-# INC-30 skill context:fork（一次性子 agent 执行，#45/§3.5 余项）
+# INC-31 skill context:fork（一次性子 agent 执行，#45/§3.5 余项）
 
 ## 动机与 journey 锚
 

@@ -2153,3 +2153,38 @@ PONG2；归档 `qa/runs/2026-07-10-INC28/`。
 **边界记档**：`</dev/null` 是 char device、按"非管道"处理（消息措辞
 用 "stdin is not a pipe" 避免对 /dev/null 说 terminal）；精确 isatty
 需引 x/term，不值当。
+
+## 2026-07-09 INC-31 skill context:fork（SPRINT #7b，#45/§3.5 余项）
+
+**动机**：对标 Claude Code skill `context: fork`——skill 不在父上下文内联
+执行，而在**一次性子 agent** 里跑，父只拿结果。INC-20 拆出的余项。
+
+**核心裁决（ingest 展开,复用动态角色全链）**：生成收集后、journal
+`assistant_message` **之前**（loop.go 单点 + 新 skillfork.go），`skill`
+调用若指向 `context: fork` skill 则改写为 `spawn_agent{role:{name=skill
+名, description=frontmatter, instructions=正文, tools=allowed-tools},
+task}`——与「命令=用户宏 ingest 展开」同一先例。message part 与
+ToolCalls 同步改写 ⇒ fold/pipeline/crash 重放看到的就是普通动态角色
+spawn：**树预算/深度扇出上限/RoleSpec 冻结/审批/receipts 全链免费复用，
+零 spawn 机制改动**；重放不再跑 transform（journal 已载展开后调用）。
+
+**门控**：仅 `agents_dynamic: true` 时展开——skill 文件是 workspace 内容
+（agent 自己可写），无门控则 workspace 文件能替 spec 作者放开 spawn 面
+（多 agent 面永不静默变宽）。门关/无 frontmatter/非 fork/正文空/名不合
+roleNameRe→不改写，内联路径行为与今天完全一致。model/hooks/预算不从
+frontmatter 来（InlineRole harness-control 裁决不动）；递归 fork 由既有
+深度/扇出上限兜底。skill.json 加可选 `task` 参数。
+
+**双闸门**：孪生 TestForkSkillExpansion（改写成形+内联/未知/防遍历/门关
+四不改写例）/DefaultTask/SpawnsChild（全链镜像 TestSpawnDynamicRole：
+SpawnRequested Agent=skill 名、冻结 RoleSpec 载正文与 allowed-tools、
+子会话从 role 跑完）。QA-37 真机 Gemini（私有新二进制 daemon）七红线全
+PASS：展开入 journal、FORK-MARKER 冻结、子会话跑出 WIDGET-COUNT: 4、
+receipt 回父、父答 4。
+
+**编号让路记**：本增量认领时用 INC-30（先 push），并发 HANDA 线其后也以
+INC-30 认领 G24/G25 弃子回收；虽按「先 push 占号」对方应让，但对方在飞、
+我方剩余引用全在本地可控，**总变更最小者让**——本增量改号 INC-31，
+G24/G25 保留 INC-30。已推 commit message 中的 "INC-30 认领/实现: skill
+context:fork" 即本增量（历史不可变，以此条澄清）。QA 号同理让过两次
+（QA-34→INC-23.B6、QA-36→INC-29 预订），本增量用 QA-37。

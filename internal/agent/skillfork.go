@@ -10,7 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// skill context:fork (INC-30, #45/§3.5 余项): a skill whose frontmatter
+// skill context:fork (INC-31, #45/§3.5 余项): a skill whose frontmatter
 // declares `context: fork` runs in a ONE-SHOT sub-agent instead of inline.
 // The mechanism is ingest expansion — the same precedent as 命令=用户宏: the
 // model's skill(...) call is rewritten into spawn_agent{role} BEFORE the

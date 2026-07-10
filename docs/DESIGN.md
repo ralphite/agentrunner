@@ -951,9 +951,17 @@ limits:
   按 name、更自然，且 skill 成为一等可调面。安全：read-class 免审批同
   read_file，但 name 是裸标识符（拒 `/`/`..`/`\` 防遍历）+ WS.Resolve
   边界，绝不读 `.claude/skills` 之外。与"命令=用户宏"裁决的边界不变
-  （命令 ingest 时展开、对模型不可见；skill 是模型侧能力）。**余项**：
-  `context:fork`（skill 在一次性子 agent 执行 = spawn_agent 变体，
-  INC-20b）。
+  （命令 ingest 时展开、对模型不可见；skill 是模型侧能力）。
+- **fork 面（INC-31，#45 余项）**：frontmatter `context: fork` 的 skill
+  在**一次性子 agent** 里执行。机制 = **ingest 展开**（与命令=用户宏同
+  先例）：生成收集后、journal assistant_message **之前**，`skill` 调用被
+  改写为 `spawn_agent{role:{name=skill 名, instructions=正文,
+  tools=frontmatter allowed-tools}, task}`——fold/pipeline/crash 重放看到
+  的就是普通动态角色 spawn，树预算/深度扇出上限/RoleSpec 冻结/审批全链
+  复用，重放不再跑 transform。门控 `agents_dynamic`（skill 文件是
+  workspace 内容，不得静默拓宽多 agent 面）；门关时 fork skill 内联执行
+  （安全降级）。model/hooks/预算不从 frontmatter 来（InlineRole 的
+  harness-control 裁决不动）。
 
 ### 自定义命令 / slash（INC-3 后补，G21）
 

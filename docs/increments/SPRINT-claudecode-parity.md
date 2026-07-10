@@ -66,7 +66,7 @@
 | 5 | G5 审批"允许且不再问"（下次生效路径） | #58 · G5 · INC-D5 | M | ✅ done (INC-17) | 取 A 写 user 层精确匹配；QA-26 真机 UJ-08 全流；project 精确作用域余项 |
 | 6 | protected paths 写保护集（.git/.claude/rc 文件等） | #59 | S | ✅ done (INC-18) | 只收紧 acceptEdits 自动放行；QA-28 真机；bypass/显式规则/hardFloor 不变 |
 | 7 | skill 模型侧 invoke（核心） | #45 · §3.5 | S | ✅ done (INC-20) | skill 工具按 name 返回 SKILL.md 正文；QA-29 真机；命令=用户宏裁决不动；fork 拆 7b |
-| 7b | context:fork（skill 在一次性子 agent 执行 = spawn_agent 变体） | #45 · §3.5 余项 | M | 🔧 in-progress (INC-30) | ingest 展开为 spawn_agent{role},动态角色全链复用,agents_dynamic 门控 |
+| 7b | context:fork（skill 在一次性子 agent 执行 = spawn_agent 变体） | #45 · §3.5 余项 | M | ✅ done (INC-31) | ingest 展开为 spawn_agent{role},动态角色全链复用,agents_dynamic 门控;QA-37 真机七红线;#45 收口;INC 号让路记 LOG |
 | 8 | 结构化输出（`ar run --json-schema`，provider JSON mode 能力位） | #91 | S | ✅ done (INC-26) | `ar new --json-schema`：CLI 层校验+失败重发+canonical structured_output;QA-33 真机;provider-native JSON mode 拆 8b |
 | 8b | provider-native JSON mode（gemini responseSchema 约束生成免 re-prompt）+ durable structured_output 事件 | #91 余项 | M | ⬜ | INC-26 拆出;触 CompleteRequest/provider,谨慎 |
 | 9 | checkpoint 增强：barrier 打点密度提至每 turn 收尾 + "仅对话"fork 变体 + compact 范围指示（Summarize-from-here 等价） | #12/13 · §3.1 | M | ⬜ | §3.1 已论证不触不变量 |
@@ -96,6 +96,7 @@
 
 | 轮 | 日期 | 项 | 结果 | commit |
 |---|---|---|---|---|
+| 7b | 2026-07-09 | #7b skill context:fork (INC-31) | ✅ 双闸门全绿（3 孪生:改写成形+四不改写例/默认 task/全链 SpawnRequested 冻结 RoleSpec 载正文 + QA-37 真 Gemini 七红线:展开入 journal、子会话跑出 WIDGET-COUNT: 4、receipt 回父）；ingest 展开复用动态角色全链零 spawn 机制改动；INC-30 号让路并发 G24/G25(改 31),QA 让号至 37 | (见 push) |
 | 12c | 2026-07-09 | #12c grep multiline (INC-27) | ✅ 双闸门全绿（3 孪生:跨行命中 vs 默认逐行不命中/起始行号/文本跨行 + `$` 锚行证 (?m) + 上下文+case 组合 + QA-35 真 Gemini：模型 multiline:true 一次抓整个函数体、match 文本含嵌入换行）；默认=旧逐行零破坏；#35 系列(INC-22/24/27)收口 | (见 push) |
 | 8 | 2026-07-09 | #8 结构化输出 (INC-26) | ✅ 双闸门全绿（纯包 13 子测 compile/extract 各形态/validate/canonical + CLI 3 测 scripted 端到端"坏→纠正 send→好→canonical"/重试耗尽/usage fail-fast + QA-33 真 Gemini：ar new --json-schema 返 {lines:7,name:sample.txt} 首验过、python 独立确认）；CLI 层编排零核心改动；provider-native JSON mode 拆 8b | (见 push) |
 | 16 | 2026-07-09 | #16 内置只读 agent 库 (INC-25) | ✅ 双闸门全绿（5 孪生含加载/只读面/model 继承/内置遮蔽同名 sibling/未知回落 + QA-32 真 Gemini：模型 spawn 内置 explore 无 sibling 文件却成功、子会话只读、返值 512）；QA 首跑撞共享 daemon 旧二进制→改私有新二进制 daemon 跑法固化；默认可用拆 16b | (见 push) |
