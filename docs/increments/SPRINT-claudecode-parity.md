@@ -70,7 +70,7 @@
 | 8 | 结构化输出（`ar run --json-schema`，provider JSON mode 能力位） | #91 | S | ✅ done (INC-26) | `ar new --json-schema`：CLI 层校验+失败重发+canonical structured_output;QA-33 真机;provider-native JSON mode 拆 8b |
 | 8b | provider-native JSON mode（gemini responseSchema 约束生成免 re-prompt）+ durable structured_output 事件 | #91 余项 | M | ⬜ | INC-26 拆出;触 CompleteRequest/provider,谨慎 |
 | 9 | checkpoint 增强：barrier 打点密度提至每 turn 收尾 + "仅对话"fork 变体 + compact 范围指示（Summarize-from-here 等价） | #12/13 · §3.1 | M | ⬜ | §3.1 已论证不触不变量 |
-| 10 | ask_user 结构化选项（多选 + Other，向 AskUserQuestion 对齐） | #42 | S | ⬜ | webui 审批 UI 可复用 |
+| 10 | ask_user 结构化选项（多选 + Other，向 AskUserQuestion 对齐） | #42 | S | ⬜（避让） | webui 审批 UI 可复用；**= HANDA #7,依赖其 2U 命令身份·撤销·应答统一设计单元**——避让待 HANDA 2U 落定后联动,勿抢做 |
 | 11 | read-before-edit 护栏（edit_file 要求本会话 Read 过且未变） | #32 | S | 📐 deferred (INC-21) | 实现易（sync.Map 护栏），但波及 ~10 scripted edit 测试需批量加 read 步骤（含 crash matrix 等核心）→ 测试适配成本 M，defer 专轮；设计+波及分析见 INC-21 |
 | 12 | Grep/Glob 参数增强（output_mode/-A/-B/-C/multiline/type） | #35 | S | ✅ done (INC-22) | case_insensitive/glob/output_mode；QA-30 真机；默认=旧行为；-A/-B/-C/multiline 拆 12b |
 | 12b | grep context lines（-A/-B/-C）+ multiline | #35 余项 | S | ✅ done (INC-24) | -A/-B/-C context；QA-31 真机；multiline 拆 12c |
@@ -79,7 +79,7 @@
 | 14 | Monitor 流式后台进度（每行输出即通知；并 G10 进度通道） | #34 · G10 | M | ⬜ | 与 bash output 拉取并存 |
 | 15 | G22 boot sweep + cron 跨重启唤醒 | #87 · G22 | M | ⬜ | 无人值守自动性下半场 |
 | 16 | 内置 agent 库（Explore/Plan 类只读 spec 随发行） | #78 | S | ✅ done (INC-25) | embed explore/plan 只读 spec，白名单列名即用，内置优先同名 sibling，model 继承父；QA-32 真机；默认全自动可用拆 16b |
-| 16b | 内置 agent 默认全自动可用（不列 `agents:` 也可 spawn；白名单封闭性讨论） | #78 余项 | S | ⬜ | INC-25 拆出；需裁默认可用是否破白名单封闭性 |
+| 16b | 内置 agent 默认全自动可用（不列 `agents:` 也可 spawn；白名单封闭性讨论） | #78 余项 | S | 📐 awaiting-review (INC-34) | 变更单 INC-34:三选(推荐 B——已声明 spawn 面则内置隐式在册,opt-out 者硬边界守住);触多 agent 面永不静默变宽,待用户裁 |
 | 17 | webui 会话 rename/归档/内容搜索 | #2/3/7 | M | ⬜ | **注意避让**：webui 区与他 session 协调后再动 |
 | 18 | auto mode 设计稿（分类器作为 effect pipeline 的 policy 源） | #57 · §3.3 | M(设计) | 📐 awaiting-review (INC-32) | 设计稿全文 INC-32:分类器只接手 would-ask 面、fail-closed 不变式、连拒回退、headless=无人值守自动性正门;六个裁决点交用户;未裁决不实现 |
 
@@ -96,6 +96,7 @@
 
 | 轮 | 日期 | 项 | 结果 | commit |
 |---|---|---|---|---|
+| 16b | 2026-07-10 | #16b 内置默认可用 (INC-34) | 📐 变更单:内置只读 agent 默认可用触多 agent 面永不静默变宽;三选推荐 B(已声明 spawn 面→内置隐式在册免逐名登记,空 agents+非 dynamic 的 opt-out 者硬边界守住)+ builtin_agents 逃生口;#10 本轮避让(=HANDA #7 依赖其 2U 设计单元,防双做);待用户裁 | (见 push) |
 | 13 | 2026-07-10 | #13 Read 工具多模态 (INC-33) | ✅ 双闸门全绿（tool 5 测 envelope/PDF/文本零变化/裸executor/上限 + agent 2 测门控矩阵/scripted 端到端 journal 无字节·CAS 精确·第二请求含 inflate image part + QA-38 真 Gemini 四红线:模型从像素读出截图内容、journal 最长行 2056B）；复用 INC-9 全管线零新事件 | (见 push) |
 | 18 | 2026-07-10 | #18 auto mode 设计稿 (INC-32) | 📐 设计轮:分类器作为 permission 关卡新 policy 源——只接手 would-ask、黑白名单兜底、故障回 Ask(fail-closed 不变式)、连拒 3 次回退、headless 分类器过筛后仍 ask→deny(#34 底线不动);judge 判定 journaled(反超对方);实施拆 32a/32b/32c;六裁决点待用户 | (见 push) |
 | 7b | 2026-07-09 | #7b skill context:fork (INC-31) | ✅ 双闸门全绿（3 孪生:改写成形+四不改写例/默认 task/全链 SpawnRequested 冻结 RoleSpec 载正文 + QA-37 真 Gemini 七红线:展开入 journal、子会话跑出 WIDGET-COUNT: 4、receipt 回父）；ingest 展开复用动态角色全链零 spawn 机制改动；INC-30 号让路并发 G24/G25(改 31),QA 让号至 37 | (见 push) |
