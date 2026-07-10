@@ -627,3 +627,158 @@ func TestKillLeavesSourcedMark(t *testing.T) {
 		}
 	})
 }
+
+// INC-30.2 (G25): spawn_agent.replaces retires the predecessor before the
+// successor starts — the abandoned member is cancelled (parent-sourced, same
+// as the kill tool) instead of running its budget out. The 44c3 incident:
+// a replaced reviewer kept spinning for 70+ steps / 195k tokens because
+// nothing ever cancelled it.
+func TestSpawnReplacesCancelsPredecessor(t *testing.T) {
+	router := scripted.NewRouter(
+		scripted.RoutePair{Key: "you orchestrate", Fixture: scripted.Fixture{Steps: []scripted.Step{
+			// Turn 1: the stuck member.
+			{Respond: []scripted.Event{
+				{ToolCall: &scripted.ToolCallEvent{CallID: "old", Name: "spawn_agent",
+					Args: map[string]any{"agent": "worker", "task": "run STUCKJOB", "background": true}}},
+				{Finish: "tool_use"},
+			}},
+			// Turn 2: re-assign to a fresh member, retiring the old handle.
+			{Respond: []scripted.Event{
+				{ToolCall: &scripted.ToolCallEvent{CallID: "new", Name: "spawn_agent",
+					Args: map[string]any{"agent": "worker", "task": "run RETRYJOB", "replaces": "old", "background": true}}},
+				{Finish: "tool_use"},
+			}},
+			{Respond: []scripted.Event{{Text: "result noted"}, {Finish: "end_turn"}}},
+			{Respond: []scripted.Event{{Text: "another result"}, {Finish: "end_turn"}}},
+			{Respond: []scripted.Event{{Text: "wrapping"}, {Finish: "end_turn"}}},
+			{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
+		}}},
+		scripted.RoutePair{Key: "STUCKJOB", Fixture: scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{
+				{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "bash",
+					Args: map[string]any{"command": "sleep 30; echo STUCK_DONE"}}},
+				{Finish: "tool_use"},
+			}},
+			{Respond: []scripted.Event{{Text: "stuck done"}, {Finish: "end_turn"}}},
+		}}},
+		scripted.RoutePair{Key: "RETRYJOB", Fixture: scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{{Text: "RETRY report: ok"}, {Finish: "end_turn"}}},
+		}}},
+	)
+	l := bgSpawnLoop(t, router, []string{"worker"})
+	l.Spec.Tools = []string{"read_file", "bash"}
+	inputs := make(chan protocol.UserInput)
+	l.UserInputs = inputs
+
+	go func() {
+		// Wait for the stuck member's bash to be genuinely running, then let
+		// the parent's next turn (the replacing spawn) fire by feeding one
+		// input; close once both children settled.
+		deadline := time.Now().Add(8 * time.Second)
+		nudged := false
+		for time.Now().Before(deadline) {
+			evs, _ := store.ReadEvents(l.Store.Dir() + "/sub/old-a1")
+			running := false
+			for _, e := range evs {
+				if e.Type == event.TypeActivityStarted && strings.Contains(string(e.Payload), `"name":"bash"`) {
+					running = true
+				}
+			}
+			if running && !nudged {
+				inputs <- protocol.UserInput{Text: "the old one is stuck, re-assign"}
+				nudged = true
+			}
+			pevs, _ := store.ReadEvents(l.Store.Dir())
+			done := 0
+			for _, e := range pevs {
+				if e.Type == event.TypeSubagentCompleted {
+					done++
+				}
+			}
+			if done >= 2 {
+				close(inputs)
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		close(inputs)
+	}()
+
+	if _, err := l.Run(context.Background(), "orchestrate STUCKJOB, you may re-assign later"); err != nil {
+		t.Fatal(err)
+	}
+
+	events, _ := store.ReadEvents(l.Store.Dir())
+	var oldReason, newReason, journaledReplaces string
+	for _, e := range events {
+		switch e.Type {
+		case event.TypeSubagentCompleted:
+			dec, _ := event.DecodePayload(e)
+			sc := dec.(*event.SubagentCompleted)
+			if sc.CallID == "old" {
+				oldReason = sc.Reason
+			}
+			if sc.CallID == "new" {
+				newReason = sc.Reason
+			}
+		case event.TypeSpawnRequested:
+			dec, _ := event.DecodePayload(e)
+			sr := dec.(*event.SpawnRequested)
+			if sr.CallID == "new" {
+				journaledReplaces = sr.Replaces
+			}
+		}
+	}
+	if oldReason == "" || oldReason == "completed" {
+		t.Errorf("replaced child reason = %q, want a cancellation (not completed)", oldReason)
+	}
+	if newReason != "completed" {
+		t.Errorf("replacing child reason = %q, want completed", newReason)
+	}
+	if journaledReplaces != "old" {
+		t.Errorf("SpawnRequested.Replaces = %q, want %q (audit fact)", journaledReplaces, "old")
+	}
+	for _, e := range events {
+		if strings.Contains(string(e.Payload), "STUCK_DONE") {
+			t.Error("replaced child's command still completed")
+		}
+	}
+}
+
+// INC-30.2: replaces pointing at a finished or never-existing handle is a
+// silent no-op — the new delegation proceeds normally.
+func TestSpawnReplacesUnknownHandleIsNoop(t *testing.T) {
+	router := scripted.NewRouter(
+		scripted.RoutePair{Key: "you orchestrate", Fixture: scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{
+				{ToolCall: &scripted.ToolCallEvent{CallID: "solo", Name: "spawn_agent",
+					Args: map[string]any{"agent": "worker", "task": "run SOLOJOB", "replaces": "ghost-handle", "background": true}}},
+				{Finish: "tool_use"},
+			}},
+			{Respond: []scripted.Event{{Text: "noted"}, {Finish: "end_turn"}}},
+			{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
+		}}},
+		scripted.RoutePair{Key: "SOLOJOB", Fixture: scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{{Text: "SOLO report: ok"}, {Finish: "end_turn"}}},
+		}}},
+	)
+	l := bgSpawnLoop(t, router, []string{"worker"})
+	inputs := make(chan protocol.UserInput)
+	l.UserInputs = inputs
+	closeWhen(l, inputs, func(events []event.Envelope) bool {
+		return countType(events, event.TypeSubagentCompleted) >= 1
+	})
+	if _, err := l.Run(context.Background(), "orchestrate SOLOJOB"); err != nil {
+		t.Fatal(err)
+	}
+	events, _ := store.ReadEvents(l.Store.Dir())
+	for _, e := range events {
+		if e.Type != event.TypeSubagentCompleted {
+			continue
+		}
+		dec, _ := event.DecodePayload(e)
+		if sc := dec.(*event.SubagentCompleted); sc.CallID == "solo" && sc.Reason != "completed" {
+			t.Fatalf("solo child reason = %q, want completed despite ghost replaces", sc.Reason)
+		}
+	}
+}

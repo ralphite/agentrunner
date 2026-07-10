@@ -595,6 +595,10 @@ type SpawnRequested struct {
 	DependsOn []string       `json:"depends_on,omitempty"`
 	LeaseID   string         `json:"lease_id,omitempty"`
 	Workspace *TeamWorkspace `json:"workspace,omitempty"`
+	// Replaces records the predecessor handle this delegation retired
+	// (spawn_agent.replaces, INC-30): audit-only — the cancel itself settles
+	// through the predecessor's own terminal events.
+	Replaces string `json:"replaces,omitempty"`
 }
 
 // TeamWorkspace is the durable filesystem assignment for one delegation.

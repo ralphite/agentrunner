@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/hook"
 	"github.com/ralphite/agentrunner/internal/pipeline"
@@ -43,17 +44,24 @@ type InlineRole struct {
 type spawnPlan struct {
 	TaskID    string
 	DependsOn []string
-	Problem   string
+	// Replaces retires a predecessor handle before the successor starts
+	// (INC-30, G25): the same cancel the kill tool fires, so an abandoned
+	// member stops spending the shared budget. Unknown/settled handles are
+	// a no-op — replacement is idempotent.
+	Replaces string
+	Problem  string
 }
 
 func planSpawn(team map[string]state.TeamTask, call provider.ToolCall) spawnPlan {
 	plan := spawnPlan{TaskID: "task-" + call.CallID}
 	var args struct {
 		DependsOn []string `json:"depends_on"`
+		Replaces  string   `json:"replaces"`
 	}
 	if err := json.Unmarshal(call.Args, &args); err != nil {
 		return plan
 	}
+	plan.Replaces = strings.TrimSpace(args.Replaces)
 	seen := map[string]bool{}
 	for _, raw := range args.DependsOn {
 		id := raw
@@ -307,6 +315,24 @@ func dynamicRoleJSON(rawArgs json.RawMessage, spec *AgentSpec) json.RawMessage {
 	return raw
 }
 
+// replacePredecessor fires the cancel for a handle being replaced by a new
+// delegation (spawn_agent.replaces, INC-30/G25) — the same action the kill
+// tool takes, parent-sourced, so the abandoned member stops spending the
+// shared budget and its cancellation settles through the ordinary terminal
+// path. Unknown or already-settled handles are a silent no-op: replacement
+// is idempotent by design.
+func (l *Loop) replacePredecessor(handle string) {
+	if handle == "" || l.bg == nil {
+		return
+	}
+	l.bg.mu.Lock()
+	cancel, ok := l.bg.cancel[handle]
+	l.bg.mu.Unlock()
+	if ok {
+		cancel(&errs.KilledError{Source: "parent"})
+	}
+}
+
 // isolationNotice tells an isolated child the workspace mechanics it cannot
 // otherwise discover: its tree is a spawn-time snapshot, teammates' later work
 // is invisible, and its own writes do not flow back. Without this, members
@@ -396,6 +422,8 @@ func (l *Loop) buildHandoffRun(call provider.ToolCall, res *tool.Result,
 		frozenChild.EscalationApproved = escalationApproved
 		childSpec = &frozenChild
 
+		l.replacePredecessor(coordination.Replaces)
+
 		childDir := filepath.Join(l.Store.Dir(), "sub", fmt.Sprintf("%s-a%d", call.CallID, attempt))
 		childStore, err := store.OpenEventStore(childDir)
 		if err != nil {
@@ -417,6 +445,7 @@ func (l *Loop) buildHandoffRun(call provider.ToolCall, res *tool.Result,
 			EscalationReason: escalationFallback,
 			TaskID:           coordination.TaskID, DependsOn: coordination.DependsOn,
 			LeaseID: fmt.Sprintf("lease-%s-a%d", call.CallID, attempt), Workspace: workspaceAssignment,
+			Replaces: coordination.Replaces,
 		}); err != nil {
 			return nil, nil, false, err
 		}
@@ -521,6 +550,10 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 	frozenChild.EscalationApproved = escalationApproved
 	childSpec = &frozenChild
 
+	// Retire the predecessor BEFORE the successor starts (replaces, G25):
+	// its cancellation settles asynchronously through its own goroutine.
+	l.replacePredecessor(coordination.Replaces)
+
 	childDir := filepath.Join(l.Store.Dir(), "sub", fmt.Sprintf("%s-a1", call.CallID))
 	childStore, err := store.OpenEventStore(childDir)
 	if err != nil {
@@ -552,6 +585,7 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 		EscalationReason: escalationFallback,
 		TaskID:           coordination.TaskID, DependsOn: coordination.DependsOn,
 		LeaseID: "lease-" + call.CallID + "-a1", Workspace: workspaceAssignment,
+		Replaces: coordination.Replaces,
 	}); err != nil {
 		_ = childStore.Close()
 		return err
