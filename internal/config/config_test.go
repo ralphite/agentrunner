@@ -90,10 +90,10 @@ func TestTrustRegistry(t *testing.T) {
 	if err != nil || ok {
 		t.Fatalf("fresh dir trusted? ok=%v err=%v", ok, err)
 	}
-	if err := Trust(dataDir, ws); err != nil {
+	if _, err := Trust(dataDir, ws); err != nil {
 		t.Fatal(err)
 	}
-	if err := Trust(dataDir, ws); err != nil { // idempotent
+	if _, err := Trust(dataDir, ws); err != nil { // idempotent
 		t.Fatal(err)
 	}
 	ok, err = IsTrusted(dataDir, ws)
@@ -115,5 +115,35 @@ func TestTrustRegistry(t *testing.T) {
 	fi, err := os.Stat(filepath.Join(dataDir, "trusted.yaml"))
 	if err != nil || fi.Mode().Perm() != 0o600 {
 		t.Fatalf("perm = %v err = %v", fi.Mode(), err)
+	}
+}
+
+// Trust canonicalizes to an absolute realpath and refuses non-directories:
+// `ar trust .` used to store a literal "." that no runtime root could ever
+// match, and files/typos polluted the machine-level allowlist (QA Round2
+// F-E5/F-E14).
+func TestTrustCanonicalizesAndRequiresDir(t *testing.T) {
+	dataDir := t.TempDir()
+	ws := t.TempDir()
+	t.Chdir(ws)
+
+	stored, err := Trust(dataDir, ".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !filepath.IsAbs(stored) {
+		t.Fatalf("stored path %q not absolute", stored)
+	}
+	// The relative and the absolute spelling are the same entry.
+	if ok, err := IsTrusted(dataDir, ws); err != nil || !ok {
+		t.Fatalf("abs lookup after relative trust: ok=%v err=%v", ok, err)
+	}
+
+	f := filepath.Join(ws, "file.txt")
+	if err := os.WriteFile(f, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Trust(dataDir, f); err == nil {
+		t.Fatal("trusting a plain file must fail")
 	}
 }

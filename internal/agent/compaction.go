@@ -363,7 +363,7 @@ func (l *Loop) remember(ds *driveState, appendE AppendFunc, note string) error {
 		return err
 	}
 	_, err := appendE(event.TypeInputReceived, &event.InputReceived{
-		Text:   "[记忆] 已记入项目 CLAUDE.md（下次会话进入 prompt 前缀，本会话起即遵循）：" + note,
+		Text:   "[memory] Saved to the project CLAUDE.md (injected into the prompt prefix of future sessions; honor it from now on in this one): " + note,
 		Source: "program",
 	})
 	return err

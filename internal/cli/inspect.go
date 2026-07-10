@@ -59,6 +59,10 @@ func inspectCmd(args []string, stdout, stderr io.Writer) int {
 		report.Status = "stranded"
 		report.Reason = "no live host — recover: agentrunner resume " + filepath.Base(dir)
 	}
+	if report.Waiting != nil && report.Waiting.ApprovalID != "" {
+		report.Waiting.AnswerWith = fmt.Sprintf("agentrunner approve %s %s approve|deny",
+			filepath.Base(dir), report.Waiting.ApprovalID)
+	}
 	if *asJSON {
 		raw, err := json.MarshalIndent(report, "", "  ")
 		if err != nil {
@@ -91,6 +95,20 @@ type inspectReport struct {
 	Items                int                          `json:"items,omitempty"`
 	ProviderCapabilities *provider.CapabilityEnvelope `json:"provider_capabilities,omitempty"`
 	TeamTasks            []state.TeamTask             `json:"team_tasks,omitempty"`
+	// Waiting names what an idle session is waiting FOR — for an approval
+	// that includes the id and the answer command (QA Round2 F-E4: `approve
+	// -h` says "inspect shows the id", and it used to show only "waiting").
+	Waiting *waitingReport `json:"waiting,omitempty"`
+}
+
+// waitingReport surfaces the idle wait: kind (approval | input | tasks…)
+// plus, for approvals, the pending ask itself.
+type waitingReport struct {
+	Kind       string `json:"kind"`
+	ApprovalID string `json:"approval_id,omitempty"`
+	Tool       string `json:"tool,omitempty"`
+	Args       string `json:"args,omitempty"`
+	AnswerWith string `json:"answer_with,omitempty"`
 }
 
 // goalReport surfaces an active in-session goal (INC-D1) so a driver/UI can
@@ -326,6 +344,18 @@ func buildInspectReport(events []event.Envelope, s state.State) inspectReport {
 			Verifiers: len(s.Goal.Verifiers), Claimed: s.Goal.Claimed,
 		}
 	}
+	if s.Waiting != nil {
+		wr := &waitingReport{Kind: s.Waiting.Kind}
+		if s.Waiting.Kind == event.WaitApproval {
+			var req event.ApprovalRequested
+			if json.Unmarshal(s.Waiting.Detail, &req) == nil {
+				wr.ApprovalID = req.ApprovalID
+				wr.Tool = req.ToolName
+				wr.Args = compactPayload(req.Args, 100)
+			}
+		}
+		report.Waiting = wr
+	}
 	// ActivityCompleted carries no name/call id — those live on the matching
 	// ActivityStarted; index them as we walk. A DENIED tool call never becomes
 	// an activity, so its name comes from the assistant message that issued it.
@@ -494,7 +524,18 @@ func renderInspectIndent(w io.Writer, r inspectReport, pad string) {
 	if r.Kind == "driver" {
 		countLabel = "iterations"
 	}
-	fmt.Fprintf(w, "%sstatus  %s    %s %d\n\n", pad, status, countLabel, r.GenSteps)
+	fmt.Fprintf(w, "%sstatus  %s    %s %d\n", pad, status, countLabel, r.GenSteps)
+	if r.Waiting != nil {
+		if r.Waiting.ApprovalID != "" {
+			fmt.Fprintf(w, "%swaiting approval %s: %s %s\n", pad, r.Waiting.ApprovalID, r.Waiting.Tool, r.Waiting.Args)
+			if r.Waiting.AnswerWith != "" {
+				fmt.Fprintf(w, "%s        answer with: %s\n", pad, r.Waiting.AnswerWith)
+			}
+		} else {
+			fmt.Fprintf(w, "%swaiting %s\n", pad, r.Waiting.Kind)
+		}
+	}
+	fmt.Fprintln(w)
 	if r.Kind != "driver" && (r.Turns > 0 || r.Items > 0) {
 		fmt.Fprintf(w, "%sitems   turns %d    items %d\n\n", pad, r.Turns, r.Items)
 	}

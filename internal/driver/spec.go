@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -153,6 +155,27 @@ type VerifierSpec struct {
 	Rubric      string  `yaml:"rubric,omitempty"`
 }
 
+// driverSpecFields lists DriverSpec's top-level yaml keys for the
+// unknown-field hint. Keep in sync with the struct tags.
+const driverSpecFields = "name, schedule, agent_spec, interval, cron, overlap, " +
+	"pace_min, pace_max, on_no_intent, series_memory, task, max_iterations, n, " +
+	"verifiers, patience, budget, on_child_failure"
+
+// decodeHint rewrites a yaml decode error for a user who has never seen the
+// Go structs behind the spec (same courtesy as agent.LoadSpec — QA Round2
+// F-E3: it used to leak "type driver.DriverSpec" and name no valid fields).
+func decodeHint(err error) string {
+	msg := err.Error()
+	unknown := strings.Contains(msg, "not found in type")
+	msg = typeNameRe.ReplaceAllString(msg, `unknown field "$1"`)
+	if unknown {
+		msg += fmt.Sprintf("\n  valid top-level driver fields: %s", driverSpecFields)
+	}
+	return msg
+}
+
+var typeNameRe = regexp.MustCompile(`field (\S+) not found in type \S+`)
+
 // LoadSpec reads and validates a driver spec, resolving agent_spec into
 // Agent (relative paths anchor at the driver spec's directory). Error format
 // mirrors agent.LoadSpec: "driver spec <path>: field <name>: <problem>".
@@ -165,7 +188,7 @@ func LoadSpec(path string) (*DriverSpec, error) {
 	dec := yaml.NewDecoder(bytes.NewReader(raw))
 	dec.KnownFields(true)
 	if err := dec.Decode(&spec); err != nil {
-		return nil, fmt.Errorf("driver spec %s: %v", path, err)
+		return nil, fmt.Errorf("driver spec %s: %v", path, decodeHint(err))
 	}
 	fail := func(field, problem string) error {
 		return fmt.Errorf("driver spec %s: field %s: %s", path, field, problem)
@@ -178,6 +201,30 @@ func LoadSpec(path string) (*DriverSpec, error) {
 	}
 	if spec.AgentSpecPath == "" {
 		return nil, fail("agent_spec", "required")
+	}
+	// Verifier kinds resolve at PARSE time (QA Round2 F-E1: an empty kind
+	// used to fail every check at runtime with the reason buried in
+	// verdict.detail — the loop burned all its iterations in silence). A
+	// bare `command:` can only mean kind command; anything else unknown is
+	// an error here, not a silent never-pass.
+	for i := range spec.Verifiers {
+		v := &spec.Verifiers[i]
+		if v.Kind == "" && v.Command != "" {
+			v.Kind = VerifierCommand
+		}
+		field := fmt.Sprintf("verifiers[%d]", i)
+		switch v.Kind {
+		case VerifierCommand:
+			if v.Command == "" {
+				return nil, fail(field+".command", "required for kind command")
+			}
+		case VerifierLLMJudge, VerifierHuman:
+			// runtime-served kinds; rubric/threshold are their own defaults
+		case "":
+			return nil, fail(field+".kind", "required (command | llm_judge | human)")
+		default:
+			return nil, fail(field+".kind", fmt.Sprintf("unknown kind %q (valid: command, llm_judge, human)", v.Kind))
+		}
 	}
 	agentPath := spec.AgentSpecPath
 	if !filepath.IsAbs(agentPath) {

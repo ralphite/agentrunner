@@ -117,7 +117,7 @@ func usage() string {
 func commandHelp(cmd string) string {
 	switch cmd {
 	case "init":
-		return "usage: agentrunner init [path]\n\nWrite a commented example agent spec (default: spec.yaml).\nRefuses to overwrite an existing file.\n"
+		return "usage: agentrunner init [--driver] [path]\n\nWrite a commented example agent spec (default: spec.yaml).\n--driver writes an iteration-driver spec instead (default:\ndriver.yaml, for `agentrunner drive`). Refuses to overwrite.\n"
 	case "resume":
 		return "usage: agentrunner resume <session-id-or-prefix>\n\nResume an interrupted or crashed session in the foreground.\n"
 	case "close":
@@ -146,6 +146,8 @@ func commandHelp(cmd string) string {
 		return "usage: agentrunner sessions [list]\n\nList sessions and their status.\n"
 	case "trust":
 		return "usage: agentrunner trust <dir>\n\nMark a workspace directory as trusted on this machine.\n"
+	case "remember":
+		return "usage: agentrunner remember <session-id-or-prefix> \"note\"\n\nSave a durable note to the workspace's project CLAUDE.md; future\nsessions in that workspace see it in their prompt prefix, and the\ntarget session honors it from now on.\n"
 	}
 	return ""
 }
@@ -178,6 +180,8 @@ Conversations (need the daemon):
   stop <session>              stop a hosted run: graceful teardown, no mark; send revives it
   compact <session> [focus]   summarize the context now (optional focus directive)
   clear <session>             drop the context prefix (keep the full journal)
+  remember <session> "note"   save a durable note to the project CLAUDE.md
+                              (injected into future sessions in this workspace)
   goal <session> attach "…"   attach a goal the session keeps working toward
                               (also: goal <session> update|pause|resume|cancel)
 
@@ -198,7 +202,8 @@ Control:
   fork <session> <barrier>    branch a session at a barrier into a new one (--list shows barriers)
   trust <dir>                 mark a workspace as trusted
 
-Other: barrier, accept, record-fixture, version — see each command's -h.
+Other: barrier, version — see each command's -h.
+Developer (run the product's own test suites; not for everyday use): accept, record-fixture.
 
 Sessions are addressed by any unique prefix of their id.
 Spec format: agentrunner init writes a commented example.

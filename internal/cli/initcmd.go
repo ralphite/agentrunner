@@ -19,6 +19,8 @@ model:
   provider: gemini          # gemini | anthropic (needs GEMINI_API_KEY / ANTHROPIC_API_KEY)
   id: gemini-flash-latest   # any model id the provider serves
   # max_tokens: 8192        # per-turn output cap (default 8192)
+  # compact_at_tokens: 60000     # auto-summarize the context past this size
+  # microcompact_at_tokens: 0    # clear old tool results past this size (default 3/4 of compact_at_tokens; -1 disables)
 
 system_prompt: >
   You are a helpful coding agent. Answer in plain text; use tools only
@@ -61,14 +63,62 @@ permissions:
 #     oauth: { access_token_env: MCP_ACCESS_TOKEN }
 `
 
+
+// driverTemplate is the commented example driver spec `agentrunner init
+// --driver` writes (QA Round2 F-E9: the driver schema was undiscoverable —
+// no template, no docs). It must always pass driver.LoadSpec next to a
+// default spec.yaml — TestInitDriverSpecLoads pins that.
+const driverTemplate = `# agentrunner driver spec — an iteration driver: it runs a fresh child
+# agent per iteration until the verifiers pass (goal mode) or on a
+# schedule. Required: name, task, agent_spec. Run: agentrunner drive <this file>
+name: my-driver
+task: Make the test suite pass          # the instruction EVERY iteration receives
+agent_spec: spec.yaml                   # child agent spec, relative to this file (agentrunner init writes one)
+
+max_iterations: 5     # goal-mode cap (default 10)
+verifiers:            # ALL must pass for an iteration to satisfy the goal
+  - kind: command     # command | llm_judge | human (a bare command: implies kind command)
+    command: "test -f done.txt"         # exit 0 = pass
+    # metric_regex: 'coverage: (\d+)'   # capture group 1 becomes a score
+    # threshold: 80                     # score >= threshold passes
+
+# --- optional ---------------------------------------------------------
+# schedule: immediate   # immediate (goal) | interval | cron | self_paced | parallel (best-of-N)
+# interval: 5m          # loop cadence (schedule: interval)
+# cron: "0 2 * * *"     # loop cadence (schedule: cron)
+# overlap: skip         # skip | coalesce — ticks firing while an iteration runs
+# n: 3                  # attempt count for schedule: parallel (best-of-N)
+# patience: 3           # stop after this many iterations with no score improvement
+# series_memory: NOTES.md   # workspace file injected into every iteration's task
+# budget:
+#   max_total_tokens: 500000
+# on_child_failure: { mode: stop }   # stop | surface | retry (with max: N)
+`
+
 // initCmd writes the example spec: `agentrunner init [path]` (default
-// spec.yaml). It refuses to overwrite — the user's spec is theirs.
+// spec.yaml), or `agentrunner init --driver [path]` for a driver spec
+// (default driver.yaml). It refuses to overwrite — the user's spec is theirs.
 func initCmd(args []string, stdout, stderr io.Writer) int {
+	driver := false
+	rest := args[:0:0]
+	for _, a := range args {
+		if a == "--driver" || a == "-driver" {
+			driver = true
+			continue
+		}
+		rest = append(rest, a)
+	}
+	args = rest
 	if len(args) > 1 {
-		fmt.Fprintln(stderr, "usage: agentrunner init [path]")
+		fmt.Fprintln(stderr, "usage: agentrunner init [--driver] [path]")
 		return ExitUsage
 	}
 	path := "spec.yaml"
+	template := specTemplate
+	if driver {
+		path = "driver.yaml"
+		template = driverTemplate
+	}
 	if len(args) == 1 {
 		path = args[0]
 	}
@@ -82,11 +132,15 @@ func initCmd(args []string, stdout, stderr io.Writer) int {
 		return ExitUsage
 	}
 	defer func() { _ = f.Close() }()
-	if _, err := f.WriteString(specTemplate); err != nil {
+	if _, err := f.WriteString(template); err != nil {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 		return ExitRun
 	}
 	fmt.Fprintf(stdout, "wrote %s\n", path)
-	fmt.Fprintf(stderr, "next: agentrunner run %s \"say hello\"\n", path)
+	if driver {
+		fmt.Fprintf(stderr, "next: agentrunner drive %s   (it iterates spec.yaml — agentrunner init writes that)\n", path)
+	} else {
+		fmt.Fprintf(stderr, "next: agentrunner run %s \"say hello\"\n", path)
+	}
 	return ExitOK
 }

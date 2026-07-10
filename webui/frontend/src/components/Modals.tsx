@@ -393,14 +393,21 @@ function ForkModal({ sid }: { sid: string }) {
   const [busy, setBusy] = useState(false);
   const close = () => openModal(null);
 
-  useEffect(() => {
+  const loadBarriers = () => {
     AR.barriers(sid)
       .then((b) => {
         const sorted = [...b].sort((x, y) => forkRank(x) - forkRank(y));
         setBarriers(sorted);
-        if (sorted.length) setBarrier(sorted[0]);
+        setBarrier((cur) => (cur && sorted.includes(cur) ? cur : sorted[0] || ""));
       })
       .catch((e) => toast(e.message));
+  };
+  // Checkpoints keep landing while the modal is open (QA Round2 F-F1: the
+  // one-shot fetch went stale and forced a full page reload) — poll gently.
+  useEffect(() => {
+    loadBarriers();
+    const t = setInterval(loadBarriers, 3000);
+    return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sid]);
 
@@ -445,7 +452,7 @@ function ForkModal({ sid }: { sid: string }) {
       </div>
       <label className="field">Fork from</label>
       {barriers.length === 0 ? (
-        <div className="dim">No fork points yet — send at least one message so the session checkpoints a turn, then fork.</div>
+        <div className="dim">No fork points yet — they appear here as the session checkpoints turns (this list refreshes itself). A busy session checkpoints at its next safe boundary; an idle one checkpoints when you send it a message.</div>
       ) : (
         <select value={barrier} onChange={(e) => setBarrier(e.target.value)} title="the checkpoint to branch the new session from">
           {barriers.map((b) => (

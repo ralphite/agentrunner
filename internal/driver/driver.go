@@ -328,7 +328,7 @@ func (d *Driver) drive(ctx context.Context, st *State, appendE appendFunc, start
 			return d.finish(appendE, st, "stopped", n-1)
 		}
 		if n > maxIter {
-			slog.Warn("driver hit max_iterations", "driver", d.DriverID, "max", maxIter)
+			slog.Debug("driver hit max_iterations", "driver", d.DriverID, "max", maxIter)
 			return d.finish(appendE, st, "max_iterations", maxIter)
 		}
 		// Loop-mode cadence: interval fires iteration 1 now and fixed-delays

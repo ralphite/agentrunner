@@ -173,11 +173,27 @@ func trustPath(dataDir string) string {
 	return filepath.Join(dataDir, "trusted.yaml")
 }
 
+// resolveTrustPath canonicalizes a workspace root for the trust registry:
+// absolute first, then realpath. EvalSymlinks alone kept relative paths
+// relative, so `ar trust .` stored a literal "." that could never match a
+// runtime root again (QA Round2 F-E5).
+func resolveTrustPath(wsRoot string) (string, error) {
+	abs, err := filepath.Abs(wsRoot)
+	if err != nil {
+		return "", fmt.Errorf("trust: %w", err)
+	}
+	resolved, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		return "", fmt.Errorf("trust: %w", err)
+	}
+	return resolved, nil
+}
+
 // IsTrusted reports whether the workspace root (realpath) is registered.
 func IsTrusted(dataDir, wsRoot string) (bool, error) {
-	resolved, err := filepath.EvalSymlinks(wsRoot)
+	resolved, err := resolveTrustPath(wsRoot)
 	if err != nil {
-		return false, fmt.Errorf("trust: %w", err)
+		return false, err
 	}
 	raw, err := os.ReadFile(trustPath(dataDir))
 	if os.IsNotExist(err) {
@@ -198,16 +214,27 @@ func IsTrusted(dataDir, wsRoot string) (bool, error) {
 	return false, nil
 }
 
-// Trust registers a workspace root (idempotent).
-func Trust(dataDir, wsRoot string) error {
-	resolved, err := filepath.EvalSymlinks(wsRoot)
+// Trust registers a workspace root (idempotent) and returns the canonical
+// path it stored — callers echo it so the user sees exactly what a later
+// session will match. Only directories qualify: a trust entry names a
+// workspace, and a file (or typo like "-h") in a machine-level allowlist
+// is a footgun (QA Round2 F-E5/F-E14).
+func Trust(dataDir, wsRoot string) (string, error) {
+	resolved, err := resolveTrustPath(wsRoot)
 	if err != nil {
-		return fmt.Errorf("trust: %w", err)
+		return "", err
+	}
+	st, err := os.Stat(resolved)
+	if err != nil {
+		return "", fmt.Errorf("trust: %w", err)
+	}
+	if !st.IsDir() {
+		return "", fmt.Errorf("trust: %s is not a directory", resolved)
 	}
 	if ok, err := IsTrusted(dataDir, wsRoot); err != nil {
-		return err
+		return "", err
 	} else if ok {
-		return nil
+		return resolved, nil
 	}
 	var tf trustFile
 	if raw, err := os.ReadFile(trustPath(dataDir)); err == nil {
@@ -216,13 +243,13 @@ func Trust(dataDir, wsRoot string) error {
 	tf.Trusted = append(tf.Trusted, resolved)
 	raw, err := yaml.Marshal(tf)
 	if err != nil {
-		return fmt.Errorf("trust: %w", err)
+		return "", fmt.Errorf("trust: %w", err)
 	}
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
-		return fmt.Errorf("trust: %w", err)
+		return "", fmt.Errorf("trust: %w", err)
 	}
 	if err := os.WriteFile(trustPath(dataDir), raw, 0o600); err != nil {
-		return fmt.Errorf("trust: %w", err)
+		return "", fmt.Errorf("trust: %w", err)
 	}
-	return nil
+	return resolved, nil
 }

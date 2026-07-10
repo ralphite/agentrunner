@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -1487,4 +1488,42 @@ func itoa(n int) string {
 		n /= 10
 	}
 	return string(b)
+}
+
+// A bare `command:` verifier means kind command — an empty kind used to
+// fail every runtime check with the reason buried in verdict.detail while
+// the loop burned its whole iteration budget (QA Round2 F-E1). Unknown
+// kinds now fail at parse time, and the yaml unknown-field hint names the
+// valid driver fields instead of leaking the Go type (F-E3).
+func TestLoadSpecVerifierKindDefaultsAndValidates(t *testing.T) {
+	dir := t.TempDir()
+	agentPath := filepath.Join(dir, "agent.yaml")
+	if err := os.WriteFile(agentPath, []byte("name: a\nmodel: { provider: scripted, id: m }\nsystem_prompt: p\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	write := func(body string) string {
+		p := filepath.Join(dir, "d.yaml")
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+
+	spec, err := driver.LoadSpec(write("name: d\ntask: t\nagent_spec: agent.yaml\nverifiers:\n  - command: \"true\"\n"))
+	if err != nil {
+		t.Fatalf("bare command verifier: %v", err)
+	}
+	if spec.Verifiers[0].Kind != driver.VerifierCommand {
+		t.Fatalf("kind = %q, want command", spec.Verifiers[0].Kind)
+	}
+
+	_, err = driver.LoadSpec(write("name: d\ntask: t\nagent_spec: agent.yaml\nverifiers:\n  - { kind: shell, command: \"true\" }\n"))
+	if err == nil || !strings.Contains(err.Error(), `unknown kind "shell"`) || !strings.Contains(err.Error(), "valid: command") {
+		t.Fatalf("unknown kind error = %v", err)
+	}
+
+	_, err = driver.LoadSpec(write("name: d\ntask: t\nagent_spec: agent.yaml\nbogus_field: 1\n"))
+	if err == nil || strings.Contains(err.Error(), "driver.DriverSpec") || !strings.Contains(err.Error(), "valid top-level driver fields") {
+		t.Fatalf("unknown field error = %v", err)
+	}
 }

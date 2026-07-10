@@ -923,11 +923,17 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 	if l.Router != nil {
 		extra = append(extra, "send_message")
 	}
-	// The in-session goal face (INC-10) rides along unconditionally: goal
-	// attach is a mid-drive control and the face — computed once here — must
-	// not depend on it. A call with no goal attached is a model-visible
-	// no-op/error instead.
-	extra = append(extra, "goal_status", "goal_complete")
+	// The in-session goal face (INC-10) advertises when a goal can actually
+	// reach this run: a hosted conversational loop (Controls wired — goal
+	// attach is a mid-drive control) or a session already carrying one
+	// (fold Goal, e.g. a foreground resume of a goal-bearing session).
+	// Both facts are structural/journaled, so resume rebuilds the same
+	// face. A one-shot or driver-iteration run has neither — advertising
+	// goal_complete there just baited models into a "no active goal" error
+	// call on ordinary tasks (QA Round1 F-C4, Round2 F-E2).
+	if l.Controls != nil || ds.s.Goal != nil {
+		extra = append(extra, "goal_status", "goal_complete")
+	}
 	if len(extra) > 0 {
 		// Dedup against the spec's own tools AND within extra itself: a spec
 		// that already lists an auto-added tool (e.g. spawn_agent) must not
@@ -1132,7 +1138,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 					}); err != nil {
 						return RunResult{}, abort(act.turn, err)
 					}
-					slog.Warn("token budget exhausted; truncating turn", "limit", l.Spec.Budget.MaxTotalTokens, "used", used)
+					slog.Debug("token budget exhausted; truncating turn", "limit", l.Spec.Budget.MaxTotalTokens, "used", used)
 					l.emit(protocol.Event{Kind: protocol.KindError, N: act.turn,
 						Text: "token budget exhausted; turn truncated, session is idle"})
 					continue
@@ -1353,7 +1359,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			// fact, not a terminal state. LimitExceeded resets the per-turn
 			// baseline in the fold; a queued input starts a fresh turn, and
 			// with nothing queued the session goes idle, reopenable as ever.
-			slog.Warn("turn truncated: max_generation_steps", "max_generation_steps", l.Spec.MaxGenerationSteps)
+			slog.Debug("turn truncated: max_generation_steps", "max_generation_steps", l.Spec.MaxGenerationSteps)
 			if _, err := appendE(event.TypeLimitExceeded, &event.LimitExceeded{
 				Kind: "generation_steps", Limit: l.Spec.MaxGenerationSteps, Used: act.turn - ds.s.Session.LastInputGenStep,
 			}); err != nil {
