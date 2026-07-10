@@ -110,9 +110,69 @@ func (e *Executor) Execute(ctx context.Context, name string, args json.RawMessag
 		return e.glob(args)
 	case "web_fetch":
 		return e.webFetch(ctx, args)
+	case "skill":
+		return e.skill(args)
 	default:
 		return errResult("unknown tool %q", name)
 	}
+}
+
+// skill (INC-20, #45/§3.5) is the model-side invoke of a skill: given a name
+// from the <skills> directory block, return that skill's SKILL.md body (the
+// instructions after the frontmatter) as the tool result. Read-class and
+// side-effect-free — equivalent to reading the skill's file, but by name.
+// SECURITY: the name is a bare identifier — any path separator or traversal
+// is refused, and WS.Resolve bounds the final path to the workspace, so this
+// can never read outside .claude/skills.
+func (e *Executor) skill(rawArgs json.RawMessage) Result {
+	var args struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(rawArgs, &args); err != nil || args.Name == "" {
+		return errResult("skill: invalid args: need {\"name\": string}")
+	}
+	// A skill name is a directory identifier, never a path. Reject separators
+	// and traversal outright rather than relying on Resolve alone.
+	if strings.ContainsAny(args.Name, "/\\") || args.Name == "." || args.Name == ".." ||
+		strings.Contains(args.Name, "..") {
+		return errResult("skill: invalid name %q (skill names are bare identifiers)", args.Name)
+	}
+	path, err := e.WS.Resolve(filepath.Join(".claude", "skills", args.Name, "SKILL.md"))
+	if err != nil {
+		return errResult("skill: %v", err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return errResult("skill %q not found (check the <skills> directory for available names)", args.Name)
+	}
+	body := stripFrontmatter(string(raw))
+	if strings.TrimSpace(body) == "" {
+		// A frontmatter-only skill still has a usable name/description in the
+		// directory; return the whole file rather than nothing.
+		body = string(raw)
+	}
+	return okResult(body)
+}
+
+// stripFrontmatter drops a leading YAML frontmatter block ("---\n…\n---") and
+// returns the remaining body. A file without frontmatter is returned as-is.
+func stripFrontmatter(s string) string {
+	if !strings.HasPrefix(s, "---\n") && !strings.HasPrefix(s, "---\r\n") {
+		return s
+	}
+	rest := s[strings.Index(s, "\n")+1:]
+	end := strings.Index(rest, "\n---")
+	if end < 0 {
+		return s // unterminated — treat the whole thing as body
+	}
+	body := rest[end+len("\n---"):]
+	// Drop the rest of the closing fence line and one following newline.
+	if nl := strings.IndexByte(body, '\n'); nl >= 0 {
+		body = body[nl+1:]
+	} else {
+		body = ""
+	}
+	return strings.TrimLeft(body, "\n")
 }
 
 // grep/glob limits (INC-3). Both are read-class content-surfacing tools:

@@ -533,6 +533,21 @@ acceptEdits`、无 permission 规则（mode default 治理）；workspace 预置
 **通过标准**：三红线均为 journal/文件事实；protected 只收紧 acceptEdits
 自动放行（bypass/显式规则/hardFloor 不变，`.claude/worktrees` carve-out）。
 
+## QA-29 skill 模型侧 invoke（INC-20,#45/§3.5,UJ-19）
+
+**环境**：私有 daemon（隔离 runtime 根）+ 真实 Gemini；workspace 放一个
+`greet` skill（SKILL.md 指令要求回复含固定暗号），spec tools 含 `skill`；
+跑完 session 拷回共享 store、export 归档 `qa/runs/2026-07-09-QA29/`。
+
+| # | 动作 | 验证 |
+|---|---|---|
+| 1 | 让模型「用 greet 技能打招呼」 | journal 出 `skill` tool_call，name=greet（模型按 name invoke，非 read_file path） |
+| 2 | skill 工具返回 | tool_result 含 SKILL.md **正文**（暗号指令），**不含** frontmatter（description 行不泄漏） |
+| 3 | 模型最终回复 | 遵循 skill 指令——回复含 SKILL.md 要求的暗号 |
+
+**通过标准**：三红线均为 journal 事实；skill 是 read-class（免审批同
+read_file）但 name 防遍历 + WS 边界；维持命令=用户宏裁决不动。
+
 ---
 
 ## 覆盖矩阵

@@ -944,6 +944,16 @@ limits:
 
 - 沿用 Claude Code skill 约定（目录 + markdown + frontmatter），
   生态兼容，不发明格式。注入位置见 §4 context assembly。
+- **两个面（INC-20，#45/§3.5）**：**发现面** = 目录注入（name +
+  description + path 进 prefix，模型知道有哪些 skill，S5.2）；**invoke
+  面** = `skill` 工具（read-class）——模型按 name 调用，返回该 skill 的
+  SKILL.md 正文（去 frontmatter）作为 tool result，等价"读那个 path"但
+  按 name、更自然，且 skill 成为一等可调面。安全：read-class 免审批同
+  read_file，但 name 是裸标识符（拒 `/`/`..`/`\` 防遍历）+ WS.Resolve
+  边界，绝不读 `.claude/skills` 之外。与"命令=用户宏"裁决的边界不变
+  （命令 ingest 时展开、对模型不可见；skill 是模型侧能力）。**余项**：
+  `context:fork`（skill 在一次性子 agent 执行 = spawn_agent 变体，
+  INC-20b）。
 
 ### 自定义命令 / slash（INC-3 后补，G21）
 

@@ -1,0 +1,12 @@
+{
+  "name": "skill",
+  "description": "Load a skill's full instructions by name. The available skills are listed in the <skills> block of the system prompt (name + one-line description). Call this with a skill's name to get its complete SKILL.md instructions, then follow them. This is the direct way to invoke a skill — you do not need to know or read its file path.",
+  "class": "read",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "name": { "type": "string", "description": "The skill name exactly as it appears in the <skills> directory block." }
+    },
+    "required": ["name"]
+  }
+}
