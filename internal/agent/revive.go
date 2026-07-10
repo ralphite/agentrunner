@@ -11,8 +11,10 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -138,7 +140,11 @@ func (l *Loop) reviveChild(ctx context.Context, ds *driveState, appendE AppendFu
 		}
 		rst, rerr := childFoldState(rdir)
 		if rerr != nil {
-			return fmt.Errorf("revive relay %s: recipient fold: %w", sid, rerr)
+			// A single unreadable/corrupt DESCENDANT journal must not abort
+			// the whole tree host (INC-12 review P2): skip this relay softly,
+			// exactly like the DirOf failure above. The mail stays durable.
+			slog.Warn("revive relay: recipient fold unreadable; skipping", "recipient", sid, "err", rerr)
+			return nil
 		}
 		mailDir, mailConsumed = rdir, rst.Session.ConsumedInputSeq
 	}
@@ -190,6 +196,18 @@ func (l *Loop) reviveChild(ctx context.Context, ds *driveState, appendE AppendFu
 	}
 	childExec, err := l.childExecutorFromJournal(dir, child)
 	if err != nil {
+		if errors.Is(err, errForeignWorkspace) {
+			// Fork isolation guard (INC-12 交互 review P1): a forked session
+			// copies sub/ verbatim, so an inherited child's journaled
+			// WorkspaceRoot is the ORIGINAL session's absolute path. Reviving
+			// it would write into the original workspace (cross-session
+			// corruption). Refuse the automatic path; the mail stays durable,
+			// and a fork that wants the team continued re-spawns it (mirrors
+			// cancel_at_fork, DESIGN §12).
+			slog.Warn("revive skipped: child workspace is outside this session (fork provenance); mail stays durable",
+				"child", child)
+			return nil
+		}
 		return fmt.Errorf("revive %s: %w", child, err)
 	}
 	allowance := l.reviveAllowance(ds.s, cap, spent)
@@ -369,8 +387,21 @@ func (l *Loop) childExecutorFromJournal(dir, session string) (*tool.Executor, er
 		root = decoded.(*event.SessionStarted).WorkspaceRoot
 		break
 	}
-	if root == "" || (l.Exec != nil && l.Exec.WS != nil && root == l.Exec.WS.Root()) {
+	// Shared with the parent (the common case): reuse the parent executor.
+	// Compare canonically — the journaled root may be un-normalized while
+	// workspace.New canonicalized the parent's (macOS /var↔/private/var), so
+	// a plain string compare would spuriously fall through to the fork guard.
+	if root == "" || (l.Exec != nil && l.Exec.WS != nil && sameDir(root, l.Exec.WS.Root())) {
 		return l.Exec, nil
+	}
+	// A legit isolated child of THIS tree has its worktree UNDER this
+	// session's store dir (spawn.go: <store>/sub/<call>/worktree). A root
+	// ELSEWHERE is stale fork provenance (INC-12 交互 review P1): a forked
+	// session copies sub/ verbatim carrying the ORIGINAL absolute path.
+	// Refuse — never workspace.New() an outside path (which would create /
+	// write into the original session's workspace).
+	if !underDir(root, l.Store.Dir()) {
+		return nil, errForeignWorkspace
 	}
 	ws, err := workspace.New(root)
 	if err != nil {
@@ -384,6 +415,46 @@ func (l *Loop) childExecutorFromJournal(dir, session string) (*tool.Executor, er
 		}
 	}
 	return exec, nil
+}
+
+// errForeignWorkspace marks a child whose journaled WorkspaceRoot is outside
+// this session's managed tree — stale fork provenance (INC-12 交互 review
+// P1). The automatic revive path refuses it; the durable mail is untouched.
+var errForeignWorkspace = errors.New("child workspace outside this session (fork provenance)")
+
+// sameDir reports whether two paths denote the same directory, canonicalizing
+// through EvalSymlinks (a journaled root may be un-normalized while the live
+// workspace root was canonicalized at open).
+func sameDir(a, b string) bool {
+	ac := a
+	if r, err := filepath.EvalSymlinks(a); err == nil {
+		ac = r
+	}
+	bc := b
+	if r, err := filepath.EvalSymlinks(b); err == nil {
+		bc = r
+	}
+	return ac == bc
+}
+
+// underDir reports whether path is dir or a descendant of it, canonicalizing
+// both through EvalSymlinks so /tmp vs /private/tmp (macOS) does not cause a
+// false negative. A path that cannot be resolved (e.g. a stale fork copy of a
+// deleted session) keeps its literal value — it will simply not match.
+func underDir(path, dir string) bool {
+	pc := path
+	if r, err := filepath.EvalSymlinks(path); err == nil {
+		pc = r
+	}
+	dc := dir
+	if r, err := filepath.EvalSymlinks(dir); err == nil {
+		dc = r
+	}
+	rel, err := filepath.Rel(dc, pc)
+	if err != nil {
+		return false
+	}
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator)))
 }
 
 // childFoldState folds a child journal (the settle/revive-side truth).

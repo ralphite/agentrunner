@@ -57,8 +57,15 @@ func (l *Loop) runSendMessage(children []string, commandID string, rawArgs json.
 	// journaled input — it crosses session boundaries and lands durably.
 	text := fmt.Sprintf("[message from %s (%s)]\n%s",
 		l.Spec.Name, l.SessionID, redact.FromEnv().String(args.Text))
+	// Attribute the sender explicitly (INC-12 交互 review P2): without this
+	// the recipient's ingest defaults an agent message to principal
+	// "local-user" / trust "unknown" — mislabeling a peer as the human. A
+	// tree-internal message is UNTRUSTED content (决策 #19 family: content
+	// crossing agents earns no authority from its origin), tagged with the
+	// sending session as principal.
 	seq, err := l.Router.Send(to, protocol.UserInput{
 		Text: text, Source: "agent", CommandID: commandID,
+		Principal: "agent:" + l.SessionID, Trust: "untrusted",
 	})
 	if err != nil {
 		return errorResult("send_message: " + err.Error())

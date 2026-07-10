@@ -131,7 +131,13 @@ func (l *Loop) settleBackground(appendE AppendFunc, out bgOutcome) error {
 		// Quiescence race close-out (INC-12.2): mail that landed while the
 		// child was on its way out (delivered to a port nobody was reading)
 		// is durable in its inbox — queue the revive now, after the receipt.
-		if l.Router != nil && l.revive != nil && l.childHasMail(out.subagent.ChildSession) {
+		// ONLY after a SUCCESSFUL settle (INC-12 review P1): a FAILED revive
+		// (the child's Resume errored BEFORE consuming its mailbox — in-doubt,
+		// MCP drift, version mismatch) leaves the mail unconsumed, so
+		// re-enqueuing would hot-loop (re-host → fail → close-out → re-host …).
+		// A failed member's mail stays durable for the next restart scan or an
+		// explicit send once the root cause is fixed — never a busy loop.
+		if !out.isError && l.Router != nil && l.revive != nil && l.childHasMail(out.subagent.ChildSession) {
 			select {
 			case l.revive <- out.subagent.ChildSession:
 			default:

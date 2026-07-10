@@ -831,3 +831,72 @@ func mustRead(t *testing.T, dir string) []event.Envelope {
 	}
 	return evs
 }
+
+// INC-12 review P1 (hot-loop guard): the quiescence-race close-out must
+// re-enqueue a revive ONLY after a SUCCESSFUL settle. A FAILED revive (the
+// child's Resume errored before consuming its mailbox — in-doubt, MCP drift,
+// version mismatch) leaves the mail unconsumed; re-enqueuing would busy-loop
+// (re-host → fail → close-out → re-host …). This test drives settleBackground
+// directly with a child that still has pending mail.
+func TestSettleDoesNotReenqueueFailedRevive(t *testing.T) {
+	storeDir := t.TempDir()
+	es, err := store.OpenEventStore(storeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = es.Close() })
+	l := &Loop{Store: es, SessionID: "root", Spec: &AgentSpec{Name: "root"},
+		Router: NewTreeRouter("root", storeDir)}
+	l.revive = make(chan string, 8)
+	l.ensureBackground()
+
+	// A child with a journal (so childHasMail can fold) AND pending mail.
+	childDir := storeDir + "/sub/c-a1"
+	ces, err := store.OpenEventStore(childDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sp, _ := json.Marshal(&event.SessionStarted{SpecName: "m", Task: "t",
+		Spec: json.RawMessage(`{"name":"m"}`), SubStateVersions: state.SubStateVersions()})
+	_, _ = ces.Append(event.Envelope{Type: event.TypeSessionStarted, Payload: sp})
+	_ = ces.Close()
+	if _, err := store.AppendInbox(childDir, protocol.UserInput{Text: "mail", CommandID: "cm1"}); err != nil {
+		t.Fatal(err)
+	}
+	const childSID = "root-sub-c-a1"
+
+	appendE := func(typ string, p any) (event.Envelope, error) {
+		return l.Store.Append(event.Envelope{Type: typ, Payload: mustJSON(p)})
+	}
+	settle := func(isErr bool, reason string) {
+		l.bg.mu.Lock()
+		l.bg.cancel["c"] = func(error) {}
+		l.bg.mu.Unlock()
+		if err := l.settleBackground(appendE, bgOutcome{
+			handle: "c", activityID: "tool-c", isError: isErr,
+			result:   mustJSON(map[string]string{"reason": reason}),
+			subagent: &event.SubagentCompleted{CallID: "c", ChildSession: childSID, Reason: reason},
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// FAILED settle: mail still pending, but NO re-enqueue (hot-loop guard).
+	settle(true, "error")
+	select {
+	case sid := <-l.revive:
+		t.Fatalf("failed revive re-enqueued %q — hot loop", sid)
+	default:
+	}
+
+	// SUCCESSFUL settle with mail still pending (a genuine race): re-enqueue.
+	settle(false, "completed")
+	select {
+	case sid := <-l.revive:
+		if sid != childSID {
+			t.Fatalf("re-enqueued %q, want %q", sid, childSID)
+		}
+	default:
+		t.Fatal("successful settle with pending mail did not re-enqueue")
+	}
+}
