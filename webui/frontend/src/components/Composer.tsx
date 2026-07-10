@@ -531,7 +531,9 @@ export function Composer(props: ComposerProps) {
         setText("");
         try {
           await AR.compact(sid);
-          toast("Context compacted", "info");
+          // Delivery ack, not an outcome: a busy session applies it at the
+          // next boundary and an empty prefix is a no-op (QA Round1 F-C6).
+          toast("Compact requested — the timeline shows the outcome", "info");
         } catch (e: any) {
           props.onError(e.message);
         }
@@ -540,7 +542,7 @@ export function Composer(props: ComposerProps) {
         setText("");
         try {
           await AR.clear(sid);
-          toast("Context cleared", "info");
+          toast("Clear requested — the timeline shows the outcome", "info");
         } catch (e: any) {
           props.onError(e.message);
         }

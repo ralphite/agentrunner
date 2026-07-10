@@ -315,6 +315,37 @@ export function foldEvents(events: Envelope[]): Folded {
       case "context_compacted":
         chip(seq, `context compacted · up to gen ${p.upto_gen_step}`);
         break;
+      // Goal lifecycle renders first-class (QA Round1 F-C5: these used to
+      // fall into hidden sys lines, so a budget-stopped goal just vanished).
+      case "goal_attached":
+        chip(seq, `goal attached · ${p.goal || ""}`);
+        break;
+      case "goal_updated":
+        chip(seq, "goal updated" + (p.goal ? ` · ${p.goal}` : ""));
+        break;
+      case "goal_paused":
+        chip(seq, "goal paused", "warn");
+        break;
+      case "goal_resumed":
+        chip(seq, "goal resumed");
+        break;
+      case "goal_cancelled":
+        chip(seq, "goal cancelled", "warn");
+        break;
+      case "goal_checkpoint":
+        chip(seq, `goal check ${p.check || "?"}${p.pass ? " · pass" : " · not met"}`, p.pass ? undefined : "warn");
+        break;
+      case "goal_achieved":
+        // reason=budget means the check budget ran out — a visible STOP,
+        // not success; saying "achieved" here misled users (F-C5).
+        if (p.reason === "budget") {
+          chip(seq, `goal stopped: check budget exhausted after ${p.checks} check(s) — not verified as achieved`, "bad");
+        } else if (p.reason === "cancelled") {
+          chip(seq, "goal detached · cancelled", "warn");
+        } else {
+          chip(seq, `goal achieved · ${p.reason || "satisfied"} (${p.checks} check(s))`);
+        }
+        break;
       case "limit_exceeded":
         // A user interrupt is modeled as limit_exceeded{kind:interrupted} —
         // don't dress it up as a budget overrun.
