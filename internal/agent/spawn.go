@@ -83,6 +83,11 @@ func planSpawn(team map[string]state.TeamTask, call provider.ToolCall) spawnPlan
 // are already safe).
 var safeCallIDRe = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
+// roleNameRe bounds a dynamic role's name (INC-12.4): it is untrusted model
+// output that lands in the trusted message-attribution prefix, so it must
+// carry no newlines or framing characters (安全 review P1).
+var roleNameRe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+
 func escalationApprovalReason(spec *AgentSpec) string {
 	rules, _ := json.Marshal(spec.Permissions)
 	tools, _ := json.Marshal(spec.Tools)
@@ -252,6 +257,15 @@ func (l *Loop) validateEscalatedChild(spec *AgentSpec) string {
 func (l *Loop) dynamicRoleSpec(role *InlineRole) (*AgentSpec, string) {
 	if strings.TrimSpace(role.Name) == "" || strings.TrimSpace(role.Description) == "" || strings.TrimSpace(role.Instructions) == "" {
 		return nil, "role needs non-empty name, description, and instructions"
+	}
+	// role.Name is UNTRUSTED model output that lands verbatim in the trusted
+	// sender prefix "[message from <name> (<sid>)]" (sendmsg.go) — the
+	// harness's only attribution channel. An unconstrained name could inject
+	// newlines / ")]" to forge a second "from user" header. Bound it to the
+	// same identifier alphabet as a session segment (no newlines, no "]",
+	// no parens), so the framing can never be broken (INC-12 安全 review P1).
+	if !roleNameRe.MatchString(role.Name) {
+		return nil, "role name must be 1-64 chars of [A-Za-z0-9_-] (it appears in message attribution)"
 	}
 	if role.Escalate && len(role.Permissions) == 0 {
 		return nil, "role escalate requires at least one explicit permission rule"
@@ -587,19 +601,34 @@ func (l *Loop) childLoopWithExec(childSpec *AgentSpec, childStore *store.EventSt
 	childMode := narrowerMode(parentMode, childSpec.Mode)
 	frozen.Mode = ""
 
+	// The approval REPLACES only the permission intersection (决策 #20 红线:
+	// "审批只替换 permission layers"). Every other inherited gate — the hard
+	// FloorGate, SpawnGate, AND the hook Gate — stays: hooks are a parallel
+	// governance mechanism (决策 #8), not a permission layer, and they can
+	// deny (DLP / dangerous-command guards). Dropping them would silently
+	// buy off hook enforcement, which the approval prompt never offers
+	// (INC-12 安全 review P1). So the escalated branch keeps ALL inherited
+	// gates except the PermissionGate, which the child's approved rules
+	// supersede below.
 	var gates []pipeline.Gate
+	if l.Pipeline != nil {
+		for _, g := range l.Pipeline.Gates {
+			if _, isPerm := g.(*pipeline.PermissionGate); isPerm && childSpec.EscalationApproved {
+				continue // the approved rules replace this one
+			}
+			gates = append(gates, rebindChildGate(g, childExec))
+		}
+	}
+	// Backstops when the parent pipeline lacked a Floor/Spawn gate (a bare
+	// test pipeline): an escalated child must still get them.
 	if childSpec.EscalationApproved {
 		var floorFound, spawnFound bool
-		if l.Pipeline != nil {
-			for _, g := range l.Pipeline.Gates {
-				switch g.(type) {
-				case *pipeline.FloorGate:
-					gates = append(gates, rebindChildGate(g, childExec))
-					floorFound = true
-				case *pipeline.SpawnGate:
-					gates = append(gates, g)
-					spawnFound = true
-				}
+		for _, g := range gates {
+			switch g.(type) {
+			case *pipeline.FloorGate:
+				floorFound = true
+			case *pipeline.SpawnGate:
+				spawnFound = true
 			}
 		}
 		if !floorFound {
@@ -611,10 +640,6 @@ func (l *Loop) childLoopWithExec(childSpec *AgentSpec, childStore *store.EventSt
 		}
 		if !spawnFound {
 			gates = append(gates, &pipeline.SpawnGate{})
-		}
-	} else if l.Pipeline != nil {
-		for _, g := range l.Pipeline.Gates {
-			gates = append(gates, rebindChildGate(g, childExec))
 		}
 	}
 	if len(childSpec.Permissions) > 0 {
@@ -628,8 +653,10 @@ func (l *Loop) childLoopWithExec(childSpec *AgentSpec, childStore *store.EventSt
 		gates = append(gates, &pipeline.BudgetGate{MaxTotalTokens: allowance})
 	}
 
+	// Post-tool hooks are inherited UNCONDITIONALLY (INC-12 安全 review P1):
+	// an escalation never buys off hook enforcement.
 	var childHooks *hook.Runner
-	if !childSpec.EscalationApproved && l.Hooks != nil {
+	if l.Hooks != nil {
 		copy := *l.Hooks
 		if childExec != nil && childExec.WS != nil {
 			copy.Dir = childExec.WS.Root()

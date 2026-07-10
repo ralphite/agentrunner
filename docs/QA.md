@@ -459,7 +459,7 @@ tool_call、tool_result 投影到同一 active turn。`inspect --json` 的 turns
 |---|---|---|
 | 1 | lead spec `agents_dynamic: true`,开场要求组 engineer+reviewer 两个 inline role 完成 hello.py+评审,互发 send_message | ≥2 `SpawnRequested` 携 `role_spec`（构造 spec 冻结） |
 | 2 | 团队自主协作至静止 | lead 收 ≥2 `SubagentCompleted`;某成员 journal 或 lead journal 存在 `source:"agent"` 的 `InputReceived`（树内消息真实投递） |
-| 3 | `ar send <child-sid>` 给已静止成员发总结请求 | lead journal 出现 `ChildRevived`;成员 journal 出现 user-class 输入并回答;成员 journal **恰一条** `SessionStarted`（context 延续,不起新会话） |
+| 3 | `ar send <child-sid>` 给已静止成员发总结请求 | lead journal 出现 `ChildRevived`;成员 journal 出现 user-class 输入（`ar send` 的 cli 源∈user-class,决策 #30）并回答;成员 journal **恰一条** `SessionStarted`（context 延续,不起新会话） |
 
 **通过标准**：三步断言全 PASS;会话保留可复查（webui/`ar attach
 <child-sid>` 可点开每个成员的完整时间线与 live 流）。2026-07-09 首跑

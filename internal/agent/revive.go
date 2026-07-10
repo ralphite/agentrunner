@@ -127,7 +127,7 @@ func (l *Loop) reviveChild(ctx context.Context, ds *driveState, appendE AppendFu
 	if mark := st.Session.Closed; mark != nil && mark.Source == "user" {
 		hasUserMail := false
 		for _, in := range tail {
-			if in.Source == "" || in.Source == "user" {
+			if userClassSource(in.Source) {
 				hasUserMail = true
 				break
 			}

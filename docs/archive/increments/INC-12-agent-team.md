@@ -1,5 +1,13 @@
 # INC-12 多 agent 工程团队（动态组队 · 树内消息 · 子唤醒 · 提权审批 · 子会话可见）
 
+> **归档更正（2026-07-09 收口）**：本工作纸起草期的临时编号/命名与最终
+> 落地有漂移,以活文档为准：决策号 = DESIGN #35（树内消息+revive）/#36
+> （动态角色）,非本纸 D6 的 #34/#35;测试名 = `TestRevive*`（非
+> `TestReviveQuiescentChild*`）、`TestDaemonAttachChildFiltersLive`（非
+> `TestChildAttachLive*`）。安全/契约 review 修复（路径穿越、提权保
+> hooks、role 名消毒、cli∈user-class 回归）见 LOG 2026-07-09。
+
+
 > 状态：实现完成，待 QA-18 收口（2026-07-09 起）。用户裁决（2026-07-09）：动态生成的
 > 复杂结构，**只要用户确认，权限可以放宽**——兑现决策 #32 既有政策
 > 条款"请求超父必须用户 approve"，为其建表达面；决策 #20 的"冻结

@@ -1234,3 +1234,40 @@ APERTURE-GRAPE-77。session 拷回共享 store、export 归档 qa/runs/。
 
 **并发协作**：QA 编号让路——INC-11.5 已占 QA-19，本增量让到 QA-22
 （SPRINT SOP 的冲突避让）。
+## 2026-07-09 INC-12 三视角对抗 review 收敛（安全/正确性/契约）
+
+里程碑级增量的三视角对抗 review。安全（P0×1+P1×2）、契约（P1×2+P2×3）
+两路先返回并修复；正确性/并发一路并行。**关键发现与修复**：
+
+- **P0 路径穿越（安全）**：`send_message` 的 `to` 经 `TreeRouter.DirOf`
+  时 `InTree` 只做前缀匹配、不拦 `..`,`filepath.Join(rootDir,"sub",
+  "../../victim")` 可逃出树写入他会话甚至树外 inbox。修：`InTree` 逐
+  `-sub-` 段过 `memberSegRe=^[A-Za-z0-9_-]+$`（禁 `.`/`/`）,与 spawn 侧
+  `safeCallIDRe` 同源。测 TestTreeRouterRejectsPathTraversal。
+- **P1 提权买断 hooks（安全+契约双发）**：`EscalationApproved` 分支只
+  从父 pipeline 白名单取 Floor/SpawnGate,丢了 `hook.Gate`(pre) 且
+  `childHooks` 仅 `!EscalationApproved` 构造(丢 post)——违反决策 #20
+  "审批**只**替换 permission layers"（hooks 是并列机件,决策 #8,可
+  deny）。修：escalated 分支保留除 PermissionGate 外的**全部**继承
+  gate,post-hook 无条件继承。测 TestEscalationKeepsParentHooks
+  （阻断 pre-hook 挡住提权子的 write_file）。
+- **P1 `userClassSource` 回归（契约）**：INC-12.7 加的 helper 在某次
+  rebase 冲突解决被对方旧版覆盖,`sendmsg.go`/`revive.go` 退回只认
+  `{"","unix-socket"}`/`{"","user"}`,导致 `ar send`（cli 源）**无法
+  唤醒 user-kill 的成员**（违反决策 #30"send 对任何 session 成立"）,
+  且 LOG 已声称修复——典型 rebase 事故。修：补回 `userClassSource`
+  （""/user/cli/unix-socket）统一两处。QA-20 因只 revive 未 kill 的
+  成员而漏网;补正向测 TestReviveUserKilledOnCliMail。
+- **P1 role 名注入（安全）**：动态 role.Name 是不可信模型输出,原样
+  进"可信来源前缀"`[message from <name> (<sid>)]`,可用换行/`)]` 伪造
+  二级 user 来源头。修：`roleNameRe=^[A-Za-z0-9_-]{1,64}$` 校验。测
+  TestDynamicRoleNameSanitized。
+- **P2 文档漂移（契约）**：QA-20 措辞补"cli∈user-class"、SPEC 删死锚
+  `TestChildAttachLive*`、归档工作纸加更正注（决策号 #35/#36、测试名
+  以活文档为准）。
+- **P2 记档（安全,不修代码）**：默认 spec 无预算（0=无限）时消息风暴/
+  revive 环仅靠 token 预算封顶,`AGENTRUNNER_APPROVE=always` 会自动批
+  提权——无人值守跑动态角色树需显式配树预算与审批策略,列部署红线。
+
+review 结论：P0/P1 全修并加回归测试,check.sh 全绿;P2 文档修讫 + 部署
+红线记档。

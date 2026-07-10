@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -65,20 +66,45 @@ func (r *TreeRouter) Deregister(sid string) {
 	delete(r.revives, sid)
 }
 
-// InTree reports whether sid names the root or a descendant.
+// memberSegRe bounds ONE "-sub-" path segment (a spawn handle plus its
+// attempt suffix, e.g. "call_2_0-a1"): the same identifier alphabet as
+// safeCallIDRe, so a segment can never carry path syntax ("..", "/", ".").
+// This is the write-side security floor for tree addressing (INC-12 安全
+// review P0): send_message's `to` reaches DirOf WITHOUT going through the
+// spawn-time safeCallIDRe guard, so the guard must live here too.
+var memberSegRe = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+
+// InTree reports whether sid names the root or a WELL-FORMED descendant: the
+// prefix matches AND every "-sub-" segment is a bare identifier. A prefix
+// match alone is not enough — "<root>-sub-../../victim" has the prefix but
+// escapes the tree (INC-12 安全 review P0).
 func (r *TreeRouter) InTree(sid string) bool {
-	return sid == r.root || strings.HasPrefix(sid, r.root+"-sub-")
+	if sid == r.root {
+		return true
+	}
+	rest, ok := strings.CutPrefix(sid, r.root+"-sub-")
+	if !ok {
+		return false
+	}
+	for _, seg := range strings.Split(rest, "-sub-") {
+		if !memberSegRe.MatchString(seg) {
+			return false
+		}
+	}
+	return true
 }
 
 // DirOf maps a tree member's session id to its journal/inbox directory:
 // every "-sub-" segment is a "/sub/" path step under the root (INC-1
-// addressing, the write-side twin of the CLI's read-side mapping).
+// addressing, the write-side twin of the CLI's read-side mapping). InTree
+// has already rejected any segment carrying path syntax, so the Join cannot
+// escape rootDir/sub.
 func (r *TreeRouter) DirOf(sid string) (string, error) {
 	if sid == r.root {
 		return r.rootDir, nil
 	}
 	if !r.InTree(sid) {
-		return "", fmt.Errorf("%s is not in this session tree", sid)
+		return "", fmt.Errorf("%s is not a well-formed member of this session tree", sid)
 	}
 	rest := strings.TrimPrefix(sid, r.root+"-sub-")
 	dir := filepath.Join(r.rootDir, "sub", strings.ReplaceAll(rest, "-sub-", "/sub/"))

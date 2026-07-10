@@ -83,7 +83,7 @@ func (l *Loop) forwardToMember(ds *driveState, in protocol.UserInput) error {
 	} else {
 		fwd := in
 		fwd.Target, fwd.DeliverySeq = "", 0
-		if fwd.Source == "" || fwd.Source == "unix-socket" {
+		if userClassSource(fwd.Source) {
 			// User-class mail: the explicit-send gesture that may revive even
 			// a user-killed member (决策 #30; trust taxonomy lands with the
 			// machine-sender increment).
@@ -102,6 +102,16 @@ func (l *Loop) forwardToMember(ds *driveState, in protocol.UserInput) error {
 		CommandID: in.CommandID, Kind: protocol.CommandInput, Result: result,
 	})
 	return err
+}
+
+// userClassSource reports a human-origin transport (INC-12.3): the explicit
+// send gesture, which may revive even a user-killed member (决策 #30). "cli"
+// (the `ar send` transport) and "unix-socket" (the daemon wire) are both the
+// user at a terminal; "" defaults to user. Machine senders (webhook/ci) and
+// tree-internal "agent" mail are NOT user-class — they never override a
+// user-kill mark. (Restored after a rebase dropped it; see LOG 2026-07-09.)
+func userClassSource(s string) bool {
+	return s == "" || s == "user" || s == "cli" || s == "unix-socket"
 }
 
 // resolveChildHandle maps a spawn handle (call id) owned by parentSID to the

@@ -614,3 +614,87 @@ func TestReviveCrashSettleReportsDelta(t *testing.T) {
 		t.Fatalf("crash settle usage = %+v, want the 100/10 delta (300/30 total minus 200/20 baseline)", receipt.Usage)
 	}
 }
+
+// INC-12 契约 review P1: 决策 #30 — `send` is the explicit reopen gesture,
+// valid for ANY session including a user-killed one. A user-killed member
+// MUST revive on USER-CLASS mail (the `ar send` "cli" source), even though
+// tree "agent" mail cannot wake it. Guards the userClassSource regression
+// (cli dropped from the user-class set across a rebase; LOG 2026-07-09).
+func TestReviveUserKilledOnCliMail(t *testing.T) {
+	router := scripted.NewRouter(
+		scripted.RoutePair{Key: "you orchestrate", Fixture: scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{
+				{ToolCall: &scripted.ToolCallEvent{CallID: "k", Name: "spawn_agent",
+					Args: map[string]any{"agent": "worker", "task": "investigate KAPPA"}}},
+				{Finish: "tool_use"},
+			}},
+			{Respond: []scripted.Event{{Text: "round one done"}, {Finish: "end_turn"}}},
+			{Respond: []scripted.Event{{Text: "member came back"}, {Finish: "end_turn"}}},
+			{Respond: []scripted.Event{{Text: "ack"}, {Finish: "end_turn"}}},
+		}}},
+		scripted.RoutePair{Key: "KAPPA", Fixture: scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{{Text: "KAPPA report: done"}, {Finish: "end_turn"}}},
+			{Respond: []scripted.Event{{Text: "revived on user mail"}, {Finish: "end_turn"}}},
+		}}},
+	)
+	l := bgSpawnLoop(t, router, []string{"worker"})
+	inputs := make(chan protocol.UserInput)
+	l.UserInputs = inputs
+	closeWhen(l, inputs, func(evs []event.Envelope) bool {
+		return countType(evs, event.TypeSubagentCompleted) >= 1
+	})
+	if _, err := l.Run(context.Background(), "orchestrate KAPPA"); err != nil {
+		t.Fatal(err)
+	}
+
+	dir := l.Store.Dir()
+	_ = l.Store.Close()
+	childDir := dir + "/sub/k-a1"
+	// The user killed this member (as `ar kill` would).
+	ces, err := store.OpenEventStore(childDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = ces.Append(event.Envelope{Type: event.TypeSessionClosed,
+		Payload: mustJSON(&event.SessionClosed{Reason: "killed", Source: "user"})})
+	_ = ces.Close()
+	// User-class mail (source=cli, the `ar send` transport) lands durably.
+	if _, err := store.AppendInbox(childDir, protocol.UserInput{
+		Text: "please resume and summarize", Source: "cli", CommandID: event.NewCommandID(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Restart: the scan revives the user-killed member BECAUSE the mail is
+	// user-class (a cli send), honoring 决策 #30.
+	es, err := store.OpenEventStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = es.Close() }()
+	l2 := &Loop{Spec: l.Spec, Provider: l.Provider, Exec: l.Exec, Store: es,
+		Clock: l.Clock, SessionID: "lead", SubSpecs: l.SubSpecs}
+	inputs2 := make(chan protocol.UserInput)
+	l2.UserInputs = inputs2
+	closeWhen(l2, inputs2, func(evs []event.Envelope) bool {
+		return countType(evs, event.TypeChildRevived) >= 1
+	})
+	if _, err := l2.Resume(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	evs, _ := store.ReadEvents(dir)
+	if n := countType(evs, event.TypeChildRevived); n != 1 {
+		t.Fatalf("ChildRevived = %d, want 1 (user-class cli mail must revive a user-killed member)", n)
+	}
+	childEvs, _ := store.ReadEvents(childDir)
+	var consumed bool
+	for _, e := range childEvs {
+		if e.Type == event.TypeInputReceived && strings.Contains(string(e.Payload), "please resume and summarize") {
+			consumed = true
+		}
+	}
+	if !consumed {
+		t.Fatal("user-killed member never consumed the cli mail after revive")
+	}
+}
