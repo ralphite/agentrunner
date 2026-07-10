@@ -69,7 +69,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 
 | 功能点 | 状态 | Journey | 验收锚 / 备注 |
 |---|---|---|---|
-| read_file / write_file / edit_file | ✅ | UJ-02/05 | S1 · QA-03（write_file） |
+| read_file / write_file / edit_file（read_file 支持读图/PDF：media envelope+CAS ref,assembly 注入 image/file part,journal 恒 byte-free;5MB 上限;文本路径零变化） | ✅ | UJ-02/05 | S1 · QA-03（write_file）· INC-33（TestReadFileImage*/TestReadFileImageEndToEnd · QA-38 真机:模型从像素读出截图内容） |
 | bash 前台+后台（`output`/`kill` 凭 handle、进程组取消） | ✅ | UJ-02/18 | S1/S3 · QA-05 |
 | semantic_search（IndexStore，BM25） | ✅ | UJ-01 | S7 |
 | publish_artifact（`outputs:` contract、审批载荷） | ✅ | UJ-06 | S5 |

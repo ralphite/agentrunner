@@ -2240,3 +2240,33 @@ daemon 部署:共享 daemon 由 /tmp/ar-qa-r6(并发 QA session 22:48 部署)
 优雅 SIGTERM 后以 /tmp/claude-501/ar-inc30 重起(零 in-flight 窗口,
 历史 session 全部保持)。G24/G25 关闭,G26(inspect children 重复)
 保留。
+
+## 2026-07-10 INC-33 Read 工具多模态（SPRINT #13，#32）
+
+**动机**：输入侧多模态已通（INC-9），但 read_file 对 PNG/PDF 返回乱码
+文本——模型无法主动读 workspace 里的截图/设计稿/PDF。补工具侧，复用
+INC-9 全部管线（CAS/part/inflate/provider 映射），零新事件类型。
+
+**落地（三段接线）**：
+- **tool**：`BlobStore` 接口 seam（`Executor.SetBlobs`,mutex 首设生效——
+  树共享 executor 各成员注入同一根 store 幂等）;readFile 以
+  `http.DetectContentType` 内容检测,image/* 与 application/pdf 走 media
+  分支：bytes→Blobs.Put（blob-before-event）→返回 **media envelope**
+  `{kind,media_type,ref,bytes,note}`,journal 只见 ref;**其余一切走既有
+  文本路径零变化**;Blobs 未接显式错;5MB 上限。
+- **loop（单点）**：Run 在 ensureArtifacts 后注入 `l.Artifacts`→
+  `Exec.SetBlobs`。
+- **assembly**：toolMsg 构造时 read_file 的 envelope（**工具名+shape
+  双重门**,防 MCP 巧合 payload 长 bogus ref 毒化 turn）→ 在全部
+  tool_result parts **之后**追加 image/file part（Anthropic 块序要求）;
+  既有 inflateBlobs 请求时注字节,fold/journal 恒 byte-free;microcompact
+  elide 后 envelope 不匹配,旧图随占位符自动剥离（旧图正是最重 context,
+  行为恰当）。
+
+**双闸门**：tool 5 测（envelope/PDF/文本零变化/裸 executor 显式错/上限）
++ agent 2 测（mediaResultPart 门控矩阵 + scripted 端到端：journal 无
+字节、CAS 精确、第二请求 tool_result 后跟 inflate 的 image part+块序）。
+QA-38 真机 Gemini（私有新二进制 daemon）四红线全 PASS：envelope 入
+journal、最长行 2056B 无 blob、**模型从像素读出截图里的
+command.go/1234/EnableTraverseRunHooks**。
+
