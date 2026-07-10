@@ -22,7 +22,10 @@ session 没有终态(同 `web/` 铁律 I7),journal 里的 session_closed 只是
   Background work）。审批内联于时间线，Changes 是固定 review 面。
 - **Composer** 默认只显示附件、Task options、access、model、听写与发送；
   Goal/Loop/Best-of-N/persona/spec 等 AgentRunner 启动器按 progressive
-  disclosure 收进 Task options。
+  disclosure 收进 Task options。默认权限 **ask**（INC-23：新任务不默认
+  裸放行；composer 记住上次选择）。auto workspace 落
+  `runtime/ws/ws-YYYYMMDD-HHMMSS` 并**创建即 `git init`**，Changes 视图
+  开箱可用；Environment 菜单提供最近 workspace 一击复用。
 
 ## 快速上手
 
@@ -65,13 +68,13 @@ open http://127.0.0.1:8788
 | composer `/compact`·`/clear` | `compact <sid>` / `clear <sid>` |
 | composer 分支 pill | `git -C <ws> for-each-ref`(列)+ `git checkout [-b]`(切/建) |
 | composer 语音 | 浏览器 SpeechRecognition 听写(纯前端,不经 ar) |
-| 改动(Changes 视图) | `git -C <workspace> diff` + `status --porcelain`（workspace 来自 session journal） |
+| 改动(Changes 视图) | `git -C <workspace> diff` + `status --porcelain`（workspace 来自 session journal;须是 repo **root**——嵌在别的仓库里时给出解释与一键 `git init`,绝不静默空 diff） |
 | 发消息 / 图片 / 文件 | `send [--image f]... [--file f]... <sid> "text"`(图片走 --image;PDF/文本/任意文件走 --file,INC-9) |
 | 时间线(真相) | `events --json <sid>`(1s 增量轮询) |
 | 流式打字 / 子审批上卷 | `attach --json <sid>`(SSE) |
 | interrupt / resume | `interrupt` / `resume` |
 | 在飞任务 + kill | `ps` / `kill <sid> <handle>` |
-| 审批 | `approve <sid> <id> approve\|deny [reason]` |
+| 审批 | `approve <sid> <id> approve\|deny [reason]`(Always allow → `--always`,写 user 层精确规则) |
 | fork(选 barrier) | `fork --list` + `fork <sid> <barrier> [--workspace]` |
 | 换 agent | `agent <sid> base.yaml` |
 | 后台运行 submit / drive | `submit --json …` / `drive --json …`(SSE 流式日志) |
