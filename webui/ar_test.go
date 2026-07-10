@@ -85,7 +85,9 @@ func TestDaemonUnreachable(t *testing.T) {
 }
 
 func TestValidID(t *testing.T) {
-	ok := []string{"20260708-230920-task-5913", "call_1_0", "bar-final", "a.b_c-1"}
+	// The "#<n>" collision-suffixed approval id must pass — a worker's
+	// suffixed ask was un-answerable from the UI otherwise (QA Round4 F-K1).
+	ok := []string{"20260708-230920-task-5913", "call_1_0", "bar-final", "a.b_c-1", "apr-eff-tool-call_1_0#2"}
 	for _, s := range ok {
 		if !validID(s) {
 			t.Errorf("expected valid: %q", s)

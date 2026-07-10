@@ -32,8 +32,12 @@ func (s *server) runAR(ctx context.Context, timeout time.Duration, args ...strin
 }
 
 // idPattern guards everything we splice into argv positions that name
-// sessions, handles, approval ids, or barriers.
-var idPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+// sessions, handles, approval ids, or barriers. "#" is allowed because a
+// broker id-collision suffixes with "#<n>" (apr-eff-tool-call_1_0#2) — the
+// old character class rejected it, so a suffixed worker approval 400'd and
+// the Team Lead UI had no way to answer it (QA Round4 F-K1). It is still a
+// tight class: no path/shell metacharacters reach argv.
+var idPattern = regexp.MustCompile(`^[A-Za-z0-9._#-]+$`)
 
 func validID(s string) bool { return s != "" && len(s) <= 200 && idPattern.MatchString(s) }
 
