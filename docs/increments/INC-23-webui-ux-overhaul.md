@@ -1,4 +1,4 @@
-# INC-21 webui UX 大扫查与整改(Round 1)
+# INC-23 webui UX 大扫查与整改(Round 1)
 
 ## 动机与 journey 锚
 
@@ -211,7 +211,7 @@ P3(打磨)。标注根因文件。〔批次〕见实施步骤。
   2. 复访 `20260710-043858-task-44c3`:Background work 不再挂僵尸、
      Subagents 显示人话状态、Attention 反映异常(W3/W6/W35);
   3. 侧栏排序稳定、新任务标题/时间可辨(W8/W9/W10)。
-  产物归档 `qa/runs/2026-07-10-INC21/`。
+  产物归档 `qa/runs/2026-07-10-INC23/`。
 
 ## 实施步骤(批次 = 提交)
 
