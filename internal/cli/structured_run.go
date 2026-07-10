@@ -1,0 +1,108 @@
+package cli
+
+import (
+	"fmt"
+	"io"
+
+	"github.com/ralphite/agentrunner/internal/daemon"
+	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/protocol"
+	"github.com/ralphite/agentrunner/internal/structured"
+)
+
+// runStructured drives a headless structured-output run (INC-26, #91): it
+// issues the opening run, captures the final assistant answer, and validates
+// it against the compiled schema. On a miss it re-prompts the SAME session
+// with the validation error, up to maxRetries additional attempts. On success
+// it prints the canonical (compact, key-sorted) JSON to stdout — that is the
+// structured_output — and returns ExitOK. This lives entirely in the CLI: the
+// loop, journal, and providers are untouched; a retry is an ordinary `send`.
+func runStructured(sock string, runCmd daemon.Command, v *structured.Validator, maxRetries int, stdout, stderr io.Writer) int {
+	cmd := runCmd
+	ack := "" // run streams natively; a send retry acks "delivered"
+	sid := ""
+	for attempt := 0; ; attempt++ {
+		finalText, gotSid, err := captureFinal(sock, cmd, sid, ack)
+		if err != nil {
+			daemonDialErr(stderr, err)
+			return ExitRun
+		}
+		if gotSid != "" {
+			sid = gotSid
+		}
+		if finalText == "" {
+			fmt.Fprintln(stderr, "agentrunner: no reply captured for structured output")
+			return ExitRun
+		}
+
+		raw, exErr := structured.Extract(finalText)
+		var problem error = exErr
+		if exErr == nil {
+			if valErr := v.Validate(raw); valErr != nil {
+				problem = valErr
+			}
+		}
+		if problem == nil {
+			canon, cErr := structured.Canonical(raw)
+			if cErr != nil {
+				canon = raw
+			}
+			fmt.Fprintf(stdout, "%s\n", canon)
+			fmt.Fprintf(stderr, "structured output validated (session %s, attempt %d)\n", sid, attempt+1)
+			return ExitOK
+		}
+
+		if attempt >= maxRetries {
+			fmt.Fprintf(stderr, "agentrunner: output did not conform to schema after %d attempt(s): %v\n", attempt+1, problem)
+			fmt.Fprintf(stderr, "(session %s — inspect: agentrunner attach %s)\n", sid, sid)
+			return ExitRun
+		}
+
+		// Re-prompt the same session with the concrete failure. Keep the
+		// instruction blunt: bare JSON only, no prose or fences.
+		correction := fmt.Sprintf(
+			"你上一条回复不符合要求的 JSON schema:%v。请只回复一个能通过该 schema 校验的 JSON 值——不要任何解释、不要 Markdown 代码围栏、不要额外文本。",
+			problem)
+		cmd = daemon.Command{
+			Cmd: "send", Session: sid, Text: correction, Follow: true,
+			CommandID: event.NewCommandID(),
+			Principal: "local-user", Source: "cli", Trust: "local",
+		}
+		ack = "delivered"
+	}
+}
+
+// captureFinal issues cmd and returns the LAST non-empty assistant message
+// text before the turn goes idle (or the run ends). It mirrors followTurn's
+// dial loop but captures instead of rendering, so followTurn's tested behavior
+// is untouched. knownSid seeds the anchored session (empty for the opening
+// run); ack, when non-empty, names a request/reply ack line to ignore (send's
+// "delivered"). Tree-member events (a different Session) are skipped.
+func captureFinal(sock string, cmd daemon.Command, knownSid, ack string) (finalText, sid string, err error) {
+	sid = knownSid
+	acked := false
+	err = daemon.DialUntil(sock, cmd, func(e protocol.Event) bool {
+		if e.Session != "" && sid == "" {
+			sid = e.Session
+		}
+		if sid != "" && e.Session != "" && e.Session != sid {
+			return true // a tree member's event, not the anchored turn
+		}
+		switch e.Kind {
+		case protocol.KindMessage:
+			if ack != "" && !acked && e.Text == ack {
+				acked = true // the delivery ack, not the model speaking
+				return true
+			}
+			if e.Text != "" {
+				finalText = e.Text
+			}
+		case protocol.KindIdle:
+			return false // turn done
+		case protocol.KindRunEnd:
+			return false // session ended instead of idling
+		}
+		return true
+	})
+	return finalText, sid, err
+}

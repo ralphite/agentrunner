@@ -20,6 +20,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
+	"github.com/ralphite/agentrunner/internal/structured"
 )
 
 // newCmd starts a daemon-hosted CONVERSATIONAL session (v2 M1.2): `agentrunner
@@ -34,6 +35,8 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 	workspaceDir := fs.String("workspace", ".", "workspace root")
 	mode := fs.String("mode", "", "run mode: default|plan|acceptEdits")
 	detach := fs.Bool("detach", false, "print the session id and exit without waiting for the reply")
+	jsonSchema := fs.String("json-schema", "", "path to a JSON Schema; the reply must be JSON matching it (validated, retried) — INC-26 #91")
+	jsonSchemaRetries := fs.Int("json-schema-max-retries", 2, "extra re-prompts to coax a conforming reply when --json-schema is set")
 	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
 		return ExitUsage
 	}
@@ -68,6 +71,29 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "agentrunner: workspace root %s is not a directory\n", wsAbs)
 		return ExitUsage
 	}
+	// --json-schema needs the reply, so it cannot be fire-and-forget; compile
+	// the schema BEFORE dialing so a bad schema fails fast (no ghost session).
+	var validator *structured.Validator
+	if *jsonSchema != "" {
+		if *detach {
+			fmt.Fprintln(stderr, "agentrunner: --json-schema cannot be combined with --detach (it must wait for the reply)")
+			return ExitUsage
+		}
+		if *jsonSchemaRetries < 0 {
+			fmt.Fprintln(stderr, "agentrunner: --json-schema-max-retries must be >= 0")
+			return ExitUsage
+		}
+		raw, rerr := os.ReadFile(*jsonSchema)
+		if rerr != nil {
+			fmt.Fprintf(stderr, "agentrunner: read --json-schema: %v\n", rerr)
+			return ExitUsage
+		}
+		validator, err = structured.Compile(raw)
+		if err != nil {
+			fmt.Fprintf(stderr, "agentrunner: invalid --json-schema: %v\n", err)
+			return ExitUsage
+		}
+	}
 	sock, err := socketPath()
 	if err != nil {
 		fmt.Fprintln(stderr, err)
@@ -92,6 +118,9 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "%s\n", sid)
 		fmt.Fprintf(stderr, "session %s (send: agentrunner send %s \"...\")\n", sid, sid)
 		return ExitOK
+	}
+	if validator != nil {
+		return runStructured(sock, cmd, validator, *jsonSchemaRetries, stdout, stderr)
 	}
 	return followTurn(sock, cmd, "", stdout, stderr)
 }
