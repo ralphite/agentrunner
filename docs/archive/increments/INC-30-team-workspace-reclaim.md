@@ -136,3 +136,13 @@ runtime 触点集中在 spawn 路径(注入 + replaces),不触不变量;
 ## 执行记录
 
 - 2026-07-10 认领,侦察完成(本文"侦察事实"节),方案裁决如上。
+- 30.1 机制可见性(schema 文案 + isolated 注入 + 孪生 + check.sh
+  runtime 排除)——commit 42e9e18。
+- 30.2 replaces(schema/planSpawn/双路径回收/审计字段 + 2 孪生)
+  ——commit 015b77f。
+- 30.3 webui persona/worker 步限——228dae5;**30.3b 修正**:limits
+  嵌套块 → 顶层 max_generation_steps(闸门 B 当场抓到,DESIGN 示例
+  偏差记 LOG)——04b7fbe。
+- 30.4 闸门 B 三场景 PASS(QA-INC30)+ 三层收口(DESIGN/SPEC/GAPS
+  G24 G25 关闭/LOG)——844a2b6。共享 daemon 已部署 ar-inc30。
+- 状态:**完成,归档**。
