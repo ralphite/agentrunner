@@ -74,7 +74,7 @@
 | 11 | read-before-edit 护栏（edit_file 要求本会话 Read 过且未变） | #32 | S | 📐 deferred (INC-21) | 实现易（sync.Map 护栏），但波及 ~10 scripted edit 测试需批量加 read 步骤（含 crash matrix 等核心）→ 测试适配成本 M，defer 专轮；设计+波及分析见 INC-21 |
 | 12 | Grep/Glob 参数增强（output_mode/-A/-B/-C/multiline/type） | #35 | S | ✅ done (INC-22) | case_insensitive/glob/output_mode；QA-30 真机；默认=旧行为；-A/-B/-C/multiline 拆 12b |
 | 12b | grep context lines（-A/-B/-C）+ multiline | #35 余项 | S | ✅ done (INC-24) | -A/-B/-C context；QA-31 真机；multiline 拆 12c |
-| 12c | grep multiline（跨行 regex） | #35 余项 | S | ⬜ | INC-24 拆出，改匹配循环 |
+| 12c | grep multiline（跨行 regex） | #35 余项 | S | 🔧 in-progress (INC-27) | multiline 参数 + (?sm) 整文件匹配;默认旧逐行行为 |
 | 13 | Read 工具多模态（读图/PDF 入 context，复用 CAS/part 管线） | #32 | M | ⬜ | 输入侧已通（INC-9），补工具侧 |
 | 14 | Monitor 流式后台进度（每行输出即通知；并 G10 进度通道） | #34 · G10 | M | ⬜ | 与 bash output 拉取并存 |
 | 15 | G22 boot sweep + cron 跨重启唤醒 | #87 · G22 | M | ⬜ | 无人值守自动性下半场 |
