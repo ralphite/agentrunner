@@ -73,3 +73,22 @@ describe("supervision agent model", () => {
     ]);
   });
 });
+
+describe("status and background labels", () => {
+  it("translates raw terminal reasons instead of leaking enums (W6)", async () => {
+    const { friendlyStatus } = await import("./components/pill");
+    expect(friendlyStatus("max_generation_steps")).toEqual({ text: "stopped: step limit", cls: "stranded" });
+    expect(friendlyStatus("budget_exceeded")).toEqual({ text: "stopped: budget limit", cls: "stranded" });
+    expect(friendlyStatus("killed")).toEqual({ text: "stopped by parent", cls: "closed" });
+    expect(friendlyStatus("completed").text).toBe("completed");
+  });
+
+  it("renders ps rows as sentences and never a dangling task= (W7)", async () => {
+    const { backgroundLabel } = await import("./components/SupervisionPanel");
+    expect(backgroundLabel({ handle: "call_6_0", tool: "spawn_agent", detail: "running agent=worker task=" }))
+      .toBe("agent “worker” is working in the background");
+    expect(backgroundLabel({ handle: "h", tool: "spawn_agent", detail: "running agent=worker task=write hello.py" }))
+      .toBe("agent “worker” — write hello.py");
+    expect(backgroundLabel({ handle: "h2", tool: "bash", detail: "sleep 60" })).toBe("bash · sleep 60");
+  });
+});

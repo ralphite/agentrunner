@@ -1,5 +1,4 @@
 import {
-  ArrowSquareOut,
   CaretRight,
   CheckCircle,
   Crosshair,
@@ -9,7 +8,24 @@ import {
   X,
 } from "@phosphor-icons/react";
 import type { Task } from "../types";
+import { friendlyStatus } from "./pill";
+import { dedupeInspectNodes } from "../viewModels";
 import { Subagents, type InspectNode } from "./Subagents";
+
+// backgroundLabel turns a raw `ar ps` row ("spawn_agent" +
+// "running agent=worker task=…") into a person-readable line (W7). The
+// detail is a key=value string; a missing/empty task must not render a
+// dangling "task=".
+export function backgroundLabel(task: Task): string {
+  const detail = task.detail || "";
+  const agent = /agent=([^\s]+)/.exec(detail)?.[1];
+  const taskText = /task=(.*)$/.exec(detail)?.[1]?.trim();
+  if (task.tool === "spawn_agent") {
+    const who = agent ? `agent “${agent}”` : "a sub-agent";
+    return taskText ? `${who} — ${taskText}` : `${who} is working in the background`;
+  }
+  return `${task.tool}${detail ? " · " + detail : ""}`;
+}
 
 export interface GoalState {
   goal: string;
@@ -26,6 +42,7 @@ export function SupervisionPanel({
   children,
   tasks,
   approvals,
+  sessionIdle,
   onGoalEdit,
   onGoalSave,
   onGoalDiscard,
@@ -40,6 +57,9 @@ export function SupervisionPanel({
   children: InspectNode[];
   tasks: Task[];
   approvals: number;
+  // The conversation itself is idle (not mid-turn): background work running
+  // in that state is worth the user's attention (W35).
+  sessionIdle: boolean;
   onGoalEdit: (value: string) => void;
   onGoalSave: () => void;
   onGoalDiscard: () => void;
@@ -100,11 +120,41 @@ export function SupervisionPanel({
 
       <section className="supervision-section">
         <div className="supervision-label"><WarningCircle size={14} /> Attention</div>
-        {approvals > 0 ? (
-          <div className="attention-row"><span className="attention-dot" /> Approval requested <b>{approvals}</b></div>
-        ) : (
-          <div className="supervision-empty"><CheckCircle size={15} /> Nothing needs you</div>
-        )}
+        {(() => {
+          // Attention is everything that deserves a human look (W35), not just
+          // approvals: an agent that stopped abnormally, or background work
+          // still burning tokens while the conversation itself has gone idle
+          // (the abandoned-reviewer case: 195k tokens spent after "done").
+          const rows: React.ReactNode[] = [];
+          if (approvals > 0) {
+            rows.push(
+              <div className="attention-row" key="appr">
+                <span className="attention-dot" /> Approval requested <b>{approvals}</b>
+              </div>,
+            );
+          }
+          for (const node of dedupeInspectNodes(children)) {
+            const st = friendlyStatus(node.reason || node.report?.reason || node.report?.status || "");
+            if (st.cls === "crash" || st.cls === "stranded") {
+              rows.push(
+                <div className="attention-row" key={"agent-" + (node.call_id || node.session)}>
+                  <span className="attention-dot" /> {node.agent || "agent"} — {st.text}
+                </div>,
+              );
+            }
+          }
+          if (tasks.length > 0 && sessionIdle) {
+            rows.push(
+              <div className="attention-row" key="bg-idle">
+                <span className="attention-dot" /> Background work still running — it keeps
+                spending tokens; stop it below if it's no longer needed
+              </div>,
+            );
+          }
+          return rows.length > 0 ? rows : (
+            <div className="supervision-empty"><CheckCircle size={15} /> Nothing needs you</div>
+          );
+        })()}
       </section>
 
       {tasks.length > 0 && (
@@ -113,15 +163,15 @@ export function SupervisionPanel({
           {tasks.map((task) => (
             <div className="background-row" key={task.handle}>
               <span className="status-dot run" />
-              <span title={task.detail || task.handle}>{task.tool} · {task.detail || task.handle}</span>
-              <button title="Cancel background work" onClick={() => onKillTask(task.handle)}><X size={13} /></button>
+              <span title={task.detail || task.handle}>{backgroundLabel(task)}</span>
+              <button title="Stop this background work (ar kill)" onClick={() => onKillTask(task.handle)}><X size={13} /></button>
             </div>
           ))}
         </section>
       )}
 
-      <button className="supervision-details" onClick={onInspect}>
-        View run details <span><ArrowSquareOut size={14} /><CaretRight size={12} /></span>
+      <button className="supervision-details" onClick={onInspect} title="Open the raw inspect data (JSON) for this session's run tree">
+        Inspect data (JSON) <span><CaretRight size={12} /></span>
       </button>
     </aside>
   );

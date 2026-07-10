@@ -19,12 +19,15 @@ export function Popover({
 }) {
   const [open, setOpen] = useState(false);
   const [drop, setDrop] = useState<"up" | "down">("up");
+  const [maxH, setMaxH] = useState<number | undefined>(undefined);
   const wrapRef = useRef<HTMLDivElement>(null);
   const close = () => setOpen(false);
 
   // Flip: the composer sits near the top on the Home hero (menus would overflow
-  // above the viewport) but at the bottom in a session. Measure on open and drop
-  // down when there isn't room above.
+  // above the viewport) but at the bottom in a session. Measure on open, drop
+  // toward the larger side, and cap the panel to the space that side actually
+  // has (W13: a fixed max-height taller than the room above still overflowed
+  // past the top of the viewport).
   useLayoutEffect(() => {
     if (!open) return;
     const el = wrapRef.current;
@@ -32,7 +35,9 @@ export function Popover({
     const rect = el.getBoundingClientRect();
     const above = rect.top;
     const below = window.innerHeight - rect.bottom;
-    setDrop(above < 360 && below > above ? "down" : "up");
+    const down = above < 360 && below > above;
+    setDrop(down ? "down" : "up");
+    setMaxH(Math.max(160, (down ? below : above) - 16));
   }, [open]);
   const toggle = () =>
     setOpen((v) => {
@@ -60,7 +65,11 @@ export function Popover({
     <div className="pop-wrap" ref={wrapRef}>
       {trigger(open, toggle)}
       {open && (
-        <div className={`pop-panel pop-${align} pop-${drop} ${panelClass}`} role="menu">
+        <div
+          className={`pop-panel pop-${align} pop-${drop} ${panelClass}`}
+          role="menu"
+          style={maxH !== undefined ? { maxHeight: maxH } : undefined}
+        >
           {children(close)}
         </div>
       )}

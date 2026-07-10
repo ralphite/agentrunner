@@ -16,6 +16,15 @@ export function pillClass(status: string): string {
 // header so the two never contradict each other (QA #8).
 export function friendlyStatus(raw: string): { text: string; cls: string } {
   const s = (raw || "").toLowerCase();
+  // Terminal reasons from `ar inspect` land here raw (W6) — say what they
+  // mean instead of leaking the enum. Checked before the broad keyword
+  // buckets so e.g. max_generation_steps never matches "run".
+  if (s.includes("max_generation_steps") || s.includes("step limit"))
+    return { text: "stopped: step limit", cls: "stranded" };
+  if (s.includes("budget") || s.includes("max_tokens") || s.includes("token limit"))
+    return { text: "stopped: budget limit", cls: "stranded" };
+  if (s.includes("kill")) return { text: "stopped by parent", cls: "closed" };
+  if (s.includes("cancel")) return { text: "cancelled", cls: "closed" };
   if (s.includes("crash") || s.includes("error")) return { text: "crashed", cls: "crash" };
   // "stranded" covers both a crashed host AND a fresh fork that was never
   // hosted; both recover by sending a message. Keep it calm and accurate

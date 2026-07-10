@@ -50,7 +50,18 @@ export function SessionView({ sid }: { sid: string }) {
   const [goalEdit, setGoalEdit] = useState<string | null>(null);
   const [view, setView] = useState<"chat" | "diff">("chat");
   const [findOpen, setFindOpen] = useState(false);
-  const [supervisionOpen, setSupervisionOpen] = useState(true);
+  // Supervision starts CLOSED and remembers the user's choice (W5): an empty
+  // panel taking a third of the screen on every session was the single most
+  // asked-about annoyance. A pending approval force-opens it (see below).
+  const [supervisionOpen, setSupervisionOpen] = useState(() => localStorage.getItem("arwebui.supervision") === "1");
+  const setSupervision = (open: boolean) => {
+    setSupervisionOpen(open);
+    try {
+      localStorage.setItem("arwebui.supervision", open ? "1" : "0");
+    } catch {
+      /* ignore quota */
+    }
+  };
 
   const cursor = useRef(0);
   const pollBusy = useRef(false);
@@ -334,6 +345,14 @@ export function SessionView({ sid }: { sid: string }) {
 
   const running = status.cls === "run";
 
+  // A pending approval must be seen: it force-opens the panel for as long as
+  // approvals are open (not persisted — the user's remembered preference
+  // stays whatever they chose last).
+  const hasApprovals = openApprovals.length > 0;
+  useEffect(() => {
+    if (hasApprovals) setSupervisionOpen(true);
+  }, [hasApprovals]);
+
   return (
     <div className="session-view">
       <header className="task-topbar">
@@ -356,7 +375,7 @@ export function SessionView({ sid }: { sid: string }) {
         <button className={`topbar-tool${view === "diff" ? " active" : ""}`} onClick={() => setView(view === "diff" ? "chat" : "diff")} title="Review workspace changes">
           <Files size={16} /> Changes
         </button>
-        <button className={`topbar-tool${supervisionOpen ? " active" : ""}`} onClick={() => setSupervisionOpen((open) => !open)} title="Show supervision">
+        <button className={`topbar-tool${supervisionOpen ? " active" : ""}`} onClick={() => setSupervision(!supervisionOpen)} title="Show supervision">
           <UsersThree size={16} /> Supervision
           {openApprovals.length > 0 && <span className="topbar-attention">{openApprovals.length}</span>}
         </button>
@@ -364,7 +383,7 @@ export function SessionView({ sid }: { sid: string }) {
           <MenuLabel>View</MenuLabel>
           <MenuItem onClick={() => setView("chat")}>Conversation</MenuItem>
           <MenuItem onClick={() => setView("diff")}>Changes</MenuItem>
-          <MenuItem onClick={() => setSupervisionOpen((open) => !open)}>{supervisionOpen ? "Hide" : "Show"} supervision</MenuItem>
+          <MenuItem onClick={() => setSupervision(!supervisionOpen)}>{supervisionOpen ? "Hide" : "Show"} supervision</MenuItem>
           <MenuItem
             title="the append-only event log (ar events --json) — the source of truth this timeline is rendered from"
             onClick={() => act.view("raw journal", () => AR.rawEvents(sid))}
@@ -524,6 +543,7 @@ export function SessionView({ sid }: { sid: string }) {
             children={children}
             tasks={tasks}
             approvals={openApprovals.length}
+            sessionIdle={!running}
             onGoalEdit={setGoalEdit}
             onGoalSave={saveGoalEdit}
             onGoalDiscard={() => setGoalEdit(null)}
@@ -531,7 +551,7 @@ export function SessionView({ sid }: { sid: string }) {
             onOpenChild={(childSid) => select(childSid)}
             onKillTask={act.kill}
             onInspect={() => act.view("inspect tree", () => AR.inspect(sid))}
-            onClose={() => setSupervisionOpen(false)}
+            onClose={() => setSupervision(false)}
           />
         )}
       </div>

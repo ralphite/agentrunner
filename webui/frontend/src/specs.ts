@@ -155,7 +155,7 @@ export interface Persona {
 
 export const PERSONAS: Persona[] = [
   { id: "dev", label: "Dev", desc: "Full tools + worker sub-agents · default", withWorker: true },
-  { id: "lead", label: "Team Lead", desc: "Drafts a team & coordinates via messages · dynamic roles (INC-12)", withWorker: false },
+  { id: "lead", label: "Team Lead", desc: "Drafts a team & coordinates it via messages", withWorker: false },
   { id: "auditor", label: "Auditor", desc: "Read-only, answers in one stern sentence", withWorker: false },
   { id: "reviewer", label: "Reviewer", desc: "Read + inspect, structured findings, no writes", withWorker: false },
   { id: "chat", label: "Chat", desc: "No tools — plain conversation", withWorker: false },
