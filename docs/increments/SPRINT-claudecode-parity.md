@@ -66,7 +66,7 @@
 | 5 | G5 审批"允许且不再问"（下次生效路径） | #58 · G5 · INC-D5 | M | ✅ done (INC-17) | 取 A 写 user 层精确匹配；QA-26 真机 UJ-08 全流；project 精确作用域余项 |
 | 6 | protected paths 写保护集（.git/.claude/rc 文件等） | #59 | S | ✅ done (INC-18) | 只收紧 acceptEdits 自动放行；QA-28 真机；bypass/显式规则/hardFloor 不变 |
 | 7 | skill 模型侧 invoke（核心） | #45 · §3.5 | S | ✅ done (INC-20) | skill 工具按 name 返回 SKILL.md 正文；QA-29 真机；命令=用户宏裁决不动；fork 拆 7b |
-| 7b | context:fork（skill 在一次性子 agent 执行 = spawn_agent 变体） | #45 · §3.5 余项 | M | ⬜ | INC-20 拆出，独立增量 |
+| 7b | context:fork（skill 在一次性子 agent 执行 = spawn_agent 变体） | #45 · §3.5 余项 | M | 🔧 in-progress (INC-30) | ingest 展开为 spawn_agent{role},动态角色全链复用,agents_dynamic 门控 |
 | 8 | 结构化输出（`ar run --json-schema`，provider JSON mode 能力位） | #91 | S | ✅ done (INC-26) | `ar new --json-schema`：CLI 层校验+失败重发+canonical structured_output;QA-33 真机;provider-native JSON mode 拆 8b |
 | 8b | provider-native JSON mode（gemini responseSchema 约束生成免 re-prompt）+ durable structured_output 事件 | #91 余项 | M | ⬜ | INC-26 拆出;触 CompleteRequest/provider,谨慎 |
 | 9 | checkpoint 增强：barrier 打点密度提至每 turn 收尾 + "仅对话"fork 变体 + compact 范围指示（Summarize-from-here 等价） | #12/13 · §3.1 | M | ⬜ | §3.1 已论证不触不变量 |
