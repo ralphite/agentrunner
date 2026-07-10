@@ -2208,3 +2208,35 @@ hooks 地位,不递归进管线）,usage 入预算,判定落 EffectResolved
 classifier 孪生）/32b（gemini-flash provider+评测集+真机 QA）/32c
 （注入探针层,余项）。六个裁决点交用户（要不要做/判定序/阈值/headless
 语义/拆分粒度/透明提示）。
+## 2026-07-10 INC-30 团队 workspace 语义接通与弃子回收(G24/G25 关闭)
+
+侦察推翻走查初判:isolated 子产出**无任何回流机制**(全仓无 sync-back
+代码),44c3 事故里父 workspace 的 hello.py 是父 agent 手抄自救;弃子
+revive 后满血 40 步预算继续空转。裁决**不动隔离不变量**(isolated 语义
+/revive 复用原内容/spawn 非阻塞全保持),把已有设计接通:
+
+- **30.1 机制可见性**:spawn_agent/kill schema 讲清快照语义、无回流、
+  制品正道(inputs/report)、depends_on 只管时序不搬文件;isolated 子
+  开场 task 注入 `[workspace note]`(SpawnRequested.Task 保持原文);
+  check.sh go vet/test 排除 gitignored runtime/。
+- **30.2 replaces**:spawn_agent.replaces 显式回收前任(既有
+  kill(parent) cancel 路径,幂等),SpawnRequested.Replaces 审计字段
+  (additive,omitempty)。
+- **30.3 webui**:Dev/Team Lead persona 注明 isolated vs shared;
+  worker spec max_generation_steps: 24。**30.3b 修正**:DESIGN §agent
+  spec 示例里的 `limits:` 嵌套块与实现不符——实现是顶层平铺
+  `max_generation_steps`(LoadSpec 报 unknown field,闸门 B 当场抓到);
+  spec 数据按实现改平铺,示例偏差在此记档(DESIGN §agent spec 示例
+  待顺手修订)。
+- **30.4 闸门 B(QA-INC30,真 Gemini,共享 daemon 已部署 ar-inc30)**:
+  场景 1 isolated 双人团队:两子带注入、各 3-4 步零空转、总 53k tok
+  (事故 1/4)、父按正确时序转运后再派 reviewer,一次通过;场景 2
+  Team Lead shared:成员直写父树、父零 write、无 worktree 目录、子无
+  注入;场景 3 replaces:显式指示下 SpawnRequested.Replaces 落盘、
+  sleep 90 旧子秒级终止(reason=error,ctx cancel 打断 bash 的既有
+  表现)、新子 completed、ps 清空。产物 qa/runs/2026-07-10-INC30/。
+
+daemon 部署:共享 daemon 由 /tmp/ar-qa-r6(并发 QA session 22:48 部署)
+优雅 SIGTERM 后以 /tmp/claude-501/ar-inc30 重起(零 in-flight 窗口,
+历史 session 全部保持)。G24/G25 关闭,G26(inspect children 重复)
+保留。

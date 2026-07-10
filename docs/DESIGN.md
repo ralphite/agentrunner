@@ -1511,10 +1511,10 @@ event sourcing 的闭环：**执行产生事件，事件重建状态，状态驱
 | 术语 | 定义 |
 |---|---|
 | **子 session** | parent 指针非空的 session（递归）；没有独立的"子 agent"概念。 |
-| **spawn** | 工具 `spawn_agent`：**一律非阻塞**（零 legacy,2026-07-08 阻塞路径删除）——立即返回 handle,子并行跑,回执按 `receipts` 模式回流。 |
+| **spawn** | 工具 `spawn_agent`：**一律非阻塞**（零 legacy,2026-07-08 阻塞路径删除）——立即返回 handle,子并行跑,回执按 `receipts` 模式回流。`replaces:<旧 handle>`（INC-30）声明此次委派取代仍在跑的前任：启动前经既有 kill(parent) 路径回收,未知/已静止 handle 幂等 no-op;`SpawnRequested.Replaces` 留审计。 |
 | **handle** | spawn/后台任务的立即配对结果；kill/output 都凭它。 |
 | **team task / lease** | 每次 delegation 折叠为稳定 `task_id`、依赖 DAG、当前 `lease_id`、assigned member、settlement 状态；`inspect` 可直接查看，不依赖内存队列。`spawn_agent.depends_on` 只接受已静止任务。 |
-| **child workspace** | `agent_workspace: isolated`（生产默认）从父的 shadow snapshot 物化独立 worktree，路径/base ref 随 SpawnRequested 持久化；revive/crash 恢复重开同一路径。`shared` 仅在 spec 显式声明时使用父 workspace。 |
+| **child workspace** | `agent_workspace: isolated`（生产默认）从父的 shadow snapshot 物化独立 worktree，路径/base ref 随 SpawnRequested 持久化；revive/crash 恢复重开同一路径（含原内容,成员半成品跨 revive 保持）。**isolated 子的文件改动不自动回流父 workspace**——产出经 report/消息/`publish_artifact`→`inputs` 或父转运落地（INC-30 澄清:语义从未含 sync-back,快照语义此前对模型不可见曾致成员空转整份预算,G24）;isolated 子的开场 task 前注入 `[workspace note]` 机制说明。`shared` 仅在 spec 显式声明时使用父 workspace——协作型团队（Team Lead）用它。 |
 | **child_result** | 子静止/失败/被杀的回执（event `SubagentCompleted`,非新事件——静止回执复用它,决策 #31）,投父 inbox 触发新 turn;先回先处理,可多次发生。 |
 | **kill** | 工具 `kill{handle}`：协作取消，与后台 bash 共用原语；标记记来源（user/parent）；用户侧 `ar kill`。 |
 | **权限冻结交集 / 提权例外** | spawn 默认按父当时有效权限冻结下传；child 不能自行放宽。唯一例外是显式 `escalate` 经人批准后使用 child 声明 rules；拒绝/interrupt 回退交集。预算、树上限、工具子集、收容棘轮永不随审批放宽。 |

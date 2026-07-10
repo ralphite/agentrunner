@@ -380,20 +380,27 @@ lead 无法协调(见 UJ-23 web 试跑,LOG 2026-07-10)。无预算(默认)时并
 单根是各处隐含前提（路径边界/快照/索引）。**当前 24 条 journey 目录
 未包含此场景**——保留自旧审计，纳入与否待目录定版。
 
-**G24 团队成员 worktree 快照时机 — 🟡 实现缺陷 · 高（INC-23 走查，2026-07-10）**
-sub-agent 的隔离 worktree 是 spawn 时刻的文件快照：成员 B 在成员 A
-sync-back **之前** spawn，就拿到空快照、永远看不到队友产出（实测
-20260710-043858-task-44c3：reviewer 在空 worktree 空转到 step 上限，
-烧 195k tokens）。团队协作（UJ-23）在"先派齐人再干活"的自然编排下
-必坏。**潜在修**：revive/消息投递时刷新快照、成员间共享 workspace
-视图、或 spawn 前 sync 屏障。→ UJ-23
+**G24 团队成员 worktree 快照时机 — ✅ 已关闭（INC-30，2026-07-10）**
+真相比初判更深：isolated 子产出**本无回流机制**（"sync-back"不存在，
+44c3 里父 workspace 的文件是父 agent write_file 手抄自救），成员 B 的
+快照来自父 workspace，队友产出天然不在其中。关闭方式=接通已有设计而
+非改隔离语义：①`spawn_agent`/`kill` schema 讲清快照/无回流/制品正道;
+②isolated 子开场注入 `[workspace note]`（缺文件即报告,不再空转）;
+③webui Dev/Team Lead persona 注明 isolated vs shared 差别（协作用
+Team Lead=shared）。闸门：TestIsolatedChildTaskCarriesSnapshotNotice
++ QA-INC30 场景 1/2（isolated 知情转运 12 步 53k tok vs 事故 200k+;
+shared 成员直写父树、父零转运）。原文（历史）见上段描述。→ UJ-23
 
-**G25 弃子回收缺失 — 🟡 实现缺陷 · 高（INC-23 走查，2026-07-10）**
-父 agent 放弃一个 sub-agent（另起替代者）没有机制回收旧的：弃子继续
-独立运行直到自然撞 step/预算上限（同上实测：被替换后又跑 70+ 步）。
-主对话已完成、后台还在烧钱，用户侧此前毫无警示（INC-23 已把"会话
-空闲但后台仍在消耗"上升 Attention，回收本身仍缺）。**潜在修**：
-替换/handoff 语义显式 kill、或父 quiescent 时子有 idle 熔断。→ UJ-23/18
+**G25 弃子回收缺失 — ✅ 已关闭（INC-30，2026-07-10）**
+关闭位置：`spawn_agent.replaces:<旧 handle>`——启动替代者前经既有
+kill(parent) 路径回收前任（未知/已静止幂等 no-op），
+`SpawnRequested.Replaces` 留审计；schema 文案引导"重派前回收"；webui
+worker spec 步限 40→24 兜底减损。闸门：
+TestSpawnReplacesCancelsPredecessor/TestSpawnReplacesUnknownHandleIsNoop
++ QA-INC30 场景 3（真 Gemini 显式指示下 replaces 落盘、sleep 90 的旧
+子秒级终止、新子 completed）。裁掉：自动 idle 熔断/父静止杀子（后台
+子合法长跑无法与空转区分，须新不变量——留待真实需求）。原文（历史）
+见上段描述。→ UJ-23/18
 
 **G26 `ar inspect` children 含重复条目 — 🟡 实现瑕疵 · 低（INC-23 走查）**
 被 revive 的 child 每次完成都追加一条 children 记录（同一 call_6_0
