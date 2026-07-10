@@ -1683,3 +1683,18 @@ protected→ask/normal→allow；bypass 忽略；显式 allow/deny 各优先；d
 
 **并发协作**：rebase 后 check.sh 抓到并发 QA-R2 新增的 initcmd.go 未
 gofmt（全仓 gofmt 检查拦门），顺手 gofmt 修复（无害格式，随本 commit）。
+
+---
+
+## 2026-07-10 黑盒探索 QA Round 3 补验完成：webui 两项 PASS，循环正式收敛
+
+r4 部署（main 3a53844 + webui UX 重构合并后）主 agent 浏览器补验：
+**#11 goal 事件时间线 PASS**（真实 budget 截断会话：goal attached/check
+miss/红色 "goal stopped: check budget exhausted … not verified as
+achieved" chips 全部渲染，Supervision 面板一致）；**#13 Fork 模态
+PASS**（UX 重构的 "Fork from: Latest" 下拉结构性消解了原空列表死等
+痛点，3s 轮询保留）。F-C3 在新 UX 下复验 PASS（CLI 会话显示
+"Spec-defined access"）。**方法学记档**：SPA hash 导航不重载 bundle，
+部署后旧 tab 全是旧 JS——先前旧 tab 上观察到的"pill 谎报/chip 缺失"
+均为缓存假象，webui 验证必须先强刷。至此 Round 3 全部 13 项回归
+PASS、新 P0/P1/P2 = 0——三轮"探索→修复→回归"循环正式收敛。
