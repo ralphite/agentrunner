@@ -24,6 +24,7 @@ import { ContextMenu } from "./ContextMenu";
 import { MenuItem, MenuLabel } from "./Menu";
 import { copyText } from "../clipboard";
 import { buildSidebarModel } from "../viewModels";
+import { relTime, sessionDate } from "../time";
 
 export function Sidebar() {
   const {
@@ -89,6 +90,8 @@ export function Sidebar() {
     const status = friendlyStatus(session.status);
     const isUnread = unread.includes(session.id);
     const isPinned = pinned.includes(session.id);
+    const title = displayTitle(renames, session.id, session.title);
+    const when = relTime(sessionDate(session.id));
     return (
       <div
         key={session.id}
@@ -98,9 +101,10 @@ export function Sidebar() {
           event.preventDefault();
           setCtx({ x: event.clientX, y: event.clientY, sid: session.id });
         }}
-        title={session.id}
+        title={`${title}\n${status.text}${when ? ` · started ${when} ago` : ""}\n${session.id}`}
       >
-        <span className="project-task-title">{displayTitle(renames, session.id, session.title)}</span>
+        <span className="project-task-title">{title}</span>
+        {when && <span className="task-when">{when}</span>}
         {isUnread && <span className="unread-dot" title="New activity" />}
         <span className={`status-dot ${status.cls}`} title={status.text} />
         <button
@@ -143,7 +147,7 @@ export function Sidebar() {
           <NotePencil size={17} /> <span>New task</span>
         </button>
         <button className={!currentSid && currentPage === "scheduled" ? "active" : ""} onClick={() => showPage("scheduled")}>
-          <CalendarDots size={17} /> <span>Scheduled</span>
+          <CalendarDots size={17} /> <span>Runs</span>
           {runningRuns > 0 && <span className="nav-notice" title={`${runningRuns} running`} />}
         </button>
       </nav>
@@ -184,6 +188,7 @@ export function Sidebar() {
                   {isExpanded ? <CaretDown size={12} /> : <CaretRight size={12} />}
                   {isExpanded ? <FolderOpen size={16} /> : <Folder size={16} />}
                   <span>{project.label}</span>
+                  {project.hint && <span className="project-hint">{project.hint}</span>}
                 </button>
                 {shown.map((session) => renderTask(session, true))}
                 {!isExpanded && project.sessions.length > shown.length && (

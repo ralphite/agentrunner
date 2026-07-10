@@ -5,6 +5,26 @@ import { Markdown } from "./Markdown";
 import { copyText } from "../clipboard";
 import { uploadURL } from "../api";
 
+// absTime renders an event timestamp for hover titles: local, second-precise.
+function absTime(ts?: string): string | undefined {
+  if (!ts) return undefined;
+  const d = new Date(ts);
+  return isNaN(d.getTime()) ? undefined : d.toLocaleString();
+}
+
+// timeGap returns a short local-time marker when two adjacent feed items are
+// separated by 10+ minutes (W10: the feed had no sense of time at all).
+function timeGap(prev?: string, next?: string): string | null {
+  if (!next) return null;
+  const b = new Date(next).getTime();
+  if (isNaN(b)) return null;
+  if (prev) {
+    const a = new Date(prev).getTime();
+    if (!isNaN(a) && b - a < 10 * 60 * 1000) return null;
+  }
+  return new Date(b).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
 // Thumbs renders locally-known upload paths as inline image previews (the
 // journal only stores CAS refs, so these exist for messages sent from this tab).
 function Thumbs({ paths }: { paths: string[] }) {
@@ -119,8 +139,9 @@ function Item({ it, sentImages }: { it: TimelineItem; sentImages?: Map<number, s
       return <div className="turn">turn {it.gen}</div>;
     case "user": {
       const thumbs = it.seq !== undefined ? sentImages?.get(it.seq) : undefined;
+      const peer = !!it.peerSession;
       return (
-        <div className="msg user">
+        <div className={"msg user" + (peer ? " peer" : "")} title={absTime(it.ts)}>
           <div className="msg-col user">
             <div className="bubble">
               {it.text}
@@ -132,13 +153,15 @@ function Item({ it, sentImages }: { it: TimelineItem; sentImages?: Map<number, s
             </div>
             <MsgActions text={it.text} />
           </div>
-          <span className="who">{it.source || "you"}</span>
+          <span className="who">
+            {peer ? <>from {it.source} · <a href={"#" + it.peerSession}>open</a></> : it.source || "you"}
+          </span>
         </div>
       );
     }
     case "assistant":
       return (
-        <div className="msg assistant">
+        <div className="msg assistant" title={absTime(it.ts)}>
           <div className="avatar a"><Robot size={14} weight="bold" /></div>
           <div className="msg-col">
             <div className="bubble">
@@ -198,16 +221,26 @@ export function TimelineView({
     stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   };
 
+  // Time markers between items 10+ minutes apart (W10) — computed inline so
+  // the feed stays a single pass.
+  let lastTs: string | undefined;
+
   return (
     <div className="timeline" ref={ref} onScroll={onScroll}>
       <div className="tl-inner">
         {visible.length === 0 && statusLine}
-        {visible.map((it, index) => (
-          <Fragment key={it.key}>
-            <Item it={it} sentImages={sentImages} />
-            {index === 0 && statusLine}
-          </Fragment>
-        ))}
+        {visible.map((it, index) => {
+          const ts = "ts" in it ? it.ts : undefined;
+          const gap = timeGap(lastTs, ts);
+          if (ts) lastTs = ts;
+          return (
+            <Fragment key={it.key}>
+              {gap && <div className="tl-time">{gap}</div>}
+              <Item it={it} sentImages={sentImages} />
+              {index === 0 && statusLine}
+            </Fragment>
+          );
+        })}
         {approvalSlot}
         {typing && (
           <div className="msg assistant">

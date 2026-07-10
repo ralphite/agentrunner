@@ -3263,3 +3263,45 @@ summary.fd-head:hover {
   .hero h2 { font-size: 24px; }
   .scheduled-page { padding: 42px 20px; }
 }
+
+/* ---- INC-23 B3: sidebar time hints, project disambiguation, feed time ---- */
+.task-when {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  color: var(--dim);
+}
+.project-hint {
+  margin-left: 4px;
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tl-time {
+  text-align: center;
+  font-size: 10.5px;
+  color: var(--dim);
+  margin: 14px 0 4px;
+}
+/* Peer (agent-to-agent) messages: visually distinct from what YOU typed and
+   the "from <agent>" label stays visible (W19). */
+.msg.user.peer .bubble {
+  background: transparent;
+  border: 1px dashed var(--line);
+}
+.msg.user.peer .who {
+  display: inline;
+}
+.msg.user.peer .who a {
+  color: var(--dim);
+}
+/* waiting-for-you reads as a quiet open ring, not the same solid green as
+   activity (W28) — solid = things happening, ring = your turn, grey = over. */
+.status-dot.idle,
+.status-dot.done,
+.sa-dot.idle {
+  background: transparent;
+  border: 1.5px solid var(--green);
+}

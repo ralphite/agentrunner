@@ -1,4 +1,12 @@
 import type { Envelope } from "./types";
+import { friendlyStatus } from "./components/pill";
+
+// fmtTok compacts a token count for feed chips: 199839 → "200k".
+function fmtTok(n: number): string {
+  if (n < 1000) return String(n);
+  if (n < 1_000_000) return Math.round(n / 1000) + "k";
+  return (n / 1_000_000).toFixed(1) + "M";
+}
 
 // A single tool activity, resolved from its started/completed/failed/cancelled
 // events into one card.
@@ -21,10 +29,14 @@ export interface BubbleItem {
   key: string;
   text: string;
   source?: string;
+  // A message relayed from another agent (team mail): rendered as a peer
+  // message with a "from …" label, not as something YOU typed (W19).
+  peerSession?: string;
   images?: number;
   // journal seq of the input_received — lets the view attach locally-known
   // upload thumbnails to a sent bubble (the journal itself keeps only CAS refs)
   seq?: number;
+  ts?: string;
 }
 
 export interface TurnItem {
@@ -110,14 +122,21 @@ export function foldEvents(events: Envelope[]): Folded {
         push({ kind: "sys", key: "s" + seq, text: `session started · ${p.spec_name || ""} · ${p.model || ""}` });
         break;
       case "input_received": {
+        // Team mail arrives as user-role input prefixed
+        // "[message from <agent> (<session>)]" — strip the plumbing and
+        // render it as a peer message, not something you typed (W19).
+        const raw = p.text || "(empty)";
+        const peer = /^\[message from ([^ ()]+) \(([^)]+)\)\]\s*/.exec(raw);
         push({
           kind: "user",
           key: "u" + seq,
           seq,
-          text: p.text || "(empty)",
+          ts: env.ts,
+          text: peer ? raw.slice(peer[0].length) || raw : raw,
           // Human-typed input via any entry point (user/cli/tty) is "you";
           // only program/control sources get a distinct label (UX-05).
-          source: p.source && !HUMAN_SOURCES.has(p.source) ? p.source : undefined,
+          source: peer ? peer[1] : p.source && !HUMAN_SOURCES.has(p.source) ? p.source : undefined,
+          peerSession: peer ? peer[2] : undefined,
           images: p.images && p.images.length ? p.images.length : undefined,
         });
         break;
@@ -136,7 +155,7 @@ export function foldEvents(events: Envelope[]): Folded {
         parts
           .filter((x: any) => x.tool_name)
           .forEach((c: any) => callArgs.set(c.call_id, { name: c.tool_name, args: c.args }));
-        if (text.trim()) push({ kind: "assistant", key: "a" + seq, text });
+        if (text.trim()) push({ kind: "assistant", key: "a" + seq, text, ts: env.ts });
         break;
       }
       case "activity_started":
@@ -200,16 +219,19 @@ export function foldEvents(events: Envelope[]): Folded {
           p.child_session,
         );
         break;
-      case "subagent_completed":
+      case "subagent_completed": {
+        // The reason is an internal enum (max_generation_steps, …) — render
+        // the human wording and a compact token count (W6).
+        const reason = friendlyStatus(p.reason || "").text;
+        const tok = p.usage ? p.usage.input_tokens + p.usage.output_tokens : 0;
         chip(
           seq,
-          `Subagent finished · ${p.agent} · ${p.reason} · ${
-            p.usage ? p.usage.input_tokens + p.usage.output_tokens + " tok" : ""
-          }`,
+          `Subagent finished · ${p.agent} · ${reason}${tok ? ` · ${fmtTok(tok)} tokens` : ""}`,
           p.reason === "completed" ? "good" : "warn",
           p.child_session,
         );
         break;
+      }
       case "child_revived":
         chip(
           seq,

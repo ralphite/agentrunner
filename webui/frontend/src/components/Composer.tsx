@@ -51,6 +51,7 @@ import {
 import { Popover, PopItem, PopSection } from "./Popover";
 import { useVoice } from "./useVoice";
 import { recallAccess, recallDraft, recallSpec, rememberAccess, rememberDraft, rememberSpec } from "./sessionSpecs";
+import { projectLabel } from "../viewModels";
 
 // Actions the session variant wires in so slash commands can reach SessionView
 // state (view switches, interrupt, fork…) that lives above the composer.
@@ -110,6 +111,21 @@ const riskDot = (risk: string) => <span className={"risk-dot " + risk} />;
 
 export function Composer(props: ComposerProps) {
   const { select, selectRun, refreshSessions, refreshRuns, openModal, openPrompt, toast } = useStore();
+  const allSessions = useStore((s) => s.sessions);
+  // Recently used workspaces, newest first — picking an existing project must
+  // be one click, not a hand-typed absolute path (W14).
+  const recentWorkspaces = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const s of [...allSessions].sort((a, b) => b.id.localeCompare(a.id))) {
+      const w = (s.workspace || "").trim().replace(/\/+$/, "");
+      if (!w || seen.has(w)) continue;
+      seen.add(w);
+      out.push(w);
+      if (out.length >= 5) break;
+    }
+    return out;
+  }, [allSessions]);
   const isSession = props.variant === "session";
 
   // Per-session draft: initialize from what was typed here last time (the
@@ -689,7 +705,9 @@ export function Composer(props: ComposerProps) {
       ? "Describe a task or ask a question"
       : "Describe a one-shot background task…";
 
-  const wsShort = ws ? ws.split("/").filter(Boolean).slice(-1)[0] : "auto-created";
+  // Pill label: friendly name for a chosen workspace; before one exists, say
+  // what will actually happen instead of the ambiguous "auto-created" (W2).
+  const wsShort = ws ? projectLabel(ws) : "New scratch workspace";
 
   return (
     <div className={"cx " + (isSession ? "cx-session" : "cx-home")}>
@@ -968,8 +986,18 @@ export function Composer(props: ComposerProps) {
             >
               {(close) => (
                 <div className="cx-menu wide">
+                  {recentWorkspaces.filter((w) => w !== ws.trim().replace(/\/+$/, "")).length > 0 && (
+                    <PopSection label="Recent workspaces">
+                      {recentWorkspaces
+                        .filter((w) => w !== ws.trim().replace(/\/+$/, ""))
+                        .slice(0, 4)
+                        .map((w) => (
+                          <PopItem key={w} icon={<FolderIcon />} title={projectLabel(w)} desc={w} onClick={() => { setWs(w); close(); }} />
+                        ))}
+                    </PopSection>
+                  )}
                   <PopSection label="Workspace">
-                    <PopItem icon={<Sparkle size={15} />} title="New empty workspace" desc="A fresh directory under runtime/" onClick={async () => { try { setWs((await AR.makeWorkspace()).path); } catch (e: any) { props.onError(e.message); } close(); }} />
+                    <PopItem icon={<Sparkle size={15} />} title="New empty workspace" desc="A fresh scratch directory (own git repo)" onClick={async () => { try { setWs((await AR.makeWorkspace()).path); } catch (e: any) { props.onError(e.message); } close(); }} />
                     <PopItem icon={<FolderIcon />} title="Enter a path…" desc="An absolute directory to work in" onClick={() => { close(); openPrompt({ title: "Workspace path", label: "absolute directory to work in", initial: ws, placeholder: "/path/to/workspace", onSubmit: (path) => setWs(path) }); }} />
                   </PopSection>
                   {ws && <div className="cx-ctx-path" title={ws}>{ws}</div>}

@@ -8,9 +8,9 @@ export function Scheduled() {
     <div className="scheduled-page">
       <div className="page-heading">
         <div>
-          <span className="page-eyebrow"><CalendarDots size={16} /> Scheduled</span>
-          <h2>Background work</h2>
-          <p>One-shot, goal, and repeating runs continue without keeping a task open.</p>
+          <span className="page-eyebrow"><CalendarDots size={16} /> Runs</span>
+          <h2>Runs</h2>
+          <p>One-shot, goal, and repeating runs continue without keeping a task open. This lists runs started from this cockpit.</p>
         </div>
         <button className="primary page-action" onClick={() => openModal({ kind: "run" })}>
           <Plus size={15} /> New run
@@ -20,7 +20,7 @@ export function Scheduled() {
         {runs.length === 0 ? (
           <div className="empty-state">
             <CalendarDots size={28} />
-            <b>No background runs</b>
+            <b>No runs yet</b>
             <span>Start one when work should continue on its own.</span>
           </div>
         ) : runs.map((run) => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { describeApproval } from "./approvalPresentation";
-import { buildSidebarModel, dedupeInspectNodes, projectLabel } from "./viewModels";
+import { buildSidebarModel, dedupeInspectNodes, projectLabel, scratchLabel } from "./viewModels";
+import { foldEvents } from "./timeline";
 import type { Session } from "./types";
 
 const sessions: Session[] = [
@@ -19,8 +20,57 @@ describe("project sidebar model", () => {
       titleOf: (session) => session.title || session.id,
     });
     expect(model.pinned.map((session) => session.id)).toEqual(["s2"]);
-    expect(model.projects.map((project) => project.label)).toEqual(["agentrunner", "Other sessions"]);
-    expect(model.projects.flatMap((project) => project.sessions.map((session) => session.id))).toEqual(["s1", "s3"]);
+    // Newest-first everywhere (W8): ids sort descending, so s3 leads.
+    expect(model.projects.map((project) => project.label)).toEqual(["Other sessions", "agentrunner"]);
+    expect(model.projects.flatMap((project) => project.sessions.map((session) => session.id))).toEqual(["s3", "s1"]);
+  });
+
+  it("orders sessions newest-first and groups by their newest session (W8)", () => {
+    const model = buildSidebarModel(
+      [
+        { id: "20260701-000000-old-1", status: "idle", turns: 1, workspace: "/w/a" },
+        { id: "20260710-090000-new-1", status: "idle", turns: 1, workspace: "/w/b" },
+        { id: "20260709-000000-mid-1", status: "idle", turns: 1, workspace: "/w/a" },
+      ],
+      { pinned: [], archived: [], showArchived: false, query: "", titleOf: (s) => s.id },
+    );
+    expect(model.projects.map((p) => p.workspace)).toEqual(["/w/b", "/w/a"]);
+    expect(model.projects[1].sessions.map((s) => s.id)).toEqual(["20260709-000000-mid-1", "20260701-000000-old-1"]);
+  });
+
+  it("disambiguates same-basename groups with a parent hint (W20)", () => {
+    const model = buildSidebarModel(
+      [
+        { id: "b", status: "idle", turns: 1, workspace: "/tmp/team/ws" },
+        { id: "a", status: "idle", turns: 1, workspace: "/home/me/ws" },
+      ],
+      { pinned: [], archived: [], showArchived: false, query: "", titleOf: (s) => s.id },
+    );
+    expect(model.projects.map((p) => p.hint)).toEqual(["…/team", "…/me"]);
+  });
+
+  it("labels auto-created workspaces as readable scratch names (W2/W42)", () => {
+    expect(scratchLabel("ws-20260710-221530")).toBe("Scratch · 07-10 22:15");
+    expect(scratchLabel("wt-20260710-221530")).toBe("Scratch · 07-10 22:15");
+    expect(scratchLabel("ws1783659626368076000")).toMatch(/^Scratch · \d{2}-\d{2} \d{2}:\d{2}$/);
+    expect(scratchLabel("agentrunner")).toBe("");
+    expect(projectLabel("/x/y/ws-20260710-221530")).toBe("Scratch · 07-10 22:15");
+  });
+
+  it("renders team mail as a peer message, not something you typed (W19)", () => {
+    const folded = foldEvents([
+      {
+        seq: 5,
+        type: "input_received",
+        ts: "2026-07-10T05:00:00Z",
+        payload: { text: "[message from worker (20260710-x-sub-call_6_0-a1)] Hi developer!", source: "tool" },
+      },
+    ]);
+    const bubble = folded.items.find((i) => i.kind === "user") as any;
+    expect(bubble.text).toBe("Hi developer!");
+    expect(bubble.source).toBe("worker");
+    expect(bubble.peerSession).toBe("20260710-x-sub-call_6_0-a1");
+    expect(bubble.ts).toBe("2026-07-10T05:00:00Z");
   });
 
   it("filters archived sessions and searches workspace paths", () => {

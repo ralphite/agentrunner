@@ -4,6 +4,7 @@ export interface Envelope {
   seq: number;
   type: string;
   payload?: any;
+  ts?: string; // RFC3339 event time, recorded by the daemon
 }
 
 export interface Session {
