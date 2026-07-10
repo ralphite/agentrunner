@@ -54,11 +54,21 @@ func defaultProviderFactory(ctx context.Context, name string) (provider.Provider
 }
 
 // siblingSpecResolver resolves a sub-agent name to <name>.yaml next to the
-// parent spec (S5.3). The spec.Agents whitelist gates WHO may be spawned;
-// this only answers WHERE the spec lives.
+// parent spec (S5.3), OR to a shipped built-in agent (explore/plan, INC-25).
+// The spec.Agents whitelist gates WHO may be spawned; this only answers WHERE
+// the spec lives. Built-in agents are tried first (a workspace file of the
+// same name would otherwise shadow the shipped read-only agent), and they
+// inherit the PARENT's model so a built-in explore runs on the same provider
+// the user chose — the shipped default is only a fallback.
 func siblingSpecResolver(parentSpecPath string) agent.SubSpecResolver {
 	dir := filepath.Dir(parentSpecPath)
 	return func(name string) (*agent.AgentSpec, error) {
+		if spec, ok := agent.BuiltinSpec(name); ok {
+			if parent, err := agent.LoadSpec(parentSpecPath); err == nil && parent.Model.Provider != "" {
+				spec.Model = parent.Model
+			}
+			return spec, nil
+		}
 		return agent.LoadSpec(filepath.Join(dir, name+".yaml"))
 	}
 }
