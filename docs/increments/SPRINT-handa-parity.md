@@ -25,7 +25,7 @@
 
 | # | 项 | 规模 | 状态 | 备注 |
 |---|---|---|---|---|
-| 32 | stdin 管道 prompt（ar run/new/send 读 stdin） | S | ⬜ | 注意 --image/--file 共存 |
+| 32 | stdin 管道 prompt（ar run/new/send 读 stdin） | S | 🔧 in-progress (INC-28) | 注意 --image/--file 共存 |
 | 23 | 用户消息折叠（Timeline >10 行 Show more） | S | ⬜ | 纯前端 |
 | 9 | progress_update 内部工具 + fold + Supervision 区 | S/M | ⬜ | 按 goal_complete/publish_note 先例，不过管线 |
 | 10 | 后台任务 notify 门 + settle 结构化载荷 | S | ⬜ | 唤醒已存在（勘误见 PARITY §4.1）；user-role 回流 |
