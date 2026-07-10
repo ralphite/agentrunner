@@ -2386,3 +2386,25 @@ popover。sidebar hover 增 pin/archive 与 project/branch/status preview，bran
 `Undo` 伪按钮。QA-41 用共享 store 的 completed/diff/goal session、desktop +
 390×844、Codex 参考图同屏与 console 反打；26 frontend tests、build、根
 check 全绿，证据保留且未清理任何 session/workspace。
+
+## 2026-07-10 INC-40 Codex composer 行为同构与真实浏览器闭环
+
+用户指出 INC-38 只是画出类似 UI、没有理解 Codex 行为。由于 Computer Use
+不能读取 Codex 自身受保护窗口，本轮改用本机 `/Applications/ChatGPT.app`
+的 `app.asar` 提取真实 composer/project/worktree/environment/branch 模块，
+与用户截图共同作为实现契约，而不是继续凭外观猜测。
+
+New task 上缘重构为四个独立控件：Project（search/recent/selected/new/
+projectless）、Local/New worktree、truthful Local environment、Branch search；
+Project 与 Branch 不再混在 535px mega menu。New worktree API 新增 selected
+ref 并验证后在该 ref 创建 detached worktree；detached HEAD 不再把 `HEAD`
+伪装成 branch。Popover 补 Arrow/Home/End、Escape focus return、auto-focus 与
+水平 viewport clamp。390px composer 重新换行，access/model/mic/send 全可达。
+
+真实浏览器 QA 不是只看截图：先发现 mobile 尾部 controls 被裁，修后再跑
+New worktree session `20260710-213428-create-qa42-worktree-browser-t-d8ac`，
+approval 阶段又复现宽→窄 resize 后 Supervision 覆盖主操作，加入 viewport
+响应状态后重启/重载复核关闭。任务最终只产生
+`qa42-worktree-browser.txt=QA42_WORKTREE_OK`；Changes、Worked、Continue in
+new task、deep link restart 与 console 0 error/warning 全通过。全部 session、
+worktree、journal 与截图保留在 `qa/runs/2026-07-10-QA42-codex-ux-full/`。

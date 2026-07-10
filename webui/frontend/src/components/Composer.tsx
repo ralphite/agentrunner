@@ -13,6 +13,7 @@ import {
   Image,
   Lightning,
   ListChecks,
+  MagnifyingGlass,
   Microphone,
   Plus,
   SlidersHorizontal,
@@ -166,6 +167,11 @@ export function Composer(props: ComposerProps) {
   // home-only context
   const [ws, setWs] = useState("");
   const [kind, setKind] = useState<"chat" | "background">("chat");
+  const [runLocation, setRunLocation] = useState<"worktree" | "local">("worktree");
+  const [startingBranch, setStartingBranch] = useState("");
+  const [projectQuery, setProjectQuery] = useState("");
+  const [branchQuery, setBranchQuery] = useState("");
+  const [projectMenuPage, setProjectMenuPage] = useState<"projects" | "new">("projects");
   const [branchInfo, setBranchInfo] = useState<{ isRepo: boolean; current: string; branches: string[]; dirty: number } | null>(null);
 
   // goal / loop / best-of-N launcher panel
@@ -215,7 +221,12 @@ export function Composer(props: ComposerProps) {
     }
     let alive = true;
     AR.gitBranches(dir)
-      .then((b) => alive && setBranchInfo(b))
+      .then((b) => {
+        if (!alive) return;
+        setBranchInfo(b);
+        setStartingBranch((b.current === "HEAD" ? "" : b.current) || b.branches[0] || "");
+        if (!b.isRepo) setRunLocation("local");
+      })
       .catch(() => alive && setBranchInfo(null));
     return () => {
       alive = false;
@@ -292,6 +303,12 @@ export function Composer(props: ComposerProps) {
     const p = (await AR.makeWorkspace()).path;
     setWs(p);
     return p;
+  };
+
+  const resolveHomeWorkspace = async (): Promise<string> => {
+    const source = await ensureWs();
+    if (runLocation !== "worktree" || !branchInfo?.isRepo) return source;
+    return (await AR.makeWorktree(source, "", startingBranch || branchInfo.current)).path;
   };
 
   const resetInput = () => {
@@ -377,7 +394,7 @@ export function Composer(props: ComposerProps) {
         resetInput();
         await (props as Extract<ComposerProps, { variant: "session" }>).onSend(t, imgs, files);
       } else if (kind === "chat") {
-        const workspace = await ensureWs();
+        const workspace = await resolveHomeWorkspace();
         const spec = buildSpec({ provider, model, access, persona, effort });
         const imgs = atts.filter((a) => a.isImage).map((a) => a.path);
         const files = atts.filter((a) => !a.isImage).map((a) => a.path);
@@ -405,7 +422,7 @@ export function Composer(props: ComposerProps) {
           }
         }
       } else {
-        const workspace = await ensureWs();
+        const workspace = await resolveHomeWorkspace();
         const spec = buildSpec({ provider, model, access, persona, effort });
         const r = await AR.startRun({ kind: "submit", spec, extraSpecs: [], task: t, workspace, mode: accessById(access).mode, idem: "" });
         resetInput();
@@ -731,6 +748,32 @@ export function Composer(props: ComposerProps) {
   // Pill label: friendly name for a chosen workspace; before one exists, say
   // what will actually happen instead of the ambiguous "auto-created" (W2).
   const wsShort = ws ? projectLabel(ws) : "New scratch workspace";
+  const normalizedWs = ws.trim().replace(/\/+$/, "");
+  const filteredProjects = recentWorkspaces.filter((workspace) => {
+    const query = projectQuery.trim().toLowerCase();
+    return !query || projectLabel(workspace).toLowerCase().includes(query) || workspace.toLowerCase().includes(query);
+  });
+  const branchLabel = startingBranch || branchInfo?.current || (branchInfo?.isRepo ? "No commits yet" : "No branch");
+  const filteredBranches = (branchInfo?.branches || []).filter((branch) =>
+    branch.toLowerCase().includes(branchQuery.trim().toLowerCase()),
+  );
+
+  const chooseProject = (workspace: string) => {
+    setWs(workspace);
+    setProjectQuery("");
+    setProjectMenuPage("projects");
+    AR.gitBranches(workspace)
+      .then((info) => {
+        setBranchInfo(info);
+        setStartingBranch((info.current === "HEAD" ? "" : info.current) || info.branches[0] || "");
+        setRunLocation(info.isRepo ? "worktree" : "local");
+      })
+      .catch(() => {
+        setBranchInfo(null);
+        setStartingBranch("");
+        setRunLocation("local");
+      });
+  };
 
   return (
     <div className={"cx " + (isSession ? "cx-session" : "cx-home")}>
@@ -746,87 +789,175 @@ export function Composer(props: ComposerProps) {
         />
       )}
 
-      {/* Codex keeps environment context visible above the new-task editor.
-          One trigger still owns the real workspace/mode/branch controls. */}
+      {/* Codex exposes project, run location, environment and branch as four
+          separate controls. They share submit state, but never share a menu:
+          each choice has one meaning and remains scannable before typing. */}
       {!isSession && (
         <div className="cx-env-strip">
           <Popover
             align="left"
-            onOpen={() => ws.trim() && AR.gitBranches(ws.trim()).then(setBranchInfo).catch(() => {})}
             trigger={(open, toggle) => (
-              <button className={"cx-env-trigger" + (open ? " active" : "")} onClick={toggle} title="Environment">
-                <span><FolderIcon />{wsShort}</span>
-                <span><Desktop size={16} />Local</span>
-                <span><BranchIcon />{branchInfo?.isRepo ? branchInfo.current : "New repo"}</span>
-                {kind === "background" && <span><Lightning size={15} />Background</span>}
+              <button className={"cx-env-control project" + (open ? " active" : "")} onClick={toggle} title="Select project">
+                <FolderIcon />
+                <span className="cx-env-value">{ws ? wsShort : "Select project"}</span>
+                <Caret />
+              </button>
+            )}
+            panelClass="cx-project-popover"
+            onOpen={() => {
+              setProjectQuery("");
+              setProjectMenuPage("projects");
+            }}
+          >
+            {(close) => (
+              <div className="cx-menu project-menu">
+                {projectMenuPage === "projects" ? (
+                  <>
+                    <label className="cx-project-search">
+                      <MagnifyingGlass size={16} />
+                      <input
+                        data-popover-autofocus
+                        aria-label="Search projects"
+                        placeholder="Search projects"
+                        value={projectQuery}
+                        onChange={(event) => setProjectQuery(event.target.value)}
+                      />
+                    </label>
+                    <div className="cx-project-list">
+                      {filteredProjects.map((workspace) => (
+                        <PopItem
+                          key={workspace}
+                          icon={<FolderIcon />}
+                          title={projectLabel(workspace)}
+                          active={workspace === normalizedWs}
+                          onClick={() => { chooseProject(workspace); close(); }}
+                        />
+                      ))}
+                      {filteredProjects.length === 0 && <div className="pop-empty">No projects found</div>}
+                    </div>
+                    <PopSection>
+                      <PopItem icon={<PlusIcon />} title="New project" right={<span aria-hidden>›</span>} onClick={() => setProjectMenuPage("new")} />
+                      <PopItem icon={<X size={15} />} title="Don't work in a project" active={!ws} onClick={() => { setWs(""); setBranchInfo(null); setStartingBranch(""); setRunLocation("local"); close(); }} />
+                    </PopSection>
+                  </>
+                ) : (
+                  <>
+                    <div className="pop-menu-title">
+                      <button className="pop-back" onClick={() => setProjectMenuPage("projects")} aria-label="Back to projects">‹</button>
+                      <b>New project</b>
+                    </div>
+                    <PopItem icon={<Sparkle size={15} />} title="Start from scratch" desc="Create a fresh local workspace" onClick={async () => {
+                      try { chooseProject((await AR.makeWorkspace()).path); } catch (error: any) { props.onError(error.message); }
+                      close();
+                    }} />
+                    <PopItem icon={<FolderIcon />} title="Use an existing folder" desc="Choose an absolute local path" onClick={() => {
+                      close();
+                      openPrompt({ title: "Add project", label: "absolute folder path", initial: ws, placeholder: "/path/to/project", onSubmit: chooseProject });
+                    }} />
+                  </>
+                )}
+              </div>
+            )}
+          </Popover>
+
+          <Popover
+            align="left"
+            trigger={(open, toggle) => (
+              <button className={"cx-env-control" + (open ? " active" : "")} onClick={toggle} title="Choose where this task runs">
+                {runLocation === "local" ? <Desktop size={16} /> : <GitBranch size={16} />}
+                <span className="cx-env-value">{runLocation === "local" ? "Local" : "New worktree"}</span>
                 <Caret />
               </button>
             )}
           >
             {(close) => (
-              <div className="cx-menu wide">
-                {recentWorkspaces.filter((w) => w !== ws.trim().replace(/\/+$/, "")).length > 0 && (
-                  <PopSection label="Recent workspaces">
-                    {recentWorkspaces
-                      .filter((w) => w !== ws.trim().replace(/\/+$/, ""))
-                      .slice(0, 4)
-                      .map((w) => (
-                        <PopItem key={w} icon={<FolderIcon />} title={projectLabel(w)} desc={w} onClick={() => { setWs(w); close(); }} />
-                      ))}
-                  </PopSection>
-                )}
-                <PopSection label="Workspace">
-                  <PopItem icon={<Sparkle size={15} />} title="New empty workspace" desc="A fresh scratch directory (own git repo)" onClick={async () => { try { setWs((await AR.makeWorkspace()).path); } catch (e: any) { props.onError(e.message); } close(); }} />
-                  <PopItem icon={<FolderIcon />} title="Enter a path…" desc="An absolute directory to work in" onClick={() => { close(); openPrompt({ title: "Workspace path", label: "absolute directory to work in", initial: ws, placeholder: "/path/to/workspace", onSubmit: (path) => setWs(path) }); }} />
+              <div className="cx-menu">
+                <PopSection label="Run location">
+                  <PopItem icon={<GitBranch size={15} />} title="New worktree" desc={branchInfo?.isRepo ? "Isolated checkout; your project stays untouched" : "Select a Git project first"} active={runLocation === "worktree"} onClick={() => {
+                    if (!branchInfo?.isRepo) { props.onError("New worktree needs a Git project."); return; }
+                    setRunLocation("worktree"); close();
+                  }} />
+                  <PopItem icon={<Desktop size={15} />} title="Local" desc="Work directly in the selected project" active={runLocation === "local"} onClick={() => { setRunLocation("local"); close(); }} />
                 </PopSection>
-                {ws && <div className="cx-ctx-path" title={ws}>{ws}</div>}
-                <PopSection label="Start in">
-                  <PopItem icon={<StartIcon />} title="Interactive session" desc="Chat back and forth with the agent" active={kind === "chat"} onClick={() => { setKind("chat"); close(); }} />
-                  <PopItem icon={<Lightning size={15} />} title="Background task" desc="One-shot: runs to completion on its own" active={kind === "background"} onClick={() => { setKind("background"); close(); }} />
+                <PopSection label="Task type">
+                  <PopItem icon={<StartIcon />} title="Interactive session" active={kind === "chat"} onClick={() => { setKind("chat"); close(); }} />
+                  <PopItem icon={<Lightning size={15} />} title="Background task" active={kind === "background"} onClick={() => { setKind("background"); close(); }} />
                 </PopSection>
-                {branchInfo?.isRepo && (
-                  <PopSection label={`Branch${branchInfo.dirty ? ` · ${branchInfo.dirty} uncommitted` : ""}`}>
-                    {branchInfo.branches.map((branch) => (
-                      <PopItem
-                        key={branch}
-                        icon={<BranchIcon />}
-                        title={branch}
-                        active={branch === branchInfo.current}
-                        onClick={async () => {
-                          close();
-                          if (branch === branchInfo.current) return;
-                          try {
-                            await AR.gitCheckout(ws.trim(), branch, false);
-                            setBranchInfo({ ...branchInfo, current: branch });
-                            toast(`Switched to ${branch}`, "info");
-                          } catch (error: any) {
-                            props.onError(error.message);
-                          }
-                        }}
-                      />
-                    ))}
-                    <PopItem
-                      icon={<PlusIcon />}
-                      title="Create & checkout new branch…"
-                      onClick={() => {
+              </div>
+            )}
+          </Popover>
+
+          <Popover
+            align="left"
+            trigger={(open, toggle) => (
+              <button className={"cx-env-control" + (open ? " active" : "")} onClick={toggle} title="Select local environment">
+                <Code size={16} />
+                <span className="cx-env-value">No environment</span>
+                <Caret />
+              </button>
+            )}
+          >
+            {(close) => (
+              <div className="cx-menu environment-menu">
+                <PopSection label="Local environment">
+                  <PopItem icon={<Code size={15} />} title="No environment" desc="Use AgentRunner's current local runtime" active onClick={close} />
+                </PopSection>
+              </div>
+            )}
+          </Popover>
+
+          <Popover
+            align="left"
+            panelClass="cx-branch-popover"
+            onOpen={() => {
+              setBranchQuery("");
+              if (ws.trim()) AR.gitBranches(ws.trim()).then((info) => {
+                setBranchInfo(info);
+                if (!startingBranch) setStartingBranch((info.current === "HEAD" ? "" : info.current) || info.branches[0] || "");
+              }).catch(() => {});
+            }}
+            trigger={(open, toggle) => (
+              <button className={"cx-env-control branch" + (open ? " active" : "")} onClick={toggle} title={branchInfo?.isRepo ? "Choose starting branch" : "No Git branch available"} disabled={!branchInfo?.isRepo}>
+                <BranchIcon />
+                <span className="cx-env-value">{branchLabel}</span>
+                {branchInfo?.isRepo && <Caret />}
+              </button>
+            )}
+          >
+            {(close) => (
+              <div className="cx-menu branch-menu">
+                <label className="cx-project-search cx-branch-search">
+                  <MagnifyingGlass size={16} />
+                  <input
+                    data-popover-autofocus
+                    aria-label="Search branches"
+                    placeholder="Search branches"
+                    value={branchQuery}
+                    onChange={(event) => setBranchQuery(event.target.value)}
+                  />
+                </label>
+                <PopSection label={runLocation === "worktree" ? "Start worktree from" : `Local branch${branchInfo?.dirty ? ` · ${branchInfo.dirty} uncommitted` : ""}`}>
+                  {filteredBranches.map((branch) => (
+                    <PopItem key={branch} icon={<BranchIcon />} title={branch} active={branch === branchLabel} onClick={async () => {
+                      if (runLocation === "worktree") {
+                        setStartingBranch(branch);
                         close();
-                        openPrompt({
-                          title: "New branch",
-                          label: "branch name",
-                          onSubmit: async (branch) => {
-                            try {
-                              await AR.gitCheckout(ws.trim(), branch, true);
-                              setBranchInfo({ ...branchInfo, current: branch, branches: [branch, ...branchInfo.branches] });
-                              toast(`Created & switched to ${branch}`, "info");
-                            } catch (error: any) {
-                              props.onError(error.message);
-                            }
-                          },
-                        });
-                      }}
-                    />
-                  </PopSection>
-                )}
+                        return;
+                      }
+                      try {
+                        await AR.gitCheckout(ws.trim(), branch, false);
+                        setBranchInfo((current) => current ? { ...current, current: branch } : current);
+                        setStartingBranch(branch);
+                        toast(`Switched to ${branch}`, "info");
+                        close();
+                      } catch (error: any) {
+                        props.onError(error.message);
+                      }
+                    }} />
+                  ))}
+                  {branchInfo?.branches.length === 0 && <div className="pop-empty">No branches yet</div>}
+                  {(branchInfo?.branches.length || 0) > 0 && filteredBranches.length === 0 && <div className="pop-empty">No branches found</div>}
+                </PopSection>
               </div>
             )}
           </Popover>

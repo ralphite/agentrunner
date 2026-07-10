@@ -56,10 +56,11 @@ export function SessionView({ sid }: { sid: string }) {
   const [goalEdit, setGoalEdit] = useState<string | null>(null);
   const [view, setView] = useState<"chat" | "diff">("chat");
   const [findOpen, setFindOpen] = useState(false);
+  const [wideViewport, setWideViewport] = useState(() => window.innerWidth > 900);
   // Supervision starts CLOSED and remembers the user's choice (W5): an empty
   // panel taking a third of the screen on every session was the single most
   // asked-about annoyance. A pending approval force-opens it (see below).
-  const [supervisionOpen, setSupervisionOpen] = useState(() => localStorage.getItem("arwebui.supervision") === "1");
+  const [supervisionOpen, setSupervisionOpen] = useState(() => window.innerWidth > 900 && localStorage.getItem("arwebui.supervision") === "1");
   const setSupervision = (open: boolean) => {
     setSupervisionOpen(open);
     try {
@@ -75,6 +76,13 @@ export function SessionView({ sid }: { sid: string }) {
   // journal seq → local upload paths, so a confirmed user bubble keeps its
   // image thumbnails (the journal itself only records a CAS ref).
   const sentImages = useRef(new Map<number, string[]>());
+  const approvalAutoOpenedSupervision = useRef(false);
+
+  useEffect(() => {
+    const syncViewport = () => setWideViewport(window.innerWidth > 900);
+    window.addEventListener("resize", syncViewport);
+    return () => window.removeEventListener("resize", syncViewport);
+  }, []);
 
   // ⌘F / Ctrl-F opens the in-chat Find bar (Codex's Search chat). We take over
   // the browser's native find since Find operates on the rendered timeline.
@@ -362,13 +370,25 @@ export function SessionView({ sid }: { sid: string }) {
     },
   };
 
-  // A pending approval must be seen: it force-opens the panel for as long as
-  // approvals are open (not persisted — the user's remembered preference
-  // stays whatever they chose last).
+  // The inline approval card is the primary action. On roomy desktop layouts
+  // Supervision may reinforce it, but narrow screens must not be covered by an
+  // auto-open overlay. If we opened the panel, close it when attention clears.
   const hasApprovals = openApprovals.length > 0;
   useEffect(() => {
-    if (hasApprovals) setSupervisionOpen(true);
-  }, [hasApprovals]);
+    if (hasApprovals && view === "chat" && wideViewport) {
+      if (!supervisionOpen) {
+        approvalAutoOpenedSupervision.current = true;
+        setSupervisionOpen(true);
+      }
+      return;
+    }
+    if (approvalAutoOpenedSupervision.current) {
+      approvalAutoOpenedSupervision.current = false;
+      setSupervisionOpen(false);
+    }
+  }, [hasApprovals, view, wideViewport]);
+
+  const showSupervision = supervisionOpen && view === "chat";
 
   return (
     <div className="session-view">
@@ -397,7 +417,10 @@ export function SessionView({ sid }: { sid: string }) {
         <button className={`topbar-tool${view === "diff" ? " active" : ""}`} onClick={() => setView(view === "diff" ? "chat" : "diff")} title="Review workspace changes">
           <Files size={16} /> Changes
         </button>
-        <button className={`topbar-tool${supervisionOpen ? " active" : ""}`} onClick={() => setSupervision(!supervisionOpen)} title="Show supervision">
+        <button className={`topbar-tool${showSupervision ? " active" : ""}`} onClick={() => {
+          if (view === "diff") setView("chat");
+          setSupervision(!showSupervision);
+        }} title="Show supervision">
           <UsersThree size={16} /> Supervision
           {attentionCount > 0 && <span className="topbar-attention">{attentionCount}</span>}
         </button>
@@ -476,7 +499,7 @@ export function SessionView({ sid }: { sid: string }) {
       {view === "chat" && findOpen && (
         <FindBar scope={() => document.querySelector<HTMLElement>(".timeline")} onClose={() => setFindOpen(false)} />
       )}
-      <div className={`session-layout${supervisionOpen ? "" : " single"}`}>
+      <div className={`session-layout${showSupervision ? "" : " single"}`}>
         <main className="session-primary">
           {view === "diff" ? (
             <DiffView sid={sid} />
@@ -494,7 +517,7 @@ export function SessionView({ sid }: { sid: string }) {
                 typing={typing}
                 showSys={showSys}
                 sentImages={sentImages.current}
-                statusLine={(
+                statusLine={running || hasApprovals || needsRecovery ? (
                   <div className={`run-status-line ${status.cls}`}>
                     {running && <span className="spin" />}
                     <span>{running ? "Working" : status.text}</span>
@@ -504,7 +527,7 @@ export function SessionView({ sid }: { sid: string }) {
                       </span>
                     )}
                   </div>
-                )}
+                ) : undefined}
                 approvalSlot={openApprovals.length > 0 ? (
                   <div className="approval-stack">
                     {openApprovals.map((approval) => (
@@ -546,7 +569,7 @@ export function SessionView({ sid }: { sid: string }) {
             </>
           )}
         </main>
-        {supervisionOpen && (
+        {showSupervision && (
           <SupervisionPanel
             loading={!inspectReady}
             goal={goal}

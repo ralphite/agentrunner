@@ -8,10 +8,7 @@ export function Home() {
   return (
     <div className="home">
       <div className="hero">
-        <div className="home-brand">AgentRunner</div>
-        <h2>What should we work on?</h2>
         <Composer variant="home" onError={(m) => toast(m)} />
-        <p className="hero-hint">Describe the outcome. Adjust project, access, or model below; Task options adds goals, loops, and teams.</p>
       </div>
     </div>
   );

@@ -289,8 +289,7 @@ export function TimelineView({
   return (
     <div className="timeline" ref={ref} onScroll={onScroll}>
       <div className="tl-inner">
-        {visible.length === 0 && statusLine}
-        {visible.map((it, index) => {
+        {visible.map((it) => {
           const ts = "ts" in it ? it.ts : undefined;
           const gap = timeGap(lastTs, ts);
           if (ts) lastTs = ts;
@@ -301,10 +300,10 @@ export function TimelineView({
                 <div className="worked-row">Worked for {formatWorkDuration(durations.get(it.key)!)} <CaretRight size={15} /></div>
               )}
               <Item it={it} sentImages={sentImages} onContinue={it.kind === "assistant" ? onContinue : undefined} />
-              {index === 0 && statusLine}
             </Fragment>
           );
         })}
+        {statusLine}
         {approvalSlot}
         {typing && (
           <div className="msg assistant">

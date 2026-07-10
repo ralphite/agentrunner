@@ -1103,12 +1103,19 @@ limits:
   Projects→task，中间单一 thread，固定 Changes 审阅入口，底部 follow-up
   composer。AgentRunner 独有 Goal / agent tree / attention / background
   handles 仅作为同一视觉语言下可收起的 Supervision 次级面板。
-- New task 环境条只重排既有 workspace / local run kind / git-branch API，仍由
-  同一 composer state 提交；每轮 `Worked` 只由相邻 human input 与该轮最终
+- New task 环境条严格采用 Codex 的四个独立语义控件：Project、Local/New
+  worktree、Local environment、Branch；它们仍只重排既有 workspace / run
+  kind / git-branch API，并由同一 composer state 提交。Project picker 负责
+  recent/search/new/projectless，Branch picker 负责 ref 搜索；New worktree
+  必须把 selected ref 传给后端并在该 ref 上创建 detached worktree，不把
+  branch 混入 Project 菜单。每轮 `Worked` 只由相邻 human input 与该轮最终
   assistant message 的 journal timestamp 派生。Changes outcome 只读既有
   diff contract，并只提供真实 `Review`；无 durable feedback/rollback contract
   时不画点赞或 `Undo`。`Continue in new task` 复用 checkpoint + fork/worktree
   contract，不另造复制会话语义。
+- Supervision 是 AgentRunner 叠加层：approval 可在宽屏自动展开，但 resize
+  到窄屏必须撤回自动面板；用户手动打开仍有效。切到 Changes 时只显示 diff，
+  不允许 Supervision 与 diff 抢占同一主区域。
 - approval 仍通过 durable `approve` command；卡片默认只投影动作、对象与
   scope，raw args/gates 折入 Details。UI 只提供当前已实现的 Approve once /
   Deny，不用文案暗示本次会改变冻结 permission layers。

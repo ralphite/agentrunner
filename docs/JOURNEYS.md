@@ -309,7 +309,7 @@ GAPS.md，本文件只回答"产品要做什么"。
 
 **覆盖功能**：`动态角色 spawn(inline role)` `子提权用户审批(escalate)` `树内消息(send_message,兄弟直发)` `静止子唤醒(revive,context 延续)` `多次回执` `用户直达成员(ar send 子会话)` `子会话 live 镜像` `团队面板` `树级预算/审计`（底座复用 UJ-18 全部机制）
 
-### UJ-24 Web UI 驾驶 AgentRunner `基础` `✅ INC-19/23（2026-07-10）`
+### UJ-24 Web UI 驾驶 AgentRunner `基础` `✅ INC-19/23/40（2026-07-10）`
 
 **场景**：用户像使用 Codex 一样，从项目/任务层进入一个真实 AgentRunner
 会话，并在同一工作台完成派活、续聊、监督、审批与改动审阅。
@@ -319,8 +319,9 @@ GAPS.md，本文件只回答"产品要做什么"。
    不完整、父/子 session 都能直接打开和 deep link；hover 同屏提供 pin /
    archive 与 project/branch/status 预览，键盘 context menu 保持等价。
 2. New task 只出现一个 composer；默认只露输入、附件、access、model、
-   send，project/Local/branch 作为上缘环境条常驻；高级 Goal/Loop/Best-of-N/
-   spec 启动器收在 Task options。
+   send；上缘严格按 Codex 拆成 Project、Local/New worktree、Local
+   environment、Branch 四个独立控件，Project/Branch 可搜索且 worktree
+   从所选 ref 创建；高级 Goal/Loop/Best-of-N/spec 收在 Task options。
 3. 中央 thread 按 journal 投影 user/assistant/tool 事实；program/agent/control
    输入默认只在 system events 中查看，绝不冒充用户；底部 follow-up 延续
    同一 session；每轮最终 answer 显示真实 Worked duration、Copy/Continue，
@@ -329,7 +330,8 @@ GAPS.md，本文件只回答"产品要做什么"。
    gates 折入 Details。Approve once 与 Deny 分立，不暗示未实现的权限。
 5. 宽屏右侧 Supervision 集中 Goal / Agents / Attention / Background work；
    agent 按 session 去重，审批与 recovery 共用 Attention，点成员进入完整
-   只读子会话；窄屏默认收起，移动端以带 scrim 的 sidebar/panel 打开。
+   只读子会话；审批只在宽屏自动打开 Supervision，窄屏进入/resize 都撤回
+   自动面板，仍可由用户手动打开，且 Changes 永不被 Supervision 覆盖。
 6. Web UI 重启后同一 deep link、共享 store 历史、Goal/Repeating/Scheduled
    driver 和本地 pin/archive/theme 设置仍在；UI 只是公开 CLI/journal/
    inspect/ps/diff 的 projection；首次 session fetch 成功前显示 loading，不用

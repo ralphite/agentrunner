@@ -21,6 +21,7 @@ export function Popover({
   const [open, setOpen] = useState(false);
   const [drop, setDrop] = useState<"up" | "down">("up");
   const [maxH, setMaxH] = useState<number | undefined>(undefined);
+  const [xShift, setXShift] = useState(0);
   const wrapRef = useRef<HTMLDivElement>(null);
   const close = () => setOpen(false);
 
@@ -39,10 +40,22 @@ export function Popover({
     const down = above < 360 && below > above;
     setDrop(down ? "down" : "up");
     setMaxH(Math.max(160, (down ? below : above) - 16));
+    const panel = el.querySelector<HTMLElement>(".pop-panel");
+    if (panel) {
+      const panelRect = panel.getBoundingClientRect();
+      const pad = 8;
+      setXShift(panelRect.left < pad ? pad - panelRect.left : panelRect.right > window.innerWidth - pad ? window.innerWidth - pad - panelRect.right : 0);
+    }
+    requestAnimationFrame(() => {
+      el.querySelector<HTMLElement>("[data-popover-autofocus]")?.focus();
+    });
   }, [open]);
   const toggle = () =>
     setOpen((v) => {
-      if (!v) onOpen?.();
+      if (!v) {
+        setXShift(0);
+        onOpen?.();
+      }
       return !v;
     });
 
@@ -52,7 +65,23 @@ export function Popover({
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {
+        setOpen(false);
+        wrapRef.current?.querySelector<HTMLElement>(":scope > button, :scope > * > button")?.focus();
+        return;
+      }
+      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
+      const items = [...(wrapRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') || [])];
+      if (!items.length) return;
+      const active = document.activeElement as HTMLElement | null;
+      const index = items.indexOf(active as HTMLElement);
+      let next = 0;
+      if (e.key === "End") next = items.length - 1;
+      else if (e.key === "Home") next = 0;
+      else if (e.key === "ArrowUp") next = index <= 0 ? items.length - 1 : index - 1;
+      else next = index < 0 || index === items.length - 1 ? 0 : index + 1;
+      e.preventDefault();
+      items[next].focus();
     };
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onKey);
@@ -62,14 +91,29 @@ export function Popover({
     };
   }, [open]);
 
+  const onKeyDownCapture = (event: React.KeyboardEvent) => {
+    if (open || event.key !== "ArrowDown") return;
+    const target = event.target as HTMLElement;
+    if (!target.closest("button")) return;
+    event.preventDefault();
+    setXShift(0);
+    onOpen?.();
+    setOpen(true);
+    requestAnimationFrame(() => {
+      const auto = wrapRef.current?.querySelector<HTMLElement>("[data-popover-autofocus]");
+      const first = wrapRef.current?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])');
+      (auto || first)?.focus();
+    });
+  };
+
   return (
-    <div className="pop-wrap" ref={wrapRef}>
+    <div className="pop-wrap" ref={wrapRef} onKeyDownCapture={onKeyDownCapture}>
       {trigger(open, toggle)}
       {open && (
         <div
           className={`pop-panel pop-${align} pop-${drop} ${panelClass}`}
           role="menu"
-          style={maxH !== undefined ? { maxHeight: maxH } : undefined}
+          style={{ maxHeight: maxH, marginLeft: xShift || undefined }}
         >
           {children(close)}
         </div>

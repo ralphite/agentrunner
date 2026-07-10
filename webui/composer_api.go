@@ -130,7 +130,9 @@ func (s *server) handleGitBranches(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp["isRepo"] = true
-	if cur, ok := git(r.Context(), dir, "rev-parse", "--abbrev-ref", "HEAD"); ok {
+	// `branch --show-current` is intentionally empty for detached worktrees.
+	// `rev-parse --abbrev-ref HEAD` returns the misleading literal "HEAD".
+	if cur, ok := git(r.Context(), dir, "branch", "--show-current"); ok {
 		resp["current"] = strings.TrimSpace(cur)
 	}
 	branches := []string{}

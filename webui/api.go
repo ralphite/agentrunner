@@ -402,6 +402,7 @@ func (s *server) handleWorktree(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Repo   string `json:"repo"`
 		Branch string `json:"branch"`
+		Ref    string `json:"ref"`
 	}
 	if !readBody(w, r, &req) {
 		return
@@ -432,6 +433,15 @@ func (s *server) handleWorktree(w http.ResponseWriter, r *http.Request) {
 		args = append(args, "-b", b, dir)
 	} else {
 		args = append(args, "--detach", dir)
+		if ref := strings.TrimSpace(req.Ref); ref != "" {
+			// Prove the ref names a commit before git worktree receives it; the
+			// end-of-options marker prevents option-like input from being parsed.
+			if _, err := run("rev-parse", "--verify", "--end-of-options", ref+"^{commit}"); err != nil {
+				badRequest(w, "invalid starting ref: "+ref)
+				return
+			}
+			args = append(args, ref)
+		}
 	}
 	if out, err := run(args...); err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "git worktree add failed", "stderr": out})

@@ -1,12 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -216,5 +219,97 @@ func TestNewRuntimeDirNaming(t *testing.T) {
 	}
 	if !strings.HasPrefix(filepath.Base(second), base) {
 		t.Fatalf("collision suffix should extend %q, got %q", base, second)
+	}
+}
+
+func TestHandleGitBranchesDetachedDoesNotExposeHEADAsBranch(t *testing.T) {
+	repo := t.TempDir()
+	mustGit := func(dir string, args ...string) string {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	mustGit(repo, "init", "-q", "-b", "main")
+	mustGit(repo, "config", "user.name", "QA")
+	mustGit(repo, "config", "user.email", "qa@example.invalid")
+	if err := os.WriteFile(filepath.Join(repo, "proof.txt"), []byte("main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mustGit(repo, "add", "proof.txt")
+	mustGit(repo, "commit", "-q", "-m", "base")
+	worktree := filepath.Join(t.TempDir(), "detached")
+	mustGit(repo, "worktree", "add", "-q", "--detach", worktree, "main")
+
+	s := &server{}
+	req := httptest.NewRequest("GET", "/api/git/branches?dir="+worktree, nil)
+	rec := httptest.NewRecorder()
+	s.handleGitBranches(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Current  string   `json:"current"`
+		Branches []string `json:"branches"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Current != "" || len(resp.Branches) == 0 || resp.Branches[0] != "main" {
+		t.Fatalf("detached branch response = %+v", resp)
+	}
+}
+
+func TestHandleWorktreeStartsAtSelectedRef(t *testing.T) {
+	repo := t.TempDir()
+	mustGit := func(args ...string) string {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", repo}, args...)...)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	mustGit("init", "-q", "-b", "main")
+	mustGit("config", "user.name", "QA")
+	mustGit("config", "user.email", "qa@example.invalid")
+	if err := os.WriteFile(filepath.Join(repo, "proof.txt"), []byte("main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mustGit("add", "proof.txt")
+	mustGit("commit", "-q", "-m", "main")
+	mainHash := mustGit("rev-parse", "main")
+	mustGit("checkout", "-q", "-b", "other")
+	if err := os.WriteFile(filepath.Join(repo, "proof.txt"), []byte("other\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mustGit("commit", "-q", "-am", "other")
+
+	s := &server{runtimeDir: t.TempDir()}
+	body := bytes.NewBufferString(`{"repo":` + strconv.Quote(repo) + `,"ref":"main"}`)
+	req := httptest.NewRequest("POST", "/api/worktree", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	s.handleWorktree(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("git", "-C", resp.Path, "rev-parse", "HEAD")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("worktree head: %v\n%s", err, out)
+	}
+	if got := strings.TrimSpace(string(out)); got != mainHash {
+		t.Fatalf("worktree HEAD = %s, want main %s", got, mainHash)
 	}
 }
