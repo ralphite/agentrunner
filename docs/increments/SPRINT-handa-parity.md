@@ -26,7 +26,7 @@
 | # | 项 | 规模 | 状态 | 备注 |
 |---|---|---|---|---|
 | 32 | stdin 管道 prompt（ar run/new/send 读 stdin） | S | ✅ done (INC-28) | 双闸门全绿；真 Gemini 管道开场+`-` 多行续聊；/dev/null 按非管道处理记档 |
-| 23 | 用户消息折叠（Timeline >10 行 Show more） | S | ⬜ | 纯前端 |
+| 23 | 用户消息折叠（Timeline >10 行 Show more） | S | 🔧 in-progress (INC-36) | 纯前端 |
 | 9 | progress_update 内部工具 + fold + Supervision 区 | S/M | ⬜ | 按 goal_complete/publish_note 先例，不过管线 |
 | 10 | 后台任务 notify 门 + settle 结构化载荷 | S | ⬜ | 唤醒已存在（勘误见 PARITY §4.1）；user-role 回流 |
 | 11 | artifact 消费面（工具读回/CLI/webui 三面） | M | ⬜ | ArtifactPublished 已 fold，纯 additive |
