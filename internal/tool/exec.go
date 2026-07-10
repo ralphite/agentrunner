@@ -238,6 +238,7 @@ func (e *Executor) grep(rawArgs json.RawMessage) Result {
 		Path            string `json:"path"`
 		Glob            string `json:"glob"`
 		CaseInsensitive bool   `json:"case_insensitive"`
+		Multiline       bool   `json:"multiline"`
 		OutputMode      string `json:"output_mode"`
 		After           int    `json:"-A"`
 		Before          int    `json:"-B"`
@@ -255,10 +256,20 @@ func (e *Executor) grep(rawArgs json.RawMessage) Result {
 	default:
 		return errResult("grep: bad output_mode %q (want content|files_with_matches|count)", in.OutputMode)
 	}
-	// Case-insensitive matching (INC-22, #35): prepend the RE2 inline flag.
-	pat := in.Pattern
+	// Inline RE2 flags (INC-22 case_insensitive; INC-27 multiline). multiline
+	// adds `s` (dotall: `.` matches `\n`) and `m` (`^`/`$` anchor at line
+	// boundaries) so a pattern can span lines while keeping per-line anchor
+	// semantics — making multiline a strict superset of the line-by-line mode.
+	flags := ""
 	if in.CaseInsensitive {
-		pat = "(?i)" + pat
+		flags += "i"
+	}
+	if in.Multiline {
+		flags += "sm"
+	}
+	pat := in.Pattern
+	if flags != "" {
+		pat = "(?" + flags + ")" + pat
 	}
 	re, err := regexp.Compile(pat)
 	if err != nil {
@@ -340,6 +351,47 @@ func (e *Executor) grep(rawArgs json.RawMessage) Result {
 		filesScanned++
 		rel, _ := filepath.Rel(e.WS.Root(), path)
 		lines := strings.Split(content, "\n")
+		// Multiline (INC-27): match the WHOLE file so a pattern can span lines.
+		// Each match reports its starting line; context is taken around the
+		// match's start/end lines.
+		if in.Multiline {
+			for _, loc := range re.FindAllStringIndex(content, -1) {
+				fileCounts[rel]++
+				if !contentMode {
+					continue
+				}
+				if len(matches) >= limit {
+					truncated = true
+					return fs.SkipAll
+				}
+				startLine := 1 + strings.Count(content[:loc[0]], "\n")
+				matchText := content[loc[0]:loc[1]]
+				m := grepMatch{Path: rel, Line: startLine, Text: clampGrepLine(r, matchText)}
+				if before > 0 {
+					lo := startLine - 1 - before
+					if lo < 0 {
+						lo = 0
+					}
+					for _, bl := range lines[lo : startLine-1] {
+						m.Before = append(m.Before, clampGrepLine(r, bl))
+					}
+				}
+				if after > 0 {
+					endLine := startLine + strings.Count(matchText, "\n")
+					if endLine < len(lines) {
+						hi := endLine + after
+						if hi > len(lines) {
+							hi = len(lines)
+						}
+						for _, al := range lines[endLine:hi] {
+							m.After = append(m.After, clampGrepLine(r, al))
+						}
+					}
+				}
+				matches = append(matches, m)
+			}
+			return nil
+		}
 		for i, line := range lines {
 			if !re.MatchString(line) {
 				continue
