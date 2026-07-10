@@ -3,7 +3,6 @@ package daemon
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/ralphite/agentrunner/internal/protocol"
@@ -33,24 +32,23 @@ func NewApprovalBroker() *ApprovalBroker {
 
 func key(session, approvalID string) string { return session + "/" + approvalID }
 
-// Register goes idle a NEW ask and returns the id the answer must address —
-// unique even when deterministic call ids collide across concurrently-asking
-// siblings (S6 review: two children asking at turn 1/index 0 share
-// apr-eff-tool-call_1_0): a taken id gets a #<n> suffix, and the CALLER must
-// surface the returned id, not the original. Pair with Wait.
+// Register goes idle a NEW ask and returns the id the answer must address.
+// Uniqueness is PER SESSION KEY: concurrently-asking siblings (S6 review:
+// two children asking at turn 1/index 0 share apr-eff-tool-call_1_0) hold
+// distinct session keys, and the Target routing addresses each precisely.
+// The historic GLOBAL suffix de-dupe wedged unrelated sessions on a shared
+// daemon (QA Round4 F-J1): every session parking on the same deterministic
+// call id got an #<n> id in the broker while its journal — the id inspect
+// and `answer with:` surface — kept the original, so the user's approve
+// could never match and the command pump ground to a halt. A same-key
+// collision (not reachable from today's serial-ask loop) still suffixes,
+// and the CALLER must surface the returned id. Pair with Wait.
 func (b *ApprovalBroker) Register(session, approvalID string) (string, <-chan ApprovalAnswer) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	id := approvalID
 	for i := 2; ; i++ {
-		taken := false
-		for pendingKey := range b.pending {
-			if strings.HasSuffix(pendingKey, "/"+id) {
-				taken = true
-				break
-			}
-		}
-		if !taken {
+		if _, taken := b.pending[key(session, id)]; !taken {
 			break
 		}
 		id = fmt.Sprintf("%s#%d", approvalID, i)

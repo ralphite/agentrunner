@@ -188,3 +188,38 @@ func TestChildApprovalRoutesThroughRootHost(t *testing.T) {
 		t.Fatalf("ack = %+v", ack)
 	}
 }
+
+// Two SESSIONS parking on the same deterministic approval id must both keep
+// the ORIGINAL id: the historic global suffix de-dupe handed the second one
+// "#2" in the broker while its journal kept the original, so the surfaced
+// `approve` command could never match (QA Round4 F-J1). Uniqueness now
+// lives on the full (session, id) key; a same-key re-register still
+// suffixes.
+func TestRegisterKeepsIDAcrossSessions(t *testing.T) {
+	b := NewApprovalBroker()
+	idA, chA := b.Register("sess-a", "apr-eff-tool-call_1_0")
+	idB, chB := b.Register("sess-b", "apr-eff-tool-call_1_0")
+	if idA != "apr-eff-tool-call_1_0" || idB != "apr-eff-tool-call_1_0" {
+		t.Fatalf("cross-session ids = %q, %q; want both original", idA, idB)
+	}
+	if !b.Answer("sess-b", idB, ApprovalAnswer{Approve: true}) {
+		t.Fatal("answer for sess-b did not match")
+	}
+	select {
+	case a := <-chB:
+		if !a.Approve {
+			t.Fatal("sess-b got the wrong answer")
+		}
+	default:
+		t.Fatal("sess-b channel empty")
+	}
+	select {
+	case <-chA:
+		t.Fatal("sess-a must not receive sess-b's answer")
+	default:
+	}
+	// Same-key collision still de-dupes with a suffix.
+	if id2, _ := b.Register("sess-a", "apr-eff-tool-call_1_0"); id2 != "apr-eff-tool-call_1_0#2" {
+		t.Fatalf("same-key re-register = %q, want #2 suffix", id2)
+	}
+}

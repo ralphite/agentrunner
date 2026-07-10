@@ -1816,3 +1816,34 @@ max；context 窗口钳制 [0,20] 防超大 -C 炸输出；文件边界不越界
 qa/runs/2026-07-09-QA31/。multiline（跨行 regex，改匹配循环）拆余项
 #12c。check.sh 全绿（绿门排除已知环境测试）。grep 参数面（case/glob/
 output_mode/context）至此对齐 Claude Code 主要参数，仅剩 multiline。
+
+---
+
+## 2026-07-10 QA Round 4（自由式全功能探索）: F-J1 审批寻址断裂——broker 全局后缀查重根修
+
+**Round 4 方式**：三路完全自由式探索（I 采用评估视角 / J 边角猎人 /
+K webui 新 UX 面）。J 挖出本次 QA 系列**最重**的缺陷簇：
+
+**F-J1（P1，含不可恢复僵尸子例）**：共享 daemon 上审批 park 的会话，
+send 一句再 approve 即永久楔死；close/stop/interrupt 全部失效；
+inspect 持续指示用户去 approve 一个永远无效的 id。九个楔死会话 +
+两份 journal 证据。主 agent 活体解剖定位**双根因**：
+
+1. **broker Register 的全局后缀查重**：跨会话按 "/<id>" 后缀判重，
+   共享 daemon 上多个会话 park 在同一确定性 call id（apr-eff-tool-
+   call_1_0）时后来者全部注册成 "#n" 后缀 id；而 journal 的
+   approval_requested、inspect 的 answer with、replay 全部展示**原始
+   id**（带后缀的真实 id 只上了 live 流与通知行）——用户照观察面
+   approve 永不匹配。修：唯一性收敛到完整 (session,id) 键（sibling
+   children 各持独立 session 键 + Target 路由已精确寻址，跨会话
+   全局唯一化是纯害）；同键真碰撞仍后缀。钉
+   TestRegisterKeepsIDAcrossSessions。
+2. **pump 对不可投递 approval 的无限重试**：answerApproval 恒 false
+   时 25ms 重试永不出队 → 队头阻塞冻结该会话全部后续命令（close/
+   stop/send 均排队即死——"6c11 连 close 四次失败"的机制）。修：
+   有限重试（~10s）后放弃出队 + slog + hub 流上可见 error 事件；
+   钉 TestPumpDropsUndeliverableApprovalAndMovesOn。
+
+**为什么此前三轮没炸**：单会话/低并发下 broker 无同名注册，原始 id
+恰好可用；J 批量制造 9+ 个同名 ask 靶子后必然踩中。老楔死会话在
+daemon 重启 revive 后将以每会话独立键重注册，approve 即可解。

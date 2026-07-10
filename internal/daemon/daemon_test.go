@@ -759,3 +759,41 @@ collect:
 		t.Fatalf("child attach leaked the root stream: %q", joined)
 	}
 }
+
+// An approval answer whose ask never appears in the broker must not
+// head-of-line-block the command pump forever: it is dropped after the
+// bounded retry window and the commands queued behind it still deliver
+// (QA Round4 F-J1 — one undeliverable approve froze send/close/stop for
+// the rest of the session's life).
+func TestPumpDropsUndeliverableApprovalAndMovesOn(t *testing.T) {
+	h := newHostedRun("s", nil, true)
+	defer h.finish()
+	h.mu.Lock()
+	h.approvalGiveUp = 3
+	h.answerApproval = func(protocol.SessionCommand) bool { return false }
+	h.mu.Unlock()
+
+	if !h.postCommand(protocol.SessionCommand{
+		CommandRef: protocol.CommandRef{CommandID: "cmd-apr"},
+		Kind:       protocol.CommandApproval,
+		Approval:   &protocol.ApprovalCommand{ApprovalID: "apr-x", Decision: "approve"},
+	}) {
+		t.Fatal("approval postCommand refused")
+	}
+	if !h.postCommand(protocol.SessionCommand{
+		CommandRef: protocol.CommandRef{CommandID: "cmd-input"},
+		Kind:       protocol.CommandInput,
+		Input:      &protocol.UserInput{Text: "queued behind the wedge"},
+	}) {
+		t.Fatal("input postCommand refused")
+	}
+
+	select {
+	case in := <-h.inbox:
+		if in.Text != "queued behind the wedge" {
+			t.Fatalf("unexpected input %q", in.Text)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("input never delivered: the undeliverable approval wedged the pump")
+	}
+}

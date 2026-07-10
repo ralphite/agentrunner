@@ -264,6 +264,9 @@ type hostedRun struct {
 	commandStop       chan struct{}
 	commandPumpWG     sync.WaitGroup
 	answerApproval    func(protocol.SessionCommand) bool
+	// approvalGiveUp caps delivery attempts per approval answer before the
+	// pump drops it (0 = the ~10s default); tests shrink it.
+	approvalGiveUp int
 	// stop tears the hosted loop down (决策 #32 agent switch): a plain ctx
 	// cancel — no mark, no ending; the journal simply stops mid-standby and
 	// the next send revives it (with whatever spec the journal then names).
@@ -291,6 +294,12 @@ func newHostedRun(id string, notify func(protocol.Event), interactive bool) *hos
 
 func (h *hostedRun) pumpCommands() {
 	defer h.commandPumpWG.Done()
+	// approvalTries counts delivery attempts per approval command: an answer
+	// whose ask never (re)appears in the broker must not head-of-line-block
+	// the queue forever (QA Round4 F-J1 — one undeliverable approve froze
+	// every later command, close included). The pump is one goroutine, so a
+	// plain map is safe.
+	approvalTries := map[string]int{}
 	for {
 		h.mu.Lock()
 		if h.done {
@@ -362,6 +371,24 @@ func (h *hostedRun) pumpCommands() {
 			}
 			delivered = answerApproval(cmd)
 			if !delivered {
+				// The retry window covers the loop still on its way to park
+				// (the ask registers moments after the command can arrive).
+				// Past it the ask simply is not there — a wrong or stale id —
+				// and retrying forever would wedge every command behind it.
+				limit := h.approvalGiveUp
+				if limit == 0 {
+					limit = 400 // ~10s at 25ms
+				}
+				approvalTries[cmd.CommandID]++
+				if approvalTries[cmd.CommandID] >= limit {
+					delete(approvalTries, cmd.CommandID)
+					slog.Warn("daemon: dropping undeliverable approval answer",
+						"session", h.id, "approval", cmd.Approval.ApprovalID)
+					h.Emit(protocol.Event{Kind: protocol.KindError, Session: h.id,
+						Text: fmt.Sprintf("approval answer %s could not be delivered (no matching pending ask) — dropped; inspect shows the current ask", cmd.Approval.ApprovalID)})
+					delivered = true
+					break
+				}
 				timer := time.NewTimer(25 * time.Millisecond)
 				select {
 				case <-timer.C:
@@ -369,6 +396,8 @@ func (h *hostedRun) pumpCommands() {
 					timer.Stop()
 					return
 				}
+			} else {
+				delete(approvalTries, cmd.CommandID)
 			}
 		default:
 			// PersistCommand rejects unknown kinds; keep the live pump safe if
