@@ -188,6 +188,12 @@ func (l *Loop) compactContext(ctx context.Context, ds *driveState, appendE Appen
 		Role:  provider.RoleUser,
 		Parts: []provider.Part{{Kind: provider.PartText, Text: "Now produce the summary as instructed."}},
 	})
+	// The summarizer call needs blob bytes exactly like a turn's own call:
+	// an image/file part left as a bare CAS ref makes the provider refuse
+	// the whole request and the compact silently fails (QA Round1 F-A03).
+	if err := l.inflateBlobs(msgs); err != nil {
+		return err
+	}
 	req := provider.CompleteRequest{
 		Model:     l.Spec.Model.ID,
 		MaxTokens: l.Spec.Model.MaxTokens,

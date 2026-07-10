@@ -25,6 +25,18 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 		return ExitUsage
 	}
 
+	// -h/--help right after a command always means "show help". Positional
+	// commands must never swallow it as a session id, path — or worse, a
+	// side effect (`init -h` used to write a file named "-h", `trust -h`
+	// trusted one). Flag-parsed commands return "" here and keep their
+	// flag-package help (QA Round1 F-A07/F-A09).
+	if len(args) >= 2 && (args[1] == "-h" || args[1] == "--help") {
+		if h := commandHelp(args[0]); h != "" {
+			fmt.Fprint(stdout, h)
+			return ExitOK
+		}
+	}
+
 	switch args[0] {
 	case "--version", "version":
 		fmt.Fprintf(stdout, "agentrunner %s (%s)\n", version, runtime.Version())
@@ -98,6 +110,46 @@ func usage() string {
 	return "usage: agentrunner <command> [flags] [args]\nrun `agentrunner help` for the command list, `agentrunner init` for an example spec\n"
 }
 
+// commandHelp is the -h text for commands that take positional arguments
+// only (no flag.FlagSet of their own). Flag-parsed commands return "" and
+// let the flag package print its richer default. Keep the usage lines in
+// sync with each command's own usage error.
+func commandHelp(cmd string) string {
+	switch cmd {
+	case "init":
+		return "usage: agentrunner init [path]\n\nWrite a commented example agent spec (default: spec.yaml).\nRefuses to overwrite an existing file.\n"
+	case "resume":
+		return "usage: agentrunner resume <session-id-or-prefix>\n\nResume an interrupted or crashed session in the foreground.\n"
+	case "close":
+		return "usage: agentrunner close <session-id-or-prefix>\n\nEnd a session gracefully. A later `send` revives it.\n"
+	case "interrupt":
+		return "usage: agentrunner interrupt <session-id-or-prefix>\n\nInterrupt the session's current turn (a no-op at idle).\nUnlike a queued message, this cancels in-flight work now.\n"
+	case "stop":
+		return "usage: agentrunner stop <session-id-or-prefix>\n\nStop a hosted run: graceful teardown, no mark; `send` revives it.\n"
+	case "compact":
+		return "usage: agentrunner compact <session-id-or-prefix> [focus directive]\n\nSummarize the session's context now. The optional focus directive\ntells the summarizer what to preserve.\n"
+	case "clear":
+		return "usage: agentrunner clear <session-id-or-prefix>\n\nDrop the session's context prefix (the journal keeps everything).\n"
+	case "goal":
+		return "usage: agentrunner goal <session-id-or-prefix> <attach|update|pause|resume|cancel> [flags]\n\nAttach a goal to the session (it keeps working until the goal is\nmet), or manage the one it has. attach/update take the goal text\nand optional --verify \"<cmd>\" / --max-checks N.\n"
+	case "agent":
+		return "usage: agentrunner agent <session-id-or-prefix> <spec.yaml>\n\nSwitch the session's agent spec; the conversation continues with\nthe new agent from the next message.\n"
+	case "kill":
+		return "usage: agentrunner kill <session-id-or-prefix> <handle>\n\nCancel one background handle (sub-agent or task); `ps` lists them.\n"
+	case "ps":
+		return "usage: agentrunner ps <session-id-or-prefix>\n\nList the session's in-flight background work (sub-agents, tasks).\n"
+	case "approve":
+		return "usage: agentrunner approve <session-id-or-prefix> <approval-id> <approve|deny> [reason]\n\nAnswer a pending permission ask. attach or inspect shows the id.\n"
+	case "barrier":
+		return "usage: agentrunner barrier <session-id-or-prefix>\n\nRecord a barrier (a fork point) in the session's journal;\n`fork --list` shows them, `fork` branches from one.\n"
+	case "sessions":
+		return "usage: agentrunner sessions [list]\n\nList sessions and their status.\n"
+	case "trust":
+		return "usage: agentrunner trust <dir>\n\nMark a workspace directory as trusted on this machine.\n"
+	}
+	return ""
+}
+
 // helpText is the top-level help (INC-2 BB-me-1/2): grouped commands with
 // one-line explanations and a quick start, so a first-time user can go from
 // zero to a visible reply without reading source or docs.
@@ -126,6 +178,8 @@ Conversations (need the daemon):
   stop <session>              stop a hosted run: graceful teardown, no mark; send revives it
   compact <session> [focus]   summarize the context now (optional focus directive)
   clear <session>             drop the context prefix (keep the full journal)
+  goal <session> attach "…"   attach a goal the session keeps working toward
+                              (also: goal <session> update|pause|resume|cancel)
 
 Background work (daemon):
   submit <spec.yaml> "task"   hand a one-shot run to the daemon, stream until it ends

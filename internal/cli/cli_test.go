@@ -2,6 +2,8 @@ package cli
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -55,5 +57,33 @@ func TestNoArgs(t *testing.T) {
 	code := Run(nil, "dev", &out, &errOut)
 	if code != ExitUsage {
 		t.Fatalf("exit code = %d, want %d", code, ExitUsage)
+	}
+}
+
+// -h/--help after a positional command must show help — never be swallowed
+// as a session id or path, and never trigger the command's side effect
+// (`init -h` used to write a file named "-h", `trust -h` trusted one).
+// QA Round1 F-A07/F-A09.
+func TestPositionalCommandsHonorHelpFlag(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	for _, cmd := range []string{
+		"init", "resume", "close", "interrupt", "stop", "compact", "clear",
+		"goal", "agent", "kill", "ps", "approve", "barrier", "sessions", "trust",
+	} {
+		for _, h := range []string{"-h", "--help"} {
+			var out, errOut bytes.Buffer
+			code := Run([]string{cmd, h}, "test", &out, &errOut)
+			if code != ExitOK {
+				t.Errorf("%s %s: exit %d, want 0 (stderr: %s)", cmd, h, code, errOut.String())
+			}
+			if !strings.Contains(out.String(), "usage: agentrunner "+cmd) {
+				t.Errorf("%s %s: stdout missing usage line:\n%s", cmd, h, out.String())
+			}
+		}
+	}
+	// The old side effect: no file named -h may appear.
+	if _, err := os.Stat(filepath.Join(dir, "-h")); err == nil {
+		t.Fatal("init -h wrote a file named -h")
 	}
 }

@@ -81,7 +81,7 @@ const SLASH: SlashCmd[] = [
 const riskDot = (risk: string) => <span className={"risk-dot " + risk} />;
 
 export function Composer(props: ComposerProps) {
-  const { select, selectRun, refreshSessions, refreshRuns, openModal, toast } = useStore();
+  const { select, selectRun, refreshSessions, refreshRuns, openModal, openPrompt, toast } = useStore();
   const isSession = props.variant === "session";
 
   // Per-session draft: initialize from what was typed here last time (the
@@ -764,9 +764,17 @@ export function Composer(props: ComposerProps) {
 
           {/* permission mode pill */}
           {isSession ? (
-            <button className={"cx-pill cx-mode " + (sessionAccess?.risk || "low")} title="Approval mode is set when the session is created and can't change mid-session" disabled>
-              {riskDot(sessionAccess?.risk || "low")}
-              {sessionAccess?.label || "Ask to approve"}
+            <button
+              className={"cx-pill cx-mode " + (sessionAccess?.risk || "unknown")}
+              title={
+                sessionAccess
+                  ? "Approval mode is set when the session is created and can't change mid-session"
+                  : "This session's approval posture comes from its spec's permission rules (created outside this composer); approvals still surface here when a gate asks"
+              }
+              disabled
+            >
+              {riskDot(sessionAccess?.risk || "unknown")}
+              {sessionAccess?.label || "Spec-defined access"}
             </button>
           ) : (
             <Popover
@@ -866,9 +874,13 @@ export function Composer(props: ComposerProps) {
                     icon={<span>✎</span>}
                     title="Custom model id…"
                     onClick={() => {
-                      const id = window.prompt("Model id (provider stays " + provider + "):", model);
-                      if (id && id.trim()) chooseModel(provider, id.trim());
                       close();
+                      openPrompt({
+                        title: "Custom model id",
+                        label: "model id (provider stays " + provider + ")",
+                        initial: model,
+                        onSubmit: (id) => chooseModel(provider, id),
+                      });
                     }}
                   />
                 </PopSection>
@@ -906,7 +918,7 @@ export function Composer(props: ComposerProps) {
                 <div className="cx-menu wide">
                   <PopSection label="Workspace">
                     <PopItem icon={<span>✨</span>} title="New empty workspace" desc="A fresh directory under runtime/" onClick={async () => { try { setWs((await AR.makeWorkspace()).path); } catch (e: any) { props.onError(e.message); } close(); }} />
-                    <PopItem icon={<FolderIcon />} title="Enter a path…" desc="An absolute directory to work in" onClick={() => { const p = window.prompt("Absolute workspace path:", ws); if (p && p.trim()) setWs(p.trim()); close(); }} />
+                    <PopItem icon={<FolderIcon />} title="Enter a path…" desc="An absolute directory to work in" onClick={() => { close(); openPrompt({ title: "Workspace path", label: "absolute directory to work in", initial: ws, placeholder: "/path/to/workspace", onSubmit: (p) => setWs(p) }); }} />
                   </PopSection>
                   {ws && (
                     <div className="cx-ctx-path" title={ws}>
@@ -976,17 +988,21 @@ export function Composer(props: ComposerProps) {
                       <PopItem
                         icon={<PlusIcon />}
                         title="Create & checkout new branch…"
-                        onClick={async () => {
-                          const b = window.prompt("New branch name:");
+                        onClick={() => {
                           close();
-                          if (!b || !b.trim()) return;
-                          try {
-                            await AR.gitCheckout(ws.trim(), b.trim(), true);
-                            setBranchInfo({ ...branchInfo, current: b.trim(), branches: [b.trim(), ...branchInfo.branches] });
-                            toast(`Created & switched to ${b.trim()}`, "info");
-                          } catch (e: any) {
-                            props.onError(e.message);
-                          }
+                          openPrompt({
+                            title: "New branch",
+                            label: "branch name",
+                            onSubmit: async (b) => {
+                              try {
+                                await AR.gitCheckout(ws.trim(), b, true);
+                                setBranchInfo({ ...branchInfo, current: b, branches: [b, ...branchInfo.branches] });
+                                toast(`Created & switched to ${b}`, "info");
+                              } catch (e: any) {
+                                props.onError(e.message);
+                              }
+                            },
+                          });
                         }}
                       />
                     </PopSection>
@@ -1078,7 +1094,11 @@ function parseSlash(text: string, variant: "home" | "session"): { cmd: string; r
 function accessByMode(mode?: string) {
   if (mode === "plan") return ACCESS_LEVELS.find((a) => a.id === "plan")!;
   if (mode === "acceptEdits") return ACCESS_LEVELS.find((a) => a.id === "acceptEdits")!;
-  return ACCESS_LEVELS.find((a) => a.id === "ask")!;
+  // mode "default" cannot tell Full access from Ask — the difference lives
+  // in the spec's permissions rules. Guessing "ask" misled users into
+  // thinking a free-running session was gated (QA Round1 F-C3): report
+  // unknown instead and let the pill say so honestly.
+  return undefined;
 }
 
 // ---- inline icons (stroke, currentColor) ----

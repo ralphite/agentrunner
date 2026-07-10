@@ -40,7 +40,7 @@ type Provider struct {
 func New(_ context.Context) (*Provider, error) {
 	key := os.Getenv("ANTHROPIC_API_KEY")
 	if key == "" {
-		return nil, errors.New("ANTHROPIC_API_KEY not set")
+		return nil, errors.New("ANTHROPIC_API_KEY not set — export it, or put ANTHROPIC_API_KEY=<key> in a .env at the workspace root")
 	}
 	return &Provider{client: sdk.NewClient(option.WithAPIKey(key))}, nil
 }

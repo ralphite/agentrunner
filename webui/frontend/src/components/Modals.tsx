@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { AR } from "../api";
-import { useStore } from "../store";
+import { useStore, type ModalKind } from "../store";
 import type { SpecFile } from "../types";
 import { DEFAULT_DRIVER, DEFAULT_DRIVER_AGENT, DEFAULT_SPEC, DEFAULT_WORKER } from "../specs";
 import { displayTitle } from "../title";
+import { recallAccess, recallSpec, rememberAccess, rememberSpec } from "./sessionSpecs";
 
 function Modal({
   title,
@@ -33,8 +34,16 @@ function Modal({
 }
 
 export function Modals() {
-  const { modal } = useStore();
-  if (!modal) return null;
+  const { modal, prompt } = useStore();
+  return (
+    <>
+      {modal && <MainModal modal={modal} />}
+      {prompt && <PromptModal {...prompt} />}
+    </>
+  );
+}
+
+function MainModal({ modal }: { modal: NonNullable<ModalKind> }) {
   switch (modal.kind) {
     case "new":
       return <NewSessionModal initialMessage={modal.message} />;
@@ -53,8 +62,60 @@ export function Modals() {
   }
 }
 
+// PromptModal is the app-styled replacement for window.prompt (QA Round1
+// F-C1: the native dialog synchronously freezes the renderer and looks
+// nothing like the rest of the UI). It renders after (= on top of) the
+// main modal, so flows inside a modal can ask for one more string.
+function PromptModal({
+  title,
+  label,
+  initial,
+  placeholder,
+  onSubmit,
+}: {
+  title: string;
+  label?: string;
+  initial?: string;
+  placeholder?: string;
+  onSubmit: (value: string) => void;
+}) {
+  const { openPrompt } = useStore();
+  const [value, setValue] = useState(initial || "");
+  const close = () => openPrompt(null);
+  const submit = () => {
+    const v = value.trim();
+    if (!v) return;
+    close();
+    onSubmit(v);
+  };
+  return (
+    <Modal
+      title={title}
+      onClose={close}
+      footer={
+        <button className="primary" disabled={!value.trim()} onClick={submit}>
+          OK
+        </button>
+      }
+    >
+      {label && <label className="field">{label}</label>}
+      <input
+        type="text"
+        autoFocus
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") submit();
+          if (e.key === "Escape") close();
+        }}
+      />
+    </Modal>
+  );
+}
+
 function useWorkspace() {
-  const { toast } = useStore();
+  const { toast, openPrompt } = useStore();
   const [ws, setWs] = useState("");
   const mk = async () => {
     try {
@@ -65,15 +126,21 @@ function useWorkspace() {
   };
   // Codex "New worktree": create an isolated git worktree of a repo so the
   // agent's edits don't touch the user's checkout. Prompts for the repo path.
-  const mkWorktree = async () => {
-    const repo = window.prompt("Repo path to branch a new git worktree from:", ws.trim() || "");
-    if (!repo) return;
-    try {
-      setWs((await AR.makeWorktree(repo.trim(), "")).path);
-      toast("created worktree", "info");
-    } catch (e: any) {
-      toast(e.message);
-    }
+  const mkWorktree = () => {
+    openPrompt({
+      title: "New git worktree",
+      label: "repo path to branch the worktree from",
+      initial: ws.trim(),
+      placeholder: "/path/to/repo",
+      onSubmit: async (repo) => {
+        try {
+          setWs((await AR.makeWorktree(repo, "")).path);
+          toast("created worktree", "info");
+        } catch (e: any) {
+          toast(e.message);
+        }
+      },
+    });
   };
   return { ws, setWs, mk, mkWorktree };
 }
@@ -344,7 +411,16 @@ function ForkModal({ sid }: { sid: string }) {
       const r = await AR.fork(sid, barrier, ws.trim());
       close();
       await refreshSessions();
-      if (r.sid) select(r.sid);
+      if (r.sid) {
+        // The fork runs under the SOURCE session's spec: carry the
+        // remembered approval posture over so its composer pill reports
+        // the truth (QA Round1 F-C3).
+        const acc = recallAccess(sid);
+        if (acc) rememberAccess(r.sid, acc);
+        const spec = recallSpec(sid);
+        if (spec) rememberSpec(r.sid, spec);
+        select(r.sid);
+      }
     } catch (e: any) {
       toast(e.message);
     } finally {

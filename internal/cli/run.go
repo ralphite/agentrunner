@@ -99,6 +99,12 @@ func runCmd(args []string, recordMode bool, version string, stdout, stderr io.Wr
 		fmt.Fprintf(stderr, "usage: agentrunner %s [flags] <spec.yaml> \"task\"\n", name)
 		return ExitUsage
 	}
+	if rest[1] == "" {
+		// Catch it here like `send` does — an empty task otherwise reaches
+		// the provider and dies as a raw 400 (QA Round1 F-A05).
+		fmt.Fprintf(stderr, "agentrunner: %s needs a non-empty task\n", name)
+		return ExitUsage
+	}
 	if recordMode && *fixtureOut == "" {
 		fmt.Fprintf(stderr, "record-fixture: -o <file> is required\n")
 		return ExitUsage

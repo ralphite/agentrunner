@@ -272,3 +272,56 @@ func TestPendingCommandsHoistsChildApprovalToRootHost(t *testing.T) {
 		t.Fatalf("pending roots = %v err=%v", ids, err)
 	}
 }
+
+// 决策 #31 下 submit 的退出契约：一次性任务跑到 standby idle 即返回成功
+// （曾经挂死：静止模型的 hosted session 不再"结束"、daemon 不关流，旧的
+// Dial 等一个永不到来的 EOF——QA Round1 F-A01）。同时钉住 session 行只
+// announce 一次（daemon ack 与 loop 自身都发 KindSessionStart）。
+func TestSubmitReturnsAtStandbyIdle(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	dir := t.TempDir()
+	specPath := writeSpec(t, dir)
+	fixture := "steps:\n  - respond: [ { text: \"SUBMIT DONE\" }, { finish: end_turn } ]\n"
+	fixPath := filepath.Join(dir, "fix.yaml")
+	if err := os.WriteFile(fixPath, []byte(fixture), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("AGENTRUNNER_SCRIPTED_FIXTURE", fixPath)
+
+	sock, err := socketPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var errLog bytes.Buffer
+	broker := daemon.NewApprovalBroker()
+	srv := &daemon.Server{
+		SocketPath: sock,
+		NewID:      func(task string) string { return runtime.NewSessionID(time.Now(), task) },
+		Run:        hostRunFunc("test", &errLog, broker),
+		Approvals:  broker,
+	}
+	go func() { _ = srv.ListenAndServe(ctx) }()
+	waitDaemon(t, sock)
+
+	ws := t.TempDir()
+	var out, errOut bytes.Buffer
+	done := make(chan int, 1)
+	go func() { done <- submitCmd([]string{"--workspace", ws, specPath, "do the thing"}, &out, &errOut) }()
+	select {
+	case code := <-done:
+		if code != ExitOK {
+			t.Fatalf("submit: exit %d\nstdout: %s\nstderr: %s\nlog: %s",
+				code, out.String(), errOut.String(), errLog.String())
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("submit did not return after the run parked at standby idle")
+	}
+	if !strings.Contains(out.String(), "SUBMIT DONE") {
+		t.Fatalf("submit stdout missing the reply:\n%s", out.String())
+	}
+	if got := strings.Count(errOut.String(), "session 2"); got != 1 {
+		t.Fatalf("session announced %d times, want exactly 1:\n%s", got, errOut.String())
+	}
+}

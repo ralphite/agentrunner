@@ -12,7 +12,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
@@ -104,9 +103,10 @@ func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 	}
 	defer func() { _ = notifier.Close() }()
 	srv := &daemon.Server{
-		SocketPath: sock,
-		NewID:      func(task string) string { return runtime.NewSessionID(time.Now(), task) },
-		Run:        hostRunFunc(version, stderr, broker),
+		SocketPath:   sock,
+		NewID:        func(task string) string { return runtime.NewSessionID(time.Now(), task) },
+		Run:          hostRunFunc(version, stderr, broker),
+		SplitAddress: splitSessionAddress,
 		Replay: func(sessionID string, sink protocol.Sink) error {
 			dir, err := resolveSessionDir(sessionID)
 			if err != nil {
@@ -458,8 +458,12 @@ func pendingCommands(sessionID string) ([]protocol.SessionCommand, error) {
 	if err != nil {
 		return nil, err
 	}
+	// A child session hosts no tree: only a top-level session (its dir sits
+	// directly under sessions/, not under a "sub" hop) hoists descendant
+	// approvals. The string "-sub-" alone cannot tell the two apart — a
+	// top-level slug may contain it (QA Round1 F-B2).
 	pending, err := pendingCommandsInDir(dir)
-	if err != nil || strings.Contains(sessionID, "-sub-") {
+	if err != nil || filepath.Base(filepath.Dir(dir)) == "sub" {
 		return pending, err
 	}
 	// A child approval is persisted in the exact asking child's CommandLog,
@@ -989,12 +993,16 @@ func submitCmd(args []string, stdout, stderr io.Writer) int {
 	jsonOut := fs.Bool("json", false, "emit the event stream as JSON lines")
 	drive := fs.Bool("drive", false, "submit a driver spec (task lives in the spec)")
 	idem := fs.String("idem", "", "idempotency key: a retried submit with the same key reattaches instead of starting a duplicate")
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
 		return ExitUsage
 	}
 	rest := fs.Args()
 	if (*drive && len(rest) != 1) || (!*drive && len(rest) != 2) {
 		fmt.Fprintln(stderr, "usage: agentrunner submit [flags] <spec.yaml> \"task\"  |  submit --drive [flags] <driver.yaml>")
+		return ExitUsage
+	}
+	if !*drive && rest[1] == "" {
+		fmt.Fprintln(stderr, "agentrunner: submit needs a non-empty task")
 		return ExitUsage
 	}
 	specPath, err := filepath.Abs(rest[0])
@@ -1005,6 +1013,19 @@ func submitCmd(args []string, stdout, stderr io.Writer) int {
 	wsAbs, err := filepath.Abs(*workspaceDir)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
+		return ExitUsage
+	}
+	// Same preflight as `new`: a daemon-side early failure surfaces as an
+	// error event, but validating here fails fast and never mints a session
+	// for a run that cannot start (QA Round1 F-A02).
+	if !*drive {
+		if _, err := agent.LoadSpec(specPath); err != nil {
+			fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+			return ExitUsage
+		}
+	}
+	if st, err := os.Stat(wsAbs); err != nil || !st.IsDir() {
+		fmt.Fprintf(stderr, "agentrunner: workspace root %s is not a directory\n", wsAbs)
 		return ExitUsage
 	}
 	sock, err := socketPath()
@@ -1019,37 +1040,71 @@ func submitCmd(args []string, stdout, stderr io.Writer) int {
 		sink = newTextRenderer(stdout)
 	}
 	reason := ""
+	sawIdle := false
+	announced := false
+	sid := ""
 	cmd := daemon.Command{Cmd: "run", SpecPath: specPath, Workspace: wsAbs, Mode: *mode, IdemKey: *idem}
 	if *drive {
 		cmd = daemon.Command{Cmd: "drive", SpecPath: specPath, Workspace: wsAbs, IdemKey: *idem}
 	} else {
 		cmd.Task = rest[1]
 	}
-	err = daemon.Dial(sock, cmd, func(e protocol.Event) {
-		if e.Kind == protocol.KindSessionStart && e.Session != "" {
-			fmt.Fprintf(stderr, "session %s\n", e.Session)
+	err = daemon.DialUntil(sock, cmd, func(e protocol.Event) bool {
+		if sid == "" && e.Session != "" {
+			sid = e.Session
 		}
-		if e.Kind == protocol.KindRunEnd {
+		if e.Kind == protocol.KindSessionStart && e.Session != "" {
+			// Announced once: the daemon's ack and the loop's own emit both
+			// carry this kind (same dedup as followTurn).
+			if !announced {
+				fmt.Fprintf(stderr, "session %s\n", e.Session)
+				announced = true
+			}
+			sink.Emit(e)
+			return true
+		}
+		// A tree member's live event (INC-12.6) is not this run's lifecycle:
+		// its idle/run_end must not end the follow.
+		if sid != "" && e.Session != "" && e.Session != sid {
+			sink.Emit(e)
+			return true
+		}
+		switch e.Kind {
+		case protocol.KindRunEnd:
 			reason = e.Reason
+			sink.Emit(e)
+			return false // terminal event (failure/close, or drive series end)
+		case protocol.KindIdle:
+			if !*drive {
+				// 决策 #31: a one-shot task parks at standby instead of
+				// ending. The work is done — detach; the session stays
+				// resident and `send` revives it.
+				sawIdle = true
+				sink.Emit(e)
+				return false
+			}
 		}
 		sink.Emit(e)
+		return true
 	})
 	if err != nil {
 		daemonDialErr(stderr, err)
 		return ExitRun
 	}
-	// No run_end in the stream means the run died before its terminal event
-	// (e.g. spec/provider failure inside the daemon) — that is a failure,
-	// same contract as a foreground run/drive.
 	if *drive {
+		// No run_end in the stream means the series died before its terminal
+		// event (e.g. spec failure inside the daemon) — that is a failure.
 		dspec, derr := driver.LoadSpec(specPath)
 		if derr != nil || !driveSucceeded(dspec, reason) {
 			return ExitRun
 		}
 		return ExitOK
 	}
-	if reason != "completed" {
-		return ExitRun
+	// Standby idle IS completion under the quiescence model; run_end appears
+	// only on failure or close. Neither in the stream means the run died
+	// before its first idle (e.g. spec/provider failure inside the daemon).
+	if sawIdle || reason == "completed" {
+		return ExitOK
 	}
-	return ExitOK
+	return ExitRun
 }

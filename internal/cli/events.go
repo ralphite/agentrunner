@@ -111,22 +111,31 @@ func compactPayload(raw json.RawMessage, max int) string {
 // A CHILD session (INC-1) is addressed by its FULL id: every "-sub-"
 // segment maps to a "/sub/" path step under the parent's directory —
 // `<parent>-sub-<call>-a<n>` → `sessions/<parent>/sub/<call>-a<n>`,
-// nesting recursively for grandchildren. The split is unambiguous because
-// call ids are harness-minted (`call_%d_%d`, provider.CallID) and never
-// contain "-sub-". Child ids get no prefix matching: spawn/settle events
-// carry the full id verbatim, so it is always at hand.
+// nesting recursively for grandchildren. Child ids get no prefix matching:
+// spawn/settle events carry the full id verbatim, so it is always at hand.
+//
+// A TOP-LEVEL slug may itself contain "-sub-" (ids are minted from free
+// task text — "spawn 3 sub-agents…" → "…-worker-sub-age-8588"), so child
+// addressing must never shadow an existing top-level session: exact
+// top-level match wins, then child split points are tried longest-parent
+// first (below the top level the split is unambiguous — call ids are
+// harness-minted `call_%d_%d` and never contain "-sub-"), and finally
+// ordinary prefix matching. QA Round1 F-B2.
 func resolveSessionDir(idOrPrefix string) (string, error) {
 	data, err := runtime.DataDir()
 	if err != nil {
 		return "", err
 	}
 	root := filepath.Join(data, "sessions")
-	if strings.Contains(idOrPrefix, "-sub-") {
-		dir := filepath.Join(root, strings.ReplaceAll(idOrPrefix, "-sub-", "/sub/"))
-		if st, serr := os.Stat(dir); serr != nil || !st.IsDir() {
-			return "", fmt.Errorf("no child session %q", idOrPrefix)
+	if st, serr := os.Stat(filepath.Join(root, idOrPrefix)); serr == nil && st.IsDir() {
+		return filepath.Join(root, idOrPrefix), nil
+	}
+	for i := strings.LastIndex(idOrPrefix, "-sub-"); i >= 0; i = strings.LastIndex(idOrPrefix[:i], "-sub-") {
+		parent, rest := idOrPrefix[:i], idOrPrefix[i+len("-sub-"):]
+		dir := filepath.Join(root, parent, "sub", strings.ReplaceAll(rest, "-sub-", "/sub/"))
+		if st, serr := os.Stat(dir); serr == nil && st.IsDir() {
+			return dir, nil
 		}
-		return dir, nil
 	}
 	entries, err := os.ReadDir(root)
 	if err != nil {
@@ -157,6 +166,36 @@ func resolveSessionDir(idOrPrefix string) (string, error) {
 		return filepath.Join(root, matches[0]), nil
 	default:
 		sort.Strings(matches)
+		// A short prefix can match half the store — a screenful of ids
+		// helps nobody (QA Round1 F-A13). Show a sample and the count.
+		if len(matches) > 5 {
+			return "", fmt.Errorf("session prefix %q is ambiguous: %d sessions match (e.g. %s, …) — use a longer prefix or `agentrunner sessions`",
+				idOrPrefix, len(matches), strings.Join(matches[:3], ", "))
+		}
 		return "", fmt.Errorf("session prefix %q is ambiguous: %s", idOrPrefix, strings.Join(matches, ", "))
 	}
+}
+
+// splitSessionAddress is the store-aware address resolver wired into the
+// daemon (Server.SplitAddress): a top-level session wins even when its
+// slug contains "-sub-" (QA Round1 F-B2); a child resolves to its tree
+// root as host. Unknown addresses fall back to the structural first-split
+// so error paths keep their historic shape.
+func splitSessionAddress(session string) (host, target string) {
+	if dir, err := resolveSessionDir(session); err == nil {
+		if data, derr := runtime.DataDir(); derr == nil {
+			root := filepath.Join(data, "sessions")
+			if rel, rerr := filepath.Rel(root, dir); rerr == nil && rel != "." && !strings.HasPrefix(rel, "..") {
+				parts := strings.Split(rel, string(filepath.Separator))
+				if len(parts) == 1 {
+					return parts[0], "" // top-level, full id
+				}
+				return parts[0], session // child: hosted by the tree root
+			}
+		}
+	}
+	if idx := strings.Index(session, "-sub-"); idx > 0 {
+		return session[:idx], session
+	}
+	return session, ""
 }

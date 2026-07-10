@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -187,5 +188,40 @@ func TestEventsUnknownSession(t *testing.T) {
 	code := Run([]string{"events", "nope"}, "dev", &out, &errOut)
 	if code != ExitUsage || !strings.Contains(errOut.String(), "no session matches") {
 		t.Fatalf("exit = %d, stderr = %s", code, errOut.String())
+	}
+}
+
+// A top-level session whose slug contains "-sub-" (minted from free task
+// text) must resolve like any other top-level session — child addressing
+// must not shadow it; prefixes reaching into the "-sub-" also resolve.
+// QA Round1 F-B2.
+func TestResolveSessionDirTopLevelWithSubInSlug(t *testing.T) {
+	data := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", data)
+	root := filepath.Join(data, "agentrunner", "sessions")
+	top := "20260710-000209-spawn-exactly-3-worker-sub-age-8588"
+	child := filepath.Join(root, top, "sub", "call_1_0-a1")
+	if err := os.MkdirAll(child, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, q := range []string{top, "20260710-000209-spawn-exactly-3-worker-sub-a", "20260710-000209"} {
+		dir, err := resolveSessionDir(q)
+		if err != nil || filepath.Base(dir) != top {
+			t.Errorf("resolve(%q) = %q, %v; want the top-level dir", q, dir, err)
+		}
+	}
+	// The child under it still resolves by full tree address.
+	dir, err := resolveSessionDir(top + "-sub-call_1_0-a1")
+	if err != nil || dir != child {
+		t.Errorf("resolve(child) = %q, %v; want %q", dir, err, child)
+	}
+	// resolvePrefixLenient: top-level (even with -sub- in the slug) maps to
+	// the full id; a child address passes through verbatim.
+	if got := resolvePrefixLenient("20260710-000209-spawn-exactly-3-worker-sub-a"); got != top {
+		t.Errorf("lenient(top prefix) = %q, want %q", got, top)
+	}
+	if got := resolvePrefixLenient(top + "-sub-call_1_0-a1"); got != top+"-sub-call_1_0-a1" {
+		t.Errorf("lenient(child) = %q, want the full child id back", got)
 	}
 }

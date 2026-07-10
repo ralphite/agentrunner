@@ -30,7 +30,7 @@ type Provider struct {
 func New(ctx context.Context) (*Provider, error) {
 	key := os.Getenv("GEMINI_API_KEY")
 	if key == "" {
-		return nil, errors.New("GEMINI_API_KEY not set")
+		return nil, errors.New("GEMINI_API_KEY not set — export it, or put GEMINI_API_KEY=<key> in a .env at the workspace root")
 	}
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
 		APIKey:  key,

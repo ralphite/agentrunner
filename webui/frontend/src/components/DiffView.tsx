@@ -33,7 +33,7 @@ function lineClass(l: string): string {
 }
 
 export function DiffView({ sid }: { sid: string }) {
-  const { toast } = useStore();
+  const { toast, openPrompt } = useStore();
   const [data, setData] = useState<DiffResp | null>(null);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
@@ -49,9 +49,15 @@ export function DiffView({ sid }: { sid: string }) {
   useEffect(load, [sid]);
 
   // Codex review→commit: stage & commit the workspace changes from the diff.
-  const commit = async () => {
-    const message = window.prompt("Commit message for these changes:", "changes from agent session");
-    if (message === null) return;
+  const commit = () => {
+    openPrompt({
+      title: "Commit changes",
+      label: "commit message",
+      initial: "changes from agent session",
+      onSubmit: (message) => void doCommit(message),
+    });
+  };
+  const doCommit = async (message: string) => {
     setBusy(true);
     try {
       await AR.commit(sid, message);

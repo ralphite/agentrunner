@@ -1745,6 +1745,7 @@ summary.fd-head:hover {
 .risk-dot.high { background: var(--amber); }
 .risk-dot.med { background: var(--blue); }
 .risk-dot.low { background: var(--green); }
+.risk-dot.unknown { background: var(--dim); }
 
 /* circular send */
 .cx-send {

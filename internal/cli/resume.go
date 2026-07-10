@@ -56,6 +56,12 @@ func resumeCmd(args []string, version string, stdout, stderr io.Writer) int {
 	if changed, cerr := readLatestSpecChange(dir); cerr == nil && changed != nil {
 		specJSON, specPath, permLayers = changed.Spec, changed.SpecPath, changed.PermissionLayers
 	}
+	// The session's own workspace supplies credentials too (QA Round1
+	// F-A04/F-B7): resume is issued from anywhere, while the .env
+	// convention lives at the workspace root — "durable, resumable" must
+	// not hinge on the caller's cwd. The cwd .env (loaded above) wins;
+	// loadDotEnv never overrides what is already set.
+	loadDotEnv(filepath.Join(started.WorkspaceRoot, ".env"))
 	var spec agent.AgentSpec
 	if err := json.Unmarshal(specJSON, &spec); err != nil {
 		fmt.Fprintf(stderr, "agentrunner: journaled spec: %v\n", err)
@@ -248,7 +254,9 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 				if r.status == "running" && !store.HasLiveWriter(filepath.Join(root, e.Name())) {
 					r.status = "stranded"
 				}
-				r.turns = s.Session.GenStep
+				// Same yardstick as inspect: conversation TURNS, not
+				// gen-steps (QA Round1 F-A11 — the two disagreed here).
+				r.turns = len(s.Interactions.Turns)
 			}
 		}
 		rows = append(rows, r)

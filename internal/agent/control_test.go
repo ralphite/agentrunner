@@ -9,6 +9,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
+	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
 	"github.com/ralphite/agentrunner/internal/store"
 	"github.com/ralphite/agentrunner/internal/tool"
@@ -210,4 +211,53 @@ func TestDurableCloseControlCarriesReceipt(t *testing.T) {
 		}
 	}
 	t.Fatal("session_closed not journaled")
+}
+
+// A manual compact over a conversation that carries an image must inflate
+// the blob for the summarizer call exactly like a turn's own call — it used
+// to send a bare CAS ref, the provider refused the whole request, and the
+// compact silently failed (QA Round1 F-A03).
+func TestManualCompactInflatesImageParts(t *testing.T) {
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: "hello"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "看到图了"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "SUMMARY covering the screenshot"}, {Finish: "end_turn"}}}, // summarizer
+	}}
+	cap := &capturingProvider{inner: scripted.New(fix)}
+	inputs := make(chan protocol.UserInput, 1)
+	controls := make(chan protocol.Control, 1)
+	l := testLoop(t, fix, t.TempDir())
+	l.Provider = cap
+	l.UserInputs = inputs
+	l.Controls = controls
+	png := []byte("\x89PNG compact bytes")
+	go func() {
+		waitAnswers(t, l.Store.Dir(), 1)
+		inputs <- protocol.UserInput{Text: "这是截图",
+			Images: []protocol.ImageAttachment{{MediaType: "image/png", Data: png}}}
+		waitAnswers(t, l.Store.Dir(), 2)
+		controls <- protocol.Control{Kind: protocol.ControlCompact}
+		waitForEvent(t, l.Store, event.TypeContextCompacted, 1)
+		close(inputs)
+	}()
+	if _, err := l.Run(context.Background(), "先聊聊"); err != nil {
+		t.Fatal(err)
+	}
+	if n := countEvents(t, l.Store.Dir(), event.TypeContextCompacted); n != 1 {
+		t.Fatalf("ContextCompacted count = %d, want 1 (the compact must succeed)", n)
+	}
+	// The summarizer request (the last one) carried the INFLATED image part.
+	requests := cap.Requests()
+	last := requests[len(requests)-1]
+	var sawInflated bool
+	for _, m := range last.Messages {
+		for _, p := range m.Parts {
+			if p.Kind == provider.PartImage && len(p.Data) > 0 {
+				sawInflated = true
+			}
+		}
+	}
+	if !sawInflated {
+		t.Fatal("summarizer request lacks the inflated image part (bare ref would be refused by the provider)")
+	}
 }

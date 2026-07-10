@@ -14,6 +14,19 @@ export type ModalKind =
   | { kind: "viewer"; title: string; body: string }
   | null;
 
+// PromptState is the app-styled replacement for window.prompt (QA Round1
+// F-C1: the native dialog synchronously freezes the renderer and clashes
+// with the app's modal style). It lives in its own slot so it can stack on
+// top of an open modal (e.g. the worktree path asked from "New session").
+// onSubmit fires only on a non-empty submit.
+export interface PromptState {
+  title: string;
+  label?: string;
+  initial?: string;
+  placeholder?: string;
+  onSubmit: (value: string) => void;
+}
+
 interface ToastMsg {
   id: number;
   text: string;
@@ -27,6 +40,7 @@ interface AppState {
   currentSid: string | null;
   currentRunId: string | null;
   modal: ModalKind;
+  prompt: PromptState | null;
   toasts: ToastMsg[];
   showSys: boolean;
   toggleSys: () => void;
@@ -59,6 +73,7 @@ interface AppState {
   select: (sid: string | null) => void;
   selectRun: (rid: string | null) => void;
   openModal: (m: ModalKind) => void;
+  openPrompt: (p: PromptState | null) => void;
   toast: (text: string, kind?: "error" | "info") => void;
   dismissToast: (id: number) => void;
 }
@@ -131,6 +146,7 @@ export const useStore = create<AppState>((set, get) => ({
   currentSid: null,
   currentRunId: null,
   modal: null,
+  prompt: null,
   toasts: [],
   showSys: false,
   toggleSys: () => set({ showSys: !get().showSys }),
@@ -286,6 +302,7 @@ export const useStore = create<AppState>((set, get) => ({
     location.hash = rid ? "run:" + rid : "";
   },
   openModal: (m) => set({ modal: m }),
+  openPrompt: (p) => set({ prompt: p }),
   toast: (text, kind = "error") => {
     const id = ++toastSeq;
     set({ toasts: [...get().toasts, { id, text, kind }] });

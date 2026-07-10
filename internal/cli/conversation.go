@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ralphite/agentrunner/internal/agent"
 	"github.com/ralphite/agentrunner/internal/daemon"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
@@ -40,6 +41,10 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, `usage: agentrunner new [flags] <spec.yaml> "opening message"`)
 		return ExitUsage
 	}
+	if rest[1] == "" {
+		fmt.Fprintln(stderr, "agentrunner: new needs a non-empty opening message")
+		return ExitUsage
+	}
 	specPath, err := filepath.Abs(rest[0])
 	if err != nil {
 		fmt.Fprintln(stderr, err)
@@ -48,6 +53,18 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 	wsAbs, err := filepath.Abs(*workspaceDir)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
+		return ExitUsage
+	}
+	// Validate spec and workspace before dialing, exactly like a foreground
+	// run: with --detach the client leaves at RunStart, so a daemon-side
+	// early failure would otherwise mint a session id for a run that never
+	// lands on disk — a ghost session (QA Round1 F-A02).
+	if _, err := agent.LoadSpec(specPath); err != nil {
+		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+		return ExitUsage
+	}
+	if st, err := os.Stat(wsAbs); err != nil || !st.IsDir() {
+		fmt.Fprintf(stderr, "agentrunner: workspace root %s is not a directory\n", wsAbs)
 		return ExitUsage
 	}
 	sock, err := socketPath()
@@ -447,13 +464,16 @@ func daemonDialErr(stderr io.Writer, err error) {
 // on any failure it returns the input unchanged (the daemon reports an
 // unknown session clearly).
 func resolvePrefixLenient(prefix string) string {
-	// A child session id is a FULL tree address (INC-12.3): its directory
-	// basename is only the last hop, so Base() would truncate it — pass it
-	// through verbatim (child ids get no prefix matching, INC-1).
-	if strings.Contains(prefix, "-sub-") {
-		return prefix
-	}
 	if dir, err := resolveSessionDir(prefix); err == nil {
+		// A child session id is a FULL tree address (INC-12.3): its
+		// directory basename is only the last hop, so Base() would truncate
+		// it — pass child references through verbatim. A child dir is
+		// recognizable by its parent hop ("sub"); a TOP-LEVEL dir whose
+		// name happens to contain "-sub-" (slug from free task text,
+		// QA Round1 F-B2) resolves like any other top-level session.
+		if filepath.Base(filepath.Dir(dir)) == "sub" {
+			return prefix
+		}
 		return filepath.Base(dir)
 	}
 	return prefix

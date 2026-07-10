@@ -153,6 +153,13 @@ type Server struct {
 	SocketPath string
 	Run        RunFunc
 	NewID      NewSessionID
+	// SplitAddress resolves a session address into (host, target): target
+	// non-empty means a child session hosted by its tree root `host`. The
+	// CLI wires a store-aware resolver — a TOP-LEVEL slug may itself
+	// contain "-sub-" (ids are minted from free task text, QA Round1
+	// F-B2), which the naive split misreads as child addressing. nil
+	// falls back to the first "-sub-" split.
+	SplitAddress func(session string) (host, target string)
 	// Replay renders a session's journal as output events for attach
 	// catch-up (补读). nil = attach serves live events only.
 	Replay func(sessionID string, sink protocol.Sink) error
@@ -663,24 +670,24 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 	case "stop":
 		s.handleStop(cmd, enc)
 	case "compact":
-		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlCompact, Directive: cmd.Directive}, "compacting", enc)
+		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlCompact, Directive: cmd.Directive}, "compact requested — the journal records the outcome", enc)
 	case "clear":
-		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlClear}, "clearing", enc)
+		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlClear}, "clear requested — the journal records the outcome", enc)
 	case "remember":
-		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlRemember, Directive: cmd.Directive}, "remembering", enc)
+		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlRemember, Directive: cmd.Directive}, "remember requested — the journal records the outcome", enc)
 	// goal-* controls revive a non-hosted session like send does (INC-10):
 	// structural since the durable-command unification — handleControl's
 	// delivery path (commandHubCommandLocked) resumes the session first.
 	case "goal-attach":
 		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlGoalAttach, Goal: cmd.Goal}, "goal attached", enc)
 	case "goal-pause":
-		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlGoalPause}, "goal paused", enc)
+		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlGoalPause}, "goal pause requested (a no-op unless a goal is attached)", enc)
 	case "goal-resume":
-		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlGoalResume}, "goal resumed", enc)
+		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlGoalResume}, "goal resume requested (a no-op unless a goal is paused)", enc)
 	case "goal-update":
-		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlGoalUpdate, Goal: cmd.Goal}, "goal updated", enc)
+		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlGoalUpdate, Goal: cmd.Goal}, "goal update requested (a no-op unless a goal is attached)", enc)
 	case "goal-cancel":
-		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlGoalCancel}, "goal cancelled", enc)
+		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlGoalCancel}, "goal cancel requested (a no-op unless a goal is attached)", enc)
 	case "kill":
 		s.handleKill(ctx, cmd, enc)
 	case "agent":
@@ -814,7 +821,7 @@ func (s *Server) handleKill(ctx context.Context, cmd Command, enc *json.Encoder)
 		return
 	}
 	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage,
-		Text: "killing " + cmd.Handle, Session: cmd.Session})
+		Text: "kill requested for " + cmd.Handle + " (a no-op if the handle is done or unknown)", Session: cmd.Session})
 }
 
 // handleAgent prepares an agent switch (决策 #32): it tears the hosted
@@ -872,7 +879,7 @@ func (s *Server) handleInterrupt(ctx context.Context, cmd Command, enc *json.Enc
 			Text: fmt.Sprintf("no live interruptible session %s", cmd.Session)})
 		return
 	}
-	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Text: "interrupted", Session: cmd.Session})
+	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Text: "interrupt delivered (a no-op at idle)", Session: cmd.Session})
 }
 
 // handleStop is the remote hard-cancel (G12): it tears the hosted run down
@@ -924,6 +931,20 @@ func (s *Server) handleControl(ctx context.Context, cmd Command, ctl protocol.Co
 	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Text: ack, Session: cmd.Session})
 }
 
+// splitAddress resolves a session address into (host, target); target != ""
+// means a child session hosted by its tree root. The wired resolver knows
+// the store; the structural fallback keeps the historic first-"-sub-"
+// split for addresses the store does not know.
+func (s *Server) splitAddress(session string) (host, target string) {
+	if s.SplitAddress != nil {
+		return s.SplitAddress(session)
+	}
+	if idx := strings.Index(session, "-sub-"); idx > 0 {
+		return session[:idx], session
+	}
+	return session, ""
+}
+
 // handleSend delivers a user message to a live conversational session
 // (v2 M1.2). It is the machine/web/CLI-agnostic投递入口 — every sender
 // (human at a terminal, web UI, webhook) posts through the same path.
@@ -938,12 +959,7 @@ func (s *Server) handleSend(ctx context.Context, cmd Command, enc *json.Encoder)
 	// root loop forwards it to the member's own inbox. The Target rides the
 	// UserInput; everything else (revive-as-resume, idempotency) is the
 	// ordinary send path.
-	var target string
-	hostSession := cmd.Session
-	if idx := strings.Index(cmd.Session, "-sub-"); idx > 0 {
-		target = cmd.Session
-		hostSession = cmd.Session[:idx]
-	}
+	hostSession, target := s.splitAddress(cmd.Session)
 	s.mu.Lock()
 	hub, ok := s.runs[hostSession]
 	s.mu.Unlock()
@@ -1006,8 +1022,11 @@ func (s *Server) handleSend(ctx context.Context, cmd Command, enc *json.Encoder)
 		}))
 		if perr != nil {
 			s.commandMu.Unlock()
+			// The persist error is usually the story itself ("no session
+			// matches …") — a "command log write failed" wrap would misread
+			// as disk trouble (QA Round1 F-A06).
 			_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
-				Text: "send not accepted (command log write failed): " + perr.Error()})
+				Text: "send not accepted: " + perr.Error()})
 			return
 		}
 		in = *accepted.Input
@@ -1025,7 +1044,7 @@ func (s *Server) handleSend(ctx context.Context, cmd Command, enc *json.Encoder)
 		if in, perr = s.PersistInput(hostSession, in); perr != nil {
 			s.commandMu.Unlock()
 			_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
-				Text: "send not accepted (mailbox write failed): " + perr.Error()})
+				Text: "send not accepted: " + perr.Error()})
 			return
 		}
 		durable = true
@@ -1101,7 +1120,7 @@ func (s *Server) handleClose(ctx context.Context, cmd Command, enc *json.Encoder
 			Text: fmt.Sprintf("no live conversational session %s", cmd.Session)})
 		return
 	}
-	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Text: "closing", Session: cmd.Session})
+	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Text: "closing (a later send revives it)", Session: cmd.Session})
 }
 
 // handleApprove routes a human's verdict to the idle ask. If the ask is no
@@ -1129,11 +1148,7 @@ func (s *Server) handleApprove(ctx context.Context, cmd Command, enc *json.Encod
 		}
 	}
 	if s.PersistCommand != nil {
-		hostSession := cmd.Session
-		target := ""
-		if idx := strings.Index(cmd.Session, "-sub-"); idx > 0 {
-			hostSession, target = cmd.Session[:idx], cmd.Session
-		}
+		hostSession, target := s.splitAddress(cmd.Session)
 		_, delivered, err := s.acceptAndDeliverVia(ctx, cmd.Session, hostSession, cmd.CommandID, attributedCommand(cmd, protocol.SessionCommand{
 			Target: target,
 			Kind:   protocol.CommandApproval,
@@ -1385,10 +1400,7 @@ func (s *Server) handleAttach(cmd Command, enc *json.Encoder) {
 	// through the root's hub tagged with each member's id, so attaching to a
 	// member = subscribe to the root, filter by origin. Replay still reads
 	// the member's own journal.
-	hubID, filter := cmd.Session, ""
-	if idx := strings.Index(cmd.Session, "-sub-"); idx > 0 {
-		hubID, filter = cmd.Session[:idx], cmd.Session
-	}
+	hubID, filter := s.splitAddress(cmd.Session)
 	s.mu.Lock()
 	hub := s.runs[hubID]
 	s.mu.Unlock()
