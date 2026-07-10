@@ -307,6 +307,24 @@ func dynamicRoleJSON(rawArgs json.RawMessage, spec *AgentSpec) json.RawMessage {
 	return raw
 }
 
+// isolationNotice tells an isolated child the workspace mechanics it cannot
+// otherwise discover: its tree is a spawn-time snapshot, teammates' later work
+// is invisible, and its own writes do not flow back. Without this, members
+// burn whole budgets searching for files that can never appear (G24: the
+// abandoned-reviewer incident spent 195k tokens exactly this way). Prepended
+// to the child's opening task — never to SpawnRequested.Task, so the parent's
+// journaled intent stays verbatim.
+const isolationNotice = "[workspace note] You work in an ISOLATED snapshot of the parent's workspace, taken the moment you were spawned. Files teammates create or change after that moment are NOT visible here, and your own file changes stay in your snapshot — they do not flow back automatically. If a file you expect is missing, do not keep searching for it: finish with a short report telling the parent what is missing and ask for the content instead.\n\n"
+
+// isolatedTask prefixes the mechanics note onto an isolated child's opening
+// task; shared children see the parent's real workspace and need no note.
+func isolatedTask(assignment *event.TeamWorkspace, task string) string {
+	if assignment == nil || assignment.Mode != "isolated" {
+		return task
+	}
+	return isolationNotice + task
+}
+
 func (l *Loop) prepareChildExecutor(ctx context.Context, childDir, childSession string) (*tool.Executor, *event.TeamWorkspace, error) {
 	parentPath := ""
 	if l.Exec != nil && l.Exec.WS != nil {
@@ -407,7 +425,7 @@ func (l *Loop) buildHandoffRun(call provider.ToolCall, res *tool.Result,
 
 		child := l.childLoopWithExec(childSpec, childStore, childSession, allowance, parentMode, childExec)
 		child.Inputs = inputs
-		cres, cerr := child.Run(ctx, task)
+		cres, cerr := child.Run(ctx, isolatedTask(workspaceAssignment, task))
 		if cerr != nil {
 			// The child journaled real spend before dying — RunResult is
 			// zero on aborts, so settle from the child's own fold (S5
@@ -558,7 +576,7 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 	child.Inputs = inputs
 	go func() {
 		defer func() { _ = childStore.Close() }()
-		cres, cerr := child.Run(taskCtx, task)
+		cres, cerr := child.Run(taskCtx, isolatedTask(workspaceAssignment, task))
 		spent := cres.Usage
 		reason := cres.Reason
 		canceled := taskCtx.Err() != nil

@@ -14,9 +14,13 @@ if [[ -n "$unformatted" ]]; then
   exit 1
 fi
 
-go vet ./...
+# QA sessions write throwaway Go files under gitignored runtime/ workspaces;
+# ./... walks in regardless of .gitignore and a broken demo package would
+# fail the gate — scope the toolchain to the repo's real packages.
+packages=$(go list ./... 2>/dev/null | grep -v "/runtime/")
+go vet $packages
 golangci-lint run
-go test ./...
+go test $packages
 
 (cd webui && go vet ./... && go test ./...)
 

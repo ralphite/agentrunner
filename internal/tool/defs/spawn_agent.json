@@ -1,6 +1,6 @@
 {
   "name": "spawn_agent",
-  "description": "Spawn a listed sub-agent, or an inline role when agents_dynamic is enabled. Always non-blocking: returns a handle immediately while the sub-agent runs in parallel; its result arrives later as a message, and you can cancel it with kill. Sub-agents share your token budget and cannot widen your tools without explicit runtime support.",
+  "description": "Spawn a listed sub-agent, or an inline role when agents_dynamic is enabled. Always non-blocking: returns a handle immediately while the sub-agent runs in parallel; its result arrives later as a message, and you can cancel it with kill. Workspace semantics: unless the spec sets agent_workspace: shared, each sub-agent works in an ISOLATED snapshot of your workspace taken at spawn time — it cannot see files you or teammates write afterwards, and its own file changes do NOT flow back to your workspace. Pass the content it needs via task or inputs, and collect its results from its report. If you re-assign work that a running sub-agent is stuck on, kill the old handle first — an abandoned sub-agent keeps spending the shared budget until it is killed. Sub-agents share your token budget and cannot widen your tools without explicit runtime support.",
   "class": "execute",
   "input_schema": {
     "type": "object",
@@ -24,11 +24,11 @@
       },
       "task": {
         "type": "string",
-        "description": "The task for the sub-agent to perform."
+        "description": "The task for the sub-agent to perform. In isolated mode (the default) include everything it needs — relevant file contents, acceptance criteria — because it starts from a snapshot and cannot see your later state."
       },
       "inputs": {
         "type": "array",
-        "description": "Artifacts to place into the sub-agent's workspace before it starts.",
+        "description": "Artifacts to place into the sub-agent's workspace before it starts — the reliable way to hand files to an isolated member.",
         "items": {
           "type": "object",
           "properties": {
@@ -49,7 +49,7 @@
       },
       "depends_on": {
         "type": "array",
-        "description": "Durable team task ids or prior spawn handles that must be quiescent before this delegation starts.",
+        "description": "Durable team task ids or prior spawn handles that must be quiescent before this delegation starts. Ordering only: it does not copy a dependency's isolated file changes into the new member's snapshot — pass content via inputs or task.",
         "items": {"type": "string"}
       }
     },

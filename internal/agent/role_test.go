@@ -528,3 +528,89 @@ func TestDynamicRoleNameSanitized(t *testing.T) {
 		t.Error("forged role name was not refused with the sanitization error")
 	}
 }
+
+// INC-30.1 (G24): an isolated child's opening task carries the workspace
+// mechanics note — snapshot semantics are otherwise undiscoverable, and
+// members burn whole budgets searching for teammate files that can never
+// appear. A shared child sees the parent's real tree and gets the task
+// verbatim; the parent's journaled SpawnRequested.Task stays verbatim in
+// both modes.
+func TestIsolatedChildTaskCarriesSnapshotNotice(t *testing.T) {
+	for _, tc := range []struct {
+		mode       string
+		wantNotice bool
+	}{
+		{"isolated", true},
+		{"shared", false},
+	} {
+		t.Run(tc.mode, func(t *testing.T) {
+			root := t.TempDir()
+			parentFix := scripted.Fixture{Steps: []scripted.Step{
+				{Respond: []scripted.Event{
+					{ToolCall: &scripted.ToolCallEvent{CallID: "n1", Name: "spawn_agent", Args: map[string]any{
+						"agent": "summarizer", "task": "NOTICE-CHECK",
+					}}}, {Finish: "tool_use"},
+				}},
+				{Respond: []scripted.Event{{Text: "waiting"}, {Finish: "end_turn"}}},
+				{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
+				{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
+			}}
+			childFix := scripted.Fixture{Steps: []scripted.Step{
+				{Respond: []scripted.Event{{Text: "child done"}, {Finish: "end_turn"}}},
+			}}
+			l, _ := routedSpawnLoop(t, parentFix, root,
+				scripted.RoutePair{Key: "NOTICE-CHECK", Fixture: childFix})
+			l.Spec.AgentWorkspace = tc.mode
+			if tc.mode == "isolated" {
+				shadow, err := snapshot.NewShadowRepo(filepath.Join(t.TempDir(), "shadow.git"), root)
+				if err != nil {
+					t.Fatal(err)
+				}
+				l.Snapshots = shadow
+			}
+			inputs := make(chan protocol.UserInput)
+			l.UserInputs = inputs
+			closeWhen(l, inputs, func(events []event.Envelope) bool {
+				return countType(events, event.TypeSubagentCompleted) >= 1
+			})
+			if _, err := l.Run(context.Background(), "delegate"); err != nil {
+				t.Fatal(err)
+			}
+			events, _ := store.ReadEvents(l.Store.Dir())
+			for _, env := range events {
+				if env.Type != event.TypeSpawnRequested {
+					continue
+				}
+				p, err := event.DecodePayload(env)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got := p.(*event.SpawnRequested).Task; got != "NOTICE-CHECK" {
+					t.Fatalf("SpawnRequested.Task = %q, want verbatim", got)
+				}
+			}
+			childEvents, _ := store.ReadEvents(filepath.Join(l.Store.Dir(), "sub", "n1-a1"))
+			opening := ""
+			for _, env := range childEvents {
+				if env.Type != event.TypeInputReceived {
+					continue
+				}
+				p, err := event.DecodePayload(env)
+				if err != nil {
+					t.Fatal(err)
+				}
+				opening = p.(*event.InputReceived).Text
+				break
+			}
+			if opening == "" {
+				t.Fatal("child opening input not found")
+			}
+			if hasNotice := strings.HasPrefix(opening, "[workspace note]"); hasNotice != tc.wantNotice {
+				t.Fatalf("mode %s: notice prefix = %v, want %v (opening %.80q)", tc.mode, hasNotice, tc.wantNotice, opening)
+			}
+			if !strings.Contains(opening, "NOTICE-CHECK") {
+				t.Fatalf("child opening lost the task text: %q", opening)
+			}
+		})
+	}
+}
