@@ -44,9 +44,10 @@ func buildPipeline(ws *workspace.Workspace, specRules []pipeline.PermissionRule,
 	}
 
 	runner := &hook.Runner{
-		PreTool:  merged.Hooks.PreTool,
-		PostTool: merged.Hooks.PostTool,
-		Dir:      ws.Root(),
+		PreTool:   merged.Hooks.PreTool,
+		PostTool:  merged.Hooks.PostTool,
+		Lifecycle: merged.Hooks.Lifecycle,
+		Dir:       ws.Root(),
 	}
 	return assemblePipeline(ws, [][]pipeline.PermissionRule{merged.Permissions},
 		runner, mode, maxTokens, stderr), runner, nil
@@ -84,9 +85,10 @@ func buildPipelineFromLayers(ws *workspace.Workspace, layers [][]pipeline.Permis
 	}
 	merged := config.Merge(user, project, nil, trusted)
 	runner := &hook.Runner{
-		PreTool:  merged.Hooks.PreTool,
-		PostTool: merged.Hooks.PostTool,
-		Dir:      ws.Root(),
+		PreTool:   merged.Hooks.PreTool,
+		PostTool:  merged.Hooks.PostTool,
+		Lifecycle: merged.Hooks.Lifecycle,
+		Dir:       ws.Root(),
 	}
 	return assemblePipeline(ws, layers, runner, mode, maxTokens, stderr), runner, nil
 }

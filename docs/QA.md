@@ -452,6 +452,23 @@ store、export 归档 `qa/runs/2026-07-09-QA23/`。
 文件持久化）不改冻结 prefix，故不触不变量；重复同 note 幂等（文件不
 双写，防 durable-command 崩溃重放）。
 
+## QA-24 hooks 生命周期事件族（INC-15,G19）
+
+**环境**：私有 daemon（隔离 XDG_DATA_HOME/XDG_CONFIG_HOME）+ 真实
+Gemini；hooks 配在 user 层 settings.yaml 的 `hooks.lifecycle`；跑完
+session 拷回共享 store、export 与 hook 标记文件归档
+`qa/runs/2026-07-09-QA24/`。
+
+| # | 动作 | 验证 |
+|---|---|---|
+| 1 | `ar new` 起会话 | session_start hook 收到 `{"event":"session_start",…}` stdin 并写标记文件 |
+| 2 | send 一条含 FORBIDDEN 的输入（hook 对其 exit 2） | 输入**不落 journal**（无新 input_received）、不起 turn、session 存活 |
+| 3 | 再 send 一条正常输入 | 正常落 journal 并得到回答（veto 是 per-input 的） |
+| 4 | 回答后静止 | stop hook 在静止时刻触发（stop.log 含 `"event":"stop"`） |
+
+**通过标准**：四条红线均为文件/journal 事实（不判模型措辞）；observe
+事件坏 hook 不改控制流；blockable 仅 user_prompt_submit/pre_compact。
+
 ---
 
 ## 覆盖矩阵

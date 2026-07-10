@@ -14,6 +14,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/hook"
 	"github.com/ralphite/agentrunner/internal/pipeline"
 )
 
@@ -33,10 +34,13 @@ type NotifySpec struct {
 	Command []string `yaml:"command,omitempty"`
 }
 
-// Hooks lists shell commands for the 3.8 executor.
+// Hooks lists shell commands for the 3.8 executor. Lifecycle (INC-15, G19)
+// maps event name → commands; event names are validated against the hook
+// package's registry at load time so a typo fails loudly, not silently.
 type Hooks struct {
-	PreTool  []string `yaml:"pre_tool,omitempty"`
-	PostTool []string `yaml:"post_tool,omitempty"`
+	PreTool   []string            `yaml:"pre_tool,omitempty"`
+	PostTool  []string            `yaml:"post_tool,omitempty"`
+	Lifecycle map[string][]string `yaml:"lifecycle,omitempty"`
 }
 
 // Merged is the effective configuration for one run.
@@ -65,6 +69,11 @@ func LoadFile(path string) (Settings, error) {
 	}
 	if err := validateRules(s.Permissions); err != nil {
 		return Settings{}, fmt.Errorf("settings %s: %w", path, err)
+	}
+	for ev := range s.Hooks.Lifecycle {
+		if !hook.LifecycleEvents[ev] {
+			return Settings{}, fmt.Errorf("settings %s: hooks.lifecycle: unknown event %q", path, ev)
+		}
 	}
 	return s, nil
 }
@@ -102,11 +111,27 @@ func Merge(user, project Settings, specRules []pipeline.PermissionRule, projectT
 
 	m.Hooks.PreTool = append(m.Hooks.PreTool, user.Hooks.PreTool...)
 	m.Hooks.PostTool = append(m.Hooks.PostTool, user.Hooks.PostTool...)
+	mergeLifecycle(&m.Hooks, user.Hooks.Lifecycle)
 	if projectTrusted {
 		m.Hooks.PreTool = append(m.Hooks.PreTool, project.Hooks.PreTool...)
 		m.Hooks.PostTool = append(m.Hooks.PostTool, project.Hooks.PostTool...)
+		mergeLifecycle(&m.Hooks, project.Hooks.Lifecycle)
 	}
 	return m
+}
+
+// mergeLifecycle appends per-event commands (user first, then trusted
+// project — same order discipline as PreTool/PostTool).
+func mergeLifecycle(dst *Hooks, src map[string][]string) {
+	if len(src) == 0 {
+		return
+	}
+	if dst.Lifecycle == nil {
+		dst.Lifecycle = make(map[string][]string, len(src))
+	}
+	for ev, cmds := range src {
+		dst.Lifecycle[ev] = append(dst.Lifecycle[ev], cmds...)
+	}
 }
 
 // --- trust registry ---

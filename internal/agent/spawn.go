@@ -402,6 +402,8 @@ func (l *Loop) buildHandoffRun(call provider.ToolCall, res *tool.Result,
 		}); err != nil {
 			return nil, nil, false, err
 		}
+		l.fireLifecycle(ctx, hook.EventSubagentStart,
+			map[string]string{"agent": agentName, "child_session": childSession}, false)
 
 		child := l.childLoopWithExec(childSpec, childStore, childSession, allowance, parentMode, childExec)
 		child.Inputs = inputs
@@ -426,6 +428,8 @@ func (l *Loop) buildHandoffRun(call provider.ToolCall, res *tool.Result,
 			}); aerr != nil {
 				return nil, nil, false, aerr
 			}
+			l.fireLifecycle(ctx, hook.EventSubagentStop,
+				map[string]string{"agent": agentName, "child_session": childSession, "reason": "error"}, false)
 			*res = errorResult(fmt.Sprintf("sub-agent %s failed: %s",
 				agentName, redact.FromEnv().String(cerr.Error())))
 			return res.Payload, &spent, true, nil
@@ -437,6 +441,8 @@ func (l *Loop) buildHandoffRun(call provider.ToolCall, res *tool.Result,
 		}); err != nil {
 			return nil, nil, false, err
 		}
+		l.fireLifecycle(ctx, hook.EventSubagentStop,
+			map[string]string{"agent": agentName, "child_session": childSession, "reason": cres.Reason}, false)
 
 		// A contract-violating child renders as the parent's ERROR result
 		// (S5.6): the deliverables were the point of the delegation. The
@@ -532,6 +538,8 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 		_ = childStore.Close()
 		return err
 	}
+	l.fireLifecycle(ctx, hook.EventSubagentStart,
+		map[string]string{"agent": agentName, "child_session": childSession}, false)
 	if _, err := appendE(event.TypeActivityStarted, &event.ActivityStarted{
 		ActivityID: activityID, Kind: event.KindTool, Name: call.Name,
 		Args: redact.FromEnv().JSON(call.Args), CallID: call.CallID,

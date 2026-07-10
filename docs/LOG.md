@@ -1473,3 +1473,37 @@ tsc/build 绿）：
 误调 goal_complete 的时间线红叉弱化；F-C6 /clear no_op toast（依赖
 结果回传增量）；F-C7 Search 不过滤主网格——列 Round 2 观察或后续
 增量。测试数据全部保留（37+ 会话在共享 store，sid 清单见各报告）。
+
+## 2026-07-09 INC-15 hooks 生命周期事件族第一批（SPRINT #3，G19）
+
+CLAUDECODE-PARITY §4.2 P0③ 落地——P0 三件（microcompact/记忆写回/hooks
+扩展）至此全部完成。hooks 从 pre/post tool 扩到 8 个生命周期事件：
+`hook.RunLifecycle`（复用 runOne 基建：sh -c + JSON stdin + 凭据剥离 +
+超时 + pgid）+ settings `hooks.lifecycle`（event→commands，加载期校验
+事件名，merge 纪律同 pre/post：user 恒生效、project 需 trust）+ loop
+八个 journal 点位挂 `fireLifecycle`（nil-safe，notes 上 live 流）。
+
+**语义分类**：observe-only（session_start/session_end/subagent_start/
+subagent_stop/post_compact/stop——事实落 journal 后触发，任何退出码不
+改控制流）；blockable（user_prompt_submit：exit 2 → 输入不落 journal
+不起 turn；pre_compact：exit 2 → 跳过本次压缩）。**两个 correctness
+关口**：①auto-compact 被否决后不得 `continue` 重试同一 due-check（会
+无限自旋）——compactContext 改返回 (compacted bool, err)，否决/空
+summary 走 fallthrough，孪生 TestPreCompactHookSkipsAndNoSpin 钉住；
+②hooks 不重放——挂点只在 LIVE 跨越时触发，recovery 的 settle-from-
+child-fold 路径**不**发 subagent_stop（与"恢复不重放 hook 副作用"教义
+一致，决策 #8 同族）。决策 #11（observe+block、不改写）保持不动；
+DESIGN §effect-pipeline 加生命周期事件族段。
+
+**双闸门**：孪生 TestLifecycleHooksFire（stdin payload 断言）/
+TestUserPromptSubmitHookBlocks（veto 不落 journal）/
+TestPreCompactHookSkipsAndNoSpin（否决+不自旋）/
+TestObserveHookFailureDoesNotBlock（坏 observe hook 无害，exit 2 在
+observe 事件上惰性）；真实 API QA-24（真 Gemini + 私有 daemon +
+user 层 settings.yaml）四红线全绿：session_start 触发、FORBIDDEN 输入
+被 veto（无 journal 无 turn、session 存活）、后续正常输入照常问答、
+stop 在静止触发。归档 qa/runs/2026-07-09-QA24/。check.sh 全绿。
+
+**余项记档**：更多事件（Notification/FileChanged/ConfigChange 类）、
+handler 类型扩展（prompt/agent/http）、改写类（决策 #11 明示推迟）;
+journey 覆盖债仍在（无 journey 压 hooks）。

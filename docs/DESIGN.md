@@ -489,6 +489,20 @@ effect
   管线判定持久化（pre-hook 在 `EffectResolved`，post-hook 随
   `ActivityCompleted`）。v0 只支持 observe + block，改写输入（mutation）
   连同它带来的顺序与缓存问题一起推迟。
+- **生命周期事件族（INC-15，G19 第一批）**：pre/post tool 之外，hooks
+  可挂 8 个生命周期事件——`session_start`/`session_end`/`subagent_start`
+  /`subagent_stop`/`post_compact`（**observe-only**：事实已落 journal
+  后触发，任何退出码都不改控制流，坏 hook 只 warn）与
+  `user_prompt_submit`/`pre_compact`（**blockable**：动作前触发，exit 2
+  否决**仅该动作**——被否决的输入不落 journal、被否决的压缩保留原
+  context；auto-compact 的调用方在否决后不得重试同一 due-check，防
+  自旋）+ `stop`（静止时刻 observe）。配置在 settings `hooks.lifecycle`
+  （event → commands，事件名加载期校验），信任模型同 pre/post（user 层
+  恒生效、project 层需 trust）。**hooks 不重放**：事件在点位被 LIVE
+  跨越时触发，resume 重读 journal 不触发（recovery 路径的 settle 不发
+  hook）；durable command 重放会重问 hook 并得到一致裁决。handler 仍
+  command-only（sh -c + JSON stdin + 凭据剥离 + 超时），prompt/agent/
+  http handler 与更多事件是后续增量。
 - **每种关卡结果都定义"模型看到什么"**。所有 provider 都要求 tool call
   与结果配对（Anthropic 按 call id、Gemini 按数量+位置且更严格），
   且 agent loop 在多数失败后应当继续：

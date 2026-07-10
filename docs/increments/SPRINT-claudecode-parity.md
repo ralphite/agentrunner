@@ -56,7 +56,7 @@
 | 1 | microcompact：assembly 层将可重算旧工具结果降级为占位符（read-class 且来源未变），不调 LLM | #18 · UJ-09 | S | ✅ done (INC-13) | 纯 assembly 策略，零事件变更；阈值先于 autocompact 触发；QA-22 真验 |
 | 2 | G9 记忆写回核心（remember → 项目 CLAUDE.md，取 A） | #26-31 · G9 · INC-D4 | M | ✅ done (INC-14) | 写回核心 QA-23 真验；auto-memory 完整体拆为 #2b 余项 |
 | 2b | auto-memory 完整体（MEMORY.md 索引 200 行/25KB + 主题文件 + @import + .claude/rules 条件加载） | #26-31 · G9 余项 | L | ⬜ | 对标 Claude Code auto-memory；独立增量 |
-| 3 | G19 hooks 事件族第一批（SessionStart/End、UserPromptSubmit、Stop、SubagentStart/Stop、PreCompact/PostCompact），observe+block 语义不变 | #70-74 · G19 | M | 🔧 in-progress (INC-15) | 事件对齐既有 journal 点位；handler 仍 command-only |
+| 3 | G19 hooks 事件族第一批（SessionStart/End、UserPromptSubmit、Stop、SubagentStart/Stop、PreCompact/PostCompact），observe+block 语义不变 | #70-74 · G19 | M | ✅ done (INC-15) | 8 事件+2 blockable；QA-24 真验；P0 三件全部完成 |
 
 ### 第二梯队（P1）
 
@@ -91,5 +91,6 @@
 
 | 轮 | 日期 | 项 | 结果 | commit |
 |---|---|---|---|---|
-| 2 | 2026-07-09 | #2 G9 è®°å¿ååæ ¸å¿ (INC-14) | â åé¸é¨å¨ç»¿ï¼memory 4 åå + remember 2 å­ªç + QA-23 ç Geminiï¼æ° session å»ç»éµå¾ªè®°ä½ççº¦æï¼ï¼auto-memory å®æ´ä½ä½é¡¹è®°æ¡£ï¼QA-23 | (è§ push)
+| 3 | 2026-07-09 | #3 G19 hooks 事件族第一批 (INC-15) | ✅ 双闸门全绿（4 孪生 + QA-24 真 Gemini 四红线）；8 事件+2 blockable；P0 三件全部完成 | (见 push) |
+| 2 | 2026-07-09 | #2 G9 记忆写回核心 (INC-14) | ✅ 双闸门全绿（memory 4 单元 + remember 2 孪生 + QA-23 真 Gemini：新 session 冻结遵循记住的约束）；auto-memory 完整体余项记档 | (见 push) |
 | 1 | 2026-07-09 | #1 microcompact (INC-13) | ✅ 双闸门全绿（4 孪生 + QA-22 真 Gemini）；QA 编号连让 19/20/21 已被并发占→落 QA-22 | (见 push) |

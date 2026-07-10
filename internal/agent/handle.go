@@ -8,6 +8,7 @@ import (
 
 	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/hook"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/redact"
@@ -128,6 +129,9 @@ func (l *Loop) settleBackground(appendE AppendFunc, out bgOutcome) error {
 		if _, err := appendE(event.TypeSubagentCompleted, out.subagent); err != nil {
 			return err
 		}
+		l.fireLifecycle(context.Background(), hook.EventSubagentStop, map[string]string{
+			"agent": out.subagent.Agent, "child_session": out.subagent.ChildSession,
+			"reason": out.subagent.Reason}, false)
 		// Quiescence race close-out (INC-12.2): mail that landed while the
 		// child was on its way out (delivered to a port nobody was reading)
 		// is durable in its inbox — queue the revive now, after the receipt.

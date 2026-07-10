@@ -380,6 +380,8 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 	}); err != nil {
 		return RunResult{}, err
 	}
+	l.fireLifecycle(ctx, hook.EventSessionStart,
+		map[string]string{"spec": l.Spec.Name, "task": task}, false)
 	input, err := runtime.IngestInput(l.Store, l.SessionID, task, "cli")
 	if err != nil {
 		return RunResult{}, err
@@ -962,6 +964,10 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				Reason: "killed", Source: src,
 				GenSteps: ds.s.Session.GenStep, Usage: ds.s.Session.Usage,
 			})
+			// ctx is already cancelled on this path; the hook runs on its
+			// own clock (RunLifecycle's per-command timeout).
+			l.fireLifecycle(context.Background(), hook.EventSessionEnd,
+				map[string]string{"reason": "killed", "source": src}, false)
 		}
 		l.settleOnAbort(ctx, ds, appendE)
 		return cause
@@ -1078,10 +1084,16 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				}
 			}
 			if act.turn > 1 && compactionDue(ds.s, l.Spec) {
-				if err := l.compactContext(ctx, ds, appendE, exec, act.turn, "", false); err != nil {
+				compacted, err := l.compactContext(ctx, ds, appendE, exec, act.turn, "", false)
+				if err != nil {
 					return RunResult{}, abort(act.turn, err)
 				}
-				continue
+				// A vetoed/empty compaction must NOT `continue`: the due-check
+				// would re-fire immediately and spin. Proceed with the
+				// oversized context instead — the veto was explicit.
+				if compacted {
+					continue
+				}
 			}
 			appended, err := appendE(event.TypeGenerationStarted, &event.GenerationStarted{GenStep: act.turn})
 			if err != nil {

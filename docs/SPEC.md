@@ -93,7 +93,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | 信任模型（project 层 hooks 需显式 trust，`ar trust`） | ✅ | UJ-20 | S2 |
 | 审批答复写回规则（"允许且不再问"） | ❌ | UJ-08 | GAPS G5（PolicyChanged 事件已设计） |
 | prompt injection 威胁模型成文 | 🟡 | UJ-20 | GAPS G16（硬防线在，条款未成文） |
-| hooks 生命周期扩展（session start/stop 等） | ❌ | — | GAPS G19（无 journey 覆盖） |
+| hooks 生命周期事件族（8 事件：session_start/end、user_prompt_submit、stop、subagent_start/stop、pre/post_compact；observe+block，blockable=user_prompt_submit/pre_compact；settings `hooks.lifecycle`，事件名加载期校验；hooks 不重放） | ✅ | — | INC-15 · TestLifecycleHooksFire/TestUserPromptSubmitHookBlocks/TestPreCompactHookSkipsAndNoSpin/TestObserveHookFailureDoesNotBlock · QA-24（真 Gemini：四红线） |
 
 ## E · 持久化与恢复
 

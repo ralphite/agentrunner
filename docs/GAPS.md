@@ -177,14 +177,23 @@ egress 守卫;`untrusted_content` 软标记降低服从注入概率(不计入 ex
 成文条款、BEGIN/END 定界符(现为 JSON 兄弟布尔)、host allowlist(S1)。
 → UJ-20
 
-**G19 hooks 生命周期事件族 — ⚠️ 设计欠定 · 低**
-只有 pre/post tool（observe+block）。session start/stop、用户输入提交、
-通知类钩子未设计。**注意：20 条 journey 无一压到 hooks——目录本身在
-此处覆盖不足**。
-（2026-07-09 注：Claude Code hooks 已长到 30 事件 × 5 handler 类型
-（command/http/mcp_tool/prompt/agent）+ 决策 JSON 契约（改写输入/输出、
-permissionDecision 档位），全表已录 CLAUDECODE-PARITY §2.08；第一批
-建议事件与我们 journal 点位的对齐见其 §4.2-P0③。）
+**G19 hooks 生命周期事件族 — ✅ 第一批已关闭（INC-15，2026-07-09）**
+关闭位置（第一批 8 事件）：`hook.RunLifecycle`（复用 runOne：sh -c +
+JSON stdin + 凭据剥离 + 超时）+ settings `hooks.lifecycle`（event →
+commands，加载期校验事件名，merge 同 pre/post：user 恒生效、project 需
+trust）+ loop 各 journal 点位挂 `fireLifecycle`。observe-only =
+session_start/session_end/subagent_start/subagent_stop/post_compact/stop
+（事实落 journal 后触发，坏 hook 只 warn）；blockable =
+user_prompt_submit（exit 2 → 输入不落 journal）/pre_compact（exit 2 →
+跳过本次压缩，auto 路径防自旋）。**hooks 不重放**：resume/recovery
+settle 不触发。闸门：TestLifecycleHooksFire/TestUserPromptSubmitHookBlocks
+/TestPreCompactHookSkipsAndNoSpin/TestObserveHookFailureDoesNotBlock +
+QA-24（真 Gemini 四红线）。**余项**：更多事件（Notification/FileChanged/
+ConfigChange 类）与 handler 类型扩展（prompt/agent/http）、hook 改写
+输入输出（决策 #11 明示推迟）——对照面见 CLAUDECODE-PARITY §2.08
+（对方 30 事件 × 5 handler）。**journey 覆盖债仍在**（无 journey 压
+hooks，目录修订时裁）。原文（历史）：只有 pre/post tool；session
+start/stop、用户输入提交、通知类钩子未设计。
 → （无 journey 覆盖）
 
 **G20 agent 主动提问（wait-class 工具，ask_user） — ✅ 已关闭（INC-5，2026-07-09）**

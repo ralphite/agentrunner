@@ -9,6 +9,7 @@ import (
 
 	"github.com/ralphite/agentrunner/internal/crash"
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/hook"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/redact"
 )
@@ -127,6 +128,15 @@ func (l *Loop) quiescentActions(ctx context.Context, ds *driveState, appendE App
 			return err
 		}
 	}
+	// Stop lifecycle hook (INC-15, G19): observe-only at quiescence — the
+	// turn has wrapped up and the fixed sequence ran. Fires at EVERY
+	// quiescence, mirroring the sequence itself.
+	r := ""
+	if reason != nil {
+		r = *reason
+	}
+	l.fireLifecycle(ctx, hook.EventStop,
+		map[string]any{"gen_steps": ds.s.Session.GenStep, "reason": r}, false)
 	return nil
 }
 
@@ -143,5 +153,7 @@ func (l *Loop) closeSession(ctx context.Context, ds *driveState, appendE AppendF
 	}); err != nil {
 		return RunResult{}, err
 	}
+	l.fireLifecycle(ctx, hook.EventSessionEnd,
+		map[string]string{"reason": "closed", "source": "user"}, false)
 	return RunResult{Reason: "closed", GenSteps: turns, Usage: ds.s.Session.Usage}, nil
 }

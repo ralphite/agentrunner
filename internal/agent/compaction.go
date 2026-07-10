@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/hook"
 	"github.com/ralphite/agentrunner/internal/memory"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider"
@@ -171,8 +172,25 @@ func (l *Loop) microcompact(ds *driveState, appendE AppendFunc) error {
 // idempotent — re-summarizing on resume is safe — and does NOT pass the
 // permission pipeline: it is a harness-internal maintenance call the model
 // never directed. Its token usage still settles into the budget.
+// It reports whether a compaction actually landed: a pre_compact hook veto
+// or an empty summary returns (false, nil), and the AUTO caller must then
+// proceed WITHOUT `continue` — retrying the same due-check in a loop with a
+// standing veto would spin forever.
 func (l *Loop) compactContext(ctx context.Context, ds *driveState, appendE AppendFunc,
-	exec *ActivityExecutor, turn int, directive string, manual bool) error {
+	exec *ActivityExecutor, turn int, directive string, manual bool) (bool, error) {
+
+	// PreCompact lifecycle hook (INC-15, G19): blockable — exit 2 skips this
+	// compaction (auto or manual) and the context stays as is.
+	trigger := "auto"
+	if manual {
+		trigger = "manual"
+	}
+	if res := l.fireLifecycle(ctx, hook.EventPreCompact,
+		map[string]string{"trigger": trigger, "directive": directive}, true); res.Blocked {
+		l.emit(protocol.Event{Kind: protocol.KindMessage,
+			Text: "compact skipped by pre_compact hook: " + res.Reason})
+		return false, nil
+	}
 
 	system := compactionSystemPrompt
 	if d := strings.TrimSpace(directive); d != "" {
@@ -222,7 +240,7 @@ func (l *Loop) compactContext(ctx context.Context, ds *driveState, appendE Appen
 		},
 	})
 	if err != nil {
-		return err
+		return false, err
 	}
 	// Never journal a context-LOSING compaction: an empty summary would drop
 	// the whole prefix (assembly reads only msgs[Boundary:] with no summary).
@@ -231,7 +249,7 @@ func (l *Loop) compactContext(ctx context.Context, ds *driveState, appendE Appen
 	if strings.TrimSpace(summary) == "" {
 		l.emit(protocol.Event{Kind: protocol.KindMessage,
 			Text: "compact skipped: summarizer produced no summary; context unchanged"})
-		return nil
+		return false, nil
 	}
 
 	// DroppedTurns is informational: turns wholly behind the new boundary.
@@ -242,11 +260,13 @@ func (l *Loop) compactContext(ctx context.Context, ds *driveState, appendE Appen
 	if _, err := appendE(event.TypeContextCompacted, &event.ContextCompacted{
 		UptoGenStep: turn - 1, Summary: summary, DroppedTurns: dropped,
 	}); err != nil {
-		return err
+		return false, err
 	}
 	l.emit(protocol.Event{Kind: protocol.KindDiscard, N: turn,
 		Text: "context compacted"})
-	return nil
+	l.fireLifecycle(ctx, hook.EventPostCompact,
+		map[string]any{"trigger": trigger, "dropped_turns": dropped}, false)
+	return true, nil
 }
 
 func compactActivityID(turn int) string {
@@ -300,7 +320,7 @@ func (l *Loop) drainControls(ctx context.Context, ds *driveState, appendE Append
 				if err := l.clearContext(ds, ctlAppend, upto); err != nil {
 					return err
 				}
-			} else if err := l.compactContext(ctx, ds, ctlAppend, exec, upto+1, ctl.Directive, true); err != nil {
+			} else if _, err := l.compactContext(ctx, ds, ctlAppend, exec, upto+1, ctl.Directive, true); err != nil {
 				return err
 			}
 		case protocol.ControlRemember:

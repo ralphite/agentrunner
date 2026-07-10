@@ -31,8 +31,82 @@ const BlockExitCode = 2
 type Runner struct {
 	PreTool  []string
 	PostTool []string
-	Dir      string        // working directory (workspace root)
-	Timeout  time.Duration // 0 = DefaultTimeout
+	// Lifecycle maps a lifecycle event name (the Event* constants) to its
+	// hook commands (INC-15, G19). Same command-only contract as pre/post.
+	Lifecycle map[string][]string
+	Dir       string        // working directory (workspace root)
+	Timeout   time.Duration // 0 = DefaultTimeout
+}
+
+// Lifecycle event names (INC-15, G19 first batch). Each fires at its journal
+// point in the loop; only the *blockable* ones honor exit 2.
+const (
+	EventSessionStart     = "session_start"      // observe — after SessionStarted
+	EventSessionEnd       = "session_end"        // observe — after SessionClosed (close/kill)
+	EventUserPromptSubmit = "user_prompt_submit" // BLOCKABLE — before InputReceived lands
+	EventStop             = "stop"               // observe — at quiescence (turn wrapped up)
+	EventSubagentStart    = "subagent_start"     // observe — after SpawnRequested
+	EventSubagentStop     = "subagent_stop"      // observe — after SubagentCompleted
+	EventPreCompact       = "pre_compact"        // BLOCKABLE — before a compaction runs
+	EventPostCompact      = "post_compact"       // observe — after ContextCompacted
+)
+
+// LifecycleEvents is the registry of known event names (config validation).
+var LifecycleEvents = map[string]bool{
+	EventSessionStart: true, EventSessionEnd: true,
+	EventUserPromptSubmit: true, EventStop: true,
+	EventSubagentStart: true, EventSubagentStop: true,
+	EventPreCompact: true, EventPostCompact: true,
+}
+
+// LifecycleInput is the JSON a lifecycle hook receives on stdin.
+type LifecycleInput struct {
+	Event   string          `json:"event"`
+	Session string          `json:"session,omitempty"`
+	Detail  json.RawMessage `json:"detail,omitempty"`
+}
+
+// LifecycleResult aggregates one event's hook chain outcome. Blocked is only
+// ever set when the caller declared the event blockable.
+type LifecycleResult struct {
+	Blocked bool
+	Reason  string
+	Notes   []string
+}
+
+// RunLifecycle executes the hooks registered for one lifecycle event.
+// blockable events honor the exit-2 contract (first block wins, stderr is
+// the reason — same as RunPre); observe events treat every exit code as
+// observe+warn (same as RunPost): a broken hook must never veto work it was
+// only meant to watch.
+func (r *Runner) RunLifecycle(ctx context.Context, in LifecycleInput, blockable bool) LifecycleResult {
+	cmds := r.Lifecycle[in.Event]
+	if len(cmds) == 0 {
+		return LifecycleResult{}
+	}
+	payload, _ := json.Marshal(in)
+	var out LifecycleResult
+	for _, cmd := range cmds {
+		exit, stdout, stderr, err := r.runOne(ctx, cmd, payload)
+		switch {
+		case err != nil:
+			out.Notes = append(out.Notes, fmt.Sprintf("%s hook %q error: %v", in.Event, cmd, err))
+		case blockable && exit == BlockExitCode:
+			out.Blocked = true
+			out.Reason = strings.TrimSpace(stderr)
+			if out.Reason == "" {
+				out.Reason = fmt.Sprintf("blocked by %s hook %q", in.Event, cmd)
+			}
+			return out
+		case exit != 0:
+			out.Notes = append(out.Notes, fmt.Sprintf("%s hook %q exit %d (ignored)", in.Event, cmd, exit))
+		default:
+			if s := strings.TrimSpace(stdout); s != "" {
+				out.Notes = append(out.Notes, s)
+			}
+		}
+	}
+	return out
 }
 
 // PreInput is the JSON a pre-tool hook receives on stdin.

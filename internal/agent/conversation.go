@@ -8,6 +8,7 @@ import (
 
 	"github.com/ralphite/agentrunner/internal/command"
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/hook"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/redact"
@@ -36,6 +37,18 @@ func (l *Loop) journalInput(ds *driveState, appendE AppendFunc, in protocol.User
 	// keeps a daemon restart from re-waking this session for it.
 	if in.Target != "" && in.Target != l.SessionID {
 		return l.forwardToMember(ds, in)
+	}
+	// UserPromptSubmit lifecycle hook (INC-15, G19): fires before the input
+	// lands; exit 2 vetoes it — the prompt never journals and the session
+	// stays as it was. journalInput has no ctx; the hook runs on its own
+	// clock (per-command timeout). A replayed durable command re-fires the
+	// hook and gets the same verdict — stable, no receipt needed.
+	if res := l.fireLifecycle(context.Background(), hook.EventUserPromptSubmit,
+		map[string]string{"text": in.Text, "source": in.Source, "principal": in.Principal},
+		true); res.Blocked {
+		l.emit(protocol.Event{Kind: protocol.KindMessage,
+			Text: "input blocked by user_prompt_submit hook: " + res.Reason})
+		return nil
 	}
 	var images, files []event.AttachmentRef
 	var content []provider.Part
