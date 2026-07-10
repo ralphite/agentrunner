@@ -2025,3 +2025,48 @@ QA-33 真机 Gemini：`ar new --json-schema` 读文件数行返回
 **拆余项 #8b**：provider-native JSON mode（gemini `responseSchema` 约束
 生成、免 re-prompt）+ durable `structured_output` 事件（入 journal 而非仅
 CLI surface）。
+
+## 2026-07-10 HANDA 对照审计：38 项裁决 + 方案对抗 review（第三份 parity 件）
+
+**背景**：用户要求穷尽盘点 `/Users/yadong/dev2/handa`（Python/Gemini/
+Web-first coding agent，内置 orca+browser）相对我们的功能差集。方法：
+5 路并行子 agent 盘点（handa 文档面/工具与 agent 实现/Web-API-CLI/
+运行时与发布/我方 webui 实况）→ 38 项对照清单 → 用户逐项三选
+（实现/不实现/延期）→ 实现方案速写 → 独立子 agent 对抗 review
+（对照 DESIGN 原文+代码取证）→ 修订放行。
+
+**裁决（用户，2026-07-10）**：实现 17（含 5 项 override 我方建议：
+#18 听写/#19 optimize/#23 折叠/#24 project+launcher/#29 排队管理，
+及 #1 浏览器自动化 override 为 defer）· 延期 17 · 不做 4。全景与
+方案见 **docs/HANDA-PARITY.md**（§2 矩阵）；队列化执行见
+**docs/increments/SPRINT-handa-parity.md**（5 批）。
+
+**review 修正 6 处**（全部吸收进 PARITY §2，详 §4）：
+1. **#10 勘误**：初判「bash 后台任务完成不唤醒待命会话」错误——
+   唤醒已存在（conversation.go:311 `bg.done` + 专测钉住）；#10 缩水
+   为 S 级 notify 门，撤回不变量修订。审计教训：盘点期 grep 验证
+   搜错了关键词面（搜事件名未搜 seam），结论以对抗 review 的代码
+   取证为准。
+2. #8 goal judge：引错不变量（#34→§13/决策 #21）；judge 必须是
+   budget-gated 管线 `llm_call` effect；触发门控（仅 goal_complete
+   声明时裁决）；三态/blocked 净新。
+3. #14：rename 迁移撞 §12:1092，拆半（auto-title 走 journal、manual
+   留 localStorage）。
+4. #18/#19：webui 直调 provider 破 §12:1075/决策 #15c；改走
+   `ar dictate`/`ar optimize`。
+5. #16 retry：幂等自相矛盾；改派生确定性 command_id。
+6. #29：revoke 补五点语义（durable/已消费 no-op/作用域/幂等/
+   high-water），走 §四。
+结构性：#16+#29+#7 合并「命令身份·撤销·应答」设计单元。
+
+**跨 sprint 联动**：#7 = CLAUDECODE SPRINT #10、#28b = 同 #15、#14
+与同 #17 相邻避让——两边任一处认领另一处跟改，防双做（承 INC-23
+并发协作教训）。
+
+**决策记档**：
+- handa 的 ralph（planner→builder/verifier 循环）在其 native 运行时
+  已无实现（仅文档+mock）；我们 driver-goal 即等价物——E3 裁不做。
+- 浏览器自动化是全清单影响最大项但用户裁 defer；将来做时整域立项
+  （工具面→daemon→webui 共驾分增量）。
+- 三份 parity 件并存的维护序：CODEX（云形态）/CLAUDECODE（本地
+  核心）/HANDA（消费面与资产生态），同一功能多处出现时状态互挂。
