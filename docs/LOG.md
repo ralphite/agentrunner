@@ -1660,3 +1660,26 @@ compact/clear toast PASS（Agent H 限额前完成）；webui goal 时间线/For
 "记档未修"清单）。三轮共产出 61+ findings、修复 32 项、新增回归测试
 6 个；测试数据 230+ 会话保留于共享 store，报告归档 session scratchpad
 qa-round{1,2,3}/。
+
+## 2026-07-09 INC-18 protected paths 写保护集（SPRINT #6，#59）
+
+CLAUDECODE-PARITY §2.06 #59 落地。靶心：`acceptEdits` 对 edit 类静默
+Allow 一切路径（含 `.git`/`.claude`/shell rc/`.mcp.json`/`.claude.json`
+等敏感配置）。加 `isProtectedWritePath`（protected 目录任意深度 + protected
+basename 任意深度，`.claude/worktrees` carve-out），`PermissionGate.Check`
+在 `modeDefault` 返回 Allow 后，若该 Allow 来自 acceptEdits 的 edit 自动
+放行且目标 protected → 改 **Ask**。
+
+**安全立场（只收紧 mode default）**：显式 allow/deny 规则（rules 先于
+modeDefault）、bypass、hardFloor 均不受影响——是"acceptEdits 更安全"，
+不是新 floor。与 Codex"allow 不预批 protected"的差异（我们的显式规则=
+用户意图可放行 protected）记档。
+
+**双闸门**：7 孪生（isProtectedWritePath 单元含 carve-out；acceptEdits
+protected→ask/normal→allow；bypass 忽略；显式 allow/deny 各优先；default
+不变）+ 真实 API QA-28（真 Gemini + acceptEdits spec）三红线：普通文件
+自动放行落地、`.mcp.json` 需审批、审批 pending 时文件未改写（文件系统
+硬证据）。归档 qa/runs/2026-07-09-QA28/。check.sh 全绿。
+
+**并发协作**：rebase 后 check.sh 抓到并发 QA-R2 新增的 initcmd.go 未
+gofmt（全仓 gofmt 检查拦门），顺手 gofmt 修复（无害格式，随本 commit）。

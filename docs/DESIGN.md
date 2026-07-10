@@ -547,6 +547,15 @@ effect
   **安全序**：显式 deny/ask 规则**先于**只读集与 default（`deny cat *`
   能挡 cat）；拆分/剥离拿不准退回整体匹配（fail-safe：只更严不更松）；
   只读命令仍受 OS sandbox 边界约束。
+- **protected 写路径（INC-18，#59）**：`acceptEdits` 自动放行一切 edit，
+  但对**敏感配置/系统文件**的写（`.git`/`.claude`(除 `.claude/worktrees`)
+  /shell rc/包管理器 rc/`.gitconfig`/`.mcp.json`/`.claude.json`/CI 配置等，
+  workspace 相对路径任意深度匹配）不自动放行——`Check` 在 `modeDefault`
+  返回 Allow 后，若该 Allow 来自 acceptEdits 的 edit 自动放行且目标 protected，
+  改 **Ask**。**只收紧 mode default 的自动放行**：显式 allow/deny 规则
+  （rules 先于 modeDefault）与 bypass、hardFloor 均不受影响——是"acceptEdits
+  更安全"，不是新 floor。（与 Codex"allow 不预批 protected"的差异：我们
+  的显式规则=用户意图，可放行 protected；记档。）
 - **network 资源类同理**：rules 的 `network`
   模式匹配 effect 的出口范围——未受限的 execute effect 带 `all`，
   spec `sandbox.network: none` 由同一 OS backend 收容后不带出口、network 规则

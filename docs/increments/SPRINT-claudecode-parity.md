@@ -64,7 +64,7 @@
 |---|---|---|---|---|---|
 | 4 | 权限规则工程三件套：复合命令逐段匹配、wrapper 剥离（timeout/nice/xargs 等）、只读命令免提示集 | #53 | M | ✅ done (INC-16) | 三件套全落；QA-25 真机（victim 存活证逐段 deny）；显式 deny 先于只读集 |
 | 5 | G5 审批"允许且不再问"（下次生效路径） | #58 · G5 · INC-D5 | M | ✅ done (INC-17) | 取 A 写 user 层精确匹配；QA-26 真机 UJ-08 全流；project 精确作用域余项 |
-| 6 | protected paths 写保护集（.git/.claude/rc 文件等） | #59 | S | 🔧 in-progress (INC-18) | 只收紧 acceptEdits 自动放行；bypass/显式规则不变 |
+| 6 | protected paths 写保护集（.git/.claude/rc 文件等） | #59 | S | ✅ done (INC-18) | 只收紧 acceptEdits 自动放行；QA-28 真机；bypass/显式规则/hardFloor 不变 |
 | 7 | skill 模型侧 invoke + context:fork（skill def 即 tool def；fork=spawn_agent 一次性变体） | #45 · §3.5 | M | ⬜ | 维持"命令=用户宏"裁决不动 |
 | 8 | 结构化输出（`ar run --json-schema`，provider JSON mode 能力位） | #91 | S | ⬜ | verifier/集成两用 |
 | 9 | checkpoint 增强：barrier 打点密度提至每 turn 收尾 + "仅对话"fork 变体 + compact 范围指示（Summarize-from-here 等价） | #12/13 · §3.1 | M | ⬜ | §3.1 已论证不触不变量 |
@@ -93,6 +93,7 @@
 |---|---|---|---|---|
 | 5 | 2026-07-09 | #5 G5 审批"允许且不再问" (INC-17) | ✅ 双闸门全绿（3 孪生含下次-session 端到端 + QA-26 真 Gemini UJ-08 全流：ask→approve --always→新 session 直过）；真机捕获修 persist 漏传 Remember bug | (见 push) |
 | 4 | 2026-07-09 | #4 权限规则三件套 (INC-16) | ✅ 双闸门全绿（9 pipeline 孪生含安全回归 + QA-25 真 Gemini：victim 存活证逐段 deny）；显式 deny 先于只读集 | (见 push) |
+| 6 | 2026-07-09 | #6 protected paths 写保护 (INC-18) | ✅ 双闸门全绿（7 孪生 + QA-28 真 Gemini：.mcp.json 需审批且 pending 时未改写）；顺手 gofmt 并发遗漏的 initcmd.go | (见 push) |
 | 3 | 2026-07-09 | #3 G19 hooks 事件族第一批 (INC-15) | ✅ 双闸门全绿（4 孪生 + QA-24 真 Gemini 四红线）；8 事件+2 blockable；P0 三件全部完成 | (见 push) |
 | 2 | 2026-07-09 | #2 G9 记忆写回核心 (INC-14) | ✅ 双闸门全绿（memory 4 单元 + remember 2 孪生 + QA-23 真 Gemini：新 session 冻结遵循记住的约束）；auto-memory 完整体余项记档 | (见 push) |
 | 1 | 2026-07-09 | #1 microcompact (INC-13) | ✅ 双闸门全绿（4 孪生 + QA-22 真 Gemini）；QA 编号连让 19/20/21 已被并发占→落 QA-22 | (见 push) |

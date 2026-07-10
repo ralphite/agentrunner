@@ -517,6 +517,21 @@ QA 捕获并修一个 persist 主路径漏传 Remember 的 bug。
 
 **结果**：PASS。截图、同图 design 对照、console/DOM 断言、原始 journal
 副本与 workspace diff 均在归档目录；所有测试数据保留。
+## QA-28 protected paths 写保护（INC-18,#59,UJ-08）
+
+**环境**：私有 daemon（隔离 runtime 根）+ 真实 Gemini；spec `mode:
+acceptEdits`、无 permission 规则（mode default 治理）；workspace 预置一个
+普通文件与一个 `.mcp.json`；跑完 session 拷回共享 store、export 归档
+`qa/runs/2026-07-09-QA28/`。
+
+| # | 动作 | 验证 |
+|---|---|---|
+| 1 | acceptEdits 下让模型改 `normal.txt` | 自动放行、编辑落地（无 approval_requested） |
+| 2 | 让模型改 `.mcp.json`（protected） | **不**自动放行——journal 出 `approval_requested`（未审批不执行） |
+| 3 | 审批 pending 期间 | `.mcp.json` **文件内容未变**（写被拦在审批前，文件系统硬证据） |
+
+**通过标准**：三红线均为 journal/文件事实；protected 只收紧 acceptEdits
+自动放行（bypass/显式规则/hardFloor 不变，`.claude/worktrees` carve-out）。
 
 ---
 

@@ -83,7 +83,17 @@ func (g *PermissionGate) Check(_ context.Context, eff Effect) Decision {
 	if d, matched := g.matchOneCommand(eff, relPath, args, args.Command); matched {
 		return d
 	}
-	return modeDefault(g.effectiveMode(eff), eff.Class)
+	d := modeDefault(g.effectiveMode(eff), eff.Class)
+	// Protected write paths (INC-18, #59): acceptEdits auto-allows every edit,
+	// but a WRITE to a sensitive config/system path (.git, .claude, rc files,
+	// …) must still be approved. This ONLY re-tightens the mode default — an
+	// explicit allow rule (matched above) and bypass both still pass; it never
+	// denies, only escalates the auto-allow to ask.
+	if d.Action == event.VerdictAllow && eff.Class == "edit" &&
+		g.effectiveMode(eff) != ModeBypass && isProtectedWritePath(relPath) {
+		return Ask("protected path: writing " + relPath + " requires approval")
+	}
+	return d
 }
 
 // adjudicateSegments takes the strictest verdict across a compound command's

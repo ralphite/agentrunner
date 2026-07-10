@@ -86,6 +86,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 |---|---|---|---|
 | rules（tool/path/command/network + realpath 归一） | ✅ | UJ-08/20 | S2 · S7（network） |
 | bash 命令粒度匹配（复合命令逐段聚合取最严 + wrapper 剥离 + 只读集免提示；显式 deny 先于只读集；fail-safe 退整体） | ✅ | UJ-08 | INC-16 · TestSplitCompound/TestStripWrappers/TestIsReadOnlyCommand/TestCompound*/TestReadonlySetYieldsToExplicitRule · QA-25（真机：victim 存活证逐段 deny） |
+| protected paths 写保护（acceptEdits 下 .git/.claude/rc/.mcp.json 等敏感写需审批；只收紧 mode default 自动放行，bypass/显式规则/hardFloor 不变；.claude/worktrees carve-out） | ✅ | UJ-08 | INC-18 · TestIsProtectedWritePath/TestAcceptEditsProtectedRequiresApproval/TestBypassIgnoresProtected/TestExplicitAllowOverridesProtected/TestProtectedWorktreeCarveout · QA-28（真机：.mcp.json 需审批且 pending 时未改写） |
 | modes（default/plan/acceptEdits + bypass 不跳 hooks） | ✅ | UJ-06/11 | S2/S3 |
 | 审批流（ask → WAITING_APPROVAL → 应答/拒绝理由回灌） | ✅ | UJ-08 | S2 · 远程审批 S6 |
 | hooks（pre/post，observe+block） | ✅ | UJ-19 | S2 |

@@ -184,6 +184,65 @@ func stripWrappers(segment string) string {
 	return s
 }
 
+// protectedDirs name directories whose contents (at any depth) are sensitive
+// config or VCS state (INC-18, #59). A WRITE under one is not auto-allowed by
+// acceptEdits — it needs approval. `.claude/worktrees` is a carve-out (the
+// worktree-isolation mechanism writes there legitimately).
+var protectedDirs = []string{
+	".git", ".claude", ".config/git", ".vscode", ".idea", ".husky", ".github",
+}
+
+// protectedBasenames name individual files that are sensitive regardless of
+// depth (shell/package/git/tooling config).
+var protectedBasenames = []string{
+	".bashrc", ".zshrc", ".profile", ".bash_profile", ".zshenv", ".zprofile",
+	".npmrc", ".yarnrc", ".yarnrc.yml", ".pypirc",
+	".gitconfig", ".gitmodules",
+	".mcp.json", ".claude.json", ".pre-commit-config.yaml", ".ripgreprc",
+	"gradle-wrapper.properties", "maven-wrapper.properties",
+}
+
+// isProtectedWritePath reports whether a workspace-relative (forward-slash)
+// path names a sensitive config/system file whose WRITE must not be
+// auto-allowed by acceptEdits (INC-18). It matches a protected directory at
+// any level (except the .claude/worktrees carve-out) or a protected basename
+// at any depth. Read is unaffected; this is a WRITE-side, mode-default-only
+// tightening.
+func isProtectedWritePath(rel string) bool {
+	if rel == "" {
+		return false
+	}
+	rel = strings.TrimPrefix(rel, "./")
+	segs := strings.Split(rel, "/")
+	// Directory match: any path segment equal to a protected dir, with the
+	// .claude/worktrees carve-out.
+	for i, seg := range segs {
+		for _, d := range protectedDirs {
+			// A protected dir may itself contain a slash (".config/git").
+			if strings.Contains(d, "/") {
+				if strings.HasPrefix(rel, d+"/") || rel == d {
+					return true
+				}
+				continue
+			}
+			if seg == d {
+				// Carve-out: .claude/worktrees/** is not protected.
+				if d == ".claude" && i+1 < len(segs) && segs[i+1] == "worktrees" {
+					return false
+				}
+				return true
+			}
+		}
+	}
+	base := segs[len(segs)-1]
+	for _, b := range protectedBasenames {
+		if base == b {
+			return true
+		}
+	}
+	return false
+}
+
 // readOnlyCommands are builtins whose invocation cannot mutate state or run
 // arbitrary code. A segment whose (wrapper-stripped) command word is one of
 // these needs no rule — it is allowed without a prompt. `find` is included
