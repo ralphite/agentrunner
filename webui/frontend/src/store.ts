@@ -12,6 +12,7 @@ export type ModalKind =
   | { kind: "rename"; sid: string }
   | { kind: "trust" }
   | { kind: "confirm"; title: string; body: string; confirmLabel: string; danger?: boolean; onConfirm: () => void | Promise<void> }
+  | { kind: "inspect"; data: unknown }
   | { kind: "viewer"; title: string; body: string }
   | null;
 

@@ -189,8 +189,8 @@ export function SupervisionPanel({
         </section>
       )}
 
-      <button className="supervision-details" onClick={onInspect} title="Open the raw inspect data (JSON) for this session's run tree">
-        Inspect data (JSON) <span><CaretRight size={12} /></span>
+      <button className="supervision-details" onClick={onInspect} title="Review this run's status, usage, activity, and provider capabilities">
+        Run details <span><CaretRight size={12} /></span>
       </button>
     </aside>
   );

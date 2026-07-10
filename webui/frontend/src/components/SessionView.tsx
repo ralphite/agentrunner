@@ -552,7 +552,7 @@ export function SessionView({ sid }: { sid: string }) {
             onGoalAction={(action) => AR.goal(sid, { action }).then(() => pollTasks()).catch((error) => toast(error.message))}
             onOpenChild={(childSid) => select(childSid)}
             onKillTask={act.kill}
-            onInspect={() => act.view("inspect tree", () => AR.inspect(sid))}
+            onInspect={() => AR.inspect(sid).then((data) => openModal({ kind: "inspect", data })).catch((error) => toast(error.message))}
             onClose={() => setSupervision(false)}
           />
         )}

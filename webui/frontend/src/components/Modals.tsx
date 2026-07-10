@@ -5,6 +5,8 @@ import { useStore, type ModalKind } from "../store";
 import type { SpecFile } from "../types";
 import { DEFAULT_DRIVER, DEFAULT_DRIVER_AGENT, DEFAULT_SPEC, DEFAULT_WORKER } from "../specs";
 import { displayTitle } from "../title";
+import { compactCount, summarizeInspect } from "../inspectPresentation";
+import { friendlyStatus } from "./pill";
 import { recallAccess, recallSpec, rememberAccess, rememberSpec } from "./sessionSpecs";
 
 function Modal({
@@ -101,6 +103,8 @@ function MainModal({ modal }: { modal: NonNullable<ModalKind> }) {
       return <TrustModal />;
     case "confirm":
       return <ConfirmModal modal={modal} />;
+    case "inspect":
+      return <RunDetailsModal data={modal.data} />;
     case "viewer":
       return <ViewerModal title={modal.title} body={modal.body} />;
   }
@@ -704,6 +708,82 @@ function ViewerModal({ title, body }: { title: string; body: string }) {
       <pre style={{ fontFamily: "var(--mono)", fontSize: 12, whiteSpace: "pre-wrap", wordBreak: "break-all", margin: 0 }}>
         {body}
       </pre>
+    </Modal>
+  );
+}
+
+function RunDetailsModal({ data }: { data: unknown }) {
+  const { openModal } = useStore();
+  const summary = summarizeInspect(data);
+  const status = friendlyStatus(summary.status.text);
+  return (
+    <Modal title="Run details" onClose={() => openModal(null)}>
+      <div className="run-details">
+        <div className="rd-hero">
+          <div>
+            <span className="rd-kicker">Current run</span>
+            <strong>{summary.spec}</strong>
+          </div>
+          <span className={`pill ${summary.status.cls || status.cls}`}>{summary.status.text}</span>
+        </div>
+
+        {summary.waiting && (
+          <section className="rd-attention" aria-label="Waiting for you">
+            <b>{summary.waiting.title}</b>
+            <span>{summary.waiting.subject}</span>
+          </section>
+        )}
+
+        <section className="rd-section">
+          <h3>Overview</h3>
+          <dl className="rd-grid">
+            <div><dt>Model</dt><dd>{summary.model}</dd></div>
+            <div><dt>Access</dt><dd>{summary.mode}</dd></div>
+            <div><dt>Turns</dt><dd>{summary.turns}</dd></div>
+            <div><dt>Steps</dt><dd>{summary.steps}</dd></div>
+            <div><dt>Subagents</dt><dd>{summary.agents}</dd></div>
+            <div><dt>Provider</dt><dd>{summary.provider || "Not reported"}</dd></div>
+          </dl>
+        </section>
+
+        <section className="rd-section">
+          <h3>Usage</h3>
+          <div className="rd-metrics">
+            <div><strong>{compactCount(summary.usage.billed)}</strong><span>Billed tokens</span></div>
+            <div><strong>{compactCount(summary.usage.input)}</strong><span>Input</span></div>
+            <div><strong>{compactCount(summary.usage.output)}</strong><span>Output</span></div>
+          </div>
+        </section>
+
+        <section className="rd-section">
+          <h3>Activity</h3>
+          <p className="rd-summary">{summary.activity.modelCalls} model calls · {summary.activity.toolCalls} tool calls{summary.activity.blocked ? ` · ${summary.activity.blocked} blocked` : ""}</p>
+          {summary.activity.recentTools.length > 0 && (
+            <div className="rd-tools">
+              {summary.activity.recentTools.map((tool, index) => (
+                <div className={tool.blocked ? "blocked" : ""} key={`${tool.name}-${index}`}>
+                  <span>{tool.name}</span>
+                  <code>{tool.detail || (tool.blocked ? "Blocked by policy" : "Completed")}</code>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {(summary.modalities.length > 0 || summary.capabilities.length > 0) && (
+          <section className="rd-section">
+            <h3>Provider capabilities</h3>
+            <div className="rd-tags">
+              {[...summary.modalities, ...summary.capabilities].map((label) => <span key={label}>{label}</span>)}
+            </div>
+          </section>
+        )}
+
+        <details className="rd-raw">
+          <summary>Raw run data</summary>
+          <pre>{JSON.stringify(data, null, 2)}</pre>
+        </details>
+      </div>
     </Modal>
   );
 }
