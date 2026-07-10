@@ -316,6 +316,24 @@ func clearCmd(args []string, stdout, stderr io.Writer) int {
 	return code
 }
 
+// rememberCmd writes a note to the workspace-root CLAUDE.md (G9, INC-14):
+// `agentrunner remember <session> <text…>`. The note persists to project
+// memory (next session picks it up in the frozen prefix) and enters the
+// current conversation as a program-source message so this run honors it too.
+func rememberCmd(args []string, stdout, stderr io.Writer) int {
+	if len(args) < 2 {
+		fmt.Fprintln(stderr, "usage: agentrunner remember <session-id-or-prefix> <text to remember>")
+		return ExitUsage
+	}
+	cmd := daemon.Command{Cmd: "remember", Session: resolvePrefixLenient(args[0]),
+		Directive: strings.Join(args[1:], " ")}
+	code := oneShot(stderr, cmd, stdout)
+	if code != ExitOK {
+		stuckHint(stderr, args[0])
+	}
+	return code
+}
+
 // goalCmd drives an in-session goal (INC-D1, G23/UJ-22):
 //
 //	agentrunner goal <session> attach "<goal>" --verify "<cmd>" [--verify …] [--max-checks N]

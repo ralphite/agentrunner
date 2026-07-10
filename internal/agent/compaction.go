@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/memory"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/state"
@@ -296,6 +297,10 @@ func (l *Loop) drainControls(ctx context.Context, ds *driveState, appendE Append
 			} else if err := l.compactContext(ctx, ds, ctlAppend, exec, upto+1, ctl.Directive, true); err != nil {
 				return err
 			}
+		case protocol.ControlRemember:
+			if err := l.remember(ds, ctlAppend, ctl.Directive); err != nil {
+				return err
+			}
 		}
 		if ctl.CommandID != "" && ds.lastID == before {
 			if _, err := ctlAppend(event.TypeCommandHandled, &event.CommandHandled{
@@ -307,6 +312,35 @@ func (l *Loop) drainControls(ctx context.Context, ds *driveState, appendE Append
 		}
 	}
 	return nil
+}
+
+// remember writes a note to the workspace-root CLAUDE.md (G9, INC-14, INC-D4
+// 取 A) and surfaces it as a program-source input so the CURRENT conversation
+// honors it too. The file persists for the NEXT session's frozen prefix; the
+// appended message is how "this run" sees it without rewriting the frozen
+// prefix (DESIGN §4: environment changes enter as appended messages, never as
+// a prefix rewrite). memory.Append is idempotent, so a replayed durable
+// remember command never double-writes the file.
+func (l *Loop) remember(ds *driveState, appendE AppendFunc, note string) error {
+	note = strings.TrimSpace(note)
+	if note == "" {
+		return nil
+	}
+	var wsRoot string
+	if l.Exec != nil && l.Exec.WS != nil {
+		wsRoot = l.Exec.WS.Root()
+	}
+	if wsRoot == "" {
+		return fmt.Errorf("remember: no workspace root")
+	}
+	if err := memory.Append(wsRoot, note); err != nil {
+		return err
+	}
+	_, err := appendE(event.TypeInputReceived, &event.InputReceived{
+		Text:   "[记忆] 已记入项目 CLAUDE.md（下次会话进入 prompt 前缀，本会话起即遵循）：" + note,
+		Source: "program",
+	})
+	return err
 }
 
 // clearContext drops the whole context prefix (G7 /clear) with NO summarizer

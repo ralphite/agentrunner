@@ -151,12 +151,21 @@ spec 冻结于 SessionStarted（对的），但缺一个显式变更事件族（
 之于 mode）承载换模型、权限面切换。
 → UJ-11（评审→动手的角色切换）
 
-**G9 记忆写回（# remember → CLAUDE.md/项目记忆） — ⚠️ 设计欠定 · 中**
-只设计了读侧注入（prefix 冻结）；写回哪个文件、本 run 何时生效未定。
-（2026-07-09 注：Claude Code auto-memory 的生产参照——MEMORY.md 索引
-前 200 行/25KB + 主题文件按需读 + per-agent agent-memory + 夜间巩固——
-已录 CLAUDECODE-PARITY §2.04/§4.2；其"压缩后不 consult memory"是对方
-top 抱怨（issue #29890），G9 设计时直接补此闭环。）
+**G9 记忆写回（# remember → CLAUDE.md/项目记忆） — ✅ 写回核心已关闭（INC-14，2026-07-09，取 A）**
+关闭位置（写回核心）：`memory.Append(root, note)`（workspace-root CLAUDE.md、
+append-only、`## Remembered` 段、同 note 幂等去重防重放双写）+
+`protocol.ControlRemember` control（与 compact/clear 同 durable command /
+drainControls 家族）+ `Loop.remember`（Append + program-source
+`InputReceived` 追加，本会话确认续跑）+ daemon `remember` 命令 + CLI
+`ar remember <sid> <text>`。**取 A**（INC-D4）：追加 program 输入本会话即
+遵循、文件供**下次** session start 冻结进 prefix——**不动 prefix、不触
+不变量**。闸门：孪生 TestMemoryAppend*/TestRememberControl* + QA-23（真
+Gemini：remember 写 CLAUDE.md → 新 session 冻结遵循 pnpm 约束）。
+**余项（auto-memory 完整体，独立增量）**：MEMORY.md 索引（200 行/25KB）+
+主题文件按需读 + per-agent agent-memory + @import + `.claude/rules` 条件
+加载（对标 Claude Code，CLAUDECODE-PARITY §2.04/§4.2）；其"压缩后不
+consult memory"洞我们天然规避（memory 冻结在 prefix，compact 只动
+boundary 后消息，memory 永在——比对方强，记档）。
 → UJ-09
 
 **G16 prompt injection 威胁模型成文 — ⚠️ 设计欠定 · 中(web_fetch 面部分收口)**

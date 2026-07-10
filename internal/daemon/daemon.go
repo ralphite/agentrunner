@@ -666,6 +666,8 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlCompact, Directive: cmd.Directive}, "compacting", enc)
 	case "clear":
 		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlClear}, "clearing", enc)
+	case "remember":
+		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlRemember, Directive: cmd.Directive}, "remembering", enc)
 	// goal-* controls revive a non-hosted session like send does (INC-10):
 	// structural since the durable-command unification — handleControl's
 	// delivery path (commandHubCommandLocked) resumes the session first.
@@ -685,7 +687,7 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		s.handleAgent(cmd, enc)
 	default:
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
-			Text: fmt.Sprintf("unknown command %q (known: ping, run, drive, attach, approve, send, close, interrupt, stop, compact, clear, goal-*, kill, agent)", cmd.Cmd)})
+			Text: fmt.Sprintf("unknown command %q (known: ping, run, drive, attach, approve, send, close, interrupt, stop, compact, clear, remember, goal-*, kill, agent)", cmd.Cmd)})
 	}
 }
 

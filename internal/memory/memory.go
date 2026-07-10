@@ -62,6 +62,54 @@ func isGitRoot(dir string) bool {
 	return err == nil
 }
 
+// Append writes one remembered note to the workspace-root CLAUDE.md (G9,
+// INC-14): create the file if absent, otherwise append — NEVER overwrite, so
+// existing project memory is preserved. The note lands under a stable
+// "## Remembered" section so repeated writes stay tidy and diff-friendly. The
+// file is workspace content (not journaled fold state); the next session
+// freezes it into the prompt prefix via Collect/Render.
+func Append(root, note string) error {
+	note = strings.TrimSpace(note)
+	if note == "" {
+		return fmt.Errorf("memory: empty note")
+	}
+	abs, err := filepath.Abs(root)
+	if err != nil {
+		return fmt.Errorf("memory: %w", err)
+	}
+	path := filepath.Join(abs, "CLAUDE.md")
+	existing, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("memory: %w", err)
+	}
+	// Idempotent: if this exact note is already remembered, do nothing. This
+	// makes the write safe to replay — a durable `remember` command that
+	// crashes after the file write but before its journal receipt re-runs on
+	// resume and must not double-write (INC-14 correctness).
+	if strings.Contains(string(existing), "- "+note+"\n") {
+		return nil
+	}
+	var b strings.Builder
+	b.Write(existing)
+	if len(existing) > 0 && !strings.HasSuffix(string(existing), "\n") {
+		b.WriteString("\n")
+	}
+	// Open the section once; later appends just add a bullet under it.
+	if !strings.Contains(string(existing), "## Remembered") {
+		if len(existing) > 0 {
+			b.WriteString("\n")
+		}
+		b.WriteString("## Remembered\n")
+	}
+	b.WriteString("- ")
+	b.WriteString(note)
+	b.WriteString("\n")
+	if err := os.WriteFile(path, []byte(b.String()), 0o644); err != nil {
+		return fmt.Errorf("memory: %w", err)
+	}
+	return nil
+}
+
 // Render merges collected files into one byte-stable memory block, each
 // section labeled with its source path relative to the workspace root (or
 // absolute when outside it).

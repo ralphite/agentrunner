@@ -142,7 +142,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | MCP 交互 OAuth 登录 / refresh-token 持久化 | 🧊 | UJ-19 | 凭据 UX；runtime 不持久化 secret |
 | skills（Claude Code 约定） | ✅ | UJ-19 | S5 |
 | memory 文件读侧注入（CLAUDE.md 层级合并） | ✅ | UJ-09 | S3 |
-| 记忆写回（# remember → CLAUDE.md） | ❌ | UJ-09 | GAPS G9 |
+| 记忆写回（`ar remember`，append 项目 CLAUDE.md；取 A：追加 program 输入本会话即遵循，文件供下次 session 冻结） | ✅ | UJ-09 | INC-14 · TestMemoryAppend*/TestRememberControl* · QA-23（真 Gemini：写 CLAUDE.md → 新 session 冻结遵循 pnpm 约束） |
 | 自定义命令 / slash 面 | ✅ | UJ-19 | INC-8 · TestExpand*/TestDiscover · 真实 API（`.claude/commands/*.md` 的 `/name` 在 new+send 两路展开进 journal） |
 
 ## I · 观察与远程面
@@ -175,13 +175,13 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 
 **CLI 子命令**（`internal/cli/cli.go`）：
 `run` `drive` `submit` `resume` `new` `send` `close` `interrupt`
-`stop`（INC-4）`compact`（INC-6）`clear`（INC-6）`kill` `agent`（决策 #32）`ps` `approve` `fork` `barrier`
+`stop`（INC-4）`compact`（INC-6）`clear`（INC-6）`remember`（INC-14）`kill` `agent`（决策 #32）`ps` `approve` `fork` `barrier`
 `sessions` `trust` `attach` `daemon` `events` `inspect` `accept`
 `record-fixture` `version` `help` `init`（INC-2）
 
 **daemon 线协议命令**（`internal/daemon/daemon.go`）：
 `ping` `run` `drive` `attach` `approve` `send` `close` `interrupt`
-`stop`（INC-4）`compact`（INC-6）`clear`（INC-6）`kill` `agent`
+`stop`（INC-4）`compact`（INC-6）`clear`（INC-6）`remember`（INC-14）`kill` `agent`
 
 **内置 tool 定义**（`internal/tool/defs/*.json`）：
 `read_file` `write_file` `edit_file` `bash` `output` `kill`

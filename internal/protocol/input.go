@@ -148,6 +148,7 @@ type GoalControl struct {
 const (
 	ControlCompact    = "compact"
 	ControlClear      = "clear"
+	ControlRemember   = "remember"
 	ControlGoalAttach = "goal_attach"
 	ControlGoalPause  = "goal_pause"
 	ControlGoalResume = "goal_resume"

@@ -1295,3 +1295,39 @@ review 结论：P0/P1 全修并加回归测试,check.sh 全绿;P2 文档修讫 +
 三视角 review 全部收敛：安全 P0/P1、契约 P1、正确性 P0 全修并加回归
 测试;各视角剩余项均为 P2 记档（部署红线 / backlog）。连续一轮无新
 P0/P1。check.sh 全绿。
+## 2026-07-09 INC-14 记忆写回核心——remember → 项目 CLAUDE.md（SPRINT #2，G9 取 A）
+
+CLAUDECODE-PARITY §4.2 P0② 的写回核心落地，兑现 INC-D4 设计稿的**取 A**
+（append-as-message，不触不变量）。`ar remember <sid> <text>` = durable
+command（与 compact/clear 同 control 家族 / drainControls 路径）：
+`memory.Append` 把 note append 到 **workspace-root CLAUDE.md**（append-only、
+`## Remembered` 段、保留既有手写内容、**同 note 幂等去重**）+ 一条
+program-source `InputReceived` 追加进当前对话（本会话即遵循，触发一次
+确认续跑，与 goal 回灌同构）。文件供**下次** session start 被 memory
+loader 冻结进 prefix——**不改冻结 prefix、不触任何 caching 不变量**。
+
+**correctness 关口**：remember 有文件副作用，durable command 崩溃重放
+（Append 后、journal receipt 前崩）可能双写——`memory.Append` 检测该 note
+已在文件则 no-op，把重放吸收成幂等。孪生 TestRememberControlIsIdempotent
+钉住。
+
+**连带澄清**：memory 块在 session-start 冻结的 prefix 里，compact/
+microcompact 只动 boundary 之后的消息——**记忆在压缩后永不丢**，我们
+天然规避 Claude Code 的 top 抱怨 #29890（"压缩后不 consult memory"），
+无需补丁（CLAUDECODE-PARITY #31 结论更新）。DESIGN 决策表加 #37 + §4
+prose 命名 memory writeback 为允许操作（取 A 不翻转任一既有格）。
+
+**双闸门**：memory 4 单元（Append 建/追加/保留手写/幂等去重/拒空）+
+agent 2 孪生（remember → 文件 + program input + 确认 turn；重复同 note
+文件不双写）；真实 API QA-23（真 Gemini + 私有 daemon 隔离根 + 真 CLI）
+三红线全绿——note 写入 CLAUDE.md、session 1 见 program input、**全新
+session 2 冻结遵循 pnpm 约束**（跨会话记忆生效，本增量靶心）。session
+拷回共享 store、export 归档 qa/runs/2026-07-09-QA23/。`./scripts/check.sh`
+全绿。
+
+**余项（auto-memory 完整体，独立增量，挂 SPRINT #2 余项）**：MEMORY.md
+索引（200 行/25KB）+ 主题文件按需读 + per-agent agent-memory + @import +
+`.claude/rules` 条件加载（对标 Claude Code auto-memory）。
+
+**并发协作**：QA-23 编号避让并发（origin 已用到 QA-22）；本轮 sync-in
+干净、代码正交无冲突。

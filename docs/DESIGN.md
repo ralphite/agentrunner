@@ -359,6 +359,14 @@ generation step 预算（从最后一条输入起算,防单 turn runaway）。
   （CLAUDE.md 按目录层级合并）→ tool/skill/子 agent 目录（模型不知道
   `summarizer` 存在就永远不会 spawn 它——目录注入是 multi-agent 可用的
   前提）→ spec 的 system prompt。
+- **记忆写回是允许操作，取 A 守 prefix 稳定（INC-14，G9，决策 #37）**：
+  `remember` 把一条 note append 到 workspace-root CLAUDE.md 并作为一条
+  program-source 追加消息进当前对话——**不改写冻结的 memory 块**（那是
+  session start 冻结的 prefix），只让文件在**下次** session start 被
+  memory loader 读进新 prefix。这正是"环境变化以追加消息进入上下文，
+  绝不改写 prefix"教义的一个实例，故取 A 不触任何 caching 不变量。
+  连带：memory 块在冻结 prefix 里，compact/microcompact 只动 boundary
+  之后的消息，**记忆在压缩后永不丢**（无需"压缩后重读 memory"的补丁）。
 - **Prefix 稳定性是显式不变量**（prompt caching 的经济性约 10x，
   没有它 agent loop 在经济上不可用）：system prompt 与 tool schema 排序
   稳定，cache 断点由 loop 放置；任何会打爆 prefix 的操作
@@ -1234,6 +1242,7 @@ limits:
 | 34 | shell filesystem 与 verifier 统一治理（INC-11.3，2026-07-09，**不变量升级**） | bash/command verifier 默认强制 OS workspace sandbox（macOS Seatbelt / Linux Bubblewrap），凭据路径与敏感 env 隔离；backend 缺失在 Activity 前 fail closed。in-session 与 driver command verifier 都必须产生 EffectRequested/Resolved（含 containment evidence）与 Activity bracket；会话内 ask 走正常审批，headless driver ask 收紧 deny。 | command pattern/path 静态规则无法约束 shell 间接文件访问；UNGATED goal verifier 还可绕过 mode/deny/approval。OS boundary 与统一 effect path 才能让 policy、审计和执行事实一致。 |
 | 35 | 树内消息与静止子唤醒（INC-12,2026-07-09） | agent 是 send 通道的一等发送方：`send_message` 向树内成员的 durable inbox 投递（AppendInbox 幂等,来源前缀+source=agent）;静止子由直接父 `ChildRevived` re-host(原 handle、同 journal context 延续、第二次回执、usage 按 baseline delta);daemon 子会话 send 经树根转投(单宿主单写者);user-kill 标记仅 user-class 邮件可越 | "回执可多次发生"与"send 对任何 session 成立"的机制兑现;树内协作(评审往复/进度汇报)不再全经父转发烧上下文。 |
 | 36 | 动态角色（INC-12,2026-07-09） | `spec.agents_dynamic` 开 inline role 面：spawn_agent{role:{name,description,instructions,tools?,permissions?,escalate?}};role=不可信模型输出（无 hooks/MCP/skills/model/budget 面,tools 仅父子集,沙箱棘轮继承）;构造 spec 冻结进 SpawnRequested.RoleSpec 与子 SessionStarted.Spec（revive/审计真相） | 工程团队场景要求运行时组队;信任面由结构封死（决策 #19/#20 同族）,预定义 spec 白名单继续并存。 |
+| 37 | 记忆写回（INC-14,2026-07-09,取 A,G9） | `remember` control（durable command，与 compact/clear 同族）append 到 **workspace-root CLAUDE.md**（append-only、`## Remembered` 段、同 note 幂等去重）+ 追加一条 program-source `InputReceived`（本会话即遵循，触发确认续跑，同 goal 回灌）。文件供**下次** session start 冻结进 prefix。**取 A（不动 prefix→不触不变量）**；取 B（MemoryChanged 重冻本 run 立即换代）留待需求出现。 | 写侧闭合 read 侧注入（S5.2）；memory 是 workspace 内容、非 journaled fold，rewind 不 un-write（接受项，同 harness-config 排除）；写文件副作用靠 Append 幂等吸收 durable-command 崩溃重放。 |
 
 ---
 

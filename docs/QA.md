@@ -436,6 +436,22 @@ tool_call、tool_result 投影到同一 active turn。`inspect --json` 的 turns
 **通过标准**：三条红线均为 journal/行为事实（不判模型措辞）；被降级的旧
 结果在 journal 中仍是全量（fork/resume 语义不损）。
 
+## QA-23 记忆写回：remember → 新 session 冻结生效（INC-14,UJ-09,G9）
+
+**环境**：私有 daemon（隔离 runtime 根，共享 daemon 正服务其他并发
+session）+ 真实 Gemini；两个 session 共用一个 workspace；跑完拷回共享
+store、export 归档 `qa/runs/2026-07-09-QA23/`。
+
+| # | 动作 | 验证 |
+|---|---|---|
+| 1 | session 1 中 `ar remember <sid> "本项目一律用 pnpm，禁 npm/yarn"` | note 写入 `<ws>/CLAUDE.md` 的 `## Remembered` 段 |
+| 2 | 同上 | session 1 journal 出现一条 `source:program` 的 input_received 携带该 note（本会话可见） |
+| 3 | 起**全新** session 2（同 workspace），问"用哪个包管理器" | 模型答 **pnpm**——记忆经**下次 session 冻结进 prefix**到达模型（跨会话持久，本增量的靶心） |
+
+**通过标准**：三条红线均为 journal/文件/行为事实；取 A（追加消息 +
+文件持久化）不改冻结 prefix，故不触不变量；重复同 note 幂等（文件不
+双写，防 durable-command 崩溃重放）。
+
 ---
 
 ## 覆盖矩阵
