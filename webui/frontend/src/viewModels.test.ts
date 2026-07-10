@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { describeApproval } from "./approvalPresentation";
 import { buildSidebarModel, dedupeInspectNodes, projectLabel, scheduleLabel, scratchLabel } from "./viewModels";
+import { compactWorkspaceName, describeApproval } from "./approvalPresentation";
 import { foldEvents } from "./timeline";
 import type { Session } from "./types";
 
@@ -104,6 +104,11 @@ describe("project sidebar model", () => {
 });
 
 describe("approval presentation", () => {
+  it("keeps approval location recognizable without exposing a full temp path", () => {
+    expect(compactWorkspaceName("/private/tmp/runtime/scratch/userhome-main/permcheck/")).toBe("permcheck");
+    expect(compactWorkspaceName()).toBe("");
+  });
+
   it("summarizes shell commands without exposing raw gate names", () => {
     expect(describeApproval("bash", { command: "go test ./..." })).toMatchObject({
       title: "Run command",

@@ -3401,7 +3401,7 @@ summary.fd-head:hover {
   margin-left: 6px;
   font-size: 11px;
   color: var(--dim);
-  word-break: break-all;
+  font-weight: 550;
 }
 .adv-details {
   margin-top: 10px;

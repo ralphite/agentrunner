@@ -36,7 +36,7 @@ func runStructured(sock string, runCmd daemon.Command, v *structured.Validator, 
 		}
 
 		raw, exErr := structured.Extract(finalText)
-		var problem error = exErr
+		var problem = exErr
 		if exErr == nil {
 			if valErr := v.Validate(raw); valErr != nil {
 				problem = valErr

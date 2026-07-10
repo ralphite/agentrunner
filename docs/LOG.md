@@ -2070,3 +2070,20 @@ Web-first coding agent，内置 orca+browser）相对我们的功能差集。方
   （工具面→daemon→webui 共驾分增量）。
 - 三份 parity 件并存的维护序：CODEX（云形态）/CLAUDECODE（本地
   核心）/HANDA（消费面与资产生态），同一功能多处出现时状态互挂。
+
+## 2026-07-10 INC-23.B6 Web UI 键盘/确认/项目操作收口与 QA 编号更正
+
+INC-23 归档后的同轮 follow-up 完成 B6 剩余 W36/W37/W40/W43/W44/W45：
+task/project menu 支持 Arrow/Home/End/Escape 与 Shift+F10；破坏性操作统一
+应用内 confirm dialog；项目组补 mark-read/archive/copy-path（有真实路径时）；
+附件 >10MB 客户端即时说明；Robot favicon + unread title；composer 暴露 `/`
+命令发现性。审批 scope 进一步按 Codex 层级把完整临时路径收成 workspace
+名称，完整值仅留 title/Details 语境。
+
+因 INC-25 已占 QA-32、INC-26 已占 QA-33，本次 Web UI 证据从冲突编号更正为
+**QA-34**（不改两项历史记录）：共享 store 上重启后 Scheduled、真实
+approval/recovery/team、1554/799/680 responsive、menu 方向键、应用内确认、
+console error=0 全部 PASS；未代审批、未 resume、未 close、未清理测试数据。
+最终同尺寸对照：
+`qa/runs/2026-07-10-QA34/29-reference-vs-latest.png`。frontend 16 tests 与
+build 通过；根闸门见本提交。

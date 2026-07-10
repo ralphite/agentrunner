@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { CaretRight, ShieldCheck, TerminalWindow, WarningCircle } from "@phosphor-icons/react";
 import type { ApprovalRef } from "../timeline";
-import { describeApproval } from "../approvalPresentation";
+import { compactWorkspaceName, describeApproval } from "../approvalPresentation";
 
 function pretty(raw: unknown): string {
   if (raw == null) return "";
@@ -21,8 +21,8 @@ export function ApprovalCard({
 }: {
   approval: ApprovalRef & { agent?: string; viaSSE?: boolean };
   readonly: boolean;
-  // The session's workspace path — shown so you know WHERE the command will
-  // run before approving it (W25).
+  // The session's workspace path — represented compactly so you know WHERE
+  // the command will run before approving it (W25).
   workspace?: string;
   onDecide: (id: string, decision: "approve" | "deny", reason: string, always?: boolean) => Promise<void>;
   onError: (msg: string) => void;
@@ -31,6 +31,7 @@ export function ApprovalCard({
   const [denying, setDenying] = useState(false);
   const [busy, setBusy] = useState(false);
   const presentation = useMemo(() => describeApproval(approval.tool, approval.args), [approval.tool, approval.args]);
+  const workspaceName = useMemo(() => compactWorkspaceName(workspace), [workspace]);
 
   const decide = async (decision: "approve" | "deny", always = false) => {
     setBusy(true);
@@ -60,7 +61,7 @@ export function ApprovalCard({
       </div>
       <div className="approval-scope" title={workspace || undefined}>
         <WarningCircle size={14} /> {presentation.scope}
-        {workspace && presentation.scope === "Current workspace" && <code className="approval-ws">{workspace}</code>}
+        {workspaceName && presentation.scope === "Current workspace" && <code className="approval-ws">{workspaceName}</code>}
       </div>
 
       <details className="approval-details">
