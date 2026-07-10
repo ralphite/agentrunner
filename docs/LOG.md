@@ -2120,3 +2120,21 @@ build 通过；根闸门见本提交。
 因此 INC-23 Web UI 收口证据最终保持 **QA-34**；活文档与证据目录按该
 main 上的显式裁决落定。本轮继续认领 INC-29，处理 INC-23 明确移交的
 W21/W9/W33，真实浏览器闸门预留 **QA-36**。
+
+## 2026-07-10 INC-28 stdin 管道 prompt（HANDA SPRINT #32，批 1 首项）
+
+**落地**：`internal/cli/stdin.go` `completeTextArg`（缺参 + 管道 →
+补文本；显式 `-` → 替换；非管道 `-` 报错不阻塞；仅尾部换行 trim、
+正文多行保留；空管道报非空错）+ `stdinSource` 测试 seam
+（`os.Stdin.Stat` 判 ModeCharDevice）；run/new/send 三处解析接入，
+usage 行附管道示例。附件 flags 不受影响（stdin 只供文本）。
+
+**双闸门**：孪生 7 测（补齐/替换/trim/空管道/无管道原样/`-` 无管道
+报错/显式参数优先 + runCmd 接线证明）；B 闸真验（共享 daemon + 真
+Gemini）：`echo … | ar new spec.yaml` 管道开场回 PONG（session id 由
+stdin 文本派生可证链路）、`printf 多行 | ar send <prefix> -` 回
+PONG2；归档 `qa/runs/2026-07-10-INC28/`。
+
+**边界记档**：`</dev/null` 是 char device、按"非管道"处理（消息措辞
+用 "stdin is not a pipe" 避免对 /dev/null 说 terminal）；精确 isatty
+需引 x/term，不值当。

@@ -104,9 +104,13 @@ func runCmd(args []string, recordMode bool, version string, stdout, stderr io.Wr
 	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
 		return ExitUsage
 	}
-	rest := fs.Args()
+	rest, terr := completeTextArg(fs.Args(), 2)
+	if terr != nil {
+		fmt.Fprintf(stderr, "agentrunner: %v\n", terr)
+		return ExitUsage
+	}
 	if len(rest) != 2 {
-		fmt.Fprintf(stderr, "usage: agentrunner %s [flags] <spec.yaml> \"task\"\n", name)
+		fmt.Fprintf(stderr, "usage: agentrunner %s [flags] <spec.yaml> \"task\"  (task may be piped: echo task | agentrunner %s spec.yaml)\n", name, name)
 		return ExitUsage
 	}
 	if rest[1] == "" {

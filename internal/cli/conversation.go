@@ -40,9 +40,13 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
 		return ExitUsage
 	}
-	rest := fs.Args()
+	rest, terr := completeTextArg(fs.Args(), 2)
+	if terr != nil {
+		fmt.Fprintf(stderr, "agentrunner: %v\n", terr)
+		return ExitUsage
+	}
 	if len(rest) != 2 {
-		fmt.Fprintln(stderr, `usage: agentrunner new [flags] <spec.yaml> "opening message"`)
+		fmt.Fprintln(stderr, `usage: agentrunner new [flags] <spec.yaml> "opening message"  (message may be piped via stdin)`)
 		return ExitUsage
 	}
 	if rest[1] == "" {
@@ -213,9 +217,13 @@ func sendCmd(args []string, stdout, stderr io.Writer) int {
 	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
 		return ExitUsage
 	}
-	rest := fs.Args()
+	rest, terr := completeTextArg(fs.Args(), 2)
+	if terr != nil {
+		fmt.Fprintf(stderr, "agentrunner: %v\n", terr)
+		return ExitUsage
+	}
 	if len(rest) != 2 {
-		fmt.Fprintln(stderr, `usage: agentrunner send [flags] <session-id-or-prefix> "message"`)
+		fmt.Fprintln(stderr, `usage: agentrunner send [flags] <session-id-or-prefix> "message"  (message may be piped: git diff | agentrunner send <sid> -)`)
 		return ExitUsage
 	}
 	images, err := loadImageAttachments(imagePaths)

@@ -41,6 +41,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | 自动 compaction（阈值触发） | ✅ | UJ-09 | S3 |
 | microcompact（assembly 把久远可重算 read-class 工具结果渲染为占位符；不调 LLM；单调 micro boundary；先于 autocompact） | ✅ | UJ-09 | INC-13 · TestMicrocompact{AssemblyView,MonotonicFold,TriggeredInLoop,DisabledNoop} · QA-22（真 Gemini：micro 触发、无 compact、模型重跑工具复原被清结果） |
 | 手动 barrier 打点（`ar barrier`，非运行中 session） | ✅ | UJ-15 | fork 全链路测试（S7 收口） |
+| stdin 管道文本（`run/new/send` 文本参数缺省且 stdin 为管道时读取，显式 `-` 占位；非管道下 `-` 报错不阻塞；仅尾部换行 trim；附件 flags 不受影响） | ✅ | UJ-01/02 | INC-28（HANDA #32）· TestCompleteTextArg*/TestRunCmdPipedTaskSkipsUsage · 真验 2026-07-10（真 Gemini：管道开场+`-` 多行续聊，qa/runs/2026-07-10-INC28） |
 
 ## B · 子 agent 与编排
 

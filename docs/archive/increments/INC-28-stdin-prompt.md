@@ -38,3 +38,14 @@ stdin）与 gemini/claude `-p` 习惯。journey 锚：UJ-01/02 的输入面
 
 小增量（S，单文件 helper + 三处两行接入），裁掉三视角 review；
 孪生覆盖全部分支。
+
+---
+
+## 执行记录（2026-07-10 收口）
+
+一步完成。B 闸未等批 1 收口、当场真验（共享 daemon + 真 Gemini）：
+管道开场（PONG）+ `-` 多行续聊（PONG2），session
+`20260710-063023-…-d99d` 保留于共享 store，证据归档
+`qa/runs/2026-07-10-INC28/`。边界：`</dev/null` 为 char device 按
+"非管道"处理（消息 "stdin is not a pipe"），精确 isatty 不引依赖，
+记档 LOG。SPEC A 区加行；SPRINT #32 ✅。
