@@ -1254,6 +1254,12 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				continue
 			}
 
+			// skill context:fork (INC-30): expand fork-skill invocations into
+			// dynamic role spawns BEFORE the message is journaled — the fold,
+			// pipeline, and crash replay then see an ordinary spawn_agent
+			// (ingest expansion, same precedent as 命令=用户宏).
+			l.expandForkSkills(&turn)
+
 			// Blocked/safety finish (S4.6) journals WITH the message: the
 			// finish reason is the audit fact that ends this turn (the fold
 			// records the truncation), the partial text is preserved, and

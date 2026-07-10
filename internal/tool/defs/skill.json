@@ -1,12 +1,21 @@
 {
   "name": "skill",
-  "description": "Load a skill's full instructions by name. The available skills are listed in the <skills> block of the system prompt (name + one-line description). Call this with a skill's name to get its complete SKILL.md instructions, then follow them. This is the direct way to invoke a skill — you do not need to know or read its file path.",
+  "description": "Load a skill's full instructions by name. The available skills are listed in the <skills> block of the system prompt (name + one-line description). Call this with a skill's name to get its complete SKILL.md instructions, then follow them. This is the direct way to invoke a skill — you do not need to know or read its file path. A skill whose frontmatter declares `context: fork` runs in a one-shot sub-agent instead (when dynamic sub-agents are enabled): the call becomes a spawn and you receive a handle, with the result arriving later as a sub-agent report — pass `task` to tell the forked run what to do.",
   "class": "read",
   "input_schema": {
     "type": "object",
     "properties": {
-      "name": { "type": "string", "description": "The skill name exactly as it appears in the <skills> directory block." }
+      "name": {
+        "type": "string",
+        "description": "The skill name exactly as it appears in the <skills> directory block."
+      },
+      "task": {
+        "type": "string",
+        "description": "For context:fork skills only: the concrete task for the forked one-shot run (what to apply the skill to). Ignored for inline skills."
+      }
     },
-    "required": ["name"]
+    "required": [
+      "name"
+    ]
   }
 }
