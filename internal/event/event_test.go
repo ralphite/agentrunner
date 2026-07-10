@@ -82,6 +82,8 @@ var samples = map[string]any{
 		BudgetTokens: 2000, BaselineUsage: provider.Usage{InputTokens: 100, OutputTokens: 50}},
 	TypeArtifactPublished: &ArtifactPublished{Stream: "report", Version: 2,
 		Ref: "sha256-deadbeef", Bytes: 512, Source: "tool"},
+	TypeProgressUpdated: &ProgressUpdated{Items: []ProgressItem{
+		{ID: "tests", Title: "run the suite", Status: "running"}}},
 	TypeEffectResolved: &EffectResolved{EffectID: "eff-call_3_1", CallID: "call_3_1",
 		Verdict: VerdictDeny, GateResults: []GateResult{
 			{Gate: "permission", Decision: VerdictDeny, Reason: "path escapes workspace"}},

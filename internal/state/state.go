@@ -448,6 +448,9 @@ type Session struct {
 	// Published maps stream → latest published version (S5.5): the outputs
 	// contract (S5.6) checks required streams against it at the epilogue.
 	Published map[string]int `json:"published,omitempty"`
+	// Progress is the model-maintained checklist (INC-37): the latest
+	// wholesale table from ProgressUpdated, statuses already normalized.
+	Progress []event.ProgressItem `json:"progress,omitempty"`
 	// Inputs are the artifact refs to materialize (S5.8, from SessionStarted);
 	// Materialized records that the materialize activity completed, so a
 	// crash-resume knows whether to (re-)run it (it is idempotent anyway).
@@ -702,6 +705,11 @@ func Apply(s State, env event.Envelope) (State, error) {
 		}
 		published[p.Stream] = p.Version
 		s.Session.Published = published
+
+	case *event.ProgressUpdated:
+		// Wholesale replace (INC-37); the copy keeps Apply pure against
+		// callers still holding the event.
+		s.Session.Progress = append([]event.ProgressItem(nil), p.Items...)
 
 	case *event.ToolsDiscovered:
 		// Replace this server's tools (re-discovery wins), keep other

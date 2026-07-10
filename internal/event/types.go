@@ -45,6 +45,7 @@ const (
 	TypeSubagentCompleted = "subagent_completed"
 	TypeChildRevived      = "child_revived"
 	TypeArtifactPublished = "artifact_published"
+	TypeProgressUpdated   = "progress_updated"
 
 	// S6 additions (IterationDriver, DESIGN §运行形态). These belong to the
 	// driver's OWN stream — folded by internal/driver, never by the run fold,
@@ -654,6 +655,23 @@ type ArtifactPublished struct {
 	Source string `json:"source,omitempty"`
 }
 
+// ProgressUpdated replaces the session's model-maintained progress checklist
+// wholesale (INC-37). The model owns the list's content and item identity;
+// the fold keeps only the latest table — no merge, no history beyond the
+// journal itself. Statuses are normalized at the tool seam, so the fold and
+// every consumer read a closed enum.
+type ProgressUpdated struct {
+	Items []ProgressItem `json:"items"`
+}
+
+// ProgressItem is one checklist row. Status is one of
+// pending|running|done|failed.
+type ProgressItem struct {
+	ID     string `json:"id"`
+	Title  string `json:"title"`
+	Status string `json:"status"`
+}
+
 // DriverStarted is the driver stream's header fact (S7 还债: version
 // discipline + provenance, mirroring SessionStarted 2.17): the spec and fold
 // version journaled at series start guard every resume — a fold-shape change
@@ -849,6 +867,7 @@ var Registry = map[string]func() any{
 	TypeSubagentCompleted:     func() any { return &SubagentCompleted{} },
 	TypeChildRevived:          func() any { return &ChildRevived{} },
 	TypeArtifactPublished:     func() any { return &ArtifactPublished{} },
+	TypeProgressUpdated:       func() any { return &ProgressUpdated{} },
 
 	TypeDriverStarted:      func() any { return &DriverStarted{} },
 	TypeIterationScheduled: func() any { return &IterationScheduled{} },

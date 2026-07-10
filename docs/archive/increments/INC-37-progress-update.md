@@ -45,3 +45,14 @@ MINOR 已吸收：不造 "state-class" 术语，按 goal_status/goal_complete
 
 S/M 增量、additive 事件、复用既有 seam，裁掉三视角 review；孪生 +
 真浏览器双闸覆盖。
+
+---
+
+## 执行记录（2026-07-10 收口）
+
+两步并一步完成。B 闸真验（私有新二进制 daemon + 真 Gemini）：模型
+自发 7 次 progress_update、default 审批链共存、inspect 文本/JSON 两面、
+webui Progress 区 DOM 断言 + 截图全 PASS；证据
+`qa/runs/2026-07-10-INC37/`（journal 全量导出）。裁决：Supervision
+面板不因 progress 强开（W5 最终语义，LOG 记档）。SPEC C 区加行；
+SPRINT #9 ✅。

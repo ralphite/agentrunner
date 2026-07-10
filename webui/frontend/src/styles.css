@@ -3324,6 +3324,18 @@ summary.fd-head:hover {
 .goal-actions button:hover { border-color: var(--line); background: var(--panel-2); }
 .goal-input { width: 100%; font-size: 12.5px; }
 .supervision-empty { display: flex; align-items: center; gap: 6px; color: var(--dim); font-size: 12px; }
+/* INC-37: the model-maintained checklist. */
+.progress-count { margin-left: auto; color: var(--dim); font-weight: 400; }
+.progress-list { display: flex; flex-direction: column; gap: 2px; }
+.progress-row { display: flex; align-items: center; gap: 7px; font-size: 12.5px; padding: 3px 1px; min-width: 0; }
+.progress-row .progress-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.progress-row.pending { color: var(--dim); }
+.progress-row.running { color: var(--ink); }
+.progress-row.running svg { color: var(--blue); }
+.progress-row.done { color: var(--dim); }
+.progress-row.done svg { color: var(--ok, #3fb950); }
+.progress-row.done .progress-title { text-decoration: line-through; text-decoration-color: color-mix(in srgb, currentColor 50%, transparent); }
+.progress-row.failed svg { color: var(--bad, #f85149); }
 .supervision-agents .subagents h4 { display: none; }
 .supervision-agents .sa-row { padding: 5px 1px; }
 .supervision-agents .sa-open { display: none; }

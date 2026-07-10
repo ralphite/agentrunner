@@ -931,6 +931,12 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 	if !structuredOnly && (l.Board != nil || len(l.Spec.Agents) > 0 || l.Spec.AgentsDynamic) {
 		extra = append(extra, "publish_note", "read_notes")
 	}
+	// The progress face (INC-37): any non-structured run may maintain a
+	// session-level checklist. It journals a fold-owned projection and has
+	// no side effects, so no capability gates it.
+	if !structuredOnly {
+		extra = append(extra, "progress_update")
+	}
 	// Tree messaging (INC-12): advertised to every member of a session tree
 	// (root with an open multi-agent face, and every child). An orphaned
 	// child resumed outside its tree has no router and loses the tool —
@@ -1653,6 +1659,17 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 			goalSnap := snapshotGoal(ds.s.Goal)
 			run = func(context.Context) (json.RawMessage, *provider.Usage, bool, error) {
 				*res = l.runGoalTool(goalSnap, call.Name, call.Args, serialAppend)
+				return res.Payload, nil, res.IsError, nil
+			}
+		}
+		if p.call.Name == "progress_update" {
+			// The progress face (INC-37) journals through serialAppend like
+			// goal_complete; it reads no snapshot — the wholesale table is
+			// entirely the model's payload.
+			call := p.call
+			res := p.res
+			run = func(context.Context) (json.RawMessage, *provider.Usage, bool, error) {
+				*res = runProgressTool(call.Args, serialAppend)
 				return res.Payload, nil, res.IsError, nil
 			}
 		}

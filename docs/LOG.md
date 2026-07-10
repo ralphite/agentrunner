@@ -2342,3 +2342,27 @@ scrollHeight 探测（4px 容差）出 Show more/less；ResizeObserver 随列宽
 塌缩到 28px——`width: max-content; max-width: 100%` 恢复裸文本节点的
 收缩布局。真验期间复踩"SPA 不重载 bundle"坑（memory 有档），preview
 重启+强刷排除后，DOM 断言需过滤视口外/布局前的 0 宽测量假象。
+
+## 2026-07-10 INC-37 progress_update 进度清单（HANDA SPRINT #9，批 1）
+
+**落地**：模型侧 `progress_update`（loop 内部工具，goal_status/
+goal_complete 同 seam：drive-goroutine 闭包 + serialAppend journal、
+不过 effect 管线；review 修正吸收——不造 "state-class" 术语）→
+`ProgressUpdated` 事件（additive，全类型 round-trip 守卫补 sample）→
+纯 fold `state.Session.Progress`（整表替换、空表=清空）→ 消费三面：
+`ar inspect` 文本（`progress N/M done`+图标行）与 --json、webui
+Supervision Progress 区（3/3 计数 + done 删除线样式，无条目不渲染）。
+工具面注入仅门 structuredOnly；status 归一（in_progress/todo/
+completed… 别名映射，未知报错）、≤50 条、id/title clamp、redact、
+result 只回计数不回显全表。
+
+**双闸门**：孪生 4 测（归一+journal、五类坏输入拒收不落账、上限/
+清空/clamp、fold 整表替换经真实 envelope round-trip）+ event 守卫；
+B=私有新二进制 daemon + 真 Gemini：模型自发 7 次 progress_update
+（全 pending→逐步 running→3/3 done），default 模式审批链共存无扰，
+inspect 两面 + webui DOM 断言 + 浅色主题截图，三文件真实落盘；归档
+`qa/runs/2026-07-10-INC37/`（journal 全量导出）。
+
+**裁决记档**：Supervision 面板**不因 progress 强开**——INC-23 W5 的
+最终语义是"仅需要用户行动的 approval 强开"，progress 是纯信息，点
+Supervision 即见；工作纸初稿"有内容自动亮起"从宽措辞不取。

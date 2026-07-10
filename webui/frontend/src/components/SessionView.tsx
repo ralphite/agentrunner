@@ -48,6 +48,8 @@ export function SessionView({ sid }: { sid: string }) {
   const [children, setChildren] = useState<InspectNode[]>([]);
   const [inspectReady, setInspectReady] = useState(false);
   const [goal, setGoal] = useState<{ goal: string; checks: number; max_checks?: number; paused?: boolean; verifiers?: number; claimed?: boolean } | null>(null);
+  // The model-maintained checklist from inspect's progress projection (INC-37).
+  const [progress, setProgress] = useState<import("./SupervisionPanel").ProgressItem[]>([]);
   // Non-null while the banner's goal text is being edited (INC-10): the value
   // is the draft; save issues a goal update (text only — verifier/budget keep).
   const [goalEdit, setGoalEdit] = useState<string | null>(null);
@@ -137,6 +139,7 @@ export function SessionView({ sid }: { sid: string }) {
       if (u) setUsage({ billed: u.billed ?? (u.input_tokens || 0) + (u.output_tokens || 0), steps: ins.gen_steps || 0 });
       setChildren(Array.isArray(ins?.children) ? ins.children : []);
       setGoal(ins?.goal || null);
+      setProgress(Array.isArray(ins?.progress) ? ins.progress : []);
       setInspectReady(true);
     } catch {
       /* ignore — usage badge / subagents are best-effort */
@@ -542,6 +545,7 @@ export function SessionView({ sid }: { sid: string }) {
             loading={!inspectReady}
             goal={goal}
             goalEdit={goalEdit}
+            progress={progress}
             children={children}
             tasks={tasks}
             approvals={openApprovals.length}

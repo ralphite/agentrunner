@@ -75,6 +75,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | publish_artifact（`outputs:` contract、审批载荷） | ✅ | UJ-06 | S5 |
 | exit_plan_mode（plan mode 跃迁） | ✅ | UJ-06/11 | S2/S3 |
 | schedule_next / finish_series（loop 自定步调） | ✅ | UJ-14 | S6 |
+| progress_update（模型整表维护会话 checklist；loop 内部工具不过管线；status 归一 pending/running/done/failed、≤50 条/字段 clamp/redact；result 只回计数；`ProgressUpdated` 纯 fold 出 `state.Session.Progress`，`ar inspect` 文本+JSON 与 webui Supervision Progress 区消费） | ✅ | UJ-18/22/24 | INC-37（HANDA #9）· TestProgressTool*/TestProgressFoldReplacesWholesale + event 全类型 round-trip 守卫 · 真验 2026-07-10（真 Gemini 7 次自发调用+webui DOM 断言，qa/runs/2026-07-10-INC37） |
 | grep / glob 独立工具 | ✅ | UJ-01 | INC-3 · TestGrep*/TestGlob* · QA-11（真实 API：模型自发调用 grep+glob，凭据红线守住） |
 | grep 参数增强（case_insensitive、glob 文件过滤、output_mode: content/files_with_matches/count；-A/-B/-C context lines；multiline 跨行 regex；默认=旧行为） | ✅ | UJ-01 | INC-22（case/glob/output_mode·QA-30）+ INC-24（-A/-B/-C context·QA-31）+ INC-27（multiline (?sm) 整文件匹配·QA-35）· TestGrepCaseInsensitive/GlobFilter/OutputModes/ContextLines/Multiline |
 | web_fetch（客户端执行,**execute-class**;HTML→text、重定向/大小上限、`network` 数据位、收容 fail-closed、**link-local/metadata 无条件封禁**、untrusted 标记;安全 review M1/M2 已对齐,host allowlist S1 待裁/backlog） | ✅ | UJ-01 | INC-5 · TestWebFetch*/TestRefuseLinkLocal* · QA-13 · QA-14（真实 coding agent 端到端） |

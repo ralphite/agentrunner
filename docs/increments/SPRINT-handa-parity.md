@@ -27,7 +27,7 @@
 |---|---|---|---|---|
 | 32 | stdin 管道 prompt（ar run/new/send 读 stdin） | S | ✅ done (INC-28) | 双闸门全绿；真 Gemini 管道开场+`-` 多行续聊；/dev/null 按非管道处理记档 |
 | 23 | 用户消息折叠（Timeline >10 行 Show more） | S | ✅ done (INC-36) | 双闸门全绿；真浏览器 DOM 断言（qa/runs/2026-07-10-INC36）；含 pending 气泡 |
-| 9 | progress_update 内部工具 + fold + Supervision 区 | S/M | 🔧 in-progress (INC-37) | 按 goal_complete/publish_note 先例，不过管线 |
+| 9 | progress_update 内部工具 + fold + Supervision 区 | S/M | ✅ done (INC-37) | 双闸门全绿；真 Gemini 7 次自发调用+webui DOM 断言（qa/runs/2026-07-10-INC37）；面板不因 progress 强开（W5 语义） |
 | 10 | 后台任务 notify 门 + settle 结构化载荷 | S | ⬜ | 唤醒已存在（勘误见 PARITY §4.1）；user-role 回流 |
 | 11 | artifact 消费面（工具读回/CLI/webui 三面） | M | ⬜ | ArtifactPublished 已 fold，纯 additive |
 | 31 | 运行统计 stats（IsError 聚合/行增删入载荷/TS 报表投影） | M | ⬜ | 行增删写 ActivityCompleted，不 diff redacted args |
@@ -71,3 +71,4 @@
 |---|---|---|---|---|
 | 1 | 2026-07-10 | #32 stdin 管道 prompt (INC-28) | ✅ 双闸门全绿（孪生 7 测 + 真 Gemini 管道开场 PONG/`-` 多行续聊 PONG2，qa/runs/2026-07-10-INC28）；/dev/null 边界记档 | (见 push) |
 | 2 | 2026-07-10 | #23 用户消息折叠 (INC-36) | ✅ 双闸门全绿（vitest+build + 真浏览器 DOM 断言：10lh 钳/Show more-less/mobile/console 0 err，qa/runs/2026-07-10-INC36）；宽度塌缩 bug 当场修（width:max-content） | (见 push) |
+| 3 | 2026-07-10 | #9 progress_update (INC-37) | ✅ 双闸门全绿（孪生 4 测+event round-trip 守卫 + 真 Gemini 私有 daemon：7 次自发调用 3/3 done、inspect 两面、webui DOM 断言，qa/runs/2026-07-10-INC37）；面板不因 progress 强开（W5 裁决记 LOG） | (见 push) |

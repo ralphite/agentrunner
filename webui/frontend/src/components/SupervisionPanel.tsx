@@ -36,10 +36,19 @@ export interface GoalState {
   claimed?: boolean;
 }
 
+// ProgressItem mirrors inspect's `progress` rows (INC-37): the checklist the
+// model maintains via progress_update, statuses already normalized.
+export interface ProgressItem {
+  id: string;
+  title: string;
+  status: "pending" | "running" | "done" | "failed";
+}
+
 export function SupervisionPanel({
   loading,
   goal,
   goalEdit,
+  progress,
   children,
   tasks,
   approvals,
@@ -57,6 +66,7 @@ export function SupervisionPanel({
   loading: boolean;
   goal: GoalState | null;
   goalEdit: string | null;
+  progress: ProgressItem[];
   children: InspectNode[];
   tasks: Task[];
   approvals: number;
@@ -118,6 +128,36 @@ export function SupervisionPanel({
           <div className="supervision-empty"><CheckCircle size={15} /> No active goal</div>
         )}
       </section>
+
+      {progress.length > 0 && (
+        <section className="supervision-section">
+          {/* The model-maintained checklist (INC-37). Rendered only when the
+              model actually keeps one — an empty permanent section would be
+              exactly the W5 dead-weight this panel was purged of. */}
+          <div className="supervision-label">
+            <CheckCircle size={14} /> Progress
+            <span className="progress-count">
+              {progress.filter((it) => it.status === "done").length}/{progress.length}
+            </span>
+          </div>
+          <div className="progress-list">
+            {progress.map((it) => (
+              <div className={"progress-row " + it.status} key={it.id} title={it.title}>
+                {it.status === "running" ? (
+                  <Hourglass size={13} className="spin" />
+                ) : it.status === "done" ? (
+                  <CheckCircle size={13} weight="fill" />
+                ) : it.status === "failed" ? (
+                  <WarningCircle size={13} weight="fill" />
+                ) : (
+                  <CaretRight size={13} />
+                )}
+                <span className="progress-title">{it.title}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="supervision-section supervision-agents">
         <div className="supervision-label"><UsersThree size={14} /> Agents</div>

@@ -91,6 +91,7 @@ type inspectReport struct {
 	Artifacts            []artifactReport             `json:"artifacts,omitempty"`
 	Children             []childReportRef             `json:"children,omitempty"`
 	Goal                 *goalReport                  `json:"goal,omitempty"`
+	Progress             []event.ProgressItem         `json:"progress,omitempty"`
 	Turns                int                          `json:"turns,omitempty"`
 	Items                int                          `json:"items,omitempty"`
 	ProviderCapabilities *provider.CapabilityEnvelope `json:"provider_capabilities,omitempty"`
@@ -344,6 +345,7 @@ func buildInspectReport(events []event.Envelope, s state.State) inspectReport {
 			Verifiers: len(s.Goal.Verifiers), Claimed: s.Goal.Claimed,
 		}
 	}
+	report.Progress = append([]event.ProgressItem(nil), s.Session.Progress...)
 	if s.Waiting != nil {
 		wr := &waitingReport{Kind: s.Waiting.Kind}
 		if s.Waiting.Kind == event.WaitApproval {
@@ -544,6 +546,21 @@ func renderInspectIndent(w io.Writer, r inspectReport, pad string) {
 			line += " · paused"
 		}
 		fmt.Fprintln(w, line)
+	}
+	if len(r.Progress) > 0 {
+		// The model-maintained checklist (INC-37): one line per step, with a
+		// done-count summary — the human-readable twin of --json's progress.
+		done := 0
+		for _, it := range r.Progress {
+			if it.Status == "done" {
+				done++
+			}
+		}
+		fmt.Fprintf(w, "%sprogress %d/%d done\n", pad, done, len(r.Progress))
+		mark := map[string]string{"pending": "·", "running": "▸", "done": "✓", "failed": "✗"}
+		for _, it := range r.Progress {
+			fmt.Fprintf(w, "%s        %s %s — %s\n", pad, mark[it.Status], it.Title, it.Status)
+		}
 	}
 	if r.Waiting != nil {
 		if r.Waiting.ApprovalID != "" {
