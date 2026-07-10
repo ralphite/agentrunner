@@ -77,7 +77,7 @@
 | 13 | Read 工具多模态（读图/PDF 入 context，复用 CAS/part 管线） | #32 | M | ⬜ | 输入侧已通（INC-9），补工具侧 |
 | 14 | Monitor 流式后台进度（每行输出即通知；并 G10 进度通道） | #34 · G10 | M | ⬜ | 与 bash output 拉取并存 |
 | 15 | G22 boot sweep + cron 跨重启唤醒 | #87 · G22 | M | ⬜ | 无人值守自动性下半场 |
-| 16 | 内置 agent 库（Explore/Plan 类只读 spec 随发行） | #78 | S | ⬜ | `ar init` 延伸 |
+| 16 | 内置 agent 库（Explore/Plan 类只读 spec 随发行） | #78 | S | 🔧 in-progress (INC-25) | embed explore/plan 只读 spec，白名单列名即用，model 继承父；默认可用拆 16b |
 | 17 | webui 会话 rename/归档/内容搜索 | #2/3/7 | M | ⬜ | **注意避让**：webui 区与他 session 协调后再动 |
 | 18 | auto mode 设计稿（分类器作为 effect pipeline 的 policy 源） | #57 · §3.3 | M(设计) | ⬜ | 设计先行 → 📐 待裁；依赖 #4/#5 |
 
