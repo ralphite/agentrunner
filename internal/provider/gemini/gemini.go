@@ -46,11 +46,12 @@ func New(ctx context.Context) (*Provider, error) {
 // (thought tokens), context caching, and parallel function calls.
 func (p *Provider) Capabilities() provider.Capabilities {
 	return provider.Capabilities{
-		Thinking:      true,
-		PromptCaching: true,
-		ParallelTools: true,
-		Images:        true,
-		Files:         true,
+		Thinking:         true,
+		PromptCaching:    true,
+		ParallelTools:    true,
+		Images:           true,
+		Files:            true,
+		StructuredOutput: true,
 	}
 }
 
@@ -236,6 +237,19 @@ func toConfig(req provider.CompleteRequest) (*genai.GenerateContentConfig, error
 			})
 		}
 		config.Tools = []*genai.Tool{tool}
+	}
+	// Native structured output (INC-35): constrain the completion to a JSON
+	// schema — but ONLY on a tool-less turn. Gemini's JSON mode forces the
+	// whole output to be one JSON value, which is mutually exclusive with
+	// function calling, so a turn that offers tools must ignore the schema
+	// (the CLI validate/retry path stays the fallback for tool-using runs).
+	if len(req.ResponseSchema) > 0 && len(req.Tools) == 0 {
+		var schema any
+		if err := json.Unmarshal(req.ResponseSchema, &schema); err != nil {
+			return nil, fmt.Errorf("gemini: response schema: %w", err)
+		}
+		config.ResponseMIMEType = "application/json"
+		config.ResponseJsonSchema = schema
 	}
 	return config, nil
 }

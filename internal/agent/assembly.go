@@ -34,6 +34,10 @@ func Assemble(s state.State, spec *AgentSpec, toolDefs []provider.ToolDef, turn 
 			Enabled:      spec.Model.Thinking.Enabled,
 			BudgetTokens: spec.Model.Thinking.BudgetTokens,
 		},
+		// Native structured output (INC-35): the provider constrains a
+		// tool-less turn to this schema. Empty for most specs; a provider
+		// without StructuredOutput has it cleared by the loop downgrade.
+		ResponseSchema: json.RawMessage(spec.OutputSchema),
 	}
 }
 

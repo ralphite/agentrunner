@@ -1,8 +1,15 @@
 // Package agent holds the agent spec model and (later stages) the agent loop.
 package agent
 
+// SchemaJSON is a JSON schema authored in YAML (spec files) OR JSON, carried
+// as JSON bytes (INC-35). It round-trips through JSON exactly like
+// json.RawMessage — a frozen RoleSpec (json.Marshal of the spec) preserves it
+// — and additionally decodes a YAML mapping into JSON on spec load, since
+// yaml.v3 cannot unmarshal a `!!map` straight into json.RawMessage.
+
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,6 +22,42 @@ import (
 	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/tool"
 )
+
+// SchemaJSON carries a JSON schema as JSON bytes. See the type doc above the
+// package clause for the rationale.
+type SchemaJSON []byte
+
+// MarshalJSON emits the raw schema (or null when empty).
+func (s SchemaJSON) MarshalJSON() ([]byte, error) {
+	if len(s) == 0 {
+		return []byte("null"), nil
+	}
+	return s, nil
+}
+
+// UnmarshalJSON stores the bytes verbatim (like json.RawMessage).
+func (s *SchemaJSON) UnmarshalJSON(b []byte) error {
+	if s == nil {
+		return fmt.Errorf("SchemaJSON: UnmarshalJSON on nil pointer")
+	}
+	*s = append((*s)[:0], b...)
+	return nil
+}
+
+// UnmarshalYAML decodes a YAML schema node into JSON bytes so a spec file can
+// author output_schema as ordinary YAML.
+func (s *SchemaJSON) UnmarshalYAML(node *yaml.Node) error {
+	var v any
+	if err := node.Decode(&v); err != nil {
+		return err
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	*s = b
+	return nil
+}
 
 // DefaultMaxGenerationSteps applies when a spec omits max_generation_steps (S1 defaults pack).
 const DefaultMaxGenerationSteps = 40
@@ -74,6 +117,13 @@ type AgentSpec struct {
 	// Description is what a PARENT's agents directory shows for this spec
 	// when it appears as a spawnable sub-agent (S5.3).
 	Description string `yaml:"description,omitempty"`
+	// OutputSchema constrains the model's generation to JSON matching this
+	// schema, natively, on tool-less turns (INC-35, #91). A provider with the
+	// StructuredOutput capability applies it; others drop it (the CLI
+	// --json-schema validate/retry path, INC-26, stays the universal
+	// fallback). Empty = unconstrained. Authored in YAML in a spec file but
+	// carried as JSON bytes (SchemaJSON bridges the two).
+	OutputSchema SchemaJSON `yaml:"output_schema,omitempty" json:"output_schema,omitempty"`
 	// Agents whitelists the sub-agent specs this agent may spawn (S5.3).
 	// The model only sees — and can only spawn — what is listed here.
 	Agents []string `yaml:"agents,omitempty"`

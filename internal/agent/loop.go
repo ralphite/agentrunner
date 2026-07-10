@@ -899,6 +899,15 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			Name: mt.Name, Description: mt.Description, InputSchema: mt.InputSchema,
 		})
 	}
+	// Structured-output agents (INC-35): a spec declaring output_schema is a
+	// pure producer — its job is to emit schema-conforming JSON, not to act.
+	// Native JSON mode is mutually exclusive with a tool face, so we suppress
+	// the AUTO-ADDED tools (send_message/goal/…) for such a spec, keeping the
+	// turn tool-less so the provider can constrain generation. An output_schema
+	// spec that ALSO lists explicit tools is self-contradictory (it cannot both
+	// act and be JSON-constrained in one turn); the explicit tools stand and
+	// those turns fall back to the CLI validate/retry path (INC-26).
+	structuredOnly := len(l.Spec.OutputSchema) > 0
 	// The multi-agent face (S5.3/S5.4): spawn/handoff advertise whenever
 	// the spec whitelists agents; the blackboard tools whenever the run is
 	// part of a collaboration (own whitelist, or an inherited board in a
@@ -906,20 +915,20 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 	// resume rebuilds the same face; a missing resolver/board surfaces as a
 	// model-visible error at execution instead.
 	var extra []string
-	if len(l.Spec.Agents) > 0 {
+	if !structuredOnly && len(l.Spec.Agents) > 0 {
 		extra = append(extra, "spawn_agent", "handoff_agent")
 	}
-	if l.Spec.AgentsDynamic && len(l.Spec.Agents) == 0 {
+	if !structuredOnly && l.Spec.AgentsDynamic && len(l.Spec.Agents) == 0 {
 		extra = append(extra, "spawn_agent")
 	}
 	// bash can launch background tasks (S6.1) — the management tools ride
 	// along so the model can inspect/cancel what it started.
-	if slices.Contains(l.Spec.Tools, "bash") || len(l.Spec.Agents) > 0 || l.Spec.AgentsDynamic {
+	if !structuredOnly && (slices.Contains(l.Spec.Tools, "bash") || len(l.Spec.Agents) > 0 || l.Spec.AgentsDynamic) {
 		// bash background tasks (S6.1) and background sub-agents (v2 M3.1)
 		// share kill: cancel a running child/task by its handle.
 		extra = append(extra, "output", "kill")
 	}
-	if l.Board != nil || len(l.Spec.Agents) > 0 || l.Spec.AgentsDynamic {
+	if !structuredOnly && (l.Board != nil || len(l.Spec.Agents) > 0 || l.Spec.AgentsDynamic) {
 		extra = append(extra, "publish_note", "read_notes")
 	}
 	// Tree messaging (INC-12): advertised to every member of a session tree
@@ -927,7 +936,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 	// child resumed outside its tree has no router and loses the tool —
 	// documented degraded mode (§17); the lawful path re-hosts through the
 	// tree root.
-	if l.Router != nil {
+	if !structuredOnly && l.Router != nil {
 		extra = append(extra, "send_message")
 	}
 	// The in-session goal face (INC-10) advertises when a goal can actually
@@ -938,7 +947,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 	// face. A one-shot or driver-iteration run has neither — advertising
 	// goal_complete there just baited models into a "no active goal" error
 	// call on ordinary tasks (QA Round1 F-C4, Round2 F-E2).
-	if l.Controls != nil || ds.s.Goal != nil {
+	if !structuredOnly && (l.Controls != nil || ds.s.Goal != nil) {
 		extra = append(extra, "goal_status", "goal_complete")
 	}
 	if len(extra) > 0 {
@@ -1183,6 +1192,13 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 					}
 					if !caps.Thinking {
 						req.Thinking = provider.ThinkingConfig{}
+					}
+					// Native structured output downgrade (INC-35): a provider
+					// without StructuredOutput never sees the schema — the CLI
+					// --json-schema validate/retry path (INC-26) remains the
+					// fallback rather than a silent "pretended to constrain".
+					if !caps.StructuredOutput {
+						req.ResponseSchema = nil
 					}
 					collected, err := provider.CollectTurnStreaming(
 						l.Provider.Complete(ctx, req),

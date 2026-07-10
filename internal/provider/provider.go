@@ -81,6 +81,12 @@ type CompleteRequest struct {
 	GenStep   int
 	// Thinking requests extended thinking (S4.7); providers map or downgrade.
 	Thinking ThinkingConfig
+	// ResponseSchema constrains the completion to JSON matching this schema
+	// (INC-35, provider-native structured output). It applies ONLY to a
+	// tool-less turn — JSON mode and tool calls are mutually exclusive, so a
+	// provider MUST ignore it when Tools is non-empty. Empty = unconstrained.
+	// A provider without StructuredOutput never sees it (the loop clears it).
+	ResponseSchema json.RawMessage
 }
 
 // ToolCall is one tool invocation requested by the model.
@@ -160,6 +166,10 @@ type Capabilities struct {
 	ParallelTools bool `json:"parallel_tools,omitempty"` // multiple tool calls in one assistant turn
 	Images        bool `json:"images,omitempty"`         // image input
 	Files         bool `json:"files,omitempty"`          // document/file input
+	// StructuredOutput: the provider can constrain a tool-less completion to a
+	// JSON schema natively (INC-35). Absent it, ResponseSchema is dropped and
+	// the CLI validate/retry path (INC-26) is the only structured-output route.
+	StructuredOutput bool `json:"structured_output,omitempty"`
 }
 
 // CapabilityEnvelope is the versioned, durable description of the provider
