@@ -75,7 +75,7 @@
 | 12 | Grep/Glob 参数增强（output_mode/-A/-B/-C/multiline/type） | #35 | S | ✅ done (INC-22) | case_insensitive/glob/output_mode；QA-30 真机；默认=旧行为；-A/-B/-C/multiline 拆 12b |
 | 12b | grep context lines（-A/-B/-C）+ multiline | #35 余项 | S | ✅ done (INC-24) | -A/-B/-C context；QA-31 真机；multiline 拆 12c |
 | 12c | grep multiline（跨行 regex） | #35 余项 | S | ✅ done (INC-27) | multiline 参数 + (?sm) 整文件匹配;默认旧逐行;QA-35 真机;#35 系列收口(仅 type 过滤低优余项) |
-| 13 | Read 工具多模态（读图/PDF 入 context，复用 CAS/part 管线） | #32 | M | ⬜ | 输入侧已通（INC-9），补工具侧 |
+| 13 | Read 工具多模态（读图/PDF 入 context，复用 CAS/part 管线） | #32 | M | 🔧 in-progress (INC-33) | media envelope + assembly part 注入,journal 恒 byte-free;默认文本路径零变化 |
 | 14 | Monitor 流式后台进度（每行输出即通知；并 G10 进度通道） | #34 · G10 | M | ⬜ | 与 bash output 拉取并存 |
 | 15 | G22 boot sweep + cron 跨重启唤醒 | #87 · G22 | M | ⬜ | 无人值守自动性下半场 |
 | 16 | 内置 agent 库（Explore/Plan 类只读 spec 随发行） | #78 | S | ✅ done (INC-25) | embed explore/plan 只读 spec，白名单列名即用，内置优先同名 sibling，model 继承父；QA-32 真机；默认全自动可用拆 16b |
