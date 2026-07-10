@@ -698,3 +698,136 @@ func TestReviveUserKilledOnCliMail(t *testing.T) {
 		t.Fatal("user-killed member never consumed the cli mail after revive")
 	}
 }
+
+// INC-12 正确性 review P0: mail to a QUIESCENT GRANDCHILD must be delivered.
+// Tree R→C→G, all quiescent. Mail lands in G's inbox; R can only re-host its
+// direct child C, so R RELAYS through C, whose own scan wakes G. Regression
+// against "reviveChild read the first-hop child's inbox and stranded the
+// grandchild's durable mail".
+func TestReviveGrandchildRelaysThroughParent(t *testing.T) {
+	// Three specs: lead → mid → leaf. Each resolves the next from SubSpecs.
+	specs := map[string]*AgentSpec{
+		"mid": {
+			Name: "mid", Description: "middle manager",
+			Model:        ModelSpec{Provider: "scripted", ID: "m", MaxTokens: 100},
+			SystemPrompt: "you manage", Tools: []string{"read_file"},
+			MaxGenerationSteps: 6, Agents: []string{"leaf"},
+		},
+		"leaf": {
+			Name: "leaf", Description: "worker",
+			Model:        ModelSpec{Provider: "scripted", ID: "m", MaxTokens: 100},
+			SystemPrompt: "you do leaf work", Tools: []string{"read_file"},
+			MaxGenerationSteps: 6,
+		},
+	}
+	router := scripted.NewRouter(
+		scripted.RoutePair{Key: "you orchestrate", Fixture: scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{
+				{ToolCall: &scripted.ToolCallEvent{CallID: "mid", Name: "spawn_agent",
+					Args: map[string]any{"agent": "mid", "task": "run MIDWORK"}}},
+				{Finish: "tool_use"},
+			}},
+			{Respond: []scripted.Event{{Text: "mid reported"}, {Finish: "end_turn"}}},
+			{Respond: []scripted.Event{{Text: "ack"}, {Finish: "end_turn"}}},
+			{Respond: []scripted.Event{{Text: "ack"}, {Finish: "end_turn"}}},
+		}}},
+		scripted.RoutePair{Key: "MIDWORK", Fixture: scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{
+				{ToolCall: &scripted.ToolCallEvent{CallID: "leaf", Name: "spawn_agent",
+					Args: map[string]any{"agent": "leaf", "task": "run LEAFWORK"}}},
+				{Finish: "tool_use"},
+			}},
+			{Respond: []scripted.Event{{Text: "leaf reported"}, {Finish: "end_turn"}}},
+			{Respond: []scripted.Event{{Text: "ack"}, {Finish: "end_turn"}}},
+			{Respond: []scripted.Event{{Text: "ack"}, {Finish: "end_turn"}}},
+		}}},
+		scripted.RoutePair{Key: "LEAFWORK", Fixture: scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{{Text: "LEAF v1 done"}, {Finish: "end_turn"}}},
+			{Respond: []scripted.Event{{Text: "LEAF handled the deep mail"}, {Finish: "end_turn"}}},
+		}}},
+	)
+	l := bgSpawnLoop(t, router, []string{"mid"})
+	l.SubSpecs = staticResolver(specs)
+	inputs := make(chan protocol.UserInput)
+	l.UserInputs = inputs
+	closeWhen(l, inputs, func(evs []event.Envelope) bool {
+		// The whole tree is quiescent once the lead has its mid receipt.
+		return countType(evs, event.TypeSubagentCompleted) >= 1
+	})
+	if _, err := l.Run(context.Background(), "orchestrate a three-level team"); err != nil {
+		t.Fatal(err)
+	}
+
+	dir := l.Store.Dir()
+	_ = l.Store.Close()
+	leafDir := dir + "/sub/mid-a1/sub/leaf-a1"
+	if _, err := store.ReadEvents(leafDir); err != nil {
+		t.Fatalf("leaf journal missing (tree did not form): %v", err)
+	}
+	// User-class mail to the QUIESCENT grandchild's durable inbox.
+	if _, err := store.AppendInbox(leafDir, protocol.UserInput{
+		Text: "deep follow-up for the leaf", Source: "cli", CommandID: event.NewCommandID(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Restart: the lead's recursive scan finds the grandchild's mail and
+	// relays the wake down the chain.
+	es, err := store.OpenEventStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = es.Close() }()
+	l2 := &Loop{Spec: l.Spec, Provider: l.Provider, Exec: l.Exec, Store: es,
+		Clock: l.Clock, SessionID: "lead", SubSpecs: l.SubSpecs}
+	inputs2 := make(chan protocol.UserInput)
+	l2.UserInputs = inputs2
+	go func() {
+		deadline := time.Now().Add(12 * time.Second)
+		for time.Now().Before(deadline) {
+			ev, _ := store.ReadEvents(leafDir)
+			for _, e := range ev {
+				if e.Type == event.TypeInputReceived && strings.Contains(string(e.Payload), "deep follow-up") {
+					close(inputs2)
+					return
+				}
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		close(inputs2)
+	}()
+	if _, err := l2.Resume(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	// The grandchild consumed the deep mail EXACTLY ONCE, in one continued
+	// session (context preserved), and the relay chain is recorded.
+	leafEvs, _ := store.ReadEvents(leafDir)
+	consumed := 0
+	for _, e := range leafEvs {
+		if e.Type == event.TypeInputReceived && strings.Contains(string(e.Payload), "deep follow-up") {
+			consumed++
+		}
+	}
+	if consumed != 1 {
+		t.Fatalf("grandchild consumed deep mail %d times, want exactly once (P0: was 0 = stranded)", consumed)
+	}
+	if n := countType(leafEvs, event.TypeSessionStarted); n != 1 {
+		t.Fatalf("grandchild SessionStarted = %d, want 1 (context continuity)", n)
+	}
+	// The relay is visible: lead re-hosted mid, mid re-hosted leaf.
+	leadRevives := countType(mustRead(t, dir), event.TypeChildRevived)
+	midRevives := countType(mustRead(t, dir+"/sub/mid-a1"), event.TypeChildRevived)
+	if leadRevives < 1 || midRevives < 1 {
+		t.Fatalf("relay chain incomplete: lead ChildRevived=%d mid ChildRevived=%d (both want >=1)", leadRevives, midRevives)
+	}
+}
+
+func mustRead(t *testing.T, dir string) []event.Envelope {
+	t.Helper()
+	evs, err := store.ReadEvents(dir)
+	if err != nil {
+		t.Fatalf("read %s: %v", dir, err)
+	}
+	return evs
+}

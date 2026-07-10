@@ -46,30 +46,36 @@ func (l *Loop) drainRevives(ctx context.Context, ds *driveState, appendE AppendF
 	}
 }
 
-// scanPendingChildMail enqueues a revive request for every DIRECT child
-// whose inbox holds unconsumed mail (crash recovery / restart continuation:
-// the durable truth outlives every dropped wake). Runs once as the drive
-// starts; deeper descendants are found by the intermediate parent when its
-// own resume runs this same scan.
+// scanPendingChildMail enqueues a revive request for every DESCENDANT
+// (direct or deeper) whose inbox holds unconsumed mail — crash recovery /
+// restart continuation: the durable truth outlives every dropped wake.
+// Walks the WHOLE subtree because a grandchild's mail lives only in the
+// grandchild's own inbox; enqueuing the descendant sid lets reviveChild
+// relay through the first hop (INC-12 正确性 review P0). Runs once as the
+// drive starts.
 func (l *Loop) scanPendingChildMail() {
 	if l.Router == nil || l.revive == nil {
 		return
 	}
-	subs, err := filepath.Glob(filepath.Join(l.Store.Dir(), "sub", "*"))
-	if err != nil {
-		return
-	}
-	for _, dir := range subs {
-		sid := l.SessionID + "-sub-" + filepath.Base(dir)
-		if !l.childHasMail(sid) {
-			continue
+	var walk func(baseDir, baseSid string)
+	walk = func(baseDir, baseSid string) {
+		subs, err := filepath.Glob(filepath.Join(baseDir, "sub", "*"))
+		if err != nil {
+			return
 		}
-		select {
-		case l.revive <- sid:
-		default:
-			slog.Warn("revive scan: queue full, child mail deferred to next resume", "child", sid)
+		for _, d := range subs {
+			sid := baseSid + "-sub-" + filepath.Base(d)
+			if l.childHasMail(sid) {
+				select {
+				case l.revive <- sid:
+				default:
+					slog.Warn("revive scan: queue full, mail deferred to next resume", "member", sid)
+				}
+			}
+			walk(d, sid) // recurse: a grandchild's mail is only in its own inbox
 		}
 	}
+	walk(l.Store.Dir(), l.SessionID)
 }
 
 // childHasMail reports unconsumed inbox entries for a tree member, folding
@@ -116,26 +122,56 @@ func (l *Loop) reviveChild(ctx context.Context, ds *driveState, appendE AppendFu
 	if err != nil {
 		return fmt.Errorf("revive %s: child fold: %w", child, err)
 	}
-	tail, err := store.ReadInbox(dir, st.Session.ConsumedInputSeq)
+	// The mail may be for CHILD itself (sid == child) or for a DEEPER
+	// descendant that only CHILD can re-host (sid != child). In the deep
+	// case CHILD is a RELAY: we re-host it so its OWN scanPendingChildMail
+	// carries the wake one hop further (DESIGN §3 "孙由中间父 resume 时同一
+	// 扫描接力"). The mail lives in the ACTUAL recipient's inbox — reading
+	// CHILD's would find nothing and strand a grandchild's durable mail
+	// (INC-12 正确性 review P0). So resolve the tail from the recipient.
+	relay := sid != child
+	mailDir, mailConsumed := dir, st.Session.ConsumedInputSeq
+	if relay {
+		rdir, rerr := l.Router.DirOf(sid)
+		if rerr != nil {
+			return nil
+		}
+		rst, rerr := childFoldState(rdir)
+		if rerr != nil {
+			return fmt.Errorf("revive relay %s: recipient fold: %w", sid, rerr)
+		}
+		mailDir, mailConsumed = rdir, rst.Session.ConsumedInputSeq
+	}
+	tail, err := store.ReadInbox(mailDir, mailConsumed)
 	if err != nil || len(tail) == 0 {
 		return nil // consumed meanwhile (or unreadable): nothing to do
 	}
 
-	// Marks gate the automatic path (决策 #30): user mail overrides every
-	// mark (send-as-explicit-gesture); tree mail may revive a parent-killed
-	// child (the parent executes this) but never a user-killed one.
-	if mark := st.Session.Closed; mark != nil && mark.Source == "user" {
-		hasUserMail := false
-		for _, in := range tail {
-			if userClassSource(in.Source) {
-				hasUserMail = true
-				break
-			}
-		}
-		if !hasUserMail {
-			slog.Warn("revive skipped: user-killed child only revives for user mail",
-				"child", child)
+	// Marks gate the automatic path (决策 #30). For a RELAY parent, ANY
+	// close/kill mark blocks the automatic hop: a descendant's mail cannot
+	// resurrect an explicitly-terminated intermediate parent — the mail
+	// stays durable until CHILD is reopened by an explicit send, whose own
+	// scan then carries it on. For the DIRECT recipient, user-kill only
+	// yields to user-class mail (the explicit reopen gesture).
+	if mark := st.Session.Closed; mark != nil {
+		if relay {
+			slog.Warn("revive skipped: relay parent is marked; descendant mail stays durable",
+				"relay", child, "recipient", sid)
 			return nil
+		}
+		if mark.Source == "user" {
+			hasUserMail := false
+			for _, in := range tail {
+				if userClassSource(in.Source) {
+					hasUserMail = true
+					break
+				}
+			}
+			if !hasUserMail {
+				slog.Warn("revive skipped: user-killed child only revives for user mail",
+					"child", child)
+				return nil
+			}
 		}
 	}
 

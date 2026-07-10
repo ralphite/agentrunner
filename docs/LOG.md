@@ -1271,3 +1271,27 @@ APERTURE-GRAPE-77。session 拷回共享 store、export 归档 qa/runs/。
 
 review 结论：P0/P1 全修并加回归测试,check.sh 全绿;P2 文档修讫 + 部署
 红线记档。
+
+## 2026-07-09 INC-12 三视角 review 收敛（2/2）：正确性 P0 grandchild relay
+
+正确性/并发一路返回：**P0×1 + P2×2**。
+
+- **P0 grandchild 投递保证破坏**：树 `R→C(静止)→G(静止)`,给 G 发消息时
+  `Router.Send` 把邮件 append 进 G 的 inbox 并向上找活祖先 R、`revive←G`;
+  但 `reviveChild` 把深层 sid 降级为 first-hop 直接子 C、读 **C** 的 inbox
+  （空）→ no-op,G 的 durable 邮件永不投递,重启也不自愈（`scanPendingChildMail`
+  只扫直接子）。修：①`reviveChild` 加 relay——深层目标读**收件人**inbox
+  判定、re-host **first-hop 子**作中转,中转子 resume 后其 scan 接力下一跳;
+  relay 中转子带 close/kill 标记则不穿过（决策 #30 保守）;②`scanPendingChildMail`
+  改**递归扫整棵子树**。测 TestReviveGrandchildRelaysThroughParent（3 层
+  R→C→G,restart 后 relay 链完整、孙恰好消费一次、单 SessionStarted,race 干净）。
+- **P2 记档（不修/已随 P0 改善）**：①运行中被丢弃/推迟的 revive 请求
+  （祖先 revive 通道满 / 子 store flock 未释放）无即时重试,靠下次
+  重启的递归 scan 兜底（P0 修复已加强）;②树根每次 resume 会重读并空转
+  转投 inbox 末尾的已处理 Target 命令（`forwardToMember` 只 journal
+  CommandHandled、不推进根 `ConsumedInputSeq`）——inbox command_id 去重
+  + relay revive 空转 → 无重复投递/双计,纯浪费,记 backlog。
+
+三视角 review 全部收敛：安全 P0/P1、契约 P1、正确性 P0 全修并加回归
+测试;各视角剩余项均为 P2 记档（部署红线 / backlog）。连续一轮无新
+P0/P1。check.sh 全绿。

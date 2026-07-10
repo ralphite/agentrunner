@@ -305,10 +305,17 @@ parent kill 的 parent 可复活）,显式 send 永远能继续它。
 - **usage 按 baseline delta 结算**（live 与 crash 结算同口径）——父账
   永不双计子的历史轮次；`settle-from-child-fold` 对 revive 活动读
   合成 args 里的 baseline。
-- 唤醒信号：TreeRouter 找目标注册口，未注册（静止）→ 投其活祖先的
-  revive 通道；父在安全边界/idle 消费。竞态收口：settle 回执后检查
-  目标 `PendingMail`；进程重启后 drive 入口 `scanPendingChildMail`
-  扫直接子（孙由中间父 resume 时同一扫描接力）。
+- 唤醒信号：TreeRouter 找目标注册口，未注册（静止）→ 投其**活祖先**的
+  revive 通道（逐层向上找第一个注册了 revive 的祖先）；祖先在安全边界/
+  idle 消费。**深层后代 relay**（INC-12 正确性 review P0）：邮件只在真正
+  收件人的 inbox，祖先只能 re-host 自己的**直接子**——故 `reviveChild`
+  对深层目标读**收件人**的 inbox 判定、re-host **first-hop 直接子**作
+  中转，中转子 resume 后其自身 `scanPendingChildMail` 再唤醒下一跳，
+  逐层展开。竞态收口：settle 回执后检查 `PendingMail`；进程重启后 drive
+  入口 `scanPendingChildMail` **递归扫整棵子树**（孙的邮件只在孙自己的
+  inbox，非直接子）。**relay 中转子带 close/kill 标记时不穿过**——被显式
+  终止的中间父不为救后代自动复活，邮件留 durable 等中转子被显式 send
+  复活后接力。
 - **标记约束**（决策 #30）：user-kill 的子只有 user-class 邮件可唤醒；
   parent-kill 的子树内消息可唤醒（执行者即父）。预算尽 → 不 revive，
   program 源消息告知父模型，邮件保留 durable。revive 重冻结权限
