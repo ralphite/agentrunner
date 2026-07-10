@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildSidebarModel, dedupeInspectNodes, projectLabel, scheduleLabel, scratchLabel } from "./viewModels";
 import { compactWorkspaceName, describeApproval } from "./approvalPresentation";
+import { conciseTitle, displayTitle } from "./title";
 import { foldEvents } from "./timeline";
 import type { Session } from "./types";
 
@@ -124,6 +125,19 @@ describe("approval presentation", () => {
       subject: "custom_tool",
       scope: "Current session",
     });
+  });
+});
+
+describe("task titles", () => {
+  it("puts the distinguishing command or reply before repeated boilerplate", () => {
+    expect(conciseTitle("Use the bash tool to run exactly: touch concurrent-4.txt.")).toBe("touch concurrent-4.txt");
+    expect(conciseTitle("Reply with exactly: STANDING BY")).toBe("Reply · STANDING BY");
+    expect(conciseTitle("用 bash 执行这条命令，原样、不加参数：date")).toBe("date");
+  });
+
+  it("preserves ordinary titles and keeps manual renames authoritative", () => {
+    expect(conciseTitle("Review the authentication boundary")).toBe("Review the authentication boundary");
+    expect(displayTitle({ s1: "Release blocker" }, "s1", "Use bash to run exactly: make test")).toBe("Release blocker");
   });
 });
 

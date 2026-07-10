@@ -375,7 +375,7 @@ export function SessionView({ sid }: { sid: string }) {
         )}
         <div className="tt-left">
           <Folder size={17} />
-          <div className="tt-title" title={sid}>{title}</div>
+          <div className="tt-title" title={`${sessions.find((s) => s.id === sid)?.title || title}\n${sid}`}>{title}</div>
           {isSub && <span className="readonly-tag">Read-only subtask</span>}
         </div>
         <span className="spacer" />

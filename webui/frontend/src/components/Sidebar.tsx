@@ -120,7 +120,7 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
               openContext(rect.left + 20, rect.top + rect.height);
             }
           }}
-          title={`${title}\n${status.text}${when ? ` · started ${when} ago` : ""}\n${session.id}`}
+          title={`${session.title || title}\n${status.text}${when ? ` · started ${when} ago` : ""}\n${session.id}`}
           aria-label={`${title} · ${isUnread ? "New activity" : status.text}${when ? ` · ${when} ago` : ""}`}
         >
           <span className="project-task-title">{title}</span>

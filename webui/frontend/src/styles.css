@@ -21,6 +21,11 @@
   --violet-soft: #efe9fe;
   --red: #b3261e;
   --red-soft: #fdeceb;
+  --status-running: var(--green);
+  --status-ready: var(--blue);
+  --status-attention: var(--amber);
+  --status-failed: var(--red);
+  --status-terminal: var(--dim);
   --radius: 10px;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
@@ -431,21 +436,24 @@ a:hover {
   flex-shrink: 0;
   background: var(--dim);
 }
-.nr-dot.idle,
 .nr-dot.done {
-  background: var(--green);
+  background: var(--status-terminal);
+}
+.nr-dot.idle {
+  background: transparent;
+  border: 1.5px solid var(--status-ready);
 }
 .nr-dot.run,
 .nr-dot.running {
-  background: var(--amber);
+  background: var(--status-running);
   animation: nr-pulse 1.5s ease-in-out infinite;
 }
 @keyframes nr-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--amber) 60%, transparent); }
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--status-running) 60%, transparent); }
   50% { box-shadow: 0 0 0 4px transparent; }
 }
 .nr-dot.appr {
-  background: var(--violet);
+  background: var(--status-attention);
 }
 .nr-dot.crash,
 .nr-dot.failed {
@@ -456,7 +464,7 @@ a:hover {
   background: var(--dim);
 }
 .nr-dot.stranded {
-  background: var(--amber);
+  background: var(--status-attention);
 }
 .pill.stranded {
   background: var(--amber-soft);
@@ -488,16 +496,17 @@ a:hover {
   white-space: nowrap;
 }
 .pill.idle {
-  background: var(--green-soft);
-  color: var(--green);
+  background: var(--blue-soft);
+  color: var(--status-ready);
 }
-.pill.run {
-  background: var(--amber-soft);
-  color: var(--amber);
+.pill.run,
+.pill.running {
+  background: var(--green-soft);
+  color: var(--status-running);
 }
 .pill.appr {
-  background: var(--violet-soft);
-  color: var(--violet);
+  background: var(--amber-soft);
+  color: var(--status-attention);
 }
 .pill.closed {
   background: var(--line-2);
@@ -508,8 +517,8 @@ a:hover {
   color: var(--red);
 }
 .pill.done {
-  background: var(--green-soft);
-  color: var(--green);
+  background: var(--line-2);
+  color: var(--status-terminal);
 }
 .pill.failed {
   background: var(--red-soft);
@@ -1122,14 +1131,14 @@ details pre,
   background: var(--dim);
 }
 .sa-dot.run {
-  background: var(--amber);
+  background: var(--status-running);
   animation: nr-pulse 1.5s ease-in-out infinite;
 }
-.sa-dot.appr { background: var(--violet); }
-.sa-dot.closed { background: var(--dim); }
-.sa-dot.crash { background: var(--red); }
-.sa-dot.stranded { background: var(--amber); }
-.sa-dot.idle { background: var(--green); }
+.sa-dot.appr { background: var(--status-attention); }
+.sa-dot.closed { background: var(--status-terminal); }
+.sa-dot.crash { background: var(--status-failed); }
+.sa-dot.stranded { background: var(--status-attention); }
+.sa-dot.idle { background: var(--status-ready); }
 .sa-name {
   font-weight: 500;
   color: var(--ink);
@@ -2830,15 +2839,15 @@ summary.fd-head:hover {
 }
 .status-dot.unread { background: var(--blue); }
 .status-dot.run,
-.status-dot.running { background: var(--blue); animation: nr-pulse 1.5s ease-in-out infinite; }
+.status-dot.running { background: var(--status-running); animation: nr-pulse 1.5s ease-in-out infinite; }
 .status-dot.appr,
-.status-dot.stranded { background: #f59e0b; }
-.status-dot.idle,
-.status-dot.done { background: var(--green); }
+.status-dot.stranded { background: var(--status-attention); }
+.status-dot.idle { background: var(--status-ready); }
+.status-dot.done { background: var(--status-terminal); }
 .status-dot.crash,
-.status-dot.failed { background: var(--red); }
+.status-dot.failed { background: var(--status-failed); }
 .status-dot.closed,
-.status-dot.stopped { background: var(--dim); }
+.status-dot.stopped { background: var(--status-terminal); }
 .task-pin,
 .task-open {
   flex: 0 0 auto;
@@ -3065,8 +3074,8 @@ summary.fd-head:hover {
   place-items: center;
   padding: 0 4px;
   border-radius: 999px;
-  color: #7a4a00;
-  background: #fff0cf;
+  color: var(--status-attention);
+  background: var(--amber-soft);
   font-size: 10px;
   font-weight: 650;
 }
@@ -3125,7 +3134,7 @@ summary.fd-head:hover {
 }
 .run-status-line > span:last-child { margin-left: auto; font-size: 11.5px; }
 .run-status-line.run { color: var(--ink-2); }
-.run-status-line.appr { color: #9a5d00; }
+.run-status-line.appr { color: var(--status-attention); }
 .step { margin-left: 0; max-width: 100%; }
 .chip,
 .sys { margin-left: 0; }
@@ -3270,8 +3279,8 @@ summary.fd-head:hover {
 .supervision-agents .sa-row { padding: 5px 1px; }
 .supervision-agents .sa-open { display: none; }
 .attention-row { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: 12.5px; }
-.attention-row b { margin-left: auto; color: #a66000; }
-.attention-dot { width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; }
+.attention-row b { margin-left: auto; color: var(--status-attention); }
+.attention-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--status-attention); }
 .background-row { display: flex; align-items: center; gap: 8px; min-height: 30px; font-size: 12px; }
 .background-row > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .supervision-details {
@@ -3400,13 +3409,12 @@ summary.fd-head:hover {
 .msg.user.peer .who a {
   color: var(--dim);
 }
-/* waiting-for-you reads as a quiet open ring, not the same solid green as
-   activity (W28) — solid = things happening, ring = your turn, grey = over. */
+/* waiting-for-you reads as a quiet blue ring, distinct from green activity;
+   grey is terminal, amber needs attention, red failed (W28/W33). */
 .status-dot.idle,
-.status-dot.done,
 .sa-dot.idle {
   background: transparent;
-  border: 1.5px solid var(--green);
+  border: 1.5px solid var(--status-ready);
 }
 
 /* ---- INC-23 B4: approval & run-modal affordances ---- */
