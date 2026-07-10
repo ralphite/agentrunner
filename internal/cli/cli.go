@@ -139,7 +139,7 @@ func commandHelp(cmd string) string {
 	case "ps":
 		return "usage: agentrunner ps <session-id-or-prefix>\n\nList the session's in-flight background work (sub-agents, tasks).\n"
 	case "approve":
-		return "usage: agentrunner approve <session-id-or-prefix> <approval-id> <approve|deny> [reason]\n\nAnswer a pending permission ask. attach or inspect shows the id.\n"
+		return "usage: agentrunner approve <session-id-or-prefix> <approval-id> <approve|deny> [reason] [--always]\n\nAnswer a pending permission ask. attach or inspect shows the id.\n--always (with approve) also saves an exact allow rule to your user\nconfig so the same call no longer asks in future sessions.\n"
 	case "barrier":
 		return "usage: agentrunner barrier <session-id-or-prefix>\n\nRecord a barrier (a fork point) in the session's journal;\n`fork --list` shows them, `fork` branches from one.\n"
 	case "sessions":

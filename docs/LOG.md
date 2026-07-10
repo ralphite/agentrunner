@@ -1637,3 +1637,26 @@ CLI session 的 Changes 显示真实 untracked diff；deep link/reload/Web UI
 restart、Scheduled、responsive、console 全验。Design QA 与 1554px Codex
 母版同图对照，修复 1 个 P1（重复成员）后最终 P0/P1/P2=0。证据在
 `qa/runs/2026-07-09-QA27/` 与根 `design-qa.md`。不变式不变。
+
+---
+
+## 2026-07-09 黑盒探索 QA Round 3（收敛轮）：回归全绿、零新增、循环收敛
+
+**方式**：两测试 agent（CLI/webui）撞订阅限额提前退场，主 agent 接手完成
+CLI 全部回归。**结果**：QA-R2 修复清单 CLI 10/10 全 PASS + webui
+compact/clear toast PASS（Agent H 限额前完成）；webui goal 时间线/Fork
+自刷新两项留待浏览器补验（tsc/build 已过）。**新 P0/P1/P2 = 0**。
+
+- G 报的权限疑点（spec 只 allow read_file、bash pwd 直跑无审批）复现
+  排除：`pwd`/`ls` 命中 INC-16 只读命令集（免规则放行，设计行为）；
+  副作用命令（touch）正确进审批。本批顺手：init 模板注释补只读集
+  说明；commandHelp 的 approve 文案同步 INC-17 的 [--always]。
+- [P3 记档] `approve --always` 写回真实生效（user settings 落精确
+  allow 规则），但 CLI 无写回反馈——留给 INC-17 收尾补一行确认输出。
+
+**收敛判定**：R1 40 findings（P1×3/P2×15）→ R2 回归 15/15 全 PASS、
+新 P1×1 当轮修 → R3 回归全 PASS、**零新增**。连续一轮无中高严重度
+新问题、全部修复零回归——黑盒 QA 循环达成收敛，余项均记档（R2 条目
+"记档未修"清单）。三轮共产出 61+ findings、修复 32 项、新增回归测试
+6 个；测试数据 230+ 会话保留于共享 store，报告归档 session scratchpad
+qa-round{1,2,3}/。

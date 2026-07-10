@@ -32,7 +32,8 @@ tools: [read_file, write_file, edit_file, bash, grep, glob, semantic_search]
 
 # Heads-up: with NO permissions block below, edits (write_file/edit_file)
 # and shell commands (bash) PAUSE for your approval every time — reads are
-# free, side effects ask. Answer a pending ask with:
+# free, side effects ask. (Common read-only commands — ls, pwd, cat, git
+# status… — are pre-approved and never ask.) Answer a pending ask with:
 #   agentrunner approve <session> <id> approve|deny
 # Uncomment permissions to pre-authorize what you trust (first match wins):
 permissions:
