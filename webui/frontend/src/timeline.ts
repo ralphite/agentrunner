@@ -51,6 +51,11 @@ export interface ChipItem {
   text: string;
   tone: "" | "warn" | "bad" | "good";
   childSession?: string;
+  // fold marks work-detail chips (approval audit, goal checks, compaction,
+  // retries, subagent lifecycle) that belong inside the "Worked for" fold of
+  // their turn. Outcome/user-action chips (goal achieved, mode changed,
+  // session closed, …) stay unmarked and render outside the fold.
+  fold?: boolean;
 }
 
 export interface SysItem {
@@ -111,6 +116,111 @@ export function completedTurnDurations(items: TimelineItem[], active: boolean): 
   return out;
 }
 
+// WorkFold wraps one completed turn's work detail (tool activity, approval
+// audit chips, intermediate planning messages) behind a Codex-style
+// "Worked for N ⌄" disclosure. The final assistant answer stays outside.
+export interface WorkFold {
+  kind: "fold";
+  key: string;
+  durationMs?: number; // undefined when the turn never produced a final answer
+  children: TimelineItem[];
+}
+
+export type RenderNode = TimelineItem | WorkFold;
+
+// foldable: work detail that hides inside the turn fold. Everything else
+// (user/final assistant bubbles, outcome chips like "goal achieved",
+// mode/spec changes, session lifecycle) stays at top level.
+function foldable(it: TimelineItem): boolean {
+  if (it.kind === "tool" || it.kind === "runtime") return true;
+  if (it.kind === "chip") return !!it.fold;
+  return false;
+}
+
+// foldWork regroups the flat item list into render nodes: for every completed
+// human turn, the work between the user message and the final assistant
+// answer collapses into a WorkFold carrying that turn's duration. The active
+// (still running) tail stays flat so live progress remains visible. Pure —
+// unit-tested against synthetic item lists.
+export function foldWork(items: TimelineItem[], durations: Map<string, number>, active: boolean): RenderNode[] {
+  // The active tail — the last human turn while it is still running — stays
+  // flat so live progress is visible. It starts at the last user message that
+  // has no settled final answer after it (durations only ever contains
+  // settled turns).
+  let tailStart = items.length;
+  if (active) {
+    let lastUser = -1;
+    let settledAfter = false;
+    items.forEach((it, i) => {
+      if (it.kind === "user" && !it.peerSession) {
+        lastUser = i;
+        settledAfter = false;
+      } else if (it.kind === "assistant" && durations.has(it.key)) {
+        settledAfter = true;
+      }
+    });
+    if (lastUser >= 0 && !settledAfter) tailStart = lastUser + 1;
+  }
+
+  // finalAhead[i]: within item i's turn segment, a settled final answer still
+  // lies ahead. Planning narration folds only then — a child session (no
+  // human turns at all) or an interrupted turn keeps its assistant text
+  // visible instead of swallowing it into a fold.
+  const finalAhead = new Array<boolean>(items.length);
+  {
+    let seen = false;
+    for (let i = items.length - 1; i >= 0; i--) {
+      const it = items[i];
+      finalAhead[i] = seen;
+      if (it.kind === "assistant" && durations.has(it.key)) seen = true;
+      else if (it.kind === "user" && !it.peerSession) seen = false;
+    }
+  }
+
+  const out: RenderNode[] = [];
+  let buf: TimelineItem[] = [];
+  let foldSeq = 0;
+  const flush = (durationMs?: number) => {
+    if (buf.length === 0 && durationMs === undefined) return;
+    out.push({ kind: "fold", key: "fold" + foldSeq++, durationMs, children: buf });
+    buf = [];
+  };
+  items.forEach((it, i) => {
+    if (i >= tailStart) {
+      // live tail: everything renders flat
+      out.push(it);
+      return;
+    }
+    if (it.kind === "user" && !it.peerSession) {
+      flush(); // dangling work from an interrupted prior turn
+      out.push(it);
+    } else if (it.kind === "assistant" && durations.has(it.key)) {
+      // final answer of a completed turn: fold everything gathered since the
+      // user message, labelled with the turn duration, then the answer itself.
+      flush(durations.get(it.key));
+      out.push(it);
+    } else if (it.kind === "assistant" && finalAhead[i]) {
+      // planning narration inside a settled turn — part of the work detail.
+      buf.push(it);
+    } else if (it.kind === "assistant") {
+      // no final answer ahead (interrupted turn / child session): the text IS
+      // the outcome — keep it visible.
+      flush();
+      out.push(it);
+    } else if (foldable(it) && (it.kind === "tool" || finalAhead[i])) {
+      // tools always fold (interrupted-turn work still tucks away); work
+      // chips fold only mid-turn — post-answer audit (goal checks that run
+      // after the reply) stays visible next to the outcome.
+      buf.push(it);
+    } else {
+      flush();
+      out.push(it);
+    }
+  });
+  flush(); // interrupted turn that never answered — fold without duration
+  return out;
+}
+
 export interface Folded {
   items: TimelineItem[];
   approvals: Map<string, ApprovalRef>; // by approval id (journal side)
@@ -154,6 +264,13 @@ export function foldEvents(events: Envelope[]): Folded {
     tone: ChipItem["tone"] = "",
     childSession?: string,
   ) => push({ kind: "chip", key: "c" + seq, text, tone, childSession });
+  // work-detail chip: same, but marked to fold into its turn's Worked section.
+  const workChip = (
+    seq: number,
+    text: string,
+    tone: ChipItem["tone"] = "",
+    childSession?: string,
+  ) => push({ kind: "chip", key: "c" + seq, text, tone, childSession, fold: true });
 
   for (const env of events) {
     const p = env.payload || {};
@@ -249,7 +366,7 @@ export function foldEvents(events: Envelope[]): Folded {
           t.statusText = "failed" + (p.final ? " (final)" : ` (retry ${p.attempt})`);
           t.errorMsg = msg;
         } else {
-          chip(seq, "activity failed: " + msg, "bad");
+          workChip(seq, "activity failed: " + msg, "bad");
         }
         break;
       }
@@ -260,12 +377,12 @@ export function foldEvents(events: Envelope[]): Folded {
           t.statusText = "cancelled";
           if (p.partial_output) t.partial = p.partial_output;
         } else {
-          chip(seq, "activity cancelled " + p.activity_id, "warn");
+          workChip(seq, "activity cancelled " + p.activity_id, "warn");
         }
         break;
       }
       case "spawn_requested":
-        chip(
+        workChip(
           seq,
           `Subagent started · ${p.agent} · ${p.task ? p.task.slice(0, 80) : ""}`,
           "",
@@ -277,7 +394,7 @@ export function foldEvents(events: Envelope[]): Folded {
         // the human wording and a compact token count (W6).
         const reason = friendlyStatus(p.reason || "").text;
         const tok = p.usage ? p.usage.input_tokens + p.usage.output_tokens : 0;
-        chip(
+        workChip(
           seq,
           `Subagent finished · ${p.agent} · ${reason}${tok ? ` · ${fmtTok(tok)} tokens` : ""}`,
           p.reason === "completed" ? "good" : "warn",
@@ -286,7 +403,7 @@ export function foldEvents(events: Envelope[]): Folded {
         break;
       }
       case "child_revived":
-        chip(
+        workChip(
           seq,
           `Member resumed · ${p.agent || ""} · woken by mail`,
           "",
@@ -295,7 +412,7 @@ export function foldEvents(events: Envelope[]): Folded {
         break;
       case "command_handled":
         if (p.result && String(p.result).startsWith("forwarded:")) {
-          chip(seq, `Forwarded to ${String(p.result).slice("forwarded:".length)}`, "", String(p.result).slice("forwarded:".length));
+          workChip(seq, `Forwarded to ${String(p.result).slice("forwarded:".length)}`, "", String(p.result).slice("forwarded:".length));
         }
         break;
       // ---- iteration driver (drive) events ----
@@ -348,7 +465,7 @@ export function foldEvents(events: Envelope[]): Folded {
         if (a) a.resolved = { decision: p.decision, reason: p.reason, source: p.source };
         // Leave a durable audit line in the feed (approve otherwise just
         // vanishes with no record).
-        chip(
+        workChip(
           seq,
           `${p.decision === "approve" ? "Approved" : "Denied"}${p.reason ? " · " + p.reason : ""}`,
           p.decision === "approve" ? "good" : "warn",
@@ -388,7 +505,7 @@ export function foldEvents(events: Envelope[]): Folded {
         chip(seq, `Agent changed · ${p.spec_name || "?"} · ${p.model || ""}`);
         break;
       case "context_compacted":
-        chip(seq, `context compacted · up to gen ${p.upto_gen_step}`);
+        workChip(seq, `context compacted · up to gen ${p.upto_gen_step}`);
         break;
       // Goal lifecycle renders first-class (QA Round1 F-C5: these used to
       // fall into hidden sys lines, so a budget-stopped goal just vanished).
@@ -408,7 +525,7 @@ export function foldEvents(events: Envelope[]): Folded {
         chip(seq, "goal cancelled", "warn");
         break;
       case "goal_checkpoint":
-        chip(seq, `goal check ${p.check || "?"}${p.pass ? " · pass" : " · not met"}`, p.pass ? undefined : "warn");
+        workChip(seq, `goal check ${p.check || "?"}${p.pass ? " · pass" : " · not met"}`, p.pass ? undefined : "warn");
         break;
       case "goal_achieved":
         // reason=budget means the check budget ran out — a visible STOP,
@@ -431,10 +548,10 @@ export function foldEvents(events: Envelope[]): Folded {
         }
         break;
       case "generation_discarded":
-        chip(seq, `gen ${p.gen_step} streamed output discarded; retrying`, "warn");
+        workChip(seq, `gen ${p.gen_step} streamed output discarded; retrying`, "warn");
         break;
       case "malformed_tool_call":
-        chip(seq, `gen ${p.gen_step} tool call malformed; retrying`, "warn");
+        workChip(seq, `gen ${p.gen_step} tool call malformed; retrying`, "warn");
         break;
       default:
         push({ kind: "sys", key: "s" + seq, text: `#${seq} ${env.type}` });

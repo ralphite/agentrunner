@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSidebarModel, dedupeInspectNodes, projectLabel, scheduleLabel, scratchLabel } from "./viewModels";
+import { buildSidebarModel, dedupeInspectNodes, deNoiseSegment, projectLabel, projectSubtitle, projectSubtitles, scheduleLabel, scratchLabel } from "./viewModels";
 import { compactWorkspaceName, describeApproval } from "./approvalPresentation";
 import { conciseTitle, displayTitle, titleFromSessionId } from "./title";
 import { foldEvents } from "./timeline";
@@ -43,7 +43,7 @@ describe("project sidebar model", () => {
     expect(model.projects[1].sessions.map((s) => s.id)).toEqual(["20260709-000000-mid-1", "20260701-000000-old-1"]);
   });
 
-  it("disambiguates same-basename groups with a parent hint (W20)", () => {
+  it("disambiguates same-basename groups with a short de-noised parent hint (W4)", () => {
     const model = buildSidebarModel(
       [
         { id: "b", status: "idle", turns: 1, workspace: "/tmp/team/ws" },
@@ -51,7 +51,18 @@ describe("project sidebar model", () => {
       ],
       { pinned: [], archived: [], showArchived: false, query: "", titleOf: (s) => s.id },
     );
-    expect(model.projects.map((p) => p.hint)).toEqual(["…/team", "…/me"]);
+    expect(model.projects.map((p) => p.hint)).toEqual(["team", "me"]);
+  });
+
+  it("leaves uniquely-named sidebar groups without a hint (W4)", () => {
+    const model = buildSidebarModel(
+      [
+        { id: "b", status: "idle", turns: 1, workspace: "/x/ws-iso" },
+        { id: "a", status: "idle", turns: 1, workspace: "/x/ws-shared" },
+      ],
+      { pinned: [], archived: [], showArchived: false, query: "", titleOf: (s) => s.id },
+    );
+    expect(model.projects.map((p) => p.hint)).toEqual([undefined, undefined]);
   });
 
   it("labels auto-created workspaces as readable scratch names (W2/W42)", () => {
@@ -101,6 +112,52 @@ describe("project sidebar model", () => {
     expect(scheduleLabel()).toBe("Goal");
     expect(scheduleLabel("cron")).toBe("Scheduled");
     expect(scheduleLabel("parallel")).toBe("Best of N");
+  });
+});
+
+describe("project name disambiguation (W4)", () => {
+  it("de-noises timestamped parent dirs while keeping rows distinct", () => {
+    const subs = projectSubtitles([
+      "/x/qa39-20260710-004434/ws",
+      "/x/qa39-20260710-004023/ws",
+      "/x/qa38-20260710-001743/ws",
+    ]);
+    expect(subs.get("/x/qa39-20260710-004434/ws")).toBe("qa39-004434");
+    expect(subs.get("/x/qa39-20260710-004023/ws")).toBe("qa39-004023");
+    expect(subs.get("/x/qa38-20260710-001743/ws")).toBe("qa38-001743");
+  });
+
+  it("omits a subtitle for uniquely-named projects", () => {
+    const subs = projectSubtitles(["/a/ws-iso", "/b/ws-shared", "/c/repo"]);
+    expect(subs.size).toBe(0);
+  });
+
+  it("distinguishes two Scratch workspaces by their creation time", () => {
+    const subs = projectSubtitles(["/tmp/ws-20260710-221530", "/tmp/ws-20260709-100000"]);
+    expect(subs.get("/tmp/ws-20260710-221530")).toBe("07-10 22:15");
+    expect(subs.get("/tmp/ws-20260709-100000")).toBe("07-09 10:00");
+  });
+
+  it("walks deeper up the path when the nearest parent still collides", () => {
+    const subs = projectSubtitles(["/team/alpha/src/ws", "/team/beta/src/ws"]);
+    expect(subs.get("/team/alpha/src/ws")).toBe("alpha/src");
+    expect(subs.get("/team/beta/src/ws")).toBe("beta/src");
+  });
+
+  it("tolerates trailing slashes and shared parents", () => {
+    const subs = projectSubtitles(["/root/one/ws/", "/root/two/ws"]);
+    expect(subs.get("/root/one/ws")).toBe("one");
+    expect(subs.get("/root/two/ws")).toBe("two");
+  });
+
+  it("de-noises a bare date segment by keeping the raw token", () => {
+    expect(deNoiseSegment("20260710")).toBe("20260710");
+    expect(deNoiseSegment("qa39-20260710-004434")).toBe("qa39-004434");
+    expect(deNoiseSegment("plain")).toBe("plain");
+  });
+
+  it("returns no detail for a lone project (single-item group)", () => {
+    expect(projectSubtitle("/only/repo", ["/only/repo"])).toBe("only");
   });
 });
 

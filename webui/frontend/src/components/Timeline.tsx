@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowSquareOut, CaretRight, Check, Circle, Copy, File, ImageSquare, Robot, X } from "@phosphor-icons/react";
-import { completedTurnDurations, formatWorkDuration, type TimelineItem, type ToolItem } from "../timeline";
+import { completedTurnDurations, foldWork, formatWorkDuration, type RenderNode, type TimelineItem, type ToolItem, type WorkFold } from "../timeline";
 import { Markdown } from "./Markdown";
 import { copyText } from "../clipboard";
 import { uploadURL } from "../api";
@@ -12,17 +12,13 @@ function absTime(ts?: string): string | undefined {
   return isNaN(d.getTime()) ? undefined : d.toLocaleString();
 }
 
-// timeGap returns a short local-time marker when two adjacent feed items are
-// separated by 10+ minutes (W10: the feed had no sense of time at all).
-function timeGap(prev?: string, next?: string): string | null {
-  if (!next) return null;
-  const b = new Date(next).getTime();
-  if (isNaN(b)) return null;
-  if (prev) {
-    const a = new Date(prev).getTime();
-    if (!isNaN(a) && b - a < 10 * 60 * 1000) return null;
-  }
-  return new Date(b).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+// shortTime renders a message timestamp for the hover action row (Codex shows
+// the time there, not as centered feed markers).
+function shortTime(ts?: string): string | null {
+  if (!ts) return null;
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 // Thumbs renders locally-known upload paths as inline image previews (the
@@ -39,7 +35,7 @@ function Thumbs({ paths }: { paths: string[] }) {
 
 // MsgActions is the hover action row under a message (Codex puts Copy / reactions
 // there). We ship Copy — the whole message text to the clipboard.
-function MsgActions({ text, onContinue }: { text: string; onContinue?: () => void }) {
+function MsgActions({ text, ts, onContinue }: { text: string; ts?: string; onContinue?: () => void }) {
   const [copied, setCopied] = useState(false);
   if (!text) return null;
   const copy = async () => {
@@ -47,6 +43,7 @@ function MsgActions({ text, onContinue }: { text: string; onContinue?: () => voi
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
   };
+  const time = shortTime(ts);
   return (
     <div className="msg-actions">
       <button className="msg-copy" onClick={copy} title="Copy message">
@@ -57,6 +54,7 @@ function MsgActions({ text, onContinue }: { text: string; onContinue?: () => voi
           <ArrowSquareOut size={15} />
         </button>
       )}
+      {time && <span className="msg-time" title={absTime(ts)}>{time}</span>}
     </div>
   );
 }
@@ -100,10 +98,45 @@ function StepIcon({ status }: { status: ToolItem["status"] }) {
   return <span className="step-ic err"><X size={11} /></span>;
 }
 
+// ShellDetail renders a bash activity as a Codex-style Shell block:
+// "$ command" + captured output + a ✓ Success / ✗ Exit N footer.
+function ShellDetail({ t }: { t: ToolItem }) {
+  const parse = (raw: any) => {
+    if (typeof raw !== "string") return raw;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return raw;
+    }
+  };
+  const args = parse(t.args) || {};
+  const r = parse(t.result);
+  const cmd: string = args.command || "";
+  const stdout = r && typeof r === "object" ? r.stdout || "" : typeof r === "string" ? r : "";
+  const stderr = r && typeof r === "object" ? r.stderr || "" : "";
+  const exit = r && typeof r === "object" && typeof r.exit_code === "number" ? r.exit_code : undefined;
+  const cancelled = t.status === "cancelled";
+  const ok = !cancelled && t.status !== "error" && t.status !== "failed" && (exit === undefined || exit === 0);
+  const out = [stdout, stderr].filter(Boolean).join(stdout && stderr ? "\n" : "");
+  return (
+    <div className="shell">
+      <div className="shell-hd">Shell</div>
+      {cmd && <pre className="shell-cmd">$ {cmd}</pre>}
+      {out && <pre className="shell-out">{out.slice(0, 20000)}</pre>}
+      {t.partial && <pre className="shell-out">{t.partial}</pre>}
+      {t.errorMsg && <pre className="shell-out err">{t.errorMsg}</pre>}
+      <div className={"shell-status" + (ok ? "" : " bad")}>
+        {ok ? <><Check size={12} /> Success</> : cancelled ? <><Circle size={9} /> Cancelled</> : <><X size={12} /> {exit !== undefined && exit !== 0 ? `Exit ${exit}` : "Failed"}</>}
+      </div>
+    </div>
+  );
+}
+
 function ToolCard({ t }: { t: ToolItem }) {
   const { verb, body, mono } = toolLabel(t.name, t.args);
+  const isShell = t.name === "bash";
   const hasDetail =
-    t.result !== undefined || t.errorMsg || t.partial || (!body && t.args !== undefined);
+    isShell || t.result !== undefined || t.errorMsg || t.partial || (!body && t.args !== undefined);
   return (
     <details className={"step" + (t.status === "error" || t.status === "failed" ? " error" : "")}>
       <summary>
@@ -119,13 +152,136 @@ function ToolCard({ t }: { t: ToolItem }) {
       </summary>
       {hasDetail && (
         <div className="step-detail">
-          {!body && t.args !== undefined && <pre>{pretty(t.args)}</pre>}
-          {t.result !== undefined && <pre>{pretty(t.result).slice(0, 20000)}</pre>}
-          {t.errorMsg && <pre className="err">{t.errorMsg}</pre>}
-          {t.partial && <pre>{t.partial}</pre>}
+          {isShell ? (
+            <ShellDetail t={t} />
+          ) : (
+            <>
+              {!body && t.args !== undefined && <pre>{pretty(t.args)}</pre>}
+              {t.result !== undefined && <pre>{pretty(t.result).slice(0, 20000)}</pre>}
+              {t.errorMsg && <pre className="err">{t.errorMsg}</pre>}
+              {t.partial && <pre>{t.partial}</pre>}
+            </>
+          )}
         </div>
       )}
     </details>
+  );
+}
+
+// groupLabel summarizes one consecutive run of tool activity the way Codex
+// does ("Edited files, read files, ran commands") — distinct categories in
+// first-appearance order.
+export function groupLabel(tools: ToolItem[]): string {
+  const cats: string[] = [];
+  const add = (c: string) => {
+    if (!cats.includes(c)) cats.push(c);
+  };
+  for (const t of tools) {
+    switch (t.name) {
+      case "bash":
+        add("ran commands");
+        break;
+      case "read_file":
+        add("read files");
+        break;
+      case "grep":
+      case "glob":
+      case "semantic_search":
+        add("searched files");
+        break;
+      case "write_file":
+      case "edit_file":
+        add("edited files");
+        break;
+      case "web_fetch":
+        add("fetched the web");
+        break;
+      case "spawn_agent":
+        add("started sub-agents");
+        break;
+      case "send_message":
+        add("messaged agents");
+        break;
+      case "ask_user":
+        add("asked you");
+        break;
+      case "progress_update":
+      case "goal_status":
+      case "goal_complete":
+        add("tracked progress");
+        break;
+      default:
+        add("used " + t.name.replace(/_/g, " "));
+    }
+  }
+  const s = cats.join(", ");
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+// ActivityGroup: level-2 disclosure for a run of consecutive tool calls.
+// A single call skips the wrapper and renders its row directly.
+function ActivityGroup({ tools }: { tools: ToolItem[] }) {
+  if (tools.length === 1) return <ToolCard t={tools[0]} />;
+  const failed = tools.some((t) => t.status === "error" || t.status === "failed");
+  return (
+    <details className={"act-group" + (failed ? " error" : "")}>
+      <summary>
+        <span className="act-ic"><CaretRight size={12} className="act-caret" /></span>
+        <span className="act-label">{groupLabel(tools)}</span>
+        <span className="act-count">{tools.length}</span>
+      </summary>
+      <div className="act-body">
+        {tools.map((t) => (
+          <ToolCard t={t} key={t.key} />
+        ))}
+      </div>
+    </details>
+  );
+}
+
+// WorkedFold: the turn-level "Worked for N ⌄" disclosure holding all work
+// detail of a settled turn (W2/W3). Consecutive tool calls aggregate into
+// ActivityGroups; chips and planning narration render between them.
+function WorkedFold({ fold, sentImages }: { fold: WorkFold; sentImages?: Map<number, string[]> }) {
+  const [open, setOpen] = useState(false);
+  const expandable = fold.children.length > 0;
+  const label = fold.durationMs !== undefined ? `Worked for ${formatWorkDuration(fold.durationMs)}` : "Worked";
+
+  // group consecutive tools; pass through everything else in order
+  const rows: ReactNode[] = [];
+  if (open) {
+    let run: ToolItem[] = [];
+    const flushRun = () => {
+      if (run.length) {
+        rows.push(<ActivityGroup tools={run} key={"g" + run[0].key} />);
+        run = [];
+      }
+    };
+    for (const it of fold.children) {
+      if (it.kind === "tool") {
+        run.push(it);
+      } else {
+        flushRun();
+        rows.push(<Item it={it} sentImages={sentImages} key={it.key} />);
+      }
+    }
+    flushRun();
+  }
+
+  return (
+    <div className={"worked" + (open ? " open" : "")}>
+      <button
+        type="button"
+        className="worked-row"
+        onClick={expandable ? () => setOpen(!open) : undefined}
+        disabled={!expandable}
+        aria-expanded={open}
+      >
+        {label}
+        {expandable && <CaretRight size={15} className="worked-caret" />}
+      </button>
+      {open && <div className="worked-body">{rows}</div>}
+    </div>
   );
 }
 
@@ -196,7 +352,7 @@ function Item({ it, sentImages, onContinue }: { it: TimelineItem; sentImages?: M
                 <div className="imgnote"><ImageSquare size={13} /> ×{it.images} attached</div>
               ) : null}
             </div>
-            <MsgActions text={it.text} />
+            <MsgActions text={it.text} ts={it.ts} />
           </div>
           <span className="who">
             {peer ? <>from {it.source} · <a href={"#" + it.peerSession}>open</a></> : it.source || "you"}
@@ -212,7 +368,7 @@ function Item({ it, sentImages, onContinue }: { it: TimelineItem; sentImages?: M
             <div className="bubble">
               <Markdown text={it.text} />
             </div>
-            <MsgActions text={it.text} onContinue={onContinue} />
+            <MsgActions text={it.text} ts={it.ts} onContinue={onContinue} />
           </div>
         </div>
       );
@@ -270,6 +426,9 @@ export function TimelineView({
   const ref = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const durations = completedTurnDurations(visible, active);
+  // W2: settled turns collapse their work behind "Worked for N ⌄"; the
+  // developer (showSys) view stays flat and raw.
+  const nodes: RenderNode[] = showSys ? visible : foldWork(visible, durations, active);
 
   useEffect(() => {
     const el = ref.current;
@@ -282,22 +441,15 @@ export function TimelineView({
     stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   };
 
-  // Time markers between items 10+ minutes apart (W10) — computed inline so
-  // the feed stays a single pass.
-  let lastTs: string | undefined;
-
   return (
     <div className="timeline" ref={ref} onScroll={onScroll}>
       <div className="tl-inner">
-        {visible.map((it) => {
-          const ts = "ts" in it ? it.ts : undefined;
-          const gap = timeGap(lastTs, ts);
-          if (ts) lastTs = ts;
+        {nodes.map((it) => {
+          if (it.kind === "fold") return <WorkedFold fold={it} sentImages={sentImages} key={it.key} />;
           return (
             <Fragment key={it.key}>
-              {gap && <div className="tl-time">{gap}</div>}
-              {durations.has(it.key) && (
-                <div className="worked-row">Worked for {formatWorkDuration(durations.get(it.key)!)} <CaretRight size={15} /></div>
+              {showSys && durations.has(it.key) && (
+                <div className="worked-row static">Worked for {formatWorkDuration(durations.get(it.key)!)}</div>
               )}
               <Item it={it} sentImages={sentImages} onContinue={it.kind === "assistant" ? onContinue : undefined} />
             </Fragment>

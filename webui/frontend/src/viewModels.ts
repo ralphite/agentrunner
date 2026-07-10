@@ -53,6 +53,62 @@ export function projectLabel(workspace?: string): string {
   return scratchLabel(base) ? "Scratch" : base;
 }
 
+// deNoiseSegment strips a YYYYMMDD date token from a path segment while
+// keeping the distinguishing remainder ("qa39-20260710-004434" →
+// "qa39-004434"). The shared date between sibling QA dirs is pure noise; the
+// prefix ("qa39") and the time suffix ("004434") are what tell them apart.
+// Falls back to the raw segment when stripping would leave nothing (W4).
+export function deNoiseSegment(segment: string): string {
+  const stripped = segment
+    .replace(/(^|[-_.])(20\d{6})(?=[-_.]|$)/g, (_match, sep) => sep)
+    .replace(/[-_.]{2,}/g, (run) => run[0])
+    .replace(/^[-_.]+|[-_.]+$/g, "");
+  return stripped || segment;
+}
+
+// projectSubtitle derives a short disambiguating detail for one workspace,
+// given the sibling workspaces that share its primary name (W4). Scratch
+// workspaces are told apart by their own creation time (their parent dir is
+// shared, e.g. /tmp); real projects by the shortest de-noised parent-path
+// suffix that stays unique within the group.
+export function projectSubtitle(workspace: string, siblings: string[]): string {
+  const clean = (path?: string) => (path || "").trim().replace(/\/+$/, "");
+  const ws = clean(workspace);
+  const base = ws.split("/").filter(Boolean).pop() || "";
+  const scratch = scratchLabel(base);
+  if (scratch) return scratch.replace(/^Scratch · /, "");
+  const parents = (path: string) => clean(path).split("/").filter(Boolean).slice(0, -1);
+  const mine = parents(ws);
+  const others = siblings.map(clean).filter((other) => other !== ws).map(parents);
+  let pretty = "";
+  for (let depth = 1; depth <= Math.max(1, mine.length); depth++) {
+    pretty = mine.slice(Math.max(0, mine.length - depth)).map(deNoiseSegment).join("/");
+    const collides = others.some((other) => other.slice(Math.max(0, other.length - depth)).map(deNoiseSegment).join("/") === pretty);
+    if (pretty && !collides) return pretty;
+  }
+  return pretty;
+}
+
+// projectSubtitles is the batch form used by the sidebar and the composer's
+// project picker: for a list of workspaces it returns a subtitle only for the
+// ones whose primary name collides with another's. Uniquely-named workspaces
+// are absent from the map, so callers render no subtitle for them (W4).
+export function projectSubtitles(workspaces: string[]): Map<string, string> {
+  const clean = (path?: string) => (path || "").trim().replace(/\/+$/, "");
+  const items = workspaces.map(clean).filter(Boolean);
+  const byName = new Map<string, string[]>();
+  for (const ws of items) {
+    const name = projectLabel(ws);
+    byName.set(name, [...(byName.get(name) || []), ws]);
+  }
+  const out = new Map<string, string>();
+  for (const group of byName.values()) {
+    if (group.length < 2) continue;
+    for (const ws of group) out.set(ws, projectSubtitle(ws, group));
+  }
+  return out;
+}
+
 export function scheduleLabel(schedule?: string): string {
   switch ((schedule || "immediate").toLowerCase()) {
     case "interval": return "Repeating";
@@ -123,19 +179,18 @@ export function buildSidebarModel(
   }
 
   // Two different paths ending in the same basename ("ws", "workspace") are
-  // indistinguishable by label alone — disambiguate with a shortened parent
-  // path (W20).
+  // indistinguishable by label alone — disambiguate with a short, de-noised
+  // parent-path segment (W4). The full path stays in the row's tooltip.
   const byLabel = new Map<string, ProjectGroup[]>();
   for (const g of groups.values()) {
     byLabel.set(g.label, [...(byLabel.get(g.label) || []), g]);
   }
   for (const twins of byLabel.values()) {
     if (twins.length < 2) continue;
+    const paths = twins.map((g) => g.workspace).filter((w): w is string => !!w);
     for (const g of twins) {
       if (!g.workspace) continue;
-      const parts = g.workspace.replace(/\/+$/, "").split("/").filter(Boolean);
-      const parent = parts.length > 1 ? parts[parts.length - 2] : "";
-      if (parent) g.hint = "…/" + parent;
+      g.hint = projectSubtitle(g.workspace, paths);
     }
   }
 

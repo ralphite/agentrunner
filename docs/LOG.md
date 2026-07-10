@@ -2418,3 +2418,33 @@ docs/increments/INC-41-codex-ui-polish.md。核心发现：Worked for 行当前
 是纯静态装饰（无折叠容器），turn 活动平铺；Home 无欢迎态；项目名重复
 无消歧；Changes 无范围/汇总工具栏；goal banner 无终态。并发注记：
 Codex 侧同域 goal 线程 17:59 usage 恢复，占号在先、恢复后先 fetch。
+
+## 2026-07-10 INC-41 批 1：P0 结构对齐（W1–W4）
+
+**落地**：① Worked fold 真折叠（timeline.ts 新 `foldWork` 纯函数 +
+`ChipItem.fold` 标记）：settled turn 的工具行/审批 audit chip/规划叙述
+收进 "Worked for N ⌄"，默认折叠；活跃尾 turn 平铺保实时；待决审批恒在
+折叠外；答案后置的 goal check 等 audit 保持可见；child session（无人类
+turn）不折叠。② 活动聚合：fold 内连续工具调用聚合 Codex 式活动行
+（"Ran commands"/"Edited files, read files…" 首现序join），单条直渲、
+≥2 组化二级展开；bash 三级展开为 Shell 块（$ cmd + stdout/stderr +
+✓ Success/✗ Exit N 尾注）。③ 居中 10-min 时间标记删除，时间戳入消息
+hover 行（Copy/Continue/HH:MM）。④ Home 欢迎态：robot 图标 +
+"What should we build (in {project})?" 项目联动 headline + composer
+垂直居中（Composer `onProjectChange` 单向镜像，ws 仍唯一真相源）。
+⑤ 项目名整治：basename 去重（`deNoiseSegment`/`projectSubtitles`），
+同名项目灰色副标题消歧（Scratch 按创建时刻、真实项目取去噪父段并逐级
+扩展），raw path 只留 hover title。
+
+**双闸门**：A=前端 42 vitest（新增 foldWork 8 + 消歧 8）+ tsc + build
+绿；B=真浏览器（重建 arwebui 二进制 + 共享 daemon，QA42 diff session /
+goal session / home）：折叠态 0 个 Approved 泄漏、展开层级/Shell 块/
+hover 时间戳/goal check 平铺位置/headline 联动/picker 消歧副标题逐项
+断言 + console 0；截图留
+qa/runs/2026-07-10-codex-ui-study/screenshots/（gitignored）。
+
+**环境记档**：本机 /Library/Developer/CommandLineTools 缺失（疑似
+磁盘满清理波及——今日容器一度 100% 满，已清 1.4G 历史 session 临时
+二进制），致 check.sh 中 TestBashFilesystemSandboxAllowsLinkedWorktree
+GitMetadata 环境性失败（Seatbelt 内 git 回落 Xcode.app 需 GUI session
+被拒）；测试代码未动、其余全绿。待用户 `xcode-select --install` 后复验。

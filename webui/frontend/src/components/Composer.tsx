@@ -53,7 +53,7 @@ import {
 import { Popover, PopItem, PopSection } from "./Popover";
 import { useVoice } from "./useVoice";
 import { recallAccess, recallDraft, recallSpec, rememberAccess, rememberDraft, rememberSpec } from "./sessionSpecs";
-import { projectLabel } from "../viewModels";
+import { projectLabel, projectSubtitles } from "../viewModels";
 
 // Actions the session variant wires in so slash commands can reach SessionView
 // state (view switches, interrupt, fork…) that lives above the composer.
@@ -66,7 +66,7 @@ export interface SessionActions {
 }
 
 type ComposerProps =
-  | { variant: "home"; onError: (m: string) => void }
+  | { variant: "home"; onError: (m: string) => void; onProjectChange?: (label: string | null) => void }
   | {
       variant: "session";
       sid: string;
@@ -232,6 +232,19 @@ export function Composer(props: ComposerProps) {
       alive = false;
     };
   }, [isSession, ws]);
+
+  // Report the selected project's display name up to Home so the welcome
+  // headline can track the composer's single source of truth (`ws`) without
+  // Home duplicating the selection state (W1).
+  useEffect(() => {
+    if (isSession) return;
+    (props as Extract<ComposerProps, { variant: "home" }>).onProjectChange?.(ws.trim() ? projectLabel(ws) : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ws, isSession]);
+
+  // Same-basename projects ("ws", "Scratch") get a short disambiguating
+  // subtitle in the picker; uniquely-named ones stay clean (W4).
+  const projectSubs = useMemo(() => projectSubtitles(recentWorkspaces), [recentWorkspaces]);
 
   const modelLabel = modelById(provider, model)?.label || model;
   const effortLevel = effortById(effort);
@@ -829,6 +842,7 @@ export function Composer(props: ComposerProps) {
                           key={workspace}
                           icon={<FolderIcon />}
                           title={projectLabel(workspace)}
+                          desc={projectSubs.get(workspace)}
                           active={workspace === normalizedWs}
                           onClick={() => { chooseProject(workspace); close(); }}
                         />
