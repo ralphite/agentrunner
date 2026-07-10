@@ -35,9 +35,10 @@ type ApprovalRequest struct {
 // ApprovalDecision is the human's answer.
 type ApprovalDecision struct {
 	protocol.CommandRef
-	Approve bool
-	Reason  string
-	Source  string // tty | env
+	Approve  bool
+	Reason   string
+	Source   string // tty | env
+	Remember bool   // INC-17 (G5): "allow and don't ask again" — persist a rule
 }
 
 // ApprovalResolver blocks until a decision arrives or ctx is done.
@@ -219,6 +220,13 @@ func (l *Loop) awaitApproval(ctx context.Context, ds *driveState, appendE Append
 			Kind: event.WaitApproval, Resolution: resolution,
 		}); err != nil {
 			return false, "", err
+		}
+		// "Allow and don't ask again" (INC-17, G5): persist an exact allow rule
+		// to the USER config so the NEXT session no longer asks. Best effort —
+		// a writeback failure must never fail the approval (the user already
+		// approved this call); it just does not persist.
+		if out.d.Approve && out.d.Remember {
+			l.rememberApproval(req)
 		}
 		ok, err := l.resolveEffectAfterApproval(ds, responseAppend, req, out.d.Approve, out.d.Reason)
 		return ok, out.d.Reason, err

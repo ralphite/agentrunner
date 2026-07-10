@@ -92,7 +92,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | OS 沙箱（bash/verifier 默认 filesystem=workspace；Seatbelt/Bubblewrap；network none 棘轮；能力缺失 fail-closed） | ✅ | UJ-20 | INC-11.3 · TestBashFilesystemSandbox/TestBashNetworkContainment/TestSandboxCapabilityMissingDeniesBeforeActivity |
 | 凭据 redaction + 硬排除表（含 .netrc/.npmrc 等） | ✅ | UJ-20 | S2/S7 收口 |
 | 信任模型（project 层 hooks 需显式 trust，`ar trust`） | ✅ | UJ-20 | S2 |
-| 审批答复写回规则（"允许且不再问"） | ❌ | UJ-08 | GAPS G5（PolicyChanged 事件已设计） |
+| 审批答复写回规则（"允许且不再问"，`ar approve --always`，取 A：写 user 层精确 allow 规则、下次 session 生效、幂等去重） | ✅ | UJ-08 | INC-17 · TestRememberRuleFromEffect/TestAppendRuleIdempotentAndPreserving/TestRememberedRuleAllowsNextSession · QA-26（真机：ask→approve --always→新 session 直过） |
 | prompt injection 威胁模型成文 | 🟡 | UJ-20 | GAPS G16（硬防线在，条款未成文） |
 | hooks 生命周期事件族（8 事件：session_start/end、user_prompt_submit、stop、subagent_start/stop、pre/post_compact；observe+block，blockable=user_prompt_submit/pre_compact；settings `hooks.lifecycle`，事件名加载期校验；hooks 不重放） | ✅ | — | INC-15 · TestLifecycleHooksFire/TestUserPromptSubmitHookBlocks/TestPreCompactHookSkipsAndNoSpin/TestObserveHookFailureDoesNotBlock · QA-24（真 Gemini：四红线） |
 

@@ -89,6 +89,9 @@ type ApprovalCommand struct {
 	ApprovalID string `json:"approval_id"`
 	Decision   string `json:"decision"`
 	Reason     string `json:"reason,omitempty"`
+	// Remember (INC-17, G5): "allow and don't ask again" — on approve, persist
+	// the effect's criterion as a user-level allow rule for the NEXT session.
+	Remember bool `json:"remember,omitempty"`
 }
 
 // SessionCommand is the typed durable command-log record. Input is optional

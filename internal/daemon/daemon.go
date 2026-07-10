@@ -80,6 +80,7 @@ type Command struct {
 	ApprovalID string `json:"approval_id,omitempty"`
 	Decision   string `json:"decision,omitempty"` // approve | deny
 	Reason     string `json:"reason,omitempty"`
+	Remember   bool   `json:"remember,omitempty"` // INC-17: allow-and-don't-ask-again
 
 	// IdemKey makes run/drive submission idempotent within the daemon's
 	// lifetime (DESIGN S6 修订): a retry with the same key attaches to the
@@ -619,6 +620,7 @@ func (s *Server) newHostedRun(id string, interactive bool) *hostedRun {
 				CommandRef: cmd.CommandRef,
 				Approve:    cmd.Approval.Decision == "approve",
 				Reason:     cmd.Approval.Reason,
+				Remember:   cmd.Approval.Remember,
 			})
 		}
 	}
@@ -1153,7 +1155,7 @@ func (s *Server) handleApprove(ctx context.Context, cmd Command, enc *json.Encod
 			Target: target,
 			Kind:   protocol.CommandApproval,
 			Approval: &protocol.ApprovalCommand{
-				ApprovalID: cmd.ApprovalID, Decision: cmd.Decision, Reason: cmd.Reason,
+				ApprovalID: cmd.ApprovalID, Decision: cmd.Decision, Reason: cmd.Reason, Remember: cmd.Remember,
 			},
 		}), func(h *hostedRun, accepted protocol.SessionCommand) bool { return h.postCommand(accepted) })
 		if err != nil {
@@ -1173,14 +1175,14 @@ func (s *Server) handleApprove(ctx context.Context, cmd Command, enc *json.Encod
 	accepted, durable, err := s.acceptCommand(cmd.Session, cmd.CommandID, attributedCommand(cmd, protocol.SessionCommand{
 		Kind: protocol.CommandApproval,
 		Approval: &protocol.ApprovalCommand{
-			ApprovalID: cmd.ApprovalID, Decision: cmd.Decision, Reason: cmd.Reason,
+			ApprovalID: cmd.ApprovalID, Decision: cmd.Decision, Reason: cmd.Reason, Remember: cmd.Remember,
 		},
 	}))
 	if err != nil {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "approval not accepted: " + err.Error()})
 		return
 	}
-	answer := ApprovalAnswer{CommandRef: accepted.CommandRef, Approve: cmd.Decision == "approve", Reason: cmd.Reason}
+	answer := ApprovalAnswer{CommandRef: accepted.CommandRef, Approve: cmd.Decision == "approve", Reason: cmd.Reason, Remember: cmd.Remember}
 	if s.Approvals.Answer(cmd.Session, cmd.ApprovalID, answer) ||
 		s.reviveAndAnswer(ctx, cmd.Session, cmd.ApprovalID, answer) {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage,

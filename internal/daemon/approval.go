@@ -12,8 +12,9 @@ import (
 // ApprovalAnswer is a human's verdict routed over the socket.
 type ApprovalAnswer struct {
 	protocol.CommandRef
-	Approve bool
-	Reason  string
+	Approve  bool
+	Reason   string
+	Remember bool // INC-17: persist an allow rule for next session
 }
 
 // ApprovalBroker goes idle daemon-hosted asks until an `approve` command answers

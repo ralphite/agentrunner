@@ -484,6 +484,22 @@ allow + `Bash(rm *)` deny + catch-all ask；workspace 内预置 victim.txt；
 整条匹配会让 git-allow 放行整条并删掉 victim。孪生（TestCompound*）已
 覆盖拆分/wrapper/只读集与"显式 deny 先于只读集"安全序。
 
+## QA-26 审批"允许且不再问"（INC-17,G5,UJ-08）
+
+**环境**：私有 daemon + 私有 XDG_CONFIG_HOME（隔离写回的 user 配置，不
+碰真实 ~/.config）+ 真实 Gemini；spec 配 catch-all ask；跑完两个 session
+拷回共享 store、export 与写回的 user-settings 归档 `qa/runs/2026-07-09-QA26/`。
+
+| # | 动作 | 验证 |
+|---|---|---|
+| 1 | session 1 让模型跑 `date`（catch-all ask） | journal 出现 approval_requested（ask 生效） |
+| 2 | `ar approve <sid> <apid> approve --always` | user 配置追加一条该命令的**精确** allow 规则（**文件事实**——"不再问"的实质） |
+| 3 | 起**全新** session 2（同 user 配置），跑同命令 | **无** approval_requested、命令直接执行（记住的规则生效，下次不再问） |
+
+**通过标准**：三条红线均为 journal/文件事实；取 A（写文件、下次生效）
+不动本 run 冻结 layers；精确匹配（`date` 记住不放宽到别的命令）。真机
+QA 捕获并修一个 persist 主路径漏传 Remember 的 bug。
+
 ---
 
 ## 覆盖矩阵

@@ -344,7 +344,7 @@ func (s socketApprovals) Resolve(ctx context.Context, req agent.ApprovalRequest)
 	if err != nil {
 		return agent.ApprovalDecision{}, err
 	}
-	return agent.ApprovalDecision{CommandRef: a.CommandRef, Approve: a.Approve, Reason: a.Reason, Source: "socket"}, nil
+	return agent.ApprovalDecision{CommandRef: a.CommandRef, Approve: a.Approve, Reason: a.Reason, Source: "socket", Remember: a.Remember}, nil
 }
 
 // hostRunFunc is the daemon's real run wiring — the same assembly as a
@@ -940,8 +940,20 @@ func hostDriveFunc(version string, stderr io.Writer, broker *daemon.ApprovalBrok
 // approveCmd answers a daemon-hosted ask: `agentrunner approve
 // <session-id-or-prefix> <approval-id> <approve|deny> [reason]`.
 func approveCmd(args []string, stdout, stderr io.Writer) int {
+	// `--always` (INC-17, G5): on approve, remember an allow rule for next
+	// session. Strip it wherever it appears; the rest are positional.
+	remember := false
+	positional := args[:0:0]
+	for _, a := range args {
+		if a == "--always" {
+			remember = true
+			continue
+		}
+		positional = append(positional, a)
+	}
+	args = positional
 	if len(args) < 3 || len(args) > 4 {
-		fmt.Fprintln(stderr, "usage: agentrunner approve <session-id-or-prefix> <approval-id> <approve|deny> [reason]")
+		fmt.Fprintln(stderr, "usage: agentrunner approve <session-id-or-prefix> <approval-id> <approve|deny> [reason] [--always]")
 		return ExitUsage
 	}
 	dir, err := resolveSessionDir(args[0])
@@ -967,7 +979,7 @@ func approveCmd(args []string, stdout, stderr io.Writer) int {
 	code := ExitOK
 	err = daemon.Dial(sock, daemon.Command{
 		Cmd: "approve", Session: session, ApprovalID: args[1],
-		Decision: decision, Reason: reason, CommandID: event.NewCommandID(),
+		Decision: decision, Reason: reason, Remember: remember, CommandID: event.NewCommandID(),
 	}, func(e protocol.Event) {
 		if e.Kind == protocol.KindError {
 			code = ExitRun

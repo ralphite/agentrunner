@@ -1540,6 +1540,7 @@ permission 加「命令粒度匹配」段。
 
 **余项**：参数级匹配 `Tool(param:value)`（#55）、path 规则 gitignore 风
 锚点增强（#54）——独立小增量。
+
 ## 2026-07-09 INC-12 第三轮 review 收敛：relay 硬错误软跳 + fork 守卫加固
 
 第三轮双路 review（修复回归 + 最终整体扫）。整体扫结论 **P0=0/P1=0/P2=2**
@@ -1576,3 +1577,39 @@ permission 加「命令粒度匹配」段。
 **收敛判定**：三轮五视角对抗 review,累计 4 P0 + 7 P1 全修+回归测试,
 连续一轮（第三轮整体扫）无新 P0/P1;剩余 P2 记档。check.sh 全绿、-race
 干净。INC-12 达到可交付质量。
+
+## 2026-07-09 INC-17 审批"允许且不再问"（SPRINT #5，G5，取 A）
+
+CLAUDECODE-PARITY §2.06 #58 + UJ-08 步骤2。审批新增 `--always`：
+`ApprovalDecision.Remember` 贯穿 CLI（`approve --always`）→ protocol
+（ApprovalCommand.Remember）→ daemon（Command/ApprovalAnswer + 两条
+approval 消费路径：persist 主路径 answerApproval 与非 persist 直答）→
+agent（awaitApproval：Approve && Remember → rememberApproval）。写回：
+`rememberRule` 从被审批 effect 提取**精确**判据（bash=确切命令、edit/
+write=确切路径，**不宽通配**——`git push` 不放宽成 `git *`），
+`config.AppendRule` append 到 **user 配置**（幂等去重、保留既有 hooks/
+notify、best-effort 不阻断审批）。
+
+**两裁决**：①**取 A**（下次生效，不触不变量，INC-D5）——本 run 该审批
+照常应答，规则写文件供**下次** session 拼 PermissionLayers 读到，冻结
+layers 不动；②**写 user 层**（非 project）——project allow 在未 trust 时
+降级为 ask（决策 #19），写 project 会让"不再问"静默失效。精确匹配把
+user 层"全局"超范围降到最小。DESIGN §15 决策表加 #38。
+
+**双闸门**：孪生 TestRememberRuleFromEffect（判据提取，含 unknown/无 args
+不记）/TestAppendRuleIdempotentAndPreserving（写、去重幂等、保留既有）/
+TestRememberedRuleAllowsNextSession（端到端：写回→新 session pipeline
+直过，且精确匹配不放宽别的命令）；真实 API QA-26（真 Gemini + 私有
+daemon + 私有 XDG_CONFIG_HOME）三红线全绿：session 1 ask、approve
+--always 写 user 配置精确 allow、**全新 session 2 跑同命令不问**。归档
+qa/runs/2026-07-09-QA26/。check.sh 全绿。
+
+**真机 QA 的价值**：孪生全绿但 QA-26 首跑 PASS(2) 失败——`replace_all`
+改 daemon 两处 ApprovalCommand 时只匹配了缩进较浅的非 persist 路径，
+**persist 主路径（daemon 托管 session 的实际消费路径）漏传 Remember**，
+导致真实 daemon 下写回不触发。补齐后全绿。孪生测的是 agent 层链路，
+daemon 跨进程消费路径要真机才暴露——印证"双闸门缺一不可"。另修一个 QA
+脚本 bug（`set -euo pipefail` 下裸 grep 无匹配退出）。
+
+**余项**：project 精确作用域（config 加 local 层/workspace-scoped 规则）、
+取 B 本 run 立即生效（PolicyChanged，触不变量）。

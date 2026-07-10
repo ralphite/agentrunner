@@ -134,6 +134,35 @@ func mergeLifecycle(dst *Hooks, src map[string][]string) {
 	}
 }
 
+// AppendRule adds one permission rule to a settings file (INC-17, G5:
+// "allow and don't ask again"). It is idempotent — an identical rule already
+// present is a no-op, so a replayed/duplicate approve never double-writes —
+// and preserves the file's other settings (it reloads, appends, re-marshals).
+// The file is created if absent. Returns whether a rule was actually added.
+func AppendRule(path string, rule pipeline.PermissionRule) (bool, error) {
+	s, err := LoadFile(path)
+	if err != nil {
+		return false, err
+	}
+	for _, existing := range s.Permissions {
+		if existing == rule {
+			return false, nil // already remembered
+		}
+	}
+	s.Permissions = append(s.Permissions, rule)
+	raw, err := yaml.Marshal(s)
+	if err != nil {
+		return false, fmt.Errorf("settings %s: %w", path, err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return false, fmt.Errorf("settings %s: %w", path, err)
+	}
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		return false, fmt.Errorf("settings %s: %w", path, err)
+	}
+	return true, nil
+}
+
 // --- trust registry ---
 
 type trustFile struct {
