@@ -3402,3 +3402,12 @@ summary.fd-head:hover {
   background: var(--red);
   color: #fff;
 }
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent, #4a7dff);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: inherit;
+}

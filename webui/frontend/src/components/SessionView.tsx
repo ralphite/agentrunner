@@ -485,7 +485,11 @@ export function SessionView({ sid }: { sid: string }) {
                   <div className={`run-status-line ${status.cls}`}>
                     {running && <span className="spin" />}
                     <span>{running ? "Working" : status.text}</span>
-                    {usage && usage.billed > 0 && <span>{fmtTokens(usage.billed)} tokens{usage.steps ? ` · ${usage.steps} generation steps` : ""}</span>}
+                    {usage && usage.billed > 0 && (
+                      <span title="billed tokens · model generation steps this session">
+                        {fmtTokens(usage.billed)} tokens{usage.steps ? ` · ${usage.steps} steps` : ""}
+                      </span>
+                    )}
                   </div>
                 )}
                 approvalSlot={openApprovals.length > 0 ? (

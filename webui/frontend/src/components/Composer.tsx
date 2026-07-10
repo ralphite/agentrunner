@@ -885,7 +885,7 @@ export function Composer(props: ComposerProps) {
               disabled
             >
               {riskDot(sessionAccess?.risk || "unknown")}
-              {sessionAccess?.label || "Spec-defined access"}
+              {sessionAccess?.label || "Access: set by agent spec"}
             </button>
           ) : (
             <Popover

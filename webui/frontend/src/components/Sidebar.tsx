@@ -175,7 +175,7 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
           <input
             autoFocus
             value={query}
-            placeholder="Search tasks"
+            placeholder="Search title, id, or workspace"
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => {
               if (event.key !== "Escape") return;
@@ -223,6 +223,18 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
                     Show {project.sessions.length - shown.length} more
                   </button>
                 )}
+                {isExpanded && !query && project.sessions.length > 6 && (
+                  <button
+                    className="show-more"
+                    onClick={() => setExpanded((current) => {
+                      const next = new Set(current);
+                      next.delete(project.key);
+                      return next;
+                    })}
+                  >
+                    Show less
+                  </button>
+                )}
               </div>
             );
           })}
@@ -238,7 +250,11 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
         <span className={`daemon-indicator${health?.daemonUp ? " online" : ""}`} />
         <button className="daemon-copy" onClick={() => !health?.daemonUp && restartDaemon()} title={health?.daemonUp ? health.version : "Restart daemon"}>
           <b>AgentRunner</b>
-          <span>{health?.daemonUp ? "Connected" : "Daemon unavailable"}</span>
+          <span>
+            {health?.daemonUp
+              ? `Connected · ${(health.version || "").replace(/^agentrunner\s*/, "").split(" ")[0] || "daemon"}`
+              : "Daemon unavailable — click to restart"}
+          </span>
         </button>
         <button className="sidebar-action" onClick={cycleTheme} title={`Theme: ${theme}`}>{themeGlyph}</button>
       </div>

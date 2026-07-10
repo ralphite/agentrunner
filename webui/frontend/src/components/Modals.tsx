@@ -447,7 +447,7 @@ function forkRank(b: string): number {
 
 function ForkModal({ sid }: { sid: string }) {
   const { openModal, select, refreshSessions, toast } = useStore();
-  const { ws, setWs, mk } = useWorkspace();
+  const { ws, setWs } = useWorkspace();
   const [barriers, setBarriers] = useState<string[]>([]);
   const [barrier, setBarrier] = useState("");
   const [busy, setBusy] = useState(false);
@@ -512,7 +512,24 @@ function ForkModal({ sid }: { sid: string }) {
       </div>
       <label className="field">Fork from</label>
       {barriers.length === 0 ? (
-        <div className="dim">No fork points yet — they appear here as the session checkpoints turns (this list refreshes itself). A busy session checkpoints at its next safe boundary; an idle one checkpoints when you send it a message.</div>
+        <div className="dim">
+          No checkpoints yet — this list refreshes as they appear.{" "}
+          <button
+            className="link-btn"
+            title="checkpoint the session right now (ar barrier) so you can fork from this exact point"
+            onClick={async () => {
+              try {
+                await AR.barrier(sid);
+                loadBarriers();
+              } catch (e: any) {
+                toast(e.message);
+              }
+            }}
+          >
+            Create a checkpoint now
+          </button>{" "}
+          — a busy session checkpoints at its next safe boundary; an idle one when you message it.
+        </div>
       ) : (
         <select value={barrier} onChange={(e) => setBarrier(e.target.value)} title="the checkpoint to branch the new session from">
           {barriers.map((b) => (
@@ -523,12 +540,7 @@ function ForkModal({ sid }: { sid: string }) {
         </select>
       )}
       <label className="field">New worktree directory (optional)</label>
-      <div className="row-flex">
-        <input type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="empty = auto <workspace>-fork-<id>" />
-        <button style={{ whiteSpace: "nowrap" }} onClick={mk} title="create a fresh empty directory under runtime/ and fill it in here">
-          make empty workspace
-        </button>
-      </div>
+      <input type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="leave empty to auto-create next to the current workspace" />
     </Modal>
   );
 }

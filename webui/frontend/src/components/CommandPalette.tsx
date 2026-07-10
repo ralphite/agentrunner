@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
 import { nextTheme } from "../theme";
 import { displayTitle } from "../title";
+import { projectLabel } from "../viewModels";
+import { relTime, sessionDate } from "../time";
 
 interface Item {
   id: string;
@@ -34,7 +36,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
     };
     const cmds: Item[] = [
       { id: "c-new", label: "New task", group: "Commands", run: go(() => showPage("home")) },
-      { id: "c-run", label: "Background run…", group: "Commands", run: go(() => openModal({ kind: "run" })) },
+      { id: "c-run", label: "New run…", hint: "submit / drive", group: "Commands", run: go(() => openModal({ kind: "run" })) },
       { id: "c-trust", label: "Trust directory…", group: "Commands", run: go(() => openModal({ kind: "trust" })) },
       { id: "c-arch", label: "Toggle archived", group: "Commands", run: go(() => toggleShowArchived()) },
       {
@@ -46,13 +48,15 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       },
       { id: "c-keys", label: "Keyboard shortcuts", hint: "?", group: "Commands", run: go(() => openHelp()) },
     ].filter((c) => match(c.label));
-    const sess: Item[] = sessions
-      .filter((s) => match(displayTitle(renames, s.id, s.title)) || match(s.id))
+    const sess: Item[] = [...sessions]
+      .sort((a, b) => b.id.localeCompare(a.id)) // newest first, same as the sidebar
+      .filter((s) => match(displayTitle(renames, s.id, s.title)) || match(s.id) || match(s.workspace || ""))
       .slice(0, 8)
       .map((s) => ({
         id: "s" + s.id,
         label: displayTitle(renames, s.id, s.title),
-        hint: s.status,
+        // Same-title tasks are common — project + age tells them apart (W34).
+        hint: [projectLabel(s.workspace), relTime(sessionDate(s.id))].filter(Boolean).join(" · "),
         group: "Sessions",
         run: go(() => select(s.id)),
       }));

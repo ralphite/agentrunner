@@ -11,7 +11,7 @@ export function Home() {
         <div className="home-brand">AgentRunner</div>
         <h2>What should we work on?</h2>
         <Composer variant="home" onError={(m) => toast(m)} />
-        <p className="hero-hint">Describe the outcome. Workspace and run settings stay available when you need them.</p>
+        <p className="hero-hint">Describe what you want done — pick a workspace, access level, and model below when the defaults don't fit.</p>
       </div>
     </div>
   );
