@@ -2909,7 +2909,7 @@ summary.fd-head:hover {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 34px 6px 10px;
+  padding: 6px 60px 6px 10px;
   border: 0;
   border-radius: 8px;
   background: transparent;
@@ -2959,12 +2959,26 @@ summary.fd-head:hover {
 .status-dot.closed,
 .status-dot.stopped { background: var(--status-terminal); }
 .task-pin,
+.task-archive,
 .task-open {
   flex: 0 0 auto;
   opacity: 0;
   color: var(--dim);
 }
 .task-pin {
+  position: absolute;
+  right: 31px;
+  top: 5px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+}
+.task-archive {
   position: absolute;
   right: 5px;
   top: 5px;
@@ -2979,9 +2993,34 @@ summary.fd-head:hover {
 }
 .task-pin.active { opacity: .72; }
 .project-task-wrap:hover .task-pin,
+.project-task-wrap:hover .task-archive,
 .project-task-wrap:hover .task-open,
 .project-task-wrap.current .task-open { opacity: .72; }
-.task-pin:hover { border-color: transparent; background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.task-pin:hover,
+.task-archive:hover { border-color: transparent; background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.task-preview {
+  position: fixed;
+  z-index: 75;
+  left: 296px;
+  width: 264px;
+  display: grid;
+  gap: 8px;
+  padding: 12px 13px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: 0 10px 30px rgba(0,0,0,.12);
+  color: var(--ink-2);
+  font-size: 12px;
+  pointer-events: none;
+}
+.task-preview-head,
+.task-preview > div { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.task-preview-head { padding-bottom: 2px; color: var(--ink); }
+.task-preview-head b { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.task-preview-head > span { color: var(--dim); }
+.task-preview > div > svg { flex: 0 0 auto; color: var(--dim); }
+.task-preview > div > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .show-more,
 .archive-toggle {
   display: flex;
@@ -3494,6 +3533,7 @@ summary.fd-head:hover {
   }
   .tl-inner { padding: 0 22px; }
   .cx-session { padding-left: 20px; padding-right: 20px; }
+  .task-preview { display: none; }
 }
 @media (max-width: 520px) {
   .cx-env-strip { min-height: 58px; padding-left: 12px; padding-right: 12px; }

@@ -7,6 +7,7 @@ import {
   CaretRight,
   Folder,
   FolderOpen,
+  GitBranch,
   MagnifyingGlass,
   Monitor,
   Moon,
@@ -24,7 +25,7 @@ import { displayTitle } from "../title";
 import { ContextMenu } from "./ContextMenu";
 import { MenuItem, MenuLabel } from "./Menu";
 import { copyText } from "../clipboard";
-import { buildSidebarModel } from "../viewModels";
+import { buildSidebarModel, projectLabel } from "../viewModels";
 import { relTime, sessionDate } from "../time";
 
 type SidebarContext =
@@ -62,6 +63,8 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
   const [searching, setSearching] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [ctx, setCtx] = useState<SidebarContext | null>(null);
+  const [hoverPreview, setHoverPreview] = useState<{ sid: string; top: number } | null>(null);
+  const [branchByWorkspace, setBranchByWorkspace] = useState<Record<string, string>>({});
 
   const model = useMemo(
     () => buildSidebarModel(sessions, {
@@ -91,6 +94,19 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
     }
   };
 
+  const previewTask = (session: (typeof sessions)[number], top: number) => {
+    setHoverPreview({ sid: session.id, top: Math.max(10, Math.min(top - 6, window.innerHeight - 154)) });
+    const workspace = session.workspace;
+    if (!workspace || Object.prototype.hasOwnProperty.call(branchByWorkspace, workspace)) return;
+    setBranchByWorkspace((current) => ({ ...current, [workspace]: "" }));
+    AR.gitBranches(workspace)
+      .then((info) => setBranchByWorkspace((current) => ({
+        ...current,
+        [workspace]: info.isRepo && info.current ? info.current : "Local workspace",
+      })))
+      .catch(() => setBranchByWorkspace((current) => ({ ...current, [workspace]: "Local workspace" })));
+  };
+
   const renderTask = (session: (typeof sessions)[number], nested = false) => {
     const active = session.id === currentSid;
     const status = friendlyStatus(session.status);
@@ -107,6 +123,8 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
           event.preventDefault();
           openContext(event.clientX, event.clientY);
         }}
+        onMouseEnter={(event) => previewTask(session, event.currentTarget.getBoundingClientRect().top)}
+        onMouseLeave={() => setHoverPreview((current) => current?.sid === session.id ? null : current)}
       >
         <button
           className="project-task"
@@ -140,6 +158,18 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
           }}
         >
           <PushPin size={13} weight={isPinned ? "fill" : "regular"} />
+        </button>
+        <button
+          className="task-archive"
+          tabIndex={-1}
+          title={archived.includes(session.id) ? "Unarchive task" : "Archive task"}
+          aria-label={archived.includes(session.id) ? "Unarchive task" : "Archive task"}
+          onClick={(event) => {
+            event.stopPropagation();
+            toggleArchive(session.id);
+          }}
+        >
+          <ArchiveBox size={13} />
         </button>
       </div>
     );
@@ -280,6 +310,24 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
         </button>
         <button className="sidebar-action" onClick={cycleTheme} title={`Theme: ${theme}`}>{themeGlyph}</button>
       </div>
+
+      {hoverPreview && (() => {
+        const session = sessions.find((item) => item.id === hoverPreview.sid);
+        if (!session) return null;
+        const title = displayTitle(renames, session.id, session.title);
+        const status = friendlyStatus(session.status);
+        const workspace = session.workspace || "";
+        const branch = workspace ? branchByWorkspace[workspace] : "";
+        const when = relTime(sessionDate(session.id));
+        return (
+          <div className="task-preview" style={{ top: hoverPreview.top }} aria-hidden="true">
+            <div className="task-preview-head"><b>{title}</b>{when && <span>{when}</span>}</div>
+            <div><Folder size={15} /><span>{projectLabel(workspace)}</span></div>
+            <div><GitBranch size={15} /><span>{branch || "Local"}</span></div>
+            <div><span className={`status-dot ${status.cls}`} /><span>{status.text}</span></div>
+          </div>
+        );
+      })()}
 
       {ctx?.kind === "session" && (
         <ContextMenu x={ctx.x} y={ctx.y} onClose={() => setCtx(null)}>
