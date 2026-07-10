@@ -316,12 +316,15 @@ GAPS.md，本文件只回答"产品要做什么"。
 
 1. 左栏按 Projects → task 展示全部真实 session；task 是完整键盘可达操作，
    Pinned 单列且不重复；自动 workspace 合并为 Scratch；CLI 创建、metadata
-   不完整、父/子 session 都能直接打开和 deep link。
+   不完整、父/子 session 都能直接打开和 deep link；hover 同屏提供 pin /
+   archive 与 project/branch/status 预览，键盘 context menu 保持等价。
 2. New task 只出现一个 composer；默认只露输入、附件、access、model、
-   send，高级 Goal/Loop/Best-of-N/spec 启动器收在 Task options。
+   send，project/Local/branch 作为上缘环境条常驻；高级 Goal/Loop/Best-of-N/
+   spec 启动器收在 Task options。
 3. 中央 thread 按 journal 投影 user/assistant/tool 事实；program/agent/control
    输入默认只在 system events 中查看，绝不冒充用户；底部 follow-up 延续
-   同一 session；Changes 固定承接 diff 审阅。
+   同一 session；每轮最终 answer 显示真实 Worked duration、Copy/Continue，
+   有 workspace diff 时内联 Changes 摘要并由 Review 进入固定 diff 审阅。
 4. 待审批 action 以内联卡片出现，先说清“做什么/影响哪里”；raw args/
    gates 折入 Details。Approve once 与 Deny 分立，不暗示未实现的权限。
 5. 宽屏右侧 Supervision 集中 Goal / Agents / Attention / Background work；
@@ -329,9 +332,10 @@ GAPS.md，本文件只回答"产品要做什么"。
    只读子会话；窄屏默认收起，移动端以带 scrim 的 sidebar/panel 打开。
 6. Web UI 重启后同一 deep link、共享 store 历史、Goal/Repeating/Scheduled
    driver 和本地 pin/archive/theme 设置仍在；UI 只是公开 CLI/journal/
-   inspect/ps/diff 的 projection。
+   inspect/ps/diff 的 projection；首次 session fetch 成功前显示 loading，不用
+   空数组伪造 `No tasks yet` 或把 raw session id 当标题。
 
-**覆盖功能**：`Codex 式 project/task 信息架构` `单一 task thread` `渐进披露 composer` `内联人类可读审批` `Changes 审阅` `Supervision(goal/agent/attention/background/recovery)` `restart-safe Scheduled` `键盘/移动端导航` `子会话导航` `deep link/restart` `共享真实 session` `Web UI 产品面`
+**覆盖功能**：`Codex 式 project/task 信息架构` `单一 task thread` `环境上下文 composer` `Worked/Changes 任务收尾` `渐进披露 composer` `内联人类可读审批` `Changes 审阅` `Supervision(goal/agent/attention/background/recovery)` `restart-safe Scheduled` `键盘/移动端导航` `子会话导航` `deep link/restart` `共享真实 session` `Web UI 产品面`
 
 ---
 

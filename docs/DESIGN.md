@@ -1096,10 +1096,19 @@ limits:
   metadata 只缓存已知值以兼容
   旧 session/首屏，不得覆盖 journal 状态，也不得成为 Diff、附件或 project
   grouping 的唯一来源。
+- session list 首次成功返回前，空数组只代表 **not loaded**；sidebar/deep-link
+  header 必须显示 loading。成功返回后才可投影真实空态，metadata 缺失的旧
+  session 只允许从 durable id 派生短 fallback title，不直接泄漏完整 raw id。
 - 通用信息架构严格采用 Codex：左侧 New task / Scheduled / Pinned /
   Projects→task，中间单一 thread，固定 Changes 审阅入口，底部 follow-up
   composer。AgentRunner 独有 Goal / agent tree / attention / background
   handles 仅作为同一视觉语言下可收起的 Supervision 次级面板。
+- New task 环境条只重排既有 workspace / local run kind / git-branch API，仍由
+  同一 composer state 提交；每轮 `Worked` 只由相邻 human input 与该轮最终
+  assistant message 的 journal timestamp 派生。Changes outcome 只读既有
+  diff contract，并只提供真实 `Review`；无 durable feedback/rollback contract
+  时不画点赞或 `Undo`。`Continue in new task` 复用 checkpoint + fork/worktree
+  contract，不另造复制会话语义。
 - approval 仍通过 durable `approve` command；卡片默认只投影动作、对象与
   scope，raw args/gates 折入 Details。UI 只提供当前已实现的 Approve once /
   Deny，不用文案暗示本次会改变冻结 permission layers。

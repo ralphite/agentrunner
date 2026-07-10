@@ -638,6 +638,27 @@ build、Web UI/根 check 全绿。最终同图对照 `07-reference-vs-latest.png
 
 ---
 
+## QA-41 Codex 式任务收尾与首屏真相（INC-38,UJ-24）
+
+**环境**：最新 `main`、共享 `~/.local/share/agentrunner/` store/daemon、
+`http://127.0.0.1:8788`；默认 desktop 与 390×844。只读既有 session/diff，
+未 send/approve/resume/close/commit/清理。证据保留在
+`qa/runs/2026-07-10-webui-codex-detail-audit/`。
+
+| # | 真实状态/动作 | 硬断言 |
+|---|---|---|
+| 1 | Web UI 不可用→恢复、deep link 首屏 | 旧版实证曾投影 `No tasks yet`+raw sid；加入 readiness 后代码/DOM 只在首个 sessions success 后允许真实空态，header 先 `Loading task…` |
+| 2 | completed session `…qa-k-diff…` | journal timestamp 投影 `Worked for 9s`；最终 answer 只有一条 Worked；Copy 与 `Continue in new task` 可达 |
+| 3 | 有真实 diff 的 completed goal session `20260710-062102-…-0d1e` | `Worked for 1m 17s`；内联 `Edited 1 file +1 / goal-r2.txt +1`；Review 进入原 Changes 并显示 `+DONE` |
+| 4 | New task desktop / 390×844 | project/Local/branch 环境条常驻 composer 上缘；同一 trigger 打开 Recent/workspace/Interactive/Background/branch；mobile 不溢出 |
+| 5 | sidebar task | 每行具 pin/archive hover action；hover preview 由 session workspace/status 与按需 git branch 查询组成；键盘 context menu 原路径不变 |
+| 6 | Codex 参考图同屏对照 + console | Worked/action/Changes card 与 environment strip 层级对齐；AgentRunner 品牌/Supervision 保留；console error/warning=0 |
+
+**结果**：PASS。26 个 frontend tests、frontend build 与根 `check.sh` 全绿；
+desktop/mobile 菜单、Review 路径均用 DOM 断言；测试数据全部保留。
+
+---
+
 ## 覆盖矩阵
 
 | 核心场景 | QA 流 |
