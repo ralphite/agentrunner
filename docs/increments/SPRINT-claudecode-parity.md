@@ -68,7 +68,7 @@
 | 7 | skill 模型侧 invoke（核心） | #45 · §3.5 | S | ✅ done (INC-20) | skill 工具按 name 返回 SKILL.md 正文；QA-29 真机；命令=用户宏裁决不动；fork 拆 7b |
 | 7b | context:fork（skill 在一次性子 agent 执行 = spawn_agent 变体） | #45 · §3.5 余项 | M | ✅ done (INC-31) | ingest 展开为 spawn_agent{role},动态角色全链复用,agents_dynamic 门控;QA-37 真机七红线;#45 收口;INC 号让路记 LOG |
 | 8 | 结构化输出（`ar run --json-schema`，provider JSON mode 能力位） | #91 | S | ✅ done (INC-26) | `ar new --json-schema`：CLI 层校验+失败重发+canonical structured_output;QA-33 真机;provider-native JSON mode 拆 8b |
-| 8b | provider-native JSON mode（gemini responseSchema 约束生成免 re-prompt）+ durable structured_output 事件 | #91 余项 | M | ⬜ | INC-26 拆出;触 CompleteRequest/provider,谨慎 |
+| 8b | provider-native JSON mode（gemini responseSchema 约束生成免 re-prompt）+ durable structured_output 事件 | #91 余项 | M | 🔧 in-progress (INC-35) | 收窄:spec output_schema+tool-less 轮下传(JSON mode 与 tools 互斥);--json-schema 端到端下传拆 8c(待 HANDA 2U) |
 | 9 | checkpoint 增强：barrier 打点密度提至每 turn 收尾 + "仅对话"fork 变体 + compact 范围指示（Summarize-from-here 等价） | #12/13 · §3.1 | M | ⬜ | §3.1 已论证不触不变量 |
 | 10 | ask_user 结构化选项（多选 + Other，向 AskUserQuestion 对齐） | #42 | S | ⬜（避让） | webui 审批 UI 可复用；**= HANDA #7,依赖其 2U 命令身份·撤销·应答统一设计单元**——避让待 HANDA 2U 落定后联动,勿抢做 |
 | 11 | read-before-edit 护栏（edit_file 要求本会话 Read 过且未变） | #32 | S | 📐 deferred (INC-21) | 实现易（sync.Map 护栏），但波及 ~10 scripted edit 测试需批量加 read 步骤（含 crash matrix 等核心）→ 测试适配成本 M，defer 专轮；设计+波及分析见 INC-21 |
