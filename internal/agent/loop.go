@@ -1069,6 +1069,14 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			// call already sees the compacted view. Runs at most once per
 			// boundary — the fresh summary drops the estimate below the
 			// threshold, so the next decide() no longer finds it due.
+			// Microcompact (INC-13) goes first: the no-LLM reclaim shrinks
+			// the estimate in place (appendE folds it into ds.s), so the
+			// compaction check below often no longer fires at all.
+			if act.turn > 1 && microcompactDue(ds.s, l.Spec) {
+				if err := l.microcompact(ds, appendE); err != nil {
+					return RunResult{}, abort(act.turn, err)
+				}
+			}
 			if act.turn > 1 && compactionDue(ds.s, l.Spec) {
 				if err := l.compactContext(ctx, ds, appendE, exec, act.turn, "", false); err != nil {
 					return RunResult{}, abort(act.turn, err)

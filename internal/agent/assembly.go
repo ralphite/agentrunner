@@ -134,7 +134,11 @@ func assembleMessages(s state.State) []provider.Message {
 		}
 		msgs = msgs[b:]
 	}
-	for _, m := range msgs {
+	base := s.Compaction.Boundary // global index of msgs[0] after the slice above
+	if base < 0 || base > len(s.Conversation.Messages) {
+		base = 0
+	}
+	for i, m := range msgs {
 		// A part-less message carries nothing and no adapter can encode it.
 		// Journals written before the loop guarded against empty completions
 		// (2026-07 Gemini defect) may hold one — dropping it here is what
@@ -150,6 +154,13 @@ func assembleMessages(s state.State) []provider.Message {
 		if len(calls) == 0 {
 			continue
 		}
+		// Microcompact (INC-13): behind the monotonic micro boundary,
+		// re-runnable read-class results render as a placeholder. The call
+		// (and its args) stays verbatim — the model still sees WHAT it read;
+		// pairing is untouched (决策 #9), only the result body changes. The
+		// journal keeps the full result: this is an assembled view, exactly
+		// like the compaction boundary above.
+		elide := base+i < s.Compaction.MicroBoundary
 		toolMsg := provider.Message{Role: provider.RoleTool}
 		complete := true
 		for _, c := range calls {
@@ -158,11 +169,15 @@ func assembleMessages(s state.State) []provider.Message {
 				complete = false
 				break
 			}
+			result := res.Result
+			if elide && microcompactEligible(s, c) {
+				result = microcompactPlaceholderJSON
+			}
 			toolMsg.Parts = append(toolMsg.Parts, provider.Part{
 				Kind:     provider.PartToolResult,
 				CallID:   c.CallID,
 				ToolName: c.Name,
-				Result:   res.Result,
+				Result:   result,
 				IsError:  res.IsError,
 			})
 		}

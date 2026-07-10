@@ -276,6 +276,11 @@ type Compaction struct {
 	Summary     string `json:"summary,omitempty"`
 	Boundary    int    `json:"boundary,omitempty"`
 	UptoGenStep int    `json:"upto_gen_step,omitempty"`
+	// MicroBoundary (INC-13, additive-optional per 决策 #18): messages before
+	// this index render re-runnable read-class tool results as a placeholder
+	// at assembly time. Monotonic — max-wins across events — so the
+	// assembled prefix only changes when a ContextMicrocompacted lands.
+	MicroBoundary int `json:"micro_boundary,omitempty"`
 }
 
 // Budget is the reservation set: effect_resolved{allow, reserved_tokens}
@@ -716,10 +721,21 @@ func Apply(s State, env event.Envelope) (State, error) {
 		// The full message log stays intact (truth); the boundary freezes at
 		// the message count folded so far, and assembly reads only
 		// messages[Boundary:] preceded by Summary. Latest compaction wins.
+		// MicroBoundary survives: indices before Compaction.Boundary never
+		// reach assembly anyway, and a stale micro boundary inside the kept
+		// suffix keeps rendering the same placeholders (stable view).
 		s.Compaction = Compaction{
-			Summary:     p.Summary,
-			Boundary:    len(s.Conversation.Messages),
-			UptoGenStep: p.UptoGenStep,
+			Summary:       p.Summary,
+			Boundary:      len(s.Conversation.Messages),
+			UptoGenStep:   p.UptoGenStep,
+			MicroBoundary: s.Compaction.MicroBoundary,
+		}
+
+	case *event.ContextMicrocompacted:
+		// Monotonic max-wins (INC-13): the boundary never retreats, so the
+		// assembled view of any prefix is stable across resumes and forks.
+		if p.Boundary > s.Compaction.MicroBoundary {
+			s.Compaction.MicroBoundary = p.Boundary
 		}
 
 	case *event.ActivityStarted:

@@ -32,6 +32,12 @@ type ModelSpec struct {
 	// standing in for DESIGN's trigger_ratio × context_window (which needs a
 	// per-model window not yet modeled). Zero disables compaction.
 	CompactAtTokens int `yaml:"compact_at_tokens,omitempty"`
+	// MicrocompactAtTokens triggers the NO-LLM context reclaim (INC-13):
+	// old re-runnable read-class tool results render as placeholders once
+	// the estimate exceeds it. Zero defaults to 3/4 of CompactAtTokens
+	// (micro fires first, softening or avoiding the LLM summary); -1
+	// disables microcompact explicitly.
+	MicrocompactAtTokens int `yaml:"microcompact_at_tokens,omitempty"`
 	// Thinking requests extended thinking (S4.7); providers map it or
 	// downgrade explicitly when their Capabilities.Thinking is false.
 	Thinking ThinkingSpec `yaml:"thinking,omitempty"`

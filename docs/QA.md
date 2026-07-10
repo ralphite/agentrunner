@@ -419,6 +419,23 @@ tool_call、tool_result 投影到同一 active turn。`inspect --json` 的 turns
 非零并显示 schema_version=1 的 provider capability envelope。用旧共享 session
 执行 inspect/resume 时，旧 Message/GenStep 日志可补投影；旧 snapshot 不阻断。
 
+## QA-22 microcompact 无 LLM 上下文回收（INC-13,UJ-09）
+
+**环境**：私有 daemon（新构建 binary，隔离 runtime 根，因共享 daemon 正
+服务其他并发 session）+ 真实 Gemini；session 关掉 compaction
+（`compact_at_tokens: 0`）只留 `microcompact_at_tokens`，令 workspace 三个
+文件各含一条尾行 codeword；跑完把 session 拷回共享 store、export 归档
+`qa/runs/2026-07-09-QA22/`。
+
+| # | 动作 | 验证 |
+|---|---|---|
+| 1 | 连续读三个大文件、复读，跨过 micro 阈值 | journal 落 `context_microcompacted`（cleared>0），无 LLM 调用为它发生 |
+| 2 | 全程 | **无** `context_compacted`（compaction 关闭，证明 micro 独立自足） |
+| 3 | 追问最老文件（其读结果已被降级）的 codeword | 模型看到占位符后**重跑 read_file**（调用数 5→7）并答出确切密钥 |
+
+**通过标准**：三条红线均为 journal/行为事实（不判模型措辞）；被降级的旧
+结果在 journal 中仍是全量（fork/resume 语义不损）。
+
 ---
 
 ## 覆盖矩阵

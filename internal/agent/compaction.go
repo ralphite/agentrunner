@@ -11,6 +11,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/state"
+	"github.com/ralphite/agentrunner/internal/tool"
 )
 
 // compactionSystemPrompt instructs the summarizer. It is harness-owned, not
@@ -47,6 +48,120 @@ func compactionDue(s state.State, spec *AgentSpec) bool {
 		return false
 	}
 	return estimateContextTokens(s) > limit
+}
+
+// microcompactRecentGuard keeps this many trailing messages out of any
+// micro boundary: the model's working set stays verbatim, and each trigger
+// moves the boundary well behind the frontier so the assembled prefix stays
+// byte-stable between triggers (prompt-cache friendly).
+const microcompactRecentGuard = 8
+
+// microcompactMinResultBytes: results at or below this size are not worth
+// replacing — the placeholder itself costs ~70 bytes.
+const microcompactMinResultBytes = 200
+
+// microcompactPlaceholder is what the model sees in place of a cleared
+// result. It names the escape hatch: the tool can simply be re-run.
+const microcompactPlaceholder = "[old tool result cleared to save context — re-run the tool if needed]"
+
+// microcompactPlaceholderJSON is the placeholder as a tool-result body
+// (results are raw JSON; a JSON string keeps every provider adapter happy).
+var microcompactPlaceholderJSON = json.RawMessage(strconv.Quote(microcompactPlaceholder))
+
+// microcompactAt resolves the trigger threshold (INC-13): explicit value
+// wins, -1 disables, zero defaults to 3/4 of CompactAtTokens so micro fires
+// before the LLM summary would.
+func microcompactAt(spec *AgentSpec) int {
+	switch v := spec.Model.MicrocompactAtTokens; {
+	case v > 0:
+		return v
+	case v < 0:
+		return 0
+	default:
+		return spec.Model.CompactAtTokens * 3 / 4
+	}
+}
+
+// microcompactEligible reports whether one tool call's result would render
+// as a placeholder behind a micro boundary. Shared by the trigger scan and
+// assembly so both always agree: read-class (re-runnable) tools only, real
+// results only (errors are short and are the model's feedback), and only
+// results big enough to be worth clearing.
+func microcompactEligible(s state.State, c provider.ToolCall) bool {
+	res, ok := s.Conversation.ToolResults[c.CallID]
+	if !ok || res.IsError {
+		return false
+	}
+	if len(res.Result) <= microcompactMinResultBytes {
+		return false
+	}
+	return toolClassIn(s, c.Name) == string(tool.ClassRead)
+}
+
+// microcompactDue reports whether advancing the micro boundary now would
+// actually reclaim context (INC-13). Pure — fold plus spec — so resume
+// reaches the same verdict. Requires the estimate over the threshold AND at
+// least one eligible result between the current boundary and the candidate
+// one; otherwise a read-free conversation would journal a no-op event at
+// every safe boundary.
+func microcompactDue(s state.State, spec *AgentSpec) bool {
+	limit := microcompactAt(spec)
+	if limit <= 0 {
+		return false
+	}
+	newB := len(s.Conversation.Messages) - microcompactRecentGuard
+	if newB <= s.Compaction.MicroBoundary {
+		return false
+	}
+	if estimateContextTokens(s) <= limit {
+		return false
+	}
+	return microcompactClears(s, newB) > 0
+}
+
+// microcompactClears counts the eligible results that a boundary at newB
+// would clear beyond the current one (informational for the event, and the
+// no-op guard for the trigger).
+func microcompactClears(s state.State, newB int) int {
+	msgs := s.Conversation.Messages
+	from := s.Compaction.MicroBoundary
+	if b := s.Compaction.Boundary; b > from {
+		from = b // messages before the compaction boundary never assemble
+	}
+	if newB > len(msgs) {
+		newB = len(msgs)
+	}
+	n := 0
+	for i := from; i < newB; i++ {
+		if msgs[i].Role != provider.RoleAssistant {
+			continue
+		}
+		for _, c := range toolCallsOf(msgs[i]) {
+			if microcompactEligible(s, c) {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+// microcompact journals the boundary advance (INC-13). No LLM, no activity —
+// the appender folds the event into ds.s, so the caller falls through to
+// compactionDue with the already-shrunken estimate (micro softens or avoids
+// the summary), mirroring compaction's self-terminating shape.
+func (l *Loop) microcompact(ds *driveState, appendE AppendFunc) error {
+	newB := len(ds.s.Conversation.Messages) - microcompactRecentGuard
+	cleared := microcompactClears(ds.s, newB)
+	if _, err := appendE(event.TypeContextMicrocompacted, &event.ContextMicrocompacted{
+		Boundary:        newB,
+		EstimatedTokens: estimateContextTokens(ds.s),
+		Cleared:         cleared,
+	}); err != nil {
+		return err
+	}
+	l.emit(protocol.Event{Kind: protocol.KindMessage,
+		Text: fmt.Sprintf("context microcompacted: %d old tool result(s) cleared", cleared)})
+	return nil
 }
 
 // compactContext runs the summarizer as a recorded LLM activity and journals

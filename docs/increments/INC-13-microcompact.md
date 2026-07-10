@@ -15,7 +15,7 @@ LLM"）。我们的架构做它更顺：tool result 本就是 journal 事件、a
 
 - SPEC A 新行：microcompact（assembly 层把久远的可重算 read-class
   工具结果渲染为占位符；先于 autocompact 生效；journal/fold 零变更）
-  ——锚 `TestMicrocompact*` + QA-19。
+  ——锚 `TestMicrocompact*` + QA-22。
 - CLAUDECODE-PARITY §2 #18 状态 ❌→✅。
 
 ## Design delta（不触不变量）
@@ -45,7 +45,7 @@ DESIGN §4「Context assembly」加一段：
   变占位、近窗保留、execute 结果保留、配对完整）/
   `TestMicrocompactBelowThresholdNoop` / `TestMicrocompactResumeStable`
   （resume 后同一 assembly 结果——纯函数自证）。
-- 真实 API QA-19：真 Gemini 长会话灌大量 grep/read 输出→跨过
+- 真实 API QA-22：真 Gemini 长会话灌大量 grep/read 输出→跨过
   microcompact 阈值→继续对话模型仍能正确工作（必要时重跑工具）；
   `ar events` 导出归档 qa/runs/。
 - `./scripts/check.sh` 全绿。
@@ -56,7 +56,7 @@ DESIGN §4「Context assembly」加一段：
    commit 从 2 起。
 2. assembly 降级逻辑 + 阈值配置。
 3. 孪生测试三件。
-4. QA-19 场景脚本 + 真实 API 跑通归档。
+4. QA-22 场景脚本 + 真实 API 跑通归档。
 5. 文档行齐活（SPEC/CLAUDECODE-PARITY/LOG/SPRINT 状态表）。
 
 ## review 裁决

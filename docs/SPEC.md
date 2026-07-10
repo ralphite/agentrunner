@@ -39,6 +39,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | WAITING_APPROVAL 挂起期间消息唤醒 | 🟡 | UJ-07 | 只排队不唤醒；GAPS G3 余项 |
 | 手动 compact（带指示）/ clear | ✅ | UJ-09 | INC-6 · TestManualCompact/Clear/EmptySummarySkipped · QA-12（真实 API：compact 带指示落非空 summary、clear 落 cleared） |
 | 自动 compaction（阈值触发） | ✅ | UJ-09 | S3 |
+| microcompact（assembly 把久远可重算 read-class 工具结果渲染为占位符；不调 LLM；单调 micro boundary；先于 autocompact） | ✅ | UJ-09 | INC-13 · TestMicrocompact{AssemblyView,MonotonicFold,TriggeredInLoop,DisabledNoop} · QA-22（真 Gemini：micro 触发、无 compact、模型重跑工具复原被清结果） |
 | 手动 barrier 打点（`ar barrier`，非运行中 session） | ✅ | UJ-15 | fork 全链路测试（S7 收口） |
 
 ## B · 子 agent 与编排

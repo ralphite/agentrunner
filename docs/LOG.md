@@ -1204,3 +1204,33 @@ qa/run-qa20.sh 按 CLAUDE.md QA 规则走共享 store（qa/lib.sh 的 XDG
 隔离是旧惯例,新场景不再沿用）;handoff 血统子（a2+）不可 revive、
 bash 进度 tail 仍在 G10 余项——均记档。工作纸归档
 archive/increments/INC-12-agent-team.md。
+
+## 2026-07-09 INC-13 microcompact——无 LLM 的轻量上下文回收（SPRINT #1）
+
+CLAUDECODE-PARITY §4.2 P0① 落地：在 autocompact 之上加最省的一档，对标
+Claude Code 四级压缩体系的 microcompact（§3.2）。context 估算跨过
+`microcompact_at_tokens`（默认 = compact 阈值 3/4，先触发）时，
+`ContextMicrocompacted{boundary}` 记一个单调边界；assembly 把边界之前的
+可重算 read-class 工具结果渲染为占位符（"重跑工具即可"），execute/edit
+类、错误、近窗（保护工作集 8 条）、小结果（≤200B）一律保留，tool call
+与配对不动（决策 #9）。
+
+**不触不变量**：journal 留全量结果（truth），只有装配视图降级——与
+compaction boundary 同一 doctrine，故 fold 纯（决策 #3）、无 code replay
+（#5）、fork/rewind/resume 天然良定义。单调 max-wins 保证装配前缀只在
+事件落盘时变一次、不每 turn 抖（prefix-cache 友好）。触发在 step 边界、
+compaction 之前：micro 先就地压小估算，compaction 常因此不再需要跑
+（估算基于装配后视图，同 compaction 自终止）。DESIGN §4「Context
+assembly」加 microcompact 段（additive，不改既有条款）。
+
+**双闸门**：孪生 TestMicrocompact{AssemblyView（只降 read-class 大结果、
+execute/错误/近窗/小结果保留、配对完整）,MonotonicFold（max-wins + 跨
+compaction 存活）,TriggeredInLoop（loop 内触发、无 compact、末请求含
+占位）,DisabledNoop（-1 关闭）}；event roundtrip 样本补齐。真实 API
+QA-22（真 Gemini + 私有 daemon 隔离根 + 真 CLI send/attach）三红线全绿：
+micro 触发、无 compact、模型见占位符后重跑 read_file（5→7）复原被清密钥
+APERTURE-GRAPE-77。session 拷回共享 store、export 归档 qa/runs/。
+`./scripts/check.sh` 全绿。
+
+**并发协作**：QA 编号让路——INC-11.5 已占 QA-19，本增量让到 QA-22
+（SPRINT SOP 的冲突避让）。

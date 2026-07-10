@@ -34,9 +34,10 @@ const (
 	TypeLimitExceeded     = "limit_exceeded"
 
 	// S4 additions.
-	TypeGenerationDiscarded = "generation_discarded"
-	TypeContextCompacted    = "context_compacted"
-	TypeMalformedToolCall   = "malformed_tool_call"
+	TypeGenerationDiscarded   = "generation_discarded"
+	TypeContextCompacted      = "context_compacted"
+	TypeContextMicrocompacted = "context_microcompacted"
+	TypeMalformedToolCall     = "malformed_tool_call"
 
 	// S5 additions.
 	TypeToolsDiscovered   = "tools_discovered"
@@ -521,6 +522,21 @@ type ContextCompacted struct {
 	Cleared bool `json:"cleared,omitempty"`
 }
 
+// ContextMicrocompacted records a microcompact (INC-13): a NO-LLM context
+// reclaim that advances a monotonic boundary; assembly renders re-runnable
+// read-class tool results BEFORE the boundary as a short placeholder. The
+// journal keeps every result intact (truth) — like the compaction boundary,
+// only the assembled view changes, so fork/rewind/resume stay well-defined.
+// Boundary is computed by the trigger (policy lives in the agent layer);
+// fold applies it monotonically max-wins, which keeps the assembled prefix
+// stable between triggers (prompt-cache friendly: bytes change only when
+// this event lands, never per-turn).
+type ContextMicrocompacted struct {
+	Boundary        int `json:"boundary"`
+	EstimatedTokens int `json:"estimated_tokens,omitempty"`
+	Cleared         int `json:"cleared,omitempty"`
+}
+
 // MalformedToolCall records that a completed LLM call finished with an
 // unparseable tool call (S4.6). It drives a bounded retry of the same turn
 // (reusing the discard signal); Raw is the model's best-effort output for
@@ -799,35 +815,36 @@ type Containment struct {
 // Registry maps every event type to a constructor for its payload struct.
 // Decode helpers and the round-trip test are driven by this table.
 var Registry = map[string]func() any{
-	TypeSessionStarted:      func() any { return &SessionStarted{} },
-	TypeInputReceived:       func() any { return &InputReceived{} },
-	TypeGenerationStarted:   func() any { return &GenerationStarted{} },
-	TypeAssistantMessage:    func() any { return &AssistantMessage{} },
-	TypeActivityStarted:     func() any { return &ActivityStarted{} },
-	TypeActivityCompleted:   func() any { return &ActivityCompleted{} },
-	TypeActivityFailed:      func() any { return &ActivityFailed{} },
-	TypeActivityCancelled:   func() any { return &ActivityCancelled{} },
-	TypeTimerSet:            func() any { return &TimerSet{} },
-	TypeTimerFired:          func() any { return &TimerFired{} },
-	TypeTimerCancelled:      func() any { return &TimerCancelled{} },
-	TypeWaitingEntered:      func() any { return &WaitingEntered{} },
-	TypeWaitingResolved:     func() any { return &WaitingResolved{} },
-	TypeActorCrashed:        func() any { return &ActorCrashed{} },
-	TypeSessionClosed:       func() any { return &SessionClosed{} },
-	TypeEffectRequested:     func() any { return &EffectRequested{} },
-	TypeEffectResolved:      func() any { return &EffectResolved{} },
-	TypeApprovalRequested:   func() any { return &ApprovalRequested{} },
-	TypeApprovalResponded:   func() any { return &ApprovalResponded{} },
-	TypeModeChanged:         func() any { return &ModeChanged{} },
-	TypeLimitExceeded:       func() any { return &LimitExceeded{} },
-	TypeGenerationDiscarded: func() any { return &GenerationDiscarded{} },
-	TypeContextCompacted:    func() any { return &ContextCompacted{} },
-	TypeMalformedToolCall:   func() any { return &MalformedToolCall{} },
-	TypeToolsDiscovered:     func() any { return &ToolsDiscovered{} },
-	TypeSpawnRequested:      func() any { return &SpawnRequested{} },
-	TypeSubagentCompleted:   func() any { return &SubagentCompleted{} },
-	TypeChildRevived:        func() any { return &ChildRevived{} },
-	TypeArtifactPublished:   func() any { return &ArtifactPublished{} },
+	TypeSessionStarted:        func() any { return &SessionStarted{} },
+	TypeInputReceived:         func() any { return &InputReceived{} },
+	TypeGenerationStarted:     func() any { return &GenerationStarted{} },
+	TypeAssistantMessage:      func() any { return &AssistantMessage{} },
+	TypeActivityStarted:       func() any { return &ActivityStarted{} },
+	TypeActivityCompleted:     func() any { return &ActivityCompleted{} },
+	TypeActivityFailed:        func() any { return &ActivityFailed{} },
+	TypeActivityCancelled:     func() any { return &ActivityCancelled{} },
+	TypeTimerSet:              func() any { return &TimerSet{} },
+	TypeTimerFired:            func() any { return &TimerFired{} },
+	TypeTimerCancelled:        func() any { return &TimerCancelled{} },
+	TypeWaitingEntered:        func() any { return &WaitingEntered{} },
+	TypeWaitingResolved:       func() any { return &WaitingResolved{} },
+	TypeActorCrashed:          func() any { return &ActorCrashed{} },
+	TypeSessionClosed:         func() any { return &SessionClosed{} },
+	TypeEffectRequested:       func() any { return &EffectRequested{} },
+	TypeEffectResolved:        func() any { return &EffectResolved{} },
+	TypeApprovalRequested:     func() any { return &ApprovalRequested{} },
+	TypeApprovalResponded:     func() any { return &ApprovalResponded{} },
+	TypeModeChanged:           func() any { return &ModeChanged{} },
+	TypeLimitExceeded:         func() any { return &LimitExceeded{} },
+	TypeGenerationDiscarded:   func() any { return &GenerationDiscarded{} },
+	TypeContextCompacted:      func() any { return &ContextCompacted{} },
+	TypeContextMicrocompacted: func() any { return &ContextMicrocompacted{} },
+	TypeMalformedToolCall:     func() any { return &MalformedToolCall{} },
+	TypeToolsDiscovered:       func() any { return &ToolsDiscovered{} },
+	TypeSpawnRequested:        func() any { return &SpawnRequested{} },
+	TypeSubagentCompleted:     func() any { return &SubagentCompleted{} },
+	TypeChildRevived:          func() any { return &ChildRevived{} },
+	TypeArtifactPublished:     func() any { return &ArtifactPublished{} },
 
 	TypeDriverStarted:      func() any { return &DriverStarted{} },
 	TypeIterationScheduled: func() any { return &IterationScheduled{} },

@@ -377,6 +377,19 @@ generation step 预算（从最后一条输入起算,防单 turn runaway）。
   - clear 复用 `ContextCompacted{Summary:""}`（assembly 见空 summary
     跳过摘要头，view = msgs[Boundary:]）+ 事件 `Cleared` 标记诚实区分；
     退化保护：仅当有新内容越过上一 boundary 才落事件。
+- **Microcompact（INC-13，无 LLM 的轻量回收）**：在 compaction 之上再加
+  最省的一档。context 估算跨过 `microcompact_at_tokens`（默认 =
+  `compact_at_tokens` 的 3/4，先于 LLM 摘要触发）时，`ContextMicrocompacted
+  {boundary}` 记一个**单调**边界（max-wins）；assembly 把边界之前的
+  **可重算 read-class 工具结果**渲染为一句占位符（"重跑工具即可"），
+  execute/edit 类结果、错误、近窗（保护工作集）与小结果一律保留，
+  **tool call 与配对不动**（决策 #9）。这是 compaction boundary 同一
+  doctrine 的复用：**journal 留全量结果（truth），只有装配视图降级**，
+  故 fork/rewind/resume 语义天然良定义、不调 LLM、不新增副作用。
+  单调性保证装配前缀只在事件落盘时变一次，不每 turn 抖动（prefix
+  caching 友好）。触发点在 step 边界、compaction 之前：micro 先把估算
+  就地压小，compaction 常因此不再需要跑（估算基于装配后视图，同
+  compaction 一样自终止）。
 
 ### Turn 内的执行纪律
 
