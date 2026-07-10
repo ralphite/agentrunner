@@ -63,7 +63,6 @@ permissions:
 #     oauth: { access_token_env: MCP_ACCESS_TOKEN }
 `
 
-
 // driverTemplate is the commented example driver spec `agentrunner init
 // --driver` writes (QA Round2 F-E9: the driver schema was undiscoverable —
 // no template, no docs). It must always pass driver.LoadSpec next to a
