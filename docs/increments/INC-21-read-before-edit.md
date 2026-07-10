@@ -1,3 +1,19 @@
+# INC-21 read-before-edit 护栏（#32）— 📐 DEFERRED（测试适配成本）
+
+> **状态：设计完成、实现验证可行，但 DEFER 到专轮。** 护栏实现是 S
+> （Executor 一个 `readPaths sync.Map` + read/write/edit 成功记入 + edit
+> 现有文件前检查），但**波及 ~10 个 scripted edit 测试**（TestEditFile、
+> TestLoopMultiTurnEditsFile、TestCrashMatrix 三态、TestBarrierPerTurn、
+> TestLoopRequestAssemblyGolden、TestIsolatedTeamWorkspaceSurviveRevive、
+> TestEscalationApproval 等）——它们的 fixture 都是"直接 edit 现有文件、
+> 无 read 步骤"，护栏一开全挂。批量给这些（含 crash matrix 等核心）
+> fixture 加 read 步骤是独立的 M 工作、且改核心恢复测试风险高，不适合
+> 快速 loop 轮。**放宽已验证**：read/write/edit 任一接触过即可后续 edit
+> （只挡凭空 edit），但仍波及"os.WriteFile 直接建文件再 edit_file"的
+> setup。专轮做时：先批量适配 fixture，再开护栏。
+>
+> 以下为原设计（保留供专轮实现）。
+
 # INC-21 read-before-edit 护栏（#32）
 
 ## 动机与 journey 锚
