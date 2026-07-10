@@ -27,6 +27,10 @@ import { copyText } from "../clipboard";
 import { buildSidebarModel } from "../viewModels";
 import { relTime, sessionDate } from "../time";
 
+type SidebarContext =
+  | { kind: "session"; x: number; y: number; sid: string }
+  | { kind: "project"; x: number; y: number; label: string; workspace?: string; ids: string[] };
+
 export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigate?: () => void }) {
   const {
     health,
@@ -56,7 +60,7 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [ctx, setCtx] = useState<{ x: number; y: number; sid: string } | null>(null);
+  const [ctx, setCtx] = useState<SidebarContext | null>(null);
 
   const model = useMemo(
     () => buildSidebarModel(sessions, {
@@ -93,7 +97,7 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
     const isPinned = pinned.includes(session.id);
     const title = displayTitle(renames, session.id, session.title);
     const when = relTime(sessionDate(session.id));
-    const openContext = (x: number, y: number) => setCtx({ x, y, sid: session.id });
+    const openContext = (x: number, y: number) => setCtx({ kind: "session", x, y, sid: session.id });
     return (
       <div
         key={session.id}
@@ -211,6 +215,16 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
                     return next;
                   })}
                   title={project.workspace}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    setCtx({ kind: "project", x: event.clientX, y: event.clientY, label: project.label, workspace: project.workspace, ids: project.sessions.map((session) => session.id) });
+                  }}
+                  onKeyDown={(event) => {
+                    if (!((event.shiftKey && event.key === "F10") || event.key === "ContextMenu")) return;
+                    event.preventDefault();
+                    const rect = event.currentTarget.getBoundingClientRect();
+                    setCtx({ kind: "project", x: rect.left + 20, y: rect.bottom, label: project.label, workspace: project.workspace, ids: project.sessions.map((session) => session.id) });
+                  }}
                 >
                   {isExpanded ? <CaretDown size={12} /> : <CaretRight size={12} />}
                   {isExpanded ? <FolderOpen size={16} /> : <Folder size={16} />}
@@ -249,7 +263,6 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
       <div className="side-foot">
         <span className={`daemon-indicator${health?.daemonUp ? " online" : ""}`} />
         <button className="daemon-copy" onClick={() => !health?.daemonUp && restartDaemon()} title={health?.daemonUp ? health.version : "Restart daemon"}>
-          <b>AgentRunner</b>
           <span>
             {health?.daemonUp
               ? `Connected · ${(health.version || "").replace(/^agentrunner\s*/, "").split(" ")[0] || "daemon"}`
@@ -259,7 +272,7 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
         <button className="sidebar-action" onClick={cycleTheme} title={`Theme: ${theme}`}>{themeGlyph}</button>
       </div>
 
-      {ctx && (
+      {ctx?.kind === "session" && (
         <ContextMenu x={ctx.x} y={ctx.y} onClose={() => setCtx(null)}>
           <MenuLabel>{displayTitle(renames, ctx.sid, sessions.find((session) => session.id === ctx.sid)?.title)}</MenuLabel>
           <MenuItem onClick={() => togglePin(ctx.sid)}>{pinned.includes(ctx.sid) ? "Unpin" : "Pin"}</MenuItem>
@@ -269,6 +282,14 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
           <MenuLabel>Copy</MenuLabel>
           <MenuItem onClick={() => { copyText(ctx.sid); toast("copied session id", "info"); }}>Session ID</MenuItem>
           <MenuItem onClick={() => { copyText(`${location.origin}/#${ctx.sid}`); toast("copied link", "info"); }}>Task link</MenuItem>
+        </ContextMenu>
+      )}
+      {ctx?.kind === "project" && (
+        <ContextMenu x={ctx.x} y={ctx.y} onClose={() => setCtx(null)}>
+          <MenuLabel>{ctx.label}</MenuLabel>
+          {ctx.workspace && <MenuItem onClick={() => { copyText(ctx.workspace!); toast("copied project path", "info"); }}>Copy project path</MenuItem>}
+          <MenuItem onClick={() => ctx.ids.filter((id) => unread.includes(id)).forEach(markRead)}>Mark all as read</MenuItem>
+          <MenuItem onClick={() => ctx.ids.filter((id) => !archived.includes(id)).forEach(toggleArchive)}>Archive all tasks</MenuItem>
         </ContextMenu>
       )}
     </aside>

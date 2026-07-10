@@ -320,15 +320,17 @@ export function SessionView({ sid }: { sid: string }) {
       }
     },
     close: async () => {
-      // Deliberate end: mark the conversation closed. (A later send reopens
-      // it — verified against the real daemon — so say that, not "forever".)
-      if (!window.confirm("Close this session? It ends the conversation and marks it closed. Sending a new message later would reopen it.")) return;
-      try {
-        await AR.closeSession(sid);
-        toast("session closed", "info");
-      } catch (e: any) {
-        toast(e.message);
-      }
+      openModal({
+        kind: "confirm",
+        title: "Close task?",
+        body: "This ends the current conversation and marks it closed. Sending a new message later will reopen it.",
+        confirmLabel: "Close task",
+        danger: true,
+        onConfirm: async () => {
+          await AR.closeSession(sid);
+          toast("task closed", "info");
+        },
+      });
     },
     kill: async (handle: string) => {
       try {
@@ -475,6 +477,12 @@ export function SessionView({ sid }: { sid: string }) {
             <DiffView sid={sid} />
           ) : (
             <>
+              {showSys && (
+                <div className="system-events-notice">
+                  System events are visible
+                  <button onClick={toggleSys}>Hide</button>
+                </div>
+              )}
               <TimelineView
                 items={folded.items}
                 pending={pending}

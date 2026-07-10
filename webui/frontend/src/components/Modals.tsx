@@ -99,9 +99,43 @@ function MainModal({ modal }: { modal: NonNullable<ModalKind> }) {
       return <RenameModal sid={modal.sid} />;
     case "trust":
       return <TrustModal />;
+    case "confirm":
+      return <ConfirmModal modal={modal} />;
     case "viewer":
       return <ViewerModal title={modal.title} body={modal.body} />;
   }
+}
+
+function ConfirmModal({ modal }: { modal: Extract<NonNullable<ModalKind>, { kind: "confirm" }> }) {
+  const { openModal, toast } = useStore();
+  const [busy, setBusy] = useState(false);
+  const close = () => openModal(null);
+  const confirm = async () => {
+    setBusy(true);
+    try {
+      await modal.onConfirm();
+      close();
+    } catch (error: any) {
+      toast(error.message);
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal
+      title={modal.title}
+      onClose={close}
+      footer={
+        <>
+          <button onClick={close}>Cancel</button>
+          <button className={modal.danger ? "danger" : "primary"} disabled={busy} onClick={confirm}>
+            {modal.confirmLabel}
+          </button>
+        </>
+      }
+    >
+      <p className="confirm-copy">{modal.body}</p>
+    </Modal>
+  );
 }
 
 // PromptModal is the app-styled replacement for window.prompt (QA Round1
@@ -471,6 +505,19 @@ function ForkModal({ sid }: { sid: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sid]);
 
+  const createCheckpoint = async () => {
+    setBusy(true);
+    try {
+      await AR.barrier(sid);
+      toast("checkpoint created", "info");
+      loadBarriers();
+    } catch (error: any) {
+      toast(error.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const doFork = async () => {
     if (!barrier) return;
     setBusy(true);
@@ -512,23 +559,9 @@ function ForkModal({ sid }: { sid: string }) {
       </div>
       <label className="field">Fork from</label>
       {barriers.length === 0 ? (
-        <div className="dim">
-          No checkpoints yet — this list refreshes as they appear.{" "}
-          <button
-            className="link-btn"
-            title="checkpoint the session right now (ar barrier) so you can fork from this exact point"
-            onClick={async () => {
-              try {
-                await AR.barrier(sid);
-                loadBarriers();
-              } catch (e: any) {
-                toast(e.message);
-              }
-            }}
-          >
-            Create a checkpoint now
-          </button>{" "}
-          — a busy session checkpoints at its next safe boundary; an idle one when you message it.
+        <div className="fork-empty">
+          <span>No checkpoints yet. Create one now, then fork from this exact point.</span>
+          <button onClick={createCheckpoint} disabled={busy}>Create checkpoint</button>
         </div>
       ) : (
         <select value={barrier} onChange={(e) => setBarrier(e.target.value)} title="the checkpoint to branch the new session from">
@@ -539,8 +572,11 @@ function ForkModal({ sid }: { sid: string }) {
           ))}
         </select>
       )}
-      <label className="field">New worktree directory (optional)</label>
-      <input type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="leave empty to auto-create next to the current workspace" />
+      <details className="advanced-settings">
+        <summary>Advanced settings</summary>
+        <label className="field">Worktree directory (optional)</label>
+        <input type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="Automatically create a worktree" />
+      </details>
     </Modal>
   );
 }

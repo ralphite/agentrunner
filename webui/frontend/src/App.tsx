@@ -21,6 +21,7 @@ export function App() {
   const closeHelp = useStore((s) => s.closeHelp);
   const sidebarCollapsed = useStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useStore((s) => s.toggleSidebar);
+  const unread = useStore((s) => s.unread);
   const [palette, setPalette] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 680px)").matches);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -34,6 +35,10 @@ export function App() {
     query.addEventListener("change", sync);
     return () => query.removeEventListener("change", sync);
   }, []);
+
+  useEffect(() => {
+    document.title = unread.length > 0 ? `(${unread.length}) AgentRunner` : "AgentRunner";
+  }, [unread.length]);
 
   // Global keys: ⌘K/Ctrl-K toggles the command palette; "?" opens the
   // keyboard-shortcuts reference (unless the user is typing into a field).

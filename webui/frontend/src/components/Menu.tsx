@@ -13,10 +13,19 @@ export function Menu({ label, children, ariaLabel }: { label: React.ReactNode; c
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setOpen(false);
+        ref.current?.querySelector<HTMLElement>(".menu-trigger")?.focus();
+        return;
+      }
+      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
+      const items = Array.from(ref.current?.querySelectorAll<HTMLElement>("[role='menuitem']:not(:disabled)") || []);
+      if (!items.length) return;
       e.preventDefault();
-      setOpen(false);
-      ref.current?.querySelector<HTMLElement>(".menu-trigger")?.focus();
+      const current = Math.max(0, items.indexOf(document.activeElement as HTMLElement));
+      const next = e.key === "Home" ? 0 : e.key === "End" ? items.length - 1 : e.key === "ArrowDown" ? (current + 1) % items.length : (current - 1 + items.length) % items.length;
+      items[next].focus();
     };
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onKey);

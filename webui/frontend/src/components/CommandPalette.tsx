@@ -4,6 +4,7 @@ import { nextTheme } from "../theme";
 import { displayTitle } from "../title";
 import { projectLabel } from "../viewModels";
 import { relTime, sessionDate } from "../time";
+import { friendlyStatus } from "./pill";
 
 interface Item {
   id: string;
@@ -52,14 +53,16 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       .sort((a, b) => b.id.localeCompare(a.id)) // newest first, same as the sidebar
       .filter((s) => match(displayTitle(renames, s.id, s.title)) || match(s.id) || match(s.workspace || ""))
       .slice(0, 8)
-      .map((s) => ({
-        id: "s" + s.id,
-        label: displayTitle(renames, s.id, s.title),
-        // Same-title tasks are common — project + age tells them apart (W34).
-        hint: [projectLabel(s.workspace), relTime(sessionDate(s.id))].filter(Boolean).join(" · "),
-        group: "Sessions",
-        run: go(() => select(s.id)),
-      }));
+      .map((s) => {
+        const when = relTime(sessionDate(s.id));
+        return {
+          id: "s" + s.id,
+          label: displayTitle(renames, s.id, s.title),
+          hint: `${projectLabel(s.workspace)} · ${when ? `${when} ago` : friendlyStatus(s.status).text}`,
+          group: "Tasks",
+          run: go(() => select(s.id)),
+        };
+      });
     const rn: Item[] = runs
       .filter((r) => match(r.label || r.id))
       .slice(0, 4)
@@ -67,7 +70,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
         id: "r" + r.id,
         label: r.label || r.id,
         hint: r.kind,
-        group: "Background runs",
+        group: "Scheduled",
         run: go(() => selectRun(r.id)),
       }));
     return [...cmds, ...sess, ...rn];

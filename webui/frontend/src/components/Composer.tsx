@@ -304,6 +304,10 @@ export function Composer(props: ComposerProps) {
   // Images ride --image; everything else (PDF, text, binary) rides --file
   // (INC-9). Both go through the CAS upload; the ≤10MB cap is the server's.
   const pick = async (file: File, isImage: boolean) => {
+    if (file.size > 10 * 1024 * 1024) {
+      props.onError(`${file.name} is larger than the 10 MB attachment limit.`);
+      return;
+    }
     try {
       const r = await AR.upload(file);
       setAtts((p) => [...p, { path: r.path, name: r.name, isImage }]);
@@ -719,10 +723,10 @@ export function Composer(props: ComposerProps) {
   };
 
   const placeholder = isSession
-    ? "Ask for follow-up changes"
+    ? "Ask for follow-up changes, or type / for commands"
     : kind === "chat"
-      ? "Describe a task or ask a question"
-      : "Describe a one-shot background task…";
+      ? "Describe a task, or type / for commands"
+      : "Describe a one-shot task, or type / for commands";
 
   // Pill label: friendly name for a chosen workspace; before one exists, say
   // what will actually happen instead of the ambiguous "auto-created" (W2).
