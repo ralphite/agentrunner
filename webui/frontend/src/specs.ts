@@ -155,6 +155,7 @@ export interface Persona {
 
 export const PERSONAS: Persona[] = [
   { id: "dev", label: "Dev", desc: "Full tools + worker sub-agents · default", withWorker: true },
+  { id: "lead", label: "Team Lead", desc: "Drafts a team & coordinates via messages · dynamic roles (INC-12)", withWorker: false },
   { id: "auditor", label: "Auditor", desc: "Read-only, answers in one stern sentence", withWorker: false },
   { id: "reviewer", label: "Reviewer", desc: "Read + inspect, structured findings, no writes", withWorker: false },
   { id: "chat", label: "Chat", desc: "No tools — plain conversation", withWorker: false },
@@ -176,6 +177,21 @@ export function personaFromSpec(spec: string): string | null {
 
 function personaBody(persona: string): string {
   switch (persona) {
+    case "lead":
+      // Team Lead (INC-12): drafts team members inline with spawn_agent{role:…}
+      // and coordinates them with send_message. agents_dynamic opens the
+      // inline-role face; agent_workspace: shared lets members collaborate on
+      // one tree (production defaults to isolated worktrees).
+      return `system_prompt: |
+  你是工程团队 lead。用 spawn_agent 的 role 参数动态起草成员
+  (给出 name / description / instructions),不要用预定义 agent 名。
+  spawn 结果里有每个成员的 child_session id;把队友的 id 写进后续成员的
+  task 里,并告诉他们可以用 send_message(to=<session id>) 直接联系队友、
+  用 send_message(to="parent") 向你汇报。成员完成的回执会以消息进入你的
+  对话;需要评审时安排成员互评,全部完成后向用户简洁汇总。
+tools: [read_file, write_file, edit_file, bash, spawn_agent, kill]
+agents_dynamic: true
+agent_workspace: shared`;
     case "auditor":
       return `system_prompt: You are an auditor. Always open with "[AUDITOR]" and answer in one stern sentence.
 tools: [read_file, bash]`;
