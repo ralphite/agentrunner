@@ -85,6 +85,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | 功能点 | 状态 | Journey | 验收锚 / 备注 |
 |---|---|---|---|
 | rules（tool/path/command/network + realpath 归一） | ✅ | UJ-08/20 | S2 · S7（network） |
+| bash 命令粒度匹配（复合命令逐段聚合取最严 + wrapper 剥离 + 只读集免提示；显式 deny 先于只读集；fail-safe 退整体） | ✅ | UJ-08 | INC-16 · TestSplitCompound/TestStripWrappers/TestIsReadOnlyCommand/TestCompound*/TestReadonlySetYieldsToExplicitRule · QA-25（真机：victim 存活证逐段 deny） |
 | modes（default/plan/acceptEdits + bypass 不跳 hooks） | ✅ | UJ-06/11 | S2/S3 |
 | 审批流（ask → WAITING_APPROVAL → 应答/拒绝理由回灌） | ✅ | UJ-08 | S2 · 远程审批 S6 |
 | hooks（pre/post，observe+block） | ✅ | UJ-19 | S2 |

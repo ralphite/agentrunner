@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/ralphite/agentrunner/internal/event"
@@ -68,21 +69,100 @@ func (g *PermissionGate) Check(_ context.Context, eff Effect) Decision {
 		return Deny("not in plan mode")
 	}
 
-	for i, rule := range g.Rules {
-		if rule.matches(eff.ToolName, relPath, args.Path, args.Command, eff.Network) {
-			switch rule.Action {
-			case event.VerdictAllow:
-				return Allow
-			case event.VerdictAsk:
-				return Ask(fmt.Sprintf("rule %d: %s", i+1, rule.describe()))
-			case event.VerdictDeny:
-				return Deny(fmt.Sprintf("rule %d: %s", i+1, rule.describe()))
-			default:
-				return Deny(fmt.Sprintf("rule %d has invalid action %q", i+1, rule.Action))
+	// A bash command with top-level separators is adjudicated PER SEGMENT
+	// (INC-16, #53): one allow-matched segment may not wave through the rest.
+	// The whole command's verdict is the STRICTEST segment verdict — a single
+	// unmatched or asked/denied segment holds back the compound. Non-bash
+	// effects (empty Command) fall through to the single-shot path below.
+	if args.Command != "" {
+		if segs := splitCompound(args.Command); len(segs) > 1 {
+			return g.adjudicateSegments(eff, relPath, args, segs)
+		}
+	}
+
+	if d, matched := g.matchOneCommand(eff, relPath, args, args.Command); matched {
+		return d
+	}
+	return modeDefault(g.effectiveMode(eff), eff.Class)
+}
+
+// adjudicateSegments takes the strictest verdict across a compound command's
+// segments (deny > ask > allow). An unmatched segment contributes the mode
+// default — so with a `Bash(git *)` allow, `git status && rm -rf x` is NOT
+// allowed: the rm segment matches no rule and falls to the default (ask in
+// default mode), which dominates the git segment's allow.
+func (g *PermissionGate) adjudicateSegments(eff Effect, relPath string, args toolArgs, segs []string) Decision {
+	worst := Allow
+	worstReason := ""
+	rank := func(d Decision) int {
+		switch d.Action {
+		case event.VerdictDeny:
+			return 2
+		case event.VerdictAsk:
+			return 1
+		default:
+			return 0
+		}
+	}
+	for _, seg := range segs {
+		d, matched := g.matchOneCommand(eff, relPath, args, seg)
+		if !matched {
+			d = modeDefault(g.effectiveMode(eff), eff.Class)
+		}
+		if rank(d) > rank(worst) {
+			worst, worstReason = d, d.Reason
+			if seg != args.Command {
+				worstReason = "segment " + strconv.Quote(seg) + ": " + d.Reason
 			}
 		}
 	}
-	return modeDefault(g.effectiveMode(eff), eff.Class)
+	if worst.Action != event.VerdictAllow && worstReason != "" {
+		worst.Reason = worstReason
+	}
+	return worst
+}
+
+// matchOneCommand evaluates ONE command string (a whole command or one
+// segment). It first honors the read-only allow-set (a wrapper-stripped
+// builtin like `ls` needs no rule), then walks the rules with the command
+// matched under wrapper stripping so `timeout 60 npm test` still hits
+// `Bash(npm test)`. Returns (decision, matched); matched=false means no rule
+// applied and the caller supplies the mode default.
+func (g *PermissionGate) matchOneCommand(eff Effect, relPath string, args toolArgs, command string) (Decision, bool) {
+	stripped := command
+	if command != "" {
+		stripped = stripWrappers(command)
+	}
+	// Rules FIRST: a deny/ask rule must beat the read-only set — an explicit
+	// `deny cat *` outranks cat's read-only status (SECURITY: relaxation
+	// never overrides an operator's explicit restriction).
+	for i, rule := range g.Rules {
+		// Try the command as written AND wrapper-stripped: a rule may target
+		// either the bare command or the wrapped form.
+		matched := rule.matches(eff.ToolName, relPath, args.Path, command, eff.Network) ||
+			(stripped != command && rule.matches(eff.ToolName, relPath, args.Path, stripped, eff.Network))
+		if !matched {
+			continue
+		}
+		switch rule.Action {
+		case event.VerdictAllow:
+			return Allow, true
+		case event.VerdictAsk:
+			return Ask(fmt.Sprintf("rule %d: %s", i+1, rule.describe())), true
+		case event.VerdictDeny:
+			return Deny(fmt.Sprintf("rule %d: %s", i+1, rule.describe())), true
+		default:
+			return Deny(fmt.Sprintf("rule %d has invalid action %q", i+1, rule.Action)), true
+		}
+	}
+	// No rule matched: a read-only builtin is safe without one (INC-16), so
+	// it is allowed rather than falling to the mode default. Only for actual
+	// bash commands (never path/network effects). The OS sandbox still bounds
+	// what `cat`/`ls` can reach (决策 #34).
+	if command != "" && isReadOnlyCommand(stripped) {
+		return Allow, true
+	}
+	return Decision{}, false
 }
 
 // hardFloor returns the unconditional denials that precede rules AND mode

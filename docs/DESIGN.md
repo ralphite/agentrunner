@@ -534,7 +534,20 @@ effect
   workspace 外用户数据与 workspace 内凭据形文件均不可读；敏感 env 不传给
   子进程。Seatbelt（macOS）/Bubblewrap（Linux）缺席或不可用时在 containment
   gate **fail closed**，不得降级裸跑。这层关系明文写出，不假装 path 规则
-  覆盖 shell。**network 资源类同理**：rules 的 `network`
+  覆盖 shell。
+- **命令粒度匹配（INC-16，#53）**：一条 bash 命令的规则匹配是**逐子命令
+  聚合**，不是整条匹配——否则一条 `Bash(git *)` allow 会误放行
+  `git status && rm -rf x` 里搭便车的 `rm` 段。`splitCompound` 按顶层
+  `&&`/`||`/`;`/`|`/`&`/换行拆（引号内不拆），每段裁决聚合取**最严**
+  （任一 deny→deny、任一 ask→ask、全 allow 才 allow；未匹配段落 mode
+  default）。两个便利：`stripWrappers` 剥离白名单前缀（timeout/time/nice/
+  nohup/stdbuf/裸 xargs）使 `timeout 60 npm test` 仍匹配 `Bash(npm test)`；
+  只读内置集（ls/cat/echo/grep/find/… 的**非执行**形态，`find -exec/
+  -delete` 排除、含 `>`/`` ` ``/`$(` 的段排除）无规则时免提示 allow。
+  **安全序**：显式 deny/ask 规则**先于**只读集与 default（`deny cat *`
+  能挡 cat）；拆分/剥离拿不准退回整体匹配（fail-safe：只更严不更松）；
+  只读命令仍受 OS sandbox 边界约束。
+- **network 资源类同理**：rules 的 `network`
   模式匹配 effect 的出口范围——未受限的 execute effect 带 `all`，
   spec `sandbox.network: none` 由同一 OS backend 收容后不带出口、network 规则
   不再触发；收容是共享 executor 上的**棘轮**（树内任一 spec 收紧即

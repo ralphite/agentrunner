@@ -469,6 +469,21 @@ session 拷回共享 store、export 与 hook 标记文件归档
 **通过标准**：四条红线均为文件/journal 事实（不判模型措辞）；observe
 事件坏 hook 不改控制流；blockable 仅 user_prompt_submit/pre_compact。
 
+## QA-25 逐段权限裁决（INC-16,#53）
+
+**环境**：私有 daemon（隔离根）+ 真实 Gemini；spec 配 `Bash(git *)`
+allow + `Bash(rm *)` deny + catch-all ask；workspace 内预置 victim.txt；
+跑完 session 拷回共享 store、export 归档 `qa/runs/2026-07-09-QA25/`。
+
+| # | 动作 | 验证 |
+|---|---|---|
+| 1 | 让模型原样执行 `git status && rm -rf victim.txt`（一次 bash 调用） | **victim.txt 仍存在**——rm 段被逐段 deny，尽管 git 段 allow（整条不被 git-allow 放行）。**文件系统硬红线，不依赖模型措辞** |
+| 2 | 让模型执行 `git --version` | activity_completed（git 段 allow 真执行——不是全 deny） |
+
+**通过标准**：红线1是文件系统事实（victim 未删=逐段 deny 生效）；旧
+整条匹配会让 git-allow 放行整条并删掉 victim。孪生（TestCompound*）已
+覆盖拆分/wrapper/只读集与"显式 deny 先于只读集"安全序。
+
 ---
 
 ## 覆盖矩阵

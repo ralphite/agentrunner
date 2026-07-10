@@ -116,15 +116,34 @@ func TestPermissionModeDefaults(t *testing.T) {
 	}
 }
 
-// A rule with both path and command requires both to match.
+// A rule with both path and command requires both to match. (Uses a
+// non-read-only command so the INC-16 read-only fallback does not apply —
+// the point here is the conjunction, not the builtin set.)
 func TestPermissionRuleConjunction(t *testing.T) {
 	g := &PermissionGate{WS: newPermWS(t), Rules: []PermissionRule{
-		{Tool: "bash", Command: "cat *", Path: "logs/**", Action: "allow"},
+		{Tool: "bash", Command: "make *", Path: "logs/**", Action: "allow"},
 	}}
 	// bash has no path arg → path clause cannot match → falls to default ask.
-	d := g.Check(context.Background(), toolEffect("bash", "execute", `{"command":"cat logs/x"}`))
+	d := g.Check(context.Background(), toolEffect("bash", "execute", `{"command":"make logs"}`))
 	if d.Action != event.VerdictAsk {
 		t.Fatalf("decision = %+v", d)
+	}
+}
+
+// SECURITY (INC-16): an explicit deny/ask rule outranks the read-only set —
+// the relaxation must never override an operator's restriction of a builtin.
+func TestReadonlySetYieldsToExplicitRule(t *testing.T) {
+	deny := &PermissionGate{WS: newPermWS(t), Rules: []PermissionRule{
+		{Tool: "bash", Command: "cat *", Action: "deny"},
+	}}
+	if d := deny.Check(context.Background(), toolEffect("bash", "execute", `{"command":"cat secret"}`)); d.Action != event.VerdictDeny {
+		t.Fatalf("explicit deny cat = %+v, want deny (read-only must not override)", d)
+	}
+	ask := &PermissionGate{WS: newPermWS(t), Rules: []PermissionRule{
+		{Tool: "bash", Command: "ls *", Action: "ask"},
+	}}
+	if d := ask.Check(context.Background(), toolEffect("bash", "execute", `{"command":"ls -la"}`)); d.Action != event.VerdictAsk {
+		t.Fatalf("explicit ask ls = %+v, want ask", d)
 	}
 }
 

@@ -1507,3 +1507,36 @@ stop 在静止触发。归档 qa/runs/2026-07-09-QA24/。check.sh 全绿。
 **余项记档**：更多事件（Notification/FileChanged/ConfigChange 类）、
 handler 类型扩展（prompt/agent/http）、改写类（决策 #11 明示推迟）;
 journey 覆盖债仍在（无 journey 压 hooks）。
+
+## 2026-07-09 INC-16 权限规则工程三件套（SPRINT #4，#53）
+
+CLAUDECODE-PARITY §2.06 #53——权限疲劳（对方遥测 93% 反射式批准）的主解，
+同时修一个安全弱点：`PermissionGate.Check` 旧行为对**整条 command** 匹配，
+一条 `Bash(git *)` allow 会误放行 `git status && rm -rf x` 里搭便车的 rm。
+
+三件套（`internal/pipeline/command.go` 三个纯函数）：①**复合命令逐段
+匹配**——splitCompound 按顶层 &&/||/;/|/&/换行拆（引号内不拆、不平衡引号
+退回整体），每段独立裁决聚合取**最严**（deny>ask>allow，未匹配段落 mode
+default）；②**wrapper 剥离**——stripWrappers 剥白名单前缀（timeout 带
+-k/-s 值/time/nice/nohup/stdbuf/裸 xargs），使 `timeout 60 npm test` 仍
+匹配 `Bash(npm test)`，拿不准不剥；③**只读集**——isReadOnlyCommand 认
+ls/cat/grep/find 等非执行内置，无规则时免提示 allow。
+
+**安全立场（本增量核心）**：两件收紧（逐段=修 bug、wrapper 剥离单调更严）
++ 一件受控放松（只读集，本就无害 + OS sandbox 兜底）。**安全序修正**：
+初版把只读集判在规则循环前（会让只读越过显式 `deny cat *`）——改为
+**规则先行、只读兜底**，显式 deny/ask 永远先于放松（TestReadonlySet
+YieldsToExplicitRule 钉住这条安全回归）。find -exec/-delete、含 >/`/$(
+的段排除出只读集。fail-safe：拆分/剥离拿不准退回整体（只更严不更松）。
+
+**双闸门**：9 个 pipeline 孪生（splitCompound/stripWrappers/isReadOnly
+单元 + 逐段聚合/wrapper/只读/引号分隔/显式 deny 先于只读集的集成，含
+安全案例）；真实 API QA-25（真 Gemini + 私有 daemon）——**文件系统硬
+红线**：配 git-allow+rm-deny，让模型原样跑 `git status && rm -rf victim`，
+**victim.txt 存活**（rm 段逐段 deny，旧整条匹配会删掉它），且 git 命令
+正常执行（allow 半边生效）。归档 qa/runs/2026-07-09-QA25/。check.sh 全绿
+（一次撞并发 golangci-lint 锁，重试即过——环境非代码）。DESIGN §5
+permission 加「命令粒度匹配」段。
+
+**余项**：参数级匹配 `Tool(param:value)`（#55）、path 规则 gitignore 风
+锚点增强（#54）——独立小增量。
