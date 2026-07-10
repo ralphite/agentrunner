@@ -81,7 +81,7 @@
 | 16 | 内置 agent 库（Explore/Plan 类只读 spec 随发行） | #78 | S | ✅ done (INC-25) | embed explore/plan 只读 spec，白名单列名即用，内置优先同名 sibling，model 继承父；QA-32 真机；默认全自动可用拆 16b |
 | 16b | 内置 agent 默认全自动可用（不列 `agents:` 也可 spawn；白名单封闭性讨论） | #78 余项 | S | ⬜ | INC-25 拆出；需裁默认可用是否破白名单封闭性 |
 | 17 | webui 会话 rename/归档/内容搜索 | #2/3/7 | M | ⬜ | **注意避让**：webui 区与他 session 协调后再动 |
-| 18 | auto mode 设计稿（分类器作为 effect pipeline 的 policy 源） | #57 · §3.3 | M(设计) | ⬜ | 设计先行 → 📐 待裁；依赖 #4/#5 |
+| 18 | auto mode 设计稿（分类器作为 effect pipeline 的 policy 源） | #57 · §3.3 | M(设计) | 📐 awaiting-review (INC-32) | 设计稿全文 INC-32:分类器只接手 would-ask 面、fail-closed 不变式、连拒回退、headless=无人值守自动性正门;六个裁决点交用户;未裁决不实现 |
 
 ### 第三梯队（P2，轮到时再评估）
 
@@ -96,6 +96,7 @@
 
 | 轮 | 日期 | 项 | 结果 | commit |
 |---|---|---|---|---|
+| 18 | 2026-07-10 | #18 auto mode 设计稿 (INC-32) | 📐 设计轮:分类器作为 permission 关卡新 policy 源——只接手 would-ask、黑白名单兜底、故障回 Ask(fail-closed 不变式)、连拒 3 次回退、headless 分类器过筛后仍 ask→deny(#34 底线不动);judge 判定 journaled(反超对方);实施拆 32a/32b/32c;六裁决点待用户 | (见 push) |
 | 7b | 2026-07-09 | #7b skill context:fork (INC-31) | ✅ 双闸门全绿（3 孪生:改写成形+四不改写例/默认 task/全链 SpawnRequested 冻结 RoleSpec 载正文 + QA-37 真 Gemini 七红线:展开入 journal、子会话跑出 WIDGET-COUNT: 4、receipt 回父）；ingest 展开复用动态角色全链零 spawn 机制改动；INC-30 号让路并发 G24/G25(改 31),QA 让号至 37 | (见 push) |
 | 12c | 2026-07-09 | #12c grep multiline (INC-27) | ✅ 双闸门全绿（3 孪生:跨行命中 vs 默认逐行不命中/起始行号/文本跨行 + `$` 锚行证 (?m) + 上下文+case 组合 + QA-35 真 Gemini：模型 multiline:true 一次抓整个函数体、match 文本含嵌入换行）；默认=旧逐行零破坏；#35 系列(INC-22/24/27)收口 | (见 push) |
 | 8 | 2026-07-09 | #8 结构化输出 (INC-26) | ✅ 双闸门全绿（纯包 13 子测 compile/extract 各形态/validate/canonical + CLI 3 测 scripted 端到端"坏→纠正 send→好→canonical"/重试耗尽/usage fail-fast + QA-33 真 Gemini：ar new --json-schema 返 {lines:7,name:sample.txt} 首验过、python 独立确认）；CLI 层编排零核心改动；provider-native JSON mode 拆 8b | (见 push) |
