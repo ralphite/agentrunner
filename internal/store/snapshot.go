@@ -17,6 +17,8 @@ import (
 // state from snapshot+tail as from a full fold (pinned by test).
 type Snapshot struct {
 	UptoSeq          int64           `json:"upto_seq"`
+	JournalOffset    int64           `json:"journal_offset,omitempty"`
+	JournalHash      string          `json:"journal_hash,omitempty"`
 	SubStateVersions map[string]int  `json:"sub_state_versions"`
 	State            json.RawMessage `json:"state"`
 }
@@ -29,7 +31,10 @@ func WriteSnapshot(sessionDir string, uptoSeq int64, versions map[string]int, st
 	if err != nil {
 		return fmt.Errorf("snapshot: %w", err)
 	}
-	full, err := json.Marshal(Snapshot{UptoSeq: uptoSeq, SubStateVersions: versions, State: raw})
+	offset, hash, _ := EventCursorAt(sessionDir, uptoSeq)
+	full, err := json.Marshal(Snapshot{UptoSeq: uptoSeq,
+		JournalOffset: offset, JournalHash: hash,
+		SubStateVersions: versions, State: raw})
 	if err != nil {
 		return fmt.Errorf("snapshot: %w", err)
 	}

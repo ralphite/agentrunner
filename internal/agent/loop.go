@@ -522,11 +522,11 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 		return RunResult{}, err
 	}
 	dir := l.Store.Dir()
-	events, err := store.ReadEvents(dir)
+	prefix, err := store.ReadEventPrefix(dir, 2)
 	if err != nil {
 		return RunResult{}, err
 	}
-	if len(events) == 0 {
+	if len(prefix) == 0 {
 		return RunResult{}, fmt.Errorf("resume: session has no events")
 	}
 
@@ -534,9 +534,9 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 	// not — a full fold across an incompatible sub-state shape is just as
 	// wrong as a snapshot load. A forked session's SessionStarted sits right
 	// behind its ForkedFrom genesis (S7.3) and guards the fork the same way.
-	head := events[0]
-	if head.Type == event.TypeForkedFrom && len(events) > 1 {
-		head = events[1]
+	head := prefix[0]
+	if head.Type == event.TypeForkedFrom && len(prefix) > 1 {
+		head = prefix[1]
 	}
 	if head.Type == event.TypeSessionStarted {
 		if decoded, derr := event.DecodePayload(head); derr == nil {
@@ -548,7 +548,11 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 		}
 	}
 
-	var s state.State
+	var (
+		s        state.State
+		events   []event.Envelope
+		tailOnly bool
+	)
 	snap, ok, err := store.LatestSnapshot(dir)
 	if err != nil {
 		// Snapshots are an optimization, never a source of truth: a
@@ -560,12 +564,35 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 		if err := checkVersions(snap.SubStateVersions); err != nil {
 			return RunResult{}, err
 		}
-		// A pre-INC-11.5 snapshot has the provider conversation but no
-		// Turn/Item projection. Replaying only its tail would permanently lose
-		// provenance for the prefix, so discard that optimization and fold the
-		// compatible legacy journal from the beginning.
-		if _, hasInteractions := snap.SubStateVersions["interactions"]; !hasInteractions {
+		// A compatible legacy snapshot may predate one or more projections
+		// (Turn/Item, team tasks, future optional namespaces). Its journal is
+		// still readable, but replaying only the tail would lose prefix facts
+		// for the new projection. Discard only the cache and full-fold.
+		for namespace := range state.SubStateVersions() {
+			if _, present := snap.SubStateVersions[namespace]; !present {
+				ok = false
+				break
+			}
+		}
+	}
+	// New snapshots carry an indexed byte cursor and rolling prefix hash.
+	// Verify them against events.idx, then seek straight to the journal tail.
+	// Legacy cursor-less snapshots stay compatible by reading the full log and
+	// filtering seq in memory. Any cursor mismatch discards the snapshot cache.
+	if ok && (snap.JournalOffset != 0 || snap.JournalHash != "") {
+		if snap.JournalOffset <= 0 || snap.JournalHash == "" {
 			ok = false
+		} else if events, err = store.ReadEventsAfter(dir, snap.UptoSeq,
+			snap.JournalOffset, snap.JournalHash); err != nil {
+			slog.Warn("resume: snapshot journal cursor invalid, folding from scratch", "err", err)
+			ok = false
+		} else {
+			tailOnly = true
+		}
+	}
+	if !tailOnly {
+		if events, err = store.ReadEvents(dir); err != nil {
+			return RunResult{}, err
 		}
 	}
 	if ok {
@@ -574,7 +601,7 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 			ok = false
 		} else {
 			for _, e := range events {
-				if e.Seq <= snap.UptoSeq {
+				if !tailOnly && e.Seq <= snap.UptoSeq {
 					continue
 				}
 				if s, err = state.Apply(s, e); err != nil {
@@ -592,6 +619,11 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 		s = state.State{}
 	}
 	if !ok {
+		if tailOnly {
+			if events, err = store.ReadEvents(dir); err != nil {
+				return RunResult{}, err
+			}
+		}
 		if s, err = state.Fold(events); err != nil {
 			return RunResult{}, err
 		}
@@ -601,7 +633,11 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 	// A close/kill mark gates AUTOMATIC paths at their call sites; this
 	// explicit gesture lawfully continues any session.
 
-	ds := &driveState{s: s, lastID: events[len(events)-1].ID}
+	lastID := event.EventID(snap.UptoSeq)
+	if len(events) > 0 {
+		lastID = events[len(events)-1].ID
+	}
+	ds := &driveState{s: s, lastID: lastID}
 	appendE := l.appender(ds)
 
 	// A crash between session_started and input_received leaves the task

@@ -59,6 +59,16 @@ func TestSnapshotTailEquivalence(t *testing.T) {
 	if snap.UptoSeq <= 1 {
 		t.Fatalf("snapshot upto_seq = %d", snap.UptoSeq)
 	}
+	if snap.JournalOffset <= 0 || len(snap.JournalHash) != 64 {
+		t.Fatalf("snapshot has no indexed journal cursor: %+v", snap)
+	}
+	tail, err := store.ReadEventsAfter(dir, snap.UptoSeq, snap.JournalOffset, snap.JournalHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tail) >= len(events) {
+		t.Fatalf("indexed tail read %d events, full journal has %d", len(tail), len(events))
+	}
 	var fromSnap state.State
 	if err := json.Unmarshal(snap.State, &fromSnap); err != nil {
 		t.Fatal(err)
@@ -96,6 +106,49 @@ func TestResumeRefusesVersionMismatch(t *testing.T) {
 	_, err = l.Resume(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "version") {
 		t.Fatalf("err = %v, want version mismatch refusal", err)
+	}
+}
+
+func TestSchemaGuardAcceptsOlderNamespaceSubset(t *testing.T) {
+	legacy := state.SubStateVersions()
+	delete(legacy, "team") // binary added this optional namespace later
+	if err := checkVersions(legacy); err != nil {
+		t.Fatalf("compatible legacy namespace subset refused: %v", err)
+	}
+	legacy["future_unknown"] = 1
+	if err := checkVersions(legacy); err == nil {
+		t.Fatal("unknown namespace must still fail closed")
+	}
+}
+
+func TestResumeFullFoldsLegacySnapshotMissingNewProjection(t *testing.T) {
+	l := testLoop(t, scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: "hi"}, {Finish: "end_turn"}}},
+	}}, t.TempDir())
+	if _, err := l.Run(context.Background(), "hello"); err != nil {
+		t.Fatal(err)
+	}
+	events, err := store.ReadEvents(l.Store.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacyState, err := state.Fold(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacyState.Session.Usage.InputTokens = 999999 // poison proves cache was ignored
+	legacyVersions := state.SubStateVersions()
+	delete(legacyVersions, "team")
+	if err := store.WriteSnapshot(l.Store.Dir(), events[len(events)-1].Seq,
+		legacyVersions, legacyState); err != nil {
+		t.Fatal(err)
+	}
+	res, err := l.Resume(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Usage.InputTokens == 999999 {
+		t.Fatal("legacy snapshot missing a projection was tail-replayed instead of full-folded")
 	}
 }
 

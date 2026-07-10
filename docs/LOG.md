@@ -1086,6 +1086,27 @@ schema、provider/model、modalities、stream/tool-call 和可选能力。
 
 ---
 
+## 2026-07-09 INC-11.7：event cursor、snapshot 真尾读与 schema 兼容
+
+新增可弃的固定宽度 `events.idx`（每 event 的 seq、结束 byte offset、rolling
+prefix hash）。journal fsync 仍是唯一 accepted 边界；索引写坏/写丢不反悔
+事实，重启从 journal 自动重建。已有索引时只核验最后一条真实 journal
+边界并扫描未索引尾，避免每次 OpenEventStore 全读历史。
+
+fold snapshot 现记录 journal offset/hash。Resume 先读最多两个头事件做版本
+守卫，再以 O(1) index record + snapshot hash 校验 cursor 和对应 journal 行，
+seek 后仅解码 tail；任何 mismatch/旧 cursor-less snapshot 都安全回退全量
+fold。兼容政策同步修订：additive 字段、旧 namespace 子集继续可读；旧
+snapshot 缺新投影时只丢缓存全折，避免 interactions/team 等历史事实消失；
+未知 namespace 或共享 namespace 版本冲突仍明确拒绝且不改原数据。
+
+自动锚：`TestIndexedCursorReadsOnlyTailAndRejectsMismatch`、
+`TestCorruptEventIndexRebuildsFromJournal`、`TestSnapshotTailEquivalence`、
+`TestSchemaGuardAcceptsOlderNamespaceSubset`、
+`TestResumeFullFoldsLegacySnapshotMissingNewProjection`。
+
+---
+
 ## 2026-07-09 Claude Code 本地核心对照审计：新增 docs/CLAUDECODE-PARITY.md
 
 以 Claude Code 本地 CLI/runtime 核心（2.1.x 至 2.1.205）为标尺的第三份

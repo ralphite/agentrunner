@@ -67,7 +67,7 @@ func TestPermissionBits(t *testing.T) {
 	if di.Mode().Perm() != 0o700 {
 		t.Errorf("dir mode = %o, want 0700", di.Mode().Perm())
 	}
-	for _, name := range []string{eventsFile, lockFile} {
+	for _, name := range []string{eventsFile, indexFile, lockFile} {
 		fi, err := os.Stat(filepath.Join(dir, name))
 		if err != nil {
 			t.Fatal(err)
@@ -75,6 +75,63 @@ func TestPermissionBits(t *testing.T) {
 		if fi.Mode().Perm() != 0o600 {
 			t.Errorf("%s mode = %o, want 0600", name, fi.Mode().Perm())
 		}
+	}
+}
+
+func TestIndexedCursorReadsOnlyTailAndRejectsMismatch(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "sess")
+	s, err := OpenEventStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 1; i <= 80; i++ {
+		if _, err := s.Append(mustEnv(t, i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	offset, hash, ok := EventCursorAt(dir, 60)
+	if !ok || offset <= 0 || len(hash) != 64 {
+		t.Fatalf("cursor = offset:%d hash:%q ok:%v", offset, hash, ok)
+	}
+	tail, err := ReadEventsAfter(dir, 60, offset, hash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tail) != 20 || tail[0].Seq != 61 || tail[19].Seq != 80 {
+		t.Fatalf("tail = len:%d %+v", len(tail), tail)
+	}
+	badHash := strings.Repeat("0", 64)
+	if _, err := ReadEventsAfter(dir, 60, offset, badHash); !errors.Is(err, ErrCursorInvalid) {
+		t.Fatalf("bad cursor err = %v", err)
+	}
+	_ = s.Close()
+}
+
+func TestCorruptEventIndexRebuildsFromJournal(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "sess")
+	s, err := OpenEventStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 1; i <= 5; i++ {
+		if _, err := s.Append(mustEnv(t, i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = s.Close()
+	if err := os.WriteFile(filepath.Join(dir, indexFile), []byte("broken-index"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := OpenEventStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = reopened.Close() }()
+	if reopened.LastSeq() != 5 {
+		t.Fatalf("last seq after index rebuild = %d", reopened.LastSeq())
+	}
+	if _, _, ok := EventCursorAt(dir, 5); !ok {
+		t.Fatal("rebuilt index has no cursor for journal tail")
 	}
 }
 

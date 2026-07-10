@@ -119,7 +119,11 @@ Durable CommandLog(command_id, seq, principal, source, trust)
    与 crash 重开同一路径，`shared` 必须显式选择。daemon crash 时等待审批
    的子保留原 handle/lease 并由根重挂接，子 CommandLog 的已接收审批答复
    在根启动扫描中重放。
-7. INC-11.7：索引、snapshot offset、schema migration/compatibility。
+7. ✅ INC-11.7：`events.idx` 固定宽度 seq/offset/rolling-hash cursor；append
+   线性、启动校验末边界并只补未索引尾，损坏自动从 journal 重建。snapshot
+   记录 offset/hash，resume O(1) 校验真实边界后 seek 只读 tail；cursor 异常
+   全量 fold。additive/旧 namespace 子集兼容，旧 snapshot 缺新投影时丢缓存
+   全折，未知/冲突 namespace 仍 fail closed 且不修改源数据。
 8. INC-11.8：三层文档收口、对抗 review、全自动与真实环境 QA。
 
 ## review 裁决
