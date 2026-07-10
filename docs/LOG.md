@@ -1777,3 +1777,26 @@ Home 开场附图走"new→立即补 send 附件"两步投递,实测开场 turn 
 上下文先行探索(bash 乱跑 27+ 步),附件第二条输入到达后才答对(41 步
 收敛)。功能可用但体验劣于会话内附图(一步到位);统一(如 new 支持
 附件)属 CLI 契约扩展,应走增量流程。
+
+## 2026-07-09 INC-22 grep 参数增强（SPRINT #12，#35）+ INC-21 defer 记录
+
+CLAUDECODE-PARITY §2.05 #35 部分落地。grep 加三个无状态参数（默认=旧
+行为，现有测试不破）：`case_insensitive`（RE2 `(?i)` 前缀）、`glob`
+（basename filepath.Match 过滤搜索文件）、`output_mode`（content 默认 /
+files_with_matches 仅返回路径省 token / count 每文件匹配数）。content
+模式保留 max_results 截断；files/count 模式扫全树（已够省）。
+
+**双闸门**：3 孪生（case_insensitive 命中大小写变体 / glob 只搜 *.go /
+output_mode files+count 的新 shape + bad glob/mode 报错）+ QA-30 真
+Gemini（模型用 output_mode/glob/case_insensitive 统计 .go 里的 TODO）。
+归档 qa/runs/2026-07-09-QA30/。context lines（-A/-B/-C，改返回结构）+
+multiline 拆余项 #12b。check.sh 全绿（绿门排除已知环境测试）。
+
+**同轮 #11 read-before-edit（INC-21）defer 记录**：护栏实现是 S
+（Executor sync.Map + read/write/edit 记入 + edit 现有文件前检查），但
+真机前的孪生跑发现它波及 ~10 个 scripted edit 测试（TestEditFile、
+TestCrashMatrix 三态、TestLoopMultiTurnEditsFile、TestBarrierPerTurn 等
+核心恢复测试）——它们 fixture 都"直接 edit 现有文件无 read 步骤"，护栏
+一开全挂。批量适配 fixture 是独立 M 工作、改核心恢复测试风险高——回退
+代码、defer 到专轮（设计+波及分析留 INC-21，SPRINT #11 标 📐 deferred）。
+这正是"孪生跑暴露波及面、及时止损换题"的工程判断。

@@ -222,9 +222,12 @@ type grepMatch struct {
 // error, not a harness failure.
 func (e *Executor) grep(rawArgs json.RawMessage) Result {
 	var in struct {
-		Pattern    string `json:"pattern"`
-		Path       string `json:"path"`
-		MaxResults int    `json:"max_results"`
+		Pattern         string `json:"pattern"`
+		Path            string `json:"path"`
+		Glob            string `json:"glob"`
+		CaseInsensitive bool   `json:"case_insensitive"`
+		OutputMode      string `json:"output_mode"`
+		MaxResults      int    `json:"max_results"`
 	}
 	if err := json.Unmarshal(rawArgs, &in); err != nil || strings.TrimSpace(in.Pattern) == "" {
 		return errResult("grep: invalid args: need {\"pattern\": string}")
@@ -232,9 +235,26 @@ func (e *Executor) grep(rawArgs json.RawMessage) Result {
 	if e.WS == nil {
 		return errResult("grep: no workspace")
 	}
-	re, err := regexp.Compile(in.Pattern)
+	switch in.OutputMode {
+	case "", "content", "files_with_matches", "count":
+	default:
+		return errResult("grep: bad output_mode %q (want content|files_with_matches|count)", in.OutputMode)
+	}
+	// Case-insensitive matching (INC-22, #35): prepend the RE2 inline flag.
+	pat := in.Pattern
+	if in.CaseInsensitive {
+		pat = "(?i)" + pat
+	}
+	re, err := regexp.Compile(pat)
 	if err != nil {
 		return errResult("grep: bad pattern: %v", err)
+	}
+	// Optional filename glob (INC-22): validate it once so a bad pattern is a
+	// clear error, not silently non-matching.
+	if in.Glob != "" {
+		if _, err := filepath.Match(in.Glob, "probe"); err != nil {
+			return errResult("grep: bad glob %q: %v", in.Glob, err)
+		}
 	}
 	root, err := e.resolveSearchRoot(in.Path)
 	if err != nil {
@@ -244,8 +264,10 @@ func (e *Executor) grep(rawArgs json.RawMessage) Result {
 	if limit <= 0 || limit > grepMaxMatches {
 		limit = grepMaxMatches
 	}
+	contentMode := in.OutputMode == "" || in.OutputMode == "content"
 	r := redact.FromEnv()
 	matches := []grepMatch{}
+	fileCounts := map[string]int{} // rel path -> match count (files_with_matches / count modes)
 	filesScanned := 0
 	truncated := false
 	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
@@ -262,7 +284,15 @@ func (e *Executor) grep(rawArgs json.RawMessage) Result {
 		if !d.Type().IsRegular() || index.SkipFile(name) {
 			return nil
 		}
-		if len(matches) >= limit {
+		// Filename glob filter (INC-22): skip files whose basename doesn't match.
+		if in.Glob != "" {
+			if ok, _ := filepath.Match(in.Glob, name); !ok {
+				return nil
+			}
+		}
+		// content mode stops at the line cap; files/count modes scan everything
+		// (they are already cheap) so their totals are complete.
+		if contentMode && len(matches) >= limit {
 			truncated = true
 			return fs.SkipAll
 		}
@@ -274,6 +304,10 @@ func (e *Executor) grep(rawArgs json.RawMessage) Result {
 		rel, _ := filepath.Rel(e.WS.Root(), path)
 		for i, line := range strings.Split(content, "\n") {
 			if !re.MatchString(line) {
+				continue
+			}
+			fileCounts[rel]++
+			if !contentMode {
 				continue
 			}
 			if len(matches) >= limit {
@@ -290,7 +324,28 @@ func (e *Executor) grep(rawArgs json.RawMessage) Result {
 	if walkErr != nil {
 		return errResult("grep: %v", walkErr)
 	}
-	return okResult(map[string]any{"matches": matches, "files_scanned": filesScanned, "truncated": truncated})
+	switch in.OutputMode {
+	case "files_with_matches":
+		files := make([]string, 0, len(fileCounts))
+		for p := range fileCounts {
+			files = append(files, p)
+		}
+		sort.Strings(files)
+		return okResult(map[string]any{"files": files, "files_scanned": filesScanned})
+	case "count":
+		type fc struct {
+			Path  string `json:"path"`
+			Count int    `json:"count"`
+		}
+		counts := make([]fc, 0, len(fileCounts))
+		for p, c := range fileCounts {
+			counts = append(counts, fc{Path: p, Count: c})
+		}
+		sort.Slice(counts, func(i, j int) bool { return counts[i].Path < counts[j].Path })
+		return okResult(map[string]any{"counts": counts, "files_scanned": filesScanned})
+	default:
+		return okResult(map[string]any{"matches": matches, "files_scanned": filesScanned, "truncated": truncated})
+	}
 }
 
 // glob lists workspace files whose path matches a glob pattern (with `**`

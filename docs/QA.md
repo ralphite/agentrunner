@@ -548,6 +548,22 @@ acceptEdits`、无 permission 规则（mode default 治理）；workspace 预置
 **通过标准**：三红线均为 journal 事实；skill 是 read-class（免审批同
 read_file）但 name 防遍历 + WS 边界；维持命令=用户宏裁决不动。
 
+## QA-30 grep 参数增强（INC-22,#35,UJ-01）
+
+**环境**：私有 daemon（隔离 runtime 根）+ 真实 Gemini；workspace 放
+`src/*.go`（含大小写混合的 TODO/todo 标记）与 `docs/n.md`；spec tools
+含 grep；system prompt 告知 grep 的新参数。跑完 session 拷回共享 store、
+export 归档 `qa/runs/2026-07-09-QA30/`。
+
+| # | 动作 | 验证 |
+|---|---|---|
+| 1 | 让模型「统计每个 .go 文件的 TODO（忽略大小写）」 | journal 出 grep tool_call 带 `output_mode`/`glob`/`case_insensitive` 至少一个新参数 |
+| 2 | grep 返回 | tool_result 用新 shape（`counts`/`files` 数组）或 case_insensitive 生效（命中小写 todo） |
+| 3 | 模型最终作答 | 搜索完成、答案给出（glob *.go 排除 .md） |
+
+**通过标准**：默认参数=旧行为（现有 grep 测试不破）；新参数无状态纯
+扩展。
+
 ---
 
 ## 覆盖矩阵
