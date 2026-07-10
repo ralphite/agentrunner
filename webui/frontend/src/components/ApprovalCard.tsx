@@ -15,12 +15,16 @@ function pretty(raw: unknown): string {
 export function ApprovalCard({
   approval,
   readonly,
+  workspace,
   onDecide,
   onError,
 }: {
   approval: ApprovalRef & { agent?: string; viaSSE?: boolean };
   readonly: boolean;
-  onDecide: (id: string, decision: "approve" | "deny", reason: string) => Promise<void>;
+  // The session's workspace path — shown so you know WHERE the command will
+  // run before approving it (W25).
+  workspace?: string;
+  onDecide: (id: string, decision: "approve" | "deny", reason: string, always?: boolean) => Promise<void>;
   onError: (msg: string) => void;
 }) {
   const [reason, setReason] = useState("");
@@ -28,10 +32,10 @@ export function ApprovalCard({
   const [busy, setBusy] = useState(false);
   const presentation = useMemo(() => describeApproval(approval.tool, approval.args), [approval.tool, approval.args]);
 
-  const decide = async (decision: "approve" | "deny") => {
+  const decide = async (decision: "approve" | "deny", always = false) => {
     setBusy(true);
     try {
-      await onDecide(approval.id, decision, reason.trim());
+      await onDecide(approval.id, decision, reason.trim(), always);
     } catch (error: any) {
       onError(error.message);
       setBusy(false);
@@ -54,7 +58,10 @@ export function ApprovalCard({
         <TerminalWindow size={15} />
         <code>{presentation.subject}</code>
       </div>
-      <div className="approval-scope"><WarningCircle size={14} /> {presentation.scope}</div>
+      <div className="approval-scope" title={workspace || undefined}>
+        <WarningCircle size={14} /> {presentation.scope}
+        {workspace && presentation.scope === "Current workspace" && <code className="approval-ws">{workspace}</code>}
+      </div>
 
       <details className="approval-details">
         <summary><CaretRight size={12} /> Details</summary>
@@ -82,6 +89,13 @@ export function ApprovalCard({
             <>
               <span className="approval-shortcut">⌘↵ approve · ⌘⌫ deny</span>
               <button disabled={busy} onClick={() => setDenying(true)}>Deny</button>
+              <button
+                disabled={busy}
+                title="Approve AND save an exact allow rule to your user config, so this same call never asks again (any session)"
+                onClick={() => decide("approve", true)}
+              >
+                Always allow
+              </button>
               <button className="primary" disabled={busy} onClick={() => decide("approve")}>Approve once</button>
             </>
           )}

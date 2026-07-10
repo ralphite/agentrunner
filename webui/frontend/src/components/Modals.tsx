@@ -236,7 +236,7 @@ function RunModal({ initialTask }: { initialTask?: string }) {
   const { openModal, selectRun, refreshRuns, toast } = useStore();
   const { ws, setWs, mk } = useWorkspace();
   const [kind, setKind] = useState<"submit" | "drive">("submit");
-  const [task, setTask] = useState(initialTask || "Create hello.txt containing hi in the workspace, then confirm.");
+  const [task, setTask] = useState(initialTask || "");
   const [mode, setMode] = useState("");
   const [idem, setIdem] = useState("");
   const [spec, setSpec] = useState(DEFAULT_SPEC);
@@ -275,54 +275,51 @@ function RunModal({ initialTask }: { initialTask?: string }) {
 
   return (
     <Modal
-      title="Background run"
+      title="New run"
       onClose={close}
       footer={
-        <button className="primary" disabled={busy} onClick={start}>
-          Start {kind}
+        <button className="primary" disabled={busy || (kind === "submit" && !task.trim())} onClick={start}>
+          {kind === "submit" ? "Start task" : "Start driver"}
         </button>
       }
     >
-      <label className="field">kind</label>
+      <label className="field">What kind of run?</label>
       <div className="seg">
-        <button className={kind === "submit" ? "on" : ""} onClick={() => setKind("submit")} title="one-shot task: a fresh session runs the task once and completes">
-          submit (one-shot task)
+        <button className={kind === "submit" ? "on" : ""} onClick={() => setKind("submit")} title="ar submit — a fresh session runs the task once and completes">
+          One-shot task
         </button>
-        <button className={kind === "drive" ? "on" : ""} onClick={() => setKind("drive")} title="iterative driver: child runs repeat per driver.yaml (goal / loop / best-of-N)">
-          drive (iterative driver)
+        <button className={kind === "drive" ? "on" : ""} onClick={() => setKind("drive")} title="ar drive — child runs repeat per driver.yaml (goal / loop / best-of-N)">
+          Repeating driver
         </button>
       </div>
       <label className="field">workspace directory (absolute path)</label>
       <div className="row-flex">
         <input type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="/path/to/workspace" />
-        <button style={{ whiteSpace: "nowrap" }} onClick={mk} title="create a fresh empty directory under runtime/ and fill it in here">
+        <button style={{ whiteSpace: "nowrap" }} onClick={mk} title="create a fresh scratch directory (its own git repo) and fill it in here">
           make empty workspace
         </button>
       </div>
       {kind === "submit" ? (
         <>
           <label className="field">task</label>
-          <textarea rows={2} value={task} onChange={(e) => setTask(e.target.value)} />
-          <div className="row-flex">
-            <div style={{ flex: 1 }}>
-              <label className="field">mode</label>
-              <select value={mode} onChange={(e) => setMode(e.target.value)} title="permission mode: default asks for approval on gated tools · plan = read-only planning · acceptEdits auto-approves file edits">
-                <option value="">default</option>
-                <option value="plan">plan</option>
-                <option value="acceptEdits">acceptEdits</option>
-              </select>
-            </div>
-            <div style={{ flex: 1 }}>
-              <label className="field">idem key (optional)</label>
-              <input type="text" value={idem} onChange={(e) => setIdem(e.target.value)} title="idempotency key: resubmitting with the same key reuses the run instead of starting a new one" />
-            </div>
-          </div>
-          <label className="field">spec.yaml</label>
-          <textarea className="code" rows={10} value={spec} onChange={(e) => setSpec(e.target.value)} />
+          <textarea rows={2} value={task} onChange={(e) => setTask(e.target.value)} placeholder="What should the agent do? e.g. Summarize README.md into notes.md" />
+          <label className="field">mode</label>
+          <select value={mode} onChange={(e) => setMode(e.target.value)} title="permission mode: default asks for approval on gated tools · plan = read-only planning · acceptEdits auto-approves file edits">
+            <option value="">default</option>
+            <option value="plan">plan</option>
+            <option value="acceptEdits">acceptEdits</option>
+          </select>
+          <details className="adv-details">
+            <summary>Advanced — agent spec & dedupe key</summary>
+            <label className="field">dedupe key (optional)</label>
+            <input type="text" value={idem} onChange={(e) => setIdem(e.target.value)} title="idempotency key: resubmitting with the same key reuses the run instead of starting a new one" placeholder="reuse a run instead of starting twice" />
+            <label className="field">spec.yaml</label>
+            <textarea className="code" rows={10} value={spec} onChange={(e) => setSpec(e.target.value)} />
+          </details>
         </>
       ) : (
         <>
-          <label className="field">schedule (Codex "Scheduled": repeat this driver on a cadence)</label>
+          <label className="field">schedule — how iterations are paced</label>
           <div className="row-flex">
             <select value={schedule} onChange={(e) => setSchedule(e.target.value)} title="how iterations are paced">
               <option value="">goal — run until satisfied</option>

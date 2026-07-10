@@ -803,6 +803,9 @@ func (s *server) handleApprove(w http.ResponseWriter, r *http.Request) {
 		ApprovalID string `json:"approvalId"`
 		Decision   string `json:"decision"`
 		Reason     string `json:"reason"`
+		// Always saves an exact allow rule to the user config so this call
+		// stops asking (ar approve --always, INC-17) — approve only.
+		Always bool `json:"always"`
 	}
 	if !readBody(w, r, &req) {
 		return
@@ -814,6 +817,9 @@ func (s *server) handleApprove(w http.ResponseWriter, r *http.Request) {
 	args := []string{"approve", id, req.ApprovalID, req.Decision}
 	if strings.TrimSpace(req.Reason) != "" {
 		args = append(args, req.Reason)
+	}
+	if req.Always && req.Decision == "approve" {
+		args = append(args, "--always")
 	}
 	res := s.runAR(r.Context(), oneShotTimeout, args...)
 	if res.Err != nil {

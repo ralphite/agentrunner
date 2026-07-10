@@ -51,7 +51,10 @@ export const ACCESS_LEVELS: AccessLevel[] = [
   { id: "plan", label: "Plan · read-only", desc: "No changes — the agent plans and proposes only", mode: "plan", risk: "low" },
 ];
 
-export const DEFAULT_ACCESS: AccessId = "full";
+// Ask-first by default (W15): a brand-new task should not silently run with
+// nothing gated. Full access stays one click away and the composer remembers
+// the user's last choice.
+export const DEFAULT_ACCESS: AccessId = "ask";
 
 export function accessById(id: string): AccessLevel {
   return ACCESS_LEVELS.find((a) => a.id === id) || ACCESS_LEVELS[0];

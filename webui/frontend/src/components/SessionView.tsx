@@ -252,9 +252,10 @@ export function SessionView({ sid }: { sid: string }) {
     }
   };
 
-  const decideApproval = async (id: string, decision: "approve" | "deny", reason: string, target = sid) => {
-    await AR.approve(target, id, decision, reason);
+  const decideApproval = async (id: string, decision: "approve" | "deny", reason: string, target = sid, always = false) => {
+    await AR.approve(target, id, decision, reason, always);
     setResolvedLocal((s) => new Set(s).add(id));
+    if (always) toast("approved — an exact allow rule was saved, this call won't ask again", "info");
   };
 
   // ⌘↵ approves the top pending request, ⌘⌫ denies it (Codex's Approve request).
@@ -508,7 +509,8 @@ export function SessionView({ sid }: { sid: string }) {
                         key={approval.id}
                         approval={approval}
                         readonly={isSub}
-                        onDecide={(id, decision, reason) => decideApproval(id, decision, reason, approval.session || sid)}
+                        workspace={sessions.find((s) => s.id === sid)?.workspace}
+                        onDecide={(id, decision, reason, always) => decideApproval(id, decision, reason, approval.session || sid, always)}
                         onError={(message) => toast(message)}
                       />
                     ))}

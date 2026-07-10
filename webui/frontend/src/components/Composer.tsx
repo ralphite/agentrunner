@@ -17,6 +17,7 @@ import {
   Plus,
   SlidersHorizontal,
   Sparkle,
+  Stop as StopIcon,
   Target,
   UserCircle,
   X,
@@ -141,7 +142,25 @@ export function Composer(props: ComposerProps) {
   const [provider, setProvider] = useState(DEFAULT_MODEL.provider);
   const [model, setModel] = useState(DEFAULT_MODEL.id);
   const [effort, setEffort] = useState<EffortId>(DEFAULT_EFFORT);
-  const [access, setAccess] = useState<AccessId>(DEFAULT_ACCESS);
+  // The home composer remembers the last chosen access level (W15); session
+  // composers show the session's fixed posture instead and never read this.
+  const [access, setAccessState] = useState<AccessId>(() => {
+    try {
+      const saved = localStorage.getItem("arwebui.lastAccess") as AccessId | null;
+      if (saved && ACCESS_LEVELS.some((a) => a.id === saved)) return saved;
+    } catch {
+      /* ignore */
+    }
+    return DEFAULT_ACCESS;
+  });
+  const setAccess = (a: AccessId) => {
+    setAccessState(a);
+    try {
+      localStorage.setItem("arwebui.lastAccess", a);
+    } catch {
+      /* ignore quota */
+    }
+  };
   const [persona, setPersona] = useState(DEFAULT_PERSONA);
 
   // home-only context
@@ -962,10 +981,21 @@ export function Composer(props: ComposerProps) {
             </button>
           )}
 
-          {/* send */}
-          <button className="cx-send" onClick={doSubmit} disabled={busy || !text.trim()} title="Send (Enter)">
-            <ArrowUp />
-          </button>
+          {/* send — or Stop while a turn is running and nothing is typed
+              (W30: stopping shouldn't require finding the topbar button) */}
+          {isSession && (props as { running?: boolean }).running && !text.trim() ? (
+            <button
+              className="cx-send cx-stop"
+              onClick={() => (props as { actions?: SessionActions }).actions?.interrupt?.()}
+              title="Stop the active turn"
+            >
+              <StopIcon size={15} weight="fill" />
+            </button>
+          ) : (
+            <button className="cx-send" onClick={doSubmit} disabled={busy || !text.trim()} title="Send (Enter)">
+              <ArrowUp />
+            </button>
+          )}
         </div>
 
         {/* One Codex-style environment control keeps setup available without

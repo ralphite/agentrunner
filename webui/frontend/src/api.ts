@@ -74,8 +74,8 @@ export const AR = {
   goal: (sid: string, b: { action: "attach" | "update" | "pause" | "resume" | "cancel"; goal?: string; verifier?: string; maxChecks?: number }) =>
     post(`/sessions/${sid}/goal`, b),
   kill: (sid: string, handle: string) => post(`/sessions/${sid}/kill`, { handle }),
-  approve: (sid: string, approvalId: string, decision: "approve" | "deny", reason: string) =>
-    post(`/sessions/${sid}/approve`, { approvalId, decision, reason }),
+  approve: (sid: string, approvalId: string, decision: "approve" | "deny", reason: string, always = false) =>
+    post(`/sessions/${sid}/approve`, { approvalId, decision, reason, always }),
   switchAgent: (sid: string, spec: string, extraSpecs: SpecFile[]) =>
     post(`/sessions/${sid}/agent`, { spec, extraSpecs }),
   fork: (sid: string, barrier: string, workspace: string) =>
