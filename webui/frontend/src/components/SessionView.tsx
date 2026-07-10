@@ -15,6 +15,7 @@ import { FindBar } from "./FindBar";
 import { friendlyStatus } from "./pill";
 import { displayTitle } from "../title";
 import { dedupeInspectNodes } from "../viewModels";
+import { ChangesOutcome } from "./ChangesOutcome";
 
 interface SSEApproval {
   id: string;
@@ -421,10 +422,10 @@ export function SessionView({ sid }: { sid: string }) {
                 Create checkpoint
               </MenuItem>
               <MenuItem
-                title="branch a new independent session into its own git worktree from a checkpoint; this session is untouched"
+                title="continue from a checkpoint in a new task and worktree; this task is untouched"
                 onClick={() => openModal({ kind: "fork", sid })}
               >
-                Fork into new worktree…
+                Continue in new task…
               </MenuItem>
               <MenuItem
                 title="swap this session's agent spec — context carries over; takes effect on your next message (spec_changed)"
@@ -517,6 +518,11 @@ export function SessionView({ sid }: { sid: string }) {
                       />
                     ))}
                   </div>
+                ) : undefined}
+                active={running}
+                onContinue={() => openModal({ kind: "fork", sid })}
+                outcomeSlot={folded.items.some((item) => item.kind === "assistant") ? (
+                  <ChangesOutcome sid={sid} refreshKey={events.length} onReview={() => setView("diff")} />
                 ) : undefined}
               />
               {isDriver && <div className="driver-note">This scheduled run manages its own iterations and does not accept follow-up messages.</div>}

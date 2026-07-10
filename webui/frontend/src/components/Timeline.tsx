@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowSquareOut, Check, Circle, Copy, File, ImageSquare, Robot, X } from "@phosphor-icons/react";
-import type { TimelineItem, ToolItem } from "../timeline";
+import { ArrowSquareOut, CaretRight, Check, Circle, Copy, File, ImageSquare, Robot, X } from "@phosphor-icons/react";
+import { completedTurnDurations, formatWorkDuration, type TimelineItem, type ToolItem } from "../timeline";
 import { Markdown } from "./Markdown";
 import { copyText } from "../clipboard";
 import { uploadURL } from "../api";
@@ -39,7 +39,7 @@ function Thumbs({ paths }: { paths: string[] }) {
 
 // MsgActions is the hover action row under a message (Codex puts Copy / reactions
 // there). We ship Copy — the whole message text to the clipboard.
-function MsgActions({ text }: { text: string }) {
+function MsgActions({ text, onContinue }: { text: string; onContinue?: () => void }) {
   const [copied, setCopied] = useState(false);
   if (!text) return null;
   const copy = async () => {
@@ -52,6 +52,11 @@ function MsgActions({ text }: { text: string }) {
       <button className="msg-copy" onClick={copy} title="Copy message">
         {copied ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy</>}
       </button>
+      {onContinue && (
+        <button className="msg-copy icon-only" onClick={onContinue} title="Continue in new task" aria-label="Continue in new task">
+          <ArrowSquareOut size={15} />
+        </button>
+      )}
     </div>
   );
 }
@@ -173,7 +178,7 @@ function CollapsibleUserText({ text }: { text: string }) {
   );
 }
 
-function Item({ it, sentImages }: { it: TimelineItem; sentImages?: Map<number, string[]> }) {
+function Item({ it, sentImages, onContinue }: { it: TimelineItem; sentImages?: Map<number, string[]>; onContinue?: () => void }) {
   switch (it.kind) {
     case "turn":
       return <div className="turn">turn {it.gen}</div>;
@@ -207,7 +212,7 @@ function Item({ it, sentImages }: { it: TimelineItem; sentImages?: Map<number, s
             <div className="bubble">
               <Markdown text={it.text} />
             </div>
-            <MsgActions text={it.text} />
+            <MsgActions text={it.text} onContinue={onContinue} />
           </div>
         </div>
       );
@@ -242,6 +247,9 @@ export function TimelineView({
   sentImages,
   statusLine,
   approvalSlot,
+  active = false,
+  onContinue,
+  outcomeSlot,
 }: {
   items: TimelineItem[];
   pending: { id: number; text: string; imgs: string[]; files: number }[];
@@ -250,6 +258,9 @@ export function TimelineView({
   sentImages?: Map<number, string[]>;
   statusLine?: ReactNode;
   approvalSlot?: ReactNode;
+  active?: boolean;
+  onContinue?: () => void;
+  outcomeSlot?: ReactNode;
 }) {
   // Codex shows a continuous activity feed — no "turn N" dividers, no raw
   // system events. Those stay behind the developer toggle.
@@ -258,6 +269,7 @@ export function TimelineView({
     : items.filter((it) => it.kind !== "sys" && it.kind !== "turn" && it.kind !== "runtime");
   const ref = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
+  const durations = completedTurnDurations(visible, active);
 
   useEffect(() => {
     const el = ref.current;
@@ -285,7 +297,10 @@ export function TimelineView({
           return (
             <Fragment key={it.key}>
               {gap && <div className="tl-time">{gap}</div>}
-              <Item it={it} sentImages={sentImages} />
+              {durations.has(it.key) && (
+                <div className="worked-row">Worked for {formatWorkDuration(durations.get(it.key)!)} <CaretRight size={15} /></div>
+              )}
+              <Item it={it} sentImages={sentImages} onContinue={it.kind === "assistant" ? onContinue : undefined} />
               {index === 0 && statusLine}
             </Fragment>
           );
@@ -307,6 +322,7 @@ export function TimelineView({
             <span className="who">queued…</span>
           </div>
         ))}
+        {!active && !typing && pending.length === 0 && outcomeSlot}
       </div>
     </div>
   );

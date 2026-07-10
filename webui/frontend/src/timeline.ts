@@ -77,6 +77,40 @@ export interface ApprovalRef {
 
 export type TimelineItem = ToolItem | BubbleItem | TurnItem | ChipItem | SysItem | RuntimeItem;
 
+export function formatWorkDuration(ms: number): string {
+  const seconds = Math.max(1, Math.floor(ms / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return `${minutes}m${rest ? ` ${rest}s` : ""}`;
+}
+
+// One row per completed human turn, attached to the final assistant answer in
+// that segment. Earlier assistant/tool planning messages do not get duplicate
+// duration rows. The active final segment stays unlabelled until it settles.
+export function completedTurnDurations(items: TimelineItem[], active: boolean): Map<string, number> {
+  const out = new Map<string, number>();
+  let started: number | null = null;
+  let final: { key: string; at: number } | null = null;
+  const flush = () => {
+    if (started !== null && final && final.at >= started) out.set(final.key, final.at - started);
+    started = null;
+    final = null;
+  };
+  for (const item of items) {
+    if (item.kind === "user" && !item.peerSession) {
+      flush();
+      const at = item.ts ? new Date(item.ts).getTime() : NaN;
+      started = Number.isFinite(at) ? at : null;
+    } else if (item.kind === "assistant" && started !== null && item.ts) {
+      const at = new Date(item.ts).getTime();
+      if (Number.isFinite(at)) final = { key: item.key, at };
+    }
+  }
+  if (!active) flush();
+  return out;
+}
+
 export interface Folded {
   items: TimelineItem[];
   approvals: Map<string, ApprovalRef>; // by approval id (journal side)

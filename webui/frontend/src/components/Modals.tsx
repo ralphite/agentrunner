@@ -548,23 +548,22 @@ function ForkModal({ sid }: { sid: string }) {
 
   return (
     <Modal
-      title="Fork into a new worktree"
+      title="Continue in new task"
       onClose={close}
       footer={
         <button className="primary" disabled={busy || !barrier} onClick={doFork}>
-          Fork
+          Continue
         </button>
       }
     >
       <div className="dim" style={{ marginBottom: 10 }}>
-        Branches a brand-new session from a checkpoint of this one, into its own
-        git worktree materialized from that point's snapshot. This session is left
-        untouched.
+        Starts a new task from a checkpoint of this one, in its own git worktree.
+        This task stays unchanged.
       </div>
-      <label className="field">Fork from</label>
+      <label className="field">Continue from</label>
       {barriers.length === 0 ? (
         <div className="fork-empty">
-          <span>No checkpoints yet. Create one now, then fork from this exact point.</span>
+          <span>No checkpoints yet. Create one now, then continue from this exact point.</span>
           <button onClick={createCheckpoint} disabled={busy}>Create checkpoint</button>
         </div>
       ) : (

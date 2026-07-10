@@ -2,27 +2,7 @@ import { useEffect, useState } from "react";
 import { AR } from "../api";
 import { useStore } from "../store";
 import type { DiffResp } from "../types";
-
-interface FileDiff {
-  path: string;
-  lines: string[];
-}
-
-function splitDiff(diff: string): FileDiff[] {
-  if (!diff.trim()) return [];
-  const files: FileDiff[] = [];
-  let cur: FileDiff | null = null;
-  for (const line of diff.split("\n")) {
-    if (line.startsWith("diff --git")) {
-      const m = line.match(/ b\/(.+)$/);
-      cur = { path: m ? m[1] : line, lines: [] };
-      files.push(cur);
-    } else if (cur) {
-      cur.lines.push(line);
-    }
-  }
-  return files;
-}
+import { splitDiff } from "../diffSummary";
 
 function lineClass(l: string): string {
   if (l.startsWith("+") && !l.startsWith("+++")) return "add";
@@ -129,15 +109,7 @@ export function DiffView({ sid }: { sid: string }) {
 
   // Per-file +/- counts (from the diff itself, so untracked-content blocks count
   // too) — Codex shows these next to each file and a total at the top.
-  const stats = files.map((f) => {
-    let add = 0;
-    let del = 0;
-    for (const l of f.lines) {
-      if (l.startsWith("+") && !l.startsWith("+++")) add++;
-      else if (l.startsWith("-") && !l.startsWith("---")) del++;
-    }
-    return { f, add, del };
-  });
+  const stats = files.map((f) => ({ f, add: f.add, del: f.del }));
   const totalAdd = stats.reduce((s, x) => s + x.add, 0);
   const totalDel = stats.reduce((s, x) => s + x.del, 0);
 
