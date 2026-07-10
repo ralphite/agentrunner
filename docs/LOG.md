@@ -1883,3 +1883,34 @@ plan→default 出口）；F-I4 goal 无 token/墙钟顶（GAPS 既有余项，
 194k tokens 实测痛感数据）；F-I6 best-of-N 赢家回填（G15 v0 留盘）；
 F-I8 子 agent isolated 产物提取体验；F-J1 恢复矩阵中 close 对楔死
 会话时灵时不灵的深层语义（修复后应不再出现，Round 5 观察）。
+
+## 2026-07-09 INC-25 内置只读 agent 库（SPRINT #16，#78）
+
+**动机**：对标 Claude Code 内置 Explore/Plan——开箱即用的只读子 agent，
+不必自带 spec。现状 spawn 子 agent 必须由 workspace 自带 `<name>.yaml`
+（siblingSpecResolver）。
+
+**落地**：
+- embed `internal/agent/builtin/{explore,plan}.yaml`——**只读工具面**
+  （read_file/grep/glob/semantic_search，无 edit/write/bash），side-effect
+  自由；`agent.BuiltinSpec(name)` 从 embed 加载并补齐 LoadSpec 默认
+  （MaxGenerationSteps/MaxTokens/AgentWorkspace）。
+- `siblingSpecResolver`**单点改**（9 调用点不动）：name 命中内置 → 返回
+  内置 spec，且**继承父 model**（resolver 内 LoadSpec 父 spec 取 Model
+  覆盖内置 gemini 默认）；否则回落 sibling。内置**优先于同名 sibling**
+  ——workspace 放个 explore.yaml 也劫持不了只读面（安全）。
+- 白名单语义不变：spec `agents:` 列内置名即可 spawn，内置名是白名单的
+  新来源，不是"默认全自动可用"（后者涉封闭性讨论，拆余项 #16b）。
+
+**双闸门**：孪生 5（TestBuiltinSpecLoads/Unknown + TestResolverPrefers
+BuiltinAndInheritsModel/BuiltinShadowsSiblingFile/FallsBackToSibling）；
+QA-32 真机（私有新二进制 daemon）——模型 spawn 内置 explore（无 sibling
+文件却成功起子会话）、子会话只读面（无 write 工具、用 read）、返回正确
+常量值 512。
+
+**踩坑固化**：QA 首跑撞**共享 daemon 跑旧二进制**——错误 `open
+.../explore.yaml: no such file` 正是旧 resolver 行为，证明 daemon 未含
+新码（非代码 bug）。改用**私有新二进制 daemon 跑 + 会话拷进共享 store**
+（镜像 QA-31）：既真验新码又不重启共享 daemon 波及用户在跑会话。凡新
+daemon-path 功能的 QA 必须用当前构建的私有 daemon，否则共享 daemon 的
+旧二进制会呈现改动前行为、假失败。

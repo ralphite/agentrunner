@@ -77,7 +77,8 @@
 | 13 | Read 工具多模态（读图/PDF 入 context，复用 CAS/part 管线） | #32 | M | ⬜ | 输入侧已通（INC-9），补工具侧 |
 | 14 | Monitor 流式后台进度（每行输出即通知；并 G10 进度通道） | #34 · G10 | M | ⬜ | 与 bash output 拉取并存 |
 | 15 | G22 boot sweep + cron 跨重启唤醒 | #87 · G22 | M | ⬜ | 无人值守自动性下半场 |
-| 16 | 内置 agent 库（Explore/Plan 类只读 spec 随发行） | #78 | S | 🔧 in-progress (INC-25) | embed explore/plan 只读 spec，白名单列名即用，model 继承父；默认可用拆 16b |
+| 16 | 内置 agent 库（Explore/Plan 类只读 spec 随发行） | #78 | S | ✅ done (INC-25) | embed explore/plan 只读 spec，白名单列名即用，内置优先同名 sibling，model 继承父；QA-32 真机；默认全自动可用拆 16b |
+| 16b | 内置 agent 默认全自动可用（不列 `agents:` 也可 spawn；白名单封闭性讨论） | #78 余项 | S | ⬜ | INC-25 拆出；需裁默认可用是否破白名单封闭性 |
 | 17 | webui 会话 rename/归档/内容搜索 | #2/3/7 | M | ⬜ | **注意避让**：webui 区与他 session 协调后再动 |
 | 18 | auto mode 设计稿（分类器作为 effect pipeline 的 policy 源） | #57 · §3.3 | M(设计) | ⬜ | 设计先行 → 📐 待裁；依赖 #4/#5 |
 
@@ -94,6 +95,7 @@
 
 | 轮 | 日期 | 项 | 结果 | commit |
 |---|---|---|---|---|
+| 16 | 2026-07-09 | #16 内置只读 agent 库 (INC-25) | ✅ 双闸门全绿（5 孪生含加载/只读面/model 继承/内置遮蔽同名 sibling/未知回落 + QA-32 真 Gemini：模型 spawn 内置 explore 无 sibling 文件却成功、子会话只读、返值 512）；QA 首跑撞共享 daemon 旧二进制→改私有新二进制 daemon 跑法固化；默认可用拆 16b | (见 push) |
 | 5 | 2026-07-09 | #5 G5 审批"允许且不再问" (INC-17) | ✅ 双闸门全绿（3 孪生含下次-session 端到端 + QA-26 真 Gemini UJ-08 全流：ask→approve --always→新 session 直过）；真机捕获修 persist 漏传 Remember bug | (见 push) |
 | 4 | 2026-07-09 | #4 权限规则三件套 (INC-16) | ✅ 双闸门全绿（9 pipeline 孪生含安全回归 + QA-25 真 Gemini：victim 存活证逐段 deny）；显式 deny 先于只读集 | (见 push) |
 | 12b | 2026-07-09 | #12b grep context lines (INC-24) | ✅ 双闸门全绿（孪生 -A/-B/-C 含文件边界钳制/默认无 context + QA-31 真 Gemini：模型用 -C 看 PIVOT 上下文）；multiline 拆 12c | (见 push) |

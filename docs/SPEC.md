@@ -62,6 +62,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | 子 agent 实时进度镜像（成员事件带 session 标签入树根 hub;`ar attach <child-sid>` live 过滤;webui 子会话 SSE;CLI 前台锚定折叠）/ 子审批根宿主路由与 crash 重挂接 | ✅ | UJ-18/23 | INC-12.6 · TestDaemonAttachChildFiltersLive/TestCrashResumeReattachesApprovalWaitingChild · QA-20(G10 关闭) |
 | 子执行收敛为递归 session | 🟡 | — | 阻塞路径已删(D3a);driver 独立待收敛,挂 UJ-22/G23（DESIGN §17） |
 | 并发子 agent 确定性测试基建（routing provider） | ✅ | — | C3–C7 孪生在用（GAPS G4 关闭事实） |
+| 内置只读 agent 库（explore/plan 随发行 embed;spec `agents:` 列名即 spawn 无需自带 spec;内置优先同名 sibling;model 继承父） | ✅ | UJ-18 | INC-25 · #78 · TestBuiltinSpecLoads/TestResolverPrefersBuiltinAndInheritsModel/TestResolverBuiltinShadowsSiblingFile · QA-32（真机 spawn 内置 explore、只读面、返值）;默认全自动可用拆 #16b |
 
 ## C · 工具面
 
