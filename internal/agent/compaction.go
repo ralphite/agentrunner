@@ -210,7 +210,7 @@ func (l *Loop) compactContext(ctx context.Context, ds *driveState, appendE Appen
 	// an image/file part left as a bare CAS ref makes the provider refuse
 	// the whole request and the compact silently fails (QA Round1 F-A03).
 	if err := l.inflateBlobs(msgs); err != nil {
-		return err
+		return false, err
 	}
 	req := provider.CompleteRequest{
 		Model:     l.Spec.Model.ID,
