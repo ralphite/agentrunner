@@ -70,7 +70,7 @@
 | 8 | 结构化输出（`ar run --json-schema`，provider JSON mode 能力位） | #91 | S | ⬜ | verifier/集成两用 |
 | 9 | checkpoint 增强：barrier 打点密度提至每 turn 收尾 + "仅对话"fork 变体 + compact 范围指示（Summarize-from-here 等价） | #12/13 · §3.1 | M | ⬜ | §3.1 已论证不触不变量 |
 | 10 | ask_user 结构化选项（多选 + Other，向 AskUserQuestion 对齐） | #42 | S | ⬜ | webui 审批 UI 可复用 |
-| 11 | read-before-edit 护栏（edit_file 要求本会话 Read 过且未变） | #32 | S | ⬜ | 纯工具层检查 |
+| 11 | read-before-edit 护栏（edit_file 要求本会话 Read 过且未变） | #32 | S | 🔧 in-progress (INC-21) | 会话内内存护栏防盲改；hash 未变检查拆 11b 余项 |
 | 12 | Grep/Glob 参数增强（output_mode/-A/-B/-C/multiline/type） | #35 | S | ⬜ | INC-3 延伸 |
 | 13 | Read 工具多模态（读图/PDF 入 context，复用 CAS/part 管线） | #32 | M | ⬜ | 输入侧已通（INC-9），补工具侧 |
 | 14 | Monitor 流式后台进度（每行输出即通知；并 G10 进度通道） | #34 · G10 | M | ⬜ | 与 bash output 拉取并存 |
