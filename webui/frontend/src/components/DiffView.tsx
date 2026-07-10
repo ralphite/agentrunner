@@ -144,7 +144,7 @@ export function DiffView({ sid }: { sid: string }) {
   return (
     <div className="diffwrap">
       <div className="diffbar">
-        <span className="mono dim">{data.workspace}</span>
+        <span className="diffbar-path mono dim" title={data.workspace}>{data.workspace}</span>
         {!empty && (
           <span className="diff-summary">
             {files.length} file{files.length === 1 ? "" : "s"}

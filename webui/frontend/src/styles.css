@@ -1476,9 +1476,22 @@ label.field {
   gap: 8px;
   margin-bottom: 12px;
   font-size: 12px;
+  /* Wrap the actions to a second line before they slide off the (possibly
+     narrow) diff column and disappear under the supervision panel (R2-1). */
+  flex-wrap: wrap;
+  row-gap: 8px;
 }
 .diffbar .spacer {
   flex: 1;
+}
+/* The absolute workspace path is long; let it take the row's flex space and
+   ellipsize instead of pushing Commit/Refresh out of view. */
+.diffbar-path {
+  flex: 1 1 120px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .filediff {
   border: 1px solid var(--line);

@@ -645,7 +645,7 @@ function TrustModal() {
       onClose={close}
       footer={
         <button className="primary" disabled={busy || !dir.trim()} onClick={go} title="enable project hooks/settings for sessions in this directory (ar trust)">
-          trust
+          Trust directory
         </button>
       }
     >
