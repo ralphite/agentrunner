@@ -157,8 +157,8 @@ export interface Persona {
 }
 
 export const PERSONAS: Persona[] = [
-  { id: "dev", label: "Dev", desc: "Full tools + worker sub-agents · default", withWorker: true },
-  { id: "lead", label: "Team Lead", desc: "Drafts a team and coordinates work across dynamic roles", withWorker: false },
+  { id: "dev", label: "Dev", desc: "Full tools + isolated worker sub-agents · default", withWorker: true },
+  { id: "lead", label: "Team Lead", desc: "Drafts a team sharing one workspace · for collaboration", withWorker: false },
   { id: "auditor", label: "Auditor", desc: "Read-only, answers in one stern sentence", withWorker: false },
   { id: "reviewer", label: "Reviewer", desc: "Read + inspect, structured findings, no writes", withWorker: false },
   { id: "chat", label: "Chat", desc: "No tools — plain conversation", withWorker: false },
@@ -263,11 +263,17 @@ export function modelFromSpec(spec: string): { provider: string; id: string } | 
 }
 
 // ---- worker sub-agent (unchanged sibling) ----
+// Conservative step limit (INC-30/G25): a worker that loses its way — e.g.
+// searching an isolated snapshot for a file that can never appear — used to
+// spin to the runtime default of 40 steps per hosting; 24 is plenty for a
+// delegated errand and halves the burn of an abandoned member.
 export const DEFAULT_WORKER = `name: worker
 description: carries out investigation/edit tasks assigned by the parent and reports back
 model: { provider: gemini, id: gemini-flash-latest, max_tokens: 4096 }
-system_prompt: When the task is done, report your conclusions as concise bullet points.
+system_prompt: When the task is done, report your conclusions as concise bullet points. If something you need is missing (a file, an answer), report that promptly instead of retrying.
 tools: [read_file, bash]
+limits:
+  max_generation_steps: 24
 `;
 
 // Legacy export kept for the advanced YAML modal (unchanged escape hatch).
