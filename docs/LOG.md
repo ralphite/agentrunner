@@ -2324,3 +2324,21 @@ output/kill/notes),使 tool-less 轮可达。重跑 raw_json=True,裸 JSON
 **双闸门**：孪生 gemini 5 + agent 5(含 structuredOnly 抑制自动工具的证明)。
 QA-39 真机 Gemini(私有新二进制 daemon)。拆 8c(--json-schema 端到端 +
 durable structured_output 事件,待 HANDA 2U 落定)。
+
+## 2026-07-10 INC-36 用户消息折叠（HANDA SPRINT #23，批 1）
+
+**落地**：Timeline `CollapsibleUserText`——用户气泡（含 pending 队列
+气泡）按**渲染高度**折叠：`max-height: calc(10lh+2px)` 钳 +
+scrollHeight 探测（4px 容差）出 Show more/less；ResizeObserver 随列宽
+重测（窄屏 wrap 增行同样折叠）；折叠纯视图态，MsgActions copy 恒全文。
+
+**双闸门**：A=frontend vitest+build 绿；B=真浏览器（arwebui 新 dist +
+共享 daemon，复用 INC-28 真实 session 补发 15 行消息）：单行/两行无
+钮、15 行钳 219px(10lh)+Show more、展开 347px 全文含末行、收起复原、
+375px mobile 依旧折叠、console 0 错误——DOM 断言归档
+`qa/runs/2026-07-10-INC36/`。
+
+**过程 bug（已修）**：`.utext` block div 与 shrink-to-fit 气泡相互
+塌缩到 28px——`width: max-content; max-width: 100%` 恢复裸文本节点的
+收缩布局。真验期间复踩"SPA 不重载 bundle"坑（memory 有档），preview
+重启+强刷排除后，DOM 断言需过滤视口外/布局前的 0 宽测量假象。

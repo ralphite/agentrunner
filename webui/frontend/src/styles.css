@@ -802,6 +802,33 @@ a:hover {
   color: var(--dim);
   margin-top: 5px;
 }
+/* INC-36: tall user messages fold to ~10 rendered lines (lh tracks the
+   bubble's own line-height, so wrapped long lines count too). width:
+   max-content + max-width restores the shrink-to-fit sizing the bare text
+   node had — without it the block div and the content-sized bubble collapse
+   each other to zero width. */
+.bubble .utext {
+  width: max-content;
+  max-width: 100%;
+}
+.bubble .utext.clamped {
+  max-height: calc(10lh + 2px);
+  overflow: hidden;
+}
+.bubble .ushow {
+  display: block;
+  margin-top: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--blue);
+  cursor: pointer;
+}
+.bubble .ushow:hover {
+  text-decoration: underline;
+}
 .bubble .thumbs {
   display: flex;
   flex-wrap: wrap;

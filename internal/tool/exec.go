@@ -30,7 +30,7 @@ import (
 const (
 	readMaxLines       = 2000
 	readMaxBytes       = 50 * 1024
-	mediaReadMaxBytes  = 5 << 20 // media (image/PDF) read cap (INC-33)
+	mediaReadMaxBytes  = 5 << 20   // media (image/PDF) read cap (INC-33)
 	bashOutputBytes    = 30 * 1024 // combined budget: split across stdout+stderr
 	bashKillGrace      = 5 * time.Second
 	bashInterruptGrace = 500 * time.Millisecond

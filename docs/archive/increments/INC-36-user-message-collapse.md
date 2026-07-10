@@ -32,3 +32,13 @@ UJ-24（webui thread 可读性），不新增 journey。HANDA-PARITY §2 #23。
 ## review 裁决
 
 小增量（S，单组件+样式），裁掉三视角 review；B 闸真浏览器覆盖交互。
+
+---
+
+## 执行记录（2026-07-10 收口）
+
+一步完成，pending 队列气泡顺手同折。B 闸真浏览器 DOM 断言全 PASS
+（含 mobile 宽度 + console 0 错误），证据 `qa/runs/2026-07-10-INC36/`。
+过程 bug：utext block div 与 shrink-to-fit 气泡相互塌缩到 28px 宽，
+修 `width: max-content; max-width: 100%`（LOG 记档）。SPEC I 区加行；
+SPRINT #23 ✅。

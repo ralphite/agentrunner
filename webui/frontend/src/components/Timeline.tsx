@@ -141,6 +141,38 @@ function runtimeLabel(source: string, text: string): string {
   return "Runtime message";
 }
 
+// CollapsibleUserText folds tall user messages (long pastes) to ~10 rendered
+// lines with a Show more/less toggle (INC-36). Measured against the rendered
+// box rather than counting "\n", so a few very long wrapped lines fold too;
+// a ResizeObserver re-checks when the column width changes. Folding is view
+// state only — MsgActions copy always gets the full text.
+const COLLAPSE_TOLERANCE_PX = 4; // don't offer a toggle that reveals one clipped pixel
+function CollapsibleUserText({ text }: { text: string }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [tall, setTall] = useState(false);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    setOpen(false);
+    const el = ref.current;
+    if (!el) return;
+    const check = () => setTall(el.scrollHeight > el.clientHeight + COLLAPSE_TOLERANCE_PX);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [text]);
+  return (
+    <>
+      <div ref={ref} className={"utext" + (open ? "" : " clamped")}>{text}</div>
+      {(tall || open) && (
+        <button type="button" className="ushow" onClick={() => setOpen(!open)}>
+          {open ? "Show less" : "Show more"}
+        </button>
+      )}
+    </>
+  );
+}
+
 function Item({ it, sentImages }: { it: TimelineItem; sentImages?: Map<number, string[]> }) {
   switch (it.kind) {
     case "turn":
@@ -152,7 +184,7 @@ function Item({ it, sentImages }: { it: TimelineItem; sentImages?: Map<number, s
         <div className={"msg user" + (peer ? " peer" : "")} title={absTime(it.ts)}>
           <div className="msg-col user">
             <div className="bubble">
-              {it.text}
+              <CollapsibleUserText text={it.text} />
               {thumbs && thumbs.length ? (
                 <Thumbs paths={thumbs} />
               ) : it.images ? (
@@ -268,7 +300,7 @@ export function TimelineView({
         {pending.map((p) => (
           <div className="msg user" key={"p" + p.id}>
             <div className="bubble pending">
-              {p.text}
+              <CollapsibleUserText text={p.text} />
               {p.imgs.length ? <Thumbs paths={p.imgs} /> : null}
               {p.files ? <div className="imgnote"><File size={13} /> ×{p.files} attached</div> : null}
             </div>

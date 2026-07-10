@@ -166,6 +166,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | Web UI Supervision（goal/agent tree 去重/approval+recovery attention/background，成员只读导航；结构化 Run details，raw inspect 仅 advanced） | ✅ | UJ-18/22/23/24 | INC-19/23/29 · dedupeInspectNodes/summarizeInspect tests · QA-27/34/36 真实父/子/recovery session |
 | Web UI progressive-disclosure composer | ✅ | UJ-22/24 | INC-19/23 · 默认输入/附件/access/model/send；Goal/Repeating/Best-of-N 与 persona 收入产品化 Task options；YAML 收入 Advanced |
 | Web UI 交互语义（task/button、dialog/menu/listbox、Escape、focus-visible、移动端 sidebar scrim；running/ready/attention/failed/terminal 统一状态色） | ✅ | UJ-24 | INC-23/29 · frontend build · QA-34/36 DOM/light/dark |
+| Web UI 用户消息折叠（>10 渲染行钳 10lh + Show more/less；按渲染高度测量故 wrap 长行也折叠、ResizeObserver 随宽重测；含 pending 队列气泡；纯前端态、copy 恒全文） | ✅ | UJ-04/24 | INC-36（HANDA #23）· frontend build+vitest · 真浏览器 DOM 断言（qa/runs/2026-07-10-INC36） |
 | HTTP/WS 壳 | 🧊 | UJ-13 | backlog |
 
 ## J · 运行形态与云
