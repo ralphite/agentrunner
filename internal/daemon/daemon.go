@@ -718,7 +718,7 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 	case "goal-update":
 		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlGoalUpdate, Goal: cmd.Goal}, "goal update requested (a no-op unless a goal is attached)", enc)
 	case "goal-cancel":
-		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlGoalCancel}, "goal cancel requested (a no-op unless a goal is attached)", enc)
+		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlGoalCancel}, "goal cancel requested — applies at the session's next boundary (interrupt cuts the current turn); a no-op unless a goal is attached", enc)
 	case "kill":
 		s.handleKill(ctx, cmd, enc)
 	case "agent":
@@ -910,7 +910,7 @@ func (s *Server) handleInterrupt(ctx context.Context, cmd Command, enc *json.Enc
 			Text: fmt.Sprintf("no live interruptible session %s", cmd.Session)})
 		return
 	}
-	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Text: "interrupt delivered (a no-op at idle)", Session: cmd.Session})
+	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Text: "interrupt delivered — cancels in-flight work or a pending ask; a no-op when the session is idle", Session: cmd.Session})
 }
 
 // handleStop is the remote hard-cancel (G12): it tears the hosted run down

@@ -354,3 +354,25 @@ func TestBrokenLatchAfterWriteFailure(t *testing.T) {
 		t.Fatalf("err = %v, want broken latch", err)
 	}
 }
+
+// A cleanly-closed store must not report a live writer even though the
+// closing PROCESS is still alive: hosted sessions' lock pid is the
+// daemon's, which outlives every individual loop — `stop` left sessions
+// showing "running" forever because the pid probe stayed true
+// (QA Round4 F-I2).
+func TestClosedStoreHasNoLiveWriter(t *testing.T) {
+	dir := t.TempDir()
+	es, err := OpenEventStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !HasLiveWriter(dir) {
+		t.Fatal("open store must report a live writer")
+	}
+	if err := es.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if HasLiveWriter(dir) {
+		t.Fatal("closed store must not report a live writer")
+	}
+}

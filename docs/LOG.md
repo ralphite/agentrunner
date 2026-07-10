@@ -1847,3 +1847,39 @@ inspect 持续指示用户去 approve 一个永远无效的 id。九个楔死会
 **为什么此前三轮没炸**：单会话/低并发下 broker 无同名注册，原始 id
 恰好可用；J 批量制造 9+ 个同名 ask 靶子后必然踩中。老楔死会话在
 daemon 重启 revive 后将以每会话独立键重注册，approve 即可解。
+
+---
+
+## 2026-07-10 QA Round 4 修复批 #2：F-J1 触发模型更正 + I/J 批
+
+**F-J1 触发模型更正**（J 的因子实验回报）：顺序单会话 0/26 楔死；
+**并发多会话 approve 稳定复现**（8 并发 → 7/8 楔死、N=2 恒 1 楔、
+三个输家收到与赢家完全相同的 "answered" 成功文案）。"one survives,
+N-1 wedge" 与已修的 broker 全局后缀查重严丝合缝：N 个并发 parked
+会话同名注册，仅最先者持原始 id，其余 #n 后缀而观察面只示原始 id。
+per-session-key 修复即根治；TestApprovalBrokerCollision 按新语义
+改写（不同 session 键不再互扰、同键真碰撞仍后缀）。
+
+**本批其余修复**：
+- **F-I2（P2）stop 后状态永卡 running**：hosted 会话 lock 文件的 pid
+  是 daemon 的——loop 停了 pid 仍活，HasLiveWriter 恒真，stranded
+  判定永不触发。修：EventStore.Close 释放 flock 前抹掉 pid（crash
+  路径的 ESRCH 探活不变）。钉 TestClosedStoreHasNoLiveWriter。
+- **F-I3/F-J2（P2）goal 状态一等查询**：`ar goal <sid> status` 子命令
+  （离线读 fold，idle/stopped 会话均可查）+ inspect human 输出补
+  goal 行（曾只在 --json）。
+- **F-I5（P2 部分）**：goal cancel ack 补边界语义与 interrupt 指引。
+  F-J3：interrupt ack 文案对齐真实语义（清 pending ask 或在飞活动）。
+- **F-J4（P3）**：空 session 引用被 resolveSessionDir 显式拒绝（曾
+  Stat 到 sessions 根、报内部路径错误）。
+- **F-J5（P3 部分）**：events 摘要对 bidi 控制符（U+202A-E/2066-69）
+  与游离 C0 转义显示，防终端视觉重排伪装。
+- approve 的 commandHelp 同步 INC-17 [--always]；goal help 全面同步
+  status 子命令。
+
+**记档未修**（增量候选）：F-I1 plan 模式 CLI 单向门（mode 转换规则
+3.6c 触不变量，需走变更流程——用户显式 agent 切换应视为合法
+plan→default 出口）；F-I4 goal 无 token/墙钟顶（GAPS 既有余项，
+194k tokens 实测痛感数据）；F-I6 best-of-N 赢家回填（G15 v0 留盘）；
+F-I8 子 agent isolated 产物提取体验；F-J1 恢复矩阵中 close 对楔死
+会话时灵时不灵的深层语义（修复后应不再出现，Round 5 观察）。

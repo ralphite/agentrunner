@@ -399,6 +399,12 @@ func (s *EventStore) Close() error {
 		s.index = nil
 	}
 	if s.lock != nil {
+		// A clean release scrubs the pid first: HasLiveWriter probes the
+		// FILE, and the holder may be a long-lived daemon whose pid stays
+		// alive long after this session's loop stopped — `stop` left
+		// sessions reading "running" forever (QA Round4 F-I2). A crash
+		// skips this scrub, so the ESRCH probe still works there.
+		_ = s.lock.Truncate(0)
 		_ = s.lock.Close() // releases the flock
 		s.lock = nil
 	}

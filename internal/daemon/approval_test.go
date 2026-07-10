@@ -106,10 +106,17 @@ func e2k(s string) bool { return s == "answered nope: deny" }
 // suffixed id, and each answer reaches its own waiter.
 func TestApprovalBrokerCollision(t *testing.T) {
 	b := NewApprovalBroker()
+	// DIFFERENT session keys (a parent and its child) sharing a
+	// deterministic approval id are NOT a collision: each keeps the
+	// original id and answers route by the full (session, id) key. The
+	// historic global suffix here handed "#2" to whichever session
+	// registered second while its journal kept the original id — on a
+	// shared daemon, N concurrently-parked sessions meant one survivor
+	// and N-1 permanently wedged approves (QA Round4 F-J1).
 	id1, ch1 := b.Register("sess", "apr-eff-tool-call_1_0")
 	id2, ch2 := b.Register("sess-sub-child-a1", "apr-eff-tool-call_1_0")
-	if id1 == id2 {
-		t.Fatalf("colliding registrations share id %q", id1)
+	if id1 != "apr-eff-tool-call_1_0" || id2 != "apr-eff-tool-call_1_0" {
+		t.Fatalf("distinct-key registrations renamed: %q, %q", id1, id2)
 	}
 
 	type got struct {
@@ -128,10 +135,10 @@ func TestApprovalBrokerCollision(t *testing.T) {
 	}()
 
 	if !b.Answer("sess-sub-child-a1", id2, ApprovalAnswer{Approve: false, Reason: "second"}) {
-		t.Fatal("answer to the suffixed id was refused")
+		t.Fatal("answer to the child key was refused")
 	}
 	if !b.Answer("sess", id1, ApprovalAnswer{Approve: true, Reason: "first"}) {
-		t.Fatal("answer to the original id was refused")
+		t.Fatal("answer to the parent key was refused")
 	}
 	g1 := <-res1
 	g2 := <-res2
@@ -140,6 +147,12 @@ func TestApprovalBrokerCollision(t *testing.T) {
 	}
 	if g2.err != nil || g2.a.Approve || g2.a.Reason != "second" {
 		t.Fatalf("waiter 2 got %+v", g2)
+	}
+
+	// A SAME-key re-register (the only true collision) still suffixes.
+	id3, _ := b.Register("sess-same", "apr-1")
+	if id4, _ := b.Register("sess-same", "apr-1"); id3 == id4 {
+		t.Fatalf("same-key registrations share id %q", id3)
 	}
 }
 

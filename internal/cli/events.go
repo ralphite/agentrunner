@@ -102,9 +102,21 @@ func compactPayload(raw json.RawMessage, max int) string {
 	}
 	s := buf.String()
 	if len(s) > max {
-		return s[:max] + "…"
+		s = s[:max] + "…"
 	}
-	return s
+	// Journal payloads carry user/model text verbatim; bidi control
+	// characters (U+202A–U+202E, U+2066–U+2069) can visually reorder the
+	// terminal line and disguise what actually ran (QA Round4 F-J5) —
+	// escape them (and stray C0 controls) for display only.
+	return strings.Map(func(r rune) rune {
+		if (r >= 0x202A && r <= 0x202E) || (r >= 0x2066 && r <= 0x2069) {
+			return '\uFFFD'
+		}
+		if r < 0x20 && r != '\t' {
+			return '\uFFFD'
+		}
+		return r
+	}, s)
 }
 
 // resolveSessionDir maps a session id or unique prefix to its directory.
@@ -122,6 +134,11 @@ func compactPayload(raw json.RawMessage, max int) string {
 // harness-minted `call_%d_%d` and never contain "-sub-"), and finally
 // ordinary prefix matching. QA Round1 F-B2.
 func resolveSessionDir(idOrPrefix string) (string, error) {
+	if strings.TrimSpace(idOrPrefix) == "" {
+		// "" would Stat() the sessions root itself and wander into an
+		// internal-path error (QA Round4 F-J4).
+		return "", fmt.Errorf("no session given — pass a session id or unique prefix (see agentrunner sessions)")
+	}
 	data, err := runtime.DataDir()
 	if err != nil {
 		return "", err

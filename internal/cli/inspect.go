@@ -525,6 +525,26 @@ func renderInspectIndent(w io.Writer, r inspectReport, pad string) {
 		countLabel = "iterations"
 	}
 	fmt.Fprintf(w, "%sstatus  %s    %s %d\n", pad, status, countLabel, r.GenSteps)
+	if r.Goal != nil {
+		// The goal is first-class session state — surface it here, not only
+		// in --json (QA Round4 F-I3/F-J2: users had to grep `events`).
+		g := r.Goal
+		line := fmt.Sprintf("%sgoal    %q · %d", pad, g.Goal, g.Checks)
+		if g.MaxChecks > 0 {
+			line += fmt.Sprintf("/%d", g.MaxChecks)
+		}
+		line += " checks"
+		if g.Verifiers == 0 {
+			line += " · self-certified"
+		}
+		if g.Claimed {
+			line += " · claim pending"
+		}
+		if g.Paused {
+			line += " · paused"
+		}
+		fmt.Fprintln(w, line)
+	}
 	if r.Waiting != nil {
 		if r.Waiting.ApprovalID != "" {
 			fmt.Fprintf(w, "%swaiting approval %s: %s %s\n", pad, r.Waiting.ApprovalID, r.Waiting.Tool, r.Waiting.Args)

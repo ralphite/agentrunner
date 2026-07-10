@@ -131,7 +131,7 @@ func commandHelp(cmd string) string {
 	case "clear":
 		return "usage: agentrunner clear <session-id-or-prefix>\n\nDrop the session's context prefix (the journal keeps everything).\n"
 	case "goal":
-		return "usage: agentrunner goal <session-id-or-prefix> <attach|update|pause|resume|cancel> [flags]\n\nAttach a goal to the session (it keeps working until the goal is\nmet), or manage the one it has. attach/update take the goal text\nand optional --verify \"<cmd>\" / --max-checks N.\n"
+		return "usage: agentrunner goal <session-id-or-prefix> <attach|update|status|pause|resume|cancel> [flags]\n\nAttach a goal to the session (it keeps working until the goal is\nmet), or manage the one it has. status shows the active goal and\nits check budget. attach/update take the goal text and optional\n--verify \"<cmd>\" / --max-checks N.\n"
 	case "agent":
 		return "usage: agentrunner agent <session-id-or-prefix> <spec.yaml>\n\nSwitch the session's agent spec; the conversation continues with\nthe new agent from the next message.\n"
 	case "kill":

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/ralphite/agentrunner/internal/agent"
@@ -362,12 +363,55 @@ func rememberCmd(args []string, stdout, stderr io.Writer) int {
 // One goal per session (id "goal"); attach replaces any existing one.
 func goalCmd(args []string, stdout, stderr io.Writer) int {
 	if len(args) < 2 {
-		fmt.Fprintln(stderr, "usage: agentrunner goal <session-id-or-prefix> <attach|update|pause|resume|cancel> [flags]")
+		fmt.Fprintln(stderr, "usage: agentrunner goal <session-id-or-prefix> <attach|update|status|pause|resume|cancel> [flags]")
 		return ExitUsage
 	}
 	session := resolvePrefixLenient(args[0])
 	sub, rest := args[1], args[2:]
 	switch sub {
+	case "status":
+		// Reads the journal directly — no daemon round-trip, works on idle
+		// and stopped sessions alike (QA Round4 F-I3/F-J2: goal state had
+		// no first-class query; users grepped `events`).
+		dir, err := resolveSessionDir(session)
+		if err != nil {
+			fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+			return ExitUsage
+		}
+		events, err := store.ReadEvents(dir)
+		if err != nil {
+			fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+			return ExitRun
+		}
+		fold, err := state.Fold(events)
+		if err != nil {
+			fmt.Fprintf(stderr, "agentrunner: fold: %v\n", err)
+			return ExitRun
+		}
+		if fold.Goal == nil {
+			fmt.Fprintln(stdout, "no active goal")
+			return ExitOK
+		}
+		g := fold.Goal
+		fmt.Fprintf(stdout, "goal      %s\n", g.Goal)
+		max := g.Budget.MaxChecks
+		if max > 0 {
+			fmt.Fprintf(stdout, "checks    %d/%d\n", g.Checks, max)
+		} else {
+			fmt.Fprintf(stdout, "checks    %d\n", g.Checks)
+		}
+		kind := "command verifiers: " + strconv.Itoa(len(g.Verifiers))
+		if len(g.Verifiers) == 0 {
+			kind = "self-certified (the model claims completion via goal_complete)"
+		}
+		fmt.Fprintf(stdout, "judge     %s\n", kind)
+		if g.Claimed {
+			fmt.Fprintln(stdout, "claim     pending adjudication at the next boundary")
+		}
+		if g.Paused {
+			fmt.Fprintln(stdout, "paused    yes (goal resume to continue)")
+		}
+		return ExitOK
 	case "pause", "resume", "cancel":
 		return oneShot(stderr, daemon.Command{Cmd: "goal-" + sub, Session: session}, stdout)
 	case "attach", "update":
