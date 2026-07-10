@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -29,6 +30,7 @@ import (
 const (
 	readMaxLines       = 2000
 	readMaxBytes       = 50 * 1024
+	mediaReadMaxBytes  = 5 << 20 // media (image/PDF) read cap (INC-33)
 	bashOutputBytes    = 30 * 1024 // combined budget: split across stdout+stderr
 	bashKillGrace      = 5 * time.Second
 	bashInterruptGrace = 500 * time.Millisecond
@@ -56,6 +58,14 @@ func okResult(v any) Result {
 // assertions can find strays by marker instead of grepping global ps.
 const SessionEnvVar = "AGENTRUNNER_SESSION"
 
+// BlobStore is the CAS seam read_file uses for media reads (INC-33): bytes go
+// into the store BEFORE the tool result lands (blob-before-event), so the
+// journal only ever carries the ref. The agent loop injects its tree-shared
+// artifact store; a bare executor (no store) refuses media reads explicitly.
+type BlobStore interface {
+	Put(data []byte) (ref string, err error)
+}
+
 // Executor runs built-in tools against a workspace. Wall-clock limits are
 // NOT owned here (2.11): the activity executor arms a durable timer and
 // cancels ctx with cause errs.ErrActivityTimeout; bash only reacts.
@@ -63,6 +73,11 @@ type Executor struct {
 	WS *workspace.Workspace
 	// Session tags spawned processes via SessionEnvVar (2.12).
 	Session string
+	// blobs is the media-read CAS (INC-33), injected via SetBlobs. Guarded:
+	// the executor is shared down the agent tree and every member injects the
+	// same tree-root store — first set wins, later sets are no-ops.
+	blobsMu sync.Mutex
+	blobs   BlobStore
 	// index is the lazily-built IndexStore for semantic_search (S7 模块 4):
 	// in-memory, derived, rebuilt per process — the executor is shared down
 	// the agent tree, so the whole tree shares one index per workspace.
@@ -85,6 +100,23 @@ func (e *Executor) ContainNetwork() { e.netNone.Store(true) }
 
 // NetworkContained reports whether bash egress is removed.
 func (e *Executor) NetworkContained() bool { return e.netNone.Load() }
+
+// SetBlobs injects the media-read CAS (INC-33). First set wins: the executor
+// is shared down the agent tree and every member injects the same tree-root
+// store, so later calls are no-ops rather than races.
+func (e *Executor) SetBlobs(b BlobStore) {
+	e.blobsMu.Lock()
+	defer e.blobsMu.Unlock()
+	if e.blobs == nil {
+		e.blobs = b
+	}
+}
+
+func (e *Executor) blobStore() BlobStore {
+	e.blobsMu.Lock()
+	defer e.blobsMu.Unlock()
+	return e.blobs
+}
 
 // Execute dispatches one tool call. Unknown tools and malformed args are
 // model-visible errors, not harness failures.
@@ -620,6 +652,34 @@ func (e *Executor) readFile(rawArgs json.RawMessage) Result {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return errResult("read_file: %v", err)
+	}
+
+	// Media reads (INC-33, #32): an image or PDF becomes a CAS ref envelope —
+	// the assembly layer attaches the actual bytes as an image/file part on
+	// the tool-result message, so the model SEES the media while the journal
+	// stays byte-free. Detection is content-based (sniff), so the default
+	// text path below is untouched for everything else.
+	if mt := http.DetectContentType(raw); strings.HasPrefix(mt, "image/") || mt == "application/pdf" {
+		kind := "image"
+		if mt == "application/pdf" {
+			kind = "file"
+		}
+		if len(raw) > mediaReadMaxBytes {
+			return errResult("read_file: %s is a %d-byte %s; media reads are capped at %d bytes",
+				args.Path, len(raw), mt, mediaReadMaxBytes)
+		}
+		bs := e.blobStore()
+		if bs == nil {
+			return errResult("read_file: %s is %s content, but this runtime has no blob store for media reads", args.Path, mt)
+		}
+		ref, err := bs.Put(raw)
+		if err != nil {
+			return errResult("read_file: store media: %v", err)
+		}
+		return okResult(map[string]any{
+			"kind": kind, "media_type": mt, "ref": ref, "bytes": len(raw),
+			"note": "media content is attached to the conversation as a part; describe or analyze it directly",
+		})
 	}
 
 	content := string(raw)

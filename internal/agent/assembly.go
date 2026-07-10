@@ -163,6 +163,13 @@ func assembleMessages(s state.State) []provider.Message {
 		elide := base+i < s.Compaction.MicroBoundary
 		toolMsg := provider.Message{Role: provider.RoleTool}
 		complete := true
+		// Media results (INC-33): a read_file image/PDF envelope grows a blob
+		// part so the model actually SEES the media. Collected separately and
+		// appended AFTER every tool_result part — Anthropic requires
+		// tool_result blocks to lead the message. An elided (microcompact)
+		// result is a placeholder and never matches, so old media drops out
+		// of the assembled view exactly like its result body.
+		var mediaParts []provider.Part
 		for _, c := range calls {
 			res, ok := s.Conversation.ToolResults[c.CallID]
 			if !ok {
@@ -180,7 +187,11 @@ func assembleMessages(s state.State) []provider.Message {
 				Result:   result,
 				IsError:  res.IsError,
 			})
+			if mp, ok := mediaResultPart(c.Name, result); ok {
+				mediaParts = append(mediaParts, mp)
+			}
 		}
+		toolMsg.Parts = append(toolMsg.Parts, mediaParts...)
 		if complete {
 			out = append(out, toolMsg)
 		}

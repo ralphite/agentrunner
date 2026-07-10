@@ -336,6 +336,13 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 	if err := l.ensureArtifacts(); err != nil {
 		return RunResult{}, err
 	}
+	// Media reads (INC-33): read_file stores image/PDF bytes through this
+	// seam (blob-before-event). The tree shares one root artifact store, so
+	// a shared executor gets the same store from every member (first set
+	// wins inside SetBlobs).
+	if l.Exec != nil && l.Artifacts != nil {
+		l.Exec.SetBlobs(l.Artifacts)
+	}
 	// The task is external input and may carry a shell-expanded credential;
 	// IngestInput appends via the store directly (not the appender), so it
 	// must be scrubbed here.

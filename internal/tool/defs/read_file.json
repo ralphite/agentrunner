@@ -1,12 +1,17 @@
 {
   "name": "read_file",
-  "description": "Read a file from the workspace. Returns the file content, truncated if very large.",
+  "description": "Read a file from the workspace. Returns the file content, truncated if very large. Images (png/jpeg/gif/webp) and PDFs are supported: their content is attached to the conversation so you can see and analyze it directly (capped at 5MB).",
   "class": "read",
   "input_schema": {
     "type": "object",
     "properties": {
-      "path": { "type": "string", "description": "File path relative to the workspace root." }
+      "path": {
+        "type": "string",
+        "description": "File path relative to the workspace root."
+      }
     },
-    "required": ["path"]
+    "required": [
+      "path"
+    ]
   }
 }

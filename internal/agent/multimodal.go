@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/ralphite/agentrunner/internal/provider"
@@ -51,4 +52,30 @@ func (l *Loop) inflateBlobs(msgs []provider.Message) error {
 		msgs[i].Parts = parts
 	}
 	return nil
+}
+
+// mediaResultPart maps a read_file media-envelope result (INC-33) to the blob
+// part it carries: {"kind":"image"|"file","media_type":…,"ref":…}. Gated on
+// BOTH the tool name and the shape — another tool's coincidental payload must
+// not grow a media part (a bogus ref would fail inflation and poison the
+// turn). A microcompact-elided result is a placeholder and never matches.
+func mediaResultPart(toolName string, result []byte) (provider.Part, bool) {
+	if toolName != "read_file" || len(result) == 0 {
+		return provider.Part{}, false
+	}
+	var env struct {
+		Kind      string `json:"kind"`
+		MediaType string `json:"media_type"`
+		Ref       string `json:"ref"`
+	}
+	if json.Unmarshal(result, &env) != nil || env.Ref == "" || env.MediaType == "" {
+		return provider.Part{}, false
+	}
+	switch env.Kind {
+	case "image":
+		return provider.Part{Kind: provider.PartImage, Ref: env.Ref, MediaType: env.MediaType}, true
+	case "file":
+		return provider.Part{Kind: provider.PartFile, Ref: env.Ref, MediaType: env.MediaType}, true
+	}
+	return provider.Part{}, false
 }
