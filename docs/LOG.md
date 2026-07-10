@@ -1758,3 +1758,22 @@ skill(name=greet)、tool_result 含正文不含 frontmatter、最终回复遵循
 
 **余项**：context:fork（skill 在一次性子 agent 执行 = spawn_agent 变体）
 拆为 SPRINT #7b（INC-20b），独立增量。
+
+## 2026-07-09 webui 截图 QA——功能面真实取证(用户请求)
+
+以真实用户方式驱动 webui 全核心功能面并留下截图/视频证据:playwright+
+系统 Chrome 驱动 `127.0.0.1:8806`(2ee780f 二进制,--no-daemon 连全局
+daemon,共享 store 不隔离),真 Gemini 跑 6 会话。覆盖:Home/composer
+六功能面(slash/Add/权限/persona 含 Team Lead/model)、chat→四工具卡→
+Diff 视图(git 工作区硬证据)、审批 approve+deny(文件系统硬证据:
+approval-proof.txt 写入且未被 rm)、Team Lead 一键组队(spawn_requested
+×2 携 role_spec、成员互发消息、hello.py 落盘运行正确,全程视频)、
+interrupt(sleep 真取消,NEVER-PRINTED 未出现)、图片输入(vision 三
+要素全对,journal ref-not-bytes)。24 截图+1 视频+journal/evidence/复现
+脚本归档 `qa/runs/2026-07-09-webui-screens/`,会话全保留。
+
+**真实使用反馈(记档,供 DESIGN"附件只在 send 路径"不对称的后续裁决)**:
+Home 开场附图走"new→立即补 send 附件"两步投递,实测开场 turn 在无图
+上下文先行探索(bash 乱跑 27+ 步),附件第二条输入到达后才答对(41 步
+收敛)。功能可用但体验劣于会话内附图(一步到位);统一(如 new 支持
+附件)属 CLI 契约扩展,应走增量流程。
