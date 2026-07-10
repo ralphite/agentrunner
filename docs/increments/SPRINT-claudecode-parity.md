@@ -62,7 +62,7 @@
 
 | # | 项 | 矩阵/GAPS 锚 | 规模 | 状态 | 备注 |
 |---|---|---|---|---|---|
-| 4 | 权限规则工程三件套：复合命令逐段匹配、wrapper 剥离（timeout/nice/xargs 等）、只读命令免提示集 | #53 | M | ⬜ | 权限疲劳主解；纯 rules 层 |
+| 4 | 权限规则工程三件套：复合命令逐段匹配、wrapper 剥离（timeout/nice/xargs 等）、只读命令免提示集 | #53 | M | 🔧 in-progress (INC-16) | 权限疲劳主解；纯 rules 层；安全敏感（拆分只更严） |
 | 5 | G5 审批"允许且不再问"（下次生效路径） | #58 · G5 · INC-D5 | M | ⬜ | INC-D5 已裁不触不变量路径 |
 | 6 | protected paths 写保护集（.git/.claude/rc 文件等） | #59 | S | ⬜ | 配 acceptEdits 才安全 |
 | 7 | skill 模型侧 invoke + context:fork（skill def 即 tool def；fork=spawn_agent 一次性变体） | #45 · §3.5 | M | ⬜ | 维持"命令=用户宏"裁决不动 |
