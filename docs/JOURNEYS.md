@@ -1,6 +1,6 @@
 # AgentRunner — Coding Agent User Journeys（详细版）
 
-以 Claude Code（终端/交互）与 Codex cloud（异步/云端）为标尺的 20 条
+以 Claude Code（终端/交互）与 Codex cloud（异步/云端）为标尺的 24 条
 user journey。每条 = 一句场景 + 编号步骤 + **覆盖功能**标签。文末 §5
 把全部功能标签汇总成一张"功能清单 × journey"索引——看一个功能被哪些
 journey 覆盖、以及哪些功能只有单一覆盖。缺口分析（对照 DESIGN）记在
@@ -309,6 +309,26 @@ GAPS.md，本文件只回答"产品要做什么"。
 
 **覆盖功能**：`动态角色 spawn(inline role)` `子提权用户审批(escalate)` `树内消息(send_message,兄弟直发)` `静止子唤醒(revive,context 延续)` `多次回执` `用户直达成员(ar send 子会话)` `子会话 live 镜像` `团队面板` `树级预算/审计`（底座复用 UJ-18 全部机制）
 
+### UJ-24 Web UI 驾驶 AgentRunner `基础` `✅ INC-19（2026-07-09）`
+
+**场景**：用户像使用 Codex 一样，从项目/任务层进入一个真实 AgentRunner
+会话，并在同一工作台完成派活、续聊、监督、审批与改动审阅。
+
+1. 左栏按 Projects → task 展示全部真实 session；Pinned 单列且不重复；
+   CLI 创建、metadata 不完整、父/子 session 都能直接打开和 deep link。
+2. New task 只出现一个 composer；默认只露输入、附件、access、model、
+   send，高级 Goal/Loop/Best-of-N/spec 启动器收在 Task options。
+3. 中央 thread 按 journal 投影 user/assistant/tool/program 事实；底部
+   follow-up 延续同一 session；Changes 固定承接 diff 审阅。
+4. 待审批 action 以内联卡片出现，先说清“做什么/影响哪里”；raw args/
+   gates 折入 Details。Approve once 与 Deny 分立，不暗示未实现的权限。
+5. 宽屏右侧 Supervision 集中 Goal / Agents / Attention / Background work；
+   agent 按 session 去重，点成员进入完整只读子会话；窄屏可收起。
+6. Web UI 重启后同一 deep link、共享 store 历史和本地 pin/archive/theme
+   设置仍在；UI 只是公开 CLI/journal/inspect/ps/diff 的 projection。
+
+**覆盖功能**：`Codex 式 project/task 信息架构` `单一 task thread` `渐进披露 composer` `内联人类可读审批` `Changes 审阅` `Supervision(goal/agent/attention/background)` `子会话导航` `deep link/restart` `共享真实 session` `Web UI 产品面`
+
 ---
 
 ## §5 功能清单 × Journey 覆盖索引
@@ -378,6 +398,7 @@ GAPS.md，本文件只回答"产品要做什么"。
 - 树内消息（send_message，父子/兄弟）— UJ-23
 - 静止子唤醒（revive，context 延续）— UJ-23
 - 用户直达成员（send 子会话）— UJ-23
+- Web UI Supervision / 子会话导航 — UJ-24
 
 **驱动形态**
 - goal（verifier/停滞/预算终态）— UJ-15
@@ -396,6 +417,7 @@ GAPS.md，本文件只回答"产品要做什么"。
 - 环境复用/重建（follow-up）— UJ-13
 - diff 审阅门 → PR — UJ-13
 - 用量审计 — UJ-13/17
+- Codex 式 Web UI / deep link / Changes — UJ-24
 
 **Git 与交付**
 - git 工作流 + PR 创建 — UJ-10/13

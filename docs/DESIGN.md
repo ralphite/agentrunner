@@ -1051,6 +1051,28 @@ limits:
   （留标记、自动恢复不得越过）三者语义分立。drive 系列亦可 stop。
 - 协议预留（尚未实现）：slash command 调用（GAPS G21）。
 
+### Web UI 产品 surface（INC-19）
+
+- `webui/` 是正式本机产品面，但仍是**薄 projection**：只通过公开 `ar`
+  CLI/daemon contract 读取 journal、`inspect`、`ps` 与 workspace diff，绝不
+  复制 session 状态机或建立第二套运行真相。
+- `ar sessions list --json` 从 `SessionStarted` / `DriverStarted` journal
+  事实给出 `workspace` 与开场 `title`。Web UI metadata 只缓存已知值以兼容
+  旧 session/首屏，不得覆盖 journal 状态，也不得成为 Diff、附件或 project
+  grouping 的唯一来源。
+- 通用信息架构严格采用 Codex：左侧 New task / Scheduled / Pinned /
+  Projects→task，中间单一 thread，固定 Changes 审阅入口，底部 follow-up
+  composer。AgentRunner 独有 Goal / agent tree / attention / background
+  handles 仅作为同一视觉语言下可收起的 Supervision 次级面板。
+- approval 仍通过 durable `approve` command；卡片默认只投影动作、对象与
+  scope，raw args/gates 折入 Details。UI 只提供当前已实现的 Approve once /
+  Deny，不用文案暗示本次会改变冻结 permission layers。
+- project grouping 以 workspace 为键；未知 workspace 进 `Other sessions`，
+  不隐藏 session。成员按 child session id 去重，点入成员只读 timeline；
+  不把 inspect 中的 revive/重复回执误画成多个 agent。
+- pin/archive/rename/theme/sidebar/unread 等现有 localStorage key 原样保留；
+  UI 重构不迁移或删除用户本地偏好、session、workspace 与 QA 数据。
+
 ### 运行形态与 background
 
 - core 是库。CLI、headless 单发、server（HTTP/WS 暴露同一协议，

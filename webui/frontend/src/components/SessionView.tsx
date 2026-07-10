@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, Check, DotsThree, Files, Folder, Stop, UsersThree } from "@phosphor-icons/react";
 import { AR } from "../api";
 import { useStore } from "../store";
 import type { Envelope, Task } from "../types";
@@ -8,7 +9,8 @@ import { ApprovalCard } from "./ApprovalCard";
 import { Composer } from "./Composer";
 import { DiffView } from "./DiffView";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
-import { Subagents, type InspectNode } from "./Subagents";
+import type { InspectNode } from "./Subagents";
+import { SupervisionPanel } from "./SupervisionPanel";
 import { FindBar } from "./FindBar";
 import { friendlyStatus } from "./pill";
 import { displayTitle } from "../title";
@@ -48,6 +50,7 @@ export function SessionView({ sid }: { sid: string }) {
   const [goalEdit, setGoalEdit] = useState<string | null>(null);
   const [view, setView] = useState<"chat" | "diff">("chat");
   const [findOpen, setFindOpen] = useState(false);
+  const [supervisionOpen, setSupervisionOpen] = useState(true);
 
   const cursor = useRef(0);
   const pollBusy = useRef(false);
@@ -243,18 +246,6 @@ export function SessionView({ sid }: { sid: string }) {
     setResolvedLocal((s) => new Set(s).add(id));
   };
 
-  // Approve/deny every pending request at once — drivers and parallel tool
-  // calls can queue several, and clicking each is slow.
-  const decideAll = async (decision: "approve" | "deny") => {
-    for (const a of openApprovals) {
-      try {
-        await decideApproval(a.id, decision, "", a.session || sid);
-      } catch (e: any) {
-        toast(e.message);
-      }
-    }
-  };
-
   // ⌘↵ approves the top pending request, ⌘⌫ denies it (Codex's Approve request).
   // A ref keeps the latest first-id / handler without rebinding each render.
   const apprKb = useRef<{ first: { id: string; session?: string } | null; decide: typeof decideApproval }>({
@@ -342,56 +333,38 @@ export function SessionView({ sid }: { sid: string }) {
   };
 
   const running = status.cls === "run";
-  const showSpin = status.cls === "run";
 
   return (
-    <>
-      <div className="task-topbar">
-        <div className="tt-left">
-          {isSub && (
-            <a className="tt-back" onClick={() => select(sid.slice(0, sid.lastIndexOf("-sub-")))}>
-              ←
-            </a>
-          )}
-          <div className="tt-title" title={sid}>
-            {title}
-          </div>
-          <span className={"status-chip " + status.cls}>
-            {showSpin && <span className="spin" />}
-            {status.text}
-          </span>
-          {usage && usage.billed > 0 && (
-            <button
-              className="usage-badge"
-              title="context usage — billed tokens; click for the inspect tree (sub-agents, per-node usage)"
-              onClick={() => act.view("inspect tree", () => AR.inspect(sid))}
-            >
-              ⛁ {fmtTokens(usage.billed)}
-              {usage.steps ? ` · ${usage.steps} steps` : ""}
-            </button>
-          )}
-          {isSub && <span className="readonly-tag" title="a sub-agent session — watch it here; only its parent can drive it">read-only sub-task</span>}
-        </div>
-
-        <div className="seg tabs">
-          <button className={view === "chat" ? "on" : ""} onClick={() => setView("chat")} title="the conversation timeline, rendered from the journal">
-            Activity
-          </button>
-          <button className={view === "diff" ? "on" : ""} onClick={() => setView("diff")} title="git diff of the session's workspace (changed + untracked files)">
-            Diff
-          </button>
-        </div>
-
-        <span className="spacer" />
-
-        {!isSub && running && (
-          <button className="stop-btn" onClick={act.interrupt} title="interrupt: cancel the in-flight turn so you can redirect the agent">
-            ■ Stop
+    <div className="session-view">
+      <header className="task-topbar">
+        {isSub && (
+          <button className="topbar-icon" onClick={() => select(sid.slice(0, sid.lastIndexOf("-sub-")))} title="Back to parent task">
+            <ArrowLeft size={16} />
           </button>
         )}
-
-        <Menu label="⋯">
+        <div className="tt-left">
+          <Folder size={17} />
+          <div className="tt-title" title={sid}>{title}</div>
+          {isSub && <span className="readonly-tag">Read-only subtask</span>}
+        </div>
+        <span className="spacer" />
+        {!isSub && running && (
+          <button className="topbar-tool stop" onClick={act.interrupt} title="Stop the active turn">
+            <Stop size={14} weight="fill" /> Stop
+          </button>
+        )}
+        <button className={`topbar-tool${view === "diff" ? " active" : ""}`} onClick={() => setView(view === "diff" ? "chat" : "diff")} title="Review workspace changes">
+          <Files size={16} /> Changes
+        </button>
+        <button className={`topbar-tool${supervisionOpen ? " active" : ""}`} onClick={() => setSupervisionOpen((open) => !open)} title="Show supervision">
+          <UsersThree size={16} /> Supervision
+          {openApprovals.length > 0 && <span className="topbar-attention">{openApprovals.length}</span>}
+        </button>
+        <Menu label={<DotsThree size={18} weight="bold" />} ariaLabel="More task actions">
           <MenuLabel>View</MenuLabel>
+          <MenuItem onClick={() => setView("chat")}>Conversation</MenuItem>
+          <MenuItem onClick={() => setView("diff")}>Changes</MenuItem>
+          <MenuItem onClick={() => setSupervisionOpen((open) => !open)}>{supervisionOpen ? "Hide" : "Show"} supervision</MenuItem>
           <MenuItem
             title="the append-only event log (ar events --json) — the source of truth this timeline is rendered from"
             onClick={() => act.view("raw journal", () => AR.rawEvents(sid))}
@@ -414,7 +387,7 @@ export function SessionView({ sid }: { sid: string }) {
             title="also show low-level system events (mode changes, effects, barriers…) inline in the timeline"
             onClick={toggleSys}
           >
-            {showSys ? "✓ " : ""}Show system events
+            {showSys && <Check size={14} />}Show system events
           </MenuItem>
           {!isSub && (
             <>
@@ -485,157 +458,83 @@ export function SessionView({ sid }: { sid: string }) {
             {archived.includes(sid) ? "Unarchive task" : "Archive task"}
           </MenuItem>
         </Menu>
-      </div>
+      </header>
 
       {view === "chat" && findOpen && (
         <FindBar scope={() => document.querySelector<HTMLElement>(".timeline")} onClose={() => setFindOpen(false)} />
       )}
-
-      {view === "diff" ? (
-        <DiffView sid={sid} />
-      ) : (
-        <TimelineView items={folded.items} pending={pending} typing={typing} showSys={showSys} sentImages={sentImages.current} />
-      )}
-
-      {view === "chat" && openApprovals.length > 0 && (
-        <div className="approvals">
-          <div className="approvals-title">
-            <span>The agent needs your approval</span>
-            {!isSub && (
-              <span className="ap-bulk">
-                {openApprovals.length > 1 && (
-                  <>
-                    <button className="primary sm" onClick={() => decideAll("approve")}>
-                      Approve all {openApprovals.length}
-                    </button>
-                    <button className="danger sm" onClick={() => decideAll("deny")}>
-                      Deny all
-                    </button>
-                  </>
+      <div className={`session-layout${supervisionOpen ? "" : " single"}`}>
+        <main className="session-primary">
+          {view === "diff" ? (
+            <DiffView sid={sid} />
+          ) : (
+            <>
+              <TimelineView
+                items={folded.items}
+                pending={pending}
+                typing={typing}
+                showSys={showSys}
+                sentImages={sentImages.current}
+                statusLine={(
+                  <div className={`run-status-line ${status.cls}`}>
+                    {running && <span className="spin" />}
+                    <span>{running ? "Working" : status.text}</span>
+                    {usage && usage.billed > 0 && <span>{fmtTokens(usage.billed)} tokens{usage.steps ? ` · ${usage.steps} generation steps` : ""}</span>}
+                  </div>
                 )}
-                <span className="ap-hint mono">⌘↵ approve · ⌘⌫ deny</span>
-              </span>
-            )}
-          </div>
-          {openApprovals.map((a) => (
-            <ApprovalCard
-              key={a.id}
-              approval={a}
-              readonly={isSub}
-              onDecide={(id, decision, reason) => decideApproval(id, decision, reason, a.session || sid)}
-              onError={(m) => toast(m)}
-            />
-          ))}
-        </div>
-      )}
-
-      {view === "chat" && children.length > 0 && (
-        <div className="workpanel subagents-panel">
-          <Subagents nodes={children} onOpen={(s) => select(s)} />
-        </div>
-      )}
-
-      {view === "chat" && tasks.length > 0 && (
-        <div className="workpanel">
-          <h4>In-flight background work · {tasks.length}</h4>
-          {tasks.map((t) => (
-            <div className="task-row" key={t.handle}>
-              <span className="grow">
-                {t.tool} · {t.detail || t.handle}
-              </span>
-              {!isSub && (
-                <button className="sm danger" onClick={() => act.kill(t.handle)} title="cancel this background handle (ar kill) — the session itself keeps running">
-                  kill
-                </button>
+                approvalSlot={openApprovals.length > 0 ? (
+                  <div className="approval-stack">
+                    {openApprovals.map((approval) => (
+                      <ApprovalCard
+                        key={approval.id}
+                        approval={approval}
+                        readonly={isSub}
+                        onDecide={(id, decision, reason) => decideApproval(id, decision, reason, approval.session || sid)}
+                        onError={(message) => toast(message)}
+                      />
+                    ))}
+                  </div>
+                ) : undefined}
+              />
+              {isDriver && <div className="driver-note">This scheduled run manages its own iterations and does not accept follow-up messages.</div>}
+              {!isSub && !isDriver && (
+                <Composer
+                  variant="session"
+                  sid={sid}
+                  workspace={sessions.find((session) => session.id === sid)?.workspace}
+                  running={running}
+                  onSend={doSend}
+                  onError={(message) => toast(message)}
+                  actions={{
+                    interrupt: act.interrupt,
+                    showDiff: () => setView("diff"),
+                    fork: () => openModal({ kind: "fork", sid }),
+                    switchAgentAdvanced: () => openModal({ kind: "agent", sid }),
+                    resume: act.resume,
+                  }}
+                />
               )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {view === "chat" && isDriver && (
-        <div className="composer">
-          <div className="composer-inner dim" style={{ fontSize: 12, padding: "4px 2px" }}>
-            This is an iteration driver (drive) — it runs its own loop and does not accept messages.
-          </div>
-        </div>
-      )}
-
-      {view === "chat" && !isSub && goal && (
-        <div className={"goal-banner" + (goal.paused ? " paused" : "")}>
-          <span className="gb-ico">🎯</span>
-          {goalEdit === null ? (
-            <span className="gb-text">
-              <b>Goal</b> · {goal.goal}
-            </span>
-          ) : (
-            <input
-              className="gb-edit"
-              value={goalEdit}
-              autoFocus
-              onChange={(e) => setGoalEdit(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") saveGoalEdit();
-                if (e.key === "Escape") setGoalEdit(null);
-              }}
-            />
-          )}
-          <span className="gb-meta">
-            {goal.checks}
-            {goal.max_checks ? `/${goal.max_checks}` : ""} checks
-            {goal.verifiers === 0 ? " · self-certified" : ""}
-            {goal.claimed ? " · claim pending" : ""}
-            {goal.paused ? " · paused" : ""}
-          </span>
-          <span className="spacer" />
-          {goalEdit !== null ? (
-            <>
-              <button className="sm" onClick={saveGoalEdit}>
-                save
-              </button>
-              <button className="sm" onClick={() => setGoalEdit(null)}>
-                discard
-              </button>
-            </>
-          ) : (
-            <>
-              <button className="sm" title="Edit the goal text (verifier and budget keep)" onClick={() => setGoalEdit(goal.goal)}>
-                edit
-              </button>
-              {goal.paused ? (
-                <button className="sm" onClick={() => AR.goal(sid, { action: "resume" }).then(() => pollTasks()).catch((e) => toast(e.message))}>
-                  resume
-                </button>
-              ) : (
-                <button className="sm" onClick={() => AR.goal(sid, { action: "pause" }).then(() => pollTasks()).catch((e) => toast(e.message))}>
-                  pause
-                </button>
-              )}
-              <button className="sm danger" onClick={() => AR.goal(sid, { action: "cancel" }).then(() => pollTasks()).catch((e) => toast(e.message))}>
-                cancel
-              </button>
             </>
           )}
-        </div>
-      )}
-
-      {view === "chat" && !isSub && !isDriver && (
-        <Composer
-          variant="session"
-          sid={sid}
-          workspace={sessions.find((s) => s.id === sid)?.workspace}
-          running={running}
-          onSend={doSend}
-          onError={(m) => toast(m)}
-          actions={{
-            interrupt: act.interrupt,
-            showDiff: () => setView("diff"),
-            fork: () => openModal({ kind: "fork", sid }),
-            switchAgentAdvanced: () => openModal({ kind: "agent", sid }),
-            resume: act.resume,
-          }}
-        />
-      )}
-    </>
+        </main>
+        {supervisionOpen && (
+          <SupervisionPanel
+            goal={goal}
+            goalEdit={goalEdit}
+            children={children}
+            tasks={tasks}
+            approvals={openApprovals.length}
+            onGoalEdit={setGoalEdit}
+            onGoalSave={saveGoalEdit}
+            onGoalDiscard={() => setGoalEdit(null)}
+            onGoalAction={(action) => AR.goal(sid, { action }).then(() => pollTasks()).catch((error) => toast(error.message))}
+            onOpenChild={(childSid) => select(childSid)}
+            onKillTask={act.kill}
+            onInspect={() => act.view("inspect tree", () => AR.inspect(sid))}
+            onClose={() => setSupervisionOpen(false)}
+          />
+        )}
+      </div>
+    </div>
   );
 }

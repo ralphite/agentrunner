@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 // Menu is a small click-to-open dropdown used to tuck the low-level /
 // developer actions (journal, inspect, fork, resume…) out of the primary UX,
 // the way Codex keeps a clean task surface and hides plumbing.
-export function Menu({ label, children }: { label: string; children: React.ReactNode }) {
+export function Menu({ label, children, ariaLabel }: { label: React.ReactNode; children: React.ReactNode; ariaLabel?: string }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -16,7 +16,7 @@ export function Menu({ label, children }: { label: string; children: React.React
   }, [open]);
   return (
     <div className="menu" ref={ref}>
-      <button className="menu-trigger" onClick={() => setOpen((v) => !v)}>
+      <button className="menu-trigger" onClick={() => setOpen((v) => !v)} aria-label={ariaLabel}>
         {label}
       </button>
       {open && (

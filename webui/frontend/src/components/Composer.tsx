@@ -1,4 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ArrowClockwise,
+  ArrowUp,
+  CaretDown,
+  ChartBar,
+  Code,
+  Cpu,
+  Desktop,
+  File,
+  Folder,
+  GitBranch,
+  Image,
+  Lightning,
+  ListChecks,
+  Microphone,
+  Plus,
+  SlidersHorizontal,
+  Sparkle,
+  Target,
+  UserCircle,
+  X,
+} from "@phosphor-icons/react";
 import { AR, uploadURL } from "../api";
 import { useStore } from "../store";
 import {
@@ -662,9 +684,9 @@ export function Composer(props: ComposerProps) {
   };
 
   const placeholder = isSession
-    ? "Reply, or type / for commands…"
+    ? "Ask for follow-up changes"
     : kind === "chat"
-      ? "Describe a task, or ask a question…  (/ for commands)"
+      ? "Describe a task or ask a question"
       : "Describe a one-shot background task…";
 
   const wsShort = ws ? ws.split("/").filter(Boolean).slice(-1)[0] : "auto-created";
@@ -702,10 +724,10 @@ export function Composer(props: ComposerProps) {
                 {a.isImage ? (
                   <img className="cx-att-thumb" src={uploadURL(a.path)} alt={a.name} />
                 ) : (
-                  <span className="cx-att-ico">📄</span>
+                  <span className="cx-att-ico"><File size={14} /></span>
                 )}
                 {a.name}
-                <span className="cx-att-x">✕</span>
+                <span className="cx-att-x"><X size={12} /></span>
               </span>
             ))}
           </div>
@@ -778,17 +800,37 @@ export function Composer(props: ComposerProps) {
             {(close) => (
               <div className="cx-menu">
                 <PopSection label="Add">
-                  <PopItem icon={<span>🖼</span>} title="Image" desc="Paste, drop, or pick an image" onClick={() => { close(); imgRef.current?.click(); }} />
-                  <PopItem icon={<span>📄</span>} title="File" desc="PDF, text, or any file (≤10MB)" onClick={() => { close(); anyRef.current?.click(); }} />
+                  <PopItem icon={<Image size={16} />} title="Image" desc="Paste, drop, or pick an image" onClick={() => { close(); imgRef.current?.click(); }} />
+                  <PopItem icon={<File size={16} />} title="File" desc="PDF, text, or any file (≤10MB)" onClick={() => { close(); anyRef.current?.click(); }} />
                 </PopSection>
+              </div>
+            )}
+          </Popover>
+
+          {/* AgentRunner-specific launchers live behind one quiet secondary control. */}
+          <Popover
+            align="left"
+            trigger={(open, toggle) => (
+              <button className={"cx-icon" + (open ? " active" : "")} onClick={toggle} title="Task options">
+                <SlidersHorizontal size={16} />
+              </button>
+            )}
+          >
+            {(close) => (
+              <div className="cx-menu wide">
                 <PopSection label="Run as">
-                  <PopItem icon={<GoalIcon />} title="Goal" desc="Iterate until the goal is met" onClick={() => { close(); setLauncher({ mode: "goal", task: text.trim() }); }} />
+                  <PopItem icon={<GoalIcon />} title="Goal" desc="Keep working until the goal is met" onClick={() => { close(); setLauncher({ mode: "goal", task: text.trim() }); }} />
                   <PopItem icon={<LoopIcon />} title="Loop" desc="Repeat on a fixed cadence" onClick={() => { close(); setLauncher({ mode: "loop", task: text.trim() }); }} />
-                  <PopItem icon={<BestIcon />} title="Best of N" desc="N isolated attempts, keep the best" onClick={() => { close(); setLauncher({ mode: "best", task: text.trim() }); }} />
+                  <PopItem icon={<BestIcon />} title="Best of N" desc="Run isolated attempts and keep the best" onClick={() => { close(); setLauncher({ mode: "best", task: text.trim() }); }} />
                   {!isSession && <PopItem icon={<PlanIcon />} title="Plan mode" desc="Read-only planning" active={access === "plan"} onClick={() => { close(); setAccess("plan"); }} />}
                 </PopSection>
+                <PopSection label="Agent">
+                  {PERSONAS.map((item) => (
+                    <PopItem key={item.id} icon={<PersonaIcon />} title={item.label} desc={item.desc} active={persona === item.id} onClick={() => { choosePersona(item.id); close(); }} />
+                  ))}
+                </PopSection>
                 <PopSection label="Advanced">
-                  <PopItem icon={<span>{"{}"}</span>} title="Edit agent spec (YAML)…" onClick={() => { close(); openModal(isSession ? { kind: "agent", sid: (props as any).sid } : { kind: "new", message: text }); }} />
+                  <PopItem icon={<Code size={16} />} title="Edit agent spec (YAML)…" onClick={() => { close(); openModal(isSession ? { kind: "agent", sid: (props as any).sid } : { kind: "new", message: text }); }} />
                 </PopSection>
               </div>
             )}
@@ -838,42 +880,6 @@ export function Composer(props: ComposerProps) {
             </Popover>
           )}
 
-          {/* agent persona pill */}
-          <Popover
-            align="left"
-            trigger={(open, toggle) => (
-              <button className={"cx-pill cx-persona" + (open ? " active" : "")} onClick={toggle} title="Agent template — mid-session switches take effect on your next message (spec_changed)">
-                <PersonaIcon />
-                {personaById(persona).label}
-                <Caret />
-              </button>
-            )}
-          >
-            {(close) => (
-              <div className="cx-menu wide">
-                <PopSection label="Agent">
-                  {PERSONAS.map((p) => (
-                    <PopItem
-                      key={p.id}
-                      icon={<PersonaIcon />}
-                      title={p.label}
-                      desc={p.desc}
-                      active={persona === p.id}
-                      onClick={() => { choosePersona(p.id); close(); }}
-                    />
-                  ))}
-                </PopSection>
-                <PopSection>
-                  <PopItem
-                    icon={<span>{"{}"}</span>}
-                    title="Custom spec (YAML)…"
-                    onClick={() => { close(); openModal(isSession ? { kind: "agent", sid: (props as any).sid } : { kind: "new", message: text }); }}
-                  />
-                </PopSection>
-              </div>
-            )}
-          </Popover>
-
           <span className="cx-spacer" />
 
           {/* model pill — shows "<model> · <effort>" like Codex's "5.6 Sol Extra High" */}
@@ -902,7 +908,7 @@ export function Composer(props: ComposerProps) {
                     />
                   ))}
                   <PopItem
-                    icon={<span>✎</span>}
+                    icon={<Code size={15} />}
                     title="Custom model id…"
                     onClick={() => {
                       close();
@@ -944,15 +950,18 @@ export function Composer(props: ComposerProps) {
           </button>
         </div>
 
-        {/* ---- context bar (home only) ---- */}
+        {/* One Codex-style environment control keeps setup available without
+            making users understand workspace, mode, and branch up front. */}
         {!isSession && (
           <div className="cx-ctx">
             <Popover
               align="left"
+              onOpen={() => ws.trim() && AR.gitBranches(ws.trim()).then(setBranchInfo).catch(() => {})}
               trigger={(open, toggle) => (
-                <button className={"cx-ctx-pill" + (open ? " active" : "")} onClick={toggle} title="Workspace">
+                <button className={"cx-ctx-pill environment" + (open ? " active" : "")} onClick={toggle} title="Environment">
                   <FolderIcon />
                   {wsShort}
+                  <span className="cx-env-meta">{kind === "chat" ? "Interactive" : "Background"}{branchInfo?.isRepo ? ` · ${branchInfo.current}` : ""}</span>
                   <Caret />
                 </button>
               )}
@@ -960,74 +969,35 @@ export function Composer(props: ComposerProps) {
               {(close) => (
                 <div className="cx-menu wide">
                   <PopSection label="Workspace">
-                    <PopItem icon={<span>✨</span>} title="New empty workspace" desc="A fresh directory under runtime/" onClick={async () => { try { setWs((await AR.makeWorkspace()).path); } catch (e: any) { props.onError(e.message); } close(); }} />
-                    <PopItem icon={<FolderIcon />} title="Enter a path…" desc="An absolute directory to work in" onClick={() => { close(); openPrompt({ title: "Workspace path", label: "absolute directory to work in", initial: ws, placeholder: "/path/to/workspace", onSubmit: (p) => setWs(p) }); }} />
+                    <PopItem icon={<Sparkle size={15} />} title="New empty workspace" desc="A fresh directory under runtime/" onClick={async () => { try { setWs((await AR.makeWorkspace()).path); } catch (e: any) { props.onError(e.message); } close(); }} />
+                    <PopItem icon={<FolderIcon />} title="Enter a path…" desc="An absolute directory to work in" onClick={() => { close(); openPrompt({ title: "Workspace path", label: "absolute directory to work in", initial: ws, placeholder: "/path/to/workspace", onSubmit: (path) => setWs(path) }); }} />
                   </PopSection>
-                  {ws && (
-                    <div className="cx-ctx-path" title={ws}>
-                      {ws}
-                    </div>
-                  )}
-                </div>
-              )}
-            </Popover>
-
-            <Popover
-              align="left"
-              trigger={(open, toggle) => (
-                <button className={"cx-ctx-pill" + (open ? " active" : "")} onClick={toggle} title="Start mode">
-                  <StartIcon />
-                  {kind === "chat" ? "Interactive" : "Background"}
-                  <Caret />
-                </button>
-              )}
-            >
-              {(close) => (
-                <div className="cx-menu wide">
+                  {ws && <div className="cx-ctx-path" title={ws}>{ws}</div>}
                   <PopSection label="Start in">
                     <PopItem icon={<StartIcon />} title="Interactive session" desc="Chat back and forth with the agent" active={kind === "chat"} onClick={() => { setKind("chat"); close(); }} />
-                    <PopItem icon={<span>⚡</span>} title="Background task" desc="One-shot: runs to completion on its own" active={kind === "background"} onClick={() => { setKind("background"); close(); }} />
+                    <PopItem icon={<Lightning size={15} />} title="Background task" desc="One-shot: runs to completion on its own" active={kind === "background"} onClick={() => { setKind("background"); close(); }} />
                   </PopSection>
-                </div>
-              )}
-            </Popover>
-
-            {branchInfo?.isRepo && (
-              <Popover
-                align="left"
-                onOpen={() => ws.trim() && AR.gitBranches(ws.trim()).then(setBranchInfo).catch(() => {})}
-                trigger={(open, toggle) => (
-                  <button className={"cx-ctx-pill" + (open ? " active" : "")} onClick={toggle} title="Git branch">
-                    <BranchIcon />
-                    {branchInfo.current || "branch"}
-                    <Caret />
-                  </button>
-                )}
-              >
-                {(close) => (
-                  <div className="cx-menu wide">
-                    <PopSection label={`Branches${branchInfo.dirty ? ` · ${branchInfo.dirty} uncommitted` : ""}`}>
-                      {branchInfo.branches.map((b) => (
+                  {branchInfo?.isRepo && (
+                    <PopSection label={`Branch${branchInfo.dirty ? ` · ${branchInfo.dirty} uncommitted` : ""}`}>
+                      {branchInfo.branches.map((branch) => (
                         <PopItem
-                          key={b}
+                          key={branch}
                           icon={<BranchIcon />}
-                          title={b}
-                          active={b === branchInfo.current}
+                          title={branch}
+                          active={branch === branchInfo.current}
                           onClick={async () => {
                             close();
-                            if (b === branchInfo.current) return;
+                            if (branch === branchInfo.current) return;
                             try {
-                              await AR.gitCheckout(ws.trim(), b, false);
-                              setBranchInfo({ ...branchInfo, current: b });
-                              toast(`Switched to ${b}`, "info");
-                            } catch (e: any) {
-                              props.onError(e.message);
+                              await AR.gitCheckout(ws.trim(), branch, false);
+                              setBranchInfo({ ...branchInfo, current: branch });
+                              toast(`Switched to ${branch}`, "info");
+                            } catch (error: any) {
+                              props.onError(error.message);
                             }
                           }}
                         />
                       ))}
-                    </PopSection>
-                    <PopSection>
                       <PopItem
                         icon={<PlusIcon />}
                         title="Create & checkout new branch…"
@@ -1036,23 +1006,23 @@ export function Composer(props: ComposerProps) {
                           openPrompt({
                             title: "New branch",
                             label: "branch name",
-                            onSubmit: async (b) => {
+                            onSubmit: async (branch) => {
                               try {
-                                await AR.gitCheckout(ws.trim(), b, true);
-                                setBranchInfo({ ...branchInfo, current: b, branches: [b, ...branchInfo.branches] });
-                                toast(`Created & switched to ${b}`, "info");
-                              } catch (e: any) {
-                                props.onError(e.message);
+                                await AR.gitCheckout(ws.trim(), branch, true);
+                                setBranchInfo({ ...branchInfo, current: branch, branches: [branch, ...branchInfo.branches] });
+                                toast(`Created & switched to ${branch}`, "info");
+                              } catch (error: any) {
+                                props.onError(error.message);
                               }
                             },
                           });
                         }}
                       />
                     </PopSection>
-                  </div>
-                )}
-              </Popover>
-            )}
+                  )}
+                </div>
+              )}
+            </Popover>
           </div>
         )}
       </div>
@@ -1095,7 +1065,7 @@ function GoalLoopLauncher({
         <b>{meta.label}</b>
         <span className="dim">{meta.hint}</span>
         <span className="cx-spacer" />
-        <button className="ghost sm" onClick={onCancel}>✕</button>
+        <button className="ghost sm" onClick={onCancel} aria-label="Close launcher"><X size={13} /></button>
       </div>
       <textarea className="cx-launcher-task" rows={2} placeholder={mode === "goal" ? "What goal should the agent keep working toward?" : mode === "loop" ? "What should each iteration do?" : "What should each attempt try to do?"} value={task} onChange={(e) => setTask(e.target.value)} />
       <div className="cx-launcher-row">
@@ -1144,66 +1114,17 @@ function accessByMode(mode?: string) {
   return undefined;
 }
 
-// ---- inline icons (stroke, currentColor) ----
-const Caret = () => (
-  <svg className="cx-caret" width="10" height="10" viewBox="0 0 10 10"><path d="M2 4l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
-);
-const PlusIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
-);
-const ArrowUp = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 13V3M4 7l4-4 4 4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>
-);
-const MicIcon = () => (
-  <svg width="15" height="15" viewBox="0 0 16 16"><rect x="6" y="2" width="4" height="7" rx="2" fill="none" stroke="currentColor" strokeWidth="1.3" /><path d="M4 8a4 4 0 0 0 8 0M8 12v2" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg>
-);
-const ModelIcon = () => (
-  <svg width="13" height="13" viewBox="0 0 16 16"><path d="M8 2l5 3v6l-5 3-5-3V5z" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" /></svg>
-);
-const FolderIcon = () => (
-  <svg width="13" height="13" viewBox="0 0 16 16"><path d="M2 4h4l1.2 1.5H14V12H2z" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" /></svg>
-);
-const BranchIcon = () => (
-  <svg width="13" height="13" viewBox="0 0 16 16"><circle cx="4" cy="4" r="1.6" fill="none" stroke="currentColor" strokeWidth="1.2" /><circle cx="4" cy="12" r="1.6" fill="none" stroke="currentColor" strokeWidth="1.2" /><circle cx="12" cy="5" r="1.6" fill="none" stroke="currentColor" strokeWidth="1.2" /><path d="M4 5.6v4.8M4 8h4a4 4 0 0 0 4-1.4" fill="none" stroke="currentColor" strokeWidth="1.2" /></svg>
-);
-const StartIcon = () => (
-  <svg width="13" height="13" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="9" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" /><path d="M6 14h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg>
-);
-const GoalIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" strokeWidth="1.2" /><circle cx="8" cy="8" r="2.4" fill="none" stroke="currentColor" strokeWidth="1.2" /></svg>
-);
-const LoopIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 16 16"><path d="M3 8a5 5 0 0 1 8.5-3.5M13 8a5 5 0 0 1-8.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /><path d="M11 2v3H8M5 14v-3h3" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-);
-const PlanIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 16 16"><path d="M4 4h8M4 8h8M4 12h5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg>
-);
-// EffortIcon: a signal-bars glyph whose filled count grows with the level, so
-// the reasoning-effort menu reads at a glance (off → 0 bars … xhigh → 4 bars).
-const EffortIcon = ({ level }: { level: EffortId }) => {
-  const filled = { off: 0, light: 1, medium: 2, high: 3, xhigh: 4 }[level] ?? 0;
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16">
-      {[0, 1, 2, 3].map((i) => (
-        <rect
-          key={i}
-          x={2 + i * 3.4}
-          y={11 - i * 2.6}
-          width="2.2"
-          height={3 + i * 2.6}
-          rx="0.6"
-          fill={i < filled ? "currentColor" : "none"}
-          stroke="currentColor"
-          strokeWidth="1"
-          opacity={i < filled ? 1 : 0.35}
-        />
-      ))}
-    </svg>
-  );
-};
-const BestIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 16 16"><path d="M3 3v6M8 3v10M13 3v4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /><path d="M6.5 11.5L8 13l1.5-1.5" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
-);
-const PersonaIcon = () => (
-  <svg width="13" height="13" viewBox="0 0 16 16"><circle cx="8" cy="5.5" r="2.6" fill="none" stroke="currentColor" strokeWidth="1.2" /><path d="M3 13.5a5 5 0 0 1 10 0" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg>
-);
+// Phosphor's regular weight is the closest match to Codex's quiet line icons.
+const Caret = () => <CaretDown className="cx-caret" size={10} />;
+const PlusIcon = () => <Plus size={16} />;
+const MicIcon = () => <Microphone size={15} />;
+const ModelIcon = () => <Cpu size={13} />;
+const FolderIcon = () => <Folder size={13} />;
+const BranchIcon = () => <GitBranch size={13} />;
+const StartIcon = () => <Desktop size={13} />;
+const GoalIcon = () => <Target size={14} />;
+const LoopIcon = () => <ArrowClockwise size={14} />;
+const PlanIcon = () => <ListChecks size={14} />;
+const EffortIcon = ({ level }: { level: EffortId }) => <ChartBar size={14} weight={level === "off" ? "regular" : "fill"} />;
+const BestIcon = () => <ChartBar size={14} />;
+const PersonaIcon = () => <UserCircle size={13} />;

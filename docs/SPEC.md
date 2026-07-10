@@ -156,6 +156,11 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | 远程审批（daemon approve） | ✅ | UJ-17 | S6 |
 | notifier（生命周期通知、跨重启去重） | ✅ | UJ-14 | S6 |
 | 远程 stop command | ✅ | UJ-17 | INC-4 · TestStop*（daemon 孪生）· 手验（真 daemon：stop 拆 run、无标记、send 复活）；drive 系列亦可 stop（handleDrive 加 per-run cancel） |
+| Web UI 产品面：Codex 式 New task/Scheduled/Pinned/Projects→task、单一 thread、Changes、deep link | ✅ | UJ-24 | INC-19 · frontend view-model tests · QA-27 |
+| journal-backed session metadata（`sessions list --json` 输出 workspace/title，Web UI cache 非真相源） | ✅ | UJ-24 | INC-19 · TestCLIResumeAfterCrash JSON 断言 · TestMetaStoreMerge* |
+| Web UI 内联审批（人类摘要、Details 折叠、Approve once/Deny） | ✅ | UJ-08/17/24 | INC-19 · approval presentation tests · QA-27 真实 waiting:approval（不代用户决策） |
+| Web UI Supervision（goal/agent tree 去重/attention/background，成员只读导航） | ✅ | UJ-18/22/23/24 | INC-19 · dedupeInspectNodes test · QA-27 真实父/子 session |
+| Web UI progressive-disclosure composer | ✅ | UJ-22/24 | INC-19 · 默认输入/附件/access/model/send；Goal/Loop/Best-of-N/persona/spec 收入 Task options |
 | HTTP/WS 壳 | 🧊 | UJ-13 | backlog |
 
 ## J · 运行形态与云

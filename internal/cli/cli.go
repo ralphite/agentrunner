@@ -143,7 +143,7 @@ func commandHelp(cmd string) string {
 	case "barrier":
 		return "usage: agentrunner barrier <session-id-or-prefix>\n\nRecord a barrier (a fork point) in the session's journal;\n`fork --list` shows them, `fork` branches from one.\n"
 	case "sessions":
-		return "usage: agentrunner sessions [list]\n\nList sessions and their status.\n"
+		return "usage: agentrunner sessions [list] [--json]\n\nList sessions and their status. JSON includes workspace and title.\n"
 	case "trust":
 		return "usage: agentrunner trust <dir>\n\nMark a workspace directory as trusted on this machine.\n"
 	case "remember":

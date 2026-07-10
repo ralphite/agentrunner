@@ -1,7 +1,6 @@
-// arwebui is a self-contained local web cockpit for AgentRunner with a
-// Codex-cloud-style UI. It talks to the system exclusively through the public
-// `ar` CLI contract (os/exec) and serves a Vite-built React frontend embedded
-// into the binary. Like web/, it is a test/QA cockpit, not a product surface.
+// arwebui is AgentRunner's self-contained local product surface. It talks to
+// the system exclusively through the public `ar` CLI contract (os/exec) and
+// serves a Vite-built React frontend embedded into the binary.
 package main
 
 import (

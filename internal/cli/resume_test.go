@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -114,6 +115,28 @@ func TestCLIResumeAfterCrash(t *testing.T) {
 	if !strings.Contains(stdout.String(), "completed") {
 		t.Errorf("sessions list:\n%s", stdout.String())
 	}
+
+	// The product surfaces need durable workspace/title metadata for every
+	// session, not only sessions they created themselves.
+	stdout.Reset()
+	if code := Run([]string{"sessions", "list", "--json"}, "dev", &stdout, &stderr); code != ExitOK {
+		t.Fatalf("sessions json exit = %d: %s", code, stderr.String())
+	}
+	var listed []struct {
+		ID        string `json:"id"`
+		Workspace string `json:"workspace"`
+		Title     string `json:"title"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &listed); err != nil {
+		t.Fatalf("decode sessions json: %v\n%s", err, stdout.String())
+	}
+	wantWorkspace, err := filepath.EvalSymlinks(ws)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listed) != 1 || listed[0].Workspace != wantWorkspace || listed[0].Title != "make it loud" {
+		t.Fatalf("sessions json = %+v, want workspace %q and journaled title", listed, wantWorkspace)
+	}
 }
 
 func TestCLIResumeUnknownSession(t *testing.T) {
@@ -132,6 +155,10 @@ func TestCLISessionsListEmpty(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "no sessions") {
 		t.Errorf("out = %q", out.String())
+	}
+	out.Reset()
+	if code := Run([]string{"sessions", "--json"}, "dev", &out, &errOut); code != ExitOK || strings.TrimSpace(out.String()) != "[]" {
+		t.Fatalf("empty json exit = %d, out = %q, err = %q", code, out.String(), errOut.String())
 	}
 }
 

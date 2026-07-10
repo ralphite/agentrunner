@@ -75,9 +75,12 @@ export function DiffView({ sid }: { sid: string }) {
 
   if (!data.known)
     return (
-      <div className="diffwrap dim">
-        arwebui doesn't know this session's workspace (sessions created outside arwebui
-        aren't tracked), so there is no diff to show. Only sessions started here have one.
+      <div className="diffwrap">
+        <div className="diff-empty">
+          <b>Workspace unavailable</b>
+          <span>This session predates workspace metadata, so AgentRunner cannot reconstruct its changes view.</span>
+          <button onClick={load}>Try again</button>
+        </div>
       </div>
     );
   if (!data.isRepo)

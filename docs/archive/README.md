@@ -34,6 +34,12 @@
 | `reviews/DESIGN-SUGGESTIONS.md` | 外部设计建议,有效结论已并入设计 |
 | `reviews/FEATURES.md` | 早期功能清单,已被 JOURNEYS/SPEC 体系取代 |
 
+### increments/ — 已完成增量工作纸
+
+| 文件 | 是什么 |
+|---|---|
+| `increments/INC-19-webui-product-rebuild.md` | Codex 母版 + AgentRunner Supervision 的 Web UI 产品化重构工作纸；活定义已并入三层文档与 QA |
+
 ## 归档纪律
 
 - 计划关闭、文档被取代时移入本目录,加头部归档注记,不改动正文。

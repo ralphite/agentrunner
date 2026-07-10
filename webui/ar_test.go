@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 func TestParseSessionID(t *testing.T) {
 	cases := []struct {
@@ -100,5 +103,27 @@ func TestParseBarrierID(t *testing.T) {
 		if got := parseBarrierID(c.in); got != c.want {
 			t.Errorf("parseBarrierID(%q) = %q, want %q", c.in, got, c.want)
 		}
+	}
+}
+
+func TestMetaStoreMergeHydratesJournalMetadataWithoutReplacingTitle(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "meta.json")
+	store := newMetaStore(path)
+	store.set("s1", "", "My renamed task")
+	store.merge(map[string]sessionMeta{
+		"s1": {Workspace: "/tmp/project", Title: "Journal opening task"},
+		"s2": {Workspace: "/tmp/other", Title: "External task"},
+	})
+
+	if got := store.get("s1"); got.Workspace != "/tmp/project" || got.Title != "My renamed task" {
+		t.Fatalf("s1 metadata = %+v", got)
+	}
+	if got := store.get("s2"); got.Workspace != "/tmp/other" || got.Title != "External task" {
+		t.Fatalf("s2 metadata = %+v", got)
+	}
+
+	reloaded := newMetaStore(path)
+	if got := reloaded.get("s2"); got.Workspace != "/tmp/other" || got.Title != "External task" {
+		t.Fatalf("reloaded metadata = %+v", got)
 	}
 }

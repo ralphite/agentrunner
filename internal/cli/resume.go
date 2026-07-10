@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/ralphite/agentrunner/internal/agent"
 	"github.com/ralphite/agentrunner/internal/clock"
@@ -158,6 +159,10 @@ func readSessionStarted(dir string) (*event.SessionStarted, error) {
 	if err != nil {
 		return nil, err
 	}
+	return sessionStartedFromEvents(events)
+}
+
+func sessionStartedFromEvents(events []event.Envelope) (*event.SessionStarted, error) {
 	if len(events) == 0 {
 		return nil, fmt.Errorf("session log is empty")
 	}
@@ -187,13 +192,26 @@ func readSessionStarted(dir string) (*event.SessionStarted, error) {
 	return started, nil
 }
 
-// sessionsCmd implements `agentrunner sessions [list]`: newest first, with
+// sessionsCmd implements `agentrunner sessions [list] [--json]`: newest first, with
 // the folded status. Bare `sessions` lists too — it is every first-timer's
 // first guess (INC-2).
 func sessionsCmd(args []string, stdout, stderr io.Writer) int {
-	if len(args) > 1 || (len(args) == 1 && args[0] != "list") {
-		fmt.Fprintln(stderr, "usage: agentrunner sessions [list]")
-		return ExitUsage
+	jsonOutput := false
+	seenList := false
+	for _, arg := range args {
+		switch arg {
+		case "list":
+			if seenList {
+				fmt.Fprintln(stderr, "usage: agentrunner sessions [list] [--json]")
+				return ExitUsage
+			}
+			seenList = true
+		case "--json":
+			jsonOutput = true
+		default:
+			fmt.Fprintln(stderr, "usage: agentrunner sessions [list] [--json]")
+			return ExitUsage
+		}
 	}
 	data, err := runtime.DataDir()
 	if err != nil {
@@ -203,47 +221,61 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 	root := filepath.Join(data, "sessions")
 	entries, err := os.ReadDir(root)
 	if err != nil {
-		fmt.Fprintln(stdout, "no sessions")
+		if jsonOutput {
+			fmt.Fprintln(stdout, "[]")
+		} else {
+			fmt.Fprintln(stdout, "no sessions")
+		}
 		return ExitOK
 	}
 	type row struct {
-		id, status string
-		turns      int
-		mtime      int64
+		ID        string `json:"id"`
+		Status    string `json:"status"`
+		Turns     int    `json:"turns"`
+		Workspace string `json:"workspace,omitempty"`
+		Title     string `json:"title,omitempty"`
+		mtime     int64
 	}
 	var rows []row
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
 		}
-		r := row{id: e.Name(), status: "unreadable"}
+		r := row{ID: e.Name(), Status: "unreadable"}
 		if info, err := e.Info(); err == nil {
 			r.mtime = info.ModTime().UnixNano()
 		}
 		if events, err := store.ReadEvents(filepath.Join(root, e.Name())); err == nil {
 			if isDriverJournal(events) {
 				if s, derr := driver.Fold(events); derr == nil {
-					r.status = string(s.Status)
+					r.Status = string(s.Status)
 					if s.Status == driver.StatusEnded && s.Reason != "" {
-						r.status = s.Reason
+						r.Status = s.Reason
 					}
 					if s.Status == driver.StatusRunning && !store.HasLiveWriter(filepath.Join(root, e.Name())) {
-						r.status = "stranded"
+						r.Status = "stranded"
 					}
-					r.turns = len(s.Iterations)
+					r.Turns = len(s.Iterations)
+				}
+				if len(events) > 0 && events[0].Type == event.TypeDriverStarted {
+					if decoded, derr := event.DecodePayload(events[0]); derr == nil {
+						started := decoded.(*event.DriverStarted)
+						r.Workspace = started.WorkspaceRoot
+						r.Title = started.SpecName
+					}
 				}
 			} else if s, err := state.Fold(events); err == nil {
 				// The status column reads the SHAPE (决策 #31): a close/kill
 				// mark or quiescence names the finish; a live wait shows its
 				// kind; otherwise the liveness status.
-				r.status = s.Session.Status
+				r.Status = s.Session.Status
 				if s.Waiting != nil {
-					r.status = "waiting:" + s.Waiting.Kind
+					r.Status = "waiting:" + s.Waiting.Kind
 				}
 				if s.Session.Closed != nil {
-					r.status = s.Session.Closed.Reason
+					r.Status = s.Session.Closed.Reason
 				} else if q, reason := state.Quiescence(s); q {
-					r.status = reason
+					r.Status = reason
 				}
 				// A "running" session (mid-turn, not waiting/closed/quiescent)
 				// whose host process is gone is STRANDED, not running: the
@@ -251,24 +283,41 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 				// (T1/T2b — 状态撒谎). resume recovers it. The probe reads the
 				// lock's pid; it never takes the lock, so it cannot disturb a
 				// live writer.
-				if r.status == "running" && !store.HasLiveWriter(filepath.Join(root, e.Name())) {
-					r.status = "stranded"
+				if r.Status == "running" && !store.HasLiveWriter(filepath.Join(root, e.Name())) {
+					r.Status = "stranded"
 				}
 				// Same yardstick as inspect: conversation TURNS, not
 				// gen-steps (QA Round1 F-A11 — the two disagreed here).
-				r.turns = len(s.Interactions.Turns)
+				r.Turns = len(s.Interactions.Turns)
+				if started, serr := sessionStartedFromEvents(events); serr == nil {
+					r.Workspace = started.WorkspaceRoot
+					r.Title = strings.TrimSpace(strings.SplitN(started.Task, "\n", 2)[0])
+				}
 			}
 		}
 		rows = append(rows, r)
 	}
 	if len(rows) == 0 {
-		fmt.Fprintln(stdout, "no sessions")
+		if jsonOutput {
+			fmt.Fprintln(stdout, "[]")
+		} else {
+			fmt.Fprintln(stdout, "no sessions")
+		}
 		return ExitOK
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].mtime > rows[j].mtime })
+	if jsonOutput {
+		enc := json.NewEncoder(stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(rows); err != nil {
+			fmt.Fprintf(stderr, "agentrunner: encode sessions: %v\n", err)
+			return ExitRun
+		}
+		return ExitOK
+	}
 	fmt.Fprintf(stdout, "%-45s %-18s %s\n", "SESSION", "STATUS", "TURNS")
 	for _, r := range rows {
-		fmt.Fprintf(stdout, "%-45s %-18s %d\n", r.id, r.status, r.turns)
+		fmt.Fprintf(stdout, "%-45s %-18s %d\n", r.ID, r.Status, r.Turns)
 	}
 	return ExitOK
 }

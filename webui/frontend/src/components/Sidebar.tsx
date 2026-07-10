@@ -1,13 +1,29 @@
 import { useEffect, useMemo, useState } from "react";
+import {
+  Archive as ArchiveBox,
+  ArrowSquareOut,
+  CalendarDots,
+  CaretDown,
+  CaretRight,
+  Folder,
+  FolderOpen,
+  MagnifyingGlass,
+  Monitor,
+  Moon,
+  NotePencil,
+  PushPin,
+  Robot,
+  SidebarSimple,
+  Sun,
+} from "@phosphor-icons/react";
 import { useStore } from "../store";
 import { AR } from "../api";
-import { pillClass } from "./pill";
-import { bucketOf, relTime, sessionDate } from "../time";
-import { themeIcon } from "../theme";
+import { friendlyStatus } from "./pill";
 import { displayTitle } from "../title";
 import { ContextMenu } from "./ContextMenu";
 import { MenuItem, MenuLabel } from "./Menu";
 import { copyText } from "../clipboard";
+import { buildSidebarModel } from "../viewModels";
 
 export function Sidebar() {
   const {
@@ -15,10 +31,9 @@ export function Sidebar() {
     sessions,
     runs,
     currentSid,
-    currentRunId,
+    currentPage,
     select,
-    selectRun,
-    openModal,
+    showPage,
     refreshHealth,
     toast,
     archived,
@@ -36,258 +51,178 @@ export function Sidebar() {
     markUnread,
     markRead,
   } = useStore();
-  const [q, setQ] = useState("");
+  const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [ctx, setCtx] = useState<{ x: number; y: number; sid: string } | null>(null);
-  const archivedCount = useMemo(
-    () => sessions.filter((s) => archived.includes(s.id)).length,
-    [sessions, archived],
+
+  const model = useMemo(
+    () => buildSidebarModel(sessions, {
+      pinned,
+      archived,
+      showArchived,
+      query,
+      titleOf: (session) => displayTitle(renames, session.id, session.title),
+    }),
+    [sessions, pinned, archived, showArchived, query, renames],
   );
+  const archivedCount = sessions.filter((session) => archived.includes(session.id)).length;
+  const runningRuns = runs.filter((run) => run.status === "running").length;
+  const orderedIds = useMemo(
+    () => [...model.pinned.map((session) => session.id), ...model.projects.flatMap((project) => project.sessions.map((session) => session.id))],
+    [model],
+  );
+  useEffect(() => setVisibleOrder(orderedIds), [orderedIds, setVisibleOrder]);
 
   const restartDaemon = async () => {
     try {
       await AR.daemonStart();
       toast("daemon start requested", "info");
       setTimeout(refreshHealth, 800);
-    } catch (e: any) {
-      toast(e.message);
+    } catch (error: any) {
+      toast(error.message);
     }
   };
 
-  const ql = q.trim().toLowerCase();
-  const shownSessions = useMemo(
-    () =>
-      sessions.filter(
-        (s) =>
-          (showArchived || !archived.includes(s.id)) &&
-          (!ql ||
-            displayTitle(renames, s.id, s.title).toLowerCase().includes(ql) ||
-            s.id.toLowerCase().includes(ql)),
-      ),
-    [sessions, ql, archived, showArchived, renames],
-  );
-  const shownRuns = useMemo(
-    () => runs.filter((r) => !ql || (r.label || r.id).toLowerCase().includes(ql)),
-    [runs, ql],
-  );
-
-  // Pinned tasks float into their own section at the very top (Codex's Pinned
-  // list), in the order they were pinned. They're excluded from the recency
-  // buckets below so they don't appear twice.
-  const pinnedRows = useMemo(() => {
-    const byId = new Map(shownSessions.map((s) => [s.id, s]));
-    return pinned.map((id) => byId.get(id)).filter((s): s is (typeof shownSessions)[number] => !!s);
-  }, [shownSessions, pinned]);
-
-  // Codex groups tasks by recency, and floats anything in-progress to the top.
-  const groups = useMemo(() => {
-    const rows = shownSessions
-      .filter((s) => !pinned.includes(s.id))
-      .map((s) => ({ s, d: sessionDate(s.id), cls: pillClass(s.status) }));
-    const isActive = (cls: string) => cls === "run" || cls === "appr";
-    const byDate = (a: { d: Date | null }, b: { d: Date | null }) =>
-      (b.d?.getTime() || 0) - (a.d?.getTime() || 0);
-    const active = rows.filter((x) => isActive(x.cls)).sort(byDate);
-    const rest = rows.filter((x) => !isActive(x.cls));
-    const buckets = new Map<string, { rank: number; items: typeof rest }>();
-    for (const x of rest) {
-      const b = bucketOf(x.d);
-      if (!buckets.has(b.label)) buckets.set(b.label, { rank: b.rank, items: [] });
-      buckets.get(b.label)!.items.push(x);
-    }
-    const out: { label: string; items: typeof rest }[] = [];
-    if (active.length) out.push({ label: "Active", items: active });
-    for (const [label, v] of [...buckets.entries()].sort((a, b) => a[1].rank - b[1].rank)) {
-      out.push({ label, items: v.items.sort(byDate) });
-    }
-    return out;
-  }, [shownSessions, pinned]);
-
-  // Publish the flat, in-display-order list of session ids so ⌥⌘↑/↓ can move
-  // between adjacent tasks exactly as they appear here.
-  const orderedIds = useMemo(
-    () => [...pinnedRows.map((s) => s.id), ...groups.flatMap((g) => g.items.map((x) => x.s.id))],
-    [pinnedRows, groups],
-  );
-  useEffect(() => {
-    setVisibleOrder(orderedIds);
-  }, [orderedIds, setVisibleOrder]);
-
-  const renderRow = (s: (typeof sessions)[number]) => {
-    const isPinned = pinned.includes(s.id);
-    const isUnread = unread.includes(s.id);
+  const renderTask = (session: (typeof sessions)[number], nested = false) => {
+    const active = session.id === currentSid;
+    const status = friendlyStatus(session.status);
+    const isUnread = unread.includes(session.id);
+    const isPinned = pinned.includes(session.id);
     return (
       <div
-        key={s.id}
-        className={
-          "nav-row" +
-          (s.id === currentSid ? " cur" : "") +
-          (archived.includes(s.id) ? " archived" : "") +
-          (isUnread ? " unread" : "")
-        }
-        onClick={() => select(s.id)}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          setCtx({ x: e.clientX, y: e.clientY, sid: s.id });
+        key={session.id}
+        className={`project-task${nested ? " nested" : ""}${active ? " current" : ""}${isUnread ? " unread" : ""}${archived.includes(session.id) ? " archived" : ""}`}
+        onClick={() => select(session.id)}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          setCtx({ x: event.clientX, y: event.clientY, sid: session.id });
         }}
-        title={s.id}
+        title={session.id}
       >
-        <span className={"nr-dot " + pillClass(s.status)} title={s.status} />
-        <span className="nr-title">{displayTitle(renames, s.id, s.title)}</span>
-        {isUnread && <span className="nr-unread" title="new activity" />}
+        <span className="project-task-title">{displayTitle(renames, session.id, session.title)}</span>
+        {isUnread && <span className="unread-dot" title="New activity" />}
+        <span className={`status-dot ${status.cls}`} title={status.text} />
         <button
-          className={"nr-pin" + (isPinned ? " on" : "")}
-          title={isPinned ? "Unpin from top" : "Pin to top"}
-          onClick={(e) => {
-            e.stopPropagation();
-            togglePin(s.id);
+          className={`task-pin${isPinned ? " active" : ""}`}
+          title={isPinned ? "Unpin task" : "Pin task"}
+          aria-label={isPinned ? "Unpin task" : "Pin task"}
+          onClick={(event) => {
+            event.stopPropagation();
+            togglePin(session.id);
           }}
         >
-          📌
+          <PushPin size={13} weight={isPinned ? "fill" : "regular"} />
         </button>
-        <span className="nr-time">{relTime(sessionDate(s.id))}</span>
+        <ArrowSquareOut className="task-open" size={13} />
       </div>
     );
   };
 
+  const themeGlyph = theme === "system" ? <Monitor size={15} /> : theme === "light" ? <Sun size={15} /> : <Moon size={15} />;
+
   return (
-    <div className="sidebar">
+    <aside className="sidebar">
       <div className="brand">
-        <div className="brand-main" onClick={() => select(null)}>
-          <div className="logo">◆</div>
-          <h1>AgentRunner</h1>
-        </div>
-        <button
-          className="sidebar-hide"
-          onClick={toggleSidebar}
-          title="Hide sidebar (⌘B)"
-          aria-label="Hide sidebar"
-        >
-          ⧉
+        <button className="brand-main" onClick={() => showPage("home")} aria-label="AgentRunner home">
+          <span className="brand-mark"><Robot size={17} weight="bold" /></span>
+          <span className="brand-name">AgentRunner</span>
         </button>
+        <div className="brand-actions">
+          <button className="sidebar-action" onClick={() => setSearching((value) => !value)} title="Search tasks">
+            <MagnifyingGlass size={16} />
+          </button>
+          <button className="sidebar-action" onClick={toggleSidebar} title="Hide sidebar (⌘B)">
+            <SidebarSimple size={16} />
+          </button>
+        </div>
       </div>
 
-      <nav className="side-nav">
-        <button className="nav-item" onClick={() => select(null)}>
-          <span className="ni-ico">✎</span> New task
+      <nav className="primary-nav" aria-label="Primary">
+        <button className={!currentSid && currentPage === "home" ? "active" : ""} onClick={() => showPage("home")}>
+          <NotePencil size={17} /> <span>New task</span>
         </button>
-        <button className={"nav-item" + (searching ? " on" : "")} onClick={() => setSearching((v) => !v)}>
-          <span className="ni-ico">⌕</span> Search
-        </button>
-        <button className="nav-item" onClick={() => openModal({ kind: "run" })}>
-          <span className="ni-ico">⧉</span> Background run…
-        </button>
-        <button className="nav-item" onClick={() => openModal({ kind: "trust" })}>
-          <span className="ni-ico">⛨</span> Trust directory
+        <button className={!currentSid && currentPage === "scheduled" ? "active" : ""} onClick={() => showPage("scheduled")}>
+          <CalendarDots size={17} /> <span>Scheduled</span>
+          {runningRuns > 0 && <span className="nav-notice" title={`${runningRuns} running`} />}
         </button>
       </nav>
 
       {searching && (
         <div className="side-search">
-          <input
-            autoFocus
-            value={q}
-            placeholder="Search tasks…"
-            onChange={(e) => setQ(e.target.value)}
-          />
-          {q && (
-            <button className="ss-clear" onClick={() => setQ("")} title="clear">
-              ✕
-            </button>
-          )}
+          <MagnifyingGlass size={14} />
+          <input autoFocus value={query} placeholder="Search tasks" onChange={(event) => setQuery(event.target.value)} />
+          {query && <button onClick={() => setQuery("")} aria-label="Clear search">×</button>}
         </div>
       )}
 
-      <div className="list">
-        {groups.length === 0 && pinnedRows.length === 0 && shownRuns.length === 0 && (
-          <div className="grp-empty">{ql ? "no matches" : "no tasks yet"}</div>
+      <div className="project-list">
+        {model.pinned.length > 0 && (
+          <section className="sidebar-section">
+            <div className="section-label">Pinned</div>
+            {model.pinned.map((session) => renderTask(session))}
+          </section>
         )}
 
-        {pinnedRows.length > 0 && (
-          <div>
-            <div className="grp-label pinned">📌 Pinned</div>
-            {pinnedRows.map((s) => renderRow(s))}
-          </div>
-        )}
-
-        {groups.map((g) => (
-          <div key={g.label}>
-            <div className={"grp-label" + (g.label === "Active" ? " active" : "")}>{g.label}</div>
-            {g.items.map(({ s }) => renderRow(s))}
-          </div>
-        ))}
-
-        {shownRuns.length > 0 && (
-          <>
-            <div className="grp-label" style={{ marginTop: 10 }}>
-              Background runs · {shownRuns.length}
-            </div>
-            {shownRuns.map((r) => (
-              <div
-                key={r.id}
-                className={"nav-row" + (r.id === currentRunId ? " cur" : "")}
-                onClick={() => selectRun(r.id)}
-                title={r.kind}
-              >
-                <span className={"nr-dot " + pillClass(r.status)} title={r.status} />
-                <span className="nr-title">{r.label || r.id}</span>
-                <span className="nr-time">{r.kind}</span>
+        <section className="sidebar-section projects-section">
+          <div className="section-label">Projects</div>
+          {model.projects.length === 0 && <div className="sidebar-empty">{query ? "No matching tasks" : "No tasks yet"}</div>}
+          {model.projects.map((project) => {
+            const isExpanded = expanded.has(project.key) || !!query;
+            const shown = isExpanded ? project.sessions : project.sessions.slice(0, 6);
+            return (
+              <div className="project-group" key={project.key}>
+                <button
+                  className="project-heading"
+                  onClick={() => setExpanded((current) => {
+                    const next = new Set(current);
+                    next.has(project.key) ? next.delete(project.key) : next.add(project.key);
+                    return next;
+                  })}
+                  title={project.workspace}
+                >
+                  {isExpanded ? <CaretDown size={12} /> : <CaretRight size={12} />}
+                  {isExpanded ? <FolderOpen size={16} /> : <Folder size={16} />}
+                  <span>{project.label}</span>
+                </button>
+                {shown.map((session) => renderTask(session, true))}
+                {!isExpanded && project.sessions.length > shown.length && (
+                  <button className="show-more" onClick={() => setExpanded((current) => new Set(current).add(project.key))}>
+                    Show {project.sessions.length - shown.length} more
+                  </button>
+                )}
               </div>
-            ))}
-          </>
-        )}
-
-        {archivedCount > 0 && (
-          <button className="archived-toggle" onClick={toggleShowArchived}>
-            {showArchived ? "Hide" : "Show"} archived · {archivedCount}
-          </button>
-        )}
+            );
+          })}
+          {archivedCount > 0 && (
+            <button className="archive-toggle" onClick={toggleShowArchived}>
+              <ArchiveBox size={14} /> {showArchived ? "Hide" : "Show"} archived · {archivedCount}
+            </button>
+          )}
+        </section>
       </div>
 
       <div className="side-foot">
-        <span className={"dot" + (health?.daemonUp ? " up" : "")} />
-        <span className="sf-text">
-          {health ? (
-            <>
-              daemon {health.daemonUp ? "up" : "unreachable"}
-              {health.daemonManaged ? " (managed)" : health.daemonExternal ? " (external)" : ""} · {health.version.replace("agentrunner ", "")}
-            </>
-          ) : (
-            "arwebui unreachable"
-          )}
-        </span>
-        {health && !health.daemonUp && (
-          <button className="sm danger" onClick={restartDaemon}>
-            restart
-          </button>
-        )}
-        <button
-          className="theme-btn"
-          onClick={cycleTheme}
-          title={`Theme: ${theme} (click to cycle system / light / dark)`}
-        >
-          {themeIcon(theme)}
+        <span className={`daemon-indicator${health?.daemonUp ? " online" : ""}`} />
+        <button className="daemon-copy" onClick={() => !health?.daemonUp && restartDaemon()} title={health?.daemonUp ? health.version : "Restart daemon"}>
+          <b>AgentRunner</b>
+          <span>{health?.daemonUp ? "Connected" : "Daemon unavailable"}</span>
         </button>
+        <button className="sidebar-action" onClick={cycleTheme} title={`Theme: ${theme}`}>{themeGlyph}</button>
       </div>
 
       {ctx && (
         <ContextMenu x={ctx.x} y={ctx.y} onClose={() => setCtx(null)}>
-          <MenuLabel>{displayTitle(renames, ctx.sid, sessions.find((s) => s.id === ctx.sid)?.title)}</MenuLabel>
-          <MenuItem onClick={() => togglePin(ctx.sid)}>
-            {pinned.includes(ctx.sid) ? "Unpin from top" : "Pin to top"}
-          </MenuItem>
-          <MenuItem onClick={() => openModal({ kind: "rename", sid: ctx.sid })}>Rename…</MenuItem>
-          <MenuItem onClick={() => (unread.includes(ctx.sid) ? markRead(ctx.sid) : markUnread(ctx.sid))}>
-            {unread.includes(ctx.sid) ? "Mark as read" : "Mark as unread"}
-          </MenuItem>
-          <MenuItem onClick={() => { toggleArchive(ctx.sid); toast(archived.includes(ctx.sid) ? "unarchived" : "archived", "info"); }}>
-            {archived.includes(ctx.sid) ? "Unarchive" : "Archive"}
-          </MenuItem>
+          <MenuLabel>{displayTitle(renames, ctx.sid, sessions.find((session) => session.id === ctx.sid)?.title)}</MenuLabel>
+          <MenuItem onClick={() => togglePin(ctx.sid)}>{pinned.includes(ctx.sid) ? "Unpin" : "Pin"}</MenuItem>
+          <MenuItem onClick={() => useStore.getState().openModal({ kind: "rename", sid: ctx.sid })}>Rename…</MenuItem>
+          <MenuItem onClick={() => unread.includes(ctx.sid) ? markRead(ctx.sid) : markUnread(ctx.sid)}>{unread.includes(ctx.sid) ? "Mark as read" : "Mark as unread"}</MenuItem>
+          <MenuItem onClick={() => toggleArchive(ctx.sid)}>{archived.includes(ctx.sid) ? "Unarchive" : "Archive"}</MenuItem>
           <MenuLabel>Copy</MenuLabel>
-          <MenuItem onClick={() => { copyText(ctx.sid); toast("copied session id", "info"); }}>Copy session ID</MenuItem>
-          <MenuItem onClick={() => { copyText(location.origin + "/#" + ctx.sid); toast("copied link", "info"); }}>Copy link</MenuItem>
+          <MenuItem onClick={() => { copyText(ctx.sid); toast("copied session id", "info"); }}>Session ID</MenuItem>
+          <MenuItem onClick={() => { copyText(`${location.origin}/#${ctx.sid}`); toast("copied link", "info"); }}>Task link</MenuItem>
         </ContextMenu>
       )}
-    </div>
+    </aside>
   );
 }

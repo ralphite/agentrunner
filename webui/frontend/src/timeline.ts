@@ -107,7 +107,7 @@ export function foldEvents(events: Envelope[]): Folded {
     lastType = env.type;
     switch (env.type) {
       case "session_started":
-        chip(seq, `session started · ${p.spec_name || ""} · ${p.model || ""}`);
+        push({ kind: "sys", key: "s" + seq, text: `session started · ${p.spec_name || ""} · ${p.model || ""}` });
         break;
       case "input_received": {
         push({
@@ -195,7 +195,7 @@ export function foldEvents(events: Envelope[]): Folded {
       case "spawn_requested":
         chip(
           seq,
-          `⬇ sub-agent ${p.agent} · ${p.task ? p.task.slice(0, 80) : ""}`,
+          `Subagent started · ${p.agent} · ${p.task ? p.task.slice(0, 80) : ""}`,
           "",
           p.child_session,
         );
@@ -203,7 +203,7 @@ export function foldEvents(events: Envelope[]): Folded {
       case "subagent_completed":
         chip(
           seq,
-          `⬆ sub-agent finished ${p.agent} · ${p.reason} · ${
+          `Subagent finished · ${p.agent} · ${p.reason} · ${
             p.usage ? p.usage.input_tokens + p.usage.output_tokens + " tok" : ""
           }`,
           p.reason === "completed" ? "good" : "warn",
@@ -213,31 +213,31 @@ export function foldEvents(events: Envelope[]): Folded {
       case "child_revived":
         chip(
           seq,
-          `↻ member revived ${p.agent || ""} · woken by mail`,
+          `Member resumed · ${p.agent || ""} · woken by mail`,
           "",
           p.child_session,
         );
         break;
       case "command_handled":
         if (p.result && String(p.result).startsWith("forwarded:")) {
-          chip(seq, `✉ forwarded to ${String(p.result).slice("forwarded:".length)}`, "", String(p.result).slice("forwarded:".length));
+          chip(seq, `Forwarded to ${String(p.result).slice("forwarded:".length)}`, "", String(p.result).slice("forwarded:".length));
         }
         break;
       // ---- iteration driver (drive) events ----
       case "driver_started":
         isDriver = true;
-        chip(seq, `▶ driver started · ${p.spec_name || ""}`);
+        chip(seq, `Scheduled run started · ${p.spec_name || ""}`);
         status = { text: "running", cls: "run" };
         break;
       case "iteration_launched":
         isDriver = true;
-        chip(seq, `↻ iteration ${p.iter} launched`, "");
+        chip(seq, `Iteration ${p.iter} started`, "");
         break;
       case "iteration_completed":
         isDriver = true;
         chip(
           seq,
-          `✓ iteration ${p.iter} · ${p.child_reason || ""}${
+          `Iteration ${p.iter} completed · ${p.child_reason || ""}${
             p.verdict ? " · " + JSON.stringify(p.verdict) : ""
           }`,
           "good",
@@ -275,7 +275,7 @@ export function foldEvents(events: Envelope[]): Folded {
         // vanishes with no record).
         chip(
           seq,
-          `${p.decision === "approve" ? "✓ approved" : "✕ denied"}${p.reason ? " · " + p.reason : ""}`,
+          `${p.decision === "approve" ? "Approved" : "Denied"}${p.reason ? " · " + p.reason : ""}`,
           p.decision === "approve" ? "good" : "warn",
         );
         break;
@@ -307,10 +307,10 @@ export function foldEvents(events: Envelope[]): Folded {
         status = { text: "crashed", cls: "crash" };
         break;
       case "mode_changed":
-        chip(seq, `mode → ${p.to} (${p.cause})`);
+        chip(seq, `Mode changed · ${p.to} (${p.cause})`);
         break;
       case "spec_changed":
-        chip(seq, `agent → ${p.spec_name || "?"} · ${p.model || ""}`);
+        chip(seq, `Agent changed · ${p.spec_name || "?"} · ${p.model || ""}`);
         break;
       case "context_compacted":
         chip(seq, `context compacted · up to gen ${p.upto_gen_step}`);

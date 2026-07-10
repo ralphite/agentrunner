@@ -1613,3 +1613,27 @@ daemon 跨进程消费路径要真机才暴露——印证"双闸门缺一不可
 
 **余项**：project 精确作用域（config 加 local 层/workspace-scoped 规则）、
 取 B 本 run 立即生效（PolicyChanged，触不变量）。
+
+## 2026-07-09 INC-19 Web UI 产品化重构（Codex 母版 + AgentRunner 品牌）
+
+用户明确裁决：通用 UI/UX 严格采用 Codex；不用 Cursor/Claude Code 的混合
+方案；AgentRunner 独有 goal/team/runtime 能力只作为同视觉语言的
+Supervision 扩展。重构 `webui/` 为正式本机产品面：左栏 New task /
+Scheduled / Pinned / Projects→task，中间单一 thread + 内联审批 + Changes，
+右侧 Goal/Agents/Attention/Background work；composer 默认面只留输入、
+附件、access、model、send，高级启动器进入 Task options。
+
+运行契约同步收口：`ar sessions [list] --json` 从 SessionStarted/
+DriverStarted journal 给所有 session 输出 workspace/title，CLI 创建的历史
+会话不再依赖 Web UI 私有 metadata 才能分组或审 diff；metadata 降为兼容
+cache。Supervision 按 child session 去重，避免 revive/多次回执画出重复成员；
+子成员行改为语义化 button 并进入只读完整时间线。前端补 project grouping、
+approval presentation、agent dedupe 纯函数测试；Web UI Go/test/build 纳入
+根 `scripts/check.sh`。
+
+真实共享环境 QA-27 PASS：既有 waiting:approval session 显示人类摘要且未
+代用户决策；既有 team session 的 engineer/reviewer 各一行并可点入；既有
+CLI session 的 Changes 显示真实 untracked diff；deep link/reload/Web UI
+restart、Scheduled、responsive、console 全验。Design QA 与 1554px Codex
+母版同图对照，修复 1 个 P1（重复成员）后最终 P0/P1/P2=0。证据在
+`qa/runs/2026-07-09-QA27/` 与根 `design-qa.md`。不变式不变。

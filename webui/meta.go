@@ -14,10 +14,9 @@ import (
 	"time"
 )
 
-// sessionMeta is what arwebui knows about a session that the CLI does not
-// surface: the workspace it was launched against (for the Diff view) and the
-// opening task text (for Codex-style task-card titles). It is best-effort —
-// populated when *we* create a session; empty for externally-created ones.
+// sessionMeta caches workspace/title values from the journal-backed CLI
+// contract. Values recorded while arwebui creates a session are a compatibility
+// fallback only; this store is never the source of runtime truth.
 type sessionMeta struct {
 	Workspace string `json:"workspace"`
 	Title     string `json:"title"`
@@ -29,9 +28,8 @@ type metaStore struct {
 	path string // JSON persistence file; "" = in-memory only (tests)
 }
 
-// newMetaStore loads the persisted sid→meta map (if any) so a webui restart
-// doesn't forget which workspace each session runs in — the Diff view and the
-// @-file picker depend on it.
+// newMetaStore loads the persisted sid→meta cache (if any) so a webui restart
+// can render immediately while the journal-backed session list hydrates.
 func newMetaStore(path string) *metaStore {
 	s := &metaStore{m: map[string]sessionMeta{}, path: path}
 	if path != "" {
@@ -65,6 +63,7 @@ func (s *metaStore) set(sid, ws, title string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	cur := s.m[sid]
+	before := cur
 	if ws != "" {
 		cur.Workspace = ws
 	}
@@ -72,7 +71,39 @@ func (s *metaStore) set(sid, ws, title string) {
 		cur.Title = firstLine(title, 100)
 	}
 	s.m[sid] = cur
+	if cur == before {
+		return
+	}
 	s.persistLocked()
+}
+
+// merge hydrates metadata discovered from AgentRunner's journal-backed
+// `sessions --json` contract. It persists once for the whole list so the
+// 4-second session refresh does not rewrite the metadata file per row.
+func (s *metaStore) merge(entries map[string]sessionMeta) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	changed := false
+	for sid, incoming := range entries {
+		if sid == "" {
+			continue
+		}
+		cur := s.m[sid]
+		before := cur
+		if incoming.Workspace != "" {
+			cur.Workspace = incoming.Workspace
+		}
+		if incoming.Title != "" && cur.Title == "" {
+			cur.Title = firstLine(incoming.Title, 100)
+		}
+		if cur != before {
+			s.m[sid] = cur
+			changed = true
+		}
+	}
+	if changed {
+		s.persistLocked()
+	}
 }
 
 func (s *metaStore) get(sid string) sessionMeta {

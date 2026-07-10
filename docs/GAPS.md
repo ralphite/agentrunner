@@ -6,7 +6,7 @@
 > 扩展层缺口（v2 核心绿灯已达成、铁律已解除——见 archive/v2/CORE.md，
 > 逐条按 PROCESS.md 的增量流程排期）。
 
-**这是什么**：以 JOURNEYS.md 的 20 条 user journey 为标尺，对 AgentRunner
+**这是什么**：以 JOURNEYS.md 的 24 条 user journey 为标尺，对 AgentRunner
 （DESIGN.md 的设计 + S1–S7 的实现）做的支持度审计。journey 目录回答
 "产品要做什么"（JOURNEYS.md），本文件回答"我们缺什么"。
 
@@ -30,31 +30,32 @@
 |---|---|---|
 | UJ-01 即问即答 | ✅ | 续聊 ✅（G6 关闭）；grep/glob ✅（INC-3，G18 收口）；语义检索 ✅ |
 | UJ-02 小修快跑 | ✅ | —（S1 验收场景即此） |
-| UJ-03 结对续聊 | ❌ | **G6 续聊形态不存在**——答完即 run_ended |
-| UJ-04 贴图贴日志 | ❌ | **G1 多模态输入全链路缺失**（图片+长贴折叠） |
+| UJ-03 结对续聊 | ✅ | G6 已关闭：同 session 续聊、park/resume、跨空闲保持 |
+| UJ-04 贴图贴日志 | ✅ | G1 已关闭；图片/任意文件/长贴折叠全链路可用 |
 | UJ-05 从零起项目 | ✅ | write_file ✅（M4.3）、grep/glob ✅（INC-3） |
 | UJ-06 大重构走计划 | ✅ | plan/审批/修订再批全通；agent 主动提问 ✅（ask_user，INC-5，G20 关闭） |
-| UJ-07 中途纠偏 | 🟡 | interrupt ✅；steer 消息与队列 G3 |
-| UJ-08 权限日常 | 🟡 | 规则/审批/审计 ✅；"允许且不再问"写回 G5 |
+| UJ-07 中途纠偏 | ✅ | interrupt 与 steering/type-ahead 分立；G3 已关闭 |
+| UJ-08 权限日常 | ✅ | 规则/审批/审计 + “允许且不再问”写回（INC-17） |
 | UJ-09 长会话续命 | 🟡 | 自动/手动 compaction（G7 ✅ INC-6）、跨日 resume、续聊 ✅；记忆写回 G9、跨机 G11 |
 | UJ-10 提交流水 | ✅ | 全程借 bash+gh 可走；一等公民化 G13 |
-| UJ-11 代码评审员 | 🟡 | 只读约束(plan mode)✅；角色切换 G8、续聊 G6 |
+| UJ-11 代码评审员 | ✅ | 只读约束、角色切换、续聊均已覆盖（G8/G6 关闭） |
 | UJ-12 PR 保姆 | ❌ | **G14 外部事件唤醒既有 session 不存在**；插话 G3 |
 | UJ-13 手机派活 | ❌ | 环境生命周期 G11、diff 审阅门 G13、follow-up G6；HTTP 壳 🔧backlog |
 | UJ-14 定时值守 | ✅ | cron/overlap/carry/通知/fail-closed 全通；跨重启唤醒 🔧backlog |
 | UJ-15 通宵冲目标 | ✅ | goal/verifier/停滞/预算/时间线/rewind 全通（最强区） |
 | UJ-16 三路并击 | 🟡 | 并行隔离+选优 ✅；胜者晋升 G15 |
-| UJ-17 远程驾驶舱 | 🟡 | attach/远程审批/用量 ✅；stop ✅（INC-4）；远程 steer G3 |
-| UJ-18 多 agent 编排 | ❌ | **G2 后台子 agent 未实现**（阻塞 spawn 无编排窗口）；steer G3、子进度 G10、图片 G1 |
+| UJ-17 远程驾驶舱 | ✅ | attach/远程审批/用量/stop/steer 全通；Web UI 产品面见 UJ-24 |
+| UJ-18 多 agent 编排 | ✅ | G2/G3/G10/G1 均关闭；后台子 agent、进度、kill、回灌全通 |
 | UJ-19 生态接入 | ✅ | MCP/skills/写审批/断连恢复 ✅；自定义命令 ✅（INC-8） |
 | UJ-20 不受信审计 | ✅ | 信任/沙箱/凭据红线/审计全通；注入威胁模型成文 G16 |
 | UJ-21 崩溃自愈与重启接续 | 🟡 | 恢复语义✅（resume/in-doubt/终态把关，QA-08）；**自动性缺**：boot sweep、子 crash 自动 resume（G22）（2026-07-05 新增行） |
 | UJ-22 会话内目标 | ✅ | **G23 已关闭（INC-D1）**——in-session goal 挂会话、context 延续；决策 #21 拆两形态 |
+| UJ-23 工程团队模拟 | ✅ | INC-12：动态角色、横向消息、revive、用户直达与子会话 live 全通 |
+| UJ-24 Web UI 驾驶 AgentRunner | ✅ | INC-19：Codex 式信息架构 + Changes + 内联审批 + Supervision；QA-27 |
 
-**汇总**：6 通 · 9 部分 · 5 卡死。5 条卡死全部落在同一族——**交互与
-输入投递**（续聊 G6、多模态 G1、steering G3、事件唤醒 G14、后台子
-agent G2）。durability/驱动/安全这一半（UJ-02/05/10/14/15/20）是
-扎实的；交互外壳是明确的前沿。
+**汇总（2026-07-09）**：19 通 · 3 部分 · 2 卡死。剩余卡死集中在外部
+事件/云环境（UJ-12/13，G14/G11/G13）；主线本机交互、编排与 Web UI
+已可走通。
 
 ---
 
@@ -366,14 +367,14 @@ crash → `ActorCrashed` 标 dead（kernel 明确 no auto-restart），无
 → 多 agent 类 e2e 测试的前提。
 
 **G17 多根 workspace（--add-dir 类） — ❌ 设计缺失 · 低**
-单根是各处隐含前提（路径边界/快照/索引）。**当前 20 条 journey 目录
+单根是各处隐含前提（路径边界/快照/索引）。**当前 24 条 journey 目录
 未包含此场景**——保留自旧审计，纳入与否待目录定版。
 
 ---
 
 ## §3 已确认覆盖（防重复登记）
 
-对照 20 条 journey 核实、设计与实现俱在：编辑-执行闭环与失败自纠
+对照 24 条 journey 核实、设计与实现俱在：编辑-执行闭环与失败自纠
 （UJ-02）、空 workspace 生成（UJ-05）、plan mode 全流程含拒绝-修订-
 再批（UJ-06）、interrupt 协作取消与部分输出（UJ-07）、规则/审批/
 拒绝理由回灌/判定审计（UJ-08）、自动 compaction 与跨日 resume

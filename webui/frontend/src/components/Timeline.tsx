@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { ArrowSquareOut, Check, Circle, Copy, File, ImageSquare, Robot, X } from "@phosphor-icons/react";
 import type { TimelineItem, ToolItem } from "../timeline";
 import { Markdown } from "./Markdown";
 import { copyText } from "../clipboard";
@@ -29,7 +30,7 @@ function MsgActions({ text }: { text: string }) {
   return (
     <div className="msg-actions">
       <button className="msg-copy" onClick={copy} title="Copy message">
-        {copied ? "✓ Copied" : "⧉ Copy"}
+        {copied ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy</>}
       </button>
     </div>
   );
@@ -69,9 +70,9 @@ function toolLabel(name: string, args: any): { verb: string; body: string; mono:
 
 function StepIcon({ status }: { status: ToolItem["status"] }) {
   if (status === "running") return <span className="step-ic spin" />;
-  if (status === "done") return <span className="step-ic ok">✓</span>;
-  if (status === "cancelled") return <span className="step-ic warn">◦</span>;
-  return <span className="step-ic err">✕</span>;
+  if (status === "done") return <span className="step-ic ok"><Check size={12} /></span>;
+  if (status === "cancelled") return <span className="step-ic warn"><Circle size={8} /></span>;
+  return <span className="step-ic err"><X size={11} /></span>;
 }
 
 function ToolCard({ t }: { t: ToolItem }) {
@@ -126,7 +127,7 @@ function Item({ it, sentImages }: { it: TimelineItem; sentImages?: Map<number, s
               {thumbs && thumbs.length ? (
                 <Thumbs paths={thumbs} />
               ) : it.images ? (
-                <div className="imgnote">📷 ×{it.images} (CAS ref)</div>
+                <div className="imgnote"><ImageSquare size={13} /> ×{it.images} attached</div>
               ) : null}
             </div>
             <MsgActions text={it.text} />
@@ -138,7 +139,7 @@ function Item({ it, sentImages }: { it: TimelineItem; sentImages?: Map<number, s
     case "assistant":
       return (
         <div className="msg assistant">
-          <div className="avatar a">◆</div>
+          <div className="avatar a"><Robot size={14} weight="bold" /></div>
           <div className="msg-col">
             <div className="bubble">
               <Markdown text={it.text} />
@@ -154,7 +155,7 @@ function Item({ it, sentImages }: { it: TimelineItem; sentImages?: Map<number, s
         <div className={"chip " + it.tone}>
           <span>{it.text}</span>
           {it.childSession && (
-            <a href={"#" + it.childSession}>open sub-session ↗</a>
+            <a href={"#" + it.childSession}>open sub-session <ArrowSquareOut size={12} /></a>
           )}
         </div>
       );
@@ -169,12 +170,16 @@ export function TimelineView({
   typing,
   showSys,
   sentImages,
+  statusLine,
+  approvalSlot,
 }: {
   items: TimelineItem[];
   pending: { id: number; text: string; imgs: string[]; files: number }[];
   typing: string;
   showSys: boolean;
   sentImages?: Map<number, string[]>;
+  statusLine?: ReactNode;
+  approvalSlot?: ReactNode;
 }) {
   // Codex shows a continuous activity feed — no "turn N" dividers, no raw
   // system events. Those stay behind the developer toggle.
@@ -196,12 +201,17 @@ export function TimelineView({
   return (
     <div className="timeline" ref={ref} onScroll={onScroll}>
       <div className="tl-inner">
-        {visible.map((it) => (
-          <Item key={it.key} it={it} sentImages={sentImages} />
+        {visible.length === 0 && statusLine}
+        {visible.map((it, index) => (
+          <Fragment key={it.key}>
+            <Item it={it} sentImages={sentImages} />
+            {index === 0 && statusLine}
+          </Fragment>
         ))}
+        {approvalSlot}
         {typing && (
           <div className="msg assistant">
-            <div className="avatar a">◆</div>
+            <div className="avatar a"><Robot size={14} weight="bold" /></div>
             <div className="bubble typing">{typing}</div>
           </div>
         )}
@@ -210,7 +220,7 @@ export function TimelineView({
             <div className="bubble pending">
               {p.text}
               {p.imgs.length ? <Thumbs paths={p.imgs} /> : null}
-              {p.files ? <div className="imgnote">📄 ×{p.files}</div> : null}
+              {p.files ? <div className="imgnote"><File size={13} /> ×{p.files} attached</div> : null}
             </div>
             <span className="who">queued…</span>
           </div>

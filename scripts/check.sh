@@ -16,4 +16,20 @@ go vet ./...
 golangci-lint run
 go test ./...
 
+(cd webui && go vet ./... && go test ./...)
+
+(
+  cd webui/frontend
+  node_major=$(node -p 'Number(process.versions.node.split(".")[0])')
+  if (( node_major < 18 )); then
+    echo "webui: Node.js 18+ required (found $(node --version))" >&2
+    exit 1
+  fi
+  if [[ ! -d node_modules ]]; then
+    npm ci
+  fi
+  npm run test
+  npm run build
+)
+
 echo "check.sh: all green"

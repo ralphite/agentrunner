@@ -226,11 +226,6 @@ func (s *server) handleTrust(w http.ResponseWriter, r *http.Request) {
 // ---- sessions ----
 
 func (s *server) handleSessions(w http.ResponseWriter, r *http.Request) {
-	res := s.runAR(r.Context(), 15*time.Second, "sessions", "list")
-	if res.Err != nil {
-		arFail(w, "ar sessions list", res)
-		return
-	}
 	type row struct {
 		ID        string `json:"id"`
 		Status    string `json:"status"`
@@ -238,7 +233,42 @@ func (s *server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		Title     string `json:"title"`
 		Workspace string `json:"workspace"`
 	}
+	// Runtime metadata is authoritative for every session, including sessions
+	// created by the CLI or another UI. The local meta store remains a fallback
+	// for older AgentRunner binaries and preserves WebUI-created titles.
+	res := s.runAR(r.Context(), 15*time.Second, "sessions", "list", "--json")
 	rows := []row{}
+	if res.Err == nil {
+		if err := json.Unmarshal([]byte(res.Stdout), &rows); err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "decode ar sessions --json: " + err.Error()})
+			return
+		}
+		discovered := make(map[string]sessionMeta, len(rows))
+		for _, runtimeRow := range rows {
+			discovered[runtimeRow.ID] = sessionMeta{Workspace: runtimeRow.Workspace, Title: runtimeRow.Title}
+		}
+		s.meta.merge(discovered)
+		for i := range rows {
+			meta := s.meta.get(rows[i].ID)
+			if meta.Title != "" {
+				rows[i].Title = meta.Title
+			} else if rows[i].Title == "" {
+				rows[i].Title = titleFromID(rows[i].ID)
+			}
+			if rows[i].Workspace == "" {
+				rows[i].Workspace = meta.Workspace
+			}
+		}
+		writeJSON(w, http.StatusOK, rows)
+		return
+	}
+
+	// Compatibility fallback for an older `ar` selected with --ar.
+	res = s.runAR(r.Context(), 15*time.Second, "sessions", "list")
+	if res.Err != nil {
+		arFail(w, "ar sessions list", res)
+		return
+	}
 	for _, line := range strings.Split(res.Stdout, "\n") {
 		f := strings.Fields(line)
 		if len(f) < 3 || f[0] == "SESSION" || line == "no sessions" {

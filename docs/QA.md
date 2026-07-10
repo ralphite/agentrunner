@@ -500,6 +500,24 @@ allow + `Bash(rm *)` deny + catch-all ask；workspace 内预置 victim.txt；
 不动本 run 冻结 layers；精确匹配（`date` 记住不放宽到别的命令）。真机
 QA 捕获并修一个 persist 主路径漏传 Remember 的 bug。
 
+## QA-27 Web UI 产品化重构（INC-19,UJ-24）
+
+**环境**：真实共享 `~/.local/share/agentrunner/` daemon/store + 当前
+`main` Web UI，`http://127.0.0.1:8788`；未隔离 HOME/XDG，未删除或关闭
+任何 session/workspace/journal。归档 `qa/runs/2026-07-09-QA27/`。
+
+| # | 真实状态/动作 | 硬断言 |
+|---|---|---|
+| 1 | Home / Scheduled / Projects | Home 恰一个 New task 主操作和 composer；真实历史按 workspace 分组；Scheduled 空态明确 |
+| 2 | deep link/reload/Web UI restart | 父/子/CLI 创建的 session 仍可按 hash 恢复；workspace/title 来自 journal-backed `sessions --json` |
+| 3 | waiting:approval `20260709-134832-use-bash-to-echo-notify-test-7bca` | 卡片显示 Run command / echo B / Current workspace，Details 默认折叠；未代用户决策 |
+| 4 | team `20260710-021026-task-ce2c` | Supervision 中 engineer/reviewer 各恰一行；点 engineer 进入完整只读子会话（textbox=0） |
+| 5 | diff `20260710-030410-use-write-file-to-create-webui-4a0c` | Changes 显示真实 workspace、`webui_qa.txt +1` 与 `WEBUI-QA-DIFF-OK` |
+| 6 | 1554×1014 + 900/700 响应式与 console | thread/composer/Supervision 可用；console error/warning=0 |
+
+**结果**：PASS。截图、同图 design 对照、console/DOM 断言、原始 journal
+副本与 workspace diff 均在归档目录；所有测试数据保留。
+
 ---
 
 ## 覆盖矩阵

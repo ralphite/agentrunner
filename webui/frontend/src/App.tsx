@@ -4,15 +4,17 @@ import { Sidebar } from "./components/Sidebar";
 import { SessionView } from "./components/SessionView";
 import { RunView } from "./components/RunView";
 import { Home } from "./components/Home";
+import { Scheduled } from "./components/Scheduled";
 import { Modals } from "./components/Modals";
 import { Toasts } from "./components/Toasts";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { CommandPalette } from "./components/CommandPalette";
 import { Shortcuts } from "./components/Shortcuts";
 import { requestNotifyPermission } from "./notify";
+import { SidebarSimple } from "@phosphor-icons/react";
 
 export function App() {
-  const { currentSid, currentRunId, refreshHealth, refreshSessions, refreshRuns, select, selectRun } =
+  const { currentSid, currentRunId, currentPage, refreshHealth, refreshSessions, refreshRuns, select, selectRun, showPage } =
     useStore();
   const helpOpen = useStore((s) => s.helpOpen);
   const openHelp = useStore((s) => s.openHelp);
@@ -70,11 +72,15 @@ export function App() {
     const r = setInterval(refreshRuns, 4000);
     // hash routing: "run:<id>" → a background run; anything else → a session.
     const route = (raw: string) => {
-      if (raw.startsWith("run:")) {
+      if (raw === "scheduled") {
+        showPage("scheduled");
+      } else if (raw.startsWith("run:")) {
         const rid = raw.slice(4);
         if (rid && rid !== useStore.getState().currentRunId) selectRun(rid);
       } else if (raw && raw !== useStore.getState().currentSid) {
         select(raw);
+      } else if (!raw && (useStore.getState().currentSid || useStore.getState().currentRunId || useStore.getState().currentPage !== "home")) {
+        showPage("home");
       }
     };
     if (location.hash.length > 1) route(location.hash.slice(1));
@@ -100,7 +106,7 @@ export function App() {
             title="Show sidebar (⌘B)"
             aria-label="Show sidebar"
           >
-            ⧉
+            <SidebarSimple size={17} />
           </button>
         )}
         <ErrorBoundary resetKey={currentRunId || currentSid || "home"}>
@@ -108,6 +114,8 @@ export function App() {
             <RunView runId={currentRunId} />
           ) : currentSid ? (
             <SessionView sid={currentSid} key={currentSid} />
+          ) : currentPage === "scheduled" ? (
+            <Scheduled />
           ) : (
             <Home />
           )}

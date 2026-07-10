@@ -39,6 +39,7 @@ interface AppState {
   runs: Run[];
   currentSid: string | null;
   currentRunId: string | null;
+  currentPage: "home" | "scheduled";
   modal: ModalKind;
   prompt: PromptState | null;
   toasts: ToastMsg[];
@@ -72,6 +73,7 @@ interface AppState {
   refreshRuns: () => Promise<void>;
   select: (sid: string | null) => void;
   selectRun: (rid: string | null) => void;
+  showPage: (page: "home" | "scheduled") => void;
   openModal: (m: ModalKind) => void;
   openPrompt: (p: PromptState | null) => void;
   toast: (text: string, kind?: "error" | "info") => void;
@@ -145,6 +147,7 @@ export const useStore = create<AppState>((set, get) => ({
   runs: [],
   currentSid: null,
   currentRunId: null,
+  currentPage: "home",
   modal: null,
   prompt: null,
   toasts: [],
@@ -289,7 +292,7 @@ export const useStore = create<AppState>((set, get) => ({
     get().select(order[next]);
   },
   select: (sid) => {
-    set({ currentSid: sid, currentRunId: null });
+    set({ currentSid: sid, currentRunId: null, currentPage: "home" });
     if (sid) {
       location.hash = sid;
       get().markRead(sid); // opening a task clears its unread flag
@@ -298,8 +301,12 @@ export const useStore = create<AppState>((set, get) => ({
     }
   },
   selectRun: (rid) => {
-    set({ currentRunId: rid, currentSid: null });
+    set({ currentRunId: rid, currentSid: null, currentPage: "scheduled" });
     location.hash = rid ? "run:" + rid : "";
+  },
+  showPage: (page) => {
+    set({ currentSid: null, currentRunId: null, currentPage: page });
+    location.hash = page === "scheduled" ? "scheduled" : "";
   },
   openModal: (m) => set({ modal: m }),
   openPrompt: (p) => set({ prompt: p }),
