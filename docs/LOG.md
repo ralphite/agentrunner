@@ -2121,6 +2121,21 @@ build 通过；根闸门见本提交。
 main 上的显式裁决落定。本轮继续认领 INC-29，处理 INC-23 明确移交的
 W21/W9/W33，真实浏览器闸门预留 **QA-36**。
 
+## 2026-07-10 INC-29 Web UI UX Round 3 收口
+
+关闭 INC-23 移交的 W21/W9/W33：Supervision 的 raw JSON 按钮升级为
+结构化 Run details（status/waiting/overview/usage/activity/provider；raw 仅
+advanced）；`conciseTitle` 去 bash/reply 模板共同前缀并保持 durable 原题/
+manual rename；running/ready/attention/failed/terminal 语义色统一到
+sidebar/pill/Subagents/light/dark。
+
+QA-36 用共享 store 的 approval/team/recovery 真状态反打，初版当场抓到并
+修复 3 个真相缺陷：revived children 详情计 4 而 panel 计 2；普通
+waiting:input 误上 Attention；restart 后 stranded 被 inspect stale running
+覆盖。最终 23 frontend tests + 根 check 全绿，console error=0，同尺寸 Codex
+对照 `qa/runs/2026-07-10-QA36/07-reference-vs-latest.png` 无 P0/P1/P2；未改变
+journal/API/daemon/状态机不变量。
+
 ## 2026-07-10 INC-28 stdin 管道 prompt（HANDA SPRINT #32，批 1 首项）
 
 **落地**：`internal/cli/stdin.go` `completeTextArg`（缺参 + 管道 →

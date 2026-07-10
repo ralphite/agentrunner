@@ -52,3 +52,19 @@ Attention / Background work 作为原生 Supervision 扩展；无阻塞交付的
   圆角、密度与 Codex 母版一致；AgentRunner 品牌与独有 supervision 数据不
   另造设计语言。审批 workspace 只在主层显示可辨识名称，完整临时路径不再
   抢占决策层。P0/P1/P2=0，PASS。
+
+---
+
+## INC-29 UX Round 3 黑盒复核
+
+- 结构化 Run details：默认只呈现 status/waiting/overview/usage/activity/
+  provider，raw inspect 收进折叠 advanced；approval 的 CLI answer command
+  不进入决策层。
+- QA-fix 发现并修复三处真相偏差：revive child 在详情重复计数、普通
+  waiting:input 被误报为 Attention、stranded 被 stale inspect 显示 Running。
+- 同前缀命令任务把真正差异前置；状态色在 sidebar/pill/Subagents 与
+  light/dark 统一。最终 1554×1012 同图：
+  `qa/runs/2026-07-10-QA36/07-reference-vs-latest.png`。
+
+结论：AgentRunner 品牌、Codex 通用结构与 supervision 扩展仍使用同一视觉
+语言；P0/P1/P2=0，PASS。

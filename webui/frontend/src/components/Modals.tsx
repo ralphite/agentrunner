@@ -104,7 +104,7 @@ function MainModal({ modal }: { modal: NonNullable<ModalKind> }) {
     case "confirm":
       return <ConfirmModal modal={modal} />;
     case "inspect":
-      return <RunDetailsModal data={modal.data} />;
+      return <RunDetailsModal data={modal.data} status={modal.status} />;
     case "viewer":
       return <ViewerModal title={modal.title} body={modal.body} />;
   }
@@ -712,10 +712,10 @@ function ViewerModal({ title, body }: { title: string; body: string }) {
   );
 }
 
-function RunDetailsModal({ data }: { data: unknown }) {
+function RunDetailsModal({ data, status }: { data: unknown; status?: string }) {
   const { openModal } = useStore();
-  const summary = summarizeInspect(data);
-  const status = friendlyStatus(summary.status.text);
+  const summary = summarizeInspect(data, status);
+  const displayStatus = friendlyStatus(summary.status.text);
   return (
     <Modal title="Run details" onClose={() => openModal(null)}>
       <div className="run-details">
@@ -724,7 +724,7 @@ function RunDetailsModal({ data }: { data: unknown }) {
             <span className="rd-kicker">Current run</span>
             <strong>{summary.spec}</strong>
           </div>
-          <span className={`pill ${summary.status.cls || status.cls}`}>{summary.status.text}</span>
+          <span className={`pill ${summary.status.cls || displayStatus.cls}`}>{summary.status.text}</span>
         </div>
 
         {summary.waiting && (

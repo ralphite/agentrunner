@@ -160,12 +160,12 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | 远程审批（daemon approve） | ✅ | UJ-17 | S6 |
 | notifier（生命周期通知、跨重启去重） | ✅ | UJ-14 | S6 |
 | 远程 stop command | ✅ | UJ-17 | INC-4 · TestStop*（daemon 孪生）· 手验（真 daemon：stop 拆 run、无标记、send 复活）；drive 系列亦可 stop（handleDrive 加 per-run cancel） |
-| Web UI 产品面：Codex 式 New task/Scheduled/Pinned/Projects→task、单一 thread、Changes、deep link、responsive sidebar | ✅ | UJ-24 | INC-19/23 · frontend view-model/timeline tests · QA-27/34 |
+| Web UI 产品面：Codex 式 New task/Scheduled/Pinned/Projects→task、单一 thread、Changes、deep link、responsive sidebar；自动标题去同质指令前缀 | ✅ | UJ-24 | INC-19/23/29 · conciseTitle/frontend view-model/timeline tests · QA-27/34/36 |
 | journal-backed session metadata（`sessions list --json` 输出 workspace/title/kind/schedule，Web UI cache 非真相源） | ✅ | UJ-24 | INC-19/23 · TestCLIResumeAfterCrash · TestCLISessionsJSONProjectsDriverMetadata · TestMetaStoreMerge* |
 | Web UI 内联审批（人类摘要、Details 折叠、Approve once/Deny） | ✅ | UJ-08/17/24 | INC-19 · approval presentation tests · QA-27 真实 waiting:approval（不代用户决策） |
-| Web UI Supervision（goal/agent tree 去重/approval+recovery attention/background，成员只读导航） | ✅ | UJ-18/22/23/24 | INC-19/23 · dedupeInspectNodes test · QA-27/34 真实父/子/recovery session |
+| Web UI Supervision（goal/agent tree 去重/approval+recovery attention/background，成员只读导航；结构化 Run details，raw inspect 仅 advanced） | ✅ | UJ-18/22/23/24 | INC-19/23/29 · dedupeInspectNodes/summarizeInspect tests · QA-27/34/36 真实父/子/recovery session |
 | Web UI progressive-disclosure composer | ✅ | UJ-22/24 | INC-19/23 · 默认输入/附件/access/model/send；Goal/Repeating/Best-of-N 与 persona 收入产品化 Task options；YAML 收入 Advanced |
-| Web UI 交互语义（task/button、dialog/menu/listbox、Escape、focus-visible、移动端 sidebar scrim） | ✅ | UJ-24 | INC-23 · frontend build · QA-34 DOM/799/680px |
+| Web UI 交互语义（task/button、dialog/menu/listbox、Escape、focus-visible、移动端 sidebar scrim；running/ready/attention/failed/terminal 统一状态色） | ✅ | UJ-24 | INC-23/29 · frontend build · QA-34/36 DOM/light/dark |
 | HTTP/WS 壳 | 🧊 | UJ-13 | backlog |
 
 ## J · 运行形态与云

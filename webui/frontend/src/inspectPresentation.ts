@@ -1,4 +1,5 @@
 import { friendlyStatus } from "./components/pill";
+import { dedupeInspectNodes } from "./viewModels";
 
 export interface InspectActivity {
   modelCalls: number;
@@ -49,7 +50,7 @@ function modeLabel(mode: unknown): string {
   }
 }
 
-export function summarizeInspect(raw: unknown): InspectSummary {
+export function summarizeInspect(raw: unknown, statusOverride?: string): InspectSummary {
   const data = record(raw);
   const waiting = record(data.waiting);
   const usage = record(data.usage);
@@ -59,7 +60,7 @@ export function summarizeInspect(raw: unknown): InspectSummary {
   const tools = entries.filter((entry) => entry.kind === "tool" && entry.name);
   const reason = waiting.kind === "approval"
     ? "waiting:approval"
-    : String(data.reason || data.status || "unknown");
+    : String(statusOverride || data.reason || data.status || "unknown");
 
   return {
     status: friendlyStatus(reason),
@@ -68,15 +69,18 @@ export function summarizeInspect(raw: unknown): InspectSummary {
     mode: modeLabel(data.mode),
     steps: number(data.gen_steps),
     turns: number(data.turns),
-    agents: Array.isArray(data.children) ? data.children.length : 0,
+    agents: Array.isArray(data.children) ? dedupeInspectNodes(data.children).length : 0,
     usage: {
       billed: number(usage.billed) || number(usage.input_tokens) + number(usage.output_tokens),
       input: number(usage.input_tokens),
       output: number(usage.output_tokens),
       cache: number(usage.cache_read) + number(usage.cache_write),
     },
-    waiting: waiting.kind ? {
-      title: waiting.kind === "approval" ? "Approval required" : `Waiting for ${String(waiting.kind)}`,
+    // waiting:input is the ordinary quiescent conversation state — it does
+    // not deserve an amber "Waiting for you" banner. Only actionable waits
+    // belong in the decision layer.
+    waiting: waiting.kind === "approval" ? {
+      title: "Approval required",
       subject: waitingSubject(waiting),
     } : undefined,
     provider: String(provider.provider || "").trim(),

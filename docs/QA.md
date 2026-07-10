@@ -617,6 +617,25 @@ webui 证据占用。）
 16 个 frontend tests、frontend build、Web UI Go tests 与根 check 全绿；
 最终同图对照为 `29-reference-vs-latest.png`。
 
+## QA-36 Web UI UX Round 3（INC-29,UJ-24）
+
+**环境**：最新 `main`、共享 `~/.local/share/agentrunner/` daemon/store、
+`http://127.0.0.1:8788`，1554×1012；light/dark 都走。只读 existing
+approval/team/recovery session，未审批、resume、close 或清理。证据保留在
+`qa/runs/2026-07-10-QA36/`。
+
+| # | 真实状态/动作 | 硬断言 |
+|---|---|---|
+| 1 | approval → Supervision → Run details | 首层为 status/waiting/overview/usage/activity/provider；CLI `answer_with` 不可见；raw data 默认折叠 |
+| 2 | revived team → Run details | engineer/reviewer 与详情均去重为 2；普通 waiting:input 不伪装 Attention；黑盒发现并修复初版 4/false-wait |
+| 3 | stranded → Run details | 使用 restart-aware session status 显示 Needs recovery，不被 inspect 的 stale running 覆盖；黑盒发现并修复初版状态撒谎 |
+| 4 | 多个同前缀 bash/reply 任务 | sidebar 首屏直接显示 `touch concurrent-{1..4}.txt` / `Reply · …`，完整原题仍在 tooltip；manual rename 优先 |
+| 5 | 状态色 + Codex 同图 | running=绿、ready/unread=蓝、approval/recovery=琥珀、failed=红、terminal=灰；dark token 同语义；console error=0；同尺寸对照无 P0/P1/P2 |
+
+**结果**：PASS。QA-fix 当轮关闭 agent 重复计数、普通 input false-attention、
+recovery stale status 三个信息真实性缺陷；23 个 frontend tests、frontend
+build、Web UI/根 check 全绿。最终同图对照 `07-reference-vs-latest.png`。
+
 ---
 
 ## 覆盖矩阵
