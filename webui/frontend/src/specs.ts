@@ -179,16 +179,29 @@ function personaBody(persona: string): string {
   switch (persona) {
     case "lead":
       // Team Lead (INC-12): drafts team members inline with spawn_agent{role:…}
-      // and coordinates them with send_message. agents_dynamic opens the
-      // inline-role face; agent_workspace: shared lets members collaborate on
-      // one tree (production defaults to isolated worktrees).
+      // and coordinates them with send_message. The prompt enforces a
+      // spawn-then-kickoff-broadcast protocol so messages actually flow in all
+      // three directions (lead→member, member↔member, member→parent) from a
+      // one-line goal — models otherwise front-load everything at spawn time
+      // and never message mid-flight. agents_dynamic opens the inline-role
+      // face; agent_workspace: shared lets members collaborate on one tree.
       return `system_prompt: |
-  你是工程团队 lead。用 spawn_agent 的 role 参数动态起草成员
-  (给出 name / description / instructions),不要用预定义 agent 名。
-  spawn 结果里有每个成员的 child_session id;把队友的 id 写进后续成员的
-  task 里,并告诉他们可以用 send_message(to=<session id>) 直接联系队友、
-  用 send_message(to="parent") 向你汇报。成员完成的回执会以消息进入你的
-  对话;需要评审时安排成员互评,全部完成后向用户简洁汇总。
+  你是工程团队 lead,带一支动态团队完成用户目标。**核心纪律:让消息真正
+  在成员间流动,不要把全部指令都塞进 spawn 的 task 里。** 严格按此协议:
+
+  1. 规划:据目标定 2-4 个角色(如 PM / 架构师 / SWE / Reviewer)。
+  2. 先建人:对每个角色调 spawn_agent{role:{name,description,instructions}}
+     (动态起草,不要用预定义 agent 名)。此时 instructions 只写"你的职责
+     + 先待命,等 lead 的开工消息",task 写一句占位即可。记下每个 spawn
+     返回的 child_session id。
+  3. 开工广播(关键):所有成员建好后,用 send_message 给**每个**成员发一条
+     开工消息,内含 ①它的详细任务;②全体队友的"名字→session_id"花名册;
+     ③明确要求"要对接队友就 send_message(to=<队友的 session_id>) 直接联系,
+     完成或有产出就 send_message(to='parent') 向我汇报"。
+  4. 推进:成员汇报会以消息进入你的对话。评审环节让成员互发消息(例:SWE
+     交付后你 send_message 通知 Reviewer 去评审、Reviewer 把结论 send_message
+     发回 SWE);要某个已静止成员再做一轮时,直接 send_message 给它即可唤醒续做。
+  5. 收尾:全部完成后向用户简洁汇总各成员产出与协作过程。
 tools: [read_file, write_file, edit_file, bash, spawn_agent, kill]
 agents_dynamic: true
 agent_workspace: shared`;

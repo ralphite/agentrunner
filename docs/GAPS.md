@@ -366,6 +366,16 @@ crash → `ActorCrashed` 标 dead（kernel 明确 no auto-restart），无
 **G4 并发子 agent 确定性测试基建（routing scripted provider） — 🔧 · 中**
 → 多 agent 类 e2e 测试的前提。
 
+**G25 树预算下无 cap 子 agent 的预留串行化 — 🟡 engine sharp edge · 中(2026-07-10 真验发现)**
+`spawnAllowance` 对"父有树预算、子无 cap"返回 parentRemaining——一次 spawn
+预留父几乎全部剩余预算,lead 下个 LLM 调用被拒(limit_exceeded),团队被串行化、
+lead 无法协调(见 UJ-23 web 试跑,LOG 2026-07-10)。无预算(默认)时并行正常。
+**workaround**:团队场景不设树预算(交互试跑),或给**每个成员**设 per-member
+`budget.max_total_tokens` 使预留有界。**潜在修**:父有预算+子无 cap 时给子一个
+默认预算切片(如 parentRemaining/预期扇出)而非全部,或改 reserve-est+settle-up
+(弱化 N 并行子的 overspend 保证,需权衡)。单独成增量,走三层 delta。
+→ UJ-18/23
+
 **G17 多根 workspace（--add-dir 类） — ❌ 设计缺失 · 低**
 单根是各处隐含前提（路径边界/快照/索引）。**当前 24 条 journey 目录
 未包含此场景**——保留自旧审计，纳入与否待目录定版。
