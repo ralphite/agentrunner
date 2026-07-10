@@ -67,7 +67,8 @@
 | 6 | protected paths 写保护集（.git/.claude/rc 文件等） | #59 | S | ✅ done (INC-18) | 只收紧 acceptEdits 自动放行；QA-28 真机；bypass/显式规则/hardFloor 不变 |
 | 7 | skill 模型侧 invoke（核心） | #45 · §3.5 | S | ✅ done (INC-20) | skill 工具按 name 返回 SKILL.md 正文；QA-29 真机；命令=用户宏裁决不动；fork 拆 7b |
 | 7b | context:fork（skill 在一次性子 agent 执行 = spawn_agent 变体） | #45 · §3.5 余项 | M | ⬜ | INC-20 拆出，独立增量 |
-| 8 | 结构化输出（`ar run --json-schema`，provider JSON mode 能力位） | #91 | S | 🔧 in-progress (INC-26) | CLI 层校验+重试+structured_output;provider-native JSON mode 拆 8b |
+| 8 | 结构化输出（`ar run --json-schema`，provider JSON mode 能力位） | #91 | S | ✅ done (INC-26) | `ar new --json-schema`：CLI 层校验+失败重发+canonical structured_output;QA-33 真机;provider-native JSON mode 拆 8b |
+| 8b | provider-native JSON mode（gemini responseSchema 约束生成免 re-prompt）+ durable structured_output 事件 | #91 余项 | M | ⬜ | INC-26 拆出;触 CompleteRequest/provider,谨慎 |
 | 9 | checkpoint 增强：barrier 打点密度提至每 turn 收尾 + "仅对话"fork 变体 + compact 范围指示（Summarize-from-here 等价） | #12/13 · §3.1 | M | ⬜ | §3.1 已论证不触不变量 |
 | 10 | ask_user 结构化选项（多选 + Other，向 AskUserQuestion 对齐） | #42 | S | ⬜ | webui 审批 UI 可复用 |
 | 11 | read-before-edit 护栏（edit_file 要求本会话 Read 过且未变） | #32 | S | 📐 deferred (INC-21) | 实现易（sync.Map 护栏），但波及 ~10 scripted edit 测试需批量加 read 步骤（含 crash matrix 等核心）→ 测试适配成本 M，defer 专轮；设计+波及分析见 INC-21 |
@@ -95,6 +96,7 @@
 
 | 轮 | 日期 | 项 | 结果 | commit |
 |---|---|---|---|---|
+| 8 | 2026-07-09 | #8 结构化输出 (INC-26) | ✅ 双闸门全绿（纯包 13 子测 compile/extract 各形态/validate/canonical + CLI 3 测 scripted 端到端"坏→纠正 send→好→canonical"/重试耗尽/usage fail-fast + QA-33 真 Gemini：ar new --json-schema 返 {lines:7,name:sample.txt} 首验过、python 独立确认）；CLI 层编排零核心改动；provider-native JSON mode 拆 8b | (见 push) |
 | 16 | 2026-07-09 | #16 内置只读 agent 库 (INC-25) | ✅ 双闸门全绿（5 孪生含加载/只读面/model 继承/内置遮蔽同名 sibling/未知回落 + QA-32 真 Gemini：模型 spawn 内置 explore 无 sibling 文件却成功、子会话只读、返值 512）；QA 首跑撞共享 daemon 旧二进制→改私有新二进制 daemon 跑法固化；默认可用拆 16b | (见 push) |
 | 5 | 2026-07-09 | #5 G5 审批"允许且不再问" (INC-17) | ✅ 双闸门全绿（3 孪生含下次-session 端到端 + QA-26 真 Gemini UJ-08 全流：ask→approve --always→新 session 直过）；真机捕获修 persist 漏传 Remember bug | (见 push) |
 | 4 | 2026-07-09 | #4 权限规则三件套 (INC-16) | ✅ 双闸门全绿（9 pipeline 孪生含安全回归 + QA-25 真 Gemini：victim 存活证逐段 deny）；显式 deny 先于只读集 | (见 push) |

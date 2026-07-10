@@ -1995,3 +1995,33 @@ worktree 空快照登记 G24;inspect children 重复登记 G26。
 Modals/Sidebar/CommandPalette 三处冲突,合并保留双方净改进(peer
 气泡与非人类 input runtime 行互补;Scheduled 术语从对方)。教训:
 工作纸推 main 即公共认领面,后续注明"认领人/在做"避免双做。
+
+## 2026-07-09 INC-26 结构化输出（SPRINT #8，#91）
+
+**动机**：对标 Claude Code `--json-schema` → 校验最终输出、失败重试、
+`structured_output`。集成用途（脚本/CI 拿可解析结果）+ verifier 用途两吃。
+
+**落地（CLI 层编排 + 纯包,零核心 loop/provider 改动——规避 INC-21 爆炸
+半径前例）**：
+- 新纯包 `internal/structured`（用已在依赖的 `google/jsonschema-go`）：
+  `Compile`（坏 schema 早失败）/`Extract`（从模型答案抽 JSON:剥 ```json
+  fences、取首个平衡 {}/[]、认字符串内花括号）/`Validate`（可读错误）/
+  `Canonical`（紧凑 key-sorted）。纯函数,无运行时依赖。
+- `ar new --json-schema <path> [--json-schema-max-retries N=2]`：CLI 启动即
+  Compile（坏→ExitUsage,不 spawn 幽灵会话）；与 `--detach` 互斥；前台跑
+  **捕获终答**（新增 `captureFinal`,**不改**已测的 `followTurn`）→Extract+
+  Validate→合则打印 canonical structured_output 到 stdout+ExitOK,不合且有
+  余次则 `send` 纠正消息（附校验错误,要求只回 bare JSON）重捕获重验,
+  次数耗尽→非零退出。retry 就是普通 send,无新事件类型。
+
+**双闸门**：孪生——structured 包 13 子测（compile/extract 各形态含
+fenced/prose/数组/串内花括号/无 JSON/不平衡、validate、canonical）+ CLI 3 测
+（scripted 端到端:opening 不合规→CLI 纠正 send→第二答合规→打印 canonical；
+重试耗尽→非零；usage 错误坏/缺 schema+detach 互斥,拨号前 fail-fast）。
+QA-33 真机 Gemini：`ar new --json-schema` 读文件数行返回
+`{"lines":7,"name":"sample.txt"}`,首验通过,python 独立确认 schema 符合+
+合理（name~sample、lines=7）。
+
+**拆余项 #8b**：provider-native JSON mode（gemini `responseSchema` 约束
+生成、免 re-prompt）+ durable `structured_output` 事件（入 journal 而非仅
+CLI surface）。
