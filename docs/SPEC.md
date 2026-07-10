@@ -74,7 +74,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | exit_plan_mode（plan mode 跃迁） | ✅ | UJ-06/11 | S2/S3 |
 | schedule_next / finish_series（loop 自定步调） | ✅ | UJ-14 | S6 |
 | grep / glob 独立工具 | ✅ | UJ-01 | INC-3 · TestGrep*/TestGlob* · QA-11（真实 API：模型自发调用 grep+glob，凭据红线守住） |
-| grep 参数增强（case_insensitive、glob 文件过滤、output_mode: content/files_with_matches/count；默认=旧行为） | ✅ | UJ-01 | INC-22 · TestGrepCaseInsensitive/TestGrepGlobFilter/TestGrepOutputModes · QA-30（真机：模型用新参数统计 TODO）；-A/-B/-C/multiline 余项 #12b |
+| grep 参数增强（case_insensitive、glob 文件过滤、output_mode: content/files_with_matches/count；-A/-B/-C context lines；默认=旧行为） | ✅ | UJ-01 | INC-22（case/glob/output_mode·QA-30）+ INC-24（-A/-B/-C context·QA-31）· TestGrepCaseInsensitive/GlobFilter/OutputModes/ContextLines；multiline 余项 #12c |
 | web_fetch（客户端执行,**execute-class**;HTML→text、重定向/大小上限、`network` 数据位、收容 fail-closed、**link-local/metadata 无条件封禁**、untrusted 标记;安全 review M1/M2 已对齐,host allowlist S1 待裁/backlog） | ✅ | UJ-01 | INC-5 · TestWebFetch*/TestRefuseLinkLocal* · QA-13 · QA-14（真实 coding agent 端到端） |
 | web search | ❌ | UJ-01 | GAPS G18 余项（搜索后端选型 / provider 服务端工具例外类别，单独成增量） |
 | ask_user（wait-class 提问：park WAITING_INPUT，应答走 inbox→配对 tool result，同 session 续跑；一批限一问、interrupt/crash/headless 全覆盖） | ✅ | UJ-06 | INC-5 · TestAskUser*（park/answer/reject/interrupt/headless/crash-resume）· QA-13 |

@@ -1800,3 +1800,19 @@ TestCrashMatrix 三态、TestLoopMultiTurnEditsFile、TestBarrierPerTurn 等
 一开全挂。批量适配 fixture 是独立 M 工作、改核心恢复测试风险高——回退
 代码、defer 到专轮（设计+波及分析留 INC-21，SPRINT #11 标 📐 deferred）。
 这正是"孪生跑暴露波及面、及时止损换题"的工程判断。
+
+## 2026-07-09 INC-24 grep context lines（SPRINT #12b，#35 余项）
+
+INC-22 拆出的 #12b 收口。grep content mode 加 `-A`/`-B`/`-C` 上下文行
+（对标 Claude Code grep）：`grepMatch` 加 Before/After（redacted + 同
+grepMaxLineBytes 截断，抽 clampGrepLine 复用）；-C 展开为 -A 与 -B 的
+max；context 窗口钳制 [0,20] 防超大 -C 炸输出；文件边界不越界。默认
+（无 -A/-B/-C）= 旧行为，`before/after` omitempty 不出现，现有 grep
+测试零破坏。files/count 模式忽略 context（无匹配行概念）。
+
+**双闸门**：孪生 TestGrepContextLines（-B/-A/-C 各正确、文件顶部 -B 5
+钳成空、默认无 context 键）+ QA-31 真 Gemini（模型用 -C 2 看 PIVOT
+行前后、结果带 before/after、答案反映 validate/persist 上下文）。归档
+qa/runs/2026-07-09-QA31/。multiline（跨行 regex，改匹配循环）拆余项
+#12c。check.sh 全绿（绿门排除已知环境测试）。grep 参数面（case/glob/
+output_mode/context）至此对齐 Claude Code 主要参数，仅剩 multiline。

@@ -72,7 +72,8 @@
 | 10 | ask_user 结构化选项（多选 + Other，向 AskUserQuestion 对齐） | #42 | S | ⬜ | webui 审批 UI 可复用 |
 | 11 | read-before-edit 护栏（edit_file 要求本会话 Read 过且未变） | #32 | S | 📐 deferred (INC-21) | 实现易（sync.Map 护栏），但波及 ~10 scripted edit 测试需批量加 read 步骤（含 crash matrix 等核心）→ 测试适配成本 M，defer 专轮；设计+波及分析见 INC-21 |
 | 12 | Grep/Glob 参数增强（output_mode/-A/-B/-C/multiline/type） | #35 | S | ✅ done (INC-22) | case_insensitive/glob/output_mode；QA-30 真机；默认=旧行为；-A/-B/-C/multiline 拆 12b |
-| 12b | grep context lines（-A/-B/-C）+ multiline | #35 余项 | S | 🔧 in-progress (INC-24) | -A/-B/-C context；multiline 拆 12c |
+| 12b | grep context lines（-A/-B/-C）+ multiline | #35 余项 | S | ✅ done (INC-24) | -A/-B/-C context；QA-31 真机；multiline 拆 12c |
+| 12c | grep multiline（跨行 regex） | #35 余项 | S | ⬜ | INC-24 拆出，改匹配循环 |
 | 13 | Read 工具多模态（读图/PDF 入 context，复用 CAS/part 管线） | #32 | M | ⬜ | 输入侧已通（INC-9），补工具侧 |
 | 14 | Monitor 流式后台进度（每行输出即通知；并 G10 进度通道） | #34 · G10 | M | ⬜ | 与 bash output 拉取并存 |
 | 15 | G22 boot sweep + cron 跨重启唤醒 | #87 · G22 | M | ⬜ | 无人值守自动性下半场 |
@@ -95,6 +96,7 @@
 |---|---|---|---|---|
 | 5 | 2026-07-09 | #5 G5 审批"允许且不再问" (INC-17) | ✅ 双闸门全绿（3 孪生含下次-session 端到端 + QA-26 真 Gemini UJ-08 全流：ask→approve --always→新 session 直过）；真机捕获修 persist 漏传 Remember bug | (见 push) |
 | 4 | 2026-07-09 | #4 权限规则三件套 (INC-16) | ✅ 双闸门全绿（9 pipeline 孪生含安全回归 + QA-25 真 Gemini：victim 存活证逐段 deny）；显式 deny 先于只读集 | (见 push) |
+| 12b | 2026-07-09 | #12b grep context lines (INC-24) | ✅ 双闸门全绿（孪生 -A/-B/-C 含文件边界钳制/默认无 context + QA-31 真 Gemini：模型用 -C 看 PIVOT 上下文）；multiline 拆 12c | (见 push) |
 | 12 | 2026-07-09 | #12 Grep 参数增强 (INC-22) | ✅ 双闸门全绿（3 孪生 case_insensitive/glob/output_mode + QA-30 真 Gemini：模型用新参数统计 TODO）；默认=旧行为不破；context lines 拆 12b。另 #11 read-before-edit 因测试适配成本 defer | (见 push) |
 | 7 | 2026-07-09 | #7 skill 模型侧 invoke 核心 (INC-20) | ✅ 双闸门全绿（3 孪生含 frontmatter 剥离/未知名/防遍历 + QA-29 真 Gemini：模型 invoke skill 并遵循指令）；context:fork 拆余项 7b | (见 push) |
 | 6 | 2026-07-09 | #6 protected paths 写保护 (INC-18) | ✅ 双闸门全绿（7 孪生 + QA-28 真 Gemini：.mcp.json 需审批且 pending 时未改写）；顺手 gofmt 并发遗漏的 initcmd.go | (见 push) |

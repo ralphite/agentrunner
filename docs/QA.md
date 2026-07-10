@@ -564,6 +564,22 @@ export 归档 `qa/runs/2026-07-09-QA30/`。
 **通过标准**：默认参数=旧行为（现有 grep 测试不破）；新参数无状态纯
 扩展。
 
+## QA-31 grep context lines（INC-24,#35 余项,UJ-01）
+
+**环境**：私有 daemon（隔离 runtime 根）+ 真实 Gemini；workspace 放一个
+含 `// PIVOT` 标记行的 handler.go；spec tools 含 grep；system prompt 告知
+grep -A/-B/-C。跑完 session 拷回共享 store、export 归档
+`qa/runs/2026-07-09-QA31/`。
+
+| # | 动作 | 验证 |
+|---|---|---|
+| 1 | 让模型「用 -C 2 看 PIVOT 行前后两行」 | grep tool_call 带 `-A`/`-B`/`-C` 至少一个 |
+| 2 | grep 返回 | tool_result 带 `before`/`after` 上下文数组 |
+| 3 | 模型作答 | 反映上下文（PIVOT 前后的 validate/persist 调用） |
+
+**通过标准**：默认无 context = 旧行为；context 行受 redaction/截断/文件
+边界钳制；files/count 模式忽略 context。
+
 ---
 
 ## 覆盖矩阵

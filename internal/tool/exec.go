@@ -214,6 +214,18 @@ type grepMatch struct {
 	Path string `json:"path"`
 	Line int    `json:"line"`
 	Text string `json:"text"`
+	// Before/After are context lines (INC-24, grep -B/-A/-C), redacted and
+	// clamped like the match line. Omitted when no context was requested.
+	Before []string `json:"before,omitempty"`
+	After  []string `json:"after,omitempty"`
+}
+
+// clampGrepLine redacts and length-clamps one grep line (match or context).
+func clampGrepLine(r *redact.Redactor, line string) string {
+	if len(line) > grepMaxLineBytes {
+		line = trimToValidUTF8(line[:grepMaxLineBytes]) + " …[line truncated]"
+	}
+	return r.String(line)
 }
 
 // grep searches file contents by RE2 regex across the workspace, returning
@@ -227,6 +239,9 @@ func (e *Executor) grep(rawArgs json.RawMessage) Result {
 		Glob            string `json:"glob"`
 		CaseInsensitive bool   `json:"case_insensitive"`
 		OutputMode      string `json:"output_mode"`
+		After           int    `json:"-A"`
+		Before          int    `json:"-B"`
+		Context         int    `json:"-C"`
 		MaxResults      int    `json:"max_results"`
 	}
 	if err := json.Unmarshal(rawArgs, &in); err != nil || strings.TrimSpace(in.Pattern) == "" {
@@ -265,6 +280,28 @@ func (e *Executor) grep(rawArgs json.RawMessage) Result {
 		limit = grepMaxMatches
 	}
 	contentMode := in.OutputMode == "" || in.OutputMode == "content"
+	// Context lines (INC-24, grep -A/-B/-C): -C is shorthand for both. Clamp
+	// negatives to 0 and cap to a sane window so a huge -C can't blow up output.
+	before, after := in.Before, in.Context
+	if in.After > after {
+		after = in.After
+	}
+	if in.Context > before {
+		before = in.Context
+	}
+	if before < 0 {
+		before = 0
+	}
+	if after < 0 {
+		after = 0
+	}
+	const grepMaxContext = 20
+	if before > grepMaxContext {
+		before = grepMaxContext
+	}
+	if after > grepMaxContext {
+		after = grepMaxContext
+	}
 	r := redact.FromEnv()
 	matches := []grepMatch{}
 	fileCounts := map[string]int{} // rel path -> match count (files_with_matches / count modes)
@@ -302,7 +339,8 @@ func (e *Executor) grep(rawArgs json.RawMessage) Result {
 		}
 		filesScanned++
 		rel, _ := filepath.Rel(e.WS.Root(), path)
-		for i, line := range strings.Split(content, "\n") {
+		lines := strings.Split(content, "\n")
+		for i, line := range lines {
 			if !re.MatchString(line) {
 				continue
 			}
@@ -314,10 +352,26 @@ func (e *Executor) grep(rawArgs json.RawMessage) Result {
 				truncated = true
 				return fs.SkipAll
 			}
-			if len(line) > grepMaxLineBytes {
-				line = trimToValidUTF8(line[:grepMaxLineBytes]) + " …[line truncated]"
+			m := grepMatch{Path: rel, Line: i + 1, Text: clampGrepLine(r, line)}
+			if before > 0 {
+				lo := i - before
+				if lo < 0 {
+					lo = 0
+				}
+				for _, bl := range lines[lo:i] {
+					m.Before = append(m.Before, clampGrepLine(r, bl))
+				}
 			}
-			matches = append(matches, grepMatch{Path: rel, Line: i + 1, Text: r.String(line)})
+			if after > 0 {
+				hi := i + 1 + after
+				if hi > len(lines) {
+					hi = len(lines)
+				}
+				for _, al := range lines[i+1 : hi] {
+					m.After = append(m.After, clampGrepLine(r, al))
+				}
+			}
+			matches = append(matches, m)
 		}
 		return nil
 	})

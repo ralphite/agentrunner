@@ -10,6 +10,9 @@
       "glob": { "type": "string", "description": "Optional filename glob to restrict which files are searched by basename, e.g. \"*.go\" or \"*.{ts,tsx}\"." },
       "case_insensitive": { "type": "boolean", "description": "Case-insensitive matching (default false)." },
       "output_mode": { "type": "string", "enum": ["content", "files_with_matches", "count"], "description": "\"content\" (default) returns matching lines; \"files_with_matches\" returns only the paths that matched (cheaper); \"count\" returns per-file match counts." },
+      "-A": { "type": "integer", "description": "Context: lines to include AFTER each match (like grep -A). content mode only. Capped at 20." },
+      "-B": { "type": "integer", "description": "Context: lines to include BEFORE each match (like grep -B). content mode only. Capped at 20." },
+      "-C": { "type": "integer", "description": "Context: lines to include both before AND after each match (like grep -C). Capped at 20." },
       "max_results": { "type": "integer", "description": "Maximum matching lines to return in content mode (default 100, cap 200)." }
     },
     "required": ["pattern"]
