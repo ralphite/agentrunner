@@ -35,6 +35,7 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
   const {
     health,
     sessions,
+    sessionsReady,
     runs,
     currentSid,
     currentPage,
@@ -201,7 +202,15 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
 
         <section className="sidebar-section projects-section">
           <div className="section-label">Projects</div>
-          {model.projects.length === 0 && <div className="sidebar-empty">{query ? "No matching tasks" : "No tasks yet"}</div>}
+          {!sessionsReady ? (
+            <div className="sidebar-loading" role="status" aria-label="Loading tasks">
+              <span />
+              <span />
+              <span />
+            </div>
+          ) : model.projects.length === 0 ? (
+            <div className="sidebar-empty">{query ? "No matching tasks" : "No tasks yet"}</div>
+          ) : null}
           {model.projects.map((project) => {
             const isExpanded = expanded.has(project.key) || !!query;
             const shown = isExpanded ? project.sessions : project.sessions.slice(0, 6);

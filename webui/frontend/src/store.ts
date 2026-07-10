@@ -38,6 +38,9 @@ interface ToastMsg {
 interface AppState {
   health: Health | null;
   sessions: Session[];
+  // False until the first successful session-list response. An empty array
+  // before then is "not loaded", not proof that the user has no tasks.
+  sessionsReady: boolean;
   runs: Run[];
   currentSid: string | null;
   currentRunId: string | null;
@@ -146,6 +149,7 @@ const seenTurns: Record<string, number> = {};
 export const useStore = create<AppState>((set, get) => ({
   health: null,
   sessions: [],
+  sessionsReady: false,
   runs: [],
   currentSid: null,
   currentRunId: null,
@@ -260,7 +264,7 @@ export const useStore = create<AppState>((set, get) => ({
         saveUnread(arr);
         set({ unread: arr });
       }
-      set({ sessions: next });
+      set({ sessions: next, sessionsReady: true });
     } catch {
       /* health indicator carries the failure */
     }

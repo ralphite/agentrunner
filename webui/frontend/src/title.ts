@@ -39,5 +39,18 @@ export function displayTitle(
 ): string {
   const custom = renames[sid];
   if (custom && custom.trim()) return custom.trim();
-  return rawTitle ? conciseTitle(rawTitle) : sid;
+  return rawTitle ? conciseTitle(rawTitle) : titleFromSessionId(sid);
+}
+
+// Old/child sessions can be deep-linked before (or without) a list metadata
+// row. Keep the header human-readable instead of leaking the full durable id.
+export function titleFromSessionId(sid: string): string {
+  const withoutStamp = sid.replace(/^\d{8}-\d{6}-/, "");
+  const withoutSuffix = withoutStamp.replace(/-[a-z0-9]{4,8}$/i, "");
+  const label = withoutSuffix
+    .replace(/-sub-[^-]+-\d+(?:_\d+)*-/i, " · ")
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return conciseTitle(label || "Task");
 }

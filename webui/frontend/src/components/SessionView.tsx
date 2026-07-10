@@ -32,10 +32,11 @@ function fmtTokens(n: number): string {
 }
 
 export function SessionView({ sid }: { sid: string }) {
-  const { select, openModal, toast, showSys, toggleSys, sessions, archived, toggleArchive, pinned, togglePin, renames } =
+  const { select, openModal, toast, showSys, toggleSys, sessions, sessionsReady, archived, toggleArchive, pinned, togglePin, renames } =
     useStore();
   const isSub = sid.includes("-sub-");
-  const title = displayTitle(renames, sid, sessions.find((s) => s.id === sid)?.title);
+  const sessionMeta = sessions.find((s) => s.id === sid);
+  const title = sessionsReady ? displayTitle(renames, sid, sessionMeta?.title) : "Loading task…";
 
   const [events, setEvents] = useState<Envelope[]>([]);
   const [pending, setPending] = useState<{ id: number; text: string; imgs: string[]; files: number }[]>([]);

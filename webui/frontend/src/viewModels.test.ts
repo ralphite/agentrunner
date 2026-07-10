@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildSidebarModel, dedupeInspectNodes, projectLabel, scheduleLabel, scratchLabel } from "./viewModels";
 import { compactWorkspaceName, describeApproval } from "./approvalPresentation";
-import { conciseTitle, displayTitle } from "./title";
+import { conciseTitle, displayTitle, titleFromSessionId } from "./title";
 import { foldEvents } from "./timeline";
 import type { Session } from "./types";
 
@@ -138,6 +138,11 @@ describe("task titles", () => {
   it("preserves ordinary titles and keeps manual renames authoritative", () => {
     expect(conciseTitle("Review the authentication boundary")).toBe("Review the authentication boundary");
     expect(displayTitle({ s1: "Release blocker" }, "s1", "Use bash to run exactly: make test")).toBe("Release blocker");
+  });
+
+  it("turns metadata-less durable ids into readable fallback titles", () => {
+    expect(titleFromSessionId("20260710-053059-review-auth-boundary-6a2b")).toBe("review auth boundary");
+    expect(displayTitle({}, "20260710-053059-review-auth-boundary-6a2b")).not.toContain("20260710");
   });
 });
 
