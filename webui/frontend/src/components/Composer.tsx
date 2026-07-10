@@ -746,6 +746,93 @@ export function Composer(props: ComposerProps) {
         />
       )}
 
+      {/* Codex keeps environment context visible above the new-task editor.
+          One trigger still owns the real workspace/mode/branch controls. */}
+      {!isSession && (
+        <div className="cx-env-strip">
+          <Popover
+            align="left"
+            onOpen={() => ws.trim() && AR.gitBranches(ws.trim()).then(setBranchInfo).catch(() => {})}
+            trigger={(open, toggle) => (
+              <button className={"cx-env-trigger" + (open ? " active" : "")} onClick={toggle} title="Environment">
+                <span><FolderIcon />{wsShort}</span>
+                <span><Desktop size={16} />Local</span>
+                <span><BranchIcon />{branchInfo?.isRepo ? branchInfo.current : "New repo"}</span>
+                {kind === "background" && <span><Lightning size={15} />Background</span>}
+                <Caret />
+              </button>
+            )}
+          >
+            {(close) => (
+              <div className="cx-menu wide">
+                {recentWorkspaces.filter((w) => w !== ws.trim().replace(/\/+$/, "")).length > 0 && (
+                  <PopSection label="Recent workspaces">
+                    {recentWorkspaces
+                      .filter((w) => w !== ws.trim().replace(/\/+$/, ""))
+                      .slice(0, 4)
+                      .map((w) => (
+                        <PopItem key={w} icon={<FolderIcon />} title={projectLabel(w)} desc={w} onClick={() => { setWs(w); close(); }} />
+                      ))}
+                  </PopSection>
+                )}
+                <PopSection label="Workspace">
+                  <PopItem icon={<Sparkle size={15} />} title="New empty workspace" desc="A fresh scratch directory (own git repo)" onClick={async () => { try { setWs((await AR.makeWorkspace()).path); } catch (e: any) { props.onError(e.message); } close(); }} />
+                  <PopItem icon={<FolderIcon />} title="Enter a path…" desc="An absolute directory to work in" onClick={() => { close(); openPrompt({ title: "Workspace path", label: "absolute directory to work in", initial: ws, placeholder: "/path/to/workspace", onSubmit: (path) => setWs(path) }); }} />
+                </PopSection>
+                {ws && <div className="cx-ctx-path" title={ws}>{ws}</div>}
+                <PopSection label="Start in">
+                  <PopItem icon={<StartIcon />} title="Interactive session" desc="Chat back and forth with the agent" active={kind === "chat"} onClick={() => { setKind("chat"); close(); }} />
+                  <PopItem icon={<Lightning size={15} />} title="Background task" desc="One-shot: runs to completion on its own" active={kind === "background"} onClick={() => { setKind("background"); close(); }} />
+                </PopSection>
+                {branchInfo?.isRepo && (
+                  <PopSection label={`Branch${branchInfo.dirty ? ` · ${branchInfo.dirty} uncommitted` : ""}`}>
+                    {branchInfo.branches.map((branch) => (
+                      <PopItem
+                        key={branch}
+                        icon={<BranchIcon />}
+                        title={branch}
+                        active={branch === branchInfo.current}
+                        onClick={async () => {
+                          close();
+                          if (branch === branchInfo.current) return;
+                          try {
+                            await AR.gitCheckout(ws.trim(), branch, false);
+                            setBranchInfo({ ...branchInfo, current: branch });
+                            toast(`Switched to ${branch}`, "info");
+                          } catch (error: any) {
+                            props.onError(error.message);
+                          }
+                        }}
+                      />
+                    ))}
+                    <PopItem
+                      icon={<PlusIcon />}
+                      title="Create & checkout new branch…"
+                      onClick={() => {
+                        close();
+                        openPrompt({
+                          title: "New branch",
+                          label: "branch name",
+                          onSubmit: async (branch) => {
+                            try {
+                              await AR.gitCheckout(ws.trim(), branch, true);
+                              setBranchInfo({ ...branchInfo, current: branch, branches: [branch, ...branchInfo.branches] });
+                              toast(`Created & switched to ${branch}`, "info");
+                            } catch (error: any) {
+                              props.onError(error.message);
+                            }
+                          },
+                        });
+                      }}
+                    />
+                  </PopSection>
+                )}
+              </div>
+            )}
+          </Popover>
+        </div>
+      )}
+
       <div
         className={"cx-card" + (dragging ? " dropping" : "")}
         onDragEnter={onDragEnter}
@@ -1002,91 +1089,6 @@ export function Composer(props: ComposerProps) {
           )}
         </div>
 
-        {/* One Codex-style environment control keeps setup available without
-            making users understand workspace, mode, and branch up front. */}
-        {!isSession && (
-          <div className="cx-ctx">
-            <Popover
-              align="left"
-              onOpen={() => ws.trim() && AR.gitBranches(ws.trim()).then(setBranchInfo).catch(() => {})}
-              trigger={(open, toggle) => (
-                <button className={"cx-ctx-pill environment" + (open ? " active" : "")} onClick={toggle} title="Environment">
-                  <FolderIcon />
-                  {wsShort}
-                  <span className="cx-env-meta">{kind === "chat" ? "Interactive" : "Background"}{branchInfo?.isRepo ? ` · ${branchInfo.current}` : ""}</span>
-                  <Caret />
-                </button>
-              )}
-            >
-              {(close) => (
-                <div className="cx-menu wide">
-                  {recentWorkspaces.filter((w) => w !== ws.trim().replace(/\/+$/, "")).length > 0 && (
-                    <PopSection label="Recent workspaces">
-                      {recentWorkspaces
-                        .filter((w) => w !== ws.trim().replace(/\/+$/, ""))
-                        .slice(0, 4)
-                        .map((w) => (
-                          <PopItem key={w} icon={<FolderIcon />} title={projectLabel(w)} desc={w} onClick={() => { setWs(w); close(); }} />
-                        ))}
-                    </PopSection>
-                  )}
-                  <PopSection label="Workspace">
-                    <PopItem icon={<Sparkle size={15} />} title="New empty workspace" desc="A fresh scratch directory (own git repo)" onClick={async () => { try { setWs((await AR.makeWorkspace()).path); } catch (e: any) { props.onError(e.message); } close(); }} />
-                    <PopItem icon={<FolderIcon />} title="Enter a path…" desc="An absolute directory to work in" onClick={() => { close(); openPrompt({ title: "Workspace path", label: "absolute directory to work in", initial: ws, placeholder: "/path/to/workspace", onSubmit: (path) => setWs(path) }); }} />
-                  </PopSection>
-                  {ws && <div className="cx-ctx-path" title={ws}>{ws}</div>}
-                  <PopSection label="Start in">
-                    <PopItem icon={<StartIcon />} title="Interactive session" desc="Chat back and forth with the agent" active={kind === "chat"} onClick={() => { setKind("chat"); close(); }} />
-                    <PopItem icon={<Lightning size={15} />} title="Background task" desc="One-shot: runs to completion on its own" active={kind === "background"} onClick={() => { setKind("background"); close(); }} />
-                  </PopSection>
-                  {branchInfo?.isRepo && (
-                    <PopSection label={`Branch${branchInfo.dirty ? ` · ${branchInfo.dirty} uncommitted` : ""}`}>
-                      {branchInfo.branches.map((branch) => (
-                        <PopItem
-                          key={branch}
-                          icon={<BranchIcon />}
-                          title={branch}
-                          active={branch === branchInfo.current}
-                          onClick={async () => {
-                            close();
-                            if (branch === branchInfo.current) return;
-                            try {
-                              await AR.gitCheckout(ws.trim(), branch, false);
-                              setBranchInfo({ ...branchInfo, current: branch });
-                              toast(`Switched to ${branch}`, "info");
-                            } catch (error: any) {
-                              props.onError(error.message);
-                            }
-                          }}
-                        />
-                      ))}
-                      <PopItem
-                        icon={<PlusIcon />}
-                        title="Create & checkout new branch…"
-                        onClick={() => {
-                          close();
-                          openPrompt({
-                            title: "New branch",
-                            label: "branch name",
-                            onSubmit: async (branch) => {
-                              try {
-                                await AR.gitCheckout(ws.trim(), branch, true);
-                                setBranchInfo({ ...branchInfo, current: branch, branches: [branch, ...branchInfo.branches] });
-                                toast(`Created & switched to ${branch}`, "info");
-                              } catch (error: any) {
-                                props.onError(error.message);
-                              }
-                            },
-                          });
-                        }}
-                      />
-                    </PopSection>
-                  )}
-                </div>
-              )}
-            </Popover>
-          </div>
-        )}
       </div>
 
       {isSession && <div className="cx-status">{(props as any).running ? "running…" : "ready"}</div>}
