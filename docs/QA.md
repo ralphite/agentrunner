@@ -579,6 +579,24 @@ grep -A/-B/-C。跑完 session 拷回共享 store、export 归档
 
 **通过标准**：默认无 context = 旧行为；context 行受 redaction/截断/文件
 边界钳制；files/count 模式忽略 context。
+
+## QA-35 grep multiline（INC-27,#35 余项,UJ-01）
+
+**环境**：私有 daemon（隔离 runtime 根,新二进制）+ 真实 Gemini；workspace
+放一个含多行 `computeTotal` 函数体的 `billing.go`；spec tools 含 grep；
+system prompt 告知 grep 的 multiline 参数。跑完 session 拷回共享 store、
+export 归档 `qa/runs/2026-07-09-QA35/`。（编号让路：QA-34 已被 INC-23.B6
+webui 证据占用。）
+
+| # | 动作 | 验证 |
+|---|---|---|
+| 1 | 让模型「用 multiline 一次抓取整个 computeTotal 函数体」 | grep tool_call 带 `"multiline":true` |
+| 2 | grep 返回 | 某 match 的 text 跨行（含嵌入换行,横跨 func 签名到 return） |
+| 3 | 模型作答 | 反映跨行结构（函数行数/循环体对 sum 的操作） |
+
+**通过标准**：默认 multiline=false=旧逐行行为；`(?sm)` 使 `.` 跨行且 `^`/`$`
+锚行；起始行号正确；上下文/cap/redaction 复用。
+
 ## QA-34 Web UI 黑盒 QA-fix 第二轮（INC-23,UJ-24）
 
 **环境**：最新 `main`、共享 `~/.local/share/agentrunner/` daemon/store、

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# QA-34 real-API gate (INC-27, #35 余项): grep multiline (跨行 regex). The
+# QA-35 real-API gate (INC-27, #35 余项): grep multiline (跨行 regex). The
 # model must use grep with multiline:true to capture a whole function body in
 # a single cross-line match. Journal red lines (live Gemini):
 #   1. the model calls grep with "multiline":true at least once;
@@ -10,10 +10,10 @@
 # it needs a daemon running THIS binary. Private daemon on an isolated root;
 # session copied to the shared store + export archived (mirrors QA-31/32).
 #
-#   qa/run-qa34.sh <ar-binary>
+#   qa/run-qa35.sh <ar-binary>
 set -euo pipefail
-QA=QA-34
-AR="${1:?usage: run-qa34.sh <ar-binary>}"
+QA=QA-35
+AR="${1:?usage: run-qa35.sh <ar-binary>}"
 here="$(cd "$(dirname "$0")" && pwd)"
 [ -f "$here/../.env" ] && { set -a; . "$here/../.env"; set +a; }
 if [ -z "${GEMINI_API_KEY:-}" ]; then
@@ -23,7 +23,7 @@ fi
 [ -n "${GEMINI_API_KEY:-}" ] || { echo "$QA: GEMINI_API_KEY unset" >&2; exit 2; }
 
 stamp="$(date +%Y%m%d-%H%M%S)"
-work="${QA34_WORK:-/tmp/qa34-$stamp}"
+work="${QA35_WORK:-/tmp/qa35-$stamp}"
 mkdir -p "$work/ws"
 export XDG_DATA_HOME="$work/xdg"
 
@@ -44,7 +44,7 @@ func noop() {}
 GO
 
 cat > "$work/spec.yaml" <<'YAML'
-name: qa34
+name: qa35
 model: { provider: gemini, id: gemini-flash-latest, max_tokens: 512 }
 system_prompt: |
   你可以用 grep 搜索代码。grep 支持 multiline 参数:设 multiline=true 时,

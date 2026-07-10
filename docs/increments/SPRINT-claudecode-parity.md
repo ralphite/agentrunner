@@ -74,7 +74,7 @@
 | 11 | read-before-edit 护栏（edit_file 要求本会话 Read 过且未变） | #32 | S | 📐 deferred (INC-21) | 实现易（sync.Map 护栏），但波及 ~10 scripted edit 测试需批量加 read 步骤（含 crash matrix 等核心）→ 测试适配成本 M，defer 专轮；设计+波及分析见 INC-21 |
 | 12 | Grep/Glob 参数增强（output_mode/-A/-B/-C/multiline/type） | #35 | S | ✅ done (INC-22) | case_insensitive/glob/output_mode；QA-30 真机；默认=旧行为；-A/-B/-C/multiline 拆 12b |
 | 12b | grep context lines（-A/-B/-C）+ multiline | #35 余项 | S | ✅ done (INC-24) | -A/-B/-C context；QA-31 真机；multiline 拆 12c |
-| 12c | grep multiline（跨行 regex） | #35 余项 | S | ✅ done (INC-27) | multiline 参数 + (?sm) 整文件匹配;默认旧逐行;QA-34 真机;#35 系列收口(仅 type 过滤低优余项) |
+| 12c | grep multiline（跨行 regex） | #35 余项 | S | ✅ done (INC-27) | multiline 参数 + (?sm) 整文件匹配;默认旧逐行;QA-35 真机;#35 系列收口(仅 type 过滤低优余项) |
 | 13 | Read 工具多模态（读图/PDF 入 context，复用 CAS/part 管线） | #32 | M | ⬜ | 输入侧已通（INC-9），补工具侧 |
 | 14 | Monitor 流式后台进度（每行输出即通知；并 G10 进度通道） | #34 · G10 | M | ⬜ | 与 bash output 拉取并存 |
 | 15 | G22 boot sweep + cron 跨重启唤醒 | #87 · G22 | M | ⬜ | 无人值守自动性下半场 |
@@ -96,7 +96,7 @@
 
 | 轮 | 日期 | 项 | 结果 | commit |
 |---|---|---|---|---|
-| 12c | 2026-07-09 | #12c grep multiline (INC-27) | ✅ 双闸门全绿（3 孪生:跨行命中 vs 默认逐行不命中/起始行号/文本跨行 + `$` 锚行证 (?m) + 上下文+case 组合 + QA-34 真 Gemini：模型 multiline:true 一次抓整个函数体、match 文本含嵌入换行）；默认=旧逐行零破坏；#35 系列(INC-22/24/27)收口 | (见 push) |
+| 12c | 2026-07-09 | #12c grep multiline (INC-27) | ✅ 双闸门全绿（3 孪生:跨行命中 vs 默认逐行不命中/起始行号/文本跨行 + `$` 锚行证 (?m) + 上下文+case 组合 + QA-35 真 Gemini：模型 multiline:true 一次抓整个函数体、match 文本含嵌入换行）；默认=旧逐行零破坏；#35 系列(INC-22/24/27)收口 | (见 push) |
 | 8 | 2026-07-09 | #8 结构化输出 (INC-26) | ✅ 双闸门全绿（纯包 13 子测 compile/extract 各形态/validate/canonical + CLI 3 测 scripted 端到端"坏→纠正 send→好→canonical"/重试耗尽/usage fail-fast + QA-33 真 Gemini：ar new --json-schema 返 {lines:7,name:sample.txt} 首验过、python 独立确认）；CLI 层编排零核心改动；provider-native JSON mode 拆 8b | (见 push) |
 | 16 | 2026-07-09 | #16 内置只读 agent 库 (INC-25) | ✅ 双闸门全绿（5 孪生含加载/只读面/model 继承/内置遮蔽同名 sibling/未知回落 + QA-32 真 Gemini：模型 spawn 内置 explore 无 sibling 文件却成功、子会话只读、返值 512）；QA 首跑撞共享 daemon 旧二进制→改私有新二进制 daemon 跑法固化；默认可用拆 16b | (见 push) |
 | 5 | 2026-07-09 | #5 G5 审批"允许且不再问" (INC-17) | ✅ 双闸门全绿（3 孪生含下次-session 端到端 + QA-26 真 Gemini UJ-08 全流：ask→approve --always→新 session 直过）；真机捕获修 persist 漏传 Remember bug | (见 push) |

@@ -21,7 +21,7 @@ Code grep `multiline: true`（`.` 跨行、pattern 跨行匹配）。现状：gr
 ## Spec delta
 
 - SPEC C grep 行补 multiline；CLAUDECODE-PARITY #35 备注去掉"multiline 余项"。
-- 锚 `TestGrepMultiline` + QA-34。
+- 锚 `TestGrepMultiline` + QA-35。
 
 ## Design delta
 
@@ -33,7 +33,7 @@ cap 全不变。
 - 孪生 `TestGrepMultiline`：跨行 pattern 在 multiline=true 命中、false 不
   命中；起始行号正确；`(?sm)` 下 `^`/`$` 锚行；context 上下文对跨行 match
   仍正确；case_insensitive+multiline 组合。
-- 真实 API QA-34：让 Gemini 用 multiline grep 找一个跨行结构（如整个
+- 真实 API QA-35：让 Gemini 用 multiline grep 找一个跨行结构（如整个
   函数体），验证命中跨行；`ar events` 归档 qa/runs/。
 - 绿门（排除已知环境测试）。
 
@@ -42,7 +42,7 @@ cap 全不变。
 1. grep.json 加 multiline 参数。
 2. exec.go grep()：args 加 Multiline;flag 前缀组合 `i`/`s`/`m`;文件体内
    multiline 分支（整文件 FindAllStringIndex + 行号/上下文），else 旧逐行。
-3. 孪生 TestGrepMultiline + QA-34。
+3. 孪生 TestGrepMultiline + QA-35。
 4. 文档行齐活。
 
 ## review 裁决
