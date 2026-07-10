@@ -272,8 +272,7 @@ description: carries out investigation/edit tasks assigned by the parent and rep
 model: { provider: gemini, id: gemini-flash-latest, max_tokens: 4096 }
 system_prompt: When the task is done, report your conclusions as concise bullet points. If something you need is missing (a file, an answer), report that promptly instead of retrying.
 tools: [read_file, bash]
-limits:
-  max_generation_steps: 24
+max_generation_steps: 24
 `;
 
 // Legacy export kept for the advanced YAML modal (unchanged escape hatch).

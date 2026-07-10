@@ -99,8 +99,7 @@ description: carries out investigation/edit tasks assigned by the parent and rep
 model: { provider: gemini, id: gemini-flash-latest, max_tokens: 4096 }
 system_prompt: When the task is done, report your conclusions as concise bullet points. If something you need is missing (a file, an answer), report that promptly instead of retrying.
 tools: [read_file, bash]
-limits:
-  max_generation_steps: 24
+max_generation_steps: 24
 `,N1=Dn({provider:"gemini",model:"gemini-flash-latest",access:"full"}),Rf=`name: worker
 model: { provider: gemini, id: gemini-flash-latest, max_tokens: 2048 }
 system_prompt: You work in an iteration loop; each round advance the task one small step, self-check, and report concisely what you did this round.
