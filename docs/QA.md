@@ -932,7 +932,30 @@ auto-title（sidebar 显示「Markdown 格式示例演示」）。锚孪生（A 
 
 ---
 
-## QA-54 project overlay + 系统 launcher（INC-53,HANDA #24,UJ-24）
+## QA-57 ar dictate + ar optimize（INC-56,HANDA #18/#19,UJ-01/02/04/24）
+
+**环境**：真 Gemini + `ar` 一次性 provider 调用（不需 daemon，webui 薄壳经
+ar）。脚本 `qa/run-qa57.sh <ar>`。dictate 用 macOS `say` 合成音频（`.aiff`
+在 MIME 映射内）。
+
+| # | 动作 | 硬断言 |
+|---|---|---|
+| 1 | `say -o note.aiff "...kubelet...cluster Artemis...rebase the auth branch"` → `ar dictate --context "..." note.aiff` | 转写非空、保留专有名词 kubelet/Artemis/rebase（provider `PartAudio`→Gemini inline_data 真转写） |
+| 2 | `ar optimize --context "editing internal/auth..." "fix the thing that broke"` | 输出非空、**≠ 原草稿逐字**、更充实（LLM 真改写、领域感知） |
+
+**结果**：PASS（2026-07-11）。dictate 转写「Please deploy the kubelet on
+cluster Artemis, then rebase the auth branch」逐字保留专有名词；optimize 把
+「fix the thing that broke」改写为「Investigate and fix the recently
+introduced issue or bug that broke the token verification functionality in
+internal/auth.」。归档 `qa/runs/2026-07-11-INC56/`。锚孪生（A 闸绿）：
+TestToPartAudio / TestDictateEncodesAudioPartAndContext /
+TestDictateRejectsOversizeAudio / TestHandleDictateRejectsNonUploadPath /
+TestOptimizeRewritesDraft / TestOptimizeSurfacesProviderError /
+TestHandleOptimizeForwardsAndGuardsDraft / slash.test / composerOptimize.test。
+
+---
+
+## QA-56 project overlay + 系统 launcher（INC-53,HANDA #24,UJ-24）
 
 **环境**：真机 arwebui（`--no-daemon`，测试端口）+ 共享 store 真 workspace +
 真实 HTTP。脚本 `qa/run-qa54.sh <arwebui> <ar>`。**真 `open -a` 不跑**（会

@@ -61,9 +61,9 @@
 |---|---|---|---|---|
 | 20 | Markdown 增强（react-markdown+gfm 表格+highlight.js） | M | ✅ done (INC-51) | 双闸门：frontend vitest 5 条（表格/高亮/line-wrap/raw-HTML 转义）+ QA-55 真浏览器 DOM（GFM 表格+hljs 高亮+字面 <script> 无注入作可见文本+wrap 开关）；禁 raw HTML（无 rehype-raw）；mermaid 懒加载记余项 |
 | 14 | LLM auto-title（SessionTitled{auto} journal 事件） | S/M | ✅ done (INC-52) | 双闸门：孪生 8 条 + 真 Gemini QA-53（精简 auto title「分析用户认证安全机制」+ 单条 SessionTitled{auto}+autotitle llm_call + sessions list 暴露 + 坏 key daemon fail-closed，qa/runs/2026-07-11-INC52）；manual rename 不迁移（§12:1092）；`AutoTitle` 仅顶层托管 session；QA-51→QA-53 让号（撞并发 INC-58/59） |
-| 24 | project overlay + launcher（meta.json 扩展 + /api/open） | S/M | ✅ done (INC-53) | 双闸门：Go 孪生 6 条 + 真机 QA-54（off-whitelist app 400 / 未知 workspace 400 fail-closed / overlay 持久化 webui-meta.json，qa/runs/2026-07-11-INC53）；真 open -a 靠 argv 孪生覆盖；不建服务端注册表、grouping 仍从 journal 派生 |
-| 18 | ar dictate 服务端听写（provider 补 audio part） | M | 🔧 A 闸绿待 B (INC-56) | 走 ar 命令，webui 薄壳不变；`PartAudio` additive、不进 Envelope modalities（坐实非新模态）；A 闸孪生全绿（provider/CLI/webui/前端）；B 闸真 Gemini 转写待用户集中验（worktree 子 agent F） |
-| 19 | ar optimize prompt 优化 | S | 🔧 A 闸绿待 B (INC-56) | 搭 #18 的车；一次性 provider 调用不碰 daemon；Sparkles+/optimize+单步 undo；A 闸孪生全绿；B 闸真改写+undo 待用户验（worktree 子 agent F） |
+| 24 | project overlay + launcher（meta.json 扩展 + /api/open） | S/M | ✅ done (INC-53) | 双闸门：Go 孪生 6 条 + 真机 QA-56（off-whitelist app 400 / 未知 workspace 400 fail-closed / overlay 持久化 webui-meta.json，qa/runs/2026-07-11-INC53）；真 open -a 靠 argv 孪生覆盖；不建服务端注册表、grouping 仍从 journal 派生 |
+| 18 | ar dictate 服务端听写（provider 补 audio part） | M | ✅ done (INC-56) | 走 ar 命令，webui 薄壳不变；`PartAudio` additive、不进 Envelope modalities（坐实非新模态）；A 闸孪生全绿（provider/CLI/webui/前端）；B 闸真 Gemini 转写待用户集中验（worktree 子 agent F） |
+| 19 | ar optimize prompt 优化 | S | ✅ done (INC-56) | 搭 #18 的车；一次性 provider 调用不碰 daemon；Sparkles+/optimize+单步 undo；A 闸孪生全绿；B 闸真改写+undo 待用户验（worktree 子 agent F） |
 
 ## 轮次日志（每轮一行，追加）
 
