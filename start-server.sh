@@ -95,7 +95,10 @@ if [ "$SKIP_BUILD" = false ]; then
     go build -buildvcs=false -o bin/ar ./cmd/agentrunner
 
     echo "Compiling Web UI Server (arwebui)..."
-    go build -buildvcs=false -o bin/arwebui ./webui
+    (
+        cd webui
+        go build -buildvcs=false -o ../bin/arwebui .
+    )
 
     echo "Build completed successfully!"
     echo ""
