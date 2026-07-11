@@ -389,6 +389,24 @@ func rememberCmd(args []string, stdout, stderr io.Writer) int {
 	return code
 }
 
+// modeCmd switches a session's permission mode at its next safe boundary
+// (INC-42, G29): `agentrunner mode <session> <default|acceptEdits>`. Runtime
+// switching covers the user-sovereignty pair only — plan exits via the
+// exit_plan_mode approval flow and bypass stays a process-start choice — so
+// anything else is rejected here before a command is even sent.
+func modeCmd(args []string, stdout, stderr io.Writer) int {
+	if len(args) != 2 || (args[1] != "default" && args[1] != "acceptEdits") {
+		fmt.Fprintln(stderr, "usage: agentrunner mode <session-id-or-prefix> <default|acceptEdits>\n(plan and bypass are start-time choices: spec `mode:` or --mode)")
+		return ExitUsage
+	}
+	cmd := daemon.Command{Cmd: "mode", Session: resolvePrefixLenient(args[0]), Directive: args[1]}
+	code := oneShot(stderr, cmd, stdout)
+	if code != ExitOK {
+		stuckHint(stderr, args[0])
+	}
+	return code
+}
+
 // goalCmd drives an in-session goal (INC-D1, G23/UJ-22):
 //
 //	agentrunner goal <session> attach "<goal>" --verify "<cmd>" [--verify …] [--max-checks N]

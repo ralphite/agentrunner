@@ -82,6 +82,8 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 		return clearCmd(args[1:], stdout, stderr)
 	case "remember":
 		return rememberCmd(args[1:], stdout, stderr)
+	case "mode":
+		return modeCmd(args[1:], stdout, stderr)
 	case "goal":
 		return goalCmd(args[1:], stdout, stderr)
 	case "agent":
@@ -148,6 +150,8 @@ func commandHelp(cmd string) string {
 		return "usage: agentrunner trust <dir>\n\nMark a workspace directory as trusted on this machine.\n"
 	case "remember":
 		return "usage: agentrunner remember <session-id-or-prefix> \"note\"\n\nSave a durable note to the workspace's project CLAUDE.md; future\nsessions in that workspace see it in their prompt prefix, and the\ntarget session honors it from now on.\n"
+	case "mode":
+		return "usage: agentrunner mode <session-id-or-prefix> <default|acceptEdits>\n\nSwitch the session's permission mode at its next safe boundary\n(journaled as mode_changed). acceptEdits auto-allows edits —\nexecute and protected-path writes still ask. plan and bypass are\nstart-time choices (spec `mode:` or --mode), not runtime targets.\n"
 	}
 	return ""
 }
@@ -182,6 +186,8 @@ Conversations (need the daemon):
   clear <session>             drop the context prefix (keep the full journal)
   remember <session> "note"   save a durable note to the project CLAUDE.md
                               (injected into future sessions in this workspace)
+  mode <session> <mode>       switch permission mode (default|acceptEdits) at the
+                              next safe boundary; plan/bypass are start-time only
   goal <session> attach "…"   attach a goal the session keeps working toward
                               (also: goal <session> update|pause|resume|cancel)
 

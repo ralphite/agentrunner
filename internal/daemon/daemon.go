@@ -706,6 +706,8 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlClear}, "clear requested — the journal records the outcome", enc)
 	case "remember":
 		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlRemember, Directive: cmd.Directive}, "remember requested — the journal records the outcome", enc)
+	case "mode":
+		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlMode, Directive: cmd.Directive}, "mode change requested — the journal records the outcome", enc)
 	// goal-* controls revive a non-hosted session like send does (INC-10):
 	// structural since the durable-command unification — handleControl's
 	// delivery path (commandHubCommandLocked) resumes the session first.
