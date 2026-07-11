@@ -31,6 +31,11 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /api/uploads/{name}", s.handleServeUpload)
 	mux.HandleFunc("POST /api/trust", s.handleTrust)
 
+	// ---- project overlay + system launcher (INC-53, HANDA #24) ----
+	mux.HandleFunc("GET /api/projects", s.handleProjectsList)
+	mux.HandleFunc("POST /api/projects", s.handleProjectUpdate)
+	mux.HandleFunc("POST /api/open", s.handleOpen)
+
 	mux.HandleFunc("GET /api/sessions/{sid}/events", s.handleEvents)
 	mux.HandleFunc("GET /api/sessions/{sid}/state", s.handleState)
 	mux.HandleFunc("GET /api/sessions/{sid}/inspect", s.handleInspect)

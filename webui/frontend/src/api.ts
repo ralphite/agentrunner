@@ -1,4 +1,4 @@
-import type { DiffResp, DiffScope, Envelope, Health, Run, Session, SpecFile, Task } from "./types";
+import type { DiffResp, DiffScope, Envelope, Health, LauncherApp, ProjectMeta, Run, Session, SpecFile, Task } from "./types";
 
 // api wraps the arwebui JSON contract. A non-2xx carries {error, stderr};
 // we surface both so the cockpit shows the real ar failure (never swallow it).
@@ -117,6 +117,15 @@ export const AR = {
     ),
   gitCheckout: (dir: string, branch: string, create: boolean) =>
     post<{ status: string; branch: string }>(`/git/checkout`, { dir, branch, create }),
+
+  // Project overlay + system launcher (INC-53, HANDA #24). projects returns the
+  // workspace-keyed cosmetic overlay; updateProject patches display name/fold;
+  // openIn launches a whitelisted system app on a known workspace directory.
+  projects: () => api<Record<string, ProjectMeta>>("/projects"),
+  updateProject: (workspace: string, patch: { displayName?: string; folded?: boolean }) =>
+    post<Record<string, ProjectMeta>>("/projects", { workspace, ...patch }),
+  openIn: (workspace: string, app: LauncherApp) =>
+    post<{ status: string }>("/open", { workspace, app }),
 
   runs: () => api<Run[]>("/runs"),
   startRun: (b: {

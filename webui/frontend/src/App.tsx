@@ -18,7 +18,7 @@ import { SidebarSimple } from "@phosphor-icons/react";
 import "./styles.rs.css";
 
 export function App() {
-  const { currentSid, currentRunId, currentPage, refreshHealth, refreshSessions, refreshRuns, select, selectRun, showPage } =
+  const { currentSid, currentRunId, currentPage, refreshHealth, refreshSessions, refreshRuns, refreshProjects, select, selectRun, showPage } =
     useStore();
   const helpOpen = useStore((s) => s.helpOpen);
   const openHelp = useStore((s) => s.openHelp);
@@ -121,9 +121,11 @@ export function App() {
     refreshHealth();
     refreshSessions();
     refreshRuns();
+    refreshProjects();
     const h = setInterval(refreshHealth, 5000);
     const s = setInterval(refreshSessions, 4000);
     const r = setInterval(refreshRuns, 4000);
+    const p = setInterval(refreshProjects, 8000);
     // hash routing: "run:<id>" → a background run; anything else → a session.
     const route = (raw: string) => {
       if (raw === "scheduled") {
@@ -144,6 +146,7 @@ export function App() {
       clearInterval(h);
       clearInterval(s);
       clearInterval(r);
+      clearInterval(p);
       window.removeEventListener("hashchange", onHash);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

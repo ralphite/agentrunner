@@ -44,6 +44,13 @@ type server struct {
 
 	runs *runRegistry // background submit/drive runs
 	meta *metaStore   // sid → workspace/title we know from creating it
+
+	// launch runs the OS "open" argv for the INC-53 launcher; nil = real exec
+	// (runLaunch). workspaces resolves the launcher's allowed-workspace set;
+	// nil = derive from the live `ar sessions list`. Both are fields so tests
+	// can capture the argv and inject a known set without launching real apps.
+	launch     func(ctx context.Context, argv []string) error
+	workspaces func(ctx context.Context) map[string]bool
 }
 
 func main() {

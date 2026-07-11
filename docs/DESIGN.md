@@ -1218,6 +1218,23 @@ limits:
   语义成立的操作。
 - pin/archive/rename/theme/sidebar/unread 等现有 localStorage key 原样保留；
   UI 重构不迁移或删除用户本地偏好、session、workspace 与 QA 数据。
+- **project overlay + 系统 launcher（INC-53，additive）**：`webui-meta.json`
+  在 session cache 之外再存一个 **workspace-keyed overlay**（自定义显示名 /
+  折叠态 / last_opened），是**装饰性偏好**——project grouping 仍以 workspace
+  为键从 journal 派生，overlay 缺省回落派生 label，绝不成为分组归属来源
+  （守上「grouping 以 workspace 为键 / metadata 非唯一来源」不变量）。overlay
+  读写原子（temp+rename）、容忍文件不存在、向后兼容旧 flat 格式（顶层探测
+  `sessions`/`projects` key，旧文件整体读作 session cache 再升级为 wrapper），
+  仍是非权威 cache。launcher `POST /api/open {workspace,app}` 是 webui 的
+  **新 host-side OS-exec 面**：它与 webui 既有的 `git`（diff/commit/worktree）
+  与文件系统便利同类——都是 host 便利、**不是 session 运行真相**，故同样不经
+  `ar`，也不被「webui 只通过 `ar` 读 session 真相」bold clause 约束。其安全
+  红线：localhost 绑定 + 用户驱动 + `application/json` 门；`app` 白名单化只作
+  选择键映射到固定 per-OS argv（`exec.Command` 直传、绝不拼 shell、目录永为
+  末位独立参数）；`workspace` 必须是实时 `sessions list` 派生的**已知
+  workspace**（EvalSymlinks 规范化后成员校验，fail-closed，拒任意/不存在
+  路径）。macOS `open -a`（VS Code/Terminal）/`open`（Finder），Linux `code`/
+  `xdg-open`。
 
 ### 运行形态与 background
 

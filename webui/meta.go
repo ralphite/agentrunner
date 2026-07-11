@@ -23,30 +23,79 @@ type sessionMeta struct {
 	Title     string `json:"title"`
 }
 
-type metaStore struct {
-	mu   sync.Mutex
-	m    map[string]sessionMeta
-	path string // JSON persistence file; "" = in-memory only (tests)
+// projectMeta is the workspace-keyed overlay added by INC-53 (HANDA #24): a
+// user's cosmetic preferences for one project group — a custom display name, a
+// folded (collapsed) state, and when it was last opened in a system app via
+// the launcher. It is DECORATIVE ONLY: project grouping still derives from the
+// journal workspace (DESIGN §12 invariant), and an empty DisplayName falls back
+// to the derived label. The overlay never decides group membership.
+type projectMeta struct {
+	DisplayName string `json:"displayName,omitempty"`
+	Folded      bool   `json:"folded,omitempty"`
+	LastOpened  int64  `json:"lastOpened,omitempty"` // unix millis; 0 = never
 }
 
-// newMetaStore loads the persisted sid→meta cache (if any) so a webui restart
-// can render immediately while the journal-backed session list hydrates.
+// metaFile is the on-disk shape of webui-meta.json since INC-53: the session
+// cache plus the project overlay. Older files are a bare sid→sessionMeta map
+// (no "sessions"/"projects" top-level keys); newMetaStore detects and reads
+// those, then re-persists in this wrapper on the next write. The store stays a
+// non-authoritative cache, so a transient cross-version read is self-healing.
+type metaFile struct {
+	Sessions map[string]sessionMeta `json:"sessions"`
+	Projects map[string]projectMeta `json:"projects"`
+}
+
+type metaStore struct {
+	mu       sync.Mutex
+	m        map[string]sessionMeta
+	projects map[string]projectMeta
+	path     string // JSON persistence file; "" = in-memory only (tests)
+}
+
+// newMetaStore loads the persisted sid→meta cache and project overlay (if any)
+// so a webui restart can render immediately while the journal-backed session
+// list hydrates. It tolerates a missing file and the legacy flat format.
 func newMetaStore(path string) *metaStore {
-	s := &metaStore{m: map[string]sessionMeta{}, path: path}
-	if path != "" {
-		if b, err := os.ReadFile(path); err == nil {
-			_ = json.Unmarshal(b, &s.m)
+	s := &metaStore{m: map[string]sessionMeta{}, projects: map[string]projectMeta{}, path: path}
+	if path == "" {
+		return s
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return s
+	}
+	// Probe the top level: a wrapper file has "sessions"/"projects" keys; a
+	// legacy file is a bare sid→sessionMeta map (session ids never collide with
+	// those reserved words). This keeps the upgrade from silently dropping a
+	// user's cached WebUI titles.
+	var probe map[string]json.RawMessage
+	if json.Unmarshal(b, &probe) == nil {
+		_, hasSessions := probe["sessions"]
+		_, hasProjects := probe["projects"]
+		if hasSessions || hasProjects {
+			var mf metaFile
+			if json.Unmarshal(b, &mf) == nil {
+				if mf.Sessions != nil {
+					s.m = mf.Sessions
+				}
+				if mf.Projects != nil {
+					s.projects = mf.Projects
+				}
+			}
+			return s
 		}
 	}
+	// Legacy flat format: the whole file is the session cache.
+	_ = json.Unmarshal(b, &s.m)
 	return s
 }
 
-// persistLocked writes the map atomically (tmp+rename). Callers hold mu.
+// persistLocked writes the wrapper atomically (tmp+rename). Callers hold mu.
 func (s *metaStore) persistLocked() {
 	if s.path == "" {
 		return
 	}
-	b, err := json.MarshalIndent(s.m, "", " ")
+	b, err := json.MarshalIndent(metaFile{Sessions: s.m, Projects: s.projects}, "", " ")
 	if err != nil {
 		return
 	}
@@ -111,6 +160,62 @@ func (s *metaStore) get(sid string) sessionMeta {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.m[sid]
+}
+
+// allProjects returns a copy of the workspace-keyed overlay (INC-53) so the
+// frontend can render custom names, folded state, and last-opened times.
+func (s *metaStore) allProjects() map[string]projectMeta {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make(map[string]projectMeta, len(s.projects))
+	for k, v := range s.projects {
+		out[k] = v
+	}
+	return out
+}
+
+// setProject applies a partial update to one project's overlay entry (INC-53):
+// a nil pointer means "leave unchanged". An empty display name clears the
+// override (the group reverts to its derived label), mirroring the session
+// rename semantics. An entry that ends up entirely default is dropped so the
+// file doesn't accrete empty overlays. Persists on any change.
+func (s *metaStore) setProject(key string, displayName *string, folded *bool) {
+	if key == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cur := s.projects[key]
+	before := cur
+	if displayName != nil {
+		cur.DisplayName = strings.TrimSpace(*displayName)
+	}
+	if folded != nil {
+		cur.Folded = *folded
+	}
+	if cur == before {
+		return
+	}
+	if cur == (projectMeta{}) {
+		delete(s.projects, key)
+	} else {
+		s.projects[key] = cur
+	}
+	s.persistLocked()
+}
+
+// touchProject records that a project was just opened in a system app
+// (INC-53 launcher), so the sidebar can show a "last opened" hint.
+func (s *metaStore) touchProject(key string) {
+	if key == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cur := s.projects[key]
+	cur.LastOpened = time.Now().UnixMilli()
+	s.projects[key] = cur
+	s.persistLocked()
 }
 
 // titleFromID recovers a readable title from a session id when arwebui has no

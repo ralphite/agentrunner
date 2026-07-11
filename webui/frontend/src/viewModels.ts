@@ -15,6 +15,40 @@ export interface SidebarModel {
   projects: ProjectGroup[];
 }
 
+// ProjectOverlay is the client view of one project's server-side overlay
+// (INC-53): a custom display name, folded state, and last-opened time. Mirrors
+// ProjectMeta in types.ts; kept structural here so the pure helpers stay
+// dependency-free and unit-testable.
+export interface ProjectOverlay {
+  displayName?: string;
+  folded?: boolean;
+  lastOpened?: number;
+}
+
+// projectDisplayName resolves the label a project group renders: the user's
+// custom overlay name when set (trimmed), else the journal-derived label. The
+// overlay only renames the group — it never changes which sessions belong to
+// it (grouping stays keyed on workspace, DESIGN §12).
+export function projectDisplayName(project: ProjectGroup, overlay?: ProjectOverlay): string {
+  const custom = (overlay?.displayName || "").trim();
+  return custom || project.label;
+}
+
+// visibleProjectSessions decides which sessions a project group shows given its
+// persisted fold state, the local "show all" toggle, and an active search. A
+// folded group hides its sessions entirely — but search overrides fold so a
+// match is never hidden. An unfolded group shows all when expanded or
+// searching, otherwise the first `cap`.
+export function visibleProjectSessions(
+  project: ProjectGroup,
+  opts: { folded?: boolean; expanded?: boolean; searching?: boolean; cap?: number },
+): Session[] {
+  const cap = opts.cap ?? 6;
+  if (opts.folded && !opts.searching) return [];
+  if (opts.expanded || opts.searching) return project.sessions;
+  return project.sessions.slice(0, cap);
+}
+
 export function dedupeInspectNodes<T extends { session?: string; call_id?: string }>(nodes: T[]): T[] {
   const order: string[] = [];
   const unique = new Map<string, T>();

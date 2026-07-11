@@ -74,3 +74,18 @@ export interface SpecFile {
   name: string;
   content: string;
 }
+
+// ProjectMeta is the server-side, workspace-keyed overlay (INC-53, HANDA #24):
+// a user's cosmetic preferences layered on top of the journal-derived project
+// groups — a custom display name, a folded (collapsed) state, and when the
+// project was last opened in a system app via the launcher. Decorative only;
+// it never decides which group a session belongs to.
+export interface ProjectMeta {
+  displayName?: string;
+  folded?: boolean;
+  lastOpened?: number; // unix millis; absent = never opened via the launcher
+}
+
+// LauncherApp is the whitelisted set of system apps /api/open can launch. The
+// backend maps each token to a fixed argv per OS — never the raw string.
+export type LauncherApp = "vscode" | "finder" | "terminal";

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildSidebarModel, dedupeInspectNodes, deNoiseSegment, projectLabel, projectSubtitle, projectSubtitles, quickSwitchTasks, scheduleLabel, scratchLabel, sessionNeedsAttention } from "./viewModels";
+import { buildSidebarModel, dedupeInspectNodes, deNoiseSegment, projectDisplayName, projectLabel, projectSubtitle, projectSubtitles, quickSwitchTasks, scheduleLabel, scratchLabel, sessionNeedsAttention, visibleProjectSessions } from "./viewModels";
+import type { ProjectGroup } from "./viewModels";
 import { compactWorkspaceName, describeApproval } from "./approvalPresentation";
 import { conciseTitle, displayTitle, titleFromSessionId } from "./title";
 import { foldEvents } from "./timeline";
@@ -295,5 +296,34 @@ describe("status and background labels", () => {
     expect(backgroundLabel({ handle: "h", tool: "spawn_agent", detail: "running agent=worker task=write hello.py" }))
       .toBe("agent “worker” — write hello.py");
     expect(backgroundLabel({ handle: "h2", tool: "bash", detail: "sleep 60" })).toBe("bash · sleep 60");
+  });
+});
+
+describe("project overlay (INC-53)", () => {
+  const group: ProjectGroup = {
+    key: "/repo/app",
+    label: "app",
+    workspace: "/repo/app",
+    sessions: Array.from({ length: 8 }, (_v, i) => ({ id: `s${i}`, status: "idle", turns: 1 })),
+  };
+
+  it("uses the overlay display name when set, else the derived label", () => {
+    expect(projectDisplayName(group)).toBe("app");
+    expect(projectDisplayName(group, {})).toBe("app");
+    expect(projectDisplayName(group, { displayName: "  " })).toBe("app"); // blank falls back
+    expect(projectDisplayName(group, { displayName: "My App" })).toBe("My App");
+  });
+
+  it("folds a group's sessions, caps unfolded groups, and lets search override fold", () => {
+    // Unfolded, not expanded: first `cap` only.
+    expect(visibleProjectSessions(group, {}).map((s) => s.id)).toEqual(["s0", "s1", "s2", "s3", "s4", "s5"]);
+    // Unfolded + expanded: all.
+    expect(visibleProjectSessions(group, { expanded: true }).length).toBe(8);
+    // Folded: none shown.
+    expect(visibleProjectSessions(group, { folded: true })).toEqual([]);
+    // Folded but searching: fold is overridden so matches are never hidden.
+    expect(visibleProjectSessions(group, { folded: true, searching: true }).length).toBe(8);
+    // Custom cap respected.
+    expect(visibleProjectSessions(group, { cap: 2 }).map((s) => s.id)).toEqual(["s0", "s1"]);
   });
 });

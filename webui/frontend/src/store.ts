@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { AR } from "./api";
-import type { Health, Run, Session } from "./types";
+import type { Health, LauncherApp, ProjectMeta, Run, Session } from "./types";
 import { notifyRunChanges, notifySessionChanges } from "./notify";
 import { loadTheme, nextTheme, saveTheme, type Theme } from "./theme";
 import type { RunPreset } from "./runPreset";
@@ -74,6 +74,15 @@ interface AppState {
   visibleOrder: string[]; // sidebar's flat session order, for keyboard nav
   setVisibleOrder: (ids: string[]) => void;
   selectAdjacent: (delta: number) => void;
+
+  // Project overlay (INC-53, HANDA #24): server-side, workspace-keyed cosmetic
+  // preferences (custom name / folded / last_opened) layered on the
+  // journal-derived project groups. Keyed by the project group's identity key.
+  projects: Record<string, ProjectMeta>;
+  refreshProjects: () => Promise<void>;
+  setProjectName: (key: string, name: string) => Promise<void>;
+  toggleProjectFolded: (key: string, folded: boolean) => Promise<void>;
+  openProjectIn: (workspace: string, app: LauncherApp) => Promise<void>;
 
   refreshHealth: () => Promise<void>;
   refreshSessions: () => Promise<void>;
@@ -232,6 +241,41 @@ export const useStore = create<AppState>((set, get) => ({
     const next = get().unread.filter((x) => x !== id);
     saveUnread(next);
     set({ unread: next });
+  },
+
+  projects: {},
+  refreshProjects: async () => {
+    try {
+      set({ projects: await AR.projects() });
+    } catch {
+      /* overlay is cosmetic; a failed fetch leaves the last-known map */
+    }
+  },
+  setProjectName: async (key, name) => {
+    try {
+      set({ projects: await AR.updateProject(key, { displayName: name }) });
+    } catch (error: any) {
+      get().toast(error.message);
+    }
+  },
+  toggleProjectFolded: async (key, folded) => {
+    // Optimistic: fold/unfold must feel instant. Reconcile with the server's
+    // authoritative map on success; roll back to a refetch on failure.
+    const prev = get().projects;
+    set({ projects: { ...prev, [key]: { ...prev[key], folded } } });
+    try {
+      set({ projects: await AR.updateProject(key, { folded }) });
+    } catch {
+      get().refreshProjects();
+    }
+  },
+  openProjectIn: async (workspace, app) => {
+    try {
+      await AR.openIn(workspace, app);
+      get().refreshProjects(); // pick up the new last_opened
+    } catch (error: any) {
+      get().toast(error.message);
+    }
   },
 
   refreshHealth: async () => {

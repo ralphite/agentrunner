@@ -5,6 +5,7 @@ import {
   ArrowSquareOut,
   CalendarDots,
   CaretRight,
+  Code,
   Folder,
   FolderOpen,
   GearSix,
@@ -13,11 +14,13 @@ import {
   Monitor,
   Moon,
   NotePencil,
+  PencilSimple,
   PushPin,
   Question,
   Robot,
   SidebarSimple,
   Sun,
+  Terminal,
   Tray,
   X,
 } from "@phosphor-icons/react";
@@ -28,12 +31,12 @@ import { displayTitle } from "../title";
 import { ContextMenu } from "./ContextMenu";
 import { MenuItem, MenuLabel } from "./Menu";
 import { copyText } from "../clipboard";
-import { buildSidebarModel, projectLabel, scheduledUnread } from "../viewModels";
+import { buildSidebarModel, projectDisplayName, projectLabel, scheduledUnread, visibleProjectSessions } from "../viewModels";
 import { relTime, sessionDate } from "../time";
 
 type SidebarContext =
   | { kind: "session"; x: number; y: number; sid: string }
-  | { kind: "project"; x: number; y: number; label: string; workspace?: string; ids: string[] };
+  | { kind: "project"; x: number; y: number; key: string; label: string; workspace?: string; ids: string[] };
 
 export function Sidebar({ onHide, onNavigate, onOpenSettings }: { onHide?: () => void; onNavigate?: () => void; onOpenSettings?: () => void }) {
   const {
@@ -62,6 +65,11 @@ export function Sidebar({ onHide, onNavigate, onOpenSettings }: { onHide?: () =>
     markUnread,
     markRead,
     openHelp,
+    projects,
+    toggleProjectFolded,
+    openProjectIn,
+    setProjectName,
+    openPrompt,
   } = useStore();
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
@@ -265,43 +273,48 @@ export function Sidebar({ onHide, onNavigate, onOpenSettings }: { onHide?: () =>
             </div>
           ) : null}
           {model.projects.map((project) => {
-            const isExpanded = expanded.has(project.key) || !!query;
-            const shown = isExpanded ? project.sessions : project.sessions.slice(0, 6);
+            const overlay = projects[project.key];
+            const name = projectDisplayName(project, overlay);
+            const searching = !!query;
+            // Persisted fold collapses the group entirely; a search always
+            // reveals matches, so it overrides fold. The local `expanded` set
+            // is the secondary show-all-vs-6 control within an unfolded group.
+            const folded = (overlay?.folded ?? false) && !searching;
+            const showAll = expanded.has(project.key) || searching;
+            const shown = visibleProjectSessions(project, { folded: overlay?.folded, expanded: showAll, searching });
+            const openMenu = (x: number, y: number) => {
+              setHoverPreview(null);
+              setCtx({ kind: "project", x, y, key: project.key, label: name, workspace: project.workspace, ids: project.sessions.map((session) => session.id) });
+            };
             return (
               <div className="project-group" key={project.key}>
                 <button
                   className="project-heading"
-                  onClick={() => setExpanded((current) => {
-                    const next = new Set(current);
-                    next.has(project.key) ? next.delete(project.key) : next.add(project.key);
-                    return next;
-                  })}
-                  title={project.workspace}
+                  onClick={() => toggleProjectFolded(project.key, !(overlay?.folded ?? false))}
+                  title={project.workspace || name}
                   onContextMenu={(event) => {
                     event.preventDefault();
-                    setHoverPreview(null);
-                    setCtx({ kind: "project", x: event.clientX, y: event.clientY, label: project.label, workspace: project.workspace, ids: project.sessions.map((session) => session.id) });
+                    openMenu(event.clientX, event.clientY);
                   }}
                   onKeyDown={(event) => {
                     if (!((event.shiftKey && event.key === "F10") || event.key === "ContextMenu")) return;
                     event.preventDefault();
-                    setHoverPreview(null);
                     const rect = event.currentTarget.getBoundingClientRect();
-                    setCtx({ kind: "project", x: rect.left + 20, y: rect.bottom, label: project.label, workspace: project.workspace, ids: project.sessions.map((session) => session.id) });
+                    openMenu(rect.left + 20, rect.bottom);
                   }}
                 >
-                  <CaretRight size={12} className={`proj-caret${isExpanded ? " open" : ""}`} />
-                  {isExpanded ? <FolderOpen size={16} /> : <Folder size={16} />}
-                  <span>{project.label}</span>
+                  <CaretRight size={12} className={`proj-caret${!folded ? " open" : ""}`} />
+                  {!folded ? <FolderOpen size={16} /> : <Folder size={16} />}
+                  <span>{name}</span>
                   {project.hint && <span className="project-hint">{project.hint}</span>}
                 </button>
                 {shown.map((session) => renderTask(session, true))}
-                {!isExpanded && project.sessions.length > shown.length && (
+                {!folded && !showAll && project.sessions.length > shown.length && (
                   <button className="show-more" onClick={() => setExpanded((current) => new Set(current).add(project.key))}>
                     Show {project.sessions.length - shown.length} more
                   </button>
                 )}
-                {isExpanded && !query && project.sessions.length > 6 && (
+                {!folded && showAll && !searching && project.sessions.length > 6 && (
                   <button
                     className="show-more"
                     onClick={() => setExpanded((current) => {
@@ -389,14 +402,46 @@ export function Sidebar({ onHide, onNavigate, onOpenSettings }: { onHide?: () =>
           <MenuItem onClick={() => { copyText(`${location.origin}/#${ctx.sid}`); toast("copied link", "info"); }}>Task link</MenuItem>
         </ContextMenu>
       )}
-      {ctx?.kind === "project" && (
-        <ContextMenu x={ctx.x} y={ctx.y} onClose={() => setCtx(null)}>
-          <MenuLabel>{ctx.label}</MenuLabel>
-          {ctx.workspace && <MenuItem onClick={() => { copyText(ctx.workspace!); toast("copied project path", "info"); }}>Copy project path</MenuItem>}
-          <MenuItem onClick={() => ctx.ids.filter((id) => unread.includes(id)).forEach(markRead)}>Mark all as read</MenuItem>
-          <MenuItem onClick={() => ctx.ids.filter((id) => !archived.includes(id)).forEach(toggleArchive)}>Archive all tasks</MenuItem>
-        </ContextMenu>
-      )}
+      {ctx?.kind === "project" && (() => {
+        const overlay = projects[ctx.key];
+        const lastOpened = overlay?.lastOpened ? relTime(new Date(overlay.lastOpened)) : "";
+        const menuKey = ctx.key;
+        const menuWorkspace = ctx.workspace;
+        return (
+          <ContextMenu x={ctx.x} y={ctx.y} onClose={() => setCtx(null)}>
+            <MenuLabel>{ctx.label}{lastOpened ? ` · opened ${lastOpened} ago` : ""}</MenuLabel>
+            {menuWorkspace && (
+              <>
+                <MenuLabel>Open in</MenuLabel>
+                <MenuItem onClick={() => openProjectIn(menuWorkspace, "vscode")}>
+                  <span className="inline-flex items-center gap-[8px]"><Code size={14} /> VS Code</span>
+                </MenuItem>
+                <MenuItem onClick={() => openProjectIn(menuWorkspace, "finder")}>
+                  <span className="inline-flex items-center gap-[8px]"><FolderOpen size={14} /> Finder</span>
+                </MenuItem>
+                <MenuItem onClick={() => openProjectIn(menuWorkspace, "terminal")}>
+                  <span className="inline-flex items-center gap-[8px]"><Terminal size={14} /> Terminal</span>
+                </MenuItem>
+              </>
+            )}
+            <MenuLabel>Project</MenuLabel>
+            <MenuItem onClick={() => openPrompt({
+              title: "Rename project",
+              label: "Display name",
+              initial: overlay?.displayName || "",
+              placeholder: ctx.label,
+              submitLabel: "Rename",
+              onSubmit: (value) => setProjectName(menuKey, value),
+            })}>
+              <span className="inline-flex items-center gap-[8px]"><PencilSimple size={14} /> Rename project…</span>
+            </MenuItem>
+            {overlay?.displayName && <MenuItem onClick={() => setProjectName(menuKey, "")}>Reset to default name</MenuItem>}
+            {menuWorkspace && <MenuItem onClick={() => { copyText(menuWorkspace); toast("copied project path", "info"); }}>Copy project path</MenuItem>}
+            <MenuItem onClick={() => ctx.ids.filter((id) => unread.includes(id)).forEach(markRead)}>Mark all as read</MenuItem>
+            <MenuItem onClick={() => ctx.ids.filter((id) => !archived.includes(id)).forEach(toggleArchive)}>Archive all tasks</MenuItem>
+          </ContextMenu>
+        );
+      })()}
     </aside>
   );
 }

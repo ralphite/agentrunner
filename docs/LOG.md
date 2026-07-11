@@ -3379,3 +3379,46 @@ state.go`(+state_test)、`internal/agent/autotitle.go`(新)+`loop.go`+`autotitle
 **闸门**：A 闸 `check.sh` 全绿（新孪生见 SPEC/工作纸锚）。B 闸真机 **QA-51 待
 reviewer**（真 Gemini 生成短标题、落 SessionTitled、不覆盖 manual、不阻塞开局
 turn、失败回退首行）。工作纸 `docs/increments/INC-52-auto-title.md`（收口时归档）。
+## 2026-07-11 · INC-53 project overlay + 系统 launcher（HANDA #24，webui，A 闸绿）
+
+**决策：不建服务端注册表。** review 修订定案——Handa 的 web_projects 一等
+注册表在 AgentRunner 的 journal-first 模型里是重复真相源。改为扩展现有
+`webui-meta.json`（本就是非权威 cache）为 **workspace-keyed overlay**：每
+workspace 存自定义显示名 / 折叠态 / last_opened。**分组仍从 journal 的
+workspace 派生**（守 DESIGN §12「grouping 以 workspace 为键 / metadata 非唯一
+来源」），overlay 纯装饰、缺省回落派生 label，绝不参与分组归属。不删任何
+localStorage key、不迁移用户本地偏好。
+
+**枚举型交付物逐项对锚（G29 纪律）**：Handa #24 四件——重命名✅、last_opened✅
+（由 launcher `/api/open` 打开目录这一动作触发写入）、折叠✅（review 追加，
+Codex 式 project 组折叠，heading 点击切换、服务端持久化）；**注册 / 移除显式
+裁掉**——派生分组模型里 group 随 session 自动生死，"注册/移除一个 project"
+无语义，overlay 只有「revert 到派生默认」（清 displayName/folded），不是删
+project。
+
+**新 host-side OS-exec 面记档（硬红线）**：`POST /api/open {workspace,app}`。
+与 webui 既有 `git`/文件系统便利同类（host 便利、非 session 运行真相，故不经
+`ar`，不触「webui 只通过 ar 读 session 真相」bold clause）。防线：(1) `app`
+白名单化只作**选择键**映射到固定 per-OS argv（`launchArgv`：macOS `open -a`
+"Visual Studio Code"/"Terminal"、`open`=Finder；Linux `code`/`xdg-open`），
+用户输入永不进 argv[0]、目录永为末位独立参数、`exec.Command` 直传不过 shell；
+(2) `workspace` 必须是实时 `ar sessions list --json` 派生的**已知 workspace**
+（EvalSymlinks 规范化成员校验，**fail-closed**：拿不到集合就拒），拒任意/不
+存在路径。A 闸拒绝面测试覆盖：未知 app、任意存在目录、不存在路径全部 400 且
+零 exec；合法请求断言 argv 正确 + last_opened 落盘。
+
+**overlay 向后兼容**：`webui-meta.json` 从 flat `map[sid]sessionMeta` 升为
+wrapper `{sessions,projects}`；load 时顶层探测 `sessions`/`projects` key，旧
+flat 文件整体读作 session cache（session id 永不与保留字冲突），下次写入升级
+wrapper。旧 webui 若并发读到 wrapper 会瞬时丢 cache title，但 title 由 runtime
+list 立即回填——可接受（store 本就非权威）。
+
+**A 闸**（`webui/` go test + 前端 vitest，进 check.sh）全绿：`TestLaunchArgv
+Whitelist`/`TestOpenRejects{UnknownApp,UnknownWorkspace}`/`TestOpenLaunches
+KnownWorkspace`/`TestMetaStoreProjectOverlayRoundTrip`/`TestMetaStoreLoadsLegacy
+FlatFile` + 前端 `projectDisplayName`/`visibleProjectSessions`。**SPEC 记 ⚠️**：
+B 闸（真机 `open -a` 拉起 app + overlay 持久化 + 拒绝面 curl）待 collector
+真机集中验。**flake 归因存档**：本环境满载并行跑全量 vitest 时，既有 W7 测试
+（动态 `import("./components/SupervisionPanel")`）偶尔超 5s 超时——机器空闲时
+105/105 稳过（单测隔离 3/3 稳过），确认是环境负载 flake，非 INC-53 回归，
+未改动该无关测试。改动仅 webui/前端，未触 DESIGN 不变量（additive）。

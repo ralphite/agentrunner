@@ -140,6 +140,78 @@ func TestMetaStoreMergeHydratesJournalMetadataWithoutReplacingTitle(t *testing.T
 	}
 }
 
+// TestMetaStoreProjectOverlayRoundTrip pins INC-53: the workspace-keyed overlay
+// (custom name / folded / last_opened) persists and reloads, and does not
+// disturb the session cache. An emptied overlay entry is dropped.
+func TestMetaStoreProjectOverlayRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "meta.json")
+	store := newMetaStore(path)
+	store.set("s1", "/repo/app", "Opening task") // session cache coexists
+
+	name := "My App"
+	folded := true
+	store.setProject("/repo/app", &name, &folded)
+	store.touchProject("/repo/app")
+
+	reloaded := newMetaStore(path)
+	if got := reloaded.get("s1"); got.Workspace != "/repo/app" || got.Title != "Opening task" {
+		t.Fatalf("session cache disturbed by overlay: %+v", got)
+	}
+	p := reloaded.allProjects()["/repo/app"]
+	if p.DisplayName != "My App" || !p.Folded || p.LastOpened == 0 {
+		t.Fatalf("overlay did not round-trip: %+v", p)
+	}
+
+	// Clearing name + unfolding leaves an all-default entry with only
+	// last_opened; then reset last_opened's siblings and confirm an entirely
+	// empty overlay entry is dropped.
+	empty := ""
+	unfold := false
+	store2 := newMetaStore(path)
+	store2.setProject("/repo/app", &empty, &unfold)
+	got := store2.allProjects()["/repo/app"]
+	if got.DisplayName != "" || got.Folded {
+		t.Fatalf("clear did not revert name/fold: %+v", got)
+	}
+	// last_opened remains (it is a separate concern); a brand-new key that is
+	// set then cleared should not linger.
+	blank := ""
+	no := false
+	store2.setProject("/never/set", &blank, &no)
+	if _, ok := store2.allProjects()["/never/set"]; ok {
+		t.Fatalf("all-default overlay entry should be dropped")
+	}
+}
+
+// TestMetaStoreLoadsLegacyFlatFile pins INC-53 backward compatibility: an old
+// webui-meta.json (a bare sid→sessionMeta map, no wrapper) is still read, and
+// a project overlay can be layered on top and persisted in the new format.
+func TestMetaStoreLoadsLegacyFlatFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "meta.json")
+	legacy := map[string]sessionMeta{
+		"20260709-071306-find-fn-39bd": {Workspace: "/repo/app", Title: "Legacy title"},
+	}
+	b, _ := json.Marshal(legacy)
+	if err := os.WriteFile(path, b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	store := newMetaStore(path)
+	if got := store.get("20260709-071306-find-fn-39bd"); got.Workspace != "/repo/app" || got.Title != "Legacy title" {
+		t.Fatalf("legacy flat file not read: %+v", got)
+	}
+	name := "Renamed"
+	store.setProject("/repo/app", &name, nil) // triggers a wrapper re-persist
+
+	reloaded := newMetaStore(path)
+	if got := reloaded.get("20260709-071306-find-fn-39bd"); got.Title != "Legacy title" {
+		t.Fatalf("session cache lost after wrapper upgrade: %+v", got)
+	}
+	if p := reloaded.allProjects()["/repo/app"]; p.DisplayName != "Renamed" {
+		t.Fatalf("overlay lost after wrapper upgrade: %+v", p)
+	}
+}
+
 // TestHandleDiffNestedWorkspace pins W1: a workspace that merely sits inside
 // some parent repository (the shape of runtime/ws/* under a checkout) must
 // report nested:true instead of a silent empty "no changes" diff.
