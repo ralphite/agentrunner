@@ -534,6 +534,12 @@ func (s *server) handleApply(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "git commit-tree failed", "stderr": commit})
 		return
 	}
+	// Restore the worktree's index to HEAD (mixed reset) so the changes go back to
+	// their pre-apply UNSTAGED state — otherwise the `git add -A` above would leave
+	// them staged and the Changes view (which shows unstaged + untracked) would
+	// blank out right after Apply. Everything downstream compares commit objects,
+	// not the index, so this is safe.
+	_, _ = gitIn(r.Context(), ws, nil, "reset", "-q")
 	patch, err := gitIn(r.Context(), ws, nil, "diff", "--binary", "HEAD", commit)
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "git diff failed", "stderr": patch})

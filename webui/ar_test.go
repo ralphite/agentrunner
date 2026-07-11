@@ -511,6 +511,12 @@ func TestApplyBackCleanApply(t *testing.T) {
 	if st := mustGit(repo, "status", "--porcelain"); !strings.Contains(st, "?? new.txt") {
 		t.Fatalf("expected new.txt unstaged in main repo, status:\n%s", st)
 	}
+	// The worktree must be left in its pre-apply UNSTAGED state (apply restores the
+	// index after staging), so the Changes view still shows the changes — a staged
+	// "A  new.txt" here would mean the Changes panel blanks out right after Apply.
+	if st := mustGit(wt, "status", "--porcelain"); !strings.Contains(st, "?? new.txt") || strings.Contains(st, "A  new.txt") {
+		t.Fatalf("worktree should be left unstaged after apply, status:\n%s", st)
+	}
 }
 
 func TestApplyBackConflictReported(t *testing.T) {
