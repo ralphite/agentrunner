@@ -46,7 +46,7 @@
 | # | 项 | 规模 | 状态 | 备注 |
 |---|---|---|---|---|
 | 8 | LLM goal judge（llm_call 管线 effect，门控触发，三态） | M/L | ✅ done (INC-48) | 实施双闸门：孪生 4 条（pass/reject 续跑/claim-gated 零调用+budget/crash 复用 verdict）+ 真 Gemini QA-48；DESIGN 决策 #21/§13/glossary 同 commit |
-| E2 | 外部事件唤醒 G14（HTTP ingress + source:machine + untrusted 硬条件） | M | 🔧 in-progress (INC-50) | UJ-12 卡死项；HTTP 壳联动 backlog；兑现 INC-D2 设计稿，安全 review 必做（认领 2026-07-11，gallant-kowalevski session） |
+| E2 | 外部事件唤醒 G14（HTTP ingress + source:machine + untrusted 硬条件） | M | ✅ done (INC-50) | UJ-12 卡死项关闭、G14 关闭；双闸门：孪生 8 条（ingress×5+registry+framing×2）+ 真 Gemini QA-50（5 红线）；安全 review 无 P0（P1-1/P2-1/P2-3/P2-4 修，P2-2 余项）；DESIGN 决策 #39 同 commit；HTTP 壳全 API 面仍 backlog |
 | 28b | cron 跨重启唤醒 + boot sweep（G22） | M | ⬜ | = CC SPRINT #15 联动 |
 
 ### 批 4 · 工具面
@@ -69,6 +69,7 @@
 
 | 轮 | 日期 | 项 | 结果 | commit |
 |---|---|---|---|---|
+| 14 | 2026-07-11 | #E2 外部事件唤醒 (INC-50) | ✅ 双闸门：孪生 8 条（ingress 投递/认证+限流/marked 410/body 413/幂等重投 + registry 哈希化+revoke + machine framing×2）+ 真 Gemini QA-50（5 红线：hook create/registry 0600、错 token 401 零投递、授权 202+framed InputReceived{machine,untrusted}、真 turn 唤醒 engage CI 事件、X-Command-Id 幂等，qa/runs/2026-07-11-QA-50）；子 agent 安全 review 四维**无 P0**，P1-1（认证前置+全超时）/P2-1（dummy verify 抹时序）/P2-3（framing 移到 content 组装后）/P2-4（addr 原子写）当轮修，P2-2 记余项；DESIGN 决策 #39+§2 机器发送方段同 commit；G14/UJ-12 关闭 | (见 push) |
 | 1 | 2026-07-10 | #32 stdin 管道 prompt (INC-28) | ✅ 双闸门全绿（孪生 7 测 + 真 Gemini 管道开场 PONG/`-` 多行续聊 PONG2，qa/runs/2026-07-10-INC28）；/dev/null 边界记档 | (见 push) |
 | 2 | 2026-07-10 | #23 用户消息折叠 (INC-36) | ✅ 双闸门全绿（vitest+build + 真浏览器 DOM 断言：10lh 钳/Show more-less/mobile/console 0 err，qa/runs/2026-07-10-INC36）；宽度塌缩 bug 当场修（width:max-content） | (见 push) |
 | 3 | 2026-07-10 | #9 progress_update (INC-37) | ✅ 双闸门全绿（孪生 4 测+event round-trip 守卫 + 真 Gemini 私有 daemon：7 次自发调用 3/3 done、inspect 两面、webui DOM 断言，qa/runs/2026-07-10-INC37）；面板不因 progress 强开（W5 裁决记 LOG） | (见 push) |

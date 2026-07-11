@@ -112,13 +112,12 @@ func (l *Loop) forwardToMember(ds *driveState, in protocol.UserInput) error {
 }
 
 // userClassSource reports a human-origin transport (INC-12.3): the explicit
-// send gesture, which may revive even a user-killed member (决策 #30). "cli"
-// (the `ar send` transport) and "unix-socket" (the daemon wire) are both the
-// user at a terminal; "" defaults to user. Machine senders (webhook/ci) and
-// tree-internal "agent" mail are NOT user-class — they never override a
-// user-kill mark. (Restored after a rebase dropped it; see LOG 2026-07-09.)
+// send gesture, which may revive even a user-killed member (决策 #30).
+// Machine senders (webhook/ci) and tree-internal "agent" mail are NOT
+// user-class — they never override a user-kill mark. Canonical logic lives
+// in protocol.UserClassSource (INC-50).
 func userClassSource(s string) bool {
-	return s == "" || s == "user" || s == "cli" || s == "unix-socket"
+	return protocol.UserClassSource(s)
 }
 
 // resolveChildHandle maps a spawn handle (call id) owned by parentSID to the

@@ -104,8 +104,8 @@ func planRetry(events []event.Envelope, s state.State, liveWriter bool) (*event.
 			continue
 		}
 		p := dec.(*event.InputReceived)
-		// Mirrors agent.userClassSource: human senders only.
-		if src := p.Source; src == "" || src == "user" || src == "cli" || src == "unix-socket" {
+		// Human senders only (决策 #30 family).
+		if protocol.UserClassSource(p.Source) {
 			target, origID, origSeq = p, events[i].CommandID, events[i].Seq
 		}
 	}

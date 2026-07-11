@@ -228,6 +228,14 @@ type Server struct {
 	// every hosted run — the notifier's live tee (S6 模块⑤). It MUST NOT
 	// block: the caller is the run's emit path.
 	Notify func(protocol.Event)
+	// HTTPAddr enables the webhook ingress (INC-50, G14): a TCP listen
+	// address for POST /hooks/<id>. Empty = the ingress is off (default —
+	// an outward-facing surface is strictly opt-in). HTTPAddrFile, when
+	// set, receives the actually-bound address (":0" resolves a port).
+	// HooksPath is the hook registry file (see hooks.go).
+	HTTPAddr     string
+	HTTPAddrFile string
+	HooksPath    string
 
 	mu     sync.Mutex
 	runs   map[string]*hostedRun
@@ -613,6 +621,12 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 		<-ctx.Done()
 		_ = ln.Close()
 	}()
+	if s.HTTPAddr != "" {
+		if err := s.serveHTTP(ctx); err != nil {
+			_ = ln.Close()
+			return err
+		}
+	}
 	if s.ScanTimers != nil && s.Resume != nil {
 		go s.sweepTimers(ctx)
 	}
@@ -1114,7 +1128,11 @@ func (s *Server) handleSend(ctx context.Context, cmd Command, enc *json.Encoder)
 		s.mu.Unlock()
 		// The revived run must live on the DAEMON's lifecycle (收口 review:
 		// a Background ctx would wedge graceful shutdown in runsWG.Wait).
-		s.hostResume(ctx, hostSession, true)
+		// The explicit-send privilege of continuing a MARKED session belongs
+		// to user-class senders only (决策 #30); machine mail (INC-50 webhook
+		// ingress) resumes unmarked parked sessions but never overrides a
+		// user close/kill mark.
+		s.hostResume(ctx, hostSession, protocol.UserClassSource(cmd.Source))
 		s.mu.Lock()
 		hub, ok = s.runs[hostSession]
 		s.mu.Unlock()

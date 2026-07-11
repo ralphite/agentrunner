@@ -1,10 +1,19 @@
 # INC-50 外部事件唤醒既有 session（HTTP ingress → durable inbox）
 
-**状态：🔧 实施中（2026-07-11 认领，SPRINT-handa-parity #E2 / 轮 14）。**
-兑现 INC-D2 设计稿（G14 / UJ-12），方案以 HANDA-PARITY §2 E2 行
-（review 修订 M3）为准。invariant-adjacent：新增机器发送方信任/鉴权
-条款（additive carve-out，不翻转既有决策），outward-facing ingress
-按 INC-D2 裁决**安全视角 review 必做**（实施后、B 闸前跑）。
+**状态：✅ 已实施并双闸门验收（2026-07-11，SPRINT-handa-parity #E2 /
+轮 14）。** 兑现 INC-D2 设计稿（G14 / UJ-12），方案以 HANDA-PARITY §2
+E2 行（review 修订 M3）为准。A 闸=孪生 8 条（TestHookIngress×5 +
+TestHookRegistryHashesAndRevokes + TestMachineInputFramedAndTrustClamped
++ TestMachineTypedContentGetsFrame）+ check.sh 全绿；B 闸=真 Gemini
+QA-50（5 红线全绿，session 20260711-072852-acme-rocket-274f，
+qa/runs/2026-07-11-QA-50/）。DESIGN §2 机器发送方段 + 决策 #39 +
+glossary 与实现同 commit（additive carve-out，不翻转既有决策）。
+**安全 review**（子 agent 四维：认证/信任注入/DoS/权限提升）裁决无
+P0；P1-1（认证前无界 body、无 read/write timeout=slowloris）已修
+（认证前置 + 全超时）；P2-1（时序 oracle）已修（unknown-hook dummy
+verify）；P2-3（typed Content 漏隔离框定）已修（框定移到 content 组装
+后）；P2-4（addr 非原子写）已修；P2-2（成功侧无每-hook 预算封顶）
+记余项。
 
 ## 动机与 journey 锚
 

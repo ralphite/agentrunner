@@ -87,6 +87,22 @@ const (
 	DeliverySteer = "steer"
 )
 
+// SourceMachine marks a machine sender (INC-50, G14): a webhook/CI event
+// delivered through the daemon's HTTP ingress. Machine mail is never
+// user-class — it cannot override a user close/kill mark — and its content
+// is always trust:"untrusted", which drives the loop-side isolation framing.
+const SourceMachine = "machine"
+
+// UserClassSource reports a human-origin transport (INC-12.3, 决策 #30):
+// the explicit send gesture, which may revive even a user-killed session.
+// "cli" (the `ar send` transport) and "unix-socket" (the daemon wire) are
+// both the user at a terminal; "" defaults to user. Machine senders
+// (SourceMachine) and tree-internal "agent" mail are NOT user-class. This is
+// the canonical copy (INC-50) — agent/cli mirrors delegate here.
+func UserClassSource(s string) bool {
+	return s == "" || s == "user" || s == "cli" || s == "unix-socket"
+}
+
 // CommandRef is the durable receipt carried from the command log to the
 // semantic event that applies it.
 type CommandRef struct {

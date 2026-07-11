@@ -39,7 +39,7 @@
 | UJ-09 长会话续命 | 🟡 | 自动/手动 compaction（G7 ✅ INC-6）、跨日 resume、续聊 ✅；记忆写回 G9、跨机 G11 |
 | UJ-10 提交流水 | ✅ | 全程借 bash+gh 可走；一等公民化 G13 |
 | UJ-11 代码评审员 | ✅ | 只读约束、角色切换、续聊均已覆盖（G8/G6 关闭） |
-| UJ-12 PR 保姆 | ❌ | **G14 外部事件唤醒既有 session 不存在**；插话 G3 |
+| UJ-12 PR 保姆 | 🟡 | G14 外部事件唤醒 ✅（INC-50 webhook ingress）；GitHub 具体集成（PR 评论/CI 状态归一）借 bash+gh 可走 |
 | UJ-13 手机派活 | ❌ | 环境生命周期 G11、diff 审阅门 G13、follow-up G6；HTTP 壳 🔧backlog |
 | UJ-14 定时值守 | ✅ | cron/overlap/carry/通知/fail-closed 全通；跨重启唤醒 🔧backlog |
 | UJ-15 通宵冲目标 | ✅ | goal/verifier/停滞/预算/时间线/rewind 全通（最强区） |
@@ -53,9 +53,9 @@
 | UJ-23 工程团队模拟 | ✅ | INC-12：动态角色、横向消息、revive、用户直达与子会话 live 全通 |
 | UJ-24 Web UI 驾驶 AgentRunner | ✅ | INC-19/23/29/38/40：Codex 式信息架构 + truthful hydration + 四控件 environment composer/selected-ref worktree + Worked/Changes outcome + hover actions + 内联审批 + responsive Supervision/recovery + restart-safe Scheduled + structured Run details + responsive/a11y；QA-27/34/36/41/42 |
 
-**汇总（2026-07-09）**：19 通 · 3 部分 · 2 卡死。剩余卡死集中在外部
-事件/云环境（UJ-12/13，G14/G11/G13）；主线本机交互、编排与 Web UI
-已可走通。
+**汇总（2026-07-11 更新）**：20 通 · 3 部分 · 1 卡死。G14 已关闭
+（INC-50 webhook ingress），UJ-12 转部分；剩余卡死集中在云环境
+（UJ-13，G11/G13）；主线本机交互、编排与 Web UI 已可走通。
 
 ---
 
@@ -99,8 +99,9 @@ in-flight 子 run 的 settle-from-child-fold、barrier tasks 处置对
 INC-11.2 已把 control/close/interrupt/approval/kill 同收编) + FIFO wake +
 忙时排队边界生效 + interrupt 分立
 (闸门 QA-02/06/08 真实 API PASS)。子 agent 不可 steer(v0 明确否,
-父 kill+re-spawn 代替)。**余项**：机器发送方(G14);WAITING_APPROVAL
-park 期间消息只排队不唤醒(审批答复才解栈,唤醒语义待定)。原文:
+父 kill+re-spawn 代替)。**余项**：WAITING_APPROVAL
+park 期间消息只排队不唤醒(审批答复才解栈；INC-D2/INC-50 定案为
+"排队不解栈")。机器发送方已由 INC-50 关闭(G14)。原文:
 目标有、消费点提了一句、机制全缺：传输通道（daemon 线协议无
 steer/input command）、park（WAITING_TASKS/APPROVAL）被消息唤醒、
 type-ahead 队列语义、steer 与 interrupt 的组合手势、子 agent 是否可
@@ -119,11 +120,18 @@ run 是 task-to-completion：end_turn 即 run_ended。"答完 → 等下一条
 与 G3/G14 共用"输入投递"地基。
 → UJ-01, UJ-03, UJ-09, UJ-11, UJ-13
 
-**G14 外部事件唤醒既有 session — ❌ 设计缺失 · 高（云形态）**
-scheduler 只有"webhook → RunAgent command"（新起 run）一行；"CI 结果/
-PR 评论作为 InputReceived 投进在跑或 parked 的 session"没有设计。它是
-G3 通道的机器发送方——一条输入投递设计应同时覆盖终端用户/web 用户/
-机器三种来源。
+**G14 外部事件唤醒既有 session — ✅ 已关闭（INC-50，2026-07-11）**
+关闭位置：daemon HTTP ingress（`ar daemon --http` + `POST /hooks/<id>`
++ `ar hook create/list/revoke`）把外部事件作为 `source:"machine"` /
+`trust:"untrusted"` 的 InputReceived 投进既有 session 的 durable
+inbox——机器发送方与终端/web 用户走同一条输入投递通道（§2 三类归一
+兑现，INC-D2 设计稿落地）。信任/鉴权条款成文为 DESIGN 决策 #39
+（per-hook token 仅哈希落盘、未鉴权限流/body 上限、loop 侧强制隔离
+框定+trust 钳制+不做宏展开、machine 不越 user-kill、X-Command-Id
+幂等）。闸门：TestHookIngress*/TestMachineInputFramedAndTrustClamped
+孪生 + QA-50 真机。原文（历史）：scheduler 只有"webhook → RunAgent
+command"（新起 run）一行；"CI 结果/PR 评论作为 InputReceived 投进
+在跑或 parked 的 session"没有设计。
 → UJ-12
 
 ### 治理与交互薄层

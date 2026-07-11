@@ -78,6 +78,8 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 		return queueCmd(args[1:], stdout, stderr)
 	case "unqueue":
 		return unqueueCmd(args[1:], stdout, stderr)
+	case "hook":
+		return hookCmd(args[1:], stdout, stderr)
 	case "answer":
 		return answerCmd(args[1:], stdout, stderr)
 	case "close":
@@ -160,6 +162,8 @@ func commandHelp(cmd string) string {
 		return "usage: agentrunner trust <dir>\n\nMark a workspace directory as trusted on this machine.\n"
 	case "remember":
 		return "usage: agentrunner remember <session-id-or-prefix> \"note\"\n\nSave a durable note to the workspace's project CLAUDE.md; future\nsessions in that workspace see it in their prompt prefix, and the\ntarget session honors it from now on.\n"
+	case "hook":
+		return "usage: agentrunner hook create <session> [--name ci] | list [<session>] | revoke <hook-id>\n\nManage webhook ingress capabilities: create prints the hook URL and\nits bearer token ONCE (only a hash is stored). POST /hooks/<id> on\nthe daemon's --http address delivers an external event into the\nsession as untrusted machine input.\n"
 	case "mode":
 		return "usage: agentrunner mode <session-id-or-prefix> <default|acceptEdits>\n\nSwitch the session's permission mode at its next safe boundary\n(journaled as mode_changed). acceptEdits auto-allows edits —\nexecute and protected-path writes still ask. plan and bypass are\nstart-time choices (spec `mode:` or --mode), not runtime targets.\n"
 	}
@@ -204,6 +208,9 @@ Conversations (need the daemon):
                               next safe boundary; plan/bypass are start-time only
   goal <session> attach "…"   attach a goal the session keeps working toward
                               (also: goal <session> update|pause|resume|cancel)
+  hook create <session>       mint a webhook URL+token for external events
+                              (daemon --http <addr> serves POST /hooks/<id>;
+                              also: hook list, hook revoke <id>)
 
 Background work (daemon):
   submit <spec.yaml> "task"   hand a one-shot run to the daemon, stream until it ends

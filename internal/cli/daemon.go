@@ -72,11 +72,12 @@ func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("daemon", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	detach := fs.Bool("detach", false, "start the daemon in the background, detached from this terminal, then return")
+	httpAddr := fs.String("http", "", "enable the webhook ingress on this TCP address (INC-50, e.g. 127.0.0.1:4177); empty = off")
 	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
 		return ExitUsage
 	}
 	if len(fs.Args()) != 0 {
-		fmt.Fprintln(stderr, "usage: agentrunner daemon [--detach]")
+		fmt.Fprintln(stderr, "usage: agentrunner daemon [--detach] [--http addr]")
 		return ExitUsage
 	}
 	if *detach {
@@ -84,7 +85,7 @@ func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 		// exits — a new user closes the terminal and every send/new/sessions
 		// then reports "no daemon". --detach re-execs as a session leader so
 		// the runtime outlives this terminal.
-		return daemonDetach(stdout, stderr)
+		return daemonDetach(*httpAddr, stdout, stderr)
 	}
 	ctx, _, stop := signalContext()
 	defer stop()
@@ -126,6 +127,14 @@ func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 		IdemPath:                   filepath.Join(filepath.Dir(sock), "idem.json"),
 		Notify:                     notifyTee,
 	}
+	if *httpAddr != "" {
+		// Webhook ingress (INC-50, G14): strictly opt-in. The registry and
+		// the bound-address rendezvous live beside the socket in the data
+		// dir, so `ar hook` finds them without asking the daemon.
+		srv.HTTPAddr = *httpAddr
+		srv.HTTPAddrFile = hookAddrPath()
+		srv.HooksPath = hooksPath()
+	}
 	reconcileNotifications(notifier)
 	fmt.Fprintf(stderr, "daemon on %s\n", sock)
 	if err := srv.ListenAndServe(ctx); err != nil {
@@ -141,7 +150,7 @@ func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 // the idiomatic daemonize is a re-exec of self. The parent waits for the
 // socket to accept, reports where the daemon lives, and returns; the child
 // keeps running, now with no controlling terminal to SIGHUP it.
-func daemonDetach(stdout, stderr io.Writer) int {
+func daemonDetach(httpAddr string, stdout, stderr io.Writer) int {
 	sock, err := socketPath()
 	if err != nil {
 		fmt.Fprintln(stderr, err)
@@ -167,7 +176,11 @@ func daemonDetach(stdout, stderr io.Writer) int {
 	}
 	defer func() { _ = logF.Close() }()
 
-	cmd := exec.Command(exe, "daemon")
+	daemonArgs := []string{"daemon"}
+	if httpAddr != "" {
+		daemonArgs = append(daemonArgs, "--http", httpAddr)
+	}
+	cmd := exec.Command(exe, daemonArgs...)
 	cmd.Stdin = nil
 	cmd.Stdout = logF
 	cmd.Stderr = logF

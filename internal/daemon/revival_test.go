@@ -125,6 +125,11 @@ func TestGoalAttachRevivesSession(t *testing.T) {
 	if isErr {
 		t.Fatalf("goal-attach to a non-hosted session refused: %q", reply)
 	}
+	// The revive runs on its own goroutine; the ack does not wait for it.
+	deadline := time.Now().Add(5 * time.Second)
+	for resumed.Load() == 0 && time.Now().Before(deadline) {
+		time.Sleep(2 * time.Millisecond)
+	}
 	if resumed.Load() == 0 {
 		t.Fatal("goal-attach did not revive the session")
 	}
