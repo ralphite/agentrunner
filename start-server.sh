@@ -92,10 +92,10 @@ if [ "$SKIP_BUILD" = false ]; then
     mkdir -p bin
 
     echo "Compiling CLI (ar)..."
-    go build -o bin/ar ./cmd/agentrunner
+    go build -buildvcs=false -o bin/ar ./cmd/agentrunner
 
     echo "Compiling Web UI Server (arwebui)..."
-    go build -o bin/arwebui ./webui
+    go build -buildvcs=false -o bin/arwebui ./webui
 
     echo "Build completed successfully!"
     echo ""
