@@ -4389,3 +4389,81 @@ summary.fd-head:hover {
   .session-layout.changes { grid-template-columns: minmax(0, 1fr); }
   .changes-panel { position: absolute; z-index: 26; inset: 12px; margin: 0; }
 }
+
+/* --- INC-41 L1/L2/L3: loading vs determinate states -------------------
+   A state we don't know yet must not be painted as a state we do. Three
+   surfaces got this wrong; all three are fixed by giving "still loading" its
+   own visual vocabulary (shimmer / neutral) instead of borrowing a terminal one
+   (empty state / red offline / endless spinner). The shimmer reuses the sidebar
+   skeleton's keyframes so there is one loading language across the app. */
+
+/* L1 · Timeline skeleton: bubbles in the conversation's own geometry, so the
+   real messages land where the placeholders were (no layout jump). */
+.tl-skeleton {
+  display: grid;
+  gap: 14px;
+  padding: 6px 0;
+}
+.tl-skel-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.tl-skel-row.user {
+  justify-content: flex-end;
+}
+.tl-skel-avatar,
+.tl-skel-bubble {
+  background: linear-gradient(90deg, var(--panel-2), var(--line-2), var(--panel-2));
+  background-size: 220% 100%;
+  animation: sidebar-shimmer 1.35s ease-in-out infinite;
+}
+.tl-skel-avatar {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  margin-top: 1px;
+}
+.tl-skel-bubble {
+  height: 46px;
+  border-radius: 12px;
+}
+.tl-skel-row.user .tl-skel-bubble { width: 42%; height: 34px; }
+.tl-skel-row:nth-child(2) .tl-skel-bubble { width: 68%; }
+.tl-skel-row:nth-child(3) .tl-skel-bubble { width: 54%; height: 34px; }
+@media (prefers-reduced-motion: reduce) {
+  .tl-skel-avatar,
+  .tl-skel-bubble { animation: none; }
+}
+
+/* L2 · Task-not-found card: the `.tl-empty` shape plus a way out. */
+.tl-empty .tl-empty-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 7px 13px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.tl-empty .tl-empty-cta:hover {
+  background: var(--panel-2);
+  color: var(--ink);
+}
+.tl-notfound-id {
+  font-size: 12px;
+  word-break: break-all;
+  color: var(--ink-2);
+}
+
+/* L3 · Daemon badge, unknown state: grey presence dot, no red ring. (The base
+   `.account-presence` is already var(--dim); this states the intent so a future
+   default change can't silently turn "connecting" into "offline".) */
+.side-foot .account-avatar.connecting .account-presence {
+  background: var(--dim);
+}

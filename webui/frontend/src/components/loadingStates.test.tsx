@@ -1,0 +1,180 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+
+// INC-41 L1/L2/L3 — one family of bugs: an UNKNOWN state (first fetch still in
+// flight, or a fetch that failed) was painted as a DETERMINATE one (this task is
+// empty / the daemon is down / we're still checking, forever). These tests pin
+// the distinction on all three surfaces.
+
+// The whole api module is proxied: any AR.<method> not explicitly stubbed
+// returns a promise that never settles — i.e. "still loading", which is exactly
+// the state under test.
+const { arMock } = vi.hoisted(() => ({ arMock: {} as Record<string, (...args: any[]) => any> }));
+vi.mock("../api", () => ({
+  AR: new Proxy(
+    {},
+    {
+      get: (_target, prop: string) => (...args: any[]) =>
+        arMock[prop] ? arMock[prop](...args) : new Promise(() => {}),
+    },
+  ),
+  uploadURL: (path: string) => path,
+  diffPath: () => "",
+}));
+
+import { TimelineView } from "./Timeline";
+import { SessionView, isSessionNotFound } from "./SessionView";
+import { Sidebar } from "./Sidebar";
+import { useStore } from "../store";
+import type { BubbleItem } from "../timeline";
+
+// The webui backend shells out to `ar`, so a bad id arrives as a 502 whose
+// stderr carries the CLI's verdict; api.ts folds both into the Error message.
+const notFound = () =>
+  new Error('ar inspect: exit status 2\nagentrunner: no session matches "ghost-9999"');
+const transient = () => new Error("ar inspect: exit status 1\ndial tcp: connection refused");
+
+const bubble = (key: string, text: string): BubbleItem => ({ kind: "assistant", key, text });
+
+class FakeEventSource {
+  onmessage: ((e: MessageEvent) => void) | null = null;
+  onerror: (() => void) | null = null;
+  close = vi.fn();
+  addEventListener = vi.fn();
+}
+
+beforeEach(() => {
+  for (const key of Object.keys(arMock)) delete arMock[key];
+  (globalThis as any).EventSource = FakeEventSource;
+  // jsdom ships neither of these; the composer reads matchMedia on mount.
+  (window as any).matchMedia = () => ({
+    matches: false,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  });
+  // Supervision only mounts on a wide viewport (SessionView reads innerWidth).
+  (window as any).innerWidth = 1400;
+  localStorage.clear();
+  useStore.setState({ health: null, sessions: [], sessionsReady: true, currentSid: null });
+});
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
+
+describe("L1 · timeline loading vs genuinely empty", () => {
+  it("renders skeleton bubbles (not 'No messages yet') while the first fetch is in flight", () => {
+    const { container } = render(
+      <TimelineView items={[]} pending={[]} typing="" showSys={false} loading />,
+    );
+    expect(container.querySelector(".tl-skeleton")).not.toBeNull();
+    expect(container.querySelectorAll(".tl-skel-bubble").length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByText("No messages yet")).toBeNull();
+  });
+
+  it("renders the empty state only once loading has settled with no messages", () => {
+    const { container } = render(
+      <TimelineView items={[]} pending={[]} typing="" showSys={false} loading={false} />,
+    );
+    expect(container.querySelector(".tl-skeleton")).toBeNull();
+    expect(screen.getByText("No messages yet")).toBeTruthy();
+  });
+
+  it("never shows the skeleton once messages exist, even if loading is still true", () => {
+    const { container } = render(
+      <TimelineView items={[bubble("a1", "hello from history")]} pending={[]} typing="" showSys={false} loading />,
+    );
+    expect(container.querySelector(".tl-skeleton")).toBeNull();
+    expect(screen.getByText("hello from history")).toBeTruthy();
+    expect(screen.queryByText("No messages yet")).toBeNull();
+  });
+});
+
+describe("L2 · unknown session id", () => {
+  it("tells apart the daemon's not-found verdict from a transient failure", () => {
+    expect(isSessionNotFound(notFound())).toBe(true);
+    expect(isSessionNotFound(transient())).toBe(false);
+    expect(isSessionNotFound(new Error("Failed to fetch"))).toBe(false);
+    expect(isSessionNotFound(undefined)).toBe(false);
+  });
+
+  it("renders a Task not found card with a way back — and no composer", async () => {
+    arMock.events = async () => {
+      throw notFound();
+    };
+    arMock.inspect = async () => {
+      throw notFound();
+    };
+    arMock.ps = async () => [];
+    const { container } = render(<SessionView sid="ghost-9999" />);
+
+    await waitFor(() => expect(screen.getByText("Task not found")).toBeTruthy());
+    expect(container.querySelector("textarea")).toBeNull(); // composer is gone
+    expect(container.querySelector(".timeline .tl-empty")).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /back to all tasks/i }));
+    expect(useStore.getState().currentSid).toBeNull();
+  });
+
+  it("settles Supervision's spinners when inspect fails transiently (no permanent 'Checking…')", async () => {
+    arMock.events = async () => [];
+    arMock.ps = async () => [];
+    arMock.queue = async () => [];
+    arMock.inspect = async () => {
+      throw transient();
+    };
+    render(<SessionView sid="sess-real-1" />);
+
+    // The failing inspect must still end the loading state: the three
+    // "Checking…" placeholders resolve to their determinate empty states.
+    await waitFor(() => expect(screen.getByText(/No active goal/i)).toBeTruthy());
+    expect(screen.queryByText(/Checking goal…/)).toBeNull();
+    expect(screen.queryByText(/Checking agents…/)).toBeNull();
+    expect(screen.queryByText(/Checking attention…/)).toBeNull();
+    // A transient error is NOT a missing session.
+    expect(screen.queryByText("Task not found")).toBeNull();
+  });
+});
+
+describe("L3 · daemon badge tri-state", () => {
+  it("shows a neutral Connecting… (never offline) while health is unknown", () => {
+    useStore.setState({ health: null });
+    const { container } = render(<Sidebar />);
+
+    expect(screen.getByText("Connecting…")).toBeTruthy();
+    expect(screen.queryByText(/Daemon offline/)).toBeNull();
+    expect(screen.queryByText(/^Connected/)).toBeNull();
+
+    const avatar = container.querySelector(".account-avatar")!;
+    expect(avatar.className).toContain("connecting");
+    expect(avatar.className).not.toContain("offline");
+
+    // Unknown is inert: clicking must not fire a daemon restart.
+    const restart = vi.fn();
+    arMock.daemonStart = restart;
+    fireEvent.click(container.querySelector(".account-badge")!);
+    expect(restart).not.toHaveBeenCalled();
+  });
+
+  it("shows the red offline badge only once health actually reports daemonUp:false", () => {
+    useStore.setState({ health: { daemonUp: false } as any });
+    const { container } = render(<Sidebar />);
+
+    expect(screen.getByText("Daemon offline — restart")).toBeTruthy();
+    expect(container.querySelector(".account-avatar")!.className).toContain("offline");
+
+    const restart = vi.fn(async () => ({}));
+    arMock.daemonStart = restart;
+    fireEvent.click(container.querySelector(".account-badge")!);
+    expect(restart).toHaveBeenCalled();
+  });
+
+  it("shows Connected when the daemon is up", () => {
+    useStore.setState({ health: { daemonUp: true, version: "ar 1.2.3" } as any });
+    const { container } = render(<Sidebar />);
+
+    expect(screen.getByText(/^Connected/)).toBeTruthy();
+    expect(container.querySelector(".account-avatar")!.className).toContain("online");
+  });
+});

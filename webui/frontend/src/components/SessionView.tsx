@@ -19,6 +19,7 @@ import { displayTitle } from "../title";
 import { dedupeInspectNodes } from "../viewModels";
 import { ChangesOutcome } from "./ChangesOutcome";
 import { DaemonAlert } from "./DaemonAlert";
+import { SessionNotFound } from "./NotFound";
 
 interface SSEApproval {
   id: string;
@@ -26,6 +27,20 @@ interface SSEApproval {
   args: any;
   agent?: string;
   session?: string;
+}
+
+// INC-41 L2 · "this id doesn't exist" vs "the fetch happened to fail". The
+// webui backend proxies `ar`, so a bad session id comes back as a generic 502
+// whose stderr carries the CLI's verdict verbatim:
+//   {"error":"ar inspect: exit status 2",
+//    "stderr":"agentrunner: no session matches \"<id>\""}
+// api.ts folds error+stderr into the thrown Error's message, so that sentence
+// is our only reliable not-found signal. Everything else (daemon restarting,
+// network blip, timeout) stays a transient error: we keep polling and never
+// accuse a real task of not existing.
+export function isSessionNotFound(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : typeof err === "string" ? err : "";
+  return /no session matches/i.test(msg);
 }
 
 // 1403 → "1.4k", 20 → "20" — a compact token count for the header badge.
@@ -60,6 +75,16 @@ export function SessionView({ sid }: { sid: string }) {
   const [usage, setUsage] = useState<{ billed: number; steps: number } | null>(null);
   const [children, setChildren] = useState<InspectNode[]>([]);
   const [inspectReady, setInspectReady] = useState(false);
+  // The first events fetch for this sid hasn't returned yet (INC-41 L1) — the
+  // timeline is UNKNOWN, not empty. Flips on the first settled poll (success or
+  // failure), never back: a later poll failing must not re-skeleton a thread
+  // that's already on screen.
+  const [eventsReady, setEventsReady] = useState(false);
+  // The daemon says this session id doesn't exist (INC-41 L2).
+  const [notFound, setNotFound] = useState(false);
+  // Mirrors `notFound` for the pollers: they are closures on intervals, and a
+  // dead id must stop spawning `ar` subprocesses every second.
+  const gone = useRef(false);
   // The session's LIVE permission mode from inspect's fold (INC-42, G29):
   // /mode switches it mid-session, so the composer pill must not freeze on
   // the launch-time value.
@@ -136,7 +161,7 @@ export function SessionView({ sid }: { sid: string }) {
 
   // ---- incremental journal poll (the realtime source of truth) ----
   const poll = useCallback(async () => {
-    if (pollBusy.current) return;
+    if (pollBusy.current || gone.current) return;
     pollBusy.current = true;
     try {
       const evs = await AR.events(sid, cursor.current);
@@ -161,14 +186,20 @@ export function SessionView({ sid }: { sid: string }) {
         setEvents((prev) => [...prev, ...evs]);
         cursor.current = evs.reduce((m, e) => Math.max(m, e.seq || 0), cursor.current);
       }
-    } catch {
+    } catch (e) {
       /* daemon down / transient: health dot tells the story */
+      if (isSessionNotFound(e)) {
+        gone.current = true;
+        setNotFound(true);
+      }
     } finally {
       pollBusy.current = false;
+      setEventsReady(true);
     }
   }, [sid]);
 
   const pollTasks = useCallback(async () => {
+    if (gone.current) return;
     try {
       setTasks(await AR.ps(sid));
     } catch {
@@ -195,10 +226,19 @@ export function SessionView({ sid }: { sid: string }) {
       // answers those).
       const wq = ins?.waiting?.kind === "input" ? ins?.waiting?.ask_questions : undefined;
       setAskQuestions(Array.isArray(wq) ? wq : []);
-      setInspectReady(true);
-    } catch {
+    } catch (e) {
       /* ignore — usage badge / subagents are best-effort */
+      if (isSessionNotFound(e)) {
+        gone.current = true;
+        setNotFound(true);
+      }
+    } finally {
+      // INC-41 L2 · inspect has ANSWERED (even with an error) — Supervision's
+      // three "Checking…" spinners must settle. Leaving this inside the success
+      // path made a failing inspect spin forever.
+      setInspectReady(true);
     }
+    if (gone.current) return;
     // Queued messages (INC-47.2): withdrawable until consumed. Best-effort.
     try {
       const q = await AR.queue(sid);
@@ -264,6 +304,9 @@ export function SessionView({ sid }: { sid: string }) {
     setAskQuestions([]);
     setQueued([]);
     setInspectReady(false);
+    setEventsReady(false);
+    setNotFound(false);
+    gone.current = false;
     setLiveMode(undefined);
     poll();
     const e = setInterval(poll, 1000);
@@ -303,6 +346,11 @@ export function SessionView({ sid }: { sid: string }) {
         }
       };
       es.addEventListener("end", () => es?.close());
+      // A nonexistent id can't ever stream; EventSource would otherwise
+      // reconnect forever, re-running `ar` on every attempt (INC-41 L2).
+      es.onerror = () => {
+        if (gone.current) es?.close();
+      };
     }
     return () => {
       clearInterval(e);
@@ -542,6 +590,24 @@ export function SessionView({ sid }: { sid: string }) {
 
   const showSupervision = supervisionOpen && view === "chat";
 
+  // INC-41 L2 · The daemon knows no such session: everything below (timeline,
+  // composer, Supervision) would be a working-looking shell over nothing. Every
+  // hook above has already run, so this early return is safe.
+  if (notFound) {
+    return (
+      <div className="session-view">
+        <DaemonAlert />
+        <main className="session-primary">
+          <div className="timeline">
+            <div className="tl-inner">
+              <SessionNotFound sid={sid} onBack={() => select(null)} />
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="session-view">
       <DaemonAlert />
@@ -677,6 +743,7 @@ export function SessionView({ sid }: { sid: string }) {
                 pending={pending}
                 typing={running ? (typing || "Thinking") : typing}
                 showSys={showSys}
+                loading={!eventsReady}
                 sentImages={sentImages.current}
                 statusLine={hasApprovals ? (
                   <div className={`run-status-line ${status.cls}`}>

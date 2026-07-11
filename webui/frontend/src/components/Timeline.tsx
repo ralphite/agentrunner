@@ -790,6 +790,7 @@ export function TimelineView({
   active = false,
   onContinue,
   outcomeSlot,
+  loading = false,
 }: {
   items: TimelineItem[];
   pending: { id: number; text: string; imgs: string[]; files: number; delivery?: "steer" | "queue" }[];
@@ -801,6 +802,8 @@ export function TimelineView({
   active?: boolean;
   onContinue?: () => void;
   outcomeSlot?: ReactNode;
+  /** The first events fetch for this session hasn't returned yet (INC-41 L1). */
+  loading?: boolean;
 }) {
   // Codex shows a continuous activity feed — no "turn N" dividers, no raw
   // system events. Those stay behind the developer toggle.
@@ -851,13 +854,32 @@ export function TimelineView({
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   };
 
-  // A brand-new / never-started session has no items at all — show a calm
-  // empty state instead of a blank white void (R4-11).
-  const isEmpty = nodes.length === 0 && !typing && pending.length === 0 && !statusLine && !approvalSlot;
+  // Nothing to show yet — but WHY decides what we render (INC-41 L1): while the
+  // first fetch is still in flight the timeline is merely unknown, so claiming
+  // "No messages yet" on a session with a long history is a lie the reader sees
+  // for ~1s before it snaps away. Skeleton while loading; the empty state only
+  // once we know the session really is empty (R4-11).
+  const blank = nodes.length === 0 && !typing && pending.length === 0 && !statusLine && !approvalSlot;
+  const isEmpty = blank && !loading;
 
   return (
     <div className="timeline" ref={ref} onScroll={onScroll}>
       <div className="tl-inner">
+        {blank && loading && (
+          <div className="tl-skeleton" role="status" aria-label="Loading conversation">
+            <div className="tl-skel-row user">
+              <span className="tl-skel-bubble" />
+            </div>
+            <div className="tl-skel-row">
+              <span className="tl-skel-avatar" />
+              <span className="tl-skel-bubble" />
+            </div>
+            <div className="tl-skel-row">
+              <span className="tl-skel-avatar" />
+              <span className="tl-skel-bubble" />
+            </div>
+          </div>
+        )}
         {isEmpty && (
           <div className="tl-empty">
             <ChatCircle size={26} weight="light" />

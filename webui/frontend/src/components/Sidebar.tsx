@@ -342,22 +342,44 @@ export function Sidebar({ onHide, onNavigate, onOpenSettings }: { onHide?: () =>
       </div>
 
       <div className="side-foot">
+        {/* INC-41 L3 · Three states, not two. `health === null` means the first
+            /health call hasn't answered yet — rendering that as a red "Daemon
+            offline" made every cold load flash a fake outage (and armed a
+            restart click). Unknown is neutral and inert; only a health record
+            that actually says daemonUp:false is an outage. */}
         <button
           className="account-badge"
-          onClick={() => !health?.daemonUp && restartDaemon()}
-          title={health?.daemonUp ? (health.version || "daemon") : "Daemon offline — click to restart"}
-          aria-label={health?.daemonUp ? "Connected to daemon" : "Daemon offline — click to restart"}
+          onClick={() => health && !health.daemonUp && restartDaemon()}
+          title={
+            !health
+              ? "Checking daemon status…"
+              : health.daemonUp
+                ? (health.version || "daemon")
+                : "Daemon offline — click to restart"
+          }
+          aria-label={
+            !health
+              ? "Connecting to daemon"
+              : health.daemonUp
+                ? "Connected to daemon"
+                : "Daemon offline — click to restart"
+          }
         >
-          <span className={`account-avatar${health?.daemonUp ? " online" : " offline"}`} aria-hidden="true">
+          <span
+            className={`account-avatar${!health ? " connecting" : health.daemonUp ? " online" : " offline"}`}
+            aria-hidden="true"
+          >
             <span className="text-[11px] font-[680] tracking-[0.4px]">AR</span>
             <span className="account-presence" />
           </span>
           <span className="account-meta">
             <b>AgentRunner</b>
             <span>
-              {health?.daemonUp
-                ? `Connected · ${daemonVersionLabel(health.version)}`
-                : "Daemon offline — restart"}
+              {!health
+                ? "Connecting…"
+                : health.daemonUp
+                  ? `Connected · ${daemonVersionLabel(health.version)}`
+                  : "Daemon offline — restart"}
             </span>
           </span>
         </button>
