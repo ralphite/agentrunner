@@ -71,6 +71,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 |---|---|---|---|
 | read_file / write_file / edit_file（read_file 支持读图/PDF：media envelope+CAS ref,assembly 注入 image/file part,journal 恒 byte-free;5MB 上限;文本路径零变化） | ✅ | UJ-02/05 | S1 · QA-03（write_file）· INC-33（TestReadFileImage*/TestReadFileImageEndToEnd · QA-38 真机:模型从像素读出截图内容） |
 | bash 前台+后台（`output`/`kill` 凭 handle、进程组取消） | ✅ | UJ-02/18 | S1/S3 · QA-05 |
+| 后台任务 notify 门（`notify: always\|on_fail\|none`；fold 从 journaled args 读门、resume 重放同裁决；none=终态只摘 handle 不回流（fire-and-forget）、on_fail=仅 IsError 回流；Cancelled 不过门；非法值宽容回退 always） | ✅ | UJ-18 | INC-39（HANDA #10 缩水版，唤醒与结构化载荷经勘误已存在）· TestBackgroundNotifyGate（10 例矩阵）· 真验 2026-07-10（真 Gemini 双场景：none 零回流零多余 turn / on_fail 回流+模型复述 exit 3，qa/runs/2026-07-10-INC39） |
 | semantic_search（IndexStore，BM25） | ✅ | UJ-01 | S7 |
 | publish_artifact（`outputs:` contract、审批载荷） | ✅ | UJ-06 | S5 |
 | exit_plan_mode（plan mode 跃迁） | ✅ | UJ-06/11 | S2/S3 · TestPlanApprovalFullFlow/TestPlanModeFullFlow/TestExitPlanModeDeniedStaysInPlan |

@@ -39,3 +39,14 @@ token 花费。PARITY #10 经 review 勘误缩水：唤醒机制已存在
 ## review 裁决
 
 S 增量、fold 内两分支 + 宽容读，裁掉三视角 review。
+
+---
+
+## 执行记录（2026-07-10 收口）
+
+一步完成。范围较工作纸再缩水：结构化载荷核查后已存在（bash result
+恒带 exit_code/stdout tail），真 delta 仅门本身。B 闸真 Gemini 双
+场景并行 PASS（none：零回流零多余 turn；on_fail+exit 3：回流+模型
+复述 exit code），证据 `qa/runs/2026-07-10-INC39/`。方法记档：断言
+用 `--state` conversation（回流是 fold 派生投影非事件）。SPEC C 区
+加行；SPRINT #10 ✅。

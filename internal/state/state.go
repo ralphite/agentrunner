@@ -791,10 +791,14 @@ func Apply(s State, env event.Envelope) (State, error) {
 		if inFlight && started.Background && started.CallID != "" {
 			// A background task's outcome arrives as a USER-role input
 			// (S6.1): the handle already paired the call at start; the
-			// result becomes conversation the model sees next turn.
+			// result becomes conversation the model sees next turn — unless
+			// the spawn's notify gate suppresses it (INC-39). bash marks a
+			// non-zero exit IsError, so "failed" needs no payload parsing.
 			s.Handles = s.Handles.without(started.CallID)
-			s.Conversation = s.Conversation.withMessage(handleOutcomeMessage(
-				started.CallID, "completed", string(p.Result)))
+			if backgroundOutcomeWanted(started, p.IsError) {
+				s.Conversation = s.Conversation.withMessage(handleOutcomeMessage(
+					started.CallID, "completed", string(p.Result)))
+			}
 		} else if inFlight && started.Kind == event.KindTool && started.CallID != "" {
 			s.Conversation = s.Conversation.withToolResult(started.CallID,
 				ToolResult{Result: p.Result, IsError: p.IsError})
@@ -824,9 +828,13 @@ func Apply(s State, env event.Envelope) (State, error) {
 		s.Budget = s.Budget.release(effectIDFor(started, p.ActivityID))
 		if inFlight && started.Background && started.CallID != "" {
 			s.Handles = s.Handles.without(started.CallID)
-			s.Conversation = s.Conversation.withMessage(handleOutcomeMessage(
-				started.CallID, "failed",
-				string(errs.RenderForModel(errs.Class(p.Error.Class), p.Error.Message))))
+			// A failure passes the notify gate for both "always" and
+			// "on_fail" (INC-39); only "none" swallows it.
+			if backgroundOutcomeWanted(started, true) {
+				s.Conversation = s.Conversation.withMessage(handleOutcomeMessage(
+					started.CallID, "failed",
+					string(errs.RenderForModel(errs.Class(p.Error.Class), p.Error.Message))))
+			}
 		} else if inFlight && started.Kind == event.KindTool && started.CallID != "" {
 			// The rendered failure IS the call's model-visible result: the
 			// loop continues, the model reacts (3.9).
@@ -1074,6 +1082,29 @@ type UnhandledEventError struct{ Type string }
 
 func (e *UnhandledEventError) Error() string {
 	return "state: registered event type has no fold case: " + e.Type
+}
+
+// backgroundOutcomeWanted is the notify gate (INC-39): whether a settled
+// background task's outcome flows back as a user-role message. It reads the
+// spawn's journaled Args — the fold replays the same verdict on resume —
+// and reads them leniently: an unknown or missing notify value means
+// "always" (the fold must never error on model-authored args; the schema
+// enum keeps the values honest upstream). Cancellation does NOT pass
+// through here: a kill is an explicit act whose partial output belongs to
+// the kill flow.
+func backgroundOutcomeWanted(started event.ActivityStarted, failed bool) bool {
+	var a struct {
+		Notify string `json:"notify"`
+	}
+	_ = json.Unmarshal(started.Args, &a)
+	switch a.Notify {
+	case "none":
+		return false
+	case "on_fail":
+		return failed
+	default:
+		return true
+	}
 }
 
 // handleOutcomeMessage renders a background task's terminal outcome as the

@@ -2580,3 +2580,27 @@ effectiveMode 注释明言可变),default↔acceptEdits 两侧 advertised 面与
 prompt suffix 相同 → 零 prefix/缓存影响;机制 = mode control 加入
 compact/clear/remember 同族(durable command + drainControls 双路);
 bypass 维持不可 runtime 进入。待用户裁决后按 42.1–42.4 实施。
+## 2026-07-10 INC-39 后台任务 notify 门（HANDA SPRINT #10，批 1 收尾）
+
+**范围再缩水（实现前核查）**：PARITY #10 经对抗 review 已从"新增唤醒
+源"缩为"notify 门+结构化载荷"；实现前二次核查发现**结构化载荷也已
+存在**（bash result 恒带 exit_code/stdout tail、非零 exit 即
+IsError）——真 delta 只剩门本身。
+
+**落地**：bash def 加 `notify: always|on_fail|none`（enum，仅
+background 有效）；fold 的 background Completed/Failed 注入过
+`backgroundOutcomeWanted` 门——从 journaled `ActivityStarted.Args`
+读（resume 重放同一裁决），未知值宽容回退 always（fold 不得错）；
+**Cancelled 不过门**（kill 是显式动作，partial 渲染属 kill 流程，
+QA-05 依赖）。decide() 对无输入唤醒本就回 idle——none 门零空转、
+静止照走，零新事件零不变量。
+
+**双闸门**：孪生 TestBackgroundNotifyGate 10 例矩阵（三值×三终态+
+非法回退+Cancelled 恒渲染+handle 恒摘）；B=真 Gemini 双场景并行
+（none：零回流零多余 turn、会话正常 completed；on_fail+exit 3：
+回流 1 条、模型第三 turn 复述 "failed with exit code 3 after
+outputting pre-fail"）。归档 qa/runs/2026-07-10-INC39。
+
+**方法记档**：回流消息是 fold 派生投影非独立事件——B 闸断言必须用
+`ar events --state` 的 conversation，grep 原始 journal 会误判
+（首验踩过，README 记档）。
