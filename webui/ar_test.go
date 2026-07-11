@@ -201,6 +201,47 @@ func TestHandleDiffNestedWorkspace(t *testing.T) {
 	}
 }
 
+func TestHandleDiffLastTurn(t *testing.T) {
+	bin := filepath.Join(t.TempDir(), "fake-ar")
+	script := `#!/bin/sh
+if [ "$1" = "diff" ] && [ "$3" = "--scope" ] && [ "$4" = "last-turn" ] && [ "$5" = "--json" ]; then
+  printf '%s\n' '{"scope":"last-turn","available":true,"workspace":"/tmp/project","input_seq":4,"barrier_seq":6,"barrier_id":"bar-t2","diff":"diff --git a/a.txt b/a.txt\\n+a","numstat":"1\\t0\\ta.txt"}'
+  exit 0
+fi
+exit 2
+`
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	s := &server{arPath: bin}
+	req := httptest.NewRequest("GET", "/api/sessions/x/diff?scope=last-turn", nil)
+	req.SetPathValue("sid", "20260711-000000-task-0001")
+	rec := httptest.NewRecorder()
+	s.handleDiff(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp["scope"] != "last-turn" || resp["available"] != true || resp["known"] != true ||
+		!strings.Contains(resp["diff"].(string), "a.txt") {
+		t.Fatalf("unexpected Last turn response: %#v", resp)
+	}
+	if untracked, ok := resp["untracked"].([]any); !ok || len(untracked) != 0 {
+		t.Fatalf("untracked must be a stable empty array: %#v", resp["untracked"])
+	}
+
+	bad := httptest.NewRequest("GET", "/api/sessions/x/diff?scope=commit", nil)
+	bad.SetPathValue("sid", "20260711-000000-task-0001")
+	badRec := httptest.NewRecorder()
+	s.handleDiff(badRec, bad)
+	if badRec.Code != http.StatusBadRequest {
+		t.Fatalf("invalid scope status = %d, want 400", badRec.Code)
+	}
+}
+
 func TestHandleSessionFileDownloadConfinesWorkspace(t *testing.T) {
 	ws := t.TempDir()
 	outside := t.TempDir()

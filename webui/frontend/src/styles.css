@@ -1494,6 +1494,34 @@ label.field {
 .diffbar .spacer {
   flex: 1;
 }
+.diff-scope-trigger {
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.diff-scope-trigger:hover,
+.diff-scope-trigger.active {
+  background: var(--panel-2);
+  border-color: color-mix(in srgb, var(--ink) 18%, var(--line));
+}
+.diff-scope-menu {
+  width: min(286px, calc(100vw - 24px));
+}
+.diffbar-state {
+  min-height: 30px;
+}
+.diff-loading {
+  padding: 26px 12px;
+}
 /* The absolute workspace path is long; let it take the row's flex space and
    ellipsize instead of pushing Commit/Refresh out of view. */
 .diffbar-path {

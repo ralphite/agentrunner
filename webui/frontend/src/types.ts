@@ -18,6 +18,14 @@ export interface Session {
 }
 
 export interface DiffResp {
+  scope?: "working-tree" | "last-turn";
+  // Last turn is a durable capability, not a guessed empty diff. Historical
+  // sessions without a usable barrier return available:false + reason.
+  available?: boolean;
+  reason?: string;
+  input_seq?: number;
+  barrier_seq?: number;
+  barrier_id?: string;
   workspace: string;
   known: boolean;
   isRepo: boolean;
@@ -34,6 +42,8 @@ export interface DiffResp {
   numstat: string;
   untracked: string[];
 }
+
+export type DiffScope = "working-tree" | "last-turn";
 
 export interface Health {
   version: string;

@@ -782,7 +782,7 @@ user]` 的 error 结果;对待命处 = no-op(裁决 #11)。**已配对的后台
   explicit GC**——rewind 之后较新的快照不会变得不可达。`SnapshotStore`
   另允许基于 opaque ref 做**只读 workspace comparison**供 review surface
   使用；comparison 不物化、不移动 backend HEAD/index、不改用户 workspace，
-  backend 不支持时显式 unavailable（INC-55）。
+  backend 不支持时显式 unavailable（INC-57）。
 - **默认 backend 是 shadow repo**：独立的 `GIT_DIR` 放在 harness 数据
   目录下、`GIT_WORK_TREE` 指向 workspace——对用户自己的 repo 完全隐形：
   不污染 HEAD/index、不会被误 push，agent 通过 bash 做 `git checkout` /

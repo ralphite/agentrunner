@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
-import { Rows, Columns, MagnifyingGlass, GitBranch } from "@phosphor-icons/react";
+import { useEffect, useRef, useState } from "react";
+import { Rows, Columns, MagnifyingGlass, GitBranch, CaretDown } from "@phosphor-icons/react";
 import { AR } from "../api";
 import { useStore } from "../store";
 import { loadGitPrefs } from "../theme";
-import type { DiffResp } from "../types";
+import type { DiffResp, DiffScope } from "../types";
 import { parseFileDiff, splitDiff, splitPath, splitRows, highlightLine, langFromPath, type DiffRow } from "../diffSummary";
+import { Popover, PopItem, PopSection } from "./Popover";
 
 // renderCode turns one diff line into syntax-highlighted spans (INC-41 D3).
 // Tokens are dependency-free and byte-exact, so `white-space: pre` alignment is
@@ -27,6 +28,8 @@ export function DiffView({ sid }: { sid: string }) {
   const [data, setData] = useState<DiffResp | null>(null);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [scope, setScope] = useState<DiffScope>("working-tree");
+  const requestID = useRef(0);
   // fold-all state; bumping the epoch remounts the <details> so a global
   // toggle wins over any manual per-file toggling since the last one.
   const [allOpen, setAllOpen] = useState(true);
@@ -49,14 +52,26 @@ export function DiffView({ sid }: { sid: string }) {
   const effView = narrow ? "inline" : view;
 
   const load = () => {
-    AR.diff(sid)
+    const currentRequest = ++requestID.current;
+    setData(null);
+    setErr("");
+    AR.diff(sid, scope)
       .then((d) => {
+        if (currentRequest !== requestID.current) return;
         setData(d);
         setErr("");
       })
-      .catch((e) => setErr(e.message));
+      .catch((e) => {
+        if (currentRequest === requestID.current) setErr(e.message);
+      });
   };
-  useEffect(load, [sid]);
+  useEffect(() => {
+    setFileQuery("");
+    load();
+    return () => {
+      requestID.current += 1;
+    };
+  }, [sid, scope]);
 
   // Codex review→commit: stage & commit the workspace changes from the diff.
   const commit = () => {
@@ -176,12 +191,75 @@ export function DiffView({ sid }: { sid: string }) {
     }
   };
 
-  if (err) return <div className="diffwrap"><div className="chip bad">{err}</div></div>;
-  if (!data) return <div className="diffwrap dim">loading diff…</div>;
+  const scopeControl = (
+    <Popover
+      panelClass="diff-scope-menu"
+      trigger={(open, toggle) => (
+        <button
+          className={"diff-scope-trigger" + (open ? " active" : "")}
+          onClick={toggle}
+          aria-label="Change diff scope"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          title="Choose which workspace changes to review"
+        >
+          {scope === "working-tree" ? "Working tree" : "Last turn"}
+          <CaretDown size={12} />
+        </button>
+      )}
+    >
+      {(close) => (
+        <PopSection label="Compare changes">
+          <PopItem
+            title="Working tree"
+            desc="All uncommitted workspace changes"
+            active={scope === "working-tree"}
+            onClick={() => {
+              setScope("working-tree");
+              close();
+            }}
+          />
+          <PopItem
+            title="Last turn"
+            desc="Since the latest human turn began"
+            active={scope === "last-turn"}
+            onClick={() => {
+              setScope("last-turn");
+              close();
+            }}
+          />
+        </PopSection>
+      )}
+    </Popover>
+  );
+
+  const stateBar = (
+    <div className="diffbar diffbar-state">
+      {scopeControl}
+      <span className="spacer" />
+      <button className="sm" onClick={load}>Refresh</button>
+    </div>
+  );
+
+  if (err) return <div className="diffwrap">{stateBar}<div className="chip bad">{err}</div></div>;
+  if (!data) return <div className="diffwrap">{stateBar}<div className="diff-loading dim">Loading changes…</div></div>;
+
+  if (scope === "last-turn" && data.available === false)
+    return (
+      <div className="diffwrap">
+        {stateBar}
+        <div className="diff-empty">
+          <b>Last turn unavailable</b>
+          <span>{data.reason || "This task has no durable workspace baseline for its latest human turn."}</span>
+          <span className="dim">Working tree remains available for the task's current uncommitted changes.</span>
+        </div>
+      </div>
+    );
 
   if (!data.known)
     return (
       <div className="diffwrap">
+        {stateBar}
         <div className="diff-empty">
           <b>Workspace unavailable</b>
           <span>This session predates workspace metadata, so AgentRunner cannot reconstruct its changes view.</span>
@@ -189,9 +267,10 @@ export function DiffView({ sid }: { sid: string }) {
         </div>
       </div>
     );
-  if (data.nested)
+  if (scope === "working-tree" && data.nested)
     return (
       <div className="diffwrap">
+        {stateBar}
         <div className="diff-empty">
           <b>Changes can't be tracked here yet</b>
           <span>This task's workspace sits inside another repository, so its files aren't tracked on their own.</span>
@@ -201,9 +280,10 @@ export function DiffView({ sid }: { sid: string }) {
         </div>
       </div>
     );
-  if (!data.isRepo)
+  if (scope === "working-tree" && !data.isRepo)
     return (
       <div className="diffwrap">
+        {stateBar}
         <div className="diff-empty">
           <b>No Git changes to review</b>
           <span>This task's workspace has no version control yet.</span>
@@ -229,6 +309,7 @@ export function DiffView({ sid }: { sid: string }) {
   return (
     <div className="diffwrap">
       <div className="diffbar">
+        {scopeControl}
         {(() => {
           // Middle-ellipsize the workspace path (keep the head + the last
           // segment) so a long absolute path stays identifiable at both ends;
@@ -299,12 +380,12 @@ export function DiffView({ sid }: { sid: string }) {
             {allOpen ? "Collapse all" : "Expand all"}
           </button>
         )}
-        {!empty && (
+        {scope === "working-tree" && !empty && (
           <button className="sm primary" onClick={commit} disabled={busy} title="git add -A && git commit the workspace changes (local commit, no push)">
             Commit changes…
           </button>
         )}
-        {data.worktree && data.mainRepo && (
+        {scope === "working-tree" && data.worktree && data.mainRepo && (
           <button
             className="sm"
             onClick={() => applyBack(data.mainRepo!)}
@@ -314,7 +395,7 @@ export function DiffView({ sid }: { sid: string }) {
             Apply to project…
           </button>
         )}
-        {data.worktree && (
+        {scope === "working-tree" && data.worktree && (
           <button className="sm" onClick={removeWorktree} disabled={busy} title="Delete this worktree checkout and prune it from git">
             Remove worktree…
           </button>
@@ -323,7 +404,11 @@ export function DiffView({ sid }: { sid: string }) {
           Refresh
         </button>
       </div>
-      {empty && <div className="dim" style={{ padding: 12 }}>No changes in the workspace.</div>}
+      {empty && (
+        <div className="dim" style={{ padding: 12 }}>
+          {scope === "last-turn" ? "No workspace changes since the latest human turn began." : "No changes in the workspace."}
+        </div>
+      )}
       {!empty && q && shown.length === 0 && (
         <div className="dim" style={{ padding: 12 }}>No files match “{fileQuery}”.</div>
       )}

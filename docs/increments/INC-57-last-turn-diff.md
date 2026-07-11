@@ -1,4 +1,4 @@
-# INC-55 durable Last turn diff（Codex Changes 范围）
+# INC-57 durable Last turn diff（Codex Changes 范围）
 
 ## 动机与 journey 锚
 
@@ -117,12 +117,12 @@ shadow repo，其他 backend 可明确返回 unavailable。
 
 ## 实施步骤
 
-1. `INC-55.0`：工作纸 + 独立契约 review，裁决通过后才写代码。
-2. `INC-55.1`：snapshot 只读 comparison + CLI + DESIGN 同 commit；A 闸核心
+1. `INC-57.0`：工作纸 + 独立契约 review，裁决通过后才写代码。
+2. `INC-57.1`：snapshot 只读 comparison + CLI + DESIGN 同 commit；A 闸核心
    测试与 `./scripts/check.sh` 全绿，立即 push `origin/main`。
-3. `INC-55.2`：Web API + frontend scope UX + scripted UI tests；build/check
+3. `INC-57.2`：Web API + frontend scope UX + scripted UI tests；build/check
    全绿，立即 push。
-4. `INC-55.3`：部署 live 8809，共享数据 QA-54 全景浏览器验收；三层/支撑件
+4. `INC-57.3`：部署 live 8809，共享数据 QA-54 全景浏览器验收；三层/支撑件
    收口，D1 解锁，工作纸移 `docs/archive/increments/`，立即 push。
 
 ## review 裁决

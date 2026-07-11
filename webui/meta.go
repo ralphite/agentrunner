@@ -330,8 +330,30 @@ func (s *server) handleDiff(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	scope := r.URL.Query().Get("scope")
+	if scope == "last-turn" {
+		res := s.runAR(r.Context(), 30*time.Second, "diff", id, "--scope", "last-turn", "--json")
+		if res.Err != nil {
+			http.Error(w, strings.TrimSpace(res.Stderr), http.StatusBadGateway)
+			return
+		}
+		var resp map[string]any
+		if err := json.Unmarshal([]byte(res.Stdout), &resp); err != nil {
+			http.Error(w, "invalid diff response from agentrunner", http.StatusBadGateway)
+			return
+		}
+		workspace, _ := resp["workspace"].(string)
+		resp["known"] = workspace != ""
+		resp["untracked"] = []string{}
+		writeJSON(w, http.StatusOK, resp)
+		return
+	}
+	if scope != "" && scope != "working-tree" {
+		http.Error(w, "scope must be working-tree or last-turn", http.StatusBadRequest)
+		return
+	}
 	meta := s.meta.get(id)
-	resp := map[string]any{"workspace": meta.Workspace, "known": meta.Workspace != "", "isRepo": false, "nested": false, "repoRoot": "", "diff": "", "numstat": "", "untracked": []string{}, "worktree": false, "mainRepo": "", "branch": ""}
+	resp := map[string]any{"scope": "working-tree", "workspace": meta.Workspace, "known": meta.Workspace != "", "isRepo": false, "nested": false, "repoRoot": "", "diff": "", "numstat": "", "untracked": []string{}, "worktree": false, "mainRepo": "", "branch": ""}
 	if meta.Workspace == "" {
 		writeJSON(w, http.StatusOK, resp)
 		return

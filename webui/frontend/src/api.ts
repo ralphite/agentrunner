@@ -1,4 +1,4 @@
-import type { DiffResp, Envelope, Health, Run, Session, SpecFile, Task } from "./types";
+import type { DiffResp, DiffScope, Envelope, Health, Run, Session, SpecFile, Task } from "./types";
 
 // api wraps the arwebui JSON contract. A non-2xx carries {error, stderr};
 // we surface both so the cockpit shows the real ar failure (never swallow it).
@@ -23,6 +23,9 @@ const post = <T = any>(path: string, body?: any) =>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body || {}),
   });
+
+export const diffPath = (sid: string, scope: DiffScope) =>
+  `/sessions/${sid}/diff?scope=${scope}`;
 
 export const AR = {
   health: () => api<Health>("/health"),
@@ -69,7 +72,7 @@ export const AR = {
     ),
   fileURL: (sid: string, path: string) =>
     `/api/sessions/${encodeURIComponent(sid)}/file?path=${encodeURIComponent(path)}`,
-  diff: (sid: string) => api<DiffResp>(`/sessions/${sid}/diff`),
+  diff: (sid: string, scope: DiffScope = "working-tree") => api<DiffResp>(diffPath(sid, scope)),
   commit: (sid: string, message: string) =>
     post<{ status: string }>(`/sessions/${sid}/commit`, { message }),
   gitInit: (sid: string) => post<{ status: string }>(`/sessions/${sid}/git-init`),
