@@ -82,6 +82,46 @@ func TestToParamsThinkingAndCache(t *testing.T) {
 	}
 }
 
+// An over-large thinking budget must be clamped below max_tokens (the API
+// requires budget_tokens < max_tokens and thinking is drawn from it), keeping
+// answer room so the response is never starved to empty.
+func TestToParamsThinkingBudgetClamped(t *testing.T) {
+	req := provider.CompleteRequest{
+		Model: "claude-x", MaxTokens: 8192,
+		Thinking: provider.ThinkingConfig{Enabled: true, BudgetTokens: 8192},
+		Messages: []provider.Message{{Role: provider.RoleUser,
+			Parts: []provider.Part{{Kind: provider.PartText, Text: "hi"}}}},
+	}
+	params, err := toParams(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// reserve = 8192/4 = 2048 → budget clamped to 6144, leaving answer room.
+	js, _ := json.Marshal(params)
+	if !strings.Contains(string(js), `"budget_tokens":6144`) {
+		t.Errorf("budget not clamped to reserve answer room: %s", js)
+	}
+}
+
+// A cap too small to fit even the floor thinking budget + answer room must omit
+// thinking entirely rather than send an illegal/answer-starving request.
+func TestToParamsThinkingCapTooSmall(t *testing.T) {
+	req := provider.CompleteRequest{
+		Model: "claude-x", MaxTokens: 1500,
+		Thinking: provider.ThinkingConfig{Enabled: true, BudgetTokens: 4096},
+		Messages: []provider.Message{{Role: provider.RoleUser,
+			Parts: []provider.Part{{Kind: provider.PartText, Text: "hi"}}}},
+	}
+	params, err := toParams(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	js, _ := json.Marshal(params)
+	if strings.Contains(string(js), `"thinking"`) {
+		t.Errorf("thinking must be omitted when the cap cannot fit it: %s", js)
+	}
+}
+
 // toParams with no thinking must not emit a thinking config.
 func TestToParamsNoThinking(t *testing.T) {
 	req := provider.CompleteRequest{Model: "claude-x", MaxTokens: 100,

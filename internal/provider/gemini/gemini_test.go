@@ -132,6 +132,78 @@ func TestToConfigDisablesDefaultThinking(t *testing.T) {
 	}
 }
 
+// resolveThinkingBudget must always cap thinking so the answer keeps room
+// within maxTokens — the core of the empty-message fix.
+func TestResolveThinkingBudget(t *testing.T) {
+	cases := []struct {
+		name       string
+		maxTokens  int
+		requested  int
+		wantBudget int32
+		wantOK     bool
+	}{
+		// The user's failing shape: enabled with no explicit budget must NOT be
+		// unbounded — it takes the default cap, and the answer keeps ≥1/4.
+		{"enabled no budget, default cap", 8192, 0, 6144, true},
+		{"enabled no budget, big cap clamps to default", 40000, 0, 8192, true},
+		// Explicit budget honored when it fits under the reserve ceiling.
+		{"explicit fits", 10240, 6144, 6144, true},
+		{"small explicit honored", 2048, 500, 500, true},
+		// Over-large budget clamped so a quarter of the cap survives.
+		{"budget starving answer clamped", 8192, 8000, 6144, true},
+		{"budget above gemini max clamped", 60000, 100000, 24576, true},
+		// Cap too small to afford any thinking → disable (ok=false).
+		{"tiny cap disables thinking", 1024, 4096, 0, false},
+		{"zero cap disables thinking", 0, 4096, 0, false},
+		// Negative requested behaves like unspecified (never unbounded).
+		{"negative request treated as default", 8192, -5, 6144, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, ok := resolveThinkingBudget(c.maxTokens, c.requested)
+			if ok != c.wantOK || got != c.wantBudget {
+				t.Errorf("resolveThinkingBudget(%d,%d) = (%d,%v), want (%d,%v)",
+					c.maxTokens, c.requested, got, ok, c.wantBudget, c.wantOK)
+			}
+			// Invariant: an allowed budget always leaves answer room.
+			if ok && int(got) >= c.maxTokens {
+				t.Errorf("budget %d does not reserve answer room within maxTokens %d", got, c.maxTokens)
+			}
+		})
+	}
+}
+
+// A too-small cap with thinking enabled must disable thinking on flash (budget
+// 0 → full cap to the answer) rather than send an unbounded/answer-starving
+// request.
+func TestToConfigEnabledTinyCapDisables(t *testing.T) {
+	cfg, err := toConfig(provider.CompleteRequest{Model: "gemini-flash-latest", MaxTokens: 1024,
+		Thinking: provider.ThinkingConfig{Enabled: true, BudgetTokens: 4096}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ThinkingConfig == nil || cfg.ThinkingConfig.ThinkingBudget == nil || *cfg.ThinkingConfig.ThinkingBudget != 0 {
+		t.Errorf("tiny cap must disable thinking (budget 0), got %+v", cfg.ThinkingConfig)
+	}
+}
+
+// Enabled with no explicit budget must send a positive, clamped budget — never
+// leave ThinkingBudget nil (Gemini's unbounded dynamic default that starves the
+// answer, the empty-message defect).
+func TestToConfigEnabledNoBudgetIsBounded(t *testing.T) {
+	cfg, err := toConfig(provider.CompleteRequest{Model: "gemini-flash-latest", MaxTokens: 8192,
+		Thinking: provider.ThinkingConfig{Enabled: true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ThinkingConfig == nil || cfg.ThinkingConfig.ThinkingBudget == nil {
+		t.Fatalf("enabled thinking must carry an explicit budget, got %+v", cfg.ThinkingConfig)
+	}
+	if b := *cfg.ThinkingConfig.ThinkingBudget; b <= 0 || int(b) >= 8192 {
+		t.Errorf("budget %d must be positive and reserve answer room within 8192", b)
+	}
+}
+
 func TestStreamStateMapping(t *testing.T) {
 	st := newStreamState(2)
 	resp := &genai.GenerateContentResponse{

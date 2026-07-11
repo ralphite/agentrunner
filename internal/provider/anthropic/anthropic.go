@@ -31,6 +31,10 @@ const extrasThinkingKey = "anthropic.thinking"
 // minThinkingBudget is Anthropic's floor for an enabled thinking budget.
 const minThinkingBudget = 1024
 
+// minAnswerRoom is the floor of max_tokens always reserved for the answer +
+// tool calls, so an over-large thinking budget can never starve the response.
+const minAnswerRoom = 1024
+
 // Provider implements provider.Provider against the Anthropic Messages API.
 type Provider struct {
 	client sdk.Client
@@ -195,7 +199,21 @@ func toParams(req provider.CompleteRequest) (sdk.MessageNewParams, error) {
 		if budget < minThinkingBudget {
 			budget = minThinkingBudget
 		}
-		params.Thinking = sdk.ThinkingConfigParamOfEnabled(budget)
+		// Extended thinking is drawn from max_tokens and the API requires
+		// budget_tokens < max_tokens; clamp so the answer keeps room. If even
+		// the floor budget can't fit, omit thinking rather than send an illegal
+		// or answer-starving request (the empty-message defect).
+		reserve := int64(req.MaxTokens) / 4
+		if reserve < minAnswerRoom {
+			reserve = minAnswerRoom
+		}
+		ceiling := int64(req.MaxTokens) - reserve
+		if ceiling >= minThinkingBudget {
+			if budget > ceiling {
+				budget = ceiling
+			}
+			params.Thinking = sdk.ThinkingConfigParamOfEnabled(budget)
+		}
 	}
 	return params, nil
 }

@@ -1003,3 +1003,29 @@ revive、gen_steps 同 context 递增;真验期抓获并修复三个 bug:CLI 子
 *执行纪律：每次跑完（无论过否）把 `ar events` 导出的 journal 与
 workspace diff 归档到 `qa/runs/<日期>-<QA号>/`；FAIL 必须先归因
 （runtime bug / prompt 不确定性 / 环境）再修。*
+
+---
+
+## QA-52 provider thinking 预算上限（空消息饿死修复，INC-59,G34,UJ-01/18）
+
+**环境**：最新 `main` + 真实 Gemini（`gemini-flash-latest`）+ 共享
+`~/.local/share/agentrunner/` daemon/store。缺陷：Gemini thought token 从
+`MaxOutputTokens` 扣，`Thinking.Enabled` 且 budget≤0 时旧 provider 不设上限，
+思考吃光 cap → 红条 `empty message (truncated at token cap...)`。真实 API
+before/after 复验，证据归档 `qa/runs/2026-07-11-QA-52-thinking-budget/`
+（live-gemini-thinking.txt / unit-budget-clamp.txt / user-session-evidence.txt /
+README.md）。live regression `TestLiveThinkingStarvation`（-tags live）。
+
+| # | 真实动作 | 硬断言 |
+|---|---|---|
+| 1 | 现场：共享 daemon session `20260711-073559-create-a-todo-app-ff36` events | seq 116 `activity_failed / provider_server: model returned an empty message (truncated at token cap...)` 真实存在（诚实归因：该 spec `Thinking.Enabled=false`，此条为大 tool-call 撞 4096 cap，loop.go 兜底已恢复；非思考饿死） |
+| 2 | 真实 API：unbounded/over-budget thinking + 小 cap(256) | 思考 241 tok 挤到正文仅 11 tok、finish=MAX_TOKENS —— 思考饿死机理复现（tool call 原子，这点余量放不下 → 字面空消息） |
+| 3 | 真实 API：budget 0（thinking off） | `thoughtToks==0` —— 确认 budget 0 在本模型真关思考 |
+| 4 | 真实 API：修复后 provider（enabled + over-budget，同 cap） | `resolveThinkingBudget` 钳预算，正文 252 tok 真实产出，不再空；`gotText==true` |
+
+**结果**：PASS（4/4，真机 Gemini）。单测各档位/边界全绿；`./scripts/check.sh`
+全绿。锚孪生：`TestResolveThinkingBudget` / `TestToConfigEnabledTinyCapDisables` /
+`TestToConfigEnabledNoBudgetIsBounded` / `TestToParamsThinkingBudgetClamped` /
+`TestToParamsThinkingCapTooSmall` / live `TestLiveThinkingStarvation`。诚实边界：
+gemini-flash-latest 被给 tool 时自适应缩短思考、通常自保，故本修复是**结构性
+保证**（不依赖模型自适应）+ 移除 unbounded 路径。测试 session 保留不删。

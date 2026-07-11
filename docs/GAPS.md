@@ -507,6 +507,26 @@ toast 改写为"ar 二进制过期,scripts/deploy.sh 重新部署"（可诊断,
 替代 exit status 2）。测试:TestVersionMatch/TestArFailFlagsStaleBinary。
 复盘见 LOG 2026-07-10。→ UJ-13/UJ-16（webui 产品面）
 
+**G34 provider thinking 预算无上限致空消息饿死 — ✅ 已关闭（QA-52，2026-07-11）**
+Gemini 的 thought token 从 `MaxOutputTokens` 里扣。旧 gemini provider 在
+`req.Thinking.Enabled` 且 budget≤0 时把 `ThinkingBudget` 留空 = "让模型
+自己决定"（dynamic，无硬上限），思考可吃光整个 max_tokens，正文/tool
+call 颗粒无收 → 红条 `model returned an empty message (truncated at token
+cap...)`。前序 508f0e2 只堵了 `!Enabled` 默认思考（发 budget 0），
+Enabled 分支的无上限/过大预算两个洞仍在。Anthropic 侧同类：extended
+thinking 亦从 max_tokens 扣且要求 `budget_tokens < max_tokens`，旧代码只
+floor 到 1024、不按 cap 上钳，过大 budget 非法/饿死。关闭位置：gemini
+`resolveThinkingBudget(maxTokens, requested)`——永远发正的、钳过的 budget，
+预留 `max(maxTokens/4, 1024)` 给正文；budget≤0 用默认 8192（Gemini 自家
+dynamic cap）而非无上限；cap 太小放不下思考时关闭 thinking（budget 0，
+整份 cap 给正文）；anthropic 对称 clamp（放不下即不发 thinking）。
+loop.go 空消息兜底保留为防御（tool-call 过大等）。与决策 15b 一致
+（provider 各自映射 thinking，本条修正 Gemini 映射）。诚实边界：用户
+现场 session `20260711-073559-create-a-todo-app-ff36` 的 spec 是
+`Thinking:{Enabled:false}`（effort off），那条具体红条是大 tool-call
+输出撞 4096 cap（loop.go 已兜底重试恢复），非思考饿死；本条关闭的是
+思考饿死向量，真实 API 独立复现（QA-52）。→ UJ-01/UJ-18（provider 层）
+
 ---
 
 ## §3 已确认覆盖（防重复登记）

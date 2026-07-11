@@ -188,21 +188,77 @@ func (st *streamState) finish() provider.FinishReason {
 	}
 }
 
+// Gemini thinking sizing constants. Thought tokens are drawn from
+// MaxOutputTokens, so an enabled thinking request must leave answer room.
+const (
+	// geminiMaxThinkingBudget is the largest thought budget any 2.5 Flash
+	// model accepts (Pro allows more, but this ceiling is safe everywhere).
+	geminiMaxThinkingBudget = 24576
+	// geminiDefaultThinkingBudget is used when thinking is enabled without an
+	// explicit budget — mirrors Gemini's own dynamic-thinking cap (8192)
+	// instead of leaving the budget unbounded.
+	geminiDefaultThinkingBudget = 8192
+	// geminiMinAnswerRoom is the floor of output tokens always reserved for the
+	// answer + tool calls, so thinking can never consume the whole cap.
+	geminiMinAnswerRoom = 1024
+)
+
+// resolveThinkingBudget picks the thinkingBudget to send for an ENABLED
+// thinking request, clamped so the answer always keeps room within maxTokens.
+// requested is the caller's spec budget (0 ⇒ unspecified). It returns
+// (budget, ok); ok=false means the cap is too small to afford any thinking, so
+// the caller disables it (budget 0 ⇒ full cap to the answer) rather than
+// letting thoughts starve the answer to an empty message.
+func resolveThinkingBudget(maxTokens, requested int) (int32, bool) {
+	// Reserve at least a quarter of the cap (floor geminiMinAnswerRoom) for the
+	// answer; thinking may use the rest.
+	reserve := maxTokens / 4
+	if reserve < geminiMinAnswerRoom {
+		reserve = geminiMinAnswerRoom
+	}
+	ceiling := maxTokens - reserve
+	if ceiling <= 0 {
+		return 0, false // cap too small for any thinking
+	}
+	budget := requested
+	if budget <= 0 {
+		budget = geminiDefaultThinkingBudget
+	}
+	if budget > geminiMaxThinkingBudget {
+		budget = geminiMaxThinkingBudget
+	}
+	if budget > ceiling {
+		budget = ceiling
+	}
+	return int32(budget), true
+}
+
 // toConfig builds the request config: system instruction, token cap, tools.
 func toConfig(req provider.CompleteRequest) (*genai.GenerateContentConfig, error) {
 	config := &genai.GenerateContentConfig{
 		MaxOutputTokens: int32(req.MaxTokens),
 	}
 	if req.Thinking.Enabled {
-		// Gemini supports thinking natively (no downgrade needed): a budget of
-		// 0 means "let the model decide"; a positive budget caps thought
-		// tokens. IncludeThoughts surfaces thought summaries in the stream.
-		tc := &genai.ThinkingConfig{IncludeThoughts: true}
-		if req.Thinking.BudgetTokens > 0 {
-			budget := int32(req.Thinking.BudgetTokens)
-			tc.ThinkingBudget = &budget
+		// Gemini counts thought tokens against MaxOutputTokens, so an unbounded
+		// (or over-large) budget starves the answer to an empty message (the
+		// 会话死亡 defect). We NEVER fall through to Gemini's dynamic default
+		// (budget nil ⇒ think up to the model's own cap): resolveThinkingBudget
+		// always returns a positive, clamped budget that reserves answer room
+		// within MaxTokens. IncludeThoughts surfaces thought summaries.
+		budget, ok := resolveThinkingBudget(req.MaxTokens, req.Thinking.BudgetTokens)
+		switch {
+		case ok:
+			config.ThinkingConfig = &genai.ThinkingConfig{IncludeThoughts: true, ThinkingBudget: &budget}
+		case strings.Contains(strings.ToLower(req.Model), "pro"):
+			// Pro cannot disable thinking (min budget 128) and the cap is too
+			// small to reserve answer room — leave the model to its floor.
+			config.ThinkingConfig = &genai.ThinkingConfig{IncludeThoughts: true}
+		default:
+			// The cap is too small to afford any thinking without starving the
+			// answer — disable it so the whole cap goes to the answer.
+			var zero int32
+			config.ThinkingConfig = &genai.ThinkingConfig{ThinkingBudget: &zero}
 		}
-		config.ThinkingConfig = tc
 	} else if !strings.Contains(strings.ToLower(req.Model), "pro") {
 		// Thinking NOT requested → turn it OFF explicitly. 2.5-era models
 		// (gemini-flash-latest included) think BY DEFAULT, and thought tokens
