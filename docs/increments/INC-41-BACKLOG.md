@@ -713,3 +713,11 @@ R4-11 空会话空态、R2-1 box-shadow 暗色。
   主题 19/19 一致(证据 qa/runs/2026-07-11-QA43-endgame/panorama-vDlkgc7S.txt),
   判据 3 对 vDlkgc7S 亦达成。push=081e4e5+本 commit;live=index-vDlkgc7S.js。
   **四判据对当前 live 全齐,达终局,停循环(bootout headless timer)。**
+- 2026-07-11 轮7(headless):收割0(工作区仅 parity-drive 自身基建脏文件,
+  属循环域非并发 QA)、登记0、派工1(下述 finder)。核心:把已在 live launchd
+  跑但未入库的**永不停基建**落库——watchdog.sh(清陈锁/恢复.stopped/重
+  bootstrap)+cron 防自杀+DRIVER 去终局化,两 plist 与已装逐字节一致。
+  **BACKLOG 真实开放条目=0**(此前 grep 的「2 个☐」经查全是图例行+台账
+  「无开放☐」字样的假阳性);四闸门对当前 live(vDlkgc7S)仍全绿。按「达标
+  即续航」派 read-only finder(镜头:加载/骨架态+空态/错误态)对 live 8809
+  取证补弹药。push=76708dc;live=index-vDlkgc7S.js。
