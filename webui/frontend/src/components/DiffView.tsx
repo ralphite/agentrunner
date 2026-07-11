@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { Rows, Columns, MagnifyingGlass, GitBranch, CaretDown } from "@phosphor-icons/react";
+import {
+  Rows,
+  Columns,
+  MagnifyingGlass,
+  GitBranch,
+  CaretDown,
+  FileDashed,
+  FileMagnifyingGlass,
+  FolderDashed,
+  ClockCounterClockwise,
+} from "@phosphor-icons/react";
 import { AR } from "../api";
 import { useStore } from "../store";
 import { loadGitPrefs } from "../theme";
@@ -254,6 +264,7 @@ export function DiffView({ sid }: { sid: string }) {
       <div className="diffwrap">
         {stateBar}
         <div className="diff-empty">
+          <ClockCounterClockwise size={26} weight="light" />
           <b>Last turn unavailable</b>
           <span>{data.reason || "This task has no durable workspace baseline for its latest human turn."}</span>
           <span className="dim">Working tree remains available for the task's current uncommitted changes.</span>
@@ -266,6 +277,7 @@ export function DiffView({ sid }: { sid: string }) {
       <div className="diffwrap">
         {stateBar}
         <div className="diff-empty">
+          <FolderDashed size={26} weight="light" />
           <b>Workspace unavailable</b>
           <span>This session predates workspace metadata, so AgentRunner cannot reconstruct its changes view.</span>
           <button onClick={load}>Try again</button>
@@ -277,6 +289,7 @@ export function DiffView({ sid }: { sid: string }) {
       <div className="diffwrap">
         {stateBar}
         <div className="diff-empty">
+          <GitBranch size={26} weight="light" />
           <b>Changes can't be tracked here yet</b>
           <span>This task's workspace sits inside another repository, so its files aren't tracked on their own.</span>
           <button className="primary" onClick={gitInit} disabled={busy} title="git init in the workspace — safe, local-only">
@@ -290,6 +303,7 @@ export function DiffView({ sid }: { sid: string }) {
       <div className="diffwrap">
         {stateBar}
         <div className="diff-empty">
+          <GitBranch size={26} weight="light" />
           <b>No Git changes to review</b>
           <span>This task's workspace has no version control yet.</span>
           <button className="primary" onClick={gitInit} disabled={busy} title="git init in the workspace — safe, local-only">
@@ -410,13 +424,31 @@ export function DiffView({ sid }: { sid: string }) {
           Refresh
         </button>
       </div>
+      {/* INC-41 L4 · every "nothing to show" in this panel speaks the timeline's
+          empty-state language (icon + title + one line of guidance) via the
+          shared `.diff-empty` shape — a bare grey sentence was the odd one out. */}
       {empty && (
-        <div className="dim" style={{ padding: 12 }}>
-          {scope === "last-turn" ? "No workspace changes since the latest human turn began." : "No changes in the workspace."}
+        <div className="diff-empty">
+          <FileDashed size={26} weight="light" />
+          {scope === "last-turn" ? (
+            <>
+              <b>No changes this turn</b>
+              <span>The agent hasn't touched the workspace since the latest human turn began.</span>
+            </>
+          ) : (
+            <>
+              <b>No changes yet</b>
+              <span>Edits the agent makes to the workspace will show up here.</span>
+            </>
+          )}
         </div>
       )}
       {!empty && q && shown.length === 0 && (
-        <div className="dim" style={{ padding: 12 }}>No files match “{fileQuery}”.</div>
+        <div className="diff-empty">
+          <FileMagnifyingGlass size={26} weight="light" />
+          <b>No matching files</b>
+          <span>No changed file’s path contains “{fileQuery}”. Clear the filter to see all {files.length} of them.</span>
+        </div>
       )}
       {hiddenUntracked > 0 && !q && (
         <div className="diff-hidden-note" role="status">
