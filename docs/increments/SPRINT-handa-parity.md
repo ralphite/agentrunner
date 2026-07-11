@@ -39,13 +39,13 @@
 | 2U | 「命令身份·撤销·应答」统一设计单元（covers #16/#29/#7） | M(设计) | ✅ done (INC-44 rev1) | 契约 review「修订后放行」，B1/B2/M1-3 已吸收（AskResolved 三件套/revoked 集/纯函数 retry/CommandAnswer 四触点）；#16/#29/#7 解锁 |
 | 16 | turn retry（派生 command_id `retry:<turn-id>`） | S | ✅ done (INC-45) | 双闸门全绿；真验抓守卫 bug（待命=Waiting{input} 误判）并修；链式 retry 语义记档（qa/runs/2026-07-11-INC45） |
 | 29 | 排队消息撤销（durable revoke 五点语义） | M | ✅ done (INC-46) | 双闸门全绿；kill -9 重放不翻案实证（qa/runs/2026-07-11-INC46）；DESIGN §2 撤回条款同 commit；webui 按钮余项随 #7 |
-| 7 | 结构化 ask_user（typed AskResolved + ar answer + 表单卡） | M | 🔧 步2 (INC-47.2) | 步1 ✅；步2=webui 表单+撤回按钮 in-progress；= CC SPRINT #10 联动 |
+| 7 | 结构化 ask_user（typed AskResolved + ar answer + 表单卡） | M | ✅ done (INC-47.2) | 步1+步2 双闸门全绿（qa/runs/2026-07-11-INC47*）；**批 2 三项全清** |
 
 ### 批 3 · 内核（触不变量项单独 INC）
 
 | # | 项 | 规模 | 状态 | 备注 |
 |---|---|---|---|---|
-| 8 | LLM goal judge（llm_call 管线 effect，门控触发，三态） | M/L | 📐 设计定稿 (INC-48) | 契约 review 修订后放行，rev1 吸收 MAJOR-1（证据契约）/MINOR-2（verdict 独立解析）；实施轮待做 |
+| 8 | LLM goal judge（llm_call 管线 effect，门控触发，三态） | M/L | ✅ done (INC-48) | 实施双闸门：孪生 4 条（pass/reject 续跑/claim-gated 零调用+budget/crash 复用 verdict）+ 真 Gemini QA-48；DESIGN 决策 #21/§13/glossary 同 commit |
 | E2 | 外部事件唤醒 G14（HTTP ingress + source:machine + untrusted 硬条件） | M | ⬜ | UJ-12 卡死项；HTTP 壳联动 backlog |
 | 28b | cron 跨重启唤醒 + boot sweep（G22） | M | ⬜ | = CC SPRINT #15 联动 |
 
@@ -75,6 +75,7 @@
 | 4 | 2026-07-10 | #10 notify 门 (INC-39) | ✅ 双闸门全绿（矩阵 10 例 + 真 Gemini 双场景：none 零回流零多余 turn / on_fail 复述 exit 3，qa/runs/2026-07-10-INC39）；范围二次缩水（结构化载荷已存在）；--state 断言方法记档 | (见 push) |
 | 5 | 2026-07-11 | #11 artifact 消费面 (INC-40) | ✅ 双闸门全绿（孪生 3 组含分页 rune 重组/orphan 不漏 + 真 Gemini 全链 READBACK 逐字命中 + CLI 表格/read + webui Artifacts 区/查看器 DOM 断言，qa/runs/2026-07-11-INC40）；模型自发用 progress_update（INC-37 采用佐证） | (见 push) |
 | 6 | 2026-07-11 | #31 运行统计 stats (INC-43) | ✅ 双闸门全绿（孪生：delta 四类+聚合重叠合并+静止不计 + 真 Gemini：+6/−1 与实际操作交叉验证吻合，qa/runs/2026-07-11-INC43）；**批 1 六项全清** | (见 push) |
+| 13 | 2026-07-11 | #8 LLM goal judge 实施 (INC-48) | ✅ 孪生 4 条全绿（claim-gated pass/reject 续跑/无 claim 零 judge 调用+budget 截断/crash 复用 journaled verdict——Judge nil 证不可能活调）+ 真 Gemini QA-48；抓出 detail 双前缀 bug（normalizeJudgeVerdict canonical 化）；测试夹具教训记档：scripted 两次 claim 必须唯一 CallID，否则命中工具幂等窗静默不重跑 | (见 push) |
 | 12 | 2026-07-11 | #8 LLM goal judge 设计 (INC-48) | 📐 设计定稿：§四变更单（决策 #21 唯一裁决者 command→command|llm_judge）+ claim-gated 门控 → 独立契约 review「修订后放行」→ rev1 吸收证据输入契约（childReport 不可复用）+ crash verdict 独立解析；实施另起轮 | (见 push) |
 | 11 | 2026-07-11 | #7 结构化 ask webui 步2 (INC-47.2) | ✅ 双闸门全绿（frontend build/vitest + 真浏览器：AskForm 双问渲染→点选 Banana/Dinner→typed AskResolved→choice.txt，console 0 错误；queued /queue+/unqueue 端点直验 revoked:true，qa/runs/2026-07-11-INC47.2）；Gemini flash 消费竞速故 queued 按钮改端点+渲染断言组合验 | (见 push) |
 | 10 | 2026-07-11 | #7 结构化 ask_user 步1 (INC-47.1) | ✅ 双闸门全绿（校验表×2+crash 重放配对+CLI 解析表 + 真 Gemini：双问 typed 复述 "Chinese and Casual"+--skip 自主决策 CHOSE-A-MYSELF，qa/runs/2026-07-11-INC47）；首跑发现 init spec 未列 ask_user（QA 侧补列）；步2 webui 下轮 | (见 push) |

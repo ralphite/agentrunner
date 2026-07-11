@@ -1267,11 +1267,21 @@ limits:
     **可变 session 状态**而非冻结 spec）。**完成裁决是静止序列（决策
     #24）在 exchange 边界的一格**（`goal_verify`，在 auto-publish/barrier
     同一序列里、只在 final generation 收尾跑，**绝不**挟持 generation
-    step）。裁决者按 goal 形态分两支（INC-10）：有 command verifier →
-    verifier 是唯一裁决者（AND，模型的声明只在 miss 上作 rejected 注记）；
-    无 verifier（自证 goal）→ 模型经审计后调 `goal_complete{summary}` 声明，
-    声明记 `GoalCompletionClaimed`（mid-turn 落账、**边界才裁决**），
-    checkpoint 接受 → pass。两支同一后续：pass → `GoalAchieved{satisfied}`
+    step）。裁决者按 goal 形态分三支（INC-10；INC-48 补 llm_judge）：
+    有 command verifier → verifier 是唯一裁决者（每边界跑；AND，模型的
+    声明只在 miss 上作 rejected 注记）；否则有 llm_judge verifier →
+    **judge 是唯一裁决者，但 claim-gated**——仅在 `goal_complete` 声明
+    待决的边界调用（无声明 = 普通 miss 续跑、零 LLM 花费；调用次数 ≤
+    声明次数 ≪ 边界次数）。judge 是 budget-gated、journaled 的
+    `llm_call` 管线 Activity（`verifier:llm_judge`，Activity-bracketed；
+    证据 = 本会话自 attach 以来的工作证据 + claim summary，**非** driver
+    的 childReport——in-session 无 childDir；judge provider 由
+    `Loop.Judge` 注入，operator-set、模型不可注入）。verdict 二态
+    pass/fail，JSON `{pass,reason}` 严格解析、不可解析即 fail（绝不
+    静默 pass）；都没有（自证 goal）→ 模型经审计后调
+    `goal_complete{summary}` 声明，声明记 `GoalCompletionClaimed`
+    （mid-turn 落账、**边界才裁决**），checkpoint 接受 → pass。
+    三支同一后续：pass → `GoalAchieved{satisfied}`
     + 摘 goal + 正常待命；miss（预算未尽）→ `GoalCheckpoint` + 把结构化
     continuation 反馈（objective 重述 + 反缩水条款 + 完成路径 + 预算报告）
     作为 **`program` 源 `InputReceived` 回灌进同一 fold**
@@ -1290,7 +1300,9 @@ limits:
     之后崩（R1/R2，`goalRecover` 补发回执/回灌）与 turn 收尾后、
     checkpoint 之前崩（INC-10，`goalResumeCheck` 在安全点补裁该边界，
     否则已记录的 claim 会停摆）。若 verifier Activity 已完成而 checkpoint
-    尚未落盘，恢复直接复用 journaled result、不再次执行命令。claim 由
+    尚未落盘，恢复直接复用 journaled result、不再次执行命令——llm_judge
+    同构（复用须走 judge verdict 的独立 JSON 解析，**禁**按 command
+    exit code 兜底误读为 pass，INC-48）。claim 由
     checkpoint fold 消费、GoalUpdated 作废。
 - **Best-of-N** = `schedule: parallel{n}`：N 个隔离 worktree 的并行
   尝试（从同一个 base snapshot 物化，base ref 钉在每条
@@ -1380,7 +1392,7 @@ limits:
 | 18 | Event schema 版本化（INC-11.7 修订） | `SessionStarted`/snapshot 记录 namespaced sub-state 版本；additive-optional 字段与旧 namespace 子集由兼容 reader 接受，旧 snapshot 缺新投影则只丢缓存、从 journal 全量 fold；共享 namespace 真正版本冲突/未知 namespace 明确拒绝且不改原数据。破坏性升级只走 EventStore 单点显式 upcast/migration。 | 长期 session 可跨 additive 升级恢复，同时避免错误 tail replay 丢掉新投影的历史事实。 |
 | 19 | 信任模型 | 可执行配置（hooks）只认 spec 与 user 层；project 层需显式 trust；memory 文件按不可信内容对待 | clone 不受信 repo 不等于交出任意代码执行权。 |
 | 20 | 树级约束（INC-12.5 修订，2026-07-09） | 权限 rules 默认在 spawn 时冻结交集下传；唯一放宽路径是 child 显式 `escalate`，经 `ApprovalRequested` 由人批准后改用 child 声明 rules。拒绝/interrupt 降级为交集。预算 = min(child 限额, parent 剩余)、深度/扇出、工具子集与 OS 收容棘轮均无例外 | 用户明确批准可控的权限例外，同时保持树总成本与硬安全边界有界。 |
-| 21 | 运行模式（INC-D1 修订，2026-07-09；INC-10 完成判据扩展，同日） | **best-of-N（`parallel{n}`）、批式 loop、one-shot、driver-goal** 是同一 `IterationDriver` 的 schedule，每轮迭代 = **fresh child session**（隔离/prefix 稳定是其语义）。**goal 另有会话内形态**：**in-session goal** 挂在 conversational session 上、context 全程延续（**不**起 fresh child），**完成裁决在 exchange 边界（final generation 收尾、绝不 mid-turn）**：有 command verifier 时 verifier 是唯一裁决者；无 verifier 时由模型 `goal_complete` 声明（mid-turn 记 journal、边界才裁决接受）。miss 回灌 program 源 input 让同一 fold 续跑，pass 出达成回执并摘 goal；见 §13。 | fresh-run 保隔离/prefix，但构造上丢对话 context——UJ-22 硬要求 goal 的 context 延续（LOG 2026-07-05 裁定）。完成判据扩展（INC-10）：多数真实长程目标写不成 shell 命令，verifier-唯一判据构造上把自证 goal 钉成恒不可达成（CODEX-PARITY §6.2-①）；边界纪律/回灌续跑/fold 连续性三性质原样保留。 |
+| 21 | 运行模式（INC-D1 修订，2026-07-09；INC-10 完成判据扩展，同日；INC-48 llm_judge 兑现，2026-07-10） | **best-of-N（`parallel{n}`）、批式 loop、one-shot、driver-goal** 是同一 `IterationDriver` 的 schedule，每轮迭代 = **fresh child session**（隔离/prefix 稳定是其语义）。**goal 另有会话内形态**：**in-session goal** 挂在 conversational session 上、context 全程延续（**不**起 fresh child），**完成裁决在 exchange 边界（final generation 收尾、绝不 mid-turn）**：**有 command verifier 时 command 是唯一裁决者**（每边界跑，claim 仅注记）；**否则有 llm_judge verifier 时 judge 是唯一裁决者，但仅在 `goal_complete` 声明待决时调用**（claim-gated：无声明 = miss 续跑，不调 judge、零 LLM 花费）；**都没有时由模型 `goal_complete` 声明边界接受**（self-cert；mid-turn 记 journal、边界才裁决）。llm_judge 是 budget-gated 的 journaled `llm_call` 管线 effect（Activity-bracketed；crash 后复用 journaled verdict 不重判——同 command verifier 的幂等窗，但走独立 verdict 解析）。judge 二态 pass/fail（blocked 终态列余项，避免 judge 获得单方终结权这一更强授权）。miss 回灌 program 源 input 让同一 fold 续跑，pass 出达成回执并摘 goal；见 §13。 | fresh-run 保隔离/prefix，但构造上丢对话 context——UJ-22 硬要求 goal 的 context 延续（LOG 2026-07-05 裁定）。完成判据扩展（INC-10）：多数真实长程目标写不成 shell 命令，verifier-唯一判据构造上把自证 goal 钉成恒不可达成（CODEX-PARITY §6.2-①）。llm_judge 兑现（INC-48，契约 review 2026-07-11 修订后放行）：写不成命令的长程目标原先只能落到 self-cert（无条件接受声明），补齐决策自己命名的第三态是**兑现**而非违反——"唯一裁决者"枚举从 command 扩为 command｜llm_judge；边界纪律/回灌续跑/fold 连续性三性质原样保留。 |
 | 22 | Background | session 由常驻 runtime 托管，frontend 任意 attach/detach（detach 无事件）；后台 effect 的 handle 即其配对结果，完成是新的 user-role 输入 | 订阅状态不影响结果；已配对的 call 不可二次触碰（Gemini 严格配对）。 |
 | 23 | Artifacts | `ArtifactStore`（CAS，opaque ref）；publish 是过管线的 tool，发布即持久；`outputs:` 在收尾自动 publish；审批载荷 = artifact ref；版本 per-stream | 交付物 contract 与过程协调对象分离；审批需要不可变锚点。 |
 | 24 | 静止动作时序（INC-D1 加格） | session 静止时固定顺序：auto-publish outputs → barrier → **goal_verify（有 in-session goal 时；INC-D1）** → 向 parent 投回执（若有 parent）；可重复发生。goal_verify 置于 barrier 之后，使 barrier 快照 pre-injection 的干净边界 | 多个 feature 都往"静止时刻"加步骤，顺序必须唯一定义。 |
@@ -1606,7 +1618,7 @@ event sourcing 的闭环：**执行产生事件，事件重建状态，状态驱
 | **fork / rewind** | 新 id 复制切面 events（单创世 `ForkedFrom`）+ 物化独立 worktree / fork 后显式切换弃原。 |
 | **IterationDriver** | best-of-N / 批式 loop / one-shot / driver-goal 的同一 driver actor（fresh-child-run）。**goal 另有会话内形态**（in-session goal，挂 `agent.Loop`、context 延续，INC-D1）——见 §13、决策 #21。 |
 | **iteration** | driver 的一轮 = 一个 fresh child session（静止即结算）。**第三个计数词**：iteration（driver 轮）⊃ turn（对话段）⊃ generation step（模型调用），三者不混。 |
-| **verifier / verdict** | command / llm_judge / human 三态客观判定；journaled、过管线的 effect。 |
+| **verifier / verdict** | command / llm_judge / human 三态客观判定；journaled、过管线的 effect。in-session goal 上：command 每边界跑（唯一裁决者），llm_judge **claim-gated**——仅裁决待决的 `goal_complete` 声明（INC-48），无 verifier 时 self-cert。 |
 | **carry / series memory** | 跨迭代两通道：ArtifactStore 的 carry 文档 / workspace 里 agent 自管文档。 |
 
 ### 18.9 上下文与生态

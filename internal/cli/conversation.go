@@ -478,6 +478,8 @@ func goalCmd(args []string, stdout, stderr io.Writer) int {
 		fs.SetOutput(stderr)
 		var verifiers repeatedFlag
 		fs.Var(&verifiers, "verify", "a command verifier — exit 0 = pass (repeatable); omit for a self-certified goal (the model claims completion via goal_complete)")
+		var llmVerifiers repeatedFlag
+		fs.Var(&llmVerifiers, "verify-llm", "an llm_judge verifier — a rubric an independent LLM scores the model's goal_complete claim against (INC-48); claim-gated")
 		maxChecks := fs.Int("max-checks", 0, "goal-level budget: max verifier checks before a visible truncation (attach default 10)")
 		if err := fs.Parse(reorderFlags(fs, rest)); err != nil {
 			return ExitUsage
@@ -485,6 +487,9 @@ func goalCmd(args []string, stdout, stderr io.Writer) int {
 		gc := &protocol.GoalControl{GoalID: "goal", Goal: strings.Join(fs.Args(), " ")}
 		for _, v := range verifiers {
 			gc.Verifiers = append(gc.Verifiers, event.GoalVerifier{Kind: "command", Command: v})
+		}
+		for _, r := range llmVerifiers {
+			gc.Verifiers = append(gc.Verifiers, event.GoalVerifier{Kind: "llm_judge", Rubric: r})
 		}
 		// Only send a Budget when it should change: an update that omits
 		// --max-checks must NOT silently reset the running goal's budget

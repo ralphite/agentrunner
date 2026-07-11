@@ -38,8 +38,13 @@ import (
 // each step is decided from that state alone — which is exactly what makes
 // snapshot-resume (2.13) a restart of the same decision function.
 type Loop struct {
-	Spec      *AgentSpec
-	Provider  provider.Provider
+	Spec     *AgentSpec
+	Provider provider.Provider
+	// Judge is the provider behind an llm_judge goal verifier (INC-48): a
+	// single scoring call per pending completion claim, not an agent loop.
+	// nil → an llm_judge verifier fails closed (never a silent pass). Wired
+	// by the daemon/CLI to the session's provider by default.
+	Judge     provider.Provider
 	Exec      *tool.Executor
 	Store     *store.EventStore
 	Clock     clock.Clock

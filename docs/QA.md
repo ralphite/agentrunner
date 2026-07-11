@@ -827,6 +827,23 @@ check.sh 全绿。
 
 ---
 
+## QA-48 in-session LLM goal judge（INC-48,#8,UJ-22）
+
+**环境**：本增量新二进制（daemon 路径新功能 → 按既定纪律私有 daemon +
+`XDG_DATA_HOME` 私有 store，真实 Gemini），跑完 store 保留归档
+`qa/runs/2026-07-10-QA-48/`。
+
+| # | 真实状态/动作 | 硬断言 |
+|---|---|---|
+| 1 | 起真实模型 session，挂无命令 goal：`ar goal attach <sid> --goal "..." --verify-llm "<rubric>"` | journal `goal_attached` 带 `{"kind":"llm_judge","rubric":...}` |
+| 2 | 模型完成工作并调 `goal_complete` | journal `goal_completion_claimed`；claim 边界出现 `verifier:llm_judge` Activity（真 Gemini llm_call） |
+| 3 | judge 裁决 | `goal_checkpoint` detail 带 judge reason；pass → `goal_achieved{satisfied}` |
+| 4 | claim-gated 校验 | 无 claim 的边界**无** judge Activity（journal 里 judge Activity 数 ≤ claim 数） |
+
+**结果**：见下方执行记录。
+
+---
+
 ## 覆盖矩阵
 
 | 核心场景 | QA 流 |

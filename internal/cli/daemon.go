@@ -389,6 +389,7 @@ func hostRunFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker
 		loop := &agent.Loop{
 			Spec:              spec,
 			Provider:          prov,
+			Judge:             prov,
 			Exec:              &tool.Executor{WS: ws, Session: req.SessionID},
 			Store:             events,
 			Clock:             clock.Real{},
@@ -732,6 +733,7 @@ func hostResumeFunc(version string, stderr io.Writer, broker *daemon.ApprovalBro
 		loop := &agent.Loop{
 			Spec:      &spec,
 			Provider:  prov,
+			Judge:     prov,
 			Exec:      &tool.Executor{WS: ws, Session: sessionID},
 			Store:     events,
 			Clock:     clock.Real{},
@@ -889,6 +891,7 @@ func hostDriveFunc(version string, stderr io.Writer, broker *daemon.ApprovalBrok
 				return &agent.Loop{
 					Spec:      &frozen,
 					Provider:  prov,
+					Judge:     prov,
 					Exec:      &tool.Executor{WS: ws, Session: session},
 					Store:     cs,
 					Clock:     clock.Real{},
@@ -922,6 +925,7 @@ func hostDriveFunc(version string, stderr io.Writer, broker *daemon.ApprovalBrok
 				return &agent.Loop{
 					Spec:      &frozen,
 					Provider:  prov,
+					Judge:     prov,
 					Exec:      &tool.Executor{WS: wtWS, Session: session},
 					Store:     cs,
 					Clock:     clock.Real{},

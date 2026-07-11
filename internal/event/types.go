@@ -340,8 +340,12 @@ type AskAnswer struct {
 // the command kind (a bash command; exit 0 = pass) — the primary UJ-22 case
 // ("run the tests N times"). Other kinds (llm_judge / human) are deferred.
 type GoalVerifier struct {
-	Kind    string `json:"kind"`              // command
+	Kind    string `json:"kind"`              // command | llm_judge (INC-48)
 	Command string `json:"command,omitempty"` // bash; exit 0 = pass
+	// Rubric is the llm_judge kind's grading rubric (INC-48): a strict LLM
+	// verdict scores the session's work against it. Empty for command
+	// verifiers and legacy journals.
+	Rubric string `json:"rubric,omitempty"`
 }
 
 // GoalBudget bounds an in-session goal so a never-passing verifier still
