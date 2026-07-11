@@ -1,0 +1,242 @@
+/* ============================================================================
+   styles.composer.css — INC-41 C组 (C1/C2/C3 core; C4/C5/C6 polish).
+
+   Codex-quality polish for the composer's drop-up menus and chips. Imported
+   at the top of Composer.tsx, so these rules layer AFTER styles.css and win on
+   equal specificity; where a base rule is already class-specific we scope under
+   a marker class (`.cx-pop-codex`, `.cx-slash-codex`, `.cx-att-codex`) to reach
+   higher specificity without touching styles.css. All colors use the global
+   design tokens so light / dark themes track automatically.
+   ========================================================================== */
+
+/* ---- C1/C2/C3 · shared Codex-grade dropdown menu -------------------------- */
+/* Applied via <Popover panelClass="cx-pop-codex"> on the +, access and model
+   menus. Softer panel, quieter dividers, roomier rows, icon column aligned to
+   the title line, description a calm second line. */
+
+.cx-pop-codex.pop-panel {
+  padding: 7px;
+  border-radius: 16px;
+  border-color: color-mix(in srgb, var(--ink) 8%, transparent);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.05),
+    0 12px 44px rgba(0, 0, 0, 0.14);
+}
+
+/* group heading — quiet, sentence-case, consistent rhythm */
+.cx-pop-codex .pop-section-label {
+  padding: 9px 11px 5px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--dim);
+}
+.cx-pop-codex .pop-section:first-child > .pop-section-label {
+  padding-top: 5px;
+}
+
+/* thin, breathing dividers between groups */
+.cx-pop-codex .pop-section + .pop-section {
+  margin-top: 6px;
+  padding-top: 5px;
+  border-top: 1px solid var(--line-2);
+}
+
+/* rows — single-line rows center, rows with a description top-align */
+.cx-pop-codex .pop-item {
+  gap: 11px;
+  align-items: center;
+  padding: 8px 11px;
+  border-radius: 11px;
+  transition: background 0.1s ease;
+}
+.cx-pop-codex .pop-item:has(.pop-desc) {
+  align-items: flex-start;
+}
+.cx-pop-codex .pop-item:has(.pop-desc) .pop-ico {
+  margin-top: 1.5px;
+}
+.cx-pop-codex .pop-item:hover,
+.cx-pop-codex .pop-item.hl {
+  background: var(--panel-2);
+}
+
+.cx-pop-codex .pop-ico {
+  width: 20px;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.cx-pop-codex .pop-body {
+  gap: 2px;
+}
+.cx-pop-codex .pop-title {
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -0.004em;
+}
+.cx-pop-codex .pop-desc {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--dim);
+}
+
+/* selected-row check + "opens more" chevron, aligned to the title line */
+.cx-pop-codex .pop-check {
+  color: var(--ink);
+}
+.cx-pop-codex .pop-item:has(.pop-desc) .pop-check {
+  margin-top: 2px;
+}
+.cx-pop-codex .pop-right {
+  font-size: 16px;
+  line-height: 1;
+  color: var(--dim);
+}
+
+/* footer note under a menu (access menu explainer) */
+.cx-pop-codex .cx-pop-note {
+  margin-top: 6px;
+  padding: 9px 11px 4px;
+  border-top: 1px solid var(--line-2);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--dim);
+}
+
+/* ---- C2 · access-mode menu icons ----------------------------------------- */
+/* Each posture gets a distinct line icon tinted by its risk, so the menu keeps
+   the same risk language as the pill's colored dot. */
+.cx-pop-codex .cx-access-ico {
+  display: grid;
+  place-items: center;
+  color: var(--ink-2);
+}
+.cx-pop-codex .cx-access-ico.high {
+  color: var(--amber);
+}
+.cx-pop-codex .cx-access-ico.med {
+  color: var(--blue);
+}
+.cx-pop-codex .cx-access-ico.low {
+  color: var(--green);
+}
+
+/* ---- C3 · model menu ------------------------------------------------------ */
+/* Two calm groups (Model / Reasoning effort). The effort bars read as a small
+   gauge; the active row carries a check. Mostly inherits the shared polish. */
+.cx-model-menu .pop-title {
+  font-weight: 500;
+}
+
+/* ---- C4 · slash command menu --------------------------------------------- */
+/* Codex command-list shape: mono command name over a description on the left,
+   the argument hint pinned to the right; the keyboard-selected row lifts with a
+   subtle accent wash instead of the plain hover grey. */
+.cx-slash-codex {
+  border-radius: 16px;
+  padding: 7px;
+}
+.cx-slash-codex .cx-slash-item {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 11px;
+  border-radius: 11px;
+}
+.cx-slash-codex .cx-slash-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+.cx-slash-codex .cx-slash-name {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink);
+}
+.cx-slash-codex .cx-slash-desc {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--dim);
+}
+.cx-slash-codex .cx-slash-hint {
+  flex-shrink: 0;
+  margin-top: 1px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--panel-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--dim);
+}
+.cx-slash-codex .cx-slash-item.on,
+.cx-slash-codex .cx-slash-item:hover {
+  background: var(--panel-2);
+}
+.cx-slash-codex .cx-slash-item.on {
+  background: color-mix(in srgb, var(--blue) 12%, transparent);
+}
+.cx-slash-codex .cx-slash-item.on .cx-slash-name {
+  color: var(--ink);
+}
+.cx-slash-codex .cx-slash-item.on .cx-slash-hint {
+  background: color-mix(in srgb, var(--blue) 18%, transparent);
+  color: var(--blue);
+}
+
+/* ---- C5 · attachment chips ------------------------------------------------ */
+/* Rounded chip, truncating name, and a remove × that fades in on hover with a
+   red cue (the whole chip is the click-to-remove target). */
+.cx-atts .cx-att-codex {
+  max-width: 230px;
+  gap: 6px;
+  padding: 4px 7px 4px 6px;
+  border-radius: 9px;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.cx-atts .cx-att-codex .cx-att-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cx-atts .cx-att-codex .cx-att-ico {
+  display: grid;
+  place-items: center;
+  color: var(--ink-2);
+}
+.cx-atts .cx-att-codex .cx-att-x {
+  display: inline-grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  color: var(--dim);
+  opacity: 0;
+  transition: opacity 0.12s ease, color 0.12s ease;
+}
+.cx-atts .cx-att-codex:hover {
+  background: var(--panel-2);
+  border-color: color-mix(in srgb, var(--red) 42%, var(--line));
+}
+.cx-atts .cx-att-codex:hover .cx-att-name {
+  color: var(--ink);
+}
+.cx-atts .cx-att-codex:hover .cx-att-x {
+  opacity: 1;
+  color: var(--red);
+}
+
+/* ---- C6 · narrow viewport (≤430px) --------------------------------------- */
+/* With the second control folded into `+`, the bottom row has one fewer button;
+   keep every control reachable and let the wide menus fit the viewport. */
+@media (max-width: 430px) {
+  .cx-pop-codex.pop-panel {
+    max-width: calc(100vw - 20px);
+  }
+  .cx-slash-codex .cx-slash-hint {
+    display: none;
+  }
+}

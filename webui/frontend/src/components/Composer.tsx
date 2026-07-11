@@ -7,22 +7,26 @@ import {
   Code,
   Cpu,
   Desktop,
+  Eye,
   File,
   Folder,
   GitBranch,
   Image,
   Lightning,
   ListChecks,
+  LockOpen,
   MagnifyingGlass,
   Microphone,
+  PencilSimple,
   Plus,
-  SlidersHorizontal,
+  ShieldCheck,
   Sparkle,
   Stop as StopIcon,
   Target,
   UserCircle,
   X,
 } from "@phosphor-icons/react";
+import "../styles.composer.css";
 import { AR, uploadURL } from "../api";
 import { useStore } from "../store";
 import {
@@ -993,14 +997,14 @@ export function Composer(props: ComposerProps) {
         {atts.length > 0 && (
           <div className="cx-atts">
             {atts.map((a, i) => (
-              <span className="cx-att" key={i} onClick={() => setAtts((p) => p.filter((_, j) => j !== i))} title="remove">
+              <span className="cx-att cx-att-codex" key={i} onClick={() => setAtts((p) => p.filter((_, j) => j !== i))} title="Remove attachment">
                 {a.isImage ? (
                   <img className="cx-att-thumb" src={uploadURL(a.path)} alt={a.name} />
                 ) : (
                   <span className="cx-att-ico"><File size={14} /></span>
                 )}
-                {a.name}
-                <span className="cx-att-x"><X size={12} /></span>
+                <span className="cx-att-name">{a.name}</span>
+                <span className="cx-att-x" aria-hidden><X size={11} weight="bold" /></span>
               </span>
             ))}
           </div>
@@ -1040,7 +1044,7 @@ export function Composer(props: ComposerProps) {
         )}
 
         {slashOpen && filteredSlash.length > 0 && (
-          <div className="cx-slash">
+          <div className="cx-slash cx-slash-codex">
             <div className="cx-slash-hd">Commands</div>
             {filteredSlash.map((c, i) => (
               <button
@@ -1049,11 +1053,11 @@ export function Composer(props: ComposerProps) {
                 onMouseEnter={() => setSlashIdx(i)}
                 onClick={() => applySlash(c)}
               >
-                <span className="cx-slash-name">
-                  /{c.name}
-                  {c.arg && <span className="cx-slash-arg"> {c.arg}</span>}
+                <span className="cx-slash-text">
+                  <span className="cx-slash-name">/{c.name}</span>
+                  <span className="cx-slash-desc">{c.desc}</span>
                 </span>
-                <span className="cx-slash-desc">{c.desc}</span>
+                {c.arg && <span className="cx-slash-hint">{c.arg}</span>}
               </button>
             ))}
           </div>
@@ -1061,41 +1065,30 @@ export function Composer(props: ComposerProps) {
 
         {/* ---- control bar ---- */}
         <div className="cx-bar">
-          {/* + Add menu */}
+          {/* One Codex-style `+` menu (C1): Codex folds attachments and task
+              actions behind a single `+`. We do the same — grouped sections
+              (Add / Task options / Agent / Advanced), each row a one-line gray
+              description — instead of a second quiet control. */}
           <Popover
             align="left"
+            panelClass="cx-pop-codex"
             trigger={(open, toggle) => (
-              <button className={"cx-icon" + (open ? " active" : "")} onClick={toggle} title="Add">
+              <button className={"cx-icon" + (open ? " active" : "")} onClick={toggle} title="Add & task options" aria-label="Add and task options">
                 <PlusIcon />
               </button>
             )}
           >
             {(close) => (
-              <div className="cx-menu">
+              <div className="cx-menu wide cx-add-menu">
                 <PopSection label="Add">
                   <PopItem icon={<Image size={16} />} title="Image" desc="Paste, drop, or pick an image" onClick={() => { close(); imgRef.current?.click(); }} />
                   <PopItem icon={<File size={16} />} title="File" desc="PDF, text, or any file (≤10MB)" onClick={() => { close(); anyRef.current?.click(); }} />
                 </PopSection>
-              </div>
-            )}
-          </Popover>
-
-          {/* AgentRunner-specific launchers live behind one quiet secondary control. */}
-          <Popover
-            align="left"
-            trigger={(open, toggle) => (
-              <button className={"cx-icon" + (open ? " active" : "")} onClick={toggle} title="Task options">
-                <SlidersHorizontal size={16} />
-              </button>
-            )}
-          >
-            {(close) => (
-              <div className="cx-menu wide">
-                <PopSection label="Run as">
+                <PopSection label="Task options">
                   <PopItem icon={<GoalIcon />} title="Goal" desc="Keep working until the goal is met" onClick={() => { close(); setLauncher({ mode: "goal", task: text.trim() }); }} />
                   <PopItem icon={<LoopIcon />} title="Loop" desc="Repeat on a fixed cadence" onClick={() => { close(); setLauncher({ mode: "loop", task: text.trim() }); }} />
                   <PopItem icon={<BestIcon />} title="Best of N" desc="Run isolated attempts and keep the best" onClick={() => { close(); setLauncher({ mode: "best", task: text.trim() }); }} />
-                  {!isSession && <PopItem icon={<PlanIcon />} title="Plan mode" desc="Read-only planning" active={access === "plan"} onClick={() => { close(); setAccess("plan"); }} />}
+                  {!isSession && <PopItem icon={<PlanIcon />} title="Plan mode" desc="Read-only planning — no changes" active={access === "plan"} onClick={() => { close(); setAccess("plan"); }} />}
                 </PopSection>
                 <PopSection label="Agent">
                   {PERSONAS.map((item) => (
@@ -1126,6 +1119,7 @@ export function Composer(props: ComposerProps) {
           ) : (
             <Popover
               align="left"
+              panelClass="cx-pop-codex"
               trigger={(open, toggle) => (
                 <button className={"cx-pill cx-mode " + (accessLevel?.risk || "low") + (open ? " active" : "")} onClick={toggle} title="How the agent's actions are approved">
                   {riskDot(accessLevel?.risk || "low")}
@@ -1135,12 +1129,12 @@ export function Composer(props: ComposerProps) {
               )}
             >
               {(close) => (
-                <div className="cx-menu wide">
+                <div className="cx-menu wide cx-access-menu">
                   <PopSection label="How should actions be approved?">
                     {ACCESS_LEVELS.map((a) => (
                       <PopItem
                         key={a.id}
-                        icon={riskDot(a.risk)}
+                        icon={<AccessIcon id={a.id} risk={a.risk} />}
                         title={a.label}
                         desc={a.desc}
                         active={access === a.id}
@@ -1148,6 +1142,7 @@ export function Composer(props: ComposerProps) {
                       />
                     ))}
                   </PopSection>
+                  <div className="cx-pop-note">Approvals still surface here whenever a gate asks; the posture is fixed once the task starts.</div>
                 </div>
               )}
             </Popover>
@@ -1158,9 +1153,10 @@ export function Composer(props: ComposerProps) {
           {/* model pill — shows "<model> · <effort>" like Codex's "5.6 Sol Extra High" */}
           <Popover
             align="right"
+            panelClass="cx-pop-codex"
             trigger={(open, toggle) => (
               <button className={"cx-pill cx-model" + (open ? " active" : "")} onClick={toggle} title="Model & reasoning effort">
-                <ModelIcon />
+                <ModelIcon provider={provider} />
                 {modelLabel}
                 {effort !== "off" && <span className="cx-pill-sub">{effortLevel.label}</span>}
                 <Caret />
@@ -1168,12 +1164,12 @@ export function Composer(props: ComposerProps) {
             )}
           >
             {(close) => (
-              <div className="cx-menu wide">
+              <div className="cx-menu wide cx-model-menu">
                 <PopSection label="Model">
                   {MODELS.map((m) => (
                     <PopItem
                       key={m.provider + m.id}
-                      icon={<ModelIcon />}
+                      icon={<ModelIcon provider={m.provider} />}
                       title={m.label}
                       desc={m.sub}
                       active={provider === m.provider && model === m.id}
@@ -1183,6 +1179,7 @@ export function Composer(props: ComposerProps) {
                   <PopItem
                     icon={<Code size={15} />}
                     title="Custom model id…"
+                    right={<span aria-hidden>›</span>}
                     onClick={() => {
                       close();
                       openPrompt({
@@ -1327,7 +1324,9 @@ function accessByMode(mode?: string) {
 const Caret = () => <CaretDown className="cx-caret" size={10} />;
 const PlusIcon = () => <Plus size={16} />;
 const MicIcon = () => <Microphone size={15} />;
-const ModelIcon = () => <Cpu size={13} />;
+// Provider-aware model glyph: Gemini (primary) gets the sparkle, Anthropic the
+// chip — a quiet family cue in the pill and the model menu.
+const ModelIcon = ({ provider }: { provider?: string }) => (provider === "anthropic" ? <Cpu size={14} /> : <Sparkle size={14} />);
 const FolderIcon = () => <Folder size={13} />;
 const BranchIcon = () => <GitBranch size={13} />;
 const StartIcon = () => <Desktop size={13} />;
@@ -1337,3 +1336,20 @@ const PlanIcon = () => <ListChecks size={14} />;
 const EffortIcon = ({ level }: { level: EffortId }) => <ChartBar size={14} weight={level === "off" ? "regular" : "fill"} />;
 const BestIcon = () => <ChartBar size={14} />;
 const PersonaIcon = () => <UserCircle size={13} />;
+
+// Access-mode icons (C2): each approval posture gets a distinct Codex-style
+// line icon, tinted by its risk so the menu keeps the pill's risk language.
+const ACCESS_ICONS: Record<AccessId, typeof LockOpen> = {
+  full: LockOpen,
+  ask: ShieldCheck,
+  acceptEdits: PencilSimple,
+  plan: Eye,
+};
+const AccessIcon = ({ id, risk }: { id: AccessId; risk: string }) => {
+  const I = ACCESS_ICONS[id] || ShieldCheck;
+  return (
+    <span className={"cx-access-ico " + risk}>
+      <I size={16} />
+    </span>
+  );
+};
