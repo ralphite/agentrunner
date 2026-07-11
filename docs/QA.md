@@ -911,7 +911,7 @@ P1-1/P2-1/P2-3/P2-4 已修，P2-2 记余项。
 
 ---
 
-## QA-51 LLM 自动会话标题（INC-52,HANDA #14,UJ-24）
+## QA-53 LLM 自动会话标题（INC-52,HANDA #14,UJ-24）
 
 **环境**：共享 daemon + store + 真实 webui + 真实 Gemini（auto-title 仅顶层
 托管 session 启用，须走 daemon 而非 headless 一次性 run）。跑完**不** close/

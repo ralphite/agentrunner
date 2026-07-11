@@ -67,7 +67,7 @@
 - source=fork 分立但本增量**不生产** fork title（fork 路径仍走 webui meta
   的 `title (fork @...)`）；fold 优先级已为 fork 预留（auto 不覆盖 fork）。
 
-**B 闸（真实 API，QA-51，留给 reviewer 集中验）**：
+**B 闸（真实 API，QA-53，留给 reviewer 集中验）**：
 1. 共享 daemon + 真 webui + 真 Gemini，New task 发一条**长**多行 prompt
    （>48 字符，触发生成而非短路）。
 2. 开局 turn 的首条回复**不被延迟**（title 调用在 assistant 消息落后的安全
