@@ -53,6 +53,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ["mod", "alt", "down"], label: "Next task", desc: "Select the task below in the sidebar" },
       { keys: ["mod", "F"], label: "Find in conversation", desc: "Search the current task's messages" },
       { keys: ["mod", "B"], label: "Toggle sidebar", desc: "Show or hide the task sidebar" },
+      { keys: ["mod", ","], label: "Open settings", desc: "Appearance, shortcuts, Git and more" },
       { keys: ["mod", "enter"], label: "Approve request", desc: "Approve the pending approval in the open task" },
       { keys: ["mod", "⌫"], label: "Deny request", desc: "Deny the pending approval in the open task" },
       { keys: ["?"], label: "Keyboard shortcuts", desc: "Show this reference" },
