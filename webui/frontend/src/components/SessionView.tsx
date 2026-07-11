@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowClockwise, ArrowLeft, Check, CheckCircle, Crosshair, DotsThree, Files, Folder, Pause, PencilSimple, Play, Prohibit, Stop, Trash, UsersThree, WarningCircle, X } from "@phosphor-icons/react";
+import { Archive, ArrowClockwise, ArrowLeft, ChatCircle, Check, CheckCircle, Crosshair, DotsThree, Files, Flag, Folder, GitFork, LinkSimple, Pause, PencilSimple, Play, Prohibit, PushPin, Robot, SidebarSimple, Stop, Trash, UsersThree, WarningCircle, X, XCircle } from "@phosphor-icons/react";
+import "../styles.panel.css";
 import { AR } from "../api";
 import { useStore } from "../store";
 import type { Envelope, Task } from "../types";
@@ -379,6 +380,17 @@ export function SessionView({ sid }: { sid: string }) {
         toast(e.message);
       }
     },
+    // Copy link (J1) hands off a deep link to this task (hash route) — the
+    // Codex `…` menu's "Copy link". No backend: the router keys off the hash.
+    copyLink: async () => {
+      const url = `${location.origin}${location.pathname}#${sid}`;
+      try {
+        await navigator.clipboard.writeText(url);
+        toast("link copied", "info");
+      } catch {
+        toast("couldn't copy link — clipboard blocked");
+      }
+    },
     view: async (title: string, loader: () => Promise<any>) => {
       try {
         const data = await loader();
@@ -444,50 +456,8 @@ export function SessionView({ sid }: { sid: string }) {
           {attentionCount > 0 && <span className="topbar-attention">{attentionCount}</span>}
         </button>
         <Menu label={<DotsThree size={18} weight="bold" />} ariaLabel="More task actions">
-          <MenuLabel>View</MenuLabel>
-          <MenuItem onClick={() => setView("chat")}>Conversation</MenuItem>
-          <MenuItem onClick={() => setView("diff")}>Changes</MenuItem>
-          <MenuItem onClick={() => setSupervision(!supervisionOpen)}>{supervisionOpen ? "Hide" : "Show"} supervision</MenuItem>
-          <MenuItem
-            title="also show low-level system events (mode changes, effects, barriers…) inline in the timeline"
-            onClick={toggleSys}
-          >
-            {showSys && <Check size={14} />}Show system events
-          </MenuItem>
-          {!isSub && (
-            <>
-              <MenuLabel>Advanced</MenuLabel>
-              <MenuItem
-                title="checkpoint the session right now (ar barrier) so you can fork from this exact point later"
-                onClick={act.barrier}
-              >
-                Create checkpoint
-              </MenuItem>
-              <MenuItem
-                title="continue from a checkpoint in a new task and worktree; this task is untouched"
-                onClick={() => openModal({ kind: "fork", sid })}
-              >
-                Continue in new task…
-              </MenuItem>
-              <MenuItem
-                title="swap this session's agent spec — context carries over; takes effect on your next message (spec_changed)"
-                onClick={() => openModal({ kind: "agent", sid })}
-              >
-                Switch agent…
-              </MenuItem>
-              <MenuLabel>Lifecycle</MenuLabel>
-              {needsRecovery && <MenuItem onClick={act.resume}>Resume task</MenuItem>}
-              {running && <MenuItem onClick={act.stop}>Stop active run</MenuItem>}
-              <MenuItem
-                danger
-                title="gracefully end the conversation and mark it closed (ar close); a later send reopens it"
-                onClick={act.close}
-              >
-                Close session…
-              </MenuItem>
-            </>
-          )}
-          <MenuLabel>Organize</MenuLabel>
+          {/* J1 · Codex `…` header menu: the task-organizing actions lead
+              (Pin / Rename / Archive / Copy link), then our view + dev extras. */}
           <MenuItem
             title="keep this task in a Pinned section at the top of the sidebar"
             onClick={() => {
@@ -495,13 +465,13 @@ export function SessionView({ sid }: { sid: string }) {
               toast(pinned.includes(sid) ? "unpinned" : "pinned", "info");
             }}
           >
-            {pinned.includes(sid) ? "Unpin task" : "Pin task"}
+            <PushPin size={16} weight={pinned.includes(sid) ? "fill" : "regular"} />{pinned.includes(sid) ? "Unpin task" : "Pin task"}
           </MenuItem>
           <MenuItem
             title="give this task a custom name in the sidebar (stored in your browser)"
             onClick={() => openModal({ kind: "rename", sid })}
           >
-            Rename task…
+            <PencilSimple size={16} />Rename task…
           </MenuItem>
           <MenuItem
             title="hide this task from the sidebar list (it stays on disk; toggle 'Show archived' to see it again)"
@@ -510,8 +480,55 @@ export function SessionView({ sid }: { sid: string }) {
               toast(archived.includes(sid) ? "unarchived" : "archived", "info");
             }}
           >
-            {archived.includes(sid) ? "Unarchive task" : "Archive task"}
+            <Archive size={16} />{archived.includes(sid) ? "Unarchive task" : "Archive task"}
           </MenuItem>
+          <MenuItem title="copy a deep link to this task to your clipboard" onClick={act.copyLink}>
+            <LinkSimple size={16} />Copy link
+          </MenuItem>
+
+          <MenuLabel>View</MenuLabel>
+          <MenuItem onClick={() => setView("chat")}><ChatCircle size={16} />Conversation</MenuItem>
+          <MenuItem onClick={() => setView("diff")}><Files size={16} />Changes</MenuItem>
+          <MenuItem onClick={() => setSupervision(!supervisionOpen)}><SidebarSimple size={16} />{supervisionOpen ? "Hide" : "Show"} supervision</MenuItem>
+          <MenuItem
+            title="also show low-level system events (mode changes, effects, barriers…) inline in the timeline"
+            onClick={toggleSys}
+          >
+            <Check size={15} style={{ opacity: showSys ? 1 : 0 }} />Show system events
+          </MenuItem>
+          {!isSub && (
+            <>
+              <MenuLabel>Advanced</MenuLabel>
+              <MenuItem
+                title="checkpoint the session right now (ar barrier) so you can fork from this exact point later"
+                onClick={act.barrier}
+              >
+                <Flag size={16} />Create checkpoint
+              </MenuItem>
+              <MenuItem
+                title="continue from a checkpoint in a new task and worktree; this task is untouched"
+                onClick={() => openModal({ kind: "fork", sid })}
+              >
+                <GitFork size={16} />Continue in new task…
+              </MenuItem>
+              <MenuItem
+                title="swap this session's agent spec — context carries over; takes effect on your next message (spec_changed)"
+                onClick={() => openModal({ kind: "agent", sid })}
+              >
+                <Robot size={16} />Switch agent…
+              </MenuItem>
+              <MenuLabel>Lifecycle</MenuLabel>
+              {needsRecovery && <MenuItem onClick={act.resume}><ArrowClockwise size={16} />Resume task</MenuItem>}
+              {running && <MenuItem onClick={act.stop}><Stop size={16} />Stop active run</MenuItem>}
+              <MenuItem
+                danger
+                title="gracefully end the conversation and mark it closed (ar close); a later send reopens it"
+                onClick={act.close}
+              >
+                <XCircle size={16} />Close session…
+              </MenuItem>
+            </>
+          )}
         </Menu>
       </header>
 
@@ -707,7 +724,21 @@ function GoalBanner({
           }}
         />
       )}
-      {editing === null && elapsed && <span className="gbar-meta"><span>{elapsed}</span></span>}
+      {editing === null && (() => {
+        // G3 · show N/M checks (a verifier budget) or the count so far, next to
+        // the live elapsed clock — Codex's goal-banner progress read-out.
+        const showChecks = state.maxChecks !== undefined || state.checks > 0;
+        if (!showChecks && !elapsed) return null;
+        const checksLabel = state.maxChecks !== undefined
+          ? `${state.checks}/${state.maxChecks} checks`
+          : `${state.checks} check${state.checks === 1 ? "" : "s"}`;
+        return (
+          <span className="gbar-meta">
+            {showChecks && <span className="gbar-checks">{checksLabel}</span>}
+            {elapsed && <span>{elapsed}</span>}
+          </span>
+        );
+      })()}
       <span className="gbar-actions">
         {editing === null ? (
           <>

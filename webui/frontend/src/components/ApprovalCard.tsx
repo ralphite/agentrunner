@@ -91,6 +91,7 @@ export function ApprovalCard({
               <span className="approval-shortcut">⌘↵ approve · ⌘⌫ deny</span>
               <button disabled={busy} onClick={() => setDenying(true)}>Deny</button>
               <button
+                className="subtle"
                 disabled={busy}
                 title="Approve AND save an exact allow rule to your user config, so this same call never asks again (any session)"
                 onClick={() => decide("approve", true)}
