@@ -81,6 +81,12 @@ export const AR = {
   interrupt: (sid: string) => post(`/sessions/${sid}/interrupt`),
   resume: (sid: string) => post(`/sessions/${sid}/resume`),
   retry: (sid: string) => post(`/sessions/${sid}/retry`),
+  // Structured ask (INC-47.2): specs are 1-based "<q>:<n>" the form builds.
+  answer: (sid: string, specs: string[]) => post(`/sessions/${sid}/answer`, { specs }),
+  skipAnswer: (sid: string) => post(`/sessions/${sid}/answer`, { skip: true }),
+  // Queued-message management (INC-46/47.2).
+  queue: (sid: string) => api<{ command_id: string; text: string; revoked: boolean }[]>(`/sessions/${sid}/queue`),
+  unqueue: (sid: string, commandId: string) => post(`/sessions/${sid}/unqueue`, { commandId }),
   closeSession: (sid: string) => post(`/sessions/${sid}/close`),
   stopSession: (sid: string) => post(`/sessions/${sid}/stop`),
   compact: (sid: string) => post(`/sessions/${sid}/compact`),

@@ -8,6 +8,7 @@ import { deriveGoalState, foldEvents, formatElapsed, isGoalTerminal, type Approv
 import { TimelineView } from "./Timeline";
 import { ApprovalCard } from "./ApprovalCard";
 import { Composer } from "./Composer";
+import { AskForm } from "./AskForm";
 import { DiffView } from "./DiffView";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
 import type { InspectNode } from "./Subagents";
@@ -65,6 +66,11 @@ export function SessionView({ sid }: { sid: string }) {
   const [progress, setProgress] = useState<import("./SupervisionPanel").ProgressItem[]>([]);
   // Published artifacts from inspect (INC-40): stream/version rows.
   const [artifacts, setArtifacts] = useState<{ stream: string; version: number }[]>([]);
+  // A structured ask_user park's questions (INC-47.2): non-empty while the
+  // session waits on a questions[] ask, so a form card renders in place.
+  const [askQuestions, setAskQuestions] = useState<import("./AskForm").AskQuestion[]>([]);
+  // Queued (not-yet-consumed) messages (INC-47.2): each withdrawable.
+  const [queued, setQueued] = useState<{ command_id: string; text: string; revoked: boolean }[]>([]);
   // Non-null while the banner's goal text is being edited (INC-10): the value
   // is the draft; save issues a goal update (text only — verifier/budget keep).
   const [goalEdit, setGoalEdit] = useState<string | null>(null);
@@ -176,11 +182,50 @@ export function SessionView({ sid }: { sid: string }) {
         }
         setArtifacts([...latest.entries()].map(([stream, version]) => ({ stream, version })).sort((x, y) => x.stream.localeCompare(y.stream)));
       }
+      // A structured ask park surfaces its questions (INC-47.2); a plain
+      // idle or single-question ask leaves the form empty (the composer
+      // answers those).
+      const wq = ins?.waiting?.kind === "input" ? ins?.waiting?.ask_questions : undefined;
+      setAskQuestions(Array.isArray(wq) ? wq : []);
       setInspectReady(true);
     } catch {
       /* ignore — usage badge / subagents are best-effort */
     }
+    // Queued messages (INC-47.2): withdrawable until consumed. Best-effort.
+    try {
+      const q = await AR.queue(sid);
+      setQueued(Array.isArray(q) ? q : []);
+    } catch {
+      setQueued([]);
+    }
   }, [sid]);
+
+  const answerAsk = async (specs: string[]) => {
+    try {
+      await AR.answer(sid, specs);
+      setAskQuestions([]);
+      poll();
+    } catch (e: any) {
+      toast(e.message);
+    }
+  };
+  const skipAsk = async () => {
+    try {
+      await AR.skipAnswer(sid);
+      setAskQuestions([]);
+      poll();
+    } catch (e: any) {
+      toast(e.message);
+    }
+  };
+  const withdrawQueued = async (commandId: string) => {
+    try {
+      await AR.unqueue(sid, commandId);
+      setQueued((prev) => prev.map((m) => (m.command_id === commandId ? { ...m, revoked: true } : m)));
+    } catch (e: any) {
+      toast(e.message);
+    }
+  };
 
   const saveGoalEdit = () => {
     const g = (goalEdit || "").trim();
@@ -208,6 +253,8 @@ export function SessionView({ sid }: { sid: string }) {
     setGoal(null);
     setGoalPendingUpdate(null);
     setGoalDismissedAt(null);
+    setAskQuestions([]);
+    setQueued([]);
     setInspectReady(false);
     setLiveMode(undefined);
     poll();
@@ -685,6 +732,21 @@ export function SessionView({ sid }: { sid: string }) {
               {isDriver && <div className="driver-note">This scheduled run manages its own iterations and does not accept follow-up messages.</div>}
               {!isSub && !isDriver && isClosed && (
                 <div className="driver-note">This conversation is closed — sending a message will reopen it.</div>
+              )}
+              {!isSub && askQuestions.length > 0 && (
+                <AskForm questions={askQuestions} onSubmit={answerAsk} onSkip={skipAsk} />
+              )}
+              {!isSub && queued.filter((m) => !m.revoked).length > 0 && (
+                <div className="queued-list">
+                  {queued.filter((m) => !m.revoked).map((m) => (
+                    <div className="queued-row" key={m.command_id}>
+                      <span className="queued-text" title={m.text}>queued: {m.text}</span>
+                      <button className="queued-drop" onClick={() => withdrawQueued(m.command_id)} title="Withdraw this queued message before it runs">
+                        Withdraw
+                      </button>
+                    </div>
+                  ))}
+                </div>
               )}
               {!isSub && !isDriver && (
                 <Composer

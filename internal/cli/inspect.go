@@ -112,6 +112,12 @@ type waitingReport struct {
 	Tool       string `json:"tool,omitempty"`
 	Args       string `json:"args,omitempty"`
 	AnswerWith string `json:"answer_with,omitempty"`
+	// Question and AskQuestions surface an ask_user park (INC-47.2) so a UI
+	// can render the prompt or a structured form. Question is the plain
+	// single-question text; AskQuestions is the structured form (empty for
+	// a legacy single-question ask).
+	Question     string              `json:"question,omitempty"`
+	AskQuestions []event.AskQuestion `json:"ask_questions,omitempty"`
 }
 
 // goalReport surfaces an active in-session goal (INC-D1) so a driver/UI can
@@ -356,6 +362,19 @@ func buildInspectReport(events []event.Envelope, s state.State) inspectReport {
 				wr.ApprovalID = req.ApprovalID
 				wr.Tool = req.ToolName
 				wr.Args = compactPayload(req.Args, 100)
+			}
+		}
+		if s.Waiting.Kind == event.WaitInput && len(s.Waiting.Detail) > 0 {
+			// An ask_user park (INC-47.2): surface the question(s) so a UI
+			// renders the prompt or a structured form. A plain standby idle
+			// has empty detail and falls through.
+			var d struct {
+				Question  string              `json:"question"`
+				Questions []event.AskQuestion `json:"questions"`
+			}
+			if json.Unmarshal(s.Waiting.Detail, &d) == nil {
+				wr.Question = d.Question
+				wr.AskQuestions = d.Questions
 			}
 		}
 		report.Waiting = wr

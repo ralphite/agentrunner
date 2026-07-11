@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -19,6 +20,7 @@ import (
 func queueCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("queue", flag.ContinueOnError)
 	fs.SetOutput(stderr)
+	jsonOut := fs.Bool("json", false, "emit the queue as JSON (for tooling / the web UI)")
 	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
 		return ExitUsage
 	}
@@ -36,6 +38,20 @@ func queueCmd(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 		return ExitRun
+	}
+	if *jsonOut {
+		type row struct {
+			CommandID string `json:"command_id"`
+			Text      string `json:"text"`
+			Revoked   bool   `json:"revoked"`
+		}
+		rows := make([]row, 0, len(pending))
+		for _, in := range pending {
+			rows = append(rows, row{CommandID: in.CommandID, Text: in.Text, Revoked: revoked[in.CommandID]})
+		}
+		b, _ := json.MarshalIndent(rows, "", "  ")
+		fmt.Fprintln(stdout, string(b))
+		return ExitOK
 	}
 	if len(pending) == 0 {
 		fmt.Fprintln(stdout, "no queued messages")

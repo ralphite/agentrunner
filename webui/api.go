@@ -49,6 +49,9 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/sessions/{sid}/interrupt", s.handleInterrupt)
 	mux.HandleFunc("POST /api/sessions/{sid}/resume", s.handleResume)
 	mux.HandleFunc("POST /api/sessions/{sid}/retry", s.handleRetry)
+	mux.HandleFunc("POST /api/sessions/{sid}/answer", s.handleAnswer)
+	mux.HandleFunc("GET /api/sessions/{sid}/queue", s.handleQueue)
+	mux.HandleFunc("POST /api/sessions/{sid}/unqueue", s.handleUnqueue)
 	mux.HandleFunc("POST /api/sessions/{sid}/close", s.handleClose)
 	mux.HandleFunc("POST /api/sessions/{sid}/stop", s.handleStop)
 	mux.HandleFunc("POST /api/sessions/{sid}/kill", s.handleKill)
@@ -886,6 +889,91 @@ func (s *server) handleApprove(w http.ResponseWriter, r *http.Request) {
 	res := s.runAR(r.Context(), oneShotTimeout, args...)
 	if res.Err != nil {
 		arFail(w, "ar approve", res)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": strings.TrimSpace(res.Stdout)})
+}
+
+// handleAnswer answers a structured ask_user park (INC-47.2): the frontend
+// sends 1-based specs it built from the rendered form (e.g. ["1:2","2:1,3"])
+// or skip=true, and this forwards them to `ar answer`. Specs are validated
+// as <digits>:<digits[,digits]|text=...> so nothing shell-unsafe or wrong
+// shape reaches the CLI.
+func (s *server) handleAnswer(w http.ResponseWriter, r *http.Request) {
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Specs []string `json:"specs"`
+		Skip  bool     `json:"skip"`
+	}
+	if !readBody(w, r, &req) {
+		return
+	}
+	args := []string{"answer", id}
+	if req.Skip {
+		args = append(args, "--skip")
+	} else {
+		if len(req.Specs) == 0 {
+			badRequest(w, "need specs or skip")
+			return
+		}
+		for _, spec := range req.Specs {
+			if !answerSpec.MatchString(spec) {
+				badRequest(w, "bad answer spec: "+spec)
+				return
+			}
+			args = append(args, spec)
+		}
+	}
+	res := s.runAR(r.Context(), oneShotTimeout, args...)
+	if res.Err != nil {
+		arFail(w, "ar answer", res)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": strings.TrimSpace(res.Stdout)})
+}
+
+// handleQueue lists a session's queued (not-yet-consumed) messages
+// (INC-47.2, reads `ar queue --json`) so the UI can offer a withdraw button.
+func (s *server) handleQueue(w http.ResponseWriter, r *http.Request) {
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	res := s.runAR(r.Context(), 15*time.Second, "queue", id, "--json")
+	if res.Err != nil {
+		arFail(w, "ar queue", res)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	out := strings.TrimSpace(res.Stdout)
+	if out == "" {
+		out = "[]"
+	}
+	_, _ = io.WriteString(w, out)
+}
+
+// handleUnqueue withdraws one queued message (INC-46/47.2 → `ar unqueue`).
+func (s *server) handleUnqueue(w http.ResponseWriter, r *http.Request) {
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		CommandID string `json:"commandId"`
+	}
+	if !readBody(w, r, &req) {
+		return
+	}
+	if !validCommandID(req.CommandID) {
+		badRequest(w, "need a valid commandId")
+		return
+	}
+	res := s.runAR(r.Context(), oneShotTimeout, "unqueue", id, req.CommandID)
+	if res.Err != nil {
+		arFail(w, "ar unqueue", res)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": strings.TrimSpace(res.Stdout)})

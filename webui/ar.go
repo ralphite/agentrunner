@@ -41,6 +41,19 @@ var idPattern = regexp.MustCompile(`^[A-Za-z0-9._#-]+$`)
 
 func validID(s string) bool { return s != "" && len(s) <= 200 && idPattern.MatchString(s) }
 
+// answerSpec validates an `ar answer` positional spec (INC-47.2): a 1-based
+// question number, a colon, then either option numbers ("2" / "1,3") or a
+// "text=..." free-text answer. Guards the CLI from anything shell-unsafe.
+var answerSpec = regexp.MustCompile(`^\d+:(?:\d+(?:,\d+)*|text=.*)$`)
+
+// commandID validates a durable command id (event.NewCommandID mints hex,
+// retries prefix them). Kept permissive but shell-safe.
+var commandIDPattern = regexp.MustCompile(`^[A-Za-z0-9:._-]+$`)
+
+func validCommandID(s string) bool {
+	return s != "" && len(s) <= 200 && commandIDPattern.MatchString(s)
+}
+
 // specFileName accepts only bare *.yaml / *.yml names for sibling specs.
 var specFileName = regexp.MustCompile(`^[A-Za-z0-9._-]+\.ya?ml$`)
 

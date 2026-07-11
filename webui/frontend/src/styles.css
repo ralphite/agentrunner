@@ -3595,6 +3595,29 @@ summary.fd-head:hover {
 .deny-reason input { flex: 1; min-width: 0; }
 .approval-readonly { margin-top: 12px; color: var(--dim); font-size: 12px; }
 .driver-note { padding: 12px 28px; border-top: 1px solid var(--line); color: var(--dim); font-size: 12px; }
+/* INC-47.2: structured ask_user form card, shown in place above the composer. */
+.ask-form { margin: 14px 28px 4px; padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--blue) 30%, var(--line)); border-radius: 12px; background: var(--panel); display: flex; flex-direction: column; gap: 14px; }
+.ask-form-head { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: var(--blue); }
+.ask-q { display: flex; flex-direction: column; gap: 8px; }
+.ask-q-text { font-size: 13.5px; }
+.ask-opts { display: flex; flex-wrap: wrap; gap: 7px; }
+.ask-opt { display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel-2); font: inherit; font-size: 12.5px; cursor: pointer; }
+.ask-opt:hover { border-color: var(--blue); }
+.ask-opt.sel { border-color: var(--blue); background: var(--blue-soft); color: var(--ink); }
+.ask-opt svg { color: var(--dim); flex: none; }
+.ask-opt.sel svg { color: var(--blue); }
+.ask-opt-desc { color: var(--dim); font-size: 11px; }
+.ask-free { width: 100%; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); font: inherit; font-size: 13px; }
+.ask-actions { display: flex; gap: 8px; }
+.ask-actions button { padding: 6px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); font: inherit; font-size: 12.5px; cursor: pointer; }
+.ask-actions button.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+.ask-actions button:disabled { opacity: 0.5; cursor: default; }
+/* INC-47.2: queued-message withdraw rows above the composer. */
+.queued-list { margin: 8px 28px 0; display: flex; flex-direction: column; gap: 5px; }
+.queued-row { display: flex; align-items: center; gap: 10px; padding: 6px 11px; border: 1px dashed var(--line); border-radius: 8px; font-size: 12.5px; color: var(--ink-2); }
+.queued-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.queued-drop { border: none; background: none; color: var(--blue); font: inherit; font-size: 12px; cursor: pointer; flex: none; }
+.queued-drop:hover { text-decoration: underline; }
 .diff-empty {
   min-height: 260px;
   display: flex;

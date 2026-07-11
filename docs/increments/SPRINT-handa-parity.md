@@ -75,6 +75,7 @@
 | 4 | 2026-07-10 | #10 notify 门 (INC-39) | ✅ 双闸门全绿（矩阵 10 例 + 真 Gemini 双场景：none 零回流零多余 turn / on_fail 复述 exit 3，qa/runs/2026-07-10-INC39）；范围二次缩水（结构化载荷已存在）；--state 断言方法记档 | (见 push) |
 | 5 | 2026-07-11 | #11 artifact 消费面 (INC-40) | ✅ 双闸门全绿（孪生 3 组含分页 rune 重组/orphan 不漏 + 真 Gemini 全链 READBACK 逐字命中 + CLI 表格/read + webui Artifacts 区/查看器 DOM 断言，qa/runs/2026-07-11-INC40）；模型自发用 progress_update（INC-37 采用佐证） | (见 push) |
 | 6 | 2026-07-11 | #31 运行统计 stats (INC-43) | ✅ 双闸门全绿（孪生：delta 四类+聚合重叠合并+静止不计 + 真 Gemini：+6/−1 与实际操作交叉验证吻合，qa/runs/2026-07-11-INC43）；**批 1 六项全清** | (见 push) |
+| 11 | 2026-07-11 | #7 结构化 ask webui 步2 (INC-47.2) | ✅ 双闸门全绿（frontend build/vitest + 真浏览器：AskForm 双问渲染→点选 Banana/Dinner→typed AskResolved→choice.txt，console 0 错误；queued /queue+/unqueue 端点直验 revoked:true，qa/runs/2026-07-11-INC47.2）；Gemini flash 消费竞速故 queued 按钮改端点+渲染断言组合验 | (见 push) |
 | 10 | 2026-07-11 | #7 结构化 ask_user 步1 (INC-47.1) | ✅ 双闸门全绿（校验表×2+crash 重放配对+CLI 解析表 + 真 Gemini：双问 typed 复述 "Chinese and Casual"+--skip 自主决策 CHOSE-A-MYSELF，qa/runs/2026-07-11-INC47）；首跑发现 init spec 未列 ask_user（QA 侧补列）；步2 webui 下轮 | (见 push) |
 | 9 | 2026-07-11 | #29 排队消息撤销 (INC-46) | ✅ 双闸门全绿（重放矩阵孪生：撤/迟到 no-op/收敛/live 守卫 + 真 Gemini：忙时排队撤回→kill -9→resume 重放 KEPT 进 DROPPED 零，qa/runs/2026-07-11-INC46）；DESIGN §2 撤回条款同 commit 落地 | (见 push) |
 | 8 | 2026-07-11 | #16 turn retry (INC-45) | ✅ 双闸门全绿（planRetry 3 组孪生+CAS 往返 + 真 Gemini：完成态重发/链式/interrupted webui Retry 按钮，qa/runs/2026-07-11-INC45）；真验抓出待命误判 bug 当场修（先 Quiescence 后 waiting） | (见 push) |
