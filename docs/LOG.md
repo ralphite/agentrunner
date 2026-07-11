@@ -3191,7 +3191,13 @@ arwebui（--no-daemon 连共享 daemon）走真机，未打断任何并发 sessi
 push commit：INC-49 主体 + INC-49.1 + INC-49.2（见 origin/main）。工作纸归档
 `docs/archive/increments/INC-49-worktree-productization.md`。
 
-## 2026-07-11 INC-54 落地：session mode pill 点击切换（INC-42 UI 收尾）
+## 2026-07-11 INC-58 落地：session mode pill 点击切换（INC-42 UI 收尾）
+
+> 编号更正：本增量最初占号 **INC-54**，push 后发现并发 SPRINT（commit
+> 7d672a3，#28b/#4/#18+#19）与更早的 "durable Last turn diff"（9e888a0）均已
+> 用 INC-54/55/56，撞号。本增量已完成且自足，让号至 **INC-58**（≥ 当时最高
+> INC-57）。下文历史叙述保留 INC-54 字样为记录真实性，登记簿（SPEC/QA/PARITY/
+> 工作纸文件名）一律以 INC-58 为准。
 
 用户手势（截图指着 composer "Ask to approve" pill）：「we need to be able to
 change this in chat session」。INC-42 已把 mode 运行中切换全链路打通，唯缺

@@ -1,8 +1,8 @@
-# INC-54 session mode pill 点击切换（INC-42 UI 收尾）
+# INC-58 session mode pill 点击切换（INC-42 UI 收尾）
 
 状态：**✅ 已落地**（2026-07-11，webui-only；后端零改动）。commit 8d3bd60
 （主体）；部署版本 `8d3bd60-010922` 上 8809 launchd 栈；QA-51 真机六红线 PASS。
-认领：Claude session bug-feature-triage-08c686，2026-07-11。占号 **INC-54 · QA-51**
+认领：Claude session bug-feature-triage-08c686，2026-07-11。占号 **INC-58 · QA-51**
 （fetch origin main：INC-51/52/53 已被 batch-5 占，QA 最高 QA-50）。
 
 ## 动机与 journey 锚
@@ -21,7 +21,7 @@ able to change this in chat session」——把 pill 变成可点击的切换选
 
 ## Spec delta
 
-- SPEC「mode 运行中切换」行（已 ✅）锚追加 `INC-54 · QA-51`，文字
+- SPEC「mode 运行中切换」行（已 ✅）锚追加 `INC-58 · QA-51`，文字
   `webui /mode+pill live 化` → `webui /mode + pill 点击切换`。功能未变，
   补一个用户入口。
 - CLAUDECODE-PARITY #56：webui 侧从「`/mode`」补为「`/mode` + pill 点击」，

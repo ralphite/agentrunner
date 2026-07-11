@@ -749,7 +749,7 @@ store、export 归档 `qa/runs/<日期>-QA44/`。webui 腿：新 arwebui 指向
 `20260711-025146-normal-txt-alpha-4368` 留共享 store，归档
 `qa/runs/2026-07-10-QA44/`。
 
-## QA-51 session mode pill 点击切换（INC-54,G29,UJ-06）
+## QA-51 session mode pill 点击切换（INC-58,G29,UJ-06）
 
 **环境**：共享 `~/.local/share/agentrunner/` daemon/store + 真实 Gemini；
 webui 8809（launchd 守护，强刷载新 bundle）；运行中的真实 session。验证的是
