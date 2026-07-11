@@ -392,6 +392,15 @@ generation step 预算（从最后一条输入起算,防单 turn runaway）。
   - clear 复用 `ContextCompacted{Summary:""}`（assembly 见空 summary
     跳过摘要头，view = msgs[Boundary:]）+ 事件 `Cleared` 标记诚实区分；
     退化保护：仅当有新内容越过上一 boundary 才落事件。
+- **mode 切换（INC-42，G29）** = 同族 control 输入：`protocol.Control
+  {mode}` 走同一 durable command / `drainControls` 路径，
+  `applyModeControl` 按 3.6c 跃迁表校验后落 `ModeChanged{Cause:"user"}`
+  ——用户命令只覆盖 default↔acceptEdits（审批主权对）；plan 退出仍归
+  exit_plan_mode 审批、bypass 仅进程启动可选；非法/同值请求落显式
+  rejected/no_op receipt（journal 单独可答"为什么没切"）。gate 零改动：
+  effect 随身携带 live fold mode（`effectiveMode`），且 default 与
+  acceptEdits 两侧 advertised 面与 prompt suffix 相同 → 零 prefix/缓存
+  影响。入口：`ar mode <sid> <default|acceptEdits>` 与 webui `/mode`。
 - **Microcompact（INC-13，无 LLM 的轻量回收）**：在 compaction 之上再加
   最省的一档。context 估算跨过 `microcompact_at_tokens`（默认 =
   `compact_at_tokens` 的 3/4，先于 LLM 摘要触发）时，`ContextMicrocompacted
@@ -526,6 +535,9 @@ effect
   随 mode 任意变、deny 拦截）；**advertised 面**（进 prefix 的 tools
   参数与目录）session 内稳定——否则每次进出 plan mode 都打爆
   tools 级缓存。`ExitPlanMode` 常驻 advertised 面。
+  **跃迁触发器三个**（3.6c 表是唯一裁决）：startup（spec/CLI 设定）、
+  exit_plan_mode 审批通过（plan→default，从工具自身完成事件原子 fold）、
+  mode control（user，default↔acceptEdits，INC-42——见 §12 control 家族）。
 - **path 规则的边界诚实**：path 规则只约束文件类 tool；bash 的命令文本
   无法可靠映射成路径（一条 `sed -i` 就能改写 `src/**`）。因此 rules schema 对 bash 提供
   **命令模式匹配**（`{tool: bash, command: "git *", action: allow}` 式），
@@ -1489,7 +1501,7 @@ event sourcing 的闭环：**执行产生事件，事件重建状态，状态驱
 | **steering** | agent 忙时投 user_message：排队、在安全边界被消费，不打断在跑的活动。 |
 | **receipts**（spec 字段） | 回执/后台结果的投递模式（裁决 #15）：`steer`（默认,turn 内安全边界即进对话）/ `turn_end`（等 turn 收尾,由回执唤醒下一 turn）。agent 配置层的默认值,不做 per-launch。 |
 | **interrupt** | **带外信号**（不进 inbox）,**永不结束 session**（裁决 #11）：turn 中 = 打断当前活动（interrupt sweep,部分输出保留）,会话继续;待命处 = **no-op**（journal 一条审计事实,继续等——没有可打断的东西;close 是独立命令）。 |
-| **control 输入** | 非对话输入（kill、close，未来 pause/compact 等）；journal 带 source=control，不进对话上下文。 |
+| **control 输入** | 非对话输入（kill、close、compact/clear/remember/**mode**、goal-*）；journal 带 source=control，不进对话上下文。 |
 
 ### 18.3 持久状态（四类，各自独立）
 

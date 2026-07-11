@@ -2719,3 +2719,31 @@ story.txt 实际 5 行交叉验证吻合。归档 `qa/runs/2026-07-11-INC43/`。
 `ar run --json` stats 出口留余项。**批 1 六项全清**
 （#32/#23/#9/#10/#11/#31），下轮进批 2 命令面设计单元
 （2U：#16 retry/#29 unqueue/#7 结构化 ask_user，#29 触 §2 走 §四）。
+## 2026-07-10 INC-42 落地:mode 运行中切换(G29 关闭)
+
+四步四提交(42.1 核心+孪生 / 42.2 daemon+CLI / 42.3 webui / 42.4 QA+
+收口)。机制:`ControlMode` 入 compact/clear/remember durable command
+家族,`applyModeControl` 校验 ValidMode+ValidTransition,
+default↔acceptEdits → `ModeChanged{cause:user}` + live emit;plan 退出
+仍归 exit_plan_mode 审批、bypass 仍仅启动时;非法目标落显式 rejected
+receipt。**gate 零改动**(effect 随身 live fold mode,effectiveMode 早为
+此设计;两侧 advertised 面/prompt suffix 相同 → 零 prefix/缓存影响)。
+webui:`/mode` slash + pill live 化(inspect 2.5s 轮询提升),pill 真值
+序 = live 确定值 > 不矛盾的 remembered > 诚实 unknown(F-C3);清除两处
+G29 固化遗迹("display only" 注释、"can't change mid-session" title)。
+
+**双闸门**:A = TestModeControl* 四条(切换生效含文件落地/切回含 ask 回归
+/bypass·未知名·plan 三路拒/重放幂等)+ TestReplayProjectsModeChanged +
+timeline chip 前端测(92 vitest);B = QA-44 真机 CLI 六红线 + webui
+playwright 真用户流(pill unknown→Auto-accept edits→unknown、chips、
+toast;截图与最终 journal 归档 qa/runs/2026-07-10-QA44/,session
+20260711-025146-normal-txt-alpha-4368 留共享 store)。
+
+**过程记档**:lint-wiring 在 42.1 当场报 ValidTransition"已接线"、按闸门
+要求移出基线——G29 复盘立的机械证明当天闭环。顺手修 pill 此前
+remembered 优先于 live mode 的撒谎路径(webui 自建 session 切换后 pill
+不动)。发现 `.env` 不随 worktree(QA 由主 checkout 载 key)。文档:
+SPEC ❌→✅ 换真锚、PARITY #56 切换 ✅(差异:我们 plan 退出须审批、
+bypass 不可 runtime——更严,记档)、GAPS G29 关闭、QA-44 入菜单、UJ-06
+补步骤 5 与覆盖标签、DESIGN §12 control 家族/§3.6 触发器三个/§18.2
+control 行;工作纸归档 archive/increments/。

@@ -1,6 +1,7 @@
 # INC-42 mode 运行中切换（default↔acceptEdits 用户命令，G29）
 
-状态：**drafted，待裁决**（PROCESS §二第 3 步——开发者确认后进实施）。
+状态：**✅ 已落地归档**（2026-07-10，INC-42.1–42.4 四提交；G29 关闭，
+详见 LOG 当日条目与 GAPS G29 关闭注记）。
 认领：Claude session-permission-mode-83ea5f，2026-07-10。QA 号占用：**QA-44**
 （QA-43 已被 INC-41 终局全景对照预订）。
 

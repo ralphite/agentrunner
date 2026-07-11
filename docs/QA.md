@@ -723,6 +723,32 @@ lint-docs 幻影锚检查抓出。）
 **结果**：首跑暴露 Router 自动加 send_message 使 `len(Tools)==0` 门永不
 触发（fences 复现）→ structuredOnly 修复后重跑 PASS（LOG INC-35 条目）。
 
+## QA-44 mode 运行中切换（INC-42,G29,UJ-06）
+
+**环境**：私有**新二进制** daemon + 真实 Gemini；spec 默认 mode、
+`permissions: []`（mode default 治理）；workspace 预置 normal.txt 与
+`.mcp.json`。脚本 `qa/run-qa44.sh <ar-binary>`。跑完 session 拷回共享
+store、export 归档 `qa/runs/<日期>-QA44/`。webui 腿：新 arwebui 指向
+同一私有栈（`-no-daemon -ar <新 ar>`），playwright + 系统 Chrome 走
+真用户流。
+
+| # | 动作 | 验证 |
+|---|---|---|
+| 1 | default 下让模型改 normal.txt | approval_requested；pending 期文件未变；deny 收轮 |
+| 2 | `ar mode <sid> acceptEdits`（idle） | journal mode_changed{to:acceptEdits,cause:user} |
+| 3 | 同类 edit 再来 | 免审直落、文件真实变更；approval_requested 计数不增 |
+| 4 | 编辑 `.mcp.json`（protected） | 仍 ask；pending 期文件未变（INC-18 不松） |
+| 5 | `ar mode <sid> bypass` | CLI 拒绝（非零退出）；journal 无新 mode_changed |
+| 6 | `ar mode <sid> default` → 再 edit | mode_changed{to:default}；edit 重新 ask |
+| 7 | webui：composer `/mode acceptEdits` → `/mode default` | toast 投递 ack；pill 诚实序 unknown→"Auto-accept edits"→unknown；system-events chips 逐条出现；截图 webui-1/2/3 |
+
+**通过标准**：六红线全为 journal/文件/退出码事实，不钉模型措辞；pill
+只对确定 mode（acceptEdits/plan）声称身份，default 显示诚实 unknown
+（QA Round1 F-C3 规则）。
+**首跑结果（2026-07-10）**：CLI 6/6 + webui 全绿；session
+`20260711-025146-normal-txt-alpha-4368` 留共享 store，归档
+`qa/runs/2026-07-10-QA44/`。
+
 ## QA-41 Codex 式任务收尾与首屏真相（INC-38,UJ-24）
 
 **环境**：最新 `main`、共享 `~/.local/share/agentrunner/` store/daemon、

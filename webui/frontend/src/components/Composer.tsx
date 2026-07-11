@@ -266,7 +266,20 @@ export function Composer(props: ComposerProps) {
   const effortLevel = effortById(effort);
   const accessLevel = isSession ? undefined : accessById(access);
   const remembered = isSession ? recallAccess((props as any).sid) : undefined;
-  const sessionAccess = isSession ? (remembered ? accessById(remembered) : accessByMode((props as any).mode)) : undefined;
+  // Pill truth order (INC-42): a LIVE fold mode that names an access level
+  // (acceptEdits/plan) always wins — /mode can change it mid-session. Live
+  // "default" can't tell Full from Ask, so the remembered launch choice fills
+  // in only while it doesn't contradict the live mode; a contradiction (e.g.
+  // launched acceptEdits, later switched to default) reads as unknown rather
+  // than a stale lie (QA Round1 F-C3 honesty rule).
+  const liveMode = isSession ? ((props as any).mode as string | undefined) : undefined;
+  const rememberedAccess = remembered ? accessById(remembered) : undefined;
+  const sessionAccess = isSession
+    ? (accessByMode(liveMode) ??
+      (liveMode === undefined || (rememberedAccess && rememberedAccess.mode === "" && liveMode === "default")
+        ? rememberedAccess
+        : undefined))
+    : undefined;
 
   const filteredSlash = useMemo(() => {
     const m = text.match(/^\/(\S*)$/);
@@ -1144,8 +1157,8 @@ export function Composer(props: ComposerProps) {
               className={"cx-pill cx-mode " + (sessionAccess?.risk || "unknown")}
               title={
                 sessionAccess
-                  ? "Approval mode is set when the session is created and can't change mid-session"
-                  : "This session's approval posture comes from its spec's permission rules (created outside this composer); approvals still surface here when a gate asks"
+                  ? "The session's live approval mode — /mode switches between default and acceptEdits"
+                  : "This session's approval posture comes from its spec's permission rules; /mode switches default↔acceptEdits, and approvals surface here when a gate asks"
               }
               disabled
             >
