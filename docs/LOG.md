@@ -2640,3 +2640,41 @@ light 两支都不匹配 → 不生效）备非 token 场景用。
 
 **分批**：本条为基础设施批（接线 + token + 主题变体），组件仍走手写
 CSS，界面零变化。后续批逐 slice 迁 utility 并删对应手写 CSS。
+
+
+## 2026-07-10 环境阻断收口:纯 Xcode.app 机器 Seatbelt 内 git 不可用(G32)
+
+**背景**:上条复盘的"环境阻断记录"待裁决项。
+TestBashFilesystemSandboxAllowsLinkedWorktreeGitMetadata 在 xcode-select
+指向 Xcode.app、无完整 CommandLineTools 的机器上红:Seatbelt 内
+/usr/bin/git shim 报 "No developer tools were found";host git 正常,
+既有 skip 守卫只查 host git 故不触发。本机复核:
+/Library/Developer/CommandLineTools 目录存在但是 SDK-only 壳
+(无 usr/bin/git、无 pkg receipt),xcselect 不认——实质仍是纯
+Xcode.app 形态,失败稳定复现。
+
+**三方案权衡(以 sandbox-exec 忠实复刻 platformSandboxCommand profile +
+sandboxEnvironment env 的分变体实验裁决)**:
+1. 装独立 CLT——环境侧有效(沙箱内 xcselect 探测 Xcode.app 受阻后回落
+   /Library 下 CLT,已在只读白名单),但只救一台机器,且本机实证
+   "SDK-only 壳不算装了";不解决测试对机器形态的误报。保留为环境建议。
+2. 测试加同沙箱守卫——被测行为是 linked worktree 的 git metadata 放行,
+   前置条件"沙箱内 git 本身可用"缺失时应 skip 给理由而非 FAIL。守卫用
+   不依赖被测放行的 `git --version` 探测:真回归(metadata 放行坏)不会
+   被吞;"沙箱整体坏"由同文件其余 sandbox 测试兜底。**落此项。**
+3. profile 放行 /var/db/xcode_select_link + Xcode.app 只读——实验推翻:
+   放行后 shim 并不直接 exec Xcode 内 git(Contents/Developer/usr/bin/git
+   存在但仍是解析 stub),转走 xcrun 完整链——写 per-user
+   DARWIN_USER_TEMP_DIR 的 xcrun_db 缓存(confstr 取路径,无视 TMPDIR
+   env,而沙箱 TMPDIR 重定向正是靠 env)、再拉起 xcodebuild(fs event
+   stream / result bundle 写 /var/folders 均被拒,rc=72)。所需放行面
+   从"系统只读工具链"膨胀为用户级可写路径 + 系统服务进程,性质从
+   白名单漏项变为 sandbox 边界扩张,且每次 git 调用背一次 xcodebuild
+   启动税。不落;证据链登 GAPS G32,产品侧闭环留待独立增量评估。
+
+**改动**:exec_test.go 该测试 setup 期先以同一 Executor 沙箱跑
+`git --version`,失败 t.Skipf 指向 G32;GAPS 新登 G32(环境兼容缺口)。
+产品代码零改动,DESIGN/SPEC/QA 不动(非功能变更,测试基建 + 缺口登记)。
+
+**验证**:本机(复现形态)该测试 FAIL→SKIP(理由含完整 stderr);
+TestBashFilesystemSandbox 等其余 sandbox 测试保持 PASS;check.sh 全绿。

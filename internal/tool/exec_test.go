@@ -400,6 +400,23 @@ func TestBashFilesystemSandboxAllowsLinkedWorktreeGitMetadata(t *testing.T) {
 		t.Skip("git unavailable")
 	}
 	base := t.TempDir()
+	// Host git working does not imply git works under the OS sandbox: on
+	// Xcode.app-only machines the /usr/bin/git shim resolves via
+	// xcrun+xcodebuild, which the sandbox profile blocks (GAPS G32). Probe
+	// git inside the same sandbox with a command that does not depend on
+	// the linked-worktree metadata grants under test.
+	probe := filepath.Join(base, "probe")
+	if err := os.Mkdir(probe, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pws, err := workspace.New(probe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out, isErr := run(t, &Executor{WS: pws}, "bash", `{"command":"git --version"}`); isErr ||
+		!strings.Contains(out["stdout"].(string), "git version") {
+		t.Skipf("git unusable inside the OS sandbox on this host (GAPS G32): %v", out)
+	}
 	repo := filepath.Join(base, "repo")
 	wt := filepath.Join(base, "worktree")
 	if err := os.Mkdir(repo, 0o755); err != nil {

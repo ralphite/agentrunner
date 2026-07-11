@@ -449,6 +449,25 @@ TestSpawnReplacesCancelsPredecessor/TestSpawnReplacesUnknownHandleIsNoop
 已并入同一 lint。
 → 横切
 
+**G32 纯 Xcode.app 机器 OS 沙箱内 git 不可用 — 🟡 环境兼容缺口 · 中（2026-07-10 登记）**
+host 无完整 CommandLineTools（SDK-only 壳不算,xcselect 验证安装）、
+xcode-select 指向 Xcode.app 时,Seatbelt 内 /usr/bin/git shim 解析
+developer dir 失败（"No developer tools were found"）——profile 只读
+白名单不含 /Applications。该形态机器上 bash 工具内 git 整体不可用。
+sandbox-exec 忠实复刻 profile 的实验（LOG 2026-07-10）证实候选方案
+"放行 /var/db/xcode_select_link + Xcode.app 只读"不成立:放行后 shim
+不直接 exec Xcode 内 git,转走 xcrun 完整解析链——要写 per-user
+DARWIN_USER_TEMP_DIR（xcrun_db 缓存,无视 TMPDIR env）,并拉起
+xcodebuild（fs event stream / result bundle 均被沙箱拒,rc=72）;
+所需放行面从"系统只读工具链"膨胀为用户级可写路径 + 系统服务,
+且每次 git 调用背一次 xcodebuild 启动税。测试侧已加同沙箱
+`git --version` 探测守卫,不可用则 skip 指向本条
+（TestBashFilesystemSandboxAllowsLinkedWorktreeGitMetadata）。
+环境侧解法:装完整 CLT（`xcode-select --install`）,沙箱内 xcselect
+探测 Xcode.app 受阻后回落 /Library 下 CLT（已在白名单）。产品侧闭环
+（如 PATH 截击 shim 直指 toolchain git、host 侧 git 代理）触
+sandbox env/PATH 语义,须走增量流程另行设计。→ UJ-10/20
+
 ---
 
 ## §3 已确认覆盖（防重复登记）
