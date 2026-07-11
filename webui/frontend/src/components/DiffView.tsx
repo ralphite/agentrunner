@@ -149,7 +149,21 @@ export function DiffView({ sid }: { sid: string }) {
   return (
     <div className="diffwrap">
       <div className="diffbar">
-        <span className="diffbar-path mono dim" title={data.workspace}>{data.workspace}</span>
+        {(() => {
+          // Middle-ellipsize the workspace path (keep the head + the last
+          // segment) so a long absolute path stays identifiable at both ends;
+          // the full path is on hover (title).
+          const ws = data.workspace || "";
+          const cut = ws.lastIndexOf("/");
+          const head = cut > 0 ? ws.slice(0, cut + 1) : "";
+          const tail = cut >= 0 ? ws.slice(cut + 1) : ws;
+          return (
+            <span className="diffbar-path mono dim" title={data.workspace}>
+              <span className="dp-head">{head}</span>
+              <span className="dp-tail">{tail}</span>
+            </span>
+          );
+        })()}
         {!empty && (
           <span className="diff-summary">
             {files.length} file{files.length === 1 ? "" : "s"}
@@ -228,6 +242,10 @@ export function DiffView({ sid }: { sid: string }) {
         const parsed = parseFileDiff(f.lines);
         const { dir, base } = splitPath(f.path);
         const lang = langFromPath(f.path);
+        // A hunk header with no @@ context text is pure noise: a lone "⋯" band.
+        // Drop it entirely when the file has a single hunk (nothing to separate);
+        // with several hunks it becomes a compact hairline separator instead.
+        const hunkCount = parsed.rows.reduce((n, r) => n + (r.kind === "hunk" ? 1 : 0), 0);
         return (
           <details className="filediff" key={f.path + ":" + foldEpoch} open={allOpen}>
             <summary className="fd-head mono">
@@ -247,7 +265,11 @@ export function DiffView({ sid }: { sid: string }) {
               <div className="fd-body fd-split">
                 {splitRows(parsed.rows).map((sr, i) =>
                   sr.hunk !== undefined ? (
-                    <div className="dl-hunk dl-hunk-span" key={i}>{sr.hunk || "⋯"}</div>
+                    sr.hunk ? (
+                      <div className="dl-hunk dl-hunk-span" key={i}>{sr.hunk}</div>
+                    ) : hunkCount > 1 ? (
+                      <div className="dl-hunk dl-hunk-span dl-hunk-blank" key={i} aria-hidden="true" />
+                    ) : null
                   ) : (
                     <div className="dls" key={i}>
                       <span className="dl-no">{sr.left?.oldNo ?? ""}</span>
@@ -268,7 +290,11 @@ export function DiffView({ sid }: { sid: string }) {
               <div className="fd-body">
                 {parsed.rows.map((r, i) =>
                   r.kind === "hunk" ? (
-                    <div className="dl-hunk" key={i}>{r.text || "⋯"}</div>
+                    r.text ? (
+                      <div className="dl-hunk" key={i}>{r.text}</div>
+                    ) : hunkCount > 1 ? (
+                      <div className="dl-hunk dl-hunk-blank" key={i} aria-hidden="true" />
+                    ) : null
                   ) : (
                     <div className={"dl " + (r.kind === "ctx" ? "" : r.kind)} key={i}>
                       <span className="dl-no">{r.oldNo ?? ""}</span>

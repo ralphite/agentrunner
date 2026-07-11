@@ -795,6 +795,39 @@ html body {
   word-break: break-all;
 }
 
+/* ============================================================================
+ * CHROME2 · diff polish
+ * ==========================================================================*/
+/* An empty-context hunk header renders as a lone "⋯" band = noise. A single-
+ * hunk file drops it entirely in the markup; a multi-hunk file keeps it only as
+ * a compact hairline separator between hunks (no "⋯"). */
+.diffwrap .dl-hunk.dl-hunk-blank {
+  height: 0;
+  min-height: 0;
+  padding: 0;
+  background: transparent;
+  border-top: 1px solid var(--line-2);
+  border-bottom: 0;
+}
+
+/* Changes toolbar workspace path: middle-ellipsis. The head span flex-shrinks
+ * and ellipsizes at its end; the tail (last path segment) stays pinned — so a
+ * long absolute path keeps both ends readable. Full path is on hover (title). */
+.diffwrap .diffbar-path {
+  display: inline-flex;
+  align-items: baseline;
+}
+.diffwrap .diffbar-path .dp-head {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.diffwrap .diffbar-path .dp-tail {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 /* ---- responsive: settings collapses to a stacked layout ---- */
 @media (max-width: 720px) {
   .rs-settings {
