@@ -60,8 +60,8 @@
 | # | 项 | 规模 | 状态 | 备注 |
 |---|---|---|---|---|
 | 20 | Markdown 增强（react-markdown+gfm 表格+highlight.js） | M | 🔧 in-progress (INC-51) | 保持禁 raw HTML；并行轮认领 2026-07-11（worktree 子 agent A） |
-| 14 | LLM auto-title（SessionTitled{auto} journal 事件） | S/M | ✅ 实现完成，A 闸绿（INC-52，工作纸 `INC-52-auto-title.md`）；B 闸真机 QA-51 待 reviewer | manual rename 不迁移（§12:1092）；承接 INC-23 W9 移交；与 CC #17 避让；`AutoTitle` 仅顶层托管 session 启用；并行轮认领 2026-07-11（worktree 子 agent B） |
-| 24 | project overlay + launcher（meta.json 扩展 + /api/open） | S/M | 🔧 in-progress (INC-53) | 不建服务端注册表；并行轮认领 2026-07-11（worktree 子 agent C） |
+| 14 | LLM auto-title（SessionTitled{auto} journal 事件） | S/M | ✅ done (INC-52) | 双闸门：孪生 8 条 + 真 Gemini QA-53（精简 auto title「分析用户认证安全机制」+ 单条 SessionTitled{auto}+autotitle llm_call + sessions list 暴露 + 坏 key daemon fail-closed，qa/runs/2026-07-11-INC52）；manual rename 不迁移（§12:1092）；`AutoTitle` 仅顶层托管 session；QA-51→QA-53 让号（撞并发 INC-58/59） |
+| 24 | project overlay + launcher（meta.json 扩展 + /api/open） | S/M | ✅ done (INC-53) | 双闸门：Go 孪生 6 条 + 真机 QA-54（off-whitelist app 400 / 未知 workspace 400 fail-closed / overlay 持久化 webui-meta.json，qa/runs/2026-07-11-INC53）；真 open -a 靠 argv 孪生覆盖；不建服务端注册表、grouping 仍从 journal 派生 |
 | 18 | ar dictate 服务端听写（provider 补 audio part） | M | 🔧 in-progress (INC-56) | 走 ar 命令，webui 薄壳不变；与 #19 合并一轮（worktree 子 agent F） |
 | 19 | ar optimize prompt 优化 | S | 🔧 in-progress (INC-56) | 搭 #18 的车；与 #18 合并一轮（worktree 子 agent F） |
 

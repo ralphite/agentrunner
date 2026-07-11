@@ -911,6 +911,28 @@ P1-1/P2-1/P2-3/P2-4 已修，P2-2 记余项。
 
 ---
 
+## QA-54 project overlay + 系统 launcher（INC-53,HANDA #24,UJ-24）
+
+**环境**：真机 arwebui（`--no-daemon`，测试端口）+ 共享 store 真 workspace +
+真实 HTTP。脚本 `qa/run-qa54.sh <arwebui> <ar>`。**真 `open -a` 不跑**（会
+启动真 app，副作用；argv 构造由 Go 孪生 TestLaunchArgvWhitelist/
+TestOpenLaunchesKnownWorkspace 覆盖），B 闸只钉新 OS-exec 面的安全红线 + overlay。
+
+| # | 动作 | 硬断言 |
+|---|---|---|
+| 1 | `POST /api/open {app:"/bin/sh", workspace:<真>}` | HTTP 400，launch 不触发（app 白名单外拒绝） |
+| 2 | `POST /api/open {app:"finder", workspace:"/etc"}` | HTTP 400，fail-closed（workspace 非 `ar sessions list` 已知成员即拒） |
+| 3 | `POST /api/projects {workspace:<真>, displayName}` → `GET /api/projects` | 200；overlay 名落 `webui-meta.json`（原子）且列表暴露 |
+
+**结果**：PASS（2026-07-11）。三红线全绿（off-whitelist app 400 / 任意
+workspace 400 fail-closed / overlay 持久化 webui-meta.json + 暴露）。归档
+`qa/runs/2026-07-11-INC53/`。锚孪生（A 闸绿）：TestLaunchArgvWhitelist /
+TestOpenRejectsUnknownApp / TestOpenRejectsUnknownWorkspace /
+TestOpenLaunchesKnownWorkspace / TestMetaStoreProjectOverlayRoundTrip /
+TestMetaStoreLoadsLegacyFlatFile。
+
+---
+
 ## QA-53 LLM 自动会话标题（INC-52,HANDA #14,UJ-24）
 
 **环境**：共享 daemon + store + 真实 webui + 真实 Gemini（auto-title 仅顶层
@@ -925,7 +947,14 @@ P1-1/P2-1/P2-3/P2-4 已修，P2-2 记余项。
 | 4 | webui 手动 rename 该会话 → 触发再次静止/唤醒 | 标题变手动值；`session_titled` 不新增第二条；auto **不覆盖** manual（rename 仍 localStorage，displayTitle 胜出） |
 | 5 | 断网/坏 key 复跑一条长 prompt | 会话正常完成、不 abort；无 `session_titled`；title 回退首行 |
 
-**结果**：待验（reviewer 集中跑）。锚孪生（A 闸已绿）：
+**结果**：PASS（2026-07-11，脚本 `qa/run-qa53.sh`，私有新二进制 daemon）。
+真 Gemini 红线 1-4 全绿：长多行 prompt → 精简 auto title「分析用户认证安全
+机制」(30 字，非首行截断) + 恰一条 `session_titled{source:auto}` + 一条
+`autotitle` llm_call；`sessions list --json` title = RawTitle；坏 key 起
+第二个私有 daemon 跑同 prompt → **fail-closed 零 session_titled**（不产生
+错误标题）。手动 rename 不覆盖 auto 由孪生 TestAutoTitleDoesNotOverrideManual
++ webui displayTitle 层保证（localStorage 手动值胜出）。归档
+`qa/runs/2026-07-11-INC52/`，session 拷回共享 store。锚孪生（A 闸已绿）：
 TestSessionTitledFoldProjection / TestAutoTitleGeneratesOnceAndFoldsProjection /
 TestAutoTitleWaitsForOpeningReply / TestAutoTitleDoesNotOverrideManual /
 TestAutoTitleReusesRecordedResultOnReplay / TestAutoTitleSwallowsLLMFailure /
