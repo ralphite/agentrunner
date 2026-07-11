@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Archive, ArrowClockwise, ArrowLeft, ChatCircle, Check, CheckCircle, Crosshair, DotsThree, FileText, Files, Flag, GitFork, LinkSimple, Pause, PencilSimple, Play, Prohibit, PushPin, Robot, SidebarSimple, Stop, Trash, UsersThree, WarningCircle, X, XCircle } from "@phosphor-icons/react";
+import { Archive, ArrowClockwise, ArrowLeft, ChatCircle, CheckCircle, Code, Crosshair, DotsThree, FileText, Files, Flag, GitFork, LinkSimple, Pause, PencilSimple, Play, Prohibit, PushPin, Robot, SidebarSimple, Stop, Trash, UsersThree, WarningCircle, X, XCircle } from "@phosphor-icons/react";
 import "../styles.panel.css";
 import { AR } from "../api";
 import { useStore } from "../store";
@@ -323,6 +323,10 @@ export function SessionView({ sid }: { sid: string }) {
   // stranded, but never mid-run or while a wait wants its answer.
   const canRetry = !live && /strand|interrupt|crash|fail/i.test(listStatus || "");
   const running = status.cls === "run";
+  // An explicitly-closed session still accepts input (a send reopens it), but
+  // the composer alone reads as "live" — surface the closed state so it isn't
+  // mistaken for an active conversation (R3-5).
+  const isClosed = !live && status.text.toLowerCase() === "closed";
   const abnormalAgentCount = dedupeInspectNodes(children).filter((node) => {
     const childStatus = friendlyStatus(node.reason || node.report?.reason || node.report?.status || "");
     return childStatus.cls === "crash" || childStatus.cls === "stranded";
@@ -563,7 +567,7 @@ export function SessionView({ sid }: { sid: string }) {
             title="also show low-level system events (mode changes, effects, barriers…) inline in the timeline"
             onClick={toggleSys}
           >
-            <Check size={15} style={{ opacity: showSys ? 1 : 0 }} />Show system events
+            <Code size={16} />{showSys ? "Hide" : "Show"} system events
           </MenuItem>
           {!isSub && (
             <>
@@ -667,6 +671,9 @@ export function SessionView({ sid }: { sid: string }) {
                 />
               )}
               {isDriver && <div className="driver-note">This scheduled run manages its own iterations and does not accept follow-up messages.</div>}
+              {!isSub && !isDriver && isClosed && (
+                <div className="driver-note">This conversation is closed — sending a message will reopen it.</div>
+              )}
               {!isSub && !isDriver && (
                 <Composer
                   variant="session"
