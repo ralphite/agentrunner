@@ -109,25 +109,14 @@ export function DiffView({ sid }: { sid: string }) {
   // Remove the worktree checkout + prune (INC-49). A dirty worktree is refused
   // first; the backend's structured refusal turns into a force confirmation so
   // unapplied work is never silently discarded.
-  const doRemove = async (force: boolean) => {
+  const forceRemove = async () => {
     setBusy(true);
     try {
-      await AR.removeWorktree(sid, force);
+      await AR.removeWorktree(sid, true);
       toast("worktree removed", "info");
       load();
     } catch (e: any) {
-      if (!force && /unapplied changes/.test(e.message)) {
-        openModal({
-          kind: "confirm",
-          title: "Discard unapplied changes?",
-          body: "This worktree has changes that haven't been applied to the project. Removing it deletes them permanently. Apply the changes first if you want to keep them.",
-          confirmLabel: "Delete anyway",
-          danger: true,
-          onConfirm: () => doRemove(true),
-        });
-      } else {
-        toast(e.message);
-      }
+      toast(e.message);
     } finally {
       setBusy(false);
     }
@@ -139,7 +128,36 @@ export function DiffView({ sid }: { sid: string }) {
       body: "Deletes this isolated checkout and prunes it from git. Your project and any applied changes are unaffected.",
       confirmLabel: "Remove worktree",
       danger: true,
-      onConfirm: () => doRemove(false),
+      onConfirm: async () => {
+        setBusy(true);
+        try {
+          await AR.removeWorktree(sid, false);
+          toast("worktree removed", "info");
+          load();
+        } catch (e: any) {
+          if (/unapplied changes/.test(e.message)) {
+            // The confirm modal auto-closes itself right after this handler
+            // resolves, which would clobber a modal opened synchronously here —
+            // so defer the force prompt to the next tick.
+            setTimeout(
+              () =>
+                openModal({
+                  kind: "confirm",
+                  title: "Discard unapplied changes?",
+                  body: "This worktree has changes that haven't been applied to the project. Removing it deletes them permanently. Apply the changes first if you want to keep them.",
+                  confirmLabel: "Delete anyway",
+                  danger: true,
+                  onConfirm: forceRemove,
+                }),
+              0,
+            );
+          } else {
+            toast(e.message);
+          }
+        } finally {
+          setBusy(false);
+        }
+      },
     });
   };
 
