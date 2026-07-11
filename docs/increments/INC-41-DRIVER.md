@@ -34,7 +34,14 @@ description: Codex UI parity 自主推进循环——每轮收割子 agent、验
   子 agent 一律**同步**跑(`run_in_background: false`——进程随轮结束,后台 agent
   会被杀);单轮范围收紧:收割(读台账/BACKLOG 判断上轮遗留)→ 做**一件**事
   (跑一个 finder,或串行 1-2 个 implementer,或合并推送部署一批)→ 台账收轮。
-  25min watchdog 会杀超时轮,别贪多。
+  **55min watchdog** 会杀超时轮,另遵三条(2026-07-11 首轮被杀的教训):
+  1. **早发布**:每落定一个单元立即 commit+push(finder 的 findings 一出就登记
+     BACKLOG 推走),不许攒到轮末——被杀=全丢。
+  2. **打点**:每完成一步 `echo "[$(date '+%F %T')] step: <一句>" >>
+     ~/Library/Logs/parity-drive.log`,外部可见进度,尸检有据。
+  3. **让路**:开轮 `git status` 若有**非本轮产生的脏文件**(共享 checkout 里
+     常是其他并发 session 的未提交工作,如 QA 填单),不 add、不 revert、不
+     rebase 碰它们;只做不涉这些文件的工作或纯只读轮,台账记「让路 <文件>」。
 - **交互轮**(在活跃 session 里被触发):先抢锁
   `mkdir /tmp/parity-drive.lock`——占用中且新鲜(<45min)则本轮跳过(headless
   正在跑);>45min 判陈锁清掉重占。轮末 `rm -rf /tmp/parity-drive.lock`。

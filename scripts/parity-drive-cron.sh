@@ -9,7 +9,7 @@ set -u
 REPO=/Users/yadong/dev2/agentrunner
 LOCK=/tmp/parity-drive.lock
 LOG=$HOME/Library/Logs/parity-drive.log
-ROUND_TIMEOUT=1500   # 25min watchdog:防单轮挂死占锁
+ROUND_TIMEOUT=3300   # 55min watchdog:跨两个触发槽,锁会让中间那发自动跳过
 
 ts() { date "+%Y-%m-%d %H:%M:%S"; }
 log() { echo "[$(ts)] $*" >> "$LOG"; }
