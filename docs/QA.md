@@ -886,11 +886,33 @@ check.sh 全绿。
 
 ---
 
-## QA-55 自定义 command tools（INC-55,HANDA #4,UJ-19,决策 #19/#34）
+## QA-58 cron 跨重启唤醒 + boot sweep（INC-54,HANDA #28b,G22,UJ-14）
 
-**状态**：待验（A 闸孪生已绿）。**环境**：共享 daemon/store（不隔离）+ 真实
-Gemini；测完保留会话，`ar events` 导出 + workspace diff 归档
-`qa/runs/<日期>-QA-55/`。
+**环境**：私有新二进制 daemon + 隔离 XDG_DATA_HOME + 真 Gemini（子迭代
+trivial）。脚本 `qa/run-qa58.sh <ar>`。长（~3-4min）：cron `* * * * *`。
+
+| # | 动作 | 硬断言 |
+|---|---|---|
+| 1 | 本地 `ar drive` cron 跑 ≥1 迭代 → `kill -9`（崩溃，非优雅） | ≥1 `iteration_completed`；drive 进程被杀 |
+| 2 | sleep 140s 隔过 ≥2 个 cron slot | —（漏 slot） |
+| 3 | 启一个 daemon → boot sweep 扫 store 重挂孤立 drive | 每漏掉的 slot 恰一条 `iteration_skipped`（overlap=skip）或一次 coalesce catch-up；cadence 恢复 |
+
+**结果**：PASS（2026-07-11，session 20260711-091031-qa58cron-b0fc）。崩溃前
+1 迭代完成 → kill -9 → 隔 140s → **新 daemon boot sweep 重挂该 drive，漏掉
+的 2 个 slot 各恰一条 `iteration_skipped`（skipped=2）**，drive 续跑。G22
+crash-restart 支真机实证（补跑恰一次、不重复不丢）。归档
+`qa/runs/2026-07-11-INC54/`。锚孪生（A 闸绿）：TestDriverCronBackfills /
+Coalesces / ResumeIsIdempotent、TestBootSweep{Resumes,SkipsHosted,NoSideEffect,SkipsMarked}、
+TestScanDriveSessionsGate。余项：优雅停机保活 cron（terminal 语义变更，
+G22 注 b，另立增量走 §四）；agent session mid-turn 自动接续（G22 注 a）。
+
+---
+
+## QA-59 自定义 command tools（INC-55,HANDA #4,UJ-19,决策 #19/#34）
+
+**状态**：PASS（2026-07-11，脚本 `qa/run-qa59.sh`，隔离 XDG 私有二进制）。
+**环境**：私有二进制 + 隔离 XDG_CONFIG_HOME/XDG_DATA_HOME + 真实 Gemini；
+归档 `qa/runs/2026-07-11-INC55/`。
 
 | # | 动作 | 硬断言（runtime 红线，不钉模型措辞） |
 |---|---|---|
@@ -898,7 +920,14 @@ Gemini；测完保留会话，`ar events` 导出 + workspace diff 归档
 | 2 | 在**未 trust** 的 workspace 放 `<ws>/.claude/tools/x.json`，起会话 | 日志/stderr 见 untrusted 告警；`SessionStarted.command_tools` 不含 `x`；模型 face 无 `x`。`ar trust <ws>` 后重起：`x` 出现 |
 | 3 | 置 `~/.config/agentrunner/tools/bash.json`（name=`bash`） | 告警 "collides with a built-in tool"；内置 `bash` 仍在；自定义未覆盖内置 |
 
-**结果**：待验。
+**结果**：PASS（session 20260711-090248-wordcount）。三红线全绿：
+`SessionStarted.command_tools=['wordcount']`——**未 trust 的 project 层
+`projecttool` 未加载、撞内置名的 `bash.json` 拒载**（trust 门 + 撞名成立）；
+真 Gemini 见到并调用 `wordcount`，产生 execute-class `EffectResolved`（含
+containment evidence），正确数出 "the quick brown fox jumps over" = 6 词。
+决策 #19 trust 门 + 决策 #34 沙箱真机实证。锚孪生（A 闸绿）：commandtool
+解析/发现/trust 门、pipeline.TestCommandToolEffectAdjudication（固定命令
+deny 压过模型 args）、tool.TestRunCommandToolStdin、agent.TestCommandToolEndToEnd。
 
 **环境**：私有新二进制 daemon（`--http 127.0.0.1:0`，新 daemon-path 功能
 须私有新二进制，QA 纪律）+ 隔离 runtime root + 真实 Gemini；跑完 session

@@ -47,13 +47,13 @@
 |---|---|---|---|---|
 | 8 | LLM goal judge（llm_call 管线 effect，门控触发，三态） | M/L | ✅ done (INC-48) | 实施双闸门：孪生 4 条（pass/reject 续跑/claim-gated 零调用+budget/crash 复用 verdict）+ 真 Gemini QA-48；DESIGN 决策 #21/§13/glossary 同 commit |
 | E2 | 外部事件唤醒 G14（HTTP ingress + source:machine + untrusted 硬条件） | M | ✅ done (INC-50) | UJ-12 卡死项关闭、G14 关闭；双闸门：孪生 8 条（ingress×5+registry+framing×2）+ 真 Gemini QA-50（5 红线）；安全 review 无 P0（P1-1/P2-1/P2-3/P2-4 修，P2-2 余项）；DESIGN 决策 #39 同 commit；HTTP 壳全 API 面仍 backlog |
-| 28b | cron 跨重启唤醒 + boot sweep（G22） | M | ✅ A 闸绿·B 闸待验 (INC-54) | = CC SPRINT #15 联动；并行轮认领 2026-07-11（worktree 子 agent D）。**⚠️ 编号冲突**：INC-54 已被已提交的 session-mode-pill 占用（8d3bd60），INC-55 已被 last-turn-diff 占用（2eef631）——D(#28b)/E(#4) 撞号、F(56) 干净，待父层串行合并统一裁定（建议 D→57/E→58 或重命名已提交件）。crash-重启支落地：durable tick + Driver.Resume backfill + bootSweepDrives；优雅停机保活 cron 另立增量（GAPS G22 注b）。 |
+| 28b | cron 跨重启唤醒 + boot sweep（G22） | M | ✅ done (INC-54) | 双闸门：孪生 8 条（driver backfill/coalesce/idempotent + bootSweep resumes/skips-hosted/no-side-effect/skips-marked + scan gate）+ 真机 QA-58（ar drive cron kill -9 崩溃→新 daemon boot sweep 重挂→漏 2 slot 各恰一条 iteration_skipped，skipped=2）；additive 兑现 G22 crash-restart 支（决策 #30，durable tick + Driver.Resume backfill + bootSweepDrives），不改 cron 语义/唤醒纪律/driver 终态；优雅停机保活 cron 记 §四余项；INC-54 号在 origin/main 空闲（并发 session-mode-pill 已 renumber INC-58）；= CC SPRINT #15 联动 |
 
 ### 批 4 · 工具面
 
 | # | 项 | 规模 | 状态 | 备注 |
 |---|---|---|---|---|
-| 4 | 自定义 command tools（trust 门=hooks 级 + 全管线 + sandbox） | M | 📐 awaiting-review (INC-55) | 判定 = **决策 #19 additive 兑现**（范畴不变量，command tool 同族新成员——§四变更单+解读见工作纸/LOG）；实现+A 闸孪生全绿（commandtool/pipeline/tool/agent），DESIGN #19/§9/§10 additive 编辑同 commit；**须 reviewer 复核决策 #19 解读**（additive vs 枚举翻转）+ B 闸真 Gemini QA-55。⚠️ 编号与 Codex INC-55（last-turn-diff，已合并）撞号，合并时择一改号。worktree 子 agent E，2026-07-11 |
+| 4 | 自定义 command tools（trust 门=hooks 级 + 全管线 + sandbox） | M | ✅ done (INC-55) | **独立契约 review 裁「决策 #19 additive 兑现，可同 commit」**——四条硬性零新放行路径 file:line 证实（同一 config.IsTrusted 门 / 未 trust 不进 fold 不可 dispatch / 过完整 execute-class 管线+沙箱 / 固定命令压过模型 args），command tool 严格弱于既有 bash；双闸门：孪生（发现/trust 门/撞名/effect 裁决/stdin/沙箱端到端）+ 真 Gemini QA-59（wordcount 真调用、未 trust project 不加载、bash 撞名拒载）；DESIGN #19/§9/§10/#34 同 commit（#34 补 command-tool 括注求一致）；INC-55 号在 origin/main 空闲（并发 last-turn-diff 已 renumber INC-57） |
 
 ### 批 5 · webui 消费面
 
@@ -62,13 +62,14 @@
 | 20 | Markdown 增强（react-markdown+gfm 表格+highlight.js） | M | ✅ done (INC-51) | 双闸门：frontend vitest 5 条（表格/高亮/line-wrap/raw-HTML 转义）+ QA-55 真浏览器 DOM（GFM 表格+hljs 高亮+字面 <script> 无注入作可见文本+wrap 开关）；禁 raw HTML（无 rehype-raw）；mermaid 懒加载记余项 |
 | 14 | LLM auto-title（SessionTitled{auto} journal 事件） | S/M | ✅ done (INC-52) | 双闸门：孪生 8 条 + 真 Gemini QA-53（精简 auto title「分析用户认证安全机制」+ 单条 SessionTitled{auto}+autotitle llm_call + sessions list 暴露 + 坏 key daemon fail-closed，qa/runs/2026-07-11-INC52）；manual rename 不迁移（§12:1092）；`AutoTitle` 仅顶层托管 session；QA-51→QA-53 让号（撞并发 INC-58/59） |
 | 24 | project overlay + launcher（meta.json 扩展 + /api/open） | S/M | ✅ done (INC-53) | 双闸门：Go 孪生 6 条 + 真机 QA-56（off-whitelist app 400 / 未知 workspace 400 fail-closed / overlay 持久化 webui-meta.json，qa/runs/2026-07-11-INC53）；真 open -a 靠 argv 孪生覆盖；不建服务端注册表、grouping 仍从 journal 派生 |
-| 18 | ar dictate 服务端听写（provider 补 audio part） | M | ✅ done (INC-56) | 走 ar 命令，webui 薄壳不变；`PartAudio` additive、不进 Envelope modalities（坐实非新模态）；A 闸孪生全绿（provider/CLI/webui/前端）；B 闸真 Gemini 转写待用户集中验（worktree 子 agent F） |
-| 19 | ar optimize prompt 优化 | S | ✅ done (INC-56) | 搭 #18 的车；一次性 provider 调用不碰 daemon；Sparkles+/optimize+单步 undo；A 闸孪生全绿；B 闸真改写+undo 待用户验（worktree 子 agent F） |
+| 18 | ar dictate 服务端听写（provider 补 audio part） | M | ✅ done (INC-56) | 走 ar 命令，webui 薄壳不变；`PartAudio` additive、不进 Envelope modalities（坐实非新模态）；双闸门绿：A 闸孪生（provider/CLI/webui/前端）+ 真 Gemini QA-57（say 合成音频转写保留 kubelet/Artemis/rebase 专有名词） |
+| 19 | ar optimize prompt 优化 | S | ✅ done (INC-56) | 搭 #18 的车；一次性 provider 调用不碰 daemon；Sparkles+/optimize+单步 undo；双闸门绿：A 闸孪生 + 真 Gemini QA-57（草稿改写为领域感知 prompt≠逐字） |
 
 ## 轮次日志（每轮一行，追加）
 
 | 轮 | 日期 | 项 | 结果 | commit |
 |---|---|---|---|---|
+| 16 | 2026-07-11 | 并行批：#28b/#4/#18+#19（INC-54/55/56，二批 worktree 子 agent） | ✅ **三 worktree 子 agent 并行**→父层串行集成：INC-56 dictate/optimize（真 Gemini QA-57：say 音频转写保 kubelet/Artemis、草稿改写领域感知）；INC-55 command tools（**触决策 #19→独立契约 review 裁 additive 兑现，四条硬性零新放行路径 file:line 证实**；真 Gemini QA-59：wordcount 真调用/未 trust project 不加载/bash 撞名拒载；补决策 #34 括注）；INC-54 cron boot sweep（真机 QA-58：ar drive cron kill -9→新 daemon boot sweep 重挂→漏 2 slot 各恰一条 iteration_skipped，G22 crash-restart 支）。撞并发 session 占号：QA-54→QA-56(launcher)让号、INC-54/55 号经并发 renumber 后空闲。**HANDA-PARITY §2 全 17 项裁决实现项收官** | (见 push) |
 | 15 | 2026-07-11 | 并行批 5：#20/#14/#24（INC-51/52/53） | ✅ **三 worktree 子 agent 并行**跑完各自 A 闸→我串行集成（cherry-pick 解 LOG/api.ts 冲突、rebase 过并发 INC-58/59 撞号、QA-51→53 让号、node24 统一 rebuild dist）→逐项真机 B 闸：QA-55 markdown 真 Chrome DOM（表格+hljs+raw-HTML 转义无注入+wrap）/ QA-53 auto-title 真 Gemini（精简标题+SessionTitled{auto}+坏 key fail-closed）/ QA-54 launcher 真 HTTP（app 白名单+workspace fail-closed+overlay 持久化）；均无不变量、dist 干净 | (见 push) |
 | 14 | 2026-07-11 | #E2 外部事件唤醒 (INC-50) | ✅ 双闸门：孪生 8 条（ingress 投递/认证+限流/marked 410/body 413/幂等重投 + registry 哈希化+revoke + machine framing×2）+ 真 Gemini QA-50（5 红线：hook create/registry 0600、错 token 401 零投递、授权 202+framed InputReceived{machine,untrusted}、真 turn 唤醒 engage CI 事件、X-Command-Id 幂等，qa/runs/2026-07-11-QA-50）；子 agent 安全 review 四维**无 P0**，P1-1（认证前置+全超时）/P2-1（dummy verify 抹时序）/P2-3（framing 移到 content 组装后）/P2-4（addr 原子写）当轮修，P2-2 记余项；DESIGN 决策 #39+§2 机器发送方段同 commit；G14/UJ-12 关闭 | (见 push) |
 | 1 | 2026-07-10 | #32 stdin 管道 prompt (INC-28) | ✅ 双闸门全绿（孪生 7 测 + 真 Gemini 管道开场 PONG/`-` 多行续聊 PONG2，qa/runs/2026-07-10-INC28）；/dev/null 边界记档 | (见 push) |
