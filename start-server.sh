@@ -5,6 +5,12 @@ set -euo pipefail
 # Ensure we run from the project root
 cd "$(dirname "$0")"
 
+# Prepend Homebrew's binary path on macOS to avoid architecture mismatches
+# with Rosetta-based NVM installations (UX-04 / Mac arm64 native)
+if [ -d "/opt/homebrew/bin" ]; then
+    export PATH="/opt/homebrew/bin:$PATH"
+fi
+
 # Print usage information
 show_usage() {
     echo "Usage: ./start-server.sh [options] [-- [arwebui_flags]]"
