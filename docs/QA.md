@@ -874,7 +874,15 @@ Gemini 模型、`http://127.0.0.1:8788`（webui 强刷）。选一个真实 git 
 | 5 | `Remove worktree`（脏树先拒→确认→force） | 脏树弹「有未 apply 改动」确认；确认后 worktree 删除、`git worktree list` 不再含它、`worktree prune` 生效 |
 | 6 | 旧 `runtime/ws/wt-*` worktree 兼容 | 已存在的旧 worktree 会话 Changes 面板仍能打开与 diff（不迁移、不弄丢） |
 
-**结果**：（待真机复验填写；证据归档 `qa/runs/2026-07-10-qa46/`。）
+**结果**：PASS（6/6，真机 Gemini）。worktree 落
+`~/.local/share/agentrunner/worktrees/ar-qa46-repo-main-<ts>`（非 webui runtime/ws）；
+Changes 面板显「worktree of ar-qa46-repo · detached」徽标 + Apply/Remove 按钮；真实
+模型改文件→Apply 干净落主 checkout（未 staged）；冲突 Apply 返 409 主树零改动；脏树
+Remove 二次防呆确认后 force 删除 + prune。**发现并修两处真机缺陷**：INC-49.1
+（apply 的 git add -A 致 Changes 视图误空 → commit-tree 后 git reset -q 还原未暂存）、
+INC-49.2（ConfirmModal 自关吞掉 Remove 脏树二次确认框 → setTimeout(0) 推迟）。证据
+归档 `qa/runs/2026-07-10-qa46/`（EVIDENCE.md + 4 份 ar events + 冲突响应体 + spec）；
+测试 repo/worktree/session 全保留。
 锚孪生：TestWorktreeInDataDir / TestApplyBackCleanApply / TestApplyBackConflictReported /
 TestWorktreeRemoveGuardsDirty / TestDiffReportsWorktreeMeta。
 
