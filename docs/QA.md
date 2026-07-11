@@ -911,6 +911,27 @@ P1-1/P2-1/P2-3/P2-4 已修，P2-2 记余项。
 
 ---
 
+## QA-55 Web UI Markdown 渲染增强（INC-51,HANDA #20,UJ-24）
+
+**环境**：真机 arwebui（新 dist，`--no-daemon` 指向私有 store）+ 真 Gemini
+产出含表格/代码块/字面 `<script>` 的会话 + 真 Chrome DOM 断言。
+
+| # | 动作 | 硬断言（真浏览器 DOM） |
+|---|---|---|
+| 1 | 真 Gemini 输出 GFM 表格（Name/Role 两列 Alice/Bob 两行） | `<table>` 渲染，表头 [Name,Role]、单元格含 Alice/Bob/Admin；可滚动包裹 |
+| 2 | 输出 python 代码块 `print("hello")` | 代码块出 `[class*="hljs-"]` 着色 span（highlight.js），关键字着色 |
+| 3 | 正文含字面 `<script>alert(1)</script>` | **无注入 script 元素**（`querySelectorAll('script')` 无 alert(1)）、字面文本可见、无 `img[onerror]`——禁 raw HTML 红线 |
+| 4 | 代码块 header | line-wrap 开关按钮存在 |
+
+**结果**：PASS（2026-07-11，真 Chrome，session 20260711-083921-markd-7d8d）。
+四红线全绿：GFM 表格（表头 Name/Role + Alice/Bob/Admin 单元格 + 可滚动包裹）；
+2 个 hljs 高亮 span（python 关键字着色）；字面 `<script>` **无注入 script
+元素、作可见文本渲染、无 img[onerror]**；wrap 开关按钮存在。同时旁证 INC-52
+auto-title（sidebar 显示「Markdown 格式示例演示」）。锚孪生（A 闸绿）：
+`Markdown.test.tsx`（表格/highlight/line-wrap/raw-HTML 转义安全断言）。
+
+---
+
 ## QA-54 project overlay + 系统 launcher（INC-53,HANDA #24,UJ-24）
 
 **环境**：真机 arwebui（`--no-daemon`，测试端口）+ 共享 store 真 workspace +

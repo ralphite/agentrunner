@@ -59,7 +59,7 @@
 
 | # | 项 | 规模 | 状态 | 备注 |
 |---|---|---|---|---|
-| 20 | Markdown 增强（react-markdown+gfm 表格+highlight.js） | M | 🔧 in-progress (INC-51) | 保持禁 raw HTML；并行轮认领 2026-07-11（worktree 子 agent A） |
+| 20 | Markdown 增强（react-markdown+gfm 表格+highlight.js） | M | ✅ done (INC-51) | 双闸门：frontend vitest 5 条（表格/高亮/line-wrap/raw-HTML 转义）+ QA-55 真浏览器 DOM（GFM 表格+hljs 高亮+字面 <script> 无注入作可见文本+wrap 开关）；禁 raw HTML（无 rehype-raw）；mermaid 懒加载记余项 |
 | 14 | LLM auto-title（SessionTitled{auto} journal 事件） | S/M | ✅ done (INC-52) | 双闸门：孪生 8 条 + 真 Gemini QA-53（精简 auto title「分析用户认证安全机制」+ 单条 SessionTitled{auto}+autotitle llm_call + sessions list 暴露 + 坏 key daemon fail-closed，qa/runs/2026-07-11-INC52）；manual rename 不迁移（§12:1092）；`AutoTitle` 仅顶层托管 session；QA-51→QA-53 让号（撞并发 INC-58/59） |
 | 24 | project overlay + launcher（meta.json 扩展 + /api/open） | S/M | ✅ done (INC-53) | 双闸门：Go 孪生 6 条 + 真机 QA-54（off-whitelist app 400 / 未知 workspace 400 fail-closed / overlay 持久化 webui-meta.json，qa/runs/2026-07-11-INC53）；真 open -a 靠 argv 孪生覆盖；不建服务端注册表、grouping 仍从 journal 派生 |
 | 18 | ar dictate 服务端听写（provider 补 audio part） | M | 🔧 in-progress (INC-56) | 走 ar 命令，webui 薄壳不变；与 #19 合并一轮（worktree 子 agent F） |
@@ -69,6 +69,7 @@
 
 | 轮 | 日期 | 项 | 结果 | commit |
 |---|---|---|---|---|
+| 15 | 2026-07-11 | 并行批 5：#20/#14/#24（INC-51/52/53） | ✅ **三 worktree 子 agent 并行**跑完各自 A 闸→我串行集成（cherry-pick 解 LOG/api.ts 冲突、rebase 过并发 INC-58/59 撞号、QA-51→53 让号、node24 统一 rebuild dist）→逐项真机 B 闸：QA-55 markdown 真 Chrome DOM（表格+hljs+raw-HTML 转义无注入+wrap）/ QA-53 auto-title 真 Gemini（精简标题+SessionTitled{auto}+坏 key fail-closed）/ QA-54 launcher 真 HTTP（app 白名单+workspace fail-closed+overlay 持久化）；均无不变量、dist 干净 | (见 push) |
 | 14 | 2026-07-11 | #E2 外部事件唤醒 (INC-50) | ✅ 双闸门：孪生 8 条（ingress 投递/认证+限流/marked 410/body 413/幂等重投 + registry 哈希化+revoke + machine framing×2）+ 真 Gemini QA-50（5 红线：hook create/registry 0600、错 token 401 零投递、授权 202+framed InputReceived{machine,untrusted}、真 turn 唤醒 engage CI 事件、X-Command-Id 幂等，qa/runs/2026-07-11-QA-50）；子 agent 安全 review 四维**无 P0**，P1-1（认证前置+全超时）/P2-1（dummy verify 抹时序）/P2-3（framing 移到 content 组装后）/P2-4（addr 原子写）当轮修，P2-2 记余项；DESIGN 决策 #39+§2 机器发送方段同 commit；G14/UJ-12 关闭 | (见 push) |
 | 1 | 2026-07-10 | #32 stdin 管道 prompt (INC-28) | ✅ 双闸门全绿（孪生 7 测 + 真 Gemini 管道开场 PONG/`-` 多行续聊 PONG2，qa/runs/2026-07-10-INC28）；/dev/null 边界记档 | (见 push) |
 | 2 | 2026-07-10 | #23 用户消息折叠 (INC-36) | ✅ 双闸门全绿（vitest+build + 真浏览器 DOM 断言：10lh 钳/Show more-less/mobile/console 0 err，qa/runs/2026-07-10-INC36）；宽度塌缩 bug 当场修（width:max-content） | (见 push) |
