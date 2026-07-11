@@ -1,0 +1,426 @@
+/* =========================================================================
+   INC-41 conv — Codex polish for the conversation flow (A6 / A1 / A2 / A7).
+   Loaded via Timeline.tsx. New class names only; where an existing .md rule is
+   overridden the selector is qualified (.md.cx-md …) so it wins regardless of
+   stylesheet order. Codex tokens (REF §0): accent #0169CC, large radii, very
+   light borders, system font stack (already global). Theme-aware: both the
+   prefers-color-scheme default and the data-theme override are handled.
+   ========================================================================= */
+
+:root {
+  --cx-blue: #0169cc;
+  --cx-radius: 12px;
+  --cx-radius-sm: 8px;
+  /* diff row tints, tuned for the light theme */
+  --cx-add-bg: #e6f5ec;
+  --cx-add-ink: #14663a;
+  --cx-del-bg: #fdecec;
+  --cx-del-ink: #9a2820;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --cx-blue: #4ea3f0;
+    --cx-add-bg: #16301f;
+    --cx-add-ink: #7fd6a2;
+    --cx-del-bg: #3a1a18;
+    --cx-del-ink: #f0938c;
+  }
+}
+:root[data-theme="light"] {
+  --cx-blue: #0169cc;
+  --cx-add-bg: #e6f5ec;
+  --cx-add-ink: #14663a;
+  --cx-del-bg: #fdecec;
+  --cx-del-ink: #9a2820;
+}
+:root[data-theme="dark"] {
+  --cx-blue: #4ea3f0;
+  --cx-add-bg: #16301f;
+  --cx-add-ink: #7fd6a2;
+  --cx-del-bg: #3a1a18;
+  --cx-del-ink: #f0938c;
+}
+
+/* =========================================================================
+   A6 — Markdown Codex parity
+   ========================================================================= */
+
+/* inline code chip: light rounded chip, mono, a touch smaller */
+.md.cx-md code {
+  font-family: var(--mono);
+  font-size: 0.86em;
+  background: var(--panel-2);
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  padding: 1.5px 5px;
+  color: var(--ink);
+  white-space: break-spaces;
+}
+
+/* links = Codex accent blue */
+.md.cx-md a {
+  color: var(--cx-blue);
+  text-decoration: none;
+  text-underline-offset: 2px;
+}
+.md.cx-md a:hover {
+  text-decoration: underline;
+}
+
+/* list rhythm a little airier, matching Codex answer body */
+.cx-md .md-list {
+  padding-left: 22px;
+  gap: 4px;
+}
+.cx-md .md-list li {
+  line-height: 1.6;
+}
+.cx-md .md-list li::marker {
+  color: var(--dim);
+}
+
+.cx-md .md-quote {
+  border-left: 3px solid var(--line);
+  padding: 2px 0 2px 12px;
+  color: var(--ink-2);
+}
+
+/* fenced code block: slim header bar (lang label + copy) then body */
+.cx-code {
+  margin: 2px 0;
+  border: 1px solid var(--line);
+  border-radius: var(--cx-radius);
+  overflow: hidden;
+  background: var(--panel-2);
+}
+.cx-code-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 6px 5px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.cx-code-lang {
+  font-size: 11px;
+  color: var(--dim);
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+  font-family: var(--mono);
+}
+.cx-code-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--dim);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.cx-code-copy:hover {
+  background: var(--panel-2);
+  color: var(--ink);
+  border-color: var(--line);
+}
+.cx-code-body {
+  margin: 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink);
+  white-space: pre;
+}
+
+/* GitHub-flavoured tables: bordered, subtle header, horizontally scrollable */
+.cx-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--cx-radius-sm);
+}
+.cx-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+.cx-table th,
+.cx-table td {
+  text-align: left;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line-2);
+  border-right: 1px solid var(--line-2);
+  vertical-align: top;
+}
+.cx-table th:last-child,
+.cx-table td:last-child {
+  border-right: none;
+}
+.cx-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.cx-table thead th {
+  background: var(--panel-2);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* =========================================================================
+   A1 — category icon on the aggregated activity row
+   ========================================================================= */
+.act-group .act-cat {
+  display: grid;
+  place-items: center;
+  width: 17px;
+  flex-shrink: 0;
+  color: var(--dim);
+}
+.act-group[open] .act-cat,
+.act-group > summary:hover .act-cat {
+  color: var(--ink-2);
+}
+.act-group.error .act-cat {
+  color: var(--red);
+}
+
+/* =========================================================================
+   A2 — tool-specific detail renderers
+   ========================================================================= */
+.cx-td {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+}
+.cx-td-head,
+.cx-td-sub {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.cx-td-ic {
+  color: var(--dim);
+  flex-shrink: 0;
+}
+.cx-td-path {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.cx-td-meta {
+  font-size: 11.5px;
+  color: var(--dim);
+}
+.cx-td-pattern {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line-2);
+  border-radius: 5px;
+  padding: 1px 6px;
+  color: var(--ink);
+}
+.cx-td-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--cx-blue);
+  text-decoration: none;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.cx-td-link:hover {
+  text-decoration: underline;
+}
+.cx-td-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 20px;
+}
+.cx-td-tag.warn {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+.cx-td-task {
+  color: var(--ink-2);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 120px;
+  overflow: auto;
+}
+.cx-td-err,
+.cx-td-partial {
+  margin: 0;
+  padding: 6px 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 240px;
+  overflow: auto;
+}
+.cx-td-err {
+  color: var(--red);
+}
+.cx-td-partial {
+  color: var(--ink-2);
+}
+
+/* mini unified diff for edit_file / write_file */
+.cx-minidiff {
+  border: 1px solid var(--line);
+  border-radius: var(--cx-radius-sm);
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+  background: var(--panel);
+}
+.cx-dl {
+  display: flex;
+  white-space: pre;
+}
+.cx-dl-sign {
+  width: 16px;
+  flex-shrink: 0;
+  text-align: center;
+  color: var(--dim);
+  user-select: none;
+}
+.cx-dl-text {
+  flex: 1;
+  padding-right: 10px;
+}
+.cx-dl.add {
+  background: var(--cx-add-bg);
+}
+.cx-dl.add .cx-dl-sign,
+.cx-dl.add .cx-dl-text {
+  color: var(--cx-add-ink);
+}
+.cx-dl.del {
+  background: var(--cx-del-bg);
+}
+.cx-dl.del .cx-dl-sign,
+.cx-dl.del .cx-dl-text {
+  color: var(--cx-del-ink);
+}
+.cx-dl.ctx .cx-dl-text {
+  color: var(--ink-2);
+}
+.cx-dl-more {
+  padding: 3px 10px;
+  color: var(--dim);
+  font-size: 11.5px;
+  font-family: var(--sans);
+}
+
+/* grep hits grouped by file */
+.cx-grep-files {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cx-grep-file {
+  border-left: 2px solid var(--line);
+  padding-left: 10px;
+}
+.cx-grep-fname {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-2);
+  margin-bottom: 2px;
+}
+.cx-grep-hit {
+  display: flex;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.cx-grep-ln {
+  min-width: 34px;
+  text-align: right;
+  color: var(--dim);
+  flex-shrink: 0;
+}
+.cx-grep-tx {
+  color: var(--ink-2);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* glob / semantic path lists */
+.cx-path-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.cx-path {
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* =========================================================================
+   A5 — "Sent as goal" note under the user bubble
+   ========================================================================= */
+.cx-goal-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-end;
+  margin: 4px 2px 0;
+  font-size: 11.5px;
+  color: var(--dim);
+}
+.cx-goal-note svg {
+  color: var(--amber);
+}
+
+/* =========================================================================
+   A3 — compaction as an activity row (works both inside a fold and at top
+   level, since a tail-turn compaction renders flat)
+   ========================================================================= */
+.cx-activity-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 6px 0;
+  padding: 5px 8px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.worked-body .cx-activity-row {
+  margin: 3px 0 3px 36px;
+}
+.cx-activity-ic {
+  width: 15px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  color: var(--dim);
+}
+.cx-activity-label {
+  color: var(--ink-2);
+}

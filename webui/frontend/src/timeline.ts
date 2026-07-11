@@ -37,6 +37,10 @@ export interface BubbleItem {
   // upload thumbnails to a sent bubble (the journal itself keeps only CAS refs)
   seq?: number;
   ts?: string;
+  // A5: this user message was itself sent as a goal (its text matched the
+  // goal_attached goal). The view notes "⚡ Sent as goal" under the bubble,
+  // Codex-style, instead of a separate "goal attached" chip.
+  sentAsGoal?: boolean;
 }
 
 export interface TurnItem {
@@ -56,6 +60,9 @@ export interface ChipItem {
   // their turn. Outcome/user-action chips (goal achieved, mode changed,
   // session closed, …) stay unmarked and render outside the fold.
   fold?: boolean;
+  // A3: render this chip as a Codex activity row (icon + label) rather than a
+  // bubble chip — used for context compaction inside the fold.
+  activity?: boolean;
 }
 
 export interface SysItem {
@@ -505,13 +512,36 @@ export function foldEvents(events: Envelope[]): Folded {
         chip(seq, `Agent changed · ${p.spec_name || "?"} · ${p.model || ""}`);
         break;
       case "context_compacted":
-        workChip(seq, `context compacted · up to gen ${p.upto_gen_step}`);
+        // A3: Codex renders compaction as a fold-internal activity row, not a
+        // bubble chip. Keep it fold-able (fold:true) and mark it activity so
+        // the view gives it the icon + label treatment.
+        push({ kind: "chip", key: "c" + seq, text: "Context automatically compacted", tone: "", fold: true, activity: true });
         break;
       // Goal lifecycle renders first-class (QA Round1 F-C5: these used to
       // fall into hidden sys lines, so a budget-stopped goal just vanished).
-      case "goal_attached":
-        chip(seq, `goal attached · ${p.goal || ""}`);
+      case "goal_attached": {
+        // A5: when this goal's text is the most recent user message, note it
+        // under that bubble ("⚡ Sent as goal", Codex-style) instead of emitting
+        // a separate "goal attached" chip. Fall back to the chip otherwise
+        // (goal set via CLI with no matching UI message).
+        const g = String(p.goal || "").trim();
+        let noted = false;
+        if (g) {
+          for (let i = items.length - 1; i >= 0; i--) {
+            const it = items[i];
+            if (it.kind === "user" && !it.peerSession) {
+              const t = (it.text || "").trim();
+              if (t && (t === g || g.includes(t) || t.includes(g))) {
+                it.sentAsGoal = true;
+                noted = true;
+              }
+              break; // only the most recent user message is a candidate
+            }
+          }
+        }
+        if (!noted) chip(seq, `goal attached · ${p.goal || ""}`);
         break;
+      }
       case "goal_updated":
         chip(seq, "goal updated" + (p.goal ? ` · ${p.goal}` : ""));
         break;
@@ -664,4 +694,261 @@ export function formatElapsed(ms: number): string {
   const m = Math.floor(total / 60);
   const s = total % 60;
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+// ---- INC-41 conv (A1/A2): activity categories + tool detail projection ------
+// Pure, append-only. Timeline.tsx maps the category enum onto phosphor icons and
+// renders the structured detail; keeping the extraction here makes it unit
+// testable without React.
+
+// parseMaybeJSON normalises a tool's args/result, which arrive either as an
+// object (journal-native) or a JSON string (some providers), to a value.
+export function parseMaybeJSON(raw: any): any {
+  if (typeof raw !== "string") return raw;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return raw;
+  }
+}
+
+// ActivityCategory buckets a tool onto one Codex-style activity icon. Mirrors
+// groupLabel's categories so a fold's aggregate row and its icon agree.
+export type ActivityCategory =
+  | "bash"
+  | "read"
+  | "edit"
+  | "search"
+  | "web"
+  | "spawn"
+  | "message"
+  | "ask"
+  | "progress"
+  | "other";
+
+export function toolCategory(name: string): ActivityCategory {
+  switch (name) {
+    case "bash":
+      return "bash";
+    case "read_file":
+    case "read_notes":
+      return "read";
+    case "grep":
+    case "glob":
+    case "semantic_search":
+      return "search";
+    case "write_file":
+    case "edit_file":
+      return "edit";
+    case "web_fetch":
+      return "web";
+    case "spawn_agent":
+      return "spawn";
+    case "send_message":
+      return "message";
+    case "ask_user":
+      return "ask";
+    case "progress_update":
+    case "goal_status":
+    case "goal_complete":
+      return "progress";
+    default:
+      return "other";
+  }
+}
+
+// groupIcon picks the icon for an aggregated activity row: the first tool's
+// category, matching groupLabel's first-appearance ordering (A1).
+export function groupIcon(tools: ToolItem[]): ActivityCategory {
+  return tools.length ? toolCategory(tools[0].name) : "other";
+}
+
+// ---- A2 tool-specific detail renderers (structured extraction) --------------
+
+export interface DiffLine {
+  kind: "ctx" | "add" | "del";
+  text: string;
+}
+
+// lineDiff produces a minimal line-level diff between two text blocks for the
+// edit_file mini diff. It trims the common prefix/suffix and marks the changed
+// middle as del (old) then add (new) — enough to read a small edit at a glance
+// without an LCS. Pure + unit tested.
+export function lineDiff(oldText: string, newText: string): DiffLine[] {
+  const o = oldText.split("\n");
+  const n = newText.split("\n");
+  let start = 0;
+  while (start < o.length && start < n.length && o[start] === n[start]) start++;
+  let endO = o.length;
+  let endN = n.length;
+  while (endO > start && endN > start && o[endO - 1] === n[endN - 1]) {
+    endO--;
+    endN--;
+  }
+  const rows: DiffLine[] = [];
+  for (let i = 0; i < start; i++) rows.push({ kind: "ctx", text: o[i] });
+  for (let i = start; i < endO; i++) rows.push({ kind: "del", text: o[i] });
+  for (let i = start; i < endN; i++) rows.push({ kind: "add", text: n[i] });
+  for (let i = endO; i < o.length; i++) rows.push({ kind: "ctx", text: o[i] });
+  return rows;
+}
+
+const DIFF_ROW_CAP = 80;
+
+export interface ReadDetail {
+  path: string;
+  range?: string;
+  lineCount?: number;
+  truncated?: boolean;
+}
+
+export function readDetail(args: any, result: any): ReadDetail {
+  const a = parseMaybeJSON(args) || {};
+  const r = parseMaybeJSON(result);
+  const path = a.path || a.file || "";
+  let range: string | undefined;
+  if (a.line_range) range = Array.isArray(a.line_range) ? a.line_range.join("–") : String(a.line_range);
+  else if (a.offset != null || a.limit != null)
+    range = `from ${a.offset ?? 0}${a.limit != null ? `, ${a.limit} lines` : ""}`;
+  const countLines = (s: string) => (s ? s.replace(/\n$/, "").split("\n").length : 0);
+  let lineCount: number | undefined;
+  let truncated: boolean | undefined;
+  if (r && typeof r === "object") {
+    if (typeof r.content === "string") lineCount = countLines(r.content);
+    truncated = r.truncated;
+  } else if (typeof r === "string") {
+    lineCount = countLines(r);
+  }
+  return { path, range, lineCount, truncated };
+}
+
+export interface EditDetail {
+  path: string;
+  rows: DiffLine[];
+  more: number;
+  note?: string;
+}
+
+export function editDetail(name: string, args: any, result: any): EditDetail {
+  const a = parseMaybeJSON(args) || {};
+  const r = parseMaybeJSON(result);
+  const path = a.path || a.file || "";
+  let rows: DiffLine[];
+  if (name === "write_file") {
+    const content: string = String(a.content ?? a.text ?? "");
+    rows = content.split("\n").map((t) => ({ kind: "add" as const, text: t }));
+    if (rows.length && rows[rows.length - 1].text === "") rows.pop(); // trailing newline
+  } else {
+    rows = lineDiff(String(a.old ?? ""), String(a.new ?? ""));
+  }
+  let more = 0;
+  if (rows.length > DIFF_ROW_CAP) {
+    more = rows.length - DIFF_ROW_CAP;
+    rows = rows.slice(0, DIFF_ROW_CAP);
+  }
+  const note = r && typeof r === "object" ? r.output : typeof r === "string" ? r : undefined;
+  return { path, rows, more, note };
+}
+
+export interface GrepHit {
+  path: string;
+  line?: number;
+  text?: string;
+}
+export interface GrepDetail {
+  pattern: string;
+  path?: string;
+  matchCount: number;
+  fileCount: number;
+  scanned?: number;
+  truncated?: boolean;
+  byFile: { path: string; hits: GrepHit[] }[];
+}
+
+export function grepDetail(args: any, result: any): GrepDetail {
+  const a = parseMaybeJSON(args) || {};
+  const r = parseMaybeJSON(result) || {};
+  const matches: any[] = Array.isArray(r.matches) ? r.matches : [];
+  const order: string[] = [];
+  const byFileMap = new Map<string, GrepHit[]>();
+  for (const m of matches) {
+    const p = m.path || "";
+    if (!byFileMap.has(p)) {
+      byFileMap.set(p, []);
+      order.push(p);
+    }
+    byFileMap.get(p)!.push({ path: p, line: m.line, text: typeof m.text === "string" ? m.text : "" });
+  }
+  return {
+    pattern: a.pattern || a.query || "",
+    path: a.path,
+    matchCount: matches.length,
+    fileCount: byFileMap.size,
+    scanned: r.files_scanned,
+    truncated: r.truncated,
+    byFile: order.map((p) => ({ path: p, hits: byFileMap.get(p)! })),
+  };
+}
+
+export interface GlobDetail {
+  pattern: string;
+  paths: string[];
+  truncated?: boolean;
+}
+export function globDetail(args: any, result: any): GlobDetail {
+  const a = parseMaybeJSON(args) || {};
+  const r = parseMaybeJSON(result) || {};
+  return { pattern: a.pattern || "", paths: Array.isArray(r.paths) ? r.paths : [], truncated: r.truncated };
+}
+
+export interface SemanticDetail {
+  query: string;
+  hits: { path: string; line?: number }[];
+}
+export function semanticDetail(args: any, result: any): SemanticDetail {
+  const a = parseMaybeJSON(args) || {};
+  const r = parseMaybeJSON(result) || {};
+  const hits = Array.isArray(r.hits) ? r.hits.map((h: any) => ({ path: h.path || "", line: h.line })) : [];
+  return { query: a.query || "", hits };
+}
+
+export interface SpawnDetail {
+  agent: string;
+  task: string;
+  childSession?: string;
+  reason?: string;
+  report?: string;
+}
+export function spawnDetail(args: any, result: any): SpawnDetail {
+  const a = parseMaybeJSON(args) || {};
+  const r = parseMaybeJSON(result) || {};
+  return {
+    agent: a.agent || a.role?.name || r.agent || "",
+    task: a.task || "",
+    childSession: r.child_session,
+    reason: r.reason,
+    report: typeof r.report === "string" ? r.report : undefined,
+  };
+}
+
+export interface WebDetail {
+  url: string;
+  title?: string;
+  bytes?: number;
+  untrusted: boolean;
+}
+export function webFetchDetail(args: any, result: any): WebDetail {
+  const a = parseMaybeJSON(args) || {};
+  const r = parseMaybeJSON(result) || {};
+  const bytes =
+    typeof r.bytes === "number" ? r.bytes : typeof r.content === "string" ? r.content.length : undefined;
+  return { url: a.url || a.uri || "", title: r.title, bytes, untrusted: r.untrusted !== false };
+}
+
+export interface AskDetail {
+  question: string;
+}
+export function askUserDetail(args: any): AskDetail {
+  const a = parseMaybeJSON(args) || {};
+  return { question: a.question || a.prompt || a.text || "" };
 }
