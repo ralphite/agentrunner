@@ -37,7 +37,7 @@
 | # | 项 | 规模 | 状态 | 备注 |
 |---|---|---|---|---|
 | 2U | 「命令身份·撤销·应答」统一设计单元（covers #16/#29/#7） | M(设计) | ✅ done (INC-44 rev1) | 契约 review「修订后放行」，B1/B2/M1-3 已吸收（AskResolved 三件套/revoked 集/纯函数 retry/CommandAnswer 四触点）；#16/#29/#7 解锁 |
-| 16 | turn retry（派生 command_id `retry:<turn-id>`） | S | ⬜ | 依赖 2U |
+| 16 | turn retry（派生 command_id `retry:<turn-id>`） | S | 🔧 in-progress (INC-45) | 2U 已定稿 |
 | 29 | 排队消息撤销（durable revoke 五点语义） | M | ⬜ | 依赖 2U；触 §2 铁律走 §四 |
 | 7 | 结构化 ask_user（typed AskResolved + ar answer + 表单卡） | M | ⬜ | 依赖 2U；= CC SPRINT #10 联动 |
 
