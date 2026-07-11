@@ -34,6 +34,7 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /api/sessions/{sid}/events", s.handleEvents)
 	mux.HandleFunc("GET /api/sessions/{sid}/state", s.handleState)
 	mux.HandleFunc("GET /api/sessions/{sid}/inspect", s.handleInspect)
+	mux.HandleFunc("GET /api/sessions/{sid}/artifact", s.handleArtifact)
 	mux.HandleFunc("GET /api/sessions/{sid}/ps", s.handlePS)
 	mux.HandleFunc("GET /api/sessions/{sid}/barriers", s.handleBarriers)
 	mux.HandleFunc("POST /api/sessions/{sid}/barrier", s.handleBarrier)
@@ -554,6 +555,37 @@ func (s *server) handleInspect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
+	_, _ = io.WriteString(w, res.Stdout)
+}
+
+// handleArtifact serves one published artifact version's raw content
+// (INC-40) — a thin wrapper over `ar artifacts read`, like everything else
+// here. Text renders in the UI viewer; the CLI already refuses nothing, so
+// binary just arrives as bytes the viewer shows a note for.
+func (s *server) handleArtifact(w http.ResponseWriter, r *http.Request) {
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	stream := r.URL.Query().Get("stream")
+	if stream == "" || strings.ContainsAny(stream, "\n\r") {
+		badRequest(w, "stream query parameter required")
+		return
+	}
+	spec := stream
+	if v := r.URL.Query().Get("version"); v != "" {
+		if _, err := strconv.Atoi(v); err != nil {
+			badRequest(w, "version must be a number")
+			return
+		}
+		spec = stream + "@v" + v
+	}
+	res := s.runAR(r.Context(), 30*time.Second, "artifacts", id, "read", spec)
+	if res.Err != nil {
+		arFail(w, "ar artifacts read", res)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	_, _ = io.WriteString(w, res.Stdout)
 }
 

@@ -62,6 +62,8 @@ export function SessionView({ sid }: { sid: string }) {
   const [goal, setGoal] = useState<{ goal: string; checks: number; max_checks?: number; paused?: boolean; verifiers?: number; claimed?: boolean } | null>(null);
   // The model-maintained checklist from inspect's progress projection (INC-37).
   const [progress, setProgress] = useState<import("./SupervisionPanel").ProgressItem[]>([]);
+  // Published artifacts from inspect (INC-40): stream/version rows.
+  const [artifacts, setArtifacts] = useState<{ stream: string; version: number }[]>([]);
   // Non-null while the banner's goal text is being edited (INC-10): the value
   // is the draft; save issues a goal update (text only — verifier/budget keep).
   const [goalEdit, setGoalEdit] = useState<string | null>(null);
@@ -179,6 +181,14 @@ export function SessionView({ sid }: { sid: string }) {
       setGoal(ins?.goal || null);
       setProgress(Array.isArray(ins?.progress) ? ins.progress : []);
       if (typeof ins?.mode === "string" && ins.mode) setLiveMode(ins.mode);
+      {
+        // Latest version per stream — inspect lists every published version.
+        const latest = new Map<string, number>();
+        for (const a of Array.isArray(ins?.artifacts) ? ins.artifacts : []) {
+          if (a?.stream && (latest.get(a.stream) || 0) < (a.version || 0)) latest.set(a.stream, a.version);
+        }
+        setArtifacts([...latest.entries()].map(([stream, version]) => ({ stream, version })).sort((x, y) => x.stream.localeCompare(y.stream)));
+      }
       setInspectReady(true);
     } catch {
       /* ignore — usage badge / subagents are best-effort */
@@ -667,6 +677,7 @@ export function SessionView({ sid }: { sid: string }) {
             goal={goal}
             goalEdit={goalEdit}
             progress={progress}
+            artifacts={artifacts}
             children={children}
             tasks={tasks}
             approvals={openApprovals.length}
@@ -675,6 +686,10 @@ export function SessionView({ sid }: { sid: string }) {
             onGoalEdit={setGoalEdit}
             onGoalSave={saveGoalEdit}
             onGoalDiscard={() => setGoalEdit(null)}
+            onOpenArtifact={(stream, version) =>
+              AR.artifact(sid, stream, version)
+                .then((text) => openModal({ kind: "viewer", title: `${stream} · v${version}`, body: text }))
+                .catch((error) => toast(error.message))}
             onGoalAction={(action) => AR.goal(sid, { action }).then(() => pollTasks()).catch((error) => toast(error.message))}
             onOpenChild={(childSid) => select(childSid)}
             onKillTask={act.kill}

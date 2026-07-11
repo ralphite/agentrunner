@@ -17,7 +17,9 @@
     "tools": [
       "read_file",
       "edit_file",
-      "progress_update"
+      "progress_update",
+      "artifacts_list",
+      "artifacts_read"
     ],
     "turn": 1
   },
@@ -88,7 +90,9 @@
     "tools": [
       "read_file",
       "edit_file",
-      "progress_update"
+      "progress_update",
+      "artifacts_list",
+      "artifacts_read"
     ],
     "turn": 2
   }

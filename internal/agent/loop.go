@@ -937,6 +937,11 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 	if !structuredOnly {
 		extra = append(extra, "progress_update")
 	}
+	// The artifact consumption face (INC-40): reading back published
+	// artifacts needs the store publish_artifact writes to.
+	if !structuredOnly && l.Artifacts != nil {
+		extra = append(extra, "artifacts_list", "artifacts_read")
+	}
 	// Tree messaging (INC-12): advertised to every member of a session tree
 	// (root with an open multi-agent face, and every child). An orphaned
 	// child resumed outside its tree has no router and loses the tool —
@@ -1670,6 +1675,26 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 			res := p.res
 			run = func(context.Context) (json.RawMessage, *provider.Usage, bool, error) {
 				*res = runProgressTool(call.Args, serialAppend)
+				return res.Payload, nil, res.IsError, nil
+			}
+		}
+		if p.call.Name == "artifacts_list" || p.call.Name == "artifacts_read" {
+			// The artifact consumption face (INC-40): the Published snapshot
+			// is taken NOW on the drive goroutine (fold truth — orphan blobs
+			// from a publish crash window stay unaddressable); the CAS read
+			// itself runs on the activity goroutine.
+			call := p.call
+			res := p.res
+			published := make(map[string]int, len(ds.s.Session.Published))
+			for k, v := range ds.s.Session.Published {
+				published[k] = v
+			}
+			run = func(context.Context) (json.RawMessage, *provider.Usage, bool, error) {
+				if call.Name == "artifacts_list" {
+					*res = l.runArtifactsList(published)
+				} else {
+					*res = l.runArtifactsRead(published, call.Args)
+				}
 				return res.Payload, nil, res.IsError, nil
 			}
 		}

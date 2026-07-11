@@ -3704,6 +3704,13 @@ summary.fd-head:hover {
 .progress-row.done svg { color: var(--ok, #3fb950); }
 .progress-row.done .progress-title { text-decoration: line-through; text-decoration-color: color-mix(in srgb, currentColor 50%, transparent); }
 .progress-row.failed svg { color: var(--bad, #f85149); }
+/* INC-40: published artifacts list. */
+.artifact-list { display: flex; flex-direction: column; gap: 2px; }
+.artifact-row { display: flex; align-items: center; gap: 7px; font-size: 12.5px; padding: 4px 3px; min-width: 0; border: none; background: none; color: var(--ink); cursor: pointer; border-radius: 6px; text-align: left; font: inherit; width: 100%; }
+.artifact-row:hover { background: var(--panel-2); }
+.artifact-row svg { color: var(--dim); flex: none; }
+.artifact-row .artifact-stream { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.artifact-row .artifact-version { margin-left: auto; color: var(--dim); font-size: 11px; }
 .supervision-agents .subagents h4 { display: none; }
 .supervision-agents .sa-row { padding: 5px 1px; }
 .supervision-agents .sa-open { display: none; }

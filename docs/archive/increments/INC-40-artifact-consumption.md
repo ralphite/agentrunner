@@ -39,3 +39,13 @@ CONFIRMED 纯 additive：ArtifactPublished 已 journaled 已 fold，CAS
 ## review 裁决
 
 M 增量、纯 additive 读面，裁掉三视角 review；双闸覆盖。
+
+---
+
+## 执行记录（2026-07-11 收口）
+
+两步并轮完成。B 闸真 Gemini 一会话全链（publish→list→read→
+READBACK 与 CLI 逐字一致）+ CLI 人验 + webui DOM 断言/截图（console
+0 错误），证据 `qa/runs/2026-07-11-INC40/`。模型自发用
+progress_update 维护 checklist（INC-37 自然采用佐证）。SPEC C/LOG/
+SPRINT 齐活；SPRINT #11 ✅，批 1 五项全落。

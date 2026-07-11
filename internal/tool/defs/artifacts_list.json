@@ -1,0 +1,9 @@
+{
+  "name": "artifacts_list",
+  "description": "List this session's published artifacts: every stream with its latest version and size. Published artifacts come from publish_artifact — yours, a predecessor turn's, or (in the parent's store) a sub-agent's. Use artifacts_read to fetch content.",
+  "class": "read",
+  "input_schema": {
+    "type": "object",
+    "properties": {}
+  }
+}

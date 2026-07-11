@@ -50,6 +50,15 @@ export const AR = {
     api<Envelope[]>(`/sessions/${sid}/events?after=${after}`),
   state: (sid: string) => api<any>(`/sessions/${sid}/state`),
   inspect: (sid: string) => api<any>(`/sessions/${sid}/inspect`),
+  // Raw text of one published artifact version (INC-40) — not JSON.
+  artifact: async (sid: string, stream: string, version?: number) => {
+    const q = new URLSearchParams({ stream });
+    if (version) q.set("version", String(version));
+    const r = await fetch(`/api/sessions/${sid}/artifact?` + q.toString());
+    const text = await r.text();
+    if (!r.ok) throw new Error(text || r.statusText);
+    return text;
+  },
   rawEvents: (sid: string) => api<Envelope[]>(`/sessions/${sid}/events`),
   ps: (sid: string) => api<Task[]>(`/sessions/${sid}/ps`),
   barriers: (sid: string) => api<string[]>(`/sessions/${sid}/barriers`),

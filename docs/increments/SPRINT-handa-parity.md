@@ -29,7 +29,7 @@
 | 23 | 用户消息折叠（Timeline >10 行 Show more） | S | ✅ done (INC-36) | 双闸门全绿；真浏览器 DOM 断言（qa/runs/2026-07-10-INC36）；含 pending 气泡 |
 | 9 | progress_update 内部工具 + fold + Supervision 区 | S/M | ✅ done (INC-37) | 双闸门全绿；真 Gemini 7 次自发调用+webui DOM 断言（qa/runs/2026-07-10-INC37）；面板不因 progress 强开（W5 语义） |
 | 10 | 后台任务 notify 门 + settle 结构化载荷 | S | ✅ done (INC-39) | 双闸门全绿；结构化载荷核查后已存在，真 delta 仅门本身；真 Gemini 双场景（none 零回流/on_fail 复述 exit 3，qa/runs/2026-07-10-INC39） |
-| 11 | artifact 消费面（工具读回/CLI/webui 三面） | M | 🔧 in-progress (INC-40) | ArtifactPublished 已 fold，纯 additive |
+| 11 | artifact 消费面（工具读回/CLI/webui 三面） | M | ✅ done (INC-40) | 双闸门全绿；真 Gemini publish→list→read 全链 READBACK 逐字命中+CLI+webui 查看器（qa/runs/2026-07-11-INC40） |
 | 31 | 运行统计 stats（IsError 聚合/行增删入载荷/TS 报表投影） | M | ⬜ | 行增删写 ActivityCompleted，不 diff redacted args |
 
 ### 批 2 · 命令面设计单元（一个 INC 设计、分步落地；#29 走 PROCESS §四）
@@ -73,3 +73,4 @@
 | 2 | 2026-07-10 | #23 用户消息折叠 (INC-36) | ✅ 双闸门全绿（vitest+build + 真浏览器 DOM 断言：10lh 钳/Show more-less/mobile/console 0 err，qa/runs/2026-07-10-INC36）；宽度塌缩 bug 当场修（width:max-content） | (见 push) |
 | 3 | 2026-07-10 | #9 progress_update (INC-37) | ✅ 双闸门全绿（孪生 4 测+event round-trip 守卫 + 真 Gemini 私有 daemon：7 次自发调用 3/3 done、inspect 两面、webui DOM 断言，qa/runs/2026-07-10-INC37）；面板不因 progress 强开（W5 裁决记 LOG） | (见 push) |
 | 4 | 2026-07-10 | #10 notify 门 (INC-39) | ✅ 双闸门全绿（矩阵 10 例 + 真 Gemini 双场景：none 零回流零多余 turn / on_fail 复述 exit 3，qa/runs/2026-07-10-INC39）；范围二次缩水（结构化载荷已存在）；--state 断言方法记档 | (见 push) |
+| 5 | 2026-07-11 | #11 artifact 消费面 (INC-40) | ✅ 双闸门全绿（孪生 3 组含分页 rune 重组/orphan 不漏 + 真 Gemini 全链 READBACK 逐字命中 + CLI 表格/read + webui Artifacts 区/查看器 DOM 断言，qa/runs/2026-07-11-INC40）；模型自发用 progress_update（INC-37 采用佐证） | (见 push) |

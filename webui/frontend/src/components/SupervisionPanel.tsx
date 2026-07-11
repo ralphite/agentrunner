@@ -3,6 +3,7 @@ import {
   CaretRight,
   CheckCircle,
   Crosshair,
+  FileText,
   GitBranch,
   GitCommit,
   GitDiff,
@@ -58,6 +59,7 @@ export function SupervisionPanel({
   goal,
   goalEdit,
   progress,
+  artifacts,
   children,
   tasks,
   approvals,
@@ -67,6 +69,7 @@ export function SupervisionPanel({
   onGoalSave,
   onGoalDiscard,
   onGoalAction,
+  onOpenArtifact,
   onOpenChild,
   onKillTask,
   onInspect,
@@ -76,6 +79,7 @@ export function SupervisionPanel({
   goal: GoalState | null;
   goalEdit: string | null;
   progress: ProgressItem[];
+  artifacts: { stream: string; version: number }[];
   children: InspectNode[];
   tasks: Task[];
   approvals: number;
@@ -87,6 +91,7 @@ export function SupervisionPanel({
   onGoalSave: () => void;
   onGoalDiscard: () => void;
   onGoalAction: (action: "pause" | "resume" | "cancel") => void;
+  onOpenArtifact: (stream: string, version: number) => void;
   onOpenChild: (sid: string) => void;
   onKillTask: (handle: string) => void;
   onInspect: () => void;
@@ -165,6 +170,30 @@ export function SupervisionPanel({
                 )}
                 <span className="progress-title">{it.title}</span>
               </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {artifacts.length > 0 && (
+        <section className="supervision-section">
+          {/* Published artifacts (INC-40): latest version per stream, click
+              to read. Rendered only when something was actually published
+              (the W5 no-dead-weight rule). */}
+          <div className="supervision-label"><FileText size={14} /> Artifacts</div>
+          <div className="artifact-list">
+            {artifacts.map((a) => (
+              <button
+                type="button"
+                className="artifact-row"
+                key={a.stream}
+                title={`Read ${a.stream} (latest v${a.version})`}
+                onClick={() => onOpenArtifact(a.stream, a.version)}
+              >
+                <FileText size={13} />
+                <span className="artifact-stream">{a.stream}</span>
+                <span className="artifact-version">v{a.version}</span>
+              </button>
             ))}
           </div>
         </section>

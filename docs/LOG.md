@@ -2678,3 +2678,24 @@ sandboxEnvironment env 的分变体实验裁决)**:
 
 **验证**:本机(复现形态)该测试 FAIL→SKIP(理由含完整 stderr);
 TestBashFilesystemSandbox 等其余 sandbox 测试保持 PASS;check.sh 全绿。
+
+## 2026-07-11 INC-40 artifact 消费面（HANDA SPRINT #11，批 1 末项）
+
+**落地（三面）**：模型侧 `artifacts_list`/`artifacts_read`——loop
+内部 read 工具（goal/progress 同 seam），list 以 fold `Published`
+快照为真相（publish crash 窗的 orphan blob 不可寻址）+ store 补
+bytes；read 支持 `version` 历史寻址、offset/max_bytes 分页
+（next_offset 游标、UTF-8 rune 边界不切）、二进制回 metadata 不喂
+bytes。CLI `ar artifacts <sid> list|read <stream>[@vN]`（list 表格/
+--json，read 原文到 stdout 供管道）。webui：`GET …/artifact` 薄包装
+`ar artifacts read` + Supervision Artifacts 区（latest per stream，
+点击开只读查看器 modal；无发布物不占位）。
+
+**双闸门**：孪生 3 组（list fold 真相+orphan 不漏、read 全文/历史/
+微窗分页重组含中文 rune、五类边界+二进制+无 store）；B=真 Gemini
+一会话全链：publish（default 审批放行）→list 自确认→read 回读→
+`READBACK:` 终答与 CLI read 逐字一致；CLI/webui 人验（DOM 断言+
+截图，console 0 错误）。模型还**自发**用 progress_update 维护了
+3/3 checklist——INC-37 被自然采用的佐证。归档
+`qa/runs/2026-07-11-INC40/`。批 1 至此五项全落（#32/#23/#9/#10/#11），
+剩 #31 stats 后进批 2 命令面设计单元。

@@ -1,0 +1,27 @@
+{
+  "name": "artifacts_read",
+  "description": "Read a published artifact's content by stream name. Text comes back sliced by offset/max_bytes with next_offset for paging; binary content returns metadata only. Defaults to the latest version; pass version to read an earlier one.",
+  "class": "read",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "stream": {
+        "type": "string",
+        "description": "The artifact stream name, as listed by artifacts_list."
+      },
+      "version": {
+        "type": "integer",
+        "description": "Specific version to read (default: latest)."
+      },
+      "offset": {
+        "type": "integer",
+        "description": "Byte offset to start reading from (default 0)."
+      },
+      "max_bytes": {
+        "type": "integer",
+        "description": "Maximum bytes to return (default 20000, cap 50000)."
+      }
+    },
+    "required": ["stream"]
+  }
+}
