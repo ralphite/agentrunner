@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { completedTurnDurations, deriveGoalState, foldEvents, foldWork, formatElapsed, formatWorkDuration } from "./timeline";
+import { completedTurnDurations, deriveGoalState, foldEvents, foldWork, formatElapsed, formatWorkDuration, guiReason, verdictLabel } from "./timeline";
 import { summarizeChanges } from "./diffSummary";
 
 describe("timeline input projection", () => {
@@ -22,15 +22,26 @@ describe("timeline input projection", () => {
 });
 
 describe("Codex-style turn outcome", () => {
-  it("attaches one duration to the final assistant answer of each settled human turn", () => {
+  it("measures work from generation_started, not the user message (excludes queue/idle, R4-6)", () => {
     const items = foldEvents([
       { seq: 1, type: "input_received", ts: "2026-07-10T05:00:00Z", payload: { source: "user", text: "do it" } },
-      { seq: 2, type: "assistant_message", ts: "2026-07-10T05:00:03Z", payload: { message: { parts: [{ text: "checking" }] } } },
-      { seq: 3, type: "assistant_message", ts: "2026-07-10T05:01:08Z", payload: { message: { parts: [{ text: "done" }] } } },
+      // 90 minutes of queue/idle before work actually starts — must NOT count
+      { seq: 2, type: "generation_started", ts: "2026-07-10T06:30:00Z", payload: { gen_step: 1 } },
+      { seq: 3, type: "assistant_message", ts: "2026-07-10T06:30:03Z", payload: { message: { parts: [{ text: "checking" }] } } },
+      { seq: 4, type: "assistant_message", ts: "2026-07-10T06:31:08Z", payload: { message: { parts: [{ text: "done" }] } } },
     ]).items;
-    expect([...completedTurnDurations(items, false)]).toEqual([["a3", 68000]]);
+    // 06:30:00 → 06:31:08 = 68s, NOT 91m08s from the user message
+    expect([...completedTurnDurations(items, false)]).toEqual([["a4", 68000]]);
     expect(completedTurnDurations(items, true).size).toBe(0);
     expect(formatWorkDuration(68000)).toBe("1m 8s");
+  });
+
+  it("humanizes driver verdicts and rewrites CLI-only auto-deny reasons (R4-3/R4-7)", () => {
+    expect(verdictLabel({ pass: true, score: 1, verifier: "command", detail: "exit=0" })).toBe("passed · score 1 · exit=0");
+    expect(verdictLabel({ pass: false })).toBe("failed");
+    expect(verdictLabel("plain")).toBe("plain");
+    expect(guiReason("needs approval, but this run is non-interactive so it was auto-denied. Use `agentrunner new`…")).toMatch(/press Resume/);
+    expect(guiReason("policy: path not allowed")).toBe("policy: path not allowed");
   });
 
   it("summarizes tracked and name-only untracked files without inventing line counts", () => {

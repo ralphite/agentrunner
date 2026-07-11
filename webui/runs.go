@@ -341,8 +341,11 @@ func firstLine(s string, max int) string {
 	if i := strings.IndexByte(s, '\n'); i >= 0 {
 		s = s[:i]
 	}
-	if len(s) > max {
-		s = s[:max] + "…"
+	// Truncate by rune, not byte: a byte slice can cut through a multibyte
+	// UTF-8 rune (e.g. a CJK char) and produce U+FFFD "" in the title, which
+	// then leaks into /api/sessions, the sidebar and the CLI table (R4-2).
+	if r := []rune(s); len(r) > max {
+		s = string(r[:max]) + "…"
 	}
 	return s
 }

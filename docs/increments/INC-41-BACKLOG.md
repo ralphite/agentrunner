@@ -600,3 +600,35 @@ CODEX-PARITY 收口;证据归档 `qa/runs/2026-07-10-QA43-codex-ui-polish/`。
   I2(需 max-context 数据)、E5 整段高度动画、F3(单项下拉价值低)、
   J2(文件产物 chips)、J4(独立归档视图)、J5(通知条)、D1(需后端契约)、
   I3(缺真实 limit 数据)、Z1(终局 QA-43)。
+
+## K 组 · 四镜头审查发现(R1-R4,2026-07-10 深夜)
+
+四个只读审查子 Agent(R1 结构/R2 视觉/R3 交互/R4 边角真实性)驱动真实 app
+逐面挑刺,约 40 条。**A 相(已修,主线亲手)**——诚实性/正确性集群:
+- [R4-1] ✅ subagent 误判:`sid.includes("-sub-")` 命中标题含"sub"的顶层
+  会话→假只读徽标+死链+藏 composer;改判 `-sub-call_` 真子会话格式。
+- [R4-2] ✅ 后端 firstLine 按字节切中文→乱码 `��`;改按 rune 截断(runs.go)。
+- [R4-3] ✅ driver 迭代 chip 泄漏裸 JSON verdict + "completed·completed"
+  重复;新增 verdictLabel humanize + friendlyStatus 归一。
+- [R4-4/R3-10] ✅ limit_exceeded chip 泄漏 `tokens: 0/500`/`generation_steps`
+  裸枚举且自相矛盾;走 friendlyStatus + "capped at N" 措辞。
+- [R4-6] ✅ "Worked for 90m 31s" 把排队/空闲计入;改从 generation_started
+  起算(TurnItem.ts),且任何 input(user/runtime 注入如 unix-socket)重置
+  turn 边界。真验 90m→3s。
+- [R4-7] ✅ stranded 会话对 GUI 用户弹 CLI 专属报错;webui 侧 guiReason
+  改写 auto-deny 文案(不动后端,免污染 CLI)。
+- [R4-8] ✅ chip 泄漏裸活动 id `activity cancelled revive-cmd-...`→"Wake-up
+  cancelled"。
+- [R2-7] ✅ 成功 chip 灰、失败有色的不对称;goal check/achieved 走 .chip.good。
+- [R3-3] ✅ 错误 chip 里 sha256 长串窄屏溢出;.chip overflow-wrap:anywhere。
+- [R1-6b] ✅ header 文件夹图标→文档图标(FileText),对齐 Codex thread。
+
+**B 相(待派 worktree 切片)** 视觉 CSS:R2-1 composer 卡暗色硬编码边框、
+R2-2 env-strip 拼缝、R2-3 选中色统一、R2-4 弹窗 max-height、R2-5 show
+system events 图标、R2-6 AGENTS 空态图标、R2-8~12、R3-1 右键/hover 互斥、
+R3-2 "No all work" 语法、R3-5 closed composer 提示、R3-6 Commit 按钮文案、
+R3-7/R2-10 预览卡全标题、R3-8 移动端菜单顶部遮挡、R3-11 cmdk 空态盒、
+R1-5 session 权限 pill、R4-5 untracked 目录改动可复核、R4-10 空气泡、
+R4-11 空会话空态、R2-1 box-shadow 暗色。
+**C 相(结构,单独精修)**:R1-1 正文列宽/面板不跳栏、R1-2 Changes 整屏→
+右 split、R1-3 右面板默认常显、R1-4 Supervision 显已完成 goal。

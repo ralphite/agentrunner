@@ -2604,3 +2604,14 @@ outputting pre-fail"）。归档 qa/runs/2026-07-10-INC39。
 **方法记档**：回流消息是 fold 派生投影非独立事件——B 闸断言必须用
 `ar events --state` 的 conversation，grep 原始 journal 会误判
 （首验踩过，README 记档）。
+## 2026-07-10 深夜 INC-41 批3-A:四镜头审查 + 诚实性修复集群
+
+四只读审查子 Agent(R1 结构/R2 视觉/R3 交互/R4 边角真实性)驱动真实 app
+逐面挑刺约 40 条(证据 rev1-4-*.png,gitignored)。A 相亲手修 10 条
+正确性/诚实性 bug(见 INC-41-BACKLOG.md K 组):subagent 误判(藏 composer
++死链)、中文标题乱码(后端 rune 截断)、driver verdict 裸 JSON、limit 裸
+枚举、"Worked 90m"排队时间、CLI 报错弹给 GUI 用户、活动 id 泄漏、成功
+chip 无色、错误 chip 溢出、header 图标。整树 91 vitest 绿(+2 守卫)、
+tsc/build/go build 绿;真浏览器 5/5 断言(subagent 修复/duration 90m→3s/
+verdict 无裸 JSON)+ 全表面 sweep console 0。B 相(视觉 CSS ~22 条)、
+C 相(结构 4 条)转 worktree 切片续推。

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Archive, ArrowClockwise, ArrowLeft, ChatCircle, Check, CheckCircle, Crosshair, DotsThree, Files, Flag, Folder, GitFork, LinkSimple, Pause, PencilSimple, Play, Prohibit, PushPin, Robot, SidebarSimple, Stop, Trash, UsersThree, WarningCircle, X, XCircle } from "@phosphor-icons/react";
+import { Archive, ArrowClockwise, ArrowLeft, ChatCircle, Check, CheckCircle, Crosshair, DotsThree, FileText, Files, Flag, GitFork, LinkSimple, Pause, PencilSimple, Play, Prohibit, PushPin, Robot, SidebarSimple, Stop, Trash, UsersThree, WarningCircle, X, XCircle } from "@phosphor-icons/react";
 import "../styles.panel.css";
 import { AR } from "../api";
 import { useStore } from "../store";
@@ -36,7 +36,13 @@ function fmtTokens(n: number): string {
 export function SessionView({ sid }: { sid: string }) {
   const { select, openModal, toast, showSys, toggleSys, sessions, sessionsReady, archived, toggleArchive, pinned, togglePin, renames, health, refreshHealth } =
     useStore();
-  const isSub = sid.includes("-sub-");
+  // A real sub-agent session id is `<parent>-sub-call_<callId>-<suffix>` — the
+  // `-sub-call_` marker is what the daemon appends. Plain `-sub-` also matches
+  // top-level sessions whose TITLE slug happens to contain "sub" (e.g.
+  // "…-worker-sub-agent-4886"), which wrongly flagged them read-only, showed a
+  // dead "Back to parent" link, and hid the composer (R4-1).
+  const subMarker = "-sub-call_";
+  const isSub = sid.includes(subMarker);
   const sessionMeta = sessions.find((s) => s.id === sid);
   const title = sessionsReady ? displayTitle(renames, sid, sessionMeta?.title) : "Loading task…";
 
@@ -455,12 +461,12 @@ export function SessionView({ sid }: { sid: string }) {
       )}
       <header className="task-topbar">
         {isSub && (
-          <button className="topbar-icon" onClick={() => select(sid.slice(0, sid.lastIndexOf("-sub-")))} title="Back to parent task">
+          <button className="topbar-icon" onClick={() => select(sid.slice(0, sid.lastIndexOf(subMarker)))} title="Back to parent task">
             <ArrowLeft size={16} />
           </button>
         )}
         <div className="tt-left">
-          <Folder size={17} />
+          <FileText size={17} />
           <div className="tt-title" title={`${sessions.find((s) => s.id === sid)?.title || title}\n${sid}`}>{title}</div>
           {isSub && <span className="readonly-tag">Read-only subtask</span>}
         </div>

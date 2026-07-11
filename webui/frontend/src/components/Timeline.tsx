@@ -815,7 +815,10 @@ export function TimelineView({
       else next.add(id);
       return next;
     });
-  const durations = completedTurnDurations(visible, active);
+  // Pass the FULL item list (incl. hidden "turn" markers) so the duration is
+  // measured from generation_started, not the user message (R4-6). Keys land
+  // on assistant items that also exist in `visible`, so foldWork still matches.
+  const durations = completedTurnDurations(items, active);
   // W2: settled turns collapse their work behind "Worked for N ⌄"; the
   // developer (showSys) view stays flat and raw.
   const nodes: RenderNode[] = showSys ? visible : foldWork(visible, durations, active);

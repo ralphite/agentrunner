@@ -8,6 +8,29 @@ function fmtTok(n: number): string {
   return (n / 1_000_000).toFixed(1) + "M";
 }
 
+// verdictLabel humanizes a driver iteration verdict object into a compact
+// phrase instead of dumping raw JSON into a chip (R4-3): {pass,score,detail}
+// → "passed · score 1 · exit=0".
+export function verdictLabel(v: any): string {
+  if (v == null || typeof v !== "object") return String(v ?? "");
+  const bits: string[] = [];
+  if (typeof v.pass === "boolean") bits.push(v.pass ? "passed" : "failed");
+  if (v.score !== undefined && v.score !== null) bits.push(`score ${v.score}`);
+  if (v.detail) bits.push(String(v.detail));
+  return bits.length ? bits.join(" · ") : "";
+}
+
+// guiReason rewrites the backend's CLI-oriented non-interactive auto-deny
+// reason (which tells the user to run `agentrunner new` / set env vars) into
+// wording that fits the web UI, where a Resume button is already on screen
+// (R4-7). Other reasons pass through unchanged.
+export function guiReason(reason: string): string {
+  if (/non-interactive/i.test(reason) && /auto-?denied/i.test(reason)) {
+    return "needs approval, but this run started non-interactively — press Resume to continue and approve here";
+  }
+  return reason;
+}
+
 // A single tool activity, resolved from its started/completed/failed/cancelled
 // events into one card.
 export interface ToolItem {
@@ -47,6 +70,7 @@ export interface TurnItem {
   kind: "turn";
   key: string;
   gen: number;
+  ts?: string; // generation_started time — the real work-start of the turn
 }
 
 export interface ChipItem {
@@ -102,19 +126,35 @@ export function formatWorkDuration(ms: number): string {
 // duration rows. The active final segment stays unlabelled until it settles.
 export function completedTurnDurations(items: TimelineItem[], active: boolean): Map<string, number> {
   const out = new Map<string, number>();
-  let started: number | null = null;
+  let userStart: number | null = null; // user-message time (fallback start)
+  let genStart: number | null = null; // first generation_started (preferred)
   let final: { key: string; at: number } | null = null;
   const flush = () => {
-    if (started !== null && final && final.at >= started) out.set(final.key, final.at - started);
-    started = null;
+    // Measure from when work actually STARTS — the first generation_started
+    // after the user message — so queue/idle/stranded gaps don't inflate
+    // "Worked for …" (R4-6). Fall back to the user message when no
+    // generation marker is present (e.g. a pure chat reply).
+    const start = genStart ?? userStart;
+    if (start !== null && final && final.at >= start) out.set(final.key, final.at - start);
+    userStart = null;
+    genStart = null;
     final = null;
   };
   for (const item of items) {
-    if (item.kind === "user" && !item.peerSession) {
+    // Any incoming input starts a fresh turn — a human message (user) OR an
+    // injected one (runtime: goal continuation, agent mail, socket send). Both
+    // reset the clock; otherwise a non-human-sourced input (e.g. source
+    // "unix-socket") fails to break the turn and its long idle gap merges into
+    // the previous turn's "Worked for …" (R4-6).
+    if ((item.kind === "user" && !item.peerSession) || item.kind === "runtime") {
       flush();
       const at = item.ts ? new Date(item.ts).getTime() : NaN;
-      started = Number.isFinite(at) ? at : null;
-    } else if (item.kind === "assistant" && started !== null && item.ts) {
+      userStart = Number.isFinite(at) ? at : null;
+      genStart = null;
+    } else if (item.kind === "turn" && genStart === null) {
+      const at = item.ts ? new Date(item.ts).getTime() : NaN;
+      if (Number.isFinite(at)) genStart = at;
+    } else if (item.kind === "assistant" && (genStart ?? userStart) !== null && item.ts) {
       const at = new Date(item.ts).getTime();
       if (Number.isFinite(at)) final = { key: item.key, at };
     }
@@ -320,7 +360,7 @@ export function foldEvents(events: Envelope[]): Folded {
       }
       case "generation_started":
         lastGen = p.gen_step || lastGen + 1;
-        push({ kind: "turn", key: "t" + seq, gen: lastGen });
+        push({ kind: "turn", key: "t" + seq, gen: lastGen, ts: env.ts });
         status = { text: "running", cls: "run" };
         break;
       case "assistant_message": {
@@ -384,7 +424,7 @@ export function foldEvents(events: Envelope[]): Folded {
           t.statusText = "cancelled";
           if (p.partial_output) t.partial = p.partial_output;
         } else {
-          workChip(seq, "activity cancelled " + p.activity_id, "warn");
+          workChip(seq, "Wake-up cancelled", "warn");
         }
         break;
       }
@@ -436,10 +476,10 @@ export function foldEvents(events: Envelope[]): Folded {
         isDriver = true;
         chip(
           seq,
-          `Iteration ${p.iter} completed · ${p.child_reason || ""}${
-            p.verdict ? " · " + JSON.stringify(p.verdict) : ""
+          `Iteration ${p.iter} · ${friendlyStatus(p.child_reason || "completed").text}${
+            p.verdict ? " · " + verdictLabel(p.verdict) : ""
           }`,
-          "good",
+          p.verdict && p.verdict.pass === false ? "warn" : "good",
         );
         break;
       case "iteration_skipped":
@@ -450,9 +490,9 @@ export function foldEvents(events: Envelope[]): Folded {
         isDriver = true;
         chip(
           seq,
-          `■ driver ${p.reason || "done"} · ${p.iterations || 0} iteration(s)${
-            p.best_iter ? " · best #" + p.best_iter : ""
-          }`,
+          `Scheduled run finished · ${friendlyStatus(p.reason || "done").text} · ${p.iterations || 0} iteration${
+            (p.iterations || 0) === 1 ? "" : "s"
+          }${p.best_iter ? " · best #" + p.best_iter : ""}`,
           p.reason === "satisfied" ? "good" : "warn",
         );
         status = { text: p.reason === "satisfied" ? "satisfied" : "done", cls: "closed" };
@@ -471,10 +511,13 @@ export function foldEvents(events: Envelope[]): Folded {
         const a = approvals.get(p.approval_id);
         if (a) a.resolved = { decision: p.decision, reason: p.reason, source: p.source };
         // Leave a durable audit line in the feed (approve otherwise just
-        // vanishes with no record).
+        // vanishes with no record). The backend's non-interactive auto-deny
+        // reason is written for the CLI ("use `agentrunner new`…, set
+        // AGENTRUNNER_APPROVE=…"); in the web UI that advice is wrong — the
+        // user is already here with a Resume button — so rewrite it (R4-7).
         workChip(
           seq,
-          `${p.decision === "approve" ? "Approved" : "Denied"}${p.reason ? " · " + p.reason : ""}`,
+          `${p.decision === "approve" ? "Approved" : "Denied"}${p.reason ? " · " + guiReason(p.reason) : ""}`,
           p.decision === "approve" ? "good" : "warn",
         );
         break;
@@ -555,7 +598,7 @@ export function foldEvents(events: Envelope[]): Folded {
         chip(seq, "goal cancelled", "warn");
         break;
       case "goal_checkpoint":
-        workChip(seq, `goal check ${p.check || "?"}${p.pass ? " · pass" : " · not met"}`, p.pass ? undefined : "warn");
+        workChip(seq, `Goal check ${p.check || "?"}${p.pass ? " · passed" : " · not met"}`, p.pass ? "good" : "warn");
         break;
       case "goal_achieved":
         // reason=budget means the check budget ran out — a visible STOP,
@@ -565,16 +608,21 @@ export function foldEvents(events: Envelope[]): Folded {
         } else if (p.reason === "cancelled") {
           chip(seq, "goal detached · cancelled", "warn");
         } else {
-          chip(seq, `goal achieved · ${p.reason || "satisfied"} (${p.checks} check(s))`);
+          chip(seq, `Goal achieved · ${p.reason || "satisfied"} (${p.checks} check${p.checks === 1 ? "" : "s"})`, "good");
         }
         break;
       case "limit_exceeded":
         // A user interrupt is modeled as limit_exceeded{kind:interrupted} —
         // don't dress it up as a budget overrun.
         if (p.kind === "interrupted" || p.kind === "canceled" || p.kind === "cancelled") {
-          chip(seq, "stopped (you interrupted this turn)", "warn");
+          chip(seq, "Stopped — you interrupted this turn", "warn");
         } else {
-          chip(seq, `limit exceeded ${p.kind}: ${p.used}/${p.limit}`, "bad");
+          // Say what the limit MEANS (friendlyStatus maps tokens/steps/etc. to a
+          // human label) instead of leaking `generation_steps: 1/1`, and don't
+          // show a bare "0/limit" for a pre-flight block that read as
+          // "barely used" while also saying "exceeded" (R4-4).
+          const lbl = friendlyStatus(p.kind || "limit").text;
+          chip(seq, p.limit ? `${lbl} — capped at ${p.limit}` : lbl, "bad");
         }
         break;
       case "generation_discarded":
