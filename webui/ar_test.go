@@ -200,6 +200,56 @@ func TestHandleDiffNestedWorkspace(t *testing.T) {
 	}
 }
 
+func TestHandleSessionFileDownloadConfinesWorkspace(t *testing.T) {
+	ws := t.TempDir()
+	outside := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(ws, "docs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ws, "docs", "report.md"), []byte("QA45_DOWNLOAD_OK\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(outside, "secret.txt"), []byte("outside\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(outside, "secret.txt"), filepath.Join(ws, "escape.txt")); err != nil {
+		t.Fatal(err)
+	}
+
+	const id = "20260710-000000-task-0001"
+	s := &server{meta: newMetaStore("")}
+	s.meta.set(id, ws, "download")
+
+	request := func(path string) *httptest.ResponseRecorder {
+		t.Helper()
+		req := httptest.NewRequest("GET", "/api/sessions/x/file?path="+path, nil)
+		req.SetPathValue("sid", id)
+		rec := httptest.NewRecorder()
+		s.handleSessionFile(rec, req)
+		return rec
+	}
+
+	good := request("docs%2Freport.md")
+	if good.Code != http.StatusOK || good.Body.String() != "QA45_DOWNLOAD_OK\n" {
+		t.Fatalf("good download = %d %q", good.Code, good.Body.String())
+	}
+	if got := good.Header().Get("Content-Disposition"); !strings.Contains(got, "report.md") {
+		t.Fatalf("missing attachment filename: %q", got)
+	}
+	for name, path := range map[string]string{
+		"absolute":       filepath.ToSlash(filepath.Join(ws, "docs", "report.md")),
+		"traversal":      "..%2Fsecret.txt",
+		"directory":      "docs",
+		"symlink escape": "escape.txt",
+	} {
+		t.Run(name, func(t *testing.T) {
+			if rec := request(path); rec.Code < 400 {
+				t.Fatalf("unsafe path %q returned %d", path, rec.Code)
+			}
+		})
+	}
+}
+
 // TestNewRuntimeDirNaming pins W2: auto-created workspaces get readable,
 // sortable names (ws-YYYYMMDD-HHMMSS), not raw nanosecond stamps, and a
 // same-second collision picks a -2 suffix instead of clobbering.

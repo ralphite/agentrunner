@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
-import { CalendarDots, Plus, ArrowUpRight, MagnifyingGlass, Check } from "@phosphor-icons/react";
+import { CalendarDots, Plus, ArrowUpRight, MagnifyingGlass, Check, CaretDown, Crosshair, ArrowsClockwise, Stack, Play } from "@phosphor-icons/react";
 import { useStore } from "../store";
 import { friendlyStatus } from "./pill";
 import { projectLabel, scheduleLabel, scheduledUnread } from "../viewModels";
 import { relTime, sessionDate } from "../time";
+import { Menu, MenuItem, MenuLabel } from "./Menu";
 
 type Filter = "all" | "active" | "completed";
 
@@ -104,12 +105,30 @@ export function Scheduled() {
       <div className="page-heading">
         <div>
           <span className="page-eyebrow"><CalendarDots size={16} /> Scheduled</span>
-          <h2>Scheduled work</h2>
-          <p>Goals and repeating tasks stay visible here, including after a restart.</p>
+          <h2>Scheduled tasks</h2>
+          <p>Ask AgentRunner to schedule tasks, set goals, or monitor for updates.</p>
         </div>
-        <button className="primary page-action" onClick={() => openModal({ kind: "run" })}>
-          <Plus size={15} /> New schedule
-        </button>
+        <div className="scheduled-create">
+          <Menu
+            ariaLabel="Create scheduled work"
+            triggerClassName="page-action"
+            label={<><Plus size={15} /> Create <CaretDown size={13} /></>}
+          >
+            <MenuLabel>Create</MenuLabel>
+            <MenuItem onClick={() => openModal({ kind: "run", preset: "one-time" })}>
+              <Play size={15} /><span><b>One-time task</b><small>Run once in the background</small></span>
+            </MenuItem>
+            <MenuItem onClick={() => openModal({ kind: "run", preset: "goal" })}>
+              <Crosshair size={15} /><span><b>Goal</b><small>Keep working until verified</small></span>
+            </MenuItem>
+            <MenuItem onClick={() => openModal({ kind: "run", preset: "repeating" })}>
+              <ArrowsClockwise size={15} /><span><b>Repeating</b><small>Run on an interval or cron schedule</small></span>
+            </MenuItem>
+            <MenuItem onClick={() => openModal({ kind: "run", preset: "best-of-n" })}>
+              <Stack size={15} /><span><b>Best of N</b><small>Run isolated attempts and select the best</small></span>
+            </MenuItem>
+          </Menu>
+        </div>
       </div>
 
       {!totalEmpty && (

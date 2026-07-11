@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { X } from "@phosphor-icons/react";
 import { AR } from "../api";
 import { useStore, type ModalKind } from "../store";
+import { runPresetDefaults, type RunPreset } from "../runPreset";
 import type { SpecFile } from "../types";
 import { DEFAULT_DRIVER, DEFAULT_DRIVER_AGENT, DEFAULT_SPEC, DEFAULT_WORKER } from "../specs";
 import { displayTitle } from "../title";
@@ -92,7 +93,7 @@ function MainModal({ modal }: { modal: NonNullable<ModalKind> }) {
     case "new":
       return <NewSessionModal initialMessage={modal.message} />;
     case "run":
-      return <RunModal initialTask={modal.task} />;
+      return <RunModal initialTask={modal.task} preset={modal.preset} />;
     case "fork":
       return <ForkModal sid={modal.sid} />;
     case "agent":
@@ -327,17 +328,18 @@ function withDriverTask(driver: string, task: string): string {
   return kept.join("\n").replace(/\n+$/, "") + `\ntask: ${JSON.stringify(task.trim())}\n`;
 }
 
-function RunModal({ initialTask }: { initialTask?: string }) {
+function RunModal({ initialTask, preset = "one-time" }: { initialTask?: string; preset?: RunPreset }) {
   const { openModal, selectRun, refreshRuns, toast } = useStore();
   const { ws, setWs, ensure, choose } = useWorkspace();
-  const [kind, setKind] = useState<"submit" | "drive">("submit");
+  const presetDefaults = runPresetDefaults(preset);
+  const [kind, setKind] = useState<"submit" | "drive">(presetDefaults.kind);
   const [task, setTask] = useState(initialTask || "");
   const [mode, setMode] = useState("");
   const [idem, setIdem] = useState("");
   const [spec, setSpec] = useState(DEFAULT_SPEC);
   const [driver, setDriver] = useState(DEFAULT_DRIVER);
   const [driverAgent, setDriverAgent] = useState(DEFAULT_DRIVER_AGENT);
-  const [schedule, setSchedule] = useState("immediate");
+  const [schedule, setSchedule] = useState<"immediate" | "interval" | "cron" | "parallel">(presetDefaults.schedule);
   const [interval, setInterval] = useState("5m");
   const [cron, setCron] = useState("0 * * * *");
   const [nAttempts, setNAttempts] = useState(3);
@@ -381,11 +383,11 @@ function RunModal({ initialTask }: { initialTask?: string }) {
       }
     >
       <label className="field">Run type</label>
-      <div className="seg">
-        <button className={kind === "submit" ? "on" : ""} onClick={() => setKind("submit")} title="one-shot task: a fresh session runs the task once and completes">
+      <div className="seg" role="group" aria-label="Run type">
+        <button aria-pressed={kind === "submit"} className={kind === "submit" ? "on" : ""} onClick={() => setKind("submit")} title="one-shot task: a fresh session runs the task once and completes">
           One-time
         </button>
-        <button className={kind === "drive" ? "on" : ""} onClick={() => setKind("drive")} title="iterative driver: child runs repeat per driver.yaml (goal / loop / best-of-N)">
+        <button aria-pressed={kind === "drive"} className={kind === "drive" ? "on" : ""} onClick={() => setKind("drive")} title="iterative driver: child runs repeat per driver.yaml (goal / loop / best-of-N)">
           Goal or repeating
         </button>
       </div>
@@ -420,7 +422,7 @@ function RunModal({ initialTask }: { initialTask?: string }) {
         <>
           <label className="field">Schedule</label>
           <div className="row-flex">
-            <select value={schedule} onChange={(e) => setSchedule(e.target.value)} title="how iterations are paced">
+            <select value={schedule} onChange={(e) => setSchedule(e.target.value as "immediate" | "interval" | "cron" | "parallel")} title="how iterations are paced">
               <option value="immediate">Goal — work until verified</option>
               <option value="interval">Repeat every…</option>
               <option value="cron">Cron schedule…</option>

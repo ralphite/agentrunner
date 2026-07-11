@@ -40,6 +40,7 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/sessions/{sid}/barrier", s.handleBarrier)
 	mux.HandleFunc("GET /api/sessions/{sid}/diff", s.handleDiff)
 	mux.HandleFunc("GET /api/sessions/{sid}/files", s.handleFiles)
+	mux.HandleFunc("GET /api/sessions/{sid}/file", s.handleSessionFile)
 	mux.HandleFunc("POST /api/sessions/{sid}/commit", s.handleCommit)
 	mux.HandleFunc("POST /api/sessions/{sid}/git-init", s.handleGitInit)
 	mux.HandleFunc("GET /api/sessions/{sid}/stream", s.handleStream)

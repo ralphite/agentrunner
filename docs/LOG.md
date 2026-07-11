@@ -2944,3 +2944,20 @@ cancelled 自主决策 CHOSE-A-MYSELF。归档 qa/runs/2026-07-11-INC47。
 裁量（未改产品）。fold AskResolved 渲染曾漏更新（孪生 request-drift
 抓出 {"answer":""}），修齐 answers/cancelled 三态。步2（webui 分步
 表单卡 + send 返回 command_id + queued 撤回按钮）下轮。
+
+## 2026-07-10 INC-41 QA-45：Codex common UX completion audit
+
+不再按静态截图猜 UI：用共享 daemon/store 真 session 逐条跑 New task、实时
+Thinking、approval（wide+390）、goal、Changes、Scheduled、Settings Archived、
+daemon-offline、background worker。修复真实发现：Thinking accessibility 重复；
+limit/failed 无人话恢复；goal update 在 safe boundary 前跳回旧文案；document
+chip 假 download；Archived 无管理面；Home 自创 hero 偏离用户“strict Codex”
+裁决。New task 现按用户提供的 Codex project-picker 同状态截图校到宽底部 composer，
+AgentRunner 品牌只留 sidebar；独有 Supervision 继续用同一视觉语言。
+
+后端只新增安全 GET `/api/sessions/{sid}/file?path=`：relative regular file、
+64MiB 上限、absolute/traversal/directory/symlink escape 全拒；J2 的 VS Code/
+Finder/Terminal launcher 仍不画。真实 QA 另起 `qa45_bg` worker，仅观察不 kill；
+goal_status approval 保留待用户决策。前端 101 tests、webui Go tests/build 全绿，
+browser console warn/error=0；证据 `qa/runs/2026-07-10-QA45-perfect-ux-audit/`。
+D1 Last turn 与 I2 context occupancy 仍按底座依赖锁住/裁掉，不伪造。

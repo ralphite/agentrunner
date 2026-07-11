@@ -8,6 +8,7 @@ import {
   GitBranch,
   TreeStructure,
   SlidersHorizontal,
+  Archive,
 } from "@phosphor-icons/react";
 import { matchesQuery } from "./SettingsSearch";
 import { SettingsGeneral } from "./SettingsGeneral";
@@ -16,12 +17,13 @@ import { SettingsShortcuts } from "./SettingsShortcuts";
 import { SettingsGit } from "./SettingsGit";
 import { SettingsWorktrees } from "./SettingsWorktrees";
 import { SettingsConfiguration } from "./SettingsConfiguration";
+import { SettingsArchived } from "./SettingsArchived";
 
 // Settings is Codex's full-window Settings surface (INC-41 H1): a left nav rail
 // (grouped sections + "Search settings…"), a "← Back to app" affordance, and a
 // single content pane. Opened with ⌘, and closed with Escape / Back. Each
 // section is its own panel component so panels stay independently owned.
-export type SettingsSection = "general" | "appearance" | "shortcuts" | "git" | "worktrees" | "configuration";
+export type SettingsSection = "general" | "appearance" | "shortcuts" | "git" | "worktrees" | "configuration" | "archived";
 
 interface SectionDef {
   id: SettingsSection;
@@ -38,6 +40,7 @@ const SECTIONS: SectionDef[] = [
   { id: "git", label: "Git", group: "Coding", icon: GitBranch, keywords: "commit branch prefix pull request merge" },
   { id: "worktrees", label: "Worktrees", group: "Coding", icon: TreeStructure, keywords: "workspace repo conversations" },
   { id: "configuration", label: "Configuration", group: "Coding", icon: SlidersHorizontal, keywords: "version runtime daemon policy sandbox" },
+  { id: "archived", label: "Archived tasks", group: "Archived", icon: Archive, keywords: "tasks conversations history project search unarchive restore" },
 ];
 
 export function Settings({ onClose, initialSection = "appearance" }: { onClose: () => void; initialSection?: SettingsSection }) {
@@ -50,7 +53,7 @@ export function Settings({ onClose, initialSection = "appearance" }: { onClose: 
     searchRef.current?.focus();
   }, []);
 
-  const visible = useMemo(() => SECTIONS.filter((s) => matchesQuery(query, `${s.label} ${s.group} ${s.keywords}`)), [query]);
+  const visible = useMemo(() => SECTIONS.filter((s) => s.id === section || matchesQuery(query, `${s.label} ${s.group} ${s.keywords}`)), [query, section]);
 
   // If a search hides the active section, follow the first remaining one so the
   // pane never shows a section the rail no longer lists.
@@ -136,6 +139,7 @@ export function Settings({ onClose, initialSection = "appearance" }: { onClose: 
           {active === "git" && <SettingsGit query={query} />}
           {active === "worktrees" && <SettingsWorktrees query={query} />}
           {active === "configuration" && <SettingsConfiguration query={query} />}
+          {active === "archived" && <SettingsArchived query={query} onClose={onClose} />}
         </div>
       </main>
     </div>

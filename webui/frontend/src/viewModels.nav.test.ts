@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSidebarModel, scheduledUnread } from "./viewModels";
+import { buildArchivedModel, buildSidebarModel, scheduledUnread } from "./viewModels";
 import type { Session } from "./types";
 
 const opts = (over: Partial<Parameters<typeof buildSidebarModel>[1]>) => ({
@@ -67,5 +67,20 @@ describe("scheduled unread (E3 / F2)", () => {
 
   it("is empty when nothing is unread", () => {
     expect(scheduledUnread(sessions, [])).toEqual([]);
+  });
+});
+
+describe("archived settings model (J4)", () => {
+  const sessions: Session[] = [
+    { id: "a", status: "completed", turns: 1, title: "Alpha task", workspace: "/repo/one" },
+    { id: "b", status: "completed", turns: 1, title: "Beta task", workspace: "/repo/two" },
+    { id: "c", status: "completed", turns: 1, title: "Gamma task", workspace: "/repo/one" },
+  ];
+
+  it("contains only archived tasks and keeps project grouping/search", () => {
+    const model = buildArchivedModel(sessions, ["a", "b"], "alpha", (session) => session.title || session.id);
+    expect(model.pinned).toEqual([]);
+    expect(model.projects).toHaveLength(1);
+    expect(model.projects[0].sessions.map((session) => session.id)).toEqual(["a"]);
   });
 });

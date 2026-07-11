@@ -29,7 +29,7 @@ function docKind(path: string): { ext: string; label: string } | null {
   return label ? { ext, label } : null;
 }
 
-function ArtifactChips({ files }: { files: FileDiffSummary[] }) {
+function ArtifactChips({ sid, files }: { sid: string; files: FileDiffSummary[] }) {
   const docs: { file: FileDiffSummary; ext: string; label: string }[] = [];
   for (const file of files) {
     const kind = docKind(file.path);
@@ -47,16 +47,15 @@ function ArtifactChips({ files }: { files: FileDiffSummary[] }) {
               <span className="text-[13px] font-[550] text-ink overflow-hidden text-ellipsis whitespace-nowrap" title={file.path}>{base}</span>
               <span className="text-[11px] text-dim">{label} · {ext.toUpperCase()}</span>
             </div>
-            {/* No workspace file-read endpoint exists yet, so Download stays
-                dimmed with an explanatory tooltip rather than faking a link. */}
-            <span
-              className="grid place-items-center w-[30px] h-[30px] shrink-0 rounded-[8px] text-dim opacity-[0.42] cursor-not-allowed"
-              role="button"
-              aria-disabled="true"
-              title="Download isn't available yet — the workspace file API isn't wired up. Use Review to see the change."
+            <a
+              className="grid place-items-center w-[30px] h-[30px] shrink-0 rounded-[8px] text-ink-2 hover:bg-panel-2 hover:text-ink"
+              href={AR.fileURL(sid, file.path)}
+              download={base}
+              aria-label={`Download ${base}`}
+              title="Download a copy"
             >
               <DownloadSimple size={16} />
-            </span>
+            </a>
           </div>
         );
       })}
@@ -83,7 +82,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
   const shown = summary.files.slice(0, 6);
   return (
     <>
-      <ArtifactChips files={summary.files} />
+      <ArtifactChips sid={sid} files={summary.files} />
       <section className="changes-outcome" aria-label="Workspace changes">
         <header>
           <span className="changes-outcome-icon"><Files size={18} /></span>

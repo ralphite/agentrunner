@@ -43,3 +43,66 @@ export function friendlyStatus(raw: string): { text: string; cls: string } {
     return { text: "Ready", cls: "idle" };
   return { text: raw || "Unknown", cls: pillClass(raw || "") };
 }
+
+export interface TerminalNotice {
+  title: string;
+  body: string;
+  tone: "attention" | "danger";
+  action: "continue" | "resume" | "inspect";
+  actionLabel: string;
+}
+
+// terminalNoticeFor turns an abnormal durable session status into an honest
+// next-step banner. It intentionally does not invent provider reset times,
+// purchasable credits, or a retry that the runtime cannot actually perform.
+export function terminalNoticeFor(raw: string, driver = false): TerminalNotice | null {
+  const s = (raw || "").toLowerCase();
+  if (s.includes("limit_exceeded") || s.includes("budget") || s.includes("max_tokens") || s.includes("token limit")) {
+    return {
+      title: "Budget limit reached",
+      body: driver
+        ? "This scheduled run stopped at its configured token budget. Review the run before changing its limits."
+        : "This task stopped at its configured token budget. Continue from a checkpoint in a new task with a larger budget.",
+      tone: "attention",
+      action: driver ? "inspect" : "continue",
+      actionLabel: driver ? "Run details" : "Continue in new task",
+    };
+  }
+  if (s.includes("max_iterations")) {
+    return {
+      title: "Iteration limit reached",
+      body: "The scheduled run completed its configured number of iterations. Review the run before extending it.",
+      tone: "attention",
+      action: "inspect",
+      actionLabel: "Run details",
+    };
+  }
+  if (s.includes("max_generation_steps") || s.includes("step limit")) {
+    return {
+      title: "Step limit reached",
+      body: "The task stopped at its configured generation-step limit. Review the run or continue from a checkpoint.",
+      tone: "attention",
+      action: driver ? "inspect" : "continue",
+      actionLabel: driver ? "Run details" : "Continue in new task",
+    };
+  }
+  if (s.includes("strand") || s.includes("interrupt")) {
+    return {
+      title: "Task needs recovery",
+      body: "The previous host stopped before this task reached a durable terminal state. Resume from its last checkpoint.",
+      tone: "attention",
+      action: "resume",
+      actionLabel: "Resume task",
+    };
+  }
+  if (s.includes("crash") || s.includes("error") || s.includes("fail")) {
+    return {
+      title: "Task failed",
+      body: "The last run ended unexpectedly. Review the recorded run details before deciding whether to retry.",
+      tone: "danger",
+      action: "inspect",
+      actionLabel: "Run details",
+    };
+  }
+  return null;
+}

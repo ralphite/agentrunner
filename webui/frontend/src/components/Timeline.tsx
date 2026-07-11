@@ -892,7 +892,7 @@ export function TimelineView({
         {typing && (
           <div className="msg assistant">
             <div className="avatar a"><Robot size={14} weight="bold" /></div>
-            <div className="bubble typing">{typing}</div>
+            <div className="bubble typing" role="status" aria-label="Thinking" />
           </div>
         )}
         {pending.map((p) => (

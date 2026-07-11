@@ -67,6 +67,8 @@ export const AR = {
     api<{ workspace: string; known: boolean; files: string[] }>(
       `/sessions/${sid}/files?q=${encodeURIComponent(q)}`,
     ),
+  fileURL: (sid: string, path: string) =>
+    `/api/sessions/${encodeURIComponent(sid)}/file?path=${encodeURIComponent(path)}`,
   diff: (sid: string) => api<DiffResp>(`/sessions/${sid}/diff`),
   commit: (sid: string, message: string) =>
     post<{ status: string }>(`/sessions/${sid}/commit`, { message }),

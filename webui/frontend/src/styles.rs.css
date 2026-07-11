@@ -668,3 +668,28 @@ html body {
 .rs-textarea::-webkit-resizer {
   display: none;
 }
+
+/* ===== QA-45 · Archived tasks settings ===== */
+.rs-archive-empty { min-height: 220px; display: grid; place-content: center; justify-items: center; gap: 5px; color: var(--dim); text-align: center; }
+.rs-archive-empty b { color: var(--ink); font-size: 14px; }
+.rs-archive-empty span { font-size: 12.5px; }
+.rs-archive-groups { display: grid; gap: 16px; margin-top: 20px; }
+.rs-archive-group { overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.rs-archive-group > header { min-height: 42px; display: flex; align-items: center; gap: 7px; padding: 8px 12px; border-bottom: 1px solid var(--line-2); background: var(--panel-2); }
+.rs-archive-group > header b { font-size: 13px; font-weight: 600; }
+.rs-archive-group > header span { color: var(--dim); font-size: 11.5px; }
+.rs-archive-group > header small { margin-left: auto; color: var(--dim); font-size: 11.5px; }
+.rs-archive-row { display: flex; align-items: center; gap: 10px; padding: 7px 9px 7px 12px; border-top: 1px solid var(--line-2); }
+.rs-archive-row:first-of-type { border-top: 0; }
+.rs-archive-open { min-width: 0; flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 5px 3px; border: 0; background: transparent; text-align: left; }
+.rs-archive-open:hover { border-color: transparent; background: transparent; }
+.rs-archive-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rs-archive-status { color: var(--dim); font-size: 11.5px; }
+.rs-archive-status.appr, .rs-archive-status.stranded { color: var(--amber); }
+.rs-archive-status.crash { color: var(--red); }
+.rs-archive-restore { flex: 0 0 auto; padding: 5px 10px; border-radius: 8px; font-size: 12px; }
+.rs-archive-note { margin: 14px 2px 0; color: var(--dim); font-size: 11.5px; }
+@media (max-width: 640px) {
+  .rs-archive-row { align-items: stretch; flex-direction: column; gap: 4px; }
+  .rs-archive-restore { align-self: flex-end; }
+}

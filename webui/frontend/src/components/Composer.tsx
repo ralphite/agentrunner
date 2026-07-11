@@ -825,15 +825,16 @@ export function Composer(props: ComposerProps) {
     el.style.height = Math.min(el.scrollHeight, 220) + "px";
   };
 
-  const placeholder = narrow
-    ? isSession
-      ? "Ask for follow-ups"
-      : "Describe a task"
-    : isSession
-      ? "Ask for follow-up changes, or type / for commands"
-      : kind === "chat"
-        ? "Describe a task, or type / for commands"
-        : "Describe a one-shot task, or type / for commands";
+  // Match Codex's quiet primary prompts exactly. Slash commands remain
+  // discoverable by typing `/`; the placeholder should describe the user's
+  // job, not advertise implementation mechanics.
+  const placeholder = isSession
+    ? "Ask for follow-up changes"
+    : kind === "chat"
+      ? "Do anything"
+      : narrow
+        ? "Describe a background task"
+        : "Describe a background task";
 
   // Pill label: friendly name for a chosen workspace; before one exists, say
   // what will actually happen instead of the ambiguous "auto-created" (W2).

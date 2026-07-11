@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"mime"
 	"net/http"
 	"os"
 	"os/exec"
@@ -215,6 +216,62 @@ func (s *server) handleFiles(w http.ResponseWriter, r *http.Request) {
 	})
 	resp["files"] = files
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// handleSessionFile downloads one regular file from the session's workspace.
+// The browser never receives an arbitrary host path: absolute paths, traversal,
+// directories, and symlinks escaping the workspace are rejected. This is the
+// truthful subset of Codex's document "Open in" menu that the web surface can
+// support without pretending to have a desktop-app launcher.
+func (s *server) handleSessionFile(w http.ResponseWriter, r *http.Request) {
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	ws := s.meta.get(id).Workspace
+	if ws == "" {
+		http.Error(w, "session workspace is unavailable", http.StatusNotFound)
+		return
+	}
+	raw := strings.TrimSpace(r.URL.Query().Get("path"))
+	clean := filepath.Clean(raw)
+	if raw == "" || filepath.IsAbs(raw) || clean == "." || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+		badRequest(w, "path must be a file relative to the session workspace")
+		return
+	}
+	root, err := filepath.EvalSymlinks(filepath.Clean(ws))
+	if err != nil {
+		http.Error(w, "session workspace is unavailable", http.StatusNotFound)
+		return
+	}
+	target, err := filepath.EvalSymlinks(filepath.Join(root, clean))
+	if err != nil {
+		http.Error(w, "file not found", http.StatusNotFound)
+		return
+	}
+	rel, err := filepath.Rel(root, target)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		badRequest(w, "file is outside the session workspace")
+		return
+	}
+	info, err := os.Stat(target)
+	if err != nil {
+		http.Error(w, "file not found", http.StatusNotFound)
+		return
+	}
+	const maxDownload = 64 << 20
+	if !info.Mode().IsRegular() {
+		badRequest(w, "path is not a regular file")
+		return
+	}
+	if info.Size() > maxDownload {
+		http.Error(w, "file is too large to download", http.StatusRequestEntityTooLarge)
+		return
+	}
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filepath.Base(target)}))
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	http.ServeFile(w, r, target)
 }
 
 // samePath reports whether two paths name the same directory once symlinks

@@ -234,3 +234,16 @@ export function buildSidebarModel(
 
   return { pinned, projects: [...groups.values()] };
 }
+
+export function buildArchivedModel(
+  sessions: Session[],
+  archived: string[],
+  query: string,
+  titleOf: (session: Session) => string,
+): SidebarModel {
+  const archivedIds = new Set(archived);
+  return buildSidebarModel(
+    sessions.filter((session) => archivedIds.has(session.id)),
+    { pinned: [], archived: [], showArchived: true, query, titleOf },
+  );
+}

@@ -3,10 +3,11 @@ import { AR } from "./api";
 import type { Health, Run, Session } from "./types";
 import { notifyRunChanges, notifySessionChanges } from "./notify";
 import { loadTheme, nextTheme, saveTheme, type Theme } from "./theme";
+import type { RunPreset } from "./runPreset";
 
 export type ModalKind =
   | { kind: "new"; message?: string }
-  | { kind: "run"; task?: string } // submit / drive launcher
+  | { kind: "run"; task?: string; preset?: RunPreset } // submit / drive launcher
   | { kind: "fork"; sid: string }
   | { kind: "agent"; sid: string }
   | { kind: "rename"; sid: string }

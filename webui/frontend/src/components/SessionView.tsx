@@ -13,10 +13,11 @@ import { Menu, MenuItem, MenuLabel } from "./Menu";
 import type { InspectNode } from "./Subagents";
 import { SupervisionPanel } from "./SupervisionPanel";
 import { FindBar } from "./FindBar";
-import { friendlyStatus } from "./pill";
+import { friendlyStatus, terminalNoticeFor } from "./pill";
 import { displayTitle } from "../title";
 import { dedupeInspectNodes } from "../viewModels";
 import { ChangesOutcome } from "./ChangesOutcome";
+import { DaemonAlert } from "./DaemonAlert";
 
 interface SSEApproval {
   id: string;
@@ -34,7 +35,7 @@ function fmtTokens(n: number): string {
 }
 
 export function SessionView({ sid }: { sid: string }) {
-  const { select, openModal, toast, showSys, toggleSys, sessions, sessionsReady, archived, toggleArchive, pinned, togglePin, renames, health, refreshHealth } =
+  const { select, openModal, toast, showSys, toggleSys, sessions, sessionsReady, archived, toggleArchive, pinned, togglePin, renames } =
     useStore();
   // A real sub-agent session id is `<parent>-sub-call_<callId>-<suffix>` — the
   // `-sub-call_` marker is what the daemon appends. Plain `-sub-` also matches
@@ -67,26 +68,9 @@ export function SessionView({ sid }: { sid: string }) {
   // Non-null while the banner's goal text is being edited (INC-10): the value
   // is the draft; save issues a goal update (text only — verifier/budget keep).
   const [goalEdit, setGoalEdit] = useState<string | null>(null);
+  const [goalPendingUpdate, setGoalPendingUpdate] = useState<string | null>(null);
   const [view, setView] = useState<"chat" | "diff">("chat");
   const [findOpen, setFindOpen] = useState(false);
-  // J5: the daemon-offline banner's retry re-requests a daemon start (same as
-  // the sidebar footer's restart) and re-polls health so the banner clears on
-  // success. daemonDown drives the banner off the health we already poll.
-  const [retryingDaemon, setRetryingDaemon] = useState(false);
-  const daemonDown = !!health && !health.daemonUp;
-  const retryDaemon = async () => {
-    setRetryingDaemon(true);
-    try {
-      await AR.daemonStart();
-      toast("daemon start requested", "info");
-    } catch (e: any) {
-      toast(e.message);
-    }
-    setTimeout(() => {
-      refreshHealth();
-      setRetryingDaemon(false);
-    }, 800);
-  };
   const [wideViewport, setWideViewport] = useState(() => window.innerWidth > 900);
   // Supervision starts CLOSED and remembers the user's choice (W5): an empty
   // panel taking a third of the screen on every session was the single most
@@ -203,7 +187,9 @@ export function SessionView({ sid }: { sid: string }) {
     if (!g) return;
     AR.goal(sid, { action: "update", goal: g })
       .then(() => {
+        setGoalPendingUpdate(g);
         setGoalEdit(null);
+        toast("goal update queued", "info");
         return pollTasks();
       })
       .catch((e) => toast(e.message));
@@ -220,6 +206,7 @@ export function SessionView({ sid }: { sid: string }) {
     setUsage(null);
     setChildren([]);
     setGoal(null);
+    setGoalPendingUpdate(null);
     setGoalDismissedAt(null);
     setInspectReady(false);
     setLiveMode(undefined);
@@ -280,6 +267,12 @@ export function SessionView({ sid }: { sid: string }) {
   const goalTerminal = goalState ? isGoalTerminal(goalState.phase) : false;
   const [now, setNow] = useState(() => Date.now());
   const [goalDismissedAt, setGoalDismissedAt] = useState<number | null>(null);
+  useEffect(() => {
+    if (!goalPendingUpdate) return;
+    if (goalState?.goal === goalPendingUpdate || goal?.goal === goalPendingUpdate || goalTerminal) {
+      setGoalPendingUpdate(null);
+    }
+  }, [goal?.goal, goalPendingUpdate, goalState?.goal, goalTerminal]);
   useEffect(() => {
     if (!goalState || goalTerminal) return;
     setNow(Date.now());
@@ -460,6 +453,20 @@ export function SessionView({ sid }: { sid: string }) {
     },
   };
 
+  const terminalNotice = live ? null : terminalNoticeFor(listStatus || folded.status.text, isDriver);
+  const runTerminalAction = () => {
+    if (!terminalNotice) return;
+    if (terminalNotice.action === "continue") {
+      openModal({ kind: "fork", sid });
+      return;
+    }
+    if (terminalNotice.action === "resume") {
+      void act.resume();
+      return;
+    }
+    void act.view("Run details", () => AR.inspect(sid));
+  };
+
   // The inline approval card is the primary action. On roomy desktop layouts
   // Supervision may reinforce it, but narrow screens must not be covered by an
   // auto-open overlay. If we opened the panel, close it when attention clears.
@@ -482,18 +489,7 @@ export function SessionView({ sid }: { sid: string }) {
 
   return (
     <div className="session-view">
-      {daemonDown && (
-        <div className="daemon-alert" role="alert">
-          <span className="daemon-alert-ic"><WarningCircle size={17} weight="fill" /></span>
-          <div className="daemon-alert-text">
-            <b>Daemon offline</b>
-            <span>AgentRunner can't reach the daemon — live updates and actions are paused.</span>
-          </div>
-          <button type="button" className="daemon-alert-retry" onClick={retryDaemon} disabled={retryingDaemon}>
-            <ArrowClockwise size={14} /> {retryingDaemon ? "Retrying…" : "Retry"}
-          </button>
-        </div>
-      )}
+      <DaemonAlert />
       <header className="task-topbar">
         {isSub && (
           <button className="topbar-icon" onClick={() => select(sid.slice(0, sid.lastIndexOf(subMarker)))} title="Back to parent task">
@@ -527,7 +523,7 @@ export function SessionView({ sid }: { sid: string }) {
         <button className={`topbar-tool${showSupervision ? " active" : ""}`} onClick={() => {
           if (view === "diff") setView("chat");
           setSupervision(!showSupervision);
-        }} title="Show supervision">
+        }} title={showSupervision ? "Hide supervision" : "Show supervision"}>
           <UsersThree size={16} /> Supervision
           {attentionCount > 0 && <span className="topbar-attention">{attentionCount}</span>}
         </button>
@@ -626,13 +622,12 @@ export function SessionView({ sid }: { sid: string }) {
               <TimelineView
                 items={folded.items}
                 pending={pending}
-                typing={typing}
+                typing={running ? (typing || "Thinking") : typing}
                 showSys={showSys}
                 sentImages={sentImages.current}
-                statusLine={running || hasApprovals || needsRecovery ? (
+                statusLine={hasApprovals ? (
                   <div className={`run-status-line ${status.cls}`}>
-                    {running && <span className="spin" />}
-                    <span>{running ? "Working" : status.text}</span>
+                    <span>{status.text}</span>
                     {usage && usage.billed > 0 && (
                       <span title="billed tokens · model generation steps this session">
                         {fmtTokens(usage.billed)} tokens{usage.steps ? ` · ${usage.steps} steps` : ""}
@@ -660,11 +655,27 @@ export function SessionView({ sid }: { sid: string }) {
                   <ChangesOutcome sid={sid} refreshKey={events.length} onReview={() => setView("diff")} />
                 ) : undefined}
               />
+              {terminalNotice && (
+                <div className={`terminal-alert ${terminalNotice.tone}`} role="alert">
+                  <span className="terminal-alert-ic">
+                    {terminalNotice.tone === "danger" ? <XCircle size={17} weight="fill" /> : <WarningCircle size={17} weight="fill" />}
+                  </span>
+                  <div className="terminal-alert-text">
+                    <b>{terminalNotice.title}</b>
+                    <span>{terminalNotice.body}</span>
+                  </div>
+                  <button type="button" className="terminal-alert-action" onClick={runTerminalAction}>
+                    {terminalNotice.action === "resume" && <ArrowClockwise size={14} />}
+                    {terminalNotice.actionLabel}
+                  </button>
+                </div>
+              )}
               {!isSub && goalState && (!goalTerminal || goalDismissedAt !== goalState.endedAt) && (
                 <GoalBanner
-                  state={goalState}
+                  state={goalPendingUpdate ? { ...goalState, goal: goalPendingUpdate } : goalState}
                   elapsedMs={goalTerminal ? goalState.elapsedMs : goalState.attachedAt !== undefined ? now - goalState.attachedAt : undefined}
                   editing={goalEdit}
+                  updatePending={!!goalPendingUpdate}
                   onEditStart={() => setGoalEdit(goalState.goal)}
                   onEditChange={setGoalEdit}
                   onSave={saveGoalEdit}
@@ -701,7 +712,7 @@ export function SessionView({ sid }: { sid: string }) {
         {showSupervision && (
           <SupervisionPanel
             loading={!inspectReady}
-            goal={goal}
+            goal={goal && goalPendingUpdate ? { ...goal, goal: goalPendingUpdate } : goal}
             goalEdit={goalEdit}
             progress={progress}
             artifacts={artifacts}
@@ -747,6 +758,7 @@ function GoalBanner({
   state,
   elapsedMs,
   editing,
+  updatePending,
   onEditStart,
   onEditChange,
   onSave,
@@ -757,6 +769,7 @@ function GoalBanner({
   state: GoalDerived;
   elapsedMs?: number;
   editing: string | null;
+  updatePending: boolean;
   onEditStart: () => void;
   onEditChange: (value: string) => void;
   onSave: () => void;
@@ -813,7 +826,7 @@ function GoalBanner({
         // G3 · show N/M checks (a verifier budget) or the count so far, next to
         // the live elapsed clock — Codex's goal-banner progress read-out.
         const showChecks = state.maxChecks !== undefined || state.checks > 0;
-        if (!showChecks && !elapsed) return null;
+        if (!showChecks && !elapsed && !updatePending) return null;
         const checksLabel = state.maxChecks !== undefined
           ? `${state.checks}/${state.maxChecks} checks`
           : `${state.checks} check${state.checks === 1 ? "" : "s"}`;
@@ -821,13 +834,14 @@ function GoalBanner({
           <span className="gbar-meta">
             {showChecks && <span className="gbar-checks">{checksLabel}</span>}
             {elapsed && <span>{elapsed}</span>}
+            {updatePending && <span>Update queued</span>}
           </span>
         );
       })()}
       <span className="gbar-actions">
         {editing === null ? (
           <>
-            <button className="gbar-btn" onClick={onEditStart} title="Edit goal" aria-label="Edit goal"><PencilSimple size={15} /></button>
+            <button className="gbar-btn" onClick={onEditStart} title={updatePending ? "Goal update queued" : "Edit goal"} aria-label="Edit goal" disabled={updatePending}><PencilSimple size={15} /></button>
             <button className="gbar-btn" onClick={() => onAction(paused ? "resume" : "pause")} title={paused ? "Resume goal" : "Pause goal"} aria-label={paused ? "Resume goal" : "Pause goal"}>
               {paused ? <Play size={15} weight="fill" /> : <Pause size={15} weight="fill" />}
             </button>
