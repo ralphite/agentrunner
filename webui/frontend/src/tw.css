@@ -1,0 +1,73 @@
+/* ============================================================================
+ * Tailwind CSS v4 entry (CSS-first config, no tailwind.config.js).
+ *
+ * We deliberately import only `theme` + `utilities` and NOT Tailwind's
+ * Preflight reset: the app ships its own reset/base (see styles.css and the
+ * @layer base blocks migrated here over time), and Preflight would fight it.
+ *
+ * Theming: the palette lives as plain CSS custom properties in :root /
+ * @media(prefers-color-scheme) / [data-theme] blocks (styles.css — the theme
+ * engine that theme.ts drives at runtime for contrast + font-size). We map
+ * those live vars into Tailwind's `--color-*` namespace below, so utilities
+ * like `bg-panel` / `text-ink` resolve to `var(--panel)` and flip with the
+ * theme automatically — no `dark:` variant needed for colour. A custom `dark`
+ * variant is still defined for the rare non-token dark tweak.
+ * ========================================================================== */
+
+@layer theme, base, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+/* Custom dark variant covering BOTH theme paths, matching the CSS engine:
+ *   - explicit [data-theme=dark]                       → always dark
+ *   - system dark AND no explicit choice (:not([data-theme])) → dark
+ *   - explicit [data-theme=light]                      → never dark (neither
+ *     branch matches, so prefers-color-scheme is ignored, as required)
+ */
+@custom-variant dark {
+  &:where([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme]), :root:not([data-theme]) *) {
+      @slot;
+    }
+  }
+}
+
+/* Map the live theme vars into Tailwind's token namespaces. Values are var()
+ * references so runtime overrides (theme.ts contrast/font-size) propagate. */
+@theme {
+  --color-bg: var(--bg);
+  --color-sidebar: var(--sidebar);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-dim: var(--dim);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-blue: var(--blue);
+  --color-blue-soft: var(--blue-soft);
+  --color-green: var(--green);
+  --color-green-soft: var(--green-soft);
+  --color-amber: var(--amber);
+  --color-amber-soft: var(--amber-soft);
+  --color-violet: var(--violet);
+  --color-violet-soft: var(--violet-soft);
+  --color-red: var(--red);
+  --color-red-soft: var(--red-soft);
+  --color-status-running: var(--status-running);
+  --color-status-ready: var(--status-ready);
+  --color-status-attention: var(--status-attention);
+  --color-status-failed: var(--status-failed);
+  --color-status-terminal: var(--status-terminal);
+
+  --font-sans: var(--sans);
+  --font-mono: var(--mono);
+
+  --radius-app: var(--radius);
+}

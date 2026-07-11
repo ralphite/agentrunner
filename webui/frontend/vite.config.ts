@@ -1,10 +1,11 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 
 // Build → dist/ (embedded by the Go binary). base './' keeps asset URLs
 // relative so the SPA works no matter where it's mounted.
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   base: "./",
   build: { outDir: "dist", emptyOutDir: true },
   server: {
