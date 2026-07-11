@@ -99,8 +99,19 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+// arNotFound classifies a failed ar invocation as "that session id does not
+// exist". The CLI has no exit-code vocabulary for it, so a string match on its
+// verdict is unavoidable — but it belongs HERE, in the server that ships from
+// the same commit as `ar`, and nowhere else (INC-41 L5). The frontend reads the
+// 404 / code instead, so re-wording the CLI can only break this one line (and
+// its test), never silently degrade the UI's not-found state.
+func arNotFound(detail string) bool {
+	return strings.Contains(detail, "no session matches")
+}
+
 // arFail maps a failed ar invocation onto the error convention: 502 with
-// {error, stderr} so the UI can show the real failure.
+// {error, stderr} so the UI can show the real failure — except an unknown
+// session id, which is a real 404 carrying code=session_not_found.
 func arFail(w http.ResponseWriter, what string, res arResult) {
 	msg := what + " failed"
 	if res.Err != nil {
@@ -125,10 +136,16 @@ func arFail(w http.ResponseWriter, what string, res arResult) {
 		detail += "\n\n⚠️ The `ar` binary is out of date — it does not recognize a flag " +
 			"this webui sent. Rebuild and redeploy both from the same commit (scripts/deploy.sh)."
 	}
-	writeJSON(w, http.StatusBadGateway, map[string]string{
+	body := map[string]string{
 		"error":  msg,
 		"stderr": detail,
-	})
+	}
+	if arNotFound(detail) {
+		body["code"] = "session_not_found"
+		writeJSON(w, http.StatusNotFound, body)
+		return
+	}
+	writeJSON(w, http.StatusBadGateway, body)
 }
 
 func badRequest(w http.ResponseWriter, msg string) {

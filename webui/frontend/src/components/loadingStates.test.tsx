@@ -11,7 +11,11 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 // returns a promise that never settles — i.e. "still loading", which is exactly
 // the state under test.
 const { arMock } = vi.hoisted(() => ({ arMock: {} as Record<string, (...args: any[]) => any> }));
-vi.mock("../api", () => ({
+// ApiError is taken from the real module: the not-found verdict it carries
+// (status/code) is the contract under test, so a hand-rolled stub would prove
+// nothing.
+vi.mock("../api", async () => ({
+  ...(await vi.importActual<typeof import("../api")>("../api")),
   AR: new Proxy(
     {},
     {
@@ -26,14 +30,23 @@ vi.mock("../api", () => ({
 import { TimelineView } from "./Timeline";
 import { SessionView, isSessionNotFound } from "./SessionView";
 import { Sidebar } from "./Sidebar";
+import { ApiError } from "../api";
 import { useStore } from "../store";
 import type { BubbleItem } from "../timeline";
 
-// The webui backend shells out to `ar`, so a bad id arrives as a 502 whose
-// stderr carries the CLI's verdict; api.ts folds both into the Error message.
+// The backend answers an unknown session id with a real 404 + code (INC-41 L5);
+// api.ts raises that as an ApiError whose message still folds in error+stderr.
 const notFound = () =>
+  new ApiError(
+    'ar inspect: exit status 2\nagentrunner: no session matches "ghost-9999"',
+    404,
+    "session_not_found",
+  );
+// A pre-L5 webui binary 502s with only the CLI prose — still recognised.
+const legacyNotFound = () =>
   new Error('ar inspect: exit status 2\nagentrunner: no session matches "ghost-9999"');
-const transient = () => new Error("ar inspect: exit status 1\ndial tcp: connection refused");
+const transient = () =>
+  new ApiError("ar inspect: exit status 1\ndial tcp: connection refused", 502);
 
 const bubble = (key: string, text: string): BubbleItem => ({ kind: "assistant", key, text });
 
@@ -97,6 +110,21 @@ describe("L2 · unknown session id", () => {
     expect(isSessionNotFound(transient())).toBe(false);
     expect(isSessionNotFound(new Error("Failed to fetch"))).toBe(false);
     expect(isSessionNotFound(undefined)).toBe(false);
+  });
+
+  it("judges by status/code, not by the CLI's wording (INC-41 L5)", () => {
+    // The machine-readable verdict alone is enough — even with prose the
+    // frontend has never seen, and even if the CLI stops saying "no session
+    // matches" entirely.
+    expect(isSessionNotFound(new ApiError("ar inspect: exit status 2\nreworded prose", 404))).toBe(true);
+    expect(
+      isSessionNotFound(new ApiError("ar inspect: gone", 502, "session_not_found")),
+    ).toBe(true);
+    // Any other 5xx stays transient, code or not.
+    expect(isSessionNotFound(new ApiError("ar inspect: daemon dial: refused", 502))).toBe(false);
+    expect(isSessionNotFound(new ApiError("ar inspect: boom", 500))).toBe(false);
+    // Back-compat: a stale webui binary still only has the CLI prose to offer.
+    expect(isSessionNotFound(legacyNotFound())).toBe(true);
   });
 
   it("renders a Task not found card with a way back — and no composer", async () => {

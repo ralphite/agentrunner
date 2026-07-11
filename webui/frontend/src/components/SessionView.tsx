@@ -29,16 +29,17 @@ interface SSEApproval {
   session?: string;
 }
 
-// INC-41 L2 · "this id doesn't exist" vs "the fetch happened to fail". The
-// webui backend proxies `ar`, so a bad session id comes back as a generic 502
-// whose stderr carries the CLI's verdict verbatim:
-//   {"error":"ar inspect: exit status 2",
-//    "stderr":"agentrunner: no session matches \"<id>\""}
-// api.ts folds error+stderr into the thrown Error's message, so that sentence
-// is our only reliable not-found signal. Everything else (daemon restarting,
-// network blip, timeout) stays a transient error: we keep polling and never
-// accuse a real task of not existing.
+// INC-41 L2/L5 · "this id doesn't exist" vs "the fetch happened to fail". The
+// backend answers an unknown session id with a real 404 + code=session_not_found
+// (arFail owns the single string match against the CLI's verdict), so this reads
+// machine-readable fields, not prose. The stderr match survives only as a
+// fallback for a stale webui binary that still 502s. Everything else (daemon
+// restarting, network blip, timeout) stays transient: we keep polling and never
+// accuse a real task of not existing. Duck-typed on purpose — an ApiError from a
+// mocked/older api module still classifies.
 export function isSessionNotFound(err: unknown): boolean {
+  const e = err as { status?: unknown; code?: unknown; message?: unknown } | null | undefined;
+  if (e && (e.status === 404 || e.code === "session_not_found")) return true;
   const msg = err instanceof Error ? err.message : typeof err === "string" ? err : "";
   return /no session matches/i.test(msg);
 }

@@ -1,7 +1,23 @@
 import type { DiffResp, DiffScope, Envelope, Health, LauncherApp, ProjectMeta, Run, Session, SpecFile, Task } from "./types";
 
-// api wraps the arwebui JSON contract. A non-2xx carries {error, stderr};
-// we surface both so the cockpit shows the real ar failure (never swallow it).
+// ApiError carries the HTTP status and the server's machine-readable `code`
+// (e.g. 404 / "session_not_found") next to the human message, so callers branch
+// on semantics instead of grepping the CLI prose inside `stderr` — that prose is
+// a display detail and may be re-worded at any time (INC-41 L5). The message is
+// unchanged from a plain Error, so every toast reads exactly as before.
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+// api wraps the arwebui JSON contract. A non-2xx carries {error, stderr, code?};
+// we surface all of it so the cockpit shows the real ar failure (never swallow it).
 async function api<T = any>(path: string, opts?: RequestInit): Promise<T> {
   const r = await fetch("/api" + path, opts);
   const text = await r.text();
@@ -12,7 +28,11 @@ async function api<T = any>(path: string, opts?: RequestInit): Promise<T> {
     body = { error: text };
   }
   if (!r.ok) {
-    throw new Error((body.error || r.statusText) + (body.stderr ? "\n" + body.stderr : ""));
+    throw new ApiError(
+      (body.error || r.statusText) + (body.stderr ? "\n" + body.stderr : ""),
+      r.status,
+      typeof body.code === "string" && body.code ? body.code : undefined,
+    );
   }
   return body as T;
 }

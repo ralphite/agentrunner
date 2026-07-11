@@ -576,6 +576,56 @@ func TestArFailFlagsStaleBinary(t *testing.T) {
 	}
 }
 
+// TestArFailNotFoundIsMachineReadable pins INC-41 L5: an unknown session id must
+// arrive as a real 404 with a stable code, so the UI branches on semantics rather
+// than grepping the CLI's prose (which would silently rot when the wording moves).
+func TestArFailNotFoundIsMachineReadable(t *testing.T) {
+	fail := func(res arResult) (int, map[string]string) {
+		rec := httptest.NewRecorder()
+		arFail(rec, "ar inspect", res)
+		var body map[string]string
+		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+			t.Fatalf("bad json: %v\n%s", err, rec.Body.String())
+		}
+		return rec.Code, body
+	}
+
+	code, body := fail(arResult{
+		Stderr: "agentrunner: no session matches \"ghost-9999\"\n",
+		Err:    fmt.Errorf("exit status 2"),
+	})
+	if code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", code)
+	}
+	if body["code"] != "session_not_found" {
+		t.Fatalf("code = %q, want session_not_found", body["code"])
+	}
+	// stderr stays verbatim: the toast text and the old-binary fallback both read it.
+	if !strings.Contains(body["stderr"], "no session matches") || body["error"] == "" {
+		t.Fatalf("not-found body lost its detail: %#v", body)
+	}
+
+	// Some subcommands print the diagnostic on stdout (`ar new`) — same verdict.
+	if code, body = fail(arResult{
+		Stdout: "agentrunner: no session matches \"ghost-9999\"\n",
+		Err:    fmt.Errorf("exit status 2"),
+	}); code != http.StatusNotFound || body["code"] != "session_not_found" {
+		t.Fatalf("stdout-carried verdict = %d %#v, want 404 session_not_found", code, body)
+	}
+
+	// Every other failure keeps the existing 502 shape, with no code to branch on.
+	code, body = fail(arResult{
+		Stderr: "agentrunner: daemon dial: connect: no such file or directory\n",
+		Err:    fmt.Errorf("exit status 1"),
+	})
+	if code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502", code)
+	}
+	if body["code"] != "" {
+		t.Fatalf("ordinary failure must carry no code, got %q", body["code"])
+	}
+}
+
 // --- INC-49: worktree productization (location, apply-back, cleanup, diff meta) ---
 
 // wtRepo builds a git repo with one commit (a.txt="1\n") on branch main and
