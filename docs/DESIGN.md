@@ -326,7 +326,7 @@ parent kill 的 parent 可复活）,显式 send 永远能继续它。
 ### 树内消息：agent 发送方（INC-12，决策 #35）
 
 - **投递**：树内任一 session 可调 `send_message{to, text}`（execute-
-  class，过四关卡）。`to` = `"parent"` | 树内 session 全 id | 本 session
+  class，过全管线关卡）。`to` = `"parent"` | 树内 session 全 id | 本 session
   spawn 出的 handle。执行 = 向目标 session 目录的 **durable inbox**
   （复用 `store.AppendInbox`：fsync-before-ack、command_id 幂等、单调
   DeliverySeq）append 一条输入，正文带来源前缀 `[message from <agent>
@@ -986,7 +986,7 @@ limits:
   是一个 manifest（`{relpath, ref}` 列表，其自身 hash 即 ref）。
   多模态输入的 blob（§4）与任务日志共用同一个 CAS 模块。
 - **publish 是 tool，因此是 effect，因此是 activity**：内置
-  `publish_artifact{name, path, …}` 走完整四关卡（DLP 类 pre-hook 可拦、
+  `publish_artifact{name, path, …}` 走完整关卡管线（DLP 类 pre-hook 可拦、
   file-class path 规则 + realpath 适用、per-publish 大小上限）。
   **发布即持久**（blob 先落盘、event 随后 append），与 session 是否
   结束无关。
@@ -1318,7 +1318,7 @@ limits:
   `WAITING_APPROVAL`、`IterationCompleted`…），按 user 层配置的通道发
   通知；`NotificationSent` 记在自己的 stream 里跨重启去重（启动时与
   store 对账）。通知通道是 surface 机件——与 hooks 同类的**文档化
-  carve-out**，不过四关卡，只能来自 user 层配置。
+  carve-out**，不过关卡管线，只能来自 user 层配置。
 
 ### Scheduler 与 triggers
 
@@ -1493,7 +1493,7 @@ limits:
 | 5 | Durability 模型 | journal + 安全边界 snapshot-resume + 显式等待状态；**不做** Temporal 式 code replay | 同样的用户可见能力（crash 恢复、长审批、fork），~10% 成本；loop 不背确定性纪律。 |
 | 6 | Activity 语义 | Started/Completed 双落盘，at-least-once；in-doubt 按 tool 类别数据化处置（LLM 重发+GenerationDiscarded、read/idempotent 重跑、execute/edit 渲染 interrupted 继续、高危显式转人工），协作取消，通用 retry，background 变体 | 崩溃必然砸中 in-flight；headless 不能靠人工 triage；非幂等者不重跑（而非转人工）。 |
 | 7 | Checkpoint 语义 | 对话 snapshot 是可弃缓存；workspace 快照是一等状态，走 `SnapshotStore` 接口（event 只引用 opaque ref），默认 shadow-repo backend；物化/恢复只服务 rewind/fork/best-of-N base，opaque ref 可做不改 workspace/backend index 的只读 comparison 供 review | 文件系统不可从 log 重建；review 复用唯一 durable baseline 而不另造文件日志；不与 git 耦合；用户 repo 与 agent 的 git 操作零污染。 |
-| 8 | 副作用治理 | 单一 effect pipeline，四关卡；判定按持久化时点拆分——`EffectResolved` 落在 `ActivityStarted` 前，post-hook 随 `ActivityCompleted` | permission/审批/hooks/预算是一个机制；恢复不重放 hook 副作用；happy path 仍是单条关卡 event。 |
+| 8 | 副作用治理 | 单一 effect pipeline，关卡管线（全序见 §5）；判定按持久化时点拆分——`EffectResolved` 落在 `ActivityStarted` 前，post-hook 随 `ActivityCompleted` | permission/审批/hooks/预算是一个机制；恢复不重放 hook 副作用；happy path 仍是单条关卡 event。 |
 | 9 | 失败面向模型 | 每个 tool call 必有配对结果（harness call id，assembly 按原顺序重排）；error 渲染 per-provider 定义；超预算优雅收尾 | Gemini 按数量+位置严格配对且无 error 标志；agent 要能对失败自适应。 |
 | 10 | Permission modes | mode = 工具面过滤（作用于 permitted 面；advertised 面 prefix 内稳定）+ prompt 注入 + 跃迁规则（数据） | plan/acceptEdits 是 loop 行为；mode 切换不得打爆 tools 级缓存。 |
 | 11 | Hooks | v0 只 observe + block；是管线机件不是 effect | 改写带来顺序/缓存/重放问题，推迟；避免管线递归。 |
@@ -1679,7 +1679,7 @@ event sourcing 的闭环：**执行产生事件，事件重建状态，状态驱
 | 术语 | 定义 |
 |---|---|
 | **effect** | turn 内一切副作用的**判定**单位（工具/模型调用/spawn/publish），必须过管线。 |
-| **effect pipeline** | 四关卡：hooks(pre) → permission → budget → execute → hooks(post)；判定按持久化时点拆分（`EffectResolved` 先于执行）。 |
+| **effect pipeline** | 关卡管线：floor → spawn → hooks(pre) → permission → budget → execute → hooks(post)（全序见 §5；2026-07-11 与代码对齐，补上原先漏记的 floor/spawn 两道）；判定按持久化时点拆分（`EffectResolved` 先于执行）。 |
 | **activity** | 一次副作用**执行**的记录单元：`Started` 先落盘 → 执行 → 终态（Completed/Failed/Cancelled）；at-least-once。tool step ≈ 工具类 activity（同一事物的执行模型视角 vs 持久化视角）。 |
 | **in-doubt** | 有 Started 无终态；按工具类别数据化处置（LLM 重发 / 只读重跑 / execute·edit 渲染 interrupted 不重跑 / 非幂等绝不静默重跑）。 |
 | **类别标签** | read / edit / execute / wait-class + `idempotent` 声明；mode 过滤与 in-doubt 策略共用。 |
