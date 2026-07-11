@@ -38,7 +38,12 @@ export PARITY_DRIVE_HEADLESS=1
 cd "$REPO" || { log "repo missing"; exit 1; }
 
 log "=== round start (headless) ==="
-claude -p "/parity-drive" --permission-mode bypassPermissions >> "$LOG" 2>&1 &
+# env -i 白名单环境:隔离宿主(桌面 app harness)泄漏的 ANTHROPIC_*/CLAUDE_*
+# 变量——它们会把 CLI 指到 app 内部代理导致 401(2026-07-11 实测)。
+env -i HOME="$HOME" USER="$USER" LOGNAME="$USER" SHELL=/bin/zsh \
+  PATH="$PATH" LANG=en_US.UTF-8 TMPDIR="${TMPDIR:-/tmp}" \
+  PARITY_DRIVE_HEADLESS=1 \
+  claude -p "/parity-drive" --permission-mode bypassPermissions >> "$LOG" 2>&1 &
 CPID=$!
 ( sleep "$ROUND_TIMEOUT" && kill "$CPID" 2>/dev/null && echo "[$(ts)] watchdog killed round after ${ROUND_TIMEOUT}s" >> "$LOG" ) &
 WPID=$!

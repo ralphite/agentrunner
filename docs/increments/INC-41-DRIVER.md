@@ -85,10 +85,11 @@ description: Codex UI parity 自主推进循环——每轮收割子 agent、验
   ```
   BIN=~/.local/share/agentrunner/bin
   cd webui && go build -o "$BIN/arwebui-live.new" . && mv "$BIN/arwebui-live.new" "$BIN/arwebui-live"
-  cd .. && go build -o "$BIN/ar-live.new" . && mv "$BIN/ar-live.new" "$BIN/ar-live"   # CLI 有变时
+  cd .. && go build -o "$BIN/ar-live.new" ./cmd/agentrunner && mv "$BIN/ar-live.new" "$BIN/ar-live"   # CLI 有变时
   launchctl kickstart -k gui/$(id -u)/com.agentrunner.webui8809
   ```
-  验:`curl -s 127.0.0.1:8809/ | grep -o 'index-.*\.js'` 与 dist 一致 + health 200。
+  验:`curl -s 127.0.0.1:8809/ | grep -o 'index-[A-Za-z0-9_-]*\.js'`(hash 含
+  连字符,字符类别漏 `-`)与 dist 一致 + health 200。
   服务日志:`~/Library/Logs/agentrunner-webui8809.log`。
 - playwright venv:
   `/private/tmp/claude-501/-Users-yadong-dev2-agentrunner/b84daf52-9db3-44c9-8c46-9a5d9f61a6df/scratchpad/pwenv/bin/python`
