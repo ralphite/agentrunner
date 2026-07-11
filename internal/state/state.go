@@ -891,6 +891,14 @@ func Apply(s State, env event.Envelope) (State, error) {
 		s.Waiting = nil
 		s.Session.Status = StatusRunning
 
+	case *event.InputRevoked:
+		// A queued input consumed AS REVOKED (INC-46, §2 rev1): no message
+		// is injected, but the delivery seq advances exactly like a consumed
+		// input — a resume replay must never re-surface a withdrawn message.
+		if p.DeliverySeq > s.Session.ConsumedInputSeq {
+			s.Session.ConsumedInputSeq = p.DeliverySeq
+		}
+
 	case *event.AskResolved:
 		// Pair the parked ask_user call as its tool result (INC-5). A crash
 		// between this and the WaitingResolved that clears the park is safe:

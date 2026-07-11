@@ -34,3 +34,13 @@
 设计+变更单已过独立契约 review（INC-44 rev1），实施轮不重复。
 **余项**：webui 队列撤回按钮（需 send API 返回 command_id，随 #7
 webui 表单批一并做）。
+
+---
+
+## 执行记录（2026-07-11 收口）
+
+rev1 三件套全实施，DESIGN §2 撤回条款同 commit。偏差记档：daemon
+前置校验按"daemon 无 store 依赖"移到 CLI 侧（语义等同，更贴架构）。
+B 闸含 kill -9 crash 重放实证（B1 场景）：KEPT 进、DROPPED 零、
+InputRevoked 在账、二次 resume 收敛。证据 qa/runs/2026-07-11-INC46。
+SPEC 两处；SPRINT #29 ✅。

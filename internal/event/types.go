@@ -46,6 +46,7 @@ const (
 	TypeChildRevived      = "child_revived"
 	TypeArtifactPublished = "artifact_published"
 	TypeProgressUpdated   = "progress_updated"
+	TypeInputRevoked      = "input_revoked"
 
 	// S6 additions (IterationDriver, DESIGN §运行形态). These belong to the
 	// driver's OWN stream — folded by internal/driver, never by the run fold,
@@ -655,6 +656,17 @@ type ArtifactPublished struct {
 	Source string `json:"source,omitempty"`
 }
 
+// InputRevoked records a queued conversational input consumed AS REVOKED
+// (INC-46, §2 rev1): the user withdrew it before the loop injected it, so no
+// InputReceived exists for that delivery — this event carries the delivery
+// seq instead, and the fold advances ConsumedInputSeq exactly like
+// AskResolved does (consume-without-inject template). A revoke arriving
+// after the target was already journaled is a no-op and leaves no event.
+type InputRevoked struct {
+	TargetCommandID string `json:"target_command_id"`
+	DeliverySeq     int64  `json:"delivery_seq"`
+}
+
 // ProgressUpdated replaces the session's model-maintained progress checklist
 // wholesale (INC-37). The model owns the list's content and item identity;
 // the fold keeps only the latest table — no merge, no history beyond the
@@ -868,6 +880,7 @@ var Registry = map[string]func() any{
 	TypeChildRevived:          func() any { return &ChildRevived{} },
 	TypeArtifactPublished:     func() any { return &ArtifactPublished{} },
 	TypeProgressUpdated:       func() any { return &ProgressUpdated{} },
+	TypeInputRevoked:          func() any { return &InputRevoked{} },
 
 	TypeDriverStarted:      func() any { return &DriverStarted{} },
 	TypeIterationScheduled: func() any { return &IterationScheduled{} },

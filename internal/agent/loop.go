@@ -88,6 +88,15 @@ type Loop struct {
 	// consumed at safe points and stored-then-drained from the idle. nil =
 	// no control source wired.
 	Controls <-chan protocol.Control
+	// Revokes delivers queued-input withdrawals (INC-46, §2 rev1). The loop
+	// keeps a revoked-target set; journalInput consumes a matching input as
+	// InputRevoked (advancing the delivery high-water) instead of injecting
+	// it. nil = no revoke source wired.
+	Revokes <-chan protocol.Revoke
+	// revokedTargets is the live revoked set (command_id → true), fed by
+	// drainRevokes. Not journaled: the durable truths are the revoke command
+	// in the inbox and the InputRevoked event once consumed.
+	revokedTargets map[string]bool
 	// Mode is the STARTING mode (3.6): journaled as the first ModeChanged.
 	// The live mode is fold state; empty means "default".
 	Mode string
@@ -706,11 +715,34 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 	// enqueue and the consume-side journal) re-enters now, in order,
 	// journal-inputs-first. The seq high-water mark makes this effectively
 	// once — an input both journaled and in the mailbox replays never.
-	pending, perr := store.ReadInbox(l.Store.Dir(), ds.s.Session.ConsumedInputSeq)
+	// The replay reads full COMMANDS, not just inputs (INC-46, §2 rev1): a
+	// revoke behind an unconsumed input must keep suppressing it across a
+	// restart — ReadInbox filters revokes out and would resurface withdrawn
+	// messages. Seq order guarantees a revoke follows its target.
+	replayCmds, perr := store.ReadCommands(l.Store.Dir(), ds.s.Session.ConsumedInputSeq)
 	if perr != nil {
 		return RunResult{}, fmt.Errorf("resume: mailbox: %w", perr)
 	}
-	for _, in := range pending {
+	replayRevoked := map[string]bool{}
+	for _, c := range replayCmds {
+		if c.Kind == protocol.CommandRevoke && c.Revoke != nil {
+			replayRevoked[c.Revoke.TargetCommandID] = true
+		}
+	}
+	for _, c := range replayCmds {
+		if c.Kind != protocol.CommandInput || c.Input == nil {
+			continue
+		}
+		in := *c.Input
+		// A withdrawn input is consumed AS REVOKED — before the ask branch,
+		// so it can never masquerade as a parked question's answer.
+		if in.CommandID != "" && replayRevoked[in.CommandID] {
+			if _, err := appendE(event.TypeInputRevoked, &event.InputRevoked{
+				TargetCommandID: in.CommandID, DeliverySeq: in.DeliverySeq}); err != nil {
+				return RunResult{}, err
+			}
+			continue
+		}
 		// ask_user park + mailbox-delivered reply (INC-5, 铁律 "崩溃不丢输入"):
 		// the daemon durably acks a send BEFORE awaitAnswer journals the
 		// AskResolved, so a crash in that window leaves the reply only in the

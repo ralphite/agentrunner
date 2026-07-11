@@ -84,6 +84,7 @@ var samples = map[string]any{
 		Ref: "sha256-deadbeef", Bytes: 512, Source: "tool"},
 	TypeProgressUpdated: &ProgressUpdated{Items: []ProgressItem{
 		{ID: "tests", Title: "run the suite", Status: "running"}}},
+	TypeInputRevoked: &InputRevoked{TargetCommandID: "cmd-9", DeliverySeq: 4},
 	TypeEffectResolved: &EffectResolved{EffectID: "eff-call_3_1", CallID: "call_3_1",
 		Verdict: VerdictDeny, GateResults: []GateResult{
 			{Gate: "permission", Decision: VerdictDeny, Reason: "path escapes workspace"}},

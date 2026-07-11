@@ -39,6 +39,8 @@ type Command struct {
 
 	// attach / approve / send
 	Session string `json:"session,omitempty"`
+	// unqueue (INC-46): the queued input command to withdraw.
+	TargetCommandID string `json:"target_command_id,omitempty"`
 
 	// send
 	Text      string                 `json:"text,omitempty"` // a user message for the session
@@ -122,6 +124,7 @@ type RunRequest struct {
 	Controls          <-chan protocol.Control
 	CommandInterrupts <-chan protocol.CommandRef
 	CommandCancels    <-chan protocol.CancelCommand
+	Revokes           <-chan protocol.Revoke
 }
 
 // RunFunc hosts one run to completion, emitting output events to sink. The
@@ -139,6 +142,7 @@ type ResumeRequest struct {
 	Controls          <-chan protocol.Control
 	CommandInterrupts <-chan protocol.CommandRef
 	CommandCancels    <-chan protocol.CancelCommand
+	Revokes           <-chan protocol.Revoke
 }
 
 // DriveRequest is a hosted IterationDriver series (S6 完成标志①: a series
@@ -262,12 +266,15 @@ type hostedRun struct {
 	controls          chan protocol.Control
 	commandInterrupts chan protocol.CommandRef
 	commandCancels    chan protocol.CancelCommand
-	pendingCommands   []protocol.SessionCommand
-	postedCommands    map[string]struct{}
-	commandWake       chan struct{}
-	commandStop       chan struct{}
-	commandPumpWG     sync.WaitGroup
-	answerApproval    func(protocol.SessionCommand) bool
+	// revokes delivers queued-input withdrawals (INC-46): the loop keeps a
+	// revoked-target set and consumes matching inputs as InputRevoked.
+	revokes         chan protocol.Revoke
+	pendingCommands []protocol.SessionCommand
+	postedCommands  map[string]struct{}
+	commandWake     chan struct{}
+	commandStop     chan struct{}
+	commandPumpWG   sync.WaitGroup
+	answerApproval  func(protocol.SessionCommand) bool
 	// approvalGiveUp caps delivery attempts per approval answer before the
 	// pump drops it (0 = the ~10s default); tests shrink it.
 	approvalGiveUp int
@@ -288,6 +295,7 @@ func newHostedRun(id string, notify func(protocol.Event), interactive bool) *hos
 	h.controls = make(chan protocol.Control, 8)
 	h.commandInterrupts = make(chan protocol.CommandRef, 1)
 	h.commandCancels = make(chan protocol.CancelCommand, 8)
+	h.revokes = make(chan protocol.Revoke, 8)
 	h.commandWake = make(chan struct{}, 1)
 	h.commandStop = make(chan struct{})
 	h.postedCommands = map[string]struct{}{}
@@ -326,6 +334,7 @@ func (h *hostedRun) pumpCommands() {
 		controls := h.controls
 		interrupts := h.commandInterrupts
 		cancels := h.commandCancels
+		revokes := h.revokes
 		answerApproval := h.answerApproval
 		h.mu.Unlock()
 
@@ -350,6 +359,17 @@ func (h *hostedRun) pumpCommands() {
 			ctl := *cmd.Control
 			select {
 			case controls <- ctl:
+				delivered = true
+			case <-stop:
+				return
+			}
+		case protocol.CommandRevoke:
+			if cmd.Revoke == nil {
+				delivered = true
+				break
+			}
+			select {
+			case revokes <- *cmd.Revoke:
 				delivered = true
 			case <-stop:
 				return
@@ -727,6 +747,8 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlGoalCancel}, "goal cancel requested — applies at the session's next boundary (interrupt cuts the current turn); a no-op unless a goal is attached", enc)
 	case "kill":
 		s.handleKill(ctx, cmd, enc)
+	case "unqueue":
+		s.handleUnqueue(ctx, cmd, enc)
 	case "agent":
 		s.handleAgent(cmd, enc)
 	default:
@@ -859,6 +881,36 @@ func (s *Server) handleKill(ctx context.Context, cmd Command, enc *json.Encoder)
 	}
 	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage,
 		Text: "kill requested for " + cmd.Handle + " (a no-op if the handle is done or unknown)", Session: cmd.Session})
+}
+
+// handleUnqueue withdraws a QUEUED conversational input (INC-46, §2 rev1).
+// The precheck here is a UX courtesy, not the safety boundary (it re-folds
+// the journal like pendingApproval does and can race an in-flight consume):
+// the loop's consume-side guard is what actually decides, and a late revoke
+// is a no-op there.
+func (s *Server) handleUnqueue(ctx context.Context, cmd Command, enc *json.Encoder) {
+	if cmd.Session == "" || cmd.TargetCommandID == "" {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "unqueue needs session and target_command_id"})
+		return
+	}
+	// Target validation lives in the CLI (it owns store access; the daemon
+	// stays semantics-free) — and either way it is only a UX courtesy: the
+	// loop's consume-side guard is the safety boundary, a late revoke no-ops.
+	_, delivered, err := s.acceptAndDeliver(ctx, cmd.Session, cmd.CommandID, attributedCommand(cmd, protocol.SessionCommand{
+		Kind: protocol.CommandRevoke, Revoke: &protocol.Revoke{TargetCommandID: cmd.TargetCommandID},
+	}), func(h *hostedRun, accepted protocol.SessionCommand) bool { return h.postCommand(accepted) })
+	if err != nil {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "unqueue not accepted: " + err.Error()})
+		return
+	}
+	if !delivered {
+		// Durable is enough: an unhosted session's resume replay applies it.
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Session: cmd.Session,
+			Text: "unqueue recorded; it applies when the session next runs"})
+		return
+	}
+	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Session: cmd.Session,
+		Text: "unqueue delivered for " + cmd.TargetCommandID + " (a no-op if already processed)"})
 }
 
 // handleAgent prepares an agent switch (决策 #32): it tears the hosted
@@ -1351,7 +1403,7 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 			Workspace: cmd.Workspace, Mode: cmd.Mode,
 			Inbox: hub.inbox, Interrupts: hub.interrupts, Cancels: hub.cancels,
 			Controls: hub.controls, CommandInterrupts: hub.commandInterrupts,
-			CommandCancels: hub.commandCancels,
+			CommandCancels: hub.commandCancels, Revokes: hub.revokes,
 		}, hub); err != nil {
 			hub.Emit(protocol.Event{Kind: protocol.KindError, Text: "run failed: " + err.Error()})
 		}

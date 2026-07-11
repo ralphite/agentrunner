@@ -129,6 +129,7 @@ type SessionCommand struct {
 	Input              *UserInput       `json:"input,omitempty"`
 	Control            *Control         `json:"control,omitempty"`
 	Approval           *ApprovalCommand `json:"approval,omitempty"`
+	Revoke             *Revoke          `json:"revoke,omitempty"`
 	Handle             string           `json:"handle,omitempty"`
 }
 
@@ -139,7 +140,19 @@ const (
 	CommandClose     = "close"
 	CommandKill      = "kill"
 	CommandApproval  = "approval"
+	CommandRevoke    = "revoke"
 )
+
+// Revoke withdraws a QUEUED conversational input before it is consumed
+// (INC-46, §2 rev1). It is as durable as any command; the consume side
+// journals InputRevoked (advancing the delivery high-water) instead of
+// injecting the target. A revoke that arrives after the target was consumed
+// is a no-op — the late-approval precedent. Only CommandInput targets are
+// revocable; interrupt/approval/close/kill/control never are.
+type Revoke struct {
+	CommandRef
+	TargetCommandID string `json:"target_command_id"`
+}
 
 // Control is a non-conversational session-maintenance signal (G7 · INC-D1):
 // manual context compaction/clear, or in-session goal control. Like

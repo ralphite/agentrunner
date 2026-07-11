@@ -30,6 +30,16 @@ func (l *Loop) journalInput(ds *driveState, appendE AppendFunc, in protocol.User
 	if in.DeliverySeq > 0 && in.DeliverySeq <= ds.s.Session.ConsumedInputSeq {
 		return nil
 	}
+	// Consumed AS REVOKED (INC-46): the user withdrew this queued input
+	// before it ran. Journal the withdrawal (it advances the delivery
+	// high-water like a consumed input) and inject nothing.
+	l.drainRevokes()
+	if in.CommandID != "" && l.revokedTargets[in.CommandID] {
+		delete(l.revokedTargets, in.CommandID)
+		_, err := appendE(event.TypeInputRevoked, &event.InputRevoked{
+			TargetCommandID: in.CommandID, DeliverySeq: in.DeliverySeq})
+		return err
+	}
 	// Tree forwarding (INC-12.3): a Target names a descendant — this root
 	// logged the command durably (daemon side) and now forwards it to the
 	// member's inbox instead of consuming it. Idempotent end to end: the
@@ -195,6 +205,30 @@ func (l *Loop) journalInput(ds *driveState, appendE AppendFunc, in protocol.User
 
 // drainQueued non-blockingly journals every ADDITIONAL input already queued
 // on UserInputs, in arrival order (v2 M2.1 type-ahead): messages that piled
+// drainRevokes non-blockingly folds pending queued-input withdrawals into
+// the revoked-target set (INC-46, §2 rev1). Called before inputs are
+// consumed: a revoke rides its own channel, but seq order guarantees it was
+// LOGGED after its target, so folding the set first suffices.
+func (l *Loop) drainRevokes() {
+	if l.Revokes == nil {
+		return
+	}
+	for {
+		select {
+		case r, ok := <-l.Revokes:
+			if !ok {
+				return
+			}
+			if l.revokedTargets == nil {
+				l.revokedTargets = map[string]bool{}
+			}
+			l.revokedTargets[r.TargetCommandID] = true
+		default:
+			return
+		}
+	}
+}
+
 // up while a turn ran all enter the next turn's context together. Stops at
 // the first empty read; a close seen here is remembered for the idle.
 func (l *Loop) drainQueued(ds *driveState, appendE AppendFunc) error {

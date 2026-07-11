@@ -201,6 +201,20 @@ stream 内线性因果链，二者不得互相替代。内存 channel 只负责 
 宿主切换或 crash 均不能把已 fsync 的 accepted 反悔成失败；daemon 启动时
 扫描未完成 command 并自动 re-host 对应 session。
 
+**撤回（revoke，INC-46/HANDA #29，2026-07-11 契约 review 放行）**：
+`revoke` 是同等 durable 的命令，把**尚未消费的对话输入**标记为撤回。
+消费循环（live：revoke 专用通道 → loop 的 revoked-target 集，
+`journalInput` 消费前查集；resume：重放读全量 CommandLog 而非仅
+input，先跳被撤）对命中目标**不注入对话**，改落
+`InputRevoked{target_command_id, delivery_seq}`——它像 `AskResolved`
+一样推进 ConsumedInputSeq（消费而不注入的既有模板），使撤回跨
+restart 收敛、可审计。已消费目标的 revoke 是 no-op（迟到审批同族）；
+仅 input 种类可撤（interrupt/approval/close/kill/control 永不可撤）；
+revoke 必然 append 在目标之后（seq 单调），不乱序。「不丢」语义不变：
+撤回是 durable 的显式用户意图，不是丢失。被撤命令不产生
+CommandHandled 回执——daemon 重启可能对其多一次空唤醒，由消费侧
+seq dedup 静默收敛（记档的可接受开销）。
+
 **这一个原语统一了三类发送方**：steering（人投 `user_message`）、
 续聊（turn 后待命等 inbox）、外部事件（webhook 往既有 session 的
 inbox 投递，和人投的是同一种——机器发送方为扩展层余项，见 GAPS G14）。
