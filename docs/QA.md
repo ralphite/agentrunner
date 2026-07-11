@@ -835,12 +835,25 @@ check.sh 全绿。
 
 | # | 真实状态/动作 | 硬断言 |
 |---|---|---|
-| 1 | 起真实模型 session，挂无命令 goal：`ar goal attach <sid> --goal "..." --verify-llm "<rubric>"` | journal `goal_attached` 带 `{"kind":"llm_judge","rubric":...}` |
+| 1 | 起真实模型 session，挂无命令 goal：`ar goal <sid> attach --verify-llm "<rubric>" <goal…>` | journal `goal_attached` 带 `{"kind":"llm_judge","rubric":...}` |
 | 2 | 模型完成工作并调 `goal_complete` | journal `goal_completion_claimed`；claim 边界出现 `verifier:llm_judge` Activity（真 Gemini llm_call） |
 | 3 | judge 裁决 | `goal_checkpoint` detail 带 judge reason；pass → `goal_achieved{satisfied}` |
 | 4 | claim-gated 校验 | 无 claim 的边界**无** judge Activity（journal 里 judge Activity 数 ≤ claim 数） |
+| 5 | judge 驳回续跑 | rubric 严于 prompt（要求模型没被告知的 CHANGELOG.md）→ 第一次 claim 被驳回、reason 指出缺项 → continuation 回灌 → 模型补齐 → 二次 claim pass |
 
-**结果**：见下方执行记录。
+**结果**：PASS（真机 Gemini，`qa/run-qa48.sh` + 驳回场景，2026-07-11）。
+- **主场景**（`…-063736-…-0ba7`，events.jsonl）：goal_attached 带
+  llm_judge rubric → 模型建 greeting.txt/VERSION → `goal_complete` →
+  真 Gemini judge Activity（`verifier:llm_judge`）→ checkpoint detail
+  "judge: The agent successfully created greeting.txt with a 13-word
+  welcoming message…" → `goal_achieved{satisfied}`；judge 1 次 = claim
+  1 次（claim-gated）；workspace 文件实测在盘。
+- **驳回场景**（`…-063844-…-b7cd`，events-reject.jsonl）：goal 文本只说
+  "发布准备"，rubric 硬要求 app.txt+CHANGELOG.md → claim 1 被驳
+  "Workspace is missing CHANGELOG.md…"（check=1 pass=false）→ 反馈回灌
+  → 模型补建 CHANGELOG.md → claim 2 判 pass（check=2）→
+  `goal_achieved{satisfied,checks:2}`；claims=2 judges=2。
+归档 `qa/runs/2026-07-10-QA-48/`；session 拷回共享 store 保留。
 
 ---
 

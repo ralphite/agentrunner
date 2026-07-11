@@ -1,8 +1,11 @@
 # INC-48 in-session LLM goal judge（HANDA #8，触 DESIGN §13/决策 #21）
 
-**状态：✅ 设计定稿（2026-07-11 独立契约 review「修订后放行」，rev1
-吸收 MAJOR-1/MINOR-2——见 §review 记录）。触 DESIGN §13/决策 #21，
-实施时修订与实现同 commit（PROCESS §四）。实施另起一轮。**
+**状态：✅ 已实施并双闸门验收（2026-07-11）。设计定稿（同日独立契约
+review「修订后放行」，rev1 吸收 MAJOR-1/MINOR-2——见 §review 记录）；
+DESIGN 决策 #21/§13/glossary 修订与实现同 commit（PROCESS §四）。
+A 闸=孪生 4 条（TestGoalLLMJudge{Pass,RejectThenPass,CrashReuse,
+ClaimGatedNoCall}）；B 闸=真 Gemini QA-48（主场景+驳回续跑场景，见
+docs/QA.md 与 qa/runs/2026-07-10-QA-48/）。**
 
 ## 动机与 journey 锚
 

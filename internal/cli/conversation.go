@@ -459,9 +459,23 @@ func goalCmd(args []string, stdout, stderr io.Writer) int {
 		} else {
 			fmt.Fprintf(stdout, "checks    %d\n", g.Checks)
 		}
-		kind := "command verifiers: " + strconv.Itoa(len(g.Verifiers))
-		if len(g.Verifiers) == 0 {
-			kind = "self-certified (the model claims completion via goal_complete)"
+		// Mirror the checkpoint's three-way discriminator (INC-48): command
+		// outranks llm_judge outranks self-cert.
+		var nCmd, nLLM int
+		for _, v := range g.Verifiers {
+			switch {
+			case v.Kind == "command" && v.Command != "":
+				nCmd++
+			case v.Kind == "llm_judge" && v.Rubric != "":
+				nLLM++
+			}
+		}
+		kind := "self-certified (the model claims completion via goal_complete)"
+		switch {
+		case nCmd > 0:
+			kind = "command verifiers: " + strconv.Itoa(nCmd)
+		case nLLM > 0:
+			kind = "llm_judge (claim-gated: an independent LLM adjudicates goal_complete claims)"
 		}
 		fmt.Fprintf(stdout, "judge     %s\n", kind)
 		if g.Claimed {
