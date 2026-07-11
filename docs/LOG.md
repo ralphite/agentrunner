@@ -3614,3 +3614,8 @@ Settings/Command palette focus return，以及 616 个 `node_modules` untracked 
 0.09s/60KB 且 3 个 source 文件仍可审阅。1440/900/642/390 × light/dark、
 approval/Settings/Changes、picker/scope/palette keyboard 与 console 全部真验；证据
 保留于 `qa/runs/2026-07-11-QA61-completion-audit/`。
+
+最终 `f2f1932` push `origin/main`，原子替换 `ar-live`/`arwebui-live` 后由
+`com.agentrunner.webui8809` kickstart；live asset=`index-CTcdOVfV.js`。8809
+五次 session 首页均 200/0.10–0.29s，large Diff 200/0.13s，390 dark deep link、
+default fold、Command palette/Settings focus return 与 console `[]` 全部复验通过。

@@ -1180,8 +1180,10 @@ truthful unavailable session=`20260711-082007-use-the-edit-file-tool-to-repl-88c
 目录/字节/文件上限、首 paint 前 disclosure 修复。截图中的 screencast delta 黑块
 列为拒收采集伪影，不作产品判断。
 
-**结果**：候选阶段 PASS；最终 live push/deploy 后补齐同目录 EVIDENCE.md，所有
-共享测试数据与截图保留。
+**结果**：PASS。`f2f1932` 已 push `origin/main`，launchd live 8809 加载
+`index-CTcdOVfV.js`；最终 5 次首页 page 均 HTTP 200（0.10–0.29s），large Diff
+HTTP 200（0.13s/60,454 bytes），390×844 dark deep link/默认折叠/focus return
+复验通过且 console=`[]`。所有共享测试数据与截图保留。
 
 ## QA-43 Codex UI 全景验收（INC-41,UJ-24）
 
