@@ -264,7 +264,7 @@ func (s *server) handleDiff(w http.ResponseWriter, r *http.Request) {
 	numstat, _ := git(r.Context(), meta.Workspace, "diff", "--numstat")
 	resp["diff"] = diff
 	resp["numstat"] = numstat
-	if porcelain, ok := git(r.Context(), meta.Workspace, "status", "--porcelain"); ok {
+	if porcelain, ok := git(r.Context(), meta.Workspace, "status", "--porcelain", "--untracked-files=all"); ok {
 		untracked := []string{} // never nil — the UI does .length on this
 		var extra bytes.Buffer  // synthetic new-file diffs for untracked content
 		for _, line := range strings.Split(porcelain, "\n") {
