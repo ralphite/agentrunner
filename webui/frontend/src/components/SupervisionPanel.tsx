@@ -17,6 +17,7 @@ import { AR } from "../api";
 import { useStore } from "../store";
 import { loadGitPrefs } from "../theme";
 import { splitDiff } from "../diffSummary";
+import { deriveGoalState, formatElapsed, isGoalTerminal, type GoalDerived } from "../timeline";
 import type { Task } from "../types";
 import { friendlyStatus } from "./pill";
 import { dedupeInspectNodes } from "../viewModels";
@@ -52,6 +53,49 @@ export interface ProgressItem {
   id: string;
   title: string;
   status: "pending" | "running" | "done" | "failed";
+}
+
+// Panel labels for a settled goal's terminal phase — kept short for the GOAL
+// section's meta pill (the composer's GoalBanner carries the longer "Goal
+// complete/stopped/cancelled" strings).
+const GOAL_PANEL_LABEL: Record<string, string> = {
+  achieved: "Completed",
+  stopped: "Stopped",
+  cancelled: "Cancelled",
+};
+
+// useSettledGoal recovers a *finished* goal for the GOAL section (R1-4). The
+// live `goal` prop comes from inspect, which drops a goal the moment it settles
+// — so an achieved goal would collapse the panel to "No active goal" while the
+// composer still shows "✓ Goal complete". When there's no active goal (and the
+// panel isn't still loading), we fold the durable goal_* journal events the same
+// way GoalBanner does (deriveGoalState) and surface the terminal outcome. Reads
+// the session from the store and fetches its own events — mirroring how
+// EnvironmentSection sources the current session's diff — so SessionView's props
+// stay untouched. One fetch, triggered when the active goal clears.
+function useSettledGoal(active: boolean, loading: boolean): GoalDerived | null {
+  const sid = useStore((s) => s.currentSid);
+  const [settled, setSettled] = useState<GoalDerived | null>(null);
+  useEffect(() => {
+    if (!sid || active || loading) {
+      setSettled(null);
+      return;
+    }
+    let alive = true;
+    AR.rawEvents(sid)
+      .then((evs) => {
+        if (!alive) return;
+        const g = deriveGoalState(evs);
+        setSettled(g && isGoalTerminal(g.phase) ? g : null);
+      })
+      .catch(() => {
+        if (alive) setSettled(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [sid, active, loading]);
+  return settled;
 }
 
 export function SupervisionPanel({
@@ -97,6 +141,9 @@ export function SupervisionPanel({
   onInspect: () => void;
   onClose: () => void;
 }) {
+  // When no goal is active, recover the last settled goal so the GOAL section
+  // shows its outcome instead of collapsing to "No active goal" (R1-4).
+  const settledGoal = useSettledGoal(!!goal, loading);
   return (
     <aside className="supervision-panel" aria-label="Supervision">
       <div className="supervision-head">
@@ -140,8 +187,22 @@ export function SupervisionPanel({
               )}
             </div>
           </>
+        ) : settledGoal ? (
+          // No active goal, but the journal carries a finished one — show its
+          // outcome (Completed · elapsed · N checks) so the panel agrees with
+          // the composer's goal banner instead of reading "No active goal".
+          <>
+            <div className="goal-copy">{settledGoal.goal}</div>
+            <div className="goal-meta goal-meta-settled">
+              <span className={"goal-outcome " + settledGoal.phase}>
+                {GOAL_PANEL_LABEL[settledGoal.phase] || "Ended"}
+              </span>
+              {settledGoal.elapsedMs !== undefined && <span>{formatElapsed(settledGoal.elapsedMs)}</span>}
+              <span>{settledGoal.checks} check{settledGoal.checks === 1 ? "" : "s"}</span>
+            </div>
+          </>
         ) : (
-          <div className="supervision-empty"><CheckCircle size={15} /> No active goal</div>
+          <div className="supervision-empty is-neutral"><CheckCircle size={15} /> No active goal</div>
         )}
       </section>
 
@@ -203,7 +264,7 @@ export function SupervisionPanel({
         <div className="supervision-label"><UsersThree size={14} /> Agents</div>
         {loading ? (
           <div className="supervision-empty supervision-loading"><Hourglass size={14} className="spin" /> Checking agents…</div>
-        ) : children.length > 0 ? <Subagents nodes={children} onOpen={onOpenChild} /> : <div className="supervision-empty">No subagents</div>}
+        ) : children.length > 0 ? <Subagents nodes={children} onOpen={onOpenChild} /> : <div className="supervision-empty is-neutral"><CheckCircle size={15} /> No subagents</div>}
       </section>
 
       <section className="supervision-section">

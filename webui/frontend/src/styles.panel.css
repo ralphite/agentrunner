@@ -344,3 +344,39 @@
 }
 .session-view .daemon-alert-retry:hover { background: var(--panel-2); }
 .session-view .daemon-alert-retry:disabled { opacity: 0.6; cursor: default; }
+
+/* ===================================================================
+   INC-41 B2 · panel + settings-fix (R1-4 / R2-6 / R2-12)
+   =================================================================== */
+
+/* R2-6 / R2-12 · Empty-state icon parity + honest semantics.
+   All three empty states (Goal / Agents / Attention) now carry a
+   CheckCircle so the rows align. But a neutral "unset" state (no goal
+   set, no subagents) shouldn't wear the all-clear green — that success
+   hue is reserved for Attention's "Nothing needs you". Neutral states
+   take a quiet dim glyph instead. */
+.session-view .supervision-empty.is-neutral svg {
+  color: var(--dim);
+  opacity: .7;
+}
+
+/* R1-4 · Settled-goal outcome in the GOAL section. When a goal has
+   finished, the panel shows its text + a compact outcome line
+   (Completed · elapsed · N checks) so it agrees with the composer's
+   goal banner instead of collapsing to "No active goal". Reuses the
+   .goal-meta pill row; the outcome pill tints by terminal phase. */
+.session-view .goal-meta-settled { margin-top: 9px; }
+.session-view .goal-meta-settled .goal-outcome {
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.session-view .goal-meta-settled .goal-outcome.achieved {
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 34%, var(--line-2));
+  background: color-mix(in srgb, var(--green) 9%, var(--panel-2));
+}
+.session-view .goal-meta-settled .goal-outcome.stopped {
+  color: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 34%, var(--line-2));
+  background: color-mix(in srgb, var(--amber) 9%, var(--panel-2));
+}

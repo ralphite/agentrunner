@@ -849,3 +849,29 @@ html body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ============================================================================
+ * INC-41 B2 · settings-fix (R2-8 / R2-11)
+ * ==========================================================================*/
+
+/* R2-8 · A standalone pill button inside a block row (Settings › General
+ * "Reset to defaults") was stretching to the full content column because
+ * .rs-row-block sets align-items: stretch. Pin it to its natural width and
+ * left-align it under its description, like a compact secondary pill. The
+ * expanded confirm row follows the same edge so the button doesn't jump. */
+.rs-row-block > .rs-btn {
+  align-self: flex-start;
+}
+.rs-row-block > .rs-confirm {
+  align-self: flex-start;
+  justify-content: flex-start;
+}
+
+/* R2-11 · The Git commit-template textarea kept the OS-native diagonal
+ * resize grip, which read as inconsistent next to the flat single-line
+ * inputs. resize: vertical is already set (.rs-textarea); hide the native
+ * corner glyph so the field matches the rest — the bottom edge stays a
+ * vertical-resize hotspot. */
+.rs-textarea::-webkit-resizer {
+  display: none;
+}
