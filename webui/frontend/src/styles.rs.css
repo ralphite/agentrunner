@@ -193,156 +193,6 @@ html body {
   grid-column: 1 / -1;
 }
 
-/* ============================================================================
- * H1 · full-window Settings surface
- * ==========================================================================*/
-.rs-settings {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: flex;
-  background: var(--bg);
-  color: var(--ink);
-  font: var(--ui-font-size) / 1.55 var(--sans);
-}
-.rs-nav {
-  flex: 0 0 264px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 16px 12px;
-  border-right: 1px solid var(--line);
-  background: var(--sidebar);
-  overflow-y: auto;
-}
-.rs-back {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  align-self: flex-start;
-  padding: 5px 10px 5px 7px;
-  border: none;
-  background: transparent;
-  color: var(--ink-2);
-  font-size: 13px;
-  border-radius: 8px;
-}
-.rs-back:hover {
-  background: var(--panel-2);
-  color: var(--ink);
-}
-.rs-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 11px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--panel);
-  color: var(--dim);
-}
-.rs-search input {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  background: transparent;
-  padding: 0;
-  font-size: 13.5px;
-  color: var(--ink);
-}
-.rs-search input:focus {
-  outline: none;
-}
-.rs-search:focus-within {
-  border-color: var(--rs-accent);
-}
-.rs-navlist {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 2px;
-}
-.rs-navgroup {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.rs-navgroup-title {
-  font-size: 10.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  color: var(--dim);
-  padding: 4px 10px;
-}
-.rs-navitem {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 8px 10px;
-  border: none;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--ink-2);
-  font-size: 13.5px;
-  text-align: left;
-}
-.rs-navitem:hover {
-  background: var(--panel-2);
-  color: var(--ink);
-}
-.rs-navitem.sel {
-  background: var(--rs-accent-soft);
-  color: var(--rs-accent);
-  font-weight: 550;
-}
-.rs-nav-empty {
-  padding: 12px 10px;
-  color: var(--dim);
-  font-size: 13px;
-}
-
-.rs-content {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-.rs-content-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 26px;
-  border-bottom: 1px solid var(--line);
-}
-.rs-crumb {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 13px;
-  color: var(--dim);
-}
-.rs-crumb-sep {
-  opacity: 0.6;
-}
-.rs-close {
-  padding: 5px 14px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--panel);
-  color: var(--ink);
-  font-size: 12.5px;
-}
-.rs-close:hover {
-  background: var(--panel-2);
-}
-.rs-content-scroll {
-  flex: 1;
-  overflow-y: auto;
-  padding: 26px;
-}
-
 /* ---- shared panel scaffolding ---- */
 .rs-panel {
   max-width: 660px;
@@ -513,41 +363,6 @@ html body {
 }
 .rs-fontpreview.mono {
   font-family: var(--mono);
-}
-.rs-btn {
-  padding: 7px 15px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--panel);
-  color: var(--ink);
-  font-size: 13px;
-  flex-shrink: 0;
-}
-.rs-btn:hover {
-  background: var(--panel-2);
-}
-.rs-btn.danger {
-  color: var(--red);
-  border-color: color-mix(in srgb, var(--red) 40%, var(--line));
-}
-.rs-confirm {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  font-size: 12.5px;
-  color: var(--dim);
-}
-.rs-statusdot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--red);
-  flex-shrink: 0;
-}
-.rs-statusdot.on {
-  background: var(--green);
 }
 .rs-input,
 .rs-textarea {
@@ -830,26 +645,10 @@ html body {
 
 /* ---- responsive: settings collapses to a stacked layout ---- */
 @media (max-width: 720px) {
-  .rs-settings {
-    flex-direction: column;
-  }
-  .rs-nav {
-    flex: 0 0 auto;
-    border-right: none;
-    border-bottom: 1px solid var(--line);
-    max-height: 45vh;
-  }
-  .rs-content-head {
-    padding: 12px 18px;
-  }
-  .rs-content-scroll {
-    padding: 18px;
-  }
   .rs-themecards {
     grid-template-columns: 1fr;
   }
 }
-
 /* ============================================================================
  * INC-41 B2 · settings-fix (R2-8 / R2-11)
  * ==========================================================================*/
@@ -857,14 +656,8 @@ html body {
 /* R2-8 · A standalone pill button inside a block row (Settings › General
  * "Reset to defaults") was stretching to the full content column because
  * .rs-row-block sets align-items: stretch. Pin it to its natural width and
- * left-align it under its description, like a compact secondary pill. The
- * expanded confirm row follows the same edge so the button doesn't jump. */
-.rs-row-block > .rs-btn {
+ * left-align it under its description {
   align-self: flex-start;
-}
-.rs-row-block > .rs-confirm {
-  align-self: flex-start;
-  justify-content: flex-start;
 }
 
 /* R2-11 · The Git commit-template textarea kept the OS-native diagonal

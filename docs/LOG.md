@@ -2835,3 +2835,40 @@ steer 显式 opt-in。
 TestSteerFlushesQueuedBacklog / TestInboxDeliveryModeIsPartOfPayload 全绿；
 全量 Go 测试 + 91 vitest + frontend build + 根 check.sh 全绿（dist 已重建提交）；
 QA-45 真机（steer/queue 注入时机）见 `qa/runs/2026-07-10-QA-45/`。
+
+## 2026-07-10 webui Tailwind 迁移 批2–4:组件 className 迁 utility + 死 CSS 删除(实际范围与边界)
+
+承 Tailwind 基础设施批。分三批推进,每批真机截图校验、分批 push main:
+
+- **批2(base 下沉 + 8 组件)**:通用元素 reset(`*`,html/body,button,input,a,
+  focus-visible)从 styles.css 下沉到 tw.css `@layer base`(使迁移元素可被 utility
+  覆盖;`.mono/.dim`/button 变体等仍留 styles.css 未分层,未迁组件不受影响)。
+  8 组件叶子/容器 className→utility(仅 className,零逻辑改,tsc 绿):
+  ChangesOutcome/Composer/ErrorBoundary/Markdown/Settings/SettingsGeneral/
+  Sidebar/Timeline。**验证法**:双构建 back-to-back 截图(ref=未迁 vs conv=已迁,
+  同一 store 同一时刻)→ home/composer 菜单/timeline/changes/settings 全 0 像素差异
+  (排除 store 内容随时间漂移的假阳性:初版 stale baseline 因并发 session 新建会话
+  + 相对时间老化误报~19k px,已识别)。
+- **批3(删死 CSS)**:Settings shell 的 `rs-*` 类(rs-settings/rs-nav/rs-navitem/
+  rs-back/rs-search/rs-content/rs-crumb/rs-close 等)已在 Settings.tsx 迁 utility
+  (含 `max-[720px]:` 响应式),规则成死。逗号感知 pruner 删 ~29 规则,styles.rs.css
+  -~190 行。desktop dual-build 0 差异 + mobile 390px 栈式布局截图确认保留。
+- **批4(Toasts)**:Toasts.tsx 全迁 utility,删 `.toasts/.toast*` 规则。
+
+**实际范围与边界(诚实记档)**:
+- 已迁:9 组件的叶子/容器元素 + Settings shell/Toasts 死 CSS 删除。**远未达"降到
+  几百行"目标**;手写 CSS 仅小幅下降。
+- **根因**:手写 CSS 深度依赖后代选择器(`.hero h2`、`.md pre`)、伪元素
+  (`::-webkit-scrollbar`、`::before` 箭头)、`@keyframes` 动画、以及**大量运行时
+  拼接的动态类**(`hl-`语法高亮 / `pop-`弹层方向 / `status-`状态点 / `md-h`标题级
+  / `agent-` 等)。忠实、零回归迁移只能以叶子元素为主,多数结构类/动态类必须保留,
+  其 CSS 不可安全删除。达"几百行"需按组件重构 DOM(拆后代选择器、data-attr 驱动、
+  动画留少量 `@layer components`),属高回归风险大改,应作独立增量逐组件推进。
+- 未迁(仍全走手写 CSS):Home/Scheduled/Menu/ContextMenu/Shortcuts/Popover/
+  Lightbox/FindBar/CommandPalette/Modals/DiffView/RunView/ApprovalCard/Subagents/
+  SupervisionPanel/App shell + Settings 其余子面板 + Composer/Timeline 非叶子部分。
+- **主题机制零回归**:颜色全走 CSS 变量 token,`bg-panel`/`text-ink` 经
+  `--color-*: var(--x)` 自动随 light/dark/system 翻转;system 暗走 `@media` 路径
+  截图确认;运行时 contrast/font-size 覆盖照常传导。
+- 工具教训:子 agent 隔离 worktree 产出会被自动清理丢失且互相污染,改由主 agent
+  亲手迁移;截图 harness 在 `qa/runs/2026-07-10-tailwind-migration/`(gitignored)。

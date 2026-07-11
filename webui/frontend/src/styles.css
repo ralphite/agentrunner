@@ -1612,33 +1612,7 @@ summary.fd-head:hover {
   color: var(--ink-2);
 }
 
-/* ---- toasts ---- */
-.toasts {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  z-index: 60;
-  max-width: 440px;
-}
-.toast {
-  padding: 10px 14px;
-  border-radius: 10px;
-  font-size: 13px;
-  white-space: pre-wrap;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
-  cursor: pointer;
-}
-.toast.error {
-  background: #7f1d1d;
-  color: #fff;
-}
-.toast.info {
-  background: var(--accent);
-  color: var(--accent-ink);
-}
+/* toasts migrated to Tailwind utilities (Toasts.tsx) */
 
 /* ========================================================================
    Codex-style composer (shared by Home hero + session follow-up)
