@@ -23,7 +23,6 @@ schedule_next / finish_series（loop 自定步调）
 semantic_search（IndexStore，BM25）
 tool 输出截断（per-tool 上限）
 workspace 快照（shadow repo、排除表、pinned）
-信任模型（project 层 hooks 需显式 trust，`ar trust`）
 凭据 redaction + 硬排除表（含 .netrc/.npmrc 等）
 审批流（ask → WAITING_APPROVAL → 应答/拒绝理由回灌）
 并发子 agent 确定性测试基建（routing provider）

@@ -40,6 +40,14 @@ type Effect struct {
 	// "all" for an uncontained execute-class effect, "" when the OS sandbox
 	// already removes egress — network rules match the former only.
 	Network string
+	// Command is the shell command a command tool (INC-55) will run. Unlike
+	// bash — whose command rides the model's `{"command":...}` args — a
+	// command tool's command is FIXED by its manifest and the model controls
+	// only stdin, so it is supplied here for the permission gate to adjudicate.
+	// Empty for every other effect (bash falls back to its args). The gate
+	// treats it exactly like a bash command line (per-segment matching,
+	// wrapper stripping, read-only set).
+	Command string
 	// ApprovalReason forces a human ask after all ordinary gates allow. It
 	// never overrides a deny from floor, spawn, budget, or permission gates.
 	ApprovalReason string

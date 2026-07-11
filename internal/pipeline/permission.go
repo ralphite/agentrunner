@@ -59,6 +59,13 @@ func (g *PermissionGate) Check(_ context.Context, eff Effect) Decision {
 
 	args := effArgs(eff)
 	relPath, _ := g.resolveRel(args.Path)
+	// A command tool (INC-55) supplies its FIXED manifest command out-of-band
+	// (eff.Command); every other effect's command rides its args. Either way
+	// the gate adjudicates one command string with identical machinery.
+	command := args.Command
+	if eff.Command != "" {
+		command = eff.Command
+	}
 
 	// exit_plan_mode is transition policy, not rule material: leaving plan
 	// mode always requires approval (3.6c); outside plan it is meaningless.
@@ -69,18 +76,18 @@ func (g *PermissionGate) Check(_ context.Context, eff Effect) Decision {
 		return Deny("not in plan mode")
 	}
 
-	// A bash command with top-level separators is adjudicated PER SEGMENT
+	// A command with top-level separators is adjudicated PER SEGMENT
 	// (INC-16, #53): one allow-matched segment may not wave through the rest.
 	// The whole command's verdict is the STRICTEST segment verdict — a single
-	// unmatched or asked/denied segment holds back the compound. Non-bash
-	// effects (empty Command) fall through to the single-shot path below.
-	if args.Command != "" {
-		if segs := splitCompound(args.Command); len(segs) > 1 {
-			return g.adjudicateSegments(eff, relPath, args, segs)
+	// unmatched or asked/denied segment holds back the compound. Non-command
+	// effects (empty command) fall through to the single-shot path below.
+	if command != "" {
+		if segs := splitCompound(command); len(segs) > 1 {
+			return g.adjudicateSegments(eff, relPath, args, command, segs)
 		}
 	}
 
-	if d, matched := g.matchOneCommand(eff, relPath, args, args.Command); matched {
+	if d, matched := g.matchOneCommand(eff, relPath, args, command); matched {
 		return d
 	}
 	d := modeDefault(g.effectiveMode(eff), eff.Class)
@@ -101,7 +108,7 @@ func (g *PermissionGate) Check(_ context.Context, eff Effect) Decision {
 // default — so with a `Bash(git *)` allow, `git status && rm -rf x` is NOT
 // allowed: the rm segment matches no rule and falls to the default (ask in
 // default mode), which dominates the git segment's allow.
-func (g *PermissionGate) adjudicateSegments(eff Effect, relPath string, args toolArgs, segs []string) Decision {
+func (g *PermissionGate) adjudicateSegments(eff Effect, relPath string, args toolArgs, command string, segs []string) Decision {
 	worst := Allow
 	worstReason := ""
 	rank := func(d Decision) int {
@@ -121,7 +128,7 @@ func (g *PermissionGate) adjudicateSegments(eff Effect, relPath string, args too
 		}
 		if rank(d) > rank(worst) {
 			worst, worstReason = d, d.Reason
-			if seg != args.Command {
+			if seg != command {
 				worstReason = "segment " + strconv.Quote(seg) + ": " + d.Reason
 			}
 		}

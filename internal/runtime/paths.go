@@ -57,6 +57,28 @@ func ProjectConfigPath(workspaceRoot string) string {
 	return filepath.Join(workspaceRoot, ".agentrunner", "settings.yaml")
 }
 
+// UserToolsDir locates the user-level command-tool manifest directory
+// (INC-55): a sibling of the user settings file. These are the user's own
+// machine — always loaded, like user-level hooks (决策 #19).
+func UserToolsDir() (string, error) {
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		return filepath.Join(xdg, "agentrunner", "tools"), nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("tools dir: %w", err)
+	}
+	return filepath.Join(home, ".config", "agentrunner", "tools"), nil
+}
+
+// ProjectToolsDir locates the project-level command-tool manifest directory
+// (INC-55): repo content under the Claude Code convention dir, a sibling of
+// .claude/skills and .claude/commands. Loaded ONLY when the workspace is
+// trusted (决策 #19) — a cloned repo must not hand over arbitrary execution.
+func ProjectToolsDir(workspaceRoot string) string {
+	return filepath.Join(workspaceRoot, ".claude", "tools")
+}
+
 // NewSessionID builds the sortable session id:
 // YYYYMMDD-HHMMSS-<slug>-<4hex> (slug = first 30 bytes of the task,
 // lowercased; the random suffix prevents same-second collisions from

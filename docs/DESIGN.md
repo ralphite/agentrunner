@@ -949,11 +949,15 @@ limits:
   路径显式排除出快照/rewind 范围——否则 rewind 会让已收紧的 deny
   静默复活。（审批现场写回的完整设计尚缺，见 GAPS G5。）
 - **信任模型**：spec 与 settings 等同于"你选择执行的代码"。可执行配置
-  （hooks）只从 spec 与 user 层生效；**project 层（随 repo 走的
-  文件）里的 hooks 被忽略**，除非用户对该 workspace 做过一次显式 trust
-  确认——否则 clone 一个不受信任的 repo 就等于交出任意代码执行权，
-  整个 permission 系统被绕过。memory 文件按不可信内容对待（只进 prompt，
-  不获得任何执行权）。原型是单用户自担模式，但边界必须明文。
+  （hooks，**以及 command tools——见 §10，INC-55**）只从 spec 与 user 层
+  生效；**project 层（随 repo 走的文件）里的 hooks 被忽略**，除非用户对该
+  workspace 做过一次显式 trust 确认——否则 clone 一个不受信任的 repo 就
+  等于交出任意代码执行权，整个 permission 系统被绕过。**同理，project 层
+  的 command tool manifest（`<ws>/.claude/tools`）未 trust 不加载**（决策
+  #19 是范畴不变量，command tool 是"可执行配置"的同族新成员，非 hooks 专属
+  规则——见决策 #36/#38 对 #19 的同族复用）。memory 文件按不可信内容对待
+  （只进 prompt，不获得任何执行权）——这是执行侧/文本侧分界的另一端。
+  原型是单用户自担模式，但边界必须明文。
 
 ---
 
@@ -1050,6 +1054,41 @@ limits:
   `/invoke` 时展开、且只注入**文本**——与 memory/skills 同类，无需额外
   信任门。命令**对模型不可见**（无工具、无 prefix 注入），故不涉
   prefix 稳定性不变量。
+
+### 自定义 command tools（INC-55，HANDA-PARITY #4）
+
+- **是什么**：把一条**本地命令**用 manifest 包成**模型可直接调用的工具**
+  ——与 slash 命令（ingest 展开成 prompt 文本、对模型不可见）正相反：
+  command tool 是模型侧一等能力，有 name/description/params 面，模型按名带
+  结构化参数调用。与 MCP 的区别：MCP 是 out-of-process server；command
+  tool 是**本机固定命令**（模型改不了命令行，只填参数）。
+- **manifest**：`{name, description, command, timeout_s, params(JSON schema)}`。
+  `name` 限 `^[A-Za-z0-9_-]{1,64}$`（provider 函数名形，杜绝穿越/命名空间
+  戏法，禁 `mcp__` 前缀）；`command` 是 shell 命令（`sh -c`）；`params` 成
+  工具的 input schema（缺省 `{"type":"object"}`）；`timeout_s` 钳到 1h，
+  0=execute 默认。
+- **发现两层**：user 层 `~/.config/agentrunner/tools/*.json`（用户本机，
+  恒载）+ project 层 `<ws>/.claude/tools/*.json`（随 repo 走，**未 trust
+  不加载**——决策 #19，与 hooks 同门）。撞内置名**拒载**（内置赢）、user
+  压 project（撞名优先级）、同层重名首个（文件名序）胜；malformed 跳过
+  告警（不阻断 run，同 skills）。
+- **冻结/resume**：发现在 session 开始一次性做，**冻结进
+  `SessionStarted.command_tools`**（含固定命令，是权限面）——fold 只知
+  resume 重建 face 与 dispatch 所需的事实，trust 判定被 journal 定格
+  （决策 #3：fold 不读文件系统；rewind 不复活已收紧的 trust）。tool face
+  从 fold 重建，与 MCP face 同构。
+- **调用 = execute-class command effect + OS sandbox**：每次调用构造一条
+  `tool_call` effect，`class=execute`、`eff.Command=manifest 固定命令`
+  （模型的 args 是 stdin **数据**、不是命令行），过完整管线
+  （FloorGate→hooks→permission→budget）——permission gate 按 bash 命令行
+  同款机件裁决固定命令（分段/wrapper 剥离/read-only 集），execute 默认
+  ask；用户可用 `command:`/`tool:` 规则放行。执行走**决策 #34 强制 OS
+  sandbox**（复用 `sandboxedBash`：isolated HOME/TMP、凭据路径拒读、
+  secret env 剥离、network ratchet；backend 缺失 fail closed），args JSON
+  从 **stdin** 传入；EffectResolved 载 containment evidence。**不新造放行
+  路径**：未 trust 的 project tool 不进 fold=不可 dispatch，加载后每次调用
+  与 bash 同管线同沙箱。timeout 用 manifest 值（durable-timer substrate 拥有
+  wall-clock，同 bash）。
 
 ---
 
@@ -1449,7 +1488,7 @@ limits:
 | 16 | Skill 格式 | 沿用 Claude Code 约定 | 生态兼容，不发明格式。 |
 | 17 | MCP 生命周期 | 带外运行时状态；只有 tool 调用是 activity；发现的 schema 记录为 event | server 状态不可 event 化；schema 是影响结果的输入。 |
 | 18 | Event schema 版本化（INC-11.7 修订） | `SessionStarted`/snapshot 记录 namespaced sub-state 版本；additive-optional 字段与旧 namespace 子集由兼容 reader 接受，旧 snapshot 缺新投影则只丢缓存、从 journal 全量 fold；共享 namespace 真正版本冲突/未知 namespace 明确拒绝且不改原数据。破坏性升级只走 EventStore 单点显式 upcast/migration。 | 长期 session 可跨 additive 升级恢复，同时避免错误 tail replay 丢掉新投影的历史事实。 |
-| 19 | 信任模型 | 可执行配置（hooks）只认 spec 与 user 层；project 层需显式 trust；memory 文件按不可信内容对待 | clone 不受信 repo 不等于交出任意代码执行权。 |
+| 19 | 信任模型 | 可执行配置（hooks、command tools——见 §10，INC-55）只认 spec 与 user 层；project 层需显式 trust；memory 文件按不可信内容对待 | clone 不受信 repo 不等于交出任意代码执行权。command tool 是同族新成员（运行命令、吃模型控制 stdin），落在执行侧，与 hooks 同门；memory 只进 prompt 是文本侧对照。 |
 | 20 | 树级约束（INC-12.5 修订，2026-07-09） | 权限 rules 默认在 spawn 时冻结交集下传；唯一放宽路径是 child 显式 `escalate`，经 `ApprovalRequested` 由人批准后改用 child 声明 rules。拒绝/interrupt 降级为交集。预算 = min(child 限额, parent 剩余)、深度/扇出、工具子集与 OS 收容棘轮均无例外 | 用户明确批准可控的权限例外，同时保持树总成本与硬安全边界有界。 |
 | 21 | 运行模式（INC-D1 修订，2026-07-09；INC-10 完成判据扩展，同日；INC-48 llm_judge 兑现，2026-07-10） | **best-of-N（`parallel{n}`）、批式 loop、one-shot、driver-goal** 是同一 `IterationDriver` 的 schedule，每轮迭代 = **fresh child session**（隔离/prefix 稳定是其语义）。**goal 另有会话内形态**：**in-session goal** 挂在 conversational session 上、context 全程延续（**不**起 fresh child），**完成裁决在 exchange 边界（final generation 收尾、绝不 mid-turn）**：**有 command verifier 时 command 是唯一裁决者**（每边界跑，claim 仅注记）；**否则有 llm_judge verifier 时 judge 是唯一裁决者，但仅在 `goal_complete` 声明待决时调用**（claim-gated：无声明 = miss 续跑，不调 judge、零 LLM 花费）；**都没有时由模型 `goal_complete` 声明边界接受**（self-cert；mid-turn 记 journal、边界才裁决）。llm_judge 是 budget-gated 的 journaled `llm_call` 管线 effect（Activity-bracketed；crash 后复用 journaled verdict 不重判——同 command verifier 的幂等窗，但走独立 verdict 解析）。judge 二态 pass/fail（blocked 终态列余项，避免 judge 获得单方终结权这一更强授权）。miss 回灌 program 源 input 让同一 fold 续跑，pass 出达成回执并摘 goal；见 §13。 | fresh-run 保隔离/prefix，但构造上丢对话 context——UJ-22 硬要求 goal 的 context 延续（LOG 2026-07-05 裁定）。完成判据扩展（INC-10）：多数真实长程目标写不成 shell 命令，verifier-唯一判据构造上把自证 goal 钉成恒不可达成（CODEX-PARITY §6.2-①）。llm_judge 兑现（INC-48，契约 review 2026-07-11 修订后放行）：写不成命令的长程目标原先只能落到 self-cert（无条件接受声明），补齐决策自己命名的第三态是**兑现**而非违反——"唯一裁决者"枚举从 command 扩为 command｜llm_judge；边界纪律/回灌续跑/fold 连续性三性质原样保留。 |
 | 22 | Background | session 由常驻 runtime 托管，frontend 任意 attach/detach（detach 无事件）；后台 effect 的 handle 即其配对结果，完成是新的 user-role 输入 | 订阅状态不影响结果；已配对的 call 不可二次触碰（Gemini 严格配对）。 |

@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -812,22 +813,55 @@ func (e *Executor) bash(ctx context.Context, rawArgs json.RawMessage) Result {
 	if err := json.Unmarshal(rawArgs, &args); err != nil || args.Command == "" {
 		return errResult("bash: invalid args: need {\"command\": string}")
 	}
-
-	var stdout, stderr bytes.Buffer
 	cmd, cleanup, err := e.sandboxedBash(args.Command)
 	if err != nil {
 		return errResult("bash: required OS sandbox unavailable (%v) — refusing to run", err)
 	}
 	defer cleanup()
+	return e.runSandboxed(ctx, cmd, nil)
+}
+
+// RunCommandTool executes a user-defined command tool (INC-55, HANDA-PARITY
+// #4): the manifest's FIXED command runs in the mandatory OS sandbox (决策
+// #34) — the exact bash containment (isolated HOME/TMP, credential-path
+// denial, network ratchet) and process lifecycle — with the model's arguments
+// delivered as JSON on the command's stdin. A command tool is a bash effect
+// whose command line is fixed by the manifest and whose args are DATA, never
+// shell, so it never widens the shell-injection surface bash already governs.
+// The loop adjudicates the fixed command through the full pipeline (execute-
+// class command effect) before this ever runs.
+func (e *Executor) RunCommandTool(ctx context.Context, command string, argsJSON json.RawMessage) Result {
+	cmd, cleanup, err := e.sandboxedBash(command)
+	if err != nil {
+		return errResult("command tool: required OS sandbox unavailable (%v) — refusing to run", err)
+	}
+	defer cleanup()
+	stdin := []byte(argsJSON)
+	if len(bytes.TrimSpace(stdin)) == 0 {
+		stdin = []byte("{}") // a parameterless call still gets a valid JSON object
+	}
+	return e.runSandboxed(ctx, cmd, stdin)
+}
+
+// runSandboxed runs a prepared sandboxed command, optionally feeding stdin,
+// and renders the standard {stdout,stderr,exit_code[,timed_out|canceled]}
+// result shared by bash and command tools. Wall-clock is owned by the durable
+// timer (2.11): a ctx cancel caused by ErrActivityTimeout renders timed_out,
+// any other cancellation renders canceled.
+func (e *Executor) runSandboxed(ctx context.Context, cmd *exec.Cmd, stdin []byte) Result {
+	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
+	if stdin != nil {
+		cmd.Stdin = bytes.NewReader(stdin)
+	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	// Background children inherit the output pipes; don't let them hold
 	// Wait hostage after the direct child exits.
 	cmd.WaitDelay = bashPipeDeadline
 
 	if err := cmd.Start(); err != nil {
-		return errResult("bash: %v", err)
+		return errResult("exec: %v", err)
 	}
 	pgid := cmd.Process.Pid
 

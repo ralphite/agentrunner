@@ -53,7 +53,7 @@
 
 | # | 项 | 规模 | 状态 | 备注 |
 |---|---|---|---|---|
-| 4 | 自定义 command tools（trust 门=hooks 级 + 全管线 + sandbox） | M | 🔧 in-progress (INC-55) | project 层=可执行配置（决策 #19）；触不变量→design-first + §四（并行轮认领 2026-07-11，worktree 子 agent E） |
+| 4 | 自定义 command tools（trust 门=hooks 级 + 全管线 + sandbox） | M | 📐 awaiting-review (INC-55) | 判定 = **决策 #19 additive 兑现**（范畴不变量，command tool 同族新成员——§四变更单+解读见工作纸/LOG）；实现+A 闸孪生全绿（commandtool/pipeline/tool/agent），DESIGN #19/§9/§10 additive 编辑同 commit；**须 reviewer 复核决策 #19 解读**（additive vs 枚举翻转）+ B 闸真 Gemini QA-55。⚠️ 编号与 Codex INC-55（last-turn-diff，已合并）撞号，合并时择一改号。worktree 子 agent E，2026-07-11 |
 
 ### 批 5 · webui 消费面
 

@@ -17,6 +17,8 @@ import (
 	"github.com/ralphite/agentrunner/internal/blackboard"
 	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/command"
+	"github.com/ralphite/agentrunner/internal/commandtool"
+	"github.com/ralphite/agentrunner/internal/config"
 	"github.com/ralphite/agentrunner/internal/crash"
 	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
@@ -117,6 +119,11 @@ type Loop struct {
 	// on resume reconciles the live face against the journaled one. nil =
 	// no MCP tools.
 	MCP MCPManager
+	// commandTools is the run's user-defined command-tool face (INC-55),
+	// keyed by name. Populated in drive() from the fold's frozen, trust-gated
+	// CommandTools (so resume gets the identical face). Per-Loop, never shared
+	// across children, so lookups need no lock. nil until drive() runs.
+	commandTools map[string]event.CommandToolDef
 	// SubSpecs resolves the spec.Agents whitelist to child specs (S5.3);
 	// nil = spawning unavailable. Depth is this run's position in the agent
 	// tree (0 = root); the spawn gate caps it.
@@ -401,6 +408,7 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 		task = redact.FromEnv().String(expanded)
 	}
 	memoryBlock, skillsBlock := renderContextBlocks(wsRoot)
+	commandTools := l.discoverCommandTools(wsRoot)
 	providerEnvelope := provider.Envelope(l.Spec.Model.Provider, l.Spec.Model.ID, provider.Capabilities{})
 	if l.Provider != nil {
 		providerEnvelope = provider.Envelope(l.Spec.Model.Provider, l.Spec.Model.ID, l.Provider.Capabilities())
@@ -412,8 +420,9 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 		SpecPath: l.SpecPath,
 		Env:      renderEnvBlock(wsRoot, l.Clock.Now()),
 		Memory:   memoryBlock, Skills: skillsBlock,
-		Agents: renderAgentsDirectory(l.Spec.Agents, l.Spec.AgentsDynamic, l.SubSpecs),
-		Inputs: l.Inputs,
+		Agents:       renderAgentsDirectory(l.Spec.Agents, l.Spec.AgentsDynamic, l.SubSpecs),
+		CommandTools: commandTools,
+		Inputs:       l.Inputs,
 		// The effective permission rules, materialized as data (S6): a child
 		// pipeline holds the parent's gates, so this captures the WHOLE
 		// intersection chain — a standalone resume of this session rebuilds
@@ -452,6 +461,64 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 	l.emit(protocol.Event{Kind: protocol.KindSessionStart, Mode: ds.s.CurrentMode()})
 
 	return l.drive(ctx, ds, appendE)
+}
+
+// discoverCommandTools loads and trust-gates the user-defined command tools
+// (INC-55) for freezing into SessionStarted. USER manifests always load;
+// PROJECT manifests load only when the workspace is trusted (决策 #19) — the
+// same gate hooks pass, because a command tool is 可执行配置 running a command
+// with model-controlled stdin. Discovery never fails the run: a trust-lookup
+// error fails CLOSED (untrusted), and every malformed/rejected/shadowed
+// manifest is logged and skipped (like skills). Frozen at session start so
+// resume rebuilds the identical face and trust decision without re-reading
+// the filesystem (决策 #3).
+func (l *Loop) discoverCommandTools(wsRoot string) []event.CommandToolDef {
+	if wsRoot == "" {
+		return nil
+	}
+	userDir, err := runtime.UserToolsDir()
+	if err != nil {
+		slog.Warn("command tool discovery: user tools dir unavailable; skipping", "err", err)
+		return nil
+	}
+	dataDir, err := runtime.DataDir()
+	if err != nil {
+		slog.Warn("command tool discovery: data dir unavailable; skipping", "err", err)
+		return nil
+	}
+	trusted, err := config.IsTrusted(dataDir, wsRoot)
+	if err != nil {
+		// Fail closed: a workspace we cannot verify is not trusted, so its
+		// project-layer command tools stay unloaded.
+		slog.Warn("command tool discovery: trust check failed; treating workspace as untrusted", "err", err)
+		trusted = false
+	}
+	tools, warnings := commandtool.Discover(userDir, runtime.ProjectToolsDir(wsRoot), trusted, builtinToolNames())
+	for _, w := range warnings {
+		slog.Warn("command tool discovery: " + w)
+	}
+	if len(tools) == 0 {
+		return nil
+	}
+	defs := make([]event.CommandToolDef, 0, len(tools))
+	for _, t := range tools {
+		defs = append(defs, event.CommandToolDef{
+			Name: t.Name, Description: t.Description, Command: t.Command,
+			TimeoutS: t.TimeoutS, Source: t.Source, InputSchema: t.InputSchema,
+		})
+	}
+	return defs
+}
+
+// builtinToolNames is the reserved-name set a command tool may not take: the
+// built-in registry. A collision refuses the manifest (the built-in wins).
+func builtinToolNames() map[string]bool {
+	names := tool.Names()
+	m := make(map[string]bool, len(names))
+	for _, n := range names {
+		m[n] = true
+	}
+	return m
 }
 
 // discoverMCP journals the MCP tool face at session start (S5.1): the
@@ -983,6 +1050,18 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 		toolDefs = append(toolDefs, provider.ToolDef{
 			Name: mt.Name, Description: mt.Description, InputSchema: mt.InputSchema,
 		})
+	}
+	// The command-tool face (INC-55) is rebuilt from the fold exactly like the
+	// MCP face: the trust-gated manifests frozen at session start, so resume
+	// advertises the identical set and dispatch reads the same fixed commands.
+	if len(ds.s.Session.CommandTools) > 0 {
+		l.commandTools = make(map[string]event.CommandToolDef, len(ds.s.Session.CommandTools))
+		for _, ct := range ds.s.Session.CommandTools {
+			l.commandTools[ct.Name] = ct
+			toolDefs = append(toolDefs, provider.ToolDef{
+				Name: ct.Name, Description: ct.Description, InputSchema: ct.InputSchema,
+			})
+		}
 	}
 	// Structured-output agents (INC-35): a spec declaring output_schema is a
 	// pure producer — its job is to emit schema-conforming JSON, not to act.
@@ -1628,6 +1707,12 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 			Budget:    budgetView(ds.s),
 			Network:   l.networkScope(class, call.Name),
 		}
+		// A command tool (INC-55) adjudicates on its FIXED manifest command,
+		// not the model's args (which are stdin data): supply it so the
+		// permission gate treats it exactly like a bash command line.
+		if ct, ok := l.commandTools[call.Name]; ok {
+			eff.Command = ct.Command
+		}
 		allowance := 0
 		var childSpec *AgentSpec
 		var coordination spawnPlan
@@ -2086,6 +2171,17 @@ func (l *Loop) buildToolRun(call provider.ToolCall, res *tool.Result) func(conte
 			return res.Payload, nil, res.IsError, nil
 		}
 	}
+	// Command tools (INC-55) run their fixed manifest command in the OS
+	// sandbox with the model's args as JSON on stdin. The command already
+	// cleared the pipeline as an execute-class command effect (eff.Command);
+	// the model controls only stdin. Dispatched from the fold-backed per-run
+	// registry so resume behaves identically.
+	if ct, ok := l.commandTools[call.Name]; ok {
+		return func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
+			*res = l.Exec.RunCommandTool(ctx, ct.Command, call.Args)
+			return res.Payload, nil, res.IsError, nil
+		}
+	}
 	return func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
 		*res = l.Exec.Execute(ctx, call.Name, call.Args)
 		return res.Payload, nil, res.IsError, nil
@@ -2482,7 +2578,7 @@ func (l *Loop) networkScope(class, toolName string) string {
 // optional network ratchet. Other tools either stay in-process or execute in
 // an out-of-process MCP server and must not inherit a false claim.
 func (l *Loop) containment(eff pipeline.Effect) *event.Containment {
-	if eff.Kind != "tool_call" || eff.ToolName != "bash" || l.Exec == nil {
+	if eff.Kind != "tool_call" || l.Exec == nil || !l.sandboxedExec(eff.ToolName) {
 		return nil
 	}
 	info, err := l.Exec.SandboxInfo()
@@ -2492,16 +2588,31 @@ func (l *Loop) containment(eff pipeline.Effect) *event.Containment {
 	return &event.Containment{Filesystem: info.Filesystem, Network: info.Network, Backend: info.Backend}
 }
 
+// sandboxedExec reports whether a tool executes a subprocess in the OS
+// sandbox: bash, or a command tool (INC-55). Both must carry containment
+// evidence and fail closed when the sandbox backend is missing (决策 #34).
+func (l *Loop) sandboxedExec(toolName string) bool {
+	if toolName == "bash" {
+		return true
+	}
+	return l.isCommandTool(toolName)
+}
+
+func (l *Loop) isCommandTool(name string) bool {
+	_, ok := l.commandTools[name]
+	return ok
+}
+
 func (l *Loop) containmentError(eff pipeline.Effect) error {
 	if eff.Network != "" && l.Exec != nil && l.Exec.NetworkContained() {
 		return fmt.Errorf("network containment is active; tool %s still requires egress %q",
 			eff.ToolName, eff.Network)
 	}
-	if eff.Kind != "tool_call" || eff.ToolName != "bash" {
+	if eff.Kind != "tool_call" || !l.sandboxedExec(eff.ToolName) {
 		return nil
 	}
 	if l.Exec == nil {
-		return fmt.Errorf("bash requires an executor-backed OS sandbox")
+		return fmt.Errorf("%s requires an executor-backed OS sandbox", eff.ToolName)
 	}
 	_, err := l.Exec.SandboxInfo()
 	if err != nil {
@@ -2605,6 +2716,12 @@ func toolClassIn(s state.State, name string) string {
 	if mt, ok := mcpToolIn(s, name); ok {
 		return mt.Class
 	}
+	// Command tools (INC-55) run a command, so they are always execute-class:
+	// invocation goes through the pipeline's execute default (ask) and the OS
+	// sandbox, exactly like bash.
+	if _, ok := commandToolIn(s, name); ok {
+		return string(tool.ClassExecute)
+	}
 	return ""
 }
 
@@ -2615,6 +2732,16 @@ func mcpToolIn(s state.State, name string) (event.MCPToolDef, bool) {
 		}
 	}
 	return event.MCPToolDef{}, false
+}
+
+// commandToolIn resolves a command tool from the fold's frozen face (INC-55).
+func commandToolIn(s state.State, name string) (event.CommandToolDef, bool) {
+	for _, ct := range s.Session.CommandTools {
+		if ct.Name == name {
+			return ct, true
+		}
+	}
+	return event.CommandToolDef{}, false
 }
 
 // toolIdempotentIn: built-in reads/waits have local replay contracts. MCP
@@ -2655,6 +2782,14 @@ func toolTimeoutIn(s state.State, name string) time.Duration {
 		// Every MCP call crosses a process/network boundary; even a
 		// read-class tool can hang on a stuck server, so all get the
 		// execute wall clock.
+		return executeToolTimeout
+	}
+	// Command tools (INC-55) honor their manifest's declared timeout (already
+	// clamped at discovery); 0 falls back to the execute default like bash.
+	if ct, ok := commandToolIn(s, name); ok {
+		if ct.TimeoutS > 0 {
+			return time.Duration(ct.TimeoutS) * time.Second
+		}
 		return executeToolTimeout
 	}
 	return 0

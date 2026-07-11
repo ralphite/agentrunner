@@ -443,6 +443,11 @@ type Session struct {
 	Memory string `json:"memory,omitempty"`
 	Skills string `json:"skills,omitempty"`
 	Agents string `json:"agents,omitempty"`
+	// CommandTools is the frozen user-defined command-tool face (INC-55):
+	// the trust-gated manifests discovered at session start. Like MCPTools,
+	// the fold carries only the facts a resume needs to rebuild the advertised
+	// face and dispatch a call; the trust decision was made at freeze time.
+	CommandTools []event.CommandToolDef `json:"command_tools,omitempty"`
 	// Spawns counts SpawnRequested facts (S5.3): the fan-out gate's input.
 	Spawns int `json:"spawns,omitempty"`
 	// Published maps stream → latest published version (S5.5): the outputs
@@ -538,6 +543,7 @@ func Apply(s State, env event.Envelope) (State, error) {
 		s.Session.SpecName, s.Session.Model, s.Session.Task, s.Session.Version = p.SpecName, p.Model, p.Task, p.Version
 		s.Session.Env = p.Env
 		s.Session.Memory, s.Session.Skills, s.Session.Agents = p.Memory, p.Skills, p.Agents
+		s.Session.CommandTools = p.CommandTools
 		s.Session.Inputs = p.Inputs
 		if p.ProviderCapabilities != nil {
 			caps := *p.ProviderCapabilities

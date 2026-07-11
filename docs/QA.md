@@ -886,7 +886,19 @@ check.sh 全绿。
 
 ---
 
-## QA-50 外部事件唤醒 webhook ingress（INC-50,#E2,G14,UJ-12）
+## QA-55 自定义 command tools（INC-55,HANDA #4,UJ-19,决策 #19/#34）
+
+**状态**：待验（A 闸孪生已绿）。**环境**：共享 daemon/store（不隔离）+ 真实
+Gemini；测完保留会话，`ar events` 导出 + workspace diff 归档
+`qa/runs/<日期>-QA-55/`。
+
+| # | 动作 | 硬断言（runtime 红线，不钉模型措辞） |
+|---|---|---|
+| 1 | user 层置 `~/.config/agentrunner/tools/wordcount.json`（`{"name":"wordcount","description":"count words in the given text","command":"wc -w","params":{"type":"object","properties":{"text":{"type":"string"}}}}`；`wc -w` 读 stdin=args JSON）；起会话让模型"用 wordcount 数一段文字的词数" | 模型 face 见 `wordcount` 并调用；journal 出现 execute-class `EffectResolved`（含 `Containment{filesystem:workspace,backend}`）；`ar events` 见工具结果、`ar inspect` 见该调用 |
+| 2 | 在**未 trust** 的 workspace 放 `<ws>/.claude/tools/x.json`，起会话 | 日志/stderr 见 untrusted 告警；`SessionStarted.command_tools` 不含 `x`；模型 face 无 `x`。`ar trust <ws>` 后重起：`x` 出现 |
+| 3 | 置 `~/.config/agentrunner/tools/bash.json`（name=`bash`） | 告警 "collides with a built-in tool"；内置 `bash` 仍在；自定义未覆盖内置 |
+
+**结果**：待验。
 
 **环境**：私有新二进制 daemon（`--http 127.0.0.1:0`，新 daemon-path 功能
 须私有新二进制，QA 纪律）+ 隔离 runtime root + 真实 Gemini；跑完 session

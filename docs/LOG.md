@@ -3540,3 +3540,48 @@ spec 跑 ≥1 迭代 → `kill -9` daemon → 隔 >2 min 重启 → 断言 boot 
 slot 恰一条 IterationSkipped（skip）或一次 catch-up（coalesce）；反例 `ar close`/
 跑满 max 后不重挂。归档 `qa/runs/<日期>-INC54/`。工作纸
 `docs/increments/INC-54-cron-boot-sweep.md`，落地后归档。
+
+---
+
+## 2026-07-11 · INC-55（HANDA #4）自定义 command tools + 决策 #19 additive 兑现
+
+**⚠️ 编号撞号**：本项（HANDA-PARITY #4，SPRINT 队列认领号 INC-55）与上条
+「INC-55 durable Last turn diff」（Codex 谱系，已合并）跨 sprint 撞号（并发
+认领所致；INC-54 亦然）。合并进 `origin/main` 时择一改号（建议本项 → INC-57）。
+本条与工作纸 `docs/increments/INC-55-command-tools.md` 暂沿用认领号。
+
+用户把本地命令用 manifest（`{name, description, command, timeout_s,
+params}`）包成模型可调用工具，args JSON 从 stdin 传入。发现两层：user 层
+`~/.config/agentrunner/tools`（恒载）+ project 层 `<ws>/.claude/tools`
+（**未 trust 不加载**）。发现在 session 开始一次性做、冻结进
+`SessionStarted.command_tools`（resume 从 fold 重建，不重读文件系统、trust
+判定被 journal 定格——决策 #3）。撞内置拒载/user 压 project/`mcp__` 前缀
+拒载。每次调用 = execute-class command effect（`Effect.Command`=manifest
+固定命令过 Floor→hooks→permission→budget 全管线，execute 默认 ask；模型只
+控制 stdin）+ 决策 #34 OS sandbox（复用 `sandboxedBash`，EffectResolved
+载 containment）。
+
+**决策 #19 判定 = additive 兑现（非不变量翻转）**。决策 #19 是**范畴
+不变量**（"project 层可执行配置须 trust"），"（hooks）"是当时唯一实例的
+举例、非封闭枚举——证据：决策 #36「信任面由结构封死（决策 #19/#20 同族）」
+把 #19 当原则族复用；决策 #38「project allow 未 trust 降级 ask（决策 #19）」
+把 #19 用到 permission rules。command tool 运行命令+吃模型 stdin，是"可执行
+配置"最直接的成员，落在 #19 自划的执行/文本分界的执行侧（memory=文本侧
+对照）。实现复用既有 trust 门（`config.IsTrusted`/同一 `trusted.yaml`）与
+既有 effect 管线+沙箱，**零新放行路径**。故 trust-gate 它=应用不变量，不是
+改它 → 完整实现 + 决策 #19 表行/§9/§10 additive 编辑**同 commit**（PROCESS
+§四变更单成文于工作纸）。**回报显式提请 reviewer 复核该解读**：若判"（hooks）"
+应作封闭枚举、加成员属枚举翻转须独立契约 review，则 DESIGN 编辑回退待
+review、additive 机制（发现/加载/撞名/沙箱）保留。
+
+**A 闸孪生（全绿）**：commandtool 解析/发现/trust 门/撞名/优先级 8 测；
+pipeline `TestCommandToolEffectAdjudication`（含固定命令 deny 压模型 args、
+compound 分段、plan floor）+ `TestBashStillUsesArgsCommand` 回归；tool
+`TestRunCommandTool{Stdin,EmptyArgs,ExitCode,FailsClosedWithoutSandbox}`；
+agent `TestCommandTool{EndToEnd(真沙箱：advertise→固定命令 effect allow→
+containment→stdin 到达),ProjectTrustGate,FoldHelpers,EffectCarriesFixedCommand}`。
+B 闸（真 Gemini QA-55）待集中验。波及：新包 `internal/commandtool`；
+runtime/event/state/pipeline/tool/loop 接线；`Effect.Command` 字段
+（bash 走 args 兜底、回归守）；`runSandboxed` 抽出共享 bash 运行机件。
+
+工作纸 `docs/increments/INC-55-command-tools.md`，落地后归档。

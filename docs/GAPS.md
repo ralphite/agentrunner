@@ -46,7 +46,7 @@
 | UJ-16 三路并击 | 🟡 | 并行隔离+选优 ✅；胜者晋升 G15 |
 | UJ-17 远程驾驶舱 | ✅ | attach/远程审批/用量/stop/steer 全通；Web UI 产品面见 UJ-24 |
 | UJ-18 多 agent 编排 | ✅ | G2/G3/G10/G1 均关闭；后台子 agent、进度、kill、回灌全通 |
-| UJ-19 生态接入 | ✅ | MCP/skills/写审批/断连恢复 ✅；自定义命令 ✅（INC-8） |
+| UJ-19 生态接入 | ✅ | MCP/skills/写审批/断连恢复 ✅；自定义命令 ✅（INC-8）；自定义 command tools ✅（INC-55，HANDA #4，trust 门=hooks 级/全管线/OS sandbox） |
 | UJ-20 不受信审计 | ✅ | 信任/沙箱/凭据红线/审计全通；注入威胁模型成文 G16 |
 | UJ-21 崩溃自愈与重启接续 | 🟡 | 恢复语义✅（resume/in-doubt/终态把关，QA-08）；**自动性缺**：boot sweep、子 crash 自动 resume（G22）（2026-07-05 新增行） |
 | UJ-22 会话内目标 | ✅ | **G23 已关闭（INC-D1）**——in-session goal 挂会话、context 延续；决策 #21 拆两形态 |

@@ -172,6 +172,11 @@ type SessionStarted struct {
 	// Agents is the rendered sub-agent directory block (S5.3), frozen like
 	// Skills — the model spawns only what it can see.
 	Agents string `json:"agents,omitempty"`
+	// CommandTools is the user-defined command-tool face (INC-55), discovered
+	// and trust-gated at session start and frozen here exactly like the MCP
+	// face — resume rebuilds the same tools without re-reading manifests or
+	// re-checking trust.
+	CommandTools []CommandToolDef `json:"command_tools,omitempty"`
 	// Inputs are artifact refs to materialize into the workspace before the
 	// first turn (S5.8) — how a parent hands documents to a child.
 	Inputs []ArtifactInput `json:"inputs,omitempty"`
@@ -625,6 +630,25 @@ type MCPToolDef struct {
 	Name        string          `json:"name"` // fully-qualified mcp__<server>__<tool>
 	Description string          `json:"description,omitempty"`
 	Class       string          `json:"class"`
+	InputSchema json.RawMessage `json:"input_schema,omitempty"`
+}
+
+// CommandToolDef is one discovered command tool as journaled (INC-55,
+// HANDA-PARITY #4): a user-defined local command packaged as a model-callable
+// tool. Frozen into SessionStarted at session start (like the skills block and
+// the MCP face) so resume rebuilds the identical tool face — and the identical
+// trust decision — without re-reading the filesystem (决策 #3). Command is the
+// fixed shell command (the permission surface); the model controls only the
+// JSON args delivered on stdin. Source records the discovery layer (决策 #19):
+// a "project" entry is present only because the workspace was trusted at
+// session start. Always execute-class — invocation runs Command in the OS
+// sandbox through the full pipeline.
+type CommandToolDef struct {
+	Name        string          `json:"name"`
+	Description string          `json:"description,omitempty"`
+	Command     string          `json:"command"`
+	TimeoutS    int             `json:"timeout_s,omitempty"`
+	Source      string          `json:"source"` // "user" | "project"
 	InputSchema json.RawMessage `json:"input_schema,omitempty"`
 }
 
