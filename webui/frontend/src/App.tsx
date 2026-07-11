@@ -158,7 +158,7 @@ export function App() {
 
   return (
     <div className={"app" + (effectiveCollapsed ? " collapsed" : "")}>
-      <Sidebar onHide={hideSidebar} onNavigate={closeAfterNavigate} />
+      <Sidebar onHide={hideSidebar} onNavigate={closeAfterNavigate} onOpenSettings={() => setSettingsOpen(true)} />
       {isMobile && mobileSidebarOpen && <button className="sidebar-scrim" aria-label="Close sidebar" onClick={hideSidebar} />}
       <div className="main">
         {effectiveCollapsed && (

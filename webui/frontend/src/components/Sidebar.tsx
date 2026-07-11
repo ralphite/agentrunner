@@ -7,6 +7,7 @@ import {
   CaretRight,
   Folder,
   FolderOpen,
+  GearSix,
   GitBranch,
   MagnifyingGlass,
   Monitor,
@@ -34,7 +35,7 @@ type SidebarContext =
   | { kind: "session"; x: number; y: number; sid: string }
   | { kind: "project"; x: number; y: number; label: string; workspace?: string; ids: string[] };
 
-export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigate?: () => void }) {
+export function Sidebar({ onHide, onNavigate, onOpenSettings }: { onHide?: () => void; onNavigate?: () => void; onOpenSettings?: () => void }) {
   const {
     health,
     sessions,
@@ -344,6 +345,11 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
           </span>
         </button>
         <div className="flex flex-none items-center gap-[2px]">
+          {onOpenSettings && (
+            <button className="w-[30px] h-[30px] grid place-items-center p-0 border-0 bg-transparent text-ink-2 rounded-[8px] hover:text-ink hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)]" onClick={onOpenSettings} title="Settings (⌘,)" aria-label="Open settings">
+              <GearSix size={16} />
+            </button>
+          )}
           <button className="w-[30px] h-[30px] grid place-items-center p-0 border-0 bg-transparent text-ink-2 rounded-[8px] hover:text-ink hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)]" onClick={openHelp} title="Keyboard shortcuts & help (?)" aria-label="Help and keyboard shortcuts">
             <Question size={16} />
           </button>
