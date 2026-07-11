@@ -87,7 +87,7 @@ in-doubt 崩溃纪律（非幂等绝不静默重跑）、barrier/fork/rewind 带
 | diff 审阅视图 | review 面板/inline 评论 | 🟡 webui「改动」标签（曾有 null 白屏 bug） | 已修 + hunk 折叠 |
 | PR 创建/推送 | 产品化 | 🟡 bash+gh 可走（UJ-10 ✅） | G13 |
 | 自动 code review | @codex PR review | ❌ 只读角色手工评审 | 依赖 G14+G13 |
-| worktree 一等公民 | 每 thread worktree | 🟡 fork/best-of-N 已用隔离 | 泛化为 new/submit 选项 |
+| worktree 一等公民 | 每 thread worktree | 🟢 New worktree 落共享 `~/.local/share/agentrunner/worktrees/<repo>-<branch>-<ts>`；Changes 面板显 repo/branch + Apply to project（clean-or-nothing apply-back）+ Remove worktree（防呆+prune）（INC-49） | 位置/可见/apply-back/cleanup 四问齐；diff→PR 仍 G13 |
 | 任务→审阅门→PR | 云任务标准流 | ❌ | G13 主体 |
 | CI 值守/rebase | cloud follow-ups | ❌ | 依赖 G14 |
 

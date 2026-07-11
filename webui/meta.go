@@ -285,6 +285,37 @@ func samePath(a, b string) bool {
 	return ra == rb
 }
 
+// worktreeInfo reports whether dir is a LINKED git worktree (as opposed to a
+// repo's main working tree) and, if so, the main checkout path and the
+// worktree's current branch ("" when detached). A linked worktree has a
+// per-worktree git-dir distinct from the shared common-dir. Used to surface
+// "worktree of <repo> on <branch>" and the Apply/Remove controls (INC-49).
+func worktreeInfo(ctx context.Context, dir string) (isWorktree bool, mainRepo, branch string) {
+	out, ok := git(ctx, dir, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir")
+	if !ok {
+		return false, "", ""
+	}
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) != 2 || samePath(strings.TrimSpace(lines[0]), strings.TrimSpace(lines[1])) {
+		return false, "", "" // main working tree (git-dir == common-dir)
+	}
+	// First `worktree <path>` line of the porcelain listing is the main checkout.
+	if list, ok := git(ctx, dir, "worktree", "list", "--porcelain"); ok {
+		for _, l := range strings.Split(list, "\n") {
+			if p, found := strings.CutPrefix(l, "worktree "); found {
+				mainRepo = strings.TrimSpace(p)
+				break
+			}
+		}
+	}
+	if b, ok := git(ctx, dir, "rev-parse", "--abbrev-ref", "HEAD"); ok {
+		if b = strings.TrimSpace(b); b != "HEAD" {
+			branch = b
+		}
+	}
+	return true, mainRepo, branch
+}
+
 // handleDiff returns the workspace diff for a session — the closest analog to
 // Codex's changed-files view. Tracked changes come from `git diff`; untracked
 // files are listed from `git status --porcelain` and appended as synthetic
@@ -300,7 +331,7 @@ func (s *server) handleDiff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	meta := s.meta.get(id)
-	resp := map[string]any{"workspace": meta.Workspace, "known": meta.Workspace != "", "isRepo": false, "nested": false, "repoRoot": "", "diff": "", "numstat": "", "untracked": []string{}}
+	resp := map[string]any{"workspace": meta.Workspace, "known": meta.Workspace != "", "isRepo": false, "nested": false, "repoRoot": "", "diff": "", "numstat": "", "untracked": []string{}, "worktree": false, "mainRepo": "", "branch": ""}
 	if meta.Workspace == "" {
 		writeJSON(w, http.StatusOK, resp)
 		return
@@ -317,6 +348,13 @@ func (s *server) handleDiff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp["isRepo"] = true
+	// A linked worktree is its own toplevel (so isRepo is true), but it belongs
+	// to a main checkout the UI names and offers Apply/Remove against (INC-49).
+	if isWt, mainRepo, branch := worktreeInfo(r.Context(), meta.Workspace); isWt {
+		resp["worktree"] = true
+		resp["mainRepo"] = mainRepo
+		resp["branch"] = branch
+	}
 	diff, _ := git(r.Context(), meta.Workspace, "diff")
 	numstat, _ := git(r.Context(), meta.Workspace, "diff", "--numstat")
 	resp["diff"] = diff
@@ -440,4 +478,129 @@ func (s *server) handleGitInit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "initialized"})
+}
+
+// gitIn runs a git command in dir, optionally feeding stdin, and returns
+// combined output. A shared 20s timeout keeps a wedged git from hanging the
+// request.
+func gitIn(ctx context.Context, dir string, stdin []byte, args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)
+	if stdin != nil {
+		cmd.Stdin = bytes.NewReader(stdin)
+	}
+	out, err := cmd.CombinedOutput()
+	return strings.TrimSpace(string(out)), err
+}
+
+// handleApply applies a worktree session's changes back onto its main checkout —
+// Codex's "Apply changes" (INC-49). The mechanism is git-native and
+// clean-or-nothing: capture the full worktree change set (including untracked)
+// as a commit object in the shared object DB, produce a binary patch, dry-run
+// `git apply --check` on the main checkout, and only apply when it verifies.
+// A conflict is reported verbatim and the main working tree is left untouched —
+// never a silent half-merge. Applied changes land UNSTAGED so the user reviews
+// and commits them in their own checkout.
+func (s *server) handleApply(w http.ResponseWriter, r *http.Request) {
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	ws := s.meta.get(id).Workspace
+	if ws == "" {
+		badRequest(w, "arwebui doesn't know this session's workspace")
+		return
+	}
+	isWt, mainRepo, _ := worktreeInfo(r.Context(), ws)
+	if !isWt || mainRepo == "" {
+		badRequest(w, "this session's workspace is not a git worktree of a project")
+		return
+	}
+	// Stage everything (tracked edits + untracked new files, .gitignore honored)
+	// and turn it into a commit object WITHOUT moving the worktree's HEAD, so the
+	// patch below carries the complete change set.
+	if out, err := gitIn(r.Context(), ws, nil, "add", "-A"); err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "git add failed", "stderr": out})
+		return
+	}
+	tree, err := gitIn(r.Context(), ws, nil, "write-tree")
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "git write-tree failed", "stderr": tree})
+		return
+	}
+	commit, err := gitIn(r.Context(), ws, nil, "commit-tree", tree, "-p", "HEAD", "-m", "apply-back from agent worktree")
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "git commit-tree failed", "stderr": commit})
+		return
+	}
+	patch, err := gitIn(r.Context(), ws, nil, "diff", "--binary", "HEAD", commit)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "git diff failed", "stderr": patch})
+		return
+	}
+	if strings.TrimSpace(patch) == "" {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "no changes to apply", "applied": ""})
+		return
+	}
+	pb := []byte(patch + "\n")
+	// Dry run first: if the patch does not apply cleanly we report the conflict
+	// and change NOTHING in the main checkout.
+	if out, err := gitIn(r.Context(), mainRepo, pb, "apply", "--check", "-"); err != nil {
+		writeJSON(w, http.StatusConflict, map[string]string{
+			"error":  "changes do not apply cleanly onto " + mainRepo + " — resolve the divergence (e.g. commit the worktree branch and merge it) and try again",
+			"stderr": out,
+		})
+		return
+	}
+	if out, err := gitIn(r.Context(), mainRepo, pb, "apply", "-"); err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "git apply failed", "stderr": out})
+		return
+	}
+	files, _ := gitIn(r.Context(), ws, nil, "diff", "--name-only", "HEAD", commit)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "applied to " + mainRepo, "mainRepo": mainRepo, "applied": files})
+}
+
+// handleWorktreeRemove deletes a session's worktree checkout and prunes the
+// stale registry entry (INC-49 cleanup). A worktree with uncommitted/untracked
+// changes is refused unless the request sets force:true — the UI turns that
+// refusal into an explicit "you have unapplied changes, delete anyway?" prompt.
+func (s *server) handleWorktreeRemove(w http.ResponseWriter, r *http.Request) {
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Force bool `json:"force"`
+	}
+	if !readBody(w, r, &req) {
+		return
+	}
+	ws := s.meta.get(id).Workspace
+	if ws == "" {
+		badRequest(w, "arwebui doesn't know this session's workspace")
+		return
+	}
+	isWt, mainRepo, _ := worktreeInfo(r.Context(), ws)
+	if !isWt || mainRepo == "" {
+		badRequest(w, "this session's workspace is not a git worktree of a project")
+		return
+	}
+	args := []string{"worktree", "remove"}
+	if req.Force {
+		args = append(args, "--force")
+	}
+	args = append(args, "--", ws)
+	if out, err := gitIn(r.Context(), mainRepo, nil, args...); err != nil {
+		// Dirty/untracked worktrees are refused without --force. Surface that as a
+		// structured signal so the UI can ask for confirmation rather than error.
+		if !req.Force && (strings.Contains(out, "use --force") || strings.Contains(out, "contains modified or untracked")) {
+			writeJSON(w, http.StatusConflict, map[string]any{"dirty": true, "error": "worktree has unapplied changes", "stderr": out})
+			return
+		}
+		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "git worktree remove failed", "stderr": out})
+		return
+	}
+	_, _ = gitIn(r.Context(), mainRepo, nil, "worktree", "prune")
+	writeJSON(w, http.StatusOK, map[string]string{"status": "removed", "mainRepo": mainRepo})
 }

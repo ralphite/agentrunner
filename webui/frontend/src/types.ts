@@ -25,6 +25,11 @@ export interface DiffResp {
   // a repo of its own — git would diff the parent there, so no diff is shown.
   nested?: boolean;
   repoRoot?: string;
+  // The workspace is a LINKED git worktree of mainRepo, checked out on `branch`
+  // ("" when detached) — enables the Apply-back / Remove controls (INC-49).
+  worktree?: boolean;
+  mainRepo?: string;
+  branch?: string;
   diff: string;
   numstat: string;
   untracked: string[];

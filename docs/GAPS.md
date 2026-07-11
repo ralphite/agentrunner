@@ -304,10 +304,15 @@ cancel（drive 系列此前不可 stop）。闸门：TestStop*（孪生，含 dr
 interrupt 语义只绑终端信号。（steer 并入 G3。）
 → UJ-17
 
-**G13 SCM/PR 工作流一等公民化 — ⚠️ 设计欠定 · 中**
+**G13 SCM/PR 工作流一等公民化 — ⚠️ 设计欠定 · 中（worktree 子面已关闭 INC-49）**
 bash+gh 全程可走（UJ-10 判✅）；缺的是 Codex 式"任务产出=可审阅
 diff→批准→PR→元数据回填 session"的组装设计（diff 审阅门、审阅通过
 才 push 的约束表达）。积木（artifacts/审批载荷/outputs 契约）都在。
+**worktree 一等公民子面 INC-49 已关闭**：New worktree 落稳定共享位置
+`~/.local/share/agentrunner/worktrees/<repo>-<branch>-<ts>`、Changes 面板显示
+所属 repo/branch、`Apply to project`（git 原生 clean-or-nothing apply-back）+
+`Remove worktree`（防呆确认+prune）生命周期闭环。**仍欠定**：diff 审阅门→PR
+主体（依赖 G14）、审阅通过才 push 的约束表达。
 → UJ-10, UJ-13
 
 ### 驱动与时间旅行

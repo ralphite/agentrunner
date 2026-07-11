@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Rows, Columns, MagnifyingGlass } from "@phosphor-icons/react";
+import { Rows, Columns, MagnifyingGlass, GitBranch } from "@phosphor-icons/react";
 import { AR } from "../api";
 import { useStore } from "../store";
 import { loadGitPrefs } from "../theme";
@@ -23,7 +23,7 @@ const halfKind = (r: DiffRow | undefined, side: "left" | "right") =>
   !r ? "empty" : side === "left" && r.kind === "del" ? "del" : side === "right" && r.kind === "add" ? "add" : "";
 
 export function DiffView({ sid }: { sid: string }) {
-  const { toast, openPrompt } = useStore();
+  const { toast, openPrompt, openModal } = useStore();
   const [data, setData] = useState<DiffResp | null>(null);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
@@ -80,6 +80,67 @@ export function DiffView({ sid }: { sid: string }) {
     } finally {
       setBusy(false);
     }
+  };
+
+  // Apply the worktree's changes back onto its main checkout (INC-49) — Codex's
+  // "Apply changes". Lands unstaged in the project so the user reviews there; a
+  // conflict is reported and the project is left untouched.
+  const applyBack = (mainRepo: string) => {
+    openModal({
+      kind: "confirm",
+      title: "Apply changes to project?",
+      body: `Applies this worktree's changes onto ${mainRepo} (left unstaged for you to review and commit there). If they don't apply cleanly, nothing is changed and the conflict is reported.`,
+      confirmLabel: "Apply changes",
+      onConfirm: async () => {
+        setBusy(true);
+        try {
+          const r = await AR.applyWorktree(sid);
+          toast(r.applied ? "applied to project — review the changes there" : "no changes to apply", "info");
+          load();
+        } catch (e: any) {
+          toast(e.message);
+        } finally {
+          setBusy(false);
+        }
+      },
+    });
+  };
+
+  // Remove the worktree checkout + prune (INC-49). A dirty worktree is refused
+  // first; the backend's structured refusal turns into a force confirmation so
+  // unapplied work is never silently discarded.
+  const doRemove = async (force: boolean) => {
+    setBusy(true);
+    try {
+      await AR.removeWorktree(sid, force);
+      toast("worktree removed", "info");
+      load();
+    } catch (e: any) {
+      if (!force && /unapplied changes/.test(e.message)) {
+        openModal({
+          kind: "confirm",
+          title: "Discard unapplied changes?",
+          body: "This worktree has changes that haven't been applied to the project. Removing it deletes them permanently. Apply the changes first if you want to keep them.",
+          confirmLabel: "Delete anyway",
+          danger: true,
+          onConfirm: () => doRemove(true),
+        });
+      } else {
+        toast(e.message);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+  const removeWorktree = () => {
+    openModal({
+      kind: "confirm",
+      title: "Remove worktree?",
+      body: "Deletes this isolated checkout and prunes it from git. Your project and any applied changes are unaffected.",
+      confirmLabel: "Remove worktree",
+      danger: true,
+      onConfirm: () => doRemove(false),
+    });
   };
 
   // Turn the workspace into its own repo, then re-load — offered from the
@@ -165,6 +226,16 @@ export function DiffView({ sid }: { sid: string }) {
             </span>
           );
         })()}
+        {data.worktree && (
+          <span
+            className="diff-wt-badge inline-flex items-center gap-[4px] text-[11px] text-ink-2 bg-panel-2 border border-line-2 rounded-[5px] px-[6px] py-[2px]"
+            title={data.mainRepo ? "Isolated worktree of " + data.mainRepo : "Isolated git worktree"}
+          >
+            <GitBranch size={12} />
+            worktree of <b className="text-ink font-medium">{(data.mainRepo || "").split("/").filter(Boolean).pop() || "project"}</b>
+            {data.branch ? <span className="dim">· {data.branch}</span> : <span className="dim">· detached</span>}
+          </span>
+        )}
         {!empty && (
           <span className="diff-summary">
             {files.length} file{files.length === 1 ? "" : "s"}
@@ -213,6 +284,21 @@ export function DiffView({ sid }: { sid: string }) {
         {!empty && (
           <button className="sm primary" onClick={commit} disabled={busy} title="git add -A && git commit the workspace changes (local commit, no push)">
             Commit changes…
+          </button>
+        )}
+        {data.worktree && data.mainRepo && (
+          <button
+            className="sm"
+            onClick={() => applyBack(data.mainRepo!)}
+            disabled={busy || empty}
+            title={"Apply these changes back onto " + data.mainRepo + " (unstaged, for review)"}
+          >
+            Apply to project…
+          </button>
+        )}
+        {data.worktree && (
+          <button className="sm" onClick={removeWorktree} disabled={busy} title="Delete this worktree checkout and prune it from git">
+            Remove worktree…
           </button>
         )}
         <button className="sm" onClick={load}>

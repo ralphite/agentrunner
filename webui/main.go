@@ -29,9 +29,10 @@ import (
 var version = "dev"
 
 type server struct {
-	arPath     string
-	runtimeDir string
-	version    string // this webui binary's build stamp (main.version)
+	arPath      string
+	runtimeDir  string
+	worktreeDir string // stable shared root for `New worktree` checkouts (DataDir()/worktrees)
+	version     string // this webui binary's build stamp (main.version)
 
 	mu             sync.Mutex
 	daemonCmd      *exec.Cmd // the daemon we spawned; nil when unmanaged
@@ -74,7 +75,16 @@ func main() {
 		}
 	}
 
-	s := &server{arPath: *arPath, version: version, runtimeDir: rt, daemonManage: !*noDaemon, runs: newRunRegistry(), meta: newMetaStore(filepath.Join(rt, "webui-meta.json"))}
+	// `New worktree` checkouts live under the shared data root (same root as the
+	// daemon store: $XDG_DATA_HOME/agentrunner or ~/.local/share/agentrunner),
+	// NOT under the webui cwd's runtime/ — so worktrees of any repo land in a
+	// stable, discoverable place named after the repo, not a bare timestamp.
+	wtDir := filepath.Join(dataDir(), "worktrees")
+	if err := os.MkdirAll(wtDir, 0o755); err != nil {
+		log.Fatalf("arwebui: worktree dir: %v", err)
+	}
+
+	s := &server{arPath: *arPath, version: version, runtimeDir: rt, worktreeDir: wtDir, daemonManage: !*noDaemon, runs: newRunRegistry(), meta: newMetaStore(filepath.Join(rt, "webui-meta.json"))}
 	s.warnOnARVersionSkew()
 	if s.daemonManage {
 		if err := s.spawnDaemon(); err != nil {
@@ -239,6 +249,23 @@ func (s *server) warnOnARVersionSkew() {
 			"or new webui features (e.g. --steer) will fail with cryptic 'flag not defined' errors.",
 			s.version, s.arPath, arVer)
 	}
+}
+
+// dataDir is the harness state root, mirroring internal/runtime.DataDir:
+// $XDG_DATA_HOME/agentrunner, else ~/.local/share/agentrunner (same rule on
+// macOS — not ~/Library). arwebui is its own Go module and can't import the
+// internal package, so the rule is duplicated here; keep the two in sync.
+func dataDir() string {
+	if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" {
+		return filepath.Join(xdg, "agentrunner")
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		// No home: fall back to a cwd-relative dir so we never panic. This only
+		// happens in exotic environments; normal desktop/CLI use always has one.
+		return filepath.Join("runtime", "data")
+	}
+	return filepath.Join(home, ".local", "share", "agentrunner")
 }
 
 // loadEnvFile applies KEY=VALUE lines (comments/blank lines skipped).

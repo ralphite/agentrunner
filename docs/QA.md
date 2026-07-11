@@ -857,6 +857,29 @@ check.sh 全绿。
 
 ---
 
+## QA-46 worktree 运行位置产品化：位置/可见/apply-back/cleanup（INC-49,G13,UJ-10/24）
+
+**环境**：最新 `main`、共享 `~/.local/share/agentrunner/` store/daemon、真实
+Gemini 模型、`http://127.0.0.1:8788`（webui 强刷）。选一个真实 git repo 开
+`New worktree`，跑真实模型改文件，再走 apply-back 与 cleanup 生命周期闭环。
+证据（截图 + `ar events` 导出）归档 `qa/runs/2026-07-10-qa46/`；测试 session
+与 repo 保留不清理。
+
+| # | 真实状态/动作 | 硬断言 |
+|---|---|---|
+| 1 | 选 Git project + `New worktree` + Branch 提交真实任务 | 后端 worktree 落 `~/.local/share/agentrunner/worktrees/<repo>-<branch>-<ts>`（**不**在 webui `runtime/ws`）；目录名含 repo 与 branch/ref |
+| 2 | 打开会话 Changes 面板 | 显示「worktree of <repo> · <branch\|detached>」徽标 + `Apply to project` / `Remove worktree` 按钮 |
+| 3 | 真实模型改若干文件后 `Apply to project` | 确认后 patch 干净落主 checkout working tree（未 staged），主 repo `git status` 见对应改动 |
+| 4 | 构造冲突（主 checkout 同文件另改）再 Apply | 报冲突、主 working tree **零改动**（不静默半合并） |
+| 5 | `Remove worktree`（脏树先拒→确认→force） | 脏树弹「有未 apply 改动」确认；确认后 worktree 删除、`git worktree list` 不再含它、`worktree prune` 生效 |
+| 6 | 旧 `runtime/ws/wt-*` worktree 兼容 | 已存在的旧 worktree 会话 Changes 面板仍能打开与 diff（不迁移、不弄丢） |
+
+**结果**：（待真机复验填写；证据归档 `qa/runs/2026-07-10-qa46/`。）
+锚孪生：TestWorktreeInDataDir / TestApplyBackCleanApply / TestApplyBackConflictReported /
+TestWorktreeRemoveGuardsDirty / TestDiffReportsWorktreeMeta。
+
+---
+
 ## 覆盖矩阵
 
 | 核心场景 | QA 流 |

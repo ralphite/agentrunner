@@ -340,7 +340,7 @@ func TestHandleWorktreeStartsAtSelectedRef(t *testing.T) {
 	}
 	mustGit("commit", "-q", "-am", "other")
 
-	s := &server{runtimeDir: t.TempDir()}
+	s := &server{runtimeDir: t.TempDir(), worktreeDir: t.TempDir()}
 	body := bytes.NewBufferString(`{"repo":` + strconv.Quote(repo) + `,"ref":"main"}`)
 	req := httptest.NewRequest("POST", "/api/worktree", body)
 	req.Header.Set("Content-Type", "application/json")
@@ -412,5 +412,204 @@ func TestArFailFlagsStaleBinary(t *testing.T) {
 	_ = json.Unmarshal(rec2.Body.Bytes(), &body2)
 	if strings.Contains(body2.Stderr, "out of date") {
 		t.Errorf("unexpected stale hint on ordinary failure: %q", body2.Stderr)
+	}
+}
+
+// --- INC-49: worktree productization (location, apply-back, cleanup, diff meta) ---
+
+// wtRepo builds a git repo with one commit (a.txt="1\n") on branch main and
+// returns the repo path plus a mustGit helper bound to it.
+func wtRepo(t *testing.T) (string, func(dir string, args ...string) string) {
+	t.Helper()
+	mustGit := func(dir string, args ...string) string {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	repo := t.TempDir()
+	mustGit(repo, "init", "-q", "-b", "main")
+	mustGit(repo, "config", "user.name", "QA")
+	mustGit(repo, "config", "user.email", "qa@example.invalid")
+	if err := os.WriteFile(filepath.Join(repo, "a.txt"), []byte("1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mustGit(repo, "add", "a.txt")
+	mustGit(repo, "commit", "-q", "-m", "init")
+	return repo, mustGit
+}
+
+// mkWorktree drives handleWorktree and returns the created worktree path.
+func mkWorktree(t *testing.T, s *server, repo, body string) string {
+	t.Helper()
+	req := httptest.NewRequest("POST", "/api/worktree", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	s.handleWorktree(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("worktree add status %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Path, Repo, Branch string
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	return resp.Path
+}
+
+func TestWorktreeInDataDir(t *testing.T) {
+	repo, mustGit := wtRepo(t)
+	head := mustGit(repo, "rev-parse", "HEAD")
+	wtRoot := t.TempDir()
+	s := &server{worktreeDir: wtRoot}
+	path := mkWorktree(t, s, repo, `{"repo":`+strconv.Quote(repo)+`,"ref":"main"}`)
+
+	if !strings.HasPrefix(path, wtRoot+string(filepath.Separator)) {
+		t.Fatalf("worktree %s not under shared root %s", path, wtRoot)
+	}
+	if base := filepath.Base(path); !strings.Contains(base, "-main-") {
+		t.Fatalf("worktree name %q should record the ref label 'main'", base)
+	}
+	if got := mustGit(path, "rev-parse", "HEAD"); got != head {
+		t.Fatalf("worktree HEAD = %s, want %s", got, head)
+	}
+}
+
+func TestApplyBackCleanApply(t *testing.T) {
+	repo, mustGit := wtRepo(t)
+	s := &server{worktreeDir: t.TempDir(), meta: newMetaStore("")}
+	wt := mkWorktree(t, s, repo, `{"repo":`+strconv.Quote(repo)+`,"ref":"main"}`)
+	// Edit a tracked file and add an untracked one inside the worktree.
+	if err := os.WriteFile(filepath.Join(wt, "a.txt"), []byte("1\n2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(wt, "new.txt"), []byte("new\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	id := "20260710-000000-apply-0001"
+	s.meta.set(id, wt, "t")
+
+	req := httptest.NewRequest("POST", "/api/sessions/x/apply", nil)
+	req.SetPathValue("sid", id)
+	rec := httptest.NewRecorder()
+	s.handleApply(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("apply status %d: %s", rec.Code, rec.Body.String())
+	}
+	// Main checkout working tree now carries both changes.
+	if got, _ := os.ReadFile(filepath.Join(repo, "a.txt")); string(got) != "1\n2\n" {
+		t.Fatalf("main a.txt = %q, want applied edit", got)
+	}
+	if got, _ := os.ReadFile(filepath.Join(repo, "new.txt")); string(got) != "new\n" {
+		t.Fatalf("main new.txt = %q, want applied new file", got)
+	}
+	// Applied unstaged: the new file shows as untracked (??) in the main repo.
+	if st := mustGit(repo, "status", "--porcelain"); !strings.Contains(st, "?? new.txt") {
+		t.Fatalf("expected new.txt unstaged in main repo, status:\n%s", st)
+	}
+}
+
+func TestApplyBackConflictReported(t *testing.T) {
+	repo, mustGit := wtRepo(t)
+	s := &server{worktreeDir: t.TempDir(), meta: newMetaStore("")}
+	wt := mkWorktree(t, s, repo, `{"repo":`+strconv.Quote(repo)+`,"ref":"main"}`)
+	// Diverge the same line in both trees so the patch cannot apply cleanly.
+	if err := os.WriteFile(filepath.Join(repo, "a.txt"), []byte("MAIN\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(wt, "a.txt"), []byte("WT\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	id := "20260710-000000-conflict-0001"
+	s.meta.set(id, wt, "t")
+
+	req := httptest.NewRequest("POST", "/api/sessions/x/apply", nil)
+	req.SetPathValue("sid", id)
+	rec := httptest.NewRecorder()
+	s.handleApply(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("apply status %d, want 409 conflict: %s", rec.Code, rec.Body.String())
+	}
+	// The main working tree must be left exactly as it was — no half-merge.
+	if got, _ := os.ReadFile(filepath.Join(repo, "a.txt")); string(got) != "MAIN\n" {
+		t.Fatalf("main a.txt = %q, want untouched MAIN\\n after conflict", got)
+	}
+	_ = mustGit
+}
+
+func TestWorktreeRemoveGuardsDirty(t *testing.T) {
+	repo, mustGit := wtRepo(t)
+	s := &server{worktreeDir: t.TempDir(), meta: newMetaStore("")}
+	wt := mkWorktree(t, s, repo, `{"repo":`+strconv.Quote(repo)+`,"ref":"main"}`)
+	if err := os.WriteFile(filepath.Join(wt, "dirty.txt"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	id := "20260710-000000-remove-0001"
+	s.meta.set(id, wt, "t")
+
+	call := func(force bool) *httptest.ResponseRecorder {
+		body := `{"force":` + strconv.FormatBool(force) + `}`
+		req := httptest.NewRequest("POST", "/api/sessions/x/worktree/remove", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.SetPathValue("sid", id)
+		rec := httptest.NewRecorder()
+		s.handleWorktreeRemove(rec, req)
+		return rec
+	}
+	// Without force, a dirty worktree is refused with a structured dirty signal.
+	rec := call(false)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("remove(no force) status %d, want 409: %s", rec.Code, rec.Body.String())
+	}
+	var g struct{ Dirty bool }
+	_ = json.Unmarshal(rec.Body.Bytes(), &g)
+	if !g.Dirty {
+		t.Fatalf("want dirty:true, body %s", rec.Body.String())
+	}
+	if _, err := os.Stat(wt); err != nil {
+		t.Fatalf("worktree should still exist after refused remove: %v", err)
+	}
+	// With force it is removed and pruned from the registry.
+	rec = call(true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("remove(force) status %d: %s", rec.Code, rec.Body.String())
+	}
+	if list := mustGit(repo, "worktree", "list", "--porcelain"); strings.Contains(list, wt) {
+		t.Fatalf("worktree still listed after force remove:\n%s", list)
+	}
+}
+
+func TestDiffReportsWorktreeMeta(t *testing.T) {
+	repo, _ := wtRepo(t)
+	s := &server{worktreeDir: t.TempDir(), meta: newMetaStore("")}
+	wt := mkWorktree(t, s, repo, `{"repo":`+strconv.Quote(repo)+`,"ref":"main"}`)
+
+	get := func(ws string) map[string]any {
+		id := "20260710-000000-diffmeta-" + filepath.Base(ws)
+		s.meta.set(id, ws, "t")
+		req := httptest.NewRequest("GET", "/api/sessions/x/diff", nil)
+		req.SetPathValue("sid", id)
+		rec := httptest.NewRecorder()
+		s.handleDiff(rec, req)
+		var m map[string]any
+		if err := json.Unmarshal(rec.Body.Bytes(), &m); err != nil {
+			t.Fatalf("bad json: %v\n%s", err, rec.Body.String())
+		}
+		return m
+	}
+	wtResp := get(wt)
+	if wtResp["worktree"] != true {
+		t.Fatalf("worktree diff should report worktree:true, got %v", wtResp["worktree"])
+	}
+	if mr, _ := wtResp["mainRepo"].(string); !samePath(mr, repo) {
+		t.Fatalf("mainRepo = %q, want %s", mr, repo)
+	}
+	mainResp := get(repo)
+	if mainResp["worktree"] == true {
+		t.Fatalf("main checkout should report worktree:false, got %v", mainResp["worktree"])
 	}
 }

@@ -3081,3 +3081,38 @@ ar+arwebui 同 stamp,versionMatch:true);注意 deploy.sh 的 webui nohup
 ~/.local/share/agentrunner/webui-runtime` 重拉成功——待查。playwright 开
 真实 session 页复验:Thinking 气泡消失、composer 空闲、Supervision 面板
 如实显示 bash · running。测试会话保留。
+
+## 2026-07-10 INC-49 落地：webui worktree 运行位置产品化（实施收口）
+
+**落地（webui 后端 + 前端 + dist）**：
+- **位置/命名**：server 加 `worktreeDir`（main.go 设为 `dataDir()/worktrees`，
+  webui 内复刻 XDG 逻辑因 `arwebui` 独立 module）；`handleWorktree` 走
+  `newWorktreeDir(repo,label)` = `<repo基名>-<branch|ref|detached>-<YYYYMMDD-HHMMSS>`，
+  返回 branch。不再落 `runtime/ws/wt-*`。
+- **apply-back**（`POST /sessions/{sid}/apply` → `handleApply`）：git 原生
+  clean-or-nothing——worktree `add -A`→`write-tree`→`commit-tree -p HEAD`（不动
+  worktree HEAD）→`diff --binary HEAD C`→主 checkout `apply --check` 干跑，通过
+  才 `apply`（落 working tree 不 stage），check 失败回 409 + stderr、主树零改动。
+- **cleanup**（`POST /sessions/{sid}/worktree/remove` → `handleWorktreeRemove`）：
+  `git worktree remove [--force] -- <path>` + `worktree prune`；脏树无 force 回
+  409 `dirty:true`，前端转「有未 apply 改动，删除?」danger 确认再 force。
+- **可见**：`worktreeInfo`（git-dir≠common-dir 判 linked worktree，porcelain 首行取
+  主 checkout，abbrev-ref 取 branch）接进 `handleDiff` 新增 `worktree/mainRepo/branch`；
+  DiffView 显「worktree of <repo> · <branch>」徽标 + Apply/Remove 按钮。
+- **安全**：git 用户输入沿用 `validID`+`--end-of-options`；worktree 路径取自 session
+  metadata 非请求体；apply/remove 前 `worktreeInfo` 校验确是 linked worktree。
+
+**nested 复审**：worktree 是自身 repo root（`--show-toplevel` 返回自身），
+`handleDiff` 仍判 `isRepo:true` 不触 nested；meta.go 那段 nested 特判针对内嵌
+gitignored `runtime/` 裸目录，worktree 从不属此类——挪位置后无影响，验证在
+`TestDiffReportsWorktreeMeta`。
+
+**旧位置兼容裁决**：已存在 `runtime/ws/wt-*` 的旧 worktree **不迁移**（迁移打断
+其 git 链接与引用它的 session metadata，风险>收益）；它们仍是合法 workspace，
+Changes 面板照常打开。新建一律走新共享位置。
+
+**闸门 A**：webui Go tests（含新 5 条 Test*）+ 101 vitest + tsc + build 全绿；
+node24 clean rebuild dist。**闸门 B**：QA-46 真机复验（见 QA.md，证据待归档
+`qa/runs/2026-07-10-qa46/`）。**review 裁决**：薄层 webui 编排、不触不变量，
+apply-back 冲突安全性由「干跑通过才落、否则零改动」单一不变量保证
+（`TestApplyBackConflictReported` 直钉），裁掉三视角对抗 review。

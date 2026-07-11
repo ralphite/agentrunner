@@ -43,6 +43,8 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /api/sessions/{sid}/file", s.handleSessionFile)
 	mux.HandleFunc("POST /api/sessions/{sid}/commit", s.handleCommit)
 	mux.HandleFunc("POST /api/sessions/{sid}/git-init", s.handleGitInit)
+	mux.HandleFunc("POST /api/sessions/{sid}/apply", s.handleApply)
+	mux.HandleFunc("POST /api/sessions/{sid}/worktree/remove", s.handleWorktreeRemove)
 	mux.HandleFunc("GET /api/sessions/{sid}/stream", s.handleStream)
 
 	mux.HandleFunc("POST /api/sessions/{sid}/send", s.handleSend)
@@ -397,6 +399,42 @@ func (s *server) newRuntimeDir(kind, prefix string) string {
 	}
 }
 
+// newWorktreeDir picks a fresh directory under the shared worktree root named
+// "<repo>-<branch|detached>-<timestamp>" — identifiable at a glance and stable
+// across webui restarts (INC-49, replacing runtime/ws/wt-<ts>). A same-second
+// collision appends -2, -3, ….
+func (s *server) newWorktreeDir(repo, label string) string {
+	base := worktreeSlug(filepath.Base(repo)) + "-" + worktreeSlug(label) + "-" + time.Now().Format("20060102-150405")
+	dir := filepath.Join(s.worktreeDir, base)
+	for i := 2; ; i++ {
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			return dir
+		}
+		dir = filepath.Join(s.worktreeDir, fmt.Sprintf("%s-%d", base, i))
+	}
+}
+
+// worktreeSlug reduces a repo/branch name to a filesystem-safe token: runs of
+// non-alphanumerics collapse to a single dash (so "codex/feat" → "codex-feat").
+func worktreeSlug(s string) string {
+	var b strings.Builder
+	dash := true // suppress leading dash
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.' || r == '_' {
+			b.WriteRune(r)
+			dash = false
+		} else if !dash {
+			b.WriteByte('-')
+			dash = true
+		}
+	}
+	out := strings.Trim(b.String(), "-")
+	if out == "" {
+		return "repo"
+	}
+	return out
+}
+
 func (s *server) handleWorkspace(w http.ResponseWriter, r *http.Request) {
 	dir := s.newRuntimeDir("ws", "ws")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -442,17 +480,30 @@ func (s *server) handleWorktree(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, "not a git repository: "+repo)
 		return
 	}
-	dir := s.newRuntimeDir("ws", "wt")
+	branch := strings.TrimSpace(req.Branch)
+	ref := strings.TrimSpace(req.Ref)
+	// The on-disk name records the repo and the branch/ref so a worktree is
+	// identifiable at a glance, not a bare timestamp (INC-49). The composer
+	// creates detached worktrees at the selected branch, so the ref is the
+	// meaningful label there; a named -b branch takes precedence.
+	label := branch
+	if label == "" {
+		label = ref
+	}
+	if label == "" {
+		label = "detached"
+	}
+	dir := s.newWorktreeDir(repo, label)
 	args := []string{"worktree", "add"}
-	if b := strings.TrimSpace(req.Branch); b != "" {
-		if !validID(b) {
+	if branch != "" {
+		if !validID(branch) {
 			badRequest(w, "invalid branch name")
 			return
 		}
-		args = append(args, "-b", b, dir)
+		args = append(args, "-b", branch, dir)
 	} else {
 		args = append(args, "--detach", dir)
-		if ref := strings.TrimSpace(req.Ref); ref != "" {
+		if ref != "" {
 			// Prove the ref names a commit before git worktree receives it; the
 			// end-of-options marker prevents option-like input from being parsed.
 			if _, err := run("rev-parse", "--verify", "--end-of-options", ref+"^{commit}"); err != nil {
@@ -466,7 +517,7 @@ func (s *server) handleWorktree(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "git worktree add failed", "stderr": out})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"path": dir, "repo": repo})
+	writeJSON(w, http.StatusOK, map[string]string{"path": dir, "repo": repo, "branch": branch})
 }
 
 func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {

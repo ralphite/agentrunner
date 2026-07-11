@@ -39,7 +39,7 @@ export const AR = {
   }) => post<{ sid: string }>("/sessions", b),
   makeWorkspace: () => post<{ path: string }>("/workspace"),
   makeWorktree: (repo: string, branch: string, ref = "") =>
-    post<{ path: string; repo: string }>("/worktree", { repo, branch, ref }),
+    post<{ path: string; repo: string; branch: string }>("/worktree", { repo, branch, ref }),
   upload: async (file: File) => {
     const fd = new FormData();
     fd.append("file", file);
@@ -73,6 +73,12 @@ export const AR = {
   commit: (sid: string, message: string) =>
     post<{ status: string }>(`/sessions/${sid}/commit`, { message }),
   gitInit: (sid: string) => post<{ status: string }>(`/sessions/${sid}/git-init`),
+  // Worktree lifecycle (INC-49): apply the worktree's changes back onto its main
+  // checkout (clean-or-nothing git apply), and remove the worktree when done
+  // (force skips the dirty-worktree guard after the user confirms).
+  applyWorktree: (sid: string) => post<{ status: string; mainRepo: string; applied: string }>(`/sessions/${sid}/apply`),
+  removeWorktree: (sid: string, force = false) =>
+    post<{ status: string; mainRepo: string }>(`/sessions/${sid}/worktree/remove`, { force }),
 
   // delivery (INC-43): "steer" folds the message into the running turn at its
   // next safe boundary; "queue"/undefined queues it for the next turn.
