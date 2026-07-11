@@ -32,7 +32,12 @@ export const AR = {
   daemonStart: () => post("/daemon/start"),
   trust: (dir: string) => post("/trust", { dir }),
 
-  sessions: () => api<Session[]>("/sessions"),
+  sessions: (limit = 0, offset = 0) => {
+    const q = new URLSearchParams();
+    if (limit > 0) q.set("limit", String(limit));
+    if (offset > 0) q.set("offset", String(offset));
+    return api<Session[]>("/sessions" + (q.size ? `?${q}` : ""));
+  },
   newSession: (b: {
     spec: string;
     extraSpecs: SpecFile[];

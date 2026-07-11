@@ -1522,6 +1522,18 @@ label.field {
 .diff-loading {
   padding: 26px 12px;
 }
+.diff-hidden-note {
+  display: grid;
+  gap: 3px;
+  margin: 10px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-2);
+  color: var(--ink-2);
+  font-size: 12px;
+}
+.diff-hidden-note span { color: var(--dim); }
 /* The absolute workspace path is long; let it take the row's flex space and
    ellipsize instead of pushing Commit/Refresh out of view. */
 .diffbar-path {

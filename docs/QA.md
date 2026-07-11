@@ -1157,6 +1157,32 @@ truthful unavailable session=`20260711-082007-use-the-edit-file-tool-to-repl-88c
 
 **结果**：PASS。所有 session/workspace/journal/screenshots 保留。
 
+## QA-61 Web UI 大历史/大 Diff 完成性审计（INC-60,UJ-24）
+
+**环境**：live `http://127.0.0.1:8809` + 私有候选 `127.0.0.1:8817`，均使用
+共享 `~/.local/share/agentrunner/`（454 个 session）；in-app Browser 真机，
+不隔离、不删除 session/workspace/journal。证据
+`qa/runs/2026-07-11-QA61-completion-audit/`。
+
+| # | 动作 | 硬断言 |
+|---|---|---|
+| 1 | 旧 live 全量 `/api/sessions` 与 Changes 基线 | sessions 32.21s 后 502；重入争用时 Changes 23.28s，真实复现长期 skeleton/`Loading task…` |
+| 2 | 候选 CLI/API progressive page | CLI 40 条 0.05s、80 条后续页 0.04–0.17s；API 首页 0.06s；300ms 已有 task，约 1.2s 全历史 717 个 task button；同一 refresh chain 不重入 |
+| 3 | deep link + large Changes | header 首帧可读且无 `Loading task…`；真实 616 个 generated untracked 文件隐藏但计数，API 0.09s/60,454 bytes，3 个 source 文件保留，默认折叠且首 paint 不先展开 |
+| 4 | Settings/Command palette/project picker/diff scope 键盘 | Escape 关闭；Settings mobile 回 `Show sidebar`，Command palette 回原 composer，picker/scope 回 trigger；dialog/menu/scrim 均清理 |
+| 5 | 1440/900/642/390 × light/dark，approval/Changes/Settings | body `scrollWidth==clientWidth`；900/642/390 Changes panel 均在 viewport；操作完整可达；AgentRunner brand + Codex IA + Supervision 分层不变 |
+| 6 | 稳态 console + 全树闸门 + live redeploy/reload | error/warning=`[]`；`./scripts/check.sh` 全绿；部署后 8809 重做首屏/deep link/large diff（结果见证据清单） |
+
+**真验发现并修复**：全量 journal fold 的 4s 无互斥 polling 是入口雪崩根因；
+另发现 `unknown` build stamp 泄漏、Settings/Command palette focus 丢失、untracked
+`node_modules` 巨型 diff 会让浏览器失败、large diff disclosure 在 effect 阶段太晚。
+分别以 CLI/API 分页 + serialized hydration、稳定产品 label、focus return、generated
+目录/字节/文件上限、首 paint 前 disclosure 修复。截图中的 screencast delta 黑块
+列为拒收采集伪影，不作产品判断。
+
+**结果**：候选阶段 PASS；最终 live push/deploy 后补齐同目录 EVIDENCE.md，所有
+共享测试数据与截图保留。
+
 ## QA-43 Codex UI 全景验收（INC-41,UJ-24）
 
 **环境**：live `http://127.0.0.1:8809` + 共享 store；in-app Browser 真机，

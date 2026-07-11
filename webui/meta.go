@@ -458,7 +458,7 @@ func (s *server) handleDiff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	meta := s.meta.get(id)
-	resp := map[string]any{"scope": "working-tree", "workspace": meta.Workspace, "known": meta.Workspace != "", "isRepo": false, "nested": false, "repoRoot": "", "diff": "", "numstat": "", "untracked": []string{}, "worktree": false, "mainRepo": "", "branch": ""}
+	resp := map[string]any{"scope": "working-tree", "workspace": meta.Workspace, "known": meta.Workspace != "", "isRepo": false, "nested": false, "repoRoot": "", "diff": "", "numstat": "", "untracked": []string{}, "hiddenUntracked": 0, "worktree": false, "mainRepo": "", "branch": ""}
 	if meta.Workspace == "" {
 		writeJSON(w, http.StatusOK, resp)
 		return
@@ -489,22 +489,38 @@ func (s *server) handleDiff(w http.ResponseWriter, r *http.Request) {
 	if porcelain, ok := git(r.Context(), meta.Workspace, "status", "--porcelain", "--untracked-files=all"); ok {
 		untracked := []string{} // never nil — the UI does .length on this
 		var extra bytes.Buffer  // synthetic new-file diffs for untracked content
+		hiddenUntracked := 0
+		inlineFiles := 0
+		const maxInlineUntrackedBytes = 1 << 20
 		for _, line := range strings.Split(porcelain, "\n") {
 			if !strings.HasPrefix(line, "?? ") {
 				continue
 			}
 			path := strings.TrimSpace(line[3:])
+			if hiddenUntrackedPath(path) {
+				hiddenUntracked++
+				continue
+			}
+			if len(untracked)+inlineFiles >= 500 {
+				hiddenUntracked++
+				continue
+			}
 			// Inline the content of small, regular, text files as a new-file
 			// diff so the UI shows it (git diff omits untracked entirely).
 			full := filepath.Join(meta.Workspace, path)
 			if info, err := os.Stat(full); err == nil && info.Mode().IsRegular() && info.Size() <= 256*1024 {
 				if content, err := os.ReadFile(full); err == nil && !bytes.Contains(content, []byte{0}) {
+					if extra.Len()+len(content) > maxInlineUntrackedBytes {
+						untracked = append(untracked, path)
+						continue
+					}
 					lines := strings.Split(strings.TrimRight(string(content), "\n"), "\n")
 					fmt.Fprintf(&extra, "diff --git a/%s b/%s\nnew file\n--- /dev/null\n+++ b/%s\n@@ -0,0 +1,%d @@\n",
 						path, path, path, len(lines))
 					for _, l := range lines {
 						extra.WriteString("+" + l + "\n")
 					}
+					inlineFiles++
 					continue
 				}
 			}
@@ -518,8 +534,19 @@ func (s *server) handleDiff(w http.ResponseWriter, r *http.Request) {
 			resp["diff"] = d + extra.String()
 		}
 		resp["untracked"] = untracked
+		resp["hiddenUntracked"] = hiddenUntracked
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+func hiddenUntrackedPath(path string) bool {
+	for _, part := range strings.Split(filepath.ToSlash(path), "/") {
+		switch part {
+		case ".git", ".venv", ".cache", ".next", ".turbo", ".gradle", "node_modules", "vendor", "dist", "build", "out", "target", "coverage", "__pycache__":
+			return true
+		}
+	}
+	return false
 }
 
 // handleCommit stages and commits the workspace changes — Codex's review→commit

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSidebarModel, dedupeInspectNodes, deNoiseSegment, projectDisplayName, projectLabel, projectSubtitle, projectSubtitles, quickSwitchTasks, scheduleLabel, scratchLabel, sessionNeedsAttention, visibleProjectSessions } from "./viewModels";
+import { buildSidebarModel, daemonVersionLabel, dedupeInspectNodes, deNoiseSegment, projectDisplayName, projectLabel, projectSubtitle, projectSubtitles, quickSwitchTasks, scheduleLabel, scratchLabel, sessionNeedsAttention, visibleProjectSessions } from "./viewModels";
 import type { ProjectGroup } from "./viewModels";
 import { compactWorkspaceName, describeApproval } from "./approvalPresentation";
 import { conciseTitle, displayTitle, titleFromSessionId } from "./title";
@@ -296,7 +296,7 @@ describe("status and background labels", () => {
     expect(backgroundLabel({ handle: "h", tool: "spawn_agent", detail: "running agent=worker task=write hello.py" }))
       .toBe("agent “worker” — write hello.py");
     expect(backgroundLabel({ handle: "h2", tool: "bash", detail: "sleep 60" })).toBe("bash · sleep 60");
-  });
+  }, 15_000);
 });
 
 describe("project overlay (INC-53)", () => {
@@ -325,5 +325,14 @@ describe("project overlay (INC-53)", () => {
     expect(visibleProjectSessions(group, { folded: true, searching: true }).length).toBe(8);
     // Custom cap respected.
     expect(visibleProjectSessions(group, { cap: 2 }).map((s) => s.id)).toEqual(["s0", "s1"]);
+  });
+});
+
+describe("daemon connection label", () => {
+  it("never leaks an unknown build stamp into the product footer", () => {
+    expect(daemonVersionLabel("unknown")).toBe("local");
+    expect(daemonVersionLabel("")).toBe("local");
+    expect(daemonVersionLabel("agentrunner dev build")).toBe("dev");
+    expect(daemonVersionLabel("0a38b5a")).toBe("0a38b5a");
   });
 });

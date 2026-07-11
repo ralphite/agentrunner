@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/ralphite/agentrunner/internal/agent"
@@ -192,25 +193,44 @@ func sessionStartedFromEvents(events []event.Envelope) (*event.SessionStarted, e
 	return started, nil
 }
 
-// sessionsCmd implements `agentrunner sessions [list] [--json]`: newest first, with
+// sessionsCmd implements `agentrunner sessions [list] [--json] [--limit N]
+// [--offset N]`: newest first, with
 // the folded status. Bare `sessions` lists too — it is every first-timer's
 // first guess (INC-2).
 func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 	jsonOutput := false
 	seenList := false
-	for _, arg := range args {
+	limit, offset := 0, 0
+	usage := func() int {
+		fmt.Fprintln(stderr, "usage: agentrunner sessions [list] [--json] [--limit N] [--offset N]")
+		return ExitUsage
+	}
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
 		switch arg {
 		case "list":
 			if seenList {
-				fmt.Fprintln(stderr, "usage: agentrunner sessions [list] [--json]")
-				return ExitUsage
+				return usage()
 			}
 			seenList = true
 		case "--json":
 			jsonOutput = true
+		case "--limit", "--offset":
+			if i+1 >= len(args) {
+				return usage()
+			}
+			n, err := strconv.Atoi(args[i+1])
+			if err != nil || n < 0 {
+				return usage()
+			}
+			if arg == "--limit" {
+				limit = n
+			} else {
+				offset = n
+			}
+			i++
 		default:
-			fmt.Fprintln(stderr, "usage: agentrunner sessions [list] [--json]")
-			return ExitUsage
+			return usage()
 		}
 	}
 	data, err := runtime.DataDir()
@@ -238,15 +258,42 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 		Schedule  string `json:"schedule,omitempty"`
 		mtime     int64
 	}
-	var rows []row
+	type candidate struct {
+		entry os.DirEntry
+		mtime int64
+	}
+	candidates := make([]candidate, 0, len(entries))
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
 		}
-		r := row{ID: e.Name(), Status: "unreadable", Kind: "session"}
-		if info, err := e.Info(); err == nil {
-			r.mtime = info.ModTime().UnixNano()
+		mtime := int64(0)
+		// A session directory's own mtime usually stays at creation time while
+		// events.jsonl keeps advancing. Sort by the journal mtime so an old task
+		// with new activity returns to the first page, matching the UI's notion
+		// of recent work.
+		if info, statErr := os.Stat(filepath.Join(root, e.Name(), "events.jsonl")); statErr == nil {
+			mtime = info.ModTime().UnixNano()
+		} else if info, infoErr := e.Info(); infoErr == nil {
+			mtime = info.ModTime().UnixNano()
 		}
+		candidates = append(candidates, candidate{entry: e, mtime: mtime})
+	}
+	sort.Slice(candidates, func(i, j int) bool { return candidates[i].mtime > candidates[j].mtime })
+	if offset >= len(candidates) {
+		candidates = nil
+	} else if offset > 0 {
+		candidates = candidates[offset:]
+	}
+	if limit > 0 && len(candidates) > limit {
+		candidates = candidates[:limit]
+	}
+
+	var rows []row
+	for _, candidate := range candidates {
+		e := candidate.entry
+		r := row{ID: e.Name(), Status: "unreadable", Kind: "session"}
+		r.mtime = candidate.mtime
 		if events, err := store.ReadEvents(filepath.Join(root, e.Name())); err == nil {
 			if isDriverJournal(events) {
 				r.Kind = "driver"

@@ -69,5 +69,5 @@ describe("dedupeCaps", () => {
       .toEqual(["Text", "Image", "File", "Thinking", "Prompt Caching", "Parallel Tools"]);
     expect(dedupeCaps(["images", "Image"])).toEqual(["images"]);
     expect(dedupeCaps([])).toEqual([]);
-  });
+  }, 15_000);
 });

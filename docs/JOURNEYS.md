@@ -312,12 +312,14 @@ GAPS.md，本文件只回答"产品要做什么"。
 
 **覆盖功能**：`动态角色 spawn(inline role)` `子提权用户审批(escalate)` `树内消息(send_message,兄弟直发)` `静止子唤醒(revive,context 延续)` `多次回执` `用户直达成员(ar send 子会话)` `子会话 live 镜像` `团队面板` `树级预算/审计`（底座复用 UJ-18 全部机制）
 
-### UJ-24 Web UI 驾驶 AgentRunner `基础` `✅ INC-19/23/40（2026-07-10）`
+### UJ-24 Web UI 驾驶 AgentRunner `基础` `✅ INC-19/23/40/60（2026-07-11）`
 
 **场景**：用户像使用 Codex 一样，从项目/任务层进入一个真实 AgentRunner
 会话，并在同一工作台完成派活、续聊、监督、审批与改动审阅。
 
-1. 左栏按 Projects → task 展示全部真实 session；task 是完整键盘可达操作，
+1. 左栏按 Projects → task 展示全部真实 session；共享历史很大时先在首屏取回
+   最近一页并立即可操作，再后台顺序补齐全部历史，不以全量 journal fold 阻塞
+   入口；task 是完整键盘可达操作，
    Pinned 单列且不重复；自动 workspace 合并为 Scratch；CLI 创建、metadata
    不完整、父/子 session 都能直接打开和 deep link；hover 同屏提供 pin /
    archive 与 project/branch/status 预览，键盘 context menu 保持等价。
@@ -340,8 +342,9 @@ GAPS.md，本文件只回答"产品要做什么"。
    自动面板，仍可由用户手动打开，且 Changes 永不被 Supervision 覆盖。
 6. Web UI 重启后同一 deep link、共享 store 历史、Goal/Repeating/Scheduled
    driver 和本地 pin/archive/theme 设置仍在；UI 只是公开 CLI/journal/
-   inspect/ps/diff 的 projection；首次 session fetch 成功前显示 loading，不用
-   空数组伪造 `No tasks yet` 或把 raw session id 当标题。
+   inspect/ps/diff 的 projection；首次 session page 成功前显示 loading，不用
+   空数组伪造 `No tasks yet`；deep link 在所在页到达前从 durable id 派生可读
+   fallback，journal title 到达后替换，不把完整 raw id 或长期 loading 当标题。
 
 **覆盖功能**：`Codex 式 project/task 信息架构` `单一 task thread` `环境上下文 composer` `Worked/Changes 任务收尾` `渐进披露 composer` `内联人类可读审批` `Changes 审阅` `Supervision(goal/agent/attention/background/recovery)` `restart-safe Scheduled` `键盘/移动端导航` `子会话导航` `deep link/restart` `共享真实 session` `Web UI 产品面`
 

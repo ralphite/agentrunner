@@ -41,6 +41,7 @@ export interface DiffResp {
   diff: string;
   numstat: string;
   untracked: string[];
+  hiddenUntracked?: number;
 }
 
 export type DiffScope = "working-tree" | "last-turn";

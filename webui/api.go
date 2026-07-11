@@ -270,7 +270,19 @@ func (s *server) handleSessions(w http.ResponseWriter, r *http.Request) {
 	// Runtime metadata is authoritative for every session, including sessions
 	// created by the CLI or another UI. The local meta store remains a fallback
 	// for older AgentRunner binaries and preserves WebUI-created titles.
-	res := s.runAR(r.Context(), 15*time.Second, "sessions", "list", "--json")
+	limit, offset, ok := sessionPage(r)
+	if !ok {
+		badRequest(w, "limit and offset must be non-negative integers (limit <= 500)")
+		return
+	}
+	args := []string{"sessions", "list", "--json"}
+	if limit > 0 {
+		args = append(args, "--limit", strconv.Itoa(limit))
+	}
+	if offset > 0 {
+		args = append(args, "--offset", strconv.Itoa(offset))
+	}
+	res := s.runAR(r.Context(), 15*time.Second, args...)
 	rows := []row{}
 	if res.Err == nil {
 		if err := json.Unmarshal([]byte(res.Stdout), &rows); err != nil {
@@ -304,6 +316,14 @@ func (s *server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A paged request must never silently fall back to a full 454-journal fold:
+	// that is exactly the overload this contract prevents. arFail's stale-binary
+	// diagnostic tells an old deployment to rebuild both binaries together.
+	if limit > 0 || offset > 0 {
+		arFail(w, "ar sessions list", res)
+		return
+	}
+
 	// Compatibility fallback for an older `ar` selected with --ar.
 	res = s.runAR(r.Context(), 15*time.Second, "sessions", "list")
 	if res.Err != nil {
@@ -327,6 +347,20 @@ func (s *server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	writeJSON(w, http.StatusOK, rows)
+}
+
+func sessionPage(r *http.Request) (limit, offset int, ok bool) {
+	parse := func(key string, max int) (int, bool) {
+		raw := r.URL.Query().Get(key)
+		if raw == "" {
+			return 0, true
+		}
+		n, err := strconv.Atoi(raw)
+		return n, err == nil && n >= 0 && (max == 0 || n <= max)
+	}
+	limit, limitOK := parse("limit", 500)
+	offset, offsetOK := parse("offset", 100_000)
+	return limit, offset, limitOK && offsetOK
 }
 
 func (s *server) handleNewSession(w http.ResponseWriter, r *http.Request) {

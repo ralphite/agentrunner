@@ -36,7 +36,7 @@ function fmtTokens(n: number): string {
 }
 
 export function SessionView({ sid }: { sid: string }) {
-  const { select, openModal, toast, showSys, toggleSys, sessions, sessionsReady, archived, toggleArchive, pinned, togglePin, renames } =
+  const { select, openModal, toast, showSys, toggleSys, sessions, archived, toggleArchive, pinned, togglePin, renames } =
     useStore();
   // A real sub-agent session id is `<parent>-sub-call_<callId>-<suffix>` — the
   // `-sub-call_` marker is what the daemon appends. Plain `-sub-` also matches
@@ -46,7 +46,10 @@ export function SessionView({ sid }: { sid: string }) {
   const subMarker = "-sub-call_";
   const isSub = sid.includes(subMarker);
   const sessionMeta = sessions.find((s) => s.id === sid);
-  const title = sessionsReady ? displayTitle(renames, sid, sessionMeta?.title) : "Loading task…";
+  // A deep link can hydrate its journal well before the paged session list.
+  // Use the existing durable-id fallback immediately, then replace it with the
+  // journal title as soon as that metadata page arrives.
+  const title = displayTitle(renames, sid, sessionMeta?.title);
 
   const [events, setEvents] = useState<Envelope[]>([]);
   const [pending, setPending] = useState<{ id: number; text: string; imgs: string[]; files: number; delivery?: "steer" | "queue" }[]>([]);

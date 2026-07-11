@@ -265,6 +265,11 @@
   height: 12px;
   border-radius: 7px;
 }
+.sidebar-history-loading {
+  margin: 8px 10px 4px;
+  color: var(--dim);
+  font-size: 11px;
+}
 
 /* ===== I4 · Toasts ====================================================
    Neutral card + status-coloured icon and left accent; theme-aware, with a

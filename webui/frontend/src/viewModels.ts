@@ -281,3 +281,8 @@ export function buildArchivedModel(
     { pinned: [], archived: [], showArchived: true, query, titleOf },
   );
 }
+
+export function daemonVersionLabel(version?: string): string {
+  const token = (version || "").replace(/^agentrunner\s*/, "").split(" ")[0].trim();
+  return !token || token.toLowerCase() === "unknown" ? "local" : token;
+}

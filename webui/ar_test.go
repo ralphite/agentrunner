@@ -105,6 +105,38 @@ func TestValidID(t *testing.T) {
 	}
 }
 
+func TestHandleSessionsPaginationForwardsBoundedCLIArgs(t *testing.T) {
+	dir := t.TempDir()
+	argsPath := filepath.Join(dir, "args")
+	arPath := filepath.Join(dir, "ar")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > " + strconv.Quote(argsPath) + "\nprintf '[]\\n'\n"
+	if err := os.WriteFile(arPath, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	s := &server{arPath: arPath, meta: newMetaStore(filepath.Join(dir, "meta.json"))}
+	req := httptest.NewRequest("GET", "/api/sessions?limit=40&offset=80", nil)
+	rr := httptest.NewRecorder()
+	s.handleSessions(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	got, err := os.ReadFile(argsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "sessions\nlist\n--json\n--limit\n40\n--offset\n80\n" {
+		t.Fatalf("args=%q", got)
+	}
+
+	for _, target := range []string{"/api/sessions?limit=-1", "/api/sessions?limit=501", "/api/sessions?offset=nope"} {
+		rr = httptest.NewRecorder()
+		s.handleSessions(rr, httptest.NewRequest("GET", target, nil))
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("target=%s status=%d", target, rr.Code)
+		}
+	}
+}
+
 func TestParseBarrierID(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{"barrier bar-m37\nsnapshot 1a2b3c4\n", "bar-m37"},
@@ -256,20 +288,36 @@ func TestHandleDiffNestedWorkspace(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(ws, "proof.txt"), []byte("UXR1\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.MkdirAll(filepath.Join(ws, "node_modules", "pkg"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ws, "node_modules", "pkg", "index.js"), []byte("generated\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(ws, "packages", "ui", "node_modules", "nested"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ws, "packages", "ui", "node_modules", "nested", "index.js"), []byte("generated\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	rec2 := httptest.NewRecorder()
 	req2 := httptest.NewRequest("GET", "/api/sessions/x/diff", nil)
 	req2.SetPathValue("sid", "20260710-000000-task-0001")
 	s.handleDiff(rec2, req2)
 	var resp2 struct {
-		IsRepo bool   `json:"isRepo"`
-		Nested bool   `json:"nested"`
-		Diff   string `json:"diff"`
+		IsRepo          bool   `json:"isRepo"`
+		Nested          bool   `json:"nested"`
+		Diff            string `json:"diff"`
+		HiddenUntracked int    `json:"hiddenUntracked"`
 	}
 	if err := json.Unmarshal(rec2.Body.Bytes(), &resp2); err != nil {
 		t.Fatal(err)
 	}
 	if !resp2.IsRepo || resp2.Nested || !strings.Contains(resp2.Diff, "proof.txt") {
 		t.Fatalf("want repo-root diff containing proof.txt, got %+v", resp2)
+	}
+	if resp2.HiddenUntracked != 2 || strings.Contains(resp2.Diff, "node_modules") {
+		t.Fatalf("generated dependency files must be counted but not inlined: %+v", resp2)
 	}
 }
 

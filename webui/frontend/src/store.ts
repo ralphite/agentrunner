@@ -43,6 +43,9 @@ interface AppState {
   // False until the first successful session-list response. An empty array
   // before then is "not loaded", not proof that the user has no tasks.
   sessionsReady: boolean;
+  // True only while the first successful recent page is being extended with
+  // older pages. The recent page is already usable at this point.
+  sessionsLoadingOlder: boolean;
   runs: Run[];
   currentSid: string | null;
   currentRunId: string | null;
@@ -157,10 +160,23 @@ function saveUnread(ids: string[]) {
 // retroactively marks history unread — only the persisted unread set restores.
 const seenTurns: Record<string, number> = {};
 
+const firstSessionPageSize = 40;
+const olderSessionPageSize = 80;
+let sessionsRefreshInFlight: Promise<void> | null = null;
+
+// Put `head` first and append only unseen rows from `tail`. Periodic refreshes
+// replace the recent page while retaining already hydrated history; history
+// pages append without duplicating rows when activity shifts page boundaries.
+export function mergeSessionRows(head: Session[], tail: Session[]): Session[] {
+  const seen = new Set(head.map((session) => session.id));
+  return [...head, ...tail.filter((session) => !seen.has(session.id))];
+}
+
 export const useStore = create<AppState>((set, get) => ({
   health: null,
   sessions: [],
   sessionsReady: false,
+  sessionsLoadingOlder: false,
   runs: [],
   currentSid: null,
   currentRunId: null,
@@ -285,17 +301,19 @@ export const useStore = create<AppState>((set, get) => ({
       set({ health: null });
     }
   },
-  refreshSessions: async () => {
-    try {
-      const next = await AR.sessions();
+  refreshSessions: () => {
+    if (sessionsRefreshInFlight) return sessionsRefreshInFlight;
+    const initialHydration = !get().sessionsReady;
+    const applyPage = (page: Session[], append: boolean) => {
       const prev = get().sessions;
+      const next = append ? mergeSessionRows(prev, page) : mergeSessionRows(page, prev);
       if (prev.length) notifySessionChanges(prev, next, get().currentSid);
       // Flag sessions that gained turns since we last saw them (and aren't the
       // one you're viewing). First sighting only records a baseline.
       const cur = get().currentSid;
       const unreadSet = new Set(get().unread);
       let changed = false;
-      for (const s of next) {
+      for (const s of page) {
         const seen = seenTurns[s.id];
         if (s.id === cur) {
           if (unreadSet.delete(s.id)) changed = true;
@@ -311,9 +329,32 @@ export const useStore = create<AppState>((set, get) => ({
         set({ unread: arr });
       }
       set({ sessions: next, sessionsReady: true });
-    } catch {
-      /* health indicator carries the failure */
-    }
+    };
+    const task = (async () => {
+      try {
+        const recent = await AR.sessions(firstSessionPageSize, 0);
+        applyPage(recent, false);
+        if (!initialHydration || recent.length < firstSessionPageSize) return;
+
+        set({ sessionsLoadingOlder: true });
+        let offset = recent.length;
+        for (;;) {
+          const page = await AR.sessions(olderSessionPageSize, offset);
+          if (page.length === 0) break;
+          applyPage(page, true);
+          offset += page.length;
+          if (page.length < olderSessionPageSize) break;
+        }
+      } catch {
+        /* health indicator carries a first-page failure; hydrated rows stay */
+      } finally {
+        set({ sessionsLoadingOlder: false });
+      }
+    })();
+    sessionsRefreshInFlight = task.finally(() => {
+      sessionsRefreshInFlight = null;
+    });
+    return sessionsRefreshInFlight;
   },
   refreshRuns: async () => {
     try {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseFileDiff, splitPath, splitRows, highlightLine, langFromPath, type DiffRow } from "./diffSummary";
+import { parseFileDiff, shouldExpandDiffByDefault, splitPath, splitRows, highlightLine, langFromPath, type DiffRow } from "./diffSummary";
 import { mixHex } from "./theme";
 
 describe("parseFileDiff (Codex-style review rows, W5)", () => {
@@ -117,6 +117,21 @@ describe("splitRows (INC-41 D4, side-by-side pairing)", () => {
     const last = out[out.length - 1];
     expect(last.left).toBeUndefined();
     expect(last.right?.text).toBe("extra");
+  });
+});
+
+describe("large diff disclosure", () => {
+  const diff = (lines: number) => [
+    "diff --git a/x.txt b/x.txt",
+    "--- a/x.txt",
+    "+++ b/x.txt",
+    `@@ -0,0 +1,${lines} @@`,
+    ...Array.from({ length: lines }, () => "+x"),
+  ].join("\n");
+
+  it("opens normal reviews but collapses very large files by default", () => {
+    expect(shouldExpandDiffByDefault(diff(20))).toBe(true);
+    expect(shouldExpandDiffByDefault(diff(501))).toBe(false);
   });
 });
 

@@ -348,3 +348,9 @@ export function summarizeChanges(data: DiffResp): ChangesSummary {
     totalDel: files.reduce((total, file) => total + file.del, 0),
   };
 }
+
+export function shouldExpandDiffByDefault(diff: string): boolean {
+  const files = splitDiff(diff || "");
+  const changedLines = files.reduce((total, file) => total + file.add + file.del, 0);
+  return files.length <= 10 && changedLines <= 500;
+}

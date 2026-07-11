@@ -1201,7 +1201,10 @@ limits:
   CLI/daemon contract 读取 journal、`inspect`、`ps` 与 workspace diff，绝不
   复制 session 状态机或建立第二套运行真相。
 - `ar sessions list --json` 从 `SessionStarted` / `DriverStarted` journal
-  事实给出 `workspace`、开场 `title`、`kind` 与 driver `schedule`。Web UI
+  事实给出 `workspace`、开场 `title`、`kind` 与 driver `schedule`。无 flag
+  保持全量兼容；`--limit/--offset` 先按 journal mtime 排候选，只 fold 请求页。
+  Web UI 首页 40 条即 ready，后台以 80 条/页顺序补齐历史；4s refresh 只更新
+  首页并由单一 in-flight chain 串行化，禁止全量 fold 重入把其它 API 饿死。Web UI
   metadata 只缓存已知值以兼容
   旧 session/首屏，不得覆盖 journal 状态，也不得成为 Diff、附件或 project
   grouping 的唯一来源。
@@ -1216,9 +1219,10 @@ limits:
   title 优先取 `RawTitle`；webui 的 manual rename 仍是 localStorage 偏好
   （见本节末粗体条款），在 displayTitle 层胜过任何 auto 值——服务端 manual
   rename 若要做单独立项走 §四。
-- session list 首次成功返回前，空数组只代表 **not loaded**；sidebar/deep-link
-  header 必须显示 loading。成功返回后才可投影真实空态，metadata 缺失的旧
-  session 只允许从 durable id 派生短 fallback title，不直接泄漏完整 raw id。
+- session list 首个 page 成功返回前，空数组只代表 **not loaded**；sidebar
+  必须显示 loading。成功返回后才可投影真实空态。deep-link header 不等待
+  全量/命中页：先从 durable id 派生短 fallback title，journal metadata 到达后
+  替换；metadata 缺失的旧 session 亦不直接泄漏完整 raw id。
 - 通用信息架构严格采用 Codex：左侧 New task / Scheduled / Pinned /
   Projects→task，中间单一 thread，固定 Changes 审阅入口，底部 follow-up
   composer。AgentRunner 独有 Goal / agent tree / attention / background

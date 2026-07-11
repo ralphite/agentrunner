@@ -31,7 +31,7 @@ import { displayTitle } from "../title";
 import { ContextMenu } from "./ContextMenu";
 import { MenuItem, MenuLabel } from "./Menu";
 import { copyText } from "../clipboard";
-import { buildSidebarModel, projectDisplayName, projectLabel, scheduledUnread, visibleProjectSessions } from "../viewModels";
+import { buildSidebarModel, daemonVersionLabel, projectDisplayName, projectLabel, scheduledUnread, visibleProjectSessions } from "../viewModels";
 import { relTime, sessionDate } from "../time";
 
 type SidebarContext =
@@ -43,6 +43,7 @@ export function Sidebar({ onHide, onNavigate, onOpenSettings }: { onHide?: () =>
     health,
     sessions,
     sessionsReady,
+    sessionsLoadingOlder,
     runs,
     currentSid,
     currentPage,
@@ -329,6 +330,9 @@ export function Sidebar({ onHide, onNavigate, onOpenSettings }: { onHide?: () =>
               </div>
             );
           })}
+          {sessionsLoadingOlder && (
+            <div className="sidebar-history-loading" role="status">Loading older tasks…</div>
+          )}
           {archivedCount > 0 && (
             <button className="archive-toggle" onClick={toggleShowArchived}>
               <ArchiveBox size={14} /> {showArchived ? "Hide" : "Show"} archived · {archivedCount}
@@ -352,7 +356,7 @@ export function Sidebar({ onHide, onNavigate, onOpenSettings }: { onHide?: () =>
             <b>AgentRunner</b>
             <span>
               {health?.daemonUp
-                ? `Connected · ${(health.version || "").replace(/^agentrunner\s*/, "").split(" ")[0] || "daemon"}`
+                ? `Connected · ${daemonVersionLabel(health.version)}`
                 : "Daemon offline — restart"}
             </span>
           </span>

@@ -27,11 +27,44 @@ export function App() {
   const toggleSidebar = useStore((s) => s.toggleSidebar);
   const unread = useStore((s) => s.unread);
   const [palette, setPalette] = useState(false);
+  const paletteOpenRef = useRef(false);
+  const paletteReturnFocusRef = useRef<HTMLElement | null>(null);
+  paletteOpenRef.current = palette;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsOpenRef = useRef(false);
+  const settingsReturnFocusRef = useRef<HTMLElement | null>(null);
   settingsOpenRef.current = settingsOpen;
   const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 680px)").matches);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  const openPalette = () => {
+    const active = document.activeElement;
+    paletteReturnFocusRef.current = active instanceof HTMLElement ? active : null;
+    setPalette(true);
+  };
+  const closePalette = (restoreFocus = true) => {
+    const returnTarget = paletteReturnFocusRef.current;
+    setPalette(false);
+    if (!restoreFocus) return;
+    requestAnimationFrame(() => {
+      if (returnTarget?.isConnected && returnTarget.getClientRects().length > 0) returnTarget.focus();
+    });
+  };
+
+  const openSettings = () => {
+    const active = document.activeElement;
+    settingsReturnFocusRef.current = active instanceof HTMLElement ? active : null;
+    if (window.matchMedia("(max-width: 680px)").matches) setMobileSidebarOpen(false);
+    setSettingsOpen(true);
+  };
+  const closeSettings = () => {
+    const returnTarget = settingsReturnFocusRef.current;
+    setSettingsOpen(false);
+    requestAnimationFrame(() => {
+      if (returnTarget?.isConnected && returnTarget.getClientRects().length > 0) returnTarget.focus();
+      else document.querySelector<HTMLElement>(".sidebar-show")?.focus();
+    });
+  };
 
   // Apply the full appearance record (fonts, contrast, diff markers, motion,
   // syntax) once styles are mounted — main.tsx only restores the theme, so this
@@ -61,7 +94,8 @@ export function App() {
       // ⌘, / Ctrl-, opens (or closes) the full-window Settings surface (Codex).
       if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key === ",") {
         e.preventDefault();
-        setSettingsOpen((o) => !o);
+        if (settingsOpenRef.current) closeSettings();
+        else openSettings();
         return;
       }
       // While Settings owns the window, let it handle its own keys (Escape to
@@ -69,7 +103,8 @@ export function App() {
       if (settingsOpenRef.current) return;
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setPalette((p) => !p);
+        if (paletteOpenRef.current) closePalette();
+        else openPalette();
         return;
       }
       // ⌥⌘↑ / ⌥⌘↓ moves to the previous / next task in the sidebar order.
@@ -166,7 +201,7 @@ export function App() {
         onNavigate={closeAfterNavigate}
         onOpenSettings={() => {
           closeAfterNavigate();
-          setSettingsOpen(true);
+          openSettings();
         }}
       />
       {isMobile && mobileSidebarOpen && <button className="sidebar-scrim" aria-label="Close sidebar" onClick={hideSidebar} />}
@@ -194,9 +229,9 @@ export function App() {
         </ErrorBoundary>
       </div>
       <Modals />
-      {palette && <CommandPalette onClose={() => setPalette(false)} />}
+      {palette && <CommandPalette onClose={closePalette} />}
       {helpOpen && <Shortcuts onClose={closeHelp} />}
-      {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <Settings onClose={closeSettings} />}
       <Toasts />
     </div>
   );

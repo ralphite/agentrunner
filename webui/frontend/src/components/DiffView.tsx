@@ -4,7 +4,7 @@ import { AR } from "../api";
 import { useStore } from "../store";
 import { loadGitPrefs } from "../theme";
 import type { DiffResp, DiffScope } from "../types";
-import { parseFileDiff, splitDiff, splitPath, splitRows, highlightLine, langFromPath, type DiffRow } from "../diffSummary";
+import { parseFileDiff, shouldExpandDiffByDefault, splitDiff, splitPath, splitRows, highlightLine, langFromPath, type DiffRow } from "../diffSummary";
 import { Popover, PopItem, PopSection } from "./Popover";
 
 // renderCode turns one diff line into syntax-highlighted spans (INC-41 D3).
@@ -58,6 +58,12 @@ export function DiffView({ sid }: { sid: string }) {
     AR.diff(sid, scope)
       .then((d) => {
         if (currentRequest !== requestID.current) return;
+        // Decide disclosure before exposing the payload to React. Otherwise a
+        // large diff gets one fully-expanded paint before a later effect can
+        // collapse it, which is exactly when the browser is most vulnerable to
+        // jank or failure.
+        setAllOpen(shouldExpandDiffByDefault(d.diff || ""));
+        setFoldEpoch((epoch) => epoch + 1);
         setData(d);
         setErr("");
       })
@@ -72,7 +78,6 @@ export function DiffView({ sid }: { sid: string }) {
       requestID.current += 1;
     };
   }, [sid, scope]);
-
   // Codex review→commit: stage & commit the workspace changes from the diff.
   const commit = () => {
     openPrompt({
@@ -296,7 +301,8 @@ export function DiffView({ sid }: { sid: string }) {
 
   const files = splitDiff(data.diff || "");
   const untracked = data.untracked || [];
-  const empty = files.length === 0 && untracked.length === 0;
+  const hiddenUntracked = data.hiddenUntracked || 0;
+  const empty = files.length === 0 && untracked.length === 0 && hiddenUntracked === 0;
 
   // Per-file +/- counts (from the diff itself, so untracked-content blocks count
   // too) — Codex shows these next to each file and a total at the top.
@@ -411,6 +417,12 @@ export function DiffView({ sid }: { sid: string }) {
       )}
       {!empty && q && shown.length === 0 && (
         <div className="dim" style={{ padding: 12 }}>No files match “{fileQuery}”.</div>
+      )}
+      {hiddenUntracked > 0 && !q && (
+        <div className="diff-hidden-note" role="status">
+          <b>{hiddenUntracked.toLocaleString()} generated or excess untracked files hidden</b>
+          <span>Dependency/build output is omitted to keep review responsive. Source files remain visible.</span>
+        </div>
       )}
       {untracked.length > 0 && !q && (
         <div className="filediff">

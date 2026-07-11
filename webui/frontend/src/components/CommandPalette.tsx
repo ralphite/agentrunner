@@ -17,7 +17,7 @@ interface Item {
 // CommandPalette is Codex's ⌘K: one fuzzy search over sessions + a set of
 // commands, keyboard-navigable (↑/↓, Enter, Esc). Opened from a global
 // key handler in App.
-export function CommandPalette({ onClose }: { onClose: () => void }) {
+export function CommandPalette({ onClose }: { onClose: (restoreFocus?: boolean) => void }) {
   const { sessions, runs, archived, select, selectRun, showPage, openModal, toggleShowArchived, theme, cycleTheme, openHelp, renames } =
     useStore();
   const [q, setQ] = useState("");
@@ -32,7 +32,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
     const ql = q.trim().toLowerCase();
     const match = (s: string) => !ql || s.toLowerCase().includes(ql);
     const go = (fn: () => void) => () => {
-      onClose();
+      // A selected command owns the next focus target (for example, a modal or
+      // the destination task). Only dismissals restore the pre-palette focus.
+      onClose(false);
       fn();
     };
     const cmds: Item[] = [
@@ -93,7 +95,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
   useEffect(() => setIdx(0), [q]);
 
   const onKey = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") onClose();
+    if (e.key === "Escape") onClose(true);
     else if (e.key === "ArrowDown") {
       e.preventDefault();
       setIdx((i) => Math.min(i + 1, items.length - 1));
@@ -107,7 +109,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="backdrop cmdk-back" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="backdrop cmdk-back" onMouseDown={(e) => e.target === e.currentTarget && onClose(true)}>
       <div className="cmdk" onKeyDown={onKey} role="dialog" aria-modal="true" aria-label="Command palette">
         <input
           ref={inputRef}

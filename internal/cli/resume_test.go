@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ralphite/agentrunner/internal/crash"
 	"github.com/ralphite/agentrunner/internal/event"
@@ -164,6 +165,56 @@ func TestCLISessionsListEmpty(t *testing.T) {
 	out.Reset()
 	if code := Run([]string{"sessions", "--json"}, "dev", &out, &errOut); code != ExitOK || strings.TrimSpace(out.String()) != "[]" {
 		t.Fatalf("empty json exit = %d, out = %q, err = %q", code, out.String(), errOut.String())
+	}
+}
+
+func TestCLISessionsPaginationNewestFirst(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", xdg)
+	root := filepath.Join(xdg, "agentrunner", "sessions")
+	base := time.Unix(1_700_000_000, 0)
+	for i, id := range []string{"old", "middle", "new"} {
+		dir := filepath.Join(root, id)
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(dir, "events.jsonl")
+		if err := os.WriteFile(path, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		at := base.Add(time.Duration(i) * time.Minute)
+		if err := os.Chtimes(path, at, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var out, errOut bytes.Buffer
+	if code := Run([]string{"sessions", "list", "--json", "--limit", "1", "--offset", "1"}, "dev", &out, &errOut); code != ExitOK {
+		t.Fatalf("exit=%d stderr=%s", code, errOut.String())
+	}
+	var rows []struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &rows); err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].ID != "middle" {
+		t.Fatalf("rows=%+v, want middle page", rows)
+	}
+
+	out.Reset()
+	if code := Run([]string{"sessions", "--json"}, "dev", &out, &errOut); code != ExitOK {
+		t.Fatalf("full exit=%d stderr=%s", code, errOut.String())
+	}
+	if err := json.Unmarshal(out.Bytes(), &rows); err != nil || len(rows) != 3 {
+		t.Fatalf("full rows=%+v err=%v", rows, err)
+	}
+	for _, args := range [][]string{{"sessions", "--limit", "-1"}, {"sessions", "--offset", "x"}, {"sessions", "--limit"}} {
+		out.Reset()
+		errOut.Reset()
+		if code := Run(args, "dev", &out, &errOut); code != ExitUsage {
+			t.Fatalf("args=%v exit=%d", args, code)
+		}
 	}
 }
 
