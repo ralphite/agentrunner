@@ -45,7 +45,7 @@
 
 | # | 项 | 规模 | 状态 | 备注 |
 |---|---|---|---|---|
-| 8 | LLM goal judge（llm_call 管线 effect，门控触发，三态） | M/L | ⬜ | 走 §四；修订 §13/决策 #21（非 #34） |
+| 8 | LLM goal judge（llm_call 管线 effect，门控触发，三态） | M/L | 📐 awaiting-review (INC-48) | 设计纸+§四变更单已出（claim-gated 门控），送契约 review；实施另起轮 |
 | E2 | 外部事件唤醒 G14（HTTP ingress + source:machine + untrusted 硬条件） | M | ⬜ | UJ-12 卡死项；HTTP 壳联动 backlog |
 | 28b | cron 跨重启唤醒 + boot sweep（G22） | M | ⬜ | = CC SPRINT #15 联动 |
 
