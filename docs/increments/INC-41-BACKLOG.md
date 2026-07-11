@@ -767,6 +767,102 @@ fallback(旧二进制)。字符串匹配现只剩后端一处(与 `ar` 同仓库
 > (`Scheduled.tsx:172-186` 双版)、Projects 骨架(`Sidebar.tsx:264-268` shimmer)。
 > ✂ 刻意:Home 底部钉输入框留白布局 = QA-45 定,非空态缺陷。
 
+## A 相 · 键盘可达与焦点可见性(轮9 finder,新镜头)
+
+> 镜头:a11y——Tab 序 / 焦点环 / 浮层 Esc 与焦点归还 / onClick 语义 / 快捷键。
+> 对 live 8809 playwright 取证(6 个探针,全 `wait_for_timeout`)+ JSX AST 扫描(217 处
+> onClick)。finder 已排除的**假阳性**(别动):`Modals.tsx` 焦点陷阱/Esc/归还三件套齐全;
+> `Menu.tsx`/`Popover.tsx` 方向键+Home/End+Esc+归还都做了;Settings 与 CommandPalette
+> 的 Esc 与归还实测正常;Timeline 缩略图有 onKeyDown;Approval 卡是真 `<button>`;
+> 全局焦点环 `tw.css:134` 对 button 生效良好(实测 solid 2px #2F6BFF)。
+
+### A11Y-1 ☐ 会话页按 Tab 永远到不了对话区和 composer(侧栏堵死 Tab 路) [P1]
+**behavior**:任一会话页从头按 Tab,焦点依次落进侧栏每个 project 标题和每条任务,
+**按满 220 次仍未到达 composer**。纯键盘用户无法在合理次数内触达"读对话/发消息"这个
+核心动作,只能先用鼠标点一下 composer。并会把 A11Y-3 的焦点丢失放大成灾难。
+**证据**:实测 `focusable: total=794, sidebar=748`(**94% 可聚焦元素在侧栏**);
+`composer reached at Tab # NEVER within 220`;地标探测 `{main:1, nav:1, skip:0, h1:0}`
+——有 `<main>`/`<nav>` 但**无任何 skip link**。截图 `r9-a11y-session*.png`。
+**源码**:`Sidebar.tsx`(每条 session 渲染成普通 `<button>`,全进 Tab 序)。
+**建议**:(a) **skip link**(改动最小、收益最大):`App.tsx` 首部加视觉隐藏、`:focus` 显形的
+`<a href="#main" class="skip-link">Skip to conversation</a>`,`<main id="main" tabIndex={-1}>`;
+(b) roving tabindex(侧栏只留 1 个 Tab 停靠点,组内 ↑/↓ 移动,复用已有的 `⌘⌥↑/↓`)——更贴近
+Codex 但改动面大。**先做 (a),(b) 另立条目**。
+**touches**:`App.tsx` / `styles.css`(新增 `.skip-link`)。不碰 Sidebar.tsx。
+**刻意核查**:`git log -S"skip-link"`/`-S"roving"` 对 webui 全无命中 → **非刻意,是洞**。
+
+### A11Y-2 ☐ 三个搜索输入框聚焦后"零焦点指示"(outline/border/box-shadow 全空) [P2]
+**behavior**:Tab 进侧栏搜索框 / Scheduled 搜索框 / Home 的 project 搜索框时,**屏幕上没有
+任何视觉变化**,键盘用户不知道焦点在哪。对比同 app 普通按钮有清晰 2px 蓝环。
+**证据**(聚焦态 computed style):`.side-search input` → `outline: none`、`borderWidth: 0px`、
+`boxShadow: none`,外层 wrapper 边框与未聚焦时**完全相同**;`.sched-search input` 同上;
+对照普通按钮 `solid 2px rgb(47,107,255)` ✅。截图 `r9-a11y-focus-*.png`。
+**根因**:`tw.css:128-133` 的 `input:focus{outline:none;border-color:var(--blue)}` 特异性
+(0,1,1) 压过同层 `:where(...):focus-visible{outline:2px solid}` 的 (0,1,0) → 全站 input 的
+焦点提示**只靠 border-color**;而这三个是"wrapper 画边框 + 内部 input 无边框"结构
+(`styles.css:4277`/`:3085-3092`/`:1713-1717` 显式 `border:0`),wrapper 又都**没有
+`:focus-within`** → border-color 落在 0px 宽的边框上,什么都看不见。
+**参照(仓库里做对的同类)**:`styles.rs.css:136-141` `.diff-filter input:focus{outline:none}`
++ `.diff-filter:focus-within{border-color:var(--rs-accent)}` —— 同一 wrapper 模式补了
+`:focus-within`。
+**建议**:照抄,给三个 wrapper 各加 `:focus-within{border-color:var(--blue)}`
+(`.cx-project-search` 无 border,需补 1px 边框或改 box-shadow ring);顺带删掉
+`styles.css:4277` 多余的 `border:0;outline:none`。
+**touches**:`styles.css`(3 处,纯 CSS,零 TSX)。
+**刻意核查**:`git log -S".sched-search input:focus"` → `0e97486`(Codex UI polish)是**视觉**
+打磨(去双框感),无焦点可见性意图;而 `.diff-filter:focus-within`(`7512c6b`)证明团队后来
+已认可正确写法,只是没回头补这三处。**非刻意,是遗漏**。
+
+### A11Y-3 ☐ ⌘F 查找栏 Esc 关闭后焦点被丢到 `<body>` [P2]
+**behavior**:会话页 ⌘F 打开对话内查找 → Esc 关闭 → 焦点不回到打开前的位置,而是掉进
+`<body>`。再按 Tab 就从文档最顶端重来——叠加 A11Y-1,等于**要重新趟 748 个侧栏按钮**才能
+回到正文。用一次 ⌘F 就"迷路"。
+**证据**(锚定焦点在 "New task" 后开浮层):FindBar → Esc 后 `focus = BODY` ❌;
+Settings(⌘,) → `BUTTON 'New task'` ✅;CommandPalette(⌘K) → ✅。焦点归还审计:
+Modals ✅ / CommandPalette ✅ / Lightbox ✅ / **FindBar ❌(0 命中)**。
+**源码**:`FindBar.tsx`(全文件无 activeElement 保存/恢复)。**参照**:`Modals.tsx:41`
+`const previous = document.activeElement` + `:75` cleanup 里 `previous?.focus()`。
+**建议**:把 Modals 那对四行搬进 FindBar 的 mount effect。
+**touches**:`FindBar.tsx`(~5 行)。
+**刻意核查**:`git log -S"fb-input"` → `1cc0675`(⌘F Codex parity)首次引入即无归还,而
+`previous?.focus()` 是更早 `88c349a` 就有的既成模式 → **新组件漏用既有模式,非刻意**。
+
+### A11Y-4 ☐ Composer 附件 chip 是 `<span onClick>`,键盘无法移除已添加附件 [P2]
+**behavior**:composer 附加文件/图片后的 chip,点击即移除——但它是 `<span>`,**无 tabIndex、
+无 role、无键盘事件**,Tab 会直接跳过。一旦误加附件,**没有任何键盘方式能删掉**(只能放弃
+整条消息或改用鼠标);X 图标还标了 `aria-hidden`,屏幕阅读器也读不到"可移除"。
+**证据**:JSX 扫描 217 处 onClick → 53 处挂在非 button 上 → 筛出**唯一真实病灶**
+`Composer.tsx:1122 <span className="cx-att cx-att-codex" onClick={...}>`(其余是容器/背景
+点击,非唯一入口,不算洞)。
+**源码**:`Composer.tsx:1122`(+ `:1128` `<span className="cx-att-x" aria-hidden>`)。
+**参照**:同文件其他 composer 控件(`cx-icon`/`cx-pill`/`cx-send`)都是真 `<button>`,实测在
+Tab 序内且有焦点环。
+**建议**:移除动作收进真 `<button className="cx-att-x" aria-label={`Remove ${a.name}`}>`
+(去掉 aria-hidden),外层 span 退回纯展示容器、卸掉 onClick;CSS 补 `.cx-att-x` 的
+`border:0;background:transparent;padding:0`(因 `tw.css:98` base button 会加边框内边距)。
+**touches**:`Composer.tsx`(~6 行)/ `styles.css`(`.cx-att-x` 重置)。**与 A11Y-5 同文件,须同人做**。
+**刻意核查**:`git log -S"cx-att"` → `24aeccb`/`a881f67`/`2e2eee8` 三个 commit 都在做**视觉**,
+message 与 diff 均未提键盘/可达性,也无"故意不让键盘删附件"的理由 → **非刻意,是洞**。
+
+### A11Y-5 ☐ Composer 的 8 个 pill 下拉缺 `aria-haspopup`/`aria-expanded` [P3]
+**behavior**:composer 的 Access/Model/Mode 等 pill 点开是 `role="menu"` 面板(方向键、Esc、
+焦点归还都好),但触发按钮**没告诉辅助技术"我是菜单、我现在开着"**。屏幕阅读器用户听到的
+只是普通按钮。纯视觉/纯键盘用户不受影响,故 P3。
+**证据**:`trigger focused: BUTTON.cx-pill 'Access: set by agent'` → Enter → `panel open: True`,
+但按钮上无 `aria-expanded`。全仓 `aria-expanded|aria-haspopup` 仅 4 处命中(Menu ✅ /
+DiffView ✅ / CommandPalette ✅ / Timeline ✅),**Popover 及其 8 个 Composer 调用点一个都没有**。
+**源码**:`Popover.tsx`(trigger 由调用方渲染,Popover 不注入 aria)+ 调用点
+`Composer.tsx:936/1003/1030/1049/1194/1240/1288/1322`。**参照**:`Menu.tsx:39` 把
+`aria-haspopup="menu" aria-expanded={open}` 写在组件内部。
+**建议**:给 8 个调用点的 button 各补 2 个属性(`open` 已作为参数传进 `trigger` 回调,零接线)。
+**touches**:`Composer.tsx`。**与 A11Y-4 同文件,须同人做**。
+**刻意核查**:`git log -S"aria-haspopup"` 对 Composer/Popover 无命中 → **新组件没沿用既有模式**。
+
+### A11Y-6 ☐ 侧栏改 roving tabindex(A11Y-1 的彻底解法,skip link 之后再做) [P3]
+从 A11Y-1 建议 (b) 拆出:侧栏列表整体只留 1 个 Tab 停靠点(选中项 `tabIndex={0}`,其余 -1),
+组内用 ↑/↓ 移动(复用已有 `⌘⌥↑/↓` 逻辑)。更贴近 Codex,但改动面大 → 待 A11Y-1(a) 落地后再评估。
+**touches**:`Sidebar.tsx`。
+
 ## 驱动循环台账(/parity-drive,每30min一轮,只追加)
 
 - 2026-07-11 轮1(循环启动):同步+部署 8809=index-CWvHKizj.js;收割 0(无存活
@@ -868,3 +964,11 @@ fallback(旧二进制)。字符串匹配现只剩后端一处(与 `ar` 同仓库
   探针脚本归档 `qa/runs/2026-07-11-QA43-endgame/scripts/{verify_l4_l5,probe_r9,probe_r9b,probe_r9c}.py`。
   BACKLOG:+✅×2(L4/L5),开放 ☐ 归零 → 按「达标即续航」本轮末派新镜头 finder 补弹药。
   push=100908a+31b68f7+e838814+本 commit;live=index-BmBuR-u1.js。
+- 2026-07-11 轮9(补记·补弹药):L4/L5 收口后开放 ☐ 归零 → 按「达标即续航」派新镜头
+  finder(**a11y:键盘可达 + 焦点可见性**,read-only,6 个 playwright 探针 + 217 处 onClick
+  的 JSX 扫描)。交回 **A 相 A11Y-1..6**(1×P1 + 3×P2 + 2×P3),每条附 live 实测数据、
+  file:line、参照实现与 `git log -S` 刻意核查(全部判定非刻意),并主动排除一批假阳性
+  (Modals/Menu/Popover/CommandPalette 的键盘行为本已正确,别动)。**P1 = A11Y-1**:
+  会话页 794 个可聚焦元素里 748 个在侧栏,按满 220 次 Tab 都到不了 composer——键盘用户
+  根本无法开始工作。派工切分建议:A=A11Y-2(纯 CSS)、B=A11Y-1(App.tsx+skip link)、
+  C=A11Y-3(FindBar)、D=A11Y-4+5(同为 Composer.tsx,须同人)。下轮消化。
