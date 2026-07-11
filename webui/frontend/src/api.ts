@@ -78,6 +78,7 @@ export const AR = {
     post(`/sessions/${sid}/send`, { text, images, files, ...(delivery ? { delivery } : {}) }),
   interrupt: (sid: string) => post(`/sessions/${sid}/interrupt`),
   resume: (sid: string) => post(`/sessions/${sid}/resume`),
+  retry: (sid: string) => post(`/sessions/${sid}/retry`),
   closeSession: (sid: string) => post(`/sessions/${sid}/close`),
   stopSession: (sid: string) => post(`/sessions/${sid}/stop`),
   compact: (sid: string) => post(`/sessions/${sid}/compact`),

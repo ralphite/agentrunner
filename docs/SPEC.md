@@ -43,6 +43,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | microcompact（assembly 把久远可重算 read-class 工具结果渲染为占位符；不调 LLM；单调 micro boundary；先于 autocompact） | ✅ | UJ-09 | INC-13 · TestMicrocompact{AssemblyView,MonotonicFold,TriggeredInLoop,DisabledNoop} · QA-22（真 Gemini：micro 触发、无 compact、模型重跑工具复原被清结果） |
 | 手动 barrier 打点（`ar barrier`，非运行中 session） | ✅ | UJ-15 | fork 全链路测试（S7 收口） |
 | stdin 管道文本（`run/new/send` 文本参数缺省且 stdin 为管道时读取，显式 `-` 占位；非管道下 `-` 报错不阻塞；仅尾部换行 trim；附件 flags 不受影响） | ✅ | UJ-01/02 | INC-28（HANDA #32）· TestCompleteTextArg*/TestRunCmdPipedTaskSkipsUsage · 真验 2026-07-10（真 Gemini：管道开场+`-` 多行续聊，qa/runs/2026-07-10-INC28） |
+| turn retry（`ar retry <sid>`/webui Retry：重发最后一条 user-class 输入为新 turn；载荷纯函数重组（文本 verbatim+CAS 附件读回+恒定 provenance）、command_id 派生 `retry:<原id>`（紧窗双击幂等、链式可再试）；守卫先判 Quiescence 再判等待（待命合法、ask park/mid-turn 拒）） | ✅ | UJ-02/24 | INC-45（HANDA #16，INC-44 §B）· TestPlanRetryTargetsLastUserInput/TestPlanRetryGuardsAndLegacy/TestRetryAttachmentsRoundTripCAS · 真验 2026-07-11（真 Gemini：完成态重发 ALPHA/链式/interrupted webui 按钮，qa/runs/2026-07-11-INC45） |
 
 ## B · 子 agent 与编排
 

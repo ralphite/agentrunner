@@ -318,6 +318,10 @@ export function SessionView({ sid }: { sid: string }) {
           : folded.status;
   const isDriver = folded.isDriver;
   const needsRecovery = !live && /strand|interrupt/i.test(listStatus || "");
+  // Retry (INC-44 §B) re-sends the last user message as a NEW turn — offered
+  // wherever the last one plausibly went wrong: crashed/failed/interrupted/
+  // stranded, but never mid-run or while a wait wants its answer.
+  const canRetry = !live && /strand|interrupt|crash|fail/i.test(listStatus || "");
   const running = status.cls === "run";
   const abnormalAgentCount = dedupeInspectNodes(children).filter((node) => {
     const childStatus = friendlyStatus(node.reason || node.report?.reason || node.report?.status || "");
@@ -380,6 +384,14 @@ export function SessionView({ sid }: { sid: string }) {
       try {
         await AR.resume(sid);
         toast("resume sent", "info");
+      } catch (e: any) {
+        toast(e.message);
+      }
+    },
+    retry: async () => {
+      try {
+        await AR.retry(sid);
+        toast("retrying your last message as a new turn", "info");
       } catch (e: any) {
         toast(e.message);
       }
@@ -495,6 +507,11 @@ export function SessionView({ sid }: { sid: string }) {
         {!isSub && needsRecovery && (
           <button className="topbar-tool recovery" onClick={act.resume} title="Resume this task from its last durable checkpoint">
             <ArrowClockwise size={15} /> Resume
+          </button>
+        )}
+        {!isSub && canRetry && (
+          <button className="topbar-tool" onClick={act.retry} title="Re-send your last message as a new turn; double-clicks are idempotent">
+            <ArrowClockwise size={15} /> Retry
           </button>
         )}
         <button className={`topbar-tool${view === "diff" ? " active" : ""}`} onClick={() => setView(view === "diff" ? "chat" : "diff")} title="Review workspace changes">

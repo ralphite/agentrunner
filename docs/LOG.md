@@ -2872,3 +2872,26 @@ QA-45 真机（steer/queue 注入时机）见 `qa/runs/2026-07-10-QA-45/`。
   截图确认;运行时 contrast/font-size 覆盖照常传导。
 - 工具教训:子 agent 隔离 worktree 产出会被自动清理丢失且互相污染,改由主 agent
   亲手迁移;截图 harness 在 `qa/runs/2026-07-10-tailwind-migration/`(gitignored)。
+## 2026-07-11 INC-45 turn retry（HANDA SPRINT #16，INC-44 §B 实施）
+
+**落地**：`ar retry <sid>`——journal 定位最后一条 user-class 输入
+（跳过 program/agent/parent 源），载荷**纯函数重组**（文本 verbatim、
+CAS 附件字节读回同 wire 形、恒定 provenance），command_id 派生
+`retry:<原id>`（`ar new` 开场消息无 CommandID → seq 回退是常态路径）；
+TurnID/ItemID 由 daemon 从 command_id 确定性派生（daemon.go:1039），
+INC-44 M2 纯函数约束天然满足。守卫：**先判 Quiescence 再判等待**
+——待命形态 fold 即 Waiting{input}，非静止的 waiting（ask park）才
+拒（send 在 park 期间会配成 ask 应答）。webui：POST /retry route +
+crashed/failed/interrupted/stranded 态 topbar Retry 按钮。
+
+**双闸门**：孪生 planRetry 3 组（目标定位跳非 user 源/三守卫/legacy
+seq 回退）+ CAS 附件往返；B=真 Gemini：完成态 retry 重发 ALPHA 成功
+新轮、连续 retry 目标推进为**链式**（`retry:retry:seq2`，紧窗双击的
+幂等由 AppendCommand 同 id 机制兜底）、interrupted 会话 webui
+Resume+Retry 并存、点击后消息重发+重新生成、console 0 错误。归档
+`qa/runs/2026-07-11-INC45/`。
+
+**真验抓 bug 记档**：初版守卫 `s.Waiting != nil` 一票否决——把待命
+（quiescent + Waiting{input}）误判为 ask park，完成态会话全部被挡；
+静止判定必须先行。孪生此前未覆盖"待命=Waiting{input}"真实形态——
+fold 形态假设要以真验为准。

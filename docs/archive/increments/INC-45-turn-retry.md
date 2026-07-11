@@ -32,3 +32,12 @@ review M2 吸收：纯函数重组）。journey 锚 UJ-02/24。
 ## review 裁决
 
 设计已过契约 review（INC-44 rev1），实施轮裁掉重复 review。
+
+---
+
+## 执行记录（2026-07-11 收口）
+
+一步完成。真验抓出守卫 bug（待命形态 Waiting{input} 被误判为 ask
+park）当场修——先判 Quiescence 再判等待；链式 retry 语义与 new 开场
+无 CommandID 的 seq 回退常态化，均记 LOG。B 闸证据
+`qa/runs/2026-07-11-INC45/`。SPEC A 区加行；SPRINT #16 ✅。

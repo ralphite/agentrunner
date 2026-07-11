@@ -72,6 +72,8 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 		return newCmd(args[1:], stdout, stderr)
 	case "send":
 		return sendCmd(args[1:], stdout, stderr)
+	case "retry":
+		return retryCmd(args[1:], stdout, stderr)
 	case "close":
 		return closeCmd(args[1:], stdout, stderr)
 	case "interrupt":
@@ -179,6 +181,7 @@ Conversations (need the daemon):
   daemon [--detach]           start the resident runtime (--detach backgrounds it, surviving this terminal)
   new <spec.yaml> "msg"       start a session, print the reply, leave it running
   send <session> "msg"        send a message and print the reply (--image attaches files)
+  retry <session>             re-send the session's last user message as a new turn
   attach <session>            replay the whole conversation, then follow live (Ctrl-C detaches;
                               the session keeps running; --replay-only prints history and exits)
   close <session>             end a session gracefully

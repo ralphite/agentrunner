@@ -47,6 +47,7 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/sessions/{sid}/send", s.handleSend)
 	mux.HandleFunc("POST /api/sessions/{sid}/interrupt", s.handleInterrupt)
 	mux.HandleFunc("POST /api/sessions/{sid}/resume", s.handleResume)
+	mux.HandleFunc("POST /api/sessions/{sid}/retry", s.handleRetry)
 	mux.HandleFunc("POST /api/sessions/{sid}/close", s.handleClose)
 	mux.HandleFunc("POST /api/sessions/{sid}/stop", s.handleStop)
 	mux.HandleFunc("POST /api/sessions/{sid}/kill", s.handleKill)
@@ -812,6 +813,13 @@ func (s *server) handleInterrupt(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) handleResume(w http.ResponseWriter, r *http.Request) {
 	s.oneShotHandler("ar resume", func(id string) []string { return []string{"resume", id} })(w, r)
+}
+
+// handleRetry re-sends the session's last user message as a new turn
+// (INC-44 §B): a thin wrapper over `ar retry --detach` — the derived
+// command id makes double-clicks idempotent at the inbox.
+func (s *server) handleRetry(w http.ResponseWriter, r *http.Request) {
+	s.oneShotHandler("ar retry", func(id string) []string { return []string{"retry", "--detach", id} })(w, r)
 }
 
 // handleClose ends a session for good (ar close); handleStop tears down its
