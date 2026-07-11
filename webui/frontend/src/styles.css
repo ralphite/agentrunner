@@ -82,39 +82,10 @@
   --red-soft: #3a1a18;
 }
 
-* {
-  box-sizing: border-box;
-}
-html,
-body,
-#root {
-  height: 100%;
-  margin: 0;
-}
-body {
-  font: 14px/1.55 var(--sans);
-  color: var(--ink);
-  background: var(--bg);
-  -webkit-font-smoothing: antialiased;
-}
-button {
-  font: inherit;
-  cursor: pointer;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  color: var(--ink);
-  border-radius: 8px;
-  padding: 5px 11px;
-  transition: background 0.12s, border-color 0.12s;
-}
-button:hover {
-  background: var(--panel-2);
-  border-color: var(--dim);
-}
-button:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
+/* Generic element reset/base (*, html/body, body, button, input, a,
+ * focus-visible) moved to @layer base in tw.css so utilities override them on
+ * migrated elements. The component-level button variants below stay unlayered
+ * and keep winning for not-yet-migrated components. */
 button.primary {
   background: var(--accent);
   color: var(--accent-ink);
@@ -138,34 +109,6 @@ button.ghost:hover {
 button.sm {
   padding: 3px 8px;
   font-size: 12px;
-}
-input,
-textarea,
-select {
-  font: inherit;
-  color: var(--ink);
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 7px 9px;
-}
-input:focus,
-textarea:focus,
-select:focus {
-  outline: none;
-  border-color: var(--blue);
-}
-:where(button, a, input, textarea, select, [tabindex]):focus-visible {
-  outline: 2px solid var(--blue);
-  outline-offset: 2px;
-}
-a {
-  color: var(--blue);
-  cursor: pointer;
-  text-decoration: none;
-}
-a:hover {
-  text-decoration: underline;
 }
 .mono {
   font-family: var(--mono);

@@ -21,42 +21,42 @@ export function SettingsGeneral({ query, onReset }: { query: string; onReset: ()
   };
 
   return (
-    <div className="rs-panel">
-      <h2 className="rs-panel-title">General</h2>
-      <p className="rs-panel-sub">AgentRunner settings for this browser.</p>
+    <div className="max-w-[660px] mx-auto">
+      <h2 className="text-[19px] font-[650] m-0 mb-[4px]">General</h2>
+      <p className="m-0 mb-[22px] text-dim text-[13px] leading-[1.5]">AgentRunner settings for this browser.</p>
 
-      {!any && <div className="rs-noresults">No general settings match “{query}”.</div>}
+      {!any && <div className="text-dim text-[13px] py-[8px]">No general settings match “{query}”.</div>}
 
       {show("status daemon connection tasks") && (
-        <section className="rs-row">
-          <div className="rs-row-head">
-            <div className="rs-row-label">Status</div>
-            <div className="rs-row-desc">
+        <section className="flex items-center justify-between gap-[22px] py-[16px] border-t border-line-2 first-of-type:border-t-0">
+          <div className="min-w-0">
+            <div className="flex items-center gap-[8px] text-[14px] text-ink">Status</div>
+            <div className="mt-[3px] text-[12.5px] text-dim leading-[1.5]">
               {health?.daemonUp ? "Connected to the daemon." : "Daemon unavailable."} {sessions.length} task{sessions.length === 1 ? "" : "s"} loaded.
             </div>
           </div>
-          <span className={"rs-statusdot" + (health?.daemonUp ? " on" : "")} aria-hidden />
+          <span className={"w-[9px] h-[9px] rounded-full shrink-0 " + (health?.daemonUp ? "bg-green" : "bg-red")} aria-hidden />
         </section>
       )}
 
       {show("reset settings defaults appearance") && (
-        <section className="rs-row rs-row-block">
-          <div className="rs-row-head">
-            <div className="rs-row-label">Reset settings</div>
-            <div className="rs-row-desc">Restore appearance and Git defaults. Doesn’t touch your tasks or workspaces.</div>
+        <section className="flex flex-col items-stretch justify-between gap-[12px] py-[16px] border-t border-line-2 first-of-type:border-t-0">
+          <div className="min-w-0">
+            <div className="flex items-center gap-[8px] text-[14px] text-ink">Reset settings</div>
+            <div className="mt-[3px] text-[12.5px] text-dim leading-[1.5]">Restore appearance and Git defaults. Doesn’t touch your tasks or workspaces.</div>
           </div>
           {confirming ? (
-            <div className="rs-confirm">
+            <div className="inline-flex items-center gap-[10px] flex-wrap justify-end text-[12.5px] text-dim">
               <span>Reset all settings to defaults?</span>
-              <button className="rs-btn danger" onClick={doReset}>
+              <button className="px-[15px] py-[7px] border rounded-full bg-panel text-red border-[color-mix(in_srgb,var(--red)_40%,var(--line))] text-[13px] shrink-0 hover:bg-panel-2" onClick={doReset}>
                 Reset
               </button>
-              <button className="rs-btn" onClick={() => setConfirming(false)}>
+              <button className="px-[15px] py-[7px] border border-line rounded-full bg-panel text-ink text-[13px] shrink-0 hover:bg-panel-2" onClick={() => setConfirming(false)}>
                 Cancel
               </button>
             </div>
           ) : (
-            <button className="rs-btn" onClick={() => setConfirming(true)}>
+            <button className="px-[15px] py-[7px] border border-line rounded-full bg-panel text-ink text-[13px] shrink-0 hover:bg-panel-2" onClick={() => setConfirming(true)}>
               Reset to defaults
             </button>
           )}

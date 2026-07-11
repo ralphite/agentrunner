@@ -262,7 +262,7 @@ function MiniDiff({ rows, more }: { rows: DiffLine[]; more: number }) {
 function ReadDetailView({ t }: { t: ToolItem }) {
   const d = readDetail(t.args, t.result);
   return (
-    <div className="cx-td">
+    <div className="flex flex-col gap-[6px] px-[10px] py-[8px] text-[12.5px]">
       <div className="cx-td-head">
         <FileText size={13} className="cx-td-ic" />
         <span className="cx-td-path">{d.path}</span>
@@ -281,7 +281,7 @@ function ReadDetailView({ t }: { t: ToolItem }) {
 function EditDetailView({ t }: { t: ToolItem }) {
   const d = editDetail(t.name, t.args, t.result);
   return (
-    <div className="cx-td">
+    <div className="flex flex-col gap-[6px] px-[10px] py-[8px] text-[12.5px]">
       <div className="cx-td-head">
         <PencilSimple size={13} className="cx-td-ic" />
         <span className="cx-td-path">{d.path}</span>
@@ -295,7 +295,7 @@ function EditDetailView({ t }: { t: ToolItem }) {
 function GrepDetailView({ t }: { t: ToolItem }) {
   const d = grepDetail(t.args, t.result);
   return (
-    <div className="cx-td">
+    <div className="flex flex-col gap-[6px] px-[10px] py-[8px] text-[12.5px]">
       <div className="cx-td-head">
         <MagnifyingGlass size={13} className="cx-td-ic" />
         <code className="cx-td-pattern">{d.pattern}</code>
@@ -329,7 +329,7 @@ function GlobDetailView({ t }: { t: ToolItem }) {
   const d = globDetail(t.args, t.result);
   const shown = d.paths.slice(0, 40);
   return (
-    <div className="cx-td">
+    <div className="flex flex-col gap-[6px] px-[10px] py-[8px] text-[12.5px]">
       <div className="cx-td-head">
         <MagnifyingGlass size={13} className="cx-td-ic" />
         <code className="cx-td-pattern">{d.pattern}</code>
@@ -356,7 +356,7 @@ function SemanticDetailView({ t }: { t: ToolItem }) {
   const d = semanticDetail(t.args, t.result);
   const shown = d.hits.slice(0, 12);
   return (
-    <div className="cx-td">
+    <div className="flex flex-col gap-[6px] px-[10px] py-[8px] text-[12.5px]">
       <div className="cx-td-head">
         <MagnifyingGlass size={13} className="cx-td-ic" />
         <span className="cx-td-meta">query</span>
@@ -379,7 +379,7 @@ function SemanticDetailView({ t }: { t: ToolItem }) {
 function SpawnDetailView({ t }: { t: ToolItem }) {
   const d = spawnDetail(t.args, t.result);
   return (
-    <div className="cx-td">
+    <div className="flex flex-col gap-[6px] px-[10px] py-[8px] text-[12.5px]">
       <div className="cx-td-head">
         <Robot size={13} className="cx-td-ic" />
         <span className="cx-td-path">{d.agent || "sub-agent"}</span>
@@ -398,7 +398,7 @@ function SpawnDetailView({ t }: { t: ToolItem }) {
 function WebDetailView({ t }: { t: ToolItem }) {
   const d = webFetchDetail(t.args, t.result);
   return (
-    <div className="cx-td">
+    <div className="flex flex-col gap-[6px] px-[10px] py-[8px] text-[12.5px]">
       <div className="cx-td-head">
         <Globe size={13} className="cx-td-ic" />
         {d.url ? (
@@ -425,7 +425,7 @@ function WebDetailView({ t }: { t: ToolItem }) {
 function AskDetailView({ t }: { t: ToolItem }) {
   const d = askUserDetail(t.args);
   return (
-    <div className="cx-td">
+    <div className="flex flex-col gap-[6px] px-[10px] py-[8px] text-[12.5px]">
       <div className="cx-td-head">
         <Question size={13} className="cx-td-ic" />
         <span className="cx-td-path">{d.question}</span>

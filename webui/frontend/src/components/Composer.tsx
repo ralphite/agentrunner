@@ -114,7 +114,7 @@ const SLASH: SlashCmd[] = [
   { name: "resume", desc: "Recover a crashed / interrupted session", variants: ["session"] },
 ];
 
-const riskDot = (risk: string) => <span className={"risk-dot " + risk} />;
+const riskDot = (risk: string) => <span className={"risk-dot w-[7px] h-[7px] rounded-full shrink-0 inline-block " + risk} />;
 
 export function Composer(props: ComposerProps) {
   const { select, selectRun, refreshSessions, refreshRuns, openModal, openPrompt, toast } = useStore();
@@ -865,7 +865,7 @@ export function Composer(props: ComposerProps) {
             trigger={(open, toggle) => (
               <button className={"cx-env-control project" + (open ? " active" : "")} onClick={toggle} title="Select project">
                 <FolderIcon />
-                <span className="cx-env-value">{ws ? wsShort : "Select project"}</span>
+                <span className="cx-env-value min-w-0 overflow-hidden text-ellipsis">{ws ? wsShort : "Select project"}</span>
                 <Caret />
               </button>
             )}
@@ -889,7 +889,7 @@ export function Composer(props: ComposerProps) {
                         onChange={(event) => setProjectQuery(event.target.value)}
                       />
                     </label>
-                    <div className="cx-project-list">
+                    <div className="cx-project-list max-h-[180px] overflow-y-auto pb-[4px] border-b border-line-2">
                       {filteredProjects.map((workspace) => (
                         <PopItem
                           key={workspace}
@@ -932,7 +932,7 @@ export function Composer(props: ComposerProps) {
             trigger={(open, toggle) => (
               <button className={"cx-env-control" + (open ? " active" : "")} onClick={toggle} title="Choose where this task runs">
                 {runLocation === "local" ? <Desktop size={16} /> : <GitBranch size={16} />}
-                <span className="cx-env-value">{runLocation === "local" ? "Local" : "New worktree"}</span>
+                <span className="cx-env-value min-w-0 overflow-hidden text-ellipsis">{runLocation === "local" ? "Local" : "New worktree"}</span>
                 <Caret />
               </button>
             )}
@@ -959,7 +959,7 @@ export function Composer(props: ComposerProps) {
             trigger={(open, toggle) => (
               <button className={"cx-env-control" + (open ? " active" : "")} onClick={toggle} title="Select local environment">
                 <Code size={16} />
-                <span className="cx-env-value">No environment</span>
+                <span className="cx-env-value min-w-0 overflow-hidden text-ellipsis">No environment</span>
                 <Caret />
               </button>
             )}
@@ -986,7 +986,7 @@ export function Composer(props: ComposerProps) {
             trigger={(open, toggle) => (
               <button className={"cx-env-control branch" + (open ? " active" : "")} onClick={toggle} title={branchInfo?.isRepo ? "Choose starting branch" : "No Git branch available"} disabled={!branchInfo?.isRepo}>
                 <BranchIcon />
-                <span className="cx-env-value">{branchLabel}</span>
+                <span className="cx-env-value min-w-0 overflow-hidden text-ellipsis">{branchLabel}</span>
                 {branchInfo?.isRepo && <Caret />}
               </button>
             )}
@@ -1039,12 +1039,12 @@ export function Composer(props: ComposerProps) {
         onDrop={onDrop}
       >
         {dragging && (
-          <div className="cx-drop">
+          <div className="cx-drop absolute inset-0 z-[5] grid place-items-center rounded-[22px] border-2 border-dashed border-blue text-blue text-[13.5px] font-medium pointer-events-none">
             <span>Drop files to attach</span>
           </div>
         )}
         {atts.length > 0 && (
-          <div className="cx-atts">
+          <div className="cx-atts flex flex-wrap gap-[6px] pt-[12px] px-[14px]">
             {atts.map((a, i) => (
               <span className="cx-att cx-att-codex" key={i} onClick={() => setAtts((p) => p.filter((_, j) => j !== i))} title="Remove attachment">
                 {a.isImage ? (
@@ -1370,7 +1370,7 @@ function accessByMode(mode?: string) {
 }
 
 // Phosphor's regular weight is the closest match to Codex's quiet line icons.
-const Caret = () => <CaretDown className="cx-caret" size={10} />;
+const Caret = () => <CaretDown className="cx-caret text-dim shrink-0" size={10} />;
 const PlusIcon = () => <Plus size={16} />;
 const MicIcon = () => <Microphone size={15} />;
 // Provider-aware model glyph: Gemini (primary) gets the sparkle, Anthropic the

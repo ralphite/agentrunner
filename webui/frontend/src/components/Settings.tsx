@@ -73,7 +73,7 @@ export function Settings({ onClose, initialSection = "appearance" }: { onClose: 
 
   return (
     <div
-      className="rs-settings"
+      className="fixed inset-0 z-[60] flex bg-bg text-ink font-sans text-[length:var(--ui-font-size)] leading-[1.55] max-[720px]:flex-col"
       role="dialog"
       aria-label="Settings"
       tabIndex={-1}
@@ -84,29 +84,30 @@ export function Settings({ onClose, initialSection = "appearance" }: { onClose: 
         }
       }}
     >
-      <aside className="rs-nav">
-        <button className="rs-back" onClick={onClose}>
+      <aside className="shrink-0 grow-0 basis-[264px] flex flex-col gap-[10px] px-[12px] py-[16px] border-r border-line bg-sidebar overflow-y-auto max-[720px]:basis-auto max-[720px]:border-r-0 max-[720px]:border-b max-[720px]:max-h-[45vh]">
+        <button className="inline-flex items-center gap-[7px] self-start pt-[5px] pr-[10px] pb-[5px] pl-[7px] border-0 bg-transparent text-ink-2 text-[13px] rounded-[8px] hover:bg-panel-2 hover:text-ink" onClick={onClose}>
           <ArrowLeft size={15} weight="bold" /> Back to app
         </button>
-        <div className="rs-search">
+        <div className="flex items-center gap-[8px] px-[11px] py-[8px] border border-line rounded-app bg-panel text-dim focus-within:border-[var(--rs-accent)]">
           <MagnifyingGlass size={14} />
           <input
             ref={searchRef}
+            className="flex-1 min-w-0 border-0 bg-transparent p-0 text-[13.5px] text-ink focus:outline-none"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search settings…"
             aria-label="Search settings"
           />
         </div>
-        <nav className="rs-navlist">
-          {groups.length === 0 && <div className="rs-nav-empty">No settings match</div>}
+        <nav className="flex flex-col gap-[12px] mt-[2px]">
+          {groups.length === 0 && <div className="px-[10px] py-[12px] text-dim text-[13px]">No settings match</div>}
           {groups.map((g) => (
-            <div key={g.group} className="rs-navgroup">
-              <div className="rs-navgroup-title">{g.group}</div>
+            <div key={g.group} className="flex flex-col gap-[2px]">
+              <div className="text-[10.5px] uppercase tracking-[0.6px] text-dim px-[10px] py-[4px]">{g.group}</div>
               {g.items.map((s) => (
                 <button
                   key={s.id}
-                  className={"rs-navitem" + (s.id === active ? " sel" : "")}
+                  className={"flex items-center gap-[10px] w-full px-[10px] py-[8px] border-0 rounded-[9px] text-[13.5px] text-left " + (s.id === active ? "bg-[var(--rs-accent-soft)] text-[var(--rs-accent)] font-[550]" : "bg-transparent text-ink-2 hover:bg-panel-2 hover:text-ink")}
                   onClick={() => setSection(s.id)}
                   aria-current={s.id === active}
                 >
@@ -119,16 +120,16 @@ export function Settings({ onClose, initialSection = "appearance" }: { onClose: 
         </nav>
       </aside>
 
-      <main className="rs-content">
-        <header className="rs-content-head">
-          <div className="rs-crumb">
-            {activeDef && <activeDef.icon size={15} />} Settings <span className="rs-crumb-sep">›</span> {activeDef?.label}
+      <main className="flex-1 min-w-0 flex flex-col">
+        <header className="flex items-center justify-between gap-[12px] px-[26px] py-[14px] border-b border-line max-[720px]:px-[18px] max-[720px]:py-[12px]">
+          <div className="inline-flex items-center gap-[7px] text-[13px] text-dim">
+            {activeDef && <activeDef.icon size={15} />} Settings <span className="opacity-60">›</span> {activeDef?.label}
           </div>
-          <button className="rs-close" onClick={onClose} aria-label="Close settings">
+          <button className="px-[14px] py-[5px] border border-line rounded-full bg-panel text-ink text-[12.5px] hover:bg-panel-2" onClick={onClose} aria-label="Close settings">
             Done
           </button>
         </header>
-        <div className="rs-content-scroll" key={active + ":" + rev}>
+        <div className="flex-1 overflow-y-auto p-[26px] max-[720px]:p-[18px]" key={active + ":" + rev}>
           {active === "general" && <SettingsGeneral query={query} onReset={() => setRev((r) => r + 1)} />}
           {active === "appearance" && <SettingsAppearance query={query} />}
           {active === "shortcuts" && <SettingsShortcuts query={query} />}

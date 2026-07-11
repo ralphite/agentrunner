@@ -13,10 +13,10 @@ function CodeBlock({ body, lang }: { body: string; lang?: string }) {
     setTimeout(() => setCopied(false), 1200);
   };
   return (
-    <div className="cx-code">
-      <div className="cx-code-hd">
-        <span className="cx-code-lang">{lang || "text"}</span>
-        <button className="cx-code-copy" onClick={copy} title="Copy code" type="button">
+    <div className="my-[2px] border border-line rounded-[12px] overflow-hidden bg-panel-2 max-w-full">
+      <div className="flex items-center justify-between pt-[5px] pr-[6px] pb-[5px] pl-[12px] border-b border-line bg-panel">
+        <span className="text-[11px] text-dim lowercase tracking-[0.02em] font-mono">{lang || "text"}</span>
+        <button className="inline-flex items-center gap-[4px] border border-transparent bg-transparent text-dim text-[11px] px-[8px] py-[3px] rounded-[6px] cursor-pointer transition-colors duration-[120ms] hover:bg-panel-2 hover:text-ink hover:border-line" onClick={copy} title="Copy code" type="button">
           {copied ? (
             <>
               <Check size={12} /> Copied
@@ -28,7 +28,7 @@ function CodeBlock({ body, lang }: { body: string; lang?: string }) {
           )}
         </button>
       </div>
-      <pre className="cx-code-body">{body}</pre>
+      <pre className="m-0 px-[12px] py-[10px] overflow-x-auto font-mono text-[12.5px] leading-[1.5] text-ink whitespace-pre">{body}</pre>
     </div>
   );
 }
@@ -113,7 +113,7 @@ function Blocks({ text }: { text: string }) {
         i++;
       }
       out.push(
-        <div className="cx-table-wrap" key={key++}>
+        <div className="overflow-x-auto border border-line rounded-[8px] max-w-full" key={key++}>
           <table className="cx-table">
             <thead>
               <tr>

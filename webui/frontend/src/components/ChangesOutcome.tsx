@@ -37,20 +37,20 @@ function ArtifactChips({ files }: { files: FileDiffSummary[] }) {
   }
   if (!docs.length) return null;
   return (
-    <div className="cx-artifacts" aria-label="Documents produced this turn">
+    <div className="flex flex-col gap-[6px] mt-[12px] mb-[8px]" aria-label="Documents produced this turn">
       {docs.map(({ file, ext, label }) => {
         const { base } = splitPath(file.path);
         return (
-          <div className="cx-artifact" key={file.path}>
-            <span className="cx-artifact-ic">{ext === "pdf" ? <FilePdf size={18} /> : <FileText size={18} />}</span>
-            <div className="cx-artifact-meta">
-              <span className="cx-artifact-name" title={file.path}>{base}</span>
-              <span className="cx-artifact-sub">{label} · {ext.toUpperCase()}</span>
+          <div className="flex items-center gap-[10px] px-[10px] py-[8px] border border-line rounded-[8px] bg-panel" key={file.path}>
+            <span className="grid place-items-center w-[32px] h-[32px] shrink-0 rounded-[8px] bg-panel-2 text-ink-2">{ext === "pdf" ? <FilePdf size={18} /> : <FileText size={18} />}</span>
+            <div className="flex flex-col gap-[1px] flex-1 min-w-0">
+              <span className="text-[13px] font-[550] text-ink overflow-hidden text-ellipsis whitespace-nowrap" title={file.path}>{base}</span>
+              <span className="text-[11px] text-dim">{label} · {ext.toUpperCase()}</span>
             </div>
             {/* No workspace file-read endpoint exists yet, so Download stays
                 dimmed with an explanatory tooltip rather than faking a link. */}
             <span
-              className="cx-artifact-dl"
+              className="grid place-items-center w-[30px] h-[30px] shrink-0 rounded-[8px] text-dim opacity-[0.42] cursor-not-allowed"
               role="button"
               aria-disabled="true"
               title="Download isn't available yet — the workspace file API isn't wired up. Use Review to see the change."

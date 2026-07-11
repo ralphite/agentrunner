@@ -147,7 +147,7 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
           aria-label={`${title} · ${isUnread ? "New activity" : status.text}${when ? ` · ${when} ago` : ""}`}
         >
           <span className="project-task-title">{title}</span>
-          {when && <span className="task-when">{when}</span>}
+          {when && <span className="flex-none text-[10.5px] text-dim">{when}</span>}
           <span className={`status-dot ${isUnread ? "unread" : status.cls}`} title={isUnread ? "New activity" : status.text} />
           <ArrowSquareOut className="task-open" size={13} />
         </button>
@@ -183,16 +183,16 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
 
   return (
     <aside className="sidebar">
-      <div className="brand">
+      <div className="flex items-center justify-between min-h-[64px] pt-[12px] pr-[14px] pb-[8px] pl-[16px]">
         <button className="brand-main" onClick={() => { showPage("home"); onNavigate?.(); }} aria-label="AgentRunner home">
-          <span className="brand-mark"><Robot size={17} weight="bold" /></span>
-          <span className="brand-name">AgentRunner</span>
+          <span className="w-[26px] h-[26px] grid place-items-center text-accent-ink bg-accent rounded-[8px]"><Robot size={17} weight="bold" /></span>
+          <span className="text-[16px] font-[650] tracking-[-0.2px]">AgentRunner</span>
         </button>
-        <div className="brand-actions">
-          <button className="sidebar-action" onClick={() => setSearching((value) => !value)} title="Search tasks">
+        <div className="flex items-center gap-[2px]">
+          <button className="w-[30px] h-[30px] grid place-items-center p-0 border-0 bg-transparent text-ink-2 rounded-[8px] hover:text-ink hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)]" onClick={() => setSearching((value) => !value)} title="Search tasks">
             <MagnifyingGlass size={16} />
           </button>
-          <button className="sidebar-action" onClick={onHide || toggleSidebar} title="Hide sidebar (⌘B)">
+          <button className="w-[30px] h-[30px] grid place-items-center p-0 border-0 bg-transparent text-ink-2 rounded-[8px] hover:text-ink hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)]" onClick={onHide || toggleSidebar} title="Hide sidebar (⌘B)">
             <SidebarSimple size={16} />
           </button>
         </div>
@@ -320,7 +320,7 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
           aria-label={health?.daemonUp ? "Connected to daemon" : "Daemon offline — click to restart"}
         >
           <span className={`account-avatar${health?.daemonUp ? " online" : " offline"}`} aria-hidden="true">
-            <span className="account-initials">AR</span>
+            <span className="text-[11px] font-[680] tracking-[0.4px]">AR</span>
             <span className="account-presence" />
           </span>
           <span className="account-meta">
@@ -332,11 +332,11 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
             </span>
           </span>
         </button>
-        <div className="foot-actions">
-          <button className="sidebar-action" onClick={openHelp} title="Keyboard shortcuts & help (?)" aria-label="Help and keyboard shortcuts">
+        <div className="flex flex-none items-center gap-[2px]">
+          <button className="w-[30px] h-[30px] grid place-items-center p-0 border-0 bg-transparent text-ink-2 rounded-[8px] hover:text-ink hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)]" onClick={openHelp} title="Keyboard shortcuts & help (?)" aria-label="Help and keyboard shortcuts">
             <Question size={16} />
           </button>
-          <button className="sidebar-action" onClick={cycleTheme} title={`Theme: ${theme}`} aria-label="Toggle theme">
+          <button className="w-[30px] h-[30px] grid place-items-center p-0 border-0 bg-transparent text-ink-2 rounded-[8px] hover:text-ink hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)]" onClick={cycleTheme} title={`Theme: ${theme}`} aria-label="Toggle theme">
             {themeGlyph}
           </button>
         </div>
