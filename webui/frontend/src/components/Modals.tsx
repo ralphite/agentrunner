@@ -151,12 +151,14 @@ function PromptModal({
   label,
   initial,
   placeholder,
+  submitLabel,
   onSubmit,
 }: {
   title: string;
   label?: string;
   initial?: string;
   placeholder?: string;
+  submitLabel?: string;
   onSubmit: (value: string) => void;
 }) {
   const { openPrompt } = useStore();
@@ -173,9 +175,12 @@ function PromptModal({
       title={title}
       onClose={close}
       footer={
-        <button className="primary" disabled={!value.trim()} onClick={submit}>
-          OK
-        </button>
+        <>
+          <button className="ghost" onClick={close}>Cancel</button>
+          <button className="primary" disabled={!value.trim()} onClick={submit}>
+            {submitLabel || "OK"}
+          </button>
+        </>
       }
     >
       {label && <label className="field">{label}</label>}

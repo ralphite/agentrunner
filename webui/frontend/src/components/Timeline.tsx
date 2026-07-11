@@ -703,11 +703,19 @@ function Item({ it, sentImages, onContinue }: { it: TimelineItem; sentImages?: M
     case "user": {
       const thumbs = it.seq !== undefined ? sentImages?.get(it.seq) : undefined;
       const peer = !!it.peerSession;
+      const hasText = !!it.text.trim();
+      const hasAttach = (thumbs && thumbs.length) || it.images;
       return (
         <div className={"msg user" + (peer ? " peer" : "")} title={absTime(it.ts)}>
           <div className="msg-col user">
             <div className="bubble">
-              <CollapsibleUserText text={it.text} />
+              {hasText ? (
+                <CollapsibleUserText text={it.text} />
+              ) : !hasAttach ? (
+                // An empty prompt would otherwise render as a bare blank bubble
+                // (R4-10) — label it instead of showing an empty blob.
+                <span className="dim">(empty message)</span>
+              ) : null}
               {thumbs && thumbs.length ? (
                 <Thumbs paths={thumbs} />
               ) : it.images ? (
@@ -843,9 +851,20 @@ export function TimelineView({
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   };
 
+  // A brand-new / never-started session has no items at all — show a calm
+  // empty state instead of a blank white void (R4-11).
+  const isEmpty = nodes.length === 0 && !typing && pending.length === 0 && !statusLine && !approvalSlot;
+
   return (
     <div className="timeline" ref={ref} onScroll={onScroll}>
       <div className="tl-inner">
+        {isEmpty && (
+          <div className="tl-empty">
+            <ChatCircle size={26} weight="light" />
+            <b>No messages yet</b>
+            <span>This task hasn't started. Send a message below to begin.</span>
+          </div>
+        )}
         {nodes.map((it) => {
           if (it.kind === "fold") {
             const foldId = it.children[0]?.key ?? it.key;

@@ -65,6 +65,7 @@ export function DiffView({ sid }: { sid: string }) {
       label: "commit message",
       // Seed from the Settings › Git commit-message template (INC-41 H4).
       initial: loadGitPrefs().commitTemplate,
+      submitLabel: "Commit",
       onSubmit: (message) => void doCommit(message),
     });
   };

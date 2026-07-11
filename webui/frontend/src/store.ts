@@ -26,6 +26,7 @@ export interface PromptState {
   label?: string;
   initial?: string;
   placeholder?: string;
+  submitLabel?: string; // primary button text (default "OK"); e.g. "Commit"
   onSubmit: (value: string) => void;
 }
 
