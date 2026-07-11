@@ -114,4 +114,8 @@ fi
 echo "==== Starting Web UI Server ===="
 echo "Command: ./bin/arwebui -ar ./bin/ar ${SERVER_ARGS[*]:-}"
 echo "--------------------------------------------------------"
-exec ./bin/arwebui -ar ./bin/ar "${SERVER_ARGS[@]}"
+if [ "${#SERVER_ARGS[@]}" -gt 0 ]; then
+    exec ./bin/arwebui -ar ./bin/ar "${SERVER_ARGS[@]}"
+else
+    exec ./bin/arwebui -ar ./bin/ar
+fi
