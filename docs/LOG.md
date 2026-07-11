@@ -3422,3 +3422,19 @@ B 闸（真机 `open -a` 拉起 app + overlay 持久化 + 拒绝面 curl）待 c
 （动态 `import("./components/SupervisionPanel")`）偶尔超 5s 超时——机器空闲时
 105/105 稳过（单测隔离 3/3 稳过），确认是环境负载 flake，非 INC-53 回归，
 未改动该无关测试。改动仅 webui/前端，未触 DESIGN 不变量（additive）。
+**实施与双闸门**：`SnapshotStore.Diff` + `ar diff --scope last-turn --json` +
+Web API/Changes 范围 menu 全接通；A 闸含 snapshot modified/new/deleted/rename、
+凭据排除、invalid ref、human source/显式 barrier 排除、CLI/Web handler 与
+frontend scope URL，`check.sh` 全绿。B 闸 QA-54 真 Gemini + shared store +
+live 8809，desktop/mobile × light/dark、Escape/focus、历史 unavailable、
+console 0 全 PASS，证据 `qa/runs/2026-07-11-QA54-last-turn-diff/`。
+
+**真验纠偏**：浏览器验收时发现 selector 若接受任意 input 后 barrier，用户
+在 turn 完成后手动执行的 `bar-m*` 会伪装成开工 baseline。收紧为只接受
+loop-owned `bar-tN`；`bar-m*`/`bar-final` 明确排除并补回归。先用当前 binary
+foreground 真 Gemini 生成可用 barrier session、旧 host 真实 two-turn
+session 验证 truthful unavailable；确认共享 store 无 running/busy turn 后，
+正常 SIGTERM 升级 daemon，再以真 Gemini 两条 human turn 补齐范围差异实证：
+Working tree 的 A=`BASE_FINAL_A→TURN_TWO_FINAL_A`，Last turn 的 A=
+`TURN_ONE_FINAL_A→TURN_TWO_FINAL_A`，baseline=`bar-t4`（input seq35→barrier
+seq38）。所有前后数据均保留。

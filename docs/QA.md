@@ -1063,6 +1063,29 @@ revive、gen_steps 同 context 递增;真验期抓获并修复三个 bug:CLI 子
 `limit exceeded`，settlement 后正常完成；这是既有 reserve-then-settle 的
 可见表现，不是重复执行或预算越界。
 
+## QA-54 Web UI durable Last turn Changes（INC-57,UJ-24）
+
+**环境**：live `http://127.0.0.1:8809` + 当前 `ar-live` + 真实 Gemini +
+共享 `~/.local/share/agentrunner/`；不重启共享旧 daemon、不隔离、不清理。
+multi-turn available session=`20260711-084204-use-edit-file-to-replace-base-7826`，
+truthful unavailable session=`20260711-082007-use-the-edit-file-tool-to-repl-88c1`。
+证据 `qa/runs/2026-07-11-QA54-last-turn-diff/`。
+
+| # | 动作 | 硬断言 |
+|---|---|---|
+| 1 | 最新共享 daemon + 真 Gemini 连续两条 human turn：第一轮只改 A，第二轮改 A+B | 第二条 input seq=35 后 `bar-t4` seq=38；Working tree 的 A before=`BASE_FINAL_A`，Last turn before=`TURN_ONE_FINAL_A`，真实证明累计/本轮范围不同 |
+| 2 | live Changes 默认打开 Working tree，再开范围 menu 切 Last turn | 两档都是真 API；menu 描述/active check；Last turn 不显示会提交全 workspace 的 Commit/Apply/Remove |
+| 3 | 打开由仍在 socket 上旧 daemon 产生、无 barrier 的真实 two-turn session | 显示 `Last turn unavailable` + runtime reason，可切回 Working tree；绝不伪造空 diff |
+| 4 | 1440×900 / 390×844 × light/dark；键盘 Escape；菜单 focus return | toolbar 不溢出、mobile 全宽、split disabled；Escape 后 `expanded=false` 且 focus 回 trigger |
+| 5 | Codex reference 与 build 同屏比较；读稳态 console | sidebar/thread/right split、密度与控件层级对齐，保留 AgentRunner brand/Supervision；error+warning=`[]` |
+
+**真验发现并修复**：初版 baseline 选择接受任意 input 后 barrier；浏览器真验
+暴露显式 `ar barrier` 的 `bar-m*` 可在任意工作后产生，会错误缩小 Last turn。
+最终只接受 loop-owned `bar-tN` generation-start barrier；`bar-m*` 与
+`bar-final` 均跳过，TestPlanLastTurnDiffBaseline 直钉。
+
+**结果**：PASS。所有 session/workspace/journal/screenshots 保留。
+
 | C8 interrupt vs 输入 | QA-02, QA-06 |
 | C9 多模态 | QA-07, QA-09, QA-15（PDF/文件） |
 | C10 恢复 | QA-08, QA-09(步骤6) |

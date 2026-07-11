@@ -32,14 +32,17 @@ func TestPlanLastTurnDiffBaseline(t *testing.T) {
 		diffEnv(t, 4, event.TypeInputReceived, &event.InputReceived{Text: "latest", Source: "user"}),
 		diffEnv(t, 5, event.TypeInputReceived, &event.InputReceived{Text: "worker mail", Source: "agent"}),
 		diffEnv(t, 6, event.TypeInputReceived, &event.InputReceived{Text: "webhook", Source: "machine"}),
-		diffEnv(t, 7, event.TypeCheckpointBarrier, &event.CheckpointBarrier{BarrierID: "bar-t2", SnapshotRef: ref}),
+		// Explicit/manual and final barriers are after arbitrary work; neither
+		// may masquerade as the generation-start baseline.
+		diffEnv(t, 7, event.TypeCheckpointBarrier, &event.CheckpointBarrier{BarrierID: "bar-m7", SnapshotRef: strings.Repeat("d", 40)}),
 		diffEnv(t, 8, event.TypeCheckpointBarrier, &event.CheckpointBarrier{BarrierID: "bar-final", SnapshotRef: strings.Repeat("c", 40)}),
+		diffEnv(t, 9, event.TypeCheckpointBarrier, &event.CheckpointBarrier{BarrierID: "bar-t2", SnapshotRef: ref}),
 	}
 	got, reason, err := planLastTurnDiffBaseline(events)
 	if err != nil || reason != "" || got == nil {
 		t.Fatalf("baseline = %+v reason=%q err=%v", got, reason, err)
 	}
-	if got.InputSeq != 4 || got.BarrierSeq != 7 || got.BarrierID != "bar-t2" || got.SnapshotRef != ref {
+	if got.InputSeq != 4 || got.BarrierSeq != 9 || got.BarrierID != "bar-t2" || got.SnapshotRef != ref {
 		t.Fatalf("wrong baseline: %+v", got)
 	}
 
@@ -47,7 +50,7 @@ func TestPlanLastTurnDiffBaseline(t *testing.T) {
 		t.Run("human_"+source, func(t *testing.T) {
 			evs := []event.Envelope{
 				diffEnv(t, 1, event.TypeInputReceived, &event.InputReceived{Source: source}),
-				diffEnv(t, 2, event.TypeCheckpointBarrier, &event.CheckpointBarrier{BarrierID: "bar", SnapshotRef: ref}),
+				diffEnv(t, 2, event.TypeCheckpointBarrier, &event.CheckpointBarrier{BarrierID: "bar-t1", SnapshotRef: ref}),
 			}
 			base, _, err := planLastTurnDiffBaseline(evs)
 			if err != nil || base == nil || base.InputSeq != 1 {
@@ -56,7 +59,7 @@ func TestPlanLastTurnDiffBaseline(t *testing.T) {
 		})
 	}
 
-	if got, reason, err := planLastTurnDiffBaseline(events[:6]); err != nil || got != nil || !strings.Contains(reason, "no durable") {
+	if got, reason, err := planLastTurnDiffBaseline(events[:8]); err != nil || got != nil || !strings.Contains(reason, "no durable") {
 		t.Fatalf("no barrier: got=%+v reason=%q err=%v", got, reason, err)
 	}
 	if got, reason, err := planLastTurnDiffBaseline(events[2:4]); err != nil || got != nil || !strings.Contains(reason, "no durable") {

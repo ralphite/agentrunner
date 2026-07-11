@@ -328,7 +328,10 @@ GAPS.md，本文件只回答"产品要做什么"。
 3. 中央 thread 按 journal 投影 user/assistant/tool 事实；program/agent/control
    输入默认只在 system events 中查看，绝不冒充用户；底部 follow-up 延续
    同一 session；每轮最终 answer 显示真实 Worked duration、Copy/Continue，
-   有 workspace diff 时内联 Changes 摘要并由 Review 进入固定 diff 审阅。
+   有 workspace diff 时内联 Changes 摘要并由 Review 进入固定 diff 审阅；
+   Changes 可在 `Working tree`（repo HEAD 至当前）与 `Last turn`（最新 human
+   turn 的 `bar-tN` 开工 snapshot 至当前）间切换，缺 durable baseline 时
+   明示 unavailable，不伪造 0 changes。
 4. 待审批 action 以内联卡片出现，先说清“做什么/影响哪里”；raw args/
    gates 折入 Details。Approve once 与 Deny 分立，不暗示未实现的权限。
 5. 宽屏右侧 Supervision 集中 Goal / Agents / Attention / Background work；

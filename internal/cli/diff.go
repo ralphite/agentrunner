@@ -6,6 +6,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"strconv"
+	"strings"
 
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
@@ -62,7 +64,11 @@ func planLastTurnDiffBaseline(events []event.Envelope) (*lastTurnBaseline, strin
 			return nil, "", fmt.Errorf("decode barrier at seq %d: %w", env.Seq, err)
 		}
 		barrier := decoded.(*event.CheckpointBarrier)
-		if barrier.SnapshotRef == "" {
+		// Only loop-owned generation-start barriers are lawful Last turn
+		// baselines. Explicit `ar barrier` cuts (bar-m*) and bar-final happen
+		// after arbitrary work and would falsely shrink the review window.
+		turn, turnErr := strconv.Atoi(strings.TrimPrefix(barrier.BarrierID, "bar-t"))
+		if !strings.HasPrefix(barrier.BarrierID, "bar-t") || turnErr != nil || turn < 1 || barrier.SnapshotRef == "" {
 			continue
 		}
 		return &lastTurnBaseline{InputSeq: inputSeq, BarrierSeq: env.Seq,

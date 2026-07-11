@@ -51,7 +51,7 @@
 | UJ-21 崩溃自愈与重启接续 | 🟡 | 恢复语义✅（resume/in-doubt/终态把关，QA-08）；**自动性缺**：boot sweep、子 crash 自动 resume（G22）（2026-07-05 新增行） |
 | UJ-22 会话内目标 | ✅ | **G23 已关闭（INC-D1）**——in-session goal 挂会话、context 延续；决策 #21 拆两形态 |
 | UJ-23 工程团队模拟 | ✅ | INC-12：动态角色、横向消息、revive、用户直达与子会话 live 全通 |
-| UJ-24 Web UI 驾驶 AgentRunner | ✅ | INC-19/23/29/38/40：Codex 式信息架构 + truthful hydration + 四控件 environment composer/selected-ref worktree + Worked/Changes outcome + hover actions + 内联审批 + responsive Supervision/recovery + restart-safe Scheduled + structured Run details + responsive/a11y；QA-27/34/36/41/42 |
+| UJ-24 Web UI 驾驶 AgentRunner | ✅ | INC-19/23/29/38/40/57：Codex 式信息架构 + truthful hydration + 四控件 environment composer/selected-ref worktree + Worked/Changes outcome + durable `Working tree / Last turn` review scope + hover actions + 内联审批 + responsive Supervision/recovery + restart-safe Scheduled + structured Run details + responsive/a11y；QA-27/34/36/41/42/54 |
 
 **汇总（2026-07-11 更新）**：20 通 · 3 部分 · 1 卡死。G14 已关闭
 （INC-50 webhook ingress），UJ-12 转部分；剩余卡死集中在云环境

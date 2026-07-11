@@ -241,15 +241,19 @@ send 全可达（INC-40 曾复现裁切）。W1 已改 Home 布局,复验 mobile
 
 > W5（行号+hunk+badge）已在工作区。本组是 W5 之外的 review 增强。
 
-### D1 🔒 范围切换 Working tree | Last turn（REF §5 范围下拉）
+### D1 ✅ 范围切换 Working tree | Last turn（REF §5 范围下拉）
 **behavior**：Codex review toolbar 有范围下拉（Unstaged/Staged/Commit/
 Branch/Last Turn）。我们最小对标 `Working tree | Last turn` 两档：Working
 tree=现有全量 diff；Last turn=最后一个 human turn 的改动。
-**依赖**：🔒 **需后端 per-turn diff 契约**（INC-38 记档缺失,现无 snapshot
-边界 API）。→ 先出**设计增量**(INC-D)明确后端契约,再实现；或本 task 只做
-前端 UI 骨架 + 标 "Last turn" 为 disabled 并 tooltip 说明依赖。
-**touches**：`components/DiffView.tsx`、`api.go`(需后端,单独裁决)。
-**验收**：分两步——(a)前端骨架+disabled 可先落；(b)后端契约后接通。
+**落地**（INC-57 / QA-54）：复用 loop-owned `bar-tN` snapshot（显式
+`bar-m*`/`bar-final` 不可冒充开工 baseline），`SnapshotStore.Diff` 临时 index
+只读比较；CLI/API 结构化 available/reason；前端范围 menu 全接通，Last turn
+不显示会误提交全 workspace 的 Commit/Apply/Remove。desktop/mobile ×
+light/dark、Escape/focus、历史 session unavailable、console 0 均真验。
+**touches**：`internal/snapshot`、`internal/cli/diff.go`、`webui/meta.go`、
+`components/DiffView.tsx`、`api.ts`、`types.ts`、`styles.css`。
+**验收**：TestShadowRepoDiffAgainstSnapshot / TestCLIDiffLastTurnJSON /
+TestHandleDiffLastTurn / frontend api test / QA-54。
 
 ### D2 ✅ 文件搜索 + 文件树切换（REF §5 toolbar 图标）
 **behavior**：多文件 diff 时,toolbar 加文件搜索框（过滤文件段）+ 文件树/

@@ -1,5 +1,12 @@
 # INC-57 durable Last turn diff（Codex Changes 范围）
 
+> 已于 2026-07-11 收口归档；活定义已并回 JOURNEYS/SPEC/DESIGN/QA/GAPS/LOG。
+
+**状态：✅ 已实施并双闸门验收（2026-07-11）。A 闸=
+TestShadowRepoDiffAgainstSnapshot / TestPlanLastTurnDiffBaseline /
+TestCLIDiffLastTurnJSON / TestHandleDiffLastTurn / frontend scope URL +
+`check.sh`；B 闸=QA-54 真 Gemini shared multi-turn + live 8809 全景。**
+
 ## 动机与 journey 锚
 
 UJ-24 第 3/6 步要求 Changes 是 runtime 真相的 review 面。当前只有
@@ -19,7 +26,7 @@ AgentRunner 品牌与 Supervision 不变。
 - Web UI Changes 增 `Working tree | Last turn` 两档真实范围：
   - `Working tree` 保持现有“workspace 相对 repo HEAD”的语义；
   - `Last turn` = 当前 workspace 相对**最新 human-class `InputReceived` 之后
-    第一条带 snapshot ref 的 barrier**的变化。
+    第一条 loop-owned `bar-tN` snapshot barrier**的变化。
 - `Last turn` 是时间窗，不伪装成文件改动归因：若人或别的进程在该 barrier
   后修改 workspace，也会如实出现。UI 辅助说明写明
   “Changes in the workspace since the latest human turn began”。
@@ -75,8 +82,9 @@ shadow repo，其他 backend 可明确返回 unavailable。
 
 1. baseline 选择是 journal 的纯函数：倒序找到最新 human-class
    `InputReceived`（`""|user|cli|unix-socket`），再正序取其后第一条
-   `CheckpointBarrier{SnapshotRef != ""}`。program/agent/machine/control 输入
-   不开新 Last turn 窗。
+   loop-owned generation-start `CheckpointBarrier{BarrierID: "bar-tN",
+   SnapshotRef != ""}`。显式 `bar-m*` 与 `bar-final` 都发生在任意工作之后，
+   不能冒充 turn 开工 baseline；program/agent/machine/control 输入不开新窗。
 2. barrier 在 `GenerationStarted` 后、任何该 generation 的 LLM/tool activity
    前生成，因此是该 human turn 开工前的 workspace；steer 被消费后亦在下一
    generation barrier 建立新 baseline。
@@ -106,7 +114,7 @@ shadow repo，其他 backend 可明确返回 unavailable。
 ### 闸门 B：共享真实环境 QA-54
 
 1. 在共享 store 创建并保留真实 multi-turn session；第一轮修改 A，第二轮
-   修改 A 并新增 B；导出 journal/events 与 workspace diff；
+   修改 A 并修改 B；导出 journal/events 与 workspace diff；
 2. live Web UI 打开 Changes：Working tree 显示两轮累计；Last turn 只显示
    第二轮时间窗；来回切换不串数据；
 3. 已有 legacy/no-baseline session 显示 truthful unavailable；
@@ -114,6 +122,13 @@ shadow repo，其他 backend 可明确返回 unavailable。
    Escape/focus return、loading/empty/error；稳态 console error+warning=0；
 5. 所有 session/workspace/journal 保留，证据落
    `qa/runs/2026-07-11-QA54-last-turn-diff/`。
+
+**实际 PASS**：session
+`20260711-084204-use-edit-file-to-replace-base-7826`；第二条 human input
+seq35→`bar-t4` seq38。Working tree A=`BASE_FINAL_A→TURN_TWO_FINAL_A`，
+Last turn A=`TURN_ONE_FINAL_A→TURN_TWO_FINAL_A`，证明两范围不是换标签复用
+同一 diff。旧 host session 同时验证 unavailable；11 张 screenshot、两份
+journal、CLI JSON 与 workspace diff 均归档。
 
 ## 实施步骤
 
