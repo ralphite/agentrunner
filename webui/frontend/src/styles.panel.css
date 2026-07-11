@@ -296,3 +296,51 @@
 
 /* ===== G3 · Goal banner — N/M checks in the active strip ===== */
 .session-view .gbar-meta .gbar-checks { font-variant-numeric: tabular-nums; }
+
+/* ===== J5 · Daemon-offline notification bar =====
+   A Codex-style rounded banner at the top of the task view when the daemon is
+   unreachable (health.daemonUp === false) — replaces the easy-to-miss red dot
+   in the sidebar footer with an in-context alert + retry. */
+.session-view .daemon-alert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 14px 0;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--red) 34%, var(--line));
+  background: var(--red-soft);
+  border-radius: 12px;
+  font-size: 13px;
+}
+.session-view .daemon-alert-ic {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  color: var(--red);
+}
+.session-view .daemon-alert-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+.session-view .daemon-alert-text b { color: var(--ink); font-weight: 600; }
+.session-view .daemon-alert-text span { color: var(--ink-2); }
+.session-view .daemon-alert-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.session-view .daemon-alert-retry:hover { background: var(--panel-2); }
+.session-view .daemon-alert-retry:disabled { opacity: 0.6; cursor: default; }

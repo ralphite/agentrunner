@@ -34,7 +34,7 @@ function fmtTokens(n: number): string {
 }
 
 export function SessionView({ sid }: { sid: string }) {
-  const { select, openModal, toast, showSys, toggleSys, sessions, sessionsReady, archived, toggleArchive, pinned, togglePin, renames } =
+  const { select, openModal, toast, showSys, toggleSys, sessions, sessionsReady, archived, toggleArchive, pinned, togglePin, renames, health, refreshHealth } =
     useStore();
   const isSub = sid.includes("-sub-");
   const sessionMeta = sessions.find((s) => s.id === sid);
@@ -57,6 +57,24 @@ export function SessionView({ sid }: { sid: string }) {
   const [goalEdit, setGoalEdit] = useState<string | null>(null);
   const [view, setView] = useState<"chat" | "diff">("chat");
   const [findOpen, setFindOpen] = useState(false);
+  // J5: the daemon-offline banner's retry re-requests a daemon start (same as
+  // the sidebar footer's restart) and re-polls health so the banner clears on
+  // success. daemonDown drives the banner off the health we already poll.
+  const [retryingDaemon, setRetryingDaemon] = useState(false);
+  const daemonDown = !!health && !health.daemonUp;
+  const retryDaemon = async () => {
+    setRetryingDaemon(true);
+    try {
+      await AR.daemonStart();
+      toast("daemon start requested", "info");
+    } catch (e: any) {
+      toast(e.message);
+    }
+    setTimeout(() => {
+      refreshHealth();
+      setRetryingDaemon(false);
+    }, 800);
+  };
   const [wideViewport, setWideViewport] = useState(() => window.innerWidth > 900);
   // Supervision starts CLOSED and remembers the user's choice (W5): an empty
   // panel taking a third of the screen on every session was the single most
@@ -423,6 +441,18 @@ export function SessionView({ sid }: { sid: string }) {
 
   return (
     <div className="session-view">
+      {daemonDown && (
+        <div className="daemon-alert" role="alert">
+          <span className="daemon-alert-ic"><WarningCircle size={17} weight="fill" /></span>
+          <div className="daemon-alert-text">
+            <b>Daemon offline</b>
+            <span>AgentRunner can't reach the daemon — live updates and actions are paused.</span>
+          </div>
+          <button type="button" className="daemon-alert-retry" onClick={retryDaemon} disabled={retryingDaemon}>
+            <ArrowClockwise size={14} /> {retryingDaemon ? "Retrying…" : "Retry"}
+          </button>
+        </div>
+      )}
       <header className="task-topbar">
         {isSub && (
           <button className="topbar-icon" onClick={() => select(sid.slice(0, sid.lastIndexOf("-sub-")))} title="Back to parent task">
