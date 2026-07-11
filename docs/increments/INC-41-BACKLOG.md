@@ -657,6 +657,63 @@ R4-11 空会话空态、R2-1 box-shadow 暗色。
   窄屏 <900 覆盖全宽)。真验:对话/diff/composer 三者共存、X 关闭返回、
   1440/390 两档 console 0、92/92 vitest 绿。
 
+## L 组 · 加载/空态/错误态审查发现(轮7 finder,2026-07-11)
+
+read-only finder(镜头:加载/骨架态 + 空态/错误态)对 live 8809(vDlkgc7S)
+playwright 取证。4 条均已 `git log -S` 核查排除刻意决策(全为非刻意)。截图
+在 `qa/runs/2026-07-10-codex-ui-study/screenshots/`(gitignored)。
+
+### L1 ☐ 会话内容加载无骨架屏,有历史的会话闪出假空态 [P1]
+**behavior**:硬导航到富会话(限速)时,首帧 120-900ms 消息区错误显示终局
+文案 `No messages yet · This task hasn't started`,~2.5s 后真实消息整块弹入,
+造成误导 + 布局跳动。loading 与 genuinely-empty 无法区分。
+**源码**:`Timeline.tsx:856`(`isEmpty = nodes.length===0`)渲染于 `:861-866`;
+`SessionView.tsx` 首次 poll 未回时无 `loading` 标志传入 TimelineView。
+**建议**:给 TimelineView 传 `loading`(首次 poll 未回),loading 渲染 2-3 条
+骨架气泡;仅 `loading===false && nodes===0` 才显示空态文案。
+**touches**:`SessionView.tsx` / `Timeline.tsx` / `styles.css`。
+**刻意核查**:`git log -S"No messages yet"`→ab4ef19(R4-11 只为替代空白 void,
+未决定加载中展示终局空态)→非刻意。
+
+### L2 ☐ 非法/不存在 session id 无错误态,伪装成正常空会话 + Supervision 永久 spinner [P1]
+**behavior**:导航到不存在的 session id 得到完整可发消息的会话视图(无
+"not found"、无返回),且右侧 Supervision 三个 `Checking…` spinner 稳态后仍
+永久转圈(合法会话已解析为 No active goal/No subagents/Nothing needs you)。
+**源码**:`SessionView.tsx:198` `setInspectReady(true)` 只在 inspect 成功
+try 内;非法 id 时 inspect 一直抛错落 `:199` catch → `inspectReady` 永 false
+→ SupervisionPanel `loading` 永 true(`SessionView.tsx:788`)。
+**建议**:inspect/events 首次返回 404 时渲染 "Task not found" 错误卡(带回列表
+CTA);pollTasks catch 里也 `setInspectReady(true)` 终止 spinner。
+**touches**:`SessionView.tsx` / `SupervisionPanel.tsx` / 新错误态组件 / `styles.css`。
+**刻意核查**:`git log -S"setInspectReady(true)"`→88c349a(INC-23 常规接线)→非刻意。
+
+### L3 ☐ daemon 徽标首屏 health 未加载时误报红色 "Daemon offline" [P2]
+**behavior**:每次冷加载 `/`,首帧 0-150ms 侧栏左下角红点 + `Daemon offline
+— restart`,health(200,daemonUp:true)返回后才转绿。加载未知态被当确定故障态。
+**源码**:`Sidebar.tsx:347-361`,`health` 初值 null(`store.ts:176`),
+`health?.daemonUp` 对 null falsy → 直接渲染 offline。反例 `DaemonAlert.tsx:15`
+正确地把 null 当"未知不报警"。两处对同一 health 的 null 处理不一致。
+**建议**:徽标三态——`health===null` 显示中性 "Connecting…"(灰),仅
+`health && !daemonUp` 才红色 offline。
+**touches**:`Sidebar.tsx` / `styles.css`。
+**刻意核查**:`git log -S"Daemon offline — restart"`→e4ed403(nav polish 只动
+文案布局)→非刻意。
+
+### L4 ☐ 空 Changes 面板是一行秃文字,与 timeline 空态规格不一致 [P3]
+**behavior**:富会话点 Changes 且工作区无改动 → 仅一行灰字 `No changes in
+the workspace.`,无图标/无引导;对比 timeline 空态有图标+标题+副文案。同一
+app 内两类空态视觉规格不统一。
+**源码**:`DiffView.tsx:413-416`(`<div className="dim" style={{padding:12}}>`);
+对比 `Timeline.tsx:862-866` 空态有 ChatCircle 图标 + 标题 + 副说明。
+**建议**:复用 timeline 空态样式,加图标 + 居中标题 + 一句副文案。
+**touches**:`DiffView.tsx` / `styles.css`。
+**刻意核查**:`git log -S"No changes in the workspace"`→9213fca(英文化批次)→非刻意。
+
+> 注:finder 另确认空态实现良好、不构成 finding 者:侧栏空态
+> (`Sidebar.tsx:269-274` 有 Tray 图标 + 区分无任务/搜索无果)、Scheduled 空态
+> (`Scheduled.tsx:172-186` 双版)、Projects 骨架(`Sidebar.tsx:264-268` shimmer)。
+> ✂ 刻意:Home 底部钉输入框留白布局 = QA-45 定,非空态缺陷。
+
 ## 驱动循环台账(/parity-drive,每30min一轮,只追加)
 
 - 2026-07-11 轮1(循环启动):同步+部署 8809=index-CWvHKizj.js;收割 0(无存活
@@ -720,4 +777,6 @@ R4-11 空会话空态、R2-1 box-shadow 暗色。
   **BACKLOG 真实开放条目=0**(此前 grep 的「2 个☐」经查全是图例行+台账
   「无开放☐」字样的假阳性);四闸门对当前 live(vDlkgc7S)仍全绿。按「达标
   即续航」派 read-only finder(镜头:加载/骨架态+空态/错误态)对 live 8809
-  取证补弹药。push=76708dc;live=index-vDlkgc7S.js。
+  取证补弹药 → 收 4 findings(L1/L2 P1、L3 P2、L4 P3),全经 git log -S 核查
+  为非刻意,登记 L 组。BACKLOG 新增开放 ☐×4。push=76708dc+本 commit;
+  live=index-vDlkgc7S.js。
