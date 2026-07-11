@@ -1,6 +1,7 @@
 # INC-54 session mode pill 点击切换（INC-42 UI 收尾）
 
-状态：**实施中**（webui-only；后端零改动）。
+状态：**✅ 已落地**（2026-07-11，webui-only；后端零改动）。commit 8d3bd60
+（主体）；部署版本 `8d3bd60-010922` 上 8809 launchd 栈；QA-51 真机六红线 PASS。
 认领：Claude session bug-feature-triage-08c686，2026-07-11。占号 **INC-54 · QA-51**
 （fetch origin main：INC-51/52/53 已被 batch-5 占，QA 最高 QA-50）。
 
