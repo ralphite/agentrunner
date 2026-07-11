@@ -182,6 +182,80 @@
   max-width: 100%;
 }
 
+/* -------------------------------------------------------------------------
+   INC-51 — highlight.js token colours for fenced code (react-markdown +
+   rehypeHighlight). Mapped onto the existing theme tokens so highlighting is
+   correct in both light and dark without importing a hard-coded hljs theme
+   (keeps the bundle offline/CSP-clean). Scoped to .md-hljs (the <pre>).
+   ------------------------------------------------------------------------- */
+/* The block <code> inside .md-hljs must not pick up the inline `.md code`
+   chip (background/border/padding) — it is the highlighted body, not a chip. */
+.cx-md .md-hljs code {
+  background: none;
+  border: none;
+  padding: 0;
+  border-radius: 0;
+  color: inherit;
+  font-size: inherit;
+  white-space: inherit;
+}
+.cx-md .md-hljs .hljs-comment,
+.cx-md .md-hljs .hljs-quote {
+  color: var(--dim);
+  font-style: italic;
+}
+.cx-md .md-hljs .hljs-keyword,
+.cx-md .md-hljs .hljs-selector-tag,
+.cx-md .md-hljs .hljs-literal,
+.cx-md .md-hljs .hljs-section,
+.cx-md .md-hljs .hljs-name,
+.cx-md .md-hljs .hljs-tag,
+.cx-md .md-hljs .hljs-meta .hljs-keyword {
+  color: var(--violet);
+}
+.cx-md .md-hljs .hljs-title,
+.cx-md .md-hljs .hljs-built_in,
+.cx-md .md-hljs .hljs-type,
+.cx-md .md-hljs .hljs-selector-class,
+.cx-md .md-hljs .hljs-class .hljs-title {
+  color: var(--blue);
+}
+.cx-md .md-hljs .hljs-string,
+.cx-md .md-hljs .hljs-regexp,
+.cx-md .md-hljs .hljs-addition,
+.cx-md .md-hljs .hljs-char.escape_ {
+  color: var(--green);
+}
+.cx-md .md-hljs .hljs-number,
+.cx-md .md-hljs .hljs-symbol,
+.cx-md .md-hljs .hljs-bullet,
+.cx-md .md-hljs .hljs-attr,
+.cx-md .md-hljs .hljs-property,
+.cx-md .md-hljs .hljs-meta {
+  color: var(--amber);
+}
+.cx-md .md-hljs .hljs-attribute,
+.cx-md .md-hljs .hljs-variable,
+.cx-md .md-hljs .hljs-template-variable,
+.cx-md .md-hljs .hljs-params,
+.cx-md .md-hljs .hljs-selector-id,
+.cx-md .md-hljs .hljs-selector-attr,
+.cx-md .md-hljs .hljs-selector-pseudo {
+  color: var(--ink-2);
+}
+.cx-md .md-hljs .hljs-deletion {
+  color: var(--red);
+}
+.cx-md .md-hljs .hljs-emphasis {
+  font-style: italic;
+}
+.cx-md .md-hljs .hljs-strong {
+  font-weight: 600;
+}
+.cx-md .md-hljs .hljs-link {
+  text-decoration: underline;
+}
+
 /* =========================================================================
    A1 — category icon on the aggregated activity row
    ========================================================================= */

@@ -1,14 +1,31 @@
 import { useState, type ReactNode } from "react";
-import { Check, Copy } from "@phosphor-icons/react";
+import { ArrowsHorizontal, Check, Copy, TextAlignLeft } from "@phosphor-icons/react";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { copyText } from "../clipboard";
+import { rehypeHighlight } from "./highlight";
+
+// Markdown renders assistant/runtime message bodies with react-markdown. It
+// replaces the earlier hand-rolled parser (which had no tables, no syntax
+// highlighting, no line-wrap control) while keeping the same public surface:
+// <Markdown text={…} />. remark-gfm adds GitHub-flavoured tables, task lists,
+// strikethrough and autolinks; rehypeHighlight (./highlight) adds highlight.js
+// syntax colouring for a registered language subset.
+//
+// SECURITY (red line): react-markdown escapes raw HTML by default — we do NOT
+// add rehype-raw. Any `<script>`/`<img onerror=…>` in the text is rendered as
+// literal characters, never as live DOM, so there is no HTML-injection surface.
 
 // CodeBlock renders a fenced block Codex-style: a slim header bar carrying the
-// language label (left) and a Copy button (right), then the code body. Uses the
-// async clipboard API with a textarea fallback (see ../clipboard).
-function CodeBlock({ body, lang }: { body: string; lang?: string }) {
+// language label (left) and Wrap + Copy controls (right), then the highlighted
+// code body. `raw` is the verbatim source used for copying; `children` are the
+// already-highlighted <span> nodes from rehypeHighlight. The Wrap toggle flips
+// the body between horizontal scroll (default) and soft-wrapping long lines.
+function CodeBlock({ raw, lang, className, children }: { raw: string; lang?: string; className?: string; children: ReactNode }) {
   const [copied, setCopied] = useState(false);
+  const [wrap, setWrap] = useState(false);
   const copy = async () => {
-    await copyText(body);
+    await copyText(raw);
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
   };
@@ -16,196 +33,106 @@ function CodeBlock({ body, lang }: { body: string; lang?: string }) {
     <div className="my-[2px] border border-line rounded-[12px] overflow-hidden bg-panel-2 max-w-full">
       <div className="flex items-center justify-between pt-[5px] pr-[6px] pb-[5px] pl-[12px] border-b border-line bg-panel">
         <span className="text-[11px] text-dim lowercase tracking-[0.02em] font-mono">{lang || "text"}</span>
-        <button className="inline-flex items-center gap-[4px] border border-transparent bg-transparent text-dim text-[11px] px-[8px] py-[3px] rounded-[6px] cursor-pointer transition-colors duration-[120ms] hover:bg-panel-2 hover:text-ink hover:border-line" onClick={copy} title="Copy code" type="button">
-          {copied ? (
-            <>
-              <Check size={12} /> Copied
-            </>
-          ) : (
-            <>
-              <Copy size={12} /> Copy
-            </>
-          )}
-        </button>
+        <div className="flex items-center gap-[2px]">
+          <button
+            className="inline-flex items-center gap-[4px] border border-transparent bg-transparent text-dim text-[11px] px-[8px] py-[3px] rounded-[6px] cursor-pointer transition-colors duration-[120ms] hover:bg-panel-2 hover:text-ink hover:border-line aria-pressed:text-ink aria-pressed:border-line"
+            onClick={() => setWrap((w) => !w)}
+            title={wrap ? "Disable line wrap" : "Wrap long lines"}
+            aria-pressed={wrap}
+            type="button"
+          >
+            {wrap ? <TextAlignLeft size={12} /> : <ArrowsHorizontal size={12} />} Wrap
+          </button>
+          <button
+            className="inline-flex items-center gap-[4px] border border-transparent bg-transparent text-dim text-[11px] px-[8px] py-[3px] rounded-[6px] cursor-pointer transition-colors duration-[120ms] hover:bg-panel-2 hover:text-ink hover:border-line"
+            onClick={copy}
+            title="Copy code"
+            type="button"
+          >
+            {copied ? (
+              <>
+                <Check size={12} /> Copied
+              </>
+            ) : (
+              <>
+                <Copy size={12} /> Copy
+              </>
+            )}
+          </button>
+        </div>
       </div>
-      <pre className="m-0 px-[12px] py-[10px] overflow-x-auto font-mono text-[12.5px] leading-[1.5] text-ink whitespace-pre">{body}</pre>
+      <pre className={"md-hljs m-0 px-[12px] py-[10px] font-mono text-[12.5px] leading-[1.5] text-ink" + (wrap ? " whitespace-pre-wrap break-words" : " whitespace-pre overflow-x-auto")}>
+        <code className={className}>{children}</code>
+      </pre>
     </div>
   );
 }
 
-// A small, dependency-free Markdown renderer for assistant messages — Codex
-// renders rich markdown and plain <span> text looked flat next to it. Safe by
-// construction: it builds React nodes from text (never dangerouslySetInnerHTML),
-// so there is no HTML-injection surface. Covers the common cases: fenced code,
-// headings, bullet/numbered lists, tables, blockquotes, **bold**, *italic*,
-// `code`, [links](url). Anything it doesn't recognise falls through as literal
-// text.
-
-function inline(text: string, keyBase = 0): ReactNode[] {
-  const nodes: ReactNode[] = [];
-  const re = /(`[^`]+`)|(\*\*[^*]+\*\*)|(\*[^*]+\*)|(\[[^\]]+\]\([^)\s]+\))/g;
-  let last = 0;
-  let m: RegExpExecArray | null;
-  let k = keyBase;
-  while ((m = re.exec(text))) {
-    if (m.index > last) nodes.push(text.slice(last, m.index));
-    const tok = m[0];
-    if (tok.startsWith("`")) nodes.push(<code key={k++}>{tok.slice(1, -1)}</code>);
-    else if (tok.startsWith("**")) nodes.push(<strong key={k++}>{tok.slice(2, -2)}</strong>);
-    else if (tok.startsWith("*")) nodes.push(<em key={k++}>{tok.slice(1, -1)}</em>);
-    else {
-      const lm = tok.match(/\[([^\]]+)\]\(([^)\s]+)\)/);
-      if (lm)
-        nodes.push(
-          <a key={k++} href={lm[2]} target="_blank" rel="noreferrer">
-            {lm[1]}
-          </a>,
-        );
-      else nodes.push(tok);
-    }
-    last = re.lastIndex;
-  }
-  if (last < text.length) nodes.push(text.slice(last));
-  return nodes;
+// A fenced code block always arrives as <pre><code>…</code></pre>; we intercept
+// `pre` (the only place block code appears) so no-language blocks are handled
+// too, and read the child <code>'s language + highlighted content from it.
+function preRenderer(props: { children?: ReactNode; node?: unknown }): ReactNode {
+  const codeEl = Array.isArray(props.children) ? props.children[0] : props.children;
+  const cp = (codeEl && typeof codeEl === "object" && "props" in codeEl ? (codeEl as { props: Record<string, unknown> }).props : {}) as {
+    className?: string;
+    children?: ReactNode;
+  };
+  const cls = cp.className || "";
+  const lang = (/language-([\w-]+)/.exec(cls) || [])[1];
+  // Raw source for the Copy button: walk the hast <pre> node's text so we copy
+  // the verbatim code, not the tokenised spans.
+  const raw = hastText(props.node).replace(/\n$/, "");
+  return (
+    <CodeBlock raw={raw} lang={lang} className={cls}>
+      {cp.children}
+    </CodeBlock>
+  );
 }
 
-// --- GitHub-flavoured pipe tables -------------------------------------------
-const tableCells = (l: string): string[] => {
-  let s = l.trim();
-  if (s.startsWith("|")) s = s.slice(1);
-  if (s.endsWith("|")) s = s.slice(0, -1);
-  return s.split("|").map((c) => c.trim());
+// hastText collects the concatenated text of a hast node subtree.
+function hastText(node: unknown): string {
+  if (!node || typeof node !== "object") return "";
+  const n = node as { type?: string; value?: string; children?: unknown[] };
+  if (n.type === "text") return n.value || "";
+  if (Array.isArray(n.children)) return n.children.map(hastText).join("");
+  return "";
+}
+
+const components: Components = {
+  // Block chrome (header, copy, wrap) is owned by CodeBlock; `pre` becomes just
+  // the mount point. Inline code falls through to the default <code> so the
+  // existing `.md code` chip styling applies.
+  pre: preRenderer,
+  a: ({ href, children }) => (
+    <a href={href} target="_blank" rel="noreferrer">
+      {children}
+    </a>
+  ),
+  table: ({ children }) => (
+    <div className="overflow-x-auto border border-line rounded-[8px] max-w-full">
+      <table className="cx-table">{children}</table>
+    </div>
+  ),
+  // Reuse the existing markdown class names so styles.css / styles.conv.css keep
+  // styling these elements exactly as before (visual parity with the old parser).
+  p: ({ children }) => <p className="md-p">{children}</p>,
+  h1: ({ children }) => <div className="md-h md-h1">{children}</div>,
+  h2: ({ children }) => <div className="md-h md-h2">{children}</div>,
+  h3: ({ children }) => <div className="md-h md-h3">{children}</div>,
+  h4: ({ children }) => <div className="md-h md-h4">{children}</div>,
+  h5: ({ children }) => <div className="md-h md-h5">{children}</div>,
+  h6: ({ children }) => <div className="md-h md-h6">{children}</div>,
+  ul: ({ children }) => <ul className="md-list">{children}</ul>,
+  ol: ({ children }) => <ol className="md-list">{children}</ol>,
+  blockquote: ({ children }) => <blockquote className="md-quote">{children}</blockquote>,
 };
-// A separator row: cells of only dashes with optional leading/trailing colons.
-const isTableSep = (l: string): boolean =>
-  /\|/.test(l) && /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l);
-
-function Blocks({ text }: { text: string }) {
-  const lines = text.split("\n");
-  const out: ReactNode[] = [];
-  let i = 0;
-  let key = 0;
-  const isUl = (l: string) => /^\s*[-*]\s+/.test(l);
-  const isOl = (l: string) => /^\s*\d+\.\s+/.test(l);
-  while (i < lines.length) {
-    const line = lines[i];
-    if (!line.trim()) {
-      i++;
-      continue;
-    }
-    const h = line.match(/^(#{1,6})\s+(.*)$/);
-    if (h) {
-      out.push(
-        <div className={"md-h md-h" + h[1].length} key={key++}>
-          {inline(h[2])}
-        </div>,
-      );
-      i++;
-      continue;
-    }
-    // table: a header row followed by a dashes separator row
-    if (line.includes("|") && i + 1 < lines.length && isTableSep(lines[i + 1])) {
-      const header = tableCells(line);
-      i += 2;
-      const bodyRows: string[][] = [];
-      while (i < lines.length && lines[i].trim() && lines[i].includes("|")) {
-        bodyRows.push(tableCells(lines[i]));
-        i++;
-      }
-      out.push(
-        <div className="overflow-x-auto border border-line rounded-[8px] max-w-full" key={key++}>
-          <table className="cx-table">
-            <thead>
-              <tr>
-                {header.map((c, ci) => (
-                  <th key={ci}>{inline(c)}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {bodyRows.map((row, ri) => (
-                <tr key={ri}>
-                  {header.map((_, ci) => (
-                    <td key={ci}>{inline(row[ci] ?? "")}</td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>,
-      );
-      continue;
-    }
-    if (line.trim().startsWith(">")) {
-      const quote: string[] = [];
-      while (i < lines.length && lines[i].trim().startsWith(">")) {
-        quote.push(lines[i].replace(/^\s*>\s?/, ""));
-        i++;
-      }
-      out.push(
-        <blockquote className="md-quote" key={key++}>
-          {inline(quote.join(" "))}
-        </blockquote>,
-      );
-      continue;
-    }
-    if (isUl(line) || isOl(line)) {
-      const ordered = isOl(line);
-      const items: ReactNode[] = [];
-      while (i < lines.length && (isUl(lines[i]) || isOl(lines[i]))) {
-        items.push(<li key={items.length}>{inline(lines[i].replace(/^\s*(?:[-*]|\d+\.)\s+/, ""))}</li>);
-        i++;
-      }
-      out.push(
-        ordered ? (
-          <ol className="md-list" key={key++}>
-            {items}
-          </ol>
-        ) : (
-          <ul className="md-list" key={key++}>
-            {items}
-          </ul>
-        ),
-      );
-      continue;
-    }
-    const para: string[] = [];
-    while (
-      i < lines.length &&
-      lines[i].trim() &&
-      !/^(#{1,6})\s/.test(lines[i]) &&
-      !isUl(lines[i]) &&
-      !isOl(lines[i]) &&
-      !lines[i].trim().startsWith(">") &&
-      !(lines[i].includes("|") && i + 1 < lines.length && isTableSep(lines[i + 1]))
-    ) {
-      para.push(lines[i]);
-      i++;
-    }
-    out.push(
-      <p className="md-p" key={key++}>
-        {inline(para.join(" "))}
-      </p>,
-    );
-  }
-  return <>{out}</>;
-}
 
 export function Markdown({ text }: { text: string }) {
-  // Fenced code blocks are split out first so their contents are never parsed
-  // as markdown.
-  const segs = text.split(/(```[\s\S]*?```)/g);
   return (
     <div className="md cx-md">
-      {segs.map((seg, i) => {
-        if (seg.startsWith("```")) {
-          const nl = seg.indexOf("\n");
-          const lang = seg.slice(3, nl < 0 ? undefined : nl).trim();
-          const body = nl < 0 ? "" : seg.slice(nl + 1).replace(/```\s*$/, "");
-          return <CodeBlock key={i} body={body} lang={lang} />;
-        }
-        return <Blocks key={i} text={seg} />;
-      })}
+      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={components}>
+        {text}
+      </ReactMarkdown>
     </div>
   );
 }

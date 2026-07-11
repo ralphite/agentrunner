@@ -3290,3 +3290,46 @@ session `20260711-073559-create-a-todo-app-ff36` 的 spec 是
 独立复现；两者同表现、不同根因。另注：gemini-flash-latest 被给 tool 时会
 自适应缩短思考、通常自保，故本修复的价值是**结构性保证**（不依赖模型
 自适应）+ 移除 unbounded 路径。证据 `qa/runs/2026-07-11-QA-52-thinking-budget/`。
+契约 review 见 INC-55 工作纸。
+## 2026-07-11 INC-51 Web UI Markdown 渲染增强（HANDA-PARITY #20，A 闸绿）
+
+**背景**：UJ-24 的消息正文用自研极简 `Markdown.tsx` 渲染，无表格、无语法
+高亮、无 line-wrap 控件，观感落后 Codex/Claude 富文本答复（HANDA-PARITY
+#20，review CONFIRMED）。并行轮 worktree 子 agent 认领。
+
+**动作**：`<Markdown text>` 内部换 react-markdown（remark-gfm 表格/删除线/
+任务列表）+ 自写精简 rehype 高亮插件 + 每代码块 line-wrap 开关。对外 prop
+与 Timeline 两调用点零改动；组件覆盖映射到既有 markdown class 保持观感。
+
+**决策记档**：
+- **不用 `rehype-highlight`，自写 `highlight.ts` 精简插件**：rehype-highlight
+  静态 `import {common} from "lowlight"` 且 `settings.languages || common` 是
+  活引用，rollup 无法 tree-shake，会把 lowlight `common` 的 35 语言全打包，
+  违背"highlight.js core 按需注册语言"的 bundle 预算。改用 `createLowlight`
+  （跑 `highlight.js/lib/core`，零语言）+ 按需注册 19 语言，构建产物已核实
+  `common` 独有语言（arduino/kotlin/php/swift…）被 tree-shake 掉。
+- **禁 raw HTML（安全红线，延续既有性质，非不变量变更）**：旧实现靠"从不
+  `dangerouslySetInnerHTML`"防注入；新实现用 react-markdown 默认转义、**不
+  引入 rehype-raw** 延续同一性质。`Markdown.test.tsx` 的 `escapes raw HTML`
+  例正面钉死（`<img onerror>`/`<script>` 不生成 live 元素、无 `onerror`
+  属性、payload 仅作转义文本存活）。CSP/离线不变（三依赖纯 npm 打进 bundle）。
+- **token 配色映射主题变量**：不引外部 hljs 主题 CSS（保离线），token 色
+  映射既有 `--violet/--blue/--green/--amber/--ink-2/--dim/--red`，light/dark
+  双主题可用（styles.conv.css A6 段）。
+- **不触 DESIGN 不变量**：纯前端 additive，无 §15 决策/粗体条款变更，不走
+  PROCESS §四流程。小增量三视角重 review 裁掉（理由见工作纸末节）。
+
+**A 闸**：vitest 108 全绿（含 `Markdown.test.tsx` 5 新例：表格/高亮/未注册
+语言/line-wrap 开关/raw-HTML 转义）+ `tsc -b` + `vite build` 打包通过 +
+`scripts/check.sh` 全绿。**bundle**：JS 866 KB（gzip 245 KB，较基线 613 KB
++253 KB，主要为 react-markdown/micromark 管线 + highlight.js core+19 语言）；
+CSS +3.5 KB（token 配色）。
+
+**余项**：
+- **B 闸（真浏览器）待验**：表格/高亮/line-wrap/`<script>` 转义/双主题 token
+  配色的真 DOM 断言，交集中验收（SPEC 行暂记 ⚠️，收口转 ✅）。
+- **mermaid**：作可选懒加载尾巴（`import("mermaid")`），需先复核离线/CSP
+  条款，本轮不做，记 HANDA-PARITY #20 尾项。
+- **dist 未提交**：按并行轮交付纪律，三增量由集中合并者统一 clean rebuild。
+- SPRINT-handa-parity / HANDA-PARITY #20 行状态待收口跟改（避免并行轮抢改）。
+工作纸 `docs/increments/INC-51-markdown-enhance.md`。
