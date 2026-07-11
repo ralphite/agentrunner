@@ -1134,13 +1134,13 @@ revive、gen_steps 同 context 递增;真验期抓获并修复三个 bug:CLI 子
 `limit exceeded`，settlement 后正常完成；这是既有 reserve-then-settle 的
 可见表现，不是重复执行或预算越界。
 
-## QA-54 Web UI durable Last turn Changes（INC-57,UJ-24）
+## QA-60 Web UI durable Last turn Changes（INC-57,UJ-24）
 
 **环境**：live `http://127.0.0.1:8809` + 当前 `ar-live` + 真实 Gemini +
 共享 `~/.local/share/agentrunner/`；不重启共享旧 daemon、不隔离、不清理。
 multi-turn available session=`20260711-084204-use-edit-file-to-replace-base-7826`，
 truthful unavailable session=`20260711-082007-use-the-edit-file-tool-to-repl-88c1`。
-证据 `qa/runs/2026-07-11-QA54-last-turn-diff/`。
+证据 `qa/runs/2026-07-11-QA60-last-turn-diff/`。
 
 | # | 动作 | 硬断言 |
 |---|---|---|
@@ -1156,6 +1156,25 @@ truthful unavailable session=`20260711-082007-use-the-edit-file-tool-to-repl-88c
 `bar-final` 均跳过，TestPlanLastTurnDiffBaseline 直钉。
 
 **结果**：PASS。所有 session/workspace/journal/screenshots 保留。
+
+## QA-43 Codex UI 全景验收（INC-41,UJ-24）
+
+**环境**：live `http://127.0.0.1:8809` + 共享 store；in-app Browser 真机，
+非隔离数据。证据 `qa/runs/2026-07-10-QA43-codex-ui-polish/`。
+
+| # | 动作 | 硬断言 |
+|---|---|---|
+| 1 | Home/rich thread/approval/Scheduled/Settings/Changes 六主态，desktop/mobile × light/dark | 12 个主镜头均为真实产品状态；approval、真实 multi-turn diff、长 Markdown/代码内容均非 mock |
+| 2 | 1554/1440/900/642/390 响应式补扫 | composer/sidebar/right panel 无裁切；900 Changes 与 642 Home 正常切换布局 |
+| 3 | mobile 从 sidebar 打开 Settings | Settings dialog 出现且 `Close sidebar`/scrim 不再可见；修复前失败截图与修后 dark/light 图均保留 |
+| 4 | mobile/desktop 打开 Changes | 截图前必须可见 `Change diff scope` 且 DOM 含 `final-a.txt`/`final-b.txt`，杜绝只截到未打开状态 |
+| 5 | 三张 contact sheet 与 Codex reference 逐屏对照；读稳态 console | 信息架构、密度、层级与 Codex 对齐，保留 AgentRunner brand/Supervision；error+warning=`[]` |
+
+**真验发现并修复**：`App.tsx` 的 Settings 入口只开 dialog，mobile sidebar
+仍留在其上方。入口现先走与导航相同的 `closeAfterNavigate()`，再打开 Settings；
+390×844 dark/light 复验侧栏与 scrim 均消失。
+
+**结果**：PASS。全景截图、contact sheets 与浏览器状态断言全部保留。
 
 | C8 interrupt vs 输入 | QA-02, QA-06 |
 | C9 多模态 | QA-07, QA-09, QA-15（PDF/文件） |

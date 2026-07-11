@@ -5,7 +5,7 @@
 **状态：✅ 已实施并双闸门验收（2026-07-11）。A 闸=
 TestShadowRepoDiffAgainstSnapshot / TestPlanLastTurnDiffBaseline /
 TestCLIDiffLastTurnJSON / TestHandleDiffLastTurn / frontend scope URL +
-`check.sh`；B 闸=QA-54 真 Gemini shared multi-turn + live 8809 全景。**
+`check.sh`；B 闸=QA-60 真 Gemini shared multi-turn + live 8809 全景。**
 
 ## 动机与 journey 锚
 
@@ -111,7 +111,7 @@ shadow repo，其他 backend 可明确返回 unavailable。
   Working tree 回归不变；
 - frontend：scope URL、切换、不可用状态、文件统计/过滤继续正确。
 
-### 闸门 B：共享真实环境 QA-54
+### 闸门 B：共享真实环境 QA-60
 
 1. 在共享 store 创建并保留真实 multi-turn session；第一轮修改 A，第二轮
    修改 A 并修改 B；导出 journal/events 与 workspace diff；
@@ -121,7 +121,7 @@ shadow repo，其他 backend 可明确返回 unavailable。
 4. desktop 1440×900 与 mobile 390×844、light/dark 截图归档；键盘 menu、
    Escape/focus return、loading/empty/error；稳态 console error+warning=0；
 5. 所有 session/workspace/journal 保留，证据落
-   `qa/runs/2026-07-11-QA54-last-turn-diff/`。
+   `qa/runs/2026-07-11-QA56-last-turn-diff/`。
 
 **实际 PASS**：session
 `20260711-084204-use-edit-file-to-replace-base-7826`；第二条 human input
@@ -137,7 +137,7 @@ journal、CLI JSON 与 workspace diff 均归档。
    测试与 `./scripts/check.sh` 全绿，立即 push `origin/main`。
 3. `INC-57.2`：Web API + frontend scope UX + scripted UI tests；build/check
    全绿，立即 push。
-4. `INC-57.3`：部署 live 8809，共享数据 QA-54 全景浏览器验收；三层/支撑件
+4. `INC-57.3`：部署 live 8809，共享数据 QA-60 全景浏览器验收；三层/支撑件
    收口，D1 解锁，工作纸移 `docs/archive/increments/`，立即 push。
 
 ## review 裁决

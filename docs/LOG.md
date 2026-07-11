@@ -3425,9 +3425,9 @@ B 闸（真机 `open -a` 拉起 app + overlay 持久化 + 拒绝面 curl）待 c
 **实施与双闸门**：`SnapshotStore.Diff` + `ar diff --scope last-turn --json` +
 Web API/Changes 范围 menu 全接通；A 闸含 snapshot modified/new/deleted/rename、
 凭据排除、invalid ref、human source/显式 barrier 排除、CLI/Web handler 与
-frontend scope URL，`check.sh` 全绿。B 闸 QA-54 真 Gemini + shared store +
+frontend scope URL，`check.sh` 全绿。B 闸 QA-60 真 Gemini + shared store +
 live 8809，desktop/mobile × light/dark、Escape/focus、历史 unavailable、
-console 0 全 PASS，证据 `qa/runs/2026-07-11-QA54-last-turn-diff/`。
+console 0 全 PASS，证据 `qa/runs/2026-07-11-QA60-last-turn-diff/`。
 
 **真验纠偏**：浏览器验收时发现 selector 若接受任意 input 后 barrier，用户
 在 turn 完成后手动执行的 `bar-m*` 会伪装成开工 baseline。收紧为只接受
@@ -3585,3 +3585,16 @@ runtime/event/state/pipeline/tool/loop 接线；`Effect.Command` 字段
 （bash 走 args 兜底、回归守）；`runSandboxed` 抽出共享 bash 运行机件。
 
 工作纸 `docs/increments/INC-55-command-tools.md`，落地后归档。
+
+## 2026-07-11 · INC-41.Z1 / QA-43 Codex UI 全景收口
+
+按 Codex reference 对 live 8809 做 Home/rich thread/approval/Scheduled/
+Settings/Changes 六主态的 desktop/mobile × light/dark 全景，另扫
+1554/1440/900/642/390 响应式断点。浏览器真验发现 mobile 从 sidebar 打开
+Settings 后，sidebar/scrim 仍盖在 dialog 上；修正 `App.tsx` 的入口为先复用
+`closeAfterNavigate()` 再开 Settings。修后 390×844 dark/light 均断言
+`Close sidebar` 不存在；Changes 四镜头均在 `Change diff scope` 与真实
+`final-a.txt`/`final-b.txt` 出现后才截图，排除假点击。最终 frontend
+129/129、build、全树 `check.sh` 与 console error/warning=`[]`；原图及三张
+contact sheet 保留于 `qa/runs/2026-07-10-QA43-codex-ui-polish/`。INC-41
+backlog 至此全部完成或显式裁掉。

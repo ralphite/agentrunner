@@ -245,7 +245,7 @@ send 全可达（INC-40 曾复现裁切）。W1 已改 Home 布局,复验 mobile
 **behavior**：Codex review toolbar 有范围下拉（Unstaged/Staged/Commit/
 Branch/Last Turn）。我们最小对标 `Working tree | Last turn` 两档：Working
 tree=现有全量 diff；Last turn=最后一个 human turn 的改动。
-**落地**（INC-57 / QA-54）：复用 loop-owned `bar-tN` snapshot（显式
+**落地**（INC-57 / QA-60）：复用 loop-owned `bar-tN` snapshot（显式
 `bar-m*`/`bar-final` 不可冒充开工 baseline），`SnapshotStore.Diff` 临时 index
 只读比较；CLI/API 结构化 available/reason；前端范围 menu 全接通，Last turn
 不显示会误提交全 workspace 的 Commit/Apply/Remove。desktop/mobile ×
@@ -253,7 +253,7 @@ light/dark、Escape/focus、历史 session unavailable、console 0 均真验。
 **touches**：`internal/snapshot`、`internal/cli/diff.go`、`webui/meta.go`、
 `components/DiffView.tsx`、`api.ts`、`types.ts`、`styles.css`。
 **验收**：TestShadowRepoDiffAgainstSnapshot / TestCLIDiffLastTurnJSON /
-TestHandleDiffLastTurn / frontend api test / QA-54。
+TestHandleDiffLastTurn / frontend api test / QA-60。
 
 ### D2 ✅ 文件搜索 + 文件树切换（REF §5 toolbar 图标）
 **behavior**：多文件 diff 时,toolbar 加文件搜索框（过滤文件段）+ 文件树/
@@ -547,11 +547,16 @@ usage 警示)。我方对应物 = daemon 状态/连接提示。把现有 toast/i
 
 ## 终局 · QA-43 全景验收（依赖上述批次收口）
 
-### Z1 🔒 全景对照 + 归档
+### Z1 ✅ 全景对照 + 归档
 **behavior**：1554/1440/900/642/390 × light/dark 全量截图,与 REF 逐屏
 对照(REF §8 清单画勾),console 0 error/warning;三层文档/GAPS/LOG/
 CODEX-PARITY 收口;证据归档 `qa/runs/2026-07-10-QA43-codex-ui-polish/`。
-**依赖**：🔒 A–I 组主体完成。
+**落地**：Home/rich thread/approval/Scheduled/Settings/Changes 六个主态均做
+desktop/mobile × light/dark；另补 1554/900/642 三档。真浏览器全景发现并修复
+mobile Settings 打开后 sidebar/scrim 未收起；修后以可见 DOM 断言侧栏消失，
+Changes 以 scope trigger + 真实文件名确认面板已挂载后才截图。最终 console
+error/warning=`[]`，contact sheets 与逐屏原图全保留。
+**依赖**：✅ A–I 组已逐项完成或显式裁掉；QA-43 PASS。
 **touches**：docs/*、qa/*。
 
 ---
@@ -607,7 +612,8 @@ CODEX-PARITY 收口;证据归档 `qa/runs/2026-07-10-QA43-codex-ui-polish/`。
   B3(已由 Background work 区覆盖大半)、I1(Supervision 钮已覆盖)、
   I2(需 max-context 数据)、E5 整段高度动画、F3(单项下拉价值低)、
   J2(文件产物 chips)、J4(独立归档视图)、J5(通知条)、D1(需后端契约)、
-  I3(缺真实 limit 数据)、Z1(终局 QA-43)。
+  I3(缺真实 limit 数据)、Z1(终局 QA-43)。上述后续均已在本台账对应条目
+  完成或显式裁掉，Z1 于 2026-07-11 收口。
 
 ## K 组 · 四镜头审查发现(R1-R4,2026-07-10 深夜)
 
