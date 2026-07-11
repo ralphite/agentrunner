@@ -152,8 +152,9 @@ export function PopItem({
   right,
   danger,
   highlight,
+  disabled,
 }: {
-  onClick: () => void;
+  onClick?: () => void;
   active?: boolean;
   icon?: React.ReactNode;
   title: React.ReactNode;
@@ -161,11 +162,13 @@ export function PopItem({
   right?: React.ReactNode;
   danger?: boolean;
   highlight?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <button
-      className={"pop-item" + (danger ? " danger" : "") + (highlight ? " hl" : "")}
+      className={"pop-item" + (danger ? " danger" : "") + (highlight ? " hl" : "") + (disabled ? " disabled" : "")}
       onClick={onClick}
+      disabled={disabled}
       role="menuitem"
     >
       {icon !== undefined && <span className="pop-ico">{icon}</span>}

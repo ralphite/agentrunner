@@ -60,6 +60,19 @@ export function accessById(id: string): AccessLevel {
   return ACCESS_LEVELS.find((a) => a.id === id) || ACCESS_LEVELS[0];
 }
 
+// runtimeModeTarget maps an access level to the `/mode` target the daemon
+// accepts mid-session (INC-42's ValidTransition: default↔acceptEdits only),
+// or null when the level can't be entered at runtime. "full" is a launch-time
+// posture the runtime switch can't grant (it only sets the fold mode, not the
+// spec's permission rules); "plan" exits through an exit_plan_mode approval,
+// not this switch; bypass is start-time only. The session mode pill (INC-54)
+// uses this to decide which rows are clickable vs. disabled-with-reason.
+export function runtimeModeTarget(id: AccessId): "default" | "acceptEdits" | null {
+  if (id === "ask") return "default";
+  if (id === "acceptEdits") return "acceptEdits";
+  return null;
+}
+
 export function modelById(provider: string, id: string): ModelChoice | undefined {
   return MODELS.find((m) => m.provider === provider && m.id === id);
 }

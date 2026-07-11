@@ -3190,3 +3190,32 @@ daemon），部署窗口反复被占。本增量为 **webui-only**（`ar daemon`
 arwebui（--no-daemon 连共享 daemon）走真机，未打断任何并发 session 的活跃 turn。
 push commit：INC-49 主体 + INC-49.1 + INC-49.2（见 origin/main）。工作纸归档
 `docs/archive/increments/INC-49-worktree-productization.md`。
+
+## 2026-07-11 INC-54 落地：session mode pill 点击切换（INC-42 UI 收尾）
+
+用户手势（截图指着 composer "Ask to approve" pill）：「we need to be able to
+change this in chat session」。INC-42 已把 mode 运行中切换全链路打通，唯缺
+**点击入口**——session pill 原是 `disabled` badge（title 让用户去打 `/mode`）。
+本增量把它变成与 Home 同风格的 `Popover` 选择器。占号 **INC-54 · QA-51**
+（fetch：INC-51/52/53 batch-5 占，QA 最高 QA-50）。
+
+**webui-only，后端零改动**（ValidTransition/rejected receipt/live fold 均 INC-42
+就绪）。改动：`runtimeModeTarget(id)` 纯函数（specs.ts）映射 access→`/mode` 目标
+或 null；`switchMode(target)` 抽出，pill 点击与 `/mode` slash 共用同一条
+`AR.mode`→`ControlMode` durable command（不另起 API，live fold/chip/toast 一致）；
+`PopItem` 加 `disabled` prop + `.pop-item.disabled` 样式；pill JSX 由只读 button
+换为 Popover。
+
+**可选/禁用信息结构决策**（对齐 Home：列全 ACCESS_LEVELS，不可切者 disabled
+带原因而非隐藏——结构一致 + 诚实）：Ask to approve（→default）/ Auto-accept
+edits（→acceptEdits）可点；Full access disabled（启动期 spec 姿态，runtime 只设
+fold mode 不改 spec 规则）；Plan disabled（须 exit_plan_mode 审批退出）；bypass
+不在 ACCESS_LEVELS，不列（仅启动时）。active 高亮跟随 INC-42 pill 真值序
+（live>不矛盾 remembered>诚实 unknown），live unknown 时无高亮不撒谎；切换后
+随 2.5s inspect 轮询更新；被拒切换落 rejected receipt chip（用户可见）。
+
+**双闸门**：A = `specs.test.ts` runtimeModeTarget 五条（两映射 + full/plan 拒 +
+clickable 严格子集）+ 整套 vitest 109 绿 + tsc/build 绿 + dist rebuild（node 24）；
+B = QA-51 真机（见下）。文档：SPEC 行补 pill 点击 + INC-54/QA-51 锚、PARITY #56
+补 pill 手势、QA-51 入菜单；GAPS G29 已关无残留不动。工作纸
+`docs/increments/INC-54-session-mode-pill-switch.md`，落地后归档。

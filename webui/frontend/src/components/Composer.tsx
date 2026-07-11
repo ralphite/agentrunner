@@ -51,6 +51,7 @@ import {
   personaById,
   personaFromSpec,
   replaceModel,
+  runtimeModeTarget,
   type AccessId,
   type EffortId,
 } from "../specs";
@@ -645,6 +646,22 @@ export function Composer(props: ComposerProps) {
     }
   };
 
+  // ---- runtime approval-mode switch (INC-42 chain; shared by `/mode` and the
+  // session mode pill INC-54) ----
+  // One command path so the pill and the slash produce identical durable
+  // ControlMode commands, live folds, rejected receipts and toasts. The toast
+  // is a delivery ack only — a busy session applies the switch at the next safe
+  // boundary and the timeline chip (accepted) or rejected receipt is the truth.
+  const switchMode = async (target: "default" | "acceptEdits") => {
+    const sid = (props as any).sid as string;
+    try {
+      await AR.mode(sid, target);
+      toast("Mode change requested — the timeline shows the outcome", "info");
+    } catch (e: any) {
+      props.onError(e.message);
+    }
+  };
+
   // ---- slash execution ----
   const runSlash = async (name: string, rest: string) => {
     const sid = isSession ? ((props as any).sid as string) : "";
@@ -720,14 +737,7 @@ export function Composer(props: ComposerProps) {
           toast(`Unknown mode "${rest}". Try: default, acceptEdits`, "info");
           return;
         }
-        try {
-          await AR.mode(sid, target);
-          // Delivery ack, not an outcome: a busy session applies it at the
-          // next safe boundary; the timeline chip is the truth.
-          toast("Mode change requested — the timeline shows the outcome", "info");
-        } catch (e: any) {
-          props.onError(e.message);
-        }
+        await switchMode(target);
         return;
       }
       case "diff":
@@ -1178,18 +1188,64 @@ export function Composer(props: ComposerProps) {
 
           {/* permission mode pill */}
           {isSession ? (
-            <button
-              className={"cx-pill cx-mode " + (sessionAccess?.risk || "unknown")}
-              title={
-                sessionAccess
-                  ? "The session's live approval mode — /mode switches between default and acceptEdits"
-                  : "This session's approval posture comes from its spec's permission rules; /mode switches default↔acceptEdits, and approvals surface here when a gate asks"
-              }
-              disabled
+            /* Session mode switch (INC-54): the live approval-mode pill is a
+               click-to-switch selector, not a read-only badge. Only the two
+               runtime transitions the daemon accepts (Ask↔Auto-accept edits,
+               INC-42 ValidTransition) are clickable; Full access and Plan are
+               listed disabled with the reason so the menu structure matches
+               Home's while staying honest about what's switchable at runtime.
+               Every switch runs the same ControlMode command chain as `/mode`,
+               so live folds, rejected receipts and toasts are identical. The
+               active row follows the pill's truth-ordered value (live >
+               non-contradicting remembered > honest unknown); when the live
+               mode is unknown, nothing is highlighted. */
+            <Popover
+              align="left"
+              panelClass="cx-pop-codex"
+              trigger={(open, toggle) => (
+                <button
+                  className={"cx-pill cx-mode " + (sessionAccess?.risk || "unknown") + (open ? " active" : "")}
+                  onClick={toggle}
+                  title={
+                    sessionAccess
+                      ? "The session's live approval mode — click to switch Ask ↔ Auto-accept edits"
+                      : "This session's approval posture comes from its spec's permission rules; switch Ask ↔ Auto-accept edits here, and approvals surface when a gate asks"
+                  }
+                >
+                  {riskDot(sessionAccess?.risk || "unknown")}
+                  {sessionAccess?.label || "Access: set by agent spec"}
+                  <Caret />
+                </button>
+              )}
             >
-              {riskDot(sessionAccess?.risk || "unknown")}
-              {sessionAccess?.label || "Access: set by agent spec"}
-            </button>
+              {(close) => (
+                <div className="cx-menu wide cx-access-menu">
+                  <PopSection label="Switch approval mode">
+                    {ACCESS_LEVELS.map((a) => {
+                      const target = runtimeModeTarget(a.id);
+                      const desc =
+                        a.id === "full"
+                          ? "Set at launch — mid-session switching only toggles Ask ↔ Auto-accept edits"
+                          : a.id === "plan"
+                            ? "Plan mode exits through an approval, not this switch"
+                            : a.desc;
+                      return (
+                        <PopItem
+                          key={a.id}
+                          icon={<AccessIcon id={a.id} risk={a.risk} />}
+                          title={a.label}
+                          desc={desc}
+                          active={sessionAccess?.id === a.id}
+                          disabled={target === null}
+                          onClick={target ? () => { switchMode(target); close(); } : undefined}
+                        />
+                      );
+                    })}
+                  </PopSection>
+                  <div className="cx-pop-note">Approvals still surface here whenever a gate asks. Full access and Plan are fixed once the task starts.</div>
+                </div>
+              )}
+            </Popover>
           ) : (
             <Popover
               align="left"

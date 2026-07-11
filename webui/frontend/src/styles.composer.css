@@ -60,6 +60,15 @@
 .cx-pop-codex .pop-item.hl {
   background: var(--panel-2);
 }
+/* disabled rows (e.g. Full access / Plan in the session mode switch): shown
+   for structure but not clickable — the desc says why. No hover affordance. */
+.cx-pop-codex .pop-item.disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.cx-pop-codex .pop-item.disabled:hover {
+  background: transparent;
+}
 
 .cx-pop-codex .pop-ico {
   width: 20px;

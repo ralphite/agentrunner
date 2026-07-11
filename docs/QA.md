@@ -749,6 +749,28 @@ store、export 归档 `qa/runs/<日期>-QA44/`。webui 腿：新 arwebui 指向
 `20260711-025146-normal-txt-alpha-4368` 留共享 store，归档
 `qa/runs/2026-07-10-QA44/`。
 
+## QA-51 session mode pill 点击切换（INC-54,G29,UJ-06）
+
+**环境**：共享 `~/.local/share/agentrunner/` daemon/store + 真实 Gemini；
+webui 8809（launchd 守护，强刷载新 bundle）；运行中的真实 session。验证的是
+INC-42 已通链路的**新点击入口**——pill 由只读 badge 变为 Popover 选择器。
+证据（截图 + `ar events` 导出，`-a` 防截断）归档
+`qa/runs/2026-07-11-QA-51/`；测试 session 保留不清理。
+
+| # | 动作 | 验证 |
+|---|---|---|
+| 1 | 运行中 session composer 点 mode pill | Popover 开；列 Ask/Auto-accept（可点）、Full/Plan（disabled，desc 说明为何）；当前档按真值序高亮或诚实 unknown |
+| 2 | 点「Auto-accept edits」 | toast 投递 ack；system-events chip `Mode changed · acceptEdits (user)`；pill 随 2.5s 轮询更新为 Auto-accept edits |
+| 3 | 让模型改一个文件 | 免审直落、文件真实变更；无 approval_requested |
+| 4 | 点「Ask to approve」切回 | chip `Mode changed · default (user)`；pill 回诚实序 |
+| 5 | 切回后让模型再改文件 | approval_requested 回归；pending 期文件未变 |
+| 6 | Full/Plan disabled 行点击 | 无动作（不发命令）；desc 解释启动期/审批退出 |
+
+**通过标准**：切换走与 `/mode` 同一条 `ControlMode` durable command（chip/
+文件/审批为事实锚，不钉模型措辞）；disabled 档不可 runtime 进入；被拒切换
+落 rejected receipt chip（用户可见）。
+**结果**：待真机复验填充。
+
 ## QA-41 Codex 式任务收尾与首屏真相（INC-38,UJ-24）
 
 **环境**：最新 `main`、共享 `~/.local/share/agentrunner/` store/daemon、
