@@ -59,9 +59,9 @@
 
 | # | 项 | 规模 | 状态 | 备注 |
 |---|---|---|---|---|
-| 20 | Markdown 增强（react-markdown+gfm 表格+highlight.js） | M | ⬜ | 保持禁 raw HTML |
-| 14 | LLM auto-title（SessionTitled{auto} journal 事件） | S/M | ⬜ | manual rename 不迁移（§12:1092）；承接 INC-23 W9 移交；与 CC #17 避让 |
-| 24 | project overlay + launcher（meta.json 扩展 + /api/open） | S/M | ⬜ | 不建服务端注册表 |
+| 20 | Markdown 增强（react-markdown+gfm 表格+highlight.js） | M | 🔧 in-progress (INC-51) | 保持禁 raw HTML；并行轮认领 2026-07-11（worktree 子 agent A） |
+| 14 | LLM auto-title（SessionTitled{auto} journal 事件） | S/M | 🔧 in-progress (INC-52) | manual rename 不迁移（§12:1092）；承接 INC-23 W9 移交；与 CC #17 避让；并行轮认领 2026-07-11（worktree 子 agent B） |
+| 24 | project overlay + launcher（meta.json 扩展 + /api/open） | S/M | 🔧 in-progress (INC-53) | 不建服务端注册表；并行轮认领 2026-07-11（worktree 子 agent C） |
 | 18 | ar dictate 服务端听写（provider 补 audio part） | M | ⬜ | 走 ar 命令，webui 薄壳不变 |
 | 19 | ar optimize prompt 优化 | S | ⬜ | 搭 #18 的车 |
 
