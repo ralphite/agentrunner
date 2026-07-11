@@ -160,7 +160,13 @@ export function Scheduled() {
           <div className="empty-state">
             <CalendarDots size={28} />
             <b>Nothing here</b>
-            <span>No {filter} work matches this view.</span>
+            <span>
+              {ql
+                ? `No results for "${query.trim()}".`
+                : filter === "all"
+                  ? "No work matches this view."
+                  : `No ${filter} work matches this view.`}
+            </span>
           </div>
         ) : (
           filtered.map((r) => (

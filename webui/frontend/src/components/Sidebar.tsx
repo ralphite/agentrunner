@@ -99,6 +99,10 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
   };
 
   const previewTask = (session: (typeof sessions)[number], top: number) => {
+    // The hover preview and the right-click context menu are mutually
+    // exclusive floating layers — while a menu is open, suppress the preview
+    // so the two never stack and fight for the same corner (R3-1).
+    if (ctx) return;
     setHoverPreview({ sid: session.id, top: Math.max(10, Math.min(top - 6, window.innerHeight - 154)) });
     const workspace = session.workspace;
     if (!workspace || Object.prototype.hasOwnProperty.call(branchByWorkspace, workspace)) return;
@@ -118,7 +122,12 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
     const isPinned = pinned.includes(session.id);
     const title = displayTitle(renames, session.id, session.title);
     const when = relTime(sessionDate(session.id));
-    const openContext = (x: number, y: number) => setCtx({ kind: "session", x, y, sid: session.id });
+    const openContext = (x: number, y: number) => {
+      // Opening a context menu instantly dismisses any hover preview so the
+      // two floating layers stay mutually exclusive (R3-1).
+      setHoverPreview(null);
+      setCtx({ kind: "session", x, y, sid: session.id });
+    };
     return (
       <div
         key={session.id}
@@ -269,11 +278,13 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
                   title={project.workspace}
                   onContextMenu={(event) => {
                     event.preventDefault();
+                    setHoverPreview(null);
                     setCtx({ kind: "project", x: event.clientX, y: event.clientY, label: project.label, workspace: project.workspace, ids: project.sessions.map((session) => session.id) });
                   }}
                   onKeyDown={(event) => {
                     if (!((event.shiftKey && event.key === "F10") || event.key === "ContextMenu")) return;
                     event.preventDefault();
+                    setHoverPreview(null);
                     const rect = event.currentTarget.getBoundingClientRect();
                     setCtx({ kind: "project", x: rect.left + 20, y: rect.bottom, label: project.label, workspace: project.workspace, ids: project.sessions.map((session) => session.id) });
                   }}
