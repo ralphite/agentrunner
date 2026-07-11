@@ -1,10 +1,53 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowSquareOut, CaretDown, CaretRight, Check, Circle, Copy, File, ImageSquare, Robot, X } from "@phosphor-icons/react";
-import { completedTurnDurations, foldWork, formatWorkDuration, type RenderNode, type TimelineItem, type ToolItem, type WorkFold } from "../timeline";
+import {
+  ArrowsInLineVertical,
+  ArrowSquareOut,
+  CaretDown,
+  CaretRight,
+  ChatCircle,
+  Check,
+  Circle,
+  Copy,
+  File,
+  FileText,
+  Globe,
+  ImageSquare,
+  Lightning,
+  ListChecks,
+  MagnifyingGlass,
+  PencilSimple,
+  Question,
+  Robot,
+  Terminal,
+  Warning,
+  Wrench,
+  X,
+} from "@phosphor-icons/react";
+import {
+  askUserDetail,
+  completedTurnDurations,
+  editDetail,
+  foldWork,
+  formatWorkDuration,
+  globDetail,
+  grepDetail,
+  groupIcon,
+  readDetail,
+  semanticDetail,
+  spawnDetail,
+  webFetchDetail,
+  type ActivityCategory,
+  type DiffLine,
+  type RenderNode,
+  type TimelineItem,
+  type ToolItem,
+  type WorkFold,
+} from "../timeline";
 import { Markdown } from "./Markdown";
 import { copyText } from "../clipboard";
 import { uploadURL } from "../api";
 import { Lightbox } from "./Lightbox";
+import "../styles.conv.css";
 
 // absTime renders an event timestamp for hover titles: local, second-precise.
 function absTime(ts?: string): string | undefined {
@@ -154,11 +197,307 @@ function ShellDetail({ t }: { t: ToolItem }) {
   );
 }
 
+// ---- A1: category icon for an aggregated activity row -----------------------
+// One icon per group (from timeline.groupIcon), distinct from the per-step
+// StepIcon (which carries run/ok/error state).
+function CategoryIcon({ cat, size = 14 }: { cat: ActivityCategory; size?: number }) {
+  switch (cat) {
+    case "bash":
+      return <Terminal size={size} />;
+    case "read":
+      return <FileText size={size} />;
+    case "edit":
+      return <PencilSimple size={size} />;
+    case "search":
+      return <MagnifyingGlass size={size} />;
+    case "web":
+      return <Globe size={size} />;
+    case "spawn":
+      return <Robot size={size} />;
+    case "message":
+      return <ChatCircle size={size} />;
+    case "ask":
+      return <Question size={size} />;
+    case "progress":
+      return <ListChecks size={size} />;
+    default:
+      return <Wrench size={size} />;
+  }
+}
+
+// ---- A2: tool-specific detail renderers --------------------------------------
+// Each replaces the raw <pre>{JSON}</pre> with a Codex-style structured view.
+// Unknown tools fall back to JSONDetail.
+const STRUCTURED_TOOLS = new Set([
+  "read_file",
+  "read_notes",
+  "write_file",
+  "edit_file",
+  "grep",
+  "glob",
+  "semantic_search",
+  "spawn_agent",
+  "web_fetch",
+  "ask_user",
+]);
+
+function MiniDiff({ rows, more }: { rows: DiffLine[]; more: number }) {
+  return (
+    <div className="cx-minidiff">
+      {rows.map((r, i) => (
+        <div className={"cx-dl " + r.kind} key={i}>
+          <span className="cx-dl-sign">{r.kind === "add" ? "+" : r.kind === "del" ? "-" : " "}</span>
+          <span className="cx-dl-text">{r.text || " "}</span>
+        </div>
+      ))}
+      {more > 0 && (
+        <div className="cx-dl-more">
+          … {more} more line{more === 1 ? "" : "s"}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReadDetailView({ t }: { t: ToolItem }) {
+  const d = readDetail(t.args, t.result);
+  return (
+    <div className="cx-td">
+      <div className="cx-td-head">
+        <FileText size={13} className="cx-td-ic" />
+        <span className="cx-td-path">{d.path}</span>
+        {d.range && <span className="cx-td-meta">{d.range}</span>}
+        {d.lineCount != null && (
+          <span className="cx-td-meta">
+            {d.lineCount} line{d.lineCount === 1 ? "" : "s"}
+            {d.truncated ? " (truncated)" : ""}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EditDetailView({ t }: { t: ToolItem }) {
+  const d = editDetail(t.name, t.args, t.result);
+  return (
+    <div className="cx-td">
+      <div className="cx-td-head">
+        <PencilSimple size={13} className="cx-td-ic" />
+        <span className="cx-td-path">{d.path}</span>
+        {d.note && <span className="cx-td-meta">{d.note}</span>}
+      </div>
+      {d.rows.length > 0 && <MiniDiff rows={d.rows} more={d.more} />}
+    </div>
+  );
+}
+
+function GrepDetailView({ t }: { t: ToolItem }) {
+  const d = grepDetail(t.args, t.result);
+  return (
+    <div className="cx-td">
+      <div className="cx-td-head">
+        <MagnifyingGlass size={13} className="cx-td-ic" />
+        <code className="cx-td-pattern">{d.pattern}</code>
+        <span className="cx-td-meta">
+          {d.matchCount} match{d.matchCount === 1 ? "" : "es"}
+          {d.fileCount ? ` in ${d.fileCount} file${d.fileCount === 1 ? "" : "s"}` : ""}
+          {d.scanned != null ? ` · ${d.scanned} scanned` : ""}
+          {d.truncated ? " · truncated" : ""}
+        </span>
+      </div>
+      {d.byFile.length > 0 && (
+        <div className="cx-grep-files">
+          {d.byFile.map((f) => (
+            <div className="cx-grep-file" key={f.path}>
+              <div className="cx-grep-fname">{f.path}</div>
+              {f.hits.slice(0, 8).map((h, i) => (
+                <div className="cx-grep-hit" key={i}>
+                  <span className="cx-grep-ln">{h.line ?? ""}</span>
+                  <span className="cx-grep-tx">{(h.text || "").split("\n")[0]}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GlobDetailView({ t }: { t: ToolItem }) {
+  const d = globDetail(t.args, t.result);
+  const shown = d.paths.slice(0, 40);
+  return (
+    <div className="cx-td">
+      <div className="cx-td-head">
+        <MagnifyingGlass size={13} className="cx-td-ic" />
+        <code className="cx-td-pattern">{d.pattern}</code>
+        <span className="cx-td-meta">
+          {d.paths.length} path{d.paths.length === 1 ? "" : "s"}
+          {d.truncated ? " · truncated" : ""}
+        </span>
+      </div>
+      {shown.length > 0 && (
+        <div className="cx-path-list">
+          {shown.map((p, i) => (
+            <div className="cx-path" key={i}>
+              {p}
+            </div>
+          ))}
+          {d.paths.length > shown.length && <div className="cx-dl-more">… {d.paths.length - shown.length} more</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SemanticDetailView({ t }: { t: ToolItem }) {
+  const d = semanticDetail(t.args, t.result);
+  const shown = d.hits.slice(0, 12);
+  return (
+    <div className="cx-td">
+      <div className="cx-td-head">
+        <MagnifyingGlass size={13} className="cx-td-ic" />
+        <span className="cx-td-meta">query</span>
+        <span className="cx-td-path">{d.query}</span>
+      </div>
+      {shown.length > 0 && (
+        <div className="cx-path-list">
+          {shown.map((h, i) => (
+            <div className="cx-path" key={i}>
+              {h.path}
+              {h.line ? `:${h.line}` : ""}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SpawnDetailView({ t }: { t: ToolItem }) {
+  const d = spawnDetail(t.args, t.result);
+  return (
+    <div className="cx-td">
+      <div className="cx-td-head">
+        <Robot size={13} className="cx-td-ic" />
+        <span className="cx-td-path">{d.agent || "sub-agent"}</span>
+        {d.reason && <span className="cx-td-meta">{d.reason}</span>}
+        {d.childSession && (
+          <a className="cx-td-link" href={"#" + d.childSession}>
+            open sub-session <ArrowSquareOut size={11} />
+          </a>
+        )}
+      </div>
+      {d.task && <div className="cx-td-task">{d.task}</div>}
+    </div>
+  );
+}
+
+function WebDetailView({ t }: { t: ToolItem }) {
+  const d = webFetchDetail(t.args, t.result);
+  return (
+    <div className="cx-td">
+      <div className="cx-td-head">
+        <Globe size={13} className="cx-td-ic" />
+        {d.url ? (
+          <a className="cx-td-link" href={d.url} target="_blank" rel="noreferrer">
+            {d.url} <ArrowSquareOut size={11} />
+          </a>
+        ) : (
+          <span className="cx-td-path">web_fetch</span>
+        )}
+      </div>
+      <div className="cx-td-sub">
+        {d.title && <span className="cx-td-path">{d.title}</span>}
+        {d.bytes != null && <span className="cx-td-meta">{d.bytes} bytes</span>}
+        {d.untrusted && (
+          <span className="cx-td-tag warn">
+            <Warning size={11} /> untrusted
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AskDetailView({ t }: { t: ToolItem }) {
+  const d = askUserDetail(t.args);
+  return (
+    <div className="cx-td">
+      <div className="cx-td-head">
+        <Question size={13} className="cx-td-ic" />
+        <span className="cx-td-path">{d.question}</span>
+      </div>
+    </div>
+  );
+}
+
+function JSONDetail({ t, body }: { t: ToolItem; body: string }) {
+  return (
+    <>
+      {!body && t.args !== undefined && <pre>{pretty(t.args)}</pre>}
+      {t.result !== undefined && <pre>{pretty(t.result).slice(0, 20000)}</pre>}
+    </>
+  );
+}
+
+// ToolDetail routes a tool activity to its Codex-style detail renderer. bash
+// keeps the Shell block; the rest use structured views; unknown tools fall back
+// to pretty JSON. An error/partial footer is appended for the non-bash paths.
+function ToolDetail({ t, body }: { t: ToolItem; body: string }) {
+  if (t.name === "bash") return <ShellDetail t={t} />;
+  let view: ReactNode;
+  switch (t.name) {
+    case "read_file":
+    case "read_notes":
+      view = <ReadDetailView t={t} />;
+      break;
+    case "write_file":
+    case "edit_file":
+      view = <EditDetailView t={t} />;
+      break;
+    case "grep":
+      view = <GrepDetailView t={t} />;
+      break;
+    case "glob":
+      view = <GlobDetailView t={t} />;
+      break;
+    case "semantic_search":
+      view = <SemanticDetailView t={t} />;
+      break;
+    case "spawn_agent":
+      view = <SpawnDetailView t={t} />;
+      break;
+    case "web_fetch":
+      view = <WebDetailView t={t} />;
+      break;
+    case "ask_user":
+      view = <AskDetailView t={t} />;
+      break;
+    default:
+      view = <JSONDetail t={t} body={body} />;
+  }
+  return (
+    <>
+      {view}
+      {t.errorMsg && <pre className="cx-td-err">{t.errorMsg}</pre>}
+      {t.partial && t.name !== "bash" && <pre className="cx-td-partial">{t.partial}</pre>}
+    </>
+  );
+}
+
 function ToolCard({ t }: { t: ToolItem }) {
   const { verb, body, mono } = toolLabel(t.name, t.args);
   const isShell = t.name === "bash";
   const hasDetail =
-    isShell || t.result !== undefined || t.errorMsg || t.partial || (!body && t.args !== undefined);
+    isShell ||
+    STRUCTURED_TOOLS.has(t.name) ||
+    t.result !== undefined ||
+    !!t.errorMsg ||
+    !!t.partial ||
+    (!body && t.args !== undefined);
   return (
     <details className={"step" + (t.status === "error" || t.status === "failed" ? " error" : "")}>
       <summary>
@@ -174,16 +513,7 @@ function ToolCard({ t }: { t: ToolItem }) {
       </summary>
       {hasDetail && (
         <div className="step-detail">
-          {isShell ? (
-            <ShellDetail t={t} />
-          ) : (
-            <>
-              {!body && t.args !== undefined && <pre>{pretty(t.args)}</pre>}
-              {t.result !== undefined && <pre>{pretty(t.result).slice(0, 20000)}</pre>}
-              {t.errorMsg && <pre className="err">{t.errorMsg}</pre>}
-              {t.partial && <pre>{t.partial}</pre>}
-            </>
-          )}
+          <ToolDetail t={t} body={body} />
         </div>
       )}
     </details>
@@ -249,6 +579,7 @@ function ActivityGroup({ tools }: { tools: ToolItem[] }) {
     <details className={"act-group" + (failed ? " error" : "")}>
       <summary>
         <span className="act-ic"><CaretRight size={12} className="act-caret" /></span>
+        <span className="act-cat"><CategoryIcon cat={groupIcon(tools)} /></span>
         <span className="act-label">{groupLabel(tools)}</span>
         <span className="act-count">{tools.length}</span>
       </summary>
@@ -264,8 +595,17 @@ function ActivityGroup({ tools }: { tools: ToolItem[] }) {
 // WorkedFold: the turn-level "Worked for N ⌄" disclosure holding all work
 // detail of a settled turn (W2/W3). Consecutive tool calls aggregate into
 // ActivityGroups; chips and planning narration render between them.
-function WorkedFold({ fold, sentImages }: { fold: WorkFold; sentImages?: Map<number, string[]> }) {
-  const [open, setOpen] = useState(false);
+function WorkedFold({
+  fold,
+  sentImages,
+  open,
+  onToggle,
+}: {
+  fold: WorkFold;
+  sentImages?: Map<number, string[]>;
+  open: boolean;
+  onToggle: () => void;
+}) {
   const expandable = fold.children.length > 0;
   const label = fold.durationMs !== undefined ? `Worked for ${formatWorkDuration(fold.durationMs)}` : "Worked";
 
@@ -295,7 +635,7 @@ function WorkedFold({ fold, sentImages }: { fold: WorkFold; sentImages?: Map<num
       <button
         type="button"
         className="worked-row"
-        onClick={expandable ? () => setOpen(!open) : undefined}
+        onClick={expandable ? onToggle : undefined}
         disabled={!expandable}
         aria-expanded={open}
       >
@@ -374,6 +714,11 @@ function Item({ it, sentImages, onContinue }: { it: TimelineItem; sentImages?: M
                 <div className="imgnote"><ImageSquare size={13} /> ×{it.images} attached</div>
               ) : null}
             </div>
+            {it.sentAsGoal && (
+              <div className="cx-goal-note">
+                <Lightning size={12} weight="fill" /> Sent as goal
+              </div>
+            )}
             <MsgActions text={it.text} ts={it.ts} />
           </div>
           <span className="who">
@@ -397,6 +742,15 @@ function Item({ it, sentImages, onContinue }: { it: TimelineItem; sentImages?: M
     case "tool":
       return <ToolCard t={it} />;
     case "chip":
+      // A3: compaction (and any activity-marked chip) renders as a Codex
+      // activity row — icon + label — rather than a bubble chip.
+      if (it.activity)
+        return (
+          <div className="cx-activity-row">
+            <span className="cx-activity-ic"><ArrowsInLineVertical size={14} /></span>
+            <span className="cx-activity-label">{it.text}</span>
+          </div>
+        );
       return (
         <div className={"chip " + it.tone}>
           <span>{it.text}</span>
@@ -450,6 +804,17 @@ export function TimelineView({
   // W10: floating jump-to-bottom control once the reader scrolls up (Codex
   // shows the same affordance on long threads).
   const [showJump, setShowJump] = useState(false);
+  // A7: fold open state lives here (not inside WorkedFold) keyed by a stable
+  // content id, so a poll that reshuffles fold render keys never collapses a
+  // fold the reader already opened.
+  const [openFolds, setOpenFolds] = useState<Set<string>>(() => new Set());
+  const toggleFold = (id: string) =>
+    setOpenFolds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   const durations = completedTurnDurations(visible, active);
   // W2: settled turns collapse their work behind "Worked for N ⌄"; the
   // developer (showSys) view stays flat and raw.
@@ -479,7 +844,18 @@ export function TimelineView({
     <div className="timeline" ref={ref} onScroll={onScroll}>
       <div className="tl-inner">
         {nodes.map((it) => {
-          if (it.kind === "fold") return <WorkedFold fold={it} sentImages={sentImages} key={it.key} />;
+          if (it.kind === "fold") {
+            const foldId = it.children[0]?.key ?? it.key;
+            return (
+              <WorkedFold
+                fold={it}
+                sentImages={sentImages}
+                open={openFolds.has(foldId)}
+                onToggle={() => toggleFold(foldId)}
+                key={it.key}
+              />
+            );
+          }
           return (
             <Fragment key={it.key}>
               {showSys && durations.has(it.key) && (

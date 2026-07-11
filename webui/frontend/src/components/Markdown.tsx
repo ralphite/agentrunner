@@ -1,8 +1,10 @@
 import { useState, type ReactNode } from "react";
+import { Check, Copy } from "@phosphor-icons/react";
 import { copyText } from "../clipboard";
 
-// CodeBlock renders a fenced block with a Copy button (Codex puts one on every
-// code block). Uses the async clipboard API with a textarea fallback.
+// CodeBlock renders a fenced block Codex-style: a slim header bar carrying the
+// language label (left) and a Copy button (right), then the code body. Uses the
+// async clipboard API with a textarea fallback (see ../clipboard).
 function CodeBlock({ body, lang }: { body: string; lang?: string }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
@@ -11,13 +13,22 @@ function CodeBlock({ body, lang }: { body: string; lang?: string }) {
     setTimeout(() => setCopied(false), 1200);
   };
   return (
-    <div className="md-codewrap">
-      <button className="md-copy" onClick={copy} title="Copy code">
-        {copied ? "Copied" : "Copy"}
-      </button>
-      <pre className="code md-code" data-lang={lang || undefined}>
-        {body}
-      </pre>
+    <div className="cx-code">
+      <div className="cx-code-hd">
+        <span className="cx-code-lang">{lang || "text"}</span>
+        <button className="cx-code-copy" onClick={copy} title="Copy code" type="button">
+          {copied ? (
+            <>
+              <Check size={12} /> Copied
+            </>
+          ) : (
+            <>
+              <Copy size={12} /> Copy
+            </>
+          )}
+        </button>
+      </div>
+      <pre className="cx-code-body">{body}</pre>
     </div>
   );
 }
@@ -26,8 +37,9 @@ function CodeBlock({ body, lang }: { body: string; lang?: string }) {
 // renders rich markdown and plain <span> text looked flat next to it. Safe by
 // construction: it builds React nodes from text (never dangerouslySetInnerHTML),
 // so there is no HTML-injection surface. Covers the common cases: fenced code,
-// headings, bullet/numbered lists, blockquotes, **bold**, *italic*, `code`,
-// [links](url). Anything it doesn't recognise falls through as literal text.
+// headings, bullet/numbered lists, tables, blockquotes, **bold**, *italic*,
+// `code`, [links](url). Anything it doesn't recognise falls through as literal
+// text.
 
 function inline(text: string, keyBase = 0): ReactNode[] {
   const nodes: ReactNode[] = [];
@@ -57,6 +69,17 @@ function inline(text: string, keyBase = 0): ReactNode[] {
   return nodes;
 }
 
+// --- GitHub-flavoured pipe tables -------------------------------------------
+const tableCells = (l: string): string[] => {
+  let s = l.trim();
+  if (s.startsWith("|")) s = s.slice(1);
+  if (s.endsWith("|")) s = s.slice(0, -1);
+  return s.split("|").map((c) => c.trim());
+};
+// A separator row: cells of only dashes with optional leading/trailing colons.
+const isTableSep = (l: string): boolean =>
+  /\|/.test(l) && /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l);
+
 function Blocks({ text }: { text: string }) {
   const lines = text.split("\n");
   const out: ReactNode[] = [];
@@ -78,6 +101,39 @@ function Blocks({ text }: { text: string }) {
         </div>,
       );
       i++;
+      continue;
+    }
+    // table: a header row followed by a dashes separator row
+    if (line.includes("|") && i + 1 < lines.length && isTableSep(lines[i + 1])) {
+      const header = tableCells(line);
+      i += 2;
+      const bodyRows: string[][] = [];
+      while (i < lines.length && lines[i].trim() && lines[i].includes("|")) {
+        bodyRows.push(tableCells(lines[i]));
+        i++;
+      }
+      out.push(
+        <div className="cx-table-wrap" key={key++}>
+          <table className="cx-table">
+            <thead>
+              <tr>
+                {header.map((c, ci) => (
+                  <th key={ci}>{inline(c)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {bodyRows.map((row, ri) => (
+                <tr key={ri}>
+                  {header.map((_, ci) => (
+                    <td key={ci}>{inline(row[ci] ?? "")}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>,
+      );
       continue;
     }
     if (line.trim().startsWith(">")) {
@@ -114,7 +170,15 @@ function Blocks({ text }: { text: string }) {
       continue;
     }
     const para: string[] = [];
-    while (i < lines.length && lines[i].trim() && !/^(#{1,6})\s/.test(lines[i]) && !isUl(lines[i]) && !isOl(lines[i]) && !lines[i].trim().startsWith(">")) {
+    while (
+      i < lines.length &&
+      lines[i].trim() &&
+      !/^(#{1,6})\s/.test(lines[i]) &&
+      !isUl(lines[i]) &&
+      !isOl(lines[i]) &&
+      !lines[i].trim().startsWith(">") &&
+      !(lines[i].includes("|") && i + 1 < lines.length && isTableSep(lines[i + 1]))
+    ) {
       para.push(lines[i]);
       i++;
     }
@@ -132,7 +196,7 @@ export function Markdown({ text }: { text: string }) {
   // as markdown.
   const segs = text.split(/(```[\s\S]*?```)/g);
   return (
-    <div className="md">
+    <div className="md cx-md">
       {segs.map((seg, i) => {
         if (seg.startsWith("```")) {
           const nl = seg.indexOf("\n");
