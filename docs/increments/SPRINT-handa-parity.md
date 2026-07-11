@@ -30,7 +30,7 @@
 | 9 | progress_update 内部工具 + fold + Supervision 区 | S/M | ✅ done (INC-37) | 双闸门全绿；真 Gemini 7 次自发调用+webui DOM 断言（qa/runs/2026-07-10-INC37）；面板不因 progress 强开（W5 语义） |
 | 10 | 后台任务 notify 门 + settle 结构化载荷 | S | ✅ done (INC-39) | 双闸门全绿；结构化载荷核查后已存在，真 delta 仅门本身；真 Gemini 双场景（none 零回流/on_fail 复述 exit 3，qa/runs/2026-07-10-INC39） |
 | 11 | artifact 消费面（工具读回/CLI/webui 三面） | M | ✅ done (INC-40) | 双闸门全绿；真 Gemini publish→list→read 全链 READBACK 逐字命中+CLI+webui 查看器（qa/runs/2026-07-11-INC40） |
-| 31 | 运行统计 stats（IsError 聚合/行增删入载荷/TS 报表投影） | M | ⬜ | 行增删写 ActivityCompleted，不 diff redacted args |
+| 31 | 运行统计 stats（IsError 聚合/行增删入载荷/TS 报表投影） | M | 🔧 in-progress (INC-43) | 行增删改走 executor result payload（更轻+模型可见）；run --json 出口留余项 |
 
 ### 批 2 · 命令面设计单元（一个 INC 设计、分步落地；#29 走 PROCESS §四）
 
