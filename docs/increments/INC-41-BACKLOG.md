@@ -648,3 +648,15 @@ R4-11 空会话空态、R2-1 box-shadow 暗色。
 - 2026-07-11 轮1(循环启动):同步+部署 8809=index-CWvHKizj.js;收割 0(无存活
   agent);派工 finder×2(A=结构+视觉,B=交互+真实性,对 live 取证);push=
   parity-drive command + DRIVER 副本(a76f6e0)。下轮收割 findings 后派 implementer。
+
+## F 相 · 驱动循环 finder 发现(2026-07-11 起,只追加)
+
+- [FA-1] ✅ 右侧两面板圆角/阴影分叉(Supervision 16px双层 vs Changes 18px单层)
+  ——.changes-panel 对齐 B1 卡样式;附带清 .supervision-panel 基础死声明。
+- [FA-2] ✅ goal banner 删除图标被全局 button.danger 特异性压成常红框
+  ——.gbar-btn.danger 静态中性化,hover 才红。
+- [FA-3] ✅ goal banner 760px 比对话列/composer(720px)宽 20px 两侧突出
+  ——.gbar max-width 改 720 对齐列宽。
+- 2026-07-11 轮2(交互):收割 finder A(3 findings,P2×1/P3×2)→ 主线亲手修
+  FA-1/2/3(styles.css)→ 5/5 playwright 断言绿+console 0 → push+部署 8809。
+  finder B 在跑。
