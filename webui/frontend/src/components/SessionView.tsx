@@ -74,6 +74,11 @@ export function SessionView({ sid }: { sid: string }) {
   // Non-null while the banner's goal text is being edited (INC-10): the value
   // is the draft; save issues a goal update (text only — verifier/budget keep).
   const [goalEdit, setGoalEdit] = useState<string | null>(null);
+  // Which control initiated the goal edit (FB-2): the banner and the
+  // Supervision panel share goalEdit, so a single ✎ click used to render TWO
+  // editors with focus landing on the one you didn't click. The editor now
+  // renders only at its source; the other side stays read-only.
+  const [goalEditSrc, setGoalEditSrc] = useState<"banner" | "panel">("banner");
   const [goalPendingUpdate, setGoalPendingUpdate] = useState<string | null>(null);
   const [view, setView] = useState<"chat" | "diff">("chat");
   const [findOpen, setFindOpen] = useState(false);
@@ -719,9 +724,9 @@ export function SessionView({ sid }: { sid: string }) {
                 <GoalBanner
                   state={goalPendingUpdate ? { ...goalState, goal: goalPendingUpdate } : goalState}
                   elapsedMs={goalTerminal ? goalState.elapsedMs : goalState.attachedAt !== undefined ? now - goalState.attachedAt : undefined}
-                  editing={goalEdit}
+                  editing={goalEditSrc === "banner" ? goalEdit : null}
                   updatePending={!!goalPendingUpdate}
-                  onEditStart={() => setGoalEdit(goalState.goal)}
+                  onEditStart={() => { setGoalEditSrc("banner"); setGoalEdit(goalState.goal); }}
                   onEditChange={setGoalEdit}
                   onSave={saveGoalEdit}
                   onDiscard={() => setGoalEdit(null)}
@@ -779,7 +784,7 @@ export function SessionView({ sid }: { sid: string }) {
           <SupervisionPanel
             loading={!inspectReady}
             goal={goal && goalPendingUpdate ? { ...goal, goal: goalPendingUpdate } : goal}
-            goalEdit={goalEdit}
+            goalEdit={goalEditSrc === "panel" ? goalEdit : null}
             progress={progress}
             artifacts={artifacts}
             children={children}
@@ -787,7 +792,7 @@ export function SessionView({ sid }: { sid: string }) {
             approvals={openApprovals.length}
             sessionIdle={!running}
             recovery={needsRecovery}
-            onGoalEdit={setGoalEdit}
+            onGoalEdit={(text) => { setGoalEditSrc("panel"); setGoalEdit(text); }}
             onGoalSave={saveGoalEdit}
             onGoalDiscard={() => setGoalEdit(null)}
             onOpenArtifact={(stream, version) =>

@@ -660,3 +660,12 @@ R4-11 空会话空态、R2-1 box-shadow 暗色。
 - 2026-07-11 轮2(交互):收割 finder A(3 findings,P2×1/P3×2)→ 主线亲手修
   FA-1/2/3(styles.css)→ 5/5 playwright 断言绿+console 0 → push+部署 8809。
   finder B 在跑。
+- [FB-1] ✅ Home slash 菜单向下展开整个掉出视口(composer QA-45 钉底)
+  ——.cx-home .cx-slash 改向上展开,桌面/移动 6/6 项可见。
+- [FB-2] ✅ 点单个 ✎ Edit goal 同时开两个编辑框且焦点落错侧
+  ——goalEditSrc 标记发起处,编辑器只在被点的一侧渲染,焦点跟手。
+- [FB-3] ✅ Run details 能力 chips Image/Images、File/Files 并列似重复
+  ——dedupeCaps 单复数归一去重(带 vitest)。
+- 2026-07-11 轮3(交互):收割 finder B(3 findings,P2×2/P3×1)→ 主线齐修
+  FB-1/2/3 → tsc+104 vitest 绿 + playwright 双视口/双路径断言 + console 0
+  → push + launchd 部署 8809。两镜头 finder 均已收割,F 相 6/6 全 ✅。

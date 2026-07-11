@@ -59,3 +59,15 @@ describe("inspect presentation", () => {
     expect(compactCount(12)).toBe("12");
   });
 });
+
+// FB-3: "Image"(modality) vs "Images"(capability) rendered as sibling chips
+// like a plural typo — the Run details join dedupes on a singular key.
+describe("dedupeCaps", () => {
+  it("drops plural duplicates while keeping first casing and distinct caps", async () => {
+    const { dedupeCaps } = await import("./components/Modals");
+    expect(dedupeCaps(["Text", "Image", "File", "Thinking", "Prompt Caching", "Parallel Tools", "Images", "Files"]))
+      .toEqual(["Text", "Image", "File", "Thinking", "Prompt Caching", "Parallel Tools"]);
+    expect(dedupeCaps(["images", "Image"])).toEqual(["images"]);
+    expect(dedupeCaps([])).toEqual([]);
+  });
+});

@@ -10,6 +10,19 @@ import { compactCount, summarizeInspect } from "../inspectPresentation";
 import { friendlyStatus } from "./pill";
 import { recallAccess, recallSpec, rememberAccess, rememberSpec } from "./sessionSpecs";
 
+// "Image" (input modality) and "Images" (capability flag) state the same fact
+// twice, so the chip row read like a plural typo (FB-3). Dedupe on a
+// singular/case-insensitive key, keeping the first label's casing.
+export function dedupeCaps(labels: string[]): string[] {
+  const seen = new Set<string>();
+  return labels.filter((label) => {
+    const key = label.toLowerCase().replace(/s$/, "");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function Modal({
   title,
   onClose,
@@ -780,7 +793,7 @@ function RunDetailsModal({ data, status }: { data: unknown; status?: string }) {
           <section className="rd-section">
             <h3>Provider capabilities</h3>
             <div className="rd-tags">
-              {[...summary.modalities, ...summary.capabilities].map((label) => <span key={label}>{label}</span>)}
+              {dedupeCaps([...summary.modalities, ...summary.capabilities]).map((label) => <span key={label}>{label}</span>)}
             </div>
           </section>
         )}

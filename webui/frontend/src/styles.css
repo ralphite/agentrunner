@@ -2120,7 +2120,10 @@ summary.fd-head:hover {
   bottom: calc(100% + 6px);
 }
 .cx-home .cx-slash {
-  top: calc(100% + 6px);
+  /* FB-1: the home composer is pinned to the viewport bottom (QA-45), so a
+     downward menu fell entirely below the fold — open upward like the
+     session variant. */
+  bottom: calc(100% + 6px);
 }
 .cx-slash-hd {
   font-size: 11px;
