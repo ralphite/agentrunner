@@ -39,3 +39,11 @@ rev1 §C：CommandAnswer 四触点、走 WaitInput 非 approval broker）。
 ## review 裁决
 
 设计已过契约 review（INC-44 rev1），实施轮不重复。
+
+---
+
+## 执行记录·步1（2026-07-11）
+
+模型侧+协议+CLI 全落，双闸门全绿（真 Gemini typed 复述 + skip 自主
+决策，qa/runs/2026-07-11-INC47）。fold 渲染漏更新被孪生抓出补齐。
+步2（webui 表单卡+撤回按钮）待做——工作纸保留于 increments/。

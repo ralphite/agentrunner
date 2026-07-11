@@ -518,7 +518,7 @@ func (l *Loop) awaitAnswer(ctx context.Context, ds *driveState, appendE AppendFu
 				// The user closed instead of answering: graceful close. The
 				// pending call is paired interrupted so the transcript is
 				// consistent, then the session closes.
-				if err := l.journalAskResolved(appendE, turn, d.CallID, "interrupted", "[interrupted by user]", 0); err != nil {
+				if err := l.journalAskResolved(appendE, turn, d.CallID, "interrupted", "[interrupted by user]", nil, 0); err != nil {
 					return RunResult{}, true, err
 				}
 				if _, err := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
@@ -535,11 +535,35 @@ func (l *Loop) awaitAnswer(ctx context.Context, ds *driveState, appendE AppendFu
 			// The reply answers the question: pair the call, resolve the park.
 			// The reply text is redacted like any journaled input.
 			answer := redact.FromEnv().String(in.Text)
-			if err := l.journalAskResolved(appendE, turn, d.CallID, "answered", answer, in.DeliverySeq); err != nil {
+			if err := l.journalAskResolved(appendE, turn, d.CallID, "answered", answer, nil, in.DeliverySeq); err != nil {
 				return RunResult{}, true, err
 			}
 			if _, err := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
 				Kind: event.WaitInput, Resolution: "answered",
+			}); err != nil {
+				return RunResult{}, true, err
+			}
+			return RunResult{}, false, nil
+		case ans, ok := <-l.Answers:
+			// A structured answer (INC-47): validate against the park's
+			// questions; a bad one is surfaced and the question STANDS.
+			if !ok {
+				l.Answers = nil
+				return RunResult{}, false, nil
+			}
+			resolution, text := "answered", ""
+			if ans.Cancelled {
+				resolution, text = "cancelled", "[skipped by user]"
+			} else if reason := validateAskAnswers(d.Questions, ans.Answers); reason != "" {
+				l.emit(protocol.Event{Kind: protocol.KindError,
+					Text: "answer rejected: " + reason + " — the question still stands"})
+				return RunResult{}, false, nil
+			}
+			if err := l.journalAskResolved(appendE, turn, d.CallID, resolution, text, ans.Answers, ans.CommandSeq); err != nil {
+				return RunResult{}, true, err
+			}
+			if _, err := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
+				Kind: event.WaitInput, Resolution: resolution,
 			}); err != nil {
 				return RunResult{}, true, err
 			}
@@ -579,7 +603,7 @@ func (l *Loop) awaitAnswer(ctx context.Context, ds *driveState, appendE AppendFu
 			}); err != nil {
 				return RunResult{}, true, err
 			}
-			if err := l.journalAskResolved(appendE, turn, d.CallID, "interrupted", "[interrupted by user]", 0); err != nil {
+			if err := l.journalAskResolved(appendE, turn, d.CallID, "interrupted", "[interrupted by user]", nil, 0); err != nil {
 				return RunResult{}, true, err
 			}
 			if _, err := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
@@ -598,7 +622,7 @@ func (l *Loop) awaitAnswer(ctx context.Context, ds *driveState, appendE AppendFu
 			}); err != nil {
 				return RunResult{}, true, err
 			}
-			if err := l.journalAskResolved(cmdAppend, turn, d.CallID, "interrupted", "[interrupted by user]", 0); err != nil {
+			if err := l.journalAskResolved(cmdAppend, turn, d.CallID, "interrupted", "[interrupted by user]", nil, 0); err != nil {
 				return RunResult{}, true, err
 			}
 			if _, err := cmdAppend(event.TypeWaitingResolved, &event.WaitingResolved{
@@ -611,4 +635,41 @@ func (l *Loop) awaitAnswer(ctx context.Context, ds *driveState, appendE AppendFu
 			return RunResult{}, true, context.Cause(ctx)
 		}
 	}
+}
+
+// validateAskAnswers checks a structured reply against the park's questions
+// (INC-47). "" = valid. A legacy single-question park has no structure to
+// answer against — reply with a plain message instead.
+func validateAskAnswers(questions []event.AskQuestion, answers []event.AskAnswer) string {
+	if len(questions) == 0 {
+		return "this ask has no structured questions; reply with a plain message"
+	}
+	if len(answers) == 0 {
+		return "no answers given"
+	}
+	for _, a := range answers {
+		if a.Question < 0 || a.Question >= len(questions) {
+			return fmt.Sprintf("answer references question %d; this ask has %d", a.Question+1, len(questions))
+		}
+		q := questions[a.Question]
+		if len(a.Selected) > 1 && !q.MultiSelect {
+			return fmt.Sprintf("question %d is single-select", a.Question+1)
+		}
+		labels := map[string]bool{}
+		for _, o := range q.Options {
+			labels[o.Label] = true
+		}
+		for _, sel := range a.Selected {
+			if !labels[sel] {
+				return fmt.Sprintf("question %d has no option %q", a.Question+1, sel)
+			}
+		}
+		if a.Text != "" && len(q.Options) > 0 && !q.AllowFreeText {
+			return fmt.Sprintf("question %d does not accept free text", a.Question+1)
+		}
+		if len(a.Selected) == 0 && a.Text == "" {
+			return fmt.Sprintf("answer to question %d selects nothing and says nothing", a.Question+1)
+		}
+	}
+	return ""
 }

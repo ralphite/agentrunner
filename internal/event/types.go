@@ -300,10 +300,38 @@ type WaitingResolved struct {
 // is the model-visible error text → IsError). DeliverySeq echoes the
 // durable mailbox seq an answered reply consumed (dedup), 0 otherwise.
 type AskResolved struct {
-	CallID      string `json:"call_id"`
-	Resolution  string `json:"resolution"`
-	Answer      string `json:"answer"`
-	DeliverySeq int64  `json:"delivery_seq,omitempty"`
+	CallID     string `json:"call_id"`
+	Resolution string `json:"resolution"`
+	Answer     string `json:"answer"`
+	// Answers is the structured form (INC-47): per-question selections from
+	// a questions[] ask. Answer stays as the free-text/legacy projection.
+	Answers     []AskAnswer `json:"answers,omitempty"`
+	DeliverySeq int64       `json:"delivery_seq,omitempty"`
+}
+
+// ---- INC-47: structured ask (HANDA #7 / CLAUDECODE #10) ----
+
+// AskOption is one selectable choice of a structured ask question.
+type AskOption struct {
+	Label       string `json:"label"`
+	Description string `json:"description,omitempty"`
+}
+
+// AskQuestion is one question of a structured ask_user call. No options =
+// a free-text question; MultiSelect allows several selections.
+type AskQuestion struct {
+	Question      string      `json:"question"`
+	Options       []AskOption `json:"options,omitempty"`
+	MultiSelect   bool        `json:"multi_select,omitempty"`
+	AllowFreeText bool        `json:"allow_free_text,omitempty"`
+}
+
+// AskAnswer answers one question by index: selected option labels and/or
+// free text.
+type AskAnswer struct {
+	Question int      `json:"question"`
+	Selected []string `json:"selected,omitempty"`
+	Text     string   `json:"text,omitempty"`
 }
 
 // ---- INC-D1: in-session goal (G23/UJ-22) ----

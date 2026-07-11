@@ -41,6 +41,9 @@ type Command struct {
 	Session string `json:"session,omitempty"`
 	// unqueue (INC-46): the queued input command to withdraw.
 	TargetCommandID string `json:"target_command_id,omitempty"`
+	// answer (INC-47): structured ask reply.
+	Answers   []event.AskAnswer `json:"answers,omitempty"`
+	Cancelled bool              `json:"cancelled,omitempty"`
 
 	// send
 	Text      string                 `json:"text,omitempty"` // a user message for the session
@@ -125,6 +128,7 @@ type RunRequest struct {
 	CommandInterrupts <-chan protocol.CommandRef
 	CommandCancels    <-chan protocol.CancelCommand
 	Revokes           <-chan protocol.Revoke
+	Answers           <-chan protocol.AnswerCommand
 }
 
 // RunFunc hosts one run to completion, emitting output events to sink. The
@@ -143,6 +147,7 @@ type ResumeRequest struct {
 	CommandInterrupts <-chan protocol.CommandRef
 	CommandCancels    <-chan protocol.CancelCommand
 	Revokes           <-chan protocol.Revoke
+	Answers           <-chan protocol.AnswerCommand
 }
 
 // DriveRequest is a hosted IterationDriver series (S6 完成标志①: a series
@@ -268,7 +273,9 @@ type hostedRun struct {
 	commandCancels    chan protocol.CancelCommand
 	// revokes delivers queued-input withdrawals (INC-46): the loop keeps a
 	// revoked-target set and consumes matching inputs as InputRevoked.
-	revokes         chan protocol.Revoke
+	revokes chan protocol.Revoke
+	// answers delivers structured ask replies (INC-47) to the parked loop.
+	answers         chan protocol.AnswerCommand
 	pendingCommands []protocol.SessionCommand
 	postedCommands  map[string]struct{}
 	commandWake     chan struct{}
@@ -296,6 +303,7 @@ func newHostedRun(id string, notify func(protocol.Event), interactive bool) *hos
 	h.commandInterrupts = make(chan protocol.CommandRef, 1)
 	h.commandCancels = make(chan protocol.CancelCommand, 8)
 	h.revokes = make(chan protocol.Revoke, 8)
+	h.answers = make(chan protocol.AnswerCommand, 4)
 	h.commandWake = make(chan struct{}, 1)
 	h.commandStop = make(chan struct{})
 	h.postedCommands = map[string]struct{}{}
@@ -335,6 +343,7 @@ func (h *hostedRun) pumpCommands() {
 		interrupts := h.commandInterrupts
 		cancels := h.commandCancels
 		revokes := h.revokes
+		answers := h.answers
 		answerApproval := h.answerApproval
 		h.mu.Unlock()
 
@@ -370,6 +379,17 @@ func (h *hostedRun) pumpCommands() {
 			}
 			select {
 			case revokes <- *cmd.Revoke:
+				delivered = true
+			case <-stop:
+				return
+			}
+		case protocol.CommandAnswer:
+			if cmd.Answer == nil {
+				delivered = true
+				break
+			}
+			select {
+			case answers <- *cmd.Answer:
 				delivered = true
 			case <-stop:
 				return
@@ -749,6 +769,8 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		s.handleKill(ctx, cmd, enc)
 	case "unqueue":
 		s.handleUnqueue(ctx, cmd, enc)
+	case "answer":
+		s.handleAnswer(ctx, cmd, enc)
 	case "agent":
 		s.handleAgent(cmd, enc)
 	default:
@@ -911,6 +933,31 @@ func (s *Server) handleUnqueue(ctx context.Context, cmd Command, enc *json.Encod
 	}
 	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Session: cmd.Session,
 		Text: "unqueue delivered for " + cmd.TargetCommandID + " (a no-op if already processed)"})
+}
+
+// handleAnswer delivers a structured ask reply (INC-47): durable like any
+// command, routed to the parked loop's Answers channel — the awaitAnswer
+// resolver pairs it as the pending call's tool result (WaitInput family,
+// NOT the approval broker).
+func (s *Server) handleAnswer(ctx context.Context, cmd Command, enc *json.Encoder) {
+	if cmd.Session == "" || (len(cmd.Answers) == 0 && !cmd.Cancelled) {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "answer needs session and answers (or --skip)"})
+		return
+	}
+	_, delivered, err := s.acceptAndDeliver(ctx, cmd.Session, cmd.CommandID, attributedCommand(cmd, protocol.SessionCommand{
+		Kind: protocol.CommandAnswer, Answer: &protocol.AnswerCommand{Answers: cmd.Answers, Cancelled: cmd.Cancelled},
+	}), func(h *hostedRun, accepted protocol.SessionCommand) bool { return h.postCommand(accepted) })
+	if err != nil {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "answer not accepted: " + err.Error()})
+		return
+	}
+	if !delivered {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Session: cmd.Session,
+			Text: "answer recorded; it applies when the session next runs"})
+		return
+	}
+	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Session: cmd.Session,
+		Text: "answer delivered"})
 }
 
 // handleAgent prepares an agent switch (决策 #32): it tears the hosted
@@ -1403,7 +1450,7 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 			Workspace: cmd.Workspace, Mode: cmd.Mode,
 			Inbox: hub.inbox, Interrupts: hub.interrupts, Cancels: hub.cancels,
 			Controls: hub.controls, CommandInterrupts: hub.commandInterrupts,
-			CommandCancels: hub.commandCancels, Revokes: hub.revokes,
+			CommandCancels: hub.commandCancels, Revokes: hub.revokes, Answers: hub.answers,
 		}, hub); err != nil {
 			hub.Emit(protocol.Event{Kind: protocol.KindError, Text: "run failed: " + err.Error()})
 		}

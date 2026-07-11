@@ -908,16 +908,27 @@ func Apply(s State, env event.Envelope) (State, error) {
 			s.Session.ConsumedInputSeq = p.DeliverySeq
 		}
 		var result json.RawMessage
-		if p.Resolution == "answered" {
+		switch {
+		case len(p.Answers) > 0:
+			// Structured reply (INC-47): the typed selections ARE the result.
+			result, _ = json.Marshal(map[string]any{"answers": p.Answers})
+			s.Session.LastInputGenStep = s.Session.GenStep
+		case p.Resolution == "answered":
 			result, _ = json.Marshal(map[string]string{"answer": p.Answer})
 			// The reply is fresh user input: grant it a turn so decide()
 			// continues instead of truncating against the pre-ask baseline.
 			s.Session.LastInputGenStep = s.Session.GenStep
-		} else {
+		case p.Resolution == "cancelled":
+			// An explicit skip (INC-47) is an answer of sorts: the model
+			// learns the user declined and continues — not an error.
+			result, _ = json.Marshal(map[string]any{"cancelled": true,
+				"note": "the user skipped the question; decide reasonably and continue"})
+			s.Session.LastInputGenStep = s.Session.GenStep
+		default:
 			result, _ = json.Marshal(p.Answer)
 		}
 		s.Conversation = s.Conversation.withToolResult(p.CallID,
-			ToolResult{Result: result, IsError: p.Resolution != "answered"})
+			ToolResult{Result: result, IsError: p.Resolution != "answered" && p.Resolution != "cancelled"})
 
 	case *event.EffectRequested:
 		s.Effects = s.Effects.withPending(p.EffectID, *p)

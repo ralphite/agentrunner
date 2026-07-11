@@ -97,6 +97,9 @@ type Loop struct {
 	// drainRevokes. Not journaled: the durable truths are the revoke command
 	// in the inbox and the InputRevoked event once consumed.
 	revokedTargets map[string]bool
+	// Answers delivers structured ask replies (INC-47): awaitAnswer pairs a
+	// valid one as the parked call's tool result. nil = no source wired.
+	Answers <-chan protocol.AnswerCommand
 	// Mode is the STARTING mode (3.6): journaled as the first ModeChanged.
 	// The live mode is fold state; empty means "default".
 	Mode string
@@ -730,6 +733,32 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 		}
 	}
 	for _, c := range replayCmds {
+		// A pending structured answer (INC-47) pairs the parked call exactly
+		// as awaitAnswer's channel branch would; late/duplicate ones no-op
+		// (the park is gone once resolved).
+		if c.Kind == protocol.CommandAnswer && c.Answer != nil {
+			if ds.s.Waiting != nil && ds.s.Waiting.Kind == event.WaitInput {
+				if d, ok := askPark(ds.s.Waiting.Detail); ok {
+					if _, done := ds.s.Conversation.ToolResults[d.CallID]; !done {
+						resolution, text := "answered", ""
+						if c.Answer.Cancelled {
+							resolution, text = "cancelled", "[skipped by user]"
+						} else if reason := validateAskAnswers(d.Questions, c.Answer.Answers); reason != "" {
+							continue // invalid on replay: leave the park standing
+						}
+						if err := l.journalAskResolved(appendE, ds.s.Session.GenStep, d.CallID, resolution, text, c.Answer.Answers, c.CommandSeq); err != nil {
+							return RunResult{}, err
+						}
+						if _, err := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
+							Kind: event.WaitInput, Resolution: resolution,
+						}); err != nil {
+							return RunResult{}, err
+						}
+					}
+				}
+			}
+			continue
+		}
 		if c.Kind != protocol.CommandInput || c.Input == nil {
 			continue
 		}
@@ -755,7 +784,7 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 			if d, ok := askPark(ds.s.Waiting.Detail); ok {
 				if _, done := ds.s.Conversation.ToolResults[d.CallID]; !done {
 					answer := redact.FromEnv().String(in.Text)
-					if err := l.journalAskResolved(appendE, ds.s.Session.GenStep, d.CallID, "answered", answer, in.DeliverySeq); err != nil {
+					if err := l.journalAskResolved(appendE, ds.s.Session.GenStep, d.CallID, "answered", answer, nil, in.DeliverySeq); err != nil {
 						return RunResult{}, err
 					}
 					if _, err := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
@@ -1662,7 +1691,7 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 			if askCall == nil {
 				askCall = &allowed[i].call
 			} else if err := l.journalAskResolved(serialAppend, act.turn, p.call.CallID, "rejected",
-				"only one ask_user question per turn; ask again after this one is answered", 0); err != nil {
+				"only one ask_user question per turn; ask again after this one is answered", nil, 0); err != nil {
 				stopInt()
 				return abort(act.turn, err)
 			}
@@ -1846,7 +1875,7 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 		// the ask_user call carries a result (provider contract) and the model
 		// sees it was cut off. Pair it BEFORE the turn-ending seam.
 		if askCall != nil {
-			if err := l.journalAskResolved(interruptAppend, act.turn, askCall.CallID, "interrupted", "[interrupted by user]", 0); err != nil {
+			if err := l.journalAskResolved(interruptAppend, act.turn, askCall.CallID, "interrupted", "[interrupted by user]", nil, 0); err != nil {
 				return abort(act.turn, err)
 			}
 		}
@@ -1876,21 +1905,27 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 // "answered" (text is the reply), "interrupted", or "rejected" (text is the
 // model-visible error). seq is the consumed mailbox seq for an answer, 0
 // otherwise. It also emits the surface tool-result event.
-func (l *Loop) journalAskResolved(appendE AppendFunc, turn int, callID, resolution, text string, seq int64) error {
+func (l *Loop) journalAskResolved(appendE AppendFunc, turn int, callID, resolution, text string, answers []event.AskAnswer, seq int64) error {
 	_, err := appendE(event.TypeAskResolved, &event.AskResolved{
-		CallID: callID, Resolution: resolution, Answer: text, DeliverySeq: seq,
+		CallID: callID, Resolution: resolution, Answer: text, Answers: answers, DeliverySeq: seq,
 	})
 	if err != nil {
 		return err
 	}
 	var payload json.RawMessage
-	if resolution == "answered" {
+	switch {
+	case len(answers) > 0:
+		payload, _ = json.Marshal(map[string]any{"answers": answers})
+	case resolution == "cancelled":
+		payload, _ = json.Marshal(map[string]any{"cancelled": true, "note": "the user skipped the question; decide reasonably and continue"})
+	case resolution == "answered":
 		payload, _ = json.Marshal(map[string]string{"answer": text})
-	} else {
+	default:
 		payload, _ = json.Marshal(text)
 	}
 	l.emit(protocol.Event{Kind: protocol.KindToolResult, N: turn,
-		Tool: "ask_user", CallID: callID, Result: compact(payload), IsError: resolution != "answered"})
+		Tool: "ask_user", CallID: callID, Result: compact(payload),
+		IsError: resolution != "answered" && resolution != "cancelled"})
 	return nil
 }
 
@@ -1898,10 +1933,28 @@ func (l *Loop) journalAskResolved(appendE AppendFunc, turn int, callID, resoluti
 // so a resumed run re-parks on the same pending call.
 func (l *Loop) parkOnAsk(appendE AppendFunc, turn int, call provider.ToolCall) error {
 	var q struct {
-		Question string `json:"question"`
+		Question  string              `json:"question"`
+		Questions []event.AskQuestion `json:"questions"`
 	}
 	_ = json.Unmarshal(call.Args, &q)
-	detail, err := json.Marshal(askDetail{CallID: call.CallID, Question: q.Question})
+	// Structured form validation (INC-47): a malformed questions[] is a
+	// model-visible rejection, never a park the user cannot answer.
+	if len(q.Questions) > 0 {
+		if reason := validateAskQuestions(q.Questions, q.Question); reason != "" {
+			return l.journalAskResolved(appendE, turn, call.CallID, "rejected", reason, nil, 0)
+		}
+	} else if strings.TrimSpace(q.Question) == "" {
+		return l.journalAskResolved(appendE, turn, call.CallID, "rejected",
+			"ask_user needs a question or questions[]", nil, 0)
+	}
+	summary := q.Question
+	if len(q.Questions) > 0 {
+		summary = q.Questions[0].Question
+		if len(q.Questions) > 1 {
+			summary += fmt.Sprintf(" (+%d more)", len(q.Questions)-1)
+		}
+	}
+	detail, err := json.Marshal(askDetail{CallID: call.CallID, Question: summary, Questions: q.Questions})
 	if err != nil {
 		return err
 	}
@@ -1911,8 +1964,37 @@ func (l *Loop) parkOnAsk(appendE AppendFunc, turn int, call provider.ToolCall) e
 		return err
 	}
 	l.emit(protocol.Event{Kind: protocol.KindMessage, N: turn,
-		Text: "waiting for your answer: " + q.Question})
+		Text: "waiting for your answer: " + summary})
 	return nil
+}
+
+// validateAskQuestions enforces the structured-ask shape (INC-47): 1–4
+// questions; a question with options has 2–4 of them, each with a label;
+// multi_select requires options. "" = valid.
+func validateAskQuestions(qs []event.AskQuestion, single string) string {
+	if single != "" {
+		return "use either question or questions[], not both"
+	}
+	if len(qs) > 4 {
+		return fmt.Sprintf("at most 4 questions per ask (got %d)", len(qs))
+	}
+	for i, q := range qs {
+		if strings.TrimSpace(q.Question) == "" {
+			return fmt.Sprintf("question %d is empty", i+1)
+		}
+		if n := len(q.Options); n == 1 || n > 4 {
+			return fmt.Sprintf("question %d needs 2–4 options (got %d)", i+1, n)
+		}
+		for j, o := range q.Options {
+			if strings.TrimSpace(o.Label) == "" {
+				return fmt.Sprintf("question %d option %d has no label", i+1, j+1)
+			}
+		}
+		if q.MultiSelect && len(q.Options) == 0 {
+			return fmt.Sprintf("question %d: multi_select needs options", i+1)
+		}
+	}
+	return ""
 }
 
 // askDetail is the WaitingEntered payload for an ask_user park: the call to
@@ -1920,6 +2002,9 @@ func (l *Loop) parkOnAsk(appendE AppendFunc, turn int, call provider.ToolCall) e
 type askDetail struct {
 	CallID   string `json:"call_id"`
 	Question string `json:"question"`
+	// Questions is the structured form (INC-47); empty = legacy single
+	// free-text question.
+	Questions []event.AskQuestion `json:"questions,omitempty"`
 }
 
 // askPark decodes an ask_user park's detail; ok=false for a plain standby

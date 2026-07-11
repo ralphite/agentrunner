@@ -261,6 +261,11 @@ func commandPayloadHash(cmd protocol.SessionCommand) ([32]byte, error) {
 		copy.CommandRef = protocol.CommandRef{}
 		cmd.Revoke = &copy
 	}
+	if cmd.Answer != nil {
+		copy := *cmd.Answer
+		copy.CommandRef = protocol.CommandRef{}
+		cmd.Answer = &copy
+	}
 	raw, err := json.Marshal(cmd)
 	if err != nil {
 		return [32]byte{}, err
@@ -305,6 +310,10 @@ func validateCommand(cmd protocol.SessionCommand) error {
 	case protocol.CommandRevoke:
 		if cmd.Revoke == nil || cmd.Revoke.TargetCommandID == "" {
 			return fmt.Errorf("inbox: revoke command missing target_command_id")
+		}
+	case protocol.CommandAnswer:
+		if cmd.Answer == nil || (len(cmd.Answer.Answers) == 0 && !cmd.Answer.Cancelled) {
+			return fmt.Errorf("inbox: answer command needs answers or cancelled")
 		}
 	default:
 		return fmt.Errorf("inbox: unknown command kind %q", cmd.Kind)

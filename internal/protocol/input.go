@@ -130,6 +130,7 @@ type SessionCommand struct {
 	Control            *Control         `json:"control,omitempty"`
 	Approval           *ApprovalCommand `json:"approval,omitempty"`
 	Revoke             *Revoke          `json:"revoke,omitempty"`
+	Answer             *AnswerCommand   `json:"answer,omitempty"`
 	Handle             string           `json:"handle,omitempty"`
 }
 
@@ -141,7 +142,18 @@ const (
 	CommandKill      = "kill"
 	CommandApproval  = "approval"
 	CommandRevoke    = "revoke"
+	CommandAnswer    = "answer"
 )
+
+// AnswerCommand answers a structured ask_user park (INC-47): typed
+// selections per question, or Cancelled for an explicit skip. Like an
+// approval answer it never enters the conversation — it resolves the
+// pending WaitInput park by pairing the call's tool result.
+type AnswerCommand struct {
+	CommandRef
+	Answers   []event.AskAnswer `json:"answers,omitempty"`
+	Cancelled bool              `json:"cancelled,omitempty"`
+}
 
 // Revoke withdraws a QUEUED conversational input before it is consumed
 // (INC-46, §2 rev1). It is as durable as any command; the consume side

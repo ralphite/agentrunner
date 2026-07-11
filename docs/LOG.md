@@ -2920,3 +2920,27 @@ DROPPED 零泄漏、InputRevoked@seq2 在账。归档
 **记档**：被撤命令不产生 CommandHandled 回执——daemon 重启或有一次
 空唤醒，由 seq dedup 静默收敛（§2 条款已列为可接受开销）；webui
 撤回按钮需 send API 返回 command_id，随 #7 webui 批一并做（余项）。
+## 2026-07-11 INC-47.1 结构化 ask_user 步1（HANDA #7 = CLAUDECODE #10）
+
+**落地（模型侧+协议+CLI）**：ask_user def 加 `questions[]`（≤4 问×
+2–4 选项/multi_select/allow_free_text，与单问互斥）；park 前
+`validateAskQuestions`（坏结构=模型可见 rejected 不 park）；park
+detail 携带结构（旧 detail 兼容）。`AskResolved` additive 扩展
+`Answers []AskAnswer`；fold 渲染三态（answers/{"cancelled":true 非
+错}/旧 answer）。`CommandAnswer` 命令四触点齐（validate/hash/pump/
+awaitAnswer typed 分支——校验失败 emit 错误问题仍站立）；resume
+replay 配对 pending answer（在 ask 分支语义内，迟到 no-op）。CLI
+`ar answer <sid> <q>:<choices>|--skip`（本地读 park 结构预校验，
+1-based wire）。
+
+**双闸门**：孪生（park 校验 8 例+应答校验 9 例+crash 重放配对
+TestAnswerCommandPairsAcrossRestart+CLI 解析表）；B=真 Gemini：双问
+结构化提问→`ar answer 1:1 2:2`→模型按 Chinese+Casual 写文件并终答
+"DONE. Your choices were Chinese and Casual."；`--skip`→模型收
+cancelled 自主决策 CHOSE-A-MYSELF。归档 qa/runs/2026-07-11-INC47。
+
+**记档**：首跑模型不调 ask_user——`ar init` 示例 spec 的 tools 未列
+它（QA 侧补列复跑）；示例 spec 是否默认收录 ask_user 留给 init 面
+裁量（未改产品）。fold AskResolved 渲染曾漏更新（孪生 request-drift
+抓出 {"answer":""}），修齐 answers/cancelled 三态。步2（webui 分步
+表单卡 + send 返回 command_id + queued 撤回按钮）下轮。
