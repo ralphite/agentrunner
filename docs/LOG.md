@@ -2747,3 +2747,20 @@ SPEC ❌→✅ 换真锚、PARITY #56 切换 ✅(差异:我们 plan 退出须审
 bypass 不可 runtime——更严,记档)、GAPS G29 关闭、QA-44 入菜单、UJ-06
 补步骤 5 与覆盖标签、DESIGN §12 control 家族/§3.6 触发器三个/§18.2
 control 行;工作纸归档 archive/increments/。
+## 2026-07-10 深夜 INC-41 批3-B(部分):视觉/结构修复(B2+B3+列宽)
+
+四镜头审查 B 相视觉批,worktree 切片并发。B2(panel+settings)、B3(nav)
+完成合入;B1(composer)/B4(session)因 session 用量限额中途失败,待恢复
+重做。落地:
+- B2:R1-4 Supervision GOAL 显已完成 goal(不再"No active goal"自相矛盾)、
+  R2-6 AGENTS 空态补图标、R2-12 中性态改 dim 色、R2-8 Reset 按钮 auto 宽、
+  R2-11 git textarea 隐藏原生 resize 手柄。
+- B3:R2-3 sidebar 选中态统一 accent、R3-1 右键菜单抑制 hover 预览卡、
+  R2-10/R3-7 预览卡显全标题、R3-2 空态语法(去 "No all work")、R3-11
+  cmdk 空态盒收紧、R2-9 移动端 New schedule 单行。
+- R1-1(半)正文列宽:4 处 860→720 统一(tl-inner+composer card+状态行),
+  text/cards/composer 对齐到 Codex 阅读测度 720。
+基线已同步到 origin Tailwind(c56238c);R1-5 权限 pill 由并发 INC-42.3
+已做,从清单划掉。整树 92 vitest 绿、tsc/build/go build 绿、全表面 sweep
+console 0。B1/B4 余项(composer R2-1/2/4/R3-8、session R4-5/10/11/R3-5/6/9)
++ 结构 C(R1-2 Changes split/R1-3 面板默认)续做。
