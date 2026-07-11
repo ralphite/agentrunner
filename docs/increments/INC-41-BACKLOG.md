@@ -708,5 +708,8 @@ R4-11 空会话空态、R2-1 box-shadow 暗色。
   build 重新达成**(454 会话真触 progressive、390 responsive 不塌、19 面抽查
   console 0);顺手收其唯一 P3=FC-1(深链前缀泄漏)主线亲手修+真验。
   build 前补 `npm install`(jsdom 缺,并发改 package.json 后未装,memory 前科)
-  →14 文件/134 vitest 绿。push=本 commit;live=index-vDlkgc7S.js。**四判据齐,
-  达终局,停循环。**
+  →14 文件/134 vitest 绿。FC-1 产新 build vDlkgc7S 后,对**实际 live** 重跑
+  panorama.py 全景(19 面×light/dark×1440/390)→ error/warning/navfail 全 0、
+  主题 19/19 一致(证据 qa/runs/2026-07-11-QA43-endgame/panorama-vDlkgc7S.txt),
+  判据 3 对 vDlkgc7S 亦达成。push=081e4e5+本 commit;live=index-vDlkgc7S.js。
+  **四判据对当前 live 全齐,达终局,停循环(bootout headless timer)。**
