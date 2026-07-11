@@ -1,8 +1,8 @@
 # INC-44 命令面设计单元「命令身份·撤销·应答」（HANDA 2U：#16/#29/#7）
 
-**状态：📐 设计稿（awaiting contract review）——#29 触 DESIGN §2 铁律，
-按 PROCESS §四本纸先裁后码；#16/#7 与其共用协议/消费面，随单元一并
-定稿、分步落地。**
+**状态：✅ 设计定稿（2026-07-11 契约 review「修订后放行」，rev1 已
+吸收全部前置条件——见 §review 记录）。#29 触 DESIGN §2 铁律，实施时
+DESIGN 修订与实现同 commit（PROCESS §四）。**
 
 ## 动机与 journey 锚
 
@@ -35,16 +35,28 @@
 1. **协议**：新命令种类 `CommandRevoke = "revoke"`，载荷
    `Revoke{TargetCommandID string}`。与其它命令同 durable
    （AppendCommand fsync-then-ack、幂等、跨 restart 重放）。
-2. **daemon 前置校验（尽早拒绝，不落无效账）**：目标 command_id 不
-   存在 / 种类非 `input` / 已消费（target seq ≤ 当前 fold 的
-   ConsumedInputSeq）→ 同步报错不落账（"already being processed"）。
+2. **daemon 前置校验（rev1：UX 优化非安全边界）**：目标 command_id
+   不存在 / 种类非 `input` / 已消费 → 同步报错不落账（"already
+   being processed"）。已消费判定复用 pendingApproval 式**全量
+   ReadEvents+Fold**（daemon 不持有 live fold）；在飞输入的 TOCTOU
+   窗由 §A.3 消费守卫兜底——本校验只为尽早拒绝。
    interrupt/approval/close/kill/control 永不可撤。
-3. **消费守卫（校验-消费竞态窗）**：消费循环把 pending 命令按 seq
-   排序配对——`input` 命令若其后存在指向它的 `revoke` 且自身尚未
-   消费 → **跳过对话注入、照常推进 ConsumedInputSeq**
-   （consumed-as-revoked），并 journal `InputRevoked{TargetCommandID}`
-   （additive 事件，审计+webui"已撤回"显示）；revoke 晚于消费到达
-   → no-op（复用迟到审批 no-op 先例，DESIGN §430/640 同族）。
+3. **消费守卫（rev1，照抄 AskResolved 三件套）**：live 稳态的消费
+   是 channel 逐条（daemon pump 逐条 forward、loop drainQueued/
+   awaitInput 读 `UserInputs` channel），**不存在**"pending 批按 seq
+   配对"——机制改为：
+   - revoke 经 pump 进 loop 的专用通道，loop 维护 **revoked-target
+     集**；`journalInput` 消费每条输入前查集，命中 → **落
+     `InputRevoked{TargetCommandID, DeliverySeq}`**（带被撤输入的
+     DeliverySeq！）而非 InputReceived；
+   - **fold 加 `InputRevoked` 分支推进 `ConsumedInputSeq`**（镜像
+     state.go AskResolved 分支——"消费了一条输入但不落
+     InputReceived 仍推 high-water"的既有模板）；
+   - **resume mailbox 重放**（loop.go:702 唯一按 seq 读 inbox 文件
+     的点）改读 `ReadCommands`（或先建 revoked 集再滤），不再用只
+     滤 input 的 `ReadInbox`——重放先跳被撤再注入；
+   - revoke 晚于消费（目标已落 InputReceived）→ no-op（迟到审批
+     先例 DESIGN §437-438 同族）。
 4. **幂等**：重复 revoke 同目标（新 command_id）在 daemon 校验处
    遇"目标已撤/已消费"报错或 no-op，皆无害。
 5. **UI**：webui queued 气泡加 撤回 / 编辑（=撤回+预填 composer
@@ -77,7 +89,9 @@
   原样），组装标准 send；**command_id 派生**：
   `retry:<原 command_id>`——同目标重复点击被 AppendCommand 幂等
   去重；retry 产生的命令有自己的 id，其失败后的再 retry 目标不同，
-  天然可链（review B5 两难的解）。
+  天然可链（review B5 两难的解）。**rev1 硬约束：重组必须是纯函数
+  ——逐字节复现原载荷、禁注入 TurnID/ItemID 等易变字段**
+  （commandPayloadHash 不清这些字段，同 id 异 hash 是报错不是幂等）。
 - 仅 session 待命时可用（忙时报错引导用 send/interrupt）；webui
   失败 turn 加 Retry 按钮（走同一 CLI 包装）。
 - 附件：journal ref 直接复用（CAS blob 同 session 在盘），组装侧
@@ -92,10 +106,14 @@
 2. **事件**：`AskResolved` 载荷 additive 扩展
    `Answers []AskAnswer{Question int, Selected []string, Text string}`
    （旧 `Answer string` 保留=自由文本兼容形）。
-3. **应答通道**：新命令种类 `CommandAnswer`（approval 同族的 park
-   应答类，不进对话）载 typed answers；daemon 动词 `answer` + CLI
-   `ar answer <sid> <q>:<choice>[,...]`；**park 期间自由文本 send 的
-   旧配对路径保留**（headless/旧客户端兼容）。
+3. **应答通道（rev1）**：新命令种类 `CommandAnswer`（park 应答类，
+   不进对话）载 typed answers。**落地四触点缺一不可**：daemon pump
+   switch 加 case（default 会静默丢未知 kind）、`validateCommand`
+   加 case+载荷检查、`commandPayloadHash` 清零其 CommandRef、路由到
+   **ask-park 解析器**（WaitInput + `AskResolved.DeliverySeq` 推
+   high-water 路径——**不是** approval broker，那是 WaitApproval）。
+   daemon 动词 `answer` + CLI `ar answer <sid> <q>:<choice>[,...]`；
+   park 期间自由文本 send 的旧配对路径保留（headless 兼容）。
 4. **webui**：waiting:input 时渲染分步表单卡（问题徽章 x/y、单选
    点击即答、multi_select、Other 自由文本、Skip=cancelled 回传）。
 
@@ -115,7 +133,19 @@
 - C：多问/选项/multi_select/Skip 孪生 + 真 Gemini 结构化提问全流 +
   webui 表单。
 
-## review 裁决
+## review 记录（PROCESS §四，2026-07-11）
 
-**#29 部分按 PROCESS §四必须单独契约 review**（本纸 §A 变更单）；
-B/C 为 additive，随单元一并送审。review 通过前不动代码。
+独立契约 review（子 agent，对照 DESIGN §2 原文+inbox/loop/daemon 代码
+取证）裁决：**§A 修订后放行；§B/§C 确认 additive**。BLOCKER×2 +
+MAJOR×3 已全部吸收为本纸 rev1：
+1. B1：InputRevoked 原设计不带 DeliverySeq、fold 无分支 → resume 重放
+   会把撤回翻案（ReadInbox 只滤 input 看不到 revoke）——rev1 改为
+   AskResolved 三件套（事件带 seq/fold 推 high-water/重放改读
+   ReadCommands）。
+2. B2："pending 批按 seq 配对"是 resume 才有的形态，live 是 channel
+   逐条——rev1 改为 revoked-target 集 + journalInput 前查集。
+3. M1：daemon 前置校验=全量重折 journal 的 UX 优化，非安全边界。
+4. M2：retry 重组必须纯函数（异 hash 是报错不是幂等）。
+5. M3：CommandAnswer 四触点（pump/validate/hash/park 路由），走
+   WaitInput 非 approval broker。
+四性复核：不乱序/accepted 达标；不丢与重放收敛由 rev1 三件套补齐。

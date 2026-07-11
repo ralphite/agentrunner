@@ -36,7 +36,7 @@
 
 | # | 项 | 规模 | 状态 | 备注 |
 |---|---|---|---|---|
-| 2U | 「命令身份·撤销·应答」统一设计单元（covers #16/#29/#7） | M(设计) | 📐 awaiting-review (INC-44) | 设计纸+#29 §四变更单已出，送契约 review |
+| 2U | 「命令身份·撤销·应答」统一设计单元（covers #16/#29/#7） | M(设计) | ✅ done (INC-44 rev1) | 契约 review「修订后放行」，B1/B2/M1-3 已吸收（AskResolved 三件套/revoked 集/纯函数 retry/CommandAnswer 四触点）；#16/#29/#7 解锁 |
 | 16 | turn retry（派生 command_id `retry:<turn-id>`） | S | ⬜ | 依赖 2U |
 | 29 | 排队消息撤销（durable revoke 五点语义） | M | ⬜ | 依赖 2U；触 §2 铁律走 §四 |
 | 7 | 结构化 ask_user（typed AskResolved + ar answer + 表单卡） | M | ⬜ | 依赖 2U；= CC SPRINT #10 联动 |
@@ -75,3 +75,4 @@
 | 4 | 2026-07-10 | #10 notify 门 (INC-39) | ✅ 双闸门全绿（矩阵 10 例 + 真 Gemini 双场景：none 零回流零多余 turn / on_fail 复述 exit 3，qa/runs/2026-07-10-INC39）；范围二次缩水（结构化载荷已存在）；--state 断言方法记档 | (见 push) |
 | 5 | 2026-07-11 | #11 artifact 消费面 (INC-40) | ✅ 双闸门全绿（孪生 3 组含分页 rune 重组/orphan 不漏 + 真 Gemini 全链 READBACK 逐字命中 + CLI 表格/read + webui Artifacts 区/查看器 DOM 断言，qa/runs/2026-07-11-INC40）；模型自发用 progress_update（INC-37 采用佐证） | (见 push) |
 | 6 | 2026-07-11 | #31 运行统计 stats (INC-43) | ✅ 双闸门全绿（孪生：delta 四类+聚合重叠合并+静止不计 + 真 Gemini：+6/−1 与实际操作交叉验证吻合，qa/runs/2026-07-11-INC43）；**批 1 六项全清** | (见 push) |
+| 7 | 2026-07-11 | 2U 命令面设计单元 (INC-44) | ✅ 设计定稿：统一设计纸+#29 §2 变更单 → 独立契约 review「修订后放行」（B1 InputRevoked 需 DeliverySeq+fold 分支+重放改读 ReadCommands；B2 live 是 channel 逐条需 revoked 集；M1-3）→ rev1 全吸收；#16/#29/#7 解锁待实施 | (见 push) |

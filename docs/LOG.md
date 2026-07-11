@@ -2764,3 +2764,27 @@ control 行;工作纸归档 archive/increments/。
 已做,从清单划掉。整树 92 vitest 绿、tsc/build/go build 绿、全表面 sweep
 console 0。B1/B4 余项(composer R2-1/2/4/R3-8、session R4-5/10/11/R3-5/6/9)
 + 结构 C(R1-2 Changes split/R1-3 面板默认)续做。
+
+## 2026-07-11 INC-44 命令面设计单元定稿（HANDA 2U，PROCESS §四）
+
+**产出**：#16 retry / #29 unqueue / #7 结构化 ask 应答的统一设计纸
+（三项同改 protocol/daemon-pump/消费面，一次设计分三步落地）+ #29 的
+DESIGN §2 变更单。独立契约 review（对照 §2 原文+inbox/loop/daemon
+代码取证）裁决**修订后放行**，rev1 全部吸收：
+
+- **B1（关键洞）**：原设计 `InputRevoked{TargetCommandID}` 不带
+  DeliverySeq、fold 无分支——ConsumedInputSeq 不推进，resume 重放
+  （ReadInbox 只滤 input、看不到 revoke）会把撤回**翻案重注入**。
+  修：AskResolved 三件套模板——事件带被撤 DeliverySeq、fold 分支推
+  high-water、resume 重放改读 ReadCommands 先跳被撤。
+- **B2**：live 消费是 daemon pump 逐条 forward + loop channel 逐条
+  读，"pending 批按 seq 配对"只在 resume 存在。修：revoke 专用通道
+  + loop revoked-target 集 + journalInput 消费前查集。
+- M1 daemon 前置校验=全量重折 journal 的 UX 优化非安全边界；M2
+  retry 重组必须纯函数（commandPayloadHash 不清 TurnID 等，异 hash
+  是报错非幂等）；M3 CommandAnswer 四触点（pump switch/validate/
+  hash/park 路由走 WaitInput 非 approval broker）。
+
+四性复核：不乱序（seq 单调）/确认即 accepted 达标；不丢与重放收敛
+由三件套补齐。**实施顺序 #16→#29→#7**；#29 实施时 DESIGN §2 修订与
+实现同 commit。设计纸留 docs/increments/（实施完随步归档）。
