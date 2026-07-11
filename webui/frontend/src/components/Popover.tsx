@@ -113,7 +113,16 @@ export function Popover({
         <div
           className={`pop-panel pop-${align} pop-${drop} ${panelClass}`}
           role="menu"
-          style={{ maxHeight: maxH, marginLeft: xShift || undefined }}
+          style={{
+            maxHeight: maxH,
+            // Keep the panel on-screen. `marginLeft` only moves a left-anchored
+            // panel; a right-anchored one (align="right" — e.g. the model menu on
+            // a narrow viewport) has `left:auto`, so margin-left is ignored and
+            // the correction silently no-ops, clipping the panel off the left
+            // edge. Nudge it with `marginRight` (opposite sign) instead.
+            marginLeft: align === "left" ? xShift || undefined : undefined,
+            marginRight: align === "right" && xShift ? -xShift : undefined,
+          }}
         >
           {children(close)}
         </div>
