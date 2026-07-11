@@ -152,6 +152,7 @@ const (
 	ControlCompact    = "compact"
 	ControlClear      = "clear"
 	ControlRemember   = "remember"
+	ControlMode       = "mode"
 	ControlGoalAttach = "goal_attach"
 	ControlGoalPause  = "goal_pause"
 	ControlGoalResume = "goal_resume"

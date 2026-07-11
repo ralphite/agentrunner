@@ -327,6 +327,10 @@ func (l *Loop) drainControls(ctx context.Context, ds *driveState, appendE Append
 			if err := l.remember(ds, ctlAppend, ctl.Directive); err != nil {
 				return err
 			}
+		case protocol.ControlMode:
+			if err := l.applyModeControl(ds, ctlAppend, ctl); err != nil {
+				return err
+			}
 		}
 		if ctl.CommandID != "" && ds.lastID == before {
 			if _, err := ctlAppend(event.TypeCommandHandled, &event.CommandHandled{
