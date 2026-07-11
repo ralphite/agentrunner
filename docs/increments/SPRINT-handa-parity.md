@@ -36,7 +36,7 @@
 
 | # | 项 | 规模 | 状态 | 备注 |
 |---|---|---|---|---|
-| 2U | 「命令身份·撤销·应答」统一设计单元（covers #16/#29/#7） | M(设计) | ⬜ | 三项同改 protocol/daemon-dispatch/消费侧，先设计后分步 |
+| 2U | 「命令身份·撤销·应答」统一设计单元（covers #16/#29/#7） | M(设计) | 📐 awaiting-review (INC-44) | 设计纸+#29 §四变更单已出，送契约 review |
 | 16 | turn retry（派生 command_id `retry:<turn-id>`） | S | ⬜ | 依赖 2U |
 | 29 | 排队消息撤销（durable revoke 五点语义） | M | ⬜ | 依赖 2U；触 §2 铁律走 §四 |
 | 7 | 结构化 ask_user（typed AskResolved + ar answer + 表单卡） | M | ⬜ | 依赖 2U；= CC SPRINT #10 联动 |
