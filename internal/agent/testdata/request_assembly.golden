@@ -79,6 +79,8 @@
             "call_id": "call_1_1",
             "tool_name": "edit_file",
             "result": {
+              "lines_added": 1,
+              "lines_removed": 1,
               "output": "edited greet.txt"
             }
           }

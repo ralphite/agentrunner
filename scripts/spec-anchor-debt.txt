@@ -10,7 +10,6 @@ attach/detach（journal 补读 + live 订阅）
 best-of-N（隔离 worktree、per-attempt 判定、胜者留盘）
 daemon 托管（socket、run idem_key + session command_id 幂等、优雅停机）
 driver-goal（批式/headless，verifier 三态、停滞检测、carry；fresh child run）
-events / inspect（时间线、判定、子树、用量）
 fork（单创世、处置向量落实、随行库复制、独立 worktree）
 handoff（`handoff_agent`）/ blackboard（`publish_note`/`read_notes`）
 hooks（pre/post，observe+block）
