@@ -769,7 +769,14 @@ INC-42 已通链路的**新点击入口**——pill 由只读 badge 变为 Popov
 **通过标准**：切换走与 `/mode` 同一条 `ControlMode` durable command（chip/
 文件/审批为事实锚，不钉模型措辞）；disabled 档不可 runtime 进入；被拒切换
 落 rejected receipt chip（用户可见）。
-**结果**：待真机复验填充。
+**结果（2026-07-11）**：PASS。共享 daemon（含 INC-42）+ 真 Gemini，webui 8809
+（部署版本 `8d3bd60-010922`）强刷后真用户浏览器流。六红线全绿——journal 事实
+`approval_requested`(default) → `mode_changed{acceptEdits,user}`(pill 点击) →
+`edit_file{GAMMA_AUTO}` 无审批(auto-accept) → `mode_changed{default,user}`(pill
+点击) → `approval_requested`(审批回归)；菜单 Full/Plan disabled 带原因、active
+以 ✓ 跟随 live mode、live 未知时诚实 "Access: set by agent spec"。session
+`20260711-081456-ready-8e69` + `20260711-081124-ready-8ef8` 留共享 store，归档
+`qa/runs/2026-07-11-QA-51/`（EVIDENCE.md + 2 份 events + normal.txt.final）。
 
 ## QA-41 Codex 式任务收尾与首屏真相（INC-38,UJ-24）
 
