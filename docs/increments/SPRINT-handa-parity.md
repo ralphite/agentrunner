@@ -46,7 +46,7 @@
 | # | 项 | 规模 | 状态 | 备注 |
 |---|---|---|---|---|
 | 8 | LLM goal judge（llm_call 管线 effect，门控触发，三态） | M/L | ✅ done (INC-48) | 实施双闸门：孪生 4 条（pass/reject 续跑/claim-gated 零调用+budget/crash 复用 verdict）+ 真 Gemini QA-48；DESIGN 决策 #21/§13/glossary 同 commit |
-| E2 | 外部事件唤醒 G14（HTTP ingress + source:machine + untrusted 硬条件） | M | ⬜ | UJ-12 卡死项；HTTP 壳联动 backlog |
+| E2 | 外部事件唤醒 G14（HTTP ingress + source:machine + untrusted 硬条件） | M | 🔧 in-progress (INC-50) | UJ-12 卡死项；HTTP 壳联动 backlog；兑现 INC-D2 设计稿，安全 review 必做（认领 2026-07-11，gallant-kowalevski session） |
 | 28b | cron 跨重启唤醒 + boot sweep（G22） | M | ⬜ | = CC SPRINT #15 联动 |
 
 ### 批 4 · 工具面
