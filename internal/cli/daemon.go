@@ -117,6 +117,8 @@ func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 		},
 		ScanTimers:                 scanSessionTimers,
 		Resume:                     hostResumeFunc(version, stderr, broker),
+		ScanDrives:                 scanDriveSessions,
+		ResumeDrive:                hostResumeDriveFunc(version, stderr, broker),
 		PersistCommand:             persistCommandFunc(),
 		PendingCommands:            pendingCommands,
 		ScanPendingCommandSessions: scanPendingCommandSessions,
@@ -851,115 +853,238 @@ func hostDriveFunc(version string, stderr io.Writer, broker *daemon.ApprovalBrok
 		if err != nil {
 			return err
 		}
-		wsRoot := req.Workspace
-		if wsRoot == "" {
-			wsRoot = "."
-		}
-		ws, err := workspace.New(wsRoot)
+		d, cleanup, err := assembleHostedDriver(ctx, version, req.SpecPath, spec,
+			req.Workspace, req.SessionID, broker, sink, stderr)
 		if err != nil {
 			return err
 		}
-		prov, err := defaultProviderFactory(ctx, spec.Agent.Model.Provider)
-		if err != nil {
-			return err
-		}
+		defer cleanup()
+		_, runErr := d.Run(ctx)
+		return runErr
+	}
+}
+
+// hostResumeDriveFunc is the boot-sweep counterpart of hostDriveFunc (INC-54,
+// G22): it rebuilds the SAME driver assembly from the journal (the spec and
+// workspace root ride DriverStarted, mirroring how hostResumeFunc reconstructs
+// an agent session from SessionStarted) and calls Driver.Resume — whose cron
+// cadence backfills the slots missed while the daemon was down. specPath is
+// unknown after a restart, so sibling sub-specs resolve against builtins/CWD.
+func hostResumeDriveFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker) func(context.Context, daemon.DriveRequest, protocol.Sink) error {
+	return func(ctx context.Context, req daemon.DriveRequest, sink protocol.Sink) error {
 		sessionDir, err := runtime.SessionDir(req.SessionID)
 		if err != nil {
 			return err
 		}
-		dStore, err := store.OpenEventStore(sessionDir)
+		started, err := readDriverStarted(sessionDir)
 		if err != nil {
 			return err
 		}
-		defer func() { _ = dStore.Close() }()
-		artifacts, err := store.OpenArtifactStore(filepath.Join(sessionDir, "artifacts"))
+		if len(started.Spec) == 0 {
+			return fmt.Errorf("drive %s predates resumable metadata", req.SessionID)
+		}
+		var spec driver.DriverSpec
+		if err := json.Unmarshal(started.Spec, &spec); err != nil {
+			return fmt.Errorf("journaled driver spec: %w", err)
+		}
+		d, cleanup, err := assembleHostedDriver(ctx, version, "", &spec,
+			started.WorkspaceRoot, req.SessionID, broker, sink, stderr)
 		if err != nil {
 			return err
 		}
-		approvals := socketApprovals{broker: broker, session: req.SessionID, sink: sink}
-		exec := &tool.Executor{WS: ws, Session: req.SessionID}
-		// Same verifier-adjudication construction as the foreground drive:
-		// user/project rules first, trailing driver-trust allow.
-		verifierPipe, _, err := buildPipeline(ws, []pipeline.PermissionRule{{Action: "allow"}}, "", 0, stderr)
-		if err != nil {
-			return err
-		}
-		d := &driver.Driver{
-			Spec:      spec,
-			Store:     dStore,
-			Clock:     clock.Real{},
-			DriverID:  req.SessionID,
-			Exec:      exec,
-			Judge:     prov,
-			Approvals: approvals,
-			Artifacts: artifacts,
-			Out:       sink,
-			Pipeline:  verifierPipe,
-			NewChild: func(cs *store.EventStore, session string, iter, budgetTokens int) *agent.Loop {
-				frozen := *spec.Agent
-				if budgetTokens > 0 {
-					frozen.Budget.MaxTotalTokens = budgetTokens
-				}
-				pipe, hooks, perr := buildPipeline(ws, frozen.Permissions, frozen.Mode,
-					frozen.Budget.MaxTotalTokens, stderr)
-				if perr != nil {
-					fmt.Fprintln(stderr, perr)
-				}
-				return &agent.Loop{
-					Spec:      &frozen,
-					Provider:  prov,
-					Judge:     prov,
-					Exec:      &tool.Executor{WS: ws, Session: session},
-					Store:     cs,
-					Clock:     clock.Real{},
-					Out:       childLifecycleFilter{inner: sink},
-					SessionID: session,
-					Version:   version,
-					Pipeline:  pipe,
-					Mode:      frozen.Mode,
-					Hooks:     hooks,
-					Approvals: approvals,
-					SubSpecs:  siblingSpecResolver(req.SpecPath),
-				}
-			},
-			// Best-of-N (schedule=parallel): attempt face binds to its worktree.
-			Snapshots: snapshotStoreFor(ws, stderr),
-			NewChildAt: func(cs *store.EventStore, session string, iter, budgetTokens int, worktree string) *agent.Loop {
-				frozen := *spec.Agent
-				if budgetTokens > 0 {
-					frozen.Budget.MaxTotalTokens = budgetTokens
-				}
-				wtWS, werr := workspace.New(worktree)
-				if werr != nil {
-					fmt.Fprintln(stderr, werr)
-					wtWS = ws
-				}
-				pipe, hooks, perr := buildPipeline(wtWS, frozen.Permissions, frozen.Mode,
-					frozen.Budget.MaxTotalTokens, stderr)
-				if perr != nil {
-					fmt.Fprintln(stderr, perr)
-				}
-				return &agent.Loop{
-					Spec:      &frozen,
-					Provider:  prov,
-					Judge:     prov,
-					Exec:      &tool.Executor{WS: wtWS, Session: session},
-					Store:     cs,
-					Clock:     clock.Real{},
-					Out:       childLifecycleFilter{inner: sink},
-					SessionID: session,
-					Version:   version,
-					Pipeline:  pipe,
-					Mode:      frozen.Mode,
-					Hooks:     hooks,
-					Approvals: approvals,
-					SubSpecs:  siblingSpecResolver(req.SpecPath),
-				}
-			},
-		}
-		_, runErr := d.Run(ctx)
+		defer cleanup()
+		_, runErr := d.Resume(ctx)
 		return runErr
 	}
+}
+
+// assembleHostedDriver builds the daemon's IterationDriver over an already
+// loaded spec — the shared assembly behind a fresh drive (hostDriveFunc → Run)
+// and a boot-sweep resume (hostResumeDriveFunc → Resume). It returns the driver
+// and a cleanup that closes the opened store; the caller defers it after
+// Run/Resume returns. specPath is "" on the resume path (the spec came from the
+// journal, not a file), so sibling sub-specs resolve against builtins/CWD.
+func assembleHostedDriver(ctx context.Context, version, specPath string, spec *driver.DriverSpec,
+	wsRoot, sessionID string, broker *daemon.ApprovalBroker, sink protocol.Sink, stderr io.Writer) (*driver.Driver, func(), error) {
+	if wsRoot == "" {
+		wsRoot = "."
+	}
+	ws, err := workspace.New(wsRoot)
+	if err != nil {
+		return nil, nil, err
+	}
+	prov, err := defaultProviderFactory(ctx, spec.Agent.Model.Provider)
+	if err != nil {
+		return nil, nil, err
+	}
+	sessionDir, err := runtime.SessionDir(sessionID)
+	if err != nil {
+		return nil, nil, err
+	}
+	dStore, err := store.OpenEventStore(sessionDir)
+	if err != nil {
+		return nil, nil, err
+	}
+	cleanup := func() { _ = dStore.Close() }
+	artifacts, err := store.OpenArtifactStore(filepath.Join(sessionDir, "artifacts"))
+	if err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	approvals := socketApprovals{broker: broker, session: sessionID, sink: sink}
+	exec := &tool.Executor{WS: ws, Session: sessionID}
+	// Same verifier-adjudication construction as the foreground drive:
+	// user/project rules first, trailing driver-trust allow.
+	verifierPipe, _, err := buildPipeline(ws, []pipeline.PermissionRule{{Action: "allow"}}, "", 0, stderr)
+	if err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	d := &driver.Driver{
+		Spec:      spec,
+		Store:     dStore,
+		Clock:     clock.Real{},
+		DriverID:  sessionID,
+		Exec:      exec,
+		Judge:     prov,
+		Approvals: approvals,
+		Artifacts: artifacts,
+		Out:       sink,
+		Pipeline:  verifierPipe,
+		NewChild: func(cs *store.EventStore, session string, iter, budgetTokens int) *agent.Loop {
+			frozen := *spec.Agent
+			if budgetTokens > 0 {
+				frozen.Budget.MaxTotalTokens = budgetTokens
+			}
+			pipe, hooks, perr := buildPipeline(ws, frozen.Permissions, frozen.Mode,
+				frozen.Budget.MaxTotalTokens, stderr)
+			if perr != nil {
+				fmt.Fprintln(stderr, perr)
+			}
+			return &agent.Loop{
+				Spec:      &frozen,
+				Provider:  prov,
+				Judge:     prov,
+				Exec:      &tool.Executor{WS: ws, Session: session},
+				Store:     cs,
+				Clock:     clock.Real{},
+				Out:       childLifecycleFilter{inner: sink},
+				SessionID: session,
+				Version:   version,
+				Pipeline:  pipe,
+				Mode:      frozen.Mode,
+				Hooks:     hooks,
+				Approvals: approvals,
+				SubSpecs:  siblingSpecResolver(specPath),
+			}
+		},
+		// Best-of-N (schedule=parallel): attempt face binds to its worktree.
+		Snapshots: snapshotStoreFor(ws, stderr),
+		NewChildAt: func(cs *store.EventStore, session string, iter, budgetTokens int, worktree string) *agent.Loop {
+			frozen := *spec.Agent
+			if budgetTokens > 0 {
+				frozen.Budget.MaxTotalTokens = budgetTokens
+			}
+			wtWS, werr := workspace.New(worktree)
+			if werr != nil {
+				fmt.Fprintln(stderr, werr)
+				wtWS = ws
+			}
+			pipe, hooks, perr := buildPipeline(wtWS, frozen.Permissions, frozen.Mode,
+				frozen.Budget.MaxTotalTokens, stderr)
+			if perr != nil {
+				fmt.Fprintln(stderr, perr)
+			}
+			return &agent.Loop{
+				Spec:      &frozen,
+				Provider:  prov,
+				Judge:     prov,
+				Exec:      &tool.Executor{WS: wtWS, Session: session},
+				Store:     cs,
+				Clock:     clock.Real{},
+				Out:       childLifecycleFilter{inner: sink},
+				SessionID: session,
+				Version:   version,
+				Pipeline:  pipe,
+				Mode:      frozen.Mode,
+				Hooks:     hooks,
+				Approvals: approvals,
+				SubSpecs:  siblingSpecResolver(specPath),
+			}
+		},
+	}
+	return d, cleanup, nil
+}
+
+// readDriverStarted reads a drive session's stream header — the journaled
+// DriverSpec + workspace root a boot-sweep resume rebuilds the assembly from
+// (INC-54; mirrors readSessionStarted for agent sessions).
+func readDriverStarted(dir string) (*event.DriverStarted, error) {
+	events, err := store.ReadEvents(dir)
+	if err != nil {
+		return nil, err
+	}
+	for _, e := range events {
+		if e.Type == event.TypeDriverStarted {
+			decoded, derr := event.DecodePayload(e)
+			if derr != nil {
+				return nil, derr
+			}
+			return decoded.(*event.DriverStarted), nil
+		}
+	}
+	return nil, fmt.Errorf("session %s has no DriverStarted header", filepath.Base(dir))
+}
+
+// scanDriveSessions derives the boot-sweep drive index (INC-54, G22): every
+// LOOP-MODE drive (interval/cron/self_paced) whose journal shows it still
+// running. A terminal DriverCompleted is a drive's explicit-end mark (决策 #30:
+// a finished or explicitly-stopped series left one, and automatic paths must
+// not cross it), so it excludes the session. Goal-mode / parallel drives are
+// bounded tasks, out of the cron boot-sweep scope. Unreadable or agent-shaped
+// sessions are skipped — the sweep must not die on one non-drive log.
+func scanDriveSessions() ([]string, error) {
+	data, err := runtime.DataDir()
+	if err != nil {
+		return nil, err
+	}
+	entries, err := os.ReadDir(filepath.Join(data, "sessions"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var out []string
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		dir := filepath.Join(data, "sessions", e.Name())
+		events, err := store.ReadEvents(dir)
+		if err != nil || len(events) == 0 || events[0].Type != event.TypeDriverStarted {
+			continue // unreadable, empty, or an agent session (SessionStarted header)
+		}
+		started, err := readDriverStarted(dir)
+		if err != nil {
+			continue
+		}
+		var spec driver.DriverSpec
+		if err := json.Unmarshal(started.Spec, &spec); err != nil {
+			continue
+		}
+		switch spec.Schedule {
+		case driver.ScheduleInterval, driver.ScheduleCron, driver.ScheduleSelfPaced:
+		default:
+			continue // immediate (goal) / parallel: out of the cron boot-sweep scope
+		}
+		st, err := driver.Fold(events)
+		if err != nil || st.Status == driver.StatusEnded {
+			continue // ended = the drive's explicit-end mark (决策 #30)
+		}
+		out = append(out, e.Name())
+	}
+	return out, nil
 }
 
 // approveCmd answers a daemon-hosted ask: `agentrunner approve

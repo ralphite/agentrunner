@@ -137,7 +137,7 @@ mock（计 4 项，全部裁「不做」）。
 | # | 项 | handa 侧 | 我们现状 | 裁决 |
 |---|---|---|---|---|
 | 28 | Automated tasks 任务实体产品面（任务定义管理/Run now/每任务运行历史/IANA 时区/LLM 任务名） | 已实现（automated_tasks/） | loop/cron 是 driver 会话形态（能力等价+）；无任务实体管理面 | ⏸ defer（webui Scheduled 已承担运行列表；实体面等需求） |
-| 28b | cron 跨重启唤醒（backfill 补排+错过 slot 恰好补跑一次） | 已实现（dispatcher.py backfill/dedup_key） | backlog（GAPS G22 boot sweep 同族） | ⬜ **实现**（= CLAUDECODE-PARITY SPRINT **#15**，两边状态联动，该处认领此处跟改）。boot 扫描重挂 timer、missed-tick 按 overlap 策略、不越 close 标记（决策 #30）。〔批 3〕 |
+| 28b | cron 跨重启唤醒（backfill 补排+错过 slot 恰好补跑一次） | 已实现（dispatcher.py backfill/dedup_key） | **crash-重启支已实现（INC-54，A 闸绿·B 闸待验）**：durable tick+Driver.Resume backfill+bootSweepDrives，missed slot 按 overlap 恰一次，不越 close 标记 | 🟡 **实现中**（= CLAUDECODE-PARITY SPRINT **#15**）。crash 支落地；**优雅停机保活 cron** 另立增量（GAPS G22 注b，触 driver 终态语义走 §四）。〔批 3〕 |
 | E2 | 外部事件唤醒既有 session（webhook→inbox） | UI 占位未实现（event trigger "Soon"） | GAPS **G14**（inbox 原语已备缺投递壳；§2:190 已授权同通道投递） | ⬜ **实现**（M；本就是我们仅存 journey 卡死项 UJ-12）。方案（review 修订，M3）：daemon HTTP ingress `POST /hooks/<sid>`（per-hook token；token 不进 journal/明文）→ durable send 通道，载荷 `source:"machine"`（净新常量；`userClassSource` 已明确排除机器方 sendmsg.go:114）+ `trust:"untrusted"`；**硬条件：核实 untrusted 标记真正驱动 assembly 隔离框定**（若仅元数据须补，否则注入防御是纸面的）；未鉴权限流防预算 DoS；子 session 目标走决策 #35 revive；HTTP 壳与 backlog「HTTP/WS 壳」合并考量。〔批 3〕 |
 
 ### 域十 · 裁定不做（handa 亦未做成或我们已有等价物）

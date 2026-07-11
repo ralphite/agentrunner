@@ -47,7 +47,7 @@
 |---|---|---|---|---|
 | 8 | LLM goal judge（llm_call 管线 effect，门控触发，三态） | M/L | ✅ done (INC-48) | 实施双闸门：孪生 4 条（pass/reject 续跑/claim-gated 零调用+budget/crash 复用 verdict）+ 真 Gemini QA-48；DESIGN 决策 #21/§13/glossary 同 commit |
 | E2 | 外部事件唤醒 G14（HTTP ingress + source:machine + untrusted 硬条件） | M | ✅ done (INC-50) | UJ-12 卡死项关闭、G14 关闭；双闸门：孪生 8 条（ingress×5+registry+framing×2）+ 真 Gemini QA-50（5 红线）；安全 review 无 P0（P1-1/P2-1/P2-3/P2-4 修，P2-2 余项）；DESIGN 决策 #39 同 commit；HTTP 壳全 API 面仍 backlog |
-| 28b | cron 跨重启唤醒 + boot sweep（G22） | M | 🔧 in-progress (INC-54) | = CC SPRINT #15 联动；并行轮认领 2026-07-11（worktree 子 agent D） |
+| 28b | cron 跨重启唤醒 + boot sweep（G22） | M | ✅ A 闸绿·B 闸待验 (INC-54) | = CC SPRINT #15 联动；并行轮认领 2026-07-11（worktree 子 agent D）。**⚠️ 编号冲突**：INC-54 已被已提交的 session-mode-pill 占用（8d3bd60），INC-55 已被 last-turn-diff 占用（2eef631）——D(#28b)/E(#4) 撞号、F(56) 干净，待父层串行合并统一裁定（建议 D→57/E→58 或重命名已提交件）。crash-重启支落地：durable tick + Driver.Resume backfill + bootSweepDrives；优雅停机保活 cron 另立增量（GAPS G22 注b）。 |
 
 ### 批 4 · 工具面
 

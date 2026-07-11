@@ -382,7 +382,7 @@ conversational 的显式重开（含已 close）已落地；task session 被 sen
 钉住现状）。
 → UJ-03/09 连带
 
-**G22 监督语义：崩溃自动恢复与重启接续 — ⚠️ 设计欠定 · 中（无人值守形态的地基，2026-07-05 登记）**
+**G22 监督语义：崩溃自动恢复与重启接续 — ⚠️ 设计欠定 · 中（无人值守形态的地基，2026-07-05 登记；①cron/drive 半兑现 INC-54 2026-07-11）**
 已有的一半（全部在，勿重复设计）：恢复语义本身——journal/fold 状态
 无损重建、in-doubt 按类别处置、settle-from-child-fold、send 即复活的
 journal 形状把关、kill/close/interrupt 的**终态判别**（DESIGN §6/§17，
@@ -390,6 +390,20 @@ QA-08 crash 矩阵）。缺的另一半是**自动性**：
 ① **boot sweep**——daemon 启动无"未完成工作扫描"，中断在 turn 中途
 的 session 躺到有人 send 才复活；cron 跨重启唤醒（backlog）同族，
 应一并收编；
+   **进度（INC-54，2026-07-11）**：cron/drive 的 crash-重启一支落地——
+   daemon 启动一次性 `bootSweepDrives` 扫描 running loop-mode drive 并经
+   `Driver.Resume` 重挂；cron 的 tick 成 journal 派生事实
+   （`IterationScheduled/Skipped.Tick` → `State.LastTick`），resume 从中
+   恢复 `lastTick`，错过的 slot 按 overlap 恰好补跑一次（幂等靠 fold 里
+   consumed slot + runs 注册去重，不靠内存态）；不越 close 标记（drive 的
+   终态 `DriverCompleted` = 其显式结束标记，`scanDriveSessions` 排除，
+   决策 #30）。**仍缺**：(a) 中断在 turn 中途的 **agent session** 无 send
+   自动接续（本支只做 drive）；(b) **优雅停机保活 cron**——SIGTERM 目前让
+   idle loop drive 落 `DriverCompleted "stopped"`（终态），于是优雅重启
+   会标 ended、boot sweep 不再重挂；使优雅 deploy 也保 cron 需改 driver
+   终态语义（shutdown→待命而非 terminal，区分 shutdown-teardown 与用户
+   stop），属 driver 终态语义变更，**另立增量走 DESIGN §四评估**，不在
+   INC-54 悄悄改。
 ② **子 session 崩溃的自动 resume**——daemon 存活时单个子 session
 crash → `ActorCrashed` 标 dead（kernel 明确 no auto-restart），无
 自动拉起路径；driver 的 `on_child_failure: retry{max,backoff}` 未

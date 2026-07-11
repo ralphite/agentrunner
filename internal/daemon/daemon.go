@@ -215,7 +215,18 @@ type Server struct {
 	// Drive hosts an IterationDriver series (nil = the drive command is
 	// refused). Same hub/registry semantics as Run.
 	Drive func(ctx context.Context, req DriveRequest, sink protocol.Sink) error
-	Clock clock.Clock
+	// ScanDrives lists the drive sessions eligible for a boot sweep (INC-54,
+	// G22): loop-mode (interval/cron/self_paced) series whose journal shows
+	// them still running — NOT a terminal DriverCompleted, which is a drive's
+	// explicit-end mark (决策 #30: a closed/stopped/finished series left a
+	// DriverCompleted and must not auto-resume). ResumeDrive re-hosts one via
+	// Driver.Resume, whose cron cadence backfills the slots missed while the
+	// daemon was down. Both non-nil → the daemon runs the drive boot sweep
+	// once at startup. nil = drives do not survive a restart (the pre-INC-54
+	// behavior).
+	ScanDrives  func() ([]string, error)
+	ResumeDrive func(ctx context.Context, req DriveRequest, sink protocol.Sink) error
+	Clock       clock.Clock
 	// Approvals is the cross-process ask rendezvous: hosted runs idle here
 	// (the CLI's resolver adapter calls Ask) and `approve` commands answer.
 	// nil = the approve command is refused.
@@ -633,6 +644,9 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	if s.ScanPendingCommandSessions != nil && s.Resume != nil {
 		go s.resumePendingCommandSessions(ctx)
 	}
+	if s.ScanDrives != nil && s.ResumeDrive != nil {
+		go s.bootSweepDrives(ctx)
+	}
 	slog.Info("daemon listening", "socket", s.SocketPath)
 
 	for {
@@ -676,6 +690,68 @@ func (s *Server) resumePendingCommandSessions(ctx context.Context) {
 	for _, id := range ids {
 		s.hostResume(ctx, id, true)
 	}
+}
+
+// bootSweepDrives is the drive half of the boot sweep (INC-54, G22): a
+// one-shot startup pass that re-hosts every loop-mode drive the last daemon
+// left running, so cron/interval series survive a restart instead of dying
+// with the process. It mirrors resumePendingCommandSessions — scan the
+// journals, host each — and leans on the SAME durable machinery for
+// idempotency: a re-run finds live drives already in the registry and skips
+// them, and each resumed Driver.Resume backfills its own missed slots exactly
+// once from the journal (never in-memory state).
+func (s *Server) bootSweepDrives(ctx context.Context) {
+	ids, err := s.ScanDrives()
+	if err != nil {
+		slog.Warn("daemon: drive boot sweep scan failed", "err", err)
+		return
+	}
+	for _, id := range ids {
+		s.hostResumeDrive(ctx, id)
+	}
+}
+
+// hostResumeDrive re-hosts one drive series via Driver.Resume, with the same
+// registry/runsWG bookkeeping as handleDrive (a non-interactive hub — a drive
+// has no inbox). Idempotent: a drive already hosted (or the daemon shutting
+// down) is left alone. A drive carrying an explicit mark is skipped (决策 #30:
+// automatic paths never cross a close/kill mark) — the shared SessionMarked
+// gate, consulted only when it can answer; a drive journal legitimately errors
+// the agent fold (its authoritative end-marker is the terminal DriverCompleted,
+// already excluded by ScanDrives), so an error means "no explicit mark here".
+func (s *Server) hostResumeDrive(ctx context.Context, id string) {
+	if s.SessionMarked != nil {
+		if marked, err := s.SessionMarked(id); err == nil && marked {
+			return
+		}
+	}
+	s.mu.Lock()
+	if s.stopping || s.runs[id] != nil {
+		s.mu.Unlock()
+		return
+	}
+	hub := s.newHostedRun(id, false)
+	s.runs[id] = hub
+	s.runsWG.Add(1)
+	s.mu.Unlock()
+
+	runCtx, runCancel := context.WithCancel(ctx)
+	hub.stop = runCancel
+	slog.Info("daemon: resuming drive", "session", id)
+	go func() {
+		defer runCancel()
+		defer s.runsWG.Done()
+		defer func() {
+			s.mu.Lock()
+			delete(s.runs, id)
+			s.mu.Unlock()
+		}()
+		defer hub.finish()
+		if err := s.ResumeDrive(runCtx, DriveRequest{SessionID: id}, hub); err != nil {
+			slog.Warn("daemon: drive resume failed", "session", id, "err", err)
+			hub.Emit(protocol.Event{Kind: protocol.KindError, Text: "drive resume failed: " + err.Error()})
+		}
+	}()
 }
 
 func (s *Server) replayPendingCommands(ctx context.Context, session string, hub *hostedRun) {

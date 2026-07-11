@@ -810,6 +810,143 @@ func TestDriverCronOverlapCoalesce(t *testing.T) {
 	}
 }
 
+// journalCronIter1 records a completed iteration 1 fired at tick, with NO
+// DriverCompleted — a cron series that ran once and then had its daemon crash.
+func journalCronIter1(t *testing.T, es *store.EventStore, tick time.Time) {
+	t.Helper()
+	journal(t, es, event.TypeIterationScheduled, &event.IterationScheduled{DriverID: "drv-1", Iter: 1, Tick: tick})
+	journal(t, es, event.TypeIterationLaunched, &event.IterationLaunched{DriverID: "drv-1", Iter: 1, ChildSession: "drv-1-iter-1"})
+	journal(t, es, event.TypeIterationCompleted, &event.IterationCompleted{
+		DriverID: "drv-1", Iter: 1, ChildSession: "drv-1-iter-1", ChildReason: "completed"})
+}
+
+// INC-54: a cron series whose daemon crashed mid-run recovers lastTick from the
+// journal on resume and backfills every slot missed during the downtime as
+// exactly ONE IterationSkipped (overlap=skip) — not silently reset to now (the
+// pre-fix bug where lastTick jumped to Clock.Now()), not double-counted.
+func TestDriverCronResumeBackfillsMissedTicks(t *testing.T) {
+	tick1 := time.Date(2026, 7, 4, 1, 0, 0, 0, time.UTC)
+	// Resume at 04:30: the 02:00, 03:00 and 04:00 ticks were missed while down.
+	clk := clock.NewFake(time.Date(2026, 7, 4, 4, 30, 0, 0, time.UTC))
+	d, dStore := cronHarness(t, &driver.DriverSpec{
+		Name: "nightly", Schedule: driver.ScheduleCron, Cron: "0 * * * *",
+		Task: "tick", MaxIterations: 4,
+	}, clk, 0)
+	journalCronIter1(t, dStore, tick1)
+
+	res, err := d.Resume(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "max_iterations" || res.Iterations != 4 {
+		t.Fatalf("res = %+v, want max_iterations at 4", res)
+	}
+	events, _ := store.ReadEvents(dStore.Dir())
+	st, _ := driver.Fold(events)
+	// iter1 completed; iter2/3/4 are the three missed slots, each skipped once.
+	wantSkipped := []bool{false, true, true, true}
+	for i, it := range st.Iterations {
+		if it.Skipped != wantSkipped[i] {
+			t.Errorf("iteration %d skipped = %v, want %v", i+1, it.Skipped, wantSkipped[i])
+		}
+	}
+	var skipTicks []time.Time
+	for _, e := range events {
+		if e.Type == event.TypeIterationSkipped {
+			p, _ := event.DecodePayload(e)
+			skipTicks = append(skipTicks, p.(*event.IterationSkipped).Tick)
+		}
+	}
+	want := []time.Time{
+		time.Date(2026, 7, 4, 2, 0, 0, 0, time.UTC),
+		time.Date(2026, 7, 4, 3, 0, 0, 0, time.UTC),
+		time.Date(2026, 7, 4, 4, 0, 0, 0, time.UTC),
+	}
+	if len(skipTicks) != 3 {
+		t.Fatalf("skip ticks = %v, want exactly 3 (one per missed slot)", skipTicks)
+	}
+	for i, tk := range want {
+		if !skipTicks[i].Equal(tk) {
+			t.Errorf("skip %d tick = %v, want %v", i, skipTicks[i], tk)
+		}
+	}
+}
+
+// INC-54: with overlap=coalesce the missed slots fold into ONE catch-up run on
+// resume — no IterationSkipped, one iteration for the whole downtime, anchored
+// at the last coalesced slot so the next real tick computes correctly.
+func TestDriverCronResumeCoalescesMissedTicks(t *testing.T) {
+	tick1 := time.Date(2026, 7, 4, 1, 0, 0, 0, time.UTC)
+	clk := clock.NewFake(time.Date(2026, 7, 4, 4, 30, 0, 0, time.UTC))
+	d, dStore := cronHarness(t, &driver.DriverSpec{
+		Name: "nightly", Schedule: driver.ScheduleCron, Cron: "0 * * * *",
+		Task: "tick", MaxIterations: 2, Overlap: driver.OverlapCoalesce,
+	}, clk, 0)
+	journalCronIter1(t, dStore, tick1)
+
+	res, err := d.Resume(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "max_iterations" || res.Iterations != 2 {
+		t.Fatalf("res = %+v, want max_iterations at 2", res)
+	}
+	events, _ := store.ReadEvents(dStore.Dir())
+	for _, e := range events {
+		if e.Type == event.TypeIterationSkipped {
+			t.Error("coalesce must not journal IterationSkipped on resume")
+		}
+	}
+	st, _ := driver.Fold(events)
+	if len(st.Iterations) != 2 || !st.Iterations[1].Completed {
+		t.Fatalf("iterations = %+v, want iter2 a single completed catch-up", st.Iterations)
+	}
+	if !st.LastTick.Equal(time.Date(2026, 7, 4, 4, 0, 0, 0, time.UTC)) {
+		t.Errorf("LastTick = %v, want 04:00 (last coalesced slot)", st.LastTick)
+	}
+}
+
+// INC-54: a SECOND crash mid-backfill must not double-fire. Resume from a
+// journal where iter2 was already skipped continues from iter3 — the consumed
+// skip is never re-run, the still-missed slots are backfilled exactly once.
+func TestDriverCronResumeIsIdempotent(t *testing.T) {
+	tick1 := time.Date(2026, 7, 4, 1, 0, 0, 0, time.UTC)
+	clk := clock.NewFake(time.Date(2026, 7, 4, 4, 30, 0, 0, time.UTC))
+	d, dStore := cronHarness(t, &driver.DriverSpec{
+		Name: "nightly", Schedule: driver.ScheduleCron, Cron: "0 * * * *",
+		Task: "tick", MaxIterations: 4,
+	}, clk, 0)
+	journalCronIter1(t, dStore, tick1)
+	// A prior resume already backfilled iter2 (tick 02:00) before crashing again.
+	journal(t, dStore, event.TypeIterationSkipped, &event.IterationSkipped{
+		DriverID: "drv-1", Iter: 2, Tick: time.Date(2026, 7, 4, 2, 0, 0, 0, time.UTC), Reason: "overlap"})
+
+	res, err := d.Resume(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "max_iterations" || res.Iterations != 4 {
+		t.Fatalf("res = %+v", res)
+	}
+	events, _ := store.ReadEvents(dStore.Dir())
+	skips := 0
+	for _, e := range events {
+		if e.Type == event.TypeIterationSkipped {
+			skips++
+		}
+	}
+	if skips != 3 {
+		t.Fatalf("skip events = %d, want 3 (iter2 not re-fired)", skips)
+	}
+	st, _ := driver.Fold(events)
+	if st.Iterations[1].Completed {
+		t.Error("iter2 (a consumed skip) was re-run on resume")
+	}
+	if !st.Iterations[2].Skipped || !st.Iterations[3].Skipped {
+		t.Errorf("iter3/4 not backfilled: %+v", st.Iterations)
+	}
+}
+
 // selfPacedHarness wires a self_paced driver whose per-iteration fixture is
 // chosen by call number (1-based). Fixtures should be text/data-tools only so
 // the fake clock's Waiters reflects the pace idle alone.

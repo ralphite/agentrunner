@@ -87,9 +87,13 @@ type Driver struct {
 	// bind, config-declared verifiers otherwise run. nil = allow-all.
 	Pipeline *pipeline.Pipeline
 
-	// Loop-mode cadence runtime state (never fold state: cron ticks are
-	// absolute wall times, recomputable from the clock; the self_paced pace
-	// re-derives from the last child journal).
+	// Loop-mode cadence runtime state. While the driver runs, these are
+	// in-memory only — cron does NOT re-journal the wheel on every tick. Across
+	// a restart they are recovered from the journal: lastTick is seeded from
+	// State.LastTick (the last consumed slot's absolute tick, INC-54) so a
+	// resumed cron series backfills the daemon's downtime instead of silently
+	// resetting to now; the self_paced pace re-derives from the last child
+	// journal.
 	cronSched *cron.Schedule
 	lastTick  time.Time
 	nextPace  time.Duration
@@ -267,6 +271,17 @@ func (d *Driver) Resume(ctx context.Context) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	// Cross-restart backfill (INC-54): seed lastTick from the journal's last
+	// consumed slot instead of letting awaitTick reset it to now. A cron
+	// series interrupted by a daemon crash then recomputes from the real last
+	// tick, so awaitTick's overlap logic backfills the slots missed during the
+	// downtime — exactly once each (skip journals one IterationSkipped per
+	// missed tick; coalesce folds them into one catch-up run). Zero LastTick
+	// (no cron slot consumed yet, or a non-cron schedule) keeps the fresh-run
+	// behavior of anchoring at now.
+	if !st.LastTick.IsZero() {
+		d.lastTick = st.LastTick
+	}
 	if st.Status == StatusEnded {
 		return Result{Reason: st.Reason, Iterations: len(st.Iterations), BestIter: st.BestIter}, nil
 	}
@@ -359,8 +374,12 @@ func (d *Driver) drive(ctx context.Context, st *State, appendE appendFunc, start
 		}
 		session := fmt.Sprintf("%s-iter-%d", d.DriverID, n)
 		if _, inFold := st.at(n); !inFold {
+			// Tick stamps the absolute cron slot that triggered this run (zero
+			// for non-cron schedules, whose lastTick is never set) so a resume
+			// recovers lastTick and backfills a downed daemon's missed slots
+			// (INC-54). Journaled once (resume never re-journals a folded slot).
 			if _, err := appendE(event.TypeIterationScheduled, &event.IterationScheduled{
-				DriverID: d.DriverID, Iter: n, Schedule: ScheduleImmediate,
+				DriverID: d.DriverID, Iter: n, Schedule: ScheduleImmediate, Tick: d.lastTick,
 			}); err != nil {
 				return Result{}, err
 			}
@@ -761,10 +780,14 @@ func (d *Driver) awaitTick(ctx context.Context, appendE appendFunc, n int, first
 				}
 				return true, nil
 			}
-			// skip (default): one skipped iteration per missed tick.
+			// skip (default): one skipped iteration per missed tick. Tick is
+			// journaled so a resume can recover lastTick even when the last
+			// consumed slot was a skip (INC-54): the same code path serves an
+			// overlap during a long iteration AND a gap while the daemon was
+			// down — both are missed absolute ticks.
 			if _, err := appendE(event.TypeIterationSkipped, &event.IterationSkipped{
-				DriverID: d.DriverID, Iter: n,
-				Reason: "overlap: tick " + next.UTC().Format(time.RFC3339) + " passed while an iteration ran",
+				DriverID: d.DriverID, Iter: n, Tick: next,
+				Reason: "overlap: tick " + next.UTC().Format(time.RFC3339) + " passed while an iteration ran or the daemon was down",
 			}); err != nil {
 				return false, err
 			}

@@ -1,6 +1,10 @@
 package driver
 
-import "github.com/ralphite/agentrunner/internal/event"
+import (
+	"time"
+
+	"github.com/ralphite/agentrunner/internal/event"
+)
 
 // FoldVersion is the driver fold's shape version, journaled in the stream
 // header (DriverStarted) and checked on resume — a shape change refuses old
@@ -47,6 +51,12 @@ type State struct {
 	// iteration's billed usage (DESIGN: settle-at-completion). Pure fold, so
 	// resume recovers the exact budget position.
 	SpentTokens int `json:"spent_tokens,omitempty"`
+	// LastTick is the wall time of the latest consumed cron/loop slot (INC-54,
+	// max over every IterationScheduled/IterationSkipped Tick). Resume seeds
+	// the driver's in-memory `lastTick` from it so a cron series backfills the
+	// slots missed while the daemon was down, exactly once per the overlap
+	// policy. Zero for schedules without an absolute timeline.
+	LastTick time.Time `json:"last_tick,omitzero"`
 }
 
 // Fold rebuilds driver state from its event stream.
@@ -82,6 +92,9 @@ func (s *State) apply(p any) {
 		if v.BaseRef != "" {
 			s.Iterations[v.Iter-1].BaseRef = v.BaseRef
 		}
+		if v.Tick.After(s.LastTick) {
+			s.LastTick = v.Tick
+		}
 	case *event.IterationLaunched:
 		if v.Iter < 1 {
 			return
@@ -113,6 +126,9 @@ func (s *State) apply(p any) {
 		}
 		s.ensure(v.Iter)
 		s.Iterations[v.Iter-1].Skipped = true
+		if v.Tick.After(s.LastTick) {
+			s.LastTick = v.Tick
+		}
 	case *event.DriverCompleted:
 		s.Status = StatusEnded
 		s.Reason = v.Reason

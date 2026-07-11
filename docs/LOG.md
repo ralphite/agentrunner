@@ -3487,3 +3487,56 @@ fallback），Composer 接 Sparkles 按钮 + 单步 Undo + `/optimize` case + mi
 #19 真草稿→`ar optimize`→改写+webui Undo 还原。归档
 `qa/runs/2026-07-11-INC56/`。工作纸 `docs/increments/INC-56-dictate-optimize.md`，
 B 闸后归档。
+
+---
+
+## 2026-07-11 · INC-54（handa-parity #28b）cron 跨重启唤醒 + boot sweep（G22）
+
+> **⚠️ 编号冲突（待父层裁定，勿在本子 agent 改）**：并行轮提交 `7d672a3`
+> 为三个 worktree 子 agent 分配 D=#28b→INC-54 / E=#4→INC-55 / F=#18+#19→INC-56，
+> 但 **INC-54=session mode pill（已提交 8d3bd60）、INC-55=last-turn-diff（已提交
+> 2eef631）** 已占号——D、E 撞号，F(56) 干净。本子 agent 按 sprint 分配保留
+> INC-54 交付，**不单方改号**（避免与同样撞号的 E 再撞）；建议父层串行合并时
+> 统一裁定（如 D→57、E→58，F 保 56；或重命名已提交的 pill/last-turn-diff）。
+> 本条所述 INC-54 = **cron 跨重启唤醒 + boot sweep**，与 pill 那条 INC-54 无关。
+
+**兑现 DESIGN 已承诺、G22 未落地的机制（additive，不触不变量）**：常驻 runtime
+是 durable timer 触发者、覆盖 cron（§运行形态 1225-1227）；有 daemon 时 cron 应
+跨重启存活（§13 1362-1364，"只在进程活着时触发"是降级模式非默认）。此前
+`hostDriveFunc` 永远 `d.Run` 且无 boot 重挂路径 → cron drive 崩溃即死；`lastTick`
+是非 fold runtime state，resume 归零→now、静默丢错过的 slot。
+
+**scope = 崩溃重启一支**（纯决策 #30："crash 什么都不留→有恢复资格"）：
+- **durable tick**：`IterationScheduled.Tick` / `IterationSkipped.Tick`（additive
+  事件字段，omitempty，不 bump FoldVersion，同 BaseRef 纪律）→ driver fold 派生
+  `State.LastTick`。`Driver.Resume` 从 `LastTick` 恢复 `lastTick`，既有 `awaitTick`
+  overlap 逻辑即幂等 backfill：skip 每错过 slot 恰一条 IterationSkipped、coalesce
+  折成一次 catch-up。幂等靠 fold 里 consumed slot（resume startN 越过 skipped/
+  completed）+ runs 注册去重，**不靠内存态**。
+- **daemon boot sweep**：`ScanDrives`/`ResumeDrive` 两 seam + 启动一次性
+  `bootSweepDrives`（紧邻 `resumePendingCommandSessions`，同 scan-at-boot 模式）+
+  `hostResumeDrive`（非交互 hub、runs 去重、runsWG、per-run cancel）。CLI 侧
+  `scanDriveSessions`（Status==running && loop-mode）+ `hostResumeDriveFunc`（读
+  DriverStarted → 重建装配 → `Driver.Resume`；与 `hostDriveFunc` 共用抽出的
+  `assembleHostedDriver`，消除复制漂移）。
+- **不越 close 标记（决策 #30）**：drive 的显式结束标记 = 终态 `DriverCompleted`
+  （Status==ended），`scanDriveSessions` 排除；daemon `hostResumeDrive` 另复用
+  `SessionMarked` 门（对 drive 的 agent-fold 报错宽容，权威门是 Status）。
+
+**孪生（A 闸全绿）**：driver `TestDriverCronResumeBackfillsMissedTicks`/
+`…CoalescesMissedTicks`/`…IsIdempotent`；daemon `TestBootSweepResumesPendingDrives`/
+`…SkipsHostedDrive`/`…NoDrivesNoSideEffect`/`…SkipsMarkedDrive`；cli
+`TestScanDriveSessionsGate`。既有 `TestTimerSweepResumesExpired` 复用为
+activity-timer 的 boot 重挂（sweepTimers 首轮，未重写）。
+
+**相邻张力显式不做，另立增量（走 DESIGN §四评估）**：优雅停机（SIGTERM）让 idle
+loop drive 落 `DriverCompleted "stopped"`（终态）→ 优雅重启会标 ended、boot sweep
+不重挂；使优雅 deploy 也保 cron 需改 driver 终态语义（shutdown→待命而非 terminal，
+区分 shutdown-teardown 与用户 stop）。记 GAPS G22 注(b)。另一未做：中断在 turn
+中途的 agent session 无 send 自动接续（G22 注(a)，本支只做 drive）。
+
+**B 闸（待集中验，须私有新二进制 daemon）**：起 daemon → `ar drive` cron `*/1 * * * *`
+spec 跑 ≥1 迭代 → `kill -9` daemon → 隔 >2 min 重启 → 断言 boot sweep 重挂 + 每错过
+slot 恰一条 IterationSkipped（skip）或一次 catch-up（coalesce）；反例 `ar close`/
+跑满 max 后不重挂。归档 `qa/runs/<日期>-INC54/`。工作纸
+`docs/increments/INC-54-cron-boot-sweep.md`，落地后归档。

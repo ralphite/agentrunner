@@ -130,12 +130,12 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 |---|---|---|---|
 | driver-goal（批式/headless，verifier 三态、停滞检测、carry；fresh child run） | ✅ | UJ-15 | S6 |
 | **in-session goal（会话内，context 延续；完成裁决在静止边界，三态判别：command verifier 唯一裁决且经过 effect pipeline/approval/OS sandbox；否则 llm_judge verifier claim-gated 裁决 `goal_complete` 声明（`ar goal attach --verify-llm "<rubric>"`，journaled `llm_call` Activity、crash 复用 verdict、不可解析即 fail）；都没有时模型 `goal_complete` 自证；结构化 continuation 回灌、goal 级预算=可见截断；模型工具面 goal_status/goal_complete；控制面 attach/pause/resume/update/cancel，非 hosted 会话 revive）** | ✅ | UJ-22 | INC-D1+INC-10+INC-11.3+INC-48 · 决策 #21/#34 · TestInSessionGoal{Continuity,SelfCertify,ClaimDoesNotOverrideVerifier,VerifierPipelineDenyBinds,VerifierCompletedResultIsNotRerun} + TestGoalRecover/TestGoalResumeCheck/TestGoalAttachRevivesSession + TestGoalLLMJudge{Pass,RejectThenPass,CrashReuse,ClaimGatedNoCall} · QA-16/17/48 |
-| loop mode（interval/cron/self_paced、overlap skip/coalesce） | ✅ | UJ-14 | S6 |
+| loop mode（interval/cron/self_paced、overlap skip/coalesce） | ✅ | UJ-14 | S6 · 跨 daemon 重启接续见「cron 跨重启唤醒」行（INC-54 boot sweep 重挂） |
 | verifier 管线化（in-session/driver 均 journaled effect + Activity bracket + containment evidence；driver-trust 规则层） | ✅ | UJ-15/22 | S7 · INC-11.3 · TestVerifierActivityTrace |
 | best-of-N（隔离 worktree、per-attempt 判定、胜者留盘） | ✅ | UJ-16 | S7 |
 | overlap: interrupt | 🧊 | UJ-14 | backlog（与顺序执行同理推迟） |
 | 胜者晋升（fork / apply diff） | 🧊 | UJ-16 | GAPS G15（v0 用户手动晋升，记档） |
-| cron 跨重启唤醒 | 🧊 | UJ-14 | backlog |
+| cron 跨重启唤醒（daemon **crash** 重启：boot sweep 重挂 running loop drive，missed cron slot 按 overlap 恰好补跑一次；durable tick + Driver.Resume backfill，幂等） | ✅ | UJ-14 | INC-54 · TestDriverCronResumeBackfillsMissedTicks/TestDriverCronResumeCoalescesMissedTicks/TestDriverCronResumeIsIdempotent · TestBootSweepResumesPendingDrives/TestBootSweepSkipsMarkedDrive/TestBootSweepSkipsHostedDrive · TestScanDriveSessionsGate · QA(B闸真实 daemon 重启，集中验) · 优雅停机保活 cron 未做（见 GAPS G22 注） |
 
 ## G · 时间旅行（barrier / fork / rewind）
 

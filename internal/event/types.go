@@ -768,6 +768,13 @@ type IterationScheduled struct {
 	// the same base, and a resume re-materializes the SAME tree instead of
 	// snapshotting whatever the workspace has drifted to.
 	BaseRef string `json:"base_ref,omitempty"`
+	// Tick is the absolute cron/loop wall time that triggered this iteration
+	// (INC-54): the durable anchor a resume recovers `lastTick` from so a
+	// cron series backfills the slots missed while the daemon was down —
+	// exactly once, per the overlap policy. Zero for non-cron schedules
+	// (interval is relative, immediate/parallel have no timeline). Additive,
+	// same fold-version discipline as BaseRef.
+	Tick time.Time `json:"tick,omitempty"`
 }
 
 // IterationLaunched records the fresh child run for an iteration, journaled
@@ -809,6 +816,10 @@ type IterationSkipped struct {
 	DriverID string `json:"driver_id"`
 	Iter     int    `json:"iter"`
 	Reason   string `json:"reason"`
+	// Tick is the missed cron slot this skip consumed (INC-54): recording it
+	// keeps `lastTick` recoverable across a restart even when the last
+	// consumed slot was a skip rather than a run.
+	Tick time.Time `json:"tick,omitempty"`
 }
 
 // DriverCompleted is the driver's terminal fact (S6). Reason ∈ satisfied |

@@ -11,8 +11,6 @@ internal/clock/clock.go Fake.Waiters
 internal/clock/clock.go NewFake
 internal/command/command.go Discover
 internal/command/command.go parseFrontmatter
-internal/driver/driver.go Driver.Resume
-internal/driver/state.go State.lastCompleted
 internal/errs/errs.go Retryable
 internal/mcp/mcp.go NewConn
 internal/notify/notify.go Notifier.Seen
