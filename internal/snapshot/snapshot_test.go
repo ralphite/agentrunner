@@ -1,10 +1,12 @@
 package snapshot
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -123,6 +125,84 @@ func TestSnapshotHardExcludes(t *testing.T) {
 	}
 }
 
+func TestShadowRepoDiffAgainstSnapshot(t *testing.T) {
+	ws := t.TempDir()
+	write(t, ws, "modified.txt", "before\n")
+	write(t, ws, "deleted.txt", "delete me\n")
+	write(t, ws, "old-name.txt", "rename me\n")
+	s := newStore(t, ws)
+	ctx := context.Background()
+	ref, err := s.Snapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	headBefore, err := s.git(ctx, "rev-parse", "HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	indexBefore, err := os.ReadFile(filepath.Join(s.gitDir, "index"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	write(t, ws, "modified.txt", "after\n")
+	if err := os.Remove(filepath.Join(ws, "deleted.txt")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(filepath.Join(ws, "old-name.txt"), filepath.Join(ws, "new-name.txt")); err != nil {
+		t.Fatal(err)
+	}
+	write(t, ws, "created.txt", "new\n")
+
+	got, err := s.Diff(ctx, ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"modified.txt", "deleted.txt", "created.txt", "old-name.txt", "new-name.txt", "-before", "+after"} {
+		if !strings.Contains(got.Diff, want) {
+			t.Errorf("diff missing %q:\n%s", want, got.Diff)
+		}
+	}
+	for _, want := range []string{"modified.txt", "deleted.txt", "created.txt"} {
+		if !strings.Contains(got.Numstat, want) {
+			t.Errorf("numstat missing %q:\n%s", want, got.Numstat)
+		}
+	}
+	headAfter, _ := s.git(ctx, "rev-parse", "HEAD")
+	indexAfter, _ := os.ReadFile(filepath.Join(s.gitDir, "index"))
+	if headAfter != headBefore || !bytes.Equal(indexAfter, indexBefore) {
+		t.Fatal("read-only diff mutated shadow HEAD or index")
+	}
+}
+
+func TestShadowRepoDiffRejectsInvalidRef(t *testing.T) {
+	s := newStore(t, t.TempDir())
+	for _, ref := range []string{"", "HEAD", "-p", strings.Repeat("a", 39), strings.Repeat("A", 40), strings.Repeat("a", 65)} {
+		if _, err := s.Diff(context.Background(), ref); err == nil || !strings.Contains(err.Error(), "invalid snapshot ref") {
+			t.Errorf("Diff(%q) err = %v, want invalid ref", ref, err)
+		}
+	}
+}
+
+func TestShadowRepoDiffKeepsCredentialsExcluded(t *testing.T) {
+	ws := t.TempDir()
+	write(t, ws, "app.go", "before\n")
+	s := newStore(t, ws)
+	ref, err := s.Snapshot(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, ws, "app.go", "after\n")
+	write(t, ws, ".env", "SECRET=must-not-leak\n")
+	got, err := s.Diff(context.Background(), ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got.Diff, "app.go") || strings.Contains(got.Diff, ".env") || strings.Contains(got.Diff, "must-not-leak") {
+		t.Fatalf("credential exclusion failed:\n%s", got.Diff)
+	}
+}
+
 // The user's .git is invisible in both directions: never snapshotted, never
 // touched by shadow operations.
 func TestSnapshotUserRepoInvisible(t *testing.T) {
@@ -175,6 +255,9 @@ func TestNoneBackend(t *testing.T) {
 	}
 	if err := s.Materialize(context.Background(), "x", t.TempDir()); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("err = %v", err)
+	}
+	if _, err := s.Diff(context.Background(), strings.Repeat("a", 40)); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("diff err = %v", err)
 	}
 }
 

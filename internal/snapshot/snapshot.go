@@ -1,7 +1,8 @@
 // Package snapshot is the SnapshotStore seam (S7 模块 1, DESIGN L1): events
 // reference only OPAQUE snapshot refs, so no upper layer couples to the
-// mechanism. Snapshots serve rewind/fork exclusively, are taken only at
-// explicit barriers (module 2), and stay pinned until explicit GC.
+// mechanism. Snapshot materialization serves rewind/fork; opaque refs may
+// also be compared read-only for review surfaces. Snapshots are taken only
+// at explicit barriers (module 2), and stay pinned until explicit GC.
 //
 // The default backend is a SHADOW REPO: a separate GIT_DIR in the harness
 // data directory, invisible to the user's repo AND to the agent's own git
@@ -18,6 +19,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -25,6 +27,13 @@ import (
 // missing). Callers record barriers WITHOUT refs — fork/rewind of those
 // barriers is then refused, gracefully.
 var ErrUnavailable = errors.New("snapshot backend unavailable")
+
+// DiffResult is a read-only comparison from an opaque snapshot ref to the
+// workspace as it exists when Diff is called.
+type DiffResult struct {
+	Diff    string `json:"diff"`
+	Numstat string `json:"numstat"`
+}
 
 // Store captures and reconstructs workspace states.
 type Store interface {
@@ -34,6 +43,9 @@ type Store interface {
 	// Materialize reconstructs ref's file tree into dir (created if needed,
 	// must be empty) — forks never share directories with the original.
 	Materialize(ctx context.Context, ref, dir string) error
+	// Diff compares ref with the current workspace without mutating either.
+	// Backends that cannot provide a safe comparison return ErrUnavailable.
+	Diff(ctx context.Context, ref string) (DiffResult, error)
 }
 
 // None is the degraded backend.
@@ -42,6 +54,9 @@ type None struct{}
 func (None) Snapshot(context.Context) (string, error) { return "", ErrUnavailable }
 func (None) Materialize(context.Context, string, string) error {
 	return ErrUnavailable
+}
+func (None) Diff(context.Context, string) (DiffResult, error) {
+	return DiffResult{}, ErrUnavailable
 }
 
 // hardExcludes are paths NEVER snapshotted (DESIGN: 凭据路径显式排除出
@@ -126,6 +141,10 @@ func (s *ShadowRepo) writeExcludes() error {
 // git runs one git command against the shadow GIT_DIR with a pinned
 // identity and no global/user config interference.
 func (s *ShadowRepo) git(ctx context.Context, args ...string) (string, error) {
+	return s.gitWithEnv(ctx, nil, args...)
+}
+
+func (s *ShadowRepo) gitWithEnv(ctx context.Context, extraEnv []string, args ...string) (string, error) {
 	full := append([]string{"--git-dir=" + s.gitDir, "--work-tree=" + s.work}, args...)
 	cmd := exec.CommandContext(ctx, "git", full...)
 	cmd.Env = append(os.Environ(),
@@ -134,6 +153,7 @@ func (s *ShadowRepo) git(ctx context.Context, args ...string) (string, error) {
 		"GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null",
 		"HOME="+s.gitDir, // keep hooks/config lookups inside the shadow
 	)
+	cmd.Env = append(cmd.Env, extraEnv...)
 	var out, errb bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &errb
@@ -141,6 +161,53 @@ func (s *ShadowRepo) git(ctx context.Context, args ...string) (string, error) {
 		return "", fmt.Errorf("snapshot: git %s: %v: %s", args[0], err, strings.TrimSpace(errb.String()))
 	}
 	return strings.TrimSpace(out.String()), nil
+}
+
+var snapshotRefPattern = regexp.MustCompile(`^[0-9a-f]{40}(?:[0-9a-f]{24})?$`)
+
+// Diff compares a durable barrier snapshot with the current workspace. It
+// uses a private temporary index: the running agent may take another snapshot
+// concurrently, but this review never reads or mutates the shadow HEAD/index.
+// `git add -A` makes untracked/deleted files visible and reuses info/exclude,
+// including the hard credential exclusions.
+func (s *ShadowRepo) Diff(ctx context.Context, ref string) (DiffResult, error) {
+	if !snapshotRefPattern.MatchString(ref) {
+		return DiffResult{}, fmt.Errorf("snapshot: invalid snapshot ref")
+	}
+	f, err := os.CreateTemp(s.gitDir, "review-index-*")
+	if err != nil {
+		return DiffResult{}, fmt.Errorf("snapshot: create review index: %w", err)
+	}
+	index := f.Name()
+	if err := f.Close(); err != nil {
+		_ = os.Remove(index)
+		return DiffResult{}, fmt.Errorf("snapshot: close review index: %w", err)
+	}
+	// Git expects a missing path when initializing an index with read-tree;
+	// an existing zero-byte file is an invalid index.
+	if err := os.Remove(index); err != nil {
+		return DiffResult{}, fmt.Errorf("snapshot: prepare review index: %w", err)
+	}
+	defer func() {
+		_ = os.Remove(index)
+		_ = os.Remove(index + ".lock")
+	}()
+	env := []string{"GIT_INDEX_FILE=" + index}
+	if _, err := s.gitWithEnv(ctx, env, "read-tree", ref); err != nil {
+		return DiffResult{}, err
+	}
+	if _, err := s.gitWithEnv(ctx, env, "add", "-A", "."); err != nil {
+		return DiffResult{}, err
+	}
+	diff, err := s.gitWithEnv(ctx, env, "diff", "--cached", "--no-ext-diff", "--no-color", "--find-renames", ref, "--")
+	if err != nil {
+		return DiffResult{}, err
+	}
+	numstat, err := s.gitWithEnv(ctx, env, "diff", "--cached", "--numstat", ref, "--")
+	if err != nil {
+		return DiffResult{}, err
+	}
+	return DiffResult{Diff: diff, Numstat: numstat}, nil
 }
 
 // Snapshot: stage the whole workspace (info/exclude applies), write the

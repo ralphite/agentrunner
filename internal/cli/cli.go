@@ -58,6 +58,8 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 		return eventsCmd(args[1:], stdout, stderr)
 	case "inspect":
 		return inspectCmd(args[1:], stdout, stderr)
+	case "diff":
+		return diffCmd(args[1:], stdout, stderr)
 	case "artifacts":
 		return artifactsCmd(args[1:], stdout, stderr)
 	case "resume":
@@ -220,6 +222,7 @@ Observe:
   sessions                    list sessions and their status
   ps <session>                in-flight background work of a session
   inspect <session>           session facts: status, turns, token usage, budget
+  diff <session>              workspace changes since the latest human turn began
   artifacts <session> [list|read <stream>[@vN]]   published artifacts: table or raw content
   events <session>            raw journal events (debugging)
 

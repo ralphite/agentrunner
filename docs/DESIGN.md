@@ -774,11 +774,15 @@ user]` 的 error 结果;对待命处 = no-op(裁决 #11)。**已配对的后台
 - **Workspace 快照**：**一等状态，不是派生物**。文件系统永远不可能从
   event log 重建（activity 结果被记录，但不重放）。快照藏在
   **`SnapshotStore` 接口**后，event 只引用 opaque 的 snapshot ref——
-  上层语义不与任何具体机制耦合，只服务 **rewind/fork 与 best-of-N 的
-  base 物化**（后者在 round 开始时取一次快照、ref 钉进
+  上层语义不与任何具体机制耦合。快照的**物化/状态恢复**只服务
+  **rewind/fork 与 best-of-N 的 base 物化**（后者在 round 开始时取一次
+  快照、ref 钉进
   `IterationScheduled`——blob-before-event 同纪律），常规打点只在显式
   barrier（见 §12 `CheckpointBarrier`）。快照 **pinned until
-  explicit GC**——rewind 之后较新的快照不会变得不可达。
+  explicit GC**——rewind 之后较新的快照不会变得不可达。`SnapshotStore`
+  另允许基于 opaque ref 做**只读 workspace comparison**供 review surface
+  使用；comparison 不物化、不移动 backend HEAD/index、不改用户 workspace，
+  backend 不支持时显式 unavailable（INC-55）。
 - **默认 backend 是 shadow repo**：独立的 `GIT_DIR` 放在 harness 数据
   目录下、`GIT_WORK_TREE` 指向 workspace——对用户自己的 repo 完全隐形：
   不污染 HEAD/index、不会被误 push，agent 通过 bash 做 `git checkout` /
@@ -1403,7 +1407,7 @@ limits:
 | 4 | 输入语义 | 一切外部输入先 journal 成 event 再消费 | 审批/steering 不丢、可审计；bus 才允许 ephemeral。 |
 | 5 | Durability 模型 | journal + 安全边界 snapshot-resume + 显式等待状态；**不做** Temporal 式 code replay | 同样的用户可见能力（crash 恢复、长审批、fork），~10% 成本；loop 不背确定性纪律。 |
 | 6 | Activity 语义 | Started/Completed 双落盘，at-least-once；in-doubt 按 tool 类别数据化处置（LLM 重发+GenerationDiscarded、read/idempotent 重跑、execute/edit 渲染 interrupted 继续、高危显式转人工），协作取消，通用 retry，background 变体 | 崩溃必然砸中 in-flight；headless 不能靠人工 triage；非幂等者不重跑（而非转人工）。 |
-| 7 | Checkpoint 语义 | 对话 snapshot 是可弃缓存；workspace 快照是一等状态，走 `SnapshotStore` 接口（event 只引用 opaque ref），默认 shadow-repo backend，只服务 rewind/fork | 文件系统不可从 log 重建；不与 git 耦合；用户 repo 与 agent 的 git 操作零污染。 |
+| 7 | Checkpoint 语义 | 对话 snapshot 是可弃缓存；workspace 快照是一等状态，走 `SnapshotStore` 接口（event 只引用 opaque ref），默认 shadow-repo backend；物化/恢复只服务 rewind/fork/best-of-N base，opaque ref 可做不改 workspace/backend index 的只读 comparison 供 review | 文件系统不可从 log 重建；review 复用唯一 durable baseline 而不另造文件日志；不与 git 耦合；用户 repo 与 agent 的 git 操作零污染。 |
 | 8 | 副作用治理 | 单一 effect pipeline，四关卡；判定按持久化时点拆分——`EffectResolved` 落在 `ActivityStarted` 前，post-hook 随 `ActivityCompleted` | permission/审批/hooks/预算是一个机制；恢复不重放 hook 副作用；happy path 仍是单条关卡 event。 |
 | 9 | 失败面向模型 | 每个 tool call 必有配对结果（harness call id，assembly 按原顺序重排）；error 渲染 per-provider 定义；超预算优雅收尾 | Gemini 按数量+位置严格配对且无 error 标志；agent 要能对失败自适应。 |
 | 10 | Permission modes | mode = 工具面过滤（作用于 permitted 面；advertised 面 prefix 内稳定）+ prompt 注入 + 跃迁规则（数据） | plan/acceptEdits 是 loop 行为；mode 切换不得打爆 tools 级缓存。 |
@@ -1579,7 +1583,7 @@ event sourcing 的闭环：**执行产生事件，事件重建状态，状态驱
 | **fold / state** | state = 纯 fold(journal)：不读钟、不读 store、无副作用。**内容分两半**（裁决 #12 拆写）:① **对话历史**——LLM request 里的 history 部分（messages/tool 结果）,即"给模型的";② **runtime 记账**——预算用量/在飞 handle/等待状态/权限 mode/mailbox 高水位等,即"给 runtime 的"。system instruction 与 tools 不在 state 里——它们出自 **spec**,由 context assembly 拼进请求:`LLM request = assemble(state, spec)`（§18.9）。 |
 | **对话 snapshot** | fold 的**可弃缓存**，加速 resume；丢弃只损失 fold 时间。 |
 | **workspace** | 文件系统世界状态；**不可**从 journal 重建。 |
-| **workspace 快照** | **一等状态**（SnapshotStore，opaque ref，shadow-repo backend）；只服务 rewind/fork/best-of-N base。与对话 snapshot 是两个东西，永不混称。 |
+| **workspace 快照** | **一等状态**（SnapshotStore，opaque ref，shadow-repo backend）；物化/恢复只服务 rewind/fork/best-of-N base，另可基于 opaque ref 做只读 workspace comparison 供 review。与对话 snapshot 是两个东西，永不混称。 |
 | **CAS / blob store** | content-addressed（sha256 ref），blob-before-event；快照/artifact/任务日志/多模态附件共用。 |
 | **IndexStore** | 第四类状态：可随时从 workspace 重建的派生索引（semantic_search 底座）；不入 journal/快照/fork。 |
 | **seq / gapless** | per-stream 单调无洞序号；审计与 resume 的地基。 |
