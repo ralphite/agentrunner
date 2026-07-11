@@ -2570,3 +2570,13 @@ CommandLineTools),Seatbelt 内 git shim 解析不到 developer 目录,报
 或测试加环境守卫(检测 Seatbelt 内 git 不可用则 skip 并给理由),或
 sandbox profile 放行 /var/db/xcode_select_link + Xcode.app 只读。今日
 所有并发 session 都会踩到同一红项。
+
+## 2026-07-10 INC-42 工作纸起草(G29 mode 运行中切换)——占号,待裁决
+
+三层 delta 全文见 `docs/increments/INC-42-session-mode-switch.md`;占号
+**INC-42** 与 **QA-44**(QA-43 已被 INC-41 终局全景对照预订)。关键调研
+结论:gate 侧零改动——effect 随身携带 live fold mode(permission.go
+effectiveMode 注释明言可变),default↔acceptEdits 两侧 advertised 面与
+prompt suffix 相同 → 零 prefix/缓存影响;机制 = mode control 加入
+compact/clear/remember 同族(durable command + drainControls 双路);
+bypass 维持不可 runtime 进入。待用户裁决后按 42.1–42.4 实施。
