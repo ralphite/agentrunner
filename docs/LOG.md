@@ -2699,3 +2699,23 @@ bytes。CLI `ar artifacts <sid> list|read <stream>[@vN]`（list 表格/
 3/3 checklist——INC-37 被自然采用的佐证。归档
 `qa/runs/2026-07-11-INC40/`。批 1 至此五项全落（#32/#23/#9/#10/#11），
 剩 #31 stats 后进批 2 命令面设计单元。
+
+## 2026-07-11 INC-43 运行统计 stats（HANDA SPRINT #31，批 1 收官）
+
+**落地**：write/edit 的 result 载荷带 `lines_added/removed`（executor
+计算：write 覆盖=旧全出新全进、edit=替换片段行计；模型可见——handa
+对照"diff 统计"另一半价值顺手取得，且零事件 schema 变更）。inspect
+新增 stats **报表投影**（明示非核心 fold）：per-tool
+calls/success/fail/duration_ms（Failed(Final)/Cancelled 计 fail）、
+lines 自 journaled result 求和（不 diff 已 redact 的 args，review M4
+吸收）、`active_seconds` = 全部 LLM/tool 活动区间**合并**后的墙钟
+——并行批只计一次、待命与审批挂起天然不计。文本一行摘要 + --json
+全量；旧无 TS journal 容忍（计 calls 不计时长）。
+
+**双闸门**：孪生（countLines 表 + 四类 delta + 聚合含重叠区间合并
+33s/70s 静止不计 + 空/无 TS）；B=真 Gemini（acceptEdits）：写 4 行+
+1 换 2 → `stats 2 tool calls · +6/−1 lines · active 3.4s`，
+story.txt 实际 5 行交叉验证吻合。归档 `qa/runs/2026-07-11-INC43/`。
+`ar run --json` stats 出口留余项。**批 1 六项全清**
+（#32/#23/#9/#10/#11/#31），下轮进批 2 命令面设计单元
+（2U：#16 retry/#29 unqueue/#7 结构化 ask_user，#29 触 §2 走 §四）。

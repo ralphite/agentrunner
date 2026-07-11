@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/ralphite/agentrunner/internal/driver"
 	"github.com/ralphite/agentrunner/internal/event"
@@ -92,6 +93,7 @@ type inspectReport struct {
 	Children             []childReportRef             `json:"children,omitempty"`
 	Goal                 *goalReport                  `json:"goal,omitempty"`
 	Progress             []event.ProgressItem         `json:"progress,omitempty"`
+	Stats                *statsReport                 `json:"stats,omitempty"`
 	Turns                int                          `json:"turns,omitempty"`
 	Items                int                          `json:"items,omitempty"`
 	ProviderCapabilities *provider.CapabilityEnvelope `json:"provider_capabilities,omitempty"`
@@ -419,7 +421,119 @@ func buildInspectReport(events []event.Envelope, s state.State) inspectReport {
 		Billed:         s.Session.Usage.Billed(),
 		BudgetReserved: s.Budget.ReservedTotal(),
 	}
+	report.Stats = buildStats(events)
 	return report
+}
+
+// statsReport quantifies what a session DID (INC-43, HANDA #31): per-tool
+// call counts and outcomes, line deltas from write/edit results, and
+// active_seconds — wall-clock with at least one activity in flight
+// (merged intervals), so idle standby and approval waits don't count.
+// These are REPORTING projections over envelope timestamps, not core fold
+// state (the fold stays wall-clock-free).
+type statsReport struct {
+	Tools         map[string]*toolStat `json:"tools,omitempty"`
+	ToolCalls     int                  `json:"tool_calls"`
+	ToolFailures  int                  `json:"tool_failures"`
+	LinesAdded    int                  `json:"lines_added"`
+	LinesRemoved  int                  `json:"lines_removed"`
+	ActiveSeconds float64              `json:"active_seconds"`
+}
+
+type toolStat struct {
+	Calls      int   `json:"calls"`
+	Success    int   `json:"success"`
+	Fail       int   `json:"fail"`
+	DurationMS int64 `json:"duration_ms"`
+}
+
+func buildStats(events []event.Envelope) *statsReport {
+	st := &statsReport{Tools: map[string]*toolStat{}}
+	type open struct {
+		started *event.ActivityStarted
+		ts      time.Time
+	}
+	inflight := map[string]open{}
+	type span struct{ start, end time.Time }
+	var spans []span
+	closeActivity := func(id string, end time.Time, fail, cancelled bool, result json.RawMessage) {
+		o, ok := inflight[id]
+		if !ok {
+			return
+		}
+		delete(inflight, id)
+		if !o.ts.IsZero() && !end.IsZero() && end.After(o.ts) {
+			spans = append(spans, span{o.ts, end})
+		}
+		if o.started == nil || o.started.Kind != event.KindTool {
+			return
+		}
+		name := o.started.Name
+		ts := st.Tools[name]
+		if ts == nil {
+			ts = &toolStat{}
+			st.Tools[name] = ts
+		}
+		ts.Calls++
+		st.ToolCalls++
+		if fail || cancelled {
+			ts.Fail++
+			st.ToolFailures++
+		} else {
+			ts.Success++
+		}
+		if !o.ts.IsZero() && !end.IsZero() && end.After(o.ts) {
+			ts.DurationMS += end.Sub(o.ts).Milliseconds()
+		}
+		if !fail && !cancelled && (name == "write_file" || name == "edit_file") && len(result) > 0 {
+			var d struct {
+				Added   int `json:"lines_added"`
+				Removed int `json:"lines_removed"`
+			}
+			if json.Unmarshal(result, &d) == nil {
+				st.LinesAdded += d.Added
+				st.LinesRemoved += d.Removed
+			}
+		}
+	}
+	for _, env := range events {
+		dec, err := event.DecodePayload(env)
+		if err != nil {
+			continue
+		}
+		switch p := dec.(type) {
+		case *event.ActivityStarted:
+			inflight[p.ActivityID] = open{started: p, ts: env.TS}
+		case *event.ActivityCompleted:
+			closeActivity(p.ActivityID, env.TS, p.IsError, false, p.Result)
+		case *event.ActivityFailed:
+			if p.Final {
+				closeActivity(p.ActivityID, env.TS, true, false, nil)
+			}
+		case *event.ActivityCancelled:
+			closeActivity(p.ActivityID, env.TS, false, true, nil)
+		}
+	}
+	// Merge overlapping activity spans: parallel tool batches count once.
+	sort.Slice(spans, func(i, j int) bool { return spans[i].start.Before(spans[j].start) })
+	var active time.Duration
+	var curStart, curEnd time.Time
+	for _, sp := range spans {
+		if curEnd.IsZero() || sp.start.After(curEnd) {
+			active += curEnd.Sub(curStart)
+			curStart, curEnd = sp.start, sp.end
+			continue
+		}
+		if sp.end.After(curEnd) {
+			curEnd = sp.end
+		}
+	}
+	active += curEnd.Sub(curStart)
+	st.ActiveSeconds = float64(active.Milliseconds()) / 1000
+	if st.ToolCalls == 0 && st.ActiveSeconds == 0 {
+		return nil
+	}
+	return st
 }
 
 func activityEntry(turn int, a *event.ActivityCompleted, started *event.ActivityStarted, byCall, byEffect map[string]verdictInfo, callArgs map[string]json.RawMessage) entryReport {
@@ -561,6 +675,19 @@ func renderInspectIndent(w io.Writer, r inspectReport, pad string) {
 		for _, it := range r.Progress {
 			fmt.Fprintf(w, "%s        %s %s — %s\n", pad, mark[it.Status], it.Title, it.Status)
 		}
+	}
+	if st := r.Stats; st != nil {
+		// One activity line (INC-43): what the session DID. Full per-tool
+		// numbers live in --json.
+		line := fmt.Sprintf("%sstats   %d tool calls", pad, st.ToolCalls)
+		if st.ToolFailures > 0 {
+			line += fmt.Sprintf(" (%d failed)", st.ToolFailures)
+		}
+		if st.LinesAdded > 0 || st.LinesRemoved > 0 {
+			line += fmt.Sprintf(" · +%d/−%d lines", st.LinesAdded, st.LinesRemoved)
+		}
+		line += fmt.Sprintf(" · active %.1fs", st.ActiveSeconds)
+		fmt.Fprintln(w, line)
 	}
 	if r.Waiting != nil {
 		if r.Waiting.ApprovalID != "" {

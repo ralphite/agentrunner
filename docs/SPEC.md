@@ -69,7 +69,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 
 | 功能点 | 状态 | Journey | 验收锚 / 备注 |
 |---|---|---|---|
-| read_file / write_file / edit_file（read_file 支持读图/PDF：media envelope+CAS ref,assembly 注入 image/file part,journal 恒 byte-free;5MB 上限;文本路径零变化） | ✅ | UJ-02/05 | S1 · QA-03（write_file）· INC-33（TestReadFileImage*/TestReadFileImageEndToEnd · QA-38 真机:模型从像素读出截图内容） |
+| read_file / write_file / edit_file（read_file 支持读图/PDF：media envelope+CAS ref,assembly 注入 image/file part,journal 恒 byte-free;5MB 上限;文本路径零变化；write/edit result 带 lines_added/removed 行统计,INC-43） | ✅ | UJ-02/05 | S1 · QA-03（write_file）· INC-33（TestReadFileImage*/TestReadFileImageEndToEnd · QA-38 真机:模型从像素读出截图内容） |
 | bash 前台+后台（`output`/`kill` 凭 handle、进程组取消） | ✅ | UJ-02/18 | S1/S3 · QA-05 |
 | 后台任务 notify 门（`notify: always\|on_fail\|none`；fold 从 journaled args 读门、resume 重放同裁决；none=终态只摘 handle 不回流（fire-and-forget）、on_fail=仅 IsError 回流；Cancelled 不过门；非法值宽容回退 always） | ✅ | UJ-18 | INC-39（HANDA #10 缩水版，唤醒与结构化载荷经勘误已存在）· TestBackgroundNotifyGate（10 例矩阵）· 真验 2026-07-10（真 Gemini 双场景：none 零回流零多余 turn / on_fail 回流+模型复述 exit 3，qa/runs/2026-07-10-INC39） |
 | semantic_search（IndexStore，BM25） | ✅ | UJ-01 | S7 |
@@ -158,7 +158,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 
 | 功能点 | 状态 | Journey | 验收锚 / 备注 |
 |---|---|---|---|
-| events / inspect（时间线、判定、子树、用量） | ✅ | UJ-17 | S3/S6;INC-11.1 按 stream header 分派 run fold / driver fold，旧 goal/loop journal 可读并展开 iteration 子树；子会话寻址(child_session 全 id,`-sub-` 分段映射 `sub/` 目录,任意深度)INC-1 |
+| events / inspect（时间线、判定、子树、用量；**stats**：per-tool calls/success/fail/duration_ms、files lines_added/removed（自 write/edit result 载荷求和）、active_seconds（活动区间合并的墙钟，待命/审批挂起不计）——envelope TS 报表投影非核心 fold，文本+--json 两面） | ✅ | UJ-17 | S3/S6;INC-43（HANDA #31,TestBuildStatsAggregates/TestLineDeltaAccounting,真验 qa/runs/2026-07-11-INC43:+6/−1 与实际操作吻合）;INC-11.1 按 stream header 分派 run fold / driver fold，旧 goal/loop journal 可读并展开 iteration 子树；子会话寻址(child_session 全 id,`-sub-` 分段映射 `sub/` 目录,任意深度)INC-1 |
 | `ar ps`（fold 的在飞任务列表，无 daemon 可用） | ✅ | UJ-18 | QA-05/09 实测 |
 | attach/detach（journal 补读 + live 订阅） | ✅ | UJ-17 | S6 |
 | 远程审批（daemon approve） | ✅ | UJ-17 | S6 |

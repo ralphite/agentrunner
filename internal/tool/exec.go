@@ -717,10 +717,19 @@ func (e *Executor) writeFile(rawArgs json.RawMessage) Result {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return errResult("write_file: %v", err)
 	}
+	// Line-delta accounting (INC-43): an overwrite counts as rewrite —
+	// every previous line removed, every new line added. The numbers ride
+	// the result payload, so the model sees them and inspect's stats sum
+	// them from the journal without re-diffing redacted content.
+	removed := 0
+	if old, rerr := os.ReadFile(path); rerr == nil {
+		removed = countLines(string(old))
+	}
 	if err := os.WriteFile(path, []byte(*args.Content), 0o644); err != nil {
 		return errResult("write_file: %v", err)
 	}
-	return okResult(map[string]any{"output": fmt.Sprintf("wrote %s (%d bytes)", args.Path, len(*args.Content))})
+	return okResult(map[string]any{"output": fmt.Sprintf("wrote %s (%d bytes)", args.Path, len(*args.Content)),
+		"lines_added": countLines(*args.Content), "lines_removed": removed})
 }
 
 func (e *Executor) editFile(rawArgs json.RawMessage) Result {
@@ -755,7 +764,8 @@ func (e *Executor) editFile(rawArgs json.RawMessage) Result {
 		if werr != nil {
 			return errResult("edit_file: %v", werr)
 		}
-		return okResult(map[string]any{"output": fmt.Sprintf("created %s", args.Path)})
+		return okResult(map[string]any{"output": fmt.Sprintf("created %s", args.Path),
+			"lines_added": countLines(args.New), "lines_removed": 0})
 	}
 
 	raw, err := os.ReadFile(path)
@@ -775,7 +785,24 @@ func (e *Executor) editFile(rawArgs json.RawMessage) Result {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		return errResult("edit_file: %v", err)
 	}
-	return okResult(map[string]any{"output": fmt.Sprintf("edited %s", args.Path)})
+	// Replacement delta counts the edited span's lines (INC-43): the old
+	// snippet's lines out, the new snippet's lines in — a one-line tweak
+	// reads as 1/1, not a whole-file diff.
+	return okResult(map[string]any{"output": fmt.Sprintf("edited %s", args.Path),
+		"lines_added": countLines(args.New), "lines_removed": countLines(args.Old)})
+}
+
+// countLines counts content lines for the INC-43 delta accounting: empty
+// content is zero lines; otherwise a trailing newline does not add one.
+func countLines(s string) int {
+	if s == "" {
+		return 0
+	}
+	n := strings.Count(s, "\n")
+	if !strings.HasSuffix(s, "\n") {
+		n++
+	}
+	return n
 }
 
 func (e *Executor) bash(ctx context.Context, rawArgs json.RawMessage) Result {
