@@ -38,7 +38,7 @@
 |---|---|---|---|---|
 | 2U | 「命令身份·撤销·应答」统一设计单元（covers #16/#29/#7） | M(设计) | ✅ done (INC-44 rev1) | 契约 review「修订后放行」，B1/B2/M1-3 已吸收（AskResolved 三件套/revoked 集/纯函数 retry/CommandAnswer 四触点）；#16/#29/#7 解锁 |
 | 16 | turn retry（派生 command_id `retry:<turn-id>`） | S | ✅ done (INC-45) | 双闸门全绿；真验抓守卫 bug（待命=Waiting{input} 误判）并修；链式 retry 语义记档（qa/runs/2026-07-11-INC45） |
-| 29 | 排队消息撤销（durable revoke 五点语义） | M | ⬜ | 依赖 2U；触 §2 铁律走 §四 |
+| 29 | 排队消息撤销（durable revoke 五点语义） | M | 🔧 in-progress (INC-46) | 变更单已过审（INC-44 rev1）；webui 撤回按钮拆余项随 #7 |
 | 7 | 结构化 ask_user（typed AskResolved + ar answer + 表单卡） | M | ⬜ | 依赖 2U；= CC SPRINT #10 联动 |
 
 ### 批 3 · 内核（触不变量项单独 INC）
