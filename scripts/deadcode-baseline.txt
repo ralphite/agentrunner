@@ -1,0 +1,21 @@
+# lint-wiring.sh 基线:main 不可达的导出(deadcode@v0.48.0,双 main:cmd/agentrunner + webui)。
+# 只应变短;增行须在 LOG 给理由。存量项的甄别义务见 GAPS G31(接线/删除/注记理由三选一)。
+internal/agent/waiting.go CanProduce
+internal/agent/waiting.go ResolveWaitingOnInterrupt
+internal/blackboard/blackboard.go Board.Topics
+internal/cli/daemon.go persistInputFunc
+internal/clock/clock.go Fake.Advance
+internal/clock/clock.go Fake.Now
+internal/clock/clock.go Fake.WaitUntil
+internal/clock/clock.go Fake.Waiters
+internal/clock/clock.go NewFake
+internal/command/command.go Discover
+internal/command/command.go parseFrontmatter
+internal/driver/driver.go Driver.Resume
+internal/driver/state.go State.lastCompleted
+internal/errs/errs.go Retryable
+internal/mcp/mcp.go NewConn
+internal/notify/notify.go Notifier.Seen
+internal/pipeline/mode.go ValidTransition  # G29:mode 切换入口未接线——接线时移除本行
+internal/provider/scripted/router.go NewRouter
+internal/provider/scripted/scripted.go New

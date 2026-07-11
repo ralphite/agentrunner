@@ -580,6 +580,40 @@ grep -A/-B/-C。跑完 session 拷回共享 store、export 归档
 **通过标准**：默认无 context = 旧行为；context 行受 redaction/截断/文件
 边界钳制；files/count 模式忽略 context。
 
+## QA-32 内置只读 agent 库 spawn（INC-25,#78,UJ-18）
+
+（补登 2026-07-10：场景于 INC-25 收口时真机执行并记 LOG,菜单当时漏登——
+lint-docs 幻影锚检查抓出,见 LOG 2026-07-10 复盘条目。）
+
+**环境**：私有**新二进制** daemon + 真实 Gemini；spec `agents:` 只列名
+`explore`,workspace 无同名 sibling spec 文件；workspace 放一个含常量
+`512` 的源文件。（本场景首跑踩出"共享 daemon 跑旧二进制致假失败"，
+已固化为 QA 通则：新 daemon-path 功能一律私有新二进制跑。）
+
+| # | 动作 | 验证 |
+|---|---|---|
+| 1 | 让模型 spawn 内置 explore 查常量值 | 无 sibling spec 文件仍成功起子会话（embed 解析） |
+| 2 | 子会话执行 | 只读面：无 write 类工具,以 read/grep 完成 |
+| 3 | 返值回父 | 父收到正确常量值 512 |
+
+**结果**：PASS（LOG INC-25 条目）。
+
+## QA-33 结构化输出 CLI 端到端（INC-26,#91,UJ-01）
+
+（补登 2026-07-10：场景于 INC-26 收口时真机执行并记 LOG,菜单当时漏登——
+lint-docs 幻影锚检查抓出。）
+
+**环境**：真实 Gemini；workspace 放 7 行 `sample.txt`；schema 约束
+`{lines:int, name:string}`。
+
+| # | 动作 | 验证 |
+|---|---|---|
+| 1 | `ar new --json-schema <path>` 让模型数行 | 回复为符合 schema 的 JSON,客户端校验通过 |
+| 2 | 输出 | canonical structured_output 打印 `{"lines":7,"name":"sample.txt"}` |
+| 3 | 独立复核 | python 独立确认 schema 符合且值合理（name~sample、lines=7） |
+
+**结果**：PASS 首验通过（LOG INC-26 条目）。
+
 ## QA-35 grep multiline（INC-27,#35 余项,UJ-01）
 
 **环境**：私有 daemon（隔离 runtime 根,新二进制）+ 真实 Gemini；workspace
@@ -637,6 +671,57 @@ recovery stale status 三个信息真实性缺陷；23 个 frontend tests、fron
 build、Web UI/根 check 全绿。最终同图对照 `07-reference-vs-latest.png`。
 
 ---
+
+## QA-37 skills context:fork 一次性子 agent（INC-31,UJ-19）
+
+（补登 2026-07-10：场景于 INC-31 收口时真机执行并记 LOG,菜单当时漏登——
+lint-docs 幻影锚检查抓出。）
+
+**环境**：私有**新二进制** daemon + 真实 Gemini；skill 带 `context: fork`
+frontmatter 与 FORK-MARKER 正文；workspace 可数 widget 的源文件。
+
+| # | 动作 | 七红线断言 |
+|---|---|---|
+| 1 | 用户消息触发 fork skill | ingest 展开为 `spawn_agent{role}` 入 journal |
+| 2 | spawn | SpawnRequested Agent=skill 名;冻结 RoleSpec 载正文（FORK-MARKER）与 allowed-tools |
+| 3 | 子会话执行 | 跑出 `WIDGET-COUNT: 4` |
+| 4 | 收口 | receipt 回父,父答 4 |
+
+**结果**：PASS 七红线全过（LOG INC-31 条目）。
+
+## QA-38 read_file 读图（INC-33,UJ-02/05）
+
+（补登 2026-07-10：场景于 INC-33 收口时真机执行并记 LOG,菜单当时漏登——
+lint-docs 幻影锚检查抓出。）
+
+**环境**：私有**新二进制** daemon + 真实 Gemini；workspace 放一张含
+可辨识文本（文件名/数字/标识符）的截图 PNG。
+
+| # | 动作 | 四红线断言 |
+|---|---|---|
+| 1 | 让模型 read_file 该 PNG | media envelope 入 journal,journal 恒 byte-free（最长行 2056B 无 blob） |
+| 2 | CAS | ref 字节精确 |
+| 3 | 第二次请求 | tool_result 后跟 inflate 的 image part,块序正确 |
+| 4 | 模型作答 | **从像素读出截图内容**（command.go/1234/EnableTraverseRunHooks） |
+
+**结果**：PASS 四红线全过（LOG INC-33 条目）。
+
+## QA-39 provider-native 结构化输出（INC-35,#8b,UJ-01）
+
+（补登 2026-07-10：场景于 INC-35 收口时真机执行并记 LOG,菜单当时漏登——
+lint-docs 幻影锚检查抓出。）
+
+**环境**：私有**新二进制** daemon + 真实 Gemini；spec 声明
+`output_schema`；workspace 放 5 行 `report.txt`。
+
+| # | 动作 | 验证 |
+|---|---|---|
+| 1 | 模型按 schema 作答 | gemini 原生约束生效：`raw_json=True` 裸 JSON（无 ```json fences） |
+| 2 | 输出 | `{lines:5,name:report.txt}` 单轮免 re-prompt（对比 QA-33 的 CLI 重试路径） |
+| 3 | 工具面 | structuredOnly 抑制全部自动加工具（send_message 等）,tool-less 轮可达 |
+
+**结果**：首跑暴露 Router 自动加 send_message 使 `len(Tools)==0` 门永不
+触发（fences 复现）→ structuredOnly 修复后重跑 PASS（LOG INC-35 条目）。
 
 ## QA-41 Codex 式任务收尾与首屏真相（INC-38,UJ-24）
 

@@ -2524,3 +2524,49 @@ B=真浏览器整合复验 18/18 断言(home 欢迎/三菜单/Settings 开合/da
 
 **开放项**:见 INC-41-BACKLOG.md 台账(A4/B2/J2/J4/J5/D1/I2/I3/Z1 等,
 多为需后端契约或跨切片小件);终局 QA-43 全景对照待下一批收口。
+
+## 2026-07-10 复盘:需求静默丢失(mode 运行中切换,G29)与登记簿真实性闸门
+
+**事故**:用户追问"为什么 session 里不能改 permission mode"。核查:v1 PLAN
+S3.6c 白纸黑字交付三条跃迁边,其中 default↔acceptEdits(用户命令)从未接线
+——`pipeline.ValidTransition` 零生产调用方,daemon/CLI/webui 三入口皆无,
+webui 反把缺失固化为注释"fixed approval mode (display only)";SPEC #94 却
+记 modes ✅(锚只写"S2/S3")。用户明言:项目开始即有此明确需求,不可再犯。
+
+**五道闸皆漏的链条**(详见 GAPS G29):验收锚窄于交付物(S3.6c 只锚
+plan→default)→ SPEC 档期名代锚、部分完成四舍五入 ✅ → JOURNEYS 无承载
+步骤 → PARITY #56 按 mode 清单对表不问生命周期 → TestModeTransitionTable
+断言表格全绿,测试绿掩盖零接线。
+
+**决策(过程性,即日生效)**:
+1. PROCESS §五新增"登记簿真实性"五条硬判据(锚可执行/✅=用户可达/接线
+   审计/审计四问/GAPS 编号唯一),两道机械闸进 check.sh:
+   - `scripts/lint-docs.sh`:SPEC ✅ 行弱锚 vs 基线(只减不增)+ 幻影锚
+     存在性(锚点名的 Test/QA 必须真实存在)+ GAPS 重号检测;
+   - `scripts/lint-wiring.sh`:deadcode@v0.48.0 双 main 可达性 vs 基线,
+     新增不可达导出拒绝提交。
+2. SPEC 更正:#exit_plan_mode/#modes 两行换真锚;新增"mode 运行中切换
+   ❌ (G29)"行。PARITY #56 补"运行中切换 ❌"。
+3. GAPS 重号更正:G24(task 显式重开)→G27、G25(预算串行化)→G28,条目内
+   注记对照,历史 LOG 引用不改。新登 G29(mode 切换入口)/G30(SPEC 弱锚
+   存量 31 行燃尽)/G31(deadcode 存货 19 项甄别——command.Discover/
+   driver.Resume 等疑似同类缺口待甄别)。
+4. 功能本体(mode 命令 + 三入口 + UJ-06 步骤 + QA 场景)单独成增量走
+   三层 delta,本次未动产品代码。
+
+**linter 首跑战果**:lint-docs 幻影锚检查当场抓出 5 个 SPEC 引用而
+QA.md 菜单不存在的场景号(QA-32/33/37/38/39——INC-25/26/31/33/35 收口
+时真机执行且记了 LOG,但菜单漏登,编号成洞)。已按 LOG 执行记录逐条
+补登 QA.md(标注补登缘由,不虚构归档路径)。同类漂移的又一实证:
+执行了、记了台账,登记簿(菜单)没同步。
+
+**环境阻断记录(与本增量无关)**:本机 check.sh 唯一红项
+TestBashFilesystemSandboxAllowsLinkedWorktreeGitMetadata——机器当前为
+纯 Xcode.app(xcode-select -p 指 Xcode.app,无 /Library/Developer/
+CommandLineTools),Seatbelt 内 git shim 解析不到 developer 目录,报
+"No developer tools were found"。本次 diff 零 .go 文件,main 同树同败,
+纯机器态问题;其余全部绿(Go 全测、webui、frontend 90 tests、build、
+两道新 linter)。解法待用户裁决:装独立 CLT(`xcode-select --install`),
+或测试加环境守卫(检测 Seatbelt 内 git 不可用则 skip 并给理由),或
+sandbox profile 放行 /var/db/xcode_select_link + Xcode.app 只读。今日
+所有并发 session 都会踩到同一红项。

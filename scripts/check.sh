@@ -14,12 +14,19 @@ if [[ -n "$unformatted" ]]; then
   exit 1
 fi
 
+# 登记簿真实性:SPEC 锚判据/幻影锚/GAPS 重号(PROCESS §五,G29 复盘)。
+scripts/lint-docs.sh
+
 # QA sessions write throwaway Go files under gitignored runtime/ workspaces;
 # ./... walks in regardless of .gitignore and a broken demo package would
 # fail the gate — scope the toolchain to the repo's real packages.
 packages=$(go list ./... 2>/dev/null | grep -v "/runtime/")
 go vet $packages
 golangci-lint run
+
+# 接线审计:deadcode 可达性 vs 基线——有测试调用 ≠ 已接线(PROCESS §五)。
+scripts/lint-wiring.sh
+
 go test $packages
 
 (cd webui && go vet ./... && go test ./...)

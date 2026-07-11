@@ -73,7 +73,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | bash 前台+后台（`output`/`kill` 凭 handle、进程组取消） | ✅ | UJ-02/18 | S1/S3 · QA-05 |
 | semantic_search（IndexStore，BM25） | ✅ | UJ-01 | S7 |
 | publish_artifact（`outputs:` contract、审批载荷） | ✅ | UJ-06 | S5 |
-| exit_plan_mode（plan mode 跃迁） | ✅ | UJ-06/11 | S2/S3 |
+| exit_plan_mode（plan mode 跃迁） | ✅ | UJ-06/11 | S2/S3 · TestPlanApprovalFullFlow/TestPlanModeFullFlow/TestExitPlanModeDeniedStaysInPlan |
 | schedule_next / finish_series（loop 自定步调） | ✅ | UJ-14 | S6 |
 | progress_update（模型整表维护会话 checklist；loop 内部工具不过管线；status 归一 pending/running/done/failed、≤50 条/字段 clamp/redact；result 只回计数；`ProgressUpdated` 纯 fold 出 `state.Session.Progress`，`ar inspect` 文本+JSON 与 webui Supervision Progress 区消费） | ✅ | UJ-18/22/24 | INC-37（HANDA #9）· TestProgressTool*/TestProgressFoldReplacesWholesale + event 全类型 round-trip 守卫 · 真验 2026-07-10（真 Gemini 7 次自发调用+webui DOM 断言，qa/runs/2026-07-10-INC37） |
 | grep / glob 独立工具 | ✅ | UJ-01 | INC-3 · TestGrep*/TestGlob* · QA-11（真实 API：模型自发调用 grep+glob，凭据红线守住） |
@@ -91,7 +91,8 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | rules（tool/path/command/network + realpath 归一） | ✅ | UJ-08/20 | S2 · S7（network） |
 | bash 命令粒度匹配（复合命令逐段聚合取最严 + wrapper 剥离 + 只读集免提示；显式 deny 先于只读集；fail-safe 退整体） | ✅ | UJ-08 | INC-16 · TestSplitCompound/TestStripWrappers/TestIsReadOnlyCommand/TestCompound*/TestReadonlySetYieldsToExplicitRule · QA-25（真机：victim 存活证逐段 deny） |
 | protected paths 写保护（acceptEdits 下 .git/.claude/rc/.mcp.json 等敏感写需审批；只收紧 mode default 自动放行，bypass/显式规则/hardFloor 不变；.claude/worktrees carve-out） | ✅ | UJ-08 | INC-18 · TestIsProtectedWritePath/TestAcceptEditsProtectedRequiresApproval/TestBypassIgnoresProtected/TestExplicitAllowOverridesProtected/TestProtectedWorktreeCarveout · QA-28（真机：.mcp.json 需审批且 pending 时未改写） |
-| modes（default/plan/acceptEdits + bypass 不跳 hooks） | ✅ | UJ-06/11 | S2/S3 |
+| modes——面过滤/mode 默认/prompt 注入/plan→default 跃迁（default/plan/acceptEdits + bypass 不跳 hooks） | ✅ | UJ-06/11 | S2/S3 · TestAdvertisedToolsByMode/TestPermissionModeDefaults/TestPlanModeFullFlow/TestBypassRunsHooksButSkipsPermission |
+| mode 运行中切换（default↔acceptEdits 用户命令——v1 S3.6c 规划三条跃迁边之一；ValidTransition 表与 ModeChanged{Cause:"user"} 底座在，daemon/CLI/webui 入口均未接线，webui 曾注释固化 "fixed approval mode (display only)"） | ❌ | UJ-06 | GAPS G29（2026-07-10 复盘登记；关闭走三层 delta 增量） |
 | 审批流（ask → WAITING_APPROVAL → 应答/拒绝理由回灌） | ✅ | UJ-08 | S2 · 远程审批 S6 |
 | hooks（pre/post，observe+block） | ✅ | UJ-19 | S2 |
 | OS 沙箱（bash/verifier 默认 filesystem=workspace；Seatbelt/Bubblewrap；network none 棘轮；能力缺失 fail-closed） | ✅ | UJ-20 | INC-11.3 · TestBashFilesystemSandbox/TestBashNetworkContainment/TestSandboxCapabilityMissingDeniesBeforeActivity |
