@@ -104,6 +104,15 @@ func arFail(w http.ResponseWriter, what string, res arResult) {
 		}
 		detail += out
 	}
+	// Stale-binary self-diagnosis: Go's flag package prints "flag provided but
+	// not defined: -X" (exit 2) when webui passes an argument the `ar` binary is
+	// too old to understand — exactly the INC-43 --steer failure. Turn the
+	// cryptic "exit status 2" toast into an actionable one naming the version
+	// skew and the fix, so we never again lose a day to a shared old binary.
+	if strings.Contains(detail, "flag provided but not defined") {
+		detail += "\n\n⚠️ The `ar` binary is out of date — it does not recognize a flag " +
+			"this webui sent. Rebuild and redeploy both from the same commit (scripts/deploy.sh)."
+	}
 	writeJSON(w, http.StatusBadGateway, map[string]string{
 		"error":  msg,
 		"stderr": detail,
@@ -172,15 +181,18 @@ type specFile struct {
 // ---- daemon / health ----
 
 func (s *server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	ver := "unknown"
-	if res := s.runAR(r.Context(), 5*time.Second, "--version"); res.Err == nil {
-		ver = strings.TrimSpace(res.Stdout)
+	arVer := s.arVersion(r.Context())
+	ver := arVer
+	if ver == "" {
+		ver = "unknown"
 	}
 	managed, reachable, external := s.daemonStatus(r.Context())
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":              true,
 		"ar":              s.arPath,
-		"version":         ver,
+		"version":         ver,       // ar's build stamp (kept for back-compat)
+		"webuiVersion":    s.version, // this webui binary's build stamp
+		"versionMatch":    versionMatch(s.version, arVer),
 		"daemonManaged":   managed,
 		"daemonExternal":  external,
 		"daemonUp":        reachable,

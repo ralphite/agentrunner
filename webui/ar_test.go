@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -361,5 +362,55 @@ func TestHandleWorktreeStartsAtSelectedRef(t *testing.T) {
 	}
 	if got := strings.TrimSpace(string(out)); got != mainHash {
 		t.Fatalf("worktree HEAD = %s, want main %s", got, mainHash)
+	}
+}
+
+func TestVersionMatch(t *testing.T) {
+	// Same commit stamp on both binaries: ar's "agentrunner <stamp> (go...)"
+	// contains webui's bare stamp.
+	if !versionMatch("a1b2c3d", "agentrunner a1b2c3d (go1.26.4)") {
+		t.Error("expected match when ar version contains webui stamp")
+	}
+	// Plain dev builds must never false-alarm.
+	if !versionMatch("dev", "agentrunner dev (go1.26.4)") {
+		t.Error("expected dev builds to match")
+	}
+	// The exact regression: new webui, stale ar (different commit).
+	if versionMatch("d230a93", "agentrunner ar-inc30 (go1.26.4)") {
+		t.Error("expected skew to be flagged")
+	}
+	// Unrunnable ar (empty) is a mismatch.
+	if versionMatch("d230a93", "") {
+		t.Error("expected empty ar version to be a mismatch")
+	}
+}
+
+func TestArFailFlagsStaleBinary(t *testing.T) {
+	// The INC-43 regression: webui sent --steer to a pre-INC-43 ar, Go's flag
+	// package rejected it with exit 2. The toast must name the stale binary.
+	rec := httptest.NewRecorder()
+	res := arResult{
+		Stderr: "flag provided but not defined: -steer\nUsage of send:",
+		Err:    fmt.Errorf("exit status 2"),
+	}
+	arFail(rec, "ar send", res)
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502", rec.Code)
+	}
+	var body struct{ Stderr string }
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(body.Stderr, "out of date") || !strings.Contains(body.Stderr, "scripts/deploy.sh") {
+		t.Errorf("stale-binary hint missing from toast: %q", body.Stderr)
+	}
+
+	// A normal failure (no flag-parse error) must NOT get the hint.
+	rec2 := httptest.NewRecorder()
+	arFail(rec2, "ar send", arResult{Stderr: "no session matches \"x\"", Err: fmt.Errorf("exit status 1")})
+	var body2 struct{ Stderr string }
+	_ = json.Unmarshal(rec2.Body.Bytes(), &body2)
+	if strings.Contains(body2.Stderr, "out of date") {
+		t.Errorf("unexpected stale hint on ordinary failure: %q", body2.Stderr)
 	}
 }

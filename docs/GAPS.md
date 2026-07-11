@@ -475,6 +475,25 @@ xcodebuild（fs event stream / result bundle 均被沙箱拒,rc=72）;
 （如 PATH 截击 shim 直指 toolchain git、host 侧 git 代理）触
 sandbox env/PATH 语义,须走增量流程另行设计。→ UJ-10/20
 
+**G33 共享环境跑陈旧二进制致新功能假失败 — 🟡 部署/验收流程缺口 · 中（2026-07-10 登记，第二次栽）**
+增量在私有 daemon + 私有新二进制上验（QA 纪律要求隔离新 daemon-path
+功能），但**收口未把新二进制部署回用户日常共享环境并复验**——共享的
+`ar`/daemon/webui 服务端仍是旧二进制。表现:webui 前端 dist 是新的
+（Queue|Steer 控件在），调用的共享 `ar` 却是 pre-INC-43，Steer 发消息
+`ar send: exit status 2 / flag provided but not defined: -steer`。此为
+**第二次**同类事故（首次见 MEMORY「QA 新 daemon-path 功能须私有新
+二进制 daemon」）。根因两层:(a) 部署缺一步——增量收口没有"部署回
+共享环境"动作；(b) 二进制无版本身份——`ar/arwebui --version` 一律
+印 `dev`,新旧不可辨,skew 无从被机械发现。机械加固（随本 bugfix
+落地,非新 journey）:①`scripts/deploy.sh` 固化 build→版本化安装（绝不
+原地覆盖运行中二进制）→守活跃 turn→重启 daemon/webui;②`-ldflags
+-X main.version=<commit>` 给 `ar` 与 `arwebui` 打同一 commit 戳;
+③webui 启动 + `/api/health` 做 ar↔webui 版本一致性核对,skew 打
+WARNING;④webui send 失败含 `flag provided but not defined` 时把
+toast 改写为"ar 二进制过期,scripts/deploy.sh 重新部署"（可诊断,
+替代 exit status 2）。测试:TestVersionMatch/TestArFailFlagsStaleBinary。
+复盘见 LOG 2026-07-10。→ UJ-13/UJ-16（webui 产品面）
+
 ---
 
 ## §3 已确认覆盖（防重复登记）

@@ -2997,3 +2997,40 @@ add-A→write-tree→commit-tree→`git diff --binary HEAD C`→主 checkout `gi
 非零退出报冲突、不自动合并）——本实现对齐且更保守（干跑 gate）。旧
 `runtime/ws/wt-*` worktree 不迁移仍可打开。不触 DESIGN 不变量。占号先推，
 实施与收口见工作纸步骤。
+
+## 2026-07-10 复盘 + 加固: Steer 发消息在共享环境假失败(第二次栽陈旧二进制)
+
+**事故**: 用户日常 webui(127.0.0.1:8809)里 Steer 模式发消息报
+`ar send: exit status 2 / flag provided but not defined: -steer`。诊断:
+INC-43(d230a93,已在 main)给 `ar send` 加了 `--steer`,webui 前端 dist 是
+新的(Queue|Steer 控件在),但它调用的共享 `ar` 二进制(`/tmp/ar-claude`)与
+全局 daemon(`/tmp/claude-501/ar-inc30`)都是 pre-INC-43。INC-43 的 QA
+(qa/runs/2026-07-10-QA-45)在私有 daemon + 私有新二进制上做——符合"新
+daemon-path 功能须私有新二进制"纪律,但**收口没有把新二进制部署回共享
+环境并复验**。GAPS G33。
+
+**为什么是第二次**: 首次同类见 MEMORY「QA 新 daemon-path 功能须私有新
+二进制 daemon」——那次的教训只停在"QA 用私有二进制",没延伸到"收口要
+部署回共享环境"。根因还有一层:`ar/arwebui --version` 一律印 `dev`,
+新旧二进制不可辨,skew 无从被任何机械闸发现,只能等用户撞上。
+
+**机械加固(bug 修复附带,非新 journey/spec——按 PROCESS 判为"修复附带
+加固",登 GAPS G33 + 本条,未动三层不变量)**:
+1. `scripts/deploy.sh`: 一步固化 build→版本化安装→重启 daemon/webui。
+   两条血泪硬规则写进脚本:(a)绝不原地覆盖运行中二进制,每次装到
+   `~/.local/share/agentrunner/bin/{ar,arwebui}-<stamp>` 新路径;(b)重启
+   daemon 前 grep `ar sessions` 有无 running turn,有则拒绝(--force override)。
+2. 版本身份: `-ldflags -X main.version=<commit>` 给 `ar`(`cmd/agentrunner`)
+   与 `arwebui`(webui 新增 `var version` + `-version` flag)打同一 commit 戳。
+3. skew 机械核对: webui 启动 `warnOnARVersionSkew()` 跑 `ar --version` 比
+   自身戳,不一致打 WARNING;`/api/health` 加 `webuiVersion`/`versionMatch`。
+   `dev` 构建不告警(本地 go build 无戳,设计如此)。
+4. 可诊断 toast: `arFail` 检测 stderr 含 `flag provided but not defined`,
+   把 "exit status 2" 改写成"ar 二进制过期,scripts/deploy.sh 重新部署"。
+   直接让本 bug 的 toast 自诊断。测试 TestVersionMatch/TestArFailFlagsStaleBinary。
+
+**部署与复验**: 全局 daemon 无 running turn(durable,静止),外科式重启:
+仅 SIGTERM 持有全局 socket 的 `ar-inc30`(pid 48152)、仅重启 8809 webui,
+不碰本机其它并发 session 的 scratchpad daemon。共享 daemon+共享 store 上
+起真实 Gemini session,webui 强刷后 Steer/Queue 各发一条复验,证据
+qa/runs/2026-07-10-steer-hotfix/。测试会话保留不删。

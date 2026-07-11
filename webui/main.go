@@ -20,9 +20,18 @@ import (
 	"time"
 )
 
+// version is the build stamp, set via -ldflags "-X main.version=<commit>" by
+// scripts/deploy.sh. Left as "dev" for plain `go build`. It exists so a stale
+// deploy is self-diagnosing: webui compares this against the `ar` binary it
+// drives and shouts when they disagree (the stale-`ar` class — INC-43 `--steer`
+// shipped in a new dist while the shared `ar` was pre-INC-43; see docs/LOG.md
+// 2026-07-10 复盘).
+var version = "dev"
+
 type server struct {
 	arPath     string
 	runtimeDir string
+	version    string // this webui binary's build stamp (main.version)
 
 	mu             sync.Mutex
 	daemonCmd      *exec.Cmd // the daemon we spawned; nil when unmanaged
@@ -42,7 +51,13 @@ func main() {
 	envFile := flag.String("env-file", "", "KEY=VALUE file loaded into the environment before spawning anything")
 	noDaemon := flag.Bool("no-daemon", false, "do not spawn `ar daemon`; use an external one")
 	runtimeDir := flag.String("runtime", "runtime", "scratch dir for specs/uploads/workspaces/daemon.log")
+	showVersion := flag.Bool("version", false, "print the build stamp and exit")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("arwebui %s\n", version)
+		return
+	}
 
 	if *envFile != "" {
 		if err := loadEnvFile(*envFile); err != nil {
@@ -59,7 +74,8 @@ func main() {
 		}
 	}
 
-	s := &server{arPath: *arPath, runtimeDir: rt, daemonManage: !*noDaemon, runs: newRunRegistry(), meta: newMetaStore(filepath.Join(rt, "webui-meta.json"))}
+	s := &server{arPath: *arPath, version: version, runtimeDir: rt, daemonManage: !*noDaemon, runs: newRunRegistry(), meta: newMetaStore(filepath.Join(rt, "webui-meta.json"))}
+	s.warnOnARVersionSkew()
 	if s.daemonManage {
 		if err := s.spawnDaemon(); err != nil {
 			log.Printf("arwebui: daemon spawn: %v (continuing; maybe an external daemon is up)", err)
@@ -176,6 +192,53 @@ func (s *server) daemonStatus(ctx context.Context) (alive, reachable, external b
 	res := s.runAR(ctx, 5*time.Second, "interrupt", "__arwebui_probe__")
 	reachable = !daemonUnreachable(res.Stderr)
 	return alive, reachable, external
+}
+
+// arVersion returns the trimmed `ar --version` output ("agentrunner <stamp>
+// (go...)"), or "" if the binary could not be run.
+func (s *server) arVersion(ctx context.Context) string {
+	res := s.runAR(ctx, 5*time.Second, "--version")
+	if res.Err != nil {
+		return ""
+	}
+	return strings.TrimSpace(res.Stdout)
+}
+
+// versionMatch reports whether the `ar` binary we drive was built from the same
+// stamp as this webui. Both are stamped with the same commit by
+// scripts/deploy.sh, so a match means `ar --version` contains our stamp. Plain
+// "dev" builds always match (contains "dev") — no false alarm for local `go
+// build`. An empty arVer (ar unrunnable) is reported as a mismatch.
+func versionMatch(webuiVer, arVer string) bool {
+	if arVer == "" {
+		return false
+	}
+	return strings.Contains(arVer, webuiVer)
+}
+
+// warnOnARVersionSkew logs a loud line at startup when the `ar` binary was built
+// from a different commit than this webui. This is the cheap mechanical guard
+// for the stale-`ar` class: a new dist (new webui flags/features) driving an old
+// `ar` produces cryptic "flag provided but not defined" send failures. The
+// warning names both stamps so the fix (redeploy via scripts/deploy.sh) is
+// obvious. "dev" builds are skipped — they are indistinguishable by design.
+func (s *server) warnOnARVersionSkew() {
+	if s.version == "dev" {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	arVer := s.arVersion(ctx)
+	if arVer == "" {
+		log.Printf("arwebui: WARNING could not read `ar --version` (%s) — cannot verify binary parity", s.arPath)
+		return
+	}
+	if !versionMatch(s.version, arVer) {
+		log.Printf("arwebui: WARNING version skew — webui %q but ar=%q reports %q; "+
+			"the ar binary is out of date. Redeploy both from the same commit (scripts/deploy.sh) "+
+			"or new webui features (e.g. --steer) will fail with cryptic 'flag not defined' errors.",
+			s.version, s.arPath, arVer)
+	}
 }
 
 // loadEnvFile applies KEY=VALUE lines (comments/blank lines skipped).
