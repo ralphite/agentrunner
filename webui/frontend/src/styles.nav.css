@@ -376,6 +376,14 @@
   color: var(--ink);
   font-weight: 640;
 }
+/* Settled rows (completed / stopped) drop their leading status dot — this
+   transparent placeholder keeps the copy column aligned with rows that still
+   badge (running / attention / unread). See Scheduled.tsx SETTLED_STATUS. */
+.sched-blank {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+}
 
 /* ===== Command palette · ⌘1-9 badge polish ============================ */
 .cmdk-kbd {
@@ -393,4 +401,69 @@
 .cmdk-item.sel .cmdk-kbd {
   border-color: color-mix(in srgb, var(--blue) 38%, var(--line));
   color: var(--ink-2);
+}
+
+/* ===== B2 · Supervision ENVIRONMENT block =============================
+   Codex's panel-top environment read: changed lines, current branch, and a
+   commit entry point. These are new classes (no base rule to out-specify);
+   scoped under .supervision-panel to tie them to the panel context, since
+   styles.panel.css (the panel slice's own sheet) is owned elsewhere. The
+   section reuses .supervision-section / .supervision-label for the header. */
+.supervision-panel .env-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.supervision-panel .env-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 28px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 12.5px;
+  text-align: left;
+}
+.supervision-panel .env-row > svg {
+  flex: 0 0 auto;
+  color: var(--dim);
+}
+.supervision-panel .env-row-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.supervision-panel .env-row-val {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.supervision-panel .env-row-val .add { color: var(--green); }
+.supervision-panel .env-row-val .del { color: var(--red); }
+.supervision-panel .env-row-val .dim { color: var(--dim); }
+/* Changes + Commit are buttons — give them a hover affordance; the branch
+   row is static text. */
+.supervision-panel button.env-row {
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.supervision-panel button.env-row:hover {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  color: var(--ink);
+}
+.supervision-panel button.env-row:hover > svg {
+  color: var(--ink-2);
+}
+.supervision-panel .env-row-action:disabled {
+  opacity: 0.55;
+  cursor: default;
 }

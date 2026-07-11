@@ -1,12 +1,21 @@
+import { useCallback, useEffect, useState } from "react";
 import {
   CaretRight,
   CheckCircle,
   Crosshair,
+  GitBranch,
+  GitCommit,
+  GitDiff,
   Hourglass,
+  Package,
   UsersThree,
   WarningCircle,
   X,
 } from "@phosphor-icons/react";
+import { AR } from "../api";
+import { useStore } from "../store";
+import { loadGitPrefs } from "../theme";
+import { splitDiff } from "../diffSummary";
 import type { Task } from "../types";
 import { friendlyStatus } from "./pill";
 import { dedupeInspectNodes } from "../viewModels";
@@ -89,6 +98,8 @@ export function SupervisionPanel({
         <div><UsersThree size={17} /> <b>Supervision</b></div>
         <button onClick={onClose} title="Hide supervision" aria-label="Hide supervision"><X size={15} /></button>
       </div>
+
+      <EnvironmentSection />
 
       <section className="supervision-section">
         <div className="supervision-label"><Crosshair size={14} /> Goal</div>
@@ -233,5 +244,149 @@ export function SupervisionPanel({
         Run details <span><CaretRight size={12} /></span>
       </button>
     </aside>
+  );
+}
+
+interface EnvState {
+  workspace: string;
+  known: boolean;
+  isRepo: boolean;
+  nested: boolean;
+  add: number;
+  del: number;
+  files: number;
+  untracked: number;
+}
+
+// EnvironmentSection is Codex's panel-top ENVIRONMENT block (backlog B2):
+// a live read on the session's workspace — changed lines, current branch, and
+// a commit entry point. SupervisionPanel takes no sid prop (SessionView owns
+// that and stays untouched), so we read the current session from the store and
+// fetch our own diff + branch. Hidden entirely for non-repo / workspace-less
+// sessions, where there's nothing to show.
+function EnvironmentSection() {
+  const sid = useStore((s) => s.currentSid);
+  const openPrompt = useStore((s) => s.openPrompt);
+  const toast = useStore((s) => s.toast);
+  const [env, setEnv] = useState<EnvState | null>(null);
+  const [branch, setBranch] = useState<string | null>(null);
+  const [committing, setCommitting] = useState(false);
+  const isSub = !!sid && sid.includes("-sub-");
+
+  const load = useCallback(() => {
+    if (!sid) {
+      setEnv(null);
+      setBranch(null);
+      return;
+    }
+    let alive = true;
+    AR.diff(sid)
+      .then((d) => {
+        if (!alive) return;
+        const files = splitDiff(d.diff || "");
+        setEnv({
+          workspace: d.workspace,
+          known: d.known,
+          isRepo: d.isRepo,
+          nested: !!d.nested,
+          add: files.reduce((n, f) => n + f.add, 0),
+          del: files.reduce((n, f) => n + f.del, 0),
+          files: files.length,
+          untracked: (d.untracked || []).length,
+        });
+        if (d.known && d.isRepo && !d.nested && d.workspace) {
+          AR.gitBranches(d.workspace)
+            .then((b) => alive && setBranch(b.isRepo ? (b.current === "HEAD" ? "" : b.current) : null))
+            .catch(() => alive && setBranch(null));
+        } else {
+          setBranch(null);
+        }
+      })
+      .catch(() => {
+        if (!alive) return;
+        setEnv(null);
+        setBranch(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [sid]);
+
+  useEffect(() => load(), [load]);
+
+  // Jump to the Changes view by driving the topbar's Changes button — the view
+  // toggle is SessionView-local state with no prop or store hook exposed to us,
+  // and this panel only ever renders inside the chat view. A no-op if absent.
+  const goToChanges = () => {
+    document
+      .querySelector<HTMLButtonElement>('.task-topbar button[title="Review workspace changes"]')
+      ?.click();
+  };
+
+  // Same review→commit flow DiffView offers (seeded from the Settings template).
+  const doCommit = async (message: string) => {
+    if (!sid) return;
+    setCommitting(true);
+    try {
+      await AR.commit(sid, message);
+      toast("committed", "info");
+      load();
+    } catch (e: any) {
+      toast(e.message);
+    } finally {
+      setCommitting(false);
+    }
+  };
+  const commit = () => {
+    if (!sid) return;
+    openPrompt({
+      title: "Commit changes",
+      label: "commit message",
+      initial: loadGitPrefs().commitTemplate,
+      onSubmit: (message) => void doCommit(message),
+    });
+  };
+
+  if (!env || !env.known || !env.isRepo || env.nested) return null;
+
+  const hasChanges = env.add > 0 || env.del > 0 || env.untracked > 0;
+  return (
+    <section className="supervision-section supervision-env">
+      <div className="supervision-label"><Package size={14} /> Environment</div>
+      <div className="env-rows">
+        <button className="env-row" onClick={goToChanges} title="Review workspace changes">
+          <GitDiff size={14} />
+          <span className="env-row-label">Changes</span>
+          <span className="env-row-val">
+            {hasChanges ? (
+              <>
+                {env.add > 0 && <span className="add">+{env.add}</span>}
+                {env.del > 0 && <span className="del">−{env.del}</span>}
+                {env.add === 0 && env.del === 0 && env.untracked > 0 && (
+                  <span className="dim">{env.untracked} new</span>
+                )}
+              </>
+            ) : (
+              <span className="dim">No changes</span>
+            )}
+          </span>
+        </button>
+        <div className="env-row env-row-static">
+          <GitBranch size={14} />
+          <span className="env-row-label">{branch || (env.isRepo ? "No branch yet" : "No repository")}</span>
+        </div>
+        {hasChanges && !isSub && (
+          <button
+            className="env-row env-row-action"
+            onClick={commit}
+            disabled={committing}
+            title="git add -A && commit the workspace changes (local, no push)"
+          >
+            <GitCommit size={14} />
+            <span className="env-row-label">Commit changes…</span>
+          </button>
+        )}
+      </div>
+    </section>
   );
 }

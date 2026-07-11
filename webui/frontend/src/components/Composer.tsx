@@ -168,6 +168,17 @@ export function Composer(props: ComposerProps) {
   };
   const [persona, setPersona] = useState(DEFAULT_PERSONA);
 
+  // Narrow phones (≤480px) can't fit the full "…, or type / for commands"
+  // placeholder — it wraps to a second line that the single-row textarea clips
+  // (review sw-m-02). Swap in a short placeholder there instead.
+  const [narrow, setNarrow] = useState(() => window.matchMedia("(max-width: 480px)").matches);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 480px)");
+    const sync = () => setNarrow(mq.matches);
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
   // home-only context
   const [ws, setWs] = useState("");
   const [kind, setKind] = useState<"chat" | "background">("chat");
@@ -756,11 +767,15 @@ export function Composer(props: ComposerProps) {
     el.style.height = Math.min(el.scrollHeight, 220) + "px";
   };
 
-  const placeholder = isSession
-    ? "Ask for follow-up changes, or type / for commands"
-    : kind === "chat"
-      ? "Describe a task, or type / for commands"
-      : "Describe a one-shot task, or type / for commands";
+  const placeholder = narrow
+    ? isSession
+      ? "Ask for follow-ups"
+      : "Describe a task"
+    : isSession
+      ? "Ask for follow-up changes, or type / for commands"
+      : kind === "chat"
+        ? "Describe a task, or type / for commands"
+        : "Describe a one-shot task, or type / for commands";
 
   // Pill label: friendly name for a chosen workspace; before one exists, say
   // what will actually happen instead of the ambiguous "auto-created" (W2).

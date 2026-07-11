@@ -7,6 +7,12 @@ import { relTime, sessionDate } from "../time";
 
 type Filter = "all" | "active" | "completed";
 
+// Settled/terminal rows carry no useful colour on their leading dot — it reads
+// as gray noise on every completed row (review sw-d-11). Drop the dot for these
+// (a blank keeps the columns aligned); attention/running/unread still badge.
+// Same semantics as the sidebar's W10 rule.
+const SETTLED_STATUS = new Set(["done", "closed", "stopped"]);
+
 interface SchedRow {
   key: string;
   title: string;
@@ -162,7 +168,11 @@ export function Scheduled() {
               <span className="sched-lead" aria-hidden="true">
                 {r.unread && <span className="sched-unread" title="New activity" />}
               </span>
-              <span className={"status-dot " + r.status.cls} title={r.status.text} />
+              {SETTLED_STATUS.has(r.status.cls) ? (
+                <span className="sched-blank" aria-hidden="true" />
+              ) : (
+                <span className={"status-dot " + r.status.cls} title={r.status.text} />
+              )}
               <span className="scheduled-copy">
                 <b>{r.title}</b>
                 <span>{r.meta}</span>
