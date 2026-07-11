@@ -20,9 +20,25 @@ description: Codex UI parity 自主推进循环——每轮收割子 agent、验
    Settings × light/dark × 1440/390)稳态 console error+warning = 0;
 4. 终局 QA-43 全景验收归档(`qa/runs/` + 三层文档收口)。
 
-达成后:向用户报告证据 → 停掉本循环(CronDelete 对应 cron 或告知用户)→
-不再空转。未达成:本轮结束时**必须**有「已推送 commit」或「在跑的子 agent」
+达成后:向用户报告证据 → 停掉循环:
+`launchctl bootout gui/$(id -u)/com.agentrunner.parity-drive`(headless 定时器)
++ 若有 in-session cron 一并 CronDelete → 不再空转。
+未达成:本轮结束时**必须**有「已推送 commit」或「在跑/已跑完的子 agent 工作」
 至少其一,否则当场修一条(见审计)。
+
+## 运行形态(先判定,再走协议)
+
+本命令有两种触发源,行为略有差异:
+- **headless 轮**(launchd 定时器 → `scripts/parity-drive-cron.sh` → `claude -p`,
+  env 有 `PARITY_DRIVE_HEADLESS=1`):锁已由 runner 脚本持有,**不要**再抢/释放锁;
+  子 agent 一律**同步**跑(`run_in_background: false`——进程随轮结束,后台 agent
+  会被杀);单轮范围收紧:收割(读台账/BACKLOG 判断上轮遗留)→ 做**一件**事
+  (跑一个 finder,或串行 1-2 个 implementer,或合并推送部署一批)→ 台账收轮。
+  25min watchdog 会杀超时轮,别贪多。
+- **交互轮**(在活跃 session 里被触发):先抢锁
+  `mkdir /tmp/parity-drive.lock`——占用中且新鲜(<45min)则本轮跳过(headless
+  正在跑);>45min 判陈锁清掉重占。轮末 `rm -rf /tmp/parity-drive.lock`。
+  可用后台子 agent 与完整协议。
 
 ## 每轮协议(顺序执行)
 
@@ -63,10 +79,17 @@ description: Codex UI parity 自主推进循环——每轮收割子 agent、验
 
 - node24:`export PATH="$(ls -d $HOME/.nvm/versions/node/v24* | tail -1)/bin:$PATH"`
 - 前端:`cd webui/frontend && npx vitest run && npm run build`
-- 部署 8809:`cd webui && go build -o /tmp/arwebui-claude-new . && cp /tmp/arwebui-claude-new /tmp/arwebui-claude`;
-  kill 旧监听(`lsof -tiTCP:8809 -sTCP:LISTEN`)后以
-  `/tmp/arwebui-claude --addr 127.0.0.1:8809 --ar /tmp/ar-claude --env-file /Users/yadong/dev2/agentrunner/.env`
-  启动——**必须用 Bash 工具 run_in_background 托管;裸 nohup 会随轮结束死掉**。
+- **部署 8809(launchd 守护制,2026-07-11 起)**:8809 由
+  `com.agentrunner.webui8809` LaunchAgent 常驻(KeepAlive,session 无关,
+  自愈)。部署 = 换二进制 + 重启服务,**不要**自己起进程:
+  ```
+  BIN=~/.local/share/agentrunner/bin
+  cd webui && go build -o "$BIN/arwebui-live.new" . && mv "$BIN/arwebui-live.new" "$BIN/arwebui-live"
+  cd .. && go build -o "$BIN/ar-live.new" . && mv "$BIN/ar-live.new" "$BIN/ar-live"   # CLI 有变时
+  launchctl kickstart -k gui/$(id -u)/com.agentrunner.webui8809
+  ```
+  验:`curl -s 127.0.0.1:8809/ | grep -o 'index-.*\.js'` 与 dist 一致 + health 200。
+  服务日志:`~/Library/Logs/agentrunner-webui8809.log`。
 - playwright venv:
   `/private/tmp/claude-501/-Users-yadong-dev2-agentrunner/b84daf52-9db3-44c9-8c46-9a5d9f61a6df/scratchpad/pwenv/bin/python`
   (若丢失:任意 scratchpad `python3 -m venv pwenv && pwenv/bin/pip install playwright`)。
