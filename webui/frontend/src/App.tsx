@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useStore } from "./store";
 import { Sidebar } from "./components/Sidebar";
 import { SessionView } from "./components/SessionView";
@@ -10,9 +10,12 @@ import { Toasts } from "./components/Toasts";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { CommandPalette } from "./components/CommandPalette";
 import { Shortcuts } from "./components/Shortcuts";
+import { Settings } from "./components/Settings";
 import { requestNotifyPermission } from "./notify";
 import { quickSwitchTasks } from "./viewModels";
+import { applyAppearance, loadAppearance } from "./theme";
 import { SidebarSimple } from "@phosphor-icons/react";
+import "./styles.rs.css";
 
 export function App() {
   const { currentSid, currentRunId, currentPage, refreshHealth, refreshSessions, refreshRuns, select, selectRun, showPage } =
@@ -24,8 +27,18 @@ export function App() {
   const toggleSidebar = useStore((s) => s.toggleSidebar);
   const unread = useStore((s) => s.unread);
   const [palette, setPalette] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsOpenRef = useRef(false);
+  settingsOpenRef.current = settingsOpen;
   const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 680px)").matches);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  // Apply the full appearance record (fonts, contrast, diff markers, motion,
+  // syntax) once styles are mounted — main.tsx only restores the theme, so this
+  // completes the picture with a minimal, one-frame settle.
+  useLayoutEffect(() => {
+    applyAppearance(loadAppearance());
+  }, []);
 
   useEffect(() => {
     const query = window.matchMedia("(max-width: 680px)");
@@ -45,6 +58,15 @@ export function App() {
   // keyboard-shortcuts reference (unless the user is typing into a field).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // ⌘, / Ctrl-, opens (or closes) the full-window Settings surface (Codex).
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key === ",") {
+        e.preventDefault();
+        setSettingsOpen((o) => !o);
+        return;
+      }
+      // While Settings owns the window, let it handle its own keys (Escape to
+      // close) and mute the app-level shortcuts behind it.
+      if (settingsOpenRef.current) return;
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setPalette((p) => !p);
@@ -164,6 +186,7 @@ export function App() {
       <Modals />
       {palette && <CommandPalette onClose={() => setPalette(false)} />}
       {helpOpen && <Shortcuts onClose={closeHelp} />}
+      {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
       <Toasts />
     </div>
   );

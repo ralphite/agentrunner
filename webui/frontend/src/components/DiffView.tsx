@@ -1,8 +1,26 @@
 import { useEffect, useState } from "react";
+import { Rows, Columns, MagnifyingGlass } from "@phosphor-icons/react";
 import { AR } from "../api";
 import { useStore } from "../store";
+import { loadGitPrefs } from "../theme";
 import type { DiffResp } from "../types";
-import { parseFileDiff, splitDiff, splitPath } from "../diffSummary";
+import { parseFileDiff, splitDiff, splitPath, splitRows, highlightLine, langFromPath, type DiffRow } from "../diffSummary";
+
+// renderCode turns one diff line into syntax-highlighted spans (INC-41 D3).
+// Tokens are dependency-free and byte-exact, so `white-space: pre` alignment is
+// preserved; the .hl-* colors go inert when the user turns syntax off
+// (`:root:not([data-syntax])`), leaving plain, still-tinted diff text.
+function renderCode(text: string, lang: string) {
+  return highlightLine(text || " ", lang).map((tok, i) => (
+    <span key={i} className={tok.c ? "hl-" + tok.c : undefined}>
+      {tok.t}
+    </span>
+  ));
+}
+
+const rowSign = (r?: DiffRow) => (!r ? "" : r.kind === "add" ? "+" : r.kind === "del" ? "−" : " ");
+const halfKind = (r: DiffRow | undefined, side: "left" | "right") =>
+  !r ? "empty" : side === "left" && r.kind === "del" ? "del" : side === "right" && r.kind === "add" ? "add" : "";
 
 export function DiffView({ sid }: { sid: string }) {
   const { toast, openPrompt } = useStore();
@@ -17,6 +35,18 @@ export function DiffView({ sid }: { sid: string }) {
     setAllOpen(open);
     setFoldEpoch((e) => e + 1);
   };
+  // D2 file filter + D4 inline/split view. Split needs room; below ~900px it
+  // falls back to inline so two columns never crush the diff column.
+  const [fileQuery, setFileQuery] = useState("");
+  const [view, setView] = useState<"inline" | "split">("inline");
+  const [narrow, setNarrow] = useState(() => window.matchMedia("(max-width: 900px)").matches);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 900px)");
+    const sync = () => setNarrow(mq.matches);
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  const effView = narrow ? "inline" : view;
 
   const load = () => {
     AR.diff(sid)
@@ -33,7 +63,8 @@ export function DiffView({ sid }: { sid: string }) {
     openPrompt({
       title: "Commit changes",
       label: "commit message",
-      initial: "changes from agent session",
+      // Seed from the Settings › Git commit-message template (INC-41 H4).
+      initial: loadGitPrefs().commitTemplate,
       onSubmit: (message) => void doCommit(message),
     });
   };
@@ -112,6 +143,8 @@ export function DiffView({ sid }: { sid: string }) {
   const stats = files.map((f) => ({ f, add: f.add, del: f.del }));
   const totalAdd = stats.reduce((s, x) => s + x.add, 0);
   const totalDel = stats.reduce((s, x) => s + x.del, 0);
+  const q = fileQuery.trim().toLowerCase();
+  const shown = q ? stats.filter((s) => s.f.path.toLowerCase().includes(q)) : stats;
 
   return (
     <div className="diffwrap">
@@ -125,6 +158,38 @@ export function DiffView({ sid }: { sid: string }) {
           </span>
         )}
         <span className="spacer" />
+        {files.length > 1 && (
+          <label className="diff-filter" title="Filter files by path">
+            <MagnifyingGlass size={13} />
+            <input
+              value={fileQuery}
+              onChange={(e) => setFileQuery(e.target.value)}
+              placeholder="Filter files…"
+              aria-label="Filter files by path"
+            />
+          </label>
+        )}
+        {!empty && (
+          <div className="diff-viewtoggle" role="group" aria-label="Diff layout">
+            <button
+              className={"sm icon" + (effView === "inline" ? " sel" : "")}
+              onClick={() => setView("inline")}
+              title="Inline view"
+              aria-pressed={effView === "inline"}
+            >
+              <Rows size={14} />
+            </button>
+            <button
+              className={"sm icon" + (effView === "split" ? " sel" : "")}
+              onClick={() => setView("split")}
+              disabled={narrow}
+              title={narrow ? "Split view needs a wider window" : "Split view"}
+              aria-pressed={effView === "split"}
+            >
+              <Columns size={14} />
+            </button>
+          </div>
+        )}
         {files.length > 1 && (
           <button className="sm" onClick={() => setAll(!allOpen)} title={allOpen ? "Collapse all files" : "Expand all files"}>
             {allOpen ? "Collapse all" : "Expand all"}
@@ -140,7 +205,10 @@ export function DiffView({ sid }: { sid: string }) {
         </button>
       </div>
       {empty && <div className="dim" style={{ padding: 12 }}>No changes in the workspace.</div>}
-      {untracked.length > 0 && (
+      {!empty && q && shown.length === 0 && (
+        <div className="dim" style={{ padding: 12 }}>No files match “{fileQuery}”.</div>
+      )}
+      {untracked.length > 0 && !q && (
         <div className="filediff">
           <div className="fd-head">
             new files (untracked) · {untracked.length}
@@ -150,15 +218,16 @@ export function DiffView({ sid }: { sid: string }) {
               <div className="dl add" key={f}>
                 <span className="dl-no" />
                 <span className="dl-no" />
-                <span className="dl-text">+ {f}</span>
+                <span className="dl-text"><span className="dl-sign">+</span>{f}</span>
               </div>
             ))}
           </div>
         </div>
       )}
-      {stats.map(({ f, add, del }) => {
+      {shown.map(({ f, add, del }) => {
         const parsed = parseFileDiff(f.lines);
         const { dir, base } = splitPath(f.path);
+        const lang = langFromPath(f.path);
         return (
           <details className="filediff" key={f.path + ":" + foldEpoch} open={allOpen}>
             <summary className="fd-head mono">
@@ -174,19 +243,45 @@ export function DiffView({ sid }: { sid: string }) {
                 {del > 0 && <span className="del">−{del}</span>}
               </span>
             </summary>
-            <div className="fd-body">
-              {parsed.rows.map((r, i) =>
-                r.kind === "hunk" ? (
-                  <div className="dl-hunk" key={i}>{r.text || "⋯"}</div>
-                ) : (
-                  <div className={"dl " + (r.kind === "ctx" ? "" : r.kind)} key={i}>
-                    <span className="dl-no">{r.oldNo ?? ""}</span>
-                    <span className="dl-no">{r.newNo ?? ""}</span>
-                    <span className="dl-text">{r.text || " "}</span>
-                  </div>
-                ),
-              )}
-            </div>
+            {effView === "split" ? (
+              <div className="fd-body fd-split">
+                {splitRows(parsed.rows).map((sr, i) =>
+                  sr.hunk !== undefined ? (
+                    <div className="dl-hunk dl-hunk-span" key={i}>{sr.hunk || "⋯"}</div>
+                  ) : (
+                    <div className="dls" key={i}>
+                      <span className="dl-no">{sr.left?.oldNo ?? ""}</span>
+                      <span className={"dls-half " + halfKind(sr.left, "left")}>
+                        <span className="dl-sign">{rowSign(sr.left)}</span>
+                        {sr.left && renderCode(sr.left.text, lang)}
+                      </span>
+                      <span className="dl-no">{sr.right?.newNo ?? ""}</span>
+                      <span className={"dls-half " + halfKind(sr.right, "right")}>
+                        <span className="dl-sign">{rowSign(sr.right)}</span>
+                        {sr.right && renderCode(sr.right.text, lang)}
+                      </span>
+                    </div>
+                  ),
+                )}
+              </div>
+            ) : (
+              <div className="fd-body">
+                {parsed.rows.map((r, i) =>
+                  r.kind === "hunk" ? (
+                    <div className="dl-hunk" key={i}>{r.text || "⋯"}</div>
+                  ) : (
+                    <div className={"dl " + (r.kind === "ctx" ? "" : r.kind)} key={i}>
+                      <span className="dl-no">{r.oldNo ?? ""}</span>
+                      <span className="dl-no">{r.newNo ?? ""}</span>
+                      <span className="dl-text">
+                        <span className="dl-sign">{rowSign(r)}</span>
+                        {renderCode(r.text, lang)}
+                      </span>
+                    </div>
+                  ),
+                )}
+              </div>
+            )}
           </details>
         );
       })}
