@@ -2982,3 +2982,18 @@ choice.txt="Banana, Dinner"，console 0 错误+截图；queued /queue+
 **按钮点击**改用 HTTP 端点直验 + 浏览器渲染断言组合覆盖（button=薄
 `AR.unqueue` 包装，全 unqueue 语义 INC-46 已证）。批 2 命令面设计
 单元（#16/#29/#7）至此三项全落。
+
+## 2026-07-10 INC-49 占号：webui worktree 运行位置产品化（认领）
+
+**认领**：worktree-agent-ad96fade4ed7ab2b6 占 INC-49 · QA-46。工作纸
+`docs/increments/INC-49-worktree-productization.md`。方向：webui `New worktree`
+运行位置从 webui cwd `runtime/ws/wt-*` 挪到共享数据根
+`~/.local/share/agentrunner/worktrees/<repo>-<branch>-<ts>`；Changes 面板显示
+所属 repo/branch + `Apply changes`（git 原生 clean-or-nothing：worktree
+add-A→write-tree→commit-tree→`git diff --binary HEAD C`→主 checkout `git apply
+--check` 干跑通过才落 working tree，冲突如实报错、不改主树）+ `Remove worktree`
+（脏树防呆确认后 `--force` + `worktree prune`）。Codex 调研印证：Codex worktree
+住 `$CODEX_HOME/worktrees`、detached HEAD、apply-back = `codex apply`（`git apply`
+非零退出报冲突、不自动合并）——本实现对齐且更保守（干跑 gate）。旧
+`runtime/ws/wt-*` worktree 不迁移仍可打开。不触 DESIGN 不变量。占号先推，
+实施与收口见工作纸步骤。
