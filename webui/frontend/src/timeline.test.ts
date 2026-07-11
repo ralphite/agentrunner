@@ -26,6 +26,29 @@ describe("timeline input projection", () => {
   });
 });
 
+describe("foldEvents active flag", () => {
+  it("does not pin the session active on a never-completing background tool (thinking-forever bug)", () => {
+    // Replays the 20260711-060645 journal shape: a background bash starts a
+    // long-lived server (no activity_completed ever), the turn then finishes
+    // and the session waits for input — the UI must NOT stay at Working…/Thinking.
+    const folded = foldEvents([
+      { seq: 1, type: "activity_started", payload: { activity_id: "tool-1", kind: "tool", name: "bash", args: {}, background: true } },
+      { seq: 2, type: "generation_started", payload: { gen_step: 2 } },
+      { seq: 3, type: "assistant_message", payload: { message: { parts: [{ text: "server is up" }] } } },
+      { seq: 4, type: "waiting_entered", payload: { kind: "input" } },
+    ]);
+    expect(folded.active).toBe(false);
+  });
+
+  it("still counts a running foreground tool as active", () => {
+    const folded = foldEvents([
+      { seq: 1, type: "activity_started", payload: { activity_id: "tool-1", kind: "tool", name: "bash", args: {} } },
+      { seq: 2, type: "waiting_entered", payload: { kind: "input" } },
+    ]);
+    expect(folded.active).toBe(true);
+  });
+});
+
 describe("Codex-style turn outcome", () => {
   it("measures work from generation_started, not the user message (excludes queue/idle, R4-6)", () => {
     const items = foldEvents([

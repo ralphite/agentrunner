@@ -636,7 +636,13 @@ export function foldEvents(events: Envelope[]): Folded {
     }
   }
 
-  const toolRunning = items.some((it) => it.kind === "tool" && it.status === "running");
+  // Background tools (bash background:true) never emit activity_completed
+  // until the process exits — a long-lived server would pin the session at
+  // "Working…/Thinking" forever even after waiting_entered, so they don't
+  // count toward a live turn.
+  const toolRunning = items.some(
+    (it) => it.kind === "tool" && it.status === "running" && !it.background,
+  );
   const active = toolRunning || lastType === "generation_started";
 
   return { items, approvals, callArgs, status, lastGen, active, isDriver };
