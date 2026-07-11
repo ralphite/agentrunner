@@ -179,6 +179,13 @@ type driveState struct {
 	// (awaitInput) that the next safe-point drain applies (G7).
 	pendingControls []protocol.Control
 	closeRequested  *protocol.Control
+	// deferredInputs holds queue-mode user inputs that drainSteer pulled off the
+	// FIFO channel mid-turn (to inspect for a steer behind them) but must NOT
+	// journal yet — they land at the idle, in the next turn (INC-43). They are
+	// always the highest un-consumed seqs so far, so journaling them at the idle
+	// keeps ConsumedInputSeq monotonic. In-memory only: a crash re-delivers them
+	// from the durable mailbox (they are un-consumed), so nothing is lost.
+	deferredInputs []protocol.UserInput
 }
 
 // compact renders raw JSON on one line, dropping surrounding whitespace.
@@ -1041,6 +1048,19 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 		// the settlement wakes the next one (裁决 #15).
 		if l.Spec.Receipts != "turn_end" {
 			if err := l.drainBackground(appendE); err != nil {
+				return RunResult{}, abort(ds.s.Session.GenStep, err)
+			}
+		}
+		// steer-mode user messages (INC-43) land HERE, at the per-generation-step
+		// safe boundary — the same seam background settlements use — so the model
+		// sees them this turn; queue-mode messages are held for the idle. A pure
+		// append: never cancels the in-flight step (interrupt is the only channel
+		// that cuts a turn). SKIPPED while parked on an ask_user question
+		// (Waiting): there a user input is the ANSWER (paired via AskResolved in
+		// awaitAnswer), not a steer/queue message — draining it here would steal
+		// it. Any queue inputs already set aside are flushed by awaitAnswer.
+		if ds.s.Waiting == nil {
+			if err := l.drainSteer(ds, appendE); err != nil {
 				return RunResult{}, abort(ds.s.Session.GenStep, err)
 			}
 		}

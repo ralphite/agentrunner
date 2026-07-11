@@ -69,7 +69,23 @@ type UserInput struct {
 	// the original DeliverySeq for an exact retry.
 	CommandID   string `json:"command_id,omitempty"`
 	DeliverySeq int64  `json:"delivery_seq,omitempty"`
+	// Delivery is the per-message delivery mode for a send to a RUNNING session
+	// (INC-43, Codex parity): "" / "queue" (default) appends to the inbox and is
+	// consumed at the idle — the message enters the NEXT turn (type-ahead);
+	// "steer" is consumed at the loop's next safe boundary WITHIN the current
+	// turn, so the model sees it this turn — a pure append that does NOT
+	// interrupt the in-flight step (symmetric to Spec.Receipts="steer" for
+	// background settlements, 裁决 #15). interrupt (a separate command) remains
+	// the only channel that cuts a turn.
+	Delivery string `json:"delivery,omitempty"`
 }
+
+// DeliverySteer is the opt-in mid-turn delivery mode; "" and DeliveryQueue are
+// the default next-turn behavior. Normalized at the daemon boundary.
+const (
+	DeliveryQueue = "queue"
+	DeliverySteer = "steer"
+)
 
 // CommandRef is the durable receipt carried from the command log to the
 // semantic event that applies it.

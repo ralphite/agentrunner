@@ -784,7 +784,7 @@ export function TimelineView({
   outcomeSlot,
 }: {
   items: TimelineItem[];
-  pending: { id: number; text: string; imgs: string[]; files: number }[];
+  pending: { id: number; text: string; imgs: string[]; files: number; delivery?: "steer" | "queue" }[];
   typing: string;
   showSys: boolean;
   sentImages?: Map<number, string[]>;
@@ -878,12 +878,12 @@ export function TimelineView({
         )}
         {pending.map((p) => (
           <div className="msg user" key={"p" + p.id}>
-            <div className="bubble pending">
+            <div className={"bubble pending" + (p.delivery === "steer" ? " steer" : "")}>
               <CollapsibleUserText text={p.text} />
               {p.imgs.length ? <Thumbs paths={p.imgs} /> : null}
               {p.files ? <div className="imgnote"><File size={13} /> ×{p.files} attached</div> : null}
             </div>
-            <span className="who">queued…</span>
+            <span className="who">{p.delivery === "steer" ? "steering…" : "queued…"}</span>
           </div>
         ))}
         {!active && !typing && pending.length === 0 && outcomeSlot}

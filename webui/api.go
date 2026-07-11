@@ -748,6 +748,11 @@ func (s *server) handleSend(w http.ResponseWriter, r *http.Request) {
 		Text   string   `json:"text"`
 		Images []string `json:"images"`
 		Files  []string `json:"files"`
+		// Delivery is the per-message delivery mode (INC-43): "steer" folds the
+		// message into the running turn at its next safe boundary; "" / "queue"
+		// (default) queues it for the next turn. Only "steer" is honored; any
+		// other value falls through to the default queue.
+		Delivery string `json:"delivery"`
 	}
 	if !readBody(w, r, &req) {
 		return
@@ -760,6 +765,9 @@ func (s *server) handleSend(w http.ResponseWriter, r *http.Request) {
 	// journal, which the UI already polls. Blocking would re-introduce the
 	// orphaned-approval failure on follow-up turns (same as `ar new`).
 	args := []string{"send", "--detach"}
+	if req.Delivery == "steer" {
+		args = append(args, "--steer")
+	}
 	for _, img := range req.Images {
 		if st, err := os.Stat(img); err != nil || st.IsDir() {
 			badRequest(w, "image not readable: "+img)

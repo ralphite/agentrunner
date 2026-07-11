@@ -47,7 +47,7 @@ export function SessionView({ sid }: { sid: string }) {
   const title = sessionsReady ? displayTitle(renames, sid, sessionMeta?.title) : "Loading task…";
 
   const [events, setEvents] = useState<Envelope[]>([]);
-  const [pending, setPending] = useState<{ id: number; text: string; imgs: string[]; files: number }[]>([]);
+  const [pending, setPending] = useState<{ id: number; text: string; imgs: string[]; files: number; delivery?: "steer" | "queue" }[]>([]);
   const [typing, setTyping] = useState<string>("");
   const [sseApprovals, setSseApprovals] = useState<Map<string, SSEApproval>>(new Map());
   const [resolvedLocal, setResolvedLocal] = useState<Set<string>>(new Set());
@@ -325,11 +325,11 @@ export function SessionView({ sid }: { sid: string }) {
   }).length;
   const attentionCount = openApprovals.length + (needsRecovery ? 1 : 0) + abnormalAgentCount + (tasks.length > 0 && !running ? 1 : 0);
 
-  const doSend = async (text: string, images: string[], files: string[] = []) => {
+  const doSend = async (text: string, images: string[], files: string[] = [], delivery?: "steer" | "queue") => {
     const id = ++pendSeq.current;
-    setPending((p) => [...p, { id, text, imgs: images, files: files.length }]);
+    setPending((p) => [...p, { id, text, imgs: images, files: files.length, delivery }]);
     try {
-      await AR.send(sid, text, images, files);
+      await AR.send(sid, text, images, files, delivery);
     } catch (e: any) {
       toast(e.message);
       setPending((p) => p.filter((x) => x.id !== id));

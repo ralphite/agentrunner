@@ -72,8 +72,10 @@ export const AR = {
     post<{ status: string }>(`/sessions/${sid}/commit`, { message }),
   gitInit: (sid: string) => post<{ status: string }>(`/sessions/${sid}/git-init`),
 
-  send: (sid: string, text: string, images: string[], files: string[] = []) =>
-    post(`/sessions/${sid}/send`, { text, images, files }),
+  // delivery (INC-43): "steer" folds the message into the running turn at its
+  // next safe boundary; "queue"/undefined queues it for the next turn.
+  send: (sid: string, text: string, images: string[], files: string[] = [], delivery?: "steer" | "queue") =>
+    post(`/sessions/${sid}/send`, { text, images, files, ...(delivery ? { delivery } : {}) }),
   interrupt: (sid: string) => post(`/sessions/${sid}/interrupt`),
   resume: (sid: string) => post(`/sessions/${sid}/resume`),
   closeSession: (sid: string) => post(`/sessions/${sid}/close`),

@@ -792,6 +792,41 @@ Supervision 覆盖审批三项真实浏览器缺陷。
 
 ---
 
+## QA-45 运行中发消息投递模式 steer|queue（INC-43,UJ-07）
+
+**环境**：最新 `main`、共享 `~/.local/share/agentrunner/` store/daemon、真实
+Gemini 模型、`http://127.0.0.1:8788`（webui 强刷）。趁 turn 运行中分别用
+queue 与 steer 发消息，观察注入时机。证据（`ar events` 导出 + journal grep
+-a）归档 `qa/runs/2026-07-10-QA-45/`；测试 session 保留不清理。
+
+| # | 真实状态/动作 | 硬断言 |
+|---|---|---|
+| 1 | 起真实模型 session，发一条要求多步工作的 prompt（turn 运行中） | session 进入 running；journal 见 generation_started/activity_started |
+| 2 | 运行中 `ar send --steer <sid> "..."`（或 webui Steer） | steer 消息的 `input_received` seq 落在**当前 turn 收尾 assistant 之前**——模型本 turn 内看到并回应 |
+| 3 | 另起一 turn，运行中 queue 发消息（默认，无 --steer / webui Queue） | queue 消息的 `input_received` seq 落在**当前 turn 收尾之后**，另起新 turn 消费 |
+| 4 | webui composer 复核（强刷后） | 运行中出现 `Queue|Steer` 切换；⌘⏎ 反选；pending bubble 标注 steering…/queued… |
+| 5 | durable 幂等 | 同 command_id 重发不双改；journal 无重复 input_received |
+
+**环境补充**：因新增 `Delivery` 命令字段，共享 daemon 跑的旧二进制会静默丢弃它
+（假失败），故按既定纪律用**私有 daemon 跑本增量新二进制**（`ar-inc43`，
+`XDG_DATA_HOME=/tmp/claude-501/inc43-qa/data`，真实 Gemini `gemini-flash-latest`）；
+store 全程保留，未清理。
+
+**结果**：PASS（真机 Gemini）。同一注入时机（首个 bash 工具运行中），仅
+`--steer` 旗标差异：
+- **steer**：注入消息 `input_received` 落 **seq 10**——mid-turn（本 turn 收尾
+  assistant `READY` 在 seq 49、首个 `waiting_entered` 在 seq 51 之前），turn 内
+  gen-step 1→4 连续跑，模型本 turn 内看到。
+- **queue**：`input_received` 落 **seq 51**——首个 turn 收尾（idle `waiting_entered`
+  seq 50）**之后**，由新 turn（gen-step 5）消费并真跑 `echo INJECT_queue_TOKEN`。
+- **webui**（强刷后真机截图）：运行中 composer 显示 `Queue|Steer` 段控件、默认
+  Queue、点 Steer 高亮、send 提示 `Send · steer (⌘⏎ to queue)`；console error/warn=0。
+证据：`qa/runs/2026-07-10-QA-45/`（steer-events.txt / queue-events.txt / 两张
+composer 截图 / driver logs / spec.yaml）；孪生四条 + 91 vitest + build + 根
+check.sh 全绿。
+
+---
+
 ## 覆盖矩阵
 
 | 核心场景 | QA 流 |

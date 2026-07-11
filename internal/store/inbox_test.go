@@ -91,6 +91,31 @@ func TestInboxCommandIdempotency(t *testing.T) {
 	}
 }
 
+// TestInboxDeliveryModeIsPartOfPayload pins that the per-message delivery mode
+// (INC-43: steer|queue) rides the durable command payload: an exact retry of
+// the same (command_id, delivery) is idempotent, but reusing a command_id with
+// a DIFFERENT delivery is a payload conflict — the mailbox rejects it rather
+// than silently changing a queued message into a steer (or vice versa).
+func TestInboxDeliveryModeIsPartOfPayload(t *testing.T) {
+	dir := t.TempDir()
+	steer := protocol.UserInput{Text: "act now", CommandID: "cmd-del", Delivery: protocol.DeliverySteer}
+	first, err := AppendInbox(dir, steer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	retry, err := AppendInbox(dir, steer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.DeliverySeq != retry.DeliverySeq {
+		t.Fatalf("exact retry not idempotent: first=%d retry=%d", first.DeliverySeq, retry.DeliverySeq)
+	}
+	conflict := protocol.UserInput{Text: "act now", CommandID: "cmd-del", Delivery: protocol.DeliveryQueue}
+	if _, err := AppendInbox(dir, conflict); err == nil || !strings.Contains(err.Error(), "different payload") {
+		t.Fatalf("delivery-mode change should conflict on reused command id, got %v", err)
+	}
+}
+
 func TestUnifiedCommandLogReadsLegacyAndTypedCommands(t *testing.T) {
 	dir := t.TempDir()
 	legacy, err := AppendInbox(dir, protocol.UserInput{Text: "legacy-compatible", CommandID: "cmd-input"})

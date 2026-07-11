@@ -1,6 +1,13 @@
 # INC-43 运行中发消息的投递模式（steer | queue，对标 Codex）
 
-状态：**drafted，实施中**（PROCESS §二第 3 步——小增量 inline 自审，本工作纸即三层 delta 审）。
+> **归档注记（2026-07-10 landed）**：本增量已落地，三层 delta 并回
+> JOURNEYS（UJ-07）/ SPEC（A 域）/ DESIGN（§1 投递模式 + 术语表）/
+> CODEX-PARITY（运行中 steering 行）/ QA（QA-45）/ LOG。孪生
+> TestSteerDeliversMidTurn/TestQueueDefersToTurnEnd/TestSteerFlushesQueuedBacklog/
+> TestInboxDeliveryModeIsPartOfPayload 与 QA-45 真机（steer seq10 / queue seq51）
+> 全绿。原件只读封存。
+
+状态：**landed**（PROCESS §二第 5 步收口；小增量 inline 自审，本工作纸即三层 delta 审）。
 认领：Claude message-delivery-mode-a9751b，2026-07-10。
 占号：**INC-43 / QA-45**（先 fetch 确认：INC-42 已占 mode 权限切换、QA-44 已占；
 QA-43 为 INC-41 终局全景；INC-43/QA-45 空号）。

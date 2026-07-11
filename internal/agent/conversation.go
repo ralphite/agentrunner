@@ -222,6 +222,73 @@ func (l *Loop) drainQueued(ds *driveState, appendE AppendFunc) error {
 	}
 }
 
+// drainSteer runs at the loop's mid-turn safe boundary (INC-43). It
+// non-blockingly pulls every input currently queued on UserInputs and splits
+// them by delivery mode: if ANY of them is steer, the whole pending backlog
+// (older deferred queue inputs first, then this batch, in seq order) is
+// journaled NOW — the model sees them this turn. If none is steer, the batch is
+// held on ds.deferredInputs for the idle, so queue-mode messages still land in
+// the NEXT turn.
+//
+// Flushing the older backlog when a steer fires is what keeps ConsumedInputSeq
+// (a high-water mark) monotonic: a steer carries a higher seq than the queue
+// messages that preceded it, so journaling the steer first would push the
+// high-water past those lower seqs and make journalInput drop them as
+// duplicates. Draining the whole prefix in seq order avoids that.
+//
+// Drive-goroutine only. A pure append — it never cancels the in-flight step.
+func (l *Loop) drainSteer(ds *driveState, appendE AppendFunc) error {
+	var batch []protocol.UserInput
+	hasSteer := false
+drain:
+	for {
+		select {
+		case in, ok := <-l.UserInputs:
+			if !ok {
+				l.inboxClosed = true
+				l.UserInputs = nil
+				break drain
+			}
+			if in.Delivery == protocol.DeliverySteer {
+				hasSteer = true
+			}
+			batch = append(batch, in)
+		default:
+			break drain
+		}
+	}
+	if !hasSteer {
+		ds.deferredInputs = append(ds.deferredInputs, batch...)
+		return nil
+	}
+	flush := append(ds.deferredInputs, batch...)
+	ds.deferredInputs = nil
+	for _, in := range flush {
+		if err := l.journalInput(ds, appendE, in); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// flushDeferred journals the queue-mode inputs drainSteer set aside (INC-43),
+// in seq order, at the idle. Returns true if it journaled anything — the caller
+// then starts the next turn (they were destined for it). They are the highest
+// un-consumed seqs, so the high-water stays monotonic.
+func (l *Loop) flushDeferred(ds *driveState, appendE AppendFunc) (bool, error) {
+	if len(ds.deferredInputs) == 0 {
+		return false, nil
+	}
+	pending := ds.deferredInputs
+	ds.deferredInputs = nil
+	for _, in := range pending {
+		if err := l.journalInput(ds, appendE, in); err != nil {
+			return false, err
+		}
+	}
+	return true, nil
+}
+
 // idleForInput waits at the standby idle. On the explicit close gesture it
 // journals the close MARK (决策 #30) and returns done=true; on an input or
 // settlement it returns done=false so the drive loop continues. Shared by
@@ -265,6 +332,18 @@ func (l *Loop) awaitInput(ctx context.Context, ds *driveState, appendE AppendFun
 			Kind: event.WaitInput, Resolution: resolution,
 		})
 		return rerr
+	}
+	// Queue-mode messages that drainSteer pulled off the channel mid-turn wait
+	// here (INC-43): journal them now and start the next turn — this is the
+	// turn-end delivery the "queue" mode promises. Drain any freshly-arrived
+	// channel inputs behind them so type-ahead still batches into one turn.
+	if flushed, err := l.flushDeferred(ds, appendE); err != nil {
+		return false, err
+	} else if flushed {
+		if err := l.drainQueued(ds, appendE); err != nil {
+			return false, err
+		}
+		return false, resolve("input_received")
 	}
 	if l.inboxClosed {
 		// drainQueued saw the channel close at a boundary: nothing left to
@@ -374,6 +453,15 @@ func (l *Loop) awaitInput(ctx context.Context, ds *driveState, appendE AppendFun
 // woke us but the question stands — decide() re-parks).
 func (l *Loop) awaitAnswer(ctx context.Context, ds *driveState, appendE AppendFunc, d askDetail) (RunResult, bool, error) {
 	l.ensureBackground()
+	// Queue-mode inputs drainSteer set aside (INC-43) must be journaled before
+	// this park's answer, or the answer's higher seq would push the high-water
+	// past them and journalInput would drop them. Journaling them here does NOT
+	// answer the question (they are ordinary messages); decide() re-parks.
+	if flushed, err := l.flushDeferred(ds, appendE); err != nil {
+		return RunResult{}, true, err
+	} else if flushed {
+		return RunResult{}, false, nil
+	}
 	if l.UserInputs == nil && !l.inboxClosed &&
 		len(ds.s.Handles) == 0 && len(ds.s.Timers) == 0 {
 		// Headless (one-shot) with NOTHING in flight: no live input source. The

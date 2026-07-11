@@ -39,7 +39,7 @@ in-doubt 崩溃纪律（非幂等绝不静默重跑）、barrier/fork/rewind 带
 |---|---|---|---|
 | 续聊 | 线程常驻 | ✅ 静止模型，send 永远成立（QA-01） | — |
 | 流式输出 | 全端打字流 | ✅ `attach --json` SSE；子会话仅轮询 | 子会话打字流（P1①） |
-| 运行中 steering | mid-turn / queue 双默认 | ✅ 安全边界排队（QA-02/06） | 语义差异，已裁决 |
+| 运行中 steering | mid-turn / queue 双默认 | ✅ 双模式对齐：per-message steer（turn 内安全边界注入）/ queue（下个 turn），webui composer `Queue\|Steer` 切换 + ⌘⏎ 反选、CLI `ar send --steer`（INC-43,QA-45） | 硬打断走既有 `interrupt`；排队为 durable 服务端队列（我方领先），不做客户端可撤回 |
 | interrupt | Esc 停 turn | ✅ 真停 + 部分输出保留（裁决 #11） | — |
 | 消息队列 | queue-by-default | ✅ **领先** durable CommandLog（全 session command、caller idempotency） | — |
 | 图片输入 | 粘贴/相机 | ✅ CAS ref（QA-07）+ 缩略图 | — |

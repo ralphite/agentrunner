@@ -214,6 +214,7 @@ func sendCmd(args []string, stdout, stderr io.Writer) int {
 	var filePaths repeatedFlag
 	fs.Var(&filePaths, "file", "attach a file of any type — PDF, etc. (repeatable, INC-9)")
 	detach := fs.Bool("detach", false, "deliver the message and exit without waiting for the reply")
+	steer := fs.Bool("steer", false, "steer: deliver into the CURRENT turn at its next safe boundary (default: queue to the next turn) — INC-43")
 	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
 		return ExitUsage
 	}
@@ -239,6 +240,9 @@ func sendCmd(args []string, stdout, stderr io.Writer) int {
 	cmd := daemon.Command{Cmd: "send", Session: resolvePrefixLenient(rest[0]),
 		Text: rest[1], Images: images, Files: files, CommandID: event.NewCommandID(),
 		Principal: "local-user", Source: "cli", Trust: "local"}
+	if *steer {
+		cmd.Delivery = protocol.DeliverySteer
+	}
 	if *detach {
 		return oneShot(stderr, cmd, stdout)
 	}

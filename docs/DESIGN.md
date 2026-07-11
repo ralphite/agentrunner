@@ -125,10 +125,24 @@ turn**（跑一遍 agentic loop）：
   向父 inbox 投一条完成输入。杀死 = 向子 session 投一条 cancel
   输入（或直接 cancel 它的执行 ctx）——它会收尾并给父投一条
   "被取消"的完成回执。**父子用同一套 inbox 机制通信**，没有第二套。
-- **消息改变编排**：用户 steer 消息进父 inbox → 下个 turn
-  模型看到它 → 模型自己决定发 `kill(h2)` + `spawn_agent(...)`
-  工具调用。编排的智能在模型，runtime 只提供"随时能投、随时能杀、
-  随时能起"的原语。
+- **消息改变编排**：用户 steer 消息进父 inbox → 模型看到它
+  （投递时机见下「投递模式」）→ 模型自己决定发 `kill(h2)` +
+  `spawn_agent(...)` 工具调用。编排的智能在模型，runtime 只提供
+  "随时能投、随时能杀、随时能起"的原语。
+- **投递模式（steer|queue，per-message，INC-43，对标 Codex）**：用户消息带
+  `UserInput.Delivery` 字段决定消费时机——`queue`（默认，空值即此）追加进
+  inbox、idle（turn 末）消费，进**下个 turn**（type-ahead，历史唯一行为）；
+  `steer` 在 loop 安全边界（两 step 之间，drainBackground 同一 seam）以新的
+  user-role 消息进对话，模型**本 turn 内下个 generation** 看到。与 receipts=
+  `steer`（背景回执，裁决 #15）完全对称——都是「安全边界即进对话」的合法
+  投递点。**仍是追加、不打断**：steer 不 cancel 在飞 step、不落 `interrupted`
+  截断，「interrupt 与输入分立」不变量保持（interrupt 是唯一收尾 turn 的
+  通道）。**seq 单调性**：`ConsumedInputSeq` 是高水位，steer 触发时先按 seq
+  序 flush 所有更早的待发 queue backlog 再 journal 本轮——journal 的永远是当前
+  最低连续 seq 段，暂存的（`driveState.deferredInputs`，仅内存、mailbox 为
+  durable 源）永远是更高 seq 段，故一条 steer 把整个待发 backlog 一起带进当前
+  turn，无 steer 尾随的纯 queue 才等到 turn 末。落点：`ar send --steer`、webui
+  composer `Queue|Steer` 切换 + ⌘⏎ 单条反选；硬打断另走 `interrupt`。
 - **interrupt 与输入分立**：输入进对话 inbox（追加语义，不打断）；
   interrupt 与其他 control 一样先成为 durable command，再由带外 wake
   直接 cancel 当前 turn 的活动 ctx，把部分输出收尾成 journal——通常此时 inbox 里
@@ -1498,7 +1512,7 @@ event sourcing 的闭环：**执行产生事件，事件重建状态，状态驱
 | **Turn / Item** | session 的审计投影：每条外部输入建立 turn，message/tool_call/tool_result 为稳定 item；provider 兼容视图仍由同一事件折成 Message/GenStep。旧日志缺 id 时按 event seq/gen step 确定性补齐；旧 snapshot 没有 interactions 子状态时丢弃缓存、全量 fold。 |
 | **Input** | **存储/协议强类型，模型投影弱类型**（对裁决 #9 的兼容细化）：CommandLog/InputReceived 保存 `principal/source/trust` 与 typed `content[]`（text/image/file，binary 先入 CAS、事件只带 ref）；模型只看到纯内容/多模态，不暴露审计类型。control/interrupt 不进对话。前台 tool result 仍按 provider 配对协议回传。 |
 | **durable mailbox** | 投递侧落地机制（`inbox.jsonl`）：含 principal/source/trust 的 typed command 经 redact→fsync→ack，单调 command_seq；消费侧以 command_id/seq 回写+去重 = 恰好一次。 |
-| **steering** | agent 忙时投 user_message：排队、在安全边界被消费，不打断在跑的活动。 |
+| **steering** | agent 忙时投 user_message：在安全边界被消费、不打断在跑的活动。per-message `Delivery`（INC-43）定投递时机：`steer`=当前 turn 下个安全边界即进对话；`queue`（默认）=turn 末进下个 turn。硬打断另走 `interrupt`。 |
 | **receipts**（spec 字段） | 回执/后台结果的投递模式（裁决 #15）：`steer`（默认,turn 内安全边界即进对话）/ `turn_end`（等 turn 收尾,由回执唤醒下一 turn）。agent 配置层的默认值,不做 per-launch。 |
 | **interrupt** | **带外信号**（不进 inbox）,**永不结束 session**（裁决 #11）：turn 中 = 打断当前活动（interrupt sweep,部分输出保留）,会话继续;待命处 = **no-op**（journal 一条审计事实,继续等——没有可打断的东西;close 是独立命令）。 |
 | **control 输入** | 非对话输入（kill、close、compact/clear/remember/**mode**、goal-*）；journal 带 source=control，不进对话上下文。 |

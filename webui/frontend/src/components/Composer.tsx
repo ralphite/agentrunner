@@ -77,7 +77,7 @@ type ComposerProps =
       workspace?: string;
       mode?: string; // the session's LIVE approval mode (SessionView lifts it from inspect; /mode switches it — INC-42)
       running?: boolean;
-      onSend: (text: string, images: string[], files: string[]) => Promise<void>;
+      onSend: (text: string, images: string[], files: string[], delivery?: "steer" | "queue") => Promise<void>;
       actions?: SessionActions;
       onError: (m: string) => void;
     };
@@ -143,6 +143,12 @@ export function Composer(props: ComposerProps) {
   const [atts, setAtts] = useState<Attachment[]>([]);
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
+  // Delivery mode for a send to a RUNNING session (INC-43, Codex parity):
+  // "queue" (default) lands the message in the next turn; "steer" folds it into
+  // the current turn at its next safe boundary. The toggle sets the default;
+  // ⌘⏎ sends with the opposite mode for one message.
+  const running = isSession && !!(props as { running?: boolean }).running;
+  const [deliveryMode, setDeliveryMode] = useState<"steer" | "queue">("queue");
 
   // model + reasoning effort + access posture + persona
   const [provider, setProvider] = useState(DEFAULT_MODEL.provider);
@@ -417,7 +423,9 @@ export function Composer(props: ComposerProps) {
   };
 
   // ---- submit / send ----
-  const doSubmit = async () => {
+  // opposite (INC-43): ⌘⏎ sends with the opposite delivery mode for one message
+  // (Codex parity). Only meaningful for a running session; ignored otherwise.
+  const doSubmit = async (opposite = false) => {
     const t = text.trim();
     if (!t || busy) return;
 
@@ -433,8 +441,13 @@ export function Composer(props: ComposerProps) {
       if (isSession) {
         const imgs = atts.filter((a) => a.isImage).map((a) => a.path);
         const files = atts.filter((a) => !a.isImage).map((a) => a.path);
+        // Delivery mode only matters while a turn is running; at idle a send just
+        // starts the next turn either way, so leave it undefined then.
+        const effective: "steer" | "queue" | undefined = running
+          ? (opposite ? (deliveryMode === "queue" ? "steer" : "queue") : deliveryMode)
+          : undefined;
         resetInput();
-        await (props as Extract<ComposerProps, { variant: "session" }>).onSend(t, imgs, files);
+        await (props as Extract<ComposerProps, { variant: "session" }>).onSend(t, imgs, files, effective);
       } else if (kind === "chat") {
         const workspace = await resolveHomeWorkspace();
         const spec = buildSpec({ provider, model, access, persona, effort });
@@ -779,6 +792,17 @@ export function Composer(props: ComposerProps) {
         setSlashOpen(false);
         return;
       }
+    }
+    // ⌘⏎ / Ctrl+⏎ while running sends with the OPPOSITE delivery mode for one
+    // message (INC-43, Codex parity). Stop it here so it doesn't bubble to the
+    // global ⌘↵ = approve handler; an EMPTY composer lets it through to approve.
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      if (running && text.trim()) {
+        e.preventDefault();
+        e.stopPropagation();
+        doSubmit(true);
+      }
+      return;
     }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -1263,6 +1287,30 @@ export function Composer(props: ComposerProps) {
             </button>
           )}
 
+          {/* delivery mode (INC-43, Codex parity): while a turn is running, choose
+              whether this message steers the current turn or queues for the next.
+              ⌘⏎ sends with the opposite mode for one message. */}
+          {running && (
+            <div className="cx-delivery" role="group" aria-label="Delivery mode">
+              <button
+                type="button"
+                className={"cx-deliv" + (deliveryMode === "queue" ? " on" : "")}
+                onClick={() => setDeliveryMode("queue")}
+                title="Queue: deliver after the current turn ends (⌘⏎ to steer this one)"
+              >
+                Queue
+              </button>
+              <button
+                type="button"
+                className={"cx-deliv" + (deliveryMode === "steer" ? " on" : "")}
+                onClick={() => setDeliveryMode("steer")}
+                title="Steer: fold into the current turn at its next safe boundary (⌘⏎ to queue this one)"
+              >
+                Steer
+              </button>
+            </div>
+          )}
+
           {/* send — or Stop while a turn is running and nothing is typed
               (W30: stopping shouldn't require finding the topbar button) */}
           {isSession && (props as { running?: boolean }).running && !text.trim() ? (
@@ -1274,7 +1322,12 @@ export function Composer(props: ComposerProps) {
               <StopIcon size={15} weight="fill" />
             </button>
           ) : (
-            <button className="cx-send" onClick={doSubmit} disabled={busy || !text.trim()} title="Send (Enter)">
+            <button
+              className="cx-send"
+              onClick={() => doSubmit()}
+              disabled={busy || !text.trim()}
+              title={running ? `Send · ${deliveryMode} (⌘⏎ to ${deliveryMode === "queue" ? "steer" : "queue"})` : "Send (Enter)"}
+            >
               <ArrowUp />
             </button>
           )}

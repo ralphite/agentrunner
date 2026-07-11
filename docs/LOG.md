@@ -2788,3 +2788,50 @@ DESIGN §2 变更单。独立契约 review（对照 §2 原文+inbox/loop/daemon
 四性复核：不乱序（seq 单调）/确认即 accepted 达标；不丢与重放收敛
 由三件套补齐。**实施顺序 #16→#29→#7**；#29 实施时 DESIGN §2 修订与
 实现同 commit。设计纸留 docs/increments/（实施完随步归档）。
+---
+
+## 2026-07-10 INC-43 运行中发消息投递模式（steer|queue，对标 Codex）
+
+**背景**：CODEX-PARITY 第 42 行「运行中 steering·语义差异·已裁决」——历史上
+向运行中 session 发消息只有一种投递语义（追加进 inbox、下个 turn 才可见，
+type-ahead）。Codex composer 提供 queue（下个 turn）/ steer（注入当前 turn）
+双模式（`⌘⏎` 对单条反选）。本增量把该差异升级为与 Codex 对齐的 per-message
+投递模式，webui + CLI 暴露入口。
+
+**Codex 调研**：TUI Enter=注入当前 turn（steer，下个 step 边界、不硬打断）、
+Tab=排队下个 turn（queue）；composer「Follow-up behavior」设置默认二选一，
+`⌘⏎` 对单条做相反的那个（仓库内 INC-41-CODEX-UI-REFERENCE.md 第 214-217 行
+实拍佐证）。硬打断另有 Esc（对应我方既有 `interrupt`）。
+
+**机制**：`UserInput.Delivery`（""/`queue` 默认 / `steer`）+ `daemon.Command.
+Delivery` 透传。loop 安全边界（drainBackground 同 seam，`ds.s.Waiting==nil`
+时）`drainSteer`：本轮含 steer→按 seq 序 flush 整个待发 backlog（含更早
+deferred queue）并 journal，进当前 turn；否则暂存 `driveState.deferredInputs`，
+idle（awaitInput/awaitAnswer）再 flush 进下个 turn。CLI `ar send --steer`、
+webui `handleSend` 读 body.delivery、composer `Queue|Steer` 切换 + ⌘⏎ 反选、
+pending bubble steering…/queued… 标注。
+
+**决策/偏差（记档，供裁决）**：
+- **与「interrupt 与输入分立」不变量的关系**：判定**不破坏**。steer 仍是纯
+  追加——不 cancel 在飞 step、不落 `interrupted` 截断；interrupt 仍是唯一收尾
+  turn 的通道。改变的只是 queue-mode 散文「用户 steer…下个 turn」（DESIGN
+  §1/§3 旧述唯一模式）→「queue 默认下个 turn / steer 本 turn 安全边界」。既有
+  receipts steer/turn_end（裁决 #15）已确立「安全边界即进对话」为合法投递点与
+  steer/turn_end 词汇，本增量是对称扩展，未动 §15 决策表行、未破坏粗体条款，
+  故不走 PROCESS §四完整不变量流程；按「不悄悄绕」在工作纸+本条显式登记散文
+  delta，供用户否决。
+- **seq 单调性关口**：`ConsumedInputSeq` 是高水位；steer 若把高 seq 在低 seq
+  queue 之前 journal 会误丢后者——故 steer 触发时先 flush 更早的 queue backlog
+  再 journal 本轮（TestSteerFlushesQueuedBacklog 钉）。`deferredInputs` 仅内存、
+  mailbox 为 durable 源，崩溃经 mailbox 重投不丢不重。
+- **与 Codex 的差异**：Codex 客户端 hold 排队消息、可编辑/撤回；我方 send 一律
+  durable 即时 accepted（CODEX-PARITY「我方领先」），故不做客户端撤回——排队为
+  服务端 durable 队列。pending bubble 仅作乐观展示 + 模式标注。
+
+**默认**：`queue`（保持既有唯一行为，PROCESS §三.3 opt-in 不破坏既有形态）；
+steer 显式 opt-in。
+
+**验证**：孪生 TestSteerDeliversMidTurn / TestQueueDefersToTurnEnd（含默认""）/
+TestSteerFlushesQueuedBacklog / TestInboxDeliveryModeIsPartOfPayload 全绿；
+全量 Go 测试 + 91 vitest + frontend build + 根 check.sh 全绿（dist 已重建提交）；
+QA-45 真机（steer/queue 注入时机）见 `qa/runs/2026-07-10-QA-45/`。

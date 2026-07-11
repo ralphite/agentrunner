@@ -53,6 +53,10 @@ type Command struct {
 	// file). Same wire/CAS treatment as Images; MediaType drives the provider
 	// mapping.
 	Files []protocol.FileAttachment `json:"files,omitempty"`
+	// Delivery is the per-message delivery mode (INC-43): "" / "queue" (default,
+	// next turn) or "steer" (current turn's next safe boundary). Threaded onto
+	// the durable UserInput; see protocol.UserInput.Delivery.
+	Delivery string `json:"delivery,omitempty"`
 	// Goal carries the parameters of a goal-attach / goal-update control
 	// (INC-D1). pause/resume/cancel need only the command verb.
 	Goal *protocol.GoalControl `json:"goal,omitempty"`
@@ -1035,8 +1039,15 @@ func (s *Server) handleSend(ctx context.Context, cmd Command, enc *json.Encoder)
 	}
 	in := protocol.UserInput{Text: cmd.Text, Images: cmd.Images, Files: cmd.Files,
 		Content: cmd.Content, Principal: cmd.Principal, Source: cmd.Source,
-		Trust: cmd.Trust, CommandID: cmd.CommandID, Target: target}
+		Trust: cmd.Trust, CommandID: cmd.CommandID, Target: target,
+		Delivery: cmd.Delivery}
 	in.TurnID, in.ItemID = "turn-"+cmd.CommandID, "item-"+cmd.CommandID
+	// Normalize the delivery mode at the boundary: only "steer" opts into the
+	// mid-turn safe-boundary drain; anything else is the default next-turn
+	// queue. Persisting the canonical value keeps the payload hash stable.
+	if in.Delivery != protocol.DeliverySteer {
+		in.Delivery = ""
+	}
 	if in.Principal == "" {
 		in.Principal = "local-user"
 	}
