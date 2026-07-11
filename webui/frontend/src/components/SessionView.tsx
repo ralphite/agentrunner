@@ -91,7 +91,10 @@ export function SessionView({ sid }: { sid: string }) {
   // Supervision starts CLOSED and remembers the user's choice (W5): an empty
   // panel taking a third of the screen on every session was the single most
   // asked-about annoyance. A pending approval force-opens it (see below).
-  const [supervisionOpen, setSupervisionOpen] = useState(() => window.innerWidth > 900 && localStorage.getItem("arwebui.supervision") === "1");
+  // Codex shows the right context panel by default on a wide screen (R1-3);
+  // open it unless the user has explicitly closed it before ("0"). Narrow
+  // screens stay collapsed so the conversation isn't squeezed.
+  const [supervisionOpen, setSupervisionOpen] = useState(() => window.innerWidth > 1100 && localStorage.getItem("arwebui.supervision") !== "0");
   const setSupervision = (open: boolean) => {
     setSupervisionOpen(open);
     try {
