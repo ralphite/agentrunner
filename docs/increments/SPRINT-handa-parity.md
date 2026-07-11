@@ -47,13 +47,13 @@
 |---|---|---|---|---|
 | 8 | LLM goal judge（llm_call 管线 effect，门控触发，三态） | M/L | ✅ done (INC-48) | 实施双闸门：孪生 4 条（pass/reject 续跑/claim-gated 零调用+budget/crash 复用 verdict）+ 真 Gemini QA-48；DESIGN 决策 #21/§13/glossary 同 commit |
 | E2 | 外部事件唤醒 G14（HTTP ingress + source:machine + untrusted 硬条件） | M | ✅ done (INC-50) | UJ-12 卡死项关闭、G14 关闭；双闸门：孪生 8 条（ingress×5+registry+framing×2）+ 真 Gemini QA-50（5 红线）；安全 review 无 P0（P1-1/P2-1/P2-3/P2-4 修，P2-2 余项）；DESIGN 决策 #39 同 commit；HTTP 壳全 API 面仍 backlog |
-| 28b | cron 跨重启唤醒 + boot sweep（G22） | M | ⬜ | = CC SPRINT #15 联动 |
+| 28b | cron 跨重启唤醒 + boot sweep（G22） | M | 🔧 in-progress (INC-54) | = CC SPRINT #15 联动；并行轮认领 2026-07-11（worktree 子 agent D） |
 
 ### 批 4 · 工具面
 
 | # | 项 | 规模 | 状态 | 备注 |
 |---|---|---|---|---|
-| 4 | 自定义 command tools（trust 门=hooks 级 + 全管线 + sandbox） | M | ⬜ | project 层=可执行配置（决策 #19） |
+| 4 | 自定义 command tools（trust 门=hooks 级 + 全管线 + sandbox） | M | 🔧 in-progress (INC-55) | project 层=可执行配置（决策 #19）；触不变量→design-first + §四（并行轮认领 2026-07-11，worktree 子 agent E） |
 
 ### 批 5 · webui 消费面
 
@@ -62,8 +62,8 @@
 | 20 | Markdown 增强（react-markdown+gfm 表格+highlight.js） | M | 🔧 in-progress (INC-51) | 保持禁 raw HTML；并行轮认领 2026-07-11（worktree 子 agent A） |
 | 14 | LLM auto-title（SessionTitled{auto} journal 事件） | S/M | 🔧 in-progress (INC-52) | manual rename 不迁移（§12:1092）；承接 INC-23 W9 移交；与 CC #17 避让；并行轮认领 2026-07-11（worktree 子 agent B） |
 | 24 | project overlay + launcher（meta.json 扩展 + /api/open） | S/M | 🔧 in-progress (INC-53) | 不建服务端注册表；并行轮认领 2026-07-11（worktree 子 agent C） |
-| 18 | ar dictate 服务端听写（provider 补 audio part） | M | ⬜ | 走 ar 命令，webui 薄壳不变 |
-| 19 | ar optimize prompt 优化 | S | ⬜ | 搭 #18 的车 |
+| 18 | ar dictate 服务端听写（provider 补 audio part） | M | 🔧 in-progress (INC-56) | 走 ar 命令，webui 薄壳不变；与 #19 合并一轮（worktree 子 agent F） |
+| 19 | ar optimize prompt 优化 | S | 🔧 in-progress (INC-56) | 搭 #18 的车；与 #18 合并一轮（worktree 子 agent F） |
 
 ## 轮次日志（每轮一行，追加）
 
