@@ -1,0 +1,147 @@
+# Phone Web UI — 在 GitHub Actions runner 上起 arwebui 并通过 Tailscale
+# 暴露给手机（Mac 不在手边时的远程驾驶形态；见 docs/LOG.md 2026-07-11）。
+#
+# 用法（手机上即可完成）：
+#   1. repo Settings → Secrets and variables → Actions 添加：
+#      - TS_AUTHKEY       Tailscale auth key（admin console → Settings →
+#                         Keys → Auth keys；建议 Reusable + Ephemeral +
+#                         Pre-approved）
+#      - GEMINI_API_KEY   （可选但没有它 agent turn 会失败）
+#      - ANTHROPIC_API_KEY（可选，次 provider）
+#   2. Actions → phone-webui → Run workflow。
+#   3. 运行页的 job summary 里拿链接，手机装 Tailscale app 登录同一账号
+#      后打开。提前停：Cancel workflow run。
+#
+# 会话数据经 actions/cache 跨 run 延续（restore 最近一次、结束时保存），
+# 但这是 scratch 环境，与 Mac 上的共享 store 无关。
+name: phone-webui
+
+on:
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: "Keep the Web UI up for this many minutes (max 340)"
+        default: "180"
+        type: string
+      smoke:
+        description: "Build + health check only (no Tailscale, exits immediately)"
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+# 同时只保留一个实例；重新 dispatch 会顶掉旧 run（旧 store 在取消时仍会保存）。
+concurrency:
+  group: phone-webui
+  cancel-in-progress: true
+
+jobs:
+  serve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: Build ar + arwebui
+        run: |
+          go build -buildvcs=false -o bin/ar ./cmd/agentrunner
+          (cd webui && go build -buildvcs=false -o ../bin/arwebui .)
+
+      # 上一次 phone run 的 daemon store / runtime 产物接着用，会话可续聊。
+      - name: Restore store from previous run
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.local/share/agentrunner
+            runtime
+          key: agentrunner-store-${{ github.run_id }}
+          restore-keys: |
+            agentrunner-store-
+
+      - name: Start Web UI
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          nohup ./bin/arwebui -ar "$PWD/bin/ar" -addr 0.0.0.0:8788 > webui.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8788/api/health > /dev/null 2>&1; then
+              echo "web UI is up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "web UI did not come up:" >&2
+          tail -50 webui.log >&2
+          exit 1
+
+      - name: Join tailnet
+        if: ${{ !inputs.smoke }}
+        uses: tailscale/github-action@v3
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+          hostname: agentrunner-phone
+
+      - name: Publish URL
+        if: ${{ !inputs.smoke }}
+        run: |
+          # HTTPS via `tailscale serve` when the tailnet has HTTPS enabled;
+          # plain-HTTP tailnet URLs always work as fallback (WireGuard 加密，
+          # 仅本 tailnet 设备可达).
+          SERVE_URL=""
+          if sudo tailscale serve --bg 8788 2>serve.err; then
+            DNSNAME=$(sudo tailscale status --json | jq -r '.Self.DNSName' | sed 's/\.$//')
+            SERVE_URL="https://${DNSNAME}"
+          else
+            echo "tailscale serve unavailable (enable HTTPS at https://login.tailscale.com/admin/dns):" >&2
+            cat serve.err >&2
+          fi
+          TSIP=$(sudo tailscale ip -4)
+          {
+            echo "## AgentRunner Web UI is up"
+            echo ""
+            [ -n "$SERVE_URL" ] && echo "**Open on your phone: [$SERVE_URL]($SERVE_URL)**"
+            echo ""
+            echo "- Plain-HTTP fallback: http://agentrunner-phone:8788 or http://${TSIP}:8788"
+            echo "- Phone must be logged into the same tailnet (Tailscale app)."
+            echo "- Up for ${MINUTES_IN} minutes — cancel this run to stop earlier."
+            if [ -z "${GEMINI_SET}" ] && [ -z "${ANTHROPIC_SET}" ]; then
+              echo ""
+              echo "⚠️ No GEMINI_API_KEY / ANTHROPIC_API_KEY secret configured — the UI works but agent turns will fail."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ -n "$SERVE_URL" ] && echo "::notice title=AgentRunner Web UI::${SERVE_URL}"
+          echo "::notice title=AgentRunner Web UI (tailnet HTTP)::http://${TSIP}:8788"
+        env:
+          MINUTES_IN: ${{ inputs.minutes }}
+          GEMINI_SET: ${{ secrets.GEMINI_API_KEY && '1' || '' }}
+          ANTHROPIC_SET: ${{ secrets.ANTHROPIC_API_KEY && '1' || '' }}
+
+      - name: Keep alive
+        if: ${{ !inputs.smoke }}
+        env:
+          MINUTES_IN: ${{ inputs.minutes }}
+        run: |
+          MINUTES=$(printf '%s' "$MINUTES_IN" | tr -dc '0-9')
+          MINUTES=${MINUTES:-180}
+          [ "$MINUTES" -gt 340 ] && MINUTES=340
+          echo "serving for $MINUTES minutes…"
+          sleep $(( MINUTES * 60 ))
+
+      # 取消 / 超时 / 正常结束都保存 store，下次 run restore 后续聊。
+      - name: Save store for next run
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.local/share/agentrunner
+            runtime
+          key: agentrunner-store-${{ github.run_id }}
