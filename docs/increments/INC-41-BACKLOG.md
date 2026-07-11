@@ -689,3 +689,9 @@ R4-11 空会话空态、R2-1 box-shadow 暗色。
   并发 session 0a38b5a 已把 Z1 收成 ✅(补 1554/900/642+修 mobile Settings sidebar
   bug+QA-43 PASS);冲突裁决采纳对方 ✅,我方 finder 作第二镜头独立确认并入 Z1。
   push ad4567f(QA-51 调和)+本 commit。
+- 2026-07-11 轮5(headless):同步 ff→0e5a529(并发 session 推 f2f1932 responsive
+  +INC-60 progressive session list,live 已=index-CTcdOVfV.js)→ 判据 3 对旧 build 失效,遂
+  scripts/panorama.py 全景重扫(19 面 × light/dark × 1440/390)→ error/warning/
+  navfail 全 0、主题落实 19/19 一致 → 判据 3 对当前 live 重新达成。附带修 QA
+  harness theme 假象(hash 导航不 reload,改 add_init_script,证据 theme_probe*.py
+  排除 deep-link 主题回退 bug)。let路=无(工作区净)。push=本 commit;live=index-CTcdOVfV.js。
