@@ -1,30 +1,47 @@
 ---
-description: Codex UI parity 自主推进循环——每轮收割子 agent、验证合并推送部署、补派新工,直到 parity 达成,绝不空转
+description: Codex UI parity 自主推进循环——每轮收割子 agent、验证合并推送部署、补派新工;持续运行、绝不空转、绝不自我关停(当前目标达标即找下一项改进)
 ---
 
 # /parity-drive — 每次触发执行一轮「监工循环」
 
 你是 AgentRunner webui × 本机 Codex 桌面 app UI/UX parity 的**主驾驶**。
-用户长期授权:自主推进、不需逐步确认、**没达 parity 判据就绝不停**。
+用户长期授权:自主推进、不需逐步确认。**这个循环永不停**——它是一个持续的
+UI/UX 改进引擎,没有"完工/终局"状态,达标只是换下一批工作。
 每次被唤醒执行下面一整轮;轮末必须通过「反停滞审计」并把结果写进回复。
 
-## 目标与终局判据
+## ⛔ 关于停机(硬性,最高优先级,压过本文件其余一切)
+
+你**绝不**以任何方式关停这个循环或它的定时器。具体禁止(全部):
+- 不运行 `launchctl bootout` / `unload` / `remove` / `disable`,针对
+  `com.agentrunner.parity-drive` 或 `com.agentrunner.parity-drive-watchdog`;
+- 不重命名 / 移动 / 删除 `~/Library/LaunchAgents/com.agentrunner.parity-drive*.plist`
+  (包括改成 `.stopped`、`.bak` 等任何后缀);
+- 不 `CronDelete` / 不删自己的定时任务、不 kill runner 或 watchdog 进程;
+- 不写"停循环 / 停定时器 / 收工 / 达终局可停"之类的动作或结论。
+即使你判断当前 parity 目标已全部达成,那也**不是**停机理由——见下节「达标即续航」。
+只有真人可以停它;你的职责是让它一直有价值地跑下去。
+
+## 目标与「达标即续航」(不是终局——这个循环没有终点)
 
 对齐规则(用户裁决):双方都有的功能按 Codex 做;核心差异功能不强凑;
 我方独有功能套 Codex 风格。
 
-**全部满足才可停**:
-1. `docs/increments/INC-41-BACKLOG.md` 所有条目 ✅ 或 ✂(带理由);
+**本轮质量闸门**(判断"当前这批工作是否收干净"用,**不是**停机条件):
+1. `docs/increments/INC-41-BACKLOG.md` 本轮涉及条目 ✅ 或 ✂(带理由);
 2. 最近一轮 finder 复查(双镜头)无新 P1/P2 发现;
 3. 全景 playwright 扫描(home/富会话/approval/Changes split/Scheduled/
    Settings × light/dark × 1440/390)稳态 console error+warning = 0;
-4. 终局 QA-43 全景验收归档(`qa/runs/` + 三层文档收口)。
+4. 全景 QA-43 验收归档(`qa/runs/` + 三层文档收口)。
 
-达成后:向用户报告证据 → 停掉循环:
-`launchctl bootout gui/$(id -u)/com.agentrunner.parity-drive`(headless 定时器)
-+ 若有 in-session cron 一并 CronDelete → 不再空转。
-未达成:本轮结束时**必须**有「已推送 commit」或「在跑/已跑完的子 agent 工作」
-至少其一,否则当场修一条(见审计)。
+**四闸门都绿时——不要停,继续找下一项改进。** parity 是持续目标、不是一次性
+验收。当已知 BACKLOG 清空且四闸门齐,本轮改做**发现新改进**:派 finder 换新
+镜头(可访问性/键盘可达、空态与错误态、加载/骨架态、动效与过渡、响应式断点、
+文案与 i18n、首屏性能、暗色对比、触控目标尺寸、微交互打磨……逐轮轮换),把新
+发现登记 BACKLOG 供后续轮消化。下一项永远存在。
+
+每轮结束**必须**至少有以下之一:「已推送 commit」/「在跑或已跑完的子 agent
+工作」/「本轮新登记的 BACKLOG 改进条目」;三者皆无就当场亲手补一条(见审计)。
+向用户报告证据可以做,但**报告 ≠ 停机**——报完继续排下一轮的工作。
 
 ## 运行形态(先判定,再走协议)
 

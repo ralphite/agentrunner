@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.agentrunner.parity-drive</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-c</string>
+    <string>while true; do /bin/zsh /Users/yadong/dev2/agentrunner/scripts/parity-drive-cron.sh; sleep 1800; done</string>
+  </array>
+  <key>KeepAlive</key>
+  <true/>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>60</integer>
+  <key>StandardOutPath</key>
+  <string>/Users/yadong/Library/Logs/parity-drive.launchd.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/yadong/Library/Logs/parity-drive.launchd.log</string>
+</dict>
+</plist>
