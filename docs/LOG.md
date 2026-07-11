@@ -3057,3 +3057,27 @@ B=真 Gemini QA-48（见 QA.md 执行记录）。
 测试夹具教训：scripted 夹具两次 goal_complete 必须用不同 CallID——复用
 ID 命中工具 Activity 幂等窗，第二次 claim 静默不重跑（真 provider 语义
 即每 call 唯一 ID）。
+
+## 2026-07-11 · webui hotfix：background 工具把会话钉死在 "Thinking"
+
+**症状**（用户实报,session `20260711-060645-what-agents-5849`）：turn 早已
+结束、daemon 状态 `waiting:input`,但 webui header 恒显 "Working…"、typing
+气泡恒显 "Thinking"。
+
+**根因**：会话用 background bash 起了常驻 server(`start-server.sh`,
+`background:true`)——后台 Activity 只在进程退出时才发 `activity_completed`,
+常驻进程永不退出;而 `foldEvents` 的 `toolRunning` 判定
+(`timeline.ts`)未排除 background 工具,`active` 永真,SessionView 的状态
+优先级里 live turn 压过 daemon 状态,永不回落。
+
+**修复**:`toolRunning` 加 `&& !it.background`(background 任务 UI 本就
+单独标 "task",不算 live turn);回归测试重放事发 journal 形状 + 前台工具
+仍算 active 的对照。turn 结束后状态正确回落到 `waiting:input`,后台任务
+由 Supervision 面板的 "Background work still running" 承担提示职责。
+
+**部署与复验**:deploy.sh 全量部署 `a9e1325`(daemon 无 running turn,
+ar+arwebui 同 stamp,versionMatch:true);注意 deploy.sh 的 webui nohup
+拉起未成活(health check 连不上),手动带 `--runtime
+~/.local/share/agentrunner/webui-runtime` 重拉成功——待查。playwright 开
+真实 session 页复验:Thinking 气泡消失、composer 空闲、Supervision 面板
+如实显示 bash · running。测试会话保留。
