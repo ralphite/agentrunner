@@ -365,3 +365,24 @@ func TestToPartFilePDF(t *testing.T) {
 		t.Fatalf("inline_data = %+v, want application/pdf", part.InlineData)
 	}
 }
+
+// INC-56 (ar dictate): an audio part rides the same inline_data path as any
+// binary media — its bytes and MIME reach Gemini untouched. The dictate helper
+// sets Data directly (no CAS inflate), so a data-bearing audio part encodes,
+// while a byte-less one is a hard error like every other media kind.
+func TestToPartAudio(t *testing.T) {
+	part, err := toPart(provider.Part{Kind: provider.PartAudio,
+		MediaType: "audio/wav", Data: []byte("RIFF....WAVE")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if part.InlineData == nil || part.InlineData.MIMEType != "audio/wav" ||
+		string(part.InlineData.Data) != "RIFF....WAVE" {
+		t.Fatalf("inline_data = %+v, want audio/wav bytes verbatim", part.InlineData)
+	}
+	// A byte-less audio part (nothing to transcribe) must error, not send an
+	// empty blob the API would 400 on.
+	if _, err := toPart(provider.Part{Kind: provider.PartAudio, MediaType: "audio/wav"}); err == nil {
+		t.Error("byte-less audio part mapped without error")
+	}
+}

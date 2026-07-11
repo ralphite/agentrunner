@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowClockwise,
   ArrowUp,
+  ArrowUUpLeft,
   CaretDown,
   ChartBar,
   Code,
@@ -57,6 +58,9 @@ import {
 } from "../specs";
 import { Popover, PopItem, PopSection } from "./Popover";
 import { useVoice } from "./useVoice";
+import { useDictation } from "./useDictation";
+import { helperContext, runOptimize, undoOptimize } from "./composerOptimize";
+import { parseSlash, SLASH, type SlashCmd } from "./slash";
 import { recallAccess, recallDraft, recallSpec, rememberAccess, rememberDraft, rememberSpec } from "./sessionSpecs";
 import { projectLabel, projectSubtitles } from "../viewModels";
 
@@ -88,32 +92,6 @@ interface Attachment {
   name: string;
   isImage: boolean;
 }
-
-// A slash command: what the menu shows and what Enter/click does. `needsArgs`
-// commands complete to "/name " and wait; the rest run immediately.
-interface SlashCmd {
-  name: string;
-  arg?: string;
-  desc: string;
-  variants: ("home" | "session")[];
-  needsArgs?: boolean;
-}
-
-const SLASH: SlashCmd[] = [
-  { name: "goal", arg: "<task>", desc: "Attach a goal — the agent keeps working until it's met", variants: ["home", "session"], needsArgs: true },
-  { name: "loop", arg: "<task>", desc: "Start a run that repeats on a fixed cadence", variants: ["home", "session"], needsArgs: true },
-  { name: "bestof", arg: "<task>", desc: "Run N isolated attempts, keep the best", variants: ["home", "session"], needsArgs: true },
-  { name: "plan", desc: "Read-only planning mode — no changes", variants: ["home"] },
-  { name: "compact", desc: "Summarize & shrink this conversation's context", variants: ["session"] },
-  { name: "clear", desc: "Drop this conversation's context and start fresh", variants: ["session"] },
-  { name: "mode", arg: "<default|acceptEdits>", desc: "Switch permission mode — acceptEdits auto-allows edits", variants: ["session"], needsArgs: true },
-  { name: "diff", desc: "Show the workspace changes (git diff)", variants: ["session"] },
-  { name: "fork", desc: "Fork into a new worktree from a checkpoint", variants: ["session"] },
-  { name: "model", arg: "<id>", desc: "Switch the model", variants: ["home", "session"], needsArgs: true },
-  { name: "reasoning", arg: "<level>", desc: "Set reasoning effort (off/light/medium/high/xhigh)", variants: ["home", "session"], needsArgs: true },
-  { name: "interrupt", desc: "Stop the in-flight turn", variants: ["session"] },
-  { name: "resume", desc: "Recover a crashed / interrupted session", variants: ["session"] },
-];
 
 const riskDot = (risk: string) => <span className={"risk-dot w-[7px] h-[7px] rounded-full shrink-0 inline-block " + risk} />;
 
@@ -215,10 +193,64 @@ export function Composer(props: ComposerProps) {
   const imgRef = useRef<HTMLInputElement>(null);
   const anyRef = useRef<HTMLInputElement>(null);
 
-  const voice = useVoice((t) => {
+  // Prompt optimization (INC-56 · HANDA #19): the Sparkles button / `/optimize`
+  // slash rewrites the draft via `ar optimize`; the pre-optimize draft is kept
+  // here for a single-step undo. Cleared on send/reset.
+  const [undoDraft, setUndoDraft] = useState<string | null>(null);
+  const [optimizing, setOptimizing] = useState(false);
+
+  const appendText = (t: string) => {
     setText((prev) => (prev ? prev + " " + t : t));
     taRef.current?.focus();
-  });
+  };
+  // Browser SpeechRecognition dictation — the fallback when server-side
+  // dictation (MediaRecorder + `ar dictate`) isn't available.
+  const voice = useVoice(appendText);
+  // Context that helps the helpers spell proper nouns / resolve references: the
+  // session's workspace label and whatever is already typed.
+  const helperCtx = () => helperContext([isSession ? (props as any).workspace : ws, text]);
+  const dictation = useDictation(appendText, helperCtx, (m) => props.onError(m));
+  // Prefer the server path (better accuracy + context); fall back to the
+  // browser's SpeechRecognition when the machine can't record+upload.
+  const micActive = dictation.supported ? dictation.recording || dictation.busy : voice.listening;
+  const micVisible = dictation.supported || voice.supported;
+  const toggleMic = () => (dictation.supported ? dictation.toggle() : voice.toggle());
+
+  // doOptimize rewrites `draft` and swaps it in, stashing `restoreTo` for undo.
+  const doOptimize = async (draft: string, restoreTo: string) => {
+    if (optimizing || !draft.trim()) return;
+    setOptimizing(true);
+    try {
+      await runOptimize(
+        {
+          optimize: (d, c) => AR.optimize(d, c),
+          setText: (t) => {
+            setText(t);
+            requestAnimationFrame(() => {
+              const ta = taRef.current;
+              if (ta) {
+                ta.focus();
+                grow(ta);
+              }
+            });
+          },
+          setUndo: setUndoDraft,
+          toast,
+          onError: props.onError,
+        },
+        draft,
+        restoreTo,
+        helperCtx(),
+      );
+    } finally {
+      setOptimizing(false);
+    }
+  };
+  const undoOptimizeNow = () => {
+    if (undoDraft === null) return;
+    undoOptimize({ setText, setUndo: setUndoDraft }, undoDraft);
+    taRef.current?.focus();
+  };
 
   // Seed model + persona pills from the session's remembered spec (if we made it).
   useEffect(() => {
@@ -363,6 +395,7 @@ export function Composer(props: ComposerProps) {
   const resetInput = () => {
     setText("");
     setAtts([]);
+    setUndoDraft(null);
     if (taRef.current) taRef.current.style.height = "auto";
   };
 
@@ -685,6 +718,11 @@ export function Composer(props: ComposerProps) {
       case "bestof":
         setLauncher({ mode: "best", task: rest });
         setText("");
+        return;
+      case "optimize":
+        // `/optimize <draft>` rewrites the given draft; undo restores exactly
+        // what the user typed after the command (not the "/optimize " prefix).
+        await doOptimize(rest, rest);
         return;
       case "plan":
         setAccess("plan");
@@ -1337,9 +1375,35 @@ export function Composer(props: ComposerProps) {
             )}
           </Popover>
 
-          {/* voice */}
-          {voice.supported && (
-            <button className={"cx-icon cx-mic" + (voice.listening ? " listening" : "")} onClick={voice.toggle} title={voice.listening ? "Stop dictation" : "Dictate"}>
+          {/* optimize (INC-56 · HANDA #19): rewrite the draft via `ar optimize`.
+              After a rewrite an Undo button restores the original draft in one
+              step. Both are hidden when there's nothing to act on. */}
+          {undoDraft !== null ? (
+            <button className="cx-icon cx-undo" onClick={undoOptimizeNow} title="Undo optimize — restore your original draft">
+              <UndoIcon />
+            </button>
+          ) : (
+            text.trim() && (
+              <button
+                className={"cx-icon cx-optimize" + (optimizing ? " working" : "")}
+                onClick={() => doOptimize(text, text)}
+                disabled={optimizing}
+                title="Optimize prompt — rewrite this draft to be clearer"
+              >
+                <Sparkle size={15} weight={optimizing ? "fill" : "regular"} />
+              </button>
+            )
+          )}
+
+          {/* dictation (INC-56 · HANDA #18): server-side `ar dictate` when the
+              browser can record+upload, else browser SpeechRecognition. */}
+          {micVisible && (
+            <button
+              className={"cx-icon cx-mic" + (micActive ? " listening" : "") + (dictation.busy ? " working" : "")}
+              onClick={toggleMic}
+              disabled={dictation.busy}
+              title={dictation.busy ? "Transcribing…" : micActive ? "Stop dictation" : "Dictate"}
+            >
               <MicIcon />
             </button>
           )}
@@ -1458,17 +1522,6 @@ function GoalLoopLauncher({
 }
 
 // ---- helpers ----
-function parseSlash(text: string, variant: "home" | "session"): { cmd: string; rest: string } | null {
-  const m = text.match(/^\/(\w+)(?:\s+([\s\S]*))?$/);
-  if (!m) return null;
-  const name = m[1].toLowerCase();
-  const cmd = SLASH.find((c) => c.name === name && c.variants.includes(variant));
-  if (!cmd) return null;
-  const rest = (m[2] || "").trim();
-  if (cmd.needsArgs && !rest) return null; // "/goal" alone → let the menu complete it
-  return { cmd: name, rest };
-}
-
 function accessByMode(mode?: string) {
   if (mode === "plan") return ACCESS_LEVELS.find((a) => a.id === "plan")!;
   if (mode === "acceptEdits") return ACCESS_LEVELS.find((a) => a.id === "acceptEdits")!;
@@ -1483,6 +1536,7 @@ function accessByMode(mode?: string) {
 const Caret = () => <CaretDown className="cx-caret text-dim shrink-0" size={10} />;
 const PlusIcon = () => <Plus size={16} />;
 const MicIcon = () => <Microphone size={15} />;
+const UndoIcon = () => <ArrowUUpLeft size={15} />;
 // Provider-aware model glyph: Gemini (primary) gets the sparkle, Anthropic the
 // chip — a quiet family cue in the pill and the model menu.
 const ModelIcon = ({ provider }: { provider?: string }) => (provider === "anthropic" ? <Cpu size={14} /> : <Sparkle size={14} />);

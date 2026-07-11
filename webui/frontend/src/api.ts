@@ -48,6 +48,11 @@ export const AR = {
     fd.append("file", file);
     return api<{ path: string; name: string }>("/upload", { method: "POST", body: fd });
   },
+  // Composer helpers (INC-56) — both go through `ar` on the server; the browser
+  // never talks to a provider. optimize rewrites a draft prompt; dictate
+  // transcribes an already-uploaded recording (pass an /api/upload path).
+  optimize: (draft: string, context = "") => post<{ text: string }>("/optimize", { draft, context }),
+  dictate: (path: string, context = "") => post<{ text: string }>("/dictate", { path, context }),
 
   events: (sid: string, after: number) =>
     api<Envelope[]>(`/sessions/${sid}/events?after=${after}`),

@@ -30,6 +30,11 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/upload", s.handleUpload)
 	mux.HandleFunc("GET /api/uploads/{name}", s.handleServeUpload)
 	mux.HandleFunc("POST /api/trust", s.handleTrust)
+	// Composer helpers (INC-56): server-side dictation and prompt optimization
+	// via `ar dictate` / `ar optimize` — the webui uploads/forwards, the ar
+	// command owns the provider call (thin-shell doctrine, DESIGN §12:1075).
+	mux.HandleFunc("POST /api/dictate", s.handleDictate)
+	mux.HandleFunc("POST /api/optimize", s.handleOptimize)
 
 	// ---- project overlay + system launcher (INC-53, HANDA #24) ----
 	mux.HandleFunc("GET /api/projects", s.handleProjectsList)

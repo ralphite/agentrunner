@@ -1860,6 +1860,22 @@ summary.fd-head:hover {
   0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--red) 55%, transparent); }
   50% { box-shadow: 0 0 0 5px transparent; }
 }
+/* optimize (Sparkles) + its single-step undo; "working" = a provider call in
+   flight (optimizing, or transcribing after a recording stops). */
+.cx-optimize:hover { color: var(--blue); }
+.cx-optimize.working,
+.cx-mic.working {
+  color: var(--blue);
+  border-color: var(--line);
+  background: var(--panel-2);
+  animation: cx-blink 1.1s ease-in-out infinite;
+}
+.cx-optimize.working, .cx-mic.working, .cx-icon:disabled { cursor: default; }
+.cx-undo:hover { color: var(--ink); }
+@keyframes cx-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
 
 /* pills (mode / model) */
 .cx-pill {

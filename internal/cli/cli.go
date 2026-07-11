@@ -116,6 +116,10 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 		return sessionsCmd(args[1:], stdout, stderr)
 	case "trust":
 		return trustCmd(args[1:], stdout, stderr)
+	case "dictate":
+		return dictateCmd(args[1:], stdout, stderr)
+	case "optimize":
+		return optimizeCmd(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "agentrunner: unknown command %q\n%s", args[0], usage())
 		return ExitUsage
@@ -188,6 +192,8 @@ Quick start:
 One-shot runs (no daemon needed):
   run <spec.yaml> "task"      run to completion in the foreground
   drive <driver.yaml>         run an iteration-driver series (plan/verify loop)
+  dictate <audio-file>        transcribe an audio recording to text (prints the transcript)
+  optimize "draft"            rewrite a draft prompt into a clearer instruction
 
 Conversations (need the daemon):
   daemon [--detach]           start the resident runtime (--detach backgrounds it, surviving this terminal)

@@ -31,6 +31,14 @@ const (
 	PartToolResult PartKind = "tool_result"
 	PartImage      PartKind = "image" // v2 M4.1: multimodal user input
 	PartFile       PartKind = "file"  // v2 M4.1: attached document input
+	// PartAudio carries an audio recording for a one-shot transcription
+	// (INC-56 `ar dictate`). It is NOT a conversation modality: the agent loop
+	// never assembles an audio part into a turn, and it is deliberately absent
+	// from the capability envelope's InputModalities (which describe what the
+	// conversation accepts — text/image/file). Only the out-of-loop dictate
+	// helper builds it, so audio→text stays a composer text convenience, not a
+	// model audio modality (DESIGN 非目标 line 36「语音输入」stands).
+	PartAudio PartKind = "audio"
 )
 
 // Part is one content part of a message. CallID pairs tool_call parts with

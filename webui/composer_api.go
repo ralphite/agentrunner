@@ -53,6 +53,92 @@ func (s *server) handleMode(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": strings.TrimSpace(res.Stdout)})
 }
 
+// helperTimeout bounds a composer-helper provider call (dictate/optimize).
+// Longer than the plain oneShotTimeout because a transcription or rewrite is a
+// real model round-trip that can be slower than a local daemon command.
+const helperTimeout = 120 * time.Second
+
+// handleDictate transcribes an uploaded audio recording via `ar dictate`
+// (INC-56, HANDA-PARITY #18). The webui stays a thin shell: it uploads the
+// recording (existing /api/upload), then hands the path to the `ar` command,
+// which owns the provider call and credential resolution (DESIGN §12:1075 +
+// 决策 #15c). The browser never talks to a provider. The transcript is a
+// composer text convenience — it lands in the textarea as an ordinary prompt.
+func (s *server) handleDictate(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Path    string `json:"path"`    // an /api/upload path
+		Context string `json:"context"` // optional disambiguation hint (session/draft text)
+	}
+	if !readBody(w, r, &req) {
+		return
+	}
+	// Only files THIS server produced (the uploads dir) may be transcribed: the
+	// path becomes a positional arg to `ar dictate`, so we never let a crafted
+	// path steer the webui into reading an arbitrary file off disk.
+	uploads := filepath.Join(s.runtimeDir, "uploads")
+	clean := filepath.Clean(strings.TrimSpace(req.Path))
+	if clean == "." || !underDir(uploads, clean) {
+		badRequest(w, "audio must be an uploaded file")
+		return
+	}
+	if st, err := os.Stat(clean); err != nil || st.IsDir() {
+		badRequest(w, "audio not readable")
+		return
+	}
+	args := []string{"dictate"}
+	if c := strings.TrimSpace(req.Context); c != "" {
+		args = append(args, "--context", c)
+	}
+	args = append(args, clean)
+	res := s.runAR(r.Context(), helperTimeout, args...)
+	if res.Err != nil {
+		arFail(w, "ar dictate", res)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"text": strings.TrimSpace(res.Stdout)})
+}
+
+// handleOptimize rewrites a draft prompt via `ar optimize` (INC-56,
+// HANDA-PARITY #19) — same thin-shell discipline as dictate. The original
+// draft is never mutated server-side; the frontend keeps it for a single-step
+// undo. The draft rides after a "--" so a draft that happens to start with "-"
+// is never mistaken for a flag.
+func (s *server) handleOptimize(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Draft   string `json:"draft"`
+		Context string `json:"context"`
+	}
+	if !readBody(w, r, &req) {
+		return
+	}
+	draft := strings.TrimSpace(req.Draft)
+	if draft == "" {
+		badRequest(w, "draft is required")
+		return
+	}
+	args := []string{"optimize"}
+	if c := strings.TrimSpace(req.Context); c != "" {
+		args = append(args, "--context", c)
+	}
+	args = append(args, "--", draft)
+	res := s.runAR(r.Context(), helperTimeout, args...)
+	if res.Err != nil {
+		arFail(w, "ar optimize", res)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"text": strings.TrimSpace(res.Stdout)})
+}
+
+// underDir reports whether path is dir itself or a file inside it. Both are
+// cleaned/absolute already; a "../" escape resolves to a Rel starting with "..".
+func underDir(dir, path string) bool {
+	rel, err := filepath.Rel(dir, path)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
 // handleGoal drives an in-session goal (INC-D1): attach/update/pause/resume/
 // cancel via `ar goal <sid> <action> …`. The goal hangs on the conversational
 // session and its context continues across the verifier's checks.

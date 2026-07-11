@@ -355,14 +355,17 @@ func toPart(p provider.Part) (*genai.Part, error) {
 	case provider.PartText:
 		return &genai.Part{Text: p.Text}, nil
 
-	case provider.PartImage, provider.PartFile:
-		// v2 M4.2: assembly already inflated the bytes from the CAS; a
-		// ref without bytes here means the inflate step was skipped.
+	case provider.PartImage, provider.PartFile, provider.PartAudio:
+		// v2 M4.2: for loop-assembled image/file parts, assembly already
+		// inflated the bytes from the CAS; a ref without bytes here means the
+		// inflate step was skipped. PartAudio (INC-56 `ar dictate`) is built
+		// directly by the dictate helper with Data already populated — same
+		// inline_data encoding, no CAS round-trip.
 		if len(p.Data) == 0 {
 			return nil, fmt.Errorf("gemini: %s part %q has no bytes (not inflated)", p.Kind, p.Ref)
 		}
 		// Text attachments (folded long pastes, M4.3) render as text — the
-		// most portable mapping; binary media rides inline_data.
+		// most portable mapping; binary media (images, audio) rides inline_data.
 		if p.Kind == provider.PartFile && strings.HasPrefix(p.MediaType, "text/") {
 			return &genai.Part{Text: "[attached file " + p.Ref + "]\n" + string(p.Data)}, nil
 		}
