@@ -111,6 +111,7 @@ var samples = map[string]any{
 		Source: "user", Env: "<env>cwd: /w</env>", Agents: "<agents>helper</agents>"},
 	TypeCommandHandled: &CommandHandled{CommandID: "cmd-1", CommandSeq: 7,
 		Kind: "compact", Result: "no_op"},
+	TypeSessionTitled: &SessionTitled{Title: "Fix the auth boundary", Source: TitleSourceAuto},
 }
 
 func TestRoundTripAllTypes(t *testing.T) {

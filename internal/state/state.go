@@ -472,6 +472,13 @@ type Session struct {
 	// entries above it — 崩溃不丢输入 becomes literally true.
 	ConsumedInputSeq     int64                        `json:"consumed_input_seq,omitempty"`
 	ProviderCapabilities *provider.CapabilityEnvelope `json:"provider_capabilities,omitempty"`
+	// RawTitle is the folded display-title projection (INC-52, HANDA-PARITY
+	// #14): set by SessionTitled. Empty falls back to the opening task's first
+	// line — legacy journals (no SessionTitled) simply keep it empty.
+	// TitleSource records the origin (auto|manual|fork); an auto pass never
+	// overrides a manual or fork title (the invariant is encoded in the fold).
+	RawTitle    string `json:"raw_title,omitempty"`
+	TitleSource string `json:"title_source,omitempty"`
 }
 
 // ForkOrigin records where a forked session came from.
@@ -1088,6 +1095,19 @@ func Apply(s State, env event.Envelope) (State, error) {
 			g.ClaimSummary = p.Summary
 			s.Goal = &g
 		}
+
+	case *event.SessionTitled:
+		// auto never overrides a manual/fork title (INC-52): once a user (or a
+		// fork) has deliberately named the session, an auto pass is a no-op.
+		// A manual/fork title always replaces; auto sets only over an empty or
+		// a prior auto title. The invariant lives here so it holds on every
+		// fold — resume, snapshot tail, and CLI listing alike.
+		if p.Source == event.TitleSourceAuto &&
+			s.Session.TitleSource != "" && s.Session.TitleSource != event.TitleSourceAuto {
+			break
+		}
+		s.Session.RawTitle = p.Title
+		s.Session.TitleSource = p.Source
 
 	default:
 		// A type registered in event.Registry but missing here.

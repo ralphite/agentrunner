@@ -3333,3 +3333,49 @@ CSS +3.5 KB（token 配色）。
 - **dist 未提交**：按并行轮交付纪律，三增量由集中合并者统一 clean rebuild。
 - SPRINT-handa-parity / HANDA-PARITY #20 行状态待收口跟改（避免并行轮抢改）。
 工作纸 `docs/increments/INC-51-markdown-enhance.md`。
+## 2026-07-11 INC-52 LLM 自动会话标题（HANDA-PARITY #14，缩水版 B3，A 闸绿）
+
+**做了什么**：会话标题从「首条消息首行」升级为 journal-backed 的 LLM 精简
+标题。新增 additive 事件 `SessionTitled{title,source}`（source∈auto/manual/
+fork）+ fold `Session.RawTitle/TitleSource` 投影 + 生成路径 `maybeAutoTitle`。
+顶层托管 session 开局后、在安全边界（首条 assistant 消息落定后，不阻塞开局
+turn）异步用一次 `llm_call` 维护调用把首条消息精简成短标题，落 `SessionTitled
+{source:auto}`。`ar sessions list --json` title 优先 RawTitle、回退首行；webui
+displayTitle 早已读该 title 层，manual rename（localStorage）仍胜出。
+
+**关键决策/偏差**：
+- **沿用既有维护调用族，不触不变量、不走 §四**：生成同 compaction summarizer /
+  goal judge(INC-48) —— 非 permission-gated 的 harness 维护调用、记为 `llm_call`
+  Activity、usage 结算进 budget、崩溃后复用已记录结果（`completedVerifierResult`
+  同一 helper）。未新增 in-session LLM 预算/边界规则。sub-state `session` 版本
+  **不 bump**（RawTitle/TitleSource additive-optional，从零 fold，决策 #18 先例）。
+- **`AutoTitle` 门控（进程接线，非 journal）**：起初以 `UserInputs != nil` 判
+  「交互托管」，但**测试也接 UserInputs** → `maybeAutoTitle` 吃掉 scripted
+  fixture 一步、desync 了 `TestBackgroundSpawnUserKill`（长任务>48 字符触发
+  生成）。改为专用 `l.AutoTitle` 字段，仅 daemon 在**顶层托管 session**（新建
+  loop + resume loop）置位；`NewChild/NewChildAt`（driver 迭代子）与所有 scripted
+  测试 false。教训同 compaction（spec-gated）/judge（goal-gated）：无条件对每个
+  root 交互 session 发维护 LLM 调用会扰动既有确定性 fixture——须显式 opt-in 信号
+  测试不触发。
+- **崩溃重放不重复生成**：门 = fold 的 `TitleSource != ""`（一旦 SessionTitled
+  落定，replay 不再生成）；activity-completed-but-SessionTitled-not-yet 的窄窗
+  复用已记录结果（title 以 JSON string 存 activity Result 以便 round-trip）。
+  进程内 `titleTried` 兜住失败后不空转；跨进程 resume 至多再试一次（幂等无害）。
+- **webui `handleSessions` 修正**：原码 `meta.Title != "" → 覆盖 CLI title`，会
+  遮蔽新 auto-title。改为 journal-backed CLI title 优先、meta cache 仅补空——
+  **执行** DESIGN §12「metadata 不得覆盖 journal 状态」既有不变量，非改动它。
+  `TestMetaStoreMerge*`（测 meta 存储自身）不受影响。
+- **短单行任务（≤48 runes 单行）跳过生成**：首行 fallback 本身够好，省一次调用；
+  故 QA-51 真机须发**长**多行 prompt 才触发。
+- **裁掉**：服务端 manual rename（§12:1092 禁止迁移，单独立项）；fork title 生产
+  （fold 优先级已为 fork 预留，auto 不覆盖 fork）；三视角对抗 review（小增量，
+  additive+既有族+零安全面+单写者并发面，工作纸声明理由）。
+
+**动的文件**：后端 `internal/event/types.go`(+event_test)、`internal/state/
+state.go`(+state_test)、`internal/agent/autotitle.go`(新)+`loop.go`+`autotitle_test.go`(新)、
+`internal/cli/resume.go`(+resume_test)、`internal/cli/daemon.go`；前端 `webui/api.go`、
+`webui/frontend/src/viewModels.test.ts`（前端源无需改，displayTitle 自 INC-23 起就位）。
+
+**闸门**：A 闸 `check.sh` 全绿（新孪生见 SPEC/工作纸锚）。B 闸真机 **QA-51 待
+reviewer**（真 Gemini 生成短标题、落 SessionTitled、不覆盖 manual、不阻塞开局
+turn、失败回退首行）。工作纸 `docs/increments/INC-52-auto-title.md`（收口时归档）。

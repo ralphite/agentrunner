@@ -424,6 +424,8 @@ func hostRunFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker
 			CommandCancels:    req.CommandCancels,
 			Revokes:           req.Revokes,
 			Answers:           req.Answers,
+			// A top-level hosted session gets the auto session title (INC-52).
+			AutoTitle: true,
 			// Blackboard publishes mirror onto the attach stream (S6 模块⑤
 			// 回访): watchers see the tree's collaboration live; the board
 			// stays the read-back truth.
@@ -769,6 +771,8 @@ func hostResumeFunc(version string, stderr io.Writer, broker *daemon.ApprovalBro
 		loop.CommandCancels = req.CommandCancels
 		loop.Revokes = req.Revokes
 		loop.Answers = req.Answers
+		// A revived top-level session still auto-titles if not yet titled (INC-52).
+		loop.AutoTitle = true
 		loop.SpecPath = specPath
 		if specPath != "" {
 			loop.SubSpecs = siblingSpecResolver(specPath)

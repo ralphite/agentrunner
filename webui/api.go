@@ -274,10 +274,17 @@ func (s *server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		s.meta.merge(discovered)
 		for i := range rows {
 			meta := s.meta.get(rows[i].ID)
-			if meta.Title != "" {
-				rows[i].Title = meta.Title
-			} else if rows[i].Title == "" {
-				rows[i].Title = titleFromID(rows[i].ID)
+			// The journal-backed CLI title is authoritative: the opening first
+			// line, or the INC-52 auto/manual/fork title once it lands. The local
+			// meta cache only FILLS a gap (an older `ar` that returns no title),
+			// it never overrides — DESIGN §12: metadata must not shadow journal
+			// state, or the freshly generated auto-title would never surface.
+			if rows[i].Title == "" {
+				if meta.Title != "" {
+					rows[i].Title = meta.Title
+				} else {
+					rows[i].Title = titleFromID(rows[i].ID)
+				}
 			}
 			if rows[i].Workspace == "" {
 				rows[i].Workspace = meta.Workspace

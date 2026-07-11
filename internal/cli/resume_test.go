@@ -12,6 +12,8 @@ import (
 
 	"github.com/ralphite/agentrunner/internal/crash"
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/provider"
+	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
 )
 
@@ -207,6 +209,55 @@ func TestCLISessionsJSONProjectsDriverMetadata(t *testing.T) {
 	}
 	if len(rows) != 1 || rows[0].ID != "driver-1" || rows[0].Kind != "driver" || rows[0].Schedule != "immediate" || rows[0].Title != "Audit dependencies every night" {
 		t.Fatalf("driver row = %+v", rows)
+	}
+}
+
+// INC-52 (HANDA-PARITY #14): `sessions list --json` surfaces the folded
+// SessionTitled{auto} title in preference to the opening first line, so the
+// webui shows the distilled title. A journal without the event falls back.
+func TestCLISessionsJSONSurfacesAutoTitle(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", xdg)
+	dir := filepath.Join(xdg, "agentrunner", "sessions", "sess-1")
+	es, err := store.OpenEventStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range []struct {
+		typ string
+		v   any
+	}{
+		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "hello", Model: "m",
+			Task:    "please refactor the auth boundary and add the missing regression tests",
+			Version: "dev", SubStateVersions: state.SubStateVersions()}},
+		{event.TypeInputReceived, &event.InputReceived{Text: "please refactor the auth boundary", Source: "user"}},
+		{event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}},
+		{event.TypeAssistantMessage, &event.AssistantMessage{GenStep: 1,
+			Message: provider.Message{Role: provider.RoleAssistant,
+				Parts: []provider.Part{{Kind: provider.PartText, Text: "on it"}}}}},
+		{event.TypeSessionTitled, &event.SessionTitled{Title: "Refactor the auth boundary", Source: event.TitleSourceAuto}},
+	} {
+		if _, err := es.Append(mkEnv(t, item.typ, item.v)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := es.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	var out, errOut bytes.Buffer
+	if code := Run([]string{"sessions", "--json"}, "dev", &out, &errOut); code != ExitOK {
+		t.Fatalf("sessions exit=%d stderr=%s", code, errOut.String())
+	}
+	var rows []struct {
+		ID    string `json:"id"`
+		Title string `json:"title"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &rows); err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].Title != "Refactor the auth boundary" {
+		t.Fatalf("sessions json = %+v, want auto title over the first line", rows)
 	}
 }
 

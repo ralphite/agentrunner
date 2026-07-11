@@ -279,6 +279,95 @@ func TestApplyCoversRegistry(t *testing.T) {
 	}
 }
 
+// INC-52 (HANDA-PARITY #14): the SessionTitled fold projection and its
+// source-precedence invariant. auto sets RawTitle only over an empty or a
+// prior auto title; manual/fork always win and auto never overrides them.
+func TestSessionTitledFoldProjection(t *testing.T) {
+	titled := func(title, source string) event.Envelope {
+		return env(t, event.TypeSessionTitled, &event.SessionTitled{Title: title, Source: source})
+	}
+	cases := []struct {
+		name       string
+		events     []event.Envelope
+		wantTitle  string
+		wantSource string
+	}{
+		{
+			name:       "auto sets over empty",
+			events:     []event.Envelope{titled("Fix the auth boundary", event.TitleSourceAuto)},
+			wantTitle:  "Fix the auth boundary",
+			wantSource: event.TitleSourceAuto,
+		},
+		{
+			name: "auto never overrides manual",
+			events: []event.Envelope{
+				titled("My renamed task", event.TitleSourceManual),
+				titled("An auto guess", event.TitleSourceAuto),
+			},
+			wantTitle:  "My renamed task",
+			wantSource: event.TitleSourceManual,
+		},
+		{
+			name: "manual replaces a prior auto",
+			events: []event.Envelope{
+				titled("An auto guess", event.TitleSourceAuto),
+				titled("My renamed task", event.TitleSourceManual),
+			},
+			wantTitle:  "My renamed task",
+			wantSource: event.TitleSourceManual,
+		},
+		{
+			name: "auto replaces a prior auto (re-title)",
+			events: []event.Envelope{
+				titled("First guess", event.TitleSourceAuto),
+				titled("Better guess", event.TitleSourceAuto),
+			},
+			wantTitle:  "Better guess",
+			wantSource: event.TitleSourceAuto,
+		},
+		{
+			name: "auto never overrides fork",
+			events: []event.Envelope{
+				titled("Forked title", event.TitleSourceFork),
+				titled("An auto guess", event.TitleSourceAuto),
+			},
+			wantTitle:  "Forked title",
+			wantSource: event.TitleSourceFork,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := New()
+			var err error
+			for _, e := range tc.events {
+				if s, err = Apply(s, e); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if s.Session.RawTitle != tc.wantTitle || s.Session.TitleSource != tc.wantSource {
+				t.Fatalf("RawTitle/TitleSource = %q/%q, want %q/%q",
+					s.Session.RawTitle, tc.wantSource, tc.wantTitle, tc.wantSource)
+			}
+		})
+	}
+}
+
+// A legacy journal predating INC-52 carries no SessionTitled: the projection
+// stays empty and the surfaces fall back to the opening task's first line.
+func TestSessionTitledAbsentFoldsEmpty(t *testing.T) {
+	s := New()
+	var err error
+	if s, err = Apply(s, env(t, event.TypeSessionStarted, &event.SessionStarted{
+		SpecName: "hello", Model: "m", Task: "make it loud\nand also quiet",
+		Version: "dev", SubStateVersions: SubStateVersions()})); err != nil {
+		t.Fatal(err)
+	}
+	if s.Session.RawTitle != "" || s.Session.TitleSource != "" {
+		t.Fatalf("legacy journal RawTitle/TitleSource = %q/%q, want empty",
+			s.Session.RawTitle, s.Session.TitleSource)
+	}
+}
+
 func TestUnknownEventTypeIsError(t *testing.T) {
 	_, err := Apply(New(), event.Envelope{Type: "from_the_future", Payload: json.RawMessage(`{}`)})
 	if err == nil {

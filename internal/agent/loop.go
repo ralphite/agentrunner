@@ -158,6 +158,18 @@ type Loop struct {
 	// bg is the background-task runtime (S6.1): cancel handles + the done
 	// channel. Ephemeral — the durable truth is the tasks sub-state.
 	bg *bgRuntime
+	// AutoTitle enables the one-shot auto session title (INC-52, HANDA-PARITY
+	// #14): the harness distils the opening message into a SessionTitled{auto}.
+	// It is process wiring (like UserInputs), never journaled — the hosting
+	// daemon sets it on a TOP-LEVEL interactive session, so headless one-shots,
+	// spawned children, driver iterations, and every scripted test stay
+	// untouched (no unbidden maintenance LLM call).
+	AutoTitle bool
+	// titleTried records that this process already attempted (or deliberately
+	// skipped) the one-shot auto-title distillation (INC-52). It bounds retries
+	// after an LLM failure within a process; the durable idempotency is the
+	// folded TitleSource, so a resume in a fresh process may retry once more.
+	titleTried bool
 }
 
 // MCPManager is the slice of mcp.Manager the loop needs (an interface so
@@ -1173,6 +1185,13 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 		// where the goal_verify cell never ran — adjudicate that boundary here
 		// (a recorded goal_complete claim would otherwise stall forever).
 		if err := l.goalResumeCheck(ctx, ds, appendE); err != nil {
+			return RunResult{}, abort(ds.s.Session.GenStep, err)
+		}
+		// Auto session title (INC-52, HANDA-PARITY #14): once the opening turn's
+		// assistant message has landed (so the opening reply is never delayed),
+		// distil the opening message into a short SessionTitled{auto}. Cosmetic —
+		// an LLM failure is swallowed inside; only a store-append failure aborts.
+		if err := l.maybeAutoTitle(ctx, ds, appendE); err != nil {
 			return RunResult{}, abort(ds.s.Session.GenStep, err)
 		}
 		if refreshed, err := l.refreshMCP(ctx, appendE); err != nil {

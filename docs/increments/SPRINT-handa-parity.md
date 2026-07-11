@@ -60,7 +60,7 @@
 | # | 项 | 规模 | 状态 | 备注 |
 |---|---|---|---|---|
 | 20 | Markdown 增强（react-markdown+gfm 表格+highlight.js） | M | 🔧 in-progress (INC-51) | 保持禁 raw HTML；并行轮认领 2026-07-11（worktree 子 agent A） |
-| 14 | LLM auto-title（SessionTitled{auto} journal 事件） | S/M | 🔧 in-progress (INC-52) | manual rename 不迁移（§12:1092）；承接 INC-23 W9 移交；与 CC #17 避让；并行轮认领 2026-07-11（worktree 子 agent B） |
+| 14 | LLM auto-title（SessionTitled{auto} journal 事件） | S/M | ✅ 实现完成，A 闸绿（INC-52，工作纸 `INC-52-auto-title.md`）；B 闸真机 QA-51 待 reviewer | manual rename 不迁移（§12:1092）；承接 INC-23 W9 移交；与 CC #17 避让；`AutoTitle` 仅顶层托管 session 启用；并行轮认领 2026-07-11（worktree 子 agent B） |
 | 24 | project overlay + launcher（meta.json 扩展 + /api/open） | S/M | 🔧 in-progress (INC-53) | 不建服务端注册表；并行轮认领 2026-07-11（worktree 子 agent C） |
 | 18 | ar dictate 服务端听写（provider 补 audio part） | M | 🔧 in-progress (INC-56) | 走 ar 命令，webui 薄壳不变；与 #19 合并一轮（worktree 子 agent F） |
 | 19 | ar optimize prompt 优化 | S | 🔧 in-progress (INC-56) | 搭 #18 的车；与 #18 合并一轮（worktree 子 agent F） |

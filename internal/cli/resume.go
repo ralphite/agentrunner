@@ -309,6 +309,12 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 					r.Workspace = started.WorkspaceRoot
 					r.Title = strings.TrimSpace(strings.SplitN(started.Task, "\n", 2)[0])
 				}
+				// The auto/manual/fork title projection (INC-52, HANDA-PARITY
+				// #14) is a journal fact: it wins over the opening first line
+				// when present. Fallback stays the first line for legacy journals.
+				if s.Session.RawTitle != "" {
+					r.Title = s.Session.RawTitle
+				}
 			}
 		}
 		rows = append(rows, r)

@@ -911,6 +911,28 @@ P1-1/P2-1/P2-3/P2-4 已修，P2-2 记余项。
 
 ---
 
+## QA-51 LLM 自动会话标题（INC-52,HANDA #14,UJ-24）
+
+**环境**：共享 daemon + store + 真实 webui + 真实 Gemini（auto-title 仅顶层
+托管 session 启用，须走 daemon 而非 headless 一次性 run）。跑完**不** close/
+删除；`ar events <sid>` 导出与 webui 截图归档 `qa/runs/<日期>-INC52/`。
+
+| # | 动作 | 硬断言（journal/UI 红线） |
+|---|---|---|
+| 1 | webui New task 发一条**长**多行 prompt（>48 字符），等首条回复 | 开局回复**不被延迟**（title 调用在 assistant 消息之后的安全边界，异步于开局回复） |
+| 2 | `ar events <sid>` | 出现恰一条 `session_titled{source:"auto"}` + 一条 `activity{kind:llm,name:autotitle}`（usage 计入 budget）；title 非首行截断而是精简短句 |
+| 3 | webui 侧栏 | 该会话显示精简短标题（`sessions list --json` 的 title = RawTitle）；旧 session（无事件）仍显示首行/派生 fallback |
+| 4 | webui 手动 rename 该会话 → 触发再次静止/唤醒 | 标题变手动值；`session_titled` 不新增第二条；auto **不覆盖** manual（rename 仍 localStorage，displayTitle 胜出） |
+| 5 | 断网/坏 key 复跑一条长 prompt | 会话正常完成、不 abort；无 `session_titled`；title 回退首行 |
+
+**结果**：待验（reviewer 集中跑）。锚孪生（A 闸已绿）：
+TestSessionTitledFoldProjection / TestAutoTitleGeneratesOnceAndFoldsProjection /
+TestAutoTitleWaitsForOpeningReply / TestAutoTitleDoesNotOverrideManual /
+TestAutoTitleReusesRecordedResultOnReplay / TestAutoTitleSwallowsLLMFailure /
+TestCLISessionsJSONSurfacesAutoTitle / viewModels.test.ts。
+
+---
+
 ## QA-46 worktree 运行位置产品化：位置/可见/apply-back/cleanup（INC-49,G13,UJ-10/24）
 
 **环境**：最新 `main`、共享 `~/.local/share/agentrunner/` store/daemon、真实

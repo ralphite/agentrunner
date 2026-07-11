@@ -253,6 +253,15 @@ describe("task titles", () => {
     expect(titleFromSessionId("20260710-053059-review-auth-boundary-6a2b")).toBe("review auth boundary");
     expect(displayTitle({}, "20260710-053059-review-auth-boundary-6a2b")).not.toContain("20260710");
   });
+
+  // INC-52 (HANDA-PARITY #14): the journal-backed auto title arrives as the
+  // session's rawTitle (the CLI `title` field). It flows through displayTitle
+  // as-is, and a manual rename (localStorage) still overrides it — auto never
+  // wins over manual, at the display layer just as in the fold.
+  it("shows the journal-backed auto title and still lets a manual rename win", () => {
+    expect(displayTitle({}, "s1", "Refactor the auth boundary")).toBe("Refactor the auth boundary");
+    expect(displayTitle({ s1: "My name for it" }, "s1", "Refactor the auth boundary")).toBe("My name for it");
+  });
 });
 
 describe("supervision agent model", () => {

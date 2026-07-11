@@ -1166,6 +1166,17 @@ limits:
   metadata 只缓存已知值以兼容
   旧 session/首屏，不得覆盖 journal 状态，也不得成为 Diff、附件或 project
   grouping 的唯一来源。
+- **自动会话标题（INC-52，HANDA #14）**：title 是从 `SessionTitled` fold 出
+  的**投影**（`RawTitle`），非可变字段——与上面的 journal-backed metadata
+  教义一致。顶层托管 session 开局后，harness 异步用一次 `llm_call` 维护调用
+  （与 compaction summarizer / goal judge 同族：不过 permission 管线、usage
+  结算进 budget、崩溃后复用已记录结果）把首条用户消息精简成短标题，落一条
+  `SessionTitled{source:auto}`。source 分立 **auto / manual / fork**，
+  **auto 绝不覆盖 manual 或 fork**（不变量编码在 fold）。事件 additive：旧
+  journal 无此事件时 `RawTitle` 空、回退开场首行。`sessions list --json` 的
+  title 优先取 `RawTitle`；webui 的 manual rename 仍是 localStorage 偏好
+  （见本节末粗体条款），在 displayTitle 层胜过任何 auto 值——服务端 manual
+  rename 若要做单独立项走 §四。
 - session list 首次成功返回前，空数组只代表 **not loaded**；sidebar/deep-link
   header 必须显示 loading。成功返回后才可投影真实空态，metadata 缺失的旧
   session 只允许从 durable id 派生短 fallback title，不直接泄漏完整 raw id。
