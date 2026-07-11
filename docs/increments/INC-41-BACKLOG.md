@@ -721,7 +721,15 @@ CTA);pollTasks catch 里也 `setInspectReady(true)` 终止 spinner。
 **刻意核查**:`git log -S"Daemon offline — restart"`→e4ed403(nav polish 只动
 文案布局)→非刻意。
 
-### L4 ☐ 空 Changes 面板是一行秃文字,与 timeline 空态规格不一致 [P3]
+### L4 ✅ 空 Changes 面板是一行秃文字,与 timeline 空态规格不一致 [P3]
+**收口(轮9,commit `31b68f7`)**:`DiffView.tsx` 病灶行换成已有的 `.diff-empty` 卡片
+(`FileDashed` 图标 + `No changes yet` + 引导副文案;`last-turn` scope 另一份文案),
+过滤无命中的秃空态一并改成 `.diff-empty`(`FileMagnifyingGlass` + 引导),并给面板内
+另外三处只有文字没图标的 `.diff-empty` 补齐图标(否则同一 class 一半有图标一半没有,
+等于把不一致挪了个位置)。`styles.css` **一行未动**(`.diff-empty` 已是居中 flex column,
+与 `.tl-empty` 同一视觉语言)——与并发 session 的 styles.css 改动零冲突面。
+新增 `DiffView.empty.test.tsx` 3 例。live 验:空态 svg 图标 1 个 + 标题 + 副文案,
+有改动会话 `.diff-empty`=0 且文件列表正常,两页 console error+warning=0。
 **behavior**:富会话点 Changes 且工作区无改动 → 仅一行灰字 `No changes in
 the workspace.`,无图标/无引导;对比 timeline 空态有图标+标题+副文案。同一
 app 内两类空态视觉规格不统一。
@@ -731,7 +739,7 @@ app 内两类空态视觉规格不统一。
 **touches**:`DiffView.tsx` / `styles.css`。
 **刻意核查**:`git log -S"No changes in the workspace"`→9213fca(英文化批次)→非刻意。
 
-### L5 ☐ not-found 判据靠 stderr 字符串匹配,后端应返真 404 [P2]
+### L5 ✅ not-found 判据靠 stderr 字符串匹配,后端应返真 404 [P2]
 **behavior**(轮8 implementer 交回的风险点,非 UI 可见缺陷,属正确性/健壮性):
 L2 的错误态判据是匹配 CLI 文案 `agentrunner: no session matches "<id>"`——因为
 `webui/api.go:104 arFail` 把**所有** `ar` 失败统一包成 HTTP 502,前端拿不到 404。
@@ -740,6 +748,19 @@ L2 的错误态判据是匹配 CLI 文案 `agentrunner: no session matches "<id>
 `api.ts` 把 HTTP status 附到 Error 上,`SessionView.tsx:41 isSessionNotFound()` 改判
 status。**touches**:`webui/api.go` / `webui/frontend/src/api.ts` /
 `SessionView.tsx`(+ 后端 handler 测试)。注:touches 含 Go 后端,与纯前端条目不重叠。
+
+**收口(轮9,commit `100908a`)**:`webui/api.go` 新增 `arNotFound()`,`arFail()` 命中
+not-found 语义 → **HTTP 404 + `{"code":"session_not_found"}`**,其余失败原样 502
+(stale-binary 自诊断与 `ar new` stdout 合并逻辑未动)。`api.ts` 抛 `ApiError`
+(带 `status`/`code`,message 表达式逐字不变故 toast 文案零变化);`isSessionNotFound()`
+主判据改 `status===404 || code==="session_not_found"`,stderr 文案匹配降级为向后兼容
+fallback(旧二进制)。字符串匹配现只剩后端一处(与 `ar` 同仓库同批构建,耦合可接受)。
+新增 Go 测试 `TestArFailNotFoundIsMachineReadable` + 前端 4 例(其中一例把 CLI 文案
+**完全改写**仍能判出 not-found —— 正是本条要防的静默退化)。live 验:`curl` ghost id
+→ 404 + code,存在的 id → 200;前端 not-found 卡出现、composer 0 个;**10s 稳态窗内
+针对 ghost 的请求 = 0**,阳性对照(活会话同窗 22 个轮询请求)证明探针有效。
+遗留(小):`webui/ar.go:90 sessionExists()` 还有第二处同样的字符串匹配(后端内部
+存在性探测,不违反本条目标),可后续复用 `arNotFound()` 收成一处。
 
 > 注:finder 另确认空态实现良好、不构成 finding 者:侧栏空态
 > (`Sidebar.tsx:269-274` 有 Tray 图标 + 区分无任务/搜索无果)、Scheduled 空态
@@ -825,3 +846,25 @@ status。**touches**:`webui/api.go` / `webui/frontend/src/api.ts` /
   error+warning=0)。BACKLOG:+✅×3(L1/L2/L3)、新增 ☐×1(L5,implementer 交回的
   后端 404 风险点)。开放 ☐ 剩 L4(P3 空 Changes 面板)+ L5(P2 真 404)。
   push=2a25877+f3ed6f3+本 commit;live=index-BVkYVAfh.js。
+- 2026-07-11 轮9(headless):同步 HEAD=8a1581b 干净;收割 0(开轮无存活 agent);让路=无
+  (注:`runtime/atmention-demo/` 是**未追踪**的本地遗留目录,它让根 module `go build ./...`
+  失败——改动前的 8a1581b 上同样失败,与本轮无关;按让路纪律不 add/不删,改验
+  `go build ./cmd/... ./internal/...` 全绿)。**一件事**:把剩余两条开放条目 L5(P2 后端
+  真 404)+ L4(P3 Changes 空态)派两个 worktree implementer 同步跑(touches 完全不重叠:
+  Go 后端/api.ts/SessionView vs DiffView/styles.css)→ 交回 `978f57b`/`cd4f229`,
+  cherry-pick 成线性 `100908a`+`31b68f7`(无冲突)→ 主线 147 vitest 绿 + tsc 0 +
+  webui module go test 绿 → 干净重建 dist(`rm dist/assets/*` 后 build,引用与 asset
+  两两一致)→ push `e838814` → 重建 webui 二进制 + kickstart 8809 → **live 复验全 PASS**。
+  ⚠️ **QA 方法学坑(重要,影响此前所有 console/请求计数)**:playwright **sync API 在
+  `time.sleep()` 期间不 dispatch 事件**,回调要到下次调用 playwright API 才批量 flush。
+  于是 `sleep → logs.clear() → sleep → 读计数` 这个写法里,clear() 清的是一个**尚未填充
+  的空列表**,随后 flush 出来的是**整个生命周期**的事件(含加载期瞬态)——本轮一度据此
+  误判"not-found 页轮询没停"(7s 窗见 5 条请求),而纯 sleep 不调 API 的探针又得出"0 条"
+  自相矛盾。修正:稳态窗一律用 `page.wait_for_timeout()`(playwright API,会 pump 事件),
+  并配**阳性对照**。修正后结论:ghost 页 10s 稳态窗针对 sid 请求 **0 个**、console
+  error+warning **0**(加载期 3 个 404 是浏览器对 404 响应的原生日志,预期);活会话
+  同窗 22 个轮询请求——对照成立,轮询确已停。此前 `panorama.py` 等用旧写法得到的
+  "稳态 0" 实为"整个生命周期 0"(更严格,结论无害),但新写探针必须用 wait_for_timeout。
+  探针脚本归档 `qa/runs/2026-07-11-QA43-endgame/scripts/{verify_l4_l5,probe_r9,probe_r9b,probe_r9c}.py`。
+  BACKLOG:+✅×2(L4/L5),开放 ☐ 归零 → 按「达标即续航」本轮末派新镜头 finder 补弹药。
+  push=100908a+31b68f7+e838814+本 commit;live=index-BmBuR-u1.js。
