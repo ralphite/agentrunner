@@ -642,3 +642,9 @@ R4-11 空会话空态、R2-1 box-shadow 暗色。
   composer 常驻左侧,DiffView 抽入 `.changes-panel`(宽 minmax(520px,52%),
   窄屏 <900 覆盖全宽)。真验:对话/diff/composer 三者共存、X 关闭返回、
   1440/390 两档 console 0、92/92 vitest 绿。
+
+## 驱动循环台账(/parity-drive,每30min一轮,只追加)
+
+- 2026-07-11 轮1(循环启动):同步+部署 8809=index-CWvHKizj.js;收割 0(无存活
+  agent);派工 finder×2(A=结构+视觉,B=交互+真实性,对 live 取证);push=
+  parity-drive command + DRIVER 副本(a76f6e0)。下轮收割 findings 后派 implementer。
