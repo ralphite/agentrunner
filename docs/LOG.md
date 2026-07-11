@@ -2488,3 +2488,39 @@ A–I 共 ~40 条细任务(每条带 behavior/现状截图路径/touches 文件/
 **环境**：check.sh 中 TestBashFilesystemSandboxAllowsLinkedWorktreeGitMetadata
 仍因本机 CommandLineTools 缺失环境性失败(待 xcode-select --install)；前端
 与 webui go 全绿。
+
+## 2026-07-10 INC-41 批 3:五切片 worktree 并发批(backlog A-J 主体)
+
+**编排**:backlog 按文件所有权切 5 片,5 个 worktree 隔离子 Agent 并发
+实现,每片新样式进独立 CSS 文件(styles.conv/composer/panel/nav/rs.css),
+互不触碰共享热点 → 5 分支零冲突合并。整合时统一修正 main.tsx 打包顺序
+(styles.css 先于切片 CSS,等权切片规则按 source order 覆盖 base)。
+
+**落地 29 条**(各切片真浏览器自证,截图 conv-*/composer-*/panel-*/nav-*/
+rs-*/it-*.png 留 qa/runs/2026-07-10-codex-ui-study/screenshots,不入库):
+- conv:A6 Markdown Codex 化(GFM 表格/代码块语言标签+Copy/内联 chip/
+  accent 链接)、A1 活动行类别图标、A2 工具专属 detail(read/edit-diff/
+  grep 分组/web_fetch/spawn/ask_user)、A7 fold 展开态跨 poll 保持、
+  A5 "Sent as goal" 注记、A3 compaction 活动行。17 新测。
+- composer:C1 单 `+` 菜单分组化(合并旧 Task options 双钮)、C2 权限菜单
+  标题+图标+描述、C3 model 菜单打磨(provider 图标)、C4 slash 菜单、
+  C5 附件 chip、C6 390px 可达性;顺带修 Popover 右对齐窄屏定位 bug。
+- panel:J3 待决审批卡 Codex 化(琥珀主题化+三级按钮)、B1 Supervision
+  分区视觉、J1 `…` 菜单(Pin/Rename/Archive/Copy link 深链/分组)、
+  G3 goal banner N/M checks。
+- nav:E1 Pinned 独立分组、E2 账户底栏(圆徽标+presence)、E4 hover 预览
+  卡、I4 Toast/空态/skeleton、E3 导航未读蓝点、F2 Mark all as read、
+  E5 caret 过渡。发现并规避 CSS 打包顺序陷阱。
+- rs:H1 全新 Settings 页(左栏分组+搜索+⌘,)、H2 Appearance(主题三选
+  迷你预览/字号/对比度/diff markers/语法开关,即时生效+持久)、D3 diff
+  无依赖语法高亮(byte-exact)、D4 inline/split 切换、D2 文件过滤、
+  H3 快捷键清单、H4 Git 面板(commit 模板真接通,未接线项如实标注)、
+  H5 Worktrees/Configuration(真实数据)、I6 ⌘, 快捷键。
+
+**双闸门**:A=整树 tsc 干净、90 vitest 全绿(58→90)、build/go build 绿;
+B=真浏览器整合复验 18/18 断言(home 欢迎/三菜单/Settings 开合/dark 即时
+生效/fold 默认收纳/活动图标/表格渲染/行号/`…` 菜单/Sent as goal/goal
+终态/Pinned/Scheduled tabs/mobile/账户行)+ console 0,含 390px 与 dark。
+
+**开放项**:见 INC-41-BACKLOG.md 台账(A4/B2/J2/J4/J5/D1/I2/I3/Z1 等,
+多为需后端契约或跨切片小件);终局 QA-43 全景对照待下一批收口。
