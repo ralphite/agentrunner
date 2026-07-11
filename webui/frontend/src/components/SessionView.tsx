@@ -604,16 +604,14 @@ export function SessionView({ sid }: { sid: string }) {
         </Menu>
       </header>
 
-      {view === "chat" && findOpen && (
+      {findOpen && (
         <FindBar scope={() => document.querySelector<HTMLElement>(".timeline")} onClose={() => setFindOpen(false)} />
       )}
-      <div className={`session-layout${showSupervision ? "" : " single"}`}>
+      <div className={`session-layout${view === "diff" ? " changes" : showSupervision ? "" : " single"}`}>
         <main className="session-primary">
-          {view === "diff" ? (
-            <DiffView sid={sid} />
-          ) : (
-            <>
-              {showSys && (
+          {/* The conversation stays mounted even while Changes is open — Codex
+              shows the diff as a right-side split, not a full takeover (R1-2). */}
+          {showSys && (
                 <div className="system-events-notice">
                   System events are visible
                   <button onClick={toggleSys}>Hide</button>
@@ -706,10 +704,16 @@ export function SessionView({ sid }: { sid: string }) {
                   }}
                 />
               )}
-            </>
-          )}
         </main>
-        {showSupervision && (
+        {view === "diff" ? (
+          <aside className="changes-panel">
+            <div className="changes-panel-head">
+              <b><Files size={15} /> Changes</b>
+              <button onClick={() => setView("chat")} title="Close changes (back to the conversation)" aria-label="Close changes"><X size={15} /></button>
+            </div>
+            <DiffView sid={sid} />
+          </aside>
+        ) : showSupervision ? (
           <SupervisionPanel
             loading={!inspectReady}
             goal={goal && goalPendingUpdate ? { ...goal, goal: goalPendingUpdate } : goal}
@@ -738,7 +742,7 @@ export function SessionView({ sid }: { sid: string }) {
             })).catch((error) => toast(error.message))}
             onClose={() => setSupervision(false)}
           />
-        )}
+        ) : null}
       </div>
     </div>
   );

@@ -4240,3 +4240,62 @@ summary.fd-head:hover {
   text-align: center;
 }
 .cmdk-item.sel .cmdk-kbd { border-color: var(--line-2); }
+
+/* ===== R1-2 · Changes as a right-side split (Codex parity) ===== */
+/* Clicking "Changes" opens the diff in a right pane instead of taking over the
+   whole conversation — the timeline + composer stay usable on the left, like
+   Codex. The pane is wider than Supervision (344px) because diffs need room. */
+.session-layout.changes { grid-template-columns: minmax(0, 1fr) minmax(520px, 52%); }
+.changes-panel {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  margin: 16px 18px 16px 0;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--panel);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .07);
+  overflow: hidden;
+}
+.changes-panel-head {
+  flex: 0 0 auto;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px 0 16px;
+  border-bottom: 1px solid var(--line);
+}
+.changes-panel-head b {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 640;
+  letter-spacing: -.1px;
+}
+.changes-panel-head b svg { color: var(--dim); }
+.changes-panel-head button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--dim);
+}
+.changes-panel-head button:hover { border-color: transparent; background: var(--panel-2); color: var(--ink); }
+/* The panel frames + scrolls the diff, so the takeover's outer padding shrinks. */
+.changes-panel .diffwrap { flex: 1; min-height: 0; padding: 14px 18px 20px; }
+@media (max-width: 1180px) {
+  .session-layout.changes { grid-template-columns: minmax(0, 1fr) minmax(440px, 56%); }
+}
+@media (max-width: 900px) {
+  /* Narrow: the diff needs full width — overlay it near-full-bleed so hunks
+     don't wrap into unreadable slivers (like Supervision but wider). */
+  .session-layout.changes { grid-template-columns: minmax(0, 1fr); }
+  .changes-panel { position: absolute; z-index: 26; inset: 12px; margin: 0; }
+}
