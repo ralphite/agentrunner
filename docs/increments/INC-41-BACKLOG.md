@@ -695,3 +695,18 @@ R4-11 空会话空态、R2-1 box-shadow 暗色。
   navfail 全 0、主题落实 19/19 一致 → 判据 3 对当前 live 重新达成。附带修 QA
   harness theme 假象(hash 导航不 reload,改 add_init_script,证据 theme_probe*.py
   排除 deep-link 主题回退 bug)。let路=无(工作区净)。push=本 commit;live=index-CTcdOVfV.js。
+- [FC-1] ✅ `#/s/<sid>` 深链形式路由不剥前缀→标题栏泄漏原始 route 串
+  `/s/<时间戳>…`+正文空(SSE 用带前缀错 sid)。app 自身只发裸 `#<sid>`,故
+  仅 P3;但「标题泄漏内部 route 串」正是边角真实性忌讳。修:App.tsx route()
+  入口 `raw0.replace(/^\/?s\//,"")` 归一,`/s/`、`s/`、裸 sid、`run:`、`scheduled`
+  五形并存不误伤。真验:bare 与 /s/ 两形现完全一致渲染(标题 "what is the
+  project?"、timeline 在、无泄漏、稳态 console 0)。
+- 2026-07-11 轮6(headless):判据 1(全条目✅/✂,无开放☐)+判据3(轮5全景)+
+  判据4(Z1/QA-43)已在册。核心:对**当前** live(index-CTcdOVfV.js,含并发
+  session 新推 responsive f2f1932+INC-60 progressive session list——此前 finder
+  只扫过旧 build)派同步双镜头 read-only finder → **无新 P1/P2,判据 2 对当前
+  build 重新达成**(454 会话真触 progressive、390 responsive 不塌、19 面抽查
+  console 0);顺手收其唯一 P3=FC-1(深链前缀泄漏)主线亲手修+真验。
+  build 前补 `npm install`(jsdom 缺,并发改 package.json 后未装,memory 前科)
+  →14 文件/134 vitest 绿。push=本 commit;live=index-vDlkgc7S.js。**四判据齐,
+  达终局,停循环。**

@@ -162,7 +162,12 @@ export function App() {
     const r = setInterval(refreshRuns, 4000);
     const p = setInterval(refreshProjects, 8000);
     // hash routing: "run:<id>" → a background run; anything else → a session.
-    const route = (raw: string) => {
+    const route = (raw0: string) => {
+      // Tolerate a "/s/<sid>" (or "s/<sid>") deep-link prefix: the app itself
+      // emits bare "#<sid>", but a shared/typed link using the "/s/" form must
+      // resolve to the same session rather than leaking the raw route string
+      // into the title and rendering an empty page.
+      const raw = raw0.replace(/^\/?s\//, "");
       if (raw === "scheduled") {
         showPage("scheduled");
       } else if (raw.startsWith("run:")) {
