@@ -3638,3 +3638,27 @@ run 延续（restore-keys 前缀回退 + always() 保存），但明确是 **scr
 改动）。产品化的手机访问（webui token auth + 非 loopback 绑定 + PWA，
 公网可用）已勘察未实施，用户指示暂缓——立项时走 PROCESS 增量流程
 （预留讨论号 INC-61）。
+
+## 2026-07-11 · 文档纠偏批 + G35 登记（外部审查轮产出，零代码改动）
+
+为撰写 runtime 设计导览做的三路独立审查（事实核查/一致性/呈现）把发现
+反哺回登记簿，全部为文档真实性修正，不触不变量：
+
+- **DESIGN §1**：「直接给出核心十项里的九项」更正为**七项**——
+  archive/v2/CORE.md 十项中 8 多模态/9 前台工具/10 恢复三项本就被同段
+  列为"非直接推论"，9+3≠10 是笔误存续；7+3=10 闭合。
+- **DESIGN §5**：管线示意图补上实现与语义中一直存在、图上漏画的
+  **[1] Floor / [2] Spawn** 两道关卡（代码 `assemblePipeline` 顺序
+  floor→spawn→hooks→permission→budget；INC-55 行文早已按 FloorGate 序
+  引用）；577 行「spawn 深度/扇出同在 budget 关卡校验」随之与代码对齐
+  为 Spawn 关卡。
+- **SPEC**：删除「外部事件唤醒既有 session ❌」陈旧行（与 INC-50 ✅ 行
+  同义并存，旧行未随收口清理）；「审批答复写回规则」✅→🟡，如实登记
+  覆盖面（见下）。
+- **GAPS 新增 G35**（❌ 高）：用户现场三次 spawn_agent「始终批准」全部
+  重问。根因链已查明：`rememberRule` 白名单静默排除 spawn_agent（规则
+  永不写、跨 session 永远重问）+ 决策 #38 取 A 本就不覆盖同 session +
+  webui toast 无条件谎报已保存。**用户裁定：同 session 内生效是硬性
+  UX 需求**——修复须扩展决策 #38，走增量流程，本轮只登记不实现。
+  锚测试仅覆盖 bash/edit 面而 SPEC 曾无限定 ✅，属 G29 族登记簿失真，
+  一并修正。

@@ -541,6 +541,37 @@ loop.go 空消息兜底保留为防御（tool-call 过大等）。与决策 15b 
 输出撞 4096 cap（loop.go 已兜底重试恢复），非思考饿死；本条关闭的是
 思考饿死向量，真实 API 独立复现（QA-52）。→ UJ-01/UJ-18（provider 层）
 
+**G35 审批「always allow」：spawn_agent 静默不写回 + 同 session 不生效 — ❌ 实现缺陷/决策待修订 · 高（2026-07-11 登记，用户现场）**
+用户现场：一个 session 内三次 spawn_agent，webui 审批卡点「始终批准」，
+三次全部继续重问。根因两层，且叠加一处 UI 谎报：
+(a) **spawn_agent 被白名单静默排除**——`--always` 信号从 webui 按钮
+（ApprovalCard→SessionView→`POST .../approve {always:true}`）→
+`ar approve --always` → daemon `ApprovalAnswer{Remember:true}` →
+`rememberApproval` 七跳全对，最后在
+`internal/agent/approval_remember.go` `rememberRule` 的 switch 丢弃：
+白名单仅 bash/edit_file/write_file/notebook_edit，spawn_agent 落
+default 返回 false——规则永不写入，**下个乃至每个 session 都重问**
+（对照 bash 有 TestRememberedRuleAllowsNextSession 证明次 session 直过）。
+该审批出自 PermissionGate 的 mode-default ask（execute 类默认审批），
+非 SpawnGate/escalation，故规则本可消音；若写回，谓词会是宽泛的
+`{tool: spawn_agent, allow}`（rememberRule 只读 command/path，不含
+per-child 特定值），能匹配全部子 agent——失败在"没写"，不在"不匹配"。
+(b) **同 session 内本就不生效是决策 #38 取 A 的既定语义**（写 user 层、
+冻结 PermissionLayers 本 run 不可变）——但**用户已裁定：同 session 内
+「始终批准」必须生效，这是最基本的 UX 要求**。取 A 不满足该需求，
+决策 #38 需扩展/修订（候选：审批 broker/loop 层的 session 级
+auto-approve 记忆，不动冻结层不变量；或走不变量变更流程改层冻结语义）。
+(c) **webui toast 无条件谎报**（SessionView.tsx `always&&approve` 即
+toast「已保存精确 allow 规则，此调用不会再询问」）——不查写回结果；
+spawn 路径连 journal 的 remembered 提示都不会落。
+登记簿失真同修（G29 族）：SPEC「审批答复写回规则」行原 ✅ 无覆盖面
+限定、锚测试仅 bash/edit 面（TestRememberRuleFromEffect 甚至把
+"其他 execute 类不记忆"断言为正确），已降 🟡 指向本条。修复面：
+①rememberRule 补 spawn_agent（谓词范围待定：tool 级宽泛 vs 按 agent
+名限定）；②同 session 生效机制（需增量流程，触决策 #38）；③toast
+依据真实写回信号；④补 spawn 面锚测试与 QA 场景后方可回 ✅。
+→ UJ-08/UJ-18
+
 ---
 
 ## §3 已确认覆盖（防重复登记）

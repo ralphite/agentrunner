@@ -38,7 +38,6 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | `ar new` 开场消息折叠/带图（与 send 对称） | 🧊 | UJ-04 | 不对称记档（DESIGN §17），待真实使用反馈 |
 | PDF/任意文件附件（`ar send --file`，sniff MIME、CAS ref、组装 inflate；Gemini inline_data / Anthropic document block） | ✅ | UJ-04 | INC-9 · TestConversationalFileInputEndToEnd/TestToPartFilePDF/TestUserBlocksFilePDF · QA-15（真实 Gemini 读 PDF 关键词） |
 | provider capability envelope（版本、provider/model、modalities、stream/tools/thinking/cache/parallel） | ✅ | 不变量 | INC-11.5 · TestCapabilitiesMatrix；SessionStarted 冻结、inspect 可见 |
-| 外部事件唤醒既有 session（webhook → inbox，机器发送方） | ❌ | UJ-12 | GAPS G14（inbox 原语已备，缺投递壳） |
 | WAITING_APPROVAL 挂起期间消息唤醒 | 🟡 | UJ-07 | 只排队不唤醒；GAPS G3 余项 |
 | 手动 compact（带指示）/ clear | ✅ | UJ-09 | INC-6 · TestManualCompact/Clear/EmptySummarySkipped · QA-12（真实 API：compact 带指示落非空 summary、clear 落 cleared） |
 | 自动 compaction（阈值触发） | ✅ | UJ-09 | S3 |
@@ -106,7 +105,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | OS 沙箱（bash/verifier 默认 filesystem=workspace；Seatbelt/Bubblewrap；network none 棘轮；能力缺失 fail-closed） | ✅ | UJ-20 | INC-11.3 · TestBashFilesystemSandbox/TestBashNetworkContainment/TestSandboxCapabilityMissingDeniesBeforeActivity |
 | 凭据 redaction + 硬排除表（含 .netrc/.npmrc 等） | ✅ | UJ-20 | S2/S7 收口 |
 | 信任模型（project 层 hooks 与 command tools 需显式 trust，`ar trust`；决策 #19 范畴不变量） | ✅ | UJ-20 | S2 · INC-55（command tools 同门）· TestTrustRegistry/TestMergeUntrustedProjectTightens/TestDiscoverProjectTrustGate/TestCommandToolProjectTrustGate |
-| 审批答复写回规则（"允许且不再问"，`ar approve --always`，取 A：写 user 层精确 allow 规则、下次 session 生效、幂等去重） | ✅ | UJ-08 | INC-17 · TestRememberRuleFromEffect/TestAppendRuleIdempotentAndPreserving/TestRememberedRuleAllowsNextSession · QA-26（真机：ask→approve --always→新 session 直过） |
+| 审批答复写回规则（"允许且不再问"，`ar approve --always`，取 A：写 user 层精确 allow 规则、下次 session 生效、幂等去重） | 🟡 | UJ-08 | INC-17 · TestRememberRuleFromEffect/TestAppendRuleIdempotentAndPreserving/TestRememberedRuleAllowsNextSession · QA-26（真机：ask→approve --always→新 session 直过，**bash 面**）；覆盖面失真：`rememberRule` 白名单仅 bash/edit_file/write_file/notebook_edit，spawn_agent 等 execute 类静默不写回、webui toast 却报"已保存"；且用户已裁定**同 session 内生效为硬性 UX 需求**（取 A 不满足）——GAPS G35 |
 | prompt injection 威胁模型成文 | 🟡 | UJ-20 | GAPS G16（硬防线在，条款未成文） |
 | hooks 生命周期事件族（8 事件：session_start/end、user_prompt_submit、stop、subagent_start/stop、pre/post_compact；observe+block，blockable=user_prompt_submit/pre_compact；settings `hooks.lifecycle`，事件名加载期校验；hooks 不重放） | ✅ | — | INC-15 · TestLifecycleHooksFire/TestUserPromptSubmitHookBlocks/TestPreCompactHookSkipsAndNoSpin/TestObserveHookFailureDoesNotBlock · QA-24（真 Gemini：四红线） |
 
