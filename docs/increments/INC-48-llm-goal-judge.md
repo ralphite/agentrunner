@@ -1,6 +1,8 @@
 # INC-48 in-session LLM goal judge（HANDA #8，触 DESIGN §13/决策 #21）
 
-**状态：📐 设计稿（awaiting contract review）——按 PROCESS §四先裁后码。**
+**状态：✅ 设计定稿（2026-07-11 独立契约 review「修订后放行」，rev1
+吸收 MAJOR-1/MINOR-2——见 §review 记录）。触 DESIGN §13/决策 #21，
+实施时修订与实现同 commit（PROCESS §四）。实施另起一轮。**
 
 ## 动机与 journey 锚
 
@@ -63,6 +65,21 @@ kind（§13 "command / llm_judge / human 三态"），但 in-session 形态
 - **claim 不越权**：judge 裁决声明；模型的 claim 本身不完成 goal
   （与决策 #21 "声明不越权"一致）。
 
+**judge 证据输入契约（rev1，MAJOR-1）**：driver 的 `verifyLLMJudge`
+喂 judge 的证据是 `childReport(childDir)`——**driver 耦合，in-session
+无 childDir，不可直接复用**。in-session judge 的证据 = **本会话自
+goal attach 以来的工作证据**（fold 出的 assistant 文本/工具结果摘要）
+**+ 模型的 claim summary**（`g.ClaimSummary`），而非 childReport。
+judge 只在"JSON verdict 解析"层复用 driver 逻辑，"证据装配"层是
+in-session 新写。judge model = `Loop.Judge` 注入的 provider（默认可
+取会话选定 model，独立 provider 字段留扩展）。
+
+**crash-replay verdict 解析（rev1，MINOR-2）**：judge 的
+ActivityCompleted.Result 是 `{score,pass,reason}` JSON，**无
+exit_code 字段**——crash 复用**必须走独立 verdict 解析**（读回
+score/pass），**禁止复用 `verifierExitCode`**（其 `ExitCode==nil &&
+!IsError` 兜底会把任何 judge replay 误读成 exit 0 = pass）。
+
 **波及面**：
 - event `GoalVerifier.Kind` 增 "llm_judge" + `Rubric` 字段
   （additive，旧 journal 无该字段）；
@@ -89,7 +106,20 @@ kind（§13 "command / llm_judge / human 三态"），但 in-session 形态
 1. event kind+rubric / Loop.Judge / goalVerify llm 分支 / 三态 switch /
    CLI / 文案 / DESIGN+SPEC + 孪生 → check → 真验 → commit。
 
-## review 裁决
+## review 记录（PROCESS §四，2026-07-11）
 
-**本轮=设计+§四变更单+独立契约 review**（触决策 #21 粗体）；实施
-另起一轮。blocked 终态与 token/墙钟预算列余项。
+独立契约 review（子 agent，对照决策 #21/§13/glossary 原文 + goal.go/
+driver.go/state.go 取证）裁决**修订后放行**：§四对旧不变量转述忠实、
+决策 #21 佐证准确（§13/glossary/types.go:341 均已命名 llm_judge
+deferred）、新表述只扩枚举不削弱 command 唯一裁决；claim-gated 门控
+落位/成本下降/crash 同构/budget 兜底（max_checks）/blocked 推迟五项
+契约成立，四性复核通过。**放行前须补两条（rev1 已吸收，见上）**：
+- MAJOR-1：in-session judge 证据输入契约（childReport 不可复用）+
+  judge model 来源。
+- MINOR-2：crash-replay verdict 独立解析，禁用 verifierExitCode。
+
+**实施轮清单（非契约，review 追加）**：MINOR-1 无 claim 目标达成却
+以 budget 截断的锐边——continuation 文案强化"必须 goal_complete 才
+被裁决"；MINOR-3 in-session pipeline 须对 `verifier:llm_judge` 的
+`llm_call` effect 有 operator-set 放行路径（非模型可注入）。blocked
+终态与 token/墙钟预算列余项。实施另起一轮。
