@@ -75,7 +75,7 @@ type ComposerProps =
       variant: "session";
       sid: string;
       workspace?: string;
-      mode?: string; // the session's fixed approval mode (display only)
+      mode?: string; // the session's LIVE approval mode (SessionView lifts it from inspect; /mode switches it — INC-42)
       running?: boolean;
       onSend: (text: string, images: string[], files: string[]) => Promise<void>;
       actions?: SessionActions;
@@ -105,6 +105,7 @@ const SLASH: SlashCmd[] = [
   { name: "plan", desc: "Read-only planning mode — no changes", variants: ["home"] },
   { name: "compact", desc: "Summarize & shrink this conversation's context", variants: ["session"] },
   { name: "clear", desc: "Drop this conversation's context and start fresh", variants: ["session"] },
+  { name: "mode", arg: "<default|acceptEdits>", desc: "Switch permission mode — acceptEdits auto-allows edits", variants: ["session"], needsArgs: true },
   { name: "diff", desc: "Show the workspace changes (git diff)", variants: ["session"] },
   { name: "fork", desc: "Fork into a new worktree from a checkpoint", variants: ["session"] },
   { name: "model", arg: "<id>", desc: "Switch the model", variants: ["home", "session"], needsArgs: true },
@@ -683,6 +684,26 @@ export function Composer(props: ComposerProps) {
           props.onError(e.message);
         }
         return;
+      case "mode": {
+        // plan/bypass are start-time choices; the loop is the final judge —
+        // this just normalizes the two runtime targets.
+        const q = rest.trim().toLowerCase().replace(/\s+/g, "");
+        const target = q === "default" ? ("default" as const) : q === "acceptedits" ? ("acceptEdits" as const) : null;
+        setText("");
+        if (!target) {
+          toast(`Unknown mode "${rest}". Try: default, acceptEdits`, "info");
+          return;
+        }
+        try {
+          await AR.mode(sid, target);
+          // Delivery ack, not an outcome: a busy session applies it at the
+          // next safe boundary; the timeline chip is the truth.
+          toast("Mode change requested — the timeline shows the outcome", "info");
+        } catch (e: any) {
+          props.onError(e.message);
+        }
+        return;
+      }
       case "diff":
         setText("");
         act?.showDiff?.();

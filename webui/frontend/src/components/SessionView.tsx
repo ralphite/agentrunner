@@ -55,6 +55,10 @@ export function SessionView({ sid }: { sid: string }) {
   const [usage, setUsage] = useState<{ billed: number; steps: number } | null>(null);
   const [children, setChildren] = useState<InspectNode[]>([]);
   const [inspectReady, setInspectReady] = useState(false);
+  // The session's LIVE permission mode from inspect's fold (INC-42, G29):
+  // /mode switches it mid-session, so the composer pill must not freeze on
+  // the launch-time value.
+  const [liveMode, setLiveMode] = useState<string | undefined>(undefined);
   const [goal, setGoal] = useState<{ goal: string; checks: number; max_checks?: number; paused?: boolean; verifiers?: number; claimed?: boolean } | null>(null);
   // The model-maintained checklist from inspect's progress projection (INC-37).
   const [progress, setProgress] = useState<import("./SupervisionPanel").ProgressItem[]>([]);
@@ -174,6 +178,7 @@ export function SessionView({ sid }: { sid: string }) {
       setChildren(Array.isArray(ins?.children) ? ins.children : []);
       setGoal(ins?.goal || null);
       setProgress(Array.isArray(ins?.progress) ? ins.progress : []);
+      if (typeof ins?.mode === "string" && ins.mode) setLiveMode(ins.mode);
       setInspectReady(true);
     } catch {
       /* ignore — usage badge / subagents are best-effort */
@@ -204,6 +209,7 @@ export function SessionView({ sid }: { sid: string }) {
     setGoal(null);
     setGoalDismissedAt(null);
     setInspectReady(false);
+    setLiveMode(undefined);
     poll();
     const e = setInterval(poll, 1000);
     const t = setInterval(pollTasks, 2500);
@@ -639,6 +645,7 @@ export function SessionView({ sid }: { sid: string }) {
                   variant="session"
                   sid={sid}
                   workspace={sessions.find((session) => session.id === sid)?.workspace}
+                  mode={liveMode}
                   running={running}
                   onSend={doSend}
                   onError={(message) => toast(message)}

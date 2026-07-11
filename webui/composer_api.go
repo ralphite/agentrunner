@@ -23,6 +23,36 @@ func (s *server) handleClear(w http.ResponseWriter, r *http.Request) {
 	s.oneShotHandler("ar clear", func(id string) []string { return []string{"clear", id} })(w, r)
 }
 
+// handleMode switches the session's permission mode at its next safe boundary
+// (INC-42, G29): `ar mode <sid> <default|acceptEdits>`. Exposed to the
+// composer as the /mode slash command. Runtime switching covers the
+// user-sovereignty pair only — plan exits via exit_plan_mode approval and
+// bypass is a start-time choice — and the loop owns final validity; this
+// handler pre-rejects only the obviously invalid.
+func (s *server) handleMode(w http.ResponseWriter, r *http.Request) {
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Mode string `json:"mode"`
+	}
+	if !readBody(w, r, &req) {
+		return
+	}
+	m := strings.TrimSpace(req.Mode)
+	if m != "default" && m != "acceptEdits" {
+		badRequest(w, "mode must be default|acceptEdits (plan and bypass are start-time choices)")
+		return
+	}
+	res := s.runAR(r.Context(), oneShotTimeout, "mode", id, m)
+	if res.Err != nil {
+		arFail(w, "ar mode", res)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": strings.TrimSpace(res.Stdout)})
+}
+
 // handleGoal drives an in-session goal (INC-D1): attach/update/pause/resume/
 // cancel via `ar goal <sid> <action> …`. The goal hangs on the conversational
 // session and its context continues across the verifier's checks.

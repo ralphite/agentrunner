@@ -19,6 +19,11 @@ describe("timeline input projection", () => {
     ]);
     expect(folded.items.some((item) => item.kind === "user")).toBe(false);
   });
+
+  it("projects a user mode switch as a timeline chip (INC-42)", () => {
+    const folded = foldEvents([{ seq: 1, type: "mode_changed", payload: { to: "acceptEdits", cause: "user" } }]);
+    expect(folded.items).toContainEqual(expect.objectContaining({ kind: "chip", text: "Mode changed · acceptEdits (user)" }));
+  });
 });
 
 describe("Codex-style turn outcome", () => {

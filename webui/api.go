@@ -54,6 +54,7 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/sessions/{sid}/fork", s.handleFork)
 	mux.HandleFunc("POST /api/sessions/{sid}/compact", s.handleCompact)
 	mux.HandleFunc("POST /api/sessions/{sid}/clear", s.handleClear)
+	mux.HandleFunc("POST /api/sessions/{sid}/mode", s.handleMode)
 	mux.HandleFunc("POST /api/sessions/{sid}/goal", s.handleGoal)
 
 	// ---- workspace git (branch picker; cockpit-level, operates on the

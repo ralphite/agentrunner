@@ -71,6 +71,7 @@ export const AR = {
   stopSession: (sid: string) => post(`/sessions/${sid}/stop`),
   compact: (sid: string) => post(`/sessions/${sid}/compact`),
   clear: (sid: string) => post(`/sessions/${sid}/clear`),
+  mode: (sid: string, mode: "default" | "acceptEdits") => post(`/sessions/${sid}/mode`, { mode }),
   goal: (sid: string, b: { action: "attach" | "update" | "pause" | "resume" | "cancel"; goal?: string; verifier?: string; maxChecks?: number }) =>
     post(`/sessions/${sid}/goal`, b),
   kill: (sid: string, handle: string) => post(`/sessions/${sid}/kill`, { handle }),
