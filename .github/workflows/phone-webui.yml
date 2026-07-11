@@ -93,33 +93,34 @@ jobs:
       - name: Publish URL
         if: ${{ !inputs.smoke }}
         run: |
-          # HTTPS via `tailscale serve` when the tailnet has HTTPS enabled;
-          # plain-HTTP tailnet URLs always work as fallback (WireGuard 加密，
-          # 仅本 tailnet 设备可达).
-          SERVE_URL=""
-          if sudo tailscale serve --bg 8788 2>serve.err; then
-            DNSNAME=$(sudo tailscale status --json | jq -r '.Self.DNSName' | sed 's/\.$//')
-            SERVE_URL="https://${DNSNAME}"
-          else
-            echo "tailscale serve unavailable (enable HTTPS at https://login.tailscale.com/admin/dns):" >&2
-            cat serve.err >&2
-          fi
-          TSIP=$(sudo tailscale ip -4)
+          # 先发布必达的 plain-HTTP tailnet URL（WireGuard 加密，仅本 tailnet
+          # 设备可达）；HTTPS `tailscale serve` 是 best-effort 附加。所有
+          # tailscale CLI 调用都包 timeout + </dev/null——首跑实测 serve/status
+          # 在 CI 无 tty 下可能挂死，曾把本步卡到 job timeout。
+          TSIP=$(sudo timeout 15 tailscale ip -4 </dev/null || true)
           {
             echo "## AgentRunner Web UI is up"
             echo ""
-            [ -n "$SERVE_URL" ] && echo "**Open on your phone: [$SERVE_URL]($SERVE_URL)**"
-            echo ""
-            echo "- Plain-HTTP fallback: http://agentrunner-phone:8788 or http://${TSIP}:8788"
-            echo "- Phone must be logged into the same tailnet (Tailscale app)."
+            echo "**Open on your phone (Tailscale connected): http://agentrunner-phone:8788**"
+            [ -n "$TSIP" ] && echo "- IP fallback: http://${TSIP}:8788"
             echo "- Up for ${MINUTES_IN} minutes — cancel this run to stop earlier."
             if [ -z "${GEMINI_SET}" ] && [ -z "${ANTHROPIC_SET}" ]; then
               echo ""
               echo "⚠️ No GEMINI_API_KEY / ANTHROPIC_API_KEY secret configured — the UI works but agent turns will fail."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
-          [ -n "$SERVE_URL" ] && echo "::notice title=AgentRunner Web UI::${SERVE_URL}"
-          echo "::notice title=AgentRunner Web UI (tailnet HTTP)::http://${TSIP}:8788"
+          echo "::notice title=AgentRunner Web UI (tailnet)::http://agentrunner-phone:8788 http://${TSIP}:8788"
+          if sudo timeout 30 tailscale serve --bg 8788 </dev/null 2>serve.err; then
+            DNSNAME=$(sudo timeout 15 tailscale status --json </dev/null | jq -r '.Self.DNSName' | sed 's/\.$//' || true)
+            if [ -n "$DNSNAME" ]; then
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "**HTTPS: [https://${DNSNAME}](https://${DNSNAME})**" >> "$GITHUB_STEP_SUMMARY"
+              echo "::notice title=AgentRunner Web UI (HTTPS)::https://${DNSNAME}"
+            fi
+          else
+            echo "tailscale serve unavailable (enable HTTPS at https://login.tailscale.com/admin/dns):" >&2
+            cat serve.err >&2 || true
+          fi
         env:
           MINUTES_IN: ${{ inputs.minutes }}
           GEMINI_SET: ${{ secrets.GEMINI_API_KEY && '1' || '' }}
