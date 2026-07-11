@@ -110,6 +110,18 @@ export function projectSubtitles(workspaces: string[]): Map<string, string> {
   return out;
 }
 
+// scheduledUnread returns the ids of driver (scheduled) sessions that carry
+// new activity the user hasn't opened. It is the single source behind the
+// Scheduled nav dot (E3) and the Scheduled page's "Mark all as read" (F2).
+// Runs (Run[]) hold no per-item unread state, so only driver sessions
+// participate — keeping the badge honest about what it actually tracks.
+export function scheduledUnread(sessions: Session[], unread: string[]): string[] {
+  const flagged = new Set(unread);
+  return sessions
+    .filter((session) => session.kind === "driver" && flagged.has(session.id))
+    .map((session) => session.id);
+}
+
 export function scheduleLabel(schedule?: string): string {
   switch ((schedule || "immediate").toLowerCase()) {
     case "interval": return "Repeating";

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import "../styles.nav.css";
 import {
   Archive as ArchiveBox,
   ArrowSquareOut,
   CalendarDots,
-  CaretDown,
   CaretRight,
   Folder,
   FolderOpen,
@@ -13,9 +13,11 @@ import {
   Moon,
   NotePencil,
   PushPin,
+  Question,
   Robot,
   SidebarSimple,
   Sun,
+  Tray,
   X,
 } from "@phosphor-icons/react";
 import { useStore } from "../store";
@@ -25,7 +27,7 @@ import { displayTitle } from "../title";
 import { ContextMenu } from "./ContextMenu";
 import { MenuItem, MenuLabel } from "./Menu";
 import { copyText } from "../clipboard";
-import { buildSidebarModel, projectLabel } from "../viewModels";
+import { buildSidebarModel, projectLabel, scheduledUnread } from "../viewModels";
 import { relTime, sessionDate } from "../time";
 
 type SidebarContext =
@@ -58,6 +60,7 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
     unread,
     markUnread,
     markRead,
+    openHelp,
   } = useStore();
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
@@ -78,6 +81,7 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
   );
   const archivedCount = sessions.filter((session) => archived.includes(session.id)).length;
   const runningRuns = runs.filter((run) => run.status === "running").length;
+  const schedUnread = scheduledUnread(sessions, unread);
   const orderedIds = useMemo(
     () => [...model.pinned.map((session) => session.id), ...model.projects.flatMap((project) => project.sessions.map((session) => session.id))],
     [model],
@@ -200,7 +204,12 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
         </button>
         <button className={!currentSid && currentPage === "scheduled" ? "active" : ""} onClick={() => { showPage("scheduled"); onNavigate?.(); }}>
           <CalendarDots size={17} /> <span>Scheduled</span>
-          {runningRuns > 0 && <span className="nav-notice" title={`${runningRuns} running`} />}
+          {(schedUnread.length > 0 || runningRuns > 0) && (
+            <span
+              className={`nav-notice${schedUnread.length > 0 ? " unread" : " running"}`}
+              title={schedUnread.length > 0 ? `${schedUnread.length} with new activity` : `${runningRuns} running`}
+            />
+          )}
         </button>
       </nav>
 
@@ -224,8 +233,8 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
 
       <div className="project-list">
         {model.pinned.length > 0 && (
-          <section className="sidebar-section">
-            <div className="section-label">Pinned</div>
+          <section className="sidebar-section pinned-section">
+            <div className="section-label"><PushPin size={12} weight="fill" /> Pinned</div>
             {model.pinned.map((session) => renderTask(session))}
           </section>
         )}
@@ -239,7 +248,11 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
               <span />
             </div>
           ) : model.projects.length === 0 ? (
-            <div className="sidebar-empty">{query ? "No matching tasks" : "No tasks yet"}</div>
+            <div className="sidebar-empty">
+              <Tray size={22} />
+              <b>{query ? "No matching tasks" : "No tasks yet"}</b>
+              <span>{query ? "Try a different search." : "Start a task to see it here."}</span>
+            </div>
           ) : null}
           {model.projects.map((project) => {
             const isExpanded = expanded.has(project.key) || !!query;
@@ -265,7 +278,7 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
                     setCtx({ kind: "project", x: rect.left + 20, y: rect.bottom, label: project.label, workspace: project.workspace, ids: project.sessions.map((session) => session.id) });
                   }}
                 >
-                  {isExpanded ? <CaretDown size={12} /> : <CaretRight size={12} />}
+                  <CaretRight size={12} className={`proj-caret${isExpanded ? " open" : ""}`} />
                   {isExpanded ? <FolderOpen size={16} /> : <Folder size={16} />}
                   <span>{project.label}</span>
                   {project.hint && <span className="project-hint">{project.hint}</span>}
@@ -300,15 +313,33 @@ export function Sidebar({ onHide, onNavigate }: { onHide?: () => void; onNavigat
       </div>
 
       <div className="side-foot">
-        <span className={`daemon-indicator${health?.daemonUp ? " online" : ""}`} />
-        <button className="daemon-copy" onClick={() => !health?.daemonUp && restartDaemon()} title={health?.daemonUp ? health.version : "Restart daemon"}>
-          <span>
-            {health?.daemonUp
-              ? `Connected · ${(health.version || "").replace(/^agentrunner\s*/, "").split(" ")[0] || "daemon"}`
-              : "Daemon unavailable — click to restart"}
+        <button
+          className="account-badge"
+          onClick={() => !health?.daemonUp && restartDaemon()}
+          title={health?.daemonUp ? (health.version || "daemon") : "Daemon offline — click to restart"}
+          aria-label={health?.daemonUp ? "Connected to daemon" : "Daemon offline — click to restart"}
+        >
+          <span className={`account-avatar${health?.daemonUp ? " online" : " offline"}`} aria-hidden="true">
+            <span className="account-initials">AR</span>
+            <span className="account-presence" />
+          </span>
+          <span className="account-meta">
+            <b>AgentRunner</b>
+            <span>
+              {health?.daemonUp
+                ? `Connected · ${(health.version || "").replace(/^agentrunner\s*/, "").split(" ")[0] || "daemon"}`
+                : "Daemon offline — restart"}
+            </span>
           </span>
         </button>
-        <button className="sidebar-action" onClick={cycleTheme} title={`Theme: ${theme}`}>{themeGlyph}</button>
+        <div className="foot-actions">
+          <button className="sidebar-action" onClick={openHelp} title="Keyboard shortcuts & help (?)" aria-label="Help and keyboard shortcuts">
+            <Question size={16} />
+          </button>
+          <button className="sidebar-action" onClick={cycleTheme} title={`Theme: ${theme}`} aria-label="Toggle theme">
+            {themeGlyph}
+          </button>
+        </div>
       </div>
 
       {hoverPreview && (() => {

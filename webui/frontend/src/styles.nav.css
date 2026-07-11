@@ -1,0 +1,396 @@
+/* =====================================================================
+   NAV slice — Codex-parity polish for the sidebar, Scheduled hub, command
+   palette and toasts (INC-41: E1/E2/E3/E4/E5/F2/I4).
+
+   IMPORTANT: main.tsx imports App (→ Sidebar → this file) BEFORE styles.css,
+   so this stylesheet is bundled *before* styles.css. Base rules therefore win
+   at equal specificity — every rule that overrides an existing base rule is
+   scoped under an ancestor (.sidebar / .toasts) to out-specify it instead of
+   relying on source order. New-class rules need no scoping.
+   ===================================================================== */
+
+/* ===== E1 · Pinned group ===============================================
+   A dedicated flat group above Projects. The label carries a small filled
+   pushpin so it reads as its own thing, not just another project header. */
+.sidebar .section-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sidebar .pinned-section .section-label {
+  color: var(--ink-2);
+}
+.sidebar .pinned-section .section-label svg {
+  color: var(--dim);
+  flex: 0 0 auto;
+}
+.sidebar .pinned-section .project-task-wrap + .project-task-wrap {
+  margin-top: 1px;
+}
+
+/* ===== E2 · Account footer =============================================
+   Codex bottom bar: circular avatar (initials) with a presence dot folding
+   in daemon state, name + connection line, then help + theme on the right. */
+.sidebar .side-foot {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 8px 12px;
+  border-top: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+}
+.side-foot .account-badge {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 6px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+  color: inherit;
+}
+.side-foot .account-badge:hover {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+.side-foot .account-avatar {
+  position: relative;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ink) 9%, transparent);
+  color: var(--ink);
+}
+.side-foot .account-avatar.offline {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--red) 24%, transparent);
+}
+.side-foot .account-initials {
+  font-size: 11px;
+  font-weight: 680;
+  letter-spacing: 0.4px;
+}
+.side-foot .account-presence {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--sidebar);
+  background: var(--dim);
+}
+.side-foot .account-avatar.online .account-presence {
+  background: var(--green);
+}
+.side-foot .account-avatar.offline .account-presence {
+  background: var(--red);
+}
+.side-foot .account-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  line-height: 1.25;
+}
+.side-foot .account-meta b {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.side-foot .account-meta > span {
+  font-size: 11px;
+  color: var(--dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.side-foot .account-avatar.offline + .account-meta > span {
+  color: var(--red);
+}
+.side-foot .foot-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* ===== E3 · Scheduled nav unread dot ==================================
+   Blue = unread scheduled activity; green (softer) = only running. The
+   .unread / .running modifiers out-specify the base .nav-notice colour. */
+.nav-notice {
+  transition: background-color 0.2s ease;
+}
+.nav-notice.unread {
+  background: var(--blue);
+}
+.nav-notice.running {
+  background: var(--status-running);
+}
+
+/* ===== E4 · Sidebar hover preview card ================================
+   Rounder corners, a layered soft shadow, a hairline head divider, and
+   consistently-aligned dim icons — matched to Codex's preview popover. */
+.sidebar .task-preview {
+  width: 268px;
+  gap: 7px;
+  padding: 12px 14px 13px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 12px 32px rgba(0, 0, 0, 0.16);
+  animation: nav-preview-in 0.12s ease-out;
+}
+.sidebar .task-preview-head {
+  align-items: baseline;
+  gap: 10px;
+  padding-bottom: 9px;
+  margin-bottom: 1px;
+  border-bottom: 1px solid var(--line-2);
+}
+.sidebar .task-preview-head b {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+}
+.sidebar .task-preview-head > span {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--dim);
+}
+.sidebar .task-preview > div {
+  gap: 9px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.sidebar .task-preview > div > svg {
+  width: 15px;
+  height: 15px;
+  color: var(--dim);
+}
+.sidebar .task-preview > div > .status-dot {
+  margin: 0 4px;
+}
+@keyframes nav-preview-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar .task-preview {
+    animation: none;
+  }
+}
+
+/* ===== E5 · Project fold caret + Show more ============================
+   One caret that rotates on expand (smooth), and a quieter Show-more row. */
+.proj-caret {
+  flex: 0 0 auto;
+  transition: transform 0.18s ease;
+}
+.proj-caret.open {
+  transform: rotate(90deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .proj-caret {
+    transition: none;
+  }
+}
+.sidebar .show-more {
+  border-radius: 7px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.sidebar .show-more:hover {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  color: var(--ink-2);
+}
+
+/* ===== I4 · Sidebar empty state ======================================= */
+.sidebar .sidebar-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 18px 12px 12px;
+  color: var(--dim);
+}
+.sidebar .sidebar-empty svg {
+  margin-bottom: 4px;
+  color: var(--dim);
+  opacity: 0.65;
+}
+.sidebar .sidebar-empty b {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+.sidebar .sidebar-empty span {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+/* ===== I4 · Sidebar loading skeleton ================================== */
+.sidebar .sidebar-loading {
+  padding: 10px 12px 12px;
+  gap: 9px;
+}
+.sidebar .sidebar-loading span {
+  height: 12px;
+  border-radius: 7px;
+}
+
+/* ===== I4 · Toasts ====================================================
+   Neutral card + status-coloured icon and left accent; theme-aware, with a
+   dismiss button and a gentle entrance. Scoped under .toasts to out-specify
+   the base .toast.info / .toast.error colour rules. */
+.toasts .toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 10px 11px 13px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.05),
+    0 8px 26px rgba(0, 0, 0, 0.16);
+  animation: nav-toast-in 0.16s ease-out;
+}
+.toasts .toast.error {
+  background: var(--panel);
+  color: var(--ink);
+  border-left-color: var(--red);
+}
+.toasts .toast.info {
+  background: var(--panel);
+  color: var(--ink);
+  border-left-color: var(--blue);
+}
+.toasts .toast .toast-ico {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  margin-top: 1px;
+}
+.toasts .toast.error .toast-ico {
+  color: var(--red);
+}
+.toasts .toast.info .toast-ico {
+  color: var(--blue);
+}
+.toasts .toast .toast-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.toasts .toast .toast-close {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dim);
+}
+.toasts .toast .toast-close:hover {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  color: var(--ink);
+}
+@keyframes nav-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toasts .toast {
+    animation: none;
+  }
+}
+
+/* ===== F2 · Scheduled unread + Mark all as read ======================= */
+.sched-markread {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.sched-markread:hover {
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  color: var(--ink);
+}
+.sched-lead {
+  flex: 0 0 auto;
+  width: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sched-unread {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--blue);
+}
+.scheduled-row.is-unread .scheduled-copy b {
+  color: var(--ink);
+  font-weight: 640;
+}
+
+/* ===== Command palette · ⌘1-9 badge polish ============================ */
+.cmdk-kbd {
+  flex: 0 0 auto;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: var(--dim);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.cmdk-item.sel .cmdk-kbd {
+  border-color: color-mix(in srgb, var(--blue) 38%, var(--line));
+  color: var(--ink-2);
+}

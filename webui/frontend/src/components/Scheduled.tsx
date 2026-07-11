@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
-import { CalendarDots, Plus, ArrowUpRight, MagnifyingGlass } from "@phosphor-icons/react";
+import { CalendarDots, Plus, ArrowUpRight, MagnifyingGlass, Check } from "@phosphor-icons/react";
 import { useStore } from "../store";
 import { friendlyStatus } from "./pill";
-import { projectLabel, scheduleLabel } from "../viewModels";
+import { projectLabel, scheduleLabel, scheduledUnread } from "../viewModels";
 import { relTime, sessionDate } from "../time";
 
 type Filter = "all" | "active" | "completed";
@@ -13,6 +13,7 @@ interface SchedRow {
   meta: string; // sub-line: type · project · when
   status: { text: string; cls: string };
   active: boolean; // live (running / waiting on you) vs finished
+  unread: boolean; // driver row with new activity you haven't opened (F2)
   sortTs: number;
   onClick: () => void;
 }
@@ -31,12 +32,15 @@ function whenAgo(when: Date | null): string {
 // last started — plus a search box and All / Active / Completed filters mapped
 // to our real live-vs-finished states (INC-41 W7).
 export function Scheduled() {
-  const { runs, sessions, select, selectRun, openModal } = useStore();
+  const { runs, sessions, select, selectRun, openModal, unread, markRead } = useStore();
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
 
+  const unreadIds = useMemo(() => scheduledUnread(sessions, unread), [sessions, unread]);
+
   const rows = useMemo<SchedRow[]>(() => {
     const isActive = (cls: string) => cls === "run" || cls === "appr";
+    const flagged = new Set(unread);
     const out: SchedRow[] = [];
     for (const run of runs) {
       const status = friendlyStatus(run.status);
@@ -50,6 +54,7 @@ export function Scheduled() {
           .join(" · "),
         status,
         active: isActive(status.cls),
+        unread: false,
         sortTs: isNaN(ts) ? 0 : ts,
         onClick: () => selectRun(run.id),
       });
@@ -64,6 +69,7 @@ export function Scheduled() {
         meta: [scheduleLabel(s.schedule), projectLabel(s.workspace), whenAgo(d)].filter(Boolean).join(" · "),
         status,
         active: isActive(status.cls),
+        unread: flagged.has(s.id),
         sortTs: d ? d.getTime() : 0,
         onClick: () => select(s.id),
       });
@@ -71,7 +77,7 @@ export function Scheduled() {
     // Newest-first; the coloured status dot and label carry the state.
     out.sort((a, b) => b.sortTs - a.sortTs);
     return out;
-  }, [runs, sessions, select, selectRun]);
+  }, [runs, sessions, select, selectRun, unread]);
 
   const counts = {
     all: rows.length,
@@ -125,6 +131,15 @@ export function Scheduled() {
               </button>
             ))}
           </div>
+          {unreadIds.length > 0 && (
+            <button
+              className="sched-markread"
+              onClick={() => unreadIds.forEach(markRead)}
+              title="Mark all scheduled activity as read"
+            >
+              <Check size={14} /> Mark all as read
+            </button>
+          )}
         </div>
       )}
 
@@ -143,7 +158,10 @@ export function Scheduled() {
           </div>
         ) : (
           filtered.map((r) => (
-            <button className="scheduled-row" key={r.key} onClick={r.onClick}>
+            <button className={"scheduled-row" + (r.unread ? " is-unread" : "")} key={r.key} onClick={r.onClick}>
+              <span className="sched-lead" aria-hidden="true">
+                {r.unread && <span className="sched-unread" title="New activity" />}
+              </span>
               <span className={"status-dot " + r.status.cls} title={r.status.text} />
               <span className="scheduled-copy">
                 <b>{r.title}</b>
