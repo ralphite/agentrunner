@@ -136,8 +136,45 @@ function ImageArtifacts({ sid, files }: { sid: string; files: FileDiffSummary[] 
 // caret menu (Codex parity), so the row keeps a single trailing control.
 function ArtifactRow({ sid, file, ext, label, divider }: { sid: string; file: FileDiffSummary; ext: string; label: string; divider: boolean }) {
   const [open, setOpen] = useState(false);
+  // INC-41 ART-SCRIM — the menu is anchored to the VIEWPORT, not to the row.
+  // As a plain `absolute` child it was clipped to a 9px sliver of its own 74px
+  // box: the artifact container two levels up is `overflow-hidden` (it has to be,
+  // to keep the rows inside its rounded corners), and it ends ~9px below the
+  // trigger. Worse, the clip took the menu out of hit-testing too, so a click
+  // aimed at "New tab" / "Download" fell straight through to the scrim behind and
+  // merely closed the menu — the control was 100% inoperable, not just ugly.
+  // `position: fixed` escapes any ancestor overflow (no transformed ancestor is
+  // in play — the scrim proves it, it already covers the viewport from the same
+  // subtree), so the menu can hang outside the card the way a menu must.
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
   const { base } = splitPath(file.path);
   const url = AR.fileURL(sid, file.path);
+
+  // A viewport-anchored menu would drift away from its trigger if the thread
+  // scrolled underneath it, so scrolling (the timeline is its own scroll box,
+  // hence the capture listener) or resizing just dismisses it.
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [open]);
+
+  const toggle = () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setPos({ top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right) });
+    setOpen(true);
+  };
+
   return (
     <div className={"flex items-center gap-[10px] px-[10px] py-[8px]" + (divider ? " border-t border-line" : "")}>
       <span className="grid place-items-center w-[32px] h-[32px] shrink-0 rounded-[8px] bg-panel-2 text-ink-2">{ext === "pdf" ? <FilePdf size={18} /> : <FileText size={18} />}</span>
@@ -147,19 +184,31 @@ function ArtifactRow({ sid, file, ext, label, divider }: { sid: string; file: Fi
       </div>
       <div className="relative shrink-0">
         <button
+          ref={btnRef}
           type="button"
           className="inline-flex items-center gap-[6px] px-[11px] h-[30px] rounded-[8px] border border-line text-[13px] text-ink hover:bg-panel-2"
-          onClick={() => setOpen((o) => !o)}
+          onClick={toggle}
           aria-haspopup="menu"
           aria-expanded={open}
           aria-label={`Open ${base}`}
         >
           Open in <CaretDown size={13} />
         </button>
-        {open && (
+        {open && pos && (
           <>
-            <button type="button" className="fixed inset-0 z-[5] cursor-default" aria-hidden="true" tabIndex={-1} onClick={() => setOpen(false)} />
-            <div className="absolute right-0 top-[34px] z-10 flex flex-col min-w-[160px] py-[4px] rounded-[8px] border border-line bg-panel shadow-lg" role="menu">
+            {/* INC-41 ART-SCRIM — the click-outside scrim. It MUST paint nothing:
+                the app's base reset (tw.css @layer base) gives every <button> an
+                opaque `background: var(--panel)` and a `:hover` of `var(--panel-2)`,
+                so this bare full-bleed button used to cover the entire viewport in
+                flat white — grey (#f4f4f4) once the cursor landed on it after the
+                click. The whole app read as "crashed". `bg-transparent border-0` is
+                load-bearing; styles.css carries a matching net for future scrims. */}
+            <button type="button" className="fixed inset-0 z-[5] cursor-default bg-transparent border-0" aria-hidden="true" tabIndex={-1} onClick={() => setOpen(false)} />
+            <div
+              className="fixed z-10 flex flex-col min-w-[160px] py-[4px] rounded-[8px] border border-line bg-panel shadow-lg"
+              style={{ top: pos.top, right: pos.right }}
+              role="menu"
+            >
               <a
                 className="flex items-center gap-[8px] px-[10px] py-[6px] text-[13px] text-ink hover:bg-panel-2"
                 href={url}

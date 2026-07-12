@@ -5094,3 +5094,44 @@ body {
   white-space: nowrap;
   color: var(--ink-2);
 }
+
+/* ============================================================================
+ * INC-41 ART-SCRIM — a full-bleed <button> scrim must never paint.
+ *
+ * The "click outside to close" scrim under a popover menu is conventionally a
+ * bare <button class="fixed inset-0"> (focusable-free, keyboard-inert, one
+ * onClick). That idiom is a trap in THIS app: the base reset in tw.css gives
+ * every button an opaque `background: var(--panel)` plus a `:hover` of
+ * `var(--panel-2)`. So a bare scrim renders as a flat sheet of white over the
+ * entire viewport — #f4f4f4 the instant the cursor rests on it, which is always,
+ * since the pointer is right there from the click that opened the menu. The
+ * artifact card's "Open in ⌄" scrim shipped exactly that: sidebar, thread, top
+ * bar and brand all sampled rgb(244,244,244), the scrim covered half of the very
+ * menu it had opened, and users read it as "the app crashed".
+ *
+ * Note we deliberately do NOT reset `button { background: transparent }` wholesale:
+ * the panel background on buttons is the design system, and stripping it would
+ * flatten every real button in the app. Instead this nets the actual hazard SHAPE
+ * — a button that is also a full-bleed positioned layer — by matching the utility
+ * classes that make it one.
+ *
+ * It lives in @layer base (order declared in tw.css: theme, base, components,
+ * utilities), so:
+ *   - it outranks the base `button` / `button:hover` rules on specificity (0,2,0
+ *     and 0,2,1 vs 0,0,1 and 0,1,1) within that same layer, and
+ *   - any element that genuinely WANTS a full-screen background (e.g. the
+ *     Settings overlay's `bg-bg`) still wins, because a `bg-*` utility sits in
+ *     the later `utilities` layer. That is the intended escape hatch.
+ * ========================================================================== */
+@layer base {
+  button[class~="fixed"][class~="inset-0"],
+  button[class~="absolute"][class~="inset-0"],
+  button[class~="fixed"][class~="inset-0"]:hover,
+  button[class~="absolute"][class~="inset-0"]:hover {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    transition: none;
+  }
+}
