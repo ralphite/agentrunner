@@ -82,7 +82,7 @@ const SUGGESTIONS: Suggestion[] = [
   {
     key: "explore",
     tone: "teal",
-    icon: <Telescope size={22} />,
+    icon: <Telescope size={16} />,
     label: "Explore and understand code",
     prompt:
       "Explore this codebase and help me understand it. Walk me through the overall structure, the main components, and how they fit together.",
@@ -90,21 +90,21 @@ const SUGGESTIONS: Suggestion[] = [
   {
     key: "build",
     tone: "violet",
-    icon: <Hammer size={22} />,
+    icon: <Hammer size={16} />,
     label: "Build a new feature, app, or tool",
     prompt: "Help me build a new feature. Let's scope out what it should do, then implement it step by step.",
   },
   {
     key: "review",
     tone: "green",
-    icon: <ArrowsClockwise size={22} />,
+    icon: <ArrowsClockwise size={16} />,
     label: "Review code and suggest changes",
     prompt: "Review the recent changes in this project and suggest improvements to correctness, clarity, and structure.",
   },
   {
     key: "fix",
     tone: "orange",
-    icon: <Bug size={22} />,
+    icon: <Bug size={16} />,
     label: "Fix issues and failures",
     prompt: "Investigate the failing tests and errors in this project, find the root cause, and fix them.",
   },
@@ -142,7 +142,7 @@ export function Home() {
       <div className="hero">
         <div className="home-empty">
           <div className="home-hero-icon" aria-hidden>
-            <CloudMark size={50} />
+            <CloudMark size={35} />
           </div>
           <h2 className="home-empty-headline">
             {project ? (

@@ -59,12 +59,20 @@
   --orange: #f0975a;
 }
 
-/* Brand mark — borderless (no panel), larger, and drawn in a quiet gray toward
-   --line so it reads as a soft watermark the way Codex's does. */
+/* Brand mark — borderless (no panel) and drawn in a quiet gray toward --line so
+   it reads as a soft watermark the way Codex's does.
+
+   HM-7 — size measured off the golden, not guessed. In
+   qa/codex-reference/codex-new-task-home.jpg the mark is 20×20 image px on a
+   1440-logical-wide screen captured at ~1.76 logical px per image px (menu bar
+   = 24pt ⇒ 13px, screen aspect exactly 9:16 ⇒ 1440 wide), i.e. ≈35 logical px;
+   the zoomed crop agrees (93px at 2.6 px/logical ⇒ 35). We were drawing it at
+   50px inside a 64px box — half again too big, which made the watermark compete
+   with the headline it is supposed to sit under. */
 .home-empty .home-hero-icon {
-  width: 64px;
-  height: 64px;
-  margin: 0 auto 22px;
+  width: 36px;
+  height: 36px;
+  margin: 0 auto 18px;
   background: transparent;
   border-radius: 0;
   color: color-mix(in srgb, var(--dim) 45%, var(--line));
@@ -90,26 +98,39 @@
   text-underline-offset: 6px;
 }
 
-/* Four suggestion cards. */
+/* Four suggestion cards.
+
+   HM-7 — the row is capped, not stretched. Measured off the golden (see the
+   brand-mark note for how image px map to logical px): Codex's four cards are
+   ≈136×85 logical with an 8px gutter, so the whole row is ≈565px — a third of
+   the 1440 window. Ours stretched to fill the composer's column (~717px), which
+   forced 168×100 boxes: nearly 1.5× the golden's area each, and the four of them
+   took half the window. On a page whose job is to be read (headline) and typed
+   into (composer), the suggestions were the heaviest thing on screen.
+
+   So the grid keeps its own width now instead of inheriting the hero's. The
+   composer is untouched — it stays the roomy bottom-pinned input QA-45 asked
+   for; only the cards give ground. */
 .home-empty-cards {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
+  gap: 8px;
   width: 100%;
+  max-width: 588px;
+  margin: 0 auto;
 }
-/* HM-2 — a compact label, not a content card. The old 150px box with a 20px gap
-   left ~120px of dead white between the icon (pinned top) and the label (pinned
-   bottom); Codex's card is ≈140×89 with the icon sitting right above its label.
-   Height now comes from the content (icon + 2 label lines ≈ 92px), so the row
-   reads as four tags under the headline rather than four empty panels. */
+/* HM-2/HM-7 — a compact label, not a content card. Height comes from the
+   content at the golden's density: 12px padding, a 16px icon, 8px of air, and
+   two 12px/1.4 label lines ⇒ ≈84px, against Codex's 85. (Was: 14px padding, a
+   22px icon, a 12px gap and 14px labels ⇒ 100px.) */
 .home-empty-card {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   justify-content: flex-start;
-  gap: 12px;
-  min-height: 92px;
-  padding: 14px;
+  gap: 8px;
+  min-height: 84px;
+  padding: 12px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--panel);
@@ -118,8 +139,13 @@
   cursor: pointer;
   transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease, transform 120ms ease;
 }
+/* HM-6 — hover whispers. Jumping the border to --ink-2 (#606060) made a hovered
+   card lunge out of the page: a near-black outline against the #e7e7e7 the other
+   three still wear. Codex only darkens the hairline a hair and warms the fill,
+   so the card lights up in place. Deepen --line toward --dim instead of leaving
+   the family. */
 .home-empty-card:hover {
-  border-color: var(--ink-2);
+  border-color: color-mix(in srgb, var(--dim) 25%, var(--line));
   background: var(--panel-2);
 }
 .home-empty-card:active {
@@ -139,14 +165,19 @@
 .home-empty-card-icon.green { color: var(--green); }
 .home-empty-card-icon.amber { color: var(--amber); }
 .home-empty-card-icon.orange { color: var(--orange); }
+/* 12px/1.4, matching the golden's optical size: at 136px wide with 12px padding
+   a card only has ~110px of line to spend, and that is exactly the width Codex's
+   labels break on ("Build a new feature," / "app, or tool"). At our old 14px the
+   same string would need a third line and the row would grow back. */
 .home-empty-card-label {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 500;
-  line-height: 1.35;
+  line-height: 1.4;
   color: var(--ink);
 }
 
-/* Responsive: 2-up on tablets, 1-up on phones. */
+/* Responsive: 2-up on tablets, 1-up on phones. The cap is a max-width, so the
+   grid shrinks with the column on its own; below 860px it also drops columns. */
 @media (max-width: 860px) {
   .home-empty-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -154,8 +185,10 @@
   /* Same specificity story as HM-4 above: `.hero h2` also carries a 24px rule at
      ≤680, so this override has to be scoped to beat it rather than tie. */
   .home-empty .home-empty-headline { font-size: 25px; margin-bottom: 24px; }
-  .home-empty-cards { grid-template-columns: 1fr; gap: 10px; }
-  .home-empty-card { min-height: 0; flex-direction: row; align-items: center; justify-content: flex-start; gap: 14px; padding: 12px 14px; }
+  /* One column, and the card lies down: icon beside the label, no dead height.
+     Four stacked 84px boxes would push the headline off a 390px phone. */
+  .home-empty-cards { grid-template-columns: 1fr; gap: 8px; }
+  .home-empty-card { min-height: 0; flex-direction: row; align-items: center; justify-content: flex-start; gap: 10px; padding: 10px 12px; }
 }
 
 /* RH-2 — the suggestion-card row shares the composer's column.
