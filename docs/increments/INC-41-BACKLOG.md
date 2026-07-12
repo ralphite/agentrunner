@@ -2985,12 +2985,19 @@ touches:`timeline.ts`、`timeline.test.ts`、`styles.conv.css`。
 127 个组的树因此没有锚点。**动作**:`color-mix(in srgb, var(--ink) 78%, var(--ink-2))` ≈ #303030,
 保留 600 字重;`.show-more` 不动。touches:`styles.nav.css`。
 
-### HM-8 ☐ Home hero 标题 30px,金标 ≈23px —— 大了 33%,把刚瘦身的卡片又压回去了 [P1]
+### HM-8 ✅ Home hero 标题 30px,金标 ≈23px —— 大了 33%,把刚瘦身的卡片又压回去了 [P1] — `54942fe`(轮34)
 用 HM-7 确立的 px→逻辑 px 映射反量金标:标题 360 逻辑 px / 36 字 = **10.0px per char**,字重 400;
 我们 `413px / 31 字 = 13.3px per char`(`styles.home.css:85-92` 30px/500)。HM-4 的注释写着 "land on Codex's
 lighter 30px/500" 但那次没有用映射反推,数字是拍的。轮31 已把 4 张卡收到金标同量级,**标题没跟**,
 现在独自比周围重一号。**动作**:`font-size: 23px; font-weight: 400; letter-spacing: -0.2px`;390 断点 25→20px。
 卡片/图标/composer 一律不动。touches:`styles.home.css`。
+**实测(chrome headless dsf=2,私有 :8872,light/dark 一致)**:1440 档 `.hero h2` **30px/500 → 23px/400**,
+标题宽 `413px/31 字 = 13.3` → **309px/31 字 = 9.97 px per char**(金标 10.0,误差 0.3%);390 档 **25 → 20px**
+(styles.css:4283 的 24px 未夺回控制权——`.home-empty .home-empty-headline` (0,2,0) 仍压 `.hero h2` (0,1,1))。
+卡片未动:141×84、row 588px、min-height 84px;composer 720px 未动(QA-45 钉底)。稳态 console error+warning = 0。
+新增 `Home.headline.test.tsx`:把两张表按 import 序灌进 jsdom **读 computed 值**(不是 grep 声明),
+钉死 23px/400/-0.2px —— HM-4 那种"写了但被特异性压成死代码"的失败模式这次会直接测红。截图
+`qa/runs/2026-07-12-r34/after-hm8/`。vitest 438 → **443 绿**。
 
 ### SC-22 ✅ Scheduled 整页比金标大一号,首屏只装下 3 条任务 + 3 条建议 [P1] — `3b07a87`(轮34)
 **实测收口**(真机 Chrome、1440×900 + 390×844 × light/dark,私有 :8871 接真实 driver 数据):
