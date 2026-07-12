@@ -1790,3 +1790,8 @@ implementer 白名单冲突 → 下轮做。)
   **I2 的重要发现**(已写进代码注释):RT-4 根因诊断不完整——turn 常由**不可见的注入输入**(goal
   continuation → `input_received{source:program}`)开启,`foldWork` 看不到 user 边界,只按 BACKLOG 改会让
   post-answer 窗口永不关闭;窗口必须由 tool/outcome chip 关闭。**只有跑真实会话才抓得到。**
+  **第二批**(同轮):**RH-1/RH-2**(`235c1a5`)首页标题与 composer chip 收敛成**单一 source of truth**
+  (冷启动实测:标题 `What should we build in cx3-ws?` + chip `cx3-ws` + 菜单 ✓ 打在 cx3-ws,不再「标题说 A、
+  chip 说 B」;换 project 标题同步变;localStorage 记住上次选择)+ 建议卡行与 composer 同列(dx=0/dw=0,
+  原 424/884 vs 316/1100)。live=`index-CzTnO_8v.js`,console=0。
+  **J2(RT-7 坏 deep-link + RT-5 provider 错误人话 banner)在轮末仍在跑,自推 origin/main,下轮开轮收割。**
