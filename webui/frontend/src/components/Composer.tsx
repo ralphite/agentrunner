@@ -53,8 +53,12 @@ import {
   personaFromSpec,
   replaceModel,
   runtimeModeTarget,
+  DEFAULT_SPEED,
+  SPEED_LEVELS,
+  speedById,
   type AccessId,
   type EffortId,
+  type SpeedId,
 } from "../specs";
 import { Popover, PopItem, PopSection } from "./Popover";
 import { useVoice } from "./useVoice";
@@ -133,6 +137,24 @@ export function Composer(props: ComposerProps) {
   const [provider, setProvider] = useState(DEFAULT_MODEL.provider);
   const [model, setModel] = useState(DEFAULT_MODEL.id);
   const [effort, setEffort] = useState<EffortId>(DEFAULT_EFFORT);
+  // Speed dimension (Codex parity): remembered UI choice; not yet emitted into
+  // the spec (no provider latency field — see specs.ts SPEED_LEVELS).
+  const [speed, setSpeed] = useState<SpeedId>(() => {
+    try {
+      const s = localStorage.getItem("arwebui.lastSpeed") as SpeedId | null;
+      if (s && SPEED_LEVELS.some((x) => x.id === s)) return s;
+    } catch {
+      /* ignore */
+    }
+    return DEFAULT_SPEED;
+  });
+  // Advanced → thinking-budget override: an exact budget the effort presets
+  // don't cover. null = use the effort preset. Chosen effort clears it.
+  const [budgetOverride, setBudgetOverride] = useState<number | null>(null);
+  // Model menu is a compact drill-in (root → Model/Effort/Speed) plus an
+  // Advanced collapsible, mirroring the project menu's page-swap pattern.
+  const [modelMenuPage, setModelMenuPage] = useState<"root" | "model" | "effort" | "speed">("root");
+  const [modelAdvancedOpen, setModelAdvancedOpen] = useState(false);
   // The home composer remembers the last chosen access level (W15); session
   // composers show the session's fixed posture instead and never read this.
   const [access, setAccessState] = useState<AccessId>(() => {
@@ -484,7 +506,7 @@ export function Composer(props: ComposerProps) {
         await (props as Extract<ComposerProps, { variant: "session" }>).onSend(t, imgs, files, effective);
       } else if (kind === "chat") {
         const workspace = await resolveHomeWorkspace();
-        const spec = buildSpec({ provider, model, access, persona, effort });
+        const spec = buildSpec({ provider, model, access, persona, effort, speed, budgetOverride });
         const imgs = atts.filter((a) => a.isImage).map((a) => a.path);
         const files = atts.filter((a) => !a.isImage).map((a) => a.path);
         const r = await AR.newSession({
@@ -512,7 +534,7 @@ export function Composer(props: ComposerProps) {
         }
       } else {
         const workspace = await resolveHomeWorkspace();
-        const spec = buildSpec({ provider, model, access, persona, effort });
+        const spec = buildSpec({ provider, model, access, persona, effort, speed, budgetOverride });
         const r = await AR.startRun({ kind: "submit", spec, extraSpecs: [], task: t, workspace, mode: accessById(access).mode, idem: "" });
         resetInput();
         await refreshRuns();
@@ -529,12 +551,12 @@ export function Composer(props: ComposerProps) {
   // Model and reasoning effort both live in the spec's model block, so a change
   // to either rebuilds that block (replaceModel) and, mid-session, re-agents the
   // session (the conversation carries over; it takes effect on the next message).
-  const applyModelSpec = async (p: string, id: string, eff: EffortId) => {
+  const applyModelSpec = async (p: string, id: string, eff: EffortId, budget: number | null = budgetOverride) => {
     if (!isSession) return;
     const sid = (props as any).sid as string;
     try {
-      const base = recallSpec(sid) || buildSpec({ provider: p, model: id, access: "full", persona, effort: eff });
-      const spec = replaceModel(base, p, id, eff);
+      const base = recallSpec(sid) || buildSpec({ provider: p, model: id, access: "full", persona, effort: eff, budgetOverride: budget });
+      const spec = replaceModel(base, p, id, eff, budget);
       await AR.switchAgent(sid, spec, personaById(persona).withWorker ? [{ name: "worker.yaml", content: DEFAULT_WORKER }] : []);
       rememberSpec(sid, spec);
     } catch (e: any) {
@@ -551,8 +573,31 @@ export function Composer(props: ComposerProps) {
 
   const chooseEffort = async (eff: EffortId) => {
     setEffort(eff);
-    await applyModelSpec(provider, model, eff);
+    // Picking a preset effort clears any custom thinking-budget override — the
+    // two feed the same budget and the explicit choice should win.
+    setBudgetOverride(null);
+    await applyModelSpec(provider, model, eff, null);
     if (isSession) toast(`Reasoning → ${effortById(eff).label} (from your next message)`, "info");
+  };
+
+  // Speed is a remembered UI choice only (no provider latency field yet — see
+  // specs.ts); persist it and reflect it, but don't rewrite the spec.
+  const chooseSpeed = (s: SpeedId) => {
+    setSpeed(s);
+    try {
+      localStorage.setItem("arwebui.lastSpeed", s);
+    } catch {
+      /* ignore quota */
+    }
+    if (isSession) toast(`Speed → ${speedById(s).label}`, "info");
+  };
+
+  // Advanced → thinking-budget override: an exact budget (0 / empty ⇒ back to
+  // the effort preset). Rebuilds the model block just like an effort switch.
+  const chooseBudgetOverride = async (budget: number | null) => {
+    setBudgetOverride(budget);
+    await applyModelSpec(provider, model, effort, budget);
+    if (isSession) toast(budget ? `Thinking budget → ${budget} tokens (from your next message)` : "Thinking budget → effort preset", "info");
   };
 
   // ---- persona (agent template) switch ----
@@ -564,7 +609,7 @@ export function Composer(props: ComposerProps) {
     const sid = (props as any).sid as string;
     try {
       const acc = (recallAccess(sid) as AccessId) || "full";
-      const spec = buildSpec({ provider, model, access: acc, persona: id, effort });
+      const spec = buildSpec({ provider, model, access: acc, persona: id, effort, speed, budgetOverride });
       const sib = personaById(id).withWorker ? [{ name: "worker.yaml", content: DEFAULT_WORKER }] : [];
       await AR.switchAgent(sid, spec, sib);
       rememberSpec(sid, spec);
@@ -589,7 +634,7 @@ export function Composer(props: ComposerProps) {
       } else {
         const workspace = await ensureWs();
         if (!workspace) return props.onError("a workspace is required to start a goal");
-        const spec = buildSpec({ provider, model, access, persona, effort });
+        const spec = buildSpec({ provider, model, access, persona, effort, speed, budgetOverride });
         const r = await AR.newSession({
           spec,
           extraSpecs: personaById(persona).withWorker ? [{ name: "worker.yaml", content: DEFAULT_WORKER }] : [],
@@ -1327,55 +1372,138 @@ export function Composer(props: ComposerProps) {
           <Popover
             align="right"
             panelClass="cx-pop-codex"
+            onOpen={() => { setModelMenuPage("root"); setModelAdvancedOpen(false); }}
             trigger={(open, toggle) => (
-              <button className={"cx-pill cx-model" + (open ? " active" : "")} onClick={toggle} title="Model & reasoning effort" aria-haspopup="menu" aria-expanded={open}>
+              <button className={"cx-pill cx-model" + (open ? " active" : "")} onClick={toggle} title="Model, effort & speed" aria-haspopup="menu" aria-expanded={open}>
                 <ModelIcon provider={provider} />
                 {modelLabel}
-                {effort !== "off" && <span className="cx-pill-sub">{effortLevel.label}</span>}
+                {(budgetOverride || effort !== "off") && <span className="cx-pill-sub">{budgetOverride ? "Custom" : effortLevel.label}</span>}
                 <Caret />
               </button>
             )}
           >
             {(close) => (
               <div className="cx-menu wide cx-model-menu">
-                <PopSection label="Model">
-                  {MODELS.map((m) => (
-                    <PopItem
-                      key={m.provider + m.id}
-                      icon={<ModelIcon provider={m.provider} />}
-                      title={m.label}
-                      desc={m.sub}
-                      active={provider === m.provider && model === m.id}
-                      onClick={() => { chooseModel(m.provider, m.id); close(); }}
-                    />
-                  ))}
-                  <PopItem
-                    icon={<Code size={15} />}
-                    title="Custom model id…"
-                    right={<span aria-hidden>›</span>}
-                    onClick={() => {
-                      close();
-                      openPrompt({
-                        title: "Custom model id",
-                        label: "model id (provider stays " + provider + ")",
-                        initial: model,
-                        onSubmit: (id) => chooseModel(provider, id),
-                      });
-                    }}
-                  />
-                </PopSection>
-                <PopSection label="Reasoning effort">
-                  {EFFORT_LEVELS.map((e) => (
-                    <PopItem
-                      key={e.id}
-                      icon={<EffortIcon level={e.id} />}
-                      title={e.label}
-                      desc={e.desc}
-                      active={effort === e.id}
-                      onClick={() => { chooseEffort(e.id); close(); }}
-                    />
-                  ))}
-                </PopSection>
+                {/* Compact drill-in like Codex: Model / Effort / Speed each show
+                    label + current value + chevron and open a choice list; an
+                    Advanced collapsible holds the overflow controls. */}
+                {modelMenuPage === "root" ? (
+                  <>
+                    <div className="cx-model-rows">
+                      <button className="cx-model-row" onClick={() => setModelMenuPage("model")} aria-label="Choose model">
+                        <span className="cx-model-row-label">Model</span>
+                        <span className="cx-model-row-value">{modelLabel}</span>
+                        <CaretDown className="cx-model-row-chev" size={11} />
+                      </button>
+                      <button className="cx-model-row" onClick={() => setModelMenuPage("effort")} aria-label="Choose reasoning effort">
+                        <span className="cx-model-row-label">Effort</span>
+                        <span className="cx-model-row-value">{budgetOverride ? `Custom · ${budgetOverride}` : effortLevel.label}</span>
+                        <CaretDown className="cx-model-row-chev" size={11} />
+                      </button>
+                      <button className="cx-model-row" onClick={() => setModelMenuPage("speed")} aria-label="Choose speed">
+                        <span className="cx-model-row-label">Speed</span>
+                        <span className="cx-model-row-value">{speedById(speed).label}</span>
+                        <CaretDown className="cx-model-row-chev" size={11} />
+                      </button>
+                    </div>
+                    <div className="cx-model-advanced">
+                      <button
+                        className="cx-model-adv-toggle"
+                        onClick={() => setModelAdvancedOpen((v) => !v)}
+                        aria-expanded={modelAdvancedOpen}
+                      >
+                        <span>Advanced</span>
+                        <CaretDown className={"cx-model-adv-chev" + (modelAdvancedOpen ? " open" : "")} size={11} />
+                      </button>
+                      {modelAdvancedOpen && (
+                        <div className="cx-model-adv-body">
+                          <PopItem
+                            icon={<Code size={15} />}
+                            title="Custom model id…"
+                            desc={`provider stays ${provider}`}
+                            onClick={() => {
+                              close();
+                              openPrompt({
+                                title: "Custom model id",
+                                label: "model id (provider stays " + provider + ")",
+                                initial: model,
+                                onSubmit: (id) => chooseModel(provider, id),
+                              });
+                            }}
+                          />
+                          <PopItem
+                            icon={<ChartBar size={15} />}
+                            title="Thinking budget override…"
+                            desc={budgetOverride ? `${budgetOverride} tokens` : "use the effort preset"}
+                            onClick={() => {
+                              close();
+                              openPrompt({
+                                title: "Thinking budget override",
+                                label: "budget tokens (0 or empty = use the effort preset)",
+                                initial: budgetOverride != null ? String(budgetOverride) : "",
+                                onSubmit: (v) => {
+                                  const n = Number(v.trim());
+                                  chooseBudgetOverride(Number.isFinite(n) && n > 0 ? Math.floor(n) : null);
+                                },
+                              });
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : modelMenuPage === "model" ? (
+                  <>
+                    <div className="pop-menu-title">
+                      <button className="pop-back" onClick={() => setModelMenuPage("root")} aria-label="Back">‹</button>
+                      <b>Model</b>
+                    </div>
+                    {MODELS.map((m) => (
+                      <PopItem
+                        key={m.provider + m.id}
+                        icon={<ModelIcon provider={m.provider} />}
+                        title={m.label}
+                        desc={m.sub}
+                        active={provider === m.provider && model === m.id}
+                        onClick={() => { chooseModel(m.provider, m.id); setModelMenuPage("root"); close(); }}
+                      />
+                    ))}
+                  </>
+                ) : modelMenuPage === "effort" ? (
+                  <>
+                    <div className="pop-menu-title">
+                      <button className="pop-back" onClick={() => setModelMenuPage("root")} aria-label="Back">‹</button>
+                      <b>Effort</b>
+                    </div>
+                    {EFFORT_LEVELS.map((e) => (
+                      <PopItem
+                        key={e.id}
+                        icon={<EffortIcon level={e.id} />}
+                        title={e.label}
+                        desc={e.desc}
+                        active={!budgetOverride && effort === e.id}
+                        onClick={() => { chooseEffort(e.id); setModelMenuPage("root"); close(); }}
+                      />
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    <div className="pop-menu-title">
+                      <button className="pop-back" onClick={() => setModelMenuPage("root")} aria-label="Back">‹</button>
+                      <b>Speed</b>
+                    </div>
+                    {SPEED_LEVELS.map((s) => (
+                      <PopItem
+                        key={s.id}
+                        icon={<Lightning size={15} weight={s.id === "priority" ? "fill" : "regular"} />}
+                        title={s.label}
+                        desc={s.desc}
+                        active={speed === s.id}
+                        onClick={() => { chooseSpeed(s.id); setModelMenuPage("root"); close(); }}
+                      />
+                    ))}
+                  </>
+                )}
               </div>
             )}
           </Popover>

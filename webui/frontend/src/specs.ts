@@ -107,6 +107,34 @@ export const EFFORT_LEVELS: EffortLevel[] = [
 
 export const DEFAULT_EFFORT: EffortId = "off";
 
+// ---- speed (Codex's model-pill "Speed" dimension) ---------------------------
+//
+// Codex's compact model menu carries a Speed row (Standard / Priority) beside
+// Model and Effort. Our providers (Gemini primary, Anthropic secondary) don't
+// yet expose a real latency tier, so Speed is a forward-looking UI dimension:
+// the choice is remembered and shown, and it is threaded through buildSpec's
+// options, but it does NOT emit YAML yet — there is no provider field to map it
+// to and inventing one would break real runs. Backend latency-tier mapping is
+// deferred; when a provider grows a priority lane, wire it in modelBlock.
+export type SpeedId = "standard" | "priority";
+
+export interface SpeedLevel {
+  id: SpeedId;
+  label: string;
+  desc: string;
+}
+
+export const SPEED_LEVELS: SpeedLevel[] = [
+  { id: "standard", label: "Standard", desc: "Normal scheduling — best price and throughput" },
+  { id: "priority", label: "Priority", desc: "Prefer lower latency when the provider offers it" },
+];
+
+export const DEFAULT_SPEED: SpeedId = "standard";
+
+export function speedById(id: string): SpeedLevel {
+  return SPEED_LEVELS.find((s) => s.id === id) || SPEED_LEVELS[0];
+}
+
 // Answer capacity reserved on top of the thinking budget. Matches the historical
 // 4096 max_tokens so "Off" behaves exactly as before.
 const ANSWER_ROOM = 4096;
@@ -116,14 +144,17 @@ export function effortById(id: string): EffortLevel {
 }
 
 // modelBlock renders the spec's `model:` line for a provider/model/effort. When
-// effort is off it is byte-for-byte the old line (no thinking block, max 4096).
-function modelBlock(provider: string, model: string, effort: EffortId): string {
-  const e = effortById(effort);
-  if (e.budget <= 0) {
+// effort is off (and no override) it is byte-for-byte the old line (no thinking
+// block, max 4096). `budgetOverride` (the model menu's Advanced → thinking
+// budget override) wins over the effort preset when it is a positive number,
+// letting power users dial an exact budget the presets don't cover.
+function modelBlock(provider: string, model: string, effort: EffortId, budgetOverride?: number | null): string {
+  const budget = budgetOverride != null && budgetOverride > 0 ? Math.floor(budgetOverride) : effortById(effort).budget;
+  if (budget <= 0) {
     return `model: { provider: ${provider}, id: ${model}, max_tokens: ${ANSWER_ROOM} }`;
   }
-  const max = ANSWER_ROOM + e.budget;
-  return `model: { provider: ${provider}, id: ${model}, max_tokens: ${max}, thinking: { enabled: true, budget_tokens: ${e.budget} } }`;
+  const max = ANSWER_ROOM + budget;
+  return `model: { provider: ${provider}, id: ${model}, max_tokens: ${max}, thinking: { enabled: true, budget_tokens: ${budget} } }`;
 }
 
 // effortFromSpec reads the effort back out of a spec so the pill shows the right
@@ -245,10 +276,12 @@ agents: [worker]`;
 // buildSpec produces the main agent spec (base.yaml) for the chosen persona +
 // model + access level + reasoning effort. Defaults mirror the old DEFAULT_SPEC
 // so behavior is unchanged when nothing is picked (effort "off").
-export function buildSpec(opts: { provider: string; model: string; access: AccessId; persona?: string; effort?: EffortId }): string {
+export function buildSpec(opts: { provider: string; model: string; access: AccessId; persona?: string; effort?: EffortId; speed?: SpeedId; budgetOverride?: number | null }): string {
   const persona = opts.persona && PERSONAS.some((p) => p.id === opts.persona) ? opts.persona : DEFAULT_PERSONA;
+  // opts.speed is accepted for call-site symmetry but intentionally not emitted
+  // yet — see SPEED_LEVELS (no provider latency field; mapping deferred).
   return `name: ${persona}
-${modelBlock(opts.provider, opts.model, opts.effort || DEFAULT_EFFORT)}
+${modelBlock(opts.provider, opts.model, opts.effort || DEFAULT_EFFORT, opts.budgetOverride)}
 ${personaBody(persona)}
 ${permissionsBlock(opts.access)}
 `;
@@ -258,8 +291,8 @@ ${permissionsBlock(opts.access)}
 // the effort-derived max_tokens + thinking block), preserving the rest
 // (system_prompt, tools, permissions). Used for mid-session model / effort
 // switches where we keep everything else the session was configured with.
-export function replaceModel(spec: string, provider: string, model: string, effort: EffortId = DEFAULT_EFFORT): string {
-  const block = modelBlock(provider, model, effort);
+export function replaceModel(spec: string, provider: string, model: string, effort: EffortId = DEFAULT_EFFORT, budgetOverride?: number | null): string {
+  const block = modelBlock(provider, model, effort, budgetOverride);
   if (/^model:\s*\{[^}]*\}/m.test(spec)) {
     return spec.replace(/^model:\s*\{[^}]*\}[^\n]*$/m, block);
   }

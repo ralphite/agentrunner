@@ -132,10 +132,91 @@
 }
 
 /* ---- C3 · model menu ------------------------------------------------------ */
-/* Two calm groups (Model / Reasoning effort). The effort bars read as a small
-   gauge; the active row carries a check. Mostly inherits the shared polish. */
+/* Compact drill-in (Codex parity): the root shows Model / Effort / Speed as
+   summary rows (label · current value · chevron) that swap the panel into a
+   choice list, plus an Advanced collapsible for overflow. Choice lists reuse
+   the shared PopItem polish. */
 .cx-model-menu .pop-title {
   font-weight: 500;
+}
+
+/* summary rows on the root page */
+.cx-model-menu .cx-model-rows {
+  display: flex;
+  flex-direction: column;
+}
+.cx-model-menu .cx-model-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 11px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  text-align: left;
+  color: var(--ink);
+  font: inherit;
+  transition: background 0.1s ease;
+}
+.cx-model-menu .cx-model-row:hover {
+  background: var(--panel-2);
+}
+.cx-model-menu .cx-model-row-label {
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.cx-model-menu .cx-model-row-value {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--dim);
+}
+/* right-pointing chevron = "drills into a list" */
+.cx-model-menu .cx-model-row-chev {
+  flex-shrink: 0;
+  color: var(--dim);
+  transform: rotate(-90deg);
+}
+
+/* Advanced collapsible footer */
+.cx-model-menu .cx-model-advanced {
+  margin-top: 6px;
+  padding-top: 5px;
+  border-top: 1px solid var(--line-2);
+}
+.cx-model-menu .cx-model-adv-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 11px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--dim);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+.cx-model-menu .cx-model-adv-toggle:hover {
+  background: var(--panel-2);
+  color: var(--ink-2);
+}
+.cx-model-menu .cx-model-adv-chev {
+  flex-shrink: 0;
+  transition: transform 0.12s ease;
+}
+.cx-model-menu .cx-model-adv-chev.open {
+  transform: rotate(180deg);
+}
+.cx-model-menu .cx-model-adv-body {
+  padding-top: 2px;
 }
 
 /* ---- C4 · slash command menu --------------------------------------------- */
