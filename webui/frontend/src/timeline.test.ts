@@ -228,7 +228,7 @@ describe("foldWork (Codex-style Worked fold, W2/W3)", () => {
     const items = [
       user("u1", "2026-07-11T04:08:11Z"),
       asst("a1", "2026-07-11T04:08:12Z"), // settled: turn 1 answered
-      chip("c0", "goal attached · QA45"), // outcome chip → closes the window
+      chip("c0", "Mode changed · execute (user)"), // outcome chip → closes the window
       chip("c1", "Approved", true), // turn 2 begins here, invisibly
       tool("t1"),
       chip("c2", "Approved", true),
@@ -268,6 +268,131 @@ describe("foldWork (Codex-style Worked fold, W2/W3)", () => {
     expect((byKey.get("c2") as any).fold).toBe(true);
     expect((byKey.get("c3") as any).fold).toBeUndefined();
     expect((byKey.get("c4") as any).fold).toBe(true);
+  });
+});
+
+// TH-16 · the thread's top level belongs to answers and products. Run plumbing
+// — "Agent changed · auditor · gemini-flash-latest", "goal attached · …" — used
+// to float there as bare grey pills: session 20260711-011831 opened with FOUR of
+// them (~1118px of metadata) standing between the reader and the first message.
+// Codex's task thread carries none: every non-reply activity is inside the
+// "Worked for …" fold. These lock that in.
+describe("TH-16 · system chips never render at the top level", () => {
+  const user = (key: string, ts: string) => ({ kind: "user" as const, key, text: "q", ts });
+  const asst = (key: string, ts: string) => ({ kind: "assistant" as const, key, text: "a", ts });
+  const tool = (key: string) => ({
+    kind: "tool" as const, key, name: "bash", args: {}, background: false,
+    status: "done" as const, statusText: "done",
+  });
+  const sys = (key: string, text: string) =>
+    ({ kind: "chip" as const, key, text, tone: "" as const, fold: true, system: true });
+  const chip = (key: string, text: string, fold?: boolean) =>
+    ({ kind: "chip" as const, key, text, tone: "" as const, fold });
+  const run = (items: any[], active = false) => foldWork(items, completedTurnDurations(items, active), active);
+  const topChips = (nodes: any[]) => nodes.filter((n) => n.kind === "chip");
+  const foldChildKeys = (nodes: any[]) =>
+    nodes.filter((n) => n.kind === "fold").flatMap((f: any) => f.children.map((c: any) => c.key));
+
+  it("rides plumbing that lands BETWEEN turns into the next turn's fold (real 011831 shape)", () => {
+    // Journal order of the live session: the agent is switched (and a goal
+    // attached) while the session sits idle waiting for input — i.e. inside the
+    // post-answer window, where a plain fold-chip is deliberately left visible.
+    // Plumbing must not take that exit: it belongs to the turn it sets up.
+    const items = [
+      user("u1", "2026-07-11T01:18:31Z"),
+      tool("t1"),
+      asst("a1", "2026-07-11T01:18:41Z"), // turn 1 settles
+      sys("c101", "Agent changed · auditor · gemini-flash-latest"),
+      sys("c348", "Agent changed · dev · gemini-flash-latest ×2"), // ×2 already merged upstream
+      sys("c364", "goal attached · TH-3 live check: verify the Sup…"),
+      user("u2", "2026-07-11T01:20:00Z"), // the turn the switch was FOR
+      tool("t2"),
+      asst("a2", "2026-07-11T01:20:30Z"),
+    ];
+    const nodes = run(items);
+    expect(nodes.map((n: any) => n.kind)).toEqual(["user", "fold", "assistant", "user", "fold", "assistant"]);
+    expect(topChips(nodes)).toEqual([]); // 4 → 0, the whole point
+    // …and every one of them is still there, in order, inside the next fold.
+    expect((nodes[4] as any).children.map((c: any) => c.key)).toEqual(["c101", "c348", "c364", "t2"]);
+    expect((nodes[4] as any).children[1].text).toContain("×2"); // aggregation survives
+  });
+
+  it("keeps a mid-work system chip in its journal position inside the fold", () => {
+    const items = [
+      user("u1", "2026-07-10T05:00:00Z"),
+      tool("t1"),
+      sys("c2", "Agent changed · dev · gemini-flash-latest"),
+      tool("t3"),
+      asst("a1", "2026-07-10T05:00:30Z"),
+    ];
+    const nodes = run(items);
+    expect(nodes.map((n: any) => n.kind)).toEqual(["user", "fold", "assistant"]);
+    expect(topChips(nodes)).toEqual([]);
+    expect((nodes[1] as any).children.map((c: any) => c.key)).toEqual(["t1", "c2", "t3"]);
+  });
+
+  it("opens a fold of its own for trailing plumbing with no turn to ride into", () => {
+    // Fallback: nothing follows the switch — rather than leave it bare at the
+    // top level (or drop it), it gets an activity group of its own.
+    const items = [
+      user("u1", "2026-07-10T05:00:00Z"),
+      asst("a1", "2026-07-10T05:00:10Z"),
+      sys("c2", "Agent changed · auditor · gemini-flash-latest"),
+    ];
+    const nodes = run(items);
+    expect(nodes.map((n: any) => n.kind)).toEqual(["user", "fold", "assistant", "fold"]);
+    expect(topChips(nodes)).toEqual([]);
+    expect(foldChildKeys(nodes)).toContain("c2"); // nothing is lost
+  });
+
+  it("holds plumbing out of the top level even in the live (flat) tail", () => {
+    const items = [
+      user("u1", "2026-07-10T05:00:00Z"),
+      asst("a1", "2026-07-10T05:00:10Z"),
+      user("u2", "2026-07-10T05:01:00Z"), // active turn: tail renders flat…
+      sys("c3", "Agent changed · dev · gemini-flash-latest"),
+      tool("t1"),
+    ];
+    const nodes = run(items, true);
+    expect(topChips(nodes)).toEqual([]); // …but not flat enough to expose plumbing
+    expect(nodes.map((n: any) => n.kind)).toEqual(["user", "fold", "assistant", "user", "fold", "tool"]);
+    expect((nodes[4] as any).children.map((c: any) => c.key)).toEqual(["c3"]);
+  });
+
+  it("does not disturb the post-answer window a work chip still relies on (RT-4)", () => {
+    // A goal check after the answer stays visible next to the outcome it
+    // explains; a system chip sitting among them must not change that verdict.
+    const items = [
+      user("u1", "2026-07-10T05:00:00Z"),
+      asst("a1", "2026-07-10T05:00:10Z"),
+      sys("c1", "goal attached · ship it"),
+      chip("c2", "Goal check 1 · passed", true),
+      chip("c3", "Goal achieved · satisfied (1 check)"),
+    ];
+    const nodes = run(items);
+    expect(nodes.map((n: any) => n.kind)).toEqual(["user", "fold", "assistant", "chip", "chip", "fold"]);
+    expect((nodes[3] as any).key).toBe("c2"); // post-answer audit: still visible
+    expect((nodes[4] as any).key).toBe("c3"); // outcome: still visible
+    expect(foldChildKeys(nodes)).toContain("c1"); // plumbing: folded, not dropped
+  });
+
+  it("marks spec_changed / goal_attached / goal_updated as system chips in foldEvents", () => {
+    const folded = foldEvents([
+      { seq: 1, type: "spec_changed", payload: { spec_name: "auditor", model: "gemini-flash-latest" } },
+      { seq: 2, type: "goal_attached", payload: { goal: "ship the parity round" } },
+      { seq: 3, type: "goal_updated", payload: { goal: "ship it twice" } },
+      { seq: 4, type: "goal_achieved", payload: { reason: "satisfied", checks: 1 } },
+    ]);
+    const byKey = new Map(folded.items.map((i) => [i.key, i]));
+    for (const k of ["c1", "c2", "c3"]) {
+      expect((byKey.get(k) as any).system).toBe(true);
+      expect((byKey.get(k) as any).fold).toBe(true); // system implies work-detail
+    }
+    // the goal's OUTCOME is not plumbing — it stays a first-class thread beat
+    expect((byKey.get("c4") as any).system).toBeUndefined();
+    // and none of the plumbing survives to the top level of the render tree
+    const nodes = foldWork(folded.items, new Map(), false);
+    expect(nodes.filter((n: any) => n.kind === "chip").map((n: any) => n.key)).toEqual(["c4"]);
   });
 });
 

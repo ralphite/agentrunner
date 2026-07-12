@@ -96,6 +96,18 @@ export interface ChipItem {
   // A3: render this chip as a Codex activity row (icon + label) rather than a
   // bubble chip — used for context compaction inside the fold.
   activity?: boolean;
+  // TH-16 · run plumbing: which agent/model the session switched to, what goal
+  // got attached. Not an answer, not a product, not an outcome — metadata about
+  // HOW the next turn will run. Codex's thread reserves its top level for
+  // replies and artifacts and keeps every scrap of plumbing inside the "Worked
+  // for …" fold; ours floated four grey pills (3 × "Agent changed", 1 × "goal
+  // attached") between the user and the conversation. A `system` chip is
+  // therefore NEVER a top-level render node — foldWork routes it into the
+  // adjacent activity fold, exactly as RT-4 routed approval audit chips into the
+  // step list. It implies `fold` and is strictly stronger: a `fold` chip still
+  // yields to the post-answer window (a goal check belongs beside the goal
+  // outcome it explains), a `system` chip never does.
+  system?: boolean;
   // TH-12: this chip RESTATES a terminal fact that the session's own chrome
   // already says. "goal" = the goal banner (.gbar) says it; "limit" = the
   // terminal alert (.terminal-alert) says it. The chip is still produced — a
@@ -291,6 +303,11 @@ function foldable(it: TimelineItem): boolean {
   return false;
 }
 
+// TH-16 · run plumbing (see ChipItem.system): never a top-level thread item.
+function isSystemChip(it: TimelineItem): boolean {
+  return it.kind === "chip" && !!it.system;
+}
+
 // foldWork regroups the flat item list into render nodes: for every completed
 // human turn, the work between the user message and the final assistant
 // answer collapses into a WorkFold carrying that turn's duration. The active
@@ -351,14 +368,35 @@ export function foldWork(items: TimelineItem[], durations: Map<string, number>, 
   // is why the reset also hangs off tools and outcome chips, the visible marks
   // that work has resumed. One turn ⇒ one fold, like Codex.
   let answered = false;
-  const flush = (durationMs?: number) => {
+  // flush emits the buffered work as one fold. `force` is for the very last
+  // flush, which must not lose anything.
+  //
+  // TH-16 · carry-forward: a buffer holding NOTHING but system chips is not a
+  // turn's work — it is plumbing that landed between two turns (the agent was
+  // switched, a goal was attached, while the session sat idle). Emitting it
+  // would open a bare "Worked · 1 item ›" row between an answer and the next
+  // question — trading a naked chip for a naked fold. So it is kept in the
+  // buffer and rides into the NEXT turn's fold, which is the turn it actually
+  // describes: the switch is why that turn ran on that agent. Only the final
+  // flush (force) is allowed to open a fold of its own for them, so plumbing at
+  // the tail of a journal is still never dropped.
+  const flush = (durationMs?: number, force = false) => {
     if (buf.length === 0 && durationMs === undefined) return;
+    if (durationMs === undefined && !force && buf.length > 0 && buf.every(isSystemChip)) return;
     out.push({ kind: "fold", key: "fold" + foldSeq++, durationMs, children: buf });
     buf = [];
   };
   items.forEach((it, i) => {
     if (i >= tailStart) {
-      // live tail: everything renders flat
+      // live tail: everything renders flat — EXCEPT plumbing, which has no
+      // business at the top level even while a turn is running (TH-16). It
+      // buffers, and any real tail item that follows first flushes it out as its
+      // own group, so order is preserved and nothing is lost.
+      if (isSystemChip(it)) {
+        buf.push(it);
+        return;
+      }
+      flush(undefined, true);
       out.push(it);
       return;
     }
@@ -382,6 +420,15 @@ export function foldWork(items: TimelineItem[], durations: Map<string, number>, 
       flush();
       answered = false;
       out.push(it);
+    } else if (isSystemChip(it)) {
+      // TH-16 · run plumbing. It buffers unconditionally — unlike a work chip it
+      // does NOT yield to the post-answer window, because it is not audit of the
+      // answer that just landed (a goal check explains the goal outcome next to
+      // it; "Agent changed" explains nothing to the reader of a reply). It also
+      // does not touch `answered`: it is not work, so it cannot mean the next
+      // turn is under way, and a real work chip after it must still see the same
+      // window it would have seen without it.
+      buf.push(it);
     } else if (foldable(it) && (it.kind === "tool" || !answered)) {
       // Work detail. Tools always fold (interrupted-turn work still tucks
       // away) AND they mean the next turn is under way, so they close any
@@ -404,7 +451,11 @@ export function foldWork(items: TimelineItem[], durations: Map<string, number>, 
       out.push(it);
     }
   });
-  flush(); // interrupted turn that never answered — fold without duration
+  // Interrupted turn that never answered — fold without duration. Forced, so
+  // that trailing plumbing (TH-16 carry-forward) that never found a turn to ride
+  // into still lands: it opens a fold of its own rather than being dropped or
+  // left bare at the top level.
+  flush(undefined, true);
   return out;
 }
 
@@ -557,6 +608,10 @@ export function foldEvents(events: Envelope[]): Folded {
     tone: ChipItem["tone"] = "",
     childSession?: string,
   ) => push({ kind: "chip", key: "c" + seq, text, tone, childSession, fold: true });
+  // TH-16 · run plumbing (agent switched, goal attached): folds like work detail
+  // AND never surfaces at the top level, whatever the fold window is doing.
+  const sysChip = (seq: number, text: string, tone: ChipItem["tone"] = "") =>
+    push({ kind: "chip", key: "c" + seq, text, tone, fold: true, system: true });
   // TH-12 · a chip whose fact the terminal chrome also states (see ChipItem.echo).
   const echoChip = (
     seq: number,
@@ -827,7 +882,10 @@ export function foldEvents(events: Envelope[]): Folded {
         chip(seq, `Mode changed · ${p.to} (${p.cause})`);
         break;
       case "spec_changed":
-        chip(seq, `Agent changed · ${p.spec_name || "?"} · ${p.model || ""}`);
+        // TH-16: which agent/model the run switched to is plumbing for the turn
+        // that follows, not a beat of the conversation — it rides inside that
+        // turn's activity fold instead of interrupting the thread.
+        sysChip(seq, `Agent changed · ${p.spec_name || "?"} · ${p.model || ""}`);
         break;
       case "context_compacted":
         // A3: Codex renders compaction as a fold-internal activity row, not a
@@ -861,11 +919,16 @@ export function foldEvents(events: Envelope[]): Folded {
         // goal sentence blew it out to a 494px pill restating text the banner
         // and the user's own bubble already carry. Clip it; the banner holds
         // the full goal.
-        if (!noted) chip(seq, `goal attached · ${clipGoal(g)}`);
+        // TH-16: and it is plumbing — the goal banner is the goal's first-class
+        // home, so the chip belongs inside the fold of the turn it set up, not
+        // wedged between the reader and the thread.
+        if (!noted) sysChip(seq, `goal attached · ${clipGoal(g)}`);
         break;
       }
       case "goal_updated":
-        chip(seq, "goal updated" + (p.goal ? ` · ${clipGoal(String(p.goal))}` : ""));
+        // TH-16: same family as goal_attached — a restatement of what the goal
+        // banner already shows. Plumbing, not a beat of the thread.
+        sysChip(seq, "goal updated" + (p.goal ? ` · ${clipGoal(String(p.goal))}` : ""));
         break;
       case "goal_paused":
         echoChip(seq, "goal paused", "warn", "goal");

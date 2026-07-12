@@ -2961,13 +2961,23 @@ Changes 入口。金标里这条轨自始至终叫 **Environment**,`Changes` 是
 `SlidersHorizontal`(与轨内一致);删掉顶栏 Changes 按钮(`···` 已兜底,轨内行是主入口)。
 touches:`SessionView.tsx`、`styles.nav.css` `.topbar-tool`。
 
-### TH-16 ☐ 系统 chip 裸浮在消息之间,金标 thread 里一枚都没有 [P2]
+### TH-16 ✅ 系统 chip 裸浮在消息之间,金标 thread 里一枚都没有 [P2]
 `Agent changed · auditor · gemini-flash-latest` + `… · dev · … ×2`(实测 36px 高、合计 762px 宽)+
 `goal attached · …` 是 `.tl-inner` 的**顶层**子元素,抢在正文层级、抢在第一条消息之前。金标整屏只有
 prose / artifact 卡 / 变更卡 / `Worked for 1h 37m 40s ›` 折叠——所有非答复活动都在折叠里。
 **动作**:`timeline.ts` 的 fold/group 归类里把 `agent_changed` / `goal_attached` 归入相邻 activity group
 (`.act-body .chip` 样式已有,RT-4 给 approval chip 做过同一手),顶层只留终态 chip。
 touches:`timeline.ts`、`timeline.test.ts`、`styles.conv.css`。
+
+**已关闭(轮35 implB,sha 88f1dce)**:`ChipItem.system` 新标志——运维管线(换 agent / 挂 goal /
+改 goal 文案)**永不**做顶层渲染节点。它比 `fold` 更强:`fold` chip 仍会让位给 post-answer window
+(goal check 该贴在它解释的 goal 结果旁边),`system` chip 不让——`foldWork` 无条件把它 buffer 进
+相邻 activity fold(照抄 RT-4 把 approval chip 塞进 step list 那条路径)。两处兜底:①只装着 system chip
+的 buffer 不单独开折叠(否则「裸 chip」只换成「裸 Worked · 1 item 行」),而是顺延进**下一个** turn 的
+折叠——那正是它描述的 turn(换 agent 就是为了那一轮);②journal 末尾无 turn 可顺延时,强制 flush 开一个
+自己的活动组,绝不丢。live 实测(1440,会话 `20260711-011831-…-297d`,静息态):`.tl-inner` 顶层 chip
+**4 → 0**(275/275/274/294px 那条 ~1118px 灰带子消失),展开折叠后 4 条内容/顺序/`×2` 聚合全部仍在;
+console error+warning 0。vitest 453/453(+6)。证据:`qa/runs/2026-07-12-r35/impl-b/`。
 
 ### TH-17 ☐ composer 的 `Full access` 只有图标是橙的,文字仍是中性色 [P2]
 `Composer.tsx:124-125` 只把 `WarningCircle` 染成 `--amber`,label 文字走按钮默认色。金标
