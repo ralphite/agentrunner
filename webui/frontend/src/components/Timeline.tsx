@@ -660,8 +660,9 @@ export function groupLabel(tools: ToolItem[]): string {
 
 // ActivityGroup: level-2 disclosure for a run of tool calls. The run's chips
 // (approval audit, goal checks, compaction) ride inside it, in order — they are
-// part of the step list, not separators of it (RT-4). The summary counts and
-// labels the TOOLS: "Ran commands ×3", never "×3" over a pile of approvals.
+// part of the step list, not separators of it (RT-4) — and so does the planning
+// narration the model spoke while doing this work (FOLD-RUN). The summary counts
+// and labels the TOOLS: "Ran commands ×3", never "×3" over a pile of approvals.
 function ActivityGroup({ run, sentImages }: { run: FoldRun; sentImages?: Map<number, string[]> }) {
   const { tools, members } = run;
   const failed = tools.some((t) => t.status === "error" || t.status === "failed");
@@ -741,13 +742,22 @@ function WorkedFold({
   if (!expandable) return null;
   const label = workedLabel(fold);
 
-  // Group the step list (timeline.foldRuns): a run of tools aggregates into one
-  // ActivityGroup and carries its chips along; narration renders in place. A run
-  // with a single tool needs no wrapper — it renders as its own step row.
+  // Group the step list (timeline.foldRuns): each run is one activity row, and
+  // carries its chips AND its narration inside it, in order.
+  //
+  // FOLD-RUN: the wrapper used to require 2+ tools, so a run of one tool spilled
+  // its members straight into the fold body — and since Gemini narrates between
+  // every tool call, that was 33 of the 39 steps here, each one a full-width bare
+  // row trailing a raw block of thinking (6585px of fold). A run that carries
+  // prose therefore aggregates even when it holds a single step: the row says
+  // WHAT was done, and one click shows the step and what the model was thinking
+  // when it did it. A lone step with nothing around it still needs no wrapper —
+  // it renders as itself, so a one-command turn stays one readable line.
   const rows: ReactNode[] = [];
   if (open) {
     for (const run of foldRuns(fold.children)) {
-      if (run.tools.length > 1) {
+      const prose = run.members.some((m) => m.kind === "assistant");
+      if (run.tools.length > 1 || (run.tools.length === 1 && prose)) {
         rows.push(<ActivityGroup run={run} sentImages={sentImages} key={"g" + run.key} />);
       } else {
         for (const m of run.members) rows.push(<Item it={m} sentImages={sentImages} key={m.key} />);

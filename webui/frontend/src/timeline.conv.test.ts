@@ -177,7 +177,6 @@ describe("A2 — tool detail extractors", () => {
 
 describe("RT-4 — foldRuns (a chip never breaks a run of tools)", () => {
   const chip = (key: string, text = "Approved"): ChipItem => ({ kind: "chip", key, text, tone: "good", fold: true });
-  const asst = (key: string) => ({ kind: "assistant" as const, key, text: "planning" });
 
   it("aggregates tools across the approval chips interleaved between them", () => {
     // approval-per-tool turn: chip, tool, chip, tool, chip, tool → ONE run of 3
@@ -195,10 +194,16 @@ describe("RT-4 — foldRuns (a chip never breaks a run of tools)", () => {
     expect(runs[0].members.map((m) => m.key)).toEqual(["c1", "actbash", "c2", "act2", "c3", "act3"]);
   });
 
-  it("breaks the run on narration, which is prose and not a step", () => {
-    const runs = foldRuns([tool("bash"), asst("a1"), { ...tool("bash"), key: "act2" }]);
-    expect(runs.map((r) => r.tools.length)).toEqual([1, 0, 1]);
-    expect(runs[1].members.map((m) => m.key)).toEqual(["a1"]);
+  // FOLD-RUN replaced the old "breaks the run on narration" assertion: prose is
+  // not a step, but it is not a separator of steps either — it rides inside the
+  // run, and a run breaks only when the agent narrates AND then switches to a
+  // different kind of work. Full new contract: timeline.foldrun.test.ts.
+  it("does NOT break the run on narration — the prose rides inside it", () => {
+    const asst = { kind: "assistant" as const, key: "a1", text: "planning" };
+    const runs = foldRuns([tool("bash"), asst, { ...tool("bash"), key: "act2" }]);
+    expect(runs).toHaveLength(1);
+    expect(runs[0].tools).toHaveLength(2);
+    expect(runs[0].members.map((m) => m.key)).toEqual(["actbash", "a1", "act2"]);
   });
 
   it("emits a chip-only run (no tools) rather than dropping it", () => {

@@ -459,40 +459,103 @@ export function foldWork(items: TimelineItem[], durations: Map<string, number>, 
   return out;
 }
 
-// FoldRun: one render run inside an open fold. `members` keeps journal order
-// (tool activities plus any chips interleaved among them); `tools` is the tool
-// subset that decides the aggregate label, icon and count.
+// FoldRun: one render run inside an open fold — a single aggregated activity
+// row. `members` keeps journal order (the tool activities plus the prose and
+// audit interleaved among them); `tools` is the tool subset that decides the
+// aggregate label, icon and count.
 export interface FoldRun {
   key: string;
   members: TimelineItem[];
   tools: ToolItem[];
 }
 
-// foldRuns splits an open fold's children into render runs. A chip (approval
-// audit, goal check, compaction) NEVER breaks a run of tools: Codex aggregates
-// a turn's whole step list ("Ran commands ×3") and shows the approvals inside
-// it, whereas breaking the run at every chip degraded an approval-per-tool turn
-// into a column of bare single-step rows — the aggregate label could never
-// appear (RT-4). Anything else (planning narration, runtime injections) does
-// break the run, since it is prose, not a step. Pure — unit tested.
+// foldRuns splits an open fold's children into render runs — the activity rows
+// of Codex's expanded "Worked for …".
+//
+// Neither an audit chip NOR planning narration breaks a run. A chip never did
+// (RT-4: Codex aggregates a turn's whole step list, "Ran commands ×3", and
+// shows the approvals inside it). Narration used to — "it is prose, not a step"
+// — and that was FOLD-RUN: Gemini narrates between essentially every tool call,
+// so a 39-step turn was cut into 33 single-tool runs, every one of them too
+// short to aggregate. The fold degraded into 33 full-width bare step rows with
+// 33 raw thinking blocks poured between them: 6585px, 9.7 screens, the fold
+// folding nothing. Prose is not a step — but it is not a SEPARATOR of steps
+// either. It is what the model said WHILE doing this work, so it rides inside
+// the activity row it belongs to (in journal order, one click away), exactly
+// like an approval chip.
+//
+// What DOES break a run:
+//   • the agent narrating and THEN switching to a different kind of work (ran
+//     commands → read files): it stopped, thought, and turned to something else,
+//     which is exactly the beat Codex gives its own row. This is what turns the
+//     39-step fold into ten-odd skimmable rows instead of one opaque "×39".
+//     A category switch with NO narration between the two steps is one batch of
+//     work the model dispatched in a single breath — it stays one row, and
+//     groupLabel names all of it ("Edited files, read files, ran commands").
+//   • a runtime injection or a sys note: an input/boundary, not work.
+// The turn's own boundaries (user message, final answer, turn end) never reach
+// here — foldWork already cut the thread there, so one fold is one turn's work
+// and no run can ever span two of them.
+//
+// Prose and audit attach FORWARD, to the step they set up ("now let me read
+// X" → read X; "Approved · bash" → bash) — so they wait in `pending` until the
+// next tool claims them. With no step ahead to claim them (end of the fold, or
+// a boundary) they stay with the work they followed. Pure — unit tested.
 export function foldRuns(children: TimelineItem[]): FoldRun[] {
   const runs: FoldRun[] = [];
   let cur: FoldRun | null = null;
-  const close = () => {
+  let curCat: ActivityCategory | null = null; // category of the run's LAST step
+  let narrated = false; // the agent has spoken since the run's last step
+  let pending: TimelineItem[] = []; // prose/audit awaiting the step it introduces
+
+  const closeRun = () => {
     if (cur) runs.push(cur);
     cur = null;
+    curCat = null;
+    narrated = false;
   };
+  // Trailing prose with no step ahead of it: it stays with the run it followed,
+  // rather than being stranded as a bare block at the top of the fold.
+  const settlePending = () => {
+    if (cur && pending.length) {
+      cur.members.push(...pending);
+      pending = [];
+    }
+  };
+  // Prose with no run at all to hold it (a fold that is pure narration, an
+  // interrupted turn): it is the only thing there is — render it as its own
+  // tool-less run so it stays readable.
+  const spillPending = () => {
+    if (!pending.length) return;
+    runs.push({ key: pending[0].key, members: pending, tools: [] });
+    pending = [];
+  };
+
   for (const it of children) {
-    if (it.kind === "tool" || it.kind === "chip") {
-      if (!cur) cur = { key: it.key, members: [], tools: [] };
-      cur.members.push(it);
-      if (it.kind === "tool") cur.tools.push(it);
+    if (it.kind === "tool") {
+      const cat = toolCategory(it.name);
+      // thought about it, then turned to a different kind of work → its own row
+      if (cur && narrated && curCat !== cat) closeRun();
+      if (!cur) cur = { key: (pending[0] ?? it).key, members: [], tools: [] };
+      cur.members.push(...pending, it);
+      pending = [];
+      cur.tools.push(it);
+      curCat = cat;
+      narrated = false;
+    } else if (it.kind === "chip" || it.kind === "assistant") {
+      pending.push(it); // rides inside the run — never cuts it
+      if (it.kind === "assistant") narrated = true;
     } else {
-      close();
+      // runtime injection / sys note: a boundary, and its own row.
+      settlePending();
+      closeRun();
+      spillPending();
       runs.push({ key: it.key, members: [it], tools: [] });
     }
   }
-  close();
+  settlePending();
+  closeRun();
+  spillPending();
   return runs;
 }
 
