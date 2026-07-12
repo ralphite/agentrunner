@@ -447,7 +447,10 @@ export function SessionView({ sid }: { sid: string }) {
   const decideApproval = async (id: string, decision: "approve" | "deny", reason: string, target = sid, always = false) => {
     await AR.approve(target, id, decision, reason, always);
     setResolvedLocal((s) => new Set(s).add(id));
-    if (always) toast("approved — an exact allow rule was saved, this call won't ask again", "info");
+    // Honest wording (G35/INC-62): the loop is the authority on what was
+    // remembered — it emits a "remembered:" message only when the rule
+    // actually persisted. The toast claims only the always-allow intent.
+    if (always) toast("approved (always) — this session stops asking for this exact operation", "info");
   };
 
   // ⌘↵ approves the top pending request, ⌘⌫ denies it (Codex's Approve request).

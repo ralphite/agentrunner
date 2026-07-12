@@ -50,31 +50,51 @@ func (l *Loop) rememberApproval(req event.ApprovalRequested) {
 // effects worth remembering; (zero, false) otherwise (e.g. no usable
 // criterion), in which case the approve simply does not persist anything.
 func rememberRule(req event.ApprovalRequested) (pipeline.PermissionRule, bool) {
-	if req.ToolName == "" || len(req.Args) == 0 {
+	c, ok := standingCriterion(req.ToolName, req.Args)
+	if !ok {
 		return pipeline.PermissionRule{}, false
+	}
+	return pipeline.PermissionRule{Tool: c.Tool, Path: c.Path, Command: c.Command, Action: "allow"}, true
+}
+
+// standingCriterion extracts the ONE exact criterion an always-allow answer
+// stands for (INC-62). Both memories derive from this single function — the
+// in-session standing answer (Effects.Standing) and the next-session config
+// rule (rememberRule) — so they can never disagree about what was approved.
+func standingCriterion(toolName string, args json.RawMessage) (event.StandingRule, bool) {
+	if toolName == "" {
+		return event.StandingRule{}, false
 	}
 	var a struct {
 		Command string `json:"command"`
 		Path    string `json:"path"`
 	}
-	if err := json.Unmarshal(req.Args, &a); err != nil {
-		return pipeline.PermissionRule{}, false
+	if len(args) > 0 {
+		if err := json.Unmarshal(args, &a); err != nil {
+			return event.StandingRule{}, false
+		}
 	}
-	switch req.ToolName {
+	switch toolName {
 	case "bash":
 		if a.Command == "" {
-			return pipeline.PermissionRule{}, false
+			return event.StandingRule{}, false
 		}
-		return pipeline.PermissionRule{Tool: "bash", Command: a.Command, Action: "allow"}, true
+		return event.StandingRule{Tool: "bash", Command: a.Command}, true
 	case "edit_file", "write_file", "notebook_edit":
 		if a.Path == "" {
-			return pipeline.PermissionRule{}, false
+			return event.StandingRule{}, false
 		}
-		return pipeline.PermissionRule{Tool: req.ToolName, Path: a.Path, Action: "allow"}, true
+		return event.StandingRule{Tool: toolName, Path: a.Path}, true
+	case "spawn_agent":
+		// Tool-level (G35 裁定): "always allow spawning" is the user's
+		// intent, and PermissionRule has no agent dimension — scoping to one
+		// child name would silently re-ask on the next teammate and repeat
+		// the exact failure G35 records.
+		return event.StandingRule{Tool: "spawn_agent"}, true
 	default:
 		// Other execute-class tools (e.g. web_fetch) are not remembered in
 		// this first cut — their criteria (host allowlists, etc.) deserve a
 		// dedicated shape rather than an exact-arg match.
-		return pipeline.PermissionRule{}, false
+		return event.StandingRule{}, false
 	}
 }

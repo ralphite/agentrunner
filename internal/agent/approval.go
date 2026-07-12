@@ -103,6 +103,32 @@ func (e *EnvApprovals) Resolve(_ context.Context, _ ApprovalRequest) (ApprovalDe
 func (l *Loop) requestApproval(ctx context.Context, ds *driveState, appendE AppendFunc,
 	eff pipeline.Effect, outcome pipeline.Outcome) (bool, string, error) {
 
+	// Standing approval (INC-62): an ask whose exact criterion the human
+	// already always-allowed THIS SESSION is auto-answered approve — no
+	// ApprovalRequested, no WAITING_APPROVAL, one EffectResolved that names
+	// the standing answer. The criterion is extracted from the redacted args
+	// (the same form awaitApproval journals), keeping both sides symmetric.
+	// Escalation asks never reach here (their gate carries
+	// ApprovalDenyFallback and a criterion never extracts for them), and a
+	// child session folds its OWN journal — a parent's standing answer never
+	// auto-approves a child's ask.
+	if c, ok := standingCriterion(eff.ToolName, redact.FromEnv().JSON(eff.Args)); ok &&
+		!eff.ApprovalDenyFallback && ds.s.Effects.HasStanding(c) {
+		results := append(append([]event.GateResult{}, outcome.GateResults...), event.GateResult{
+			Gate: "approval", Decision: event.VerdictAllow,
+			Reason: "standing approval (this session): the user chose always-allow for this exact criterion",
+		})
+		if _, err := appendE(event.TypeEffectResolved, &event.EffectResolved{
+			EffectID: eff.ID, CallID: eff.CallID,
+			Verdict: event.VerdictAllow, GateResults: results,
+			ReservedTokens: eff.EstTokens,
+			Containment:    l.containment(eff),
+		}); err != nil {
+			return false, "", err
+		}
+		return true, "", nil
+	}
+
 	req := event.ApprovalRequested{
 		ApprovalID:         "apr-" + eff.ID,
 		EffectID:           eff.ID,
@@ -210,9 +236,18 @@ func (l *Loop) awaitApproval(ctx context.Context, ds *driveState, appendE Append
 		if out.d.CommandID != "" {
 			responseAppend = l.commandAppender(ds, out.d.CommandID)
 		}
+		// "Allow and don't ask again" (INC-62): the standing criterion rides
+		// the response FACT itself, so the fold — and any resume — knows this
+		// session's later identical asks are already answered.
+		var standing *event.StandingRule
+		if out.d.Approve && out.d.Remember {
+			if c, ok := standingCriterion(req.ToolName, req.Args); ok {
+				standing = &c
+			}
+		}
 		if _, err := responseAppend(event.TypeApprovalResponded, &event.ApprovalResponded{
 			ApprovalID: req.ApprovalID, Decision: decision,
-			Reason: out.d.Reason, Source: out.d.Source,
+			Reason: out.d.Reason, Source: out.d.Source, Standing: standing,
 		}); err != nil {
 			return false, "", err
 		}

@@ -541,7 +541,7 @@ loop.go 空消息兜底保留为防御（tool-call 过大等）。与决策 15b 
 输出撞 4096 cap（loop.go 已兜底重试恢复），非思考饿死；本条关闭的是
 思考饿死向量，真实 API 独立复现（QA-52）。→ UJ-01/UJ-18（provider 层）
 
-**G35 审批「always allow」：spawn_agent 静默不写回 + 同 session 不生效 — ❌ 实现缺陷/决策待修订 · 高（2026-07-11 登记，用户现场）**
+**G35 审批「always allow」：spawn_agent 静默不写回 + 同 session 不生效 — 🟡 已实现待真实 API QA（INC-62，2026-07-12；原 ❌ 高，2026-07-11 登记，用户现场）**
 用户现场：一个 session 内三次 spawn_agent，webui 审批卡点「始终批准」，
 三次全部继续重问。根因两层，且叠加一处 UI 谎报：
 (a) **spawn_agent 被白名单静默排除**——`--always` 信号从 webui 按钮
@@ -570,6 +570,18 @@ spawn 路径连 journal 的 remembered 提示都不会落。
 ①rememberRule 补 spawn_agent（谓词范围待定：tool 级宽泛 vs 按 agent
 名限定）；②同 session 生效机制（需增量流程，触决策 #38）；③toast
 依据真实写回信号；④补 spawn 面锚测试与 QA 场景后方可回 ✅。
+**收口（INC-62，2026-07-12，用户裁定方案一=审批层常设应答）**：
+①spawn_agent 入 `standingCriterion` 白名单（tool 级——用户意图即"别再
+为起子 agent 问"，且 PermissionRule 无 agent 维度）；②同 session 生效
+落地为 standing approval（判据随 `ApprovalResponded.Standing` 落
+journal → fold `Effects.Standing` → `requestApproval` 同判据免问直落
+`EffectResolved{allow}`；不触层冻结，决策 #38 扩展非推翻，详
+INC-62 工作纸）；③webui toast 改为只声明 always 意图（"本会话对同类
+操作不再询问"），写回成功与否以 loop 的 `remembered:` 流消息为权威；
+④锚：TestStandingApprovalSameSession/SpawnAgent/SurvivesResume +
+TestPlainApproveDoesNotStand + TestRememberRuleFromEffect（spawn 行）。
+**余项**：真实 API QA（三连 spawn 一次批即静默 + 新 session 直过）须在
+用户环境跑（本容器沙箱跑不了全量），跑绿后本条与 SPEC 行回 ✅。
 → UJ-08/UJ-18
 
 ---

@@ -541,6 +541,24 @@ type ApprovalResponded struct {
 	Decision   string `json:"decision"` // approve | deny
 	Reason     string `json:"reason,omitempty"`
 	Source     string `json:"source"` // tty | env | interrupt
+	// Standing carries the approved effect's exact criterion when the human
+	// chose "allow and don't ask again" (INC-62): the fold collects these as
+	// the session's standing answers, and later asks matching the SAME
+	// criterion are auto-answered approve without surfacing to the human.
+	// Additive-optional: old journals simply lack it, so no sub-state
+	// version bump is needed (no pre-upgrade fact can be lost by a stale
+	// snapshot cursor).
+	Standing *StandingRule `json:"standing,omitempty"`
+}
+
+// StandingRule is the exact criterion of a remembered approval (INC-62).
+// It intentionally mirrors what rememberApproval writes back to the user
+// config — both sides derive from ONE extraction so the in-session memory
+// and the next-session rule can never disagree.
+type StandingRule struct {
+	Tool    string `json:"tool"`
+	Path    string `json:"path,omitempty"`
+	Command string `json:"command,omitempty"`
 }
 
 // ModeChanged records a run-mode transition (3.6c). Cause names the

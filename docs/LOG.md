@@ -3663,6 +3663,32 @@ run 延续（restore-keys 前缀回退 + always() 保存），但明确是 **scr
   锚测试仅覆盖 bash/edit 面而 SPEC 曾无限定 ✅，属 G29 族登记簿失真，
   一并修正。
 
+## 2026-07-12 · INC-62 审批常设应答（standing approval）——G35 收口（差真实 API QA）
+
+用户裁定方案一：不动 permission 层，在**审批层**记住「始终批准」。这是
+INC-D5 当年未摆出的第三条路——权限闸门照旧裁定 ask，改变的是"这个 ask
+由谁来答"：判据随 `ApprovalResponded.Standing` 落 journal（additive 字段，
+旧 journal 无此事实故 effects 子状态**不必** bump 版本、旧 session 照常
+resume），fold 进 `Effects.Standing`，`requestApproval` 对同判据免问直落
+`EffectResolved{allow, gate:"approval", reason:"standing approval…"}`。
+「ApprovalResponded 一旦成事实即权威」教义的顺延一步；PermissionLayers
+冻结、决策 #20 树约束零改动，决策 #38 扩展非推翻（修订注记已加）。
+
+要点：判据提取 `standingCriterion` 为两套记忆（session 内常设应答 +
+跨 session 写回规则）的唯一来源，结构性防歧义；spawn_agent 入白名单
+（tool 级）；escalation ask（DenyAllowsFallback）不适用；父的常设应答
+不放行子的 ask（各 session fold 自己的 journal，结构免费给出）；rewind
+越 barrier 自然失效。webui toast 诚实化：只声明 always 意图，写回成败
+以 loop `remembered:` 流消息为权威（dist 已重建）。
+
+锚（gate A，全绿）：TestStandingApprovalSameSession/SpawnAgent/
+SurvivesResume、TestPlainApproveDoesNotStand、TestRememberRuleFromEffect
+（新增 spawn 行）。gate B 真实 API QA（三连 spawn 一次批即静默 + 新
+session 直过）待用户环境跑——本容器沙箱跑不了全量（TestSteeringInterrupt
+KillsBashFast 挂死 + 20 项沙箱依赖失败均为环境既有，验证沿用基线对照
+法）。跑绿后 G35 与 SPEC 行回 ✅。工作纸：increments/INC-62-standing-
+approval.md。
+
 ## 2026-07-11 · maxTurns 命名残留清理 + 默认 generation step 预算 40→200
 
 v2 术语手术时 spec 字段已由 max_turns 改为 max_generation_steps，但代码

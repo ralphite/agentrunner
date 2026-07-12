@@ -324,6 +324,24 @@ type Effects struct {
 	// its allowed spawn has not started/settled. It closes the crash window
 	// between EffectResolved and SpawnRequested.
 	Authorities map[string]string `json:"authorities,omitempty"`
+	// Standing collects this session's "allow and don't ask again" answers
+	// (INC-62): the exact criteria of approvals the human marked Remember.
+	// Later asks matching a criterion are auto-answered approve. Additive
+	// field — old journals have no such facts, so no version bump.
+	Standing []event.StandingRule `json:"standing,omitempty"`
+}
+
+// HasStanding reports whether an identical criterion was already
+// always-allowed in this session (INC-62). Exact equality, no widening:
+// the stored criterion and the probe both come from standingCriterion, so
+// `git push` remembered never matches `git reset --hard` asked.
+func (e Effects) HasStanding(r event.StandingRule) bool {
+	for _, s := range e.Standing {
+		if s == r {
+			return true
+		}
+	}
+	return false
 }
 
 // EffectIDFromApprovalID recovers the effect id from an approval id
@@ -984,6 +1002,9 @@ func Apply(s State, env event.Envelope) (State, error) {
 		// it and clear the approval wait here, so a crash before the derived
 		// waiting_resolved / effect_resolved never re-asks (correctness #1/#3).
 		s.Effects = s.Effects.withDecision(EffectIDFromApprovalID(p.ApprovalID), p.Decision)
+		if p.Decision == "approve" && p.Standing != nil {
+			s.Effects = s.Effects.withStanding(*p.Standing)
+		}
 		if s.Waiting != nil && s.Waiting.Kind == event.WaitApproval {
 			s.Waiting = nil
 			s.Session.Status = StatusRunning
@@ -1286,6 +1307,16 @@ func (e Effects) withDecision(id, decision string) Effects {
 	}
 	out[id] = decision
 	e.Decisions = out
+	return e
+}
+
+func (e Effects) withStanding(r event.StandingRule) Effects {
+	if e.HasStanding(r) {
+		return e
+	}
+	out := make([]event.StandingRule, len(e.Standing), len(e.Standing)+1)
+	copy(out, e.Standing)
+	e.Standing = append(out, r)
 	return e
 }
 
