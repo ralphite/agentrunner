@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { DownloadSimple, FileCode, FilePdf, FileText, Files } from "@phosphor-icons/react";
+import { ArrowSquareOut, CaretDown, CaretUp, DownloadSimple, FileCode, FilePdf, FileText, Files } from "@phosphor-icons/react";
 import { AR } from "../api";
 import { splitPath, summarizeChanges, type ChangesSummary, type FileDiffSummary } from "../diffSummary";
 
@@ -21,6 +21,10 @@ const DOC_KIND: Record<string, string> = {
   pdf: "PDF",
 };
 
+// Artifact cards past this count fold behind a "Show N more" toggle so a
+// document-heavy turn doesn't flood the thread (Codex caps the same way).
+const ARTIFACT_CAP = 4;
+
 function docKind(path: string): { ext: string; label: string } | null {
   const m = /\.([A-Za-z0-9]+)$/.exec(path);
   if (!m) return null;
@@ -30,16 +34,20 @@ function docKind(path: string): { ext: string; label: string } | null {
 }
 
 function ArtifactChips({ sid, files }: { sid: string; files: FileDiffSummary[] }) {
+  const [expanded, setExpanded] = useState(false);
   const docs: { file: FileDiffSummary; ext: string; label: string }[] = [];
   for (const file of files) {
     const kind = docKind(file.path);
     if (kind) docs.push({ file, ext: kind.ext, label: kind.label });
   }
   if (!docs.length) return null;
+  const shown = expanded ? docs : docs.slice(0, ARTIFACT_CAP);
+  const hidden = docs.length - shown.length;
   return (
     <div className="flex flex-col gap-[6px] mt-[12px] mb-[8px]" aria-label="Documents produced this turn">
-      {docs.map(({ file, ext, label }) => {
+      {shown.map(({ file, ext, label }) => {
         const { base } = splitPath(file.path);
+        const url = AR.fileURL(sid, file.path);
         return (
           <div className="flex items-center gap-[10px] px-[10px] py-[8px] border border-line rounded-[8px] bg-panel" key={file.path}>
             <span className="grid place-items-center w-[32px] h-[32px] shrink-0 rounded-[8px] bg-panel-2 text-ink-2">{ext === "pdf" ? <FilePdf size={18} /> : <FileText size={18} />}</span>
@@ -48,8 +56,18 @@ function ArtifactChips({ sid, files }: { sid: string; files: FileDiffSummary[] }
               <span className="text-[11px] text-dim">{label} · {ext.toUpperCase()}</span>
             </div>
             <a
+              className="inline-flex items-center gap-[6px] px-[11px] h-[30px] shrink-0 rounded-[8px] border border-line text-[13px] text-ink hover:bg-panel-2"
+              href={url}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`Open ${base}`}
+              title="Open in a new tab"
+            >
+              Open<ArrowSquareOut size={13} />
+            </a>
+            <a
               className="grid place-items-center w-[30px] h-[30px] shrink-0 rounded-[8px] text-ink-2 hover:bg-panel-2 hover:text-ink"
-              href={AR.fileURL(sid, file.path)}
+              href={url}
               download={base}
               aria-label={`Download ${base}`}
               title="Download a copy"
@@ -59,12 +77,31 @@ function ArtifactChips({ sid, files }: { sid: string; files: FileDiffSummary[] }
           </div>
         );
       })}
+      {hidden > 0 && (
+        <button
+          type="button"
+          className="inline-flex items-center justify-center gap-[5px] py-[6px] text-[12px] text-dim hover:text-ink"
+          onClick={() => setExpanded(true)}
+        >
+          Show {hidden} more<CaretDown size={13} />
+        </button>
+      )}
+      {expanded && docs.length > ARTIFACT_CAP && (
+        <button
+          type="button"
+          className="inline-flex items-center justify-center gap-[5px] py-[6px] text-[12px] text-dim hover:text-ink"
+          onClick={() => setExpanded(false)}
+        >
+          Show less<CaretUp size={13} />
+        </button>
+      )}
     </div>
   );
 }
 
 export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; refreshKey: number; onReview: () => void }) {
   const [summary, setSummary] = useState<ChangesSummary | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -79,7 +116,10 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
   }, [sid, refreshKey]);
 
   if (!summary?.files.length) return null;
-  const shown = summary.files.slice(0, 6);
+  // "Show N more files" reveals the remaining rows inline (Codex behaviour);
+  // the header "Review" button stays the separate jump-to-full-diff path.
+  const shown = expanded ? summary.files : summary.files.slice(0, 6);
+  const hidden = summary.files.length - shown.length;
   return (
     <>
       <ArtifactChips sid={sid} files={summary.files} />
@@ -96,20 +136,35 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
           <button type="button" onClick={onReview}>Review</button>
         </header>
         <div className="changes-outcome-files">
-          {shown.map((file) => (
-            <div key={file.path}>
-              <FileCode size={14} />
-              <span title={file.path}>{file.path}</span>
-              {file.countsKnown && (
-                <small>
-                  {file.add > 0 && <em className="add">+{file.add}</em>}
-                  {file.del > 0 && <em className="del">−{file.del}</em>}
-                </small>
-              )}
-              {!file.countsKnown && <small className="dim">new</small>}
-            </div>
-          ))}
-          {summary.files.length > shown.length && <button type="button" onClick={onReview}>Show {summary.files.length - shown.length} more files</button>}
+          {shown.map((file) => {
+            const { dir, base } = splitPath(file.path);
+            return (
+              <div key={file.path}>
+                <FileCode size={14} />
+                <span title={file.path}>
+                  {dir && <span style={{ color: "var(--dim)" }}>{dir}</span>}
+                  <b style={{ fontWeight: 600, color: "var(--ink)" }}>{base}</b>
+                </span>
+                {file.countsKnown && (
+                  <small>
+                    {file.add > 0 && <em className="add">+{file.add}</em>}
+                    {file.del > 0 && <em className="del">−{file.del}</em>}
+                  </small>
+                )}
+                {!file.countsKnown && <small className="dim">new</small>}
+              </div>
+            );
+          })}
+          {summary.files.length > 6 && (
+            <button
+              type="button"
+              onClick={() => setExpanded((e) => !e)}
+              style={{ display: "inline-flex", alignItems: "center", gap: 5 }}
+            >
+              {expanded ? "Show less" : `Show ${hidden} more files`}
+              {expanded ? <CaretUp size={13} /> : <CaretDown size={13} />}
+            </button>
+          )}
         </div>
       </section>
     </>
