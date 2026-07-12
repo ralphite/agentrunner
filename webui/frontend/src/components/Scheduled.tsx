@@ -11,6 +11,7 @@ import { relTime, sessionDate } from "../time";
 import { copyText } from "../clipboard";
 import { ContextMenu } from "./ContextMenu";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
+import { cadenceText, type CadenceSpec } from "../runPreset";
 import type { Cadence } from "../types";
 
 // We have no real paused flag (nothing suspends a driver), so the third tab is
@@ -23,33 +24,45 @@ type Filter = "all" | "active" | "finished";
 // Static template suggestions (Codex parity). Clicking one opens the existing
 // create-task modal prefilled for a repeating task, with the description as the
 // initial task text. Colours are fixed to match Codex's accent glyphs.
+//
+// SC-18 — the card's rhythm is a SPEC, not a caption. Each suggestion used to
+// carry its cadence as a hand-typed sentence while the click that follows opened
+// the launcher on the Repeating preset's default `interval: 5m`: you clicked
+// "Weekdays at 8:00 AM" and got a task that fires every five minutes. Two
+// sources of truth, and the one on screen was the decorative one. Now a
+// suggestion owns a real CadenceSpec — the same {schedule, cron, interval, n}
+// fields the driver spec is built from and the server reads back
+// (webui/schedule.go) — the card's words are RENDERED from it via cadenceText,
+// and the click hands the very same spec to the modal. Change the cron here and
+// the card, the form and the created schedule all move together; they cannot
+// disagree, because there is nothing left to disagree with.
 interface Suggestion {
   icon: Icon;
   color: string;
   title: string;
-  cadence: string;
+  cadence: CadenceSpec;
   desc: string;
 }
-const SUGGESTIONS: Suggestion[] = [
+export const SUGGESTIONS: Suggestion[] = [
   {
     icon: Bell,
     color: "#3b82f6",
     title: "Daily brief",
-    cadence: "Weekdays at 8:00 AM",
+    cadence: { schedule: "cron", cron: "0 8 * * 1-5" }, // Weekdays at 8:00 AM
     desc: "Start each weekday with a summary of your priorities",
   },
   {
     icon: Notebook,
     color: "#8b5cf6",
     title: "Weekly review",
-    cadence: "Fridays at 4:00 PM",
+    cadence: { schedule: "cron", cron: "0 16 * * 5" }, // Fridays at 4:00 PM
     desc: "Summarize the week's changes and open work",
   },
   {
     icon: FileMagnifyingGlass,
     color: "#22c55e",
     title: "Follow-up monitor",
-    cadence: "Every 6 hours",
+    cadence: { schedule: "cron", cron: "0 */6 * * *" }, // Every 6 hours
     desc: "Watch for failures and follow up",
   },
 ];
@@ -697,7 +710,9 @@ export function Scheduled() {
             <button
               key={s.title}
               className="sched-suggest"
-              onClick={() => openModal({ kind: "run", preset: "repeating", task: s.desc })}
+              // SC-18: the rhythm rides along with the task text, so the modal
+              // opens on the cadence this card just promised.
+              onClick={() => openModal({ kind: "run", preset: "repeating", task: s.desc, cadence: s.cadence })}
             >
               <span className="sched-suggest-icon">
                 <Ic size={22} color={s.color} />
@@ -705,7 +720,9 @@ export function Scheduled() {
               <span className="sched-suggest-body">
                 <span className="sched-suggest-head">
                   <b className="sched-suggest-title">{s.title}</b>
-                  <span className="sched-suggest-cadence">{s.cadence}</span>
+                  {/* SC-18: rendered from the spec above — never a second,
+                      hand-written copy of it. */}
+                  <span className="sched-suggest-cadence">{cadenceText(s.cadence)}</span>
                 </span>
                 <span className="sched-suggest-desc">{s.desc}</span>
               </span>

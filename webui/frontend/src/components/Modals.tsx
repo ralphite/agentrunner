@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { X } from "@phosphor-icons/react";
 import { AR } from "../api";
 import { useStore, type ModalKind } from "../store";
-import { runPresetDefaults, type RunPreset } from "../runPreset";
+import { cadenceText, runFormDefaults, type CadenceSpec, type RunPreset, type ScheduleKind } from "../runPreset";
 import type { SpecFile } from "../types";
 import { DEFAULT_DRIVER, DEFAULT_DRIVER_AGENT, DEFAULT_SPEC, DEFAULT_WORKER } from "../specs";
 import { displayTitle } from "../title";
@@ -123,7 +123,7 @@ function MainModal({ modal }: { modal: NonNullable<ModalKind> }) {
     case "new":
       return <NewSessionModal initialMessage={modal.message} />;
     case "run":
-      return <RunModal initialTask={modal.task} preset={modal.preset} />;
+      return <RunModal initialTask={modal.task} preset={modal.preset} cadence={modal.cadence} />;
     case "fork":
       return <ForkModal sid={modal.sid} />;
     case "agent":
@@ -368,21 +368,34 @@ function withDriverTask(driver: string, task: string): string {
   return kept.join("\n").replace(/\n+$/, "") + `\ntask: ${JSON.stringify(task.trim())}\n`;
 }
 
-function RunModal({ initialTask, preset = "one-time" }: { initialTask?: string; preset?: RunPreset }) {
+function RunModal({
+  initialTask,
+  preset = "one-time",
+  cadence,
+}: {
+  initialTask?: string;
+  preset?: RunPreset;
+  cadence?: CadenceSpec;
+}) {
   const { openModal, selectRun, refreshRuns, toast } = useStore();
   const { ws, setWs, ensure, choose } = useWorkspace();
-  const presetDefaults = runPresetDefaults(preset);
-  const [kind, setKind] = useState<"submit" | "drive">(presetDefaults.kind);
+  // SC-18 — the form OPENS on the cadence the caller already showed the user (a
+  // Scheduled suggestion card's cron), not on the preset's generic `interval:
+  // 5m`. Everything below stays editable: a prefilled cadence is a default, not
+  // a decision. What it ends the era of is a launcher that quietly contradicted
+  // the card that opened it.
+  const formDefaults = runFormDefaults(preset, cadence);
+  const [kind, setKind] = useState<"submit" | "drive">(formDefaults.kind);
   const [task, setTask] = useState(initialTask || "");
   const [mode, setMode] = useState("");
   const [idem, setIdem] = useState("");
   const [spec, setSpec] = useState(DEFAULT_SPEC);
   const [driver, setDriver] = useState(DEFAULT_DRIVER);
   const [driverAgent, setDriverAgent] = useState(DEFAULT_DRIVER_AGENT);
-  const [schedule, setSchedule] = useState<"immediate" | "interval" | "cron" | "parallel">(presetDefaults.schedule);
-  const [interval, setInterval] = useState("5m");
-  const [cron, setCron] = useState("0 * * * *");
-  const [nAttempts, setNAttempts] = useState(3);
+  const [schedule, setSchedule] = useState<ScheduleKind>(formDefaults.schedule);
+  const [interval, setInterval] = useState(formDefaults.interval);
+  const [cron, setCron] = useState(formDefaults.cron);
+  const [nAttempts, setNAttempts] = useState(formDefaults.n);
   const [busy, setBusy] = useState(false);
   const close = () => openModal(null);
 
@@ -462,7 +475,7 @@ function RunModal({ initialTask, preset = "one-time" }: { initialTask?: string; 
         <>
           <label className="field">Schedule</label>
           <div className="row-flex">
-            <select value={schedule} onChange={(e) => setSchedule(e.target.value as "immediate" | "interval" | "cron" | "parallel")} title="how iterations are paced">
+            <select value={schedule} onChange={(e) => setSchedule(e.target.value as ScheduleKind)} title="how iterations are paced">
               <option value="immediate">Goal — work until verified</option>
               <option value="interval">Repeat every…</option>
               <option value="cron">Cron schedule…</option>
@@ -496,6 +509,17 @@ function RunModal({ initialTask, preset = "one-time" }: { initialTask?: string; 
               />
             )}
           </div>
+          {/* SC-18 — the rhythm, in the words the Scheduled row will use for it.
+              `0 8 * * 1-5` is not something anyone can proofread; the phrase
+              rendered from it is. Same renderer as the suggestion cards and the
+              same dialect the server reads back, so what you see here is what the
+              row will say tomorrow. Only for the two paced kinds — a goal and a
+              best-of-N have no cadence to misread. */}
+          {(schedule === "cron" || schedule === "interval") && (
+            <div className="dim" data-testid="cadence-echo" style={{ marginTop: 6 }}>
+              {cadenceText({ schedule, interval, cron })}
+            </div>
+          )}
           <details className="advanced-settings">
             <summary>Advanced settings</summary>
             <label className="field">Driver specification (YAML)</label>

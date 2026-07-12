@@ -3,11 +3,15 @@ import { AR } from "./api";
 import type { Health, LauncherApp, ProjectMeta, Run, Session } from "./types";
 import { notifyRunChanges, notifySessionChanges } from "./notify";
 import { loadTheme, nextTheme, saveTheme, type Theme } from "./theme";
-import type { RunPreset } from "./runPreset";
+import type { CadenceSpec, RunPreset } from "./runPreset";
 
 export type ModalKind =
   | { kind: "new"; message?: string }
-  | { kind: "run"; task?: string; preset?: RunPreset } // submit / drive launcher
+  // submit / drive launcher. `cadence` (SC-18) is the RHYTHM the caller already
+  // showed the user — a Scheduled suggestion card's "Weekdays at 8:00 AM" — as
+  // the driver-spec fields themselves. The launcher opens on it instead of the
+  // preset's generic default, so what gets built is what was clicked.
+  | { kind: "run"; task?: string; preset?: RunPreset; cadence?: CadenceSpec }
   | { kind: "fork"; sid: string }
   | { kind: "agent"; sid: string }
   | { kind: "rename"; sid: string }
