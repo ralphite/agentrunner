@@ -131,55 +131,160 @@
   color: var(--green);
 }
 
-/* ---- C3 · model menu ------------------------------------------------------ */
-/* Compact drill-in (Codex parity): the root shows Model / Effort / Speed as
-   summary rows (label · current value · chevron) that swap the panel into a
-   choice list, plus an Advanced collapsible for overflow. Choice lists reuse
-   the shared PopItem polish. */
+/* ---- C3 · model menu (INC-41 CP-3) ---------------------------------------- */
+/* ONE root page, exactly like Codex's: the model list, then an effort DOT
+   SLIDER, then a quiet Advanced collapsible. The previous root was a drill-in
+   (Model / Effort summary rows → sub-page → level), which cost 3 clicks to move
+   reasoning effort one notch; those summary rows are what Codex shows *behind*
+   Advanced, not at the root. The slider is now the root's centerpiece: one
+   click per level, ←/→ from the keyboard.
+
+   Panel width: .cx-menu.wide (360px) via the trigger's markup. */
 .cx-model-menu .pop-title {
   font-weight: 500;
 }
 
-/* summary rows on the root page */
-.cx-model-menu .cx-model-rows {
-  display: flex;
-  flex-direction: column;
+/* Model list: one line per model (title + gray sub sharing the baseline), the
+   same compaction CP-1 gave the `+` menu — five models must not become a wall
+   above the slider. */
+.cx-pop-codex .cx-model-list .pop-body {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
 }
-.cx-model-menu .cx-model-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 9px 11px;
-  border: 0;
-  border-radius: 11px;
-  background: transparent;
-  text-align: left;
-  color: var(--ink);
-  font: inherit;
-  transition: background 0.1s ease;
-}
-.cx-model-menu .cx-model-row:hover {
-  background: var(--panel-2);
-}
-.cx-model-menu .cx-model-row-label {
-  font-size: 13.5px;
-  font-weight: 600;
-}
-.cx-model-menu .cx-model-row-value {
-  margin-left: auto;
+.cx-pop-codex .cx-model-list .pop-desc {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+}
+.cx-pop-codex .cx-model-list .pop-item {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+
+/* ---- effort dot slider ---------------------------------------------------- */
+.cx-model-menu .cx-effort {
+  margin-top: 4px;
+  padding: 7px 11px 9px;
+  border-top: 1px solid var(--line-2);
+}
+.cx-model-menu .cx-effort-hd {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 12px;
+}
+.cx-model-menu .cx-effort-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
   color: var(--dim);
 }
-/* right-pointing chevron = "drills into a list" */
-.cx-model-menu .cx-model-row-chev {
-  flex-shrink: 0;
+/* the live value — the pill's own suffix, echoed where you turn the dial */
+.cx-model-menu .cx-effort-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.cx-model-menu .cx-effort-slider {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  border-radius: 10px;
+  outline: none;
+}
+/* keyboard focus lands on the TRACK (one tab stop, ←/→ to move) */
+.cx-model-menu .cx-effort-slider:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--blue) 45%, transparent);
+}
+
+/* rail + filled portion, centered on the dot row (dot = 10px ⇒ center at 5px) */
+.cx-model-menu .cx-effort-rail,
+.cx-model-menu .cx-effort-fill {
+  position: absolute;
+  top: 4px;
+  height: 2px;
+  border-radius: 2px;
+  pointer-events: none;
+}
+.cx-model-menu .cx-effort-rail {
+  background: var(--line);
+}
+.cx-model-menu .cx-effort-fill {
+  background: color-mix(in srgb, var(--ink) 55%, transparent);
+}
+
+/* one stop per level: dot on the rail, label under it. The whole column is the
+   hit target, so a click never demands dot-sized precision. */
+.cx-model-menu .cx-effort-stop {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 0 0 1px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+.cx-model-menu .cx-effort-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--panel);
+  box-shadow: inset 0 0 0 2px var(--line);
+  transition:
+    box-shadow 0.12s ease,
+    transform 0.12s ease;
+}
+/* levels below the current one read as "already passed" on the filled rail */
+.cx-model-menu .cx-effort-stop.done .cx-effort-dot {
+  background: color-mix(in srgb, var(--ink) 55%, transparent);
+  box-shadow: none;
+}
+.cx-model-menu .cx-effort-stop.on .cx-effort-dot {
+  background: var(--ink);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink) 12%, transparent);
+  transform: scale(1.15);
+}
+.cx-model-menu .cx-effort-stop:hover .cx-effort-dot {
+  box-shadow: inset 0 0 0 2px var(--ink-2);
+}
+.cx-model-menu .cx-effort-stop.on:hover .cx-effort-dot {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink) 18%, transparent);
+}
+.cx-model-menu .cx-effort-lbl {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10.5px;
+  line-height: 1.2;
   color: var(--dim);
-  transform: rotate(-90deg);
+}
+.cx-model-menu .cx-effort-stop.on .cx-effort-lbl {
+  color: var(--ink);
+  font-weight: 600;
+}
+.cx-model-menu .cx-effort-stop:hover .cx-effort-lbl {
+  color: var(--ink-2);
+}
+/* an Advanced budget override outranks the presets: no dot is the truth then */
+.cx-model-menu .cx-effort-slider.custom .cx-effort-dot {
+  opacity: 0.5;
 }
 
 /* Advanced collapsible footer */

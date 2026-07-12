@@ -166,9 +166,11 @@ export function Composer(props: ComposerProps) {
   // Advanced → thinking-budget override: an exact budget the effort presets
   // don't cover. null = use the effort preset. Chosen effort clears it.
   const [budgetOverride, setBudgetOverride] = useState<number | null>(null);
-  // Model menu is a compact drill-in (root → Model/Effort) plus an Advanced
-  // collapsible, mirroring the project menu's page-swap pattern.
-  const [modelMenuPage, setModelMenuPage] = useState<"root" | "model" | "effort">("root");
+  // Model menu (INC-41 CP-3): ONE root page — the model list plus an inline
+  // effort dot-slider, so changing reasoning effort is a single click (Codex
+  // parity). The old root→Model/Effort drill-in cost 3 clicks per effort change
+  // because we had mistaken Codex's *Advanced* page (Model | Effort | Speed
+  // summary rows) for its root. Advanced stays, but as a secondary collapsible.
   const [modelAdvancedOpen, setModelAdvancedOpen] = useState(false);
   // The `+` menu is a small drawer, not a settings panel (INC-41 CP-1). Its root
   // page stays ≤7 single-line rows; the five agent personas (and the raw YAML
@@ -1436,11 +1438,12 @@ export function Composer(props: ComposerProps) {
 
           <span className="cx-spacer" />
 
-          {/* model pill — shows "<model> · <effort>" like Codex's "5.6 Sol Extra High" */}
+          {/* model pill — shows "<model> <effort>" like Codex's "5.6 Sol Extra High"
+              (effort "Off" stays unwritten: the default posture is not news). */}
           <Popover
             align="right"
             panelClass="cx-pop-codex"
-            onOpen={() => { setModelMenuPage("root"); setModelAdvancedOpen(false); }}
+            onOpen={() => setModelAdvancedOpen(false)}
             trigger={(open, toggle) => (
               <button className={"cx-pill cx-model" + (open ? " active" : "")} onClick={toggle} title="Model & effort" aria-haspopup="menu" aria-expanded={open}>
                 {modelLabel}
@@ -1451,75 +1454,12 @@ export function Composer(props: ComposerProps) {
           >
             {(close) => (
               <div className="cx-menu wide cx-model-menu">
-                {/* Compact drill-in: Model / Effort each show label + current
-                    value + chevron and open a choice list; an Advanced
-                    collapsible holds the overflow controls. */}
-                {modelMenuPage === "root" ? (
-                  <>
-                    <div className="cx-model-rows">
-                      <button className="cx-model-row" onClick={() => setModelMenuPage("model")} aria-label="Choose model">
-                        <span className="cx-model-row-label">Model</span>
-                        <span className="cx-model-row-value">{modelLabel}</span>
-                        <CaretDown className="cx-model-row-chev" size={13} />
-                      </button>
-                      <button className="cx-model-row" onClick={() => setModelMenuPage("effort")} aria-label="Choose reasoning effort">
-                        <span className="cx-model-row-label">Effort</span>
-                        <span className="cx-model-row-value">{budgetOverride ? `Custom · ${budgetOverride}` : effortLevel.label}</span>
-                        <CaretDown className="cx-model-row-chev" size={13} />
-                      </button>
-                    </div>
-                    <div className="cx-model-advanced">
-                      <button
-                        className="cx-model-adv-toggle"
-                        onClick={() => setModelAdvancedOpen((v) => !v)}
-                        aria-expanded={modelAdvancedOpen}
-                      >
-                        <span>Advanced</span>
-                        <CaretDown className={"cx-model-adv-chev" + (modelAdvancedOpen ? " open" : "")} size={13} />
-                      </button>
-                      {modelAdvancedOpen && (
-                        <div className="cx-model-adv-body">
-                          <PopItem
-                            icon={<Code size={15} />}
-                            title="Custom model id…"
-                            desc={`provider stays ${provider}`}
-                            onClick={() => {
-                              close();
-                              openPrompt({
-                                title: "Custom model id",
-                                label: "model id (provider stays " + provider + ")",
-                                initial: model,
-                                onSubmit: (id) => chooseModel(provider, id),
-                              });
-                            }}
-                          />
-                          <PopItem
-                            icon={<ChartBar size={15} />}
-                            title="Thinking budget override…"
-                            desc={budgetOverride ? `${budgetOverride} tokens` : "use the effort preset"}
-                            onClick={() => {
-                              close();
-                              openPrompt({
-                                title: "Thinking budget override",
-                                label: "budget tokens (0 or empty = use the effort preset)",
-                                initial: budgetOverride != null ? String(budgetOverride) : "",
-                                onSubmit: (v) => {
-                                  const n = Number(v.trim());
-                                  chooseBudgetOverride(Number.isFinite(n) && n > 0 ? Math.floor(n) : null);
-                                },
-                              });
-                            }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </>
-                ) : modelMenuPage === "model" ? (
-                  <>
-                    <div className="pop-menu-title">
-                      <button className="pop-back" onClick={() => setModelMenuPage("root")} aria-label="Back">‹</button>
-                      <b>Model</b>
-                    </div>
+                {/* ONE root page (CP-3): pick a model, or drag/click the effort
+                    slider — both are a single click from the pill. The menu no
+                    longer closes on an effort pick: the slider is a dial you may
+                    want to nudge twice, and its state is visible right there. */}
+                <PopSection label="Model">
+                  <div className="cx-model-list">
                     {MODELS.map((m) => (
                       <PopItem
                         key={m.provider + m.id}
@@ -1527,28 +1467,59 @@ export function Composer(props: ComposerProps) {
                         title={m.label}
                         desc={m.sub}
                         active={provider === m.provider && model === m.id}
-                        onClick={() => { chooseModel(m.provider, m.id); setModelMenuPage("root"); close(); }}
+                        onClick={() => { chooseModel(m.provider, m.id); close(); }}
                       />
                     ))}
-                  </>
-                ) : (
-                  <>
-                    <div className="pop-menu-title">
-                      <button className="pop-back" onClick={() => setModelMenuPage("root")} aria-label="Back">‹</button>
-                      <b>Effort</b>
-                    </div>
-                    {EFFORT_LEVELS.map((e) => (
+                  </div>
+                </PopSection>
+
+                <EffortSlider effort={effort} budgetOverride={budgetOverride} onChoose={chooseEffort} />
+
+                <div className="cx-model-advanced">
+                  <button
+                    className="cx-model-adv-toggle"
+                    onClick={() => setModelAdvancedOpen((v) => !v)}
+                    aria-expanded={modelAdvancedOpen}
+                  >
+                    <span>Advanced</span>
+                    <CaretDown className={"cx-model-adv-chev" + (modelAdvancedOpen ? " open" : "")} size={13} />
+                  </button>
+                  {modelAdvancedOpen && (
+                    <div className="cx-model-adv-body">
                       <PopItem
-                        key={e.id}
-                        icon={<EffortIcon level={e.id} />}
-                        title={e.label}
-                        desc={e.desc}
-                        active={!budgetOverride && effort === e.id}
-                        onClick={() => { chooseEffort(e.id); setModelMenuPage("root"); close(); }}
+                        icon={<Code size={15} />}
+                        title="Custom model id…"
+                        desc={`provider stays ${provider}`}
+                        onClick={() => {
+                          close();
+                          openPrompt({
+                            title: "Custom model id",
+                            label: "model id (provider stays " + provider + ")",
+                            initial: model,
+                            onSubmit: (id) => chooseModel(provider, id),
+                          });
+                        }}
                       />
-                    ))}
-                  </>
-                )}
+                      <PopItem
+                        icon={<ChartBar size={15} />}
+                        title="Thinking budget override…"
+                        desc={budgetOverride ? `${budgetOverride} tokens` : "use the effort preset"}
+                        onClick={() => {
+                          close();
+                          openPrompt({
+                            title: "Thinking budget override",
+                            label: "budget tokens (0 or empty = use the effort preset)",
+                            initial: budgetOverride != null ? String(budgetOverride) : "",
+                            onSubmit: (v) => {
+                              const n = Number(v.trim());
+                              chooseBudgetOverride(Number.isFinite(n) && n > 0 ? Math.floor(n) : null);
+                            },
+                          });
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </Popover>
@@ -1645,6 +1616,83 @@ export function Composer(props: ComposerProps) {
   );
 }
 
+// ---- effort slider (INC-41 CP-3) --------------------------------------------
+// Codex's model menu opens straight onto a dot slider: one track, one dot per
+// level, the current level lit and named. Ours used to bury the same five levels
+// (specs.ts EFFORT_LEVELS) behind a drill-in page — pill → "Effort" → level, 3
+// clicks for what Codex does in 1 (2 counting opening the pill).
+//
+// A11y: the track is ONE tab stop (role="slider"); ←/→ move a level, which is
+// what a slider promises. The dots stay real buttons (mouse hit targets + a
+// name each) but are taken out of the tab order so the menu doesn't grow five
+// stops. Left/Right are stopped from bubbling: the Popover listens on document
+// for menu-list navigation keys and would otherwise fight the slider.
+function EffortSlider({
+  effort,
+  budgetOverride,
+  onChoose,
+}: {
+  effort: EffortId;
+  budgetOverride: number | null;
+  onChoose: (id: EffortId) => void;
+}) {
+  const n = EFFORT_LEVELS.length;
+  const idx = Math.max(0, EFFORT_LEVELS.findIndex((e) => e.id === effort));
+  // An Advanced thinking-budget override outranks the presets, so no dot is the
+  // truth while one is set: the track reads "Custom" and any dot click clears it.
+  const custom = budgetOverride != null && budgetOverride > 0;
+  const edge = 50 / n; // % from the track's edge to the first/last dot's center
+  const step = (100 - 2 * edge) / (n - 1);
+
+  const onKey = (e: React.KeyboardEvent) => {
+    const next = e.key === "ArrowRight" ? Math.min(n - 1, idx + 1) : e.key === "ArrowLeft" ? Math.max(0, idx - 1) : -1;
+    if (next < 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (custom || EFFORT_LEVELS[next].id !== effort) onChoose(EFFORT_LEVELS[next].id);
+  };
+
+  return (
+    <div className="cx-effort">
+      <div className="cx-effort-hd">
+        <span className="cx-effort-title">Effort</span>
+        <span className="cx-effort-value">{custom ? `Custom · ${budgetOverride} tokens` : EFFORT_LEVELS[idx].label}</span>
+      </div>
+      <div
+        className={"cx-effort-slider" + (custom ? " custom" : "")}
+        role="slider"
+        tabIndex={0}
+        aria-label="Reasoning effort"
+        aria-orientation="horizontal"
+        aria-valuemin={0}
+        aria-valuemax={n - 1}
+        aria-valuenow={idx}
+        aria-valuetext={custom ? `Custom · ${budgetOverride} tokens` : EFFORT_LEVELS[idx].label}
+        onKeyDown={onKey}
+      >
+        <span className="cx-effort-rail" style={{ left: `${edge}%`, right: `${edge}%` }} aria-hidden />
+        {!custom && idx > 0 && <span className="cx-effort-fill" style={{ left: `${edge}%`, width: `${idx * step}%` }} aria-hidden />}
+        {EFFORT_LEVELS.map((e, i) => (
+          <button
+            key={e.id}
+            type="button"
+            tabIndex={-1}
+            data-effort={e.id}
+            className={"cx-effort-stop" + (!custom && i === idx ? " on" : "") + (!custom && i < idx ? " done" : "")}
+            title={e.desc}
+            aria-label={e.label}
+            aria-pressed={!custom && i === idx}
+            onClick={() => onChoose(e.id)}
+          >
+            <span className="cx-effort-dot" aria-hidden />
+            <span className="cx-effort-lbl">{e.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ---- goal / loop / best-of-N launcher ---------------------------------------
 function GoalLoopLauncher({
   mode,
@@ -1725,7 +1773,6 @@ const BranchIcon = () => <GitBranch size={13} />;
 const GoalIcon = () => <Target size={14} />;
 const LoopIcon = () => <ArrowClockwise size={14} />;
 const PlanIcon = () => <ListChecks size={14} />;
-const EffortIcon = ({ level }: { level: EffortId }) => <ChartBar size={14} weight={level === "off" ? "regular" : "fill"} />;
 const BestIcon = () => <ChartBar size={14} />;
 const PersonaIcon = () => <UserCircle size={13} />;
 
