@@ -1086,6 +1086,111 @@ changes 页两个 `<aside class="sidebar">` **重名地标**无法区分。
 **touches**:`App.tsx` / `SessionView.tsx` / `Home.tsx` / `Scheduled.tsx` / `styles.css`。
 **刻意核查**:全仓 `git log -S"<main"` 无"刻意不加地标"的依据 → 非刻意,是从未做过。
 
+## M 相 · 移动端/响应式(轴 A,2026-07-11 轮10 新镜头)
+
+轮10 派的「移动端触控 + 响应式断点」finder 是本循环**首次**测 **768 / 1024 / 1180 / 1280** 这些
+中间断点(此前只测 1440 和 390)——**两条 P1 全在中间断点上**,印证了"没测过的地方就是洞在的地方"。
+
+### MOB-1 ☐ 1024–1280 开 Changes 后,Send/mic/模型选择器跑出输入框、压在 diff 面板上 [P1]
+**behavior**:iPad 横屏 / 小笔电(1024–1280px)打开 Changes 分栏,composer 底栏整排控件**溢出卡片
+右缘**,发送键浮在 diff 面板上、麦克风被压成一条 **17px** 的竖条。用户看到的是"发送键长在别人家里"。
+**证据**(live 实测,截图 `/tmp/mob/i-1024-changes.png`、`bar-{1024,1180,1280}.png`):
+| 视口 | card 右缘 | `.cx-bar` scrollW/clientW | send 实测 x..right | Changes 面板 x | 结果 |
+|---|---|---|---|---|---|
+| 1024 | 556 | **433 / 234** | 721..754 | 584 | send **压面板 170px**,mic 宽 **17px** |
+| 1180 | 654 | 433 / 333 | 721..754 | 683 | send 压面板 71px |
+| 1280 | 732 | 433 / 410 | 721..754 | 760 | 溢出卡片 22px |
+| 1440 | 815 | 493 / 493 | 773..806 | 843 | ✅ |
+
+同时对话列被压到 **292px**(`grid-template-columns: 292px 440px`),正文一行只剩 4–5 个词。
+**源码**:`styles.css:1833` `.cx-bar{display:flex}` **无 `flex-wrap`/`overflow`/`min-width:0`**;
+`styles.css:1844` `.cx-icon` **缺 `flex-shrink:0`**(对比 `.cx-send` 在 `:1963` 就有);
+`styles.css:4383` `@media(max-width:1180px)` 把对话列挤到 292px。
+**建议**:仓库已有正确写法 `styles.css:3855-3857`(≤520 的 `.cx-bar{flex-wrap:wrap;row-gap:2px}`),
+但那是 **viewport** query,而本 bug 的触发条件是**容器**变窄(视口 1024 但 composer 只有 236px)
+→ 正确解法是 **container query**(`.cx` 加 `container-type:inline-size`,`@container (max-width:520px)`),
+一处同时覆盖 390 和"1024+开面板";附带给 `.cx-icon` 补 `flex-shrink:0`。
+**刻意核查**:`git log -S"cx-bar"` 无移动端专门提交;REFERENCE 全文只提一次 "responsive",无相反规定
+→ **非刻意**。
+
+### MOB-2 ☐ 521–880px 区间 Git 分支选择器被切出视口,完全不可见不可点 [P1]
+**behavior**:iPad 竖屏(768)或横屏手机上新建任务,「分支」选择器**整个消失**——用户无法为新任务选
+git branch,且**没有任何滚动/换行提示**告诉他还有东西。
+**证据**:
+| 视口 | `.cx-env-strip` clientW/scrollW | `.branch` x..right | 结论 |
+|---|---|---|---|
+| 390 | 366/366 | 170..263.8 | ✅ 换行(≤520 规则生效) |
+| **768** | **470/589** | **756.6..862.8** | ❌ **超出视口 94.8px,看不见** |
+| **820** | 522/589 | 756.6..862.8 | ❌ 超出 42.8px |
+| 900 | 602/602 | — | ✅ |
+
+**源码**:`styles.css:1667-1679` `.cx-env-strip{display:flex;overflow:visible}` 无 `flex-wrap`;
+换行规则只在 `styles.css:3851`(`@media max-width:520px`)才开 → **521–880 这段没人管**。
+**建议**:与 MOB-1 同源同招——常态 `flex-wrap:wrap;row-gap:2px`(复用 `:3851` 已验证的写法)或
+container query;最低限度也要 `overflow-x:auto`(`styles.css:3879-3880` 已预留隐藏滚动条样式)。
+**刻意核查**:`git log -S"cx-env-strip"` → `46345d0`/`e1080d5` 均为功能提交,无"窄屏刻意藏分支"
+→ **非刻意**。
+
+### MOB-3 ☐ 触控目标全面低于 44px(聚合条目,28 个选择器) [P2]
+**behavior**:整个 App 在手机上**没有一个**主要操作达到 WCAG 2.5.5 / Apple HIG 的 44×44 下限;
+发送、审批、开侧栏这些高频/高后果动作都在 25–36px,拇指易误触。
+**证据**(390×844 实测,28 个选择器 <44px,按点击频率排序):
+`.cx-send` **33×33** · `.cx-icon`/`.cx-mic` **32×32** · `.sidebar-show`(**手机开侧栏的唯一入口**)
+**31×27** · `.topbar-tool` 34×32 · `.menu-trigger` 32×30 · `.approval-actions button` 高 **34** ·
+`.cx-pill` 30–32 高 · `.gbar-btn` **25×25** · `.msg-copy.icon-only` 26×21 · `.sched-tab` 高 31.4 ·
+`.worked-row` 高 30.4 · 抽屉内 Settings 齿轮/Hide 30×30 · diff 工具条 64.7×**25**。
+**建议**:不改视觉尺寸,用**透明扩展命中区**——`position:relative` + `::after{inset:-6px}` 把 32 撑到 44;
+或统一 `@media (pointer:coarse){ … min-width:44px;min-height:44px }`。
+优先级:`.sidebar-show`(唯一导航入口)→ `.cx-send` → `.approval-actions button` → `.gbar-btn`。
+**刻意核查**:逐个 `git log -S` 全是功能提交(`8d1edab`/`f2f1932`/`07286b8`…),**无一条提到 44px
+触控下限或刻意压小**;REFERENCE 无触控目标规格 → **非刻意**。
+
+### MOB-4 ☐ Goal bar「取消目标」是 25×25 垃圾桶,紧贴「暂停」,手机误触即毁 [P2]
+**behavior**:390 下 goal 条右侧三钮(编辑/暂停/取消)各 **25×25**、间距 ~2px。**破坏性动作和
+非破坏性动作挤在 27px 节距**里,而拇指宽约 45–57px —— 想暂停,大概率取消。
+**源码**:`styles.css:4119` `.gbar-btn`。
+**建议**:coarse pointer 下三钮撑到 44×44 且 danger 单独加 `margin-left:8px`;或 ≤680 折进"⋯"菜单
+(仓库已有 `.menu-trigger`+`.pop-panel` 模式,`styles.css:625`/`:2062`)。
+**刻意核查**:`git log -S"gbar-btn"` → `07286b8`(轮2 FA-2)刻意改的是**颜色**(危险钮静态中性化),
+**没有**涉及尺寸/间距 → **尺寸非刻意**。
+
+### MOB-5 ☐ Settings 在 390 下左导航吃掉 45vh 且从行中间硬切,无滚动提示 [P2]
+**behavior**:手机上开 Settings,上半屏是一坨**被截断的导航列表**("Configuration" 从字中间切开),
+下半屏才是内容;两个独立滚动区叠在 844px 屏上,用户不知道上面那块还能滚。
+**源码**:`components/Settings.tsx:90` `max-[720px]:max-h-[45vh]`。
+**建议**:≤720 改 **drill-down**(列表 → 详情 + 返回),或压成横向可滚 tab strip(仓库已有正确写法:
+`.sched-tab`/`.sched-tabs` `styles.css:4285` + `.cx-bar` 隐藏滚动条 `:3879-3880`)。
+**刻意核查**:`git log -S"45vh"` → `605691e`/`cb2874b` 是旧 CSS **等价迁移**产物(像素级 0 差异),
+不是移动端设计决策 → **非刻意**。
+
+### MOB-6 ☐ 滚动串联:侧栏抽屉列表滑到底会带着底下时间线一起动 [P3]
+**证据**:抽屉打开时 `.project-list{overscroll-behavior:auto}` 与 `.timeline{overscroll-behavior:auto}`
+完全重叠;全仓 `overscroll-behavior:contain` **只出现 1 次**(`.pop-panel` `styles.css:2067`)。
+**建议**:给 `.timeline`/`.project-list`/`.changes-panel .diffwrap`/`.supervision-panel` 补
+`overscroll-behavior:contain`,与 `.pop-panel` 对齐。**touches**:`styles.css`。
+
+### MOB-7 ☐ 移动端零手势:侧栏只能靠角落 31×27 的按钮开 [P3]
+全仓 `grep onTouchStart|touchstart|swipe|onPointer` **零命中**。关闭路径是通的(scrim 点击实测有效)。
+低成本方案:先把 `.sidebar-show` 撑到 44×44(并入 MOB-3);边缘 swipe-to-open 可另立条目。
+
+### MOB-8 ☐ Scheduled 页头在 390 下排版松垮("+ Create" 浮在说明文字中段) [P3]
+`styles.css:4239` 的 `@media(max-width:520px)` 只处理了 `.page-action` 的换行(R2-9),没管标题区
+flex 方向。**建议**:≤520 页头改 `flex-direction:column;align-items:flex-start`(参照 `styles.rs.css:692`
+`.rs-archive-row` 在 ≤640 改 column 的写法)。
+
+### ✂ 轮10 移动 finder 主动排除的假阳性(**别派 implementer 去改**)
+- **✂ Home 底部钉底 composer** —— QA-45 供图刻意决策(`styles.css:4035` 注释写死 "the common
+  composer is the product, not a custom landing hero")。**不碰**。
+- **✂ 390 横向溢出** —— home/rich/appr/diff/sched/settings × light+dark **全部**
+  `scrollWidth == innerWidth == 390`,零横向滚动。
+- **✂ composer 遮挡最后一条消息** —— 富会话滚到底:最后一条气泡 bottom=603,composer top=691
+  → **留白 88px,不遮挡**。
+- **✂ Changes 面板在 390** —— `inset:12px` 全屏覆盖,`.diffwrap` scrollWidth==clientWidth==364,
+  **diff 无横向溢出**,按钮自动换行成两排。
+- **✂ 390 字号过小** —— 视口内可见文字**无 <11px**(仅 `.sched-tab-count`/`.msg-time` 为 11px,
+  ≈iOS caption2,可接受)。
+- **✂ 暗色模式 390** —— home/rich/appr/sched 暗色与亮色**逐像素同构**,无额外崩坏。
+
 ## 驱动循环台账(/parity-drive,每30min一轮,只追加)
 
 - 2026-07-11 轮1(循环启动):同步+部署 8809=index-CWvHKizj.js;收割 0(无存活
@@ -1253,3 +1358,28 @@ changes 页两个 `<aside class="sidebar">` **重名地标**无法区分。
   → 服务端无论如何都做全量工作)。方案 (b) 按 status 门控轮询改动最小、收益最大。
   **A11Y-9 ✅ 本轮顺手做掉**(主线亲手,1 行):`index.html` `lang="zh-CN"` → `"en"`,dist 干净重建 +
   部署 + live 复验 `lang="en"`。push=2decfc4。
+
+- 2026-07-11 轮10(补记·移动 finder 收割 + 收轮):轴A「移动端触控 + 响应式断点」finder(本循环
+  **新镜头**)交回 **8 条 findings + 6 条主动排除的假阳性** → 登记 **MOB-1..MOB-8**(见 M 相)。
+  **最重要的方法学收获**:这是循环里**首次测 768/1024/1180/1280 中间断点**(此前只测 1440 和 390),
+  而**两条 P1 全落在中间断点上** —— MOB-1(1024–1280 开 Changes 后 send 键压在 diff 面板上 170px)、
+  MOB-2(521–880 区间 Git 分支选择器被切出视口、完全不可点)。**没测过的地方就是洞在的地方**;
+  以后全景矩阵应常态包含中间断点。
+  finder 还主动排除了 6 条假阳性(Home 钉底 composer 是 QA-45 刻意决策、390 零横向溢出、composer
+  不遮挡末条消息、Changes 面板 390 正常、字号无 <11px、暗色与亮色逐像素同构)——**排除假阳性和
+  确认真洞一样有价值**,省下下轮的无效派工。
+  分派建议(finder 给的,已核 touches 无交集):MOB-1+MOB-2 同根因家族(flex 不换行 + overflow
+  visible + 子项无 flex-shrink)合并给一个 implementer 用 container query 收口;MOB-3+MOB-4
+  (触控目标,纯增量 CSS)给第二个;MOB-5(Settings.tsx + styles.rs.css)给第三个 —— 可三路并发。
+  **轮10 收轮盘点**:push 9 个 commit(7c853eb 登记 → f787d4a PERF-1 → d6b91a6 A11Y-3 →
+  6baa8a6 A11Y-5 → 19cb69d dist → 863d5d2 A11Y-1/2 → dc57fac 收 ✅ → b52d3fe 台账 →
+  c5f4712 axe → 2decfc4 A11Y-9 → 996ca9c 性能登记 → 本 commit);中途 rebase 过一次并发 session
+  的 `a33e988`(agent loop 重命名,与 webui 零重叠,无冲突)。
+  **双轴均推进**:轴B = PERF-1 ✅(冷加载 1.03MB→271KB,二次访问→304 零字节)+ 登记 PERF-2..7;
+  轴A = A11Y-1/2/3/5/9 五条 ✅ + 登记 A11Y-7/8/10 与 MOB-1..8。
+  **开放 ☐ 共 17 条**:A11Y-4(让路)、A11Y-6、A11Y-7、A11Y-8、A11Y-10、PERF-2..PERF-7、MOB-1..MOB-8。
+  **下轮首选**(高性价比排序):① **A11Y-8**(一个色值 `--dim:#737373`→`#6e6e6e` 修 79 处对比度,
+  `styles.css:11`,dark 已另有 `#a0a0ad` 覆盖故只动 light);② **PERF-2**(方案 b:按 status 门控
+  轮询,空闲页 183→35 req/min);③ **MOB-1+MOB-2**(两条 P1,同根因);④ **PERF-3**(code splitting,
+  实测可减 92.6KB gz)。
+  live=index-BV7f00Vi.js + lang="en";perf 冷加载 1.03MB→271KB(−73%)、二次访问 1.03MB→0B。
