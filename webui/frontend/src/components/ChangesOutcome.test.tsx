@@ -21,6 +21,7 @@ vi.mock("../api", async () => ({
 }));
 
 import { ChangesOutcome } from "./ChangesOutcome";
+import { Markdown } from "./Markdown";
 
 // A unified diff with `n` files, each +2 / -1 — enough to drive the counts and
 // the preview cap without hand-building FileDiffSummary structs.
@@ -118,6 +119,73 @@ describe("ChangesOutcome badge glyph (INC-41 TH-6)", () => {
     // horizontal one below (GitDiff has neither a rect nor these).
     const d = svg.querySelector("path")!.getAttribute("d")!;
     expect(d).toMatch(/^M12 7\.4v4\.3M9\.85 9\.55h4\.3M9\.4 15\.95h5\.2$/);
+  });
+});
+
+// TH-9 — the same picture used to be painted three times in one screen: inline
+// in the answer, again as a thumbnail card, and again as a filename row. The
+// thumbnail row now stands down for anything the prose already shows.
+describe("ChangesOutcome image artifacts (INC-41 TH-9)", () => {
+  const imgDiff = (untracked: string[]) => ({ workspace: "/w", known: true, isRepo: true, diff: "", untracked });
+
+  it("drops the thumbnail card for an image the answer already renders inline", async () => {
+    diffMock.mockResolvedValue(imgDiff(["qa/chart.png", "qa/shot.png"]));
+    const { container } = render(
+      <>
+        <Markdown text={"![chart](./qa/chart.png)"} sid="s1" />
+        <ChangesOutcome sid="s1" refreshKey={0} onReview={() => {}} />
+      </>,
+    );
+    await screen.findByText("Edited 2 files");
+    // the inline image is on screen exactly once …
+    expect(container.querySelectorAll("img.md-img").length).toBe(1);
+    // … and it does NOT come back as a card. Only the image the prose never
+    // showed still earns one.
+    expect(screen.getByLabelText("Images produced this turn")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Open chart.png" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Open shot.png" })).toBeTruthy();
+  });
+
+  it("renders no artifact row at all — not an empty shell — when every image is inline", async () => {
+    diffMock.mockResolvedValue(imgDiff(["qa/chart.png", "qa/shot.png"]));
+    render(
+      <>
+        <Markdown text={"![chart](qa/chart.png)\n![shot](qa/shot.png)"} sid="s1" />
+        <ChangesOutcome sid="s1" refreshKey={0} onReview={() => {}} />
+      </>,
+    );
+    await screen.findByText("Edited 2 files");
+    expect(screen.queryByLabelText("Images produced this turn")).toBeNull();
+  });
+
+  it("still shows cards for images no answer mentioned", async () => {
+    diffMock.mockResolvedValue(imgDiff(["qa/chart.png"]));
+    render(<ChangesOutcome sid="s1" refreshKey={0} onReview={() => {}} />);
+    await screen.findByText("Edited 1 file");
+    expect(screen.getByRole("button", { name: "Open chart.png" })).toBeTruthy();
+  });
+});
+
+// TH-13 — a turn that only CREATED files has no ± counts to print. It used to
+// print them anyway: "Edited 2 files  +0 −0", green and red and entirely false.
+describe("ChangesOutcome header counts (INC-41 TH-13)", () => {
+  it("reads `2 new` instead of a fabricated +0 −0 when no counts are known", async () => {
+    diffMock.mockResolvedValue({ workspace: "/w", known: true, isRepo: true, diff: "", untracked: ["a.bin", "b.png"] });
+    renderCard();
+    await screen.findByText("Edited 2 files");
+    expect(screen.getByText("2 new")).toBeTruthy();
+    expect(screen.queryByText("+0")).toBeNull();
+    expect(screen.queryByText("−0")).toBeNull();
+  });
+
+  it("counts only the files git counted, and appends the new ones as a suffix", async () => {
+    diffMock.mockResolvedValue({ ...okDiff(2), untracked: ["c.png"] });
+    renderCard();
+    await screen.findByText("Edited 3 files");
+    // +2/−1 per counted file × 2 — the untracked file adds nothing to the pair.
+    expect(screen.getByText("+4")).toBeTruthy();
+    expect(screen.getByText("−2")).toBeTruthy();
+    expect(screen.getByText("· 1 new")).toBeTruthy();
   });
 });
 

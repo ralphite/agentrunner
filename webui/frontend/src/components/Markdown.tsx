@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowsHorizontal, Check, Copy, ImageBroken, TextAlignLeft } from "@phosphor-icons/react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -131,6 +131,76 @@ export function resolveSrc(sid: string, src: string): string {
 
 const basename = (p: string) => (p.split(/[?#]/)[0].split("/").pop() || p);
 
+// ─── Inlined-image registry (INC-41 TH-9) ───────────────────────────────────
+// The same screenshot used to be painted THREE times in one screen: once inline
+// in the answer (here), once as an artifact thumbnail card, and once more as a
+// grey filename row inside "Edited N files" — ~600px of a 723px thread viewport
+// spent re-showing one picture. Codex shows a produced artifact exactly once.
+//
+// The answer's prose is the authoritative place for an image the agent chose to
+// show, so the inline renderer wins and the thumbnail card stands down. The
+// artifact card lives in a sibling subtree (SessionView mounts ChangesOutcome
+// next to the Timeline, not under it), so there is no prop path between them:
+// mounted inline images register here, and ChangesOutcome subscribes.
+//
+// Ref-counted, because a streaming answer re-renders and the same path can be
+// mounted by more than one message — a path counts as "already inlined" only
+// while at least one <img.md-img> for it is actually on screen.
+const inlineCounts = new Map<string, Map<string, number>>(); // sid → path → mounted count
+const inlineListeners = new Set<() => void>();
+let inlineVersion = 0;
+
+// workspacePath normalizes a markdown image source to the workspace-relative
+// path the diff summary keys files by ("./qa/shot.png" and "/qa/shot.png" and
+// "qa/shot.png" are one file). External sources (http/data/blob/already-built
+// /api/…) are not workspace files and never match a changed file → null.
+export function workspacePath(src: string): string | null {
+  if (!src || isExternalSrc(src)) return null;
+  const rel = src.split(/[?#]/)[0].replace(/^\.?\/+/, "");
+  return rel || null;
+}
+
+function registerInline(sid: string, src: string): () => void {
+  const rel = workspacePath(src);
+  if (!sid || !rel) return () => {};
+  let paths = inlineCounts.get(sid);
+  if (!paths) {
+    paths = new Map();
+    inlineCounts.set(sid, paths);
+  }
+  paths.set(rel, (paths.get(rel) || 0) + 1);
+  inlineVersion++;
+  inlineListeners.forEach((fn) => fn());
+  return () => {
+    const live = inlineCounts.get(sid);
+    if (!live) return;
+    const n = (live.get(rel) || 0) - 1;
+    if (n > 0) live.set(rel, n);
+    else live.delete(rel);
+    if (!live.size) inlineCounts.delete(sid);
+    inlineVersion++;
+    inlineListeners.forEach((fn) => fn());
+  };
+}
+
+// useSyncExternalStore's three parts, exported for ChangesOutcome.
+export function subscribeInlinedImages(fn: () => void): () => void {
+  inlineListeners.add(fn);
+  return () => {
+    inlineListeners.delete(fn);
+  };
+}
+
+export function inlinedImagesVersion(): number {
+  return inlineVersion;
+}
+
+// inlinedImagePaths: workspace-relative paths this session currently shows
+// inline in its answers.
+export function inlinedImagePaths(sid: string): Set<string> {
+  return new Set(inlineCounts.get(sid)?.keys() ?? []);
+}
+
 // MdImage is one inline image. A load failure degrades to a single filename
 // link rather than leaving a broken-image glyph in the middle of the answer —
 // the agent may have referenced a path it never actually wrote, or the file may
@@ -138,6 +208,10 @@ const basename = (p: string) => (p.split(/[?#]/)[0].split("/").pop() || p);
 function MdImage({ sid, src, alt, onOpen }: { sid: string; src: string; alt: string; onOpen: (src: string) => void }) {
   const [failed, setFailed] = useState(false);
   const url = resolveSrc(sid, src);
+  // While this image is mounted, the turn's artifact row must not repeat it
+  // (TH-9). A failed load still counts: the fallback link below names the file,
+  // so a thumbnail card of the same broken file would add nothing but noise.
+  useEffect(() => registerInline(sid, src), [sid, src]);
   if (failed)
     return (
       <a className="md-img-fallback" href={url} target="_blank" rel="noreferrer" title={src}>

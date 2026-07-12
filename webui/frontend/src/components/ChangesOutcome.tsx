@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { ArrowClockwise, ArrowCounterClockwise, ArrowSquareOut, CaretDown, CaretUp, DownloadSimple, FilePdf, FileText, ImageBroken } from "@phosphor-icons/react";
 import { AR } from "../api";
 import { useStore } from "../store";
 import { splitPath, summarizeChanges, type ChangesSummary, type FileDiffSummary } from "../diffSummary";
 import { Lightbox } from "./Lightbox";
+import { inlinedImagePaths, inlinedImagesVersion, subscribeInlinedImages } from "./Markdown";
 
 // J2 · Document artifacts. A completed turn's produced documents get a
 // Codex-style file-card row above the Edited-files summary. Only prose/document
@@ -82,10 +83,21 @@ function ImageCard({ sid, path, onOpen }: { sid: string; path: string; onOpen: (
   );
 }
 
+// INC-41 TH-9. The thumbnail row is a fallback, not a duplicate: an image the
+// answer already painted inline (Markdown's `img.md-img`) is NOT re-shown here.
+// It used to be unconditional, so a two-screenshot turn rendered the same pair
+// twice — two 326×205 inline images plus two 144×104 cards — and the pair ate
+// ~600px of a 723px thread viewport before the reader reached the summary. Only
+// an image the prose never mentioned still earns a card; when every produced
+// image is already inline the whole row renders nothing (no empty shell).
 function ImageArtifacts({ sid, files }: { sid: string; files: FileDiffSummary[] }) {
   const [expanded, setExpanded] = useState(false);
   const [lightbox, setLightbox] = useState<number | null>(null);
-  const imgs = files.filter((f) => IMG_EXT.has(fileExt(f.path))).map((f) => f.path);
+  useSyncExternalStore(subscribeInlinedImages, inlinedImagesVersion, inlinedImagesVersion);
+  const inlined = inlinedImagePaths(sid);
+  const imgs = files
+    .filter((f) => IMG_EXT.has(fileExt(f.path)) && !inlined.has(f.path))
+    .map((f) => f.path);
   if (!imgs.length) return null;
   const shown = expanded ? imgs : imgs.slice(0, IMAGE_CAP);
   const hidden = imgs.length - shown.length;
@@ -357,6 +369,16 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
   // the header "Review" button stays the separate jump-to-full-diff path.
   const shown = expanded ? summary.files : summary.files.slice(0, PREVIEW_CAP);
   const hidden = summary.files.length - shown.length;
+  // INC-41 TH-13 — never print a ± count we don't have. A new/untracked (or
+  // binary) file carries countsKnown=false and add/del=0, so a turn that only
+  // CREATED files summed to a confident, green-and-red `+0 −0` under "Edited 2
+  // files" — read literally: "two files changed, not one line touched". False,
+  // and it contradicted the Supervision panel one screen over, which said
+  // `Changes · 2 new` off the same data. The ± pair now covers only the files
+  // whose counts git actually gave us, and the uncounted ones are reported the
+  // panel's way: `N new`. All-unknown → just `N new`, no zeros at all.
+  const countedFiles = summary.files.filter((f) => f.countsKnown).length;
+  const newFiles = summary.files.length - countedFiles;
   return (
     <>
       <ImageArtifacts sid={sid} files={summary.files} />
@@ -367,8 +389,15 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
           <div className="changes-outcome-title">
             <b>Edited {summary.files.length} file{summary.files.length === 1 ? "" : "s"}</b>
             <span>
-              <em className="add">+{summary.totalAdd}</em>
-              <em className="del">−{summary.totalDel}</em>
+              {countedFiles > 0 && (
+                <>
+                  <em className="add">+{summary.totalAdd}</em>
+                  <em className="del">−{summary.totalDel}</em>
+                </>
+              )}
+              {newFiles > 0 && (
+                <em className="dim">{countedFiles > 0 ? "· " : ""}{newFiles} new</em>
+              )}
             </span>
           </div>
           <button
