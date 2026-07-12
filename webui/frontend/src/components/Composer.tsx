@@ -13,12 +13,12 @@ import {
   Folder,
   GearSix,
   GitBranch,
-  Image,
   Lightning,
   ListChecks,
   LockOpen,
   MagnifyingGlass,
   Microphone,
+  Paperclip,
   PencilSimple,
   Plus,
   ShieldCheck,
@@ -170,6 +170,11 @@ export function Composer(props: ComposerProps) {
   // collapsible, mirroring the project menu's page-swap pattern.
   const [modelMenuPage, setModelMenuPage] = useState<"root" | "model" | "effort">("root");
   const [modelAdvancedOpen, setModelAdvancedOpen] = useState(false);
+  // The `+` menu is a small drawer, not a settings panel (INC-41 CP-1). Its root
+  // page stays ≤7 single-line rows; the five agent personas (and the raw YAML
+  // editor, which is the same subject) live one level down, reusing the model
+  // menu's page-swap pattern.
+  const [addMenuPage, setAddMenuPage] = useState<"root" | "agent">("root");
   // The home composer remembers the last chosen access level (W15); session
   // composers show the session's fixed posture instead and never read this.
   const [access, setAccessState] = useState<AccessId>(() => {
@@ -230,7 +235,6 @@ export function Composer(props: ComposerProps) {
   const [atKnown, setAtKnown] = useState(true);
 
   const taRef = useRef<HTMLTextAreaElement>(null);
-  const imgRef = useRef<HTMLInputElement>(null);
   const anyRef = useRef<HTMLInputElement>(null);
 
   // Prompt optimization (INC-56 · HANDA #19): the Sparkles button / `/optimize`
@@ -1079,27 +1083,31 @@ export function Composer(props: ComposerProps) {
             )}
           </Popover>
 
+          {/* Start-in chip (INC-41 CP-4): ONE meaning — where the task runs.
+              "Task type" (interactive vs background) used to ride along in this
+              popover, which both broke the one-choice-per-menu rule above and
+              left the chip lying: picking Background changed nothing here, so a
+              headless run looked like a chat session. Task type now lives in the
+              `+` menu's Task options, and the chip *names* the background state. */}
           <Popover
             align="left"
             trigger={(open, toggle) => (
-              <button className={"cx-env-control" + (open ? " active" : "")} onClick={toggle} title="Choose where this task runs" aria-haspopup="menu" aria-expanded={open}>
-                {runLocation === "local" ? <Desktop size={17} /> : <GitBranch size={17} />}
-                <span className="cx-env-value min-w-0 overflow-hidden text-ellipsis">{runLocation === "local" ? "Local" : "New worktree"}</span>
+              <button className={"cx-env-control" + (open ? " active" : "")} onClick={toggle} title={kind === "background" ? "Runs as a background task — choose where it runs" : "Choose where this task runs"} aria-haspopup="menu" aria-expanded={open}>
+                {kind === "background" ? <Lightning size={17} /> : runLocation === "local" ? <Desktop size={17} /> : <GitBranch size={17} />}
+                <span className="cx-env-value min-w-0 overflow-hidden text-ellipsis">
+                  {(kind === "background" ? "Background · " : "") + (runLocation === "local" ? "Local" : "New worktree")}
+                </span>
               </button>
             )}
           >
             {(close) => (
               <div className="cx-menu">
-                <PopSection label="Run location">
+                <PopSection label="Start in">
                   <PopItem icon={<GitBranch size={15} />} title="New worktree" desc={branchInfo?.isRepo ? "Isolated checkout; your project stays untouched" : "Select a Git project first"} active={runLocation === "worktree"} onClick={() => {
                     if (!branchInfo?.isRepo) { props.onError("New worktree needs a Git project."); return; }
                     setRunLocation("worktree"); close();
                   }} />
                   <PopItem icon={<Desktop size={15} />} title="Local" desc="Work directly in the selected project" active={runLocation === "local"} onClick={() => { setRunLocation("local"); close(); }} />
-                </PopSection>
-                <PopSection label="Task type">
-                  <PopItem icon={<StartIcon />} title="Interactive session" active={kind === "chat"} onClick={() => { setKind("chat"); close(); }} />
-                  <PopItem icon={<Lightning size={15} />} title="Background task" active={kind === "background"} onClick={() => { setKind("background"); close(); }} />
                 </PopSection>
               </div>
             )}
@@ -1256,13 +1264,26 @@ export function Composer(props: ComposerProps) {
 
         {/* ---- control bar ---- */}
         <div className="cx-bar">
-          {/* One Codex-style `+` menu (C1): Codex folds attachments and task
-              actions behind a single `+`. We do the same — grouped sections
-              (Add / Task options / Agent / Advanced), each row a one-line gray
-              description — instead of a second quiet control. */}
+          {/* The Codex-style `+` menu (C1 / INC-41 CP-1). `+` is "reach for
+              something mid-thought", not a settings panel: it must not blanket
+              the screen. It used to be 12 two-line rows / 798px tall — 89% of a
+              900px viewport, burying the suggestion cards and the thread behind
+              it. It is now a small drawer:
+                · Add — ONE "Files and folders" row. `pick()` already routes by
+                  mime (image → --image, everything else → --file), so the old
+                  Images/Files split bought nothing and cost a row.
+                · Task options — Goal / Loop / Best of N / Plan mode, plus the
+                  Background-task toggle that CP-4 moved out of the run-location
+                  chip (checked = headless; unchecked = interactive session, and
+                  the chip names whichever is on).
+                · Agent — one drill-in row showing the current persona; the five
+                  personas and the raw-YAML editor live on the second page.
+              Titles and their gray descriptions share ONE line (see
+              .cx-add-menu in styles.composer.css). */}
           <Popover
             align="left"
             panelClass="cx-pop-codex"
+            onOpen={() => setAddMenuPage("root")}
             trigger={(open, toggle) => (
               <button className={"cx-icon" + (open ? " active" : "")} onClick={toggle} title="Add & task options" aria-label="Add and task options" aria-haspopup="menu" aria-expanded={open}>
                 <PlusIcon />
@@ -1270,25 +1291,51 @@ export function Composer(props: ComposerProps) {
             )}
           >
             {(close) => (
-              <div className="cx-menu wide cx-add-menu">
-                <PopSection label="Add">
-                  <PopItem icon={<Image size={16} />} title="Images" desc="Paste, drop, or pick one or more images" onClick={() => { close(); imgRef.current?.click(); }} />
-                  <PopItem icon={<File size={16} />} title="Files" desc="PDF, text, or any files (≤10MB each)" onClick={() => { close(); anyRef.current?.click(); }} />
-                </PopSection>
-                <PopSection label="Task options">
-                  <PopItem icon={<GoalIcon />} title="Goal" desc="Keep working until the goal is met" onClick={() => { close(); setLauncher({ mode: "goal", task: text.trim() }); }} />
-                  <PopItem icon={<LoopIcon />} title="Loop" desc="Repeat on a fixed cadence" onClick={() => { close(); setLauncher({ mode: "loop", task: text.trim() }); }} />
-                  <PopItem icon={<BestIcon />} title="Best of N" desc="Run isolated attempts and keep the best" onClick={() => { close(); setLauncher({ mode: "best", task: text.trim() }); }} />
-                  {!isSession && <PopItem icon={<PlanIcon />} title="Plan mode" desc="Read-only planning — no changes" active={access === "plan"} onClick={() => { close(); setAccess("plan"); }} />}
-                </PopSection>
-                <PopSection label="Agent">
-                  {PERSONAS.map((item) => (
-                    <PopItem key={item.id} icon={<PersonaIcon />} title={item.label} desc={item.desc} active={persona === item.id} onClick={() => { choosePersona(item.id); close(); }} />
-                  ))}
-                </PopSection>
-                <PopSection label="Advanced">
-                  <PopItem icon={<Code size={16} />} title="Edit agent spec (YAML)…" onClick={() => { close(); openModal(isSession ? { kind: "agent", sid: (props as any).sid } : { kind: "new", message: text }); }} />
-                </PopSection>
+              <div className={"cx-menu cx-add-menu" + (addMenuPage === "agent" ? " cx-add-agent" : "")}>
+                {addMenuPage === "root" ? (
+                  <>
+                    <PopSection label="Add">
+                      <PopItem icon={<Paperclip size={16} />} title="Files and folders" desc="Images, PDFs, any file" onClick={() => { close(); anyRef.current?.click(); }} />
+                    </PopSection>
+                    <PopSection label="Task options">
+                      <PopItem icon={<GoalIcon />} title="Goal" desc="Keep working until it's met" onClick={() => { close(); setLauncher({ mode: "goal", task: text.trim() }); }} />
+                      <PopItem icon={<LoopIcon />} title="Loop" desc="Repeat on a cadence" onClick={() => { close(); setLauncher({ mode: "loop", task: text.trim() }); }} />
+                      <PopItem icon={<BestIcon />} title="Best of N" desc="Keep the best of N tries" onClick={() => { close(); setLauncher({ mode: "best", task: text.trim() }); }} />
+                      {!isSession && <PopItem icon={<PlanIcon />} title="Plan mode" desc="Read-only planning" active={access === "plan"} onClick={() => { close(); setAccess("plan"); }} />}
+                      {!isSession && (
+                        <PopItem
+                          icon={<Lightning size={16} />}
+                          title="Background task"
+                          desc="Run headless, no chat"
+                          active={kind === "background"}
+                          onClick={() => { setKind(kind === "background" ? "chat" : "background"); close(); }}
+                        />
+                      )}
+                    </PopSection>
+                    <PopSection label="Agent">
+                      <PopItem
+                        icon={<PersonaIcon />}
+                        title="Agent"
+                        desc={personaById(persona).label}
+                        right={<span aria-hidden>›</span>}
+                        onClick={() => setAddMenuPage("agent")}
+                      />
+                    </PopSection>
+                  </>
+                ) : (
+                  <>
+                    <div className="pop-menu-title">
+                      <button className="pop-back" onClick={() => setAddMenuPage("root")} aria-label="Back to add menu">‹</button>
+                      <b>Agent</b>
+                    </div>
+                    {PERSONAS.map((item) => (
+                      <PopItem key={item.id} icon={<PersonaIcon />} title={item.label} desc={item.desc} active={persona === item.id} onClick={() => { choosePersona(item.id); close(); }} />
+                    ))}
+                    <PopSection>
+                      <PopItem icon={<Code size={16} />} title="Edit agent spec (YAML)…" onClick={() => { close(); openModal(isSession ? { kind: "agent", sid: (props as any).sid } : { kind: "new", message: text }); }} />
+                    </PopSection>
+                  </>
+                )}
               </div>
             )}
           </Popover>
@@ -1589,9 +1636,10 @@ export function Composer(props: ComposerProps) {
 
       {isSession && <div className="cx-status">{(props as any).running ? "running…" : "ready"}</div>}
 
-      {/* hidden file inputs — multi-select (mirror the drag-drop multi-file
-          loop): loop over every chosen file instead of taking files[0]. */}
-      <input type="file" accept="image/*" multiple ref={imgRef} style={{ display: "none" }} onChange={(e) => { for (const f of Array.from(e.target.files || [])) pick(f, true); e.target.value = ""; }} />
+      {/* hidden file input — ONE picker for everything (CP-1). Multi-select
+          (mirrors the drag-drop loop) and mime-routed: images ride --image,
+          everything else --file, exactly like paste and drop. The old
+          image-only input existed solely to back a separate "Images" row. */}
       <input type="file" multiple ref={anyRef} style={{ display: "none" }} onChange={(e) => { for (const f of Array.from(e.target.files || [])) pick(f, f.type.startsWith("image/")); e.target.value = ""; }} />
     </div>
   );
@@ -1674,7 +1722,6 @@ const UndoIcon = () => <ArrowUUpLeft size={15} />;
 const ModelIcon = ({ provider }: { provider?: string }) => (provider === "anthropic" ? <Cpu size={14} /> : <Sparkle size={14} />);
 const FolderIcon = () => <Folder size={13} />;
 const BranchIcon = () => <GitBranch size={13} />;
-const StartIcon = () => <Desktop size={13} />;
 const GoalIcon = () => <Target size={14} />;
 const LoopIcon = () => <ArrowClockwise size={14} />;
 const PlanIcon = () => <ListChecks size={14} />;

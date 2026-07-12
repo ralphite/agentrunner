@@ -221,23 +221,117 @@
   padding-top: 2px;
 }
 
-/* ---- P2 · Plugins section (Codex-style colorful app glyphs) --------------- */
-/* Each plugin row gets a tinted icon so the section reads like Codex's colorful
-   app icons. The color sits on the svg itself so it wins over .pop-ico's grey. */
-.cx-add-menu .cx-plugin-ico.documents {
-  color: var(--blue);
+/* ---- CP-1 · the `+` menu is a small drawer, not a wall --------------------
+   Codex's `+` is ~200px tall: 4 rows, each ONE line, with the description as
+   gray text sharing the title's line. Ours was 376×798px — 12 rows, every one
+   of them two lines — which in a 900px viewport covered 89% of the screen and
+   buried the suggestion cards / thread behind it. `+` is "reach for something
+   mid-thought"; blanketing the screen breaks the thought.
+
+   Composer.tsx cut the row COUNT (Images+Files merged into one mime-routed
+   "Files and folders"; the five personas moved to a second page). These rules
+   cut the row HEIGHT: inside .cx-add-menu the .pop-body flows as a ROW on a
+   shared baseline, so title and desc share one line, and the desc ellipsizes
+   rather than wrapping. Pure CSS — Popover.tsx's markup is untouched. */
+.cx-pop-codex .cx-add-menu {
+  /* narrower than .cx-menu.wide's 360px: single-line rows don't need the width,
+     and the panel should read as a drawer you flick open */
+  width: min(318px, calc(100vw - 24px));
 }
-.cx-add-menu .cx-plugin-ico.pdf {
-  color: var(--red);
+
+/* one line per row: title, then the gray desc, then the check / chevron */
+.cx-pop-codex .cx-add-menu .pop-body {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
 }
-.cx-add-menu .cx-plugin-ico.spreadsheets {
-  color: var(--green);
+.cx-pop-codex .cx-add-menu .pop-title {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
-.cx-add-menu .cx-plugin-ico.presentations {
-  color: var(--amber);
+.cx-pop-codex .cx-add-menu .pop-desc {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
-.cx-add-menu .cx-plugin-ico.template {
-  color: var(--blue);
+/* undo the two-line alignment the shared .cx-pop-codex rules apply to any row
+   that has a desc — here a desc no longer means a second line */
+.cx-pop-codex .cx-add-menu .pop-item:has(.pop-desc) {
+  align-items: center;
+}
+.cx-pop-codex .cx-add-menu .pop-item:has(.pop-desc) .pop-ico,
+.cx-pop-codex .cx-add-menu .pop-item:has(.pop-desc) .pop-check {
+  margin-top: 0;
+}
+
+/* Tighter vertical rhythm — the drawer should clear a 900px viewport with room
+   to spare for the suggestion cards it used to cover. ~28px rows match the
+   reference crop (measured: Codex's rows are ~28.5pt). */
+.cx-pop-codex.pop-panel:has(.cx-add-menu) {
+  padding: 6px;
+}
+.cx-pop-codex .cx-add-menu .pop-item {
+  padding: 5px 11px;
+}
+.cx-pop-codex .cx-add-menu .pop-section-label {
+  padding: 5px 11px 2px;
+  line-height: 1.25;
+}
+.cx-pop-codex .cx-add-menu .pop-section:first-child > .pop-section-label {
+  padding-top: 3px;
+}
+.cx-pop-codex .cx-add-menu .pop-section + .pop-section {
+  margin-top: 3px;
+  padding-top: 2px;
+}
+
+/* Agent page (second level): the five personas keep their full explanations, so
+   descriptions go back to a calm second line — an ellipsized persona blurb is
+   worse than a taller panel on a page you deliberately drilled into. */
+.cx-pop-codex .cx-add-agent .pop-body {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+.cx-pop-codex .cx-add-agent .pop-title {
+  white-space: normal;
+}
+.cx-pop-codex .cx-add-agent .pop-desc {
+  flex: initial;
+  overflow: visible;
+  white-space: normal;
+}
+.cx-pop-codex .cx-add-agent .pop-item:has(.pop-desc) {
+  align-items: flex-start;
+}
+.cx-pop-codex .cx-add-agent .pop-item:has(.pop-desc) .pop-ico {
+  margin-top: 1.5px;
+}
+.cx-pop-codex .cx-add-agent .pop-item {
+  padding: 7px 11px;
+}
+
+/* ---- CP-2 · the empty-state send button must be visible ------------------- */
+/* The base rule (styles.css `.cx-send:disabled`) paints the app's primary
+   control --line-2 (#efefef) on the white card with a --dim glyph: ~1.07:1
+   against the card — the button effectively disappears until you type. Codex's
+   empty send is a mid-gray filled circle with a near-white arrow: obviously a
+   button, obviously not armed yet. Mid-gray fill + panel-colored glyph gives
+   ~5:1 in light and ~7:1 in dark, and both tokens flip with the theme.
+
+   Why the override lives HERE and not next to the rule it replaces: styles.css
+   is owned by a concurrent INC-41 worker this round (parallel-round file
+   partition), so this file — which loads after it — reaches the same rule with
+   the extra `.cx-card` ancestor for specificity. Fold it back into
+   styles.css:.cx-send:disabled when the rounds converge. */
+.cx-card .cx-send:disabled {
+  background: var(--dim);
+  border-color: var(--dim);
+  color: var(--panel);
+  opacity: 1;
 }
 
 /* ---- C4 · slash command menu --------------------------------------------- */
