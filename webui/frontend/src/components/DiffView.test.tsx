@@ -155,3 +155,47 @@ describe("Changes toolbar fits its panel (INC-41 DF-1)", () => {
     expect(container.querySelector(".diff-wt-badge")!.textContent).toContain("detached");
   });
 });
+
+// INC-41 DF-4 — the review hard-clipped long lines (`.dl-text{white-space:pre}`)
+// behind a horizontal scrollbar per file, while a fenced code block in the
+// *conversation* has had a Wrap toggle all along. Same product, two long-line
+// policies. The rail carries the switch now, with the same aria-pressed contract
+// as Markdown's CodeBlock; the wrapping itself is one class on .diffwrap
+// (styles.diff.css), so it applies to inline rows, split halves and hunk headers
+// at once.
+describe("Diff line wrap (INC-41 DF-4)", () => {
+  beforeEach(() => localStorage.clear());
+
+  it("wraps every diff surface when the toolbar's Wrap switch is on", async () => {
+    arMock.diff = () => Promise.resolve(worktreeDiff());
+    const { container } = render(<DiffView sid="w1" onClose={() => {}} />);
+
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+    const wrapBtn = screen.getByLabelText("Wrap long lines");
+    expect(container.querySelector(".diffbar")!.contains(wrapBtn)).toBe(true);
+    // Off by default — Codex's own default is a single non-wrapping code surface.
+    expect(wrapBtn.getAttribute("aria-pressed")).toBe("false");
+    expect(container.querySelector(".diffwrap")!.className).not.toMatch(/diff-wrap\b/);
+
+    fireEvent.click(wrapBtn);
+    expect(screen.getByLabelText("Wrap long lines").getAttribute("aria-pressed")).toBe("true");
+    expect(container.querySelector(".diffwrap")!.className).toMatch(/diff-wrap\b/);
+
+    fireEvent.click(screen.getByLabelText("Wrap long lines"));
+    expect(container.querySelector(".diffwrap")!.className).not.toMatch(/diff-wrap\b/);
+  });
+
+  it("remembers the preference across mounts (one switch for the whole review)", async () => {
+    arMock.diff = () => Promise.resolve(worktreeDiff());
+    const first = render(<DiffView sid="w2" onClose={() => {}} />);
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+    fireEvent.click(screen.getByLabelText("Wrap long lines"));
+    expect(localStorage.getItem("ar.diff.wrap")).toBe("1");
+    first.unmount();
+
+    const { container } = render(<DiffView sid="w3" onClose={() => {}} />);
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+    expect(container.querySelector(".diffwrap")!.className).toMatch(/diff-wrap\b/);
+    expect(screen.getByLabelText("Wrap long lines").getAttribute("aria-pressed")).toBe("true");
+  });
+});

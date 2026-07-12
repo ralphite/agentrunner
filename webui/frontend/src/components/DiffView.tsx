@@ -10,9 +10,11 @@ import {
   CaretUp,
   CaretUpDown,
   ArrowClockwise,
+  ArrowsHorizontal,
   ArrowsOutLineVertical,
   ArrowsInLineVertical,
   DotsThree,
+  TextAlignLeft,
   X,
   FileDashed,
   FileMagnifyingGlass,
@@ -25,6 +27,7 @@ import { loadGitPrefs } from "../theme";
 import type { DiffResp, DiffScope } from "../types";
 import { parseFileDiff, defaultOpenByPath, splitDiff, splitPath, splitRows, highlightLine, hunkGaps, trailingGapKey, langFromPath, type ContextGap, type DiffRow, type FileStatus, type ParsedFileDiff } from "../diffSummary";
 import { Popover, PopItem, PopSection } from "./Popover";
+import "../styles.diff.css";
 
 // renderCode turns one diff line into syntax-highlighted spans (INC-41 D3).
 // Tokens are dependency-free and byte-exact, so `white-space: pre` alignment is
@@ -57,6 +60,77 @@ const rowSign = (r?: DiffRow) => (!r ? "" : r.kind === "add" ? "+" : r.kind === 
 const halfKind = (r: DiffRow | undefined, side: "left" | "right") =>
   !r ? "empty" : side === "left" && r.kind === "del" ? "del" : side === "right" && r.kind === "add" ? "add" : "";
 
+// INC-41 DF-4 · the diff's line-wrap preference, shared by every file and every
+// session (the conversation's code blocks keep theirs per-block because a page
+// holds dozens of unrelated blocks; a review is one surface, so one switch).
+// Kept in localStorage rather than the store: a display preference the user sets
+// once, not session state — and the store is off this change's touch list.
+const WRAP_KEY = "ar.diff.wrap";
+const loadWrap = (): boolean => {
+  try {
+    return localStorage.getItem(WRAP_KEY) === "1";
+  } catch {
+    return false; // private mode / storage disabled: wrap simply doesn't persist
+  }
+};
+const saveWrap = (on: boolean) => {
+  try {
+    localStorage.setItem(WRAP_KEY, on ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+};
+
+// FileHead is the one file header in the review — Codex has exactly one kind of
+// changed-file card, and after DF-3 so do we: tracked edits and untracked new
+// files render through this same summary (caret + M/A/D glyph + path + `+x −y`
+// + badges) and the same expandable body underneath.
+function FileHead({
+  path,
+  status,
+  add,
+  del,
+  badges,
+}: {
+  path: string;
+  status: FileStatus;
+  add: number | null;
+  del: number;
+  badges: string[];
+}) {
+  const { dir, base } = splitPath(path);
+  return (
+    <summary className="fd-head mono">
+      <span className="fd-caret" aria-hidden="true">
+        <CaretRight size={12} weight="bold" />
+      </span>
+      <span className={"fd-glyph fd-glyph-" + status} title={status} aria-hidden="true">
+        {STATUS_GLYPH[status]}
+      </span>
+      <span className="fd-path" title={path}>
+        {dir && <span className="fd-dir">{dir}</span>}
+        {base}
+      </span>
+      {/* RD-4: counts sit right after the filename (Codex: `docs/DESIGN.md +8 -4`),
+          both numbers always rendered — a pure deletion reads "+0 −176", not a
+          lone "−176". `add === null` is the one honest gap: an untracked file's
+          line count is only known once its blob is in hand. */}
+      <span className="fd-counts">
+        <span className="add">+{add === null ? "…" : add}</span>
+        <span className="del">−{del}</span>
+      </span>
+      {/* The elastic gap is the .fd-spacer, not .fd-path (styles.panel.css
+          overrides styles.css's `.fd-path{flex:1}`). */}
+      <span className="fd-spacer" aria-hidden="true" />
+      {badges
+        .filter((b) => !GLYPH_BADGES.has(b))
+        .map((b) => (
+          <span className="fd-badge" key={b}>{b}</span>
+        ))}
+    </summary>
+  );
+}
+
 export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }) {
   const { toast, openPrompt, openModal } = useStore();
   const [data, setData] = useState<DiffResp | null>(null);
@@ -79,6 +153,14 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
   // falls back to inline so two columns never crush the diff column.
   const [fileQuery, setFileQuery] = useState("");
   const [view, setView] = useState<"inline" | "split">("inline");
+  // DF-4 · soft-wrap long diff lines (see WRAP_KEY above). Off = Codex's default
+  // (one horizontal scroll for the whole rail); on = nothing is clipped.
+  const [wrap, setWrap] = useState(loadWrap);
+  const toggleWrap = () =>
+    setWrap((w) => {
+      saveWrap(!w);
+      return !w;
+    });
   const [narrow, setNarrow] = useState(() => window.matchMedia("(max-width: 900px)").matches);
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 900px)");
@@ -405,14 +487,25 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
   const totalDel = stats.reduce((s, x) => s + x.del, 0);
   const q = fileQuery.trim().toLowerCase();
   const shown = q ? stats.filter((s) => s.f.path.toLowerCase().includes(q)) : stats;
+  // DF-3 · untracked files are files: they go through the same filter, the same
+  // count, the same Expand/Collapse-all as everything else in the review.
+  const shownUntracked = q ? untracked.filter((p) => p.toLowerCase().includes(q)) : untracked;
+  const fileCount = files.length + untracked.length;
+  const shownCount = shown.length + shownUntracked.length;
   // Per-file default disclosure (RD-1) — computed over the whole review, not just
   // the filtered subset, so filtering never changes a file's default state.
   const defaults = defaultOpenByPath(files);
   const isOpen = (path: string) => override ?? defaults.get(path) ?? true;
-  const allShownOpen = shown.length > 0 && shown.every((s) => isOpen(s.f.path));
+  // An untracked entry that survives to this list is one git refused to inline
+  // (binary, >256KB, or past the inline budget — webui/meta.go), so it folds by
+  // default for the same reason DF-2 folds generated files: a review shouldn't
+  // open on a wall of content nobody reads. Expand-all still opens it.
+  const untrackedOpen = override ?? false;
+  const allShownOpen =
+    shownCount > 0 && shown.every((s) => isOpen(s.f.path)) && (shownUntracked.length === 0 || untrackedOpen);
 
   return (
-    <div className="diffwrap">
+    <div className={"diffwrap" + (wrap ? " diff-wrap" : "")}>
       <div className="diffbar">
         {scopeControl}
         {!empty && (
@@ -475,7 +568,7 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
         >
           {(close) => (
             <PopSection label="Changes">
-              {files.length > 1 && (
+              {fileCount > 1 && (
                 <PopItem
                   icon={allShownOpen ? <ArrowsInLineVertical size={15} /> : <ArrowsOutLineVertical size={15} />}
                   title={allShownOpen ? "Collapse all files" : "Expand all files"}
@@ -528,7 +621,7 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
             field now opens in a popover, where it has room; the trigger stays
             lit while a query is filtering the list, so a filtered review can
             never look like an empty one. */}
-        {files.length > 1 && (
+        {fileCount > 1 && (
           <Popover
             align="right"
             panelClass="w-[248px] max-w-[calc(100vw-24px)]"
@@ -559,11 +652,28 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
                   />
                 </label>
                 <div className="mx-[6px] mt-[6px] text-[11px] text-dim">
-                  {q ? `${shown.length} of ${files.length} files match` : `${files.length} files changed`}
+                  {q ? `${shownCount} of ${fileCount} files match` : `${fileCount} files changed`}
                 </div>
               </PopSection>
             )}
           </Popover>
+        )}
+        {/* DF-4 · the Wrap switch. Same two icons, same wording, same aria-pressed
+            contract as the conversation's code blocks (Markdown.tsx CodeBlock) —
+            it was absurd that a fenced snippet in the chat could soft-wrap while
+            the review, where long lines actually hurt, hard-clipped them behind a
+            per-file scrollbar. Icon-only here because DF-1's whole point was that
+            this bar has no spare width; the label lives in the tooltip. */}
+        {!empty && (
+          <button
+            className={"sm ghost diff-iconbtn diff-wrap-btn" + (wrap ? " active" : "")}
+            onClick={toggleWrap}
+            aria-label="Wrap long lines"
+            aria-pressed={wrap}
+            title={wrap ? "Disable line wrap" : "Wrap long lines"}
+          >
+            {wrap ? <TextAlignLeft size={15} /> : <ArrowsHorizontal size={15} />}
+          </button>
         )}
         {!empty && (
           <div className="diff-viewtoggle" role="group" aria-label="Diff layout">
@@ -657,11 +767,11 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
           )}
         </div>
       )}
-      {!empty && q && shown.length === 0 && (
+      {!empty && q && shownCount === 0 && (
         <div className="diff-empty">
           <FileMagnifyingGlass size={26} weight="light" />
           <b>No matching files</b>
-          <span>No changed file’s path contains “{fileQuery}”. Clear the filter to see all {files.length} of them.</span>
+          <span>No changed file’s path contains “{fileQuery}”. Clear the filter to see all {fileCount} of them.</span>
         </div>
       )}
       {hiddenUntracked > 0 && !q && (
@@ -670,24 +780,24 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
           <span>Dependency/build output is omitted to keep review responsive. Source files remain visible.</span>
         </div>
       )}
-      {untracked.length > 0 && !q && (
-        <div className="filediff">
-          <div className="fd-head">
-            new files (untracked) · {untracked.length}
-          </div>
-          <div className="fd-body">
-            {untracked.map((f) => (
-              <div className="dl add" key={f}>
-                <span className="dl-no" />
-                <span className="dl-text"><span className="dl-sign">+</span>{f}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* INC-41 DF-3 · these used to be a grey `new files (untracked) · N` strip
+          of bare paths: no glyph, no `+N −0`, no line numbers, nothing to open —
+          a second visual language for the files a review most wants to read, and
+          they sat *above* every real file. They are ordinary file cards now. */}
+      {shownUntracked.map((path) => (
+        <UntrackedFile
+          key={path + ":" + foldEpoch}
+          sid={sid}
+          path={path}
+          effView={effView}
+          defaultOpen={untrackedOpen}
+          // Same budget as FileBody's prefetch: on a small review, read the file
+          // up front so its header can state a real `+N −0` instead of `+…`.
+          prefetch={shownUntracked.length <= 25}
+        />
+      ))}
       {shown.map(({ f, add, del }) => {
         const parsed = parseFileDiff(f.lines);
-        const { dir, base } = splitPath(f.path);
         const lang = langFromPath(f.path);
         // A hunk header with no @@ context text is pure noise: a lone "⋯" band.
         // Drop it entirely when the file has a single hunk (nothing to separate);
@@ -696,35 +806,11 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
         const open = isOpen(f.path);
         return (
           <details className="filediff" key={f.path + ":" + foldEpoch} open={open}>
-            {/* RD-4: counts sit right after the filename (Codex: `docs/DESIGN.md
-                +8 -4`), both numbers always rendered — a pure deletion reads
-                "+0 −176", not a lone "−176". The elastic gap is the .fd-spacer,
-                not .fd-path (styles.panel.css overrides styles.css's
-                `.fd-path{flex:1}`). RV-3 · the disclosure caret: `list-style:
-                none` killed the platform triangle, so a collapsed file was a
-                lone header with no hint that a body was hiding under it. */}
-            <summary className="fd-head mono">
-              <span className="fd-caret" aria-hidden="true">
-                <CaretRight size={12} weight="bold" />
-              </span>
-              <span className={"fd-glyph fd-glyph-" + parsed.status} title={parsed.status} aria-hidden="true">
-                {STATUS_GLYPH[parsed.status]}
-              </span>
-              <span className="fd-path" title={f.path}>
-                {dir && <span className="fd-dir">{dir}</span>}
-                {base}
-              </span>
-              <span className="fd-counts">
-                <span className="add">+{add}</span>
-                <span className="del">−{del}</span>
-              </span>
-              <span className="fd-spacer" aria-hidden="true" />
-              {parsed.badges
-                .filter((b) => !GLYPH_BADGES.has(b))
-                .map((b) => (
-                  <span className="fd-badge" key={b}>{b}</span>
-                ))}
-            </summary>
+            {/* RV-3 · the disclosure caret: `list-style: none` killed the platform
+                triangle, so a collapsed file was a lone header with no hint that a
+                body was hiding under it. Header shape now lives in FileHead, which
+                untracked files share (DF-3). */}
+            <FileHead path={f.path} status={parsed.status} add={add} del={del} badges={parsed.badges} />
             <FileBody
               sid={sid}
               path={f.path}
@@ -741,6 +827,79 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
         );
       })}
     </div>
+  );
+}
+
+// INC-41 DF-3 · UntrackedFile — a new file that never reached `git diff`.
+//
+// The backend already inlines every small text file it finds as a synthetic
+// new-file diff (webui/meta.go), so what lands in `untracked` is precisely the
+// remainder: binary blobs, files over 256KB, and anything past the inline
+// budget. Those used to render as bare paths in a text strip. Here they are the
+// same `details.filediff` card as any other file — A glyph, path, `+N −0`, a
+// disclosure — with their body read from the workspace on demand (AR.blob, the
+// endpoint the "N unmodified lines" bands already use) and rendered as what it
+// is: a file made entirely of added lines.
+function UntrackedFile({
+  sid,
+  path,
+  effView,
+  defaultOpen,
+  prefetch,
+}: {
+  sid: string;
+  path: string;
+  effView: "inline" | "split";
+  defaultOpen: boolean;
+  prefetch: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const [lines, setLines] = useState<string[] | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if ((!open && !prefetch) || lines || failed) return;
+    let alive = true;
+    AR.blob(sid, path)
+      .then((r) => alive && setLines(r.lines))
+      // Silent: a binary/oversized file is the expected failure here, not an
+      // error the user has to act on. The card says so in place of its rows.
+      .catch(() => alive && setFailed(true));
+    return () => {
+      alive = false;
+    };
+  }, [sid, path, open, prefetch, lines, failed]);
+
+  const rows: DiffRow[] = (lines || []).map((text, i) => ({ kind: "add", newNo: i + 1, text }));
+  const parsed: ParsedFileDiff = { badges: failed ? ["binary"] : [], status: "added", rows };
+  // A file git can't show is a file with no countable lines — same "+0 −0 ·
+  // binary" a *tracked* binary addition renders, so the two agree.
+  const add = lines ? lines.length : failed ? 0 : null;
+
+  return (
+    <details
+      className="filediff filediff-untracked"
+      open={open}
+      onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}
+    >
+      <FileHead path={path} status="added" add={add} del={0} badges={parsed.badges} />
+      {failed ? (
+        <div className="fd-nobody">Content isn’t shown — this file is binary or too large to display.</div>
+      ) : lines ? (
+        <FileBody
+          sid={sid}
+          path={path}
+          parsed={parsed}
+          lang={langFromPath(path)}
+          effView={effView}
+          hunkCount={0}
+          // An added file's diff *is* the whole file: no gaps, nothing to fetch.
+          prefetch={false}
+        />
+      ) : (
+        <div className="fd-nobody">Loading…</div>
+      )}
+    </details>
   );
 }
 

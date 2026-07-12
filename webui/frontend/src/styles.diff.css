@@ -1,0 +1,49 @@
+/* ============================================================================
+ * styles.diff.css — the Changes rail's own slice (imported by DiffView.tsx).
+ *
+ * Two INC-41 gaps against the Codex golden live here:
+ *
+ *  DF-3 · untracked files were second-class citizens: a plain-text `new files
+ *         (untracked) · N` strip with bare paths — no glyph, no counts, no body.
+ *         They are ordinary `details.filediff` cards now (see DiffView's
+ *         UntrackedFile), so the only new rule they need is the note we show
+ *         when a file has no displayable text (binary / oversized).
+ *
+ *  DF-4 · long lines were hard-clipped (`.dl-text { white-space: pre }`) and
+ *         every file grew its own horizontal scrollbar, while the *conversation*
+ *         code blocks have had a Wrap toggle all along. The rail has one now:
+ *         `.diffwrap.diff-wrap` soft-wraps every diff surface (inline rows,
+ *         split halves, hunk headers) and drops the per-file scrollbar.
+ *
+ * Selectors are two-class-deep on purpose: they must out-specify the existing
+ * `.dl-text` / `.dls-half` / `.fd-body` rules in styles.css + styles.rs.css
+ * regardless of which order the bundler concatenates the slices in.
+ * ==========================================================================*/
+
+/* ---- DF-4 · Wrap ---------------------------------------------------------*/
+.diffwrap.diff-wrap .dl-text,
+.diffwrap.diff-wrap .dls-half,
+.diffwrap.diff-wrap .dl-hunk {
+  white-space: pre-wrap;
+  /* `anywhere` (not break-word) so a 1.9M-char minified line still breaks:
+     it has no spaces to break at, and an unbreakable line would re-introduce
+     exactly the overflow this toggle exists to remove. */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+/* …and with nothing left to scroll to, the scrollbar goes. `.dls-half` keeps
+   its own `overflow: hidden`, which wrapping makes inert. */
+.diffwrap.diff-wrap .fd-body {
+  overflow-x: hidden;
+}
+
+/* ---- DF-3 · a file whose content we cannot show --------------------------*/
+/* Reached only for untracked files git wouldn't inline (binary, >256KB, or past
+   the inline budget). The card is identical to every other file's — header,
+   glyph, counts, disclosure — so this note sits exactly where the diff rows
+   would be, rather than the whole file degrading into a bare path. */
+.diffwrap .fd-nobody {
+  padding: 8px 14px 10px calc(5ch + 27px);
+  color: var(--dim);
+  font-size: 12px;
+}

@@ -144,3 +144,54 @@ describe("File headers (INC-41 RV-3 / RV-5)", () => {
     expect(container.querySelectorAll(".fd-badge").length).toBe(0);
   });
 });
+
+// INC-41 DF-3 — untracked files used to render as a grey `new files (untracked)
+// · N` strip of bare paths, above every real file: no A glyph, no `+N −0`, no
+// line numbers, nothing to open. Two visual languages for changed files in one
+// panel. They are the same card as everything else now, body included.
+describe("Untracked files are ordinary file cards (INC-41 DF-3)", () => {
+  it("gives an untracked file the same header, counts and expandable body", async () => {
+    arMock.diff = () => Promise.resolve(baseDiff({ diff: editDiff, untracked: ["assets/note.txt"] }));
+    arMock.blob = () => Promise.resolve({ lines: ["alpha", "beta", "gamma"] });
+    const { container } = render(<DiffView sid="u1" />);
+
+    await waitFor(() => expect(screen.getByText("note.txt")).toBeTruthy());
+    // The old text strip is gone…
+    expect(container.textContent).not.toMatch(/new files \(untracked\)/);
+
+    // …and the file is a details card with the same summary as a tracked file.
+    const card = container.querySelector("details.filediff-untracked")!;
+    expect(card).toBeTruthy();
+    const head = card.querySelector("summary.fd-head")!;
+    expect(head.querySelector(".fd-caret")).toBeTruthy();
+    expect(head.querySelector(".fd-glyph-added")!.textContent).toBe("A");
+    expect(head.querySelector(".fd-path")!.textContent).toBe("assets/note.txt");
+    // Counts: a new file is all additions (prefetched from the workspace blob).
+    await waitFor(() => expect(head.querySelector(".fd-counts .add")!.textContent).toBe("+3"));
+    expect(head.querySelector(".fd-counts .del")!.textContent).toBe("−0");
+
+    // Expandable: Expand-all opens it and the body is the file, as added lines.
+    fireEvent.click(screen.getByLabelText("More changes actions"));
+    fireEvent.click(screen.getByText("Expand all files"));
+    await waitFor(() => expect(container.querySelector("details.filediff-untracked[open]")).toBeTruthy());
+    const rows = container.querySelectorAll("details.filediff-untracked .fd-body .dl.add");
+    expect(rows.length).toBe(3);
+    expect(rows[0].textContent).toContain("alpha");
+    expect(rows[0].querySelector(".dl-no")!.textContent).toBe("1");
+  });
+
+  it("keeps the card for a file it cannot show, and says why", async () => {
+    arMock.diff = () => Promise.resolve(baseDiff({ untracked: ["chart.png"] }));
+    arMock.blob = () => Promise.reject(new Error("file is too large to expand"));
+    const { container } = render(<DiffView sid="u2" />);
+
+    await waitFor(() => expect(screen.getByText("chart.png")).toBeTruthy());
+    const card = container.querySelector("details.filediff-untracked")!;
+    expect(card.querySelector(".fd-glyph-added")!.textContent).toBe("A");
+    // Same shape a *tracked* binary addition has: +0 −0 plus a "binary" badge…
+    await waitFor(() => expect(card.querySelector(".fd-badge")!.textContent).toBe("binary"));
+    expect(card.querySelector(".fd-counts .add")!.textContent).toBe("+0");
+    // …and the reason where the rows would be, instead of a bare path.
+    expect(card.querySelector(".fd-nobody")!.textContent).toMatch(/binary or too large/);
+  });
+});
