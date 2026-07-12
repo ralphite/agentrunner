@@ -235,6 +235,153 @@ describe("footer says the product name once (SB-12)", () => {
   });
 });
 
+describe("workspace-less tasks live in a flat Tasks section (SB-13)", () => {
+  const mount = (sessions: any[], over: Record<string, any> = {}) => {
+    useStore.setState({
+      sessions: sessions as any,
+      sessionsReady: true,
+      currentSid: null,
+      archived: [],
+      pinned: [],
+      unread: [],
+      renames: {},
+      projects: {},
+      toggleProjectFolded: vi.fn(),
+      ...over,
+    });
+    return render(<Sidebar />);
+  };
+
+  const section = (container: HTMLElement, cls: string) => container.querySelector(`.${cls}`);
+
+  it("puts a workspace-less task under Tasks — no folder, no caret, no fake project", () => {
+    const { container } = mount([
+      { id: "20260710-000000-loose", status: "idle", turns: 1, title: "Loose task" },
+      { id: "20260709-000000-repo", status: "idle", turns: 1, title: "Repo task", workspace: "/repo/app" },
+    ]);
+
+    // The fake folder is gone: no group is named "Other sessions", and every
+    // project heading that *is* rendered names a real directory.
+    const headings = [...container.querySelectorAll(".project-heading")].map((h) => h.textContent);
+    expect(headings.join(" ")).not.toContain("Other sessions");
+    expect(headings).toHaveLength(1);
+    expect(headings[0]).toContain("app");
+
+    const tasks = section(container, "tasks-section")!;
+    expect(tasks).toBeTruthy();
+    expect(tasks.querySelector(".section-label")!.textContent).toBe("Tasks");
+    expect(tasks.textContent).toContain("Loose task");
+    // Flat: the row sits at the Pinned indent (no `.nested`), and the section
+    // carries none of the project chrome that asserts a directory.
+    const row = tasks.querySelector(".project-task-wrap")!;
+    expect(row.className).not.toContain("nested");
+    expect(tasks.querySelector(".proj-folder")).toBeNull();
+    expect(tasks.querySelector(".proj-caret")).toBeNull();
+    expect(tasks.querySelector(".project-heading")).toBeNull();
+  });
+
+  it("renders no Tasks section at all when every task has a workspace", () => {
+    const { container } = mount([
+      { id: "20260709-000000-repo", status: "idle", turns: 1, title: "Repo task", workspace: "/repo/app" },
+    ]);
+    // An empty heading is worse than no heading.
+    expect(section(container, "tasks-section")).toBeNull();
+    expect(container.textContent).not.toContain("Other sessions");
+  });
+
+  it("keeps a pinned workspace-less task in Pinned only — never twice", () => {
+    const { container } = mount(
+      [
+        { id: "20260710-000000-loose", status: "idle", turns: 1, title: "Loose task" },
+        { id: "20260708-000000-other", status: "idle", turns: 1, title: "Other loose" },
+      ],
+      { pinned: ["20260710-000000-loose"] },
+    );
+    const pinned = section(container, "pinned-section")!;
+    expect(pinned.textContent).toContain("Loose task");
+    const tasks = section(container, "tasks-section")!;
+    expect(tasks.textContent).toContain("Other loose");
+    expect(tasks.textContent).not.toContain("Loose task");
+    // …and exactly one row on the whole rail carries that title.
+    const titles = [...container.querySelectorAll(".project-task-title")].map((t) => t.textContent);
+    expect(titles.filter((t) => t === "Loose task")).toHaveLength(1);
+  });
+
+  it("caps the section at 6 rows and reveals the rest behind Show more / Show less", () => {
+    const many = Array.from({ length: 9 }, (_v, i) => ({
+      id: `2026071${i}-000000-loose-${i}`,
+      status: "idle",
+      turns: 1,
+      title: `Loose ${i}`,
+    }));
+    const { container } = mount(many);
+    const tasks = () => section(container, "tasks-section")!;
+    expect(tasks().querySelectorAll(".project-task-wrap")).toHaveLength(6);
+
+    const showMore = tasks().querySelector(".show-more")!;
+    expect(showMore.textContent).toContain("Show more");
+    expect(showMore.textContent).toContain("3"); // the withheld ones are counted
+    fireEvent.click(showMore);
+    expect(tasks().querySelectorAll(".project-task-wrap")).toHaveLength(9);
+
+    const showLess = tasks().querySelector(".show-more")!;
+    expect(showLess.textContent).toContain("Show less");
+    fireEvent.click(showLess);
+    expect(tasks().querySelectorAll(".project-task-wrap")).toHaveLength(6);
+  });
+});
+
+describe("footer actions collapse into one overflow menu (SB-12)", () => {
+  const mount = (over: Record<string, any> = {}) => {
+    useStore.setState({ sessions: [], theme: "dark", ...over });
+    return render(<Sidebar onOpenSettings={vi.fn()} />);
+  };
+
+  it("keeps the account row to identity + status: no loose icon buttons", () => {
+    const { container } = mount();
+    const foot = container.querySelector(".side-foot")!;
+    // One badge, one `…` trigger — the Settings / Help / Theme buttons that used
+    // to sit here are behind the trigger now.
+    expect(foot.querySelector(".account-badge")).toBeTruthy();
+    expect(foot.querySelector(".menu-trigger")).toBeTruthy();
+    expect(screen.queryByLabelText("Open settings")).toBeNull();
+    expect(screen.queryByLabelText("Help and keyboard shortcuts")).toBeNull();
+    expect(screen.queryByLabelText("Toggle theme")).toBeNull();
+    // The presence dot (and its offline/outage behaviour) stays on the row.
+    expect(foot.querySelector(".account-presence")).toBeTruthy();
+  });
+
+  it("carries all three actions — with their shortcuts — inside the menu", () => {
+    const onOpenSettings = vi.fn();
+    const cycleTheme = vi.fn();
+    const openHelp = vi.fn();
+    useStore.setState({ sessions: [], theme: "dark", cycleTheme, openHelp });
+    const { container } = render(<Sidebar onOpenSettings={onOpenSettings} />);
+
+    fireEvent.click(container.querySelector(".side-foot .menu-trigger")!);
+    const items = [...container.querySelectorAll(".side-foot [role='menuitem']")];
+    expect(items).toHaveLength(3);
+    const text = items.map((i) => i.textContent).join("|");
+    expect(text).toContain("Settings");
+    expect(text).toContain("Keyboard shortcuts & help");
+    expect(text).toContain("Theme: dark");
+    // The keys the icon buttons hid in tooltips are now on the rows themselves.
+    expect(text).toContain(`${keyLabel("mod")},`);
+    expect(items[0].getAttribute("title")).toBe("Settings (⌘,)");
+    expect(items[1].getAttribute("title")).toBe("Keyboard shortcuts & help (?)");
+
+    // Every action still fires.
+    fireEvent.click(items[2]);
+    expect(cycleTheme).toHaveBeenCalled();
+    fireEvent.click(container.querySelector(".side-foot .menu-trigger")!);
+    fireEvent.click([...container.querySelectorAll(".side-foot [role='menuitem']")][1]);
+    expect(openHelp).toHaveBeenCalled();
+    fireEvent.click(container.querySelector(".side-foot .menu-trigger")!);
+    fireEvent.click([...container.querySelectorAll(".side-foot [role='menuitem']")][0]);
+    expect(onOpenSettings).toHaveBeenCalled();
+  });
+});
+
 describe("brand row is a wordmark, not a logo tile (SB-13)", () => {
   it("drops the filled accent square from the brand button", () => {
     useStore.setState({ sessions: [] });

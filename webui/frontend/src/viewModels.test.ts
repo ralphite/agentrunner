@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSidebarModel, daemonVersionLabel, dedupeInspectNodes, deNoiseSegment, projectDisplayName, projectLabel, projectSubtitle, projectSubtitles, quickSwitchTasks, scheduleLabel, scratchLabel, sessionNeedsAttention, visibleProjectSessions } from "./viewModels";
+import { buildArchivedModel, buildSidebarModel, daemonVersionLabel, dedupeInspectNodes, deNoiseSegment, projectDisplayName, projectLabel, projectSubtitle, projectSubtitles, quickSwitchTasks, scheduleLabel, scratchLabel, sessionNeedsAttention, visibleProjectSessions } from "./viewModels";
 import type { ProjectGroup } from "./viewModels";
 import { compactWorkspaceName, describeApproval } from "./approvalPresentation";
 import { conciseTitle, displayTitle, titleFromSessionId } from "./title";
@@ -16,7 +16,7 @@ const sessions: Session[] = [
 ];
 
 describe("project sidebar model", () => {
-  it("groups by workspace, keeps unknown workspaces, and avoids pinned duplicates", () => {
+  it("groups by workspace, floats workspace-less tasks out, and avoids pinned duplicates", () => {
     const model = buildSidebarModel(sessions, {
       pinned: ["s2"],
       archived: [],
@@ -25,10 +25,56 @@ describe("project sidebar model", () => {
       titleOf: (session) => session.title || session.id,
     });
     expect(model.pinned.map((session) => session.id)).toEqual(["s2"]);
-    // Newest-first everywhere (W8): ids sort descending, so s3 leads.
-    expect(model.projects.map((project) => project.label)).toEqual(["Scratch", "Other sessions", "agentrunner"]);
-    expect(model.projects.flatMap((project) => project.sessions.map((session) => session.id))).toEqual(["scratch-2", "scratch-1", "s3", "s1"]);
+    // Newest-first everywhere (W8): ids sort descending, so Scratch leads.
+    // SB-13: no "Other sessions" group — s3 has no workspace, so it is not in a
+    // project at all; it comes back in the flat `tasks` list instead.
+    expect(model.projects.map((project) => project.label)).toEqual(["Scratch", "agentrunner"]);
+    expect(model.projects.flatMap((project) => project.sessions.map((session) => session.id))).toEqual(["scratch-2", "scratch-1", "s1"]);
+    expect(model.tasks.map((session) => session.id)).toEqual(["s3"]);
     expect(model.projects.flatMap((project) => project.sessions.map((session) => session.id))).not.toContain("driver");
+    expect(model.tasks.map((session) => session.id)).not.toContain("driver");
+  });
+
+  // SB-13 · A folder icon is an assertion ("these live in a directory"). For a
+  // task with no workspace it is a false one, so the model must not be able to
+  // make it: workspace-less tasks are never a group, and never a duplicate.
+  it("never puts a workspace-less task in a project group, pinned or not", () => {
+    const model = buildSidebarModel(
+      [
+        { id: "n1", status: "idle", turns: 1, title: "No workspace" },
+        { id: "n2", status: "idle", turns: 1, title: "Blank workspace", workspace: "   " },
+        { id: "n3", status: "idle", turns: 1, title: "Pinned, no workspace" },
+        { id: "p1", status: "idle", turns: 1, title: "Real project", workspace: "/repo/app" },
+      ],
+      { pinned: ["n3"], archived: [], showArchived: false, query: "", titleOf: (session) => session.title || session.id },
+    );
+    expect(model.projects.map((project) => project.key)).toEqual(["/repo/app"]);
+    expect(model.projects.map((project) => project.label)).not.toContain("Other sessions");
+    // Whitespace-only workspaces are workspace-less too — a group keyed on "   "
+    // would be a folder icon over a path that does not exist.
+    expect(model.tasks.map((session) => session.id)).toEqual(["n2", "n1"]);
+    // A pinned task lives in exactly one section: Pinned. It must not also show
+    // up in Tasks (that was the whole reason the group skipped pinned ids).
+    expect(model.pinned.map((session) => session.id)).toEqual(["n3"]);
+    expect(model.tasks.map((session) => session.id)).not.toContain("n3");
+  });
+
+  it("keeps archived workspace-less tasks reachable in the Archived browser", () => {
+    // Settings → Archived only renders groups, so buildArchivedModel folds the
+    // flat tasks back into one bucket — SB-13 changes what the *rail* asserts,
+    // it does not hide archived tasks from the screen that exists to find them.
+    const model = buildArchivedModel(
+      [
+        { id: "a1", status: "completed", turns: 1, title: "Archived, no workspace" },
+        { id: "a2", status: "completed", turns: 1, title: "Archived, in a repo", workspace: "/repo/app" },
+      ],
+      ["a1", "a2"],
+      "",
+      (session) => session.title || session.id,
+    );
+    expect(model.tasks).toEqual([]);
+    expect(model.projects.map((project) => project.key)).toEqual(["/repo/app", "__other__"]);
+    expect(model.projects[1].sessions.map((session) => session.id)).toEqual(["a1"]);
   });
 
   it("orders sessions newest-first and groups by their newest session (W8)", () => {
@@ -106,7 +152,17 @@ describe("project sidebar model", () => {
     expect(projectLabel("/tmp/ws1783658717524713000")).toBe("Scratch");
     expect(projectLabel("/tmp/wt1783658717524713999-fork-1234")).toBe("Scratch");
     expect(projectLabel("/tmp/ws-20260710-221530")).toBe("Scratch");
-    expect(projectLabel()).toBe("Other sessions");
+  });
+
+  // SB-13 · "no workspace" is the absence of a project, not a project named
+  // "Other sessions". The empty string is falsy, so the `{hint && …}` and
+  // `.filter(Boolean)` guards at the call sites drop it instead of painting a
+  // folder that isn't there.
+  it("says nothing when there is no workspace", () => {
+    expect(projectLabel()).toBe("");
+    expect(projectLabel("")).toBe("");
+    expect(projectLabel("   ")).toBe("");
+    expect(projectLabel("/")).toBe("");
   });
 
   it("uses product labels for driver schedules", () => {

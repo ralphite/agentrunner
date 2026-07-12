@@ -28,6 +28,15 @@
   margin-top: 1px;
 }
 
+/* ===== SB-13 · Tasks section ===========================================
+   Tasks that belong to no project. Structurally identical to Pinned — a quiet
+   heading over flat rows at the top-level indent — because that is the whole
+   point: they carry no folder, no caret and no 16px nesting, since there is no
+   directory on disk for any of that to refer to. */
+.sidebar .tasks-section .project-task-wrap + .project-task-wrap {
+  margin-top: 1px;
+}
+
 /* ===== E2 · Account footer =============================================
    Codex bottom bar: circular avatar (initials) with a presence dot folding
    in daemon state, name + connection line, then help + theme on the right.
@@ -120,11 +129,34 @@
 .side-foot .account-avatar.offline + .account-meta > span {
   color: var(--red);
 }
-.side-foot .foot-actions {
+/* SB-12 · The account row's trailing control is a single `…` menu, not a strip
+   of icon buttons (Codex's bottom bar is identity only). The pop has to open
+   *upward* — this row is the last thing in the rail, so the base `.menu-pop`
+   drop-down would render below the viewport. */
+.side-foot .menu {
   flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 2px;
+}
+.side-foot .menu-trigger {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+}
+.side-foot .menu-pop {
+  top: auto;
+  bottom: 34px;
+  right: 2px;
+}
+/* The shortcut a menu row stands for, parked on the right edge of the row —
+   the key stays visible after the icon button that carried it in a tooltip is
+   gone (same contract as the nav rows' `.nav-kbd`). */
+.menu-kbd {
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--dim);
+  font-size: 11.5px;
+  white-space: nowrap;
 }
 
 /* ===== E3 · Scheduled nav unread dot ==================================

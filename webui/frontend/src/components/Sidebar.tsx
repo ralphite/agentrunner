@@ -6,6 +6,7 @@ import {
   CaretRight,
   Clock,
   Code,
+  DotsThree,
   Folder,
   FolderOpen,
   GearSix,
@@ -27,7 +28,7 @@ import { AR } from "../api";
 import { friendlyStatus } from "./pill";
 import { displayTitle } from "../title";
 import { ContextMenu } from "./ContextMenu";
-import { MenuItem, MenuLabel } from "./Menu";
+import { Menu, MenuItem, MenuLabel } from "./Menu";
 import { copyText } from "../clipboard";
 import { buildSidebarModel, daemonVersionLabel, projectDisplayName, projectLabel, scheduledUnread, visibleProjectSessions } from "../viewModels";
 import { PROJECT_GROUP_LIMIT, visibleProjectGroups } from "../viewModels.nav";
@@ -111,6 +112,9 @@ export function Sidebar({ onNavigate, onOpenPalette, onOpenSettings }: {
   // "show every project" escape hatch.
   const [collapsed, setCollapsed] = useState<Set<string>>(loadCollapsedProjects);
   const [showAllProjects, setShowAllProjects] = useState(false);
+  // SB-13: the flat `Tasks` section's own show-all toggle (same cap language as
+  // a project group's — it must not dump every workspace-less task at once).
+  const [showAllTasks, setShowAllTasks] = useState(false);
   const [ctx, setCtx] = useState<SidebarContext | null>(null);
   const [hoverPreview, setHoverPreview] = useState<{ sid: string; top: number } | null>(null);
   const [branchByWorkspace, setBranchByWorkspace] = useState<Record<string, string>>({});
@@ -133,7 +137,13 @@ export function Sidebar({ onNavigate, onOpenPalette, onOpenSettings }: {
   const runningRuns = runs.filter((run) => run.status === "running").length;
   const schedUnread = scheduledUnread(sessions, unread);
   const orderedIds = useMemo(
-    () => [...model.pinned.map((session) => session.id), ...model.projects.flatMap((project) => project.sessions.map((session) => session.id))],
+    () => [
+      ...model.pinned.map((session) => session.id),
+      ...model.projects.flatMap((project) => project.sessions.map((session) => session.id)),
+      // SB-13: the flat Tasks section is part of the rail, so it is part of the
+      // rail's keyboard order too — it sits last, exactly where it renders.
+      ...model.tasks.map((session) => session.id),
+    ],
     [model],
   );
   useEffect(() => setVisibleOrder(orderedIds), [orderedIds, setVisibleOrder]);
@@ -158,6 +168,19 @@ export function Sidebar({ onNavigate, onOpenPalette, onOpenSettings }: {
   const { groups: shownProjects, hidden: hiddenProjects } = useMemo(
     () => visibleProjectGroups(model.projects, { expanded: showAllProjects, current: currentSid || undefined }),
     [model.projects, showAllProjects, currentSid],
+  );
+
+  // SB-13 · The flat `Tasks` section: tasks with no workspace. Codex's rail puts
+  // these under a plain heading with no folder, no caret and no indent — because
+  // there is no folder to open. Capping reuses `visibleProjectSessions` (a
+  // synthetic group), so the section inherits its cap *and* its invariant: the
+  // task you have open is always on the rail, cap or no cap.
+  const shownTasks = useMemo(
+    () => visibleProjectSessions(
+      { key: "__tasks__", label: "Tasks", sessions: model.tasks },
+      { expanded: showAllTasks, current: currentSid || undefined },
+    ),
+    [model.tasks, showAllTasks, currentSid],
   );
 
   // Fold a group both locally (instant, survives refresh) and in the server
@@ -336,21 +359,27 @@ export function Sidebar({ onNavigate, onOpenPalette, onOpenSettings }: {
           </section>
         )}
 
+        {/* Loading and empty are rail-level states, not Projects-level ones:
+            with SB-13 the rail has three sections, so "nothing here" means all
+            three are empty — and a rail that *does* hold tasks must never paint
+            "No tasks yet" under a heading. */}
+        {!sessionsReady ? (
+          <div className="sidebar-loading" role="status" aria-label="Loading tasks">
+            <span />
+            <span />
+            <span />
+          </div>
+        ) : model.projects.length === 0 && model.tasks.length === 0 && model.pinned.length === 0 ? (
+          <div className="sidebar-empty">
+            <Tray size={22} />
+            <b>No tasks yet</b>
+            <span>Start a task to see it here.</span>
+          </div>
+        ) : null}
+
+        {model.projects.length > 0 && (
         <section className="sidebar-section projects-section">
           <div className="section-label">Projects</div>
-          {!sessionsReady ? (
-            <div className="sidebar-loading" role="status" aria-label="Loading tasks">
-              <span />
-              <span />
-              <span />
-            </div>
-          ) : model.projects.length === 0 ? (
-            <div className="sidebar-empty">
-              <Tray size={22} />
-              <b>No tasks yet</b>
-              <span>Start a task to see it here.</span>
-            </div>
-          ) : null}
           {shownProjects.map((project) => {
             const overlay = projects[project.key];
             const name = projectDisplayName(project, overlay);
@@ -445,15 +474,38 @@ export function Sidebar({ onNavigate, onOpenPalette, onOpenSettings }: {
               Show less
             </button>
           )}
-          {sessionsLoadingOlder && (
-            <div className="sidebar-history-loading" role="status">Loading older tasks…</div>
-          )}
-          {archivedCount > 0 && (
-            <button className="archive-toggle" onClick={toggleShowArchived}>
-              <ArchiveBox size={14} /> {showArchived ? "Hide" : "Show"} archived · {archivedCount}
-            </button>
-          )}
         </section>
+        )}
+
+        {/* SB-13 · Tasks — the ones that belong to no project. Flat rows at the
+            Pinned indent: no folder, no caret, nothing claiming a directory
+            these tasks do not have. Renders only when it has something to say;
+            an empty heading is worse than no heading. */}
+        {model.tasks.length > 0 && (
+          <section className="sidebar-section tasks-section">
+            <div className="section-label">Tasks</div>
+            {shownTasks.map((session) => renderTask(session))}
+            {!showAllTasks && model.tasks.length > shownTasks.length && (
+              <button className="show-more" onClick={() => setShowAllTasks(true)}>
+                Show more · {model.tasks.length - shownTasks.length}
+              </button>
+            )}
+            {showAllTasks && model.tasks.length > 6 && (
+              <button className="show-more" onClick={() => setShowAllTasks(false)}>
+                Show less
+              </button>
+            )}
+          </section>
+        )}
+
+        {sessionsLoadingOlder && (
+          <div className="sidebar-history-loading" role="status">Loading older tasks…</div>
+        )}
+        {archivedCount > 0 && (
+          <button className="archive-toggle" onClick={toggleShowArchived}>
+            <ArchiveBox size={14} /> {showArchived ? "Hide" : "Show"} archived · {archivedCount}
+          </button>
+        )}
       </div>
 
       <div className="side-foot">
@@ -503,19 +555,25 @@ export function Sidebar({ onNavigate, onOpenPalette, onOpenSettings }: {
             </span>
           </span>
         </button>
-        <div className="flex flex-none items-center gap-[2px]">
+        {/* SB-12 · Three loose icon buttons — Settings, Help, Theme — sat on the
+            account row spending a third of it on chrome nobody clicks in a
+            session. Codex's bottom bar is identity only: avatar, name, presence
+            dot. Ours keeps the identity and folds the three into one `…` menu
+            (the same Menu the task header uses), so every action survives with
+            its shortcut and its title — they just stop shouting. */}
+        <Menu label={<DotsThree size={18} weight="bold" />} ariaLabel="More options">
           {onOpenSettings && (
-            <button className="w-[30px] h-[30px] grid place-items-center p-0 border-0 bg-transparent text-ink-2 rounded-[8px] hover:text-ink hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)]" onClick={onOpenSettings} title="Settings (⌘,)" aria-label="Open settings">
-              <GearSix size={16} />
-            </button>
+            <MenuItem onClick={onOpenSettings} title="Settings (⌘,)">
+              <GearSix size={16} /> Settings <span className="menu-kbd">{keyLabel("mod")},</span>
+            </MenuItem>
           )}
-          <button className="w-[30px] h-[30px] grid place-items-center p-0 border-0 bg-transparent text-ink-2 rounded-[8px] hover:text-ink hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)]" onClick={openHelp} title="Keyboard shortcuts & help (?)" aria-label="Help and keyboard shortcuts">
-            <Question size={16} />
-          </button>
-          <button className="w-[30px] h-[30px] grid place-items-center p-0 border-0 bg-transparent text-ink-2 rounded-[8px] hover:text-ink hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)]" onClick={cycleTheme} title={`Theme: ${theme}`} aria-label="Toggle theme">
-            {themeGlyph}
-          </button>
-        </div>
+          <MenuItem onClick={openHelp} title="Keyboard shortcuts & help (?)">
+            <Question size={16} /> Keyboard shortcuts & help <span className="menu-kbd">?</span>
+          </MenuItem>
+          <MenuItem onClick={cycleTheme} title={`Theme: ${theme}`}>
+            {themeGlyph} Theme: {theme}
+          </MenuItem>
+        </Menu>
       </div>
 
       {hoverPreview && (() => {
@@ -529,7 +587,9 @@ export function Sidebar({ onNavigate, onOpenPalette, onOpenSettings }: {
         return (
           <div className="task-preview" style={{ top: hoverPreview.top }} aria-hidden="true">
             <div className="task-preview-head"><b>{title}</b>{when && <span>{when}</span>}</div>
-            <div><Folder size={15} /><span>{projectLabel(workspace)}</span></div>
+            {/* SB-13: no workspace ⇒ no project, and the preview says so
+                plainly rather than inventing an "Other sessions" folder. */}
+            <div><Folder size={15} /><span>{projectLabel(workspace) || "No project"}</span></div>
             <div><GitBranch size={15} /><span>{branch || "Local"}</span></div>
             <div><span className={`status-dot ${status.cls}`} /><span>{status.text}</span></div>
           </div>

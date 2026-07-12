@@ -13,6 +13,11 @@ export interface ProjectGroup {
 export interface SidebarModel {
   pinned: Session[];
   projects: ProjectGroup[];
+  // SB-13 · Tasks with no workspace at all. They are *not* a project: a folder
+  // icon and a group heading assert "these live in a directory on disk", which
+  // for these is simply false. The sidebar renders them flat under `Tasks`
+  // (Codex parity), so the assertion is never made.
+  tasks: Session[];
 }
 
 // ProjectOverlay is the client view of one project's server-side overlay
@@ -92,11 +97,20 @@ export function scratchLabel(base: string): string {
   return "";
 }
 
+// projectLabel names the project a workspace path belongs to — and says nothing
+// when there is no workspace.
+//
+// SB-13: it used to answer "Other sessions" for the empty path, which every
+// caller then rendered as if it were a real project (a folder-icon group in the
+// rail, a project hint in the palette, a chip on the Scheduled row). It is not a
+// project; it is the absence of one. The empty string is the honest answer, and
+// it is falsy — so the `{hint && …}` / `.filter(Boolean)` guards the call sites
+// already have now do the right thing instead of painting a fiction.
 export function projectLabel(workspace?: string): string {
   const clean = (workspace || "").trim().replace(/\/+$/, "");
-  if (!clean) return "Other sessions";
+  if (!clean) return "";
   const parts = clean.split("/").filter(Boolean);
-  const base = parts[parts.length - 1] || "Other sessions";
+  const base = parts[parts.length - 1] || "";
   return scratchLabel(base) ? "Scratch" : base;
 }
 
@@ -203,15 +217,17 @@ export function quickSwitchTasks(sessions: Session[], opts: { archived?: string[
   return [...attention, ...rest].slice(0, 9);
 }
 
-function projectIdentity(workspace?: string): Pick<ProjectGroup, "key" | "label" | "workspace"> {
-  const clean = (workspace || "").trim().replace(/\/+$/, "");
+// projectIdentity is only ever called with a *real* (non-empty) workspace —
+// workspace-less sessions never become a group at all (SB-13, see below).
+function projectIdentity(clean: string): Pick<ProjectGroup, "key" | "label" | "workspace"> {
   const label = projectLabel(clean);
   // Auto-created WebUI workspaces use opaque timestamp names. Treat them as
   // one product-level Scratch project instead of leaking implementation ids.
+  // (These *do* have a directory on disk, so the folder icon stays honest.)
   if (label === "Scratch") {
     return { key: "__scratch__", label: "Scratch", workspace: undefined };
   }
-  return { key: clean || "__other__", label, workspace: clean || undefined };
+  return { key: clean, label, workspace: clean };
 }
 
 export function buildSidebarModel(
@@ -249,9 +265,20 @@ export function buildSidebarModel(
   const ordered = [...visible].sort((a, b) => b.id.localeCompare(a.id));
 
   const groups = new Map<string, ProjectGroup>();
+  // SB-13 · Workspace-less tasks stay out of the project map entirely. Grouping
+  // them under a synthetic "Other sessions" folder made the rail claim a
+  // directory that does not exist; they belong to no project, so they come back
+  // as a flat list the sidebar renders under its own `Tasks` heading. Pinned
+  // still wins — a task appears in exactly one section, never two.
+  const tasks: Session[] = [];
   for (const session of ordered) {
     if (pinnedIds.has(session.id)) continue;
-    const identity = projectIdentity(session.workspace);
+    const clean = (session.workspace || "").trim().replace(/\/+$/, "");
+    if (!clean) {
+      tasks.push(session);
+      continue;
+    }
+    const identity = projectIdentity(clean);
     const key = identity.key;
     if (!groups.has(key)) {
       groups.set(key, {
@@ -278,7 +305,7 @@ export function buildSidebarModel(
     }
   }
 
-  return { pinned, projects: [...groups.values()] };
+  return { pinned, projects: [...groups.values()], tasks };
 }
 
 export function buildArchivedModel(
@@ -288,10 +315,21 @@ export function buildArchivedModel(
   titleOf: (session: Session) => string,
 ): SidebarModel {
   const archivedIds = new Set(archived);
-  return buildSidebarModel(
+  const model = buildSidebarModel(
     sessions.filter((session) => archivedIds.has(session.id)),
     { pinned: [], archived: [], showArchived: true, query, titleOf },
   );
+  // Settings → Archived is a purely *grouped* browser (it has no flat section),
+  // so the workspace-less tasks the sidebar now floats into `Tasks` would have
+  // silently vanished from it. Fold them back into one trailing bucket here —
+  // the SB-13 fix is about what the rail asserts, not about hiding archived
+  // tasks from the one screen that exists to find them.
+  if (model.tasks.length === 0) return model;
+  return {
+    ...model,
+    projects: [...model.projects, { key: "__other__", label: "Other sessions", sessions: model.tasks }],
+    tasks: [],
+  };
 }
 
 export function daemonVersionLabel(version?: string): string {
