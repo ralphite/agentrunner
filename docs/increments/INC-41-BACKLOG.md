@@ -1583,7 +1583,10 @@ Diff-Changes / New-task home+sidebar** 与 `qa/codex-reference/` 的金标真像
 scope、行内 annotation、turn 级 diff、右栏 Background processes/Browser/Sources、后端生成
 短标题)一律 out-of-scope,未登记。
 
-### RD-1 ☐ 大 diff 的「全局折叠」让 Changes 打开后一行代码都看不到 [P0]
+### RD-1 ✅ 大 diff 的「全局折叠」让 Changes 打开后一行代码都看不到 [P0]
+轮17 `f8a1834` 已修:`shouldExpandDiffByDefault`(全局)换成 `shouldExpandFileByDefault` +
+`defaultOpenByPath`(逐文件,单文件 >500 行才折;整份 review 另有 5000 行首屏预算,按序展到用完),
+`DiffView` 的 `allOpen` 改成 `override: boolean|null`(null = 各文件按自己的默认,Expand/Collapse all 仍可全局压过)。
 **behavior**:`diffSummary.ts:409` `shouldExpandDiffByDefault` 是**全局**判据(最大文件 >500 行
 → **整个 review** 全折)。实测 `create a todo app` 会话 3 文件:只因 `package-lock.json` 有 1284
 行,`package.json`(+12) 与 `server.js`(+110) 也被一起折成裸文件头 → **打开 Changes 看到三条横杠、
@@ -1592,19 +1595,32 @@ scope、行内 annotation、turn 级 diff、右栏 Background processes/Browser/
 **刻意核查**:`f2f1932` 的注释自己声明目标是 "so 'Open Changes' shows CODE, not bare file
 headers" —— 意图对、**粒度错**,非刻意 → 判据下沉到单文件。
 
-### RD-2 ☐ 文件尾部(最后一个 hunk → EOF)没有 unmodified 折叠带 [P0]
+### RD-2 ✅ 文件尾部(最后一个 hunk → EOF)没有 unmodified 折叠带 [P0]
+轮17 `f8a1834` 已修:`hunkGaps(rows, {trailing})` 多吐一条 key = `rows.length` 的尾部 gap
+(`end: null` = 到 EOF、长度未知——unified diff 从不给文件总行数),`FileBody` 在 rows 之后渲染尾带;
+行数由 `AR.blob` 补(首屏对已展开、≤25 文件的 review 预取,拿到真数字「N unmodified lines」,
+且当最后一个 hunk 本就到 EOF 时 n≤0 自动不渲染空带;超大 review 不预取,尾带先显示
+「unmodified lines to end of file」,点开即解析——**不编造行数**)。diff 自证到 EOF
+(尾行是 `\ No newline at end of file`)与 added/deleted 文件不出尾带。
 **behavior**:`diffSummary.ts:101` `hunkGaps` 只算「每个 hunk 之前」的 gap,`DiffView.tsx:711`
 的 band 也只在 `r.kind === "hunk"` 分支渲染 → 文件尾部区域**没有任何展开入口**。Codex 每个文件段尾
 有 `⌄ N unmodified lines`,可一路展到 EOF。折叠功能只做了上半场(`251f986` commit message 自陈
 范围是 "before the first hunk and between hunks")。
 **证据**:`qa/runs/2026-07-11-round15/diff/light-1440x900-5849-B3-eof-no-trailing-band.png`
 
-### RD-3 ☐ html/xml 无语法高亮 [P1]
+### RD-3 ✅ html/xml 无语法高亮 [P1]
+轮17 `f8a1834` 已修:`EXT_LANG` 补 `html/htm/xhtml/xml/svg → "html"`,`LANGS` 加一条纯数据的
+markup spec(标签名当 keyword、引号属性走既有 string 规则、`< > / =` 走 punctuation;**不引新依赖**,
+复用现有 `highlightLine`)。刻意不给 `//` 行注释,否则 URL 里的 `//` 会把整行吞成注释。
 **behavior**:`diffSummary.ts:246` 的 `EXT_LANG` 缺 html/xml → `dist/index.html` 的 diff 整片纯黑,
 紧邻的 `.js` 满屏彩色。webui 自己的 diff 里 html 是高频文件。
 **证据**:`qa/runs/2026-07-11-round15/diff/light-1440x900-5849-B2-band-expanded.png`
 
-### RD-4 ☐ leading band 的 caret 方向反了 + 零值计数被隐藏 + 文件头计数被顶到最右 [P2]
+### RD-4 ✅ leading band 的 caret 方向反了 + 零值计数被隐藏 + 文件头计数被顶到最右 [P2]
+轮17 `f8a1834` 已修:caret 一律指向被隐藏内容——leading `CaretUp`、interior `CaretUpDown`、
+trailing `CaretDown`;文件头两个数无条件渲染(纯删除 = `+0 −176`);`styles.panel.css` 追加覆盖块
+(`.session-view .filediff > summary.fd-head .fd-path{flex:0 1 auto}` + 新 `.fd-spacer{flex:1}`),
+计数紧贴文件名、状态徽标靠右——**未动 styles.css**(归其它 slice 所有)。
 `DiffView.tsx:653` leading band 用 `CaretDown`(应 `CaretUp`,caret 指向被隐藏内容的方向);
 `DiffView.tsx:568` 的 `add > 0 &&` 守卫让纯删除文件只显示 `−176`(Codex `+0 -176`,且同 app 的
 `ChangesOutcome` 本来就无条件渲染两个数,自相矛盾);`styles.css:1631` `.fd-path{flex:1}` 把 `+/-`
