@@ -1163,6 +1163,10 @@ details pre,
 .sa-name {
   font-weight: 500;
   color: var(--ink);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .sa-status {
   font-size: 12px;
@@ -1354,7 +1358,13 @@ details pre,
 /* ---- modal ---- */
 .backdrop {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* Height = the visible viewport (--app-vvh, set from visualViewport while a
+     modal is open) so the modal centers ABOVE the iOS keyboard instead of
+     behind it. Falls back to the full dynamic viewport with no keyboard. */
+  height: var(--app-vvh, 100dvh);
   background: rgba(0, 0, 0, 0.35);
   display: grid;
   place-items: center;
@@ -1366,7 +1376,7 @@ details pre,
   border: 1px solid var(--line);
   border-radius: 14px;
   width: min(760px, 96vw);
-  max-height: 92vh;
+  max-height: 92%;
   display: flex;
   flex-direction: column;
   overflow: hidden;

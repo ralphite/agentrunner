@@ -418,7 +418,17 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
     </div>
   );
 
-  if (err) return <div className="diffwrap">{stateBar}<div className="chip bad">{err}</div></div>;
+  if (err)
+    return (
+      <div className="diffwrap">
+        {stateBar}
+        <div className="diff-empty">
+          <b>Couldn’t load changes</b>
+          <span>{err}</span>
+          <button onClick={load}>Try again</button>
+        </div>
+      </div>
+    );
   if (!data) return <div className="diffwrap">{stateBar}<div className="diff-loading dim">Loading changes…</div></div>;
 
   if (scope === "last-turn" && data.available === false)

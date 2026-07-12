@@ -37,6 +37,23 @@ function Modal({
   const modalRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  // Keyboard avoidance (phone): the backdrop centers the modal, so when the
+  // iOS keyboard opens it covers the lower fields. Mirror the visual viewport
+  // height into --app-vvh so the backdrop shrinks to the VISIBLE area and the
+  // modal re-centers above the keyboard. Cleared on unmount.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const sync = () => document.documentElement.style.setProperty("--app-vvh", vv.height + "px");
+    sync();
+    vv.addEventListener("resize", sync);
+    vv.addEventListener("scroll", sync);
+    return () => {
+      vv.removeEventListener("resize", sync);
+      vv.removeEventListener("scroll", sync);
+      document.documentElement.style.removeProperty("--app-vvh");
+    };
+  }, []);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     const root = modalRef.current;
@@ -397,7 +414,7 @@ function RunModal({ initialTask, preset = "one-time" }: { initialTask?: string; 
 
   return (
     <Modal
-      title="New scheduled task"
+      title={kind === "submit" ? "Run a task" : schedule === "immediate" ? "Set a goal" : schedule === "parallel" ? "Best of N" : "Schedule a task"}
       onClose={close}
       footer={
         <button className="primary" disabled={busy || !task.trim()} onClick={start}>
