@@ -247,6 +247,15 @@
   /* The card is as tall as what it has to say — no stretch, no void. */
   height: auto;
   max-height: calc(100% - 96px);
+  /* Scroll the rare tall panel. INC-41 ENV-CLIP: this line used to cut the
+     `Commit or push` menu in half — 125px of it, two of its three git actions,
+     clipped away and (worse) unclickable, because the menu was an absolutely
+     positioned descendant and so lived inside this overflow box. Popover.tsx now
+     pins its panel to the viewport (`position: fixed`), which no ancestor
+     overflow can clip, so this is once again only about *this* card's own
+     content. Do not add `transform` / `filter` / `contain` here: any of them
+     would make this box the containing block for that fixed panel and hand the
+     clip straight back. */
   overflow: auto;
   border: 1px solid var(--line);
   border-radius: 16px;

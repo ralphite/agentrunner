@@ -1,10 +1,35 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Check } from "@phosphor-icons/react";
 
 // Popover is the drop-up menu primitive the composer controls hang off of. It
 // anchors a panel to a trigger button, opens *upward* (the composer sits at the
 // bottom of the screen), and closes on outside-click / Escape. Kept dependency-
 // free and controlled-optional so each control can drive its own open state.
+//
+// INC-41 ENV-CLIP — the panel is positioned against the *viewport*
+// (`position: fixed` + measured coordinates), not against `.pop-wrap`.
+//
+// Why: an `position: absolute` panel lives inside every ancestor's overflow box,
+// so any ancestor that scrolls cuts the menu in half — and a clipped menu is not
+// merely invisible, it is *unclickable* (`elementFromPoint` lands on whatever is
+// behind it). Round 36 turned the Environment rail into a floating card with
+// `overflow: auto` (styles.panel.css) and instantly ate 125px — 56% — of the
+// `Commit or push` menu it hosts: two of the three git actions could not be
+// reached. `.diffwrap` / `.timeline` are the same trap waiting to spring.
+// `position: fixed` takes the viewport as its containing block, so no ancestor
+// `overflow` can clip it, whatever the panel is nested in.
+//
+// Why fixed *in place* rather than a `createPortal` to <body>: the panel keeps
+// its DOM home, so the cascade it was authored against keeps applying —
+// ancestor-scoped rules (`.home.home-welcome .cx-project-popover` &c. in
+// styles.css size the New-task project picker) and inherited type/colour would
+// silently drop off a portaled node, and every popover would have to re-earn
+// them. Fixed-in-place changes exactly one thing (the containing block); the
+// stacking context, the CSS context and the focus/click plumbing are untouched.
+// The invariant it rests on: no ancestor of a popover may create a containing
+// block for fixed descendants (transform / filter / backdrop-filter /
+// perspective / will-change / contain). The dev-only guard below shouts if one
+// ever appears — that is the day to reach for a portal.
 export function Popover({
   trigger,
   children,
@@ -19,43 +44,83 @@ export function Popover({
   onOpen?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [drop, setDrop] = useState<"up" | "down">("up");
-  const [maxH, setMaxH] = useState<number | undefined>(undefined);
-  const [xShift, setXShift] = useState(0);
+  const [place, setPlace] = useState<Place | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const close = () => setOpen(false);
 
+  // Measure the anchor, then pin the panel to those viewport coordinates.
+  //
   // Flip: the composer sits near the top on the Home hero (menus would overflow
-  // above the viewport) but at the bottom in a session. Measure on open, drop
-  // toward the larger side, and cap the panel to the space that side actually
-  // has (W13: a fixed max-height taller than the room above still overflowed
-  // past the top of the viewport).
-  useLayoutEffect(() => {
-    if (!open) return;
+  // above the viewport) but at the bottom in a session. Drop toward the larger
+  // side, and cap the panel to the space that side actually has (W13: a fixed
+  // max-height taller than the room above still overflowed past the top of the
+  // viewport). Horizontally the panel starts at the anchor's aligned edge and is
+  // then clamped into the viewport — the same correction the old `marginLeft` /
+  // `marginRight` nudge made, now expressible directly because the panel owns
+  // absolute coordinates instead of an offset from its wrapper.
+  const position = useCallback(() => {
     const el = wrapRef.current;
-    if (!el) return;
+    const panel = panelRef.current;
+    if (!el || !panel) return;
     const rect = el.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
     const above = rect.top;
-    const below = window.innerHeight - rect.bottom;
-    const down = above < 360 && below > above;
-    setDrop(down ? "down" : "up");
-    setMaxH(Math.max(160, (down ? below : above) - 16));
-    const panel = el.querySelector<HTMLElement>(".pop-panel");
-    if (panel) {
-      const panelRect = panel.getBoundingClientRect();
-      const pad = 8;
-      setXShift(panelRect.left < pad ? pad - panelRect.left : panelRect.right > window.innerWidth - pad ? window.innerWidth - pad - panelRect.right : 0);
-    }
-    requestAnimationFrame(() => {
-      el.querySelector<HTMLElement>("[data-popover-autofocus]")?.focus();
+    const below = vh - rect.bottom;
+    const drop: Drop = above < 360 && below > above ? "down" : "up";
+    const width = panel.offsetWidth;
+    const left = clamp(align === "left" ? rect.left : rect.right - width, PAD, Math.max(PAD, vw - PAD - width));
+    setPlace({
+      drop,
+      left,
+      top: drop === "down" ? rect.bottom + GAP : undefined,
+      bottom: drop === "up" ? vh - rect.top + GAP : undefined,
+      maxH: Math.max(160, (drop === "down" ? below : above) - 16),
     });
-  }, [open]);
+  }, [align]);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPlace((p) => (p ? null : p));
+      return;
+    }
+    warnIfClipped(wrapRef.current);
+    position();
+    requestAnimationFrame(() => {
+      wrapRef.current?.querySelector<HTMLElement>("[data-popover-autofocus]")?.focus();
+    });
+  }, [open, position]);
+
+  // A viewport-pinned panel does not ride its scroller, so re-measure whenever
+  // anything moves (capture phase: the scroll may be an inner pane, not the
+  // window). If the anchor itself scrolls out of sight, the menu has nothing
+  // left to hang off — close it rather than leave it floating over the page.
+  useEffect(() => {
+    if (!open) return;
+    let raf = 0;
+    const follow = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const rect = wrapRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        if (rect.bottom < 0 || rect.top > window.innerHeight) setOpen(false);
+        else position();
+      });
+    };
+    window.addEventListener("scroll", follow, true);
+    window.addEventListener("resize", follow);
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", follow, true);
+      window.removeEventListener("resize", follow);
+    };
+  }, [open, position]);
+
   const toggle = () =>
     setOpen((v) => {
-      if (!v) {
-        setXShift(0);
-        onOpen?.();
-      }
+      if (!v) onOpen?.();
       return !v;
     });
 
@@ -96,7 +161,6 @@ export function Popover({
     const target = event.target as HTMLElement;
     if (!target.closest("button")) return;
     event.preventDefault();
-    setXShift(0);
     onOpen?.();
     setOpen(true);
     requestAnimationFrame(() => {
@@ -111,17 +175,25 @@ export function Popover({
       {trigger(open, toggle)}
       {open && (
         <div
-          className={`pop-panel pop-${align} pop-${drop} ${panelClass}`}
+          ref={panelRef}
+          className={`pop-panel pop-${align} pop-${place?.drop ?? "up"} ${panelClass}`}
           role="menu"
           style={{
-            maxHeight: maxH,
-            // Keep the panel on-screen. `marginLeft` only moves a left-anchored
-            // panel; a right-anchored one (align="right" — e.g. the model menu on
-            // a narrow viewport) has `left:auto`, so margin-left is ignored and
-            // the correction silently no-ops, clipping the panel off the left
-            // edge. Nudge it with `marginRight` (opposite sign) instead.
-            marginLeft: align === "left" ? xShift || undefined : undefined,
-            marginRight: align === "right" && xShift ? -xShift : undefined,
+            // Every offset is stated, none inherited: the stylesheet's
+            // `.pop-up { bottom: calc(100% + 8px) }` / `.pop-right { right: 0 }`
+            // are written for an absolute panel and would mean *the viewport's*
+            // edge once the panel is fixed. The classes stay (they still carry
+            // the animation and are what the CSS hooks read); the geometry is
+            // ours. The first render has nothing to measure yet — it is hidden,
+            // laid out at its static position, measured, and placed inside the
+            // same layout pass, so it never paints in the wrong spot.
+            position: "fixed",
+            left: place?.left,
+            right: "auto",
+            top: place?.drop === "down" ? place.top : "auto",
+            bottom: place?.drop === "up" ? place.bottom : "auto",
+            maxHeight: place?.maxH,
+            visibility: place ? undefined : "hidden",
           }}
         >
           {children(close)}
@@ -129,6 +201,46 @@ export function Popover({
       )}
     </div>
   );
+}
+
+type Drop = "up" | "down";
+type Place = { drop: Drop; left: number; top?: number; bottom?: number; maxH: number };
+
+const PAD = 8; // breathing room between the panel and the viewport edge
+const GAP = 8; // between the anchor and the panel
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
+
+// The one thing that can still clip a fixed panel: an ancestor that makes itself
+// the containing block for fixed descendants. Nothing in the app does today
+// (checked live, round 39); this is the tripwire for the day someone adds a
+// `transform` to a scroller and re-opens ENV-CLIP without knowing it. Dev only —
+// it costs a walk up the tree per open and says nothing when all is well.
+// (cast: the project ships no `vite/client` types, and this is the only
+// import.meta.env reader in src — not worth a d.ts of its own.)
+const DEV = (import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV === true;
+
+function warnIfClipped(el: HTMLElement | null) {
+  if (!DEV || !el) return;
+  for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+    const s = getComputedStyle(p);
+    const culprit = [
+      ["transform", s.transform],
+      ["perspective", s.perspective],
+      ["filter", s.filter],
+      ["backdrop-filter", s.backdropFilter],
+      ["will-change", s.willChange],
+      ["contain", s.contain],
+    ].find(([, v]) => v && v !== "none" && v !== "auto" && v !== "normal");
+    if (culprit) {
+      console.warn(
+        `Popover: ancestor <${p.tagName.toLowerCase()}.${p.className}> sets ${culprit[0]}: ${culprit[1]}, ` +
+          `which makes it the containing block for the fixed panel — the panel can be clipped and become unclickable (INC-41 ENV-CLIP). ` +
+          `Move that property, or portal the panel out.`,
+      );
+      return;
+    }
+  }
 }
 
 // PopSection / PopItem / PopHint are the building blocks used inside a Popover
