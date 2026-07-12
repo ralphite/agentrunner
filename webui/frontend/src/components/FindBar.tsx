@@ -48,6 +48,8 @@ function findRanges(root: HTMLElement, needle: string): Range[] {
 }
 
 function clearHighlights() {
+  // Runs from cleanup, where a throw would skip the focus restore after it.
+  if (typeof CSS === "undefined") return;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const hs = (CSS as any).highlights;
   if (hs) {
@@ -64,8 +66,15 @@ export function FindBar({ scope, onClose }: { scope: () => HTMLElement | null; o
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    // Focus must go back where it came from on close (A11Y-3) — same contract
+    // as Modal: capture before we steal it, hand it back on unmount, whatever
+    // closed us (Esc, ✕, or a session switch). The element can be gone by then.
+    const previous = document.activeElement as HTMLElement | null;
     inputRef.current?.focus();
-    return () => clearHighlights();
+    return () => {
+      clearHighlights();
+      if (previous?.isConnected) previous.focus();
+    };
   }, []);
 
   // Paint all matches, with the active one on a higher-priority layer, and
