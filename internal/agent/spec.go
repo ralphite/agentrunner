@@ -60,7 +60,7 @@ func (s *SchemaJSON) UnmarshalYAML(node *yaml.Node) error {
 }
 
 // DefaultMaxGenerationSteps applies when a spec omits max_generation_steps (S1 defaults pack).
-const DefaultMaxGenerationSteps = 40
+const DefaultMaxGenerationSteps = 200
 
 // DefaultMaxTokens applies when a spec omits model.max_tokens.
 const DefaultMaxTokens = 8192

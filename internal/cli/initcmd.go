@@ -43,7 +43,7 @@ permissions:
 
 # --- optional ---------------------------------------------------------
 # mode: plan                # default | plan | acceptEdits
-# max_generation_steps: 40  # cap on model calls per turn
+# max_generation_steps: 200 # cap on model calls per turn
 # budget:
 #   max_total_tokens: 200000
 # agents: [worker]              # sibling worker.yaml specs allowed to spawn

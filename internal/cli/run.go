@@ -75,17 +75,17 @@ func siblingSpecResolver(parentSpecPath string) agent.SubSpecResolver {
 
 // runOptions carries everything runAgent needs; factored for testability.
 type runOptions struct {
-	specPath   string
-	task       string
-	workspace  string
-	maxTurns   int
-	mode       string
-	fixtureOut string // record-fixture mode when non-empty
-	version    string
-	factory    providerFactory
-	stdout     io.Writer
-	stderr     io.Writer
-	sink       protocol.Sink // output protocol renderer (nil → text on stdout)
+	specPath           string
+	task               string
+	workspace          string
+	maxGenerationSteps int
+	mode               string
+	fixtureOut         string // record-fixture mode when non-empty
+	version            string
+	factory            providerFactory
+	stdout             io.Writer
+	stderr             io.Writer
+	sink               protocol.Sink // output protocol renderer (nil → text on stdout)
 }
 
 // runCmd parses `run` / `record-fixture` args and executes the agent.
@@ -97,7 +97,7 @@ func runCmd(args []string, recordMode bool, version string, stdout, stderr io.Wr
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	workspaceDir := fs.String("workspace", ".", "workspace root (default: current directory)")
-	maxTurns := fs.Int("max-turns", 0, "override spec max_generation_steps")
+	maxGenerationSteps := fs.Int("max-generation-steps", 0, "override spec max_generation_steps")
 	mode := fs.String("mode", "", "run mode: default|plan|acceptEdits|bypass (overrides spec)")
 	jsonOut := fs.Bool("json", false, "emit the output event stream as JSON lines")
 	fixtureOut := fs.String("o", "", "fixture output path (record-fixture only)")
@@ -134,17 +134,17 @@ func runCmd(args []string, recordMode bool, version string, stdout, stderr io.Wr
 		sink = newTextRenderer(stdout)
 	}
 	return runAgent(runOptions{
-		specPath:   rest[0],
-		task:       rest[1],
-		workspace:  *workspaceDir,
-		maxTurns:   *maxTurns,
-		mode:       *mode,
-		fixtureOut: *fixtureOut,
-		version:    version,
-		factory:    defaultProviderFactory,
-		stdout:     stdout,
-		sink:       sink,
-		stderr:     stderr,
+		specPath:           rest[0],
+		task:               rest[1],
+		workspace:          *workspaceDir,
+		maxGenerationSteps: *maxGenerationSteps,
+		mode:               *mode,
+		fixtureOut:         *fixtureOut,
+		version:            version,
+		factory:            defaultProviderFactory,
+		stdout:             stdout,
+		sink:               sink,
+		stderr:             stderr,
 	})
 }
 
@@ -161,8 +161,8 @@ func runAgent(opts runOptions) int {
 		fmt.Fprintln(opts.stderr, err)
 		return ExitUsage
 	}
-	if opts.maxTurns > 0 {
-		spec.MaxGenerationSteps = opts.maxTurns
+	if opts.maxGenerationSteps > 0 {
+		spec.MaxGenerationSteps = opts.maxGenerationSteps
 	}
 
 	ws, err := workspace.New(opts.workspace)

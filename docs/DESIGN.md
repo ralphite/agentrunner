@@ -949,7 +949,7 @@ context:
   memory_files: true                   # CLAUDE.md 式指令文件注入
 
 limits:
-  max_generation_steps: 40
+  max_generation_steps: 200
   max_tokens_total: 500_000
   timeout_s: 900
 ```

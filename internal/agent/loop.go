@@ -2223,11 +2223,11 @@ type action struct {
 }
 
 // decide is THE loop policy: given only the fold state (plus the spec
-// constant maxTurns, fixed for the run), what happens next. Resume
-// re-enters here with the same state and therefore the same answer. There
-// is only ONE session shape (决策 #31): a turn runs to its final
+// constant maxGenerationSteps, fixed for the run), what happens next.
+// Resume re-enters here with the same state and therefore the same answer.
+// There is only ONE session shape (决策 #31): a turn runs to its final
 // generation, then the session idles; nothing here ever "ends" a session.
-func decide(s state.State, maxTurns int) action {
+func decide(s state.State, maxGenerationSteps int) action {
 	if s.Waiting != nil {
 		return action{kind: doWait, turn: s.Session.GenStep}
 	}
@@ -2282,7 +2282,7 @@ func decide(s state.State, maxTurns int) action {
 		// Resolved results owe the model its next generation step, bounded
 		// by the per-turn budget (anti-runaway, counted from the last input
 		// — a cumulative cap would silently wedge a long-lived session).
-		if turn-s.Session.LastInputGenStep >= maxTurns {
+		if turn-s.Session.LastInputGenStep >= maxGenerationSteps {
 			return action{kind: doTruncate, turn: turn}
 		}
 		return action{kind: doTurn, turn: turn + 1}
@@ -2292,7 +2292,7 @@ func decide(s state.State, maxTurns int) action {
 	// a truly quiet session idles. The idle also wakes on background
 	// settlements, so live background work needs no extra branch.
 	if hasInputAfterLastAssistant(s) {
-		if turn-s.Session.LastInputGenStep < maxTurns {
+		if turn-s.Session.LastInputGenStep < maxGenerationSteps {
 			return action{kind: doTurn, turn: turn + 1}
 		}
 		return action{kind: doTruncate, turn: turn}

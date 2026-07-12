@@ -577,7 +577,7 @@ func TestDecideConversationalBudget(t *testing.T) {
 		wantKind        int
 		wantReason      string
 	}{
-		// Deep into a long conversation (turn 40 > maxTurns) a fresh input
+		// Deep into a long conversation (turn 40 > maxGenerationSteps) a fresh input
 		// still gets its turn — the old cumulative cap returned doIdle
 		// here, wedging the session.
 		{"fresh input late in session", 40, 39, true, doTurn, ""},

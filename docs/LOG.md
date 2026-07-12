@@ -3662,3 +3662,20 @@ run 延续（restore-keys 前缀回退 + always() 保存），但明确是 **scr
   UX 需求**——修复须扩展决策 #38，走增量流程，本轮只登记不实现。
   锚测试仅覆盖 bash/edit 面而 SPEC 曾无限定 ✅，属 G29 族登记簿失真，
   一并修正。
+
+## 2026-07-11 · maxTurns 命名残留清理 + 默认 generation step 预算 40→200
+
+v2 术语手术时 spec 字段已由 max_turns 改为 max_generation_steps，但代码
+内部与 CLI 面还留着旧名。本次补齐：
+
+- **代码**：`decide` 的参数 `maxTurns` → `maxGenerationSteps`（loop.go，
+  含注释与两处使用）；`internal/cli/run.go` 的 runOptions 字段与局部
+  变量同名更改。
+- **CLI flag**：`--max-turns` → `--max-generation-steps`（help 文案不变，
+  仍是 override spec max_generation_steps）。
+- **默认值**：`DefaultMaxGenerationSteps` 40→200。40 对长编排 turn 偏小，
+  会导致过早 doTruncate 截断（用户裁定）。initcmd 示例注释与 DESIGN §
+  示例 spec 的示例值同步 40→200（示例值非不变量，不走不变量变更流程）。
+
+`docs/CLAUDECODE-PARITY.md` 对照表里的 `--max-turns` 是 Claude Code 自己
+的 flag 名，保持不动；docs/archive/ 只读不动。
