@@ -430,12 +430,12 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
             );
           })}
           {summary.files.length > PREVIEW_CAP && (
-            <button
-              type="button"
-              onClick={() => setExpanded((e) => !e)}
-              style={{ display: "inline-flex", alignItems: "center", gap: 5 }}
-            >
-              {expanded ? "Show less" : `Show ${hidden} more files`}
+            // INC-41 TR-4 — this toggle is one more ROW of the list (styles.css
+            // gives it the file row's height and left inset, and the full row as
+            // hit target), so it carries no inline layout of its own. And it
+            // counts: 4 files behind a cap of 3 used to read "Show 1 more files".
+            <button type="button" onClick={() => setExpanded((e) => !e)}>
+              {expanded ? "Show less" : `Show ${hidden} more file${hidden === 1 ? "" : "s"}`}
               {expanded ? <CaretUp size={13} /> : <CaretDown size={13} />}
             </button>
           )}

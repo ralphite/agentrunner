@@ -214,4 +214,20 @@ describe("ChangesOutcome preview cap (INC-41 TH-8)", () => {
     expect(container.querySelectorAll(".changes-outcome-files > div").length).toBe(3);
     expect(container.querySelector(".changes-outcome-files > button")).toBeNull();
   });
+
+  // INC-41 TR-4 — one hidden file used to read "Show 1 more fileS".
+  it("counts the hidden files in the singular when exactly one is folded away", async () => {
+    diffMock.mockResolvedValue(okDiff(4));
+    renderCard();
+    await screen.findByText("Edited 4 files");
+    expect(screen.getByRole("button", { name: /Show 1 more file$/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /more files/ })).toBeNull();
+  });
+
+  it("keeps the plural for two or more hidden files", async () => {
+    diffMock.mockResolvedValue(okDiff(5));
+    renderCard();
+    await screen.findByText("Edited 5 files");
+    expect(screen.getByRole("button", { name: /Show 2 more files$/ })).toBeTruthy();
+  });
 });

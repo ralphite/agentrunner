@@ -2783,17 +2783,31 @@ details.filediff[open] > summary.fd-head .fd-caret {
 .msg-col > .bubble {
   flex: 0 0 auto;
 }
+/* INC-41 round 27 — TR-5: the action row EXISTS at rest on user messages too.
+   TH-10 already made this argument for assistant rows ("hover-only icons do not
+   exist AT ALL on touch"), but only fixed one side: user rows kept `opacity: 0`
+   + `:hover → 1`, so on a phone a user's own prompt had no Copy, no task link
+   and no timestamp — and the prompt is the thing people most want to copy back.
+   The row is now pinned at opacity 1 for BOTH speakers; the rest/hover
+   distinction is carried one level down by the icons alone (styles.conv.css
+   pins `.msg-copy` to opacity .5 at rest, 1 on :hover/:focus-within), which is
+   the same contract assistant rows already run. TH-1 holds: only `opacity`
+   animates, no box property, so nothing reflows.
+   TR-6: 26px + 4px gap = a 30px icon cadence vs Codex's ~21.5px — 22 + 2. */
 .msg-actions {
   display: flex;
-  gap: 4px;
+  gap: 2px;
   margin: 3px 2px 0;
-  opacity: 0;
+  opacity: 1;
   transition: opacity 0.12s;
 }
-.msg:hover .msg-actions {
-  opacity: 1;
-}
-.assistant .msg-actions { opacity: .62; }
+/* styles.conv.css (loaded after this file) gates `.msg:not(.assistant)
+   .msg-col .msg-actions` to `pointer-events: none` — correct while the row was
+   invisible at rest, fatal now that it is drawn. That file is owned by another
+   worksheet this round, so the gate is lifted from here instead, with the
+   specificity (5 classes) needed to outrank it: the row is visible, therefore
+   clickable, without a priming hover. */
+.msg.user .msg-col.user .msg-actions { pointer-events: auto; }
 .msg-copy {
   border: none;
   background: transparent;
@@ -2806,7 +2820,7 @@ details.filediff[open] > summary.fd-head .fd-caret {
   background: var(--panel-2);
   color: var(--ink);
 }
-.msg-copy.icon-only { display: grid; place-items: center; width: 26px; padding: 2px; }
+.msg-copy.icon-only { display: grid; place-items: center; width: 22px; padding: 2px; }
 .worked-row {
   display: flex;
   align-items: center;
@@ -2972,8 +2986,17 @@ details.filediff[open] > summary.fd-head .fd-caret {
   background: var(--panel-2);
   color: var(--ink-2);
 }
-.changes-outcome-title { display: grid; gap: 2px; flex: 1; min-width: 0; font-size: 13px; }
-.changes-outcome-title > span, .changes-outcome-files small { display: flex; gap: 7px; font-style: normal; }
+/* INC-41 round 27 — TR-3: the card's type hierarchy was INVERTED. The summary
+   line ("Edited 5 files") rendered at 13px while every file row under it ran at
+   14px, and each row's `+2 −179` fell to `small`'s UA default (0.833em = 11.67px)
+   — so the headline was 0.93× the detail it summarises, and the detail's own
+   counts were a third size again. Codex's card measures the other way: title
+   ≈ 1.05× the rows, and `+7 −0` sits at the SAME size as the path it trails.
+   The card is a summary (TH-8 collapses to 3 rows for exactly that reason), so
+   the first thing read must be "5 files, +2 −179". Title 15 / rows 13 / counts
+   13 — one step down, not three sizes in a row. */
+.changes-outcome-title { display: grid; gap: 2px; flex: 1; min-width: 0; font-size: 15px; }
+.changes-outcome-title > span, .changes-outcome-files small { display: flex; gap: 7px; font-style: normal; font-size: 13px; }
 .changes-outcome em { font-style: normal; }
 .changes-outcome .add { color: var(--green); }
 .changes-outcome .del { color: var(--red); }
@@ -2986,10 +3009,29 @@ details.filediff[open] > summary.fd-head .fd-caret {
   gap: 8px;
   padding: 7px 14px;
   color: var(--ink-2);
-  font-size: 14px;
+  font-size: 13px;
 }
 .changes-outcome-files > div > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.changes-outcome-files > button { margin: 5px 10px 10px; border: 0; background: transparent; color: var(--dim); font-size: 12px; }
+/* TR-4: "Show N more files" is not a stray little button parked under the list —
+   in Codex it is one MORE row of the list, on the same beat: same row height,
+   same left inset, and the whole row is the hit target. It used to be a 140×29
+   box with its label pushed 7px right of every path above it. */
+.changes-outcome-files > button {
+  width: 100%;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  padding: 7px 14px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--dim);
+  font-size: 13px;
+  text-align: left;
+}
+.changes-outcome-files > button:hover { background: var(--panel-2); color: var(--ink-2); }
 
 /* ---- right-click context menu on sidebar rows (Codex chat menu) ---- */
 .ctx-menu {
@@ -3933,16 +3975,8 @@ details.filediff[open] > summary.fd-head .fd-caret {
   /* radius/shadow live in styles.panel.css (.session-view .supervision-panel,
      B1) — the values that used to sit here were dead weight (FA-1). */
 }
-.supervision-head {
-  min-height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 14px;
-  border-bottom: 1px solid var(--line);
-}
-.supervision-head > div { display: flex; align-items: center; gap: 7px; }
-.supervision-head button,
+/* (The `.supervision-head` block that used to sit here died with DF-D4's JSX in
+   round 26 — the panel no longer has a title bar. Removed round 27.) */
 .background-row button {
   width: 28px;
   height: 28px;
@@ -3953,7 +3987,6 @@ details.filediff[open] > summary.fd-head .fd-caret {
   background: transparent;
   color: var(--dim);
 }
-.supervision-head button:hover,
 .background-row button:hover { border-color: transparent; background: var(--panel-2); color: var(--ink); }
 .supervision-section { padding: 13px 14px; }
 .supervision-label { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; color: var(--dim); font-size: 12px; }
