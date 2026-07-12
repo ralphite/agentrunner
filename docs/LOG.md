@@ -3793,3 +3793,15 @@ DESIGN §12 增"分发与安装"小节。
   等 4 例）。重打产物复验 versionMatch=true。SPEC/UJ-25 行转 ✅。
 - 这是"真实环境暴露 + 当场修 + 复验"的标准闭环——只跑孪生不会撞见
   （孪生用 stub ar，无 binutils 冲突面），印证 gate B 真装的价值。
+
+## 2026-07-12 · webui 手机截图三修（phone-webui 现场，MOB 族）
+
+用户手机（phone-webui 8788）截图暴露三处：①timeline chip 里
+"open sub-session" 链接词中折行（.chip 的 overflow-wrap:anywhere 为
+R3-3 的 sha 换行而设，误伤链接）——.chip 加 flex-wrap:wrap + 链接
+white-space:nowrap，窄屏整体换行不断词；②孤行 "Approved" chip 无上下
+文——approval_responded 折叠时已有 approvals map，chip 文案补工具名
+（"Approved · spawn_agent"，call_ 兜底 id 不显示）；③sticky 跳底按钮
+(.tl-jump 负 margin 悬浮) 压住最后一条消息的时间戳/操作行——.timeline
+底部 padding 8→48px，让悬浮区落在 padding 上。前端 25 文件 255 测试全
+绿 + vite build 过；dist 按新规不入库，随 phone-webui workflow 构建。

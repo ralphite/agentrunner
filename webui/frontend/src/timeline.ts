@@ -742,9 +742,13 @@ export function foldEvents(events: Envelope[]): Folded {
         // reason is written for the CLI ("use `agentrunner new`…, set
         // AGENTRUNNER_APPROVE=…"); in the web UI that advice is wrong — the
         // user is already here with a Resume button — so rewrite it (R4-7).
+        // Name the tool (MOB screenshot 2026-07-12): a bare "Approved" chip
+        // between two subagent rows reads as noise — the reader can't tell
+        // WHAT was approved without opening the journal.
+        const toolTag = a && a.tool && !a.tool.startsWith("call_") ? " · " + a.tool : "";
         workChip(
           seq,
-          `${p.decision === "approve" ? "Approved" : "Denied"}${p.reason ? " · " + guiReason(p.reason) : ""}`,
+          `${p.decision === "approve" ? "Approved" : "Denied"}${toolTag}${p.reason ? " · " + guiReason(p.reason) : ""}`,
           p.decision === "approve" ? "good" : "warn",
         );
         break;
