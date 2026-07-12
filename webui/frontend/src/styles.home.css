@@ -80,13 +80,23 @@
 /* HM-4 — the headline. This rule used to be `.home-empty-headline` (0,1,0),
    which LOSES to `.hero h2` (0,1,1) in styles.css: every value here was dead
    code, silently overridden, so anyone tuning it saw no effect at all. Scope it
-   under `.home-empty` (0,2,0) so it actually wins, and land on Codex's lighter
-   30px/500 instead of the 29px/580 the h2 rule was really painting. */
+   under `.home-empty` (0,2,0) so it actually wins.
+
+   HM-8 — and now the size. Measured off the golden
+   (qa/codex-reference/codex-new-task-home.jpg, same px→logical-px mapping as the
+   brand mark below): Codex's "What are we coding next?" runs ≈360 logical px for
+   36 characters ⇒ 10.0px per character, at weight 400. Ours painted 30px/500 and
+   measured 413px for 31 characters ⇒ 13.3px per char — a third too big, and
+   heavier. HM-7 had already shrunk the four suggestion cards to the golden's
+   density, so an oversized headline was the last thing on the page still shouting:
+   it re-flattened the cards it sits above. 23px/400 puts the greeting back at the
+   golden's ratio — a light line of text over the composer, not a title wall. The
+   card / icon / composer geometry is deliberately untouched (QA-45). */
 .home-empty .home-empty-headline {
   margin: 0 0 32px;
-  font-size: 30px;
-  font-weight: 500;
-  letter-spacing: -0.3px;
+  font-size: 23px;
+  font-weight: 400;
+  letter-spacing: -0.2px;
   line-height: 1.25;
   color: var(--ink);
 }
@@ -183,8 +193,11 @@
 }
 @media (max-width: 520px) {
   /* Same specificity story as HM-4 above: `.hero h2` also carries a 24px rule at
-     ≤680, so this override has to be scoped to beat it rather than tie. */
-  .home-empty .home-empty-headline { font-size: 25px; margin-bottom: 24px; }
+     ≤680, so this override has to be scoped to beat it rather than tie —
+     `.home-empty .home-empty-headline` (0,2,0) beats `.hero h2` (0,1,1)
+     regardless of sheet order. HM-8 scales the phone size down with the desktop
+     one (was 25px, i.e. bigger than styles.css's own 24px fallback). */
+  .home-empty .home-empty-headline { font-size: 20px; margin-bottom: 24px; }
   /* One column, and the card lies down: icon beside the label, no dead height.
      Four stacked 84px boxes would push the headline off a 390px phone. */
   .home-empty-cards { grid-template-columns: 1fr; gap: 8px; }
