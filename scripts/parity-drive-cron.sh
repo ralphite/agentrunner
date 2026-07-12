@@ -14,9 +14,10 @@ LOCK=/tmp/parity-drive.lock
 LOG=$HOME/Library/Logs/parity-drive.log
 PLIST="$HOME/Library/LaunchAgents/com.agentrunner.parity-drive.plist"
 ROUND_TIMEOUT=3300   # 55min 硬顶 watchdog per round:杀超时轮,循环照进下一轮
-STALL_TIMEOUT=600    # 10min 停滞 watchdog:log 与 transcript 都 >10min 没动=挂了,杀掉重起
+STALL_TIMEOUT=900    # 15min 停滞 watchdog:log + 主/子 agent transcript 全都 >15min 没动=挂了
 GUARD=8              # 轮间只睡这几秒防热转——绝不是 30min heartbeat
-PROJDIR="$HOME/.claude/projects/-Users-yadong-dev2-agentrunner"  # headless 轮的 transcript 落这
+# 活性信号扫这些 transcript(主轮 + worktree 子 agent 都算,子 agent 在跑就不判挂):
+TXGLOB="$HOME/.claude/projects/*agentrunner*/*.jsonl"
 
 ts()  { date "+%Y-%m-%d %H:%M:%S"; }
 log() { echo "[$(ts)] $*" >> "$LOG"; }
@@ -66,11 +67,13 @@ run_round() {
   #     用 transcript mtime 是关键:轮在同步等子 agent 时 log 会静默,但主 agent 的
   #     transcript 仍在长——所以正常等子 agent【不会】误杀,只有真挂了才杀。
   (
+    setopt local_options null_glob 2>/dev/null || true
     while kill -0 "$CPID" 2>/dev/null; do
       sleep 45
       now=$(date +%s)
       lg=$(stat -f %m "$LOG" 2>/dev/null || echo 0)
-      tx=$(ls -t "$PROJDIR"/*.jsonl 2>/dev/null | head -1)
+      # newest mtime across main-round + all worktree sub-agent transcripts
+      tx=$(ls -t ${~TXGLOB} 2>/dev/null | head -1)
       tm=0; [ -n "$tx" ] && tm=$(stat -f %m "$tx" 2>/dev/null || echo 0)
       last=$lg; [ "$tm" -gt "$last" ] && last=$tm
       idle=$(( now - last ))
