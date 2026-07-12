@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { Icon } from "@phosphor-icons/react";
-import { CalendarDots, Plus, ArrowUpRight, MagnifyingGlass, Check, CaretDown, Crosshair, ArrowsClockwise, Stack, Play, Bell, Notebook, Bug } from "@phosphor-icons/react";
+import { CalendarDots, Plus, MagnifyingGlass, Check, CaretDown, Crosshair, ArrowsClockwise, Stack, Play, Bell, Notebook, FileMagnifyingGlass, Circle, PlayCircle } from "@phosphor-icons/react";
 import "../styles.scheduled.css";
 import { useStore } from "../store";
 import { friendlyStatus } from "./pill";
@@ -36,7 +36,7 @@ const SUGGESTIONS: Suggestion[] = [
     desc: "Summarize the week's changes and open work",
   },
   {
-    icon: Bug,
+    icon: FileMagnifyingGlass,
     color: "#22c55e",
     title: "Follow-up monitor",
     cadence: "Every 6 hours",
@@ -123,12 +123,8 @@ export function Scheduled() {
   }, [runs, sessions, select, selectRun, unread]);
 
   // We have no real paused flag, so "Paused" == the non-active (finished) rows,
-  // relabelled to match Codex's All / Active / Paused pills.
-  const counts = {
-    all: rows.length,
-    active: rows.filter((r) => r.active).length,
-    paused: rows.filter((r) => !r.active).length,
-  };
+  // relabelled to match Codex's All / Active / Paused pills. Codex shows no
+  // numeric counts on the pills (N-parity), so we only compute the filter.
   const ql = query.trim().toLowerCase();
   const filtered = rows.filter((r) => {
     if (filter === "active" && !r.active) return false;
@@ -142,7 +138,6 @@ export function Scheduled() {
     <div className="scheduled-page">
       <div className="page-heading">
         <div>
-          <span className="page-eyebrow"><CalendarDots size={16} /> Scheduled</span>
           <h2>Scheduled tasks</h2>
           <p>Ask AgentRunner to schedule tasks, set goals, or monitor for updates.</p>
         </div>
@@ -190,7 +185,6 @@ export function Scheduled() {
                 onClick={() => setFilter(f)}
               >
                 {f[0].toUpperCase() + f.slice(1)}
-                <span className="sched-tab-count">{counts[f]}</span>
               </button>
             ))}
           </div>
@@ -234,13 +228,18 @@ export function Scheduled() {
               {SETTLED_STATUS.has(r.status.cls) ? (
                 <span className="sched-blank" aria-hidden="true" />
               ) : (
-                <span className={"status-dot " + r.status.cls} title={r.status.text} />
+                <span className="sched-glyph" title={r.status.text}>
+                  {r.status.cls === "run" ? (
+                    <PlayCircle size={20} weight="regular" />
+                  ) : (
+                    <Circle size={20} weight="regular" />
+                  )}
+                </span>
               )}
               <span className="scheduled-copy">
                 <b>{r.title}</b>
                 <span>{r.meta}</span>
               </span>
-              <ArrowUpRight size={15} />
             </button>
           ))
         )}

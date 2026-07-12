@@ -8,10 +8,21 @@
   margin: 28px auto 0;
 }
 
+/* Leading state glyph on each scheduled row — an outlined ~20px ring
+   (PlayCircle when running, Circle otherwise) in a muted gray, replacing
+   the old 7px filled status dot (Codex parity). */
+.sched-glyph {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dim);
+}
+
 .sched-suggestions-title {
   padding: 0 4px 4px;
   color: var(--dim);
-  font-size: 16px;
+  font-size: 19px;
   letter-spacing: -.2px;
 }
 
@@ -63,7 +74,7 @@
 
 .sched-suggest-cadence {
   color: var(--dim);
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .sched-suggest-desc {
