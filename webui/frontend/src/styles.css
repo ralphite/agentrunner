@@ -1781,13 +1781,34 @@ details.filediff[open] > summary.fd-head .fd-caret {
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: var(--ink-2);
+  /* HM-2 — the four env chips are the LAUNCH CONTRACT (project / where it runs /
+     environment / branch): they must be read BEFORE you type. They used to sit at
+     --ink-2 (#606060), only 14/255 away from the placeholder's --dim (#6e6e6e), so
+     the contract read like dead decoration and the empty input read like it was
+     already filled. Full ink here (Codex puts these at rgb(0-8) against a rgb(187)
+     placeholder). The placeholder / --dim stays exactly where it is — see the
+     A11Y-8 note on --dim; the separation is bought by deepening ONE side. */
+  color: var(--ink);
   font-size: 12.5px;
   white-space: nowrap;
 }
-.cx-env-control:hover,
-.cx-env-control.active { border-color: transparent; background: var(--panel); color: var(--ink); }
+/* the glyph stays secondary so the chip's own label still leads inside the chip */
+.cx-env-control > svg { color: var(--ink-2); }
+/* HM-3 — hover/active must READ as a trigger, not a status label. The old hover
+   (--panel = #fff) sat on a #f8f8f8 strip: Δ6/255 in light, Δ3 in dark — no
+   receipt at all. Hover now moves AWAY from the tray in whichever direction the
+   theme allows: --line is darker than the strip in light (#e7e7e7 vs #f8f8f8,
+   Δ17) and lighter in dark (#2a2a30 vs #1a1a1e, Δ16). `.active` (popover open)
+   pushes one more step in the same direction via a mix with --ink, which flips
+   with the theme for free. */
+.cx-env-control:hover { border-color: transparent; background: var(--line); color: var(--ink); }
+.cx-env-control.active {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--ink) 8%, var(--line));
+  color: var(--ink);
+}
 .cx-env-control:disabled { color: var(--dim); cursor: default; }
+.cx-env-control:disabled > svg { color: var(--dim); }
 .cx-env-control:disabled:hover { background: transparent; }
 .cx-env-control.project { max-width: 260px; }
 .cx-env-control.branch { max-width: 170px; }
