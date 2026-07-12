@@ -1810,3 +1810,10 @@ implementer 白名单冲突 → 下轮做。)
   chip 说 B」;换 project 标题同步变;localStorage 记住上次选择)+ 建议卡行与 composer 同列(dx=0/dw=0,
   原 424/884 vs 316/1100)。live=`index-CzTnO_8v.js`,console=0。
   **J2(RT-7 坏 deep-link + RT-5 provider 错误人话 banner)在轮末仍在跑,自推 origin/main,下轮开轮收割。**
+  **J2 收割**(同轮末):**RT-7/RT-5**(`88a1c4f`)坏 deep-link 立判 not-found(语法非法 sid **零请求**、
+  停轮询;窄 400 判据只认 server 原话 `invalid session id`,别的 400 仍算瞬时)+ provider 错误译成人话内联
+  banner(`explainFailure()` 覆盖 errs 全 Class + token-cap/网络启发)+「Technical details」保留原始串 + Retry;
+  **被运行时自动重试救回的失败降级为折叠内 note**(会话已往下走,红警报是撒谎)。173 vitest 绿。
+  live=`index-UQM92LAm.js`。
+  **轮17 合计关闭 11 条差距**(RD-1..4 / RT-2 / RT-4 / RT-5 / RT-7 / RS-1..3 / RH-1 / RH-2 —— 12 条),
+  5 个 implementer 全部自推 origin/main,零 dist 提交。
