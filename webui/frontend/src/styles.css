@@ -3809,7 +3809,12 @@ details.filediff[open] > summary.fd-head .fd-caret {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 344px;
+  /* INC-41 ENV-2 · 344px was 23.9% of a 1440px window; Codex's environment rail
+     is ~16%. Its rows are a compact menu, ours were a spreadsheet. 288px = 20%,
+     which still clears the widest real value (a `wt-20260710-143427` worktree
+     name, clamped to 150px by .env-row-name). The Changes split pane runs on a
+     *different* track (.session-layout.changes, ~4810) and is untouched. */
+  grid-template-columns: minmax(0, 1fr) 288px;
 }
 .session-layout.single { grid-template-columns: minmax(0, 1fr); }
 .session-primary {
@@ -4095,7 +4100,9 @@ details.filediff[open] > summary.fd-head .fd-caret {
 .system-events-notice button { padding: 2px 6px; border-color: transparent; background: transparent; color: var(--ink-2); font-size: 11.5px; }
 
 @media (max-width: 1180px) {
-  .session-layout { grid-template-columns: minmax(0, 1fr) 304px; }
+  /* INC-41 ENV-2 · this narrow-window step must stay *below* the 288px base
+     (it was 304px, i.e. the rail used to get wider as the window got smaller). */
+  .session-layout { grid-template-columns: minmax(0, 1fr) 264px; }
   .supervision-panel { margin-right: 12px; }
   .topbar-tool { font-size: 0; gap: 0; width: 34px; justify-content: center; padding: 0; }
   .topbar-attention { position: absolute; transform: translate(10px,-10px); font-size: 9px; }
@@ -4807,7 +4814,7 @@ body {
 /* ===== R1-2 · Changes as a right-side split (Codex parity) ===== */
 /* Clicking "Changes" opens the diff in a right pane instead of taking over the
    whole conversation — the timeline + composer stay usable on the left, like
-   Codex. The pane is wider than Supervision (344px) because diffs need room. */
+   Codex. The pane is wider than Supervision (288px) because diffs need room. */
 .session-layout.changes { grid-template-columns: minmax(0, 1fr) minmax(520px, 52%); }
 .changes-panel {
   min-width: 0;

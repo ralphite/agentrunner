@@ -631,9 +631,19 @@
   opacity: 0.55;
   cursor: default;
 }
+/* INC-41 ENV-1 · an inert row is the one place where the whole line collapses
+   to a single grey — that is the *signal*. Now that .env-row-label carries
+   --ink (13), 0.55 opacity would still land it around rgb(129), i.e. a disabled
+   row would read darker than an enabled row's value. Drop the label back to the
+   value's channel so the row fades uniformly (--dim 110 @ .55 ≈ rgb(175), which
+   is Codex's 180 for its dead `Commit or push`). */
+.supervision-panel button.env-row:disabled .env-row-label {
+  color: var(--dim);
+  font-weight: 400;
+}
 .supervision-panel button.env-row:disabled:hover {
   background: transparent;
-  color: var(--ink-2);
+  color: var(--dim);
 }
 .supervision-panel button.env-row:disabled:hover > svg {
   color: var(--dim);
