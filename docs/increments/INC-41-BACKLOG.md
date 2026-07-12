@@ -1676,25 +1676,28 @@ retry 按钮。零后端改动。
 `SessionNotFound` 组件已存在,只需把 400/无法解析的 sid 也归到 not-found。
 **证据**:`qa/runs/2026-07-11-round15/thread/bug-bad-deeplink-fake-empty.png`
 
-### RS-1 ☐ Scheduled 行标题不截断,整个列表失去节奏 [P0]
+### RS-1 ✅ Scheduled 行标题不截断,整个列表失去节奏 [P0]
 **behavior**:Codex 行标题恒为**单行**,行高一致,两行结构(title/sub-line)严格对齐,列表可垂直
 扫读。我们把**原始 prompt 全文**当标题:1440 下换行 2 行,390 下换行 **4 行**,行高从 68px 膨胀到
 150px+,cadence/next-run 被埋没。根因:只有 sub-line 的 `span` 有 nowrap/ellipsis,`.scheduled-copy b`
 (`styles.css:3465`)没有。
 **证据**:`qa/runs/2026-07-11-round15/scheduled/live-scheduled-light-390x844.png`
+轮17 6d43205 已修:`.scheduled-copy b` 加 nowrap/overflow:hidden/text-overflow:ellipsis + 父 flex `min-width:0`(styles.scheduled.css 追加块);实测 1440/390 两宽度 28 行全部 rowH=68px、titleH=22px 单行。
 
-### RS-2 ☐ 标题左缘参差 13px(去 glyph 改造留下的回归) [P1]
+### RS-2 ✅ 标题左缘参差 13px(去 glyph 改造留下的回归) [P1]
 实测标题起始 x:有 glyph 的活跃行 449px vs settled 行 436px。`.sched-glyph` 宽 20px
 (`styles.scheduled.css:14`)但占位的 `.sched-blank` 只有 **7px**(`styles.nav.css:395`)——还是老
 「7px 圆点」时代的尺寸,`7c78d64` 去 glyph 时没跟着放大。**非刻意,是回归。**
+轮17 6d43205 已修:`.sched-blank` 20×20px 对齐 `.sched-glyph`,并把行首未读点挪走;实测所有行(活跃/settled/未读)标题 x 恒为 429px(1440)/56px(390)。
 
-### RS-3 ☐ 每行都有分隔线(表格感)+ 未读点在行首 + 工具条挤成一行 + 重型分段控件 [P1]
+### RS-3 ✅ 每行都有分隔线(表格感)+ 未读点在行首 + 工具条挤成一行 + 重型分段控件 [P1]
 Codex:任务行之间**无分隔线**(靠留白分组,只有列表末尾一条线分隔 Suggestions);未读蓝点在行
 **最右端**(左列专职状态、右端专职「有新东西」);搜索框**独占整行**、筛选行另起一行(左 tabs /
 右 `✓ Mark all as read`);tabs 是**裸文字**、无外框无底色。
 我们:每行 `border-bottom` → 满屏横线像日志转储;蓝点挤在行首状态列左边(还多吃 8px 缩进,是标题
 左缘偏移的第二个来源);`.sched-toolbar` 单行 flex 把搜索框挤到左半边,`Mark all as read` 出现/消失
 还顶动 tabs;`.sched-tabs` 是带 border+背景+box-shadow 的 iOS 式分段控件,被抬成页面第二重元素。
+轮17 6d43205 已修:行 `border-bottom:0`(只留 `.scheduled-list` 末尾一条线分隔 Suggestions,hover 底色接管点击可供性);未读蓝点移到行最右(`.sched-trail` 常驻占位,读/未读不改标题宽度);`.sched-toolbar` 改 column——搜索框独占整行(pill),下面 `.sched-filters` 左 tabs / 右 Mark all as read(space-between,按钮出现消失时 tabs x 位移实测 0.0px);tabs 与 Mark all as read 均改裸文字(去 border/背景/shadow,选中态 = ink + 600)。
 
 ### RH-1 ☐ 首页标题与 project chip 互相矛盾,用户会把任务发错地方 [P0]
 **behavior**:冷启动实测 —— 标题 `What should we build in cx3-ws?`,而 composer chip 显示
