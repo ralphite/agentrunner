@@ -1893,3 +1893,20 @@ standalone PWA 等**能**投递 ⌘N 的壳里白拿 Codex 原键。在 input/te
   live=`index-UQM92LAm.js`。
   **轮17 合计关闭 11 条差距**(RD-1..4 / RT-2 / RT-4 / RT-5 / RT-7 / RS-1..3 / RH-1 / RH-2 —— 12 条),
   5 个 implementer 全部自推 origin/main,零 dist 提交。
+
+- 2026-07-11 轮18(headless):比对 3 屏(thread / ⌘K 命令面板 / sidebar nav)对金标
+  `codex-task-thread.jpg`+`codex-crop-command-palette.jpg`+`codex-crop-sidebar-nav.jpg`;实测我方面板
+  **零个 ⌘ 徽标**、thread 图片全不渲染。关闭差距 **6 条**:**RT-1**(assistant 产出的图片内联渲染
+  进正文 + 图片产出成缩略图卡 + Lightbox,P0)、**RT-6**(用户附件图片经新 blob 路由持久成缩略图,
+  刷新不再退化成 `×N attached`)、**RT-3**(消息操作图标改 hover/focus 才浮现;工具名全表人话化,
+  未知工具降级 "Ran a tool" 而非裸标识符)、**RH-3**(命令面板按 Codex 排 `Tasks`(⌘1..⌘9 徽标无条件)
+  / `Unread tasks` 两组)、**RH-4**(New task 全局快捷键 + nav 行尾徽标;实测浏览器层吃掉 ⌘N,落在
+  ⌘⌥N 并在 shortcuts.ts/徽标/handler 共用同一 token)、**RH-5**(sidebar 放大镜直接开 ⌘K 面板,内联
+  side-search 删除)。派工 3 个(并发、worktree、白名单互斥,各自推)。push=`d6f604a`+`c15495b`
+  +`5229b53`;8809 复验 live=`index-BV2FwMV7.js`:md-img×2 真解码、⌘1..⌘9 九个徽标全出、
+  `.side-search`=0、`.msg-copy` 静息 opacity 0 → hover 1、稳态 console error+warning=0。
+  截图 `qa/runs/2026-07-11-round18/{before,after}/`。**教训(两个 implementer 独立踩到)**:并发轮里
+  **禁用 `git stash`**(stash 栈是全仓库共享的,跨 worktree 撞车);check.sh 前端测试须 **node24 优先于
+  homebrew node25**,否则 `loadingStates.test.tsx` 10 条假失败。
+  **开放 ☐ 剩**:R 组已清零;其余为 out-of-scope 的 a11y/perf/mob 组(本引擎不派)→ 下轮回第一步
+  重新对着金标比对 live,开新一批差距。
