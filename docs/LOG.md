@@ -3705,3 +3705,23 @@ v2 术语手术时 spec 字段已由 max_turns 改为 max_generation_steps，但
 
 `docs/CLAUDECODE-PARITY.md` 对照表里的 `--max-turns` 是 Claude Code 自己
 的 flag 名，保持不动；docs/archive/ 只读不动。
+
+## 2026-07-12 · QA-62 gate B 绿——G35 正式关闭（Actions 真实 API 执行环境落地）
+
+INC-62 的真实 API 验收在 GitHub Actions runner 上完成（新 workflow
+`qa-inc62`，repo secrets 供 GEMINI_API_KEY；用户指示用 Action 环境跑真
+测试）。run #2（commit 26e0178）真 Gemini 5/5：首 spawn ask → approve
+--always → 3 spawn 恰 1 ask → effect_resolved 携 standing 判词 → user
+配置得 tool 级 spawn_agent 规则 → 全新 session spawn 零 ask。证据存
+workflow artifact `qa62-run`（journal 导出 + daemon 日志）。G35 与 SPEC
+行回 ✅。
+
+run #1 假绿复盘（QA 基建教训，已修）：①脚本 `count()` 用
+`grep -c || echo 0`，零匹配时 grep 自己打印 0 又 echo 0，两行值让所有
+整数守卫报 "integer expression expected" 后被静默跳过——PASS(5) 在
+session 2 的 spawn 未被证实时就打印（QA-26 同款潜伏 bug 一并修，统一
+lib.sh count_type 单值模式）；②Actions 默认 shell 是 `bash -e {0}`
+**无 pipefail**，`script | tee log` 吞退出码，红也显绿——workflow 步骤
+显式 `shell: bash`（带 pipefail）。两条均为"守卫自身失真"类：断言
+存在 ≠ 断言在执行，与 G29 的登记簿失真同族，QA 脚本此后沿用单值
+count + 显式 pipefail。
