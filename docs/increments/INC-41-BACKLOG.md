@@ -1242,7 +1242,15 @@ Codex 看起来像「这就是一个 review 工作台」。**为什么 Codex 更
 **关闭动作**:`Timeline.tsx` 折叠头一律渲染时长(缺时长时从 turn 首尾事件时间戳算,再不济退回步骤数
 `N steps`);压缩 `Approved`/`Worked` 行之间的垂直节奏,让 thread 密起来。
 
-### CX-3 ☐ Scheduled 每行不显示 cadence 与 next run —— 看不出「下次什么时候跑」[P1·跨层]
+### CX-3 ✅ Scheduled 每行不显示 cadence 与 next run —— 看不出「下次什么时候跑」[P1·跨层]
+**已关闭(轮14, commit 760edb7)**:`internal/driver/cadence.go`(+单测)把 `DriverSpec` 投影成人话
+cadence(`Every 30m` / `Saturdays at 4:00 AM` / `Best of 3` / `Self-paced` / `Runs once`)与 `NextRun`
+(interval 锚上次迭代开始;五段 cron 自己解析,dom+dow 双限按 Vixie 的 OR 规则;不能表达的退回
+`Cron <expr>`,**绝不猜**)。`webui/schedule.go` 是同一投影的 stdlib 镜像(arwebui 是零依赖独立
+module,只经 `ar` CLI 契约对话)。`/api/runs` + `/api/sessions` 新增 `schedule`/`cadence`/`nextRunAt`。
+**live 实测**:456 个 session 里 28 个 driver 带 cadence;Scheduled 行副标题
+`Goal · drvmcp · 1d ago` → **`Every 30m · Ran 9m ago · cx3-ws`** / `Best of 3 · Ran 1d ago · drvbon`。
+`nextRunAt` 对已终态 driver 不给(它们不会再跑了),前端诚实退回 `Ran Nd ago`,**不显示假的下次时间**。
 **Codex 怎样**(`codex-scheduled.jpg`):每行副标题就是 **cadence + next run** ——
 `Weekly status update draft` / **`Saturdays at 4:00 AM · Next run in 1 week`**;`cloc` / **`Daily at 6:00 AM`**。
 外加底部 **Suggestions** 分区(3 张彩色图标建议:Daily brief / Weekly review / Follow-up monitor)与
@@ -1267,7 +1275,12 @@ contract";`viewModels.ts:159 scheduleLabel()` 只能把 `schedule` 字段翻成 
 **教训**:代码注释里的「我们没有 X」是**写注释那一刻的认知**,不是事实。跨层条目开工前先查后端,
 别把一句旧注释当成产品缺失。
 
-### CX-4 ☐ 会话右栏 Environment 区缺常设操作行(Worktree / Create branch / Commit or push)[P1]
+### CX-4 ✅ 会话右栏 Environment 区缺常设操作行(Worktree / Create branch / Commit or push)[P1]
+**已关闭(轮14, commit b2029e7)**:Environment 区改成 Codex 的**恒常四行**——
+`Changes`(`+1` / `No changes`)· `Worktree`(路径尾段 `wt-20260710-143427`,展开出完整路径 + Copy path;
+无 workspace 时 `—` 且禁用,**不隐藏**)· `Create branch`(右侧当前分支 / `No branch yet`;走**已有的**
+`AR.gitCheckout(dir,name,create=true)`)· `Commit or push`(恒常可见;无变更时禁用 + `Nothing to commit`,
+子会话标 `Sub-agent`)。**零新增 API**。implementer 真机建过分支验证(`git symbolic-ref HEAD` 确认)。
 **Codex 怎样**(`codex-thread-environment-panel.jpg`):Environment 区**恒常**四行 —— `Changes` ·
 `Worktree`(带展开箭头)· `Create branch` · `Commit or push`。**不管当前有没有变更、有没有分支,四行
 永远在**,每行都是可点入口。
@@ -1530,3 +1543,22 @@ commit/push 动作**只在有变更时才浮现**;`Worktree` 行**不存在**;`C
   push=a2d1058(登记 CX-1/CX-2)+441975d(登记 CX-3)+5d8826a(CX-1+CX-2 实现);
   live=index-8uh6pCye.js;稳态 console err+warn=0(light+dark);151 vitest 绿 + tsc 0 + dist 干净。
   **开放 ☐ 新增 CX-3**(Scheduled 缺 cadence/next-run,**跨层,须先写三层 delta 再派工**)。
+
+- 2026-07-11 轮14(headless,**接管被杀的轮13**):上一轮 20:06 开轮、20:16:41 派完 implementer 后
+  **进程立刻退出**,子 agent 全被杀、零代码落地——**headless 轮必须在轮内前台阻塞等到子 agent 完成**,
+  不能派完就收尾。本轮改用前台轮询 `git log --all | grep "Codex parity CX-N"` 死等两个 implementer 的
+  commit,才进合并。**这是本轮最重要的流程修正。**
+  **比对 3 屏**(scheduled / thread / thread-diff × light+dark)对 `qa/codex-reference/*.jpg`,
+  **关闭 2 个可见差距,派工 2 路并发**(worktree 隔离,白名单零交集)。
+  **CX-3 ✅ Scheduled 行显示 cadence + next run**(全栈):`Goal · drvmcp · 1d ago` →
+  `Every 30m · Ran 9m ago · cx3-ws`。**最大收获是一条被写进注释的假前提**:`Scheduled.tsx:72` 长期
+  写着 "We have no cron/next-run contract" —— 而 `internal/driver/spec.go` **一直有** schedule/
+  interval/cron 字段。**代码注释里的「我们没有 X」是写注释那一刻的认知,不是事实**;整整一个屏的
+  核心信息就因为没人回头查后端而缺席了。
+  **CX-4 ✅ Environment 恒常四行**:Changes · Worktree · Create branch · Commit or push,
+  不管有没有变更、有没有分支都在。此前无变更时右栏只剩两行秃文字,**用户在会话里根本没有建分支的入口**。
+  **并发代价**:另一个 session 同时在重排 webui 视觉(8 个 commit,含 Scheduled 行样式与面板分区图标)。
+  rebase 出一处 import 冲突(它删了分区图标 → 我方 union 后 `Crosshair`/`Package` 变孤儿,tsc 揪出)。
+  **保双方语义 = 保留对方的删除 + 保留我方的新增**,不是无脑 union。
+  push=ca23116(登记)+b2029e7(CX-4)+760edb7(CX-3)+08d2b4e(import 修);live=index-D3yKMQ9I.js;
+  151 vitest 绿 + tsc 0 + go(driver+webui)绿 + 稳态 console err+warn=0(4 屏 × light/dark)。
