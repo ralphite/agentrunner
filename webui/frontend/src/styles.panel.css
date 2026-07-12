@@ -690,3 +690,28 @@
   .turn-error-body { flex-basis: calc(100% - 28px); }
   .turn-error-action { margin-left: 27px; }
 }
+
+/* ===== INC-41 TH-3 · the resting Supervision panel =====
+   Codex's right-hand panel omits the groups that have nothing in them — it
+   never spends a titled block saying "empty". Ours used to stack three of them
+   (Goal / Agents / Attention, ~325px of pure negation, each block *taller* than
+   a row with real data). The sections now render only when they carry content;
+   when none of them does, this single dim line stands in for all three, so a
+   quiet panel still reads as "fine" rather than "broken" — and doubles as the
+   in-flight ("Checking…") placeholder, which keeps the panel the same height
+   from load to rest instead of collapsing a hole into it. One 32px row. */
+.supervision-quiet {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 24px;
+  padding: 4px 15px;
+  color: var(--dim);
+  font-size: 12px;
+}
+.supervision-quiet svg {
+  flex: 0 0 auto;
+  color: color-mix(in srgb, var(--green) 70%, var(--dim));
+  opacity: .9;
+}
+.supervision-quiet.supervision-loading svg { color: var(--dim); }

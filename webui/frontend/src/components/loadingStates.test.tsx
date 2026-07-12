@@ -154,12 +154,12 @@ describe("L2 · unknown session id", () => {
     };
     render(<SessionView sid="sess-real-1" />);
 
-    // The failing inspect must still end the loading state: the three
-    // "Checking…" placeholders resolve to their determinate empty states.
-    await waitFor(() => expect(screen.getByText(/No active goal/i)).toBeTruthy());
-    expect(screen.queryByText(/Checking goal…/)).toBeNull();
-    expect(screen.queryByText(/Checking agents…/)).toBeNull();
-    expect(screen.queryByText(/Checking attention…/)).toBeNull();
+    // The failing inspect must still end the loading state: the indeterminate
+    // "Checking…" placeholder resolves to the determinate resting line. (Since
+    // INC-41 TH-3 the empty Goal/Agents/Attention blocks no longer render at
+    // all — one dim "Nothing needs you" row stands in for all three.)
+    await waitFor(() => expect(screen.getByText(/Nothing needs you/i)).toBeTruthy());
+    expect(screen.queryByText(/Checking…/)).toBeNull();
     // A transient error is NOT a missing session.
     expect(screen.queryByText("Task not found")).toBeNull();
   });

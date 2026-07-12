@@ -7,8 +7,8 @@ import {
   FileText,
   GitBranch,
   GitCommit,
-  GitDiff,
   Hourglass,
+  PlusMinus,
   TreeStructure,
   UsersThree,
   WarningCircle,
@@ -101,6 +101,55 @@ function useSettledGoal(active: boolean, loading: boolean): GoalDerived | null {
   return settled;
 }
 
+// attentionRows folds everything that deserves a human look (W35) into a row
+// list: approvals, an agent that stopped abnormally, and background work still
+// burning tokens while the conversation itself has gone idle (the
+// abandoned-reviewer case: 195k tokens spent after "done"). Lifted out of the
+// JSX (TH-3) so the panel can *know* whether Attention has anything to say
+// before deciding whether to render the section at all.
+function attentionRows(
+  children: InspectNode[],
+  tasks: Task[],
+  approvals: number,
+  recovery: boolean,
+  sessionIdle: boolean,
+): React.ReactNode[] {
+  const rows: React.ReactNode[] = [];
+  if (approvals > 0) {
+    rows.push(
+      <div className="attention-row" key="appr">
+        <span className="attention-dot" /> Approval requested <b>{approvals}</b>
+      </div>,
+    );
+  }
+  if (recovery) {
+    rows.push(
+      <div className="attention-row" key="recovery">
+        <span className="attention-dot" /> Task needs recovery
+      </div>,
+    );
+  }
+  for (const node of dedupeInspectNodes(children)) {
+    const st = friendlyStatus(node.reason || node.report?.reason || node.report?.status || "");
+    if (st.cls === "crash" || st.cls === "stranded") {
+      rows.push(
+        <div className="attention-row" key={"agent-" + (node.call_id || node.session)}>
+          <span className="attention-dot" /> {node.agent || "agent"} — {st.text}
+        </div>,
+      );
+    }
+  }
+  if (tasks.length > 0 && sessionIdle) {
+    rows.push(
+      <div className="attention-row" key="bg-idle">
+        <span className="attention-dot" /> Background work still running — it keeps
+        spending tokens; stop it below if it's no longer needed
+      </div>,
+    );
+  }
+  return rows;
+}
+
 export function SupervisionPanel({
   loading,
   goal,
@@ -147,6 +196,17 @@ export function SupervisionPanel({
   // When no goal is active, recover the last settled goal so the GOAL section
   // shows its outcome instead of collapsing to "No active goal" (R1-4).
   const settledGoal = useSettledGoal(!!goal, loading);
+  // TH-3 — a section with nothing in it doesn't get to take 100px of the panel.
+  // Codex's Environment panel simply omits the groups that have no content; it
+  // never spends a titled block telling you a group is empty. A resting session
+  // used to burn ~325px on three such blocks (Goal "No active goal" + Agents
+  // "No subagents" + Attention "Nothing needs you") — each *taller* than a row
+  // carrying real data. So: each of the three renders only when it has
+  // something, and when none of them does they collapse into the single dim
+  // line below (a resting panel must still read as "fine", not as "broken").
+  const attention = attentionRows(children, tasks, approvals, recovery, sessionIdle);
+  const hasGoal = !!goal || !!settledGoal;
+  const resting = !loading && !hasGoal && children.length === 0 && attention.length === 0;
   return (
     <aside className="supervision-panel session-side" aria-label="Supervision">
       <div className="supervision-head">
@@ -156,11 +216,19 @@ export function SupervisionPanel({
 
       <EnvironmentSection />
 
+      {/* One indeterminate line while inspect is in flight — not three titled
+          "Checking…" blocks that then collapse into nothing (TH-3): the panel
+          keeps the same height from load to rest, so it never flashes a hole. */}
+      {loading && (
+        <div className="supervision-quiet supervision-loading">
+          <Hourglass size={14} className="spin" /> Checking…
+        </div>
+      )}
+
+      {!loading && hasGoal && (
       <section className="supervision-section">
         <div className="supervision-label">Goal</div>
-        {loading ? (
-          <div className="supervision-empty supervision-loading"><Hourglass size={14} className="spin" /> Checking goal…</div>
-        ) : goal ? (
+        {goal ? (
           <>
             {goalEdit === null ? (
               <div className="goal-copy">{goal.goal}</div>
@@ -193,7 +261,7 @@ export function SupervisionPanel({
         ) : settledGoal ? (
           // No active goal, but the journal carries a finished one — show its
           // outcome (Completed · elapsed · N checks) so the panel agrees with
-          // the composer's goal banner instead of reading "No active goal".
+          // the composer's goal banner instead of going silent.
           <>
             <div className="goal-copy">{settledGoal.goal}</div>
             <div className="goal-meta goal-meta-settled">
@@ -204,10 +272,9 @@ export function SupervisionPanel({
               <span>{settledGoal.checks} check{settledGoal.checks === 1 ? "" : "s"}</span>
             </div>
           </>
-        ) : (
-          <div className="supervision-empty is-neutral"><CheckCircle size={15} /> No active goal</div>
-        )}
+        ) : null}
       </section>
+      )}
 
       {progress.length > 0 && (
         <section className="supervision-section">
@@ -263,62 +330,26 @@ export function SupervisionPanel({
         </section>
       )}
 
-      <section className="supervision-section supervision-agents">
-        <div className="supervision-label">Agents</div>
-        {loading ? (
-          <div className="supervision-empty supervision-loading"><Hourglass size={14} className="spin" /> Checking agents…</div>
-        ) : children.length > 0 ? <Subagents nodes={children} onOpen={onOpenChild} /> : <div className="supervision-empty is-neutral"><CheckCircle size={15} /> No subagents</div>}
-      </section>
+      {!loading && children.length > 0 && (
+        <section className="supervision-section supervision-agents">
+          <div className="supervision-label">Agents</div>
+          <Subagents nodes={children} onOpen={onOpenChild} />
+        </section>
+      )}
 
-      <section className="supervision-section">
-        <div className="supervision-label">Attention</div>
-        {(() => {
-          // Attention is everything that deserves a human look (W35), not just
-          // approvals: an agent that stopped abnormally, or background work
-          // still burning tokens while the conversation itself has gone idle
-          // (the abandoned-reviewer case: 195k tokens spent after "done").
-          const rows: React.ReactNode[] = [];
-          if (approvals > 0) {
-            rows.push(
-              <div className="attention-row" key="appr">
-                <span className="attention-dot" /> Approval requested <b>{approvals}</b>
-              </div>,
-            );
-          }
-          if (recovery) {
-            rows.push(
-              <div className="attention-row" key="recovery">
-                <span className="attention-dot" /> Task needs recovery
-              </div>,
-            );
-          }
-          if (!loading) {
-            for (const node of dedupeInspectNodes(children)) {
-              const st = friendlyStatus(node.reason || node.report?.reason || node.report?.status || "");
-              if (st.cls === "crash" || st.cls === "stranded") {
-                rows.push(
-                  <div className="attention-row" key={"agent-" + (node.call_id || node.session)}>
-                    <span className="attention-dot" /> {node.agent || "agent"} — {st.text}
-                  </div>,
-                );
-              }
-            }
-            if (tasks.length > 0 && sessionIdle) {
-              rows.push(
-                <div className="attention-row" key="bg-idle">
-                  <span className="attention-dot" /> Background work still running — it keeps
-                  spending tokens; stop it below if it's no longer needed
-                </div>,
-              );
-            }
-          }
-          return rows.length > 0 ? rows : (
-            loading
-              ? <div className="supervision-empty supervision-loading"><Hourglass size={14} className="spin" /> Checking attention…</div>
-              : <div className="supervision-empty"><CheckCircle size={15} /> Nothing needs you</div>
-          );
-        })()}
-      </section>
+      {!loading && attention.length > 0 && (
+        <section className="supervision-section">
+          <div className="supervision-label">Attention</div>
+          {attention}
+        </section>
+      )}
+
+      {/* The resting panel: one dim line instead of three empty blocks (TH-3). */}
+      {resting && (
+        <div className="supervision-quiet">
+          <CheckCircle size={15} /> Nothing needs you
+        </div>
+      )}
 
       {tasks.length > 0 && (
         <section className="supervision-section">
@@ -518,8 +549,12 @@ function EnvironmentSection() {
     <section className="supervision-section supervision-env">
       <div className="supervision-label">Environment</div>
       <div className="env-rows">
+        {/* TH-6a — the Changes row is a *diff* (± lines), not a branch: GitDiff's
+            forking arrows read as branch/merge. Codex uses the ± glyph; Phosphor's
+            PlusMinus is that glyph (lucide's Diff would mean a new dependency for
+            one icon in an all-Phosphor codebase). Size/spacing unchanged. */}
         <button className="env-row" onClick={goToChanges} title="Review workspace changes">
-          <GitDiff size={14} />
+          <PlusMinus size={14} />
           <span className="env-row-label">Changes</span>
           <span className="env-row-val">
             {hasChanges ? (
