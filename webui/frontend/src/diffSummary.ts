@@ -83,22 +83,35 @@ export function parseFileDiff(lines: string[]): ParsedFileDiff {
   return { badges, status, rows };
 }
 
-// A run of unmodified new-file lines hidden between (or before) diff hunks —
-// the region a "N unmodified lines" collapser reveals. `start`/`end` are 1-based
-// inclusive new-file line numbers, so the client slices them straight out of the
-// file blob.
+// A run of unmodified new-file lines hidden between (or before, or after) diff
+// hunks — the region a "N unmodified lines" collapser reveals. `start`/`end` are
+// 1-based inclusive new-file line numbers, so the client slices them straight out
+// of the file blob.
+//
+// `end === null` means "runs to EOF, length unknown": a unified diff never states
+// a file's total line count, so the trailing gap (last hunk → EOF) can only be
+// bounded once the file blob is in hand. The renderer resolves a null end against
+// the blob it fetches — it never invents a number.
 export interface ContextGap {
   start: number;
-  end: number;
+  end: number | null;
 }
 
-// hunkGaps maps a hunk-header row index → the ContextGap hidden immediately
-// before it. The leading gap (file start → first hunk) is keyed by the first
-// hunk's row index; each later gap spans from the previous hunk's last shown new
-// line to the next hunk's first shown new line. Only positive-length gaps are
-// returned. Pure; derived from the rows' own new-file numbering, so it needs no
-// file length and no blob to compute the collapser labels.
-export function hunkGaps(rows: DiffRow[]): Map<number, ContextGap> {
+// hunkGaps maps a row index → the ContextGap hidden immediately before it. Each
+// hunk-header row index keys the gap in front of that hunk: the leading gap (file
+// start → first hunk) hangs off the first hunk's index; each later gap spans from
+// the previous hunk's last shown new line to the next hunk's first shown new line.
+//
+// INC-41 RD-2: with `opts.trailing`, one more gap is emitted for the region after
+// the last hunk, keyed by `rows.length` — an index no real row can occupy, so it
+// never collides. Its `end` is null (see ContextGap): git tells us where the diff
+// stops, not where the file does. It is suppressed when the diff itself proves it
+// already reached EOF (a trailing "\ No newline at end of file" marker), and
+// callers should pass `trailing: false` for added/deleted files, whose diffs show
+// the whole new side (or have none at all).
+//
+// Only positive-length gaps are returned. Pure; needs no blob.
+export function hunkGaps(rows: DiffRow[], opts: { trailing?: boolean } = {}): Map<number, ContextGap> {
   const gaps = new Map<number, ContextGap>();
   let prevLastNew = 0; // last new-file line already shown by an earlier hunk
   const n = rows.length;
@@ -118,8 +131,16 @@ export function hunkGaps(rows: DiffRow[]): Map<number, ContextGap> {
     }
     if (lastNew > prevLastNew) prevLastNew = lastNew;
   }
+  const last = n > 0 ? rows[n - 1] : undefined;
+  const diffRanToEOF = !!last && last.kind === "ctx" && last.newNo === undefined && last.text.startsWith("\\");
+  if (opts.trailing && prevLastNew > 0 && !diffRanToEOF) {
+    gaps.set(n, { start: prevLastNew + 1, end: null });
+  }
   return gaps;
 }
+
+// trailingGapKey: the key hunkGaps uses for the after-the-last-hunk gap.
+export const trailingGapKey = (rows: DiffRow[]) => rows.length;
 
 // splitPath separates the directory (rendered dim) from the basename
 // (rendered strong) the way Codex file headers do.
@@ -231,6 +252,22 @@ const SH_KW = kw(`
   if then fi elif else for do done while until case esac function in select time
   echo cd export local return set unset source read shift exit trap
 `);
+// INC-41 RD-3 — markup (html/xml/svg). Tag names are the "keywords"; quoted
+// attribute values fall out of the shared string rule and `< > / =` out of the
+// punctuation rule, which is exactly the shape Codex gives markup. Deliberately
+// no line- or block-comment starters: `//` inside a URL must not swallow the rest
+// of the line, and `<!-- -->` is not C-style (it degrades to punctuation, which
+// is harmless).
+const HTML_KW = kw(`
+  html head body title meta link script style base noscript template slot
+  div span p a img picture source video audio canvas iframe embed object
+  ul ol li dl dt dd table thead tbody tfoot tr td th caption colgroup col
+  form input button label select option optgroup textarea fieldset legend
+  header footer main nav section article aside figure figcaption details summary
+  h1 h2 h3 h4 h5 h6 br hr pre code em strong b i u small sub sup blockquote
+  svg path g rect circle ellipse line polyline polygon text defs use symbol
+  xml DOCTYPE doctype
+`);
 
 const LANGS: Record<string, LangSpec> = {
   js: { line: ["//"], block: true, strings: ['"', "'", "`"], keywords: JS_KW },
@@ -241,6 +278,7 @@ const LANGS: Record<string, LangSpec> = {
   sh: { line: ["#"], block: false, strings: ['"', "'"], keywords: SH_KW },
   yaml: { line: ["#"], block: false, strings: ['"', "'"], keywords: kw("true false null yes no on off") },
   json: { line: [], block: false, strings: ['"'], keywords: kw("true false null") },
+  html: { line: [], block: false, strings: ['"', "'"], keywords: HTML_KW },
 };
 
 const EXT_LANG: Record<string, string> = {
@@ -250,6 +288,9 @@ const EXT_LANG: Record<string, string> = {
   yaml: "yaml", yml: "yaml", json: "json",
   css: "css", scss: "css", less: "css",
   md: "md", markdown: "md",
+  // RD-3: markup was missing entirely, so dist/index.html rendered as a slab of
+  // undifferentiated black next to fully-colored .js siblings.
+  html: "html", htm: "html", xhtml: "html", xml: "html", svg: "html",
 };
 
 export function langFromPath(path: string): string {
@@ -406,14 +447,34 @@ export function summarizeChanges(data: DiffResp): ChangesSummary {
   };
 }
 
-export function shouldExpandDiffByDefault(diff: string): boolean {
-  const files = splitDiff(diff || "");
-  const changedLines = files.reduce((total, file) => total + file.add + file.del, 0);
-  const largestFile = files.reduce((max, file) => Math.max(max, file.add + file.del), 0);
-  // Expand normal reviews by default — even many files or a large overall
-  // total — so "Open Changes" shows CODE, not bare file headers. Only collapse
-  // genuinely huge payloads: a single file with hundreds of changed lines
-  // (rendering it inline would jank the first paint) or an enormous overall
-  // total. The "Collapse all" / "Expand all" control still overrides either way.
-  return largestFile <= 500 && changedLines <= 5000;
+// ---- INC-41 RD-1: per-FILE disclosure ----
+// f2f1932's performance intent is kept — never paint a monstrous file inline on
+// first open — but the judgement moves from the REVIEW to the FILE. The old
+// global rule collapsed *every* file as soon as *one* was big: a 3-file review
+// with a 1,284-line package-lock.json also folded package.json (+12) and
+// server.js (+110), so "Open Changes" showed three bare file headers and zero
+// lines of code. Codex always shows code and controls volume with the unmodified
+// collapser bands instead.
+//
+// MAX_INLINE_FILE_LINES caps one file; MAX_INLINE_REVIEW_LINES is the whole
+// review's first-paint budget — files open in order until it runs out, so a
+// 200-file dump still opens code at the top instead of everything at once. The
+// "Expand all" / "Collapse all" control overrides either way.
+export const MAX_INLINE_FILE_LINES = 500;
+export const MAX_INLINE_REVIEW_LINES = 5000;
+
+export function shouldExpandFileByDefault(file: { add: number; del: number }): boolean {
+  return file.add + file.del <= MAX_INLINE_FILE_LINES;
+}
+
+// defaultOpenByPath decides, per file path, whether its diff starts expanded.
+export function defaultOpenByPath(files: { path: string; add: number; del: number }[]): Map<string, boolean> {
+  const out = new Map<string, boolean>();
+  let budget = MAX_INLINE_REVIEW_LINES;
+  for (const file of files) {
+    const open = shouldExpandFileByDefault(file) && budget > 0;
+    if (open) budget -= file.add + file.del;
+    out.set(file.path, open);
+  }
+  return out;
 }

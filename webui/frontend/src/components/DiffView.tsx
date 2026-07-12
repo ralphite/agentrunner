@@ -20,7 +20,7 @@ import { AR } from "../api";
 import { useStore } from "../store";
 import { loadGitPrefs } from "../theme";
 import type { DiffResp, DiffScope } from "../types";
-import { parseFileDiff, shouldExpandDiffByDefault, splitDiff, splitPath, splitRows, highlightLine, hunkGaps, langFromPath, type DiffRow, type FileStatus, type ParsedFileDiff } from "../diffSummary";
+import { parseFileDiff, defaultOpenByPath, splitDiff, splitPath, splitRows, highlightLine, hunkGaps, trailingGapKey, langFromPath, type ContextGap, type DiffRow, type FileStatus, type ParsedFileDiff } from "../diffSummary";
 import { Popover, PopItem, PopSection } from "./Popover";
 
 // renderCode turns one diff line into syntax-highlighted spans (INC-41 D3).
@@ -55,12 +55,15 @@ export function DiffView({ sid }: { sid: string }) {
   const [busy, setBusy] = useState(false);
   const [scope, setScope] = useState<DiffScope>("working-tree");
   const requestID = useRef(0);
-  // fold-all state; bumping the epoch remounts the <details> so a global
-  // toggle wins over any manual per-file toggling since the last one.
-  const [allOpen, setAllOpen] = useState(true);
+  // Fold-all override: null = every file follows its own default (INC-41 RD-1 —
+  // per-file disclosure, so one huge file no longer folds its small neighbours);
+  // true/false = the user pressed Expand-all / Collapse-all. Bumping the epoch
+  // remounts the <details> so a global toggle wins over any manual per-file
+  // toggling since the last one.
+  const [override, setOverride] = useState<boolean | null>(null);
   const [foldEpoch, setFoldEpoch] = useState(0);
   const setAll = (open: boolean) => {
-    setAllOpen(open);
+    setOverride(open);
     setFoldEpoch((e) => e + 1);
   };
   // D2 file filter + D4 inline/split view. Split needs room; below ~900px it
@@ -83,11 +86,10 @@ export function DiffView({ sid }: { sid: string }) {
     AR.diff(sid, scope)
       .then((d) => {
         if (currentRequest !== requestID.current) return;
-        // Decide disclosure before exposing the payload to React. Otherwise a
-        // large diff gets one fully-expanded paint before a later effect can
-        // collapse it, which is exactly when the browser is most vulnerable to
-        // jank or failure.
-        setAllOpen(shouldExpandDiffByDefault(d.diff || ""));
+        // Drop any Expand/Collapse-all override from the previous payload, so each
+        // file of the new one opens on its own merits (defaultOpenByPath) — decided
+        // during render, before the first paint, never by a post-paint effect.
+        setOverride(null);
         setFoldEpoch((epoch) => epoch + 1);
         setData(d);
         setErr("");
@@ -364,6 +366,11 @@ export function DiffView({ sid }: { sid: string }) {
   const totalDel = stats.reduce((s, x) => s + x.del, 0);
   const q = fileQuery.trim().toLowerCase();
   const shown = q ? stats.filter((s) => s.f.path.toLowerCase().includes(q)) : stats;
+  // Per-file default disclosure (RD-1) — computed over the whole review, not just
+  // the filtered subset, so filtering never changes a file's default state.
+  const defaults = defaultOpenByPath(files);
+  const isOpen = (path: string) => override ?? defaults.get(path) ?? true;
+  const allShownOpen = shown.length > 0 && shown.every((s) => isOpen(s.f.path));
 
   return (
     <div className="diffwrap">
@@ -421,11 +428,11 @@ export function DiffView({ sid }: { sid: string }) {
         {files.length > 1 && (
           <button
             className="sm ghost diff-iconbtn"
-            onClick={() => setAll(!allOpen)}
-            aria-label={allOpen ? "Collapse all files" : "Expand all files"}
-            title={allOpen ? "Collapse all files" : "Expand all files"}
+            onClick={() => setAll(!allShownOpen)}
+            aria-label={allShownOpen ? "Collapse all files" : "Expand all files"}
+            title={allShownOpen ? "Collapse all files" : "Expand all files"}
           >
-            {allOpen ? <ArrowsInLineVertical size={15} /> : <ArrowsOutLineVertical size={15} />}
+            {allShownOpen ? <ArrowsInLineVertical size={15} /> : <ArrowsOutLineVertical size={15} />}
           </button>
         )}
         {scope === "working-tree" && !empty && (
@@ -552,8 +559,14 @@ export function DiffView({ sid }: { sid: string }) {
         // Drop it entirely when the file has a single hunk (nothing to separate);
         // with several hunks it becomes a compact hairline separator instead.
         const hunkCount = parsed.rows.reduce((n, r) => n + (r.kind === "hunk" ? 1 : 0), 0);
+        const open = isOpen(f.path);
         return (
-          <details className="filediff" key={f.path + ":" + foldEpoch} open={allOpen}>
+          <details className="filediff" key={f.path + ":" + foldEpoch} open={open}>
+            {/* RD-4: counts sit right after the filename (Codex: `docs/DESIGN.md
+                +8 -4`), both numbers always rendered — a pure deletion reads
+                "+0 −176", not a lone "−176" — and the status badges take the
+                right edge. The elastic gap is the .fd-spacer, not .fd-path
+                (styles.panel.css overrides styles.css's `.fd-path{flex:1}`). */}
             <summary className="fd-head mono">
               <span className={"fd-glyph fd-glyph-" + parsed.status} title={parsed.status} aria-hidden="true">
                 {STATUS_GLYPH[parsed.status]}
@@ -562,15 +575,27 @@ export function DiffView({ sid }: { sid: string }) {
                 {dir && <span className="fd-dir">{dir}</span>}
                 {base}
               </span>
+              <span className="fd-counts">
+                <span className="add">+{add}</span>
+                <span className="del">−{del}</span>
+              </span>
+              <span className="fd-spacer" aria-hidden="true" />
               {parsed.badges.map((b) => (
                 <span className="fd-badge" key={b}>{b}</span>
               ))}
-              <span className="fd-counts">
-                {add > 0 && <span className="add">+{add}</span>}
-                {del > 0 && <span className="del">−{del}</span>}
-              </span>
             </summary>
-            <FileBody sid={sid} path={f.path} parsed={parsed} lang={lang} effView={effView} hunkCount={hunkCount} />
+            <FileBody
+              sid={sid}
+              path={f.path}
+              parsed={parsed}
+              lang={lang}
+              effView={effView}
+              hunkCount={hunkCount}
+              // Only pay for a blob prefetch on bodies the user is actually looking
+              // at, and only while the review is small enough that one request per
+              // file is cheap (see FileBody's trailing-band note).
+              prefetch={open && effView === "inline" && shown.length <= 25}
+            />
           </details>
         );
       })}
@@ -580,7 +605,8 @@ export function DiffView({ sid }: { sid: string }) {
 
 // FileBody renders one file's diff rows, and — in the inline view — the
 // clickable "N unmodified lines" collapser bands Codex shows before the first
-// hunk and between hunks (P3). Clicking a band fetches the file's current text
+// hunk, between hunks, and (INC-41 RD-2) after the last hunk, so every file can
+// be walked all the way to EOF. Clicking a band fetches the file's current text
 // once (AR.blob) and reveals the hidden unmodified region in place; clicking the
 // revealed region's header collapses it again. The split view keeps the plain
 // hunk-separator rendering (its paired-column model has no per-row anchor to
@@ -592,6 +618,7 @@ function FileBody({
   lang,
   effView,
   hunkCount,
+  prefetch,
 }: {
   sid: string;
   path: string;
@@ -599,14 +626,42 @@ function FileBody({
   lang: string;
   effView: "inline" | "split";
   hunkCount: number;
+  prefetch: boolean;
 }) {
   const toast = useStore((s) => s.toast);
-  const gaps = hunkGaps(parsed.rows);
-  // Fetched file text (null until first reveal) and the set of hunk-row indices
-  // whose gap is currently expanded.
+  // A trailing gap only exists where there's a new side that the diff might stop
+  // short of: an added file's diff *is* the whole file, and a deleted one has no
+  // new side at all.
+  const gaps = hunkGaps(parsed.rows, { trailing: parsed.status !== "added" && parsed.status !== "deleted" });
+  const trailKey = trailingGapKey(parsed.rows);
+  const trailGap = gaps.get(trailKey);
+  // Fetched file text (null until first reveal) and the set of gap keys whose
+  // region is currently expanded.
   const [blob, setBlob] = useState<string[] | null>(null);
+  const [blobFailed, setBlobFailed] = useState(false);
   const [open, setOpen] = useState<Set<number>>(new Set());
   const [loadingIdx, setLoadingIdx] = useState<number | null>(null);
+
+  // A unified diff never states a file's total line count, so the trailing gap's
+  // length is unknowable from the payload alone (ContextGap.end === null). Rather
+  // than invent a number, fetch the file once up front for the bodies on screen:
+  // that turns the tail band into Codex's exact "N unmodified lines", and — just
+  // as important — makes the band disappear when the last hunk already ran to EOF
+  // (n <= 0), instead of offering an expander that reveals nothing. Bodies the
+  // user isn't looking at, and reviews too large to spend a request per file on,
+  // skip the prefetch and fall back to a count-less "to end of file" band that
+  // resolves itself on the first click.
+  const needsBlob = !!trailGap && trailGap.end === null;
+  useEffect(() => {
+    if (!prefetch || !needsBlob || blob || blobFailed) return;
+    let alive = true;
+    AR.blob(sid, path)
+      .then((r) => alive && setBlob(r.lines))
+      .catch(() => alive && setBlobFailed(true)); // silent: the diff itself still renders
+    return () => {
+      alive = false;
+    };
+  }, [sid, path, prefetch, needsBlob, blob, blobFailed]);
 
   const toggleGap = async (idx: number) => {
     if (open.has(idx)) {
@@ -624,6 +679,7 @@ function FileBody({
         setBlob(r.lines);
       } catch (e: any) {
         toast(e.message);
+        setBlobFailed(true);
         setLoadingIdx(null);
         return;
       }
@@ -632,25 +688,47 @@ function FileBody({
     setOpen((prev) => new Set(prev).add(idx));
   };
 
+  // How many lines a gap hides. null = not knowable yet (a to-EOF gap whose blob
+  // hasn't been fetched); every other case is exact.
+  const gapLen = (gap: ContextGap): number | null =>
+    gap.end !== null ? gap.end - gap.start + 1 : blob ? blob.length - gap.start + 1 : null;
+
   // The revealed unmodified lines for a gap, sliced by 1-based new-file numbers.
-  const revealedRows = (gap: { start: number; end: number }): DiffRow[] => {
+  // A to-EOF gap runs to the end of the fetched blob.
+  const revealedRows = (gap: ContextGap): DiffRow[] => {
     if (!blob) return [];
     const out: DiffRow[] = [];
-    for (let ln = gap.start; ln <= gap.end && ln - 1 < blob.length; ln++) {
+    const end = gap.end ?? blob.length;
+    for (let ln = gap.start; ln <= end && ln - 1 < blob.length; ln++) {
       out.push({ kind: "ctx", newNo: ln, oldNo: ln, text: blob[ln - 1] });
     }
     return out;
   };
 
-  // Collapser band shown before a hunk that hides unmodified lines. Expanded, it
-  // becomes a thin "collapse" header above the revealed lines. `leading` marks
-  // the gap that reaches the top of the file (start === 1): it can only open
-  // downward, so it gets a single caret, while interior gaps span both
-  // directions and get a two-way caret — matching Codex's context bands.
-  const band = (idx: number, gap: { start: number; end: number }, leading: boolean) => {
-    const n = gap.end - gap.start + 1;
+  // Collapser band for a hidden run of unmodified lines. Expanded, it becomes a
+  // thin "collapse" header above the revealed lines. The caret points at the
+  // hidden content (RD-4a): up for the leading gap (file start → first hunk),
+  // down for the trailing gap (last hunk → EOF), both ways for interior gaps.
+  const band = (idx: number, gap: ContextGap, kind: "leading" | "interior" | "trailing") => {
+    const n = gapLen(gap);
+    if (n !== null && n <= 0) return null; // nothing is actually hidden there
+    if (n === null && blobFailed) return null; // can't read the file → can't reveal it
     const expanded = open.has(idx);
-    const caret = expanded ? <CaretUp size={12} /> : leading ? <CaretDown size={12} /> : <CaretUpDown size={12} />;
+    const caret = expanded ? (
+      <CaretUp size={12} />
+    ) : kind === "leading" ? (
+      <CaretUp size={12} />
+    ) : kind === "trailing" ? (
+      <CaretDown size={12} />
+    ) : (
+      <CaretUpDown size={12} />
+    );
+    const label =
+      loadingIdx === idx
+        ? "Loading…"
+        : n === null
+          ? "unmodified lines to end of file"
+          : `${n.toLocaleString()} unmodified line${n === 1 ? "" : "s"}`;
     return (
       <button
         type="button"
@@ -662,7 +740,7 @@ function FileBody({
         <span className="shrink-0 inline-flex items-center justify-center border border-line-2 rounded-[5px] bg-panel px-[2px] py-[1px]">
           {caret}
         </span>
-        {loadingIdx === idx ? "Loading…" : `${n.toLocaleString()} unmodified line${n === 1 ? "" : "s"}`}
+        {label}
       </button>
     );
   };
@@ -711,7 +789,7 @@ function FileBody({
       {parsed.rows.map((r, i) => {
         if (r.kind === "hunk") {
           const gap = gaps.get(i);
-          const bandEl = gap ? band(i, gap, gap.start === 1) : null;
+          const bandEl = gap ? band(i, gap, gap.start === 1 ? "leading" : "interior") : null;
           const revealed = gap && open.has(i) ? revealedRows(gap).map((cr, k) => ctxRow(cr, i + ":rv:" + k)) : null;
           const header = r.text ? (
             <div className="dl-hunk" key={i + ":h"}>{r.text}</div>
@@ -737,6 +815,13 @@ function FileBody({
           </div>
         );
       })}
+      {/* RD-2 · the tail: last hunk → EOF. Same band, keyed past the last row. */}
+      {trailGap && (
+        <>
+          {band(trailKey, trailGap, "trailing")}
+          {open.has(trailKey) && revealedRows(trailGap).map((cr, k) => ctxRow(cr, trailKey + ":rv:" + k))}
+        </>
+      )}
     </div>
   );
 }

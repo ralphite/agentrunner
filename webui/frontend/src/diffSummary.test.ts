@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { parseFileDiff, shouldExpandDiffByDefault, splitPath, splitRows, highlightLine, langFromPath, type DiffRow } from "./diffSummary";
+import {
+  parseFileDiff,
+  defaultOpenByPath,
+  shouldExpandFileByDefault,
+  hunkGaps,
+  trailingGapKey,
+  splitPath,
+  splitRows,
+  highlightLine,
+  langFromPath,
+  type DiffRow,
+} from "./diffSummary";
 import { mixHex } from "./theme";
 
 describe("parseFileDiff (Codex-style review rows, W5)", () => {
@@ -90,6 +101,23 @@ describe("highlightLine (INC-41 D3, dependency-free syntax highlight)", () => {
     expect(langFromPath("data.json")).toBe("json");
     expect(langFromPath("Makefile")).toBe("");
   });
+
+  it("highlights markup — html/xml/svg were unmapped, so index.html rendered black (RD-3)", () => {
+    expect(langFromPath("dist/index.html")).toBe("html");
+    expect(langFromPath("page.htm")).toBe("html");
+    expect(langFromPath("feed.xml")).toBe("html");
+    expect(langFromPath("icon.svg")).toBe("html");
+
+    const line = '<script src="/assets/index-a1b2.js"></script>';
+    const toks = highlightLine(line, "html");
+    expect(join(toks)).toBe(line); // still byte-exact
+    expect(toks.find((t) => t.t === "script")?.c).toBe("kw");
+    expect(toks.some((t) => t.c === "str" && t.t === '"/assets/index-a1b2.js"')).toBe(true);
+    // a `//` inside a URL must not swallow the rest of the line as a comment
+    const url = '<a href="https://x.dev/p">go</a>';
+    expect(join(highlightLine(url, "html"))).toBe(url);
+    expect(highlightLine(url, "html").some((t) => t.c === "com")).toBe(false);
+  });
 });
 
 describe("splitRows (INC-41 D4, side-by-side pairing)", () => {
@@ -120,18 +148,76 @@ describe("splitRows (INC-41 D4, side-by-side pairing)", () => {
   });
 });
 
-describe("large diff disclosure", () => {
-  const diff = (lines: number) => [
-    "diff --git a/x.txt b/x.txt",
-    "--- a/x.txt",
-    "+++ b/x.txt",
-    `@@ -0,0 +1,${lines} @@`,
-    ...Array.from({ length: lines }, () => "+x"),
-  ].join("\n");
+describe("per-file diff disclosure (INC-41 RD-1)", () => {
+  it("collapses only the file that is too big, never its small neighbours", () => {
+    expect(shouldExpandFileByDefault({ add: 20, del: 0 })).toBe(true);
+    expect(shouldExpandFileByDefault({ add: 500, del: 0 })).toBe(true);
+    expect(shouldExpandFileByDefault({ add: 400, del: 101 })).toBe(false);
+  });
 
-  it("opens normal reviews but collapses very large files by default", () => {
-    expect(shouldExpandDiffByDefault(diff(20))).toBe(true);
-    expect(shouldExpandDiffByDefault(diff(501))).toBe(false);
+  it("regression: a 1,284-line package-lock.json no longer folds package.json/server.js", () => {
+    const open = defaultOpenByPath([
+      { path: "package-lock.json", add: 1284, del: 0 },
+      { path: "package.json", add: 12, del: 0 },
+      { path: "server.js", add: 110, del: 0 },
+    ]);
+    expect(open.get("package-lock.json")).toBe(false);
+    expect(open.get("package.json")).toBe(true);
+    expect(open.get("server.js")).toBe(true);
+  });
+
+  it("spends a first-paint budget across a huge review instead of folding it whole", () => {
+    const files = Array.from({ length: 40 }, (_, i) => ({ path: `f${i}.ts`, add: 200, del: 0 }));
+    const open = defaultOpenByPath(files);
+    // 5000-line budget → the first files open with code; the tail waits for a click.
+    expect(open.get("f0.ts")).toBe(true);
+    expect(open.get("f24.ts")).toBe(true);
+    expect(open.get("f25.ts")).toBe(false);
+    expect(open.get("f39.ts")).toBe(false);
+  });
+});
+
+describe("hunkGaps (INC-41 RD-2, trailing unmodified band)", () => {
+  // one hunk starting at new line 10 → 9 hidden lines before it, and an unknown
+  // run after it (a unified diff never states the file's total length).
+  const rows = (): DiffRow[] => [
+    { kind: "hunk", text: "" },
+    { kind: "ctx", oldNo: 10, newNo: 10, text: "keep" },
+    { kind: "del", oldNo: 11, text: "old" },
+    { kind: "add", newNo: 11, text: "new" },
+    { kind: "ctx", oldNo: 12, newNo: 12, text: "tail" },
+  ];
+
+  it("emits a to-EOF gap keyed past the last row, with an unknown (null) end", () => {
+    const gaps = hunkGaps(rows(), { trailing: true });
+    const r = rows();
+    expect(gaps.get(0)).toEqual({ start: 1, end: 9 }); // leading gap, exact
+    expect(gaps.get(trailingGapKey(r))).toEqual({ start: 13, end: null });
+    expect(trailingGapKey(r)).toBe(r.length); // never collides with a hunk row index
+  });
+
+  it("omits the trailing gap when not asked for it (added/deleted files)", () => {
+    const gaps = hunkGaps(rows());
+    expect(gaps.has(trailingGapKey(rows()))).toBe(false);
+    expect(gaps.get(0)).toEqual({ start: 1, end: 9 }); // interior/leading behaviour unchanged
+  });
+
+  it("omits the trailing gap when the diff proves it already reached EOF", () => {
+    const atEOF: DiffRow[] = [...rows(), { kind: "ctx", text: "\\ No newline at end of file" }];
+    expect(hunkGaps(atEOF, { trailing: true }).has(trailingGapKey(atEOF))).toBe(false);
+  });
+
+  it("still keys interior gaps by their hunk row and returns exact lengths", () => {
+    const two: DiffRow[] = [
+      { kind: "hunk", text: "" },
+      { kind: "ctx", oldNo: 1, newNo: 1, text: "a" },
+      { kind: "hunk", text: "" },
+      { kind: "ctx", oldNo: 20, newNo: 20, text: "b" },
+    ];
+    const gaps = hunkGaps(two, { trailing: true });
+    expect(gaps.has(0)).toBe(false); // first hunk starts at line 1 — nothing hidden
+    expect(gaps.get(2)).toEqual({ start: 2, end: 19 });
+    expect(gaps.get(trailingGapKey(two))).toEqual({ start: 21, end: null });
   });
 });
 

@@ -579,3 +579,30 @@
   white-space: nowrap;
   vertical-align: bottom;
 }
+
+/* ===================================================================
+   INC-41 RD-4c · Changes/Review file header — counts hug the filename.
+
+   styles.css:1631 gives `.fd-path { flex: 1 }`, which stretches the path
+   across the whole header and shoves the `+8 −4` counts to the far right
+   edge of the panel. Codex sets them immediately after the filename
+   (`docs/DESIGN.md +8 -4`) and keeps the status badges ("new file",
+   "renamed"…) on the right. The elastic gap therefore belongs to a
+   dedicated `.fd-spacer` between the counts and the badges, not to the
+   path. Overriding here (rather than editing styles.css, which is owned
+   by another slice) — three classes + the summary element out-specify the
+   bare `.fd-path` regardless of bundle order. DiffView only ever renders
+   inside the session view's Changes panel, so the prefix is safe.
+   =================================================================== */
+.session-view .filediff > summary.fd-head .fd-path {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.session-view .filediff > summary.fd-head .fd-counts {
+  flex: 0 0 auto;
+  gap: 6px;
+}
+.session-view .filediff > summary.fd-head .fd-spacer {
+  flex: 1 1 auto;
+  min-width: 0;
+}
