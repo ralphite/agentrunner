@@ -13,8 +13,10 @@ REPO=/Users/yadong/dev2/agentrunner
 LOCK=/tmp/parity-drive.lock
 LOG=$HOME/Library/Logs/parity-drive.log
 PLIST="$HOME/Library/LaunchAgents/com.agentrunner.parity-drive.plist"
-ROUND_TIMEOUT=3300   # 55min watchdog per round:杀超时轮,循环照进下一轮
+ROUND_TIMEOUT=3300   # 55min 硬顶 watchdog per round:杀超时轮,循环照进下一轮
+STALL_TIMEOUT=600    # 10min 停滞 watchdog:log 与 transcript 都 >10min 没动=挂了,杀掉重起
 GUARD=8              # 轮间只睡这几秒防热转——绝不是 30min heartbeat
+PROJDIR="$HOME/.claude/projects/-Users-yadong-dev2-agentrunner"  # headless 轮的 transcript 落这
 
 ts()  { date "+%Y-%m-%d %H:%M:%S"; }
 log() { echo "[$(ts)] $*" >> "$LOG"; }
@@ -53,10 +55,37 @@ run_round() {
     PARITY_DRIVE_HEADLESS=1 \
     claude -p "/parity-drive" --permission-mode bypassPermissions >> "$LOG" 2>&1 &
   local CPID=$!
-  ( sleep "$ROUND_TIMEOUT" && kill "$CPID" 2>/dev/null && echo "[$(ts)] watchdog killed round after ${ROUND_TIMEOUT}s" >> "$LOG" ) &
+
+  # (a) 硬顶 watchdog:55min 无论如何杀
+  ( sleep "$ROUND_TIMEOUT" && kill -TERM "$CPID" 2>/dev/null; sleep 5; kill -KILL "$CPID" 2>/dev/null \
+    && echo "[$(ts)] HARDCAP watchdog killed round after ${ROUND_TIMEOUT}s" >> "$LOG" ) &
   local WPID=$!
+
+  # (b) 停滞 watchdog:log 或 transcript 只要有一个在动就算活;两者都 >STALL_TIMEOUT
+  #     没动 = 这轮挂了(401 静默重试 / 死等一个卡死的子 agent / 死锁),杀掉让循环重起。
+  #     用 transcript mtime 是关键:轮在同步等子 agent 时 log 会静默,但主 agent 的
+  #     transcript 仍在长——所以正常等子 agent【不会】误杀,只有真挂了才杀。
+  (
+    while kill -0 "$CPID" 2>/dev/null; do
+      sleep 45
+      now=$(date +%s)
+      lg=$(stat -f %m "$LOG" 2>/dev/null || echo 0)
+      tx=$(ls -t "$PROJDIR"/*.jsonl 2>/dev/null | head -1)
+      tm=0; [ -n "$tx" ] && tm=$(stat -f %m "$tx" 2>/dev/null || echo 0)
+      last=$lg; [ "$tm" -gt "$last" ] && last=$tm
+      idle=$(( now - last ))
+      if [ "$idle" -ge "$STALL_TIMEOUT" ]; then
+        echo "[$(ts)] STALL watchdog: no log/transcript activity for ${idle}s (>${STALL_TIMEOUT}s) — killing hung round" >> "$LOG"
+        pkill -TERM -P "$CPID" 2>/dev/null; kill -TERM "$CPID" 2>/dev/null
+        sleep 5; pkill -KILL -P "$CPID" 2>/dev/null; kill -KILL "$CPID" 2>/dev/null
+        break
+      fi
+    done
+  ) &
+  local SPID=$!
+
   wait "$CPID"; local RC=$?
-  kill "$WPID" 2>/dev/null
+  kill "$WPID" "$SPID" 2>/dev/null
   rm -rf "$LOCK"
   log "=== round end rc=$RC ==="
 }
