@@ -188,6 +188,17 @@
 .session-view .supervision-panel {
   border-radius: 16px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 10px 30px rgba(0, 0, 0, .06);
+  /* INC-41 ENV-5 · a column, so `Run details` can be a real footer. The rail is
+     846px tall and its content stops around 380px: the remaining ~510px used to
+     be raw panel background, which in dark mode is the *same* rgb(23,23,26) as
+     the thread — so the rail read as a strip torn out of the conversation rather
+     than as a panel with a bottom. Filling it with invented content would be a
+     lie (we have no Background-processes / Browser / Sources sources), so instead
+     we give the void two edges: content above, a hairline footer below
+     (.supervision-details, margin-top:auto). Same trick Codex's Environment panel
+     uses with its `View all` row. */
+  display: flex;
+  flex-direction: column;
 }
 /* INC-41 DF-D4 · the panel's ✕, now that the `Supervision` title bar it used to
    live in is gone (a second copy of the topbar pill — SupervisionPanel.tsx says
@@ -241,6 +252,12 @@
   letter-spacing: 0;
 }
 .session-view .supervision-label svg { flex: 0 0 auto; opacity: .85; }
+/* INC-41 ENV-4 · …but the Environment rows carry 6px of their own left padding
+   (.env-row, styles.nav.css), so *its* label was the one section header sitting
+   6px left of the icons it heads. Only that section: every other section's rows
+   (attention / background / progress / agents) already start at the section pad,
+   so a blanket padding-left would have broken four alignments to fix one. */
+.session-view .supervision-env .supervision-label { padding-left: 6px; }
 .session-view .progress-count,
 .session-view .supervision-label .progress-count {
   font-weight: 500;
@@ -293,14 +310,39 @@
 }
 .session-view .goal-actions button { border-radius: 7px; font-size: 11px; }
 
-/* Run details footer reads as an aligned nav row, not a plain button. */
+/* ===== INC-41 ENV-4/ENV-5 · `Run details` — the panel's quietest row, and its
+   floor.  Was: weight 550 + --ink-2 (the blackest, boldest text on a panel whose
+   job is to show live git state), no leading icon, text starting 30px left of
+   every row label, floating right under the last section with 510px of nothing
+   beneath it.  Codex's counterpart (`View all`) is the *faintest* line on the
+   panel, carries an icon, and sits on the same grid as the rows above it.
+
+   The grid: .supervision-section pads 15px, .env-row pads another 6px → icons
+   live at x=21 from the panel's left edge; icon(14) + gap(9) puts labels at
+   x=44. So: padding-left 21px + gap 9px + a 14px icon lands the word "Run" on
+   the env-row label column, to the pixel.
+   margin-top:auto (the panel is a flex column now) drops the row to the panel's
+   bottom; the hairline above it turns the empty middle into framed space. */
 .session-view .supervision-details {
+  margin-top: auto;
+  justify-content: flex-start;
+  gap: 9px;
   min-height: 44px;
-  color: var(--ink-2);
+  padding-left: 21px;
+  padding-right: 15px;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--dim);
   font-size: 12.5px;
-  font-weight: 550;
+  font-weight: 400;
 }
+.session-view .supervision-details > svg { flex: 0 0 auto; color: var(--dim); }
+.session-view .supervision-details .supervision-details-label { flex: 1; min-width: 0; }
 .session-view .supervision-details span { color: var(--dim); }
+/* Hover is the only time it darkens — and only to --ink-2, never past the rows. */
+.session-view .supervision-details:hover,
+.session-view .supervision-details:hover > svg,
+.session-view .supervision-details:hover span { color: var(--ink-2); }
 
 /* ===== J1 · Thread header `…` menu — Codex parity ===== */
 .session-view .task-topbar .menu-pop {

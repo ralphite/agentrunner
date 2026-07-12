@@ -8,6 +8,7 @@ import {
   GitBranch,
   GitCommit,
   Hourglass,
+  Info,
   PlusMinus,
   TreeStructure,
   WarningCircle,
@@ -382,8 +383,22 @@ export function SupervisionPanel({
         </section>
       )}
 
+      {/* INC-41 ENV-4/ENV-5 · the panel's footer row. It used to be the *heaviest*
+          text on the panel (weight 550, --ink-2) and the only line with no leading
+          icon — so the loudest thing in a rail full of live git state was a link to
+          a modal, and its text started 30px left of every row's label. Codex's
+          same-position element (`View all`) is the *quietest* row on its panel and
+          rides the same icon+label grid as everything above it. So does ours now:
+          a 14px icon on the env-row icon column (15px section pad + 6px row pad),
+          the label on the env-row label column (+14px icon +9px gap), --dim at
+          weight 400. styles.panel.css then drops it to the panel's floor with
+          `margin-top:auto` + a hairline top border (ENV-5) — the rail's ~510px of
+          empty background is now *framed* between content and footer instead of
+          reading as a torn-off strip of the thread. */}
       <button className="supervision-details" onClick={onInspect} title="Review this run's status, usage, activity, and provider capabilities">
-        Run details <span><CaretRight size={12} /></span>
+        <Info size={14} />
+        <span className="supervision-details-label">Run details</span>
+        <span className="supervision-details-caret"><CaretRight size={12} /></span>
       </button>
     </aside>
   );
@@ -571,22 +586,26 @@ function EnvironmentSection() {
             forking arrows read as branch/merge. Codex uses the ± glyph; Phosphor's
             PlusMinus is that glyph (lucide's Diff would mean a new dependency for
             one icon in an all-Phosphor codebase). Size/spacing unchanged. */}
+        {/* INC-41 ENV-3 · a clean tree renders *no* value. The right edge of this
+            panel used to be a column of negations — "No changes" / "No branch yet"
+            / "Nothing to commit" — set in the same 12px --dim as the real numbers,
+            so the loudest reading of the Environment block was three sentences
+            about things that don't exist. Codex's rows simply carry nothing on the
+            right when there's nothing to say. The reason still lives in the row's
+            title/disabled state; only the noise is gone. A row with real state
+            (+12 / −3 / "4 new") is untouched. */}
         <button className="env-row" onClick={goToChanges} title="Review workspace changes">
           <PlusMinus size={14} />
           <span className="env-row-label">Changes</span>
-          <span className="env-row-val">
-            {hasChanges ? (
-              <>
-                {env.add > 0 && <span className="add">+{env.add}</span>}
-                {env.del > 0 && <span className="del">−{env.del}</span>}
-                {env.add === 0 && env.del === 0 && env.untracked > 0 && (
-                  <span className="dim">{env.untracked} new</span>
-                )}
-              </>
-            ) : (
-              <span className="dim">No changes</span>
-            )}
-          </span>
+          {hasChanges && (
+            <span className="env-row-val">
+              {env.add > 0 && <span className="add">+{env.add}</span>}
+              {env.del > 0 && <span className="del">−{env.del}</span>}
+              {env.add === 0 && env.del === 0 && env.untracked > 0 && (
+                <span className="dim">{env.untracked} new</span>
+              )}
+            </span>
+          )}
         </button>
         {/* Worktree — always listed, so the user can always see (and copy)
             where this session is actually working. Expands to the full path;
@@ -632,9 +651,14 @@ function EnvironmentSection() {
         >
           <GitBranch size={14} />
           <span className="env-row-label">Create branch</span>
-          <span className="env-row-val">
-            <span className="dim">{branch || "No branch yet"}</span>
-          </span>
+          {/* ENV-3 · the current branch rides on the right only when there *is*
+              one; a detached / branchless workspace says nothing rather than
+              shouting "No branch yet" at the same weight as the action. */}
+          {branch && (
+            <span className="env-row-val">
+              <span className="dim env-row-name">{branch}</span>
+            </span>
+          )}
         </button>
         {canCommit ? (
           <div className="w-full [&>.pop-wrap]:w-full">
@@ -688,13 +712,13 @@ function EnvironmentSection() {
           </div>
         ) : (
           // Nothing to commit (or a sub-agent session): the row stays — Codex
-          // never hides it — but goes inert and says why on the right.
+          // never hides it — but goes inert. ENV-3: it no longer *also* prints
+          // "Nothing to commit" on the right; that was the row's own disabled
+          // state said twice, in a colour as loud as the action itself. The
+          // reason survives in the title, one hover away.
           <button className="env-row env-row-action" disabled title={commitBlockedWhy}>
             <GitCommit size={14} />
             <span className="env-row-label">Commit or push</span>
-            <span className="env-row-val">
-              <span className="dim">{commitBlockedWhy}</span>
-            </span>
           </button>
         )}
       </div>
