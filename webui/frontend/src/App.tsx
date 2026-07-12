@@ -5,6 +5,10 @@ import { SessionView } from "./components/SessionView";
 import { RunView } from "./components/RunView";
 import { Home } from "./components/Home";
 import { Scheduled } from "./components/Scheduled";
+import { PullRequests } from "./components/PullRequests";
+import { Chat } from "./components/Chat";
+import { Plugins } from "./components/Plugins";
+import { Sites } from "./components/Sites";
 import { Modals } from "./components/Modals";
 import { Toasts } from "./components/Toasts";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -168,8 +172,8 @@ export function App() {
       // resolve to the same session rather than leaking the raw route string
       // into the title and rendering an empty page.
       const raw = raw0.replace(/^\/?s\//, "");
-      if (raw === "scheduled") {
-        showPage("scheduled");
+      if (raw === "scheduled" || raw === "plugins" || raw === "sites" || raw === "pulls" || raw === "chat") {
+        showPage(raw);
       } else if (raw.startsWith("run:")) {
         const rid = raw.slice(4);
         if (rid && rid !== useStore.getState().currentRunId) selectRun(rid);
@@ -245,6 +249,14 @@ export function App() {
             <SessionView sid={currentSid} key={currentSid} />
           ) : currentPage === "scheduled" ? (
             <Scheduled />
+          ) : currentPage === "pulls" ? (
+            <PullRequests />
+          ) : currentPage === "plugins" ? (
+            <Plugins />
+          ) : currentPage === "sites" ? (
+            <Sites />
+          ) : currentPage === "chat" ? (
+            <Chat />
           ) : (
             <Home />
           )}

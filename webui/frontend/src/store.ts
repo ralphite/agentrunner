@@ -37,6 +37,12 @@ interface ToastMsg {
   kind: "error" | "info";
 }
 
+// The full-window destinations reachable from the sidebar's primary nav
+// (Codex parity: New task / Scheduled / Plugins / Sites / Pull requests /
+// Chat). "home" is the New-task landing; each non-home page routes to a
+// matching hash (#scheduled, #plugins, #sites, #pulls, #chat).
+export type Page = "home" | "scheduled" | "plugins" | "sites" | "pulls" | "chat";
+
 interface AppState {
   health: Health | null;
   sessions: Session[];
@@ -49,7 +55,7 @@ interface AppState {
   runs: Run[];
   currentSid: string | null;
   currentRunId: string | null;
-  currentPage: "home" | "scheduled";
+  currentPage: Page;
   modal: ModalKind;
   prompt: PromptState | null;
   toasts: ToastMsg[];
@@ -92,7 +98,7 @@ interface AppState {
   refreshRuns: () => Promise<void>;
   select: (sid: string | null) => void;
   selectRun: (rid: string | null) => void;
-  showPage: (page: "home" | "scheduled") => void;
+  showPage: (page: Page) => void;
   openModal: (m: ModalKind) => void;
   openPrompt: (p: PromptState | null) => void;
   toast: (text: string, kind?: "error" | "info") => void;
@@ -399,7 +405,10 @@ export const useStore = create<AppState>((set, get) => ({
   },
   showPage: (page) => {
     set({ currentSid: null, currentRunId: null, currentPage: page });
-    location.hash = page === "scheduled" ? "scheduled" : "";
+    // "home" is the bare route (no hash); every other destination routes to a
+    // hash that matches its key so deep links + back/forward work (#scheduled,
+    // #plugins, #sites, #pulls, #chat).
+    location.hash = page === "home" ? "" : page;
   },
   openModal: (m) => set({ modal: m }),
   openPrompt: (p) => set({ prompt: p }),

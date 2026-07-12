@@ -10,21 +10,26 @@ import {
   FolderOpen,
   GearSix,
   GitBranch,
+  GitPullRequest,
+  type Icon,
   MagnifyingGlass,
   Monitor,
   Moon,
   NotePencil,
   PencilSimple,
+  Plugs,
+  PlusCircle,
   PushPin,
   Question,
   Robot,
   SidebarSimple,
+  SquaresFour,
   Sun,
   Terminal,
   Tray,
   X,
 } from "@phosphor-icons/react";
-import { useStore } from "../store";
+import { useStore, type Page } from "../store";
 import { AR } from "../api";
 import { friendlyStatus } from "./pill";
 import { displayTitle } from "../title";
@@ -37,6 +42,20 @@ import { relTime, sessionDate } from "../time";
 type SidebarContext =
   | { kind: "session"; x: number; y: number; sid: string }
   | { kind: "project"; x: number; y: number; key: string; label: string; workspace?: string; ids: string[] };
+
+// Primary-nav destinations (Codex parity: New task / Scheduled / Plugins /
+// Sites / Pull requests / Chat), in Codex's order and iconography. Kept as a
+// small table rendered in a map so adding a destination is one row here + a
+// page dispatch in App.tsx — no per-button JSX duplication. The Scheduled row
+// alone carries the live activity dot, keyed off `key === "scheduled"`.
+const NAV_DESTINATIONS: { key: Page; label: string; icon: Icon }[] = [
+  { key: "home", label: "New task", icon: NotePencil },
+  { key: "scheduled", label: "Scheduled", icon: CalendarDots },
+  { key: "plugins", label: "Plugins", icon: Plugs },
+  { key: "sites", label: "Sites", icon: SquaresFour },
+  { key: "pulls", label: "Pull requests", icon: GitPullRequest },
+  { key: "chat", label: "Chat", icon: PlusCircle },
+];
 
 export function Sidebar({ onHide, onNavigate, onOpenSettings }: { onHide?: () => void; onNavigate?: () => void; onOpenSettings?: () => void }) {
   const {
@@ -218,18 +237,21 @@ export function Sidebar({ onHide, onNavigate, onOpenSettings }: { onHide?: () =>
       </div>
 
       <nav className="primary-nav" aria-label="Primary">
-        <button className={!currentSid && currentPage === "home" ? "active" : ""} onClick={() => { showPage("home"); onNavigate?.(); }}>
-          <NotePencil size={17} /> <span>New task</span>
-        </button>
-        <button className={!currentSid && currentPage === "scheduled" ? "active" : ""} onClick={() => { showPage("scheduled"); onNavigate?.(); }}>
-          <CalendarDots size={17} /> <span>Scheduled</span>
-          {(schedUnread.length > 0 || runningRuns > 0) && (
-            <span
-              className={`nav-notice${schedUnread.length > 0 ? " unread" : " running"}`}
-              title={schedUnread.length > 0 ? `${schedUnread.length} with new activity` : `${runningRuns} running`}
-            />
-          )}
-        </button>
+        {NAV_DESTINATIONS.map(({ key, label, icon: DestIcon }) => (
+          <button
+            key={key}
+            className={!currentSid && currentPage === key ? "active" : ""}
+            onClick={() => { showPage(key); onNavigate?.(); }}
+          >
+            <DestIcon size={17} /> <span>{label}</span>
+            {key === "scheduled" && (schedUnread.length > 0 || runningRuns > 0) && (
+              <span
+                className={`nav-notice${schedUnread.length > 0 ? " unread" : " running"}`}
+                title={schedUnread.length > 0 ? `${schedUnread.length} with new activity` : `${runningRuns} running`}
+              />
+            )}
+          </button>
+        ))}
       </nav>
 
       {searching && (
