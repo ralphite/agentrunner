@@ -201,6 +201,21 @@ export function App() {
 
   return (
     <div className={"app" + (effectiveCollapsed ? " collapsed" : "")}>
+      {/* A11Y-1 · Must be the first focusable node in the DOM: the sidebar holds
+          ~94% of the app's tab stops, so without this a keyboard user never
+          reaches the conversation or composer. */}
+      <a
+        className="skip-link"
+        href="#main"
+        onClick={(e) => {
+          // location.hash is the router's ("#<sid>" / "#scheduled"), so the
+          // fragment must never actually land there — move focus ourselves.
+          e.preventDefault();
+          document.getElementById("main")?.focus();
+        }}
+      >
+        Skip to conversation
+      </a>
       <Sidebar
         onHide={hideSidebar}
         onNavigate={closeAfterNavigate}
@@ -210,7 +225,9 @@ export function App() {
         }}
       />
       {isMobile && mobileSidebarOpen && <button className="sidebar-scrim" aria-label="Close sidebar" onClick={hideSidebar} />}
-      <div className="main">
+      {/* tabIndex -1 so the skip link can land focus here (not just scroll):
+          the next Tab then continues into the conversation / composer. */}
+      <div className="main" id="main" tabIndex={-1}>
         {effectiveCollapsed && (
           <button
             className="sidebar-show"

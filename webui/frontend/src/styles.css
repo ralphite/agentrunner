@@ -4274,7 +4274,6 @@ summary.fd-head:hover {
   color: var(--ink);
   font-size: 13px;
 }
-.sched-search input:focus { border: 0; outline: none; }
 .sched-tabs {
   display: flex;
   gap: 3px;
@@ -4466,4 +4465,55 @@ summary.fd-head:hover {
    default change can't silently turn "connecting" into "offline".) */
 .side-foot .account-avatar.connecting .account-presence {
   background: var(--dim);
+}
+
+/* A11Y-1/A11Y-2: skip link + search focus visibility */
+
+/* A11Y-1 · Skip link. Parked off-screen rather than hidden: `display:none` /
+   `visibility:hidden` would take it out of the tab order too, which is the one
+   thing it exists for. Must outrank every overlay (max z-index in use is 200). */
+.skip-link {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 1000;
+  padding: 9px 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  /* Off the top of the viewport; focusable, just not paintable. */
+  transform: translateY(calc(-100% - 20px));
+}
+.skip-link:focus {
+  transform: none;
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* `.main` only carries tabindex so the skip link can land focus in it — it is a
+   container, not a control, so suppress its ring. (Every control inside keeps
+   its own; see the search fields below.) */
+.main:focus,
+.main:focus-visible {
+  outline: none;
+}
+
+/* A11Y-2 · Search fields. tw.css paints input focus with `border-color` alone,
+   but these three inputs are borderless children of a bordered wrapper, so the
+   colour lands on a 0px border and nothing shows. Move the cue to the wrapper —
+   same shape as `.diff-filter:focus-within` in styles.rs.css. */
+.side-search:focus-within,
+.sched-search:focus-within {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--blue) 22%, transparent);
+}
+
+/* No border on this one — a ring via box-shadow keeps the popover from shifting. */
+.cx-project-search:focus-within {
+  border-radius: 8px;
+  box-shadow: 0 0 0 2px var(--blue);
 }
