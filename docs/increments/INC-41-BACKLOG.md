@@ -1917,33 +1917,33 @@ standalone PWA 等**能**投递 ⌘N 的壳里白拿 Codex 原键。在 input/te
 **登记一律 ☐;✅ 只在 merge 进 main 且复验通过后由收轮改写**(轮16 教训)。
 
 ### SB 相 · sidebar(金标 `codex-crop-sidebar-projects.jpg` / `codex-crop-sidebar-nav.jpg`)
-- ☐ **SB-1(P0)打开一个任务后 sidebar 里根本没有它**。实测:current 行 `top=10262px` 而列表视口
+- ✅ **SB-1(P0)打开一个任务后 sidebar 里根本没有它**。实测:current 行 `top=10262px` 而列表视口
   `153–842px`、`scrollTop` 恒为 0 → 永不露出;更硬的是某 project 里**第 7 条及以后**的任务
   `rowRendered: false` —— `visibleProjectSessions` 的 `cap=6`(`viewModels.ts:46`)把**你正在看的那条**
   藏进了 "Show more"。folded 组同理彻底消失。Codex 的 rail 永远回答「你在哪」。
   关闭:cap 截断后强制并入 current + folded 组含 current 时渲染豁免 + `scrollIntoView({block:'nearest'})`。
-- ☐ **SB-2(P0)任务标题只拿到 rail 的 56%**(165px / 292px),行行省略号、相邻两行无法区分。根因
+- ✅ **SB-2(P0)任务标题只拿到 rail 的 56%**(165px / 292px),行行省略号、相邻两行无法区分。根因
   `styles.css:3157` `.project-task{padding:6px 60px 6px 10px}` —— hover 才显形的 pin+archive 却
   **无条件常驻** 60px。Codex 标题铺到右缘(~83%),图标浮在标题上、status dot 贴右缘。
   非刻意决策:`6f7ef7e` 的意图是"加 hover 控件",不是"永久让出 60px"。
-- ☐ **SB-3(P1)行高/标签/组间距比 Codex 胖 ~35%**,689px 视口只装 18 行(Codex 同高 26 行)。
+- ✅ **SB-3(P1)行高/标签/组间距比 Codex 胖 ~35%**,689px 视口只装 18 行(Codex 同高 26 行)。
   任务行 38px(`ecc95e7` 今日把 34 抬到 38,无 QA/INC 依据、方向与金标相反)、`.section-label` 34.9px
   (13.5px 字,几乎和任务文字一样响)、`.project-group` margin 16px。Codex 统一节奏 26–28px、标签 ~20px、组距 8px。
 - ☐ **SB-4(P2)Projects 无段级折叠**:127 个组全渲染,`scrollHeight=14073px`。Codex 有 section 级
   `Show less` + 默认只放最近一批 repo。
-- ☐ **SB-5(P2)rail 292px(20.3%)却比 Codex ~256px(17%)装得更少**;nested 缩进 21px vs Codex ~16px。
+- ✅ **SB-5(P2)rail 292px(20.3%)却比 Codex ~256px(17%)装得更少**;nested 缩进 21px vs Codex ~16px。
   必须在 SB-2 之后做(先还回 60px 再收窄)。同步 `.task-preview{left:296px}` 与移动端 `min(292px,86vw)`。
 
 ### CP 相 · composer 菜单群(金标 `codex-crop-add-menu.jpg` / `codex-crop-composer.jpg`)
-- ☐ **CP-1(P0)「+」菜单是一堵墙**:实测 376×798px、12 行,占 900px 视口 **89% 高度**,盖死整屏。
+- ✅ **CP-1(P0)「+」菜单是一堵墙**:实测 376×798px、12 行,占 900px 视口 **89% 高度**,盖死整屏。
   Codex 的 Add 只有 4 行全单行、desc 与标题**同一行**灰字、面板 ~200px。三个胖因:`pop-desc` 永远另起
   一行;Agent 分组把 5 个 persona 连 desc 平铺;Images/Files 拆两行(而 `pick()` 本就按 mime 自动分流)。
 - ☐ **CP-3(P1)model 下拉少了 effort 滑杆**,改 reasoning 要 **3 次点击**。Codex pill 一点开就是 6 档
   圆点滑轨,`Model|Effort|Speed` 三行是 **Advanced 展开后**才有的——我们把 Codex 的 Advanced 页当成了根页。
   后端已就位(`specs.ts:100-108` 5 档 `EFFORT_LEVELS` + `chooseEffort`),不是壳。pill 也不显示当前档位。
-- ☐ **CP-2(P1)空态 send 按钮几乎隐形**:`.cx-send:disabled` 底 `#efefef` 对卡片对比度 ≈**1.07:1**。
+- ✅ **CP-2(P1)空态 send 按钮几乎隐形**:`.cx-send:disabled` 底 `#efefef` 对卡片对比度 ≈**1.07:1**。
   Codex 空态是中灰实心圆 + 白箭头。app 最主要控件在默认态"消失"。
-- ☐ **CP-4(P2)run-location chip 的菜单混装了 Task type**,且选了 Background 后 **chip 毫无变化**
+- ✅ **CP-4(P2)run-location chip 的菜单混装了 Task type**,且选了 Background 后 **chip 毫无变化**
   (用户以为自己在开可对话 session)。Codex 第二个 chip 只有一个意思:`Start in`。
 
 ### RV 相 · Diff/Review 分栏(金标 `codex-diff-review.jpg` / `codex-crop-diff-*.jpg`)
