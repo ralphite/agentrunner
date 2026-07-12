@@ -149,11 +149,27 @@ export function splitPath(path: string): { dir: string; base: string } {
   return i < 0 ? { dir: "", base: path } : { dir: path.slice(0, i + 1), base: path.slice(i + 1) };
 }
 
+// INC-41 RVW-PHANTOM: a diff payload ends with a newline terminator, and
+// `split("\n")` turns that terminator into a phantom "" element. It landed in
+// the *last* file's lines, where parseFileDiff's fallback branch rendered it as
+// a blank context row — every review's last file grew one ghost line — and, worse,
+// it consumed an oldNo/newNo, pushing the trailing "N unmodified lines" band's
+// start one line past the truth.
+//
+// Only *trailing* empties are dropped. Nothing legitimate inside a diff body is
+// ever "": a blank context line is " ", a blank addition "+", a blank deletion
+// "-". A bare "" can only come from the terminator.
+function diffLines(diff: string): string[] {
+  const lines = diff.split("\n");
+  while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+  return lines;
+}
+
 export function splitDiff(diff: string): FileDiffSummary[] {
   if (!diff.trim()) return [];
   const files: FileDiffSummary[] = [];
   let cur: FileDiffSummary | null = null;
-  for (const line of diff.split("\n")) {
+  for (const line of diffLines(diff)) {
     if (line.startsWith("diff --git")) {
       const match = line.match(/ b\/(.+)$/);
       cur = { path: match ? match[1] : line, lines: [], add: 0, del: 0, countsKnown: true };

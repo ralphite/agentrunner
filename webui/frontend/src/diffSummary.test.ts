@@ -8,6 +8,7 @@ import {
   MAX_INLINE_LINE_WIDTH,
   hunkGaps,
   trailingGapKey,
+  splitDiff,
   splitPath,
   splitRows,
   highlightLine,
@@ -284,6 +285,57 @@ describe("hunkGaps (INC-41 RD-2, trailing unmodified band)", () => {
     expect(gaps.has(0)).toBe(false); // first hunk starts at line 1 — nothing hidden
     expect(gaps.get(2)).toEqual({ start: 2, end: 19 });
     expect(gaps.get(trailingGapKey(two))).toEqual({ start: 21, end: null });
+  });
+});
+
+describe("splitDiff (INC-41 RVW-PHANTOM, no ghost row from the payload's newline)", () => {
+  // Field case: `A rd-d-untracked-probe.txt +1 −0` rendered *two* body rows, the
+  // second one blank, though the hunk is `@@ -0,0 +1,1 @@` with a single + line.
+  // The payload's trailing "\n" split into a "" element that landed in the last
+  // file's lines and came back out of the row builder as a blank ctx row.
+  const added = ["diff --git a/probe.txt b/probe.txt", "new file mode 100644", "index 000..111", "--- /dev/null", "+++ b/probe.txt", "@@ -0,0 +1,1 @@", "+probe"];
+  const modified = ["diff --git a/x.ts b/x.ts", "index 000..111 100644", "--- a/x.ts", "+++ b/x.ts", "@@ -10,3 +10,3 @@", " keep", "-old", "+new", " tail"];
+
+  it("drops the newline terminator: the last file gains no phantom blank row", () => {
+    const files = splitDiff(added.join("\n") + "\n");
+    expect(files).toHaveLength(1);
+    expect(files[0].lines).not.toContain("");
+    const { rows } = parseFileDiff(files[0].lines);
+    expect(rows).toHaveLength(2); // one @@ header + one "+probe" — nothing else
+    expect(rows[1]).toMatchObject({ kind: "add", newNo: 1, text: "probe" });
+    expect(files[0]).toMatchObject({ add: 1, del: 0 });
+  });
+
+  it("behaves identically when the payload has no trailing newline", () => {
+    expect(splitDiff(added.join("\n"))).toEqual(splitDiff(added.join("\n") + "\n"));
+  });
+
+  it("only the last file was ever at risk — and now no file carries the ghost", () => {
+    const files = splitDiff([...modified, ...added].join("\n") + "\n");
+    expect(files.map((f) => f.path)).toEqual(["x.ts", "probe.txt"]);
+    for (const f of files) expect(f.lines).not.toContain("");
+    expect(parseFileDiff(files[1].lines).rows).toHaveLength(2);
+  });
+
+  it("keeps blank lines that are real diff content (' ' / '+' / '-', never '')", () => {
+    // an empty context line, an empty addition and an empty deletion, mid-body
+    const blanks = ["diff --git a/y.ts b/y.ts", "@@ -1,3 +1,3 @@", " ", "-", "+", " done"];
+    const [file] = splitDiff(blanks.join("\n") + "\n");
+    const { rows } = parseFileDiff(file.lines);
+    expect(rows).toHaveLength(5); // hunk + ctx"" + del"" + add"" + ctx"done"
+    expect(rows[1]).toMatchObject({ kind: "ctx", oldNo: 1, newNo: 1, text: "" });
+    expect(rows[2]).toMatchObject({ kind: "del", oldNo: 2, text: "" });
+    expect(rows[3]).toMatchObject({ kind: "add", newNo: 2, text: "" });
+    expect(file).toMatchObject({ add: 1, del: 1 });
+  });
+
+  it("the trailing 'N unmodified lines' band no longer starts one line late", () => {
+    const [file] = splitDiff(modified.join("\n") + "\n");
+    const { rows } = parseFileDiff(file.lines);
+    // last shown new line is 12 (" tail"), so the hidden run resumes at 13 — the
+    // phantom ctx row used to consume newNo 13 and push the band to 14.
+    expect(rows[rows.length - 1]).toMatchObject({ kind: "ctx", newNo: 12, text: "tail" });
+    expect(hunkGaps(rows, { trailing: true }).get(trailingGapKey(rows))).toEqual({ start: 13, end: null });
   });
 });
 
