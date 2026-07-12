@@ -143,12 +143,23 @@ function Thumbs({ paths, fallback }: { paths: string[]; fallback?: ReactNode }) 
   );
 }
 
-// MsgActions is the hover action row under a message (Codex puts Copy / reactions
+// MsgActions is the action row under a message (Codex puts Copy / reactions
 // there). We ship an icon-only Copy (whole message text), a Share that reuses the
 // copy-link mechanism (the current hash route already deep-links this task), and
 // — on the final assistant answer of a satisfied run — an inline "Goal achieved
 // in N" verdict. Thumbs up/down are deliberately omitted: there is no feedback
 // endpoint to wire them to, so they'd be dead controls (deferred until one lands).
+//
+// TH-21: the row is HOVER-ONLY on every message except the thread's last
+// assistant answer, which keeps it at rest — that is the one row Codex draws
+// persistently. Both switches are CSS, keyed off the `.msg-last` class this file
+// puts on that message (see the TH-21 block in styles.conv.css):
+//   • the row itself: opacity 0 at rest on every `:not(.msg-last)` message;
+//   • the timestamp: hidden on `.msg-last`, because the gold master's persistent
+//     row is `⧉ 👍 👎 ↗ │ ⊘ Goal achieved in 3h 47m 26s` and carries no time.
+// So one row shape is rendered for every message and the sheet decides what of
+// it is visible where — no branchy JSX, and the tier ladder (shortTime) keeps
+// producing a real label on the rows that do show one (the hover-revealed ones).
 function MsgActions({
   text,
   ts,
@@ -804,7 +815,7 @@ function CollapsibleUserText({ text }: { text: string }) {
   );
 }
 
-function Item({ it, sentImages, onContinue, goalVerdict }: { it: TimelineItem; sentImages?: Map<number, string[]>; onContinue?: () => void; goalVerdict?: { elapsed: string } | null }) {
+function Item({ it, sentImages, onContinue, goalVerdict, last }: { it: TimelineItem; sentImages?: Map<number, string[]>; onContinue?: () => void; goalVerdict?: { elapsed: string } | null; last?: boolean }) {
   switch (it.kind) {
     case "turn":
       return <div className="turn">turn {it.gen}</div>;
@@ -856,8 +867,14 @@ function Item({ it, sentImages, onContinue, goalVerdict }: { it: TimelineItem; s
     case "assistant":
       // N4: an assistant answer renders as prose, not a chat bubble — no robot
       // avatar. (The bubble border removal is styles.css = deferred.)
+      //
+      // TH-21: `.msg-last` marks the thread's final assistant answer. It is the
+      // ONE message whose action row Codex keeps at rest, so the class is what
+      // (a) exempts the row from the hover-only rule and (b) drops its timestamp
+      // — both in styles.conv.css. The absolute time stays on every `.msg`'s
+      // `title`, so hovering a message still tells you when it landed.
       return (
-        <div className="msg assistant" title={absTime(it.ts)}>
+        <div className={"msg assistant" + (last ? " msg-last" : "")} title={absTime(it.ts)}>
           <div className="msg-col">
             <div className="bubble">
               <Markdown text={it.text} />
@@ -1003,6 +1020,9 @@ export function TimelineView({
   // The goal verdict rides the FINAL assistant answer only (fix 3) — a settled
   // run's last word. Assistant answers are turn boundaries, so they sit at the
   // top level of `nodes`, never folded into WorkedFold work.
+  //
+  // TH-21 reuses the same key: the final assistant answer is also the only
+  // message that keeps its action row at rest (`.msg-last`).
   const lastAssistantKey = (() => {
     for (let i = nodes.length - 1; i >= 0; i--) {
       if (nodes[i].kind === "assistant") return nodes[i].key;
@@ -1102,6 +1122,7 @@ export function TimelineView({
                 sentImages={sentImages}
                 onContinue={it.kind === "assistant" ? onContinue : undefined}
                 goalVerdict={it.kind === "assistant" && it.key === lastAssistantKey ? goalVerdict : undefined}
+                last={it.kind === "assistant" && it.key === lastAssistantKey}
               />
             </Fragment>
           );

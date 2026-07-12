@@ -53,8 +53,15 @@ function block(selector: string): string {
 // can't reflow; (b) the timestamp keeps no left margin, so the row still starts
 // flush on the column edge; (c) the divider stays CSS-controlled and the row's
 // persistent members are all still rendered.
+//
+// SCOPE (round 37 / TH-21): the full-screen gold master showed the crop TH-10
+// argued from is a photo of the thread's LAST row — middle messages carry no
+// action row and no timestamp. So everything below is now the contract for the
+// FINAL assistant answer (the `.msg-last` row), which is why the render test
+// here renders a single assistant message: it IS the last one. The hover-only
+// behaviour of the messages before it is pinned in Timeline.msgrow.test.tsx.
 // ---------------------------------------------------------------------------
-describe("TH-10 — assistant action row: icons are visible at rest", () => {
+describe("TH-10 — the final assistant answer's action row: icons visible at rest", () => {
   it("keeps the icons drawn at rest, dimmed rather than collapsed", () => {
     const rest = block(".msg .msg-col .msg-actions .msg-copy {");
     expect(rest).toMatch(/opacity:\s*0\.5;/);
@@ -94,7 +101,7 @@ describe("TH-10 — assistant action row: icons are visible at rest", () => {
     expect(conv).toContain(".msg:not(.assistant):hover .msg-col .msg-actions");
   });
 
-  it("renders the row's members: three action buttons, the divider, verdict and time", () => {
+  it("renders the row's members: three action buttons, the divider and the verdict — but no time", () => {
     const { container } = render(
       <TimelineView
         items={[assistant("a1")]}
@@ -110,7 +117,15 @@ describe("TH-10 — assistant action row: icons are visible at rest", () => {
     expect(div.getAttribute("style")).toBeNull();
     const row = container.querySelector(".msg-actions") as HTMLElement;
     expect(row.querySelector(".msg-goal-verdict")?.textContent).toContain("Goal achieved in 3h 47m");
-    expect(row.querySelector(".msg-time")).not.toBeNull();
+    // TH-21 (round 37): this used to assert the row SHOWS a timestamp. The gold
+    // master's persistent row is `⧉ 👍 👎 ↗ │ ⊘ Goal achieved in 3h 47m 26s` —
+    // there is no time in it, so the old assertion was pinning our own
+    // invention. The row this test renders is the thread's last assistant answer
+    // (`.msg-last`), and the sheet drops the timestamp there.
+    expect(container.querySelector(".msg.msg-last")).not.toBeNull();
+    expect(block(".timeline .tl-inner .msg.msg-last .msg-col .msg-actions .msg-time")).toMatch(
+      /display:\s*none;/,
+    );
     // Copy / Copy link / Continue in new task — the three entry points TH-10 is
     // about; they are in the DOM, hence in the tab order, at rest
     expect(row.querySelectorAll("button.msg-copy")).toHaveLength(3);

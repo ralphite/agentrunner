@@ -723,6 +723,12 @@
    INC-41 round 20/24 — TH-1 + TH-10: the action row is PERSISTENT and
    left-anchored on the prose column.
 
+   ⚠ SUPERSEDED IN PART BY ROUND 37 (TH-21) — see the block below. The
+   conclusion "the icons are there at rest, hover-only was a misreading" holds
+   for the thread's LAST assistant answer only; on every message before it the
+   full-screen gold master shows no action row and no timestamp at all. Read
+   both blocks; the rules that ship are the round-37 ones.
+
    Round 18/20 read Codex's row (qa/codex-reference/codex-crop-message-actions.jpg)
    as "one icon + the verdict", and hid the action icons until :hover — round 20
    then had to collapse their boxes to 0 width, because three 26px ghost buttons
@@ -772,6 +778,72 @@
 .msg:not(.assistant):hover .msg-col .msg-actions,
 .msg:not(.assistant) .msg-col .msg-actions:focus-within {
   pointer-events: auto;
+}
+
+/* =========================================================================
+   INC-41 round 37 — TH-21: only the LAST assistant answer keeps its action
+   row at rest. Every message before it reveals the row on hover/focus, and no
+   message shows a persistent timestamp.
+
+   --- What round 18/20/24 got wrong, and how we know ---
+   Those rounds argued from ONE cropped photo of the gold master
+   (qa/codex-reference/codex-crop-message-actions.jpg) and generalised it to
+   every message: "the icons are drawn at rest, hover-only is a misreading".
+   Round 37 went back to the FULL screen (qa/codex-reference/codex-task-thread.jpg,
+   819×1456) and magnified it 3×. The crop is real — but it is a photo of the
+   thread's FINAL row, and nothing else:
+     • y≈1180–1420 (mid-thread): every assistant/user message ends and the next
+       block — artifact card, changes card, "Worked for …" head — begins
+       IMMEDIATELY. No icon row. No timestamp. Not once.
+     • the very end of the thread: exactly one row, `⧉ 👍 👎 ↗ │ ⊘ Goal achieved
+       in 3h 47m 26s` — the crop, in situ. Note it carries no timestamp either.
+   So the earlier rounds' evidence was never wrong, only mis-scoped: a fact
+   about the last row was applied to all rows. On a 10-turn thread that stamps
+   ten `⧉ ↗ ⧉  Friday 06:21 PM` bands through the prose and turns one narrative
+   into a stack of footered cards — INC-41's largest single source of thread
+   noise.
+
+   --- The compromise we ship ---
+   • Last assistant answer: row persists (icons dimmed at rest, full on hover).
+     This keeps TH-10's real win — Copy / Copy-link / Continue-in-new-task
+     still exist for touch and for anyone who never sweeps a mouse — at the one
+     place Codex itself keeps them, which is also the place you decide what to
+     do next.
+   • Every other message: opacity 0 at rest, 1 on :hover / :focus-within. The
+     :focus-within twin is what keeps the buttons keyboard-reachable at all
+     (they stay in the DOM and in the tab order; focusing one reveals the row).
+   • No timestamp is ever persistent: on middle messages it rides the hidden
+     row (revealed with it on hover), and on the last row — the only one drawn
+     at rest — it is dropped outright, because the gold master's persistent row
+     has no time in it. The absolute time is still on each `.msg`'s `title`.
+     That drop is CSS (`display: none` on `.msg-last .msg-time`) rather than a
+     JSX branch: MsgActions renders ONE row shape for every message and the
+     sheet decides what of it shows where. It is also static — it never changes
+     with hover — so it cannot reflow anything.
+
+   --- TH-1's no-reflow contract is untouched ---
+   Hover flips ONLY `opacity` (plus `pointer-events`, which has no box). The
+   row keeps its height, margin and display in both states, so revealing it
+   cannot move a single pixel of the thread under the reader's pointer. An
+   invisible row must not swallow clicks, hence the pointer-events gate.
+
+   Specificity: 6 classes (`.timeline .tl-inner .msg… .msg-col .msg-actions`),
+   which is what it takes to outrank styles.css's `.msg.user .msg-col.user
+   .msg-actions { pointer-events: auto }` (5) and this file's own
+   `.msg.assistant .msg-col .msg-actions { opacity: 1 }` (4) without touching
+   styles.css, which another worksheet owns.
+   ========================================================================= */
+.timeline .tl-inner .msg:not(.msg-last) .msg-col .msg-actions {
+  opacity: 0;
+  pointer-events: none;
+}
+.timeline .tl-inner .msg:not(.msg-last):hover .msg-col .msg-actions,
+.timeline .tl-inner .msg:not(.msg-last) .msg-col .msg-actions:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+.timeline .tl-inner .msg.msg-last .msg-col .msg-actions .msg-time {
+  display: none;
 }
 
 /* =========================================================================
