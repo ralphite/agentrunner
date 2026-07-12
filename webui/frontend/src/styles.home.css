@@ -1,0 +1,119 @@
+/* Home new-task empty state (Codex parity, P1).
+
+   The blank white void above the composer gets Codex's greeting: a terminal
+   brand mark, a project-aware headline, and a row of four suggestion cards.
+   The composer stays pinned to the bottom; the greeting group is vertically
+   centered in the space above it.
+
+   Every override of an existing `.home.home-welcome` rule is scoped with the
+   extra `.home-empty-state` class (added on Home's root) so it wins on
+   specificity regardless of stylesheet import order. */
+
+/* Let the hero own the full column height and lay its children out top→bottom;
+   the greeting group grabs the free space and centers, the composer sits at the
+   bottom. Overrides the bottom-pinning flex-end + margin-top:auto from
+   styles.css. */
+.home.home-welcome.home-empty-state {
+  justify-content: flex-start;
+}
+.home.home-welcome.home-empty-state .hero {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* The greeting group: centered vertically (margin auto eats the free space
+   above and below) and horizontally, scrolls from the top on a short viewport
+   rather than clipping. */
+.home-empty {
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+  max-width: 900px;
+  padding: 32px 8px 40px;
+}
+
+/* Brand mark — reuses .home-hero-icon (52px rounded panel) from styles.css;
+   this only draws the terminal glyph a touch larger and quieter. */
+.home-empty .home-hero-icon {
+  margin: 0 auto 22px;
+}
+.home-empty-headline {
+  margin: 0 0 32px;
+  font-size: 30px;
+  font-weight: 580;
+  letter-spacing: -0.5px;
+  line-height: 1.2;
+  color: var(--ink);
+}
+/* Subtle underline emphasis on the repo/workspace name. */
+.home-empty-repo {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: var(--line);
+  text-underline-offset: 5px;
+}
+
+/* Four suggestion cards. */
+.home-empty-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  width: 100%;
+}
+.home-empty-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 20px;
+  min-height: 128px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+.home-empty-card:hover {
+  border-color: var(--ink-2);
+  background: var(--panel-2);
+}
+.home-empty-card:active {
+  transform: translateY(1px);
+}
+.home-empty-card:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+.home-empty-card-icon {
+  display: inline-grid;
+  place-items: center;
+}
+.home-empty-card-icon.blue { color: var(--blue); }
+.home-empty-card-icon.violet { color: var(--violet); }
+.home-empty-card-icon.green { color: var(--green); }
+.home-empty-card-icon.amber { color: var(--amber); }
+.home-empty-card-label {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+/* Responsive: 2-up on tablets, 1-up on phones. */
+@media (max-width: 860px) {
+  .home-empty-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .home-empty-headline { font-size: 24px; margin-bottom: 24px; }
+  .home-empty-cards { grid-template-columns: 1fr; gap: 10px; }
+  .home-empty-card { min-height: 0; flex-direction: row; align-items: center; gap: 14px; }
+}
