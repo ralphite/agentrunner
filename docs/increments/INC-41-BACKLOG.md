@@ -2916,17 +2916,28 @@ touches:`DiffView.tsx` 顶栏区、`styles.rs.css` L774–830。
 (与 `.fd-gap` 同灰),或在已有折叠带的断点直接不渲染。touches:`styles.css` L1671–1680、
 `DiffView.tsx` L1328–1344。
 
-### RD-11 ☐ 文件头坐在 #f5f5f5 灰底色带上,把 review 从「代码河流」变成「行列表」 [P3]
-`.fd-head` 实测背景 srgb(0.962),`.diffbar` 是纯白 —— 每个文件头是一条 658×36 灰实心带,5 文件时顶部
-4 条灰带堆叠。金标文件头直接坐在白底上,只有上方一条 hairline。**动作**:`.fd-head` 背景换成与 `.diffbar`
-同 token,靠 `border-top` 分隔(sticky 需不透明底,只能换色不能透明)。touches:`styles.diff.css` L156–164。
+### RD-11 ✅ 文件头坐在 #f5f5f5 灰底色带上 —— **实测不成立:原报告量到的是 :hover 态** [P3] — 轮34 复验,零代码改动
+**诚实缩窄到 0**:`.fd-head` 的静态背景**早已**是 `var(--panel)`,与 `.diffbar` 同一个 token
+(`styles.diff.css` RVW-5 的 sticky 规则本来就这么写)。真机 13 个文件头的背景去重后只剩一个值:
+light `rgb(255,255,255)` == `.diffbar` 的 `rgb(255,255,255)`;dark `rgb(23,23,26)` == `rgb(23,23,26)`
+(`qa/runs/2026-07-12-r34/after-rd1112/measurements.json` 的 `light_bg` / `dark_bg`)。
+原报告的 srgb(0.962)=#f5f5f5 正是 `.diffwrap .filediff > summary.fd-head:hover` 的
+`color-mix(in srgb, var(--ink) 4%, var(--panel))` —— `--ink:#0d0d0d` 按 4% 混白得 245 —— 即**鼠标停在
+文件头上**时的合法 hover 底色,不是常态背景。截图 `1440-filelist-popover.png` 里 13 条文件头全白底、
+只靠 `.filediff + .filediff` 的 hairline 分隔,没有任何灰实心带。故本条无债可还,**不做假改动**。
 
-### RD-12 ☐ 缺「这次改了哪些文件」的总览入口;`N generated files hidden` 抢了第一屏 [P3]
-只有一个按路径过滤的放大镜 popover;review 的**第一行**却是 `.diff-hidden-note`「2 generated files hidden」。
-金标工具栏有文件树图标(列出所有改动文件、可跳转),第一行永远是第一个文件头。**动作**:过滤 popover
-升级成文件列表 popover(数据现成:`files` + `untracked` + `+N −M`,点击复用 `diffFocusPath` 滚过去),
-图标换 `TreeStructure`;hidden-note 降为 popover 底部注脚。**无需新后端**。
-touches:`DiffView.tsx` L765–801 + L942–947、`styles.rs.css` `.diff-hidden-note`。
+### RD-12 ✅ 缺「这次改了哪些文件」的总览入口;`N generated files hidden` 抢了第一屏 [P3] — `<SHA>`(轮34)
+**实测收口**:放大镜过滤 popover 升级成**文件列表 popover**(触发器 `TreeStructure`;常驻控件数不变 ——
+1440 档 `.diffbar` 仍 10 个子元素、`scrollWidth−clientWidth = 0`,1024 档 7 个、溢出 0、✕ 在面板内)。
+真机(`20260710-213428-…-d8ac`,last-turn):popover 列出 **13/13** 个改动文件(含 untracked),每行
+`M/A/D 字形 + 路径 + +N −M`(binary 的 `asset.bin` 不编造计数,与其文件头 DF-D3 一致);点 `asset.bin`
+→ `.diffwrap.scrollTop 0 → 407`,该文件头从 y=770(视口外)滚进视口且落在 sticky 工具栏**下方**
+(新增 `.filediff { scroll-margin-top: 46px }`,顺带修好 TH-5 的落点),并自动展开。输入 `lcov-1` →
+列表 13→3 行、面板内文件同步 3 个、标签 `3 of 13 files match`、触发器保持 active(过滤语义不变,
+且从筛过的列表里点文件**不再清空 query**)。working-tree 档:`.diffwrap` 第一个子元素是 `.diffbar`、
+**第二个就是第一个文件头**(`noteInStream: false`);`12 generated files hidden / Source files all still
+shown.` 连同长句 tooltip 完整落在 popover 底部注脚。三档稳态 console error+warning **0**。
+vitest 442 绿(基线 438 + 4 条新用例:列表渲染/点击跳转/过滤/空匹配)。
 
 ### 【thread 屏】(finder A,截图 `qa/runs/2026-07-12-r32/find-thread/`)
 

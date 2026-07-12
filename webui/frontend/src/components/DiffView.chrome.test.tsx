@@ -301,14 +301,17 @@ describe("Changes panel focuses the file the thread asked for (INC-41 TH-5)", ()
     const { container } = render(<DiffView sid="f3" />);
     await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
 
-    fireEvent.click(screen.getByLabelText("Filter files by path"));
+    // RD-12 · a path now appears in the file list as well as in its header, so the
+    // review's own content is read off the stream.
+    const streamPaths = () => [...container.querySelectorAll("summary.fd-head .fd-path")].map((p) => p.textContent);
+    fireEvent.click(screen.getByLabelText("Changed files"));
     fireEvent.change(screen.getByLabelText("Filter files by path", { selector: "input" }), {
       target: { value: "notes" },
     });
-    await waitFor(() => expect(screen.queryByText("app.ts")).toBeNull());
+    await waitFor(() => expect(streamPaths()).toEqual(["notes.md"]));
 
     act(() => useStore.getState().focusDiffFile("app.ts"));
-    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+    await waitFor(() => expect(streamPaths()).toContain("app.ts"));
     expect(container.querySelector("details.filediff[open]")).toBeTruthy();
   });
 });
@@ -352,22 +355,127 @@ Binary files /dev/null and b/bin/ar differ
   });
 });
 
-// INC-41 DF-D5 — the note is one nowrap/ellipsis line, and its old second
-// sentence ("Source files remain visible.") therefore never reached a single
-// reader at any window width. Short enough to land now, with the full
-// explanation one hover away.
-describe("Hidden-files note (INC-41 DF-D5)", () => {
-  it("states the fallback in a tail that fits, and carries the long form in its title", async () => {
+// INC-41 DF-D5 / RD-12 — the hidden-files note. It used to be the review's first
+// line: before you saw a single changed file, you read what wasn't there. It is
+// the file list's footnote now — same count, same sentence, same tooltip — and the
+// review opens on its first file header, the way the golden's does.
+describe("Hidden-files note (INC-41 DF-D5 / RD-12)", () => {
+  it("is a footnote of the file list, not the review's first line", async () => {
     arMock.diff = () => Promise.resolve(baseDiff({ diff: editDiff, hiddenUntracked: 812 }));
     const { container } = render(<DiffView sid="h1" />);
 
     await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
-    const note = container.querySelector(".diff-hidden-note")!;
+    // RD-12 · not in the stream…
+    expect(container.querySelector(".diffwrap > .diff-hidden-note")).toBeNull();
+    const wrap = container.querySelector(".diffwrap")!;
+    expect(wrap.children[0].className).toMatch(/diffbar/); // the toolbar
+    expect(wrap.children[1].className).toMatch(/filediff/); // …then the first file
+
+    // …but nothing is lost: it is under the file list, and it is still one click
+    // away (the popover renders even for a single-file review, because the count
+    // it carries is about files that are *not* in that review).
+    fireEvent.click(screen.getByLabelText("Changed files"));
+    const note = container.querySelector(".pop-panel .diff-hidden-note")!;
     expect(note.querySelector("b")!.textContent).toBe("812 generated files hidden");
     const tail = note.querySelector("span")!.textContent!;
     expect(tail).toBe("Source files all still shown.");
-    expect(tail.length).toBeLessThan(34); // the ellipsis budget at 657px
     expect(note.getAttribute("title")).toMatch(/source file remains visible/i);
+  });
+});
+
+// INC-41 RD-12 — the review's file list. Our toolbar could only answer "which
+// files match what I type"; the golden's file-tree button answers "what did this
+// change touch" — every file, its `+N −M`, one click to walk the review to it.
+describe("Changed-files list (INC-41 RD-12)", () => {
+  const listDiff = editDiff + newFileDiff;
+
+  it("lists every changed file — tracked and untracked — with its counts", async () => {
+    arMock.diff = () =>
+      Promise.resolve(baseDiff({ diff: listDiff, untracked: ["assets/logo.png", "data/big.csv"] }));
+    arMock.blob = () => Promise.resolve({ lines: ["one", "two"] });
+    const { container } = render(<DiffView sid="l1" />);
+
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+    fireEvent.click(screen.getByLabelText("Changed files"));
+
+    const rows = [...container.querySelectorAll(".diff-fileitem")];
+    expect(rows.map((r) => r.getAttribute("title"))).toEqual([
+      // untracked first — the order the panel renders them in
+      "assets/logo.png",
+      "data/big.csv",
+      "app.ts",
+      "notes.md",
+    ]);
+    // …with the same M/A/D glyph vocabulary as the file headers below.
+    expect(rows[2].querySelector(".fd-glyph")!.className).toMatch(/fd-glyph-modified/);
+    expect(rows[3].querySelector(".fd-glyph")!.className).toMatch(/fd-glyph-added/);
+    // …and each file's own `+N −M` (app.ts: one line replaced).
+    expect(rows[2].querySelector(".fd-counts .add")!.textContent).toBe("+1");
+    expect(rows[2].querySelector(".fd-counts .del")!.textContent).toBe("−1");
+    expect(rows[3].querySelector(".fd-counts .add")!.textContent).toBe("+1");
+    expect(rows[3].querySelector(".fd-counts .del")!.textContent).toBe("−0");
+    // A binary blob has no lines to count, so it states none — exactly as its
+    // header does (DF-D3); a not-yet-read text blob says "+…", never a made-up 0.
+    expect(rows[0].querySelector(".fd-counts")).toBeNull();
+    expect(rows[1].querySelector(".fd-counts .add")!.textContent).toBe("+…");
+  });
+
+  it("walks the review to the file that was clicked", async () => {
+    arMock.diff = () => Promise.resolve(baseDiff({ diff: listDiff }));
+    const { container } = render(<DiffView sid="l2" />);
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+
+    // fold everything, so landing on the file means opening it too
+    fireEvent.click(screen.getByLabelText("More changes actions"));
+    fireEvent.click(screen.getByText("Collapse all files"));
+    await waitFor(() => expect(container.querySelector("details.filediff[open]")).toBeNull());
+    scrollSpy.mockReset();
+
+    fireEvent.click(screen.getByLabelText("Changed files"));
+    const row = [...container.querySelectorAll(".diff-fileitem")].find(
+      (r) => r.getAttribute("title") === "notes.md",
+    )!;
+    fireEvent.click(row);
+
+    // the click closes the popover, opens that one file, and scrolls to it
+    await waitFor(() => expect(container.querySelectorAll("details.filediff[open]").length).toBe(1));
+    expect(container.querySelector("details.filediff[open] .fd-path")!.textContent).toBe("notes.md");
+    expect(scrollSpy).toHaveBeenCalled();
+    expect(container.querySelector(".pop-panel")).toBeNull();
+  });
+
+  it("filters the list and the review together, and keeps the query when a file is picked", async () => {
+    arMock.diff = () => Promise.resolve(baseDiff({ diff: listDiff }));
+    const { container } = render(<DiffView sid="l3" />);
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+
+    fireEvent.click(screen.getByLabelText("Changed files"));
+    expect(container.querySelectorAll(".diff-fileitem").length).toBe(2);
+
+    fireEvent.change(screen.getByPlaceholderText("Filter files…"), { target: { value: "notes" } });
+    // the list narrows…
+    await waitFor(() => expect(container.querySelectorAll(".diff-fileitem").length).toBe(1));
+    expect(container.querySelector(".diff-fileitem")!.getAttribute("title")).toBe("notes.md");
+    // …and so does the review behind it (the filter's original job, unchanged).
+    expect(screen.queryByText("app.ts")).toBeNull();
+
+    // Picking a file from a filtered list keeps the filter: the user narrowed the
+    // review on purpose, and the file they picked is *in* the narrowed set.
+    fireEvent.click(container.querySelector(".diff-fileitem")!);
+    await waitFor(() => expect(container.querySelector(".pop-panel")).toBeNull());
+    expect(screen.queryByText("app.ts")).toBeNull();
+    expect(screen.getByLabelText("Changed files").className).toMatch(/active/);
+  });
+
+  it("says so when nothing matches, instead of showing an empty list", async () => {
+    arMock.diff = () => Promise.resolve(baseDiff({ diff: listDiff }));
+    const { container } = render(<DiffView sid="l4" />);
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+
+    fireEvent.click(screen.getByLabelText("Changed files"));
+    fireEvent.change(screen.getByPlaceholderText("Filter files…"), { target: { value: "zzz" } });
+    await waitFor(() => expect(container.querySelector(".diff-filelist")).toBeNull());
+    expect(container.querySelector(".diff-filelist-empty")!.textContent).toMatch(/zzz/);
   });
 });
 

@@ -15,6 +15,7 @@ import {
   ArrowsInLineVertical,
   DotsThree,
   TextAlignLeft,
+  TreeStructure,
   Copy,
   X,
   FileDashed,
@@ -63,6 +64,27 @@ const GLYPH_BADGES = new Set(["new file", "deleted", "renamed", "copied"]);
 // itself states the two facts that fit.
 const HIDDEN_NOTE_TITLE =
   "Untracked files that look generated — dependencies, build output — are omitted so the review stays responsive. Every source file remains visible.";
+
+// INC-41 RD-12 · what the file list needs to know about a file, read straight off
+// its metadata lines. `parseFileDiff` answers the same question — but it also
+// materializes every row of every file, a cost the *list* has no use for and would
+// pay again on every keystroke in its filter (a review holding one 40k-line
+// lockfile would rebuild 40k rows per character). Git writes a file's metadata
+// before its first `@@`, so the scan stops there; the badges/status vocabulary is
+// parseFileDiff's, line for line.
+function headMeta(lines: string[]): { status: FileStatus; binary: boolean } {
+  let status: FileStatus = "modified";
+  let binary = false;
+  for (const line of lines) {
+    if (line.startsWith("@@")) break;
+    if (line.startsWith("new file")) status = "added";
+    else if (line.startsWith("deleted file")) status = "deleted";
+    else if (line.startsWith("rename ")) status = "renamed";
+    else if (line.startsWith("copy ")) status = "copied";
+    else if (line.startsWith("Binary files") || line.startsWith("GIT binary patch")) binary = true;
+  }
+  return { status, binary };
+}
 
 const rowSign = (r?: DiffRow) => (!r ? "" : r.kind === "add" ? "+" : r.kind === "del" ? "−" : " ");
 const halfKind = (r: DiffRow | undefined, side: "left" | "right") =>
@@ -350,6 +372,18 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
   const focusRef = useCallback((el: HTMLDetailsElement | null) => {
     el?.scrollIntoView?.({ block: "start", behavior: "smooth" });
   }, []);
+  // INC-41 RD-12 · the file list's click target: the same focus request the thread's
+  // change card makes (TH-5), raised from inside the panel. It goes straight into
+  // the local focus state rather than through the store's `focusDiffFile`, because
+  // the store round-trip exists to hand a path *across* components and its consumer
+  // (the effect above) clears the file filter on arrival — which would wipe the very
+  // query the user is filtering this list with. The file the request names is opened
+  // (isOpen), remounted (fileKey carries focusEpoch) and scrolled to (focusRef), so
+  // clicking the same row twice re-scrolls to it.
+  const focusFile = (path: string) => {
+    setFocusPath(path);
+    setFocusEpoch((e) => e + 1);
+  };
   // Codex review→commit(→push): stage & commit the workspace changes, optionally
   // pushing to the upstream branch. `thenPush` chains a push only when the commit
   // succeeded, so a failed commit never pushes a half-finished state.
@@ -676,6 +710,25 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
   const shownUntracked = q ? untracked.filter((p) => p.toLowerCase().includes(q)) : untracked;
   const fileCount = files.length + untracked.length;
   const shownCount = shown.length + shownUntracked.length;
+  // INC-41 RD-12 · the review's table of contents, in the order the panel renders
+  // it (untracked cards first, then the tracked stream) so the list reads top-to-
+  // bottom like the thing it indexes. An untracked file's `+N` is only knowable
+  // once its blob is in hand (the card fetches it; this list does not), so it says
+  // `+…` rather than inventing a number — and a binary file, tracked or not, says
+  // nothing at all, exactly as its header does (DF-D3).
+  const listFiles: { path: string; status: FileStatus; add: number | null; del: number; counts: boolean }[] = [
+    ...shownUntracked.map((path) => ({
+      path,
+      status: "added" as FileStatus,
+      add: null,
+      del: 0,
+      counts: !isBinaryPath(path),
+    })),
+    ...shown.map(({ f, add, del }) => {
+      const meta = headMeta(f.lines);
+      return { path: f.path, status: meta.status, add, del, counts: !meta.binary };
+    }),
+  ];
   // Per-file default disclosure (RD-1) — computed over the whole review, not just
   // the filtered subset, so filtering never changes a file's default state.
   const defaults = defaultOpenByPath(files);
@@ -837,47 +890,112 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
           )}
         </Popover>
         {/* DF-1 · the filter is an icon, not a permanently-open 150px input —
-            Codex's review header does the same (a magnifier button that opens a
-            field). As a resident input it was the second-largest thing on a bar
-            that already didn't fit, and flexbox paid for it by crushing the
-            split/unified toggle to 2px and shoving the ✕ out of the panel. The
-            field now opens in a popover, where it has room; the trigger stays
-            lit while a query is filtering the list, so a filtered review can
-            never look like an empty one. */}
-        {fileCount > 1 && (
+            Codex's review header does the same. As a resident input it was the
+            second-largest thing on a bar that already didn't fit, and flexbox
+            paid for it by crushing the split/unified toggle to 2px and shoving
+            the ✕ out of the panel. The field opens in a popover, where it has
+            room; the trigger stays lit while a query is filtering the list, so a
+            filtered review can never look like an empty one.
+
+            INC-41 RD-12 · …and behind that icon there is now the thing the review
+            was missing outright: *which files did this change touch*. Ours could
+            only ever answer "which files match what I type" — you had to already
+            know a path to find it, in a rail whose whole job is telling you what
+            you don't know yet. The golden's review header carries a file-tree
+            button listing every changed file with its `+N −M`, and a click walks
+            the review to that file. So does this: the same popover, upgraded from
+            a filter into an index that happens to be filterable (the input still
+            drives `fileQuery`, so it still narrows the panel below — one control,
+            two jobs, and no new resident on a bar that has none to spare, DF-1 /
+            RD-8). The `N generated files hidden` note used to be the review's
+            *first line* — the first thing you read about a diff was what wasn't in
+            it — and it is this list's footnote now, where a fact about the file
+            list belongs. */}
+        {(fileCount > 1 || hiddenUntracked > 0) && (
           <Popover
             align="right"
-            panelClass="w-[248px] max-w-[calc(100vw-24px)]"
+            panelClass="diff-files-menu"
             trigger={(open, toggle) => (
               <button
                 className={"sm ghost diff-iconbtn" + (open || fileQuery ? " active" : "")}
                 onClick={toggle}
-                aria-label="Filter files by path"
+                aria-label="Changed files"
                 aria-haspopup="menu"
                 aria-expanded={open}
-                title={fileQuery ? "Filtering files by “" + fileQuery + "”" : "Filter files by path"}
+                title={
+                  fileQuery
+                    ? "Changed files — filtering by “" + fileQuery + "”"
+                    : "Changed files — jump to one, or filter the review"
+                }
               >
-                <MagnifyingGlass size={15} />
+                <TreeStructure size={15} />
               </button>
             )}
           >
-            {() => (
-              <PopSection label="Filter files">
-                <label className="mx-[6px] flex items-center gap-[6px] rounded-[8px] border border-line bg-panel px-[9px] py-[5px] text-dim focus-within:border-[var(--rs-accent)]">
-                  <MagnifyingGlass size={13} className="shrink-0" />
-                  <input
-                    data-popover-autofocus
-                    className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[12px] text-ink outline-none"
-                    value={fileQuery}
-                    onChange={(e) => setFileQuery(e.target.value)}
-                    placeholder="Filter files…"
-                    aria-label="Filter files by path"
-                  />
-                </label>
-                <div className="mx-[6px] mt-[6px] text-[11px] text-dim">
-                  {q ? `${shownCount} of ${fileCount} files match` : `${fileCount} files changed`}
-                </div>
-              </PopSection>
+            {(close) => (
+              <>
+                <PopSection label={q ? `${shownCount} of ${fileCount} files match` : `${fileCount} files changed`}>
+                  <label className="mx-[6px] flex items-center gap-[6px] rounded-[8px] border border-line bg-panel px-[9px] py-[5px] text-dim focus-within:border-[var(--rs-accent)]">
+                    <MagnifyingGlass size={13} className="shrink-0" />
+                    <input
+                      data-popover-autofocus
+                      className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[12px] text-ink outline-none"
+                      value={fileQuery}
+                      onChange={(e) => setFileQuery(e.target.value)}
+                      placeholder="Filter files…"
+                      aria-label="Filter files by path"
+                    />
+                  </label>
+                  {listFiles.length === 0 ? (
+                    <div className="diff-filelist-empty">No changed file’s path contains “{fileQuery}”.</div>
+                  ) : (
+                    <div className="diff-filelist">
+                      {listFiles.map((f) => {
+                        const { dir, base } = splitPath(f.path);
+                        return (
+                          <button
+                            key={f.path}
+                            type="button"
+                            role="menuitem"
+                            className="diff-fileitem mono"
+                            title={f.path}
+                            onClick={() => {
+                              close();
+                              focusFile(f.path);
+                            }}
+                          >
+                            <span className={"fd-glyph fd-glyph-" + f.status} aria-hidden="true">
+                              {STATUS_GLYPH[f.status]}
+                            </span>
+                            <span className="diff-fileitem-path">
+                              {dir && <span className="fd-dir">{dir}</span>}
+                              {base}
+                            </span>
+                            {f.counts && (
+                              <span className="fd-counts">
+                                <span className="add">+{f.add === null ? "…" : f.add}</span>
+                                <span className="del">−{f.del}</span>
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </PopSection>
+                {/* INC-41 DF-D5 / RD-12 · the hidden-files note, in its right place.
+                    It is a fact *about this list* ("…and these ones aren't in it"),
+                    not the headline of the review, so it reads as the list's
+                    footnote instead of the band that used to sit above the first
+                    file. Same sentence, same tooltip, same count — one flight of
+                    stairs down. */}
+                {hiddenUntracked > 0 && (
+                  <div className="diff-hidden-note" title={HIDDEN_NOTE_TITLE}>
+                    <b>{hiddenUntracked.toLocaleString()} generated files hidden</b>
+                    <span>Source files all still shown.</span>
+                  </div>
+                )}
+              </>
             )}
           </Popover>
         )}
@@ -1053,18 +1171,12 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
           <span>No changed file’s path contains “{fileQuery}”. Clear the filter to see all {fileCount} of them.</span>
         </div>
       )}
-      {/* INC-41 DF-D5 · this note is one nowrap+ellipsis line by design (RV-1: a
-          fact worth a sentence, not an 80px card) — but the sentence it carried
-          needed ~430px of tail and the panel gives it ~230px, so its second half
-          ("Source files remain visible.") was unreachable at *every* window
-          width, with no title to fall back on. The tail is now short enough to
-          land, and the full explanation lives in the row's tooltip. */}
-      {hiddenUntracked > 0 && !q && (
-        <div className="diff-hidden-note" role="status" title={HIDDEN_NOTE_TITLE}>
-          <b>{hiddenUntracked.toLocaleString()} generated files hidden</b>
-          <span>Source files all still shown.</span>
-        </div>
-      )}
+      {/* INC-41 RD-12 · the review opens on the *first file*. What used to be here
+          — `N generated files hidden`, full-bleed, above everything — meant the
+          first sentence of every review was about the files it does not contain;
+          the golden's first line is its first file header, and its "hidden" count
+          is a footnote inside the file list (see the toolbar's file-tree popover,
+          where the note now lives, tooltip and all). */}
       {/* INC-41 DF-3 · these used to be a grey `new files (untracked) · N` strip
           of bare paths: no glyph, no `+N −0`, no line numbers, nothing to open —
           a second visual language for the files a review most wants to read, and

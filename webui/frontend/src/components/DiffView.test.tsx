@@ -87,15 +87,18 @@ describe("Changes toolbar fits its panel (INC-41 DF-1)", () => {
     // The resident input was the second-widest thing on a bar that did not fit.
     expect(bar.querySelector("input")).toBeNull();
 
-    fireEvent.click(screen.getByLabelText("Filter files by path"));
+    // RD-12 · the icon is the file list now, and the filter is the field inside it.
+    fireEvent.click(screen.getByLabelText("Changed files"));
     const input = screen.getByPlaceholderText("Filter files…");
     // …and when it does open, it opens in the popover's own (absolutely
     // positioned) panel — so it never takes width from the bar's flex row.
     expect(input.closest(".pop-panel")).toBeTruthy();
 
+    // …and it still filters the review below (RD-12 · the file list it now opens
+    // in names the surviving file too, so this reads the *stream*, not the DOM).
+    const streamPaths = () => [...container.querySelectorAll("summary.fd-head .fd-path")].map((p) => p.textContent);
     fireEvent.change(input, { target: { value: "notes" } });
-    await waitFor(() => expect(screen.queryByText("app.ts")).toBeNull());
-    expect(screen.getByText("notes.md")).toBeTruthy();
+    await waitFor(() => expect(streamPaths()).toEqual(["notes.md"]));
   });
 
   it("lights the filter trigger while a query is hiding files", async () => {
@@ -103,14 +106,14 @@ describe("Changes toolbar fits its panel (INC-41 DF-1)", () => {
     render(<DiffView sid="s2" onClose={() => {}} />);
 
     await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
-    const trigger = screen.getByLabelText("Filter files by path");
+    const trigger = screen.getByLabelText("Changed files");
     expect(trigger.className).not.toMatch(/active/);
 
     fireEvent.click(trigger);
     fireEvent.change(screen.getByPlaceholderText("Filter files…"), { target: { value: "notes" } });
     // Closing the popover must not make a filtered review look like a full one.
     fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.getByLabelText("Filter files by path").className).toMatch(/active/);
+    expect(screen.getByLabelText("Changed files").className).toMatch(/active/);
   });
 
   it("moves Expand / Collapse-all into the … overflow", async () => {

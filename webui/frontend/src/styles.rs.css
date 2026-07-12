@@ -267,6 +267,9 @@ html body {
   /* resets styles.css's global `details { border-top }`, which would otherwise
    * double up with the toolbar's hairline above the first file */
   border-top: 0;
+  /* INC-41 RD-12 · a file we scroll to (from the file list, or from the thread's
+   * change card — TH-5) lands *below* the sticky 46px toolbar, not under it. */
+  scroll-margin-top: 46px;
 }
 .diffwrap .filediff + .filediff {
   border-top: 1px solid var(--line-2);
@@ -927,30 +930,98 @@ html body {
   background: var(--panel);
 }
 
-/* Hidden-generated-files note → one quiet full-bleed line (RV-1). As a two-line
- * bordered card it was a third slab of chrome stacked above the first file; the
- * fact is worth one sentence, not 80px. */
-.diffwrap .diff-hidden-note {
+/* ============================================================================
+ * INC-41 RD-12 · the review's file list — "which files did this change touch?"
+ *
+ * The toolbar's magnifier could only answer "which files match what I type",
+ * which is a question you can only ask about files you already know are there.
+ * The golden's review header carries a file-tree button: every changed file,
+ * its `+N −M`, one click to walk the review to it. This is that list — and it
+ * is still the filter (the same input, driving the same `fileQuery`), so the
+ * bar gains an *answer* without gaining a control (DF-1 / RD-8 left it none to
+ * spare).
+ *
+ * Rows are `role="menuitem"` buttons, so the Popover's existing ↑/↓/Home/End
+ * roving focus walks the file list for free.
+ * ==========================================================================*/
+.diff-files-menu {
+  width: min(330px, calc(100vw - 24px));
+}
+.diffwrap .diff-filelist {
   display: flex;
-  align-items: baseline;
-  gap: 6px;
-  margin: 0;
-  padding: 6px 12px;
+  flex-direction: column;
+  margin-top: 4px;
+  /* Its own scroll, not the panel's: with 60 changed files the footnote below
+   * would otherwise be 60 rows down, and the whole point of moving it here was
+   * that it should be read *with* the list. */
+  max-height: 40vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.diffwrap .diff-fileitem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
   border: 0;
-  border-bottom: 1px solid var(--line-2);
-  border-radius: 0;
-  background: color-mix(in srgb, var(--ink) 4%, transparent);
-  font-size: 11.5px;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
 }
-.diffwrap .diff-hidden-note b {
-  flex: 0 0 auto;
-  font-weight: 600;
+.diffwrap .diff-fileitem:hover,
+.diffwrap .diff-fileitem:focus-visible {
+  background: var(--panel-2);
+  outline: none;
 }
-.diffwrap .diff-hidden-note span {
+/* The path takes the width and ellipsizes; the counts (the row's whole point)
+ * are never the thing pushed out of the panel. Same treatment as the file header
+ * one flight down (`.fd-path`), so the same file reads the same way in both.
+ * Full path on hover (title). */
+.diffwrap .diff-fileitem-path {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.diffwrap .diff-fileitem .fd-counts {
+  flex: 0 0 auto;
+  gap: 6px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.diffwrap .diff-filelist-empty {
+  padding: 8px 8px 4px;
+  color: var(--dim);
+  font-size: 11.5px;
+}
+
+/* Hidden-generated-files note → the file list's footnote (RD-12). It was the
+ * review's first line: the first thing you read about a diff was what wasn't in
+ * it. It states a fact about the file list, so it lives under the file list —
+ * hairlined off it, quiet, with the long explanation still in its title. */
+.diffwrap .diff-hidden-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 5px;
+  margin: 6px 0 0;
+  padding: 7px 8px 2px;
+  border: 0;
+  border-top: 1px solid var(--line-2);
+  border-radius: 0;
+  background: transparent;
+  color: var(--dim);
+  font-size: 11px;
+}
+.diffwrap .diff-hidden-note b {
+  flex: 0 0 auto;
+  color: var(--ink-2);
+  font-weight: 600;
 }
 
 /* ---- responsive: settings collapses to a stacked layout ---- */
