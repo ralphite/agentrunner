@@ -1929,7 +1929,7 @@ standalone PWA 等**能**投递 ⌘N 的壳里白拿 Codex 原键。在 input/te
 - ✅ **SB-3(P1)行高/标签/组间距比 Codex 胖 ~35%**,689px 视口只装 18 行(Codex 同高 26 行)。
   任务行 38px(`ecc95e7` 今日把 34 抬到 38,无 QA/INC 依据、方向与金标相反)、`.section-label` 34.9px
   (13.5px 字,几乎和任务文字一样响)、`.project-group` margin 16px。Codex 统一节奏 26–28px、标签 ~20px、组距 8px。
-- ☐ **SB-4(P2)Projects 无段级折叠**:127 个组全渲染,`scrollHeight=14073px`。Codex 有 section 级
+- ✅ **SB-4(P2)Projects 无段级折叠**:127 个组全渲染,`scrollHeight=14073px`。Codex 有 section 级
   `Show less` + 默认只放最近一批 repo。
 - ✅ **SB-5(P2)rail 292px(20.3%)却比 Codex ~256px(17%)装得更少**;nested 缩进 21px vs Codex ~16px。
   必须在 SB-2 之后做(先还回 60px 再收窄)。同步 `.task-preview{left:296px}` 与移动端 `min(292px,86vw)`。
@@ -2015,19 +2015,19 @@ standalone PWA 等**能**投递 ⌘N 的壳里白拿 Codex 原键。在 input/te
   `.cx-session .cx-card` 320→1040(720)。Codex 正文/变更卡/artifact/composer 共用同一条左右边线。
 - ✅ **TH-4(P2)运行时 chip 不聚合**:同一条 `Agent changed · dev · gemini-flash-latest` 连着出现两遍还换行
   两排(`Timeline.tsx:846-857` 无相邻去重)。
-- ☐ **TH-3(P1)Supervision 静息面板 = 三个「什么都没有」的空态块,占 236px**(面板高的 28%):
+- ✅ **TH-3(P1)Supervision 静息面板 = 三个「什么都没有」的空态块,占 236px**(面板高的 28%):
   `Goal`/`Agents`/`Attention` 各 78.6px 只装一行否定句,空态行还比真实数据行(28px)高。Codex 右栏没内容的组
   直接不出现。修法:空态收成 28px 单行 / 合并成一条 dim 摘要。**让路下轮**(涉 `SupervisionPanel.tsx` +
   `styles.panel.css`,与本轮 diff 面板 implementer 相邻)。
 - ☐ **TH-5(P2)变更卡文件行不可点**,没有「跳到这个文件的 diff」:结构已对齐金标(dim 目录 + 粗 basename +
   右侧 `+7 −0` + `Show N more files`),但每行是惰性 `<div>`,唯一出口是卡头 `Review`。需 diff 面板暴露
   `scrollToFile(path)` 锚点 → **排在 RV 组落地之后**。
-- ☐ **TH-6(P3)变更卡角标字形语义不对**:用了 `GitDiff`(分叉箭头,读作"分支/合并"),Codex 是 `±` 方块。
+- ✅ **TH-6(P3)变更卡角标字形语义不对**:用了 `GitDiff`(分叉箭头,读作"分支/合并"),Codex 是 `±` 方块。
   尺寸(38px/radius 10)已对。同理 `SupervisionPanel.tsx:522` 的 Changes 行。
-- ☐ **TH-7(P3)变更卡拿不到 diff 时静默消失**:`ChangesOutcome.tsx:224-234` `.catch(() => setSummary(null))`
+- ✅ **TH-7(P3)变更卡拿不到 diff 时静默消失**:`ChangesOutcome.tsx:224-234` `.catch(() => setSummary(null))`
   + `:257` 空则 `return null` —— 后端抖一下整张「Edited N files」卡就无声蒸发,用户以为这轮没改文件;也无首帧
   skeleton。修法:失败保留卡壳 + `Couldn't load changes · Retry`。
-- ☐ **TH-8(P3)折叠预览 6 行 vs 金标 3 行**(变更卡是摘要不是清单)。
+- ✅ **TH-8(P3)折叠预览 6 行 vs 金标 3 行**(变更卡是摘要不是清单)。
 - ✂ 消息 thumbs up/down(`Timeline.tsx:117-122`:无 feedback endpoint,会是死控件)。
 - ✂ 静息保留时间戳 + verdict(RT-3 刻意决策;TH-1 只修它的落地 bug,不推翻决策)。
 - ⊘ Environment 头部 `+`、Browser 组、Sources 组(无后端语义,不做壳);我方 `Background work` 已是对应物。
@@ -2072,3 +2072,31 @@ standalone PWA 等**能**投递 ⌘N 的壳里白拿 Codex 原键。在 input/te
   **开放 ☐ 剩**:SB-4(sidebar 段级折叠)、SC-5(Suggestions cadence prefill,跨 store/Modals)、SC-9(深链)、
   TH-3(Supervision 空态 236px)、TH-5(变更卡文件行不可点,依赖 RV 落地后的 `scrollToFile` 锚点)、
   TH-6/7/8(变更卡字形/失败态/预览行数)→ 下轮首选 TH-3 + TH-5/6/7(变更卡组)+ SB-4。
+
+- 2026-07-12 00:5x 轮21(headless)**5 条 ✅ — Supervision 静息塌陷 + 变更卡三修 + sidebar 段级折叠**。
+  比对 3 屏(thread / diff / home × light/dark × 1440/390)对 `codex-task-thread.jpg` /
+  `codex-crop-change-card.jpg` / `codex-crop-sidebar-projects.jpg`。并发派 3 个 implementer
+  (worktree 隔离、touches 白名单两两无交集)。关闭的可见差距:
+  **TH-3** — Supervision 静息面板不再用三个「什么都没有」的空态块(`Goal`/`Agents`/`Attention`,
+  **236px**)占掉面板 28% 高:空组直接不渲染,三者皆空时合并成**一条 27px dim 行**
+  `Nothing needs you`(兼作 inspect 在途占位,加载→静息高度不跳);有 goal / subagent /
+  approval 时各组照常(live 真机 `ar goal attach` 复验过 Goal 段 + settled 分支)。Run details 上移 209px。
+  **TH-6** — 变更卡与 Environment `Changes` 行的角标从 `GitDiff`(分叉箭头,读作"分支/合并")
+  改为 **±** 字形(timeline 卡手绘 24-grid `PlusMinusSquare`,Environment 行用 Phosphor `PlusMinus`;
+  仓库无 lucide-react,不为一个图标加依赖)。
+  **TH-7**(真 bug)— 变更卡拿不到 diff 时**整张卡无声蒸发**(用户以为这轮没改文件):改为显式三态
+  `loading | ready | error` —— 加载中出 skeleton(同高不跳动)、失败**保留卡壳** + `Couldn't load
+  changes` + `Retry ↻`(重发请求)、只有后端明确回「零改动」才不渲染。顺带修掉流式 refetch
+  (`refreshKey = events.length`)会让卡片频闪回 skeleton 的隐患。
+  **TH-8** — 折叠预览 6 行 → **3 行**,`Show N more files` 的 N = 总数 − 3。
+  **SB-4** — sidebar Projects 段从**127 组全渲染**(`.project-list` scrollHeight **10505px**)收成
+  **默认 8 组 / 776px**(`Show more · 119` / `Show less` 段级切换)+ **组头 chevron 折叠**
+  (persist 到 `ar.sidebar.collapsedProjects`,并与 server overlay 合流:overlay 优先、否则回落
+  本地镜像,冷启动首帧就正确)+ **当前会话所属组永远进渲染范围并强制展开**(超出上限则追加到尾部,
+  不在用户脚下重排前 8 行)。
+  push:`9e9d521`(TH-6/7/8)、`45e7071`(SB-4)、`037fc39`(TH-3/TH-6a)。
+  live=`index-DZa2Gr9X.js`;vitest **255/255 绿**;全景复验 3 屏 × light/dark × 1440/390
+  **console error+warning = 0**;截图 `qa/runs/2026-07-12-round21/{before,after}/`。
+  **开放 ☐ 剩**:SC-5(Suggestions cadence prefill,跨 store/Modals)、SC-9(`#/scheduled` 深链)、
+  TH-5(变更卡文件行不可点 → 需 diff 面板暴露 `scrollToFile(path)` 锚点)。
+
