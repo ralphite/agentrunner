@@ -897,7 +897,18 @@ skip link 之后到达 composer 需 Tab: 40 次
 | 静态资源缓存 | **无 Cache-Control / 无 ETag / 无 Last-Modified** → 每次访问 200 全量重传 |
 | `GET /`(index.html) | 0.8 ms |
 | `GET /api/health` | 29 ms |
-| `GET /api/sessions` | **242 ms**(中位/5 次)——侧栏首屏要等它 |
+| ~~`GET /api/sessions` 242 ms——侧栏首屏要等它~~ | ⚠️ **本行是误判,已由轮10 性能 finder 订正** |
+
+> **⚠️ baseline 订正(轮10 finder 实测)**:242ms 那个是**未分页**的 `/api/sessions`(152 KB),
+> **前端从不调用它**——`store.ts:163/335` 首屏拉的是 `?limit=40`(11.4 KB,**中位 ~65ms**)。
+> 侧栏首屏并不等 242ms。真正的洞是**别的**(见 PERF-4:7 个串行分页请求排成 604ms 瀑布)。
+> 教训:**量 API 要量前端真实调用的那个 URL,别对着裸端点拍脑袋。**
+
+> **⚠️ PERF-1 收益的诚实校准(轮10 finder 实测)**:loopback 上 895KB JS 的 resource timing
+> `duration = 4ms` —— **本地场景下 gzip 几乎省不了传输时间**。PERF-1 的真实价值是
+> ①**Cache-Control/ETag**(二次访问 200 全量 → 304 零字节,省掉重复传输**和重复 parse**)、
+> ②**远程/弱网访问**(1.03MB → 271KB 是实打实的)。而首屏那 **~94ms 的 JS eval**
+> (FCP 168ms − DCL 74ms)**gzip 治不了,要靠 PERF-3 的 code splitting**。别指望 gzip 改善本地 FCP。
 
 ### PERF-1 ✅ 静态资源零压缩、零缓存头:每次冷加载白下载 1.03 MB [P1]
 **behavior**:webui 每次冷加载实打实传输 895 KB JS + 134 KB CSS,而这两份 gzip 后只有
@@ -924,6 +935,106 @@ size_download=895097
 **刻意核查**:`git log -S"FileServer"` / `-S"Cache-Control"` 对 webui 无"故意不压缩/不缓存"
 的依据,注释里也只说 SPA fallback 语义 → **非刻意,是洞**。
 
+### PERF-2 ☐ 空闲的已完成会话页仍在 183 请求/分钟;`/events` 每秒 dump 整份 journal 只为返回 `[]` [P1]
+**behavior**:打开一个**已经跑完**的会话,什么都不做,浏览器每秒发 ~3 个请求;服务端每秒 fork 一次
+`ar`、读+序列化**整份 journal**(193 KB),然后返回 `[]`。会话永不会再变,机器却一直空转、风扇一直转。
+**证据**(富会话,严格 40s 空闲窗口,零交互 → **122 请求 = 183/min**):
+| 端点 | 频率 | 响应体 | 说明 |
+|---|---|---|---|
+| `/events` | 61.5/min(1.0s) | **3 B**(`[]`) | 但服务端每次都做**全量**工作 |
+| `/ps` / `/inspect` / `/queue` | 各 24/min(2.5s) | 3 B / 9.7 KB / 2 B | |
+| `/api/sessions` / `/api/runs` | 各 15/min(4s) | 11 KB / 3 B | |
+| `/api/health` / `/api/projects` | 12 / 7.5 per min | | |
+
+**关键实测**:`/events`(全量 193,500 B)耗时 26.4/27.8/26.4 ms,`/events?after=999999`(返回 `[]`)
+耗时 44/19/27/23/23 ms —— **两者几乎一样,证明服务端无论如何都做了全量工作**。主线程空闲开销
+19.1 ms script/s(对照 about:blank = 0)。
+**源码**:`webui/api.go:645` `s.runAR(ctx, 30s, "events", "--json", id)` —— **`after` 游标从不下传**,
+`api.go:656-663` 才在 Go 里逐行 `json.Unmarshal` 出 `seq` 然后丢弃;`SessionView.tsx:313`
+`setInterval(poll, 1000)`(而 `:320` 的 SSE `/stream` 已经在负责活跃会话了)。
+**约束**:`ar events` CLI 只有 `-json`/`-state`,**没有 `-after`**,所以 webui 想增量也要不到。
+**建议**(三选一或组合):(a) 给 `ar events` 加 `-after <seq>` 并透传;(b) **按 status 门控**——
+completed/failed 会话把 1s 轮询降到 30s 或停掉(**改动最小、收益最大,建议先做**);
+(c) webui 按 (sid, journal mtime+size) 缓存 folded journal。
+**预估收益**:空闲会话页 `/events` **60/min → ~2/min**,总请求 **183/min → ~35/min**,
+消掉 ~58 次 `ar` fork/min/tab 与 **~11 MB/min 的 journal 读+解析**。
+**touches**:`SessionView.tsx`(方案 b)/ `webui/api.go` + `ar events` CLI(方案 a)。
+**刻意核查**:`git log -S'"events", "--json", id'` → 只有 `8f817e3`(webui 初版)→ **非刻意,是遗留**。
+
+### PERF-3 ☐ 零 code splitting:895 KB 单 chunk,其中 92.6 KB gzip 首屏根本用不到 [P1]
+**behavior**:每次加载都要 parse+compile 895 KB JS 才出画面。首屏 FCP 168ms 里有 **~94ms 是
+JS eval**(FCP 168 − DCL 74)。而 loopback 传输只花 4ms —— 所以**这几乎全是 parse 成本,
+gzip(PERF-1)治不了它**。
+**证据**(finder 真跑 vite build,不是估算):
+| 组 | raw | **gzip** | 首屏必需? |
+|---|---|---|---|
+| `@phosphor-icons/react` | 260.0 KB | 53.8 KB | 部分 |
+| app 源码 | 240.0 KB | 74.0 KB | 部分 |
+| react-markdown + remark + micromark + unified | 155.7 KB | **47.0 KB** | ❌ 只在消息体渲染时用 |
+| react + react-dom | 142.0 KB | 45.5 KB | ✅ |
+| highlight.js + lowlight | 92.4 KB | **28.7 KB** | ❌ 只在代码块用 |
+
+**lazy-load 实测(真 build)**:仅把 `Markdown` 改 `lazy()` → entry **251.79 → 174.25 KB gz(−31%)**;
+再加 `Settings`/`Scheduled`/`CommandPalette`/`Shortcuts` → entry **159.23 KB gz(−36.8%,−92.6 KB)**。
+**源码**:`vite.config.ts:9`(无 `rollupOptions.manualChunks`)、`App.tsx:5-13`(4 个路由级组件全静态
+import)、`Markdown.tsx:3-6`(静态 import `react-markdown` + `./highlight`)。
+**touches**:`vite.config.ts` / `App.tsx` / `Markdown.tsx`(需 `<Suspense>` 兜底态)。
+**刻意核查**:`git log -S"manualChunks"` **零命中**,docs 里 `lazy|code split|chunk` 零命中 → **纯遗漏**。
+
+### PERF-4 ☐ 初次 hydration 把 455 个 session 排成 7 个串行请求(604ms 瀑布) [P2]
+**behavior**:home 首屏 `store.ts:341-347` 的 `for(;;)` 逐页 `await AR.sessions(80, offset)` 一直拉到
+拉空。455 个 session = 1 + 6 = **7 个串行请求**,每个都 fork 一次 `ar`。
+**证据**(playwright resource timing,home):session-list 请求依次落在 **t = 227 / 286 / 360 / 435 /
+504 / 559 ms**,各 45–75ms,**到 ~604ms 才收尾**。
+**源码**:`webui/frontend/src/store.ts:341-347`。
+**建议**:老页面**并发**拉(`Promise.all`),或干脆**别在 hydration 里拉全量**(侧栏每个 project 只显示
+6 条,还有搜索兜底)。**预估**:6 个请求并行 → **~370ms → ~75ms**。
+**touches**:`store.ts`。
+
+### PERF-5 ☐ 每个 webui 读接口都 fork 一个 40MB 的 `ar` 二进制(~20ms 地板价) [P2]
+**behavior**:所有读接口都付一笔 ~20ms 的进程 fork + daemon 往返税。单看不明显,被 1Hz/2.5s 轮询
+乘出来就是持续负载(实测**每秒 ~2 次 `ar` spawn,每个 tab**)。
+**证据**(同机同进程对照):**fork 的** `/api/health` 29–44ms · `/events` 20–27ms · `/ps` 18–27ms ·
+`/queue` 21–26ms · `/inspect` 22–39ms;**不 fork 的** `/api/runs` **0.6ms** · `/api/projects` **1.0ms**。
+**差 20–40 倍。**
+**源码**:`webui/ar.go:21-31` `runAR` → `exec.CommandContext(ctx, s.arPath, args...)`,被
+`api.go:302/645/674/688/733/1076/…` 调用。
+**建议**:webui **直连 daemon socket** 而非 shell out;或对读接口加 500ms–1s TTL 响应缓存
+(零协议改动,能把绝大多数轮询请求折叠掉)。**与 PERF-2 有协同**,建议先做 PERF-2。
+**touches**:`webui/ar.go` / `webui/api.go`。
+
+### PERF-6 ☐ Phosphor 每个 icon 打包 6 种 weight,app 只用 4 种 [P2]
+**behavior**:最大的单个依赖(占 gzip bundle 的 21%),其中一大半是永不渲染的字形。
+**证据**:`@phosphor-icons/react@2.1.10` = 260.0 KB raw / **53.8 KB gzip**;app 用了 64 个 icon。
+每个 icon 的 defs 模块(如 `defs/Check.es.js` = 1,825 B)含 **bold/duotone/fill/light/regular/thin
+六个 weight** 的 SVG Map,而 `grep -rn "weight=" src` 显示 app 只用 **regular/fill/bold/light** ——
+**thin 与 duotone 从未使用**,且 duotone 最胖(双 path + opacity)。
+**建议**:vite plugin/alias 重写 `dist/defs/*` 只保留 4 个 weight,或让稀有 icon 随 PERF-3 的 lazy
+chunk 走。**预估省 15–20 KB gzip 首屏**。
+**刻意核查**:`git log -S"@phosphor-icons"` → `8d1edab`(Codex UX 重建)。**选这个库是刻意的**,
+但"打进 6 个 weight"只是默认行为、不是决策 → 可改。
+
+### PERF-7 ☐ 侧栏占 87% 的 DOM(3,595 / 4,154 节点),无虚拟化也无 memo [P3]
+**证据**(富会话页):`document.querySelectorAll('*').length = 4,154`,`aside.sidebar` 内 **3,595** 个,
+timeline 只有 445 个。侧栏已有每 project cap=6(`viewModels.ts:46`)+ "Show N more",但 455 个 session
+摊到多个 project 上总量仍巨大。
+**但必须说清(finder 主动澄清,防止误派工)**:20s 空闲窗口(含 5 次 `/api/sessions` 刷新)
+MutationObserver 记录 **0 次 DOM mutation** —— React 协调后是 no-op,**没有 DOM churn、没有 layout
+thrash**。所以这是**初次渲染 / 内存重量**问题,**不是 jank 问题** → 判 P3。
+**建议**:侧栏行组件加 `React.memo`(避免 4s 刷新时白跑 455 次 render 函数);折叠区不挂载 DOM。
+**touches**:`Sidebar.tsx`。
+
+### ✂ 轮10 性能 finder 主动排除的假阳性(**别派 implementer 去改**)
+- **✂ Timeline 列表虚拟化 —— 不需要**。滚完富会话整条 timeline(4,252px)实测:中位帧 **17.1ms**、
+  p95 35.3ms、**超 50ms 的帧 = 0**;3s 滚动 ScriptDuration 仅 33ms。且 Timeline 本就在截断
+  (`Timeline.tsx:190/441` `.slice(0,20000)`、`:330` `.slice(0,40)`、`:357` `.slice(0,12)`)。
+  要出真 jank 得再长一个数量级。
+- **✂ "markdown 每秒 re-parse / 每帧重算" —— 不成立**。`SessionView.tsx:381-385` 的
+  `setInterval(()=>setNow(Date.now()),1000)` **有守卫** `if (!goalState || goalTerminal) return;`
+  —— 已完成会话根本不启动这个 tick;`folded` 也已 memo(`:363`)。**这是刻意且正确的设计。**
+- **✂ 首屏 long task —— 没抓到可靠信号**。`PerformanceObserver({type:'longtask',buffered:true})`
+  覆盖首 3.5s:home 5 次里 4 次为 **0 个**,rich 5 次里 4 次为 **0 个**。不足以作为改进依据。
+
 ## A 相 · 轮10 axe 扫描新发现(A11Y-8..10)
 
 轮10 巡检用 axe-core(WCAG 2.0/2.1 A+AA + best-practice)扫 home/rich/changes/scheduled 四页,
@@ -947,7 +1058,7 @@ fg=#737373  bg=#f7f7f8  →  contrastRatio = 4.42 : 1   (需 4.5:1)
 **没量过**而非有意取舍 → **非刻意,是洞**。
 **touches**:CSS 变量定义处(待定位)/ `styles.nav.css` / `styles.css`。
 
-### A11Y-9 ☐ `<html lang="zh-CN">` 但整个 UI 是英文:屏幕阅读器用中文语音读英文 [P2]
+### A11Y-9 ✅ `<html lang="zh-CN">` 但整个 UI 是英文:屏幕阅读器用中文语音读英文 [P2]
 **behavior**:`index.html` 声明 `lang="zh-CN"`,而 webui 的界面文案**全是英文**(New task /
 Projects / Ask to approve …)。屏幕阅读器会据此挑**中文语音引擎**去读英文单词,发音不可懂;
 搜索引擎与翻译工具也会误判。这是"一行 attribute 毁掉整个 a11y 语音层"的典型。
@@ -1128,3 +1239,17 @@ changes 页两个 `<aside class="sidebar">` **重名地标**无法区分。
     skip link 锚点成立但没顺带补地标。
   axe 脚本归档 `qa/runs/2026-07-11-QA43-endgame/scripts/axe_r10.py`(axe.min.js 由
   `npm i axe-core --no-save` 装到 /tmp,**不污染仓库依赖**)。dark 主题的对比度**尚未扫**,下轮补。
+
+- 2026-07-11 轮10(补记·性能 finder 收割):轴B 性能镜头 finder(read-only)交回 **7 条 findings +
+  4 条主动排除的假阳性**,全部带实测数字与 file:line → 登记 **PERF-2..PERF-7**(见 P 相)。
+  **两处订正了我(主驾驶)巡检时的判断,值得记住**:
+  1. **baseline 的 242ms 是误判**:那是**未分页**的 `/api/sessions`(152KB),**前端从不调用**;
+     首屏真正调的是 `?limit=40`(11.4KB,**~65ms**)。**量 API 要量前端真实调用的那个 URL。**
+  2. **PERF-1 的收益要诚实校准**:loopback 上 895KB JS 的 resource timing `duration=4ms`,
+     **本地 gzip 几乎省不了传输时间**;PERF-1 的真价值是 **ETag/304 + 远程弱网**。首屏那
+     **~94ms JS eval** 得靠 **PERF-3 code splitting**(实测可减 92.6KB gz / −36.8%)才治得了。
+  最猛的一条是 **PERF-2 [P1]**:空闲的**已完成**会话页仍在 **183 请求/分钟**,其中 `/events`
+  每秒 fork 一次 `ar`、dump 整份 journal(193KB)**只为返回 `[]`**(实测全量与空返回耗时**相同**
+  → 服务端无论如何都做全量工作)。方案 (b) 按 status 门控轮询改动最小、收益最大。
+  **A11Y-9 ✅ 本轮顺手做掉**(主线亲手,1 行):`index.html` `lang="zh-CN"` → `"en"`,dist 干净重建 +
+  部署 + live 复验 `lang="en"`。push=2decfc4。
