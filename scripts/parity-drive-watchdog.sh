@@ -45,3 +45,18 @@ else
     log "cannot bootstrap: $PLIST missing (and no .stopped to restore)"
   fi
 fi
+
+# 4) 剪枝 implementer worktree(防无界堆积)。每个 implementer 用 isolation:worktree,
+#    提交后有改动、不会被自动回收,会无界堆积(实测曾到 91 个 / 11GB,险些撑爆盘)。
+#    删 dir-mtime >60min 的:in-flight implementer 只跑几分钟,>60min = 早完事已 push,
+#    60min 阈值绝不误删在跑的;删掉不丢数据(commit 都在 origin/main)。
+REPO=/Users/yadong/dev2/agentrunner
+WT="$REPO/.claude/worktrees"
+if [ -d "$WT" ]; then
+  n=$(find "$WT" -maxdepth 1 -mindepth 1 -type d -mmin +60 2>/dev/null | wc -l | tr -d ' ')
+  if [ "$n" -gt 0 ]; then
+    find "$WT" -maxdepth 1 -mindepth 1 -type d -mmin +60 -exec rm -rf {} + 2>/dev/null
+    git -C "$REPO" worktree prune 2>/dev/null
+    log "pruned $n idle implementer worktrees (dir mtime >60min)"
+  fi
+fi
