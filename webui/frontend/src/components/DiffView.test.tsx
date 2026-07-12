@@ -171,7 +171,7 @@ describe("Changes toolbar fits its panel (INC-41 DF-1)", () => {
 // *conversation* has had a Wrap toggle all along. Same product, two long-line
 // policies. The rail carries the switch now, with the same aria-pressed contract
 // as Markdown's CodeBlock; the wrapping itself is one class on .diffwrap
-// (styles.diff.css), so it applies to inline rows, split halves and hunk headers
+// (tw.css), so it applies to inline rows, split halves and hunk headers
 // at once.
 describe("Diff line wrap (INC-41 DF-4)", () => {
   beforeEach(() => localStorage.clear());

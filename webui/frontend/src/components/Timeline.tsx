@@ -52,7 +52,6 @@ import { Markdown } from "./Markdown";
 import { copyText } from "../clipboard";
 import { sessionImageURL, uploadURL } from "../api";
 import { Lightbox } from "./Lightbox";
-import "../styles.conv.css";
 
 // absTime renders an event timestamp for hover titles: local, second-precise.
 function absTime(ts?: string): string | undefined {
@@ -153,7 +152,7 @@ function Thumbs({ paths, fallback }: { paths: string[]; fallback?: ReactNode }) 
 // TH-21: the row is HOVER-ONLY on every message except the thread's last
 // assistant answer, which keeps it at rest — that is the one row Codex draws
 // persistently. Both switches are CSS, keyed off the `.msg-last` class this file
-// puts on that message (see the TH-21 block in styles.conv.css):
+// puts on that message (see the TH-21 block in tw.css):
 //   • the row itself: opacity 0 at rest on every `:not(.msg-last)` message;
 //   • the timestamp: hidden on `.msg-last`, because the gold master's persistent
 //     row is `⧉ 👍 👎 ↗ │ ⊘ Goal achieved in 3h 47m 26s` and carries no time.
@@ -203,7 +202,7 @@ function MsgActions({
       {goalVerdict && (
         <>
           {/* Divider + verdict — Codex appends the goal outcome to the final
-              answer's action row. The divider is styled in styles.conv.css (NOT
+              answer's action row. The divider is styled in tw.css (NOT
               inline): at rest the icons are hidden, and a separator with nothing
               to separate must collapse with them (TH-1). */}
           <span className="msg-actions-div" aria-hidden="true" />
@@ -876,12 +875,12 @@ function Item({ it, sentImages, onContinue, goalVerdict, last }: { it: TimelineI
     }
     case "assistant":
       // N4: an assistant answer renders as prose, not a chat bubble — no robot
-      // avatar. (The bubble border removal is styles.css = deferred.)
+      // avatar. (The bubble border removal is handled in tw.css.)
       //
       // TH-21: `.msg-last` marks the thread's final assistant answer. It is the
       // ONE message whose action row Codex keeps at rest, so the class is what
       // (a) exempts the row from the hover-only rule and (b) drops its timestamp
-      // — both in styles.conv.css. The absolute time stays on every `.msg`'s
+      // — both in tw.css. The absolute time stays on every `.msg`'s
       // `title`, so hovering a message still tells you when it landed.
       return (
         <div className={"msg assistant" + (last ? " msg-last" : "")} title={absTime(it.ts)}>

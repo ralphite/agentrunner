@@ -257,7 +257,7 @@ const baseComponents: Components = {
       <table className="cx-table">{children}</table>
     </div>
   ),
-  // Reuse the existing markdown class names so styles.css / styles.conv.css keep
+  // Reuse the existing markdown class names so tw.css keeps
   // styling these elements exactly as before (visual parity with the old parser).
   p: ({ children, node }) =>
     imageOnlyParagraph(node) ? <div className="md-img-grid">{children}</div> : <p className="md-p">{children}</p>,

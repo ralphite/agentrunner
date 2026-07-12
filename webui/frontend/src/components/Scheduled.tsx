@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import type { Icon } from "@phosphor-icons/react";
 import { CalendarDots, Plus, MagnifyingGlass, Check, CaretDown, Crosshair, ArrowsClockwise, Stack, Play, Bell, Notebook, FileMagnifyingGlass, Circle, PlayCircle, PauseCircle, CheckCircle, WarningCircle, DotsThree, PushPin } from "@phosphor-icons/react";
-import "../styles.scheduled.css";
 import { useStore } from "../store";
 import { AR } from "../api";
 import { friendlyStatus } from "./pill";

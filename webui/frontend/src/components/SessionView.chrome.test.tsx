@@ -189,7 +189,7 @@ describe("TH-15 · one rail, one name, one door", () => {
 // It used to be a 288px grid track: opening it re-laid-out the conversation
 // (main 1176→888, the thread's text column sliding 144px left) — a glance at the
 // environment moved the sentence you were reading. The rail is `position:absolute`
-// now (styles.panel.css) and the layout stays on its single-column track whether
+// now (tw.css) and the layout stays on its single-column track whether
 // the rail is open or shut. The Changes review pane keeps its real split.
 describe("RD-B · opening the rail does not re-lay-out the thread", () => {
   it("keeps the single-column track while the Environment rail is open", async () => {

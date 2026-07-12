@@ -13,7 +13,7 @@ import { Check } from "@phosphor-icons/react";
 // so any ancestor that scrolls cuts the menu in half — and a clipped menu is not
 // merely invisible, it is *unclickable* (`elementFromPoint` lands on whatever is
 // behind it). Round 36 turned the Environment rail into a floating card with
-// `overflow: auto` (styles.panel.css) and instantly ate 125px — 56% — of the
+// `overflow: auto` (tw.css) and instantly ate 125px — 56% — of the
 // `Commit or push` menu it hosts: two of the three git actions could not be
 // reached. `.diffwrap` / `.timeline` are the same trap waiting to spring.
 // `position: fixed` takes the viewport as its containing block, so no ancestor
@@ -22,7 +22,7 @@ import { Check } from "@phosphor-icons/react";
 // Why fixed *in place* rather than a `createPortal` to <body>: the panel keeps
 // its DOM home, so the cascade it was authored against keeps applying —
 // ancestor-scoped rules (`.home.home-welcome .cx-project-popover` &c. in
-// styles.css size the New-task project picker) and inherited type/colour would
+// tw.css sizes the New-task project picker) and inherited type/colour would
 // silently drop off a portaled node, and every popover would have to re-earn
 // them. Fixed-in-place changes exactly one thing (the containing block); the
 // stacking context, the CSS context and the focus/click plumbing are untouched.

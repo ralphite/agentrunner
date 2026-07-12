@@ -202,7 +202,7 @@ function ArtifactRow({ sid, file, ext, label, divider }: { sid: string; file: Fi
                 so this bare full-bleed button used to cover the entire viewport in
                 flat white — grey (#f4f4f4) once the cursor landed on it after the
                 click. The whole app read as "crashed". `bg-transparent border-0` is
-                load-bearing; styles.css carries a matching net for future scrims. */}
+                load-bearing; tw.css carries a matching net for future scrims. */}
             <button type="button" className="fixed inset-0 z-[5] cursor-default bg-transparent border-0" aria-hidden="true" tabIndex={-1} onClick={() => setOpen(false)} />
             <div
               className="fixed z-10 flex flex-col min-w-[160px] py-[4px] rounded-[8px] border border-line bg-panel shadow-lg"
@@ -470,7 +470,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
             // THAT file?") had no answer but "find it yourself in the panel".
             // It's a `div[role=button]` rather than a `<button>` because the row's
             // whole layout — 38px beat, the path's flex:1 ellipsis, the right-set
-            // ± column — hangs off `.changes-outcome-files > div` in styles.css,
+            // ± column — hangs off `.changes-outcome-files > div` in tw.css,
             // and `> button` is already spoken for by the "Show N more" row.
             const open = () => {
               focusDiffFile(file.path); // DiffView expands + scrolls to it
@@ -506,7 +506,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
             );
           })}
           {summary.files.length > PREVIEW_CAP && (
-            // INC-41 TR-4 — this toggle is one more ROW of the list (styles.css
+            // INC-41 TR-4 — this toggle is one more ROW of the list (tw.css
             // gives it the file row's height and left inset, and the full row as
             // hit target), so it carries no inline layout of its own. And it
             // counts: 4 files behind a cap of 3 used to read "Show 1 more files".

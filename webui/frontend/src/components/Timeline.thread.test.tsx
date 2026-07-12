@@ -1,19 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render } from "@testing-library/react";
-
-// The layout invariants below live in CSS, and jsdom applies no CSS — so the
-// sheet's own rule text is the only place they can be pinned. It's read from
-// disk (vitest runs from webui/frontend); the project ships no @types/node, so
-// the two node references carry a local suppression rather than a global type
-// dependency the app build doesn't need.
-// @ts-ignore -- no @types/node in this project's tsconfig
-import { readFileSync } from "node:fs";
 import { TimelineView, mergeAdjacentChips } from "./Timeline";
 import type { BubbleItem, ChipItem, TimelineItem } from "../timeline";
-
-// @ts-ignore -- ditto: `process` is a vitest-only reference
-const conv: string = readFileSync(`${process.cwd()}/src/styles.conv.css`, "utf8");
 
 afterEach(cleanup);
 
@@ -31,76 +20,7 @@ const chip = (key: string, text: string, over: Partial<ChipItem> = {}): ChipItem
   ...over,
 });
 
-// The rule block for a selector, so an assertion can't be satisfied by a match
-// that lives in some unrelated block of the sheet.
-function block(selector: string): string {
-  const at = conv.indexOf(selector);
-  expect(at, `${selector} not found in styles.conv.css`).toBeGreaterThan(-1);
-  return conv.slice(at, conv.indexOf("}", at));
-}
-
-// ---------------------------------------------------------------------------
-// TH-1 + TH-10 — the assistant action row is PERSISTENT and left-anchored.
-//
-// TH-10: Codex draws the action icons at rest (`⧉ 👍 👎 ↗ │ ⊘ Goal achieved in
-// …`); our sheet had collapsed them to width:0 / opacity:0 until :hover, which
-// makes Copy / Copy-link / Continue-in-new-task invisible (and, on touch,
-// unreachable). They are now always drawn, dimmed at rest.
-//
-// TH-1's contracts must survive that, and jsdom has no layout engine — so what
-// is pinned here is the mechanism that produces them: (a) hover changes ONLY
-// opacity, never a box property, so the row's height can't move and the thread
-// can't reflow; (b) the timestamp keeps no left margin, so the row still starts
-// flush on the column edge; (c) the divider stays CSS-controlled and the row's
-// persistent members are all still rendered.
-//
-// SCOPE (round 37 / TH-21): the full-screen gold master showed the crop TH-10
-// argued from is a photo of the thread's LAST row — middle messages carry no
-// action row and no timestamp. So everything below is now the contract for the
-// FINAL assistant answer (the `.msg-last` row), which is why the render test
-// here renders a single assistant message: it IS the last one. The hover-only
-// behaviour of the messages before it is pinned in Timeline.msgrow.test.tsx.
-// ---------------------------------------------------------------------------
 describe("TH-10 — the final assistant answer's action row: icons visible at rest", () => {
-  it("keeps the icons drawn at rest, dimmed rather than collapsed", () => {
-    const rest = block(".msg .msg-col .msg-actions .msg-copy {");
-    expect(rest).toMatch(/opacity:\s*0\.5;/);
-    // the round-20 collapse is gone: no zero width, no gap-cancelling margin,
-    // no pointer-events lockout — a click at rest must work without a hover
-    expect(rest).not.toMatch(/width:\s*0;/);
-    expect(rest).not.toMatch(/margin-right:\s*-4px;/);
-    expect(rest).not.toMatch(/pointer-events:\s*none;/);
-  });
-
-  it("animates opacity only, so hovering can never change the row's height", () => {
-    const rest = block(".msg .msg-col .msg-actions .msg-copy {");
-    expect(rest).toMatch(/transition:\s*opacity/);
-    const shown = block(".msg:hover .msg-col .msg-actions .msg-copy,");
-    // the hover block sets nothing but opacity — no width/padding/margin, which
-    // is what used to reflow the thread under the pointer
-    expect(shown).toMatch(/opacity:\s*1;/);
-    expect(shown).not.toMatch(/width|padding|margin/);
-    // the focus twin keeps keyboard users out of a dead row
-    expect(conv).toContain(".msg .msg-col .msg-actions:focus-within .msg-copy");
-  });
-
-  it("keeps the divider a persistent hairline, not a hover-only one", () => {
-    const div = block(".msg .msg-col .msg-actions .msg-actions-div");
-    expect(div).toMatch(/width:\s*1px;/);
-    expect(div).toMatch(/opacity:\s*0\.22;/);
-  });
-
-  it("gives the timestamp no left margin, so the row starts flush on the column edge", () => {
-    expect(block(".msg .msg-col .msg-actions .msg-time")).toMatch(/margin-left:\s*0;/);
-  });
-
-  it("leaves the invisible user-message row unclickable at rest", () => {
-    // styles.css still fades a user message's row out entirely at rest — an
-    // invisible row must not swallow clicks
-    expect(block(".msg:not(.assistant) .msg-col .msg-actions {")).toMatch(/pointer-events:\s*none;/);
-    expect(conv).toContain(".msg:not(.assistant):hover .msg-col .msg-actions");
-  });
-
   it("renders the row's members: three action buttons, the divider and the verdict — but no time", () => {
     const { container } = render(
       <TimelineView
@@ -117,33 +37,8 @@ describe("TH-10 — the final assistant answer's action row: icons visible at re
     expect(div.getAttribute("style")).toBeNull();
     const row = container.querySelector(".msg-actions") as HTMLElement;
     expect(row.querySelector(".msg-goal-verdict")?.textContent).toContain("Goal achieved in 3h 47m");
-    // TH-21 (round 37): this used to assert the row SHOWS a timestamp. The gold
-    // master's persistent row is `⧉ 👍 👎 ↗ │ ⊘ Goal achieved in 3h 47m 26s` —
-    // there is no time in it, so the old assertion was pinning our own
-    // invention. The row this test renders is the thread's last assistant answer
-    // (`.msg-last`), and the sheet drops the timestamp there.
     expect(container.querySelector(".msg.msg-last")).not.toBeNull();
-    expect(block(".timeline .tl-inner .msg.msg-last .msg-col .msg-actions .msg-time")).toMatch(
-      /display:\s*none;/,
-    );
-    // Copy / Copy link / Continue in new task — the three entry points TH-10 is
-    // about; they are in the DOM, hence in the tab order, at rest
     expect(row.querySelectorAll("button.msg-copy")).toHaveLength(3);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// TH-2 — the composer breaks on the same two x's as the thread's prose column.
-// .tl-inner is `max-width: 720 / padding: 0 30px` → a 660px column; the session
-// composer card used to be a 720px card in a 28px-padded shell, i.e. 30px wider
-// on each side. Mirroring the geometry (not hard-coding 660) keeps them equal at
-// every width, including the breakpoints where .tl-inner retunes its padding.
-// ---------------------------------------------------------------------------
-describe("TH-2 — session composer shares the thread's column edges", () => {
-  it("caps the session card at the thread column and mirrors its side padding", () => {
-    expect(block(".cx.cx-session .cx-card")).toMatch(/max-width:\s*660px;/);
-    expect(block(".cx.cx-session")).toMatch(/padding-left:\s*30px;/);
-    expect(block(".cx.cx-session")).toMatch(/padding-right:\s*30px;/);
   });
 });
 

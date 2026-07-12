@@ -31,7 +31,6 @@ import type { DiffResp, DiffScope } from "../types";
 import { parseFileDiff, defaultOpenByPath, splitDiff, splitPath, splitRows, highlightLine, hunkGaps, trailingGapKey, langFromPath, type ContextGap, type DiffRow, type FileDiffSummary, type FileStatus, type ParsedFileDiff } from "../diffSummary";
 import { Popover, PopItem, PopSection } from "./Popover";
 import { useWorktreeActions } from "./worktreeActions";
-import "../styles.diff.css";
 
 // renderCode turns one diff line into syntax-highlighted spans (INC-41 D3).
 // Tokens are dependency-free and byte-exact, so `white-space: pre` alignment is
@@ -194,7 +193,7 @@ const saveScope = (s: DiffScope) => {
 //      thing hanging off the end was the ✕ — measured at x=1051.9 against a panel
 //      whose right edge is 1024 (qa/runs/2026-07-12-r33/after-rd89/before.json).
 //      The user could read the diff and not close it. Every control on this bar
-//      is `flex: 0 0 auto` (styles.css), so flexbox does not solve this for us:
+//      is `flex: 0 0 auto` (tw.css), so flexbox does not solve this for us:
 //      the row has to be *short enough*, which means the low-frequency controls
 //      have to leave it. The ✕ is last and unshrinkable, always.
 //
@@ -256,7 +255,7 @@ function FileHead({
           line `A bin/ar [binary]`. Behind the elastic gap they ended up ~475px
           from the filename, hard against the panel's right edge, where they read
           as a column of their own belonging to nothing in particular. The gap
-          (.fd-spacer, not .fd-path — styles.panel.css overrides styles.css's
+          (.fd-spacer, not .fd-path — tw.css keeps the path from stretching
           `.fd-path{flex:1}`) now sits last and simply absorbs the leftover. */}
       {badges
         .filter((b) => !GLYPH_BADGES.has(b))
@@ -370,7 +369,7 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
   const effView = narrow || barTight ? "inline" : view;
   // DF-1 · the review rail is ~56% of the window, so below ~1400px the worktree
   // chip's text is the first thing with nowhere to go. It shrinks (never its
-  // neighbours — see .diffwrap .diffbar in styles.css), and here it stops being
+  // neighbours — see .diffwrap .diffbar in tw.css), and here it stops being
   // a half-word clipped mid-glyph and becomes an honest icon-only chip; the full
   // "worktree of <repo> · <branch>" stays one hover away in its title.
   const [chipCompact, setChipCompact] = useState(() => window.matchMedia("(max-width: 1400px)").matches);
@@ -579,7 +578,7 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
   //
   // INC-41 RD-8 · it is also the panel's only exit, so it is the *last* thing on
   // the bar and the one control that may never be shrunk, wrapped or pushed off
-  // the edge (`.diff-closebtn`, styles.rs.css). Everything above it that could
+  // the edge (`.diff-closebtn`, tw.css). Everything above it that could
   // cost it its 28px stands down first.
   const closeBtn = onClose ? (
     <button
@@ -1532,7 +1531,7 @@ function FileBody({
     // caret the way a row holds its number), and its label starts exactly where
     // the code column does. It used to be a `px-[10px]` flex row aligned with
     // neither, which read as a button bolted onto the diff rather than a fold in
-    // it — Codex's band is a line of the file. Geometry lives in styles.diff.css
+    // it — Codex's band is a line of the file. Geometry lives in tw.css
     // (`.fd-gap`), because `5ch` only agrees with `.dl`'s gutter if the two
     // inherit the same mono font and size from `.fd-body`.
     return (

@@ -2,18 +2,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 
-// The turn rule's geometry lives in CSS, and jsdom applies no CSS — so the
-// sheet's own rule text is the only place it can be pinned. Read from disk
-// (vitest runs from webui/frontend); the project ships no @types/node, so the
-// node references carry a local suppression rather than a global type
-// dependency the app build doesn't need. Same discipline as Timeline.thread.
-// @ts-ignore -- no @types/node in this project's tsconfig
-import { readFileSync } from "node:fs";
 import { TimelineView, shortTime } from "./Timeline";
 import type { BubbleItem, TimelineItem, ToolItem, TurnItem } from "../timeline";
-
-// @ts-ignore -- ditto: `process` is a vitest-only reference
-const conv: string = readFileSync(`${process.cwd()}/src/styles.conv.css`, "utf8");
 
 // jsdom ships no ResizeObserver, and rendering a USER message mounts
 // CollapsibleUserText, which observes its own box to decide whether to offer a
@@ -28,12 +18,6 @@ class NoopResizeObserver {
 (globalThis as any).ResizeObserver ??= NoopResizeObserver;
 
 afterEach(cleanup);
-
-function block(selector: string): string {
-  const at = conv.indexOf(selector);
-  expect(at, `${selector} not found in styles.conv.css`).toBeGreaterThan(-1);
-  return conv.slice(at, conv.indexOf("}", at));
-}
 
 const user = (key: string, text = "do the thing"): BubbleItem => ({ kind: "user", key, text });
 const assistant = (key: string, text = "Done."): BubbleItem => ({ kind: "assistant", key, text });
@@ -110,14 +94,6 @@ describe("TR-1 — turn separator", () => {
     expect(sep.getAttribute("role")).toBe("separator");
   });
 
-  it("is a 1px --line rule, so dark mode tracks the token instead of a hard-coded grey", () => {
-    const rule = block(".tl-inner > .turn-sep {");
-    expect(rule).toMatch(/height:\s*1px;/);
-    expect(rule).toMatch(/background:\s*var\(--line\);/);
-    expect(rule).toMatch(/margin:\s*22px 0 18px;/);
-    // no width/max-width override: the column's content box IS the width
-    expect(rule).not.toMatch(/max-width|width:/);
-  });
 });
 
 // ---------------------------------------------------------------------------

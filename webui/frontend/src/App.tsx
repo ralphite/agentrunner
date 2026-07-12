@@ -16,7 +16,6 @@ import { quickSwitchTasks } from "./viewModels";
 import { applyAppearance, loadAppearance } from "./theme";
 import { normalizeRoute } from "./routeHash";
 import { SidebarSimple } from "@phosphor-icons/react";
-import "./styles.rs.css";
 
 export function App() {
   const { currentSid, currentRunId, currentPage, refreshHealth, refreshSessions, refreshRuns, refreshProjects, select, selectRun, showPage } =

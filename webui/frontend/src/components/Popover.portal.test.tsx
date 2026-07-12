@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { Popover, PopItem } from "./Popover";
 
 // INC-41 ENV-CLIP — round 36 turned the Environment rail into a floating card
-// with `overflow: auto` (styles.panel.css). The `Commit or push` menu it hosts
+// with `overflow: auto` (tw.css). The `Commit or push` menu it hosts
 // was an absolutely positioned *descendant* of that card, so the card's overflow
 // box cut 125px — 56% — off it: `Commit & push` and `Push` were not merely
 // half-drawn, they were unclickable (elementFromPoint landed on the timeline

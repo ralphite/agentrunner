@@ -1,5 +1,4 @@
 import { ArrowLeft, MagnifyingGlass } from "@phosphor-icons/react";
-import "../styles.conv.css";
 
 // INC-41 L2 · A session id that the daemon doesn't know (typo'd deep link,
 // deleted store, stale bookmark) used to render a fully functional-looking

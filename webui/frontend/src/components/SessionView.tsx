@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Archive, ArrowClockwise, ArrowLeft, ChatCircle, CheckCircle, Code, Crosshair, DotsThree, Files, Flag, GitFork, LinkSimple, Pause, PencilSimple, Play, Prohibit, PushPin, Robot, SidebarSimple, SlidersHorizontal, Stop, Trash, WarningCircle, X, XCircle } from "@phosphor-icons/react";
-import "../styles.panel.css";
 import { AR } from "../api";
 import { useStore } from "../store";
 import type { Envelope, Task } from "../types";
@@ -724,7 +723,7 @@ export function SessionView({ sid }: { sid: string }) {
         )}
         <div className="tt-left">
           {/* N-parity: the task title is prose, no leading file icon (weight
-              change is styles.css = deferred). */}
+              change is handled in tw.css). */}
           <div className="tt-title" title={`${sessions.find((s) => s.id === sid)?.title || title}\n${sid}`}>{title}</div>
           {isSub && <span className="readonly-tag">Read-only subtask</span>}
         </div>
@@ -843,7 +842,7 @@ export function SessionView({ sid }: { sid: string }) {
         <FindBar scope={() => document.querySelector<HTMLElement>(".timeline")} onClose={() => setFindOpen(false)} />
       )}
       {/* INC-41 RD-B · the Environment rail no longer owns a layout column. It's a
-          floating card now (styles.panel.css), so the thread keeps the full width
+          floating card now (tw.css), so the thread keeps the full width
           whether the rail is open or shut — opening it used to shove the column
           the user was mid-sentence in 144px to the left. Changes (`view==="diff"`)
           is untouched: a review surface genuinely needs half the window, and gets

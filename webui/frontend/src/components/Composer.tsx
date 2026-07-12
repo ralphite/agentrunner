@@ -28,7 +28,6 @@ import {
   WarningCircle,
   X,
 } from "@phosphor-icons/react";
-import "../styles.composer.css";
 import { AR, uploadURL } from "../api";
 import { useStore } from "../store";
 import {
@@ -1332,7 +1331,7 @@ export function Composer(props: ComposerProps) {
                 · Agent — one drill-in row showing the current persona; the five
                   personas and the raw-YAML editor live on the second page.
               Titles and their gray descriptions share ONE line (see
-              .cx-add-menu in styles.composer.css). */}
+              .cx-add-menu in tw.css). */}
           <Popover
             align="left"
             panelClass="cx-pop-codex"

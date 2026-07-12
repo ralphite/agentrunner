@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import "../styles.nav.css";
 import {
   Archive as ArchiveBox,
   ArrowSquareOut,
@@ -423,7 +422,7 @@ export function Sidebar({ onNavigate, onOpenPalette, onOpenSettings }: {
                   {/* SB-4 · the caret is the affordance: the heading is a
                       collapse control, and Codex's group rows say so.
                       SB-6 · caret and folder share one absolutely-positioned
-                      slot in the left gutter (see styles.nav.css) so the group
+                      slot in the left gutter (see tw.css) so the group
                       name's text lands on the same column as the task titles
                       nested under it; the folder rests there and the caret
                       takes the slot on hover/focus. */}
