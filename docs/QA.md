@@ -1242,3 +1242,23 @@ README.md）。live regression `TestLiveThinkingStarvation`（-tags live）。
 `TestToParamsThinkingCapTooSmall` / live `TestLiveThinkingStarvation`。诚实边界：
 gemini-flash-latest 被给 tool 时自适应缩短思考、通常自保，故本修复是**结构性
 保证**（不依赖模型自适应）+ 移除 unbounded 路径。测试 session 保留不删。
+
+---
+
+## QA-62 审批常设应答（INC-62,G35,UJ-08/18）
+
+**环境**：私有 daemon + 私有 XDG_DATA_HOME/XDG_CONFIG_HOME（场景写 user
+配置，不碰真实 ~/.config，同 QA-26 理由）+ 真实 Gemini。可在 GitHub
+Actions runner 执行（workflow `qa-inc62`，repo secrets 供
+GEMINI_API_KEY）；journal 导出归档 `qa/runs/<日期>-QA62/`。脚本
+`qa/run-qa62.sh`。
+
+| # | 真实动作 | 硬断言 |
+|---|---|---|
+| 1 | mode default、无 rules 的编排 spec，一条消息要求起 3 个 worker（background） | 第一个 spawn_agent 落 `approval_requested`（execute 类 mode default ask） |
+| 2 | `ar approve <sid> <apid> approve --always` 一次 | 后续 spawn 静默：`spawn_requested ≥ 3` 且 `approval_requested == 1`——三连 spawn 只问一次（G35 现场的反向断言） |
+| 3 | 同 journal 审计链 | 至少一条 `effect_resolved` 判词含 "standing approval"（免问有名有据） |
+| 4 | 写回检查 | user 配置获得 tool 级 `spawn_agent` allow 规则 |
+| 5 | 全新 session 2 起 1 个 worker | `spawn_requested ≥ 1` 且 `approval_requested == 0`（写回规则次 session 生效） |
+
+**判绿即**：GAPS G35 与 SPEC「审批'允许且不再问'」行回 ✅。
