@@ -1,0 +1,83 @@
+# 黑盒 UI QA——真浏览器驱动真 webui(真 Gemini turn),像用户一样走主
+# journey,每步断言:无 console 错误、无原始内部错误文案、无横向溢出,
+# 全程截图。发现即 findings.json + artifact;非零退出 = 有 bug。
+#
+# 用法:Actions → qa-blackbox → Run workflow。
+name: qa-blackbox
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qa-blackbox
+  cancel-in-progress: true
+
+jobs:
+  blackbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webui/frontend/package-lock.json
+
+      - name: Build ar + arwebui + frontend
+        run: |
+          go build -buildvcs=false -o bin/ar ./cmd/agentrunner
+          (cd webui/frontend && npm ci --silent && npm run build)
+          (cd webui && go build -buildvcs=false -o ../bin/arwebui .)
+          (cd qa/blackbox && npm install --silent)
+
+      - name: Start webui (spawns daemon)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          export PATH="$PWD/bin:$PATH"
+          nohup bin/arwebui -addr 127.0.0.1:8788 -ar bin/ar >webui.log 2>&1 &
+          for i in $(seq 1 50); do
+            curl -sf -o /dev/null http://127.0.0.1:8788/ && break; sleep 0.3
+          done
+          curl -sf -o /dev/null http://127.0.0.1:8788/ || { cat webui.log; exit 1; }
+
+      - name: Drive black-box journeys
+        shell: bash
+        env:
+          # runner 预装 Chrome;pkill -x 精确匹配进程名 ar,不会自杀
+          CHROME_PATH: /usr/bin/google-chrome
+          DAEMON_KILL_CMD: pkill -x ar || true
+        run: |
+          cd qa/blackbox
+          node drive.mjs http://127.0.0.1:8788 ../../blackbox-out 2>&1 | tee ../../blackbox-run.log
+          rc=${PIPESTATUS[0]}
+          {
+            echo "## qa-blackbox findings"
+            echo '```'
+            tail -30 ../../blackbox-run.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"
+
+      - name: Archive evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blackbox-run
+          path: |
+            blackbox-out/
+            blackbox-run.log
+            webui.log
+          if-no-files-found: warn
