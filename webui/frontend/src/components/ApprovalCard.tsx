@@ -46,7 +46,7 @@ export function ApprovalCard({
   return (
     <section className="approval-card" aria-label="Approval required">
       <div className="approval-heading">
-        <span className="approval-icon"><ShieldCheck size={18} weight="fill" /></span>
+        <span className="approval-icon"><ShieldCheck size={15} weight="duotone" /></span>
         <div>
           <span className="approval-kicker">Approval required</span>
           <h3>{presentation.title}</h3>
@@ -88,7 +88,6 @@ export function ApprovalCard({
             </div>
           ) : (
             <>
-              <span className="approval-shortcut">⌘↵ approve · ⌘⌫ deny</span>
               <button disabled={busy} onClick={() => setDenying(true)}>Deny</button>
               <button
                 className="subtle"
@@ -99,6 +98,7 @@ export function ApprovalCard({
                 Always allow
               </button>
               <button className="primary" disabled={busy} onClick={() => decide("approve")}>Approve once</button>
+              <span className="approval-shortcut">⌘↵ approve · ⌘⌫ deny</span>
             </>
           )}
         </div>

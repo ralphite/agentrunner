@@ -3,13 +3,11 @@ import {
   CaretDown,
   CaretRight,
   CheckCircle,
-  Crosshair,
   FileText,
   GitBranch,
   GitCommit,
   GitDiff,
   Hourglass,
-  Package,
   UsersThree,
   WarningCircle,
   X,
@@ -156,7 +154,7 @@ export function SupervisionPanel({
       <EnvironmentSection />
 
       <section className="supervision-section">
-        <div className="supervision-label"><Crosshair size={14} /> Goal</div>
+        <div className="supervision-label">Goal</div>
         {loading ? (
           <div className="supervision-empty supervision-loading"><Hourglass size={14} className="spin" /> Checking goal…</div>
         ) : goal ? (
@@ -214,7 +212,7 @@ export function SupervisionPanel({
               model actually keeps one — an empty permanent section would be
               exactly the W5 dead-weight this panel was purged of. */}
           <div className="supervision-label">
-            <CheckCircle size={14} /> Progress
+            Progress
             <span className="progress-count">
               {progress.filter((it) => it.status === "done").length}/{progress.length}
             </span>
@@ -243,7 +241,7 @@ export function SupervisionPanel({
           {/* Published artifacts (INC-40): latest version per stream, click
               to read. Rendered only when something was actually published
               (the W5 no-dead-weight rule). */}
-          <div className="supervision-label"><FileText size={14} /> Artifacts</div>
+          <div className="supervision-label">Artifacts</div>
           <div className="artifact-list">
             {artifacts.map((a) => (
               <button
@@ -263,14 +261,14 @@ export function SupervisionPanel({
       )}
 
       <section className="supervision-section supervision-agents">
-        <div className="supervision-label"><UsersThree size={14} /> Agents</div>
+        <div className="supervision-label">Agents</div>
         {loading ? (
           <div className="supervision-empty supervision-loading"><Hourglass size={14} className="spin" /> Checking agents…</div>
         ) : children.length > 0 ? <Subagents nodes={children} onOpen={onOpenChild} /> : <div className="supervision-empty is-neutral"><CheckCircle size={15} /> No subagents</div>}
       </section>
 
       <section className="supervision-section">
-        <div className="supervision-label"><WarningCircle size={14} /> Attention</div>
+        <div className="supervision-label">Attention</div>
         {(() => {
           // Attention is everything that deserves a human look (W35), not just
           // approvals: an agent that stopped abnormally, or background work
@@ -321,7 +319,7 @@ export function SupervisionPanel({
 
       {tasks.length > 0 && (
         <section className="supervision-section">
-          <div className="supervision-label"><Hourglass size={14} /> Background work</div>
+          <div className="supervision-label">Background work</div>
           {tasks.map((task) => (
             <div className="background-row" key={task.handle}>
               <span className="status-dot run" />
@@ -464,7 +462,7 @@ function EnvironmentSection() {
   const hasChanges = env.add > 0 || env.del > 0 || env.untracked > 0;
   return (
     <section className="supervision-section supervision-env">
-      <div className="supervision-label"><Package size={14} /> Environment</div>
+      <div className="supervision-label">Environment</div>
       <div className="env-rows">
         <button className="env-row" onClick={goToChanges} title="Review workspace changes">
           <GitDiff size={14} />
