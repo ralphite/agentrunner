@@ -2219,3 +2219,35 @@ finder 截 live 8809 home(**无 hash 的 `http://127.0.0.1:8809/`** —— `#/` 
   **console error+warning = 0**;截图 `qa/runs/2026-07-12-round22/{before,after,df1,df2,hm35,finder-*}/`。
   **开放 ☐ 剩**:**HM-1(P0 结构性,下轮首选)** + HM-2 + HM-4 + HM-6(同批,touches `styles.css`+`styles.home.css`)、
   DF-3(untracked 文件二等公民)、DF-4(长行硬裁无 Wrap 开关)、DF-5、DF-6、SC-5、SC-9、TH-5。
+
+## V 组 · 轮23 Codex 金标 Scheduled 屏并排新发现(2026-07-12)
+
+finder 对 `qa/codex-reference/codex-scheduled.jpg` 并排 live `#/scheduled`,取证含 live `/api/sessions`
+实数据。截图 `qa/runs/2026-07-12-r23/finder-scheduled-*.png`。
+**登记一律 ☐;✅ 只在 merge 进 main 且复验通过后由收轮改写。**
+
+- ☐ **SC-10(P0)坏掉的 schedule 和健康的长得一模一样**:`Scheduled.tsx:322-332` 状态图标只有 3 档
+  (空 / `PlayCircle` / `Circle` 兜底),`status.text` 只作 `title=` tooltip、**屏幕上一个字都没有**。
+  于是 `crash`(Failed)与 `stranded`(Needs recovery)都落进灰 `Circle`,与健康 idle 行像素一致。
+  live 实证:driver `20260712-033455-cx3-cadence-61b9` = `stranded` + `Every 30m` + `nextRunAt: null`,
+  屏幕渲染成「灰圈 · Every 30m · Ran 4h ago」——自称 30 分钟节律、实际已死 4 小时,零提示。
+  这个 hub 存在的意义就是回答"我的后台任务还活着吗",它对一具尸体回答"是"。
+  动作:按 `status.cls` 分支出 warn 图标 + 把状态短语放到 next-run 位置(`Every 30m · Needs recovery`)。
+  **轮23 已派 implementer SCHED。**
+- ☐ **SC-11(P0)"Active" tab 结构性永远为空**:`Scheduled.tsx:141` `isActive = cls==="run"||cls==="appr"`
+  —— 把 active 定义成"此刻正有一次迭代在执行",而周期任务在两次 tick 之间天然 idle。实测 live
+  **All=3 / Active=0 / Finished=3**:三条活着的 `Every 30m` series 全被归进 Finished,Active tab 显示
+  空态。Codex 的分法是 **series 级**(Active/Paused)。动作:判据改 series 级(有未来 tick 或 run/appr
+  或 stranded/crash → Active;只有终态 → Finished)。`Paused→Finished` 的改名是刻意决策(✂,保留)。
+  **轮23 已派 implementer SCHED。**
+- ☐ **SC-12(P1)Scheduled 行没有任何操作,hub 是只读的**:hover 只有底色,右键无菜单,行的唯一行为是
+  `select()`。而 `Sidebar.tsx` 早已有整套行 `ContextMenu`(rename/pin/archive/mark unread/open-in),
+  `RunView.tsx:135` 有 Stop —— 唯独这个专门管长期任务的屏,不能停、不能重跑、不能改名。
+  动作:`onContextMenu` + hover `⋯` 复用 `ContextMenu.tsx`,接已有 store actions。
+- ☐ **SC-13(P2)行标题是原始 prompt 段落,不是任务名**:`Scheduled.tsx:171/195` `title: run.label || run.id`
+  = 整条提交的 prompt。live 三行里**两行都以同样的字开头**("Append one line with the current…"),
+  列表无法扫读。Codex 是 2–4 词短名词("Weekly status update draft")。RS-1 的一行 clamp 只治了症状。
+  动作:派生显示标题(截首句/去尾括号/~48 字上限,全文进 `title=`),或优先用 rename 名。
+- ☐ **SC-14(P3)搜索命中屏幕上不存在的字段**:`Scheduled.tsx:158` 的 `meta` 含 `project`,但 SC-4 已把
+  project 从副行移除(✂)。实测搜 `scratch` 返回一行、而 `scratch` 在该行**任何可见文字里都没有**。
+  动作:命中 project 时补一枚安静的尾部 chip,或把 project 移出 `meta`。
