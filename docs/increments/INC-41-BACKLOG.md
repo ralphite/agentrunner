@@ -1938,7 +1938,7 @@ standalone PWA 等**能**投递 ⌘N 的壳里白拿 Codex 原键。在 input/te
 - ✅ **CP-1(P0)「+」菜单是一堵墙**:实测 376×798px、12 行,占 900px 视口 **89% 高度**,盖死整屏。
   Codex 的 Add 只有 4 行全单行、desc 与标题**同一行**灰字、面板 ~200px。三个胖因:`pop-desc` 永远另起
   一行;Agent 分组把 5 个 persona 连 desc 平铺;Images/Files 拆两行(而 `pick()` 本就按 mime 自动分流)。
-- ☐ **CP-3(P1)model 下拉少了 effort 滑杆**,改 reasoning 要 **3 次点击**。Codex pill 一点开就是 6 档
+- ✅ **CP-3(P1)model 下拉少了 effort 滑杆**,改 reasoning 要 **3 次点击**。Codex pill 一点开就是 6 档
   圆点滑轨,`Model|Effort|Speed` 三行是 **Advanced 展开后**才有的——我们把 Codex 的 Advanced 页当成了根页。
   后端已就位(`specs.ts:100-108` 5 档 `EFFORT_LEVELS` + `chooseEffort`),不是壳。pill 也不显示当前档位。
 - ✅ **CP-2(P1)空态 send 按钮几乎隐形**:`.cx-send:disabled` 底 `#efefef` 对卡片对比度 ≈**1.07:1**。
@@ -1947,18 +1947,18 @@ standalone PWA 等**能**投递 ⌘N 的壳里白拿 Codex 原键。在 input/te
   (用户以为自己在开可对话 session)。Codex 第二个 chip 只有一个意思:`Start in`。
 
 ### RV 相 · Diff/Review 分栏(金标 `codex-diff-review.jpg` / `codex-crop-diff-*.jpg`)
-- ☐ **RV-1(P0)右栏被 172–206px「面板 chrome」吃掉**(占面板高 20–24%,首屏只剩 ~10 行 diff):
+- ✅ **RV-1(P0)右栏被 172–206px「面板 chrome」吃掉**(占面板高 20–24%,首屏只剩 ~10 行 diff):
   `.changes-panel-head`「📄 Changes ✕」独占 48px 且与顶栏 `Changes` pill **标题重复两遍**;`.diffbar` 在
   worktree 会话里**换行成 2 行**(62px);再叠一张 616-hidden-files 双行说明卡。Codex 只有**一行**工具条。
   关闭:删 panel-head(顶栏 pill 已是 toggle)、`Apply to project…`/`Remove worktree…` 收进 `…` overflow。
-- ☐ **RV-2(P0)每个文件是一张圆角卡片**(border+灰头带+14px gap+22px 内边距),Codex 是**满幅连续流**:
+- ✅ **RV-2(P0)每个文件是一张圆角卡片**(border+灰头带+14px gap+22px 内边距),Codex 是**满幅连续流**:
   文件头无背景带无边框、diff 行铺到面板边缘、文件间无 gap。代价:代码可读宽度净损 39px,`white-space:pre`
   下 `package.json` 的行直接被卡片右缘切断;纵向每文件多花 ~30px。这是与 Codex 观感差最远的一条。
-- ☐ **RV-3(P1)折叠的文件只剩一条「空头」,零展开指示**(轮17 RD-1 引入的新态):`summary.fd-head`
+- ✅ **RV-3(P1)折叠的文件只剩一条「空头」,零展开指示**(轮17 RD-1 引入的新态):`summary.fd-head`
   `list-style:none` 关掉了系统三角却没补自己的 caret → `A package-lock.json +1284 −0` 看上去像渲染失败的空卡片。
-- ☐ **RV-4(P1)diff 行比 Codex 紧一档**:行高 18px(Codex 19.5)、行号与代码只隔 8px(Codex ~19px)、
+- ✅ **RV-4(P1)diff 行比 Codex 紧一档**:行高 18px(Codex 19.5)、行号与代码只隔 8px(Codex ~19px)、
   行号列固定 `3.2em`(5 位行号会溢出挤压代码列)。
-- ☐ **RV-5(P2)文件头右端 `new file`/`deleted` 徽标冗余**(与最左的绿 A / 红 D 字形说同一件事),
+- ✅ **RV-5(P2)文件头右端 `new file`/`deleted` 徽标冗余**(与最左的绿 A / 红 D 字形说同一件事),
   还把文件名挤成 `package-lock.js…`,1440 下砍掉路径 ~90px。
 
 ### 已排除(不登记)
@@ -1972,3 +1972,81 @@ standalone PWA 等**能**投递 ⌘N 的壳里白拿 Codex 原键。在 input/te
 - ⊘ Codex 的 `Tasks` 底部分组(无 repo 归属的任务):我方每个 session 都带 workspace,**没有数据能填进去**。
 - ⊘ `Attach Finder`、run-location 的 `Cloud`、`Create local environment`、`Last Turn` scope、Commit▸、
   行内 annotation:均无后端,不做壳。
+
+## T 组 · 轮20 Codex 金标两面并排新发现(2026-07-11,Scheduled 屏 / thread 正文 + Environment 面板)
+
+两个并发 finder 截 live 8809 逐像素比对金标(`qa/runs/2026-07-11-round20/before/`)。
+**登记一律 ☐;✅ 只在 merge 进 main 且复验通过后由收轮改写**(轮16 教训)。
+
+### SC 相 · Scheduled 屏(金标 `codex-scheduled.jpg` / `codex-crop-scheduled-{list,suggestions}.jpg`)
+- ◐ **SC-1(P0)Scheduled 屏其实是「所有任务」倾倒**:实测 `rowCount=28`、列表高 1911px,26 行副行写着
+  `Runs once` / `Best of 3` —— 一次性 submit run 与 best-of-N 根本不是 scheduled。真有节律的只有 1 行(`Every 30m`)。
+  根因 `Scheduled.tsx:133` 全量收 runs + `:144` 主动给 `kind==="submit"` 编伪 cadence `"Runs once"`。
+  后果:唯一真 scheduled 的行被淹没,Suggestions 被推到 y=2198(首屏外)。轮20 第二批派工中。
+- ◐ **SC-2(P0)内容列 974px vs Codex ≈583px**:`max-width:980px` 在 1440 下从未生效(可用宽 974<980)。
+  统一收到 640px(`styles.css` .page-heading/.scheduled-list/.sched-toolbar + `styles.scheduled.css` .sched-suggestions)。
+- ◐ **SC-3(P1)28 行全 700 粗体长 prompt**(`.scheduled-copy b` 只设 size,weight 走 `<b>` 默认 700)→ 500。
+- ◐ **SC-4(P1)副行三段事实 + cadence 被单独加重**:Codex 只有 `cadence · Next run …` 两段同档灰;
+  我们多一段 project,还给 `.sched-cadence` 加 `--ink-2`+500,一行里三种视觉重量。
+- ◐ **SC-6(P2)搜索框比行还重**:40.1px 高、有底色边框、input 13px(比副题还小);Codex ≈26px 细长 pill。
+- ◐ **SC-7(P2)「Paused」是语义谎言**:代码注释自认 Paused == 非 active(已结束)行。文案改 `Finished`
+  (不动后端;真 paused flag 见下 ⊘)。
+- ◐ **SC-10/11(P3)** H1 走默认 700 在喊(→600)、390 下 `.page-heading` flex 挤压(→ 竖排)。
+- ☐ **SC-5(P1)Suggestions 的 cadence 是空头支票**:卡片写 `Weekdays at 8:00 AM`,点开的 run 表单
+  **没有任何 schedule 字段**(`store.ts:10` ModalKind 只有 `task?`/`preset?`)。要么把 interval/cron 传下去
+  并在 `Modals.tsx` 取作初值,要么把文案改成我们真能落地的。**跨 store/Modals,让路下轮。**
+- ☐ **SC-9(P3)`#/scheduled` 深链 → "Task not found"**:`App.tsx:189` 只认 `raw === "scheduled"`,
+  带前导斜杠的 hash 掉进 NotFound。修法:`raw = raw.replace(/^\/+/, "")`。
+- ⊘ **SC-8 首屏一条 `Next run` 都没有**:`webui/schedule.go:64` 只在 future tick 可算时给 `nextRunAt`,
+  已停/已完成 series 明确不给(`schedule_test.go:77` 就是这条断言)——行为诚实。SC-1 修完后需复核
+  running interval driver 能否拿到;拿不到才是 bug。
+- ⊘ **真 paused flag**:agent 层有(`internal/agent/goal.go:53` `ControlGoalPause`),但 webui API 未透出
+  (`webui/api.go:288-299` / `webui/schedule.go:64` 无该字段)。要真 Paused 过滤须先补后端投影。
+- ✂ settled 行左侧无状态点(`7c78d64` CHROME2 review sw-d-11 刻意:settled 灰点是噪音)。
+- ✂ 无未读时 `Mark all as read` 整体消失(RS-3 刻意:不推动 tabs)。
+- ⊘ 行标题短名化(Codex 有 LLM 生成的任务名,我方 title 即 prompt,无数据)。
+
+### TH 相 · thread 正文 + 变更卡 + Environment 面板(金标 `codex-task-thread.jpg` / `codex-crop-{change-card,message-actions}.jpg`)
+- ◐ **TH-1(P0)助手消息底部只剩一个「悬空时间戳」,缩进 94px 无锚点**:`.msg-actions` 盒子 x=350(对),
+  但静息态只剩 `06:35 PM` 且实际 x=**444** —— `styles.conv.css:724-728` 给 `.msg-copy` 上的是 `opacity:0`
+  而非不占位,3 个 26px 幽灵按钮把时间戳顶开。Codex 收尾行永远「图标 + 结论」左对齐正文左边缘。
+  轮20 第二批派工中。
+- ◐ **TH-2(P1)composer 比正文列宽 60px,竖直边线对不齐**:正文列 350→1010(660),
+  `.cx-session .cx-card` 320→1040(720)。Codex 正文/变更卡/artifact/composer 共用同一条左右边线。
+- ◐ **TH-4(P2)运行时 chip 不聚合**:同一条 `Agent changed · dev · gemini-flash-latest` 连着出现两遍还换行
+  两排(`Timeline.tsx:846-857` 无相邻去重)。
+- ☐ **TH-3(P1)Supervision 静息面板 = 三个「什么都没有」的空态块,占 236px**(面板高的 28%):
+  `Goal`/`Agents`/`Attention` 各 78.6px 只装一行否定句,空态行还比真实数据行(28px)高。Codex 右栏没内容的组
+  直接不出现。修法:空态收成 28px 单行 / 合并成一条 dim 摘要。**让路下轮**(涉 `SupervisionPanel.tsx` +
+  `styles.panel.css`,与本轮 diff 面板 implementer 相邻)。
+- ☐ **TH-5(P2)变更卡文件行不可点**,没有「跳到这个文件的 diff」:结构已对齐金标(dim 目录 + 粗 basename +
+  右侧 `+7 −0` + `Show N more files`),但每行是惰性 `<div>`,唯一出口是卡头 `Review`。需 diff 面板暴露
+  `scrollToFile(path)` 锚点 → **排在 RV 组落地之后**。
+- ☐ **TH-6(P3)变更卡角标字形语义不对**:用了 `GitDiff`(分叉箭头,读作"分支/合并"),Codex 是 `±` 方块。
+  尺寸(38px/radius 10)已对。同理 `SupervisionPanel.tsx:522` 的 Changes 行。
+- ☐ **TH-7(P3)变更卡拿不到 diff 时静默消失**:`ChangesOutcome.tsx:224-234` `.catch(() => setSummary(null))`
+  + `:257` 空则 `return null` —— 后端抖一下整张「Edited N files」卡就无声蒸发,用户以为这轮没改文件;也无首帧
+  skeleton。修法:失败保留卡壳 + `Couldn't load changes · Retry`。
+- ☐ **TH-8(P3)折叠预览 6 行 vs 金标 3 行**(变更卡是摘要不是清单)。
+- ✂ 消息 thumbs up/down(`Timeline.tsx:117-122`:无 feedback endpoint,会是死控件)。
+- ✂ 静息保留时间戳 + verdict(RT-3 刻意决策;TH-1 只修它的落地 bug,不推翻决策)。
+- ⊘ Environment 头部 `+`、Browser 组、Sources 组(无后端语义,不做壳);我方 `Background work` 已是对应物。
+
+- 2026-07-11 23:5x 轮20(headless)**第一批 6 条 ✅ — diff/review 分栏满幅化 + model 菜单 effort 滑轨**。
+  第一步比对:live 8809 逐屏截图 vs `qa/codex-reference/codex-diff-review.jpg` + `codex-crop-model-dropdown.jpg`
+  (before 存 `qa/runs/2026-07-11-round20/before/`)。关闭的可见差距:
+  **RV-1..RV-5**(右栏 chrome 从 **110px → 46px**:删 `.changes-panel-head` 重复标题带、`.diffbar` 收成单行
+  nowrap、`Apply to project…`/`Remove worktree…`/refresh 收进 `…` overflow、616-hidden 说明卡 80px 双行 → 30px
+  单行;文件卡片去边框/圆角/gap → **满幅连续流**,diff body 左边距 22px+border → 1px;折叠文件补 caret;
+  行高 18→19.5px、行号-代码 8→18px、行号列 `3.2em` → `calc(5ch+27px)`;删冗余 `new file`/`deleted` 徽标)、
+  **CP-3**(model 菜单从三级钻入压成**单根页**:模型列表 + 5 档 effort 圆点滑轨 + 次级 Advanced;改一档
+  reasoning **3 击 → 2 击**,键盘 ←/→ 直接换档;pill 写 `<模型> <档位>`)。
+  派工 2 个(并发、worktree、白名单互斥:A=DiffView/SessionView/styles.css/panel/rs · B=Composer/styles.composer/specs)。
+  push=`4e0e2c2` + `f2754d3`;8809 复验 live=`index-DfW-iTSn.js`:`.changes-panel-head`=**不存在**、
+  `.diffbar`=46px、面板顶→首个文件头=**46px**、`.filediff` border=none/radius=0、`.dl` line-height=19.5px、
+  caret 出现、文件头徽标=0;model 菜单 `role=slider` + 5 个圆点、376×338;两屏稳态 console error+warning=**0**。
+  截图 `qa/runs/2026-07-11-round20/{before,after}/`。vitest 21 files / 213 tests 全绿。
+  **教训复现**:合并两个 worktree 后首跑 vitest 14 假失败——`PATH` 里 homebrew node25 排到了 node24 前面
+  (已知陷阱,纠正后全绿)。
+  同时 2 个 read-only finder 交回新弹药 → 登记 **T 组**:SC-1..SC-11(Scheduled)+ TH-1..TH-8(thread/变更卡/
+  Environment)。第二批已派:C=Scheduled 收束(SC-1/2/3/4/6/7/10/11)、D=thread 收尾行+列边线+chip(TH-1/2/4)。
