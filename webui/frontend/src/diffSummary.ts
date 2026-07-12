@@ -463,12 +463,57 @@ export function summarizeChanges(data: DiffResp): ChangesSummary {
 export const MAX_INLINE_FILE_LINES = 500;
 export const MAX_INLINE_REVIEW_LINES = 5000;
 
-export function shouldExpandFileByDefault(file: { add: number; del: number }): boolean {
-  return file.add + file.del <= MAX_INLINE_FILE_LINES;
+// ---- INC-41 DF-2: build artefacts / minified files never open by default ----
+// The line-count rule alone measured the wrong axis. A deleted bundle
+// (dist/assets/index-BLupS6ef.js, −176 lines) is *short*, so it passed
+// MAX_INLINE_FILE_LINES and painted 176 lines of minified React — one of them
+// 1.9M pixels wide — burying the two lines of index.html the reviewer actually
+// wanted. Meanwhile a 1,284-line package-lock.json was correctly folded. Same
+// noise, opposite verdicts, purely because one happened to be wide instead of
+// tall. Codex's review pane is a readable stream of *source*; generated files
+// keep their header and ±counts (and still open on a click) but never claim the
+// first screen.
+export const MAX_INLINE_LINE_WIDTH = 500;
+// A generated file gets a much smaller inline budget than source: a two-line
+// asset-hash bump in dist/index.html is exactly what the reviewer came to see,
+// a 176-line bundle is not.
+export const MAX_INLINE_GENERATED_LINES = 20;
+
+// isGeneratedPath: build output, vendored trees, minified assets, lockfiles.
+// Path-shaped judgement only — no content needed — so it also covers untracked
+// entries and binary-ish files whose lines we never parsed.
+export function isGeneratedPath(path: string): boolean {
+  return (
+    /(^|\/)(dist|build|out|vendor|node_modules)\//.test(path) ||
+    /\.min\.(js|css)$/.test(path) ||
+    /-lock\.(json|yaml|yml)$/.test(path) ||
+    /(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|go\.sum|Cargo\.lock)$/.test(path) ||
+    /\/assets\/index-[A-Za-z0-9_-]+\.(js|css)$/.test(path)
+  );
+}
+
+// longestContentLine: widest diff body line (the leading +/-/space marker does
+// not count). Cheap — the caller already holds the split lines.
+export function longestContentLine(lines: string[]): number {
+  let max = 0;
+  for (const line of lines) {
+    if (/^(diff |index |\+\+\+ |--- |@@ |new file|deleted file|similarity |rename |Binary )/.test(line)) continue;
+    const width = line.length > 0 ? line.length - 1 : 0;
+    if (width > max) max = width;
+  }
+  return max;
+}
+
+export function shouldExpandFileByDefault(file: { path?: string; add: number; del: number; lines?: string[] }): boolean {
+  // Minified content is unreadable at any length — one 1.9M-pixel-wide line is
+  // worse than a thousand narrow ones.
+  if (file.lines && longestContentLine(file.lines) > MAX_INLINE_LINE_WIDTH) return false;
+  const budget = file.path && isGeneratedPath(file.path) ? MAX_INLINE_GENERATED_LINES : MAX_INLINE_FILE_LINES;
+  return file.add + file.del <= budget;
 }
 
 // defaultOpenByPath decides, per file path, whether its diff starts expanded.
-export function defaultOpenByPath(files: { path: string; add: number; del: number }[]): Map<string, boolean> {
+export function defaultOpenByPath(files: { path: string; add: number; del: number; lines?: string[] }[]): Map<string, boolean> {
   const out = new Map<string, boolean>();
   let budget = MAX_INLINE_REVIEW_LINES;
   for (const file of files) {

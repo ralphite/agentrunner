@@ -3,6 +3,9 @@ import {
   parseFileDiff,
   defaultOpenByPath,
   shouldExpandFileByDefault,
+  isGeneratedPath,
+  longestContentLine,
+  MAX_INLINE_LINE_WIDTH,
   hunkGaps,
   trailingGapKey,
   splitPath,
@@ -174,6 +177,69 @@ describe("per-file diff disclosure (INC-41 RD-1)", () => {
     expect(open.get("f24.ts")).toBe(true);
     expect(open.get("f25.ts")).toBe(false);
     expect(open.get("f39.ts")).toBe(false);
+  });
+});
+
+describe("generated / minified files stay folded (INC-41 DF-2)", () => {
+  // Field case: session 20260711-011831 deleted a built bundle. 176 lines — under
+  // MAX_INLINE_FILE_LINES — so the old rule expanded it and buried the two lines
+  // of index.html the reviewer came for under 4,000px of minified React.
+  const minified = (n: number) =>
+    Array.from({ length: n }, () => "-" + "!function(e,t){...}(this,function(){return 42});".repeat(40));
+
+  it("folds a deleted dist bundle even though it is short", () => {
+    const open = defaultOpenByPath([
+      { path: "webui/frontend/dist/assets/index-BLupS6ef.js", add: 0, del: 176, lines: minified(176) },
+      { path: "webui/frontend/dist/index.html", add: 2, del: 2, lines: ["+<script src=a>", "-<script src=b>"] },
+      { path: "docs/DESIGN.md", add: 8, del: 4, lines: ["+prose", "-prose"] },
+    ]);
+    expect(open.get("webui/frontend/dist/assets/index-BLupS6ef.js")).toBe(false);
+    // a 4-line asset-hash bump is what the reviewer came for — it still opens
+    expect(open.get("webui/frontend/dist/index.html")).toBe(true);
+    expect(open.get("docs/DESIGN.md")).toBe(true);
+  });
+
+  it("folds a generated file that is merely long, even without minified lines", () => {
+    const lines = Array.from({ length: 60 }, (_, i) => `+  "line ${i}": "narrow but generated"`);
+    expect(shouldExpandFileByDefault({ path: "webui/frontend/dist/manifest.json", add: 60, del: 0, lines })).toBe(false);
+  });
+
+  it("still expands an ordinary 176-line source file (no width regression)", () => {
+    const lines = Array.from({ length: 176 }, (_, i) => `+  const value${i} = compute(i); // a perfectly normal line of code`);
+    expect(shouldExpandFileByDefault({ path: "src/components/DiffView.tsx", add: 176, del: 0, lines })).toBe(true);
+  });
+
+  it("keeps folding package-lock.json (unchanged verdict)", () => {
+    expect(shouldExpandFileByDefault({ path: "package-lock.json", add: 1284, del: 0 })).toBe(false);
+    // a 200-line lockfile churn is noise too — generated files get a 20-line budget
+    expect(shouldExpandFileByDefault({ path: "package-lock.json", add: 200, del: 0 })).toBe(false);
+  });
+
+  it("folds a short file whose single line is minified-wide", () => {
+    const oneLongLine = ["+" + "a".repeat(MAX_INLINE_LINE_WIDTH + 1)];
+    expect(shouldExpandFileByDefault({ path: "src/generated/schema.ts", add: 1, del: 0, lines: oneLongLine })).toBe(false);
+    // exactly at the threshold is still readable-ish → expand
+    expect(shouldExpandFileByDefault({ path: "src/generated/schema.ts", add: 1, del: 0, lines: ["+" + "a".repeat(MAX_INLINE_LINE_WIDTH)] })).toBe(true);
+  });
+
+  it("isGeneratedPath: build output, minified assets and lockfiles; not source", () => {
+    for (const p of [
+      "webui/frontend/dist/assets/index-DZa2Gr9X.js",
+      "build/main.css",
+      "out/index.js",
+      "vendor/github.com/x/y.go",
+      "node_modules/react/index.js",
+      "static/app.min.js",
+      "pnpm-lock.yaml",
+      "go.sum",
+    ]) expect(isGeneratedPath(p)).toBe(true);
+    for (const p of ["docs/DESIGN.md", "src/diffSummary.ts", "webui/main.go", "distribution/notes.md", "package.json"])
+      expect(isGeneratedPath(p)).toBe(false);
+  });
+
+  it("does not count diff headers as wide content", () => {
+    const headers = ["diff --git a/x b/x", "index 111..222 100644", "--- a/x", "+++ b/x", "@@ -1 +1 @@ " + "z".repeat(900)];
+    expect(longestContentLine(headers)).toBe(0);
   });
 });
 
