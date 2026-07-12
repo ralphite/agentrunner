@@ -182,7 +182,21 @@ export const AR = {
   stopRun: (rid: string) => post(`/runs/${rid}/stop`),
 };
 
-// uploadURL maps an upload's server path to its preview URL — the journal
-// keeps only a CAS ref, so thumbnails come from the local uploads dir.
+// uploadURL maps an upload's server path to its preview URL — a file we just
+// uploaded is previewable from the local uploads dir.
+//
+// RT-6: an image that is already an API URL (a durable session blob, see
+// sessionImageURL) passes through untouched, so every image viewer downstream —
+// thumbnails AND the Lightbox — takes one kind of handle: "something the server
+// will serve me", not "a path under the uploads dir".
 export const uploadURL = (path: string) =>
-  "/api/uploads/" + encodeURIComponent(path.split("/").pop() || "");
+  path.startsWith("/api/")
+    ? path
+    : "/api/uploads/" + encodeURIComponent(path.split("/").pop() || "");
+
+// sessionImageURL is the durable preview of an attachment the user sent: the
+// journal records only a CAS ref, and the bytes live in the session's artifact
+// store, so this — unlike uploadURL — still resolves after a reload, in another
+// tab, or on another machine reading the same store (RT-6).
+export const sessionImageURL = (sid: string, ref: string) =>
+  `/api/sessions/${encodeURIComponent(sid)}/image/${encodeURIComponent(ref)}`;

@@ -7,12 +7,14 @@ import {
   globDetail,
   grepDetail,
   groupIcon,
+  imageRefs,
   lineDiff,
   parseMaybeJSON,
   readDetail,
   semanticDetail,
   spawnDetail,
   toolCategory,
+  toolLabel,
   webFetchDetail,
   type BubbleItem,
   type ChipItem,
@@ -238,5 +240,56 @@ describe("A3 — compaction as an activity row", () => {
     const { items } = foldEvents([{ seq: 4, type: "context_compacted", payload: { upto_gen_step: 3 } }]);
     const chip = items.find((i) => i.kind === "chip") as ChipItem;
     expect(chip).toMatchObject({ text: "Context automatically compacted", fold: true, activity: true });
+  });
+});
+
+describe("RT-6 — a user's attached image is durable, not a text stub", () => {
+  const REF = "sha256-" + "a".repeat(64);
+
+  it("keeps the CAS refs and the session that owns their blobs", () => {
+    const { items } = foldEvents([
+      {
+        seq: 7,
+        type: "input_received",
+        // the journal's real shape (sessions/<sid>/artifacts/blobs/<ref>)
+        correlation_id: "20260710-look-at-the-image-66c9",
+        payload: {
+          source: "cli",
+          text: "what is this?",
+          images: [{ ref: REF, media_type: "image/png" }],
+        },
+      } as any,
+    ]);
+    const user = items.find((i) => i.kind === "user") as BubbleItem;
+    expect(user.imageRefs).toEqual([REF]);
+    expect(user.sessionId).toBe("20260710-look-at-the-image-66c9");
+    // the count survives too: it is the fallback when a blob is gone
+    expect(user.images).toBe(1);
+  });
+
+  it("drops refs that are not CAS refs, so no broken image is ever addressed", () => {
+    expect(imageRefs([{ ref: REF }, { ref: "../../etc/passwd" }, {}, "not-a-ref"])).toEqual([REF]);
+    expect(imageRefs(undefined)).toEqual([]);
+  });
+});
+
+describe("RT-3 — a step line never spells an internal tool name", () => {
+  it("gives every shipped tool a human verb", () => {
+    expect(toolLabel("bash", { command: "ls -la" })).toMatchObject({ verb: "$", body: "ls -la" });
+    expect(toolLabel("read_file", { path: "main.go" })).toMatchObject({ verb: "read", body: "main.go" });
+    expect(toolLabel("edit_file", '{"path":"a.go"}')).toMatchObject({ verb: "edit", body: "a.go" });
+    expect(toolLabel("goal_status", {}).verb).toBe("check goal progress");
+    expect(toolLabel("progress_update", { items: [] }).verb).toBe("update progress");
+    expect(toolLabel("publish_artifact", { stream: "report" })).toMatchObject({ verb: "publish", body: "report" });
+    expect(toolLabel("skill", { name: "verify" })).toMatchObject({ verb: "run skill", body: "verify" });
+  });
+
+  it("degrades an unknown tool to a neutral verb, never its identifier", () => {
+    for (const name of ["goal_status", "some_future_tool", "mcp__srv__do_thing"]) {
+      const { verb, body } = toolLabel(name, {});
+      expect(verb).not.toContain(name);
+      expect(body).not.toContain(name);
+    }
+    expect(toolLabel("some_future_tool", {}).verb).toBe("Ran a tool");
   });
 });

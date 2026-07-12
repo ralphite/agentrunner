@@ -38,6 +38,7 @@ import {
   readDetail,
   semanticDetail,
   spawnDetail,
+  toolLabel,
   webFetchDetail,
   type ActivityCategory,
   type DiffLine,
@@ -49,7 +50,7 @@ import {
 } from "../timeline";
 import { Markdown } from "./Markdown";
 import { copyText } from "../clipboard";
-import { uploadURL } from "../api";
+import { sessionImageURL, uploadURL } from "../api";
 import { Lightbox } from "./Lightbox";
 import "../styles.conv.css";
 
@@ -69,32 +70,43 @@ function shortTime(ts?: string): string | null {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-// Thumbs renders locally-known upload paths as inline image previews (the
-// journal only stores CAS refs, so these exist for messages sent from this tab).
-// Clicking a thumbnail opens the group in the full-screen Lightbox (W9), where
-// arrow keys page across the group's images.
-function Thumbs({ paths }: { paths: string[] }) {
+// Thumbs renders a group of images as inline previews. `paths` are either local
+// upload paths (a message sent from THIS tab) or durable session-blob URLs
+// (RT-6) — uploadURL takes both. Clicking a thumbnail opens the group in the
+// full-screen Lightbox (W9), where arrow keys page across the group's images.
+//
+// An image that fails to load drops out (a blob can be GC'd, and a broken-image
+// glyph is worse than nothing); when they ALL fail, `fallback` — the honest
+// "×N attached" note — takes the group's place. So the text stub is now the
+// last resort it was always meant to be, not the default.
+function Thumbs({ paths, fallback }: { paths: string[]; fallback?: ReactNode }) {
   const [lightbox, setLightbox] = useState<number | null>(null);
+  const [broken, setBroken] = useState<Set<number>>(() => new Set());
+  const ok = paths.filter((_, i) => !broken.has(i));
+  if (paths.length > 0 && ok.length === 0) return <>{fallback ?? null}</>;
   return (
     <div className="thumbs">
-      {paths.map((p, i) => (
-        <img
-          className="thumb"
-          key={i}
-          src={uploadURL(p)}
-          alt=""
-          role="button"
-          tabIndex={0}
-          title="View image"
-          onClick={() => setLightbox(i)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              setLightbox(i);
-            }
-          }}
-        />
-      ))}
+      {paths.map((p, i) =>
+        broken.has(i) ? null : (
+          <img
+            className="thumb"
+            key={i}
+            src={uploadURL(p)}
+            alt=""
+            role="button"
+            tabIndex={0}
+            title="View image"
+            onError={() => setBroken((prev) => new Set(prev).add(i))}
+            onClick={() => setLightbox(i)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setLightbox(i);
+              }
+            }}
+          />
+        ),
+      )}
       {lightbox !== null && (
         <Lightbox images={paths} index={lightbox} onIndex={setLightbox} onClose={() => setLightbox(null)} />
       )}
@@ -166,38 +178,6 @@ function MsgActions({
       {time && <span className="msg-time" title={absTime(ts)}>{time}</span>}
     </div>
   );
-}
-
-// toolLabel turns a raw tool call into a Codex-style step line:
-// "$ ls -la", "read notes.txt", "edit main.go".
-function toolLabel(name: string, args: any): { verb: string; body: string; mono: boolean } {
-  let a: any = args;
-  if (typeof args === "string") {
-    try {
-      a = JSON.parse(args);
-    } catch {
-      a = {};
-    }
-  }
-  a = a || {};
-  switch (name) {
-    case "bash":
-      return { verb: "$", body: a.command || "", mono: true };
-    case "read_file":
-      return { verb: "read", body: a.path || a.file || "", mono: true };
-    case "write_file":
-      return { verb: "write", body: a.path || a.file || "", mono: true };
-    case "edit_file":
-      return { verb: "edit", body: a.path || a.file || "", mono: true };
-    case "spawn_agent":
-      return { verb: "spawn sub-agent", body: a.agent || a.role?.name || a.task || "", mono: false };
-    case "send_message":
-      return { verb: "message", body: `→ ${a.to || "?"} · ${a.text || ""}`, mono: false };
-    case "task_kill":
-      return { verb: "kill task", body: a.handle || "", mono: true };
-    default:
-      return { verb: name, body: a.command || a.path || "", mono: true };
-  }
 }
 
 function StepIcon({ status }: { status: ToolItem["status"] }) {
@@ -604,10 +584,37 @@ export function groupLabel(tools: ToolItem[]): string {
       case "progress_update":
       case "goal_status":
       case "goal_complete":
+      case "exit_plan_mode":
         add("tracked progress");
         break;
+      case "read_notes":
+      case "artifacts_list":
+      case "artifacts_read":
+        add("read notes");
+        break;
+      case "publish_artifact":
+      case "publish_note":
+        add("published results");
+        break;
+      case "handoff_agent":
+        add("handed off work");
+        break;
+      case "skill":
+        add("ran skills");
+        break;
+      case "schedule_next":
+      case "finish_series":
+        add("scheduled work");
+        break;
+      case "kill":
+      case "task_kill":
+      case "output":
+        add("managed tasks");
+        break;
       default:
-        add("used " + t.name.replace(/_/g, " "));
+        // RT-3: never spell an internal tool name at the user. A tool we don't
+        // know (skill-provided, future) is summarized, not identified.
+        add("used tools");
     }
   }
   const s = cats.join(", ");
@@ -777,10 +784,24 @@ function Item({ it, sentImages, onContinue, goalVerdict }: { it: TimelineItem; s
     case "turn":
       return <div className="turn">turn {it.gen}</div>;
     case "user": {
-      const thumbs = it.seq !== undefined ? sentImages?.get(it.seq) : undefined;
+      // Two ways to see the images this message carried, in order of immediacy:
+      //  1. sentImages — the upload paths of a message THIS tab just sent (they
+      //     render before the journal even comes back);
+      //  2. RT-6: the durable blobs the journal points at, addressed by CAS ref.
+      // (2) is what makes an attachment survive a reload or a second tab; the
+      // "×N attached" stub is now only the fallback for a blob that's gone.
+      const sent = it.seq !== undefined ? sentImages?.get(it.seq) : undefined;
+      const blobs =
+        it.sessionId && it.imageRefs?.length
+          ? it.imageRefs.map((ref) => sessionImageURL(it.sessionId!, ref))
+          : undefined;
+      const thumbs = sent && sent.length ? sent : blobs;
       const peer = !!it.peerSession;
       const hasText = !!it.text.trim();
       const hasAttach = (thumbs && thumbs.length) || it.images;
+      const attachNote = it.images ? (
+        <div className="imgnote"><ImageSquare size={13} /> ×{it.images} attached</div>
+      ) : null;
       return (
         <div className={"msg user" + (peer ? " peer" : "")} title={absTime(it.ts)}>
           <div className="msg-col user">
@@ -792,11 +813,7 @@ function Item({ it, sentImages, onContinue, goalVerdict }: { it: TimelineItem; s
                 // (R4-10) — label it instead of showing an empty blob.
                 <span className="dim">(empty message)</span>
               ) : null}
-              {thumbs && thumbs.length ? (
-                <Thumbs paths={thumbs} />
-              ) : it.images ? (
-                <div className="imgnote"><ImageSquare size={13} /> ×{it.images} attached</div>
-              ) : null}
+              {thumbs && thumbs.length ? <Thumbs paths={thumbs} fallback={attachNote} /> : attachNote}
             </div>
             {it.sentAsGoal && (
               <div className="cx-goal-note">

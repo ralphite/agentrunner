@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -51,6 +52,7 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/sessions/{sid}/barrier", s.handleBarrier)
 	mux.HandleFunc("GET /api/sessions/{sid}/diff", s.handleDiff)
 	mux.HandleFunc("GET /api/sessions/{sid}/blob", s.handleBlob)
+	mux.HandleFunc("GET /api/sessions/{sid}/image/{ref}", s.handleSessionImage)
 	mux.HandleFunc("GET /api/sessions/{sid}/files", s.handleFiles)
 	mux.HandleFunc("GET /api/sessions/{sid}/file", s.handleSessionFile)
 	mux.HandleFunc("POST /api/sessions/{sid}/commit", s.handleCommit)
@@ -663,6 +665,71 @@ func (s *server) handleServeUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.ServeFile(w, r, filepath.Join(s.runtimeDir, "uploads", name))
+}
+
+// blobRef is the exact shape of a CAS ref minted by internal/store.ArtifactStore
+// ("sha256-" + 64 hex chars). Anchored and hex-only: a ref that matches cannot
+// contain a separator, a "..", or anything else that would let the join below
+// leave the session's blob dir. Whitelist, never a blacklist.
+var blobRef = regexp.MustCompile(`^sha256-[0-9a-f]{64}$`)
+
+// handleSessionImage serves one artifact blob of a session as an image (RT-6).
+//
+// A user's attached image is DURABLE — the journal's input_received carries
+// {ref, media_type} and the bytes live under
+// sessions/<sid>/artifacts/blobs/<ref> — but the webui could only preview
+// attachments it had itself just uploaded (the per-tab uploads dir behind
+// handleServeUpload). After a reload, or in a second tab, the thumbnail
+// degraded to a "×N attached" text stub. This route reads the durable blob, so
+// the thumbnail is a function of the journal, not of browser-tab memory.
+//
+// Refs are content-addressed and immutable, hence the long immutable cache. The
+// content type is SNIFFED rather than trusted from the journal, and anything
+// that isn't an image is refused: the blob store also holds model-authored
+// artifacts, and serving those as, say, text/html from this same origin would
+// hand a run's output a script-execution surface.
+func (s *server) handleSessionImage(w http.ResponseWriter, r *http.Request) {
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	// validID admits "." and "-" (session ids carry them), so it alone does not
+	// jail a path: pin the id to a single directory name here.
+	if filepath.Base(id) != id || id == "." || id == ".." {
+		badRequest(w, "invalid session id")
+		return
+	}
+	ref := r.PathValue("ref")
+	if !blobRef.MatchString(ref) {
+		badRequest(w, "invalid blob ref")
+		return
+	}
+	f, err := os.Open(filepath.Join(dataDir(), "sessions", id, "artifacts", "blobs", ref))
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such blob", "code": "blob_not_found"})
+		return
+	}
+	defer func() { _ = f.Close() }()
+	head := make([]byte, 512)
+	n, _ := io.ReadFull(f, head)
+	ct := http.DetectContentType(head[:n])
+	if !strings.HasPrefix(ct, "image/") {
+		writeJSON(w, http.StatusUnsupportedMediaType, map[string]string{"error": "blob is not an image", "code": "blob_not_image"})
+		return
+	}
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	st, err := f.Stat()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	w.Header().Set("Content-Type", ct)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	http.ServeContent(w, r, ref, st.ModTime(), f)
 }
 
 // ---- per-session reads ----

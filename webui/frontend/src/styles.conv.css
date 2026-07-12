@@ -701,3 +701,36 @@
   margin-left: 0;
   max-width: 100%;
 }
+
+/* =========================================================================
+   INC-41 round 18 — RT-3: the message action row is a HOVER affordance.
+
+   styles.css gives `.msg-actions` opacity 0 + `.msg:hover` → 1, but then pins
+   `.assistant .msg-actions { opacity: .62 }` — so every assistant message
+   carries three permanently-visible icon buttons (copy / share / continue).
+   Codex (qa/codex-reference/codex-crop-message-actions.jpg) shows the icons
+   only while the pointer is on that message; what stays at rest is the
+   OUTCOME (the "Goal achieved in N" verdict) and the timestamp.
+
+   So the row itself is no longer half-dimmed (its persistent members should be
+   read at full strength) and the ICONS carry the hover state instead. Keyboard
+   users are not locked out: :focus-within reveals the row's buttons, and
+   pointer-events (not visibility) is what's gated, so the buttons remain in the
+   tab order and reveal themselves when focus lands.
+
+   Selectors are qualified with an extra ancestor (`.msg-col`) so they win over
+   styles.css regardless of stylesheet order — this file's standing discipline.
+   ========================================================================= */
+.msg .msg-col .msg-actions .msg-copy {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+.msg:hover .msg-col .msg-actions .msg-copy,
+.msg .msg-col .msg-actions:focus-within .msg-copy {
+  opacity: 1;
+  pointer-events: auto;
+}
+.msg.assistant .msg-col .msg-actions {
+  opacity: 1;
+}

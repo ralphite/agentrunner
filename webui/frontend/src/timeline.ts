@@ -56,6 +56,15 @@ export interface BubbleItem {
   // message with a "from …" label, not as something YOU typed (W19).
   peerSession?: string;
   images?: number;
+  // RT-6: the CAS refs of the images attached to this input, kept — not just
+  // counted. The blobs are durable (sessions/<sid>/artifacts/blobs/<ref>), so a
+  // ref + the session id is all the view needs to render the REAL thumbnail
+  // after a reload, instead of degrading to a "×N attached" stub.
+  imageRefs?: string[];
+  // The session these events came from (envelope correlation_id), needed to
+  // address the blobs above. Carried on the item so the projection stays a pure
+  // function of the journal — the view doesn't have to thread the id in.
+  sessionId?: string;
   // journal seq of the input_received — lets the view attach locally-known
   // upload thumbnails to a sent bubble (the journal itself keeps only CAS refs)
   seq?: number;
@@ -458,6 +467,27 @@ export interface Folded {
 // as "you"; only program/control sources (tool/parent/control/…) get a label.
 const HUMAN_SOURCES = new Set(["user", "cli", "tty"]);
 
+// imageRefs reads the CAS refs out of an input_received's images[] (RT-6). The
+// journal shape is [{ref, media_type}]; a bare string ref is tolerated so an
+// older journal still renders. Anything that isn't a plausible ref is dropped —
+// the view would only turn it into a broken image.
+export function imageRefs(images: unknown): string[] {
+  if (!Array.isArray(images)) return [];
+  return images
+    .map((im) => (typeof im === "string" ? im : (im as { ref?: unknown } | null)?.ref))
+    .filter((r): r is string => typeof r === "string" && /^sha256-[0-9a-f]+$/.test(r));
+}
+
+// correlationSession: which session's blob store holds this event's refs. The
+// envelope's correlation_id IS the session id for a session's own journal (a
+// sub-agent's is "<root>-sub-<child>", and sub-agents never carry user
+// attachments), so it is the honest handle — no id has to be threaded from the
+// view into this pure projection.
+function correlationSession(env: Envelope): string | undefined {
+  const id = (env as Envelope & { correlation_id?: unknown }).correlation_id;
+  return typeof id === "string" && id ? id : undefined;
+}
+
 // foldEvents replays the whole journal into an ordered item list plus the
 // derived approval / status maps. Pure over `events`, recomputed each poll —
 // journal is the source of truth (DESIGN I5).
@@ -516,6 +546,7 @@ export function foldEvents(events: Envelope[]): Folded {
           });
           break;
         }
+        const refs = imageRefs(p.images);
         push({
           kind: "user",
           key: "u" + seq,
@@ -527,6 +558,8 @@ export function foldEvents(events: Envelope[]): Folded {
           source: peer ? peer[1] : undefined,
           peerSession: peer ? peer[2] : undefined,
           images: p.images && p.images.length ? p.images.length : undefined,
+          imageRefs: refs.length ? refs : undefined,
+          sessionId: refs.length ? correlationSession(env) : undefined,
         });
         break;
       }
@@ -1023,6 +1056,90 @@ export function toolCategory(name: string): ActivityCategory {
 // category, matching groupLabel's first-appearance ordering (A1).
 export function groupIcon(tools: ToolItem[]): ActivityCategory {
   return tools.length ? toolCategory(tools[0].name) : "other";
+}
+
+// ---- RT-3: a step line NEVER shows an internal identifier --------------------
+//
+// A step row reads "<verb> <body>": "$ ls -la", "read notes.txt". The old
+// default branch used the raw tool NAME as the verb, so any tool without an
+// explicit case surfaced its wire identifier at the user — an expanded fold read
+// "✓ goal_status", "✓ progress_update". Those are protocol names; Codex never
+// shows one. Every tool the runtime ships (internal/tool/defs) now has a human
+// verb here, and an unknown one (a skill-provided or future tool) degrades to a
+// neutral "Ran a tool" — a vague truth beats a leaked identifier.
+export interface StepLabel {
+  verb: string;
+  body: string;
+  mono: boolean;
+}
+
+export function toolLabel(name: string, args: unknown): StepLabel {
+  const a: Record<string, any> = (parseMaybeJSON(args) as Record<string, any>) || {};
+  const str = (...keys: string[]): string => {
+    for (const k of keys) {
+      const v = a[k];
+      if (typeof v === "string" && v) return v;
+      if (typeof v === "number") return String(v);
+    }
+    return "";
+  };
+  switch (name) {
+    case "bash":
+      return { verb: "$", body: str("command"), mono: true };
+    case "read_file":
+      return { verb: "read", body: str("path", "file"), mono: true };
+    case "write_file":
+      return { verb: "write", body: str("path", "file"), mono: true };
+    case "edit_file":
+      return { verb: "edit", body: str("path", "file"), mono: true };
+    case "grep":
+      return { verb: "search", body: str("pattern"), mono: true };
+    case "glob":
+      return { verb: "find files", body: str("pattern"), mono: true };
+    case "semantic_search":
+      return { verb: "search", body: str("query"), mono: false };
+    case "web_fetch":
+      return { verb: "fetch", body: str("url"), mono: true };
+    case "spawn_agent":
+      return { verb: "spawn sub-agent", body: str("agent") || a.role?.name || str("task"), mono: false };
+    case "handoff_agent":
+      return { verb: "hand off to", body: str("agent"), mono: false };
+    case "send_message":
+      return { verb: "message", body: `→ ${str("to") || "?"} · ${str("text")}`, mono: false };
+    case "ask_user":
+      return { verb: "ask you", body: str("question"), mono: false };
+    case "progress_update":
+      return { verb: "update progress", body: "", mono: false };
+    case "goal_status":
+      return { verb: "check goal progress", body: "", mono: false };
+    case "goal_complete":
+      return { verb: "mark goal complete", body: str("summary"), mono: false };
+    case "exit_plan_mode":
+      return { verb: "finish planning", body: "", mono: false };
+    case "publish_artifact":
+      return { verb: "publish", body: str("stream"), mono: true };
+    case "publish_note":
+      return { verb: "note", body: str("topic"), mono: false };
+    case "read_notes":
+      return { verb: "read notes", body: str("topic"), mono: false };
+    case "artifacts_list":
+      return { verb: "list results", body: "", mono: false };
+    case "artifacts_read":
+      return { verb: "read result", body: str("stream"), mono: true };
+    case "skill":
+      return { verb: "run skill", body: str("name"), mono: false };
+    case "schedule_next":
+      return { verb: "schedule next run", body: str("after"), mono: false };
+    case "finish_series":
+      return { verb: "finish series", body: str("reason"), mono: false };
+    case "output":
+      return { verb: "read task output", body: str("handle"), mono: true };
+    case "kill":
+    case "task_kill":
+      return { verb: "kill task", body: str("handle"), mono: true };
+    default:
+      return { verb: "Ran a tool", body: "", mono: false };
+  }
 }
 
 // ---- A2 tool-specific detail renderers (structured extraction) --------------
