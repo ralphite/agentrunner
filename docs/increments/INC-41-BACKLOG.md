@@ -2992,7 +2992,16 @@ lighter 30px/500" 但那次没有用映射反推,数字是拍的。轮31 已把 
 现在独自比周围重一号。**动作**:`font-size: 23px; font-weight: 400; letter-spacing: -0.2px`;390 断点 25→20px。
 卡片/图标/composer 一律不动。touches:`styles.home.css`。
 
-### SC-22 ☐ Scheduled 整页比金标大一号,首屏只装下 3 条任务 + 3 条建议 [P1]
+### SC-22 ✅ Scheduled 整页比金标大一号,首屏只装下 3 条任务 + 3 条建议 [P1] — `3b07a87`(轮34)
+**实测收口**(真机 Chrome、1440×900 + 390×844 × light/dark,私有 :8871 接真实 driver 数据):
+`.scheduled-row` 高/pitch **68 → 54px**(min-height 68→54、padding 12→9px,标题 leading 1.55→1.35、
+副行 1.55→1.4 —— 字号一个没动,买回来的全是行距);建议行 pitch **~65 → 54.3px**(padding 10→8px、
+head leading 1.25、desc 14→13px);页标题 **28 → 23px**、"Suggestions" **19 → 15px**、副标题 **14 → 13px**。
+无截断/重叠/溢出(`.scheduled-page` 子树溢出探针 0 条),`Needs recovery` 橙字仍在(light `rgb(138,90,0)` /
+dark `rgb(230,185,104)`)、`is-quiet` 降调 2 行、glyph 槽位齐,390 窄档不塌,稳态 console error+warning **0**。
+**全局零污染**:本页标题是 `<h2>`(不是 h1),`.page-heading` 只此一处渲染,改动全部 scope 在
+`.scheduled-page` 下;Settings 面板通篇没有 `<h1>/<h2>/<h3>`(其标题是 div),截图复验未变。
+截图 `qa/runs/2026-07-12-r34/after-sc22/`。
 逐项实测(金标标度 ÷2.48):列表行 pitch **68 vs 54**、"Suggestions" 标题 **19 vs 15**、H1 **28 vs 22**、
 副标题 **14 vs 13**。(建议行 pitch 73→64 已由 SCH-ICON 关掉一半,金标是 54。)每项单独超 20–35%,
 叠起来就是「我们的 Scheduled 是金标的放大版」。这屏的职责是**一眼扫完所有还在自己跑的东西**,
