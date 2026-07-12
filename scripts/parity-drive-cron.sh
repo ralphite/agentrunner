@@ -87,8 +87,27 @@ run_round() {
   ) &
   local SPID=$!
 
+  # (c) 心跳:每 120s 往 log 写一行有内容的心跳——保证【工作中 log 永不静默 >2min】,
+  #     哪怕主 agent 正阻塞在同步等子 agent。内容含:已跑几分钟、当前 origin 追到哪个
+  #     sha(变了=有 push 落地)、有几个 worktree 子 agent、上次 transcript 活动多久前。
+  (
+    setopt local_options null_glob 2>/dev/null || true
+    hb_start=$(date +%s)
+    while kill -0 "$CPID" 2>/dev/null; do
+      sleep 120
+      kill -0 "$CPID" 2>/dev/null || break
+      hb_now=$(date +%s); hb_el=$(( (hb_now - hb_start) / 60 ))
+      hb_head=$(cd "$REPO" 2>/dev/null && git rev-parse --short HEAD 2>/dev/null)
+      hb_wt=$(cd "$REPO" 2>/dev/null && git worktree list 2>/dev/null | grep -c worktrees)
+      hb_tx=$(ls -t ${~TXGLOB} 2>/dev/null | head -1)
+      hb_ago=999; [ -n "$hb_tx" ] && hb_ago=$(( hb_now - $(stat -f %m "$hb_tx" 2>/dev/null || echo "$hb_now") ))
+      echo "[$(ts)] heartbeat: round ${hb_el}m · main=${hb_head} · ${hb_wt} impl-worktrees · last activity ${hb_ago}s ago" >> "$LOG"
+    done
+  ) &
+  local BPID=$!
+
   wait "$CPID"; local RC=$?
-  kill "$WPID" "$SPID" 2>/dev/null
+  kill "$WPID" "$SPID" "$BPID" 2>/dev/null
   rm -rf "$LOCK"
   log "=== round end rc=$RC ==="
 }
