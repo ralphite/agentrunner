@@ -398,26 +398,30 @@ describe("Changed-files list (INC-41 RD-12)", () => {
     await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
     fireEvent.click(screen.getByLabelText("Changed files"));
 
-    const rows = [...container.querySelectorAll(".diff-fileitem")];
-    expect(rows.map((r) => r.getAttribute("title"))).toEqual([
-      // untracked first — the order the panel renders them in
-      "assets/logo.png",
-      "data/big.csv",
+    const rows = () => [...container.querySelectorAll(".diff-fileitem")];
+    // RVW-ORDER · one ordered list: readable files in path order, the unreadable
+    // (binary) ones last — the same order the stream below renders them in.
+    expect(rows().map((r) => r.getAttribute("title"))).toEqual([
       "app.ts",
+      "data/big.csv",
       "notes.md",
+      "assets/logo.png",
     ]);
     // …with the same M/A/D glyph vocabulary as the file headers below.
-    expect(rows[2].querySelector(".fd-glyph")!.className).toMatch(/fd-glyph-modified/);
-    expect(rows[3].querySelector(".fd-glyph")!.className).toMatch(/fd-glyph-added/);
+    expect(rows()[0].querySelector(".fd-glyph")!.className).toMatch(/fd-glyph-modified/);
+    expect(rows()[2].querySelector(".fd-glyph")!.className).toMatch(/fd-glyph-added/);
     // …and each file's own `+N −M` (app.ts: one line replaced).
-    expect(rows[2].querySelector(".fd-counts .add")!.textContent).toBe("+1");
-    expect(rows[2].querySelector(".fd-counts .del")!.textContent).toBe("−1");
-    expect(rows[3].querySelector(".fd-counts .add")!.textContent).toBe("+1");
-    expect(rows[3].querySelector(".fd-counts .del")!.textContent).toBe("−0");
+    expect(rows()[0].querySelector(".fd-counts .add")!.textContent).toBe("+1");
+    expect(rows()[0].querySelector(".fd-counts .del")!.textContent).toBe("−1");
+    expect(rows()[2].querySelector(".fd-counts .add")!.textContent).toBe("+1");
+    expect(rows()[2].querySelector(".fd-counts .del")!.textContent).toBe("−0");
     // A binary blob has no lines to count, so it states none — exactly as its
-    // header does (DF-D3); a not-yet-read text blob says "+…", never a made-up 0.
-    expect(rows[0].querySelector(".fd-counts")).toBeNull();
-    expect(rows[1].querySelector(".fd-counts .add")!.textContent).toBe("+…");
+    // header does (DF-D3).
+    expect(rows()[3].querySelector(".fd-counts")).toBeNull();
+    // RVW-BINCOUNT · and an untracked *text* blob states the count its card read
+    // from the workspace, not a `+…` placeholder the list can never resolve.
+    await waitFor(() => expect(rows()[1].querySelector(".fd-counts .add")!.textContent).toBe("+2"));
+    expect(rows()[1].querySelector(".fd-counts .del")!.textContent).toBe("−0");
   });
 
   it("walks the review to the file that was clicked", async () => {
@@ -476,6 +480,92 @@ describe("Changed-files list (INC-41 RD-12)", () => {
     fireEvent.change(screen.getByPlaceholderText("Filter files…"), { target: { value: "zzz" } });
     await waitFor(() => expect(container.querySelector(".diff-filelist")).toBeNull());
     expect(container.querySelector(".diff-filelist-empty")!.textContent).toMatch(/zzz/);
+  });
+});
+
+// INC-41 RVW-ORDER / RVW-BINCOUNT — what the review opened on, and what it said
+// about the files it cannot read.
+//
+// This repo's own review is the case: `bin/ar` and `bin/arwebui` are untracked
+// binaries, the panel rendered every untracked file *before* the tracked stream,
+// so a review opened on two headers that expand into "Content isn't shown" and
+// pushed the actual code below the fold. And because `isBinaryPath` reads an
+// extension that `bin/ar` doesn't have, the file list called those same two files
+// text: `+… −0`, next to a header that said `[binary]` and printed no counts at
+// all — one screen, two answers, plus a blob request the server can only 400.
+describe("Review order and binary truth (INC-41 RVW-ORDER / RVW-BINCOUNT)", () => {
+  const twoTracked = editDiff + newFileDiff;
+  const streamPaths = (container: HTMLElement) =>
+    [...container.querySelectorAll("summary.fd-head .fd-path")].map((p) => p.textContent);
+  const listPaths = (container: HTMLElement) =>
+    [...container.querySelectorAll(".diff-fileitem")].map((r) => r.getAttribute("title"));
+
+  it("opens on the first readable file — the binaries sink to the end of the review", async () => {
+    arMock.diff = () =>
+      Promise.resolve(baseDiff({ diff: twoTracked, untracked: ["bin/ar", "bin/arwebui"] }));
+    // extension-less: the server is the only thing that can say "not text".
+    arMock.blob = vi.fn(() => Promise.reject(new Error("file is not text")));
+    const { container } = render(<DiffView sid="o1" />);
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+
+    // The two binaries were the review's first two rows. Now they are its last.
+    await waitFor(() =>
+      expect(streamPaths(container)).toEqual(["app.ts", "notes.md", "bin/ar", "bin/arwebui"]),
+    );
+    // …so the first thing the reader sees is a file with a diff in it, not a card
+    // whose body reads "Content isn't shown".
+    const first = container.querySelector("details.filediff")!;
+    expect(first.querySelector(".fd-path")!.textContent).toBe("app.ts");
+    expect(first.querySelector(".fd-nobody")).toBeNull();
+    expect(first.querySelectorAll(".fd-body .dl").length).toBeGreaterThan(0);
+  });
+
+  it("indexes that same order in the file list, so a click lands on the file it names", async () => {
+    arMock.diff = () =>
+      Promise.resolve(baseDiff({ diff: twoTracked, untracked: ["bin/ar", "assets/logo.png"] }));
+    arMock.blob = vi.fn(() => Promise.reject(new Error("file is not text")));
+    const { container } = render(<DiffView sid="o2" />);
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+    await waitFor(() => expect(streamPaths(container)[0]).toBe("app.ts"));
+
+    fireEvent.click(screen.getByLabelText("Changed files"));
+    // List order === stream order. Two lists rendered from two arrays is how a
+    // "jump to file" walks the review to the wrong place.
+    expect(listPaths(container)).toEqual(streamPaths(container));
+    expect(listPaths(container)).toEqual(["app.ts", "notes.md", "assets/logo.png", "bin/ar"]);
+  });
+
+  it("states no count for an extension-less binary, and asks the server about it once", async () => {
+    const blob = vi.fn(() => Promise.reject(new Error("file is not text")));
+    arMock.diff = () => Promise.resolve(baseDiff({ diff: editDiff, untracked: ["bin/ar"] }));
+    arMock.blob = blob;
+    const { container } = render(<DiffView sid="o3" />);
+    await waitFor(() => expect(screen.getByText("ar")).toBeTruthy());
+
+    // The card knows the truth (the endpoint refused the blob): binary, no counts.
+    const card = () => container.querySelector("details.filediff-untracked")!;
+    await waitFor(() => expect(card().querySelector(".fd-badge")!.textContent).toBe("binary"));
+    expect(card().querySelector(".fd-counts")).toBeNull();
+
+    // …and the file list says the same thing now, instead of the `+…` it used to
+    // print for a file whose header, three pixels away, said `[binary]`.
+    fireEvent.click(screen.getByLabelText("Changed files"));
+    const row = [...container.querySelectorAll(".diff-fileitem")].find(
+      (r) => r.getAttribute("title") === "bin/ar",
+    )!;
+    expect(row.querySelector(".fd-counts")).toBeNull();
+    expect(row.textContent).not.toContain("+…");
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    // One doomed request, ever. The panel remembers what the endpoint said, so a
+    // remount (fold-all, filter, focus) never buys another 400.
+    const arCalls = () => blob.mock.calls.filter((c: any[]) => c[1] === "bin/ar");
+    expect(arCalls()).toHaveLength(1);
+    fireEvent.click(screen.getByLabelText("More changes actions"));
+    fireEvent.click(screen.getByText("Expand all files"));
+    await waitFor(() => expect(container.querySelector("details.filediff-untracked[open]")).toBeTruthy());
+    expect(arCalls()).toHaveLength(1);
+    expect(card().querySelector(".fd-nobody")!.textContent).toMatch(/binary or too large/);
   });
 });
 

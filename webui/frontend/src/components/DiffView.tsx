@@ -28,7 +28,7 @@ import { copyText } from "../clipboard";
 import { useStore } from "../store";
 import { loadGitPrefs } from "../theme";
 import type { DiffResp, DiffScope } from "../types";
-import { parseFileDiff, defaultOpenByPath, splitDiff, splitPath, splitRows, highlightLine, hunkGaps, trailingGapKey, langFromPath, type ContextGap, type DiffRow, type FileStatus, type ParsedFileDiff } from "../diffSummary";
+import { parseFileDiff, defaultOpenByPath, splitDiff, splitPath, splitRows, highlightLine, hunkGaps, trailingGapKey, langFromPath, type ContextGap, type DiffRow, type FileDiffSummary, type FileStatus, type ParsedFileDiff } from "../diffSummary";
 import { Popover, PopItem, PopSection } from "./Popover";
 import { useWorktreeActions } from "./worktreeActions";
 import "../styles.diff.css";
@@ -86,6 +86,42 @@ function headMeta(lines: string[]): { status: FileStatus; binary: boolean } {
   }
   return { status, binary };
 }
+
+// INC-41 RVW-ORDER · one file of the review, tracked or not.
+//
+// The panel used to hold two lists and render them back to back: every untracked
+// file first, then the tracked stream. Which meant a review whose untracked set
+// happens to be `bin/ar`, `bin/arwebui` opened on two headers that say `[binary]`
+// and, when clicked, "Content isn't shown" — the first thing the reader saw was
+// the two files nobody can read, and the actual code changes started below the
+// fold. The golden's review opens on its first *readable* file header.
+//
+// So: one list, one order. `file` is what separates the two kinds — the tracked
+// diff's own hunk lines, or null for an untracked file the card has to fetch.
+interface ReviewFile {
+  path: string;
+  status: FileStatus;
+  add: number | null; // null = not knowable yet (an untracked blob not yet read)
+  del: number;
+  binary: boolean; // no lines to count, no body to show → sinks, states no counts
+  file: FileDiffSummary | null;
+}
+
+// What an untracked card learned about its file by *asking* (RVW-BINCOUNT): the
+// blob came back (`binary: false`, a real `add`) or the endpoint refused it
+// (`binary: true`). Only the card knows this — DiffView can otherwise guess from
+// the extension alone, and `bin/ar` has none.
+interface UntrackedFact {
+  binary: boolean;
+  add: number | null;
+}
+
+// Sort: readable files first, in path order; the unreadable ones (binary,
+// oversized) sink to the end, where a header that opens on "Content isn't shown"
+// costs the reader nothing. `<`/`>` on the path, not localeCompare: git orders
+// its own diff by byte, and the two lists have to agree on where `a/` goes.
+const cmpReviewFile = (a: ReviewFile, b: ReviewFile) =>
+  a.binary !== b.binary ? (a.binary ? 1 : -1) : a.path < b.path ? -1 : a.path > b.path ? 1 : 0;
 
 const rowSign = (r?: DiffRow) => (!r ? "" : r.kind === "add" ? "+" : r.kind === "del" ? "−" : " ");
 const halfKind = (r: DiffRow | undefined, side: "left" | "right") =>
@@ -282,6 +318,28 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
       saveWrap(!w);
       return !w;
     });
+  // INC-41 RVW-BINCOUNT · what the untracked cards found out, kept where the file
+  // list can read it. `isBinaryPath` is an *extension* guess, and the two files
+  // this review shows most (`bin/ar`, `bin/arwebui`) have no extension: the guess
+  // said "text", so the list printed a `+…` that would never resolve and the card
+  // spent a doomed request proving otherwise — while the header two pixels away
+  // rendered `[binary]` and no counts. One screen, two answers. The card is the
+  // one that *knows* (it either holds the blob's lines or watched the endpoint
+  // refuse it), so it reports, and its truth overrides the guess everywhere: the
+  // counts, the ordering, and whether the next mount asks again at all.
+  const [facts, setFacts] = useState<Record<string, UntrackedFact>>({});
+  useEffect(() => setFacts({}), [sid]); // a different workspace, different files
+  const reportFact = useCallback((path: string, fact: UntrackedFact) => {
+    setFacts((prev) => {
+      const cur = prev[path];
+      // Monotone: a card remounts on every fold-all/filter/focus, and a fresh
+      // mount starts with `lines: null` again — that must not walk a known `+42`
+      // back to `+…`, nor a known binary back to a guess.
+      const next: UntrackedFact = { binary: fact.binary || !!cur?.binary, add: fact.add ?? cur?.add ?? null };
+      if (cur && cur.binary === next.binary && cur.add === next.add) return prev;
+      return { ...prev, [path]: next };
+    });
+  }, []);
   const [narrow, setNarrow] = useState(() => window.matchMedia("(max-width: 900px)").matches);
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 900px)");
@@ -634,31 +692,38 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
   const totalAdd = stats.reduce((s, x) => s + x.add, 0);
   const totalDel = stats.reduce((s, x) => s + x.del, 0);
   const q = fileQuery.trim().toLowerCase();
-  const shown = q ? stats.filter((s) => s.f.path.toLowerCase().includes(q)) : stats;
+  // INC-41 RVW-ORDER · the review, as one ordered list of files — the *only* list.
+  // Tracked and untracked go in together (DF-3 already made them the same card),
+  // readable files first in path order, unreadable ones last (cmpReviewFile). The
+  // stream below and the file-list popover both render *this*, so a click in the
+  // list can no longer land on a different file than the one it named.
+  //
+  // RVW-BINCOUNT · `binary` is the card's reported truth where there is one, and
+  // the extension guess only until then.
+  const entries: ReviewFile[] = [
+    ...untracked.map((path): ReviewFile => {
+      const fact = facts[path];
+      return {
+        path,
+        status: "added",
+        add: fact ? fact.add : null,
+        del: 0,
+        binary: fact ? fact.binary : isBinaryPath(path),
+        file: null,
+      };
+    }),
+    ...stats.map(({ f, add, del }): ReviewFile => {
+      const meta = headMeta(f.lines);
+      return { path: f.path, status: meta.status, add, del, binary: meta.binary, file: f };
+    }),
+  ].sort(cmpReviewFile);
   // DF-3 · untracked files are files: they go through the same filter, the same
   // count, the same Expand/Collapse-all as everything else in the review.
-  const shownUntracked = q ? untracked.filter((p) => p.toLowerCase().includes(q)) : untracked;
-  const fileCount = files.length + untracked.length;
-  const shownCount = shown.length + shownUntracked.length;
-  // INC-41 RD-12 · the review's table of contents, in the order the panel renders
-  // it (untracked cards first, then the tracked stream) so the list reads top-to-
-  // bottom like the thing it indexes. An untracked file's `+N` is only knowable
-  // once its blob is in hand (the card fetches it; this list does not), so it says
-  // `+…` rather than inventing a number — and a binary file, tracked or not, says
-  // nothing at all, exactly as its header does (DF-D3).
-  const listFiles: { path: string; status: FileStatus; add: number | null; del: number; counts: boolean }[] = [
-    ...shownUntracked.map((path) => ({
-      path,
-      status: "added" as FileStatus,
-      add: null,
-      del: 0,
-      counts: !isBinaryPath(path),
-    })),
-    ...shown.map(({ f, add, del }) => {
-      const meta = headMeta(f.lines);
-      return { path: f.path, status: meta.status, add, del, counts: !meta.binary };
-    }),
-  ];
+  const shown = q ? entries.filter((e) => e.path.toLowerCase().includes(q)) : entries;
+  const fileCount = entries.length;
+  const shownCount = shown.length;
+  const shownTracked = shown.filter((e) => e.file);
+  const shownUntrackedCount = shown.length - shownTracked.length;
   // Per-file default disclosure (RD-1) — computed over the whole review, not just
   // the filtered subset, so filtering never changes a file's default state.
   const defaults = defaultOpenByPath(files);
@@ -675,7 +740,7 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
   // open on a wall of content nobody reads. Expand-all still opens it.
   const untrackedOpen = override ?? false;
   const allShownOpen =
-    shownCount > 0 && shown.every((s) => isOpen(s.f.path)) && (shownUntracked.length === 0 || untrackedOpen);
+    shownCount > 0 && shownTracked.every((e) => isOpen(e.path)) && (shownUntrackedCount === 0 || untrackedOpen);
 
   return (
     <div className={"diffwrap" + (wrap ? " diff-wrap" : "")}>
@@ -876,11 +941,18 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
                       aria-label="Filter files by path"
                     />
                   </label>
-                  {listFiles.length === 0 ? (
+                  {shown.length === 0 ? (
                     <div className="diff-filelist-empty">No changed file’s path contains “{fileQuery}”.</div>
                   ) : (
                     <div className="diff-filelist">
-                      {listFiles.map((f) => {
+                      {/* RD-12 · the review's table of contents — and RVW-ORDER · it
+                          indexes `shown`, the very array the stream below renders,
+                          so the list reads top-to-bottom like the thing it points
+                          at. An untracked file's `+N` is only knowable once its
+                          blob is in hand, so it says `+…` rather than inventing a
+                          number — and a binary file, tracked or untracked, says
+                          nothing at all, exactly as its header does (DF-D3). */}
+                      {shown.map((f) => {
                         const { dir, base } = splitPath(f.path);
                         return (
                           <button
@@ -901,7 +973,7 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
                               {dir && <span className="fd-dir">{dir}</span>}
                               {base}
                             </span>
-                            {f.counts && (
+                            {!f.binary && (
                               <span className="fd-counts">
                                 <span className="add">+{f.add === null ? "…" : f.add}</span>
                                 <span className="del">−{f.del}</span>
@@ -1107,24 +1179,38 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
           the golden's first line is its first file header, and its "hidden" count
           is a footnote inside the file list (see the toolbar's file-tree popover,
           where the note now lives, tooltip and all). */}
-      {/* INC-41 DF-3 · these used to be a grey `new files (untracked) · N` strip
-          of bare paths: no glyph, no `+N −0`, no line numbers, nothing to open —
-          a second visual language for the files a review most wants to read, and
-          they sat *above* every real file. They are ordinary file cards now. */}
-      {shownUntracked.map((path) => (
-        <UntrackedFile
-          key={fileKey(path)}
-          sid={sid}
-          path={path}
-          effView={effView}
-          detailsRef={path === focusPath ? focusRef : undefined}
-          defaultOpen={path === focusPath ? true : untrackedOpen}
-          // Same budget as FileBody's prefetch: on a small review, read the file
-          // up front so its header can state a real `+N −0` instead of `+…`.
-          prefetch={shownUntracked.length <= 25}
-        />
-      ))}
-      {shown.map(({ f, add, del }) => {
+      {/* INC-41 DF-3 · untracked files used to be a grey `new files (untracked) ·
+          N` strip of bare paths: no glyph, no `+N −0`, no line numbers, nothing to
+          open — a second visual language for the files a review most wants to
+          read. They are ordinary file cards now…
+          INC-41 RVW-ORDER · …and they are in the *stream* now, not in a block of
+          their own bolted on top of it. Two untracked binaries (`bin/ar`,
+          `bin/arwebui`) were enough to make every review of this repo open on two
+          headers whose bodies read "Content isn't shown", with the code the reader
+          came for pushed below the fold. One list, sorted, unreadable files last —
+          and the file-list popover above renders the same array, so its rows and
+          these cards can never disagree about what comes where. */}
+      {shown.map((e) => {
+        if (!e.file)
+          return (
+            <UntrackedFile
+              key={fileKey(e.path)}
+              sid={sid}
+              path={e.path}
+              effView={effView}
+              detailsRef={e.path === focusPath ? focusRef : undefined}
+              defaultOpen={e.path === focusPath ? true : untrackedOpen}
+              // Same budget as FileBody's prefetch: on a small review, read the file
+              // up front so its header can state a real `+N −0` instead of `+…`.
+              prefetch={shownUntrackedCount <= 25}
+              // RVW-BINCOUNT · what we already learned about this file, so a remount
+              // (fold-all, filter, focus) never re-asks a question the endpoint has
+              // already refused — and reports back what it learns itself.
+              knownBinary={e.binary}
+              onFact={reportFact}
+            />
+          );
+        const f = e.file;
         const parsed = parseFileDiff(f.lines);
         const lang = langFromPath(f.path);
         // A hunk header with no @@ context text is pure noise: a lone "⋯" band.
@@ -1143,7 +1229,7 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
                 triangle, so a collapsed file was a lone header with no hint that a
                 body was hiding under it. Header shape now lives in FileHead, which
                 untracked files share (DF-3). */}
-            <FileHead path={f.path} status={parsed.status} add={add} del={del} badges={parsed.badges} />
+            <FileHead path={f.path} status={parsed.status} add={e.add} del={e.del} badges={parsed.badges} />
             <FileBody
               sid={sid}
               path={f.path}
@@ -1154,7 +1240,7 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
               // Only pay for a blob prefetch on bodies the user is actually looking
               // at, and only while the review is small enough that one request per
               // file is cheap (see FileBody's trailing-band note).
-              prefetch={open && effView === "inline" && shown.length <= 25}
+              prefetch={open && effView === "inline" && shownTracked.length <= 25}
             />
           </details>
         );
@@ -1220,6 +1306,8 @@ function UntrackedFile({
   defaultOpen,
   prefetch,
   detailsRef,
+  knownBinary,
+  onFact,
 }: {
   sid: string;
   path: string;
@@ -1227,6 +1315,8 @@ function UntrackedFile({
   defaultOpen: boolean;
   prefetch: boolean;
   detailsRef?: (el: HTMLDetailsElement | null) => void;
+  knownBinary?: boolean;
+  onFact?: (path: string, fact: UntrackedFact) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const [lines, setLines] = useState<string[] | null>(null);
@@ -1238,7 +1328,14 @@ function UntrackedFile({
   // "Content isn't shown". The extension answers that question for free: the
   // failed state is entered without asking, so a binary file now costs zero
   // requests and leaves zero red lines in the console.
-  const [failed, setFailed] = useState(() => isBinaryPath(path));
+  //
+  // INC-41 RVW-BINCOUNT · …for a file that *has* an extension. `bin/ar` has none,
+  // so the guess said "text" and this card paid the doomed request anyway — once
+  // per mount, i.e. once per fold-all, filter and focus. `knownBinary` is the
+  // panel's memory of what a previous mount found out (it is seeded with the same
+  // extension guess when there is nothing to remember yet), so the endpoint is
+  // asked at most once about any file, ever.
+  const [failed, setFailed] = useState(() => knownBinary ?? isBinaryPath(path));
 
   useEffect(() => {
     if (failed || (!open && !prefetch) || lines) return;
@@ -1259,6 +1356,15 @@ function UntrackedFile({
   // "binary" badge and FileHead prints no counts at all for it (DF-D3), exactly
   // as a *tracked* binary addition does. The two agree; neither invents a zero.
   const add = lines ? lines.length : failed ? 0 : null;
+  // RVW-BINCOUNT · and now the file list agrees with them too. This card is the
+  // only place in the panel that knows whether the blob came back or was refused;
+  // until it said so, the list printed `+…` for a file whose own header three
+  // pixels away said `[binary]`. It reports both facts — "is it readable" and, for
+  // the ones that are, "how many lines" — and DiffView folds them into the list,
+  // the sort order, and the next mount's decision not to ask again.
+  useEffect(() => {
+    onFact?.(path, { binary: failed, add });
+  }, [onFact, path, failed, add]);
 
   return (
     <details
