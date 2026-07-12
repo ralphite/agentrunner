@@ -706,17 +706,11 @@
    INC-41 round 18 — RT-3: the message action row is a HOVER affordance.
 
    styles.css gives `.msg-actions` opacity 0 + `.msg:hover` → 1, but then pins
-   `.assistant .msg-actions { opacity: .62 }` — so every assistant message
-   carries three permanently-visible icon buttons (copy / share / continue).
-   Codex (qa/codex-reference/codex-crop-message-actions.jpg) shows the icons
-   only while the pointer is on that message; what stays at rest is the
-   OUTCOME (the "Goal achieved in N" verdict) and the timestamp.
-
-   So the row itself is no longer half-dimmed (its persistent members should be
-   read at full strength) and the ICONS carry the hover state instead. Keyboard
-   users are not locked out: :focus-within reveals the row's buttons, and
-   pointer-events (not visibility) is what's gated, so the buttons remain in the
-   tab order and reveal themselves when focus lands.
+   `.assistant .msg-actions { opacity: .62 }` — so an assistant row's persistent
+   members (the "Goal achieved in N" verdict and the timestamp) were rendered
+   half-faded even at full attention. Codex reads them at full strength, so the
+   ROW is pinned to opacity 1 here; the hover/rest distinction is carried by the
+   icons alone, one level down (see TH-10 below, which restores them at rest).
 
    Selectors are qualified with an extra ancestor (`.msg-col`) so they win over
    styles.css regardless of stylesheet order — this file's standing discipline.
@@ -726,64 +720,58 @@
 }
 
 /* =========================================================================
-   INC-41 round 20 — TH-1: the resting action row must be LEFT-ANCHORED.
+   INC-41 round 20/24 — TH-1 + TH-10: the action row is PERSISTENT and
+   left-anchored on the prose column.
 
-   Round 18 hid the icons with `opacity: 0` alone, which hides the ink but keeps
-   the BOX: three 26px ghost buttons (plus their 4px flex gaps) went on holding
-   94px of the row, so at rest the only visible member — the timestamp — floated
-   at x=444 while the prose column starts at x=350. A dangling "06:35 PM" with a
-   94px void to its left reads as a layout bug, and it is one.
+   Round 18/20 read Codex's row (qa/codex-reference/codex-crop-message-actions.jpg)
+   as "one icon + the verdict", and hid the action icons until :hover — round 20
+   then had to collapse their boxes to 0 width, because three 26px ghost buttons
+   were stranding the timestamp at x=444 while the prose column starts at x=350.
 
-   Codex's row always begins on the column's left edge (icon + verdict, see
-   qa/codex-reference/codex-crop-message-actions.jpg). So the hidden icons must
-   cost NOTHING horizontally:
-     - width/left+right padding → 0, overflow hidden: the box collapses.
-     - margin-right: -4px cancels the flex gap that would otherwise survive the
-       collapsed child, so N hidden icons contribute exactly 0px.
-     - VERTICAL padding is kept, so the row's height is identical at rest and on
-       hover — revealing the icons never reflows the thread below.
-   The divider collapses with them (a separator with nothing to separate), and
-   .msg-time drops its 4px left margin: the gap already spaces it from whatever
-   precedes it, and at rest it must sit flush on the column edge.
+   That reading was wrong. The gold master's row is `⧉ 👍 👎 ↗ │ ⊘ Goal achieved
+   in 3h 47m 26s` — the action icons are THERE at rest; the single circle in the
+   crop is the verdict's ✓, not the whole row. Hover-only icons mean Copy / Copy
+   link / Continue-in-new-task simply do not exist for anyone who doesn't sweep a
+   mouse over the message (and do not exist AT ALL on touch). So the icons are
+   always drawn — dimmed (opacity .5) at rest, full strength on :hover /
+   :focus-within, which keeps them discoverable without shouting over the prose.
 
-   Visibility (not focusability) is what's gated: the buttons stay in the DOM and
-   in the tab order, and :focus-within restores them at full size, so a keyboard
-   user reaches Copy/Share/Continue exactly like a pointer user.
+   TH-1's two contracts survive, and are what the rules below are shaped around:
+     (a) The row's height NEVER changes with hover — only `opacity` animates, no
+         box property does, so revealing the icons cannot reflow the thread.
+     (b) The row still begins flush on the column's left edge (x=350): the first
+         member is now the Copy button itself, and .msg-time keeps `margin-left:
+         0` so it trails the icons on the flex gap alone.
+
+   The divider is a real 1px hairline at rest (it now has something to separate),
+   and the buttons keep pointer-events, so a click at rest works without a
+   priming hover. On non-assistant messages styles.css still fades the whole row
+   out at rest (opacity: 0) — an invisible row must not be clickable, so
+   pointer-events are gated there, and restored on hover/focus.
    ========================================================================= */
-.msg .msg-col .msg-actions .msg-copy,
-.msg .msg-col .msg-actions .msg-actions-div {
-  width: 0;
-  min-width: 0;
-  padding-left: 0;
-  padding-right: 0;
-  margin-left: 0;
-  margin-right: -4px;
-  overflow: hidden;
-  opacity: 0;
-  pointer-events: none;
+.msg .msg-col .msg-actions .msg-copy {
+  opacity: 0.5;
   transition: opacity 0.12s;
 }
 .msg:hover .msg-col .msg-actions .msg-copy,
 .msg .msg-col .msg-actions:focus-within .msg-copy {
-  width: 26px;
-  padding-left: 2px;
-  padding-right: 2px;
-  margin-right: 0;
   opacity: 1;
-  pointer-events: auto;
 }
 .msg .msg-col .msg-actions .msg-actions-div {
+  width: 1px;
   align-self: stretch;
   background: currentColor;
-}
-.msg:hover .msg-col .msg-actions .msg-actions-div,
-.msg .msg-col .msg-actions:focus-within .msg-actions-div {
-  width: 1px;
-  margin-right: 0;
-  opacity: 0.25;
+  opacity: 0.22;
 }
 .msg .msg-col .msg-actions .msg-time {
   margin-left: 0;
+}
+.msg:not(.assistant) .msg-col .msg-actions {
+  pointer-events: none;
+}
+.msg:not(.assistant):hover .msg-col .msg-actions,
+.msg:not(.assistant) .msg-col .msg-actions:focus-within {
+  pointer-events: auto;
 }
 
 /* =========================================================================

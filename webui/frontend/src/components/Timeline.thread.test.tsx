@@ -40,45 +40,61 @@ function block(selector: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// TH-1 — the resting action row is LEFT-ANCHORED on the prose column.
+// TH-1 + TH-10 — the assistant action row is PERSISTENT and left-anchored.
 //
-// jsdom has no layout engine, so the x=350 verdict can't be measured here; what
-// CAN be pinned is the mechanism that produces it, and the mechanism is exactly
-// what regressed: hiding the icons with opacity alone left their boxes (3×26px
-// + gaps = 94px) holding the row open, stranding the timestamp in mid-air. So
-// this asserts (a) the hidden members collapse their box AND cancel their flex
-// gap, (b) nothing re-introduces a hard-coded inline width on the divider, and
-// (c) the row's persistent members (verdict + time) really are what's left.
+// TH-10: Codex draws the action icons at rest (`⧉ 👍 👎 ↗ │ ⊘ Goal achieved in
+// …`); our sheet had collapsed them to width:0 / opacity:0 until :hover, which
+// makes Copy / Copy-link / Continue-in-new-task invisible (and, on touch,
+// unreachable). They are now always drawn, dimmed at rest.
+//
+// TH-1's contracts must survive that, and jsdom has no layout engine — so what
+// is pinned here is the mechanism that produces them: (a) hover changes ONLY
+// opacity, never a box property, so the row's height can't move and the thread
+// can't reflow; (b) the timestamp keeps no left margin, so the row still starts
+// flush on the column edge; (c) the divider stays CSS-controlled and the row's
+// persistent members are all still rendered.
 // ---------------------------------------------------------------------------
-describe("TH-1 — assistant action row: hidden icons cost no width", () => {
-  it("collapses the hidden icons and the divider to a zero-width, gap-free box", () => {
-    const rest = block(".msg .msg-col .msg-actions .msg-copy,");
-    expect(rest).toMatch(/width:\s*0;/);
-    expect(rest).toMatch(/padding-left:\s*0;/);
-    expect(rest).toMatch(/padding-right:\s*0;/);
-    // the negative margin is what cancels .msg-actions' 4px flex gap — without
-    // it three collapsed icons would still push the timestamp 12px off the edge
-    expect(rest).toMatch(/margin-right:\s*-4px;/);
-    expect(rest).toMatch(/opacity:\s*0;/);
-    // vertical padding is NOT zeroed: the row must keep its height so revealing
-    // the icons on hover doesn't reflow the thread below it
-    expect(rest).not.toMatch(/(^|\W)padding:\s*0/);
+describe("TH-10 — assistant action row: icons are visible at rest", () => {
+  it("keeps the icons drawn at rest, dimmed rather than collapsed", () => {
+    const rest = block(".msg .msg-col .msg-actions .msg-copy {");
+    expect(rest).toMatch(/opacity:\s*0\.5;/);
+    // the round-20 collapse is gone: no zero width, no gap-cancelling margin,
+    // no pointer-events lockout — a click at rest must work without a hover
+    expect(rest).not.toMatch(/width:\s*0;/);
+    expect(rest).not.toMatch(/margin-right:\s*-4px;/);
+    expect(rest).not.toMatch(/pointer-events:\s*none;/);
   });
 
-  it("gives the timestamp no left margin, so at rest it sits flush on the column edge", () => {
-    expect(block(".msg .msg-col .msg-actions .msg-time")).toMatch(/margin-left:\s*0;/);
-  });
-
-  it("restores full-size, clickable icons on hover and on keyboard focus", () => {
+  it("animates opacity only, so hovering can never change the row's height", () => {
+    const rest = block(".msg .msg-col .msg-actions .msg-copy {");
+    expect(rest).toMatch(/transition:\s*opacity/);
     const shown = block(".msg:hover .msg-col .msg-actions .msg-copy,");
-    expect(shown).toMatch(/width:\s*26px;/);
-    expect(shown).toMatch(/margin-right:\s*0;/);
-    expect(shown).toMatch(/pointer-events:\s*auto;/);
+    // the hover block sets nothing but opacity — no width/padding/margin, which
+    // is what used to reflow the thread under the pointer
+    expect(shown).toMatch(/opacity:\s*1;/);
+    expect(shown).not.toMatch(/width|padding|margin/);
     // the focus twin keeps keyboard users out of a dead row
     expect(conv).toContain(".msg .msg-col .msg-actions:focus-within .msg-copy");
   });
 
-  it("keeps the divider CSS-controlled (no inline width that would survive the collapse)", () => {
+  it("keeps the divider a persistent hairline, not a hover-only one", () => {
+    const div = block(".msg .msg-col .msg-actions .msg-actions-div");
+    expect(div).toMatch(/width:\s*1px;/);
+    expect(div).toMatch(/opacity:\s*0\.22;/);
+  });
+
+  it("gives the timestamp no left margin, so the row starts flush on the column edge", () => {
+    expect(block(".msg .msg-col .msg-actions .msg-time")).toMatch(/margin-left:\s*0;/);
+  });
+
+  it("leaves the invisible user-message row unclickable at rest", () => {
+    // styles.css still fades a user message's row out entirely at rest — an
+    // invisible row must not swallow clicks
+    expect(block(".msg:not(.assistant) .msg-col .msg-actions {")).toMatch(/pointer-events:\s*none;/);
+    expect(conv).toContain(".msg:not(.assistant):hover .msg-col .msg-actions");
+  });
+
+  it("renders the row's members: three action buttons, the divider, verdict and time", () => {
     const { container } = render(
       <TimelineView
         items={[assistant("a1")]}
@@ -86,18 +102,18 @@ describe("TH-1 — assistant action row: hidden icons cost no width", () => {
         typing=""
         showSys={false}
         goalVerdict={{ elapsed: "3h 47m" }}
+        onContinue={() => {}}
       />,
     );
     const div = container.querySelector(".msg-actions-div") as HTMLElement;
     expect(div).not.toBeNull();
     expect(div.getAttribute("style")).toBeNull();
-    // the row's persistent members — the verdict and the timestamp — are still
-    // there (RT-3's decision stands; only its layout bug is fixed)
     const row = container.querySelector(".msg-actions") as HTMLElement;
     expect(row.querySelector(".msg-goal-verdict")?.textContent).toContain("Goal achieved in 3h 47m");
     expect(row.querySelector(".msg-time")).not.toBeNull();
-    // and the icons remain in the DOM (hence in the tab order)
-    expect(row.querySelectorAll("button.msg-copy").length).toBeGreaterThanOrEqual(2);
+    // Copy / Copy link / Continue in new task — the three entry points TH-10 is
+    // about; they are in the DOM, hence in the tab order, at rest
+    expect(row.querySelectorAll("button.msg-copy")).toHaveLength(3);
   });
 });
 
