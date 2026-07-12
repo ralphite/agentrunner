@@ -87,6 +87,18 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
     return () => mq.removeEventListener("change", sync);
   }, []);
   const effView = narrow ? "inline" : view;
+  // DF-1 · the review rail is ~56% of the window, so below ~1400px the worktree
+  // chip's text is the first thing with nowhere to go. It shrinks (never its
+  // neighbours — see .diffwrap .diffbar in styles.css), and here it stops being
+  // a half-word clipped mid-glyph and becomes an honest icon-only chip; the full
+  // "worktree of <repo> · <branch>" stays one hover away in its title.
+  const [chipCompact, setChipCompact] = useState(() => window.matchMedia("(max-width: 1400px)").matches);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1400px)");
+    const sync = () => setChipCompact(mq.matches);
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   const load = () => {
     const currentRequest = ++requestID.current;
@@ -414,18 +426,37 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
             // RV-1: nowrap — the badge used to wrap onto three lines inside the
             // toolbar ("worktree of / agentrunner · / detached"), single-handedly
             // pushing the bar past Codex's one-row height.
-            className="diff-wt-badge inline-flex shrink-0 items-center gap-[4px] whitespace-nowrap text-[11px] text-ink-2 bg-panel-2 border border-line-2 rounded-[5px] px-[6px] py-[2px]"
-            title={data.mainRepo ? "Isolated worktree of " + data.mainRepo : "Isolated git worktree"}
+            //
+            // DF-1: …and then, as an unshrinkable 195px sentence ("worktree of
+            // agentrunner · main"), it pushed the bar past the *panel* instead —
+            // the ✕ landed outside it. The repo name lives in the tooltip (and in
+            // the `…` menu's Apply/Remove lines) now; the chip states the two
+            // facts the review actually needs — this is a worktree, on this
+            // branch — and it is the one control allowed to give way, ellipsizing
+            // its branch as the panel narrows.
+            className="diff-wt-badge inline-flex min-w-0 items-center gap-[4px] whitespace-nowrap text-[11px] text-ink-2 bg-panel-2 border border-line-2 rounded-[5px] px-[6px] py-[2px]"
+            title={
+              (data.mainRepo ? "Isolated worktree of " + data.mainRepo : "Isolated git worktree") +
+              (data.branch ? " · branch " + data.branch : " · detached HEAD")
+            }
           >
-            <GitBranch size={12} />
-            worktree of <b className="text-ink font-medium">{(data.mainRepo || "").split("/").filter(Boolean).pop() || "project"}</b>
-            {data.branch ? <span className="dim">· {data.branch}</span> : <span className="dim">· detached</span>}
+            <GitBranch size={12} className="shrink-0" />
+            {/* One truncating run, not several shrink-0 words: whatever width is
+                left, the chip ends in an ellipsis instead of a clipped glyph. */}
+            {!chipCompact && (
+              <span className="min-w-0 truncate">
+                worktree <span className="dim">· {data.branch || "detached"}</span>
+              </span>
+            )}
           </span>
         )}
         <span className="spacer" />
         {/* RV-1 · the low-frequency, workspace-level actions (refresh, and the
             worktree's Apply / Remove) live behind one `…`, so the bar can no
-            longer wrap to a second row in a worktree session. */}
+            longer wrap to a second row in a worktree session. DF-1 · Expand /
+            Collapse-all joined them: four resident controls (`…`, filter, split,
+            Commit or push) plus the ✕ is what a 658px panel can seat at 1440
+            without crushing anything — the same shape Codex's review header has. */}
         <Popover
           align="right"
           panelClass="diff-more-menu"
@@ -444,6 +475,17 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
         >
           {(close) => (
             <PopSection label="Changes">
+              {files.length > 1 && (
+                <PopItem
+                  icon={allShownOpen ? <ArrowsInLineVertical size={15} /> : <ArrowsOutLineVertical size={15} />}
+                  title={allShownOpen ? "Collapse all files" : "Expand all files"}
+                  desc={allShownOpen ? "Fold every file down to its header" : "Open every file's diff"}
+                  onClick={() => {
+                    close();
+                    setAll(!allShownOpen);
+                  }}
+                />
+              )}
               <PopItem
                 title="Refresh changes"
                 desc="Re-read the workspace diff"
@@ -478,26 +520,50 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
             </PopSection>
           )}
         </Popover>
+        {/* DF-1 · the filter is an icon, not a permanently-open 150px input —
+            Codex's review header does the same (a magnifier button that opens a
+            field). As a resident input it was the second-largest thing on a bar
+            that already didn't fit, and flexbox paid for it by crushing the
+            split/unified toggle to 2px and shoving the ✕ out of the panel. The
+            field now opens in a popover, where it has room; the trigger stays
+            lit while a query is filtering the list, so a filtered review can
+            never look like an empty one. */}
         {files.length > 1 && (
-          <button
-            className="sm ghost diff-iconbtn"
-            onClick={() => setAll(!allShownOpen)}
-            aria-label={allShownOpen ? "Collapse all files" : "Expand all files"}
-            title={allShownOpen ? "Collapse all files" : "Expand all files"}
+          <Popover
+            align="right"
+            panelClass="w-[248px] max-w-[calc(100vw-24px)]"
+            trigger={(open, toggle) => (
+              <button
+                className={"sm ghost diff-iconbtn" + (open || fileQuery ? " active" : "")}
+                onClick={toggle}
+                aria-label="Filter files by path"
+                aria-haspopup="menu"
+                aria-expanded={open}
+                title={fileQuery ? "Filtering files by “" + fileQuery + "”" : "Filter files by path"}
+              >
+                <MagnifyingGlass size={15} />
+              </button>
+            )}
           >
-            {allShownOpen ? <ArrowsInLineVertical size={15} /> : <ArrowsOutLineVertical size={15} />}
-          </button>
-        )}
-        {files.length > 1 && (
-          <label className={"diff-filter" + (fileQuery ? " has-query" : "")} title="Filter files by path">
-            <MagnifyingGlass size={13} />
-            <input
-              value={fileQuery}
-              onChange={(e) => setFileQuery(e.target.value)}
-              placeholder="Filter files…"
-              aria-label="Filter files by path"
-            />
-          </label>
+            {() => (
+              <PopSection label="Filter files">
+                <label className="mx-[6px] flex items-center gap-[6px] rounded-[8px] border border-line bg-panel px-[9px] py-[5px] text-dim focus-within:border-[var(--rs-accent)]">
+                  <MagnifyingGlass size={13} className="shrink-0" />
+                  <input
+                    data-popover-autofocus
+                    className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[12px] text-ink outline-none"
+                    value={fileQuery}
+                    onChange={(e) => setFileQuery(e.target.value)}
+                    placeholder="Filter files…"
+                    aria-label="Filter files by path"
+                  />
+                </label>
+                <div className="mx-[6px] mt-[6px] text-[11px] text-dim">
+                  {q ? `${shown.length} of ${files.length} files match` : `${files.length} files changed`}
+                </div>
+              </PopSection>
+            )}
+          </Popover>
         )}
         {!empty && (
           <div className="diff-viewtoggle" role="group" aria-label="Diff layout">

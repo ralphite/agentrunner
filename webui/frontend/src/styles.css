@@ -1509,6 +1509,30 @@ label.field {
 .diffbar .spacer {
   flex: 1;
 }
+/* INC-41 DF-1 · the one-row contract, made explicit. "nowrap" alone only stops
+   the bar from wrapping — it does not stop it from *overflowing*, and that is
+   what a worktree session did: the badge was `flex-shrink: 0` and 195px wide, so
+   the leftovers (the split/unified toggle, Commit or push, the ✕) were the ones
+   flexbox squeezed. Measured at 1440 before this: scrollWidth 692 vs clientWidth
+   658, the toggle crushed to 2px, and the ✕ at x=1447 — outside a panel whose
+   right edge is 1440, i.e. the user could not close Changes at all.
+   So: every control is `0 0 auto` (never shrinks, always clickable), and the two
+   things allowed to give way are the elastic spacer and the worktree badge,
+   which ellipsizes its branch instead of pushing its neighbours off the panel.
+   These have to out-specify styles.rs.css's `.diffwrap .diff-*` rules, hence the
+   three-class selectors. */
+.diffwrap .diffbar > * {
+  flex: 0 0 auto;
+}
+.diffwrap .diffbar .spacer {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.diffwrap .diffbar .diff-wt-badge {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
 .diff-scope-trigger {
   height: 30px;
   display: inline-flex;
