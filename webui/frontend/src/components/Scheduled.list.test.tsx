@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 // Nothing here depends on the network; stub the API with never-settling promises
 // (same pattern as Sidebar.nav / loadingStates).
@@ -129,6 +129,155 @@ describe("Scheduled admits only rhythmic work (SC-1)", () => {
     mount();
     expect(screen.getByRole("tab", { name: "Finished" })).toBeTruthy();
     expect(screen.queryByRole("tab", { name: "Paused" })).toBeNull();
+  });
+});
+
+// SC-10 / SC-11 fixtures — one of each kind of series this page has to tell
+// apart. All four are rhythmic (SC-1), so all four are on the page; what differs
+// is whether the series is still going and whether it is broken.
+const seriesSessions: Session[] = [
+  {
+    // Healthy, and idle THIS SECOND because it fires every 30 minutes — the case
+    // the old tick-level rule filed under "Finished".
+    id: "20260712-100000-healthy",
+    status: "idle",
+    turns: 4,
+    title: "Healthy: watch the queue",
+    workspace: "/repo/app",
+    kind: "driver",
+    schedule: "interval",
+    cadence: "Every 30m",
+    nextRunAt: "2099-01-01T00:00:00Z",
+  },
+  {
+    // The live regression (driver 20260712-033455-cx3-cadence-61b9): claims a
+    // 30-minute rhythm, has no next tick, and has been dead for hours.
+    id: "20260712-090000-stranded",
+    status: "stranded",
+    turns: 2,
+    title: "Broken: cadence driver that died",
+    workspace: "/repo/app",
+    kind: "driver",
+    schedule: "interval",
+    cadence: "Every 30m",
+  },
+  {
+    id: "20260712-080000-crashed",
+    status: "crashed",
+    turns: 1,
+    title: "Broken: nightly sweep that crashed",
+    workspace: "/repo/app",
+    kind: "driver",
+    schedule: "cron",
+    cadence: "Daily at 6:00 AM",
+  },
+  {
+    id: "20260712-070000-done",
+    status: "satisfied",
+    turns: 6,
+    title: "Finished: the goal was met",
+    workspace: "/repo/app",
+    kind: "driver",
+    schedule: "self_paced",
+    cadence: "Self-paced",
+  },
+];
+
+const mountSeries = () => {
+  useStore.setState({
+    runs: [],
+    sessions: seriesSessions,
+    sessionsReady: true,
+    unread: [],
+    archived: [],
+    renames: {},
+  });
+  return render(<Scheduled />);
+};
+
+const tab = (name: string) => fireEvent.click(screen.getByRole("tab", { name }));
+const titles = (c: HTMLElement) =>
+  [...c.querySelectorAll(".scheduled-row .scheduled-copy b")].map((e) => e.textContent);
+
+describe("Active is a fact about the series, not about this instant (SC-11)", () => {
+  it("keeps a healthy between-ticks series in Active — it is not Finished", () => {
+    const { container } = mountSeries();
+    tab("Active");
+    // The whole bug: a series with a future tick is ACTIVE even though nothing
+    // is executing right now. Before this rule the Active tab was structurally
+    // empty (live: All=3, Active=0) because no cadence task is ever mid-tick
+    // when you happen to look.
+    expect(titles(container)).toContain("Healthy: watch the queue");
+
+    tab("Finished");
+    expect(titles(container)).not.toContain("Healthy: watch the queue");
+  });
+
+  it("keeps BROKEN series in Active — a dead schedule is waiting on you, not done", () => {
+    const { container } = mountSeries();
+    tab("Active");
+    expect(titles(container)).toContain("Broken: cadence driver that died");
+    expect(titles(container)).toContain("Broken: nightly sweep that crashed");
+
+    tab("Finished");
+    const finished = titles(container);
+    expect(finished).not.toContain("Broken: cadence driver that died");
+    expect(finished).not.toContain("Broken: nightly sweep that crashed");
+  });
+
+  it("Finished holds only terminal series — nothing more will ever happen there", () => {
+    const { container } = mountSeries();
+    tab("Finished");
+    expect(titles(container)).toEqual(["Finished: the goal was met"]);
+
+    tab("Active");
+    expect(titles(container)).not.toContain("Finished: the goal was met");
+    // …and Active is no longer empty by construction: everything still ticking
+    // or still needing you is here.
+    expect(titles(container)).toHaveLength(3);
+  });
+});
+
+describe("a broken schedule says so on screen (SC-10)", () => {
+  it("shows the stranded series' state as visible text, not a tooltip", () => {
+    const { container } = mountSeries();
+    // The status phrase used to live only in title=, so the row rendered as
+    // "Every 30m · Ran 4h ago" behind a gray circle — indistinguishable from a
+    // healthy one. It has to be readable.
+    const warn = screen.getByText("Needs recovery");
+    expect(warn).toBeTruthy();
+    expect(warn.className).toContain("sched-warn");
+    expect(warn.className).toContain("is-stranded");
+
+    // It takes the next-run slot (there is no next run) and never wears the
+    // live-fact blue.
+    expect(warn.className).not.toContain("sched-next");
+
+    // Both halves of the row carry the alarm: the leading glyph (no longer the
+    // healthy gray Circle) and the phrase.
+    const broken = screen.getByText("Broken: cadence driver that died").closest(".scheduled-row")!;
+    expect(broken.querySelector(".sched-glyph.sched-warn.is-stranded")).toBeTruthy();
+
+    // A crash is the louder of the two, and says a different word.
+    const crashed = screen.getByText("Failed");
+    expect(crashed.className).toContain("sched-warn");
+    expect(crashed.className).toContain("is-crash");
+    expect(container.querySelectorAll(".sched-glyph.sched-warn.is-crash").length).toBe(1);
+  });
+
+  it("leaves a healthy row unmarked — the warning has to mean something", () => {
+    mountSeries();
+    const healthy = screen.getByText("Healthy: watch the queue").closest(".scheduled-row")!;
+    expect(healthy.querySelector(".sched-warn")).toBeNull();
+    expect(healthy.querySelector(".sched-next")).toBeTruthy();
+  });
+
+  it("finds a broken series by searching for its state", () => {
+    const { container } = mountSeries();
+    fireEvent.change(screen.getByLabelText("Search scheduled tasks"), {
+      target: { value: "needs recovery" },
+    });
+    expect(titles(container)).toEqual(["Broken: cadence driver that died"]);
   });
 });
 

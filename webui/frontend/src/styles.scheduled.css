@@ -93,6 +93,29 @@
   color: var(--blue);
 }
 
+/* SC-10 — a broken series has to LOOK broken. `crash` and `stranded` used to
+   render as the same muted gray ring as a healthy row waiting for its next
+   tick, with the only word for it ("Failed" / "Needs recovery") buried in a
+   `title=` tooltip: a driver advertising "Every 30m" that had actually been
+   dead for four hours was pixel-identical to one about to fire, on the one
+   screen whose entire job is to answer "is my background work still alive?".
+
+   The state now takes the emphasised slot the next run would have had (there
+   isn't one) and carries a warning colour instead of the live-fact blue —
+   reusing the app's existing status tokens, so it themes with everything else:
+   stranded is recoverable (attention/amber), crashed is not (failed/red). */
+.scheduled-row .sched-warn {
+  font-weight: 500;
+}
+
+.scheduled-row .sched-warn.is-stranded {
+  color: var(--status-attention);
+}
+
+.scheduled-row .sched-warn.is-crash {
+  color: var(--status-failed);
+}
+
 /* ===== INC-41 round 17 · RS-1 / RS-2 / RS-3 =========================
    This file is imported by Scheduled.tsx, so it lands after styles.css;
    every rule below is scoped one level deeper than the base rule it

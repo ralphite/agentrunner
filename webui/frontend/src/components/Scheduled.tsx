@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { Icon } from "@phosphor-icons/react";
-import { CalendarDots, Plus, MagnifyingGlass, Check, CaretDown, Crosshair, ArrowsClockwise, Stack, Play, Bell, Notebook, FileMagnifyingGlass, Circle, PlayCircle } from "@phosphor-icons/react";
+import { CalendarDots, Plus, MagnifyingGlass, Check, CaretDown, Crosshair, ArrowsClockwise, Stack, Play, Bell, Notebook, FileMagnifyingGlass, Circle, PlayCircle, WarningCircle } from "@phosphor-icons/react";
 import "../styles.scheduled.css";
 import { useStore } from "../store";
 import { friendlyStatus } from "./pill";
@@ -11,7 +11,9 @@ import type { Cadence } from "../types";
 
 // We have no real paused flag (nothing suspends a driver), so the third tab is
 // the honest "Finished" — the rows that have stopped ticking — not Codex's
-// "Paused" word borrowed for a different fact.
+// "Paused" word borrowed for a different fact. The word stays; what changed
+// (SC-11) is the test behind it, which is now about the SERIES rather than
+// about whatever happens to be executing this second. See seriesActive.
 type Filter = "all" | "active" | "finished";
 
 // Static template suggestions (Codex parity). Clicking one opens the existing
@@ -78,16 +80,39 @@ export function hasRhythm(c: Cadence): boolean {
 // Same semantics as the sidebar's W10 rule.
 const SETTLED_STATUS = new Set(["done", "closed", "stopped"]);
 
+// SC-10 — a BROKEN series must not look like a healthy one. `crash` ("Failed")
+// and `stranded` ("Needs recovery") used to render as the same gray Circle as an
+// idle-between-ticks row, with the status text hidden in a `title=` tooltip: a
+// driver that advertised "Every 30m" but had been dead for four hours was
+// pixel-identical to one about to fire. This hub exists to answer "are my
+// background tasks still alive?", so a dead one has to say so on screen.
+const ALERT_STATUS = new Set(["crash", "stranded"]);
+
+// SC-11 — "Active" is a fact about the SERIES, not about this instant. Judging
+// it by "an iteration is executing right now" (cls run/appr) made the tab
+// structurally empty: a healthy `Every 30m` task is idle between ticks by
+// construction, so every well-behaved series was filed under Finished — which
+// then advertised its cadence and its next run, a flat lie. A series is active
+// while it still has a future tick to fire, or while it is running / waiting on
+// you / broken (a crashed or stranded series is emphatically not finished — it
+// is waiting for YOU). Finished means terminal: nothing more will ever happen.
+const LIVE_STATUS = new Set(["run", "appr", "stranded", "crash"]);
+
+function seriesActive(cls: string, hasNextTick: boolean): boolean {
+  return hasNextTick || LIVE_STATUS.has(cls);
+}
+
 interface SchedRow {
   key: string;
   title: string;
   cadence: string; // the rhythm: "Every 30m" / "Saturdays at 4:00 AM" / "Self-paced"
   when: string; // "Next run in 12m" when known, else the honest "Ran 1d ago"
   isNext: boolean; // when names a FUTURE tick (styled as the live fact it is)
+  alert: string; // SC-10: "Failed" / "Needs recovery" — shown, not tooltipped
   project: string;
   meta: string; // the row's facts flattened (project included), for search
   status: { text: string; cls: string };
-  active: boolean; // live (running / waiting on you) vs finished
+  active: boolean; // the series still has ticks coming / needs you (SC-11)
   unread: boolean; // driver row with new activity you haven't opened (F2)
   sortTs: number;
   onClick: () => void;
@@ -138,24 +163,30 @@ export function Scheduled() {
   const unreadIds = useMemo(() => scheduledUnread(sessions, unread), [sessions, unread]);
 
   const rows = useMemo<SchedRow[]>(() => {
-    const isActive = (cls: string) => cls === "run" || cls === "appr";
     const flagged = new Set(unread);
     const out: SchedRow[] = [];
     // row assembles the sub-line: cadence first, then the next run (or, absent
-    // one, when it last ran), then the project.
+    // one, when it last ran), then the project. It also decides the two facts
+    // the row is judged by: whether the SERIES is still live (SC-11) and whether
+    // it is broken and needs saying so (SC-10).
     const row = (
-      base: Omit<SchedRow, "when" | "isNext" | "meta">,
+      base: Omit<SchedRow, "when" | "isNext" | "meta" | "active" | "alert">,
       nextRunAt: string | undefined,
       lastRan: Date | null,
     ): SchedRow => {
       const next = nextRunPhrase(nextRunAt);
       const ago = whenAgo(lastRan);
       const when = next || (ago ? `Ran ${ago}` : "");
+      const alert = ALERT_STATUS.has(base.status.cls) ? base.status.text : "";
       return {
         ...base,
         when,
         isNext: !!next,
-        meta: [base.cadence, when, base.project].filter(Boolean).join(" · "),
+        alert,
+        active: seriesActive(base.status.cls, !!next),
+        // The alert phrase is searchable too — "needs recovery" should find the
+        // rows that do.
+        meta: [base.cadence, alert, when, base.project].filter(Boolean).join(" · "),
       };
     };
     for (const run of runs) {
@@ -173,7 +204,6 @@ export function Scheduled() {
             cadence: run.cadence || scheduleLabel(run.schedule),
             project: projectLabel(run.workspace),
             status,
-            active: isActive(status.cls),
             unread: false,
             sortTs: isNaN(ts) ? 0 : ts,
             onClick: () => selectRun(run.id),
@@ -197,7 +227,6 @@ export function Scheduled() {
             cadence: s.cadence || scheduleLabel(s.schedule),
             project: projectLabel(s.workspace),
             status,
-            active: isActive(status.cls),
             unread: flagged.has(s.id),
             sortTs: d ? d.getTime() : 0,
             onClick: () => select(s.id),
@@ -213,9 +242,9 @@ export function Scheduled() {
   }, [runs, sessions, select, selectRun, unread]);
 
   // Nothing suspends a driver, so there is no paused set to show: the third tab
-  // names what we actually have — the rows that have stopped ticking. Codex
-  // shows no numeric counts on the pills (N-parity), so we only compute the
-  // filter.
+  // names what we actually have — the rows that have stopped ticking for good
+  // (SC-11: a healthy series idling between ticks is still Active). Codex shows
+  // no numeric counts on the pills (N-parity), so we only compute the filter.
   const ql = query.trim().toLowerCase();
   const filtered = rows.filter((r) => {
     if (filter === "active" && !r.active) return false;
@@ -322,8 +351,15 @@ export function Scheduled() {
               {SETTLED_STATUS.has(r.status.cls) ? (
                 <span className="sched-blank" aria-hidden="true" />
               ) : (
-                <span className="sched-glyph" title={r.status.text}>
-                  {r.status.cls === "run" ? (
+                <span
+                  className={"sched-glyph" + (r.alert ? ` sched-warn is-${r.status.cls}` : "")}
+                  title={r.status.text}
+                >
+                  {/* SC-10: a broken series gets its own glyph. Failed / needs
+                      recovery must not share the healthy row's gray ring. */}
+                  {r.alert ? (
+                    <WarningCircle size={20} weight="regular" />
+                  ) : r.status.cls === "run" ? (
                     <PlayCircle size={20} weight="regular" />
                   ) : (
                     <Circle size={20} weight="regular" />
@@ -338,12 +374,27 @@ export function Scheduled() {
                       next tick. The project used to ride along as a third
                       segment, which made every sub-line a run-on and gave the
                       one live fact nothing to stand out from. It stays
-                      searchable (r.meta), just not shouted. */}
-                  {r.when && (
+                      searchable (r.meta), just not shouted.
+
+                      SC-10: when the series is BROKEN, its state is the second
+                      fact — it takes the next-run slot, because there is no next
+                      run and saying nothing is what let a four-hours-dead
+                      "Every 30m" driver pass for healthy. The last-ran stamp
+                      keeps the emphasis off the tooltip. */}
+                  {r.alert ? (
                     <>
                       {" · "}
-                      <span className={r.isNext ? "sched-next" : undefined}>{r.when}</span>
+                      <span className={`sched-warn is-${r.status.cls}`} title={r.when || undefined}>
+                        {r.alert}
+                      </span>
                     </>
+                  ) : (
+                    r.when && (
+                      <>
+                        {" · "}
+                        <span className={r.isNext ? "sched-next" : undefined}>{r.when}</span>
+                      </>
+                    )
                   )}
                 </span>
               </span>
