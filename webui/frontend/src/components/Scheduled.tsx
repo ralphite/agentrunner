@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { Icon } from "@phosphor-icons/react";
-import { CalendarDots, Plus, MagnifyingGlass, Check, CaretDown, Crosshair, ArrowsClockwise, Stack, Play, Bell, Notebook, FileMagnifyingGlass, Circle, PlayCircle, WarningCircle, DotsThree, PushPin } from "@phosphor-icons/react";
+import { CalendarDots, Plus, MagnifyingGlass, Check, CaretDown, Crosshair, ArrowsClockwise, Stack, Play, Bell, Notebook, FileMagnifyingGlass, Circle, PlayCircle, PauseCircle, CheckCircle, WarningCircle, DotsThree, PushPin } from "@phosphor-icons/react";
 import "../styles.scheduled.css";
 import { useStore } from "../store";
 import { AR } from "../api";
@@ -189,6 +189,38 @@ function nextRunPhrase(iso?: string): string {
   const wk = day / 7;
   if (wk < 5) return `Next run in ${Math.floor(wk)}w`;
   return `Next run in ${Math.floor(day / 30)}mo`;
+}
+
+// SCH-ICON — the leading glyph, one per row, derived from facts the row already
+// holds. No new state, no new backend field: just a mark for each of the five
+// answers this page exists to give at a glance.
+//
+//   broken      WarningCircle  amber/red — the ONE loud mark (SC-10), unchanged
+//   running     PlayCircle     an iteration is executing this second
+//   settled     CheckCircle    terminal: closed, or a limit you configured (SC-16)
+//   active      Circle         a healthy series, idle between ticks (SC-11)
+//   dormant     PauseCircle    no future tick, but not terminal either
+//
+// The last one is the honest local reading of Codex's paused ⊘: nothing suspends
+// a driver here (see the Filter comment), so "paused" is not a flag we can read —
+// but a series with no next tick that has not finished has, in fact, stopped
+// ticking, and saying so is the whole point of the column.
+export function glyphFor(r: Pick<SchedRow, "alert" | "running" | "settled" | "active">) {
+  const size = 16;
+  if (r.alert) return <WarningCircle size={size} weight="regular" />;
+  if (r.running) return <PlayCircle size={size} weight="regular" />;
+  if (r.settled) return <CheckCircle size={size} weight="regular" />;
+  if (r.active) return <Circle size={size} weight="regular" />;
+  return <PauseCircle size={size} weight="regular" />;
+}
+
+// SCH-ICON — a row that is not going to fire again should not shout as loudly as
+// one that is. Codex greys the whole paused row, title included (`cloc` in the
+// reference crop); ours used to paint a finished series' title in the same full
+// ink as a live one, so the list read as one undifferentiated column of black.
+// A broken row is never quiet — it is the one row that must keep its emphasis.
+function isQuiet(r: SchedRow): boolean {
+  return !r.recover && !r.active;
 }
 
 // Scheduled is Codex's Scheduled tasks hub: repeating work that keeps running on
@@ -555,7 +587,14 @@ export function Scheduled() {
               }}
             >
             <button
-              className={"scheduled-row" + (r.unread ? " is-unread" : "")}
+              className={
+                "scheduled-row" +
+                (r.unread ? " is-unread" : "") +
+                // SCH-ICON: settled / dormant rows step back a shade — title
+                // included — so the rows that are still ticking are the ones the
+                // eye lands on first.
+                (isQuiet(r) ? " is-quiet" : "")
+              }
               onClick={r.onClick}
               onKeyDown={(e) => {
                 // Same keyboard affordance the sidebar rows carry: the menu is
@@ -569,30 +608,23 @@ export function Scheduled() {
               // one hover away, so nothing is hidden — only unshouted.
               title={[r.full, `${r.cadence}${r.when ? ` · ${r.when}` : ""}`, r.project].filter(Boolean).join("\n")}
             >
-              {/* SC-16: `settled` — not the cls — decides the empty slot, so a
-                  series that ran its configured N iterations reads like the
-                  finished thing it is instead of borrowing the amber of a driver
-                  whose host died. */}
-              {r.settled ? (
-                <span className="sched-blank" aria-hidden="true" />
-              ) : (
-                <span
-                  className={"sched-glyph" + (r.alert ? ` sched-warn is-${r.status.cls}` : "")}
-                  title={r.status.text}
-                >
-                  {/* SC-10: a broken series gets its own glyph. Failed / needs
-                      recovery must not share the healthy row's gray ring.
-                      SC-19: 17px — the gold standard's ring is 13.5px of ink; at
-                      20 ours was the heaviest mark in the column. */}
-                  {r.alert ? (
-                    <WarningCircle size={17} weight="regular" />
-                  ) : r.status.cls === "run" ? (
-                    <PlayCircle size={17} weight="regular" />
-                  ) : (
-                    <Circle size={17} weight="regular" />
-                  )}
-                </span>
-              )}
+              {/* SCH-ICON: EVERY row carries a leading glyph. The settled rows
+                  used to render an empty slot (SC-16, which was right to strip
+                  their amber and wrong to leave nothing behind): the column kept
+                  the icon's width, so a finished row read as one whose icon had
+                  failed to load, and the page could not answer its own question —
+                  which of these are still ticking? — without reading every
+                  sub-line. The glyph is now the row's anchor, chosen from the
+                  state the row ALREADY computes, so it cannot disagree with the
+                  words next to it. Neutral gray throughout; the alert colour
+                  stays scarce and keeps meaning exactly what SC-10 made it mean. */}
+              <span
+                className={"sched-glyph" + (r.alert ? ` sched-warn is-${r.status.cls}` : "")}
+                title={r.status.text}
+              >
+                {/* SC-19: 16px — the gold standard's ring is 13.5px of ink. */}
+                {glyphFor(r)}
+              </span>
               <span className="scheduled-copy">
                 <b>{r.title}</b>
                 <span className="sched-sub">

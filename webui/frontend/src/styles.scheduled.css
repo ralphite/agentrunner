@@ -8,15 +8,34 @@
   margin: 28px auto 0;
 }
 
-/* Leading state glyph on each scheduled row — an outlined ~20px ring
-   (PlayCircle when running, Circle otherwise) in a muted gray, replacing
-   the old 7px filled status dot (Codex parity). */
+/* Leading state glyph — now on EVERY row (SCH-ICON), a 16px outlined mark in a
+   muted gray: ○ active, ▷ running, ✓ finished, ⊘ dormant, ⚠ broken (the one
+   coloured mark, SC-10). It replaced the old 7px filled status dot, and then the
+   empty slot that settled rows were left with. */
 .sched-glyph {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: var(--dim);
+}
+
+/* SCH-ICON — a row with no next tick steps back a shade. Codex greys the whole
+   paused row, title included (`cloc` in qa/codex-reference/codex-crop-scheduled-list.jpg);
+   ours painted every title in the same full ink, so "which of these are still
+   running?" could only be answered by reading all three sub-lines. The title is
+   the only thing that moves — the sub-line is already --dim, and the glyph is
+   already gray — and a broken row is exempt (it keeps its emphasis, and its amber). */
+.scheduled-list .scheduled-row.is-quiet .scheduled-copy b {
+  color: var(--dim);
+  font-weight: 400;
+}
+
+/* …but the row still lights up under the pointer, like every other row here:
+   quiet is a resting state, not a disabled one. */
+.scheduled-row-wrap:hover .scheduled-row.is-quiet .scheduled-copy b,
+.scheduled-row-wrap:focus-within .scheduled-row.is-quiet .scheduled-copy b {
+  color: var(--ink-2);
 }
 
 .sched-suggestions-title {
@@ -26,12 +45,16 @@
   letter-spacing: -.2px;
 }
 
+/* SCH-ICON — the suggestion rows ran ~73px of pitch against the task rows' 68px,
+   which put the block that matters least on the page at the loosest rhythm of
+   anything on it. In the gold standard the suggestions sit at the SAME pitch as
+   the list rows above them. 10px of padding lands ours there. Content untouched. */
 .sched-suggest {
   width: 100%;
   display: flex;
   align-items: flex-start;
   gap: 14px;
-  padding: 14px 6px;
+  padding: 10px 6px;
   border: 0;
   background: transparent;
   border-radius: 10px;

@@ -281,6 +281,41 @@ describe("a broken schedule says so on screen (SC-10)", () => {
   });
 });
 
+describe("every row wears its state on its left (SCH-ICON)", () => {
+  it("leaves no row with an empty icon slot", () => {
+    const { container } = mountSeries();
+    const rows = [...container.querySelectorAll(".scheduled-row")];
+    expect(rows).toHaveLength(4);
+    // The finished row used to render `.sched-blank` — an empty span in a column
+    // that still reserved the icon's width, so it read as an icon that had failed
+    // to load. Every row is anchored now.
+    for (const row of rows) expect(row.querySelector(".sched-glyph")).toBeTruthy();
+    expect(container.querySelector(".sched-blank")).toBeNull();
+  });
+
+  it("spends the alert colour on the broken rows and nothing else", () => {
+    const { container } = mountSeries();
+    // Adding a glyph to every row must not add an alarm to every row: exactly the
+    // two genuinely broken series are allowed to be coloured (SC-10 / SC-16).
+    expect(container.querySelectorAll(".sched-glyph.sched-warn")).toHaveLength(2);
+    for (const title of ["Healthy: watch the queue", "Finished: the goal was met"]) {
+      const row = screen.getByText(title).closest(".scheduled-row")!;
+      expect(row.querySelector(".sched-glyph")!.className).not.toContain("sched-warn");
+    }
+  });
+
+  it("steps a finished row back a shade, and never a live or a broken one", () => {
+    mountSeries();
+    const quiet = (t: string) => screen.getByText(t).closest(".scheduled-row")!.className.includes("is-quiet");
+    // Codex greys the whole paused row, title included; the rows still ticking —
+    // and the broken one, which needs you — keep their emphasis.
+    expect(quiet("Finished: the goal was met")).toBe(true);
+    expect(quiet("Healthy: watch the queue")).toBe(false);
+    expect(quiet("Broken: cadence driver that died")).toBe(false);
+    expect(quiet("Broken: nightly sweep that crashed")).toBe(false);
+  });
+});
+
 // SC-12 / SC-13 / SC-14 — one driver session (the thing most rows are) and one
 // interval RUN, both titled the way real ones are: with the prompt that made
 // them.
@@ -518,10 +553,13 @@ describe("a configured limit is a finish, not a failure (SC-16)", () => {
     for (const title of ["Ran its configured 20 iterations", "Spent its configured token budget", "Hit its generation-step ceiling"]) {
       const row = screen.getByText(title).closest(".scheduled-row")!;
       expect(row.querySelector(".sched-warn")).toBeNull();
-      // …and it settles like every other finished row: an empty glyph slot, and
-      // a neutral "Ran 2d ago" where the alarm used to be.
-      expect(row.querySelector(".sched-blank")).toBeTruthy();
-      expect(row.querySelector(".sched-glyph")).toBeNull();
+      // …and it settles like every other finished row: a NEUTRAL glyph (SCH-ICON
+      // — it used to be an empty slot, which read as an icon that failed to
+      // load), a quiet title, and "Ran 2d ago" where the alarm used to be.
+      const glyph = row.querySelector(".sched-glyph")!;
+      expect(glyph).toBeTruthy();
+      expect(glyph.className).not.toContain("sched-warn");
+      expect(row.className).toContain("is-quiet");
       expect(row.querySelector(".sched-sub")!.textContent).toMatch(/Ran .+ ago/);
     }
   });
