@@ -503,3 +503,79 @@
     max-height: calc(100% - 24px);
   }
 }
+
+/* ===== CX-4 · Environment: always-on action rows =====================
+   The Environment row family (.env-row / -label / -val) is defined in
+   styles.nav.css and reused as-is; these are the CX-4 additions only.
+   Codex keeps Changes · Worktree · Create branch · Commit or push on screen
+   at all times, so rows now have a resting *disabled* state (nothing to
+   commit, no workspace) — they must read as inert rather than merely faded-
+   but-hoverable, which is what the existing button.env-row:hover would give
+   them. All colors come from the themed tokens, so dark mode follows. */
+.supervision-panel button.env-row:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.supervision-panel button.env-row:disabled:hover {
+  background: transparent;
+  color: var(--ink-2);
+}
+.supervision-panel button.env-row:disabled:hover > svg {
+  color: var(--dim);
+}
+/* The expanded row (worktree drawer open, or an open commit popover) keeps a
+   held-down tint so the drawer below reads as belonging to it. */
+.supervision-panel .env-row.active {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  color: var(--ink);
+}
+
+/* Worktree drawer: the full workspace path + a copy affordance. Indented to
+   the row's label column (icon 14px + 9px gap + 6px row padding). */
+.supervision-panel .env-detail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 1px 0 3px 29px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+.supervision-panel .env-path {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.supervision-panel .env-path-copy {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink-2);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.supervision-panel .env-path-copy:hover {
+  background: color-mix(in srgb, var(--ink) 6%, var(--panel));
+  color: var(--ink);
+}
+/* The worktree/branch value is a path or ref — clamp it so a long generated
+   dir (wt-20260710-143427) can't push the row's caret off the panel. */
+.supervision-panel .env-row-name {
+  display: inline-block;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}

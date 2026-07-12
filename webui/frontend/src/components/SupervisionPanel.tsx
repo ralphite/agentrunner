@@ -3,17 +3,22 @@ import {
   CaretDown,
   CaretRight,
   CheckCircle,
+  Copy,
+  Crosshair,
   FileText,
   GitBranch,
   GitCommit,
   GitDiff,
   Hourglass,
+  Package,
+  TreeStructure,
   UsersThree,
   WarningCircle,
   X,
 } from "@phosphor-icons/react";
 import { AR } from "../api";
 import { useStore } from "../store";
+import { copyText } from "../clipboard";
 import { loadGitPrefs } from "../theme";
 import { splitDiff } from "../diffSummary";
 import { Popover, PopItem, PopSection } from "./Popover";
@@ -348,19 +353,35 @@ interface EnvState {
   untracked: number;
 }
 
-// EnvironmentSection is Codex's panel-top ENVIRONMENT block (backlog B2):
-// a live read on the session's workspace — changed lines, current branch, and
-// a commit entry point. SupervisionPanel takes no sid prop (SessionView owns
+// workspaceName is the tail segment of a workspace path — for a worktree
+// session that's the generated dir (wt-20260710-143427); for an in-place
+// session it's the repo's own directory name. Trailing slashes don't count.
+export function workspaceName(path: string): string {
+  const parts = (path || "").split("/").filter(Boolean);
+  return parts.length > 0 ? parts[parts.length - 1] : "";
+}
+
+// EnvironmentSection is Codex's panel-top ENVIRONMENT block (backlog B2,
+// CX-4): a live read on the session's workspace. Codex keeps the same four
+// rows on screen at all times — Changes · Worktree · Create branch · Commit
+// or push — so the git entry points are reachable *before* there's anything
+// to commit (you can't cut a branch from a panel that only appears once you've
+// already dirtied the tree). We follow that: every row is always rendered; the
+// ones that can't act right now go disabled with the reason on the right,
+// rather than vanishing. SupervisionPanel takes no sid prop (SessionView owns
 // that and stays untouched), so we read the current session from the store and
-// fetch our own diff + branch. Hidden entirely for non-repo / workspace-less
-// sessions, where there's nothing to show.
+// fetch our own diff + branch. The section as a whole is still hidden for
+// non-repo / workspace-less sessions, where git means nothing.
 function EnvironmentSection() {
   const sid = useStore((s) => s.currentSid);
   const openPrompt = useStore((s) => s.openPrompt);
   const toast = useStore((s) => s.toast);
   const [env, setEnv] = useState<EnvState | null>(null);
   const [branch, setBranch] = useState<string | null>(null);
-  const [committing, setCommitting] = useState(false);
+  // One busy flag for every mutating row (commit / push / branch): they all
+  // write the same workspace, so none of them should overlap.
+  const [busy, setBusy] = useState(false);
+  const [wtOpen, setWtOpen] = useState(false);
   const isSub = !!sid && sid.includes("-sub-");
 
   const load = useCallback(() => {
@@ -417,7 +438,7 @@ function EnvironmentSection() {
   // template). `thenPush` chains a push only after a successful commit.
   const doCommit = async (message: string, thenPush = false) => {
     if (!sid) return;
-    setCommitting(true);
+    setBusy(true);
     try {
       await AR.commit(sid, message);
       if (thenPush) {
@@ -430,7 +451,7 @@ function EnvironmentSection() {
     } catch (e: any) {
       toast(e.message);
     } finally {
-      setCommitting(false);
+      setBusy(false);
     }
   };
   const commit = (thenPush = false) => {
@@ -445,7 +466,7 @@ function EnvironmentSection() {
   };
   const doPush = async () => {
     if (!sid) return;
-    setCommitting(true);
+    setBusy(true);
     try {
       const r = await AR.push(sid);
       toast(r.branch ? `pushed ${r.branch}` : "pushed", "info");
@@ -453,13 +474,48 @@ function EnvironmentSection() {
     } catch (e: any) {
       toast(e.message);
     } finally {
-      setCommitting(false);
+      setBusy(false);
     }
+  };
+
+  // Create branch (CX-4): cut a branch straight from the session, at any time —
+  // no changes required. Reuses the app's prompt modal (the window.prompt
+  // replacement in the store) and the existing checkout endpoint with
+  // create=true, which is `git checkout -b` on the session's workspace.
+  const doCreateBranch = async (dir: string, name: string) => {
+    setBusy(true);
+    try {
+      const r = await AR.gitCheckout(dir, name, true);
+      toast(`switched to ${r.branch || name}`, "info");
+      load();
+    } catch (e: any) {
+      toast(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const createBranch = (dir: string) => {
+    openPrompt({
+      title: "Create branch",
+      label: "branch name",
+      placeholder: "my-feature",
+      submitLabel: "Create",
+      onSubmit: (name) => {
+        const clean = name.trim();
+        if (clean) void doCreateBranch(dir, clean);
+      },
+    });
   };
 
   if (!env || !env.known || !env.isRepo || env.nested) return null;
 
   const hasChanges = env.add > 0 || env.del > 0 || env.untracked > 0;
+  const workspace = env.workspace || "";
+  // A sub-agent session shares its parent's workspace and must not commit on
+  // its own — so the commit row stays visible (Codex never hides it) but says
+  // why it can't act, exactly like the nothing-to-commit case.
+  const canCommit = hasChanges && !isSub;
+  const commitBlockedWhy = isSub ? "Sub-agent" : "Nothing to commit";
   return (
     <section className="supervision-section supervision-env">
       <div className="supervision-label">Environment</div>
@@ -481,11 +537,55 @@ function EnvironmentSection() {
             )}
           </span>
         </button>
-        <div className="env-row env-row-static">
+        {/* Worktree — always listed, so the user can always see (and copy)
+            where this session is actually working. Expands to the full path;
+            a session with no workspace shows an em dash and can't expand. */}
+        <button
+          className={"env-row env-row-action" + (wtOpen ? " active" : "")}
+          onClick={() => setWtOpen((open) => !open)}
+          disabled={!workspace}
+          aria-expanded={wtOpen}
+          title={workspace || "This session has no workspace"}
+        >
+          <TreeStructure size={14} />
+          <span className="env-row-label">Worktree</span>
+          <span className="env-row-val">
+            <span className="dim env-row-name">{workspace ? workspaceName(workspace) : "—"}</span>
+          </span>
+          {workspace && (wtOpen ? <CaretDown size={12} /> : <CaretRight size={12} />)}
+        </button>
+        {wtOpen && workspace && (
+          <div className="env-detail">
+            <code className="env-path" title={workspace}>{workspace}</code>
+            <button
+              type="button"
+              className="env-path-copy"
+              onClick={() => {
+                void copyText(workspace);
+                toast("workspace path copied", "info");
+              }}
+              title="Copy the full workspace path"
+            >
+              <Copy size={12} /> Copy path
+            </button>
+          </div>
+        )}
+        {/* Create branch — a permanent entry point (Codex parity CX-4): you
+            can cut a branch before touching a single file. The current branch
+            rides on the right, replacing the old static branch-only row. */}
+        <button
+          className="env-row env-row-action"
+          onClick={() => workspace && createBranch(workspace)}
+          disabled={busy || !workspace}
+          title={workspace ? "Create a new branch in this workspace" : "This session has no workspace"}
+        >
           <GitBranch size={14} />
-          <span className="env-row-label">{branch || (env.isRepo ? "No branch yet" : "No repository")}</span>
-        </div>
-        {hasChanges && !isSub && (
+          <span className="env-row-label">Create branch</span>
+          <span className="env-row-val">
+            <span className="dim">{branch || "No branch yet"}</span>
+          </span>
+        </button>
+        {canCommit ? (
           <div className="w-full [&>.pop-wrap]:w-full">
           <Popover
             align="left"
@@ -494,13 +594,13 @@ function EnvironmentSection() {
               <button
                 className={"env-row env-row-action" + (open ? " active" : "")}
                 onClick={toggle}
-                disabled={committing}
+                disabled={busy}
                 aria-haspopup="menu"
                 aria-expanded={open}
                 title="Commit or push the workspace changes"
               >
                 <GitCommit size={14} />
-                <span className="env-row-label">Commit or push…</span>
+                <span className="env-row-label">Commit or push</span>
                 <CaretDown size={12} />
               </button>
             )}
@@ -535,6 +635,16 @@ function EnvironmentSection() {
             )}
           </Popover>
           </div>
+        ) : (
+          // Nothing to commit (or a sub-agent session): the row stays — Codex
+          // never hides it — but goes inert and says why on the right.
+          <button className="env-row env-row-action" disabled title={commitBlockedWhy}>
+            <GitCommit size={14} />
+            <span className="env-row-label">Commit or push</span>
+            <span className="env-row-val">
+              <span className="dim">{commitBlockedWhy}</span>
+            </span>
+          </button>
         )}
       </div>
     </section>
