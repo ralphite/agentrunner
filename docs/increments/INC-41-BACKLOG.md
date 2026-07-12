@@ -776,7 +776,7 @@ fallback(旧二进制)。字符串匹配现只剩后端一处(与 `ar` 同仓库
 > 的 Esc 与归还实测正常;Timeline 缩略图有 onKeyDown;Approval 卡是真 `<button>`;
 > 全局焦点环 `tw.css:134` 对 button 生效良好(实测 solid 2px #2F6BFF)。
 
-### A11Y-1 ☐ 会话页按 Tab 永远到不了对话区和 composer(侧栏堵死 Tab 路) [P1]
+### A11Y-1 ✅ 会话页按 Tab 永远到不了对话区和 composer(侧栏堵死 Tab 路) [P1]
 **behavior**:任一会话页从头按 Tab,焦点依次落进侧栏每个 project 标题和每条任务,
 **按满 220 次仍未到达 composer**。纯键盘用户无法在合理次数内触达"读对话/发消息"这个
 核心动作,只能先用鼠标点一下 composer。并会把 A11Y-3 的焦点丢失放大成灾难。
@@ -791,7 +791,7 @@ Codex 但改动面大。**先做 (a),(b) 另立条目**。
 **touches**:`App.tsx` / `styles.css`(新增 `.skip-link`)。不碰 Sidebar.tsx。
 **刻意核查**:`git log -S"skip-link"`/`-S"roving"` 对 webui 全无命中 → **非刻意,是洞**。
 
-### A11Y-2 ☐ 三个搜索输入框聚焦后"零焦点指示"(outline/border/box-shadow 全空) [P2]
+### A11Y-2 ✅ 三个搜索输入框聚焦后"零焦点指示"(outline/border/box-shadow 全空) [P2]
 **behavior**:Tab 进侧栏搜索框 / Scheduled 搜索框 / Home 的 project 搜索框时,**屏幕上没有
 任何视觉变化**,键盘用户不知道焦点在哪。对比同 app 普通按钮有清晰 2px 蓝环。
 **证据**(聚焦态 computed style):`.side-search input` → `outline: none`、`borderWidth: 0px`、
@@ -813,7 +813,7 @@ Codex 但改动面大。**先做 (a),(b) 另立条目**。
 打磨(去双框感),无焦点可见性意图;而 `.diff-filter:focus-within`(`7512c6b`)证明团队后来
 已认可正确写法,只是没回头补这三处。**非刻意,是遗漏**。
 
-### A11Y-3 ☐ ⌘F 查找栏 Esc 关闭后焦点被丢到 `<body>` [P2]
+### A11Y-3 ✅ ⌘F 查找栏 Esc 关闭后焦点被丢到 `<body>` [P2]
 **behavior**:会话页 ⌘F 打开对话内查找 → Esc 关闭 → 焦点不回到打开前的位置,而是掉进
 `<body>`。再按 Tab 就从文档最顶端重来——叠加 A11Y-1,等于**要重新趟 748 个侧栏按钮**才能
 回到正文。用一次 ⌘F 就"迷路"。
@@ -844,7 +844,7 @@ Tab 序内且有焦点环。
 **刻意核查**:`git log -S"cx-att"` → `24aeccb`/`a881f67`/`2e2eee8` 三个 commit 都在做**视觉**,
 message 与 diff 均未提键盘/可达性,也无"故意不让键盘删附件"的理由 → **非刻意,是洞**。
 
-### A11Y-5 ☐ Composer 的 8 个 pill 下拉缺 `aria-haspopup`/`aria-expanded` [P3]
+### A11Y-5 ✅ Composer 的 8 个 pill 下拉缺 `aria-haspopup`/`aria-expanded` [P3]
 **behavior**:composer 的 Access/Model/Mode 等 pill 点开是 `role="menu"` 面板(方向键、Esc、
 焦点归还都好),但触发按钮**没告诉辅助技术"我是菜单、我现在开着"**。屏幕阅读器用户听到的
 只是普通按钮。纯视觉/纯键盘用户不受影响,故 P3。
@@ -862,6 +862,29 @@ DiffView ✅ / CommandPalette ✅ / Timeline ✅),**Popover 及其 8 个 Compose
 从 A11Y-1 建议 (b) 拆出:侧栏列表整体只留 1 个 Tab 停靠点(选中项 `tabIndex={0}`,其余 -1),
 组内用 ↑/↓ 移动(复用已有 `⌘⌥↑/↓` 逻辑)。更贴近 Codex,但改动面大 → 待 A11Y-1(a) 落地后再评估。
 **touches**:`Sidebar.tsx`。
+**轮10 补充**:A11Y-1(a) 已落地(skip link),侧栏 748 个按钮现在能一步跳过 → 本条的紧迫性
+从 P1 降到真 P3(仍值得做:它让侧栏本身**能用键盘高效浏览**,而不只是"能被跳过")。
+
+### A11Y-7 ☐ skip link 落进 #main 后,对话区 27 个 msg-copy 仍堵在 composer 前(40 次 Tab) [P2]
+**behavior**:A11Y-1 的 skip link 把 748 个侧栏按钮一步跳过了(NEVER within 220 → 可达),但落点是
+`#main` **顶部**,焦点接着要穿过整个对话区才能到 composer。富会话实测:skip 之后**还要按 40 次 Tab**
+才落到输入框。而堵路的元素数量**随消息条数线性增长**——100 条消息的长会话会变成 100+ 次。
+键盘用户"跳过侧栏 → 直接开始打字"这条最高频路径仍未打通。
+**证据**(live `20260711-011831-what-is-the-project-297d`,轮10 实测):
+```
+焦点普查: {total:795, inMain:46, convBeforeComposer:40, composer(在#main内):0}
+堵路构成: msg-copy ×27(每条消息一个复制按钮)、worked-row ×8、cx-icon ×2、cx-pill ×2
+skip link 之后到达 composer 需 Tab: 40 次
+```
+**源码**:skip link 目标 `App.tsx` `<div className="main" id="main" tabIndex={-1}>`(轮10 `617fd68`);
+堵路按钮是对话区每条消息的 `.msg-copy`。
+**建议**:①**最直接**——再加一个 skip link「Skip to message input」直接锚到 composer 的 textarea
+(两个 skip link 是 Codex/GitHub 的常见做法,Tab#1/Tab#2 各一个);或②把单个 skip link 的目标从
+`#main` 改成 composer(但"跳到对话区读内容"也是合法诉求,故 ① 更优);③(治本,但面大)对话区
+消息的 `.msg-copy` 改成**仅在消息 hover/focus-within 时进入 Tab 序**——**慎重:这可能反而伤害
+纯键盘用户**(他们没有 hover),需先想清楚,别为了 Tab 次数把功能藏掉。
+**touches**:`App.tsx` / `styles.css`(第二个 `.skip-link`)。
+**刻意核查**:本条是轮10 修 A11Y-1 后**新暴露**的下一层,非既有刻意决策。
 
 ## P 相 · 性能(轴 B,2026-07-11 轮10 起)
 
@@ -876,7 +899,7 @@ DiffView ✅ / CommandPalette ✅ / Timeline ✅),**Popover 及其 8 个 Compose
 | `GET /api/health` | 29 ms |
 | `GET /api/sessions` | **242 ms**(中位/5 次)——侧栏首屏要等它 |
 
-### PERF-1 ☐ 静态资源零压缩、零缓存头:每次冷加载白下载 1.03 MB [P1]
+### PERF-1 ✅ 静态资源零压缩、零缓存头:每次冷加载白下载 1.03 MB [P1]
 **behavior**:webui 每次冷加载实打实传输 895 KB JS + 134 KB CSS,而这两份 gzip 后只有
 251 KB + 25 KB(压缩率 72%/81%)。且因为**没有任何缓存头**,刷新页面 / 二次访问**照样
 全量重传** —— 明明 Vite 产物文件名自带 content hash(`index-BmBuR-u1.js`),天然可以
