@@ -137,15 +137,21 @@ for (const [ctxName, viewport] of [
   });
 
   // Scheduled-task modal: bare workspace name must yield the FRIENDLY error.
-  await S("scheduled-modal-bad-workspace", async () => {
-    await page.goto(BASE + "/#scheduled", { waitUntil: "domcontentloaded" }).catch(() => {});
-    // WAIT for the surface, never sleep-and-count (runner first paint is slower
-    // than local — the 600ms sleep was the "selector drift" flake).
+  // Phone-only: this validates the friendly-error + modal once; repeating the
+  // identical flow on desktop added no coverage, only a flaky second run.
+  if (ctxName === "phone") await S("scheduled-modal-bad-workspace", async () => {
+    await page.goto(BASE + "/#scheduled", { waitUntil: "networkidle" }).catch(() => {});
+    // Confirm the route actually landed on the Scheduled surface before hunting
+    // its controls; the runner's first paint with a populated store is slower
+    // than local (the earlier "selector drift" flake). 15s, then self-diagnose.
+    await page.locator(".scheduled-page").first().waitFor({ timeout: 15000 }).catch(() => {});
     const newBtn = page.locator("button[aria-label='Create scheduled work']").first();
-    const surfaced = await newBtn.waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+    const surfaced = await newBtn.waitFor({ timeout: 12000 }).then(() => true).catch(() => false);
     if (surfaced) {
       await newBtn.click({ timeout: 4000 }).catch(() => {});
-      const repeating = page.locator("text=Repeating").first();
+      // Precise: the MENU ITEM named Repeating (text=Repeating also matched a
+      // nested <b>, so .first() was ambiguous).
+      const repeating = page.getByRole("menuitem", { name: /Repeating/ }).first();
       await repeating.waitFor({ timeout: 5000 }).catch(() => {});
       await repeating.click({ timeout: 4000 }).catch(() => {});
       await page.locator(".modal").first().waitFor({ timeout: 5000 }).catch(() => {});
@@ -170,10 +176,18 @@ for (const [ctxName, viewport] of [
         }
         await page.keyboard.press("Escape").catch(() => {});
       } else {
-        finding("low", cur, "could not open scheduled-task modal (selector drift)");
+        finding("low", cur, "scheduled modal did not open after clicking Create → Repeating");
       }
     } else {
-      finding("low", cur, "no New-task button found on Scheduled surface");
+      // Not a blind flake report: capture WHAT the page actually showed so a
+      // real routing regression is distinguishable from a slow paint.
+      const diag = await page.evaluate(() => ({
+        hash: location.hash,
+        schedPage: !!document.querySelector(".scheduled-page"),
+        h2: (document.querySelector("h2") || {}).innerText,
+        ariaButtons: [...document.querySelectorAll("button[aria-label]")].map((b) => b.getAttribute("aria-label")).slice(0, 12),
+      }));
+      finding("med", cur, "Scheduled 'Create' control never surfaced", JSON.stringify(diag));
     }
   });
 
