@@ -2123,6 +2123,12 @@ finder 截 live 8809(`index-DZa2Gr9X.js`)Changes 分栏,对 `codex-diff-review.j
   是否生成物**(176 < 阈值 → 展开;而 1284 行的 `package-lock.json` 反被正确折叠 → 口径不一致,
   越"宽而短"的产物越炸屏)。金标右栏是可走读的源码流。动作:加 `isGeneratedPath()` + 最长行 >500 字符
   判 minified → 默认折叠。touches:`diffSummary.ts` + 其 test。
+  → ✅ **已关闭**(`5bd924b`)。`isGeneratedPath()`(dist/build/out/vendor/node_modules、`*.min.*`、
+  lockfile、`assets/index-<hash>.*`)+ `longestContentLine() > 500 字符` 判 minified;生成物走 20 行小预算
+  (故 `dist/index.html +2 −2` 这种 asset-hash bump 仍展开——比无脑全折更贴金标)。live `index-DJaT3qhw.js`
+  复验(会话 `20260711-060645-what-agents-5849`):Changes 面板 scrollHeight **4008px → 846px(−79%)**,
+  两个 dist bundle `details.open=false`(文件头与 `+0 −176` 仍在、可点开),`dist/index.html` **展开在第一屏**;
+  回归会话 `…-todo-app-ff36` 2603px 完全不变;vitest **262/262**(+7 用例);console 0。
 - ☐ **DF-3(P1)untracked 新文件是二等公民,两套视觉语言**:`new files (untracked) · 2` 是纯文本条
   (`DiffView.tsx:607-621`),下面两行裸路径——无 `A` 字形、无 `+N −0`、无行号、不可展开看内容,
   却排在所有真实文件之上。金标里新增文件与其它文件同款文件头。后端 `AR.blob(sid,path)` 已有
