@@ -3664,25 +3664,34 @@ details.filediff[open] > summary.fd-head .fd-caret {
 .page-heading p { margin: 0; color: var(--dim); }
 .page-action { display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; }
 
-/* ===== QA-45 · Scheduled Create menu ===== */
+/* ===== QA-45 · Scheduled Create menu =====
+   SC-20 — the trigger is a DOOR, not the content. As a filled #0d0d0d pill it was
+   the highest-contrast element on the whole screen: 112×33px of solid ink parked
+   on the top-right of a 640px reading column, out-shouting every row title (15px
+   of --ink) and even the amber of a genuinely broken schedule. Codex's Scheduled
+   screen carries no filled button at all — its `Create ⌄` is a borderless grey
+   text action. So the trigger drops to ghost: transparent at rest, --ink-2 text,
+   earning a faint surface only on hover / while its menu is open. The MENU itself
+   (QA-45, 46345d0) is untouched — only the weight of the thing you press. */
 .scheduled-create .menu-trigger {
   width: auto;
   height: auto;
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 8px 13px;
-  border: 1px solid var(--ink);
+  padding: 8px 11px;
+  border: 1px solid transparent;
   border-radius: 9px;
-  background: var(--ink);
-  color: var(--bg);
+  background: transparent;
+  color: var(--ink-2);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 560;
 }
-.scheduled-create .menu-trigger:hover {
-  border-color: color-mix(in srgb, var(--ink) 78%, transparent);
-  background: color-mix(in srgb, var(--ink) 88%, var(--bg));
-  color: var(--bg);
+.scheduled-create .menu-trigger:hover,
+.scheduled-create .menu-trigger[aria-expanded="true"] {
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  color: var(--ink);
 }
 .scheduled-create .menu-pop { min-width: 276px; }
 .scheduled-create .menu-item { align-items: flex-start; gap: 10px; padding: 9px 10px; }

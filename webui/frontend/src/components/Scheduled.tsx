@@ -5,7 +5,7 @@ import "../styles.scheduled.css";
 import { useStore } from "../store";
 import { AR } from "../api";
 import { friendlyStatus } from "./pill";
-import { projectLabel, scheduleLabel, scheduledUnread } from "../viewModels";
+import { projectLabel, scheduleLabel } from "../viewModels";
 import { scheduledTitle } from "../scheduledTitle";
 import { relTime, sessionDate } from "../time";
 import { copyText } from "../clipboard";
@@ -224,8 +224,6 @@ export function Scheduled() {
   // SC-12 — the cursor-anchored row menu (same component the sidebar rows use).
   const [ctx, setCtx] = useState<{ x: number; y: number; key: string } | null>(null);
 
-  const unreadIds = useMemo(() => scheduledUnread(sessions, unread), [sessions, unread]);
-
   const rows = useMemo<SchedRow[]>(() => {
     const flagged = new Set(unread);
     const out: SchedRow[] = [];
@@ -354,6 +352,17 @@ export function Scheduled() {
     return true;
   });
   const totalEmpty = rows.length === 0;
+
+  // SC-21 — "Mark all as read" clears exactly the rows you can SEE. It used to
+  // read the store-wide scheduledUnread() set, which also holds driver sessions
+  // this page deliberately does not list (one-shot / goal drivers — SC-1) and the
+  // rows the current tab or the search box has filtered away: one click could
+  // silently clear unread state for work that was nowhere on screen. Scoping it to
+  // `filtered` also makes the button's own presence honest — it appears only while
+  // the view in front of you actually has something unread in it, and never as a
+  // dead grey control. The sidebar's Scheduled dot keeps its own store-wide count
+  // (viewModels.scheduledUnread, E3): that badge is about the whole hub.
+  const unreadIds = filtered.filter((r) => r.unread).map((r) => r.id);
 
   // SC-14 — a search hit has to be VISIBLE. `meta` matches the project, but SC-4
   // took the project off the sub-line, so searching "scratch" returned a row on
