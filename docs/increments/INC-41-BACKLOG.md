@@ -1562,3 +1562,14 @@ commit/push 动作**只在有变更时才浮现**;`Worktree` 行**不存在**;`C
   **保双方语义 = 保留对方的删除 + 保留我方的新增**,不是无脑 union。
   push=ca23116(登记)+b2029e7(CX-4)+760edb7(CX-3)+08d2b4e(import 修);live=index-D3yKMQ9I.js;
   151 vitest 绿 + tsc 0 + go(driver+webui)绿 + 稳态 console err+warn=0(4 屏 × light/dark)。
+  **补收(轮14 末)**:CX-3 implementer 的**终稿是 `10514c8`,而我合并的是它的中间态 `8c2e05b`**——
+  轮询 commit 的那一刻它还在自查。终稿删掉了 `internal/driver/cadence.go`(**`check.sh` 的 lint-wiring
+  闸门拒收**:webui 是零依赖独立 module、只经 `ar` CLI 契约对话,**无法 import `internal/`**,放那儿
+  就是 main 不可达的死代码),并修了 cron `n/step` 的语义(= n..max,与 driver 真正在用的 `internal/cron`
+  对齐)。已 apply 终稿差量 + push(`aa5d433`)+ 重建二进制重部署。**教训:轮询「commit 出现」只能证明
+  它开始收尾,不等于它做完了——commit 出现后仍要等 agent 的完成回执,再核对终稿 sha。**
+  **check.sh 全绿(exit 0)**,含 lint-docs/lint-wiring/golangci-lint/deadcode + 151 vitest。
+  ⚠️ 跑 check.sh 时 **node24 必须排在 homebrew 前面**,否则 homebrew 的 node 遮住它、vitest 假失败
+  10 条(`localStorage.clear is not a function`)——我本轮就被这个骗了一次。
+  **后续正解(登记)**:cadence/next_run 应加进 `ar sessions list --json`(`internal/cli` + `internal/cron`),
+  webui 那份镜像即可缩成读字段。
