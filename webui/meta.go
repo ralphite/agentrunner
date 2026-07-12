@@ -606,6 +606,219 @@ func (s *server) handleCommit(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": out})
 }
 
+// handlePush pushes the session workspace's current branch to its upstream (or
+// origin) — the "push" half of Codex's "Commit or push". Failures are returned
+// as STRUCTURED JSON ({error, stderr, kind}) so the UI can explain them instead
+// of surfacing raw git prose: kind is one of no-remote, no-upstream, detached,
+// rejected (non-fast-forward), auth, or failed. GIT_TERMINAL_PROMPT=0 keeps a
+// credential-less remote from hanging the request on an interactive prompt.
+func (s *server) handlePush(w http.ResponseWriter, r *http.Request) {
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	ws := s.meta.get(id).Workspace
+	if ws == "" {
+		badRequest(w, "arwebui doesn't know this session's workspace")
+		return
+	}
+	top, insideRepo := git(r.Context(), ws, "rev-parse", "--show-toplevel")
+	if !insideRepo {
+		badRequest(w, "workspace is not a git repository")
+		return
+	}
+	if root := strings.TrimSpace(top); !samePath(root, ws) {
+		badRequest(w, "workspace is inside another repository ("+root+"), refusing to push from there")
+		return
+	}
+	branch, _ := git(r.Context(), ws, "rev-parse", "--abbrev-ref", "HEAD")
+	branch = strings.TrimSpace(branch)
+	if branch == "" || branch == "HEAD" {
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error": "the workspace is on a detached HEAD — check out a branch before pushing",
+			"kind":  "detached",
+		})
+		return
+	}
+	remotes, _ := git(r.Context(), ws, "remote")
+	remoteList := strings.Fields(remotes)
+	if len(remoteList) == 0 {
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error": "this repository has no git remote configured — add one (e.g. `git remote add origin <url>`) before pushing",
+			"kind":  "no-remote",
+		})
+		return
+	}
+	run := func(args ...string) (string, error) {
+		ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "git", append([]string{"-C", ws}, args...)...)
+		cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+		out, err := cmd.CombinedOutput()
+		return strings.TrimSpace(string(out)), err
+	}
+	upstream, hasUpstream := git(r.Context(), ws, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}")
+	upstream = strings.TrimSpace(upstream)
+	var out string
+	var err error
+	if !hasUpstream || upstream == "" {
+		// No tracking branch yet: pick origin when present, else the sole/first
+		// remote, and set upstream while pushing so subsequent pushes are bare.
+		remote := remoteList[0]
+		for _, rm := range remoteList {
+			if rm == "origin" {
+				remote = "origin"
+				break
+			}
+		}
+		out, err = run("push", "--set-upstream", remote, branch)
+	} else {
+		out, err = run("push")
+	}
+	if err != nil {
+		low := strings.ToLower(out)
+		kind := "failed"
+		switch {
+		case strings.Contains(low, "non-fast-forward") || strings.Contains(low, "fetch first") ||
+			strings.Contains(low, "! [rejected]") || strings.Contains(low, "updates were rejected"):
+			kind = "rejected"
+		case strings.Contains(low, "has no upstream") || strings.Contains(low, "no upstream branch"):
+			kind = "no-upstream"
+		case strings.Contains(low, "could not read from remote") || strings.Contains(low, "repository not found") ||
+			strings.Contains(low, "does not appear to be a git repository") || strings.Contains(low, "no such remote"):
+			kind = "no-remote"
+		case strings.Contains(low, "authentication failed") || strings.Contains(low, "permission denied") ||
+			strings.Contains(low, "could not read username") || strings.Contains(low, "terminal prompts disabled"):
+			kind = "auth"
+		}
+		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "git push failed", "stderr": out, "kind": kind})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": out, "branch": branch})
+}
+
+// handleRevert discards the session's working-tree changes back to HEAD — the
+// "Undo ↺" action on the change card. DESTRUCTIVE: it drops uncommitted edits
+// and deletes the untracked files the agent introduced, so the frontend guards
+// it behind an explicit confirm. An optional {path} scopes it to one file
+// (per-row discard); absent, it reverts the whole workspace. Nested workspaces
+// are refused so we never touch a parent repository's tree.
+func (s *server) handleRevert(w http.ResponseWriter, r *http.Request) {
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Path string `json:"path"`
+	}
+	if !readBody(w, r, &req) {
+		return
+	}
+	ws := s.meta.get(id).Workspace
+	if ws == "" {
+		badRequest(w, "arwebui doesn't know this session's workspace")
+		return
+	}
+	top, insideRepo := git(r.Context(), ws, "rev-parse", "--show-toplevel")
+	if !insideRepo {
+		badRequest(w, "workspace is not a git repository")
+		return
+	}
+	if root := strings.TrimSpace(top); !samePath(root, ws) {
+		badRequest(w, "workspace is inside another repository ("+root+"), refusing to discard changes there")
+		return
+	}
+	if path := strings.TrimSpace(req.Path); path != "" {
+		clean := filepath.Clean(path)
+		if filepath.IsAbs(path) || clean == "." || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+			badRequest(w, "path must be a file relative to the session workspace")
+			return
+		}
+		// Unstage, restore tracked content from HEAD, then clean it if untracked.
+		// checkout fails for a purely-untracked file, so the clean is what removes
+		// a newly-created one — both are best-effort and the pathspec confines them.
+		_, _ = gitIn(r.Context(), ws, nil, "reset", "-q", "--", clean)
+		_, _ = gitIn(r.Context(), ws, nil, "checkout", "HEAD", "--", clean)
+		if out, err := gitIn(r.Context(), ws, nil, "clean", "-fd", "--", clean); err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "git clean failed", "stderr": out})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "discarded " + clean})
+		return
+	}
+	// Whole workspace: unstage anything staged, restore all tracked files to HEAD,
+	// then delete untracked files and dirs the change set introduced.
+	_, _ = gitIn(r.Context(), ws, nil, "reset", "-q")
+	if out, err := gitIn(r.Context(), ws, nil, "checkout", "--", "."); err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "git checkout failed", "stderr": out})
+		return
+	}
+	if out, err := gitIn(r.Context(), ws, nil, "clean", "-fd"); err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "git clean failed", "stderr": out})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "reverted"})
+}
+
+// handleBlob returns one workspace file's current text as {lines:[…]} so the
+// Changes view can reveal the unmodified lines hidden between diff hunks (the
+// "N unmodified lines" collapser bands). Same workspace jail as
+// handleSessionFile — no absolute paths, traversal, directories, symlink
+// escapes, oversized or binary files.
+func (s *server) handleBlob(w http.ResponseWriter, r *http.Request) {
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	ws := s.meta.get(id).Workspace
+	if ws == "" {
+		http.Error(w, "session workspace is unavailable", http.StatusNotFound)
+		return
+	}
+	raw := strings.TrimSpace(r.URL.Query().Get("path"))
+	clean := filepath.Clean(raw)
+	if raw == "" || filepath.IsAbs(raw) || clean == "." || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+		badRequest(w, "path must be a file relative to the session workspace")
+		return
+	}
+	root, err := filepath.EvalSymlinks(filepath.Clean(ws))
+	if err != nil {
+		http.Error(w, "session workspace is unavailable", http.StatusNotFound)
+		return
+	}
+	target, err := filepath.EvalSymlinks(filepath.Join(root, clean))
+	if err != nil {
+		http.Error(w, "file not found", http.StatusNotFound)
+		return
+	}
+	rel, err := filepath.Rel(root, target)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		badRequest(w, "file is outside the session workspace")
+		return
+	}
+	info, err := os.Stat(target)
+	if err != nil || !info.Mode().IsRegular() {
+		http.Error(w, "file not found", http.StatusNotFound)
+		return
+	}
+	const maxBlob = 8 << 20
+	if info.Size() > maxBlob {
+		http.Error(w, "file is too large to expand", http.StatusRequestEntityTooLarge)
+		return
+	}
+	content, err := os.ReadFile(target)
+	if err != nil {
+		http.Error(w, "file not found", http.StatusNotFound)
+		return
+	}
+	if bytes.Contains(content, []byte{0}) {
+		badRequest(w, "file is not text")
+		return
+	}
+	lines := strings.Split(strings.TrimRight(string(content), "\n"), "\n")
+	writeJSON(w, http.StatusOK, map[string]any{"lines": lines})
+}
+
 // handleGitInit turns the session's workspace into its own git repository so
 // the Changes view can track it — the recovery action offered when the diff
 // endpoint reports a non-repo or nested workspace (W1). The path comes from

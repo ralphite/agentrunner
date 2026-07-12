@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {
+  CaretDown,
   CaretRight,
   CheckCircle,
   Crosshair,
@@ -17,6 +18,7 @@ import { AR } from "../api";
 import { useStore } from "../store";
 import { loadGitPrefs } from "../theme";
 import { splitDiff } from "../diffSummary";
+import { Popover, PopItem, PopSection } from "./Popover";
 import { deriveGoalState, formatElapsed, isGoalTerminal, type GoalDerived } from "../timeline";
 import type { Task } from "../types";
 import { friendlyStatus } from "./pill";
@@ -413,13 +415,19 @@ function EnvironmentSection() {
       ?.click();
   };
 
-  // Same review→commit flow DiffView offers (seeded from the Settings template).
-  const doCommit = async (message: string) => {
+  // Same review→commit(→push) flow DiffView offers (seeded from the Settings
+  // template). `thenPush` chains a push only after a successful commit.
+  const doCommit = async (message: string, thenPush = false) => {
     if (!sid) return;
     setCommitting(true);
     try {
       await AR.commit(sid, message);
-      toast("committed", "info");
+      if (thenPush) {
+        const r = await AR.push(sid);
+        toast(r.branch ? `committed & pushed ${r.branch}` : "committed & pushed", "info");
+      } else {
+        toast("committed", "info");
+      }
       load();
     } catch (e: any) {
       toast(e.message);
@@ -427,14 +435,28 @@ function EnvironmentSection() {
       setCommitting(false);
     }
   };
-  const commit = () => {
+  const commit = (thenPush = false) => {
     if (!sid) return;
     openPrompt({
-      title: "Commit changes",
+      title: thenPush ? "Commit & push" : "Commit changes",
       label: "commit message",
       initial: loadGitPrefs().commitTemplate,
-      onSubmit: (message) => void doCommit(message),
+      submitLabel: thenPush ? "Commit & push" : "Commit",
+      onSubmit: (message) => void doCommit(message, thenPush),
     });
+  };
+  const doPush = async () => {
+    if (!sid) return;
+    setCommitting(true);
+    try {
+      const r = await AR.push(sid);
+      toast(r.branch ? `pushed ${r.branch}` : "pushed", "info");
+      load();
+    } catch (e: any) {
+      toast(e.message);
+    } finally {
+      setCommitting(false);
+    }
   };
 
   if (!env || !env.known || !env.isRepo || env.nested) return null;
@@ -466,15 +488,55 @@ function EnvironmentSection() {
           <span className="env-row-label">{branch || (env.isRepo ? "No branch yet" : "No repository")}</span>
         </div>
         {hasChanges && !isSub && (
-          <button
-            className="env-row env-row-action"
-            onClick={commit}
-            disabled={committing}
-            title="git add -A && commit the workspace changes (local, no push)"
+          <div className="w-full [&>.pop-wrap]:w-full">
+          <Popover
+            align="left"
+            panelClass="w-[264px] max-w-[calc(100vw-24px)]"
+            trigger={(open, toggle) => (
+              <button
+                className={"env-row env-row-action" + (open ? " active" : "")}
+                onClick={toggle}
+                disabled={committing}
+                aria-haspopup="menu"
+                aria-expanded={open}
+                title="Commit or push the workspace changes"
+              >
+                <GitCommit size={14} />
+                <span className="env-row-label">Commit or push…</span>
+                <CaretDown size={12} />
+              </button>
+            )}
           >
-            <GitCommit size={14} />
-            <span className="env-row-label">Commit changes…</span>
-          </button>
+            {(close) => (
+              <PopSection label="Commit or push">
+                <PopItem
+                  title="Commit"
+                  desc="Commit locally (no push)"
+                  onClick={() => {
+                    close();
+                    commit(false);
+                  }}
+                />
+                <PopItem
+                  title="Commit &amp; push"
+                  desc="Commit, then push to the upstream branch"
+                  onClick={() => {
+                    close();
+                    commit(true);
+                  }}
+                />
+                <PopItem
+                  title="Push"
+                  desc="Push existing commits to the upstream branch"
+                  onClick={() => {
+                    close();
+                    void doPush();
+                  }}
+                />
+              </PopSection>
+            )}
+          </Popover>
+          </div>
         )}
       </div>
     </section>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { ArrowSquareOut, CaretDown, CaretUp, DownloadSimple, FileCode, FilePdf, FileText, Files } from "@phosphor-icons/react";
+import { ArrowCounterClockwise, ArrowSquareOut, CaretDown, CaretUp, DownloadSimple, FileCode, FilePdf, FileText, Files } from "@phosphor-icons/react";
 import { AR } from "../api";
+import { useStore } from "../store";
 import { splitPath, summarizeChanges, type ChangesSummary, type FileDiffSummary } from "../diffSummary";
 
 // J2 · Document artifacts. A completed turn's produced documents get a
@@ -100,8 +101,13 @@ function ArtifactChips({ sid, files }: { sid: string; files: FileDiffSummary[] }
 }
 
 export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; refreshKey: number; onReview: () => void }) {
+  const openModal = useStore((s) => s.openModal);
+  const toast = useStore((s) => s.toast);
   const [summary, setSummary] = useState<ChangesSummary | null>(null);
   const [expanded, setExpanded] = useState(false);
+  // Local bump re-fetches the summary after an Undo without needing the parent
+  // to change refreshKey (a reverted card should collapse to nothing).
+  const [bump, setBump] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -113,7 +119,28 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
       })
       .catch(() => alive && setSummary(null));
     return () => { alive = false; };
-  }, [sid, refreshKey]);
+  }, [sid, refreshKey, bump]);
+
+  // Undo ↺ — discard the whole change set back to HEAD (destructive; confirmed).
+  const undo = () => {
+    const n = summary?.files.length ?? 0;
+    openModal({
+      kind: "confirm",
+      title: "Undo all changes?",
+      body: `Discards all ${n} changed file${n === 1 ? "" : "s"} in the workspace back to the last commit and deletes any new files the agent created. This can't be undone.`,
+      confirmLabel: "Undo changes",
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await AR.revert(sid);
+          toast("changes reverted", "info");
+          setBump((b) => b + 1);
+        } catch (e: any) {
+          toast(e.message);
+        }
+      },
+    });
+  };
 
   if (!summary?.files.length) return null;
   // "Show N more files" reveals the remaining rows inline (Codex behaviour);
@@ -133,6 +160,9 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
               {summary.totalDel > 0 && <em className="del">−{summary.totalDel}</em>}
             </span>
           </div>
+          <button type="button" className="inline-flex items-center gap-[5px] text-red" onClick={undo} title="Discard all these changes (git checkout . + remove new files)">
+            Undo <ArrowCounterClockwise size={13} />
+          </button>
           <button type="button" onClick={onReview}>Review</button>
         </header>
         <div className="changes-outcome-files">

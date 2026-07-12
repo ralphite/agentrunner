@@ -83,6 +83,44 @@ export function parseFileDiff(lines: string[]): ParsedFileDiff {
   return { badges, status, rows };
 }
 
+// A run of unmodified new-file lines hidden between (or before) diff hunks —
+// the region a "N unmodified lines" collapser reveals. `start`/`end` are 1-based
+// inclusive new-file line numbers, so the client slices them straight out of the
+// file blob.
+export interface ContextGap {
+  start: number;
+  end: number;
+}
+
+// hunkGaps maps a hunk-header row index → the ContextGap hidden immediately
+// before it. The leading gap (file start → first hunk) is keyed by the first
+// hunk's row index; each later gap spans from the previous hunk's last shown new
+// line to the next hunk's first shown new line. Only positive-length gaps are
+// returned. Pure; derived from the rows' own new-file numbering, so it needs no
+// file length and no blob to compute the collapser labels.
+export function hunkGaps(rows: DiffRow[]): Map<number, ContextGap> {
+  const gaps = new Map<number, ContextGap>();
+  let prevLastNew = 0; // last new-file line already shown by an earlier hunk
+  const n = rows.length;
+  for (let idx = 0; idx < n; idx++) {
+    if (rows[idx].kind !== "hunk") continue;
+    let firstNew = 0;
+    let lastNew = prevLastNew;
+    for (let j = idx + 1; j < n && rows[j].kind !== "hunk"; j++) {
+      const no = rows[j].newNo;
+      if (no !== undefined) {
+        if (firstNew === 0) firstNew = no;
+        lastNew = no;
+      }
+    }
+    if (firstNew > 0 && firstNew - 1 >= prevLastNew + 1) {
+      gaps.set(idx, { start: prevLastNew + 1, end: firstNew - 1 });
+    }
+    if (lastNew > prevLastNew) prevLastNew = lastNew;
+  }
+  return gaps;
+}
+
 // splitPath separates the directory (rendered dim) from the basename
 // (rendered strong) the way Codex file headers do.
 export function splitPath(path: string): { dir: string; base: string } {

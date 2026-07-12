@@ -103,8 +103,20 @@ export const AR = {
   fileURL: (sid: string, path: string) =>
     `/api/sessions/${encodeURIComponent(sid)}/file?path=${encodeURIComponent(path)}`,
   diff: (sid: string, scope: DiffScope = "working-tree") => api<DiffResp>(diffPath(sid, scope)),
+  // One file's current working-tree text, so the diff view can reveal the
+  // unmodified lines hidden between hunks ("N unmodified lines" collapsers).
+  blob: (sid: string, path: string) =>
+    api<{ lines: string[] }>(`/sessions/${sid}/blob?path=${encodeURIComponent(path)}`),
   commit: (sid: string, message: string) =>
     post<{ status: string }>(`/sessions/${sid}/commit`, { message }),
+  // Push the workspace's current branch to its upstream/origin. Failures carry a
+  // structured `kind` (no-remote / no-upstream / rejected / detached / auth) next
+  // to the human message + git stderr; ApiError.push surfaces it to the caller.
+  push: (sid: string) => post<{ status: string; branch: string }>(`/sessions/${sid}/push`),
+  // Discard the workspace's changes back to HEAD (whole batch, or one file when
+  // `path` is given) — destructive; the UI confirms first.
+  revert: (sid: string, path?: string) =>
+    post<{ status: string }>(`/sessions/${sid}/revert`, path ? { path } : {}),
   gitInit: (sid: string) => post<{ status: string }>(`/sessions/${sid}/git-init`),
   // Worktree lifecycle (INC-49): apply the worktree's changes back onto its main
   // checkout (clean-or-nothing git apply), and remove the worktree when done

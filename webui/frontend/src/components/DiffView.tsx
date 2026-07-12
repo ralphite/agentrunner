@@ -5,6 +5,7 @@ import {
   MagnifyingGlass,
   GitBranch,
   CaretDown,
+  CaretUp,
   FileDashed,
   FileMagnifyingGlass,
   FolderDashed,
@@ -14,7 +15,7 @@ import { AR } from "../api";
 import { useStore } from "../store";
 import { loadGitPrefs } from "../theme";
 import type { DiffResp, DiffScope } from "../types";
-import { parseFileDiff, shouldExpandDiffByDefault, splitDiff, splitPath, splitRows, highlightLine, langFromPath, type DiffRow, type FileStatus } from "../diffSummary";
+import { parseFileDiff, shouldExpandDiffByDefault, splitDiff, splitPath, splitRows, highlightLine, hunkGaps, langFromPath, type DiffRow, type FileStatus, type ParsedFileDiff } from "../diffSummary";
 import { Popover, PopItem, PopSection } from "./Popover";
 
 // renderCode turns one diff line into syntax-highlighted spans (INC-41 D3).
@@ -97,22 +98,46 @@ export function DiffView({ sid }: { sid: string }) {
       requestID.current += 1;
     };
   }, [sid, scope]);
-  // Codex review→commit: stage & commit the workspace changes from the diff.
-  const commit = () => {
+  // Codex review→commit(→push): stage & commit the workspace changes, optionally
+  // pushing to the upstream branch. `thenPush` chains a push only when the commit
+  // succeeded, so a failed commit never pushes a half-finished state.
+  const commit = () => openCommitPrompt(false);
+  const commitAndPush = () => openCommitPrompt(true);
+  const openCommitPrompt = (thenPush: boolean) => {
     openPrompt({
-      title: "Commit changes",
+      title: thenPush ? "Commit & push" : "Commit changes",
       label: "commit message",
       // Seed from the Settings › Git commit-message template (INC-41 H4).
       initial: loadGitPrefs().commitTemplate,
-      submitLabel: "Commit",
-      onSubmit: (message) => void doCommit(message),
+      submitLabel: thenPush ? "Commit & push" : "Commit",
+      onSubmit: (message) => void doCommit(message, thenPush),
     });
   };
-  const doCommit = async (message: string) => {
+  const doCommit = async (message: string, thenPush = false) => {
     setBusy(true);
     try {
       await AR.commit(sid, message);
-      toast("committed", "info");
+      if (thenPush) {
+        const r = await AR.push(sid);
+        toast(r.branch ? `committed & pushed ${r.branch}` : "committed & pushed", "info");
+      } else {
+        toast("committed", "info");
+      }
+      load();
+    } catch (e: any) {
+      toast(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  // Push already-made commits to the upstream/origin branch (no new commit). The
+  // backend returns structured failures (no remote / no upstream / rejected /
+  // detached / auth) which the ApiError message already spells out.
+  const doPush = async () => {
+    setBusy(true);
+    try {
+      const r = await AR.push(sid);
+      toast(r.branch ? `pushed ${r.branch}` : "pushed", "info");
       load();
     } catch (e: any) {
       toast(e.message);
@@ -410,9 +435,55 @@ export function DiffView({ sid }: { sid: string }) {
           </button>
         )}
         {scope === "working-tree" && !empty && (
-          <button className="sm primary" onClick={commit} disabled={busy} title="git add -A && git commit the workspace changes (local commit, no push)">
-            Commit changes…
-          </button>
+          <div className="inline-flex items-stretch" role="group" aria-label="Commit or push">
+            <button
+              className="sm primary rounded-r-none"
+              onClick={commit}
+              disabled={busy}
+              title="git add -A && git commit the workspace changes (local commit, no push)"
+            >
+              Commit
+            </button>
+            <Popover
+              align="right"
+              panelClass="w-[264px] max-w-[calc(100vw-24px)]"
+              trigger={(open, toggle) => (
+                <button
+                  className={"sm primary rounded-l-none px-[5px] inline-flex items-center" + (open ? " active" : "")}
+                  style={{ borderLeft: "1px solid color-mix(in srgb, var(--accent-ink) 28%, transparent)" }}
+                  onClick={toggle}
+                  disabled={busy}
+                  aria-label="Commit or push options"
+                  aria-haspopup="menu"
+                  aria-expanded={open}
+                  title="Commit or push"
+                >
+                  <CaretDown size={12} />
+                </button>
+              )}
+            >
+              {(close) => (
+                <PopSection label="Commit or push">
+                  <PopItem
+                    title="Commit &amp; push"
+                    desc="Commit locally, then push to the upstream branch"
+                    onClick={() => {
+                      close();
+                      commitAndPush();
+                    }}
+                  />
+                  <PopItem
+                    title="Push"
+                    desc="Push existing commits to the upstream branch"
+                    onClick={() => {
+                      close();
+                      void doPush();
+                    }}
+                  />
+                </PopSection>
+              )}
+            </Popover>
+          </div>
         )}
         {scope === "working-tree" && data.worktree && data.mainRepo && (
           <button
@@ -506,53 +577,165 @@ export function DiffView({ sid }: { sid: string }) {
                 {del > 0 && <span className="del">−{del}</span>}
               </span>
             </summary>
-            {effView === "split" ? (
-              <div className="fd-body fd-split">
-                {splitRows(parsed.rows).map((sr, i) =>
-                  sr.hunk !== undefined ? (
-                    sr.hunk ? (
-                      <div className="dl-hunk dl-hunk-span" key={i}>{sr.hunk}</div>
-                    ) : hunkCount > 1 ? (
-                      <div className="dl-hunk dl-hunk-span dl-hunk-blank" key={i} aria-hidden="true" />
-                    ) : null
-                  ) : (
-                    <div className="dls" key={i}>
-                      <span className="dl-no">{sr.left?.oldNo ?? ""}</span>
-                      <span className={"dls-half " + halfKind(sr.left, "left")}>
-                        <span className="dl-sign">{rowSign(sr.left)}</span>
-                        {sr.left && renderCode(sr.left.text, lang)}
-                      </span>
-                      <span className="dl-no">{sr.right?.newNo ?? ""}</span>
-                      <span className={"dls-half " + halfKind(sr.right, "right")}>
-                        <span className="dl-sign">{rowSign(sr.right)}</span>
-                        {sr.right && renderCode(sr.right.text, lang)}
-                      </span>
-                    </div>
-                  ),
-                )}
-              </div>
-            ) : (
-              <div className="fd-body">
-                {parsed.rows.map((r, i) =>
-                  r.kind === "hunk" ? (
-                    r.text ? (
-                      <div className="dl-hunk" key={i}>{r.text}</div>
-                    ) : hunkCount > 1 ? (
-                      <div className="dl-hunk dl-hunk-blank" key={i} aria-hidden="true" />
-                    ) : null
-                  ) : (
-                    <div className={"dl " + (r.kind === "ctx" ? "" : r.kind)} key={i}>
-                      <span className="dl-no">{(r.kind === "del" ? r.oldNo : r.newNo) ?? ""}</span>
-                      <span className="dl-text">
-                        <span className="dl-sign">{rowSign(r)}</span>
-                        {renderCode(r.text, lang)}
-                      </span>
-                    </div>
-                  ),
-                )}
-              </div>
-            )}
+            <FileBody sid={sid} path={f.path} parsed={parsed} lang={lang} effView={effView} hunkCount={hunkCount} />
           </details>
+        );
+      })}
+    </div>
+  );
+}
+
+// FileBody renders one file's diff rows, and — in the inline view — the
+// clickable "N unmodified lines" collapser bands Codex shows before the first
+// hunk and between hunks (P3). Clicking a band fetches the file's current text
+// once (AR.blob) and reveals the hidden unmodified region in place; clicking the
+// revealed region's header collapses it again. The split view keeps the plain
+// hunk-separator rendering (its paired-column model has no per-row anchor to
+// hang a band on), so context expansion lives in the default inline layout.
+function FileBody({
+  sid,
+  path,
+  parsed,
+  lang,
+  effView,
+  hunkCount,
+}: {
+  sid: string;
+  path: string;
+  parsed: ParsedFileDiff;
+  lang: string;
+  effView: "inline" | "split";
+  hunkCount: number;
+}) {
+  const toast = useStore((s) => s.toast);
+  const gaps = hunkGaps(parsed.rows);
+  // Fetched file text (null until first reveal) and the set of hunk-row indices
+  // whose gap is currently expanded.
+  const [blob, setBlob] = useState<string[] | null>(null);
+  const [open, setOpen] = useState<Set<number>>(new Set());
+  const [loadingIdx, setLoadingIdx] = useState<number | null>(null);
+
+  const toggleGap = async (idx: number) => {
+    if (open.has(idx)) {
+      setOpen((prev) => {
+        const next = new Set(prev);
+        next.delete(idx);
+        return next;
+      });
+      return;
+    }
+    if (!blob) {
+      setLoadingIdx(idx);
+      try {
+        const r = await AR.blob(sid, path);
+        setBlob(r.lines);
+      } catch (e: any) {
+        toast(e.message);
+        setLoadingIdx(null);
+        return;
+      }
+      setLoadingIdx(null);
+    }
+    setOpen((prev) => new Set(prev).add(idx));
+  };
+
+  // The revealed unmodified lines for a gap, sliced by 1-based new-file numbers.
+  const revealedRows = (gap: { start: number; end: number }): DiffRow[] => {
+    if (!blob) return [];
+    const out: DiffRow[] = [];
+    for (let ln = gap.start; ln <= gap.end && ln - 1 < blob.length; ln++) {
+      out.push({ kind: "ctx", newNo: ln, oldNo: ln, text: blob[ln - 1] });
+    }
+    return out;
+  };
+
+  // Collapser band shown before a hunk that hides unmodified lines. Expanded, it
+  // becomes a thin "collapse" header above the revealed lines.
+  const band = (idx: number, gap: { start: number; end: number }) => {
+    const n = gap.end - gap.start + 1;
+    const expanded = open.has(idx);
+    return (
+      <button
+        type="button"
+        className="flex items-center gap-[6px] w-full px-[10px] py-[3px] bg-panel-2 text-dim font-mono text-[11px] text-left cursor-pointer border-x-0 border-y border-y-line-2 hover:bg-blue-soft hover:text-blue disabled:opacity-60 disabled:cursor-default"
+        onClick={() => void toggleGap(idx)}
+        disabled={loadingIdx === idx}
+        title={expanded ? "Hide these unmodified lines" : "Show these unmodified lines"}
+      >
+        <span className="shrink-0 opacity-70 inline-flex">{expanded ? <CaretUp size={12} /> : <CaretDown size={12} />}</span>
+        {loadingIdx === idx ? "Loading…" : `${n.toLocaleString()} unmodified line${n === 1 ? "" : "s"}`}
+      </button>
+    );
+  };
+
+  if (effView === "split") {
+    return (
+      <div className="fd-body fd-split">
+        {splitRows(parsed.rows).map((sr, i) =>
+          sr.hunk !== undefined ? (
+            sr.hunk ? (
+              <div className="dl-hunk dl-hunk-span" key={i}>{sr.hunk}</div>
+            ) : hunkCount > 1 ? (
+              <div className="dl-hunk dl-hunk-span dl-hunk-blank" key={i} aria-hidden="true" />
+            ) : null
+          ) : (
+            <div className="dls" key={i}>
+              <span className="dl-no">{sr.left?.oldNo ?? ""}</span>
+              <span className={"dls-half " + halfKind(sr.left, "left")}>
+                <span className="dl-sign">{rowSign(sr.left)}</span>
+                {sr.left && renderCode(sr.left.text, lang)}
+              </span>
+              <span className="dl-no">{sr.right?.newNo ?? ""}</span>
+              <span className={"dls-half " + halfKind(sr.right, "right")}>
+                <span className="dl-sign">{rowSign(sr.right)}</span>
+                {sr.right && renderCode(sr.right.text, lang)}
+              </span>
+            </div>
+          ),
+        )}
+      </div>
+    );
+  }
+
+  const ctxRow = (r: DiffRow, key: string) => (
+    <div className="dl" key={key}>
+      <span className="dl-no">{r.newNo ?? ""}</span>
+      <span className="dl-text">
+        <span className="dl-sign"> </span>
+        {renderCode(r.text, lang)}
+      </span>
+    </div>
+  );
+
+  return (
+    <div className="fd-body">
+      {parsed.rows.map((r, i) => {
+        if (r.kind === "hunk") {
+          const gap = gaps.get(i);
+          const bandEl = gap ? band(i, gap) : null;
+          const revealed = gap && open.has(i) ? revealedRows(gap).map((cr, k) => ctxRow(cr, i + ":rv:" + k)) : null;
+          const header = r.text ? (
+            <div className="dl-hunk" key={i + ":h"}>{r.text}</div>
+          ) : hunkCount > 1 ? (
+            <div className="dl-hunk dl-hunk-blank" key={i + ":h"} aria-hidden="true" />
+          ) : null;
+          if (!bandEl && !header) return null;
+          return (
+            <div key={i}>
+              {bandEl}
+              {revealed}
+              {header}
+            </div>
+          );
+        }
+        return (
+          <div className={"dl " + (r.kind === "ctx" ? "" : r.kind)} key={i}>
+            <span className="dl-no">{(r.kind === "del" ? r.oldNo : r.newNo) ?? ""}</span>
+            <span className="dl-text">
+              <span className="dl-sign">{rowSign(r)}</span>
+              {renderCode(r.text, lang)}
+            </span>
+          </div>
         );
       })}
     </div>
