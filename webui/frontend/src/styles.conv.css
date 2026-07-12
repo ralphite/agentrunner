@@ -865,3 +865,32 @@
 @media (prefers-reduced-motion: reduce) {
   .changes-outcome .changes-outcome-skel > span { animation: none; }
 }
+
+/* =========================================================================
+   INC-41 round 27 — TR-1: a turn boundary is a 1px rule across the prose column.
+
+   Codex closes every turn with a hairline that spans the WHOLE body column —
+   pixel scan of the gold master (codex-task-thread.jpg, y=456): mean grey 248.0,
+   std 0.12, running x=320..639, i.e. the full 320px column, wider than any card
+   inside it. We had no turn-level separator at ALL (`.turn-sep` count was 0 on a
+   10-turn session), which leaves a long thread as one undifferentiated scroll —
+   and the turn is the only navigation unit such a thread has.
+
+   Geometry: the rule is a direct child of `.tl-inner`, so it inherits exactly
+   the column's content box — the same left edge an assistant `.msg-col` starts
+   at (`.assistant .msg-col { flex: 1 }` inside a full-width `.msg`), and the
+   column's right edge. That's a column-width rule, not a card-width one, by
+   construction rather than by a hard-coded width that would drift at the
+   breakpoints where styles.css retunes `.tl-inner`'s padding.
+
+   Colour is the `--line` token, so dark mode tracks it (#e7e7e7 → #2a2a30)
+   without a second rule. Asymmetric margin (22 above / 18 below): the rule
+   belongs to the turn it OPENS, so it sits nearer the user message below it
+   than the turn it closed above.
+   ========================================================================= */
+.tl-inner > .turn-sep {
+  height: 1px;
+  border: 0;
+  margin: 22px 0 18px;
+  background: var(--line);
+}

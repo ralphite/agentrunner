@@ -61,13 +61,42 @@ function absTime(ts?: string): string | undefined {
   return isNaN(d.getTime()) ? undefined : d.toLocaleString();
 }
 
-// shortTime renders a message timestamp for the hover action row (Codex shows
+// calendarDaysAgo: whole LOCAL calendar days between two instants — not 24h
+// chunks. Normalising to local midnight first is what makes "yesterday at
+// 11:50 PM" read as 1 day ago rather than 0, and keeps the count right across
+// a DST shift (a 23h or 25h day is still one day).
+function calendarDaysAgo(d: Date, now: Date): number {
+  const midnight = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  return Math.round((midnight(now) - midnight(d)) / 86400000);
+}
+
+// shortTime renders a message timestamp for the message action row (Codex shows
 // the time there, not as centered feed markers).
-function shortTime(ts?: string): string | null {
+//
+// TR-2: agent tasks run for hours to days, so the bare "11:31 PM" this used to
+// emit was unreadable the moment a thread crossed midnight — a real session
+// shows "11:31 PM" above "12:40 AM" with nothing saying those are two different
+// days. The only thing a timestamp on a long thread is FOR is locating which
+// day something happened, so the label carries a date the moment it isn't
+// today's. Ladder:
+//   today            → "10:14 PM"
+//   1–6 days ago     → "Friday 10:14 PM"   (Codex's form)
+//   7+ days ago      → "Jul 3, 10:14 PM"
+// The weekday tier stops at 6 on purpose: at exactly 7 days the weekday name
+// repeats today's, so "Friday" would be ambiguous between this Friday and last.
+// A future ts (clock skew) degrades to the plain time rather than "in 3 days".
+//
+// `now` is injectable so the tiers can be pinned by tests without depending on
+// the wall clock. Locale/timezone come from the reader's environment (Intl).
+export function shortTime(ts?: string, now: Date = new Date()): string | null {
   if (!ts) return null;
   const d = new Date(ts);
   if (isNaN(d.getTime())) return null;
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const days = calendarDaysAgo(d, now);
+  if (days <= 0) return time;
+  if (days < 7) return `${d.toLocaleDateString([], { weekday: "long" })} ${time}`;
+  return `${d.toLocaleDateString([], { month: "short", day: "numeric" })}, ${time}`;
 }
 
 // Thumbs renders a group of images as inline previews. `paths` are either local
@@ -694,6 +723,11 @@ function WorkedFold({
   onToggle: () => void;
 }) {
   const expandable = fold.children.length > 0;
+  // TR-6: a fold with no children is a dead row — no caret, not clickable, and
+  // nothing behind it if it were. A real session showed three of them in a row
+  // ("Worked for 2s / 1s / 3s"), each one pure noise claiming there is work to
+  // look at. A turn whose work detail is empty says nothing worth a line.
+  if (!expandable) return null;
   const label = workedLabel(fold);
 
   // Group the step list (timeline.foldRuns): a run of tools aggregates into one
@@ -712,15 +746,9 @@ function WorkedFold({
 
   return (
     <div className={"worked" + (open ? " open" : "")}>
-      <button
-        type="button"
-        className="worked-row"
-        onClick={expandable ? onToggle : undefined}
-        disabled={!expandable}
-        aria-expanded={open}
-      >
+      <button type="button" className="worked-row" onClick={onToggle} aria-expanded={open}>
         {label}
-        {expandable && <CaretRight size={15} className="worked-caret" />}
+        <CaretRight size={15} className="worked-caret" />
       </button>
       {open && <div className="worked-body">{rows}</div>}
     </div>
@@ -1010,6 +1038,11 @@ export function TimelineView({
   const blank = nodes.length === 0 && !typing && pending.length === 0 && !statusLine && !approvalSlot;
   const isEmpty = blank && !loading;
 
+  // TR-1: has a user message already opened a turn above this one? Re-derived on
+  // every render (the map below is a fresh closure), so it never carries state
+  // across renders — it's a cursor over `nodes`, not view state.
+  let seenUser = false;
+
   return (
     <div className="timeline" ref={ref} onScroll={onScroll}>
       <div className="tl-inner">
@@ -1036,6 +1069,16 @@ export function TimelineView({
           </div>
         )}
         {nodes.map((it) => {
+          // TR-1: a 1px rule across the full prose column closes each turn.
+          // Codex draws it, and without it an 86-turn thread is one undifferen-
+          // tiated scroll — the turn is the only navigation unit a long thread
+          // has. It rides ABOVE each user message rather than below the previous
+          // turn's last node, because a turn can end in an error, an approval
+          // stall or a changes card, while the user message that opens the next
+          // one is the single landmark every turn is guaranteed to have. The
+          // first user message opens nothing, so it gets no rule.
+          const sep = it.kind === "user" && seenUser;
+          if (it.kind === "user") seenUser = true;
           if (it.kind === "fold") {
             const foldId = it.children[0]?.key ?? it.key;
             return (
@@ -1050,6 +1093,7 @@ export function TimelineView({
           }
           return (
             <Fragment key={it.key}>
+              {sep && <div className="turn-sep" role="separator" />}
               {showSys && durations.has(it.key) && (
                 <div className="worked-row static">Worked for {formatWorkDuration(durations.get(it.key)!)}</div>
               )}
