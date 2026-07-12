@@ -14,22 +14,29 @@ const ZOOM_STEP = 25;
 
 const basename = (path: string) => path.split("/").pop() || "image";
 
+// `images` are opaque source keys, not URLs: `resolve` turns one into a fetchable
+// URL. It defaults to uploadURL (composer attachments, the original caller), and
+// the thread's inline images pass a workspace-file resolver instead (INC-41
+// RT-1). Keeping the keys unresolved means the download filename still comes
+// from the real path rather than from a query-string-laden endpoint URL.
 export function Lightbox({
   images,
   index,
   onIndex,
   onClose,
+  resolve = uploadURL,
 }: {
   images: string[];
   index: number;
   onIndex: (i: number) => void;
   onClose: () => void;
+  resolve?: (path: string) => string;
 }) {
   const [zoom, setZoom] = useState(100);
   const overlayRef = useRef<HTMLDivElement>(null);
   const restoreFocus = useRef<HTMLElement | null>(null);
   const multi = images.length > 1;
-  const src = images[index] ? uploadURL(images[index]) : "";
+  const src = images[index] ? resolve(images[index]) : "";
   const name = images[index] ? basename(images[index]) : "image";
 
   const zoomBy = (delta: number) => setZoom((z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z + delta)));

@@ -1,8 +1,11 @@
-import { useState, type ReactNode } from "react";
-import { ArrowsHorizontal, Check, Copy, TextAlignLeft } from "@phosphor-icons/react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
+import { ArrowsHorizontal, Check, Copy, ImageBroken, TextAlignLeft } from "@phosphor-icons/react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { AR } from "../api";
 import { copyText } from "../clipboard";
+import { useStore } from "../store";
+import { Lightbox } from "./Lightbox";
 import { rehypeHighlight } from "./highlight";
 
 // Markdown renders assistant/runtime message bodies with react-markdown. It
@@ -98,7 +101,74 @@ function hastText(node: unknown): string {
   return "";
 }
 
-const components: Components = {
+// ─── Inline images (INC-41 RT-1) ────────────────────────────────────────────
+// An assistant that produces a screenshot writes it into the workspace and then
+// references it from its answer as `![shot](qa/shot.png)`. Without an `img`
+// renderer that relative path resolves against the SPA origin and 404s (broken
+// image icon), so the picture the turn was *about* never showed. We resolve
+// workspace-relative sources through the session file endpoint (the same one the
+// document artifact cards use — no new backend surface), constrain the image to
+// the prose column, and open the full-size view in the shared Lightbox on click.
+
+// External sources are passed through verbatim: a real URL, an inline data: URI,
+// a blob:, or an already-built /api/… path (e.g. an upload preview) needs no
+// workspace resolution. Everything else is treated as a path inside the
+// session's workspace.
+function isExternalSrc(src: string): boolean {
+  return /^(https?:|data:|blob:)/i.test(src) || src.startsWith("/api/");
+}
+
+// resolveSrc maps a markdown image source to something the browser can fetch.
+// A leading "./" or "/" is stripped so both `![a](./x.png)` and `![a](/x.png)`
+// mean the same workspace-relative file (the file endpoint rejects absolute host
+// paths outright, so a bare leading slash could only ever have been a 400).
+export function resolveSrc(sid: string, src: string): string {
+  if (isExternalSrc(src)) return src;
+  const rel = src.replace(/^\.?\/+/, "");
+  if (!sid || !rel) return src;
+  return AR.fileURL(sid, rel);
+}
+
+const basename = (p: string) => (p.split(/[?#]/)[0].split("/").pop() || p);
+
+// MdImage is one inline image. A load failure degrades to a single filename
+// link rather than leaving a broken-image glyph in the middle of the answer —
+// the agent may have referenced a path it never actually wrote, or the file may
+// have been moved since the turn ended, and the reader deserves to see which.
+function MdImage({ sid, src, alt, onOpen }: { sid: string; src: string; alt: string; onOpen: (src: string) => void }) {
+  const [failed, setFailed] = useState(false);
+  const url = resolveSrc(sid, src);
+  if (failed)
+    return (
+      <a className="md-img-fallback" href={url} target="_blank" rel="noreferrer" title={src}>
+        <ImageBroken size={13} /> {alt || basename(src)}
+      </a>
+    );
+  return (
+    <img
+      className="md-img"
+      src={url}
+      data-src={src}
+      alt={alt}
+      title={alt || src}
+      loading="lazy"
+      onError={() => setFailed(true)}
+      onClick={() => onOpen(src)}
+    />
+  );
+}
+
+// A paragraph whose entire content is images renders as an image row instead of
+// prose: one image stays single-column, several lay out as a wrapping grid
+// (Codex renders multi-screenshot answers the same way).
+function imageOnlyParagraph(node: unknown): boolean {
+  const kids = (node as { children?: { type?: string; tagName?: string; value?: string }[] } | undefined)?.children;
+  if (!Array.isArray(kids)) return false;
+  const meaningful = kids.filter((c) => !(c.type === "text" && !(c.value || "").trim()));
+  return meaningful.length > 0 && meaningful.every((c) => c.type === "element" && c.tagName === "img");
+}
+
+const baseComponents: Components = {
   // Block chrome (header, copy, wrap) is owned by CodeBlock; `pre` becomes just
   // the mount point. Inline code falls through to the default <code> so the
   // existing `.md code` chip styling applies.
@@ -115,7 +185,8 @@ const components: Components = {
   ),
   // Reuse the existing markdown class names so styles.css / styles.conv.css keep
   // styling these elements exactly as before (visual parity with the old parser).
-  p: ({ children }) => <p className="md-p">{children}</p>,
+  p: ({ children, node }) =>
+    imageOnlyParagraph(node) ? <div className="md-img-grid">{children}</div> : <p className="md-p">{children}</p>,
   h1: ({ children }) => <div className="md-h md-h1">{children}</div>,
   h2: ({ children }) => <div className="md-h md-h2">{children}</div>,
   h3: ({ children }) => <div className="md-h md-h3">{children}</div>,
@@ -127,12 +198,49 @@ const components: Components = {
   blockquote: ({ children }) => <blockquote className="md-quote">{children}</blockquote>,
 };
 
-export function Markdown({ text }: { text: string }) {
+// `sid` defaults to the session the thread belongs to (the router's current
+// session) so callers keep the original <Markdown text={…} /> surface; it stays
+// overridable for tests and for any future off-thread render.
+export function Markdown({ text, sid }: { text: string; sid?: string }) {
+  const currentSid = useStore((s) => s.currentSid);
+  const ctxSid = sid ?? currentSid ?? "";
+  const root = useRef<HTMLDivElement>(null);
+  // The lightbox group is the images actually rendered in this answer, read off
+  // the DOM at click time (document order == reading order). That avoids a
+  // registration dance between the img renderer and this component, and it can
+  // never drift out of sync with what the reader is looking at.
+  const [group, setGroup] = useState<{ srcs: string[]; index: number } | null>(null);
+  const open = (src: string) => {
+    const imgs = Array.from(root.current?.querySelectorAll<HTMLImageElement>("img.md-img") || []);
+    const srcs = imgs.map((el) => el.dataset.src || el.src);
+    const index = Math.max(0, srcs.indexOf(src));
+    setGroup({ srcs: srcs.length ? srcs : [src], index });
+  };
+
+  const components = useMemo<Components>(
+    () => ({
+      ...baseComponents,
+      img: ({ src, alt }) => <MdImage sid={ctxSid} src={typeof src === "string" ? src : ""} alt={alt || ""} onOpen={open} />,
+    }),
+    // `open` closes over refs/setState only — stable across renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ctxSid],
+  );
+
   return (
-    <div className="md cx-md">
+    <div className="md cx-md" ref={root}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={components}>
         {text}
       </ReactMarkdown>
+      {group && (
+        <Lightbox
+          images={group.srcs}
+          index={group.index}
+          resolve={(s) => resolveSrc(ctxSid, s)}
+          onIndex={(i) => setGroup((g) => (g ? { ...g, index: i } : g))}
+          onClose={() => setGroup(null)}
+        />
+      )}
     </div>
   );
 }

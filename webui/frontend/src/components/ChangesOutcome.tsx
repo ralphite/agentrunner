@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { ArrowCounterClockwise, ArrowSquareOut, CaretDown, CaretUp, DownloadSimple, FilePdf, FileText, GitDiff } from "@phosphor-icons/react";
+import { ArrowCounterClockwise, ArrowSquareOut, CaretDown, CaretUp, DownloadSimple, FilePdf, FileText, GitDiff, ImageBroken } from "@phosphor-icons/react";
 import { AR } from "../api";
 import { useStore } from "../store";
 import { splitPath, summarizeChanges, type ChangesSummary, type FileDiffSummary } from "../diffSummary";
+import { Lightbox } from "./Lightbox";
 
 // J2 · Document artifacts. A completed turn's produced documents get a
 // Codex-style file-card row above the Edited-files summary. Only prose/document
@@ -22,16 +23,100 @@ const DOC_KIND: Record<string, string> = {
   pdf: "PDF",
 };
 
+// Image artifacts (INC-41 RT-1). A turn that produces a screenshot/chart used to
+// leave it as one grey line inside "Edited N files" — the picture the turn was
+// about was never actually shown. Image extensions get preview cards instead,
+// rendered from the same session-file endpoint the document rows use, and open
+// full-size in the shared Lightbox.
+const IMG_EXT = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg", "avif", "bmp", "ico"]);
+
 // Artifact cards past this count fold behind a "Show N more" toggle so a
 // document-heavy turn doesn't flood the thread (Codex caps the same way).
 const ARTIFACT_CAP = 4;
+// Thumbnails are far smaller than a document row, so the grid holds more before
+// folding.
+const IMAGE_CAP = 6;
+
+function fileExt(path: string): string {
+  const m = /\.([A-Za-z0-9]+)$/.exec(path);
+  return m ? m[1].toLowerCase() : "";
+}
 
 function docKind(path: string): { ext: string; label: string } | null {
-  const m = /\.([A-Za-z0-9]+)$/.exec(path);
-  if (!m) return null;
-  const ext = m[1].toLowerCase();
+  const ext = fileExt(path);
+  if (!ext) return null;
   const label = DOC_KIND[ext];
   return label ? { ext, label } : null;
+}
+
+// One preview card: the image itself over its filename. A file that can't be
+// decoded (a corrupt write, or an .svg the browser refuses) degrades to a
+// broken-image placeholder card that still names + links the file.
+function ImageCard({ sid, path, onOpen }: { sid: string; path: string; onOpen: () => void }) {
+  const [failed, setFailed] = useState(false);
+  const { base } = splitPath(path);
+  const url = AR.fileURL(sid, path);
+  return (
+    <button
+      type="button"
+      className="flex flex-col w-[168px] shrink-0 rounded-[10px] border border-line bg-panel overflow-hidden text-left hover:border-ink-2"
+      onClick={onOpen}
+      title={path}
+      aria-label={`Open ${base}`}
+    >
+      {failed ? (
+        <span className="grid place-items-center w-full h-[104px] bg-panel-2 text-dim">
+          <ImageBroken size={20} />
+        </span>
+      ) : (
+        <img
+          className="w-full h-[104px] object-cover bg-panel-2"
+          src={url}
+          alt={base}
+          loading="lazy"
+          onError={() => setFailed(true)}
+        />
+      )}
+      <span className="px-[9px] py-[7px] text-[12px] text-ink overflow-hidden text-ellipsis whitespace-nowrap border-t border-line">{base}</span>
+    </button>
+  );
+}
+
+function ImageArtifacts({ sid, files }: { sid: string; files: FileDiffSummary[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const [lightbox, setLightbox] = useState<number | null>(null);
+  const imgs = files.filter((f) => IMG_EXT.has(fileExt(f.path))).map((f) => f.path);
+  if (!imgs.length) return null;
+  const shown = expanded ? imgs : imgs.slice(0, IMAGE_CAP);
+  const hidden = imgs.length - shown.length;
+  return (
+    <div className="flex flex-col gap-[8px] mt-[12px] mb-[8px]" aria-label="Images produced this turn">
+      <div className="flex flex-wrap gap-[8px]">
+        {shown.map((path, i) => (
+          <ImageCard key={path} sid={sid} path={path} onOpen={() => setLightbox(i)} />
+        ))}
+      </div>
+      {(hidden > 0 || expanded) && imgs.length > IMAGE_CAP && (
+        <button
+          type="button"
+          className="self-start inline-flex items-center gap-[5px] text-[12px] text-dim hover:text-ink"
+          onClick={() => setExpanded((e) => !e)}
+        >
+          {expanded ? "Show less" : `Show ${hidden} more`}
+          {expanded ? <CaretUp size={13} /> : <CaretDown size={13} />}
+        </button>
+      )}
+      {lightbox !== null && (
+        <Lightbox
+          images={shown}
+          index={lightbox}
+          resolve={(p) => AR.fileURL(sid, p)}
+          onIndex={setLightbox}
+          onClose={() => setLightbox(null)}
+        />
+      )}
+    </div>
+  );
 }
 
 // One artifact row inside the shared bordered container. The two former
@@ -176,6 +261,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
   const hidden = summary.files.length - shown.length;
   return (
     <>
+      <ImageArtifacts sid={sid} files={summary.files} />
       <ArtifactChips sid={sid} files={summary.files} />
       <section className="changes-outcome" aria-label="Workspace changes">
         <header>

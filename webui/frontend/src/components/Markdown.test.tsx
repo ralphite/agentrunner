@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render } from "@testing-library/react";
-import { Markdown } from "./Markdown";
+import { Markdown, resolveSrc } from "./Markdown";
 
 // INC-51: react-markdown + remark-gfm + rehypeHighlight replaces the old
 // hand-rolled renderer. These cover the four things the swap adds/guards:
@@ -63,5 +63,67 @@ describe("Markdown (INC-51)", () => {
     // … they survive only as escaped text, and legit markdown still renders
     expect(container.textContent).toContain("<script>alert(2)</script>");
     expect(container.querySelector("strong")?.textContent).toBe("bold");
+  });
+});
+
+// INC-41 RT-1: an assistant that writes a screenshot into the workspace and then
+// references it (`![shot](qa/shot.png)`) must see it inline in the thread — the
+// relative path has to be resolved through the session-file endpoint, not left
+// to 404 against the SPA origin.
+describe("Markdown inline images (INC-41 RT-1)", () => {
+  const SID = "s-abc";
+
+  it("resolves a workspace-relative source through the session file endpoint", () => {
+    const { container } = render(<Markdown sid={SID} text={"![shot](qa/runs/shot.png)"} />);
+    const img = container.querySelector("img.md-img") as HTMLImageElement;
+    expect(img).not.toBeNull();
+    expect(img.getAttribute("src")).toBe("/api/sessions/s-abc/file?path=qa%2Fruns%2Fshot.png");
+    expect(img.getAttribute("alt")).toBe("shot");
+  });
+
+  it("normalises ./ and / prefixed sources to the same workspace file", () => {
+    expect(resolveSrc(SID, "./a.png")).toBe(resolveSrc(SID, "a.png"));
+    expect(resolveSrc(SID, "/a.png")).toBe(resolveSrc(SID, "a.png"));
+  });
+
+  it("passes absolute/data/api sources through untouched", () => {
+    for (const src of ["https://example.com/a.png", "http://example.com/a.png", "data:image/png;base64,AAA", "/api/uploads/x.png"]) {
+      expect(resolveSrc(SID, src)).toBe(src);
+    }
+  });
+
+  it("lays an image-only paragraph out as a grid, and keeps prose as a paragraph", () => {
+    const { container } = render(<Markdown sid={SID} text={"![a](a.png)\n![b](b.png)\n\ntext ![c](c.png) more"} />);
+    const grid = container.querySelector(".md-img-grid");
+    expect(grid).not.toBeNull();
+    expect(grid?.querySelectorAll("img.md-img").length).toBe(2);
+    // the mixed prose+image paragraph stays a paragraph (image still rendered)
+    const p = container.querySelector("p.md-p");
+    expect(p?.querySelector("img.md-img")).not.toBeNull();
+    expect(p?.textContent).toContain("more");
+  });
+
+  it("opens the lightbox on click, with the whole answer's images as the group", () => {
+    const { container } = render(<Markdown sid={SID} text={"![a](a.png)\n![b](b.png)"} />);
+    const imgs = container.querySelectorAll("img.md-img");
+    fireEvent.click(imgs[1]);
+    const lb = document.querySelector(".lightbox");
+    expect(lb).not.toBeNull();
+    // group of two → counter shows the clicked one as #2
+    expect(lb?.querySelector(".lb-count")?.textContent).toBe("2 / 2");
+    expect((lb?.querySelector("img.lb-img") as HTMLImageElement).src).toContain("path=b.png");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(document.querySelector(".lightbox")).toBeNull();
+  });
+
+  it("degrades a failed load to a filename link — no broken image glyph", () => {
+    const { container } = render(<Markdown sid={SID} text={"![](qa/missing.png)"} />);
+    const img = container.querySelector("img.md-img") as HTMLImageElement;
+    fireEvent.error(img);
+    expect(container.querySelector("img.md-img")).toBeNull();
+    const link = container.querySelector("a.md-img-fallback") as HTMLAnchorElement;
+    expect(link).not.toBeNull();
+    expect(link.textContent).toContain("missing.png");
+    expect(link.getAttribute("href")).toBe("/api/sessions/s-abc/file?path=qa%2Fmissing.png");
   });
 });

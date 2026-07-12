@@ -8,6 +8,9 @@ import "./tw.css";
 // slice stylesheets: styles.conv/composer/panel/nav/rs.css) so slice rules of
 // equal specificity override the base by source order.
 import "./styles.css";
+// Markdown slice: inline images in assistant answers (INC-41 RT-1). Loaded after
+// the base sheet so its rules win on equal specificity, like every other slice.
+import "./styles.md.css";
 import { App } from "./App";
 import { applyTheme, loadTheme } from "./theme";
 
