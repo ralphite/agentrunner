@@ -1259,6 +1259,27 @@ contract";`viewModels.ts:159 scheduleLabel()` 只能把 `schedule` 字段翻成 
 **关闭动作(跨层,须走 PROCESS 增量流程)**:daemon/CLI 暴露 driver 的调度规格(interval 秒数 / cron
 表达式)与 `next_run_at` → webui API 透传 → 前端把行副标题换成 `<cadence> · Next run in <相对时间>`。
 **⚠️ 这条要动后端契约,下轮开工前先写三层 delta,不要直接派前端 implementer。**
+**轮14 更正(重要)**:「没有 cron/next-run 契约」这个前提**是错的**——后端一直有:
+`internal/driver/spec.go` 定义了 `ScheduleImmediate/Interval/Cron/SelfPaced/Parallel` 五种 schedule,
+`DriverSpec.Interval`(Go duration)与 `DriverSpec.Cron`(五段 cron)**都是既有字段**。缺的只是
+**把它们从 spec 透传到 webui run API**,再加一个 cadence 人话描述器 + next-run 计算。
+所以这不是"新增调度能力"的产品级增量,而是**暴露既有契约**的 delta(SPEC 加行,DESIGN 不变量不动)。
+**教训**:代码注释里的「我们没有 X」是**写注释那一刻的认知**,不是事实。跨层条目开工前先查后端,
+别把一句旧注释当成产品缺失。
+
+### CX-4 ☐ 会话右栏 Environment 区缺常设操作行(Worktree / Create branch / Commit or push)[P1]
+**Codex 怎样**(`codex-thread-environment-panel.jpg`):Environment 区**恒常**四行 —— `Changes` ·
+`Worktree`(带展开箭头)· `Create branch` · `Commit or push`。**不管当前有没有变更、有没有分支,四行
+永远在**,每行都是可点入口。
+**我们怎样**(`qa/runs/2026-07-11-parity-r13/thread-light-1440.png`,`SupervisionPanel.tsx`
+`EnvironmentSection`):无变更时整个区只剩 `Changes  No changes` + `No branch yet` 两行秃文字。
+commit/push 动作**只在有变更时才浮现**;`Worktree` 行**不存在**;`Create branch` **不存在**。
+**差在哪**:用户在会话里**没有建分支的入口**,也看不出自己在哪个 worktree 里干活。
+**为什么 Codex 更好**:Environment 是「我这次改动落在哪、怎么收口」的控制台;把入口藏到"有变更之后"
+= 只能事后补救,不能事前规划。恒常行还让面板有稳定的骨架,不会随状态忽长忽短。
+**关闭动作**:`EnvironmentSection` 实现四行常设结构;Worktree 行显示 workspace 路径尾段 + 完整路径/
+复制;Create branch 走**已有的** `AR.gitCheckout(dir, branch, create=true)`;Commit or push 恒常可见,
+无变更时禁用 + 标 `Nothing to commit`(**不隐藏**)。**纯前端,已有 API 全够,不动后端。**
 
 ### ✂ 轮12 比对中主动排除的假阳性(**别派 implementer 去改**)
 - **✂ sidebar 缺 `Pinned` 分区** —— 查证 `Sidebar.tsx:276-279` + `store.ts:73` + `viewModels.ts:228`:
