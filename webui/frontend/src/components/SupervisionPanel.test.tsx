@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 
 // INC-41 TH-3 — the resting Supervision panel. A session with no goal, no
 // subagents and nothing to approve used to spend ~325px (28% of the panel) on
@@ -10,22 +10,33 @@ import { cleanup, render, screen } from "@testing-library/react";
 // empty groups don't render at all, and a *fully* quiet panel still says so —
 // once, on one dim line — so it never reads as broken.
 
-// Any AR.<method> we don't stub returns a promise that never settles: the panel
-// must not depend on a network round-trip to lay itself out.
+// Any AR.<method> that has no stub in `mocks.stubs` returns a promise that never
+// settles: the panel must not depend on a network round-trip to lay itself out.
+// The Environment tests below (RD-A/RD-D) install real stubs for `diff` +
+// `gitBranches` for the length of one test.
+const mocks = vi.hoisted(() => ({ stubs: {} as Record<string, (...args: any[]) => any> }));
 vi.mock("../api", async () => ({
   ...(await vi.importActual<typeof import("../api")>("../api")),
-  AR: new Proxy({}, { get: () => () => new Promise(() => {}) }),
+  AR: new Proxy(
+    {},
+    {
+      get:
+        (_t, key: string) =>
+        (...args: any[]) =>
+          mocks.stubs[key] ? mocks.stubs[key](...args) : new Promise(() => {}),
+    },
+  ),
 }));
 
-import { SupervisionPanel, type GoalState } from "./SupervisionPanel";
+import { ENV_REFRESH_MS, SupervisionPanel, type GoalState } from "./SupervisionPanel";
 import { useStore } from "../store";
 import type { InspectNode } from "./Subagents";
 import { fireEvent } from "@testing-library/react";
 
 const noop = () => {};
 
-function renderPanel(over: Partial<React.ComponentProps<typeof SupervisionPanel>> = {}) {
-  return render(
+function panelTree(over: Partial<React.ComponentProps<typeof SupervisionPanel>> = {}) {
+  return (
     <div className="session-view">
       <SupervisionPanel
         loading={false}
@@ -49,8 +60,18 @@ function renderPanel(over: Partial<React.ComponentProps<typeof SupervisionPanel>
         onClose={noop}
         {...over}
       />
-    </div>,
+    </div>
   );
+}
+
+function renderPanel(over: Partial<React.ComponentProps<typeof SupervisionPanel>> = {}) {
+  const result = render(panelTree(over));
+  return {
+    ...result,
+    // rerender with the same wrapper, so a test can tick refreshKey.
+    update: (next: Partial<React.ComponentProps<typeof SupervisionPanel>> = {}) =>
+      result.rerender(panelTree({ ...over, ...next })),
+  };
 }
 
 const goal: GoalState = { goal: "ship the panel", checks: 2, max_checks: 5 };
@@ -61,8 +82,12 @@ beforeEach(() => {
   // out of the way, and the settled-goal lookup never fires. The three groups
   // under test are the whole panel body here.
   useStore.setState({ currentSid: null });
+  for (const k of Object.keys(mocks.stubs)) delete mocks.stubs[k];
 });
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe("TH-3 · resting Supervision panel", () => {
   it("renders no titled empty block — one dim line stands in for all three", () => {
@@ -180,5 +205,160 @@ describe("TH-3 · groups with content are untouched", () => {
     expect(screen.queryByText("Attention")).toBeNull();
     expect(container.querySelectorAll(".supervision-quiet").length).toBe(1);
     expect(screen.getByText("Background work")).toBeTruthy();
+  });
+});
+
+// ===== INC-41 RD-A / RD-D / RD-E · the Environment block =====
+// A dirty tree: 2 tracked files (+3 / −1) AND 2 untracked files — the ordinary
+// case for a coding turn, and the one the old row got wrong (it printed "+3 −1"
+// and dropped both new files on the floor).
+const DIRTY_DIFF = [
+  "diff --git a/a.ts b/a.ts",
+  "--- a/a.ts",
+  "+++ b/a.ts",
+  "@@ -1,2 +1,3 @@",
+  " ctx",
+  "+added one",
+  "+added two",
+  "-removed",
+  "diff --git a/b.ts b/b.ts",
+  "--- a/b.ts",
+  "+++ b/b.ts",
+  "@@ -1 +1 @@",
+  "+new line",
+].join("\n");
+
+const dirty = (diff = DIRTY_DIFF, untracked = ["asset.bin", "img/shot.png"]) => ({
+  workspace: "/tmp/wt-20260712",
+  known: true,
+  isRepo: true,
+  nested: false,
+  diff,
+  untracked,
+});
+
+function stubEnv(payload: any = dirty()) {
+  const diff = vi.fn(() => Promise.resolve(payload));
+  mocks.stubs.diff = diff;
+  mocks.stubs.gitBranches = () => Promise.resolve({ isRepo: true, current: "main", branches: [] });
+  useStore.setState({ currentSid: "s1" });
+  return diff;
+}
+
+describe("RD-A · the Environment rows are live, not a mount-time snapshot", () => {
+  it("re-reads git when refreshKey ticks — but at most once per throttle window", async () => {
+    vi.useFakeTimers();
+    const diff = stubEnv();
+
+    const { update } = renderPanel({ refreshKey: 0 });
+    await act(async () => {}); // let the mount fetch settle
+    // Leading edge: the panel reads git the moment it appears.
+    expect(diff).toHaveBeenCalledTimes(1);
+
+    // A live turn streams events; refreshKey ticks with each one. `ar diff` shells
+    // out to git, so a burst inside the window must NOT become a burst of fetches.
+    await act(async () => {
+      update({ refreshKey: 1 });
+    });
+    await act(async () => {
+      update({ refreshKey: 2 });
+    });
+    await act(async () => {
+      update({ refreshKey: 3 });
+    });
+    expect(diff).toHaveBeenCalledTimes(1);
+
+    // …but the panel must not end the burst holding a stale tree: the trailing
+    // edge fires once the window closes. (This is the whole bug: the rail used to
+    // say "clean" while the thread said "Edited 12 files".)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ENV_REFRESH_MS);
+    });
+    expect(diff).toHaveBeenCalledTimes(2);
+
+    // After a quiet stretch, the next event is a leading edge again — immediate.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ENV_REFRESH_MS);
+    });
+    await act(async () => {
+      update({ refreshKey: 4 });
+    });
+    expect(diff).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not re-read when nothing in the session changed", async () => {
+    vi.useFakeTimers();
+    const diff = stubEnv();
+
+    const { update } = renderPanel({ refreshKey: 7 });
+    await act(async () => {});
+    expect(diff).toHaveBeenCalledTimes(1);
+
+    // Same refreshKey, unrelated prop change (the panel re-renders constantly).
+    await act(async () => {
+      update({ approvals: 1 });
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ENV_REFRESH_MS * 3);
+    });
+    expect(diff).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("RD-D · the Changes row states what it knows", () => {
+  it("leads with the file count, then ± lines, and still counts untracked files", async () => {
+    stubEnv();
+    const { container } = renderPanel();
+
+    const val = await screen.findByText("2 files");
+    expect(val).toBeTruthy();
+    const row = container.querySelectorAll(".env-row")[0];
+    expect(row.textContent).toContain("Changes");
+    // Codex's order: files first, then the lines.
+    expect(row.textContent).toContain("2 files");
+    expect(row.textContent).toContain("+3");
+    expect(row.textContent).toContain("−1");
+    // The regression this closes: untracked files used to render ONLY when there
+    // were no tracked changes at all — so a normal turn (edits + new files) never
+    // showed them.
+    expect(row.textContent).toContain("2 new");
+  });
+
+  it("still reports a purely-untracked tree", async () => {
+    stubEnv(dirty("", ["one.bin", "two.bin", "three.bin"]));
+    const { container } = renderPanel();
+
+    await screen.findByText(/3 new/);
+    const row = container.querySelectorAll(".env-row")[0];
+    expect(row.textContent).not.toContain("files"); // no tracked file was touched
+    expect(row.textContent).not.toContain("+");
+  });
+
+  it("says nothing at all on a clean tree (ENV-3)", async () => {
+    stubEnv(dirty("", []));
+    const { container } = renderPanel();
+
+    await screen.findByText("Environment");
+    const row = container.querySelectorAll(".env-row")[0];
+    expect(row.querySelector(".env-row-val")).toBeNull();
+    expect(row.textContent).not.toContain("0 files");
+  });
+});
+
+describe("RD-E · Background work rides under Environment", () => {
+  it("is the second section on the panel — above Goal / Attention", async () => {
+    stubEnv();
+    const task = { handle: "h1", tool: "spawn_agent", detail: "agent=worker task=review" } as any;
+    const { container } = renderPanel({ tasks: [task], goal, approvals: 1 });
+
+    await screen.findByText("Environment");
+    const labels = [...container.querySelectorAll(".supervision-label")].map((el) =>
+      (el.textContent || "").trim(),
+    );
+    expect(labels[0]).toBe("Environment");
+    expect(labels[1]).toBe("Background work");
+    // …and it is no longer the last thing on the rail, below everything else.
+    expect(labels.indexOf("Background work")).toBeLessThan(labels.indexOf("Goal"));
+    expect(labels.indexOf("Background work")).toBeLessThan(labels.indexOf("Attention"));
   });
 });

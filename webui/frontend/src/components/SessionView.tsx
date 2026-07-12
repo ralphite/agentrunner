@@ -842,7 +842,13 @@ export function SessionView({ sid }: { sid: string }) {
       {findOpen && (
         <FindBar scope={() => document.querySelector<HTMLElement>(".timeline")} onClose={() => setFindOpen(false)} />
       )}
-      <div className={`session-layout${view === "diff" ? " changes" : showSupervision ? "" : " single"}`}>
+      {/* INC-41 RD-B · the Environment rail no longer owns a layout column. It's a
+          floating card now (styles.panel.css), so the thread keeps the full width
+          whether the rail is open or shut — opening it used to shove the column
+          the user was mid-sentence in 144px to the left. Changes (`view==="diff"`)
+          is untouched: a review surface genuinely needs half the window, and gets
+          it via the `.changes` track. */}
+      <div className={`session-layout${view === "diff" ? " changes" : " single"}`}>
         <main className="session-primary">
           {/* The conversation stays mounted even while Changes is open — Codex
               shows the diff as a right-side split, not a full takeover (R1-2). */}
@@ -1022,6 +1028,12 @@ export function SessionView({ sid }: { sid: string }) {
             // a three-line block saying "Cancelled · 00:34 · 0 checks" a second
             // time. It collapses to one line.
             goalEchoed={goalLive && goalTerminal}
+            // INC-41 RD-A · same tick the Changes card above the composer runs on
+            // (`refreshKey={events.length}`, :890). The rail's git rows read once
+            // on mount and then went blind — it could sit next to a card saying
+            // "Edited 12 files" while still showing a clean tree. Now the stream
+            // drives both.
+            refreshKey={events.length}
             // TH-15 · the rail's Changes row used to open the diff by synthesising
             // a click on the topbar's Changes pill. That pill is gone, so the row
             // drives the view directly — which is what it should always have done.

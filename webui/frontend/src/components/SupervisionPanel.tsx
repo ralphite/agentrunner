@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   CaretDown,
   CaretRight,
@@ -162,6 +162,7 @@ export function SupervisionPanel({
   sessionIdle,
   recovery,
   goalEchoed = false,
+  refreshKey = 0,
   onOpenChanges,
   onGoalEdit,
   onGoalSave,
@@ -189,6 +190,15 @@ export function SupervisionPanel({
   // outcome. The GOAL section then states the fact once, on one line, instead of
   // repeating the elapsed + check count the banner just gave.
   goalEchoed?: boolean;
+  // INC-41 RD-A · a monotonically-rising tick from the session's event stream
+  // (SessionView passes `events.length`, the same source ChangesOutcome's card
+  // already runs on). The Environment block's git state used to be fetched once,
+  // on mount, and then never again: the thread could say "Edited 12 files" while
+  // the rail two hundred pixels to its right still showed a clean tree and a
+  // disabled `Commit or push`. A panel that states git facts must not state stale
+  // ones — so it re-reads whenever the session produces events (throttled; see
+  // EnvironmentSection).
+  refreshKey?: number;
   // TH-15 · open the Changes view. Owned by SessionView (the `view` state lives
   // there); the rail's Changes row is now the primary door to the diff.
   onOpenChanges?: () => void;
@@ -245,7 +255,27 @@ export function SupervisionPanel({
         </button>
       </div>
 
-      <EnvironmentSection onOpenChanges={onOpenChanges} />
+      <EnvironmentSection onOpenChanges={onOpenChanges} refreshKey={refreshKey} />
+
+      {/* INC-41 RD-E · Background work rides directly under Environment. It used
+          to be the LAST block on the rail — below Goal, Progress, Artifacts,
+          Agents and Attention — so the one section that reports live, still-
+          burning processes ("kill -TERM 92380…") could only be read after
+          scrolling past five quieter ones. Codex puts `Background processes`
+          second, right beneath the Environment rows, for the same reason: what's
+          running *right now* outranks the standing description of the run. */}
+      {tasks.length > 0 && (
+        <section className="supervision-section">
+          <div className="supervision-label">Background work</div>
+          {tasks.map((task) => (
+            <div className="background-row" key={task.handle}>
+              <span className="status-dot run" />
+              <span title={task.detail || task.handle}>{backgroundLabel(task)}</span>
+              <button title="Stop this background work (ar kill)" onClick={() => onKillTask(task.handle)}><X size={13} /></button>
+            </div>
+          ))}
+        </section>
+      )}
 
       {/* One indeterminate line while inspect is in flight — not three titled
           "Checking…" blocks that then collapse into nothing (TH-3): the panel
@@ -398,20 +428,7 @@ export function SupervisionPanel({
         </div>
       )}
 
-      {tasks.length > 0 && (
-        <section className="supervision-section">
-          <div className="supervision-label">Background work</div>
-          {tasks.map((task) => (
-            <div className="background-row" key={task.handle}>
-              <span className="status-dot run" />
-              <span title={task.detail || task.handle}>{backgroundLabel(task)}</span>
-              <button title="Stop this background work (ar kill)" onClick={() => onKillTask(task.handle)}><X size={13} /></button>
-            </div>
-          ))}
-        </section>
-      )}
-
-      {/* INC-41 ENV-4/ENV-5 · the panel's footer row. It used to be the *heaviest*
+      {/* INC-41 ENV-4 · the panel's footer row. It used to be the *heaviest*
           text on the panel (weight 550, --ink-2) and the only line with no leading
           icon — so the loudest thing in a rail full of live git state was a link to
           a modal, and its text started 30px left of every row's label. Codex's
@@ -419,10 +436,13 @@ export function SupervisionPanel({
           rides the same icon+label grid as everything above it. So does ours now:
           a 14px icon on the env-row icon column (15px section pad + 6px row pad),
           the label on the env-row label column (+14px icon +9px gap), --dim at
-          weight 400. styles.panel.css then drops it to the panel's floor with
-          `margin-top:auto` + a hairline top border (ENV-5) — the rail's ~510px of
-          empty background is now *framed* between content and footer instead of
-          reading as a torn-off strip of the thread. */}
+          weight 400.
+          INC-41 RD-B · ENV-5 used to *push* this row to the bottom of a
+          full-height rail (`margin-top:auto`) so that 510px of empty panel read as
+          framed space rather than a torn strip. The panel is a content-hugging
+          floating card now, so there is no void left to frame: the row simply
+          follows the last section, exactly like Codex's `View all` sits one line
+          under `Sources`. */}
       <button className="supervision-details" onClick={onInspect} title="Review this run's status, usage, activity, and provider capabilities">
         <Info size={14} />
         <span className="supervision-details-label">Run details</span>
@@ -431,6 +451,12 @@ export function SupervisionPanel({
     </aside>
   );
 }
+
+// INC-41 RD-A · floor between two Environment refreshes. `AR.diff` runs git in
+// the daemon; a live turn streams tens of events per second, and one `ar diff`
+// per event would be a self-inflicted DoS. 2s is well under the time it takes a
+// human to look from the thread to the rail, and well over the cost of a diff.
+export const ENV_REFRESH_MS = 2000;
 
 interface EnvState {
   workspace: string;
@@ -462,7 +488,13 @@ export function workspaceName(path: string): string {
 // that and stays untouched), so we read the current session from the store and
 // fetch our own diff + branch. The section as a whole is still hidden for
 // non-repo / workspace-less sessions, where git means nothing.
-function EnvironmentSection({ onOpenChanges }: { onOpenChanges?: () => void }) {
+function EnvironmentSection({
+  onOpenChanges,
+  refreshKey = 0,
+}: {
+  onOpenChanges?: () => void;
+  refreshKey?: number;
+}) {
   const sid = useStore((s) => s.currentSid);
   const openPrompt = useStore((s) => s.openPrompt);
   const toast = useStore((s) => s.toast);
@@ -473,17 +505,30 @@ function EnvironmentSection({ onOpenChanges }: { onOpenChanges?: () => void }) {
   const [busy, setBusy] = useState(false);
   const [wtOpen, setWtOpen] = useState(false);
   const isSub = !!sid && sid.includes("-sub-");
+  // Wall-clock of the last fetch (0 = never), and a request counter so a slow
+  // reply from a previous session/tick can't overwrite a newer one.
+  const lastLoadAt = useRef(0);
+  const reqId = useRef(0);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const load = useCallback(() => {
+    lastLoadAt.current = Date.now();
+    const id = ++reqId.current;
+    const fresh = () => mounted.current && id === reqId.current;
     if (!sid) {
       setEnv(null);
       setBranch(null);
       return;
     }
-    let alive = true;
     AR.diff(sid)
       .then((d) => {
-        if (!alive) return;
+        if (!fresh()) return;
         const files = splitDiff(d.diff || "");
         setEnv({
           workspace: d.workspace,
@@ -497,23 +542,44 @@ function EnvironmentSection({ onOpenChanges }: { onOpenChanges?: () => void }) {
         });
         if (d.known && d.isRepo && !d.nested && d.workspace) {
           AR.gitBranches(d.workspace)
-            .then((b) => alive && setBranch(b.isRepo ? (b.current === "HEAD" ? "" : b.current) : null))
-            .catch(() => alive && setBranch(null));
+            .then((b) => fresh() && setBranch(b.isRepo ? (b.current === "HEAD" ? "" : b.current) : null))
+            .catch(() => fresh() && setBranch(null));
         } else {
           setBranch(null);
         }
       })
       .catch(() => {
-        if (!alive) return;
+        if (!fresh()) return;
         setEnv(null);
         setBranch(null);
       });
-    return () => {
-      alive = false;
-    };
   }, [sid]);
 
-  useEffect(() => load(), [load]);
+  // A new session starts from a clean slate: don't let the previous session's
+  // fetch timestamp delay the first read of this one.
+  useEffect(() => {
+    lastLoadAt.current = 0;
+  }, [sid]);
+
+  // INC-41 RD-A · the git state is *live*, not a mount-time snapshot. `load` used
+  // to run exactly once per session (deps `[sid]`), so while the model edited 12
+  // files the rail kept insisting the tree was clean and kept `Commit or push`
+  // disabled — closing and reopening the panel was the only way to get the truth.
+  // Now every tick of refreshKey (one per streamed event) re-reads it, but behind
+  // a leading+trailing throttle: `ar diff` shells out to git, and a busy turn
+  // emits dozens of events a second. Leading edge ⇒ the first event after a quiet
+  // stretch refreshes immediately; trailing edge ⇒ a burst collapses into exactly
+  // one more fetch, ENV_REFRESH_MS after the last one, so the panel always ends
+  // up on the final state instead of a stale one.
+  useEffect(() => {
+    const since = Date.now() - lastLoadAt.current;
+    if (since >= ENV_REFRESH_MS) {
+      load();
+      return;
+    }
+    const timer = setTimeout(() => load(), ENV_REFRESH_MS - since);
+    return () => clearTimeout(timer);
+  }, [load, refreshKey]);
 
   // TH-15 · Jump to the Changes view. This used to synthesise a click on the
   // topbar's `Changes` pill — a DOM-reaching hack that survived only because
@@ -619,16 +685,28 @@ function EnvironmentSection({ onOpenChanges }: { onOpenChanges?: () => void }) {
             right when there's nothing to say. The reason still lives in the row's
             title/disabled state; only the noise is gone. A row with real state
             (+12 / −3 / "4 new") is untouched. */}
+        {/* INC-41 RD-D · what a changed tree is, in the order Codex says it:
+            `Edited 31 files +980 −317` — the file COUNT first, then the lines.
+            This row used to print neither. It rendered `+1 −0` and stopped, so a
+            turn that touched 20 files read the same as one that touched one; and
+            `N new` (untracked) was gated behind `add === 0 && del === 0`, which
+            means the *usual* case — the model both edits tracked files and
+            creates new ones — silently dropped every new file from the count.
+            (Real payload from the live rail: 1 tracked file, +1 line, 13
+            untracked… rendered as "+1".) Each of the three now stands on its own:
+            files, lines, untracked — a row states what it knows. A clean tree
+            still says nothing at all (ENV-3). */}
         <button className="env-row" onClick={goToChanges} title="Review workspace changes">
           <PlusMinus size={14} />
           <span className="env-row-label">Changes</span>
           {hasChanges && (
             <span className="env-row-val">
+              {env.files > 0 && (
+                <span className="dim">{env.files} file{env.files === 1 ? "" : "s"}</span>
+              )}
               {env.add > 0 && <span className="add">+{env.add}</span>}
               {env.del > 0 && <span className="del">−{env.del}</span>}
-              {env.add === 0 && env.del === 0 && env.untracked > 0 && (
-                <span className="dim">{env.untracked} new</span>
-              )}
+              {env.untracked > 0 && <span className="dim">· {env.untracked} new</span>}
             </span>
           )}
         </button>

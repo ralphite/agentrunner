@@ -184,21 +184,82 @@
   .session-view .approval-actions > button { flex: 1 1 auto; }
 }
 
-/* ===== B1 · Supervision panel — Codex right-panel section parity ===== */
-.session-view .supervision-panel {
+/* ===== B1 · Supervision panel — Codex right-panel section parity =====
+   INC-41 RD-B · the Environment rail is a FLOATING CARD, not a layout column.
+
+   What it was: a 288×846 grid item — a real sibling of the thread, eating real
+   width. Its content (four Environment rows + a settled goal) ended at y=273 and
+   `Run details` was nailed to y=856 by `margin-top:auto`, so 583px of the rail —
+   72% of it — was empty panel background, in dark mode the exact same
+   rgb(23,23,26) as the thread behind it. ENV-5 tried to make that void *read* as
+   deliberate by framing it with a footer hairline. That was treating the symptom:
+   the void only existed because the rail was stretched to the window's height for
+   no reason. And because it took a column, opening it re-laid-out the
+   conversation — `main` 1176→888, the thread's text column sliding 144px left
+   (x=492→x=348) while you were reading it. Glancing at the environment should
+   not move the sentence under your eyes.
+
+   What Codex does: the Environment panel is a ~244×480 card hanging off the
+   header icon that opened it — rounded, shadowed, floating over the thread's
+   right-hand whitespace, exactly as tall as its own content. The thread does not
+   move. So: absolute, right-aligned, `height:auto` (content decides), capped by
+   max-height with its own scroll for the rare tall panel, and out of flow — the
+   `.session-layout` track is `single` whenever the rail is open (SessionView).
+   `.session-view` is the containing block (position:relative, styles.css), so
+   `top:56px` puts the card's top edge just under the 54px thread topbar — under
+   the very pill that opens it. The Changes rail (.changes-panel) is deliberately
+   NOT this: a diff review genuinely needs half the window.
+
+   Qualified `.supervision-panel.session-side` (not just `.supervision-panel`)
+   because CX-1's `.session-view .session-side` block further down this file — the
+   rule that made both rails flush-to-the-edge, square, shadowless full-height
+   columns — carries the same specificity and comes LATER, so it would win every
+   declaration they share (radius, shadow, border, margin, max-height). The rail
+   is a card again; the Changes pane keeps CX-1. */
+.session-view .supervision-panel.session-side {
+  position: absolute;
+  z-index: 25;
+  top: 56px;
+  right: 12px;
+  /* 244px is Codex's own card width — and it is not an arbitrary one. The thread's
+     text column is 720px wide (.tl-inner, 30px padding each side) centred in a
+     1176px pane on a 1440px window, so the margin to its right is 228 + 30 = 258px.
+     A 288px card (the width of the *old* rail) at right:12px starts at x=1140 and
+     buries the last 42px of every right-aligned user bubble — measured, live, on
+     8809's own session. 244 + 12 starts at x=1184, two pixels clear of the text.
+     A floating card must overlay whitespace; if it overlays the sentence, we've
+     only traded a shove for a blindfold.
+
+     So the card takes the margin it is given and no more:
+       (100% − 720px)/2       the thread's right margin (100% = the pane, since the
+                              rail no longer owns a track)
+       + 30px                 …of which .tl-inner's padding is not text
+       − 12px                 the card's own right offset
+     = (100% − 684px)/2, capped at Codex's 244 and floored at 216 (below that the
+     four rows stop being legible). Measured live: 1440px window → 246 → 244, and
+     the card lands at x=1184 with the text ending at x=1182. Zero overlap.
+     Honest limit: at ≤1300px the window has no margin left to give — the floor
+     wins and the card overlays the thread's right edge, the way any popover does.
+     The alternative was to keep shoving the conversation sideways, which is the
+     bug. */
+  width: clamp(216px, calc((100% - 684px) / 2), 244px);
+  max-width: calc(100% - 24px);
+  /* The card is as tall as what it has to say — no stretch, no void. */
+  height: auto;
+  max-height: calc(100% - 96px);
+  overflow: auto;
+  border: 1px solid var(--line);
   border-radius: 16px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 10px 30px rgba(0, 0, 0, .06);
-  /* INC-41 ENV-5 · a column, so `Run details` can be a real footer. The rail is
-     846px tall and its content stops around 380px: the remaining ~510px used to
-     be raw panel background, which in dark mode is the *same* rgb(23,23,26) as
-     the thread — so the rail read as a strip torn out of the conversation rather
-     than as a panel with a bottom. Filling it with invented content would be a
-     lie (we have no Background-processes / Browser / Sources sources), so instead
-     we give the void two edges: content above, a hairline footer below
-     (.supervision-details, margin-top:auto). Same trick Codex's Environment panel
-     uses with its `View all` row. */
+  background: var(--panel);
+  /* It floats over the conversation now, so it carries the same lift as the
+     other floating surfaces in this file (the topbar's `…` menu, below). */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .06), 0 12px 34px rgba(0, 0, 0, .16);
   display: flex;
   flex-direction: column;
+  /* No `margin` declaration on purpose: CX-1's .session-side already zeroes it
+     here and restores 12px inside the ≤900px overlay block below, which still
+     owns the small-screen geometry (top/right/width) — the card just inherits
+     `height:auto` into it, so a phone gets a content-hugging card too. */
 }
 /* INC-41 DF-D4 · the panel's ✕, now that the `Supervision` title bar it used to
    live in is gone (a second copy of the topbar pill — SupervisionPanel.tsx says
@@ -321,10 +382,13 @@
    live at x=21 from the panel's left edge; icon(14) + gap(9) puts labels at
    x=44. So: padding-left 21px + gap 9px + a 14px icon lands the word "Run" on
    the env-row label column, to the pixel.
-   margin-top:auto (the panel is a flex column now) drops the row to the panel's
-   bottom; the hairline above it turns the empty middle into framed space. */
+
+   INC-41 RD-B · `margin-top:auto` is gone. It existed to shove this row to the
+   floor of a rail that was 583px taller than its own content; the rail hugs its
+   content now, so the row just follows the last section — one line under it, like
+   Codex's `View all` under `Sources`. The hairline stays: it still separates the
+   footer from the rows, it just no longer frames a void. */
 .session-view .supervision-details {
-  margin-top: auto;
   justify-content: flex-start;
   gap: 9px;
   min-height: 44px;

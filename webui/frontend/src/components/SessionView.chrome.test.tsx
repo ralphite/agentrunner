@@ -184,3 +184,37 @@ describe("TH-15 · one rail, one name, one door", () => {
     await waitFor(() => expect(container.querySelector(".changes-panel")).not.toBeNull());
   });
 });
+
+// INC-41 RD-B · the Environment rail is a floating card, not a layout column.
+// It used to be a 288px grid track: opening it re-laid-out the conversation
+// (main 1176→888, the thread's text column sliding 144px left) — a glance at the
+// environment moved the sentence you were reading. The rail is `position:absolute`
+// now (styles.panel.css) and the layout stays on its single-column track whether
+// the rail is open or shut. The Changes review pane keeps its real split.
+describe("RD-B · opening the rail does not re-lay-out the thread", () => {
+  it("keeps the single-column track while the Environment rail is open", async () => {
+    const { container } = render(<SessionView sid={SID} />);
+
+    // Rail open (wide viewport) …
+    await waitFor(() => expect(container.querySelector("aside.supervision-panel")).not.toBeNull());
+    const layout = container.querySelector(".session-layout")!;
+    expect(layout.classList.contains("single")).toBe(true);
+    expect(layout.classList.contains("changes")).toBe(false);
+
+    // … and shut: the exact same track, so `main` never changes width.
+    fireEvent.click(screen.getByRole("button", { name: /hide environment/i }));
+    await waitFor(() => expect(container.querySelector("aside.supervision-panel")).toBeNull());
+    expect(container.querySelector(".session-layout")!.classList.contains("single")).toBe(true);
+  });
+
+  it("still gives the Changes review pane a real column", async () => {
+    const { container } = render(<SessionView sid={SID} />);
+
+    await waitFor(() => expect(container.querySelector(".supervision-env")).not.toBeNull());
+    fireEvent.click(container.querySelector(".supervision-env .env-row")!);
+    await waitFor(() => expect(container.querySelector(".changes-panel")).not.toBeNull());
+    const layout = container.querySelector(".session-layout")!;
+    expect(layout.classList.contains("changes")).toBe(true);
+    expect(layout.classList.contains("single")).toBe(false);
+  });
+});

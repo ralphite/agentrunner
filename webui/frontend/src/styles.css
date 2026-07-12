@@ -3785,6 +3785,9 @@ details.filediff[open] > summary.fd-head .fd-caret {
   display: flex;
   flex-direction: column;
   background: var(--panel);
+  /* INC-41 RD-B · containing block for the floating Environment card, which hangs
+     under the thread topbar (styles.panel.css, .session-view .supervision-panel). */
+  position: relative;
 }
 .task-topbar {
   min-height: 54px;
