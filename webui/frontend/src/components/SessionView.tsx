@@ -936,11 +936,12 @@ export function SessionView({ sid }: { sid: string }) {
         </main>
         {view === "diff" ? (
           <aside className="changes-panel session-side">
-            <div className="changes-panel-head">
-              <b><Files size={15} /> Changes</b>
-              <button onClick={() => setView("chat")} title="Close changes (back to the conversation)" aria-label="Close changes"><X size={15} /></button>
-            </div>
-            <DiffView sid={sid} />
+            {/* INC-41 RV-1 · no `.changes-panel-head` any more: it repeated the
+                topbar's `Changes` pill (which is itself the toggle) and cost the
+                rail 48px above a toolbar that could already wrap to two rows.
+                Codex opens straight onto the diff under one toolbar; the ✕ moved
+                into it (DiffView's `onClose`). */}
+            <DiffView sid={sid} onClose={() => setView("chat")} />
           </aside>
         ) : showSupervision ? (
           <SupervisionPanel

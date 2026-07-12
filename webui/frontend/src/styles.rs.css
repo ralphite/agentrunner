@@ -173,8 +173,9 @@ html body {
 /* ---- split (side-by-side) diff body ---- */
 .dls {
   display: grid;
-  grid-template-columns: 3.2em 1fr 3.2em 1fr;
-  line-height: 1.5;
+  /* RV-4 · same 5-digit gutter + 19.5px row as the inline view. */
+  grid-template-columns: calc(5ch + 27px) minmax(0, 1fr) calc(5ch + 27px) minmax(0, 1fr);
+  line-height: 1.625;
 }
 .dls-half {
   white-space: pre;
@@ -205,8 +206,21 @@ html body {
  * add/context rows) — the side-by-side `.dls` grid keeps its own two columns.
  * `position: relative` anchors the change-gutter marker below. */
 .diffwrap .dl {
-  grid-template-columns: 3.2em 1fr;
+  grid-template-columns: calc(5ch + 27px) minmax(0, 1fr);
   position: relative;
+}
+
+/* INC-41 RV-2 · the file stream: no cards, so the only thing separating two
+ * files is a hairline, and every diff row runs from the rail's left edge to its
+ * right one (long JSON/lockfile lines now scroll instead of being clipped by a
+ * card border 22px in from the edge). */
+.diffwrap .filediff {
+  /* resets styles.css's global `details { border-top }`, which would otherwise
+   * double up with the toolbar's hairline above the first file */
+  border-top: 0;
+}
+.diffwrap .filediff + .filediff {
+  border-top: 1px solid var(--line-2);
 }
 
 /* Change-channel gutter: a solid green bar for adds and a red hatched stripe
@@ -736,11 +750,26 @@ html body {
  * single line the way Codex's review header does.
  * ==========================================================================*/
 .diffwrap .diffbar {
-  /* Tighter gaps let the quiet controls sit on one line in the common review
-   * case (matching Codex); worktree-only actions (Apply / Remove) still wrap to
-   * a second row rather than clip when the panel is narrow. */
+  /* Tighter gaps let the quiet controls sit on one line (matching Codex). The
+   * worktree-only actions (Apply / Remove) and Refresh now live behind the `…`
+   * overflow, so there is nothing left to wrap. */
   gap: 6px;
   min-width: 0;
+  /* INC-41 RV-1 · this is the panel's *entire* chrome: one sticky 47px strip
+   * (46px of controls + a hairline), pinned so scrolling the diff never scrolls
+   * the scope/commit controls away. It carries its own padding because .diffwrap
+   * went full-bleed for the diff (RV-2). */
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  margin: 0;
+  padding: 8px 10px 8px 12px;
+  min-height: 46px;
+  border-bottom: 1px solid var(--line-2);
+  background: var(--panel);
+}
+.diff-more-menu {
+  width: min(272px, calc(100vw - 24px));
 }
 
 /* Scope trigger → borderless plain text; a surface appears only on hover. */
@@ -824,11 +853,30 @@ html body {
   background: var(--panel);
 }
 
-/* Hidden-generated-files note → borderless tinted strip (was a bordered card). */
+/* Hidden-generated-files note → one quiet full-bleed line (RV-1). As a two-line
+ * bordered card it was a third slab of chrome stacked above the first file; the
+ * fact is worth one sentence, not 80px. */
 .diffwrap .diff-hidden-note {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  padding: 6px 12px;
   border: 0;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  border-bottom: 1px solid var(--line-2);
+  border-radius: 0;
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+  font-size: 11.5px;
+}
+.diffwrap .diff-hidden-note b {
+  flex: 0 0 auto;
+  font-weight: 600;
+}
+.diffwrap .diff-hidden-note span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ---- responsive: settings collapses to a stacked layout ---- */

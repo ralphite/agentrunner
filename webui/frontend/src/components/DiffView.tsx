@@ -6,11 +6,14 @@ import {
   GitBranch,
   GitCommit,
   CaretDown,
+  CaretRight,
   CaretUp,
   CaretUpDown,
   ArrowClockwise,
   ArrowsOutLineVertical,
   ArrowsInLineVertical,
+  DotsThree,
+  X,
   FileDashed,
   FileMagnifyingGlass,
   FolderDashed,
@@ -44,11 +47,17 @@ const STATUS_GLYPH: Record<FileStatus, string> = {
   copied: "C",
 };
 
+// INC-41 RV-5 · badges the leading glyph already states. "new file" next to a
+// green A (and "deleted" next to a red D) said the same thing twice while
+// squeezing the filename into `package-lock.js…`; only the badges the glyph
+// cannot carry ("binary", "mode changed") still earn their width.
+const GLYPH_BADGES = new Set(["new file", "deleted", "renamed", "copied"]);
+
 const rowSign = (r?: DiffRow) => (!r ? "" : r.kind === "add" ? "+" : r.kind === "del" ? "−" : " ");
 const halfKind = (r: DiffRow | undefined, side: "left" | "right") =>
   !r ? "empty" : side === "left" && r.kind === "del" ? "del" : side === "right" && r.kind === "add" ? "add" : "";
 
-export function DiffView({ sid }: { sid: string }) {
+export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }) {
   const { toast, openPrompt, openModal } = useStore();
   const [data, setData] = useState<DiffResp | null>(null);
   const [err, setErr] = useState("");
@@ -289,11 +298,29 @@ export function DiffView({ sid }: { sid: string }) {
     </Popover>
   );
 
+  // INC-41 RV-1 · the panel's only chrome is this one row. The Changes title bar
+  // that used to sit above it (`.changes-panel-head`) was a second copy of the
+  // topbar's `Changes` pill, so it's gone and its ✕ moved here — Codex's review
+  // rail likewise opens straight onto the diff under a single toolbar.
+  const closeBtn = onClose ? (
+    <button
+      className="sm ghost diff-iconbtn"
+      onClick={onClose}
+      aria-label="Close changes"
+      title="Close changes (back to the conversation)"
+    >
+      <X size={15} />
+    </button>
+  ) : null;
+
   const stateBar = (
     <div className="diffbar diffbar-state">
       {scopeControl}
       <span className="spacer" />
-      <button className="sm" onClick={load}>Refresh</button>
+      <button className="sm ghost diff-iconbtn" onClick={load} aria-label="Refresh changes" title="Refresh changes">
+        <ArrowClockwise size={15} />
+      </button>
+      {closeBtn}
     </div>
   );
 
@@ -384,7 +411,10 @@ export function DiffView({ sid }: { sid: string }) {
         )}
         {data.worktree && (
           <span
-            className="diff-wt-badge inline-flex items-center gap-[4px] text-[11px] text-ink-2 bg-panel-2 border border-line-2 rounded-[5px] px-[6px] py-[2px]"
+            // RV-1: nowrap — the badge used to wrap onto three lines inside the
+            // toolbar ("worktree of / agentrunner · / detached"), single-handedly
+            // pushing the bar past Codex's one-row height.
+            className="diff-wt-badge inline-flex shrink-0 items-center gap-[4px] whitespace-nowrap text-[11px] text-ink-2 bg-panel-2 border border-line-2 rounded-[5px] px-[6px] py-[2px]"
             title={data.mainRepo ? "Isolated worktree of " + data.mainRepo : "Isolated git worktree"}
           >
             <GitBranch size={12} />
@@ -393,6 +423,71 @@ export function DiffView({ sid }: { sid: string }) {
           </span>
         )}
         <span className="spacer" />
+        {/* RV-1 · the low-frequency, workspace-level actions (refresh, and the
+            worktree's Apply / Remove) live behind one `…`, so the bar can no
+            longer wrap to a second row in a worktree session. */}
+        <Popover
+          align="right"
+          panelClass="diff-more-menu"
+          trigger={(open, toggle) => (
+            <button
+              className={"sm ghost diff-iconbtn" + (open ? " active" : "")}
+              onClick={toggle}
+              aria-label="More changes actions"
+              aria-haspopup="menu"
+              aria-expanded={open}
+              title="More actions"
+            >
+              <DotsThree size={18} weight="bold" />
+            </button>
+          )}
+        >
+          {(close) => (
+            <PopSection label="Changes">
+              <PopItem
+                title="Refresh changes"
+                desc="Re-read the workspace diff"
+                onClick={() => {
+                  close();
+                  load();
+                }}
+              />
+              {scope === "working-tree" && data.worktree && data.mainRepo && (
+                <PopItem
+                  title="Apply to project…"
+                  desc={"Apply these changes back onto " + data.mainRepo + " (unstaged, for review)"}
+                  disabled={busy || empty}
+                  onClick={() => {
+                    close();
+                    applyBack(data.mainRepo!);
+                  }}
+                />
+              )}
+              {scope === "working-tree" && data.worktree && (
+                <PopItem
+                  title="Remove worktree…"
+                  desc="Delete this worktree checkout and prune it from git"
+                  danger
+                  disabled={busy}
+                  onClick={() => {
+                    close();
+                    removeWorktree();
+                  }}
+                />
+              )}
+            </PopSection>
+          )}
+        </Popover>
+        {files.length > 1 && (
+          <button
+            className="sm ghost diff-iconbtn"
+            onClick={() => setAll(!allShownOpen)}
+            aria-label={allShownOpen ? "Collapse all files" : "Expand all files"}
+            title={allShownOpen ? "Collapse all files" : "Expand all files"}
+          >
+            {allShownOpen ? <ArrowsInLineVertical size={15} /> : <ArrowsOutLineVertical size={15} />}
+          </button>
+        )}
         {files.length > 1 && (
           <label className={"diff-filter" + (fileQuery ? " has-query" : "")} title="Filter files by path">
             <MagnifyingGlass size={13} />
@@ -424,16 +519,6 @@ export function DiffView({ sid }: { sid: string }) {
               <Columns size={14} />
             </button>
           </div>
-        )}
-        {files.length > 1 && (
-          <button
-            className="sm ghost diff-iconbtn"
-            onClick={() => setAll(!allShownOpen)}
-            aria-label={allShownOpen ? "Collapse all files" : "Expand all files"}
-            title={allShownOpen ? "Collapse all files" : "Expand all files"}
-          >
-            {allShownOpen ? <ArrowsInLineVertical size={15} /> : <ArrowsOutLineVertical size={15} />}
-          </button>
         )}
         {scope === "working-tree" && !empty && (
           <Popover
@@ -485,24 +570,7 @@ export function DiffView({ sid }: { sid: string }) {
             )}
           </Popover>
         )}
-        {scope === "working-tree" && data.worktree && data.mainRepo && (
-          <button
-            className="sm"
-            onClick={() => applyBack(data.mainRepo!)}
-            disabled={busy || empty}
-            title={"Apply these changes back onto " + data.mainRepo + " (unstaged, for review)"}
-          >
-            Apply to project…
-          </button>
-        )}
-        {scope === "working-tree" && data.worktree && (
-          <button className="sm" onClick={removeWorktree} disabled={busy} title="Delete this worktree checkout and prune it from git">
-            Remove worktree…
-          </button>
-        )}
-        <button className="sm ghost diff-iconbtn" onClick={load} aria-label="Refresh changes" title="Refresh changes">
-          <ArrowClockwise size={15} />
-        </button>
+        {closeBtn}
       </div>
       {/* INC-41 L4 · every "nothing to show" in this panel speaks the timeline's
           empty-state language (icon + title + one line of guidance) via the
@@ -564,10 +632,15 @@ export function DiffView({ sid }: { sid: string }) {
           <details className="filediff" key={f.path + ":" + foldEpoch} open={open}>
             {/* RD-4: counts sit right after the filename (Codex: `docs/DESIGN.md
                 +8 -4`), both numbers always rendered — a pure deletion reads
-                "+0 −176", not a lone "−176" — and the status badges take the
-                right edge. The elastic gap is the .fd-spacer, not .fd-path
-                (styles.panel.css overrides styles.css's `.fd-path{flex:1}`). */}
+                "+0 −176", not a lone "−176". The elastic gap is the .fd-spacer,
+                not .fd-path (styles.panel.css overrides styles.css's
+                `.fd-path{flex:1}`). RV-3 · the disclosure caret: `list-style:
+                none` killed the platform triangle, so a collapsed file was a
+                lone header with no hint that a body was hiding under it. */}
             <summary className="fd-head mono">
+              <span className="fd-caret" aria-hidden="true">
+                <CaretRight size={12} weight="bold" />
+              </span>
               <span className={"fd-glyph fd-glyph-" + parsed.status} title={parsed.status} aria-hidden="true">
                 {STATUS_GLYPH[parsed.status]}
               </span>
@@ -580,9 +653,11 @@ export function DiffView({ sid }: { sid: string }) {
                 <span className="del">−{del}</span>
               </span>
               <span className="fd-spacer" aria-hidden="true" />
-              {parsed.badges.map((b) => (
-                <span className="fd-badge" key={b}>{b}</span>
-              ))}
+              {parsed.badges
+                .filter((b) => !GLYPH_BADGES.has(b))
+                .map((b) => (
+                  <span className="fd-badge" key={b}>{b}</span>
+                ))}
             </summary>
             <FileBody
               sid={sid}
