@@ -119,6 +119,44 @@ func TestHandleOptimizeForwardsAndGuardsDraft(t *testing.T) {
 	}
 }
 
+func TestHandleCompactForwardsDirective(t *testing.T) {
+	rt := t.TempDir()
+	argsFile := filepath.Join(rt, "args.txt")
+	s := &server{runtimeDir: rt, arPath: writeFakeAR(t, argsFile, "compact requested")}
+
+	req := httptest.NewRequest("POST", "/api/sessions/sess-1/compact", strings.NewReader(`{"directive":" preserve API decisions "}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.SetPathValue("sid", "sess-1")
+	rec := httptest.NewRecorder()
+	s.handleCompact(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	got, _ := os.ReadFile(argsFile)
+	if string(got) != "compact\nsess-1\npreserve API decisions\n" {
+		t.Fatalf("args = %q", got)
+	}
+}
+
+func TestHandleCompactOmitsEmptyDirective(t *testing.T) {
+	rt := t.TempDir()
+	argsFile := filepath.Join(rt, "args.txt")
+	s := &server{runtimeDir: rt, arPath: writeFakeAR(t, argsFile, "compact requested")}
+
+	req := httptest.NewRequest("POST", "/api/sessions/sess-1/compact", strings.NewReader(`{"directive":"   "}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.SetPathValue("sid", "sess-1")
+	rec := httptest.NewRecorder()
+	s.handleCompact(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	got, _ := os.ReadFile(argsFile)
+	if string(got) != "compact\nsess-1\n" {
+		t.Fatalf("args = %q", got)
+	}
+}
+
 func TestUnderDir(t *testing.T) {
 	base := "/data/uploads"
 	cases := map[string]bool{

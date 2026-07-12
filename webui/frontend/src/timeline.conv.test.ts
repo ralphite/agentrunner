@@ -241,10 +241,9 @@ describe("A5 — Sent as goal note", () => {
 });
 
 describe("A3 — compaction as an activity row", () => {
-  it("renders context_compacted as a fold-able activity chip", () => {
+  it("renders context_compacted as a thread divider", () => {
     const { items } = foldEvents([{ seq: 4, type: "context_compacted", payload: { upto_gen_step: 3 } }]);
-    const chip = items.find((i) => i.kind === "chip") as ChipItem;
-    expect(chip).toMatchObject({ text: "Context automatically compacted", fold: true, activity: true });
+    expect(items.find((i) => i.kind === "compact")).toMatchObject({ text: "Context compacted" });
   });
 });
 

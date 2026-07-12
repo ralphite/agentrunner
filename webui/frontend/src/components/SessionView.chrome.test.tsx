@@ -185,6 +185,35 @@ describe("TH-15 · one rail, one name, one door", () => {
   });
 });
 
+describe("fork button", () => {
+  it("shows a topbar fork button only after the journal has a checkpoint", async () => {
+    arMock.events = async (_sid: string, after: number) =>
+      after
+        ? []
+        : [
+            { seq: 1, type: "input_received", payload: { source: "cli", text: "hi" } },
+            { seq: 2, type: "checkpoint_barrier", payload: { barrier_id: "bar-t1" } },
+          ];
+    useStore.setState({
+      sessions: [{ id: SID, title: "forkable", status: "completed", workspace: "/tmp/wt-th14" } as any],
+    });
+
+    const { container } = render(<SessionView sid={SID} />);
+    await waitFor(() => expect(container.querySelector(".task-topbar")).not.toBeNull());
+    expect(screen.getByRole("button", { name: /fork task from checkpoint/i })).toBeTruthy();
+  });
+
+  it("keeps the fork button out of the topbar before a checkpoint exists", async () => {
+    useStore.setState({
+      sessions: [{ id: SID, title: "not forkable yet", status: "completed", workspace: "/tmp/wt-th14" } as any],
+    });
+
+    const { container } = render(<SessionView sid={SID} />);
+    await waitFor(() => expect(container.querySelector(".task-topbar")).not.toBeNull());
+    expect(screen.queryByRole("button", { name: /fork task from checkpoint/i })).toBeNull();
+  });
+});
+
 // INC-41 RD-B · the Environment rail is a floating card, not a layout column.
 // It used to be a 288px grid track: opening it re-laid-out the conversation
 // (main 1176→888, the thread's text column sliding 144px left) — a glance at the

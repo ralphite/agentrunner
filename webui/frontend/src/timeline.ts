@@ -117,6 +117,12 @@ export interface ChipItem {
   echo?: "goal" | "limit";
 }
 
+export interface CompactItem {
+  kind: "compact";
+  key: string;
+  text: string;
+}
+
 export interface SysItem {
   kind: "sys";
   key: string;
@@ -230,7 +236,7 @@ export interface ApprovalRef {
   resolved?: { decision: string; reason?: string; source?: string };
 }
 
-export type TimelineItem = ToolItem | BubbleItem | TurnItem | ChipItem | SysItem | RuntimeItem;
+export type TimelineItem = ToolItem | BubbleItem | TurnItem | ChipItem | CompactItem | SysItem | RuntimeItem;
 
 export function formatWorkDuration(ms: number): string {
   const seconds = Math.max(1, Math.floor(ms / 1000));
@@ -951,10 +957,10 @@ export function foldEvents(events: Envelope[]): Folded {
         sysChip(seq, `Agent changed · ${p.spec_name || "?"} · ${p.model || ""}`);
         break;
       case "context_compacted":
-        // A3: Codex renders compaction as a fold-internal activity row, not a
-        // bubble chip. Keep it fold-able (fold:true) and mark it activity so
-        // the view gives it the icon + label treatment.
-        push({ kind: "chip", key: "c" + seq, text: "Context automatically compacted", tone: "", fold: true, activity: true });
+        // Compaction is a context boundary, not turn work. Render it as a
+        // quiet thread divider so the reader sees where the conversation was
+        // summarized without opening the "Worked" fold.
+        push({ kind: "compact", key: "c" + seq, text: p.cleared ? "Context cleared" : "Context compacted" });
         break;
       // Goal lifecycle renders first-class (QA Round1 F-C5: these used to
       // fall into hidden sys lines, so a budget-stopped goal just vanished).

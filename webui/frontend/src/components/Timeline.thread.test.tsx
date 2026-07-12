@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 import { TimelineView, mergeAdjacentChips } from "./Timeline";
-import type { BubbleItem, ChipItem, TimelineItem } from "../timeline";
+import type { BubbleItem, ChipItem, CompactItem, TimelineItem } from "../timeline";
 
 afterEach(cleanup);
 
@@ -19,6 +19,7 @@ const chip = (key: string, text: string, over: Partial<ChipItem> = {}): ChipItem
   tone: "",
   ...over,
 });
+const compact = (key: string, text = "Context compacted"): CompactItem => ({ kind: "compact", key, text });
 
 describe("TH-10 — the final assistant answer's action row: icons visible at rest", () => {
   it("renders the row's members: three action buttons, the divider and the verdict — but no time", () => {
@@ -39,6 +40,18 @@ describe("TH-10 — the final assistant answer's action row: icons visible at re
     expect(row.querySelector(".msg-goal-verdict")?.textContent).toContain("Goal achieved in 3h 47m");
     expect(container.querySelector(".msg.msg-last")).not.toBeNull();
     expect(row.querySelectorAll("button.msg-copy")).toHaveLength(3);
+  });
+});
+
+describe("compact divider", () => {
+  it("renders as a quiet thread divider, not a chip", () => {
+    const { container } = render(
+      <TimelineView items={[assistant("a1"), compact("c2")]} pending={[]} typing="" showSys={false} />,
+    );
+    const div = container.querySelector(".compact-divider") as HTMLElement;
+    expect(div).not.toBeNull();
+    expect(div.textContent).toContain("Context compacted");
+    expect(container.querySelector(".chip")).toBeNull();
   });
 });
 

@@ -24,5 +24,9 @@ describe("slash command table", () => {
     // compact is session-only
     expect(parseSlash("/compact", "home")).toBeNull();
     expect(parseSlash("/compact", "session")).toEqual({ cmd: "compact", rest: "" });
+    expect(parseSlash("/compact preserve API decisions", "session")).toEqual({
+      cmd: "compact",
+      rest: "preserve API decisions",
+    });
   });
 });

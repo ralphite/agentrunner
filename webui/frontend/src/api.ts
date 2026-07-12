@@ -216,7 +216,8 @@ export const AR = {
   unqueue: (sid: string, commandId: string) => post(`/sessions/${sid}/unqueue`, { commandId }),
   closeSession: (sid: string) => post(`/sessions/${sid}/close`),
   stopSession: (sid: string) => post(`/sessions/${sid}/stop`),
-  compact: (sid: string) => post(`/sessions/${sid}/compact`),
+  compact: (sid: string, directive = "") =>
+    post(`/sessions/${sid}/compact`, directive.trim() ? { directive } : {}),
   clear: (sid: string) => post(`/sessions/${sid}/clear`),
   mode: (sid: string, mode: "default" | "acceptEdits") => post(`/sessions/${sid}/mode`, { mode }),
   goal: (sid: string, b: { action: "attach" | "update" | "pause" | "resume" | "cancel"; goal?: string; verifier?: string; maxChecks?: number }) =>

@@ -12,9 +12,29 @@ import (
 )
 
 // handleCompact folds the session's context into a summary (G7 · INC-6):
-// `ar compact <sid>`. Exposed to the composer as the /compact slash command.
+// `ar compact <sid> [directive]`. Exposed to the composer as the /compact
+// slash command, including the optional focus directive.
 func (s *server) handleCompact(w http.ResponseWriter, r *http.Request) {
-	s.oneShotHandler("ar compact", func(id string) []string { return []string{"compact", id} })(w, r)
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Directive string `json:"directive"`
+	}
+	if !readBody(w, r, &req) {
+		return
+	}
+	args := []string{"compact", id}
+	if d := strings.TrimSpace(req.Directive); d != "" {
+		args = append(args, d)
+	}
+	res := s.runAR(r.Context(), oneShotTimeout, args...)
+	if res.Err != nil {
+		arFail(w, "ar compact", res)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": strings.TrimSpace(res.Stdout)})
 }
 
 // handleClear drops the session's context prefix (G7 · INC-6):

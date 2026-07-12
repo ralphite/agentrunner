@@ -852,7 +852,7 @@ export function Composer(props: ComposerProps) {
       case "compact":
         setText("");
         try {
-          await AR.compact(sid);
+          await AR.compact(sid, rest);
           // Delivery ack, not an outcome: a busy session applies it at the
           // next boundary and an empty prefix is a no-op (QA Round1 F-C6).
           toast("Compact requested — the timeline shows the outcome", "info");

@@ -912,6 +912,14 @@ function Item({ it, sentImages, onContinue, goalVerdict, last }: { it: TimelineI
           )}
         </div>
       );
+    case "compact":
+      return (
+        <div className="compact-divider">
+          <span className="compact-divider-label">
+            <ArrowsInLineVertical size={14} /> {it.text}
+          </span>
+        </div>
+      );
     case "runtime":
       return (
         <details className="runtime-event">

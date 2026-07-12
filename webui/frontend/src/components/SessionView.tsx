@@ -458,6 +458,8 @@ export function SessionView({ sid }: { sid: string }) {
           ? { text: "completed", cls: "closed" }
           : folded.status;
   const isDriver = folded.isDriver;
+  const canForkFromCheckpoint =
+    !isSub && !isDriver && events.some((e) => e.type === "checkpoint_barrier" && e.payload?.barrier_id);
   const needsRecovery = !live && /strand|interrupt/i.test(listStatus || "");
   // Retry (INC-44 §B) re-sends the last user message as a NEW turn — offered
   // wherever the last one plausibly went wrong: crashed/failed/interrupted/
@@ -741,6 +743,16 @@ export function SessionView({ sid }: { sid: string }) {
         {!isSub && canRetry && (
           <button className="topbar-tool" onClick={act.retry} title="Re-send your last message as a new turn; double-clicks are idempotent">
             <ArrowClockwise size={15} /> Retry
+          </button>
+        )}
+        {canForkFromCheckpoint && (
+          <button
+            className="topbar-icon"
+            onClick={() => openModal({ kind: "fork", sid })}
+            title="Fork this task from an existing checkpoint"
+            aria-label="Fork task from checkpoint"
+          >
+            <GitFork size={16} />
           </button>
         )}
         {/* INC-41 TH-15 · ONE rail, ONE name, ONE door. The topbar used to carry
