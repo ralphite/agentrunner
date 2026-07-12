@@ -2909,7 +2909,7 @@ touches:`DiffView.tsx` 顶栏区、`styles.rs.css` L774–830。
 的根因仍在**。**动作**:面板 <900px 强制 inline 并 disable split;≥900px 时给两轨 `minmax(0,1fr)` 而非
 `minmax(max-content,1fr)`。touches:`DiffView.tsx` L232–239、`styles.rs.css` L191–198。
 
-### RD-10 ✅ hunk 分隔条是**蓝色**的 —— review 里唯一一块饱和蓝,且与灰折叠带信息重复 [P2] — 轮35
+### RD-10 ✅ hunk 分隔条是**蓝色**的 —— review 里唯一一块饱和蓝,且与灰折叠带信息重复 [P2] — `e5fef23`(轮35)
 `.dl-hunk` 去饱和,并入 `.fd-gap` 折叠带的中性族。真机实测(会话
 `20260711-011831-what-is-the-project-297d`,一个 3-hunk 的 `test-rig.ts` 真 diff;稳态,鼠标已移出):
 light `.dl-hunk` bg `rgb(232,241,251)`(`--blue-soft`)/ 文字 `rgb(1,105,204)`(`--blue`)
@@ -3007,7 +3007,7 @@ pill 均**未**设 `disabled`,当前不可达,不预先改动。)
 `.timeline` 底部加 40px `linear-gradient(transparent → var(--bg))` 遮罩,圆钮永远落在渐隐带上;
 离底 <1 屏时隐藏。touches:`styles.css` `.timeline`/`.tl-jump`、`Timeline.tsx`。
 
-### TH-19 ✅ thread 顶栏标题过重过长,抢走整条栏 [P3] — 轮35
+### TH-19 ✅ thread 顶栏标题过重过长,抢走整条栏 [P3] — `e5fef23`(轮35)
 `.tt-title`(定义在 `styles.css`,非原条目猜的 `styles.nav.css`/`.topbar-title`)降级。真机实测(长标题会话
 `20260712-052313-…-8637`,稳态、鼠标已移出):**14px / 600 / `rgb(13,13,13)` / max-width 560px、实占 560px
 且省略号截断** → **12.5px / 500 / `rgb(110,110,110)`(`--dim`)/ max-width 340px、实占 340px**,截断保留。
