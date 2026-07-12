@@ -599,6 +599,12 @@ func (s *server) handleCommit(w http.ResponseWriter, r *http.Request) {
 		strings.Contains(out, "Please tell me who you are") || strings.Contains(out, "author identity")) {
 		out, err = run("-c", "user.name=AgentRunner", "-c", "user.email=agent@agentrunner.local", "commit", "-m", msg)
 	}
+	// Committing a clean tree isn't an error the user should see as a scary red
+	// blob — it's a no-op. Report it as a friendly 200 (phone report class).
+	if err != nil && (strings.Contains(out, "nothing to commit") || strings.Contains(out, "no changes added")) {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "Nothing to commit — the working tree is clean."})
+		return
+	}
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "git commit failed", "stderr": out})
 		return

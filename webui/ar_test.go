@@ -613,9 +613,23 @@ func TestArFailNotFoundIsMachineReadable(t *testing.T) {
 		t.Fatalf("stdout-carried verdict = %d %#v, want 404 session_not_found", code, body)
 	}
 
-	// Every other failure keeps the existing 502 shape, with no code to branch on.
+	// The daemon being down is now its own friendly class: a 503 + a machine
+	// code the UI turns into a "start the service" affordance, instead of the
+	// raw "daemon dial:" blob on every action.
 	code, body = fail(arResult{
 		Stderr: "agentrunner: daemon dial: connect: no such file or directory\n",
+		Err:    fmt.Errorf("exit status 1"),
+	})
+	if code != http.StatusServiceUnavailable {
+		t.Fatalf("daemon-down status = %d, want 503", code)
+	}
+	if body["code"] != "daemon_down" {
+		t.Fatalf("daemon-down code = %q, want daemon_down", body["code"])
+	}
+
+	// A genuinely ordinary failure keeps the existing 502 shape, with no code.
+	code, body = fail(arResult{
+		Stderr: "agentrunner: something else went wrong\n",
 		Err:    fmt.Errorf("exit status 1"),
 	})
 	if code != http.StatusBadGateway {

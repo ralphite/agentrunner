@@ -289,13 +289,9 @@ func (s *server) handleRunStart(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, "task is required for submit")
 		return
 	}
-	ws, err := filepath.Abs(req.Workspace)
-	if err != nil {
-		badRequest(w, err.Error())
-		return
-	}
-	if st, err := os.Stat(ws); err != nil || !st.IsDir() {
-		badRequest(w, "workspace is not an existing directory: "+ws)
+	ws, ferr := resolveWorkspace(req.Workspace)
+	if ferr != "" {
+		badRequest(w, ferr)
 		return
 	}
 	_, basePath, err := s.writeSpecDir(req.Spec, req.ExtraSpecs)

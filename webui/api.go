@@ -142,6 +142,17 @@ func arFail(w http.ResponseWriter, what string, res arResult) {
 		detail += "\n\n⚠️ The `ar` binary is out of date — it does not recognize a flag " +
 			"this webui sent. Rebuild and redeploy both from the same commit (scripts/deploy.sh)."
 	}
+	// Daemon down (the resident runtime isn't up): every ar-backed action would
+	// otherwise show the raw "…is the daemon running?" blob. Give one friendly
+	// message + a machine code so the UI can offer a Start affordance instead.
+	if daemonUnreachable(detail) {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{
+			"error":  "The agent service isn’t running right now.",
+			"stderr": "Start it (`ar daemon`) and try again — your sessions are safe and will resume.",
+			"code":   "daemon_down",
+		})
+		return
+	}
 	body := map[string]string{
 		"error":  msg,
 		"stderr": detail,
@@ -156,6 +167,26 @@ func arFail(w http.ResponseWriter, what string, res arResult) {
 
 func badRequest(w http.ResponseWriter, msg string) {
 	writeJSON(w, http.StatusBadRequest, map[string]string{"error": msg})
+}
+
+// resolveWorkspace validates a user-chosen workspace and returns either the
+// absolute dir or a FRIENDLY error (never the raw server-CWD-resolved path the
+// three entry points used to each leak differently — the "not an existing
+// directory: /home/.../arwebui/abc" class). Empty is handled client-side
+// (blank = a fresh scratch workspace), so here a value must be an existing
+// absolute directory. The second return is "" on success.
+func resolveWorkspace(ws string) (string, string) {
+	ws = strings.TrimSpace(ws)
+	if ws == "" {
+		return "", "Pick a workspace folder, or leave it blank for a new scratch workspace."
+	}
+	if !filepath.IsAbs(ws) {
+		return "", "Workspace must be a full path (starting with /) — pick a folder with “Use folder…”."
+	}
+	if st, err := os.Stat(ws); err != nil || !st.IsDir() {
+		return "", "That workspace folder isn’t there anymore — pick another with “Use folder…”."
+	}
+	return ws, ""
 }
 
 func sid(w http.ResponseWriter, r *http.Request) (string, bool) {
@@ -432,13 +463,9 @@ func (s *server) handleNewSession(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, "spec, workspace and message are required")
 		return
 	}
-	ws, err := filepath.Abs(req.Workspace)
-	if err != nil {
-		badRequest(w, err.Error())
-		return
-	}
-	if st, err := os.Stat(ws); err != nil || !st.IsDir() {
-		badRequest(w, "workspace is not an existing directory: "+ws)
+	ws, ferr := resolveWorkspace(req.Workspace)
+	if ferr != "" {
+		badRequest(w, ferr)
 		return
 	}
 	specDir, basePath, err := s.writeSpecDir(req.Spec, req.ExtraSpecs)
@@ -581,7 +608,7 @@ func (s *server) handleWorktree(w http.ResponseWriter, r *http.Request) {
 		return strings.TrimSpace(string(out)), err
 	}
 	if out, err := run("rev-parse", "--is-inside-work-tree"); err != nil || out != "true" {
-		badRequest(w, "not a git repository: "+repo)
+		badRequest(w, "That folder isn’t a Git repository, so a worktree can’t be made from it — pick a Git project or run Local.")
 		return
 	}
 	branch := strings.TrimSpace(req.Branch)
@@ -611,7 +638,7 @@ func (s *server) handleWorktree(w http.ResponseWriter, r *http.Request) {
 			// Prove the ref names a commit before git worktree receives it; the
 			// end-of-options marker prevents option-like input from being parsed.
 			if _, err := run("rev-parse", "--verify", "--end-of-options", ref+"^{commit}"); err != nil {
-				badRequest(w, "invalid starting ref: "+ref)
+				badRequest(w, "Couldn’t find a commit named “"+ref+"” to branch from — pick an existing branch.")
 				return
 			}
 			args = append(args, ref)

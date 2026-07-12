@@ -315,10 +315,19 @@ func (s *server) handleGitCheckout(w http.ResponseWriter, r *http.Request) {
 	cmd := exec.CommandContext(ctx, "git", args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		writeJSON(w, http.StatusBadGateway, map[string]string{
-			"error":  "git checkout failed",
-			"stderr": strings.TrimSpace(string(out)),
-		})
+		// Classify the common cases into friendly guidance instead of raw git
+		// plumbing prose (phone report class).
+		raw := strings.TrimSpace(string(out))
+		msg := "Couldn’t switch branch."
+		switch {
+		case strings.Contains(raw, "already exists"):
+			msg = "A branch named “" + req.Branch + "” already exists — pick it from the list instead of creating it."
+		case strings.Contains(raw, "would be overwritten") || strings.Contains(raw, "Please commit your changes") || strings.Contains(raw, "local changes"):
+			msg = "You have uncommitted changes — commit or discard them before switching branch."
+		case strings.Contains(raw, "did not match") || strings.Contains(raw, "invalid reference") || strings.Contains(raw, "pathspec"):
+			msg = "No branch named “" + req.Branch + "”."
+		}
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": msg, "stderr": raw})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": strings.TrimSpace(string(out)), "branch": req.Branch})
