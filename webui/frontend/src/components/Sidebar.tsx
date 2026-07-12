@@ -3,6 +3,7 @@ import "../styles.nav.css";
 import {
   Archive as ArchiveBox,
   ArrowSquareOut,
+  CaretRight,
   Clock,
   Code,
   Folder,
@@ -30,12 +31,31 @@ import { ContextMenu } from "./ContextMenu";
 import { MenuItem, MenuLabel } from "./Menu";
 import { copyText } from "../clipboard";
 import { buildSidebarModel, daemonVersionLabel, projectDisplayName, projectLabel, scheduledUnread, visibleProjectSessions } from "../viewModels";
+import { PROJECT_GROUP_LIMIT, visibleProjectGroups } from "../viewModels.nav";
 import { relTime, sessionDate } from "../time";
 import { keyLabel } from "../shortcuts";
 
 type SidebarContext =
   | { kind: "session"; x: number; y: number; sid: string }
   | { kind: "project"; x: number; y: number; key: string; label: string; workspace?: string; ids: string[] };
+
+// SB-4 · Collapsed project groups, mirrored into localStorage.
+//
+// The server overlay (INC-53 `projects[key].folded`) remains the source of
+// truth once it lands, but it arrives one round-trip after mount — so on every
+// cold load the rail painted every group open before snapping shut. The local
+// mirror makes the fold survive a refresh *synchronously*; the overlay wins
+// whenever it actually carries a fold for that key.
+const COLLAPSED_KEY = "ar.sidebar.collapsedProjects";
+
+function loadCollapsedProjects(): Set<string> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(COLLAPSED_KEY) || "[]");
+    return new Set(Array.isArray(raw) ? raw.filter((key): key is string => typeof key === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
 
 // Primary-nav destinations (New task / Scheduled). Kept as a small table
 // rendered in a map so adding a destination is one row here + a page dispatch
@@ -88,6 +108,10 @@ export function Sidebar({ onNavigate, onOpenPalette, onOpenSettings }: {
     openPrompt,
   } = useStore();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // SB-4: locally-collapsed groups (localStorage-backed) + the section-level
+  // "show every project" escape hatch.
+  const [collapsed, setCollapsed] = useState<Set<string>>(loadCollapsedProjects);
+  const [showAllProjects, setShowAllProjects] = useState(false);
   const [ctx, setCtx] = useState<SidebarContext | null>(null);
   const [hoverPreview, setHoverPreview] = useState<{ sid: string; top: number } | null>(null);
   const [branchByWorkspace, setBranchByWorkspace] = useState<Record<string, string>>({});
@@ -129,6 +153,30 @@ export function Sidebar({ onNavigate, onOpenPalette, onOpenSettings }: {
     });
     return () => cancelAnimationFrame(frame);
   }, [currentSid, sessionsReady, orderedIds]);
+
+  // SB-4: the Projects section renders the 8 most recent groups (plus, always,
+  // the group holding the open task) — the rest hide behind one Show more row.
+  const { groups: shownProjects, hidden: hiddenProjects } = useMemo(
+    () => visibleProjectGroups(model.projects, { expanded: showAllProjects, current: currentSid || undefined }),
+    [model.projects, showAllProjects, currentSid],
+  );
+
+  // Fold a group both locally (instant, survives refresh) and in the server
+  // overlay (shared with the other surfaces that read `projects[key].folded`).
+  const setProjectCollapsed = (key: string, next: boolean) => {
+    setCollapsed((current) => {
+      const updated = new Set(current);
+      if (next) updated.add(key);
+      else updated.delete(key);
+      try {
+        localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...updated]));
+      } catch {
+        /* private mode / quota — the overlay still carries the fold */
+      }
+      return updated;
+    });
+    void toggleProjectFolded(key, next);
+  };
 
   const restartDaemon = async () => {
     try {
@@ -297,18 +345,22 @@ export function Sidebar({ onNavigate, onOpenPalette, onOpenSettings }: {
               <span>Start a task to see it here.</span>
             </div>
           ) : null}
-          {model.projects.map((project) => {
+          {shownProjects.map((project) => {
             const overlay = projects[project.key];
             const name = projectDisplayName(project, overlay);
             // Persisted fold collapses the group entirely; the local `expanded`
             // set is the secondary show-all-vs-6 control within an unfolded
             // group. (Search no longer lives here — it is the ⌘K palette, RH-5.)
+            // SB-4: the fold reads from the server overlay when it has one for
+            // this key, else from the localStorage mirror (which is what the
+            // very first paint has to go on).
             // SB-1: the group holding the current task renders as unfolded even
             // when the persisted overlay says folded — the fold is a preference
             // and is left untouched on the server, it just cannot hide the row
             // the user is looking at (heading icon and Show more follow suit).
             const holdsCurrent = !!currentSid && project.sessions.some((session) => session.id === currentSid);
-            const folded = (overlay?.folded ?? false) && !holdsCurrent;
+            const persistedFold = overlay?.folded ?? collapsed.has(project.key);
+            const folded = persistedFold && !holdsCurrent;
             const showAll = expanded.has(project.key);
             const shown = visibleProjectSessions(project, { folded, expanded: showAll, current: currentSid || undefined });
             const openMenu = (x: number, y: number) => {
@@ -319,8 +371,9 @@ export function Sidebar({ onNavigate, onOpenPalette, onOpenSettings }: {
               <div className="project-group" key={project.key}>
                 <button
                   className="project-heading"
-                  onClick={() => toggleProjectFolded(project.key, !(overlay?.folded ?? false))}
+                  onClick={() => setProjectCollapsed(project.key, !persistedFold)}
                   title={project.workspace || name}
+                  aria-expanded={!folded}
                   onContextMenu={(event) => {
                     event.preventDefault();
                     openMenu(event.clientX, event.clientY);
@@ -332,6 +385,9 @@ export function Sidebar({ onNavigate, onOpenPalette, onOpenSettings }: {
                     openMenu(rect.left + 20, rect.bottom);
                   }}
                 >
+                  {/* SB-4 · the caret is the affordance: the heading is a
+                      collapse control, and Codex's group rows say so. */}
+                  <CaretRight className={`proj-caret${!folded ? " open" : ""}`} size={11} weight="bold" aria-hidden="true" />
                   {!folded ? <FolderOpen size={16} /> : <Folder size={16} />}
                   <span>{name}</span>
                   {project.hint && <span className="project-hint">{project.hint}</span>}
@@ -357,6 +413,27 @@ export function Sidebar({ onNavigate, onOpenPalette, onOpenSettings }: {
               </div>
             );
           })}
+          {/* SB-4 · section-level Show more. Same row language as the per-group
+              one (`.show-more`), one level out: it governs how many *projects*
+              the section renders, not how many tasks a project renders. */}
+          {hiddenProjects > 0 && (
+            <button
+              className="show-more projects-show-more"
+              onClick={() => setShowAllProjects(true)}
+              aria-label={`Show all ${model.projects.length} projects`}
+            >
+              Show more · {hiddenProjects}
+            </button>
+          )}
+          {showAllProjects && model.projects.length > PROJECT_GROUP_LIMIT && (
+            <button
+              className="show-more projects-show-more"
+              onClick={() => setShowAllProjects(false)}
+              aria-label={`Show only the ${PROJECT_GROUP_LIMIT} most recent projects`}
+            >
+              Show less
+            </button>
+          )}
           {sessionsLoadingOlder && (
             <div className="sidebar-history-loading" role="status">Loading older tasks…</div>
           )}

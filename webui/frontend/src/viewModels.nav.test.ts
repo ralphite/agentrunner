@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildArchivedModel, buildSidebarModel, quickSwitchTasks, scheduledUnread } from "./viewModels";
-import { paletteTaskGroups } from "./viewModels.nav";
+import { PROJECT_GROUP_LIMIT, paletteTaskGroups, visibleProjectGroups } from "./viewModels.nav";
 import type { Session } from "./types";
 
 const opts = (over: Partial<Parameters<typeof buildSidebarModel>[1]>) => ({
@@ -143,5 +143,51 @@ describe("archived settings model (J4)", () => {
     expect(model.pinned).toEqual([]);
     expect(model.projects).toHaveLength(1);
     expect(model.projects[0].sessions.map((session) => session.id)).toEqual(["a"]);
+  });
+});
+
+describe("visibleProjectGroups (SB-4)", () => {
+  const groups = (n: number) =>
+    Array.from({ length: n }, (_v, i) => ({
+      key: `/repo/p${i}`,
+      label: `p${i}`,
+      workspace: `/repo/p${i}`,
+      sessions: [{ id: `s${i}`, status: "idle", turns: 1 } as Session],
+    }));
+
+  it("renders every group when the list is already short", () => {
+    const all = groups(PROJECT_GROUP_LIMIT);
+    const { groups: shown, hidden } = visibleProjectGroups(all);
+    expect(shown).toHaveLength(PROJECT_GROUP_LIMIT);
+    expect(hidden).toBe(0);
+  });
+
+  it("truncates to the limit and reports the remainder", () => {
+    const { groups: shown, hidden } = visibleProjectGroups(groups(127));
+    expect(shown).toHaveLength(8);
+    expect(hidden).toBe(119);
+    // Newest-first order is preserved — the cut is a tail cut, not a reshuffle.
+    expect(shown.map((g) => g.key)).toEqual(groups(8).map((g) => g.key));
+  });
+
+  it("expanded shows everything with nothing hidden", () => {
+    const { groups: shown, hidden } = visibleProjectGroups(groups(127), { expanded: true });
+    expect(shown).toHaveLength(127);
+    expect(hidden).toBe(0);
+  });
+
+  it("always renders the group holding the current task, even past the limit", () => {
+    const { groups: shown, hidden } = visibleProjectGroups(groups(127), { current: "s40" });
+    expect(shown).toHaveLength(9);
+    // Appended at the tail: the first 8 rows never shuffle under the user.
+    expect(shown[8].key).toBe("/repo/p40");
+    expect(hidden).toBe(118);
+  });
+
+  it("does not duplicate the current group when it is already inside the limit", () => {
+    const { groups: shown, hidden } = visibleProjectGroups(groups(127), { current: "s2" });
+    expect(shown).toHaveLength(8);
+    expect(shown.filter((g) => g.key === "/repo/p2")).toHaveLength(1);
+    expect(hidden).toBe(119);
   });
 });

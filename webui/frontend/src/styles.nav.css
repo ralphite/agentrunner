@@ -557,3 +557,24 @@
   color: var(--ink-2);
   opacity: 1;
 }
+
+/* ===== SB-4 · Projects section: group fold + section-level Show more =====
+   Codex's sidebar is a navigator you scan in one screen. Ours rendered every
+   project group it had (127 → 14073px of rail), so the account footer lived a
+   dozen screens down. The section now renders the 8 most recent groups and
+   parks the rest behind one Show-more row; each group heading collapses its
+   own tasks. Both controls reuse the existing `.show-more` / `.proj-caret`
+   language rather than inventing a second one. */
+.sidebar .project-heading .proj-caret {
+  color: var(--dim);
+}
+.sidebar .project-heading:hover .proj-caret {
+  color: var(--ink-2);
+}
+/* The section-level row governs *projects*, not tasks, so it hangs at the
+   heading's left edge instead of the nested-task indent the per-group
+   Show-more uses. */
+.sidebar .projects-show-more {
+  margin: 6px 0 2px 4px;
+  font-weight: 550;
+}

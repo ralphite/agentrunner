@@ -81,6 +81,113 @@ describe("current task visibility (SB-1)", () => {
   });
 });
 
+describe("Projects section truncation + group fold (SB-4)", () => {
+  // 12 projects, one task each. Ids are creation stamps, so p11 is the newest
+  // group and p00 the oldest — the section renders p11…p04 (8) and hides the
+  // last four behind Show more.
+  const spread = Array.from({ length: 12 }, (_v, i) => ({
+    id: `20260701-0000${String(i).padStart(2, "0")}-task`,
+    status: "idle",
+    turns: 1,
+    title: `Task ${i}`,
+    workspace: `/repo/p${String(i).padStart(2, "0")}`,
+  }));
+
+  const mount = (over: Record<string, any> = {}) => {
+    useStore.setState({
+      sessions: spread as any,
+      sessionsReady: true,
+      currentSid: null,
+      archived: [],
+      pinned: [],
+      unread: [],
+      renames: {},
+      projects: {},
+      toggleProjectFolded: vi.fn(),
+      ...over,
+    });
+    return render(<Sidebar />);
+  };
+
+  const headings = (container: HTMLElement) =>
+    [...container.querySelectorAll(".project-group")].map(
+      (group) => group.querySelector(".project-heading")!.textContent,
+    );
+
+  afterEach(() => localStorage.clear());
+
+  it("renders only the 8 newest project groups, with the rest behind Show more", () => {
+    const { container } = mount();
+    expect(container.querySelectorAll(".project-group")).toHaveLength(8);
+    expect(headings(container)[0]).toContain("p11");
+    expect(headings(container)[7]).toContain("p04");
+
+    const showMore = container.querySelector(".projects-show-more")!;
+    expect(showMore.textContent).toContain("Show more");
+    // The four withheld groups are counted, not silently dropped.
+    expect(showMore.textContent).toContain("4");
+  });
+
+  it("Show more reveals every group; Show less puts them back", () => {
+    const { container } = mount();
+    fireEvent.click(container.querySelector(".projects-show-more")!);
+    expect(container.querySelectorAll(".project-group")).toHaveLength(12);
+    expect(headings(container)[11]).toContain("p00");
+
+    const showLess = container.querySelector(".projects-show-more")!;
+    expect(showLess.textContent).toContain("Show less");
+    fireEvent.click(showLess);
+    expect(container.querySelectorAll(".project-group")).toHaveLength(8);
+  });
+
+  it("collapsing a group hides its tasks and persists across a remount", () => {
+    const { container } = mount();
+    const first = container.querySelector(".project-group")!;
+    expect(first.querySelectorAll(".project-task-wrap")).toHaveLength(1);
+    fireEvent.click(first.querySelector(".project-heading")!);
+    expect(first.querySelectorAll(".project-task-wrap")).toHaveLength(0);
+    // The heading itself survives — a collapsed group is one row, not zero.
+    expect(first.querySelector(".project-heading")!.textContent).toContain("p11");
+    expect(JSON.parse(localStorage.getItem("ar.sidebar.collapsedProjects")!)).toEqual(["/repo/p11"]);
+
+    // Refresh: the fold is restored from localStorage alone (the server overlay
+    // is empty here — toggleProjectFolded is stubbed), i.e. no round-trip needed.
+    cleanup();
+    const remounted = mount().container;
+    const again = remounted.querySelector(".project-group")!;
+    expect(again.querySelector(".project-heading")!.textContent).toContain("p11");
+    expect(again.querySelectorAll(".project-task-wrap")).toHaveLength(0);
+    // Its neighbours are untouched.
+    expect([...remounted.querySelectorAll(".project-group")][1].querySelectorAll(".project-task-wrap")).toHaveLength(1);
+  });
+
+  it("re-expands a collapsed group on a second click and clears it from storage", () => {
+    const { container } = mount();
+    const heading = container.querySelector(".project-heading")!;
+    fireEvent.click(heading);
+    fireEvent.click(heading);
+    expect(container.querySelector(".project-group")!.querySelectorAll(".project-task-wrap")).toHaveLength(1);
+    expect(JSON.parse(localStorage.getItem("ar.sidebar.collapsedProjects")!)).toEqual([]);
+  });
+
+  it("keeps the current task's group rendered and expanded even past the limit", () => {
+    // p00 is the 12th group — beyond the 8 the section shows — *and* collapsed.
+    localStorage.setItem("ar.sidebar.collapsedProjects", JSON.stringify(["/repo/p00"]));
+    const { container } = mount({ currentSid: "20260701-000000-task" });
+
+    // 8 + the current group, appended at the tail so the top never shuffles.
+    const groups = [...container.querySelectorAll(".project-group")];
+    expect(groups).toHaveLength(9);
+    expect(headings(container)[8]).toContain("p00");
+
+    // …and its row is on the rail: the fold cannot hide where you are.
+    const current = container.querySelector(".project-task-wrap.current");
+    expect(current).toBeTruthy();
+    expect(current!.textContent).toContain("Task 0");
+    expect(groups[8].contains(current!)).toBe(true);
+  });
+});
+
 describe("New task shortcut badge (RH-4)", () => {
   it("badges the New task row with the key the app actually binds", () => {
     useStore.setState({ sessions: [] });
