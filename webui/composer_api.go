@@ -240,12 +240,20 @@ func (s *server) handleGitBranches(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	resp := map[string]any{"isRepo": false, "current": "", "branches": []string{}, "dirty": 0}
+	resp := map[string]any{"isRepo": false, "current": "", "branches": []string{}, "dirty": 0, "hasCommits": false}
 	if _, isRepo := git(r.Context(), dir, "rev-parse", "--is-inside-work-tree"); !isRepo {
 		writeJSON(w, http.StatusOK, resp)
 		return
 	}
 	resp["isRepo"] = true
+	// A fresh `git init` sits on an UNBORN branch: `branch --show-current`
+	// still reports "master"/"main", but that ref names no commit, so a
+	// worktree at it fails with git's raw "invalid starting ref" (phone
+	// report 2026-07-12). hasCommits is the authoritative "can make a
+	// worktree" signal — HEAD resolves to a commit — so the picker can guard
+	// the option instead of letting the user hit the scary git error.
+	_, hasCommits := git(r.Context(), dir, "rev-parse", "--verify", "--quiet", "HEAD")
+	resp["hasCommits"] = hasCommits
 	// `branch --show-current` is intentionally empty for detached worktrees.
 	// `rev-parse --abbrev-ref HEAD` returns the misleading literal "HEAD".
 	if cur, ok := git(r.Context(), dir, "branch", "--show-current"); ok {

@@ -2,8 +2,22 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover exposes env(safe-area-inset-*) so the composer and
+         header can dodge the notch / home indicator once installed. No
+         maximum-scale: pinch-zoom stays available (accessibility); the input
+         auto-zoom is killed via 16px form fonts, not by locking scale. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- Installable PWA: "Add to Home Screen" launches full-screen, no Safari
+         chrome, with its own icon (iOS reads the apple-* metas; other browsers
+         read the manifest). -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="AgentRunner" />
+    <meta name="theme-color" content="#0f0f11" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/icon-180.png" />
     <title>AgentRunner</title>
   </head>
   <body>

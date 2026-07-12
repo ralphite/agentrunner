@@ -4025,6 +4025,97 @@ details.filediff[open] > summary.fd-head .fd-caret {
   }
 }
 
+/* iOS native feel · touch polish (2026-07-12). These make the web app read
+   as an installed app on iOS rather than a page in a browser. All guarded by
+   pointer:coarse so the desktop is untouched. */
+
+/* No grey tap flash; no accidental font inflation on rotate. */
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Kill pull-to-refresh (which reloaded the whole SPA and lost the open
+   session) and scroll-chaining rubber-band that revealed blank edges. */
+html,
+body {
+  overscroll-behavior: none;
+}
+.timeline,
+.sidebar,
+.rail-scroll,
+.pop-scroll {
+  overscroll-behavior: contain;
+}
+
+@media (pointer: coarse) {
+  /* Remove the 300ms tap delay + double-tap zoom on everything actionable. */
+  button,
+  a,
+  [role="button"],
+  summary,
+  label,
+  .cx-env-control,
+  .sess-row,
+  .pop-item {
+    touch-action: manipulation;
+  }
+  /* Long-press on chrome must not raise the iOS callout / text-selection
+     magnifier. Chrome (buttons/nav/chips/labels/timestamps) is unselectable;
+     MESSAGE CONTENT stays selectable so users can still copy replies. */
+  button,
+  a,
+  [role="button"],
+  .nav,
+  .sidebar,
+  .brand,
+  .topbar,
+  .chip,
+  .turn,
+  .who,
+  .cx-env-strip,
+  .avatar,
+  .msg-actions,
+  .worked-row {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .bubble,
+  .utext,
+  .md,
+  pre,
+  code,
+  input,
+  textarea {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  /* Press-down feedback (native apps highlight on touch, not the grey box). */
+  button:active,
+  a:active,
+  [role="button"]:active,
+  .sess-row:active,
+  .pop-item:active {
+    opacity: 0.55;
+    transition: opacity 0.04s;
+  }
+  /* Safe-area insets: once installed there is no Safari chrome to absorb the
+     home indicator / notch, so the composer and top bar must inset themselves.
+     max() keeps the existing padding when the inset is 0 (non-notch / browser). */
+  .cx-session {
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+  }
+  .composer {
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+  }
+  .topbar,
+  .brand {
+    padding-top: max(10px, env(safe-area-inset-top));
+  }
+}
+
 @media (max-width: 520px) {
   .cx-env-strip { min-height: 86px; flex-wrap: wrap; align-content: flex-start; padding-left: 12px; padding-right: 12px; }
   .cx-env-control { max-width: 142px; padding-left: 6px; padding-right: 6px; font-size: 12px; }

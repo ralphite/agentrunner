@@ -3826,3 +3826,30 @@ quirk 的覆盖,一处盖住 .cx textarea 15px / .goal-input 12.5px / 搜索框
 15px / modal code 12px 等全部字段选择器）;桌面(pointer:fine)保持原
 15px/12.5px 密度。原生化更多项(safe-area/PWA standalone/tap-highlight
 /pull-to-refresh 拦截等)已 propose 待用户挑选,非本次。
+
+## 2026-07-12 · webui 移动原生化第一批 + 两枚 UX 缺陷（phone 现场）
+
+**iOS 原生化（零风险全套 + PWA）**：
+- PWA 可安装：manifest.webmanifest + apple-mobile-web-app-* metas +
+  apple-touch-icon（headless chromium 从 favicon.svg 栅格 180/192/512
+  PNG，深色圆底白 mark）+ theme-color；embed 注册 .webmanifest MIME。
+  "添加到主屏幕"后全屏启动、无 Safari 壳、自有图标。
+- 拦截下拉刷新（overscroll-behavior:none on html/body + contain on
+  .timeline/.sidebar）——此前顶部下拉整页重载 SPA、丢失打开的会话。
+- safe-area 适配（composer/topbar env(safe-area-inset-*)，max() 保底）。
+- 去点击灰块（-webkit-tap-highlight-color:transparent）+ 触摸按下
+  :active 反馈；touch-action:manipulation 去 300ms 延迟/双击缩放。
+- 长按 chrome 不弹放大镜/选择菜单（touch-callout/user-select:none），
+  消息正文保留可选中可复制。
+- viewport 加 viewport-fit=cover（不锁 scale，保留 pinch 缩放）。
+
+**两枚"原始后端错误灌进红 toast"类缺陷**：
+- "invalid starting ref: master"：Scratch 是 unborn 分支（git init 零
+  提交）的 repo,branch --show-current 仍报 master 但该 ref 无 commit,
+  worktree 创建撞 git 原始报错。修:handleGitBranches 增 hasCommits
+  (rev-parse --verify --quiet HEAD),前端据此把"New worktree"置灰
+  "Repo has no commits yet"并回落 Local,resolveHomeWorkspace 兜底。
+- "workspace is not an existing directory: .../abc"（scheduled task）:
+  同类,待并入下一批友好化(见探索性 QA)。
+
+后续:用户已授权做**大探索性 QA**,持续找修同类问题直到边际收益消失。

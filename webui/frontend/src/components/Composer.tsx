@@ -220,7 +220,7 @@ export function Composer(props: ComposerProps) {
   const [projectQuery, setProjectQuery] = useState("");
   const [branchQuery, setBranchQuery] = useState("");
   const [projectMenuPage, setProjectMenuPage] = useState<"projects" | "new">("projects");
-  const [branchInfo, setBranchInfo] = useState<{ isRepo: boolean; current: string; branches: string[]; dirty: number } | null>(null);
+  const [branchInfo, setBranchInfo] = useState<{ isRepo: boolean; current: string; branches: string[]; dirty: number; hasCommits?: boolean } | null>(null);
 
   // goal / loop / best-of-N launcher panel
   const [launcher, setLauncher] = useState<null | { mode: "goal" | "loop" | "best"; task: string }>(null);
@@ -343,7 +343,10 @@ export function Composer(props: ComposerProps) {
         if (!alive) return;
         setBranchInfo(b);
         setStartingBranch((b.current === "HEAD" ? "" : b.current) || b.branches[0] || "");
-        if (!b.isRepo) setRunLocation("local");
+        // Non-repo OR a repo with no commits yet (unborn branch) can't host a
+        // worktree — fall back to Local so the user never hits git's raw
+        // "invalid starting ref" error (phone report 2026-07-12).
+        if (!b.isRepo || b.hasCommits === false) setRunLocation("local");
       })
       .catch(() => alive && setBranchInfo(null));
     return () => {
@@ -451,7 +454,9 @@ export function Composer(props: ComposerProps) {
 
   const resolveHomeWorkspace = async (): Promise<string> => {
     const source = await ensureWs();
-    if (runLocation !== "worktree" || !branchInfo?.isRepo) return source;
+    // No worktree when it's not a repo, or the repo has no commits (unborn
+    // branch): git worktree needs a real starting commit. Run local instead.
+    if (runLocation !== "worktree" || !branchInfo?.isRepo || branchInfo.hasCommits === false) return source;
     return (await AR.makeWorktree(source, "", startingBranch || branchInfo.current)).path;
   };
 
@@ -1105,8 +1110,9 @@ export function Composer(props: ComposerProps) {
             {(close) => (
               <div className="cx-menu">
                 <PopSection label="Start in">
-                  <PopItem icon={<GitBranch size={15} />} title="New worktree" desc={branchInfo?.isRepo ? "Isolated checkout; your project stays untouched" : "Select a Git project first"} active={runLocation === "worktree"} onClick={() => {
+                  <PopItem icon={<GitBranch size={15} />} title="New worktree" desc={!branchInfo?.isRepo ? "Select a Git project first" : branchInfo.hasCommits === false ? "Repo has no commits yet — commit one first" : "Isolated checkout; your project stays untouched"} active={runLocation === "worktree"} onClick={() => {
                     if (!branchInfo?.isRepo) { props.onError("New worktree needs a Git project."); return; }
+                    if (branchInfo.hasCommits === false) { props.onError("This repo has no commits yet — a worktree needs a starting commit."); return; }
                     setRunLocation("worktree"); close();
                   }} />
                   <PopItem icon={<Desktop size={15} />} title="Local" desc="Work directly in the selected project" active={runLocation === "local"} onClick={() => { setRunLocation("local"); close(); }} />

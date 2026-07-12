@@ -174,6 +174,12 @@ func newAsset(p string, raw []byte) *asset {
 	return a
 }
 
+// .webmanifest is not in Go's built-in mime table, so without this it serves
+// as text/plain and some browsers refuse to treat it as a PWA manifest.
+func init() {
+	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")
+}
+
 // contentType keeps the charset that http.FileServer's sniffing used to supply:
 // mime.TypeByExtension merges the OS mime table on some hosts and can come back
 // charset-less for .js/.json, which makes browsers guess the encoding.

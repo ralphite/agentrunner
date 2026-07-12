@@ -154,7 +154,7 @@ export const AR = {
     post<{ sid: string }>(`/sessions/${sid}/fork`, { barrier, workspace }),
 
   gitBranches: (dir: string) =>
-    api<{ isRepo: boolean; current: string; branches: string[]; dirty: number }>(
+    api<{ isRepo: boolean; current: string; branches: string[]; dirty: number; hasCommits?: boolean }>(
       `/git/branches?dir=${encodeURIComponent(dir)}`,
     ),
   gitCheckout: (dir: string, branch: string, create: boolean) =>
