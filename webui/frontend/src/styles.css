@@ -690,17 +690,23 @@ button.sm {
 .tl-jump {
   position: sticky;
   bottom: 14px;
+  /* explicit layer: iOS momentum scrolling composites sticky elements — with
+     z auto the feed text could paint over the button mid-scroll (phone
+     screenshot 2026-07-12). */
+  z-index: 4;
   display: grid;
   place-items: center;
   width: 32px;
   height: 32px;
   margin: -32px auto 0;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-2, var(--line));
   border-radius: 50%;
-  background: var(--panel);
-  color: var(--ink-2);
+  /* --panel is only ~8% brighter than the dark page bg, so the disc read as
+     transparent over text; --panel-2 + stronger shadow makes it a control. */
+  background: var(--panel-2);
+  color: var(--ink);
   cursor: pointer;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.28);
 }
 .tl-jump:hover {
   background: var(--panel-2);
@@ -1801,6 +1807,11 @@ details.filediff[open] > summary.fd-head .fd-caret {
   border-top: 1px solid var(--line);
   background: var(--bg);
   padding: 10px 18px 14px;
+  /* own stacking context ABOVE the timeline scroller: iOS momentum scroll
+     let feed text paint across the composer card's top edge (phone
+     screenshot 2026-07-12) — the composer must always win. */
+  position: relative;
+  z-index: 5;
 }
 .cx-session .cx-card {
   max-width: 720px;
@@ -2707,6 +2718,14 @@ details.filediff[open] > summary.fd-head .fd-caret {
 }
 .user .msg-col {
   align-items: flex-end;
+  /* The width cap belongs HERE, not on .bubble: .msg-col shrink-wraps to its
+     content (bubble + MsgActions row), so a percentage max-width on the
+     bubble compounds against that shrink-wrapped width — a short "Update?"
+     ended up 90px wide and broke mid-word (phone screenshot 2026-07-12). */
+  max-width: 76%;
+}
+.user .msg-col > .bubble {
+  max-width: 100%;
 }
 .msg-col > .bubble {
   flex: 0 0 auto;

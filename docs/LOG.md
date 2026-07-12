@@ -3805,3 +3805,14 @@ white-space:nowrap，窄屏整体换行不断词；②孤行 "Approved" chip 无
 (.tl-jump 负 margin 悬浮) 压住最后一条消息的时间戳/操作行——.timeline
 底部 padding 8→48px，让悬浮区落在 padding 上。前端 25 文件 255 测试全
 绿 + vite build 过；dist 按新规不入库，随 phone-webui workflow 构建。
+
+## 2026-07-12 · webui 手机截图第二轮三修（MOB 族续）
+
+①短用户消息气泡 90px 宽处断词（"Updat/e?"）——根因：.bubble 的
+max-width:76% 在收缩适应的 .msg-col（bubble+MsgActions 列）里复合，
+气泡被压到 actions 行宽的 76%；上限移到 .user .msg-col，气泡内改 100%。
+②跳底按钮观感透明且动量滚动时被正文盖——--panel 与暗色页底仅差 8%，
+换 --panel-2 + 加重阴影 + 显式 z-index:4（iOS sticky 合成层）。
+③正文穿过 composer 卡上缘（iOS 动量滚动合成伪影）——.cx-session 建
+自身层叠上下文（position:relative + z-index:5），composer 恒在滚动区
+之上。前端 255 测试绿 + build 过。
