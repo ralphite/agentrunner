@@ -115,6 +115,21 @@ export function Sidebar({ onNavigate, onOpenPalette, onOpenSettings }: {
   );
   useEffect(() => setVisibleOrder(orderedIds), [orderedIds, setVisibleOrder]);
 
+  // SB-1: bring the current row into the rail's viewport whenever the selection
+  // changes (deep link, ⌘K jump, cold refresh) — the row can sit thousands of
+  // pixels below a `.project-list` that never scrolls itself. `block: "nearest"`
+  // is deliberate: a row already on screen stays put, so this never yanks the
+  // list out from under a scrolling user. Deferred a frame because on the first
+  // paint the row may not exist yet (sessions arrive after mount).
+  useEffect(() => {
+    if (!currentSid) return;
+    const frame = requestAnimationFrame(() => {
+      const row = document.querySelector<HTMLElement>(".project-task-wrap.current");
+      row?.scrollIntoView?.({ block: "nearest" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [currentSid, sessionsReady, orderedIds]);
+
   const restartDaemon = async () => {
     try {
       await AR.daemonStart();
@@ -288,9 +303,14 @@ export function Sidebar({ onNavigate, onOpenPalette, onOpenSettings }: {
             // Persisted fold collapses the group entirely; the local `expanded`
             // set is the secondary show-all-vs-6 control within an unfolded
             // group. (Search no longer lives here — it is the ⌘K palette, RH-5.)
-            const folded = overlay?.folded ?? false;
+            // SB-1: the group holding the current task renders as unfolded even
+            // when the persisted overlay says folded — the fold is a preference
+            // and is left untouched on the server, it just cannot hide the row
+            // the user is looking at (heading icon and Show more follow suit).
+            const holdsCurrent = !!currentSid && project.sessions.some((session) => session.id === currentSid);
+            const folded = (overlay?.folded ?? false) && !holdsCurrent;
             const showAll = expanded.has(project.key);
-            const shown = visibleProjectSessions(project, { folded, expanded: showAll });
+            const shown = visibleProjectSessions(project, { folded, expanded: showAll, current: currentSid || undefined });
             const openMenu = (x: number, y: number) => {
               setHoverPreview(null);
               setCtx({ kind: "project", x, y, key: project.key, label: name, workspace: project.workspace, ids: project.sessions.map((session) => session.id) });

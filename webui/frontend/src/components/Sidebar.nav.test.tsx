@@ -27,6 +27,60 @@ describe("sidebar search entry point (RH-5)", () => {
   });
 });
 
+describe("current task visibility (SB-1)", () => {
+  // Ten tasks in one project: with cap=6, s3…s9 (ids sort newest-first) fall
+  // behind "Show more". Opening one of them must still put it on the rail.
+  const manySessions = Array.from({ length: 10 }, (_v, i) => ({
+    id: `2026071${i}-000000-task-${i}`,
+    status: "idle",
+    turns: 1,
+    title: `Task ${i}`,
+    workspace: "/repo/app",
+  }));
+
+  const mount = (currentSid: string | null, projects: Record<string, any> = {}) => {
+    useStore.setState({
+      sessions: manySessions as any,
+      sessionsReady: true,
+      currentSid,
+      archived: [],
+      pinned: [],
+      unread: [],
+      renames: {},
+      projects,
+    });
+    return render(<Sidebar />);
+  };
+
+  it("renders the current row even when it sits past the cap", () => {
+    // Newest-first: task-9 leads, so task-2 is the 8th row — well past cap=6.
+    const sid = "20260712-000000-task-2";
+    const { container } = mount(sid);
+    const rows = [...container.querySelectorAll(".project-task-wrap")];
+    // The cap still holds for everyone else: 6 capped rows + the current one.
+    expect(rows.length).toBe(7);
+    const current = container.querySelector(".project-task-wrap.current");
+    expect(current).toBeTruthy();
+    expect(current!.textContent).toContain("Task 2");
+    // …and "Show more" still offers the rest.
+    expect(container.querySelector(".show-more")).toBeTruthy();
+  });
+
+  it("un-folds the group holding the current row without persisting the change", () => {
+    const toggleProjectFolded = vi.fn();
+    useStore.setState({ toggleProjectFolded });
+    const { container } = mount("20260712-000000-task-2", { "/repo/app": { folded: true } });
+    expect(container.querySelector(".project-task-wrap.current")).toBeTruthy();
+    // The fold stays the user's: nothing writes it back.
+    expect(toggleProjectFolded).not.toHaveBeenCalled();
+  });
+
+  it("keeps a folded group collapsed when the current task lives elsewhere", () => {
+    const { container } = mount(null, { "/repo/app": { folded: true } });
+    expect(container.querySelectorAll(".project-task-wrap").length).toBe(0);
+  });
+});
+
 describe("New task shortcut badge (RH-4)", () => {
   it("badges the New task row with the key the app actually binds", () => {
     useStore.setState({ sessions: [] });

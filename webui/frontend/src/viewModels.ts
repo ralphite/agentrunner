@@ -35,18 +35,30 @@ export function projectDisplayName(project: ProjectGroup, overlay?: ProjectOverl
 }
 
 // visibleProjectSessions decides which sessions a project group shows given its
-// persisted fold state, the local "show all" toggle, and an active search. A
-// folded group hides its sessions entirely — but search overrides fold so a
-// match is never hidden. An unfolded group shows all when expanded or
-// searching, otherwise the first `cap`.
+// persisted fold state, the local "show all" toggle, an active search, and the
+// currently open session. A folded group hides its sessions entirely — but
+// search overrides fold so a match is never hidden. An unfolded group shows all
+// when expanded or searching, otherwise the first `cap`.
+//
+// SB-1 invariant: the session you are looking at is the rail's anchor, so it is
+// *always* in the visible set. Both fold and cap are conveniences (a default
+// view, a browsing limit) and both yield to it — otherwise a deep link, a ⌘K
+// jump, or a refresh into the 7th task of a project leaves the sidebar with no
+// trace of where you are. Nothing is written back: the user's manual fold is a
+// preference, not a claim that the current task should be invisible.
 export function visibleProjectSessions(
   project: ProjectGroup,
-  opts: { folded?: boolean; expanded?: boolean; searching?: boolean; cap?: number },
+  opts: { folded?: boolean; expanded?: boolean; searching?: boolean; cap?: number; current?: string },
 ): Session[] {
   const cap = opts.cap ?? 6;
-  if (opts.folded && !opts.searching) return [];
+  const current = opts.current ? project.sessions.find((session) => session.id === opts.current) : undefined;
+  if (opts.folded && !opts.searching && !current) return [];
   if (opts.expanded || opts.searching) return project.sessions;
-  return project.sessions.slice(0, cap);
+  const shown = project.sessions.slice(0, cap);
+  // Appended at the tail rather than sorted in: the cap window stays exactly
+  // what it was, so the rows above the current one never shuffle under it.
+  if (current && !shown.includes(current)) shown.push(current);
+  return shown;
 }
 
 export function dedupeInspectNodes<T extends { session?: string; call_id?: string }>(nodes: T[]): T[] {
