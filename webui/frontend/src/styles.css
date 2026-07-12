@@ -6,15 +6,15 @@
   --panel-2: #f4f4f4;
   --line: #e7e7e7;
   --line-2: #efefef;
-  --ink: #1f1f1f;
+  --ink: #0d0d0d;
   --ink-2: #606060;
   /* A11Y-8: #737373 on --sidebar(#f7f7f8) 只有 4.42:1,差 0.08 不达 WCAG AA 的 4.5:1。
      压到 #6e6e6e ≈ 4.8:1 留出余量。dark 另有 --dim:#a0a0ad 覆盖,不受影响。 */
   --dim: #6e6e6e;
   --accent: #0b0b0b;
   --accent-ink: #ffffff;
-  --blue: #2f6bff;
-  --blue-soft: #eaf0ff;
+  --blue: #0169cc;
+  --blue-soft: #e8f1fb;
   --green: #167a3c;
   --green-soft: #e7f6ec;
   --amber: #8a5a00;
@@ -122,7 +122,7 @@ button.sm {
 /* ---- app shell ---- */
 .app {
   display: grid;
-  grid-template-columns: 288px 1fr;
+  grid-template-columns: 248px 1fr;
   height: 100%;
 }
 .app.collapsed {
@@ -239,8 +239,7 @@ button.sm {
   background: var(--panel-2);
 }
 .card-row.cur {
-  background: var(--blue-soft);
-  border-color: color-mix(in srgb, var(--blue) 30%, transparent);
+  background: var(--panel-2);
 }
 .card-row .title {
   font-size: 13px;
@@ -752,8 +751,10 @@ button.sm {
   border: 1px solid color-mix(in srgb, var(--blue) 18%, transparent);
 }
 .assistant .bubble {
-  background: var(--panel);
-  border: 1px solid var(--line);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
   flex: 1;
 }
 .bubble.typing {
@@ -1583,12 +1584,12 @@ label.field {
 }
 .dl.add {
   background: color-mix(in srgb, var(--green) 12%, transparent);
-  color: var(--green);
 }
 .dl.del {
   background: color-mix(in srgb, var(--red) 12%, transparent);
-  color: var(--red);
 }
+.dl.add .dl-no { color: var(--green); opacity: .85; }
+.dl.del .dl-no { color: var(--red); opacity: .85; }
 /* hunk separator — quiet divider with the @@ context, not a raw diff line */
 .dl-hunk {
   padding: 3px 12px 3px 14px;
@@ -2401,7 +2402,7 @@ summary.fd-head:hover {
   border-bottom: 1px solid var(--line);
   border-radius: 0;
   padding: 14px 16px;
-  font-size: 15px;
+  font-size: 16px;
   background: transparent;
 }
 .cmdk-input:focus {
@@ -2420,9 +2421,7 @@ summary.fd-head:hover {
   font-size: 13px;
 }
 .cmdk-group {
-  font-size: 10.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
+  font-size: 13.5px;
   color: var(--dim);
   padding: 8px 10px 4px;
 }
@@ -2431,7 +2430,7 @@ summary.fd-head:hover {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px;
+  padding: 10px 12px;
   border-radius: 8px;
   cursor: pointer;
   border: 0;
@@ -2441,17 +2440,17 @@ summary.fd-head:hover {
 }
 .cmdk-item:hover { border-color: transparent; }
 .cmdk-item.sel {
-  background: var(--blue-soft);
+  background: var(--panel-2);
 }
 .cmdk-label {
   flex: 1;
-  font-size: 13.5px;
+  font-size: 15px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .cmdk-hint {
-  font-size: 11.5px;
+  font-size: 13px;
   color: var(--dim);
   flex-shrink: 0;
 }
@@ -2690,9 +2689,8 @@ summary.fd-head:hover {
   gap: 3px;
   width: 100%;
   margin: 20px 0 12px;
-  padding: 0 0 10px;
+  padding: 0;
   border: none;
-  border-bottom: 1px solid var(--line-2);
   background: transparent;
   color: var(--dim);
   font-size: 12.5px;
@@ -2864,7 +2862,7 @@ summary.fd-head:hover {
   gap: 8px;
   padding: 7px 14px;
   color: var(--ink-2);
-  font-size: 12.5px;
+  font-size: 14px;
 }
 .changes-outcome-files > div > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .changes-outcome-files > button { margin: 5px 10px 10px; border: 0; background: transparent; color: var(--dim); font-size: 12px; }
@@ -3111,11 +3109,11 @@ summary.fd-head:hover {
 .section-label {
   padding: 8px 10px 6px;
   color: var(--dim);
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 500;
 }
 .project-group {
-  margin-bottom: 5px;
+  margin-bottom: 16px;
 }
 .project-heading {
   width: 100%;
@@ -3129,7 +3127,7 @@ summary.fd-head:hover {
   border-radius: 8px;
   color: var(--ink-2);
   text-align: left;
-  font-size: 13px;
+  font-size: 14.5px;
 }
 .project-heading span {
   overflow: hidden;
@@ -3143,7 +3141,7 @@ summary.fd-head:hover {
 }
 .project-task-wrap {
   position: relative;
-  min-height: 34px;
+  min-height: 38px;
   border-radius: 8px;
   color: var(--ink-2);
 }
@@ -3152,7 +3150,7 @@ summary.fd-head:hover {
 }
 .project-task {
   width: 100%;
-  min-height: 34px;
+  min-height: 38px;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -3170,7 +3168,7 @@ summary.fd-head:hover {
 }
 .project-task:hover { border-color: transparent; background: transparent; }
 .project-task-wrap.current {
-  font-weight: 520;
+  background: var(--panel-2);
 }
 .project-task-wrap.archived {
   opacity: 0.55;
@@ -3181,7 +3179,7 @@ summary.fd-head:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14.5px;
 }
 .project-task-wrap.unread .project-task-title {
   color: var(--ink);
@@ -3741,7 +3739,7 @@ summary.fd-head:hover {
 }
 .supervision-head button:hover,
 .background-row button:hover { border-color: transparent; background: var(--panel-2); color: var(--ink); }
-.supervision-section { padding: 13px 14px; border-bottom: 1px solid var(--line); }
+.supervision-section { padding: 13px 14px; }
 .supervision-label { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; color: var(--dim); font-size: 12px; }
 .goal-copy { color: var(--ink); font-size: 13px; line-height: 1.45; }
 .goal-meta { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
@@ -4322,7 +4320,7 @@ summary.fd-head:hover {
   line-height: 1;
   color: var(--ink-2);
   background: var(--panel-2);
-  border: 1px solid var(--line);
+  border: 1px solid transparent;
   border-radius: 5px;
   padding: 3px 6px;
   min-width: 26px;
