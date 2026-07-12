@@ -38,23 +38,32 @@
   color: var(--ink-2);
 }
 
+/* SC-22 — "Suggestions" is a SECTION LABEL, not a second page title. At 19px it
+   sat two points under the H2 above it and above every row title on the screen,
+   which put the page's least important block at its loudest type size. The gold
+   standard runs this label at ~15px — the size of the suggestion titles it
+   introduces, one weight down in colour. */
 .sched-suggestions-title {
   padding: 0 4px 4px;
   color: var(--dim);
-  font-size: 19px;
+  font-size: 15px;
   letter-spacing: -.2px;
 }
 
 /* SCH-ICON — the suggestion rows ran ~73px of pitch against the task rows' 68px,
    which put the block that matters least on the page at the loosest rhythm of
    anything on it. In the gold standard the suggestions sit at the SAME pitch as
-   the list rows above them. 10px of padding lands ours there. Content untouched. */
+   the list rows above them.
+   SC-22 — and they still must, now that the list rows are 54px: 10px of padding
+   left them at ~65px, so the block below the fold was also the loosest one on the
+   page. 8px of padding + the tightened leading below (see .sched-suggest-head /
+   -desc) lands them back at the list's own 54px pitch. */
 .sched-suggest {
   width: 100%;
   display: flex;
   align-items: flex-start;
   gap: 14px;
-  padding: 10px 6px;
+  padding: 8px 6px;
   border: 0;
   background: transparent;
   border-radius: 10px;
@@ -79,14 +88,20 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  /* SC-22 — 3px between two lines that are already a full leading apart was a
+     third gap nobody asked for. */
+  gap: 2px;
 }
 
+/* SC-22 — the head line kept the body's 1.55 leading: 23px of box for 15px of
+   type. 1.25 still clears the descenders in "Daily brief" / "Weekly review" and
+   gives the row its pitch back without touching a single font size. */
 .sched-suggest-head {
   display: flex;
   align-items: baseline;
   gap: 10px;
   flex-wrap: wrap;
+  line-height: 1.25;
 }
 
 .sched-suggest-title {
@@ -100,10 +115,12 @@
   font-size: 15px;
 }
 
+/* SC-22 — the description is the row's sub-line, and it now reads at the same
+   13px the page's own subtitle does: one step under its title, as in the list. */
 .sched-suggest-desc {
   color: var(--dim);
-  font-size: 14px;
-  line-height: 1.4;
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 /* SC-4: the sub-line carries exactly two facts (the rhythm, then the next tick),
@@ -362,4 +379,28 @@
   border-color: transparent;
   background: transparent;
   color: var(--ink);
+}
+
+/* ===== INC-41 round 34 · SC-22 — the page's own type scale ==============
+   Everything on this screen was drawn one size up from the gold standard, and
+   the title was the loudest offender: 28px of 600-weight for two words, which
+   then justified the 19px "Suggestions" under it, which justified the 68px rows
+   under that. Codex's page title is ~22–23px. Shrinking it is what lets the rest
+   of the scale come down without the page looking beheaded.
+
+   Scoped to .scheduled-page ON PURPOSE. `.page-heading` is (today) only rendered
+   here, and there is no <h1> on this screen at all — but this is a display size
+   chosen for THIS page's density, not a global type decision, and the moment a
+   second page reaches for .page-heading it must not silently inherit it. The
+   Settings screens have their own headings and are untouched by every rule in
+   this file, which the whole sheet is scoped to .scheduled-page to guarantee. */
+.scheduled-page .page-heading h2 {
+  font-size: 23px;
+  letter-spacing: -.35px;
+}
+
+/* …and the subtitle steps down with it, to the 13px the suggestion sub-lines
+   read at: it is a caption, not a second paragraph of the page. */
+.scheduled-page .page-heading p {
+  font-size: 13px;
 }
