@@ -14,6 +14,7 @@ import { Settings } from "./components/Settings";
 import { requestNotifyPermission } from "./notify";
 import { quickSwitchTasks } from "./viewModels";
 import { applyAppearance, loadAppearance } from "./theme";
+import { normalizeRoute } from "./routeHash";
 import { SidebarSimple } from "@phosphor-icons/react";
 import "./styles.rs.css";
 
@@ -181,11 +182,7 @@ export function App() {
     const p = setInterval(refreshProjects, 8000);
     // hash routing: "run:<id>" → a background run; anything else → a session.
     const route = (raw0: string) => {
-      // Tolerate a "/s/<sid>" (or "s/<sid>") deep-link prefix: the app itself
-      // emits bare "#<sid>", but a shared/typed link using the "/s/" form must
-      // resolve to the same session rather than leaking the raw route string
-      // into the title and rendering an empty page.
-      const raw = raw0.replace(/^\/?s\//, "");
+      const raw = normalizeRoute(raw0);
       if (raw === "scheduled") {
         showPage(raw);
       } else if (raw.startsWith("run:")) {
