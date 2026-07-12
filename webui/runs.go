@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -26,11 +27,57 @@ type run struct {
 	StartedAt string   `json:"startedAt"`
 	Args      []string `json:"-"`
 
-	mu     sync.Mutex
-	lines  []string
-	subs   map[chan string]struct{}
-	done   bool
-	cancel context.CancelFunc
+	mu    sync.Mutex
+	lines []string
+	subs  map[chan string]struct{}
+	done  bool
+	// spec is the drive run's driver spec (nil for submit): the source of the
+	// cadence / next-run projection the Scheduled page shows (CX-3). lastIter
+	// anchors an interval cadence — the driver announces each iteration on its
+	// stderr, which we merge into the run's stream.
+	spec     *driverSpec
+	lastIter time.Time
+	cancel   context.CancelFunc
+}
+
+// iterationLine matches the driver's own iteration/attempt announcement
+// ("iteration 3 (drv-…-iter-3)" / "attempt 2 (…) in <worktree>"), the only
+// live signal we have for when the last iteration started.
+var iterationLine = regexp.MustCompile(`^(?:iteration|attempt) \d+ \(`)
+
+// runView is the wire shape of a run: the stored facts plus the derived
+// schedule projection. nextRunAt is computed per request because it moves with
+// the clock — a cached string would be stale the moment it is written.
+type runView struct {
+	ID        string `json:"id"`
+	Kind      string `json:"kind"`
+	Label     string `json:"label"`
+	Workspace string `json:"workspace"`
+	Status    string `json:"status"`
+	StartedAt string `json:"startedAt"`
+	scheduleView
+}
+
+func (r *run) view(now time.Time) runView {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	v := runView{
+		ID: r.ID, Kind: r.Kind, Label: r.Label, Workspace: r.Workspace,
+		Status: r.Status, StartedAt: r.StartedAt,
+	}
+	if r.spec == nil {
+		return v
+	}
+	// Before the first iteration announcement, the run's own start is the
+	// honest anchor for an interval cadence (the driver launches immediately).
+	last := r.lastIter
+	if last.IsZero() {
+		if t, err := time.Parse(time.RFC3339, r.StartedAt); err == nil {
+			last = t
+		}
+	}
+	v.scheduleView = scheduleFor(r.spec, last, r.Status == "running", now)
+	return v
 }
 
 func (r *run) append(line string) {
@@ -103,7 +150,9 @@ func (rr *runRegistry) stopAll() {
 // start launches an ar process and streams its stdout lines into a fresh run.
 // onSession fires once with the daemon-assigned session id (parsed from the
 // event stream) so the caller can record workspace/title metadata for it.
-func (rr *runRegistry) start(arPath, kind, label, workspace string, args []string, logDir string, onSession func(sid string)) *run {
+// spec is the drive run's driver spec (nil for submit) — it carries the
+// cadence the Scheduled page reports.
+func (rr *runRegistry) start(arPath, kind, label, workspace string, args []string, logDir string, spec *driverSpec, onSession func(sid string)) *run {
 	rr.mu.Lock()
 	rr.seq++
 	id := fmt.Sprintf("run%d", rr.seq)
@@ -113,7 +162,7 @@ func (rr *runRegistry) start(arPath, kind, label, workspace string, args []strin
 	r := &run{
 		ID: id, Kind: kind, Label: label, Workspace: workspace,
 		Status: "running", StartedAt: time.Now().Format(time.RFC3339),
-		Args: args, cancel: cancel,
+		Args: args, spec: spec, cancel: cancel,
 	}
 	rr.mu.Lock()
 	rr.runs[id] = r
@@ -166,6 +215,13 @@ func (rr *runRegistry) start(arPath, kind, label, workspace string, args []strin
 				}
 				r.mu.Unlock()
 			}
+			// Anchor the interval cadence on the iteration the driver just
+			// started (CX-3): next run = this + interval.
+			if r.spec != nil && iterationLine.MatchString(line) {
+				r.mu.Lock()
+				r.lastIter = time.Now()
+				r.mu.Unlock()
+			}
 			if !notified && onSession != nil {
 				if m := sessionIDLine.FindString(line); m != "" {
 					notified = true
@@ -199,7 +255,13 @@ func (rr *runRegistry) start(arPath, kind, label, workspace string, args []strin
 // ---- HTTP ----
 
 func (s *server) handleRunsList(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, s.runs.snapshot())
+	now := time.Now()
+	snap := s.runs.snapshot()
+	out := make([]runView, 0, len(snap))
+	for _, run := range snap {
+		out = append(out, run.view(now))
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *server) handleRunStart(w http.ResponseWriter, r *http.Request) {
@@ -242,6 +304,13 @@ func (s *server) handleRunStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A drive run's spec IS its schedule contract: parse it once at launch so
+	// every /api/runs poll can report the cadence and the next tick (CX-3).
+	var spec *driverSpec
+	if req.Kind == "drive" {
+		spec = specFromYAML(req.Spec)
+	}
+
 	var args []string
 	var label string
 	if req.Kind == "submit" {
@@ -267,7 +336,7 @@ func (s *server) handleRunStart(w http.ResponseWriter, r *http.Request) {
 	if req.Kind == "submit" {
 		title = req.Task
 	}
-	run := s.runs.start(s.arPath, req.Kind, label, ws, args, filepath.Join(s.runtimeDir, "runs"),
+	run := s.runs.start(s.arPath, req.Kind, label, ws, args, filepath.Join(s.runtimeDir, "runs"), spec,
 		func(sid string) { s.meta.set(sid, ws, title) })
 	writeJSON(w, http.StatusOK, map[string]string{"runId": run.ID})
 }

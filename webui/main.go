@@ -45,6 +45,11 @@ type server struct {
 	runs *runRegistry // background submit/drive runs
 	meta *metaStore   // sid → workspace/title we know from creating it
 
+	// drivers memoises each driver session's spec + last-iteration anchor (the
+	// Scheduled page's cadence / next-run projection — schedule.go). Zero value
+	// is ready to use.
+	drivers driverCache
+
 	// launch runs the OS "open" argv for the INC-53 launcher; nil = real exec
 	// (runLaunch). workspaces resolves the launcher's allowed-workspace set;
 	// nil = derive from the live `ar sessions list`. Both are fields so tests

@@ -82,3 +82,16 @@
   font-size: 14px;
   line-height: 1.4;
 }
+
+/* CX-3: cadence + next run are a scheduled row's headline facts, so they read
+   ahead of the project/status trivia that shares the sub-line. The cadence sits
+   at the row's ink weight; a KNOWN next tick (a live interval/cron series) gets
+   the accent so a repeating task announces itself at a glance. */
+.scheduled-row .sched-cadence {
+  color: var(--ink-2);
+  font-weight: 500;
+}
+
+.scheduled-row .sched-next {
+  color: var(--blue);
+}

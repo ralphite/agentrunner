@@ -53,7 +53,11 @@ const SETTLED_STATUS = new Set(["done", "closed", "stopped"]);
 interface SchedRow {
   key: string;
   title: string;
-  meta: string; // sub-line: type · project · when
+  cadence: string; // the rhythm: "Every 30m" / "Saturdays at 4:00 AM" / "Runs once"
+  when: string; // "Next run in 12m" when known, else the honest "Ran 1d ago"
+  isNext: boolean; // when names a FUTURE tick (styled as the live fact it is)
+  project: string;
+  meta: string; // the sub-line flattened, for search
   status: { text: string; cls: string };
   active: boolean; // live (running / waiting on you) vs finished
   unread: boolean; // driver row with new activity you haven't opened (F2)
@@ -69,11 +73,35 @@ function whenAgo(when: Date | null): string {
   return rel === "just now" ? "just now" : `${rel} ago`;
 }
 
+// nextRunPhrase renders the backend's nextRunAt (RFC3339) as Codex's
+// "Next run in 12m". A tick already due (an iteration is running, or the driver
+// is catching up) says so instead of counting backwards.
+function nextRunPhrase(iso?: string): string {
+  if (!iso) return "";
+  const t = Date.parse(iso);
+  if (isNaN(t)) return "";
+  const sec = (t - Date.now()) / 1000;
+  if (sec <= 30) return "Next run due now";
+  const min = sec / 60;
+  if (min < 60) return `Next run in ${Math.max(1, Math.round(min))}m`;
+  const hr = min / 60;
+  if (hr < 24) return `Next run in ${Math.floor(hr)}h`;
+  const day = hr / 24;
+  if (day < 7) return `Next run in ${Math.floor(day)}d`;
+  const wk = day / 7;
+  if (wk < 5) return `Next run in ${Math.floor(wk)}w`;
+  return `Next run in ${Math.floor(day / 30)}mo`;
+}
+
 // Scheduled is Codex's Scheduled tasks hub: goals and repeating work that keep
-// running on their own. We have no cron/next-run contract, so each row shows
-// the honest facts we do hold — the schedule type, the project, and when it
-// last started — plus a search box and All / Active / Completed filters mapped
-// to our real live-vs-finished states (INC-41 W7).
+// running on their own. The two facts that justify a scheduled thing lead every
+// row — its CADENCE and its NEXT RUN (CX-3), both derived server-side from the
+// driver spec (schedule/interval/cron/n) and served on /api/runs and
+// /api/sessions. When there is no future tick to name (a one-shot goal, a
+// finished series, a spec we could not read) the row falls back to the honest
+// "Ran 1d ago" — never a fabricated time. Project and status stay, demoted.
+// Search + All / Active / Paused filters map to our live-vs-finished states
+// (INC-41 W7).
 export function Scheduled() {
   const { runs, sessions, select, selectRun, openModal, unread, markRead } = useStore();
   const [filter, setFilter] = useState<Filter>("all");
@@ -85,37 +113,70 @@ export function Scheduled() {
     const isActive = (cls: string) => cls === "run" || cls === "appr";
     const flagged = new Set(unread);
     const out: SchedRow[] = [];
+    // row assembles the sub-line: cadence first, then the next run (or, absent
+    // one, when it last ran), then the project.
+    const row = (
+      base: Omit<SchedRow, "when" | "isNext" | "meta">,
+      nextRunAt: string | undefined,
+      lastRan: Date | null,
+    ): SchedRow => {
+      const next = nextRunPhrase(nextRunAt);
+      const ago = whenAgo(lastRan);
+      const when = next || (ago ? `Ran ${ago}` : "");
+      return {
+        ...base,
+        when,
+        isNext: !!next,
+        meta: [base.cadence, when, base.project].filter(Boolean).join(" · "),
+      };
+    };
     for (const run of runs) {
       const status = friendlyStatus(run.status);
       const ts = Date.parse(run.startedAt);
       const started = isNaN(ts) ? null : new Date(ts);
-      out.push({
-        key: "run:" + run.id,
-        title: run.label || run.id,
-        meta: [run.kind === "submit" ? "One-time" : "Drive", projectLabel(run.workspace), whenAgo(started)]
-          .filter(Boolean)
-          .join(" · "),
-        status,
-        active: isActive(status.cls),
-        unread: false,
-        sortTs: isNaN(ts) ? 0 : ts,
-        onClick: () => selectRun(run.id),
-      });
+      out.push(
+        row(
+          {
+            key: "run:" + run.id,
+            title: run.label || run.id,
+            // A submit run is a one-shot by construction; a drive run's cadence
+            // comes from its spec (absent only if the spec was unreadable).
+            cadence: run.cadence || (run.kind === "submit" ? "Runs once" : scheduleLabel(run.schedule)),
+            project: projectLabel(run.workspace),
+            status,
+            active: isActive(status.cls),
+            unread: false,
+            sortTs: isNaN(ts) ? 0 : ts,
+            onClick: () => selectRun(run.id),
+          },
+          run.nextRunAt,
+          started,
+        ),
+      );
     }
     for (const s of sessions) {
       if (s.kind !== "driver") continue;
       const status = friendlyStatus(s.status);
       const d = sessionDate(s.id);
-      out.push({
-        key: s.id,
-        title: s.title || s.id,
-        meta: [scheduleLabel(s.schedule), projectLabel(s.workspace), whenAgo(d)].filter(Boolean).join(" · "),
-        status,
-        active: isActive(status.cls),
-        unread: flagged.has(s.id),
-        sortTs: d ? d.getTime() : 0,
-        onClick: () => select(s.id),
-      });
+      out.push(
+        row(
+          {
+            key: s.id,
+            title: s.title || s.id,
+            // cadence is the spec's real rhythm; scheduleLabel is the coarse
+            // kind we fall back to when the journal could not be read.
+            cadence: s.cadence || scheduleLabel(s.schedule),
+            project: projectLabel(s.workspace),
+            status,
+            active: isActive(status.cls),
+            unread: flagged.has(s.id),
+            sortTs: d ? d.getTime() : 0,
+            onClick: () => select(s.id),
+          },
+          s.nextRunAt,
+          d,
+        ),
+      );
     }
     // Newest-first; the coloured status dot and label carry the state.
     out.sort((a, b) => b.sortTs - a.sortTs);
@@ -238,7 +299,16 @@ export function Scheduled() {
               )}
               <span className="scheduled-copy">
                 <b>{r.title}</b>
-                <span>{r.meta}</span>
+                <span className="sched-sub">
+                  <span className="sched-cadence">{r.cadence}</span>
+                  {r.when && (
+                    <>
+                      {" · "}
+                      <span className={r.isNext ? "sched-next" : undefined}>{r.when}</span>
+                    </>
+                  )}
+                  {r.project && <>{" · "}{r.project}</>}
+                </span>
               </span>
             </button>
           ))

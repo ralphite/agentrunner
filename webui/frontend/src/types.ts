@@ -7,14 +7,26 @@ export interface Envelope {
   ts?: string; // RFC3339 event time, recorded by the daemon
 }
 
-export interface Session {
+// The cadence contract every scheduled thing carries (CX-3): what rhythm it
+// runs on, and when it fires next. Both are derived server-side from the driver
+// spec. Absent = not knowable (a one-shot goal, a finished series, a spec we
+// could not read) — render the absence honestly, never a guessed time.
+export interface Cadence {
+  // immediate | interval | cron | self_paced | parallel
+  schedule?: string;
+  // Human phrase: "Every 30m", "Saturdays at 4:00 AM", "Best of 4", "Runs once".
+  cadence?: string;
+  // RFC3339 instant of the next tick; only present for a LIVE interval/cron series.
+  nextRunAt?: string;
+}
+
+export interface Session extends Cadence {
   id: string;
   status: string;
   turns: number;
   title?: string;
   workspace?: string;
   kind?: "session" | "driver";
-  schedule?: string;
 }
 
 export interface DiffResp {
@@ -62,7 +74,7 @@ export interface Task {
   detail: string;
 }
 
-export interface Run {
+export interface Run extends Cadence {
   id: string;
   kind: "submit" | "drive";
   label: string;
