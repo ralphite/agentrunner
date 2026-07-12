@@ -478,13 +478,18 @@
   align-items: center;
   gap: 5px;
   flex: 0 0 auto;
-  padding: 6px 10px;
+  /* TH-11: the action is the ghost-sized tail of a ONE-LINE notice, not a
+     call-to-action block. Its vertical padding is what sets the row's height —
+     6px pushed the banner to 49px; 4px lands the whole terminal zone under the
+     90px budget while the button (QA-45: the honest escape hatch) stays. */
+  padding: 4px 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
   color: var(--ink);
   font-size: 12.5px;
   font-weight: 550;
+  line-height: 1.35;
 }
 .terminal-alert-action:hover { background: var(--panel-2); }
 @media (max-width: 640px) {
