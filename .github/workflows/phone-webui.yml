@@ -50,6 +50,19 @@ jobs:
           go-version: "1.25"
           cache: true
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webui/frontend/package-lock.json
+
+      # dist 自 969abf4 起不再入库（只留 .gitkeep 占位），embed 需要现场构建。
+      - name: Build frontend
+        run: |
+          cd webui/frontend
+          npm ci
+          npm run build
+
       - name: Build ar + arwebui
         run: |
           go build -buildvcs=false -o bin/ar ./cmd/agentrunner
