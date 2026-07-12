@@ -5,6 +5,27 @@
 
 ## 安装与准备
 
+一行安装(linux x86_64/arm64、macOS arm64/x86_64,无需 Go/Node 工具链;
+再跑一遍即升级):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/ralphite/agentrunner/main/install.sh | sh
+```
+
+装到 `~/.local/share/agentrunner/releases/<version>/`,`ar` 与 `arwebui`
+链接进 `~/.local/bin`。repo 私有期间需先 `export GITHUB_TOKEN=...`(repo
+读权限),且取脚本本身也要带 token:
+
+```sh
+curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
+  https://raw.githubusercontent.com/ralphite/agentrunner/main/install.sh | sh
+```
+
+可调环境变量见 install.sh 头部注释;发布产物由
+`scripts/package-release.sh` + release workflow 构建(打 `v*` tag 触发)。
+
+从源码构建:
+
 ```sh
 go build -o ar ./cmd/agentrunner    # Go 1.23+
 export GEMINI_API_KEY=...           # 或 ANTHROPIC_API_KEY(见 spec 的 model.provider)

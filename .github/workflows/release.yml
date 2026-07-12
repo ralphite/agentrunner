@@ -1,0 +1,107 @@
+# release — build the distributable AgentRunner tarballs and (on a v* tag)
+# publish a GitHub Release with stable-named assets so install.sh keeps
+# working (INC-63; handa release.yml 的 Go 简化版).
+#
+# Pure Go + CGO_ENABLED=0：全部 target 在一个 ubuntu runner 上交叉编译，
+# 不需要 handa 那样的每 OS 原生 runner 矩阵（无原生 wheel 问题）。私有
+# repo Actions 配额可贵（LOG 2026-07-12），故不挂 pull_request 触发——
+# 改动打包面时手动 workflow_dispatch 验证。
+#
+# Smoke 三腿（都打真实产物）：
+#   1. scripts/smoke-release.sh —— 解包 linux 产物、ar --version/init、
+#      arwebui 起服 /api/health 探活；
+#   2. 真 install.sh 装真产物（AR_ASSET_URL=file://…）后跑装出来的 ar；
+#   3. scripts/test-install.sh 孪生（升级/重装/sha256/平台分支）。
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webui/frontend/package-lock.json
+
+      # dist 不入库（只留 .gitkeep 占位），arwebui 的 go:embed 需要现场构建。
+      - name: Build frontend
+        run: |
+          cd webui/frontend
+          npm ci
+          npm run build
+
+      - name: Package all targets
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            export AR_RELEASE_VERSION="$GITHUB_REF_NAME"
+          fi
+          SKIP_FRONTEND_BUILD=1 scripts/package-release.sh
+          ls -lh dist/
+
+      - name: Smoke test (launch + /api/health)
+        shell: bash
+        run: scripts/smoke-release.sh dist/agentrunner-*-linux-x86_64.tar.gz
+
+      - name: Smoke test (real install.sh against the real artifact)
+        shell: bash
+        run: |
+          tarball="$(ls "$PWD"/dist/agentrunner-*-linux-x86_64.tar.gz)"
+          AR_ASSET_URL="file://$tarball" AR_HOME="$RUNNER_TEMP/ar-home" \
+            AR_BIN_DIR="$RUNNER_TEMP/ar-bin" sh install.sh
+          "$RUNNER_TEMP/ar-bin/ar" --version
+          "$RUNNER_TEMP/ar-bin/arwebui" -version
+
+      - name: Installer twin (upgrade / reinstall / sha256 / platform)
+        shell: bash
+        run: scripts/test-install.sh
+
+      - name: Stage stable-named assets
+        shell: bash
+        run: |
+          mkdir -p release
+          cp install.sh release/
+          cp dist/agentrunner-*.tar.gz dist/*.sha256 release/
+          # install.sh 依赖的稳定名副本（agentrunner-<target>.tar.gz）。
+          # 按 target 枚举而不是从文件名截取——版本号自身可含 '-'
+          # （git describe 的 v1.0.0-3-gabc123）。
+          for target in linux-x86_64 linux-arm64 macos-arm64 macos-x86_64; do
+            f=(dist/agentrunner-*-"$target".tar.gz)
+            cp "${f[0]}" "release/agentrunner-$target.tar.gz"
+            (cd release && sha256sum "agentrunner-$target.tar.gz" > "agentrunner-$target.tar.gz.sha256")
+          done
+          ls -lh release/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agentrunner-release
+          path: release/
+          retention-days: 7
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          fail_on_unmatched_files: true
+          generate_release_notes: true

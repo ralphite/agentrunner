@@ -45,4 +45,7 @@ go test $packages
   npm run build
 )
 
+# 安装器孪生:真 install.sh 打 file:// stub 产物(离线,INC-63 gate A)。
+scripts/test-install.sh
+
 echo "check.sh: all green"
