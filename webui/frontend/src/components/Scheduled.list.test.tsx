@@ -9,7 +9,7 @@ vi.mock("../api", async () => ({
   AR: new Proxy({}, { get: () => () => new Promise(() => {}) }),
 }));
 
-import { Scheduled, hasRhythm } from "./Scheduled";
+import { Scheduled, hasRhythm, isLimitStatus } from "./Scheduled";
 import { useStore } from "../store";
 import type { Run, Session } from "../types";
 
@@ -362,7 +362,19 @@ describe("a scheduled row can be acted on (SC-12)", () => {
     const menu = container.querySelector(".ctx-menu")!;
     expect(menu).toBeTruthy();
     const items = [...menu.querySelectorAll("[role='menuitem']")].map((e) => e.textContent);
-    expect(items).toEqual(["Pin", "Rename…", "Mark as unread", "Archive", "Session ID", "Task link"]);
+    // SC-17: the schedule's own lifecycle leads; the housekeeping follows. This
+    // row is healthy and idle between ticks, so there is nothing to resume and
+    // nothing to stop — but it can still be retried or closed.
+    expect(items).toEqual([
+      "Retry",
+      "Close…",
+      "Pin",
+      "Rename…",
+      "Mark as unread",
+      "Archive",
+      "Session ID",
+      "Task link",
+    ]);
   });
 
   it("offers Stop on a running run — the hub could not stop anything before", () => {
@@ -427,6 +439,140 @@ describe("a search hit is visible on the row it returns (SC-14)", () => {
     fireEvent.change(screen.getByLabelText("Search scheduled tasks"), { target: { value: "Every 30m" } });
     expect(container.querySelectorAll(".scheduled-row")).toHaveLength(1);
     expect(container.querySelector(".sched-project-chip")).toBeNull();
+  });
+});
+
+// SC-16 — the three terminal reasons that mean "I did exactly what you configured
+// and then stopped", plus one genuinely broken series as the control. friendlyStatus
+// files all three under cls "stranded" (right for the task header's banner, fatal
+// here), which is why this page judges the raw status word instead.
+const limitSessions: Session[] = [
+  {
+    id: "20250101-100000-iter",
+    status: "max_iterations",
+    turns: 8,
+    title: "Ran its configured 20 iterations",
+    workspace: "/repo/app",
+    kind: "driver",
+    schedule: "interval",
+    cadence: "Every 30m",
+  },
+  {
+    id: "20250101-090000-budget",
+    status: "limit_exceeded",
+    turns: 4,
+    title: "Spent its configured token budget",
+    workspace: "/repo/app",
+    kind: "driver",
+    schedule: "cron",
+    cadence: "Daily at 6:00 AM",
+  },
+  {
+    id: "20250101-080000-steps",
+    status: "max_generation_steps",
+    turns: 3,
+    title: "Hit its generation-step ceiling",
+    workspace: "/repo/app",
+    kind: "driver",
+    schedule: "self_paced",
+    cadence: "Self-paced",
+  },
+  {
+    id: "20250101-070000-stranded",
+    status: "stranded",
+    turns: 2,
+    title: "Genuinely broken: host died",
+    workspace: "/repo/app",
+    kind: "driver",
+    schedule: "interval",
+    cadence: "Every 30m",
+  },
+];
+
+const mountLimits = () => {
+  useStore.setState({
+    runs: [],
+    sessions: limitSessions,
+    sessionsReady: true,
+    unread: [],
+    archived: [],
+    pinned: [],
+    renames: {},
+  });
+  return render(<Scheduled />);
+};
+
+describe("a configured limit is a finish, not a failure (SC-16)", () => {
+  it("spends no alert colour on a series that stopped where you told it to", () => {
+    const { container } = mountLimits();
+    // Live before this rule: 3/3 rows amber with a WarningCircle, because
+    // friendlyStatus calls max_iterations "stranded". Exactly ONE row on this
+    // page is actually broken, and it is the only one allowed to say so.
+    expect(container.querySelectorAll(".sched-warn.is-stranded, .sched-warn.is-crash")).toHaveLength(2); // the glyph + the phrase of the ONE broken row
+    expect(screen.getByText("Needs recovery")).toBeTruthy();
+
+    expect(screen.queryByText("Iteration limit reached")).toBeNull();
+    expect(screen.queryByText("Budget limit reached")).toBeNull();
+    expect(screen.queryByText("Step limit reached")).toBeNull();
+
+    for (const title of ["Ran its configured 20 iterations", "Spent its configured token budget", "Hit its generation-step ceiling"]) {
+      const row = screen.getByText(title).closest(".scheduled-row")!;
+      expect(row.querySelector(".sched-warn")).toBeNull();
+      // …and it settles like every other finished row: an empty glyph slot, and
+      // a neutral "Ran 2d ago" where the alarm used to be.
+      expect(row.querySelector(".sched-blank")).toBeTruthy();
+      expect(row.querySelector(".sched-glyph")).toBeNull();
+      expect(row.querySelector(".sched-sub")!.textContent).toMatch(/Ran .+ ago/);
+    }
+  });
+
+  it("files a limit-reached series under Finished — it will never fire again", () => {
+    const { container } = mountLimits();
+    tab("Active");
+    // The whole Active tab used to be these rows (live: All=3 / Active=3 /
+    // Finished=0), which made the one honest question this screen answers —
+    // "is my background work still running?" — answer wrong.
+    expect(titles(container)).toEqual(["Genuinely broken: host died"]);
+
+    tab("Finished");
+    expect(titles(container)).toEqual([
+      "Ran its configured 20 iterations",
+      "Spent its configured token budget",
+      "Hit its generation-step ceiling",
+    ]);
+  });
+
+  it("offers no Resume on a limit row — there is nothing broken to recover", () => {
+    const { container } = mountLimits();
+    fireEvent.contextMenu(screen.getByText("Ran its configured 20 iterations").closest(".scheduled-row-wrap")!);
+    let items = [...container.querySelectorAll(".ctx-menu [role='menuitem']")].map((e) => e.textContent);
+    expect(items).not.toContain("Resume");
+    // A terminal row has no live conversation to retry or close either.
+    expect(items).not.toContain("Retry");
+    expect(items).not.toContain("Close…");
+
+    // The broken one does (SC-17).
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    fireEvent.contextMenu(screen.getByText("Genuinely broken: host died").closest(".scheduled-row-wrap")!);
+    items = [...container.querySelectorAll(".ctx-menu [role='menuitem']")].map((e) => e.textContent);
+    expect(items.slice(0, 3)).toEqual(["Resume", "Retry", "Close…"]);
+  });
+});
+
+describe("isLimitStatus", () => {
+  it("recognises every terminal reason that means 'configured limit reached'", () => {
+    expect(isLimitStatus("max_iterations")).toBe(true);
+    expect(isLimitStatus("max_generation_steps")).toBe(true);
+    expect(isLimitStatus("limit_exceeded")).toBe(true);
+    expect(isLimitStatus("budget_exhausted")).toBe(true);
+    expect(isLimitStatus("MAX_TOKENS")).toBe(true);
+  });
+
+  it("leaves the states that really are broken alone", () => {
+    expect(isLimitStatus("stranded")).toBe(false);
+    expect(isLimitStatus("crashed")).toBe(false);
+    expect(isLimitStatus("running")).toBe(false);
+    expect(isLimitStatus("")).toBe(false);
   });
 });
 

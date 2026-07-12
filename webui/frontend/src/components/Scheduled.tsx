@@ -92,6 +92,26 @@ const SETTLED_STATUS = new Set(["done", "closed", "stopped"]);
 // background tasks still alive?", so a dead one has to say so on screen.
 const ALERT_STATUS = new Set(["crash", "stranded"]);
 
+// SC-16 — a CONFIGURED LIMIT is not a malfunction. `friendlyStatus` files
+// max_iterations / max_generation_steps / budget under cls "stranded" (pill.ts),
+// which is right for the task header's terminal banner ("Iteration limit reached
+// — review the run before extending it") but catastrophic here: it painted a
+// driver that ran exactly the N iterations you asked for in the same amber, with
+// the same WarningCircle, as one whose host died mid-flight — and then filed it
+// under Active, a series that will never fire again. Live: 3/3 rows amber,
+// All=3 / Active=3 / Finished=0. Codex's list has zero alert colours; amber is a
+// scarce resource and three rows shouting is nobody shouting.
+//
+// So this page judges the RAW status word itself, before friendlyStatus collapses
+// it (the cls mapping stays untouched — SessionView depends on it). A limit row
+// is settled: no alert colour, no WarningCircle, an empty glyph slot and the
+// neutral "Ran 2d ago" sub-line every other finished row wears.
+const LIMIT_RE = /max_iterations|max_generation_steps|max_tokens|limit_exceeded|budget|step limit|token limit/i;
+
+export function isLimitStatus(raw: string): boolean {
+  return LIMIT_RE.test(raw || "");
+}
+
 // SC-11 — "Active" is a fact about the SERIES, not about this instant. Judging
 // it by "an iteration is executing right now" (cls run/appr) made the tab
 // structurally empty: a healthy `Every 30m` task is idle between ticks by
@@ -118,10 +138,13 @@ interface SchedRow {
   alert: string; // SC-10: "Failed" / "Needs recovery" — shown, not tooltipped
   project: string;
   workspace: string;
+  raw: string; // the daemon's own status word, before friendlyStatus collapses it
   meta: string; // the row's facts flattened (project included), for search
   status: { text: string; cls: string };
   active: boolean; // the series still has ticks coming / needs you (SC-11)
   running: boolean; // an iteration is executing right now — the only stoppable state
+  settled: boolean; // nothing more will happen: closed/done/stopped, or a limit (SC-16)
+  recover: boolean; // genuinely broken (crash/stranded) — Resume is the fix (SC-17)
   unread: boolean; // driver row with new activity you haven't opened (F2)
   sortTs: number;
   onClick: () => void;
@@ -180,6 +203,7 @@ export function Scheduled() {
     archived,
     toggleArchive,
     refreshRuns,
+    refreshSessions,
     toast,
   } = useStore();
   const [filter, setFilter] = useState<Filter>("all");
@@ -197,14 +221,23 @@ export function Scheduled() {
     // the row is judged by: whether the SERIES is still live (SC-11) and whether
     // it is broken and needs saying so (SC-10).
     const row = (
-      base: Omit<SchedRow, "when" | "isNext" | "meta" | "active" | "alert" | "title" | "running">,
+      base: Omit<
+        SchedRow,
+        "when" | "isNext" | "meta" | "active" | "alert" | "title" | "running" | "settled" | "recover"
+      >,
       nextRunAt: string | undefined,
       lastRan: Date | null,
     ): SchedRow => {
       const next = nextRunPhrase(nextRunAt);
       const ago = whenAgo(lastRan);
       const when = next || (ago ? `Ran ${ago}` : "");
-      const alert = ALERT_STATUS.has(base.status.cls) ? base.status.text : "";
+      // SC-16 — a series that stopped at a limit you configured is FINISHED, not
+      // broken: it wears no alert, it is not live, and it settles like any other
+      // completed row. Only a crash or a lost host earns the amber.
+      const limit = isLimitStatus(base.raw);
+      const recover = !limit && ALERT_STATUS.has(base.status.cls);
+      const settled = limit || SETTLED_STATUS.has(base.status.cls);
+      const alert = recover ? base.status.text : "";
       // SC-13 — a user rename is the row's name, full stop; otherwise the name is
       // derived from the prompt (first clause, no tooling tail, ≤48 chars). The
       // raw text survives in `full`: it is the tooltip, and it is what search
@@ -216,8 +249,13 @@ export function Scheduled() {
         when,
         isNext: !!next,
         alert,
-        active: seriesActive(base.status.cls, !!next),
+        // A settled row is only "active" if the server still dates a future tick
+        // for it (it does not, for a terminal series) — never because its cls
+        // happens to be spelled "stranded".
+        active: settled ? !!next : seriesActive(base.status.cls, !!next),
         running: base.status.cls === "run",
+        settled,
+        recover,
         // The alert phrase is searchable too — "needs recovery" should find the
         // rows that do. So is the full prompt (`full`), matched at the call site.
         meta: [base.cadence, alert, when, base.project].filter(Boolean).join(" · "),
@@ -240,6 +278,7 @@ export function Scheduled() {
             cadence: run.cadence || scheduleLabel(run.schedule),
             project: projectLabel(run.workspace),
             workspace: run.workspace || "",
+            raw: run.status || "",
             status,
             unread: false,
             sortTs: isNaN(ts) ? 0 : ts,
@@ -266,6 +305,7 @@ export function Scheduled() {
             cadence: s.cadence || scheduleLabel(s.schedule),
             project: projectLabel(s.workspace),
             workspace: s.workspace || "",
+            raw: s.status || "",
             status,
             unread: flagged.has(s.id),
             sortTs: d ? d.getTime() : 0,
@@ -324,6 +364,62 @@ export function Scheduled() {
     } catch (e: any) {
       toast(e.message);
     }
+  };
+
+  // SC-17 — the hub for long-running background work could DIAGNOSE a broken
+  // schedule ("Needs recovery", in amber, since SC-10) and then do nothing about
+  // it: every item in the row menu was housekeeping (pin / rename / archive /
+  // copy). The daemon calls that fix a series already exist and SessionView
+  // already makes them (AR.resume / retry / stopSession / closeSession); they
+  // were simply unreachable from the one screen that names the problem. Same call
+  // shapes as SessionView.tsx's `act`, plus a list refresh so the row's state
+  // catches up with what you just did to it.
+  //
+  // Deliberately NOT here: Codex's pause / run-now / delete-schedule. There is no
+  // daemon suspend/trigger/delete endpoint behind them, and a menu item that
+  // cannot do what it says is worse than one that is missing.
+  const act = {
+    resume: async (sid: string) => {
+      try {
+        await AR.resume(sid);
+        toast("resume sent", "info");
+        setTimeout(refreshSessions, 800);
+      } catch (e: any) {
+        toast(e.message);
+      }
+    },
+    retry: async (sid: string) => {
+      try {
+        await AR.retry(sid);
+        toast("retrying the last message as a new turn", "info");
+        setTimeout(refreshSessions, 800);
+      } catch (e: any) {
+        toast(e.message);
+      }
+    },
+    stop: async (sid: string) => {
+      try {
+        await AR.stopSession(sid);
+        toast("stop requested", "info");
+        setTimeout(refreshSessions, 800);
+      } catch (e: any) {
+        toast(e.message);
+      }
+    },
+    close: (sid: string) => {
+      openModal({
+        kind: "confirm",
+        title: "Close task?",
+        body: "This ends the schedule's conversation and marks it closed. Sending a new message later will reopen it.",
+        confirmLabel: "Close task",
+        danger: true,
+        onConfirm: async () => {
+          await AR.closeSession(sid);
+          toast("task closed", "info");
+          setTimeout(refreshSessions, 800);
+        },
+      });
+    },
   };
 
   return (
@@ -451,7 +547,11 @@ export function Scheduled() {
               // one hover away, so nothing is hidden — only unshouted.
               title={[r.full, `${r.cadence}${r.when ? ` · ${r.when}` : ""}`, r.project].filter(Boolean).join("\n")}
             >
-              {SETTLED_STATUS.has(r.status.cls) ? (
+              {/* SC-16: `settled` — not the cls — decides the empty slot, so a
+                  series that ran its configured N iterations reads like the
+                  finished thing it is instead of borrowing the amber of a driver
+                  whose host died. */}
+              {r.settled ? (
                 <span className="sched-blank" aria-hidden="true" />
               ) : (
                 <span
@@ -459,13 +559,15 @@ export function Scheduled() {
                   title={r.status.text}
                 >
                   {/* SC-10: a broken series gets its own glyph. Failed / needs
-                      recovery must not share the healthy row's gray ring. */}
+                      recovery must not share the healthy row's gray ring.
+                      SC-19: 17px — the gold standard's ring is 13.5px of ink; at
+                      20 ours was the heaviest mark in the column. */}
                   {r.alert ? (
-                    <WarningCircle size={20} weight="regular" />
+                    <WarningCircle size={17} weight="regular" />
                   ) : r.status.cls === "run" ? (
-                    <PlayCircle size={20} weight="regular" />
+                    <PlayCircle size={17} weight="regular" />
                   ) : (
-                    <Circle size={20} weight="regular" />
+                    <Circle size={17} weight="regular" />
                   )}
                 </span>
               )}
@@ -545,6 +647,25 @@ export function Scheduled() {
               a menu of no-ops is worse than no menu. */}
           {menuRow.kind === "session" ? (
             <>
+              {/* SC-17 — the actions that act on the SCHEDULE itself, above the
+                  housekeeping. Each one is offered only where it means something:
+                  Resume only to a series that is actually broken (a limit-reached
+                  row is finished, not stranded — SC-16), Stop only to one that is
+                  executing this second, Retry / Close only while there is still a
+                  live conversation to retry or close. */}
+              {menuRow.recover && <MenuItem onClick={() => void act.resume(menuRow.id)}>Resume</MenuItem>}
+              {menuRow.running && <MenuItem onClick={() => void act.stop(menuRow.id)}>Stop</MenuItem>}
+              {!menuRow.settled && <MenuItem onClick={() => void act.retry(menuRow.id)}>Retry</MenuItem>}
+              {!menuRow.settled && (
+                <MenuItem
+                  danger
+                  title="end this schedule's conversation and mark it closed; a later send reopens it"
+                  onClick={() => act.close(menuRow.id)}
+                >
+                  Close…
+                </MenuItem>
+              )}
+              <MenuLabel>Organize</MenuLabel>
               <MenuItem onClick={() => togglePin(menuRow.id)}>{pinned.includes(menuRow.id) ? "Unpin" : "Pin"}</MenuItem>
               <MenuItem onClick={() => openModal({ kind: "rename", sid: menuRow.id })}>Rename…</MenuItem>
               <MenuItem onClick={() => (unread.includes(menuRow.id) ? markRead(menuRow.id) : markUnread(menuRow.id))}>

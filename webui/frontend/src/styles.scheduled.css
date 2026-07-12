@@ -271,11 +271,13 @@
 
 /* SC-6 — a thin pill, not a panel. At 9px padding the field stood 40px tall with
    a fill and a border: heavier than the task rows it filters. Codex's is a ~26px
-   hairline pill that recedes until you use it. */
+   hairline pill that recedes until you use it.
+   SC-19 — 6px of padding still left it at 32px against the gold standard's ~27px;
+   4px lands it at ~28px, which is the last density gap on this screen. */
 .scheduled-page .sched-search {
   flex: 0 0 auto;
   width: 100%;
-  padding: 6px 14px;
+  padding: 4px 14px;
   border-radius: 999px;
   background: transparent;
 }
