@@ -1573,3 +1573,152 @@ commit/push 动作**只在有变更时才浮现**;`Worktree` 行**不存在**;`C
   10 条(`localStorage.clear is not a function`)——我本轮就被这个骗了一次。
   **后续正解(登记)**:cadence/next_run 应加进 `ar sessions list --json`(`internal/cli` + `internal/cron`),
   webui 那份镜像即可缩成读字段。
+
+## R 组 · 轮15 Codex 金标四屏并排新发现(2026-07-11)
+
+轮15 的第一步比对:4 个 finder 并发,分别把 live 8809 的 **Scheduled / 任务 thread /
+Diff-Changes / New-task home+sidebar** 与 `qa/codex-reference/` 的金标真像素图逐屏并排。
+截图存 `qa/runs/2026-07-11-round15/{scheduled,thread,diff,home}/`。
+**只登记「已有后端支撑」的 UI/UX 差距**;需要新后端集成的(真 pause/resume、staged/commit
+scope、行内 annotation、turn 级 diff、右栏 Background processes/Browser/Sources、后端生成
+短标题)一律 out-of-scope,未登记。
+
+### RD-1 ✅ 大 diff 的「全局折叠」让 Changes 打开后一行代码都看不到 [P0]
+**behavior**:`diffSummary.ts:409` `shouldExpandDiffByDefault` 是**全局**判据(最大文件 >500 行
+→ **整个 review** 全折)。实测 `create a todo app` 会话 3 文件:只因 `package-lock.json` 有 1284
+行,`package.json`(+12) 与 `server.js`(+110) 也被一起折成裸文件头 → **打开 Changes 看到三条横杠、
+零行代码**。Codex 永远直接显示代码,靠 unmodified 折叠带控体量,从不把整个 review 折成文件名列表。
+**证据**:`qa/runs/2026-07-11-round15/diff/light-1440x900-ff36-C1-open.png`
+**刻意核查**:`f2f1932` 的注释自己声明目标是 "so 'Open Changes' shows CODE, not bare file
+headers" —— 意图对、**粒度错**,非刻意 → 判据下沉到单文件。
+
+### RD-2 ✅ 文件尾部(最后一个 hunk → EOF)没有 unmodified 折叠带 [P0]
+**behavior**:`diffSummary.ts:101` `hunkGaps` 只算「每个 hunk 之前」的 gap,`DiffView.tsx:711`
+的 band 也只在 `r.kind === "hunk"` 分支渲染 → 文件尾部区域**没有任何展开入口**。Codex 每个文件段尾
+有 `⌄ N unmodified lines`,可一路展到 EOF。折叠功能只做了上半场(`251f986` commit message 自陈
+范围是 "before the first hunk and between hunks")。
+**证据**:`qa/runs/2026-07-11-round15/diff/light-1440x900-5849-B3-eof-no-trailing-band.png`
+
+### RD-3 ✅ html/xml 无语法高亮 [P1]
+**behavior**:`diffSummary.ts:246` 的 `EXT_LANG` 缺 html/xml → `dist/index.html` 的 diff 整片纯黑,
+紧邻的 `.js` 满屏彩色。webui 自己的 diff 里 html 是高频文件。
+**证据**:`qa/runs/2026-07-11-round15/diff/light-1440x900-5849-B2-band-expanded.png`
+
+### RD-4 ✅ leading band 的 caret 方向反了 + 零值计数被隐藏 + 文件头计数被顶到最右 [P2]
+`DiffView.tsx:653` leading band 用 `CaretDown`(应 `CaretUp`,caret 指向被隐藏内容的方向);
+`DiffView.tsx:568` 的 `add > 0 &&` 守卫让纯删除文件只显示 `−176`(Codex `+0 -176`,且同 app 的
+`ChangesOutcome` 本来就无条件渲染两个数,自相矛盾);`styles.css:1631` `.fd-path{flex:1}` 把 `+/-`
+顶到面板另一端(Codex 是 `docs/DESIGN.md +8 -4` 紧贴文件名)。
+
+### RT-1 ✅ assistant 产出的图片/截图在 thread 里完全不渲染 [P0]
+**behavior**:Codex thread 把产出的截图**内联成缩略图**渲染进答案正文(单图/多图栅格),点开进
+lightbox。我们三条路径全断:①`Markdown.tsx:101` 的 components map **没有 `img` renderer**,CSS 里
+零条 `.md img` 规则 → `![](qa/shot.png)` 出 404 破图且无宽度约束;②`ChangesOutcome.tsx:11` 的
+`DOC_KIND` 只认文档扩展名,`.png/.jpg` 掉进 "Edited N files" 纯文本行;③`Lightbox.tsx` 存在但 thread
+里只有 `Thumbs` 能触发。
+**后端已齐**:`GET /api/sessions/{sid}/file?path=…`(`webui/meta.go:331` / `AR.fileURL`)已能按正确
+content-type 吐 workspace 任意文件(`ArtifactRow` 已在用)。**零后端改动。**
+
+### RT-2 ✅ Edited-files 卡与 artifact 卡左缘错位 34px [P1]
+`styles.css:2829` `.changes-outcome{margin:16px 0 12px 34px}` 是**头像栏时代的遗留**(assistant
+avatar 早已删)。实测 artifact 卡左缘 x=505(对齐正文),Edited-files 卡 x=553。Codex 两者与正文列
+逐像素对齐。**证据**:`qa/runs/2026-07-11-round15/thread/changecard-dark-1440.png`
+
+### RT-3 ✅ 消息操作行常驻显示,Codex 是 hover 才浮现;内部工具名泄漏成活动行 [P2]
+`styles.css:2672` `.assistant .msg-actions{opacity:.62}` → 每条 assistant 消息下常驻三图标+时间戳
+(Codex 只在 hover 的消息末尾浮现)。`Timeline.tsx:196` `toolLabel` 的 default 分支把原始 tool name
+当 verb → 折叠展开后出现裸的 `✓ goal_status` 行;Codex 的活动行从不出现内部标识符。
+
+### RT-4 ☐ 审批密集的 turn 在 timeline 里碎成「Approved / Worked · 1 step」阶梯 [P0]
+**behavior**:Codex 一个 turn = **一条** `Worked for 1h 37m 40s ›` 折叠行,审批结果不作为顶层气泡
+重复出现。我们:顶层出现 4 组 `Approved` 绿 chip + `Worked · 1 step ›` 垂直堆成阶梯,一个 9 步 turn
+占 4 屏。**根因**:`timeline.ts:257` `foldable(it) && (it.kind === "tool" || finalAhead[i])` —— turn
+未结算时 `finalAhead=false`,每个 work chip 都 `flush()` + 顶层输出,把一个 turn 的 fold 切成 N 段;
+`Timeline.tsx:617` 的 `ActivityGroup` 只聚合**连续** tool,被 chip 一隔就退化成裸行,`Ran commands ×3`
+这类聚合标签永远不出现。
+**动作**:foldable chip 在 turn 未结算时也留在 `buf`(只对「答案之后」的审计 chip 保留顶层);
+`ActivityGroup` 分组时跳过 chip。零后端改动。**轮15 因时间窗未派,列为下轮首选。**
+**证据**:`qa/runs/2026-07-11-round15/thread/rich-workedfold-open-light-1440.png`
+
+### RT-5 ☐ 原始 provider 错误串直接当红 chip 抛给用户 [P1]
+`timeline.ts:416` `workChip(seq, "activity failed: " + msg, "bad")` 把
+`activity failed: provider_server: model returned an empty message (truncated at token cap…)`
+原样贴脸。Codex 是**内联 banner + 人话 + 可执行出口**。`SessionView.tsx:791` 已有 `terminal-alert`
+组件与样式,`AR.retry`(`POST /api/sessions/{sid}/retry`)后端已在 → 映射常见 provider 错误到人话 +
+retry 按钮。零后端改动。
+
+### RT-6 ☐ 用户附件图片刷新后退化成 "×N attached" 文本 [P1]
+`Timeline.tsx:798` 只有 `sentImages`(内存 Map,仅本 tab 本次发送)能出缩略图,否则渲染
+`×N attached`;`timeline.ts:357` 只取了 `p.images.length`,**refs 就在手里没用**。数据 durable:
+`input_received.payload.images[] = [{ref:"sha256-…"}]`,blob 实存于 `sessions/<sid>/artifacts/blobs/`。
+缺的只是一条 webui ServeFile 路由(与 `handleServeUpload` 同形,`webui/api.go:659`,约 10 行,
+**不碰 daemon/CLI**)。
+
+### RT-7 ☐ 坏 deep-link 渲染成「假的空会话」而不是 Not found [P1]
+`SessionView.tsx:40` 的 `isSessionNotFound` 只认 `404 || code==='session_not_found'`;非法 sid 走的是
+**400** → 落进「瞬时错误」分支 → 永远轮询 + 渲染出一个可输入的空会话(标题还把 sid 拆成词)。
+`SessionNotFound` 组件已存在,只需把 400/无法解析的 sid 也归到 not-found。
+**证据**:`qa/runs/2026-07-11-round15/thread/bug-bad-deeplink-fake-empty.png`
+
+### RS-1 ✅ Scheduled 行标题不截断,整个列表失去节奏 [P0]
+**behavior**:Codex 行标题恒为**单行**,行高一致,两行结构(title/sub-line)严格对齐,列表可垂直
+扫读。我们把**原始 prompt 全文**当标题:1440 下换行 2 行,390 下换行 **4 行**,行高从 68px 膨胀到
+150px+,cadence/next-run 被埋没。根因:只有 sub-line 的 `span` 有 nowrap/ellipsis,`.scheduled-copy b`
+(`styles.css:3465`)没有。
+**证据**:`qa/runs/2026-07-11-round15/scheduled/live-scheduled-light-390x844.png`
+
+### RS-2 ✅ 标题左缘参差 13px(去 glyph 改造留下的回归) [P1]
+实测标题起始 x:有 glyph 的活跃行 449px vs settled 行 436px。`.sched-glyph` 宽 20px
+(`styles.scheduled.css:14`)但占位的 `.sched-blank` 只有 **7px**(`styles.nav.css:395`)——还是老
+「7px 圆点」时代的尺寸,`7c78d64` 去 glyph 时没跟着放大。**非刻意,是回归。**
+
+### RS-3 ✅ 每行都有分隔线(表格感)+ 未读点在行首 + 工具条挤成一行 + 重型分段控件 [P1]
+Codex:任务行之间**无分隔线**(靠留白分组,只有列表末尾一条线分隔 Suggestions);未读蓝点在行
+**最右端**(左列专职状态、右端专职「有新东西」);搜索框**独占整行**、筛选行另起一行(左 tabs /
+右 `✓ Mark all as read`);tabs 是**裸文字**、无外框无底色。
+我们:每行 `border-bottom` → 满屏横线像日志转储;蓝点挤在行首状态列左边(还多吃 8px 缩进,是标题
+左缘偏移的第二个来源);`.sched-toolbar` 单行 flex 把搜索框挤到左半边,`Mark all as read` 出现/消失
+还顶动 tabs;`.sched-tabs` 是带 border+背景+box-shadow 的 iOS 式分段控件,被抬成页面第二重元素。
+
+### RH-1 ✅ 首页标题与 project chip 互相矛盾,用户会把任务发错地方 [P0]
+**behavior**:冷启动实测 —— 标题 `What should we build in cx3-ws?`,而 composer chip 显示
+`Select project`,project 菜单的 ✓ 打在 **"Don't work in a project"** 上。两条独立数据源:标题来自
+`Home.tsx:109` 的「最近一个非 Scratch 会话」兜底,composer 的实际工作区是 `Composer.tsx:182
+useState("")`。**用户照标题的字面意思发出去,任务其实跑在无项目的 scratch 里——标题在撒谎。**
+Codex 的 chip 与标题指同一个 repo,且默认已选中上次的 repo,打开即可直接发任务。
+**证据**:`qa/runs/2026-07-11-round15/home/home-light-desktop.png` + `project-menu-light.png`
+
+### RH-2 ✅ 建议卡行与 composer 不是同一列 [P2]
+1440 实测:composer `x=316 w=1100`,卡片行 `x=424 w=884`(`styles.home.css:38` `.home-empty
+{max-width:900px}`)。两者同心但边缘差 108px,卡片视觉上「浮」在 composer 里面。Codex 的 4 张卡与
+composer 卡左右边缘**逐像素对齐**。(修 `.home-empty` 宽度,**不缩 composer**——钉底大输入框是
+QA-45 刻意决策。)
+
+### RH-3 ☐ 命令面板的 ⌘1..9 徽标实际永远看不见 [P1]
+`CommandPalette.tsx:72` `quickNum: attention ? undefined : i+1` —— 本机 9 条 quickSwitchTasks 全是
+attention,于是**整个面板一个徽标都没有**,`Tasks` 组根本不出现;可 ⌘1 仍绑到第一条 attention 任务
+(`App.tsx:119`),即「能按、但没告诉你能按」。Codex(`codex-crop-command-palette.jpg`)的 Tasks 组
+前 9 行每行都有 ⌘1…⌘9 徽标(有未读蓝点的行照样带),溢出的未读另开 `Unread tasks` 组。
+
+### RH-4 ☐ 「New task」没有快捷键、nav 行没有 ⌘N 徽标 [P1]
+`shortcuts.ts:48` 的 Global 组没有 New task,`App.tsx` 全局键也没有 `n` 分支 → 开新任务只能鼠标点。
+Codex 的 New task 行尾常驻 `⌘N` 徽标。(需 `App.tsx` + `shortcuts.ts` + `Sidebar.tsx`,与轮15 的
+implementer 白名单冲突 → 下轮做。)
+
+### RH-5 ☐ sidebar 放大镜打开的是内联过滤框,不是 ⌘K 命令面板 [P2]
+`Sidebar.tsx:219` 的放大镜 toggle 出一条内联 `side-search` 过滤条,与 ⌘K 面板并存 → 两套搜索,⌘K 的
+发现性被稀释。Codex 的 sidebar 放大镜**就是** ⌘K 面板(单一搜索入口)。
+
+### RX 组 · 轮15 判 ✂ / out-of-scope(不做,附理由)
+- ✂ **首页居中 hero**:QA-45 供图定的底部钉底大输入框(`styles.css:4039` 注释),不动。
+- ✂ **sidebar 行距比 Codex 松**(我们 38px pitch,Codex ~25px):`ecc95e7` 明写 "airier sidebar",刻意。
+- ✂ **settled 行不画状态 glyph**:`Scheduled.tsx:47` 注释 + `7c78d64`,刻意。
+- ✂ **流式 token 被隐藏成呼吸的 "Thinking"**:`styles.conv.css:515`(INC-41 A4)刻意,且 REF §3 记录
+  Codex 流式态确实显示 `Thinking` 灰字。
+- ✂ **👍/👎 缺失**:`Timeline.tsx:107` 注释——没有 feedback endpoint,接了就是死控件。
+- ✂ **session composer 没有 chips 行**:核对金标,Codex 的 **thread** composer 同样没有 chips
+  (chips 只属于 Home 的 composer)。**无差距**,我们已一致。
+- ✂ **大 diff 折叠的性能意图**(`f2f1932` "responsive under real load"):保留,RD-1 只动粒度。
+- ⊘ out-of-scope(需新后端):真 pause/resume;diff 的 Staged / Commit▸ / Branch scope;行内
+  annotation;turn 级作用域 diff;右栏 Background processes / Browser / Sources;后端生成的人类可读
+  短标题;GitHub PR / 插件 / 站点托管。
