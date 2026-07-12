@@ -3103,3 +3103,25 @@ max-height 对齐行高格点。touches:`styles.nav.css`。
   webui 只认 `#<id>` / `#/s/<id>`,是**脚本的错不是产品的错**,已纠正并同步给三个子 agent。
   **下轮首选**:HM-8(P1,home hero 标题 30px vs 金标 23px,轮31 卡片瘦身后它独自大一号)+ SC-22(P1,
   Scheduled 整页大一号)+ TH-16(P2,系统 chip 裸浮在消息之间)。
+
+- 2026-07-12 轮34:比对 3 屏(home/scheduled/diff × light|dark × 1440|390)、关差距 **4 条(2 P1)**:
+  **SC-22**(P1,Scheduled 整页大一号 → 行 68→**54px**、页标题 28→**23px**、段标题 19→**15px**、建议行
+  ~65→**54px**;行高不是砍字号买的,是 leading 1.55→1.35/1.4 + padding 12→9px,字号/省略号/颜色一个没动)
+  + **HM-8**(P1,home 问候语 30px/500 → **23px/400**,`413px/31字=13.3 px/char` → **309px/31字=9.97**,金标 10.0;
+  390 档 25→20px;卡片/composer/钉底一律未动)+ **RD-12**(review 终于有了「这次改了哪些文件」的入口:
+  放大镜过滤 popover **1:1 升级**成文件列表 popover(`TreeStructure`),13/13 文件带 `M/A/D + 路径 + +N −M`、
+  点击滚过去并展开(顺带修好 TH-5 的落点被 sticky 工具栏盖住)、过滤语义保留且**从筛过的列表点文件不清 query**;
+  `12 generated files hidden` 从 review **第一行**降为 popover 底部注脚 → 第一行现在是第一个文件头;
+  常驻控件数**不增**、1440/1024 `.diffbar` 溢出仍 0、✕ 仍在面板内)。
+  派工 3 implementer(并发,worktree 隔离,白名单互斥:`Scheduled.tsx`+`styles.scheduled.css`+`styles.css`3721–3739 /
+  `styles.home.css`+`components/Home.tsx` / `DiffView.tsx`+`styles.rs.css`);push `3b07a87`+`acbbf3e` → `6bf7086`+`beb630b`
+  → `eec680c`+`7f8a719`(落一个推一个);live=`index-B5S9YBbI.js`;vitest **447/447**;三屏 × light/dark ×
+  1440/390 稳态 console error+warning = **0**。截图 `qa/runs/2026-07-12-r34/{before,after,after-sc22,after-hm8,after-rd1112}/`。
+  **本轮一处诚实翻案:RD-11 是个假差距 —— 撤回,零改动标 ✅**。原报告称 `.fd-head` 背景 srgb(0.962) 灰带;
+  主线与 implementer 双向复验:**静息态 13 个文件头全是 `rgb(255,255,255)`,与 `.diffbar` 逐位相同**,0.962 只在
+  `summary.fd-head:hover`(`color-mix(--ink 4%, --panel)`)出现。finder 当时的探针把鼠标留在了面板上,量到的是
+  hover 态。**教训写进纪律**:量 computed style 前必须 `mouse.move(5,5)` 移出 + 阳性对照,否则 hover/focus 态
+  会被误读成常态(与已有的「playwright sync sleep 不 dispatch 事件」同类)。
+  **下轮首选**:TH-16(P2,系统 chip 裸浮在消息之间,金标 thread 里一枚都没有——live 实测 4 枚)+ RD-10(P2,
+  hunk 分隔条是 review 里唯一一块饱和蓝,且与灰折叠带信息重复;`styles.css` 本轮被 SC-22 占用故让路)+
+  TH-17/TH-19。
