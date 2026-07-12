@@ -1242,6 +1242,24 @@ Codex 看起来像「这就是一个 review 工作台」。**为什么 Codex 更
 **关闭动作**:`Timeline.tsx` 折叠头一律渲染时长(缺时长时从 turn 首尾事件时间戳算,再不济退回步骤数
 `N steps`);压缩 `Approved`/`Worked` 行之间的垂直节奏,让 thread 密起来。
 
+### CX-3 ☐ Scheduled 每行不显示 cadence 与 next run —— 看不出「下次什么时候跑」[P1·跨层]
+**Codex 怎样**(`codex-scheduled.jpg`):每行副标题就是 **cadence + next run** ——
+`Weekly status update draft` / **`Saturdays at 4:00 AM · Next run in 1 week`**;`cloc` / **`Daily at 6:00 AM`**。
+外加底部 **Suggestions** 分区(3 张彩色图标建议:Daily brief / Weekly review / Follow-up monitor)与
+「✓ Mark all as read」。
+**我们怎样**(`qa/runs/2026-07-11-parity-r12/scheduled-light-1440.png`):行副标题是
+`Goal · drvmcp · 1d ago` / `Best of N · drvbon · 1d ago` —— 只有**调度类型 · 项目 · 上次启动**,
+**没有 cadence、没有 next run**。
+**差在哪**:Scheduled 页的立身之本就是回答「这东西下次什么时候跑」。我们一个字都没答。用户盯着
+27 条「Paused」却看不出任何一条的节律。
+**为什么 Codex 更好**:cadence + next-run 是**唯一**能让 Scheduled 页区别于普通任务列表的信息。
+**根因(已查证,不是前端偷懒)**:`Scheduled.tsx:72-75` 的注释诚实写着 "We have no cron/next-run
+contract";`viewModels.ts:159 scheduleLabel()` 只能把 `schedule` 字段翻成 `Repeating`/`Scheduled`/
+`Best of N`/`Goal` —— **API 根本没吐 cadence 表达式与下次触发时间**。
+**关闭动作(跨层,须走 PROCESS 增量流程)**:daemon/CLI 暴露 driver 的调度规格(interval 秒数 / cron
+表达式)与 `next_run_at` → webui API 透传 → 前端把行副标题换成 `<cadence> · Next run in <相对时间>`。
+**⚠️ 这条要动后端契约,下轮开工前先写三层 delta,不要直接派前端 implementer。**
+
 ### ✂ 轮12 比对中主动排除的假阳性(**别派 implementer 去改**)
 - **✂ sidebar 缺 `Pinned` 分区** —— 查证 `Sidebar.tsx:276-279` + `store.ts:73` + `viewModels.ts:228`:
   Pinned **已完整实现**(pin 按钮、右键菜单 Pin/Unpin、localStorage 持久化、置顶分区),只是当前
