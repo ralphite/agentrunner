@@ -936,7 +936,7 @@ export function Composer(props: ComposerProps) {
           <Popover
             align="left"
             trigger={(open, toggle) => (
-              <button className={"cx-env-control project" + (open ? " active" : "")} onClick={toggle} title="Select project">
+              <button className={"cx-env-control project" + (open ? " active" : "")} onClick={toggle} title="Select project" aria-haspopup="menu" aria-expanded={open}>
                 <FolderIcon />
                 <span className="cx-env-value min-w-0 overflow-hidden text-ellipsis">{ws ? wsShort : "Select project"}</span>
                 <Caret />
@@ -1003,7 +1003,7 @@ export function Composer(props: ComposerProps) {
           <Popover
             align="left"
             trigger={(open, toggle) => (
-              <button className={"cx-env-control" + (open ? " active" : "")} onClick={toggle} title="Choose where this task runs">
+              <button className={"cx-env-control" + (open ? " active" : "")} onClick={toggle} title="Choose where this task runs" aria-haspopup="menu" aria-expanded={open}>
                 {runLocation === "local" ? <Desktop size={16} /> : <GitBranch size={16} />}
                 <span className="cx-env-value min-w-0 overflow-hidden text-ellipsis">{runLocation === "local" ? "Local" : "New worktree"}</span>
                 <Caret />
@@ -1030,7 +1030,7 @@ export function Composer(props: ComposerProps) {
           <Popover
             align="left"
             trigger={(open, toggle) => (
-              <button className={"cx-env-control" + (open ? " active" : "")} onClick={toggle} title="Select local environment">
+              <button className={"cx-env-control" + (open ? " active" : "")} onClick={toggle} title="Select local environment" aria-haspopup="menu" aria-expanded={open}>
                 <Code size={16} />
                 <span className="cx-env-value min-w-0 overflow-hidden text-ellipsis">No environment</span>
                 <Caret />
@@ -1057,7 +1057,7 @@ export function Composer(props: ComposerProps) {
               }).catch(() => {});
             }}
             trigger={(open, toggle) => (
-              <button className={"cx-env-control branch" + (open ? " active" : "")} onClick={toggle} title={branchInfo?.isRepo ? "Choose starting branch" : "No Git branch available"} disabled={!branchInfo?.isRepo}>
+              <button className={"cx-env-control branch" + (open ? " active" : "")} onClick={toggle} title={branchInfo?.isRepo ? "Choose starting branch" : "No Git branch available"} disabled={!branchInfo?.isRepo} aria-haspopup="menu" aria-expanded={open}>
                 <BranchIcon />
                 <span className="cx-env-value min-w-0 overflow-hidden text-ellipsis">{branchLabel}</span>
                 {branchInfo?.isRepo && <Caret />}
@@ -1195,7 +1195,7 @@ export function Composer(props: ComposerProps) {
             align="left"
             panelClass="cx-pop-codex"
             trigger={(open, toggle) => (
-              <button className={"cx-icon" + (open ? " active" : "")} onClick={toggle} title="Add & task options" aria-label="Add and task options">
+              <button className={"cx-icon" + (open ? " active" : "")} onClick={toggle} title="Add & task options" aria-label="Add and task options" aria-haspopup="menu" aria-expanded={open}>
                 <PlusIcon />
               </button>
             )}
@@ -1244,6 +1244,8 @@ export function Composer(props: ComposerProps) {
                 <button
                   className={"cx-pill cx-mode " + (sessionAccess?.risk || "unknown") + (open ? " active" : "")}
                   onClick={toggle}
+                  aria-haspopup="menu"
+                  aria-expanded={open}
                   title={
                     sessionAccess
                       ? "The session's live approval mode — click to switch Ask ↔ Auto-accept edits"
@@ -1289,7 +1291,7 @@ export function Composer(props: ComposerProps) {
               align="left"
               panelClass="cx-pop-codex"
               trigger={(open, toggle) => (
-                <button className={"cx-pill cx-mode " + (accessLevel?.risk || "low") + (open ? " active" : "")} onClick={toggle} title="How the agent's actions are approved">
+                <button className={"cx-pill cx-mode " + (accessLevel?.risk || "low") + (open ? " active" : "")} onClick={toggle} title="How the agent's actions are approved" aria-haspopup="menu" aria-expanded={open}>
                   {riskDot(accessLevel?.risk || "low")}
                   {accessLevel?.label}
                   <Caret />
@@ -1323,7 +1325,7 @@ export function Composer(props: ComposerProps) {
             align="right"
             panelClass="cx-pop-codex"
             trigger={(open, toggle) => (
-              <button className={"cx-pill cx-model" + (open ? " active" : "")} onClick={toggle} title="Model & reasoning effort">
+              <button className={"cx-pill cx-model" + (open ? " active" : "")} onClick={toggle} title="Model & reasoning effort" aria-haspopup="menu" aria-expanded={open}>
                 <ModelIcon provider={provider} />
                 {modelLabel}
                 {effort !== "off" && <span className="cx-pill-sub">{effortLevel.label}</span>}
