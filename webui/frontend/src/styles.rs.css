@@ -183,17 +183,37 @@ html body {
    lines are scrolled (or soft-wrapped via Wrap), never hard-clipped.
    Fix: `.dls` collapses to `display: contents` so all rows share the *body's*
    grid (columns therefore still line up across rows — a per-row `max-content`
-   would give every row a different divider position), and the code tracks become
-   `minmax(max-content, 1fr)`: they fill the panel when the code is short and
-   push past it when it isn't, which is exactly what `.fd-body`'s existing
-   horizontal scrollbar is there to scroll. Wrap mode puts the tracks back to
-   `minmax(0, 1fr)` (styles.diff.css), since max-content ignores soft wrapping. */
+   would give every row a different divider position), and the code tracks became
+   `minmax(max-content, 1fr)`.
+
+   INC-41 RD-9 · …and `max-content` was the wrong half of that fix. A grid track
+   sized to the longest line in the file is sized to the *longest line in the
+   file*: on a diff touching `dist/assets/index-*.css` the tracks measured
+   `63.1px | 16px | 63.1px | 943464px` (before.json in
+   qa/runs/2026-07-12-r33/after-rd89/) — one 943,464px column, and with the
+   container 658px wide there is no free space left for the other `1fr` to claim,
+   so it collapsed to its 16px minimum. The new side was 16px of a column that
+   started ~500px *past the panel's right edge*: in split view, of the 19 added
+   rows on screen, exactly 0 were inside the panel. Split view was showing the
+   old file and nothing else — the one thing a side-by-side diff exists to do,
+   not done.
+
+   So: `minmax(0, 1fr)`. Two equal halves that always add up to the panel, at
+   every width, whatever the longest line happens to be — which is also what
+   Wrap mode has always used (styles.diff.css), and what the *inline* view's
+   `.dl` grid uses (`minmax(0, 1fr)`, below). A line longer than its half is
+   clipped with an ellipsis rather than dragged into a horizontal scroll that
+   dragged the other column off the panel with it, and Wrap — one click away,
+   and still on the bar — unfolds it in place. RVW-2's rule ("long lines are
+   scrolled or wrapped, never silently hard-clipped") is kept by the ellipsis
+   plus Wrap; what it loses is the ability to take the entire right column
+   hostage. */
 .diffwrap .fd-split {
   display: grid;
   /* RV-4 · same 5-digit gutter + 19.5px row as the inline view. */
   grid-template-columns:
-    calc(5ch + 27px) minmax(max-content, 1fr)
-    calc(5ch + 27px) minmax(max-content, 1fr);
+    calc(5ch + 27px) minmax(0, 1fr)
+    calc(5ch + 27px) minmax(0, 1fr);
   line-height: 1.625;
 }
 .dls {
@@ -202,7 +222,14 @@ html body {
 .dls-half {
   white-space: pre;
   padding: 0 12px 0 4px;
+  /* RD-9 · `min-width: 0` so a long line can never push its track past the 1fr
+     share above (a grid item's automatic minimum size is its min-content size,
+     which for `white-space: pre` is the whole line); the ellipsis then says that
+     the line continues, instead of cutting it mid-token in silence. Both go
+     inert in Wrap mode, where the line has somewhere to go. */
+  min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
 .dls-half + .dl-no {
   border-left: 1px solid var(--line);
@@ -828,6 +855,31 @@ html body {
   padding: 0;
   color: var(--ink-2);
   flex-shrink: 0;
+}
+
+/* INC-41 RD-8 · the ✕ is the panel's only exit. It is the last child of the bar
+   and it is nailed to its 28px: never shrunk, never wrapped, never the thing
+   that pays for a control that arrived after it. (DiffView sheds Copy, Wrap and
+   the split toggle into `…` below BAR_TIGHT_PX precisely so that this rule never
+   has to be tested — but a bar that overflows anyway must overflow through
+   something the user is not trying to click.) */
+.diffwrap .diffbar .diff-closebtn {
+  flex: 0 0 auto;
+  order: 1; /* last in the row whatever the source order ends up being */
+}
+/* …and the last-resort valve. Every other control on this bar is `flex: 0 0
+   auto` (styles.css), so if the row somehow still exceeds the panel — a huge
+   `+12,345 −6,789`, a long branch name, a future resident — the scope trigger is
+   the one thing allowed to give way, ellipsizing its label rather than letting
+   the row push its own exit off the edge. `:has()` because the flex item is the
+   Popover's wrapper, not the trigger inside it. */
+.diffwrap .diffbar > .pop-wrap:has(> .diff-scope-trigger) {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.diffwrap .diffbar .diff-scope-trigger {
+  min-width: 0;
+  overflow: hidden;
 }
 
 /* Commit-or-push → outlined ghost (not solid primary): a leading commit glyph,

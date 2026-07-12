@@ -115,11 +115,11 @@ const saveScope = (s: DiffScope) => {
   }
 };
 
-// INC-41 DIFF-CP · the bar is "tight" below this width, and two of its residents
-// stand down. Measured on the *bar*, not the window: this panel is the session's
-// main column, and its width moves with the sidebar and the right rail as well
-// as the viewport. (At a 1100px window it is 415px wide — a media query cannot
-// see that, which is how the two bugs below survived.)
+// INC-41 DIFF-CP / RD-8 · the bar is "tight" below this width, and its secondary
+// residents stand down. Measured on the *bar*, not the window: this panel is the
+// session's main column, and its width moves with the sidebar and the right rail
+// as well as the viewport. (At a 1024px window it is 339px wide — a media query
+// cannot see that, which is how the bugs below survived.)
 //
 //  1 · Commit-or-push drops its label for its glyph. It never leaves: a main
 //      action you have to go looking for is the gap DIFF-CP closes.
@@ -127,11 +127,23 @@ const saveScope = (s: DiffScope) => {
 //      which is D4's own rule ("split needs room"), finally applied to the box
 //      that needs the room. It was keyed to a `max-width: 900px` *window*, so at
 //      a 1100px window it still offered split view for a 415px panel: two ~190px
-//      columns of code. That 58px toggle was also the width the resident commit
-//      button needed. The bar it left behind is narrower than main's at every
-//      width we measured (qa/runs/2026-07-12-r32/after-diffcp/ba.py), so DF-1's
-//      one-row contract comes out of DIFF-CP stronger, not weaker.
-const BAR_TIGHT_PX = 600;
+//      columns of code.
+//  3 · RD-8 · Copy and Wrap follow them — into the `…` menu, where they are
+//      still one click away rather than gone. DIFF-CP stopped one control short:
+//      with the resident Commit pill back on the bar (150px that never shrinks),
+//      a 339px panel still needed 367px, so the bar overflowed by 28px and the
+//      thing hanging off the end was the ✕ — measured at x=1051.9 against a panel
+//      whose right edge is 1024 (qa/runs/2026-07-12-r33/after-rd89/before.json).
+//      The user could read the diff and not close it. Every control on this bar
+//      is `flex: 0 0 auto` (styles.css), so flexbox does not solve this for us:
+//      the row has to be *short enough*, which means the low-frequency controls
+//      have to leave it. The ✕ is last and unshrinkable, always.
+//
+// 640, not 600: the panel at a 1152px window is 467px and at 1280 it is 568px —
+// both already tight in every practical sense, and the extra 40px of margin is
+// what keeps a wider `+1,234 −5,678` summary or a longer branch chip from
+// walking the bar back over its own edge.
+const BAR_TIGHT_PX = 640;
 
 // FileHead is the one file header in the review — Codex has exactly one kind of
 // changed-file card, and after DF-3 so do we: tracked edits and untracked new
@@ -542,9 +554,14 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
   // that used to sit above it (`.changes-panel-head`) was a second copy of the
   // topbar's `Changes` pill, so it's gone and its ✕ moved here — Codex's review
   // rail likewise opens straight onto the diff under a single toolbar.
+  //
+  // INC-41 RD-8 · it is also the panel's only exit, so it is the *last* thing on
+  // the bar and the one control that may never be shrunk, wrapped or pushed off
+  // the edge (`.diff-closebtn`, styles.rs.css). Everything above it that could
+  // cost it its 28px stands down first.
   const closeBtn = onClose ? (
     <button
-      className="sm ghost diff-iconbtn"
+      className="sm ghost diff-iconbtn diff-closebtn"
       onClick={onClose}
       aria-label="Close changes"
       title="Close changes (back to the conversation)"
@@ -758,6 +775,33 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
                   }}
                 />
               )}
+              {/* RD-8 · on a tight bar these two are here instead of out there.
+                  Same actions, same wording, same state — a demotion, not a
+                  deletion: the bar sheds exactly the width it needs to keep its
+                  ✕ inside the panel, and nothing the user could do at 1440 has
+                  become impossible at 1024. */}
+              {barTight && !empty && (
+                <PopItem
+                  icon={wrap ? <TextAlignLeft size={15} /> : <ArrowsHorizontal size={15} />}
+                  title={wrap ? "Disable line wrap" : "Wrap long lines"}
+                  desc={wrap ? "Let long lines scroll horizontally again" : "Soft-wrap long diff lines so nothing is clipped"}
+                  onClick={() => {
+                    close();
+                    toggleWrap();
+                  }}
+                />
+              )}
+              {barTight && !empty && (
+                <PopItem
+                  icon={<Copy size={15} />}
+                  title="Copy diff"
+                  desc="Copy the whole unified diff to the clipboard"
+                  onClick={() => {
+                    close();
+                    void copyDiff();
+                  }}
+                />
+              )}
               <PopItem
                 title="Refresh changes"
                 desc="Re-read the workspace diff"
@@ -844,8 +888,9 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
             with a diff you've just read is pasting it into an issue or a message,
             and the only way to do that was dragging a selection across a
             virtualized grid. One button, the whole unified diff, same `copyText`
-            + toast contract as Markdown's CodeBlock. */}
-        {!empty && (
+            + toast contract as Markdown's CodeBlock. (RD-8 · on a tight bar it
+            moves into `…` — see BAR_TIGHT_PX.) */}
+        {!empty && !barTight && (
           <button
             className="sm ghost diff-iconbtn"
             onClick={() => void copyDiff()}
@@ -860,8 +905,11 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
             it was absurd that a fenced snippet in the chat could soft-wrap while
             the review, where long lines actually hurt, hard-clipped them behind a
             per-file scrollbar. Icon-only here because DF-1's whole point was that
-            this bar has no spare width; the label lives in the tooltip. */}
-        {!empty && (
+            this bar has no spare width; the label lives in the tooltip. RD-8 ·
+            and when even that is more width than the bar has, it stands down
+            into `…` with Copy — the preference is untouched, only its door
+            moves. */}
+        {!empty && !barTight && (
           <button
             className={"sm ghost diff-iconbtn diff-wrap-btn" + (wrap ? " active" : "")}
             onClick={toggleWrap}

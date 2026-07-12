@@ -256,3 +256,77 @@ describe("…and it survives a narrow bar without deserting it (INC-41 DIFF-CP)"
     expect(container.querySelector(".diff-viewtoggle")).toBeTruthy();
   });
 });
+
+// INC-41 RD-8 — …and DIFF-CP stopped one control short.
+//
+// With the resident Commit pill back on the bar (150px that never shrinks), a
+// 339px panel — a 1024px window — still needed 367px of controls. Every one of
+// them is `flex: 0 0 auto`, so flexbox does not arbitrate: the row simply
+// overflows, and what hangs off the end is whatever is last. That was the ✕,
+// measured at x=1051.9 against a panel whose right edge is 1024
+// (qa/runs/2026-07-12-r33/after-rd89/before.json) — the user could read the diff
+// and had no way to close it.
+//
+// The bar has to be short enough. So below BAR_TIGHT_PX the low-frequency
+// controls (Copy, Wrap — and the split toggle, above) move into the `…` they
+// were always candidates for, and the ✕ keeps its 28px.
+describe("the ✕ never leaves the panel (INC-41 RD-8)", () => {
+  const bar = (c: HTMLElement) => c.querySelector(".diffbar")!;
+
+  it("demotes Copy and Wrap into … on a tight bar — and keeps the ✕ last", async () => {
+    barWidth(520); // below BAR_TIGHT_PX
+    localStorage.setItem("ar.diff.scope", "working-tree");
+    arMock.diff = () => Promise.resolve(baseDiff());
+    const { container } = render(<DiffView sid="rd8a" onClose={() => {}} />);
+
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+    // Off the bar…
+    expect(screen.queryByLabelText("Copy diff")).toBeNull();
+    expect(screen.queryByLabelText("Wrap long lines")).toBeNull();
+    expect(container.querySelector(".diff-viewtoggle")).toBeNull();
+    // …but not gone: same two actions, one click away in the overflow.
+    fireEvent.click(screen.getByLabelText("More changes actions"));
+    expect(screen.getByText("Wrap long lines")).toBeTruthy();
+    expect(screen.getByText("Copy diff")).toBeTruthy();
+
+    // The exit is the last thing on the bar, and it is still there.
+    const close = screen.getByLabelText("Close changes");
+    expect(bar(container).contains(close)).toBe(true);
+    expect(bar(container).lastElementChild).toBe(close);
+  });
+
+  it("the demoted Wrap is the same switch, not a second one", async () => {
+    barWidth(520);
+    localStorage.setItem("ar.diff.scope", "working-tree");
+    arMock.diff = () => Promise.resolve(baseDiff());
+    const { container } = render(<DiffView sid="rd8b" onClose={() => {}} />);
+
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+    expect(container.querySelector(".diffwrap")!.className).not.toMatch(/diff-wrap\b/);
+
+    fireEvent.click(screen.getByLabelText("More changes actions"));
+    fireEvent.click(screen.getByText("Wrap long lines"));
+    // It flips the panel's wrap state and persists it, exactly as the bar button does.
+    await waitFor(() => expect(container.querySelector(".diffwrap")!.className).toMatch(/diff-wrap\b/));
+    expect(localStorage.getItem("ar.diff.wrap")).toBe("1");
+    // …and now offers the reverse.
+    fireEvent.click(screen.getByLabelText("More changes actions"));
+    expect(screen.getByText("Disable line wrap")).toBeTruthy();
+  });
+
+  it("keeps Copy and Wrap resident — and out of … — on a bar with room", async () => {
+    barWidth(700); // above BAR_TIGHT_PX
+    localStorage.setItem("ar.diff.scope", "working-tree");
+    arMock.diff = () => Promise.resolve(baseDiff());
+    const { container } = render(<DiffView sid="rd8c" onClose={() => {}} />);
+
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+    expect(bar(container).contains(screen.getByLabelText("Copy diff"))).toBe(true);
+    expect(bar(container).contains(screen.getByLabelText("Wrap long lines"))).toBe(true);
+    fireEvent.click(screen.getByLabelText("More changes actions"));
+    // No duplicate doors: a control that is on the bar is not also in the menu.
+    expect(screen.queryByText("Copy diff")).toBeNull();
+    expect(screen.getByText("Refresh changes")).toBeTruthy();
+    expect(screen.getByLabelText("Close changes")).toBeTruthy();
+  });
+});
