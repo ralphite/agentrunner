@@ -1,0 +1,104 @@
+# 全量真实 API QA（qa/run-qa*.sh 全部场景）——在 Actions runner 上跑
+# gate B 整套回归。用途：日常回归 / 现场故障（如 webui 发不出 prompt）
+# 的全面诊断。scratch 环境，不碰任何共享 store；逐场景隔离失败、不断
+# 链，末尾汇总 PASS/FAIL 表并上传全部日志与 journal 导出。
+#
+# 用法：Actions → qa-all → Run workflow（可用 only 输入限定场景，如
+# "qa01 qa04 qa62"；留空跑全部）。
+name: qa-all
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Space-separated scenario ids (e.g. 'qa01 qa62'); empty = all"
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qa-all
+  cancel-in-progress: true
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webui/frontend/package-lock.json
+
+      # bash 工具的 OS 沙箱：bwrap 缺失即 fail-closed，装上并放开
+      # Ubuntu 24 对非特权 userns 的 AppArmor 限制。
+      - name: Install bubblewrap
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          bwrap --version
+
+      - name: Build ar + arwebui + frontend
+        run: |
+          go build -buildvcs=false -o bin/ar ./cmd/agentrunner
+          (cd webui/frontend && npm ci --silent && npm run build)
+          (cd webui && go build -buildvcs=false -o ../bin/arwebui .)
+
+      - name: Run all QA scenarios
+        shell: bash
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ONLY: ${{ inputs.only }}
+        run: |
+          mkdir -p qa-logs
+          declare -a results=()
+          fail=0
+          for f in $(ls qa/run-qa*.sh | sort -V); do
+            id="$(basename "$f" .sh | sed 's/^run-//')"
+            if [ -n "$ONLY" ] && ! grep -qw "$id" <<<"$ONLY"; then continue; fi
+            chmod +x "$f"
+            start=$(date +%s)
+            if timeout 420 "$f" bin/ar >"qa-logs/$id.log" 2>&1; then
+              verdict=PASS
+            else
+              rc=$?
+              verdict="FAIL(rc=$rc)"; fail=$((fail+1))
+            fi
+            dur=$(( $(date +%s) - start ))
+            results+=("$id $verdict ${dur}s")
+            echo "== $id: $verdict (${dur}s)"
+            tail -3 "qa-logs/$id.log" | sed 's/^/   /'
+          done
+          {
+            echo "## qa-all 结果（$((${#results[@]})) 场景，$fail 失败）"
+            echo '| scenario | verdict | duration |'
+            echo '|---|---|---|'
+            for r in "${results[@]}"; do
+              set -- $r; echo "| $1 | $2 | $3 |"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' "${results[@]}" > qa-logs/SUMMARY.txt
+          exit $fail
+
+      - name: Archive logs and run evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-all-run
+          path: |
+            qa-logs/
+            qa/runs/
+          if-no-files-found: warn
