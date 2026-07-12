@@ -1650,6 +1650,16 @@ label.field {
 .dl.del {
   background: color-mix(in srgb, var(--red) 12%, transparent);
 }
+/* INC-41 DF-D2 · the add/del tint belongs to the code column, not to the whole
+   grid row. Codex paints red/green from the code column's left edge and leaves
+   the line-number gutter on the neutral surface, so the gutter reads as one
+   uninterrupted column from the file header down to EOF. We keep the tint on
+   the row (the ::before change marker and the +/- marker mode both hang off it)
+   and repaint the number cell back to the surface — otherwise DF-5's fold-bar
+   gutter (panel + hairline) snapped into a red/green block the moment it met a
+   changed line. The number itself still takes green/red ink, as Codex's does. */
+.dl.add > .dl-no,
+.dl.del > .dl-no { background: var(--panel); }
 .dl.add .dl-no { color: var(--green); opacity: .85; }
 .dl.del .dl-no { color: var(--red); opacity: .85; }
 /* hunk separator — quiet divider with the @@ context, not a raw diff line */
@@ -1703,11 +1713,16 @@ summary.fd-head:hover {
 details.filediff[open] > summary.fd-head .fd-caret {
   transform: rotate(90deg);
 }
+/* INC-41 DF-D1 · the file name is the loudest label on the review surface, so it
+   takes ink; only the directory prefix stays --dim. `details summary` colors the
+   whole header --dim, which left the name at the same 55% grey as its path and
+   read as disabled. */
 .fd-path {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--ink);
 }
 .fd-counts {
   display: flex;
@@ -3983,7 +3998,12 @@ details.filediff[open] > summary.fd-head .fd-caret {
 }
 .cx-session .cx-card { max-width: 720px; }
 .cx-session .cx-status { display: none; }
-.cx-card { border-color: #dedede; box-shadow: 0 7px 24px rgba(0,0,0,.065); }
+/* INC-41 HM-P0 · the composer's border must follow the theme token. This rule is
+   outside every @media/[data-theme] scope, so the old literal #dedede won in
+   dark too and ringed the largest element on the page in near-white while the
+   suggestion cards next to it sat on --line. The shadow stays light-tuned (on
+   dark's near-black surface a 6.5% black glow is a no-op). */
+.cx-card { border-color: var(--line); box-shadow: 0 7px 24px rgba(0,0,0,.065); }
 .cx textarea { padding: 14px 16px 7px; }
 .cx-bar { gap: 4px; padding: 5px 8px 8px; }
 .cx-pill { height: 30px; padding: 0 8px; font-size: 12px; }
