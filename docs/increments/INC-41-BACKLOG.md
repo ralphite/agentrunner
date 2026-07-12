@@ -2926,7 +2926,7 @@ light `rgb(255,255,255)` == `.diffbar` 的 `rgb(255,255,255)`;dark `rgb(23,23,26
 文件头上**时的合法 hover 底色,不是常态背景。截图 `1440-filelist-popover.png` 里 13 条文件头全白底、
 只靠 `.filediff + .filediff` 的 hairline 分隔,没有任何灰实心带。故本条无债可还,**不做假改动**。
 
-### RD-12 ✅ 缺「这次改了哪些文件」的总览入口;`N generated files hidden` 抢了第一屏 [P3] — `<SHA>`(轮34)
+### RD-12 ✅ 缺「这次改了哪些文件」的总览入口;`N generated files hidden` 抢了第一屏 [P3] — `eec680c`(轮34)
 **实测收口**:放大镜过滤 popover 升级成**文件列表 popover**(触发器 `TreeStructure`;常驻控件数不变 ——
 1440 档 `.diffbar` 仍 10 个子元素、`scrollWidth−clientWidth = 0`,1024 档 7 个、溢出 0、✕ 在面板内)。
 真机(`20260710-213428-…-d8ac`,last-turn):popover 列出 **13/13** 个改动文件(含 untracked),每行
