@@ -263,6 +263,137 @@ html body {
   a:hover {
     text-decoration: underline;
   }
+  details {
+    border-top: 1px solid var(--line-2);
+  }
+  details summary {
+    cursor: pointer;
+    padding: 5px 11px;
+    color: var(--dim);
+    font-size: 12px;
+    list-style: none;
+  }
+  details summary::-webkit-details-marker {
+    display: none;
+  }
+}
+
+/* ============================================================================
+ * iOS native feel · touch polish (2026-07-12). Cross-cutting platform CSS —
+ * targets element types and classes owned by many components, so it stays as
+ * one real-CSS block (unlayered, matching its pre-migration precedence).
+ * pointer:coarse guards keep the desktop untouched.
+ * ========================================================================== */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* No grey tap flash; no accidental font inflation on rotate. */
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Kill pull-to-refresh (which reloaded the whole SPA and lost the open
+   session) and scroll-chaining rubber-band that revealed blank edges. */
+html,
+body {
+  overscroll-behavior: none;
+}
+.timeline,
+.sidebar,
+.rail-scroll,
+.pop-scroll {
+  overscroll-behavior: contain;
+}
+
+@media (pointer: coarse) {
+  /* Remove the 300ms tap delay + double-tap zoom on everything actionable. */
+  button,
+  a,
+  [role="button"],
+  summary,
+  label,
+  .cx-env-control,
+  .sess-row,
+  .pop-item {
+    touch-action: manipulation;
+  }
+  /* Apple's 44px minimum hit target — small icon buttons (topbar, diff, toast
+     close, scheduled tabs) were ~24-32px and hard to tap on a phone. Grows the
+     touch box without disturbing the icon's visual size. */
+  button,
+  [role="button"],
+  .sched-tab,
+  .topbar-icon,
+  .topbar-tool,
+  .diff-iconbtn {
+    min-height: 44px;
+  }
+  /* Text inputs/selects don't need 44px height, and the composer send button
+     is deliberately compact — exempt them so the layout doesn't balloon. */
+  .cx-send,
+  .cx-env-strip button {
+    min-height: 0;
+  }
+  /* Long-press on chrome must not raise the iOS callout / text-selection
+     magnifier. Chrome (buttons/nav/chips/labels/timestamps) is unselectable;
+     MESSAGE CONTENT stays selectable so users can still copy replies. */
+  button,
+  a,
+  [role="button"],
+  .nav,
+  .sidebar,
+  .brand,
+  .topbar,
+  .chip,
+  .turn,
+  .who,
+  .cx-env-strip,
+  .avatar,
+  .msg-actions,
+  .worked-row {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .bubble,
+  .utext,
+  .md,
+  pre,
+  code,
+  input,
+  textarea {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  /* Press-down feedback (native apps highlight on touch, not the grey box). */
+  button:active,
+  a:active,
+  [role="button"]:active,
+  .sess-row:active,
+  .pop-item:active {
+    opacity: 0.55;
+    transition: opacity 0.04s;
+  }
+  /* Safe-area insets: once installed there is no Safari chrome to absorb the
+     home indicator / notch, so the composer and top bar must inset themselves.
+     max() keeps the existing padding when the inset is 0 (non-notch / browser). */
+  .cx-session {
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+  }
+  .composer {
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+  }
+  .topbar,
+  .brand {
+    padding-top: max(10px, env(safe-area-inset-top));
+  }
 }
 
 /* ============================================================================
