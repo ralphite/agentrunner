@@ -13,16 +13,14 @@ curl -fsSL https://raw.githubusercontent.com/ralphite/agentrunner/main/install.s
 ```
 
 装到 `~/.local/share/agentrunner/releases/<version>/`,`ar` 与 `arwebui`
-链接进 `~/.local/bin`。repo 私有期间需先 `export GITHUB_TOKEN=...`(repo
-读权限),且取脚本本身也要带 token:
+链接进 `~/.local/bin`。装完起 Web UI:`arwebui`(默认 127.0.0.1:8788,
+`-addr 0.0.0.0:8788` 可让局域网设备访问)。
 
-```sh
-curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
-  https://raw.githubusercontent.com/ralphite/agentrunner/main/install.sh | sh
-```
-
-可调环境变量见 install.sh 头部注释;发布产物由
-`scripts/package-release.sh` + release workflow 构建(打 `v*` tag 触发)。
+私有 fork/镜像才需要 `export GITHUB_TOKEN=...`(install.sh 自动识别并
+改走 API 资产下载)。可调环境变量见 install.sh 头部注释;发布产物由
+`scripts/package-release.sh` + release workflow 构建(打 `v*` tag,或
+dispatch workflow 填 `publish_tag`——后者由 CI 代建 tag,适合无法直推
+tag 的环境)。
 
 从源码构建:
 

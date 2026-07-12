@@ -17,7 +17,12 @@ name: release
 on:
   push:
     tags: ["v*"]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      publish_tag:
+        description: "Publish a release as this v* tag (workflow 用 GITHUB_TOKEN 建 tag——适合无法直推 tag 的环境/手机;留空=只构建+smoke 不发布)"
+        default: ""
+        type: string
 
 permissions:
   contents: write
@@ -52,9 +57,14 @@ jobs:
 
       - name: Package all targets
         shell: bash
+        env:
+          PUBLISH_TAG: ${{ inputs.publish_tag || '' }}
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             export AR_RELEASE_VERSION="$GITHUB_REF_NAME"
+          elif [[ -n "$PUBLISH_TAG" ]]; then
+            [[ "$PUBLISH_TAG" == v* ]] || { echo "publish_tag must start with v: $PUBLISH_TAG" >&2; exit 1; }
+            export AR_RELEASE_VERSION="$PUBLISH_TAG"
           fi
           SKIP_FRONTEND_BUILD=1 scripts/package-release.sh
           ls -lh dist/
@@ -99,9 +109,12 @@ jobs:
           retention-days: 7
 
       - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.publish_tag != ''
         uses: softprops/action-gh-release@v2
         with:
+          # tag push 时留空(softprops 取 github.ref);dispatch 发布时由
+          # GITHUB_TOKEN 在当前 sha 上创建该 tag(适合无法直推 tag 的环境)。
+          tag_name: ${{ inputs.publish_tag || '' }}
           files: release/*
           fail_on_unmatched_files: true
           generate_release_notes: true

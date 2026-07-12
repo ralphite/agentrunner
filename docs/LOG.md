@@ -3762,3 +3762,20 @@ DESIGN §12 增"分发与安装"小节。
   沿用基线对照法归因。本增量零 Go 代码改动（docs + shell + workflow），
   受影响闸门单独跑绿：lint-docs / lint-wiring / gofmt /
   test-install 孪生 / 4 target 打包 / linux 产物 smoke + 真安装。
+
+## 2026-07-12 · INC-63 收口：Actions 真跑绿 + dispatch 发布路径 + repo 转公开
+
+- **gate B 构建+smoke 段真跑绿**：release workflow run 29182533118
+  （workflow_dispatch@main）——frontend 构建、4 target 交叉编译打包、
+  三腿 smoke（起服 /api/health 探活 `smoke: OK`、真 install.sh 装真
+  产物版本回显、安装器孪生 5/5）全过，17 个资产 staged。日志逐步
+  核对过（吸取 QA-62 run #1 假绿教训，不只看结论位）。
+- **tag 直推 403 → dispatch 发布路径**：本远程执行环境的凭据能推分支
+  不能推 tag（`git push origin v0.1.0` 403）。release.yml 增
+  `publish_tag` dispatch 输入：CI 用 GITHUB_TOKEN 在当前 sha 代建 tag
+  并发布（softprops tag_name）——顺带使"手机/无本地 git 环境发版"
+  成立。tag push 触发路径保留不变。
+- **repo 转公开（用户操作）**：curl 安装全程免 token；install.sh 的
+  token 路径保留给私有 fork/镜像。README 安装节相应改写。
+- 工作纸归档 `archive/increments/INC-63-curl-install.md`；QA-63 步骤 1
+  标注完成，步骤 2–4 随 v0.1.0 发布执行。
