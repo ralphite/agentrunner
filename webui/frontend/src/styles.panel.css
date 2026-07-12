@@ -606,3 +606,87 @@
   flex: 1 1 auto;
   min-width: 0;
 }
+
+/* ===== INC-41 RT-5 · Turn failure banner (Codex parity) =====================
+   A model call that failed and never recovered used to arrive as a red chip
+   carrying the raw taxonomy string ("activity failed: provider_server: model
+   returned an empty message (truncated at token cap…) [provider_server]") —
+   unreadable, and with no way out of it. Codex states the failure in one
+   sentence, keeps the technical text one click away, and puts the recovery
+   action right there. Same shell as .terminal-alert, but the body stacks
+   (title · hint · details fold) instead of a single line. */
+.turn-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 18px 10px;
+  padding: 11px 12px;
+  border: 1px solid color-mix(in srgb, var(--red) 30%, var(--line));
+  border-radius: 12px;
+  background: var(--red-soft);
+  font-size: 13px;
+}
+.turn-error-ic {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  padding-top: 1px;
+  color: var(--red);
+}
+.turn-error-body {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.turn-error-body b { color: var(--ink); font-weight: 600; }
+.turn-error-hint { color: var(--ink-2); }
+.turn-error-toggle {
+  margin-top: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.turn-error-toggle:hover { color: var(--ink); }
+.turn-error-raw {
+  width: 100%;
+  margin: 6px 0 0;
+  padding: 8px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink-2);
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.turn-error-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.turn-error-action:hover:not(:disabled) { background: var(--panel-2); }
+.turn-error-action:disabled { opacity: 0.6; cursor: default; }
+@media (max-width: 640px) {
+  .turn-error { margin-inline: 12px; flex-wrap: wrap; }
+  .turn-error-body { flex-basis: calc(100% - 28px); }
+  .turn-error-action { margin-left: 27px; }
+}

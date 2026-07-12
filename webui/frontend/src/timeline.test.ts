@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { completedTurnDurations, deriveGoalState, foldEvents, foldWork, formatElapsed, formatWorkDuration, guiReason, verdictLabel } from "./timeline";
+import { completedTurnDurations, deriveGoalState, explainFailure, foldEvents, foldWork, formatElapsed, formatWorkDuration, guiReason, verdictLabel } from "./timeline";
+import { isSessionNotFound, isValidSessionId } from "./components/SessionView";
 import { summarizeChanges } from "./diffSummary";
 
 describe("timeline input projection", () => {
@@ -350,5 +351,131 @@ describe("deriveGoalState (goal banner projection, W6)", () => {
     expect(formatElapsed(600000)).toBe("10:00");
     expect(formatElapsed(3_660_000)).toBe("1h 1m");
     expect(formatElapsed(7_200_000)).toBe("2h 0m");
+  });
+});
+
+// ---- INC-41 RT-5 · provider failures in human words -------------------------
+describe("model-call failure projection", () => {
+  // The exact journal shape observed in session 20260711-073559-create-a-todo-app-ff36:
+  // an llm activity failed at the token cap, the runtime retried it, attempt 2 landed.
+  const failEvents = (extra: any[] = []) => [
+    { seq: 115, type: "activity_started", payload: { activity_id: "llm-t9", kind: "llm", name: "complete", attempt: 1 } },
+    {
+      seq: 116,
+      type: "activity_failed",
+      payload: {
+        activity_id: "llm-t9",
+        attempt: 1,
+        error: {
+          class: "provider_server",
+          message: "model returned an empty message (truncated at token cap, no text or tool calls) [provider_server]",
+          retryable: true,
+        },
+      },
+    },
+    ...extra,
+  ];
+
+  it("never pastes the raw provider string into a chip", () => {
+    const folded = foldEvents(failEvents() as any);
+    for (const it of folded.items) {
+      if (it.kind !== "chip") continue;
+      expect(it.text).not.toMatch(/activity failed|provider_server|\[provider_server\]/);
+    }
+  });
+
+  it("raises an unrecovered model failure as an actionable notice, raw text intact", () => {
+    const folded = foldEvents(failEvents() as any);
+    expect(folded.failure).toMatchObject({
+      seq: 116,
+      cls: "provider_server",
+      title: "The model returned an empty reply",
+      recovered: false,
+    });
+    expect(folded.failure!.hint).toMatch(/retry/i);
+    // The technical string is preserved verbatim for the details fold.
+    expect(folded.failure!.raw).toBe(
+      "provider_server: model returned an empty message (truncated at token cap, no text or tool calls) [provider_server]",
+    );
+    expect(folded.items).toContainEqual(
+      expect.objectContaining({ kind: "chip", text: "The model returned an empty reply", tone: "bad", fold: true }),
+    );
+  });
+
+  it("downgrades a failure the runtime retried away to a quiet fold note (no banner)", () => {
+    const folded = foldEvents(
+      failEvents([
+        { seq: 117, type: "activity_started", payload: { activity_id: "llm-t9", kind: "llm", name: "complete", attempt: 2 } },
+        { seq: 118, type: "activity_completed", payload: { activity_id: "llm-t9", usage: { input_tokens: 4850, output_tokens: 3271 } } },
+      ]) as any,
+    );
+    expect(folded.failure).toBeUndefined();
+    expect(folded.items).toContainEqual(
+      expect.objectContaining({
+        kind: "chip",
+        text: "The model returned an empty reply · retried automatically",
+        tone: "warn",
+        fold: true,
+      }),
+    );
+  });
+
+  it("leaves tool failures on their tool card (only model calls become notices)", () => {
+    const folded = foldEvents([
+      { seq: 1, type: "activity_started", payload: { activity_id: "a1", kind: "tool", name: "bash", args: {} } },
+      { seq: 2, type: "activity_failed", payload: { activity_id: "a1", final: true, error: { class: "tool_failed", message: "exit 2" } } },
+    ] as any);
+    expect(folded.failure).toBeUndefined();
+    expect(folded.items).toContainEqual(
+      expect.objectContaining({ kind: "tool", status: "failed", errorMsg: "tool_failed: exit 2" }),
+    );
+  });
+
+  it("explains each provider error class in plain language with a way out", () => {
+    expect(explainFailure("provider_rate_limit", "429 too many requests")).toMatchObject({
+      title: "The model provider rate-limited this request",
+    });
+    expect(explainFailure("provider_server", "500 internal")).toMatchObject({
+      title: "The model provider had a server error",
+    });
+    expect(explainFailure("provider_auth", "401 unauthorized")).toMatchObject({
+      title: "The model provider rejected our credentials",
+    });
+    expect(explainFailure("timeout", "activity timeout")).toMatchObject({ title: "The model call timed out" });
+    expect(explainFailure("internal", "dial tcp: connection refused")).toMatchObject({
+      title: "Couldn't reach the model provider",
+    });
+    // An unanticipated class still gets a banner + a hint — and never loses its text.
+    const unknown = explainFailure("quantum_flux", "the flux capacitor destabilized");
+    expect(unknown.title).toBe("A step failed");
+    expect(unknown.hint).toMatch(/retry/i);
+    // Every mapping offers an action, except the one that needs none.
+    expect(explainFailure("canceled", "user interrupt").hint).toBeUndefined();
+  });
+});
+
+// ---- INC-41 RT-7 · a broken deep link is Not found, not an empty session -----
+describe("session id verdicts", () => {
+  it("rejects ids the server's grammar cannot accept, without a request", () => {
+    expect(isValidSessionId("20260711-073559-create-a-todo-app-ff36")).toBe(true);
+    expect(isValidSessionId("20260711-1-sub-call_9_0-ab12")).toBe(true);
+    expect(isValidSessionId("this-is-not-a-real-session")).toBe(true); // well-formed; the daemon's 404 decides
+    expect(isValidSessionId("hello world")).toBe(false);
+    expect(isValidSessionId("bad!id")).toBe(false);
+    expect(isValidSessionId("a/b")).toBe(false);
+    expect(isValidSessionId("")).toBe(false);
+    expect(isValidSessionId("x".repeat(201))).toBe(false);
+  });
+
+  it("treats a permanent id verdict as not-found and everything else as transient", () => {
+    // The daemon doesn't know this id.
+    expect(isSessionNotFound({ status: 404, code: "session_not_found", message: 'no session matches "x"' })).toBe(true);
+    // The server refused the id itself (api.go sid() → 400 "invalid session id").
+    expect(isSessionNotFound(Object.assign(new Error("invalid session id"), { status: 400 }))).toBe(true);
+    // A transient 400 from some other endpoint must NOT kill the poll.
+    expect(isSessionNotFound(Object.assign(new Error("invalid scope"), { status: 400 }))).toBe(false);
+    // Daemon down / restarting / network blip: keep polling.
+    expect(isSessionNotFound(Object.assign(new Error("ar events: exit status 1"), { status: 502 }))).toBe(false);
+    expect(isSessionNotFound(new TypeError("Failed to fetch"))).toBe(false);
   });
 });

@@ -29,18 +29,36 @@ interface SSEApproval {
   session?: string;
 }
 
-// INC-41 L2/L5 · "this id doesn't exist" vs "the fetch happened to fail". The
-// backend answers an unknown session id with a real 404 + code=session_not_found
-// (arFail owns the single string match against the CLI's verdict), so this reads
-// machine-readable fields, not prose. The stderr match survives only as a
-// fallback for a stale webui binary that still 502s. Everything else (daemon
-// restarting, network blip, timeout) stays transient: we keep polling and never
-// accuse a real task of not existing. Duck-typed on purpose — an ApiError from a
-// mocked/older api module still classifies.
+// INC-41 RT-7 · The server's own id grammar (webui/ar.go `idPattern` +
+// `validID`): everything it splices into an `ar` argv position must match, and
+// anything that doesn't is answered with a flat 400 "invalid session id" — the
+// route never even reaches the daemon. Mirroring the grammar here lets a hand-
+// mangled deep link (`#/s/hello world`, `#/s/bad!id`) short-circuit to the
+// not-found state WITHOUT firing a single request: no 1s poll loop, no
+// EventSource reconnect storm, no composer over a session that cannot exist.
+const SESSION_ID_RE = /^[A-Za-z0-9._#-]+$/;
+export function isValidSessionId(sid: string): boolean {
+  return !!sid && sid.length <= 200 && SESSION_ID_RE.test(sid);
+}
+
+// INC-41 L2/L5/RT-7 · "this id doesn't exist" vs "the fetch happened to fail".
+// The backend answers an unknown session id with a real 404 + code=
+// session_not_found (arFail owns the single string match against the CLI's
+// verdict), and a syntactically impossible one with 400 "invalid session id"
+// (api.go `sid()`/`badRequest`) — both are permanent verdicts about the ID, so
+// both end the poll. The 400 arm is deliberately narrow: it demands the
+// server's exact "invalid session id" wording, so an ordinary transient 400
+// from some other endpoint (bad body, bad scope) still counts as transient and
+// keeps polling. Everything else (daemon restarting, network blip, timeout,
+// 502) stays transient too: we never accuse a real task of not existing. The
+// stderr match survives only as a fallback for a stale webui binary that still
+// 502s. Duck-typed on purpose — an ApiError from a mocked/older api module
+// still classifies.
 export function isSessionNotFound(err: unknown): boolean {
   const e = err as { status?: unknown; code?: unknown; message?: unknown } | null | undefined;
   if (e && (e.status === 404 || e.code === "session_not_found")) return true;
   const msg = err instanceof Error ? err.message : typeof err === "string" ? err : "";
+  if (e && e.status === 400 && /invalid session id/i.test(msg)) return true;
   return /no session matches/i.test(msg);
 }
 
@@ -110,6 +128,10 @@ export function SessionView({ sid }: { sid: string }) {
   const [goalEditSrc, setGoalEditSrc] = useState<"banner" | "panel">("banner");
   const [goalPendingUpdate, setGoalPendingUpdate] = useState<string | null>(null);
   const [view, setView] = useState<"chat" | "diff">("chat");
+  // RT-5 · The failure banner's "technical details" fold is closed by default:
+  // the raw provider string is available, never in your face.
+  const [failureRawOpen, setFailureRawOpen] = useState(false);
+  const [failureRetrying, setFailureRetrying] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
   const [wideViewport, setWideViewport] = useState(() => window.innerWidth > 900);
   // Supervision starts CLOSED and remembers the user's choice (W5): an empty
@@ -306,9 +328,22 @@ export function SessionView({ sid }: { sid: string }) {
     setQueued([]);
     setInspectReady(false);
     setEventsReady(false);
+    setFailureRawOpen(false);
     setNotFound(false);
     gone.current = false;
     setLiveMode(undefined);
+    // RT-7 · A sid the server's grammar cannot accept is not a task that might
+    // show up later — it is a broken link. Settle on Not found immediately and
+    // start NOTHING: no poll interval, no inspect interval, no EventSource.
+    // (A well-formed but unknown id still takes the network path; the daemon's
+    // 404 lands in the catch arms below and stops the pollers there.)
+    if (!isValidSessionId(sid)) {
+      setNotFound(true);
+      gone.current = true;
+      setEventsReady(true);
+      setInspectReady(true);
+      return;
+    }
     poll();
     const e = setInterval(poll, 1000);
     const t = setInterval(pollTasks, 2500);
@@ -567,6 +602,21 @@ export function SessionView({ sid }: { sid: string }) {
     },
   };
 
+  // RT-5 · A model call that failed and never recovered. Shown while the
+  // session is idle: if it's live, the runtime's own retry is still in flight
+  // and an alarm would be premature. Sub-sessions are read-only (no retry).
+  const failure = !live && !isSub && !isDriver ? folded.failure : undefined;
+  const runFailureRetry = () => {
+    setFailureRetrying(true);
+    AR.retry(sid)
+      .then(() => {
+        toast("retrying your last message as a new turn", "info");
+        return poll();
+      })
+      .catch((e: any) => toast(e.message))
+      .finally(() => setFailureRetrying(false));
+  };
+
   const terminalNotice = live ? null : terminalNoticeFor(listStatus || folded.status.text, isDriver);
   const runTerminalAction = () => {
     if (!terminalNotice) return;
@@ -788,6 +838,35 @@ export function SessionView({ sid }: { sid: string }) {
                   <ChangesOutcome sid={sid} refreshKey={events.length} onReview={() => setView("diff")} />
                 ) : undefined}
               />
+              {failure && (
+                <div className="turn-error" role="alert">
+                  <span className="turn-error-ic">
+                    <WarningCircle size={17} weight="fill" />
+                  </span>
+                  <div className="turn-error-body">
+                    <b>{failure.title}</b>
+                    {failure.hint && <span className="turn-error-hint">{failure.hint}</span>}
+                    <button
+                      type="button"
+                      className="turn-error-toggle"
+                      aria-expanded={failureRawOpen}
+                      onClick={() => setFailureRawOpen((v) => !v)}
+                    >
+                      {failureRawOpen ? "Hide technical details" : "Technical details"}
+                    </button>
+                    {failureRawOpen && <pre className="turn-error-raw">{failure.raw}</pre>}
+                  </div>
+                  <button
+                    type="button"
+                    className="turn-error-action"
+                    disabled={failureRetrying}
+                    onClick={runFailureRetry}
+                    title="Re-send your last message as a new turn; double-clicks are idempotent"
+                  >
+                    <ArrowClockwise size={14} /> {failureRetrying ? "Retrying…" : "Retry"}
+                  </button>
+                </div>
+              )}
               {terminalNotice && (
                 <div className={`terminal-alert ${terminalNotice.tone}`} role="alert">
                   <span className="terminal-alert-ic">

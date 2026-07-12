@@ -95,6 +95,97 @@ export interface SysItem {
   text: string;
 }
 
+// ---- provider failure, in human words (INC-41 RT-5) -------------------------
+// A model-call failure used to be pasted at the user verbatim as a red chip:
+//   "activity failed: provider_server: model returned an empty message
+//    (truncated at token cap, no text or tool calls) [provider_server]"
+// — the error taxonomy's internal class name, twice, plus a parenthetical only
+// an implementer can parse, and no way out. Codex says what happened in one
+// plain sentence, keeps the technical string one click away, and puts the
+// action (Retry) next to it. explainFailure is that translation layer.
+//
+// The class vocabulary is internal/errs (errs.Class): provider_rate_limit |
+// provider_server | provider_auth | provider_invalid | tool_failed | timeout |
+// canceled | internal. An unknown class is NOT swallowed — it falls through to
+// a generic title and its raw text still ships in `raw`, so we never lose
+// information we failed to anticipate.
+export interface FailureExplained {
+  title: string; // one plain sentence: what happened
+  hint?: string; // what the user can do about it
+}
+
+export function explainFailure(cls: string, message: string): FailureExplained {
+  const msg = message || "";
+  // The empty-reply-at-token-cap case is a distinct, common, and confusing
+  // sub-case of provider_server: the model didn't error, it ran out of room.
+  if (/empty message|token cap|truncat/i.test(msg)) {
+    return {
+      title: "The model returned an empty reply",
+      hint: "It ran out of output room before writing anything. Retry the turn — a shorter, more focused message usually gets through.",
+    };
+  }
+  // Network reachability hides inside `internal` (and sometimes provider_server)
+  // rather than having its own class, so it is matched on the message.
+  if (/network|connection refused|connection reset|dial |no such host|dns|unreachable|EOF|tls|socket/i.test(msg)) {
+    return {
+      title: "Couldn't reach the model provider",
+      hint: "The network call didn't get through. Check your connection, then retry the turn.",
+    };
+  }
+  switch (cls) {
+    case "provider_rate_limit":
+      return {
+        title: "The model provider rate-limited this request",
+        hint: "Too many requests in a short window. Wait a moment, then retry the turn.",
+      };
+    case "provider_server":
+      return {
+        title: "The model provider had a server error",
+        hint: "This is usually temporary and not something you did. Retry the turn.",
+      };
+    case "provider_auth":
+      return {
+        title: "The model provider rejected our credentials",
+        hint: "Check the API key in your .env (GEMINI_API_KEY / ANTHROPIC_API_KEY), restart the daemon, then retry.",
+      };
+    case "provider_invalid":
+      return {
+        title: "The model provider rejected the request",
+        hint: "The request was malformed or too large for this model. Retrying may work; a shorter conversation usually does.",
+      };
+    case "timeout":
+      return {
+        title: "The model call timed out",
+        hint: "The provider took too long to answer. Retry the turn.",
+      };
+    case "canceled":
+      return { title: "The step was cancelled" };
+    case "tool_failed":
+      return {
+        title: "A tool failed to run",
+        hint: "See the technical details below; retry once the cause is addressed.",
+      };
+    default:
+      return {
+        title: "A step failed",
+        hint: "Retry the turn. The technical details below say what the runtime reported.",
+      };
+  }
+}
+
+// A model-call failure that the timeline surfaces as an inline banner (when it
+// stuck) or as a quiet folded activity note (when the runtime's own retry
+// already recovered from it — the session moved on, so a red alarm would lie).
+export interface FailureNotice {
+  seq: number;
+  cls: string; // errs.Class, verbatim
+  title: string;
+  hint?: string;
+  raw: string; // the untouched technical string — never dropped
+  attempt?: number;
+  recovered: boolean; // a later attempt of the same activity completed
+}
+
 export interface RuntimeItem {
   kind: "runtime";
   key: string;
@@ -354,6 +445,12 @@ export interface Folded {
   // Its journal is driver_* / iteration_* events and it does NOT accept input,
   // so the UI renders those events and hides the composer.
   isDriver: boolean;
+  // RT-5 · The most recent model-call failure that the runtime did NOT recover
+  // from (no later attempt of that activity completed). This is the one the
+  // view raises as an inline banner with a Retry action. Undefined when the
+  // session never failed, or when every failure was retried away — in that
+  // case the failure lives on only as a quiet note inside the turn's fold.
+  failure?: FailureNotice;
 }
 
 // Input sources that mean "a human typed this" — regardless of entry point
@@ -373,6 +470,11 @@ export function foldEvents(events: Envelope[]): Folded {
   let status = { text: "—", cls: "" };
   let lastType = "";
   let isDriver = false;
+
+  // RT-5 · model-call (non-tool) failures, by activity_id: the chip we pushed
+  // for each one is kept live so a later successful attempt of the SAME
+  // activity can downgrade it from "this broke" to "we hiccuped and retried".
+  const llmFailures = new Map<string, { notice: FailureNotice; chip: ChipItem }>();
 
   const push = (it: TimelineItem) => items.push(it);
   const chip = (
@@ -463,6 +565,11 @@ export function foldEvents(events: Envelope[]): Folded {
         }
         break;
       case "activity_completed": {
+        // RT-5 · The runtime's own retry of a failed model call landed. The
+        // failure is history, not a standing problem: no banner, and its note
+        // reads as a recovered hiccup.
+        const failed = llmFailures.get(p.activity_id);
+        if (failed) failed.notice.recovered = true;
         const t = toolByActivity.get(p.activity_id);
         if (t) {
           t.status = p.is_error ? "error" : "done";
@@ -483,7 +590,24 @@ export function foldEvents(events: Envelope[]): Folded {
           t.statusText = "failed" + (p.final ? " (final)" : ` (retry ${p.attempt})`);
           t.errorMsg = msg;
         } else {
-          workChip(seq, "activity failed: " + msg, "bad");
+          // RT-5 · A failed MODEL call (activity kind=llm — it has no tool card
+          // to hang off). Never paste the raw taxonomy string at the user: say
+          // it in one sentence here, keep the raw text on the notice so the
+          // banner's "technical details" fold can show it verbatim.
+          const cls = String(p.error?.class || "");
+          const ex = explainFailure(cls, String(p.error?.message || ""));
+          const notice: FailureNotice = {
+            seq,
+            cls,
+            title: ex.title,
+            hint: ex.hint,
+            raw: msg,
+            attempt: p.attempt,
+            recovered: false,
+          };
+          const it: ChipItem = { kind: "chip", key: "c" + seq, text: ex.title, tone: "bad", fold: true };
+          push(it);
+          llmFailures.set(p.activity_id, { notice, chip: it });
         }
         break;
       }
@@ -715,7 +839,21 @@ export function foldEvents(events: Envelope[]): Folded {
   );
   const active = toolRunning || lastType === "generation_started";
 
-  return { items, approvals, callArgs, status, lastGen, active, isDriver };
+  // RT-5 · Settle every model-call failure now that the whole journal is in.
+  // Recovered ones become a calm, warn-toned fold note ("…, retried
+  // automatically") — the run continued, so a red alarm would be a lie. The
+  // last unrecovered one is what the view raises as an actionable banner.
+  let failure: FailureNotice | undefined;
+  for (const { notice, chip: c } of llmFailures.values()) {
+    if (notice.recovered) {
+      c.tone = "warn";
+      c.text = notice.title + " · retried automatically";
+      continue;
+    }
+    if (!failure || notice.seq > failure.seq) failure = notice;
+  }
+
+  return { items, approvals, callArgs, status, lastGen, active, isDriver, failure };
 }
 
 // ---- goal lifecycle projection (W6) -----------------------------------------
