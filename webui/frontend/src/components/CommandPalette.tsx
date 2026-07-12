@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
 import { nextTheme } from "../theme";
 import { displayTitle } from "../title";
-import { projectLabel, quickSwitchTasks, sessionNeedsAttention } from "../viewModels";
+import { projectLabel, sessionNeedsAttention } from "../viewModels";
+import { paletteTaskGroups } from "../viewModels.nav";
 import { modLabel } from "../shortcuts";
 
 interface Item {
@@ -53,28 +54,28 @@ export function CommandPalette({ onClose }: { onClose: (restoreFocus?: boolean) 
       },
       { id: "c-keys", label: "Keyboard shortcuts", hint: "?", group: "Commands", run: go(() => openHelp()) },
     ].filter((c) => match(c.label));
-    // With no query this is the ⌘1..9 quick-switch list: recent tasks, the
-    // attention-worthy ones grouped on top with the lowest numbers (matching
-    // the global cmd-digit binding). Typing a query switches to a plain fuzzy
-    // search over every task, without badges.
+    // With no query this is the ⌘1..9 quick-switch list (Codex parity, RH-3):
+    // every one of the nine rows lives in the `Tasks` group and carries its
+    // ⌘-digit badge — a blue unread dot does not take the badge away, it just
+    // adds a dot. The badge number is the row's index in the very list App.tsx's
+    // cmd-digit handler indexes, so ⌘3 always opens the row labelled ⌘3.
+    // Attention tasks that fell past the ninth digit get their own badge-less
+    // `Unread tasks` group. Typing a query switches to a plain fuzzy search over
+    // every task, without badges.
     let sess: Item[];
     if (!ql) {
-      sess = quickSwitchTasks(sessions, { archived }).map((s, i) => {
-        const attention = sessionNeedsAttention(s.status);
-        return {
-          id: "s" + s.id,
-          label: displayTitle(renames, s.id, s.title),
-          hint: projectLabel(s.workspace),
-          group: attention ? "Needs attention" : "Tasks",
-          // ⌘-digit badges ride only the primary Tasks group (Codex parity); the
-          // attention rows stay badge-less. The number still tracks the global
-          // cmd-digit binding's quickSwitchTasks index so a shown badge is honest.
-          quickNum: attention ? undefined : i + 1,
-          task: true,
-          attention,
-          run: go(() => select(s.id)),
-        };
+      const { quick, unread } = paletteTaskGroups(sessions, { archived });
+      const row = (s: (typeof sessions)[number], quickNum?: number): Item => ({
+        id: "s" + s.id,
+        label: displayTitle(renames, s.id, s.title),
+        hint: projectLabel(s.workspace),
+        group: quickNum ? "Tasks" : "Unread tasks",
+        quickNum,
+        task: true,
+        attention: sessionNeedsAttention(s.status),
+        run: go(() => select(s.id)),
       });
+      sess = [...quick.map((s, i) => row(s, i + 1)), ...unread.map((s) => row(s))];
     } else {
       sess = [...sessions]
         .sort((a, b) => b.id.localeCompare(a.id)) // newest first, same as the sidebar

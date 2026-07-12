@@ -531,3 +531,29 @@
     flex: 0 0 auto;
   }
 }
+
+/* ===== RH-4 · Primary-nav shortcut badge (New task) ===================
+   Codex parks the row's shortcut at the end of the nav row, in the same key-cap
+   dialect as the command palette's ⌘1-9 badges (.cmdk-kbd above). Same chip,
+   pushed right by the auto margin the .nav-notice dot already uses. Muted at
+   rest so the label stays the loud thing; it firms up on hover/active. */
+.primary-nav .nav-kbd {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: var(--dim);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.5;
+  letter-spacing: 0.2px;
+  opacity: 0.85;
+}
+.primary-nav button:hover .nav-kbd,
+.primary-nav button.active .nav-kbd {
+  border-color: var(--line-2);
+  color: var(--ink-2);
+  opacity: 1;
+}

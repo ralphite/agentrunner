@@ -1772,20 +1772,46 @@ QA-45 刻意决策。)
 继承 hero(= composer)的列宽;composer 未动。1440 实测卡片行与 composer 卡 `x` 与 `width` 均为
 316/1100,dx=dw=0。
 
-### RH-3 ☐ 命令面板的 ⌘1..9 徽标实际永远看不见 [P1]
+### RH-3 ✅ 命令面板的 ⌘1..9 徽标实际永远看不见 [P1]
 `CommandPalette.tsx:72` `quickNum: attention ? undefined : i+1` —— 本机 9 条 quickSwitchTasks 全是
 attention,于是**整个面板一个徽标都没有**,`Tasks` 组根本不出现;可 ⌘1 仍绑到第一条 attention 任务
 (`App.tsx:119`),即「能按、但没告诉你能按」。Codex(`codex-crop-command-palette.jpg`)的 Tasks 组
 前 9 行每行都有 ⌘1…⌘9 徽标(有未读蓝点的行照样带),溢出的未读另开 `Unread tasks` 组。
+**证据**:`qa/runs/2026-07-11-round18/before/live-palette-dark-1440.png`(零徽标)
+轮18 已修:新增纯函数 `viewModels.nav.ts paletteTaskGroups()` —— `quick` 就是 `quickSwitchTasks()`
+本身(`App.tsx` 的 ⌘digit 处理器索引的**同一个列表**,所以第 i 行的徽标 ⌘(i+1) 在定义上不可能说谎),
+`unread` 是掉出九个数字之外的 attention 任务。`CommandPalette.tsx` 据此排出 Codex 的两组:`Tasks` 九行
+**无条件**带 ⌘1…⌘9 徽标(蓝点只是多个点,不再夺走徽标)+ `Unread tasks` 组(无徽标——它们本来就没有
+键可按)。单测钉住「徽标数字 = 真实绑定」:`viewModels.nav.test.ts` 5 例 + `CommandPalette.test.tsx`
+6 例(含 12 条全 attention 的 live 形状)。
+**实测**(8853 私有 webui 连共享 store,dark 1440):组 = `Tasks / Unread tasks / Commands`,徽标 =
+`⌘1…⌘9` 九个;按 ⌘3 跳到的 sid `20260711-072852-acme-rocket-274f`,其标题与面板里标 ⌘3 的那行**逐字
+相同**。截图 `qa/runs/2026-07-11-round18/rh345-palette-dark-panel.png`、`rh345-palette-groups-badges.png`、
+`rh345-cmd3-jumped.png`(+ `rh345-cmd3-target.json`)。
 
-### RH-4 ☐ 「New task」没有快捷键、nav 行没有 ⌘N 徽标 [P1]
+### RH-4 ✅ 「New task」没有快捷键、nav 行没有 ⌘N 徽标 [P1]
 `shortcuts.ts:48` 的 Global 组没有 New task,`App.tsx` 全局键也没有 `n` 分支 → 开新任务只能鼠标点。
 Codex 的 New task 行尾常驻 `⌘N` 徽标。(需 `App.tsx` + `shortcuts.ts` + `Sidebar.tsx`,与轮15 的
 implementer 白名单冲突 → 下轮做。)
+轮18 已修,**绑定落在 ⌘⌥N 而不是 ⌘N**:Codex 是桌面 app,我们跑在浏览器 tab 里,而 ⌘N(新窗口)与
+⇧⌘N(无痕)由 Chrome/Safari 在浏览器层吃掉——keydown **根本到不了页面**,`preventDefault` 也拦不住。
+挂一个按不响的 `⌘N` 徽标就是 RH-3 那个谎的翻版,所以退到 app 已有的 ⌥⌘ 家族(⌥⌘↑/↓ 切任务)。三处
+**共用同一份 token**:`shortcuts.ts` Global 组新增 `["mod","alt","N"] New task`(Settings 的快捷键表自动
+带出)、`Sidebar.tsx` nav 行尾徽标由这份 token 渲染、`App.tsx` 真正触发。判键用 `e.code === "KeyN"`
+(macOS 上 ⌥+N 是 dead key,`e.key` 会变成 `"Dead"`);同一分支也接受裸 ⌘N 形状,这样 Electron /
+standalone PWA 等**能**投递 ⌘N 的壳里白拿 Codex 原键。在 input/textarea/contenteditable 里不劫持。
+**实测**:nav 徽标 `⌘⌥N`;按 ⌘⌥N → hash 清空、New task 行 `active`。截图
+`qa/runs/2026-07-11-round18/rh345-sidebar-newtask-kbd.png`、`rh345-cmdaltN-newtask.png`。
 
-### RH-5 ☐ sidebar 放大镜打开的是内联过滤框,不是 ⌘K 命令面板 [P2]
+### RH-5 ✅ sidebar 放大镜打开的是内联过滤框,不是 ⌘K 命令面板 [P2]
 `Sidebar.tsx:219` 的放大镜 toggle 出一条内联 `side-search` 过滤条,与 ⌘K 面板并存 → 两套搜索,⌘K 的
 发现性被稀释。Codex 的 sidebar 放大镜**就是** ⌘K 面板(单一搜索入口)。
+轮18 已修:放大镜改调 `onOpenPalette`(App.tsx 传入,与 ⌘K 同一个 opener);`side-search` 输入框、
+`query`/`searching` state 及其在 sidebar 里的所有分支(空态文案、fold/expand 的 searching 覆盖)一并删除
+—— sidebar 只负责列表,搜索只剩一个入口。`buildSidebarModel` 的 `query` 参数保留(Settings → Archived
+仍在用);`styles.css` 里的 `.side-search` 死规则按白名单纪律**未动**(本轮不改 styles.css)。
+**实测**:点放大镜直接开 ⌘K 面板,DOM 里 `.side-search` 计数 = 0;稳态 console error+warning = 0。
+截图 `qa/runs/2026-07-11-round18/rh345-magnifier-opens-palette.png`。
 
 ### RX 组 · 轮15 判 ✂ / out-of-scope(不做,附理由)
 - ✂ **首页居中 hero**:QA-45 供图定的底部钉底大输入框(`styles.css:4039` 注释),不动。

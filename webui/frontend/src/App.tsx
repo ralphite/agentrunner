@@ -126,6 +126,24 @@ export function App() {
         }
         return;
       }
+      // New task (INC-41 RH-4). Codex-the-desktop-app binds plain ⌘N, but we
+      // live in a browser tab: Chrome/Safari reserve ⌘N (new window) and ⇧⌘N
+      // (incognito) at the browser level — the keydown never reaches the page,
+      // so a "⌘N" badge would be exactly the lie RH-3 was about. We bind the
+      // ⌥⌘ family the app already uses for task navigation (⌥⌘↑/↓) and that is
+      // what shortcuts.ts and the sidebar badge advertise. The plain-⌘N shape
+      // is accepted by the same branch (altKey optional) so a wrapped context
+      // that *does* deliver it (Electron / standalone PWA) gets Codex's key for
+      // free. e.code, not e.key: on macOS ⌥+N is a dead key ("Dead"/"˜").
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && (e.code === "KeyN" || e.key.toLowerCase() === "n")) {
+        const t = e.target as HTMLElement | null;
+        // Never steal a keystroke out of a field the user is typing in.
+        if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+        e.preventDefault();
+        setPalette(false);
+        useStore.getState().showPage("home");
+        return;
+      }
       // ⌘B / Ctrl-B shows or hides the sidebar (Codex's Toggle sidebar).
       if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "b") {
         e.preventDefault();
@@ -219,6 +237,11 @@ export function App() {
       <Sidebar
         onHide={hideSidebar}
         onNavigate={closeAfterNavigate}
+        // RH-5: the sidebar's magnifier *is* ⌘K — one search entry point.
+        onOpenPalette={() => {
+          closeAfterNavigate();
+          openPalette();
+        }}
         onOpenSettings={() => {
           closeAfterNavigate();
           openSettings();

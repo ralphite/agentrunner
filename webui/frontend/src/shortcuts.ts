@@ -47,6 +47,11 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     title: "Global",
     items: [
+      // RH-4 · Codex's desktop app binds plain ⌘N; a browser tab can't have it
+      // (⌘N is the browser's own "new window" and never reaches the page), so
+      // the honest binding — the one App.tsx really fires and the sidebar row
+      // really badges — is ⌘⌥N. ⌘N also works wherever a wrapper delivers it.
+      { keys: ["mod", "alt", "N"], label: "New task", desc: "Open the New task composer (⌘N is reserved by the browser)" },
       { keys: ["mod", "K"], label: "Command palette", desc: "Search sessions and run commands" },
       { keys: ["mod", "1", "…", "9"], label: "Jump to recent task", desc: "⌘1–⌘9 open the matching recent task" },
       { keys: ["mod", "alt", "up"], label: "Previous task", desc: "Select the task above in the sidebar" },

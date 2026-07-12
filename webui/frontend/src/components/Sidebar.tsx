@@ -21,7 +21,6 @@ import {
   Sun,
   Terminal,
   Tray,
-  X,
 } from "@phosphor-icons/react";
 import { useStore, type Page } from "../store";
 import { AR } from "../api";
@@ -32,6 +31,7 @@ import { MenuItem, MenuLabel } from "./Menu";
 import { copyText } from "../clipboard";
 import { buildSidebarModel, daemonVersionLabel, projectDisplayName, projectLabel, scheduledUnread, visibleProjectSessions } from "../viewModels";
 import { relTime, sessionDate } from "../time";
+import { keyLabel } from "../shortcuts";
 
 type SidebarContext =
   | { kind: "session"; x: number; y: number; sid: string }
@@ -41,12 +41,20 @@ type SidebarContext =
 // rendered in a map so adding a destination is one row here + a page dispatch
 // in App.tsx — no per-button JSX duplication. The Scheduled row alone carries
 // the live activity dot, keyed off `key === "scheduled"`.
-const NAV_DESTINATIONS: { key: Page; label: string; icon: Icon }[] = [
-  { key: "home", label: "New task", icon: NotePencil },
+// `keys` is the row's resting shortcut badge (Codex parity, RH-4): tokens from
+// shortcuts.ts, so the badge and the Settings → Keyboard shortcuts table can
+// never disagree about what the app binds.
+const NAV_DESTINATIONS: { key: Page; label: string; icon: Icon; keys?: string[] }[] = [
+  { key: "home", label: "New task", icon: NotePencil, keys: ["mod", "alt", "N"] },
   { key: "scheduled", label: "Scheduled", icon: Clock },
 ];
 
-export function Sidebar({ onNavigate, onOpenSettings }: { onHide?: () => void; onNavigate?: () => void; onOpenSettings?: () => void }) {
+export function Sidebar({ onNavigate, onOpenPalette, onOpenSettings }: {
+  onHide?: () => void;
+  onNavigate?: () => void;
+  onOpenPalette?: () => void;
+  onOpenSettings?: () => void;
+}) {
   const {
     health,
     sessions,
@@ -79,22 +87,24 @@ export function Sidebar({ onNavigate, onOpenSettings }: { onHide?: () => void; o
     setProjectName,
     openPrompt,
   } = useStore();
-  const [query, setQuery] = useState("");
-  const [searching, setSearching] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [ctx, setCtx] = useState<SidebarContext | null>(null);
   const [hoverPreview, setHoverPreview] = useState<{ sid: string; top: number } | null>(null);
   const [branchByWorkspace, setBranchByWorkspace] = useState<Record<string, string>>({});
 
+  // RH-5: the sidebar no longer filters itself. Search is the ⌘K palette —
+  // one entry point, reachable from the magnifier or the key — so this model is
+  // always the unfiltered list (the `query` knob stays in buildSidebarModel for
+  // Settings → Archived, which does search).
   const model = useMemo(
     () => buildSidebarModel(sessions, {
       pinned,
       archived,
       showArchived,
-      query,
+      query: "",
       titleOf: (session) => displayTitle(renames, session.id, session.title),
     }),
-    [sessions, pinned, archived, showArchived, query, renames],
+    [sessions, pinned, archived, showArchived, renames],
   );
   const archivedCount = sessions.filter((session) => archived.includes(session.id)).length;
   const runningRuns = runs.filter((run) => run.status === "running").length;
@@ -216,20 +226,29 @@ export function Sidebar({ onNavigate, onOpenSettings }: { onHide?: () => void; o
           <span className="text-[16px] font-[650] tracking-[-0.2px]">AgentRunner</span>
         </button>
         <div className="flex items-center gap-[2px]">
-          <button className="w-[30px] h-[30px] grid place-items-center p-0 border-0 bg-transparent text-ink-2 rounded-[8px] hover:text-ink hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)]" onClick={() => setSearching((value) => !value)} title="Search tasks">
+          <button
+            className="w-[30px] h-[30px] grid place-items-center p-0 border-0 bg-transparent text-ink-2 rounded-[8px] hover:text-ink hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)]"
+            onClick={onOpenPalette}
+            title={`Search tasks (${keyLabel("mod")}K)`}
+            aria-label="Search tasks"
+          >
             <MagnifyingGlass size={16} />
           </button>
         </div>
       </div>
 
       <nav className="primary-nav" aria-label="Primary">
-        {NAV_DESTINATIONS.map(({ key, label, icon: DestIcon }) => (
+        {NAV_DESTINATIONS.map(({ key, label, icon: DestIcon, keys }) => (
           <button
             key={key}
             className={!currentSid && currentPage === key ? "active" : ""}
             onClick={() => { showPage(key); onNavigate?.(); }}
+            title={keys ? `${label} (${keys.map(keyLabel).join("")})` : label}
           >
             <DestIcon size={17} /> <span>{label}</span>
+            {/* RH-4 · resting shortcut badge, Codex-style: the row tells you the
+                key instead of hiding it in Settings. */}
+            {keys && <span className="nav-kbd" aria-hidden="true">{keys.map(keyLabel).join("")}</span>}
             {key === "scheduled" && (schedUnread.length > 0 || runningRuns > 0) && (
               <span
                 className={`nav-notice${schedUnread.length > 0 ? " unread" : " running"}`}
@@ -239,24 +258,6 @@ export function Sidebar({ onNavigate, onOpenSettings }: { onHide?: () => void; o
           </button>
         ))}
       </nav>
-
-      {searching && (
-        <div className="side-search">
-          <MagnifyingGlass size={14} />
-          <input
-            autoFocus
-            value={query}
-            placeholder="Search title, id, or workspace"
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key !== "Escape") return;
-              if (query) setQuery("");
-              else setSearching(false);
-            }}
-          />
-          {query && <button onClick={() => setQuery("")} aria-label="Clear search"><X size={13} /></button>}
-        </div>
-      )}
 
       <div className="project-list">
         {model.pinned.length > 0 && (
@@ -277,20 +278,19 @@ export function Sidebar({ onNavigate, onOpenSettings }: { onHide?: () => void; o
           ) : model.projects.length === 0 ? (
             <div className="sidebar-empty">
               <Tray size={22} />
-              <b>{query ? "No matching tasks" : "No tasks yet"}</b>
-              <span>{query ? "Try a different search." : "Start a task to see it here."}</span>
+              <b>No tasks yet</b>
+              <span>Start a task to see it here.</span>
             </div>
           ) : null}
           {model.projects.map((project) => {
             const overlay = projects[project.key];
             const name = projectDisplayName(project, overlay);
-            const searching = !!query;
-            // Persisted fold collapses the group entirely; a search always
-            // reveals matches, so it overrides fold. The local `expanded` set
-            // is the secondary show-all-vs-6 control within an unfolded group.
-            const folded = (overlay?.folded ?? false) && !searching;
-            const showAll = expanded.has(project.key) || searching;
-            const shown = visibleProjectSessions(project, { folded: overlay?.folded, expanded: showAll, searching });
+            // Persisted fold collapses the group entirely; the local `expanded`
+            // set is the secondary show-all-vs-6 control within an unfolded
+            // group. (Search no longer lives here — it is the ⌘K palette, RH-5.)
+            const folded = overlay?.folded ?? false;
+            const showAll = expanded.has(project.key);
+            const shown = visibleProjectSessions(project, { folded, expanded: showAll });
             const openMenu = (x: number, y: number) => {
               setHoverPreview(null);
               setCtx({ kind: "project", x, y, key: project.key, label: name, workspace: project.workspace, ids: project.sessions.map((session) => session.id) });
@@ -322,7 +322,7 @@ export function Sidebar({ onNavigate, onOpenSettings }: { onHide?: () => void; o
                     Show more
                   </button>
                 )}
-                {!folded && showAll && !searching && project.sessions.length > 6 && (
+                {!folded && showAll && project.sessions.length > 6 && (
                   <button
                     className="show-more"
                     onClick={() => setExpanded((current) => {

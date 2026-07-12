@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildArchivedModel, buildSidebarModel, scheduledUnread } from "./viewModels";
+import { buildArchivedModel, buildSidebarModel, quickSwitchTasks, scheduledUnread } from "./viewModels";
+import { paletteTaskGroups } from "./viewModels.nav";
 import type { Session } from "./types";
 
 const opts = (over: Partial<Parameters<typeof buildSidebarModel>[1]>) => ({
@@ -67,6 +68,66 @@ describe("scheduled unread (E3 / F2)", () => {
 
   it("is empty when nothing is unread", () => {
     expect(scheduledUnread(sessions, [])).toEqual([]);
+  });
+});
+
+describe("command palette task groups (RH-3)", () => {
+  // Ids sort as creation stamps: t12 > t11 > … > t01 lexicographically here
+  // because they are zero-padded.
+  const task = (id: string, status: string): Session => ({ id, status, turns: 1, title: `Task ${id}` });
+  // 12 tasks all waiting on approval — the exact shape that made the old
+  // palette show zero badges and no Tasks group at all.
+  const allAttention: Session[] = Array.from({ length: 12 }, (_, i) =>
+    task(`t${String(12 - i).padStart(2, "0")}`, "waiting_approval"),
+  );
+
+  it("badges all nine quick-switch rows even when every one needs attention", () => {
+    const { quick, unread } = paletteTaskGroups(allAttention);
+    expect(quick.map((s) => s.id)).toEqual(["t12", "t11", "t10", "t09", "t08", "t07", "t06", "t05", "t04"]);
+    // The three that fell past the ninth digit become the Unread tasks group.
+    expect(unread.map((s) => s.id)).toEqual(["t03", "t02", "t01"]);
+  });
+
+  it("keeps the badge honest: quick[i] is exactly what ⌘(i+1) opens", () => {
+    // App.tsx's cmd-digit handler indexes quickSwitchTasks; the palette badges
+    // paletteTaskGroups().quick. If these ever diverge, a badge lies.
+    const mixed: Session[] = [
+      task("t05", "idle"),
+      task("t04", "waiting_approval"),
+      task("t03", "running"),
+      task("t02", "crashed"),
+      task("t01", "completed"),
+    ];
+    expect(paletteTaskGroups(mixed).quick.map((s) => s.id)).toEqual(
+      quickSwitchTasks(mixed).map((s) => s.id),
+    );
+  });
+
+  it("leaves Unread tasks empty when nothing overflows the nine digits", () => {
+    const calm: Session[] = [task("t02", "idle"), task("t01", "completed")];
+    const { quick, unread } = paletteTaskGroups(calm);
+    expect(quick.map((s) => s.id)).toEqual(["t02", "t01"]);
+    expect(unread).toEqual([]);
+  });
+
+  it("drops drivers and archived tasks from both groups", () => {
+    const sessions: Session[] = [
+      ...allAttention,
+      { id: "t99", status: "waiting_approval", turns: 1, kind: "driver" },
+    ];
+    const { quick, unread } = paletteTaskGroups(sessions, { archived: ["t12", "t03"] });
+    // Archiving the head of the list pulls one row up out of the overflow…
+    expect(quick.map((s) => s.id)).toEqual(["t11", "t10", "t09", "t08", "t07", "t06", "t05", "t04", "t02"]);
+    // …and neither the archived rows nor the driver appear anywhere.
+    expect(unread.map((s) => s.id)).toEqual(["t01"]);
+    expect([...quick, ...unread].map((s) => s.id)).not.toContain("t99");
+    expect([...quick, ...unread].map((s) => s.id)).not.toContain("t03");
+  });
+
+  it("never puts a task in both groups", () => {
+    const { quick, unread } = paletteTaskGroups(allAttention);
+    const ids = new Set(quick.map((s) => s.id));
+    expect(unread.some((s) => ids.has(s.id))).toBe(false);
   });
 });
 
