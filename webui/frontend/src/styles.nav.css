@@ -389,12 +389,15 @@
   color: var(--ink);
   font-weight: 640;
 }
-/* Settled rows (completed / stopped) drop their leading status dot — this
+/* Settled rows (completed / stopped) drop their leading status glyph — this
    transparent placeholder keeps the copy column aligned with rows that still
-   badge (running / attention / unread). See Scheduled.tsx SETTLED_STATUS. */
+   badge (running / attention). See Scheduled.tsx SETTLED_STATUS.
+   INC-41 RS-2: it must be exactly as wide as .sched-glyph (20px), or every
+   settled row's title starts 13px left of an active row's. It was still the
+   7px of the old filled-dot era. */
 .sched-blank {
-  width: 7px;
-  height: 7px;
+  width: 20px;
+  height: 20px;
   flex: 0 0 auto;
 }
 

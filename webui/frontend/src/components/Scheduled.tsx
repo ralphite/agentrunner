@@ -225,6 +225,10 @@ export function Scheduled() {
         </div>
       </div>
 
+      {/* RS-3: two rows, as Codex has them — the search field owns a full row, and
+          the filters sit on their own line below it (tabs left, Mark all as read
+          right). The right-aligned button can appear and disappear with the unread
+          set without ever nudging the tabs. */}
       {!totalEmpty && (
         <div className="sched-toolbar">
           <div className="sched-search">
@@ -236,28 +240,30 @@ export function Scheduled() {
               aria-label="Search scheduled work"
             />
           </div>
-          <div className="sched-tabs" role="tablist" aria-label="Filter scheduled work">
-            {(["all", "active", "paused"] as Filter[]).map((f) => (
+          <div className="sched-filters">
+            <div className="sched-tabs" role="tablist" aria-label="Filter scheduled work">
+              {(["all", "active", "paused"] as Filter[]).map((f) => (
+                <button
+                  key={f}
+                  role="tab"
+                  aria-selected={filter === f}
+                  className={"sched-tab" + (filter === f ? " on" : "")}
+                  onClick={() => setFilter(f)}
+                >
+                  {f[0].toUpperCase() + f.slice(1)}
+                </button>
+              ))}
+            </div>
+            {unreadIds.length > 0 && (
               <button
-                key={f}
-                role="tab"
-                aria-selected={filter === f}
-                className={"sched-tab" + (filter === f ? " on" : "")}
-                onClick={() => setFilter(f)}
+                className="sched-markread"
+                onClick={() => unreadIds.forEach(markRead)}
+                title="Mark all scheduled activity as read"
               >
-                {f[0].toUpperCase() + f.slice(1)}
+                <Check size={14} /> Mark all as read
               </button>
-            ))}
+            )}
           </div>
-          {unreadIds.length > 0 && (
-            <button
-              className="sched-markread"
-              onClick={() => unreadIds.forEach(markRead)}
-              title="Mark all scheduled activity as read"
-            >
-              <Check size={14} /> Mark all as read
-            </button>
-          )}
         </div>
       )}
 
@@ -283,9 +289,6 @@ export function Scheduled() {
         ) : (
           filtered.map((r) => (
             <button className={"scheduled-row" + (r.unread ? " is-unread" : "")} key={r.key} onClick={r.onClick}>
-              <span className="sched-lead" aria-hidden="true">
-                {r.unread && <span className="sched-unread" title="New activity" />}
-              </span>
               {SETTLED_STATUS.has(r.status.cls) ? (
                 <span className="sched-blank" aria-hidden="true" />
               ) : (
@@ -309,6 +312,13 @@ export function Scheduled() {
                   )}
                   {r.project && <>{" · "}{r.project}</>}
                 </span>
+              </span>
+              {/* RS-3: the unread dot lives at the row's far right — the left column
+                  is the status column, the right end is "there is something new".
+                  Always rendered (empty when read) so the copy column keeps one
+                  width and the titles never shift. */}
+              <span className="sched-trail" aria-hidden="true">
+                {r.unread && <span className="sched-unread" title="New activity" />}
               </span>
             </button>
           ))

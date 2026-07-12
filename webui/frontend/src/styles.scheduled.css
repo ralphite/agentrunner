@@ -95,3 +95,124 @@
 .scheduled-row .sched-next {
   color: var(--blue);
 }
+
+/* ===== INC-41 round 17 · RS-1 / RS-2 / RS-3 =========================
+   This file is imported by Scheduled.tsx, so it lands after styles.css;
+   every rule below is scoped one level deeper than the base rule it
+   overrides, so it wins on specificity regardless of sheet order. */
+
+/* RS-1 — a scheduled row's title is a SINGLE LINE, always.
+   The title is the task's original prompt, which can run to a paragraph:
+   left to wrap it took a row from 68px to 150px+ (four lines at 390px),
+   burying the cadence/next-run underneath and destroying the list's
+   vertical rhythm. Codex's titles are one line, ellipsised, every row the
+   same height. Only the sub-line had nowrap (styles.css:3466); the title
+   (styles.css:3465) did not. The flex parent needs min-width:0 too, or the
+   text's intrinsic min-content width refuses to let it shrink. */
+.scheduled-row .scheduled-copy {
+  min-width: 0;
+}
+
+.scheduled-row .scheduled-copy b {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* RS-3 — no rule between rows. Codex groups by whitespace and spends its
+   one line on the list/Suggestions boundary; a border on every row turned
+   the screen into a log dump. Hover carries the click affordance instead. */
+.scheduled-page .scheduled-list {
+  border-top: 0;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 6px;
+}
+
+.scheduled-list .scheduled-row {
+  border-bottom: 0;
+  border-radius: 10px;
+}
+
+.scheduled-list .scheduled-row:hover {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+
+/* RS-3 — the unread dot sits at the row's far right: the leading column is
+   the status column and nothing else. (It also used to eat 8px of indent at
+   the head of the row, the second source of the ragged title edge.) The
+   placeholder is always present so the copy column has one width. */
+.scheduled-row .sched-trail {
+  flex: 0 0 auto;
+  width: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* RS-3 — toolbar in two rows: search owns a full line, filters below it. */
+.scheduled-page .sched-toolbar {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.scheduled-page .sched-search {
+  flex: 0 0 auto;
+  width: 100%;
+  padding: 9px 14px;
+  border-radius: 999px;
+}
+
+.scheduled-page .sched-filters {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* RS-3 — tabs are bare text (selected = ink + weight), not an iOS segmented
+   control. With a border, a fill and a shadow they read as the second-heaviest
+   thing on the page, above the tasks they filter. */
+.scheduled-page .sched-tabs {
+  padding: 0;
+  gap: 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.scheduled-page .sched-tab {
+  padding: 5px 10px;
+  color: var(--dim);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.scheduled-page .sched-tab:hover {
+  color: var(--ink-2);
+}
+
+.scheduled-page .sched-tab.on {
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* …and Mark all as read is a quiet text action, not a pill. */
+.scheduled-page .sched-markread {
+  padding: 5px 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--dim);
+}
+
+.scheduled-page .sched-markread:hover {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink);
+}
