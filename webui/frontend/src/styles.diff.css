@@ -248,3 +248,49 @@
     animation: none;
   }
 }
+
+/* ============================================================================
+ * INC-41 DIFF-CP · Commit-or-push, the review's resident main action.
+ *
+ * The golden sets this button apart from the icon strip it follows: the icons
+ * are a grey run of chrome, and then — across a gutter — one outlined control
+ * with a glyph, a word, and a caret. The base look already lives in
+ * styles.rs.css (`.diffwrap .diff-commit-btn`, outlined ghost, not a solid
+ * primary); what it lacked was that gutter, an honest disabled state, and a way
+ * to survive a narrow bar without deserting it.
+ *
+ * Three-class selectors on purpose (see this file's header): they must out-
+ * specify styles.rs.css's two-class `.diffwrap .diff-commit-btn` whichever order
+ * the bundler concatenates the slices in.
+ * ========================================================================== */
+
+/* The gutter: 8px of the bar's own `gap` + 4px here = the golden's ~12px break
+ * between the icon run and the button. Cheaper than a hairline `<hr>`, and it
+ * cannot be mistaken for one of the icons' own borders. */
+.diffwrap .diffbar .diff-commit-btn {
+  margin-left: 4px;
+}
+
+/* Disabled = resident but inert (base `button:disabled` supplies the 0.45 opacity).
+ * Without this the outlined-ghost hover from styles.rs.css still fired on a dead
+ * control — it lit up and rose to meet a click that would never do anything. */
+.diffwrap .diffbar .diff-commit-btn:disabled {
+  cursor: default;
+}
+.diffwrap .diffbar .diff-commit-btn:disabled:hover {
+  background: var(--panel);
+  border-color: var(--line);
+}
+
+/* Narrow bar → the label goes, the button stays. It becomes exactly the 28px
+ * square the other bar controls are (`.diff-iconbtn`), keeping its border, so it
+ * still reads as the one outlined control among the ghosts rather than melting
+ * into them. It never falls back into the `…` overflow: a main action you have
+ * to go looking for is the gap this closes. `aria-label` carries the name for
+ * anyone who cannot see the glyph, in both forms. */
+.diffwrap .diffbar .diff-commit-btn.diff-commit-compact {
+  width: 28px;
+  padding: 0;
+  justify-content: center;
+  gap: 0;
+}

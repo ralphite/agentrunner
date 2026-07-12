@@ -115,6 +115,24 @@ const saveScope = (s: DiffScope) => {
   }
 };
 
+// INC-41 DIFF-CP · the bar is "tight" below this width, and two of its residents
+// stand down. Measured on the *bar*, not the window: this panel is the session's
+// main column, and its width moves with the sidebar and the right rail as well
+// as the viewport. (At a 1100px window it is 415px wide — a media query cannot
+// see that, which is how the two bugs below survived.)
+//
+//  1 · Commit-or-push drops its label for its glyph. It never leaves: a main
+//      action you have to go looking for is the gap DIFF-CP closes.
+//  2 · The split/inline toggle steps aside and the view falls back to inline —
+//      which is D4's own rule ("split needs room"), finally applied to the box
+//      that needs the room. It was keyed to a `max-width: 900px` *window*, so at
+//      a 1100px window it still offered split view for a 415px panel: two ~190px
+//      columns of code. That 58px toggle was also the width the resident commit
+//      button needed. The bar it left behind is narrower than main's at every
+//      width we measured (qa/runs/2026-07-12-r32/after-diffcp/ba.py), so DF-1's
+//      one-row contract comes out of DIFF-CP stronger, not weaker.
+const BAR_TIGHT_PX = 600;
+
 // FileHead is the one file header in the review — Codex has exactly one kind of
 // changed-file card, and after DF-3 so do we: tracked edits and untracked new
 // files render through this same summary (caret + M/A/D glyph + path + `+x −y`
@@ -236,7 +254,27 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
     mq.addEventListener("change", sync);
     return () => mq.removeEventListener("change", sync);
   }, []);
-  const effView = narrow ? "inline" : view;
+  // DIFF-CP · what the bar actually measures (see BAR_TIGHT_PX). A stable
+  // callback ref, because the bar only exists once the diff has landed — a `[]`
+  // effect would run against the skeleton and find nothing to observe. The
+  // ResizeObserver is guarded for jsdom, which has none: no observer → not tight
+  // → the label stays, the honest default for a bar we cannot measure.
+  const [barTight, setBarTight] = useState(false);
+  const barObs = useRef<ResizeObserver | null>(null);
+  const barRef = useCallback((el: HTMLDivElement | null) => {
+    barObs.current?.disconnect();
+    barObs.current = null;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const measure = () => setBarTight(el.clientWidth > 0 && el.clientWidth < BAR_TIGHT_PX);
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    barObs.current = ro;
+    measure();
+  }, []);
+  useEffect(() => () => barObs.current?.disconnect(), []);
+  // `narrow` is the window; `barTight` is the panel. Split view needs room in the
+  // box that renders it, and only the second of these can see that.
+  const effView = narrow || barTight ? "inline" : view;
   // DF-1 · the review rail is ~56% of the window, so below ~1400px the worktree
   // chip's text is the first thing with nowhere to go. It shrinks (never its
   // neighbours — see .diffwrap .diffbar in styles.css), and here it stops being
@@ -641,7 +679,7 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
 
   return (
     <div className={"diffwrap" + (wrap ? " diff-wrap" : "")}>
-      <div className="diffbar">
+      <div className="diffbar" ref={barRef}>
         {scopeControl}
         {/* DF-6 · both numbers, always — Codex's toolbar reads `+649 -57`, and a
             review with nothing deleted reads `+1 −0`, not a lone `+1`. The old
@@ -834,7 +872,12 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
             {wrap ? <TextAlignLeft size={15} /> : <ArrowsHorizontal size={15} />}
           </button>
         )}
-        {!empty && (
+        {/* DIFF-CP · …and on a tight bar the toggle itself goes. Offering "split"
+            for a 415px panel was offering two ~190px columns of code — the very
+            crush D4 wrote this control's `narrow` rule to prevent, which it then
+            measured on the window and so never saw. The view is inline there
+            (effView), so the toggle would have had nothing left to toggle. */}
+        {!empty && !barTight && (
           <div className="diff-viewtoggle" role="group" aria-label="Diff layout">
             <button
               className={"sm icon" + (effView === "inline" ? " sel" : "")}
@@ -855,56 +898,85 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
             </button>
           </div>
         )}
-        {scope === "working-tree" && !empty && (
-          <Popover
-            align="right"
-            panelClass="w-[264px] max-w-[calc(100vw-24px)]"
-            trigger={(open, toggle) => (
-              <button
-                className={"sm diff-commit-btn" + (open ? " active" : "")}
-                onClick={toggle}
-                disabled={busy}
-                aria-label="Commit or push"
-                aria-haspopup="menu"
-                aria-expanded={open}
-                title="Commit or push the workspace changes"
-              >
-                <GitCommit size={14} />
-                Commit or push
-                <CaretDown size={12} className="diff-commit-caret" />
-              </button>
-            )}
-          >
-            {(close) => (
-              <PopSection label="Commit or push">
-                <PopItem
-                  title="Commit"
-                  desc="git add -A && git commit locally (no push)"
-                  onClick={() => {
-                    close();
-                    commit();
-                  }}
-                />
-                <PopItem
-                  title="Commit &amp; push"
-                  desc="Commit locally, then push to the upstream branch"
-                  onClick={() => {
-                    close();
-                    commitAndPush();
-                  }}
-                />
-                <PopItem
-                  title="Push"
-                  desc="Push existing commits to the upstream branch"
-                  onClick={() => {
-                    close();
-                    void doPush();
-                  }}
-                />
-              </PopSection>
-            )}
-          </Popover>
-        )}
+        {/* INC-41 DIFF-CP · the review's main exit, resident.
+            Codex's review header ends in one outlined `⊸ Commit or push ⌄`, and
+            for good reason: the next thing you do after reading a diff is commit
+            it. Ours already looked like that button — but it was gated on
+            `scope === "working-tree"`, and RVW-4 had just made `last-turn` the
+            *default* scope. So on the screen the user actually lands on, the
+            panel's primary action did not exist: not in the bar, and not in `…`
+            either (Apply/Remove are working-tree-gated too, so the overflow held
+            nothing but Refresh). The commit itself was never scope-dependent —
+            AR.commit stages the workspace, which is the same workspace whichever
+            diff you happen to be reading — so the gate was protecting nothing.
+            It is resident now, in every scope, and states its own unavailability
+            (disabled) instead of vanishing, exactly as the golden's greyed-out
+            button does next to its `Last Turn` chip. */}
+        <Popover
+          align="right"
+          panelClass="w-[264px] max-w-[calc(100vw-24px)]"
+          trigger={(open, toggle) => (
+            <button
+              className={
+                "sm diff-commit-btn" + (open ? " active" : "") + (barTight ? " diff-commit-compact" : "")
+              }
+              onClick={toggle}
+              // Nothing changed → nothing to stage. The button stays put and
+              // says so; the turn's empty state gets the honest reason, since a
+              // clean *turn* does not mean a clean *working tree* — the earlier
+              // changes are one scope away, and the tooltip points there rather
+              // than leaving a dead control unexplained.
+              disabled={busy || empty}
+              aria-label="Commit or push"
+              aria-haspopup="menu"
+              aria-expanded={open}
+              title={
+                empty
+                  ? scope === "last-turn"
+                    ? "Nothing changed this turn — switch to Working tree to commit earlier changes"
+                    : "No changes to commit"
+                  : "Commit or push the workspace changes"
+              }
+            >
+              <GitCommit size={14} />
+              {!barTight && (
+                <>
+                  Commit or push
+                  <CaretDown size={12} className="diff-commit-caret" />
+                </>
+              )}
+            </button>
+          )}
+        >
+          {(close) => (
+            <PopSection label="Commit or push">
+              <PopItem
+                title="Commit"
+                desc="git add -A && git commit locally (no push)"
+                onClick={() => {
+                  close();
+                  commit();
+                }}
+              />
+              <PopItem
+                title="Commit &amp; push"
+                desc="Commit locally, then push to the upstream branch"
+                onClick={() => {
+                  close();
+                  commitAndPush();
+                }}
+              />
+              <PopItem
+                title="Push"
+                desc="Push existing commits to the upstream branch"
+                onClick={() => {
+                  close();
+                  void doPush();
+                }}
+              />
+            </PopSection>
+          )}
+        </Popover>
         {closeBtn}
       </div>
       {/* INC-41 L4 · every "nothing to show" in this panel speaks the timeline's
