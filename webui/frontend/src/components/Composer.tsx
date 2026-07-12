@@ -10,19 +10,24 @@ import {
   Desktop,
   Eye,
   File,
+  FilePdf,
+  FileText,
   Folder,
   GitBranch,
   Image,
+  Layout,
   Lightning,
   ListChecks,
   LockOpen,
   MagnifyingGlass,
   Microphone,
   PencilSimple,
+  Presentation,
   Plus,
   ShieldCheck,
   Sparkle,
   Stop as StopIcon,
+  Table,
   Target,
   UserCircle,
   X,
@@ -224,6 +229,22 @@ export function Composer(props: ComposerProps) {
   const appendText = (t: string) => {
     setText((prev) => (prev ? prev + " " + t : t));
     taRef.current?.focus();
+  };
+  // A Plugins row (Documents / PDF / …) has no backend plugin/skill registry
+  // yet (deferred): the sensible client-side action is to seed the draft with a
+  // starter prompt for that capability, on its own line below any existing
+  // draft, and drop the caret at the end so the user keeps typing.
+  const injectPlugin = (hint: string) => {
+    setText((prev) => (prev.trim() ? prev.trimEnd() + "\n\n" + hint : hint));
+    requestAnimationFrame(() => {
+      const ta = taRef.current;
+      if (ta) {
+        ta.focus();
+        grow(ta);
+        const end = ta.value.length;
+        ta.setSelectionRange(end, end);
+      }
+    });
   };
   // Browser SpeechRecognition dictation — the fallback when server-side
   // dictation (MediaRecorder + `ar dictate`) isn't available.
@@ -1251,8 +1272,16 @@ export function Composer(props: ComposerProps) {
             {(close) => (
               <div className="cx-menu wide cx-add-menu">
                 <PopSection label="Add">
-                  <PopItem icon={<Image size={16} />} title="Image" desc="Paste, drop, or pick an image" onClick={() => { close(); imgRef.current?.click(); }} />
-                  <PopItem icon={<File size={16} />} title="File" desc="PDF, text, or any file (≤10MB)" onClick={() => { close(); anyRef.current?.click(); }} />
+                  <PopItem icon={<Image size={16} />} title="Images" desc="Paste, drop, or pick one or more images" onClick={() => { close(); imgRef.current?.click(); }} />
+                  <PopItem icon={<File size={16} />} title="Files" desc="PDF, text, or any files (≤10MB each)" onClick={() => { close(); anyRef.current?.click(); }} />
+                </PopSection>
+                {/* Plugins (Codex parity): capability shortcuts. No backend
+                    plugin/skill registry yet (deferred) — each row seeds the
+                    draft with a starter prompt for that capability. */}
+                <PopSection label="Plugins">
+                  {PLUGINS.map((p) => (
+                    <PopItem key={p.id} icon={<PluginIcon id={p.id} />} title={p.label} desc={p.desc} onClick={() => { close(); injectPlugin(p.hint); }} />
+                  ))}
                 </PopSection>
                 <PopSection label="Task options">
                   <PopItem icon={<GoalIcon />} title="Goal" desc="Keep working until the goal is met" onClick={() => { close(); setLauncher({ mode: "goal", task: text.trim() }); }} />
@@ -1591,9 +1620,10 @@ export function Composer(props: ComposerProps) {
 
       {isSession && <div className="cx-status">{(props as any).running ? "running…" : "ready"}</div>}
 
-      {/* hidden file inputs */}
-      <input type="file" accept="image/*" ref={imgRef} style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) pick(f, true); e.target.value = ""; }} />
-      <input type="file" ref={anyRef} style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) pick(f, false); e.target.value = ""; }} />
+      {/* hidden file inputs — multi-select (mirror the drag-drop multi-file
+          loop): loop over every chosen file instead of taking files[0]. */}
+      <input type="file" accept="image/*" multiple ref={imgRef} style={{ display: "none" }} onChange={(e) => { for (const f of Array.from(e.target.files || [])) pick(f, true); e.target.value = ""; }} />
+      <input type="file" multiple ref={anyRef} style={{ display: "none" }} onChange={(e) => { for (const f of Array.from(e.target.files || [])) pick(f, f.type.startsWith("image/")); e.target.value = ""; }} />
     </div>
   );
 }
@@ -1682,6 +1712,33 @@ const PlanIcon = () => <ListChecks size={14} />;
 const EffortIcon = ({ level }: { level: EffortId }) => <ChartBar size={14} weight={level === "off" ? "regular" : "fill"} />;
 const BestIcon = () => <ChartBar size={14} />;
 const PersonaIcon = () => <UserCircle size={13} />;
+
+// Plugins (Codex parity): capability shortcuts in the "+" menu. There is no
+// backend plugin/skill registry yet (deferred) — clicking a row seeds the draft
+// with a starter prompt (see injectPlugin). Swap in real skill/capability wiring
+// once a registry lands.
+const PLUGINS: { id: string; label: string; desc: string; hint: string }[] = [
+  { id: "documents", label: "Documents", desc: "Create and edit document artifacts", hint: "Create a document artifact: " },
+  { id: "pdf", label: "PDF", desc: "Read, create, and verify PDF files", hint: "Work with a PDF file: " },
+  { id: "spreadsheets", label: "Spreadsheets", desc: "Create and edit spreadsheet files", hint: "Build a spreadsheet: " },
+  { id: "presentations", label: "Presentations", desc: "Create and edit presentations", hint: "Create a presentation: " },
+  { id: "template", label: "Template Creator", desc: "Create or update document, spreadsheet & presentation templates", hint: "Create a reusable template: " },
+];
+const PluginIcon = ({ id }: { id: string }) => {
+  const cls = "cx-plugin-ico " + id;
+  switch (id) {
+    case "documents":
+      return <FileText size={16} weight="fill" className={cls} />;
+    case "pdf":
+      return <FilePdf size={16} weight="fill" className={cls} />;
+    case "spreadsheets":
+      return <Table size={16} weight="fill" className={cls} />;
+    case "presentations":
+      return <Presentation size={16} weight="fill" className={cls} />;
+    default:
+      return <Layout size={16} weight="fill" className={cls} />;
+  }
+};
 
 // Access-mode icons (C2): each approval posture gets a distinct Codex-style
 // line icon, tinted by its risk so the menu keeps the pill's risk language.

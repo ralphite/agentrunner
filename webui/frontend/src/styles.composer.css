@@ -219,6 +219,25 @@
   padding-top: 2px;
 }
 
+/* ---- P2 · Plugins section (Codex-style colorful app glyphs) --------------- */
+/* Each plugin row gets a tinted icon so the section reads like Codex's colorful
+   app icons. The color sits on the svg itself so it wins over .pop-ico's grey. */
+.cx-add-menu .cx-plugin-ico.documents {
+  color: var(--blue);
+}
+.cx-add-menu .cx-plugin-ico.pdf {
+  color: var(--red);
+}
+.cx-add-menu .cx-plugin-ico.spreadsheets {
+  color: var(--green);
+}
+.cx-add-menu .cx-plugin-ico.presentations {
+  color: var(--amber);
+}
+.cx-add-menu .cx-plugin-ico.template {
+  color: var(--blue);
+}
+
 /* ---- C4 · slash command menu --------------------------------------------- */
 /* Codex command-list shape: mono command name over a description on the left,
    the argument hint pinned to the right; the keyboard-selected row lifts with a
