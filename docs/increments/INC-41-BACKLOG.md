@@ -863,6 +863,44 @@ DiffView ✅ / CommandPalette ✅ / Timeline ✅),**Popover 及其 8 个 Compose
 组内用 ↑/↓ 移动(复用已有 `⌘⌥↑/↓` 逻辑)。更贴近 Codex,但改动面大 → 待 A11Y-1(a) 落地后再评估。
 **touches**:`Sidebar.tsx`。
 
+## P 相 · 性能(轴 B,2026-07-11 轮10 起)
+
+**轮10 巡检 baseline(live 8809,index-BmBuR-u1.js)**:
+| 指标 | 实测 |
+|---|---|
+| JS bundle | raw=895,097 B / gzip=251,312 B(单 chunk,零 code splitting) |
+| CSS bundle | raw=133,732 B / gzip=24,858 B |
+| 静态资源传输 | **无 gzip**,冷加载实传 ≈1.03 MB(本可 ≈276 KB) |
+| 静态资源缓存 | **无 Cache-Control / 无 ETag / 无 Last-Modified** → 每次访问 200 全量重传 |
+| `GET /`(index.html) | 0.8 ms |
+| `GET /api/health` | 29 ms |
+| `GET /api/sessions` | **242 ms**(中位/5 次)——侧栏首屏要等它 |
+
+### PERF-1 ☐ 静态资源零压缩、零缓存头:每次冷加载白下载 1.03 MB [P1]
+**behavior**:webui 每次冷加载实打实传输 895 KB JS + 134 KB CSS,而这两份 gzip 后只有
+251 KB + 25 KB(压缩率 72%/81%)。且因为**没有任何缓存头**,刷新页面 / 二次访问**照样
+全量重传** —— 明明 Vite 产物文件名自带 content hash(`index-BmBuR-u1.js`),天然可以
+`immutable` 永久缓存,却一个字节都没省。远程/弱网访问时首屏白等数秒。
+**证据**(live 实测):
+```
+$ curl -s -o /dev/null -D - -H 'Accept-Encoding: gzip, deflate, br' \
+    127.0.0.1:8809/assets/index-BmBuR-u1.js -w 'size_download=%{size_download}\n'
+HTTP/1.1 200 OK
+Content-Length: 895097        <-- 无 Content-Encoding、无 Cache-Control、无 ETag
+size_download=895097
+```
+**源码**:`webui/embed.go` `staticHandler()` —— 直接用裸 `http.FileServer(http.FS(sub))`,
+不加压缩也不加缓存头(embed.FS 的 modtime 是零值,FileServer 因此连 Last-Modified/304
+都不发)。
+**建议**:①**启动时预压缩**(不是每请求现压)`.js/.css/.html/.svg/.json` 并缓存在内存,
+按 `Accept-Encoding` 协商发 gzip + `Vary`;②`/assets/*`(带 hash)→
+`Cache-Control: public, max-age=31536000, immutable`,`index.html` → `no-cache`
+(**边界:index.html 必须回源校验,否则用户永远拿不到新版**);③内容 hash 做 ETag,
+`If-None-Match` 命中回 304(gzip 与非 gzip 变体 ETag 需区分)。
+**touches**:`webui/embed.go` / `webui/embed_test.go`(新)。
+**刻意核查**:`git log -S"FileServer"` / `-S"Cache-Control"` 对 webui 无"故意不压缩/不缓存"
+的依据,注释里也只说 SPA fallback 语义 → **非刻意,是洞**。
+
 ## 驱动循环台账(/parity-drive,每30min一轮,只追加)
 
 - 2026-07-11 轮1(循环启动):同步+部署 8809=index-CWvHKizj.js;收割 0(无存活
