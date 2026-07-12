@@ -281,6 +281,155 @@ describe("a broken schedule says so on screen (SC-10)", () => {
   });
 });
 
+// SC-12 / SC-13 / SC-14 — one driver session (the thing most rows are) and one
+// interval RUN, both titled the way real ones are: with the prompt that made
+// them.
+const promptTitled: Session[] = [
+  {
+    id: "20260712-033455-cx3",
+    status: "idle",
+    turns: 5,
+    title: "Append one line with the current timestamp to notes.md, then commit it (use write_file or bash).",
+    workspace: "/Users/me/scratch",
+    kind: "driver",
+    schedule: "interval",
+    cadence: "Every 30m",
+    nextRunAt: "2099-01-01T00:00:00Z",
+  },
+];
+const promptRuns: Run[] = [
+  {
+    id: "r-live",
+    kind: "drive",
+    label: "Watch the build and report failures. Ping me when it goes red.",
+    workspace: "/Users/me/agentrunner",
+    status: "running",
+    startedAt: "2026-07-11T09:00:00Z",
+    schedule: "interval",
+    cadence: "Every 10m",
+    nextRunAt: "2099-01-01T00:00:00Z",
+  },
+];
+
+type StoreState = ReturnType<typeof useStore.getState>;
+
+const mountRich = (over: Partial<StoreState> = {}) => {
+  useStore.setState({
+    runs: promptRuns,
+    sessions: promptTitled,
+    sessionsReady: true,
+    unread: [],
+    archived: [],
+    pinned: [],
+    renames: {},
+    ...over,
+  });
+  return render(<Scheduled />);
+};
+
+describe("a row is titled with a NAME, not the prompt (SC-13)", () => {
+  it("derives a scannable name and keeps the whole prompt one hover away", () => {
+    const { container } = mountRich();
+    const row = container.querySelector(".scheduled-row")!;
+    const shown = row.querySelector(".scheduled-copy b")!.textContent!;
+
+    // The live row: 96 characters of instructions, of which the first clause is
+    // the only part that identifies the task.
+    expect(shown).toBe("Append one line with the current timestamp to…");
+    expect(shown.length).toBeLessThan(50);
+    expect(shown).not.toContain("use write_file or bash");
+
+    // Nothing is hidden: the raw prompt is the row's tooltip…
+    expect(row.getAttribute("title")).toContain("(use write_file or bash)");
+    // …and it is still searchable, so shortening the label made nothing
+    // unfindable.
+    fireEvent.change(screen.getByLabelText("Search scheduled tasks"), { target: { value: "write_file" } });
+    expect(container.querySelectorAll(".scheduled-row")).toHaveLength(1);
+  });
+
+  it("lets a user rename win over the derived name", () => {
+    const { container } = mountRich({ renames: { "20260712-033455-cx3": "Timestamp notes" } });
+    expect(titles(container)).toContain("Timestamp notes");
+  });
+});
+
+describe("a scheduled row can be acted on (SC-12)", () => {
+  it("opens the row menu on right-click, with the actions the row actually has", () => {
+    const { container } = mountRich();
+    const session = screen.getByText(/^Append one line/).closest(".scheduled-row-wrap")!;
+    fireEvent.contextMenu(session);
+
+    const menu = container.querySelector(".ctx-menu")!;
+    expect(menu).toBeTruthy();
+    const items = [...menu.querySelectorAll("[role='menuitem']")].map((e) => e.textContent);
+    expect(items).toEqual(["Pin", "Rename…", "Mark as unread", "Archive", "Session ID", "Task link"]);
+  });
+
+  it("offers Stop on a running run — the hub could not stop anything before", () => {
+    const { container } = mountRich();
+    const run = screen.getByText(/^Watch the build/).closest(".scheduled-row-wrap")!;
+    fireEvent.contextMenu(run);
+    const items = [...container.querySelectorAll(".ctx-menu [role='menuitem']")].map((e) => e.textContent);
+    expect(items[0]).toBe("Stop");
+    // …and never the session-only actions, which would be no-ops on a run.
+    expect(items).not.toContain("Archive");
+    expect(items).not.toContain("Rename…");
+  });
+
+  it("acts: Pin from the menu pins the task and the row says so", () => {
+    const { container } = mountRich();
+    fireEvent.contextMenu(screen.getByText(/^Append one line/).closest(".scheduled-row-wrap")!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Pin" }));
+
+    expect(useStore.getState().pinned).toContain("20260712-033455-cx3");
+    expect(container.querySelector(".scheduled-row .sched-pinned")).toBeTruthy();
+  });
+
+  it("carries a ⋯ button per row that opens the same menu, and never clicks the row", () => {
+    const { container } = mountRich();
+    const before = useStore.getState().currentSid;
+    const more = container.querySelectorAll(".sched-more");
+    expect(more).toHaveLength(2); // every row has one
+
+    fireEvent.click(more[0]);
+    expect(container.querySelector(".ctx-menu")).toBeTruthy();
+    // Opening the menu must not also open the task.
+    expect(useStore.getState().currentSid).toBe(before);
+  });
+
+  it("reaches the menu from the keyboard (Shift+F10), as the sidebar rows do", () => {
+    const { container } = mountRich();
+    fireEvent.keyDown(container.querySelector(".scheduled-row")!, { key: "F10", shiftKey: true });
+    expect(container.querySelector(".ctx-menu")).toBeTruthy();
+  });
+});
+
+describe("a search hit is visible on the row it returns (SC-14)", () => {
+  it("names the project when the project is what matched", () => {
+    const { container } = mountRich();
+    // Before: searching the workspace returned this row with the word "scratch"
+    // nowhere on it — the result looked broken.
+    fireEvent.change(screen.getByLabelText("Search scheduled tasks"), { target: { value: "scratch" } });
+    const rows = [...container.querySelectorAll(".scheduled-row")];
+    expect(rows).toHaveLength(1);
+    const chip = rows[0].querySelector(".sched-project-chip")!;
+    expect(chip).toBeTruthy();
+    expect(chip.textContent!.toLowerCase()).toContain("scratch");
+  });
+
+  it("keeps the chip off when the project is not what you searched for (SC-4)", () => {
+    const { container } = mountRich();
+    // Resting state: two facts on the sub-line, no project anywhere.
+    expect(container.querySelector(".sched-project-chip")).toBeNull();
+    expect(screen.queryByText(/scratch/i)).toBeNull();
+
+    // A query that matched something already visible does not summon it either.
+    fireEvent.change(screen.getByLabelText("Search scheduled tasks"), { target: { value: "Every 30m" } });
+    expect(container.querySelectorAll(".scheduled-row")).toHaveLength(1);
+    expect(container.querySelector(".sched-project-chip")).toBeNull();
+  });
+});
+
 describe("hasRhythm", () => {
   it("accepts the schedule kinds that fire again on their own", () => {
     expect(hasRhythm({ schedule: "interval" })).toBe(true);

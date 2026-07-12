@@ -152,10 +152,94 @@
 .scheduled-list .scheduled-row {
   border-bottom: 0;
   border-radius: 10px;
+  /* SC-12 — the lane the ⋯ button lives in is reserved at rest, so the button
+     appearing on hover cannot shove the trail (or ellipsise the title) as it
+     comes and goes. */
+  padding-right: 34px;
 }
 
+/* SC-12 — hover now belongs to the WRAPPER (row + its actions), so sliding onto
+   the ⋯ button does not drop the row's highlight. The row itself must therefore
+   stop painting its own, or the two would stack into a darker patch. */
 .scheduled-list .scheduled-row:hover {
+  background: transparent;
+}
+
+.scheduled-list .scheduled-row-wrap {
+  position: relative;
+  border-radius: 10px;
+}
+
+.scheduled-list .scheduled-row-wrap:hover,
+.scheduled-list .scheduled-row-wrap:focus-within,
+.scheduled-list .scheduled-row-wrap.menu-open {
   background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+
+/* An archived row stays on this page (the hub answers "what is still ticking?",
+   and an archived series still ticks) but says what it is — otherwise Archive
+   from the row menu would look like it did nothing. */
+.scheduled-list .scheduled-row-wrap.is-archived {
+  opacity: 0.55;
+}
+
+/* SC-12 — the ⋯ button: absent until you look at the row, and never part of the
+   layout (absolutely positioned inside the reserved lane), so it cannot make
+   anything else move. `opacity` rather than `visibility`/`display` keeps it
+   focusable in the tab order for keyboard users. */
+.scheduled-list .sched-more {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dim);
+  opacity: 0;
+  cursor: pointer;
+}
+
+.scheduled-row-wrap:hover .sched-more,
+.scheduled-row-wrap:focus-within .sched-more,
+.scheduled-row-wrap.menu-open .sched-more,
+.scheduled-list .sched-more:focus-visible {
+  opacity: 1;
+}
+
+.scheduled-list .sched-more:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+}
+
+/* Coarse pointers have no hover: on touch the row's actions are always there. */
+@media (hover: none) {
+  .scheduled-list .sched-more {
+    opacity: 1;
+  }
+}
+
+/* SC-14 — the project chip. It appears only when the SEARCH matched the project
+   (see Scheduled.tsx `projectHit`): searching "scratch" used to return a row on
+   which that word appeared nowhere. Quiet by construction — a hairline pill in
+   the sub-line's gray, never an accent. */
+.scheduled-row .sched-project-chip {
+  flex: 0 0 auto;
+  max-width: 140px;
+  overflow: hidden;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--dim);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 /* RS-3 — the unread dot sits at the row's far right: the leading column is
@@ -164,10 +248,17 @@
    placeholder is always present so the copy column has one width. */
 .scheduled-row .sched-trail {
   flex: 0 0 auto;
-  width: 8px;
+  min-width: 8px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* Pin has to be visible somewhere on this screen, or the menu's Pin is a
+   write-only action here. Quietest possible: the trail's gray, 12px. */
+.scheduled-row .sched-pinned {
+  color: var(--dim);
 }
 
 /* RS-3 — toolbar in two rows: search owns a full line, filters below it. */

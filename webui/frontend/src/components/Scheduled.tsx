@@ -1,11 +1,15 @@
 import { useMemo, useState } from "react";
 import type { Icon } from "@phosphor-icons/react";
-import { CalendarDots, Plus, MagnifyingGlass, Check, CaretDown, Crosshair, ArrowsClockwise, Stack, Play, Bell, Notebook, FileMagnifyingGlass, Circle, PlayCircle, WarningCircle } from "@phosphor-icons/react";
+import { CalendarDots, Plus, MagnifyingGlass, Check, CaretDown, Crosshair, ArrowsClockwise, Stack, Play, Bell, Notebook, FileMagnifyingGlass, Circle, PlayCircle, WarningCircle, DotsThree, PushPin } from "@phosphor-icons/react";
 import "../styles.scheduled.css";
 import { useStore } from "../store";
+import { AR } from "../api";
 import { friendlyStatus } from "./pill";
 import { projectLabel, scheduleLabel, scheduledUnread } from "../viewModels";
+import { scheduledTitle } from "../scheduledTitle";
 import { relTime, sessionDate } from "../time";
+import { copyText } from "../clipboard";
+import { ContextMenu } from "./ContextMenu";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
 import type { Cadence } from "../types";
 
@@ -104,15 +108,20 @@ function seriesActive(cls: string, hasNextTick: boolean): boolean {
 
 interface SchedRow {
   key: string;
-  title: string;
+  id: string; // the store id this row is about (session id / run id)
+  kind: "session" | "run"; // which of the two things it is — decides its actions (SC-12)
+  title: string; // SC-13: the derived NAME (short, scannable); never the whole prompt
+  full: string; // the raw label/prompt — the tooltip, and what search reads
   cadence: string; // the rhythm: "Every 30m" / "Saturdays at 4:00 AM" / "Self-paced"
   when: string; // "Next run in 12m" when known, else the honest "Ran 1d ago"
   isNext: boolean; // when names a FUTURE tick (styled as the live fact it is)
   alert: string; // SC-10: "Failed" / "Needs recovery" — shown, not tooltipped
   project: string;
+  workspace: string;
   meta: string; // the row's facts flattened (project included), for search
   status: { text: string; cls: string };
   active: boolean; // the series still has ticks coming / needs you (SC-11)
+  running: boolean; // an iteration is executing right now — the only stoppable state
   unread: boolean; // driver row with new activity you haven't opened (F2)
   sortTs: number;
   onClick: () => void;
@@ -156,9 +165,27 @@ function nextRunPhrase(iso?: string): string {
 // All / Active / Finished filters map to our live-vs-finished states (INC-41
 // W7, SC-7).
 export function Scheduled() {
-  const { runs, sessions, select, selectRun, openModal, unread, markRead } = useStore();
+  const {
+    runs,
+    sessions,
+    select,
+    selectRun,
+    openModal,
+    unread,
+    markRead,
+    markUnread,
+    renames,
+    pinned,
+    togglePin,
+    archived,
+    toggleArchive,
+    refreshRuns,
+    toast,
+  } = useStore();
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
+  // SC-12 — the cursor-anchored row menu (same component the sidebar rows use).
+  const [ctx, setCtx] = useState<{ x: number; y: number; key: string } | null>(null);
 
   const unreadIds = useMemo(() => scheduledUnread(sessions, unread), [sessions, unread]);
 
@@ -170,7 +197,7 @@ export function Scheduled() {
     // the row is judged by: whether the SERIES is still live (SC-11) and whether
     // it is broken and needs saying so (SC-10).
     const row = (
-      base: Omit<SchedRow, "when" | "isNext" | "meta" | "active" | "alert">,
+      base: Omit<SchedRow, "when" | "isNext" | "meta" | "active" | "alert" | "title" | "running">,
       nextRunAt: string | undefined,
       lastRan: Date | null,
     ): SchedRow => {
@@ -178,14 +205,21 @@ export function Scheduled() {
       const ago = whenAgo(lastRan);
       const when = next || (ago ? `Ran ${ago}` : "");
       const alert = ALERT_STATUS.has(base.status.cls) ? base.status.text : "";
+      // SC-13 — a user rename is the row's name, full stop; otherwise the name is
+      // derived from the prompt (first clause, no tooling tail, ≤48 chars). The
+      // raw text survives in `full`: it is the tooltip, and it is what search
+      // reads, so shortening the label makes nothing unfindable.
+      const custom = (renames[base.id] || "").trim();
       return {
         ...base,
+        title: custom || scheduledTitle(base.full, base.id),
         when,
         isNext: !!next,
         alert,
         active: seriesActive(base.status.cls, !!next),
+        running: base.status.cls === "run",
         // The alert phrase is searchable too — "needs recovery" should find the
-        // rows that do.
+        // rows that do. So is the full prompt (`full`), matched at the call site.
         meta: [base.cadence, alert, when, base.project].filter(Boolean).join(" · "),
       };
     };
@@ -198,11 +232,14 @@ export function Scheduled() {
         row(
           {
             key: "run:" + run.id,
-            title: run.label || run.id,
+            id: run.id,
+            kind: "run",
+            full: run.label || run.id,
             // The rhythm comes from the run's spec; scheduleLabel is the coarse
             // kind we fall back to when the spec could not be read.
             cadence: run.cadence || scheduleLabel(run.schedule),
             project: projectLabel(run.workspace),
+            workspace: run.workspace || "",
             status,
             unread: false,
             sortTs: isNaN(ts) ? 0 : ts,
@@ -221,11 +258,14 @@ export function Scheduled() {
         row(
           {
             key: s.id,
-            title: s.title || s.id,
+            id: s.id,
+            kind: "session",
+            full: s.title || s.id,
             // cadence is the spec's real rhythm; scheduleLabel is the coarse
             // kind we fall back to when the journal could not be read.
             cadence: s.cadence || scheduleLabel(s.schedule),
             project: projectLabel(s.workspace),
+            workspace: s.workspace || "",
             status,
             unread: flagged.has(s.id),
             sortTs: d ? d.getTime() : 0,
@@ -239,7 +279,7 @@ export function Scheduled() {
     // Newest-first; the coloured status dot and label carry the state.
     out.sort((a, b) => b.sortTs - a.sortTs);
     return out;
-  }, [runs, sessions, select, selectRun, unread]);
+  }, [runs, sessions, select, selectRun, unread, renames]);
 
   // Nothing suspends a driver, so there is no paused set to show: the third tab
   // names what we actually have — the rows that have stopped ticking for good
@@ -249,10 +289,42 @@ export function Scheduled() {
   const filtered = rows.filter((r) => {
     if (filter === "active" && !r.active) return false;
     if (filter === "finished" && r.active) return false;
-    if (ql && !(r.title.toLowerCase().includes(ql) || r.meta.toLowerCase().includes(ql))) return false;
+    if (
+      ql &&
+      !(
+        r.title.toLowerCase().includes(ql) ||
+        r.full.toLowerCase().includes(ql) ||
+        r.meta.toLowerCase().includes(ql)
+      )
+    )
+      return false;
     return true;
   });
   const totalEmpty = rows.length === 0;
+
+  // SC-14 — a search hit has to be VISIBLE. `meta` matches the project, but SC-4
+  // took the project off the sub-line, so searching "scratch" returned a row on
+  // which the word "scratch" appeared nowhere: the result read as a bug. Rather
+  // than make the project unsearchable (it is the one fact people group work by),
+  // the row grows a quiet chip naming the project — but only for the query that
+  // matched it. No query, or a query that matched something already on screen,
+  // and the sub-line stays the two facts Codex shows.
+  const projectHit = (r: SchedRow) => !!ql && !!r.project && r.project.toLowerCase().includes(ql);
+
+  const menuRow = ctx ? rows.find((r) => r.key === ctx.key) : undefined;
+
+  // SC-12 — Stop is the same call RunView.tsx already makes for the same run
+  // (AR.stopRun + a refresh); the hub for long-running work was the one screen
+  // that could not reach it.
+  const stopRun = async (rid: string) => {
+    try {
+      await AR.stopRun(rid);
+      toast("stop requested", "info");
+      setTimeout(refreshRuns, 800);
+    } catch (e: any) {
+      toast(e.message);
+    }
+  };
 
   return (
     <div className="scheduled-page">
@@ -346,8 +418,39 @@ export function Scheduled() {
             </span>
           </div>
         ) : (
-          filtered.map((r) => (
-            <button className={"scheduled-row" + (r.unread ? " is-unread" : "")} key={r.key} onClick={r.onClick}>
+          filtered.map((r) => {
+            const isPinned = pinned.includes(r.id);
+            const isArchived = archived.includes(r.id);
+            const openMenu = (x: number, y: number) => setCtx({ x, y, key: r.key });
+            return (
+            <div
+              className={
+                "scheduled-row-wrap" +
+                (r.unread ? " is-unread" : "") +
+                (isArchived ? " is-archived" : "") +
+                (ctx?.key === r.key ? " menu-open" : "")
+              }
+              key={r.key}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                openMenu(e.clientX, e.clientY);
+              }}
+            >
+            <button
+              className={"scheduled-row" + (r.unread ? " is-unread" : "")}
+              onClick={r.onClick}
+              onKeyDown={(e) => {
+                // Same keyboard affordance the sidebar rows carry: the menu is
+                // reachable without a right mouse button.
+                if (!((e.shiftKey && e.key === "F10") || e.key === "ContextMenu")) return;
+                e.preventDefault();
+                const rect = e.currentTarget.getBoundingClientRect();
+                openMenu(rect.left + 20, rect.top + rect.height);
+              }}
+              // SC-13: the derived name is what the row SHOWS; the raw prompt is
+              // one hover away, so nothing is hidden — only unshouted.
+              title={[r.full, `${r.cadence}${r.when ? ` · ${r.when}` : ""}`, r.project].filter(Boolean).join("\n")}
+            >
               {SETTLED_STATUS.has(r.status.cls) ? (
                 <span className="sched-blank" aria-hidden="true" />
               ) : (
@@ -398,17 +501,72 @@ export function Scheduled() {
                   )}
                 </span>
               </span>
+              {/* SC-14: the project, named only when the query is what put this row
+                  on screen. A quiet chip, not a third sub-line fact. */}
+              {projectHit(r) && <span className="sched-project-chip">{r.project}</span>}
               {/* RS-3: the unread dot lives at the row's far right — the left column
                   is the status column, the right end is "there is something new".
                   Always rendered (empty when read) so the copy column keeps one
-                  width and the titles never shift. */}
+                  width and the titles never shift. A pinned row says so here too,
+                  so Pin from the menu has a visible effect on this screen. */}
               <span className="sched-trail" aria-hidden="true">
+                {isPinned && <PushPin className="sched-pinned" size={12} weight="fill" />}
                 {r.unread && <span className="sched-unread" title="New activity" />}
               </span>
             </button>
-          ))
+            {/* SC-12 — the row's actions. The button is invisible at rest and
+                appears on hover/focus, in a lane the row always reserves, so it
+                can never nudge the title or the trail. */}
+            <button
+              className="sched-more"
+              aria-label={`Actions for ${r.title}`}
+              aria-haspopup="menu"
+              title="Task actions"
+              onClick={(e) => {
+                e.stopPropagation();
+                const rect = e.currentTarget.getBoundingClientRect();
+                openMenu(rect.right - 8, rect.bottom + 4);
+              }}
+            >
+              <DotsThree size={18} weight="bold" />
+            </button>
+            </div>
+            );
+          })
         )}
       </div>
+
+      {menuRow && ctx && (
+        <ContextMenu x={ctx.x} y={ctx.y} onClose={() => setCtx(null)}>
+          <MenuLabel>{menuRow.title}</MenuLabel>
+          {/* A run row and a driver-session row are different objects: pin /
+              rename / archive / unread are session-scoped store state, and a run
+              has none of it. Offer each row only what actually acts on it —
+              a menu of no-ops is worse than no menu. */}
+          {menuRow.kind === "session" ? (
+            <>
+              <MenuItem onClick={() => togglePin(menuRow.id)}>{pinned.includes(menuRow.id) ? "Unpin" : "Pin"}</MenuItem>
+              <MenuItem onClick={() => openModal({ kind: "rename", sid: menuRow.id })}>Rename…</MenuItem>
+              <MenuItem onClick={() => (unread.includes(menuRow.id) ? markRead(menuRow.id) : markUnread(menuRow.id))}>
+                {unread.includes(menuRow.id) ? "Mark as read" : "Mark as unread"}
+              </MenuItem>
+              <MenuItem onClick={() => toggleArchive(menuRow.id)}>
+                {archived.includes(menuRow.id) ? "Unarchive" : "Archive"}
+              </MenuItem>
+              <MenuLabel>Copy</MenuLabel>
+              <MenuItem onClick={() => { copyText(menuRow.id); toast("copied session id", "info"); }}>Session ID</MenuItem>
+              <MenuItem onClick={() => { copyText(`${location.origin}/#${menuRow.id}`); toast("copied link", "info"); }}>Task link</MenuItem>
+            </>
+          ) : (
+            <>
+              {menuRow.running && <MenuItem onClick={() => void stopRun(menuRow.id)}>Stop</MenuItem>}
+              <MenuLabel>Copy</MenuLabel>
+              <MenuItem onClick={() => { copyText(menuRow.id); toast("copied run id", "info"); }}>Run ID</MenuItem>
+              <MenuItem onClick={() => { copyText(`${location.origin}/#run:${menuRow.id}`); toast("copied link", "info"); }}>Run link</MenuItem>
+            </>
+          )}
+        </ContextMenu>
+      )}
 
       <div className="sched-suggestions">
         <div className="sched-suggestions-title">Suggestions</div>
