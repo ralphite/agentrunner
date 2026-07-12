@@ -4,7 +4,7 @@
    themes with the rest of the app. */
 
 .sched-suggestions {
-  max-width: 980px;
+  max-width: 640px; /* SC-2 — the page's one reading column (see styles.css) */
   margin: 28px auto 0;
 }
 
@@ -83,15 +83,12 @@
   line-height: 1.4;
 }
 
-/* CX-3: cadence + next run are a scheduled row's headline facts, so they read
-   ahead of the project/status trivia that shares the sub-line. The cadence sits
-   at the row's ink weight; a KNOWN next tick (a live interval/cron series) gets
-   the accent so a repeating task announces itself at a glance. */
-.scheduled-row .sched-cadence {
-  color: var(--ink-2);
-  font-weight: 500;
-}
-
+/* SC-4: the sub-line carries exactly two facts (the rhythm, then the next tick),
+   and only ONE of them is emphasised. The cadence used to be darkened AND
+   weighted on top of the accent-coloured next run, so a two-clause line had two
+   competing highlights and neither landed. The cadence now reads at the sub-line's
+   own gray (Codex: "Saturdays at 4:00 AM · Next run in 1 week"), leaving the blue
+   next-run as the single live fact that announces a repeating task at a glance. */
 .scheduled-row .sched-next {
   color: var(--blue);
 }
@@ -158,11 +155,15 @@
   margin-bottom: 10px;
 }
 
+/* SC-6 — a thin pill, not a panel. At 9px padding the field stood 40px tall with
+   a fill and a border: heavier than the task rows it filters. Codex's is a ~26px
+   hairline pill that recedes until you use it. */
 .scheduled-page .sched-search {
   flex: 0 0 auto;
   width: 100%;
-  padding: 9px 14px;
+  padding: 6px 14px;
   border-radius: 999px;
+  background: transparent;
 }
 
 .scheduled-page .sched-filters {

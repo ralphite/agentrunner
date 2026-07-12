@@ -7,8 +7,12 @@ import { friendlyStatus } from "./pill";
 import { projectLabel, scheduleLabel, scheduledUnread } from "../viewModels";
 import { relTime, sessionDate } from "../time";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
+import type { Cadence } from "../types";
 
-type Filter = "all" | "active" | "paused";
+// We have no real paused flag (nothing suspends a driver), so the third tab is
+// the honest "Finished" — the rows that have stopped ticking — not Codex's
+// "Paused" word borrowed for a different fact.
+type Filter = "all" | "active" | "finished";
 
 // Static template suggestions (Codex parity). Clicking one opens the existing
 // create-task modal prefilled for a repeating task, with the description as the
@@ -44,6 +48,30 @@ const SUGGESTIONS: Suggestion[] = [
   },
 ];
 
+// SC-1 — what belongs on this page. A scheduled thing has a RHYTHM: left alone,
+// it fires again. That is the whole reason the screen exists, and it is exactly
+// what the schedule kind tells us (webui/schedule.go):
+//
+//   interval / cron   → a rhythm ("Every 30m", "Saturdays at 4:00 AM")   ✅
+//   self_paced        → a driver that re-arms its own next iteration      ✅
+//   immediate         → a one-shot task / a goal that runs until verified ❌
+//   parallel          → Best of N: attempts side by side, not a rhythm    ❌
+//   (absent)          → a plain `submit` run: one-shot by construction    ❌
+//
+// Before this rule the page collected EVERY run and every driver session — 28
+// rows, 26 of them "Runs once" / "Best of 3" — which buried the single genuinely
+// scheduled task and pushed Suggestions off the first screen. The excluded work
+// is not lost: one-shot runs stay reachable from ⌘K and their session lands in
+// the sidebar like any other task.
+const RHYTHMIC = new Set(["interval", "cron", "self_paced"]);
+
+export function hasRhythm(c: Cadence): boolean {
+  // A computed future tick is proof of a rhythm on its own; the server only
+  // emits nextRunAt for a live interval/cron series.
+  if (c.nextRunAt) return true;
+  return RHYTHMIC.has((c.schedule || "").toLowerCase());
+}
+
 // Settled/terminal rows carry no useful colour on their leading dot — it reads
 // as gray noise on every completed row (review sw-d-11). Drop the dot for these
 // (a blank keeps the columns aligned); attention/running/unread still badge.
@@ -53,11 +81,11 @@ const SETTLED_STATUS = new Set(["done", "closed", "stopped"]);
 interface SchedRow {
   key: string;
   title: string;
-  cadence: string; // the rhythm: "Every 30m" / "Saturdays at 4:00 AM" / "Runs once"
+  cadence: string; // the rhythm: "Every 30m" / "Saturdays at 4:00 AM" / "Self-paced"
   when: string; // "Next run in 12m" when known, else the honest "Ran 1d ago"
   isNext: boolean; // when names a FUTURE tick (styled as the live fact it is)
   project: string;
-  meta: string; // the sub-line flattened, for search
+  meta: string; // the row's facts flattened (project included), for search
   status: { text: string; cls: string };
   active: boolean; // live (running / waiting on you) vs finished
   unread: boolean; // driver row with new activity you haven't opened (F2)
@@ -93,15 +121,15 @@ function nextRunPhrase(iso?: string): string {
   return `Next run in ${Math.floor(day / 30)}mo`;
 }
 
-// Scheduled is Codex's Scheduled tasks hub: goals and repeating work that keep
-// running on their own. The two facts that justify a scheduled thing lead every
-// row — its CADENCE and its NEXT RUN (CX-3), both derived server-side from the
-// driver spec (schedule/interval/cron/n) and served on /api/runs and
-// /api/sessions. When there is no future tick to name (a one-shot goal, a
-// finished series, a spec we could not read) the row falls back to the honest
-// "Ran 1d ago" — never a fabricated time. Project and status stay, demoted.
-// Search + All / Active / Paused filters map to our live-vs-finished states
-// (INC-41 W7).
+// Scheduled is Codex's Scheduled tasks hub: repeating work that keeps running on
+// its own (SC-1 — nothing one-shot lives here; see hasRhythm above). The two
+// facts that justify a scheduled thing are the whole row — its CADENCE and its
+// NEXT RUN (CX-3), both derived server-side from the driver spec
+// (schedule/interval/cron/n) and served on /api/runs and /api/sessions. When
+// there is no future tick to name (a finished series, a self-paced driver) the
+// row falls back to the honest "Ran 1d ago" — never a fabricated time. Search +
+// All / Active / Finished filters map to our live-vs-finished states (INC-41
+// W7, SC-7).
 export function Scheduled() {
   const { runs, sessions, select, selectRun, openModal, unread, markRead } = useStore();
   const [filter, setFilter] = useState<Filter>("all");
@@ -131,6 +159,7 @@ export function Scheduled() {
       };
     };
     for (const run of runs) {
+      if (!hasRhythm(run)) continue; // SC-1: one-shot / best-of-N is not scheduled work
       const status = friendlyStatus(run.status);
       const ts = Date.parse(run.startedAt);
       const started = isNaN(ts) ? null : new Date(ts);
@@ -139,9 +168,9 @@ export function Scheduled() {
           {
             key: "run:" + run.id,
             title: run.label || run.id,
-            // A submit run is a one-shot by construction; a drive run's cadence
-            // comes from its spec (absent only if the spec was unreadable).
-            cadence: run.cadence || (run.kind === "submit" ? "Runs once" : scheduleLabel(run.schedule)),
+            // The rhythm comes from the run's spec; scheduleLabel is the coarse
+            // kind we fall back to when the spec could not be read.
+            cadence: run.cadence || scheduleLabel(run.schedule),
             project: projectLabel(run.workspace),
             status,
             active: isActive(status.cls),
@@ -155,7 +184,7 @@ export function Scheduled() {
       );
     }
     for (const s of sessions) {
-      if (s.kind !== "driver") continue;
+      if (s.kind !== "driver" || !hasRhythm(s)) continue; // SC-1: same rhythm bar
       const status = friendlyStatus(s.status);
       const d = sessionDate(s.id);
       out.push(
@@ -183,13 +212,14 @@ export function Scheduled() {
     return out;
   }, [runs, sessions, select, selectRun, unread]);
 
-  // We have no real paused flag, so "Paused" == the non-active (finished) rows,
-  // relabelled to match Codex's All / Active / Paused pills. Codex shows no
-  // numeric counts on the pills (N-parity), so we only compute the filter.
+  // Nothing suspends a driver, so there is no paused set to show: the third tab
+  // names what we actually have — the rows that have stopped ticking. Codex
+  // shows no numeric counts on the pills (N-parity), so we only compute the
+  // filter.
   const ql = query.trim().toLowerCase();
   const filtered = rows.filter((r) => {
     if (filter === "active" && !r.active) return false;
-    if (filter === "paused" && r.active) return false;
+    if (filter === "finished" && r.active) return false;
     if (ql && !(r.title.toLowerCase().includes(ql) || r.meta.toLowerCase().includes(ql))) return false;
     return true;
   });
@@ -200,7 +230,7 @@ export function Scheduled() {
       <div className="page-heading">
         <div>
           <h2>Scheduled tasks</h2>
-          <p>Ask AgentRunner to schedule tasks, set goals, or monitor for updates.</p>
+          <p>Ask AgentRunner to schedule tasks, set goals, or monitor for updates</p>
         </div>
         <div className="scheduled-create">
           <Menu
@@ -236,13 +266,13 @@ export function Scheduled() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search scheduled work…"
-              aria-label="Search scheduled work"
+              placeholder="Search scheduled tasks"
+              aria-label="Search scheduled tasks"
             />
           </div>
           <div className="sched-filters">
             <div className="sched-tabs" role="tablist" aria-label="Filter scheduled work">
-              {(["all", "active", "paused"] as Filter[]).map((f) => (
+              {(["all", "active", "finished"] as Filter[]).map((f) => (
                 <button
                   key={f}
                   role="tab"
@@ -272,7 +302,7 @@ export function Scheduled() {
           <div className="empty-state">
             <CalendarDots size={28} />
             <b>No scheduled work</b>
-            <span>Start a goal or repeating task when work should continue on its own.</span>
+            <span>Start a repeating task when work should keep running on its own.</span>
           </div>
         ) : filtered.length === 0 ? (
           <div className="empty-state">
@@ -304,13 +334,17 @@ export function Scheduled() {
                 <b>{r.title}</b>
                 <span className="sched-sub">
                   <span className="sched-cadence">{r.cadence}</span>
+                  {/* SC-4: two facts, as Codex has them — the rhythm and the
+                      next tick. The project used to ride along as a third
+                      segment, which made every sub-line a run-on and gave the
+                      one live fact nothing to stand out from. It stays
+                      searchable (r.meta), just not shouted. */}
                   {r.when && (
                     <>
                       {" · "}
                       <span className={r.isNext ? "sched-next" : undefined}>{r.when}</span>
                     </>
                   )}
-                  {r.project && <>{" · "}{r.project}</>}
                 </span>
               </span>
               {/* RS-3: the unread dot lives at the row's far right — the left column
