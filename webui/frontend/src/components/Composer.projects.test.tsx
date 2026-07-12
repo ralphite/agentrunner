@@ -1,0 +1,158 @@
+// @vitest-environment jsdom
+//
+// INC-41 HM-9 — the composer's project picker searches EVERY project, not the
+// five it happens to be showing.
+//
+// The regression these tests lock down: `recentWorkspaces` stopped at 5 and the
+// "Search projects" box filtered that truncated list. The live store holds 202
+// distinct workspaces, so the box was a lie — it looked like a global project
+// search, but typing the name of a project that was visibly sitting in the
+// sidebar of the same frame answered "No projects found", and the user's own
+// main repo could only be reached by hand-typing an absolute path. So we assert:
+//   1. idle, the picker still lists only the 5 most recent (no 202-row dump),
+//   2. a query reaches the WHOLE set — the 7th, the 9th, the last project,
+//   3. "No projects found" appears only when nothing actually matches,
+//   4. picking a searched-out project updates the chip.
+//
+// Note: the popover panel may render through a portal, so every assertion below
+// is a document-level query — never "is a descendant of the composer container".
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+
+const mocks = vi.hoisted(() => ({
+  gitBranches: vi.fn(async () => ({ isRepo: true, current: "main", branches: ["main"], dirty: 0, hasCommits: true })),
+  makeWorkspace: vi.fn(async () => ({ path: "/tmp/ws" })),
+  newSession: vi.fn(async () => ({ sid: "20260712-000000-x" })),
+}));
+
+vi.mock("../api", async () => ({
+  ...(await vi.importActual<typeof import("../api")>("../api")),
+  AR: {
+    gitBranches: mocks.gitBranches,
+    makeWorkspace: mocks.makeWorkspace,
+    newSession: mocks.newSession,
+  },
+}));
+
+import { Composer } from "./Composer";
+import { useStore } from "../store";
+
+window.matchMedia = ((q: string) =>
+  ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} }) as unknown as MediaQueryList) as typeof window.matchMedia;
+
+// Ten distinct projects, oldest id first. Session ids are creation stamps, so
+// "newest first" is a descending id sort: proj10 is the most recent, proj1 the
+// oldest — i.e. proj6..proj1 all sit *outside* the 5-row idle window.
+const PROJECTS = Array.from({ length: 10 }, (_, i) => `/repos/proj${i + 1}`);
+const SESSIONS = PROJECTS.map((workspace, i) => ({
+  id: `2026071${i}-000000-s${i + 1}`,
+  workspace,
+  status: "idle",
+  kind: "session",
+})) as any[];
+
+const mount = (extra: any[] = []) => {
+  useStore.setState({
+    sessions: [...SESSIONS, ...extra],
+    sessionsReady: true,
+    refreshSessions: async () => {},
+    select: vi.fn(),
+    toast: vi.fn(),
+    openPrompt: vi.fn(),
+  } as any);
+  return render(<Composer variant="home" onError={() => {}} />);
+};
+
+// The project chip; the panel it opens may be portaled, so we reach the list
+// through the document, not through the render container.
+const chip = (c: HTMLElement) => c.querySelector<HTMLButtonElement>(".cx-env-control.project")!;
+const list = () => document.querySelector<HTMLElement>(".cx-project-list")!;
+const rows = () => [...list().querySelectorAll<HTMLElement>(".pop-item .pop-title")].map((n) => n.textContent);
+const search = () => screen.getByLabelText("Search projects") as HTMLInputElement;
+const type = (q: string) => fireEvent.change(search(), { target: { value: q } });
+
+beforeEach(() => {
+  localStorage.clear();
+  mocks.gitBranches.mockClear();
+});
+afterEach(cleanup);
+
+describe("project picker searches every project (HM-9)", () => {
+  it("idle: lists only the 5 most recent — opening it doesn't dump the whole store", () => {
+    const { container } = mount();
+    fireEvent.click(chip(container));
+
+    expect(rows()).toEqual(["proj10", "proj9", "proj8", "proj7", "proj6"]);
+    expect(screen.queryByText("No projects found")).toBeNull();
+  });
+
+  it("typing finds a project OUTSIDE those five — the old cap answered 'No projects found'", () => {
+    const { container } = mount();
+    fireEvent.click(chip(container));
+
+    // proj2 is the 9th most recent: never in the idle window, and the exact
+    // shape of the live bug (searching `qa57-browser`, a project the sidebar
+    // was showing in the same frame, found nothing).
+    expect(rows()).not.toContain("proj2");
+    type("proj2");
+    expect(rows()).toEqual(["proj2"]);
+    expect(screen.queryByText("No projects found")).toBeNull();
+
+    // …and the oldest one, at the very bottom of a 10-deep history. The exact
+    // name wins the top row; proj10 still matches as a prefix hit.
+    type("proj1");
+    expect(rows()).toEqual(["proj1", "proj10"]);
+  });
+
+  it("ranks the repo you meant above its own worktrees (path-only hits sink)", () => {
+    // The live shape of this: searching "agentrunner" hits 107 workspaces,
+    // because every scratch worktree lives *under* ~/dev2/agentrunner. The repo
+    // itself must not be buried under the newer children whose paths mention it.
+    const { container } = mount([
+      { id: "20260799-000000-wt", workspace: "/repos/proj3/wt/hotfix-9", status: "idle", kind: "session" },
+    ]);
+    fireEvent.click(chip(container));
+
+    type("proj3");
+    // hotfix-9 is the NEWEST session, so pure recency would put it first; it is
+    // a path-only match, so it sorts behind the project that is actually named.
+    expect(rows()).toEqual(["proj3", "hotfix-9"]);
+  });
+
+  it("a partial query matches across the whole set, newest first", () => {
+    const { container } = mount();
+    fireEvent.click(chip(container));
+
+    type("proj");
+    expect(rows()).toEqual(PROJECTS.map((p) => p.split("/").pop()).reverse()); // proj10 … proj1
+    expect(rows()).toHaveLength(10);
+  });
+
+  it("'No projects found' only when nothing actually matches", () => {
+    const { container } = mount();
+    fireEvent.click(chip(container));
+
+    type("nope-not-a-project");
+    expect(rows()).toEqual([]);
+    expect(screen.getByText("No projects found")).toBeTruthy();
+  });
+
+  it("choosing a searched-out project updates the chip", async () => {
+    const { container } = mount();
+    // Cold start seeds the newest real project (RH-1), so the chip opens on proj10.
+    await vi.waitFor(() => expect(chip(container).textContent).toContain("proj10"));
+
+    fireEvent.click(chip(container));
+    type("proj3");
+    fireEvent.click(within(list()).getByRole("menuitem", { name: /proj3/ }));
+
+    await vi.waitFor(() => expect(chip(container).textContent).toContain("proj3"));
+    expect(localStorage.getItem("arwebui.lastProject")).toBe("/repos/proj3");
+    expect(mocks.gitBranches).toHaveBeenCalledWith("/repos/proj3");
+
+    // Reopening keeps the selection visible even though it aged out of the top 5.
+    fireEvent.click(chip(container));
+    expect(rows()).toEqual(["proj3", "proj10", "proj9", "proj8", "proj7"]);
+    expect(list().querySelector(".pop-item .pop-check")).toBeTruthy();
+  });
+});

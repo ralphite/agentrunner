@@ -103,6 +103,9 @@ interface Attachment {
 // key = never chosen here (we seed from history once, below); "" = the user
 // explicitly picked "Don't work in a project" and we must not re-seed over it.
 const PROJECT_KEY = "arwebui.lastProject";
+// How many projects the picker lists before you type (HM-9). Only the *view* is
+// capped; the search runs over every workspace in history.
+const RECENT_PROJECTS = 5;
 function recallProject(): string | null {
   try {
     return localStorage.getItem(PROJECT_KEY);
@@ -127,9 +130,17 @@ const riskGlyph = (risk: string) =>
 export function Composer(props: ComposerProps) {
   const { select, selectRun, refreshSessions, refreshRuns, openModal, openPrompt, toast } = useStore();
   const allSessions = useStore((s) => s.sessions);
-  // Recently used workspaces, newest first — picking an existing project must
-  // be one click, not a hand-typed absolute path (W14).
-  const recentWorkspaces = useMemo(() => {
+  // EVERY workspace the history knows, newest first, deduped — picking an
+  // existing project must be one click, not a hand-typed absolute path (W14).
+  //
+  // HM-9: this list used to stop at 5, and the picker's "Search projects" box
+  // filtered *that* truncated list. With 202 workspaces in the store the box was
+  // therefore a lie: it looked like a global project search, but typing the name
+  // of a project sitting *visibly in the sidebar of the same frame* answered
+  // "No projects found", and the user's own main repo was unreachable except by
+  // typing an absolute path. The cap belongs to the default *view* (below), not
+  // to the searchable set.
+  const allWorkspaces = useMemo(() => {
     const seen = new Set<string>();
     const out: string[] = [];
     for (const s of [...allSessions].sort((a, b) => b.id.localeCompare(a.id))) {
@@ -137,7 +148,6 @@ export function Composer(props: ComposerProps) {
       if (!w || seen.has(w)) continue;
       seen.add(w);
       out.push(w);
-      if (out.length >= 5) break;
     }
     return out;
   }, [allSessions]);
@@ -319,14 +329,14 @@ export function Composer(props: ComposerProps) {
   const seeded = useRef(false);
   useEffect(() => {
     if (isSession || seeded.current || recallProject() !== null) return;
-    const candidate = recentWorkspaces.find((w) => {
+    const candidate = allWorkspaces.find((w) => {
       const label = projectLabel(w);
       return label !== "Scratch" && label !== "Other sessions";
     });
     if (!candidate) return; // sessions may still be loading — try again when they land
     seeded.current = true;
     setWs(candidate);
-  }, [isSession, recentWorkspaces]);
+  }, [isSession, allWorkspaces]);
 
   // Home: discover the workspace's branches when a real repo path is set.
   useEffect(() => {
@@ -377,8 +387,11 @@ export function Composer(props: ComposerProps) {
   }, [isSession]);
 
   // Same-basename projects ("ws", "Scratch") get a short disambiguating
-  // subtitle in the picker; uniquely-named ones stay clean (W4).
-  const projectSubs = useMemo(() => projectSubtitles(recentWorkspaces), [recentWorkspaces]);
+  // subtitle in the picker; uniquely-named ones stay clean (W4). Computed over
+  // the whole searchable set, so two same-named hits in a search result can be
+  // told apart — the picker prints a bold basename plus that gray parent-path
+  // hint, never one long smear of an absolute path.
+  const projectSubs = useMemo(() => projectSubtitles(allWorkspaces), [allWorkspaces]);
 
   const modelLabel = modelById(provider, model)?.label || model;
   const effortLevel = effortById(effort);
@@ -980,10 +993,40 @@ export function Composer(props: ComposerProps) {
   // what will actually happen instead of the ambiguous "auto-created" (W2).
   const wsShort = ws ? projectLabel(ws) : "New scratch workspace";
   const normalizedWs = ws.trim().replace(/\/+$/, "");
-  const filteredProjects = recentWorkspaces.filter((workspace) => {
+  // The picker's two states (HM-9, Codex parity):
+  //   · idle  — the few most recent projects, so opening it doesn't dump 202 rows;
+  //   · typing — a filter over EVERY known workspace, so anything the sidebar can
+  //     show, the search box can find. "No projects found" now only ever means it.
+  // The current selection is pinned into the idle view even when it has aged out
+  // of the recent window; otherwise reopening the picker shows no checked row and
+  // reads as "nothing selected" while the chip says otherwise.
+  //
+  // Ranking matters as much as reach: a *path* substring match is a real match
+  // (a worktree under ~/dev2/agentrunner belongs to that repo) but a weak one —
+  // searching "agentrunner" on the live store hits 107 workspaces, and without
+  // ranking the repo you actually meant sits ~40 rows down among its own
+  // scratch worktrees. So: name-prefix hits, then name-substring hits, then
+  // path-only hits; recency (the natural order of `allWorkspaces`) breaks ties.
+  const filteredProjects = useMemo(() => {
     const query = projectQuery.trim().toLowerCase();
-    return !query || projectLabel(workspace).toLowerCase().includes(query) || workspace.toLowerCase().includes(query);
-  });
+    if (query) {
+      const rank = (workspace: string): number => {
+        const label = projectLabel(workspace).toLowerCase();
+        if (label === query) return 0;
+        if (label.startsWith(query)) return 1;
+        if (label.includes(query)) return 2;
+        return workspace.toLowerCase().includes(query) ? 3 : -1;
+      };
+      return allWorkspaces
+        .map((workspace) => ({ workspace, rank: rank(workspace) }))
+        .filter((hit) => hit.rank >= 0)
+        .sort((a, b) => a.rank - b.rank) // Array#sort is stable → recency survives inside a rank
+        .map((hit) => hit.workspace);
+    }
+    const recent = allWorkspaces.slice(0, RECENT_PROJECTS);
+    if (normalizedWs && !recent.includes(normalizedWs)) return [normalizedWs, ...recent.slice(0, RECENT_PROJECTS - 1)];
+    return recent;
+  }, [allWorkspaces, projectQuery, normalizedWs]);
   const branchLabel = startingBranch || branchInfo?.current || (branchInfo?.isRepo ? "No commits yet" : "No branch");
   const filteredBranches = (branchInfo?.branches || []).filter((branch) =>
     branch.toLowerCase().includes(branchQuery.trim().toLowerCase()),
