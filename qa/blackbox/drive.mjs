@@ -84,7 +84,7 @@ async function checkInvariants(page, label) {
 
 async function shot(page, name) {
   stepNo++;
-  const file = path.join(OUT, `${String(stepNo).padStart(2, "0")}-${name}.png`);
+  const file = path.join(OUT, `${String(stepNo).padStart(2, "0")}-${name.replace(/[^a-zA-Z0-9_-]+/g, "-")}.png`);
   await page.screenshot({ path: file, fullPage: false }).catch(() => {});
 }
 
@@ -141,7 +141,7 @@ for (const [ctxName, viewport] of [
     await page.goto(BASE + "/#/scheduled", { waitUntil: "domcontentloaded" }).catch(() => {});
     await page.waitForTimeout(600);
     // The Scheduled surface's "Create" menu → "Repeating" opens the RunModal.
-    const newBtn = page.locator("button:has-text('Create')").first();
+    const newBtn = page.locator("button[aria-label='Create scheduled work'], button:has-text('Create')").first();
     if (await newBtn.count()) {
       await newBtn.click({ timeout: 4000 }).catch(() => {});
       await page.waitForTimeout(400);
@@ -189,23 +189,31 @@ for (const [ctxName, viewport] of [
     });
 
     await S("first-turn-completes", async () => {
-      // an assistant reply (bubble/md content) within 120s
+      // A REAL assistant reply: the timeline must gain text containing the
+      // expected answer ("2"). A selector-only wait passed instantly against
+      // pre-existing DOM (run #1 lesson: assertion existing ≠ assertion
+      // executing) — anchor on content, not structure.
       await page.waitForFunction(
-        () => document.querySelectorAll(".msg.assistant, .md").length > 0,
+        () => /[2２二]/.test(document.querySelector(".timeline")?.innerText || ""),
         { timeout: 120000 },
       );
+      const errText = await page.evaluate(() => document.body.innerText);
+      if (/model error|activity_failed|provider_/i.test(errText))
+        finding("high", cur, "turn surfaced a provider/model error", errText.slice(-300));
     });
 
     await S("follow-up-turn", async () => {
+      const before = await page.evaluate(() => (document.querySelector(".timeline")?.innerText || "").length);
       const box = page.locator(".cx-card textarea, .composer textarea, textarea").last();
-      await box.fill("再答一次：2+2 等于几？");
+      await box.fill("再答一次：3+4 等于几？只回答数字。");
       await page.keyboard.press("Enter");
+      // content-anchored: the timeline must GROW and contain the new answer 7
       await page.waitForFunction(
-        () => document.querySelectorAll(".msg.user").length >= 2 || document.querySelectorAll(".bubble").length >= 2,
-        { timeout: 60000 },
-      );
-      await page.waitForFunction(
-        () => document.querySelectorAll(".msg.assistant, .md").length >= 2,
+        (n) => {
+          const t = document.querySelector(".timeline")?.innerText || "";
+          return t.length > n && /[7７七]/.test(t);
+        },
+        before,
         { timeout: 120000 },
       );
     });
