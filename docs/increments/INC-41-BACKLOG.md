@@ -2985,7 +2985,7 @@ touches:`timeline.ts`、`timeline.test.ts`、`styles.conv.css`。
 127 个组的树因此没有锚点。**动作**:`color-mix(in srgb, var(--ink) 78%, var(--ink-2))` ≈ #303030,
 保留 600 字重;`.show-more` 不动。touches:`styles.nav.css`。
 
-### HM-8 ✅ Home hero 标题 30px,金标 ≈23px —— 大了 33%,把刚瘦身的卡片又压回去了 [P1] — `54942fe`(轮34)
+### HM-8 ✅ Home hero 标题 30px,金标 ≈23px —— 大了 33%,把刚瘦身的卡片又压回去了 [P1] — `6bf7086`(轮34)
 用 HM-7 确立的 px→逻辑 px 映射反量金标:标题 360 逻辑 px / 36 字 = **10.0px per char**,字重 400;
 我们 `413px / 31 字 = 13.3px per char`(`styles.home.css:85-92` 30px/500)。HM-4 的注释写着 "land on Codex's
 lighter 30px/500" 但那次没有用映射反推,数字是拍的。轮31 已把 4 张卡收到金标同量级,**标题没跟**,
