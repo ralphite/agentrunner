@@ -58,7 +58,10 @@ for i in $(seq 1 100); do [ -S "$sock" ] && break; sleep 0.1; done
 trap 'kill "$DPID" 2>/dev/null || true' EXIT
 
 apid_of() { { grep -o '"approval_id":"[^"]*"' "$1" 2>/dev/null || true; } | head -1 | cut -d'"' -f4; }
-count() { grep -c "\"type\":\"$2\"" "$1" 2>/dev/null || echo 0; }
+# errexit-safe single-value count (lib.sh count_type pattern): `grep -c ||
+# echo 0` prints "0\n0" on zero matches — the two-line value then errors
+# every integer test and silently SKIPS the FAIL branches (run #1 lesson).
+count() { local n; n="$(grep -c "\"type\":\"$2\"" "$1" 2>/dev/null)" || n=0; printf '%s' "${n:-0}"; }
 
 # --- Session 1: three spawns, ONE question ---
 sid="$("$AR" new --detach --workspace "$work/ws" "$work/spec.yaml" \

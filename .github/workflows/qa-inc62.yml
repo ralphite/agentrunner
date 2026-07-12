@@ -33,6 +33,9 @@ jobs:
         run: go build -buildvcs=false -o bin/ar ./cmd/agentrunner
 
       - name: Run QA-62 (real Gemini)
+        # 显式 bash：Actions 默认 `bash -e {0}` 不带 pipefail，`script | tee`
+        # 会吞掉脚本的失败退出码（run #1 教训——红也会显绿）。
+        shell: bash
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |

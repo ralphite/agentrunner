@@ -47,7 +47,9 @@ for i in $(seq 1 100); do [ -S "$sock" ] && break; sleep 0.1; done
 trap 'kill "$DPID" 2>/dev/null || true' EXIT
 
 apid_of() { { grep -o '"approval_id":"[^"]*"' "$1" 2>/dev/null || true; } | head -1 | cut -d'"' -f4; }
-count() { grep -c "\"type\":\"$2\"" "$1" 2>/dev/null || echo 0; }
+# errexit-safe single-value count (see run-qa62.sh run #1 lesson: `|| echo 0`
+# yields "0\n0" on zero matches and integer tests silently skip FAIL branches).
+count() { local n; n="$(grep -c "\"type\":\"$2\"" "$1" 2>/dev/null)" || n=0; printf '%s' "${n:-0}"; }
 
 # --- Session 1: run `date`, which the catch-all makes ask ---
 sid="$("$AR" new --detach --workspace "$work/ws" "$work/spec.yaml" \
