@@ -590,6 +590,27 @@ Gemini 跑通 5/5（run #2，commit 26e0178）——3 spawn 恰 1 ask、standing
 行同步回 ✅。
 → UJ-08/UJ-18
 
+**G36 webui 移动/错误 UX 缺口批 — 🟡 大部已修，余项低优先（2026-07-12，用户手机现场 + 两路审计 + 黑盒 QA）**
+用户从手机（phone-webui）连续现场暴露一类缺陷 + 两路 audit agent（webui
+后端/前端）+ 真浏览器黑盒 QA 系统清扫。**根因**：api.ts 把 ApiError.message
+拼成 error+"\n"+stderr,~40 处 toast 全甩原始 git/CLI 输出("吓人红 toast"
+类)；配套后端多处 `badRequest` 直接回 git/CLI 原文或 server-CWD resolve
+后的绝对路径。**已修（fcc1547/e0d5d7a/2fadd8c/bb0c705/c0ec63a）**：①api.ts
+message 只取友好 error、stderr 落 .details；②后端 daemon-down→503+code
++友好文案（原每次点击甩"is the daemon running"）、resolveWorkspace 统一
+校验、git commit 干净树/checkout 分类/worktree ref-repo 友好化、worktree
+unborn-branch(hasCommits)守卫、workspace bare 名守卫；③Toasts 死 CSS 复
+活+safe-area+error 不自动消失；④iOS：输入 focus 16px 消自动缩放、PWA 可
+安装、拦下拉刷新整页重载、safe-area、tap-highlight/:active/touch-callout/
+44px 命中盒、visualViewport 键盘避让；⑤row-flex wrap、RunModal 标题、
+sa-name ellipsis、DiffView 失败重试。**验收**：前端 306 测试；真浏览器
+黑盒 `qa-blackbox`（qa/blackbox/drive.mjs，手机+桌面双端、真 Gemini turn、
+daemon-down journey，机器判据=无 console 错误/无原始错误文案/无横向溢出/
+逐步截图）run #4 首次全绿（4/4，2026-07-12）。**余项（低）**：schedule
+interval/cron 内联校验、错误 .details 披露 UI、更多 Settings/审批卡交互
+黑盒覆盖——待排期,非阻塞。三轮黑盒真机产品级新发现已归零(曲线压平)。
+→ UJ-01/UJ-24（webui 产品面）
+
 ---
 
 ## §3 已确认覆盖（防重复登记）

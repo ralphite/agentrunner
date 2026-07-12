@@ -3880,3 +3880,26 @@ ref-repo 友好化。
 未做(下一波候选):visualViewport modal 键盘避让(create-task/commit
 流键盘遮字段,最大"仍像网页"项);interval/cron 内联校验;DiffView
 加载失败加 Try again;RunModal 标题按 preset。前端 306 测试全绿。
+
+## 2026-07-12 · 探索性 QA 收口 + 黑盒真浏览器闸门(qa-blackbox)首绿
+
+用户授权的"大探索性 QA 直到边际收益消失"本轮收敛。三层新增/强化:
+- **两路 audit agent**(webui 后端 badRequest/错误面、前端 React/CSS 移动
+  与错误 surfacing)产出排序缺陷表 → 批量修(见 G36)。
+- **qa-blackbox**(qa/blackbox/drive.mjs + workflow):playwright-core 驱动
+  真 webui,手机 390 + 桌面 1280 双上下文,走 home/Scheduled 坏输入/真
+  Gemini turn/Changes/daemon-down journey;每步机器判据:无 uncaught/
+  console.error、无原始内部错误文案(exit status/fatal:/daemon dial:/绝对
+  路径——"吓人红 toast"回归红线)、无横向溢出,全程截图上 artifact。
+- 收敛过程即"守卫比被测更可信"的实操:run#1 假绿断言(结构选择器 50ms
+  命中既有 DOM)→内容锚定(真等 Gemini 答 2/7);文件名含:被 artifact 拒
+  →净化;run#2 固定 sleep 首绘慢拿 0→条件等待;run#3 desktop scheduled
+  失败经 CDP/playwright 隔离复现证实**非产品 bug**(路由/菜单/modal 双端
+  一致)→ text=Repeating 歧义改 getByRole、mobile 向校验收敛 phone-only、
+  失败改自诊断带页面状态。run#4 首次全绿(4/4,真 Gemini)。
+
+**诚实记分**:前两波审计修 15+ 真 bug(api.ts 根因/daemon-down/workspace/
+git 报错/Toasts 死 CSS/iOS 原生化/PWA/键盘避让);之后三轮真浏览器黑盒
+**产品级新发现归零**,全部 finding 是 harness 自身收敛——边际收益到拐点。
+G36 登记余项(interval/cron 内联校验、错误 details 披露 UI)低优先待排期。
+三层 QA 闸门常驻:qa-all(后端真 API)/qa-blackbox(真浏览器)/qa-inc62(专项)。
