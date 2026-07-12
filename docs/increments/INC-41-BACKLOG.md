@@ -3187,7 +3187,16 @@ max-height:calc(100% - 96px); overflow:auto`),`.session-view` 加 `position:rela
 `SessionView.tsx:999-1046` 面板不再与 `<main>` 争宽度(`view==="diff"` 的 `.changes-panel` 保持原样,那是真需要宽度的评审面)。
 touches:`styles.panel.css`、`SessionView.tsx`、可能 `styles.css`(`.session-view` 布局)、`SessionView.chrome.test.tsx`。
 
-### RD-C ☐ Worktree 行展开是个死胡同:只给一段折成 4 行的路径 + Copy path [P2]
+### RD-C ✅ Worktree 行展开是个死胡同:只给一段折成 4 行的路径 + Copy path [P2]
+**轮37 落地 `8f77ad9`**:抽出共享 `worktreeActions.ts`(`useWorktreeActions`,含 Remove 的确认弹窗与 force
+二次确认),DiffView 改调它、UI/行为一字未动(5 个 DiffView 测试文件一行未改全绿);SupervisionPanel 的
+Worktree 抽屉从「路径 + Copy path」变成动作抽屉:`Apply to project…` / `Open in VS Code` / `Remove worktree…`
+(危险项在末位、走红色文字通道而非饱和红块)。`Open in VS Code` 复用 Sidebar 右键菜单那条 `openProjectIn`
+store action(**不在 DiffView 里**,任务书写错了),自带错误 toast。`EnvState` 补 `worktree`/`mainRepo`。
+live 实测抽屉里 `.env-wt-action` = `['Apply to project…','Open in VS Code','Remove worktree…']`。
+遗留:抽屉里的路径仍被撕成多行 mono(**ENV-6**,P3)——动作行补上后这块的毛糙更显眼了,建议提到 P2。
+
+<details><summary>原始条目</summary>
 点开是 ~90px 灰块,里面一条 worktree 路径**硬折 4 行**,右边一个 `Copy path`——**能做的事只有复制**。而后端早有、
 UI 却藏在别处的:`GET /api/sessions/{sid}/diff` 的响应已带 `worktree`/`mainRepo`/`branch`(面板拿到了却不显示);
 **Apply to project**(`POST …/apply`)与 **Remove worktree**(`POST …/worktree/remove`)只活在 `DiffView.tsx:866-880`
@@ -3199,6 +3208,7 @@ UI 却藏在别处的:`GET /api/sessions/{sid}/diff` 的响应已带 `worktree`/
 后两个把 `DiffView.tsx:435-505` 的 confirm 模态抽成共享 `worktreeActions.ts` 两边共用(别复制粘贴);
 `EnvState`(`:435-443`)补 `mainRepo`/`worktree` 字段(`load()` 在 `:484-497` 已拿到完整 `d`,只是没存)。
 touches:`SupervisionPanel.tsx`、`DiffView.tsx`、新增 `worktreeActions.ts`、`styles.panel.css`。
+</details>
 
 ### RD-D ✅ 右栏 Changes 行:有改动时**未跟踪文件被吞掉**,且从不给文件数 [P3] — 轮36 `3cfdb92`
 真实 payload:1 tracked(+1)、`untracked:["qa-inc41-d4/asset.bin"]`、`hiddenUntracked:12`;右栏只写 **`+1`**。
@@ -3290,3 +3300,100 @@ touches:`timeline.ts`、`timeline.test.ts`。
   `Open in VS Code` 三个已有后端的动作分别锁在 DiffView 的 `…` 菜单与 sidebar 右键菜单里,与面板互斥)——现在面板成了
   浮层卡、不再与 Changes 分栏争地盘,正是补齐它动作行的时机;之后 TH-20(timeline 末尾 flush 兜底)。
 
+
+---
+
+### TH-21 ✅ thread 每条消息下方都常驻一行 action 图标 + 时间戳,Codex 只有末条有 [P1]
+**轮37 落地 `4d80a58`。**
+- **Codex 怎样**(本轮像素取证,`qa/codex-reference/codex-task-thread.jpg` 819×1456,把 y=1180..1420 与
+  y=380..700 两段放大 3× 看过):中间的每一条 assistant / user 消息结束后**直接**接下一段内容——
+  **没有 action 图标行、没有时间戳**。整个 thread **只有最后一条 assistant 消息**之后有一行
+  `⧉ 👍 👎 ↗ │ ⊘ Goal achieved in 3h 47m 26s`,而且**这一行里也没有时间戳**。
+- **我们(轮37 前)**:**每一条**消息(含 user bubble)下方常驻 3 个图标(opacity .5)+ 完整时间戳
+  `Friday 06:21 PM`。一个 21 条消息的会话 = 21 条重复噪音带,每两三段散文之间插一次,把 thread 从
+  「一条连贯的叙事」切成了「一叠带页脚的卡片」。证据 `qa/runs/2026-07-12-r37/before/thread-1440.png`。
+- **改法**:中间消息的 `.msg-actions` 改 hover / `:focus-within` 才显(**只翻 `opacity`,不动任何盒模型属性**
+  —— TH-1 的不 reflow 契约照守);末条 assistant 打 `.msg-last`(复用已有的 `lastAssistantKey`)豁免,常驻;
+  所有消息不再常驻时间戳(末条的 `.msg-time` 走静态 `display:none`,因为 `Timeline.turns.test.tsx` 的 TR-2
+  要 query 它)。新增 `Timeline.msgrow.test.tsx` 7 条(含注入真实样式表后 `getComputedStyle` 实测)。
+- **⚠ 本轮推翻了 round 18/20/24 的 TH-1/TH-10 结论**(「图标常驻是对的、hover-only 是误读」):那轮只看了
+  单张裁剪 `codex-crop-message-actions.jpg` 就推断"图标在静息态就有"——**那张 crop 拍的正是 thread 的最后
+  一行**,不是中间消息。整屏金标证明中间消息零 action 行零时间戳。折中:末条常驻(保留 crop 的真相 + 触屏/
+  键盘可达),中间 hover-only(对齐整屏真相)。旧注释块保留,顶部加了指引。
+- **live 复验**(`index-NjS8Tk5S.js`):21 行 `.msg-actions`,20 行静息 `opacity=0` + 末条 `=1`;可见时间戳 **0**;
+  hover 中间消息 → `opacity` 0→1 且 `height` 恒 19px(**不 reflow**);全景 console error+warning = 0。
+  截图 `qa/runs/2026-07-12-r37/{before,after}/thread-1440.png`。
+touches:`Timeline.tsx`、`styles.conv.css`、`Timeline.thread.test.tsx`、新增 `Timeline.msgrow.test.tsx`。
+
+---
+
+## 轮37 finder 新登记:Changes / Review 分栏 × `codex-diff-review.jpg`(5 条)
+
+> finder 先更正了入口:**Changes 分栏没有顶栏按钮**(TH-15 刻意删,理由在 `SessionView.tsx:747-758`)。
+> 三扇门:`···` 溢出菜单 → View → Changes;Environment 栏的 `Changes` 行;thread change card 的 `Review`。
+> 总体结论:这一屏已很接近金标(逐文件头 + `+x −y`、M/A/D glyph、语法高亮、`N unmodified lines` 折叠带、
+> hatched 左轨、sticky 文件头、`Commit or push` 都在),剩下 5 条。
+
+### RVW-CLIP ☐ 面板第一个标签被切成 "Working tre",caret 掉出按钮外 [P1]
+DOM 取证:`.diff-scope-trigger` `clientWidth=76` / `scrollWidth=97`(切掉 21px)、`text-overflow: clip`(连省略号
+都没有)、caret `<svg>` 的 `right=886` 而按钮 `right=872.8` —— **caret 被裁到按钮外面**。bar 本身并没溢出
+(`scrollW == clientW == 658`),纯属收缩分配错了对象:`styles.css:1559` / `styles.rs.css:828` 两处都没写 `flex`,
+默认 `0 1 auto` 可收缩,而 bar 上其余控件全是 `flex: 0 0 auto`。`DiffView.tsx:314-316` 的 DF-1 注释还明确写着
+worktree chip「is the one control allowed to give way」——实际让路的却是 scope 控件本身。Working tree 是持久化
+偏好(`SCOPE_KEY`),选过一次就永远是这个断词的样子。
+**动作**:`styles.rs.css:828` 的 `.diffwrap .diff-scope-trigger` 加 `flex: 0 0 auto; white-space: nowrap;`
+(让 `.diff-wt-badge` 独自吸收收缩,它本来就有 `min-w-0 truncate`)。需要新后端:否。
+
+### RVW-PHANTOM ☐ 每份 review 的最后一个文件都多渲染一行「幽灵空行」 [P1]
+`A rd-d-untracked-probe.txt +1 −0` 的正文渲染了**两行**(第 2 行是空的);原始 diff 是 `@@ -0,0 +1,1 @@` + 一条
+`+` 行,**只有 1 行**。根因:`diffSummary.ts:156` `diff.split("\n")` 让末尾换行产生一个 `""`,被塞进**最后一个
+文件**的 `lines`,再被 `diffSummary.ts:70` 的兜底分支当成 ctx 行(还消耗一个 `newNo` → 尾部 `hunkGaps` 的
+`N unmodified lines` 计数有 off-by-one 风险)。review 唯一不能出错的东西就是 diff 本身。
+**动作**:`diffSummary.ts:156` 丢弃尾部空行 + 补单测(payload 末尾带 `\n` 时最后一个文件的 rows 数)。需要新后端:否。
+
+### RVW-ORDER ☐ review 开屏先给两个打不开的 binary,真改动被顶到折叠线以下 [P2]
+`DiffView.tsx:1184-1196` 先渲染 `shownUntracked` 再渲染 tracked,于是右栏顶部两行是 `A bin/ar [binary]` /
+`A bin/arwebui [binary]`(点开只有「Content isn't shown」)。金标第一行就是第一个**有内容**的文件头。
+**动作**:`DiffView.tsx:719/1184` 把 untracked 与 tracked 按 path 归并排序(或至少把 binary 沉到末尾),
+文件列表 popover 用同一顺序。需要新后端:否。
+
+### RVW-BINCOUNT ☐ 文件列表对 binary 报 `+… −0`,同一文件的头部却说「binary、不给计数」 [P2]
+`DiffView.tsx:726` 的 `counts: !isBinaryPath(path)` 走扩展名判定,而 `bin/ar` **没有扩展名** → 判不出 binary →
+popover 印 `+…`(永不兑现)、卡片还会为它发一次注定 400 的 blob 请求;正文里同一文件却是 `[binary]` 不带计数。
+**动作**:`UntrackedFile`(`DiffView.tsx:1286`)已有 `failed`/`lines` 的真相,回调上报给 DiffView 覆盖扩展名猜测。需要新后端:否。
+
+### RVW-HUNKBAND ☐ 每个 hunk 顶着两条全宽灰带(≈55px),金标只有一条 [P2]
+`9 unmodified lines` 带(30px)**紧接着**再来一条 `.dl-hunk` 全宽灰带(25px,实测 `w=657.5 h=25 bg=#f4f4f4`),
+内容是 `@@` 的 section heading,且**没有行号槽**,横向打断代码网格。
+**注意**:保留 heading **文本**是刻意决策(`styles.css:1683-1689`:金标那个文件是 Markdown 才没 heading;
+对代码文件这串字符是唯一告诉你身处哪个函数的东西)——本条只针对**两条带子叠在一起的形态**。
+**动作**:把 heading 并进折叠 band 的右半边(GitHub 的做法):`DiffView.tsx:1562-1576` 在 `bandEl` 存在时不再
+单独渲染 `header`,把 `r.text` 传进 `band()`;`styles.diff.css:75` 的 `.fd-gap` 网格加第三列。信息一条不丢,
+每个 hunk 省 25px 且不再断网格。需要新后端:否。
+
+### ✂ finder 排除的假差距(刻意决策,别派)
+- ✂ **顶栏没有 `Review`/`Changes` tab**:TH-15 刻意删,`SessionView.tsx:747-758`(「三个名字、两扇门、一件事」)。
+- ✂ **行首没有 `+`/`−` 号**:`styles.rs.css:97-115` 的 `data-diff-markers`,Settings › Appearance 可切,默认色带是决策。
+- ✂ **长行不换行、横向滚动**:`DiffView.tsx:96-98`(DF-4)按 Codex 默认定的,且有 Wrap 开关。
+- ✂ **hunk heading 文本本身**:见 RVW-HUNKBAND。
+- **out-of-scope**:金标顶部的 `AgentRunner | (1) AgentRunner | …` 是 Codex 的**窗口级多标签**,我们没有对应后端/多窗口模型。
+
+### RT-ROUTE ☐ 未知 hash 路由不落 NotFound,反而当成 session id 去打 3 个必 404 的 API [P3]
+本轮探针误用 `#/settings`(Settings 其实是**模态框**、不是路由),结果 SessionView 把 `settings` 当 sid,
+连发 `/api/sessions/settings/{events,ps,inspect}` 三个 404。`NotFound.tsx` 存在却没被路由到。
+**动作**:`App.tsx:192` 的 `route()` 对不存在的 sid 走 NotFound(或先探一次 session 存在性再挂 SSE)。需要新后端:否。
+
+---
+
+- 2026-07-12 轮37:比对 5 屏(home/scheduled/thread/thread+panel/changes-split)× Codex 金标;关差距
+  **TH-21(P1)** thread 中间消息的常驻 action 行 + 时间戳 → hover-only、仅末条常驻(21 行里 20 行静息
+  opacity=0、可见时间戳 0、hover 不 reflow),**RD-C(P2)** Environment 面板 Worktree 抽屉从只读展示柜
+  → 补齐 `Apply to project…` / `Open in VS Code` / `Remove worktree…`(复用共享 `worktreeActions.ts`,
+  Remove 仍走确认弹窗;DiffView 5 个测试文件一行未改全绿);派工 3(2 implementer 并发 worktree 隔离 +
+  1 finder);push `4d80a58` `8f77ad9`;live=`index-NjS8Tk5S.js`;全景 console error+warning = **0**
+  (desktop/mobile × light/dark × 5 屏 + Settings 模态框)。截图 `qa/runs/2026-07-12-r37/{before,after}/`。
+  **BACKLOG:+✅×2(1 P1)、新增 ☐×6**(RVW-CLIP/RVW-PHANTOM 两条 **P1** + RVW-ORDER/RVW-BINCOUNT/
+  RVW-HUNKBAND + RT-ROUTE)。
+  **下轮首选**:**RVW-PHANTOM(P1)** —— 每份 review 的最后一个文件都多渲染一行不存在的代码,且尾部折叠
+  计数可能 off-by-one:review 屏是最重要的一屏,而 diff 的正确性是它唯一不能出错的东西;并行可打
+  **RVW-CLIP(P1)**(scope 标签被切成 "Working tre"、caret 掉出按钮外,纯 CSS `flex` 一行修)。
