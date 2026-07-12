@@ -928,11 +928,21 @@ export function Composer(props: ComposerProps) {
         />
       )}
 
-      {/* Codex exposes project, run location, environment and branch as four
-          separate controls. They share submit state, but never share a menu:
-          each choice has one meaning and remains scannable before typing. */}
-      {!isSession && (
-        <div className="cx-env-strip">
+      <div
+        className={"cx-card" + (dragging ? " dropping" : "")}
+        onDragEnter={onDragEnter}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+      >
+        {/* Codex exposes project, run location, environment and branch as four
+            separate controls. They share submit state, but never share a menu:
+            each choice has one meaning and remains scannable before typing. The
+            chip row is the top of ONE composer card (P2): the card owns the
+            single outer border + shadow; the strip only draws a hairline divider
+            down to the input, so there's no double-rounded seam. */}
+        {!isSession && (
+          <div className="cx-env-strip">
           <Popover
             align="left"
             trigger={(open, toggle) => (
@@ -1102,15 +1112,8 @@ export function Composer(props: ComposerProps) {
             )}
           </Popover>
         </div>
-      )}
+        )}
 
-      <div
-        className={"cx-card" + (dragging ? " dropping" : "")}
-        onDragEnter={onDragEnter}
-        onDragOver={onDragOver}
-        onDragLeave={onDragLeave}
-        onDrop={onDrop}
-      >
         {dragging && (
           <div className="cx-drop absolute inset-0 z-[5] grid place-items-center rounded-[22px] border-2 border-dashed border-blue text-blue text-[13.5px] font-medium pointer-events-none">
             <span>Drop files to attach</span>

@@ -238,6 +238,43 @@
   color: var(--red);
 }
 
+/* ---- P2 · single-container composer (chip row merged into the card) -------
+   The env-chip strip used to be a separate --panel-2 panel sitting BEHIND the
+   white .cx-card with a -16px overlap, which drew a visible double-rounded
+   seam. It now lives as the FIRST child INSIDE .cx-card (see Composer.tsx), so
+   the card supplies the single outer border + single shadow, and the strip only
+   adds a hairline divider down to the input — one continuous rounded card, like
+   Codex. These override the base .cx-env-strip rules in styles.css (this file
+   loads after, so equal-specificity rules win on source order). */
+.cx-env-strip {
+  position: static;
+  z-index: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 8px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--line-2);
+  /* nest just inside the card's 1px border (card radius − 1px) so the tinted
+     strip follows the rounded top corners instead of poking out square ones */
+  border-radius: 21px 21px 0 0;
+  background: color-mix(in srgb, var(--panel-2) 60%, var(--panel));
+  overflow: visible;
+}
+/* welcome hero uses a larger card radius (26px) — match its top corners */
+.home.home-welcome .cx-env-strip {
+  min-height: 0;
+  padding: 10px 14px;
+  border-radius: 25px 25px 0 0;
+}
+@media (max-width: 520px) {
+  /* keep the flex-wrap from styles.css but drop the tall min-height that only
+     existed to reserve room for the old overlap */
+  .cx-env-strip {
+    min-height: 0;
+    padding: 8px 10px;
+  }
+}
+
 /* ---- C6 · narrow viewport (≤430px) --------------------------------------- */
 /* With the second control folded into `+`, the bottom row has one fewer button;
    keep every control reachable and let the wide menus fit the viewport. */
