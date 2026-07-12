@@ -1409,7 +1409,14 @@ label.field {
 }
 .row-flex {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+}
+/* let the text input keep the row while the buttons wrap under it on narrow
+   screens (workspace/schedule rows overflowed the modal at 390px). */
+.row-flex > input {
+  flex: 1 1 160px;
+  min-width: 0;
 }
 .seg {
   display: inline-flex;
@@ -4060,6 +4067,23 @@ body {
   .sess-row,
   .pop-item {
     touch-action: manipulation;
+  }
+  /* Apple's 44px minimum hit target — small icon buttons (topbar, diff, toast
+     close, scheduled tabs) were ~24-32px and hard to tap on a phone. Grows the
+     touch box without disturbing the icon's visual size. */
+  button,
+  [role="button"],
+  .sched-tab,
+  .topbar-icon,
+  .topbar-tool,
+  .diff-iconbtn {
+    min-height: 44px;
+  }
+  /* Text inputs/selects don't need 44px height, and the composer send button
+     is deliberately compact — exempt them so the layout doesn't balloon. */
+  .cx-send,
+  .cx-env-strip button {
+    min-height: 0;
   }
   /* Long-press on chrome must not raise the iOS callout / text-selection
      magnifier. Chrome (buttons/nav/chips/labels/timestamps) is unselectable;

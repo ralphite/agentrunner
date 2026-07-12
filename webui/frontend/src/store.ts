@@ -413,7 +413,9 @@ export const useStore = create<AppState>((set, get) => ({
   toast: (text, kind = "error") => {
     const id = ++toastSeq;
     set({ toasts: [...get().toasts, { id, text, kind }] });
-    setTimeout(() => get().dismissToast(id), 7000);
+    // Errors persist until tapped — a long message on a phone must not vanish
+    // before it can be read (phone report). Info toasts still auto-dismiss.
+    if (kind !== "error") setTimeout(() => get().dismissToast(id), 5000);
   },
   dismissToast: (id) => set({ toasts: get().toasts.filter((t) => t.id !== id) }),
 }));

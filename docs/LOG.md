@@ -3853,3 +3853,30 @@ quirk 的覆盖,一处盖住 .cx textarea 15px / .goal-input 12.5px / 搜索框
   同类,待并入下一批友好化(见探索性 QA)。
 
 后续:用户已授权做**大探索性 QA**,持续找修同类问题直到边际收益消失。
+
+## 2026-07-12 · 探索性 QA 第一批:webui 原始错误友好化 + 移动可用性(前后端)
+
+用户授权大探索性 QA,持续找修同类"原始后端错误灌进红 toast + 移动
+papercut"直到边际收益消失。两路审计 agent(后端 webui/*.go、前端
+React/CSS)产出排序缺陷表,批量修:
+
+**根因(前端)**:api.ts 把 ApiError.message 拼成 error+"\n"+stderr,~40
+处 toast 全甩原始 git/CLI stderr。修:message 只取友好 body.error,
+stderr 落 .details 备披露。配合后端批(error 字段已友好化)一次性收编。
+
+**前端批**:
+- Toasts.tsx 死 CSS 复活(.toast-text/.toast-close 选择器从不匹配→
+  图标/文字/关闭键裸奔):自包含 flex 布局 + safe-area bottom + 关闭键
+  44px 盒;error toast 不再 7s 自动消失(手机上长文没看完就没,改点击
+  关闭;info 5s 自动)。
+- .row-flex flex-wrap + input flex:1(workspace/schedule 行 390px 溢出)。
+- 触摸 44px 最小点击盒(topbar/diff/scheduled tab/toast 关闭原 24-32px);
+  composer send/env chip 豁免不撑高。
+
+**后端批**(见前一提交 2fadd8c):daemon 下线 friendly+code、workspace
+校验统一 resolveWorkspace、git commit 干净树/checkout 分类/worktree
+ref-repo 友好化。
+
+未做(下一波候选):visualViewport modal 键盘避让(create-task/commit
+流键盘遮字段,最大"仍像网页"项);interval/cron 内联校验;DiffView
+加载失败加 Try again;RunModal 标题按 preset。前端 306 测试全绿。

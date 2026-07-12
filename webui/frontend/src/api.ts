@@ -8,11 +8,13 @@ import type { DiffResp, DiffScope, Envelope, Health, LauncherApp, ProjectMeta, R
 export class ApiError extends Error {
   status: number;
   code?: string;
-  constructor(message: string, status: number, code?: string) {
+  details?: string; // raw stderr — kept for a "Details" disclosure, NOT the toast
+  constructor(message: string, status: number, code?: string, details?: string) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -28,10 +30,15 @@ async function api<T = any>(path: string, opts?: RequestInit): Promise<T> {
     body = { error: text };
   }
   if (!r.ok) {
+    // The toast shows the friendly `body.error` sentence ONLY — the raw
+    // `stderr` (git/CLI prose, absolute paths, "exit status N") is kept on
+    // `.details` for an optional disclosure, never dumped into the message
+    // (phone report class: scary multi-line blobs for ordinary actions).
     throw new ApiError(
-      (body.error || r.statusText) + (body.stderr ? "\n" + body.stderr : ""),
+      body.error || r.statusText,
       r.status,
       typeof body.code === "string" && body.code ? body.code : undefined,
+      typeof body.stderr === "string" && body.stderr ? body.stderr : undefined,
     );
   }
   return body as T;
