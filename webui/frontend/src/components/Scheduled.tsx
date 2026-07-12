@@ -1,12 +1,48 @@
 import { useMemo, useState } from "react";
-import { CalendarDots, Plus, ArrowUpRight, MagnifyingGlass, Check, CaretDown, Crosshair, ArrowsClockwise, Stack, Play } from "@phosphor-icons/react";
+import type { Icon } from "@phosphor-icons/react";
+import { CalendarDots, Plus, ArrowUpRight, MagnifyingGlass, Check, CaretDown, Crosshair, ArrowsClockwise, Stack, Play, Bell, Notebook, Bug } from "@phosphor-icons/react";
+import "../styles.scheduled.css";
 import { useStore } from "../store";
 import { friendlyStatus } from "./pill";
 import { projectLabel, scheduleLabel, scheduledUnread } from "../viewModels";
 import { relTime, sessionDate } from "../time";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
 
-type Filter = "all" | "active" | "completed";
+type Filter = "all" | "active" | "paused";
+
+// Static template suggestions (Codex parity). Clicking one opens the existing
+// create-task modal prefilled for a repeating task, with the description as the
+// initial task text. Colours are fixed to match Codex's accent glyphs.
+interface Suggestion {
+  icon: Icon;
+  color: string;
+  title: string;
+  cadence: string;
+  desc: string;
+}
+const SUGGESTIONS: Suggestion[] = [
+  {
+    icon: Bell,
+    color: "#3b82f6",
+    title: "Daily brief",
+    cadence: "Weekdays at 8:00 AM",
+    desc: "Start each weekday with a summary of your priorities",
+  },
+  {
+    icon: Notebook,
+    color: "#8b5cf6",
+    title: "Weekly review",
+    cadence: "Fridays at 4:00 PM",
+    desc: "Summarize the week's changes and open work",
+  },
+  {
+    icon: Bug,
+    color: "#22c55e",
+    title: "Follow-up monitor",
+    cadence: "Every 6 hours",
+    desc: "Watch for failures and follow up",
+  },
+];
 
 // Settled/terminal rows carry no useful colour on their leading dot — it reads
 // as gray noise on every completed row (review sw-d-11). Drop the dot for these
@@ -86,15 +122,17 @@ export function Scheduled() {
     return out;
   }, [runs, sessions, select, selectRun, unread]);
 
+  // We have no real paused flag, so "Paused" == the non-active (finished) rows,
+  // relabelled to match Codex's All / Active / Paused pills.
   const counts = {
     all: rows.length,
     active: rows.filter((r) => r.active).length,
-    completed: rows.filter((r) => !r.active).length,
+    paused: rows.filter((r) => !r.active).length,
   };
   const ql = query.trim().toLowerCase();
   const filtered = rows.filter((r) => {
     if (filter === "active" && !r.active) return false;
-    if (filter === "completed" && r.active) return false;
+    if (filter === "paused" && r.active) return false;
     if (ql && !(r.title.toLowerCase().includes(ql) || r.meta.toLowerCase().includes(ql))) return false;
     return true;
   });
@@ -143,7 +181,7 @@ export function Scheduled() {
             />
           </div>
           <div className="sched-tabs" role="tablist" aria-label="Filter scheduled work">
-            {(["all", "active", "completed"] as Filter[]).map((f) => (
+            {(["all", "active", "paused"] as Filter[]).map((f) => (
               <button
                 key={f}
                 role="tab"
@@ -202,11 +240,35 @@ export function Scheduled() {
                 <b>{r.title}</b>
                 <span>{r.meta}</span>
               </span>
-              <span className={"scheduled-status " + r.status.cls}>{r.status.text}</span>
               <ArrowUpRight size={15} />
             </button>
           ))
         )}
+      </div>
+
+      <div className="sched-suggestions">
+        <div className="sched-suggestions-title">Suggestions</div>
+        {SUGGESTIONS.map((s) => {
+          const Ic = s.icon;
+          return (
+            <button
+              key={s.title}
+              className="sched-suggest"
+              onClick={() => openModal({ kind: "run", preset: "repeating", task: s.desc })}
+            >
+              <span className="sched-suggest-icon">
+                <Ic size={22} color={s.color} />
+              </span>
+              <span className="sched-suggest-body">
+                <span className="sched-suggest-head">
+                  <b className="sched-suggest-title">{s.title}</b>
+                  <span className="sched-suggest-cadence">{s.cadence}</span>
+                </span>
+                <span className="sched-suggest-desc">{s.desc}</span>
+              </span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
