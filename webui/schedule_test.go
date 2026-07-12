@@ -5,9 +5,8 @@ import (
 	"time"
 )
 
-// The phrasing table is the SAME one internal/driver/cadence_test.go pins: the
-// two implementations (canonical + this module's mirror) must agree, or the
-// Scheduled page and the driver would describe different rhythms.
+// Every schedule kind the driver supports gets a phrase — and an unphrasable
+// cron degrades to `Cron <expr>` rather than inventing a rhythm.
 func TestCadenceOf(t *testing.T) {
 	cases := []struct {
 		name string

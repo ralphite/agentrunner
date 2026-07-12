@@ -8,14 +8,16 @@ package main
 // them into {schedule, cadence, nextRunAt} for /api/runs and /api/sessions,
 // replacing the type/project/last-start trivia the rows used to carry.
 //
-// The same projection exists as the canonical, unit-tested implementation in
-// internal/driver/cadence.go (driver.Cadence / driver.NextRun / CronPhrase).
-// It is MIRRORED here, not imported, because arwebui is a standalone module
-// (webui/go.mod: zero dependencies) whose only contract with the system is the
-// public `ar` CLI. When `ar sessions list --json` grows cadence/next_run
-// fields, delete this mirror and read them off the CLI instead. schedule_test.go
-// pins the phrasing to the same table as internal/driver/cadence_test.go so the
-// two cannot silently drift.
+// Why the cron parsing lives HERE and not in internal/cron (which is what the
+// driver actually schedules on): arwebui is a standalone module (webui/go.mod:
+// zero dependencies) whose only contract with the system is the public `ar`
+// CLI — it cannot import the engine's packages. So this is a presentation-side
+// reader of the same five-field dialect, deliberately kept semantically
+// identical to internal/cron (bare `*` is the only star for the dom/dow union
+// rule; `n/step` means n..max; dom AND dow restricted → OR). It NEVER decides
+// when anything runs; it only says what the driver will do. The end of this
+// duplication is `ar sessions list --json` growing cadence/next_run fields
+// straight off internal/cron — then this file shrinks to reading them.
 
 import (
 	"context"
@@ -239,12 +241,15 @@ func cronField(f string, min, max int) (map[int]bool, bool, error) {
 				return nil, false, fmt.Errorf("bad value %q", part)
 			}
 			lo, hi = n, n
-			if isRange {
+			switch {
+			case isRange:
 				m, err := strconv.Atoi(strings.TrimSpace(b))
 				if err != nil {
 					return nil, false, fmt.Errorf("bad range %q", part)
 				}
 				hi = m
+			case step > 1:
+				hi = max // "n/step" means n..max by step (Vixie cron, as internal/cron parses it)
 			}
 			if lo < min || hi > max || lo > hi {
 				return nil, false, fmt.Errorf("%q out of range %d-%d", part, min, max)
