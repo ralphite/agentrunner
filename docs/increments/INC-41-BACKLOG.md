@@ -2645,3 +2645,114 @@ composer placeholder 逐字一致。✂ 已排除:👍/👎 无后端、`· N ne
   **本轮真实产出打折**:2/3 implementer 撞上「活已经干完但台账/live 没同步」(见 PROC-1)。
   **下轮首选**:TH-10(助手收尾 action row 静息不可见)、SC-12(Scheduled 行只读)、SB-7(appr 与
   stranded 同色不可分)、DF-D7/DF-D8(binary 白吃 400/413),开轮**先对账 bundle hash 再截图**。
+
+## 轮29 新弹药(2026-07-12,3 个 read-only finder:Changes/Review 分栏 · Environment/Supervision 右栏 · sidebar)
+
+**Changes/Review 分栏**(截图 `qa/runs/2026-07-12-r29/finder-review/`;已确认 parity、勿动:toolbar 形状、
+`M↓ path +N −M` 文件头、unified 栅格、绿实心/红斜纹 channel bar、`N unmodified lines` 折叠条与 caret 方向、
+空态、`Commit or push`。✂ 已排除刻意:split 无折叠条、长行不硬裁+Wrap、无 Changes 标题条(RV-1)、
+DF-D5 生成文件横幅、DF-2/RD-1 默认折叠、DF-1 Expand-all 收进 `…`、DF-D3 binary 不吐 `+0 −0`、RV-3 caret):
+
+- ☐ **RVW-1(P0)变更行的行号槽被我们刷白,金标是整行连续染色 —— 且 DF-D2 的立论经金标采样【是错的】**:
+  金标像素采样(`gold-mid.png`)add 行号槽 `rgb(201,227,198)`、del `rgb(248,195,189)`、context `rgb(218,218,218)`
+  —— **Codex 把红绿从 channel bar 一直刷到面板右缘,包含行号格**。而 `styles.css:1661-1662`(DF-D2,轮25 落地)
+  写着「Codex 只染代码列、行号槽留中性面」并把 `.dl.add > .dl-no` 刷回 `var(--panel)` 纯白 —— **前提与金标不符**。
+  后果:176 行的删除块,每一行都被 63px 白槽从中间劈断,读不成一条连续带。
+  动作:删 `styles.css:1661-1662`(保留 1663-1664 数字的红绿墨色,金标也有);DF-D2 当初怕的"折叠条行号槽被染成
+  色块"已由 `styles.diff.css:94-102` 的 `.fd-gap-caret{background:var(--panel)}` 独立兜住。
+  ⚠ **这是对一条已落地刻意决策的翻案**,须先复核金标采样再动手。
+- ☐ **RVW-2(P1)split 视图硬裁长行:没有滚动条、没有省略号,内容【静默消失】**:`styles.rs.css:174-184`
+  两半都是 `1fr` → grid 永远不超出容器 → `.fd-body{overflow-x:auto}` **永不出滚动条**;1440 下每半只剩 ~370px 代码,
+  `var Xu=Object.defineProperty;var ed=` 直接断在词中间。**inline 视图同一行滚得好好的** —— 同一份 review,
+  换个 toggle 就吃掉你的内容,且与本项目「长行不硬裁,用 Wrap 开关」的既定决策自相矛盾。
+  动作:`.diffwrap .dls-half { overflow-x: auto }`(每半独立滚),或 `.dls` 两半改 `minmax(0,max-content)` 走
+  `.fd-body` 已有的共享滚动条。渲染点 `DiffView.tsx:1099-1126`。
+- ☐ **RVW-3(P2)diff 没有任何「复制」出口**:金标 `codex-crop-diff-header.jpg` review 头栏有 copy 图标;
+  `DiffView.tsx` 全文零 copy handler(diffbar / `…` 菜单 / 逐文件都没有),而**同屏对话里每个代码块都有 Copy**。
+  读完 diff 最常做的事就是把它贴进 issue/消息,今天唯一的路是在虚拟化栅格上拖选。
+  动作:`.diffbar` 加 `<Copy size={15}/>` ghost 按钮,写 `data.diff` 进剪贴板 + 复用现有 toast。
+- ☐ **RVW-4(P2)面板默认 scope 是 `working-tree`,金标默认 `Last Turn`**:`DiffView.tsx:159`
+  `useState<DiffScope>("working-tree")` —— 无 INC/QA 出处,`git log -S` 查不到决策记录。症状:thread 变更卡说
+  `Edited 5 files +2 −179`,点它的 `Review` 打开的面板可能 scope 到别的东西 —— **两个界面对同一次点击给出两份 diff**。
+  动作:默认 `"last-turn"`,`data.available===false` 时静默回落 `working-tree`(回落分支 `:454-465` 已存在),
+  用户显式切换后持久化。
+- ☐ **RVW-5(P2)文件头随滚动消失,深入一个文件后不知道自己在哪个文件**:实测 `scrollTop=1500` 时前三个 `.fd-head`
+  在 y = −1369/−1295/−1221,视口里 40 行 minified JS **屏幕上没有任何文件名**;`.fd-head` 是 `position:static`,
+  而 `.diffbar` 已经是 `sticky top:0`(46px)。诚实标注:金标截于 scrollTop 0,无法证明 Codex 钉头 —— 但能证明我们
+  滚起来就丢。动作:`.diffwrap .filediff > summary.fd-head { position:sticky; top:46px; z-index:3; background:var(--panel) }`。
+- ☐ **RVW-6(P3)载态是一句灰字,而 app 其余地方都用 skeleton**:`DiffView.tsx:452` `Loading changes…`;
+  而 `.tl-skeleton`(styles.css:4844)、侧栏 skeleton(styles.nav.css:259)、甚至 thread 里那张 40px 的变更卡都画
+  skeleton bar —— **摘要卡载得比它链去的 658px 面板更体面**。动作:换成 3–4 条文件头形 + ~12 行栅格 skeleton。
+
+**Environment / Supervision 右栏**(截图 `qa/runs/2026-07-12-r29/finder-env/`;金标换算:面板 ≈236pt 宽 =16% 窗口、
+行距 ~24pt、内容自适应高。✂ 已排除刻意:无 Supervision 标题条(DF-D4/RV-1)、满高贴边无卡片圆角(CX-1 `5d8826a`);
+**不建议**造 Background processes / Browser / Sources 壳 —— 无数据源):
+
+- ☐ **ENV-1(P1)四条 Environment 行【没有主文本】:label 与 value 同一档灰**:金标 label 近黑(采样 92–117)、
+  value 灰、**只有失效行才整行转灰**(180),是 ink → dim → header 三档。我们 `styles.nav.css:433-446`
+  `.env-row{color:var(--ink-2)}` → label `rgb(96,96,96)` vs value `rgb(110,110,110)`,**只差 14 级** = 纯平;
+  只有 hover(nav.css:475)或 `.active`(panel.css:601)才够到墨色。这四条 git 动作是面板的全部载荷,却以 metadata 灰呈现。
+  动作:`.env-row-label{color:var(--ink);font-weight:450}` + `.env-row{color:var(--dim)}`(value 继承 dim),
+  `.active`/`:hover`/`:disabled` 语义不变。
+- ☐ **ENV-2(P1)每行 211px 的死沟:我们的行读起来像电子表格,金标像菜单**:`.session-layout` 右轨
+  `344px`(`styles.css:3796`)= 窗口 **23.9%**(金标 ~16%),且 `.env-row-label{flex:1}`(nav.css:451)把 51.5px 的
+  「Changes」撑成 **253.9px** 的盒子 → label 与 value 之间实测 **211.3px 空白**(`+1` 被顶到面板右缘 x=1403.9)。
+  label 与 value 是一个意思,被 211px 白隔开 → 每行一次扫视跳跃。
+  动作:去掉 `.env-row-label` 的 `flex:1`,`.env-row-val` 改 `margin-left:auto`;右轨 `344px → 288px`
+  (Changes 面板的轨在 `styles.css:4796`,另一条,不受影响)。
+- ☐ **ENV-3(P2)面板右缘是一列否定句**:`SupervisionPanel.tsx:586/636/696` 的 `No changes` / `No branch yet` /
+  `Nothing to commit` 右齐堆成一列 12px `--dim`(110)灰字,**和动作本身一样响**;`Nothing to commit` 更是冗余
+  ——那行本来就 `disabled`。动作:删这三个 `.env-row-val`,让 disabled/inert 态自己说话(原因留 `title=`,已有)。
+- ☐ **ENV-4(P2)`Run details` 是面板里最重的文字,且脱离行栅格**:`styles.panel.css:297-303` 给它
+  `font-weight:550 + --ink-2` → 全面板最黑最粗的字,压过所有真数据行;它**没有前导图标**,文字起于 x=1111 而四条
+  env-row label 起于 x=1141 —— **30px 参差左缘**。金标的同位元素 `View all` 是**最淡**的一行(202)且带图标、
+  与所有行同栅格。另 `Environment` 组标题起于 x=1112 vs 行图标 x=1118(6px 参差)。
+  动作:`font-weight:400; color:var(--dim)` + 前导 14px 图标 + `padding-left:21px` 落到 label 列;
+  `.supervision-label` 补 `padding-left:6px`。
+- ☐ **ENV-5(P2)右栏 60% 是空白**:rail 高 846px,内容底只到 376–390px → **510–524px 空面** × 344px 宽;
+  dark 下 rail 底色 `rgb(23,23,26)` 与 thread 完全相同,那片空白读作"撕掉的一块"而非面板。
+  (**不**回退成浮动卡片 —— CX-1 刻意。)动作:(a) `Run details` 下沉为真正的 footer 行
+  (`margin-top:auto; border-top:1px solid var(--line)`,aside 改 flex column)→ 空白被"框"在内容与 footer 之间;
+  (b) ENV-2 的 288px 收窄再砍掉 ~29% 空面积。
+- ☐ **ENV-6(P3)Worktree 抽屉把路径撕成 4 行 mono**:`styles.panel.css:618-626` `overflow-wrap:anywhere` 把
+  `…/wt-20260710-143427` 断成 **77.8px 高**的块,断在 `workt|rees`、`webu|i`、`wt-20260710-|143427` 词中间;
+  金标里标识符**永远单行 + 尾部省略号**。动作:`white-space:nowrap; overflow:hidden; text-overflow:ellipsis`
+  (保尾:`direction:rtl; text-align:left`),全路径已在 `title=`(`SupervisionPanel.tsx:610`)。
+
+**sidebar**(截图 `qa/runs/2026-07-12-r29/finder-sidebar/`;已确认达标、勿动:SB-6 父子同列(heading x=34 = task x=34)、
+SB-4 段级折叠 + Show more、SB-3 的 28px 行密度(金标 ~25px,3px 内不动)、RH-5 ⌘K 单一搜索入口、390 抽屉;
+✂ Plugins/Sites/Chat/PR 无后端):
+
+- ☐ **SB-8(P1)选中行是全 app 唯一的高彩度色块 —— 而同一根 rail 的 nav 已经是中性灰了**:
+  `styles.nav.css:504-509` `.project-task-wrap.current{background:var(--rs-accent-soft)}` + 标题 `--rs-accent` 550
+  → dark 实测选中底 `rgb(22,40,60)` 蓝、light 蓝底蓝粗字;而 `styles.nav.css:497` 的 `.primary-nav button.active`
+  **已经**是中性 `color-mix(--ink 7%)` —— 一根 sidebar 里「选中」讲两种方言。金标采样:选中 pill `rgb(238,238,238)`
+  落在 `rgb(251,251,251)` 上,**13 级灰、零色相**,文字仍近黑。且蓝在我们这里已有语义(`--blue` = unread dot),
+  选中行现在长得像"未读"。
+  **附带真 bug**:`styles.css:3373-3376` 给 `.current` 同时设 `background` 和 `--row-bg: var(--panel-2)`,
+  nav.css:504 只覆盖了 `background` → hover 选中行时 `.project-task-wrap::after`(styles.css:3350)按 `--panel-2`
+  淡出标题,在蓝 chip 上糊一条灰白渐变(dark 图里标题直接被吃掉)。
+  动作:删 nav.css:504-509 的 R2-3 覆盖,回落 `styles.css:3373` 的中性 `--panel-2` 底 + `color:var(--ink); 550`。
+- ☐ **SB-9(P1)墨色层级是倒的:内容(任务标题)是灰的,脚手架(组名)是漆黑加粗的**:金标采样 —— 子任务
+  `rgb(37,37,37)`、组名 `rgb(48,48,48)`、`Projects`/`Show more` `rgb(160,160,160)`:**任务标题是 rail 里最黑的东西,
+  组名比它还浅一档**。我们:任务标题 `rgb(96,96,96)`/400(`styles.css:3319` `--ink-2`),组名 `rgb(13,13,13)`/**600**
+  (`styles.nav.css:590`)—— 父子墨差 **83 级且父更黑**(金标 11 级、子更黑)。8 个文件夹名在喊,14 个真正可点的
+  任务行读起来像 disabled。(不推翻 SB-6:「组名是锚」靠**字重**继续成立。)
+  动作:`.project-task-title{color:var(--ink)}`;`.sidebar .project-heading` → `color:var(--ink-2)`(字重 600 保留)。
+- ☐ **SB-10(P2)顶部 brand 块 64px vs 金标 ~38px**:`Sidebar.tsx:286` `min-h-[64px]` 硬撑(内容只有 30px 的
+  `.brand-main`,上下各 ~17px 空白);多出来的 26px 是白送的一整行任务。动作:`min-h-[44px] pt-[6px] pb-[6px]`
+  (同步 `styles.css:3165` 的 `.brand`)。
+- ☐ **SB-11(P2)nav 块与列表打两个节拍(32 vs 28px),金标全 rail 一个节拍(~25px)**:
+  `.primary-nav button{height:32px}`(`styles.css:3221`)+ `.primary-nav{padding:4px 10px 12px}`,而
+  `.project-heading`/`.project-task-wrap` 都是 28px → 顶上两行比下面所有行高 4px,底下还压 12px 死带。
+  动作:`height:28px` + `padding:4px 10px 8px`(字号 14px 不动)。
+- ☐ **SB-12(P2)底部账户行在重复品牌名,而不是标明「你是谁」;还塞了 3 个散装图标按钮**:`Sidebar.tsx:484-493`
+  渲染 `<b>AgentRunner</b>` + `Connected · dev`,右侧挂 Settings/Help/Theme 三个 30px 按钮 —— 而 `AgentRunner`
+  在 `Sidebar.tsx:289` 的 brand 行已经出现过一次(**同一根 264px rail 里产品名写了两遍**,却没有任何身份信息)。
+  金标底部是一行 ~46px:头像 + 用户名 + 一个蓝点,别无他物。动作:`<b>` 换成账户/主机身份(daemon 状态并进副行),
+  三个按钮收进 `···` 溢出菜单(复用 `Menu.tsx`),保留 daemon 状态点。
+- ☐ **SB-13(P3)没有 workspace 的任务被塞进假文件夹「Other sessions」;金标是平铺的 `Tasks` 段**:
+  `viewModels.ts:95-101` `projectLabel()` 对空 workspace 返回 `"Other sessions"` → 在 `Sidebar.tsx:371-399` 被当成
+  正常 project group 渲染(folder icon + caret + 缩进子行,live 上有 4 个命中)。folder icon 是一个断言
+  (「这些任务属于磁盘上的一个项目」),对无 workspace 的任务这个断言是假的。
+  动作:`projectLabel()` 空 workspace 返回 `null`;Projects 段之后加平铺 `Tasks` 段(与 Pinned 同缩进)。
