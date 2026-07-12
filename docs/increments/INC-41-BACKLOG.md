@@ -1033,3 +1033,34 @@ size_download=895097
   会话页 794 个可聚焦元素里 748 个在侧栏,按满 220 次 Tab 都到不了 composer——键盘用户
   根本无法开始工作。派工切分建议:A=A11Y-2(纯 CSS)、B=A11Y-1(App.tsx+skip link)、
   C=A11Y-3(FindBar)、D=A11Y-4+5(同为 Composer.tsx,须同人)。下轮消化。
+
+- 2026-07-11 轮10(headless):同步 HEAD=5d2653a 干净(让路=无)。**巡检 live 8809** 两轴各下探针:
+  轴A 全景 19 面(home/rich/approval/changes/changes-split/scheduled/settings × light/dark ×
+  1440/390)稳态 console **error=0 warning=0 navfail=0**(闸门3 绿);轴B 量 baseline 时**当场
+  挖到 P1**——静态资源零压缩零缓存(见 P 相 PERF-1)。**并发派工 6 个**(4 implementer worktree
+  白名单两两无交集 + 2 read-only finder):
+  - **PERF-1 ✅**(轴B,`webui/embed.go`):预压缩(启动时压一次缓存在内存,非每请求现压)+
+    `assets/*` immutable 强缓存 + index.html `no-cache` + ETag/304。**live 实测 before→after**:
+    JS **895,517→252,502 B**、CSS **133,732→24,657 B**、冷加载合计 **1.03 MB→271 KB(−73%)**、
+    二次访问 **200 全量→304 零字节**;浏览器侧 gzip 2/2 命中且 React 正常挂载;SPA fallback 未破。
+  - **A11Y-1 ✅**(`App.tsx`+`styles.css`):skip link。Tab#1 命中 skip link(可见、2px 蓝环)、
+    Enter 落进 `#main`、hash 未被劫持。**748 个侧栏按钮一步跳过**(NEVER within 220 → 可达)。
+  - **A11Y-2 ✅**(`styles.css` 末尾追加块):三个搜索框 `:focus-within` 焦点态(照抄
+    `styles.rs.css:136-141` 的既有正确写法);`.cx-project-search` 用 box-shadow ring 避免布局位移。
+  - **A11Y-3 ✅**(`FindBar.tsx`):⌘F→Esc 焦点从 `BODY` 归还到打开前的元素(实测回到 'New task')。
+    implementer 顺带发现同 effect 里 `clearHighlights()` 在无 `CSS` 全局的环境会抛、且排在归还**之前**
+    ——一抛就整个跳过归还,已加防御。
+  - **A11Y-5 ✅**(`Composer.tsx`):8 个 Popover trigger 补 `aria-haspopup="menu"`/`aria-expanded`
+    (值不是猜的:`Popover.tsx:113-116` 面板硬编码 `role="menu"`)。live 实测 7 个 home trigger
+    全 false→true→false 闭环。
+  - **A11Y-4 让路**(需动 `styles.css`,本轮被 A11Y-1/2 的 implementer 独占)→ 下轮做。
+  **⚠️ QA 方法学坑(第二个,与轮9 的 sleep 坑同级)**:测 Tab 序必须用**全新 page**。本轮一度误判
+  A11Y-1 回归(Tab#1 落到 topbar 而非 skip link),根因是探针污染:① hash 导航 `goto(BASE+"#"+sid)`
+  **不重载 SPA**,焦点状态残留;② Chrome 除 `activeElement` 外还有独立的**顺序焦点导航起点**
+  (记着上次**点击**的位置),`blur()` 只清前者、清不掉后者,`document.body.focus()` 更是空操作
+  (body 无 tabindex)。换独立 page 后 Tab#1 立刻正确命中。**先怀疑探针,再怀疑产品。**
+  **新暴露的下一层 → 登记 A11Y-7 [P2]**:skip link 落进 `#main` 顶部后,对话区 **27 个 msg-copy +
+  8 个 worked-row** 仍堵在 composer 前,富会话实测**还要 40 次 Tab**,且随消息条数线性增长。
+  BACKLOG:+✅×5(PERF-1/A11Y-1/2/3/5)、新增 ☐×1(A11Y-7);开放 ☐ = A11Y-4、A11Y-6、A11Y-7 + finder 待收割。
+  push=7c853eb+f787d4a+d6b91a6+6baa8a6+19cb69d+863d5d2+dc57fac+本 commit;
+  live=index-BV7f00Vi.js;perf 冷加载 1.03MB→271KB(−73%)、二次访问 1.03MB→0B(304)。
