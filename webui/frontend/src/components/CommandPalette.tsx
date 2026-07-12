@@ -2,9 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
 import { nextTheme } from "../theme";
 import { displayTitle } from "../title";
-import { projectLabel, sessionNeedsAttention } from "../viewModels";
+import { projectLabel } from "../viewModels";
 import { paletteTaskGroups } from "../viewModels.nav";
+import { friendlyStatus } from "./pill";
 import { modLabel } from "../shortcuts";
+import type { Session } from "../types";
 
 interface Item {
   id: string;
@@ -13,19 +15,43 @@ interface Item {
   group: string;
   quickNum?: number; // ⌘1..9 quick-switch badge on recent-task rows
   task?: boolean; // task rows reserve a leading status-dot gutter (Codex parity)
-  attention?: boolean; // needs-looking-at rows show a blue leading dot
+  dot?: string; // status-dot class: `unread`, or friendlyStatus().cls — never both
+  dotTitle?: string; // what the dot means, spelled out on hover
   run: () => void;
+}
+
+// A task row shows a dot on exactly the terms the sidebar uses (Sidebar.tsx):
+// unread beats status, and only the statuses that actually want the user get a
+// colour. Anything else keeps an empty (but reserved) gutter so labels align.
+// CP-6: the palette used to paint *every* task dot blue `unread`, so a task
+// stuck on an approval or a crash was advertised in ⌘K as "new activity" while
+// the rail next to it showed amber/red. Same source, same colour now.
+const DOTTED = ["run", "appr", "stranded", "crash"];
+function taskDot(session: Session, isUnread: boolean): { dot?: string; dotTitle?: string } {
+  const status = friendlyStatus(session.status);
+  if (isUnread) return { dot: "unread", dotTitle: "New activity" };
+  if (DOTTED.includes(status.cls)) return { dot: status.cls, dotTitle: status.text };
+  return {};
 }
 
 // CommandPalette is Codex's ⌘K: one fuzzy search over sessions + a set of
 // commands, keyboard-navigable (↑/↓, Enter, Esc). Opened from a global
 // key handler in App.
-export function CommandPalette({ onClose }: { onClose: (restoreFocus?: boolean) => void }) {
-  const { sessions, runs, archived, select, selectRun, showPage, openModal, toggleShowArchived, theme, cycleTheme, openHelp, renames } =
+export function CommandPalette({ onClose, onOpenSettings }: {
+  onClose: (restoreFocus?: boolean) => void;
+  onOpenSettings?: () => void;
+}) {
+  const { sessions, runs, archived, unread, select, selectRun, showPage, openModal, toggleShowArchived, theme, cycleTheme, openHelp, renames } =
     useStore();
   const [q, setQ] = useState("");
   const [idx, setIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const selRef = useRef<HTMLButtonElement>(null);
+  // CP-5: while the keyboard is driving, a row scrolling *under* a parked
+  // pointer fires mouseenter and used to yank the selection back to wherever
+  // the mouse happens to sit. Hover only claims the selection after a real
+  // pointer move.
+  const kbdNav = useRef(false);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -43,6 +69,13 @@ export function CommandPalette({ onClose }: { onClose: (restoreFocus?: boolean) 
     const cmds: Item[] = [
       { id: "c-new", label: "New task", group: "Commands", run: go(() => showPage("home")) },
       { id: "c-run", label: "New run…", hint: "submit / drive", group: "Commands", run: go(() => openModal({ kind: "run" })) },
+      // CP-8: Scheduled is the app's other top-level destination and Settings is
+      // a whole page (⌘,) — ⌘K could reach neither, so the palette was a
+      // task-switcher pretending to be a command palette.
+      { id: "c-sched", label: "Go to Scheduled", group: "Commands", run: go(() => showPage("scheduled")) },
+      ...(onOpenSettings
+        ? [{ id: "c-settings", label: "Open settings", hint: `${modLabel},`, group: "Commands", run: go(onOpenSettings) }]
+        : []),
       { id: "c-trust", label: "Trust directory…", group: "Commands", run: go(() => openModal({ kind: "trust" })) },
       { id: "c-arch", label: "Toggle archived", group: "Commands", run: go(() => toggleShowArchived()) },
       {
@@ -62,34 +95,46 @@ export function CommandPalette({ onClose }: { onClose: (restoreFocus?: boolean) 
     // Attention tasks that fell past the ninth digit get their own badge-less
     // `Unread tasks` group. Typing a query switches to a plain fuzzy search over
     // every task, without badges.
+    const unreadSet = new Set(unread);
     let sess: Item[];
     if (!ql) {
-      const { quick, unread } = paletteTaskGroups(sessions, { archived });
-      const row = (s: (typeof sessions)[number], quickNum?: number): Item => ({
+      const { quick, unread: overflow } = paletteTaskGroups(sessions, { archived });
+      const row = (s: Session, quickNum?: number): Item => ({
         id: "s" + s.id,
         label: displayTitle(renames, s.id, s.title),
         hint: projectLabel(s.workspace),
         group: quickNum ? "Tasks" : "Unread tasks",
         quickNum,
         task: true,
-        attention: sessionNeedsAttention(s.status),
+        ...taskDot(s, unreadSet.has(s.id)),
         run: go(() => select(s.id)),
       });
-      sess = [...quick.map((s, i) => row(s, i + 1)), ...unread.map((s) => row(s))];
+      sess = [...quick.map((s, i) => row(s, i + 1)), ...overflow.map((s) => row(s))];
     } else {
-      sess = [...sessions]
+      // CP-7: search runs over every session, archived ones included — they used
+      // to come back indistinguishable from live tasks, silently un-archived in
+      // the one place the user is most likely to hit Enter. They stay reachable
+      // (that is the point of search) but land in their own honest group.
+      const archivedSet = new Set(archived);
+      const hits = [...sessions]
         .sort((a, b) => b.id.localeCompare(a.id)) // newest first, same as the sidebar
         .filter((s) => match(displayTitle(renames, s.id, s.title)) || match(s.id) || match(s.workspace || ""))
         .slice(0, 8)
-        .map((s) => ({
-          id: "s" + s.id,
-          label: displayTitle(renames, s.id, s.title),
-          hint: projectLabel(s.workspace),
-          group: "Tasks",
-          task: true,
-          attention: sessionNeedsAttention(s.status),
-          run: go(() => select(s.id)),
-        }));
+        .map((s) => {
+          const isArchived = archivedSet.has(s.id);
+          return {
+            id: "s" + s.id,
+            label: displayTitle(renames, s.id, s.title),
+            hint: projectLabel(s.workspace),
+            group: isArchived ? "Archived" : "Tasks",
+            task: true,
+            ...taskDot(s, !isArchived && unreadSet.has(s.id)),
+            run: go(() => select(s.id)),
+          } satisfies Item;
+        });
+      // Group headers are drawn off runs of equal `group`, so archived hits sit
+      // together at the bottom rather than interleaving with live tasks.
+      sess = [...hits.filter((h) => h.group === "Tasks"), ...hits.filter((h) => h.group === "Archived")];
     }
     const rn: Item[] = runs
       .filter((r) => match(r.label || r.id))
@@ -106,17 +151,26 @@ export function CommandPalette({ onClose }: { onClose: (restoreFocus?: boolean) 
     // first Enter.
     return ql ? [...cmds, ...sess, ...rn] : [...sess, ...cmds, ...rn];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, sessions, runs, archived, theme, renames]);
+  }, [q, sessions, runs, archived, unread, theme, renames, onOpenSettings]);
 
   useEffect(() => setIdx(0), [q]);
+
+  // CP-5: ↓ used to walk the selection straight out of the scroll box — 14 of
+  // 24 rows were keyboard-reachable but invisible, so Enter opened a task the
+  // user could not see. Keep the selected row in view on every idx change.
+  useEffect(() => {
+    selRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [idx]);
 
   const onKey = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") onClose(true);
     else if (e.key === "ArrowDown") {
       e.preventDefault();
+      kbdNav.current = true;
       setIdx((i) => Math.min(i + 1, items.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
+      kbdNav.current = true;
       setIdx((i) => Math.max(i - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
@@ -138,7 +192,14 @@ export function CommandPalette({ onClose }: { onClose: (restoreFocus?: boolean) 
           aria-expanded="true"
           aria-activedescendant={items[idx]?.id}
         />
-        <div className="cmdk-list" id="command-palette-results" role="listbox">
+        <div
+          className="cmdk-list"
+          id="command-palette-results"
+          role="listbox"
+          onMouseMove={() => {
+            kbdNav.current = false;
+          }}
+        >
           {items.length === 0 && <div className="cmdk-empty">No matches</div>}
           {items.map((it, i) => {
             const showGroup = i === 0 || items[i - 1].group !== it.group;
@@ -148,18 +209,24 @@ export function CommandPalette({ onClose }: { onClose: (restoreFocus?: boolean) 
                 <button
                   type="button"
                   id={it.id}
+                  ref={i === idx ? selRef : undefined}
                   className={"cmdk-item" + (i === idx ? " sel" : "")}
                   role="option"
                   aria-selected={i === idx}
-                  onMouseEnter={() => setIdx(i)}
+                  onMouseEnter={() => {
+                    if (!kbdNav.current) setIdx(i);
+                  }}
                   onClick={() => it.run()}
                 >
                   {it.task && (
-                    // Blue leading dot flags tasks that need looking at; other
-                    // task rows keep an equal-width gutter so labels stay aligned.
+                    // The leading dot says the same thing here as in the rail:
+                    // blue for new activity, otherwise the status' own colour.
+                    // Dot-less task rows keep an equal-width gutter so labels
+                    // stay aligned.
                     <span
-                      className={"status-dot" + (it.attention ? " unread" : "")}
-                      style={it.attention ? undefined : { visibility: "hidden" }}
+                      className={"status-dot" + (it.dot ? " " + it.dot : "")}
+                      style={it.dot ? undefined : { visibility: "hidden" }}
+                      title={it.dotTitle}
                       aria-hidden="true"
                     />
                   )}

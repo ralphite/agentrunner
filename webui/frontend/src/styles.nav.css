@@ -578,3 +578,29 @@
   margin: 6px 0 2px 4px;
   font-weight: 550;
 }
+
+/* ===== CP-9 · Command palette: stop wasting the window ==================
+   The list was capped at 52vh with 43px rows, so on a 900px-tall window only
+   10.8 of 24 rows were visible and 59% of the list sat below the fold — the
+   ⌘K palette had to be scrolled to be read. Codex's rows are ~36px and its
+   list runs most of the window's height. Same shape here: taller list, tighter
+   rows, ~16 rows in view.
+
+   Rules are scoped under `.cmdk` because this slice is bundled *before*
+   styles.css (see the header note), so an unscoped `.cmdk-list` would lose to
+   the base rule at equal specificity. */
+.cmdk .cmdk-list {
+  max-height: min(64vh, 620px);
+  /* the list's own 6px padding is also its scroll gutter: keep scrollIntoView
+     ({block:"nearest"}, CP-5) from parking a row flush against the edge. */
+  scroll-padding: 6px;
+}
+.cmdk .cmdk-item {
+  padding: 7px 12px;
+}
+.cmdk .cmdk-label {
+  line-height: 1.4; /* 15px × 1.4 + 14px padding ≈ 36px rows */
+}
+.cmdk .cmdk-group {
+  padding: 6px 10px 3px;
+}

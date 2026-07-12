@@ -271,7 +271,9 @@ export function App() {
         </ErrorBoundary>
       </div>
       <Modals />
-      {palette && <CommandPalette onClose={closePalette} />}
+      {/* The palette's `Open settings` row reuses the gear's / ⌘,'s own opener
+          (CP-8) rather than a second, drifting copy of it. */}
+      {palette && <CommandPalette onClose={closePalette} onOpenSettings={openSettings} />}
       {helpOpen && <Shortcuts onClose={closeHelp} />}
       {settingsOpen && <Settings onClose={closeSettings} />}
       <Toasts />
