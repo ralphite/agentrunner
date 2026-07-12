@@ -7,3 +7,7 @@ acceptance-report.json
 /runtime/
 /ar
 /bin/
+
+# Vite build output — embedded into the Go binary at build time; never committed.
+webui/frontend/dist/*
+!webui/frontend/dist/.gitkeep
