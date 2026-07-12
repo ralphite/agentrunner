@@ -924,6 +924,57 @@ size_download=895097
 **刻意核查**:`git log -S"FileServer"` / `-S"Cache-Control"` 对 webui 无"故意不压缩/不缓存"
 的依据,注释里也只说 SPA fallback 语义 → **非刻意,是洞**。
 
+## A 相 · 轮10 axe 扫描新发现(A11Y-8..10)
+
+轮10 巡检用 axe-core(WCAG 2.0/2.1 A+AA + best-practice)扫 home/rich/changes/scheduled 四页,
+结果:**critical=0**、serious=1 类(color-contrast)、moderate=4 类。逐条核查如下。
+
+### A11Y-8 ☐ 侧栏次要文字对比度 4.42:1,差 0.08 不达 WCAG AA — 一个色值波及 79 处 [P2]
+**behavior**:侧栏的分组标题(Projects)、项目名、会话标题、"show more" 等**全部**次要文字,
+在浅色主题下对比度只有 **4.42:1**,低于 WCAG AA 正文要求的 4.5:1。弱视/强光下读起来吃力。
+**证据**(axe-core 实测,四页共 **79 处** violation,全是**同一个色对**):
+```
+fg=#737373  bg=#f7f7f8  →  contrastRatio = 4.42 : 1   (需 4.5:1)
+命中: .section-label / .project-group > .project / .show-more / button[aria-label="…"] …
+```
+**关键**:79 处不是 79 个 bug——是**一个颜色 token** 用在 79 个地方。把 `#737373` 压深到
+`#717171`(≈4.6:1)或 `#6e6e6e`(≈4.8:1)即可**一次修完**,视觉上几乎无感。
+**源码**:`styles.nav.css:15` `.sidebar .section-label` / `styles.css:3109` `.section-label`
+——先查这个灰值是不是某个 CSS 变量(如 `--muted`/`--text-2`),**改变量而不是逐处改**。
+**dark 主题需另测**(axe 本轮只扫了 light)。
+**刻意核查**:`git log -S".section-label"` → `e4ed403`(INC-41 nav Codex polish)、`8d1edab`
+(rebuild UX around Codex)均是**视觉**打磨,无"刻意压低对比度"的依据;且 4.42 vs 4.5 明显是
+**没量过**而非有意取舍 → **非刻意,是洞**。
+**touches**:CSS 变量定义处(待定位)/ `styles.nav.css` / `styles.css`。
+
+### A11Y-9 ☐ `<html lang="zh-CN">` 但整个 UI 是英文:屏幕阅读器用中文语音读英文 [P2]
+**behavior**:`index.html` 声明 `lang="zh-CN"`,而 webui 的界面文案**全是英文**(New task /
+Projects / Ask to approve …)。屏幕阅读器会据此挑**中文语音引擎**去读英文单词,发音不可懂;
+搜索引擎与翻译工具也会误判。这是"一行 attribute 毁掉整个 a11y 语音层"的典型。
+**证据**:`document.documentElement.lang === "zh-CN"`(live 实测);同页正文 100% 英文。
+**源码**:`webui/frontend/index.html:2`。
+**建议**:改 `lang="en"`。(若将来真做 i18n,应按用户语言动态设置——但**现在**没有任何中文 UI 文案,
+`zh-CN` 就是纯错的。)
+**刻意核查**:`git log -S'lang="zh-CN"'` → 只有 `8f817e3`(webui 初版,一次性建整个 React/Vite 骨架),
+commit message 与 diff 都没提语言/i18n → **是初始模板遗留,非刻意**。
+**touches**:`webui/frontend/index.html`(1 行)。
+
+### A11Y-10 ☐ 缺 h1、home/scheduled 无 main landmark、内容游离在 landmark 之外 [P3]
+**behavior**:屏幕阅读器用户靠标题(h1)和地标(landmark)快速定位;本 app **每一页都没有 h1**,
+home/scheduled **没有 `<main>` 地标**,home 的 composer(`.cx-input-wrap`)整个**不在任何 landmark 内**,
+changes 页两个 `<aside class="sidebar">` **重名地标**无法区分。
+**证据**(axe,4 页):`page-has-heading-one` ×4、`landmark-one-main` ×2(home/scheduled)、
+`region` ×4(游离内容,含 home composer)、`landmark-unique` ×1(changes 的两个 sidebar)。
+**注**:轮10 的 A11Y-1 给 `App.tsx` 加的是 `<div className="main" id="main">`(**div,不是
+`<main>` 元素**)——skip link 的锚点成立,但**没有**顺带补上 main 地标。真正的 `<main>` 只在
+`SessionView.tsx:601/733`,所以 home/scheduled 才报缺。
+**建议**:①`App.tsx` 的 `div.main` 换成 `<main id="main">`(**但要先确认不会和 SessionView 内部的
+`<main>` 嵌套成两个** → 二选一,建议 SessionView 那个降级为 `<div>`);②每页补一个视觉隐藏的 h1
+(复用 A11Y-1 的 `.sr-only`/skip-link 隐藏手法);③给两个 `<aside class="sidebar">` 各加
+`aria-label` 区分。
+**touches**:`App.tsx` / `SessionView.tsx` / `Home.tsx` / `Scheduled.tsx` / `styles.css`。
+**刻意核查**:全仓 `git log -S"<main"` 无"刻意不加地标"的依据 → 非刻意,是从未做过。
+
 ## 驱动循环台账(/parity-drive,每30min一轮,只追加)
 
 - 2026-07-11 轮1(循环启动):同步+部署 8809=index-CWvHKizj.js;收割 0(无存活
@@ -1064,3 +1115,16 @@ size_download=895097
   BACKLOG:+✅×5(PERF-1/A11Y-1/2/3/5)、新增 ☐×1(A11Y-7);开放 ☐ = A11Y-4、A11Y-6、A11Y-7 + finder 待收割。
   push=7c853eb+f787d4a+d6b91a6+6baa8a6+19cb69d+863d5d2+dc57fac+本 commit;
   live=index-BV7f00Vi.js;perf 冷加载 1.03MB→271KB(−73%)、二次访问 1.03MB→0B(304)。
+
+- 2026-07-11 轮10(补记·axe 巡检):本轮巡检补跑 **axe-core**(WCAG A+AA + best-practice,
+  home/rich/changes/scheduled 四页,light):**critical=0**、serious 1 类、moderate 4 类。
+  逐条核查后登记 **A11Y-8/9/10**(见 A 相):
+  - **A11Y-8 [P2]** 79 处 color-contrast **全是同一个色对** `#737373` on `#f7f7f8` = **4.42:1**
+    (需 4.5:1,**只差 0.08**)→ 改一个颜色 token 即可一次修完 79 处,性价比极高。
+  - **A11Y-9 [P2]** `<html lang="zh-CN">` 而 UI 全英文(初版 `8f817e3` 模板遗留)→ 屏幕阅读器
+    会用中文语音引擎读英文,1 行修复。
+  - **A11Y-10 [P3]** 无 h1 / home+scheduled 无 `<main>` 地标 / home composer 游离在 landmark 外 /
+    changes 两个 `<aside class="sidebar">` 重名。注:A11Y-1 加的是 `div#main` 不是 `<main>` 元素,
+    skip link 锚点成立但没顺带补地标。
+  axe 脚本归档 `qa/runs/2026-07-11-QA43-endgame/scripts/axe_r10.py`(axe.min.js 由
+  `npm i axe-core --no-save` 装到 /tmp,**不污染仓库依赖**)。dark 主题的对比度**尚未扫**,下轮补。
