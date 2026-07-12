@@ -1,8 +1,7 @@
 import "../styles.home.css";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { ArrowsClockwise, Bug, Hammer, Terminal } from "@phosphor-icons/react";
 import { useStore } from "../store";
-import { projectLabel } from "../viewModels";
 import { Composer } from "./Composer";
 import { DaemonAlert } from "./DaemonAlert";
 
@@ -100,20 +99,14 @@ function prefillComposer(prompt: string) {
 
 export function Home() {
   const { toast } = useStore();
-  const sessions = useStore((s) => s.sessions);
 
-  // Headline workspace name: the composer's selected project when one is chosen
-  // (reported up via onProjectChange), else the most recent real project from
-  // history, else a friendly default — so the greeting is never blank.
-  const [selectedProject, setSelectedProject] = useState<string | null>(null);
-  const fallbackProject = useMemo(() => {
-    for (const s of [...sessions].sort((a, b) => b.id.localeCompare(a.id))) {
-      const label = projectLabel(s.workspace);
-      if (label && label !== "Scratch" && label !== "Other sessions") return label;
-    }
-    return "your project";
-  }, [sessions]);
-  const project = selectedProject || fallbackProject;
+  // The headline names EXACTLY what the composer's project chip has selected —
+  // one source of truth, reported up from the composer's `ws` via
+  // onProjectChange (RH-1). It used to guess from session history instead, which
+  // let the greeting say "build in cx3-ws" while the chip said "Select project"
+  // and the task actually ran in a scratch dir. With no project selected the
+  // greeting drops the name rather than inventing one (Codex parity).
+  const [project, setProject] = useState<string | null>(null);
 
   return (
     <div className="home home-welcome home-empty-state">
@@ -123,7 +116,13 @@ export function Home() {
             <Terminal size={34} />
           </div>
           <h2 className="home-empty-headline">
-            What should we build in <span className="home-empty-repo">{project}</span>?
+            {project ? (
+              <>
+                What should we build in <span className="home-empty-repo">{project}</span>?
+              </>
+            ) : (
+              <>What should we build?</>
+            )}
           </h2>
           <div className="home-empty-cards">
             {SUGGESTIONS.map((s) => (
@@ -137,7 +136,7 @@ export function Home() {
           </div>
         </div>
         <DaemonAlert />
-        <Composer variant="home" onError={(m) => toast(m)} onProjectChange={setSelectedProject} />
+        <Composer variant="home" onError={(m) => toast(m)} onProjectChange={setProject} />
       </div>
     </div>
   );

@@ -145,3 +145,17 @@
   .home-empty-cards { grid-template-columns: 1fr; gap: 10px; }
   .home-empty-card { min-height: 0; flex-direction: row; align-items: center; justify-content: flex-start; gap: 14px; }
 }
+
+/* RH-2 — the suggestion-card row shares the composer's column.
+
+   `.home-empty` used to cap itself at 900px inside a 1100px hero, so the four
+   cards floated ~108px inside the composer's left/right edges. Codex aligns
+   them pixel-for-pixel with the composer card, so drop the cap (and the 8px
+   side padding) and let the greeting group inherit the hero's width — the same
+   box the composer fills. The composer itself is untouched: the bottom-pinned
+   roomy input is QA-45's deliberate choice, so the cards move, not it. */
+.home.home-welcome.home-empty-state .home-empty {
+  max-width: none;
+  padding-left: 0;
+  padding-right: 0;
+}

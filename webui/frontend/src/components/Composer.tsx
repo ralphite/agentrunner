@@ -95,6 +95,30 @@ interface Attachment {
   isImage: boolean;
 }
 
+// Last project used from the landing composer (RH-1). Codex opens New task with
+// your previous repo already selected, so a task can go out in one keystroke —
+// and, crucially, so the greeting headline and the project chip can never name
+// different places. localStorage (not "the newest session") is the durable
+// source: a session list can reorder under you (background runs, scratch
+// sessions), while an explicit choice is what the user actually meant. Absent
+// key = never chosen here (we seed from history once, below); "" = the user
+// explicitly picked "Don't work in a project" and we must not re-seed over it.
+const PROJECT_KEY = "arwebui.lastProject";
+function recallProject(): string | null {
+  try {
+    return localStorage.getItem(PROJECT_KEY);
+  } catch {
+    return null;
+  }
+}
+function rememberProject(workspace: string) {
+  try {
+    localStorage.setItem(PROJECT_KEY, workspace);
+  } catch {
+    /* ignore quota */
+  }
+}
+
 const riskDot = (risk: string) => <span className={"risk-dot w-[7px] h-[7px] rounded-full shrink-0 inline-block " + risk} />;
 // High-risk (Full access) reads as an amber warning glyph rather than a dot —
 // Codex parity; low/med keep the quieter colored dot.
@@ -178,8 +202,11 @@ export function Composer(props: ComposerProps) {
     return () => mq.removeEventListener("change", sync);
   }, []);
 
-  // home-only context
-  const [ws, setWs] = useState("");
+  // home-only context. `ws` is the ONE source of truth for "where does this task
+  // run" — the chip renders it, the send path uses it, and Home's headline
+  // mirrors it through onProjectChange (RH-1). It opens on the last project the
+  // user chose here.
+  const [ws, setWs] = useState(() => recallProject() || "");
   const [kind, setKind] = useState<"chat" | "background">("chat");
   const [runLocation, setRunLocation] = useState<"worktree" | "local">("worktree");
   const [startingBranch, setStartingBranch] = useState("");
@@ -278,6 +305,23 @@ export function Composer(props: ComposerProps) {
     if (p) setPersona(p);
     if (sp) setEffort(effortFromSpec(sp));
   }, [isSession, isSession ? (props as any).sid : ""]);
+
+  // Cold start (nothing remembered yet): seed the project from the most recent
+  // real project in history, so a first-time visitor still lands on a selected
+  // repo instead of a chip that says "Select project" under a headline that
+  // names one (RH-1). Runs at most once, and never when the user has an explicit
+  // stored choice — including the explicit "no project" ("").
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (isSession || seeded.current || recallProject() !== null) return;
+    const candidate = recentWorkspaces.find((w) => {
+      const label = projectLabel(w);
+      return label !== "Scratch" && label !== "Other sessions";
+    });
+    if (!candidate) return; // sessions may still be loading — try again when they land
+    seeded.current = true;
+    setWs(candidate);
+  }, [isSession, recentWorkspaces]);
 
   // Home: discover the workspace's branches when a real repo path is set.
   useEffect(() => {
@@ -923,6 +967,8 @@ export function Composer(props: ComposerProps) {
 
   const chooseProject = (workspace: string) => {
     setWs(workspace);
+    rememberProject(workspace);
+    seeded.current = true;
     setProjectQuery("");
     setProjectMenuPage("projects");
     AR.gitBranches(workspace)
@@ -1010,7 +1056,7 @@ export function Composer(props: ComposerProps) {
                     </div>
                     <PopSection>
                       <PopItem icon={<PlusIcon />} title="New project" right={<span aria-hidden>›</span>} onClick={() => setProjectMenuPage("new")} />
-                      <PopItem icon={<X size={15} />} title="Don't work in a project" active={!ws} onClick={() => { setWs(""); setBranchInfo(null); setStartingBranch(""); setRunLocation("local"); close(); }} />
+                      <PopItem icon={<X size={15} />} title="Don't work in a project" active={!ws} onClick={() => { setWs(""); rememberProject(""); seeded.current = true; setBranchInfo(null); setStartingBranch(""); setRunLocation("local"); close(); }} />
                     </PopSection>
                   </>
                 ) : (
