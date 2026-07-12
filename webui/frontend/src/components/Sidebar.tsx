@@ -283,7 +283,9 @@ export function Sidebar({ onNavigate, onOpenPalette, onOpenSettings }: {
 
   return (
     <aside className="sidebar">
-      <div className="flex items-center justify-between min-h-[64px] pt-[12px] pr-[14px] pb-[8px] pl-[16px]">
+      {/* SB-10: 64px of chrome around a 30px wordmark cost a whole task row of
+          rail. 6px above/below a 30px content row → a 44px well (Codex ~38px). */}
+      <div className="flex items-center justify-between min-h-[44px] pt-[6px] pr-[14px] pb-[6px] pl-[16px]">
         <button className="brand-main" onClick={() => { showPage("home"); onNavigate?.(); }} aria-label="AgentRunner home">
           <span className="w-[26px] h-[26px] grid place-items-center text-accent-ink bg-accent rounded-[8px]"><Robot size={17} weight="bold" /></span>
           <span className="text-[16px] font-[650] tracking-[-0.2px]">AgentRunner</span>

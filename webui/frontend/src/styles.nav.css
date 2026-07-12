@@ -484,16 +484,30 @@
   cursor: default;
 }
 
-/* ===== R2-3 · Unified accent selection language ======================
-   Codex speaks one "selected" dialect across the app — the Settings left
-   rail (.rs-navitem.sel), command-palette rows and diff toggles all sit on
-   an accent-tinted chip with accent-coloured text. The sidebar's primary
-   nav (New task / Scheduled) and the active task row were the last neutral-
-   grey holdouts; bring them onto the same accent language (light: soft-blue
-   fill + accent text; dark handled by the --rs-accent* tokens). Hover stays
-   neutral — only the *selected* state tints. Scoped under .sidebar to out-
-   specify the base neutral .active / .current rules (nav.css bundles before
-   styles.css, so we win on specificity, not source order). */
+/* ===== R2-3 / SB-8 · One neutral selection dialect in the rail ==========
+   R2-3 put the selected task row on an accent chip (--rs-accent-soft fill +
+   --rs-accent text). Codex does the opposite: its selected pill samples
+   rgb(238,238,238) on a rgb(251,251,251) rail — 13 levels of *zero-hue* grey,
+   text still near-black. And the same rail's primary nav here was already
+   neutral (color-mix(--ink 7%)), so one sidebar was speaking two dialects;
+   worse, blue already means "unread" in this app (--blue = .nav-notice), so
+   the selected row read as an unread row.
+
+   Both states are now neutral ink-mixes, layered so the hierarchy is legible:
+   rest (0%) < hover (7%, styles.css) < selected (10%).
+
+   Not `var(--panel-2)` (the styles.css base), deliberately: in light it is
+   rgb(244,244,244) on a rgb(247,247,248) rail — *lighter* than the 7% hover
+   scrim (≈rgb(231,231,232)), so the selected row would look less selected
+   than any row under the cursor. The 10% mix keeps it neutral and still the
+   heaviest chip in the rail.
+
+   --row-bg must be re-declared to the *same* opaque colour: styles.css:3373
+   sets background and --row-bg together, but R2-3 only overrode background,
+   so the .project-task-wrap::after hover scrim (which fades the title out
+   under the pin/archive icons using --row-bg) was still painting a --panel-2
+   grey ramp across a blue chip — a grey-white smear that ate the title on
+   hover. Same colour on both = the ramp is invisible again. */
 .sidebar .primary-nav button.active {
   background: color-mix(in srgb, var(--ink) 7%, transparent);
   color: var(--ink);
@@ -502,10 +516,11 @@
   color: var(--ink);
 }
 .sidebar .project-task-wrap.current {
-  background: var(--rs-accent-soft);
+  background: color-mix(in srgb, var(--ink) 10%, var(--sidebar));
+  --row-bg: color-mix(in srgb, var(--ink) 10%, var(--sidebar));
 }
 .sidebar .project-task-wrap.current .project-task-title {
-  color: var(--rs-accent);
+  color: var(--ink);
   font-weight: 550;
 }
 
@@ -584,13 +599,15 @@
    column the titles use), and the heading gets a padding-left that lands its
    text on that column. The folder rests in the slot; the caret takes it over
    on hover/focus (the gutter only fits one glyph — which is why Codex shows
-   no caret at rest either). The heading also gets one notch more weight and
-   ink than the rows below it, so the group name is the anchor of the group
-   rather than a peer of its children. */
+   no caret at rest either). The heading also gets one notch more weight than
+   the rows below it, so the group name is the anchor of the group rather than
+   a peer of its children.
+
+   SB-9 amends the *ink* half of that: weight is the anchor, ink is not. See
+   the SB-9 block below. */
 .sidebar .project-heading {
   position: relative;
   padding-left: 26px;
-  color: var(--ink);
   font-weight: 600;
 }
 .sidebar .project-heading .proj-caret,
@@ -668,4 +685,58 @@
 }
 .cmdk .cmdk-group {
   padding: 6px 10px 3px;
+}
+
+/* ===== SB-9 · The ink hierarchy was upside down =========================
+   Codex's rail: the task title is the blackest thing in it (rgb(37,37,37)),
+   the group name sits one notch *lighter* (rgb(48,48,48)), and the pure
+   scaffolding ("Projects", "Show more") fades out at rgb(160,160,160). Ink
+   tracks *content*, not nesting depth.
+
+   Ours ran the other way: task titles inherited --ink-2 (rgb(96,96,96) @400)
+   from .project-task-wrap while SB-6 pushed group headings to --ink
+   (rgb(13,13,13) @600) — an 83-level inversion, parent darker than child. The
+   folder names shouted and the 14 actually-clickable rows read as disabled.
+
+   Flip it: titles take --ink, headings fall back to --ink-2. SB-6 is not
+   reverted — the heading keeps its 600 weight, so the group name is still the
+   anchor of its group; weight carries that, ink no longer has to.
+
+   Hover still inks the heading up (base .project-heading:hover), restated here
+   because this slice bundles *after* styles.css and would otherwise win the
+   equal-specificity tie against it. */
+.sidebar .project-heading {
+  color: var(--ink-2);
+}
+.sidebar .project-heading:hover {
+  color: var(--ink);
+}
+.sidebar .project-task-title {
+  color: var(--ink);
+}
+
+/* ===== SB-10 · The brand block was eating a task row ====================
+   64px of chrome around 30px of content — ~17px of dead white above and below
+   the wordmark, where Codex spends ~38px total. That is a whole task row given
+   away at the very top of the rail, on every screen. Trim the well to 44px
+   (6px above/below a 30px content row); the wordmark button's own 4px vertical
+   padding comes down to 2px so the mark, not the padding, sets the height. */
+.sidebar .brand-main {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+/* ===== SB-11 · One rhythm for the whole rail ===========================
+   The rail beat in two tempos: .primary-nav buttons were 32px while every
+   .project-heading / .project-task-wrap below them is 28px, so the top two
+   rows stood 4px taller than the other ~20, and the nav closed with a 12px
+   dead band before the first section label. Codex runs one ~25px beat from
+   the top of the rail to the bottom. Put the nav on the list's 28px beat and
+   halve the trailing band. Font size (14px) is untouched — this is spacing,
+   not type. */
+.sidebar .primary-nav {
+  padding: 4px 10px 8px;
+}
+.sidebar .primary-nav button {
+  height: 28px;
 }
