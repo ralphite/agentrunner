@@ -1218,7 +1218,7 @@ flex 方向。**建议**:≤520 页头改 `flex-direction:column;align-items:fle
 light/dark × 1440)对 `qa/codex-reference/*.jpg` 真像素金标并排比对。截图存
 `qa/runs/2026-07-11-parity-r12/`。
 
-### CX-1 ☐ 会话右栏(Changes / Supervision)是「浮动卡片」,Codex 是满高 flush 分栏 [P1]
+### CX-1 ✅ 会话右栏(Changes / Supervision)是「浮动卡片」,Codex 是满高 flush 分栏 [P1]
 **Codex 怎样**(`codex-diff-review.jpg`):右侧 diff 是一整列 **flush 贴到窗口右边缘、从 topbar 下沿
 直落到窗口底**的分栏,与左侧对话之间只有一条 1px 分隔线;diff 内容因此拿到整个右半屏的宽度。
 **我们怎样**(`qa/runs/2026-07-11-parity-r12/changes-split-light-1440.png`):`.changes-panel` 是一张
@@ -1230,7 +1230,7 @@ Codex 看起来像「这就是一个 review 工作台」。**为什么 Codex 更
 **关闭动作**:`.changes-panel` / Supervision 外壳去掉 margin/radius/shadow,改成 topbar 下满高列 +
 1px 左边框;宽度按 Codex 比例给到右半屏。**Supervision 面板同一外壳,一起改。**
 
-### CX-2 ☐ thread 里的折叠 turn 只写「Worked ›」,没有时长、没有步骤摘要,行间空隙巨大 [P1]
+### CX-2 ✅ thread 里的折叠 turn 只写「Worked ›」,没有时长、没有步骤摘要,行间空隙巨大 [P1]
 **Codex 怎样**(`codex-task-thread.jpg`):每个 turn 的折叠头是 **`Worked for 1h 37m 40s ›`** —— 带
 **时长**,点开是完整步骤列表;turn 与 turn 之间靠 assistant markdown、artifact 卡、变更卡填满,thread
 是**密的**。
@@ -1479,3 +1479,33 @@ contract";`viewModels.ts:159 scheduleLabel()` 只能把 `schedule` 字段翻成 
   **这条很能说明问题**:79 处 violation 里藏着两个不同根因,**修掉大的才看见小的**——所以
   "扫描 → 修 → 再扫描"要成为常规动作,一次扫描的结论会被最大的那条噪声淹没。
   live=index-Bj4CtTwS.js + index-CvUaNrGE.css;开放 ☐ 共 17 条(A11Y-4/6/7/10/11 + PERF-2..7 + MOB-1..8)。
+
+- 2026-07-11 轮12(headless):**比对 7 屏**(home/rich/changes-split/scheduled/plugins/sites/prs ×
+  light/dark × 1440)对 `qa/codex-reference/*.jpg` 真像素金标并排。**关闭 2 个可见差距,派工 2 路并发**
+  (worktree 隔离,touches 白名单零交集,两个 patch 合并时零冲突)。
+
+  **CX-1 ✅ 会话右栏满高 flush 分栏**(最重要那块屏上最显眼的布局差):`.changes-panel` /
+  `.supervision-panel` 从带 margin+radius+shadow 的**浮动卡片** → Codex 那样**从 topbar 下沿直落窗口
+  底、贴右边缘、只留 1px 左分隔线**的分栏。真机实测 1440:右栏 y=54→bottom=1000、right=1440、
+  radius 0 / shadow none / margin 0。**diff 列 56% 宽**,长行
+  `"resolved": "https://registry.npmjs.org/accepts/-/accepts-1.3.8.tgz"` **从被横向切断变成完整显示**。
+  左侧 thread 用 `calc(100% - 420px)` **把宽度地板焊进 grid track**(实测 505px)。≤900px 移动端
+  overlay 在新 section 里显式重申(media query 不加特异性,不重申会被 flush 规则赢掉)——390 实测无回归。
+
+  **CX-2 ✅ thread 折叠头永远带信息 + 密度**:裸 `Worked ›` 绝迹,三级阶梯(已存 duration → 从 fold 内
+  事件时间戳自算 → 退回 `Worked · N steps`)。**根因值得记**:`completedTurnDurations()` 只给「到达了
+  最终 assistant 回答」的 turn 记时长,而 todo-app 会话被 approval 切成 6 段 fold、最后死在
+  `provider_server` 失败、**从头到尾没有过最终 assistant 回答** → durations 是空 Map → 6 个 fold 全退化
+  成裸 `Worked`。富会话每轮正常收束所以有 `Worked for 21s`。**「只在 happy path 上填数据」的代码,在
+  失败路径上就露出信息量为零的 UI。** 垂直节奏:折叠头 pitch **101px → 66px**(−35%),单行元素间隙
+  18/26px → 7px。
+
+  **方法学收获**:①「先看见差别再动手」救了本轮 —— 我原本要派 implementer 补 sidebar `Pinned` 分区,
+  **查证后发现它早已完整实现**(`Sidebar.tsx:276` + `store.ts:73` + `viewModels.ts:228`),只是测试数据里
+  没有 pinned 任务所以不渲染。**排除假阳性省下一整个 implementer。** ②截图脚本第一版用了
+  `/#/sessions/<id>` 路由,而 app 用的是**裸 hash** `#<id>` —— 14 张截图全打偏、会话全渲染成
+  "No messages yet",差点误判成重大回归。**截图 QA 必须先核对真实路由格式。**
+
+  push=a2d1058(登记 CX-1/CX-2)+441975d(登记 CX-3)+5d8826a(CX-1+CX-2 实现);
+  live=index-8uh6pCye.js;稳态 console err+warn=0(light+dark);151 vitest 绿 + tsc 0 + dist 干净。
+  **开放 ☐ 新增 CX-3**(Scheduled 缺 cadence/next-run,**跨层,须先写三层 delta 再派工**)。
