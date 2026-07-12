@@ -4010,6 +4010,21 @@ details.filediff[open] > summary.fd-head .fd-caret {
   .cx-session { padding-left: 20px; padding-right: 20px; }
   .task-preview { display: none; }
 }
+/* iOS native feel · kill the focus auto-zoom. Mobile Safari zooms the whole
+   page whenever a focused input's font-size is < 16px, then never zooms back —
+   the lurch that made tapping the composer feel broken (phone report
+   2026-07-12). Force every form control to 16px ON TOUCH DEVICES ONLY, so the
+   desktop keeps its denser 15px/12.5px sizing. `!important` is the honest tool
+   here: it overrides a device-capability quirk across every field selector
+   (.cx textarea, .goal-input, search, modal code) in one place. */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 @media (max-width: 520px) {
   .cx-env-strip { min-height: 86px; flex-wrap: wrap; align-content: flex-start; padding-left: 12px; padding-right: 12px; }
   .cx-env-control { max-width: 142px; padding-left: 6px; padding-right: 6px; font-size: 12px; }

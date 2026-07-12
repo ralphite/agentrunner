@@ -3816,3 +3816,13 @@ max-width:76% 在收缩适应的 .msg-col（bubble+MsgActions 列）里复合，
 ③正文穿过 composer 卡上缘（iOS 动量滚动合成伪影）——.cx-session 建
 自身层叠上下文（position:relative + z-index:5），composer 恒在滚动区
 之上。前端 255 测试绿 + build 过。
+
+## 2026-07-12 · webui iOS 输入框 focus 自动缩放修复（原生化第一步）
+
+iOS Safari 在聚焦 font-size<16px 的输入控件时缩放整页且不回弹——点击
+composer 即触发,移动端观感"卡顿/漂移"的主因。修复:`@media (pointer:
+coarse)` 下把 input/textarea/select 强制 16px（!important 作为设备能力
+quirk 的覆盖,一处盖住 .cx textarea 15px / .goal-input 12.5px / 搜索框
+15px / modal code 12px 等全部字段选择器）;桌面(pointer:fine)保持原
+15px/12.5px 密度。原生化更多项(safe-area/PWA standalone/tap-highlight
+/pull-to-refresh 拦截等)已 propose 待用户挑选,非本次。
