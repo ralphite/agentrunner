@@ -1979,19 +1979,19 @@ standalone PWA 等**能**投递 ⌘N 的壳里白拿 Codex 原键。在 input/te
 **登记一律 ☐;✅ 只在 merge 进 main 且复验通过后由收轮改写**(轮16 教训)。
 
 ### SC 相 · Scheduled 屏(金标 `codex-scheduled.jpg` / `codex-crop-scheduled-{list,suggestions}.jpg`)
-- ◐ **SC-1(P0)Scheduled 屏其实是「所有任务」倾倒**:实测 `rowCount=28`、列表高 1911px,26 行副行写着
+- ✅ **SC-1(P0)Scheduled 屏其实是「所有任务」倾倒**:实测 `rowCount=28`、列表高 1911px,26 行副行写着
   `Runs once` / `Best of 3` —— 一次性 submit run 与 best-of-N 根本不是 scheduled。真有节律的只有 1 行(`Every 30m`)。
   根因 `Scheduled.tsx:133` 全量收 runs + `:144` 主动给 `kind==="submit"` 编伪 cadence `"Runs once"`。
   后果:唯一真 scheduled 的行被淹没,Suggestions 被推到 y=2198(首屏外)。轮20 第二批派工中。
-- ◐ **SC-2(P0)内容列 974px vs Codex ≈583px**:`max-width:980px` 在 1440 下从未生效(可用宽 974<980)。
+- ✅ **SC-2(P0)内容列 974px vs Codex ≈583px**:`max-width:980px` 在 1440 下从未生效(可用宽 974<980)。
   统一收到 640px(`styles.css` .page-heading/.scheduled-list/.sched-toolbar + `styles.scheduled.css` .sched-suggestions)。
-- ◐ **SC-3(P1)28 行全 700 粗体长 prompt**(`.scheduled-copy b` 只设 size,weight 走 `<b>` 默认 700)→ 500。
-- ◐ **SC-4(P1)副行三段事实 + cadence 被单独加重**:Codex 只有 `cadence · Next run …` 两段同档灰;
+- ✅ **SC-3(P1)28 行全 700 粗体长 prompt**(`.scheduled-copy b` 只设 size,weight 走 `<b>` 默认 700)→ 500。
+- ✅ **SC-4(P1)副行三段事实 + cadence 被单独加重**:Codex 只有 `cadence · Next run …` 两段同档灰;
   我们多一段 project,还给 `.sched-cadence` 加 `--ink-2`+500,一行里三种视觉重量。
-- ◐ **SC-6(P2)搜索框比行还重**:40.1px 高、有底色边框、input 13px(比副题还小);Codex ≈26px 细长 pill。
-- ◐ **SC-7(P2)「Paused」是语义谎言**:代码注释自认 Paused == 非 active(已结束)行。文案改 `Finished`
+- ✅ **SC-6(P2)搜索框比行还重**:40.1px 高、有底色边框、input 13px(比副题还小);Codex ≈26px 细长 pill。
+- ✅ **SC-7(P2)「Paused」是语义谎言**:代码注释自认 Paused == 非 active(已结束)行。文案改 `Finished`
   (不动后端;真 paused flag 见下 ⊘)。
-- ◐ **SC-10/11(P3)** H1 走默认 700 在喊(→600)、390 下 `.page-heading` flex 挤压(→ 竖排)。
+- ✅ **SC-10/11(P3)** H1 走默认 700 在喊(→600)、390 下 `.page-heading` flex 挤压(→ 竖排)。
 - ☐ **SC-5(P1)Suggestions 的 cadence 是空头支票**:卡片写 `Weekdays at 8:00 AM`,点开的 run 表单
   **没有任何 schedule 字段**(`store.ts:10` ModalKind 只有 `task?`/`preset?`)。要么把 interval/cron 传下去
   并在 `Modals.tsx` 取作初值,要么把文案改成我们真能落地的。**跨 store/Modals,让路下轮。**
@@ -2007,13 +2007,13 @@ standalone PWA 等**能**投递 ⌘N 的壳里白拿 Codex 原键。在 input/te
 - ⊘ 行标题短名化(Codex 有 LLM 生成的任务名,我方 title 即 prompt,无数据)。
 
 ### TH 相 · thread 正文 + 变更卡 + Environment 面板(金标 `codex-task-thread.jpg` / `codex-crop-{change-card,message-actions}.jpg`)
-- ◐ **TH-1(P0)助手消息底部只剩一个「悬空时间戳」,缩进 94px 无锚点**:`.msg-actions` 盒子 x=350(对),
+- ✅ **TH-1(P0)助手消息底部只剩一个「悬空时间戳」,缩进 94px 无锚点**:`.msg-actions` 盒子 x=350(对),
   但静息态只剩 `06:35 PM` 且实际 x=**444** —— `styles.conv.css:724-728` 给 `.msg-copy` 上的是 `opacity:0`
   而非不占位,3 个 26px 幽灵按钮把时间戳顶开。Codex 收尾行永远「图标 + 结论」左对齐正文左边缘。
   轮20 第二批派工中。
-- ◐ **TH-2(P1)composer 比正文列宽 60px,竖直边线对不齐**:正文列 350→1010(660),
+- ✅ **TH-2(P1)composer 比正文列宽 60px,竖直边线对不齐**:正文列 350→1010(660),
   `.cx-session .cx-card` 320→1040(720)。Codex 正文/变更卡/artifact/composer 共用同一条左右边线。
-- ◐ **TH-4(P2)运行时 chip 不聚合**:同一条 `Agent changed · dev · gemini-flash-latest` 连着出现两遍还换行
+- ✅ **TH-4(P2)运行时 chip 不聚合**:同一条 `Agent changed · dev · gemini-flash-latest` 连着出现两遍还换行
   两排(`Timeline.tsx:846-857` 无相邻去重)。
 - ☐ **TH-3(P1)Supervision 静息面板 = 三个「什么都没有」的空态块,占 236px**(面板高的 28%):
   `Goal`/`Agents`/`Attention` 各 78.6px 只装一行否定句,空态行还比真实数据行(28px)高。Codex 右栏没内容的组
@@ -2050,3 +2050,25 @@ standalone PWA 等**能**投递 ⌘N 的壳里白拿 Codex 原键。在 input/te
   (已知陷阱,纠正后全绿)。
   同时 2 个 read-only finder 交回新弹药 → 登记 **T 组**:SC-1..SC-11(Scheduled)+ TH-1..TH-8(thread/变更卡/
   Environment)。第二批已派:C=Scheduled 收束(SC-1/2/3/4/6/7/10/11)、D=thread 收尾行+列边线+chip(TH-1/2/4)。
+- 2026-07-12 00:2x 轮20 **第二批 11 条 ✅ — Scheduled 屏收束 + thread 正文收尾行/列边线**。
+  关闭的可见差距:**SC-1**(Scheduled 不再是「所有任务倾倒」:新增 `hasRhythm()` 准入谓词——只收
+  interval/cron/self_paced,排除 `immediate`(一次性)与 `parallel`(best-of-N);**行数 28 → 3、列表高
+  1911px → 211px**、`Runs once`/`Best of 3` 字样从页面消失、**Suggestions 从 y=2198(首屏外)回到 y=490**)、
+  **SC-2**(内容列 974px → **640px**;此前 `max-width:980px` 在 1440 下从未生效)、**SC-3/4/6/10/11**
+  (行标题 700→500、副行删 project 段并让 cadence 回落同档灰(蓝色 next-run 成唯一强调)、搜索框
+  40.1px/13px → 32px/14px 去底色、h1 700→600、390 页头竖排)、**SC-7**(`Paused` tab 是语义谎言 → 诚实改
+  `Finished`,零后端)、**TH-1**(助手收尾行:`.msg-copy` 隐藏态由 `opacity:0` 改**零宽不占位**,
+  静息时间戳 x **444 → 350 = 正文左边缘**,hover 图标浮现不推动正文,行高恒 19px;RT-3 决策未推翻)、
+  **TH-2**(composer 与正文共用竖直边线:`.cx-card` 320→1040(720)**改为镜像 `.tl-inner` 几何** →
+  350→1010(660)= `.msg-col`;收起 Supervision / 390 两态也对齐)、**TH-4**(相邻同文 chip 合并为 `×N`,
+  真·重复的 `Agent changed · dev` 两条合成一条)。
+  派工 2 个(并发、worktree、白名单互斥:C=Scheduled.tsx/styles.scheduled.css/styles.css ·
+  D=Timeline.tsx/styles.conv.css)。push=`8af8ab8` + `dc4356a`(+ 台账 `a8a2337`)。
+  8809 复验 live=`index-qVe4YxGi.js`:Scheduled rows=3 / listW=640 / suggTop=490 / tabs=All·Active·Finished /
+  无 `Runs once`·`Best of`;thread `.msg-time` x=350=`.msg-col` x、`.cx-card` 350→1010=`.msg-col`、chip `×2` 合并;
+  Scheduled(light/dark/390)+ thread 稳态 console error+warning=**0**。vitest 23 files / **230 tests 全绿**。
+  截图 `qa/runs/2026-07-11-round20/{before,after}/`。
+  **本轮合计 17 条 ✅**(第一批 RV-1..5 + CP-3 = 6 条;第二批 SC × 8 + TH × 3 = 11 条)。
+  **开放 ☐ 剩**:SB-4(sidebar 段级折叠)、SC-5(Suggestions cadence prefill,跨 store/Modals)、SC-9(深链)、
+  TH-3(Supervision 空态 236px)、TH-5(变更卡文件行不可点,依赖 RV 落地后的 `scrollToFile` 锚点)、
+  TH-6/7/8(变更卡字形/失败态/预览行数)→ 下轮首选 TH-3 + TH-5/6/7(变更卡组)+ SB-4。
