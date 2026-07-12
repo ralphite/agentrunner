@@ -188,11 +188,70 @@ describe("Untracked files are ordinary file cards (INC-41 DF-3)", () => {
     await waitFor(() => expect(screen.getByText("chart.png")).toBeTruthy());
     const card = container.querySelector("details.filediff-untracked")!;
     expect(card.querySelector(".fd-glyph-added")!.textContent).toBe("A");
-    // Same shape a *tracked* binary addition has: +0 −0 plus a "binary" badge…
+    // Same shape a *tracked* binary addition has: a "binary" badge and — since
+    // DF-D3 — no line counts at all (they'd be a made-up "+0 −0").
     await waitFor(() => expect(card.querySelector(".fd-badge")!.textContent).toBe("binary"));
-    expect(card.querySelector(".fd-counts .add")!.textContent).toBe("+0");
+    expect(card.querySelector(".fd-counts")).toBeNull();
     // …and the reason where the rows would be, instead of a bare path.
     expect(card.querySelector(".fd-nobody")!.textContent).toMatch(/binary or too large/);
+  });
+});
+
+// INC-41 DF-D3 / DF-D6 — a binary file header used to read
+// `A bin/ar          +0 −0                                       [binary]`:
+// two numbers nobody measured (a binary has no lines), and the one badge that
+// says so exiled ~475px away by the elastic spacer, hard against the panel's
+// right edge, where it read as a column of its own.
+describe("Binary file headers (INC-41 DF-D3 / DF-D6)", () => {
+  const binaryDiff = `diff --git a/bin/ar b/bin/ar
+new file mode 100755
+Binary files /dev/null and b/bin/ar differ
+`;
+
+  it("prints no counts for a binary file, and keeps its badge next to the name", async () => {
+    arMock.diff = () => Promise.resolve(baseDiff({ diff: binaryDiff }));
+    const { container } = render(<DiffView sid="b1" />);
+
+    await waitFor(() => expect(screen.getByText("ar")).toBeTruthy());
+    const head = container.querySelector("summary.fd-head")!;
+    // DF-D3 · no fabricated +0 −0 — the badge is the whole statement.
+    expect(head.querySelector(".fd-counts")).toBeNull();
+    expect(head.textContent).not.toMatch(/[+−]0/);
+    const badge = head.querySelector(".fd-badge")!;
+    expect(badge.textContent).toBe("binary");
+    // DF-D6 · badge before the elastic gap, i.e. it travels with the filename
+    // instead of being pushed to the far right edge of the header.
+    const kids = [...head.children].map((el) => el.className);
+    expect(kids.indexOf("fd-badge")).toBeLessThan(kids.indexOf("fd-spacer"));
+  });
+
+  it("still counts the lines of an ordinary (non-binary) file", async () => {
+    arMock.diff = () => Promise.resolve(baseDiff({ diff: editDiff }));
+    const { container } = render(<DiffView sid="b2" />);
+
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+    const head = container.querySelector("summary.fd-head")!;
+    expect(head.querySelector(".fd-counts .add")!.textContent).toBe("+1");
+    expect(head.querySelector(".fd-counts .del")!.textContent).toBe("−1");
+  });
+});
+
+// INC-41 DF-D5 — the note is one nowrap/ellipsis line, and its old second
+// sentence ("Source files remain visible.") therefore never reached a single
+// reader at any window width. Short enough to land now, with the full
+// explanation one hover away.
+describe("Hidden-files note (INC-41 DF-D5)", () => {
+  it("states the fallback in a tail that fits, and carries the long form in its title", async () => {
+    arMock.diff = () => Promise.resolve(baseDiff({ diff: editDiff, hiddenUntracked: 812 }));
+    const { container } = render(<DiffView sid="h1" />);
+
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+    const note = container.querySelector(".diff-hidden-note")!;
+    expect(note.querySelector("b")!.textContent).toBe("812 generated files hidden");
+    const tail = note.querySelector("span")!.textContent!;
+    expect(tail).toBe("Source files all still shown.");
+    expect(tail.length).toBeLessThan(34); // the ellipsis budget at 657px
+    expect(note.getAttribute("title")).toMatch(/source file remains visible/i);
   });
 });
 

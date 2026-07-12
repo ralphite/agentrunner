@@ -10,7 +10,6 @@ import {
   Hourglass,
   PlusMinus,
   TreeStructure,
-  UsersThree,
   WarningCircle,
   X,
 } from "@phosphor-icons/react";
@@ -209,9 +208,28 @@ export function SupervisionPanel({
   const resting = !loading && !hasGoal && children.length === 0 && attention.length === 0;
   return (
     <aside className="supervision-panel session-side" aria-label="Supervision">
-      <div className="supervision-head">
-        <div><UsersThree size={17} /> <b>Supervision</b></div>
-        <button onClick={onClose} title="Hide supervision" aria-label="Hide supervision"><X size={15} /></button>
+      {/* INC-41 DF-D4 · the `Supervision` title bar is gone. It was a 40px strip
+          whose icon+label were a word-for-word second copy of the topbar pill
+          that *opens this very panel* — the pill sat 54px above it, always on
+          the same screen. RV-1 already settled this for the other right rail
+          (see DiffView's `.changes-panel-head` note): a panel opened by a named
+          pill does not re-title itself. So the two rails now agree — each opens
+          straight onto its first row, and the ✕ rides on that row's right end,
+          exactly where Codex's Environment panel keeps its `+`.
+          It's a zero-height sticky slot rather than a child of the Environment
+          label because EnvironmentSection renders nothing for a non-repo /
+          workspace-less session — a panel you couldn't close would be a worse
+          bug than the one we're fixing. Height 0 ⇒ Environment gains the whole
+          40px back; sticky ⇒ ✕ stays reachable in a long, scrolled panel. */}
+      <div className="supervision-close-slot">
+        <button
+          className="supervision-close"
+          onClick={onClose}
+          title="Hide supervision"
+          aria-label="Hide supervision"
+        >
+          <X size={15} />
+        </button>
       </div>
 
       <EnvironmentSection />

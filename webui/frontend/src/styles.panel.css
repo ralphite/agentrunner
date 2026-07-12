@@ -189,19 +189,46 @@
   border-radius: 16px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 10px 30px rgba(0, 0, 0, .06);
 }
-.session-view .supervision-head {
+/* INC-41 DF-D4 · the panel's ✕, now that the `Supervision` title bar it used to
+   live in is gone (a second copy of the topbar pill — SupervisionPanel.tsx says
+   why). A zero-height sticky slot: it costs the panel no height, so the first
+   real row (Environment) starts at the very top, and it stays pinned as the
+   panel scrolls. The chip carries the panel surface so that, once scrolled, it
+   reads as a floating control rather than a ✕ printed over someone's code.
+   NOTE: styles.css's base `.supervision-head` rules (~3915) are now dead — left
+   for the next round to sweep, that file is another implementer's this round. */
+.session-view .supervision-close-slot {
   position: sticky;
   top: 0;
-  z-index: 2;
-  min-height: 40px;
-  padding: 0 12px 0 15px;
-  background: color-mix(in srgb, var(--panel) 94%, transparent);
-  backdrop-filter: saturate(1.4) blur(6px);
+  z-index: 3;
+  display: flex;
+  justify-content: flex-end;
+  height: 0;
+  overflow: visible;
 }
-/* Panel top title: a quiet header row (shorter, lighter), not a heavy title
-   bar that competes with the section labels below it (N-title). */
-.session-view .supervision-head b { font-size: 12.5px; font-weight: 560; letter-spacing: -.1px; }
-.session-view .supervision-head > div svg { color: var(--dim); }
+.session-view .supervision-close {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin: 9px 9px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  backdrop-filter: saturate(1.4) blur(6px);
+  color: var(--dim);
+}
+.session-view .supervision-close:hover {
+  border-color: transparent;
+  background: var(--panel-2);
+  color: var(--ink);
+}
+/* Whatever section lands first keeps its label clear of the floating ✕. */
+.session-view .supervision-close-slot + * .supervision-label,
+.session-view .supervision-close-slot + .supervision-quiet {
+  padding-right: 26px;
+}
 
 .session-view .supervision-section { padding: 14px 15px; }
 /* Codex section header: small, quiet, gray, sentence-case — a plain label

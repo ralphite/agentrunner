@@ -56,6 +56,12 @@ const STATUS_GLYPH: Record<FileStatus, string> = {
 // cannot carry ("binary", "mode changed") still earn their width.
 const GLYPH_BADGES = new Set(["new file", "deleted", "renamed", "copied"]);
 
+// INC-41 DF-D5 · the whole sentence the hidden-files note used to try (and fail)
+// to fit on one ellipsized line. It lives in the row's tooltip now; the row
+// itself states the two facts that fit.
+const HIDDEN_NOTE_TITLE =
+  "Untracked files that look generated — dependencies, build output — are omitted so the review stays responsive. Every source file remains visible.";
+
 const rowSign = (r?: DiffRow) => (!r ? "" : r.kind === "add" ? "+" : r.kind === "del" ? "−" : " ");
 const halfKind = (r: DiffRow | undefined, side: "left" | "right") =>
   !r ? "empty" : side === "left" && r.kind === "del" ? "del" : side === "right" && r.kind === "add" ? "add" : "";
@@ -99,6 +105,13 @@ function FileHead({
   badges: string[];
 }) {
   const { dir, base } = splitPath(path);
+  // INC-41 DF-D3 · a binary file has no lines, so it has no line counts. `A
+  // bin/ar +0 −0 [binary]` stated a measurement nobody took: the zeros are not
+  // "nothing changed", they're "not applicable" — and the badge right next to
+  // them already says exactly that. Same principle a070dea applied to the tool
+  // cards (which stopped printing a fabricated `+0 −0` of their own); here the
+  // badge speaks alone.
+  const binary = badges.includes("binary");
   return (
     <summary className="fd-head mono">
       <span className="fd-caret" aria-hidden="true">
@@ -115,18 +128,25 @@ function FileHead({
           both numbers always rendered — a pure deletion reads "+0 −176", not a
           lone "−176". `add === null` is the one honest gap: an untracked file's
           line count is only known once its blob is in hand. */}
-      <span className="fd-counts">
-        <span className="add">+{add === null ? "…" : add}</span>
-        <span className="del">−{del}</span>
-      </span>
-      {/* The elastic gap is the .fd-spacer, not .fd-path (styles.panel.css
-          overrides styles.css's `.fd-path{flex:1}`). */}
-      <span className="fd-spacer" aria-hidden="true" />
+      {!binary && (
+        <span className="fd-counts">
+          <span className="add">+{add === null ? "…" : add}</span>
+          <span className="del">−{del}</span>
+        </span>
+      )}
+      {/* INC-41 DF-D6 · badges are a property of *this file*, so they travel with
+          its name — right after the counts, the way "binary" reads as part of the
+          line `A bin/ar [binary]`. Behind the elastic gap they ended up ~475px
+          from the filename, hard against the panel's right edge, where they read
+          as a column of their own belonging to nothing in particular. The gap
+          (.fd-spacer, not .fd-path — styles.panel.css overrides styles.css's
+          `.fd-path{flex:1}`) now sits last and simply absorbs the leftover. */}
       {badges
         .filter((b) => !GLYPH_BADGES.has(b))
         .map((b) => (
           <span className="fd-badge" key={b}>{b}</span>
         ))}
+      <span className="fd-spacer" aria-hidden="true" />
     </summary>
   );
 }
@@ -790,10 +810,16 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
           <span>No changed file’s path contains “{fileQuery}”. Clear the filter to see all {fileCount} of them.</span>
         </div>
       )}
+      {/* INC-41 DF-D5 · this note is one nowrap+ellipsis line by design (RV-1: a
+          fact worth a sentence, not an 80px card) — but the sentence it carried
+          needed ~430px of tail and the panel gives it ~230px, so its second half
+          ("Source files remain visible.") was unreachable at *every* window
+          width, with no title to fall back on. The tail is now short enough to
+          land, and the full explanation lives in the row's tooltip. */}
       {hiddenUntracked > 0 && !q && (
-        <div className="diff-hidden-note" role="status">
-          <b>{hiddenUntracked.toLocaleString()} generated or excess untracked files hidden</b>
-          <span>Dependency/build output is omitted to keep review responsive. Source files remain visible.</span>
+        <div className="diff-hidden-note" role="status" title={HIDDEN_NOTE_TITLE}>
+          <b>{hiddenUntracked.toLocaleString()} generated files hidden</b>
+          <span>Source files all still shown.</span>
         </div>
       )}
       {/* INC-41 DF-3 · these used to be a grey `new files (untracked) · N` strip
@@ -888,8 +914,9 @@ function UntrackedFile({
 
   const rows: DiffRow[] = (lines || []).map((text, i) => ({ kind: "add", newNo: i + 1, text }));
   const parsed: ParsedFileDiff = { badges: failed ? ["binary"] : [], status: "added", rows };
-  // A file git can't show is a file with no countable lines — same "+0 −0 ·
-  // binary" a *tracked* binary addition renders, so the two agree.
+  // A file git can't show is a file with no countable lines — so it carries the
+  // "binary" badge and FileHead prints no counts at all for it (DF-D3), exactly
+  // as a *tracked* binary addition does. The two agree; neither invents a zero.
   const add = lines ? lines.length : failed ? 0 : null;
 
   return (

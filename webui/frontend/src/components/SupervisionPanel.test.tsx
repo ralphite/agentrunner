@@ -20,6 +20,7 @@ vi.mock("../api", async () => ({
 import { SupervisionPanel, type GoalState } from "./SupervisionPanel";
 import { useStore } from "../store";
 import type { InspectNode } from "./Subagents";
+import { fireEvent } from "@testing-library/react";
 
 const noop = () => {};
 
@@ -91,6 +92,38 @@ describe("TH-3 · resting Supervision panel", () => {
     expect(quiet[0].textContent).toContain("Checking…");
     expect(container.querySelectorAll("section.supervision-section").length).toBe(0);
     expect(screen.queryByText(/Nothing needs you/i)).toBeNull();
+  });
+});
+
+// INC-41 DF-D4 — the panel's `Supervision` title bar was a word-for-word second
+// copy of the topbar pill that opens the panel, 54px above it and always on the
+// same screen; RV-1 had already deleted the Changes rail's twin of it. Gone, and
+// its ✕ with it — the close affordance now floats on the panel's first row.
+describe("DF-D4 · no title bar that repeats the topbar pill", () => {
+  it("renders no .supervision-head, and no second 'Supervision' label", () => {
+    const { container } = renderPanel();
+
+    expect(container.querySelector(".supervision-head")).toBeNull();
+    // The only "Supervision" left in the panel is the aria-label on <aside>
+    // (the accessible name of the region), not a visible heading.
+    expect(screen.queryByText("Supervision")).toBeNull();
+    expect(container.querySelector("aside.supervision-panel")!.getAttribute("aria-label")).toBe(
+      "Supervision",
+    );
+  });
+
+  it("still closes: the ✕ survives the title bar, in the panel's first row", () => {
+    const onClose = vi.fn();
+    const { container } = renderPanel({ onClose });
+
+    // Zero-height sticky slot: it costs the panel no height, so the first real
+    // section starts at the very top of the panel.
+    const slot = container.querySelector(".supervision-close-slot")!;
+    expect(slot).toBeTruthy();
+    expect(slot).toBe(container.querySelector("aside.supervision-panel")!.firstElementChild);
+
+    fireEvent.click(screen.getByRole("button", { name: /hide supervision/i }));
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
 
