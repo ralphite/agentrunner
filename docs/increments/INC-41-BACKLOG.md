@@ -1766,3 +1766,17 @@ implementer 白名单冲突 → 下轮做。)
   **教训(比任何一条 UI 差距都重要):完成标记必须由代码 commit 背书,不能由「打算做」背书。**
   轮14 的教训是「commit 出现 ≠ 做完」,轮16 的教训是「✅ 出现 ≠ 有 commit」。今后登记差距一律
   写 ☐,✅ 只在 merge 进 main 且复验通过后由收轮那一步改写。
+
+- 2026-07-11 轮17(headless)**三条并发线全部落地并复验**:比对 diff/thread/scheduled 三屏 vs 金标真像素,
+  派工 3 个 implementer(worktree 隔离、白名单两两无交集)、全部自推 origin/main:
+  **RD-1..4**(`f8a1834`)diff 判据下沉到单文件(大 review 不再全折成裸文件头)+ 文件尾 unmodified 折叠带
+  展到 EOF + html/xml 高亮 + 文件头 `+n −m` 紧贴文件名(纯删除显示 `+0 −176`);
+  **RT-4/RT-2**(`21d84f3`)一个 turn 收敛成**一条** `Worked · N steps ›`(审批会话顶层 Approved chip 7→0、
+  Worked 行 8→1)+ 变更卡左缘与正文列对齐(x 398→364);
+  **RS-1..3**(`0105b46`)Scheduled 标题单行截断(行高 150px+→68px 单一值)+ 标题左缘统一(429px)+
+  去行分隔线/未读点移右端/搜索独占整行/tabs 裸文字。
+  复验:live=`index-adzivI6A.js`,158 vitest 绿、build 绿,4 屏 × light/dark × 1440/390 稳态 console err+warn=0。
+  截图 `qa/runs/2026-07-11-round17/{before,after}/`。
+  **I2 的重要发现**(已写进代码注释):RT-4 根因诊断不完整——turn 常由**不可见的注入输入**(goal
+  continuation → `input_received{source:program}`)开启,`foldWork` 看不到 user 边界,只按 BACKLOG 改会让
+  post-answer 窗口永不关闭;窗口必须由 tool/outcome chip 关闭。**只有跑真实会话才抓得到。**
