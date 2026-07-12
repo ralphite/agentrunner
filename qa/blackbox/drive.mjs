@@ -138,15 +138,17 @@ for (const [ctxName, viewport] of [
 
   // Scheduled-task modal: bare workspace name must yield the FRIENDLY error.
   await S("scheduled-modal-bad-workspace", async () => {
-    await page.goto(BASE + "/#/scheduled", { waitUntil: "domcontentloaded" }).catch(() => {});
-    await page.waitForTimeout(600);
-    // The Scheduled surface's "Create" menu → "Repeating" opens the RunModal.
-    const newBtn = page.locator("button[aria-label='Create scheduled work'], button:has-text('Create')").first();
-    if (await newBtn.count()) {
+    await page.goto(BASE + "/#scheduled", { waitUntil: "domcontentloaded" }).catch(() => {});
+    // WAIT for the surface, never sleep-and-count (runner first paint is slower
+    // than local — the 600ms sleep was the "selector drift" flake).
+    const newBtn = page.locator("button[aria-label='Create scheduled work']").first();
+    const surfaced = await newBtn.waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+    if (surfaced) {
       await newBtn.click({ timeout: 4000 }).catch(() => {});
-      await page.waitForTimeout(400);
-      await page.locator("text=Repeating").first().click({ timeout: 4000 }).catch(() => {});
-      await page.waitForTimeout(500);
+      const repeating = page.locator("text=Repeating").first();
+      await repeating.waitFor({ timeout: 5000 }).catch(() => {});
+      await repeating.click({ timeout: 4000 }).catch(() => {});
+      await page.locator(".modal").first().waitFor({ timeout: 5000 }).catch(() => {});
       const modal = page.locator(".modal");
       if (await modal.count()) {
         const task = modal.locator("textarea").first();
@@ -156,7 +158,10 @@ for (const [ctxName, viewport] of [
           await wsField.fill("abc");
           const start = modal.locator("button:has-text('Start')").first();
           await start.click({ timeout: 4000 }).catch(() => {});
-          await page.waitForTimeout(1200);
+          await page.waitForFunction(
+            () => /full path|Use folder|blank|not an existing directory/i.test(document.body.innerText),
+            { timeout: 6000 },
+          ).catch(() => {});
           const toastText = await page.evaluate(() => document.body.innerText);
           if (/not an existing directory/.test(toastText))
             finding("high", cur, "bare workspace still leaks raw path error");
