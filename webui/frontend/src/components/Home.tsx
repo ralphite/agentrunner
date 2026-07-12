@@ -1,6 +1,6 @@
 import "../styles.home.css";
 import { useState } from "react";
-import { ArrowsClockwise, Bug, Hammer, Terminal } from "@phosphor-icons/react";
+import { ArrowsClockwise, Bug, Hammer } from "@phosphor-icons/react";
 import { useStore } from "../store";
 import { Composer } from "./Composer";
 import { DaemonAlert } from "./DaemonAlert";
@@ -30,6 +30,35 @@ function Telescope({ size = 24 }: { size?: number }) {
       <path d="m6.158 8.633 1.114 4.456" />
       <path d="m8 21 3.105-6.21" />
       <circle cx="12" cy="13" r="2" />
+    </svg>
+  );
+}
+
+// The empty state's brand mark. Codex draws a lobed cloud outline with a `>_`
+// terminal prompt tucked inside — a *shape*, the one graphic anchor on an
+// otherwise blank page. We used to render a bare Phosphor <Terminal/> glyph in a
+// transparent box, which left a stray `>_` floating mid-page like a typo (HM-3).
+// Phosphor has no cloud-with-prompt glyph, so we inline it: seven outward arcs
+// around a r=8 circle make the lobes, then the chevron and underscore sit inside
+// (viewBox 0 0 24 24, currentColor stroke — so .home-hero-icon keeps owning the
+// size and the quiet watermark gray).
+function CloudMark({ size = 24 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      focusable="false"
+    >
+      <path d="M12 3a4.5 4.5 0 0 1 7.036 3.389a4.5 4.5 0 0 1 1.738 7.614a4.5 4.5 0 0 1-4.869 6.106a4.5 4.5 0 0 1-7.81 0a4.5 4.5 0 0 1-4.869-6.106a4.5 4.5 0 0 1 1.738-7.614a4.5 4.5 0 0 1 7.036-3.389z" />
+      <path d="M7.1 9.1 10.2 12.2 7.1 15" />
+      <path d="M12.7 15h4.2" />
     </svg>
   );
 }
@@ -113,7 +142,7 @@ export function Home() {
       <div className="hero">
         <div className="home-empty">
           <div className="home-hero-icon" aria-hidden>
-            <Terminal size={34} />
+            <CloudMark size={50} />
           </div>
           <h2 className="home-empty-headline">
             {project ? (

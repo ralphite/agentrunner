@@ -177,11 +177,13 @@
   gap: 8px;
   padding-bottom: 12px;
 }
+/* Same quiet sentence-case group heading as .pop-section-label above — "Model"
+   and "Effort" sit one under the other in the same menu, so a shouted EFFORT
+   under a calm Model broke the rhythm and matched nothing in Codex (HM-5). */
 .cx-model-menu .cx-effort-title {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  text-transform: uppercase;
   color: var(--dim);
 }
 /* the live value — the pill's own suffix, echoed where you turn the dial */
