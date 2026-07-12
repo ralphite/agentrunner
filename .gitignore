@@ -11,3 +11,8 @@ acceptance-report.json
 # Vite build output — embedded into the Go binary at build time; never committed.
 webui/frontend/dist/*
 !webui/frontend/dist/.gitkeep
+
+# Codex golden reference screenshots are intentionally TRACKED (parity ground truth;
+# the ephemeral qa/runs/ captures are the ignored ones).
+!qa/codex-reference/*.jpg
+!qa/codex-reference/*.png
