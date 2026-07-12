@@ -20,8 +20,8 @@ on:
   workflow_dispatch:
     inputs:
       minutes:
-        description: "Keep the Web UI up for this many minutes (max 340)"
-        default: "180"
+        description: "Keep the Web UI up for this many minutes (max 340; private repo burns Actions quota)"
+        default: "30"
         type: string
       smoke:
         description: "Build + health check only (no Tailscale, exits immediately)"
