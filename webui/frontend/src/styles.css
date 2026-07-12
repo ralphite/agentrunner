@@ -1668,11 +1668,29 @@ label.field {
    that band stays a neutral surface without this rule. */
 .dl.add .dl-no { color: var(--green); opacity: .85; }
 .dl.del .dl-no { color: var(--red); opacity: .85; }
-/* hunk separator — quiet divider with the @@ context, not a raw diff line */
+/* hunk separator — quiet divider with the @@ context, not a raw diff line.
+   INC-41 RD-10 · it used to be `--blue-soft`/`--blue`, which made a pure metadata
+   row the ONLY saturated color in the whole review — louder than the added and
+   deleted code it separates. Worse, it sat at the same breakpoint as the neutral
+   `N unmodified lines` fold band (`.fd-gap`), so one seam grew two stacked bars
+   in two different visual languages. Codex's golden
+   (qa/codex-reference/codex-crop-diff-rendering.jpg) shows exactly one neutral
+   grey band per seam and no colored `@@` row at all.
+   So the band joins the fold band's family — same `--panel-2` surface, same
+   `--dim` ink, both of which carry their own dark-mode values, so dark comes
+   free. The row itself is KEPT rather than dropped: what it renders is not the
+   `@@ -a,b +c,d @@` line range (diffSummary.ts parses those into oldNo/newNo and
+   every row already prints them in the gutter) but git's section heading — e.g.
+   `export function checkModelOutputContent(` — which appears nowhere else in the
+   UI. Codex's golden has no heading only because its file is Markdown, where git
+   emits none; for code files that string is the one thing telling you *which
+   function* the hunk is in. Dropping it to match a screenshot would trade real
+   context for a pixel. Headless hunks still collapse to the `.dl-hunk-blank`
+   hairline (styles.rs.css). */
 .dl-hunk {
   padding: 3px 12px 3px 14px;
-  background: var(--blue-soft);
-  color: var(--blue);
+  background: var(--panel-2);
+  color: var(--dim);
   font-size: 11px;
   border-top: 1px solid var(--line-2);
   border-bottom: 1px solid var(--line-2);
@@ -3775,10 +3793,19 @@ details.filediff[open] > summary.fd-head .fd-caret {
   background: color-mix(in srgb, var(--panel) 96%, transparent);
 }
 .tt-left { gap: 8px; }
+/* INC-41 TH-19 · the thread title is the one thing on this screen the user
+   already knows — they clicked the task to get here. At 14px/600/near-black it
+   was the second-largest type on the page and ran up to 560px, so a long prompt
+   ate the whole top bar and shouted its own name back. Codex's thread top bar is
+   nearly empty: the title trails at ~11–12px, unbolded, grey, a hundred-odd px
+   wide, and the bar belongs to the controls. Demoted to match — the ellipsis
+   truncation below still does the clipping, now against a tighter budget.
+   `--dim` carries a dark-mode value, so dark comes free. */
 .tt-title {
-  max-width: min(45vw, 560px);
-  font-size: 14px;
-  font-weight: 600;
+  max-width: 340px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--dim);
 }
 .topbar-icon,
 .topbar-tool {

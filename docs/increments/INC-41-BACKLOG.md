@@ -2909,12 +2909,20 @@ touches:`DiffView.tsx` 顶栏区、`styles.rs.css` L774–830。
 的根因仍在**。**动作**:面板 <900px 强制 inline 并 disable split;≥900px 时给两轨 `minmax(0,1fr)` 而非
 `minmax(max-content,1fr)`。touches:`DiffView.tsx` L232–239、`styles.rs.css` L191–198。
 
-### RD-10 ☐ hunk 分隔条是**蓝色**的 —— review 里唯一一块饱和蓝,且与灰折叠带信息重复 [P2]
-`styles.css:1672` `.dl-hunk { background: var(--blue-soft); color: var(--blue) }`。金标
-`codex-crop-diff-rendering.jpg` 里两个 hunk 之间**只有中性灰的 `8 unmodified lines` 折叠带**,无 `@@` 行、
-无彩色条。我们在同一处断点画了两条带子(灰折叠带 + 蓝 `@@` 带)。**动作**:`.dl-hunk` 改 `--panel-2`/`--dim`
-(与 `.fd-gap` 同灰),或在已有折叠带的断点直接不渲染。touches:`styles.css` L1671–1680、
-`DiffView.tsx` L1328–1344。
+### RD-10 ✅ hunk 分隔条是**蓝色**的 —— review 里唯一一块饱和蓝,且与灰折叠带信息重复 [P2] — 轮35
+`.dl-hunk` 去饱和,并入 `.fd-gap` 折叠带的中性族。真机实测(会话
+`20260711-011831-what-is-the-project-297d`,一个 3-hunk 的 `test-rig.ts` 真 diff;稳态,鼠标已移出):
+light `.dl-hunk` bg `rgb(232,241,251)`(`--blue-soft`)/ 文字 `rgb(1,105,204)`(`--blue`)
+→ **`rgb(244,244,244)` / `rgb(110,110,110)`**,与同屏 `.fd-gap` 的 `rgb(244,244,244)` / `rgb(110,110,110)`
+**逐值相等**;dark `rgb(27,37,64)` / `rgb(111,155,255)` → **`rgb(28,28,32)` / `rgb(160,160,173)`**,同样与
+`.fd-gap` 逐值相等(`--panel-2`/`--dim` 自带 dark 值,dark 白拿)。review 里最后一块饱和色回到 +/− 代码本身。
+**取舍:`@@` 行保留,不删。** 金标里没有 `@@` 行,但 `diffSummary.ts:64` 表明该行渲染的**不是**
+`@@ -a,b +c,d @@` 行号区间(行号早被解析进 `oldNo`/`newNo`,每行 gutter 都在印),而是 git 的
+**section heading**(实测三条:`import fs, {…}`、`export function printDebugInfo(`、
+`export function checkModelOutputContent(`)——这串「你在哪个函数里」全 UI 别无二处。金标那张恰是
+Markdown 文件,git 对它不产 heading,故看不见;删掉它等于为对齐一张截图丢掉代码文件的真上下文。
+无 heading 的 hunk 仍走 `.dl-hunk-blank` 细线(styles.rs.css),不受影响。零 markup 改动。
+touches:`styles.css` L1671–1699。
 
 ### RD-11 ✅ 文件头坐在 #f5f5f5 灰底色带上 —— **实测不成立:原报告量到的是 :hover 态** [P3] — 轮34 复验,零代码改动
 **诚实缩窄到 0**:`.fd-head` 的静态背景**早已**是 `var(--panel)`,与 `.diffbar` 同一个 token
@@ -2979,11 +2987,19 @@ touches:`timeline.ts`、`timeline.test.ts`、`styles.conv.css`。
 **4 → 0**(275/275/274/294px 那条 ~1118px 灰带子消失),展开折叠后 4 条内容/顺序/`×2` 聚合全部仍在;
 console error+warning 0。vitest 453/453(+6)。证据:`qa/runs/2026-07-12-r35/impl-b/`。
 
-### TH-17 ☐ composer 的 `Full access` 只有图标是橙的,文字仍是中性色 [P2]
-`Composer.tsx:124-125` 只把 `WarningCircle` 染成 `--amber`,label 文字走按钮默认色。金标
-`⚠ Full access` **整条橙色**,是 composer 上唯一的彩色元素。最危险的权限姿态没有一眼可见的颜色信号,
-与 low/med 的灰点在扫视时同权重。**动作**:`risk === "high"` 时给按钮加 `risk-high` class,
-`.cx-pill.risk-high { color: var(--amber) }`。touches:`Composer.tsx`、`styles.composer.css`。
+### TH-17 ✅ composer 的 `Full access` 只有图标是橙的 —— **实测不成立:原报告量到的是 low 档的 pill** [P2] — 轮35 复验,零代码改动
+**诚实缩窄到 0**:`styles.css:2063` 的 `.cx-mode.high { color: var(--amber) }` **早已存在**,把整条 pill
+(label + 图标)一起染橙。真机复现(home composer,点开权限 popover 选 `Full access`,鼠标移出后稳态量):
+pill class = `cx-pill cx-mode high`,**label `color: rgb(138,90,0)`、图标 `rgb(138,90,0)`——同为 `--amber`
+(#8a5a00),整条橙,无差异**(`qa/runs/2026-07-12-r35/impl-a/high-before.json`,量的是**改前**的 live 8809)。
+原报告的 `rgb(96,96,96)` 是 **low 档** pill(`Ask to approve`,class `cx-pill cx-mode low`)的中性色 ——
+即 `.cx-pill { color: var(--ink-2) }` (#606060);而 TH-17 自己写明「low/medium/unknown 保持现状不变」,
+所以量错了元素状态。同屏 `unknown` 档(`Access: set by agent spec`)同样是 `rgb(96,96,96)`,亦属预期。
+按要求加 `risk-high` class + `.cx-pill.cx-mode.risk-high { color: var(--amber) }` 只会是一条与 2063 完全
+等价的死规则,**故不做假改动**。(顺带记一处**未触发**的隐患:`styles.css:4096` `.cx-mode:disabled
+{ color: var(--dim) }` 与 `.cx-mode.high` 特异性同为 (0,2,0) 而位置更靠后,若哪天 mode pill 被 disable,
+label 会掉回灰而图标因 inline style 仍橙 —— 正是原报告描述的症状;但 `Composer.tsx` L1371/L1420 两处
+pill 均**未**设 `disabled`,当前不可达,不预先改动。)
 
 ### TH-18 ☐ jump-to-latest 圆钮在**中途滚动**时压住正文 [P3]
 `.tl-jump` `position:sticky; bottom:14px; margin:-32px auto 0`;实测 `ours-thread-scroll-2.png` 圆钮盖住
@@ -2991,10 +3007,15 @@ console error+warning 0。vitest 453/453(+6)。证据:`qa/runs/2026-07-12-r35/im
 `.timeline` 底部加 40px `linear-gradient(transparent → var(--bg))` 遮罩,圆钮永远落在渐隐带上;
 离底 <1 屏时隐藏。touches:`styles.css` `.timeline`/`.tl-jump`、`Timeline.tsx`。
 
-### TH-19 ☐ thread 顶栏标题过重过长,抢走整条栏 [P3]
-标题 15px 粗体、实测占 780px 并被省略号截断;金标是 ~11px 灰色非粗体、最多 ~120px,顶栏几乎是空的。
-标题是「已经知道的事」,却是这一屏字号第二大的元素。**动作**:`.topbar-title`
-`font-size: 12.5px; font-weight: 500; color: var(--dim); max-width: 340px`。touches:`styles.nav.css`。
+### TH-19 ✅ thread 顶栏标题过重过长,抢走整条栏 [P3] — 轮35
+`.tt-title`(定义在 `styles.css`,非原条目猜的 `styles.nav.css`/`.topbar-title`)降级。真机实测(长标题会话
+`20260712-052313-…-8637`,稳态、鼠标已移出):**14px / 600 / `rgb(13,13,13)` / max-width 560px、实占 560px
+且省略号截断** → **12.5px / 500 / `rgb(110,110,110)`(`--dim`)/ max-width 340px、实占 340px**,截断保留。
+字号 −1.5px、字重 −100、从近黑压到 `--dim`,标题让位给控件。dark:`rgb(236,236,241)` → `rgb(160,160,173)`
+(`--dim` dark 值,白拿)。**不塌陷不错位**:`.task-topbar` 高度 54px 不变、`overflow=false`、
+`documentElement` 无横向溢出;390 窄屏走既有 media query 的 `max-width:42vw`(=163.8px,比 340 更紧,
+仍在我这条之后生效)——实占 164px、截断正常、顶栏与文档均无溢出。稳态 console error+warning = 0。
+touches:`styles.css` L3787–3800。
 
 ### 【sidebar / home / scheduled】(finder C,截图 `qa/runs/2026-07-12-r32/find-nav/`)
 
