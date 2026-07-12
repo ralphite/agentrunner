@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Rows,
   Columns,
@@ -21,7 +21,7 @@ import {
   FolderDashed,
   ClockCounterClockwise,
 } from "@phosphor-icons/react";
-import { AR } from "../api";
+import { AR, isBinaryPath } from "../api";
 import { useStore } from "../store";
 import { loadGitPrefs } from "../theme";
 import type { DiffResp, DiffScope } from "../types";
@@ -153,6 +153,15 @@ function FileHead({
 
 export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }) {
   const { toast, openPrompt, openModal } = useStore();
+  // INC-41 TH-5 · a file the thread's change card asked us to open. It is a
+  // one-shot request: we take it into local state (so the file stays open once
+  // the user reads it), clear it from the store, and let the file's own card key
+  // off `focusEpoch` so a *second* click on the same row re-opens and re-scrolls
+  // it even if it was manually collapsed in between.
+  const pendingFocus = useStore((s) => s.diffFocusPath);
+  const clearDiffFocus = useStore((s) => s.clearDiffFocus);
+  const [focusPath, setFocusPath] = useState<string | null>(null);
+  const [focusEpoch, setFocusEpoch] = useState(0);
   const [data, setData] = useState<DiffResp | null>(null);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
@@ -228,6 +237,23 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
       requestID.current += 1;
     };
   }, [sid, scope]);
+  // Take the pending focus (TH-5). Runs on mount too — the panel is usually
+  // mounted BY the click, so the request is waiting for us before the diff has
+  // even loaded; the file list picks it up when the payload lands. Any active
+  // file filter is dropped: the user just asked for a specific file, and a
+  // stale query that excludes it would silently answer "no matching files".
+  useEffect(() => {
+    if (!pendingFocus) return;
+    setFocusPath(pendingFocus);
+    setFocusEpoch((e) => e + 1);
+    setFileQuery("");
+    clearDiffFocus();
+  }, [pendingFocus, clearDiffFocus]);
+  // Callback ref on the focused file's card: stable, so it fires exactly when
+  // that card mounts (its key carries focusEpoch), i.e. once per focus request.
+  const focusRef = useCallback((el: HTMLDetailsElement | null) => {
+    el?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+  }, []);
   // Codex review→commit(→push): stage & commit the workspace changes, optionally
   // pushing to the upstream branch. `thenPush` chains a push only when the commit
   // succeeded, so a failed commit never pushes a half-finished state.
@@ -525,7 +551,13 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
   // Per-file default disclosure (RD-1) — computed over the whole review, not just
   // the filtered subset, so filtering never changes a file's default state.
   const defaults = defaultOpenByPath(files);
-  const isOpen = (path: string) => override ?? defaults.get(path) ?? true;
+  // A file the change card sent us to is open, whatever its default or the
+  // current fold-all state — you cannot "go to a file's diff" and land on a
+  // folded header (TH-5).
+  const isOpen = (path: string) => (path === focusPath ? true : override ?? defaults.get(path) ?? true);
+  // Only the focused card remounts on a focus request (its neighbours keep any
+  // manual fold state) — hence focusEpoch in the key of that one card.
+  const fileKey = (path: string) => path + ":" + foldEpoch + (path === focusPath ? ":f" + focusEpoch : "");
   // An untracked entry that survives to this list is one git refused to inline
   // (binary, >256KB, or past the inline budget — webui/meta.go), so it folds by
   // default for the same reason DF-2 folds generated files: a review shouldn't
@@ -828,11 +860,12 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
           they sat *above* every real file. They are ordinary file cards now. */}
       {shownUntracked.map((path) => (
         <UntrackedFile
-          key={path + ":" + foldEpoch}
+          key={fileKey(path)}
           sid={sid}
           path={path}
           effView={effView}
-          defaultOpen={untrackedOpen}
+          detailsRef={path === focusPath ? focusRef : undefined}
+          defaultOpen={path === focusPath ? true : untrackedOpen}
           // Same budget as FileBody's prefetch: on a small review, read the file
           // up front so its header can state a real `+N −0` instead of `+…`.
           prefetch={shownUntracked.length <= 25}
@@ -847,7 +880,12 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
         const hunkCount = parsed.rows.reduce((n, r) => n + (r.kind === "hunk" ? 1 : 0), 0);
         const open = isOpen(f.path);
         return (
-          <details className="filediff" key={f.path + ":" + foldEpoch} open={open}>
+          <details
+            className="filediff"
+            key={fileKey(f.path)}
+            open={open}
+            ref={f.path === focusPath ? focusRef : undefined}
+          >
             {/* RV-3 · the disclosure caret: `list-style: none` killed the platform
                 triangle, so a collapsed file was a lone header with no hint that a
                 body was hiding under it. Header shape now lives in FileHead, which
@@ -888,24 +926,34 @@ function UntrackedFile({
   effView,
   defaultOpen,
   prefetch,
+  detailsRef,
 }: {
   sid: string;
   path: string;
   effView: "inline" | "split";
   defaultOpen: boolean;
   prefetch: boolean;
+  detailsRef?: (el: HTMLDetailsElement | null) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const [lines, setLines] = useState<string[] | null>(null);
-  const [failed, setFailed] = useState(false);
+  // INC-41 DF-D7 · `untracked` is, by construction, the files git would not
+  // inline: binaries, blobs over 256KB, and the tail past the inline budget
+  // (webui/meta.go). So this card's blob fetch is the one most likely to hit the
+  // endpoint's "file is not text" 400 — and for a `.bin`/`.png`/`.zip` it hits it
+  // *every* time, on every mount, for a card whose body we already know reads
+  // "Content isn't shown". The extension answers that question for free: the
+  // failed state is entered without asking, so a binary file now costs zero
+  // requests and leaves zero red lines in the console.
+  const [failed, setFailed] = useState(() => isBinaryPath(path));
 
   useEffect(() => {
-    if ((!open && !prefetch) || lines || failed) return;
+    if (failed || (!open && !prefetch) || lines) return;
     let alive = true;
     AR.blob(sid, path)
       .then((r) => alive && setLines(r.lines))
-      // Silent: a binary/oversized file is the expected failure here, not an
-      // error the user has to act on. The card says so in place of its rows.
+      // Silent: an oversized file is an expected failure here, not an error the
+      // user has to act on. The card says so in place of its rows.
       .catch(() => alive && setFailed(true));
     return () => {
       alive = false;
@@ -923,6 +971,7 @@ function UntrackedFile({
     <details
       className="filediff filediff-untracked"
       open={open}
+      ref={detailsRef}
       onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}
     >
       <FileHead path={path} status="added" add={add} del={0} badges={parsed.badges} />
@@ -981,7 +1030,13 @@ function FileBody({
   // Fetched file text (null until first reveal) and the set of gap keys whose
   // region is currently expanded.
   const [blob, setBlob] = useState<string[] | null>(null);
-  const [blobFailed, setBlobFailed] = useState(false);
+  // DF-D7 · a binary file has no lines to reveal — `git diff` already said so
+  // with its "binary" badge, and the blob endpoint would answer 400 "file is not
+  // text". Start from "the blob is unavailable" instead of proving it with a
+  // request: the bands that would offer to reveal context stand down (band()
+  // returns null for an unknowable length once blobFailed), and nothing is sent.
+  const unreadable = parsed.badges.includes("binary") || isBinaryPath(path);
+  const [blobFailed, setBlobFailed] = useState(unreadable);
   const [open, setOpen] = useState<Set<number>>(new Set());
   const [loadingIdx, setLoadingIdx] = useState<number | null>(null);
 
@@ -996,7 +1051,7 @@ function FileBody({
   // resolves itself on the first click.
   const needsBlob = !!trailGap && trailGap.end === null;
   useEffect(() => {
-    if (!prefetch || !needsBlob || blob || blobFailed) return;
+    if (unreadable || !prefetch || !needsBlob || blob || blobFailed) return;
     let alive = true;
     AR.blob(sid, path)
       .then((r) => alive && setBlob(r.lines))
@@ -1004,9 +1059,10 @@ function FileBody({
     return () => {
       alive = false;
     };
-  }, [sid, path, prefetch, needsBlob, blob, blobFailed]);
+  }, [sid, path, prefetch, needsBlob, blob, blobFailed, unreadable]);
 
   const toggleGap = async (idx: number) => {
+    if (unreadable) return; // nothing to fetch, and nothing a fetch could add
     if (open.has(idx)) {
       setOpen((prev) => {
         const next = new Set(prev);

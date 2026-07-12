@@ -22,6 +22,7 @@ vi.mock("../api", async () => ({
 
 import { ChangesOutcome } from "./ChangesOutcome";
 import { Markdown } from "./Markdown";
+import { useStore } from "../store";
 
 // A unified diff with `n` files, each +2 / -1 — enough to drive the counts and
 // the preview cap without hand-building FileDiffSummary structs.
@@ -186,6 +187,54 @@ describe("ChangesOutcome header counts (INC-41 TH-13)", () => {
     expect(screen.getByText("+4")).toBeTruthy();
     expect(screen.getByText("−2")).toBeTruthy();
     expect(screen.getByText("· 1 new")).toBeTruthy();
+  });
+});
+
+// TH-5 — the file rows were dead text. The card names the files the turn
+// touched, and Codex's card sends you to a file's diff when you click its row;
+// ours rendered the same three columns and swallowed the click, so the obvious
+// follow-up question ("what changed in THAT file?") had no answer.
+describe("ChangesOutcome file rows navigate to the file (INC-41 TH-5)", () => {
+  beforeEach(() => useStore.setState({ diffFocusPath: null }));
+
+  it("opens the Changes panel AT the clicked file", async () => {
+    diffMock.mockResolvedValue(okDiff(3));
+    const onReview = vi.fn();
+    const { container } = render(<ChangesOutcome sid="s1" refreshKey={0} onReview={onReview} />);
+    await screen.findByText("Edited 3 files");
+
+    const row = screen.getByRole("button", { name: "Review changes to mod1.ts" });
+    fireEvent.click(row);
+
+    // …the same panel the header's Review button opens…
+    expect(onReview).toHaveBeenCalledTimes(1);
+    // …with a pending focus on exactly the file that was clicked.
+    expect(useStore.getState().diffFocusPath).toBe("src/mod1.ts");
+    // the row is reachable and operable from the keyboard too.
+    expect((row as HTMLElement).tabIndex).toBe(0);
+    expect(container.querySelector(".changes-outcome-files > div")!.className).toMatch(/cursor-pointer/);
+  });
+
+  it("is driven by the keyboard as well as the mouse", async () => {
+    diffMock.mockResolvedValue(okDiff(2));
+    const onReview = vi.fn();
+    render(<ChangesOutcome sid="s1" refreshKey={0} onReview={onReview} />);
+    await screen.findByText("Edited 2 files");
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Review changes to mod0.ts" }), { key: "Enter" });
+    expect(onReview).toHaveBeenCalledTimes(1);
+    expect(useStore.getState().diffFocusPath).toBe("src/mod0.ts");
+  });
+
+  it("leaves the header's Review button pathless — it still opens the panel as it always did", async () => {
+    diffMock.mockResolvedValue(okDiff(2));
+    const onReview = vi.fn();
+    render(<ChangesOutcome sid="s1" refreshKey={0} onReview={onReview} />);
+    await screen.findByText("Edited 2 files");
+
+    fireEvent.click(screen.getByRole("button", { name: "Review" }));
+    expect(onReview).toHaveBeenCalledTimes(1);
+    expect(useStore.getState().diffFocusPath).toBeNull();
   });
 });
 

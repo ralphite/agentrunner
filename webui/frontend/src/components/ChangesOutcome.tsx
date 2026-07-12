@@ -275,6 +275,7 @@ type Phase = "loading" | "ready" | "error";
 export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; refreshKey: number; onReview: () => void }) {
   const openModal = useStore((s) => s.openModal);
   const toast = useStore((s) => s.toast);
+  const focusDiffFile = useStore((s) => s.focusDiffFile);
   const [summary, setSummary] = useState<ChangesSummary | null>(null);
   // INC-41 TH-7. The fetch used to have two outcomes — a summary, or null — so a
   // failed request was indistinguishable from "this turn changed nothing": one
@@ -413,8 +414,34 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
         <div className="changes-outcome-files">
           {shown.map((file) => {
             const { dir, base } = splitPath(file.path);
+            // INC-41 TH-5 — the file row is NAVIGATION, not a label. Codex's
+            // change card sends you to the file's diff when you click its name;
+            // ours rendered the same three columns and then swallowed the click,
+            // so the one obvious question a summary raises ("what changed in
+            // THAT file?") had no answer but "find it yourself in the panel".
+            // It's a `div[role=button]` rather than a `<button>` because the row's
+            // whole layout — 38px beat, the path's flex:1 ellipsis, the right-set
+            // ± column — hangs off `.changes-outcome-files > div` in styles.css,
+            // and `> button` is already spoken for by the "Show N more" row.
+            const open = () => {
+              focusDiffFile(file.path); // DiffView expands + scrolls to it
+              onReview(); // …in the panel the Review button already opens
+            };
             return (
-              <div key={file.path}>
+              <div
+                key={file.path}
+                role="button"
+                tabIndex={0}
+                className="cursor-pointer hover:bg-panel-2"
+                aria-label={`Review changes to ${base}`}
+                onClick={open}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    open();
+                  }
+                }}
+              >
                 <span title={file.path}>
                   {dir && <span style={{ color: "var(--dim)" }}>{dir}</span>}
                   <b style={{ fontWeight: 600, color: "var(--ink)" }}>{base}</b>

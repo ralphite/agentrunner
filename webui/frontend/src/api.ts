@@ -54,6 +54,61 @@ const post = <T = any>(path: string, body?: any) =>
 export const diffPath = (sid: string, scope: DiffScope) =>
   `/sessions/${sid}/diff?scope=${scope}`;
 
+// INC-41 DF-D7/DF-D8 — the blob endpoint's two hard refusals, mirrored here so a
+// request that CANNOT succeed is never sent.
+//
+// `GET /sessions/{sid}/blob` (webui/meta.go handleBlob) answers 400 "file is not
+// text" for anything holding a NUL byte, and 413 "file is too large to expand"
+// above 8 MiB. The Changes view prefetches blobs to state honest line counts, so
+// every untracked binary in a workspace (`qa-inc41-d4/asset.bin`) bought a
+// guaranteed 400 and every oversized one a guaranteed 413: the card degraded
+// fine — JS caught it — but the browser still logged a network error the user
+// could do nothing about, and the round-trip was pure waste. A file whose
+// extension is a binary format is answered locally, with the same ApiError the
+// server would have sent, without touching the network.
+//
+// The 413 half (DF-D8) cannot be pre-empted the same way: /diff hands the UI a
+// bare `untracked: string[]`, so the frontend never learns a file's size and a
+// pre-flight size check would need a backend change (out of this change's
+// scope). What it CAN do is refuse to ask twice — see blobRefused below: the
+// oversized `bin/ar` of a build workspace now costs one 413 per page load
+// instead of one per card mount (measured: 8 requests / 12 console errors
+// across two fold-all cycles → 4 / 4, of which 2 are legitimate 200s).
+
+// Extensions whose content is binary by definition. Deliberately conservative:
+// `.svg`, `.json`, `.map`, `.lock` and friends are text and stay fetchable —
+// only formats that are *always* bytes are listed, so no readable file is ever
+// withheld on a guess.
+const BINARY_EXT = new Set([
+  // images
+  "png", "jpg", "jpeg", "gif", "webp", "avif", "bmp", "ico", "icns", "tif", "tiff", "heic", "psd",
+  // archives / packages
+  "zip", "gz", "tgz", "bz2", "xz", "zst", "7z", "rar", "tar", "jar", "war", "whl", "pack", "idx",
+  // binaries / objects
+  "bin", "exe", "dll", "so", "dylib", "o", "a", "class", "wasm", "node", "pyc", "pyo", "pdb",
+  // media
+  "mp3", "mp4", "m4a", "mov", "avi", "mkv", "webm", "wav", "flac", "ogg",
+  // fonts
+  "woff", "woff2", "ttf", "otf", "eot",
+  // documents / stores
+  "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "db", "sqlite", "sqlite3",
+]);
+
+// isBinaryPath — true when the path's extension means "these are bytes, not
+// lines". Callers use it to skip a prefetch entirely (nothing rendered, nothing
+// requested); AR.blob uses it as the last line of defence for every other caller.
+export function isBinaryPath(path: string): boolean {
+  const m = /\.([A-Za-z0-9]+)$/.exec(path);
+  return m ? BINARY_EXT.has(m[1].toLowerCase()) : false;
+}
+
+// A blob the server has already refused for a reason that cannot change while
+// the page is open (400 not-text / 413 too-large) is never asked for twice: the
+// review remounts a file's card on every filter, fold-all and scope change, and
+// each remount used to re-issue the same doomed request.
+const blobRefused = new Map<string, ApiError>();
+const blobKey = (sid: string, path: string) => sid + "\u0000" + path;
+
 export const AR = {
   health: () => api<Health>("/health"),
   daemonStart: () => post("/daemon/start"),
@@ -112,8 +167,22 @@ export const AR = {
   diff: (sid: string, scope: DiffScope = "working-tree") => api<DiffResp>(diffPath(sid, scope)),
   // One file's current working-tree text, so the diff view can reveal the
   // unmodified lines hidden between hunks ("N unmodified lines" collapsers).
-  blob: (sid: string, path: string) =>
-    api<{ lines: string[] }>(`/sessions/${sid}/blob?path=${encodeURIComponent(path)}`),
+  // DF-D7/DF-D8: a request the backend is certain to refuse (binary content, or
+  // a blob it already answered 400/413 for) is refused here instead — same
+  // ApiError, no network round-trip, no console noise.
+  blob: async (sid: string, path: string) => {
+    if (isBinaryPath(path))
+      throw new ApiError("file is not text", 400, "blob_not_text");
+    const key = blobKey(sid, path);
+    const refused = blobRefused.get(key);
+    if (refused) throw refused;
+    try {
+      return await api<{ lines: string[] }>(`/sessions/${sid}/blob?path=${encodeURIComponent(path)}`);
+    } catch (e) {
+      if (e instanceof ApiError && (e.status === 400 || e.status === 413)) blobRefused.set(key, e);
+      throw e;
+    }
+  },
   commit: (sid: string, message: string) =>
     post<{ status: string }>(`/sessions/${sid}/commit`, { message }),
   // Push the workspace's current branch to its upstream/origin. Failures carry a

@@ -96,6 +96,16 @@ interface AppState {
   toggleProjectFolded: (key: string, folded: boolean) => Promise<void>;
   openProjectIn: (workspace: string, app: LauncherApp) => Promise<void>;
 
+  // INC-41 TH-5 · pending "open the review AT this file". The thread's "Edited N
+  // files" card names the files it touched; clicking one is a navigation, so it
+  // hands the path off here and switches to the Changes panel. DiffView consumes
+  // the path on its next render (expand that file + scroll it into view) and
+  // clears it — it is a one-shot request, not a selection: it must not re-fire
+  // when the panel is re-opened later, and no other surface reads it.
+  diffFocusPath: string | null;
+  focusDiffFile: (path: string) => void;
+  clearDiffFocus: () => void;
+
   refreshHealth: () => Promise<void>;
   refreshSessions: () => Promise<void>;
   refreshRuns: () => Promise<void>;
@@ -301,6 +311,12 @@ export const useStore = create<AppState>((set, get) => ({
     } catch (error: any) {
       get().toast(error.message);
     }
+  },
+
+  diffFocusPath: null,
+  focusDiffFile: (path) => set({ diffFocusPath: path }),
+  clearDiffFocus: () => {
+    if (get().diffFocusPath !== null) set({ diffFocusPath: null });
   },
 
   refreshHealth: async () => {

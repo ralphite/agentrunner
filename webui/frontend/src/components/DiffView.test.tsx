@@ -16,7 +16,10 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 // chip that states the branch, not a 195px unshrinkable sentence.
 
 const { arMock } = vi.hoisted(() => ({ arMock: {} as Record<string, (...args: any[]) => any> }));
-vi.mock("../api", () => ({
+vi.mock("../api", async () => ({
+  // the real module's helpers (isBinaryPath, ApiError, …) stay real — only the
+  // network surface `AR` is stubbed.
+  ...(await vi.importActual<typeof import("../api")>("../api")),
   AR: new Proxy(
     {},
     {

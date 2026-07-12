@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 // INC-41 RV-1/RV-3/RV-5 — the Changes rail's chrome. The panel used to spend
 // ~110px above the first diff line (a `Changes ✕` title bar that repeated the
@@ -13,7 +13,10 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 // and no badge that duplicates the status glyph.
 
 const { arMock } = vi.hoisted(() => ({ arMock: {} as Record<string, (...args: any[]) => any> }));
-vi.mock("../api", () => ({
+vi.mock("../api", async () => ({
+  // the real module's helpers (isBinaryPath, ApiError, …) stay real — only the
+  // network surface `AR` is stubbed.
+  ...(await vi.importActual<typeof import("../api")>("../api")),
   AR: new Proxy(
     {},
     {
@@ -26,6 +29,7 @@ vi.mock("../api", () => ({
 }));
 
 import { DiffView } from "./DiffView";
+import { useStore } from "../store";
 import type { DiffResp } from "../types";
 
 const baseDiff = (over: Partial<DiffResp> = {}): DiffResp => ({
@@ -59,6 +63,10 @@ new file mode 100644
 const worktreeDiff = (over: Partial<DiffResp> = {}) =>
   baseDiff({ diff: editDiff, worktree: true, mainRepo: "/repos/agentrunner", branch: "wt-1", ...over });
 
+// jsdom implements no scrolling at all, so the focus test needs a stub to
+// observe (DiffView calls it optionally for exactly this reason).
+const scrollSpy = vi.fn();
+
 beforeEach(() => {
   for (const key of Object.keys(arMock)) delete arMock[key];
   (window as any).matchMedia = () => ({
@@ -66,6 +74,9 @@ beforeEach(() => {
     addEventListener: () => {},
     removeEventListener: () => {},
   });
+  scrollSpy.mockReset();
+  (Element.prototype as any).scrollIntoView = scrollSpy;
+  useStore.setState({ diffFocusPath: null });
 });
 afterEach(cleanup);
 
@@ -182,7 +193,7 @@ describe("Untracked files are ordinary file cards (INC-41 DF-3)", () => {
 
   it("keeps the card for a file it cannot show, and says why", async () => {
     arMock.diff = () => Promise.resolve(baseDiff({ untracked: ["chart.png"] }));
-    arMock.blob = () => Promise.reject(new Error("file is too large to expand"));
+    arMock.blob = vi.fn(() => Promise.reject(new Error("file is too large to expand")));
     const { container } = render(<DiffView sid="u2" />);
 
     await waitFor(() => expect(screen.getByText("chart.png")).toBeTruthy());
@@ -194,6 +205,107 @@ describe("Untracked files are ordinary file cards (INC-41 DF-3)", () => {
     expect(card.querySelector(".fd-counts")).toBeNull();
     // …and the reason where the rows would be, instead of a bare path.
     expect(card.querySelector(".fd-nobody")!.textContent).toMatch(/binary or too large/);
+    // DF-D7: and it never asked. `chart.png` is bytes by definition, so the card
+    // reaches that state without a request the server could only refuse (400).
+    expect(arMock.blob).not.toHaveBeenCalled();
+  });
+});
+
+// INC-41 DF-D7 — the review prefetches each untracked file's blob to state an
+// honest `+N −0`. For a binary that prefetch is a *guaranteed* 400 ("file is not
+// text", webui/meta.go handleBlob): the card degraded correctly, but every mount
+// of it — every filter, fold-all and scope change — still bought a red line in
+// the console and a wasted round-trip. A binary is now answered locally.
+describe("Binary files are never prefetched (INC-41 DF-D7)", () => {
+  it("issues zero blob requests for a binary untracked file, and still says why", async () => {
+    const blob = vi.fn(() => Promise.resolve({ lines: ["never"] }));
+    // a second (tracked) file, so the review is big enough to offer Expand-all.
+    arMock.diff = () => Promise.resolve(baseDiff({ diff: editDiff, untracked: ["qa-inc41-d4/asset.bin"] }));
+    arMock.blob = blob;
+    const { container } = render(<DiffView sid="b1" />);
+
+    await waitFor(() => expect(screen.getByText("asset.bin")).toBeTruthy());
+    // The card is exactly the one the failed fetch used to produce…
+    const card = container.querySelector("details.filediff-untracked")!;
+    expect(card.querySelector(".fd-badge")!.textContent).toBe("binary");
+    expect(card.querySelector(".fd-nobody")!.textContent).toMatch(/binary or too large/);
+    expect(card.querySelector(".fd-counts")).toBeNull();
+    // …and it cost nothing: not one request for THIS file, before or after the
+    // user opens it (its tracked neighbour still prefetches, as it should).
+    const binCalls = () => blob.mock.calls.filter((c: any[]) => c[1] === "qa-inc41-d4/asset.bin");
+    expect(binCalls()).toHaveLength(0);
+    fireEvent.click(screen.getByLabelText("More changes actions"));
+    fireEvent.click(screen.getByText("Expand all files"));
+    await waitFor(() => expect(container.querySelector("details.filediff-untracked[open]")).toBeTruthy());
+    expect(binCalls()).toHaveLength(0);
+  });
+
+  it("still prefetches a text file — the guard is about bytes, not about caution", async () => {
+    const blob = vi.fn(() => Promise.resolve({ lines: ["alpha", "beta"] }));
+    arMock.diff = () => Promise.resolve(baseDiff({ untracked: ["notes.txt"] }));
+    arMock.blob = blob;
+    const { container } = render(<DiffView sid="b2" />);
+
+    await waitFor(() => expect(container.querySelector(".fd-counts .add")!.textContent).toBe("+2"));
+    expect(blob).toHaveBeenCalledTimes(1);
+  });
+});
+
+// INC-41 TH-5 — the thread's change card names the files a turn touched; a click
+// on one is a navigation. The panel opens AT that file: expanded, and scrolled
+// into view — not folded somewhere in a list of thirty.
+describe("Changes panel focuses the file the thread asked for (INC-41 TH-5)", () => {
+  it("expands and scrolls to the pending focus path when the panel mounts", async () => {
+    arMock.diff = () => Promise.resolve(baseDiff({ diff: editDiff, untracked: ["assets/note.txt"] }));
+    arMock.blob = () => Promise.resolve({ lines: ["alpha", "beta", "gamma"] });
+    // the click in the thread happened first: the panel is mounted BY it.
+    act(() => useStore.getState().focusDiffFile("assets/note.txt"));
+
+    const { container } = render(<DiffView sid="f1" />);
+    await waitFor(() => expect(screen.getByText("note.txt")).toBeTruthy());
+
+    // An untracked card is folded by default (DF-2's reasoning) — focus overrides
+    // that, and the card is scrolled to.
+    await waitFor(() => expect(container.querySelector("details.filediff-untracked[open]")).toBeTruthy());
+    expect(scrollSpy).toHaveBeenCalled();
+    // one-shot: the request is consumed, so re-opening the panel later doesn't
+    // silently re-focus a file the user has moved on from.
+    expect(useStore.getState().diffFocusPath).toBeNull();
+  });
+
+  it("re-opens a file the user had collapsed when the thread asks for it again", async () => {
+    arMock.diff = () => Promise.resolve(baseDiff({ diff: editDiff + newFileDiff }));
+    const { container } = render(<DiffView sid="f2" />);
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+
+    // user folds everything…
+    fireEvent.click(screen.getByLabelText("More changes actions"));
+    fireEvent.click(screen.getByText("Collapse all files"));
+    await waitFor(() => expect(container.querySelector("details.filediff[open]")).toBeNull());
+
+    // …then clicks app.ts in the thread's change card, with the panel already open.
+    act(() => useStore.getState().focusDiffFile("app.ts"));
+    await waitFor(() => expect(container.querySelectorAll("details.filediff[open]").length).toBe(1));
+    // exactly that file — its neighbours keep the fold the user chose.
+    expect(container.querySelector("details.filediff[open] .fd-path")!.textContent).toBe("app.ts");
+    expect(scrollSpy).toHaveBeenCalled();
+    expect(useStore.getState().diffFocusPath).toBeNull();
+  });
+
+  it("clears a file filter that would have hidden the focused file", async () => {
+    arMock.diff = () => Promise.resolve(baseDiff({ diff: editDiff + newFileDiff }));
+    const { container } = render(<DiffView sid="f3" />);
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+
+    fireEvent.click(screen.getByLabelText("Filter files by path"));
+    fireEvent.change(screen.getByLabelText("Filter files by path", { selector: "input" }), {
+      target: { value: "notes" },
+    });
+    await waitFor(() => expect(screen.queryByText("app.ts")).toBeNull());
+
+    act(() => useStore.getState().focusDiffFile("app.ts"));
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+    expect(container.querySelector("details.filediff[open]")).toBeTruthy();
   });
 });
 

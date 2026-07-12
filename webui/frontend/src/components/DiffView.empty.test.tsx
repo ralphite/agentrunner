@@ -9,7 +9,10 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 // once there are real changes to review.
 
 const { arMock } = vi.hoisted(() => ({ arMock: {} as Record<string, (...args: any[]) => any> }));
-vi.mock("../api", () => ({
+vi.mock("../api", async () => ({
+  // the real module's helpers (isBinaryPath, ApiError, …) stay real — only the
+  // network surface `AR` is stubbed.
+  ...(await vi.importActual<typeof import("../api")>("../api")),
   AR: new Proxy(
     {},
     {
