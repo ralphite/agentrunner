@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Archive, ArrowClockwise, ArrowLeft, ChatCircle, CheckCircle, Code, Crosshair, DotsThree, Files, Flag, GitFork, LinkSimple, Pause, PencilSimple, Play, Prohibit, PushPin, Robot, SidebarSimple, Stop, Trash, UsersThree, WarningCircle, X, XCircle } from "@phosphor-icons/react";
+import { Archive, ArrowClockwise, ArrowLeft, ChatCircle, CheckCircle, Code, Crosshair, DotsThree, Files, Flag, GitFork, LinkSimple, Pause, PencilSimple, Play, Prohibit, PushPin, Robot, SidebarSimple, SlidersHorizontal, Stop, Trash, WarningCircle, X, XCircle } from "@phosphor-icons/react";
 import "../styles.panel.css";
 import { AR } from "../api";
 import { useStore } from "../store";
@@ -639,10 +639,40 @@ export function SessionView({ sid }: { sid: string }) {
   // it's on screen the thread's echo of it is dropped — and ONLY then, so a
   // session with no banner (sub-agent, dismissed banner, no goal) still tells
   // the whole story from the thread alone.
-  const goalBannerShown = !isSub && !!goalState && (!goalTerminal || goalDismissedAt !== goalState.endedAt);
+  //
+  // TH-14 (round 33) · TH-12 deduped the *thread*, but the chrome itself was
+  // still saying it twice: a `terminal-alert` ("Step limit reached… Continue in
+  // new task") with a `gbar` ("Goal cancelled · 00:34 · ✕") stacked underneath
+  // it — 93px of banner about ONE ending, pinned above the composer, squeezing
+  // the reading column to 630px of a 900px window. Codex pins nothing: its
+  // terminal fact is a grey line in the last message that scrolls away with the
+  // thread. We keep one banner (the abnormal ending is actionable and must not
+  // scroll off), and the goal's outcome rides inside it as a meta tail rather
+  // than as a second bar. So: the goal has a banner of its OWN only when there
+  // is no terminal alert to ride on.
+  const goalLive = !isSub && !!goalState && (!goalTerminal || goalDismissedAt !== goalState.endedAt);
+  const goalBannerShown = goalLive && !terminalNotice;
+  const goalInAlert = goalLive && !!terminalNotice;
+  // The goal's label + elapsed, folded into the terminal alert's meta segment.
+  // The goal *text* stays on the tooltip (and in the thread + Environment rail):
+  // a banner that ellipsizes a sentence it has no room for said nothing anyway.
+  const goalAlertMeta = goalInAlert && goalState
+    ? {
+        label: GOAL_TERMINAL_META[goalState.phase]?.label || "Goal",
+        elapsedMs: goalTerminal
+          ? goalState.elapsedMs
+          : goalState.attachedAt !== undefined
+            ? now - goalState.attachedAt
+            : undefined,
+        goal: goalState.goal,
+      }
+    : null;
   const threadItems = useMemo(
-    () => suppressEchoedChips(folded.items, { goalBanner: goalBannerShown, terminalAlert: !!terminalNotice }),
-    [folded.items, goalBannerShown, terminalNotice],
+    // `goalLive` (not `goalBannerShown`): whether the goal rides in its own bar
+    // or inside the terminal alert, the chrome above the composer has said it —
+    // so the thread must not echo it a third time.
+    () => suppressEchoedChips(folded.items, { goalBanner: goalLive, terminalAlert: !!terminalNotice }),
+    [folded.items, goalLive, terminalNotice],
   );
 
   // The inline approval card is the primary action. On roomy desktop layouts
@@ -714,14 +744,22 @@ export function SessionView({ sid }: { sid: string }) {
             <ArrowClockwise size={15} /> Retry
           </button>
         )}
-        <button className={`topbar-tool${view === "diff" ? " active" : ""}`} onClick={() => setView(view === "diff" ? "chat" : "diff")} title="Review workspace changes">
-          <Files size={16} /> Changes
-        </button>
+        {/* INC-41 TH-15 · ONE rail, ONE name, ONE door. The topbar used to carry
+            two tool pills — `Changes` and `Supervision` — for what is a single
+            mental object: the pill said "Supervision", the panel it opened was
+            titled "Environment", and that panel's FIRST row was itself called
+            "Changes". Three names, two doors, one thing. Codex names the rail
+            `Environment` everywhere and keeps `Changes` as a row *inside* it;
+            its topbar carries neither pill. So the Changes pill is gone (the
+            rail's Changes row is the primary door, and `···` → Changes is the
+            keyboard-free fallback), and the surviving pill wears the rail's own
+            name and icon — click it and the label you land on is the label you
+            clicked. */}
         <button className={`topbar-tool${showSupervision ? " active" : ""}`} onClick={() => {
           if (view === "diff") setView("chat");
           setSupervision(!showSupervision);
-        }} title={showSupervision ? "Hide supervision" : "Show supervision"}>
-          <UsersThree size={16} /> Supervision
+        }} title={showSupervision ? "Hide the Environment rail" : "Show the Environment rail — workspace changes, worktree, git, goal"}>
+          <SlidersHorizontal size={16} /> Environment
           {attentionCount > 0 && <span className="topbar-attention">{attentionCount}</span>}
         </button>
         <Menu label={<DotsThree size={18} weight="bold" />} ariaLabel="More task actions">
@@ -758,7 +796,7 @@ export function SessionView({ sid }: { sid: string }) {
           <MenuLabel>View</MenuLabel>
           <MenuItem onClick={() => setView("chat")}><ChatCircle size={16} />Conversation</MenuItem>
           <MenuItem onClick={() => setView("diff")}><Files size={16} />Changes</MenuItem>
-          <MenuItem onClick={() => setSupervision(!supervisionOpen)}><SidebarSimple size={16} />{supervisionOpen ? "Hide" : "Show"} supervision</MenuItem>
+          <MenuItem onClick={() => setSupervision(!supervisionOpen)}><SidebarSimple size={16} />{supervisionOpen ? "Hide" : "Show"} Environment</MenuItem>
           <MenuItem
             title="also show low-level system events (mode changes, effects, barriers…) inline in the timeline"
             onClick={toggleSys}
@@ -892,6 +930,14 @@ export function SessionView({ sid }: { sid: string }) {
                     <b>{terminalNotice.title}</b>
                     <span>{terminalNotice.body}</span>
                   </div>
+                  {/* TH-14: the goal's ending rides HERE — the same row, as a meta
+                      tail — instead of as a second pinned bar underneath. */}
+                  {goalAlertMeta && (
+                    <span className="terminal-alert-meta" title={goalAlertMeta.goal}>
+                      <span className="tam-label">{goalAlertMeta.label}</span>
+                      {goalAlertMeta.elapsedMs !== undefined && <span>{formatElapsed(goalAlertMeta.elapsedMs)}</span>}
+                    </span>
+                  )}
                   <button type="button" className="terminal-alert-action" onClick={runTerminalAction}>
                     {terminalNotice.action === "resume" && <ArrowClockwise size={14} />}
                     {terminalNotice.actionLabel}
@@ -971,6 +1017,15 @@ export function SessionView({ sid }: { sid: string }) {
             approvals={openApprovals.length}
             sessionIdle={!running}
             recovery={needsRecovery}
+            // TH-14 · the chrome above the composer already carries this goal's
+            // outcome (banner or terminal-alert tail) — the rail must not spend
+            // a three-line block saying "Cancelled · 00:34 · 0 checks" a second
+            // time. It collapses to one line.
+            goalEchoed={goalLive && goalTerminal}
+            // TH-15 · the rail's Changes row used to open the diff by synthesising
+            // a click on the topbar's Changes pill. That pill is gone, so the row
+            // drives the view directly — which is what it should always have done.
+            onOpenChanges={() => setView("diff")}
             onGoalEdit={(text) => { setGoalEditSrc("panel"); setGoalEdit(text); }}
             onGoalSave={saveGoalEdit}
             onGoalDiscard={() => setGoalEdit(null)}

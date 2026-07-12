@@ -1,0 +1,186 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+
+// INC-41 TH-14 / TH-15 — the chrome around a settled task.
+//
+// TH-14: one ending, said once. A step-limited session with a cancelled goal
+// used to pin TWO banners over the composer (`terminal-alert` + `gbar`, 93px)
+// and then say it a third time in the right rail's GOAL block — while the
+// thread itself was squeezed to 630px of a 900px window. Codex pins nothing at
+// all; we keep the one banner that carries the action, and the goal's outcome
+// rides inside it.
+//
+// TH-15: one rail, one name, one door. The topbar carried `Changes` AND
+// `Supervision`; the panel `Supervision` opened was titled `Environment`, whose
+// first row was `Changes`. Three names, two doors, one object.
+
+const { arMock } = vi.hoisted(() => ({ arMock: {} as Record<string, (...args: any[]) => any> }));
+vi.mock("../api", async () => ({
+  ...(await vi.importActual<typeof import("../api")>("../api")),
+  AR: new Proxy(
+    {},
+    {
+      get: (_target, prop: string) => (...args: any[]) =>
+        arMock[prop] ? arMock[prop](...args) : new Promise(() => {}),
+    },
+  ),
+  uploadURL: (path: string) => path,
+  diffPath: () => "",
+}));
+
+import { SessionView } from "./SessionView";
+import { useStore } from "../store";
+
+const SID = "20260711-011831-what-is-the-project-297d";
+const GOAL = "TH-3 live check: verify the Environment rail renders a Goal section";
+// goal_attached → goal_cancelled spans 34s, so the banner's elapsed reads 00:34.
+const EVENTS = [
+  { seq: 1, type: "goal_attached", ts: "2026-07-11T01:18:31.000Z", payload: { goal: GOAL } },
+  { seq: 2, type: "input_received", ts: "2026-07-11T01:18:32.000Z", payload: { source: "cli", text: "what is the project" } },
+  { seq: 3, type: "assistant_message", ts: "2026-07-11T01:18:40.000Z", payload: { text: "AgentRunner." } },
+  { seq: 4, type: "goal_cancelled", ts: "2026-07-11T01:19:05.000Z", payload: {} },
+];
+
+class FakeEventSource {
+  onmessage: ((e: MessageEvent) => void) | null = null;
+  onerror: (() => void) | null = null;
+  close = vi.fn();
+  addEventListener = vi.fn();
+}
+
+// A settled, step-limited session that carried a goal — the exact shape TH-14
+// is about (live session `20260711-011831-…` on 8809).
+beforeEach(() => {
+  for (const key of Object.keys(arMock)) delete arMock[key];
+  (globalThis as any).EventSource = FakeEventSource;
+  // jsdom ships none of these; the thread mounts a full TimelineView here (this
+  // is the whole session view, not a slice), which observes and scrolls.
+  (globalThis as any).ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+  (window.HTMLElement.prototype as any).scrollIntoView = () => {};
+  (window as any).matchMedia = () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} });
+  (window as any).innerWidth = 1400;
+  localStorage.clear();
+  arMock.events = async (_sid: string, after: number) => (after ? [] : EVENTS);
+  arMock.rawEvents = async () => EVENTS;
+  arMock.inspect = async () => ({ goal: null, children: [], progress: [], artifacts: [] });
+  arMock.ps = async () => [];
+  arMock.queue = async () => [];
+  arMock.diff = async () => ({
+    workspace: "/tmp/wt-th14",
+    known: true,
+    isRepo: true,
+    nested: false,
+    diff: "diff --git a/x.ts b/x.ts\n--- a/x.ts\n+++ b/x.ts\n@@ -1 +1 @@\n-old\n+new\n",
+    untracked: [],
+  });
+  arMock.gitBranches = async () => ({ isRepo: true, current: "main" });
+  useStore.setState({
+    health: null,
+    sessionsReady: true,
+    currentSid: SID,
+    sessions: [{ id: SID, title: "what is the project", status: "max_generation_steps", workspace: "/tmp/wt-th14" } as any],
+  });
+});
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
+
+describe("TH-14 · one terminal banner above the composer", () => {
+  it("folds the goal's outcome into the terminal alert instead of stacking a second bar", async () => {
+    const { container } = render(<SessionView sid={SID} />);
+
+    await waitFor(() => expect(container.querySelector(".terminal-alert")).not.toBeNull());
+    // The step-limit alert is the ONE piece of pinned chrome: it carries the
+    // action ("Continue in new task"), so it is the one that survives.
+    expect(screen.getByText("Step limit reached")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /continue in new task/i })).toBeTruthy();
+
+    // …and the goal banner that used to sit under it is gone — its label and
+    // elapsed now ride in the alert's meta tail, on the same row.
+    expect(container.querySelector(".gbar")).toBeNull();
+    expect(container.querySelectorAll(".terminal-alert, .gbar").length).toBe(1);
+
+    const meta = container.querySelector(".terminal-alert-meta")!;
+    expect(meta).not.toBeNull();
+    expect(meta.textContent).toContain("Goal cancelled");
+    expect(meta.textContent).toContain("00:34");
+    // The goal text has no room on the row, so it stays one hover away.
+    expect(meta.getAttribute("title")).toBe(GOAL);
+    // The tail belongs to the alert — not to a sibling banner.
+    expect(meta.closest(".terminal-alert")).not.toBeNull();
+  });
+
+  it("collapses the rail's settled-goal block to one line (the banner already said it)", async () => {
+    const { container } = render(<SessionView sid={SID} />);
+
+    await waitFor(() => expect(container.querySelector(".goal-settled-line")).not.toBeNull());
+    const line = container.querySelector(".goal-settled-line")!;
+    // The phase + the goal itself — the one thing the banner had no room for.
+    expect(line.textContent).toContain("Cancelled");
+    expect(line.textContent).toContain(GOAL);
+    // Not the elapsed / check count a third time, and not a titled Goal block.
+    expect(line.textContent).not.toContain("00:34");
+    expect(container.querySelector(".goal-meta-settled")).toBeNull();
+    expect(container.querySelector(".supervision-panel .goal-actions")).toBeNull();
+  });
+
+  it("still gives the goal its own banner when there is no terminal alert to ride on", async () => {
+    // Same events, but a session that ended normally: no terminal alert exists,
+    // so the goal's ending must not vanish with it.
+    useStore.setState({
+      sessions: [{ id: SID, title: "what is the project", status: "completed", workspace: "/tmp/wt-th14" } as any],
+    });
+    const { container } = render(<SessionView sid={SID} />);
+
+    await waitFor(() => expect(container.querySelector(".gbar")).not.toBeNull());
+    expect(container.querySelector(".terminal-alert")).toBeNull();
+    expect(screen.getByText("Goal cancelled")).toBeTruthy();
+  });
+});
+
+describe("TH-15 · one rail, one name, one door", () => {
+  it("leaves exactly one tool pill in the topbar, named Environment", async () => {
+    const { container } = render(<SessionView sid={SID} />);
+
+    await waitFor(() => expect(container.querySelector(".task-topbar")).not.toBeNull());
+    const tools = [...container.querySelectorAll(".task-topbar .topbar-tool")].map((b) => b.textContent!.trim());
+    expect(tools).toEqual(["Environment"]);
+    // The word the pill used to say — and the second door it used to sit next to.
+    expect(tools).not.toContain("Supervision");
+    expect(tools).not.toContain("Changes");
+  });
+
+  it("opens the rail on Environment, whose first row is Changes — and that row opens the diff", async () => {
+    const { container } = render(<SessionView sid={SID} />);
+
+    // The rail is open on a wide viewport; its accessible name matches the pill.
+    await waitFor(() => expect(container.querySelector("aside.supervision-panel")).not.toBeNull());
+    expect(container.querySelector("aside.supervision-panel")!.getAttribute("aria-label")).toBe("Environment");
+    await waitFor(() => expect(container.querySelector(".supervision-env")).not.toBeNull());
+    const rows = [...container.querySelectorAll(".supervision-env .env-row-label")].map((e) => e.textContent);
+    expect(rows[0]).toBe("Changes");
+
+    // TH-15 · this row used to open the diff by synthesising a click on the
+    // topbar pill we just deleted. It drives the view directly now.
+    fireEvent.click(container.querySelector(".supervision-env .env-row")!);
+    await waitFor(() => expect(container.querySelector(".changes-panel")).not.toBeNull());
+  });
+
+  it("keeps Changes reachable from the ··· menu", async () => {
+    const { container } = render(<SessionView sid={SID} />);
+
+    await waitFor(() => expect(container.querySelector(".task-topbar")).not.toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: /more task actions/i }));
+    // Scoped to the menu: `Changes` is also the rail's first row (the primary
+    // door) — that's the point of TH-15, so both must exist and neither is the
+    // deleted topbar pill.
+    fireEvent.click(screen.getByRole("menuitem", { name: "Changes" }));
+    await waitFor(() => expect(container.querySelector(".changes-panel")).not.toBeNull());
+  });
+});

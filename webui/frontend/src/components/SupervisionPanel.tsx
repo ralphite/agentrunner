@@ -161,6 +161,8 @@ export function SupervisionPanel({
   approvals,
   sessionIdle,
   recovery,
+  goalEchoed = false,
+  onOpenChanges,
   onGoalEdit,
   onGoalSave,
   onGoalDiscard,
@@ -183,6 +185,13 @@ export function SupervisionPanel({
   // in that state is worth the user's attention (W35).
   sessionIdle: boolean;
   recovery: boolean;
+  // TH-14 · the chrome above the composer is already showing this settled goal's
+  // outcome. The GOAL section then states the fact once, on one line, instead of
+  // repeating the elapsed + check count the banner just gave.
+  goalEchoed?: boolean;
+  // TH-15 · open the Changes view. Owned by SessionView (the `view` state lives
+  // there); the rail's Changes row is now the primary door to the diff.
+  onOpenChanges?: () => void;
   onGoalEdit: (value: string) => void;
   onGoalSave: () => void;
   onGoalDiscard: () => void;
@@ -208,7 +217,10 @@ export function SupervisionPanel({
   const hasGoal = !!goal || !!settledGoal;
   const resting = !loading && !hasGoal && children.length === 0 && attention.length === 0;
   return (
-    <aside className="supervision-panel session-side" aria-label="Supervision">
+    // TH-15 · the rail is named `Environment` — in the topbar pill that opens it,
+    // in its first section's label, and here in its accessible name. It used to
+    // answer to "Supervision" from the outside and "Environment" from the inside.
+    <aside className="supervision-panel session-side" aria-label="Environment">
       {/* INC-41 DF-D4 · the `Supervision` title bar is gone. It was a 40px strip
           whose icon+label were a word-for-word second copy of the topbar pill
           that *opens this very panel* — the pill sat 54px above it, always on
@@ -226,14 +238,14 @@ export function SupervisionPanel({
         <button
           className="supervision-close"
           onClick={onClose}
-          title="Hide supervision"
-          aria-label="Hide supervision"
+          title="Hide Environment"
+          aria-label="Hide Environment"
         >
           <X size={15} />
         </button>
       </div>
 
-      <EnvironmentSection />
+      <EnvironmentSection onOpenChanges={onOpenChanges} />
 
       {/* One indeterminate line while inspect is in flight — not three titled
           "Checking…" blocks that then collapse into nothing (TH-3): the panel
@@ -244,7 +256,23 @@ export function SupervisionPanel({
         </div>
       )}
 
-      {!loading && hasGoal && (
+      {/* TH-14 · a settled goal whose outcome is ALREADY on screen above the
+          composer gets one line here, not a titled 123px block that repeats the
+          banner's own "Cancelled · 00:34 · 0 checks" word for word. The goal text
+          is the thing the rail can add (the banner has no room for it), so that's
+          what the line carries, behind the phase chip. */}
+      {!loading && !goal && settledGoal && goalEchoed && (
+        <section className="supervision-section">
+          <div className="goal-settled-line" title={settledGoal.goal}>
+            <span className={"goal-outcome " + settledGoal.phase}>
+              {GOAL_PANEL_LABEL[settledGoal.phase] || "Ended"}
+            </span>
+            <span className="goal-settled-copy">{settledGoal.goal}</span>
+          </div>
+        </section>
+      )}
+
+      {!loading && hasGoal && !(!goal && settledGoal && goalEchoed) && (
       <section className="supervision-section">
         <div className="supervision-label">Goal</div>
         {goal ? (
@@ -434,7 +462,7 @@ export function workspaceName(path: string): string {
 // that and stays untouched), so we read the current session from the store and
 // fetch our own diff + branch. The section as a whole is still hidden for
 // non-repo / workspace-less sessions, where git means nothing.
-function EnvironmentSection() {
+function EnvironmentSection({ onOpenChanges }: { onOpenChanges?: () => void }) {
   const sid = useStore((s) => s.currentSid);
   const openPrompt = useStore((s) => s.openPrompt);
   const toast = useStore((s) => s.toast);
@@ -487,14 +515,11 @@ function EnvironmentSection() {
 
   useEffect(() => load(), [load]);
 
-  // Jump to the Changes view by driving the topbar's Changes button — the view
-  // toggle is SessionView-local state with no prop or store hook exposed to us,
-  // and this panel only ever renders inside the chat view. A no-op if absent.
-  const goToChanges = () => {
-    document
-      .querySelector<HTMLButtonElement>('.task-topbar button[title="Review workspace changes"]')
-      ?.click();
-  };
+  // TH-15 · Jump to the Changes view. This used to synthesise a click on the
+  // topbar's `Changes` pill — a DOM-reaching hack that survived only because
+  // that pill existed. It doesn't any more (this row IS the door to the diff),
+  // so the view toggle arrives honestly, as a callback from SessionView.
+  const goToChanges = () => onOpenChanges?.();
 
   // Same review→commit(→push) flow DiffView offers (seeded from the Settings
   // template). `thenPush` chains a push only after a successful commit.

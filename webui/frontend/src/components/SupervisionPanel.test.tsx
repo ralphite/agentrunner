@@ -100,15 +100,16 @@ describe("TH-3 · resting Supervision panel", () => {
 // same screen; RV-1 had already deleted the Changes rail's twin of it. Gone, and
 // its ✕ with it — the close affordance now floats on the panel's first row.
 describe("DF-D4 · no title bar that repeats the topbar pill", () => {
-  it("renders no .supervision-head, and no second 'Supervision' label", () => {
+  it("renders no .supervision-head, and no visible rail heading", () => {
     const { container } = renderPanel();
 
     expect(container.querySelector(".supervision-head")).toBeNull();
-    // The only "Supervision" left in the panel is the aria-label on <aside>
-    // (the accessible name of the region), not a visible heading.
+    // TH-15 · the rail answers to ONE name, inside and out: the topbar pill, the
+    // first section's label and the region's accessible name all say Environment.
+    // "Supervision" is not a word the user ever sees.
     expect(screen.queryByText("Supervision")).toBeNull();
     expect(container.querySelector("aside.supervision-panel")!.getAttribute("aria-label")).toBe(
-      "Supervision",
+      "Environment",
     );
   });
 
@@ -122,7 +123,7 @@ describe("DF-D4 · no title bar that repeats the topbar pill", () => {
     expect(slot).toBeTruthy();
     expect(slot).toBe(container.querySelector("aside.supervision-panel")!.firstElementChild);
 
-    fireEvent.click(screen.getByRole("button", { name: /hide supervision/i }));
+    fireEvent.click(screen.getByRole("button", { name: /hide environment/i }));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
