@@ -301,6 +301,7 @@
 
 .scheduled-page .sched-tab {
   padding: 5px 10px;
+  border-radius: 8px;
   color: var(--dim);
   font-size: 13px;
   font-weight: 500;
@@ -310,8 +311,14 @@
   color: var(--ink-2);
 }
 
+/* SC-15 — RS-3 took the selected tab's border + fill + shadow off together;
+   the reference crop (qa/codex-reference/codex-crop-scheduled-list.jpg) shows
+   Codex does carry a soft grey pill under the selected tab — it just carries
+   no border and no shadow. Put the fill back and only the fill: an ink-mix, so
+   it lands as a light grey on light and a lifted grey on dark. */
 .scheduled-page .sched-tab.on {
-  background: transparent;
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+  border: 0;
   box-shadow: none;
   color: var(--ink);
   font-weight: 600;

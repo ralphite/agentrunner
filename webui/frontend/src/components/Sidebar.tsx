@@ -386,9 +386,14 @@ export function Sidebar({ onNavigate, onOpenPalette, onOpenSettings }: {
                   }}
                 >
                   {/* SB-4 · the caret is the affordance: the heading is a
-                      collapse control, and Codex's group rows say so. */}
+                      collapse control, and Codex's group rows say so.
+                      SB-6 · caret and folder share one absolutely-positioned
+                      slot in the left gutter (see styles.nav.css) so the group
+                      name's text lands on the same column as the task titles
+                      nested under it; the folder rests there and the caret
+                      takes the slot on hover/focus. */}
                   <CaretRight className={`proj-caret${!folded ? " open" : ""}`} size={11} weight="bold" aria-hidden="true" />
-                  {!folded ? <FolderOpen size={16} /> : <Folder size={16} />}
+                  {!folded ? <FolderOpen className="proj-folder" size={16} /> : <Folder className="proj-folder" size={16} />}
                   <span>{name}</span>
                   {project.hint && <span className="project-hint">{project.hint}</span>}
                 </button>

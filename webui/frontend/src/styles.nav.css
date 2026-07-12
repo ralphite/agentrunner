@@ -571,6 +571,71 @@
 .sidebar .project-heading:hover .proj-caret {
   color: var(--ink-2);
 }
+
+/* ===== SB-6 · Projects tree: put the group name back on top ==============
+   The caret (11px) + folder (16px) + two 7px gaps all sat in the heading's
+   flow, so the group name's text started at x=57 while the task titles nested
+   *under* it started at x=34 — the child was 23px to the LEFT of its parent
+   and the tree read upside down. Codex hangs the folder glyph in the left
+   gutter and starts the project name on exactly the same column as its tasks.
+
+   Same here: caret and folder are lifted out of the flow into one shared
+   26px gutter (heading box starts at x=8, so the gutter ends on the 34px
+   column the titles use), and the heading gets a padding-left that lands its
+   text on that column. The folder rests in the slot; the caret takes it over
+   on hover/focus (the gutter only fits one glyph — which is why Codex shows
+   no caret at rest either). The heading also gets one notch more weight and
+   ink than the rows below it, so the group name is the anchor of the group
+   rather than a peer of its children. */
+.sidebar .project-heading {
+  position: relative;
+  padding-left: 26px;
+  color: var(--ink);
+  font-weight: 600;
+}
+.sidebar .project-heading .proj-caret,
+.sidebar .project-heading .proj-folder {
+  position: absolute;
+  top: 50%;
+  transition: opacity 0.14s ease, transform 0.18s ease, color 0.14s ease;
+}
+.sidebar .project-heading .proj-folder {
+  left: 5px; /* (26 - 16) / 2 */
+  transform: translateY(-50%);
+  color: var(--dim);
+}
+.sidebar .project-heading .proj-caret {
+  left: 7px; /* (26 - 11) / 2, rounded to the pixel grid */
+  transform: translateY(-50%);
+  opacity: 0;
+}
+.sidebar .project-heading .proj-caret.open {
+  transform: translateY(-50%) rotate(90deg);
+}
+.sidebar .project-heading:hover .proj-folder,
+.sidebar .project-heading:focus-visible .proj-folder {
+  opacity: 0;
+}
+.sidebar .project-heading:hover .proj-caret,
+.sidebar .project-heading:focus-visible .proj-caret {
+  opacity: 1;
+  color: var(--ink-2);
+}
+/* No hover on touch: the folder (open/closed) keeps carrying the fold state. */
+@media (hover: none) {
+  .sidebar .project-heading .proj-folder {
+    opacity: 1;
+  }
+  .sidebar .project-heading .proj-caret {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar .project-heading .proj-caret,
+  .sidebar .project-heading .proj-folder {
+    transition: none;
+  }
+}
 /* The section-level row governs *projects*, not tasks, so it hangs at the
    heading's left edge instead of the nested-task indent the per-group
    Show-more uses. */
