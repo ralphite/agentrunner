@@ -2100,3 +2100,41 @@ standalone PWA 等**能**投递 ⌘N 的壳里白拿 Codex 原键。在 input/te
   **开放 ☐ 剩**:SC-5(Suggestions cadence prefill,跨 store/Modals)、SC-9(`#/scheduled` 深链)、
   TH-5(变更卡文件行不可点 → 需 diff 面板暴露 `scrollToFile(path)` 锚点)。
 
+
+## U 组 · 轮22 Codex 金标 Diff/review 分栏并排新发现(2026-07-12)
+
+finder 截 live 8809(`index-DZa2Gr9X.js`)Changes 分栏,对 `codex-diff-review.jpg` +
+`codex-crop-diff-{header,rendering}.jpg` 逐项比对。**登记一律 ☐;✅ 只在 merge 进 main 且
+复验通过后由收轮改写**(轮16 教训)。
+
+结论:大结构已接近金标(满高 flush 右栏 56%、逐文件头 `A path +N −M`、sticky toolbar、
+语法高亮、`N unmodified lines` 折叠条、add/del 边条都在)。剩余差距集中在**溢出与默认展开策略**。
+
+- ☐ **DF-1(P0,功能被打断)diffbar 溢出,✕ 关闭键被推出面板**:1440×900 + worktree 会话 +
+  多文件(= 我们最常见的真实会话)实测 `.diffbar` scrollWidth 692 > clientWidth 658;关闭按钮
+  `right=1475` > 面板右界 1440 → **不可见,关不掉 Changes 分栏**;`.diff-viewtoggle` 被压成 **2px**
+  (切不了 split);`.diff-filter` 压成 31px(输不了字)。`flex-wrap:nowrap` 把换行换成了静默裁切。
+  金标 `codex-crop-diff-header.jpg` 一行装下全部控件且搜索是**图标**而非常驻 input。
+  动作:`.diffbar` `min-width:0` + 关闭/切换/Commit `flex:0 0 auto` + 只让 worktree 徽章与过滤可压缩
+  (或把过滤收进 `…` Popover,常驻控件 6→4)。touches:`DiffView.tsx`、`styles.css`(.diffbar 区)。
+- ☐ **DF-2(P0,一眼可见)构建产物默认展开,把 review 淹掉**:`D dist/assets/index-*.js +0 −176`
+  **默认全展开**吐 176 行 minified React(单行 scrollWidth 1.9M px),真正要看的 `dist/index.html +2 −2`
+  被埋在 4008px 之下。根因 `diffSummary.ts:463-468` `shouldExpandFileByDefault` **只看行数不看行宽/
+  是否生成物**(176 < 阈值 → 展开;而 1284 行的 `package-lock.json` 反被正确折叠 → 口径不一致,
+  越"宽而短"的产物越炸屏)。金标右栏是可走读的源码流。动作:加 `isGeneratedPath()` + 最长行 >500 字符
+  判 minified → 默认折叠。touches:`diffSummary.ts` + 其 test。
+- ☐ **DF-3(P1)untracked 新文件是二等公民,两套视觉语言**:`new files (untracked) · 2` 是纯文本条
+  (`DiffView.tsx:607-621`),下面两行裸路径——无 `A` 字形、无 `+N −0`、无行号、不可展开看内容,
+  却排在所有真实文件之上。金标里新增文件与其它文件同款文件头。后端 `AR.blob(sid,path)` 已有
+  (`DiffView.tsx:733` 已在用),**不需新后端**。动作:改成同款 `<details class="filediff">`。
+- ☐ **DF-4(P1)长行被硬裁,每文件一条横滚条,无 Wrap 开关**:`.dl-text{white-space:pre}`
+  (`styles.css:1586`)+ `.fd-body{overflow-x:auto}` → `"description": "A rich Todo Applicati…` 在右缘切断。
+  讽刺的是**对话里的 markdown 代码块自己有 `↔ Wrap` 开关**,diff 里反而没有(同产品两套长行策略)。
+  金标右栏通篇无横滚条、无半个词被切。动作:diffbar 加 wrap 开关 → `:root[data-diff-wrap] .dl-text
+  {white-space:pre-wrap;overflow-wrap:anywhere}`。
+- ☐ **DF-5(P2)`N unmodified lines` 折叠条没对齐代码栅格**:金标里 caret 装在占满行号沟槽宽的描边小格、
+  label 从代码列起始处开始(读作"代码流的一部分");我们是 `px-[10px]` 的 flex 行(`DiffView.tsx:808-819`),
+  与行号列/代码列都不对齐(读作外挂按钮)。动作:band 改 grid,首列复用 `.dl` 沟槽宽 `calc(5ch + 27px)`。
+- ☐ **DF-6(P2)toolbar 摘要吞掉为零的一半**:金标是 `+649 -57` 并列;我们 `totalDel > 0 &&`
+  (`DiffView.tsx:407-411`)只出 `+1406`,而**逐文件头**(`:651-654`)两个数字都渲染 → 同面板两套口径。
+  动作:去掉 `> 0` 守卫。
