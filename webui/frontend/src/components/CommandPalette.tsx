@@ -59,16 +59,22 @@ export function CommandPalette({ onClose }: { onClose: (restoreFocus?: boolean) 
     // search over every task, without badges.
     let sess: Item[];
     if (!ql) {
-      sess = quickSwitchTasks(sessions, { archived }).map((s, i) => ({
-        id: "s" + s.id,
-        label: displayTitle(renames, s.id, s.title),
-        hint: projectLabel(s.workspace),
-        group: sessionNeedsAttention(s.status) ? "Needs attention" : "Tasks",
-        quickNum: i + 1,
-        task: true,
-        attention: sessionNeedsAttention(s.status),
-        run: go(() => select(s.id)),
-      }));
+      sess = quickSwitchTasks(sessions, { archived }).map((s, i) => {
+        const attention = sessionNeedsAttention(s.status);
+        return {
+          id: "s" + s.id,
+          label: displayTitle(renames, s.id, s.title),
+          hint: projectLabel(s.workspace),
+          group: attention ? "Needs attention" : "Tasks",
+          // ⌘-digit badges ride only the primary Tasks group (Codex parity); the
+          // attention rows stay badge-less. The number still tracks the global
+          // cmd-digit binding's quickSwitchTasks index so a shown badge is honest.
+          quickNum: attention ? undefined : i + 1,
+          task: true,
+          attention,
+          run: go(() => select(s.id)),
+        };
+      });
     } else {
       sess = [...sessions]
         .sort((a, b) => b.id.localeCompare(a.id)) // newest first, same as the sidebar

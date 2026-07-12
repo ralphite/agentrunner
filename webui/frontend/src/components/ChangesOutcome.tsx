@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowCounterClockwise, ArrowSquareOut, CaretDown, CaretUp, DownloadSimple, FileCode, FilePdf, FileText, Files } from "@phosphor-icons/react";
+import { ArrowCounterClockwise, ArrowSquareOut, CaretDown, CaretUp, DownloadSimple, FilePdf, FileText, GitDiff } from "@phosphor-icons/react";
 import { AR } from "../api";
 import { useStore } from "../store";
 import { splitPath, summarizeChanges, type ChangesSummary, type FileDiffSummary } from "../diffSummary";
@@ -34,6 +34,62 @@ function docKind(path: string): { ext: string; label: string } | null {
   return label ? { ext, label } : null;
 }
 
+// One artifact row inside the shared bordered container. The two former
+// controls (Open in a new tab + Download) fold behind a single "Open in ⌄"
+// caret menu (Codex parity), so the row keeps a single trailing control.
+function ArtifactRow({ sid, file, ext, label, divider }: { sid: string; file: FileDiffSummary; ext: string; label: string; divider: boolean }) {
+  const [open, setOpen] = useState(false);
+  const { base } = splitPath(file.path);
+  const url = AR.fileURL(sid, file.path);
+  return (
+    <div className={"flex items-center gap-[10px] px-[10px] py-[8px]" + (divider ? " border-t border-line" : "")}>
+      <span className="grid place-items-center w-[32px] h-[32px] shrink-0 rounded-[8px] bg-panel-2 text-ink-2">{ext === "pdf" ? <FilePdf size={18} /> : <FileText size={18} />}</span>
+      <div className="flex flex-col gap-[1px] flex-1 min-w-0">
+        <span className="text-[13px] font-[550] text-ink overflow-hidden text-ellipsis whitespace-nowrap" title={file.path}>{base}</span>
+        <span className="text-[11px] text-dim">{label} · {ext.toUpperCase()}</span>
+      </div>
+      <div className="relative shrink-0">
+        <button
+          type="button"
+          className="inline-flex items-center gap-[6px] px-[11px] h-[30px] rounded-[8px] border border-line text-[13px] text-ink hover:bg-panel-2"
+          onClick={() => setOpen((o) => !o)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label={`Open ${base}`}
+        >
+          Open in <CaretDown size={13} />
+        </button>
+        {open && (
+          <>
+            <button type="button" className="fixed inset-0 z-[5] cursor-default" aria-hidden="true" tabIndex={-1} onClick={() => setOpen(false)} />
+            <div className="absolute right-0 top-[34px] z-10 flex flex-col min-w-[160px] py-[4px] rounded-[8px] border border-line bg-panel shadow-lg" role="menu">
+              <a
+                className="flex items-center gap-[8px] px-[10px] py-[6px] text-[13px] text-ink hover:bg-panel-2"
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                role="menuitem"
+                onClick={() => setOpen(false)}
+              >
+                <ArrowSquareOut size={14} /> New tab
+              </a>
+              <a
+                className="flex items-center gap-[8px] px-[10px] py-[6px] text-[13px] text-ink hover:bg-panel-2"
+                href={url}
+                download={base}
+                role="menuitem"
+                onClick={() => setOpen(false)}
+              >
+                <DownloadSimple size={14} /> Download
+              </a>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ArtifactChips({ sid, files }: { sid: string; files: FileDiffSummary[] }) {
   const [expanded, setExpanded] = useState(false);
   const docs: { file: FileDiffSummary; ext: string; label: string }[] = [];
@@ -45,43 +101,14 @@ function ArtifactChips({ sid, files }: { sid: string; files: FileDiffSummary[] }
   const shown = expanded ? docs : docs.slice(0, ARTIFACT_CAP);
   const hidden = docs.length - shown.length;
   return (
-    <div className="flex flex-col gap-[6px] mt-[12px] mb-[8px]" aria-label="Documents produced this turn">
-      {shown.map(({ file, ext, label }) => {
-        const { base } = splitPath(file.path);
-        const url = AR.fileURL(sid, file.path);
-        return (
-          <div className="flex items-center gap-[10px] px-[10px] py-[8px] border border-line rounded-[8px] bg-panel" key={file.path}>
-            <span className="grid place-items-center w-[32px] h-[32px] shrink-0 rounded-[8px] bg-panel-2 text-ink-2">{ext === "pdf" ? <FilePdf size={18} /> : <FileText size={18} />}</span>
-            <div className="flex flex-col gap-[1px] flex-1 min-w-0">
-              <span className="text-[13px] font-[550] text-ink overflow-hidden text-ellipsis whitespace-nowrap" title={file.path}>{base}</span>
-              <span className="text-[11px] text-dim">{label} · {ext.toUpperCase()}</span>
-            </div>
-            <a
-              className="inline-flex items-center gap-[6px] px-[11px] h-[30px] shrink-0 rounded-[8px] border border-line text-[13px] text-ink hover:bg-panel-2"
-              href={url}
-              target="_blank"
-              rel="noreferrer"
-              aria-label={`Open ${base}`}
-              title="Open in a new tab"
-            >
-              Open<ArrowSquareOut size={13} />
-            </a>
-            <a
-              className="grid place-items-center w-[30px] h-[30px] shrink-0 rounded-[8px] text-ink-2 hover:bg-panel-2 hover:text-ink"
-              href={url}
-              download={base}
-              aria-label={`Download ${base}`}
-              title="Download a copy"
-            >
-              <DownloadSimple size={16} />
-            </a>
-          </div>
-        );
-      })}
+    <div className="flex flex-col mt-[12px] mb-[8px] border border-line rounded-[8px] bg-panel overflow-hidden" aria-label="Documents produced this turn">
+      {shown.map(({ file, ext, label }, i) => (
+        <ArtifactRow key={file.path} sid={sid} file={file} ext={ext} label={label} divider={i > 0} />
+      ))}
       {hidden > 0 && (
         <button
           type="button"
-          className="inline-flex items-center justify-center gap-[5px] py-[6px] text-[12px] text-dim hover:text-ink"
+          className="inline-flex items-center justify-center gap-[5px] py-[8px] border-t border-line text-[12px] text-dim hover:text-ink"
           onClick={() => setExpanded(true)}
         >
           Show {hidden} more<CaretDown size={13} />
@@ -90,7 +117,7 @@ function ArtifactChips({ sid, files }: { sid: string; files: FileDiffSummary[] }
       {expanded && docs.length > ARTIFACT_CAP && (
         <button
           type="button"
-          className="inline-flex items-center justify-center gap-[5px] py-[6px] text-[12px] text-dim hover:text-ink"
+          className="inline-flex items-center justify-center gap-[5px] py-[8px] border-t border-line text-[12px] text-dim hover:text-ink"
           onClick={() => setExpanded(false)}
         >
           Show less<CaretUp size={13} />
@@ -152,15 +179,20 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
       <ArtifactChips sid={sid} files={summary.files} />
       <section className="changes-outcome" aria-label="Workspace changes">
         <header>
-          <span className="changes-outcome-icon"><Files size={18} /></span>
+          <span className="changes-outcome-icon"><GitDiff size={18} /></span>
           <div className="changes-outcome-title">
             <b>Edited {summary.files.length} file{summary.files.length === 1 ? "" : "s"}</b>
             <span>
-              {summary.totalAdd > 0 && <em className="add">+{summary.totalAdd}</em>}
-              {summary.totalDel > 0 && <em className="del">−{summary.totalDel}</em>}
+              <em className="add">+{summary.totalAdd}</em>
+              <em className="del">−{summary.totalDel}</em>
             </span>
           </div>
-          <button type="button" className="inline-flex items-center gap-[5px] text-red" onClick={undo} title="Discard all these changes (git checkout . + remove new files)">
+          <button
+            type="button"
+            className="inline-flex items-center gap-[5px] bg-transparent border-0 text-ink-2 hover:text-ink"
+            onClick={undo}
+            title="Discard all these changes (git checkout . + remove new files)"
+          >
             Undo <ArrowCounterClockwise size={13} />
           </button>
           <button type="button" onClick={onReview}>Review</button>
@@ -170,15 +202,14 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
             const { dir, base } = splitPath(file.path);
             return (
               <div key={file.path}>
-                <FileCode size={14} />
                 <span title={file.path}>
                   {dir && <span style={{ color: "var(--dim)" }}>{dir}</span>}
                   <b style={{ fontWeight: 600, color: "var(--ink)" }}>{base}</b>
                 </span>
                 {file.countsKnown && (
                   <small>
-                    {file.add > 0 && <em className="add">+{file.add}</em>}
-                    {file.del > 0 && <em className="del">−{file.del}</em>}
+                    <em className="add">+{file.add}</em>
+                    <em className="del">−{file.del}</em>
                   </small>
                 )}
                 {!file.countsKnown && <small className="dim">new</small>}
