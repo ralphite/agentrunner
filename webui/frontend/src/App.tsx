@@ -143,6 +143,14 @@ export function App() {
         e.preventDefault();
         setPalette(false);
         useStore.getState().showPage("home");
+        // …and land ready to type (INC-41 HM-1). A fresh mount focuses itself
+        // (Composer's home effect), but when we were ALREADY on home nothing
+        // remounts, so the caret would stay wherever it was. Focus the live node
+        // after React paints; querying the DOM (like Home's prefillComposer)
+        // keeps App from having to own a ref into the composer.
+        requestAnimationFrame(() => {
+          document.querySelector<HTMLTextAreaElement>(".home-empty-state .cx-home textarea")?.focus();
+        });
         return;
       }
       // ⌘B / Ctrl-B shows or hides the sidebar (Codex's Toggle sidebar).

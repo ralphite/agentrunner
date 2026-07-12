@@ -11,7 +11,6 @@ import {
   Eye,
   File,
   Folder,
-  GearSix,
   GitBranch,
   Lightning,
   ListChecks,
@@ -362,6 +361,20 @@ export function Composer(props: ComposerProps) {
     (props as Extract<ComposerProps, { variant: "home" }>).onProjectChange?.(ws.trim() ? projectLabel(ws) : null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ws, isSession]);
+
+  // Home lands ready to type (INC-41 HM-1). Codex opens New task with the caret
+  // already in the input; ours left document.activeElement === BODY, so a
+  // blind-typed "hello" fell on the floor. Focus on mount — but never rip focus
+  // out of an overlay that owns the window (command palette, settings, a modal)
+  // or out of a field someone is already typing in. Session composers keep the
+  // old behavior: opening a task focuses the transcript, not the input.
+  useEffect(() => {
+    if (isSession) return;
+    if (document.querySelector("[role='dialog']")) return;
+    const active = document.activeElement as HTMLElement | null;
+    if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) return;
+    taRef.current?.focus();
+  }, [isSession]);
 
   // Same-basename projects ("ws", "Scratch") get a short disambiguating
   // subtitle in the picker; uniquely-named ones stay clean (W4).
@@ -1016,9 +1029,16 @@ export function Composer(props: ComposerProps) {
         onDragLeave={onDragLeave}
         onDrop={onDrop}
       >
-        {/* Codex exposes project, run location, environment and branch as four
-            separate controls. They share submit state, but never share a menu:
-            each choice has one meaning and remains scannable before typing. The
+        {/* Codex exposes project, run location and branch as three separate
+            controls. They share submit state, but never share a menu: each
+            choice has one meaning and remains scannable before typing. A fourth
+            chip ("No environment") used to sit here (INC-41 HM-4): its popover
+            held exactly one hard-coded, already-active item, so clicking it
+            could only close itself — zero choices for the widest chip in the
+            row (145px at 1440, ~20% of the strip). Real environments need a
+            backend that doesn't exist; until it does, the chip is a lie that
+            costs project/branch their width, so it's gone. The chip row is the
+            top of ONE composer card (P2): the card owns the
             chip row is the top of ONE composer card (P2): the card owns the
             single outer border + shadow; the strip only draws a hairline divider
             down to the input, so there's no double-rounded seam. */}
@@ -1116,24 +1136,6 @@ export function Composer(props: ComposerProps) {
                     setRunLocation("worktree"); close();
                   }} />
                   <PopItem icon={<Desktop size={15} />} title="Local" desc="Work directly in the selected project" active={runLocation === "local"} onClick={() => { setRunLocation("local"); close(); }} />
-                </PopSection>
-              </div>
-            )}
-          </Popover>
-
-          <Popover
-            align="left"
-            trigger={(open, toggle) => (
-              <button className={"cx-env-control" + (open ? " active" : "")} onClick={toggle} title="Select local environment" aria-haspopup="menu" aria-expanded={open}>
-                <GearSix size={17} />
-                <span className="cx-env-value min-w-0 overflow-hidden text-ellipsis">No environment</span>
-              </button>
-            )}
-          >
-            {(close) => (
-              <div className="cx-menu environment-menu">
-                <PopSection label="Local environment">
-                  <PopItem icon={<GearSix size={15} />} title="No environment" desc="Use AgentRunner's current local runtime" active onClick={close} />
                 </PopSection>
               </div>
             )}
