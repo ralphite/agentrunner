@@ -193,6 +193,76 @@ html body {
   grid-column: 1 / -1;
 }
 
+/* ============================================================================
+ * P2 · single inline line-number column + status glyph + change gutter
+ * ==========================================================================*/
+
+/* Inline diff rows carry ONE line-number column (oldNo on deletions, newNo on
+ * add/context rows) — the side-by-side `.dls` grid keeps its own two columns.
+ * `position: relative` anchors the change-gutter marker below. */
+.diffwrap .dl {
+  grid-template-columns: 3.2em 1fr;
+  position: relative;
+}
+
+/* Change-channel gutter: a solid green bar for adds and a red hatched stripe
+ * for dels, painted as an absolutely-positioned marker (not a background) so
+ * the add/del channel survives independent of any tint — even in color-only
+ * mode or when the row background is softened. */
+.diffwrap .dls-half.add,
+.diffwrap .dls-half.del {
+  position: relative;
+}
+.diffwrap .dl.add::before,
+.diffwrap .dl.del::before,
+.diffwrap .dls-half.add::before,
+.diffwrap .dls-half.del::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  pointer-events: none;
+}
+.diffwrap .dl.add::before,
+.diffwrap .dls-half.add::before {
+  background: var(--green);
+}
+.diffwrap .dl.del::before,
+.diffwrap .dls-half.del::before {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--red) 0,
+    var(--red) 2px,
+    transparent 2px,
+    transparent 4px
+  );
+}
+
+/* Compact leading M/A/D/R/C status glyph in the file header (Codex's "M↓"). */
+.fd-glyph {
+  flex-shrink: 0;
+  width: 1.2em;
+  text-align: center;
+  font-weight: 700;
+  font-size: 11px;
+  line-height: 1;
+  font-family: var(--mono);
+  color: var(--dim);
+}
+.fd-glyph-modified,
+.fd-glyph-renamed,
+.fd-glyph-copied {
+  color: var(--rs-accent);
+}
+.fd-glyph-added {
+  color: var(--green);
+}
+.fd-glyph-deleted {
+  color: var(--red);
+}
+
 /* ---- shared panel scaffolding ---- */
 .rs-panel {
   max-width: 660px;

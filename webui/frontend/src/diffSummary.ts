@@ -24,11 +24,17 @@ export interface DiffRow {
   text: string;
 }
 
+// The file's overall change status, distilled to a single Codex-style glyph
+// (M/A/D/R/C). Absent any git status metadata a touched file is "modified".
+export type FileStatus = "modified" | "added" | "deleted" | "renamed" | "copied";
+
 export interface ParsedFileDiff {
   // header badges distilled from git's metadata lines ("new file",
   // "deleted", "renamed", "binary", "mode changed") — the raw meta lines
   // themselves never render (Codex hides them too).
   badges: string[];
+  // leading status for the compact M/A/D/R glyph in the file header.
+  status: FileStatus;
   rows: DiffRow[];
 }
 
@@ -63,7 +69,18 @@ export function parseFileDiff(lines: string[]): ParsedFileDiff {
     if (line.startsWith("\\")) { rows.push({ kind: "ctx", text: line }); continue; }
     rows.push({ kind: "ctx", oldNo: oldNo++, newNo: newNo++, text: line.startsWith(" ") ? line.slice(1) : line });
   }
-  return { badges, rows };
+  // Default to "modified": a plain content edit carries no new/deleted/renamed
+  // metadata line, and Codex still stamps such files with an "M" glyph.
+  const status: FileStatus = badges.includes("new file")
+    ? "added"
+    : badges.includes("deleted")
+      ? "deleted"
+      : badges.includes("renamed")
+        ? "renamed"
+        : badges.includes("copied")
+          ? "copied"
+          : "modified";
+  return { badges, status, rows };
 }
 
 // splitPath separates the directory (rendered dim) from the basename
@@ -352,5 +369,11 @@ export function summarizeChanges(data: DiffResp): ChangesSummary {
 export function shouldExpandDiffByDefault(diff: string): boolean {
   const files = splitDiff(diff || "");
   const changedLines = files.reduce((total, file) => total + file.add + file.del, 0);
-  return files.length <= 10 && changedLines <= 500;
+  const largestFile = files.reduce((max, file) => Math.max(max, file.add + file.del), 0);
+  // Expand normal reviews by default — even many files or a large overall
+  // total — so "Open Changes" shows CODE, not bare file headers. Only collapse
+  // genuinely huge payloads: a single file with hundreds of changed lines
+  // (rendering it inline would jank the first paint) or an enormous overall
+  // total. The "Collapse all" / "Expand all" control still overrides either way.
+  return largestFile <= 500 && changedLines <= 5000;
 }

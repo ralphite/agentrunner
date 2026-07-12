@@ -14,7 +14,7 @@ import { AR } from "../api";
 import { useStore } from "../store";
 import { loadGitPrefs } from "../theme";
 import type { DiffResp, DiffScope } from "../types";
-import { parseFileDiff, shouldExpandDiffByDefault, splitDiff, splitPath, splitRows, highlightLine, langFromPath, type DiffRow } from "../diffSummary";
+import { parseFileDiff, shouldExpandDiffByDefault, splitDiff, splitPath, splitRows, highlightLine, langFromPath, type DiffRow, type FileStatus } from "../diffSummary";
 import { Popover, PopItem, PopSection } from "./Popover";
 
 // renderCode turns one diff line into syntax-highlighted spans (INC-41 D3).
@@ -28,6 +28,15 @@ function renderCode(text: string, lang: string) {
     </span>
   ));
 }
+
+// Compact Codex-style status glyph shown before the path in a file header.
+const STATUS_GLYPH: Record<FileStatus, string> = {
+  modified: "M",
+  added: "A",
+  deleted: "D",
+  renamed: "R",
+  copied: "C",
+};
 
 const rowSign = (r?: DiffRow) => (!r ? "" : r.kind === "add" ? "+" : r.kind === "del" ? "−" : " ");
 const halfKind = (r: DiffRow | undefined, side: "left" | "right") =>
@@ -465,7 +474,6 @@ export function DiffView({ sid }: { sid: string }) {
             {untracked.map((f) => (
               <div className="dl add" key={f}>
                 <span className="dl-no" />
-                <span className="dl-no" />
                 <span className="dl-text"><span className="dl-sign">+</span>{f}</span>
               </div>
             ))}
@@ -483,6 +491,9 @@ export function DiffView({ sid }: { sid: string }) {
         return (
           <details className="filediff" key={f.path + ":" + foldEpoch} open={allOpen}>
             <summary className="fd-head mono">
+              <span className={"fd-glyph fd-glyph-" + parsed.status} title={parsed.status} aria-hidden="true">
+                {STATUS_GLYPH[parsed.status]}
+              </span>
               <span className="fd-path" title={f.path}>
                 {dir && <span className="fd-dir">{dir}</span>}
                 {base}
@@ -531,8 +542,7 @@ export function DiffView({ sid }: { sid: string }) {
                     ) : null
                   ) : (
                     <div className={"dl " + (r.kind === "ctx" ? "" : r.kind)} key={i}>
-                      <span className="dl-no">{r.oldNo ?? ""}</span>
-                      <span className="dl-no">{r.newNo ?? ""}</span>
+                      <span className="dl-no">{(r.kind === "del" ? r.oldNo : r.newNo) ?? ""}</span>
                       <span className="dl-text">
                         <span className="dl-sign">{rowSign(r)}</span>
                         {renderCode(r.text, lang)}
