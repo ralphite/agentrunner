@@ -1569,6 +1569,10 @@ label.field {
   font-size: 12.5px;
   font-weight: 500;
   white-space: nowrap;
+  /* INC-41 RVW-CLIP · never the shrink victim, wherever it is laid out: it names
+     the scope you are reviewing, and a clipped "Working tre" is a lie about the
+     panel's contents. The worktree chip above is the row's only valve. */
+  flex: 0 0 auto;
 }
 .diff-scope-trigger:hover,
 .diff-scope-trigger.active {

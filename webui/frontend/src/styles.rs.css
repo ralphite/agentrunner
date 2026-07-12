@@ -870,19 +870,28 @@ html body {
   flex: 0 0 auto;
   order: 1; /* last in the row whatever the source order ends up being */
 }
-/* …and the last-resort valve. Every other control on this bar is `flex: 0 0
-   auto` (styles.css), so if the row somehow still exceeds the panel — a huge
-   `+12,345 −6,789`, a long branch name, a future resident — the scope trigger is
-   the one thing allowed to give way, ellipsizing its label rather than letting
-   the row push its own exit off the edge. `:has()` because the flex item is the
-   Popover's wrapper, not the trigger inside it. */
+/* INC-41 RVW-CLIP · the scope trigger is NOT the valve — the worktree chip is
+   (styles.css DF-1: `.diff-wt-badge` is `0 1 auto; min-width: 0` and ellipsizes
+   its branch). This block used to say the opposite, electing the trigger as the
+   last-resort giver-of-way; because it was the only *other* shrinkable item on
+   the row, flexbox handed it a share of the deficit even while the chip still
+   had slack, and "Working tree" — a persisted preference (`ar.diff.scope`), so
+   permanently — rendered as "Working tre" with its caret clipped outside the
+   button (measured at 1440: clientWidth 76 vs scrollWidth 97, caret right 886 vs
+   button right 872.8, and `text-overflow: clip`, so not even an ellipsis).
+   A control whose whole job is to tell you *what you are looking at* must never
+   be the thing that gets truncated. So it is nailed to its content width and the
+   chip absorbs the shrink alone. `:has()` because the flex item on the bar is
+   the Popover's wrapper, not the trigger inside it. */
 .diffwrap .diffbar > .pop-wrap:has(> .diff-scope-trigger) {
-  flex: 0 1 auto;
-  min-width: 0;
+  flex: 0 0 auto;
+  min-width: auto;
 }
 .diffwrap .diffbar .diff-scope-trigger {
-  min-width: 0;
-  overflow: hidden;
+  flex: 0 0 auto;
+  min-width: auto;
+  overflow: visible;
+  white-space: nowrap;
 }
 
 /* Commit-or-push → outlined ghost (not solid primary): a leading commit glyph,
