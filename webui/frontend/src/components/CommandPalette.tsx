@@ -11,6 +11,8 @@ interface Item {
   hint?: string;
   group: string;
   quickNum?: number; // ⌘1..9 quick-switch badge on recent-task rows
+  task?: boolean; // task rows reserve a leading status-dot gutter (Codex parity)
+  attention?: boolean; // needs-looking-at rows show a blue leading dot
   run: () => void;
 }
 
@@ -63,6 +65,8 @@ export function CommandPalette({ onClose }: { onClose: (restoreFocus?: boolean) 
         hint: projectLabel(s.workspace),
         group: sessionNeedsAttention(s.status) ? "Needs attention" : "Tasks",
         quickNum: i + 1,
+        task: true,
+        attention: sessionNeedsAttention(s.status),
         run: go(() => select(s.id)),
       }));
     } else {
@@ -75,6 +79,8 @@ export function CommandPalette({ onClose }: { onClose: (restoreFocus?: boolean) 
           label: displayTitle(renames, s.id, s.title),
           hint: projectLabel(s.workspace),
           group: "Tasks",
+          task: true,
+          attention: sessionNeedsAttention(s.status),
           run: go(() => select(s.id)),
         }));
     }
@@ -88,7 +94,10 @@ export function CommandPalette({ onClose }: { onClose: (restoreFocus?: boolean) 
         group: "Scheduled",
         run: go(() => selectRun(r.id)),
       }));
-    return [...cmds, ...sess, ...rn];
+    // Empty query is the task-switcher: surface tasks before commands (Codex
+    // parity). While typing, commands stay on top so quick actions win the
+    // first Enter.
+    return ql ? [...cmds, ...sess, ...rn] : [...sess, ...cmds, ...rn];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, sessions, runs, archived, theme, renames]);
 
@@ -114,7 +123,7 @@ export function CommandPalette({ onClose }: { onClose: (restoreFocus?: boolean) 
         <input
           ref={inputRef}
           className="cmdk-input"
-          placeholder="Search sessions or run a command…"
+          placeholder="Search tasks or run a command"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           role="combobox"
@@ -138,6 +147,15 @@ export function CommandPalette({ onClose }: { onClose: (restoreFocus?: boolean) 
                   onMouseEnter={() => setIdx(i)}
                   onClick={() => it.run()}
                 >
+                  {it.task && (
+                    // Blue leading dot flags tasks that need looking at; other
+                    // task rows keep an equal-width gutter so labels stay aligned.
+                    <span
+                      className={"status-dot" + (it.attention ? " unread" : "")}
+                      style={it.attention ? undefined : { visibility: "hidden" }}
+                      aria-hidden="true"
+                    />
+                  )}
                   <span className="cmdk-label">{it.label}</span>
                   {it.hint && <span className="cmdk-hint">{it.hint}</span>}
                   {it.quickNum && it.quickNum <= 9 && (
