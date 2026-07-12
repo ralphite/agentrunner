@@ -1212,6 +1212,51 @@ flex 方向。**建议**:≤520 页头改 `flex-direction:column;align-items:fle
   ≈iOS caption2,可接受)。
 - **✂ 暗色模式 390** —— home/rich/appr/sched 暗色与亮色**逐像素同构**,无额外崩坏。
 
+## C 相 · 轮12 Codex 金标并排比对新发现(2026-07-11)
+
+**方法**:live 8809 逐屏 playwright 截图(home/rich/changes-split/scheduled/plugins/sites/prs ×
+light/dark × 1440)对 `qa/codex-reference/*.jpg` 真像素金标并排比对。截图存
+`qa/runs/2026-07-11-parity-r12/`。
+
+### CX-1 ☐ 会话右栏(Changes / Supervision)是「浮动卡片」,Codex 是满高 flush 分栏 [P1]
+**Codex 怎样**(`codex-diff-review.jpg`):右侧 diff 是一整列 **flush 贴到窗口右边缘、从 topbar 下沿
+直落到窗口底**的分栏,与左侧对话之间只有一条 1px 分隔线;diff 内容因此拿到整个右半屏的宽度。
+**我们怎样**(`qa/runs/2026-07-11-parity-r12/changes-split-light-1440.png`):`.changes-panel` 是一张
+**带外边距 + 圆角 + 阴影的浮动卡片**,四周都能看见页面背景;卡片下半部在文件少时**大片空白**,而 diff
+列被挤窄到长行被横向切断(`"resolved": "https://registry.npmjs.org/accepts/-/accepts-1.3.8` 直接截断)。
+**差在哪**:最重要那块屏(diff/review)上最显眼的布局差 —— 我们看起来像「弹出一个面板盖在页面上」,
+Codex 看起来像「这就是一个 review 工作台」。**为什么 Codex 更好**:review 时 diff 是主角,flush 分栏
+把像素全给 diff;浮动卡片白白吃掉 ~60px 边距 + 阴影,还暗示「这东西是临时的、会消失」。
+**关闭动作**:`.changes-panel` / Supervision 外壳去掉 margin/radius/shadow,改成 topbar 下满高列 +
+1px 左边框;宽度按 Codex 比例给到右半屏。**Supervision 面板同一外壳,一起改。**
+
+### CX-2 ☐ thread 里的折叠 turn 只写「Worked ›」,没有时长、没有步骤摘要,行间空隙巨大 [P1]
+**Codex 怎样**(`codex-task-thread.jpg`):每个 turn 的折叠头是 **`Worked for 1h 37m 40s ›`** —— 带
+**时长**,点开是完整步骤列表;turn 与 turn 之间靠 assistant markdown、artifact 卡、变更卡填满,thread
+是**密的**。
+**我们怎样**(`changes-split-light-1440.png` 左栏):todo-app 会话里连续 6 行 **`Worked ›`**(**完全没有
+时长**)与 `Approved` 药丸交替,每行之间 **~140px 空隙**,中间**什么内容都没有** —— thread 看起来像
+坏了 / 空的。富会话(`rich-light-1440.png`)倒是有 `Worked for 21s ›`,说明时长在**某些路径下丢失**。
+**差在哪**:同样是「折叠的 turn」,Codex 一眼能看出「这一轮干了 1 小时 37 分」,我们一眼看不出任何
+信息,且垂直空间浪费到 thread 显得空洞。
+**关闭动作**:`Timeline.tsx` 折叠头一律渲染时长(缺时长时从 turn 首尾事件时间戳算,再不济退回步骤数
+`N steps`);压缩 `Approved`/`Worked` 行之间的垂直节奏,让 thread 密起来。
+
+### ✂ 轮12 比对中主动排除的假阳性(**别派 implementer 去改**)
+- **✂ sidebar 缺 `Pinned` 分区** —— 查证 `Sidebar.tsx:276-279` + `store.ts:73` + `viewModels.ts:228`:
+  Pinned **已完整实现**(pin 按钮、右键菜单 Pin/Unpin、localStorage 持久化、置顶分区),只是当前
+  测试数据里**没有 pinned 任务**所以不渲染。**功能在,不是差距。**
+- **✂ diff 渲染质量** —— 展开后(`diff-expandall-light.png`)语法高亮、行号、+/- 底色、逐文件头
+  `A package-lock.json new file +1284` **全部到位**,与 `codex-crop-diff-rendering.jpg` 同构。
+  差的是**外壳布局**(见 CX-1),不是渲染。
+- **✂ Home 空态** —— `home-light-1440.png` vs `codex-new-task-home.jpg`:图标 + "What should we
+  build in {repo}?" + 4 张建议卡 + composer chips(project/worktree/environment/branch)+ 模型选择
+  **全部对齐**。本屏无实质差距。
+- **✂ Changes 面板头部动作** —— 我方 `Working tree ▾ / N files +X / 过滤 / unified|split / Expand
+  all / Commit ▾ / Refresh` 实际比 Codex 头部**更全**,不需要补。
+- **✂ Codex Environment 面板的 Background processes / Browser / Sources 三个分区** —— 属 Codex
+  **核心差异功能**(它托管浏览器与后台进程),按对齐规则「核心差异功能不强凑」,**不做**。
+
 ## 驱动循环台账(/parity-drive,每30min一轮,只追加)
 
 - 2026-07-11 轮1(循环启动):同步+部署 8809=index-CWvHKizj.js;收割 0(无存活
