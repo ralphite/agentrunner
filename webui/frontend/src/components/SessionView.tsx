@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Archive, ArrowClockwise, ArrowLeft, ChatCircle, CheckCircle, Code, Crosshair, DotsThree, FileText, Files, Flag, GitFork, LinkSimple, Pause, PencilSimple, Play, Prohibit, PushPin, Robot, SidebarSimple, Stop, Trash, UsersThree, WarningCircle, X, XCircle } from "@phosphor-icons/react";
+import { Archive, ArrowClockwise, ArrowLeft, ChatCircle, CheckCircle, Code, Crosshair, DotsThree, Files, Flag, GitFork, LinkSimple, Pause, PencilSimple, Play, Prohibit, PushPin, Robot, SidebarSimple, Stop, Trash, UsersThree, WarningCircle, X, XCircle } from "@phosphor-icons/react";
 import "../styles.panel.css";
 import { AR } from "../api";
 import { useStore } from "../store";
@@ -369,6 +369,13 @@ export function SessionView({ sid }: { sid: string }) {
   // re-shows and a page refresh reproduces it — no persistence).
   const goalState = useMemo(() => deriveGoalState(events), [events]);
   const goalTerminal = goalState ? isGoalTerminal(goalState.phase) : false;
+  // Fix 3 · a run that settled as "achieved" gets an inline verdict on the
+  // final assistant answer's action row. Reuses the same elapsed source that
+  // drives GoalBanner (formatElapsed over goalState.elapsedMs).
+  const goalVerdict =
+    !isSub && goalState && goalState.phase === "achieved" && goalState.elapsedMs !== undefined
+      ? { elapsed: formatElapsed(goalState.elapsedMs) }
+      : null;
   const [now, setNow] = useState(() => Date.now());
   const [goalDismissedAt, setGoalDismissedAt] = useState<number | null>(null);
   useEffect(() => {
@@ -622,7 +629,8 @@ export function SessionView({ sid }: { sid: string }) {
           </button>
         )}
         <div className="tt-left">
-          <FileText size={17} />
+          {/* N-parity: the task title is prose, no leading file icon (weight
+              change is styles.css = deferred). */}
           <div className="tt-title" title={`${sessions.find((s) => s.id === sid)?.title || title}\n${sid}`}>{title}</div>
           {isSub && <span className="readonly-tag">Read-only subtask</span>}
         </div>
@@ -775,6 +783,7 @@ export function SessionView({ sid }: { sid: string }) {
                 ) : undefined}
                 active={running}
                 onContinue={() => openModal({ kind: "fork", sid })}
+                goalVerdict={goalVerdict}
                 outcomeSlot={folded.items.some((item) => item.kind === "assistant") ? (
                   <ChangesOutcome sid={sid} refreshKey={events.length} onReview={() => setView("diff")} />
                 ) : undefined}

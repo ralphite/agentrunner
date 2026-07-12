@@ -6,6 +6,7 @@ import {
   CaretRight,
   ChatCircle,
   Check,
+  CheckCircle,
   Circle,
   Copy,
   File,
@@ -18,6 +19,7 @@ import {
   PencilSimple,
   Question,
   Robot,
+  Share,
   Terminal,
   Warning,
   Wrench,
@@ -99,25 +101,65 @@ function Thumbs({ paths }: { paths: string[] }) {
 }
 
 // MsgActions is the hover action row under a message (Codex puts Copy / reactions
-// there). We ship Copy — the whole message text to the clipboard.
-function MsgActions({ text, ts, onContinue }: { text: string; ts?: string; onContinue?: () => void }) {
+// there). We ship an icon-only Copy (whole message text), a Share that reuses the
+// copy-link mechanism (the current hash route already deep-links this task), and
+// — on the final assistant answer of a satisfied run — an inline "Goal achieved
+// in N" verdict. Thumbs up/down are deliberately omitted: there is no feedback
+// endpoint to wire them to, so they'd be dead controls (deferred until one lands).
+function MsgActions({
+  text,
+  ts,
+  onContinue,
+  goalVerdict,
+}: {
+  text: string;
+  ts?: string;
+  onContinue?: () => void;
+  goalVerdict?: { elapsed: string } | null;
+}) {
   const [copied, setCopied] = useState(false);
+  const [shared, setShared] = useState(false);
   if (!text) return null;
   const copy = async () => {
     await copyText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
   };
+  // Share = copy a deep link to this task. The router keys off the URL hash, so
+  // the current location already targets this session — no backend needed.
+  const share = async () => {
+    await copyText(location.href);
+    setShared(true);
+    setTimeout(() => setShared(false), 1200);
+  };
   const time = shortTime(ts);
   return (
     <div className="msg-actions">
-      <button className="msg-copy" onClick={copy} title="Copy message">
-        {copied ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy</>}
+      <button className="msg-copy icon-only" onClick={copy} title="Copy message" aria-label="Copy message">
+        {copied ? <Check size={15} /> : <Copy size={15} />}
+      </button>
+      <button className="msg-copy icon-only" onClick={share} title="Copy link to this task" aria-label="Copy link to this task">
+        {shared ? <Check size={15} /> : <Share size={15} />}
       </button>
       {onContinue && (
         <button className="msg-copy icon-only" onClick={onContinue} title="Continue in new task" aria-label="Continue in new task">
           <ArrowSquareOut size={15} />
         </button>
+      )}
+      {goalVerdict && (
+        <>
+          {/* Divider + verdict — Codex appends the goal outcome to the final
+              answer's action row. Full styling is styles.css (deferred); an
+              inline rule keeps it legible until that lands. */}
+          <span
+            className="msg-actions-div"
+            aria-hidden="true"
+            style={{ width: 1, alignSelf: "stretch", margin: "0 4px", background: "currentColor", opacity: 0.25 }}
+          />
+          <span className="msg-goal-verdict">
+            <CheckCircle size={15} weight="fill" /> Goal achieved in {goalVerdict.elapsed}
+          </span>
+        </>
       )}
       {time && <span className="msg-time" title={absTime(ts)}>{time}</span>}
     </div>
@@ -733,7 +775,7 @@ function CollapsibleUserText({ text }: { text: string }) {
   );
 }
 
-function Item({ it, sentImages, onContinue }: { it: TimelineItem; sentImages?: Map<number, string[]>; onContinue?: () => void }) {
+function Item({ it, sentImages, onContinue, goalVerdict }: { it: TimelineItem; sentImages?: Map<number, string[]>; onContinue?: () => void; goalVerdict?: { elapsed: string } | null }) {
   switch (it.kind) {
     case "turn":
       return <div className="turn">turn {it.gen}</div>;
@@ -773,14 +815,15 @@ function Item({ it, sentImages, onContinue }: { it: TimelineItem; sentImages?: M
       );
     }
     case "assistant":
+      // N4: an assistant answer renders as prose, not a chat bubble — no robot
+      // avatar. (The bubble border removal is styles.css = deferred.)
       return (
         <div className="msg assistant" title={absTime(it.ts)}>
-          <div className="avatar a"><Robot size={14} weight="bold" /></div>
           <div className="msg-col">
             <div className="bubble">
               <Markdown text={it.text} />
             </div>
-            <MsgActions text={it.text} ts={it.ts} onContinue={onContinue} />
+            <MsgActions text={it.text} ts={it.ts} onContinue={onContinue} goalVerdict={goalVerdict} />
           </div>
         </div>
       );
@@ -827,6 +870,7 @@ export function TimelineView({
   active = false,
   onContinue,
   outcomeSlot,
+  goalVerdict,
   loading = false,
 }: {
   items: TimelineItem[];
@@ -839,6 +883,10 @@ export function TimelineView({
   active?: boolean;
   onContinue?: () => void;
   outcomeSlot?: ReactNode;
+  /** When the run ended satisfied, the elapsed to show as an inline "Goal
+   *  achieved in N" verdict on the final assistant answer's action row (fix 3).
+   *  Undefined/null while the goal is unsettled or wasn't achieved. */
+  goalVerdict?: { elapsed: string } | null;
   /** The first events fetch for this session hasn't returned yet (INC-41 L1). */
   loading?: boolean;
 }) {
@@ -870,6 +918,16 @@ export function TimelineView({
   // W2: settled turns collapse their work behind "Worked for N ⌄"; the
   // developer (showSys) view stays flat and raw.
   const nodes: RenderNode[] = showSys ? visible : foldWork(visible, durations, active);
+
+  // The goal verdict rides the FINAL assistant answer only (fix 3) — a settled
+  // run's last word. Assistant answers are turn boundaries, so they sit at the
+  // top level of `nodes`, never folded into WorkedFold work.
+  const lastAssistantKey = (() => {
+    for (let i = nodes.length - 1; i >= 0; i--) {
+      if (nodes[i].kind === "assistant") return nodes[i].key;
+    }
+    return undefined;
+  })();
 
   useEffect(() => {
     const el = ref.current;
@@ -942,7 +1000,12 @@ export function TimelineView({
               {showSys && durations.has(it.key) && (
                 <div className="worked-row static">Worked for {formatWorkDuration(durations.get(it.key)!)}</div>
               )}
-              <Item it={it} sentImages={sentImages} onContinue={it.kind === "assistant" ? onContinue : undefined} />
+              <Item
+                it={it}
+                sentImages={sentImages}
+                onContinue={it.kind === "assistant" ? onContinue : undefined}
+                goalVerdict={it.kind === "assistant" && it.key === lastAssistantKey ? goalVerdict : undefined}
+              />
             </Fragment>
           );
         })}
