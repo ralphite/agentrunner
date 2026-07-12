@@ -15,6 +15,7 @@ import {
   ArrowsInLineVertical,
   DotsThree,
   TextAlignLeft,
+  Copy,
   X,
   FileDashed,
   FileMagnifyingGlass,
@@ -22,6 +23,7 @@ import {
   ClockCounterClockwise,
 } from "@phosphor-icons/react";
 import { AR, isBinaryPath } from "../api";
+import { copyText } from "../clipboard";
 import { useStore } from "../store";
 import { loadGitPrefs } from "../theme";
 import type { DiffResp, DiffScope } from "../types";
@@ -82,6 +84,32 @@ const loadWrap = (): boolean => {
 const saveWrap = (on: boolean) => {
   try {
     localStorage.setItem(WRAP_KEY, on ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+};
+
+// INC-41 RVW-4 · which changes the review opens on. Codex's review defaults to
+// the last turn, and so does the thread: its change card counts the files *this
+// turn* touched, and its `Review` button is a link into this panel — so a panel
+// that opened on the working tree answered a question nobody asked (`Edited 5
+// files +2 −179` in the card, a different diff in the rail it linked to). The
+// default is the turn now; the working tree is one click away, and whichever the
+// user picks sticks (same reasoning as WRAP_KEY: a preference, not session
+// state). Unparsable/absent value → the default, never a crash.
+const SCOPE_KEY = "ar.diff.scope";
+const isScope = (v: unknown): v is DiffScope => v === "working-tree" || v === "last-turn";
+const loadScope = (): DiffScope => {
+  try {
+    const v = localStorage.getItem(SCOPE_KEY);
+    return isScope(v) ? v : "last-turn";
+  } catch {
+    return "last-turn"; // private mode / storage disabled / test stub
+  }
+};
+const saveScope = (s: DiffScope) => {
+  try {
+    localStorage.setItem(SCOPE_KEY, s);
   } catch {
     /* ignore */
   }
@@ -165,7 +193,18 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
   const [data, setData] = useState<DiffResp | null>(null);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
-  const [scope, setScope] = useState<DiffScope>("working-tree");
+  const [scope, setScope] = useState<DiffScope>(loadScope);
+  // Did the *user* choose this scope, here, in this panel? Only then is "Last
+  // turn unavailable" an answer worth showing: a scope we picked for them (the
+  // RVW-4 default) failing on a session with no durable baseline is our problem,
+  // not theirs, so it falls back to the working tree without saying a word — and
+  // without persisting, because they never expressed a preference.
+  const picked = useRef(false);
+  const pickScope = (s: DiffScope) => {
+    picked.current = true;
+    saveScope(s);
+    setScope(s);
+  };
   const requestID = useRef(0);
   // Fold-all override: null = every file follows its own default (INC-41 RD-1 —
   // per-file disclosure, so one huge file no longer folds its small neighbours);
@@ -218,6 +257,13 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
     AR.diff(sid, scope)
       .then((d) => {
         if (currentRequest !== requestID.current) return;
+        // RVW-4 · the silent fallback. `data` stays null, so the skeleton simply
+        // keeps running while the working-tree request the scope change fires
+        // lands — the user sees one load, not a flash of an error card.
+        if (scope === "last-turn" && d.available === false && !picked.current) {
+          setScope("working-tree");
+          return;
+        }
         // Drop any Expand/Collapse-all override from the previous payload, so each
         // file of the new one opens on its own merits (defaultOpenByPath) — decided
         // during render, before the first paint, never by a post-paint effect.
@@ -396,6 +442,22 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
     }
   };
 
+  // RVW-3 · the unified diff, verbatim, on the clipboard — the exact text `git
+  // diff` produced, so it pastes into an issue or a message as a diff (and back
+  // into `git apply`). Feedback is the app's existing toast; a failure to write
+  // the clipboard says so rather than passing silently for a copy that never
+  // happened.
+  const copyDiff = async () => {
+    const text = data?.diff || "";
+    if (!text) return;
+    try {
+      await copyText(text);
+      toast("diff copied", "info");
+    } catch {
+      toast("couldn’t copy the diff");
+    }
+  };
+
   const scopeControl = (
     <Popover
       panelClass="diff-scope-menu"
@@ -420,7 +482,7 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
             desc="All uncommitted workspace changes"
             active={scope === "working-tree"}
             onClick={() => {
-              setScope("working-tree");
+              pickScope("working-tree");
               close();
             }}
           />
@@ -429,7 +491,7 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
             desc="Since the latest human turn began"
             active={scope === "last-turn"}
             onClick={() => {
-              setScope("last-turn");
+              pickScope("last-turn");
               close();
             }}
           />
@@ -475,7 +537,18 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
         </div>
       </div>
     );
-  if (!data) return <div className="diffwrap">{stateBar}<div className="diff-loading dim">Loading changes…</div></div>;
+  // INC-41 RVW-6 · the review loads the way the rest of the app does. This was a
+  // single grey sentence ("Loading changes…") in a 658px panel — while the 40px
+  // change card in the thread that *links here*, the sidebar, and the timeline
+  // all draw skeleton bars. The summary card was loading more gracefully than the
+  // panel it opens.
+  if (!data)
+    return (
+      <div className="diffwrap">
+        {stateBar}
+        <DiffSkeleton />
+      </div>
+    );
 
   if (scope === "last-turn" && data.available === false)
     return (
@@ -726,6 +799,24 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
             )}
           </Popover>
         )}
+        {/* INC-41 RVW-3 · the way out of the panel. Codex's review header carries
+            a copy icon; ours carried none — not in the bar, not in `…`, not per
+            file — while every fenced code block in the conversation *right next
+            to it* has had a Copy button all along. The most common thing done
+            with a diff you've just read is pasting it into an issue or a message,
+            and the only way to do that was dragging a selection across a
+            virtualized grid. One button, the whole unified diff, same `copyText`
+            + toast contract as Markdown's CodeBlock. */}
+        {!empty && (
+          <button
+            className="sm ghost diff-iconbtn"
+            onClick={() => void copyDiff()}
+            aria-label="Copy diff"
+            title="Copy the whole diff to the clipboard"
+          >
+            <Copy size={15} />
+          </button>
+        )}
         {/* DF-4 · the Wrap switch. Same two icons, same wording, same aria-pressed
             contract as the conversation's code blocks (Markdown.tsx CodeBlock) —
             it was absurd that a fenced snippet in the chat could soft-wrap while
@@ -906,6 +997,46 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
           </details>
         );
       })}
+    </div>
+  );
+}
+
+// INC-41 RVW-6 · DiffSkeleton — what the review looks like before it has loaded.
+//
+// The shape it is about to become: file headers (glyph, path, counts) over a
+// line-numbered grid, in the panel's own geometry — so the diff resolves *into*
+// the skeleton instead of replacing a centred grey sentence with a wall of code.
+// Three file cards (the last folded, as most reviews have one) and twelve rows,
+// which is roughly what the 658px panel shows above the fold; the code bars are
+// staggered so the block reads as text rather than as a progress bar.
+const SKEL_FILES: { path: number; rows: number[] }[] = [
+  { path: 152, rows: [74, 46, 62, 38, 84, 54, 30] },
+  { path: 108, rows: [58, 80, 42, 66, 34] },
+  { path: 176, rows: [] },
+];
+
+function DiffSkeleton() {
+  return (
+    <div className="diff-skeleton" role="status" aria-label="Loading changes">
+      {SKEL_FILES.map((f, i) => (
+        <div className="dsk-file" key={i}>
+          <div className="dsk-head">
+            <span className="dsk-bar dsk-glyph" />
+            <span className="dsk-bar dsk-path" style={{ width: f.path }} />
+            <span className="dsk-bar dsk-counts" />
+          </div>
+          {f.rows.length > 0 && (
+            <div className="dsk-body">
+              {f.rows.map((w, r) => (
+                <div className="dsk-row" key={r}>
+                  <span className="dsk-bar dsk-no" />
+                  <span className="dsk-bar dsk-code" style={{ width: w + "%" }} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }

@@ -69,6 +69,10 @@ const scrollSpy = vi.fn();
 
 beforeEach(() => {
   for (const key of Object.keys(arMock)) delete arMock[key];
+  // INC-41 RVW-4 · the panel's default scope is `last-turn` now. These tests pin
+  // the working-tree chrome (Apply / Remove / Commit or push), so they state the
+  // scope the way a user would: as a persisted, explicit choice.
+  localStorage.setItem("ar.diff.scope", "working-tree");
   (window as any).matchMedia = () => ({
     matches: false,
     addEventListener: () => {},

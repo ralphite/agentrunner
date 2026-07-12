@@ -49,6 +49,10 @@ const oneFileDiff = `diff --git a/app.ts b/app.ts
 
 beforeEach(() => {
   for (const key of Object.keys(arMock)) delete arMock[key];
+  // INC-41 RVW-4 · the default scope is `last-turn` now; this file pins the
+  // working tree's empty state, so it says so explicitly (the last turn's own
+  // empty state — "No changes this turn" — is pinned in DiffView.review.test).
+  localStorage.setItem("ar.diff.scope", "working-tree");
   // DiffView reads matchMedia on mount to decide inline vs split; jsdom has none.
   (window as any).matchMedia = () => ({
     matches: false,

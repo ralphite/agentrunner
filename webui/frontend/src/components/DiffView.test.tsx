@@ -65,6 +65,10 @@ const worktreeDiff = (over: Partial<DiffResp> = {}): DiffResp => ({
 
 beforeEach(() => {
   for (const key of Object.keys(arMock)) delete arMock[key];
+  // INC-41 RVW-4 · the default scope is `last-turn` now; the bar's composition
+  // here (Commit or push, the worktree actions) is the working tree's, so these
+  // tests state that scope as an explicit, persisted user choice.
+  localStorage.setItem("ar.diff.scope", "working-tree");
   (window as any).matchMedia = () => ({
     matches: false, // wide window: the chip shows its text, split view is allowed
     addEventListener: () => {},

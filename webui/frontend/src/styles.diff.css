@@ -162,3 +162,89 @@
 .diffwrap .filediff > summary.fd-head:hover {
   background: color-mix(in srgb, var(--ink) 4%, var(--panel));
 }
+
+/* ---- INC-41 RVW-6 · the review's loading state --------------------------
+ * It was one grey sentence ("Loading changes…") floating in a 658px panel —
+ * while the timeline (`.tl-skeleton`), the sidebar (`.sidebar-loading`) and even
+ * the 40px change card in the thread that *links into this panel* all draw
+ * skeleton bars. The summary card loaded more gracefully than the review it
+ * opens.
+ *
+ * So: the shape of the thing being loaded. File headers over a line-numbered
+ * grid, in this panel's own geometry (`calc(5ch + 27px)` gutter, `--line`
+ * hairlines, 12px header rows) — the diff resolves into its own outline rather
+ * than replacing a sentence. Same shimmer as the sidebar/timeline skeletons
+ * (`sidebar-shimmer`, defined in styles.css and shared on purpose: one loading
+ * language for the whole app), and it stops entirely under reduced motion.
+ * ==========================================================================*/
+.diffwrap .diff-skeleton {
+  display: grid;
+  gap: 10px;
+  padding: 10px 0 0;
+  /* `5ch` in the row grid below only means the same width as `.dl`'s gutter if it
+     is measured in the same font — the one `.fd-body` sets (styles.css) and
+     styles.rs.css sizes with `--code-font-size`. */
+  font-family: var(--mono);
+  font-size: var(--code-font-size);
+}
+.diffwrap .dsk-file {
+  border-top: 1px solid var(--line);
+}
+.diffwrap .dsk-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px; /* the height of a real .fd-head */
+  padding: 0 12px;
+}
+.diffwrap .dsk-body {
+  display: grid;
+  border-top: 1px solid var(--line-2);
+}
+.diffwrap .dsk-row {
+  display: grid;
+  grid-template-columns: calc(5ch + 27px) minmax(0, 1fr);
+  align-items: center;
+  height: 20px; /* ≈ the .dl row height at the default code font size */
+}
+.diffwrap .dsk-bar {
+  display: block;
+  height: 9px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, var(--panel-2), var(--line-2), var(--panel-2));
+  background-size: 220% 100%;
+  animation: sidebar-shimmer 1.35s ease-in-out infinite;
+}
+.diffwrap .dsk-glyph {
+  flex: 0 0 auto;
+  width: 11px;
+  height: 12px;
+  border-radius: 3px;
+}
+.diffwrap .dsk-path {
+  flex: 0 0 auto;
+  height: 11px;
+}
+.diffwrap .dsk-counts {
+  flex: 0 0 auto;
+  width: 52px;
+}
+/* The line-number gutter, hairlined off the code column exactly as `.dl-no` is —
+   the one detail that makes this read as a diff and not as a list. */
+.diffwrap .dsk-no {
+  height: 100%;
+  border-radius: 0;
+  border-right: 1px solid var(--line-2);
+  background: var(--panel);
+  animation: none;
+}
+/* …and the code bar starts where the first character of a diff row would. */
+.diffwrap .dsk-code {
+  height: 8px;
+  margin-left: 8px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .diffwrap .dsk-bar {
+    animation: none;
+  }
+}
