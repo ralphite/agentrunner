@@ -36,6 +36,124 @@
   }
 }
 
+/* ---- Design tokens (Codex-cloud-inspired). theme.ts toggles data-theme;
+ * Settings › Appearance drives --ui-font-size / --code-font-size at runtime.
+ * Explicit "light" is the :root default, so it wins over OS-dark automatically. */
+:root {
+  --bg: #ffffff;
+  --sidebar: #f7f7f8;
+  --panel: #ffffff;
+  --panel-2: #f4f4f4;
+  --line: #e7e7e7;
+  --line-2: #efefef;
+  --ink: #0d0d0d;
+  --ink-2: #606060;
+  /* A11Y-8: #737373 on --sidebar(#f7f7f8) 只有 4.42:1,差 0.08 不达 WCAG AA 的 4.5:1。
+     压到 #6e6e6e ≈ 4.8:1 留出余量。dark 另有 --dim:#a0a0ad 覆盖,不受影响。 */
+  --dim: #6e6e6e;
+  --accent: #0b0b0b;
+  --accent-ink: #ffffff;
+  --blue: #0169cc;
+  --blue-soft: #e8f1fb;
+  --green: #167a3c;
+  --green-soft: #e7f6ec;
+  --amber: #8a5a00;
+  --amber-soft: #fdf1dc;
+  --violet: #5b2bd4;
+  --violet-soft: #efe9fe;
+  --red: #b3261e;
+  --red-soft: #fdeceb;
+  --status-running: var(--green);
+  --status-ready: var(--blue);
+  --status-attention: var(--amber);
+  --status-failed: var(--red);
+  --status-terminal: var(--dim);
+  --radius: 10px;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --ui-font-size: 14px;
+  --code-font-size: 12px;
+  --rs-accent: #0169cc;
+  --rs-accent-soft: #e8f1fb;
+  /* diff syntax highlight palette (light) */
+  --hl-kw: #8250df;
+  --hl-str: #c2410c;
+  --hl-num: #1d4ed8;
+  --hl-fn: #0b7285;
+  --hl-com: #6b7280;
+  --hl-punc: #57606a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --bg: #0f0f11;
+    --sidebar: #141416;
+    --panel: #17171a;
+    --panel-2: #1c1c20;
+    --line: #2a2a30;
+    --line-2: #232329;
+    --ink: #ececf1;
+    --ink-2: #b4b4c0;
+    --dim: #a0a0ad;
+    --accent: #ececf1;
+    --accent-ink: #17171a;
+    --blue: #6f9bff;
+    --blue-soft: #1b2540;
+    --green: #6fd398;
+    --green-soft: #16301f;
+    --amber: #e6b968;
+    --amber-soft: #33270f;
+    --violet: #b39bf5;
+    --violet-soft: #241a3d;
+    --red: #f0938c;
+    --red-soft: #3a1a18;
+    --rs-accent: #4c9be6;
+    --rs-accent-soft: #16283c;
+    --hl-kw: #c792ea;
+    --hl-str: #f0a35e;
+    --hl-num: #82aaff;
+    --hl-fn: #56c7d6;
+    --hl-com: #8a8a99;
+    --hl-punc: #b4b4c0;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f0f11;
+  --sidebar: #141416;
+  --panel: #17171a;
+  --panel-2: #1c1c20;
+  --line: #2a2a30;
+  --line-2: #232329;
+  --ink: #ececf1;
+  --ink-2: #b4b4c0;
+  --dim: #a0a0ad;
+  --accent: #ececf1;
+  --accent-ink: #17171a;
+  --blue: #6f9bff;
+  --blue-soft: #1b2540;
+  --green: #6fd398;
+  --green-soft: #16301f;
+  --amber: #e6b968;
+  --amber-soft: #33270f;
+  --violet: #b39bf5;
+  --violet-soft: #241a3d;
+  --red: #f0938c;
+  --red-soft: #3a1a18;
+  --rs-accent: #4c9be6;
+  --rs-accent-soft: #16283c;
+  --hl-kw: #c792ea;
+  --hl-str: #f0a35e;
+  --hl-num: #82aaff;
+  --hl-fn: #56c7d6;
+  --hl-com: #8a8a99;
+  --hl-punc: #b4b4c0;
+}
+
+/* Live type scale (Settings › Appearance). Unlayered + `html body` (0,0,2) so
+ * it outranks the layered body font rule regardless of source order. */
+html body {
+  font-size: var(--ui-font-size);
+}
+
 /* Map the live theme vars into Tailwind's token namespaces. Values are var()
  * references so runtime overrides (theme.ts contrast/font-size) propagate. */
 @theme {
@@ -65,6 +183,8 @@
   --color-status-attention: var(--status-attention);
   --color-status-failed: var(--status-failed);
   --color-status-terminal: var(--status-terminal);
+  --color-rs-accent: var(--rs-accent);
+  --color-rs-accent-soft: var(--rs-accent-soft);
 
   --font-sans: var(--sans);
   --font-mono: var(--mono);
@@ -142,5 +262,309 @@
   }
   a:hover {
     text-decoration: underline;
+  }
+}
+
+/* ============================================================================
+ * Shared component classes. The ONLY hand-written component CSS left after the
+ * Tailwind migration: cross-cutting primitives used by 10+ components each
+ * (often composed dynamically, e.g. `pill ${state}`), where inline utilities
+ * would just be repetition. Everything lives on the design tokens above.
+ * In @layer components, so one-off utility overrides on an element still win.
+ * ========================================================================== */
+@layer components {
+  /* button variants (base button style lives in @layer base above) */
+  button.primary {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border-color: var(--accent);
+  }
+  button.primary:hover {
+    opacity: 0.9;
+  }
+  button.danger {
+    color: var(--red);
+    border-color: color-mix(in srgb, var(--red) 40%, var(--line));
+  }
+  button.ghost {
+    border-color: transparent;
+    background: transparent;
+  }
+  button.ghost:hover {
+    background: var(--panel-2);
+    border-color: var(--line);
+  }
+  button.sm {
+    padding: 3px 8px;
+    font-size: 12px;
+  }
+
+  .mono {
+    font-family: var(--mono);
+  }
+  .dim {
+    color: var(--dim);
+  }
+
+  /* status pills — variant part arrives via `pill ${state}` template strings */
+  .pill {
+    font-size: 11px;
+    padding: 1px 8px;
+    border-radius: 20px;
+    background: var(--line-2);
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+  .pill.idle {
+    background: var(--blue-soft);
+    color: var(--status-ready);
+  }
+  .pill.run,
+  .pill.running {
+    background: var(--green-soft);
+    color: var(--status-running);
+  }
+  .pill.appr {
+    background: var(--amber-soft);
+    color: var(--status-attention);
+  }
+  .pill.crash,
+  .pill.failed {
+    background: var(--red-soft);
+    color: var(--red);
+  }
+  .pill.done {
+    background: var(--line-2);
+    color: var(--status-terminal);
+  }
+  .pill.closed,
+  .pill.stopped {
+    background: var(--line-2);
+    color: var(--dim);
+  }
+
+  .badge {
+    font-size: 10.5px;
+    padding: 1px 7px;
+    border-radius: 20px;
+    background: var(--line-2);
+    color: var(--ink-2);
+  }
+  .badge.ok {
+    background: var(--green-soft);
+    color: var(--green);
+  }
+  .badge.err {
+    background: var(--red-soft);
+    color: var(--red);
+  }
+  .badge.run {
+    background: var(--amber-soft);
+    color: var(--amber);
+  }
+
+  .kbd {
+    font-family: var(--sans);
+    font-size: 11.5px;
+    line-height: 1;
+    color: var(--ink-2);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 4px 7px;
+    min-width: 22px;
+    text-align: center;
+    box-shadow: 0 1px 0 var(--line-2);
+  }
+
+  .spin {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    display: inline-block;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* modal scaffold (Modals.tsx + a few one-off dialogs) */
+  .backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    /* Height = the visible viewport (--app-vvh, set from visualViewport while a
+       modal is open) so the modal centers ABOVE the iOS keyboard instead of
+       behind it. Falls back to the full dynamic viewport with no keyboard. */
+    height: var(--app-vvh, 100dvh);
+    background: rgba(0, 0, 0, 0.35);
+    display: grid;
+    place-items: center;
+    z-index: 40;
+    padding: 20px;
+  }
+  .modal {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    width: min(760px, 96vw);
+    max-height: 92%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .modal .mhead {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--line);
+    font-weight: 600;
+  }
+  .modal .mbody {
+    padding: 14px 16px;
+    overflow-y: auto;
+  }
+  .modal .mfoot {
+    padding: 12px 16px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  label.field {
+    display: block;
+    font-size: 12px;
+    color: var(--ink-2);
+    margin: 12px 0 4px;
+    font-weight: 500;
+  }
+  .modal input[type="text"],
+  .modal select,
+  .modal textarea {
+    width: 100%;
+  }
+  .modal textarea.code {
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .row-flex {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  /* let the text input keep the row while the buttons wrap under it on narrow
+     screens (workspace/schedule rows overflowed the modal at 390px). */
+  .row-flex > input {
+    flex: 1 1 160px;
+    min-width: 0;
+  }
+
+  /* segmented control */
+  .seg {
+    display: inline-flex;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .seg button {
+    border: none;
+    border-radius: 0;
+    background: var(--panel);
+  }
+  .seg button.on {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  /* dropdown menu scaffold (Menu.tsx / context menus / per-row menus) */
+  .menu {
+    position: relative;
+  }
+  .menu-trigger {
+    width: 32px;
+    height: 30px;
+    padding: 0;
+    font-size: 18px;
+    line-height: 1;
+  }
+  .menu-pop {
+    position: absolute;
+    right: 0;
+    top: 36px;
+    z-index: 30;
+    min-width: 200px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.14);
+    padding: 5px;
+  }
+  .menu-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+    text-align: left;
+    border: none;
+    background: transparent;
+    border-radius: 7px;
+    padding: 7px 10px;
+    font-size: 13px;
+    color: var(--ink);
+  }
+  .menu-item:hover {
+    background: var(--panel-2);
+    border-color: transparent;
+  }
+  .menu-item.danger {
+    color: var(--red);
+  }
+  .menu-label {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--dim);
+    padding: 8px 10px 3px;
+  }
+
+  .chip {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    padding: 3px 11px;
+    border-radius: 20px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    color: var(--ink-2);
+    /* long unbreakable tokens (sha256 hashes in error chips) must wrap inside
+       the chip instead of overflowing the card on narrow screens (R3-3). */
+    overflow-wrap: anywhere;
+  }
+  .chip a {
+    white-space: nowrap;
+  }
+  .chip.warn {
+    background: var(--amber-soft);
+    border-color: color-mix(in srgb, var(--amber) 25%, transparent);
+    color: var(--amber);
+  }
+  .chip.bad {
+    background: var(--red-soft);
+    border-color: color-mix(in srgb, var(--red) 25%, transparent);
+    color: var(--red);
+  }
+  .chip.good {
+    background: var(--green-soft);
+    border-color: color-mix(in srgb, var(--green) 25%, transparent);
+    color: var(--green);
   }
 }
