@@ -10,20 +10,16 @@ import {
   FolderOpen,
   GearSix,
   GitBranch,
-  GitPullRequest,
   type Icon,
   MagnifyingGlass,
   Monitor,
   Moon,
   NotePencil,
   PencilSimple,
-  Plugs,
-  PlusCircle,
   PushPin,
   Question,
   Robot,
   SidebarSimple,
-  SquaresFour,
   Sun,
   Terminal,
   Tray,
@@ -43,18 +39,13 @@ type SidebarContext =
   | { kind: "session"; x: number; y: number; sid: string }
   | { kind: "project"; x: number; y: number; key: string; label: string; workspace?: string; ids: string[] };
 
-// Primary-nav destinations (Codex parity: New task / Scheduled / Plugins /
-// Sites / Pull requests / Chat), in Codex's order and iconography. Kept as a
-// small table rendered in a map so adding a destination is one row here + a
-// page dispatch in App.tsx — no per-button JSX duplication. The Scheduled row
-// alone carries the live activity dot, keyed off `key === "scheduled"`.
+// Primary-nav destinations (New task / Scheduled). Kept as a small table
+// rendered in a map so adding a destination is one row here + a page dispatch
+// in App.tsx — no per-button JSX duplication. The Scheduled row alone carries
+// the live activity dot, keyed off `key === "scheduled"`.
 const NAV_DESTINATIONS: { key: Page; label: string; icon: Icon }[] = [
   { key: "home", label: "New task", icon: NotePencil },
   { key: "scheduled", label: "Scheduled", icon: CalendarDots },
-  { key: "plugins", label: "Plugins", icon: Plugs },
-  { key: "sites", label: "Sites", icon: SquaresFour },
-  { key: "pulls", label: "Pull requests", icon: GitPullRequest },
-  { key: "chat", label: "Chat", icon: PlusCircle },
 ];
 
 export function Sidebar({ onHide, onNavigate, onOpenSettings }: { onHide?: () => void; onNavigate?: () => void; onOpenSettings?: () => void }) {

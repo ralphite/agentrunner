@@ -38,10 +38,9 @@ interface ToastMsg {
 }
 
 // The full-window destinations reachable from the sidebar's primary nav
-// (Codex parity: New task / Scheduled / Plugins / Sites / Pull requests /
-// Chat). "home" is the New-task landing; each non-home page routes to a
-// matching hash (#scheduled, #plugins, #sites, #pulls, #chat).
-export type Page = "home" | "scheduled" | "plugins" | "sites" | "pulls" | "chat";
+// (New task / Scheduled). "home" is the New-task landing; the Scheduled page
+// routes to a matching hash (#scheduled).
+export type Page = "home" | "scheduled";
 
 interface AppState {
   health: Health | null;
@@ -405,9 +404,8 @@ export const useStore = create<AppState>((set, get) => ({
   },
   showPage: (page) => {
     set({ currentSid: null, currentRunId: null, currentPage: page });
-    // "home" is the bare route (no hash); every other destination routes to a
-    // hash that matches its key so deep links + back/forward work (#scheduled,
-    // #plugins, #sites, #pulls, #chat).
+    // "home" is the bare route (no hash); Scheduled routes to a hash that
+    // matches its key so deep links + back/forward work (#scheduled).
     location.hash = page === "home" ? "" : page;
   },
   openModal: (m) => set({ modal: m }),

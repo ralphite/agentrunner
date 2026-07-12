@@ -107,34 +107,6 @@ export const EFFORT_LEVELS: EffortLevel[] = [
 
 export const DEFAULT_EFFORT: EffortId = "off";
 
-// ---- speed (Codex's model-pill "Speed" dimension) ---------------------------
-//
-// Codex's compact model menu carries a Speed row (Standard / Priority) beside
-// Model and Effort. Our providers (Gemini primary, Anthropic secondary) don't
-// yet expose a real latency tier, so Speed is a forward-looking UI dimension:
-// the choice is remembered and shown, and it is threaded through buildSpec's
-// options, but it does NOT emit YAML yet — there is no provider field to map it
-// to and inventing one would break real runs. Backend latency-tier mapping is
-// deferred; when a provider grows a priority lane, wire it in modelBlock.
-export type SpeedId = "standard" | "priority";
-
-export interface SpeedLevel {
-  id: SpeedId;
-  label: string;
-  desc: string;
-}
-
-export const SPEED_LEVELS: SpeedLevel[] = [
-  { id: "standard", label: "Standard", desc: "Normal scheduling — best price and throughput" },
-  { id: "priority", label: "Priority", desc: "Prefer lower latency when the provider offers it" },
-];
-
-export const DEFAULT_SPEED: SpeedId = "standard";
-
-export function speedById(id: string): SpeedLevel {
-  return SPEED_LEVELS.find((s) => s.id === id) || SPEED_LEVELS[0];
-}
-
 // Answer capacity reserved on top of the thinking budget. Matches the historical
 // 4096 max_tokens so "Off" behaves exactly as before.
 const ANSWER_ROOM = 4096;
@@ -276,10 +248,8 @@ agents: [worker]`;
 // buildSpec produces the main agent spec (base.yaml) for the chosen persona +
 // model + access level + reasoning effort. Defaults mirror the old DEFAULT_SPEC
 // so behavior is unchanged when nothing is picked (effort "off").
-export function buildSpec(opts: { provider: string; model: string; access: AccessId; persona?: string; effort?: EffortId; speed?: SpeedId; budgetOverride?: number | null }): string {
+export function buildSpec(opts: { provider: string; model: string; access: AccessId; persona?: string; effort?: EffortId; budgetOverride?: number | null }): string {
   const persona = opts.persona && PERSONAS.some((p) => p.id === opts.persona) ? opts.persona : DEFAULT_PERSONA;
-  // opts.speed is accepted for call-site symmetry but intentionally not emitted
-  // yet — see SPEED_LEVELS (no provider latency field; mapping deferred).
   return `name: ${persona}
 ${modelBlock(opts.provider, opts.model, opts.effort || DEFAULT_EFFORT, opts.budgetOverride)}
 ${personaBody(persona)}

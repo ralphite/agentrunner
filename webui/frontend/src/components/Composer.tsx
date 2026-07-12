@@ -10,24 +10,19 @@ import {
   Desktop,
   Eye,
   File,
-  FilePdf,
-  FileText,
   Folder,
   GitBranch,
   Image,
-  Layout,
   Lightning,
   ListChecks,
   LockOpen,
   MagnifyingGlass,
   Microphone,
   PencilSimple,
-  Presentation,
   Plus,
   ShieldCheck,
   Sparkle,
   Stop as StopIcon,
-  Table,
   Target,
   UserCircle,
   X,
@@ -58,12 +53,8 @@ import {
   personaFromSpec,
   replaceModel,
   runtimeModeTarget,
-  DEFAULT_SPEED,
-  SPEED_LEVELS,
-  speedById,
   type AccessId,
   type EffortId,
-  type SpeedId,
 } from "../specs";
 import { Popover, PopItem, PopSection } from "./Popover";
 import { useVoice } from "./useVoice";
@@ -142,23 +133,12 @@ export function Composer(props: ComposerProps) {
   const [provider, setProvider] = useState(DEFAULT_MODEL.provider);
   const [model, setModel] = useState(DEFAULT_MODEL.id);
   const [effort, setEffort] = useState<EffortId>(DEFAULT_EFFORT);
-  // Speed dimension (Codex parity): remembered UI choice; not yet emitted into
-  // the spec (no provider latency field — see specs.ts SPEED_LEVELS).
-  const [speed, setSpeed] = useState<SpeedId>(() => {
-    try {
-      const s = localStorage.getItem("arwebui.lastSpeed") as SpeedId | null;
-      if (s && SPEED_LEVELS.some((x) => x.id === s)) return s;
-    } catch {
-      /* ignore */
-    }
-    return DEFAULT_SPEED;
-  });
   // Advanced → thinking-budget override: an exact budget the effort presets
   // don't cover. null = use the effort preset. Chosen effort clears it.
   const [budgetOverride, setBudgetOverride] = useState<number | null>(null);
-  // Model menu is a compact drill-in (root → Model/Effort/Speed) plus an
-  // Advanced collapsible, mirroring the project menu's page-swap pattern.
-  const [modelMenuPage, setModelMenuPage] = useState<"root" | "model" | "effort" | "speed">("root");
+  // Model menu is a compact drill-in (root → Model/Effort) plus an Advanced
+  // collapsible, mirroring the project menu's page-swap pattern.
+  const [modelMenuPage, setModelMenuPage] = useState<"root" | "model" | "effort">("root");
   const [modelAdvancedOpen, setModelAdvancedOpen] = useState(false);
   // The home composer remembers the last chosen access level (W15); session
   // composers show the session's fixed posture instead and never read this.
@@ -229,22 +209,6 @@ export function Composer(props: ComposerProps) {
   const appendText = (t: string) => {
     setText((prev) => (prev ? prev + " " + t : t));
     taRef.current?.focus();
-  };
-  // A Plugins row (Documents / PDF / …) has no backend plugin/skill registry
-  // yet (deferred): the sensible client-side action is to seed the draft with a
-  // starter prompt for that capability, on its own line below any existing
-  // draft, and drop the caret at the end so the user keeps typing.
-  const injectPlugin = (hint: string) => {
-    setText((prev) => (prev.trim() ? prev.trimEnd() + "\n\n" + hint : hint));
-    requestAnimationFrame(() => {
-      const ta = taRef.current;
-      if (ta) {
-        ta.focus();
-        grow(ta);
-        const end = ta.value.length;
-        ta.setSelectionRange(end, end);
-      }
-    });
   };
   // Browser SpeechRecognition dictation — the fallback when server-side
   // dictation (MediaRecorder + `ar dictate`) isn't available.
@@ -527,7 +491,7 @@ export function Composer(props: ComposerProps) {
         await (props as Extract<ComposerProps, { variant: "session" }>).onSend(t, imgs, files, effective);
       } else if (kind === "chat") {
         const workspace = await resolveHomeWorkspace();
-        const spec = buildSpec({ provider, model, access, persona, effort, speed, budgetOverride });
+        const spec = buildSpec({ provider, model, access, persona, effort, budgetOverride });
         const imgs = atts.filter((a) => a.isImage).map((a) => a.path);
         const files = atts.filter((a) => !a.isImage).map((a) => a.path);
         const r = await AR.newSession({
@@ -555,7 +519,7 @@ export function Composer(props: ComposerProps) {
         }
       } else {
         const workspace = await resolveHomeWorkspace();
-        const spec = buildSpec({ provider, model, access, persona, effort, speed, budgetOverride });
+        const spec = buildSpec({ provider, model, access, persona, effort, budgetOverride });
         const r = await AR.startRun({ kind: "submit", spec, extraSpecs: [], task: t, workspace, mode: accessById(access).mode, idem: "" });
         resetInput();
         await refreshRuns();
@@ -601,18 +565,6 @@ export function Composer(props: ComposerProps) {
     if (isSession) toast(`Reasoning → ${effortById(eff).label} (from your next message)`, "info");
   };
 
-  // Speed is a remembered UI choice only (no provider latency field yet — see
-  // specs.ts); persist it and reflect it, but don't rewrite the spec.
-  const chooseSpeed = (s: SpeedId) => {
-    setSpeed(s);
-    try {
-      localStorage.setItem("arwebui.lastSpeed", s);
-    } catch {
-      /* ignore quota */
-    }
-    if (isSession) toast(`Speed → ${speedById(s).label}`, "info");
-  };
-
   // Advanced → thinking-budget override: an exact budget (0 / empty ⇒ back to
   // the effort preset). Rebuilds the model block just like an effort switch.
   const chooseBudgetOverride = async (budget: number | null) => {
@@ -630,7 +582,7 @@ export function Composer(props: ComposerProps) {
     const sid = (props as any).sid as string;
     try {
       const acc = (recallAccess(sid) as AccessId) || "full";
-      const spec = buildSpec({ provider, model, access: acc, persona: id, effort, speed, budgetOverride });
+      const spec = buildSpec({ provider, model, access: acc, persona: id, effort, budgetOverride });
       const sib = personaById(id).withWorker ? [{ name: "worker.yaml", content: DEFAULT_WORKER }] : [];
       await AR.switchAgent(sid, spec, sib);
       rememberSpec(sid, spec);
@@ -655,7 +607,7 @@ export function Composer(props: ComposerProps) {
       } else {
         const workspace = await ensureWs();
         if (!workspace) return props.onError("a workspace is required to start a goal");
-        const spec = buildSpec({ provider, model, access, persona, effort, speed, budgetOverride });
+        const spec = buildSpec({ provider, model, access, persona, effort, budgetOverride });
         const r = await AR.newSession({
           spec,
           extraSpecs: personaById(persona).withWorker ? [{ name: "worker.yaml", content: DEFAULT_WORKER }] : [],
@@ -1275,14 +1227,6 @@ export function Composer(props: ComposerProps) {
                   <PopItem icon={<Image size={16} />} title="Images" desc="Paste, drop, or pick one or more images" onClick={() => { close(); imgRef.current?.click(); }} />
                   <PopItem icon={<File size={16} />} title="Files" desc="PDF, text, or any files (≤10MB each)" onClick={() => { close(); anyRef.current?.click(); }} />
                 </PopSection>
-                {/* Plugins (Codex parity): capability shortcuts. No backend
-                    plugin/skill registry yet (deferred) — each row seeds the
-                    draft with a starter prompt for that capability. */}
-                <PopSection label="Plugins">
-                  {PLUGINS.map((p) => (
-                    <PopItem key={p.id} icon={<PluginIcon id={p.id} />} title={p.label} desc={p.desc} onClick={() => { close(); injectPlugin(p.hint); }} />
-                  ))}
-                </PopSection>
                 <PopSection label="Task options">
                   <PopItem icon={<GoalIcon />} title="Goal" desc="Keep working until the goal is met" onClick={() => { close(); setLauncher({ mode: "goal", task: text.trim() }); }} />
                   <PopItem icon={<LoopIcon />} title="Loop" desc="Repeat on a fixed cadence" onClick={() => { close(); setLauncher({ mode: "loop", task: text.trim() }); }} />
@@ -1403,7 +1347,7 @@ export function Composer(props: ComposerProps) {
             panelClass="cx-pop-codex"
             onOpen={() => { setModelMenuPage("root"); setModelAdvancedOpen(false); }}
             trigger={(open, toggle) => (
-              <button className={"cx-pill cx-model" + (open ? " active" : "")} onClick={toggle} title="Model, effort & speed" aria-haspopup="menu" aria-expanded={open}>
+              <button className={"cx-pill cx-model" + (open ? " active" : "")} onClick={toggle} title="Model & effort" aria-haspopup="menu" aria-expanded={open}>
                 <ModelIcon provider={provider} />
                 {modelLabel}
                 {(budgetOverride || effort !== "off") && <span className="cx-pill-sub">{budgetOverride ? "Custom" : effortLevel.label}</span>}
@@ -1413,9 +1357,9 @@ export function Composer(props: ComposerProps) {
           >
             {(close) => (
               <div className="cx-menu wide cx-model-menu">
-                {/* Compact drill-in like Codex: Model / Effort / Speed each show
-                    label + current value + chevron and open a choice list; an
-                    Advanced collapsible holds the overflow controls. */}
+                {/* Compact drill-in: Model / Effort each show label + current
+                    value + chevron and open a choice list; an Advanced
+                    collapsible holds the overflow controls. */}
                 {modelMenuPage === "root" ? (
                   <>
                     <div className="cx-model-rows">
@@ -1427,11 +1371,6 @@ export function Composer(props: ComposerProps) {
                       <button className="cx-model-row" onClick={() => setModelMenuPage("effort")} aria-label="Choose reasoning effort">
                         <span className="cx-model-row-label">Effort</span>
                         <span className="cx-model-row-value">{budgetOverride ? `Custom · ${budgetOverride}` : effortLevel.label}</span>
-                        <CaretDown className="cx-model-row-chev" size={11} />
-                      </button>
-                      <button className="cx-model-row" onClick={() => setModelMenuPage("speed")} aria-label="Choose speed">
-                        <span className="cx-model-row-label">Speed</span>
-                        <span className="cx-model-row-value">{speedById(speed).label}</span>
                         <CaretDown className="cx-model-row-chev" size={11} />
                       </button>
                     </div>
@@ -1498,7 +1437,7 @@ export function Composer(props: ComposerProps) {
                       />
                     ))}
                   </>
-                ) : modelMenuPage === "effort" ? (
+                ) : (
                   <>
                     <div className="pop-menu-title">
                       <button className="pop-back" onClick={() => setModelMenuPage("root")} aria-label="Back">‹</button>
@@ -1512,23 +1451,6 @@ export function Composer(props: ComposerProps) {
                         desc={e.desc}
                         active={!budgetOverride && effort === e.id}
                         onClick={() => { chooseEffort(e.id); setModelMenuPage("root"); close(); }}
-                      />
-                    ))}
-                  </>
-                ) : (
-                  <>
-                    <div className="pop-menu-title">
-                      <button className="pop-back" onClick={() => setModelMenuPage("root")} aria-label="Back">‹</button>
-                      <b>Speed</b>
-                    </div>
-                    {SPEED_LEVELS.map((s) => (
-                      <PopItem
-                        key={s.id}
-                        icon={<Lightning size={15} weight={s.id === "priority" ? "fill" : "regular"} />}
-                        title={s.label}
-                        desc={s.desc}
-                        active={speed === s.id}
-                        onClick={() => { chooseSpeed(s.id); setModelMenuPage("root"); close(); }}
                       />
                     ))}
                   </>
@@ -1712,33 +1634,6 @@ const PlanIcon = () => <ListChecks size={14} />;
 const EffortIcon = ({ level }: { level: EffortId }) => <ChartBar size={14} weight={level === "off" ? "regular" : "fill"} />;
 const BestIcon = () => <ChartBar size={14} />;
 const PersonaIcon = () => <UserCircle size={13} />;
-
-// Plugins (Codex parity): capability shortcuts in the "+" menu. There is no
-// backend plugin/skill registry yet (deferred) — clicking a row seeds the draft
-// with a starter prompt (see injectPlugin). Swap in real skill/capability wiring
-// once a registry lands.
-const PLUGINS: { id: string; label: string; desc: string; hint: string }[] = [
-  { id: "documents", label: "Documents", desc: "Create and edit document artifacts", hint: "Create a document artifact: " },
-  { id: "pdf", label: "PDF", desc: "Read, create, and verify PDF files", hint: "Work with a PDF file: " },
-  { id: "spreadsheets", label: "Spreadsheets", desc: "Create and edit spreadsheet files", hint: "Build a spreadsheet: " },
-  { id: "presentations", label: "Presentations", desc: "Create and edit presentations", hint: "Create a presentation: " },
-  { id: "template", label: "Template Creator", desc: "Create or update document, spreadsheet & presentation templates", hint: "Create a reusable template: " },
-];
-const PluginIcon = ({ id }: { id: string }) => {
-  const cls = "cx-plugin-ico " + id;
-  switch (id) {
-    case "documents":
-      return <FileText size={16} weight="fill" className={cls} />;
-    case "pdf":
-      return <FilePdf size={16} weight="fill" className={cls} />;
-    case "spreadsheets":
-      return <Table size={16} weight="fill" className={cls} />;
-    case "presentations":
-      return <Presentation size={16} weight="fill" className={cls} />;
-    default:
-      return <Layout size={16} weight="fill" className={cls} />;
-  }
-};
 
 // Access-mode icons (C2): each approval posture gets a distinct Codex-style
 // line icon, tinted by its risk so the menu keeps the pill's risk language.
