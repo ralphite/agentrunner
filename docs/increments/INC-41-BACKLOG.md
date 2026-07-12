@@ -1995,8 +1995,12 @@ standalone PWA 等**能**投递 ⌘N 的壳里白拿 Codex 原键。在 input/te
 - ☐ **SC-5(P1)Suggestions 的 cadence 是空头支票**:卡片写 `Weekdays at 8:00 AM`,点开的 run 表单
   **没有任何 schedule 字段**(`store.ts:10` ModalKind 只有 `task?`/`preset?`)。要么把 interval/cron 传下去
   并在 `Modals.tsx` 取作初值,要么把文案改成我们真能落地的。**跨 store/Modals,让路下轮。**
-- ☐ **SC-9(P3)`#/scheduled` 深链 → "Task not found"**:`App.tsx:189` 只认 `raw === "scheduled"`,
-  带前导斜杠的 hash 掉进 NotFound。修法:`raw = raw.replace(/^\/+/, "")`。
+- ✅ **SC-9 + RT-1(实为 P0)`#/` 与 `#/scheduled` 深链都渲染 "Task not found"**:`App.tsx` 只剥
+  `/s/` 前缀,不剥前导斜杠,于是 `"/"` / `"/scheduled"` 被当成 session id 去 `select()`。
+  **不止 Scheduled——连首页 hash `#/` 都是死链**(书签、分享链接、手写 URL 全中;轮22 曾撞见但误判为
+  "截图取证姿势不对",没修根因)。修:抽出 `routeHash.ts:normalizeRoute()` 统一剥前导斜杠 + 可选
+  `s/` 前缀 + 尾斜杠,4 条单测钉住。轮23 落地 `5a141a5`,live 复验 `#/` → New task 首页、
+  `#/scheduled` → Scheduled 页,console 0。
 - ⊘ **SC-8 首屏一条 `Next run` 都没有**:`webui/schedule.go:64` 只在 future tick 可算时给 `nextRunAt`,
   已停/已完成 series 明确不给(`schedule_test.go:77` 就是这条断言)——行为诚实。SC-1 修完后需复核
   running interval driver 能否拿到;拿不到才是 bug。
