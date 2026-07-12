@@ -70,12 +70,16 @@ jobs:
             id="$(basename "$f" .sh | sed 's/^run-//')"
             if [ -n "$ONLY" ] && ! grep -qw "$id" <<<"$ONLY"; then continue; fi
             chmod +x "$f"
+            # qa56 drives the webui shell and takes (arwebui, ar).
+            args=(bin/ar); [ "$id" = qa56 ] && args=(bin/arwebui bin/ar)
             start=$(date +%s)
-            if timeout 420 "$f" bin/ar >"qa-logs/$id.log" 2>&1; then
+            if timeout 420 "$f" "${args[@]}" >"qa-logs/$id.log" 2>&1; then
               verdict=PASS
             else
               rc=$?
-              verdict="FAIL(rc=$rc)"; fail=$((fail+1))
+              # rc=3 is the scripts' SKIP convention (capability absent in
+              # this environment, e.g. macOS-only `say`) — not a failure.
+              if [ "$rc" = 3 ]; then verdict=SKIP; else verdict="FAIL(rc=$rc)"; fail=$((fail+1)); fi
             fi
             dur=$(( $(date +%s) - start ))
             results+=("$id $verdict ${dur}s")

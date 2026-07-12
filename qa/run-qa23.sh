@@ -47,7 +47,7 @@ for i in $(seq 1 100); do [ -S "$sock" ] && break; sleep 0.1; done
 trap 'kill "$DPID" 2>/dev/null || true' EXIT
 
 count_type() { local n; n="$(grep -c "\"type\":\"$1\"" "$1x" 2>/dev/null)" || n=0; printf '%s' "${n:-0}"; }
-asst_count() { grep -c '"type":"assistant_message"' "$1" 2>/dev/null || echo 0; }
+asst_count() { local n; n="$(grep -c '"type":"assistant_message"' "$1" 2>/dev/null)" || n=0; printf '%s' "${n:-0}"; }
 wait_asst() { # $1=events.jsonl $2=want
   local i n
   for i in $(seq 1 400); do

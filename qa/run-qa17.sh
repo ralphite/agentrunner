@@ -21,7 +21,14 @@ here="$(cd "$(dirname "$0")" && pwd)"
 [ -n "${GEMINI_API_KEY:-}" ] || { echo "QA-17: GEMINI_API_KEY unset" >&2; exit 2; }
 
 store="${XDG_DATA_HOME:-$HOME/.local/share}/agentrunner"
-[ -S "$store/daemon.sock" ] || { echo "QA-17: shared daemon not running ($store/daemon.sock)" >&2; exit 2; }
+# Shared daemon = the user's resident runtime; on a scratch runner (CI) there
+# is none — start one and LEAVE it running, same doctrine as run-qa20.sh.
+if [ ! -S "$store/daemon.sock" ]; then
+  mkdir -p "$store"
+  nohup "$AR" daemon >>"$store/qa17-daemon.log" 2>&1 &
+  for i in $(seq 1 100); do [ -S "$store/daemon.sock" ] && break; sleep 0.1; done
+fi
+[ -S "$store/daemon.sock" ] || { echo "QA-17: daemon failed to start ($store/daemon.sock)" >&2; exit 1; }
 
 work="$(mktemp -d /tmp/qa17.XXXXXX)"
 ws="$work/ws"; mkdir -p "$ws"

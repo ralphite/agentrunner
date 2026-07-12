@@ -30,6 +30,7 @@ count_type() { local n; n="$(grep -c "\"type\":\"$1\"" "$2" 2>/dev/null)" || n=0
 # Global daemon: reuse a live one, else start one and LEAVE it running
 # (it is the user's resident runtime, not a fixture).
 if ! "$AR" sessions list >/dev/null 2>&1; then
+  mkdir -p "$DATA"   # pristine runner: the redirect target dir must exist
   nohup "$AR" daemon >>"$DATA/qa20-daemon.log" 2>&1 &
   for i in $(seq 1 100); do [ -S "$SOCK" ] && break; sleep 0.1; done
 fi

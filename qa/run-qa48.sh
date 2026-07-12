@@ -77,7 +77,7 @@ claims="$(count "$ev" '"type":"goal_completion_claimed"')"
 echo "PASS(2): goal_completion_claimed x$claims"
 
 # Red line 3: a real judge Activity ran.
-judges="$(grep -a '"type":"activity_started"' "$ev" | grep -ac '"name":"verifier:llm_judge"' || echo 0)"
+judges="$(grep -a '"type":"activity_started"' "$ev" | grep -ac '"name":"verifier:llm_judge"')" || judges=0; judges="${judges:-0}"
 [ "$judges" -ge 1 ] || { echo "QA-48 FAIL: no verifier:llm_judge activity" >&2; exit 1; }
 echo "PASS(3): verifier:llm_judge activity x$judges (real Gemini judge call)"
 

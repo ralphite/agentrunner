@@ -56,8 +56,8 @@ for i in $(seq 1 100); do [ -S "$sock" ] && break; sleep 0.1; done
 [ -S "$sock" ] || { echo "QA-24: daemon socket never appeared" >&2; cat "$work/daemon.log" >&2; exit 1; }
 trap 'kill "$DPID" 2>/dev/null || true' EXIT
 
-asst_count() { grep -c '"type":"assistant_message"' "$1" 2>/dev/null || echo 0; }
-input_count() { grep -c '"type":"input_received"' "$1" 2>/dev/null || echo 0; }
+asst_count() { local n; n="$(grep -c '"type":"assistant_message"' "$1" 2>/dev/null)" || n=0; printf '%s' "${n:-0}"; }
+input_count() { local n; n="$(grep -c '"type":"input_received"' "$1" 2>/dev/null)" || n=0; printf '%s' "${n:-0}"; }
 wait_asst() {
   local i n
   for i in $(seq 1 400); do

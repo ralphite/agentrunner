@@ -15,7 +15,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 [ -f "$here/../.env" ] && { set -a; . "$here/../.env"; set +a; }
 [ -n "${GEMINI_API_KEY:-}" ] || { echo "QA-57: GEMINI_API_KEY unset" >&2; exit 2; }
 
-command -v say >/dev/null || { echo "QA-57: `say` unavailable (macOS only)" >&2; exit 2; }
+command -v say >/dev/null || { echo "QA-57 SKIP: \`say\` unavailable (macOS only)" >&2; exit 3; }
 work="$(mktemp -d /tmp/qa57-XXXX)"
 
 # 1. dictate — synth an English/Chinese-mixed note naming proper nouns.

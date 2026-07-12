@@ -45,8 +45,8 @@ for i in $(seq 1 100); do [ -S "$sock" ] && break; sleep 0.1; done
 [ -S "$sock" ] || { echo "QA-28: daemon socket never appeared" >&2; cat "$work/daemon.log" >&2; exit 1; }
 trap 'kill "$DPID" 2>/dev/null || true' EXIT
 
-asst_count() { grep -c '"type":"assistant_message"' "$1" 2>/dev/null || echo 0; }
-count() { grep -c "\"type\":\"$2\"" "$1" 2>/dev/null || echo 0; }
+asst_count() { local n; n="$(grep -c '"type":"assistant_message"' "$1" 2>/dev/null)" || n=0; printf '%s' "${n:-0}"; }
+count() { local n; n="$(grep -c "\"type\":\"$2\"" "$1" 2>/dev/null)" || n=0; printf '%s' "${n:-0}"; }
 wait_asst() { local i n; for i in $(seq 1 400); do n="$(asst_count "$1")"; [ "$n" -ge "$2" ] && return 0; sleep 0.2; done; echo "QA-28: timeout ($n asst)" >&2; exit 1; }
 
 # --- Scenario A: normal file edit — acceptEdits auto-allows ---

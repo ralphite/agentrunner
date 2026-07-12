@@ -70,7 +70,7 @@ token="$(echo "$create_out" | sed -n 's/^token (shown ONCE, store it now): //p')
 [ -n "$hook_id" ] && [ -n "$token" ] || { echo "QA-50 FAIL: create printed no id/token" >&2; exit 1; }
 reg="$XDG_DATA_HOME/agentrunner/hooks.json"
 grep -q "$token" "$reg" && { echo "QA-50 FAIL: plaintext token at rest" >&2; exit 1; }
-perm="$(stat -f '%Lp' "$reg")"
+perm="$(stat -c '%a' "$reg" 2>/dev/null || stat -f '%Lp' "$reg")"
 [ "$perm" = "600" ] || { echo "QA-50 FAIL: hooks.json perm $perm" >&2; exit 1; }
 echo "PASS(1): hook created; registry hash-only, 0600"
 
