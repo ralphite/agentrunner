@@ -2984,8 +2984,11 @@ summary.fd-head:hover {
 /* ========================================================================
    INC-19 — Codex product shell + AgentRunner supervision
    ======================================================================== */
+/* SB-5 · Rail width. Codex's sidebar is ~17% of the window (≈256px at 1440);
+   ours was 292px (20.3%) and still fit fewer rows. Keep this in step with
+   `.task-preview { left }` and the ≤680px `.sidebar { width }` below. */
 .app {
-  grid-template-columns: 292px minmax(0, 1fr);
+  grid-template-columns: 264px minmax(0, 1fr);
   background: var(--bg);
 }
 .sidebar {
@@ -3050,7 +3053,7 @@ summary.fd-head:hover {
 }
 .primary-nav button {
   width: 100%;
-  height: 36px;
+  height: 32px;
   display: flex;
   align-items: center;
   gap: 11px;
@@ -3106,18 +3109,26 @@ summary.fd-head:hover {
 .sidebar-section + .sidebar-section {
   margin-top: 12px;
 }
+/* SB-3 · Sidebar density. `Pinned`/`Projects` are quiet signposts, not content:
+   small, tight, ~20px tall — at 13.5px they read as loud as the task titles
+   underneath them.
+   ⚠️ Density here is pinned to the real pixels of
+   `qa/codex-reference/codex-crop-sidebar-projects.jpg` (INC-41 SB-3). Do NOT
+   scale these rows back up — an earlier "airier sidebar" pass pushed them 35%
+   past the gold standard and cost ~8 visible rows per viewport. */
 .section-label {
-  padding: 8px 10px 6px;
+  padding: 4px 10px 3px;
   color: var(--dim);
-  font-size: 13.5px;
+  font-size: 11.5px;
   font-weight: 500;
+  line-height: 1.2;
 }
 .project-group {
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 .project-heading {
   width: 100%;
-  height: 32px;
+  height: 28px;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -3141,34 +3152,61 @@ summary.fd-head:hover {
 }
 .project-task-wrap {
   position: relative;
-  min-height: 38px;
+  min-height: 28px;
   border-radius: 8px;
   color: var(--ink-2);
+  /* Opaque stand-in for this row's background, so the hover scrim below can
+     fade the title out into exactly the colour that is actually painted. */
+  --row-bg: var(--sidebar);
 }
 .project-task-wrap.nested {
-  margin-left: 21px;
+  margin-left: 16px;
 }
+/* SB-2 · The title runs to the right edge. The pin/archive buttons are
+   `position: absolute` and only surface on hover, so reserving 60px of
+   padding for them full-time cost every row ~40% of its title (nearly every
+   row ellipsed, status dot marooned mid-row). On hover the icons float over
+   the title and a gradient scrim fades the text out underneath them — no
+   padding swap, so the title never shifts or reflows. */
 .project-task {
   width: 100%;
-  min-height: 38px;
+  min-height: 28px;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 60px 6px 10px;
+  padding: 4px 10px;
   border: 0;
   border-radius: 8px;
   background: transparent;
   color: inherit;
   text-align: left;
 }
+.project-task-wrap::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 76px;
+  border-radius: 0 8px 8px 0;
+  background: linear-gradient(to right, transparent, var(--row-bg) 40%);
+  opacity: 0;
+  pointer-events: none;
+}
+.project-task-wrap:hover::after {
+  opacity: 1;
+}
 .project-task-wrap:hover,
 .project-task-wrap.current {
   background: color-mix(in srgb, var(--ink) 7%, transparent);
   color: var(--ink);
+  --row-bg: color-mix(in srgb, var(--ink) 7%, var(--sidebar));
 }
 .project-task:hover { border-color: transparent; background: transparent; }
 .project-task-wrap.current {
   background: var(--panel-2);
+  --row-bg: var(--panel-2);
 }
 .project-task-wrap.archived {
   opacity: 0.55;
@@ -3180,6 +3218,8 @@ summary.fd-head:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 14.5px;
+  /* SB-3: the inherited 1.5 body line-height alone made rows 32px+. */
+  line-height: 1.35;
 }
 .project-task-wrap.unread .project-task-title {
   color: var(--ink);
@@ -3191,6 +3231,15 @@ summary.fd-head:hover {
   border-radius: 50%;
   flex: 0 0 auto;
   background: var(--dim);
+}
+/* SB-2 · Pin the row's dot to the right edge (Codex puts the trailing glyph
+   there). Scoped to .project-task: in the hover preview card the dot *leads*
+   its status label, and must not be shoved across the row. It stays in flow so
+   the title truncates before it rather than running underneath it. */
+.project-task .status-dot {
+  position: relative;
+  z-index: 2; /* above the row scrim */
+  margin-left: auto;
 }
 .status-dot.unread { background: var(--blue); }
 .status-dot.run,
@@ -3218,10 +3267,29 @@ summary.fd-head:hover {
   opacity: 0;
   color: var(--dim);
 }
+/* SB-2 · The second invisible width thief (same class of bug as the old 60px
+   padding): .task-open renders on every row at opacity 0 but, as an in-flow
+   flex item, silently ate 13px + 6px gap of every title. Float it out of flow
+   into the trailing slot, just clear of the status dot at right: 10px. */
+.task-open {
+  position: absolute;
+  z-index: 2; /* above the row scrim */
+  right: 26px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+/* Trailing slot has two modes: at rest it reports status (dot + open glyph);
+   on hover it offers actions (pin + archive). Swapping opacity — never
+   display/padding — keeps the title from shifting. */
+.project-task-wrap:hover .status-dot,
+.project-task-wrap:hover .task-open {
+  opacity: 0;
+}
 .task-pin {
   position: absolute;
+  z-index: 2; /* above the .project-task-wrap::after hover scrim */
   right: 31px;
-  top: 5px;
+  top: 3px;
   width: 24px;
   height: 24px;
   display: grid;
@@ -3233,8 +3301,9 @@ summary.fd-head:hover {
 }
 .task-archive {
   position: absolute;
+  z-index: 2; /* above the .project-task-wrap::after hover scrim */
   right: 5px;
-  top: 5px;
+  top: 3px;
   width: 24px;
   height: 24px;
   display: grid;
@@ -3246,15 +3315,22 @@ summary.fd-head:hover {
 }
 .task-pin.active { opacity: .72; }
 .project-task-wrap:hover .task-pin,
-.project-task-wrap:hover .task-archive,
-.project-task-wrap:hover .task-open,
+.project-task-wrap:hover .task-archive { opacity: .72; }
 .project-task-wrap.current .task-open { opacity: .72; }
+/* A pinned row's trailing glyph is the pin itself — don't stack the open
+   glyph underneath it. */
+.project-task-wrap:has(.task-pin.active) .task-open { opacity: 0; }
+/* Raise the scrim wherever something now floats over the full-width title:
+   hover (pin+archive), the current row (open glyph), a pinned row (pin). */
+.project-task-wrap:hover::after,
+.project-task-wrap.current::after,
+.project-task-wrap:has(.task-pin.active)::after { opacity: 1; }
 .task-pin:hover,
 .task-archive:hover { border-color: transparent; background: color-mix(in srgb, var(--ink) 7%, transparent); }
 .task-preview {
   position: fixed;
   z-index: 75;
-  left: 296px;
+  left: 268px; /* SB-5: rail (264px) + 4px gutter — keep in step with .app */
   width: 264px;
   display: grid;
   gap: 8px;
@@ -3867,7 +3943,7 @@ summary.fd-head:hover {
     border-radius: 0;
     background: rgba(0, 0, 0, .18);
   }
-  .sidebar { position: fixed; inset: 0 auto 0 0; z-index: 70; width: min(292px, 86vw); box-shadow: 10px 0 30px rgba(0,0,0,.14); }
+  .sidebar { position: fixed; inset: 0 auto 0 0; z-index: 70; width: min(264px, 86vw); box-shadow: 10px 0 30px rgba(0,0,0,.14); }
   .app.collapsed .sidebar { display: none; }
   .task-topbar { padding-left: 52px; }
   .sidebar-show { display: grid; }
