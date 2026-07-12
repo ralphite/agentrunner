@@ -224,7 +224,17 @@ function useWorkspace() {
     }
   };
   const ensure = async () => {
-    if (ws.trim()) return ws.trim();
+    const v = ws.trim();
+    if (v) {
+      // A bare name like "abc" would resolve relative to the server's cwd and
+      // fail with a raw "workspace is not an existing directory: /…/abc"
+      // (phone report 2026-07-12). Catch it here with actionable guidance
+      // instead of leaking the resolved path. Blank = a fresh scratch dir.
+      if (!v.startsWith("/") && !v.startsWith("~")) {
+        throw new Error("Workspace must be a full path (starting with /), or leave it blank for a new scratch workspace — or tap “Use folder…”.");
+      }
+      return v;
+    }
     const path = (await AR.makeWorkspace()).path;
     setWs(path);
     return path;
@@ -303,7 +313,7 @@ function NewSessionModal({ initialMessage }: { initialMessage?: string }) {
       <textarea autoFocus rows={3} value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="Describe the outcome you want" />
       <label className="field">Workspace</label>
       <div className="row-flex">
-        <input type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="New scratch workspace" />
+        <input type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="Leave blank for a new scratch workspace" />
         <button style={{ whiteSpace: "nowrap" }} onClick={choose}>Use folder…</button>
         <button style={{ whiteSpace: "nowrap" }} onClick={mkWorktree} title="Codex 'New worktree': branch a fresh, isolated git worktree of a repo so edits don't touch your checkout">
           New worktree…
@@ -408,7 +418,7 @@ function RunModal({ initialTask, preset = "one-time" }: { initialTask?: string; 
       <textarea autoFocus rows={3} value={task} onChange={(e) => setTask(e.target.value)} placeholder="Describe the outcome you want" />
       <label className="field">Workspace</label>
       <div className="row-flex">
-        <input type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="New scratch workspace" />
+        <input type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="Leave blank for a new scratch workspace" />
         <button style={{ whiteSpace: "nowrap" }} onClick={choose}>Use folder…</button>
       </div>
       {kind === "submit" ? (
