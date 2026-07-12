@@ -37,28 +37,31 @@ export function SettingsAppearance({ query }: { query: string }) {
     show("Syntax highlighting diff code");
 
   return (
-    <div className="rs-panel">
-      <h2 className="rs-panel-title">Appearance</h2>
-      <p className="rs-panel-sub">Theme, type scale and diff rendering. Changes apply instantly and are remembered on this device.</p>
+    <div className="rs-panel max-w-[660px] mx-auto">
+      <h2 className="rs-panel-title m-0 mb-[4px] text-[19px] font-[650]">Appearance</h2>
+      <p className="rs-panel-sub m-0 mb-[22px] text-dim text-[13px] leading-[1.5]">Theme, type scale and diff rendering. Changes apply instantly and are remembered on this device.</p>
 
-      {!any && <div className="rs-noresults">No appearance settings match “{query}”.</div>}
+      {!any && <div className="rs-noresults text-dim text-[13px] py-[8px]">No appearance settings match “{query}”.</div>}
 
       {show("Theme system light dark") && (
-        <section className="rs-row rs-row-block">
-          <div className="rs-row-head">
-            <div className="rs-row-label">Theme</div>
-            <div className="rs-row-desc">Follow the system, or pin a light or dark appearance.</div>
+        <section className="rs-row rs-row-block flex flex-col items-stretch justify-between gap-[12px] py-[16px] border-t border-line-2 first-of-type:border-t-0">
+          <div className="rs-row-head min-w-0">
+            <div className="rs-row-label flex items-center gap-[8px] text-[14px] text-ink">Theme</div>
+            <div className="rs-row-desc mt-[3px] text-[12.5px] text-dim leading-[1.5]">Follow the system, or pin a light or dark appearance.</div>
           </div>
-          <div className="rs-themecards">
+          <div className="rs-themecards grid grid-cols-3 gap-[12px] max-[720px]:grid-cols-1">
             {THEME_CARDS.map((c) => (
               <button
                 key={c.id}
-                className={"rs-themecard" + (a.theme === c.id ? " sel" : "")}
+                className={
+                  "rs-themecard flex flex-col gap-[8px] p-[10px] border rounded-[12px] bg-panel " +
+                  (a.theme === c.id ? "sel border-rs-accent shadow-[0_0_0_1px_var(--rs-accent)]" : "border-line hover:border-dim")
+                }
                 onClick={() => patch({ theme: c.id })}
                 aria-pressed={a.theme === c.id}
               >
                 <ThemePreview id={c.id} />
-                <span className="rs-themecard-name">
+                <span className="rs-themecard-name inline-flex items-center gap-[6px] text-[12.5px] text-ink">
                   <c.icon size={13} weight="bold" /> {c.label}
                 </span>
               </button>
@@ -91,14 +94,15 @@ export function SettingsAppearance({ query }: { query: string }) {
       )}
 
       {show("Contrast") && (
-        <section className="rs-row">
-          <div className="rs-row-head">
-            <div className="rs-row-label">Contrast</div>
-            <div className="rs-row-desc">Strengthen or soften secondary text and borders.</div>
+        <section className="rs-row flex items-center justify-between gap-[22px] py-[16px] border-t border-line-2 first-of-type:border-t-0">
+          <div className="rs-row-head min-w-0">
+            <div className="rs-row-label flex items-center gap-[8px] text-[14px] text-ink">Contrast</div>
+            <div className="rs-row-desc mt-[3px] text-[12.5px] text-dim leading-[1.5]">Strengthen or soften secondary text and borders.</div>
           </div>
-          <div className="rs-slider">
+          <div className="rs-slider inline-flex items-center gap-[10px] shrink-0">
             <input
               type="range"
+              className="w-[160px] accent-rs-accent"
               min={0}
               max={100}
               step={5}
@@ -106,20 +110,24 @@ export function SettingsAppearance({ query }: { query: string }) {
               onChange={(e) => patch({ contrast: Number(e.target.value) })}
               aria-label="Contrast"
             />
-            <span className="rs-slider-val">{a.contrast === 50 ? "Default" : a.contrast > 50 ? `+${a.contrast - 50}` : `${a.contrast - 50}`}</span>
+            <span className="rs-slider-val min-w-[52px] text-right text-[12.5px] text-dim tabular-nums">{a.contrast === 50 ? "Default" : a.contrast > 50 ? `+${a.contrast - 50}` : `${a.contrast - 50}`}</span>
           </div>
         </section>
       )}
 
       {show("Diff markers color signs colorblind") && (
-        <section className="rs-row">
-          <div className="rs-row-head">
-            <div className="rs-row-label">Diff markers</div>
-            <div className="rs-row-desc">How added and removed lines are distinguished.</div>
+        <section className="rs-row flex items-center justify-between gap-[22px] py-[16px] border-t border-line-2 first-of-type:border-t-0">
+          <div className="rs-row-head min-w-0">
+            <div className="rs-row-label flex items-center gap-[8px] text-[14px] text-ink">Diff markers</div>
+            <div className="rs-row-desc mt-[3px] text-[12.5px] text-dim leading-[1.5]">How added and removed lines are distinguished.</div>
           </div>
-          <div className="rs-seg">
+          <div className="rs-seg inline-flex shrink-0 border border-line rounded-[9px] overflow-hidden">
             {(["color", "signs"] as DiffMarkers[]).map((m) => (
-              <button key={m} className={"rs-seg-btn" + (a.diffMarkers === m ? " sel" : "")} onClick={() => patch({ diffMarkers: m })}>
+              <button
+                key={m}
+                className={SEG_BTN + (a.diffMarkers === m ? " sel bg-rs-accent-soft text-rs-accent font-[550]" : " bg-panel text-ink-2")}
+                onClick={() => patch({ diffMarkers: m })}
+              >
                 {m === "color" ? "Color" : "+ / −"}
               </button>
             ))}
@@ -154,31 +162,39 @@ const THEME_CARDS: { id: Theme; label: string; icon: typeof Monitor }[] = [
   { id: "dark", label: "Dark", icon: Moon },
 ];
 
+// Shared utility strings for the rs-seg segmented control (kept alongside the
+// semantic class names — see SettingsGit for the other consumer).
+export const SEG_BTN =
+  "rs-seg-btn px-[16px] py-[6px] border-0 rounded-none text-[13px] [&:not(:first-child)]:border-l [&:not(:first-child)]:border-line";
+
+const TP = "rs-tp flex h-[56px] rounded-[7px] overflow-hidden border border-line-2";
+
 // ThemePreview draws a tiny fixed-color window mock so each card previews its
 // theme regardless of the app's current one; "system" is split down the middle.
 function ThemePreview({ id }: { id: Theme }) {
   const light = { bg: "#ffffff", side: "#f4f4f4", ink: "#0d0d0d", line: "#e7e7e7", accent: "#0169cc" };
   const dark = { bg: "#17171a", side: "#141416", ink: "#ececf1", line: "#2a2a30", accent: "#6f9bff" };
+  const bar = "h-[4px] rounded-[2px]";
   const half = (p: typeof light, side: "l" | "r") => (
-    <div className="rs-tp-half" style={{ background: p.bg }}>
-      <div className="rs-tp-side" style={{ background: p.side, borderColor: p.line }}>
-        <span style={{ background: p.accent }} />
-        <span style={{ background: p.line }} />
-        <span style={{ background: p.line }} />
+    <div className="rs-tp-half flex-1 flex h-full" style={{ background: p.bg }}>
+      <div className="rs-tp-side w-[26%] border-r flex flex-col gap-[4px] px-[5px] py-[6px]" style={{ background: p.side, borderColor: p.line }}>
+        <span className="h-[5px] rounded-[2px]" style={{ background: p.accent }} />
+        <span className={bar} style={{ background: p.line }} />
+        <span className={bar} style={{ background: p.line }} />
       </div>
-      <div className="rs-tp-body">
-        <span style={{ background: p.ink, opacity: 0.85 }} />
-        <span style={{ background: p.line }} />
-        <span style={{ background: side === "l" ? p.accent : p.line }} />
+      <div className="rs-tp-body flex-1 flex flex-col gap-[5px] px-[6px] py-[7px]">
+        <span className={bar + " w-[80%]"} style={{ background: p.ink, opacity: 0.85 }} />
+        <span className={bar + " w-[62%]"} style={{ background: p.line }} />
+        <span className={bar + " w-[40%]"} style={{ background: side === "l" ? p.accent : p.line }} />
       </div>
     </div>
   );
-  if (id === "light") return <div className="rs-tp">{half(light, "l")}</div>;
-  if (id === "dark") return <div className="rs-tp">{half(dark, "l")}</div>;
+  if (id === "light") return <div className={TP}>{half(light, "l")}</div>;
+  if (id === "dark") return <div className={TP}>{half(dark, "l")}</div>;
   return (
-    <div className="rs-tp rs-tp-split">
-      <div className="rs-tp-clipL">{half(light, "l")}</div>
-      <div className="rs-tp-clipR">{half(dark, "r")}</div>
+    <div className={TP + " rs-tp-split relative"}>
+      <div className="rs-tp-clipL w-1/2 overflow-hidden [&>.rs-tp-half]:w-[200%]">{half(light, "l")}</div>
+      <div className="rs-tp-clipR w-1/2 overflow-hidden [&>.rs-tp-half]:w-[200%] [&>.rs-tp-half]:-translate-x-1/2">{half(dark, "r")}</div>
     </div>
   );
 }
@@ -200,20 +216,24 @@ function FontRow({
   onChange: (v: number) => void;
   mono?: boolean;
 }) {
+  const step = "rs-step w-[26px] h-[26px] p-0 border border-line rounded-[7px] bg-panel text-ink text-[15px] leading-none hover:bg-panel-2";
   return (
-    <section className="rs-row">
-      <div className="rs-row-head">
-        <div className="rs-row-label">{label}</div>
-        <div className="rs-row-desc">{desc}</div>
+    <section className="rs-row flex items-center justify-between gap-[22px] py-[16px] border-t border-line-2 first-of-type:border-t-0">
+      <div className="rs-row-head min-w-0">
+        <div className="rs-row-label flex items-center gap-[8px] text-[14px] text-ink">{label}</div>
+        <div className="rs-row-desc mt-[3px] text-[12.5px] text-dim leading-[1.5]">{desc}</div>
       </div>
-      <div className="rs-slider">
-        <button className="rs-step" onClick={() => onChange(Math.max(min, value - 1))} aria-label={`Decrease ${label}`}>
+      <div className="rs-slider inline-flex items-center gap-[10px] shrink-0">
+        <button className={step} onClick={() => onChange(Math.max(min, value - 1))} aria-label={`Decrease ${label}`}>
           −
         </button>
-        <span className={"rs-fontpreview" + (mono ? " mono" : "")} style={mono ? { fontSize: value } : undefined}>
+        <span
+          className={"rs-fontpreview min-w-[52px] text-center text-[12.5px] text-ink-2" + (mono ? " mono" : "")}
+          style={mono ? { fontSize: value } : undefined}
+        >
           {value}px
         </span>
-        <button className="rs-step" onClick={() => onChange(Math.min(max, value + 1))} aria-label={`Increase ${label}`}>
+        <button className={step} onClick={() => onChange(Math.min(max, value + 1))} aria-label={`Increase ${label}`}>
           +
         </button>
       </div>
@@ -223,13 +243,27 @@ function FontRow({
 
 function ToggleRow({ label, desc, checked, onChange }: { label: string; desc: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
-    <section className="rs-row">
-      <div className="rs-row-head">
-        <div className="rs-row-label">{label}</div>
-        <div className="rs-row-desc">{desc}</div>
+    <section className="rs-row flex items-center justify-between gap-[22px] py-[16px] border-t border-line-2 first-of-type:border-t-0">
+      <div className="rs-row-head min-w-0">
+        <div className="rs-row-label flex items-center gap-[8px] text-[14px] text-ink">{label}</div>
+        <div className="rs-row-desc mt-[3px] text-[12.5px] text-dim leading-[1.5]">{desc}</div>
       </div>
-      <button className={"rs-switch" + (checked ? " on" : "")} role="switch" aria-checked={checked} aria-label={label} onClick={() => onChange(!checked)}>
-        <span className="rs-switch-knob" />
+      <button
+        className={
+          "rs-switch relative shrink-0 w-[40px] h-[24px] p-0 border-0 rounded-full transition-colors duration-150 " +
+          (checked ? "on bg-rs-accent shadow-none" : "bg-panel-2 shadow-[inset_0_0_0_1px_var(--line)]")
+        }
+        role="switch"
+        aria-checked={checked}
+        aria-label={label}
+        onClick={() => onChange(!checked)}
+      >
+        <span
+          className={
+            "rs-switch-knob absolute top-[3px] left-[3px] w-[18px] h-[18px] rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.25)] transition-transform duration-150" +
+            (checked ? " translate-x-[16px]" : "")
+          }
+        />
       </button>
     </section>
   );

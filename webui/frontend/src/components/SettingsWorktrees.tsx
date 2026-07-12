@@ -23,26 +23,26 @@ export function SettingsWorktrees({ query }: { query: string }) {
   const filtered = all.filter(([ws, tasks]) => matchesQuery(query, ws + " " + tasks.map((t) => t.title).join(" ")));
 
   return (
-    <div className="rs-panel">
-      <h2 className="rs-panel-title">Worktrees</h2>
-      <p className="rs-panel-sub">Workspaces backing your tasks, with the conversations linked to each. Read-only — pruning needs a daemon API that isn’t available yet.</p>
+    <div className="rs-panel max-w-[660px] mx-auto">
+      <h2 className="rs-panel-title m-0 mb-[4px] text-[19px] font-[650]">Worktrees</h2>
+      <p className="rs-panel-sub m-0 mb-[22px] text-dim text-[13px] leading-[1.5]">Workspaces backing your tasks, with the conversations linked to each. Read-only — pruning needs a daemon API that isn’t available yet.</p>
 
-      {all.length === 0 && <div className="rs-noresults">No task workspaces yet.</div>}
-      {all.length > 0 && filtered.length === 0 && <div className="rs-noresults">No worktrees match “{query}”.</div>}
+      {all.length === 0 && <div className="rs-noresults text-dim text-[13px] py-[8px]">No task workspaces yet.</div>}
+      {all.length > 0 && filtered.length === 0 && <div className="rs-noresults text-dim text-[13px] py-[8px]">No worktrees match “{query}”.</div>}
 
       {filtered.map(([ws, tasks]) => (
-        <section className="rs-wt-card" key={ws}>
-          <div className="rs-wt-head">
-            <span className="rs-wt-path mono" title={ws}>
+        <section className="rs-wt-card mb-[12px] border border-line rounded-[12px] overflow-hidden" key={ws}>
+          <div className="rs-wt-head flex items-center gap-[10px] px-[13px] py-[10px] bg-panel-2 border-b border-line">
+            <span className="rs-wt-path mono flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-ink-2" title={ws}>
               {ws}
             </span>
-            <span className="rs-wt-count">{tasks.length} conversation{tasks.length === 1 ? "" : "s"}</span>
+            <span className="rs-wt-count shrink-0 text-[11.5px] text-dim">{tasks.length} conversation{tasks.length === 1 ? "" : "s"}</span>
           </div>
-          <div className="rs-wt-tasks">
+          <div className="rs-wt-tasks flex flex-col">
             {tasks.map((t) => (
               <button
                 key={t.id}
-                className="rs-wt-task"
+                className="rs-wt-task text-left px-[13px] py-[8px] rounded-none border-x-0 border-b-0 border-t border-line-2 first:border-t-0 bg-panel text-ink text-[13px] overflow-hidden text-ellipsis whitespace-nowrap hover:bg-rs-accent-soft hover:text-rs-accent"
                 onClick={() => useStore.getState().select(t.id)}
                 title="Open this task"
               >

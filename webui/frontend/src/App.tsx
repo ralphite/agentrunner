@@ -223,12 +223,19 @@ export function App() {
   };
 
   return (
-    <div className={"app" + (effectiveCollapsed ? " collapsed" : "")}>
+    <div
+      className={
+        "app grid h-full bg-bg " +
+        (effectiveCollapsed
+          ? "collapsed grid-cols-[minmax(0,1fr)]"
+          : "grid-cols-[264px_minmax(0,1fr)] max-[900px]:grid-cols-[250px_minmax(0,1fr)] max-[680px]:grid-cols-[minmax(0,1fr)]")
+      }
+    >
       {/* A11Y-1 · Must be the first focusable node in the DOM: the sidebar holds
           ~94% of the app's tab stops, so without this a keyboard user never
           reaches the conversation or composer. */}
       <a
-        className="skip-link"
+        className="skip-link fixed top-[10px] left-[10px] z-[1000] px-[14px] py-[9px] border border-line rounded-[9px] bg-panel text-ink text-[13px] font-medium no-underline translate-y-[calc(-100%-20px)] focus:translate-y-0"
         href="#main"
         onClick={(e) => {
           // location.hash is the router's ("#<sid>" / "#scheduled"), so the
@@ -252,13 +259,19 @@ export function App() {
           openSettings();
         }}
       />
-      {isMobile && mobileSidebarOpen && <button className="sidebar-scrim" aria-label="Close sidebar" onClick={hideSidebar} />}
+      {isMobile && mobileSidebarOpen && (
+        <button
+          className="sidebar-scrim fixed inset-0 z-[60] p-0 border-0 rounded-none bg-[rgba(0,0,0,0.18)]"
+          aria-label="Close sidebar"
+          onClick={hideSidebar}
+        />
+      )}
       {/* tabIndex -1 so the skip link can land focus here (not just scroll):
           the next Tab then continues into the conversation / composer. */}
-      <div className="main" id="main" tabIndex={-1}>
+      <div className="main relative flex flex-col min-w-0 min-h-0 focus:outline-none focus-visible:outline-none" id="main" tabIndex={-1}>
         {effectiveCollapsed && (
           <button
-            className="sidebar-show"
+            className="sidebar-show absolute top-3 left-3 z-20 grid place-items-center shrink-0 px-[6px] py-1 border border-line rounded-[7px] bg-panel text-dim text-[15px] leading-none shadow-[0_2px_8px_rgba(0,0,0,0.08)] hover:bg-panel-2 hover:text-ink"
             onClick={showSidebar}
             title="Show sidebar (⌘B)"
             aria-label="Show sidebar"

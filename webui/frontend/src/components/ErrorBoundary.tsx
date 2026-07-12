@@ -30,10 +30,10 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="m-auto text-center text-dim max-w-[340px]">
           <div className="text-[34px] mb-[6px]">⚠️</div>
           <div>This view hit a render error.</div>
-          <pre style={{ fontSize: 12, color: "var(--red)", whiteSpace: "pre-wrap", marginTop: 8 }}>
+          <pre className="mt-2 text-[12px] text-red whitespace-pre-wrap">
             {String(this.state.error.message || this.state.error)}
           </pre>
-          <button style={{ marginTop: 10 }} onClick={() => this.setState({ error: null })}>
+          <button className="mt-[10px]" onClick={() => this.setState({ error: null })}>
             Retry
           </button>
         </div>

@@ -124,12 +124,12 @@ export function RunView({ runId }: { runId: string }) {
 
   return (
     <>
-      <div className="topbar">
-        <span className="sid">{run?.label || runId}</span>
+      <div className="topbar flex flex-wrap items-center gap-[10px] px-[18px] py-[11px] border-b border-line bg-panel pointer-coarse:pt-[max(10px,env(safe-area-inset-top))]">
+        <span className="sid font-mono text-[12.5px] font-semibold">{run?.label || runId}</span>
         <span className={"pill " + (run?.status || "")}>{run?.status || "—"}</span>
-        <span className="readonly-tag">{run?.kind} run</span>
-        <span className="spacer" />
-        <div className="actions">
+        <span className="readonly-tag text-[11px] text-dim border border-line rounded-md px-[7px] py-px">{run?.kind} run</span>
+        <span className="spacer flex-1" />
+        <div className="actions flex flex-wrap gap-[6px]">
           {run?.status === "running" && (
             <button className="sm danger" onClick={stop}>
               Stop
@@ -138,7 +138,7 @@ export function RunView({ runId }: { runId: string }) {
         </div>
       </div>
       <div
-        className="runlog"
+        className="runlog flex-1 overflow-y-auto px-[22px] py-4 font-mono text-[12.5px]"
         ref={ref}
         onScroll={() => {
           const el = ref.current;
@@ -148,15 +148,24 @@ export function RunView({ runId }: { runId: string }) {
         {parsed.length === 0 && <div className="dim">waiting for output…</div>}
         {parsed.map((l, i) => (
           <div key={i}>
-            {l.iter !== undefined && <div className="run-iter">iteration {l.iter}</div>}
+            {l.iter !== undefined && (
+              <div className="run-iter flex items-center gap-[10px] mt-[14px] mb-[6px] text-dim text-[11px] before:h-px before:flex-1 before:bg-line after:h-px after:flex-1 after:bg-line">
+                iteration {l.iter}
+              </div>
+            )}
             {l.verdict ? (
-              <div className={"run-verdict" + (l.verdict.ok ? " ok" : " warn")}>
+              <div
+                className={
+                  "run-verdict my-[10px] px-3 py-[6px] rounded-lg font-semibold" +
+                  (l.verdict.ok ? " ok bg-green-soft text-green" : " warn bg-amber-soft text-amber")
+                }
+              >
                 ■ driver {l.verdict.reason} · {l.verdict.n} iteration{l.verdict.n === 1 ? "" : "s"}
               </div>
             ) : (
-              <div className="runline">
-                <span className="rk">{l.kind}</span>
-                <span className="rt">{l.text}</span>
+              <div className="runline flex gap-[10px] py-[2px] border-b border-line-2">
+                <span className="rk shrink-0 min-w-[120px] text-dim">{l.kind}</span>
+                <span className="rt whitespace-pre-wrap wrap-break-word">{l.text}</span>
               </div>
             )}
           </div>

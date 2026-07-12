@@ -168,7 +168,7 @@ function ConfirmModal({ modal }: { modal: Extract<NonNullable<ModalKind>, { kind
         </>
       }
     >
-      <p className="confirm-copy">{modal.body}</p>
+      <p className="confirm-copy mt-0.5 mb-1.5 leading-normal text-ink-2">{modal.body}</p>
     </Modal>
   );
 }
@@ -452,8 +452,8 @@ function RunModal({
         <button style={{ whiteSpace: "nowrap" }} onClick={choose}>Use folder…</button>
       </div>
       {kind === "submit" ? (
-        <details className="advanced-settings">
-          <summary>Advanced settings</summary>
+        <details className="advanced-settings group mt-4 border-t border-line pt-3">
+          <summary className="w-max text-xs text-dim group-open:mb-3 group-open:text-ink-2">Advanced settings</summary>
           <div className="row-flex">
             <div style={{ flex: 1 }}>
               <label className="field">Approval mode</label>
@@ -520,8 +520,8 @@ function RunModal({
               {cadenceText({ schedule, interval, cron })}
             </div>
           )}
-          <details className="advanced-settings">
-            <summary>Advanced settings</summary>
+          <details className="advanced-settings group mt-4 border-t border-line pt-3">
+            <summary className="w-max text-xs text-dim group-open:mb-3 group-open:text-ink-2">Advanced settings</summary>
             <label className="field">Driver specification (YAML)</label>
             <textarea className="code" rows={8} value={driver} onChange={(e) => setDriver(e.target.value)} />
             <label className="field">Iteration agent (YAML)</label>
@@ -633,9 +633,9 @@ function ForkModal({ sid }: { sid: string }) {
       </div>
       <label className="field">Continue from</label>
       {barriers.length === 0 ? (
-        <div className="fork-empty">
-          <span>No checkpoints yet. Create one now, then continue from this exact point.</span>
-          <button onClick={createCheckpoint} disabled={busy}>Create checkpoint</button>
+        <div className="fork-empty flex items-center gap-3 rounded-[10px] bg-panel-2 p-3 text-xs text-dim">
+          <span className="flex-1">No checkpoints yet. Create one now, then continue from this exact point.</span>
+          <button className="whitespace-nowrap" onClick={createCheckpoint} disabled={busy}>Create checkpoint</button>
         </div>
       ) : (
         <select value={barrier} onChange={(e) => setBarrier(e.target.value)} title="the checkpoint to branch the new session from">
@@ -646,8 +646,8 @@ function ForkModal({ sid }: { sid: string }) {
           ))}
         </select>
       )}
-      <details className="advanced-settings">
-        <summary>Advanced settings</summary>
+      <details className="advanced-settings group mt-4 border-t border-line pt-3">
+        <summary className="w-max text-xs text-dim group-open:mb-3 group-open:text-ink-2">Advanced settings</summary>
         <label className="field">Worktree directory (optional)</label>
         <input type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="Automatically create a worktree" />
       </details>
@@ -782,58 +782,70 @@ function ViewerModal({ title, body }: { title: string; body: string }) {
   );
 }
 
+// Tailwind strings for the repeated Run-details cells (kept out of the JSX so
+// the six overview rows / three metric tiles stay readable).
+const RD_SECTION = "rd-section grid gap-[9px]";
+const RD_H3 = "m-0 text-xs font-[650] text-ink";
+const RD_CELL = "grid grid-cols-[78px_minmax(0,1fr)] gap-2 bg-panel px-[11px] py-[9px]";
+const RD_DT = "text-[11.5px] text-dim";
+const RD_DD = "m-0 min-w-0 overflow-hidden text-ellipsis text-xs text-ink";
+const RD_METRIC = "grid gap-px rounded-[10px] bg-panel-2 px-[11px] py-2.5";
+
 function RunDetailsModal({ data, status }: { data: unknown; status?: string }) {
   const { openModal } = useStore();
   const summary = summarizeInspect(data, status);
   const displayStatus = friendlyStatus(summary.status.text);
   return (
     <Modal title="Run details" onClose={() => openModal(null)}>
-      <div className="run-details">
-        <div className="rd-hero">
-          <div>
-            <span className="rd-kicker">Current run</span>
-            <strong>{summary.spec}</strong>
+      <div className="run-details grid gap-[18px]">
+        <div className="rd-hero flex items-center justify-between gap-4">
+          <div className="grid min-w-0 gap-0.5">
+            <span className="rd-kicker text-[11px] uppercase tracking-[0.06em] text-dim">Current run</span>
+            <strong className="overflow-hidden text-ellipsis text-[17px] font-[650]">{summary.spec}</strong>
           </div>
           <span className={`pill ${summary.status.cls || displayStatus.cls}`}>{summary.status.text}</span>
         </div>
 
         {summary.waiting && (
-          <section className="rd-attention" aria-label="Waiting for you">
-            <b>{summary.waiting.title}</b>
-            <span>{summary.waiting.subject}</span>
+          <section className="rd-attention grid gap-[3px] rounded-[10px] border border-[color-mix(in_srgb,var(--amber)_25%,var(--line))] bg-amber-soft px-[13px] py-[11px]" aria-label="Waiting for you">
+            <b className="text-xs text-amber">{summary.waiting.title}</b>
+            <span className="overflow-hidden text-ellipsis font-mono text-xs leading-[1.4]">{summary.waiting.subject}</span>
           </section>
         )}
 
-        <section className="rd-section">
-          <h3>Overview</h3>
-          <dl className="rd-grid">
-            <div><dt>Model</dt><dd>{summary.model}</dd></div>
-            <div><dt>Access</dt><dd>{summary.mode}</dd></div>
-            <div><dt>Turns</dt><dd>{summary.turns}</dd></div>
-            <div><dt>Steps</dt><dd>{summary.steps}</dd></div>
-            <div><dt>Subagents</dt><dd>{summary.agents}</dd></div>
-            <div><dt>Provider</dt><dd>{summary.provider || "Not reported"}</dd></div>
+        <section className={RD_SECTION}>
+          <h3 className={RD_H3}>Overview</h3>
+          <dl className="rd-grid m-0 grid grid-cols-[repeat(2,minmax(0,1fr))] gap-px overflow-hidden rounded-[10px] border border-line bg-line max-[680px]:grid-cols-1">
+            <div className={RD_CELL}><dt className={RD_DT}>Model</dt><dd className={RD_DD}>{summary.model}</dd></div>
+            <div className={RD_CELL}><dt className={RD_DT}>Access</dt><dd className={RD_DD}>{summary.mode}</dd></div>
+            <div className={RD_CELL}><dt className={RD_DT}>Turns</dt><dd className={RD_DD}>{summary.turns}</dd></div>
+            <div className={RD_CELL}><dt className={RD_DT}>Steps</dt><dd className={RD_DD}>{summary.steps}</dd></div>
+            <div className={RD_CELL}><dt className={RD_DT}>Subagents</dt><dd className={RD_DD}>{summary.agents}</dd></div>
+            <div className={RD_CELL}><dt className={RD_DT}>Provider</dt><dd className={RD_DD}>{summary.provider || "Not reported"}</dd></div>
           </dl>
         </section>
 
-        <section className="rd-section">
-          <h3>Usage</h3>
-          <div className="rd-metrics">
-            <div><strong>{compactCount(summary.usage.billed)}</strong><span>Billed tokens</span></div>
-            <div><strong>{compactCount(summary.usage.input)}</strong><span>Input</span></div>
-            <div><strong>{compactCount(summary.usage.output)}</strong><span>Output</span></div>
+        <section className={RD_SECTION}>
+          <h3 className={RD_H3}>Usage</h3>
+          <div className="rd-metrics grid grid-cols-3 gap-2">
+            <div className={RD_METRIC}><strong className="text-[17px] font-[620]">{compactCount(summary.usage.billed)}</strong><span className="text-[10.5px] text-dim">Billed tokens</span></div>
+            <div className={RD_METRIC}><strong className="text-[17px] font-[620]">{compactCount(summary.usage.input)}</strong><span className="text-[10.5px] text-dim">Input</span></div>
+            <div className={RD_METRIC}><strong className="text-[17px] font-[620]">{compactCount(summary.usage.output)}</strong><span className="text-[10.5px] text-dim">Output</span></div>
           </div>
         </section>
 
-        <section className="rd-section">
-          <h3>Activity</h3>
-          <p className="rd-summary">{summary.activity.modelCalls} model calls · {summary.activity.toolCalls} tool calls{summary.activity.blocked ? ` · ${summary.activity.blocked} blocked` : ""}</p>
+        <section className={RD_SECTION}>
+          <h3 className={RD_H3}>Activity</h3>
+          <p className="rd-summary m-0 text-xs text-dim">{summary.activity.modelCalls} model calls · {summary.activity.toolCalls} tool calls{summary.activity.blocked ? ` · ${summary.activity.blocked} blocked` : ""}</p>
           {summary.activity.recentTools.length > 0 && (
-            <div className="rd-tools">
+            <div className="rd-tools grid overflow-hidden rounded-[10px] border border-line">
               {summary.activity.recentTools.map((tool, index) => (
-                <div className={tool.blocked ? "blocked" : ""} key={`${tool.name}-${index}`}>
-                  <span>{tool.name}</span>
-                  <code>{tool.detail || (tool.blocked ? "Blocked by policy" : "Completed")}</code>
+                <div
+                  className={`${tool.blocked ? "blocked " : ""}grid grid-cols-[120px_minmax(0,1fr)] gap-2.5 border-b border-line-2 px-2.5 py-2 text-[11.5px] last:border-b-0 max-[680px]:grid-cols-[90px_minmax(0,1fr)]`}
+                  key={`${tool.name}-${index}`}
+                >
+                  <span className={`capitalize ${tool.blocked ? "text-red" : "text-ink"}`}>{tool.name}</span>
+                  <code className={`overflow-hidden text-ellipsis whitespace-nowrap ${tool.blocked ? "text-red" : "text-dim"}`}>{tool.detail || (tool.blocked ? "Blocked by policy" : "Completed")}</code>
                 </div>
               ))}
             </div>
@@ -841,17 +853,17 @@ function RunDetailsModal({ data, status }: { data: unknown; status?: string }) {
         </section>
 
         {(summary.modalities.length > 0 || summary.capabilities.length > 0) && (
-          <section className="rd-section">
-            <h3>Provider capabilities</h3>
-            <div className="rd-tags">
-              {dedupeCaps([...summary.modalities, ...summary.capabilities]).map((label) => <span key={label}>{label}</span>)}
+          <section className={RD_SECTION}>
+            <h3 className={RD_H3}>Provider capabilities</h3>
+            <div className="rd-tags flex flex-wrap gap-[5px]">
+              {dedupeCaps([...summary.modalities, ...summary.capabilities]).map((label) => <span className="rounded-full bg-panel-2 px-[7px] py-[3px] text-[10.5px] capitalize text-ink-2" key={label}>{label}</span>)}
             </div>
           </section>
         )}
 
-        <details className="rd-raw">
-          <summary>Raw run data</summary>
-          <pre>{JSON.stringify(data, null, 2)}</pre>
+        <details className="rd-raw text-[11.5px] text-dim">
+          <summary className="cursor-pointer">Raw run data</summary>
+          <pre className="mt-2 max-h-[280px] overflow-auto rounded-lg bg-panel-2 p-2.5 font-mono text-[11px] leading-[1.45] whitespace-pre-wrap break-words text-ink-2">{JSON.stringify(data, null, 2)}</pre>
         </details>
       </div>
     </Modal>

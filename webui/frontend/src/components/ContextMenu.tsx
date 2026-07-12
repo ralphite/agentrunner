@@ -51,7 +51,13 @@ export function ContextMenu({
     top: Math.min(y, window.innerHeight - 250),
   };
   return (
-    <div className="ctx-menu" ref={ref} style={style} role="menu" onClick={onClose}>
+    <div
+      className="ctx-menu fixed z-[80] min-w-[200px] max-w-[240px] rounded-[10px] border border-line bg-panel p-[5px] shadow-[0_10px_34px_rgba(0,0,0,0.22)]"
+      ref={ref}
+      style={style}
+      role="menu"
+      onClick={onClose}
+    >
       {children}
     </div>
   );

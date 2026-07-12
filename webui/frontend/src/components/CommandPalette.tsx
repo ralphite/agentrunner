@@ -179,11 +179,17 @@ export function CommandPalette({ onClose, onOpenSettings }: {
   };
 
   return (
-    <div className="backdrop cmdk-back" onMouseDown={(e) => e.target === e.currentTarget && onClose(true)}>
-      <div className="cmdk" onKeyDown={onKey} role="dialog" aria-modal="true" aria-label="Command palette">
+    <div className="backdrop cmdk-back items-start pt-[12vh]" onMouseDown={(e) => e.target === e.currentTarget && onClose(true)}>
+      <div
+        className="cmdk w-[min(560px,92vw)] overflow-hidden rounded-[14px] border border-line bg-panel shadow-[0_16px_48px_rgba(0,0,0,0.28)]"
+        onKeyDown={onKey}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command palette"
+      >
         <input
           ref={inputRef}
-          className="cmdk-input"
+          className="cmdk-input w-full border-0 border-b border-line rounded-none bg-transparent px-4 py-[14px] text-[16px] focus:outline-none"
           placeholder="Search tasks or run a command"
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -193,24 +199,27 @@ export function CommandPalette({ onClose, onOpenSettings }: {
           aria-activedescendant={items[idx]?.id}
         />
         <div
-          className="cmdk-list"
+          className="cmdk-list max-h-[min(64vh,620px)] overflow-y-auto p-[6px] scroll-p-[6px]"
           id="command-palette-results"
           role="listbox"
           onMouseMove={() => {
             kbdNav.current = false;
           }}
         >
-          {items.length === 0 && <div className="cmdk-empty">No matches</div>}
+          {items.length === 0 && <div className="cmdk-empty pt-3 px-[14px] pb-[13px] text-center text-[12.5px] text-dim">No matches</div>}
           {items.map((it, i) => {
             const showGroup = i === 0 || items[i - 1].group !== it.group;
             return (
               <div key={it.id}>
-                {showGroup && <div className="cmdk-group">{it.group}</div>}
+                {showGroup && <div className="cmdk-group pt-[6px] px-[10px] pb-[3px] text-[13.5px] text-dim">{it.group}</div>}
                 <button
                   type="button"
                   id={it.id}
                   ref={i === idx ? selRef : undefined}
-                  className={"cmdk-item" + (i === idx ? " sel" : "")}
+                  className={
+                    "cmdk-item flex w-full items-center gap-[10px] rounded-lg border-0 px-3 py-[7px] text-left text-ink hover:bg-panel-2 " +
+                    (i === idx ? "sel bg-panel-2" : "bg-transparent")
+                  }
                   role="option"
                   aria-selected={i === idx}
                   onMouseEnter={() => {
@@ -230,10 +239,16 @@ export function CommandPalette({ onClose, onOpenSettings }: {
                       aria-hidden="true"
                     />
                   )}
-                  <span className="cmdk-label">{it.label}</span>
-                  {it.hint && <span className="cmdk-hint">{it.hint}</span>}
+                  <span className="cmdk-label flex-1 truncate text-[15px] leading-[1.4]">{it.label}</span>
+                  {it.hint && <span className="cmdk-hint shrink-0 text-[13px] text-dim">{it.hint}</span>}
                   {it.quickNum && it.quickNum <= 9 && (
-                    <span className="cmdk-kbd" aria-hidden="true">{modLabel}{it.quickNum}</span>
+                    <span
+                      className={
+                        "cmdk-kbd shrink-0 ml-[6px] min-w-[26px] px-[6px] py-px border rounded-md bg-panel-2 text-center font-mono text-[11px] leading-[1.5] " +
+                        (i === idx ? "border-[color-mix(in_srgb,var(--blue)_38%,var(--line))] text-ink-2" : "border-line text-dim")
+                      }
+                      aria-hidden="true"
+                    >{modLabel}{it.quickNum}</span>
                   )}
                 </button>
               </div>

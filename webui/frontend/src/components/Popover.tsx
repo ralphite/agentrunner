@@ -5,6 +5,17 @@ import { Check } from "@phosphor-icons/react";
 // anchors a panel to a trigger button, opens *upward* (the composer sits at the
 // bottom of the screen), and closes on outside-click / Escape. Kept dependency-
 // free and controlled-optional so each control can drive its own open state.
+
+// Tailwind lookups for the dynamic pop-up/pop-down and pop-left/pop-right
+// variants (the semantic classes stay on the element for tests/QA).
+const DROP_POS = {
+  up: "bottom-[calc(100%+8px)]",
+  down: "top-[calc(100%+8px)]",
+} as const;
+const ALIGN_POS = {
+  left: "left-0",
+  right: "right-0",
+} as const;
 export function Popover({
   trigger,
   children,
@@ -107,11 +118,11 @@ export function Popover({
   };
 
   return (
-    <div className="pop-wrap" ref={wrapRef} onKeyDownCapture={onKeyDownCapture}>
+    <div className="pop-wrap relative inline-flex" ref={wrapRef} onKeyDownCapture={onKeyDownCapture}>
       {trigger(open, toggle)}
       {open && (
         <div
-          className={`pop-panel pop-${align} pop-${drop} ${panelClass}`}
+          className={`pop-panel pop-${align} pop-${drop} absolute z-[60] min-w-[220px] max-h-[min(72vh,540px)] overflow-y-auto overscroll-contain [scrollbar-gutter:stable] rounded-[14px] border border-line bg-panel p-1.5 shadow-[0_10px_40px_rgba(0,0,0,0.16)] animate-[cx-pop_0.11s_ease-out] ${ALIGN_POS[align]} ${DROP_POS[drop]} ${panelClass}`}
           role="menu"
           style={{
             maxHeight: maxH,
@@ -136,8 +147,8 @@ export function Popover({
 // and a small footer hint.
 export function PopSection({ label, children }: { label?: string; children: React.ReactNode }) {
   return (
-    <div className="pop-section">
-      {label && <div className="pop-section-label">{label}</div>}
+    <div className="pop-section [&+&]:mt-1 [&+&]:border-t [&+&]:border-line-2 [&+&]:pt-1">
+      {label && <div className="pop-section-label px-2.5 pt-1.5 pb-1 text-[11px] font-medium text-dim">{label}</div>}
       {children}
     </div>
   );
@@ -166,17 +177,25 @@ export function PopItem({
 }) {
   return (
     <button
-      className={"pop-item" + (danger ? " danger" : "") + (highlight ? " hl" : "") + (disabled ? " disabled" : "")}
+      className={
+        "pop-item" +
+        (danger ? " danger" : "") +
+        (highlight ? " hl" : "") +
+        (disabled ? " disabled" : "") +
+        " flex w-full items-start gap-2.5 rounded-[9px] border-none px-2.5 py-2 text-left hover:bg-panel-2" +
+        (highlight ? " bg-panel-2" : " bg-transparent") +
+        (danger ? " text-red" : " text-ink")
+      }
       onClick={onClick}
       disabled={disabled}
       role="menuitem"
     >
-      {icon !== undefined && <span className="pop-ico">{icon}</span>}
-      <span className="pop-body">
-        <span className="pop-title">{title}</span>
-        {desc && <span className="pop-desc">{desc}</span>}
+      {icon !== undefined && <span className="pop-ico mt-px grid w-[18px] shrink-0 place-items-center text-[13px] text-ink-2">{icon}</span>}
+      <span className="pop-body flex min-w-0 flex-1 flex-col gap-px">
+        <span className="pop-title text-[13.5px] leading-[1.3]">{title}</span>
+        {desc && <span className="pop-desc text-xs leading-[1.35] text-dim">{desc}</span>}
       </span>
-      {right !== undefined ? <span className="pop-right">{right}</span> : active ? <span className="pop-check"><Check size={14} /></span> : null}
+      {right !== undefined ? <span className="pop-right mt-px shrink-0 text-xs text-ink-2">{right}</span> : active ? <span className="pop-check mt-px shrink-0 text-xs text-ink"><Check size={14} /></span> : null}
     </button>
   );
 }
