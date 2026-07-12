@@ -171,11 +171,33 @@ html body {
 }
 
 /* ---- split (side-by-side) diff body ---- */
-.dls {
+/* INC-41 RVW-2 · the split body is ONE grid, not one grid per row.
+   It used to be: every `.dls` row its own 4-track grid whose two code columns
+   were `minmax(0, 1fr)`. Two 1fr tracks can never exceed their container, so the
+   grid never overflowed, so `.fd-body { overflow-x: auto }` never produced a
+   scrollbar — and `.dls-half { overflow: hidden }` silently ate the rest of the
+   line. At 1440 each half is ~370px of code: a minified bundle line was cut mid
+   token (`var Xu=Object.defineProperty;var ed=`) with no scrollbar, no ellipsis
+   and no way to reach the tail. The same line scrolls fine inline, so flipping
+   the view toggle deleted content — and it contradicted DF-4, which decided long
+   lines are scrolled (or soft-wrapped via Wrap), never hard-clipped.
+   Fix: `.dls` collapses to `display: contents` so all rows share the *body's*
+   grid (columns therefore still line up across rows — a per-row `max-content`
+   would give every row a different divider position), and the code tracks become
+   `minmax(max-content, 1fr)`: they fill the panel when the code is short and
+   push past it when it isn't, which is exactly what `.fd-body`'s existing
+   horizontal scrollbar is there to scroll. Wrap mode puts the tracks back to
+   `minmax(0, 1fr)` (styles.diff.css), since max-content ignores soft wrapping. */
+.diffwrap .fd-split {
   display: grid;
   /* RV-4 · same 5-digit gutter + 19.5px row as the inline view. */
-  grid-template-columns: calc(5ch + 27px) minmax(0, 1fr) calc(5ch + 27px) minmax(0, 1fr);
+  grid-template-columns:
+    calc(5ch + 27px) minmax(max-content, 1fr)
+    calc(5ch + 27px) minmax(max-content, 1fr);
   line-height: 1.625;
+}
+.dls {
+  display: contents;
 }
 .dls-half {
   white-space: pre;

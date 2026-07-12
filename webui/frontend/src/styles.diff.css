@@ -36,6 +36,17 @@
 .diffwrap.diff-wrap .fd-body {
   overflow-x: hidden;
 }
+/* INC-41 RVW-2 · Wrap has to put the split grid's code tracks back to
+   `minmax(0, 1fr)`: `max-content` is measured as if the text never wrapped, so
+   the scrolling variant of the split view (styles.rs.css `.diffwrap .fd-split`)
+   would keep the tracks 1.9M chars wide and wrapping would have nothing to do.
+   Three classes deep so it wins over `.diffwrap .fd-split` whatever order the
+   slices are bundled in. */
+.diffwrap.diff-wrap .fd-split {
+  grid-template-columns:
+    calc(5ch + 27px) minmax(0, 1fr)
+    calc(5ch + 27px) minmax(0, 1fr);
+}
 
 /* ---- DF-3 · a file whose content we cannot show --------------------------*/
 /* Reached only for untracked files git wouldn't inline (binary, >256KB, or past
@@ -128,4 +139,26 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* ---- INC-41 RVW-5 · the file header follows you into the file --------------
+ * `.fd-head` was `position: static`, so 1500px into a diff the three headers
+ * above sat at y = −1369 / −1295 / −1221 and the screen held 40 rows of
+ * minified JS with no file name anywhere on it: you could not answer "what am I
+ * reviewing" without scrolling back. The toolbar is already `sticky; top: 0`
+ * (46px tall, z-index 3), so the header pins directly beneath it — one file's
+ * name on screen at all times, handed off to the next file's header as its
+ * `details` scrolls out. z-index 2 keeps it *under* the toolbar (the toolbar
+ * owns the top edge); the opaque `--panel` fill is what lets it cross the red /
+ * green rows below it — including the hover tint, which is a translucent
+ * color-mix in styles.css and would otherwise let code show through the header
+ * you are hovering. */
+.diffwrap .filediff > summary.fd-head {
+  position: sticky;
+  top: 46px;
+  z-index: 2;
+  background: var(--panel);
+}
+.diffwrap .filediff > summary.fd-head:hover {
+  background: color-mix(in srgb, var(--ink) 4%, var(--panel));
 }

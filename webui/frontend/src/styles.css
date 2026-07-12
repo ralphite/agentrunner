@@ -1650,16 +1650,22 @@ label.field {
 .dl.del {
   background: color-mix(in srgb, var(--red) 12%, transparent);
 }
-/* INC-41 DF-D2 · the add/del tint belongs to the code column, not to the whole
-   grid row. Codex paints red/green from the code column's left edge and leaves
-   the line-number gutter on the neutral surface, so the gutter reads as one
-   uninterrupted column from the file header down to EOF. We keep the tint on
-   the row (the ::before change marker and the +/- marker mode both hang off it)
-   and repaint the number cell back to the surface — otherwise DF-5's fold-bar
-   gutter (panel + hairline) snapped into a red/green block the moment it met a
-   changed line. The number itself still takes green/red ink, as Codex's does. */
-.dl.add > .dl-no,
-.dl.del > .dl-no { background: var(--panel); }
+/* INC-41 RVW-1 · DF-D2 REVERSED — do not repaint the number cell white again.
+   DF-D2 (round 25) asserted "Codex only tints the code column and leaves the
+   line-number gutter on the neutral surface" and repainted `.dl.add/.del > .dl-no`
+   back to `var(--panel)`. Pixel-sampling the golden screenshot says otherwise:
+   Codex paints the row edge-to-edge, gutter included —
+     add line-number slot    rgb(201, 227, 198)
+     del line-number slot    rgb(248, 195, 189)
+     context line-number slot rgb(218, 218, 218)  ← the *only* neutral gutter
+   i.e. the gutter is neutral on unchanged lines and tinted on changed ones. Our
+   white slot cut a 63px hole through every row of a 176-line deletion, so the
+   block never read as one continuous red band. The tint now stays on the row and
+   the number cell inherits it; the number itself still takes green/red ink, as
+   Codex's does. The thing DF-D2 was actually protecting — DF-5's fold-bar gutter
+   turning into a red/green block — is held independently by
+   `.fd-gap-caret { background: var(--panel) }` in styles.diff.css, which is why
+   that band stays a neutral surface without this rule. */
 .dl.add .dl-no { color: var(--green); opacity: .85; }
 .dl.del .dl-no { color: var(--red); opacity: .85; }
 /* hunk separator — quiet divider with the @@ context, not a raw diff line */
