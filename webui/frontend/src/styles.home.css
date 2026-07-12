@@ -69,9 +69,14 @@
   border-radius: 0;
   color: color-mix(in srgb, var(--dim) 45%, var(--line));
 }
-.home-empty-headline {
+/* HM-4 — the headline. This rule used to be `.home-empty-headline` (0,1,0),
+   which LOSES to `.hero h2` (0,1,1) in styles.css: every value here was dead
+   code, silently overridden, so anyone tuning it saw no effect at all. Scope it
+   under `.home-empty` (0,2,0) so it actually wins, and land on Codex's lighter
+   30px/500 instead of the 29px/580 the h2 rule was really painting. */
+.home-empty .home-empty-headline {
   margin: 0 0 32px;
-  font-size: 24px;
+  font-size: 30px;
   font-weight: 500;
   letter-spacing: -0.3px;
   line-height: 1.25;
@@ -92,14 +97,19 @@
   gap: 16px;
   width: 100%;
 }
+/* HM-2 — a compact label, not a content card. The old 150px box with a 20px gap
+   left ~120px of dead white between the icon (pinned top) and the label (pinned
+   bottom); Codex's card is ≈140×89 with the icon sitting right above its label.
+   Height now comes from the content (icon + 2 label lines ≈ 92px), so the row
+   reads as four tags under the headline rather than four empty panels. */
 .home-empty-card {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 20px;
-  min-height: 150px;
-  padding: 20px;
+  justify-content: flex-start;
+  gap: 12px;
+  min-height: 92px;
+  padding: 14px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--panel);
@@ -141,9 +151,11 @@
   .home-empty-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 520px) {
-  .home-empty-headline { font-size: 24px; margin-bottom: 24px; }
+  /* Same specificity story as HM-4 above: `.hero h2` also carries a 24px rule at
+     ≤680, so this override has to be scoped to beat it rather than tie. */
+  .home-empty .home-empty-headline { font-size: 25px; margin-bottom: 24px; }
   .home-empty-cards { grid-template-columns: 1fr; gap: 10px; }
-  .home-empty-card { min-height: 0; flex-direction: row; align-items: center; justify-content: flex-start; gap: 14px; }
+  .home-empty-card { min-height: 0; flex-direction: row; align-items: center; justify-content: flex-start; gap: 14px; padding: 12px 14px; }
 }
 
 /* RH-2 — the suggestion-card row shares the composer's column.

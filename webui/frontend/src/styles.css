@@ -4165,10 +4165,20 @@ details.filediff[open] > summary.fd-head .fd-caret {
   overflow-y: auto;
   padding: 24px 24px 28px;
 }
+/* HM-1 — New task is ONE narrow centered column, not a full-bleed page. At
+   1440 the old 1440px cap let the hero span 1128px, which tore the composer in
+   half (the project/worktree/env chips stranded at the far left, the model pill
+   ~1000px away at the far right), stretched a single-line input past any
+   readable measure, and pulled the four suggestion cards into flat 270px
+   ribbons. Codex holds headline + cards + composer inside a ~640–720px column,
+   so cap the hero at 720px; `.home` is already `align-items: center`, so that
+   one value centers the whole stack and keeps every edge — cards and composer —
+   on the same two vertical lines. QA-45's bottom-pinned roomy input is untouched
+   (that decision is vertical; this one is horizontal). */
 .home.home-welcome .hero {
   margin-top: auto;
   margin-bottom: 0;
-  max-width: 1440px;
+  max-width: 720px;
   text-align: left;
 }
 .home-hero-icon {
@@ -4218,9 +4228,71 @@ details.filediff[open] > summary.fd-head .fd-caret {
 @media (max-width: 680px) {
   .home.home-welcome { padding: 18px 12px 18px; }
   .home.home-welcome .cx-home textarea { min-height: 88px; padding: 18px 16px 6px; }
-  .home.home-welcome .cx-env-control { font-size: 12.5px; min-height: 32px; padding: 0 7px; }
-  .home.home-welcome .cx-env-strip { min-height: 62px; padding: 10px 12px 22px; }
-  .home.home-welcome .cx-pill { height: 32px; font-size: 12px; }
+
+  /* HM-6 — on a 390px phone the composer's chrome was 191px tall around an 88px
+     input: the chip strip wrapped onto two rows (and still reserved the 62px
+     min-height + 22px bottom padding left over from the pre-P2 overlap era), and
+     the control bar wrapped too because `.cx-spacer` was pinned to `flex: 0 0
+     100%`. Both rows are single-line again here — chips and pills shrink instead
+     of folding — which brings the chrome down to ~100px.
+
+     Sideways scrolling is deliberately NOT the fix: `.pop-panel` is an absolutely
+     positioned child of these two boxes, so any `overflow` other than `visible`
+     would clip the project / access / model menus (they drop *up*, out of the
+     box) and make them unusable on a phone. Shrink-to-fit keeps them intact. */
+  .home.home-welcome .cx-env-strip {
+    min-height: 0;
+    flex-wrap: nowrap;
+    gap: 2px;
+    padding: 7px 8px;
+  }
+  .home.home-welcome .cx-env-strip > .pop-wrap { min-width: 0; }
+  /* Who gives up width: the four chips don't shrink equally, because they aren't
+     equally worth reading. The project (first) and the branch (last) are the two
+     facts that say WHERE this task will run — shrinking them proportionally,
+     as a plain `flex-shrink: 1` row does, turns "rt1-ws / main" into "rt1-… /
+     m…", which is worse than useless. Pin those two (their own max-widths cap a
+     long name, so the row still can't overflow the card) and let the two middle
+     chips — whose labels stay guessable when clipped ("New workt…", "No
+     environ…") — absorb the whole squeeze. */
+  .home.home-welcome .cx-env-strip > .pop-wrap:first-child,
+  .home.home-welcome .cx-env-strip > .pop-wrap:last-child { flex: 0 0 auto; }
+  .home.home-welcome .cx-env-control {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 30px;
+    gap: 4px;
+    padding: 0 5px;
+    font-size: 12px;
+  }
+  .home.home-welcome .cx-env-control.project { max-width: 140px; }
+  .home.home-welcome .cx-env-control.branch { max-width: 96px; }
+  .home.home-welcome .cx-env-control > svg { flex: 0 0 auto; }
+
+  .home.home-welcome .cx-bar {
+    flex-wrap: nowrap;
+    gap: 2px;
+    padding: 6px 8px 8px;
+  }
+  .home.home-welcome .cx-bar > .pop-wrap { min-width: 0; }
+  /* the round buttons are the fixed points of the row: only the two text pills
+     give up width (a squeezed circle reads as a rendering bug). */
+  .home.home-welcome .cx-bar > .pop-wrap:has(> .cx-icon) { flex: 0 0 auto; }
+  .home.home-welcome .cx-bar .cx-spacer { flex: 1 1 0; height: auto; }
+  .home.home-welcome .cx-pill {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    height: 32px;
+    gap: 4px;
+    padding: 0 7px;
+    overflow: hidden;
+    font-size: 12px;
+  }
+  .home.home-welcome .cx-pill > svg { flex: 0 0 auto; }
+  .home.home-welcome .cx-icon,
+  .home.home-welcome .cx-send { flex: 0 0 auto; width: 32px; height: 32px; }
 }
 
 /* ===== INC-41 W6/W9 ===== */
