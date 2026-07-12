@@ -11,6 +11,7 @@ import {
   Eye,
   File,
   Folder,
+  GearSix,
   GitBranch,
   Image,
   Lightning,
@@ -25,6 +26,7 @@ import {
   Stop as StopIcon,
   Target,
   UserCircle,
+  WarningCircle,
   X,
 } from "@phosphor-icons/react";
 import "../styles.composer.css";
@@ -94,6 +96,10 @@ interface Attachment {
 }
 
 const riskDot = (risk: string) => <span className={"risk-dot w-[7px] h-[7px] rounded-full shrink-0 inline-block " + risk} />;
+// High-risk (Full access) reads as an amber warning glyph rather than a dot —
+// Codex parity; low/med keep the quieter colored dot.
+const riskGlyph = (risk: string) =>
+  risk === "high" ? <WarningCircle size={15} weight="regular" className="shrink-0" style={{ color: "var(--amber)" }} /> : riskDot(risk);
 
 export function Composer(props: ComposerProps) {
   const { select, selectRun, refreshSessions, refreshRuns, openModal, openPrompt, toast } = useStore();
@@ -967,7 +973,6 @@ export function Composer(props: ComposerProps) {
               <button className={"cx-env-control project" + (open ? " active" : "")} onClick={toggle} title="Select project" aria-haspopup="menu" aria-expanded={open}>
                 <FolderIcon />
                 <span className="cx-env-value min-w-0 overflow-hidden text-ellipsis">{ws ? wsShort : "Select project"}</span>
-                <Caret />
               </button>
             )}
             panelClass="cx-project-popover"
@@ -1032,9 +1037,8 @@ export function Composer(props: ComposerProps) {
             align="left"
             trigger={(open, toggle) => (
               <button className={"cx-env-control" + (open ? " active" : "")} onClick={toggle} title="Choose where this task runs" aria-haspopup="menu" aria-expanded={open}>
-                {runLocation === "local" ? <Desktop size={16} /> : <GitBranch size={16} />}
+                {runLocation === "local" ? <Desktop size={17} /> : <GitBranch size={17} />}
                 <span className="cx-env-value min-w-0 overflow-hidden text-ellipsis">{runLocation === "local" ? "Local" : "New worktree"}</span>
-                <Caret />
               </button>
             )}
           >
@@ -1059,16 +1063,15 @@ export function Composer(props: ComposerProps) {
             align="left"
             trigger={(open, toggle) => (
               <button className={"cx-env-control" + (open ? " active" : "")} onClick={toggle} title="Select local environment" aria-haspopup="menu" aria-expanded={open}>
-                <Code size={16} />
+                <GearSix size={17} />
                 <span className="cx-env-value min-w-0 overflow-hidden text-ellipsis">No environment</span>
-                <Caret />
               </button>
             )}
           >
             {(close) => (
               <div className="cx-menu environment-menu">
                 <PopSection label="Local environment">
-                  <PopItem icon={<Code size={15} />} title="No environment" desc="Use AgentRunner's current local runtime" active onClick={close} />
+                  <PopItem icon={<GearSix size={15} />} title="No environment" desc="Use AgentRunner's current local runtime" active onClick={close} />
                 </PopSection>
               </div>
             )}
@@ -1088,7 +1091,6 @@ export function Composer(props: ComposerProps) {
               <button className={"cx-env-control branch" + (open ? " active" : "")} onClick={toggle} title={branchInfo?.isRepo ? "Choose starting branch" : "No Git branch available"} disabled={!branchInfo?.isRepo} aria-haspopup="menu" aria-expanded={open}>
                 <BranchIcon />
                 <span className="cx-env-value min-w-0 overflow-hidden text-ellipsis">{branchLabel}</span>
-                {branchInfo?.isRepo && <Caret />}
               </button>
             )}
           >
@@ -1273,7 +1275,7 @@ export function Composer(props: ComposerProps) {
                       : "This session's approval posture comes from its spec's permission rules; switch Ask ↔ Auto-accept edits here, and approvals surface when a gate asks"
                   }
                 >
-                  {riskDot(sessionAccess?.risk || "unknown")}
+                  {riskGlyph(sessionAccess?.risk || "unknown")}
                   {sessionAccess?.label || "Access: set by agent spec"}
                   <Caret />
                 </button>
@@ -1313,7 +1315,7 @@ export function Composer(props: ComposerProps) {
               panelClass="cx-pop-codex"
               trigger={(open, toggle) => (
                 <button className={"cx-pill cx-mode " + (accessLevel?.risk || "low") + (open ? " active" : "")} onClick={toggle} title="How the agent's actions are approved" aria-haspopup="menu" aria-expanded={open}>
-                  {riskDot(accessLevel?.risk || "low")}
+                  {riskGlyph(accessLevel?.risk || "low")}
                   {accessLevel?.label}
                   <Caret />
                 </button>
@@ -1348,7 +1350,6 @@ export function Composer(props: ComposerProps) {
             onOpen={() => { setModelMenuPage("root"); setModelAdvancedOpen(false); }}
             trigger={(open, toggle) => (
               <button className={"cx-pill cx-model" + (open ? " active" : "")} onClick={toggle} title="Model & effort" aria-haspopup="menu" aria-expanded={open}>
-                <ModelIcon provider={provider} />
                 {modelLabel}
                 {(budgetOverride || effort !== "off") && <span className="cx-pill-sub">{budgetOverride ? "Custom" : effortLevel.label}</span>}
                 <Caret />
@@ -1366,12 +1367,12 @@ export function Composer(props: ComposerProps) {
                       <button className="cx-model-row" onClick={() => setModelMenuPage("model")} aria-label="Choose model">
                         <span className="cx-model-row-label">Model</span>
                         <span className="cx-model-row-value">{modelLabel}</span>
-                        <CaretDown className="cx-model-row-chev" size={11} />
+                        <CaretDown className="cx-model-row-chev" size={13} />
                       </button>
                       <button className="cx-model-row" onClick={() => setModelMenuPage("effort")} aria-label="Choose reasoning effort">
                         <span className="cx-model-row-label">Effort</span>
                         <span className="cx-model-row-value">{budgetOverride ? `Custom · ${budgetOverride}` : effortLevel.label}</span>
-                        <CaretDown className="cx-model-row-chev" size={11} />
+                        <CaretDown className="cx-model-row-chev" size={13} />
                       </button>
                     </div>
                     <div className="cx-model-advanced">
@@ -1381,7 +1382,7 @@ export function Composer(props: ComposerProps) {
                         aria-expanded={modelAdvancedOpen}
                       >
                         <span>Advanced</span>
-                        <CaretDown className={"cx-model-adv-chev" + (modelAdvancedOpen ? " open" : "")} size={11} />
+                        <CaretDown className={"cx-model-adv-chev" + (modelAdvancedOpen ? " open" : "")} size={13} />
                       </button>
                       {modelAdvancedOpen && (
                         <div className="cx-model-adv-body">
