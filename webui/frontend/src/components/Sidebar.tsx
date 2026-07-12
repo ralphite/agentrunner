@@ -18,7 +18,6 @@ import {
   PencilSimple,
   PushPin,
   Question,
-  Robot,
   Sun,
   Terminal,
   Tray,
@@ -284,10 +283,15 @@ export function Sidebar({ onNavigate, onOpenPalette, onOpenSettings }: {
   return (
     <aside className="sidebar">
       {/* SB-10: 64px of chrome around a 30px wordmark cost a whole task row of
-          rail. 6px above/below a 30px content row → a 44px well (Codex ~38px). */}
+          rail. 6px above/below a 30px content row → a 44px well (Codex ~38px).
+          SB-13: the 26px black rounded tile that used to sit here was the
+          darkest block on the whole screen — maximum ink spent on a decoration
+          that navigates nowhere new (the wordmark next to it already goes
+          home). Codex's rail opens with a plain "ChatGPT Codex" wordmark and
+          nothing else. Same here: text only, so the first thing the eye lands
+          on is a task, not a logo. */}
       <div className="flex items-center justify-between min-h-[44px] pt-[6px] pr-[14px] pb-[6px] pl-[16px]">
         <button className="brand-main" onClick={() => { showPage("home"); onNavigate?.(); }} aria-label="AgentRunner home">
-          <span className="w-[26px] h-[26px] grid place-items-center text-accent-ink bg-accent rounded-[8px]"><Robot size={17} weight="bold" /></span>
           <span className="text-[16px] font-[650] tracking-[-0.2px]">AgentRunner</span>
         </button>
         <div className="flex items-center gap-[2px]">
@@ -483,8 +487,13 @@ export function Sidebar({ onNavigate, onOpenPalette, onOpenSettings }: {
             <span className="text-[11px] font-[680] tracking-[0.4px]">AR</span>
             <span className="account-presence" />
           </span>
+          {/* SB-12 · The footer used to say "AgentRunner" a second time (the
+              wordmark 20 rows above already said it once) and spent two lines —
+              40px — doing it. The only fact this badge actually carries is
+              whether the daemon answers, which is one line. Product name gone,
+              status line stays (and stays red + clickable when it is an
+              outage). */}
           <span className="account-meta">
-            <b>AgentRunner</b>
             <span>
               {!health
                 ? "Connecting…"

@@ -207,3 +207,40 @@ describe("New task shortcut badge (RH-4)", () => {
     expect(badge!.closest("button")!.textContent).toContain("New task");
   });
 });
+
+describe("footer says the product name once (SB-12)", () => {
+  it("the account badge carries daemon status only — the wordmark owns the name", () => {
+    useStore.setState({ sessions: [], health: { daemonUp: true, version: "ar 1.2.3" } as any });
+    const { container } = render(<Sidebar />);
+
+    const badge = container.querySelector(".account-badge")!;
+    expect(badge.textContent).toMatch(/^AR\s*Connected/);
+    // The product name is on the brand row, and only there.
+    expect(badge.textContent).not.toContain("AgentRunner");
+    expect(container.querySelector(".account-meta b")).toBeNull();
+    expect(container.querySelector(".brand-main")!.textContent).toBe("AgentRunner");
+  });
+
+  it("keeps the offline line red-and-clickable after the trim", () => {
+    useStore.setState({ sessions: [], health: { daemonUp: false } as any });
+    const { container } = render(<Sidebar />);
+
+    // The red styling hangs off `.account-avatar.offline + .account-meta` — if
+    // the meta column ever stops being the avatar's next sibling, the outage
+    // goes silently grey. (The click → restart path is covered in
+    // loadingStates.test.tsx.)
+    const avatar = container.querySelector(".account-avatar.offline")!;
+    expect(avatar.nextElementSibling!.className).toContain("account-meta");
+    expect(avatar.nextElementSibling!.textContent).toContain("Daemon offline — restart");
+  });
+});
+
+describe("brand row is a wordmark, not a logo tile (SB-13)", () => {
+  it("drops the filled accent square from the brand button", () => {
+    useStore.setState({ sessions: [] });
+    const { container } = render(<Sidebar />);
+    const brand = container.querySelector(".brand-main")!;
+    expect(brand.querySelector("svg")).toBeNull();
+    expect(brand.innerHTML).not.toContain("bg-accent");
+  });
+});

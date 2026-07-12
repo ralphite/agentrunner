@@ -30,13 +30,19 @@
 
 /* ===== E2 · Account footer =============================================
    Codex bottom bar: circular avatar (initials) with a presence dot folding
-   in daemon state, name + connection line, then help + theme on the right. */
+   in daemon state, name + connection line, then help + theme on the right.
+
+   SB-12 amends the *size* of it: the badge carried two lines (product name +
+   status) in a 58px well, and the product name was already on the wordmark at
+   the top of the same rail. One line of daemon status needs one row — 24px of
+   avatar, 12px of text — so the well comes down to 40px and the ~18px it was
+   holding goes back to the task list. */
 .sidebar .side-foot {
-  min-height: 58px;
+  min-height: 40px;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 10px 8px 12px;
+  padding: 5px 10px 5px 12px;
   border-top: 1px solid var(--line);
   background: transparent;
   color: var(--ink);
@@ -46,10 +52,10 @@
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 5px 6px;
+  gap: 8px;
+  padding: 2px 6px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 9px;
   background: transparent;
   text-align: left;
   color: inherit;
@@ -61,8 +67,8 @@
 .side-foot .account-avatar {
   position: relative;
   flex: 0 0 auto;
-  width: 30px;
-  height: 30px;
+  width: 24px; /* SB-12: the row is 28px now, so the disc has to fit inside it */
+  height: 24px;
   display: grid;
   place-items: center;
   border-radius: 50%;
@@ -81,8 +87,8 @@
   position: absolute;
   right: -1px;
   bottom: -1px;
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   border: 2px solid var(--sidebar);
   background: var(--dim);
@@ -93,24 +99,19 @@
 .side-foot .account-avatar.offline .account-presence {
   background: var(--red);
 }
+/* SB-12 · One line, not two: the badge is a daemon-status line, so it is a
+   single row of text next to the disc. (The `<b>AgentRunner</b>` this column
+   used to stack on top is gone — see Sidebar.tsx.) */
 .side-foot .account-meta {
   flex: 1;
   min-width: 0;
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 0;
-  line-height: 1.25;
-}
-.side-foot .account-meta b {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.3;
 }
 .side-foot .account-meta > span {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--dim);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -722,7 +723,12 @@
 
    Hover still inks the heading up (base .project-heading:hover), restated here
    because this slice bundles *after* styles.css and would otherwise win the
-   equal-specificity tie against it. */
+   equal-specificity tie against it.
+
+   AMENDED by SB-11 (r33) at the foot of this file: --ink-2 landed 14 levels
+   from --dim, so the flip overshot and the headings dissolved into the
+   scaffolding. The resting colour now lives there; the hover rule below still
+   stands. */
 .sidebar .project-heading {
   color: var(--ink-2);
 }
@@ -757,4 +763,44 @@
 }
 .sidebar .primary-nav button {
   height: 28px;
+}
+
+/* ===== SB-11 (r33) · SB-9 overshot: the tree lost its anchors ============
+   (Ticket id from round 33; the SB-11 block above is the older spacing one.)
+
+   SB-9 was right that the ink hierarchy was inverted, and flipped the group
+   heading down to --ink-2 (#606060). But --dim, which paints every piece of
+   scaffolding in the rail ("Show more", "Projects"), is #6e6e6e — 14 levels
+   away. So with 127 groups on the rail the folder names read as the same grey
+   noise as the Show-more rows, and the tree had no anchors to scan by.
+
+   Codex spends the *middle* of its ink range on the group name: task title
+   rgb(37,37,37), group name rgb(48,48,48), scaffolding rgb(160,160,160) — the
+   name is 112 levels clear of the scaffolding while still sitting a notch
+   under its tasks. Mix the two tokens rather than hard-coding a hex, so dark
+   mode keeps the same *direction* (name ≈ foreground, scaffolding = dim) with
+   its own values. Weight stays 600 (SB-6); --dim stays where it is. */
+.sidebar .project-heading {
+  color: color-mix(in srgb, var(--ink) 78%, var(--ink-2));
+}
+
+/* ===== SB-14 · The group head only owes you the repo name ================
+   `.project-hint` ("· ws · qa53-013333") is a disambiguation suffix. It rides
+   in a 264px rail, so it truncates the one string the row exists to show — the
+   project name. Codex's group heads carry a name and nothing else. Park the
+   hint on hover (the heading's `title` already carries the full workspace path
+   for the resting state), and keep the name on the full width the rest of the
+   time. */
+.sidebar .project-heading .project-hint {
+  display: none;
+}
+.sidebar .project-heading:hover .project-hint,
+.sidebar .project-heading:focus-visible .project-hint {
+  display: inline;
+}
+/* Touch: there is no hover, and the tooltip is the fallback — never show it. */
+@media (hover: none) {
+  .sidebar .project-heading:hover .project-hint {
+    display: none;
+  }
 }
