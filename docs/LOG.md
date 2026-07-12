@@ -3779,3 +3779,17 @@ DESIGN §12 增"分发与安装"小节。
   token 路径保留给私有 fork/镜像。README 安装节相应改写。
 - 工作纸归档 `archive/increments/INC-63-curl-install.md`；QA-63 步骤 1
   标注完成，步骤 2–4 随 v0.1.0 发布执行。
+
+## 2026-07-12 · INC-63 尾声：v0.1.0 真发布 + curl 真装 + arwebui 兄弟 ar 优先修复
+
+- **v0.1.0 发布并公网真装通过**：release 352700642（CI 代建 tag，17
+  资产齐）；本容器 `curl -fsSL …/install.sh | sh` 免 token 装出 v0.1.0。
+- **真装暴露并修复 binutils 同名冲突**：首次真装后 `arwebui /api/health`
+  的 `version` 显示 "GNU ar (GNU Binutils)"、`versionMatch:false`——
+  arwebui 缺省 `-ar ar` 走 PATH，而 Linux `/usr/bin/ar` 是 binutils
+  归档器，`~/.local/bin` 不在其前时被顶掉。修复：`resolveARPath` 用
+  `os.Executable()` 找兄弟 `ar`（穿 symlink 到 releases/<ver>/），显式
+  `-ar` 不受影响；`arSiblingOr` 拆出可测（TestARSiblingPreferredOverPATH
+  等 4 例）。重打产物复验 versionMatch=true。SPEC/UJ-25 行转 ✅。
+- 这是"真实环境暴露 + 当场修 + 复验"的标准闭环——只跑孪生不会撞见
+  （孪生用 stub ar，无 binutils 冲突面），印证 gate B 真装的价值。

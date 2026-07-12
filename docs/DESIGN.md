@@ -1373,11 +1373,18 @@ limits:
   切换；同版本重装先解到临时目录再整体替换。两条路径都**不对运行中
   的 inode 原地写**（deploy.sh 血泪规则的分发面延伸）。sha256 不符 =
   硬失败且不动既有安装。
+- **arwebui 兄弟 `ar` 优先**：`-ar` 缺省时 arwebui 用 `os.Executable()`
+  （Linux 解析 `/proc/self/exe` 穿过 symlink 到 `releases/<ver>/arwebui`）
+  找同目录的兄弟 `ar`，而非裸走 PATH——因为 Linux 上 `/usr/bin/ar`
+  （GNU binutils 归档器）与我们的 `ar` 同名，`~/.local/bin` 不在
+  `/usr/bin` 前时 PATH 会解析到 binutils（QA-63 真装暴露）。显式 `-ar`
+  一律照用（`resolveARPath`/`arSiblingOr`）。
 - **私有 repo 下载路径**：有 `GITHUB_TOKEN`/`GH_TOKEN` 时走 GitHub API
   （release → asset id → `Accept: application/octet-stream`）；无 token
   走公开 browser download URL。token 只进请求头，不落盘不回显。
 - **发布管线**：`.github/workflows/release.yml`，`v*` tag /
-  workflow_dispatch 触发（不挂 PR 触发——私有 repo Actions 配额）。
+  workflow_dispatch（`publish_tag` 让 CI 用 GITHUB_TOKEN 代建 tag 发布，
+  适合无法直推 tag 的环境）触发（不挂 PR 触发——Actions 配额）。
   smoke 三腿都打真实产物：起服 `/api/health` 探活
   （`scripts/smoke-release.sh`）、真 install.sh 装真产物、安装器孪生
   （`scripts/test-install.sh`，亦进 check.sh 常跑）。

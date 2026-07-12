@@ -58,8 +58,37 @@ type server struct {
 	workspaces func(ctx context.Context) map[string]bool
 }
 
+// resolveARPath picks the agentrunner binary. Unless the user passed -ar
+// explicitly, prefer an `ar` sitting next to this arwebui executable: the
+// one-line installer (INC-63) drops both binaries side by side, and on Linux a
+// bare `ar` on PATH usually resolves to GNU binutils' archiver of the same
+// name when ~/.local/bin is not ahead of /usr/bin. os.Executable resolves
+// /proc/self/exe past the ~/.local/bin symlink to releases/<ver>/arwebui, whose
+// sibling is the real ar.
+func resolveARPath(flagVal string, explicit bool) string {
+	if explicit {
+		return flagVal
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return flagVal
+	}
+	return arSiblingOr(exe, flagVal)
+}
+
+// arSiblingOr returns the `ar` next to exe if it exists and is executable,
+// else fallback. Split out from resolveARPath so the sibling-preference logic
+// is testable without touching os.Executable().
+func arSiblingOr(exe, fallback string) string {
+	sibling := filepath.Join(filepath.Dir(exe), "ar")
+	if fi, err := os.Stat(sibling); err == nil && !fi.IsDir() && fi.Mode()&0o111 != 0 {
+		return sibling
+	}
+	return fallback
+}
+
 func main() {
-	arPath := flag.String("ar", "ar", "path to the agentrunner binary")
+	arPath := flag.String("ar", "ar", "path to the agentrunner binary (default: the `ar` next to arwebui, else PATH)")
 	addr := flag.String("addr", "127.0.0.1:8788", "listen address (keep it loopback)")
 	envFile := flag.String("env-file", "", "KEY=VALUE file loaded into the environment before spawning anything")
 	noDaemon := flag.Bool("no-daemon", false, "do not spawn `ar daemon`; use an external one")
@@ -71,6 +100,14 @@ func main() {
 		fmt.Printf("arwebui %s\n", version)
 		return
 	}
+
+	arExplicit := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "ar" {
+			arExplicit = true
+		}
+	})
+	*arPath = resolveARPath(*arPath, arExplicit)
 
 	if *envFile != "" {
 		if err := loadEnvFile(*envFile); err != nil {

@@ -348,7 +348,7 @@ GAPS.md，本文件只回答"产品要做什么"。
 
 **覆盖功能**：`Codex 式 project/task 信息架构` `单一 task thread` `环境上下文 composer` `Worked/Changes 任务收尾` `渐进披露 composer` `内联人类可读审批` `Changes 审阅` `Supervision(goal/agent/attention/background/recovery)` `restart-safe Scheduled` `键盘/移动端导航` `子会话导航` `deep link/restart` `共享真实 session` `Web UI 产品面`
 
-### UJ-25 一行安装与升级 `基础` `🟡 INC-63（2026-07-12，gate B 全程待首个 release）`
+### UJ-25 一行安装与升级 `基础` `✅ INC-63（2026-07-12，v0.1.0 公网真装验证）`
 
 **场景**：一台没有 Go/Node 工具链的新机器（或别人的机器），一条 curl
 命令装上能用的 AgentRunner；以后同一条命令升级。
