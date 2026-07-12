@@ -3,8 +3,7 @@ import "../styles.nav.css";
 import {
   Archive as ArchiveBox,
   ArrowSquareOut,
-  CalendarDots,
-  CaretRight,
+  Clock,
   Code,
   Folder,
   FolderOpen,
@@ -19,7 +18,6 @@ import {
   PushPin,
   Question,
   Robot,
-  SidebarSimple,
   Sun,
   Terminal,
   Tray,
@@ -45,10 +43,10 @@ type SidebarContext =
 // the live activity dot, keyed off `key === "scheduled"`.
 const NAV_DESTINATIONS: { key: Page; label: string; icon: Icon }[] = [
   { key: "home", label: "New task", icon: NotePencil },
-  { key: "scheduled", label: "Scheduled", icon: CalendarDots },
+  { key: "scheduled", label: "Scheduled", icon: Clock },
 ];
 
-export function Sidebar({ onHide, onNavigate, onOpenSettings }: { onHide?: () => void; onNavigate?: () => void; onOpenSettings?: () => void }) {
+export function Sidebar({ onNavigate, onOpenSettings }: { onHide?: () => void; onNavigate?: () => void; onOpenSettings?: () => void }) {
   const {
     health,
     sessions,
@@ -71,7 +69,6 @@ export function Sidebar({ onHide, onNavigate, onOpenSettings }: { onHide?: () =>
     theme,
     cycleTheme,
     setVisibleOrder,
-    toggleSidebar,
     unread,
     markUnread,
     markRead,
@@ -176,8 +173,9 @@ export function Sidebar({ onHide, onNavigate, onOpenSettings }: { onHide?: () =>
           aria-label={`${title} · ${isUnread ? "New activity" : status.text}${when ? ` · ${when} ago` : ""}`}
         >
           <span className="project-task-title">{title}</span>
-          {when && <span className="flex-none text-[10.5px] text-dim">{when}</span>}
-          <span className={`status-dot ${isUnread ? "unread" : status.cls}`} title={isUnread ? "New activity" : status.text} />
+          {(isUnread || ["run", "appr", "stranded", "crash"].includes(status.cls)) && (
+            <span className={`status-dot ${isUnread ? "unread" : status.cls}`} title={isUnread ? "New activity" : status.text} />
+          )}
           <ArrowSquareOut className="task-open" size={13} />
         </button>
         <button
@@ -220,9 +218,6 @@ export function Sidebar({ onHide, onNavigate, onOpenSettings }: { onHide?: () =>
         <div className="flex items-center gap-[2px]">
           <button className="w-[30px] h-[30px] grid place-items-center p-0 border-0 bg-transparent text-ink-2 rounded-[8px] hover:text-ink hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)]" onClick={() => setSearching((value) => !value)} title="Search tasks">
             <MagnifyingGlass size={16} />
-          </button>
-          <button className="w-[30px] h-[30px] grid place-items-center p-0 border-0 bg-transparent text-ink-2 rounded-[8px] hover:text-ink hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)]" onClick={onHide || toggleSidebar} title="Hide sidebar (⌘B)">
-            <SidebarSimple size={16} />
           </button>
         </div>
       </div>
@@ -317,7 +312,6 @@ export function Sidebar({ onHide, onNavigate, onOpenSettings }: { onHide?: () =>
                     openMenu(rect.left + 20, rect.bottom);
                   }}
                 >
-                  <CaretRight size={12} className={`proj-caret${!folded ? " open" : ""}`} />
                   {!folded ? <FolderOpen size={16} /> : <Folder size={16} />}
                   <span>{name}</span>
                   {project.hint && <span className="project-hint">{project.hint}</span>}
@@ -325,7 +319,7 @@ export function Sidebar({ onHide, onNavigate, onOpenSettings }: { onHide?: () =>
                 {shown.map((session) => renderTask(session, true))}
                 {!folded && !showAll && project.sessions.length > shown.length && (
                   <button className="show-more" onClick={() => setExpanded((current) => new Set(current).add(project.key))}>
-                    Show {project.sessions.length - shown.length} more
+                    Show more
                   </button>
                 )}
                 {!folded && showAll && !searching && project.sessions.length > 6 && (

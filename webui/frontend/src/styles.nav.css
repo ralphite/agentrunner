@@ -492,12 +492,11 @@
    specify the base neutral .active / .current rules (nav.css bundles before
    styles.css, so we win on specificity, not source order). */
 .sidebar .primary-nav button.active {
-  background: var(--rs-accent-soft);
-  color: var(--rs-accent);
-  font-weight: 550;
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+  color: var(--ink);
 }
 .sidebar .primary-nav button.active svg {
-  color: var(--rs-accent);
+  color: var(--ink);
 }
 .sidebar .project-task-wrap.current {
   background: var(--rs-accent-soft);
