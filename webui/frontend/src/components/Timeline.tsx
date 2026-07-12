@@ -592,6 +592,43 @@ function ActivityGroup({ tools }: { tools: ToolItem[] }) {
   );
 }
 
+// ---- CX-2: the collapsed head must never be information-free -----------------
+// foldSpanMs measures a fold from its own children when the turn carried no
+// duration (see workedLabel). Only bubbles and runtime injections carry a `ts`
+// — tool activities and chips don't — so this recovers a span for folds that
+// hold planning narration, and returns undefined for pure tool/chip folds.
+function foldSpanMs(fold: WorkFold): number | undefined {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const c of fold.children) {
+    const ts = (c as { ts?: string }).ts;
+    if (!ts) continue;
+    const at = new Date(ts).getTime();
+    if (!Number.isFinite(at)) continue;
+    if (at < lo) lo = at;
+    if (at > hi) hi = at;
+  }
+  const span = hi - lo;
+  return Number.isFinite(span) && span > 0 ? span : undefined;
+}
+
+// workedLabel: the text of a collapsed turn head. A turn only gets a duration
+// when it reached a final assistant answer (timeline.completedTurnDurations) —
+// so a turn that was cut into segments by top-level approval chips, or that
+// ended in an error/approval stall instead of an answer, has durationMs
+// undefined. That used to degrade to a bare "Worked ›" carrying zero
+// information (six of them in a row on an approval-heavy task). Ladder:
+// stored duration → span measured off the fold's own children → step count.
+export function workedLabel(fold: WorkFold): string {
+  const ms = fold.durationMs ?? foldSpanMs(fold);
+  if (ms !== undefined) return `Worked for ${formatWorkDuration(ms)}`;
+  const steps = fold.children.filter((c) => c.kind === "tool").length;
+  if (steps > 0) return `Worked · ${steps} step${steps === 1 ? "" : "s"}`;
+  const n = fold.children.length;
+  if (n > 0) return `Worked · ${n} item${n === 1 ? "" : "s"}`;
+  return "Worked · no activity";
+}
+
 // WorkedFold: the turn-level "Worked for N ⌄" disclosure holding all work
 // detail of a settled turn (W2/W3). Consecutive tool calls aggregate into
 // ActivityGroups; chips and planning narration render between them.
@@ -607,7 +644,7 @@ function WorkedFold({
   onToggle: () => void;
 }) {
   const expandable = fold.children.length > 0;
-  const label = fold.durationMs !== undefined ? `Worked for ${formatWorkDuration(fold.durationMs)}` : "Worked";
+  const label = workedLabel(fold);
 
   // group consecutive tools; pass through everything else in order
   const rows: ReactNode[] = [];

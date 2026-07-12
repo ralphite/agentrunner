@@ -147,7 +147,7 @@ export function SupervisionPanel({
   // shows its outcome instead of collapsing to "No active goal" (R1-4).
   const settledGoal = useSettledGoal(!!goal, loading);
   return (
-    <aside className="supervision-panel" aria-label="Supervision">
+    <aside className="supervision-panel session-side" aria-label="Supervision">
       <div className="supervision-head">
         <div><UsersThree size={17} /> <b>Supervision</b></div>
         <button onClick={onClose} title="Hide supervision" aria-label="Hide supervision"><X size={15} /></button>

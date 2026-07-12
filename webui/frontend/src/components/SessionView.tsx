@@ -844,7 +844,7 @@ export function SessionView({ sid }: { sid: string }) {
               )}
         </main>
         {view === "diff" ? (
-          <aside className="changes-panel">
+          <aside className="changes-panel session-side">
             <div className="changes-panel-head">
               <b><Files size={15} /> Changes</b>
               <button onClick={() => setView("chat")} title="Close changes (back to the conversation)" aria-label="Close changes"><X size={15} /></button>

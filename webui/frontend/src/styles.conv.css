@@ -638,3 +638,42 @@
   font-size: 12.5px;
   max-width: 320px;
 }
+
+/* =========================================================================
+   CX-2 — vertical rhythm of collapsed turns.
+
+   An approval-heavy task alternates collapsed "Worked …" heads with top-level
+   approval chips. styles.css sizes both for a content-rich thread (.worked-row
+   margin 20/12 + 10px padding-bottom, .chip margin 6/6), so a run of nothing
+   but single-line rows rendered ~50px apart with nothing between them — six
+   islands instead of one series of steps. Codex keeps that same sequence at a
+   step-list pitch.
+
+   Two levels, so the fix does not thin out threads that DO have content:
+   1. a mild global trim of the collapsed head (20/12 + 10 → 16/10 + 8);
+   2. run compression — only where a collapsed fold directly abuts a chip or
+      another collapsed fold does the gap drop to 5-7px.
+   Selectors are qualified with .tl-inner so they win over styles.css
+   regardless of stylesheet order (see this file's header).
+   ========================================================================= */
+.tl-inner > .worked > .worked-row {
+  margin: 14px 0 8px;
+  padding-bottom: 7px;
+}
+/* an OPEN fold keeps its air — it is a section header for the body it reveals */
+.tl-inner > .worked.open > .worked-row {
+  margin: 18px 0 10px;
+  padding-bottom: 9px;
+}
+.tl-inner > .chip {
+  margin: 4px 0;
+  padding: 2px 10px;
+}
+/* run: collapsed fold → chip → collapsed fold … reads as one step list */
+.tl-inner > .worked:not(.open):has(+ .chip) > .worked-row {
+  margin-bottom: 3px;
+}
+.tl-inner > .chip + .worked:not(.open) > .worked-row,
+.tl-inner > .worked:not(.open) + .worked:not(.open) > .worked-row {
+  margin-top: 3px;
+}

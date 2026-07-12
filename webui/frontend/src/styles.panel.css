@@ -422,3 +422,77 @@
   .terminal-alert-text { flex-basis: calc(100% - 28px); }
   .terminal-alert-action { margin-left: 27px; }
 }
+
+/* ===== CX-1 · Right rail as a full-height flush split (Codex parity) =====
+   Codex's diff / environment rail is one column flush against the window's
+   right edge: it runs from the underside of the topbar to the bottom of the
+   window, with no outer margin, no radius and no shadow — just a 1px hairline
+   between it and the conversation. Ours were floating cards (styles.css:
+   .changes-panel / .supervision-panel), which read as a temporary overlay
+   pasted on the page, left dead background showing on all four sides, and —
+   worst — spent the rail's width on chrome, so long diff lines ("resolved":
+   "https://registry.npmjs.org/...) were clipped well before the window edge.
+
+   These rules live here rather than in styles.css because `.session-view` is
+   an ancestor of both panels, so every selector below out-specifies the
+   one-class card shells without editing them. The @media block at the end
+   restores the small-screen overlay those shells define, which our higher
+   specificity would otherwise win against (media queries add no weight). */
+.session-view .session-side {
+  align-self: stretch;   /* topbar underside → window bottom, not a card */
+  min-width: 0;
+  min-height: 0;
+  max-height: none;      /* drops .supervision-panel's calc(100vh - 86px) */
+  margin: 0;             /* flush right; also kills the ≤1180px margin-right */
+  border: 0;
+  border-left: 1px solid var(--line);   /* the only seam against the thread */
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--panel);
+}
+/* Each rail scrolls inside itself, so the topbar and the composer never move:
+   Supervision scrolls its own box (overflow-y:auto, styles.css), while Changes
+   stays a clipped flex column whose .diffwrap owns the leftover height and does
+   the scrolling (.diffwrap is already overflow-y:auto, styles.css:1480). */
+.session-view .changes-panel.session-side {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Codex gives the diff ~55–58% of the window at 1440. We take 56% of the split
+   container, with two guards baked into the track so no breakpoint can violate
+   them: at least 520px (a diff below that is not reviewable) and never more
+   than `100% - 420px`, which is what keeps the conversation ≥ 420px usable at
+   every width — at 1440 the container is 1148px (1440 − 292px sidebar), so the
+   rail resolves to 643px and the thread keeps 505px. */
+.session-view .session-layout.changes {
+  grid-template-columns: minmax(0, 1fr) min(max(56%, 520px), calc(100% - 420px));
+}
+
+@media (max-width: 900px) {
+  /* Small screens keep the existing behaviour: the rail stops being a split and
+     becomes a floating overlay card above the conversation. Re-stated here (not
+     inherited) because the flush rules above are more specific than the shells
+     in styles.css that define this overlay. */
+  .session-view .session-layout.changes { grid-template-columns: minmax(0, 1fr); }
+  .session-view .session-side {
+    position: absolute;
+    margin: 12px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 10px 30px rgba(0, 0, 0, .06);
+  }
+  .session-view .changes-panel.session-side {
+    z-index: 26;
+    inset: 12px;
+    margin: 0;
+  }
+  .session-view .supervision-panel.session-side {
+    z-index: 25;
+    top: 0;
+    right: 0;
+    width: min(340px, calc(100% - 24px));
+    max-height: calc(100% - 24px);
+  }
+}
