@@ -53,7 +53,7 @@ export function Settings({ onClose, initialSection = "appearance" }: { onClose: 
     searchRef.current?.focus();
   }, []);
 
-  const visible = useMemo(() => SECTIONS.filter((s) => s.id === section || matchesQuery(query, `${s.label} ${s.group} ${s.keywords}`)), [query, section]);
+  const visible = useMemo(() => SECTIONS.filter((s) => matchesQuery(query, `${s.label} ${s.group} ${s.keywords}`)), [query]);
 
   // If a search hides the active section, follow the first remaining one so the
   // pane never shows a section the rail no longer lists.
@@ -73,6 +73,10 @@ export function Settings({ onClose, initialSection = "appearance" }: { onClose: 
   }, [visible]);
 
   const activeDef = SECTIONS.find((s) => s.id === active);
+  // A section-name/group match means "show this page", not "find a row named
+  // Git inside the Git page". Keep row-level filtering for terms such as
+  // "commit" and "contrast".
+  const panelQuery = activeDef && matchesQuery(query, `${activeDef.label} ${activeDef.group}`) ? "" : query;
 
   return (
     <div
@@ -133,13 +137,13 @@ export function Settings({ onClose, initialSection = "appearance" }: { onClose: 
           </button>
         </header>
         <div className="flex-1 overflow-y-auto p-[26px] max-[720px]:p-[18px]" key={active + ":" + rev}>
-          {active === "general" && <SettingsGeneral query={query} onReset={() => setRev((r) => r + 1)} />}
-          {active === "appearance" && <SettingsAppearance query={query} />}
-          {active === "shortcuts" && <SettingsShortcuts query={query} />}
-          {active === "git" && <SettingsGit query={query} />}
-          {active === "worktrees" && <SettingsWorktrees query={query} />}
-          {active === "configuration" && <SettingsConfiguration query={query} />}
-          {active === "archived" && <SettingsArchived query={query} onClose={onClose} />}
+          {active === "general" && <SettingsGeneral query={panelQuery} onReset={() => setRev((r) => r + 1)} />}
+          {active === "appearance" && <SettingsAppearance query={panelQuery} />}
+          {active === "shortcuts" && <SettingsShortcuts query={panelQuery} />}
+          {active === "git" && <SettingsGit query={panelQuery} />}
+          {active === "worktrees" && <SettingsWorktrees query={panelQuery} />}
+          {active === "configuration" && <SettingsConfiguration query={panelQuery} />}
+          {active === "archived" && <SettingsArchived query={panelQuery} onClose={onClose} />}
         </div>
       </main>
     </div>

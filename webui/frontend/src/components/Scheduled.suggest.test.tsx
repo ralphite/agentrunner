@@ -93,6 +93,20 @@ describe("SC-18 · clicking a suggestion builds the cadence it advertises", () =
     expect(screen.getByTestId("cadence-echo").textContent).toBe("Every 5m");
   });
 
+  it("labels task and workspace independently and retains rapid input", () => {
+    mount();
+    fireEvent.click(screen.getByRole("button", { name: /Create/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Repeating/ }));
+
+    const task = screen.getByRole("textbox", { name: "Task" }) as HTMLTextAreaElement;
+    const workspace = screen.getByRole("textbox", { name: "Workspace" }) as HTMLInputElement;
+    fireEvent.change(task, { target: { value: "Say hello" } });
+    fireEvent.change(workspace, { target: { value: "abc" } });
+
+    expect(task.value).toBe("Say hello");
+    expect(workspace.value).toBe("abc");
+  });
+
   // The single-source-of-truth check: the card's caption is DERIVED. If someone
   // edits a cron below, the card's words follow — they cannot drift apart,
   // because the caption is not stored anywhere.

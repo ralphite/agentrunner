@@ -39,6 +39,7 @@ if (!chromePath) {
 // Raw-internal-error markers a user must never see rendered in the UI.
 const RAW_ERROR_RE =
   /exit status \d|fatal: |daemon dial:|is the daemon running|invalid starting ref|not an existing directory|flag provided but not defined|panic: |goroutine \d+ \[/;
+const BROKEN_COPY_RE = /just now ago/i;
 
 // Console noise that is not a product bug.
 const CONSOLE_ALLOW = [
@@ -76,10 +77,15 @@ async function checkInvariants(page, label) {
     sw: document.documentElement.scrollWidth,
     iw: window.innerWidth,
     raw: document.body.innerText,
+    labels: [...document.querySelectorAll("[aria-label], [title]")]
+      .map((el) => `${el.getAttribute("aria-label") || ""} ${el.getAttribute("title") || ""}`)
+      .join("\n"),
   }));
   if (m.sw > m.iw + 1) finding("high", label, `horizontal overflow: scrollWidth ${m.sw} > innerWidth ${m.iw}`);
   const rawHit = m.raw.match(RAW_ERROR_RE);
   if (rawHit) finding("high", label, "raw internal error text visible to user", rawHit[0] + " …context: " + m.raw.slice(Math.max(0, m.raw.search(RAW_ERROR_RE) - 60), m.raw.search(RAW_ERROR_RE) + 120));
+  const copyHit = `${m.raw}\n${m.labels}`.match(BROKEN_COPY_RE);
+  if (copyHit) finding("med", label, "broken relative-time copy visible", copyHit[0]);
 }
 
 async function shot(page, name) {
@@ -131,9 +137,26 @@ for (const [ctxName, viewport] of [
   });
 
   await S("sidebar-toggle", async () => {
-    const burger = page.locator("button[aria-label*='idebar'], .sidebar-toggle, button:has(svg)").first();
-    await burger.click({ timeout: 5000 }).catch(() => {});
-    await page.waitForTimeout(400);
+    const opener = page.getByRole("button", { name: "Show sidebar" });
+    if (await opener.count()) await opener.click({ timeout: 5000 });
+  });
+
+  if (ctxName === "phone") await S("settings-search", async () => {
+    const more = page.getByRole("button", { name: "More options" });
+    if (await more.count()) {
+      await more.click();
+      await page.getByRole("menuitem", { name: /Settings/ }).click();
+      const search = page.getByRole("textbox", { name: "Search settings" });
+      await search.fill("git");
+      await page.getByRole("heading", { name: "Git" }).waitFor({ timeout: 5000 });
+      const empty = page.getByText(/No Git settings match/);
+      if (await empty.count()) finding("med", cur, "section-name search filtered its own settings empty");
+      if (!(await page.getByText("Commit message template").count()))
+        finding("med", cur, "Git section-name search did not expose Git settings");
+      await page.keyboard.press("Escape");
+    } else {
+      finding("med", cur, "sidebar settings menu did not surface");
+    }
   });
 
   // Scheduled-task modal: bare workspace name must yield the FRIENDLY error.
@@ -157,22 +180,31 @@ for (const [ctxName, viewport] of [
       await page.locator(".modal").first().waitFor({ timeout: 5000 }).catch(() => {});
       const modal = page.locator(".modal");
       if (await modal.count()) {
-        const task = modal.locator("textarea").first();
-        await task.fill("Say hello").catch(() => {});
-        const wsField = modal.locator("input[placeholder*='workspace' i], input[placeholder*='scratch' i]").first();
-        if (await wsField.count()) {
+        const task = modal.getByRole("textbox", { name: "Task", exact: true });
+        const wsField = modal.getByRole("textbox", { name: "Workspace", exact: true });
+        if ((await task.count()) === 1 && (await wsField.count()) === 1) {
+          await task.fill("Say hello");
           await wsField.fill("abc");
-          const start = modal.locator("button:has-text('Start')").first();
-          await start.click({ timeout: 4000 }).catch(() => {});
-          await page.waitForFunction(
-            () => /full path|Use folder|blank|not an existing directory/i.test(document.body.innerText),
-            { timeout: 6000 },
-          ).catch(() => {});
+          const values = await modal.evaluate((root) => ({
+            task: root.querySelector("textarea[placeholder='Describe the outcome you want']")?.value,
+            workspace: root.querySelector("input[placeholder='Leave blank for a new scratch workspace']")?.value,
+          }));
+          if (values.task !== "Say hello" || values.workspace !== "abc") {
+            finding("high", cur, "scheduled form fields did not retain distinct values", JSON.stringify(values));
+            return;
+          }
+          const start = modal.getByRole("button", { name: "Start schedule" });
+          await start.click({ timeout: 4000 });
+          await page.getByRole("status").filter({ hasText: /full path|Use folder|blank/i }).waitFor({ timeout: 6000 }).catch(() => {});
           const toastText = await page.evaluate(() => document.body.innerText);
           if (/not an existing directory/.test(toastText))
             finding("high", cur, "bare workspace still leaks raw path error");
           else if (!/full path|Use folder|blank/i.test(toastText))
             finding("med", cur, "bare workspace produced no visible friendly guidance");
+          if (!page.url().includes("#scheduled") || !(await modal.count()))
+            finding("high", cur, "invalid scheduled workspace started work instead of staying in the form");
+        } else {
+          finding("med", cur, "scheduled modal fields did not surface");
         }
         await page.keyboard.press("Escape").catch(() => {});
       } else {
@@ -238,11 +270,31 @@ for (const [ctxName, viewport] of [
     });
 
     await S("diff-view", async () => {
-      const changes = page.locator("button:has-text('Changes'), [role='tab']:has-text('Changes'), button[title*='iff']").first();
-      if (await changes.count()) {
-        await changes.click({ timeout: 4000 }).catch(() => {});
-        await page.waitForTimeout(1500);
+      const sessions = await fetch(`${BASE}/api/sessions?limit=200`).then((r) => r.json());
+      const current = sessions.find((session) => session.id === sid);
+      if (!current?.workspace) {
+        finding("high", cur, "new task has no retained workspace for Changes QA");
+        return;
       }
+      const changeName = `qa-blackbox-${sid}.txt`;
+      fs.writeFileSync(path.join(current.workspace, changeName), `black-box change for ${sid}\n`);
+
+      const actions = page.getByRole("button", { name: "More task actions" });
+      if (!(await actions.count())) {
+        finding("high", cur, "task actions menu did not surface");
+        return;
+      }
+      await actions.click();
+      await page.getByRole("menuitem", { name: "Changes" }).click();
+      const panel = page.locator(".changes-panel");
+      await panel.waitFor({ state: "visible", timeout: 10000 });
+      const geometry = await panel.evaluate((el) => {
+        const box = el.getBoundingClientRect();
+        return { display: getComputedStyle(el).display, width: box.width, height: box.height };
+      });
+      if (geometry.display === "none" || geometry.width < 100 || geometry.height < 100)
+        finding("high", cur, "Changes opened with no visible panel", JSON.stringify(geometry));
+      await page.getByText(changeName).waitFor({ timeout: 10000 });
     });
   }
 

@@ -38,3 +38,11 @@ export function relTime(when: Date | null): string {
   if (mon < 12) return `${Math.floor(mon)}mo`;
   return `${Math.floor(day / 365)}y`;
 }
+
+// Turn the compact stamp into a complete phrase. The newest bucket is already
+// prose, so appending "ago" would produce the visible nonsense "just now ago".
+export function relTimeAgo(when: Date | null): string {
+  const rel = relTime(when);
+  if (!rel) return "";
+  return rel === "just now" ? rel : `${rel} ago`;
+}

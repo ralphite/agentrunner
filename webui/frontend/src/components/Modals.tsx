@@ -444,11 +444,11 @@ function RunModal({
           Goal or repeating
         </button>
       </div>
-      <label className="field">Task</label>
-      <textarea autoFocus rows={3} value={task} onChange={(e) => setTask(e.target.value)} placeholder="Describe the outcome you want" />
-      <label className="field">Workspace</label>
+      <label className="field" htmlFor="run-task">Task</label>
+      <textarea id="run-task" autoFocus rows={3} value={task} onChange={(e) => setTask(e.target.value)} placeholder="Describe the outcome you want" />
+      <label className="field" htmlFor="run-workspace">Workspace</label>
       <div className="row-flex">
-        <input type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="Leave blank for a new scratch workspace" />
+        <input id="run-workspace" type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="Leave blank for a new scratch workspace" />
         <button style={{ whiteSpace: "nowrap" }} onClick={choose}>Use folder…</button>
       </div>
       {kind === "submit" ? (

@@ -517,6 +517,7 @@
   .terminal-alert.blocked, .gbar.blocked { @apply border-amber bg-amber-soft text-amber; }
 
   .changes-panel, .session-side { @apply min-h-0 border-l border-line bg-panel; }
+  .session-view .changes-panel.session-side { @apply flex min-w-0 flex-col overflow-hidden; }
   .supervision-panel { @apply min-h-0 overflow-y-auto border-l border-line bg-panel p-3; }
   .supervision-head { @apply mb-3 flex items-center justify-between; }
   .supervision-label { @apply text-[12px] font-medium uppercase tracking-[0.06em] text-dim; }
@@ -677,7 +678,14 @@
     .sidebar { @apply fixed inset-y-0 left-0 z-40 w-[280px] shadow-lg; }
     .app.collapsed .sidebar { @apply hidden; }
     .session-layout.changes { grid-template-columns: minmax(0, 1fr); }
-    .changes-panel, .session-side, .supervision-panel { @apply hidden; }
+    .session-view .changes-panel.session-side {
+      @apply absolute inset-3 z-[26] m-0 flex rounded-[16px] border border-line shadow-lg;
+    }
+    .session-view .supervision-panel.session-side {
+      @apply absolute right-0 top-0 z-[25] block rounded-[16px] border border-line shadow-lg;
+      width: min(340px, calc(100% - 24px));
+      max-height: calc(100% - 24px);
+    }
   }
   @media (max-width: 680px) {
     .hero { @apply justify-start px-4 py-6; }

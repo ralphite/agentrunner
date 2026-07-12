@@ -1,49 +1,33 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
+import { Popover } from "./Popover";
 
 // Menu is a small click-to-open dropdown used to tuck the low-level /
 // developer actions (journal, inspect, fork, resume…) out of the primary UX,
 // the way Codex keeps a clean task surface and hides plumbing.
 export function Menu({ label, children, ariaLabel, triggerClassName = "" }: { label: React.ReactNode; children: React.ReactNode; ariaLabel?: string; triggerClassName?: string }) {
-  const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    requestAnimationFrame(() => ref.current?.querySelector<HTMLElement>("[role='menuitem']")?.focus());
-    const onDoc = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setOpen(false);
-        ref.current?.querySelector<HTMLElement>(".menu-trigger")?.focus();
-        return;
-      }
-      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
-      const items = Array.from(ref.current?.querySelectorAll<HTMLElement>("[role='menuitem']:not(:disabled)") || []);
-      if (!items.length) return;
-      e.preventDefault();
-      const current = Math.max(0, items.indexOf(document.activeElement as HTMLElement));
-      const next = e.key === "Home" ? 0 : e.key === "End" ? items.length - 1 : e.key === "ArrowDown" ? (current + 1) % items.length : (current - 1 + items.length) % items.length;
-      items[next].focus();
-    };
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
   return (
     <div className="menu" ref={ref}>
-      <button className={`menu-trigger${triggerClassName ? ` ${triggerClassName}` : ""}`} onClick={() => setOpen((v) => !v)} aria-label={ariaLabel} aria-haspopup="menu" aria-expanded={open}>
-        {label}
-      </button>
-      {open && (
-        <div className="menu-pop" role="menu" onClick={() => setOpen(false)}>
-          {children}
-        </div>
-      )}
+      <Popover
+        align="right"
+        panelClass="menu-pop"
+        trigger={(open, toggle) => (
+          <button
+            className={`menu-trigger${triggerClassName ? ` ${triggerClassName}` : ""}`}
+            onClick={() => {
+              toggle();
+              if (!open) requestAnimationFrame(() => ref.current?.querySelector<HTMLElement>("[role='menuitem']")?.focus());
+            }}
+            aria-label={ariaLabel}
+            aria-haspopup="menu"
+            aria-expanded={open}
+          >
+            {label}
+          </button>
+        )}
+      >
+        {(close) => <div className="contents" onClick={close}>{children}</div>}
+      </Popover>
     </div>
   );
 }

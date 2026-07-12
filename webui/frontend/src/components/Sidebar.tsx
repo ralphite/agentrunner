@@ -31,7 +31,7 @@ import { Menu, MenuItem, MenuLabel } from "./Menu";
 import { copyText } from "../clipboard";
 import { buildSidebarModel, daemonVersionLabel, projectDisplayName, projectLabel, scheduledUnread, visibleProjectSessions } from "../viewModels";
 import { PROJECT_GROUP_LIMIT, visibleProjectGroups } from "../viewModels.nav";
-import { relTime, sessionDate } from "../time";
+import { relTimeAgo, sessionDate } from "../time";
 import { keyLabel } from "../shortcuts";
 
 type SidebarContext =
@@ -232,7 +232,7 @@ export function Sidebar({ onNavigate, onOpenPalette, onOpenSettings }: {
     const isUnread = unread.includes(session.id);
     const isPinned = pinned.includes(session.id);
     const title = displayTitle(renames, session.id, session.title);
-    const when = relTime(sessionDate(session.id));
+    const when = relTimeAgo(sessionDate(session.id));
     const openContext = (x: number, y: number) => {
       // Opening a context menu instantly dismisses any hover preview so the
       // two floating layers stay mutually exclusive (R3-1).
@@ -263,8 +263,8 @@ export function Sidebar({ onNavigate, onOpenPalette, onOpenSettings }: {
               openContext(rect.left + 20, rect.top + rect.height);
             }
           }}
-          title={`${session.title || title}\n${status.text}${when ? ` · started ${when} ago` : ""}\n${session.id}`}
-          aria-label={`${title} · ${isUnread ? "New activity" : status.text}${when ? ` · ${when} ago` : ""}`}
+          title={`${session.title || title}\n${status.text}${when ? ` · started ${when}` : ""}\n${session.id}`}
+          aria-label={`${title} · ${isUnread ? "New activity" : status.text}${when ? ` · ${when}` : ""}`}
         >
           <span className="project-task-title">{title}</span>
           {(isUnread || ["run", "appr", "stranded", "crash"].includes(status.cls)) && (
@@ -582,7 +582,7 @@ export function Sidebar({ onNavigate, onOpenPalette, onOpenSettings }: {
         const status = friendlyStatus(session.status);
         const workspace = session.workspace || "";
         const branch = workspace ? branchByWorkspace[workspace] : "";
-        const when = relTime(sessionDate(session.id));
+        const when = relTimeAgo(sessionDate(session.id));
         return (
           <div className="task-preview" style={{ top: hoverPreview.top }} aria-hidden="true">
             <div className="task-preview-head"><b>{title}</b>{when && <span>{when}</span>}</div>
@@ -609,12 +609,12 @@ export function Sidebar({ onNavigate, onOpenPalette, onOpenSettings }: {
       )}
       {ctx?.kind === "project" && (() => {
         const overlay = projects[ctx.key];
-        const lastOpened = overlay?.lastOpened ? relTime(new Date(overlay.lastOpened)) : "";
+        const lastOpened = overlay?.lastOpened ? relTimeAgo(new Date(overlay.lastOpened)) : "";
         const menuKey = ctx.key;
         const menuWorkspace = ctx.workspace;
         return (
           <ContextMenu x={ctx.x} y={ctx.y} onClose={() => setCtx(null)}>
-            <MenuLabel>{ctx.label}{lastOpened ? ` · opened ${lastOpened} ago` : ""}</MenuLabel>
+            <MenuLabel>{ctx.label}{lastOpened ? ` · opened ${lastOpened}` : ""}</MenuLabel>
             {menuWorkspace && (
               <>
                 <MenuLabel>Open in</MenuLabel>

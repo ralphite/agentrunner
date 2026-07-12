@@ -6,7 +6,7 @@ import { AR } from "../api";
 import { friendlyStatus } from "./pill";
 import { projectLabel, scheduleLabel } from "../viewModels";
 import { scheduledTitle } from "../scheduledTitle";
-import { relTime, sessionDate } from "../time";
+import { relTimeAgo, sessionDate } from "../time";
 import { copyText } from "../clipboard";
 import { ContextMenu } from "./ContextMenu";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
@@ -162,14 +162,6 @@ interface SchedRow {
   onClick: () => void;
 }
 
-// whenAgo turns a relative stamp into a sub-line phrase without the awkward
-// "just now ago".
-function whenAgo(when: Date | null): string {
-  const rel = relTime(when);
-  if (!rel) return "";
-  return rel === "just now" ? "just now" : `${rel} ago`;
-}
-
 // nextRunPhrase renders the backend's nextRunAt (RFC3339) as Codex's
 // "Next run in 12m". A tick already due (an iteration is running, or the driver
 // is catching up) says so instead of counting backwards.
@@ -271,7 +263,7 @@ export function Scheduled() {
       lastRan: Date | null,
     ): SchedRow => {
       const next = nextRunPhrase(nextRunAt);
-      const ago = whenAgo(lastRan);
+      const ago = relTimeAgo(lastRan);
       const when = next || (ago ? `Ran ${ago}` : "");
       // SC-16 — a series that stopped at a limit you configured is FINISHED, not
       // broken: it wears no alert, it is not live, and it settles like any other
