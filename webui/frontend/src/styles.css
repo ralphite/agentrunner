@@ -8,7 +8,9 @@
   --line-2: #efefef;
   --ink: #1f1f1f;
   --ink-2: #606060;
-  --dim: #737373;
+  /* A11Y-8: #737373 on --sidebar(#f7f7f8) 只有 4.42:1,差 0.08 不达 WCAG AA 的 4.5:1。
+     压到 #6e6e6e ≈ 4.8:1 留出余量。dark 另有 --dim:#a0a0ad 覆盖,不受影响。 */
+  --dim: #6e6e6e;
   --accent: #0b0b0b;
   --accent-ink: #ffffff;
   --blue: #2f6bff;
