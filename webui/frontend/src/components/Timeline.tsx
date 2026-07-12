@@ -163,13 +163,10 @@ function MsgActions({
       {goalVerdict && (
         <>
           {/* Divider + verdict — Codex appends the goal outcome to the final
-              answer's action row. Full styling is styles.css (deferred); an
-              inline rule keeps it legible until that lands. */}
-          <span
-            className="msg-actions-div"
-            aria-hidden="true"
-            style={{ width: 1, alignSelf: "stretch", margin: "0 4px", background: "currentColor", opacity: 0.25 }}
-          />
+              answer's action row. The divider is styled in styles.conv.css (NOT
+              inline): at rest the icons are hidden, and a separator with nothing
+              to separate must collapse with them (TH-1). */}
+          <span className="msg-actions-div" aria-hidden="true" />
           <span className="msg-goal-verdict">
             <CheckCircle size={15} weight="fill" /> Goal achieved in {goalVerdict.elapsed}
           </span>
@@ -873,6 +870,47 @@ function Item({ it, sentImages, onContinue, goalVerdict }: { it: TimelineItem; s
   }
 }
 
+// TH-4: the runtime emits one chip per state write, so a single "agent changed"
+// action that touches spec + model lands as the SAME chip text twice in a row
+// ("Agent changed · dev · gemini-flash-latest" ×2, wrapping onto two lines).
+// Codex aggregates a repeated activity row instead of stuttering it. Adjacent
+// chips that say exactly the same thing (same tone/link/role) collapse into one
+// carrying a "×N" multiplicity — the first chip's identity (key, ts, link,
+// fold/activity role) is kept, so folding, click targets and ordering are
+// untouched. Non-adjacent repeats (a real second occurrence later in the run)
+// still render on their own: they are separated by work the reader can see.
+export function mergeAdjacentChips(items: TimelineItem[]): TimelineItem[] {
+  const out: TimelineItem[] = [];
+  let runCount = 0; // how many raw chips the trailing merged chip stands for
+  for (const it of items) {
+    const prev = out[out.length - 1];
+    if (
+      it.kind === "chip" &&
+      prev &&
+      prev.kind === "chip" &&
+      runCount > 0 &&
+      prev.tone === it.tone &&
+      prev.childSession === it.childSession &&
+      !!prev.fold === !!it.fold &&
+      !!prev.activity === !!it.activity &&
+      baseChipText(prev.text) === it.text
+    ) {
+      runCount += 1;
+      out[out.length - 1] = { ...prev, text: `${it.text} ×${runCount}` };
+      continue;
+    }
+    runCount = it.kind === "chip" ? 1 : 0;
+    out.push(it);
+  }
+  return out;
+}
+
+// Strips the "×N" suffix mergeAdjacentChips itself appended, so a third repeat
+// still matches the chip it has already been merged into.
+function baseChipText(text: string): string {
+  return text.replace(/ ×\d+$/, "");
+}
+
 export function TimelineView({
   items,
   pending,
@@ -930,8 +968,9 @@ export function TimelineView({
   // on assistant items that also exist in `visible`, so foldWork still matches.
   const durations = completedTurnDurations(items, active);
   // W2: settled turns collapse their work behind "Worked for N ⌄"; the
-  // developer (showSys) view stays flat and raw.
-  const nodes: RenderNode[] = showSys ? visible : foldWork(visible, durations, active);
+  // developer (showSys) view stays flat and raw — including chip repeats, which
+  // are only aggregated (TH-4) in the reader's view.
+  const nodes: RenderNode[] = showSys ? visible : foldWork(mergeAdjacentChips(visible), durations, active);
 
   // The goal verdict rides the FINAL assistant answer only (fix 3) — a settled
   // run's last word. Assistant answers are turn boundaries, so they sit at the

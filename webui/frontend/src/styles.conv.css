@@ -721,16 +721,113 @@
    Selectors are qualified with an extra ancestor (`.msg-col`) so they win over
    styles.css regardless of stylesheet order — this file's standing discipline.
    ========================================================================= */
-.msg .msg-col .msg-actions .msg-copy {
+.msg.assistant .msg-col .msg-actions {
+  opacity: 1;
+}
+
+/* =========================================================================
+   INC-41 round 20 — TH-1: the resting action row must be LEFT-ANCHORED.
+
+   Round 18 hid the icons with `opacity: 0` alone, which hides the ink but keeps
+   the BOX: three 26px ghost buttons (plus their 4px flex gaps) went on holding
+   94px of the row, so at rest the only visible member — the timestamp — floated
+   at x=444 while the prose column starts at x=350. A dangling "06:35 PM" with a
+   94px void to its left reads as a layout bug, and it is one.
+
+   Codex's row always begins on the column's left edge (icon + verdict, see
+   qa/codex-reference/codex-crop-message-actions.jpg). So the hidden icons must
+   cost NOTHING horizontally:
+     - width/left+right padding → 0, overflow hidden: the box collapses.
+     - margin-right: -4px cancels the flex gap that would otherwise survive the
+       collapsed child, so N hidden icons contribute exactly 0px.
+     - VERTICAL padding is kept, so the row's height is identical at rest and on
+       hover — revealing the icons never reflows the thread below.
+   The divider collapses with them (a separator with nothing to separate), and
+   .msg-time drops its 4px left margin: the gap already spaces it from whatever
+   precedes it, and at rest it must sit flush on the column edge.
+
+   Visibility (not focusability) is what's gated: the buttons stay in the DOM and
+   in the tab order, and :focus-within restores them at full size, so a keyboard
+   user reaches Copy/Share/Continue exactly like a pointer user.
+   ========================================================================= */
+.msg .msg-col .msg-actions .msg-copy,
+.msg .msg-col .msg-actions .msg-actions-div {
+  width: 0;
+  min-width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  margin-left: 0;
+  margin-right: -4px;
+  overflow: hidden;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.12s;
 }
 .msg:hover .msg-col .msg-actions .msg-copy,
 .msg .msg-col .msg-actions:focus-within .msg-copy {
+  width: 26px;
+  padding-left: 2px;
+  padding-right: 2px;
+  margin-right: 0;
   opacity: 1;
   pointer-events: auto;
 }
-.msg.assistant .msg-col .msg-actions {
-  opacity: 1;
+.msg .msg-col .msg-actions .msg-actions-div {
+  align-self: stretch;
+  background: currentColor;
+}
+.msg:hover .msg-col .msg-actions .msg-actions-div,
+.msg .msg-col .msg-actions:focus-within .msg-actions-div {
+  width: 1px;
+  margin-right: 0;
+  opacity: 0.25;
+}
+.msg .msg-col .msg-actions .msg-time {
+  margin-left: 0;
+}
+
+/* =========================================================================
+   INC-41 round 20 — TH-2: the composer shares the thread's column edges.
+
+   The thread's content column is `.tl-inner`: max-width 720px minus its 30px
+   side padding = 660px (x 350→1010 at 1440). The session composer card was
+   pinned to `max-width: 720px` inside a 28px-padded `.cx-session`, so it landed
+   at x 320→1040 — 30px wider on EACH side than the prose, changes card and
+   artifact rows it sits under. Codex runs one vertical line down the whole task
+   thread: prose, cards and input all break on the same two x's.
+
+   Rather than hard-code 660px (which would drift the moment the viewport is
+   narrower than the column), the composer mirrors `.tl-inner`'s geometry — same
+   max column, same side padding — so the two agree at EVERY width, including
+   the narrow breakpoints where styles.css retunes .tl-inner's padding.
+   Overrides live here (styles.conv.css loads after styles.css and this file is
+   the conversation surface's standing override sheet).
+   ========================================================================= */
+.cx.cx-session {
+  padding-left: 30px;
+  padding-right: 30px;
+}
+.cx.cx-session .cx-card {
+  max-width: 660px;
+  margin: 0 auto;
+}
+@media (max-width: 900px) {
+  /* styles.css: .tl-inner { padding: 0 22px } → column = 720 - 44 */
+  .cx.cx-session {
+    padding-left: 22px;
+    padding-right: 22px;
+  }
+  .cx.cx-session .cx-card {
+    max-width: 676px;
+  }
+}
+@media (max-width: 680px) {
+  /* styles.css: .tl-inner { padding: 0 16px } → column = 720 - 32 */
+  .cx.cx-session {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .cx.cx-session .cx-card {
+    max-width: 688px;
+  }
 }
