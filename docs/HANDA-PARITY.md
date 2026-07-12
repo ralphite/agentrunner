@@ -70,7 +70,7 @@ mock（计 4 项，全部裁「不做」）。
 
 | # | 项 | handa 侧 | 我们现状 | 裁决 |
 |---|---|---|---|---|
-| 2 | 自包含发布 + 一行安装 + 崩溃自愈 shim + release CI/smoke | 已实现（install.sh/ps1、package_*.sh、release.yml） | 零发布工程（Go 单二进制天然可分发但无产品化发布面） | ⏸ defer（单人原型阶段无分发需求） |
+| 2 | 自包含发布 + 一行安装 + 崩溃自愈 shim + release CI/smoke | 已实现（install.sh/ps1、package_*.sh、release.yml） | **INC-63 落地（2026-07-12）**：install.sh + package-release.sh（单机交叉编译 4 target）+ release.yml（tag→构建→smoke→发布）；崩溃自愈 shim 不搬——那是 handa 补 bundle 按 $0 定位的产物，Go symlink 即可，daemon 自愈另有 UJ-21 路线 | ✅（UJ-25/SPEC §J；gate B 全程随首个 release） |
 | 2b | Windows 全栈支持（taskkill/msvcrt 锁/CI matrix；我们沙箱仅 Seatbelt/Bubblewrap，Windows fail-closed 不可用） | 已实现 | 缺失 | ⏸ defer（与 #2 同批裁决） |
 
 ### 域三 · agent 资产生态

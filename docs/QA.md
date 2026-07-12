@@ -1262,3 +1262,21 @@ GEMINI_API_KEY）；journal 导出归档 `qa/runs/<日期>-QA62/`。脚本
 | 5 | 全新 session 2 起 1 个 worker | `spawn_requested ≥ 1` 且 `approval_requested == 0`（写回规则次 session 生效） |
 
 **判绿即**：GAPS G35 与 SPEC「审批'允许且不再问'」行回 ✅。
+
+---
+
+## QA-63 curl 一行安装分发（INC-63，UJ-25）
+
+**环境**：GitHub Actions（release workflow）+ 一台干净的目标机器（无
+Go/Node 工具链）。gate A 孪生（`scripts/test-install.sh`，离线 5 场景）
+在 check.sh 常跑，本条只钉真实环境的 journey 全程。
+
+| # | 真实动作 | 硬断言 |
+|---|---|---|
+| 1 | dispatch/tag 触发 release workflow | 4 target 打包全绿；linux 产物 smoke 三腿全过（`ar --version`/`ar init`、`arwebui /api/health` 探活、真 install.sh 装真产物后二进制可跑、安装器孪生 5/5） |
+| 2 | 打 `v*` tag（首个真实 release，用户决策） | GitHub Release 挂出版本命名 + 稳定命名（`agentrunner-<target>.tar.gz`）+ `.sha256` + install.sh，共 4 target |
+| 3 | 干净机器上 `curl -fsSL …/install.sh \| sh`（私有期带 GITHUB_TOKEN） | 装到 `releases/<tag>/`，`ar --version` 回显 tag 版本戳，`ar init && ar run` 可用 |
+| 4 | 发第二个 tag 后重跑同一条命令 | symlink 切到新版、旧版本目录保留、运行中的进程不受影响 |
+
+**判绿即**：SPEC「curl 一行安装分发」行 🟡 → ✅。步骤 2–4 留待首个
+真实 release（发布是用户决策）。

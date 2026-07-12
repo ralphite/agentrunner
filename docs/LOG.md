@@ -3725,3 +3725,40 @@ lib.sh count_type 单值模式）；②Actions 默认 shell 是 `bash -e {0}`
 显式 `shell: bash`（带 pipefail）。两条均为"守卫自身失真"类：断言
 存在 ≠ 断言在执行，与 G29 的登记簿失真同族，QA 脚本此后沿用单值
 count + 显式 pipefail。
+
+## 2026-07-12 · INC-63 curl 一行安装分发（对齐 handa 发布面）
+
+HANDA-PARITY 域二 #2 解冻落地（用户要求）。新增：`install.sh`（多平台
+探测、私有 repo token 下载、sha256 校验、`releases/<version>/` 解包 +
+symlink 切换）、`scripts/package-release.sh`（CGO_ENABLED=0 单 runner
+交叉编译 linux x86_64/arm64 + macos arm64/x86_64，统一 -X main.version
+版本戳）、`scripts/smoke-release.sh`、`scripts/test-install.sh`（gate A
+孪生 5 场景，进 check.sh）、`.github/workflows/release.yml`（v* tag /
+dispatch → 构建 + 三腿真产物 smoke +（tag 时）发布稳定命名资产）。
+JOURNEYS 增 UJ-25；SPEC §J 增行（🟡，QA-63 全程随首个 release 转 ✅）；
+DESIGN §12 增"分发与安装"小节。
+
+决策与偏差记档：
+
+- **对 handa 的两点简化都是 Go 单二进制红利**（决策 #1 兑现）：单
+  runner 交叉编译（无原生 wheel 的每 OS runner 矩阵）；bin 目录放
+  symlink（handa 的 launcher shim 是补 bundle 按 $0 定位的产物，其
+  崩溃自愈职责我们归 daemon/UJ-21 路线，不在安装器伪造）。
+- **升级语义延伸 deploy.sh 血泪规则**：任何路径不对运行中 inode 原地
+  写——升级=新版本目录+symlink 切换，同版本重装=临时目录整体替换。
+- **私有 repo 路径**：token 时走 API asset id 下载（无 jq，comma-split
+  取 name 前最近 id——原型可接受）；repo 转公开后免 token 自动走
+  browser URL。README 记私有期 raw install.sh 也要带 token。
+- **显式裁掉**：Windows 产物（域二 #2b 维持 defer：daemon unix socket，
+  不发布"能装不能跑"）；macOS 签名公证（curl 不打 quarantine）；
+  release workflow 不挂 PR 触发（私有 repo Actions 配额，改动打包面时
+  手动 dispatch）。
+- 本地已验：孪生 5/5、4 target 打包、linux 产物 smoke + 真 install.sh
+  安装全绿。
+- **执行环境偏差（诚实记档）**：本次在远程容器完成，`check.sh` 的
+  go test 腿存在环境既有失败（沙箱 bash 依赖缺失致
+  TestBashOutputTruncation panic——干净 HEAD 复现同栈；acceptance 嵌套
+  go test 超时），与 2026-07-12 QA-62 条目记录的环境既有失败同族，
+  沿用基线对照法归因。本增量零 Go 代码改动（docs + shell + workflow），
+  受影响闸门单独跑绿：lint-docs / lint-wiring / gofmt /
+  test-install 孪生 / 4 target 打包 / linux 产物 smoke + 真安装。

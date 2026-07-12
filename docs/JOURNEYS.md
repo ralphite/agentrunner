@@ -1,6 +1,6 @@
 # AgentRunner — Coding Agent User Journeys（详细版）
 
-以 Claude Code（终端/交互）与 Codex cloud（异步/云端）为标尺的 24 条
+以 Claude Code（终端/交互）与 Codex cloud（异步/云端）为标尺的 25 条
 user journey。每条 = 一句场景 + 编号步骤 + **覆盖功能**标签。文末 §5
 把全部功能标签汇总成一张"功能清单 × journey"索引——看一个功能被哪些
 journey 覆盖、以及哪些功能只有单一覆盖。缺口分析（对照 DESIGN）记在
@@ -348,6 +348,27 @@ GAPS.md，本文件只回答"产品要做什么"。
 
 **覆盖功能**：`Codex 式 project/task 信息架构` `单一 task thread` `环境上下文 composer` `Worked/Changes 任务收尾` `渐进披露 composer` `内联人类可读审批` `Changes 审阅` `Supervision(goal/agent/attention/background/recovery)` `restart-safe Scheduled` `键盘/移动端导航` `子会话导航` `deep link/restart` `共享真实 session` `Web UI 产品面`
 
+### UJ-25 一行安装与升级 `基础` `🟡 INC-63（2026-07-12，gate B 全程待首个 release）`
+
+**场景**：一台没有 Go/Node 工具链的新机器（或别人的机器），一条 curl
+命令装上能用的 AgentRunner；以后同一条命令升级。
+
+1. 用户在 shell 里粘贴 `curl -fsSL …/install.sh | sh`（repo 私有期间带
+   `GITHUB_TOKEN`）。
+2. 安装器探测 OS/arch（linux x86_64/arm64、macOS arm64/x86_64），下载
+   对应预构建 tar.gz（`ar` + `arwebui` 两个静态二进制，同一版本戳），
+   sha256 校验后解包到 `~/.local/share/agentrunner/releases/<version>/`，
+   把两个命令链接进 `~/.local/bin`；PATH 缺失时给出提示。
+3. 用户 `ar init && ar run spec.yaml "…"` 即进入 UJ-01…的任何 journey；
+   `arwebui` 直接可起（UJ-24）。
+4. 新版本发布后重跑同一条命令即升级：新版本目录 + symlink 切换，
+   **永不原地覆盖运行中的二进制**；损坏下载（sha256 不符）硬失败且
+   不动既有安装。
+5. 发布侧：维护者打 `v*` tag → release workflow 单 runner 交叉编译全部
+   target、真产物 smoke（起服探活 + 真安装）后发布稳定命名资产。
+
+**覆盖功能**：`一行安装(curl|sh)` `预构建多平台产物` `升级即重装(版本化目录+symlink)` `sha256 校验` `私有 repo token 下载` `release CI(tag→构建→smoke→发布)`
+
 ---
 
 ## §5 功能清单 × Journey 覆盖索引
@@ -437,6 +458,7 @@ GAPS.md，本文件只回答"产品要做什么"。
 - diff 审阅门 → PR — UJ-13
 - 用量审计 — UJ-13/17
 - Codex 式 Web UI / deep link / Changes — UJ-24
+- 一行安装/升级（curl install.sh，预构建产物 + release CI）— UJ-25
 
 **Git 与交付**
 - git 工作流 + PR 创建 — UJ-10/13

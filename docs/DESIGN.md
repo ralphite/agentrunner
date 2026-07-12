@@ -1353,6 +1353,38 @@ limits:
   生效（journal 边写边读）。分段无歧义由 CallID 铸造格式
   （`call_%d_%d`）保证。sessions list 仍只列树根。
 
+### 分发与安装（INC-63）
+
+决策 #1（Go 单静态 binary）在发布面的兑现：产品以预构建二进制分发，
+目标机器零工具链依赖。
+
+- **产物形态**：`agentrunner-<version>-<target>.tar.gz`，内含 `ar` 与
+  `arwebui` 两个静态二进制（`CGO_ENABLED=0`，同一
+  `-X main.version=<tag>` 版本戳——沿用 deploy.sh 的 skew 检测机制），
+  伴随 `.sha256`。target ∈ {linux-x86_64, linux-arm64, macos-arm64,
+  macos-x86_64}，全部在单 runner 上交叉编译
+  （`scripts/package-release.sh`）；arwebui 的 frontend 先 Vite 构建再
+  go:embed。release 另挂稳定命名副本 `agentrunner-<target>.tar.gz`，
+  install.sh 免解析版本号直取。
+- **安装布局与升级语义**：install.sh 解包到
+  `$AR_HOME/releases/<version>/`（默认 `~/.local/share/agentrunner/`，
+  与 deploy.sh 的 `bin/` 同根不同目录），`ar`/`arwebui` symlink 进
+  `$AR_BIN_DIR`（默认 `~/.local/bin`）。升级 = 新版本目录 + symlink
+  切换；同版本重装先解到临时目录再整体替换。两条路径都**不对运行中
+  的 inode 原地写**（deploy.sh 血泪规则的分发面延伸）。sha256 不符 =
+  硬失败且不动既有安装。
+- **私有 repo 下载路径**：有 `GITHUB_TOKEN`/`GH_TOKEN` 时走 GitHub API
+  （release → asset id → `Accept: application/octet-stream`）；无 token
+  走公开 browser download URL。token 只进请求头，不落盘不回显。
+- **发布管线**：`.github/workflows/release.yml`，`v*` tag /
+  workflow_dispatch 触发（不挂 PR 触发——私有 repo Actions 配额）。
+  smoke 三腿都打真实产物：起服 `/api/health` 探活
+  （`scripts/smoke-release.sh`）、真 install.sh 装真产物、安装器孪生
+  （`scripts/test-install.sh`，亦进 check.sh 常跑）。
+- **显式裁掉**：Windows 产物（daemon 走 unix socket，Windows 形态
+  未验证，不发布"能装不能跑"的产物）；macOS 签名/公证（curl 下载
+  不打 quarantine xattr，原型阶段接受）。
+
 ---
 
 ## 13. 运行模式：IterationDriver（one-shot / goal / loop / best-of-N，扩展层）
