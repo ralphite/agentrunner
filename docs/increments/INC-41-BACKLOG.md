@@ -3156,3 +3156,111 @@ max-height 对齐行高格点。touches:`styles.nav.css`。
   **下轮首选**:TH-16(P2,系统 chip 裸浮在消息之间,金标 thread 里一枚都没有——live 实测 4 枚)+ RD-10(P2,
   hunk 分隔条是 review 里唯一一块饱和蓝,且与灰折叠带信息重复;`styles.css` 本轮被 SC-22 占用故让路)+
   TH-17/TH-19。
+
+## 轮35 新弹药(2026-07-12,1 个 read-only finder:富会话右栏 vs Codex Environment 面板)
+
+参照 `qa/codex-reference/codex-thread-environment-panel.jpg`;取证截图 `qa/runs/2026-07-12-r35/find-env/`。
+finder 已逐条比对 `webui/api.go` 的 56 条路由,确认下列条目**全部有后端**。
+
+### RD-A ☐ Environment 面板的 git 状态**只在挂载时取一次**,整轮跑下来永远是旧值 [P1]
+30s 抓包(面板开,会话 `…-d8ac`):`S/events` 32 次、`S/ps` 13 次、`S/inspect` 12 次,而 **`S/diff` 只有 2 次
+(都在挂载瞬间)**、`/api/git/branches` **1 次**。坐实:`SupervisionPanel.tsx:477` `const load = useCallback(…, [sid])`
++ `:516` `useEffect(() => load(), [load])` —— 只有 sid 变或面板自己 commit/push 后才重取。同屏的 thread 变更卡却是
+活的(`ChangesOutcome.tsx:316` deps `[sid, refreshKey, bump]`,`refreshKey={events.length}`,`SessionView.tsx:890`)。
+**后果:同一个屏幕上 thread 卡说「Edited 12 files」,右栏 Changes 行还是空的、`Commit or push` 还 disabled**,
+关掉面板再打开才对。一个不刷新的状态面板比没有面板更糟——它会主动说谎。
+**动作**:`EnvironmentSection` 加 `refreshKey` 入参(`:465`),`load` deps 改 `[sid, refreshKey]`(加 ≥2s 节流,
+别把 `ar diff` 打成每事件一次);`SupervisionPanel` props 加 `refreshKey`(`:153-204`)并透传(`:248`);
+`SessionView.tsx:1009` 传 `refreshKey={events.length}`(与 `:890` 同源)。
+touches:`SupervisionPanel.tsx`、`SessionView.tsx`、`SupervisionPanel.test.tsx`。
+
+### RD-B ☐ 右栏是一根满高布局列:**72% 是空的**,且一开一关把正文横甩 144px [P1]
+实测 1440×900(鼠标已移出 + 400ms,light/dark 同值):`aside.supervision-panel` = **288×846px**,是 flex 兄弟节点、
+吃布局宽度。内容(Environment 4 行 + settled goal)y=273 就结束,`Run details` 被 `margin-top:auto` 钉在 y=856
+→ 中间 **583px 空白**(diff 会话 606px,占面板高 **72%**)。开/关面板:`main` 1176→888,正文列宽恒定 660px 但
+左沿 **x=522 → x=378(横移 144px)**——每次「看一眼环境」,读到一半的整段话就横着滑走。
+金标:Environment 是一张**贴内容长的浮层卡**(≈244×480,4 分区 12 行,填充率 ~100%),吊在 header 的 sliders
+图标下,圆角+投影,盖在右侧留白上,thread 正文列**一动不动**。
+**动作**:`styles.panel.css:188-202` 改浮层(`position:absolute; right:12px; top:56px; width:288px; height:auto;
+max-height:calc(100% - 96px); overflow:auto`),`.session-view` 加 `position:relative`;去掉 `:326-338` 的
+`.supervision-details { margin-top:auto }`(卡片贴内容后 `Run details` 自然跟在最后一行下 = Codex 的 `View all`);
+`SessionView.tsx:999-1046` 面板不再与 `<main>` 争宽度(`view==="diff"` 的 `.changes-panel` 保持原样,那是真需要宽度的评审面)。
+touches:`styles.panel.css`、`SessionView.tsx`、可能 `styles.css`(`.session-view` 布局)、`SessionView.chrome.test.tsx`。
+
+### RD-C ☐ Worktree 行展开是个死胡同:只给一段折成 4 行的路径 + Copy path [P2]
+点开是 ~90px 灰块,里面一条 worktree 路径**硬折 4 行**,右边一个 `Copy path`——**能做的事只有复制**。而后端早有、
+UI 却藏在别处的:`GET /api/sessions/{sid}/diff` 的响应已带 `worktree`/`mainRepo`/`branch`(面板拿到了却不显示);
+**Apply to project**(`POST …/apply`)与 **Remove worktree**(`POST …/worktree/remove`)只活在 `DiffView.tsx:866-880`
+的 `…` 菜单里,而打开 Changes 会把 Environment 面板**整个替换掉**(`SessionView.tsx:999-1007`)——两个入口互斥,
+用户得先离开面板才能操作面板告诉他的那个 worktree;**Open in VS Code/Finder/Terminal**(`store.ts:309` → `POST /api/open`)
+只在 `Sidebar.tsx:562-568` 的右键菜单里(发现率最低处)。
+**动作**:改 `SupervisionPanel.tsx:652-667` 的 `.env-detail`:路径单行截断 + Copy 收成图标钮;补 `base`(mainRepo)/
+`branch` 两行元数据(detached 留空,遵守 ENV-3);补动作行(Open in… / Apply to project… / Remove worktree…),
+后两个把 `DiffView.tsx:435-505` 的 confirm 模态抽成共享 `worktreeActions.ts` 两边共用(别复制粘贴);
+`EnvState`(`:435-443`)补 `mainRepo`/`worktree` 字段(`load()` 在 `:484-497` 已拿到完整 `d`,只是没存)。
+touches:`SupervisionPanel.tsx`、`DiffView.tsx`、新增 `worktreeActions.ts`、`styles.panel.css`。
+
+### RD-D ☐ 右栏 Changes 行:有改动时**未跟踪文件被吞掉**,且从不给文件数 [P3]
+真实 payload:1 tracked(+1)、`untracked:["qa-inc41-d4/asset.bin"]`、`hiddenUntracked:12`;右栏只写 **`+1`**。
+`SupervisionPanel.tsx:625-633`:`{env.untracked} new` 只在 `add===0 && del===0` 时渲染 —— 一有改动,新建文件就
+彻底消失;文件数从来没渲染过(`EnvState.files` 在 `:492` 算了没用)。金标是 `Edited 31 files +980 −317`,**文件数在最前**。
+**动作**:`:622-634` 值区改 `{files} files` + `+add −del` + `·{untracked} new`(untracked 独立渲染,不再被 add/del 门挡住)。
+touches:`SupervisionPanel.tsx`、`SupervisionPanel.test.tsx`。
+
+### RD-E ☐ Background work 排在整根栏的最后一格 [P3]
+`SupervisionPanel.tsx:401-412` 排在 Goal/Progress/Artifacts/Agents/Attention **全部之后**;金标里 `Background processes`
+紧跟 Environment 四行,是面板上**第二个**读到的东西(直接列原始命令行)。后端有(`GET …/ps` → `ar ps`,`api.go:856`)。
+**动作**:把 `:401-412` 整块 `<section>` 上移到 `:248` 的 `<EnvironmentSection>` 之后。touches:`SupervisionPanel.tsx`。
+
+### TH-20 ☐ TH-16 收口疑点:`goal attached` chip 折叠后在 11 个 fold 里都找不到 [P3]
+轮35 主线复验 TH-16 时发现:富会话 `…-297d` 展开全部 11 个 `.worked` 折叠,3 条 `Agent changed` chip 都在,
+但 `goal attached` 一条都找不到。**非硬丢失**——goal 的全文与终态由 goal banner 承载(实测 `.goal-settled-line`:
+`Cancelled · TH-3 live check…`),且 `timeline.ts:898` 的 A5 路径本就优先在匹配的 user 气泡下标 `⚡ Sent as goal`
+而不发 chip。但 implementer 声称的「末尾无 turn 可顺延时强制开一个自己的活动组」这条兜底**未在 live 上观察到生效**。
+**动作**:查 `timeline.ts` 末尾 flush 的兜底分支是否真会被走到;补一个「journal 末尾只剩 system chip」的单测。
+touches:`timeline.ts`、`timeline.test.ts`。
+
+### 【out-of-scope 复核(轮35 finder,附证据)】
+- **Browser 分区**(Codex 列 agent 开的浏览器标签):`grep -rniE "browser|chrome|cdp|devtools|tabs" webui/*.go` 只命中
+  注释,**零 handler** → 不做,不建壳页。
+- **Sources 分区**(上下文源列表):只有 `POST /api/upload` + `GET /api/uploads/{name}` + `GET …/files`(composer @-mention),
+  **没有「这个会话挂了哪些上下文源」的模型或列表接口**;硬做只能拿 composer 附件伪造一个列表 = 壳页 → 不做。
+- **Environment 标题右边的 `+`**(Codex:新建/切换 environment 沙箱):我们有 `POST /api/worktree`(建 git worktree),
+  但**没有 "environment" 这个后端概念**(无 provisioning/镜像/远端沙箱);把 `+` 映射成「新建 worktree」是换语义,不是补差距 → 不做。
+- PR 集成 / 插件注册表 / 站点托管:`api.go` 零路由、`docs/SPEC.md` 无条目 → 一律 out-of-scope。
+- **已达 parity、无需再动**:Environment 四行(Changes/Worktree/Create branch/Commit or push)的行序、图标语义、
+  disabled 语义、行高(28px vs ~25px)、面板宽度(288 vs ~244)——前几轮已关,本轮实测无差距。
+
+- 2026-07-12 轮35:比对 2 屏(thread / diff-review × 静息态实测)、关差距 **3 条**(TH-16 P2 + RD-10 P2 + TH-19 P3),
+  **撤回 1 条假差距(TH-17)**。
+  **TH-16**(thread 顶层不再有裸系统 chip):`.tl-inner` 顶层 chip **4 → 0**(before 实测 4 枚:`Agent changed·auditor`×2、
+  `Agent changed·dev ×2`、`goal attached·…`,合计 ~1118px 宽横在读者与第一条消息之间);after 顶层是干净的
+  `msg user → .worked → msg assistant → turn-sep` 交替,**正是金标 thread 的结构**;3 条 `Agent changed` 展开
+  `.worked` 折叠后原样可达(`×2` 聚合保留)。做法:新增 `ChipItem.system` 档(`spec_changed`/`goal_attached`/
+  `goal_updated`)——比 RT-4 的 `fold` 更强一档,**永不**做顶层渲染节点,且不碰 RT-4 的 post-answer window 语义
+  (原测试一字未改全绿)。vitest 447 → **453**(+6)。
+  **RD-10**(review 里唯一的饱和蓝没了):`.dl-hunk` light `rgb(232,241,251)`/`rgb(1,105,204)` → **`rgb(244,244,244)`/
+  `rgb(110,110,110)`**;dark `rgb(27,37,64)`/`rgb(111,155,255)` → **`rgb(28,28,32)`/`rgb(160,160,173)`** —— 两档都与
+  同屏 `.fd-gap` 折叠带**逐值相等**(主线在 live 8809 上用 3-hunk 真实 diff 复验通过)。饱和色回归 +/− 代码本身。
+  **`@@` 行保留不删**(推翻原条目的「直接不渲染」建议):`diffSummary.ts:64` 表明它渲染的不是行号区间(行号在每行
+  gutter),而是 **git section heading**(实测 `export function printDebugInfo(` 等),全 UI 别无二处;金标那张恰是
+  Markdown、git 不产 heading 才看不见——删它 = 为对齐一张截图丢掉代码文件的真上下文。
+  **TH-19**(顶栏标题让位):`.tt-title` `14px/600/rgb(13,13,13)/max-560px`(长标题实占 560px 且截断)→
+  **`12.5px/500/--dim/max-340px`**(live 实占 118px);顶栏高 54px 不变、无溢出;390 档沿用既有 42vw。
+  注:真身在 `styles.css` 第二个 `.tt-title` 块(3778 行胜出),**不是**原条目猜的 `styles.nav.css`/`.topbar-title`。
+  **⚠ TH-17 撤回 —— 第二个假差距(同轮34 RD-11 性质)**:`styles.css:2081` `.cx-mode.high { color: var(--amber) }`
+  **早在 `24aeccb` 就存在**;`risk=high` 的 pill 实测 label 与图标同为 `rgb(138,90,0)`,**整条橙、零差异**。原条目量到的
+  `rgb(96,96,96)` 是 **low/unknown 档**的中性色——而 TH-17 自己写明「low 保持不变」,即量错了元素状态。**零改动撤回,
+  不做假改动。** 教训与 RD-11 同源:**量之前先确认自己量的是不是目标状态的那个元素**(不只是 hover 污染,还有档位混淆)。
+  顺带记录一处当前**不可达**的真隐患:`styles.css:4123` `.cx-mode:disabled { color: var(--dim) }` 与 `.cx-mode.high`
+  特异性同为 (0,2,0) 但位置更靠后 —— 若哪天 mode pill 被 `disabled`,label 会掉回灰而图标因 inline style 仍橙,
+  正是原报告描述的症状;目前两处 pill 均未设 `disabled`,触发不了。
+  派工 2 implementer(并发,worktree 隔离,白名单互斥:`timeline.ts`+`timeline.test.ts`+`styles.conv.css` /
+  `styles.css`+`styles.diff.css`+`Composer.tsx`+`DiffView.tsx`)+ 1 read-only finder(右栏 vs Environment 面板)。
+  push `4859462`+`80b1102`(TH-16)→ `e5fef23`+`05f9050`(RD-10/TH-19),**落一个推一个**;live=`index--xKf3VYL.js`;
+  vitest **453/453**;复验屏稳态 console error+warning = **0**。截图 `qa/runs/2026-07-12-r35/{before,after-th16,after-main,impl-a,impl-b,find-env}/`。
+  **BACKLOG:+✅×3、撤回 ✂×1(TH-17)、新增 ☐×6**(RD-A/RD-B 两条 **P1** + RD-C/RD-D/RD-E + TH-20)。
+  **下轮首选**:**RD-A**(P1,Environment 面板 git 状态只在挂载时取一次 → 面板会主动说谎:thread 说「Edited 12 files」
+  而右栏 Changes 空着、`Commit or push` 灰着)+ **RD-B**(P1,右栏是满高布局列、72% 空白,且开关一次把正文横甩 144px;
+  金标是贴内容长的浮层卡)。两条 touches 有交集(都碰 `SupervisionPanel.tsx`/`SessionView.tsx`)→ **并进同一个 implementer 串行做**;
+  另一个 implementer 可拿 RD-D+RD-E(同文件,也得并进 RD-A/RD-B 那份)或改拿 TH-18/TH-20 这类独立文件面。
