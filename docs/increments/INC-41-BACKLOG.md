@@ -2110,14 +2110,21 @@ finder 截 live 8809(`index-DZa2Gr9X.js`)Changes 分栏,对 `codex-diff-review.j
 结论:大结构已接近金标(满高 flush 右栏 56%、逐文件头 `A path +N −M`、sticky toolbar、
 语法高亮、`N unmodified lines` 折叠条、add/del 边条都在)。剩余差距集中在**溢出与默认展开策略**。
 
-- ☐ **DF-1(P0,功能被打断)diffbar 溢出,✕ 关闭键被推出面板**:1440×900 + worktree 会话 +
+- ✅ **DF-1(P0,功能被打断)diffbar 溢出,✕ 关闭键被推出面板**:1440×900 + worktree 会话 +
   多文件(= 我们最常见的真实会话)实测 `.diffbar` scrollWidth 692 > clientWidth 658;关闭按钮
   `right=1475` > 面板右界 1440 → **不可见,关不掉 Changes 分栏**;`.diff-viewtoggle` 被压成 **2px**
   (切不了 split);`.diff-filter` 压成 31px(输不了字)。`flex-wrap:nowrap` 把换行换成了静默裁切。
   金标 `codex-crop-diff-header.jpg` 一行装下全部控件且搜索是**图标**而非常驻 input。
   动作:`.diffbar` `min-width:0` + 关闭/切换/Commit `flex:0 0 auto` + 只让 worktree 徽章与过滤可压缩
   (或把过滤收进 `…` Popover,常驻控件 6→4)。touches:`DiffView.tsx`、`styles.css`(.diffbar 区)。
-- ☐ **DF-2(P0,一眼可见)构建产物默认展开,把 review 淹掉**:`D dist/assets/index-*.js +0 −176`
+  → ✅ **已关闭**(`a68d784`)。`.diffwrap .diffbar > * { flex: 0 0 auto }` 写死一行契约,只有 `.spacer` 与
+  worktree 徽章让位;常驻控件 **6 → 4**(`…` / 过滤图标 / split 切换 / Commit or push)+ ✕ —— 过滤 input 收进
+  Popover(有 query 时触发器保持 active,过滤态不会被误读成空评审),Expand/Collapse-all 并入 `…`,
+  徽章改 `worktree · <branch>`(≤1400px 退成纯图标 chip)。live `index-CHVun0rJ.js` 复验(1440):
+  `.diffbar` 溢出 **34px → 0**、✕ right **1475(面板外,关不掉)→ 1430(面板内)**、split 切换 **2px → 63px**;
+  1280 档溢出 **124px → 0**、✕ right 1404 → 1270;非 worktree/单文件对照无回退。新增 `DiffView.test.tsx` 6 条,
+  vitest **268/268**;真机驱动过:过滤 4→1 文件、Collapse all、split 切换、**✕ 真的关掉了 Changes 分栏**。
+- ✅ **DF-2(P0,一眼可见)构建产物默认展开,把 review 淹掉**:`D dist/assets/index-*.js +0 −176`
   **默认全展开**吐 176 行 minified React(单行 scrollWidth 1.9M px),真正要看的 `dist/index.html +2 −2`
   被埋在 4008px 之下。根因 `diffSummary.ts:463-468` `shouldExpandFileByDefault` **只看行数不看行宽/
   是否生成物**(176 < 阈值 → 展开;而 1284 行的 `package-lock.json` 反被正确折叠 → 口径不一致,
@@ -2144,3 +2151,67 @@ finder 截 live 8809(`index-DZa2Gr9X.js`)Changes 分栏,对 `codex-diff-review.j
 - ☐ **DF-6(P2)toolbar 摘要吞掉为零的一半**:金标是 `+649 -57` 并列;我们 `totalDel > 0 &&`
   (`DiffView.tsx:407-411`)只出 `+1406`,而**逐文件头**(`:651-654`)两个数字都渲染 → 同面板两套口径。
   动作:去掉 `> 0` 守卫。
+
+## H 组 · 轮22 Codex 金标 New task 首页 / composer 并排新发现(2026-07-12)
+
+finder 截 live 8809 home(**无 hash 的 `http://127.0.0.1:8809/`** —— `#/` 会被 hash 路由当 sid 解析成
+"Task not found",App.tsx:182-201,过去几轮的 home 基线图因此全是错的)对 `codex-new-task-home.jpg` +
+`codex-crop-{newtask-emptystate,composer,model-dropdown,add-menu}.jpg` 逐项比对。
+**登记一律 ☐;✅ 只在 merge 进 main 且复验通过后由收轮改写。**
+
+- ☐ **HM-1(P0,结构性)New task 整列没有最大宽度上限**:composer + 建议卡横跨 **1128px**,Codex 是
+  **~640–720px 居中列**(金标 composer 占内容区 47%;`INC-41-CODEX-UI-REFERENCE.md:45` 也明写 640–720px)。
+  后果:(1) 1126px 的单行输入 measure 远超可读行长;(2) `+ / Ask to approve` 与右侧 `Gemini Flash / mic / send`
+  之间横着 ~1000px 空白,一条控制条被撕成两个孤岛;(3) 卡片被拉到 270px 后只有第 3 张折行 → 一排 4 张卡
+  label 基线参差。根因 `styles.css:4117` `.home.home-welcome .hero { max-width: 1440px }`(commit 46345d0)。
+  动作:改成 `max-width: 720px`(`.home` 已 `align-items:center`,一个值就自动居中;`styles.home.css:157-161`
+  已把卡片列绑到 hero 宽度)。**不动** QA-45 的钉底/roomy input(那是纵向)。touches:`styles.css` + `styles.home.css`。
+- ☐ **HM-2(P1)建议卡内部过空**:150px 高的卡里有 ~120px 死空白(icon 顶、label 底、中间全空);Codex 卡
+  ≈140×89px、padding 14px、icon 与 2 行 label 间距 ~10px,是"紧凑标签"不是"内容卡片"。
+  动作:`styles.home.css:99-102` `min-height 150→92`、`gap 20→12`、`padding 20→14`。**与 HM-1 同批做。**
+- ☐ **HM-4(P2)headline 样式是死代码**:`styles.home.css:72-79` 写的 24px/500 **从未生效** —— 被
+  `styles.css:3465` `.hero h2`(29px/580,特异性更高)覆盖。除了比金标更重更硬,更要紧的是这是条
+  **沉默失效的样式**(后人调它不会有任何反应)。动作:选择器提权 + 定成 30px/500。**与 HM-1 同批。**
+- ☐ **HM-6(P2)390 档:191px 的壳体包一个 88px 的输入框**(`.cx-env-strip` 95px 折 2 行 + `.cx-bar` 96px 折 2 行,
+  `.cx-card` 287px = 屏高 34%)。动作:该断点 strip 改 `nowrap + overflow-x:auto`;`styles.css:3964-3966` 的
+  `.cx-spacer{flex:0 0 100%}`(强制换行)存疑是否刻意 —— implementer 判断,可只做 strip 那半条。
+  touches `styles.css:3960-3966` → **与 HM-1 同文件,不可并发**,并入或排下轮。
+
+### ✂ 已确认刻意决策,不报为差距
+- composer 钉底 + roomy input(`styles.css:4148-4157`):QA-45 供图定,注释与记忆在案。
+- 模型菜单根页 = 模型列表 + effort 滑杆(而非 Codex 的 Model/Effort/Speed 三行摘要):INC-41 CP-3 刻意反向
+  (3 次点击压成 1 次),`Composer.tsx:169-175` 有说明。
+- model pill 在 effort=Off 时不写 effort 后缀:`Composer.tsx:1441-1442` 刻意。
+- chip 条与输入卡合成一张卡(单外框 + 细分隔线)而非 Codex 的"灰条 + 白卡叠压":INC-41 P2 刻意
+  (`Composer.tsx:1014-1019`,避免双圆角接缝)。
+
+- ✅ **HM-3(P1)品牌标是个裸 `>_` 字符,Codex 是有轮廓的云朵团块**(`edd3981`):`Home.tsx` 内联
+  `CloudMark` SVG(7 段外凸弧围成 lobed 云朵 + 内嵌 `>_`,viewBox 24、stroke currentColor、size 50),
+  替换 `<Terminal size={34}/>`(原先 64px 盒子里只剩一个 34px 灰色字形,读起来像误入的标点)。
+  对金标 crop 量化:chevron 高占标高 0.28(金标 0.27)、underscore 宽 0.20(0.21)、描边/标径 0.058(0.053)。
+- ✅ **HM-5(P2)模型菜单 "EFFORT" 全大写,与同菜单其它 sentence-case 标题不一致**(`edd3981`):
+  删掉 `styles.composer.css:184` 的 `text-transform: uppercase`(同文件 `:26` 的注释本来就写着
+  *"group heading — quiet, sentence-case"*,自相矛盾)。Model / Effort / Advanced 三个标题现在同一档。
+
+- 2026-07-12 01:4x 轮22(headless)**4 条 ✅ — Changes 分栏可用性回归 + home 品牌标/菜单体例**。
+  强制第一步:截 live(`index-DZa2Gr9X.js`)Changes 分栏 + home + thread + Scheduled × light/dark,
+  对 `codex-diff-review.jpg` / `codex-crop-diff-{header,rendering}.jpg` / `codex-new-task-home.jpg` /
+  `codex-crop-{newtask-emptystate,composer,model-dropdown,add-menu}.jpg` 并排 → 登记 U 组(DF-1..6)+
+  H 组(HM-1..6)。派 3 个 implementer(worktree 隔离,白名单两两无交集),**落一个推一个**。关闭的可见差距:
+  **DF-1(P0,功能被打断)** — Changes 工具条在 worktree + 多文件(= 我们最主流的真实会话)下溢出面板:
+  ✕ 关闭键被推到面板外(right 1475 > 1440)**根本关不掉分栏**、split 切换被压成 **2px**、过滤框压成 31px。
+  改成一行契约 `.diffbar > * { flex:0 0 auto }` + 常驻控件 **6→4**(过滤 input 收进 Popover、Expand/Collapse
+  并入 `…`、徽章可压缩)。live 复验:溢出 **34→0**、✕ right **1475→1430**、split **2→63px**;1280 档 124→0。
+  **DF-2(P0,一眼可见)** — Changes 里构建产物默认全展开,176 行 minified React 把 review 淹掉,真正要看的
+  `dist/index.html +2 −2` 被埋在 4008px 之下。加 `isGeneratedPath()` + 最长行 >500 字符判 minified → 默认折叠
+  (生成物走 20 行小预算,故 asset-hash bump 这种仍展开)。live 复验:面板 **4008px → 846px(−79%)**,
+  bundle 折叠、`index.html` 展开在第一屏。
+  **HM-3** — home 品牌标从裸 `>_` 字形改成 Codex 的 lobed 云朵描边团块(内联 SVG,对金标量化 3 项比例吻合)。
+  **HM-5** — 模型菜单 `EFFORT` 全大写 → sentence-case,与同菜单其它标题统一。
+  **顺带修掉一个长期取证 bug**:home 的正确 URL 是**无 hash 的 `/`**,`#/` 被 hash 路由当 sid 解析成
+  "Task not found" —— 过去几轮的 home 基线截图全是错屏。
+  push:`5bd924b`(DF-2)、`a68d784`(DF-1)、`edd3981`(HM-3/HM-5)、`c07d372`+本 commit(台账)。
+  live=`index-CHVun0rJ.js`;vitest **268/268 绿**;全景复验 4 屏 × light/dark × 1440/390 = 16 屏
+  **console error+warning = 0**;截图 `qa/runs/2026-07-12-round22/{before,after,df1,df2,hm35,finder-*}/`。
+  **开放 ☐ 剩**:**HM-1(P0 结构性,下轮首选)** + HM-2 + HM-4 + HM-6(同批,touches `styles.css`+`styles.home.css`)、
+  DF-3(untracked 文件二等公民)、DF-4(长行硬裁无 Wrap 开关)、DF-5、DF-6、SC-5、SC-9、TH-5。
