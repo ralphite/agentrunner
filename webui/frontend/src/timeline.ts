@@ -96,6 +96,13 @@ export interface ChipItem {
   // A3: render this chip as a Codex activity row (icon + label) rather than a
   // bubble chip — used for context compaction inside the fold.
   activity?: boolean;
+  // TH-12: this chip RESTATES a terminal fact that the session's own chrome
+  // already says. "goal" = the goal banner (.gbar) says it; "limit" = the
+  // terminal alert (.terminal-alert) says it. The chip is still produced — a
+  // session with no such chrome (no goal banner, dismissed banner, a sub-agent
+  // thread) must keep the fact — but a view that DOES render the chrome drops
+  // it through suppressEchoedChips so one terminal fact is stated once.
+  echo?: "goal" | "limit";
 }
 
 export interface SysItem {
@@ -488,6 +495,36 @@ function correlationSession(env: Envelope): string | undefined {
   return typeof id === "string" && id ? id : undefined;
 }
 
+// TH-12 · goal text inside a chip is a label, not the goal itself. Anything
+// longer than this is clipped — the goal banner (and the user's own bubble)
+// carry the full sentence, and an un-clipped chip stretched into a ~500px pill.
+const GOAL_CHIP_CHARS = 32;
+
+export function clipGoal(goal: string): string {
+  const g = (goal || "").trim().replace(/\s+/g, " ");
+  return g.length > GOAL_CHIP_CHARS ? g.slice(0, GOAL_CHIP_CHARS - 1).trimEnd() + "…" : g;
+}
+
+// TH-12 · which terminal chrome the VIEW is actually rendering right now.
+export interface TerminalChrome {
+  goalBanner: boolean; // .gbar — the goal's lifecycle state (paused / stopped / cancelled)
+  terminalAlert: boolean; // .terminal-alert — the abnormal-terminal notice (limit / crash / …)
+}
+
+// suppressEchoedChips drops the in-thread chips whose terminal fact the chrome
+// above the composer already states — Codex says a terminal fact ONCE. It is
+// deliberately CONDITIONAL: with no chrome on screen (no goal, banner
+// dismissed, sub-agent thread, driver run) every chip survives, so the journal
+// stays fully readable from the thread alone. QA-45's rule holds either way —
+// an abnormal end is always visible; it's just not visible five times.
+export function suppressEchoedChips(items: TimelineItem[], chrome: TerminalChrome): TimelineItem[] {
+  if (!chrome.goalBanner && !chrome.terminalAlert) return items;
+  return items.filter((it) => {
+    if (it.kind !== "chip" || !it.echo) return true;
+    return it.echo === "goal" ? !chrome.goalBanner : !chrome.terminalAlert;
+  });
+}
+
 // foldEvents replays the whole journal into an ordered item list plus the
 // derived approval / status maps. Pure over `events`, recomputed each poll —
 // journal is the source of truth (DESIGN I5).
@@ -520,6 +557,13 @@ export function foldEvents(events: Envelope[]): Folded {
     tone: ChipItem["tone"] = "",
     childSession?: string,
   ) => push({ kind: "chip", key: "c" + seq, text, tone, childSession, fold: true });
+  // TH-12 · a chip whose fact the terminal chrome also states (see ChipItem.echo).
+  const echoChip = (
+    seq: number,
+    text: string,
+    tone: ChipItem["tone"],
+    echo: NonNullable<ChipItem["echo"]>,
+  ) => push({ kind: "chip", key: "c" + seq, text, tone, echo });
 
   for (const env of events) {
     const p = env.payload || {};
@@ -813,20 +857,24 @@ export function foldEvents(events: Envelope[]): Folded {
             }
           }
         }
-        if (!noted) chip(seq, `goal attached · ${p.goal || ""}`);
+        // TH-12: the fallback chip is a LABEL, not a transcript — the whole
+        // goal sentence blew it out to a 494px pill restating text the banner
+        // and the user's own bubble already carry. Clip it; the banner holds
+        // the full goal.
+        if (!noted) chip(seq, `goal attached · ${clipGoal(g)}`);
         break;
       }
       case "goal_updated":
-        chip(seq, "goal updated" + (p.goal ? ` · ${p.goal}` : ""));
+        chip(seq, "goal updated" + (p.goal ? ` · ${clipGoal(String(p.goal))}` : ""));
         break;
       case "goal_paused":
-        chip(seq, "goal paused", "warn");
+        echoChip(seq, "goal paused", "warn", "goal");
         break;
       case "goal_resumed":
         chip(seq, "goal resumed");
         break;
       case "goal_cancelled":
-        chip(seq, "goal cancelled", "warn");
+        echoChip(seq, "goal cancelled", "warn", "goal");
         break;
       case "goal_checkpoint":
         workChip(seq, `Goal check ${p.check || "?"}${p.pass ? " · passed" : " · not met"}`, p.pass ? "good" : "warn");
@@ -835,9 +883,13 @@ export function foldEvents(events: Envelope[]): Folded {
         // reason=budget means the check budget ran out — a visible STOP,
         // not success; saying "achieved" here misled users (F-C5).
         if (p.reason === "budget") {
-          chip(seq, `goal stopped: check budget exhausted after ${p.checks} check(s) — not verified as achieved`, "bad");
+          // TH-12: the goal banner's terminal state says exactly this ("Goal
+          // stopped · check budget exhausted" + the check count), so the chip
+          // is an echo when the banner is on screen — but it stays the ONLY
+          // carrier of the fact when it isn't (dismissed banner, sub-agent).
+          echoChip(seq, `goal stopped: check budget exhausted after ${p.checks} check(s) — not verified as achieved`, "bad", "goal");
         } else if (p.reason === "cancelled") {
-          chip(seq, "goal detached · cancelled", "warn");
+          echoChip(seq, "goal detached · cancelled", "warn", "goal");
         } else {
           chip(seq, `Goal achieved · ${p.reason || "satisfied"} (${p.checks} check${p.checks === 1 ? "" : "s"})`, "good");
         }
@@ -853,7 +905,11 @@ export function foldEvents(events: Envelope[]): Folded {
           // show a bare "0/limit" for a pre-flight block that read as
           // "barely used" while also saying "exceeded" (R4-4).
           const lbl = friendlyStatus(p.kind || "limit").text;
-          chip(seq, p.limit ? `${lbl} — capped at ${p.limit}` : lbl, "bad");
+          // TH-12: .terminal-alert already announces the SAME cap ("Budget /
+          // Step limit reached" + what to do next) with an action button. Two
+          // reds for one stop; the chip yields to the actionable banner when
+          // that banner is rendered.
+          echoChip(seq, p.limit ? `${lbl} — capped at ${p.limit}` : lbl, "bad", "limit");
         }
         break;
       case "generation_discarded":

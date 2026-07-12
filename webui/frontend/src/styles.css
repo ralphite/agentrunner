@@ -4447,16 +4447,24 @@ body {
   align-items: center;
   gap: 8px;
   flex: 0 0 auto;
-  padding: 8px 14px;
+  padding: 8px 12px;
   margin: 0 auto;
-  width: 100%;
-  /* FA-3: share the 720px column with .tl-inner and the composer card so the
-     banner's edges line up with the input right below it. */
-  max-width: 720px;
+  /* FA-3 shared the 720px column with the OLD .tl-inner. TH-2 then narrowed the
+     prose column and the composer card to 660px (x 350→1010 at 1440) and this
+     banner was left 30px proud on each side. TH-11: mirror .cx-card exactly —
+     min(parent − 2×gutter, column), centered — at every width. */
+  width: calc(100% - 60px);
+  max-width: 660px;
   border-top: 1px solid var(--line);
   font-size: 12.5px;
   color: var(--ink);
   background: color-mix(in srgb, var(--violet) 8%, var(--panel));
+}
+@media (max-width: 900px) {
+  .gbar { width: calc(100% - 44px); max-width: 676px; }
+}
+@media (max-width: 680px) {
+  .gbar { width: calc(100% - 32px); max-width: 688px; }
 }
 .gbar.paused { opacity: 0.72; }
 .gbar.done { background: color-mix(in srgb, var(--green) 10%, var(--panel)); }

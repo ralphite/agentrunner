@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { completedTurnDurations, deriveGoalState, explainFailure, foldEvents, foldWork, formatElapsed, formatWorkDuration, guiReason, verdictLabel } from "./timeline";
+import { clipGoal, completedTurnDurations, deriveGoalState, explainFailure, foldEvents, foldWork, formatElapsed, formatWorkDuration, guiReason, suppressEchoedChips, verdictLabel } from "./timeline";
 import { isSessionNotFound, isValidSessionId } from "./components/SessionView";
 import { summarizeChanges } from "./diffSummary";
 
@@ -477,5 +477,76 @@ describe("session id verdicts", () => {
     // Daemon down / restarting / network blip: keep polling.
     expect(isSessionNotFound(Object.assign(new Error("ar events: exit status 1"), { status: 502 }))).toBe(false);
     expect(isSessionNotFound(new TypeError("Failed to fetch"))).toBe(false);
+  });
+});
+
+// TH-12 · one terminal fact, said once. The chips are always PRODUCED (the
+// journal is the source of truth and a thread with no chrome must still carry
+// the fact); the view drops the ones its own chrome is already saying.
+describe("TH-12 · duplicate terminal chrome suppression", () => {
+  const goalEvents = [
+    { seq: 1, type: "goal_attached", payload: { goal: "ship the parity round" } },
+    { seq: 2, type: "goal_paused", payload: {} },
+    { seq: 3, type: "goal_cancelled", payload: {} },
+  ];
+  const limitEvents = [
+    { seq: 1, type: "limit_exceeded", payload: { kind: "max_generation_steps", limit: 8 } },
+  ];
+  const chipText = (items: ReturnType<typeof foldEvents>["items"]) =>
+    items.filter((it) => it.kind === "chip").map((it) => (it as { text: string }).text);
+
+  it("marks the goal/limit chips that the chrome restates — and only those", () => {
+    const items = foldEvents([...goalEvents, ...limitEvents]).items;
+    const echoes = items.filter((it) => it.kind === "chip" && (it as { echo?: string }).echo);
+    expect(echoes.map((it) => (it as { echo?: string }).echo)).toEqual(["goal", "goal", "limit"]);
+    // the goal_attached fallback chip is NOT an echo — it names the goal, and
+    // no chrome says "this is when the goal started".
+    expect(items.some((it) => it.kind === "chip" && /goal attached/.test((it as { text: string }).text))).toBe(true);
+  });
+
+  it("with the goal banner on screen, drops the in-thread paused/cancelled echo", () => {
+    const items = foldEvents(goalEvents).items;
+    const shown = suppressEchoedChips(items, { goalBanner: true, terminalAlert: false });
+    expect(chipText(shown)).not.toContain("goal paused");
+    expect(chipText(shown)).not.toContain("goal cancelled");
+    // the goal itself survives — suppression removes the ECHO, not the record.
+    expect(chipText(shown).some((t) => t.startsWith("goal attached"))).toBe(true);
+  });
+
+  it("with NO goal banner (sub-agent thread, dismissed banner), keeps every chip", () => {
+    const items = foldEvents(goalEvents).items;
+    const shown = suppressEchoedChips(items, { goalBanner: false, terminalAlert: false });
+    expect(chipText(shown)).toContain("goal paused");
+    expect(chipText(shown)).toContain("goal cancelled");
+    expect(shown).toEqual(items);
+  });
+
+  it("with the terminal alert on screen, drops the red limit chip — and keeps it otherwise", () => {
+    const items = foldEvents(limitEvents).items;
+    expect(chipText(suppressEchoedChips(items, { goalBanner: false, terminalAlert: true }))).toEqual([]);
+    expect(chipText(suppressEchoedChips(items, { goalBanner: false, terminalAlert: false })))
+      .toEqual([expect.stringContaining("capped at 8")]);
+  });
+
+  it("keeps each chrome's suppression independent (an alert must not eat goal chips)", () => {
+    const items = foldEvents([...goalEvents, ...limitEvents]).items;
+    const shown = chipText(suppressEchoedChips(items, { goalBanner: false, terminalAlert: true }));
+    expect(shown).toContain("goal cancelled");
+    expect(shown.some((t) => /capped at 8/.test(t))).toBe(false);
+  });
+
+  it("does not suppress an interrupt chip — 'you interrupted' is not the alert's fact", () => {
+    const items = foldEvents([{ seq: 1, type: "limit_exceeded", payload: { kind: "interrupted" } }]).items;
+    const shown = suppressEchoedChips(items, { goalBanner: true, terminalAlert: true });
+    expect(chipText(shown)).toEqual(["Stopped — you interrupted this turn"]);
+  });
+
+  it("clips a whole-sentence goal out of the fallback chip (no more 494px pill)", () => {
+    expect(clipGoal("short goal")).toBe("short goal");
+    const long = "reply with exactly QA45_THINKING_PROBE and nothing else";
+    expect(clipGoal(long).length).toBeLessThanOrEqual(32);
+    expect(clipGoal(long).endsWith("…")).toBe(true);
+    const chip = foldEvents([{ seq: 1, type: "goal_attached", payload: { goal: long } }]).items[0] as { text: string };
+    expect(chip.text.length).toBeLessThanOrEqual("goal attached · ".length + 32);
   });
 });

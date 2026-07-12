@@ -4,7 +4,7 @@ import "../styles.panel.css";
 import { AR } from "../api";
 import { useStore } from "../store";
 import type { Envelope, Task } from "../types";
-import { deriveGoalState, foldEvents, formatElapsed, isGoalTerminal, type ApprovalRef, type GoalDerived } from "../timeline";
+import { deriveGoalState, foldEvents, formatElapsed, isGoalTerminal, suppressEchoedChips, type ApprovalRef, type GoalDerived } from "../timeline";
 import { TimelineView } from "./Timeline";
 import { ApprovalCard } from "./ApprovalCard";
 import { Composer } from "./Composer";
@@ -631,6 +631,20 @@ export function SessionView({ sid }: { sid: string }) {
     void act.view("Run details", () => AR.inspect(sid));
   };
 
+  // TH-12 · the same terminal fact was landing on screen 3–5 times: a goal
+  // cancellation as an in-thread chip AND the goal banner AND Supervision's
+  // goal group; a step-limit stop as a red chip AND the terminal alert. Codex
+  // says it once. The chrome above the composer is the actionable copy (it
+  // carries the elapsed/checks and the "Continue in new task" button), so when
+  // it's on screen the thread's echo of it is dropped — and ONLY then, so a
+  // session with no banner (sub-agent, dismissed banner, no goal) still tells
+  // the whole story from the thread alone.
+  const goalBannerShown = !isSub && !!goalState && (!goalTerminal || goalDismissedAt !== goalState.endedAt);
+  const threadItems = useMemo(
+    () => suppressEchoedChips(folded.items, { goalBanner: goalBannerShown, terminalAlert: !!terminalNotice }),
+    [folded.items, goalBannerShown, terminalNotice],
+  );
+
   // The inline approval card is the primary action. On roomy desktop layouts
   // Supervision may reinforce it, but narrow screens must not be covered by an
   // auto-open overlay. If we opened the panel, close it when attention clears.
@@ -801,7 +815,7 @@ export function SessionView({ sid }: { sid: string }) {
                 </div>
               )}
               <TimelineView
-                items={folded.items}
+                items={threadItems}
                 pending={pending}
                 typing={running ? (typing || "Thinking") : typing}
                 showSys={showSys}
@@ -872,7 +886,9 @@ export function SessionView({ sid }: { sid: string }) {
                   <span className="terminal-alert-ic">
                     {terminalNotice.tone === "danger" ? <XCircle size={17} weight="fill" /> : <WarningCircle size={17} weight="fill" />}
                   </span>
-                  <div className="terminal-alert-text">
+                  {/* TH-11: title + body on one line; the body ellipsizes at the
+                      column edge, so the full sentence lives on the tooltip. */}
+                  <div className="terminal-alert-text" title={`${terminalNotice.title} — ${terminalNotice.body}`}>
                     <b>{terminalNotice.title}</b>
                     <span>{terminalNotice.body}</span>
                   </div>
@@ -882,7 +898,7 @@ export function SessionView({ sid }: { sid: string }) {
                   </button>
                 </div>
               )}
-              {!isSub && goalState && (!goalTerminal || goalDismissedAt !== goalState.endedAt) && (
+              {goalBannerShown && goalState && (
                 <GoalBanner
                   state={goalPendingUpdate ? { ...goalState, goal: goalPendingUpdate } : goalState}
                   elapsedMs={goalTerminal ? goalState.elapsedMs : goalState.attachedAt !== undefined ? now - goalState.attachedAt : undefined}

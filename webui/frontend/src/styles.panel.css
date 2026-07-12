@@ -389,17 +389,35 @@
   background: color-mix(in srgb, var(--amber) 9%, var(--panel-2));
 }
 
-/* ===== QA-45 · honest abnormal-terminal banner ===== */
+/* ===== QA-45 · honest abnormal-terminal banner =====
+   TH-11 (round 25): the banner stays — an abnormal terminal state must be said
+   out loud — but it now says it ON the thread's vertical edge and in ONE line.
+   Before: `margin: 0 18px` pinned it to the session-primary box, so it landed
+   at x=282/w=796 — 68px left of the prose column, the changes card and the
+   composer (all x=350/w=660) — and its stacked title+body made it 85px tall.
+   Two terminal banners (this + .gbar) ate 138px of a 900px window. Codex's
+   terminal notice is one compact row inside the same column as everything else.
+   Geometry mirrors .cx-card (styles.conv.css): min(parent − 2×gutter, column),
+   centered — so it agrees with the composer at EVERY width, including the two
+   narrow breakpoints where the gutter retunes. */
 .terminal-alert {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin: 0 18px 10px;
-  padding: 11px 12px;
+  gap: 8px;
+  width: calc(100% - 60px);
+  max-width: 660px;
+  margin: 0 auto 8px;
+  padding: 7px 8px 7px 11px;
   border: 1px solid color-mix(in srgb, var(--amber) 28%, var(--line));
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--amber-soft);
   font-size: 13px;
+}
+@media (max-width: 900px) {
+  .terminal-alert { width: calc(100% - 44px); max-width: 676px; }
+}
+@media (max-width: 680px) {
+  .terminal-alert { width: calc(100% - 32px); max-width: 688px; }
 }
 .terminal-alert.danger {
   border-color: color-mix(in srgb, var(--red) 30%, var(--line));
@@ -407,9 +425,27 @@
 }
 .terminal-alert-ic { display: grid; place-items: center; flex: 0 0 auto; color: var(--amber); }
 .terminal-alert.danger .terminal-alert-ic { color: var(--red); }
-.terminal-alert-text { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 1px; }
-.terminal-alert-text b { color: var(--ink); font-weight: 600; }
-.terminal-alert-text span { color: var(--ink-2); }
+/* TH-11: title and body ride the SAME line — the title is the fact, the body is
+   the elaboration and truncates with an ellipsis (full text stays reachable via
+   the row's title attribute). This is what turns 85px of banner into ~35px. */
+.terminal-alert-text {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+}
+.terminal-alert-text b { flex: 0 0 auto; color: var(--ink); font-weight: 600; }
+.terminal-alert-text span {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-2);
+  font-size: 12.5px;
+}
 .terminal-alert-action {
   display: inline-flex;
   align-items: center;
@@ -425,9 +461,14 @@
 }
 .terminal-alert-action:hover { background: var(--panel-2); }
 @media (max-width: 640px) {
-  .terminal-alert { align-items: flex-start; margin-inline: 12px; flex-wrap: wrap; }
-  .terminal-alert-text { flex-basis: calc(100% - 28px); }
-  .terminal-alert-action { margin-left: 27px; }
+  /* Phone: one row can't hold title + body + action, so the body wraps under
+     the title and the action drops to its own line. The banner's OUTER edges
+     still come from the rules above (calc(100% − 32px)), so it stays flush with
+     the composer card — the old `margin-inline: 12px` left it 4px proud of it. */
+  .terminal-alert { align-items: flex-start; flex-wrap: wrap; }
+  .terminal-alert-text { flex-basis: calc(100% - 28px); flex-direction: column; gap: 1px; }
+  .terminal-alert-text span { white-space: normal; overflow: visible; }
+  .terminal-alert-action { margin-left: 27px; margin-top: 2px; }
 }
 
 /* ===== CX-1 · Right rail as a full-height flush split (Codex parity) =====
