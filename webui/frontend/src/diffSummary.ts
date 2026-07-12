@@ -189,7 +189,7 @@ export function splitRows(rows: DiffRow[]): SplitRow[] {
 // A highlighted token: `t` is the literal source text (never dropped/reordered,
 // so `white-space: pre` layout stays byte-exact); `c` is a CSS class suffix
 // (.hl-<c>) or undefined for plain text.
-export type HlClass = "kw" | "str" | "com" | "num" | "fn" | "punc";
+export type HlClass = "kw" | "str" | "com" | "num" | "fn" | "punc" | "code";
 export interface HlToken {
   t: string;
   c?: HlClass;
@@ -374,7 +374,9 @@ function highlightMd(text: string): HlToken[] {
       const end = text.indexOf("`", i + 1);
       const stop = end < 0 ? n : end + 1;
       flush();
-      out.push({ t: text.slice(i, stop), c: "str" });
+      // Inline code spans get their own teal class (.hl-code) rather than the
+      // orange string color, so backticked identifiers read as code, not prose.
+      out.push({ t: text.slice(i, stop), c: "code" });
       i = stop;
       continue;
     }

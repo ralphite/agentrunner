@@ -4,8 +4,13 @@ import {
   Columns,
   MagnifyingGlass,
   GitBranch,
+  GitCommit,
   CaretDown,
   CaretUp,
+  CaretUpDown,
+  ArrowClockwise,
+  ArrowsOutLineVertical,
+  ArrowsInLineVertical,
   FileDashed,
   FileMagnifyingGlass,
   FolderDashed,
@@ -364,21 +369,12 @@ export function DiffView({ sid }: { sid: string }) {
     <div className="diffwrap">
       <div className="diffbar">
         {scopeControl}
-        {(() => {
-          // Middle-ellipsize the workspace path (keep the head + the last
-          // segment) so a long absolute path stays identifiable at both ends;
-          // the full path is on hover (title).
-          const ws = data.workspace || "";
-          const cut = ws.lastIndexOf("/");
-          const head = cut > 0 ? ws.slice(0, cut + 1) : "";
-          const tail = cut >= 0 ? ws.slice(cut + 1) : ws;
-          return (
-            <span className="diffbar-path mono dim" title={data.workspace}>
-              <span className="dp-head">{head}</span>
-              <span className="dp-tail">{tail}</span>
-            </span>
-          );
-        })()}
+        {!empty && (
+          <span className="diff-summary">
+            {totalAdd > 0 && <span className="add">+{totalAdd}</span>}
+            {totalDel > 0 && <span className="del"> −{totalDel}</span>}
+          </span>
+        )}
         {data.worktree && (
           <span
             className="diff-wt-badge inline-flex items-center gap-[4px] text-[11px] text-ink-2 bg-panel-2 border border-line-2 rounded-[5px] px-[6px] py-[2px]"
@@ -389,16 +385,9 @@ export function DiffView({ sid }: { sid: string }) {
             {data.branch ? <span className="dim">· {data.branch}</span> : <span className="dim">· detached</span>}
           </span>
         )}
-        {!empty && (
-          <span className="diff-summary">
-            {files.length} file{files.length === 1 ? "" : "s"}
-            {totalAdd > 0 && <span className="add"> +{totalAdd}</span>}
-            {totalDel > 0 && <span className="del"> −{totalDel}</span>}
-          </span>
-        )}
         <span className="spacer" />
         {files.length > 1 && (
-          <label className="diff-filter" title="Filter files by path">
+          <label className={"diff-filter" + (fileQuery ? " has-query" : "")} title="Filter files by path">
             <MagnifyingGlass size={13} />
             <input
               value={fileQuery}
@@ -430,60 +419,64 @@ export function DiffView({ sid }: { sid: string }) {
           </div>
         )}
         {files.length > 1 && (
-          <button className="sm" onClick={() => setAll(!allOpen)} title={allOpen ? "Collapse all files" : "Expand all files"}>
-            {allOpen ? "Collapse all" : "Expand all"}
+          <button
+            className="sm ghost diff-iconbtn"
+            onClick={() => setAll(!allOpen)}
+            aria-label={allOpen ? "Collapse all files" : "Expand all files"}
+            title={allOpen ? "Collapse all files" : "Expand all files"}
+          >
+            {allOpen ? <ArrowsInLineVertical size={15} /> : <ArrowsOutLineVertical size={15} />}
           </button>
         )}
         {scope === "working-tree" && !empty && (
-          <div className="inline-flex items-stretch" role="group" aria-label="Commit or push">
-            <button
-              className="sm primary rounded-r-none"
-              onClick={commit}
-              disabled={busy}
-              title="git add -A && git commit the workspace changes (local commit, no push)"
-            >
-              Commit
-            </button>
-            <Popover
-              align="right"
-              panelClass="w-[264px] max-w-[calc(100vw-24px)]"
-              trigger={(open, toggle) => (
-                <button
-                  className={"sm primary rounded-l-none px-[5px] inline-flex items-center" + (open ? " active" : "")}
-                  style={{ borderLeft: "1px solid color-mix(in srgb, var(--accent-ink) 28%, transparent)" }}
-                  onClick={toggle}
-                  disabled={busy}
-                  aria-label="Commit or push options"
-                  aria-haspopup="menu"
-                  aria-expanded={open}
-                  title="Commit or push"
-                >
-                  <CaretDown size={12} />
-                </button>
-              )}
-            >
-              {(close) => (
-                <PopSection label="Commit or push">
-                  <PopItem
-                    title="Commit &amp; push"
-                    desc="Commit locally, then push to the upstream branch"
-                    onClick={() => {
-                      close();
-                      commitAndPush();
-                    }}
-                  />
-                  <PopItem
-                    title="Push"
-                    desc="Push existing commits to the upstream branch"
-                    onClick={() => {
-                      close();
-                      void doPush();
-                    }}
-                  />
-                </PopSection>
-              )}
-            </Popover>
-          </div>
+          <Popover
+            align="right"
+            panelClass="w-[264px] max-w-[calc(100vw-24px)]"
+            trigger={(open, toggle) => (
+              <button
+                className={"sm diff-commit-btn" + (open ? " active" : "")}
+                onClick={toggle}
+                disabled={busy}
+                aria-label="Commit or push"
+                aria-haspopup="menu"
+                aria-expanded={open}
+                title="Commit or push the workspace changes"
+              >
+                <GitCommit size={14} />
+                Commit or push
+                <CaretDown size={12} className="diff-commit-caret" />
+              </button>
+            )}
+          >
+            {(close) => (
+              <PopSection label="Commit or push">
+                <PopItem
+                  title="Commit"
+                  desc="git add -A && git commit locally (no push)"
+                  onClick={() => {
+                    close();
+                    commit();
+                  }}
+                />
+                <PopItem
+                  title="Commit &amp; push"
+                  desc="Commit locally, then push to the upstream branch"
+                  onClick={() => {
+                    close();
+                    commitAndPush();
+                  }}
+                />
+                <PopItem
+                  title="Push"
+                  desc="Push existing commits to the upstream branch"
+                  onClick={() => {
+                    close();
+                    void doPush();
+                  }}
+                />
+              </PopSection>
+            )}
+          </Popover>
         )}
         {scope === "working-tree" && data.worktree && data.mainRepo && (
           <button
@@ -500,8 +493,8 @@ export function DiffView({ sid }: { sid: string }) {
             Remove worktree…
           </button>
         )}
-        <button className="sm" onClick={load}>
-          Refresh
+        <button className="sm ghost diff-iconbtn" onClick={load} aria-label="Refresh changes" title="Refresh changes">
+          <ArrowClockwise size={15} />
         </button>
       </div>
       {/* INC-41 L4 · every "nothing to show" in this panel speaks the timeline's
@@ -650,19 +643,25 @@ function FileBody({
   };
 
   // Collapser band shown before a hunk that hides unmodified lines. Expanded, it
-  // becomes a thin "collapse" header above the revealed lines.
-  const band = (idx: number, gap: { start: number; end: number }) => {
+  // becomes a thin "collapse" header above the revealed lines. `leading` marks
+  // the gap that reaches the top of the file (start === 1): it can only open
+  // downward, so it gets a single caret, while interior gaps span both
+  // directions and get a two-way caret — matching Codex's context bands.
+  const band = (idx: number, gap: { start: number; end: number }, leading: boolean) => {
     const n = gap.end - gap.start + 1;
     const expanded = open.has(idx);
+    const caret = expanded ? <CaretUp size={12} /> : leading ? <CaretDown size={12} /> : <CaretUpDown size={12} />;
     return (
       <button
         type="button"
-        className="flex items-center gap-[6px] w-full px-[10px] py-[3px] bg-panel-2 text-dim font-mono text-[11px] text-left cursor-pointer border-x-0 border-y border-y-line-2 hover:bg-blue-soft hover:text-blue disabled:opacity-60 disabled:cursor-default"
+        className="flex items-center gap-[8px] w-full px-[10px] py-[6px] bg-panel-2 text-dim font-mono text-[11px] text-left cursor-pointer border-x-0 border-y border-y-line-2 hover:bg-blue-soft hover:text-blue disabled:opacity-60 disabled:cursor-default"
         onClick={() => void toggleGap(idx)}
         disabled={loadingIdx === idx}
         title={expanded ? "Hide these unmodified lines" : "Show these unmodified lines"}
       >
-        <span className="shrink-0 opacity-70 inline-flex">{expanded ? <CaretUp size={12} /> : <CaretDown size={12} />}</span>
+        <span className="shrink-0 inline-flex items-center justify-center border border-line-2 rounded-[5px] bg-panel px-[2px] py-[1px]">
+          {caret}
+        </span>
         {loadingIdx === idx ? "Loading…" : `${n.toLocaleString()} unmodified line${n === 1 ? "" : "s"}`}
       </button>
     );
@@ -712,7 +711,7 @@ function FileBody({
       {parsed.rows.map((r, i) => {
         if (r.kind === "hunk") {
           const gap = gaps.get(i);
-          const bandEl = gap ? band(i, gap) : null;
+          const bandEl = gap ? band(i, gap, gap.start === 1) : null;
           const revealed = gap && open.has(i) ? revealedRows(gap).map((cr, k) => ctxRow(cr, i + ":rv:" + k)) : null;
           const header = r.text ? (
             <div className="dl-hunk" key={i + ":h"}>{r.text}</div>

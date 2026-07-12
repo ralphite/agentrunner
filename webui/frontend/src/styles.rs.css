@@ -77,6 +77,9 @@ html body {
 .hl-str { color: var(--hl-str); }
 .hl-num { color: var(--hl-num); }
 .hl-fn { color: var(--hl-fn); }
+/* Inline markdown code spans get the teal code color (reuses --hl-fn) so
+ * backticked identifiers read as code, not the orange string tint. */
+.hl-code { color: var(--hl-fn); }
 .hl-com { color: var(--hl-com); font-style: italic; }
 .hl-punc { color: var(--hl-punc); }
 /* syntax OFF → every token falls back to the row's own (tinted) ink */
@@ -84,6 +87,7 @@ html body {
 :root:not([data-syntax]) .hl-str,
 :root:not([data-syntax]) .hl-num,
 :root:not([data-syntax]) .hl-fn,
+:root:not([data-syntax]) .hl-code,
 :root:not([data-syntax]) .hl-com,
 :root:not([data-syntax]) .hl-punc {
   color: inherit;
@@ -251,10 +255,22 @@ html body {
   font-family: var(--mono);
   color: var(--dim);
 }
+/* Modified/renamed/copied are neutral (not accent-blue) — the add/del channel
+ * gutter already carries the change signal, so the glyph stays quiet. */
 .fd-glyph-modified,
 .fd-glyph-renamed,
 .fd-glyph-copied {
-  color: var(--rs-accent);
+  color: var(--ink-2);
+}
+/* Codex stamps a down-arrow after the "M" of a modified file. */
+.diffwrap .fd-glyph-modified {
+  width: auto;
+}
+.diffwrap .fd-glyph-modified::after {
+  content: "↓";
+  font-size: 0.82em;
+  vertical-align: baseline;
+  opacity: 0.75;
 }
 .fd-glyph-added {
   color: var(--green);
@@ -711,6 +727,108 @@ html body {
 .diffwrap .diffbar-path .dp-tail {
   flex: 0 0 auto;
   white-space: nowrap;
+}
+
+/* ============================================================================
+ * N10 · quiet single-row Changes toolbar (Codex parity)
+ * The base bar (styles.css) wrapped a row of solid/outlined buttons; here it
+ * becomes one compact strip of borderless/ghost controls that stays on a
+ * single line the way Codex's review header does.
+ * ==========================================================================*/
+.diffwrap .diffbar {
+  /* Tighter gaps let the quiet controls sit on one line in the common review
+   * case (matching Codex); worktree-only actions (Apply / Remove) still wrap to
+   * a second row rather than clip when the panel is narrow. */
+  gap: 6px;
+  min-width: 0;
+}
+
+/* Scope trigger → borderless plain text; a surface appears only on hover. */
+.diffwrap .diff-scope-trigger {
+  height: 28px;
+  padding: 0 6px;
+  border-color: transparent;
+  background: transparent;
+  font-weight: 600;
+}
+.diffwrap .diff-scope-trigger:hover,
+.diffwrap .diff-scope-trigger.active {
+  background: var(--panel-2);
+  border-color: transparent;
+}
+
+/* Stats: just +add −del next to the scope trigger (no "N files" prefix). */
+.diffwrap .diff-summary {
+  margin-left: 2px;
+  display: inline-flex;
+  gap: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Icon-only ghost buttons (Expand/Collapse all, Refresh). */
+.diffwrap .diffbar .diff-iconbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--ink-2);
+  flex-shrink: 0;
+}
+
+/* Commit-or-push → outlined ghost (not solid primary): a leading commit glyph,
+ * the "Commit or push" label, and a trailing caret opening the menu. */
+.diffwrap .diff-commit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  color: var(--ink);
+}
+.diffwrap .diff-commit-btn .diff-commit-caret {
+  opacity: 0.7;
+}
+.diffwrap .diff-commit-btn:hover,
+.diffwrap .diff-commit-btn.active {
+  background: var(--panel-2);
+  border-color: var(--dim);
+}
+
+/* Filter collapses to just its magnifier icon, expanding on hover / focus /
+ * while a query is active. */
+.diffwrap .diff-filter {
+  border-color: transparent;
+  background: transparent;
+  padding: 3px 6px;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.diffwrap .diff-filter input {
+  width: 0;
+  transition: width 0.16s ease;
+}
+.diffwrap .diff-filter:hover input,
+.diffwrap .diff-filter:focus-within input,
+.diffwrap .diff-filter.has-query input {
+  width: 118px;
+}
+.diffwrap .diff-filter:focus-within,
+.diffwrap .diff-filter.has-query {
+  border-color: var(--line);
+  background: var(--panel);
+}
+
+/* Hidden-generated-files note → borderless tinted strip (was a bordered card). */
+.diffwrap .diff-hidden-note {
+  border: 0;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
 }
 
 /* ---- responsive: settings collapses to a stacked layout ---- */
