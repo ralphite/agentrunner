@@ -904,3 +904,89 @@
   opacity: .9;
 }
 .supervision-quiet.supervision-loading svg { color: var(--dim); }
+
+/* ===== INC-41 RD-C · the Worktree drawer is an ACTION drawer =================
+   It opened onto a path and a Copy button — a dead end. The three things one
+   does to a worktree (apply it back onto the project, remove it, open it in an
+   editor) all existed already, in the *other* right rail's `…` menu and in the
+   sidebar's context menu — i.e. everywhere except the panel with a row called
+   `Worktree` on it. Codex's Environment panel has no read-only rows: what a
+   row's drawer holds is what you can do to that row's object.
+
+   The drawer therefore stacks now — path line, then the actions — so
+   `.env-detail` turns its axis (same block, re-stated below rather than edited
+   above: this sheet is append-only for this slice, and a later rule of equal
+   specificity wins). `.env-detail-path` keeps the old horizontal path+Copy line
+   exactly as it was.
+
+   The action rows deliberately quote `.env-row` (28px, 9px icon gap, 8px
+   radius, hover tint) — they are rows in the same panel, one indent level in,
+   and must not read as a foreign widget bolted under the path. Remove is the
+   only destructive one on this panel: it takes the red *channel* (icon + label,
+   and a faint tint on hover), not a saturated red block — Codex never puts a
+   filled colour chip inside a panel, and a big red button is exactly how a
+   destructive action gets clicked by accident. The confirmation modal
+   (worktreeActions.ts) is the real guard; the colour is only the warning. */
+.supervision-panel .env-detail {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+}
+.supervision-panel .env-detail-path {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.supervision-panel .env-wt-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 1px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+.supervision-panel .env-wt-action {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 26px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 450;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.supervision-panel .env-wt-action > svg {
+  flex: 0 0 auto;
+  color: var(--dim);
+}
+.supervision-panel .env-wt-action:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+.supervision-panel .env-wt-action:hover:not(:disabled) > svg {
+  color: var(--ink-2);
+}
+.supervision-panel .env-wt-action:disabled {
+  opacity: 0.55;
+  cursor: default;
+  color: var(--dim);
+  font-weight: 400;
+}
+/* Danger reads as a colour, not as a block. */
+.supervision-panel .env-wt-danger,
+.supervision-panel .env-wt-danger > svg {
+  color: var(--red);
+}
+.supervision-panel .env-wt-danger:hover:not(:disabled),
+.supervision-panel .env-wt-danger:hover:not(:disabled) > svg {
+  color: var(--red);
+}
+.supervision-panel .env-wt-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--red) 10%, transparent);
+}

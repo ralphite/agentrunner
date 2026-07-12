@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ArrowSquareIn,
   CaretDown,
   CaretRight,
   CheckCircle,
+  Code,
   Copy,
   FileText,
   GitBranch,
@@ -10,6 +12,7 @@ import {
   Hourglass,
   Info,
   PlusMinus,
+  Trash,
   TreeStructure,
   WarningCircle,
   X,
@@ -20,6 +23,7 @@ import { copyText } from "../clipboard";
 import { loadGitPrefs } from "../theme";
 import { splitDiff } from "../diffSummary";
 import { Popover, PopItem, PopSection } from "./Popover";
+import { useWorktreeActions } from "./worktreeActions";
 import { deriveGoalState, formatElapsed, isGoalTerminal, type GoalDerived } from "../timeline";
 import type { Task } from "../types";
 import { friendlyStatus } from "./pill";
@@ -467,6 +471,14 @@ interface EnvState {
   del: number;
   files: number;
   untracked: number;
+  // INC-41 RD-C · is this workspace a linked git worktree, and of what? The two
+  // facts that decide whether the drawer's Apply / Remove rows exist at all —
+  // the same two DiffView's `…` menu gates them on (`data.worktree` /
+  // `data.mainRepo`). A session running straight in the repo has no worktree to
+  // apply back or remove, so it is offered neither (rather than a button that
+  // 400s when clicked).
+  worktree: boolean;
+  mainRepo: string;
 }
 
 // workspaceName is the tail segment of a workspace path — for a worktree
@@ -498,6 +510,12 @@ function EnvironmentSection({
   const sid = useStore((s) => s.currentSid);
   const openPrompt = useStore((s) => s.openPrompt);
   const toast = useStore((s) => s.toast);
+  // INC-41 RD-C · "open this directory in a system app" already exists, whole:
+  // the sidebar's project menu has offered VS Code / Finder / Terminal on a
+  // workspace path since INC-53, error handling and last-opened bookkeeping
+  // included. The drawer calls that same store action on the worktree's path
+  // rather than growing a second one.
+  const openProjectIn = useStore((s) => s.openProjectIn);
   const [env, setEnv] = useState<EnvState | null>(null);
   const [branch, setBranch] = useState<string | null>(null);
   // One busy flag for every mutating row (commit / push / branch): they all
@@ -539,6 +557,8 @@ function EnvironmentSection({
           del: files.reduce((n, f) => n + f.del, 0),
           files: files.length,
           untracked: (d.untracked || []).length,
+          worktree: !!d.worktree,
+          mainRepo: d.mainRepo || "",
         });
         if (d.known && d.isRepo && !d.nested && d.workspace) {
           AR.gitBranches(d.workspace)
@@ -660,6 +680,13 @@ function EnvironmentSection({
     });
   };
 
+  // INC-41 RD-C · the worktree's own lifecycle actions — the *same* ones, not a
+  // second implementation: `useWorktreeActions` is the code lifted out of
+  // DiffView, confirmation modals and all (see worktreeActions.ts). It shares
+  // this section's busy flag and re-reads the rows on success, exactly as the
+  // commit/branch rows above already do.
+  const { applyBack, removeWorktree } = useWorktreeActions({ sid: sid || "", onDone: load, setBusy });
+
   if (!env || !env.known || !env.isRepo || env.nested) return null;
 
   const hasChanges = env.add > 0 || env.del > 0 || env.untracked > 0;
@@ -727,20 +754,80 @@ function EnvironmentSection({
           </span>
           {workspace && (wtOpen ? <CaretDown size={12} /> : <CaretRight size={12} />)}
         </button>
+        {/* INC-41 RD-C · the drawer is an action drawer, not a display case.
+            It used to open onto a path and a Copy button — a dead end: the user
+            could *see* the worktree in the panel and do nothing to it, while the
+            three things you actually do to a worktree (apply it back, remove it,
+            open it in an editor) were locked in the OTHER right rail's `…` menu
+            and in the sidebar's right-click menu. The two rails share one slot,
+            so "go to the Changes view to act on the worktree the Environment
+            panel is showing you" meant closing the panel that showed it. Codex's
+            Environment panel is uniformly the opposite: every row it lists is a
+            row you can act on, and what a row's drawer holds is what you can do
+            to that object. Same actions as DiffView's menu, same code
+            (useWorktreeActions) — the confirmation on Remove above all: this is
+            the one row here that can destroy work, and it asks first, twice if
+            the worktree still holds unapplied changes. */}
         {wtOpen && workspace && (
           <div className="env-detail">
-            <code className="env-path" title={workspace}>{workspace}</code>
-            <button
-              type="button"
-              className="env-path-copy"
-              onClick={() => {
-                void copyText(workspace);
-                toast("workspace path copied", "info");
-              }}
-              title="Copy the full workspace path"
-            >
-              <Copy size={12} /> Copy path
-            </button>
+            <div className="env-detail-path">
+              <code className="env-path" title={workspace}>{workspace}</code>
+              <button
+                type="button"
+                className="env-path-copy"
+                onClick={() => {
+                  void copyText(workspace);
+                  toast("workspace path copied", "info");
+                }}
+                title="Copy the full workspace path"
+              >
+                <Copy size={12} /> Copy path
+              </button>
+            </div>
+            <div className="env-wt-actions">
+              {/* Gated exactly as DiffView's `…` gates them: apply needs a
+                  worktree AND a main repo to apply onto; remove needs a
+                  worktree. An in-place session (running straight in the repo)
+                  gets neither — there is nothing to apply back or prune, and a
+                  button that only ever errors is worse than no button. */}
+              {env.worktree && env.mainRepo && (
+                <button
+                  type="button"
+                  className="env-wt-action"
+                  disabled={busy || !hasChanges}
+                  onClick={() => applyBack(env.mainRepo)}
+                  title={
+                    hasChanges
+                      ? "Apply these changes back onto " + env.mainRepo + " (unstaged, for review)"
+                      : "No changes to apply"
+                  }
+                >
+                  <ArrowSquareIn size={13} />
+                  <span>Apply to project…</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className="env-wt-action"
+                onClick={() => void openProjectIn(workspace, "vscode")}
+                title="Open this workspace in VS Code"
+              >
+                <Code size={13} />
+                <span>Open in VS Code</span>
+              </button>
+              {env.worktree && (
+                <button
+                  type="button"
+                  className="env-wt-action env-wt-danger"
+                  disabled={busy}
+                  onClick={removeWorktree}
+                  title="Delete this worktree checkout and prune it from git"
+                >
+                  <Trash size={13} />
+                  <span>Remove worktree…</span>
+                </button>
+              )}
+            </div>
           </div>
         )}
         {/* Create branch — a permanent entry point (Codex parity CX-4): you

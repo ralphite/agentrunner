@@ -81,7 +81,7 @@ beforeEach(() => {
   // No current session: EnvironmentSection (which fetches its own diff) stays
   // out of the way, and the settled-goal lookup never fires. The three groups
   // under test are the whole panel body here.
-  useStore.setState({ currentSid: null });
+  useStore.setState({ currentSid: null, modal: null });
   for (const k of Object.keys(mocks.stubs)) delete mocks.stubs[k];
 });
 afterEach(() => {
@@ -360,5 +360,116 @@ describe("RD-E · Background work rides under Environment", () => {
     // …and it is no longer the last thing on the rail, below everything else.
     expect(labels.indexOf("Background work")).toBeLessThan(labels.indexOf("Goal"));
     expect(labels.indexOf("Background work")).toBeLessThan(labels.indexOf("Attention"));
+  });
+});
+
+// ===== INC-41 RD-C · the Worktree drawer is an action drawer ==================
+// It expanded onto a path and a `Copy path` button and stopped there — while the
+// three things a user actually does to a worktree (apply it back onto the
+// project, remove it, open it in an editor) sat in the OTHER right rail's `…`
+// menu and the sidebar's context menu. The two rails share one slot, so acting
+// on the worktree meant closing the panel that was showing it to you. These pin
+// the fix: the actions are IN the drawer, they are the same actions (same
+// endpoints, same confirmations — worktreeActions.ts, which DiffView now calls
+// too), and an in-place session is offered the ones that would only ever error.
+const WT = { worktree: true, mainRepo: "/Users/me/agentrunner" };
+
+// Expand the Worktree row. `/^worktree/i` because once the drawer is open the
+// name "Remove worktree…" would otherwise match the same query.
+async function openWorktree(payload: any = { ...dirty(), ...WT }) {
+  stubEnv(payload);
+  const result = renderPanel();
+  await screen.findByText("Environment");
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: /^worktree/i }));
+  });
+  return result;
+}
+
+describe("RD-C · the worktree's actions live where the worktree is shown", () => {
+  it("offers Apply / Open in VS Code / Remove in the drawer — not just a path", async () => {
+    const { container } = await openWorktree();
+
+    expect(screen.getByRole("button", { name: /apply to project/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /open in vs code/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /remove worktree/i })).toBeTruthy();
+    // The path and its Copy button are still there — this is an addition.
+    expect(container.querySelector(".env-path")!.textContent).toBe("/tmp/wt-20260712");
+    expect(screen.getByRole("button", { name: /copy path/i })).toBeTruthy();
+  });
+
+  it("Remove asks first — the same confirmation DiffView's menu raises", async () => {
+    const remove = vi.fn(() => Promise.resolve({ status: "ok", mainRepo: WT.mainRepo }));
+    mocks.stubs.removeWorktree = remove;
+    await openWorktree();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /remove worktree/i }));
+    });
+    // Nothing has been deleted yet: a destructive action must never be one click.
+    expect(remove).not.toHaveBeenCalled();
+    const modal = useStore.getState().modal as any;
+    expect(modal?.kind).toBe("confirm");
+    expect(modal.title).toBe("Remove worktree?");
+    expect(modal.danger).toBe(true);
+
+    // …and only the confirmation actually removes it (force=false — the backend's
+    // dirty-worktree guard still gets its say).
+    await act(async () => {
+      await modal.onConfirm();
+    });
+    expect(remove).toHaveBeenCalledWith("s1", false);
+  });
+
+  it("Apply asks first too, then applies onto the main repo", async () => {
+    const apply = vi.fn(() => Promise.resolve({ status: "ok", mainRepo: WT.mainRepo, applied: "1" }));
+    mocks.stubs.applyWorktree = apply;
+    await openWorktree();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /apply to project/i }));
+    });
+    expect(apply).not.toHaveBeenCalled();
+    const modal = useStore.getState().modal as any;
+    expect(modal?.kind).toBe("confirm");
+    expect(modal.title).toBe("Apply changes to project?");
+    expect(modal.body).toContain(WT.mainRepo);
+
+    await act(async () => {
+      await modal.onConfirm();
+    });
+    expect(apply).toHaveBeenCalledWith("s1");
+  });
+
+  it("Open in VS Code launches the workspace through the existing launcher", async () => {
+    const openIn = vi.fn(() => Promise.resolve({ status: "ok" }));
+    mocks.stubs.openIn = openIn;
+    await openWorktree();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /open in vs code/i }));
+    });
+    expect(openIn).toHaveBeenCalledWith("/tmp/wt-20260712", "vscode");
+  });
+
+  it("nothing to apply → the row is inert rather than an error waiting to happen", async () => {
+    await openWorktree({ ...dirty("", []), ...WT });
+
+    expect(screen.getByRole("button", { name: /apply to project/i })).toHaveProperty("disabled", true);
+    // Removing an unused worktree is still perfectly legitimate.
+    expect(screen.getByRole("button", { name: /remove worktree/i })).toHaveProperty("disabled", false);
+  });
+
+  it("a session running in the repo itself is offered neither Apply nor Remove", async () => {
+    // No worktree: there is nothing to apply back and nothing to prune. Gated
+    // exactly as DiffView's `…` menu gates them.
+    await openWorktree({ ...dirty(), worktree: false, mainRepo: "" });
+
+    expect(screen.queryByRole("button", { name: /apply to project/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /remove worktree/i })).toBeNull();
+    // The path, its Copy button and the editor launcher act on the workspace
+    // itself, which every one of these sessions has — they stay.
+    expect(screen.getByRole("button", { name: /copy path/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /open in vs code/i })).toBeTruthy();
   });
 });

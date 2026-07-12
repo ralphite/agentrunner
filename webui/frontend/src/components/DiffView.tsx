@@ -30,6 +30,7 @@ import { loadGitPrefs } from "../theme";
 import type { DiffResp, DiffScope } from "../types";
 import { parseFileDiff, defaultOpenByPath, splitDiff, splitPath, splitRows, highlightLine, hunkGaps, trailingGapKey, langFromPath, type ContextGap, type DiffRow, type FileStatus, type ParsedFileDiff } from "../diffSummary";
 import { Popover, PopItem, PopSection } from "./Popover";
+import { useWorktreeActions } from "./worktreeActions";
 import "../styles.diff.css";
 
 // renderCode turns one diff line into syntax-highlighted spans (INC-41 D3).
@@ -232,7 +233,7 @@ function FileHead({
 }
 
 export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }) {
-  const { toast, openPrompt, openModal } = useStore();
+  const { toast, openPrompt } = useStore();
   // INC-41 TH-5 · a file the thread's change card asked us to open. It is a
   // one-shot request: we take it into local state (so the file stays open once
   // the user reads it), clear it from the store, and let the file's own card key
@@ -432,84 +433,13 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
     }
   };
 
-  // Apply the worktree's changes back onto its main checkout (INC-49) — Codex's
-  // "Apply changes". Lands unstaged in the project so the user reviews there; a
-  // conflict is reported and the project is left untouched.
-  const applyBack = (mainRepo: string) => {
-    openModal({
-      kind: "confirm",
-      title: "Apply changes to project?",
-      body: `Applies this worktree's changes onto ${mainRepo} (left unstaged for you to review and commit there). If they don't apply cleanly, nothing is changed and the conflict is reported.`,
-      confirmLabel: "Apply changes",
-      onConfirm: async () => {
-        setBusy(true);
-        try {
-          const r = await AR.applyWorktree(sid);
-          toast(r.applied ? "applied to project — review the changes there" : "no changes to apply", "info");
-          load();
-        } catch (e: any) {
-          toast(e.message);
-        } finally {
-          setBusy(false);
-        }
-      },
-    });
-  };
-
-  // Remove the worktree checkout + prune (INC-49). A dirty worktree is refused
-  // first; the backend's structured refusal turns into a force confirmation so
-  // unapplied work is never silently discarded.
-  const forceRemove = async () => {
-    setBusy(true);
-    try {
-      await AR.removeWorktree(sid, true);
-      toast("worktree removed", "info");
-      load();
-    } catch (e: any) {
-      toast(e.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-  const removeWorktree = () => {
-    openModal({
-      kind: "confirm",
-      title: "Remove worktree?",
-      body: "Deletes this isolated checkout and prunes it from git. Your project and any applied changes are unaffected.",
-      confirmLabel: "Remove worktree",
-      danger: true,
-      onConfirm: async () => {
-        setBusy(true);
-        try {
-          await AR.removeWorktree(sid, false);
-          toast("worktree removed", "info");
-          load();
-        } catch (e: any) {
-          if (/unapplied changes/.test(e.message)) {
-            // The confirm modal auto-closes itself right after this handler
-            // resolves, which would clobber a modal opened synchronously here —
-            // so defer the force prompt to the next tick.
-            setTimeout(
-              () =>
-                openModal({
-                  kind: "confirm",
-                  title: "Discard unapplied changes?",
-                  body: "This worktree has changes that haven't been applied to the project. Removing it deletes them permanently. Apply the changes first if you want to keep them.",
-                  confirmLabel: "Delete anyway",
-                  danger: true,
-                  onConfirm: forceRemove,
-                }),
-              0,
-            );
-          } else {
-            toast(e.message);
-          }
-        } finally {
-          setBusy(false);
-        }
-      },
-    });
-  };
+  // INC-41 RD-C · Apply-to-project / Remove-worktree (INC-49) used to be written
+  // out here, which is why they existed only here: the Environment rail's
+  // `Worktree` row could copy a path and nothing else. Same endpoints, same
+  // confirmations, same toasts — now in `worktreeActions`, which that rail calls
+  // too. This panel's behaviour is unchanged, down to the busy flag and the
+  // reload on success.
+  const { applyBack, removeWorktree } = useWorktreeActions({ sid, onDone: load, setBusy });
 
   // Turn the workspace into its own repo, then re-load — offered from the
   // non-repo / nested empty states so "no diff" is always actionable.
