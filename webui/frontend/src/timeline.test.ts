@@ -176,6 +176,85 @@ describe("foldWork (Codex-style Worked fold, W2/W3)", () => {
     expect((nodes[1] as any).children).toEqual([]);
   });
 
+  it("keeps an unsettled approval-heavy turn as ONE fold (RT-4 ladder)", () => {
+    // Shape of session 20260711-040811: every tool call needs an approval, and
+    // the turn never reaches a final answer (it stalls on the next approval),
+    // so no duration is ever recorded. Each chip used to flush the fold →
+    // "Approved / Worked · 1 step / Approved / Worked · 1 step …" down 4 screens.
+    const items = [
+      user("u1", "2026-07-11T06:33:00Z"),
+      chip("c1", "Approved", true),
+      tool("t1"),
+      chip("c2", "Approved", true),
+      tool("t2"),
+      chip("c3", "Approved", true),
+      tool("t3"),
+    ];
+    const nodes = foldWork(items, completedTurnDurations(items, false), false);
+    expect(nodes.map((n: any) => n.kind)).toEqual(["user", "fold"]);
+    expect((nodes[1] as any).children.map((c: any) => c.key)).toEqual(["c1", "t1", "c2", "t2", "c3", "t3"]);
+    expect((nodes[1] as any).durationMs).toBeUndefined();
+  });
+
+  it("folds mid-turn chips but leaves post-answer audit chips at top level (RT-4)", () => {
+    // The two rules must coexist: chips BEFORE the answer are work detail even
+    // when the answer hasn't landed yet; chips AFTER it are the outcome's audit.
+    const items = [
+      user("u1", "2026-07-10T05:00:00Z"),
+      chip("c1", "Approved", true),
+      tool("t1"),
+      asst("a1", "2026-07-10T05:00:30Z"),
+      chip("c2", "Goal check 1 · passed", true),
+      user("u2", "2026-07-10T05:01:00Z"),
+      chip("c3", "Approved", true),
+      tool("t2"),
+    ];
+    const nodes = foldWork(items, completedTurnDurations(items, false), false);
+    expect(nodes.map((n: any) => n.kind)).toEqual(["user", "fold", "assistant", "chip", "user", "fold"]);
+    expect((nodes[1] as any).children.map((c: any) => c.key)).toEqual(["c1", "t1"]);
+    expect((nodes[3] as any).key).toBe("c2"); // post-answer audit stays visible
+    // the next (unsettled) turn re-arms: its chip folds again, no new ladder
+    expect((nodes[5] as any).children.map((c: any) => c.key)).toEqual(["c3", "t2"]);
+  });
+
+  it("folds a turn started by an INVISIBLE injected input (RT-4, real 040811 shape)", () => {
+    // The second turn of session 20260711-040811 is started by a goal
+    // continuation: an input_received that projects to a `runtime` item and is
+    // filtered out of the feed. foldWork therefore never sees a user boundary
+    // for it — the turn is only recognisable from the work itself. Its
+    // approvals must still fold, or the post-answer window from turn 1 stays
+    // open forever and every "Approved" of the run lands at top level.
+    const items = [
+      user("u1", "2026-07-11T04:08:11Z"),
+      asst("a1", "2026-07-11T04:08:12Z"), // settled: turn 1 answered
+      chip("c0", "goal attached · QA45"), // outcome chip → closes the window
+      chip("c1", "Approved", true), // turn 2 begins here, invisibly
+      tool("t1"),
+      chip("c2", "Approved", true),
+      tool("t2"),
+    ];
+    const nodes = foldWork(items, completedTurnDurations(items, false), false);
+    expect(nodes.map((n: any) => n.kind)).toEqual(["user", "fold", "assistant", "chip", "fold"]);
+    expect((nodes[4] as any).children.map((c: any) => c.key)).toEqual(["c1", "t1", "c2", "t2"]);
+  });
+
+  it("re-arms the fold on the next turn's first tool when nothing else marks the boundary", () => {
+    // Same invisible-boundary shape but with no outcome chip in between: the
+    // tool is then the only visible sign that new work started.
+    const items = [
+      user("u1", "2026-07-11T04:08:11Z"),
+      asst("a1", "2026-07-11T04:08:12Z"),
+      chip("c1", "Goal check 1 · passed", true), // genuine post-answer audit
+      tool("t1"), // next turn's work (injected input, not in the feed)
+      chip("c2", "Approved", true),
+      tool("t2"),
+    ];
+    const nodes = foldWork(items, completedTurnDurations(items, false), false);
+    expect(nodes.map((n: any) => n.kind)).toEqual(["user", "fold", "assistant", "chip", "fold"]);
+    expect((nodes[3] as any).key).toBe("c1");
+    expect((nodes[4] as any).children.map((c: any) => c.key)).toEqual(["t1", "c2", "t2"]);
+  });
+
   it("marks approval audit and goal check chips as fold-able in foldEvents", () => {
     const folded = foldEvents([
       { seq: 1, type: "approval_responded", payload: { approval_id: "x", decision: "approve" } },

@@ -677,3 +677,27 @@
 .tl-inner > .worked:not(.open) + .worked:not(.open) > .worked-row {
   margin-top: 3px;
 }
+
+/* =========================================================================
+   INC-41 round 17 — RT-4 / RT-2. Append-only; both blocks are overrides of
+   styles.css rules, so each selector is qualified (extra ancestor) to win
+   regardless of stylesheet order — same discipline as this file's header.
+
+   RT-2: `.changes-outcome` carries `margin: 16px 0 12px 34px` in styles.css —
+   a leftover from when an avatar column sat left of every assistant message.
+   The avatar is long gone, so the Edited-files card hangs 34px right of the
+   artifact card and of the prose column it belongs to (measured: artifact
+   x=505, changes x=553). Codex aligns card, artifact and prose on ONE vertical
+   line. The card is the timeline's outcomeSlot, i.e. always a .tl-inner child.
+
+   RT-4: an approval chip now rides INSIDE an activity group (it is a step, not
+   a separator), so it must not keep the 36px indent that positions it against
+   the fold body — the group already supplies it. Mirrors `.act-body .step`.
+   ========================================================================= */
+.tl-inner > .changes-outcome {
+  margin-left: 0;
+}
+.act-group .act-body .chip {
+  margin-left: 0;
+  max-width: 100%;
+}

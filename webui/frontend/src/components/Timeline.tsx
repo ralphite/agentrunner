@@ -29,6 +29,7 @@ import {
   askUserDetail,
   completedTurnDurations,
   editDetail,
+  foldRuns,
   foldWork,
   formatWorkDuration,
   globDetail,
@@ -40,6 +41,7 @@ import {
   webFetchDetail,
   type ActivityCategory,
   type DiffLine,
+  type FoldRun,
   type RenderNode,
   type TimelineItem,
   type ToolItem,
@@ -612,10 +614,12 @@ export function groupLabel(tools: ToolItem[]): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-// ActivityGroup: level-2 disclosure for a run of consecutive tool calls.
-// A single call skips the wrapper and renders its row directly.
-function ActivityGroup({ tools }: { tools: ToolItem[] }) {
-  if (tools.length === 1) return <ToolCard t={tools[0]} />;
+// ActivityGroup: level-2 disclosure for a run of tool calls. The run's chips
+// (approval audit, goal checks, compaction) ride inside it, in order — they are
+// part of the step list, not separators of it (RT-4). The summary counts and
+// labels the TOOLS: "Ran commands ×3", never "×3" over a pile of approvals.
+function ActivityGroup({ run, sentImages }: { run: FoldRun; sentImages?: Map<number, string[]> }) {
+  const { tools, members } = run;
   const failed = tools.some((t) => t.status === "error" || t.status === "failed");
   return (
     <details className={"act-group" + (failed ? " error" : "")}>
@@ -626,8 +630,8 @@ function ActivityGroup({ tools }: { tools: ToolItem[] }) {
         <span className="act-count">{tools.length}</span>
       </summary>
       <div className="act-body">
-        {tools.map((t) => (
-          <ToolCard t={t} key={t.key} />
+        {members.map((m) => (
+          <Item it={m} sentImages={sentImages} key={m.key} />
         ))}
       </div>
     </details>
@@ -688,25 +692,18 @@ function WorkedFold({
   const expandable = fold.children.length > 0;
   const label = workedLabel(fold);
 
-  // group consecutive tools; pass through everything else in order
+  // Group the step list (timeline.foldRuns): a run of tools aggregates into one
+  // ActivityGroup and carries its chips along; narration renders in place. A run
+  // with a single tool needs no wrapper — it renders as its own step row.
   const rows: ReactNode[] = [];
   if (open) {
-    let run: ToolItem[] = [];
-    const flushRun = () => {
-      if (run.length) {
-        rows.push(<ActivityGroup tools={run} key={"g" + run[0].key} />);
-        run = [];
-      }
-    };
-    for (const it of fold.children) {
-      if (it.kind === "tool") {
-        run.push(it);
+    for (const run of foldRuns(fold.children)) {
+      if (run.tools.length > 1) {
+        rows.push(<ActivityGroup run={run} sentImages={sentImages} key={"g" + run.key} />);
       } else {
-        flushRun();
-        rows.push(<Item it={it} sentImages={sentImages} key={it.key} />);
+        for (const m of run.members) rows.push(<Item it={m} sentImages={sentImages} key={m.key} />);
       }
     }
-    flushRun();
   }
 
   return (

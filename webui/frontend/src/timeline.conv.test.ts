@@ -3,6 +3,7 @@ import {
   askUserDetail,
   editDetail,
   foldEvents,
+  foldRuns,
   globDetail,
   grepDetail,
   groupIcon,
@@ -169,6 +170,44 @@ describe("A2 — tool detail extractors", () => {
     expect(parseMaybeJSON('{"a":1}')).toEqual({ a: 1 });
     expect(parseMaybeJSON({ a: 1 })).toEqual({ a: 1 });
     expect(parseMaybeJSON("not json")).toBe("not json");
+  });
+});
+
+describe("RT-4 — foldRuns (a chip never breaks a run of tools)", () => {
+  const chip = (key: string, text = "Approved"): ChipItem => ({ kind: "chip", key, text, tone: "good", fold: true });
+  const asst = (key: string) => ({ kind: "assistant" as const, key, text: "planning" });
+
+  it("aggregates tools across the approval chips interleaved between them", () => {
+    // approval-per-tool turn: chip, tool, chip, tool, chip, tool → ONE run of 3
+    // tools (label/count come from the tools), chips carried along in order.
+    const runs = foldRuns([
+      chip("c1"),
+      tool("bash"),
+      chip("c2"),
+      { ...tool("bash"), key: "act2" },
+      chip("c3"),
+      { ...tool("read_file"), key: "act3" },
+    ]);
+    expect(runs).toHaveLength(1);
+    expect(runs[0].tools.map((t) => t.name)).toEqual(["bash", "bash", "read_file"]);
+    expect(runs[0].members.map((m) => m.key)).toEqual(["c1", "actbash", "c2", "act2", "c3", "act3"]);
+  });
+
+  it("breaks the run on narration, which is prose and not a step", () => {
+    const runs = foldRuns([tool("bash"), asst("a1"), { ...tool("bash"), key: "act2" }]);
+    expect(runs.map((r) => r.tools.length)).toEqual([1, 0, 1]);
+    expect(runs[1].members.map((m) => m.key)).toEqual(["a1"]);
+  });
+
+  it("emits a chip-only run (no tools) rather than dropping it", () => {
+    const runs = foldRuns([chip("c1"), chip("c2")]);
+    expect(runs).toHaveLength(1);
+    expect(runs[0].tools).toEqual([]);
+    expect(runs[0].members.map((m) => m.key)).toEqual(["c1", "c2"]);
+  });
+
+  it("returns nothing for an empty fold", () => {
+    expect(foldRuns([])).toEqual([]);
   });
 });
 

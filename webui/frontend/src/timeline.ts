@@ -227,6 +227,23 @@ export function foldWork(items: TimelineItem[], durations: Map<string, number>, 
   const out: RenderNode[] = [];
   let buf: TimelineItem[] = [];
   let foldSeq = 0;
+  // answered: we are in the post-answer window — a settled final answer was
+  // just emitted and only audit has followed it (goal checks run AFTER the
+  // reply). Those chips belong next to the outcome, at top level. Any real work
+  // (a tool) or any outcome/lifecycle marker closes the window: whatever comes
+  // after it is the next turn's work detail and folds.
+  //
+  // RT-4: the old rule folded a work chip only when a settled answer lay AHEAD
+  // (finalAhead). A turn that never settles — stalled on an approval, approved
+  // step by step, interrupted — therefore flushed the fold at every chip,
+  // shattering one turn into a ladder of "Approved" chips and "Worked · 1 step ›"
+  // rows (a 9-step turn spanned four screens). Note the window CANNOT be closed
+  // by the user message alone: a turn is often started by an injected input
+  // (goal continuation, agent mail) which is projected as a `runtime` item and
+  // filtered out of the feed, so foldWork never sees a boundary for it — that
+  // is why the reset also hangs off tools and outcome chips, the visible marks
+  // that work has resumed. One turn ⇒ one fold, like Codex.
+  let answered = false;
   const flush = (durationMs?: number) => {
     if (buf.length === 0 && durationMs === undefined) return;
     out.push({ kind: "fold", key: "fold" + foldSeq++, durationMs, children: buf });
@@ -240,32 +257,85 @@ export function foldWork(items: TimelineItem[], durations: Map<string, number>, 
     }
     if (it.kind === "user" && !it.peerSession) {
       flush(); // dangling work from an interrupted prior turn
+      answered = false; // a new turn starts: nothing is "post-answer" yet
       out.push(it);
     } else if (it.kind === "assistant" && durations.has(it.key)) {
       // final answer of a completed turn: fold everything gathered since the
       // user message, labelled with the turn duration, then the answer itself.
       flush(durations.get(it.key));
+      answered = true;
       out.push(it);
     } else if (it.kind === "assistant" && finalAhead[i]) {
       // planning narration inside a settled turn — part of the work detail.
+      answered = false;
       buf.push(it);
     } else if (it.kind === "assistant") {
       // no final answer ahead (interrupted turn / child session): the text IS
       // the outcome — keep it visible.
       flush();
+      answered = false;
       out.push(it);
-    } else if (foldable(it) && (it.kind === "tool" || finalAhead[i])) {
-      // tools always fold (interrupted-turn work still tucks away); work
-      // chips fold only mid-turn — post-answer audit (goal checks that run
-      // after the reply) stays visible next to the outcome.
+    } else if (foldable(it) && (it.kind === "tool" || !answered)) {
+      // Work detail. Tools always fold (interrupted-turn work still tucks
+      // away) AND they mean the next turn is under way, so they close any
+      // post-answer window; work chips fold for the whole span of a turn's
+      // work — no longer only when the turn already reached its answer.
+      if (it.kind === "tool") answered = false;
       buf.push(it);
-    } else {
+    } else if (foldable(it)) {
+      // a work chip inside the post-answer window: audit sitting next to the
+      // outcome (goal check → goal achieved). It stays visible and leaves the
+      // window armed, so a run of them doesn't half-fold.
       flush();
+      out.push(it);
+    } else {
+      // outcome / lifecycle chip (goal achieved, mode changed, session closed):
+      // top level, and it closes the post-answer window — a work chip after it
+      // belongs to whatever runs next.
+      flush();
+      answered = false;
       out.push(it);
     }
   });
   flush(); // interrupted turn that never answered — fold without duration
   return out;
+}
+
+// FoldRun: one render run inside an open fold. `members` keeps journal order
+// (tool activities plus any chips interleaved among them); `tools` is the tool
+// subset that decides the aggregate label, icon and count.
+export interface FoldRun {
+  key: string;
+  members: TimelineItem[];
+  tools: ToolItem[];
+}
+
+// foldRuns splits an open fold's children into render runs. A chip (approval
+// audit, goal check, compaction) NEVER breaks a run of tools: Codex aggregates
+// a turn's whole step list ("Ran commands ×3") and shows the approvals inside
+// it, whereas breaking the run at every chip degraded an approval-per-tool turn
+// into a column of bare single-step rows — the aggregate label could never
+// appear (RT-4). Anything else (planning narration, runtime injections) does
+// break the run, since it is prose, not a step. Pure — unit tested.
+export function foldRuns(children: TimelineItem[]): FoldRun[] {
+  const runs: FoldRun[] = [];
+  let cur: FoldRun | null = null;
+  const close = () => {
+    if (cur) runs.push(cur);
+    cur = null;
+  };
+  for (const it of children) {
+    if (it.kind === "tool" || it.kind === "chip") {
+      if (!cur) cur = { key: it.key, members: [], tools: [] };
+      cur.members.push(it);
+      if (it.kind === "tool") cur.tools.push(it);
+    } else {
+      close();
+      runs.push({ key: it.key, members: [it], tools: [] });
+    }
+  }
+  close();
+  return runs;
 }
 
 export interface Folded {
