@@ -3404,7 +3404,14 @@ popover 印 `+…`(永不兑现)、卡片还会为它发一次注定 400 的 blo
 
 ## 轮38 finder 新弹药(2 个 finder:Home/Scheduled + thread/Environment)
 
-### ART-SCRIM ☐ 点变更/产物卡的 `Open in ⌄` → **整个 app 变成一块灰色空白** [P0]
+### ART-SCRIM ✅ 点变更/产物卡的 `Open in ⌄` → **整个 app 变成一块灰色空白** [P0](轮39 落地 `dcbc46e`)
+**已修**(`dcbc46e`):真根因不是 UA `buttonface`,是本项目 `tw.css` `@layer base` 给每个 `<button>` 上了不透明
+`background: var(--panel)` + `:hover → var(--panel-2)` —— 裸遮罩 `<button class="fixed inset-0">` 于是铺了满屏白、光标停上面转灰。
+加 `bg-transparent border-0` 后遮罩照旧接管「点外关菜单」但一个像素都不画。**顺带**揪出同一控件上更狠一条:菜单 74px 高却被两层之上
+`ArtifactChips` 的 `overflow-hidden` 裁到只剩 9px,连命中测试一起没了 → `Open in` 此前 **100% 不可用**。同类根因(祖先 overflow 裁 popover)
+由本轮 ENV-CLIP 的 portal 化根治。
+
+<details><summary>原始 finder 证据</summary>
 真机 headed Chrome(dsf=1)实测:点 `Open in` 后视口四个采样点(侧栏/正文/顶栏/品牌)**全部**变成 `rgb(244,244,244)`;
 `elementFromPoint` 返回 `BUTTON.fixed inset-0 z-[5] cursor-default`。DOM 完好、console 干净——纯粹被一张**不透明全屏遮罩**
 盖住。根因:`ChangesOutcome.tsx:161` 的关闭遮罩是**裸 `<button>`**,项目里没有 `button { background: transparent }` 复位,
@@ -3412,6 +3419,7 @@ popover 印 `+…`(永不兑现)、卡片还会为它发一次注定 400 的 blo
 而且它连自己弹出的菜单都盖掉一半。历轮 QA 只截静息态、从没点过这颗按钮,所以一直没被发现。
 **动作**:`ChangesOutcome.tsx:161` 加 `bg-transparent`,并给全局 button 补透明底复位防复发。需要新后端:否。
 证据:`qa/runs/2026-07-12-r38/finder-thread/headed-openin.png`。
+</details>
 
 ### ENV-CLIP ☐ Environment 面板切掉自己的 `Commit or push` 菜单:3 个 git 写动作只有 1 个能点 [P1]
 `.supervision-panel` = `absolute; height:265.3px; overflow:auto`(bottom=321);`Commit or push` 的 `.pop-panel` 是它的 **DOM 后代**,
