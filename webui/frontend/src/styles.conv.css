@@ -831,3 +831,49 @@
     max-width: 688px;
   }
 }
+
+/* =========================================================================
+   INC-41 round 20 — TH-7: the changes card has THREE phases, not one.
+
+   `ChangesOutcome` used to render only a loaded summary: an in-flight /diff
+   painted nothing, and a FAILED /diff painted nothing too — the "Edited N files"
+   card silently evaporated and the turn read as "no files were touched". The
+   card now keeps its shell in every phase:
+
+     - loading → skeleton bars where the title/counts go;
+     - error   → "Couldn't load changes" + a Retry button;
+     - loaded  → the card (or nothing, if the backend really says zero files).
+
+   `.changes-outcome header` already pins min-height: 64px, so all three phases
+   occupy the same box: the skeleton does not resolve into a taller header and
+   nothing below it jumps. The bars breathe rather than sweep (a gradient sweep
+   would be the loudest motion on a thread that is otherwise still), and the
+   pulse is dropped entirely under prefers-reduced-motion.
+   ========================================================================= */
+.changes-outcome .changes-outcome-skel {
+  display: grid;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+.changes-outcome .changes-outcome-skel > span {
+  display: block;
+  height: 11px;
+  border-radius: 5px;
+  background: var(--panel-2);
+  animation: changes-skel-pulse 1.4s ease-in-out infinite;
+}
+.changes-outcome .changes-outcome-skel > span:first-child {
+  width: 132px;
+  height: 13px;
+}
+.changes-outcome .changes-outcome-skel > span:last-child {
+  width: 74px;
+}
+@keyframes changes-skel-pulse {
+  0%, 100% { opacity: .5; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .changes-outcome .changes-outcome-skel > span { animation: none; }
+}

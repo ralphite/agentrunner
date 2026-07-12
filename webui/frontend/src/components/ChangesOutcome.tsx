@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { ArrowCounterClockwise, ArrowSquareOut, CaretDown, CaretUp, DownloadSimple, FilePdf, FileText, GitDiff, ImageBroken } from "@phosphor-icons/react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ArrowClockwise, ArrowCounterClockwise, ArrowSquareOut, CaretDown, CaretUp, DownloadSimple, FilePdf, FileText, ImageBroken } from "@phosphor-icons/react";
 import { AR } from "../api";
 import { useStore } from "../store";
 import { splitPath, summarizeChanges, type ChangesSummary, type FileDiffSummary } from "../diffSummary";
@@ -212,26 +212,100 @@ function ArtifactChips({ sid, files }: { sid: string; files: FileDiffSummary[] }
   );
 }
 
+// INC-41 TH-8: the card is a SUMMARY, not a file list — Codex previews exactly
+// three rows and folds the rest behind "Show N more files".
+const PREVIEW_CAP = 3;
+
+// INC-41 TH-6 — the badge glyph. It used to be Phosphor's `GitDiff` (the
+// two-branch fork-and-merge arrows), which says "this turn branched/merged" —
+// nothing of the sort happened; the card is about lines ADDED and REMOVED.
+// Codex draws a boxed ± (qa/codex-reference/codex-crop-change-card.jpg), and
+// Phosphor ships no boxed ± (its `PlusMinus` is the slashed math sign), so the
+// glyph is drawn here: 24-grid, currentColor, stroke weight matched to the
+// Phosphor icons it sits beside.
+function PlusMinusSquare({ size = 18 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.7}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <rect x="3.25" y="3.25" width="17.5" height="17.5" rx="4.75" />
+      {/* + over − */}
+      <path d="M12 7.4v4.3M9.85 9.55h4.3M9.4 15.95h5.2" />
+    </svg>
+  );
+}
+
+// The card shell: the ± badge plus whatever the current phase puts next to it.
+// Loading, error and loaded all render through it, so the header keeps the same
+// 64px box in every phase and the thread never reflows underneath (INC-41 TH-7).
+function ChangesShell({ children }: { children: ReactNode }) {
+  return (
+    <section className="changes-outcome" aria-label="Workspace changes">
+      <header>
+        <span className="changes-outcome-icon"><PlusMinusSquare /></span>
+        {children}
+      </header>
+    </section>
+  );
+}
+
+type Phase = "loading" | "ready" | "error";
+
 export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; refreshKey: number; onReview: () => void }) {
   const openModal = useStore((s) => s.openModal);
   const toast = useStore((s) => s.toast);
   const [summary, setSummary] = useState<ChangesSummary | null>(null);
+  // INC-41 TH-7. The fetch used to have two outcomes — a summary, or null — so a
+  // failed request was indistinguishable from "this turn changed nothing": one
+  // flaky /diff and the whole "Edited N files" card vanished without a word, and
+  // the user read that as "the agent touched no files". The phase is now
+  // explicit: an in-flight fetch paints a skeleton, a failed one keeps the card
+  // shell and offers Retry, and only a backend that actually says "no changed
+  // files" renders nothing.
+  const [phase, setPhase] = useState<Phase>("loading");
   const [expanded, setExpanded] = useState(false);
-  // Local bump re-fetches the summary after an Undo without needing the parent
-  // to change refreshKey (a reverted card should collapse to nothing).
+  // Local bump re-fetches the summary after an Undo (or a Retry) without needing
+  // the parent to change refreshKey (a reverted card should collapse to nothing).
   const [bump, setBump] = useState(0);
+  // refreshKey ticks on every streamed event, so a live turn re-fetches the diff
+  // constantly. Those refreshes must NOT drop back to the skeleton — the card
+  // would strobe. Only a new session (or an explicit Retry) re-arms it.
+  const shownSid = useRef<string | null>(null);
 
   useEffect(() => {
     let alive = true;
+    if (shownSid.current !== sid) {
+      shownSid.current = sid;
+      setPhase("loading");
+      setSummary(null);
+    }
     AR.diff(sid)
       .then((data) => {
         if (!alive) return;
         if (!data.known || !data.isRepo || data.nested) setSummary(null);
         else setSummary(summarizeChanges(data));
+        setPhase("ready");
       })
-      .catch(() => alive && setSummary(null));
+      .catch(() => {
+        if (!alive) return;
+        setPhase("error");
+      });
     return () => { alive = false; };
   }, [sid, refreshKey, bump]);
+
+  const retry = () => {
+    setPhase("loading");
+    setBump((b) => b + 1);
+  };
 
   // Undo ↺ — discard the whole change set back to HEAD (destructive; confirmed).
   const undo = () => {
@@ -254,10 +328,34 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
     });
   };
 
+  if (phase === "loading") {
+    return (
+      <ChangesShell>
+        <div className="changes-outcome-skel" aria-label="Loading changes" role="status">
+          <span />
+          <span />
+        </div>
+      </ChangesShell>
+    );
+  }
+
+  if (phase === "error") {
+    return (
+      <ChangesShell>
+        <div className="changes-outcome-title">
+          <b>Couldn't load changes</b>
+        </div>
+        <button type="button" onClick={retry} className="inline-flex items-center gap-[5px]">
+          Retry <ArrowClockwise size={13} />
+        </button>
+      </ChangesShell>
+    );
+  }
+
   if (!summary?.files.length) return null;
   // "Show N more files" reveals the remaining rows inline (Codex behaviour);
   // the header "Review" button stays the separate jump-to-full-diff path.
-  const shown = expanded ? summary.files : summary.files.slice(0, 6);
+  const shown = expanded ? summary.files : summary.files.slice(0, PREVIEW_CAP);
   const hidden = summary.files.length - shown.length;
   return (
     <>
@@ -265,7 +363,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
       <ArtifactChips sid={sid} files={summary.files} />
       <section className="changes-outcome" aria-label="Workspace changes">
         <header>
-          <span className="changes-outcome-icon"><GitDiff size={18} /></span>
+          <span className="changes-outcome-icon"><PlusMinusSquare /></span>
           <div className="changes-outcome-title">
             <b>Edited {summary.files.length} file{summary.files.length === 1 ? "" : "s"}</b>
             <span>
@@ -302,7 +400,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
               </div>
             );
           })}
-          {summary.files.length > 6 && (
+          {summary.files.length > PREVIEW_CAP && (
             <button
               type="button"
               onClick={() => setExpanded((e) => !e)}
