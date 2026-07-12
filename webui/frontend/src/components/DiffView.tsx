@@ -508,10 +508,16 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
     <div className={"diffwrap" + (wrap ? " diff-wrap" : "")}>
       <div className="diffbar">
         {scopeControl}
+        {/* DF-6 · both numbers, always — Codex's toolbar reads `+649 -57`, and a
+            review with nothing deleted reads `+1 −0`, not a lone `+1`. The old
+            `> 0` guards meant the *same panel* stated its counts two different
+            ways: this bar dropped the zero half while every file header below it
+            (FileHead's `.fd-counts`, which never had a guard) kept it. Same
+            markup, same colors, same tabular spacing as those headers now. */}
         {!empty && (
           <span className="diff-summary">
-            {totalAdd > 0 && <span className="add">+{totalAdd}</span>}
-            {totalDel > 0 && <span className="del"> −{totalDel}</span>}
+            <span className="add">+{totalAdd}</span>
+            <span className="del">−{totalDel}</span>
           </span>
         )}
         {data.worktree && (
@@ -1029,18 +1035,26 @@ function FileBody({
         : n === null
           ? "unmodified lines to end of file"
           : `${n.toLocaleString()} unmodified line${n === 1 ? "" : "s"}`;
+    // DF-5 · the band sits *on* the code grid, not beside it: its first cell is
+    // the line-number gutter (same `calc(5ch + 27px)` as `.dl`, holding the
+    // caret the way a row holds its number), and its label starts exactly where
+    // the code column does. It used to be a `px-[10px]` flex row aligned with
+    // neither, which read as a button bolted onto the diff rather than a fold in
+    // it — Codex's band is a line of the file. Geometry lives in styles.diff.css
+    // (`.fd-gap`), because `5ch` only agrees with `.dl`'s gutter if the two
+    // inherit the same mono font and size from `.fd-body`.
     return (
       <button
         type="button"
-        className="flex items-center gap-[8px] w-full px-[10px] py-[6px] bg-panel-2 text-dim font-mono text-[11px] text-left cursor-pointer border-x-0 border-y border-y-line-2 hover:bg-blue-soft hover:text-blue disabled:opacity-60 disabled:cursor-default"
+        className="fd-gap"
         onClick={() => void toggleGap(idx)}
         disabled={loadingIdx === idx}
         title={expanded ? "Hide these unmodified lines" : "Show these unmodified lines"}
       >
-        <span className="shrink-0 inline-flex items-center justify-center border border-line-2 rounded-[5px] bg-panel px-[2px] py-[1px]">
+        <span className="fd-gap-caret" aria-hidden="true">
           {caret}
         </span>
-        {label}
+        <span className="fd-gap-label">{label}</span>
       </button>
     );
   };

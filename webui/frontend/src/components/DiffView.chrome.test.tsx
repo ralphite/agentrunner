@@ -195,3 +195,97 @@ describe("Untracked files are ordinary file cards (INC-41 DF-3)", () => {
     expect(card.querySelector(".fd-nobody")!.textContent).toMatch(/binary or too large/);
   });
 });
+
+// INC-41 DF-6 — the toolbar summary used to drop whichever half was zero
+// (`totalDel > 0 &&`), while the file headers below it never did. One panel,
+// two ways of counting: the bar said `+1`, the header under it said `+1 −0`.
+describe("Toolbar counts always show both halves (INC-41 DF-6)", () => {
+  it("renders −0 when nothing was deleted", async () => {
+    arMock.diff = () => Promise.resolve(baseDiff({ diff: newFileDiff }));
+    const { container } = render(<DiffView sid="c1" />);
+
+    await waitFor(() => expect(screen.getByText("notes.md")).toBeTruthy());
+    const summary = container.querySelector(".diffbar .diff-summary")!;
+    expect(summary.querySelector(".add")!.textContent).toBe("+1");
+    expect(summary.querySelector(".del")!.textContent).toBe("−0");
+    // …and it agrees, digit for digit, with the file header underneath it.
+    const head = container.querySelector("summary.fd-head")!;
+    expect(head.querySelector(".fd-counts .add")!.textContent).toBe("+1");
+    expect(head.querySelector(".fd-counts .del")!.textContent).toBe("−0");
+  });
+
+  it("renders +0 when the change is a pure deletion", async () => {
+    const delOnly = `diff --git a/gone.ts b/gone.ts
+deleted file mode 100644
+--- a/gone.ts
++++ /dev/null
+@@ -1,2 +0,0 @@
+-const a = 1;
+-const b = 2;
+`;
+    arMock.diff = () => Promise.resolve(baseDiff({ diff: delOnly }));
+    const { container } = render(<DiffView sid="c2" />);
+
+    await waitFor(() => expect(screen.getByText("gone.ts")).toBeTruthy());
+    const summary = container.querySelector(".diffbar .diff-summary")!;
+    expect(summary.querySelector(".add")!.textContent).toBe("+0");
+    expect(summary.querySelector(".del")!.textContent).toBe("−2");
+  });
+});
+
+// INC-41 DF-5 — the "N unmodified lines" band was a flex row 10px in from the
+// rail's edge: its caret aligned with nothing and its label started 27px left of
+// the code column, so it read as a button bolted onto the diff. It is a row of
+// the code grid now — caret in the line-number gutter cell, label at the code
+// column — and it still expands.
+describe("Collapse band sits on the code grid (INC-41 DF-5)", () => {
+  // A hunk that starts at line 5 leaves lines 1–4 hidden → a leading band whose
+  // length is known from the diff alone (no blob needed to render it).
+  const gappedDiff = `diff --git a/app.ts b/app.ts
+--- a/app.ts
++++ b/app.ts
+@@ -5,2 +5,2 @@
+-const a = 1;
++const a = 2;
+ const b = 3;
+`;
+
+  it("gives the band the gutter cell + code-column label the rows have", async () => {
+    arMock.diff = () => Promise.resolve(baseDiff({ diff: gappedDiff }));
+    arMock.blob = () => Promise.resolve({ lines: ["l1", "l2", "l3", "l4", "const a = 2;", "const b = 3;"] });
+    const { container } = render(<DiffView sid="g1" />);
+
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+    const band = await waitFor(() => {
+      const b = container.querySelector<HTMLButtonElement>(".fd-body .fd-gap");
+      expect(b).toBeTruthy();
+      return b!;
+    });
+    expect(band.textContent).toContain("4 unmodified lines");
+    // Two cells: the caret's gutter box (which the grid sizes to the line-number
+    // column) and the label, which starts at the code column's left edge.
+    const caret = band.querySelector(".fd-gap-caret")!;
+    expect(caret.querySelector("svg")).toBeTruthy();
+    expect(band.querySelector(".fd-gap-label")!.textContent).toBe("4 unmodified lines");
+    // The caret is decoration; the accessible name is the band's label + title.
+    expect(caret.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("still reveals the hidden lines when clicked, and folds them again", async () => {
+    arMock.diff = () => Promise.resolve(baseDiff({ diff: gappedDiff }));
+    arMock.blob = () => Promise.resolve({ lines: ["l1", "l2", "l3", "l4", "const a = 2;", "const b = 3;"] });
+    const { container } = render(<DiffView sid="g2" />);
+
+    const band = await waitFor(() => {
+      const b = container.querySelector<HTMLButtonElement>(".fd-body .fd-gap");
+      expect(b).toBeTruthy();
+      return b!;
+    });
+    fireEvent.click(band);
+    await waitFor(() => expect(screen.getByText("l1")).toBeTruthy());
+    expect(screen.getByText("l4")).toBeTruthy();
+
+    fireEvent.click(container.querySelector<HTMLButtonElement>(".fd-body .fd-gap")!);
+    await waitFor(() => expect(screen.queryByText("l1")).toBeNull());
+  });
+});
