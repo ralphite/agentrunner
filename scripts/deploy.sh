@@ -112,13 +112,20 @@ echo "==> restarting global daemon on new binary (durable store survives)"
 pkill -TERM -f '(^|/)(ar|ar-[^ ]*|arwebui) .*daemon' 2>/dev/null || true
 pkill -TERM -f 'agentrunner daemon' 2>/dev/null || true
 sleep 1
-nohup "$AR_OUT" daemon >/dev/null 2>&1 &
-# Wait for the socket to answer.
+"$AR_OUT" daemon --detach
+# Probe the socket itself. `sessions` only reads journals and can succeed with
+# no daemon, so it is not a valid liveness check.
+DAEMON_PROBE=""
 for _ in $(seq 1 20); do
-  if "$AR_OUT" sessions >/dev/null 2>&1; then break; fi
+  DAEMON_PROBE="$("$AR_OUT" interrupt __ar_deploy_probe__ 2>&1 || true)"
+  if [[ "$DAEMON_PROBE" != *"daemon unreachable"* ]] &&
+     [[ "$DAEMON_PROBE" != *"dial unix"* ]] &&
+     [[ "$DAEMON_PROBE" != *"connect: no such file"* ]]; then break; fi
   sleep 0.5
 done
-if ! "$AR_OUT" sessions >/dev/null 2>&1; then
+if [[ "$DAEMON_PROBE" == *"daemon unreachable"* ]] ||
+   [[ "$DAEMON_PROBE" == *"dial unix"* ]] ||
+   [[ "$DAEMON_PROBE" == *"connect: no such file"* ]]; then
   echo "!! new daemon did not come up — check ~/.local/share/agentrunner/daemon.log" >&2
   exit 1
 fi
@@ -152,6 +159,7 @@ done
 echo "$HEALTH"
 if [[ "$HEALTH" != *"\"webuiVersion\":\"$STAMP\""* ]] ||
    [[ "$HEALTH" != *"\"version\":\"agentrunner $STAMP "* ]] ||
+   [[ "$HEALTH" != *"\"daemonUp\":true"* ]] ||
    [[ "$HEALTH" != *"\"versionMatch\":true"* ]]; then
   echo "!! webui is reachable but does not run the deployed $STAMP binaries" >&2
   exit 1
