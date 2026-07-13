@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/provider"
 )
 
 // FoldVersion is the driver fold's shape version, journaled in the stream
@@ -33,7 +34,19 @@ type Iteration struct {
 	CarryRef     string                 `json:"carry_ref,omitempty"`
 	// BaseRef is the parallel attempt's worktree base (S7 best-of-N,
 	// additive — same fold version discipline as run sub-states).
-	BaseRef string `json:"base_ref,omitempty"`
+	BaseRef  string    `json:"base_ref,omitempty"`
+	Attempts []Attempt `json:"attempts,omitempty"`
+}
+
+// Attempt is one physical child run inside a logical iteration.
+type Attempt struct {
+	N            int            `json:"n"`
+	ChildSession string         `json:"child_session,omitempty"`
+	Reason       string         `json:"reason,omitempty"`
+	Usage        provider.Usage `json:"usage,omitzero"`
+	Error        string         `json:"error,omitempty"`
+	Started      bool           `json:"started,omitempty"`
+	Completed    bool           `json:"completed,omitempty"`
 }
 
 // State is the driver's pure fold — the sole working memory, rebuilt from the
@@ -103,6 +116,30 @@ func (s *State) apply(p any) {
 		it := &s.Iterations[v.Iter-1]
 		it.ChildSession = v.ChildSession
 		it.Launched = true
+	case *event.IterationAttemptStarted:
+		if v.Iter < 1 || v.Attempt < 1 {
+			return
+		}
+		s.ensure(v.Iter)
+		it := &s.Iterations[v.Iter-1]
+		ensureAttempt(it, v.Attempt)
+		attempt := &it.Attempts[v.Attempt-1]
+		attempt.ChildSession = v.ChildSession
+		attempt.Started = true
+	case *event.IterationAttemptCompleted:
+		if v.Iter < 1 || v.Attempt < 1 {
+			return
+		}
+		s.ensure(v.Iter)
+		it := &s.Iterations[v.Iter-1]
+		ensureAttempt(it, v.Attempt)
+		attempt := &it.Attempts[v.Attempt-1]
+		attempt.ChildSession = v.ChildSession
+		attempt.Reason = v.Reason
+		attempt.Usage = v.Usage
+		attempt.Error = v.Error
+		attempt.Started = true
+		attempt.Completed = true
 	case *event.IterationCompleted:
 		if v.Iter < 1 {
 			return
@@ -152,6 +189,20 @@ func (s *State) at(n int) (Iteration, bool) {
 		return Iteration{}, false
 	}
 	return s.Iterations[n-1], true
+}
+
+func ensureAttempt(it *Iteration, n int) {
+	for len(it.Attempts) < n {
+		it.Attempts = append(it.Attempts, Attempt{N: len(it.Attempts) + 1})
+	}
+}
+
+func (s *State) attempt(iter, attempt int) (Attempt, bool) {
+	it, ok := s.at(iter)
+	if !ok || attempt < 1 || attempt > len(it.Attempts) {
+		return Attempt{}, false
+	}
+	return it.Attempts[attempt-1], true
 }
 
 // lastCompleted returns the highest-numbered completed iteration and whether

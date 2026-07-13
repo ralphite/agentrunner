@@ -21,6 +21,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
+	"time"
 )
 
 // ErrUnavailable marks a store that cannot snapshot (backend=none, git
@@ -115,17 +117,46 @@ func NewShadowRepo(gitDir, workspaceRoot string) (*ShadowRepo, error) {
 }
 
 func (s *ShadowRepo) init() error {
-	if _, err := os.Stat(filepath.Join(s.gitDir, "HEAD")); err == nil {
-		return s.writeExcludes() // already initialized; refresh excludes
+	return withRepoLock(context.Background(), s.gitDir, func() error {
+		if _, err := os.Stat(filepath.Join(s.gitDir, "HEAD")); err == nil {
+			return s.writeExcludes() // already initialized; refresh excludes
+		}
+		// A bare init takes no --work-tree; run it raw.
+		cmd := exec.Command("git", "init", "--bare", "-q", s.gitDir)
+		var errb bytes.Buffer
+		cmd.Stderr = &errb
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("snapshot: git init: %v: %s", err, strings.TrimSpace(errb.String()))
+		}
+		return s.writeExcludes()
+	})
+}
+
+func withRepoLock(ctx context.Context, gitDir string, fn func() error) error {
+	if err := os.MkdirAll(filepath.Dir(gitDir), 0o700); err != nil {
+		return fmt.Errorf("snapshot: create lock directory: %w", err)
 	}
-	// A bare init takes no --work-tree; run it raw.
-	cmd := exec.Command("git", "init", "--bare", "-q", s.gitDir)
-	var errb bytes.Buffer
-	cmd.Stderr = &errb
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("snapshot: git init: %v: %s", err, strings.TrimSpace(errb.String()))
+	f, err := os.OpenFile(gitDir+".lock", os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return fmt.Errorf("snapshot: open repository lock: %w", err)
 	}
-	return s.writeExcludes()
+	defer func() { _ = f.Close() }()
+	for {
+		err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		if err == nil {
+			break
+		}
+		if err != syscall.EWOULDBLOCK && err != syscall.EAGAIN {
+			return fmt.Errorf("snapshot: acquire repository lock: %w", err)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+	defer func() { _ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN) }()
+	return fn()
 }
 
 func (s *ShadowRepo) writeExcludes() error {
@@ -214,31 +245,37 @@ func (s *ShadowRepo) Diff(ctx context.Context, ref string) (DiffResult, error) {
 // tree, and commit it — deduplicating on an unchanged tree (same state,
 // same ref). Plumbing only: no hooks, no porcelain "nothing to commit".
 func (s *ShadowRepo) Snapshot(ctx context.Context) (string, error) {
-	if _, err := s.git(ctx, "add", "-A", "."); err != nil {
-		return "", err
-	}
-	tree, err := s.git(ctx, "write-tree")
-	if err != nil {
-		return "", err
-	}
-	head, headErr := s.git(ctx, "rev-parse", "HEAD")
-	if headErr == nil {
-		if prevTree, err := s.git(ctx, "rev-parse", "HEAD^{tree}"); err == nil && prevTree == tree {
-			return head, nil // identical state: reuse the ref (pinned anyway)
+	var snapshot string
+	err := withRepoLock(ctx, s.gitDir, func() error {
+		if _, err := s.git(ctx, "add", "-A", "."); err != nil {
+			return err
 		}
-	}
-	args := []string{"commit-tree", tree, "-m", "agentrunner snapshot"}
-	if headErr == nil {
-		args = append(args, "-p", head)
-	}
-	commit, err := s.git(ctx, args...)
-	if err != nil {
-		return "", err
-	}
-	if _, err := s.git(ctx, "update-ref", "HEAD", commit); err != nil {
-		return "", err
-	}
-	return commit, nil
+		tree, err := s.git(ctx, "write-tree")
+		if err != nil {
+			return err
+		}
+		head, headErr := s.git(ctx, "rev-parse", "HEAD")
+		if headErr == nil {
+			if prevTree, err := s.git(ctx, "rev-parse", "HEAD^{tree}"); err == nil && prevTree == tree {
+				snapshot = head
+				return nil
+			}
+		}
+		args := []string{"commit-tree", tree, "-m", "agentrunner snapshot"}
+		if headErr == nil {
+			args = append(args, "-p", head)
+		}
+		commit, err := s.git(ctx, args...)
+		if err != nil {
+			return err
+		}
+		if _, err := s.git(ctx, "update-ref", "HEAD", commit); err != nil {
+			return err
+		}
+		snapshot = commit
+		return nil
+	})
+	return snapshot, err
 }
 
 // PushRefs copies snapshot commits into another shadow GIT_DIR, pinning
@@ -247,15 +284,17 @@ func (s *ShadowRepo) Snapshot(ctx context.Context) (string, error) {
 // never reaches back into the original's repo. Local-path push moves the
 // full object closure; an already-present ref is a cheap no-op.
 func (s *ShadowRepo) PushRefs(ctx context.Context, dstGitDir string, refs []string) error {
-	for _, ref := range refs {
-		if ref == "" {
-			continue
+	return withRepoLock(ctx, dstGitDir, func() error {
+		for _, ref := range refs {
+			if ref == "" {
+				continue
+			}
+			if _, err := s.git(ctx, "push", "--quiet", dstGitDir, ref+":refs/pinned/"+ref); err != nil {
+				return err
+			}
 		}
-		if _, err := s.git(ctx, "push", "--quiet", dstGitDir, ref+":refs/pinned/"+ref); err != nil {
-			return err
-		}
-	}
-	return nil
+		return nil
+	})
 }
 
 // GitDir exposes the store's GIT_DIR for ref transfer between stores.

@@ -200,10 +200,16 @@ func TestResolveSessionDirTopLevelWithSubInSlug(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", data)
 	root := filepath.Join(data, "agentrunner", "sessions")
 	top := "20260710-000209-spawn-exactly-3-worker-sub-age-8588"
+	seedSessionIn(t, top)
 	child := filepath.Join(root, top, "sub", "call_1_0-a1")
-	if err := os.MkdirAll(child, 0o755); err != nil {
+	childStore, err := store.OpenEventStore(child)
+	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := childStore.Append(mkEnv(t, event.TypeSessionStarted, &event.SessionStarted{})); err != nil {
+		t.Fatal(err)
+	}
+	_ = childStore.Close()
 
 	for _, q := range []string{top, "20260710-000209-spawn-exactly-3-worker-sub-a", "20260710-000209"} {
 		dir, err := resolveSessionDir(q)
@@ -226,5 +232,25 @@ func TestResolveSessionDirTopLevelWithSubInSlug(t *testing.T) {
 	}
 	if got, err := resolveApprovalSession(top + "-sub-call_1_0-a1"); err != nil || got != top+"-sub-call_1_0-a1" {
 		t.Errorf("resolveApprovalSession(child) = %q, %v; want the full child id back", got, err)
+	}
+}
+
+func TestResolveSessionDirRejectsEmptyJournalDirectory(t *testing.T) {
+	data := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", data)
+	root := filepath.Join(data, "agentrunner", "sessions")
+	empty := filepath.Join(root, "20260712-010203-empty-abcd")
+	if err := os.MkdirAll(empty, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := resolveSessionDir(filepath.Base(empty)); err == nil || !strings.Contains(err.Error(), "incomplete") {
+		t.Fatalf("empty exact resolution error = %v", err)
+	}
+	if _, err := resolveSessionDir("20260712-010203"); err == nil || !strings.Contains(err.Error(), "no session matches") {
+		t.Fatalf("empty prefix resolution error = %v", err)
+	}
+	var out, errOut bytes.Buffer
+	if code := Run([]string{"sessions", "--json"}, "dev", &out, &errOut); code != ExitOK || strings.Contains(out.String(), "empty-abcd") {
+		t.Fatalf("sessions exit=%d out=%s err=%s", code, out.String(), errOut.String())
 	}
 }

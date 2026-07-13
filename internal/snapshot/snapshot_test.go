@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -381,5 +383,55 @@ func TestMaterializeFailureLeavesNoTarget(t *testing.T) {
 	}
 	if _, err := os.Stat(out); !os.IsNotExist(err) {
 		t.Errorf("failed materialize left target behind")
+	}
+}
+
+func TestShadowRepoSerializesConcurrentInitAndSnapshots(t *testing.T) {
+	ws := t.TempDir()
+	for i := 0; i < 100; i++ {
+		write(t, ws, filepath.Join("src", fmt.Sprintf("f-%03d.txt", i)), strings.Repeat("x", 1024))
+	}
+	gitDir := filepath.Join(t.TempDir(), "shared-shadow.git")
+	const workers = 12
+	stores := make([]*ShadowRepo, workers)
+	errs := make([]error, workers)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			<-start
+			stores[i], errs[i] = NewShadowRepo(gitDir, ws)
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+	for i, err := range errs {
+		if err != nil {
+			t.Fatalf("open %d: %v", i, err)
+		}
+	}
+
+	refs := make([]string, workers)
+	start = make(chan struct{})
+	wg = sync.WaitGroup{}
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			<-start
+			refs[i], errs[i] = stores[i].Snapshot(context.Background())
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+	for i, err := range errs {
+		if err != nil {
+			t.Fatalf("snapshot %d: %v", i, err)
+		}
+		if refs[i] != refs[0] {
+			t.Fatalf("snapshot %d ref=%s, want deduplicated %s", i, refs[i], refs[0])
+		}
 	}
 }

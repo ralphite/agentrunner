@@ -290,8 +290,8 @@ func TestDriverChildFailStop(t *testing.T) {
 	}
 }
 
-// on_child_failure surface: a failing child is a spent iteration but the
-// driver keeps going, exhausting max_iterations across failures.
+// on_child_failure surface: a failing child is a spent iteration and the
+// driver keeps going, but an all-failure series ends as child_failed.
 func TestDriverChildFailSurface(t *testing.T) {
 	d, dStore := harnessFix(t, &driver.DriverSpec{
 		Name: "goal", Prompt: "work", MaxIterations: 3,
@@ -303,8 +303,8 @@ func TestDriverChildFailSurface(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Reason != "max_iterations" || res.Iterations != 3 {
-		t.Fatalf("res = %+v, want max_iterations at 3 (all surfaced)", res)
+	if res.Reason != "child_failed" || res.Iterations != 3 {
+		t.Fatalf("res = %+v, want child_failed at 3 (all attempts failed)", res)
 	}
 	events, _ := store.ReadEvents(dStore.Dir())
 	st, _ := driver.Fold(events)
@@ -372,6 +372,23 @@ func TestDriverChildFailRetryRecovers(t *testing.T) {
 	for _, sub := range []string{"iter-1", "iter-1-a2", "iter-1-a3"} {
 		if _, err := store.ReadEvents(filepath.Join(dStore.Dir(), "sub", sub)); err != nil {
 			t.Errorf("attempt journal %s missing: %v", sub, err)
+		}
+	}
+	events, err := store.ReadEvents(dStore.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := driver.Fold(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(st.Iterations) != 1 || len(st.Iterations[0].Attempts) != 3 {
+		t.Fatalf("attempt projection = %+v, want three parent-journaled attempts", st.Iterations)
+	}
+	wantReasons := []string{"error", "error", "completed"}
+	for i, attempt := range st.Iterations[0].Attempts {
+		if !attempt.Started || !attempt.Completed || attempt.Reason != wantReasons[i] {
+			t.Errorf("attempt %d = %+v, want completed %q", i+1, attempt, wantReasons[i])
 		}
 	}
 }
@@ -702,6 +719,90 @@ func TestDriverLoopIntervalCadence(t *testing.T) {
 	if !sawScheduled {
 		t.Fatal("no iteration_scheduled event found")
 	}
+}
+
+func TestDriverIntervalOverlapPolicies(t *testing.T) {
+	newDriver := func(t *testing.T, overlap string, max int) (*driver.Driver, *store.EventStore, *clock.Fake) {
+		t.Helper()
+		root := t.TempDir()
+		ws, err := workspace.New(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		dStore, err := store.OpenEventStore(filepath.Join(root, "driver"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = dStore.Close() })
+		clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
+		childSpec := &agent.AgentSpec{
+			Name: "worker", Model: agent.ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
+			SystemPrompt: "tick", MaxGenerationSteps: 5,
+		}
+		calls := 0
+		d := &driver.Driver{
+			Spec: &driver.DriverSpec{
+				Name: "loop", Schedule: driver.ScheduleInterval, Interval: "1m", Overlap: overlap,
+				Prompt: "tick", MaxIterations: max, Agent: childSpec,
+			},
+			Store: dStore, Clock: clk, DriverID: "drv-1", Exec: &tool.Executor{WS: ws},
+			NewChild: func(cs *store.EventStore, session string, iter, budget int) *agent.Loop {
+				calls++
+				if calls == 1 {
+					clk.Advance(150 * time.Second)
+				}
+				fix := scripted.Fixture{Steps: []scripted.Step{
+					{Respond: []scripted.Event{{Text: "tick"}, {Finish: "end_turn"}}},
+				}}
+				return &agent.Loop{Spec: childSpec, Provider: scripted.New(fix),
+					Exec: &tool.Executor{WS: ws}, Store: cs, Clock: clk, SessionID: session}
+			},
+		}
+		return d, dStore, clk
+	}
+
+	t.Run("skip", func(t *testing.T) {
+		d, dStore, clk := newDriver(t, driver.OverlapSkip, 4)
+		resCh := make(chan driver.Result, 1)
+		go func() {
+			res, err := d.Run(context.Background())
+			if err != nil {
+				t.Errorf("run: %v", err)
+			}
+			resCh <- res
+		}()
+		waitIdle(t, clk)
+		clk.Advance(30 * time.Second)
+		res := <-resCh
+		if res.Reason != "max_iterations" {
+			t.Fatalf("result = %+v", res)
+		}
+		events, _ := store.ReadEvents(dStore.Dir())
+		st, _ := driver.Fold(events)
+		wantSkipped := []bool{false, true, true, false}
+		for i, want := range wantSkipped {
+			if st.Iterations[i].Skipped != want {
+				t.Errorf("iteration %d skipped=%v, want %v", i+1, st.Iterations[i].Skipped, want)
+			}
+		}
+	})
+
+	t.Run("coalesce", func(t *testing.T) {
+		d, dStore, _ := newDriver(t, driver.OverlapCoalesce, 2)
+		res, err := d.Run(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Reason != "max_iterations" || res.Iterations != 2 {
+			t.Fatalf("result = %+v", res)
+		}
+		events, _ := store.ReadEvents(dStore.Dir())
+		for _, env := range events {
+			if env.Type == event.TypeIterationSkipped {
+				t.Fatal("coalesce journaled a skipped interval")
+			}
+		}
+	})
 }
 
 // cronHarness wires a loop-mode cron driver with a text-only child (no bash

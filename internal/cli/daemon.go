@@ -943,6 +943,7 @@ func assembleHostedDriver(ctx context.Context, version, specPath string, spec *d
 	}
 	d := &driver.Driver{
 		Spec:      spec,
+		SpecPath:  specPath,
 		Store:     dStore,
 		Clock:     clock.Real{},
 		DriverID:  sessionID,

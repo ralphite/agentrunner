@@ -51,6 +51,7 @@ type WorktreeChildFactory func(childStore *store.EventStore, childSession string
 // each iteration spawns a fresh child run and verifies its result.
 type Driver struct {
 	Spec     *DriverSpec
+	SpecPath string
 	Store    *store.EventStore
 	Clock    clock.Clock
 	DriverID string
@@ -231,7 +232,7 @@ func (d *Driver) Run(ctx context.Context) (Result, error) {
 	}
 	if _, err := appendE(event.TypeDriverStarted, &event.DriverStarted{
 		DriverID: d.DriverID, SpecName: d.Spec.Name,
-		Spec: redact.FromEnv().JSON(specJSON), WorkspaceRoot: wsRoot,
+		SpecPath: d.SpecPath, Spec: redact.FromEnv().JSON(specJSON), WorkspaceRoot: wsRoot,
 		FoldVersion: FoldVersion,
 	}); err != nil {
 		return Result{}, err
@@ -344,7 +345,7 @@ func (d *Driver) drive(ctx context.Context, st *State, appendE appendFunc, start
 		}
 		if n > maxIter {
 			slog.Debug("driver hit max_iterations", "driver", d.DriverID, "max", maxIter)
-			return d.finish(appendE, st, "max_iterations", maxIter)
+			return d.finish(appendE, st, limitReason(st), maxIter)
 		}
 		// Loop-mode cadence: interval fires iteration 1 now and fixed-delays
 		// the rest; cron waits for each absolute tick, applying the overlap
@@ -394,7 +395,7 @@ func (d *Driver) drive(ctx context.Context, st *State, appendE appendFunc, start
 			session = existing.ChildSession // in-flight: reuse the recorded session
 		}
 
-		childRes, childDir, spent, cerr := d.runIteration(ctx, n, session, allowance, "")
+		childRes, childDir, spent, cerr := d.runIteration(ctx, st, appendE, n, session, allowance, "")
 		if cerr != nil {
 			if ctx.Err() != nil {
 				// A cancel of the driver reached the child: end as stopped, not
@@ -548,7 +549,7 @@ func (d *Driver) driveParallel(ctx context.Context, st *State, appendE appendFun
 			session = existing.ChildSession
 		}
 
-		childRes, childDir, spent, cerr := d.runIteration(ctx, n, session, allowance, worktree)
+		childRes, childDir, spent, cerr := d.runIteration(ctx, st, appendE, n, session, allowance, worktree)
 		if cerr != nil {
 			if _, err := appendE(event.TypeIterationCompleted, &event.IterationCompleted{
 				DriverID: d.DriverID, Iter: n, ChildSession: session,
@@ -601,6 +602,8 @@ func (d *Driver) driveParallel(ctx context.Context, st *State, appendE appendFun
 	reason := "stalled"
 	if bestPass {
 		reason = "satisfied"
+	} else if allChildrenFailed(st) {
+		reason = "child_failed"
 	}
 	if best > 0 {
 		d.emit(protocol.Event{Kind: protocol.KindNote,
@@ -616,6 +619,28 @@ func failReason(ctx context.Context) string {
 		return "canceled"
 	}
 	return "error"
+}
+
+func limitReason(st *State) string {
+	if allChildrenFailed(st) {
+		return "child_failed"
+	}
+	return "max_iterations"
+}
+
+func allChildrenFailed(st *State) bool {
+	completed := 0
+	for _, it := range st.Iterations {
+		if it.Skipped || !it.Completed {
+			continue
+		}
+		completed++
+		if it.ChildReason != "error" && it.ChildReason != "canceled" &&
+			!strings.HasPrefix(it.ChildReason, "failed") {
+			return false
+		}
+	}
+	return completed > 0
 }
 
 // worktreeExecutor builds the per-attempt verifier executor: a command
@@ -743,16 +768,41 @@ func childIntent(childDir string) paceIntent {
 func (d *Driver) awaitTick(ctx context.Context, appendE appendFunc, n int, first bool) (bool, error) {
 	switch d.Spec.schedule() {
 	case ScheduleInterval:
-		// Fixed delay after the previous completion: the first iteration (of
-		// a run or a resume) fires immediately, and — being sequential with
-		// no absolute timeline — an interval series cannot miss a tick.
+		// Fixed-rate timeline anchored when the series starts. Long iterations
+		// consume absolute slots through the same skip/coalesce policy as cron.
+		now := d.Clock.Now()
+		every, _ := d.Spec.interval() // validated in prepare
+		if every <= 0 {
+			return true, nil // explicit back-to-back interval mode
+		}
 		if first {
+			d.lastTick = now
 			return true, nil
 		}
-		every, _ := d.Spec.interval() // validated in prepare
-		if err := d.Clock.WaitUntil(ctx, d.Clock.Now().Add(every)); err != nil {
+		if d.lastTick.IsZero() {
+			d.lastTick = now
+		}
+		next := d.lastTick.Add(every)
+		if !next.After(now) {
+			d.lastTick = next
+			if d.Spec.Overlap == OverlapCoalesce {
+				for !d.lastTick.Add(every).After(now) {
+					d.lastTick = d.lastTick.Add(every)
+				}
+				return true, nil
+			}
+			if _, err := appendE(event.TypeIterationSkipped, &event.IterationSkipped{
+				DriverID: d.DriverID, Iter: n, Tick: next,
+				Reason: "overlap: interval tick " + next.UTC().Format(time.RFC3339) + " passed while an iteration ran or the daemon was down",
+			}); err != nil {
+				return false, err
+			}
+			return false, nil
+		}
+		if err := d.Clock.WaitUntil(ctx, next); err != nil {
 			return false, err
 		}
+		d.lastTick = next
 		return true, nil
 
 	case ScheduleCron:
@@ -835,7 +885,7 @@ func (d *Driver) finish(appendE appendFunc, st *State, reason string, iterations
 // and dir, the SUMMED spend across every attempt (failed retries burned real
 // tokens — the budget must see them; S6 review), and the error (nil on the
 // first success).
-func (d *Driver) runIteration(ctx context.Context, n int, childSession string, allowance int, worktree string) (agent.RunResult, string, provider.Usage, error) {
+func (d *Driver) runIteration(ctx context.Context, st *State, appendE appendFunc, n int, childSession string, allowance int, worktree string) (agent.RunResult, string, provider.Usage, error) {
 	newChild := func(cs *store.EventStore, sess string) *agent.Loop {
 		if worktree != "" {
 			return d.NewChildAt(cs, sess, n, allowance, worktree)
@@ -854,17 +904,61 @@ func (d *Driver) runIteration(ctx context.Context, n int, childSession string, a
 	)
 	for a := 1; a <= attempts; a++ {
 		childDir = filepath.Join(d.Store.Dir(), "sub", iterDir(n, a))
-		childStore, err := store.OpenEventStore(childDir)
-		if err != nil {
-			return agent.RunResult{}, childDir, spent, fmt.Errorf("driver: open child store: %w", err)
-		}
 		session := childSession
 		if a > 1 {
 			session = fmt.Sprintf("%s-a%d", childSession, a)
 		}
+		if recorded, ok := st.attempt(n, a); ok && recorded.Completed {
+			spent = addUsage(spent, recorded.Usage)
+			res = agent.RunResult{Reason: recorded.Reason, Usage: recorded.Usage}
+			if done, settled := settledChild(childDir); done {
+				res = settled
+			}
+			if recorded.Reason != "error" && recorded.Reason != "canceled" &&
+				!strings.HasPrefix(recorded.Reason, "failed") {
+				return res, childDir, spent, nil
+			}
+			rerr = fmt.Errorf("child attempt %d ended %s (settled from parent journal)", a, recorded.Reason)
+			if ctx.Err() != nil {
+				return res, childDir, spent, rerr
+			}
+			continue
+		}
+		if recorded, ok := st.attempt(n, a); !ok || !recorded.Started {
+			if _, err := appendE(event.TypeIterationAttemptStarted, &event.IterationAttemptStarted{
+				DriverID: d.DriverID, Iter: n, Attempt: a, ChildSession: session,
+			}); err != nil {
+				return agent.RunResult{}, childDir, spent, err
+			}
+		}
+		completeAttempt := func(reason string, usage provider.Usage, attemptErr error) error {
+			if recorded, ok := st.attempt(n, a); ok && recorded.Completed {
+				return nil
+			}
+			errText := ""
+			if attemptErr != nil {
+				errText = redact.FromEnv().String(attemptErr.Error())
+			}
+			_, err := appendE(event.TypeIterationAttemptCompleted, &event.IterationAttemptCompleted{
+				DriverID: d.DriverID, Iter: n, Attempt: a, ChildSession: session,
+				Reason: reason, Usage: usage, Error: errText,
+			})
+			return err
+		}
+
+		childStore, err := store.OpenEventStore(childDir)
+		if err != nil {
+			rerr = fmt.Errorf("driver: open child store: %w", err)
+			if aerr := completeAttempt("error", provider.Usage{}, rerr); aerr != nil {
+				return agent.RunResult{}, childDir, spent, aerr
+			}
+			if a < attempts {
+				continue
+			}
+			return agent.RunResult{}, childDir, spent, rerr
+		}
 		// A pre-existing journal means the driver crashed with this child
-		// in-flight (only attempt 1 can carry prior events — retries always get
-		// a fresh dir). If that child already reached a terminal state, settle
+		// in-flight. If that child already reached a terminal state, settle
 		// from its fold — an error/canceled ending settles as a FAILURE so the
 		// on_child_failure policy applies identically across the crash (S6
 		// review); otherwise resume it (its own in-doubt discipline guards
@@ -873,13 +967,20 @@ func (d *Driver) runIteration(ctx context.Context, n int, childSession string, a
 			child := newChild(childStore, session)
 			if done, dres := settledChild(childDir); done {
 				_ = childStore.Close()
-				spent = addUsage(spent, dres.Usage)
-				if dres.Reason == "error" || dres.Reason == "canceled" {
+				attemptUsage := dres.Usage
+				spent = addUsage(spent, attemptUsage)
+				if dres.Reason == "error" || dres.Reason == "canceled" || strings.HasPrefix(dres.Reason, "failed") {
 					res, rerr = dres, fmt.Errorf("child ended %s (settled from journal)", dres.Reason)
+					if err := completeAttempt(failReason(ctx), attemptUsage, rerr); err != nil {
+						return res, childDir, spent, err
+					}
 					if ctx.Err() != nil {
 						return res, childDir, spent, rerr
 					}
 					continue
+				}
+				if err := completeAttempt(dres.Reason, attemptUsage, nil); err != nil {
+					return dres, childDir, spent, err
 				}
 				return dres, childDir, spent, nil
 			}
@@ -889,7 +990,17 @@ func (d *Driver) runIteration(ctx context.Context, n int, childSession string, a
 			res, rerr = child.Run(ctx, d.buildPrompt())
 		}
 		_ = childStore.Close()
-		spent = addUsage(spent, childSpent(childDir))
+		attemptUsage := childSpent(childDir)
+		spent = addUsage(spent, attemptUsage)
+		reason := res.Reason
+		if rerr != nil {
+			reason = failReason(ctx)
+		} else if reason == "" {
+			reason = "completed"
+		}
+		if err := completeAttempt(reason, attemptUsage, rerr); err != nil {
+			return res, childDir, spent, err
+		}
 		if rerr == nil {
 			return res, childDir, spent, nil
 		}

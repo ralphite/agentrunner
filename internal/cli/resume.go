@@ -42,6 +42,19 @@ func resumeCmd(args []string, version string, stdout, stderr io.Writer) int {
 		return ExitUsage
 	}
 	sessionID := filepath.Base(dir)
+	if events, rerr := store.ReadEvents(dir); rerr == nil && len(events) > 0 && events[0].Type == event.TypeDriverStarted {
+		folded, ferr := driver.Fold(events)
+		if ferr != nil {
+			fmt.Fprintf(stderr, "agentrunner: driver journal: %v\n", ferr)
+			return ExitRun
+		}
+		if folded.Status == driver.StatusEnded {
+			fmt.Fprintf(stderr, "agentrunner: driver %s already ended (%s); use retry to start a new series\n", sessionID, folded.Reason)
+		} else {
+			fmt.Fprintf(stderr, "agentrunner: driver %s is a scheduled series, not a conversation; the daemon recovers live series automatically, or use retry to start a new series\n", sessionID)
+		}
+		return ExitUsage
+	}
 
 	started, err := readSessionStarted(dir)
 	if err != nil {
@@ -265,6 +278,9 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 	candidates := make([]candidate, 0, len(entries))
 	for _, e := range entries {
 		if !e.IsDir() {
+			continue
+		}
+		if !validSessionDir(filepath.Join(root, e.Name())) {
 			continue
 		}
 		mtime := int64(0)

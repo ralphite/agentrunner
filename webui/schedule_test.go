@@ -138,6 +138,17 @@ not json at all
 	}
 }
 
+func TestParseDriverRetryInfo(t *testing.T) {
+	journal := `{"seq":1,"type":"driver_started","payload":{"spec_name":"nightly","workspace_root":"/work","spec":{"Name":"nightly","Schedule":"interval","Interval":"15m"}}}`
+	info, ok := parseDriverRetryInfo(journal)
+	if !ok || info.name != "nightly" || info.workspace != "/work" || info.spec == nil || info.spec.Interval != "15m" {
+		t.Fatalf("retry info = %+v ok=%v", info, ok)
+	}
+	if _, ok := parseDriverRetryInfo(`{"type":"session_started","payload":{}}`); ok {
+		t.Fatal("conversation journal was classified as a driver")
+	}
+}
+
 // A drive run's /api/runs row carries the cadence and, while running, the next
 // tick anchored on the last iteration the driver announced.
 func TestRunViewSchedule(t *testing.T) {
@@ -161,7 +172,7 @@ func TestRunViewSchedule(t *testing.T) {
 	}
 	// No iteration announced yet: the run's own start anchors the interval.
 	r.lastIter = time.Time{}
-	if got := r.view(now).NextRunAt; got != now.Add(-10*time.Minute).Format(time.RFC3339) {
+	if got := r.view(now).NextRunAt; got != now.Add(20*time.Minute).Format(time.RFC3339) {
 		t.Fatalf("nextRunAt without an iteration = %q", got)
 	}
 	// A finished run has no next tick; a submit run has no spec at all.

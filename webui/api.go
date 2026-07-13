@@ -1078,11 +1078,76 @@ func (s *server) handleResume(w http.ResponseWriter, r *http.Request) {
 	s.oneShotHandler("ar resume", func(id string) []string { return []string{"resume", id} })(w, r)
 }
 
-// handleRetry re-sends the session's last user message as a new turn
-// (INC-44 §B): a thin wrapper over `ar retry --detach` — the derived
-// command id makes double-clicks idempotent at the inbox.
+// handleRetry is domain-aware: conversations re-send their last user turn;
+// drivers start a fresh series from the prior DriverStarted provenance.
 func (s *server) handleRetry(w http.ResponseWriter, r *http.Request) {
-	s.oneShotHandler("ar retry", func(id string) []string { return []string{"retry", "--detach", id} })(w, r)
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	journal := s.runAR(r.Context(), oneShotTimeout, "events", id, "--json")
+	if journal.Err == nil {
+		if info, driver := parseDriverRetryInfo(journal.Stdout); driver {
+			if info.workspace == "" {
+				badRequest(w, "driver journal has no workspace provenance")
+				return
+			}
+			label := "retry driver"
+			if info.name != "" {
+				label = "retry: " + info.name
+			}
+			if s.runs == nil {
+				s.runs = newRunRegistry()
+			}
+			run := s.runs.start(s.arPath, "drive", label, info.workspace,
+				[]string{"drive", "--json", "--retry", id}, filepath.Join(s.runtimeDir, "runs"), info.spec,
+				func(sid string) {
+					if s.meta != nil {
+						s.meta.set(sid, info.workspace, label)
+					}
+				})
+			writeJSON(w, http.StatusOK, map[string]string{"runId": run.ID, "status": "new driver series started"})
+			return
+		}
+	}
+	res := s.runAR(r.Context(), oneShotTimeout, "retry", "--detach", id)
+	if res.Err != nil {
+		arFail(w, "ar retry", res)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": strings.TrimSpace(res.Stdout)})
+}
+
+type driverRetryInfo struct {
+	name      string
+	workspace string
+	spec      *driverSpec
+}
+
+func parseDriverRetryInfo(stdout string) (driverRetryInfo, bool) {
+	for _, line := range strings.Split(stdout, "\n") {
+		var env struct {
+			Type    string          `json:"type"`
+			Payload json.RawMessage `json:"payload"`
+		}
+		if json.Unmarshal([]byte(strings.TrimSpace(line)), &env) != nil || env.Type != "driver_started" {
+			continue
+		}
+		var started struct {
+			SpecName      string          `json:"spec_name"`
+			WorkspaceRoot string          `json:"workspace_root"`
+			Spec          json.RawMessage `json:"spec"`
+		}
+		if json.Unmarshal(env.Payload, &started) != nil {
+			return driverRetryInfo{}, true
+		}
+		var spec driverSpec
+		if len(started.Spec) > 0 {
+			_ = json.Unmarshal(started.Spec, &spec)
+		}
+		return driverRetryInfo{name: started.SpecName, workspace: started.WorkspaceRoot, spec: &spec}, true
+	}
+	return driverRetryInfo{}, false
 }
 
 // handleClose ends a session for good (ar close); handleStop tears down its

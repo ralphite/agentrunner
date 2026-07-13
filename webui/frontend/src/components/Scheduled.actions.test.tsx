@@ -82,7 +82,7 @@ describe("the row menu can act on the schedule, not just tidy it (SC-17)", () =>
     expect(resume).toHaveBeenCalledWith("20250101-100000-stranded");
   });
 
-  it("retries the last message without opening the session", () => {
+  it("starts a replacement driver without opening the session", () => {
     mount();
     menuFor("Broken: the host died mid-tick");
     fireEvent.click(screen.getByRole("menuitem", { name: "Retry" }));

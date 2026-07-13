@@ -51,12 +51,14 @@ const (
 	// S6 additions (IterationDriver, DESIGN §运行形态). These belong to the
 	// driver's OWN stream — folded by internal/driver, never by the run fold,
 	// so they carry no run SubStateVersions entry.
-	TypeDriverStarted      = "driver_started"
-	TypeIterationScheduled = "iteration_scheduled"
-	TypeIterationLaunched  = "iteration_launched"
-	TypeIterationCompleted = "iteration_completed"
-	TypeIterationSkipped   = "iteration_skipped"
-	TypeDriverCompleted    = "driver_completed"
+	TypeDriverStarted             = "driver_started"
+	TypeIterationScheduled        = "iteration_scheduled"
+	TypeIterationLaunched         = "iteration_launched"
+	TypeIterationAttemptStarted   = "iteration_attempt_started"
+	TypeIterationAttemptCompleted = "iteration_attempt_completed"
+	TypeIterationCompleted        = "iteration_completed"
+	TypeIterationSkipped          = "iteration_skipped"
+	TypeDriverCompleted           = "driver_completed"
 
 	// S6 模块⑤: the notifier's OWN stream (never in a run journal).
 	TypeNotificationSent = "notification_sent"
@@ -803,6 +805,7 @@ type ProgressItem struct {
 type DriverStarted struct {
 	DriverID      string          `json:"driver_id"`
 	SpecName      string          `json:"spec_name"`
+	SpecPath      string          `json:"spec_path,omitempty"`
 	Spec          json.RawMessage `json:"spec,omitempty"`
 	WorkspaceRoot string          `json:"workspace_root,omitempty"`
 	FoldVersion   int             `json:"fold_version"`
@@ -820,11 +823,11 @@ type IterationScheduled struct {
 	// the same base, and a resume re-materializes the SAME tree instead of
 	// snapshotting whatever the workspace has drifted to.
 	BaseRef string `json:"base_ref,omitempty"`
-	// Tick is the absolute cron/loop wall time that triggered this iteration
+	// Tick is the absolute cron/interval wall time that triggered this iteration
 	// (INC-54): the durable anchor a resume recovers `lastTick` from so a
 	// cron series backfills the slots missed while the daemon was down —
-	// exactly once, per the overlap policy. Zero for non-cron schedules
-	// (interval is relative, immediate/parallel have no timeline). Additive,
+	// exactly once, per the overlap policy. Zero for schedules without a
+	// timeline (immediate/parallel/self-paced). Additive,
 	// same fold-version discipline as BaseRef.
 	Tick time.Time `json:"tick,omitempty"`
 }
@@ -836,6 +839,26 @@ type IterationLaunched struct {
 	DriverID     string `json:"driver_id"`
 	Iter         int    `json:"iter"`
 	ChildSession string `json:"child_session"`
+}
+
+// IterationAttemptStarted/Completed expose every child retry in the parent
+// driver stream. IterationLaunched remains the logical iteration receipt;
+// these events are its physical attempts and make retry cost/outcome auditable.
+type IterationAttemptStarted struct {
+	DriverID     string `json:"driver_id"`
+	Iter         int    `json:"iter"`
+	Attempt      int    `json:"attempt"`
+	ChildSession string `json:"child_session"`
+}
+
+type IterationAttemptCompleted struct {
+	DriverID     string         `json:"driver_id"`
+	Iter         int            `json:"iter"`
+	Attempt      int            `json:"attempt"`
+	ChildSession string         `json:"child_session"`
+	Reason       string         `json:"reason"`
+	Usage        provider.Usage `json:"usage,omitzero"`
+	Error        string         `json:"error,omitempty"`
 }
 
 // IterationVerdict is one iteration's verification outcome (S6). Score
@@ -1004,12 +1027,14 @@ var Registry = map[string]func() any{
 	TypeProgressUpdated:       func() any { return &ProgressUpdated{} },
 	TypeInputRevoked:          func() any { return &InputRevoked{} },
 
-	TypeDriverStarted:      func() any { return &DriverStarted{} },
-	TypeIterationScheduled: func() any { return &IterationScheduled{} },
-	TypeIterationLaunched:  func() any { return &IterationLaunched{} },
-	TypeIterationCompleted: func() any { return &IterationCompleted{} },
-	TypeIterationSkipped:   func() any { return &IterationSkipped{} },
-	TypeDriverCompleted:    func() any { return &DriverCompleted{} },
+	TypeDriverStarted:             func() any { return &DriverStarted{} },
+	TypeIterationScheduled:        func() any { return &IterationScheduled{} },
+	TypeIterationLaunched:         func() any { return &IterationLaunched{} },
+	TypeIterationAttemptStarted:   func() any { return &IterationAttemptStarted{} },
+	TypeIterationAttemptCompleted: func() any { return &IterationAttemptCompleted{} },
+	TypeIterationCompleted:        func() any { return &IterationCompleted{} },
+	TypeIterationSkipped:          func() any { return &IterationSkipped{} },
+	TypeDriverCompleted:           func() any { return &DriverCompleted{} },
 
 	TypeNotificationSent: func() any { return &NotificationSent{} },
 
@@ -1038,12 +1063,14 @@ var Registry = map[string]func() any{
 // no case for them — the run-fold coverage test skips exactly this set, and
 // internal/driver carries the matching coverage assertion.
 var DriverStream = map[string]bool{
-	TypeDriverStarted:      true,
-	TypeIterationScheduled: true,
-	TypeIterationLaunched:  true,
-	TypeIterationCompleted: true,
-	TypeIterationSkipped:   true,
-	TypeDriverCompleted:    true,
+	TypeDriverStarted:             true,
+	TypeIterationScheduled:        true,
+	TypeIterationLaunched:         true,
+	TypeIterationAttemptStarted:   true,
+	TypeIterationAttemptCompleted: true,
+	TypeIterationCompleted:        true,
+	TypeIterationSkipped:          true,
+	TypeDriverCompleted:           true,
 }
 
 // NotifierStream marks the notifier's own stream types (S6 模块⑤), excluded

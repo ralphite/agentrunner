@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/ralphite/agentrunner/internal/driver"
+	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/runtime"
 	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
@@ -145,12 +146,19 @@ func resolveSessionDir(idOrPrefix string) (string, error) {
 	}
 	root := filepath.Join(data, "sessions")
 	if st, serr := os.Stat(filepath.Join(root, idOrPrefix)); serr == nil && st.IsDir() {
-		return filepath.Join(root, idOrPrefix), nil
+		dir := filepath.Join(root, idOrPrefix)
+		if !validSessionDir(dir) {
+			return "", fmt.Errorf("session %q is incomplete (no journal genesis); start a new session", idOrPrefix)
+		}
+		return dir, nil
 	}
 	for i := strings.LastIndex(idOrPrefix, "-sub-"); i >= 0; i = strings.LastIndex(idOrPrefix[:i], "-sub-") {
 		parent, rest := idOrPrefix[:i], idOrPrefix[i+len("-sub-"):]
 		dir := filepath.Join(root, parent, "sub", strings.ReplaceAll(rest, "-sub-", "/sub/"))
 		if st, serr := os.Stat(dir); serr == nil && st.IsDir() {
+			if !validSessionDir(dir) {
+				return "", fmt.Errorf("session %q is incomplete (no journal genesis); start a new session", idOrPrefix)
+			}
 			return dir, nil
 		}
 	}
@@ -167,6 +175,9 @@ func resolveSessionDir(idOrPrefix string) (string, error) {
 	var matches []string
 	for _, e := range entries {
 		if !e.IsDir() {
+			continue
+		}
+		if !validSessionDir(filepath.Join(root, e.Name())) {
 			continue
 		}
 		if e.Name() == idOrPrefix {
@@ -190,6 +201,21 @@ func resolveSessionDir(idOrPrefix string) (string, error) {
 				idOrPrefix, len(matches), strings.Join(matches[:3], ", "))
 		}
 		return "", fmt.Errorf("session prefix %q is ambiguous: %s", idOrPrefix, strings.Join(matches, ", "))
+	}
+}
+
+func validSessionDir(dir string) bool {
+	events, err := store.ReadEvents(dir)
+	if err != nil || len(events) == 0 {
+		return false
+	}
+	switch events[0].Type {
+	case event.TypeSessionStarted, event.TypeDriverStarted:
+		return true
+	case event.TypeForkedFrom:
+		return len(events) > 1 && events[1].Type == event.TypeSessionStarted
+	default:
+		return false
 	}
 }
 

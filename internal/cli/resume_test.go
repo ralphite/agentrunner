@@ -175,13 +175,15 @@ func TestCLISessionsPaginationNewestFirst(t *testing.T) {
 	base := time.Unix(1_700_000_000, 0)
 	for i, id := range []string{"old", "middle", "new"} {
 		dir := filepath.Join(root, id)
-		if err := os.MkdirAll(dir, 0o700); err != nil {
+		es, err := store.OpenEventStore(dir)
+		if err != nil {
 			t.Fatal(err)
 		}
+		if _, err := es.Append(mkEnv(t, event.TypeSessionStarted, &event.SessionStarted{})); err != nil {
+			t.Fatal(err)
+		}
+		_ = es.Close()
 		path := filepath.Join(dir, "events.jsonl")
-		if err := os.WriteFile(path, nil, 0o600); err != nil {
-			t.Fatal(err)
-		}
 		at := base.Add(time.Duration(i) * time.Minute)
 		if err := os.Chtimes(path, at, at); err != nil {
 			t.Fatal(err)
@@ -260,6 +262,35 @@ func TestCLISessionsJSONProjectsDriverMetadata(t *testing.T) {
 	}
 	if len(rows) != 1 || rows[0].ID != "driver-1" || rows[0].Kind != "driver" || rows[0].Schedule != "immediate" || rows[0].Title != "Audit dependencies every night" {
 		t.Fatalf("driver row = %+v", rows)
+	}
+}
+
+func TestCLIResumeDriverReportsDomainError(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", xdg)
+	dir := filepath.Join(xdg, "agentrunner", "sessions", "driver-stopped")
+	es, err := store.OpenEventStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range []struct {
+		typ string
+		v   any
+	}{
+		{event.TypeDriverStarted, &event.DriverStarted{DriverID: "driver-stopped", SpecName: "loop", FoldVersion: 1}},
+		{event.TypeDriverCompleted, &event.DriverCompleted{DriverID: "driver-stopped", Reason: "stopped", Iterations: 2}},
+	} {
+		if _, err := es.Append(mkEnv(t, item.typ, item.v)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = es.Close()
+	var out, errOut bytes.Buffer
+	if code := Run([]string{"resume", "driver-stopped"}, "dev", &out, &errOut); code != ExitUsage {
+		t.Fatalf("resume exit=%d stderr=%s", code, errOut.String())
+	}
+	if got := errOut.String(); !strings.Contains(got, "already ended (stopped)") || strings.Contains(got, "session_started") {
+		t.Fatalf("driver resume error = %q", got)
 	}
 }
 

@@ -116,7 +116,12 @@ func nextRun(s *driverSpec, last, now time.Time) (time.Time, bool) {
 		if err != nil || d <= 0 || last.IsZero() {
 			return time.Time{}, false
 		}
-		return last.Add(d), true
+		next := last.Add(d)
+		if !next.After(now) {
+			missed := now.Sub(next)/d + 1
+			next = next.Add(missed * d)
+		}
+		return next, true
 	case schedCron:
 		return cronNext(s.Cron, now)
 	default:
@@ -516,6 +521,7 @@ func parseDriverJournal(stdout string) driverInfo {
 			TS      time.Time `json:"ts"`
 			Payload struct {
 				Spec json.RawMessage `json:"spec"`
+				Tick time.Time       `json:"tick"`
 			} `json:"payload"`
 		}
 		if json.Unmarshal([]byte(line), &env) != nil {
@@ -527,9 +533,13 @@ func parseDriverJournal(stdout string) driverInfo {
 			if len(env.Payload.Spec) > 0 && json.Unmarshal(env.Payload.Spec, &spec) == nil {
 				info.spec = &spec
 			}
-		case "iteration_scheduled", "iteration_launched":
-			if env.TS.After(info.lastIter) {
-				info.lastIter = env.TS
+		case "iteration_scheduled", "iteration_launched", "iteration_skipped":
+			anchor := env.Payload.Tick
+			if anchor.IsZero() {
+				anchor = env.TS
+			}
+			if anchor.After(info.lastIter) {
+				info.lastIter = anchor
 			}
 		}
 	}

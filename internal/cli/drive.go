@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -22,6 +23,7 @@ import (
 // driveOptions carries everything driveAgent needs; factored for testability.
 type driveOptions struct {
 	specPath  string
+	spec      *driver.DriverSpec
 	workspace string
 	version   string
 	factory   providerFactory
@@ -37,12 +39,13 @@ func driveCmd(args []string, version string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	workspaceDir := fs.String("workspace", ".", "workspace root (default: current directory)")
 	jsonOut := fs.Bool("json", false, "emit the child runs' output event stream as JSON lines")
+	retry := fs.String("retry", "", "start a new driver series from a prior driver session")
 	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
 		return ExitUsage
 	}
 	rest := fs.Args()
-	if len(rest) != 1 {
-		fmt.Fprintf(stderr, "usage: agentrunner drive [flags] <driver.yaml>\n")
+	if (*retry == "" && len(rest) != 1) || (*retry != "" && len(rest) != 0) {
+		fmt.Fprintf(stderr, "usage: agentrunner drive [--retry <driver-session>] [flags] [driver.yaml]\n")
 		return ExitUsage
 	}
 	var sink protocol.Sink
@@ -51,15 +54,41 @@ func driveCmd(args []string, version string, stdout, stderr io.Writer) int {
 	} else {
 		sink = newTextRenderer(stdout)
 	}
-	return driveAgent(driveOptions{
-		specPath:  rest[0],
+	opts := driveOptions{
 		workspace: *workspaceDir,
 		version:   version,
 		factory:   defaultProviderFactory,
 		stdout:    stdout,
 		stderr:    stderr,
 		sink:      sink,
-	})
+	}
+	if *retry == "" {
+		opts.specPath = rest[0]
+	} else {
+		dir, err := resolveSessionDir(*retry)
+		if err != nil {
+			fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+			return ExitUsage
+		}
+		started, err := readDriverStarted(dir)
+		if err != nil {
+			fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+			return ExitUsage
+		}
+		var spec driver.DriverSpec
+		if err := json.Unmarshal(started.Spec, &spec); err != nil {
+			fmt.Fprintf(stderr, "agentrunner: prior driver has no reusable spec: %v\n", err)
+			return ExitRun
+		}
+		if spec.Agent == nil {
+			fmt.Fprintln(stderr, "agentrunner: prior driver has no reusable embedded agent spec")
+			return ExitRun
+		}
+		opts.spec = &spec
+		opts.specPath = started.SpecPath
+		opts.workspace = started.WorkspaceRoot
+	}
+	return driveAgent(opts)
 }
 
 func driveAgent(opts driveOptions) int {
@@ -67,11 +96,16 @@ func driveAgent(opts driveOptions) int {
 	defer stop()
 	loadDotEnv(".env")
 
-	spec, err := driver.LoadSpec(opts.specPath)
-	if err != nil {
-		fmt.Fprintln(opts.stderr, err)
-		return ExitUsage
+	spec := opts.spec
+	if spec == nil {
+		var err error
+		spec, err = driver.LoadSpec(opts.specPath)
+		if err != nil {
+			fmt.Fprintln(opts.stderr, err)
+			return ExitUsage
+		}
 	}
+	loadDotEnv(filepath.Join(opts.workspace, ".env"))
 	ws, err := workspace.New(opts.workspace)
 	if err != nil {
 		fmt.Fprintln(opts.stderr, err)
@@ -118,6 +152,7 @@ func driveAgent(opts driveOptions) int {
 	}
 	d := &driver.Driver{
 		Spec:      spec,
+		SpecPath:  absolutePath(opts.specPath),
 		Store:     dStore,
 		Clock:     clock.Real{},
 		DriverID:  driverID,
@@ -206,6 +241,17 @@ func driveAgent(opts driveOptions) int {
 		return ExitRun
 	}
 	return ExitOK
+}
+
+func absolutePath(path string) string {
+	if path == "" || filepath.IsAbs(path) {
+		return path
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return path
+	}
+	return abs
 }
 
 // driveSucceeded maps a terminal reason to the exit code contract: goal mode
