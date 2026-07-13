@@ -144,6 +144,7 @@ interface SchedRow {
   id: string; // the store id this row is about (session id / run id)
   kind: "session" | "run"; // which of the two things it is — decides its actions (SC-12)
   title: string; // SC-13: the derived NAME (short, scannable); never the whole prompt
+  displayTitle: string; // responsive row copy; unlike the menu name, it is not pre-truncated
   full: string; // the raw label/prompt — the tooltip, and what search reads
   cadence: string; // the rhythm: "Every 30m" / "Saturdays at 4:00 AM" / "Self-paced"
   when: string; // "Next run in 12m" when known, else the honest "Ran 1d ago"
@@ -258,7 +259,7 @@ export function Scheduled() {
     const row = (
       base: Omit<
         SchedRow,
-        "when" | "isNext" | "meta" | "active" | "alert" | "title" | "running" | "settled" | "recover"
+        "when" | "isNext" | "meta" | "active" | "alert" | "title" | "displayTitle" | "running" | "settled" | "recover"
       >,
       nextRunAt: string | undefined,
       lastRan: Date | null,
@@ -278,9 +279,11 @@ export function Scheduled() {
       // raw text survives in `full`: it is the tooltip, and it is what search
       // reads, so shortening the label makes nothing unfindable.
       const custom = (renames[base.id] || "").trim();
+      const full = base.full.replace(/\s+/g, " ").trim();
       return {
         ...base,
         title: custom || scheduledTitle(base.full, base.id),
+        displayTitle: custom || full || base.id,
         when,
         isNext: !!next,
         alert,
@@ -610,7 +613,7 @@ export function Scheduled() {
             <Fragment key={r.key}>
             <div
               className={
-                "scheduled-row-wrap" +
+                "scheduled-row-wrap relative" +
                 (r.unread ? " is-unread" : "") +
                 (isArchived ? " is-archived" : "") +
                 (ctx?.key === r.key ? " menu-open" : "")
@@ -622,7 +625,7 @@ export function Scheduled() {
             >
             <button
               className={
-                "scheduled-row" +
+                "scheduled-row w-full items-center pr-14" +
                 (r.unread ? " is-unread" : "") +
                 // SCH-ICON: settled / dormant rows step back a shade — title
                 // included — so the rows that are still ticking are the ones the
@@ -659,9 +662,22 @@ export function Scheduled() {
                 {/* SC-19: 16px — the gold standard's ring is 13.5px of ink. */}
                 {glyphFor(r)}
               </span>
-              <span className="scheduled-copy flex flex-col">
-                <b>{r.title}</b>
-                <span className="sched-sub">
+              <span className="scheduled-copy flex min-w-0 flex-col gap-0.5">
+                <b
+                  className="min-w-0 break-words leading-5"
+                  style={{
+                    display: "-webkit-box",
+                    WebkitBoxOrient: "vertical",
+                    WebkitLineClamp: 2,
+                    overflow: "hidden",
+                  }}
+                >
+                  {r.displayTitle}
+                </b>
+                <span
+                  className="sched-sub block min-w-0 truncate leading-4"
+                  title={[r.cadence, r.alert || r.when].filter(Boolean).join(" · ")}
+                >
                   <span className="sched-cadence">{r.cadence}</span>
                   {/* SC-4: two facts, as Codex has them — the rhythm and the
                       next tick. The project used to ride along as a third
@@ -708,7 +724,7 @@ export function Scheduled() {
                 appears on hover/focus, in a lane the row always reserves, so it
                 can never nudge the title or the trail. */}
             <button
-              className="sched-more"
+              className="sched-more absolute right-1 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-lg border-0 bg-transparent hover:bg-panel-2"
               aria-label={`Actions for ${r.title}`}
               aria-haspopup="menu"
               title="Run actions"

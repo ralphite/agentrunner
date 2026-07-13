@@ -331,6 +331,21 @@ describe("scheduled row hierarchy on narrow screens", () => {
     expect(copy.lastElementChild?.classList).toContain("sched-sub");
     expect(container.querySelector(".sched-sub")?.textContent).toContain("Every 30m");
   });
+
+  it("keeps content and the 44px action in one compact card", () => {
+    const { container } = mountSeries();
+    const wrap = container.querySelector(".scheduled-row-wrap")!;
+    const row = wrap.querySelector(".scheduled-row")!;
+    const more = wrap.querySelector(".sched-more")!;
+
+    expect(wrap.classList).toContain("relative");
+    expect(row.classList).toContain("w-full");
+    expect(row.classList).toContain("pr-14");
+    expect(more.parentElement).toBe(wrap);
+    expect(more.classList).toContain("absolute");
+    expect(more.classList).toContain("h-11");
+    expect(more.classList).toContain("w-11");
+  });
 });
 
 // SC-12 / SC-13 / SC-14 — one driver session (the thing most rows are) and one
@@ -379,17 +394,14 @@ const mountRich = (over: Partial<StoreState> = {}) => {
   return render(<Scheduled />);
 };
 
-describe("a row is titled with a NAME, not the prompt (SC-13)", () => {
-  it("derives a scannable name and keeps the whole prompt one hover away", () => {
+describe("a row title uses available mobile width before truncating", () => {
+  it("renders the full source title and lets the two-line layout clamp it responsively", () => {
     const { container } = mountRich();
     const row = container.querySelector(".scheduled-row")!;
     const shown = row.querySelector(".scheduled-copy b")!.textContent!;
 
-    // The live row: 96 characters of instructions, of which the first clause is
-    // the only part that identifies the session.
-    expect(shown).toBe("Append one line with the current timestamp to…");
-    expect(shown.length).toBeLessThan(50);
-    expect(shown).not.toContain("use write_file or bash");
+    expect(shown).toBe(promptTitled[0].title);
+    expect(row.querySelector(".scheduled-copy b")?.getAttribute("style")).toContain("line-clamp: 2");
 
     // Nothing is hidden: the raw prompt is the row's tooltip…
     expect(row.getAttribute("title")).toContain("(use write_file or bash)");
