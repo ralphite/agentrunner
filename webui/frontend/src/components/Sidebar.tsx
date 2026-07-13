@@ -223,6 +223,19 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
       .catch(() => setBranchByWorkspace((current) => ({ ...current, [workspace]: "Local workspace" })));
   };
 
+  const renderSessionActions = (sid: string) => (
+    <>
+      <MenuLabel>{displayTitle(renames, sid, sessions.find((session) => session.id === sid)?.title)}</MenuLabel>
+      <MenuItem onClick={() => togglePin(sid)}>{pinned.includes(sid) ? "Unpin" : "Pin"}</MenuItem>
+      <MenuItem onClick={() => useStore.getState().openModal({ kind: "rename", sid })}>Rename…</MenuItem>
+      <MenuItem onClick={() => unread.includes(sid) ? markRead(sid) : markUnread(sid)}>{unread.includes(sid) ? "Mark as read" : "Mark as unread"}</MenuItem>
+      <MenuItem onClick={() => toggleArchive(sid)}>{archived.includes(sid) ? "Unarchive" : "Archive"}</MenuItem>
+      <MenuLabel>Copy</MenuLabel>
+      <MenuItem onClick={() => { copyText(sid); toast("copied session id", "info"); }}>Session ID</MenuItem>
+      <MenuItem onClick={() => { copyText(`${location.origin}/#${sid}`); toast("copied link", "info"); }}>Session link</MenuItem>
+    </>
+  );
+
   const renderSession = (session: (typeof sessions)[number], nested = false) => {
     const active = session.id === currentSid;
     const status = friendlyStatus(session.status);
@@ -267,10 +280,21 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
           {(isUnread || ["run", "appr", "stranded", "crash"].includes(status.cls)) && (
             <span className={`status-dot ${isUnread ? "unread" : status.cls}`} title={isUnread ? "New activity" : status.text} />
           )}
-          <ArrowSquareOut className="session-open" size={13} />
+          <ArrowSquareOut className="session-open max-[900px]:hidden!" size={13} />
         </button>
+        {/* Touch layouts have neither hover nor a reliable right-click gesture.
+            Reuse the viewport-pinned Menu/Popover behind one quiet trailing
+            affordance; desktop keeps its denser hover/context-menu controls. */}
+        <span className="hidden shrink-0 max-[900px]:inline-flex">
+          <Menu
+            label={<DotsThree size={18} weight="bold" />}
+            ariaLabel={`More actions for ${title}`}
+          >
+            {renderSessionActions(session.id)}
+          </Menu>
+        </span>
         <button
-          className={`session-pin${isPinned ? " active" : ""}`}
+          className={`session-pin max-[900px]:hidden!${isPinned ? " active" : ""}`}
           tabIndex={-1}
           title={isPinned ? "Unpin session" : "Pin session"}
           aria-label={isPinned ? "Unpin session" : "Pin session"}
@@ -282,7 +306,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
           <PushPin size={13} weight={isPinned ? "fill" : "regular"} />
         </button>
         <button
-          className="session-archive"
+          className="session-archive max-[900px]:hidden!"
           tabIndex={-1}
           title={archived.includes(session.id) ? "Unarchive session" : "Archive session"}
           aria-label={archived.includes(session.id) ? "Unarchive session" : "Archive session"}
@@ -597,14 +621,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
 
       {ctx?.kind === "session" && (
         <ContextMenu x={ctx.x} y={ctx.y} onClose={() => setCtx(null)}>
-          <MenuLabel>{displayTitle(renames, ctx.sid, sessions.find((session) => session.id === ctx.sid)?.title)}</MenuLabel>
-          <MenuItem onClick={() => togglePin(ctx.sid)}>{pinned.includes(ctx.sid) ? "Unpin" : "Pin"}</MenuItem>
-          <MenuItem onClick={() => useStore.getState().openModal({ kind: "rename", sid: ctx.sid })}>Rename…</MenuItem>
-          <MenuItem onClick={() => unread.includes(ctx.sid) ? markRead(ctx.sid) : markUnread(ctx.sid)}>{unread.includes(ctx.sid) ? "Mark as read" : "Mark as unread"}</MenuItem>
-          <MenuItem onClick={() => toggleArchive(ctx.sid)}>{archived.includes(ctx.sid) ? "Unarchive" : "Archive"}</MenuItem>
-          <MenuLabel>Copy</MenuLabel>
-          <MenuItem onClick={() => { copyText(ctx.sid); toast("copied session id", "info"); }}>Session ID</MenuItem>
-          <MenuItem onClick={() => { copyText(`${location.origin}/#${ctx.sid}`); toast("copied link", "info"); }}>Session link</MenuItem>
+          {renderSessionActions(ctx.sid)}
         </ContextMenu>
       )}
       {ctx?.kind === "project" && (() => {

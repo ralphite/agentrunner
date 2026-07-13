@@ -34,6 +34,40 @@ describe("mobile sidebar dismissal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close sidebar" }));
     expect(onHide).toHaveBeenCalledTimes(1);
   });
+
+  it("exposes session actions without hover or right-click", () => {
+    const select = vi.fn();
+    useStore.setState({
+      sessions: [{
+        id: "20260712-120000-mobile-actions",
+        status: "idle",
+        turns: 1,
+        title: "Mobile actions",
+        workspace: "/repo/mobile",
+      }] as any,
+      sessionsReady: true,
+      currentSid: null,
+      archived: [],
+      pinned: [],
+      unread: [],
+      renames: {},
+      projects: {},
+      select,
+    });
+    const { container } = render(<Sidebar />);
+
+    const actions = screen.getByRole("button", { name: "More actions for Mobile actions" });
+    expect(actions.closest("span")!.className).toContain("max-[900px]:inline-flex");
+    expect(container.querySelector(".session-open")!.getAttribute("class")).toContain("max-[900px]:hidden!");
+    expect(screen.getByRole("button", { name: "Pin session" }).className).toContain("max-[900px]:hidden!");
+    expect(screen.getByRole("button", { name: "Archive session" }).className).toContain("max-[900px]:hidden!");
+
+    fireEvent.click(actions);
+    const labels = screen.getAllByRole("menuitem").map((item) => item.textContent);
+    expect(labels).toEqual(expect.arrayContaining(["Pin", "Rename…", "Mark as unread", "Archive"]));
+    // Opening management actions must not also navigate into the session.
+    expect(select).not.toHaveBeenCalled();
+  });
 });
 
 describe("current session visibility (SB-1)", () => {
