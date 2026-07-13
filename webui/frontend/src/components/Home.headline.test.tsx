@@ -10,7 +10,7 @@ const src: string = readFileSync(`${process.cwd()}/src/components/Home.tsx`, "ut
 describe("home greeting structure", () => {
   it("keeps the compact empty-state chain that Tailwind styles", () => {
     expect(src).toContain('<div className="home home-welcome home-empty-state">');
-    expect(src).toContain('<div className="hero">');
+    expect(src).toContain('<div className="hero max-[680px]:[@media(max-height:560px)]:py-2">');
     expect(src).toContain('<div className="home-empty">');
     expect(src).toContain('<h2 className="home-empty-headline">');
   });
@@ -22,7 +22,14 @@ describe("home greeting structure", () => {
   });
 
   it("keeps the send action on-screen after a starter fills the mobile composer", () => {
-    expect(src).toContain('className="home-composer w-full max-[480px]:[&_.cx-optimize]:hidden"');
+    expect(src).toContain("max-[480px]:[&_.cx-optimize]:hidden");
     expect(src).toContain('<Composer variant="home"');
+  });
+
+  it("fits the empty composer inside a 390x500 viewport without changing normal-height mobile", () => {
+    expect(src).toContain("max-[680px]:[@media(max-height:560px)]:[&_.cx-env-strip]:flex-nowrap");
+    expect(src).toContain("max-[680px]:[@media(max-height:560px)]:[&_.cx-env-project-wrap]:flex-[1_1_0%]");
+    expect(src).toContain("max-[680px]:[@media(max-height:560px)]:[&_.cx-input-wrap]:pt-1.5");
+    expect(src).toContain("max-[680px]:[@media(max-height:560px)]:[&_.cx-input-wrap_textarea]:min-h-8");
   });
 });
