@@ -217,15 +217,16 @@ function MsgActions({
 }
 
 function StepIcon({ status }: { status: ToolItem["status"] }) {
-  if (status === "running") return <span className="step-ic spin" />;
-  if (status === "done") return <span className="step-ic ok"><Check size={12} /></span>;
-  if (status === "cancelled") return <span className="step-ic warn"><Circle size={8} /></span>;
-  return <span className="step-ic err"><X size={11} /></span>;
+  if (status === "running") return <span className="step-ic spin shrink-0" />;
+  if (status === "done") return <span className="step-ic ok shrink-0"><Check size={12} /></span>;
+  if (status === "cancelled") return <span className="step-ic warn shrink-0"><Circle size={8} /></span>;
+  return <span className="step-ic err shrink-0"><X size={11} /></span>;
 }
 
 // ShellDetail renders a bash activity as a Codex-style Shell block:
 // "$ command" + captured output + a ✓ Success / ✗ Exit N footer.
 function ShellDetail({ t }: { t: ToolItem }) {
+  const [copied, setCopied] = useState(false);
   const parse = (raw: any) => {
     if (typeof raw !== "string") return raw;
     try {
@@ -243,13 +244,48 @@ function ShellDetail({ t }: { t: ToolItem }) {
   const cancelled = t.status === "cancelled";
   const ok = !cancelled && t.status !== "error" && t.status !== "failed" && (exit === undefined || exit === 0);
   const out = [stdout, stderr].filter(Boolean).join(stdout && stderr ? "\n" : "");
+  const copyBody = [cmd && `$ ${cmd}`, out, t.partial, t.errorMsg].filter(Boolean).join("\n");
+  const copy = async () => {
+    await copyText(copyBody);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
+  };
   return (
-    <div className="shell">
-      <div className="shell-hd">Shell</div>
-      {cmd && <pre className="shell-cmd">$ {cmd}</pre>}
-      {out && <pre className="shell-out">{out.slice(0, 20000)}</pre>}
-      {t.partial && <pre className="shell-out">{t.partial}</pre>}
-      {t.errorMsg && <pre className="shell-out err">{t.errorMsg}</pre>}
+    <div className="shell min-w-0 max-w-full">
+      <div className="shell-hd">
+        <span>Shell</span>
+        {copyBody && (
+          <button
+            type="button"
+            className="msg-copy icon-only"
+            onClick={copy}
+            title="Copy command and result"
+            aria-label="Copy command and result"
+          >
+            {copied ? <Check size={15} /> : <Copy size={15} />}
+          </button>
+        )}
+      </div>
+      {cmd && (
+        <pre className="shell-cmd max-h-[240px] min-w-0 max-w-full overflow-auto whitespace-pre-wrap break-words p-3">
+          $ {cmd}
+        </pre>
+      )}
+      {out && (
+        <pre className="shell-out max-h-[240px] min-w-0 max-w-full overflow-auto whitespace-pre-wrap break-words">
+          {out.slice(0, 20000)}
+        </pre>
+      )}
+      {t.partial && (
+        <pre className="shell-out max-h-[240px] min-w-0 max-w-full overflow-auto whitespace-pre-wrap break-words">
+          {t.partial}
+        </pre>
+      )}
+      {t.errorMsg && (
+        <pre className="shell-out err max-h-[240px] min-w-0 max-w-full overflow-auto whitespace-pre-wrap break-words">
+          {t.errorMsg}
+        </pre>
+      )}
       <div className={"shell-status" + (ok ? "" : " bad")}>
         {ok ? <><Check size={12} /> Success</> : cancelled ? <><Circle size={9} /> Cancelled</> : <><X size={12} /> {exit !== undefined && exit !== 0 ? `Exit ${exit}` : "Failed"}</>}
       </div>
@@ -550,6 +586,9 @@ function ToolDetail({ t, body }: { t: ToolItem; body: string }) {
 
 function ToolCard({ t }: { t: ToolItem }) {
   const { verb, body, mono } = toolLabel(t.name, t.args);
+  const firstLine = body.trim().split("\n", 1)[0] || "";
+  const summaryBody = firstLine.length > 160 ? `${firstLine.slice(0, 159).trimEnd()}…` : firstLine;
+  const hasMoreBody = body.trim().length > firstLine.length;
   const isShell = t.name === "bash";
   const hasDetail =
     isShell ||
@@ -559,20 +598,28 @@ function ToolCard({ t }: { t: ToolItem }) {
     !!t.partial ||
     (!body && t.args !== undefined);
   return (
-    <details className={"step" + (t.status === "error" || t.status === "failed" ? " error" : "")}>
-      <summary>
+    <details className={"step group min-w-0 max-w-full overflow-hidden" + (t.status === "error" || t.status === "failed" ? " error" : "")}>
+      <summary className="flex min-w-0 items-start gap-2">
         <StepIcon status={t.status} />
-        <span className="step-verb">{verb}</span>
-        <span className={"step-body" + (mono ? " mono" : "")}>{body}</span>
-        {t.background && <span className="step-tag">background</span>}
+        <span className="step-verb shrink-0">{verb}</span>
+        <span className={"step-body min-w-0 flex-1 truncate" + (mono ? " mono" : "")} title={body || undefined}>
+          {summaryBody}{hasMoreBody && !summaryBody.endsWith("…") ? " …" : ""}
+        </span>
+        {t.background && <span className="step-tag shrink-0">background</span>}
         {t.usage && (
-          <span className="step-tok" title="tokens">
+          <span className="step-tok shrink-0" title="tokens">
             {t.usage.input_tokens + t.usage.output_tokens} tok
           </span>
         )}
+        {hasDetail && (
+          <CaretRight
+            size={13}
+            className="step-caret mt-[2px] shrink-0 text-dim transition-transform group-open:rotate-90"
+          />
+        )}
       </summary>
       {hasDetail && (
-        <div className="step-detail">
+        <div className="step-detail mt-2 min-w-0 max-w-full overflow-hidden">
           <ToolDetail t={t} body={body} />
         </div>
       )}
