@@ -1354,7 +1354,7 @@ sessions 命令造成假存活、driver 终态只显示 billed 而 raw usage 为
 **环境**：live `http://127.0.0.1:8809` + 共享
 `~/.local/share/agentrunner/` daemon/store；以 Go 1.26.5 构建并重启真实
 daemon/webui，in-app Browser 验收。证据归档
-`qa/runs/2026-07-12-INC67/`，测试数据不清理。
+`qa/runs/2026-07-13-INC67/`，测试数据不清理。
 
 | # | 真实动作 | 硬断言 |
 |---|---|---|
@@ -1364,4 +1364,10 @@ daemon/webui，in-app Browser 验收。证据归档
 | 4 | JSON 后附第二个 value、非法 session path/prefix | API 返回 400；CLI 明确拒绝 `../`，不解析 store 外 journal |
 | 5 | clean dist 全量 gate、race、`govulncheck`、`npm audit` | `check.sh` 从仅 `.gitkeep` 起全绿；多 writer race 5 轮绿；可达 Go 漏洞 0；npm 漏洞 0 |
 
-**结果**：待执行。
+**结果**：PASS。共享 store 保留 584 个 session；小文件 SHA-256
+`093054a58a184e264e6047ea68c477f05b3a01be5b69d6bc05004623af5aad40`，
+uploads 仅增加该 1 份，10 MiB+1 请求为 413；trailing JSON 为 400，
+`../` CLI 解析 exit 2。浏览器打开并 reload 真实三 worker session，主答案与
+ready 状态保留、无横向 overflow、console warning/error=0。`check.sh` 从 clean
+依赖/产物起全绿（48 frontend files / 546 tests、installer 5 场景）；race 3 轮、
+两套 `govulncheck` 与 `npm audit` 均为 0 可达漏洞。

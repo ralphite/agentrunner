@@ -52,7 +52,8 @@
 ## 语言与实现约定
 
 - 叙述用中文，技术术语/代码/标识符用英文。
-- 实现语言 Go 1.23+（DESIGN 决策 #1）；主 provider Gemini、次 Anthropic。
+- 实现语言 Go 1.25+ 且使用受支持分支的安全 patch（DESIGN 决策 #1）；
+  主 provider Gemini、次 Anthropic。
 - 一步完成的标准：`./scripts/check.sh` 全绿 + 相关文档行齐活。
 
 ## 历史归档

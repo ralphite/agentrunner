@@ -38,7 +38,7 @@ while IFS= read -r t; do
   # 允许 TestFoo* 缩写:按前缀匹配函数名
   # Search the working tree, not only the index: PROCESS requires the gate
   # before commit, so a newly added (still-untracked) test must be visible.
-  if ! rg -q "func $t" --glob '*_test.go'; then
+  if ! rg -q "func $t" --glob '*_test.go' .; then
     echo "lint-docs: SPEC 锚点名的测试不存在: $t" >&2
     fail=1
   fi

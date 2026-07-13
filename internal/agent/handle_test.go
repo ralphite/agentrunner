@@ -100,7 +100,9 @@ func TestBackgroundWorkKill(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "bg1", Name: "bash",
-				Args: map[string]any{"command": "sleep 30", "background": true}}},
+				// Delay TERM completion long enough to deterministically expose
+				// the asynchronous cancelling state before the final receipt.
+				Args: map[string]any{"command": "trap 'sleep 0.5; exit 0' TERM; sleep 30", "background": true}}},
 			{Finish: "tool_use"},
 		}},
 		// GenStep 2: kill it.
@@ -112,7 +114,14 @@ func TestBackgroundWorkKill(t *testing.T) {
 				{Finish: "tool_use"},
 			},
 		},
-		// GenStep 3: the cancellation arrived as a message; done.
+		// GenStep 3: kill is asynchronous; its paired result may arrive before
+		// the process group has fully exited. Yield while it is cancelling.
+		{
+			Expect:  scripted.Expect{LastMessageContains: "cancelling"},
+			Respond: []scripted.Event{{Text: "waiting for cancellation"}, {Finish: "end_turn"}},
+		},
+		// GenStep 4: after the process group is confirmed gone, the terminal
+		// cancellation receipt arrives as a user-role message.
 		{
 			Expect:  scripted.Expect{LastMessageContains: "canceled"},
 			Respond: []scripted.Event{{Text: "killed it"}, {Finish: "end_turn"}},

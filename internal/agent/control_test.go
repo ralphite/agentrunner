@@ -55,7 +55,11 @@ func controlLoop(t *testing.T, fix scripted.Fixture, maxSteps int) (*store.Event
 
 func waitForEvent(t *testing.T, es *store.EventStore, typ string, min int) {
 	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
+	// These are live loop tests, not fake-clock unit tests: under a full
+	// package run the verifier and journal goroutines can legitimately be
+	// descheduled for several seconds. Keep the bound finite, but do not turn
+	// host contention into a false product failure.
+	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		evs, _ := store.ReadEvents(es.Dir())
 		n := 0

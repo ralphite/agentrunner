@@ -866,10 +866,8 @@ func (e *Executor) runSandboxed(ctx context.Context, cmd *exec.Cmd, stdin []byte
 	pgid := cmd.Process.Pid
 
 	done := make(chan error, 1)
-	reaped := make(chan struct{})
 	go func() {
 		err := cmd.Wait()
-		close(reaped) // leader reaped: its pid is no longer safe to signal
 		done <- err
 	}()
 
@@ -895,7 +893,7 @@ func (e *Executor) runSandboxed(ctx context.Context, cmd *exec.Cmd, stdin []byte
 					grace = bashInterruptGrace
 				}
 			}
-			killGroup(pgid, reaped, grace)
+			killGroup(pgid, grace)
 			<-done
 		}
 	}
@@ -917,12 +915,12 @@ func (e *Executor) runSandboxed(ctx context.Context, cmd *exec.Cmd, stdin []byte
 	return Result{Payload: payload, IsError: timedOut || canceled || cmd.ProcessState.ExitCode() != 0}
 }
 
-// killGroup terminates the process group: SIGTERM, grace, then SIGKILL.
-// Once `reaped` fires, the leader has been waited on and its pid may be
-// recycled as an unrelated pgid — signaling it again could kill innocent
-// processes, so we stop escalating (TERM-resistant grandchildren that
-// outlive the leader escape the KILL; that beats shooting a stranger).
-func killGroup(pgid int, reaped <-chan struct{}, grace time.Duration) {
+// killGroup terminates the whole process group: SIGTERM, grace, then SIGKILL.
+// The direct sandbox wrapper can exit before a TERM-resistant grandchild;
+// therefore reaping the wrapper is not proof that the group is gone. Probe
+// the group itself and stop immediately on ESRCH. Once ESRCH is observed we
+// never signal this pgid again, avoiding a later PID-reuse hazard.
+func killGroup(pgid int, grace time.Duration) {
 	_ = syscall.Kill(-pgid, syscall.SIGTERM)
 	deadline := time.After(grace)
 	tick := time.NewTicker(50 * time.Millisecond)
@@ -930,13 +928,11 @@ func killGroup(pgid int, reaped <-chan struct{}, grace time.Duration) {
 	for {
 		select {
 		case <-deadline:
-			select {
-			case <-reaped:
-			default:
+			// A final existence check narrows the signal to a group that still
+			// contains one of our descendants. ESRCH means cleanup completed.
+			if err := syscall.Kill(-pgid, syscall.Signal(0)); !errors.Is(err, syscall.ESRCH) {
 				_ = syscall.Kill(-pgid, syscall.SIGKILL)
 			}
-			return
-		case <-reaped:
 			return
 		case <-tick.C:
 			// Signal 0 probes for existence; only ESRCH means the group is

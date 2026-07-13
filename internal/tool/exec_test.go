@@ -38,6 +38,24 @@ func run(t *testing.T, e *Executor, name, args string) (map[string]any, bool) {
 	return m, res.IsError
 }
 
+// cancelWhenFileReady waits until the sandboxed shell has definitely
+// started before canceling it. A fixed sleep races sandbox startup under a
+// loaded host and can cancel before the shell writes the PID marker, which
+// proves nothing about process-group cleanup.
+func cancelWhenFileReady(path string, cancel func()) {
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if raw, err := os.ReadFile(path); err == nil && len(strings.TrimSpace(string(raw))) > 0 {
+			cancel()
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	// Bound the test even if startup itself is broken. The caller's marker
+	// assertion will report the more useful failure after Execute returns.
+	cancel()
+}
+
 func TestReadFile(t *testing.T) {
 	e, root := newExec(t)
 	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("hello"), 0o644); err != nil {
@@ -135,13 +153,13 @@ func TestBashBasics(t *testing.T) {
 
 func TestBashTimeoutKillsProcessGroup(t *testing.T) {
 	e, root := newExec(t)
+	marker := filepath.Join(root, "pgid.txt")
 
 	// 2.11: the wall-clock limit is owned by the durable timer, which
 	// cancels ctx with cause ErrActivityTimeout; bash renders timed_out.
 	ctx, cancel := context.WithCancelCause(context.Background())
 	go func() {
-		time.Sleep(300 * time.Millisecond)
-		cancel(errs.ErrActivityTimeout)
+		cancelWhenFileReady(marker, func() { cancel(errs.ErrActivityTimeout) })
 	}()
 
 	// The marker file lets us find the grandchild's pid.
@@ -161,7 +179,7 @@ func TestBashTimeoutKillsProcessGroup(t *testing.T) {
 	}
 
 	// The shell's process group must be gone.
-	raw, err := os.ReadFile(filepath.Join(root, "pgid.txt"))
+	raw, err := os.ReadFile(marker)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,10 +215,10 @@ func TestUnknownTool(t *testing.T) {
 // promptly and render as canceled — not as a fabricated timeout.
 func TestBashContextCancelKillsGroup(t *testing.T) {
 	e, root := newExec(t)
+	marker := filepath.Join(root, "pgid.txt")
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		time.Sleep(150 * time.Millisecond)
-		cancel()
+		cancelWhenFileReady(marker, cancel)
 	}()
 
 	start := time.Now()
@@ -218,7 +236,7 @@ func TestBashContextCancelKillsGroup(t *testing.T) {
 		t.Fatalf("m=%v isErr=%v, want canceled without timed_out", m, res.IsError)
 	}
 
-	raw, err := os.ReadFile(filepath.Join(root, "pgid.txt"))
+	raw, err := os.ReadFile(marker)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,6 +282,30 @@ func TestBashCancelLeavesNoSessionOrphans(t *testing.T) {
 
 	if pids := findMarkedSleeps(t, marker); len(pids) != 0 {
 		t.Fatalf("orphans survived cancel: pids %v", pids)
+	}
+}
+
+// A sandbox wrapper/leader can exit on TERM while a grandchild ignores it.
+// Cancellation must wait for the process group itself, then escalate, rather
+// than treating the reaped leader as proof that the whole group is gone.
+func TestBashCancelKillsTermResistantGrandchild(t *testing.T) {
+	e, root := newExec(t)
+	marker := fmt.Sprintf("7%d.%06d", os.Getpid()%10, time.Now().Nanosecond()%1000000)
+	ready := filepath.Join(root, "ready")
+	ctx, cancel := context.WithCancelCause(context.Background())
+	go cancelWhenFileReady(ready, func() { cancel(errs.ErrUserInterrupt) })
+
+	command := fmt.Sprintf(
+		`trap 'exit 0' TERM; (trap '' TERM; exec sleep %s) & echo ready > %s; wait`,
+		marker, ready,
+	)
+	res := e.Execute(ctx, "bash", json.RawMessage(fmt.Sprintf(`{"command":%q}`, command)))
+	if !res.IsError {
+		t.Fatalf("result = %s, want canceled", res.Payload)
+	}
+
+	if pids := findMarkedSleeps(t, marker); len(pids) != 0 {
+		t.Fatalf("TERM-resistant grandchildren survived cancel: pids %v", pids)
 	}
 }
 

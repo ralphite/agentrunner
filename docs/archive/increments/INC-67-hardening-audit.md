@@ -6,7 +6,8 @@
 边界输入可触发、且不需要产品裁决的明确缺陷：session 路径越界、Web 上传
 静默截断、共享配置/记忆的并发丢更新、daemon socket 权限失败被忽略、
 session id 熵不足、worktree 分支校验不一致、流扫描失败被误报正常结束，
-以及 clean checkout 的 gate 顺序错误。对应 UJ-01/02、UJ-19/20、UJ-24
+进程组 wrapper 提前退出遗留孙进程，以及 clean checkout/deploy 的 frontend
+embed 顺序错误。对应 UJ-01/02、UJ-19/20、UJ-24
 与 PROCESS 的完成闸门。
 
 ## Spec delta
@@ -18,10 +19,12 @@ session id 熵不足、worktree 分支校验不一致、流扫描失败被误报
   带第二个/trailing JSON value 明确拒绝；新 worktree 使用与 checkout 相同的
   Git branch 校验；attach/run 输出单行超限显式失败并取消可能堵塞的子进程。
 - 运行时：daemon socket 必须成功收紧到 0600 才开始服务；session id 使用
-  64-bit 随机后缀并在熵源失败时 fail closed。
+  64-bit 随机后缀并在熵源失败时 fail closed；取消以 PGID 实际消失为终态，
+  wrapper reaped 后仍存的 TERM-resistant 孙进程必须升级 SIGKILL。
 - 工程闸门：frontend build 先于依赖 embed 产物的 WebUI Go 测试；race 下的
   approval-waiting child 恢复测试不依赖 goroutine 抢跑顺序；deploy 可显式
-  复用真实 WebUI runtime，避免从不同 worktree 部署时切走既有 metadata/log。
+  复用真实 WebUI runtime，且总在 Go embed 前重建并检查 frontend dist，避免
+  从不同 worktree 部署时切走 metadata/log 或产出启动即 panic 的空壳 binary。
 
 ## Design delta
 
@@ -52,6 +55,7 @@ runtime 模型或分发目标；安全 patch gate 防止 build provenance 把标
 - Web API oversized upload/JSON、trailing JSON、slash branch 测试。
 - memory/config/hooks/artifact 多 writer 回归测试（含 `-race`）。
 - daemon socket mode 测试；session id shape/碰撞空间测试。
+- 取消时 wrapper 先退出、孙进程抗 TERM 的无孤儿回归测试。
 - `govulncheck` 无可达模块/标准库漏洞；已知不安全 Go patch 被 gate 拒绝。
 - `npm audit` 无漏洞；Vite 升至已修复分支，Node engine/gate 与其真实下限一致。
 - `./scripts/check.sh` 从无 `webui/frontend/dist` 的状态全绿。
@@ -64,6 +68,14 @@ runtime 模型或分发目标；安全 patch gate 防止 build provenance 把标
 2. 修 Web 输入边界与 worktree 校验，补 handler 测试。
 3. 修 gate 顺序与 race 时序测试，跑全量/race/真实环境 QA。
 4. 并回三层与 LOG，归档工作纸。
+
+## 结果
+
+PASS（2026-07-13）。`check.sh` 全绿（Go 全包、frontend 48 files / 546 tests、
+installer 5 场景）；核心并发/取消 `-race -count=3` 全绿；根与 WebUI
+`govulncheck` 无可达漏洞、`npm audit` 0。共享 584-session store 与真实 8809
+WebUI 完成 list/detail/deep-link/reload、上传边界、JSON/path 拒绝及重启验收，
+证据在 `qa/runs/2026-07-13-INC67/`，数据保留。
 
 ## review 裁决
 

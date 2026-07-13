@@ -60,7 +60,23 @@ WEBUI_OUT="$BINDIR/arwebui-$STAMP"
 echo "==> building ar    → $AR_OUT   (commit $STAMP)"
 go build -ldflags "-X main.version=$STAMP" -o "$AR_OUT" ./cmd/agentrunner
 
-echo "==> building arwebui → $WEBUI_OUT (embeds committed frontend/dist)"
+echo "==> building frontend for arwebui"
+(
+  cd webui/frontend
+  node_ok=$(node -p 'const [a,b]=process.versions.node.split(".").map(Number); Number((a===20&&b>=19)||(a===22&&b>=12)||a>22)')
+  if (( ! node_ok )); then
+    echo "webui: Node.js ^20.19 or >=22.12 required (found $(node --version))" >&2
+    exit 1
+  fi
+  npm ci --no-audit --no-fund
+  npm run build
+)
+if [[ ! -f webui/frontend/dist/index.html ]]; then
+  echo "!! frontend build did not produce dist/index.html" >&2
+  exit 1
+fi
+
+echo "==> building arwebui → $WEBUI_OUT (embeds freshly built frontend/dist)"
 ( cd webui && go build -ldflags "-X main.version=$STAMP" -o "$WEBUI_OUT" . )
 
 echo
