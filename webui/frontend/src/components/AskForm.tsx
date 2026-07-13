@@ -94,24 +94,38 @@ export function AskForm({
         <Question size={16} weight="bold" /> The agent is asking
       </div>
       {questions.map((q, qi) => (
-        <div className="ask-q" key={qi}>
-          <div className="ask-q-text">{q.question}</div>
+        <div className="ask-q mt-2 min-w-0" key={qi}>
+          <div className="ask-q-text mb-1.5 text-[13px] leading-[1.4] text-ink">{q.question}</div>
           {q.options && q.options.length > 0 && (
-            <div className="ask-opts">
+            <div className="ask-opts flex min-w-0 flex-col gap-1.5">
               {q.options.map((o, oi) => {
                 const on = oi + 1;
                 const isSel = selected[qi]?.has(on) ?? false;
                 return (
                   <button
                     type="button"
-                    className={"ask-opt" + (isSel ? " sel" : "")}
+                    className={`ask-opt flex w-full min-w-0 items-start gap-2 rounded-[8px] border px-2.5 py-2 text-left text-[13px] leading-[1.35] text-ink transition-colors ${
+                      isSel
+                        ? "sel border-blue bg-blue-soft hover:border-blue hover:bg-blue-soft"
+                        : "border-line bg-transparent hover:border-dim hover:bg-panel-2"
+                    }`}
                     key={oi}
                     onClick={() => toggle(qi, on, !!q.multi_select)}
                     title={o.description || o.label}
                   >
-                    {isSel ? <CheckCircle size={15} weight="fill" /> : <Circle size={15} />}
-                    <span className="ask-opt-label">{o.label}</span>
-                    {o.description && <span className="ask-opt-desc">{o.description}</span>}
+                    {isSel ? (
+                      <CheckCircle className="mt-[1px] shrink-0 text-blue" size={16} weight="fill" />
+                    ) : (
+                      <Circle className="mt-[1px] shrink-0 text-dim" size={16} />
+                    )}
+                    <span className="ask-opt-copy min-w-0 flex-1 [overflow-wrap:anywhere]">
+                      <span className="ask-opt-label block font-medium text-ink">{o.label}</span>
+                      {o.description && (
+                        <span className="ask-opt-desc mt-0.5 block text-[12px] leading-[1.35] text-dim">
+                          {o.description}
+                        </span>
+                      )}
+                    </span>
                   </button>
                 );
               })}
