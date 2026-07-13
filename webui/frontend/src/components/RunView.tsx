@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Stop as StopIcon } from "@phosphor-icons/react";
 import { AR } from "../api";
 import { useStore } from "../store";
 
@@ -122,45 +123,56 @@ export function RunView({ runId }: { runId: string }) {
     }
   };
 
+  const title = run?.label || runId;
+
   return (
     <>
-      <div className="topbar">
-        <span className="sid">{run?.label || runId}</span>
-        <span className={"pill " + (run?.status || "")}>{run?.status || "—"}</span>
-        <span className="readonly-tag">{run?.kind} run</span>
-        <span className="spacer" />
-        <div className="actions">
+      <div className="topbar min-w-0 overflow-hidden">
+        <span className="run-topbar-nav-slot hidden h-9 w-9 shrink-0 max-[900px]:block" aria-hidden="true" />
+        <span className="sid min-w-0 flex-1 truncate text-[13px] font-medium" title={title}>
+          {title}
+        </span>
+        {run?.status && <span className={"pill shrink-0 whitespace-nowrap " + run.status}>{run.status}</span>}
+        {run?.kind && <span className="readonly-tag !ml-0 shrink-0 whitespace-nowrap">{run.kind} run</span>}
+        <div className="actions shrink-0">
           {run?.status === "running" && (
-            <button className="sm danger" onClick={stop}>
-              Stop
+            <button className="topbar-tool stop" onClick={stop} title="Stop run" aria-label="Stop run">
+              <StopIcon size={14} weight="fill" />
+              <span className="topbar-tool-label">Stop</span>
             </button>
           )}
         </div>
       </div>
       <div
-        className="runlog"
+        className="runlog min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-3 font-mono text-[12px] leading-[1.5]"
         ref={ref}
+        role="log"
+        aria-label="Run output"
         onScroll={() => {
           const el = ref.current;
           if (el) stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
         }}
       >
-        {parsed.length === 0 && <div className="dim">waiting for output…</div>}
-        {parsed.map((l, i) => (
-          <div key={i}>
-            {l.iter !== undefined && <div className="run-iter">iteration {l.iter}</div>}
-            {l.verdict ? (
-              <div className={"run-verdict" + (l.verdict.ok ? " ok" : " warn")}>
-                ■ driver {l.verdict.reason} · {l.verdict.n} iteration{l.verdict.n === 1 ? "" : "s"}
-              </div>
-            ) : (
-              <div className="runline">
-                <span className="rk">{l.kind}</span>
-                <span className="rt">{l.text}</span>
-              </div>
-            )}
-          </div>
-        ))}
+        <div className="mx-auto w-full max-w-[760px]">
+          {parsed.length === 0 && <div className="dim py-1">waiting for output…</div>}
+          {parsed.map((l, i) => (
+            <div className="border-b border-line-2 last:border-b-0" key={i}>
+              {l.iter !== undefined && <div className="run-iter py-2 text-[11px] font-medium text-dim">iteration {l.iter}</div>}
+              {l.verdict ? (
+                <div className={"run-verdict py-2 font-medium" + (l.verdict.ok ? " ok text-green" : " warn text-amber")}>
+                  ■ driver {l.verdict.reason} · {l.verdict.n} iteration{l.verdict.n === 1 ? "" : "s"}
+                </div>
+              ) : (
+                <div className="runline grid min-w-0 grid-cols-[104px_minmax(0,1fr)] gap-3 py-[5px]">
+                  <span className="rk min-w-0 truncate text-[10px] text-dim" title={l.kind || "output"}>
+                    {l.kind || "output"}
+                  </span>
+                  <span className="rt min-w-0 whitespace-pre-wrap break-words text-ink-2">{l.text}</span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
     </>
   );
