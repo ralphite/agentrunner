@@ -152,9 +152,14 @@ export function Home() {
               <>What should we build?</>
             )}
           </h2>
-          <div className="home-empty-cards">
+          <div className="home-empty-cards max-[680px]:gap-1.5">
             {SUGGESTIONS.map((s) => (
-              <button key={s.key} type="button" className="home-empty-card" onClick={() => prefillComposer(s.prompt)}>
+              <button
+                key={s.key}
+                type="button"
+                className="home-empty-card max-[680px]:min-h-[76px] max-[680px]:gap-1 max-[680px]:px-2.5 max-[680px]:py-2"
+                onClick={() => prefillComposer(s.prompt)}
+              >
                 <span className={"home-empty-card-icon " + s.tone} aria-hidden>
                   {s.icon}
                 </span>

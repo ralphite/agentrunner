@@ -16,8 +16,10 @@ describe("home greeting structure", () => {
   });
 
   it("keeps suggestion cards and the project-aware repository span", () => {
-    expect(src).toContain('className="home-empty-cards"');
-    expect(src).toContain('className="home-empty-card"');
+    expect(src).toContain('className="home-empty-cards max-[680px]:gap-1.5"');
+    expect(src).toContain(
+      'className="home-empty-card max-[680px]:min-h-[76px] max-[680px]:gap-1 max-[680px]:px-2.5 max-[680px]:py-2"',
+    );
     expect(src).toContain('className="home-empty-repo"');
   });
 
