@@ -3964,3 +3964,14 @@ bug：空 `ar ps` 被解析成假后台项，background tool 的 timeline 状态
 scenarios）。真实共享 WebUI 重启后 `daemonUp/versionMatch=true`；普通、driver、
 多 Agent 旧 session 均可 fold/深链打开，旧产品 label 计数 0，console warning/error 0。
 迁移审计、备份与截图保留在 `qa/runs/2026-07-12-INC65/`。
+
+## 2026-07-13 · phone-webui 半小时刷新最新 main（CI 运维件，非产品增量）
+
+按用户要求把 `.github/workflows/phone-webui.yml` 从纯手动触发扩成
+`workflow_dispatch` + 半小时定时刷新：`17,47 * * * *`。workflow 仍保持
+单实例 `concurrency`，新一轮定时或手动 run 会顶掉旧 run，并继续通过
+actions/cache 延续 scratch store。
+
+为确保手机访问链接始终跑最新主线代码，`actions/checkout` 明确 `ref: main`；
+定时 run 无 `workflow_dispatch` inputs 时，非 smoke 步骤照常执行，默认 keepalive
+取 35 分钟覆盖半小时刷新间隔。此变更只调整 CI 运维入口，不改产品三层语义。

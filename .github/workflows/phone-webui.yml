@@ -8,7 +8,7 @@
 #                         Pre-approved）
 #      - GEMINI_API_KEY   （可选但没有它 agent turn 会失败）
 #      - ANTHROPIC_API_KEY（可选，次 provider）
-#   2. Actions → phone-webui → Run workflow。
+#   2. Actions → phone-webui → Run workflow；或等半小时定时刷新自动启动。
 #   3. 运行页的 job summary 里拿链接，手机装 Tailscale app 登录同一账号
 #      后打开。提前停：Cancel workflow run。
 #
@@ -17,6 +17,9 @@
 name: phone-webui
 
 on:
+  schedule:
+    # Every 30 minutes; offset avoids GitHub Actions' busiest top-of-hour slots.
+    - cron: "17,47 * * * *"
   workflow_dispatch:
     inputs:
       minutes:
@@ -31,7 +34,8 @@ on:
 permissions:
   contents: read
 
-# 同时只保留一个实例；重新 dispatch 会顶掉旧 run（旧 store 在取消时仍会保存）。
+# 同时只保留一个实例；半小时刷新或重新 dispatch 会顶掉旧 run
+# （旧 store 在取消时仍会保存）。
 concurrency:
   group: phone-webui
   cancel-in-progress: true
@@ -44,6 +48,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          # Always build latest main, even when manual dispatch was started
+          # from an older selected ref.
+          ref: main
 
       - uses: actions/setup-go@v5
         with:
@@ -85,7 +92,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           nohup ./bin/arwebui -ar "$PWD/bin/ar" -addr 0.0.0.0:8788 > webui.log 2>&1 &
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8788/api/health > /dev/null 2>&1; then
               echo "web UI is up"
               exit 0
@@ -97,14 +104,14 @@ jobs:
           exit 1
 
       - name: Join tailnet
-        if: ${{ !inputs.smoke }}
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.smoke }}
         uses: tailscale/github-action@v3
         with:
           authkey: ${{ secrets.TS_AUTHKEY }}
           hostname: agentrunner-phone
 
       - name: Publish URL
-        if: ${{ !inputs.smoke }}
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.smoke }}
         run: |
           # 先发布必达的 plain-HTTP tailnet URL（WireGuard 加密，仅本 tailnet
           # 设备可达）；HTTPS `tailscale serve` 是 best-effort 附加。所有
@@ -135,14 +142,14 @@ jobs:
             cat serve.err >&2 || true
           fi
         env:
-          MINUTES_IN: ${{ inputs.minutes }}
+          MINUTES_IN: ${{ github.event_name == 'workflow_dispatch' && inputs.minutes || '35' }}
           GEMINI_SET: ${{ secrets.GEMINI_API_KEY && '1' || '' }}
           ANTHROPIC_SET: ${{ secrets.ANTHROPIC_API_KEY && '1' || '' }}
 
       - name: Keep alive
-        if: ${{ !inputs.smoke }}
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.smoke }}
         env:
-          MINUTES_IN: ${{ inputs.minutes }}
+          MINUTES_IN: ${{ github.event_name == 'workflow_dispatch' && inputs.minutes || '35' }}
         run: |
           MINUTES=$(printf '%s' "$MINUTES_IN" | tr -dc '0-9')
           MINUTES=${MINUTES:-180}
