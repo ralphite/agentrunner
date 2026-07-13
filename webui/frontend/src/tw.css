@@ -207,6 +207,16 @@
   details > summary::-webkit-details-marker { display: none; }
 }
 
+@layer utilities {
+  @supports (-webkit-touch-callout: none) {
+    @media (any-pointer: coarse) {
+      :is(input, textarea, select) {
+        font-size: max(16px, 1em);
+      }
+    }
+  }
+}
+
 @layer components {
   .mono { @apply font-mono; }
   .dim { @apply text-dim; }
