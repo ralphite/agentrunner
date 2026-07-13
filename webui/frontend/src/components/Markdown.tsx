@@ -34,9 +34,11 @@ function CodeBlock({ raw, lang, className, children }: { raw: string; lang?: str
   };
   return (
     <div className="my-[2px] border border-line rounded-[12px] overflow-hidden bg-panel-2 max-w-full">
-      <div className="flex items-center justify-between pt-[5px] pr-[6px] pb-[5px] pl-[12px] border-b border-line bg-panel">
-        <span className="text-[11px] text-dim lowercase tracking-[0.02em] font-mono">{lang || "text"}</span>
-        <div className="flex items-center gap-[2px]">
+      <div className="flex min-w-0 items-center gap-[6px] pt-[5px] pr-[6px] pb-[5px] pl-[12px] border-b border-line bg-panel">
+        <span className="min-w-0 flex-1 truncate text-[11px] text-dim lowercase tracking-[0.02em] font-mono" title={lang || "text"}>
+          {lang || "text"}
+        </span>
+        <div className="flex shrink-0 items-center gap-[2px]">
           <button
             className="inline-flex items-center gap-[4px] border border-transparent bg-transparent text-dim text-[11px] px-[8px] py-[3px] rounded-[6px] cursor-pointer transition-colors duration-[120ms] hover:bg-panel-2 hover:text-ink hover:border-line aria-pressed:text-ink aria-pressed:border-line"
             onClick={() => setWrap((w) => !w)}

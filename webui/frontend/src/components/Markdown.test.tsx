@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { Markdown, resolveSrc } from "./Markdown";
 
 // INC-51: react-markdown + remark-gfm + rehypeHighlight replaces the old
@@ -49,6 +49,42 @@ describe("Markdown (INC-51)", () => {
     fireEvent.click(getByTitle("Disable line wrap"));
     expect(pre().className).toContain("overflow-x-auto");
     expect(pre().className).not.toContain("whitespace-pre-wrap");
+  });
+
+  it("keeps header actions visible for a long language name without wrap points", () => {
+    const lang = "supercalifragilisticexpialidociouslanguageidentifierabcdefghijklmnopqrstuvwxyz0123456789";
+    const { container, getByTitle } = render(<Markdown text={`\`\`\`${lang}\nconst value = 1;\n\`\`\`\n`} />);
+    const pre = container.querySelector("pre.md-hljs") as HTMLElement;
+    const header = pre.previousElementSibling as HTMLElement;
+    const label = header.querySelector("span") as HTMLElement;
+    const actions = getByTitle("Copy code").parentElement as HTMLElement;
+
+    expect(label.textContent).toBe(lang);
+    expect(header.className).toContain("min-w-0");
+    expect(label.className).toContain("min-w-0");
+    expect(label.className).toContain("flex-1");
+    expect(label.className).toContain("truncate");
+    expect(label.title).toBe(lang);
+    expect(actions.className).toContain("shrink-0");
+    expect(actions.contains(getByTitle("Wrap long lines"))).toBe(true);
+  });
+
+  it("copies the exact raw fenced-code text", async () => {
+    const originalClipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+
+    try {
+      const raw = 'const sentinel = "COPY_WRAP_SCROLL_SENTINEL";';
+      const { getByTitle } = render(<Markdown text={`\`\`\`js\n${raw}\n\`\`\`\n`} />);
+      fireEvent.click(getByTitle("Copy code"));
+
+      await waitFor(() => expect(writeText).toHaveBeenCalledWith(raw));
+      expect(getByTitle("Copy code").textContent).toContain("Copied");
+    } finally {
+      if (originalClipboard) Object.defineProperty(navigator, "clipboard", originalClipboard);
+      else delete (navigator as Navigator & { clipboard?: Clipboard }).clipboard;
+    }
   });
 
   it("escapes raw HTML — no injection surface (security red line)", () => {
