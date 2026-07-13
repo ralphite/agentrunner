@@ -1347,20 +1347,28 @@ export function Composer(props: ComposerProps) {
                   the chip names whichever is on).
                 · Agent — one drill-in row showing the current persona; the five
                   personas and the raw-YAML editor live on the second page.
-              Titles and their gray descriptions share ONE line (see
-              .cx-add-menu in tw.css). */}
+              Titles and their gray descriptions share ONE line through the
+              menu-scoped descendant utilities below. */}
           <Popover
             align="left"
             panelClass="cx-pop-codex"
             onOpen={() => setAddMenuPage("root")}
             trigger={(open, toggle) => (
-              <button className={"cx-icon" + (open ? " active" : "")} onClick={toggle} title="Add & advanced options" aria-label="Add and advanced options" aria-haspopup="menu" aria-expanded={open}>
+              <button type="button" className={"cx-icon" + (open ? " active" : "")} onClick={toggle} title="Add & advanced options" aria-label="Add and advanced options" aria-haspopup="menu" aria-expanded={open}>
                 <PlusIcon />
               </button>
             )}
           >
             {(close) => (
-              <div className={"cx-menu cx-add-menu" + (addMenuPage === "agent" ? " cx-add-agent" : "")}>
+              <div
+                className={
+                  "cx-menu cx-add-menu [&_.pop-body]:flex-row [&_.pop-body]:items-baseline [&_.pop-body]:gap-2 " +
+                  "[&_.pop-title]:shrink-0 [&_.pop-desc]:min-w-0 [&_.pop-desc]:truncate" +
+                  (addMenuPage === "agent" ? " cx-add-agent" : "")
+                }
+                style={{ width: 320, maxWidth: "calc(100vw - 32px)" }}
+                onClick={(event) => event.preventDefault()}
+              >
                 {addMenuPage === "root" ? (
                   <>
                     <PopSection label="Add">
