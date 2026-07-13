@@ -528,6 +528,11 @@
   .changes-panel, .session-side { @apply min-h-0 border-l border-line bg-panel; }
   .session-view .changes-panel.session-side { @apply flex min-w-0 flex-col overflow-hidden; }
   .supervision-panel { @apply min-h-0 overflow-y-auto border-l border-line bg-panel p-3; }
+  .session-view .supervision-panel.session-side {
+    @apply absolute right-3 top-[60px] z-[25] block rounded-[16px] border border-line shadow-lg;
+    width: min(340px, calc(100% - 24px));
+    max-height: calc(100% - 72px);
+  }
   .supervision-head { @apply mb-3 flex items-center justify-between; }
   .supervision-label { @apply text-[12px] font-medium uppercase tracking-[0.06em] text-dim; }
   .supervision-section { @apply mb-4; }
