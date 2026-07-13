@@ -191,6 +191,7 @@ describe("TH-15 · one rail, one name, one door", () => {
 describe("mobile session topbar", () => {
   it("reserves the sidebar slot and keeps secondary recovery actions in the menu", async () => {
     (window as any).innerWidth = 390;
+    arMock.resume = vi.fn(async () => {});
     arMock.events = async (_sid: string, after: number) =>
       after
         ? []
@@ -217,6 +218,16 @@ describe("mobile session topbar", () => {
     expect(topbar.querySelector('button[aria-label="Resume session"]')).not.toBeNull();
     expect(topbar.querySelector('button[aria-label="Retry session"]')).toBeNull();
     expect(topbar.querySelector('button[aria-label="Fork session from checkpoint"]')).toBeNull();
+
+    const recovery = container.querySelector(".terminal-alert")!;
+    expect(recovery.classList.contains("grid")).toBe(true);
+    expect(screen.getByText("Session needs recovery").classList.contains("block")).toBe(true);
+    expect(screen.getByText(/previous host stopped/i).classList.contains("block")).toBe(true);
+    const recoveryAction = recovery.querySelector<HTMLButtonElement>(".terminal-alert-action")!;
+    expect(recoveryAction.classList.contains("w-full")).toBe(true);
+    fireEvent.click(recoveryAction);
+    await waitFor(() => expect(arMock.resume).toHaveBeenCalledWith(SID));
+
     fireEvent.click(screen.getByRole("button", { name: "More session actions" }));
     expect(screen.getByRole("menuitem", { name: "Retry last message" })).toBeTruthy();
     expect(screen.getByRole("menuitem", { name: "Continue in new session…" })).toBeTruthy();

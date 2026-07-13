@@ -941,7 +941,35 @@ export function SessionView({ sid }: { sid: string }) {
                   </button>
                 </div>
               )}
-              {terminalNotice && (
+              {terminalNotice?.action === "resume" && (
+                <div
+                  className={`terminal-alert ${terminalNotice.tone} grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]`}
+                  role="alert"
+                >
+                  <span className="terminal-alert-ic">
+                    <WarningCircle size={17} weight="fill" />
+                  </span>
+                  <div className="min-w-0">
+                    <b className="block leading-5">{terminalNotice.title}</b>
+                    <span className="mt-1 block text-[12px] leading-[1.5] text-dim">{terminalNotice.body}</span>
+                    {goalAlertMeta && (
+                      <span className="terminal-alert-meta mt-2 flex gap-2" title={goalAlertMeta.goal}>
+                        <span className="tam-label">{goalAlertMeta.label}</span>
+                        {goalAlertMeta.elapsedMs !== undefined && <span>{formatElapsed(goalAlertMeta.elapsedMs)}</span>}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="terminal-alert-action col-span-2 flex w-full items-center justify-center gap-2 sm:col-span-1 sm:col-start-3 sm:row-start-1 sm:self-center sm:w-auto"
+                    onClick={runTerminalAction}
+                  >
+                    <ArrowClockwise size={14} />
+                    {terminalNotice.actionLabel}
+                  </button>
+                </div>
+              )}
+              {terminalNotice && terminalNotice.action !== "resume" && (
                 <div className={`terminal-alert ${terminalNotice.tone}`} role="alert">
                   <span className="terminal-alert-ic">
                     {terminalNotice.tone === "danger" ? <XCircle size={17} weight="fill" /> : <WarningCircle size={17} weight="fill" />}
