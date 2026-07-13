@@ -70,6 +70,28 @@ describe("mobile sidebar dismissal", () => {
   });
 });
 
+describe("mobile sidebar chrome touch targets", () => {
+  it("keeps the top and footer icon controls at least 44px without growing the brand row", () => {
+    useStore.setState({ sessions: [] });
+    const { container } = render(<Sidebar />);
+
+    const controls = [
+      screen.getByRole("button", { name: "Search sessions" }),
+      screen.getByRole("button", { name: "Close sidebar" }),
+      screen.getByRole("button", { name: "More options" }),
+    ];
+    for (const control of controls) {
+      expect(control.className).toContain("max-[900px]:w-[44px]!");
+      expect(control.className).toContain("max-[900px]:h-[44px]!");
+    }
+
+    const brandRow = container.querySelector(".brand-main")!.parentElement!;
+    expect(brandRow.className).toContain("min-h-[44px]");
+    expect(brandRow.className).toContain("max-[900px]:pt-0!");
+    expect(brandRow.className).toContain("max-[900px]:pb-0!");
+  });
+});
+
 describe("current session visibility (SB-1)", () => {
   // Ten sessions in one project: with cap=6, s3…s9 (ids sort newest-first) fall
   // behind "Show more". Opening one of them must still put it on the rail.

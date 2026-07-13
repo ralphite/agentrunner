@@ -333,20 +333,20 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
           home). Codex's rail opens with a plain "ChatGPT Codex" wordmark and
           nothing else. Same here: text only, so the first thing the eye lands
           on is a session, not a logo. */}
-      <div className="flex items-center justify-between min-h-[44px] pt-[6px] pr-[14px] pb-[6px] pl-[16px]">
+      <div className="flex items-center justify-between min-h-[44px] pt-[6px] pr-[14px] pb-[6px] pl-[16px] max-[900px]:pt-0! max-[900px]:pb-0!">
         <button className="brand-main" onClick={() => { showPage("home"); onNavigate?.(); }} aria-label="AgentRunner home">
           <span className="text-[16px] font-[650] tracking-[-0.2px]">AgentRunner</span>
         </button>
         <div className="flex items-center gap-[2px]">
           <button
-            className="w-[30px] h-[30px] grid place-items-center p-0 border-0 bg-transparent text-ink-2 rounded-[8px] hover:text-ink hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)]"
+            className="w-[30px] h-[30px] grid place-items-center p-0 border-0 bg-transparent text-ink-2 rounded-[8px] hover:text-ink hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] max-[900px]:w-[44px]! max-[900px]:h-[44px]!"
             onClick={onOpenPalette}
             title={`Search sessions (${keyLabel("mod")}K)`}
             aria-label="Search sessions"
           >
             <MagnifyingGlass size={16} />
           </button>
-          <button className="sidebar-close" onClick={onHide} title="Close sidebar" aria-label="Close sidebar">
+          <button className="sidebar-close max-[900px]:w-[44px]! max-[900px]:h-[44px]!" onClick={onHide} title="Close sidebar" aria-label="Close sidebar">
             <X size={17} />
           </button>
         </div>
@@ -584,7 +584,11 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             dot. Ours keeps the identity and folds the three into one `…` menu
             (the same Menu the session header uses), so every action survives with
             its shortcut and its title — they just stop shouting. */}
-        <Menu label={<DotsThree size={18} weight="bold" />} ariaLabel="More options">
+        <Menu
+          label={<DotsThree size={18} weight="bold" />}
+          ariaLabel="More options"
+          triggerClassName="max-[900px]:w-[44px]! max-[900px]:h-[44px]!"
+        >
           {onOpenSettings && (
             <MenuItem onClick={onOpenSettings} title="Settings (⌘,)">
               <GearSix size={16} /> Settings <span className="menu-kbd">{keyLabel("mod")},</span>
