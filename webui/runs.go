@@ -23,6 +23,7 @@ type run struct {
 	Kind      string   `json:"kind"` // submit | drive
 	Label     string   `json:"label"`
 	Workspace string   `json:"workspace"`
+	SessionID string   `json:"sessionId,omitempty"`
 	Status    string   `json:"status"` // running | done | failed | stopped
 	StartedAt string   `json:"startedAt"`
 	Args      []string `json:"-"`
@@ -53,6 +54,7 @@ type runView struct {
 	Kind      string `json:"kind"`
 	Label     string `json:"label"`
 	Workspace string `json:"workspace"`
+	SessionID string `json:"sessionId,omitempty"`
 	Status    string `json:"status"`
 	StartedAt string `json:"startedAt"`
 	scheduleView
@@ -63,7 +65,7 @@ func (r *run) view(now time.Time) runView {
 	defer r.mu.Unlock()
 	v := runView{
 		ID: r.ID, Kind: r.Kind, Label: r.Label, Workspace: r.Workspace,
-		Status: r.Status, StartedAt: r.StartedAt,
+		SessionID: r.SessionID, Status: r.Status, StartedAt: r.StartedAt,
 	}
 	if r.spec == nil {
 		return v
@@ -107,6 +109,17 @@ func (r *run) subscribe() (chan string, []string) {
 func (r *run) unsubscribe(ch chan string) {
 	r.mu.Lock()
 	delete(r.subs, ch)
+	r.mu.Unlock()
+}
+
+func (r *run) setSessionID(id string) {
+	if id == "" {
+		return
+	}
+	r.mu.Lock()
+	if r.SessionID == "" {
+		r.SessionID = id
+	}
 	r.mu.Unlock()
 }
 
@@ -222,8 +235,9 @@ func (rr *runRegistry) start(arPath, kind, label, workspace string, args []strin
 				r.lastIter = time.Now()
 				r.mu.Unlock()
 			}
-			if !notified && onSession != nil {
-				if m := sessionIDLine.FindString(line); m != "" {
+			if m := sessionIDLine.FindString(line); m != "" {
+				r.setSessionID(m)
+				if !notified && onSession != nil {
 					notified = true
 					onSession(m)
 				}

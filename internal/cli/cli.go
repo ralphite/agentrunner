@@ -145,7 +145,7 @@ func commandHelp(cmd string) string {
 	case "interrupt":
 		return "usage: agentrunner interrupt <session-id-or-prefix>\n\nInterrupt the session's current turn (a no-op at idle).\nUnlike a queued message, this cancels in-flight work now.\n"
 	case "stop":
-		return "usage: agentrunner stop <session-id-or-prefix>\n\nStop a hosted run: graceful teardown, no mark; `send` revives it.\n"
+		return "usage: agentrunner stop <session-id-or-prefix>\n\nStop a hosted run: mark it stopped; `send` revives it.\n"
 	case "compact":
 		return "usage: agentrunner compact <session-id-or-prefix> [focus directive]\n\nSummarize the session's context now. The optional focus directive\ntells the summarizer what to preserve.\n"
 	case "clear":
@@ -207,7 +207,7 @@ Conversations (need the daemon):
                               the session keeps running; --replay-only prints history and exits)
   close <session>             end a session gracefully
   interrupt <session>         interrupt the current turn (a no-op at idle; close is separate)
-  stop <session>              stop a hosted run: graceful teardown, no mark; send revives it
+  stop <session>              stop a hosted run: mark it stopped; send revives it
   compact <session> [focus]   summarize the context now (optional focus directive)
   clear <session>             drop the context prefix (keep the full journal)
   remember <session> "note"   save a durable note to the project CLAUDE.md

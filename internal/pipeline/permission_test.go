@@ -116,6 +116,61 @@ func TestPermissionModeDefaults(t *testing.T) {
 	}
 }
 
+func TestCatchAllAskFallsThroughToModeDefaults(t *testing.T) {
+	ws := newPermWS(t)
+	rules := []PermissionRule{{Action: "ask"}}
+	cases := []struct {
+		name string
+		g    PermissionGate
+		eff  Effect
+		want string
+	}{
+		{
+			name: "read class remains allowed",
+			g:    PermissionGate{WS: ws, Rules: rules},
+			eff:  toolEffect("goal_complete", "read", `{"summary":"done"}`),
+			want: event.VerdictAllow,
+		},
+		{
+			name: "default edit still asks",
+			g:    PermissionGate{WS: ws, Rules: rules},
+			eff:  toolEffect("write_file", "edit", `{"path":"a.txt","content":"x"}`),
+			want: event.VerdictAsk,
+		},
+		{
+			name: "acceptEdits edit allowed",
+			g:    PermissionGate{WS: ws, Mode: ModeAcceptEdits, Rules: rules},
+			eff:  toolEffect("write_file", "edit", `{"path":"a.txt","content":"x"}`),
+			want: event.VerdictAllow,
+		},
+		{
+			name: "acceptEdits protected edit still asks",
+			g:    PermissionGate{WS: ws, Mode: ModeAcceptEdits, Rules: rules},
+			eff:  toolEffect("write_file", "edit", `{"path":".git/config","content":"x"}`),
+			want: event.VerdictAsk,
+		},
+		{
+			name: "catch-all deny remains explicit",
+			g:    PermissionGate{WS: ws, Mode: ModeAcceptEdits, Rules: []PermissionRule{{Action: "deny"}}},
+			eff:  toolEffect("write_file", "edit", `{"path":"a.txt","content":"x"}`),
+			want: event.VerdictDeny,
+		},
+		{
+			name: "explicit ask still wins",
+			g:    PermissionGate{WS: ws, Mode: ModeAcceptEdits, Rules: []PermissionRule{{Tool: "write_file", Action: "ask"}, {Action: "ask"}}},
+			eff:  toolEffect("write_file", "edit", `{"path":"a.txt","content":"x"}`),
+			want: event.VerdictAsk,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.g.Check(context.Background(), tc.eff); got.Action != tc.want {
+				t.Fatalf("decision = %+v, want %s", got, tc.want)
+			}
+		})
+	}
+}
+
 // A rule with both path and command requires both to match. (Uses a
 // non-read-only command so the INC-16 read-only fallback does not apply —
 // the point here is the conjunction, not the builtin set.)

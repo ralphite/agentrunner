@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider"
@@ -513,6 +514,42 @@ func TestConversationalMidTurnCancelResumes(t *testing.T) {
 	}
 	if !answered {
 		t.Error("resumed session never answered the interrupted turn")
+	}
+}
+
+func TestConversationalStopCancelMarksStopped(t *testing.T) {
+	root := t.TempDir()
+	sessDir := filepath.Join(t.TempDir(), "sess")
+	prov := &blockingLLM{entered: make(chan struct{}, 1)}
+
+	es, err := store.OpenEventStore(sessDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	l := testLoop(t, scripted.Fixture{}, root)
+	l.Store = es
+	l.Provider = prov
+	l.UserInputs = make(chan protocol.UserInput)
+	ctx, cancel := context.WithCancelCause(context.Background())
+	go func() {
+		<-prov.entered
+		cancel(errs.ErrSessionStopped)
+	}()
+	if _, err := l.Run(ctx, "first question"); err == nil {
+		t.Fatal("run survived stop cancel")
+	}
+	_ = es.Close()
+
+	evs, _ := store.ReadEvents(sessDir)
+	s, err := state.Fold(evs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Session.Closed == nil || s.Session.Closed.Reason != "stopped" {
+		t.Fatalf("session closed mark = %+v", s.Session.Closed)
+	}
+	if q, reason := state.Quiescence(s); !q || reason != "stopped" {
+		t.Fatalf("quiescence = %v %q, want stopped", q, reason)
 	}
 }
 

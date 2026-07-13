@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/ralphite/agentrunner/internal/clock"
+	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
 )
@@ -304,10 +305,10 @@ type hostedRun struct {
 	// approvalGiveUp caps delivery attempts per approval answer before the
 	// pump drops it (0 = the ~10s default); tests shrink it.
 	approvalGiveUp int
-	// stop tears the hosted loop down (决策 #32 agent switch): a plain ctx
-	// cancel — no mark, no ending; the journal simply stops mid-standby and
-	// the next send revives it (with whatever spec the journal then names).
-	stop context.CancelFunc
+	// stop tears the hosted loop down (决策 #32 agent switch): a cancel cause
+	// that lets the loop journal a restartable stopped mark; the next send
+	// revives it (with whatever spec the journal then names).
+	stop context.CancelCauseFunc
 }
 
 func newHostedRun(id string, notify func(protocol.Event), interactive bool) *hostedRun {
@@ -503,7 +504,7 @@ func (h *hostedRun) stopHosting() bool {
 	if h.done || h.stop == nil {
 		return false
 	}
-	h.stop()
+	h.stop(errs.ErrSessionStopped)
 	return true
 }
 
@@ -735,11 +736,11 @@ func (s *Server) hostResumeDrive(ctx context.Context, id string) {
 	s.runsWG.Add(1)
 	s.mu.Unlock()
 
-	runCtx, runCancel := context.WithCancel(ctx)
+	runCtx, runCancel := context.WithCancelCause(ctx)
 	hub.stop = runCancel
 	slog.Info("daemon: resuming drive", "session", id)
 	go func() {
-		defer runCancel()
+		defer runCancel(nil)
 		defer s.runsWG.Done()
 		defer func() {
 			s.mu.Lock()
@@ -1109,12 +1110,10 @@ func (s *Server) handleInterrupt(ctx context.Context, cmd Command, enc *json.Enc
 }
 
 // handleStop is the remote hard-cancel (G12): it tears the hosted run down
-// via the plain-teardown primitive (the same ctx cancel the agent switch
-// uses) — NO mark, NO ending. The session lands in durable standby and a
-// later `send` lawfully revives it, mirroring how a terminal run reacts to
-// SIGTERM. Distinct from `interrupt` (which only cancels the current turn's
-// activity and is a no-op at idle) and from `close`/`kill` (which leave a
-// mark that the automatic-resume path must not cross).
+// with a stop cause. The loop journals a restartable stopped mark so users
+// see deliberate stop rather than stranded; a later `send` lawfully revives
+// it. Distinct from `interrupt` (turn-level) and `close`/`kill` (explicit
+// end/cancel marks).
 func (s *Server) handleStop(cmd Command, enc *json.Encoder) {
 	if cmd.Session == "" {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "stop needs session"})
@@ -1528,10 +1527,10 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 	// switch tear just this loop down. The registry entry is removed when
 	// the run finishes — attach then serves replay only, and a long-lived
 	// daemon's map does not grow unboundedly (S6 review).
-	runCtx, runCancel := context.WithCancel(ctx)
+	runCtx, runCancel := context.WithCancelCause(ctx)
 	hub.stop = runCancel
 	go func() {
-		defer runCancel()
+		defer runCancel(nil)
 		defer s.runsWG.Done()
 		defer func() {
 			s.mu.Lock()
@@ -1598,11 +1597,11 @@ func (s *Server) handleDrive(ctx context.Context, cmd Command, enc *json.Encoder
 
 	// A per-run cancel makes the drive series stoppable (G12): without it
 	// `s.Drive` ran on the raw daemon ctx and a `stop` had nothing to cancel.
-	runCtx, runCancel := context.WithCancel(ctx)
+	runCtx, runCancel := context.WithCancelCause(ctx)
 	hub.stop = runCancel
 
 	go func() {
-		defer runCancel()
+		defer runCancel(nil)
 		defer s.runsWG.Done()
 		defer func() {
 			s.mu.Lock()

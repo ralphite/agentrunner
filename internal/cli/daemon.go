@@ -1106,12 +1106,11 @@ func approveCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "usage: agentrunner approve <session-id-or-prefix> <approval-id> <approve|deny> [reason] [--always]")
 		return ExitUsage
 	}
-	dir, err := resolveSessionDir(args[0])
+	session, err := resolveApprovalSession(args[0])
 	if err != nil {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 		return ExitUsage
 	}
-	session := filepath.Base(dir)
 	decision := args[2]
 	if decision != "approve" && decision != "deny" {
 		fmt.Fprintln(stderr, "agentrunner: decision must be approve or deny")
@@ -1141,6 +1140,13 @@ func approveCmd(args []string, stdout, stderr io.Writer) int {
 		return ExitRun
 	}
 	return code
+}
+
+func resolveApprovalSession(arg string) (string, error) {
+	if _, err := resolveSessionDir(arg); err != nil {
+		return "", err
+	}
+	return resolvePrefixLenient(arg), nil
 }
 
 // submitCmd hands a run — or, with --drive, an IterationDriver series — to

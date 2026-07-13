@@ -1165,6 +1165,11 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			// own clock (RunLifecycle's per-command timeout).
 			l.fireLifecycle(context.Background(), hook.EventSessionEnd,
 				map[string]string{"reason": "killed", "source": src}, false)
+		} else if errors.Is(context.Cause(ctx), errs.ErrSessionStopped) {
+			_, _ = appendE(event.TypeSessionClosed, &event.SessionClosed{
+				Reason: "stopped", Source: "user",
+				GenSteps: ds.s.Session.GenStep, Usage: ds.s.Session.Usage,
+			})
 		}
 		l.settleOnAbort(ctx, ds, appendE)
 		return cause

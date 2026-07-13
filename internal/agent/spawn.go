@@ -618,7 +618,9 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 			// The child journaled real spend before dying; settle from its
 			// own fold so the tree cap stays honest (S5 review).
 			spent = childFoldUsage(childDir)
-			if reason == "" {
+			if canceled {
+				reason = "canceled"
+			} else if reason == "" {
 				reason = "error"
 			}
 		}

@@ -77,6 +77,38 @@ func TestBuildInspectReport(t *testing.T) {
 	}
 }
 
+func TestInspectReportSurfacesFailedAndStopped(t *testing.T) {
+	failEvents := []event.Envelope{
+		mkEnv(t, event.TypeSessionStarted, &event.SessionStarted{SpecName: "demo", SubStateVersions: state.SubStateVersions()}),
+		mkEnv(t, event.TypeInputReceived, &event.InputReceived{Text: "go", Source: "cli"}),
+		mkEnv(t, event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}),
+		mkEnv(t, event.TypeActivityStarted, &event.ActivityStarted{ActivityID: "llm-t1", Kind: event.KindLLM, Name: "complete", Attempt: 1}),
+		mkEnv(t, event.TypeActivityFailed, &event.ActivityFailed{ActivityID: "llm-t1", Attempt: 1, Final: true,
+			Error: event.ErrorInfo{Class: "provider_invalid", Message: "bad model"}}),
+	}
+	s, err := state.Fold(failEvents)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := buildInspectReport(failEvents, s)
+	if r.Status != "failed" || !strings.Contains(r.Reason, "provider_invalid") {
+		t.Fatalf("failed report = %+v", r)
+	}
+
+	stopEvents := []event.Envelope{
+		mkEnv(t, event.TypeSessionStarted, &event.SessionStarted{SpecName: "demo", SubStateVersions: state.SubStateVersions()}),
+		mkEnv(t, event.TypeSessionClosed, &event.SessionClosed{Reason: "stopped", Source: "user"}),
+	}
+	s, err = state.Fold(stopEvents)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r = buildInspectReport(stopEvents, s)
+	if r.Status != "stopped" {
+		t.Fatalf("stopped report = %+v", r)
+	}
+}
+
 // S5.9: the tree report recurses into child journals under sub/, and the
 // artifacts section lists published versions.
 func TestBuildInspectTree(t *testing.T) {

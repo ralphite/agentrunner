@@ -143,7 +143,7 @@ not json at all
 func TestRunViewSchedule(t *testing.T) {
 	now := time.Date(2026, 7, 8, 10, 5, 0, 0, time.Local)
 	r := &run{
-		ID: "run1", Kind: "drive", Status: "running",
+		ID: "run1", Kind: "drive", Status: "running", SessionID: "20260708-100000-loop-ab12",
 		StartedAt: now.Add(-40 * time.Minute).Format(time.RFC3339),
 		spec:      &driverSpec{Schedule: schedInterval, Interval: "30m"},
 		lastIter:  now.Add(-10 * time.Minute),
@@ -151,6 +151,9 @@ func TestRunViewSchedule(t *testing.T) {
 	v := r.view(now)
 	if v.Cadence != "Every 30m" || v.Schedule != schedInterval {
 		t.Fatalf("view = %+v", v)
+	}
+	if v.SessionID != "20260708-100000-loop-ab12" {
+		t.Fatalf("sessionId = %q", v.SessionID)
 	}
 	want := now.Add(20 * time.Minute).Format(time.RFC3339)
 	if v.NextRunAt != want {

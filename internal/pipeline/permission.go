@@ -161,6 +161,9 @@ func (g *PermissionGate) matchOneCommand(eff Effect, relPath string, args toolAr
 		if !matched {
 			continue
 		}
+		if rule.isCatchAllAsk() {
+			continue
+		}
 		switch rule.Action {
 		case event.VerdictAllow:
 			return Allow, true
@@ -339,6 +342,10 @@ func (r PermissionRule) describe() string {
 		parts = append(parts, "any")
 	}
 	return strings.Join(parts, " ") + " → " + r.Action
+}
+
+func (r PermissionRule) isCatchAllAsk() bool {
+	return r.Action == event.VerdictAsk && r.Tool == "" && r.Path == "" && r.Command == "" && r.Network == ""
 }
 
 // credentialBasenames name files whose contents are credentials. A read of

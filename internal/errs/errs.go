@@ -42,6 +42,11 @@ var ErrActivityTimeout = New(Timeout, "activity timeout")
 // it than for a hard cancel, and the loop resumes rather than aborting.
 var ErrUserInterrupt = New(Canceled, "user interrupt")
 
+// ErrSessionStopped is the cancellation CAUSE for daemon `stop`: a user asked
+// to tear down hosting without closing the session. The loop records a
+// restartable SessionClosed{stopped} mark instead of looking stranded.
+var ErrSessionStopped = errors.New("session stopped")
+
 // KilledError is the cancellation CAUSE of an explicit kill (决策 #30): it
 // records WHO asked ("user" via ar kill / the surface, "parent" via the
 // parent model's kill tool), so the dying child journals a

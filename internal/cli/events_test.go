@@ -224,4 +224,7 @@ func TestResolveSessionDirTopLevelWithSubInSlug(t *testing.T) {
 	if got := resolvePrefixLenient(top + "-sub-call_1_0-a1"); got != top+"-sub-call_1_0-a1" {
 		t.Errorf("lenient(child) = %q, want the full child id back", got)
 	}
+	if got, err := resolveApprovalSession(top + "-sub-call_1_0-a1"); err != nil || got != top+"-sub-call_1_0-a1" {
+		t.Errorf("resolveApprovalSession(child) = %q, %v; want the full child id back", got, err)
+	}
 }

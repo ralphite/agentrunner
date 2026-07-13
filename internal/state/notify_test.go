@@ -98,3 +98,28 @@ func TestBackgroundNotifyGate(t *testing.T) {
 		})
 	}
 }
+
+func TestBackgroundCompletedWithErrorRendersFailed(t *testing.T) {
+	s := New()
+	var err error
+	if s, err = Apply(s, env(t, event.TypeActivityStarted, &event.ActivityStarted{
+		ActivityID: "tool-call_1_0", Kind: event.KindTool, Name: "bash",
+		Args:   json.RawMessage(`{"command":"false","background":true}`),
+		CallID: "call_1_0", Attempt: 1, Background: true,
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if s, err = Apply(s, env(t, event.TypeActivityCompleted, &event.ActivityCompleted{
+		ActivityID: "tool-call_1_0", Result: json.RawMessage(`{"exit_code":1}`), IsError: true,
+	})); err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range s.Conversation.Messages {
+		for _, p := range m.Parts {
+			if strings.Contains(p.Text, "[background work call_1_0 failed]") {
+				return
+			}
+		}
+	}
+	t.Fatalf("background error completion did not render failed: %+v", s.Conversation.Messages)
+}

@@ -103,11 +103,11 @@ func (s *Server) hostResumeCommandLocked(ctx context.Context, id string, explici
 	s.runsWG.Add(1)
 	s.mu.Unlock()
 
-	runCtx, runCancel := context.WithCancel(ctx)
+	runCtx, runCancel := context.WithCancelCause(ctx)
 	hub.stop = runCancel
 	slog.Info("daemon: resuming session", "session", id)
 	go func() {
-		defer runCancel()
+		defer runCancel(nil)
 		defer s.runsWG.Done()
 		defer func() {
 			s.mu.Lock()

@@ -2,20 +2,25 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
+	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/protocol"
 )
 
-// stop tears a hosted run down (ctx cancel) and acks "stopping"; it leaves
-// NO mark, so a later send revives the session (G12).
+// stop tears a hosted run down with an explicit stop cause and acks
+// "stopping"; a later send still revives the session (G12).
 func TestStopTearsDownHostedRun(t *testing.T) {
 	entered := make(chan struct{}, 1)
 	returned := make(chan struct{}, 1)
 	resume := func(ctx context.Context, _ ResumeRequest, _ protocol.Sink) error {
 		entered <- struct{}{}
 		<-ctx.Done() // an idle standby loop
+		if !errors.Is(context.Cause(ctx), errs.ErrSessionStopped) {
+			t.Errorf("stop cause = %v, want ErrSessionStopped", context.Cause(ctx))
+		}
 		returned <- struct{}{}
 		return ctx.Err()
 	}
@@ -45,7 +50,7 @@ func TestStopTearsDownHostedRun(t *testing.T) {
 		t.Fatal("hosted run not torn down after stop")
 	}
 
-	// No mark: a second stop finds no live run (teardown, not close).
+	// A second stop finds no live run (the hosted process was torn down).
 	if err := Dial(sock, Command{Cmd: "stop", Session: "stop-me"}, func(e protocol.Event) {
 		reply, isErr = e.Text, e.Kind == protocol.KindError
 	}); err != nil {
@@ -74,7 +79,8 @@ func TestStopUnknownSession(t *testing.T) {
 	}
 }
 
-// stop leaves no mark, so `send` lawfully revives the session afterward.
+// stop leaves a restartable mark in the agent journal, so explicit `send`
+// lawfully revives the session afterward.
 func TestStopThenSendRevives(t *testing.T) {
 	entered := make(chan struct{}, 2)
 	returned := make(chan struct{}, 1)

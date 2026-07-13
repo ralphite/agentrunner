@@ -581,6 +581,16 @@ func TestKillLeavesSourcedMark(t *testing.T) {
 		if mark == nil || mark.Reason != "killed" || mark.Source != "parent" {
 			t.Fatalf("child mark = %+v, want killed/parent", mark)
 		}
+		events, _ := store.ReadEvents(l.Store.Dir())
+		for _, e := range events {
+			if e.Type != event.TypeSubagentCompleted {
+				continue
+			}
+			dec, _ := event.DecodePayload(e)
+			if sc := dec.(*event.SubagentCompleted); sc.CallID == "s1" && sc.Reason != "canceled" {
+				t.Fatalf("parent child receipt reason = %q, want canceled", sc.Reason)
+			}
+		}
 	})
 
 	t.Run("user kill marks source=user", func(t *testing.T) {
@@ -624,6 +634,16 @@ func TestKillLeavesSourcedMark(t *testing.T) {
 		mark := readMark(t, filepath.Join(l.Store.Dir(), "sub", "s1-a1"))
 		if mark == nil || mark.Reason != "killed" || mark.Source != "user" {
 			t.Fatalf("child mark = %+v, want killed/user", mark)
+		}
+		events, _ := store.ReadEvents(l.Store.Dir())
+		for _, e := range events {
+			if e.Type != event.TypeSubagentCompleted {
+				continue
+			}
+			dec, _ := event.DecodePayload(e)
+			if sc := dec.(*event.SubagentCompleted); sc.CallID == "s1" && sc.Reason != "canceled" {
+				t.Fatalf("parent child receipt reason = %q, want canceled", sc.Reason)
+			}
 		}
 	})
 }

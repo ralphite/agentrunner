@@ -680,6 +680,28 @@ func TestDriverLoopIntervalCadence(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("driver did not finish after advancing the clock")
 	}
+	events, err := store.ReadEvents(dStore.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sawScheduled bool
+	for _, e := range events {
+		if e.Type != event.TypeIterationScheduled {
+			continue
+		}
+		sawScheduled = true
+		dec, err := event.DecodePayload(e)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := dec.(*event.IterationScheduled).Schedule
+		if got != driver.ScheduleInterval {
+			t.Fatalf("scheduled event schedule = %q, want %q", got, driver.ScheduleInterval)
+		}
+	}
+	if !sawScheduled {
+		t.Fatal("no iteration_scheduled event found")
+	}
 }
 
 // cronHarness wires a loop-mode cron driver with a text-only child (no bash

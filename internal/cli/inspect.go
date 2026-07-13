@@ -321,13 +321,27 @@ func buildInspectReport(events []event.Envelope, s state.State) inspectReport {
 	}
 
 	// Pass 2: walk activity completions into per-turn timeline entries.
-	// Status/Reason are read off the SHAPE (决策 #31): a close/kill mark
-	// or quiescence names the finish; otherwise the liveness status shows.
+	// Status/Reason are read off the SHAPE (决策 #31): explicit marks and
+	// final provider failures are visible terminal shapes; otherwise
+	// quiescence names the finish.
 	status, reason := s.Session.Status, ""
-	if s.Session.Closed != nil {
+	if s.Session.Failure != nil {
+		status = "failed"
+		reason = s.Session.Failure.Class
+		if s.Session.Failure.Message != "" {
+			reason = strings.TrimSpace(reason + ": " + s.Session.Failure.Message)
+		}
+	} else if s.Session.Closed != nil {
 		status, reason = "marked", s.Session.Closed.Reason
+		if s.Session.Closed.Reason == "stopped" {
+			status, reason = "stopped", ""
+		}
 	} else if q, r := state.Quiescence(s); q {
-		status, reason = "quiescent", r
+		if strings.HasPrefix(r, "failed:") {
+			status, reason = "failed", strings.TrimPrefix(r, "failed:")
+		} else {
+			status, reason = "quiescent", r
+		}
 	}
 	report := inspectReport{
 		Kind:     "run",

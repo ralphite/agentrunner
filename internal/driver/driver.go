@@ -379,7 +379,7 @@ func (d *Driver) drive(ctx context.Context, st *State, appendE appendFunc, start
 			// recovers lastTick and backfills a downed daemon's missed slots
 			// (INC-54). Journaled once (resume never re-journals a folded slot).
 			if _, err := appendE(event.TypeIterationScheduled, &event.IterationScheduled{
-				DriverID: d.DriverID, Iter: n, Schedule: ScheduleImmediate, Tick: d.lastTick,
+				DriverID: d.DriverID, Iter: n, Schedule: d.Spec.schedule(), Tick: d.lastTick,
 			}); err != nil {
 				return Result{}, err
 			}

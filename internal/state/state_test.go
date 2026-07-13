@@ -440,3 +440,109 @@ func TestActivityFailedFinality(t *testing.T) {
 		}
 	}
 }
+
+func TestFinalLLMFailureMarksSessionFailed(t *testing.T) {
+	s := New()
+	var err error
+	if s, err = Apply(s, env(t, event.TypeSessionStarted, &event.SessionStarted{})); err != nil {
+		t.Fatal(err)
+	}
+	if s, err = Apply(s, env(t, event.TypeInputReceived, &event.InputReceived{Text: "go", Source: "cli"})); err != nil {
+		t.Fatal(err)
+	}
+	if s, err = Apply(s, env(t, event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1})); err != nil {
+		t.Fatal(err)
+	}
+	if s, err = Apply(s, env(t, event.TypeActivityStarted, &event.ActivityStarted{
+		ActivityID: "llm-t1", Kind: event.KindLLM, Name: "complete", Attempt: 1,
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if s, err = Apply(s, env(t, event.TypeActivityFailed, &event.ActivityFailed{
+		ActivityID: "llm-t1", Attempt: 1, Final: true,
+		Error: event.ErrorInfo{Class: "provider_invalid", Message: "bad model", Retryable: false},
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if s.Session.Status != StatusFailed || s.Session.Failure == nil {
+		t.Fatalf("session failure = status %q mark %+v", s.Session.Status, s.Session.Failure)
+	}
+	if q, reason := Quiescence(s); !q || reason != "failed:provider_invalid" {
+		t.Fatalf("quiescence = %v %q, want failed:provider_invalid", q, reason)
+	}
+	if s, err = Apply(s, env(t, event.TypeInputReceived, &event.InputReceived{Text: "again", Source: "cli"})); err != nil {
+		t.Fatal(err)
+	}
+	if q, _ := Quiescence(s); q {
+		t.Fatal("new input after failure must make the session runnable")
+	}
+	if s, err = Apply(s, env(t, event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 2})); err != nil {
+		t.Fatal(err)
+	}
+	if s.Session.Status != StatusRunning || s.Session.Failure != nil {
+		t.Fatalf("generation did not clear failure: status %q mark %+v", s.Session.Status, s.Session.Failure)
+	}
+}
+
+func TestSessionClosedOverridesWaitingAndInFlightState(t *testing.T) {
+	s := New()
+	var err error
+	if s, err = Apply(s, env(t, event.TypeSessionStarted, &event.SessionStarted{})); err != nil {
+		t.Fatal(err)
+	}
+	if s, err = Apply(s, env(t, event.TypeActivityStarted, &event.ActivityStarted{
+		ActivityID: "tool-call_1_0", Kind: event.KindTool, Name: "bash",
+		CallID: "call_1_0", Attempt: 1,
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if s, err = Apply(s, env(t, event.TypeWaitingEntered, &event.WaitingEntered{
+		Kind: event.WaitApproval, Detail: json.RawMessage(`{"approval_id":"apr-eff-tool-call_1_0","effect_id":"eff-tool-call_1_0"}`),
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if s, err = Apply(s, env(t, event.TypeSessionClosed, &event.SessionClosed{Reason: "killed", Source: "user"})); err != nil {
+		t.Fatal(err)
+	}
+	if s.Waiting != nil || len(s.Activities) != 0 || len(s.Effects.Allowed) != 0 {
+		t.Fatalf("closed session retained live state: waiting=%+v activities=%+v effects=%+v", s.Waiting, s.Activities, s.Effects)
+	}
+	if q, reason := Quiescence(s); !q || reason != "canceled" {
+		t.Fatalf("quiescence = %v %q, want canceled", q, reason)
+	}
+}
+
+func TestGoalSatisfiedClearsGenerationStepTruncation(t *testing.T) {
+	s := New()
+	var err error
+	if s, err = Apply(s, env(t, event.TypeSessionStarted, &event.SessionStarted{})); err != nil {
+		t.Fatal(err)
+	}
+	if s, err = Apply(s, env(t, event.TypeGoalAttached, &event.GoalAttached{
+		GoalID: "goal", Goal: "done", Budget: event.GoalBudget{MaxChecks: 3},
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if s, err = Apply(s, env(t, event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1})); err != nil {
+		t.Fatal(err)
+	}
+	if s, err = Apply(s, env(t, event.TypeLimitExceeded, &event.LimitExceeded{
+		Kind: "generation_steps", Limit: 1, Used: 1,
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if q, reason := Quiescence(s); !q || reason != "max_generation_steps" {
+		t.Fatalf("precondition quiescence = %v %q", q, reason)
+	}
+	if s, err = Apply(s, env(t, event.TypeGoalAchieved, &event.GoalAchieved{
+		GoalID: "goal", Reason: "satisfied", Checks: 1,
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if s.Session.TruncatedAtGenStep != 0 || s.Session.TruncatedKind != "" {
+		t.Fatalf("truncation not cleared: %+v", s.Session)
+	}
+	if q, reason := Quiescence(s); q && reason == "max_generation_steps" {
+		t.Fatal("satisfied goal still reports max_generation_steps")
+	}
+}

@@ -54,6 +54,7 @@ type Barrier struct {
 const (
 	StatusRunning = "running"
 	StatusWaiting = "waiting"
+	StatusFailed  = "failed"
 )
 
 type State struct {
@@ -431,6 +432,10 @@ type Session struct {
 	// paths CHECK it (timer/boot sweep skip marked sessions; a user-killed
 	// child revives only for the user); it never blocks an explicit send.
 	Closed *CloseMark `json:"closed,omitempty"`
+	// Failure is a visible, restartable terminal mark for a final non-tool
+	// activity failure (for example provider_invalid). It prevents a clean
+	// final provider error from being misread as a crashed/stranded host.
+	Failure *FailureMark `json:"failure,omitempty"`
 	// TruncatedAtGenStep/TruncatedKind record a budget truncation at this
 	// gen step (决策 #30 可见截断): the turn ended by LimitExceeded, so the
 	// resolved-calls shape at this step counts as finished (Quiescence).
@@ -515,6 +520,14 @@ type ForkOrigin struct {
 type CloseMark struct {
 	Reason string `json:"reason"`           // closed | killed
 	Source string `json:"source,omitempty"` // user | parent
+}
+
+type FailureMark struct {
+	ActivityID string `json:"activity_id,omitempty"`
+	Class      string `json:"class,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Retryable  bool   `json:"retryable,omitempty"`
+	AtMsgCount int    `json:"at_msg_count,omitempty"`
 }
 
 // New is the empty pre-SessionStarted state.
@@ -625,6 +638,7 @@ func Apply(s State, env event.Envelope) (State, error) {
 		// close/kill mark and any truncation record — the shape is live again.
 		s.Session.Status = StatusRunning
 		s.Session.Closed = nil
+		s.Session.Failure = nil
 		s.Session.TruncatedAtGenStep = 0
 		s.Session.TruncatedKind = ""
 		s.Session.TruncatedMsgCount = 0
@@ -827,8 +841,12 @@ func Apply(s State, env event.Envelope) (State, error) {
 			// non-zero exit IsError, so "failed" needs no payload parsing.
 			s.Handles = s.Handles.without(started.CallID)
 			if backgroundOutcomeWanted(started, p.IsError) {
+				status := "completed"
+				if p.IsError {
+					status = "failed"
+				}
 				s.Conversation = s.Conversation.withMessage(handleOutcomeMessage(
-					started.CallID, "completed", string(p.Result)))
+					started.CallID, status, string(p.Result)))
 			}
 		} else if inFlight && started.Kind == event.KindTool && started.CallID != "" {
 			s.Conversation = s.Conversation.withToolResult(started.CallID,
@@ -856,6 +874,7 @@ func Apply(s State, env event.Envelope) (State, error) {
 		}
 		started, inFlight := s.Activities[p.ActivityID]
 		s.Activities = s.Activities.without(p.ActivityID)
+		s.Effects = s.Effects.withoutAllowed(effectIDFor(started, p.ActivityID))
 		s.Budget = s.Budget.release(effectIDFor(started, p.ActivityID))
 		if inFlight && started.Background && started.CallID != "" {
 			s.Handles = s.Handles.without(started.CallID)
@@ -871,6 +890,15 @@ func Apply(s State, env event.Envelope) (State, error) {
 			// loop continues, the model reacts (3.9).
 			s.Conversation = s.Conversation.withToolResult(started.CallID,
 				ToolResult{Result: errs.RenderForModel(errs.Class(p.Error.Class), p.Error.Message), IsError: true})
+		} else if inFlight && started.Kind != event.KindTool {
+			s.Session.Status = StatusFailed
+			s.Session.Failure = &FailureMark{
+				ActivityID: p.ActivityID,
+				Class:      p.Error.Class,
+				Message:    p.Error.Message,
+				Retryable:  p.Error.Retryable,
+				AtMsgCount: len(s.Conversation.Messages),
+			}
 		}
 		if inFlight && started.Kind == event.KindTool && started.CallID != "" {
 			s.Interactions = s.Interactions.withToolResult(started, p.ActivityID,
@@ -1048,6 +1076,12 @@ func Apply(s State, env event.Envelope) (State, error) {
 		// fields stay untouched; automatic paths check the mark, the next
 		// GenerationStarted clears it.
 		s.Session.Closed = &CloseMark{Reason: p.Reason, Source: p.Source}
+		s.Waiting = nil
+		s.Activities = Activities{}
+		s.Handles = Handles{}
+		s.Effects.Pending = map[string]event.EffectRequested{}
+		s.Effects.Allowed = map[string]bool{}
+		s.Budget.Reserved = map[string]int{}
 
 	// ---- INC-D1: in-session goal (G23/UJ-22) ----
 	case *event.GoalAttached:
@@ -1113,6 +1147,11 @@ func Apply(s State, env event.Envelope) (State, error) {
 	case *event.GoalAchieved:
 		if s.Goal != nil && s.Goal.GoalID == p.GoalID {
 			s.Goal = nil
+		}
+		if p.Reason == "satisfied" {
+			s.Session.TruncatedAtGenStep = 0
+			s.Session.TruncatedKind = ""
+			s.Session.TruncatedMsgCount = 0
 		}
 
 	case *event.GoalCompletionClaimed:
@@ -1411,14 +1450,25 @@ func Quiescence(s State) (quiescent bool, reason string) {
 	if len(s.Activities) > 0 || len(s.Handles) > 0 || len(s.Timers) > 0 {
 		return false, ""
 	}
-	if s.Waiting != nil && s.Waiting.Kind != event.WaitInput {
-		return false, "" // waiting on an approval/settlement: work in flight
-	}
 	if s.Session.Closed != nil {
 		if s.Session.Closed.Reason == "killed" {
 			return true, "canceled"
 		}
 		return true, s.Session.Closed.Reason
+	}
+	if s.Session.Failure != nil {
+		if s.Session.Failure.AtMsgCount > 0 &&
+			len(s.Conversation.Messages) > s.Session.Failure.AtMsgCount &&
+			hasInputAfterLastAssistant(s) {
+			return false, ""
+		}
+		if s.Session.Failure.Class != "" {
+			return true, "failed:" + s.Session.Failure.Class
+		}
+		return true, "failed"
+	}
+	if s.Waiting != nil && s.Waiting.Kind != event.WaitInput {
+		return false, "" // waiting on an approval/settlement: work in flight
 	}
 	// A visible truncation finishes the turn regardless of message shape
 	// (决策 #30). It restarts only on input that would actually run —
