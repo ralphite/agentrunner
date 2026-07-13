@@ -12,24 +12,24 @@ export function SettingsShortcuts({ query }: { query: string }) {
   })).filter((g) => g.items.length);
 
   return (
-    <div className="rs-panel">
+    <div className="rs-panel min-w-0">
       <h2 className="rs-panel-title">Keyboard shortcuts</h2>
-      <p className="rs-panel-sub">Every shortcut the app binds today. This list is read-only — rebinding isn’t supported yet.</p>
+      <p className="rs-panel-sub break-words">Every shortcut the app binds today. This list is read-only — rebinding isn’t supported yet.</p>
 
       {groups.length === 0 && <div className="rs-noresults">No shortcuts match “{query}”.</div>}
 
       {groups.map((g) => (
-        <section key={g.title} className="rs-sc-group">
+        <section key={g.title} className="rs-sc-group min-w-0">
           <div className="rs-sc-grouptitle">{g.title}</div>
           {g.items.map((it, i) => (
-            <div key={i} className="rs-sc-row">
-              <div className="rs-sc-label">
-                <span>{it.label}</span>
-                {it.desc && <span className="rs-sc-desc">{it.desc}</span>}
+            <div key={i} className="rs-sc-row min-w-0 max-[520px]:flex-col max-[520px]:items-start max-[520px]:gap-1.5">
+              <div className="rs-sc-label min-w-0 max-w-full flex-1">
+                <span className="break-words">{it.label}</span>
+                {it.desc && <span className="rs-sc-desc max-w-full break-words [overflow-wrap:anywhere]">{it.desc}</span>}
               </div>
-              <div className="rs-sc-keys">
+              <div className="rs-sc-keys max-w-[46%] shrink-0 max-[520px]:max-w-full max-[520px]:justify-start">
                 {it.keys.map((k, j) => (
-                  <kbd key={j} className="rs-kbd">
+                  <kbd key={j} className="rs-kbd inline-flex min-w-[22px] shrink-0 items-center justify-center whitespace-nowrap">
                     {keyLabel(k)}
                   </kbd>
                 ))}
