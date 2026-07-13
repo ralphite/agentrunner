@@ -91,7 +91,7 @@ export function Settings({ onClose, initialSection = "appearance" }: { onClose: 
         }
       }}
     >
-      <aside className="shrink-0 grow-0 basis-[264px] flex flex-col gap-[10px] px-[12px] py-[16px] border-r border-line bg-sidebar overflow-y-auto max-[720px]:basis-auto max-[720px]:grid max-[720px]:grid-cols-[auto_minmax(0,1fr)] max-[720px]:items-center max-[720px]:gap-[8px] max-[720px]:px-[12px] max-[720px]:py-[8px] max-[720px]:border-r-0 max-[720px]:border-b max-[720px]:overflow-hidden">
+      <aside className="shrink-0 grow-0 basis-[264px] flex flex-col gap-[10px] px-[12px] py-[16px] border-r border-line bg-sidebar overflow-y-auto max-[720px]:basis-auto max-[720px]:grid max-[720px]:grid-cols-1 max-[720px]:items-center max-[720px]:gap-[7px] max-[720px]:px-[12px] max-[720px]:py-[8px] max-[720px]:border-r-0 max-[720px]:border-b max-[720px]:overflow-hidden">
         <button className="inline-flex items-center gap-[7px] self-start pt-[5px] pr-[10px] pb-[5px] pl-[7px] border-0 bg-transparent text-ink-2 text-[13px] rounded-[8px] hover:bg-panel-2 hover:text-ink max-[720px]:self-auto max-[720px]:whitespace-nowrap" onClick={onClose}>
           <ArrowLeft size={15} weight="bold" /> Back to app
         </button>
@@ -106,7 +106,7 @@ export function Settings({ onClose, initialSection = "appearance" }: { onClose: 
             aria-label="Search settings"
           />
         </div>
-        <nav className="flex flex-col gap-[12px] mt-[2px] max-[720px]:col-span-2 max-[720px]:flex-row max-[720px]:gap-[4px] max-[720px]:mt-0 max-[720px]:overflow-x-auto max-[720px]:pb-[1px]">
+        <nav className="flex flex-col gap-[12px] mt-[2px] max-[720px]:flex-row max-[720px]:flex-wrap max-[720px]:gap-[4px] max-[720px]:mt-0 max-[720px]:overflow-visible max-[720px]:pb-[1px]">
           {groups.length === 0 && <div className="px-[10px] py-[12px] text-dim text-[13px]">No settings match</div>}
           {groups.map((g) => (
             <div key={g.group} className="flex flex-col gap-[2px] max-[720px]:contents">
@@ -114,7 +114,7 @@ export function Settings({ onClose, initialSection = "appearance" }: { onClose: 
               {g.items.map((s) => (
                 <button
                   key={s.id}
-                  className={"flex items-center gap-[10px] w-full px-[10px] py-[8px] border-0 rounded-[9px] text-[13.5px] text-left max-[720px]:w-auto max-[720px]:shrink-0 max-[720px]:gap-[7px] max-[720px]:px-[9px] max-[720px]:py-[6px] max-[720px]:text-[13px] max-[720px]:whitespace-nowrap " + (s.id === active ? "bg-[var(--rs-accent-soft)] text-[var(--rs-accent)] font-[550]" : "bg-transparent text-ink-2 hover:bg-panel-2 hover:text-ink")}
+                  className={"flex items-center gap-[10px] w-full px-[10px] py-[8px] border-0 rounded-[9px] text-[13.5px] text-left max-[720px]:w-auto max-[720px]:shrink-0 max-[720px]:gap-[7px] max-[720px]:px-[9px] max-[720px]:py-[6px] max-[720px]:text-[13px] max-[720px]:whitespace-nowrap " + (s.id === active ? "bg-[var(--rs-accent-soft)] text-[var(--rs-accent)] font-[550] max-[720px]:bg-panel-2 max-[720px]:text-ink" : "bg-transparent text-ink-2 hover:bg-panel-2 hover:text-ink")}
                   onClick={() => setSection(s.id)}
                   aria-current={s.id === active}
                 >
@@ -128,7 +128,7 @@ export function Settings({ onClose, initialSection = "appearance" }: { onClose: 
       </aside>
 
       <main className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
-        <header className="shrink-0 flex items-center justify-between gap-[12px] px-[26px] py-[14px] border-b border-line max-[720px]:px-[18px] max-[720px]:py-[12px]">
+        <header className="shrink-0 flex items-center justify-between gap-[12px] px-[26px] py-[14px] border-b border-line max-[720px]:hidden">
           <div className="inline-flex items-center gap-[7px] text-[13px] text-dim">
             {activeDef && <activeDef.icon size={15} />} Settings <span className="opacity-60">›</span> {activeDef?.label}
           </div>

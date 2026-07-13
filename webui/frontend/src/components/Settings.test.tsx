@@ -31,7 +31,7 @@ describe("Settings search", () => {
 });
 
 describe("Settings mobile shell", () => {
-  it("keeps navigation compact and gives panel content the only vertical scroller", () => {
+  it("stacks mobile chrome, wraps tabs, and gives panel content the only scroller", () => {
     render(<Settings onClose={() => {}} />);
 
     const dialog = screen.getByRole("dialog", { name: "Settings" });
@@ -42,11 +42,13 @@ describe("Settings mobile shell", () => {
 
     expect(dialog.className).toContain("h-[100dvh]");
     expect(dialog.className).toContain("overflow-hidden");
-    expect(rail.className).toContain("max-[720px]:grid");
+    expect(rail.className).toContain("max-[720px]:grid-cols-1");
     expect(rail.className).toContain("max-[720px]:overflow-hidden");
-    expect(rail.className).not.toContain("max-[720px]:max-h-[45vh]");
     expect(navigation.className).toContain("max-[720px]:flex-row");
-    expect(navigation.className).toContain("max-[720px]:overflow-x-auto");
+    expect(navigation.className).toContain("max-[720px]:flex-wrap");
+    expect(navigation.className).toContain("max-[720px]:overflow-visible");
+    expect(navigation.className).not.toContain("max-[720px]:overflow-x-auto");
+    expect(main.firstElementChild?.className).toContain("max-[720px]:hidden");
     expect(main.className).toContain("min-h-0");
     expect(main.className).toContain("overflow-hidden");
     expect(content.className).toContain("min-h-0");
