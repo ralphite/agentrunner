@@ -83,7 +83,7 @@ describe("Markdown (INC-51)", () => {
       expect(getByTitle("Copy code").textContent).toContain("Copied");
     } finally {
       if (originalClipboard) Object.defineProperty(navigator, "clipboard", originalClipboard);
-      else delete (navigator as Navigator & { clipboard?: Clipboard }).clipboard;
+      else delete (navigator as unknown as { clipboard?: Clipboard }).clipboard;
     }
   });
 
