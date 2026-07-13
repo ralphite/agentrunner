@@ -145,12 +145,12 @@ describe("A2 — tool detail extractors", () => {
     expect(d.hits).toEqual([{ path: "a.yaml", line: 1 }, { path: "b.yaml", line: 1 }]);
   });
 
-  it("spawn_agent: agent + task + child session link", () => {
+  it("spawn_agent: agent + session + child session link", () => {
     const d = spawnDetail(
-      { agent: "worker", task: "map the routes" },
+      { agent: "worker", prompt: "map the routes" },
       { agent: "worker", child_session: "sub-1", reason: "completed", report: "done" },
     );
-    expect(d).toMatchObject({ agent: "worker", task: "map the routes", childSession: "sub-1", reason: "completed" });
+    expect(d).toMatchObject({ agent: "worker", prompt: "map the routes", childSession: "sub-1", reason: "completed" });
   });
 
   it("web_fetch: url + bytes, untrusted defaults true", () => {

@@ -4,7 +4,7 @@ files:
   driver.yaml: |
     name: fill-progress
     agent_spec: worker.yaml
-    task: add a line to progress.txt
+    prompt: add a line to progress.txt
     max_iterations: 3
     verifiers:
       - { kind: command, command: "test $(wc -l < progress.txt) -ge 2" }

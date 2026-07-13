@@ -55,7 +55,7 @@ func TestRunAgentEndToEnd(t *testing.T) {
 	var out, errOut bytes.Buffer
 	code := runAgent(runOptions{
 		specPath:  writeSpec(t, dir),
-		task:      "embiggen",
+		prompt:    "embiggen",
 		workspace: ws,
 		factory:   scriptedFactory(fix),
 		stdout:    &out,
@@ -87,7 +87,7 @@ func TestRunAgentSpecErrorExits2(t *testing.T) {
 	var out, errOut bytes.Buffer
 	code := runAgent(runOptions{
 		specPath: "does-not-exist.yaml",
-		task:     "x",
+		prompt:   "x",
 		factory:  scriptedFactory(scripted.Fixture{}),
 		stdout:   &out, stderr: &errOut,
 	})
@@ -99,9 +99,9 @@ func TestRunAgentSpecErrorExits2(t *testing.T) {
 func TestRunCmdUsageErrors(t *testing.T) {
 	var out, errOut bytes.Buffer
 	if code := runCmd([]string{"only-spec.yaml"}, false, "dev", &out, &errOut); code != ExitUsage {
-		t.Errorf("missing task: exit = %d", code)
+		t.Errorf("missing prompt: exit = %d", code)
 	}
-	if code := runCmd([]string{"s.yaml", "task"}, true, "dev", &out, &errOut); code != ExitUsage {
+	if code := runCmd([]string{"s.yaml", "prompt"}, true, "dev", &out, &errOut); code != ExitUsage {
 		t.Errorf("record-fixture without -o: exit = %d", code)
 	}
 }

@@ -886,7 +886,7 @@ func (d *Driver) runIteration(ctx context.Context, n int, childSession string, a
 			res, rerr = child.Resume(ctx)
 		} else {
 			child := newChild(childStore, session)
-			res, rerr = child.Run(ctx, d.buildTask())
+			res, rerr = child.Run(ctx, d.buildPrompt())
 		}
 		_ = childStore.Close()
 		spent = addUsage(spent, childSpent(childDir))
@@ -940,21 +940,21 @@ func settledChild(childDir string) (bool, agent.RunResult) {
 // lets its own doc grow cannot bloat the next iteration's context.
 const seriesMemoryMaxBytes = 8 * 1024
 
-// buildTask renders one iteration's task: the spec task plus the truncated
+// buildPrompt renders one iteration's prompt plus the truncated
 // series-memory block when configured. A missing file is simply no block —
 // the first iteration has nothing to remember yet.
-func (d *Driver) buildTask() string {
-	task := d.Spec.Task
+func (d *Driver) buildPrompt() string {
+	prompt := d.Spec.Prompt
 	if d.Spec.SeriesMemory == "" || d.Exec == nil || d.Exec.WS == nil {
-		return task
+		return prompt
 	}
 	path, err := d.Exec.WS.Resolve(d.Spec.SeriesMemory)
 	if err != nil {
-		return task
+		return prompt
 	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return task
+		return prompt
 	}
 	mem := string(raw)
 	truncated := false
@@ -967,7 +967,7 @@ func (d *Driver) buildTask() string {
 		block += "\n[truncated at " + strconv.Itoa(seriesMemoryMaxBytes) + " bytes — keep this file short]"
 	}
 	block += "\n</series-memory>"
-	return task + block
+	return prompt + block
 }
 
 // iterDir names an iteration's child journal: sub/iter-N for the first

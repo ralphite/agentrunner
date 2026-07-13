@@ -1,6 +1,6 @@
 {
   "name": "goal_complete",
-  "description": "Declare the session's active goal achieved. If NO goal is attached to this session (nothing told you \"a goal is attached\" and goal_status reports none), this tool does not apply — do not call it for ordinary task completion; just answer normally. Only call it after verifying, against the current workspace state, that EVERY requirement of the attached goal is satisfied — the claim must withstand requirement-by-requirement scrutiny; do not call it because the budget is nearly spent or the work merely looks done. The claim is adjudicated at the turn boundary: if the goal has command verifiers they remain the sole judge; without verifiers your audited claim completes the goal.",
+  "description": "Declare the session's active goal achieved. If NO goal is attached to this session (nothing told you \"a goal is attached\" and goal_status reports none), this tool does not apply — do not call it for ordinary work; just answer normally. Only call it after verifying, against the current workspace state, that EVERY requirement of the attached goal is satisfied — the claim must withstand requirement-by-requirement scrutiny; do not call it because the budget is nearly spent or the work merely looks done. The claim is adjudicated at the turn boundary: if the goal has command verifiers they remain the sole judge; without verifiers your audited claim completes the goal.",
   "class": "read",
   "input_schema": {
     "type": "object",

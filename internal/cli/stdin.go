@@ -19,7 +19,7 @@ var stdinSource = func() (io.Reader, bool) {
 }
 
 // completeTextArg fills a command's trailing text argument from piped stdin,
-// the Unix filter convention: `echo task | ar run spec.yaml` or
+// the Unix filter convention: `echo prompt | ar run spec.yaml` or
 // `git diff | ar send <sid> -`. want is the command's full positional arity;
 // the text is always the last position. Cases:
 //   - all positions given, last == "-" → replace it with stdin; on a tty this
@@ -38,7 +38,7 @@ func completeTextArg(rest []string, want int) ([]string, error) {
 	r, piped := stdinSource()
 	if !piped {
 		if explicit {
-			return rest, fmt.Errorf(`stdin is not a pipe; "-" reads piped text (echo task | agentrunner ... -) — or pass the text as an argument`)
+			return rest, fmt.Errorf(`stdin is not a pipe; "-" reads piped text (echo prompt | agentrunner ... -) — or pass the text as an argument`)
 		}
 		return rest, nil
 	}

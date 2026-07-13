@@ -56,11 +56,11 @@ func imageReq(sid, ref string) *http.Request {
 func TestSessionImageServesDurableBlob(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	want := pngBytes(t)
-	seedBlob(t, "20260710-task-abcd", testRef, want)
+	seedBlob(t, "20260710-delegation-abcd", testRef, want)
 
 	s := &server{}
 	rec := httptest.NewRecorder()
-	s.handleSessionImage(rec, imageReq("20260710-task-abcd", testRef))
+	s.handleSessionImage(rec, imageReq("20260710-delegation-abcd", testRef))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200 (body %s)", rec.Code, rec.Body.String())

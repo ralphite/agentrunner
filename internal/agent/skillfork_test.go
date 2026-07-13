@@ -57,8 +57,8 @@ func transformLoop(t *testing.T, root string, dynamic bool) *Loop {
 	}
 }
 
-func skillCallTurn(name, task string) provider.GenStep {
-	args, _ := json.Marshal(map[string]string{"name": name, "task": task})
+func skillCallTurn(name, prompt string) provider.GenStep {
+	args, _ := json.Marshal(map[string]string{"name": name, "prompt": prompt})
 	return provider.GenStep{
 		Message: provider.Message{Role: provider.RoleAssistant, Parts: []provider.Part{
 			{Kind: provider.PartText, Text: "invoking"},
@@ -88,8 +88,8 @@ func TestForkSkillExpansion(t *testing.T) {
 		t.Fatal("message part and collected call diverged after expansion")
 	}
 	var spawn struct {
-		Role InlineRole `json:"role"`
-		Task string     `json:"task"`
+		Role   InlineRole `json:"role"`
+		Prompt string     `json:"prompt"`
 	}
 	if err := json.Unmarshal(part.Args, &spawn); err != nil {
 		t.Fatal(err)
@@ -103,8 +103,8 @@ func TestForkSkillExpansion(t *testing.T) {
 	if len(spawn.Role.Tools) != 1 || spawn.Role.Tools[0] != "read_file" {
 		t.Errorf("allowed-tools not mapped: %v", spawn.Role.Tools)
 	}
-	if spawn.Task != "check service X" {
-		t.Errorf("task = %q", spawn.Task)
+	if spawn.Prompt != "check service X" {
+		t.Errorf("prompt = %q", spawn.Prompt)
 	}
 
 	// Non-expanding cases: each stays an untouched skill call.
@@ -124,27 +124,27 @@ func TestForkSkillExpansion(t *testing.T) {
 	}
 }
 
-// TestForkSkillDefaultTask: a fork invocation without a task still expands,
-// with the default task filled in (role instructions carry the skill body).
-func TestForkSkillDefaultTask(t *testing.T) {
+// TestForkSkillDefaultPrompt: a fork invocation without a prompt still expands,
+// with the default prompt filled in (role instructions carry the skill body).
+func TestForkSkillDefaultPrompt(t *testing.T) {
 	root := t.TempDir()
 	writeSkill(t, root, "deploy-check", forkSkillMD)
 	l := transformLoop(t, root, true)
 	turn := skillCallTurn("deploy-check", "")
 	l.expandForkSkills(&turn)
 	var spawn struct {
-		Task string `json:"task"`
+		Prompt string `json:"prompt"`
 	}
 	if err := json.Unmarshal(turn.ToolCalls[0].Args, &spawn); err != nil {
 		t.Fatal(err)
 	}
-	if spawn.Task == "" {
-		t.Fatal("expanded fork spawn has an empty task")
+	if spawn.Prompt == "" {
+		t.Fatal("expanded fork spawn has an empty prompt")
 	}
 }
 
 // TestForkSkillSpawnsChild is the full-chain twin (mirrors
-// TestSpawnDynamicRole): the model invokes skill(name, task) on a fork skill;
+// TestSpawnDynamicRole): the model invokes skill(name, prompt) on a fork skill;
 // the journal records an ordinary dynamic-role spawn whose frozen RoleSpec
 // carries the skill body as the child's system prompt, and the child runs to
 // completion in its own journal.
@@ -155,7 +155,7 @@ func TestForkSkillSpawnsChild(t *testing.T) {
 	parentFix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "fk", Name: "skill", Args: map[string]any{
-				"name": "deploy-check", "task": "FORK-TASK: check the release",
+				"name": "deploy-check", "prompt": "FORK-WORK: check the release",
 			}}},
 			{Finish: "tool_use"},
 		}},

@@ -76,7 +76,7 @@ func siblingSpecResolver(parentSpecPath string) agent.SubSpecResolver {
 // runOptions carries everything runAgent needs; factored for testability.
 type runOptions struct {
 	specPath           string
-	task               string
+	prompt             string
 	workspace          string
 	maxGenerationSteps int
 	mode               string
@@ -110,13 +110,13 @@ func runCmd(args []string, recordMode bool, version string, stdout, stderr io.Wr
 		return ExitUsage
 	}
 	if len(rest) != 2 {
-		fmt.Fprintf(stderr, "usage: agentrunner %s [flags] <spec.yaml> \"task\"  (task may be piped: echo task | agentrunner %s spec.yaml)\n", name, name)
+		fmt.Fprintf(stderr, "usage: agentrunner %s [flags] <spec.yaml> \"prompt\"  (prompt may be piped: echo prompt | agentrunner %s spec.yaml)\n", name, name)
 		return ExitUsage
 	}
 	if rest[1] == "" {
-		// Catch it here like `send` does — an empty task otherwise reaches
+		// Catch it here like `send` does — an empty prompt otherwise reaches
 		// the provider and dies as a raw 400 (QA Round1 F-A05).
-		fmt.Fprintf(stderr, "agentrunner: %s needs a non-empty task\n", name)
+		fmt.Fprintf(stderr, "agentrunner: %s needs a non-empty prompt\n", name)
 		return ExitUsage
 	}
 	if recordMode && *fixtureOut == "" {
@@ -135,7 +135,7 @@ func runCmd(args []string, recordMode bool, version string, stdout, stderr io.Wr
 	}
 	return runAgent(runOptions{
 		specPath:           rest[0],
-		task:               rest[1],
+		prompt:             rest[1],
 		workspace:          *workspaceDir,
 		maxGenerationSteps: *maxGenerationSteps,
 		mode:               *mode,
@@ -185,7 +185,7 @@ func runAgent(opts runOptions) int {
 		prov = recorder
 	}
 
-	sessionID := runtime.NewSessionID(time.Now(), opts.task)
+	sessionID := runtime.NewSessionID(time.Now(), opts.prompt)
 	sessionDir, err := runtime.SessionDir(sessionID)
 	if err != nil {
 		fmt.Fprintln(opts.stderr, err)
@@ -227,7 +227,7 @@ func runAgent(opts runOptions) int {
 		SubSpecs:   siblingSpecResolver(opts.specPath),
 		Snapshots:  snapshotStoreFor(ws, opts.stderr),
 	}
-	result, runErr := loop.Run(ctx, opts.task)
+	result, runErr := loop.Run(ctx, opts.prompt)
 
 	// A recorded session is valuable even when the run errored (real tokens
 	// were spent); write the fixture regardless.

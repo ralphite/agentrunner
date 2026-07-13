@@ -13,11 +13,9 @@ export interface ProjectGroup {
 export interface SidebarModel {
   pinned: Session[];
   projects: ProjectGroup[];
-  // SB-13 · Tasks with no workspace at all. They are *not* a project: a folder
-  // icon and a group heading assert "these live in a directory on disk", which
-  // for these is simply false. The sidebar renders them flat under `Tasks`
-  // (Codex parity), so the assertion is never made.
-  tasks: Session[];
+  // Sessions without a workspace are not a project: rendering a folder would
+  // incorrectly assert that they live in a directory on disk.
+  workspaceLessSessions: Session[];
 }
 
 // ProjectOverlay is the client view of one project's server-side overlay
@@ -48,9 +46,9 @@ export function projectDisplayName(project: ProjectGroup, overlay?: ProjectOverl
 // SB-1 invariant: the session you are looking at is the rail's anchor, so it is
 // *always* in the visible set. Both fold and cap are conveniences (a default
 // view, a browsing limit) and both yield to it — otherwise a deep link, a ⌘K
-// jump, or a refresh into the 7th task of a project leaves the sidebar with no
+// jump, or a refresh into the 7th session of a project leaves the sidebar with no
 // trace of where you are. Nothing is written back: the user's manual fold is a
-// preference, not a claim that the current task should be invisible.
+// preference, not a claim that the current session should be invisible.
 export function visibleProjectSessions(
   project: ProjectGroup,
   opts: { folded?: boolean; expanded?: boolean; searching?: boolean; cap?: number; current?: string },
@@ -219,7 +217,7 @@ export function scheduleLabel(schedule?: string): string {
   }
 }
 
-// sessionNeedsAttention decides whether a task's status calls for the user:
+// sessionNeedsAttention decides whether a session's status calls for the user:
 // waiting on an approval, stranded/needing recovery, a hit iteration/step/
 // budget limit (all "stranded"), or a crash. It reuses friendlyStatus so the
 // Scheduled list and the command palette agree with the sidebar's dot colours
@@ -229,16 +227,16 @@ export function sessionNeedsAttention(status: string): boolean {
   return cls === "appr" || cls === "stranded" || cls === "crash";
 }
 
-// quickSwitchTasks builds the ⌘1..9 quick-switch list shared by the command
+// quickSwitchSessions builds the ⌘1..9 quick-switch list shared by the command
 // palette's badges and the global cmd-digit key binding (INC-41 W8). It covers
-// real tasks only — drivers live on the Scheduled page — and drops archived
-// ones. Attention-worthy tasks float to the front so they claim the lowest
+// conversational sessions only — drivers live on Scheduled — and drops archived
+// ones. Attention-worthy sessions float to the front so they claim the lowest
 // ⌘-numbers; the rest follow newest-first (session ids are creation stamps, so
 // that is a plain descending id sort). Capped at nine: there are nine digits.
-export function quickSwitchTasks(sessions: Session[], opts: { archived?: string[] } = {}): Session[] {
+export function quickSwitchSessions(sessions: Session[], opts: { archived?: string[] } = {}): Session[] {
   const archived = new Set(opts.archived || []);
-  const tasks = sessions.filter((s) => s.kind !== "driver" && !archived.has(s.id));
-  const byRecency = [...tasks].sort((a, b) => b.id.localeCompare(a.id));
+  const candidates = sessions.filter((s) => s.kind !== "driver" && !archived.has(s.id));
+  const byRecency = [...candidates].sort((a, b) => b.id.localeCompare(a.id));
   const attention = byRecency.filter((s) => sessionNeedsAttention(s.status));
   const rest = byRecency.filter((s) => !sessionNeedsAttention(s.status));
   return [...attention, ...rest].slice(0, 9);
@@ -292,17 +290,17 @@ export function buildSidebarModel(
   const ordered = [...visible].sort((a, b) => b.id.localeCompare(a.id));
 
   const groups = new Map<string, ProjectGroup>();
-  // SB-13 · Workspace-less tasks stay out of the project map entirely. Grouping
+  // Workspace-less sessions stay out of the project map entirely. Grouping
   // them under a synthetic "Other sessions" folder made the rail claim a
   // directory that does not exist; they belong to no project, so they come back
-  // as a flat list the sidebar renders under its own `Tasks` heading. Pinned
-  // still wins — a task appears in exactly one section, never two.
-  const tasks: Session[] = [];
+  // as a flat list under its own `Sessions` heading. Pinned still wins: a
+  // session appears in exactly one section, never two.
+  const workspaceLessSessions: Session[] = [];
   for (const session of ordered) {
     if (pinnedIds.has(session.id)) continue;
     const clean = (session.workspace || "").trim().replace(/\/+$/, "");
     if (!clean) {
-      tasks.push(session);
+      workspaceLessSessions.push(session);
       continue;
     }
     const identity = projectIdentity(clean);
@@ -332,7 +330,7 @@ export function buildSidebarModel(
     }
   }
 
-  return { pinned, projects: [...groups.values()], tasks };
+  return { pinned, projects: [...groups.values()], workspaceLessSessions };
 }
 
 export function buildArchivedModel(
@@ -347,15 +345,15 @@ export function buildArchivedModel(
     { pinned: [], archived: [], showArchived: true, query, titleOf },
   );
   // Settings → Archived is a purely *grouped* browser (it has no flat section),
-  // so the workspace-less tasks the sidebar now floats into `Tasks` would have
+  // so workspace-less sessions from the sidebar's flat `Sessions` section would
   // silently vanished from it. Fold them back into one trailing bucket here —
   // the SB-13 fix is about what the rail asserts, not about hiding archived
-  // tasks from the one screen that exists to find them.
-  if (model.tasks.length === 0) return model;
+  // disappear from the one screen that exists to find them.
+  if (model.workspaceLessSessions.length === 0) return model;
   return {
     ...model,
-    projects: [...model.projects, { key: "__other__", label: "Other sessions", sessions: model.tasks }],
-    tasks: [],
+    projects: [...model.projects, { key: "__other__", label: "Other sessions", sessions: model.workspaceLessSessions }],
+    workspaceLessSessions: [],
   };
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildArchivedModel, buildSidebarModel, daemonVersionLabel, dedupeInspectNodes, deNoiseSegment, projectDisplayName, projectLabel, projectSubtitle, projectSubtitles, quickSwitchTasks, scheduleLabel, scratchLabel, sessionNeedsAttention, visibleProjectSessions } from "./viewModels";
+import { buildArchivedModel, buildSidebarModel, daemonVersionLabel, dedupeInspectNodes, deNoiseSegment, projectDisplayName, projectLabel, projectSubtitle, projectSubtitles, quickSwitchSessions, scheduleLabel, scratchLabel, sessionNeedsAttention, visibleProjectSessions } from "./viewModels";
 import type { ProjectGroup } from "./viewModels";
 import { compactWorkspaceName, describeApproval } from "./approvalPresentation";
 import { conciseTitle, displayTitle, titleFromSessionId } from "./title";
@@ -16,7 +16,7 @@ const sessions: Session[] = [
 ];
 
 describe("project sidebar model", () => {
-  it("groups by workspace, floats workspace-less tasks out, and avoids pinned duplicates", () => {
+  it("groups by workspace, floats workspace-less sessions out, and avoids pinned duplicates", () => {
     const model = buildSidebarModel(sessions, {
       pinned: ["s2"],
       archived: [],
@@ -27,18 +27,18 @@ describe("project sidebar model", () => {
     expect(model.pinned.map((session) => session.id)).toEqual(["s2"]);
     // Newest-first everywhere (W8): ids sort descending, so Scratch leads.
     // SB-13: no "Other sessions" group — s3 has no workspace, so it is not in a
-    // project at all; it comes back in the flat `tasks` list instead.
+    // project at all; it comes back in the flat `sessions` list instead.
     expect(model.projects.map((project) => project.label)).toEqual(["Scratch", "agentrunner"]);
     expect(model.projects.flatMap((project) => project.sessions.map((session) => session.id))).toEqual(["scratch-2", "scratch-1", "s1"]);
-    expect(model.tasks.map((session) => session.id)).toEqual(["s3"]);
+    expect(model.workspaceLessSessions.map((session) => session.id)).toEqual(["s3"]);
     expect(model.projects.flatMap((project) => project.sessions.map((session) => session.id))).not.toContain("driver");
-    expect(model.tasks.map((session) => session.id)).not.toContain("driver");
+    expect(model.workspaceLessSessions.map((session) => session.id)).not.toContain("driver");
   });
 
   // SB-13 · A folder icon is an assertion ("these live in a directory"). For a
-  // task with no workspace it is a false one, so the model must not be able to
-  // make it: workspace-less tasks are never a group, and never a duplicate.
-  it("never puts a workspace-less task in a project group, pinned or not", () => {
+  // session with no workspace it is a false one, so the model must not be able to
+  // make it: workspace-less sessions are never a group, and never a duplicate.
+  it("never puts a workspace-less session in a project group, pinned or not", () => {
     const model = buildSidebarModel(
       [
         { id: "n1", status: "idle", turns: 1, title: "No workspace" },
@@ -52,17 +52,17 @@ describe("project sidebar model", () => {
     expect(model.projects.map((project) => project.label)).not.toContain("Other sessions");
     // Whitespace-only workspaces are workspace-less too — a group keyed on "   "
     // would be a folder icon over a path that does not exist.
-    expect(model.tasks.map((session) => session.id)).toEqual(["n2", "n1"]);
-    // A pinned task lives in exactly one section: Pinned. It must not also show
-    // up in Tasks (that was the whole reason the group skipped pinned ids).
+    expect(model.workspaceLessSessions.map((session) => session.id)).toEqual(["n2", "n1"]);
+    // A pinned session lives in exactly one section: Pinned. It must not also show
+    // up in Sessions (that was the whole reason the group skipped pinned ids).
     expect(model.pinned.map((session) => session.id)).toEqual(["n3"]);
-    expect(model.tasks.map((session) => session.id)).not.toContain("n3");
+    expect(model.workspaceLessSessions.map((session) => session.id)).not.toContain("n3");
   });
 
-  it("keeps archived workspace-less tasks reachable in the Archived browser", () => {
+  it("keeps archived workspace-less sessions reachable in the Archived browser", () => {
     // Settings → Archived only renders groups, so buildArchivedModel folds the
-    // flat tasks back into one bucket — SB-13 changes what the *rail* asserts,
-    // it does not hide archived tasks from the screen that exists to find them.
+    // flat sessions back into one bucket — SB-13 changes what the *rail* asserts,
+    // it does not hide archived sessions from the screen that exists to find them.
     const model = buildArchivedModel(
       [
         { id: "a1", status: "completed", turns: 1, title: "Archived, no workspace" },
@@ -72,7 +72,7 @@ describe("project sidebar model", () => {
       "",
       (session) => session.title || session.id,
     );
-    expect(model.tasks).toEqual([]);
+    expect(model.workspaceLessSessions).toEqual([]);
     expect(model.projects.map((project) => project.key)).toEqual(["/repo/app", "__other__"]);
     expect(model.projects[1].sessions.map((session) => session.id)).toEqual(["a1"]);
   });
@@ -237,7 +237,7 @@ describe("project name disambiguation (W4)", () => {
 });
 
 describe("command palette quick-switch (W8)", () => {
-  const tasks: Session[] = [
+  const sessions: Session[] = [
     { id: "20260710-090000-a", status: "completed", turns: 1 },
     { id: "20260710-080000-b", status: "waiting:approval", turns: 1 },
     { id: "20260710-070000-c", status: "running", turns: 1 },
@@ -257,8 +257,8 @@ describe("command palette quick-switch (W8)", () => {
     expect(sessionNeedsAttention("running")).toBe(false);
   });
 
-  it("floats attention tasks to the front so ⌘1/⌘2 land on the ones needing you", () => {
-    const order = quickSwitchTasks(tasks).map((s) => s.id);
+  it("floats attention sessions to the front so ⌘1/⌘2 land on the ones needing you", () => {
+    const order = quickSwitchSessions(sessions).map((s) => s.id);
     // Attention (b=approval, d=limit) lead, newest-first among themselves; the
     // rest follow newest-first. ⌘N = index+1 in this order.
     expect(order).toEqual([
@@ -270,8 +270,8 @@ describe("command palette quick-switch (W8)", () => {
     ]);
   });
 
-  it("excludes drivers and archived tasks", () => {
-    const order = quickSwitchTasks(tasks, { archived: ["20260710-040000-arch"] }).map((s) => s.id);
+  it("excludes drivers and archived sessions", () => {
+    const order = quickSwitchSessions(sessions, { archived: ["20260710-040000-arch"] }).map((s) => s.id);
     expect(order).not.toContain("20260710-050000-drv"); // driver → Scheduled page
     expect(order).not.toContain("20260710-040000-arch"); // archived
   });
@@ -282,7 +282,7 @@ describe("command palette quick-switch (W8)", () => {
       status: "completed",
       turns: 1,
     }));
-    const order = quickSwitchTasks(many);
+    const order = quickSwitchSessions(many);
     expect(order).toHaveLength(9);
     expect(order[0].id).toBe(many[0].id); // newest keeps ⌘1
   });
@@ -304,6 +304,7 @@ describe("approval presentation", () => {
 
   it("summarizes file and unknown actions", () => {
     expect(describeApproval("edit_file", { path: "src/App.tsx" }).subject).toBe("src/App.tsx");
+    expect(describeApproval("spawn_agent", { prompt: "Review the auth boundary" }).subject).toBe("Review the auth boundary");
     expect(describeApproval("custom_tool", {})).toMatchObject({
       title: "Allow action",
       subject: "custom_tool",
@@ -312,7 +313,7 @@ describe("approval presentation", () => {
   });
 });
 
-describe("task titles", () => {
+describe("session titles", () => {
   it("puts the distinguishing command or reply before repeated boilerplate", () => {
     expect(conciseTitle("Use the bash tool to run exactly: touch concurrent-4.txt.")).toBe("touch concurrent-4.txt");
     expect(conciseTitle("Reply with exactly: STANDING BY")).toBe("Reply · STANDING BY");
@@ -363,11 +364,11 @@ describe("status and background labels", () => {
     expect(friendlyStatus("completed").text).toBe("Completed");
   });
 
-  it("renders ps rows as sentences and never a dangling task= (W7)", async () => {
+  it("renders ps rows as sentences and never a dangling prompt= (W7)", async () => {
     const { backgroundLabel } = await import("./components/SupervisionPanel");
-    expect(backgroundLabel({ handle: "call_6_0", tool: "spawn_agent", detail: "running agent=worker task=" }))
+    expect(backgroundLabel({ handle: "call_6_0", tool: "spawn_agent", detail: "running agent=worker prompt=" }))
       .toBe("agent “worker” is working in the background");
-    expect(backgroundLabel({ handle: "h", tool: "spawn_agent", detail: "running agent=worker task=write hello.py" }))
+    expect(backgroundLabel({ handle: "h", tool: "spawn_agent", detail: "running agent=worker prompt=write hello.py" }))
       .toBe("agent “worker” — write hello.py");
     expect(backgroundLabel({ handle: "h2", tool: "bash", detail: "sleep 60" })).toBe("bash · sleep 60");
   }, 15_000);
@@ -403,7 +404,7 @@ describe("project overlay (INC-53)", () => {
 
   it("always renders the current session, past the cap and past a fold (SB-1)", () => {
     // The 7th session is beyond cap=6 — it still has to appear, or the sidebar
-    // shows no trace of the task the user is actually looking at.
+    // shows no trace of the session the user is actually looking at.
     expect(visibleProjectSessions(group, { current: "s6" }).map((s) => s.id))
       .toEqual(["s0", "s1", "s2", "s3", "s4", "s5", "s6"]);
     // A current session already inside the cap window is not duplicated.

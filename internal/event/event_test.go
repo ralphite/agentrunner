@@ -15,7 +15,7 @@ import (
 // forces adding its sample.
 var samples = map[string]any{
 	TypeSessionStarted: &SessionStarted{SpecName: "hello", Model: "gemini-flash-latest",
-		Task: "fix it", Version: "dev", SubStateVersions: map[string]int{"conversation": 1},
+		Prompt: "fix it", Version: "dev", SubStateVersions: map[string]int{"conversation": 1},
 		Spec: json.RawMessage(`{"name":"hello"}`), WorkspaceRoot: "/w",
 		Env: "<env>\ncwd: /w\n</env>", Memory: "<memory>rules</memory>",
 		Skills: "<skills>- s</skills>", Agents: "<agents>- a</agents>",
@@ -73,7 +73,7 @@ var samples = map[string]any{
 		Server: "demo", Name: "mcp__demo__peek", Description: "read-only peek",
 		Class: "read", InputSchema: json.RawMessage(`{"type":"object"}`)}}},
 	TypeSpawnRequested: &SpawnRequested{CallID: "call_2_0", Agent: "summarizer",
-		Task: "summarize the findings", ChildSession: "sess-sub-call_2_0", Depth: 1, BudgetTokens: 4000},
+		Prompt: "summarize the findings", ChildSession: "sess-sub-call_2_0", Depth: 1, BudgetTokens: 4000},
 	TypeSubagentCompleted: &SubagentCompleted{CallID: "call_2_0", Agent: "summarizer",
 		ChildSession: "sess-sub-call_2_0", Reason: "completed", GenSteps: 2,
 		Usage: provider.Usage{InputTokens: 100, OutputTokens: 50}},

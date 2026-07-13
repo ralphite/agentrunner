@@ -24,7 +24,7 @@ permissions: [ { action: allow } ]
 YAML
 cat > "$work/driver.yaml" <<'YAML'
 name: qa58cron
-task: 说一句 "tick"
+prompt: 说一句 "tick"
 agent_spec: spec.yaml
 max_iterations: 50
 schedule: cron

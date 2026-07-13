@@ -159,7 +159,7 @@ for (const [ctxName, viewport] of [
     }
   });
 
-  // Scheduled-task modal: bare workspace name must yield the FRIENDLY error.
+  // Scheduled-run modal: bare workspace name must yield the FRIENDLY error.
   // Phone-only: this validates the friendly-error + modal once; repeating the
   // identical flow on desktop added no coverage, only a flaky second run.
   if (ctxName === "phone") await S("scheduled-modal-bad-workspace", async () => {
@@ -180,16 +180,16 @@ for (const [ctxName, viewport] of [
       await page.locator(".modal").first().waitFor({ timeout: 5000 }).catch(() => {});
       const modal = page.locator(".modal");
       if (await modal.count()) {
-        const task = modal.getByRole("textbox", { name: "Task", exact: true });
+        const prompt = modal.getByRole("textbox", { name: "Prompt", exact: true });
         const wsField = modal.getByRole("textbox", { name: "Workspace", exact: true });
-        if ((await task.count()) === 1 && (await wsField.count()) === 1) {
-          await task.fill("Say hello");
+        if ((await prompt.count()) === 1 && (await wsField.count()) === 1) {
+          await prompt.fill("Say hello");
           await wsField.fill("abc");
           const values = await modal.evaluate((root) => ({
-            task: root.querySelector("textarea[placeholder='Describe the outcome you want']")?.value,
+            prompt: root.querySelector("textarea[placeholder='Describe the outcome you want']")?.value,
             workspace: root.querySelector("input[placeholder='Leave blank for a new scratch workspace']")?.value,
           }));
-          if (values.task !== "Say hello" || values.workspace !== "abc") {
+          if (values.prompt !== "Say hello" || values.workspace !== "abc") {
             finding("high", cur, "scheduled form fields did not retain distinct values", JSON.stringify(values));
             return;
           }
@@ -225,7 +225,7 @@ for (const [ctxName, viewport] of [
 
   if (!SKIP_TURNS) {
     let sid = "";
-    await S("create-task", async () => {
+    await S("create-session", async () => {
       await page.goto(BASE, { waitUntil: "domcontentloaded" });
       const box = page.locator(".cx-card textarea, textarea").first();
       await box.waitFor({ timeout: 10000 });
@@ -273,15 +273,15 @@ for (const [ctxName, viewport] of [
       const sessions = await fetch(`${BASE}/api/sessions?limit=200`).then((r) => r.json());
       const current = sessions.find((session) => session.id === sid);
       if (!current?.workspace) {
-        finding("high", cur, "new task has no retained workspace for Changes QA");
+        finding("high", cur, "new session has no retained workspace for Changes QA");
         return;
       }
       const changeName = `qa-blackbox-${sid}.txt`;
       fs.writeFileSync(path.join(current.workspace, changeName), `black-box change for ${sid}\n`);
 
-      const actions = page.getByRole("button", { name: "More task actions" });
+      const actions = page.getByRole("button", { name: "More session actions" });
       if (!(await actions.count())) {
-        finding("high", cur, "task actions menu did not surface");
+        finding("high", cur, "session actions menu did not surface");
         return;
       }
       await actions.click();

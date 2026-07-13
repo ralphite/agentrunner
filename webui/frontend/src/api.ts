@@ -1,4 +1,4 @@
-import type { DiffResp, DiffScope, Envelope, Health, LauncherApp, ProjectMeta, Run, Session, SpecFile, Task } from "./types";
+import type { BackgroundWork, DiffResp, DiffScope, Envelope, Health, LauncherApp, ProjectMeta, Run, Session, SpecFile } from "./types";
 
 // ApiError carries the HTTP status and the server's machine-readable `code`
 // (e.g. 404 / "session_not_found") next to the human message, so callers branch
@@ -155,7 +155,7 @@ export const AR = {
     return text;
   },
   rawEvents: (sid: string) => api<Envelope[]>(`/sessions/${sid}/events`),
-  ps: (sid: string) => api<Task[]>(`/sessions/${sid}/ps`),
+  ps: (sid: string) => api<BackgroundWork[]>(`/sessions/${sid}/ps`),
   barriers: (sid: string) => api<string[]>(`/sessions/${sid}/barriers`),
   barrier: (sid: string) => post<{ barrier: string }>(`/sessions/${sid}/barrier`),
   files: (sid: string, q: string) =>
@@ -251,7 +251,7 @@ export const AR = {
     kind: "submit" | "drive";
     spec: string;
     extraSpecs: SpecFile[];
-    task: string;
+    prompt: string;
     workspace: string;
     mode: string;
     idem: string;

@@ -104,7 +104,7 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 		return ExitRun
 	}
 	cmd := daemon.Command{
-		Cmd: "run", SpecPath: specPath, Task: rest[1],
+		Cmd: "run", SpecPath: specPath, Prompt: rest[1],
 		Workspace: wsAbs, Mode: *mode,
 	}
 	if *detach {
@@ -297,7 +297,7 @@ func loadFileAttachments(paths []string) ([]protocol.FileAttachment, error) {
 	return out, nil
 }
 
-// killCmd cancels one running child/task by handle (v2 M3.2):
+// killCmd cancels one running child/background work by handle (v2 M3.2):
 // `agentrunner kill <session-id-or-prefix> <handle>`.
 func killCmd(args []string, stdout, stderr io.Writer) int {
 	if len(args) != 2 {
@@ -591,7 +591,7 @@ func resolvePrefixLenient(prefix string) string {
 		// directory basename is only the last hop, so Base() would truncate
 		// it — pass child references through verbatim. A child dir is
 		// recognizable by its parent hop ("sub"); a TOP-LEVEL dir whose
-		// name happens to contain "-sub-" (slug from free task text,
+		// name happens to contain "-sub-" (slug from free prompt text,
 		// QA Round1 F-B2) resolves like any other top-level session.
 		if filepath.Base(filepath.Dir(dir)) == "sub" {
 			return prefix
@@ -660,7 +660,7 @@ func dialUntilStart(sock string, cmd daemon.Command) (string, error) {
 	return "", fmt.Errorf("session did not start")
 }
 
-// psCmd lists a session's in-flight background tasks/sub-agents from the
+// psCmd lists a session's in-flight background work/sub-agents from the
 // fold (v2 收口, QA-05/QA-09 观察面): handle, tool, and the spawn target.
 // Pure journal read — works with or without a live daemon.
 func psCmd(args []string, stdout, stderr io.Writer) int {
@@ -684,7 +684,7 @@ func psCmd(args []string, stdout, stderr io.Writer) int {
 		return ExitRun
 	}
 	if len(s.Handles) == 0 {
-		fmt.Fprintln(stdout, "no tasks in flight")
+		fmt.Fprintln(stdout, "no background work in flight")
 		return ExitOK
 	}
 	handles := make([]string, 0, len(s.Handles))
@@ -697,11 +697,11 @@ func psCmd(args []string, stdout, stderr io.Writer) int {
 		target := ""
 		if act.Name == "spawn_agent" {
 			var a struct {
-				Agent string `json:"agent"`
-				Task  string `json:"task"`
+				Agent  string `json:"agent"`
+				Prompt string `json:"prompt"`
 			}
 			_ = json.Unmarshal(act.Args, &a)
-			target = " agent=" + a.Agent + " task=" + truncateArg(a.Task, 60)
+			target = " agent=" + a.Agent + " prompt=" + truncateArg(a.Prompt, 60)
 		}
 		fmt.Fprintf(stdout, "%s\t%s\trunning%s\n", h, act.Name, target)
 	}

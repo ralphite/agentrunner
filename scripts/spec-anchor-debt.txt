@@ -1,6 +1,6 @@
 # lint-docs.sh 基线:SPEC ✅ 行中验收锚未点名 Test*/QA-n 的存量(G30 燃尽,只减不增)。
 # 键 = SPEC 表格行首列全文(trim 后 byte-exact)。每还一行 = 找到真锚或如实降级状态+挂 GAP。
-CheckpointBarrier（安全边界/task 收尾/手动，向量+快照 ref）
+CheckpointBarrier（安全边界/turn 收尾/手动，向量+快照 ref）
 MCP HTTP OAuth bearer（env 引用）
 MCP resources/prompts、structured/multimodal result
 MCP（stdio/streamable HTTP、schema/list_changed、断连恢复、写审批）

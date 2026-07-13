@@ -57,7 +57,7 @@ func validCommandID(s string) bool {
 // specFileName accepts only bare *.yaml / *.yml names for sibling specs.
 var specFileName = regexp.MustCompile(`^[A-Za-z0-9._-]+\.ya?ml$`)
 
-// sessionIDLine matches a session id token (e.g. 20260708-230920-task-5913).
+// sessionIDLine matches a session id token (e.g. 20260708-230920-delegation-5913).
 var sessionIDLine = regexp.MustCompile(`\b\d{8}-\d{6}-[A-Za-z0-9._-]+\b`)
 
 // parseSessionID pulls the NEW session's id out of an `ar new`/`ar fork`

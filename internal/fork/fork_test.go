@@ -100,7 +100,7 @@ func TestCutCopiesBarrierSlice(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Genesis + the 4 events up to and including bar-t1; bar-t2 and
-	// task_completed are outside the cut.
+	// session_closed events are outside the cut.
 	if len(got) != 5 {
 		t.Fatalf("events = %d, want 5", len(got))
 	}
@@ -237,7 +237,7 @@ func TestCutOfForkKeepsSingleGenesis(t *testing.T) {
 }
 
 // S7 出口 review P1: the barrier's cancel_at_fork disposition is APPLIED —
-// the fork's journal renders the in-flight task cancelled, so the fold has
+// the fork's journal renders the in-flight background work cancelled, so the fold has
 // no in-doubt activity and the model sees the outcome.
 func TestCutAppliesCancelAtFork(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "parent")
@@ -291,7 +291,7 @@ func TestCutAppliesCancelAtFork(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(fold2.Handles) != 0 || len(fold2.Activities) != 0 {
-		t.Errorf("fork fold still has tasks=%d activities=%d — resume would refuse as in-doubt",
+		t.Errorf("fork fold still has handles=%d activities=%d — resume would refuse as in-doubt",
 			len(fold2.Handles), len(fold2.Activities))
 	}
 	var sawOutcome bool

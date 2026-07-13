@@ -11,7 +11,7 @@ export type ModalKind =
   // showed the user — a Scheduled suggestion card's "Weekdays at 8:00 AM" — as
   // the driver-spec fields themselves. The launcher opens on it instead of the
   // preset's generic default, so what gets built is what was clicked.
-  | { kind: "run"; task?: string; preset?: RunPreset; cadence?: CadenceSpec }
+  | { kind: "run"; prompt?: string; preset?: RunPreset; cadence?: CadenceSpec }
   | { kind: "fork"; sid: string }
   | { kind: "agent"; sid: string }
   | { kind: "rename"; sid: string }
@@ -42,7 +42,7 @@ interface ToastMsg {
 }
 
 // The full-window destinations reachable from the sidebar's primary nav
-// (New task / Scheduled). "home" is the New-task landing; the Scheduled page
+// (New session / Scheduled). "home" is the New-session landing; the Scheduled page
 // routes to a matching hash (#scheduled).
 export type Page = "home" | "scheduled";
 
@@ -50,7 +50,7 @@ interface AppState {
   health: Health | null;
   sessions: Session[];
   // False until the first successful session-list response. An empty array
-  // before then is "not loaded", not proof that the user has no tasks.
+  // before then is "not loaded", not proof that the user has no sessions.
   sessionsReady: boolean;
   // True only while the first successful recent page is being extended with
   // older pages. The recent page is already usable at this point.
@@ -355,7 +355,7 @@ export const useStore = create<AppState>((set, get) => ({
       }
       set({ sessions: next, sessionsReady: true });
     };
-    const task = (async () => {
+    const session = (async () => {
       try {
         const recent = await AR.sessions(firstSessionPageSize, 0);
         applyPage(recent, false);
@@ -376,7 +376,7 @@ export const useStore = create<AppState>((set, get) => ({
         set({ sessionsLoadingOlder: false });
       }
     })();
-    sessionsRefreshInFlight = task.finally(() => {
+    sessionsRefreshInFlight = session.finally(() => {
       sessionsRefreshInFlight = null;
     });
     return sessionsRefreshInFlight;
@@ -413,7 +413,7 @@ export const useStore = create<AppState>((set, get) => ({
     set({ currentSid: sid, currentRunId: null, currentPage: "home" });
     if (sid) {
       location.hash = sid;
-      get().markRead(sid); // opening a task clears its unread flag
+      get().markRead(sid); // opening a session clears its unread flag
     } else {
       location.hash = "";
     }

@@ -77,9 +77,30 @@ journal/fold 实体及既有 CLI `sessions` 完全同构。因此采用 `session
 2. 产品面：修改 JOURNEYS/SPEC/DESIGN/QA/GAPS、Web UI/README、frontend model、
    文案、CSS selector 与测试；加入术语 lint。
 3. runtime：将开场输入、driver 输入、daemon command、delegation、background
-   work 的代码模型迁移到 canonical 术语，补 legacy read alias 与测试。
+   work 的代码模型迁移到 canonical 术语；共享数据一次性改写，不保留 read alias。
 4. 双闸门：全量自动化检查 + 共享真实环境 browser QA + daemon restart。
 5. 收口：delta 并回活文档、LOG 追加决策，工作纸移入 archive/increments。
+
+## 实施结果
+
+- runtime / daemon / driver / Web API 直接切换到 `opening_prompt`、`prompt`、
+  `delegation_id` 与 `delegations`；未保留旧字段 decoder、双写或 fallback。
+- 共享 store 迁移前完成压缩备份与 SHA-256 校验；一次性改写 762 份 journal、
+  41,945 行 event、1,171 个结构 key 与 2 份 driver spec，删除 590 份 event
+  index 和 3,374 份可重建 snapshot。迁移后全部 JSONL 可解析，旧 schema key、
+  index 与 snapshot 均为 0。
+- 新 runtime 直接 fold 迁移前普通 session、driver session 与含 2 个 delegation
+  的多 Agent session；daemon/Web UI 重启后健康检查 `daemonUp`、`versionMatch`
+  均为 true。
+- 共享真实 Web UI 验证 sidebar、command palette、Scheduled runs、一次性 run
+  表单、Archived sessions、普通历史、多 Agent 历史和 driver 历史；禁止的旧产品
+  label 计数为 0，console warning/error 为 0。截图与迁移审计证据保留在
+  `qa/runs/2026-07-12-INC65/`。
+- 收尾语义审计额外修复两处机械迁移错误：空 `ar ps` 输出被误投影为一条记录，
+  以及 background tool timeline 状态误写为 `session`；均增加回归测试。
+- `./scripts/check.sh` 全绿：全部 Go package、WebUI Go tests、520 个 frontend
+  tests、production build 与 5 个 installer scenarios 通过。最终共享部署重启后
+  再次通过 health、历史 session deep-link 与 browser console 检查。
 
 ## review 裁决
 

@@ -8,7 +8,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/event"
 )
 
-// foldBackgroundOutcome runs one background task from spawn to the given
+// foldBackgroundOutcome runs one background work from spawn to the given
 // terminal event and reports whether its outcome landed in the conversation
 // (the INC-39 notify gate) and whether the handle was removed.
 func foldBackgroundOutcome(t *testing.T, notify string, terminal string, isError bool) (gotMessage, handleGone bool) {

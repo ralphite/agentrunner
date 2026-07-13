@@ -123,7 +123,7 @@ function MainModal({ modal }: { modal: NonNullable<ModalKind> }) {
     case "new":
       return <NewSessionModal initialMessage={modal.message} />;
     case "run":
-      return <RunModal initialTask={modal.task} preset={modal.preset} cadence={modal.cadence} />;
+      return <RunModal initialPrompt={modal.prompt} preset={modal.preset} cadence={modal.cadence} />;
     case "fork":
       return <ForkModal sid={modal.sid} />;
     case "agent":
@@ -315,18 +315,18 @@ function NewSessionModal({ initialMessage }: { initialMessage?: string }) {
 
   return (
     <Modal
-      title="Advanced task setup"
+      title="Advanced session setup"
       onClose={close}
       footer={
         <>
-          <button onClick={() => openModal({ kind: "run", task: msg })}>Create a background task…</button>
+          <button onClick={() => openModal({ kind: "run", prompt: msg })}>Create a background run…</button>
           <button className="primary" disabled={busy || !msg.trim()} onClick={create}>
-            Start task
+            Start session
           </button>
         </>
       }
     >
-      <label className="field">Task</label>
+      <label className="field">Opening message</label>
       <textarea autoFocus rows={3} value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="Describe the outcome you want" />
       <label className="field">Workspace</label>
       <div className="row-flex">
@@ -363,17 +363,17 @@ function withSchedule(driver: string, schedule: string, interval: string, cron: 
   return out + "\n";
 }
 
-function withDriverTask(driver: string, task: string): string {
-  const kept = driver.split("\n").filter((line) => !/^\s*task\s*:/.test(line));
-  return kept.join("\n").replace(/\n+$/, "") + `\ntask: ${JSON.stringify(task.trim())}\n`;
+function withDriverPrompt(driver: string, prompt: string): string {
+  const kept = driver.split("\n").filter((line) => !/^\s*prompt\s*:/.test(line));
+  return kept.join("\n").replace(/\n+$/, "") + `\nprompt: ${JSON.stringify(prompt.trim())}\n`;
 }
 
 function RunModal({
-  initialTask,
+  initialPrompt,
   preset = "one-time",
   cadence,
 }: {
-  initialTask?: string;
+  initialPrompt?: string;
   preset?: RunPreset;
   cadence?: CadenceSpec;
 }) {
@@ -386,7 +386,7 @@ function RunModal({
   // the card that opened it.
   const formDefaults = runFormDefaults(preset, cadence);
   const [kind, setKind] = useState<"submit" | "drive">(formDefaults.kind);
-  const [task, setTask] = useState(initialTask || "");
+  const [prompt, setPrompt] = useState(initialPrompt || "");
   const [mode, setMode] = useState("");
   const [idem, setIdem] = useState("");
   const [spec, setSpec] = useState(DEFAULT_SPEC);
@@ -403,14 +403,14 @@ function RunModal({
     setBusy(true);
     try {
       const workspace = await ensure();
-      const driverSpec = withSchedule(withDriverTask(driver, task), schedule, interval, cron, nAttempts);
+      const driverSpec = withSchedule(withDriverPrompt(driver, prompt), schedule, interval, cron, nAttempts);
       const r = await AR.startRun({
         kind,
         spec: kind === "submit" ? spec : driverSpec,
         // drive needs the child agent spec as an agent.yaml sibling (driver's
         // agent_spec field points at it); submit needs no sibling.
         extraSpecs: kind === "drive" ? [{ name: "agent.yaml", content: driverAgent }] : [],
-        task,
+        prompt,
         workspace,
         mode,
         idem,
@@ -427,25 +427,25 @@ function RunModal({
 
   return (
     <Modal
-      title={kind === "submit" ? "Run a task" : schedule === "immediate" ? "Set a goal" : schedule === "parallel" ? "Best of N" : "Schedule a task"}
+      title={kind === "submit" ? "Start a run" : schedule === "immediate" ? "Set a goal" : schedule === "parallel" ? "Best of N" : "Schedule a run"}
       onClose={close}
       footer={
-        <button className="primary" disabled={busy || !task.trim()} onClick={start}>
-          {kind === "submit" ? "Start task" : "Start schedule"}
+        <button className="primary" disabled={busy || !prompt.trim()} onClick={start}>
+          {kind === "submit" ? "Start run" : "Start schedule"}
         </button>
       }
     >
       <label className="field">Run type</label>
       <div className="seg" role="group" aria-label="Run type">
-        <button aria-pressed={kind === "submit"} className={kind === "submit" ? "on" : ""} onClick={() => setKind("submit")} title="one-shot task: a fresh session runs the task once and completes">
+        <button aria-pressed={kind === "submit"} className={kind === "submit" ? "on" : ""} onClick={() => setKind("submit")} title="one-shot run: a fresh session executes the prompt once">
           One-time
         </button>
         <button aria-pressed={kind === "drive"} className={kind === "drive" ? "on" : ""} onClick={() => setKind("drive")} title="iterative driver: child runs repeat per driver.yaml (goal / loop / best-of-N)">
           Goal or repeating
         </button>
       </div>
-      <label className="field" htmlFor="run-task">Task</label>
-      <textarea id="run-task" autoFocus rows={3} value={task} onChange={(e) => setTask(e.target.value)} placeholder="Describe the outcome you want" />
+      <label className="field" htmlFor="run-prompt">Prompt</label>
+      <textarea id="run-prompt" autoFocus rows={3} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Describe the outcome you want" />
       <label className="field" htmlFor="run-workspace">Workspace</label>
       <div className="row-flex">
         <input id="run-workspace" type="text" value={ws} onChange={(e) => setWs(e.target.value)} placeholder="Leave blank for a new scratch workspace" />
@@ -619,7 +619,7 @@ function ForkModal({ sid }: { sid: string }) {
 
   return (
     <Modal
-      title="Continue in new task"
+      title="Continue in new session"
       onClose={close}
       footer={
         <button className="primary" disabled={busy || !barrier} onClick={doFork}>
@@ -628,8 +628,8 @@ function ForkModal({ sid }: { sid: string }) {
       }
     >
       <div className="dim" style={{ marginBottom: 10 }}>
-        Starts a new task from a checkpoint of this one, in its own git worktree.
-        This task stays unchanged.
+        Starts a new session from a checkpoint of this one, in its own git worktree.
+        This session stays unchanged.
       </div>
       <label className="field">Continue from</label>
       {barriers.length === 0 ? (
@@ -741,7 +741,7 @@ function RenameModal({ sid }: { sid: string }) {
   };
   return (
     <Modal
-      title="Rename task"
+      title="Rename session"
       onClose={close}
       footer={
         <>
@@ -765,7 +765,7 @@ function RenameModal({ sid }: { sid: string }) {
           if (e.key === "Enter") save();
           else if (e.key === "Escape") close();
         }}
-        placeholder="Task name (leave blank to reset)"
+        placeholder="Session name (leave blank to reset)"
       />
     </Modal>
   );

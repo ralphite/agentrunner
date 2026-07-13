@@ -74,7 +74,7 @@ func TestSpawnFailedChildUsageSettles(t *testing.T) {
 	parentFix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
-				Args: map[string]any{"agent": "summarizer", "task": "burn and die"}}},
+				Args: map[string]any{"agent": "summarizer", "prompt": "burn and die"}}},
 			{Usage: &scripted.UsageEvent{InputTokens: 10, OutputTokens: 5}},
 			{Finish: "tool_use"},
 		}},
@@ -144,9 +144,9 @@ func TestHandoffExclusiveInBatch(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "h1", Name: "handoff_agent",
-				Args: map[string]any{"agent": "summarizer", "task": "take over"}}},
+				Args: map[string]any{"agent": "summarizer", "prompt": "take over"}}},
 			{ToolCall: &scripted.ToolCallEvent{CallID: "h2", Name: "handoff_agent",
-				Args: map[string]any{"agent": "summarizer", "task": "also take over"}}},
+				Args: map[string]any{"agent": "summarizer", "prompt": "also take over"}}},
 			{Finish: "tool_use"},
 		}},
 		// Exactly ONE successor runs.
@@ -182,7 +182,7 @@ func TestSpawnChildNarrowerModeKept(t *testing.T) {
 	parentFix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
-				Args: map[string]any{"agent": "summarizer", "task": "plan only"}}},
+				Args: map[string]any{"agent": "summarizer", "prompt": "plan only"}}},
 			{Finish: "tool_use"},
 		}},
 		{Respond: []scripted.Event{{Text: "waiting"}, {Finish: "end_turn"}}},
@@ -216,7 +216,7 @@ func TestMaterializeDeniedByPathRule(t *testing.T) {
 	parentFix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
-				Args: map[string]any{"agent": "summarizer", "task": "MATERIALIZE-JOB start",
+				Args: map[string]any{"agent": "summarizer", "prompt": "MATERIALIZE-JOB start",
 					"inputs": []map[string]any{{"ref": "REF", "path": ".github/workflows/x.yml"}}}}},
 			{Finish: "tool_use"},
 		}},

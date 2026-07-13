@@ -61,16 +61,16 @@ func titleTestLoop(t *testing.T, p provider.Provider) (*Loop, *driveState, Appen
 }
 
 // openTurn folds the opening turn into the loop's state/store: a SessionStarted
-// with the given task, then the opening assistant message (so the auto-title
+// with the given prompt, then the opening assistant message (so the auto-title
 // gate — "opening reply landed" — is open).
-func openTurn(t *testing.T, appendE AppendFunc, task string) {
+func openTurn(t *testing.T, appendE AppendFunc, prompt string) {
 	t.Helper()
 	if _, err := appendE(event.TypeSessionStarted, &event.SessionStarted{
-		SpecName: "t", Model: "m", Task: task, Version: "dev",
+		SpecName: "t", Model: "m", Prompt: prompt, Version: "dev",
 		SubStateVersions: state.SubStateVersions()}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := appendE(event.TypeInputReceived, &event.InputReceived{Text: task, Source: "user"}); err != nil {
+	if _, err := appendE(event.TypeInputReceived, &event.InputReceived{Text: prompt, Source: "user"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := appendE(event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}); err != nil {
@@ -99,7 +99,7 @@ func countTitled(t *testing.T, dir string) (n int, last *event.SessionTitled) {
 	return n, last
 }
 
-const longTask = "Please refactor the authentication boundary so every request is checked once,\n" +
+const longPrompt = "Please refactor the authentication boundary so every request is checked once,\n" +
 	"and add regression tests for the three bypass cases we found last week."
 
 // INC-52: a root interactive session distils the opening message into exactly
@@ -108,7 +108,7 @@ const longTask = "Please refactor the authentication boundary so every request i
 func TestAutoTitleGeneratesOnceAndFoldsProjection(t *testing.T) {
 	p := &titleProvider{text: "  \"Refactor the auth boundary\". "}
 	l, ds, appendE := titleTestLoop(t, p)
-	openTurn(t, appendE, longTask)
+	openTurn(t, appendE, longPrompt)
 
 	for i := 0; i < 2; i++ {
 		if err := l.maybeAutoTitle(context.Background(), ds, appendE); err != nil {
@@ -135,11 +135,11 @@ func TestAutoTitleWaitsForOpeningReply(t *testing.T) {
 	l, ds, appendE := titleTestLoop(t, p)
 	// Opening input journaled, but NO assistant message yet.
 	if _, err := appendE(event.TypeSessionStarted, &event.SessionStarted{
-		SpecName: "t", Model: "m", Task: longTask, Version: "dev",
+		SpecName: "t", Model: "m", Prompt: longPrompt, Version: "dev",
 		SubStateVersions: state.SubStateVersions()}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := appendE(event.TypeInputReceived, &event.InputReceived{Text: longTask, Source: "user"}); err != nil {
+	if _, err := appendE(event.TypeInputReceived, &event.InputReceived{Text: longPrompt, Source: "user"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := l.maybeAutoTitle(context.Background(), ds, appendE); err != nil {
@@ -158,9 +158,9 @@ func TestAutoTitleWaitsForOpeningReply(t *testing.T) {
 func TestAutoTitleDoesNotOverrideManual(t *testing.T) {
 	p := &titleProvider{text: "an auto guess"}
 	l, ds, appendE := titleTestLoop(t, p)
-	openTurn(t, appendE, longTask)
+	openTurn(t, appendE, longPrompt)
 	if _, err := appendE(event.TypeSessionTitled, &event.SessionTitled{
-		Title: "My renamed task", Source: event.TitleSourceManual}); err != nil {
+		Title: "My renamed prompt", Source: event.TitleSourceManual}); err != nil {
 		t.Fatal(err)
 	}
 	if err := l.maybeAutoTitle(context.Background(), ds, appendE); err != nil {
@@ -169,14 +169,14 @@ func TestAutoTitleDoesNotOverrideManual(t *testing.T) {
 	if p.calls != 0 {
 		t.Fatalf("provider called despite manual title: calls=%d", p.calls)
 	}
-	if ds.s.Session.RawTitle != "My renamed task" || ds.s.Session.TitleSource != event.TitleSourceManual {
+	if ds.s.Session.RawTitle != "My renamed prompt" || ds.s.Session.TitleSource != event.TitleSourceManual {
 		t.Fatalf("manual title clobbered: %q/%q", ds.s.Session.RawTitle, ds.s.Session.TitleSource)
 	}
 }
 
-// INC-52: a short single-line opening task is its own good title — skip the
+// INC-52: a short single-line opening prompt is its own good title — skip the
 // call and keep the first-line fallback.
-func TestAutoTitleSkipsShortTask(t *testing.T) {
+func TestAutoTitleSkipsShortPrompt(t *testing.T) {
 	p := &titleProvider{text: "should not run"}
 	l, ds, appendE := titleTestLoop(t, p)
 	openTurn(t, appendE, "make it loud")
@@ -184,7 +184,7 @@ func TestAutoTitleSkipsShortTask(t *testing.T) {
 		t.Fatal(err)
 	}
 	if p.calls != 0 || !l.titleTried {
-		t.Fatalf("short task: calls=%d titleTried=%v", p.calls, l.titleTried)
+		t.Fatalf("short prompt: calls=%d titleTried=%v", p.calls, l.titleTried)
 	}
 	if n, _ := countTitled(t, l.Store.Dir()); n != 0 {
 		t.Fatalf("titled events = %d, want 0", n)
@@ -196,7 +196,7 @@ func TestAutoTitleSkipsShortTask(t *testing.T) {
 func TestAutoTitleSwallowsLLMFailure(t *testing.T) {
 	p := &titleProvider{err: context.DeadlineExceeded}
 	l, ds, appendE := titleTestLoop(t, p)
-	openTurn(t, appendE, longTask)
+	openTurn(t, appendE, longPrompt)
 	if err := l.maybeAutoTitle(context.Background(), ds, appendE); err != nil {
 		t.Fatalf("LLM failure must not surface: %v", err)
 	}
@@ -214,7 +214,7 @@ func TestAutoTitleSwallowsLLMFailure(t *testing.T) {
 func TestAutoTitleReusesRecordedResultOnReplay(t *testing.T) {
 	p := &titleProvider{text: "should not run"}
 	l, ds, appendE := titleTestLoop(t, p)
-	openTurn(t, appendE, longTask)
+	openTurn(t, appendE, longPrompt)
 	// Simulate the crash window: the title activity already recorded its result
 	// (a JSON string of the cleaned title), but SessionTitled never landed.
 	payload, _ := json.Marshal("Reused auth-boundary title")

@@ -45,7 +45,7 @@ function panelTree(over: Partial<React.ComponentProps<typeof SupervisionPanel>> 
         progress={[]}
         artifacts={[]}
         children={[]}
-        tasks={[]}
+        backgroundWork={[]}
         approvals={0}
         sessionIdle={true}
         recovery={false}
@@ -55,7 +55,7 @@ function panelTree(over: Partial<React.ComponentProps<typeof SupervisionPanel>> 
         onGoalAction={noop}
         onOpenArtifact={noop}
         onOpenChild={noop}
-        onKillTask={noop}
+        onKillWork={noop}
         onInspect={noop}
         onClose={noop}
         {...over}
@@ -185,8 +185,8 @@ describe("TH-3 · groups with content are untouched", () => {
   });
 
   it("still flags idle background work, and keeps the Background section", () => {
-    const task = { handle: "h1", tool: "spawn_agent", detail: "agent=worker task=review" } as any;
-    const { container } = renderPanel({ tasks: [task], sessionIdle: true });
+    const session = { handle: "h1", tool: "spawn_agent", detail: "agent=worker session=review" } as any;
+    const { container } = renderPanel({ backgroundWork: [session], sessionIdle: true });
 
     expect(screen.getByText("Attention")).toBeTruthy();
     expect(container.querySelector(".attention-row")?.textContent).toContain(
@@ -197,11 +197,11 @@ describe("TH-3 · groups with content are untouched", () => {
   });
 
   it("keeps quiet when background work runs mid-turn (session not idle)", () => {
-    const task = { handle: "h1", tool: "spawn_agent", detail: "agent=worker task=review" } as any;
-    const { container } = renderPanel({ tasks: [task], sessionIdle: false });
+    const session = { handle: "h1", tool: "spawn_agent", detail: "agent=worker session=review" } as any;
+    const { container } = renderPanel({ backgroundWork: [session], sessionIdle: false });
 
     // Nothing needs the human yet — Attention stays out, the one dim line stands
-    // in, and Background work still lists the running task.
+    // in, and Background work still lists the running session.
     expect(screen.queryByText("Attention")).toBeNull();
     expect(container.querySelectorAll(".supervision-quiet").length).toBe(1);
     expect(screen.getByText("Background work")).toBeTruthy();
@@ -348,8 +348,8 @@ describe("RD-D · the Changes row states what it knows", () => {
 describe("RD-E · Background work rides under Environment", () => {
   it("is the second section on the panel — above Goal / Attention", async () => {
     stubEnv();
-    const task = { handle: "h1", tool: "spawn_agent", detail: "agent=worker task=review" } as any;
-    const { container } = renderPanel({ tasks: [task], goal, approvals: 1 });
+    const session = { handle: "h1", tool: "spawn_agent", detail: "agent=worker session=review" } as any;
+    const { container } = renderPanel({ backgroundWork: [session], goal, approvals: 1 });
 
     await screen.findByText("Environment");
     const labels = [...container.querySelectorAll(".supervision-label")].map((el) =>

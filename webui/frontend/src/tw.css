@@ -256,24 +256,24 @@
   .project-hint { @apply ml-auto text-[11px] text-dim; }
   .proj-caret { @apply transition-transform; }
   .proj-caret.open { @apply rotate-90; }
-  .project-task-wrap { @apply relative flex min-w-0 items-center rounded-[8px]; }
-  .project-task-wrap.nested { @apply ml-4; }
-  .project-task-wrap.current { @apply bg-panel-2; }
-  .project-task-wrap.unread .project-task-title { @apply font-semibold text-ink; }
-  .project-task {
+  .project-session-wrap { @apply relative flex min-w-0 items-center rounded-[8px]; }
+  .project-session-wrap.nested { @apply ml-4; }
+  .project-session-wrap.current { @apply bg-panel-2; }
+  .project-session-wrap.unread .project-session-title { @apply font-semibold text-ink; }
+  .project-session {
     @apply flex h-[32px] min-w-0 flex-1 items-center gap-[6px] rounded-[8px] border-0 bg-transparent px-2 py-0 text-left text-[13px] text-ink-2 hover:bg-panel-2 hover:text-ink;
   }
-  .project-task-title { @apply min-w-0 flex-1 truncate; }
-  .task-open, .task-pin, .task-archive {
+  .project-session-title { @apply min-w-0 flex-1 truncate; }
+  .session-open, .session-pin, .session-archive {
     @apply hidden h-6 w-6 shrink-0 place-items-center rounded-[6px] border-0 bg-transparent p-0 text-dim hover:bg-panel hover:text-ink;
   }
-  .project-task-wrap:hover .task-open,
-  .project-task-wrap:hover .task-pin,
-  .project-task-wrap:hover .task-archive,
-  .project-task-wrap:focus-within .task-open,
-  .project-task-wrap:focus-within .task-pin,
-  .project-task-wrap:focus-within .task-archive { @apply grid; }
-  .task-pin.active { @apply grid text-blue; }
+  .project-session-wrap:hover .session-open,
+  .project-session-wrap:hover .session-pin,
+  .project-session-wrap:hover .session-archive,
+  .project-session-wrap:focus-within .session-open,
+  .project-session-wrap:focus-within .session-pin,
+  .project-session-wrap:focus-within .session-archive { @apply grid; }
+  .session-pin.active { @apply grid text-blue; }
   .status-dot { @apply inline-block h-[7px] w-[7px] shrink-0 rounded-full bg-status-terminal; }
   .status-dot.run, .status-dot.running, .status-dot.appr { @apply bg-status-running; }
   .status-dot.stranded, .status-dot.attention { @apply bg-status-attention; }
@@ -300,11 +300,11 @@
   .offline .account-presence { @apply bg-red; }
   .connecting .account-presence { @apply bg-dim; }
   .account-meta { @apply min-w-0 truncate text-[12px] text-ink-2; }
-  .task-preview {
+  .session-preview {
     @apply fixed left-[252px] z-40 w-[260px] rounded-[10px] border border-line bg-panel p-3 text-[12px] text-ink shadow-lg;
   }
-  .task-preview > div { @apply flex min-w-0 items-center gap-2 py-[2px] text-ink-2; }
-  .task-preview-head { @apply justify-between text-ink; }
+  .session-preview > div { @apply flex min-w-0 items-center gap-2 py-[2px] text-ink-2; }
+  .session-preview-head { @apply justify-between text-ink; }
 
   .home { @apply flex min-h-0 flex-1 flex-col; }
   .hero { @apply mx-auto flex w-full max-w-[760px] flex-1 flex-col items-center justify-center gap-5 px-6 py-8; }
@@ -385,7 +385,7 @@
   .cx-model-adv-chev.open { @apply rotate-180; }
   .cx-launcher { @apply mb-3 rounded-[14px] border border-line bg-panel p-3; }
   .cx-launcher-hd, .cx-launcher-row { @apply flex items-center gap-2; }
-  .cx-launcher-task { @apply my-2 w-full resize-none; }
+  .cx-launcher-prompt { @apply my-2 w-full resize-none; }
   .cx-launcher-field { @apply flex min-w-0 flex-1 flex-col gap-1 text-[12px] text-dim; }
   .risk-dot.low { @apply bg-green; }
   .risk-dot.med { @apply bg-amber; }
@@ -436,7 +436,7 @@
   .sc-keys, .rs-sc-keys { @apply flex flex-wrap justify-end gap-1; }
 
   .session-view { @apply relative flex min-h-0 flex-1 flex-col bg-bg; }
-  .task-topbar, .topbar { @apply flex h-[48px] shrink-0 items-center gap-2 border-b border-line bg-panel px-3; }
+  .session-topbar, .topbar { @apply flex h-[48px] shrink-0 items-center gap-2 border-b border-line bg-panel px-3; }
   .tt-left { @apply min-w-0; }
   .tt-title { @apply truncate text-[13px] font-medium text-ink; }
   .readonly-tag { @apply ml-2 rounded-full border border-line bg-panel-2 px-2 py-[2px] text-[11px] text-dim; }
@@ -613,8 +613,8 @@
   .pill { @apply inline-flex items-center rounded-full border border-line bg-panel-2 px-2 py-[2px] text-[11px] text-dim; }
   .seg { @apply flex rounded-[8px] border border-line bg-panel-2 p-[2px]; }
   .seg button.on { @apply bg-panel text-ink shadow-sm; }
-  .rd-grid, .task-grid { @apply grid gap-3; }
-  .rd-section, .task-card, .advanced-settings { @apply rounded-[12px] border border-line bg-panel p-3; }
+  .rd-grid, .session-grid { @apply grid gap-3; }
+  .rd-section, .session-card, .advanced-settings { @apply rounded-[12px] border border-line bg-panel p-3; }
 
   .findbar { @apply absolute right-3 top-[56px] z-30 flex items-center gap-1 rounded-[10px] border border-line bg-panel p-1 shadow-lg; }
   .fb-input { @apply w-[220px] border-0 bg-transparent px-2 py-1; }
@@ -654,7 +654,7 @@
   .rs-themecard.on { @apply border-blue bg-blue-soft; }
   .rs-fontpreview, .rs-kv { @apply rounded-[10px] border border-line bg-panel-2 p-3; }
   .rs-kv-row { @apply flex justify-between gap-3 border-t border-line-2 py-2 text-[13px]; }
-  .rs-archive-groups, .rs-wt-tasks { @apply grid gap-2; }
+  .rs-archive-groups, .rs-wt-sessions { @apply grid gap-2; }
   .rs-archive-status, .rs-wt-path, .rs-wt-count { @apply text-[12px] text-dim; }
   .rs-tp, .rs-tp-body { @apply rounded-[10px] border border-line bg-panel p-2; }
 
@@ -713,7 +713,7 @@
     .home-empty-repo { @apply max-w-[18ch]; }
     .tl-inner { @apply px-4; }
     .msg.user .msg-col { @apply max-w-[90%]; }
-    .task-topbar { @apply gap-1 px-3; }
+    .session-topbar { @apply gap-1 px-3; }
     .topbar-tool { @apply w-8 min-w-8 justify-center gap-0 px-0; }
     .topbar-tool-label { @apply hidden; }
     .topbar-attention { @apply absolute -right-1 -top-1 m-0 min-w-[16px] px-1 leading-4; }

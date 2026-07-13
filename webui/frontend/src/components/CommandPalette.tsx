@@ -3,7 +3,7 @@ import { useStore } from "../store";
 import { nextTheme } from "../theme";
 import { displayTitle } from "../title";
 import { projectLabel } from "../viewModels";
-import { paletteTaskGroups } from "../viewModels.nav";
+import { paletteSessionGroups } from "../viewModels.nav";
 import { friendlyStatus } from "./pill";
 import { modLabel } from "../shortcuts";
 import type { Session } from "../types";
@@ -13,21 +13,21 @@ interface Item {
   label: string;
   hint?: string;
   group: string;
-  quickNum?: number; // ⌘1..9 quick-switch badge on recent-task rows
-  task?: boolean; // task rows reserve a leading status-dot gutter (Codex parity)
+  quickNum?: number; // ⌘1..9 quick-switch badge on recent-session rows
+  session?: boolean; // session rows reserve a leading status-dot gutter
   dot?: string; // status-dot class: `unread`, or friendlyStatus().cls — never both
   dotTitle?: string; // what the dot means, spelled out on hover
   run: () => void;
 }
 
-// A task row shows a dot on exactly the terms the sidebar uses (Sidebar.tsx):
+// A session row shows a dot on exactly the terms the sidebar uses:
 // unread beats status, and only the statuses that actually want the user get a
 // colour. Anything else keeps an empty (but reserved) gutter so labels align.
-// CP-6: the palette used to paint *every* task dot blue `unread`, so a task
+// CP-6: the palette used to paint every session dot blue `unread`, so a session
 // stuck on an approval or a crash was advertised in ⌘K as "new activity" while
 // the rail next to it showed amber/red. Same source, same colour now.
 const DOTTED = ["run", "appr", "stranded", "crash"];
-function taskDot(session: Session, isUnread: boolean): { dot?: string; dotTitle?: string } {
+function sessionDot(session: Session, isUnread: boolean): { dot?: string; dotTitle?: string } {
   const status = friendlyStatus(session.status);
   if (isUnread) return { dot: "unread", dotTitle: "New activity" };
   if (DOTTED.includes(status.cls)) return { dot: status.cls, dotTitle: status.text };
@@ -62,16 +62,16 @@ export function CommandPalette({ onClose, onOpenSettings }: {
     const match = (s: string) => !ql || s.toLowerCase().includes(ql);
     const go = (fn: () => void) => () => {
       // A selected command owns the next focus target (for example, a modal or
-      // the destination task). Only dismissals restore the pre-palette focus.
+      // the destination session). Only dismissals restore pre-palette focus.
       onClose(false);
       fn();
     };
     const cmds: Item[] = [
-      { id: "c-new", label: "New task", group: "Commands", run: go(() => showPage("home")) },
+      { id: "c-new", label: "New session", group: "Commands", run: go(() => showPage("home")) },
       { id: "c-run", label: "New run…", hint: "submit / drive", group: "Commands", run: go(() => openModal({ kind: "run" })) },
       // CP-8: Scheduled is the app's other top-level destination and Settings is
       // a whole page (⌘,) — ⌘K could reach neither, so the palette was a
-      // task-switcher pretending to be a command palette.
+      // session switcher pretending to be a command palette.
       { id: "c-sched", label: "Go to Scheduled", group: "Commands", run: go(() => showPage("scheduled")) },
       ...(onOpenSettings
         ? [{ id: "c-settings", label: "Open settings", hint: `${modLabel},`, group: "Commands", run: go(onOpenSettings) }]
@@ -88,31 +88,30 @@ export function CommandPalette({ onClose, onOpenSettings }: {
       { id: "c-keys", label: "Keyboard shortcuts", hint: "?", group: "Commands", run: go(() => openHelp()) },
     ].filter((c) => match(c.label));
     // With no query this is the ⌘1..9 quick-switch list (Codex parity, RH-3):
-    // every one of the nine rows lives in the `Tasks` group and carries its
+    // every one of the nine rows lives in the `Sessions` group and carries its
     // ⌘-digit badge — a blue unread dot does not take the badge away, it just
     // adds a dot. The badge number is the row's index in the very list App.tsx's
     // cmd-digit handler indexes, so ⌘3 always opens the row labelled ⌘3.
-    // Attention tasks that fell past the ninth digit get their own badge-less
-    // `Unread tasks` group. Typing a query switches to a plain fuzzy search over
-    // every task, without badges.
+    // Attention sessions past the ninth digit get a badge-less group. Typing a
+    // query switches to a plain fuzzy search over every session.
     const unreadSet = new Set(unread);
     let sess: Item[];
     if (!ql) {
-      const { quick, unread: overflow } = paletteTaskGroups(sessions, { archived });
+      const { quick, attention: overflow } = paletteSessionGroups(sessions, { archived });
       const row = (s: Session, quickNum?: number): Item => ({
         id: "s" + s.id,
         label: displayTitle(renames, s.id, s.title),
         hint: projectLabel(s.workspace),
-        group: quickNum ? "Tasks" : "Unread tasks",
+        group: quickNum ? "Sessions" : "Needs attention",
         quickNum,
-        task: true,
-        ...taskDot(s, unreadSet.has(s.id)),
+        session: true,
+        ...sessionDot(s, unreadSet.has(s.id)),
         run: go(() => select(s.id)),
       });
       sess = [...quick.map((s, i) => row(s, i + 1)), ...overflow.map((s) => row(s))];
     } else {
       // CP-7: search runs over every session, archived ones included — they used
-      // to come back indistinguishable from live tasks, silently un-archived in
+      // to come back indistinguishable from live sessions, silently un-archived in
       // the one place the user is most likely to hit Enter. They stay reachable
       // (that is the point of search) but land in their own honest group.
       const archivedSet = new Set(archived);
@@ -126,15 +125,15 @@ export function CommandPalette({ onClose, onOpenSettings }: {
             id: "s" + s.id,
             label: displayTitle(renames, s.id, s.title),
             hint: projectLabel(s.workspace),
-            group: isArchived ? "Archived" : "Tasks",
-            task: true,
-            ...taskDot(s, !isArchived && unreadSet.has(s.id)),
+            group: isArchived ? "Archived" : "Sessions",
+            session: true,
+            ...sessionDot(s, !isArchived && unreadSet.has(s.id)),
             run: go(() => select(s.id)),
           } satisfies Item;
         });
       // Group headers are drawn off runs of equal `group`, so archived hits sit
-      // together at the bottom rather than interleaving with live tasks.
-      sess = [...hits.filter((h) => h.group === "Tasks"), ...hits.filter((h) => h.group === "Archived")];
+      // together at the bottom rather than interleaving with live sessions.
+      sess = [...hits.filter((h) => h.group === "Sessions"), ...hits.filter((h) => h.group === "Archived")];
     }
     const rn: Item[] = runs
       .filter((r) => match(r.label || r.id))
@@ -146,7 +145,7 @@ export function CommandPalette({ onClose, onOpenSettings }: {
         group: "Scheduled",
         run: go(() => selectRun(r.id)),
       }));
-    // Empty query is the task-switcher: surface tasks before commands (Codex
+    // Empty query is the session switcher: surface sessions before commands
     // parity). While typing, commands stay on top so quick actions win the
     // first Enter.
     return ql ? [...cmds, ...sess, ...rn] : [...sess, ...cmds, ...rn];
@@ -156,7 +155,7 @@ export function CommandPalette({ onClose, onOpenSettings }: {
   useEffect(() => setIdx(0), [q]);
 
   // CP-5: ↓ used to walk the selection straight out of the scroll box — 14 of
-  // 24 rows were keyboard-reachable but invisible, so Enter opened a task the
+  // 24 rows were keyboard-reachable but invisible, so Enter opened a session the
   // user could not see. Keep the selected row in view on every idx change.
   useEffect(() => {
     selRef.current?.scrollIntoView?.({ block: "nearest" });
@@ -184,7 +183,7 @@ export function CommandPalette({ onClose, onOpenSettings }: {
         <input
           ref={inputRef}
           className="cmdk-input"
-          placeholder="Search tasks or run a command"
+          placeholder="Search sessions or run a command"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           role="combobox"
@@ -218,10 +217,10 @@ export function CommandPalette({ onClose, onOpenSettings }: {
                   }}
                   onClick={() => it.run()}
                 >
-                  {it.task && (
+                  {it.session && (
                     // The leading dot says the same thing here as in the rail:
                     // blue for new activity, otherwise the status' own colour.
-                    // Dot-less task rows keep an equal-width gutter so labels
+                    // Dot-less session rows keep an equal-width gutter so labels
                     // stay aligned.
                     <span
                       className={"status-dot" + (it.dot ? " " + it.dot : "")}

@@ -97,7 +97,7 @@ func TestSpawnEndToEnd(t *testing.T) {
 		// Parent turn 1: spawn — the handle pairs immediately.
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
-				Args: map[string]any{"agent": "summarizer", "task": "summarize the findings"}}},
+				Args: map[string]any{"agent": "summarizer", "prompt": "summarize the findings"}}},
 			{Usage: &scripted.UsageEvent{InputTokens: 30, OutputTokens: 10}},
 			{Finish: "tool_use"},
 		}},
@@ -222,7 +222,7 @@ func TestSpawnChildCannotEscalatePermissions(t *testing.T) {
 	parentFix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
-				Args: map[string]any{"agent": "summarizer", "task": "edit the file"}}},
+				Args: map[string]any{"agent": "summarizer", "prompt": "edit the file"}}},
 			{Finish: "tool_use"},
 		}},
 		{Respond: []scripted.Event{{Text: "waiting"}, {Finish: "end_turn"}}},
@@ -281,7 +281,7 @@ func TestSpawnMaterializesPermissionLayers(t *testing.T) {
 	parentFix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
-				Args: map[string]any{"agent": "summarizer", "task": "small job"}}},
+				Args: map[string]any{"agent": "summarizer", "prompt": "small job"}}},
 			{Finish: "tool_use"},
 		}},
 		{Respond: []scripted.Event{{Text: "waiting"}, {Finish: "end_turn"}}},
@@ -355,7 +355,7 @@ func TestSpawnModeNonWidening(t *testing.T) {
 		fix := scripted.Fixture{Steps: []scripted.Step{
 			{Respond: []scripted.Event{
 				{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
-					Args: map[string]any{"agent": "summarizer", "task": "anything"}}},
+					Args: map[string]any{"agent": "summarizer", "prompt": "anything"}}},
 				{Finish: "tool_use"},
 			}},
 			{Respond: []scripted.Event{{Text: "ok"}, {Finish: "end_turn"}}},
@@ -388,7 +388,7 @@ func TestSpawnModeNonWidening(t *testing.T) {
 		parentFix := scripted.Fixture{Steps: []scripted.Step{
 			{Respond: []scripted.Event{
 				{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
-					Args: map[string]any{"agent": "summarizer", "task": "WIDEN-JOB: write it up"}}},
+					Args: map[string]any{"agent": "summarizer", "prompt": "WIDEN-JOB: write it up"}}},
 				{Finish: "tool_use"},
 			}},
 			{Respond: []scripted.Event{{Text: "waiting"}, {Finish: "end_turn"}}},
@@ -426,7 +426,7 @@ func TestSpawnBudgetMinAggregation(t *testing.T) {
 	parentFix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
-				Args: map[string]any{"agent": "summarizer", "task": "small job"}}},
+				Args: map[string]any{"agent": "summarizer", "prompt": "small job"}}},
 			{Usage: &scripted.UsageEvent{InputTokens: 60, OutputTokens: 40}},
 			{Finish: "tool_use"},
 		}},
@@ -495,7 +495,7 @@ func TestSpawnDepthAndFanoutCaps(t *testing.T) {
 		fix := scripted.Fixture{Steps: []scripted.Step{
 			{Respond: []scripted.Event{
 				{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
-					Args: map[string]any{"agent": "summarizer", "task": "go deeper"}}},
+					Args: map[string]any{"agent": "summarizer", "prompt": "go deeper"}}},
 				{Finish: "tool_use"},
 			}},
 			{Respond: []scripted.Event{{Text: "ok"}, {Finish: "end_turn"}}},
@@ -524,9 +524,9 @@ func TestSpawnDepthAndFanoutCaps(t *testing.T) {
 		parentFix := scripted.Fixture{Steps: []scripted.Step{
 			{Respond: []scripted.Event{
 				{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
-					Args: map[string]any{"agent": "summarizer", "task": "job one"}}},
+					Args: map[string]any{"agent": "summarizer", "prompt": "job one"}}},
 				{ToolCall: &scripted.ToolCallEvent{CallID: "s2", Name: "spawn_agent",
-					Args: map[string]any{"agent": "summarizer", "task": "job two"}}},
+					Args: map[string]any{"agent": "summarizer", "prompt": "job two"}}},
 				{Finish: "tool_use"},
 			}},
 			{Respond: []scripted.Event{{Text: "waiting"}, {Finish: "end_turn"}}},
@@ -566,7 +566,7 @@ func TestSpawnWhitelist(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
-				Args: map[string]any{"agent": "hacker", "task": "anything"}}},
+				Args: map[string]any{"agent": "hacker", "prompt": "anything"}}},
 			{Finish: "tool_use"},
 		}},
 		{Respond: []scripted.Event{{Text: "ok"}, {Finish: "end_turn"}}},
@@ -610,7 +610,7 @@ func TestSpawnDynamicRole(t *testing.T) {
 	parentFix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "dyn", Name: "spawn_agent", Args: map[string]any{
-				"task": "DYNAMIC-TASK", "role": map[string]any{
+				"prompt": "DYNAMIC-WORK", "role": map[string]any{
 					"name": "reviewer", "description": "reviews changes",
 					"instructions": "you review dynamically", "tools": []string{"read_file"},
 				},
@@ -698,7 +698,7 @@ func TestEscalationApproval(t *testing.T) {
 			parentFix := scripted.Fixture{Steps: []scripted.Step{
 				{Respond: []scripted.Event{
 					{ToolCall: &scripted.ToolCallEvent{CallID: "esc", Name: "spawn_agent", Args: map[string]any{
-						"task": "ESCALATED-EDIT", "role": map[string]any{
+						"prompt": "ESCALATED-EDIT", "role": map[string]any{
 							"name": "engineer", "description": "edits the requested file",
 							"instructions": "you are the escalated engineer",
 							"tools":        []string{"edit_file"}, "escalate": true,

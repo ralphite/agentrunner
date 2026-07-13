@@ -3,7 +3,7 @@ import { Popover } from "./Popover";
 
 // Menu is a small click-to-open dropdown used to tuck the low-level /
 // developer actions (journal, inspect, fork, resume…) out of the primary UX,
-// the way Codex keeps a clean task surface and hides plumbing.
+// the way Codex keeps a clean session surface and hides plumbing.
 export function Menu({ label, children, ariaLabel, triggerClassName = "" }: { label: React.ReactNode; children: React.ReactNode; ariaLabel?: string; triggerClassName?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   return (

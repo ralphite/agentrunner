@@ -85,7 +85,7 @@ func TestBudgetTOCTOUSyntheticConcurrency(t *testing.T) {
 }
 
 // 3.7c: budget exhaustion ends the run GRACEFULLY — LimitExceeded fact,
-// epilogue, task_completed{limit_exceeded} — never a crash or a hard abort.
+// epilogue, session_closed{limit_exceeded} — never a crash or a hard abort.
 func TestBudgetGracefulEnding(t *testing.T) {
 	// GenStep 1 spends 900 of a 1000-token budget; turn 2's reservation
 	// (max_tokens 200) cannot fit.

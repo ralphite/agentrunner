@@ -1,13 +1,13 @@
 {
   "name": "kill",
-  "description": "Cancel a running background task or sub-agent by handle. A replaced or no-longer-needed sub-agent keeps running — and keeps spending the shared budget — until it is killed, so kill it as soon as you stop needing it. Its cancellation notice arrives as a message.",
+  "description": "Cancel running background work or a sub-agent by handle. A replaced or no-longer-needed sub-agent keeps running — and keeps spending the shared budget — until it is killed, so kill it as soon as you stop needing it. Its cancellation notice arrives as a message.",
   "class": "execute",
   "input_schema": {
     "type": "object",
     "properties": {
       "handle": {
         "type": "string",
-        "description": "The task handle to cancel."
+        "description": "The work handle to cancel."
       }
     },
     "required": ["handle"]

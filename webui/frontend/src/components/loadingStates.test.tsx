@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 // INC-41 L1/L2/L3 — one family of bugs: an UNKNOWN state (first fetch still in
-// flight, or a fetch that failed) was painted as a DETERMINATE one (this task is
+// flight, or a fetch that failed) was painted as a DETERMINATE one (this session is
 // empty / the daemon is down / we're still checking, forever). These tests pin
 // the distinction on all three surfaces.
 
@@ -127,7 +127,7 @@ describe("L2 · unknown session id", () => {
     expect(isSessionNotFound(legacyNotFound())).toBe(true);
   });
 
-  it("renders a Task not found card with a way back — and no composer", async () => {
+  it("renders a Session not found card with a way back — and no composer", async () => {
     arMock.events = async () => {
       throw notFound();
     };
@@ -137,11 +137,11 @@ describe("L2 · unknown session id", () => {
     arMock.ps = async () => [];
     const { container } = render(<SessionView sid="ghost-9999" />);
 
-    await waitFor(() => expect(screen.getByText("Task not found")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Session not found")).toBeTruthy());
     expect(container.querySelector("textarea")).toBeNull(); // composer is gone
     expect(container.querySelector(".timeline .tl-empty")).not.toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: /back to all tasks/i }));
+    fireEvent.click(screen.getByRole("button", { name: /back to all sessions/i }));
     expect(useStore.getState().currentSid).toBeNull();
   });
 
@@ -161,7 +161,7 @@ describe("L2 · unknown session id", () => {
     await waitFor(() => expect(screen.getByText(/Nothing needs you/i)).toBeTruthy());
     expect(screen.queryByText(/Checking…/)).toBeNull();
     // A transient error is NOT a missing session.
-    expect(screen.queryByText("Task not found")).toBeNull();
+    expect(screen.queryByText("Session not found")).toBeNull();
   });
 });
 

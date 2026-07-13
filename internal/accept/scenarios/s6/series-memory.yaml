@@ -1,11 +1,11 @@
 id: s6-02-series-memory
-title: loop mode——series memory 注入:迭代 1 写下的记忆,迭代 2 的 task 里可见
+title: loop mode——series memory 注入:迭代 1 写下的记忆,迭代 2 的 prompt 里可见
 files:
   driver.yaml: |
     name: rounds
     agent_spec: worker.yaml
     schedule: interval
-    task: do the rounds
+    prompt: do the rounds
     max_iterations: 2
     series_memory: SERIES.md
   worker.yaml: |

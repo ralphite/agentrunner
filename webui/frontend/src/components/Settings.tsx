@@ -40,7 +40,7 @@ const SECTIONS: SectionDef[] = [
   { id: "git", label: "Git", group: "Coding", icon: GitBranch, keywords: "commit branch prefix pull request merge" },
   { id: "worktrees", label: "Worktrees", group: "Coding", icon: TreeStructure, keywords: "workspace repo conversations" },
   { id: "configuration", label: "Configuration", group: "Coding", icon: SlidersHorizontal, keywords: "version runtime daemon policy sandbox" },
-  { id: "archived", label: "Archived tasks", group: "Archived", icon: Archive, keywords: "tasks conversations history project search unarchive restore" },
+  { id: "archived", label: "Archived sessions", group: "Archived", icon: Archive, keywords: "sessions conversations history project search unarchive restore" },
 ];
 
 export function Settings({ onClose, initialSection = "appearance" }: { onClose: () => void; initialSection?: SettingsSection }) {

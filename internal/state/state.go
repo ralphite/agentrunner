@@ -30,11 +30,11 @@ func SubStateVersions() map[string]int {
 		"mode":         1, // S3.6a
 		"budget":       1, // S3.7a (reservations; settled usage lives in run)
 		"compaction":   1, // S4.5 (context-compaction view)
-		"handles":      1, // S6.1 (background task set)
+		"handles":      1, // S6.1 (background work set)
 		"barriers":     1, // S7.2 (checkpoint barriers — fork/rewind targets)
 		"goal":         1, // INC-D1 (in-session goal — G23/UJ-22)
 		"interactions": 1, // INC-11.5 (Turn/Item typed interaction projection)
-		"team":         1, // INC-11.6 durable task/DAG/lease/workspace projection
+		"team":         1, // INC-11.6 durable delegation/DAG/lease/workspace projection
 	}
 }
 
@@ -84,60 +84,60 @@ type State struct {
 	// Interactions is the durable Turn/Item projection. Conversation remains
 	// the provider-compatible view; both are folded from the same events.
 	Interactions Interactions `json:"interactions"`
-	// Team is the durable coordinator view: logical delegation task → DAG,
+	// Team is the durable coordinator view: logical delegation → DAG,
 	// active lease, assigned member, workspace and last settlement.
-	Team map[string]TeamTask `json:"team,omitempty"`
+	Team map[string]Delegation `json:"team,omitempty"`
 }
 
-type TeamTask struct {
-	TaskID      string               `json:"task_id"`
-	CallID      string               `json:"call_id"`
-	Description string               `json:"description"`
-	DependsOn   []string             `json:"depends_on,omitempty"`
-	LeaseID     string               `json:"lease_id,omitempty"`
-	AssignedTo  string               `json:"assigned_to,omitempty"`
-	Workspace   *event.TeamWorkspace `json:"workspace,omitempty"`
-	Status      string               `json:"status"` // leased | quiescent | failed | cancelled
-	LastReason  string               `json:"last_reason,omitempty"`
-	Settlements int                  `json:"settlements,omitempty"`
+type Delegation struct {
+	DelegationID string               `json:"delegation_id"`
+	CallID       string               `json:"call_id"`
+	Description  string               `json:"description"`
+	DependsOn    []string             `json:"depends_on,omitempty"`
+	LeaseID      string               `json:"lease_id,omitempty"`
+	AssignedTo   string               `json:"assigned_to,omitempty"`
+	Workspace    *event.TeamWorkspace `json:"workspace,omitempty"`
+	Status       string               `json:"status"` // leased | quiescent | failed | cancelled
+	LastReason   string               `json:"last_reason,omitempty"`
+	Settlements  int                  `json:"settlements,omitempty"`
 }
 
-func teamWith(in map[string]TeamTask, task TeamTask) map[string]TeamTask {
-	out := make(map[string]TeamTask, len(in)+1)
+func delegationWith(in map[string]Delegation, delegation Delegation) map[string]Delegation {
+	out := make(map[string]Delegation, len(in)+1)
 	for id, old := range in {
 		out[id] = old
 	}
-	out[task.TaskID] = task
+	out[delegation.DelegationID] = delegation
 	return out
 }
 
-func teamSettle(in map[string]TeamTask, callID, reason string) map[string]TeamTask {
-	out := make(map[string]TeamTask, len(in))
-	for id, task := range in {
-		if task.CallID == callID {
-			task.Status = "quiescent"
+func delegationSettle(in map[string]Delegation, callID, reason string) map[string]Delegation {
+	out := make(map[string]Delegation, len(in))
+	for id, delegation := range in {
+		if delegation.CallID == callID {
+			delegation.Status = "quiescent"
 			if reason == "error" || reason == "contract_violation" || reason == "crash" {
-				task.Status = "failed"
+				delegation.Status = "failed"
 			}
 			if reason == "cancelled" || reason == "killed" {
-				task.Status = "cancelled"
+				delegation.Status = "cancelled"
 			}
-			task.LastReason = reason
-			task.Settlements++
-			task.LeaseID = ""
+			delegation.LastReason = reason
+			delegation.Settlements++
+			delegation.LeaseID = ""
 		}
-		out[id] = task
+		out[id] = delegation
 	}
 	return out
 }
 
-func teamRevive(in map[string]TeamTask, callID, leaseID string) map[string]TeamTask {
-	out := make(map[string]TeamTask, len(in))
-	for id, task := range in {
-		if task.CallID == callID {
-			task.Status, task.LeaseID = "leased", leaseID
+func delegationRevive(in map[string]Delegation, callID, leaseID string) map[string]Delegation {
+	out := make(map[string]Delegation, len(in))
+	for id, delegation := range in {
+		if delegation.CallID == callID {
+			delegation.Status, delegation.LeaseID = "leased", leaseID
 		}
-		out[id] = task
+		out[id] = delegation
 	}
 	return out
 }
@@ -424,7 +424,7 @@ type Session struct {
 	Status   string `json:"status"`
 	SpecName string `json:"spec_name,omitempty"`
 	Model    string `json:"model,omitempty"`
-	Task     string `json:"task,omitempty"`
+	Prompt   string `json:"opening_prompt,omitempty"`
 	Version  string `json:"version,omitempty"`
 	GenStep  int    `json:"gen_step"`
 	// Closed is the close/kill mark (决策 #30): set by SessionClosed,
@@ -501,7 +501,7 @@ type Session struct {
 	ConsumedInputSeq     int64                        `json:"consumed_input_seq,omitempty"`
 	ProviderCapabilities *provider.CapabilityEnvelope `json:"provider_capabilities,omitempty"`
 	// RawTitle is the folded display-title projection (INC-52, HANDA-PARITY
-	// #14): set by SessionTitled. Empty falls back to the opening task's first
+	// #14): set by SessionTitled. Empty falls back to the opening prompt's first
 	// line — legacy journals (no SessionTitled) simply keep it empty.
 	// TitleSource records the origin (auto|manual|fork); an auto pass never
 	// overrides a manual or fork title (the invariant is encoded in the fold).
@@ -545,7 +545,7 @@ func New() State {
 		Budget:       Budget{Reserved: map[string]int{}},
 		Handles:      Handles{},
 		Interactions: Interactions{Items: map[string]Item{}},
-		Team:         map[string]TeamTask{},
+		Team:         map[string]Delegation{},
 	}
 }
 
@@ -571,7 +571,7 @@ func Apply(s State, env event.Envelope) (State, error) {
 	switch p := decoded.(type) {
 	case *event.SessionStarted:
 		s.Session.Status = StatusRunning
-		s.Session.SpecName, s.Session.Model, s.Session.Task, s.Session.Version = p.SpecName, p.Model, p.Task, p.Version
+		s.Session.SpecName, s.Session.Model, s.Session.Prompt, s.Session.Version = p.SpecName, p.Model, p.Prompt, p.Version
 		s.Session.Env = p.Env
 		s.Session.Memory, s.Session.Skills, s.Session.Agents = p.Memory, p.Skills, p.Agents
 		s.Session.CommandTools = p.CommandTools
@@ -680,12 +680,12 @@ func Apply(s State, env event.Envelope) (State, error) {
 
 	case *event.SpawnRequested:
 		s.Session.Spawns++
-		taskID := p.TaskID
-		if taskID == "" {
-			taskID = "task-" + p.CallID
+		delegationID := p.DelegationID
+		if delegationID == "" {
+			delegationID = "delegation-" + p.CallID
 		}
-		s.Team = teamWith(s.Team, TeamTask{TaskID: taskID, CallID: p.CallID,
-			Description: p.Task, DependsOn: append([]string(nil), p.DependsOn...),
+		s.Team = delegationWith(s.Team, Delegation{DelegationID: delegationID, CallID: p.CallID,
+			Description: p.Prompt, DependsOn: append([]string(nil), p.DependsOn...),
 			LeaseID: p.LeaseID, AssignedTo: p.ChildSession, Workspace: p.Workspace,
 			Status: "leased"})
 
@@ -714,7 +714,7 @@ func Apply(s State, env event.Envelope) (State, error) {
 			children = append(children, s.Session.ChildSessions...)
 			s.Session.ChildSessions = append(children, p.ChildSession)
 		}
-		s.Team = teamSettle(s.Team, p.CallID, p.Reason)
+		s.Team = delegationSettle(s.Team, p.CallID, p.Reason)
 
 	case *event.ChildRevived:
 		// A quiescent child re-enters the in-flight set (INC-12, DESIGN §3
@@ -740,7 +740,7 @@ func Apply(s State, env event.Envelope) (State, error) {
 			// terminal releases.
 			s.Budget = s.Budget.withReservation(effectIDFor(started, p.ActivityID), p.BudgetTokens)
 		}
-		s.Team = teamRevive(s.Team, p.CallID, p.ActivityID)
+		s.Team = delegationRevive(s.Team, p.CallID, p.ActivityID)
 
 	case *event.ArtifactPublished:
 		// Copy-on-write: Apply is pure, the input map must not mutate.
@@ -809,7 +809,7 @@ func Apply(s State, env event.Envelope) (State, error) {
 		}
 		if p.Background && p.CallID != "" {
 			// The handle IS this event's fold rendering (S6.1): the call
-			// pairs immediately, and the task enters the tasks sub-state.
+			// pairs immediately, and the work enters the handles sub-state.
 			s.Handles = s.Handles.with(p.CallID, *p)
 			handlePayload := map[string]string{
 				"handle": p.CallID, "status": "running",
@@ -834,7 +834,7 @@ func Apply(s State, env event.Envelope) (State, error) {
 			s.Session.Materialized = true // artifact inputs are in the workspace (S5.8)
 		}
 		if inFlight && started.Background && started.CallID != "" {
-			// A background task's outcome arrives as a USER-role input
+			// A background work's outcome arrives as a USER-role input
 			// (S6.1): the handle already paired the call at start; the
 			// result becomes conversation the model sees next turn — unless
 			// the spawn's notify gate suppresses it (INC-39). bash marks a
@@ -1190,7 +1190,7 @@ func (e *UnhandledEventError) Error() string {
 }
 
 // backgroundOutcomeWanted is the notify gate (INC-39): whether a settled
-// background task's outcome flows back as a user-role message. It reads the
+// background work's outcome flows back as a user-role message. It reads the
 // spawn's journaled Args — the fold replays the same verdict on resume —
 // and reads them leniently: an unknown or missing notify value means
 // "always" (the fold must never error on model-authored args; the schema
@@ -1212,12 +1212,12 @@ func backgroundOutcomeWanted(started event.ActivityStarted, failed bool) bool {
 	}
 }
 
-// handleOutcomeMessage renders a background task's terminal outcome as the
+// handleOutcomeMessage renders a background work's terminal outcome as the
 // user-role input the model sees next turn (S6.1).
-func handleOutcomeMessage(taskID, status, body string) provider.Message {
+func handleOutcomeMessage(workID, status, body string) provider.Message {
 	return provider.Message{Role: provider.RoleUser, Parts: []provider.Part{{
 		Kind: provider.PartText,
-		Text: "[background work " + taskID + " " + status + "]\n" + body,
+		Text: "[background work " + workID + " " + status + "]\n" + body,
 	}}}
 }
 

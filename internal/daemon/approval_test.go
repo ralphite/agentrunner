@@ -48,7 +48,7 @@ func TestDaemonApprovalRoundTrip(t *testing.T) {
 	runDone := make(chan []protocol.Event, 1)
 	go func() {
 		var got []protocol.Event
-		_ = Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Task: "risky"},
+		_ = Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Prompt: "risky"},
 			func(e protocol.Event) {
 				got = append(got, e)
 				if e.Kind == protocol.KindApprovalRequest && e.ApprovalID == "apr-1" {

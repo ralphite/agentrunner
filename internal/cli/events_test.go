@@ -33,7 +33,7 @@ func seedSessionIn(t *testing.T, id string) {
 		typ     string
 		payload any
 	}{
-		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "hello", Model: "m", Task: "t", Version: "dev"}},
+		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "hello", Model: "m", Prompt: "t", Version: "dev"}},
 		{event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}},
 		{event.TypeSessionClosed, &event.SessionClosed{Reason: "closed", Source: "user", GenSteps: 1}},
 	} {
@@ -58,7 +58,7 @@ func seedChildSession(t *testing.T, parentID, leaf string) string {
 	}
 	defer func() { _ = s.Close() }()
 	env, err := event.New(event.TypeSessionStarted,
-		&event.SessionStarted{SpecName: "worker", Model: "m", Task: "child task", Version: "dev"})
+		&event.SessionStarted{SpecName: "worker", Model: "m", Prompt: "child prompt", Version: "dev"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +191,7 @@ func TestEventsUnknownSession(t *testing.T) {
 	}
 }
 
-// A top-level session whose slug contains "-sub-" (minted from free task
+// A top-level session whose slug contains "-sub-" (minted from free prompt
 // text) must resolve like any other top-level session — child addressing
 // must not shadow it; prefixes reaching into the "-sub-" also resolve.
 // QA Round1 F-B2.

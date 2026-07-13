@@ -217,9 +217,9 @@ func (rr *runRegistry) start(arPath, kind, label, workspace string, args []strin
 			if logf != nil {
 				_, _ = io.WriteString(logf, line+"\n")
 			}
-			// A submit run's process stays attached after the task's turn goes
+			// A submit run's process stays attached after its initial turn goes
 			// idle (a conversational agent never "ends"), so it would otherwise
-			// show "running" forever. Reaching idle means the one-shot task is
+			// show "running" forever. Reaching idle means the one-shot run is
 			// done — reconcile the run status with the session's (QA r3-#2).
 			if r.Kind == "submit" && strings.Contains(line, `"kind":"idle"`) {
 				r.mu.Lock()
@@ -283,7 +283,7 @@ func (s *server) handleRunStart(w http.ResponseWriter, r *http.Request) {
 		Kind       string     `json:"kind"` // submit | drive
 		Spec       string     `json:"spec"` // base.yaml (submit) or driver.yaml (drive)
 		ExtraSpecs []specFile `json:"extraSpecs"`
-		Task       string     `json:"task"`
+		Prompt     string     `json:"prompt"`
 		Workspace  string     `json:"workspace"`
 		Mode       string     `json:"mode"`
 		Idem       string     `json:"idem"`
@@ -299,8 +299,8 @@ func (s *server) handleRunStart(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, "spec and workspace are required")
 		return
 	}
-	if req.Kind == "submit" && strings.TrimSpace(req.Task) == "" {
-		badRequest(w, "task is required for submit")
+	if req.Kind == "submit" && strings.TrimSpace(req.Prompt) == "" {
+		badRequest(w, "prompt is required for submit")
 		return
 	}
 	ws, ferr := resolveWorkspace(req.Workspace)
@@ -331,8 +331,8 @@ func (s *server) handleRunStart(w http.ResponseWriter, r *http.Request) {
 		if strings.TrimSpace(req.Idem) != "" {
 			args = append(args, "--idem", req.Idem)
 		}
-		args = append(args, basePath, req.Task)
-		label = firstLine(req.Task, 60)
+		args = append(args, basePath, req.Prompt)
+		label = firstLine(req.Prompt, 60)
 	} else {
 		args = []string{"drive", "--json", "--workspace", ws, basePath}
 		if name := yamlName(req.Spec); name != "" {
@@ -344,7 +344,7 @@ func (s *server) handleRunStart(w http.ResponseWriter, r *http.Request) {
 
 	title := label
 	if req.Kind == "submit" {
-		title = req.Task
+		title = req.Prompt
 	}
 	run := s.runs.start(s.arPath, req.Kind, label, ws, args, filepath.Join(s.runtimeDir, "runs"), spec,
 		func(sid string) { s.meta.set(sid, ws, title) })

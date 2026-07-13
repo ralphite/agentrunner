@@ -133,7 +133,7 @@ func TestStandingApprovalSpawnAgent(t *testing.T) {
 	l := &Loop{Approvals: rememberApprover{}}
 
 	spawn := func(id, agent string) pipeline.Effect {
-		e := effectOf(id, "spawn_agent", map[string]string{"agent": agent, "task": "t"})
+		e := effectOf(id, "spawn_agent", map[string]string{"agent": agent, "prompt": "t"})
 		e.Class = "execute"
 		return e
 	}

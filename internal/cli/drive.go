@@ -31,7 +31,7 @@ type driveOptions struct {
 }
 
 // driveCmd parses `drive` args and runs an IterationDriver to its terminal
-// state (S6). The task lives in the driver spec, not on the command line.
+// state (S6). The prompt lives in the driver spec, not on the command line.
 func driveCmd(args []string, version string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("drive", flag.ContinueOnError)
 	fs.SetOutput(stderr)

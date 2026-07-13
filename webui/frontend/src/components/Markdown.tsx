@@ -11,7 +11,7 @@ import { rehypeHighlight } from "./highlight";
 // Markdown renders assistant/runtime message bodies with react-markdown. It
 // replaces the earlier hand-rolled parser (which had no tables, no syntax
 // highlighting, no line-wrap control) while keeping the same public surface:
-// <Markdown text={…} />. remark-gfm adds GitHub-flavoured tables, task lists,
+// <Markdown text={…} />. remark-gfm adds GitHub-flavoured tables, session lists,
 // strikethrough and autolinks; rehypeHighlight (./highlight) adds highlight.js
 // syntax colouring for a registered language subset.
 //

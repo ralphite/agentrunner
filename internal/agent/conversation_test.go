@@ -204,9 +204,9 @@ func TestJournalInputPreservesTypedContentAndProvenance(t *testing.T) {
 	}
 }
 
-// Task mode (Conversational=false, the v1 default) is untouched: yield
+// One-shot mode (Conversational=false, the v1 default) is untouched: yield
 // still completes the run — every existing caller keeps its contract.
-func TestTaskModeStillEndsOnYield(t *testing.T) {
+func TestOneShotRunEndsOnYield(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
 	}}

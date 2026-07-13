@@ -97,14 +97,14 @@ type inspectReport struct {
 	Turns                int                          `json:"turns,omitempty"`
 	Items                int                          `json:"items,omitempty"`
 	ProviderCapabilities *provider.CapabilityEnvelope `json:"provider_capabilities,omitempty"`
-	TeamTasks            []state.TeamTask             `json:"team_tasks,omitempty"`
+	Delegations          []state.Delegation           `json:"delegations,omitempty"`
 	// Waiting names what an idle session is waiting FOR — for an approval
 	// that includes the id and the answer command (QA Round2 F-E4: `approve
 	// -h` says "inspect shows the id", and it used to show only "waiting").
 	Waiting *waitingReport `json:"waiting,omitempty"`
 }
 
-// waitingReport surfaces the idle wait: kind (approval | input | tasks…)
+// waitingReport surfaces the idle wait: kind (approval | input | background work…)
 // plus, for approvals, the pending ask itself.
 type waitingReport struct {
 	Kind       string `json:"kind"`
@@ -354,11 +354,11 @@ func buildInspectReport(events []event.Envelope, s state.State) inspectReport {
 		Turns:    len(s.Interactions.Turns), Items: len(s.Interactions.Items),
 		ProviderCapabilities: s.Session.ProviderCapabilities,
 	}
-	for _, task := range s.Team {
-		report.TeamTasks = append(report.TeamTasks, task)
+	for _, delegation := range s.Team {
+		report.Delegations = append(report.Delegations, delegation)
 	}
-	sort.Slice(report.TeamTasks, func(i, j int) bool {
-		return report.TeamTasks[i].TaskID < report.TeamTasks[j].TaskID
+	sort.Slice(report.Delegations, func(i, j int) bool {
+		return report.Delegations[i].DelegationID < report.Delegations[j].DelegationID
 	})
 	if s.Goal != nil {
 		report.Goal = &goalReport{
@@ -765,15 +765,15 @@ func renderInspectIndent(w io.Writer, r inspectReport, pad string) {
 		}
 		fmt.Fprintf(w, "%s    %-8s %-12s %-10s %-24s %s\n", pad, e.Kind, e.Name, e.CallID, verdict, strings.TrimRight(tail, " "))
 	}
-	if len(r.TeamTasks) > 0 {
-		fmt.Fprintln(w, "\n"+pad+"TEAM TASKS")
-		for _, task := range r.TeamTasks {
+	if len(r.Delegations) > 0 {
+		fmt.Fprintln(w, "\n"+pad+"DELEGATIONS")
+		for _, delegation := range r.Delegations {
 			workspaceMode, workspacePath := "", ""
-			if task.Workspace != nil {
-				workspaceMode, workspacePath = task.Workspace.Mode, task.Workspace.Path
+			if delegation.Workspace != nil {
+				workspaceMode, workspacePath = delegation.Workspace.Mode, delegation.Workspace.Path
 			}
 			fmt.Fprintf(w, "%s  %s  %-10s member %s  workspace %s %s\n",
-				pad, task.TaskID, task.Status, task.AssignedTo, workspaceMode, workspacePath)
+				pad, delegation.DelegationID, delegation.Status, delegation.AssignedTo, workspaceMode, workspacePath)
 		}
 	}
 

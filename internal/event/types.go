@@ -95,7 +95,7 @@ const (
 
 	// INC-52 (HANDA-PARITY #14): journal-backed auto session title. Additive —
 	// legacy journals carry none and the title projection falls back to the
-	// opening task's first line.
+	// opening prompt's first line.
 	TypeSessionTitled = "session_titled"
 )
 
@@ -112,7 +112,7 @@ const (
 // HANDA-PARITY #14): the harness distills the opening user message into a
 // short title once, asynchronously to the opening turn, and folds it into a
 // RawTitle layer the surfaces read. It is ADDITIVE — an old journal has no
-// such event and the fold falls back to the opening task's first line; the
+// such event and the fold falls back to the opening prompt's first line; the
 // webui's manual rename stays a localStorage preference (DESIGN §12) and wins
 // over this at the display layer. Source keeps an auto pass from overriding a
 // deliberate manual/fork title.
@@ -143,7 +143,7 @@ const (
 	KindTool = "tool"
 )
 
-// Waiting kinds (the full 2.14 registry; tasks/timer cannot be produced
+// Waiting kinds (the full 2.14 registry; background work/timer cannot be produced
 // before S6 but the vocabulary is fixed now).
 const (
 	WaitInput    = "input"
@@ -153,7 +153,7 @@ const (
 type SessionStarted struct {
 	SpecName         string         `json:"spec_name"`
 	Model            string         `json:"model"`
-	Task             string         `json:"task"`
+	Prompt           string         `json:"opening_prompt"`
 	Version          string         `json:"version"`
 	SubStateVersions map[string]int `json:"sub_state_versions"`
 	// Spec and WorkspaceRoot let `resume <session>` reconstruct the run
@@ -254,10 +254,10 @@ type ActivityStarted struct {
 	CallID     string          `json:"call_id,omitempty"`
 	Idempotent bool            `json:"idempotent,omitempty"`
 	Attempt    int             `json:"attempt"`
-	// Background marks a task-style activity (S6.1): the tool call pairs
+	// Background marks asynchronously executing work: the tool call pairs
 	// with a handle result IMMEDIATELY (the fold renders it from this very
 	// event) and the terminal event arrives later, rendered as a user-role
-	// input. No separate Task event family — this flag IS the task fact.
+	// input. No separate background-work event family is needed.
 	Background bool `json:"background,omitempty"`
 	// Notice augments the immediate handle result for a background launch
 	// (for example, escalation denied and the child is running under the
@@ -677,7 +677,7 @@ type CommandToolDef struct {
 type SpawnRequested struct {
 	CallID       string `json:"call_id"`
 	Agent        string `json:"agent"`
-	Task         string `json:"task"`
+	Prompt       string `json:"prompt"`
 	ChildSession string `json:"child_session"`
 	Depth        int    `json:"depth"`
 	BudgetTokens int    `json:"budget_tokens,omitempty"`
@@ -692,12 +692,12 @@ type SpawnRequested struct {
 	// uses the child's declared permission rules; denied keeps parent∩child.
 	Escalation       string `json:"escalation,omitempty"`
 	EscalationReason string `json:"escalation_reason,omitempty"`
-	// Coordinator identity: TaskID is stable for the logical delegation,
+	// Coordinator identity: DelegationID is stable for the logical delegation,
 	// DependsOn forms its DAG edges, and LeaseID names the active assignment.
-	TaskID    string         `json:"task_id,omitempty"`
-	DependsOn []string       `json:"depends_on,omitempty"`
-	LeaseID   string         `json:"lease_id,omitempty"`
-	Workspace *TeamWorkspace `json:"workspace,omitempty"`
+	DelegationID string         `json:"delegation_id,omitempty"`
+	DependsOn    []string       `json:"depends_on,omitempty"`
+	LeaseID      string         `json:"lease_id,omitempty"`
+	Workspace    *TeamWorkspace `json:"workspace,omitempty"`
 	// Replaces records the predecessor handle this delegation retired
 	// (spawn_agent.replaces, INC-30): audit-only — the cancel itself settles
 	// through the predecessor's own terminal events.
@@ -878,8 +878,8 @@ type DriverCompleted struct {
 // DESIGN §fork/rewind, weakened semantics): a consistent-enough cut taken
 // at a turn boundary — NOT requiring whole-tree quiescence. It records the
 // cross-stream cut vector, the workspace snapshot ref, and the in-flight
-// background tasks with their fork-time disposition; a fork of this barrier
-// treats those tasks per policy instead of pretending they never ran.
+// background work with their fork-time disposition; a fork of this barrier
+// treats those work items per policy instead of pretending they never ran.
 type CheckpointBarrier struct {
 	BarrierID string `json:"barrier_id"`
 	GenStep   int    `json:"gen_step,omitempty"`

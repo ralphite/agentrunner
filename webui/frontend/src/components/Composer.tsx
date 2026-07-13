@@ -93,8 +93,8 @@ interface Attachment {
   isImage: boolean;
 }
 
-// Last project used from the landing composer (RH-1). Codex opens New task with
-// your previous repo already selected, so a task can go out in one keystroke —
+// Last project used from the landing composer (RH-1). Codex opens New session with
+// your previous repo already selected, so a session can go out in one keystroke —
 // and, crucially, so the greeting headline and the project chip can never name
 // different places. localStorage (not "the newest session") is the durable
 // source: a session list can reorder under you (background runs, scratch
@@ -153,7 +153,7 @@ export function Composer(props: ComposerProps) {
   const isSession = props.variant === "session";
 
   // Per-session draft: initialize from what was typed here last time (the
-  // component remounts on task switch), keep it saved as you type.
+  // component remounts on session switch), keep it saved as you type.
   const draftKey = isSession ? ((props as any).sid as string) : "~home";
   const [text, setText] = useState(() => recallDraft(draftKey));
   useEffect(() => rememberDraft(draftKey, text), [draftKey, text]);
@@ -217,7 +217,7 @@ export function Composer(props: ComposerProps) {
     return () => mq.removeEventListener("change", sync);
   }, []);
 
-  // home-only context. `ws` is the ONE source of truth for "where does this task
+  // home-only context. `ws` is the ONE source of truth for "where does this session
   // run" — the chip renders it, the send path uses it, and Home's headline
   // mirrors it through onProjectChange (RH-1). It opens on the last project the
   // user chose here.
@@ -231,7 +231,7 @@ export function Composer(props: ComposerProps) {
   const [branchInfo, setBranchInfo] = useState<{ isRepo: boolean; current: string; branches: string[]; dirty: number; hasCommits?: boolean } | null>(null);
 
   // goal / loop / best-of-N launcher panel
-  const [launcher, setLauncher] = useState<null | { mode: "goal" | "loop" | "best"; task: string }>(null);
+  const [launcher, setLauncher] = useState<null | { mode: "goal" | "loop" | "best"; prompt: string }>(null);
 
   // slash menu
   const [slashOpen, setSlashOpen] = useState(false);
@@ -371,12 +371,12 @@ export function Composer(props: ComposerProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ws, isSession]);
 
-  // Home lands ready to type (INC-41 HM-1). Codex opens New task with the caret
+  // Home lands ready to type (INC-41 HM-1). Codex opens New session with the caret
   // already in the input; ours left document.activeElement === BODY, so a
   // blind-typed "hello" fell on the floor. Focus on mount — but never rip focus
   // out of an overlay that owns the window (command palette, settings, a modal)
   // or out of a field someone is already typing in. Session composers keep the
-  // old behavior: opening a task focuses the transcript, not the input.
+  // old behavior: opening a session focuses the transcript, not the input.
   useEffect(() => {
     if (isSession) return;
     if (document.querySelector("[role='dialog']")) return;
@@ -606,7 +606,7 @@ export function Composer(props: ComposerProps) {
       } else {
         const workspace = await resolveHomeWorkspace();
         const spec = buildSpec({ provider, model, access, persona, effort, budgetOverride });
-        const r = await AR.startRun({ kind: "submit", spec, extraSpecs: [], task: t, workspace, mode: accessById(access).mode, idem: "" });
+        const r = await AR.startRun({ kind: "submit", spec, extraSpecs: [], prompt: t, workspace, mode: accessById(access).mode, idem: "" });
         resetInput();
         await refreshRuns();
         selectRun(r.runId);
@@ -684,7 +684,7 @@ export function Composer(props: ComposerProps) {
   // the agent calls goal_complete when it's verifiably done (audited at the
   // turn boundary). On Home this creates the session first; the driver-goal
   // (fresh-run, batch) form stays reachable from the Background run modal.
-  const startGoal = async (task: string, verifier: string, iterations: number) => {
+  const startGoal = async (goalText: string, verifier: string, iterations: number) => {
     setBusy(true);
     try {
       let sid: string;
@@ -698,7 +698,7 @@ export function Composer(props: ComposerProps) {
           spec,
           extraSpecs: personaById(persona).withWorker ? [{ name: "worker.yaml", content: DEFAULT_WORKER }] : [],
           workspace,
-          message: task,
+          message: goalText,
           mode: accessById(access).mode,
         });
         rememberSpec(r.sid, spec);
@@ -706,7 +706,7 @@ export function Composer(props: ComposerProps) {
         sid = r.sid;
       }
       try {
-        await AR.goal(sid, { action: "attach", goal: task, verifier, maxChecks: iterations });
+        await AR.goal(sid, { action: "attach", goal: goalText, verifier, maxChecks: iterations });
         toast(
           verifier
             ? "Goal attached — a verifier checks at each pause"
@@ -731,16 +731,16 @@ export function Composer(props: ComposerProps) {
     }
   };
 
-  const startLoop = async (task: string, interval: string, iterations: number) => {
+  const startLoop = async (prompt: string, interval: string, iterations: number) => {
     const workspace = isSession ? (props as any).workspace || (await ensureWs()) : await ensureWs();
     if (!workspace) return props.onError("a workspace is required to start a loop");
     setBusy(true);
     try {
       const r = await AR.startRun({
         kind: "drive",
-        spec: buildLoopDriver({ task, interval, maxIterations: iterations, provider, model }),
+        spec: buildLoopDriver({ prompt, interval, maxIterations: iterations, provider, model }),
         extraSpecs: [{ name: "agent.yaml", content: buildDriverAgent({ provider, model }) }],
-        task: "",
+        prompt: "",
         workspace,
         mode: "",
         idem: "",
@@ -758,16 +758,16 @@ export function Composer(props: ComposerProps) {
 
   // Best-of-N (schedule: parallel): N isolated attempts from one snapshot,
   // the verifier judges, the best result wins.
-  const startBest = async (task: string, verifier: string, attempts: number) => {
+  const startBest = async (prompt: string, verifier: string, attempts: number) => {
     const workspace = isSession ? (props as any).workspace || (await ensureWs()) : await ensureWs();
     if (!workspace) return props.onError("a workspace is required to start a best-of-N run");
     setBusy(true);
     try {
       const r = await AR.startRun({
         kind: "drive",
-        spec: buildBestOfNDriver({ task, n: attempts, verifier, provider, model }),
+        spec: buildBestOfNDriver({ prompt, n: attempts, verifier, provider, model }),
         extraSpecs: [{ name: "agent.yaml", content: buildDriverAgent({ provider, model }) }],
-        task: "",
+        prompt: "",
         workspace,
         mode: "",
         idem: "",
@@ -812,15 +812,15 @@ export function Composer(props: ComposerProps) {
           await startGoal(rest.trim(), "", 10);
           return;
         }
-        setLauncher({ mode: "goal", task: rest });
+        setLauncher({ mode: "goal", prompt: rest });
         setText("");
         return;
       case "loop":
-        setLauncher({ mode: "loop", task: rest });
+        setLauncher({ mode: "loop", prompt: rest });
         setText("");
         return;
       case "bestof":
-        setLauncher({ mode: "best", task: rest });
+        setLauncher({ mode: "best", prompt: rest });
         setText("");
         return;
       case "optimize":
@@ -831,7 +831,7 @@ export function Composer(props: ComposerProps) {
       case "plan":
         setAccess("plan");
         setText("");
-        toast("Plan mode — the next task runs read-only", "info");
+        toast("Plan mode — the next session runs read-only", "info");
         return;
       case "model": {
         const m = MODELS.find((x) => x.id === rest.trim()) || MODELS.find((x) => x.id.includes(rest.trim()));
@@ -985,8 +985,8 @@ export function Composer(props: ComposerProps) {
     : kind === "chat"
       ? "Do anything"
       : narrow
-        ? "Describe a background task"
-        : "Describe a background task";
+        ? "Describe a background run"
+        : "Describe a background run";
 
   // Pill label: friendly name for a chosen workspace; before one exists, say
   // what will actually happen instead of the ambiguous "auto-created" (W2).
@@ -1055,11 +1055,11 @@ export function Composer(props: ComposerProps) {
       {launcher && (
         <GoalLoopLauncher
           mode={launcher.mode}
-          initialTask={launcher.task}
+          initialPrompt={launcher.prompt}
           busy={busy}
           onCancel={() => setLauncher(null)}
-          onStart={(task, a, b) =>
-            launcher.mode === "goal" ? startGoal(task, a, b) : launcher.mode === "loop" ? startLoop(task, a, b) : startBest(task, a, b)
+          onStart={(prompt, a, b) =>
+            launcher.mode === "goal" ? startGoal(prompt, a, b) : launcher.mode === "loop" ? startLoop(prompt, a, b) : startBest(prompt, a, b)
           }
         />
       )}
@@ -1153,16 +1153,16 @@ export function Composer(props: ComposerProps) {
             )}
           </Popover>
 
-          {/* Start-in chip (INC-41 CP-4): ONE meaning — where the task runs.
-              "Task type" (interactive vs background) used to ride along in this
+          {/* Start-in chip (INC-41 CP-4): ONE meaning — where the session runs.
+              Run type (interactive vs background) used to ride along in this
               popover, which both broke the one-choice-per-menu rule above and
               left the chip lying: picking Background changed nothing here, so a
-              headless run looked like a chat session. Task type now lives in the
-              `+` menu's Task options, and the chip *names* the background state. */}
+              headless run looked like a chat session. Session type now lives in the
+              `+` menu's Advanced options, and the chip names the background state. */}
           <Popover
             align="left"
             trigger={(open, toggle) => (
-              <button className={"cx-env-control" + (open ? " active" : "")} onClick={toggle} title={kind === "background" ? "Runs as a background task — choose where it runs" : "Choose where this task runs"} aria-haspopup="menu" aria-expanded={open}>
+              <button className={"cx-env-control" + (open ? " active" : "")} onClick={toggle} title={kind === "background" ? "Runs in the background — choose where it runs" : "Choose where this session runs"} aria-haspopup="menu" aria-expanded={open}>
                 {kind === "background" ? <Lightning size={17} /> : runLocation === "local" ? <Desktop size={17} /> : <GitBranch size={17} />}
                 <span className="cx-env-value min-w-0 overflow-hidden text-ellipsis">
                   {(kind === "background" ? "Background · " : "") + (runLocation === "local" ? "Local" : "New worktree")}
@@ -1325,8 +1325,8 @@ export function Composer(props: ComposerProps) {
                 · Add — ONE "Files and folders" row. `pick()` already routes by
                   mime (image → --image, everything else → --file), so the old
                   Images/Files split bought nothing and cost a row.
-                · Task options — Goal / Loop / Best of N / Plan mode, plus the
-                  Background-task toggle that CP-4 moved out of the run-location
+                · Advanced — Goal / Loop / Best of N / Plan mode, plus the
+                  Background-run toggle moved out of the run-location
                   chip (checked = headless; unchecked = interactive session, and
                   the chip names whichever is on).
                 · Agent — one drill-in row showing the current persona; the five
@@ -1338,7 +1338,7 @@ export function Composer(props: ComposerProps) {
             panelClass="cx-pop-codex"
             onOpen={() => setAddMenuPage("root")}
             trigger={(open, toggle) => (
-              <button className={"cx-icon" + (open ? " active" : "")} onClick={toggle} title="Add & task options" aria-label="Add and task options" aria-haspopup="menu" aria-expanded={open}>
+              <button className={"cx-icon" + (open ? " active" : "")} onClick={toggle} title="Add & advanced options" aria-label="Add and advanced options" aria-haspopup="menu" aria-expanded={open}>
                 <PlusIcon />
               </button>
             )}
@@ -1350,15 +1350,15 @@ export function Composer(props: ComposerProps) {
                     <PopSection label="Add">
                       <PopItem icon={<Paperclip size={16} />} title="Files and folders" desc="Images, PDFs, any file" onClick={() => { close(); anyRef.current?.click(); }} />
                     </PopSection>
-                    <PopSection label="Task options">
-                      <PopItem icon={<GoalIcon />} title="Goal" desc="Keep working until it's met" onClick={() => { close(); setLauncher({ mode: "goal", task: text.trim() }); }} />
-                      <PopItem icon={<LoopIcon />} title="Loop" desc="Repeat on a cadence" onClick={() => { close(); setLauncher({ mode: "loop", task: text.trim() }); }} />
-                      <PopItem icon={<BestIcon />} title="Best of N" desc="Keep the best of N tries" onClick={() => { close(); setLauncher({ mode: "best", task: text.trim() }); }} />
+                    <PopSection label="Advanced">
+                      <PopItem icon={<GoalIcon />} title="Goal" desc="Keep working until it's met" onClick={() => { close(); setLauncher({ mode: "goal", prompt: text.trim() }); }} />
+                      <PopItem icon={<LoopIcon />} title="Loop" desc="Repeat on a cadence" onClick={() => { close(); setLauncher({ mode: "loop", prompt: text.trim() }); }} />
+                      <PopItem icon={<BestIcon />} title="Best of N" desc="Keep the best of N tries" onClick={() => { close(); setLauncher({ mode: "best", prompt: text.trim() }); }} />
                       {!isSession && <PopItem icon={<PlanIcon />} title="Plan mode" desc="Read-only planning" active={access === "plan"} onClick={() => { close(); setAccess("plan"); }} />}
                       {!isSession && (
                         <PopItem
                           icon={<Lightning size={16} />}
-                          title="Background task"
+                          title="Background run"
                           desc="Run headless, no chat"
                           active={kind === "background"}
                           onClick={() => { setKind(kind === "background" ? "chat" : "background"); close(); }}
@@ -1451,7 +1451,7 @@ export function Composer(props: ComposerProps) {
                       );
                     })}
                   </PopSection>
-                  <div className="cx-pop-note">Approvals still surface here whenever a gate asks. Full access and Plan are fixed once the task starts.</div>
+                  <div className="cx-pop-note">Approvals still surface here whenever a gate asks. Full access and Plan are fixed once the session starts.</div>
                 </div>
               )}
             </Popover>
@@ -1481,7 +1481,7 @@ export function Composer(props: ComposerProps) {
                       />
                     ))}
                   </PopSection>
-                  <div className="cx-pop-note">Approvals still surface here whenever a gate asks; the posture is fixed once the task starts.</div>
+                  <div className="cx-pop-note">Approvals still surface here whenever a gate asks; the posture is fixed once the session starts.</div>
                 </div>
               )}
             </Popover>
@@ -1747,18 +1747,18 @@ function EffortSlider({
 // ---- goal / loop / best-of-N launcher ---------------------------------------
 function GoalLoopLauncher({
   mode,
-  initialTask,
+  initialPrompt,
   busy,
   onCancel,
   onStart,
 }: {
   mode: "goal" | "loop" | "best";
-  initialTask: string;
+  initialPrompt: string;
   busy: boolean;
   onCancel: () => void;
-  onStart: (task: string, second: string, iterations: number) => void;
+  onStart: (prompt: string, second: string, iterations: number) => void;
 }) {
-  const [task, setTask] = useState(initialTask);
+  const [prompt, setPrompt] = useState(initialPrompt);
   const [second, setSecond] = useState(mode === "loop" ? "5m" : ""); // interval | verifier
   const [iters, setIters] = useState(mode === "goal" ? 10 : mode === "loop" ? 5 : 3); // rounds | attempts
   const meta = {
@@ -1775,7 +1775,7 @@ function GoalLoopLauncher({
         <span className="cx-spacer" />
         <button className="ghost sm" onClick={onCancel} aria-label="Close launcher"><X size={13} /></button>
       </div>
-      <textarea className="cx-launcher-task" rows={2} placeholder={mode === "goal" ? "What goal should the agent keep working toward?" : mode === "loop" ? "What should each iteration do?" : "What should each attempt try to do?"} value={task} onChange={(e) => setTask(e.target.value)} />
+      <textarea className="cx-launcher-prompt" rows={2} placeholder={mode === "goal" ? "What goal should the agent keep working toward?" : mode === "loop" ? "What should each iteration do?" : "What should each attempt try to do?"} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
       <div className="cx-launcher-row">
         {mode === "loop" ? (
           <label className="cx-launcher-field" title="How often to run (Go duration, e.g. 30s, 5m, 1h)">
@@ -1792,7 +1792,7 @@ function GoalLoopLauncher({
           <span>{mode === "best" ? "Attempts" : "Max rounds"}</span>
           <input type="number" min={mode === "best" ? 2 : 1} value={iters} onChange={(e) => setIters(Math.max(mode === "best" ? 2 : 1, Number(e.target.value) || 1))} />
         </label>
-        <button className="primary cx-launcher-go" disabled={busy || !task.trim() || (mode === "loop" && !second.trim())} onClick={() => onStart(task.trim(), second.trim(), iters)}>
+        <button className="primary cx-launcher-go" disabled={busy || !prompt.trim() || (mode === "loop" && !second.trim())} onClick={() => onStart(prompt.trim(), second.trim(), iters)}>
           {meta.start}
         </button>
       </div>

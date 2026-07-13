@@ -12,7 +12,7 @@ export function pillClass(status: string): string {
 }
 
 // friendlyStatus maps a raw daemon/session status word to one consistent,
-// user-facing label + color class, used by both the sidebar and the task
+// user-facing label + color class, used by both the sidebar and the session
 // header so the two never contradict each other (QA #8).
 export function friendlyStatus(raw: string): { text: string; cls: string } {
   const s = (raw || "").toLowerCase();
@@ -62,10 +62,10 @@ export function terminalNoticeFor(raw: string, driver = false): TerminalNotice |
       title: "Budget limit reached",
       body: driver
         ? "This scheduled run stopped at its configured token budget. Review the run before changing its limits."
-        : "This task stopped at its configured token budget. Continue from a checkpoint in a new task with a larger budget.",
+        : "This session stopped at its configured token budget. Continue from a checkpoint in a new session with a larger budget.",
       tone: "attention",
       action: driver ? "inspect" : "continue",
-      actionLabel: driver ? "Run details" : "Continue in new task",
+      actionLabel: driver ? "Run details" : "Continue in new session",
     };
   }
   if (s.includes("max_iterations")) {
@@ -80,24 +80,24 @@ export function terminalNoticeFor(raw: string, driver = false): TerminalNotice |
   if (s.includes("max_generation_steps") || s.includes("step limit")) {
     return {
       title: "Step limit reached",
-      body: "The task stopped at its configured generation-step limit. Review the run or continue from a checkpoint.",
+      body: "The session stopped at its configured generation-step limit. Review the run or continue from a checkpoint.",
       tone: "attention",
       action: driver ? "inspect" : "continue",
-      actionLabel: driver ? "Run details" : "Continue in new task",
+      actionLabel: driver ? "Run details" : "Continue in new session",
     };
   }
   if (s.includes("strand") || s.includes("interrupt")) {
     return {
-      title: "Task needs recovery",
-      body: "The previous host stopped before this task reached a durable terminal state. Resume from its last checkpoint.",
+      title: "Session needs recovery",
+      body: "The previous host stopped before this session reached a durable terminal state. Resume from its last checkpoint.",
       tone: "attention",
       action: "resume",
-      actionLabel: "Resume task",
+      actionLabel: "Resume session",
     };
   }
   if (s.includes("crash") || s.includes("error") || s.includes("fail")) {
     return {
-      title: "Task failed",
+      title: "Session failed",
       body: "The last run ended unexpectedly. Review the recorded run details before deciding whether to retry.",
       tone: "danger",
       action: "inspect",

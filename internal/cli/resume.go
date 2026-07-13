@@ -269,7 +269,7 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 		}
 		mtime := int64(0)
 		// A session directory's own mtime usually stays at creation time while
-		// events.jsonl keeps advancing. Sort by the journal mtime so an old task
+		// events.jsonl keeps advancing. Sort by the journal mtime so an old session
 		// with new activity returns to the first page, matching the UI's notion
 		// of recent work.
 		if info, statErr := os.Stat(filepath.Join(root, e.Name(), "events.jsonl")); statErr == nil {
@@ -314,15 +314,15 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 						r.Title = started.SpecName
 						var spec struct {
 							Schedule string
-							Task     string
+							Prompt   string
 						}
 						if json.Unmarshal(started.Spec, &spec) == nil {
 							r.Schedule = spec.Schedule
 							if r.Schedule == "" {
 								r.Schedule = driver.ScheduleImmediate
 							}
-							if task := strings.TrimSpace(strings.SplitN(spec.Task, "\n", 2)[0]); task != "" {
-								r.Title = task
+							if prompt := strings.TrimSpace(strings.SplitN(spec.Prompt, "\n", 2)[0]); prompt != "" {
+								r.Title = prompt
 							}
 						}
 					}
@@ -354,7 +354,7 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 				r.Turns = len(s.Interactions.Turns)
 				if started, serr := sessionStartedFromEvents(events); serr == nil {
 					r.Workspace = started.WorkspaceRoot
-					r.Title = strings.TrimSpace(strings.SplitN(started.Task, "\n", 2)[0])
+					r.Title = strings.TrimSpace(strings.SplitN(started.Prompt, "\n", 2)[0])
 				}
 				// The auto/manual/fork title projection (INC-52, HANDA-PARITY
 				// #14) is a journal fact: it wins over the opening first line

@@ -3,20 +3,20 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { CommandPalette } from "./CommandPalette";
 import { useStore } from "../store";
-import { quickSwitchTasks } from "../viewModels";
+import { quickSwitchSessions } from "../viewModels";
 import type { Session } from "../types";
 
 // INC-41 RH-3 — the palette used to badge only the *non*-attention rows, so on a
-// machine whose nine quick-switch slots were all attention tasks it rendered
-// zero ⌘-badges and no Tasks group at all, while ⌘1..9 kept working. These tests
-// pin the Codex shape: nine badged Tasks rows (unread dot or not) + an overflow
-// `Unread tasks` group, with the badge numbers matching the real key binding.
+// machine whose nine quick-switch slots were all attention sessions it rendered
+// zero ⌘-badges and no Sessions group at all, while ⌘1..9 kept working. These tests
+// pin the Codex shape: nine badged Sessions rows (unread dot or not) + an overflow
+// `Needs attention` group, with the badge numbers matching the real key binding.
 
-const task = (id: string, status: string): Session => ({ id, status, turns: 1, title: `Task ${id}` });
-// Twelve tasks, every one of them waiting on an approval: the exact live-store
+const session = (id: string, status: string): Session => ({ id, status, turns: 1, title: `Session ${id}` });
+// Twelve sessions, every one of them waiting on an approval: the exact live-store
 // shape from qa/runs/2026-07-11-round18/before/live-palette-dark-1440.png.
 const allAttention = Array.from({ length: 12 }, (_, i) =>
-  task(`t${String(12 - i).padStart(2, "0")}`, "waiting_approval"),
+  session(`t${String(12 - i).padStart(2, "0")}`, "waiting_approval"),
 );
 
 type State = Partial<ReturnType<typeof useStore.getState>>;
@@ -31,10 +31,10 @@ const rows = () => Array.from(screen.getByRole("listbox").querySelectorAll(".cmd
 
 afterEach(cleanup);
 
-describe("CommandPalette task groups (RH-3)", () => {
-  it("shows a Tasks group whose nine rows each carry a ⌘-digit badge", () => {
+describe("CommandPalette session groups (RH-3)", () => {
+  it("shows a Sessions group whose nine rows each carry a ⌘-digit badge", () => {
     open(allAttention);
-    expect(screen.getByText("Tasks")).toBeTruthy();
+    expect(screen.getByText("Sessions")).toBeTruthy();
     const badged = rows().filter((r) => r.querySelector(".cmdk-kbd"));
     expect(badged).toHaveLength(9);
     // Every one of them is an attention row (amber "needs approval" dot, CP-6)
@@ -48,44 +48,44 @@ describe("CommandPalette task groups (RH-3)", () => {
 
   it("numbers the badges exactly as the global ⌘-digit binding jumps (App.tsx)", () => {
     open(allAttention);
-    const expected = quickSwitchTasks(allAttention).map((s) => s.title || s.id);
+    const expected = quickSwitchSessions(allAttention).map((s) => s.title || s.id);
     const badged = rows().filter((r) => r.querySelector(".cmdk-kbd"));
     badged.forEach((r, i) => {
-      // Badge says ⌘(i+1); the row it rides is quickSwitchTasks[i] — which is
+      // Badge says ⌘(i+1); the row it rides is quickSwitchSessions[i] — which is
       // precisely what App.tsx opens for that digit.
       expect(r.querySelector(".cmdk-kbd")!.textContent).toMatch(new RegExp(`${i + 1}$`));
       expect(within(r as HTMLElement).getByText(expected[i])).toBeTruthy();
     });
   });
 
-  it("puts attention tasks past the ninth digit in a badge-less Unread tasks group", () => {
+  it("puts attention sessions past the ninth digit in a badge-less Needs attention group", () => {
     open(allAttention);
-    expect(screen.getByText("Unread tasks")).toBeTruthy();
-    const unbadgedTasks = rows().filter(
+    expect(screen.getByText("Needs attention")).toBeTruthy();
+    const unbadgedSessions = rows().filter(
       (r) => r.querySelector(".status-dot") && !r.querySelector(".cmdk-kbd"),
     );
-    expect(unbadgedTasks.map((r) => r.querySelector(".cmdk-label")!.textContent)).toEqual([
-      "Task t03",
-      "Task t02",
-      "Task t01",
+    expect(unbadgedSessions.map((r) => r.querySelector(".cmdk-label")!.textContent)).toEqual([
+      "Session t03",
+      "Session t02",
+      "Session t01",
     ]);
   });
 
-  it("omits the Unread tasks group when nothing overflows", () => {
-    open([task("t02", "idle"), task("t01", "completed")]);
-    expect(screen.getByText("Tasks")).toBeTruthy();
-    expect(screen.queryByText("Unread tasks")).toBeNull();
+  it("omits the Needs attention group when nothing overflows", () => {
+    open([session("t02", "idle"), session("t01", "completed")]);
+    expect(screen.getByText("Sessions")).toBeTruthy();
+    expect(screen.queryByText("Needs attention")).toBeNull();
     expect(rows().filter((r) => r.querySelector(".cmdk-kbd"))).toHaveLength(2);
   });
 
-  it("opens the task its badge advertises", () => {
+  it("opens the session its badge advertises", () => {
     const select = vi.fn();
     useStore.setState({ select });
     open(allAttention);
     const third = rows().filter((r) => r.querySelector(".cmdk-kbd"))[2];
     expect(third.querySelector(".cmdk-kbd")!.textContent).toMatch(/3$/);
     fireEvent.click(third);
-    expect(select).toHaveBeenCalledWith(quickSwitchTasks(allAttention)[2].id);
+    expect(select).toHaveBeenCalledWith(quickSwitchSessions(allAttention)[2].id);
   });
 
   it("drops the badges once the user types a query (no key jumps to a filtered row)", () => {
@@ -96,8 +96,8 @@ describe("CommandPalette task groups (RH-3)", () => {
 });
 
 // INC-41 CP-5/6/7/8 — the palette's five Codex gaps: ↓ walked the selection out
-// of the scroll box (Enter then opened an invisible task), every task dot was
-// painted the same "new activity" blue regardless of status, archived tasks came
+// of the scroll box (Enter then opened an invisible session), every session dot was
+// painted the same "new activity" blue regardless of status, archived sessions came
 // back through search unmarked, and ⌘K could reach neither Scheduled nor
 // Settings.
 
@@ -161,55 +161,55 @@ describe("CommandPalette status dots (CP-6)", () => {
 
   it("colours each dot by friendlyStatus, exactly like the sidebar rail", () => {
     open([
-      task("t05", "waiting_approval"),
-      task("t04", "running"),
-      task("t03", "crashed"),
-      task("t02", "stranded"),
-      task("t01", "completed"),
+      session("t05", "waiting_approval"),
+      session("t04", "running"),
+      session("t03", "crashed"),
+      session("t02", "stranded"),
+      session("t01", "completed"),
     ]);
-    expect(dotOf("Task t05").className).toBe("status-dot appr");
-    expect(dotOf("Task t04").className).toBe("status-dot run");
-    expect(dotOf("Task t03").className).toBe("status-dot crash");
-    expect(dotOf("Task t02").className).toBe("status-dot stranded");
+    expect(dotOf("Session t05").className).toBe("status-dot appr");
+    expect(dotOf("Session t04").className).toBe("status-dot run");
+    expect(dotOf("Session t03").className).toBe("status-dot crash");
+    expect(dotOf("Session t02").className).toBe("status-dot stranded");
     // Quiet statuses keep the gutter but no colour (and no false "unread" blue).
-    expect(dotOf("Task t01").className).toBe("status-dot");
-    expect((dotOf("Task t01") as HTMLElement).style.visibility).toBe("hidden");
+    expect(dotOf("Session t01").className).toBe("status-dot");
+    expect((dotOf("Session t01") as HTMLElement).style.visibility).toBe("hidden");
     expect(rows().some((r) => r.querySelector(".status-dot.unread"))).toBe(false);
   });
 
-  it("keeps the blue unread dot for tasks with genuinely new activity", () => {
-    open([task("t02", "waiting_approval"), task("t01", "completed")], { unread: ["t01"] });
-    expect(dotOf("Task t01").className).toBe("status-dot unread");
-    expect(dotOf("Task t01").getAttribute("title")).toBe("New activity");
+  it("keeps the blue unread dot for sessions with genuinely new activity", () => {
+    open([session("t02", "waiting_approval"), session("t01", "completed")], { unread: ["t01"] });
+    expect(dotOf("Session t01").className).toBe("status-dot unread");
+    expect(dotOf("Session t01").getAttribute("title")).toBe("New activity");
     // Unread wins over status for t01 only — t02 still shows its approval amber.
-    expect(dotOf("Task t02").className).toBe("status-dot appr");
-    expect(dotOf("Task t02").getAttribute("title")).toBe("Needs approval");
+    expect(dotOf("Session t02").className).toBe("status-dot appr");
+    expect(dotOf("Session t02").getAttribute("title")).toBe("Needs approval");
   });
 });
 
 describe("CommandPalette archived search hits (CP-7)", () => {
-  const sessions = [task("t02", "idle"), task("t01", "idle")];
+  const sessions = [session("t02", "idle"), session("t01", "idle")];
 
-  it("files archived matches under their own Archived group, after live tasks", () => {
+  it("files archived matches under their own Archived group, after live sessions", () => {
     open(sessions, { archived: ["t01"] });
-    // Empty query: archived tasks stay out of the switcher entirely.
-    expect(rows().map((r) => r.querySelector(".cmdk-label")!.textContent)).not.toContain("Task t01");
+    // Empty query: archived sessions stay out of the switcher entirely.
+    expect(rows().map((r) => r.querySelector(".cmdk-label")!.textContent)).not.toContain("Session t01");
 
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "task t" } });
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "session t" } });
     expect(screen.getByText("Archived")).toBeTruthy();
     const labels = rows().map((r) => r.querySelector(".cmdk-label")!.textContent);
     // Reachable — but last, and under an honest header rather than posing as a
-    // live task in the Tasks group.
-    expect(labels.indexOf("Task t01")).toBeGreaterThan(labels.indexOf("Task t02"));
-    const taskRows = Array.from(screen.getByRole("listbox").children).map((c) => c.textContent);
-    expect(taskRows.join("|")).toContain("Archived");
+    // live session in the Sessions group.
+    expect(labels.indexOf("Session t01")).toBeGreaterThan(labels.indexOf("Session t02"));
+    const sessionRows = Array.from(screen.getByRole("listbox").children).map((c) => c.textContent);
+    expect(sessionRows.join("|")).toContain("Archived");
   });
 
   it("does not label live search hits as archived", () => {
     open(sessions, { archived: [] });
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "task t" } });
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "session t" } });
     expect(screen.queryByText("Archived")).toBeNull();
-    expect(screen.getByText("Tasks")).toBeTruthy();
+    expect(screen.getByText("Sessions")).toBeTruthy();
   });
 });
 

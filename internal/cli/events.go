@@ -127,7 +127,7 @@ func compactPayload(raw json.RawMessage, max int) string {
 // spawn/settle events carry the full id verbatim, so it is always at hand.
 //
 // A TOP-LEVEL slug may itself contain "-sub-" (ids are minted from free
-// task text — "spawn 3 sub-agents…" → "…-worker-sub-age-8588"), so child
+// prompt text — "spawn 3 sub-agents…" → "…-worker-sub-age-8588"), so child
 // addressing must never shadow an existing top-level session: exact
 // top-level match wins, then child split points are tried longest-parent
 // first (below the top level the split is unambiguous — call ids are

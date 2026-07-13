@@ -227,8 +227,8 @@ func TestCLISessionsJSONProjectsDriverMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	spec, _ := json.Marshal(map[string]any{
-		"Name": "nightly",
-		"Task": "Audit dependencies every night",
+		"Name":   "nightly",
+		"Prompt": "Audit dependencies every night",
 	})
 	for _, item := range []struct {
 		typ string
@@ -279,7 +279,7 @@ func TestCLISessionsJSONSurfacesAutoTitle(t *testing.T) {
 		v   any
 	}{
 		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "hello", Model: "m",
-			Task:    "please refactor the auth boundary and add the missing regression tests",
+			Prompt:  "please refactor the auth boundary and add the missing regression tests",
 			Version: "dev", SubStateVersions: state.SubStateVersions()}},
 		{event.TypeInputReceived, &event.InputReceived{Text: "please refactor the auth boundary", Source: "user"}},
 		{event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}},

@@ -13,7 +13,7 @@ import (
 // its OWN scripted fixture, so a multi-agent test is DETERMINISTIC even
 // though the children race (v2 M3.0, GAPS G4). Each route is keyed by a
 // substring the request's conversation must contain (typically the agent's
-// task text or a marker in its system prompt); the matching sub-provider
+// prompt text or a marker in its system prompt); the matching sub-provider
 // keeps its own independent step counter.
 //
 // Routing is by first match in Routes order — put the most specific key

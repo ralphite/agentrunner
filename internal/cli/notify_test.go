@@ -38,7 +38,7 @@ func TestReconcileNotificationsIdleApproval(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	journal(event.TypeSessionStarted, &event.SessionStarted{SpecName: "x", Model: "m", Task: "t"})
+	journal(event.TypeSessionStarted, &event.SessionStarted{SpecName: "x", Model: "m", Prompt: "t"})
 	detail, _ := json.Marshal(event.ApprovalRequested{ApprovalID: "apr-42", EffectID: "eff-x"})
 	journal(event.TypeWaitingEntered, &event.WaitingEntered{Kind: event.WaitApproval, Detail: detail})
 	if err := es.Close(); err != nil {
@@ -88,7 +88,7 @@ func TestReconcileSkipsEndedAndGarbage(t *testing.T) {
 		typ string
 		p   any
 	}{
-		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "x", Model: "m", Task: "t"}},
+		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "x", Model: "m", Prompt: "t"}},
 		{event.TypeSessionClosed, &event.SessionClosed{Reason: "closed", Source: "user"}},
 	} {
 		env, _ := event.New(ev.typ, ev.p)

@@ -246,7 +246,7 @@ func decodeHint(err error) string {
 }
 
 // typeNameRe matches yaml.v3's KnownFields error phrase, e.g.
-// "field task not found in type agent.AgentSpec".
+// "field prompt not found in type agent.AgentSpec".
 var typeNameRe = regexp.MustCompile(`field (\S+) not found in type \S+`)
 
 func (s *AgentSpec) validate(path string) error {

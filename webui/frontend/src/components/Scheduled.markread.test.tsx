@@ -94,7 +94,7 @@ describe("Mark all as read sits at the right end of the tab row (SC-21)", () => 
     mount(["20250101-100000-digest"]);
     expect(markAll()).not.toBeNull();
 
-    fireEvent.change(screen.getByLabelText("Search scheduled tasks"), {
+    fireEvent.change(screen.getByLabelText("Search scheduled runs"), {
       target: { value: "Hourly" },
     });
 

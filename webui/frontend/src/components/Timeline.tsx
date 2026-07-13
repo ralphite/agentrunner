@@ -72,7 +72,7 @@ function calendarDaysAgo(d: Date, now: Date): number {
 // shortTime renders a message timestamp for the message action row (Codex shows
 // the time there, not as centered feed markers).
 //
-// TR-2: agent tasks run for hours to days, so the bare "11:31 PM" this used to
+// TR-2: agent sessions run for hours to days, so the bare "11:31 PM" this used to
 // emit was unreadable the moment a thread crossed midnight — a real session
 // shows "11:31 PM" above "12:40 AM" with nothing saying those are two different
 // days. The only thing a timestamp on a long thread is FOR is locating which
@@ -144,7 +144,7 @@ function Thumbs({ paths, fallback }: { paths: string[]; fallback?: ReactNode }) 
 
 // MsgActions is the action row under a message (Codex puts Copy / reactions
 // there). We ship an icon-only Copy (whole message text), a Share that reuses the
-// copy-link mechanism (the current hash route already deep-links this task), and
+// copy-link mechanism (the current hash route already deep-links this session), and
 // — on the final assistant answer of a satisfied run — an inline "Goal achieved
 // in N" verdict. Thumbs up/down are deliberately omitted: there is no feedback
 // endpoint to wire them to, so they'd be dead controls (deferred until one lands).
@@ -178,7 +178,7 @@ function MsgActions({
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
   };
-  // Share = copy a deep link to this task. The router keys off the URL hash, so
+  // Share = copy a deep link to this session. The router keys off the URL hash, so
   // the current location already targets this session — no backend needed.
   const share = async () => {
     await copyText(location.href);
@@ -191,11 +191,11 @@ function MsgActions({
       <button className="msg-copy icon-only" onClick={copy} title="Copy message" aria-label="Copy message">
         {copied ? <Check size={15} /> : <Copy size={15} />}
       </button>
-      <button className="msg-copy icon-only" onClick={share} title="Copy link to this task" aria-label="Copy link to this task">
+      <button className="msg-copy icon-only" onClick={share} title="Copy link to this session" aria-label="Copy link to this session">
         {shared ? <Check size={15} /> : <Share size={15} />}
       </button>
       {onContinue && (
-        <button className="msg-copy icon-only" onClick={onContinue} title="Continue in new task" aria-label="Continue in new task">
+        <button className="msg-copy icon-only" onClick={onContinue} title="Continue in new session" aria-label="Continue in new session">
           <ArrowSquareOut size={15} />
         </button>
       )}
@@ -450,7 +450,7 @@ function SpawnDetailView({ t }: { t: ToolItem }) {
           </a>
         )}
       </div>
-      {d.task && <div className="cx-td-task">{d.task}</div>}
+      {d.prompt && <div className="cx-td-prompt">{d.prompt}</div>}
     </div>
   );
 }
@@ -643,9 +643,8 @@ export function groupLabel(tools: ToolItem[]): string {
         add("scheduled work");
         break;
       case "kill":
-      case "task_kill":
       case "output":
-        add("managed tasks");
+        add("managed background work");
         break;
       default:
         // RT-3: never spell an internal tool name at the user. A tool we don't
@@ -707,7 +706,7 @@ function foldSpanMs(fold: WorkFold): number | undefined {
 // so a turn that was cut into segments by top-level approval chips, or that
 // ended in an error/approval stall instead of an answer, has durationMs
 // undefined. That used to degrade to a bare "Worked ›" carrying zero
-// information (six of them in a row on an approval-heavy task). Ladder:
+// information (six of them in a row on an approval-heavy session). Ladder:
 // stored duration → span measured off the fold's own children → step count.
 export function workedLabel(fold: WorkFold): string {
   const ms = fold.durationMs ?? foldSpanMs(fold);
@@ -1102,7 +1101,7 @@ export function TimelineView({
           <div className="tl-empty">
             <ChatCircle size={26} weight="light" />
             <b>No messages yet</b>
-            <span>This task hasn't started. Send a message below to begin.</span>
+            <span>This session hasn't started. Send a message below to begin.</span>
           </div>
         )}
         {nodes.map((it) => {

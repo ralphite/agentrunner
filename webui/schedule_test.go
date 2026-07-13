@@ -89,7 +89,7 @@ func TestSpecFromYAML(t *testing.T) {
 schedule: cron
 cron: "0 4 * * 6"   # weekly deep check
 agent_spec: child.yaml
-task: |
+prompt: |
   interval: not-a-field
 verifiers:
   - kind: command

@@ -23,7 +23,7 @@ type WaitRule struct {
 }
 
 // WaitRules is the closed registry: input (the standby idle — background
-// settlements wake it too, 决策 #31) and approval. There is no tasks/timer
+// settlements wake it too, 决策 #31) and approval. There is no handles/timer
 // wait kind — in-flight work parks the session in the SAME input idle, and
 // timers belong to the daemon sweep.
 var WaitRules = map[string]WaitRule{

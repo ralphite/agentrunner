@@ -120,7 +120,7 @@ func TestConversationalCrashRendersInDoubtAndContinues(t *testing.T) {
 // T1: a crash mid-timed-activity (bash carries a 120s durable timeout) must
 // cancel that timer as part of the crash-settle. Otherwise the orphaned
 // FUTURE timer keeps the session from ever reaching quiescence, and a resumed
-// submit task (no live input source) idles on it FOREVER instead of returning —
+// submitted run (no live input source) idles on it FOREVER instead of returning —
 // which is why `resume` used to hang on a stranded submit job.
 func TestCrashSettleCancelsActivityTimeout(t *testing.T) {
 	base := t.TempDir()
@@ -162,7 +162,7 @@ func TestCrashSettleCancelsActivityTimeout(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = es2.Close() }()
-	// No UserInputs: a submit task's resume. If the orphaned timer survives the
+	// No UserInputs: a submitted run's resume. If the orphaned timer survives the
 	// settle, the loop idles on it and this Resume never returns — the ctx
 	// deadline turns that regression into a failure instead of a hung test.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -201,7 +201,7 @@ func TestCrashSettleCancelsActivityTimeout(t *testing.T) {
 func crashParentPrefix(t *testing.T, es *store.EventStore, callID string) {
 	t.Helper()
 	asst := event.AssistantMessage{GenStep: 1, Message: providerAssistantToolCall(
-		callID, "spawn_agent", `{"agent":"worker","task":"investigate","background":true}`)}
+		callID, "spawn_agent", `{"agent":"worker","prompt":"investigate","background":true}`)}
 	appendSynthetic(t, es, []struct {
 		typ     string
 		payload any
@@ -212,10 +212,10 @@ func crashParentPrefix(t *testing.T, es *store.EventStore, callID string) {
 		{event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}},
 		{event.TypeAssistantMessage, &asst},
 		{event.TypeSpawnRequested, &event.SpawnRequested{CallID: callID, Agent: "worker",
-			Task: "investigate", ChildSession: "p-sub-" + callID + "-a1", Depth: 1}},
+			Prompt: "investigate", ChildSession: "p-sub-" + callID + "-a1", Depth: 1}},
 		{event.TypeActivityStarted, &event.ActivityStarted{ActivityID: "tool-" + callID,
 			Kind: event.KindTool, Name: "spawn_agent", CallID: callID, Attempt: 1,
-			Background: true, Args: json.RawMessage(`{"agent":"worker","task":"investigate","background":true}`)}},
+			Background: true, Args: json.RawMessage(`{"agent":"worker","prompt":"investigate","background":true}`)}},
 	})
 }
 
@@ -410,7 +410,7 @@ func TestCrashResumeReattachesApprovalWaitingChild(t *testing.T) {
 		payload any
 	}{
 		{event.TypeSessionStarted, &event.SessionStarted{SpecName: childSpec.Name,
-			Model: childSpec.Model.ID, Task: "wait for approval", Spec: specJSON,
+			Model: childSpec.Model.ID, Prompt: "wait for approval", Spec: specJSON,
 			WorkspaceRoot: root, SubStateVersions: state.SubStateVersions()}},
 		{event.TypeInputReceived, &event.InputReceived{Text: "wait for approval", Source: "cli"}},
 		{event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}},

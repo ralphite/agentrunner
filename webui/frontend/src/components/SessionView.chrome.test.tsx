@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-// INC-41 TH-14 / TH-15 — the chrome around a settled task.
+// INC-41 TH-14 / TH-15 — the chrome around a settled session.
 //
 // TH-14: one ending, said once. A step-limited session with a cancelled goal
 // used to pin TWO banners over the composer (`terminal-alert` + `gbar`, 93px)
@@ -97,9 +97,9 @@ describe("TH-14 · one terminal banner above the composer", () => {
 
     await waitFor(() => expect(container.querySelector(".terminal-alert")).not.toBeNull());
     // The step-limit alert is the ONE piece of pinned chrome: it carries the
-    // action ("Continue in new task"), so it is the one that survives.
+    // action ("Continue in new session"), so it is the one that survives.
     expect(screen.getByText("Step limit reached")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /continue in new task/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /continue in new session/i })).toBeTruthy();
 
     // …and the goal banner that used to sit under it is gone — its label and
     // elapsed now ride in the alert's meta tail, on the same row.
@@ -148,10 +148,10 @@ describe("TH-15 · one rail, one name, one door", () => {
   it("leaves exactly one tool pill in the topbar, named Environment", async () => {
     const { container } = render(<SessionView sid={SID} />);
 
-    await waitFor(() => expect(container.querySelector(".task-topbar")).not.toBeNull());
-    const tools = [...container.querySelectorAll(".task-topbar .topbar-tool")].map((b) => b.textContent!.trim());
+    await waitFor(() => expect(container.querySelector(".session-topbar")).not.toBeNull());
+    const tools = [...container.querySelectorAll(".session-topbar .topbar-tool")].map((b) => b.textContent!.trim());
     expect(tools).toEqual(["Environment"]);
-    const environment = container.querySelector(".task-topbar .topbar-tool")!;
+    const environment = container.querySelector(".session-topbar .topbar-tool")!;
     expect(environment.querySelector(".topbar-tool-label")!.textContent).toBe("Environment");
     expect(environment.getAttribute("aria-label")).toMatch(/Environment/);
     // The word the pill used to say — and the second door it used to sit next to.
@@ -178,8 +178,8 @@ describe("TH-15 · one rail, one name, one door", () => {
   it("keeps Changes reachable from the ··· menu", async () => {
     const { container } = render(<SessionView sid={SID} />);
 
-    await waitFor(() => expect(container.querySelector(".task-topbar")).not.toBeNull());
-    fireEvent.click(screen.getByRole("button", { name: /more task actions/i }));
+    await waitFor(() => expect(container.querySelector(".session-topbar")).not.toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: /more session actions/i }));
     // Scoped to the menu: `Changes` is also the rail's first row (the primary
     // door) — that's the point of TH-15, so both must exist and neither is the
     // deleted topbar pill.
@@ -202,8 +202,8 @@ describe("fork button", () => {
     });
 
     const { container } = render(<SessionView sid={SID} />);
-    await waitFor(() => expect(container.querySelector(".task-topbar")).not.toBeNull());
-    expect(screen.getByRole("button", { name: /fork task from checkpoint/i })).toBeTruthy();
+    await waitFor(() => expect(container.querySelector(".session-topbar")).not.toBeNull());
+    expect(screen.getByRole("button", { name: /fork session from checkpoint/i })).toBeTruthy();
   });
 
   it("keeps the fork button out of the topbar before a checkpoint exists", async () => {
@@ -212,8 +212,8 @@ describe("fork button", () => {
     });
 
     const { container } = render(<SessionView sid={SID} />);
-    await waitFor(() => expect(container.querySelector(".task-topbar")).not.toBeNull());
-    expect(screen.queryByRole("button", { name: /fork task from checkpoint/i })).toBeNull();
+    await waitFor(() => expect(container.querySelector(".session-topbar")).not.toBeNull());
+    expect(screen.queryByRole("button", { name: /fork session from checkpoint/i })).toBeNull();
   });
 });
 

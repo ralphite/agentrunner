@@ -18,7 +18,7 @@ function Harness() {
     <>
       {/* fireEvent.click does not move focus in jsdom, so the button stays the
           activeElement while it opens the bar — exactly the ⌘F situation. */}
-      <button onClick={() => setOpen(true)}>New task</button>
+      <button onClick={() => setOpen(true)}>New session</button>
       {open && <FindBar scope={() => null} onClose={() => setOpen(false)} />}
     </>
   );
@@ -26,7 +26,7 @@ function Harness() {
 
 function openFind(): { trigger: HTMLElement; input: HTMLElement } {
   render(<Harness />);
-  const trigger = screen.getByText("New task");
+  const trigger = screen.getByText("New session");
   trigger.focus();
   expect(document.activeElement).toBe(trigger);
   fireEvent.click(trigger);
@@ -53,7 +53,7 @@ describe("FindBar focus return (A11Y-3)", () => {
 
   it("returns focus when unmounted by something else (e.g. a session switch)", () => {
     const trigger = document.createElement("button");
-    trigger.textContent = "New task";
+    trigger.textContent = "New session";
     document.body.appendChild(trigger);
     trigger.focus();
 

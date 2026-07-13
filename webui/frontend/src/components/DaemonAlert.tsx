@@ -4,7 +4,7 @@ import { AR } from "../api";
 import { useStore } from "../store";
 
 // Shared J5 notification strip. It is intentionally driven by the same health
-// record as the sidebar footer, so Home and an open task never disagree about
+// record as the sidebar footer, so Home and an open session never disagree about
 // whether actions are currently available.
 export function DaemonAlert() {
   const health = useStore((state) => state.health);

@@ -357,7 +357,7 @@ func TestMCPResumeReconcile(t *testing.T) {
 			typ     string
 			payload any
 		}{
-			{event.TypeSessionStarted, &event.SessionStarted{SpecName: "mcp-test", Task: "go",
+			{event.TypeSessionStarted, &event.SessionStarted{SpecName: "mcp-test", Prompt: "go",
 				SubStateVersions: state.SubStateVersions()}},
 			{event.TypeInputReceived, &event.InputReceived{Text: "go", Source: "cli"}},
 			{event.TypeToolsDiscovered, &event.ToolsDiscovered{Server: "demo",

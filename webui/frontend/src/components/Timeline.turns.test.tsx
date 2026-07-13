@@ -37,7 +37,7 @@ const turn = (key: string, ts: string): TurnItem => ({ kind: "turn", key, gen: 1
 // ---------------------------------------------------------------------------
 // TR-1 — turns are separated by a 1px rule across the prose column.
 //
-// The gold master (qa/codex-reference/codex-task-thread.jpg) closes every turn
+// The gold master (qa/codex-reference/codex-session-thread.jpg) closes every turn
 // with a hairline spanning the FULL body column. We drew nothing at all: a live
 // 10-turn session measured `.turn-sep` === 0, which leaves a long thread as one
 // undifferentiated scroll with no navigation unit.
@@ -97,7 +97,7 @@ describe("TR-1 — turn separator", () => {
 });
 
 // ---------------------------------------------------------------------------
-// TR-2 — a timestamp that can't say WHICH DAY is useless on a multi-day task.
+// TR-2 — a timestamp that can't say WHICH DAY is useless on a multi-day session.
 //
 // `shortTime` used to emit a bare "11:31 PM". A live session showed "11:31 PM"
 // above "12:40 AM" — two different days, with nothing on screen saying so.

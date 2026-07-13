@@ -28,7 +28,7 @@ func TestArtifactInputMaterializedForChild(t *testing.T) {
 		// ToolCall pointer is shared with the provider's copy).
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
-				Args: map[string]any{"agent": "summarizer", "task": "CONFIRM-BRIEFING now",
+				Args: map[string]any{"agent": "summarizer", "prompt": "CONFIRM-BRIEFING now",
 					"inputs": []map[string]any{{"ref": "PLACEHOLDER", "path": "briefing.md"}}}}},
 			{Finish: "tool_use"},
 		}},
@@ -111,7 +111,7 @@ func TestArtifactInputDanglingRefRejected(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
-				Args: map[string]any{"agent": "summarizer", "task": "go",
+				Args: map[string]any{"agent": "summarizer", "prompt": "go",
 					"inputs": []map[string]any{{"ref": "sha256-doesnotexist", "path": "x.md"}}}}},
 			{Finish: "tool_use"},
 		}},

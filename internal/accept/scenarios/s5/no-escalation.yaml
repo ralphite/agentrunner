@@ -29,7 +29,7 @@ files:
       - key: ""
         steps:
           - respond:
-              - tool_call: { name: spawn_agent, args: { agent: editor, task: ESCALATE-JOB now } }
+              - tool_call: { name: spawn_agent, args: { agent: editor, prompt: ESCALATE-JOB now } }
               - finish: tool_use
           - respond:
               - text: "waiting on the editor"

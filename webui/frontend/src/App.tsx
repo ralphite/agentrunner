@@ -12,7 +12,7 @@ import { CommandPalette } from "./components/CommandPalette";
 import { Shortcuts } from "./components/Shortcuts";
 import { Settings } from "./components/Settings";
 import { requestNotifyPermission } from "./notify";
-import { quickSwitchTasks } from "./viewModels";
+import { quickSwitchSessions } from "./viewModels";
 import { applyAppearance, loadAppearance } from "./theme";
 import { normalizeRoute } from "./routeHash";
 import { SidebarSimple } from "@phosphor-icons/react";
@@ -109,18 +109,18 @@ export function App() {
         else openPalette();
         return;
       }
-      // ⌥⌘↑ / ⌥⌘↓ moves to the previous / next task in the sidebar order.
+      // ⌥⌘↑ / ⌥⌘↓ moves to the previous / next session in the sidebar order.
       if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
         e.preventDefault();
         useStore.getState().selectAdjacent(e.key === "ArrowDown" ? 1 : -1);
         return;
       }
-      // ⌘1..⌘9 (Ctrl elsewhere) jump straight to a recent task — the same list
+      // ⌘1..⌘9 (Ctrl elsewhere) jump straight to a recent session — the same list
       // and order as the command palette's ⌘-digit badges (INC-41 W8). Works
       // globally and while the palette is open; closes the palette on jump.
       if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key >= "1" && e.key <= "9") {
         const state = useStore.getState();
-        const target = quickSwitchTasks(state.sessions, { archived: state.archived })[Number(e.key) - 1];
+        const target = quickSwitchSessions(state.sessions, { archived: state.archived })[Number(e.key) - 1];
         if (target) {
           e.preventDefault();
           setPalette(false);
@@ -128,11 +128,11 @@ export function App() {
         }
         return;
       }
-      // New task (INC-41 RH-4). Codex-the-desktop-app binds plain ⌘N, but we
+      // New session (INC-41 RH-4). Codex-the-desktop-app binds plain ⌘N, but we
       // live in a browser tab: Chrome/Safari reserve ⌘N (new window) and ⇧⌘N
       // (incognito) at the browser level — the keydown never reaches the page,
       // so a "⌘N" badge would be exactly the lie RH-3 was about. We bind the
-      // ⌥⌘ family the app already uses for task navigation (⌥⌘↑/↓) and that is
+      // ⌥⌘ family the app already uses for session navigation (⌥⌘↑/↓) and that is
       // what shortcuts.ts and the sidebar badge advertise. The plain-⌘N shape
       // is accepted by the same branch (altKey optional) so a wrapped context
       // that *does* deliver it (Electron / standalone PWA) gets Codex's key for

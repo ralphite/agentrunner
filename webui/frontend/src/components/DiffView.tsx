@@ -633,8 +633,8 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
         <div className="diff-empty">
           <ClockCounterClockwise size={26} weight="light" />
           <b>Last turn unavailable</b>
-          <span>{data.reason || "This task has no durable workspace baseline for its latest human turn."}</span>
-          <span className="dim">Working tree remains available for the task's current uncommitted changes.</span>
+          <span>{data.reason || "This session has no durable workspace baseline for its latest human turn."}</span>
+          <span className="dim">Working tree remains available for the session's current uncommitted changes.</span>
         </div>
       </div>
     );
@@ -658,7 +658,7 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
         <div className="diff-empty">
           <GitBranch size={26} weight="light" />
           <b>Changes can't be tracked here yet</b>
-          <span>This task's workspace sits inside another repository, so its files aren't tracked on their own.</span>
+          <span>This session's workspace sits inside another repository, so its files aren't tracked on their own.</span>
           <button className="primary" onClick={gitInit} disabled={busy} title="git init in the workspace — safe, local-only">
             Track changes (git init)
           </button>
@@ -672,7 +672,7 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
         <div className="diff-empty">
           <GitBranch size={26} weight="light" />
           <b>No Git changes to review</b>
-          <span>This task's workspace has no version control yet.</span>
+          <span>This session's workspace has no version control yet.</span>
           <button className="primary" onClick={gitInit} disabled={busy} title="git init in the workspace — safe, local-only">
             Track changes (git init)
           </button>

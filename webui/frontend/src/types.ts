@@ -68,7 +68,7 @@ export interface Health {
   runtimeDir: string;
 }
 
-export interface Task {
+export interface BackgroundWork {
   handle: string;
   tool: string;
   detail: string;

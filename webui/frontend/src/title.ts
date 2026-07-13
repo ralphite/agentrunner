@@ -6,7 +6,7 @@ function unwrap(value: string): string {
 }
 
 // conciseTitle removes instruction boilerplate that otherwise makes dozens of
-// task rows begin with the same words. It is deliberately deterministic: the
+// session rows begin with the same words. It is deliberately deterministic: the
 // durable journal title remains untouched and the full source stays in the
 // row tooltip.
 export function conciseTitle(raw: string): string {
@@ -52,5 +52,5 @@ export function titleFromSessionId(sid: string): string {
     .replace(/[-_]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  return conciseTitle(label || "Task");
+  return conciseTitle(label || "Session");
 }

@@ -21,7 +21,7 @@ type ttyApprovals struct {
 	in  io.Reader
 	out io.Writer
 	// mu serializes concurrent asks: sibling sub-agents share this resolver
-	// (S5 review) — without it two prompts interleave and two stdin readers
+	// (S5 review) — without it two approval prompts interleave and two stdin readers
 	// race for one typed answer, approving the wrong request.
 	mu sync.Mutex
 }

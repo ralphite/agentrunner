@@ -104,7 +104,7 @@ func TestCLIDiffLastTurnJSON(t *testing.T) {
 		typ string
 		p   any
 	}{
-		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "qa", Model: "scripted", Task: "last turn", WorkspaceRoot: ws}},
+		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "qa", Model: "scripted", Prompt: "last turn", WorkspaceRoot: ws}},
 		{event.TypeInputReceived, &event.InputReceived{Text: "change files", Source: "cli"}},
 		{event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}},
 		{event.TypeCheckpointBarrier, &event.CheckpointBarrier{BarrierID: "bar-t1", GenStep: 1, SnapshotRef: ref}},

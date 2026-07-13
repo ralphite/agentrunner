@@ -49,7 +49,7 @@ func TestRememberRuleFromEffect(t *testing.T) {
 			event.ApprovalRequested{ToolName: "bash", Args: json.RawMessage(`{}`)},
 			pipeline.PermissionRule{}, false},
 		{"spawn_agent remembered tool-level (G35/INC-62)",
-			event.ApprovalRequested{ToolName: "spawn_agent", Args: json.RawMessage(`{"agent":"worker","task":"t"}`)},
+			event.ApprovalRequested{ToolName: "spawn_agent", Args: json.RawMessage(`{"agent":"worker","prompt":"t"}`)},
 			pipeline.PermissionRule{Tool: "spawn_agent", Action: "allow"}, true},
 		{"unknown tool not remembered",
 			event.ApprovalRequested{ToolName: "web_fetch", Args: json.RawMessage(`{"url":"http://x"}`)},

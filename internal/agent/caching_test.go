@@ -47,7 +47,7 @@ func TestAssemblyPrefixByteStable(t *testing.T) {
 		SpecName: spec.Name, Model: spec.Model.ID, Env: env,
 		SubStateVersions: state.SubStateVersions(),
 	})
-	s = mustApply(t, s, event.TypeInputReceived, &event.InputReceived{Text: "first task", Source: "cli"})
+	s = mustApply(t, s, event.TypeInputReceived, &event.InputReceived{Text: "first prompt", Source: "cli"})
 	s = mustApply(t, s, event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1})
 
 	req1 := Assemble(s, spec, nil, 1)

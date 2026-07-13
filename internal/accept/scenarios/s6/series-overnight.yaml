@@ -6,7 +6,7 @@ files:
     agent_spec: worker.yaml
     schedule: interval
     interval: 100ms
-    task: do a round
+    prompt: do a round
     max_iterations: 3
   worker.yaml: |
     name: worker

@@ -21,13 +21,13 @@ import type { Cadence } from "../types";
 type Filter = "all" | "active" | "finished";
 
 // Static template suggestions (Codex parity). Clicking one opens the existing
-// create-task modal prefilled for a repeating task, with the description as the
-// initial task text. Colours are fixed to match Codex's accent glyphs.
+// create-run modal prefilled for repeating work, with the description as the
+// initial prompt. Colours are fixed to match Codex's accent glyphs.
 //
 // SC-18 — the card's rhythm is a SPEC, not a caption. Each suggestion used to
 // carry its cadence as a hand-typed sentence while the click that follows opened
 // the launcher on the Repeating preset's default `interval: 5m`: you clicked
-// "Weekdays at 8:00 AM" and got a task that fires every five minutes. Two
+// "Weekdays at 8:00 AM" and got a run that fires every five minutes. Two
 // sources of truth, and the one on screen was the decorative one. Now a
 // suggestion owns a real CadenceSpec — the same {schedule, cron, interval, n}
 // fields the driver spec is built from and the server reads back
@@ -72,15 +72,15 @@ export const SUGGESTIONS: Suggestion[] = [
 //
 //   interval / cron   → a rhythm ("Every 30m", "Saturdays at 4:00 AM")   ✅
 //   self_paced        → a driver that re-arms its own next iteration      ✅
-//   immediate         → a one-shot task / a goal that runs until verified ❌
+//   immediate         → a one-shot run / a goal that runs until verified    ❌
 //   parallel          → Best of N: attempts side by side, not a rhythm    ❌
 //   (absent)          → a plain `submit` run: one-shot by construction    ❌
 //
 // Before this rule the page collected EVERY run and every driver session — 28
 // rows, 26 of them "Runs once" / "Best of 3" — which buried the single genuinely
-// scheduled task and pushed Suggestions off the first screen. The excluded work
+// scheduled run and pushed Suggestions off the first screen. The excluded work
 // is not lost: one-shot runs stay reachable from ⌘K and their session lands in
-// the sidebar like any other task.
+// the sidebar like any other session.
 const RHYTHMIC = new Set(["interval", "cron", "self_paced"]);
 
 export function hasRhythm(c: Cadence): boolean {
@@ -101,12 +101,12 @@ const SETTLED_STATUS = new Set(["done", "closed", "stopped"]);
 // idle-between-ticks row, with the status text hidden in a `title=` tooltip: a
 // driver that advertised "Every 30m" but had been dead for four hours was
 // pixel-identical to one about to fire. This hub exists to answer "are my
-// background tasks still alive?", so a dead one has to say so on screen.
+// background work still alive?", so a dead one has to say so on screen.
 const ALERT_STATUS = new Set(["crash", "stranded"]);
 
 // SC-16 — a CONFIGURED LIMIT is not a malfunction. `friendlyStatus` files
 // max_iterations / max_generation_steps / budget under cls "stranded" (pill.ts),
-// which is right for the task header's terminal banner ("Iteration limit reached
+// which is right for the session header's terminal banner ("Iteration limit reached
 // — review the run before extending it") but catastrophic here: it painted a
 // driver that ran exactly the N iterations you asked for in the same amber, with
 // the same WarningCircle, as one whose host died mid-flight — and then filed it
@@ -126,7 +126,7 @@ export function isLimitStatus(raw: string): boolean {
 
 // SC-11 — "Active" is a fact about the SERIES, not about this instant. Judging
 // it by "an iteration is executing right now" (cls run/appr) made the tab
-// structurally empty: a healthy `Every 30m` task is idle between ticks by
+// structurally empty: a healthy `Every 30m` run is idle between ticks by
 // construction, so every well-behaved series was filed under Finished — which
 // then advertised its cadence and its next run, a flat lie. A series is active
 // while it still has a future tick to fire, or while it is running / waiting on
@@ -214,7 +214,7 @@ function isQuiet(r: SchedRow): boolean {
   return !r.recover && !r.active;
 }
 
-// Scheduled is Codex's Scheduled tasks hub: repeating work that keeps running on
+// Scheduled is Codex's Scheduled runs hub: repeating work that keeps running on
 // its own (SC-1 — nothing one-shot lives here; see hasRhythm above). The two
 // facts that justify a scheduled thing are the whole row — its CADENCE and its
 // NEXT RUN (CX-3), both derived server-side from the driver spec
@@ -454,13 +454,13 @@ export function Scheduled() {
     close: (sid: string) => {
       openModal({
         kind: "confirm",
-        title: "Close task?",
+        title: "Close session?",
         body: "This ends the schedule's conversation and marks it closed. Sending a new message later will reopen it.",
-        confirmLabel: "Close task",
+        confirmLabel: "Close session",
         danger: true,
         onConfirm: async () => {
           await AR.closeSession(sid);
-          toast("task closed", "info");
+          toast("session closed", "info");
           setTimeout(refreshSessions, 800);
         },
       });
@@ -471,8 +471,8 @@ export function Scheduled() {
     <div className="scheduled-page">
       <div className="page-heading">
         <div>
-          <h2>Scheduled tasks</h2>
-          <p>Ask AgentRunner to schedule tasks, set goals, or monitor for updates</p>
+          <h2>Scheduled runs</h2>
+          <p>Schedule repeating work, goals, or monitoring runs</p>
         </div>
         <div className="scheduled-create">
           <Menu
@@ -482,7 +482,7 @@ export function Scheduled() {
           >
             <MenuLabel>Create</MenuLabel>
             <MenuItem onClick={() => openModal({ kind: "run", preset: "one-time" })}>
-              <Play size={15} /><span><b>One-time task</b><small>Run once in the background</small></span>
+              <Play size={15} /><span><b>One-time run</b><small>Run once in the background</small></span>
             </MenuItem>
             <MenuItem onClick={() => openModal({ kind: "run", preset: "goal" })}>
               <Crosshair size={15} /><span><b>Goal</b><small>Keep working until verified</small></span>
@@ -508,8 +508,8 @@ export function Scheduled() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search scheduled tasks"
-              aria-label="Search scheduled tasks"
+              placeholder="Search scheduled runs"
+              aria-label="Search scheduled runs"
             />
           </div>
           <div className="sched-filters">
@@ -544,7 +544,7 @@ export function Scheduled() {
           <div className="empty-state">
             <CalendarDots size={28} />
             <b>No scheduled work</b>
-            <span>Start a repeating task when work should keep running on its own.</span>
+            <span>Start a repeating run when work should keep running on its own.</span>
           </div>
         ) : filtered.length === 0 ? (
           <div className="empty-state">
@@ -668,7 +668,7 @@ export function Scheduled() {
               className="sched-more"
               aria-label={`Actions for ${r.title}`}
               aria-haspopup="menu"
-              title="Task actions"
+              title="Run actions"
               onClick={(e) => {
                 e.stopPropagation();
                 const rect = e.currentTarget.getBoundingClientRect();
@@ -721,7 +721,7 @@ export function Scheduled() {
               </MenuItem>
               <MenuLabel>Copy</MenuLabel>
               <MenuItem onClick={() => { copyText(menuRow.id); toast("copied session id", "info"); }}>Session ID</MenuItem>
-              <MenuItem onClick={() => { copyText(`${location.origin}/#${menuRow.id}`); toast("copied link", "info"); }}>Task link</MenuItem>
+              <MenuItem onClick={() => { copyText(`${location.origin}/#${menuRow.id}`); toast("copied link", "info"); }}>Session link</MenuItem>
             </>
           ) : (
             <>
@@ -742,9 +742,9 @@ export function Scheduled() {
             <button
               key={s.title}
               className="sched-suggest"
-              // SC-18: the rhythm rides along with the task text, so the modal
+              // SC-18: the rhythm rides along with the prompt, so the modal
               // opens on the cadence this card just promised.
-              onClick={() => openModal({ kind: "run", preset: "repeating", task: s.desc, cadence: s.cadence })}
+              onClick={() => openModal({ kind: "run", preset: "repeating", prompt: s.desc, cadence: s.cadence })}
             >
               <span className="sched-suggest-icon">
                 <Ic size={22} color={s.color} />

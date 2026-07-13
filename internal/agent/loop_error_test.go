@@ -31,7 +31,7 @@ func eventTypes(t *testing.T, dir string) []string {
 }
 
 // A provider error mid-run must surface wrapped with the turn number AND
-// leave a terminal task_completed{error} event (a failed log must be
+// leave a terminal session_closed{error} event (a failed log must be
 // distinguishable from a truncated one). The failure itself must be
 // journaled as activity_failed before the terminal event.
 func TestLoopProviderErrorWritesTerminalRecord(t *testing.T) {

@@ -43,7 +43,7 @@ export const rememberAccess = (sid: string, a: string) => {
 };
 export const recallAccess = (sid: string): string | undefined => access[sid];
 
-// Per-session composer drafts: switching tasks keeps what you were typing and
+// Per-session composer drafts: switching sessions keeps what you were typing and
 // restores it when you come back (send/clear wipes it). Keyed by sid; the
 // landing composer uses its own sentinel key. Drafts stay in-memory: losing
 // one on reload is fine, syncing half-typed text across tabs is not.

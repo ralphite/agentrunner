@@ -105,7 +105,7 @@ func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 	defer func() { _ = notifier.Close() }()
 	srv := &daemon.Server{
 		SocketPath:   sock,
-		NewID:        func(task string) string { return runtime.NewSessionID(time.Now(), task) },
+		NewID:        func(prompt string) string { return runtime.NewSessionID(time.Now(), prompt) },
 		Run:          hostRunFunc(version, stderr, broker),
 		SplitAddress: splitSessionAddress,
 		Replay: func(sessionID string, sink protocol.Sink) error {
@@ -436,7 +436,7 @@ func hostRunFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker
 					Text: fmt.Sprintf("[%s] %s: %s", n.Topic, n.From, n.Text)})
 			},
 		}
-		_, runErr := loop.Run(ctx, req.Task)
+		_, runErr := loop.Run(ctx, req.Prompt)
 		return runErr
 	}
 }
@@ -1041,7 +1041,7 @@ func readDriverStarted(dir string) (*event.DriverStarted, error) {
 // running. A terminal DriverCompleted is a drive's explicit-end mark (决策 #30:
 // a finished or explicitly-stopped series left one, and automatic paths must
 // not cross it), so it excludes the session. Goal-mode / parallel drives are
-// bounded tasks, out of the cron boot-sweep scope. Unreadable or agent-shaped
+// bounded runs, out of the cron boot-sweep scope. Unreadable or agent-shaped
 // sessions are skipped — the sweep must not die on one non-drive log.
 func scanDriveSessions() ([]string, error) {
 	data, err := runtime.DataDir()
@@ -1151,7 +1151,7 @@ func resolveApprovalSession(arg string) (string, error) {
 
 // submitCmd hands a run — or, with --drive, an IterationDriver series — to
 // the daemon and streams it until it ends; the work survives this client.
-// `agentrunner submit [flags] <spec.yaml> "task"` /
+// `agentrunner submit [flags] <spec.yaml> "prompt"` /
 // `agentrunner submit --drive [flags] <driver.yaml>`.
 func submitCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("submit", flag.ContinueOnError)
@@ -1159,18 +1159,18 @@ func submitCmd(args []string, stdout, stderr io.Writer) int {
 	workspaceDir := fs.String("workspace", ".", "workspace root (default: current directory)")
 	mode := fs.String("mode", "", "run mode: default|plan|acceptEdits (overrides spec)")
 	jsonOut := fs.Bool("json", false, "emit the event stream as JSON lines")
-	drive := fs.Bool("drive", false, "submit a driver spec (task lives in the spec)")
+	drive := fs.Bool("drive", false, "submit a driver spec (prompt lives in the spec)")
 	idem := fs.String("idem", "", "idempotency key: a retried submit with the same key reattaches instead of starting a duplicate")
 	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
 		return ExitUsage
 	}
 	rest := fs.Args()
 	if (*drive && len(rest) != 1) || (!*drive && len(rest) != 2) {
-		fmt.Fprintln(stderr, "usage: agentrunner submit [flags] <spec.yaml> \"task\"  |  submit --drive [flags] <driver.yaml>")
+		fmt.Fprintln(stderr, "usage: agentrunner submit [flags] <spec.yaml> \"prompt\"  |  submit --drive [flags] <driver.yaml>")
 		return ExitUsage
 	}
 	if !*drive && rest[1] == "" {
-		fmt.Fprintln(stderr, "agentrunner: submit needs a non-empty task")
+		fmt.Fprintln(stderr, "agentrunner: submit needs a non-empty prompt")
 		return ExitUsage
 	}
 	specPath, err := filepath.Abs(rest[0])
@@ -1215,7 +1215,7 @@ func submitCmd(args []string, stdout, stderr io.Writer) int {
 	if *drive {
 		cmd = daemon.Command{Cmd: "drive", SpecPath: specPath, Workspace: wsAbs, IdemKey: *idem}
 	} else {
-		cmd.Task = rest[1]
+		cmd.Prompt = rest[1]
 	}
 	err = daemon.DialUntil(sock, cmd, func(e protocol.Event) bool {
 		if sid == "" && e.Session != "" {
@@ -1244,7 +1244,7 @@ func submitCmd(args []string, stdout, stderr io.Writer) int {
 			return false // terminal event (failure/close, or drive series end)
 		case protocol.KindIdle:
 			if !*drive {
-				// 决策 #31: a one-shot task parks at standby instead of
+				// 决策 #31: a one-shot run parks at standby instead of
 				// ending. The work is done — detach; the session stays
 				// resident and `send` revives it.
 				sawIdle = true

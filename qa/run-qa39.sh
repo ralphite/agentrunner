@@ -31,7 +31,7 @@ WANT=5
 
 # output_schema constrains generation; a TOOL-LESS spec so native JSON mode
 # applies (JSON mode and tools are mutually exclusive). The file content is
-# given inline in the task so the model needs no read tool.
+# given inline in the prompt so the model needs no read tool.
 cat > "$work/spec.yaml" <<'YAML'
 name: qa39
 model: { provider: gemini, id: gemini-flash-latest, max_tokens: 256 }

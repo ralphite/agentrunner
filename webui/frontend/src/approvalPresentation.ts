@@ -65,8 +65,8 @@ export function describeApproval(tool: string, rawArgs: unknown): ApprovalPresen
   if (name.includes("spawn")) {
     return {
       title: "Start agent",
-      subject: firstString(args, ["agent", "name", "task"]) || "Subagent",
-      description: "The agent wants to start another agent for this task.",
+      subject: firstString(args, ["agent", "name", "prompt"]) || "Subagent",
+      description: "The agent wants to start another agent for this session.",
       scope: "Current session",
     };
   }

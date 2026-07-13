@@ -51,7 +51,7 @@ files:
       - key: "researched:"
         steps:
           - respond:
-              - tool_call: { name: spawn_agent, args: { agent: reviewer, task: REVIEW-JOB now } }
+              - tool_call: { name: spawn_agent, args: { agent: reviewer, prompt: REVIEW-JOB now } }
               - finish: tool_use
           - respond:
               - text: "waiting on the reviewer"
@@ -59,7 +59,7 @@ files:
       - key: ""
         steps:
           - respond:
-              - tool_call: { name: spawn_agent, args: { agent: researcher, task: RESEARCH-JOB now } }
+              - tool_call: { name: spawn_agent, args: { agent: researcher, prompt: RESEARCH-JOB now } }
               - finish: tool_use
           - respond:
               - text: "waiting on the researcher"

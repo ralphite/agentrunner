@@ -22,7 +22,7 @@ import { Check } from "@phosphor-icons/react";
 // Why fixed *in place* rather than a `createPortal` to <body>: the panel keeps
 // its DOM home, so the cascade it was authored against keeps applying —
 // ancestor-scoped rules (`.home.home-welcome .cx-project-popover` &c. in
-// tw.css sizes the New-task project picker) and inherited type/colour would
+// tw.css sizes the New-session project picker) and inherited type/colour would
 // silently drop off a portaled node, and every popover would have to re-earn
 // them. Fixed-in-place changes exactly one thing (the containing block); the
 // stacking context, the CSS context and the focus/click plumbing are untouched.

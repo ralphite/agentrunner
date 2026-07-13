@@ -12,9 +12,9 @@ export interface SlashCmd {
 }
 
 export const SLASH: SlashCmd[] = [
-  { name: "goal", arg: "<task>", desc: "Attach a goal — the agent keeps working until it's met", variants: ["home", "session"], needsArgs: true },
-  { name: "loop", arg: "<task>", desc: "Start a run that repeats on a fixed cadence", variants: ["home", "session"], needsArgs: true },
-  { name: "bestof", arg: "<task>", desc: "Run N isolated attempts, keep the best", variants: ["home", "session"], needsArgs: true },
+  { name: "goal", arg: "<goal>", desc: "Attach a goal — the agent keeps working until it's met", variants: ["home", "session"], needsArgs: true },
+  { name: "loop", arg: "<prompt>", desc: "Start a run that repeats on a fixed cadence", variants: ["home", "session"], needsArgs: true },
+  { name: "bestof", arg: "<prompt>", desc: "Run N isolated attempts, keep the best", variants: ["home", "session"], needsArgs: true },
   { name: "optimize", arg: "<draft>", desc: "Rewrite a draft prompt into a clearer instruction", variants: ["home", "session"], needsArgs: true },
   { name: "plan", desc: "Read-only planning mode — no changes", variants: ["home"] },
   { name: "compact", desc: "Summarize & shrink this conversation's context", variants: ["session"] },

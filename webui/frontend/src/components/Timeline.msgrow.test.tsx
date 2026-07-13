@@ -6,7 +6,7 @@
 // Why this exists: rounds 18/20/24 read ONE crop of the gold master
 // (qa/codex-reference/codex-crop-message-actions.jpg) and concluded the action
 // icons are drawn at rest on every message. Round 37 magnified the FULL screen
-// (qa/codex-reference/codex-task-thread.jpg, 819×1456): mid-thread, every
+// (qa/codex-reference/codex-session-thread.jpg, 819×1456): mid-thread, every
 // message ends and the next block begins immediately — no icon row, no
 // timestamp — and the crop turns out to be a photo of the thread's FINAL row,
 // which also carries no timestamp. Our build was stamping `⧉ ↗ ⧉  Friday

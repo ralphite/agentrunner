@@ -3,7 +3,7 @@
 // SC-18 — the screen was lying. Each Suggestion card advertised a cadence
 // ("Weekdays at 8:00 AM") as a hand-typed caption, and clicking it opened the
 // launcher on the Repeating preset's default `interval: 5m`: you asked for a
-// weekday-morning brief and got a task that fires every five minutes, forever.
+// weekday-morning brief and got a session that fires every five minutes, forever.
 // The card's words and the thing it built came from two different places, and
 // the one you could see was the decorative one.
 //
@@ -65,11 +65,11 @@ describe("SC-18 · clicking a suggestion builds the cadence it advertises", () =
     expect(screen.queryByPlaceholderText("5m · 30s · 1h")).toBeNull();
   });
 
-  it("carries the card's task text in as before", () => {
+  it("carries the card's prompt text in as before", () => {
     mount();
     clickCard("Daily brief");
-    const task = screen.getByPlaceholderText("Describe the outcome you want") as HTMLTextAreaElement;
-    expect(task.value).toBe("Start each weekday with a summary of your priorities");
+    const prompt = screen.getByPlaceholderText("Describe the outcome you want") as HTMLTextAreaElement;
+    expect(prompt.value).toBe("Start each weekday with a summary of your priorities");
   });
 
   it("leaves the cadence editable — it is a default, not a decision", () => {
@@ -93,17 +93,17 @@ describe("SC-18 · clicking a suggestion builds the cadence it advertises", () =
     expect(screen.getByTestId("cadence-echo").textContent).toBe("Every 5m");
   });
 
-  it("labels task and workspace independently and retains rapid input", () => {
+  it("labels prompt and workspace independently and retains rapid input", () => {
     mount();
     fireEvent.click(screen.getByRole("button", { name: /Create/ }));
     fireEvent.click(screen.getByRole("menuitem", { name: /Repeating/ }));
 
-    const task = screen.getByRole("textbox", { name: "Task" }) as HTMLTextAreaElement;
+    const prompt = screen.getByRole("textbox", { name: "Prompt" }) as HTMLTextAreaElement;
     const workspace = screen.getByRole("textbox", { name: "Workspace" }) as HTMLInputElement;
-    fireEvent.change(task, { target: { value: "Say hello" } });
+    fireEvent.change(prompt, { target: { value: "Say hello" } });
     fireEvent.change(workspace, { target: { value: "abc" } });
 
-    expect(task.value).toBe("Say hello");
+    expect(prompt.value).toBe("Say hello");
     expect(workspace.value).toBe("abc");
   });
 

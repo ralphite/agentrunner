@@ -31,7 +31,7 @@ func runEvents(t *testing.T) []event.Envelope {
 	}}
 	events := []event.Envelope{
 		env(t, event.TypeSessionStarted, &event.SessionStarted{SpecName: "hello", Model: "m",
-			Task: "fix", Version: "dev", SubStateVersions: SubStateVersions()}),
+			Prompt: "fix", Version: "dev", SubStateVersions: SubStateVersions()}),
 		env(t, event.TypeInputReceived, &event.InputReceived{Text: "fix", Source: "cli"}),
 		env(t, event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}),
 		env(t, event.TypeActivityStarted, &event.ActivityStarted{
@@ -301,19 +301,19 @@ func TestSessionTitledFoldProjection(t *testing.T) {
 		{
 			name: "auto never overrides manual",
 			events: []event.Envelope{
-				titled("My renamed task", event.TitleSourceManual),
+				titled("My renamed prompt", event.TitleSourceManual),
 				titled("An auto guess", event.TitleSourceAuto),
 			},
-			wantTitle:  "My renamed task",
+			wantTitle:  "My renamed prompt",
 			wantSource: event.TitleSourceManual,
 		},
 		{
 			name: "manual replaces a prior auto",
 			events: []event.Envelope{
 				titled("An auto guess", event.TitleSourceAuto),
-				titled("My renamed task", event.TitleSourceManual),
+				titled("My renamed prompt", event.TitleSourceManual),
 			},
-			wantTitle:  "My renamed task",
+			wantTitle:  "My renamed prompt",
 			wantSource: event.TitleSourceManual,
 		},
 		{
@@ -353,12 +353,12 @@ func TestSessionTitledFoldProjection(t *testing.T) {
 }
 
 // A legacy journal predating INC-52 carries no SessionTitled: the projection
-// stays empty and the surfaces fall back to the opening task's first line.
+// stays empty and the surfaces fall back to the opening prompt's first line.
 func TestSessionTitledAbsentFoldsEmpty(t *testing.T) {
 	s := New()
 	var err error
 	if s, err = Apply(s, env(t, event.TypeSessionStarted, &event.SessionStarted{
-		SpecName: "hello", Model: "m", Task: "make it loud\nand also quiet",
+		SpecName: "hello", Model: "m", Prompt: "make it loud\nand also quiet",
 		Version: "dev", SubStateVersions: SubStateVersions()})); err != nil {
 		t.Fatal(err)
 	}

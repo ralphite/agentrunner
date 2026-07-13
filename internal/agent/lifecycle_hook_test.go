@@ -96,7 +96,7 @@ func TestUserPromptSubmitHookBlocks(t *testing.T) {
 	}}
 	_, es, inbox, done := lifecycleLoop(t, root, map[string][]string{
 		// Veto anything mentioning "forbidden"; allow the rest (the first
-		// task must pass or the run never starts).
+		// prompt must pass or the run never starts).
 		hook.EventUserPromptSubmit: {`grep -q forbidden && { echo "policy: forbidden topic" >&2; exit 2; } || exit 0`},
 	}, fix)
 

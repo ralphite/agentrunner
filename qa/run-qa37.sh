@@ -57,7 +57,7 @@ name: qa37-lead
 model: { provider: gemini, id: gemini-flash-latest, max_tokens: 1024 }
 system_prompt: |
   工作区提供了技能(见 <skills> 目录)。需要执行某个技能时用 skill 工具:
-  skill(name, task)。count-widgets 是 context:fork 技能——调用后它会在
+  skill(name, prompt)。count-widgets 是 context:fork 技能——调用后它会在
   一次性子 agent 里执行,你会先拿到 handle,结果稍后以子 agent 报告回来;
   等报告回来后把结论转告用户。不要自己读 data.txt,把统计工作交给技能。
 tools: [read_file, skill]
@@ -76,7 +76,7 @@ trap 'kill "$DPID" 2>/dev/null || true' EXIT
 count_type() { local n; n="$(grep -c "\"type\":\"$1\"" "$2" 2>/dev/null)" || n=0; printf '%s' "${n:-0}"; }
 
 sid="$("$AR" new --detach --workspace "$work/ws" "$work/spec.yaml" \
-  "用 skill 工具调用 count-widgets 技能(task: 统计 data.txt 里的 WIDGET 行数),等它的报告回来后告诉我一共有几行。" 2>/dev/null | head -1)"
+  "用 skill 工具调用 count-widgets 技能(prompt: 统计 data.txt 里的 WIDGET 行数),等它的报告回来后告诉我一共有几行。" 2>/dev/null | head -1)"
 [ -n "$sid" ] || { echo "$QA: no session id" >&2; exit 1; }
 SDIR="$XDG_DATA_HOME/agentrunner/sessions/$sid"
 echo "$QA session: $sid"

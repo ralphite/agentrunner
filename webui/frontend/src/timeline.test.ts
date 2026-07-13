@@ -39,6 +39,9 @@ describe("foldEvents active flag", () => {
       { seq: 4, type: "waiting_entered", payload: { kind: "input" } },
     ]);
     expect(folded.active).toBe(false);
+    expect(folded.items).toContainEqual(expect.objectContaining({
+      kind: "tool", background: true, statusText: "background work",
+    }));
   });
 
   it("still counts a running foreground tool as active", () => {
@@ -275,7 +278,7 @@ describe("foldWork (Codex-style Worked fold, W2/W3)", () => {
 // — "Agent changed · auditor · gemini-flash-latest", "goal attached · …" — used
 // to float there as bare grey pills: session 20260711-011831 opened with FOUR of
 // them (~1118px of metadata) standing between the reader and the first message.
-// Codex's task thread carries none: every non-reply activity is inside the
+// Codex's session thread carries none: every non-reply activity is inside the
 // "Worked for …" fold. These lock that in.
 describe("TH-16 · system chips never render at the top level", () => {
   const user = (key: string, ts: string) => ({ kind: "user" as const, key, text: "q", ts });

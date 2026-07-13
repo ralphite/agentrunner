@@ -70,7 +70,7 @@ func (l *Loop) reattachWaitingChildren(ctx context.Context, ds *driveState,
 		child := l.childLoopWithExec(childSpec, childStore, childSession,
 			childSpec.Budget.MaxTotalTokens, ds.s.CurrentMode(), childExec)
 		l.ensureBackground()
-		taskCtx, cancel := context.WithCancelCause(ctx)
+		workCtx, cancel := context.WithCancelCause(ctx)
 		l.bg.mu.Lock()
 		l.bg.cancel[act.CallID] = cancel
 		l.bg.mu.Unlock()
@@ -81,15 +81,15 @@ func (l *Loop) reattachWaitingChildren(ctx context.Context, ds *driveState,
 		}
 		baseline := reviveBaselineOf(act.Args)
 		var assignment *event.TeamWorkspace
-		for _, task := range ds.s.Team {
-			if task.CallID == act.CallID {
-				assignment = task.Workspace
+		for _, delegation := range ds.s.Team {
+			if delegation.CallID == act.CallID {
+				assignment = delegation.Workspace
 				break
 			}
 		}
 		go func(act event.ActivityStarted) {
 			defer func() { _ = childStore.Close() }()
-			cres, cerr := child.Resume(taskCtx)
+			cres, cerr := child.Resume(workCtx)
 			total := childFoldUsage(childDir)
 			spent := subUsage(total, baseline)
 			reason := cres.Reason
@@ -106,7 +106,7 @@ func (l *Loop) reattachWaitingChildren(ctx context.Context, ds *driveState,
 			l.bg.done <- bgOutcome{
 				handle: act.CallID, activityID: act.ActivityID,
 				result: payload, isError: reason == "error" || reason == "contract_violation",
-				canceled: taskCtx.Err() != nil, err: cerr, usage: &usage,
+				canceled: workCtx.Err() != nil, err: cerr, usage: &usage,
 				subagent: &event.SubagentCompleted{
 					CallID: act.CallID, Agent: agentName, ChildSession: childSession,
 					Reason: reason, GenSteps: cres.GenSteps, Usage: spent,
@@ -129,7 +129,7 @@ func (l *Loop) settleCrashInDoubt(appendE AppendFunc, acts []event.ActivityStart
 		// between TimerSet and the activity's own terminal left it pending.
 		// The live path cancels it when the activity finishes (activity.go);
 		// the crash-settle path must too, or the orphaned FUTURE timer keeps
-		// the session from ever reaching quiescence — a resumed submit task
+		// the session from ever reaching quiescence — a resumed submitted run
 		// idles on it forever instead of returning, so its stop is stuck (T1).
 		// FirePendingTimers below can't help: it only fires EXPIRED timers, and
 		// the loop's comment there assumes a re-armed re-run — but a non-
@@ -144,11 +144,11 @@ func (l *Loop) settleCrashInDoubt(appendE AppendFunc, acts []event.ActivityStart
 				return err
 			}
 		case act.Background && act.CallID != "":
-			// A background task's process died with the runtime; its
-			// cancellation receipt reaches the model as a task outcome.
+			// A background work's process died with the runtime; its
+			// cancellation receipt reaches the model as a background outcome.
 			if _, err := appendE(event.TypeActivityCancelled, &event.ActivityCancelled{
 				ActivityID:    act.ActivityID,
-				PartialOutput: "[interrupted by crash] the runtime died while this task ran; it was not re-run",
+				PartialOutput: "[interrupted by crash] the runtime died while this work ran; it was not re-run",
 			}); err != nil {
 				return err
 			}

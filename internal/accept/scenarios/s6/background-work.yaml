@@ -1,4 +1,4 @@
-id: s6-03-background-task
+id: s6-03-background-work
 title: 后台 effect——handle 当场配对,在飞工作先善终再静止(决策 #31),结果入 journal
 files:
   agent.yaml: |

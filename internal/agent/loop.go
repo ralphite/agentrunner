@@ -86,7 +86,7 @@ type Loop struct {
 	// next idle closes the session instead of waiting (v2 M2.1).
 	inboxClosed bool
 	// Cancels delivers handles to cancel out of band (v2 M3.2): a user's
-	// `kill <handle>` cancels one running child/task without entering the
+	// `kill <handle>` cancels one running child/background work without entering the
 	// conversation. Consumed at drive-loop safe points and during the idle.
 	Cancels        <-chan string
 	CommandCancels <-chan protocol.CancelCommand
@@ -162,8 +162,8 @@ type Loop struct {
 	// Both are registered with the Router for the duration of the drive.
 	peer   chan protocol.UserInput
 	revive chan string
-	// bg is the background-task runtime (S6.1): cancel handles + the done
-	// channel. Ephemeral — the durable truth is the tasks sub-state.
+	// bg is the background-work runtime (S6.1): cancel handles + the done
+	// channel. Ephemeral — the durable truth is the handles sub-state.
 	bg *bgRuntime
 	// AutoTitle enables the one-shot auto session title (INC-52, HANDA-PARITY
 	// #14): the harness distils the opening message into a SessionTitled{auto}.
@@ -323,7 +323,7 @@ func (l *Loop) finishInterrupt(ds *driveState, appendE AppendFunc, turn int) err
 // appender builds the single write path: journal one event, fold it, and
 // advance the linear causation chain. EVERY payload passes through
 // credential redaction here — args/results are also redacted upstream in
-// the executor, but this blanket is what keeps session_started (task, spec),
+// the executor, but this blanket is what keeps session_started (prompt, spec),
 // input_received, and assistant messages (a model echoing a secret it
 // read) out of the durable log and, via the fold, out of snapshots and
 // later provider requests.
@@ -360,8 +360,8 @@ func (l *Loop) commandAppender(ds *driveState, commandID string) AppendFunc {
 	}
 }
 
-// Run drives the loop to completion for a single task.
-func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
+// Run drives the loop to completion for a single prompt.
+func (l *Loop) Run(ctx context.Context, prompt string) (RunResult, error) {
 	if l.Clock == nil {
 		l.Clock = clock.Real{}
 	}
@@ -386,10 +386,10 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 	if l.Exec != nil && l.Artifacts != nil {
 		l.Exec.SetBlobs(l.Artifacts)
 	}
-	// The task is external input and may carry a shell-expanded credential;
+	// The prompt is external input and may carry a shell-expanded credential;
 	// IngestInput appends via the store directly (not the appender), so it
 	// must be scrubbed here.
-	task = redact.FromEnv().String(task)
+	prompt = redact.FromEnv().String(prompt)
 	ds := &driveState{s: state.New()}
 	appendE := l.appender(ds)
 
@@ -403,9 +403,9 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 	}
 	// Custom-command expansion (G21): a /name opening prompt expands to its
 	// repo-defined macro body BEFORE journaling, re-redacted since the body
-	// is repo content. The journaled task then carries the expanded prompt.
-	if expanded, ok := command.Expand(wsRoot, task); ok {
-		task = redact.FromEnv().String(expanded)
+	// is repo content. The journaled prompt then carries the expanded prompt.
+	if expanded, ok := command.Expand(wsRoot, prompt); ok {
+		prompt = redact.FromEnv().String(expanded)
 	}
 	memoryBlock, skillsBlock := renderContextBlocks(wsRoot)
 	commandTools := l.discoverCommandTools(wsRoot)
@@ -414,7 +414,7 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 		providerEnvelope = provider.Envelope(l.Spec.Model.Provider, l.Spec.Model.ID, l.Provider.Capabilities())
 	}
 	if _, err := appendE(event.TypeSessionStarted, &event.SessionStarted{
-		SpecName: l.Spec.Name, Model: l.Spec.Model.ID, Task: task,
+		SpecName: l.Spec.Name, Model: l.Spec.Model.ID, Prompt: prompt,
 		Version: l.Version, SubStateVersions: state.SubStateVersions(),
 		Spec: specJSON, WorkspaceRoot: wsRoot,
 		SpecPath: l.SpecPath,
@@ -433,8 +433,8 @@ func (l *Loop) Run(ctx context.Context, task string) (RunResult, error) {
 		return RunResult{}, err
 	}
 	l.fireLifecycle(ctx, hook.EventSessionStart,
-		map[string]string{"spec": l.Spec.Name, "task": task}, false)
-	input, err := runtime.IngestInput(l.Store, l.SessionID, task, "cli")
+		map[string]string{"spec": l.Spec.Name, "prompt": prompt}, false)
+	input, err := runtime.IngestInput(l.Store, l.SessionID, prompt, "cli")
 	if err != nil {
 		return RunResult{}, err
 	}
@@ -677,7 +677,7 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 			return RunResult{}, err
 		}
 		// A compatible legacy snapshot may predate one or more projections
-		// (Turn/Item, team tasks, future optional namespaces). Its journal is
+		// (Turn/Item, delegations, future optional namespaces). Its journal is
 		// still readable, but replaying only the tail would lose prefix facts
 		// for the new projection. Discard only the cache and full-fold.
 		for namespace := range state.SubStateVersions() {
@@ -752,11 +752,11 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 	ds := &driveState{s: s, lastID: lastID}
 	appendE := l.appender(ds)
 
-	// A crash between session_started and input_received leaves the task
+	// A crash between session_started and input_received leaves the prompt
 	// durable in SessionStarted but never journaled as input — re-ingest it
 	// rather than silently calling the model with an empty conversation.
-	if len(s.Conversation.Messages) == 0 && s.Session.Task != "" {
-		input, err := runtime.IngestInput(l.Store, l.SessionID, s.Session.Task, "cli")
+	if len(s.Conversation.Messages) == 0 && s.Session.Prompt != "" {
+		input, err := runtime.IngestInput(l.Store, l.SessionID, s.Session.Prompt, "cli")
 		if err != nil {
 			return RunResult{}, err
 		}
@@ -1085,11 +1085,11 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 	if !structuredOnly && l.Spec.AgentsDynamic && len(l.Spec.Agents) == 0 {
 		extra = append(extra, "spawn_agent")
 	}
-	// bash can launch background tasks (S6.1) — the management tools ride
+	// bash can launch background work (S6.1) — the management tools ride
 	// along so the model can inspect/cancel what it started.
 	if !structuredOnly && (slices.Contains(l.Spec.Tools, "bash") || len(l.Spec.Agents) > 0 || l.Spec.AgentsDynamic) {
-		// bash background tasks (S6.1) and background sub-agents (v2 M3.1)
-		// share kill: cancel a running child/task by its handle.
+		// bash background work (S6.1) and background sub-agents (v2 M3.1)
+		// share kill: cancel a running child/background work by its handle.
 		extra = append(extra, "output", "kill")
 	}
 	if !structuredOnly && (l.Board != nil || len(l.Spec.Agents) > 0 || l.Spec.AgentsDynamic) {
@@ -1121,7 +1121,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 	// Both facts are structural/journaled, so resume rebuilds the same
 	// face. A one-shot or driver-iteration run has neither — advertising
 	// goal_complete there just baited models into a "no active goal" error
-	// call on ordinary tasks (QA Round1 F-C4, Round2 F-E2).
+	// call on ordinary runs (QA Round1 F-C4, Round2 F-E2).
 	if !structuredOnly && (l.Controls != nil || ds.s.Goal != nil) {
 		extra = append(extra, "goal_status", "goal_complete")
 	}
@@ -1519,7 +1519,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			// A idle approval (fresh or resumed across a crash) re-enters
 			// the same await path: the request payload lives in the fold's
 			// Waiting.Detail. Other wait kinds have no resolver until their
-			// stage (input S4, tasks/timer S6).
+			// stage (input S4, handles/timer S6).
 			if ds.s.Waiting.Kind == event.WaitApproval {
 				var req event.ApprovalRequested
 				if err := json.Unmarshal(ds.s.Waiting.Detail, &req); err != nil {
@@ -1665,7 +1665,7 @@ func quiesceReason(s state.State) string {
 // doTools runs one assistant turn's tool calls (S4.3). It is two-phase:
 //
 //  1. Adjudicate every call SERIALLY — asks idle inline on the resolver, so
-//     a turn's multiple asks are approved one at a time (no multi-prompt
+//     a turn's multiple asks are approved one at a time (no concurrent approval
 //     race), and each allow's budget reservation is folded before the next
 //     adjudication reads the budget (reserve-then-settle stays correct under
 //     the fold, no TOCTOU — this is why adjudication is not parallelized).
@@ -1816,8 +1816,8 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 		}
 		// Background launches never join the batch (S6.1): the handle pairs
 		// the call via the Started fold, the work outlives this turn, and
-		// the terminal settles later at a drive-loop safe point. The task
-		// context is the RUN's, not the batch's interrupt scope.
+		// the terminal settles later at a drive-loop safe point. The work
+		// context is the run's, not the batch's interrupt scope.
 		if isBackgroundCall(p.call.Name, p.call.Args) {
 			if err := l.launchBackground(ctx, serialAppend, p.call.CallID, p.call.Name, p.call.Args); err != nil {
 				stopInt()
@@ -1918,7 +1918,7 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 			}
 		}
 		if isHandleTool(p.call.Name) {
-			// Task tools read the fold snapshot taken NOW, on the drive
+			// Handle tools read the fold snapshot taken NOW, on the drive
 			// goroutine — the closure runs on an activity goroutine while
 			// serialAppend mutates ds.s.
 			call := p.call
@@ -2308,7 +2308,7 @@ func decide(s state.State, maxGenerationSteps int) action {
 // takeBarrier journals a CheckpointBarrier at the current cut (S7.2,
 // weakened semantics): no whole-tree quiescence — the vector records this
 // stream's seq, every completed child stream's final seq, and the in-flight
-// background tasks with their fork-time disposition. No snapshot, no
+// background work with their fork-time disposition. No snapshot, no
 // barrier: a barrier without a materializable workspace would promise a
 // rewind it cannot deliver.
 func (l *Loop) takeBarrier(ctx context.Context, ds *driveState, appendE AppendFunc,

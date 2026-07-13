@@ -94,7 +94,7 @@ func TestReviveRefusesForeignWorkspace(t *testing.T) {
 		t.Fatal(err)
 	}
 	payload, _ := json.Marshal(&event.SessionStarted{
-		SpecName: "member", Task: "t", WorkspaceRoot: foreign,
+		SpecName: "member", Prompt: "t", WorkspaceRoot: foreign,
 		Spec: json.RawMessage(`{"name":"member","model":{"provider":"scripted","id":"m"}}`),
 	})
 	if _, err := ces.Append(event.Envelope{Type: event.TypeSessionStarted, Payload: payload}); err != nil {
@@ -119,7 +119,7 @@ func TestReviveRefusesForeignWorkspace(t *testing.T) {
 		t.Fatal(err)
 	}
 	lp, _ := json.Marshal(&event.SessionStarted{
-		SpecName: "member", Task: "t", WorkspaceRoot: filepath.Join(localDir, "worktree"),
+		SpecName: "member", Prompt: "t", WorkspaceRoot: filepath.Join(localDir, "worktree"),
 		Spec: json.RawMessage(`{"name":"member","model":{"provider":"scripted","id":"m"}}`),
 	})
 	_, _ = les.Append(event.Envelope{Type: event.TypeSessionStarted, Payload: lp})

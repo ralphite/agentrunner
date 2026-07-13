@@ -21,7 +21,7 @@ func IngestInput(s *store.EventStore, correlationID, text, source string) (event
 }
 
 // IngestUserInput persists a fully attributed typed input. Binary parts must
-// already be CAS refs; the opening-task path uses text only, while daemon
+// already be CAS refs; the opening-prompt path uses text only, while daemon
 // inputs are materialized by agent.journalInput.
 func IngestUserInput(s *store.EventStore, correlationID string, in protocol.UserInput, commandID string) (event.Envelope, error) {
 	content := in.Content

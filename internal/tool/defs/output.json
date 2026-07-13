@@ -1,13 +1,13 @@
 {
   "name": "output",
-  "description": "Check a background task's status. Returns running/unknown; a finished task's result arrives as a message instead.",
+  "description": "Check background work status. Returns running/unknown; a finished result arrives as a message instead.",
   "class": "read",
   "input_schema": {
     "type": "object",
     "properties": {
       "handle": {
         "type": "string",
-        "description": "The task handle returned when the background command started."
+        "description": "The work handle returned when the background command started."
       }
     },
     "required": ["handle"]

@@ -1,6 +1,6 @@
 {
   "name": "send_message",
-  "description": "Send a message to another agent in this session tree (your parent, a sub-agent you spawned, or a sibling/team member). The message is delivered durably to the recipient's inbox: a running recipient sees it at its next safe point; an idle one is woken to handle it. Use the recipient's session id (from spawn results, receipts, or your task briefing), a handle you own, or \"parent\".",
+  "description": "Send a message to another agent in this session tree (your parent, a sub-agent you spawned, or a sibling/team member). The message is delivered durably to the recipient's inbox: a running recipient sees it at its next safe point; an idle one is woken to handle it. Use the recipient's session id (from spawn results, receipts, or your prompt briefing), a handle you own, or \"parent\".",
   "class": "execute",
   "input_schema": {
     "type": "object",

@@ -65,13 +65,13 @@ func (l *Loop) expandForkSkills(turn *provider.GenStep) {
 }
 
 // forkSkillArgs loads the named skill and, when it declares context:fork,
-// returns the spawn_agent{role, task} args it expands to. ok=false keeps the
+// returns the spawn_agent{role, prompt} args it expands to. ok=false keeps the
 // call on the inline path — the executor's own error reporting stays
 // authoritative for missing/invalid skills.
 func (l *Loop) forkSkillArgs(raw json.RawMessage) (json.RawMessage, bool) {
 	var args struct {
-		Name string `json:"name"`
-		Task string `json:"task"`
+		Name   string `json:"name"`
+		Prompt string `json:"prompt"`
 	}
 	if err := json.Unmarshal(raw, &args); err != nil || args.Name == "" {
 		return nil, false
@@ -103,19 +103,19 @@ func (l *Loop) forkSkillArgs(raw json.RawMessage) (json.RawMessage, bool) {
 	if desc == "" {
 		desc = "skill " + args.Name
 	}
-	task := strings.TrimSpace(args.Task)
-	if task == "" {
-		task = "Execute this skill's instructions now."
+	prompt := strings.TrimSpace(args.Prompt)
+	if prompt == "" {
+		prompt = "Execute this skill's instructions now."
 	}
 	// AllowedTools ride into the role verbatim; dynamicRoleSpec enforces
 	// unknown-tool and ⊆-parent at resolve time, so a skill author's mistake
 	// surfaces as the spawn's model-visible problem.
 	expanded, err := json.Marshal(struct {
-		Role InlineRole `json:"role"`
-		Task string     `json:"task"`
+		Role   InlineRole `json:"role"`
+		Prompt string     `json:"prompt"`
 	}{
-		Role: InlineRole{Name: args.Name, Description: desc, Instructions: body, Tools: fm.AllowedTools},
-		Task: task,
+		Role:   InlineRole{Name: args.Name, Description: desc, Instructions: body, Tools: fm.AllowedTools},
+		Prompt: prompt,
 	})
 	if err != nil {
 		return nil, false

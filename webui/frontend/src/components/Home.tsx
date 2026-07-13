@@ -62,8 +62,8 @@ function CloudMark({ size = 24 }: { size?: number }) {
   );
 }
 
-// Codex keeps task navigation in the sidebar. The landing page has one job:
-// start a task without asking users to understand AgentRunner internals first.
+// Codex keeps session navigation in the sidebar. The landing page has one job:
+// start a session without asking users to understand AgentRunner internals first.
 // It greets the way Codex does — a soft brand mark over a project-aware
 // headline, four suggestion cards, and the composer pinned just beneath (W1).
 
@@ -132,7 +132,7 @@ export function Home() {
   // one source of truth, reported up from the composer's `ws` via
   // onProjectChange (RH-1). It used to guess from session history instead, which
   // let the greeting say "build in cx3-ws" while the chip said "Select project"
-  // and the task actually ran in a scratch dir. With no project selected the
+  // and the session actually ran in a scratch dir. With no project selected the
   // greeting drops the name rather than inventing one (Codex parity).
   const [project, setProject] = useState<string | null>(null);
 

@@ -19,7 +19,7 @@ describe("sidebar search entry point (RH-5)", () => {
   it("magnifier opens the ⌘K command palette instead of an inline filter", () => {
     const onOpenPalette = vi.fn();
     const { container } = render(<Sidebar onOpenPalette={onOpenPalette} />);
-    fireEvent.click(screen.getByLabelText("Search tasks"));
+    fireEvent.click(screen.getByLabelText("Search sessions"));
     expect(onOpenPalette).toHaveBeenCalled();
     // The second search surface is gone — one entry point, not two.
     expect(container.querySelector(".side-search")).toBeNull();
@@ -36,14 +36,14 @@ describe("mobile sidebar dismissal", () => {
   });
 });
 
-describe("current task visibility (SB-1)", () => {
-  // Ten tasks in one project: with cap=6, s3…s9 (ids sort newest-first) fall
+describe("current session visibility (SB-1)", () => {
+  // Ten sessions in one project: with cap=6, s3…s9 (ids sort newest-first) fall
   // behind "Show more". Opening one of them must still put it on the rail.
   const manySessions = Array.from({ length: 10 }, (_v, i) => ({
-    id: `2026071${i}-000000-task-${i}`,
+    id: `2026071${i}-000000-session-${i}`,
     status: "idle",
     turns: 1,
-    title: `Task ${i}`,
+    title: `Session ${i}`,
     workspace: "/repo/app",
   }));
 
@@ -62,15 +62,15 @@ describe("current task visibility (SB-1)", () => {
   };
 
   it("renders the current row even when it sits past the cap", () => {
-    // Newest-first: task-9 leads, so task-2 is the 8th row — well past cap=6.
-    const sid = "20260712-000000-task-2";
+    // Newest-first: session-9 leads, so session-2 is the 8th row — well past cap=6.
+    const sid = "20260712-000000-session-2";
     const { container } = mount(sid);
-    const rows = [...container.querySelectorAll(".project-task-wrap")];
+    const rows = [...container.querySelectorAll(".project-session-wrap")];
     // The cap still holds for everyone else: 6 capped rows + the current one.
     expect(rows.length).toBe(7);
-    const current = container.querySelector(".project-task-wrap.current");
+    const current = container.querySelector(".project-session-wrap.current");
     expect(current).toBeTruthy();
-    expect(current!.textContent).toContain("Task 2");
+    expect(current!.textContent).toContain("Session 2");
     // …and "Show more" still offers the rest.
     expect(container.querySelector(".show-more")).toBeTruthy();
   });
@@ -78,27 +78,27 @@ describe("current task visibility (SB-1)", () => {
   it("un-folds the group holding the current row without persisting the change", () => {
     const toggleProjectFolded = vi.fn();
     useStore.setState({ toggleProjectFolded });
-    const { container } = mount("20260712-000000-task-2", { "/repo/app": { folded: true } });
-    expect(container.querySelector(".project-task-wrap.current")).toBeTruthy();
+    const { container } = mount("20260712-000000-session-2", { "/repo/app": { folded: true } });
+    expect(container.querySelector(".project-session-wrap.current")).toBeTruthy();
     // The fold stays the user's: nothing writes it back.
     expect(toggleProjectFolded).not.toHaveBeenCalled();
   });
 
-  it("keeps a folded group collapsed when the current task lives elsewhere", () => {
+  it("keeps a folded group collapsed when the current session lives elsewhere", () => {
     const { container } = mount(null, { "/repo/app": { folded: true } });
-    expect(container.querySelectorAll(".project-task-wrap").length).toBe(0);
+    expect(container.querySelectorAll(".project-session-wrap").length).toBe(0);
   });
 });
 
 describe("Projects section truncation + group fold (SB-4)", () => {
-  // 12 projects, one task each. Ids are creation stamps, so p11 is the newest
+  // 12 projects, one session each. Ids are creation stamps, so p11 is the newest
   // group and p00 the oldest — the section renders p11…p04 (8) and hides the
   // last four behind Show more.
   const spread = Array.from({ length: 12 }, (_v, i) => ({
-    id: `20260701-0000${String(i).padStart(2, "0")}-task`,
+    id: `20260701-0000${String(i).padStart(2, "0")}-session`,
     status: "idle",
     turns: 1,
-    title: `Task ${i}`,
+    title: `Session ${i}`,
     workspace: `/repo/p${String(i).padStart(2, "0")}`,
   }));
 
@@ -149,12 +149,12 @@ describe("Projects section truncation + group fold (SB-4)", () => {
     expect(container.querySelectorAll(".project-group")).toHaveLength(8);
   });
 
-  it("collapsing a group hides its tasks and persists across a remount", () => {
+  it("collapsing a group hides its sessions and persists across a remount", () => {
     const { container } = mount();
     const first = container.querySelector(".project-group")!;
-    expect(first.querySelectorAll(".project-task-wrap")).toHaveLength(1);
+    expect(first.querySelectorAll(".project-session-wrap")).toHaveLength(1);
     fireEvent.click(first.querySelector(".project-heading")!);
-    expect(first.querySelectorAll(".project-task-wrap")).toHaveLength(0);
+    expect(first.querySelectorAll(".project-session-wrap")).toHaveLength(0);
     // The heading itself survives — a collapsed group is one row, not zero.
     expect(first.querySelector(".project-heading")!.textContent).toContain("p11");
     expect(JSON.parse(localStorage.getItem("ar.sidebar.collapsedProjects")!)).toEqual(["/repo/p11"]);
@@ -165,9 +165,9 @@ describe("Projects section truncation + group fold (SB-4)", () => {
     const remounted = mount().container;
     const again = remounted.querySelector(".project-group")!;
     expect(again.querySelector(".project-heading")!.textContent).toContain("p11");
-    expect(again.querySelectorAll(".project-task-wrap")).toHaveLength(0);
+    expect(again.querySelectorAll(".project-session-wrap")).toHaveLength(0);
     // Its neighbours are untouched.
-    expect([...remounted.querySelectorAll(".project-group")][1].querySelectorAll(".project-task-wrap")).toHaveLength(1);
+    expect([...remounted.querySelectorAll(".project-group")][1].querySelectorAll(".project-session-wrap")).toHaveLength(1);
   });
 
   it("re-expands a collapsed group on a second click and clears it from storage", () => {
@@ -175,14 +175,14 @@ describe("Projects section truncation + group fold (SB-4)", () => {
     const heading = container.querySelector(".project-heading")!;
     fireEvent.click(heading);
     fireEvent.click(heading);
-    expect(container.querySelector(".project-group")!.querySelectorAll(".project-task-wrap")).toHaveLength(1);
+    expect(container.querySelector(".project-group")!.querySelectorAll(".project-session-wrap")).toHaveLength(1);
     expect(JSON.parse(localStorage.getItem("ar.sidebar.collapsedProjects")!)).toEqual([]);
   });
 
-  it("keeps the current task's group rendered and expanded even past the limit", () => {
+  it("keeps the current session's group rendered and expanded even past the limit", () => {
     // p00 is the 12th group — beyond the 8 the section shows — *and* collapsed.
     localStorage.setItem("ar.sidebar.collapsedProjects", JSON.stringify(["/repo/p00"]));
-    const { container } = mount({ currentSid: "20260701-000000-task" });
+    const { container } = mount({ currentSid: "20260701-000000-session" });
 
     // 8 + the current group, appended at the tail so the top never shuffles.
     const groups = [...container.querySelectorAll(".project-group")];
@@ -190,30 +190,30 @@ describe("Projects section truncation + group fold (SB-4)", () => {
     expect(headings(container)[8]).toContain("p00");
 
     // …and its row is on the rail: the fold cannot hide where you are.
-    const current = container.querySelector(".project-task-wrap.current");
+    const current = container.querySelector(".project-session-wrap.current");
     expect(current).toBeTruthy();
-    expect(current!.textContent).toContain("Task 0");
+    expect(current!.textContent).toContain("Session 0");
     expect(groups[8].contains(current!)).toBe(true);
   });
 });
 
-describe("New task shortcut badge (RH-4)", () => {
-  it("badges the New task row with the key the app actually binds", () => {
+describe("New session shortcut badge (RH-4)", () => {
+  it("badges the New session row with the key the app actually binds", () => {
     useStore.setState({ sessions: [] });
     const { container } = render(<Sidebar />);
     const badge = container.querySelector(".primary-nav .nav-kbd");
     expect(badge).toBeTruthy();
 
     // The badge must render the same tokens the shortcut catalog registers for
-    // New task — that catalog is what Settings → Keyboard shortcuts shows, and
+    // New session — that catalog is what Settings → Keyboard shortcuts shows, and
     // App.tsx is what actually fires. One string, three surfaces.
     const registered = SHORTCUT_GROUPS.find((g) => g.title === "Global")!.items.find(
-      (i) => i.label === "New task",
+      (i) => i.label === "New session",
     );
     expect(registered).toBeTruthy();
     expect(badge!.textContent).toBe(registered!.keys.map(keyLabel).join(""));
-    // …and it sits on the New task row, not on Scheduled.
-    expect(badge!.closest("button")!.textContent).toContain("New task");
+    // …and it sits on the New session row, not on Scheduled.
+    expect(badge!.closest("button")!.textContent).toContain("New session");
   });
 });
 
@@ -244,7 +244,7 @@ describe("footer says the product name once (SB-12)", () => {
   });
 });
 
-describe("workspace-less tasks live in a flat Tasks section (SB-13)", () => {
+describe("workspace-less sessions live in a flat Sessions section (SB-13)", () => {
   const mount = (sessions: any[], over: Record<string, any> = {}) => {
     useStore.setState({
       sessions: sessions as any,
@@ -263,10 +263,10 @@ describe("workspace-less tasks live in a flat Tasks section (SB-13)", () => {
 
   const section = (container: HTMLElement, cls: string) => container.querySelector(`.${cls}`);
 
-  it("puts a workspace-less task under Tasks — no folder, no caret, no fake project", () => {
+  it("puts a workspace-less session under Sessions — no folder, no caret, no fake project", () => {
     const { container } = mount([
-      { id: "20260710-000000-loose", status: "idle", turns: 1, title: "Loose task" },
-      { id: "20260709-000000-repo", status: "idle", turns: 1, title: "Repo task", workspace: "/repo/app" },
+      { id: "20260710-000000-loose", status: "idle", turns: 1, title: "Loose session" },
+      { id: "20260709-000000-repo", status: "idle", turns: 1, title: "Repo session", workspace: "/repo/app" },
     ]);
 
     // The fake folder is gone: no group is named "Other sessions", and every
@@ -276,44 +276,44 @@ describe("workspace-less tasks live in a flat Tasks section (SB-13)", () => {
     expect(headings).toHaveLength(1);
     expect(headings[0]).toContain("app");
 
-    const tasks = section(container, "tasks-section")!;
-    expect(tasks).toBeTruthy();
-    expect(tasks.querySelector(".section-label")!.textContent).toBe("Tasks");
-    expect(tasks.textContent).toContain("Loose task");
+    const sessions = section(container, "sessions-section")!;
+    expect(sessions).toBeTruthy();
+    expect(sessions.querySelector(".section-label")!.textContent).toBe("Sessions");
+    expect(sessions.textContent).toContain("Loose session");
     // Flat: the row sits at the Pinned indent (no `.nested`), and the section
     // carries none of the project chrome that asserts a directory.
-    const row = tasks.querySelector(".project-task-wrap")!;
+    const row = sessions.querySelector(".project-session-wrap")!;
     expect(row.className).not.toContain("nested");
-    expect(tasks.querySelector(".proj-folder")).toBeNull();
-    expect(tasks.querySelector(".proj-caret")).toBeNull();
-    expect(tasks.querySelector(".project-heading")).toBeNull();
+    expect(sessions.querySelector(".proj-folder")).toBeNull();
+    expect(sessions.querySelector(".proj-caret")).toBeNull();
+    expect(sessions.querySelector(".project-heading")).toBeNull();
   });
 
-  it("renders no Tasks section at all when every task has a workspace", () => {
+  it("renders no Sessions section at all when every session has a workspace", () => {
     const { container } = mount([
-      { id: "20260709-000000-repo", status: "idle", turns: 1, title: "Repo task", workspace: "/repo/app" },
+      { id: "20260709-000000-repo", status: "idle", turns: 1, title: "Repo session", workspace: "/repo/app" },
     ]);
     // An empty heading is worse than no heading.
-    expect(section(container, "tasks-section")).toBeNull();
+    expect(section(container, "sessions-section")).toBeNull();
     expect(container.textContent).not.toContain("Other sessions");
   });
 
-  it("keeps a pinned workspace-less task in Pinned only — never twice", () => {
+  it("keeps a pinned workspace-less session in Pinned only — never twice", () => {
     const { container } = mount(
       [
-        { id: "20260710-000000-loose", status: "idle", turns: 1, title: "Loose task" },
+        { id: "20260710-000000-loose", status: "idle", turns: 1, title: "Loose session" },
         { id: "20260708-000000-other", status: "idle", turns: 1, title: "Other loose" },
       ],
       { pinned: ["20260710-000000-loose"] },
     );
     const pinned = section(container, "pinned-section")!;
-    expect(pinned.textContent).toContain("Loose task");
-    const tasks = section(container, "tasks-section")!;
-    expect(tasks.textContent).toContain("Other loose");
-    expect(tasks.textContent).not.toContain("Loose task");
+    expect(pinned.textContent).toContain("Loose session");
+    const sessions = section(container, "sessions-section")!;
+    expect(sessions.textContent).toContain("Other loose");
+    expect(sessions.textContent).not.toContain("Loose session");
     // …and exactly one row on the whole rail carries that title.
-    const titles = [...container.querySelectorAll(".project-task-title")].map((t) => t.textContent);
-    expect(titles.filter((t) => t === "Loose task")).toHaveLength(1);
+    const titles = [...container.querySelectorAll(".project-session-title")].map((t) => t.textContent);
+    expect(titles.filter((t) => t === "Loose session")).toHaveLength(1);
   });
 
   it("caps the section at 6 rows and reveals the rest behind Show more / Show less", () => {
@@ -324,19 +324,19 @@ describe("workspace-less tasks live in a flat Tasks section (SB-13)", () => {
       title: `Loose ${i}`,
     }));
     const { container } = mount(many);
-    const tasks = () => section(container, "tasks-section")!;
-    expect(tasks().querySelectorAll(".project-task-wrap")).toHaveLength(6);
+    const sessions = () => section(container, "sessions-section")!;
+    expect(sessions().querySelectorAll(".project-session-wrap")).toHaveLength(6);
 
-    const showMore = tasks().querySelector(".show-more")!;
+    const showMore = sessions().querySelector(".show-more")!;
     expect(showMore.textContent).toContain("Show more");
     expect(showMore.textContent).toContain("3"); // the withheld ones are counted
     fireEvent.click(showMore);
-    expect(tasks().querySelectorAll(".project-task-wrap")).toHaveLength(9);
+    expect(sessions().querySelectorAll(".project-session-wrap")).toHaveLength(9);
 
-    const showLess = tasks().querySelector(".show-more")!;
+    const showLess = sessions().querySelector(".show-more")!;
     expect(showLess.textContent).toContain("Show less");
     fireEvent.click(showLess);
-    expect(tasks().querySelectorAll(".project-task-wrap")).toHaveLength(6);
+    expect(sessions().querySelectorAll(".project-session-wrap")).toHaveLength(6);
   });
 });
 

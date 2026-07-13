@@ -54,7 +54,7 @@ export function SettingsConfiguration({ query }: { query: string }) {
               Approval policy &amp; sandbox <span className="rs-todo">Not surfaced</span>
             </div>
             <div className="rs-row-desc">
-              Per-task approval mode is chosen when starting a task; the daemon doesn’t expose a global policy to read here yet.
+              Per-session approval mode is chosen when starting a session; the daemon doesn’t expose a global policy to read here yet.
             </div>
           </div>
         </section>

@@ -14,26 +14,26 @@ import (
 // S6.1 e2e: a background bash pairs with a handle immediately (turn 1
 // continues without blocking), its result arrives as a user-role message,
 // and the model sees it on a later turn.
-func TestBackgroundTaskHandleAndOutcome(t *testing.T) {
+func TestBackgroundWorkHandleAndOutcome(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
-		// GenStep 1: launch a background task, then keep working (text) — proves
+		// GenStep 1: launch a background work, then keep working (text) — proves
 		// the handle paired without blocking on the sleep.
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "bg1", Name: "bash",
 				Args: map[string]any{"command": "sleep 0.2; echo done-work", "background": true}}},
 			{Finish: "tool_use"},
 		}},
-		// GenStep 2: model acknowledges the handle (the task is still running or
+		// GenStep 2: model acknowledges the handle (the work is still running or
 		// just finished) and yields with text; the loop then goes idle on the
-		// task (WAITING_TASKS) if it hasn't settled.
+		// session (waiting for background work) if it hasn't settled.
 		{
 			Expect:  scripted.Expect{LastMessageContains: "handle"},
 			Respond: []scripted.Event{{Text: "started it, waiting"}, {Finish: "end_turn"}},
 		},
-		// GenStep 3: the task outcome has arrived as a user message; wrap up.
+		// GenStep 3: the background outcome has arrived as a user message; wrap up.
 		{
 			Expect:  scripted.Expect{LastMessageContains: "done-work"},
-			Respond: []scripted.Event{{Text: "task finished, all done"}, {Finish: "end_turn"}},
+			Respond: []scripted.Event{{Text: "work finished, all done"}, {Finish: "end_turn"}},
 		},
 	}}
 	l := testLoop(t, fix, t.TempDir())
@@ -68,12 +68,12 @@ func TestBackgroundTaskHandleAndOutcome(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The task drained out of the tasks sub-state at the end.
+	// The work drained out of the handles sub-state at the end.
 	if len(fold.Session.Env) == 0 && len(fold.Handles) != 0 {
-		t.Errorf("tasks not drained: %+v", fold.Handles)
+		t.Errorf("background handles not drained: %+v", fold.Handles)
 	}
 	if len(fold.Handles) != 0 {
-		t.Errorf("tasks sub-state not empty at end: %+v", fold.Handles)
+		t.Errorf("handles sub-state not empty at end: %+v", fold.Handles)
 	}
 	// The handle paired the call, and the outcome is a user message.
 	tr := fold.Conversation.ToolResults["bg1"]
@@ -90,13 +90,13 @@ func TestBackgroundTaskHandleAndOutcome(t *testing.T) {
 		}
 	}
 	if !sawOutcome {
-		t.Error("task outcome did not arrive as a user-role message")
+		t.Error("background outcome did not arrive as a user-role message")
 	}
 }
 
-// S6.1: kill cancels a running task; the cancellation lands as a
-// message and the tasks set empties.
-func TestTaskKill(t *testing.T) {
+// S6.1: kill cancels running background work; the cancellation lands as a
+// message and the handle set empties.
+func TestBackgroundWorkKill(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "bg1", Name: "bash",
@@ -133,7 +133,7 @@ func TestTaskKill(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(fold.Handles) != 0 {
-		t.Errorf("task not removed after kill: %+v", fold.Handles)
+		t.Errorf("background work not removed after kill: %+v", fold.Handles)
 	}
 	// The kill tool paired normally; the cancellation is a user message.
 	kr := fold.Conversation.ToolResults["k1"]
@@ -145,14 +145,14 @@ func TestTaskKill(t *testing.T) {
 // 决策 #31: a final generation over in-flight background work is NOT
 // quiescence — the session idles, the settlement feeds back as a user-role
 // input that earns one more turn, and only then does the session quiesce.
-func TestBackgroundTaskSettlesBeforeQuiescence(t *testing.T) {
+func TestBackgroundWorkSettlesBeforeQuiescence(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "bg1", Name: "bash",
 				Args: map[string]any{"command": "sleep 0.2; echo awaited-output", "background": true}}},
 			{Finish: "tool_use"},
 		}},
-		{Respond: []scripted.Event{{Text: "ending now, but await the task"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "ending now, but await the work"}, {Finish: "end_turn"}}},
 		// The awaited outcome arrived as a user message → one more turn.
 		{
 			Expect:  scripted.Expect{LastMessageContains: "awaited-output"},
@@ -182,10 +182,10 @@ func TestBackgroundTaskSettlesBeforeQuiescence(t *testing.T) {
 		}
 	}
 	if !sawCompleteWithOutput {
-		t.Error("await must let the task finish with real output, not cancel it")
+		t.Error("await must let the background work finish with real output, not cancel it")
 	}
 	if !sawWaitEntered || !sawWaitResolved {
-		t.Errorf("WAITING_TASKS idle must be journaled: entered=%v resolved=%v", sawWaitEntered, sawWaitResolved)
+		t.Errorf("waiting for background work idle must be journaled: entered=%v resolved=%v", sawWaitEntered, sawWaitResolved)
 	}
 }
 

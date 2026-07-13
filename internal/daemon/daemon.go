@@ -34,7 +34,7 @@ type Command struct {
 
 	// run
 	SpecPath  string `json:"spec_path,omitempty"`
-	Task      string `json:"task,omitempty"`
+	Prompt    string `json:"prompt,omitempty"`
 	Workspace string `json:"workspace,omitempty"`
 	Mode      string `json:"mode,omitempty"`
 
@@ -81,7 +81,7 @@ type Command struct {
 	ReplayOnly bool `json:"replay_only,omitempty"`
 
 	// kill
-	Handle string `json:"handle,omitempty"` // a child/task handle to cancel
+	Handle string `json:"handle,omitempty"` // a child/work handle to cancel
 
 	// compact (G7): an optional focus for the manual summarizer.
 	Directive string `json:"directive,omitempty"`
@@ -119,7 +119,7 @@ func attributedCommand(cmd Command, command protocol.SessionCommand) protocol.Se
 type RunRequest struct {
 	SessionID         string
 	SpecPath          string
-	Task              string
+	Prompt            string
 	Workspace         string
 	Mode              string
 	Inbox             <-chan protocol.UserInput
@@ -161,7 +161,7 @@ type DriveRequest struct {
 
 // NewSessionID mints a session id for a hosted run; injected for
 // deterministic tests.
-type NewSessionID func(task string) string
+type NewSessionID func(prompt string) string
 
 // Server hosts runs behind a unix socket.
 type Server struct {
@@ -171,7 +171,7 @@ type Server struct {
 	// SplitAddress resolves a session address into (host, target): target
 	// non-empty means a child session hosted by its tree root `host`. The
 	// CLI wires a store-aware resolver — a TOP-LEVEL slug may itself
-	// contain "-sub-" (ids are minted from free task text, QA Round1
+	// contain "-sub-" (ids are minted from free prompt text, QA Round1
 	// F-B2), which the naive split misreads as child addressing. nil
 	// falls back to the first "-sub-" split.
 	SplitAddress func(session string) (host, target string)
@@ -277,14 +277,14 @@ type hostedRun struct {
 	done   bool
 	// inbox delivers conversational user inputs to the hosted Loop (v2
 	// M1.2). Buffered so `send` never blocks on the loop's turn; nil for a
-	// task run. Closed at `close`/shutdown.
+	// non-interactive run. Closed at `close`/shutdown.
 	inbox chan protocol.UserInput
 	// interrupts carries the out-of-band interrupt signal (v2 M2.3): a
 	// during-turn interrupt steers (cancels the current activity); an idle
 	// interrupt closes. Buffered 1 like the terminal Ctrl-C channel.
 	interrupts chan struct{}
 	// cancels delivers handles to kill out of band (v2 M3.2): `kill <handle>`
-	// cancels one running child/task. Buffered for non-blocking delivery.
+	// cancels one running child/background work. Buffered for non-blocking delivery.
 	cancels chan string
 	// controls delivers session-maintenance signals out of band (G7): manual
 	// compact/clear. Buffered for non-blocking delivery.
@@ -508,7 +508,7 @@ func (h *hostedRun) stopHosting() bool {
 	return true
 }
 
-// killHandle requests cancellation of one running child/task by handle.
+// killHandle requests cancellation of one running child/background work by handle.
 func (h *hostedRun) killHandle(cmd protocol.SessionCommand) bool {
 	return h.postCommand(cmd)
 }
@@ -973,7 +973,7 @@ func (s *Server) acceptedDelivery(ctx context.Context, session string, hub *host
 	return false
 }
 
-// handleKill cancels one running child/task by handle (v2 M3.2): the user's
+// handleKill cancels one running child/background work by handle (v2 M3.2): the user's
 // direct kill path, distinct from the model calling kill.
 func (s *Server) handleKill(ctx context.Context, cmd Command, enc *json.Encoder) {
 	if cmd.Session == "" || cmd.Handle == "" {
@@ -1483,8 +1483,8 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "daemon has no runner configured"})
 		return
 	}
-	if cmd.SpecPath == "" || cmd.Task == "" {
-		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "run needs spec_path and task"})
+	if cmd.SpecPath == "" || cmd.Prompt == "" {
+		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "run needs spec_path and prompt"})
 		return
 	}
 	// bypass is a workstation-only escape hatch (spec validation refuses it
@@ -1504,7 +1504,7 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 			return
 		}
 	}
-	id := s.NewID(cmd.Task)
+	id := s.NewID(cmd.Prompt)
 	hub := s.newHostedRun(id, true)
 	s.mu.Lock()
 	if s.stopping {
@@ -1539,7 +1539,7 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 		}()
 		defer hub.finish()
 		if err := s.Run(runCtx, RunRequest{
-			SessionID: id, SpecPath: cmd.SpecPath, Task: cmd.Task,
+			SessionID: id, SpecPath: cmd.SpecPath, Prompt: cmd.Prompt,
 			Workspace: cmd.Workspace, Mode: cmd.Mode,
 			Inbox: hub.inbox, Interrupts: hub.interrupts, Cancels: hub.cancels,
 			Controls: hub.controls, CommandInterrupts: hub.commandInterrupts,

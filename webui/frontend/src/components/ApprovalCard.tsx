@@ -77,7 +77,7 @@ export function ApprovalCard({
       </details>
 
       {readonly ? (
-        <div className="approval-readonly">Review this request in the parent task.</div>
+        <div className="approval-readonly">Review this request in the parent session.</div>
       ) : (
         <div className="approval-actions">
           {denying ? (

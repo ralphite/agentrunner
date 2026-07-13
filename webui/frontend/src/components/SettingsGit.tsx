@@ -21,7 +21,7 @@ export function SettingsGit({ query }: { query: string }) {
   return (
     <div className="rs-panel">
       <h2 className="rs-panel-title">Git</h2>
-      <p className="rs-panel-sub">Defaults for committing and branching from a task’s workspace.</p>
+      <p className="rs-panel-sub">Defaults for committing and branching from a session’s workspace.</p>
 
       {!any && <div className="rs-noresults">No Git settings match “{query}”.</div>}
 
@@ -31,7 +31,7 @@ export function SettingsGit({ query }: { query: string }) {
             <div className="rs-row-label">
               Commit message template <span className="rs-wired">Wired</span>
             </div>
-            <div className="rs-row-desc">Pre-fills the message when you commit a task’s changes from the Changes view.</div>
+            <div className="rs-row-desc">Pre-fills the message when you commit a session’s changes from the Changes view.</div>
           </div>
           <textarea
             className="rs-textarea"

@@ -100,7 +100,7 @@ func harnessFix(t *testing.T, spec *driver.DriverSpec, fix scripted.Fixture) (*d
 // goal is satisfied on exactly the third iteration.
 func TestDriverGoalSatisfied(t *testing.T) {
 	d, dStore := harness(t, &driver.DriverSpec{
-		Name: "goal", Task: "add a line", MaxIterations: 5,
+		Name: "goal", Prompt: "add a line", MaxIterations: 5,
 		Verifiers: []driver.VerifierSpec{{
 			Kind: driver.VerifierCommand, Command: "test $(wc -l < progress.txt) -ge 3",
 		}},
@@ -144,7 +144,7 @@ func TestDriverGoalSatisfied(t *testing.T) {
 // Goal mode: a verifier that never passes ends the run at the iteration cap.
 func TestDriverGoalMaxIterations(t *testing.T) {
 	d, dStore := harness(t, &driver.DriverSpec{
-		Name: "goal", Task: "add a line", MaxIterations: 2,
+		Name: "goal", Prompt: "add a line", MaxIterations: 2,
 		Verifiers: []driver.VerifierSpec{{
 			Kind: driver.VerifierCommand, Command: "test -f never-created",
 		}},
@@ -176,7 +176,7 @@ func TestDriverGoalMaxIterations(t *testing.T) {
 // count, threshold 3. Score climbs 1→2→3 and passes on the third.
 func TestDriverMetricVerifier(t *testing.T) {
 	d, dStore := harness(t, &driver.DriverSpec{
-		Name: "goal", Task: "add a line", MaxIterations: 5,
+		Name: "goal", Prompt: "add a line", MaxIterations: 5,
 		Verifiers: []driver.VerifierSpec{{
 			Kind:        driver.VerifierCommand,
 			Command:     "wc -l < progress.txt",
@@ -210,7 +210,7 @@ func TestDriverMetricVerifier(t *testing.T) {
 // verifier score constant (a fixed metric) so no iteration improves.
 func TestDriverGoalStalled(t *testing.T) {
 	d, dStore := harness(t, &driver.DriverSpec{
-		Name: "goal", Task: "add a line", MaxIterations: 10, Patience: 2,
+		Name: "goal", Prompt: "add a line", MaxIterations: 10, Patience: 2,
 		Verifiers: []driver.VerifierSpec{{
 			Kind:        driver.VerifierCommand,
 			Command:     "echo 1", // constant score 1, threshold 5 → never passes, never improves
@@ -243,7 +243,7 @@ func TestDriverGoalStalled(t *testing.T) {
 // and the run ends as budget.
 func TestDriverBudgetStop(t *testing.T) {
 	d, dStore := harness(t, &driver.DriverSpec{
-		Name: "goal", Task: "add a line", MaxIterations: 10,
+		Name: "goal", Prompt: "add a line", MaxIterations: 10,
 		Budget: driver.BudgetSpec{MaxTotalTokens: 250},
 		Verifiers: []driver.VerifierSpec{{
 			Kind: driver.VerifierCommand, Command: "test -f never-created",
@@ -272,7 +272,7 @@ func TestDriverBudgetStop(t *testing.T) {
 // child_failed at the first iteration.
 func TestDriverChildFailStop(t *testing.T) {
 	d, dStore := harnessFix(t, &driver.DriverSpec{
-		Name: "goal", Task: "work", MaxIterations: 5,
+		Name: "goal", Prompt: "work", MaxIterations: 5,
 		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierCommand, Command: "true"}},
 	}, scripted.Fixture{}) // empty fixture → child errors on its first turn
 
@@ -294,7 +294,7 @@ func TestDriverChildFailStop(t *testing.T) {
 // driver keeps going, exhausting max_iterations across failures.
 func TestDriverChildFailSurface(t *testing.T) {
 	d, dStore := harnessFix(t, &driver.DriverSpec{
-		Name: "goal", Task: "work", MaxIterations: 3,
+		Name: "goal", Prompt: "work", MaxIterations: 3,
 		OnChildFailure: driver.FailurePolicy{Mode: driver.OnFailSurface},
 		Verifiers:      []driver.VerifierSpec{{Kind: driver.VerifierCommand, Command: "true"}},
 	}, scripted.Fixture{})
@@ -342,7 +342,7 @@ func TestDriverChildFailRetryRecovers(t *testing.T) {
 	calls := 0
 	d := &driver.Driver{
 		Spec: &driver.DriverSpec{
-			Name: "goal", Task: "work", MaxIterations: 5, Agent: childSpec,
+			Name: "goal", Prompt: "work", MaxIterations: 5, Agent: childSpec,
 			OnChildFailure: driver.FailurePolicy{Mode: driver.OnFailRetry, Max: 2},
 			Verifiers:      []driver.VerifierSpec{{Kind: driver.VerifierCommand, Command: "test -f progress.txt"}},
 		},
@@ -384,7 +384,7 @@ func TestDriverLLMJudge(t *testing.T) {
 		{Respond: []scripted.Event{{Text: `here: {"score":0.9,"pass":true,"reason":"good now"}`}, {Finish: "end_turn"}}},
 	}})
 	d, dStore := harness(t, &driver.DriverSpec{
-		Name: "goal", Task: "work", MaxIterations: 5,
+		Name: "goal", Prompt: "work", MaxIterations: 5,
 		Verifiers: []driver.VerifierSpec{{
 			Kind: driver.VerifierLLMJudge, Rubric: "Is the work complete?", Threshold: 0.8,
 		}},
@@ -421,7 +421,7 @@ func (s stubResolver) Resolve(context.Context, agent.ApprovalRequest) (agent.App
 // human verifier: an approving human satisfies the goal on the first iteration.
 func TestDriverHumanVerifier(t *testing.T) {
 	d, dStore := harness(t, &driver.DriverSpec{
-		Name: "goal", Task: "work", MaxIterations: 3,
+		Name: "goal", Prompt: "work", MaxIterations: 3,
 		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierHuman, Rubric: "Does this meet the bar?"}},
 	})
 	d.Approvals = stubResolver{approve: true}
@@ -443,7 +443,7 @@ func TestDriverHumanVerifier(t *testing.T) {
 // A denying human never satisfies the goal — the run exhausts max_iterations.
 func TestDriverHumanVerifierDeny(t *testing.T) {
 	d, _ := harness(t, &driver.DriverSpec{
-		Name: "goal", Task: "work", MaxIterations: 2,
+		Name: "goal", Prompt: "work", MaxIterations: 2,
 		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierHuman, Rubric: "ok?"}},
 	})
 	d.Approvals = stubResolver{approve: false}
@@ -462,7 +462,7 @@ func TestDriverHumanVerifierDeny(t *testing.T) {
 // a short excerpt.
 func TestDriverCarryToArtifactStore(t *testing.T) {
 	d, dStore := harness(t, &driver.DriverSpec{
-		Name: "goal", Task: "work", MaxIterations: 5,
+		Name: "goal", Prompt: "work", MaxIterations: 5,
 		Verifiers: []driver.VerifierSpec{{
 			Kind: driver.VerifierCommand, Command: "test $(wc -l < progress.txt) -ge 2",
 		}},
@@ -512,7 +512,7 @@ func journal(t *testing.T, es *store.EventStore, typ string, p any) {
 // nothing.
 func TestDriverResumeEnded(t *testing.T) {
 	d, dStore := harness(t, &driver.DriverSpec{
-		Name: "goal", Task: "work", MaxIterations: 5,
+		Name: "goal", Prompt: "work", MaxIterations: 5,
 		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierCommand, Command: "test $(wc -l < progress.txt) -ge 1"}},
 	})
 	res1, err := d.Run(context.Background())
@@ -538,7 +538,7 @@ func TestDriverResumeEnded(t *testing.T) {
 // resume re-derives satisfied from the fold without launching a new iteration.
 func TestDriverResumeReDerivesSatisfied(t *testing.T) {
 	d, dStore := harness(t, &driver.DriverSpec{
-		Name: "goal", Task: "work", MaxIterations: 5,
+		Name: "goal", Prompt: "work", MaxIterations: 5,
 		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierCommand, Command: "test $(wc -l < progress.txt) -ge 1"}},
 	})
 	journal(t, dStore, event.TypeIterationScheduled, &event.IterationScheduled{DriverID: "drv-1", Iter: 1, Schedule: "immediate"})
@@ -571,7 +571,7 @@ func TestDriverResumeReDerivesSatisfied(t *testing.T) {
 // iteration and reaches the goal.
 func TestDriverResumeContinues(t *testing.T) {
 	d, dStore := harness(t, &driver.DriverSpec{
-		Name: "goal", Task: "work", MaxIterations: 5,
+		Name: "goal", Prompt: "work", MaxIterations: 5,
 		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierCommand, Command: "test $(wc -l < progress.txt) -ge 1"}},
 	})
 	journal(t, dStore, event.TypeIterationScheduled, &event.IterationScheduled{DriverID: "drv-1", Iter: 1, Schedule: "immediate"})
@@ -600,7 +600,7 @@ func TestDriverResumeContinues(t *testing.T) {
 // verifier, ends only at max_iterations — it never "satisfies".
 func TestDriverLoopBackToBack(t *testing.T) {
 	d, dStore := harness(t, &driver.DriverSpec{
-		Name: "loop", Schedule: driver.ScheduleInterval, Task: "tick", MaxIterations: 3,
+		Name: "loop", Schedule: driver.ScheduleInterval, Prompt: "tick", MaxIterations: 3,
 	})
 	res, err := d.Run(context.Background())
 	if err != nil {
@@ -649,7 +649,7 @@ func TestDriverLoopIntervalCadence(t *testing.T) {
 	d := &driver.Driver{
 		Spec: &driver.DriverSpec{
 			Name: "loop", Schedule: driver.ScheduleInterval, Interval: "1m",
-			Task: "tick", MaxIterations: 3, Agent: childSpec,
+			Prompt: "tick", MaxIterations: 3, Agent: childSpec,
 		},
 		Store: dStore, Clock: clk, DriverID: "drv-1", Exec: exec,
 		NewChild: func(cs *store.EventStore, session string, iter, budget int) *agent.Loop {
@@ -750,7 +750,7 @@ func TestDriverCronOverlapSkip(t *testing.T) {
 	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 30, 0, 0, time.UTC))
 	d, dStore := cronHarness(t, &driver.DriverSpec{
 		Name: "nightly", Schedule: driver.ScheduleCron, Cron: "0 * * * *",
-		Task: "tick", MaxIterations: 4,
+		Prompt: "tick", MaxIterations: 4,
 	}, clk, 2*time.Hour)
 
 	resCh := make(chan driver.Result, 1)
@@ -796,7 +796,7 @@ func TestDriverCronOverlapCoalesce(t *testing.T) {
 	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 30, 0, 0, time.UTC))
 	d, dStore := cronHarness(t, &driver.DriverSpec{
 		Name: "nightly", Schedule: driver.ScheduleCron, Cron: "0 * * * *",
-		Task: "tick", MaxIterations: 2, Overlap: driver.OverlapCoalesce,
+		Prompt: "tick", MaxIterations: 2, Overlap: driver.OverlapCoalesce,
 	}, clk, 2*time.Hour)
 
 	resCh := make(chan driver.Result, 1)
@@ -852,7 +852,7 @@ func TestDriverCronResumeBackfillsMissedTicks(t *testing.T) {
 	clk := clock.NewFake(time.Date(2026, 7, 4, 4, 30, 0, 0, time.UTC))
 	d, dStore := cronHarness(t, &driver.DriverSpec{
 		Name: "nightly", Schedule: driver.ScheduleCron, Cron: "0 * * * *",
-		Task: "tick", MaxIterations: 4,
+		Prompt: "tick", MaxIterations: 4,
 	}, clk, 0)
 	journalCronIter1(t, dStore, tick1)
 
@@ -902,7 +902,7 @@ func TestDriverCronResumeCoalescesMissedTicks(t *testing.T) {
 	clk := clock.NewFake(time.Date(2026, 7, 4, 4, 30, 0, 0, time.UTC))
 	d, dStore := cronHarness(t, &driver.DriverSpec{
 		Name: "nightly", Schedule: driver.ScheduleCron, Cron: "0 * * * *",
-		Task: "tick", MaxIterations: 2, Overlap: driver.OverlapCoalesce,
+		Prompt: "tick", MaxIterations: 2, Overlap: driver.OverlapCoalesce,
 	}, clk, 0)
 	journalCronIter1(t, dStore, tick1)
 
@@ -936,7 +936,7 @@ func TestDriverCronResumeIsIdempotent(t *testing.T) {
 	clk := clock.NewFake(time.Date(2026, 7, 4, 4, 30, 0, 0, time.UTC))
 	d, dStore := cronHarness(t, &driver.DriverSpec{
 		Name: "nightly", Schedule: driver.ScheduleCron, Cron: "0 * * * *",
-		Task: "tick", MaxIterations: 4,
+		Prompt: "tick", MaxIterations: 4,
 	}, clk, 0)
 	journalCronIter1(t, dStore, tick1)
 	// A prior resume already backfilled iter2 (tick 02:00) before crashing again.
@@ -1031,7 +1031,7 @@ func finishFixture() scripted.Fixture {
 func TestDriverSelfPaced(t *testing.T) {
 	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
 	d, dStore := selfPacedHarness(t, &driver.DriverSpec{
-		Name: "series", Schedule: driver.ScheduleSelfPaced, Task: "keep up", MaxIterations: 5,
+		Name: "series", Schedule: driver.ScheduleSelfPaced, Prompt: "keep up", MaxIterations: 5,
 	}, clk, func(call int) scripted.Fixture {
 		if call == 1 {
 			return paceFixture("1m")
@@ -1068,7 +1068,7 @@ func TestDriverSelfPaced(t *testing.T) {
 func TestDriverSelfPacedNoIntentFinish(t *testing.T) {
 	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
 	d, _ := selfPacedHarness(t, &driver.DriverSpec{
-		Name: "series", Schedule: driver.ScheduleSelfPaced, Task: "one shot?", MaxIterations: 5,
+		Name: "series", Schedule: driver.ScheduleSelfPaced, Prompt: "one shot?", MaxIterations: 5,
 	}, clk, func(int) scripted.Fixture {
 		return scripted.Fixture{Steps: []scripted.Step{
 			{Respond: []scripted.Event{{Text: "nothing more to plan"}, {Finish: "end_turn"}}},
@@ -1088,7 +1088,7 @@ func TestDriverSelfPacedNoIntentFinish(t *testing.T) {
 func TestDriverSelfPacedClamp(t *testing.T) {
 	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
 	d, _ := selfPacedHarness(t, &driver.DriverSpec{
-		Name: "series", Schedule: driver.ScheduleSelfPaced, Task: "pace", MaxIterations: 5,
+		Name: "series", Schedule: driver.ScheduleSelfPaced, Prompt: "pace", MaxIterations: 5,
 		PaceMax: "1h",
 	}, clk, func(call int) scripted.Fixture {
 		if call == 1 {
@@ -1127,7 +1127,7 @@ func TestDriverSelfPacedClamp(t *testing.T) {
 func TestDriverSelfPacedFinishDenied(t *testing.T) {
 	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
 	d, dStore := selfPacedHarness(t, &driver.DriverSpec{
-		Name: "series", Schedule: driver.ScheduleSelfPaced, Task: "try to quit", MaxIterations: 5,
+		Name: "series", Schedule: driver.ScheduleSelfPaced, Prompt: "try to quit", MaxIterations: 5,
 	}, clk, func(call int) scripted.Fixture {
 		if call == 1 {
 			return finishFixture()
@@ -1152,7 +1152,7 @@ func TestDriverSelfPacedFinishDenied(t *testing.T) {
 	}
 }
 
-// Series memory: iteration 1 writes the memory doc; iteration 2's task must
+// Series memory: iteration 1 writes the memory doc; iteration 2's prompt must
 // carry it (the child's scripted Expect asserts the injected block — a
 // mismatch fails the child and the driver would end child_failed).
 func TestDriverSeriesMemoryInjection(t *testing.T) {
@@ -1175,7 +1175,7 @@ func TestDriverSeriesMemoryInjection(t *testing.T) {
 	calls := 0
 	d := &driver.Driver{
 		Spec: &driver.DriverSpec{
-			Name: "series", Schedule: driver.ScheduleInterval, Task: "do the rounds",
+			Name: "series", Schedule: driver.ScheduleInterval, Prompt: "do the rounds",
 			MaxIterations: 2, Agent: childSpec, SeriesMemory: "SERIES.md",
 		},
 		Store: dStore, Clock: clk, DriverID: "drv-1", Exec: exec,
@@ -1194,7 +1194,7 @@ func TestDriverSeriesMemoryInjection(t *testing.T) {
 			} else {
 				fix = scripted.Fixture{Steps: []scripted.Step{
 					{
-						// The injected series memory rides the task — the run's
+						// The injected series memory rides the prompt — the run's
 						// first (and here last) user message.
 						Expect:  scripted.Expect{LastMessageContains: "remember-the-milk"},
 						Respond: []scripted.Event{{Text: "picked up where I left off"}, {Finish: "end_turn"}},
@@ -1237,7 +1237,7 @@ func waitIdle(t *testing.T, clk *clock.Fake) {
 // (that is goal-mode semantics only).
 func TestDriverLoopResumeContinues(t *testing.T) {
 	d, dStore := harness(t, &driver.DriverSpec{
-		Name: "rounds", Schedule: driver.ScheduleInterval, Task: "tick", MaxIterations: 3,
+		Name: "rounds", Schedule: driver.ScheduleInterval, Prompt: "tick", MaxIterations: 3,
 		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierCommand, Command: "true"}},
 	})
 	journal(t, dStore, event.TypeIterationScheduled, &event.IterationScheduled{DriverID: "drv-1", Iter: 1})
@@ -1260,7 +1260,7 @@ func TestDriverLoopResumeContinues(t *testing.T) {
 // re-run it (the fold would end self-contradictory: Skipped AND Completed).
 func TestDriverResumeSkipsSkippedIterations(t *testing.T) {
 	d, dStore := harness(t, &driver.DriverSpec{
-		Name: "rounds", Schedule: driver.ScheduleInterval, Task: "tick", MaxIterations: 3,
+		Name: "rounds", Schedule: driver.ScheduleInterval, Prompt: "tick", MaxIterations: 3,
 	})
 	journal(t, dStore, event.TypeIterationScheduled, &event.IterationScheduled{DriverID: "drv-1", Iter: 1})
 	journal(t, dStore, event.TypeIterationLaunched, &event.IterationLaunched{DriverID: "drv-1", Iter: 1, ChildSession: "drv-1-iter-1"})
@@ -1291,7 +1291,7 @@ func TestDriverResumeSkipsSkippedIterations(t *testing.T) {
 func TestDriverSelfPacedResumeRespectsPace(t *testing.T) {
 	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
 	d, dStore := selfPacedHarness(t, &driver.DriverSpec{
-		Name: "series", Schedule: driver.ScheduleSelfPaced, Task: "keep up", MaxIterations: 5,
+		Name: "series", Schedule: driver.ScheduleSelfPaced, Prompt: "keep up", MaxIterations: 5,
 	}, clk, func(int) scripted.Fixture {
 		return scripted.Fixture{Steps: []scripted.Step{
 			{Respond: []scripted.Event{{Text: "no more"}, {Finish: "end_turn"}}},
@@ -1319,7 +1319,7 @@ func TestDriverSelfPacedResumeRespectsPace(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	cj(event.TypeSessionStarted, &event.SessionStarted{SpecName: "worker", Model: "x", Task: "keep up"})
+	cj(event.TypeSessionStarted, &event.SessionStarted{SpecName: "worker", Model: "x", Prompt: "keep up"})
 	cj(event.TypeAssistantMessage, &event.AssistantMessage{GenStep: 1, Message: provider.Message{
 		Role: provider.RoleAssistant,
 		Parts: []provider.Part{{Kind: provider.PartToolCall, CallID: "p1",
@@ -1381,7 +1381,7 @@ func TestDriverRetrySpendSettlesAllAttempts(t *testing.T) {
 	calls := 0
 	d := &driver.Driver{
 		Spec: &driver.DriverSpec{
-			Name: "goal", Task: "work", MaxIterations: 2, Agent: childSpec,
+			Name: "goal", Prompt: "work", MaxIterations: 2, Agent: childSpec,
 			OnChildFailure: driver.FailurePolicy{Mode: driver.OnFailRetry, Max: 1},
 			Verifiers:      []driver.VerifierSpec{{Kind: driver.VerifierCommand, Command: "true"}},
 		},
@@ -1437,7 +1437,7 @@ func TestDriverRetrySpendSettlesAllAttempts(t *testing.T) {
 // bracket for every verifier execution.
 func TestVerifierPipelineDenyBinds(t *testing.T) {
 	d, dStore := harness(t, &driver.DriverSpec{
-		Name: "goal", Task: "add a line", MaxIterations: 2,
+		Name: "goal", Prompt: "add a line", MaxIterations: 2,
 		Verifiers: []driver.VerifierSpec{{
 			Kind: driver.VerifierCommand, Command: "test -f progress.txt",
 		}},
@@ -1477,7 +1477,7 @@ func TestVerifierPipelineDenyBinds(t *testing.T) {
 // plus the ActivityStarted/Completed bracket with the verdict as result.
 func TestVerifierActivityTrace(t *testing.T) {
 	d, dStore := harness(t, &driver.DriverSpec{
-		Name: "goal", Task: "add a line", MaxIterations: 3,
+		Name: "goal", Prompt: "add a line", MaxIterations: 3,
 		Verifiers: []driver.VerifierSpec{{
 			Kind: driver.VerifierCommand, Command: "test $(wc -l < progress.txt) -ge 2",
 		}},
@@ -1527,7 +1527,7 @@ func TestVerifierSandboxCapabilityMissingFailsClosed(t *testing.T) {
 		Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}},
 	}}}
 	d, dStore := harnessFix(t, &driver.DriverSpec{
-		Name: "goal", Task: "check", MaxIterations: 1,
+		Name: "goal", Prompt: "check", MaxIterations: 1,
 		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierCommand, Command: "true"}},
 	}, child)
 	d.Exec.ProbeSandbox = func(bool) error { return errors.New("disabled") }
@@ -1561,7 +1561,7 @@ func TestVerifierSandboxCapabilityMissingFailsClosed(t *testing.T) {
 // behind it to answer.
 func TestVerifierAskTightensToDeny(t *testing.T) {
 	d, _ := harness(t, &driver.DriverSpec{
-		Name: "goal", Task: "add a line", MaxIterations: 1,
+		Name: "goal", Prompt: "add a line", MaxIterations: 1,
 		Verifiers: []driver.VerifierSpec{{
 			Kind: driver.VerifierCommand, Command: "true",
 		}},
@@ -1585,7 +1585,7 @@ func TestVerifierAskTightensToDeny(t *testing.T) {
 // resume tests) keep resuming as version 1.
 func TestDriverResumeRefusesVersionMismatch(t *testing.T) {
 	d, dStore := harness(t, &driver.DriverSpec{
-		Name: "goal", Task: "t", MaxIterations: 2,
+		Name: "goal", Prompt: "t", MaxIterations: 2,
 		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierCommand, Command: "true"}},
 	})
 	journal(t, dStore, event.TypeDriverStarted, &event.DriverStarted{
@@ -1600,7 +1600,7 @@ func TestDriverResumeRefusesVersionMismatch(t *testing.T) {
 // A fresh run's stream now opens with the header carrying spec provenance.
 func TestDriverStreamHeader(t *testing.T) {
 	d, dStore := harness(t, &driver.DriverSpec{
-		Name: "goal", Task: "add a line", MaxIterations: 5,
+		Name: "goal", Prompt: "add a line", MaxIterations: 5,
 		Verifiers: []driver.VerifierSpec{{
 			Kind: driver.VerifierCommand, Command: "test -f progress.txt",
 		}},
@@ -1668,7 +1668,7 @@ func TestLoadSpecVerifierKindDefaultsAndValidates(t *testing.T) {
 		return p
 	}
 
-	spec, err := driver.LoadSpec(write("name: d\ntask: t\nagent_spec: agent.yaml\nverifiers:\n  - command: \"true\"\n"))
+	spec, err := driver.LoadSpec(write("name: d\nprompt: t\nagent_spec: agent.yaml\nverifiers:\n  - command: \"true\"\n"))
 	if err != nil {
 		t.Fatalf("bare command verifier: %v", err)
 	}
@@ -1676,12 +1676,12 @@ func TestLoadSpecVerifierKindDefaultsAndValidates(t *testing.T) {
 		t.Fatalf("kind = %q, want command", spec.Verifiers[0].Kind)
 	}
 
-	_, err = driver.LoadSpec(write("name: d\ntask: t\nagent_spec: agent.yaml\nverifiers:\n  - { kind: shell, command: \"true\" }\n"))
+	_, err = driver.LoadSpec(write("name: d\nprompt: t\nagent_spec: agent.yaml\nverifiers:\n  - { kind: shell, command: \"true\" }\n"))
 	if err == nil || !strings.Contains(err.Error(), `unknown kind "shell"`) || !strings.Contains(err.Error(), "valid: command") {
 		t.Fatalf("unknown kind error = %v", err)
 	}
 
-	_, err = driver.LoadSpec(write("name: d\ntask: t\nagent_spec: agent.yaml\nbogus_field: 1\n"))
+	_, err = driver.LoadSpec(write("name: d\nprompt: t\nagent_spec: agent.yaml\nbogus_field: 1\n"))
 	if err == nil || strings.Contains(err.Error(), "driver.DriverSpec") || !strings.Contains(err.Error(), "valid top-level driver fields") {
 		t.Fatalf("unknown field error = %v", err)
 	}

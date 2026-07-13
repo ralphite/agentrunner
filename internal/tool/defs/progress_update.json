@@ -1,6 +1,6 @@
 {
   "name": "progress_update",
-  "description": "Replace this session's progress checklist so the user can follow a multi-step task from the outside. Send the WHOLE list every time (it replaces the previous one — items you omit disappear); keep each item's id stable across updates so progress reads as movement, not churn. Update at milestones (a step starts, finishes, or fails), not on every small action. The result never echoes the table back; track it yourself.",
+  "description": "Replace this session's progress checklist so the user can follow multi-step work from the outside. Send the WHOLE list every time (it replaces the previous one — items you omit disappear); keep each item's id stable across updates so progress reads as movement, not churn. Update at milestones (a step starts, finishes, or fails), not on every small action. The result never echoes the table back; track it yourself.",
   "class": "read",
   "input_schema": {
     "type": "object",

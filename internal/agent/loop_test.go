@@ -142,10 +142,10 @@ func TestLoopMaxGenerationSteps(t *testing.T) {
 	}
 }
 
-// The blanket appender redaction: a credential entering via the TASK (the
+// The blanket appender redaction: a credential entering via the PROMPT (the
 // classic shell-expansion leak) must not reach session_started, input_received,
 // the fold's user message, or the provider request.
-func TestTaskCredentialRedactedEverywhere(t *testing.T) {
+func TestPromptCredentialRedactedEverywhere(t *testing.T) {
 	t.Setenv("LEAKY_API_KEY", "sk-open-sesame-12345")
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{{Text: "on it"}, {Finish: "end_turn"}}},
@@ -170,6 +170,6 @@ func TestTaskCredentialRedactedEverywhere(t *testing.T) {
 		}
 	}
 	if !sawMarker {
-		t.Fatal("expected redaction marker in the journaled task")
+		t.Fatal("expected redaction marker in the journaled prompt")
 	}
 }

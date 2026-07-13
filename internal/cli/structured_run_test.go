@@ -41,7 +41,7 @@ func startScriptedDaemon(t *testing.T, dir, fixture string) {
 	broker := daemon.NewApprovalBroker()
 	srv := &daemon.Server{
 		SocketPath:   sock,
-		NewID:        func(task string) string { return runtime.NewSessionID(time.Now(), task) },
+		NewID:        func(prompt string) string { return runtime.NewSessionID(time.Now(), prompt) },
 		Run:          hostRunFunc("test", &errLog, broker),
 		Approvals:    broker,
 		PersistInput: persistInputFunc(),

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # QA-05 real-API gate (v2 M3 exit): kill a running sub-agent. The parent
-# launches 2 background sub-agents that run slow tasks; the USER kills one by
+# launches 2 background sub-agents that run slow work; the USER kills one by
 # handle (ar kill); the killed child settles canceled, the other survives,
 # and the session continues. (The model-driven steer→cancel+spawn variant,
 # C6, is covered deterministically by the scripted twin
@@ -50,8 +50,8 @@ done
 [ "$(count_type spawn_requested "$SDIR/events.jsonl")" -ge 2 ] || {
   echo "$QA: FAIL only $(count_type spawn_requested "$SDIR/events.jsonl") spawns" >&2; cat "$WORK/daemon.log" >&2; exit 1; }
 
-# Find the SLOW child's handle: the spawn_requested whose task mentions the
-# sleep, and read its call_id (= handle). Grab the child whose task has "sleep".
+# Find the SLOW child's handle: the spawn_requested whose prompt mentions the
+# sleep, and read its call_id (= handle). Grab the child whose prompt has "sleep".
 slow_handle="$(grep '"type":"spawn_requested"' "$SDIR/events.jsonl" | grep -i sleep | \
   sed -n 's/.*"call_id":"\([^"]*\)".*/\1/p' | head -1)"
 [ -n "$slow_handle" ] || {

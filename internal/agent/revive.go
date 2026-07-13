@@ -271,7 +271,7 @@ func (l *Loop) reviveChild(ctx context.Context, ds *driveState, appendE AppendFu
 	loop := l.childLoopWithExec(spec, childStore, child, frozenCap, ds.s.CurrentMode(), childExec)
 
 	l.ensureBackground()
-	taskCtx, cancel := context.WithCancelCause(ctx)
+	workCtx, cancel := context.WithCancelCause(ctx)
 	l.bg.mu.Lock()
 	l.bg.cancel[callID] = cancel
 	l.bg.mu.Unlock()
@@ -279,7 +279,7 @@ func (l *Loop) reviveChild(ctx context.Context, ds *driveState, appendE AppendFu
 	agentName := spec.Name
 	go func() {
 		defer func() { _ = childStore.Close() }()
-		cres, cerr := loop.Resume(taskCtx)
+		cres, cerr := loop.Resume(workCtx)
 		after, aerr := childFoldState(dir)
 		var total provider.Usage
 		if aerr == nil {
@@ -289,7 +289,7 @@ func (l *Loop) reviveChild(ctx context.Context, ds *driveState, appendE AppendFu
 		}
 		delta := subUsage(total, baseline)
 		reason := cres.Reason
-		canceled := taskCtx.Err() != nil
+		canceled := workCtx.Err() != nil
 		if cerr != nil && reason == "" {
 			reason = "error"
 		}

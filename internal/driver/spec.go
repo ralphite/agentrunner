@@ -88,7 +88,7 @@ type DriverSpec struct {
 	// which must then be set: a forgetful child must not spin the series).
 	OnNoIntent string `yaml:"on_no_intent,omitempty"`
 	// SeriesMemory is a workspace-relative path to the agent-managed series
-	// document (DESIGN: series memory). When set, each iteration's task
+	// document (DESIGN: series memory). When set, each iteration's prompt
 	// carries the file's content — TRUNCATED at injection (the authority
 	// boundary is here, not in the agent's discipline). Missing file = no
 	// block (a first iteration has nothing to remember).
@@ -96,8 +96,8 @@ type DriverSpec struct {
 	// Agent is the spec each iteration runs as a fresh child (same spec →
 	// byte-stable prefix across iterations).
 	Agent *agent.AgentSpec `yaml:"-"`
-	// Task is the instruction every child iteration receives.
-	Task string `yaml:"task"`
+	// Prompt is the instruction every child iteration receives.
+	Prompt string `yaml:"prompt"`
 	// MaxIterations caps goal mode; zero means DefaultMaxIterations.
 	MaxIterations int `yaml:"max_iterations,omitempty"`
 	// N is the best-of-N attempt count (schedule=parallel); must be >= 2.
@@ -158,7 +158,7 @@ type VerifierSpec struct {
 // driverSpecFields lists DriverSpec's top-level yaml keys for the
 // unknown-field hint. Keep in sync with the struct tags.
 const driverSpecFields = "name, schedule, agent_spec, interval, cron, overlap, " +
-	"pace_min, pace_max, on_no_intent, series_memory, task, max_iterations, n, " +
+	"pace_min, pace_max, on_no_intent, series_memory, prompt, max_iterations, n, " +
 	"verifiers, patience, budget, on_child_failure"
 
 // decodeHint rewrites a yaml decode error for a user who has never seen the
@@ -196,8 +196,8 @@ func LoadSpec(path string) (*DriverSpec, error) {
 	if spec.Name == "" {
 		return nil, fail("name", "required")
 	}
-	if spec.Task == "" {
-		return nil, fail("task", "required")
+	if spec.Prompt == "" {
+		return nil, fail("prompt", "required")
 	}
 	if spec.AgentSpecPath == "" {
 		return nil, fail("agent_spec", "required")

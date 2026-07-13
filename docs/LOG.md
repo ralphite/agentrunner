@@ -3938,3 +3938,29 @@ Popover viewport clamp/scroll/focus 契约；qa-blackbox 现真实写 workspace
 文件并断言 Changes 面板几何与文件名。最终 round 8/9 连续 0 finding，
 journal / workspace diff/截图保留于
 `qa/runs/2026-07-12-QA64-blackbox/`。
+
+## 2026-07-12 · INC-65 彻底移除 tasks list 产品模型
+
+根因不是单一 UI 文案：DESIGN #31 早已裁定只有 durable
+`session`，但 INC-41 为追 Codex UI parity，把参考产品的
+`Projects -> task` 当成本产品的信息架构，并依次写进 UJ-24、SPEC、
+view model、可见文案与测试。后来的实现依照更具体的近期文档，
+导致同一个 runtime session 在 sidebar/header/archive 里又变成 task。
+
+裁决采用唯一模型：可持续对话对象叫 `session`，一次执行叫 `run`，
+多 Agent 分工叫 `delegation`，异步执行叫 `background work`，输入文本叫
+`prompt`。不做 legacy alias/双写/fallback；runtime、daemon、driver YAML、tool schema、
+state projection、Web API、frontend model 与五份活产品文档一次性切换；
+INC-41 及已完成但仍带旧概念的增量文档移入 archive。新增
+`lint-product-terms.sh` 进 `check.sh`，防止代码、UI、QA 和活文档回潮。
+
+共享 store 先做备份与 SHA-256 校验，再直接迁移 762 份 journal / 41,945
+行 event / 1,171 个 key / 2 份 driver spec，删除 590 份 index 与 3,374 份可重建
+snapshot；旧 schema key 归零。收尾语义审计又抓出并修复两枚机械迁移状态
+bug：空 `ar ps` 被解析成假后台项，background tool 的 timeline 状态被误写为
+`session`。
+
+闸门：`./scripts/check.sh` 全绿（全部 Go、520 frontend tests、build、5 installer
+scenarios）。真实共享 WebUI 重启后 `daemonUp/versionMatch=true`；普通、driver、
+多 Agent 旧 session 均可 fold/深链打开，旧产品 label 计数 0，console warning/error 0。
+迁移审计、备份与截图保留在 `qa/runs/2026-07-12-INC65/`。

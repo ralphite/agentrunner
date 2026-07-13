@@ -52,7 +52,7 @@ func TestSendMessageRevivesQuiescentChild(t *testing.T) {
 		scripted.RoutePair{Key: "you orchestrate", Fixture: scripted.Fixture{Steps: []scripted.Step{
 			{Respond: []scripted.Event{
 				{ToolCall: &scripted.ToolCallEvent{CallID: "a", Name: "spawn_agent",
-					Args: map[string]any{"agent": "worker", "task": "investigate ALPHA"}}},
+					Args: map[string]any{"agent": "worker", "prompt": "investigate ALPHA"}}},
 				{Finish: "tool_use"},
 			}},
 			// Woken by receipt 1: message the (now idle) child by HANDLE.
@@ -171,7 +171,7 @@ func TestSendMessageChildToParent(t *testing.T) {
 		scripted.RoutePair{Key: "you orchestrate", Fixture: scripted.Fixture{Steps: []scripted.Step{
 			{Respond: []scripted.Event{
 				{ToolCall: &scripted.ToolCallEvent{CallID: "g", Name: "spawn_agent",
-					Args: map[string]any{"agent": "worker", "task": "investigate GAMMA"}}},
+					Args: map[string]any{"agent": "worker", "prompt": "investigate GAMMA"}}},
 				{Finish: "tool_use"},
 			}},
 			{Respond: []scripted.Event{{Text: "noted the progress"}, {Finish: "end_turn"}}},
@@ -288,7 +288,7 @@ func TestReviveScanAfterRestart(t *testing.T) {
 		scripted.RoutePair{Key: "you orchestrate", Fixture: scripted.Fixture{Steps: []scripted.Step{
 			{Respond: []scripted.Event{
 				{ToolCall: &scripted.ToolCallEvent{CallID: "d", Name: "spawn_agent",
-					Args: map[string]any{"agent": "worker", "task": "investigate DELTA"}}},
+					Args: map[string]any{"agent": "worker", "prompt": "investigate DELTA"}}},
 				{Finish: "tool_use"},
 			}},
 			{Respond: []scripted.Event{{Text: "round one done"}, {Finish: "end_turn"}}},
@@ -374,7 +374,7 @@ func TestReviveHonorsUserKillMark(t *testing.T) {
 		scripted.RoutePair{Key: "you orchestrate", Fixture: scripted.Fixture{Steps: []scripted.Step{
 			{Respond: []scripted.Event{
 				{ToolCall: &scripted.ToolCallEvent{CallID: "e", Name: "spawn_agent",
-					Args: map[string]any{"agent": "worker", "task": "investigate EPSILON"}}},
+					Args: map[string]any{"agent": "worker", "prompt": "investigate EPSILON"}}},
 				{Finish: "tool_use"},
 			}},
 			// Woken by receipt 1: just idle (the mark lands meanwhile).
@@ -466,7 +466,7 @@ func TestSendForwardsTargetToChild(t *testing.T) {
 		scripted.RoutePair{Key: "you orchestrate", Fixture: scripted.Fixture{Steps: []scripted.Step{
 			{Respond: []scripted.Event{
 				{ToolCall: &scripted.ToolCallEvent{CallID: "z", Name: "spawn_agent",
-					Args: map[string]any{"agent": "worker", "task": "investigate ZETA"}}},
+					Args: map[string]any{"agent": "worker", "prompt": "investigate ZETA"}}},
 				{Finish: "tool_use"},
 			}},
 			{Respond: []scripted.Event{{Text: "round one"}, {Finish: "end_turn"}}},
@@ -565,7 +565,7 @@ func TestReviveCrashSettleReportsDelta(t *testing.T) {
 		typ string
 		p   any
 	}{
-		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "pm", Task: "t", Spec: specJSON,
+		{event.TypeSessionStarted, &event.SessionStarted{SpecName: "pm", Prompt: "t", Spec: specJSON,
 			SubStateVersions: state.SubStateVersions()}},
 		{event.TypeInputReceived, &event.InputReceived{Text: "t", Source: "user"}},
 		{event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}},
@@ -625,7 +625,7 @@ func TestReviveUserKilledOnCliMail(t *testing.T) {
 		scripted.RoutePair{Key: "you orchestrate", Fixture: scripted.Fixture{Steps: []scripted.Step{
 			{Respond: []scripted.Event{
 				{ToolCall: &scripted.ToolCallEvent{CallID: "k", Name: "spawn_agent",
-					Args: map[string]any{"agent": "worker", "task": "investigate KAPPA"}}},
+					Args: map[string]any{"agent": "worker", "prompt": "investigate KAPPA"}}},
 				{Finish: "tool_use"},
 			}},
 			{Respond: []scripted.Event{{Text: "round one done"}, {Finish: "end_turn"}}},
@@ -724,7 +724,7 @@ func TestReviveGrandchildRelaysThroughParent(t *testing.T) {
 		scripted.RoutePair{Key: "you orchestrate", Fixture: scripted.Fixture{Steps: []scripted.Step{
 			{Respond: []scripted.Event{
 				{ToolCall: &scripted.ToolCallEvent{CallID: "mid", Name: "spawn_agent",
-					Args: map[string]any{"agent": "mid", "task": "run MIDWORK"}}},
+					Args: map[string]any{"agent": "mid", "prompt": "run MIDWORK"}}},
 				{Finish: "tool_use"},
 			}},
 			{Respond: []scripted.Event{{Text: "mid reported"}, {Finish: "end_turn"}}},
@@ -734,7 +734,7 @@ func TestReviveGrandchildRelaysThroughParent(t *testing.T) {
 		scripted.RoutePair{Key: "MIDWORK", Fixture: scripted.Fixture{Steps: []scripted.Step{
 			{Respond: []scripted.Event{
 				{ToolCall: &scripted.ToolCallEvent{CallID: "leaf", Name: "spawn_agent",
-					Args: map[string]any{"agent": "leaf", "task": "run LEAFWORK"}}},
+					Args: map[string]any{"agent": "leaf", "prompt": "run LEAFWORK"}}},
 				{Finish: "tool_use"},
 			}},
 			{Respond: []scripted.Event{{Text: "leaf reported"}, {Finish: "end_turn"}}},
@@ -856,7 +856,7 @@ func TestSettleDoesNotReenqueueFailedRevive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sp, _ := json.Marshal(&event.SessionStarted{SpecName: "m", Task: "t",
+	sp, _ := json.Marshal(&event.SessionStarted{SpecName: "m", Prompt: "t",
 		Spec: json.RawMessage(`{"name":"m"}`), SubStateVersions: state.SubStateVersions()})
 	_, _ = ces.Append(event.Envelope{Type: event.TypeSessionStarted, Payload: sp})
 	_ = ces.Close()

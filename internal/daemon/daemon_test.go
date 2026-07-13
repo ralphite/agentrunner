@@ -27,7 +27,7 @@ func startServer(t *testing.T, run RunFunc, replay func(string, protocol.Sink) e
 		SocketPath: sock,
 		Run:        run,
 		Replay:     replay,
-		NewID:      func(task string) string { return fmt.Sprintf("sess-%d", n.Add(1)) },
+		NewID:      func(prompt string) string { return fmt.Sprintf("sess-%d", n.Add(1)) },
 	}
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.ListenAndServe(ctx) }()
@@ -218,14 +218,14 @@ func TestCompletedCommandRetryDoesNotWakeAfterRestart(t *testing.T) {
 func TestDaemonRunStreams(t *testing.T) {
 	run := func(ctx context.Context, req RunRequest, sink protocol.Sink) error {
 		sink.Emit(protocol.Event{Kind: protocol.KindGenerationStart, N: 1})
-		sink.Emit(protocol.Event{Kind: protocol.KindMessage, N: 1, Text: "hello from " + req.Task})
+		sink.Emit(protocol.Event{Kind: protocol.KindMessage, N: 1, Text: "hello from " + req.Prompt})
 		sink.Emit(protocol.Event{Kind: protocol.KindRunEnd, Reason: "completed"})
 		return nil
 	}
 	sock, _ := startServer(t, run, nil)
 
 	var got []protocol.Event
-	err := Dial(sock, Command{Cmd: "run", SpecPath: "spec.yaml", Task: "wave"},
+	err := Dial(sock, Command{Cmd: "run", SpecPath: "spec.yaml", Prompt: "wave"},
 		func(e protocol.Event) { got = append(got, e) })
 	if err != nil {
 		t.Fatal(err)
@@ -261,7 +261,7 @@ func TestDaemonRunSurvivesClientDisconnect(t *testing.T) {
 	// Dial raw and hang up right after sending the command.
 	done := make(chan error, 1)
 	go func() {
-		done <- Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Task: "long job"},
+		done <- Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Prompt: "long job"},
 			func(e protocol.Event) {
 				// Disconnect after the banner by returning from Dial via
 				// closing: simplest is to panic-free early return — instead
@@ -328,7 +328,7 @@ func TestDaemonAttachFollowsLiveRun(t *testing.T) {
 
 	// Submit the run in the background; it goes idle on release.
 	go func() {
-		_ = Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Task: "job"}, func(protocol.Event) {})
+		_ = Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Prompt: "job"}, func(protocol.Event) {})
 	}()
 	<-started
 
@@ -400,7 +400,7 @@ func TestAttachReplayOnly(t *testing.T) {
 	}
 	sock, _ := startServer(t, run, replay)
 	go func() {
-		_ = Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Task: "job"}, func(protocol.Event) {})
+		_ = Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Prompt: "job"}, func(protocol.Event) {})
 	}()
 	<-started // the run is live and idle on release
 
@@ -457,7 +457,7 @@ func TestDaemonGracefulShutdownWaitsForRuns(t *testing.T) {
 
 	// Idle a hosted run, then pull the plug.
 	go func() {
-		_ = Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Task: "long"}, func(protocol.Event) {})
+		_ = Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Prompt: "long"}, func(protocol.Event) {})
 	}()
 	time.Sleep(50 * time.Millisecond) // let the run register
 	cancel()
@@ -507,7 +507,7 @@ func TestDaemonNotifyTee(t *testing.T) {
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	if err := Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Task: "job"}, func(protocol.Event) {}); err != nil {
+	if err := Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Prompt: "job"}, func(protocol.Event) {}); err != nil {
 		t.Fatal(err)
 	}
 	mu.Lock()
@@ -581,7 +581,7 @@ func TestDaemonSubmitIdempotency(t *testing.T) {
 	sock, _ := startServer(t, run, replay)
 
 	var first []protocol.Event
-	if err := Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Task: "job", IdemKey: "k-1"},
+	if err := Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Prompt: "job", IdemKey: "k-1"},
 		func(e protocol.Event) { first = append(first, e) }); err != nil {
 		t.Fatal(err)
 	}
@@ -590,7 +590,7 @@ func TestDaemonSubmitIdempotency(t *testing.T) {
 	// Retry with the same key: no second launch; the stream carries the
 	// SAME session (served from replay, the run being finished).
 	var retry []protocol.Event
-	if err := Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Task: "job", IdemKey: "k-1"},
+	if err := Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Prompt: "job", IdemKey: "k-1"},
 		func(e protocol.Event) { retry = append(retry, e) }); err != nil {
 		t.Fatal(err)
 	}
@@ -605,7 +605,7 @@ func TestDaemonSubmitIdempotency(t *testing.T) {
 	}
 
 	// A DIFFERENT key launches fresh.
-	if err := Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Task: "job", IdemKey: "k-2"},
+	if err := Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Prompt: "job", IdemKey: "k-2"},
 		func(protocol.Event) {}); err != nil {
 		t.Fatal(err)
 	}
@@ -643,7 +643,7 @@ func TestDaemonIdemPersistsAcrossRestart(t *testing.T) {
 	go func() { done1 <- srv1.ListenAndServe(ctx1) }()
 	waitDial(t, sock1)
 	var first []protocol.Event
-	if err := Dial(sock1, Command{Cmd: "run", SpecPath: "s.yaml", Task: "job", IdemKey: "k-persist"},
+	if err := Dial(sock1, Command{Cmd: "run", SpecPath: "s.yaml", Prompt: "job", IdemKey: "k-persist"},
 		func(e protocol.Event) { first = append(first, e) }); err != nil {
 		t.Fatal(err)
 	}
@@ -661,7 +661,7 @@ func TestDaemonIdemPersistsAcrossRestart(t *testing.T) {
 	waitDial(t, sock2)
 
 	var retry []protocol.Event
-	if err := Dial(sock2, Command{Cmd: "run", SpecPath: "s.yaml", Task: "job", IdemKey: "k-persist"},
+	if err := Dial(sock2, Command{Cmd: "run", SpecPath: "s.yaml", Prompt: "job", IdemKey: "k-persist"},
 		func(e protocol.Event) { retry = append(retry, e) }); err != nil {
 		t.Fatal(err)
 	}
@@ -723,7 +723,7 @@ func TestDaemonAttachChildFiltersLive(t *testing.T) {
 	sock, _ := startServer(t, run, replay)
 
 	go func() {
-		_ = Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Task: "job"}, func(protocol.Event) {})
+		_ = Dial(sock, Command{Cmd: "run", SpecPath: "s.yaml", Prompt: "job"}, func(protocol.Event) {})
 	}()
 	<-started
 

@@ -137,10 +137,10 @@ func TestNoSnapshotStoreNoBarriers(t *testing.T) {
 	}
 }
 
-// A barrier cut while a background task is in flight records the task with
-// its fork-time disposition; the quiescent barrier comes after the task
+// A barrier cut while background work is in flight records its handle with
+// its fork-time disposition; the quiescent barrier comes after the work
 // settled (决策 #31: nothing in flight at quiescence), so it records none.
-func TestBarrierRecordsLiveTasks(t *testing.T) {
+func TestBarrierRecordsLiveWork(t *testing.T) {
 	root := t.TempDir()
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
@@ -193,11 +193,11 @@ func TestBarrierRecordsLiveTasks(t *testing.T) {
 	}
 	t2 := barriers[1]
 	if len(t2.Handles) != 1 || t2.Handles[0].Handle != "bg1" || t2.Handles[0].Policy != "cancel_at_fork" {
-		t.Errorf("bar-t2 tasks = %+v, want [{bg1 cancel_at_fork}]", t2.Handles)
+		t.Errorf("bar-t2 handles = %+v, want [{bg1 cancel_at_fork}]", t2.Handles)
 	}
 	final := barriers[len(barriers)-1]
 	if len(final.Handles) != 0 {
-		t.Errorf("quiescent barrier tasks = %+v, want none", final.Handles)
+		t.Errorf("quiescent barrier handles = %+v, want none", final.Handles)
 	}
 }
 
@@ -208,7 +208,7 @@ func TestBarrierVectorIncludesChildStreams(t *testing.T) {
 	parentFix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
-				Args: map[string]any{"agent": "summarizer", "task": "PIN-THE-VECTOR job"}}},
+				Args: map[string]any{"agent": "summarizer", "prompt": "PIN-THE-VECTOR job"}}},
 			{Finish: "tool_use"},
 		}},
 		{Respond: []scripted.Event{{Text: "waiting"}, {Finish: "end_turn"}}},

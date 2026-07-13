@@ -37,7 +37,7 @@ type Activity struct {
 	// model-visible failed result (tool_failed) — the activity SUCCEEDED;
 	// err is an activity failure fed to the retry policy.
 	Run func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error)
-	// Progress is the optional ephemeral channel seam (S4 deltas, S6 task
+	// Progress is the optional ephemeral channel seam (S4 deltas, S6 background-work
 	// tails). Never journaled; unused in S2.
 	Progress func(delta string)
 	// PostRun runs after a successful Run, before the terminal event; its

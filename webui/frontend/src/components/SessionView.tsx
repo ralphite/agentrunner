@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Archive, ArrowClockwise, ArrowLeft, ChatCircle, CheckCircle, Code, Crosshair, DotsThree, Files, Flag, GitFork, LinkSimple, Pause, PencilSimple, Play, Prohibit, PushPin, Robot, SidebarSimple, SlidersHorizontal, Stop, Trash, WarningCircle, X, XCircle } from "@phosphor-icons/react";
 import { AR } from "../api";
 import { useStore } from "../store";
-import type { Envelope, Task } from "../types";
+import type { BackgroundWork, Envelope } from "../types";
 import { deriveGoalState, foldEvents, formatElapsed, isGoalTerminal, suppressEchoedChips, type ApprovalRef, type GoalDerived } from "../timeline";
 import { TimelineView } from "./Timeline";
 import { ApprovalCard } from "./ApprovalCard";
@@ -49,7 +49,7 @@ export function isValidSessionId(sid: string): boolean {
 // server's exact "invalid session id" wording, so an ordinary transient 400
 // from some other endpoint (bad body, bad scope) still counts as transient and
 // keeps polling. Everything else (daemon restarting, network blip, timeout,
-// 502) stays transient too: we never accuse a real task of not existing. The
+// 502) stays transient too: we never accuse a real session of not existing. The
 // stderr match survives only as a fallback for a stale webui binary that still
 // 502s. Duck-typed on purpose — an ApiError from a mocked/older api module
 // still classifies.
@@ -89,7 +89,7 @@ export function SessionView({ sid }: { sid: string }) {
   const [typing, setTyping] = useState<string>("");
   const [sseApprovals, setSseApprovals] = useState<Map<string, SSEApproval>>(new Map());
   const [resolvedLocal, setResolvedLocal] = useState<Set<string>>(new Set());
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [backgroundWork, setBackgroundWork] = useState<BackgroundWork[]>([]);
   const [usage, setUsage] = useState<{ billed: number; steps: number } | null>(null);
   const [children, setChildren] = useState<InspectNode[]>([]);
   const [inspectReady, setInspectReady] = useState(false);
@@ -220,10 +220,10 @@ export function SessionView({ sid }: { sid: string }) {
     }
   }, [sid]);
 
-  const pollTasks = useCallback(async () => {
+  const pollInspect = useCallback(async () => {
     if (gone.current) return;
     try {
-      setTasks(await AR.ps(sid));
+      setBackgroundWork(await AR.ps(sid));
     } catch {
       /* ignore */
     }
@@ -305,7 +305,7 @@ export function SessionView({ sid }: { sid: string }) {
         setGoalPendingUpdate(g);
         setGoalEdit(null);
         toast("goal update queued", "info");
-        return pollTasks();
+        return pollInspect();
       })
       .catch((e) => toast(e.message));
   };
@@ -331,7 +331,7 @@ export function SessionView({ sid }: { sid: string }) {
     setNotFound(false);
     gone.current = false;
     setLiveMode(undefined);
-    // RT-7 · A sid the server's grammar cannot accept is not a task that might
+    // RT-7 · A sid the server's grammar cannot accept is not a session that might
     // show up later — it is a broken link. Settle on Not found immediately and
     // start NOTHING: no poll interval, no inspect interval, no EventSource.
     // (A well-formed but unknown id still takes the network path; the daemon's
@@ -345,8 +345,8 @@ export function SessionView({ sid }: { sid: string }) {
     }
     poll();
     const e = setInterval(poll, 1000);
-    const t = setInterval(pollTasks, 2500);
-    pollTasks();
+    const t = setInterval(pollInspect, 2500);
+    pollInspect();
     let es: EventSource | null = null;
     {
       // Child sessions stream too (INC-12.6): the daemon routes a -sub- id
@@ -392,7 +392,7 @@ export function SessionView({ sid }: { sid: string }) {
       clearInterval(t);
       es?.close();
     };
-  }, [sid, isSub, poll, pollTasks]);
+  }, [sid, isSub, poll, pollInspect]);
 
   const folded = useMemo(() => foldEvents(events), [events]);
 
@@ -425,7 +425,7 @@ export function SessionView({ sid }: { sid: string }) {
     return () => clearInterval(t);
   }, [goalState?.phase, goalState?.attachedAt, goalTerminal]);
   const goalAction = (action: "pause" | "resume" | "cancel") =>
-    AR.goal(sid, { action }).then(() => pollTasks()).catch((e) => toast(e.message));
+    AR.goal(sid, { action }).then(() => pollInspect()).catch((e) => toast(e.message));
 
   // Open approvals = journal asks not yet resolved + SSE-only child asks.
   const openApprovals: (ApprovalRef & { agent?: string; viaSSE?: boolean; session?: string })[] = [];
@@ -474,7 +474,7 @@ export function SessionView({ sid }: { sid: string }) {
     const childStatus = friendlyStatus(node.reason || node.report?.reason || node.report?.status || "");
     return childStatus.cls === "crash" || childStatus.cls === "stranded";
   }).length;
-  const attentionCount = openApprovals.length + (needsRecovery ? 1 : 0) + abnormalAgentCount + (tasks.length > 0 && !running ? 1 : 0);
+  const attentionCount = openApprovals.length + (needsRecovery ? 1 : 0) + abnormalAgentCount + (backgroundWork.length > 0 && !running ? 1 : 0);
 
   const doSend = async (text: string, images: string[], files: string[] = [], delivery?: "steer" | "queue") => {
     const id = ++pendSeq.current;
@@ -557,13 +557,13 @@ export function SessionView({ sid }: { sid: string }) {
     close: async () => {
       openModal({
         kind: "confirm",
-        title: "Close task?",
+        title: "Close session?",
         body: "This ends the current conversation and marks it closed. Sending a new message later will reopen it.",
-        confirmLabel: "Close task",
+        confirmLabel: "Close session",
         danger: true,
         onConfirm: async () => {
           await AR.closeSession(sid);
-          toast("task closed", "info");
+          toast("session closed", "info");
         },
       });
     },
@@ -582,7 +582,7 @@ export function SessionView({ sid }: { sid: string }) {
         toast(e.message);
       }
     },
-    // Copy link (J1) hands off a deep link to this task (hash route) — the
+    // Copy link (J1) hands off a deep link to this session (hash route) — the
     // Codex `…` menu's "Copy link". No backend: the router keys off the hash.
     copyLink: async () => {
       const url = `${location.origin}${location.pathname}#${sid}`;
@@ -636,14 +636,14 @@ export function SessionView({ sid }: { sid: string }) {
   // cancellation as an in-thread chip AND the goal banner AND Supervision's
   // goal group; a step-limit stop as a red chip AND the terminal alert. Codex
   // says it once. The chrome above the composer is the actionable copy (it
-  // carries the elapsed/checks and the "Continue in new task" button), so when
+  // carries the elapsed/checks and the "Continue in new session" button), so when
   // it's on screen the thread's echo of it is dropped — and ONLY then, so a
   // session with no banner (sub-agent, dismissed banner, no goal) still tells
   // the whole story from the thread alone.
   //
   // TH-14 (round 33) · TH-12 deduped the *thread*, but the chrome itself was
   // still saying it twice: a `terminal-alert` ("Step limit reached… Continue in
-  // new task") with a `gbar` ("Goal cancelled · 00:34 · ✕") stacked underneath
+  // new session") with a `gbar` ("Goal cancelled · 00:34 · ✕") stacked underneath
   // it — 93px of banner about ONE ending, pinned above the composer, squeezing
   // the reading column to 630px of a 900px window. Codex pins nothing: its
   // terminal fact is a grey line in the last message that scrolls away with the
@@ -717,17 +717,17 @@ export function SessionView({ sid }: { sid: string }) {
   return (
     <div className="session-view">
       <DaemonAlert />
-      <header className="task-topbar">
+      <header className="session-topbar">
         {isSub && (
-          <button className="topbar-icon" onClick={() => select(sid.slice(0, sid.lastIndexOf(subMarker)))} title="Back to parent task">
+          <button className="topbar-icon" onClick={() => select(sid.slice(0, sid.lastIndexOf(subMarker)))} title="Back to parent session">
             <ArrowLeft size={16} />
           </button>
         )}
         <div className="tt-left">
-          {/* N-parity: the task title is prose, no leading file icon (weight
+          {/* N-parity: the session title is prose, no leading file icon (weight
               change is handled in tw.css). */}
           <div className="tt-title" title={`${sessions.find((s) => s.id === sid)?.title || title}\n${sid}`}>{title}</div>
-          {isSub && <span className="readonly-tag">Read-only subtask</span>}
+          {isSub && <span className="readonly-tag">Read-only sub-agent</span>}
         </div>
         <span className="spacer" />
         {!isSub && running && (
@@ -736,12 +736,12 @@ export function SessionView({ sid }: { sid: string }) {
           </button>
         )}
         {!isSub && needsRecovery && (
-          <button className="topbar-tool recovery" onClick={act.resume} title="Resume this task from its last durable checkpoint" aria-label="Resume task">
+          <button className="topbar-tool recovery" onClick={act.resume} title="Resume this session from its last durable checkpoint" aria-label="Resume session">
             <ArrowClockwise size={15} /> <span className="topbar-tool-label">Resume</span>
           </button>
         )}
         {!isSub && canRetry && (
-          <button className="topbar-tool" onClick={act.retry} title="Re-send your last message as a new turn; double-clicks are idempotent" aria-label="Retry task">
+          <button className="topbar-tool" onClick={act.retry} title="Re-send your last message as a new turn; double-clicks are idempotent" aria-label="Retry session">
             <ArrowClockwise size={15} /> <span className="topbar-tool-label">Retry</span>
           </button>
         )}
@@ -749,8 +749,8 @@ export function SessionView({ sid }: { sid: string }) {
           <button
             className="topbar-icon"
             onClick={() => openModal({ kind: "fork", sid })}
-            title="Fork this task from an existing checkpoint"
-            aria-label="Fork task from checkpoint"
+            title="Fork this session from an existing checkpoint"
+            aria-label="Fork session from checkpoint"
           >
             <GitFork size={16} />
           </button>
@@ -774,34 +774,34 @@ export function SessionView({ sid }: { sid: string }) {
           <SlidersHorizontal size={16} /> <span className="topbar-tool-label">Environment</span>
           {attentionCount > 0 && <span className="topbar-attention">{attentionCount}</span>}
         </button>
-        <Menu label={<DotsThree size={18} weight="bold" />} ariaLabel="More task actions">
-          {/* J1 · Codex `…` header menu: the task-organizing actions lead
+        <Menu label={<DotsThree size={18} weight="bold" />} ariaLabel="More session actions">
+          {/* J1 · Codex `…` header menu: the session-organizing actions lead
               (Pin / Rename / Archive / Copy link), then our view + dev extras. */}
           <MenuItem
-            title="keep this task in a Pinned section at the top of the sidebar"
+            title="keep this session in a Pinned section at the top of the sidebar"
             onClick={() => {
               togglePin(sid);
               toast(pinned.includes(sid) ? "unpinned" : "pinned", "info");
             }}
           >
-            <PushPin size={16} weight={pinned.includes(sid) ? "fill" : "regular"} />{pinned.includes(sid) ? "Unpin task" : "Pin task"}
+            <PushPin size={16} weight={pinned.includes(sid) ? "fill" : "regular"} />{pinned.includes(sid) ? "Unpin session" : "Pin session"}
           </MenuItem>
           <MenuItem
-            title="give this task a custom name in the sidebar (stored in your browser)"
+            title="give this session a custom name in the sidebar (stored in your browser)"
             onClick={() => openModal({ kind: "rename", sid })}
           >
-            <PencilSimple size={16} />Rename task…
+            <PencilSimple size={16} />Rename session…
           </MenuItem>
           <MenuItem
-            title="hide this task from the sidebar list (it stays on disk; toggle 'Show archived' to see it again)"
+            title="hide this session from the sidebar list (it stays on disk; toggle 'Show archived' to see it again)"
             onClick={() => {
               toggleArchive(sid);
               toast(archived.includes(sid) ? "unarchived" : "archived", "info");
             }}
           >
-            <Archive size={16} />{archived.includes(sid) ? "Unarchive task" : "Archive task"}
+            <Archive size={16} />{archived.includes(sid) ? "Unarchive session" : "Archive session"}
           </MenuItem>
-          <MenuItem title="copy a deep link to this task to your clipboard" onClick={act.copyLink}>
+          <MenuItem title="copy a deep link to this session to your clipboard" onClick={act.copyLink}>
             <LinkSimple size={16} />Copy link
           </MenuItem>
 
@@ -825,10 +825,10 @@ export function SessionView({ sid }: { sid: string }) {
                 <Flag size={16} />Create checkpoint
               </MenuItem>
               <MenuItem
-                title="continue from a checkpoint in a new task and worktree; this task is untouched"
+                title="continue from a checkpoint in a new session and worktree; this session is untouched"
                 onClick={() => openModal({ kind: "fork", sid })}
               >
-                <GitFork size={16} />Continue in new task…
+                <GitFork size={16} />Continue in new session…
               </MenuItem>
               <MenuItem
                 title="swap this session's agent spec — context carries over; takes effect on your next message (spec_changed)"
@@ -837,7 +837,7 @@ export function SessionView({ sid }: { sid: string }) {
                 <Robot size={16} />Switch agent…
               </MenuItem>
               <MenuLabel>Lifecycle</MenuLabel>
-              {needsRecovery && <MenuItem onClick={act.resume}><ArrowClockwise size={16} />Resume task</MenuItem>}
+              {needsRecovery && <MenuItem onClick={act.resume}><ArrowClockwise size={16} />Resume session</MenuItem>}
               {running && <MenuItem onClick={act.stop}><Stop size={16} />Stop active run</MenuItem>}
               <MenuItem
                 danger
@@ -1031,7 +1031,7 @@ export function SessionView({ sid }: { sid: string }) {
             progress={progress}
             artifacts={artifacts}
             children={children}
-            tasks={tasks}
+            backgroundWork={backgroundWork}
             approvals={openApprovals.length}
             sessionIdle={!running}
             recovery={needsRecovery}
@@ -1057,9 +1057,9 @@ export function SessionView({ sid }: { sid: string }) {
               AR.artifact(sid, stream, version)
                 .then((text) => openModal({ kind: "viewer", title: `${stream} · v${version}`, body: text }))
                 .catch((error) => toast(error.message))}
-            onGoalAction={(action) => AR.goal(sid, { action }).then(() => pollTasks()).catch((error) => toast(error.message))}
+            onGoalAction={(action) => AR.goal(sid, { action }).then(() => pollInspect()).catch((error) => toast(error.message))}
             onOpenChild={(childSid) => select(childSid)}
-            onKillTask={act.kill}
+            onKillWork={act.kill}
             onInspect={() => AR.inspect(sid).then((data) => openModal({
               kind: "inspect",
               data,

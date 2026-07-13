@@ -47,7 +47,7 @@ system_prompt: |
   - 用 spawn_agent 的 role 参数动态起草成员(给出 name/description/
     instructions),不要用预定义 agent 名。
   - spawn 结果里有每个成员的 child_session id;把队友的 id 写进后续
-    成员的 task 里,并告诉他们可以用 send_message(to=<session id>)
+    成员的 prompt 里,并告诉他们可以用 send_message(to=<session id>)
     直接联系队友,用 send_message(to="parent") 向你汇报。
   - 成员完成的回执会以消息进入你的对话;全部完成后向用户简洁汇总。
 tools: [read_file, write_file]

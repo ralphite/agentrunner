@@ -155,9 +155,9 @@ func commandHelp(cmd string) string {
 	case "agent":
 		return "usage: agentrunner agent <session-id-or-prefix> <spec.yaml>\n\nSwitch the session's agent spec; the conversation continues with\nthe new agent from the next message.\n"
 	case "kill":
-		return "usage: agentrunner kill <session-id-or-prefix> <handle>\n\nCancel one background handle (sub-agent or task); `ps` lists them.\n"
+		return "usage: agentrunner kill <session-id-or-prefix> <handle>\n\nCancel one background handle (sub-agent or tool); `ps` lists them.\n"
 	case "ps":
-		return "usage: agentrunner ps <session-id-or-prefix>\n\nList the session's in-flight background work (sub-agents, tasks).\n"
+		return "usage: agentrunner ps <session-id-or-prefix>\n\nList the session's in-flight background work (sub-agents and tools).\n"
 	case "approve":
 		return "usage: agentrunner approve <session-id-or-prefix> <approval-id> <approve|deny> [reason] [--always]\n\nAnswer a pending permission ask. attach or inspect shows the id.\n--always (with approve) also saves an exact allow rule to your user\nconfig so the same call no longer asks in future sessions.\n"
 	case "barrier":
@@ -184,13 +184,13 @@ func helpText() string {
 
 Quick start:
   agentrunner init                        write a commented example spec.yaml
-  agentrunner run spec.yaml "your task"   one-shot run, output streams here
+  agentrunner run spec.yaml "your prompt"   one-shot run, output streams here
   agentrunner daemon --detach             start the runtime that hosts conversations
   agentrunner new spec.yaml "hello"       start a conversation, print the reply
   agentrunner send <session> "and this?"  continue it (unique id prefix is enough)
 
 One-shot runs (no daemon needed):
-  run <spec.yaml> "task"      run to completion in the foreground
+  run <spec.yaml> "prompt"      run to completion in the foreground
   drive <driver.yaml>         run an iteration-driver series (plan/verify loop)
   dictate <audio-file>        transcribe an audio recording to text (prints the transcript)
   optimize "draft"            rewrite a draft prompt into a clearer instruction
@@ -221,7 +221,7 @@ Conversations (need the daemon):
                               also: hook list, hook revoke <id>)
 
 Background work (daemon):
-  submit <spec.yaml> "task"   hand a one-shot run to the daemon, stream until it ends
+  submit <spec.yaml> "prompt"   hand a one-shot run to the daemon, stream until it ends
   resume <session>            resume an interrupted or crashed session
 
 Observe:

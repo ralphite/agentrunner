@@ -106,7 +106,7 @@ func TestDriverParallelBestOfN(t *testing.T) {
 	}}
 	d, dStore, root := parallelHarness(t, &driver.DriverSpec{
 		Name: "pick", Schedule: driver.ScheduleParallel, N: 2,
-		Task: "write the right answer",
+		Prompt: "write the right answer",
 		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierCommand,
 			Command: "test -f base.txt && grep -qx right answer.txt"}},
 	}, fix)
@@ -169,7 +169,7 @@ func TestDriverParallelAllFailStalls(t *testing.T) {
 	}}
 	d, _, _ := parallelHarness(t, &driver.DriverSpec{
 		Name: "pick", Schedule: driver.ScheduleParallel, N: 2,
-		Task: "write the right answer",
+		Prompt: "write the right answer",
 		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierCommand,
 			Command: "grep -qx right answer.txt"}},
 	}, fix)
@@ -202,7 +202,7 @@ func TestDriverParallelValidation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			d, _, _ := parallelHarness(t, &driver.DriverSpec{
 				Name: "pick", Schedule: driver.ScheduleParallel, N: 2,
-				Task: "t", Verifiers: verifiers,
+				Prompt: "t", Verifiers: verifiers,
 			}, scripted.Fixture{})
 			tc.mutate(d)
 			if _, err := d.Run(context.Background()); err == nil {
@@ -227,7 +227,7 @@ func TestDriverParallelWorktreeLostFailsAttempt(t *testing.T) {
 	}}
 	d, dStore, _ := parallelHarness(t, &driver.DriverSpec{
 		Name: "pick", Schedule: driver.ScheduleParallel, N: 2,
-		Task: "write the right answer",
+		Prompt: "write the right answer",
 		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierCommand,
 			Command: "grep -qx right answer.txt"}},
 	}, fix)
@@ -292,7 +292,7 @@ func TestDriverParallelWorktreeLostFailsAttempt(t *testing.T) {
 // verifier bash runs WITH egress and {network:"*", deny} must match it.
 func TestVerifierNetworkRuleDenies(t *testing.T) {
 	d, _ := harness(t, &driver.DriverSpec{
-		Name: "goal", Task: "make progress", MaxIterations: 1,
+		Name: "goal", Prompt: "make progress", MaxIterations: 1,
 		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierCommand, Command: "true"}},
 	})
 	d.Pipeline = &pipeline.Pipeline{Gates: []pipeline.Gate{

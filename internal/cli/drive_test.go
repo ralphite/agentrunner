@@ -38,7 +38,7 @@ func TestDriveGoalEndToEnd(t *testing.T) {
 	ws := t.TempDir()
 	specPath := writeDriverSpecs(t, dir, `name: fill-progress
 agent_spec: worker.yaml
-task: add a line
+prompt: add a line
 max_iterations: 3
 verifiers:
   - { kind: command, command: "test $(wc -l < progress.txt) -ge 2" }
@@ -88,7 +88,7 @@ func TestDriveGoalUnsatisfiedExitsNonzero(t *testing.T) {
 	dir := t.TempDir()
 	specPath := writeDriverSpecs(t, dir, `name: never
 agent_spec: worker.yaml
-task: try
+prompt: try
 max_iterations: 1
 verifiers:
   - { kind: command, command: "false" }
@@ -113,7 +113,7 @@ func TestDriveLoopBoundedSeriesExitsZero(t *testing.T) {
 	specPath := writeDriverSpecs(t, dir, `name: rounds
 agent_spec: worker.yaml
 schedule: interval
-task: do a round
+prompt: do a round
 max_iterations: 2
 `)
 	fix := scripted.Fixture{Steps: []scripted.Step{
@@ -135,7 +135,7 @@ func TestDriveSpecErrors(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bad.yaml")
-	if err := os.WriteFile(path, []byte("name: x\ntask: t\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("name: x\nprompt: t\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	var out, errOut bytes.Buffer

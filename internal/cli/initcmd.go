@@ -24,7 +24,7 @@ model:
 
 system_prompt: >
   You are a helpful coding agent. Answer in plain text; use tools only
-  when the task requires reading or changing files or running commands.
+  when the prompt requires reading or changing files or running commands.
 # system_prompt_file: prompt.md   # or load the prompt from a file (not both)
 
 # Tools the agent may use; omit for a chat-only agent.
@@ -70,9 +70,9 @@ permissions:
 // default spec.yaml — TestInitDriverSpecLoads pins that.
 const driverTemplate = `# agentrunner driver spec — an iteration driver: it runs a fresh child
 # agent per iteration until the verifiers pass (goal mode) or on a
-# schedule. Required: name, task, agent_spec. Run: agentrunner drive <this file>
+# schedule. Required: name, prompt, agent_spec. Run: agentrunner drive <this file>
 name: my-driver
-task: Make the test suite pass          # the instruction EVERY iteration receives
+prompt: Make the test suite pass          # the instruction EVERY iteration receives
 agent_spec: spec.yaml                   # child agent spec, relative to this file (agentrunner init writes one)
 
 max_iterations: 5     # goal-mode cap (default 10)
@@ -89,7 +89,7 @@ verifiers:            # ALL must pass for an iteration to satisfy the goal
 # overlap: skip         # skip | coalesce — ticks firing while an iteration runs
 # n: 3                  # attempt count for schedule: parallel (best-of-N)
 # patience: 3           # stop after this many iterations with no score improvement
-# series_memory: NOTES.md   # workspace file injected into every iteration's task
+# series_memory: NOTES.md   # workspace file injected into every iteration's prompt
 # budget:
 #   max_total_tokens: 500000
 # on_child_failure: { mode: stop }   # stop | surface | retry (with max: N)

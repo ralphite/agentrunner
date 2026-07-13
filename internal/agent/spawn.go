@@ -42,8 +42,8 @@ type InlineRole struct {
 }
 
 type spawnPlan struct {
-	TaskID    string
-	DependsOn []string
+	DelegationID string
+	DependsOn    []string
 	// Replaces retires a predecessor handle before the successor starts
 	// (INC-30, G25): the same cancel the kill tool fires, so an abandoned
 	// member stops spending the shared budget. Unknown/settled handles are
@@ -52,8 +52,8 @@ type spawnPlan struct {
 	Problem  string
 }
 
-func planSpawn(team map[string]state.TeamTask, call provider.ToolCall) spawnPlan {
-	plan := spawnPlan{TaskID: "task-" + call.CallID}
+func planSpawn(team map[string]state.Delegation, call provider.ToolCall) spawnPlan {
+	plan := spawnPlan{DelegationID: "delegation-" + call.CallID}
 	var args struct {
 		DependsOn []string `json:"depends_on"`
 		Replaces  string   `json:"replaces"`
@@ -66,10 +66,10 @@ func planSpawn(team map[string]state.TeamTask, call provider.ToolCall) spawnPlan
 	for _, raw := range args.DependsOn {
 		id := raw
 		if _, ok := team[id]; !ok {
-			if _, ok := team["task-"+raw]; ok {
-				id = "task-" + raw
+			if _, ok := team["delegation-"+raw]; ok {
+				id = "delegation-" + raw
 			} else {
-				plan.Problem = fmt.Sprintf("dependency %q does not name a durable team task", raw)
+				plan.Problem = fmt.Sprintf("dependency %q does not name a durable delegation", raw)
 				return plan
 			}
 		}
@@ -184,23 +184,23 @@ func (l *Loop) spawnAllowance(s state.State, childSpec *AgentSpec) int {
 // resolveSpawnTarget parses spawn/handoff args and resolves the child spec
 // through the whitelist. A failure is a MODEL-visible problem (bad args,
 // unknown agent), returned as a message, never a harness error.
-func (l *Loop) resolveSpawnTarget(toolName string, rawArgs json.RawMessage) (agent, task string, spec *AgentSpec, problem string) {
-	agent, task, _, spec, problem = l.resolveSpawnTargetFull(toolName, rawArgs)
-	return agent, task, spec, problem
+func (l *Loop) resolveSpawnTarget(toolName string, rawArgs json.RawMessage) (agent, prompt string, spec *AgentSpec, problem string) {
+	agent, prompt, _, spec, problem = l.resolveSpawnTargetFull(toolName, rawArgs)
+	return agent, prompt, spec, problem
 }
 
 // resolveSpawnTargetFull additionally returns validated artifact inputs
 // (S5.8): every ref must resolve in the tree store BEFORE the child starts —
 // a dangling input is the parent model's mistake, reported to it.
-func (l *Loop) resolveSpawnTargetFull(toolName string, rawArgs json.RawMessage) (agent, task string, inputs []event.ArtifactInput, spec *AgentSpec, problem string) {
+func (l *Loop) resolveSpawnTargetFull(toolName string, rawArgs json.RawMessage) (agent, prompt string, inputs []event.ArtifactInput, spec *AgentSpec, problem string) {
 	var args struct {
 		Agent  string                `json:"agent"`
 		Role   *InlineRole           `json:"role"`
-		Task   string                `json:"task"`
+		Prompt string                `json:"prompt"`
 		Inputs []event.ArtifactInput `json:"inputs"`
 	}
-	if err := json.Unmarshal(rawArgs, &args); err != nil || args.Task == "" || (args.Agent == "") == (args.Role == nil) {
-		return "", "", nil, nil, toolName + ": invalid args: need task and exactly one of agent or role"
+	if err := json.Unmarshal(rawArgs, &args); err != nil || args.Prompt == "" || (args.Agent == "") == (args.Role == nil) {
+		return "", "", nil, nil, toolName + ": invalid args: need prompt and exactly one of agent or role"
 	}
 	if args.Role != nil {
 		if toolName != "spawn_agent" {
@@ -244,7 +244,7 @@ func (l *Loop) resolveSpawnTargetFull(toolName string, rawArgs json.RawMessage) 
 			return "", "", nil, nil, fmt.Sprintf("%s: input ref %s does not resolve", toolName, in.Ref)
 		}
 	}
-	return args.Agent, args.Task, args.Inputs, spec, ""
+	return args.Agent, args.Prompt, args.Inputs, spec, ""
 }
 
 func (l *Loop) validateEscalatedChild(spec *AgentSpec) string {
@@ -338,17 +338,17 @@ func (l *Loop) replacePredecessor(handle string) {
 // is invisible, and its own writes do not flow back. Without this, members
 // burn whole budgets searching for files that can never appear (G24: the
 // abandoned-reviewer incident spent 195k tokens exactly this way). Prepended
-// to the child's opening task — never to SpawnRequested.Task, so the parent's
+// to the child's opening prompt — never to SpawnRequested.Prompt, so the parent's
 // journaled intent stays verbatim.
 const isolationNotice = "[workspace note] You work in an ISOLATED snapshot of the parent's workspace, taken the moment you were spawned. Files teammates create or change after that moment are NOT visible here, and your own file changes stay in your snapshot — they do not flow back automatically. If a file you expect is missing, do not keep searching for it: finish with a short report telling the parent what is missing and ask for the content instead.\n\n"
 
-// isolatedTask prefixes the mechanics note onto an isolated child's opening
-// task; shared children see the parent's real workspace and need no note.
-func isolatedTask(assignment *event.TeamWorkspace, task string) string {
+// isolatedPrompt prefixes the mechanics note onto an isolated child's opening
+// prompt; shared children see the parent's real workspace and need no note.
+func isolatedPrompt(assignment *event.TeamWorkspace, prompt string) string {
 	if assignment == nil || assignment.Mode != "isolated" {
-		return task
+		return prompt
 	}
-	return isolationNotice + task
+	return isolationNotice + prompt
 }
 
 func (l *Loop) prepareChildExecutor(ctx context.Context, childDir, childSession string) (*tool.Executor, *event.TeamWorkspace, error) {
@@ -407,7 +407,7 @@ func (l *Loop) buildHandoffRun(call provider.ToolCall, res *tool.Result,
 	attempt := 0
 	return func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
 		attempt++
-		agentName, task, inputs, childSpec, problem := l.resolveSpawnTargetFull(call.Name, call.Args)
+		agentName, prompt, inputs, childSpec, problem := l.resolveSpawnTargetFull(call.Name, call.Args)
 		if problem == "" && coordination.Problem != "" {
 			problem = call.Name + ": " + coordination.Problem
 		}
@@ -438,12 +438,12 @@ func (l *Loop) buildHandoffRun(call provider.ToolCall, res *tool.Result,
 		}
 
 		if _, err := appendE(event.TypeSpawnRequested, &event.SpawnRequested{
-			CallID: call.CallID, Agent: agentName, Task: task,
+			CallID: call.CallID, Agent: agentName, Prompt: prompt,
 			ChildSession: childSession, Depth: l.Depth + 1, BudgetTokens: allowance,
 			RoleSpec:  dynamicRoleJSON(call.Args, childSpec),
 			Escalated: childSpec.EscalationApproved, Escalation: escalationOutcome(childSpec),
 			EscalationReason: escalationFallback,
-			TaskID:           coordination.TaskID, DependsOn: coordination.DependsOn,
+			DelegationID:     coordination.DelegationID, DependsOn: coordination.DependsOn,
 			LeaseID: fmt.Sprintf("lease-%s-a%d", call.CallID, attempt), Workspace: workspaceAssignment,
 			Replaces: coordination.Replaces,
 		}); err != nil {
@@ -454,7 +454,7 @@ func (l *Loop) buildHandoffRun(call provider.ToolCall, res *tool.Result,
 
 		child := l.childLoopWithExec(childSpec, childStore, childSession, allowance, parentMode, childExec)
 		child.Inputs = inputs
-		cres, cerr := child.Run(ctx, isolatedTask(workspaceAssignment, task))
+		cres, cerr := child.Run(ctx, isolatedPrompt(workspaceAssignment, prompt))
 		if cerr != nil {
 			// The child journaled real spend before dying — RunResult is
 			// zero on aborts, so settle from the child's own fold (S5
@@ -521,7 +521,7 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 	escalationFallback string, coordination spawnPlan) error {
 
 	l.ensureBackground()
-	agentName, task, inputs, childSpec, problem := l.resolveSpawnTargetFull(call.Name, call.Args)
+	agentName, prompt, inputs, childSpec, problem := l.resolveSpawnTargetFull(call.Name, call.Args)
 	if problem == "" && coordination.Problem != "" {
 		problem = call.Name + ": " + coordination.Problem
 	}
@@ -578,12 +578,12 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 	}
 
 	if _, err := appendE(event.TypeSpawnRequested, &event.SpawnRequested{
-		CallID: call.CallID, Agent: agentName, Task: task,
+		CallID: call.CallID, Agent: agentName, Prompt: prompt,
 		ChildSession: childSession, Depth: l.Depth + 1, BudgetTokens: allowance,
 		RoleSpec:  dynamicRoleJSON(call.Args, childSpec),
 		Escalated: childSpec.EscalationApproved, Escalation: escalationOutcome(childSpec),
 		EscalationReason: escalationFallback,
-		TaskID:           coordination.TaskID, DependsOn: coordination.DependsOn,
+		DelegationID:     coordination.DelegationID, DependsOn: coordination.DependsOn,
 		LeaseID: "lease-" + call.CallID + "-a1", Workspace: workspaceAssignment,
 		Replaces: coordination.Replaces,
 	}); err != nil {
@@ -601,7 +601,7 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 		return err
 	}
 
-	taskCtx, cancel := context.WithCancelCause(ctx)
+	workCtx, cancel := context.WithCancelCause(ctx)
 	l.bg.mu.Lock()
 	l.bg.cancel[call.CallID] = cancel
 	l.bg.mu.Unlock()
@@ -610,10 +610,10 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 	child.Inputs = inputs
 	go func() {
 		defer func() { _ = childStore.Close() }()
-		cres, cerr := child.Run(taskCtx, isolatedTask(workspaceAssignment, task))
+		cres, cerr := child.Run(workCtx, isolatedPrompt(workspaceAssignment, prompt))
 		spent := cres.Usage
 		reason := cres.Reason
-		canceled := taskCtx.Err() != nil
+		canceled := workCtx.Err() != nil
 		if cerr != nil {
 			// The child journaled real spend before dying; settle from its
 			// own fold so the tree cap stays honest (S5 review).

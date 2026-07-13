@@ -16,6 +16,7 @@ fi
 
 # 登记簿真实性:SPEC 锚判据/幻影锚/GAPS 重号(PROCESS §五,G29 复盘)。
 scripts/lint-docs.sh
+scripts/lint-product-terms.sh
 
 # QA sessions write throwaway Go files under gitignored runtime/ workspaces;
 # ./... walks in regardless of .gitignore and a broken demo package would

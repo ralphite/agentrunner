@@ -82,7 +82,7 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/sessions/{sid}/goal", s.handleGoal)
 
 	// ---- workspace git (branch picker; cockpit-level, operates on the
-	// session/new-task workspace exactly as a user would) ----
+	// current/new-session workspace exactly as a user would) ----
 	mux.HandleFunc("GET /api/git/branches", s.handleGitBranches)
 	mux.HandleFunc("POST /api/git/checkout", s.handleGitCheckout)
 
@@ -863,27 +863,27 @@ func (s *server) handlePS(w http.ResponseWriter, r *http.Request) {
 		arFail(w, "ar ps", res)
 		return
 	}
-	type task struct {
+	type backgroundWork struct {
 		Handle string `json:"handle"`
 		Tool   string `json:"tool"`
 		Detail string `json:"detail"`
 	}
-	tasks := []task{}
+	work := []backgroundWork{}
 	for _, line := range strings.Split(res.Stdout, "\n") {
-		if strings.TrimSpace(line) == "" || strings.HasPrefix(line, "no tasks") {
+		if strings.TrimSpace(line) == "" || strings.HasPrefix(line, "no background work") {
 			continue
 		}
 		f := strings.SplitN(line, "\t", 3)
-		t := task{Handle: f[0]}
+		item := backgroundWork{Handle: f[0]}
 		if len(f) > 1 {
-			t.Tool = f[1]
+			item.Tool = f[1]
 		}
 		if len(f) > 2 {
-			t.Detail = f[2]
+			item.Detail = f[2]
 		}
-		tasks = append(tasks, t)
+		work = append(work, item)
 	}
-	writeJSON(w, http.StatusOK, tasks)
+	writeJSON(w, http.StatusOK, work)
 }
 
 // handleBarriers lists a session's fork points via `ar fork --list`.

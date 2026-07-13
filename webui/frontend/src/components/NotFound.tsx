@@ -9,13 +9,13 @@ export function SessionNotFound({ sid, onBack }: { sid: string; onBack: () => vo
   return (
     <div className="tl-empty tl-notfound" role="alert">
       <MagnifyingGlass size={26} weight="light" />
-      <b>Task not found</b>
+      <b>Session not found</b>
       <span>
-        No task matches <code className="tl-notfound-id">{sid}</code>. The link may be out of date, or the
-        task was removed from this machine's store.
+        No session matches <code className="tl-notfound-id">{sid}</code>. The link may be out of date, or the
+        session was removed from this machine's store.
       </span>
       <button type="button" className="tl-empty-cta" onClick={onBack}>
-        <ArrowLeft size={14} /> Back to all tasks
+        <ArrowLeft size={14} /> Back to all sessions
       </button>
     </div>
   );

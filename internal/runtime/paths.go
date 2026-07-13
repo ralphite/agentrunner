@@ -80,13 +80,13 @@ func ProjectToolsDir(workspaceRoot string) string {
 }
 
 // NewSessionID builds the sortable session id:
-// YYYYMMDD-HHMMSS-<slug>-<4hex> (slug = first 30 bytes of the task,
+// YYYYMMDD-HHMMSS-<slug>-<4hex> (slug = first 30 bytes of the prompt,
 // lowercased; the random suffix prevents same-second collisions from
 // interleaving two runs into one journal).
-func NewSessionID(now time.Time, task string) string {
+func NewSessionID(now time.Time, prompt string) string {
 	var b [2]byte
 	_, _ = rand.Read(b[:])
-	return now.UTC().Format("20060102-150405") + "-" + slugify(task, 30) + "-" + hex.EncodeToString(b[:])
+	return now.UTC().Format("20060102-150405") + "-" + slugify(prompt, 30) + "-" + hex.EncodeToString(b[:])
 }
 
 func slugify(s string, maxLen int) string {
@@ -106,7 +106,7 @@ func slugify(s string, maxLen int) string {
 	}
 	slug := strings.TrimSuffix(sb.String(), "-")
 	if slug == "" {
-		return "task"
+		return "session"
 	}
 	return slug
 }

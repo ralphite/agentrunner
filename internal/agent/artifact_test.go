@@ -173,7 +173,7 @@ func TestArtifactStoreTreeShared(t *testing.T) {
 	parentFix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
-				Args: map[string]any{"agent": "summarizer", "task": "PUBLISH-JOB now"}}},
+				Args: map[string]any{"agent": "summarizer", "prompt": "PUBLISH-JOB now"}}},
 			{Finish: "tool_use"},
 		}},
 		{Respond: []scripted.Event{{Text: "waiting"}, {Finish: "end_turn"}}},

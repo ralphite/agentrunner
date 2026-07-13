@@ -17,7 +17,7 @@ import (
 // summarizer it is a harness-owned maintenance prompt, not the agent's own
 // turn — the model never directed it.
 const autotitleSystemPrompt = "You name a work session. Given the user's opening message, reply with a " +
-	"short title of 3 to 6 words that captures the task. Reply with ONLY the title — no quotes, no " +
+	"short title of 3 to 6 words that captures the prompt. Reply with ONLY the title — no quotes, no " +
 	"punctuation at the end, no preamble. Keep it under 60 characters."
 
 // autotitleActivityID is the stable id of the one title-distilling LLM
@@ -28,7 +28,7 @@ const autotitleActivityID = "autotitle"
 // rather than journaled whole.
 const autotitleMaxRunes = 80
 
-// autotitleSkipShortRunes: an opening task that is already a single short line
+// autotitleSkipShortRunes: an opening prompt that is already a single short line
 // makes a fine first-line fallback title on its own — distilling it would just
 // spend a call to restate it. Skip generation below this length.
 const autotitleSkipShortRunes = 48
@@ -64,15 +64,15 @@ func (l *Loop) maybeAutoTitle(ctx context.Context, ds *driveState, appendE Appen
 	if !hasAssistantMessage(ds.s) {
 		return nil
 	}
-	task := strings.TrimSpace(ds.s.Session.Task)
-	first := firstLineTrim(task)
+	prompt := strings.TrimSpace(ds.s.Session.Prompt)
+	first := firstLineTrim(prompt)
 	if first == "" {
 		l.titleTried = true
 		return nil
 	}
 	// A single short opening line is already a good title — the first-line
 	// fallback restates it for free.
-	if !strings.Contains(task, "\n") && utf8.RuneCountInString(first) <= autotitleSkipShortRunes {
+	if !strings.Contains(prompt, "\n") && utf8.RuneCountInString(first) <= autotitleSkipShortRunes {
 		l.titleTried = true
 		return nil
 	}
@@ -96,7 +96,7 @@ func (l *Loop) maybeAutoTitle(ctx context.Context, ds *driveState, appendE Appen
 		MaxTokens: 64,
 		System:    autotitleSystemPrompt,
 		Messages: []provider.Message{{Role: provider.RoleUser, Parts: []provider.Part{
-			{Kind: provider.PartText, Text: task}}}},
+			{Kind: provider.PartText, Text: prompt}}}},
 	}
 	var title string
 	// A dedicated single-attempt executor: a cosmetic title must not retry-storm

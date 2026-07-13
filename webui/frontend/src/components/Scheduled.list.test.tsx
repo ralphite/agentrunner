@@ -18,7 +18,7 @@ afterEach(cleanup);
 // The page's admission rule (SC-1): a row belongs here only if it will fire
 // again on its own. The schedule kind is the server's word for that
 // (webui/schedule.go): interval / cron / self_paced tick; immediate (a one-shot
-// task or a run-until-verified goal) and parallel (Best of N) do not, and a
+// session or a run-until-verified goal) and parallel (Best of N) do not, and a
 // plain `submit` run carries no schedule at all.
 const runs: Run[] = [
   {
@@ -205,7 +205,7 @@ describe("Active is a fact about the series, not about this instant (SC-11)", ()
     tab("Active");
     // The whole bug: a series with a future tick is ACTIVE even though nothing
     // is executing right now. Before this rule the Active tab was structurally
-    // empty (live: All=3, Active=0) because no cadence task is ever mid-tick
+    // empty (live: All=3, Active=0) because no cadence session is ever mid-tick
     // when you happen to look.
     expect(titles(container)).toContain("Healthy: watch the queue");
 
@@ -274,7 +274,7 @@ describe("a broken schedule says so on screen (SC-10)", () => {
 
   it("finds a broken series by searching for its state", () => {
     const { container } = mountSeries();
-    fireEvent.change(screen.getByLabelText("Search scheduled tasks"), {
+    fireEvent.change(screen.getByLabelText("Search scheduled runs"), {
       target: { value: "needs recovery" },
     });
     expect(titles(container)).toEqual(["Broken: cadence driver that died"]);
@@ -369,7 +369,7 @@ describe("a row is titled with a NAME, not the prompt (SC-13)", () => {
     const shown = row.querySelector(".scheduled-copy b")!.textContent!;
 
     // The live row: 96 characters of instructions, of which the first clause is
-    // the only part that identifies the task.
+    // the only part that identifies the session.
     expect(shown).toBe("Append one line with the current timestamp to…");
     expect(shown.length).toBeLessThan(50);
     expect(shown).not.toContain("use write_file or bash");
@@ -378,7 +378,7 @@ describe("a row is titled with a NAME, not the prompt (SC-13)", () => {
     expect(row.getAttribute("title")).toContain("(use write_file or bash)");
     // …and it is still searchable, so shortening the label made nothing
     // unfindable.
-    fireEvent.change(screen.getByLabelText("Search scheduled tasks"), { target: { value: "write_file" } });
+    fireEvent.change(screen.getByLabelText("Search scheduled runs"), { target: { value: "write_file" } });
     expect(container.querySelectorAll(".scheduled-row")).toHaveLength(1);
   });
 
@@ -408,7 +408,7 @@ describe("a scheduled row can be acted on (SC-12)", () => {
       "Mark as unread",
       "Archive",
       "Session ID",
-      "Task link",
+      "Session link",
     ]);
   });
 
@@ -423,7 +423,7 @@ describe("a scheduled row can be acted on (SC-12)", () => {
     expect(items).not.toContain("Rename…");
   });
 
-  it("acts: Pin from the menu pins the task and the row says so", () => {
+  it("acts: Pin from the menu pins the session and the row says so", () => {
     const { container } = mountRich();
     fireEvent.contextMenu(screen.getByText(/^Append one line/).closest(".scheduled-row-wrap")!);
     fireEvent.click(screen.getByRole("menuitem", { name: "Pin" }));
@@ -440,7 +440,7 @@ describe("a scheduled row can be acted on (SC-12)", () => {
 
     fireEvent.click(more[0]);
     expect(container.querySelector(".ctx-menu")).toBeTruthy();
-    // Opening the menu must not also open the task.
+    // Opening the menu must not also open the session.
     expect(useStore.getState().currentSid).toBe(before);
   });
 
@@ -456,7 +456,7 @@ describe("a search hit is visible on the row it returns (SC-14)", () => {
     const { container } = mountRich();
     // Before: searching the workspace returned this row with the word "scratch"
     // nowhere on it — the result looked broken.
-    fireEvent.change(screen.getByLabelText("Search scheduled tasks"), { target: { value: "scratch" } });
+    fireEvent.change(screen.getByLabelText("Search scheduled runs"), { target: { value: "scratch" } });
     const rows = [...container.querySelectorAll(".scheduled-row")];
     expect(rows).toHaveLength(1);
     const chip = rows[0].querySelector(".sched-project-chip")!;
@@ -471,7 +471,7 @@ describe("a search hit is visible on the row it returns (SC-14)", () => {
     expect(screen.queryByText(/scratch/i)).toBeNull();
 
     // A query that matched something already visible does not summon it either.
-    fireEvent.change(screen.getByLabelText("Search scheduled tasks"), { target: { value: "Every 30m" } });
+    fireEvent.change(screen.getByLabelText("Search scheduled runs"), { target: { value: "Every 30m" } });
     expect(container.querySelectorAll(".scheduled-row")).toHaveLength(1);
     expect(container.querySelector(".sched-project-chip")).toBeNull();
   });
@@ -479,7 +479,7 @@ describe("a search hit is visible on the row it returns (SC-14)", () => {
 
 // SC-16 — the three terminal reasons that mean "I did exactly what you configured
 // and then stopped", plus one genuinely broken series as the control. friendlyStatus
-// files all three under cls "stranded" (right for the task header's banner, fatal
+// files all three under cls "stranded" (right for the session header's banner, fatal
 // here), which is why this page judges the raw status word instead.
 const limitSessions: Session[] = [
   {

@@ -25,24 +25,22 @@ import { splitDiff } from "../diffSummary";
 import { Popover, PopItem, PopSection } from "./Popover";
 import { useWorktreeActions } from "./worktreeActions";
 import { deriveGoalState, formatElapsed, isGoalTerminal, type GoalDerived } from "../timeline";
-import type { Task } from "../types";
+import type { BackgroundWork } from "../types";
 import { friendlyStatus } from "./pill";
 import { dedupeInspectNodes } from "../viewModels";
 import { Subagents, type InspectNode } from "./Subagents";
 
 // backgroundLabel turns a raw `ar ps` row ("spawn_agent" +
-// "running agent=worker task=…") into a person-readable line (W7). The
-// detail is a key=value string; a missing/empty task must not render a
-// dangling "task=".
-export function backgroundLabel(task: Task): string {
-  const detail = task.detail || "";
+// "running agent=worker prompt=…") into a person-readable line.
+export function backgroundLabel(work: BackgroundWork): string {
+  const detail = work.detail || "";
   const agent = /agent=([^\s]+)/.exec(detail)?.[1];
-  const taskText = /task=(.*)$/.exec(detail)?.[1]?.trim();
-  if (task.tool === "spawn_agent") {
+  const prompt = /prompt=(.*)$/.exec(detail)?.[1]?.trim();
+  if (work.tool === "spawn_agent") {
     const who = agent ? `agent “${agent}”` : "a sub-agent";
-    return taskText ? `${who} — ${taskText}` : `${who} is working in the background`;
+    return prompt ? `${who} — ${prompt}` : `${who} is working in the background`;
   }
-  return `${task.tool}${detail ? " · " + detail : ""}`;
+  return `${work.tool}${detail ? " · " + detail : ""}`;
 }
 
 export interface GoalState {
@@ -113,7 +111,7 @@ function useSettledGoal(active: boolean, loading: boolean): GoalDerived | null {
 // before deciding whether to render the section at all.
 function attentionRows(
   children: InspectNode[],
-  tasks: Task[],
+  backgroundWork: BackgroundWork[],
   approvals: number,
   recovery: boolean,
   sessionIdle: boolean,
@@ -129,7 +127,7 @@ function attentionRows(
   if (recovery) {
     rows.push(
       <div className="attention-row" key="recovery">
-        <span className="attention-dot" /> Task needs recovery
+        <span className="attention-dot" /> Session needs recovery
       </div>,
     );
   }
@@ -143,7 +141,7 @@ function attentionRows(
       );
     }
   }
-  if (tasks.length > 0 && sessionIdle) {
+  if (backgroundWork.length > 0 && sessionIdle) {
     rows.push(
       <div className="attention-row" key="bg-idle">
         <span className="attention-dot" /> Background work still running — it keeps
@@ -161,7 +159,7 @@ export function SupervisionPanel({
   progress,
   artifacts,
   children,
-  tasks,
+  backgroundWork,
   approvals,
   sessionIdle,
   recovery,
@@ -174,7 +172,7 @@ export function SupervisionPanel({
   onGoalAction,
   onOpenArtifact,
   onOpenChild,
-  onKillTask,
+  onKillWork,
   onInspect,
   onClose,
 }: {
@@ -184,7 +182,7 @@ export function SupervisionPanel({
   progress: ProgressItem[];
   artifacts: { stream: string; version: number }[];
   children: InspectNode[];
-  tasks: Task[];
+  backgroundWork: BackgroundWork[];
   approvals: number;
   // The conversation itself is idle (not mid-turn): background work running
   // in that state is worth the user's attention (W35).
@@ -212,7 +210,7 @@ export function SupervisionPanel({
   onGoalAction: (action: "pause" | "resume" | "cancel") => void;
   onOpenArtifact: (stream: string, version: number) => void;
   onOpenChild: (sid: string) => void;
-  onKillTask: (handle: string) => void;
+  onKillWork: (handle: string) => void;
   onInspect: () => void;
   onClose: () => void;
 }) {
@@ -227,7 +225,7 @@ export function SupervisionPanel({
   // carrying real data. So: each of the three renders only when it has
   // something, and when none of them does they collapse into the single dim
   // line below (a resting panel must still read as "fine", not as "broken").
-  const attention = attentionRows(children, tasks, approvals, recovery, sessionIdle);
+  const attention = attentionRows(children, backgroundWork, approvals, recovery, sessionIdle);
   const hasGoal = !!goal || !!settledGoal;
   const resting = !loading && !hasGoal && children.length === 0 && attention.length === 0;
   return (
@@ -268,14 +266,14 @@ export function SupervisionPanel({
           scrolling past five quieter ones. Codex puts `Background processes`
           second, right beneath the Environment rows, for the same reason: what's
           running *right now* outranks the standing description of the run. */}
-      {tasks.length > 0 && (
+      {backgroundWork.length > 0 && (
         <section className="supervision-section">
           <div className="supervision-label">Background work</div>
-          {tasks.map((task) => (
-            <div className="background-row" key={task.handle}>
+          {backgroundWork.map((work) => (
+            <div className="background-row" key={work.handle}>
               <span className="status-dot run" />
-              <span title={task.detail || task.handle}>{backgroundLabel(task)}</span>
-              <button title="Stop this background work (ar kill)" onClick={() => onKillTask(task.handle)}><X size={13} /></button>
+              <span title={work.detail || work.handle}>{backgroundLabel(work)}</span>
+              <button title="Stop this background work (ar kill)" onClick={() => onKillWork(work.handle)}><X size={13} /></button>
             </div>
           ))}
         </section>

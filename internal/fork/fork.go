@@ -96,8 +96,8 @@ func Cut(opts Options) ([]string, error) {
 			}
 		}
 	}
-	// The barrier's task disposition vector is APPLIED here, not just
-	// copied (S7 出口 review P1): a cancel_at_fork task gets a synthetic
+	// The barrier's handle disposition vector is APPLIED here, not just
+	// copied (S7 出口 review P1): a cancel_at_fork work item gets a synthetic
 	// terminal right after the cut, so the fork's fold has no in-flight
 	// non-idempotent activity (which would refuse every resume as
 	// in-doubt) and the model sees the cancellation outcome instead.
@@ -154,7 +154,7 @@ func remap(e event.Envelope, parentSession, newSession string, shift int64) even
 }
 
 // cancelAtFork folds the copied cut and appends one ActivityCancelled per
-// barrier task whose policy is cancel_at_fork — the task's process never
+// barrier handle whose policy is cancel_at_fork — the work's process never
 // existed in the fork, and the fold renders the cancellation as the
 // model-visible outcome ("fork 后模型可自行重启", DESIGN §fork/rewind).
 func cancelAtFork(lines []event.Envelope, opts Options) ([]event.Envelope, error) {
@@ -163,21 +163,21 @@ func cancelAtFork(lines []event.Envelope, opts Options) ([]event.Envelope, error
 	}
 	folded, err := state.Fold(lines)
 	if err != nil {
-		return nil, fmt.Errorf("fork: fold cut for task disposition: %w", err)
+		return nil, fmt.Errorf("fork: fold cut for background-work disposition: %w", err)
 	}
 	seq := lines[len(lines)-1].Seq
 	var out []event.Envelope
-	for _, task := range opts.Barrier.Handles {
-		if task.Policy != "cancel_at_fork" {
+	for _, work := range opts.Barrier.Handles {
+		if work.Policy != "cancel_at_fork" {
 			continue // unknown policies stay untouched; the fold will refuse resume loudly
 		}
-		started, ok := folded.Handles[task.Handle]
+		started, ok := folded.Handles[work.Handle]
 		if !ok {
 			continue // already settled inside the cut
 		}
 		env, err := event.New(event.TypeActivityCancelled, &event.ActivityCancelled{
 			ActivityID:    started.ActivityID,
-			PartialOutput: "cancelled at fork (policy cancel_at_fork): the task's process belongs to the original run",
+			PartialOutput: "cancelled at fork (policy cancel_at_fork): the background process belongs to the original run",
 		})
 		if err != nil {
 			return nil, err

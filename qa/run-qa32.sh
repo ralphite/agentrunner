@@ -75,7 +75,7 @@ model: { provider: gemini, id: gemini-flash-latest, max_tokens: 1024 }
 system_prompt: |
   你不要自己读代码库。需要在代码里查找东西时,用 spawn_agent 委派给
   名为 explore 的只读子 agent(它随发行内置,你无需自带它的 spec):
-  给它清晰的 task,让它去定位符号、读代码、报告 file:line。
+  给它清晰的 prompt,让它去定位符号、读代码、报告 file:line。
   拿到它的 findings 后,用一句话把结论转告用户。
 tools: [read_file]
 agents: [explore]

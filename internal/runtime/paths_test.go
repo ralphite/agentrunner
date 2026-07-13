@@ -47,16 +47,16 @@ func TestSessionDirCreated0700(t *testing.T) {
 
 func TestNewSessionID(t *testing.T) {
 	at := time.Date(2026, 7, 3, 12, 30, 45, 0, time.UTC)
-	cases := []struct{ task, wantPrefix string }{
+	cases := []struct{ prompt, wantPrefix string }{
 		{"Fix the failing test!", "20260703-123045-fix-the-failing-test-"},
 		{"修复 bug in parser", "20260703-123045-bug-in-parser-"},
-		{"???", "20260703-123045-task-"},
+		{"???", "20260703-123045-session-"},
 		{strings.Repeat("x", 100), "20260703-123045-" + strings.Repeat("x", 30) + "-"},
 	}
 	for _, tc := range cases {
-		got := NewSessionID(at, tc.task)
+		got := NewSessionID(at, tc.prompt)
 		if !strings.HasPrefix(got, tc.wantPrefix) || len(got) != len(tc.wantPrefix)+4 {
-			t.Errorf("NewSessionID(%q) = %q, want prefix %q + 4 hex", tc.task, got, tc.wantPrefix)
+			t.Errorf("NewSessionID(%q) = %q, want prefix %q + 4 hex", tc.prompt, got, tc.wantPrefix)
 		}
 	}
 	first := NewSessionID(at, "same")

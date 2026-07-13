@@ -40,7 +40,7 @@ import (
 //	activity_started(edit) [exec hit 4] activity_completed,
 //	generation_started(3) + snapshot,
 //	activity_started(llm-t3) [exec hit 5] activity_completed, assistant_message(3),
-//	task_completed
+//	session_closed
 func TestCrashMatrix(t *testing.T) {
 	if os.Getenv("GO_CRASH_HELPER") == "1" {
 		helperMatrixRun()

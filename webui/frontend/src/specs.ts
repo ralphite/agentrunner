@@ -51,7 +51,7 @@ export const ACCESS_LEVELS: AccessLevel[] = [
   { id: "plan", label: "Plan · read-only", desc: "No changes — the agent plans and proposes only", mode: "plan", risk: "low" },
 ];
 
-// Ask-first by default (W15): a brand-new task should not silently run with
+// Ask-first by default (W15): a brand-new session should not silently run with
 // nothing gated. Full access stays one click away and the composer remembers
 // the user's last choice.
 export const DEFAULT_ACCESS: AccessId = "ask";
@@ -100,7 +100,7 @@ export interface EffortLevel {
 export const EFFORT_LEVELS: EffortLevel[] = [
   { id: "off", label: "Off", desc: "No extended thinking — fastest replies", budget: 0 },
   { id: "light", label: "Light", desc: "A little reasoning before answering", budget: 2048 },
-  { id: "medium", label: "Medium", desc: "Balanced reasoning on most tasks", budget: 6144 },
+  { id: "medium", label: "Medium", desc: "Balanced reasoning on most sessions", budget: 6144 },
   { id: "high", label: "High", desc: "Thorough reasoning on hard problems", budget: 12288 },
   { id: "xhigh", label: "Extra High", desc: "Maximum reasoning — slower, spends more tokens", budget: 24576 },
 ];
@@ -206,12 +206,12 @@ function personaBody(persona: string): string {
       // face; agent_workspace: shared lets members collaborate on one tree.
       return `system_prompt: |
   你是工程团队 lead,带一支动态团队完成用户目标。**核心纪律:让消息真正
-  在成员间流动,不要把全部指令都塞进 spawn 的 task 里。** 严格按此协议:
+  在成员间流动,不要把全部指令都塞进 spawn 的 prompt 里。** 严格按此协议:
 
   1. 规划:据目标定 2-4 个角色(如 PM / 架构师 / SWE / Reviewer)。
   2. 先建人:对每个角色调 spawn_agent{role:{name,description,instructions}}
      (动态起草,不要用预定义 agent 名)。此时 instructions 只写"你的职责
-     + 先待命,等 lead 的开工消息",task 写一句占位即可。记下每个 spawn
+     + 先待命,等 lead 的开工消息",prompt 写一句占位即可。记下每个 spawn
      返回的 child_session id。
   3. 开工广播(关键):所有成员建好后,用 send_message 给**每个**成员发一条
      开工消息,内含 ①它的详细任务;②全体队友的"名字→session_id"花名册;
@@ -284,9 +284,9 @@ export function modelFromSpec(spec: string): { provider: string; id: string } | 
 // spin to the runtime default of 40 steps per hosting; 24 is plenty for a
 // delegated errand and halves the burn of an abandoned member.
 export const DEFAULT_WORKER = `name: worker
-description: carries out investigation/edit tasks assigned by the parent and reports back
+description: carries out investigation/edit sessions assigned by the parent and reports back
 model: { provider: gemini, id: gemini-flash-latest, max_tokens: 4096 }
-system_prompt: When the task is done, report your conclusions as concise bullet points. If something you need is missing (a file, an answer), report that promptly instead of retrying.
+system_prompt: When the assigned work is done, report your conclusions as concise bullet points. If something you need is missing (a file, an answer), report that promptly instead of retrying.
 tools: [read_file, bash]
 max_generation_steps: 24
 `;
@@ -298,11 +298,11 @@ export const DEFAULT_SPEC = buildSpec({ provider: "gemini", model: "gemini-flash
 //
 // /goal and /loop are IterationDriver schedules, launched via `ar drive`
 // (POST /api/runs kind:drive). A driver.yaml references a child agent spec
-// (agent.yaml sibling) and carries the loop's task / schedule / verifiers.
+// (agent.yaml sibling) and carries the loop's prompt / schedule / verifiers.
 
 export const DEFAULT_DRIVER_AGENT = `name: worker
 model: { provider: gemini, id: gemini-flash-latest, max_tokens: 2048 }
-system_prompt: You work in an iteration loop; each round advance the task one small step, self-check, and report concisely what you did this round.
+system_prompt: You work in an iteration loop; each round advance the goal one small step, self-check, and report concisely what you did this round.
 tools: [read_file, write_file, bash]
 permissions:
   - { action: allow }
@@ -310,26 +310,26 @@ permissions:
 
 // buildGoalDriver: schedule "immediate" — re-iterate toward the goal until the
 // verifier passes / budget spent / it stalls (Codex's Goal mode).
-export function buildGoalDriver(opts: { task: string; maxIterations: number; verifier?: string; provider: string; model: string }): string {
+export function buildGoalDriver(opts: { prompt: string; maxIterations: number; verifier?: string; provider: string; model: string }): string {
   const verifiers = opts.verifier?.trim()
     ? `verifiers:\n  - { kind: command, command: ${JSON.stringify(opts.verifier.trim())} }`
     : `verifiers: []`;
   return `name: goal
 schedule: immediate
 agent_spec: agent.yaml
-task: ${JSON.stringify(opts.task)}
+prompt: ${JSON.stringify(opts.prompt)}
 max_iterations: ${opts.maxIterations}
 ${verifiers}
 `;
 }
 
 // buildLoopDriver: schedule "interval" (fixed cadence) — Codex's Loop mode.
-export function buildLoopDriver(opts: { task: string; interval: string; maxIterations: number; provider: string; model: string }): string {
+export function buildLoopDriver(opts: { prompt: string; interval: string; maxIterations: number; provider: string; model: string }): string {
   return `name: loop
 schedule: interval
 interval: ${JSON.stringify(opts.interval)}
 agent_spec: agent.yaml
-task: ${JSON.stringify(opts.task)}
+prompt: ${JSON.stringify(opts.prompt)}
 max_iterations: ${opts.maxIterations}
 verifiers: []
 `;
@@ -337,7 +337,7 @@ verifiers: []
 
 // buildBestOfNDriver: schedule "parallel" — N attempts in isolated worktrees
 // from one base snapshot, judged by the verifiers; the best verdict wins.
-export function buildBestOfNDriver(opts: { task: string; n: number; verifier?: string; provider: string; model: string }): string {
+export function buildBestOfNDriver(opts: { prompt: string; n: number; verifier?: string; provider: string; model: string }): string {
   const verifiers = opts.verifier?.trim()
     ? `verifiers:\n  - { kind: command, command: ${JSON.stringify(opts.verifier.trim())} }`
     : `verifiers: []`;
@@ -345,7 +345,7 @@ export function buildBestOfNDriver(opts: { task: string; n: number; verifier?: s
 schedule: parallel
 n: ${Math.max(2, opts.n)}
 agent_spec: agent.yaml
-task: ${JSON.stringify(opts.task)}
+prompt: ${JSON.stringify(opts.prompt)}
 ${verifiers}
 `;
 }
@@ -354,7 +354,7 @@ ${verifiers}
 export function buildDriverAgent(opts: { provider: string; model: string }): string {
   return `name: worker
 model: { provider: ${opts.provider}, id: ${opts.model}, max_tokens: 2048 }
-system_prompt: You work in an iteration loop; each round advance the task one small step, self-check, and report concisely what you did this round.
+system_prompt: You work in an iteration loop; each round advance the goal one small step, self-check, and report concisely what you did this round.
 tools: [read_file, write_file, bash]
 permissions:
   - { action: allow }
@@ -364,7 +364,7 @@ permissions:
 // Kept for the advanced RunModal (drive) escape hatch.
 export const DEFAULT_DRIVER = `name: progress-loop
 agent_spec: agent.yaml
-task: Append one line describing this round's progress to progress.txt in the workspace (use bash or write_file); do not repeat the previous line.
+prompt: Append one line describing this round's progress to progress.txt in the workspace (use bash or write_file); do not repeat the previous line.
 max_iterations: 3
 verifiers:
   - { kind: command, command: "test -f progress.txt" }

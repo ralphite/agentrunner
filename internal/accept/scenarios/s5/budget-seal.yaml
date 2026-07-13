@@ -27,8 +27,8 @@ files:
       - key: ""
         steps:
           - respond:
-              - tool_call: { name: spawn_agent, args: { agent: worker, task: SEAL-JOB-ONE now } }
-              - tool_call: { name: spawn_agent, args: { agent: worker, task: SEAL-JOB-TWO now } }
+              - tool_call: { name: spawn_agent, args: { agent: worker, prompt: SEAL-JOB-ONE now } }
+              - tool_call: { name: spawn_agent, args: { agent: worker, prompt: SEAL-JOB-TWO now } }
               - usage: { input_tokens: 60, output_tokens: 40 }
               - finish: tool_use
           - respond:

@@ -12,7 +12,7 @@ export function SettingsGeneral({ query, onReset }: { query: string; onReset: ()
   const [confirming, setConfirming] = useState(false);
 
   const show = (s: string) => matchesQuery(query, s);
-  const any = show("status daemon connection tasks") || show("reset settings defaults appearance");
+  const any = show("status daemon connection sessions") || show("reset settings defaults appearance");
 
   const doReset = () => {
     resetAll();
@@ -27,12 +27,12 @@ export function SettingsGeneral({ query, onReset }: { query: string; onReset: ()
 
       {!any && <div className="text-dim text-[13px] py-[8px]">No general settings match “{query}”.</div>}
 
-      {show("status daemon connection tasks") && (
+      {show("status daemon connection sessions") && (
         <section className="flex items-center justify-between gap-[22px] py-[16px] border-t border-line-2 first-of-type:border-t-0">
           <div className="min-w-0">
             <div className="flex items-center gap-[8px] text-[14px] text-ink">Status</div>
             <div className="mt-[3px] text-[12.5px] text-dim leading-[1.5]">
-              {health?.daemonUp ? "Connected to the daemon." : "Daemon unavailable."} {sessions.length} task{sessions.length === 1 ? "" : "s"} loaded.
+              {health?.daemonUp ? "Connected to the daemon." : "Daemon unavailable."} {sessions.length} session{sessions.length === 1 ? "" : "s"} loaded.
             </div>
           </div>
           <span className={"w-[9px] h-[9px] rounded-full shrink-0 " + (health?.daemonUp ? "bg-green" : "bg-red")} aria-hidden />
@@ -43,7 +43,7 @@ export function SettingsGeneral({ query, onReset }: { query: string; onReset: ()
         <section className="flex flex-col items-stretch justify-between gap-[12px] py-[16px] border-t border-line-2 first-of-type:border-t-0">
           <div className="min-w-0">
             <div className="flex items-center gap-[8px] text-[14px] text-ink">Reset settings</div>
-            <div className="mt-[3px] text-[12.5px] text-dim leading-[1.5]">Restore appearance and Git defaults. Doesn’t touch your tasks or workspaces.</div>
+            <div className="mt-[3px] text-[12.5px] text-dim leading-[1.5]">Restore appearance and Git defaults. Doesn’t touch your sessions or workspaces.</div>
           </div>
           {confirming ? (
             <div className="inline-flex items-center gap-[10px] flex-wrap justify-end text-[12.5px] text-dim">

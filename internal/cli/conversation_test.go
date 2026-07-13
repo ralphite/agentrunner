@@ -44,7 +44,7 @@ func TestDaemonConversationalSendClose(t *testing.T) {
 	broker := daemon.NewApprovalBroker()
 	srv := &daemon.Server{
 		SocketPath: sock,
-		NewID:      func(task string) string { return runtime.NewSessionID(time.Now(), task) },
+		NewID:      func(prompt string) string { return runtime.NewSessionID(time.Now(), prompt) },
 		Run:        hostRunFunc("test", &errOut, broker),
 		Approvals:  broker,
 	}
@@ -54,7 +54,7 @@ func TestDaemonConversationalSendClose(t *testing.T) {
 	ws := t.TempDir()
 	// Open a conversational session and detach after RunStart.
 	sid, err := dialUntilStart(sock, daemon.Command{
-		Cmd: "run", SpecPath: specPath, Task: "first question", Workspace: ws,
+		Cmd: "run", SpecPath: specPath, Prompt: "first question", Workspace: ws,
 	})
 	if err != nil || sid == "" {
 		t.Fatalf("new: sid=%q err=%v\nstderr: %s", sid, err, errOut.String())
@@ -167,7 +167,7 @@ func TestNewAndSendRenderReply(t *testing.T) {
 	broker := daemon.NewApprovalBroker()
 	srv := &daemon.Server{
 		SocketPath:   sock,
-		NewID:        func(task string) string { return runtime.NewSessionID(time.Now(), task) },
+		NewID:        func(prompt string) string { return runtime.NewSessionID(time.Now(), prompt) },
 		Run:          hostRunFunc("test", &errLog, broker),
 		Approvals:    broker,
 		PersistInput: persistInputFunc(),
@@ -235,7 +235,7 @@ func TestNewAndSendDetach(t *testing.T) {
 	broker := daemon.NewApprovalBroker()
 	srv := &daemon.Server{
 		SocketPath:   sock,
-		NewID:        func(task string) string { return runtime.NewSessionID(time.Now(), task) },
+		NewID:        func(prompt string) string { return runtime.NewSessionID(time.Now(), prompt) },
 		Run:          hostRunFunc("test", &errLog, broker),
 		Approvals:    broker,
 		PersistInput: persistInputFunc(),

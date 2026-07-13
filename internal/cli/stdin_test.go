@@ -80,10 +80,10 @@ func TestCompleteTextArgFullArgsUntouched(t *testing.T) {
 	}
 }
 
-// TestRunCmdPipedTaskSkipsUsage proves the stdin path is wired into `run`:
-// with a piped task and only the spec argument, the command must get past the
+// TestRunCmdPipedPromptSkipsUsage proves the stdin path is wired into `run`:
+// with a piped prompt and only the spec argument, the command must get past the
 // usage check and fail on the (nonexistent) spec instead.
-func TestRunCmdPipedTaskSkipsUsage(t *testing.T) {
+func TestRunCmdPipedPromptSkipsUsage(t *testing.T) {
 	withStdin(t, "do the thing\n", true)
 	var out, errBuf bytes.Buffer
 	code := runCmd([]string{"definitely-missing-spec.yaml"}, false, "test", &out, &errBuf)
@@ -91,6 +91,6 @@ func TestRunCmdPipedTaskSkipsUsage(t *testing.T) {
 		t.Fatalf("unexpected exit code %d (stderr: %s)", code, errBuf.String())
 	}
 	if strings.Contains(errBuf.String(), "usage:") {
-		t.Fatalf("piped task must satisfy the arity check, still got usage: %s", errBuf.String())
+		t.Fatalf("piped prompt must satisfy the arity check, still got usage: %s", errBuf.String())
 	}
 }

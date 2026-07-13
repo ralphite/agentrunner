@@ -238,7 +238,7 @@ GAPS.md，本文件只回答"产品要做什么"。
 2. 屡崩不热循环：同因连续 crash 按策略（`retry{max, backoff}`）升级
    为失败回执投给父 inbox，由父模型或用户决策，不无限自动拉起。
 3. 机器断电重启，daemon 被 OS 拉起后做**启动扫描**：枚举 store 里的
-   session，有未完成工作的（在飞 turn、WAITING_TASKS、驱动系列中段、
+   session，有未完成工作的（在飞 turn、等待输入/审批、驱动系列中段、
    到期 timer）自动 resume 接续；空闲待命的保持惰性，等用户说话。
 4. 重启前用户已 `kill` 的子 agent、已 `close` 的会话：标记在 journal，
    扫描跳过，**永不**被自动复活——kill 与 crash 是两种语义。
@@ -314,19 +314,19 @@ GAPS.md，本文件只回答"产品要做什么"。
 
 ### UJ-24 Web UI 驾驶 AgentRunner `基础` `✅ INC-19/23/40/60（2026-07-11）`
 
-**场景**：用户像使用 Codex 一样，从项目/任务层进入一个真实 AgentRunner
+**场景**：用户从项目/session 层进入一个真实 AgentRunner
 会话，并在同一工作台完成派活、续聊、监督、审批与改动审阅。
 
-1. 左栏按 Projects → task 展示全部真实 session；共享历史很大时先在首屏取回
+1. 左栏按 Projects → sessions 展示全部真实 session；共享历史很大时先在首屏取回
    最近一页并立即可操作，再后台顺序补齐全部历史，不以全量 journal fold 阻塞
-   入口；task 是完整键盘可达操作，
+   入口；session 是完整键盘可达操作，
    Pinned 单列且不重复；自动 workspace 合并为 Scratch；CLI 创建、metadata
    不完整、父/子 session 都能直接打开和 deep link；hover 同屏提供 pin /
    archive 与 project/branch/status 预览，键盘 context menu 保持等价。
-2. New task 只出现一个 composer；默认只露输入、附件、access、model、
+2. New session 只出现一个 composer；默认只露输入、附件、access、model、
    send；上缘严格按 Codex 拆成 Project、Local/New worktree、Local
    environment、Branch 四个独立控件，Project/Branch 可搜索且 worktree
-   从所选 ref 创建；高级 Goal/Loop/Best-of-N/spec 收在 Task options。
+   从所选 ref 创建；高级 Goal/Loop/Best-of-N/spec 收在 Advanced。
 3. 中央 thread 按 journal 投影 user/assistant/tool 事实；program/agent/control
    输入默认只在 system events 中查看，绝不冒充用户；底部 follow-up 延续
    同一 session；每轮最终 answer 显示真实 Worked duration、Copy/Continue，
@@ -343,10 +343,10 @@ GAPS.md，本文件只回答"产品要做什么"。
 6. Web UI 重启后同一 deep link、共享 store 历史、Goal/Repeating/Scheduled
    driver 和本地 pin/archive/theme 设置仍在；UI 只是公开 CLI/journal/
    inspect/ps/diff 的 projection；首次 session page 成功前显示 loading，不用
-   空数组伪造 `No tasks yet`；deep link 在所在页到达前从 durable id 派生可读
+   空数组伪造 `No sessions yet`；deep link 在所在页到达前从 durable id 派生可读
    fallback，journal title 到达后替换，不把完整 raw id 或长期 loading 当标题。
 
-**覆盖功能**：`Codex 式 project/task 信息架构` `单一 task thread` `环境上下文 composer` `Worked/Changes 任务收尾` `渐进披露 composer` `内联人类可读审批` `Changes 审阅` `Supervision(goal/agent/attention/background/recovery)` `restart-safe Scheduled` `键盘/移动端导航` `子会话导航` `deep link/restart` `共享真实 session` `Web UI 产品面`
+**覆盖功能**：`Projects→sessions 信息架构` `单一 session thread` `环境上下文 composer` `Worked/Changes turn 收尾` `渐进披露 composer` `内联人类可读审批` `Changes 审阅` `Supervision(goal/agent/attention/background/recovery)` `restart-safe Scheduled runs` `键盘/移动端导航` `子会话导航` `deep link/restart` `共享真实 session` `Web UI 产品面`
 
 ### UJ-25 一行安装与升级 `基础` `✅ INC-63（2026-07-12，v0.1.0 公网真装验证）`
 

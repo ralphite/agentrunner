@@ -69,9 +69,9 @@ func TestBackgroundSpawnParallelAndSettle(t *testing.T) {
 		scripted.RoutePair{Key: "you orchestrate", Fixture: scripted.Fixture{Steps: []scripted.Step{
 			{Respond: []scripted.Event{
 				{ToolCall: &scripted.ToolCallEvent{CallID: "a", Name: "spawn_agent",
-					Args: map[string]any{"agent": "worker", "task": "investigate ALPHA", "background": true}}},
+					Args: map[string]any{"agent": "worker", "prompt": "investigate ALPHA", "background": true}}},
 				{ToolCall: &scripted.ToolCallEvent{CallID: "b", Name: "spawn_agent",
-					Args: map[string]any{"agent": "worker", "task": "investigate BETA", "background": true}}},
+					Args: map[string]any{"agent": "worker", "prompt": "investigate BETA", "background": true}}},
 				{Finish: "tool_use"},
 			}},
 			{Respond: []scripted.Event{{Text: "a child came back, still waiting"}, {Finish: "end_turn"}}},
@@ -183,9 +183,9 @@ func TestBackgroundSpawnParallelAndSettle(t *testing.T) {
 	if !sawAlpha || !sawBeta {
 		t.Errorf("child reports reached model: alpha=%v beta=%v", sawAlpha, sawBeta)
 	}
-	// Tasks drained; both child journals exist under sub/.
+	// Background work drained; both child journals exist under sub/.
 	if len(fold.Handles) != 0 {
-		t.Errorf("tasks not drained: %+v", fold.Handles)
+		t.Errorf("background handles not drained: %+v", fold.Handles)
 	}
 	for _, sub := range []string{"a-a1", "b-a1"} {
 		if _, err := store.ReadEvents(l.Store.Dir() + "/sub/" + sub); err != nil {
@@ -205,9 +205,9 @@ func TestBackgroundSpawnUserKill(t *testing.T) {
 		scripted.RoutePair{Key: "you orchestrate", Fixture: scripted.Fixture{Steps: []scripted.Step{
 			{Respond: []scripted.Event{
 				{ToolCall: &scripted.ToolCallEvent{CallID: "slow", Name: "spawn_agent",
-					Args: map[string]any{"agent": "worker", "task": "run SLOWJOB", "background": true}}},
+					Args: map[string]any{"agent": "worker", "prompt": "run SLOWJOB", "background": true}}},
 				{ToolCall: &scripted.ToolCallEvent{CallID: "fast", Name: "spawn_agent",
-					Args: map[string]any{"agent": "worker", "task": "run FASTJOB", "background": true}}},
+					Args: map[string]any{"agent": "worker", "prompt": "run FASTJOB", "background": true}}},
 				{Finish: "tool_use"},
 			}},
 			{Respond: []scripted.Event{{Text: "a result arrived"}, {Finish: "end_turn"}}},
@@ -334,7 +334,7 @@ func TestSpawnMalformedCallID(t *testing.T) {
 		scripted.RoutePair{Key: "you orchestrate", Fixture: scripted.Fixture{Steps: []scripted.Step{
 			{Respond: []scripted.Event{
 				{ToolCall: &scripted.ToolCallEvent{CallID: "../evil", Name: "spawn_agent",
-					Args: map[string]any{"agent": "worker", "task": "investigate ALPHA", "background": true}}},
+					Args: map[string]any{"agent": "worker", "prompt": "investigate ALPHA", "background": true}}},
 				{Finish: "tool_use"},
 			}},
 			{Respond: []scripted.Event{{Text: "saw the error, stopping"}, {Finish: "end_turn"}}},
@@ -410,7 +410,7 @@ func TestSteerChangesOrchestration(t *testing.T) {
 			// GenStep 1: launch OLD (slow).
 			{Respond: []scripted.Event{
 				{ToolCall: &scripted.ToolCallEvent{CallID: "old", Name: "spawn_agent",
-					Args: map[string]any{"agent": "worker", "task": "investigate OLDTOPIC", "background": true}}},
+					Args: map[string]any{"agent": "worker", "prompt": "investigate OLDTOPIC", "background": true}}},
 				{Finish: "tool_use"},
 			}},
 			// GenStep 2 (woken by the steer): cancel OLD, spawn NEW. (No Expect:
@@ -420,7 +420,7 @@ func TestSteerChangesOrchestration(t *testing.T) {
 				{ToolCall: &scripted.ToolCallEvent{CallID: "k", Name: "kill",
 					Args: map[string]any{"handle": "old"}}},
 				{ToolCall: &scripted.ToolCallEvent{CallID: "new", Name: "spawn_agent",
-					Args: map[string]any{"agent": "worker", "task": "investigate NEWTOPIC", "background": true}}},
+					Args: map[string]any{"agent": "worker", "prompt": "investigate NEWTOPIC", "background": true}}},
 				{Finish: "tool_use"},
 			}},
 			{Respond: []scripted.Event{{Text: "reoriented"}, {Finish: "end_turn"}}},
@@ -560,7 +560,7 @@ func TestKillLeavesSourcedMark(t *testing.T) {
 			scripted.RoutePair{Key: "", Fixture: scripted.Fixture{Steps: []scripted.Step{
 				{Respond: []scripted.Event{
 					{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
-						Args: map[string]any{"agent": "worker", "task": "SLOW-JOB run"}}},
+						Args: map[string]any{"agent": "worker", "prompt": "SLOW-JOB run"}}},
 					{Finish: "tool_use"},
 				}},
 				{Respond: []scripted.Event{
@@ -602,7 +602,7 @@ func TestKillLeavesSourcedMark(t *testing.T) {
 			scripted.RoutePair{Key: "", Fixture: scripted.Fixture{Steps: []scripted.Step{
 				{Respond: []scripted.Event{
 					{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
-						Args: map[string]any{"agent": "worker", "task": "SLOW-JOB run"}}},
+						Args: map[string]any{"agent": "worker", "prompt": "SLOW-JOB run"}}},
 					{Finish: "tool_use"},
 				}},
 				{Respond: []scripted.Event{{Text: "waiting for the kill"}, {Finish: "end_turn"}}},
@@ -659,13 +659,13 @@ func TestSpawnReplacesCancelsPredecessor(t *testing.T) {
 			// Turn 1: the stuck member.
 			{Respond: []scripted.Event{
 				{ToolCall: &scripted.ToolCallEvent{CallID: "old", Name: "spawn_agent",
-					Args: map[string]any{"agent": "worker", "task": "run STUCKJOB", "background": true}}},
+					Args: map[string]any{"agent": "worker", "prompt": "run STUCKJOB", "background": true}}},
 				{Finish: "tool_use"},
 			}},
 			// Turn 2: re-assign to a fresh member, retiring the old handle.
 			{Respond: []scripted.Event{
 				{ToolCall: &scripted.ToolCallEvent{CallID: "new", Name: "spawn_agent",
-					Args: map[string]any{"agent": "worker", "task": "run RETRYJOB", "replaces": "old", "background": true}}},
+					Args: map[string]any{"agent": "worker", "prompt": "run RETRYJOB", "replaces": "old", "background": true}}},
 				{Finish: "tool_use"},
 			}},
 			{Respond: []scripted.Event{{Text: "result noted"}, {Finish: "end_turn"}}},
@@ -772,7 +772,7 @@ func TestSpawnReplacesUnknownHandleIsNoop(t *testing.T) {
 		scripted.RoutePair{Key: "you orchestrate", Fixture: scripted.Fixture{Steps: []scripted.Step{
 			{Respond: []scripted.Event{
 				{ToolCall: &scripted.ToolCallEvent{CallID: "solo", Name: "spawn_agent",
-					Args: map[string]any{"agent": "worker", "task": "run SOLOJOB", "replaces": "ghost-handle", "background": true}}},
+					Args: map[string]any{"agent": "worker", "prompt": "run SOLOJOB", "replaces": "ghost-handle", "background": true}}},
 				{Finish: "tool_use"},
 			}},
 			{Respond: []scripted.Event{{Text: "noted"}, {Finish: "end_turn"}}},

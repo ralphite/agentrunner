@@ -13,7 +13,7 @@
 //
 //   1. first sentence only          — the rest is elaboration, not identity
 //   2. drop a trailing parenthetical — "(use write_file or bash)" names a tool,
-//                                      not the task
+//                                      not the session
 //   3. drop trailing punctuation     — a name does not end in a full stop
 //   4. cap at 48 chars on a word boundary
 //

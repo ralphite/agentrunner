@@ -25,7 +25,7 @@ func TestRecordFixtureCLIRoundTrip(t *testing.T) {
 	var out, errOut bytes.Buffer
 	code := runAgent(runOptions{
 		specPath:   writeSpec(t, dir),
-		task:       "record me",
+		prompt:     "record me",
 		workspace:  t.TempDir(),
 		fixtureOut: fixtureOut,
 		version:    "test",
@@ -47,7 +47,7 @@ func TestRecordFixtureCLIRoundTrip(t *testing.T) {
 	errOut.Reset()
 	code = runAgent(runOptions{
 		specPath:  writeSpec(t, dir),
-		task:      "record me",
+		prompt:    "record me",
 		workspace: t.TempDir(),
 		version:   "test",
 		factory:   replayFactory,
@@ -64,7 +64,7 @@ func TestRecordFixtureWriteFailureExits1(t *testing.T) {
 	var out, errOut bytes.Buffer
 	code := runAgent(runOptions{
 		specPath:   writeSpec(t, dir),
-		task:       "x",
+		prompt:     "x",
 		workspace:  t.TempDir(),
 		fixtureOut: filepath.Join(dir, "no-such-dir", "f.yaml"),
 		version:    "test",
@@ -90,7 +90,7 @@ func TestProviderFailureExitCodes(t *testing.T) {
 	}
 	var out, errOut bytes.Buffer
 	code := runAgent(runOptions{
-		specPath: spec, task: "x", workspace: t.TempDir(), version: "test",
+		specPath: spec, prompt: "x", workspace: t.TempDir(), version: "test",
 		factory: defaultProviderFactory,
 		stdout:  &out, stderr: &errOut,
 	})
@@ -105,7 +105,7 @@ func TestProviderFailureExitCodes(t *testing.T) {
 		t.Fatal(err)
 	}
 	code = runAgent(runOptions{
-		specPath: spec2, task: "x", workspace: t.TempDir(), version: "test",
+		specPath: spec2, prompt: "x", workspace: t.TempDir(), version: "test",
 		factory: defaultProviderFactory,
 		stdout:  &out, stderr: &errOut,
 	})

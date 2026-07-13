@@ -17,12 +17,12 @@ session 没有终态(同 `web/` 铁律 I7),journal 里的 session_closed 只是
 - **后端** `arwebui`:stdlib-only Go(独立 module),把每个请求翻成一次
   `ar` 子命令,并把 Vite 构建产物嵌进二进制。
 - **前端** `frontend/`:React + TypeScript + Vite。严格采用 Codex 的通用
-  信息架构：New task / Scheduled / Pinned / Projects → task，中央为单一
+  信息架构：New session / Scheduled runs / Pinned / Projects → sessions，中央为单一
   thread，右侧是 AgentRunner 原生 Supervision（Goal / Agents / Attention /
   Background work）。审批内联于时间线，Changes 是固定 review 面。
-- **Composer** 默认只显示附件、Task options、access、model、听写与发送；
+- **Composer** 默认只显示附件、Advanced、access、model、听写与发送；
   Goal/Loop/Best-of-N/persona/spec 等 AgentRunner 启动器按 progressive
-  disclosure 收进 Task options。默认权限 **ask**（INC-23：新任务不默认
+  disclosure 收进 Advanced。默认权限 **ask**（INC-23：新 session 不默认
   裸放行；composer 记住上次选择）。auto workspace 落
   `runtime/ws/ws-YYYYMMDD-HHMMSS` 并**创建即 `git init`**，Changes 视图
   开箱可用；Environment 菜单提供最近 workspace 一击复用。
@@ -60,7 +60,7 @@ open http://127.0.0.1:8788
 
 | UI | ar 命令 |
 |---|---|
-| project/task 会话列表 | `sessions list --json`（workspace/title 来自 journal；arwebui metadata 仅兼容补充） |
+| project/session 会话列表 | `sessions list --json`（workspace/title 来自 journal；arwebui metadata 仅兼容补充） |
 | Ask / 新会话 / 开场消息 | `new --workspace W [--mode M] base.yaml "msg"` |
 | composer 权限模式 pill | 建 spec 的 `permissions:` 块 + `--mode`(full/ask/acceptEdits/plan) |
 | composer model pill | 建/改 spec 的 `model:` 块 → `new`(新会话)或 `agent`(session 内换) |

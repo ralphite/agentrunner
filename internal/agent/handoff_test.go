@@ -22,7 +22,7 @@ func TestHandoffEndsParentRun(t *testing.T) {
 		{Respond: []scripted.Event{
 			{Text: "this needs the specialist"},
 			{ToolCall: &scripted.ToolCallEvent{CallID: "h1", Name: "handoff_agent",
-				Args: map[string]any{"agent": "summarizer", "task": "finish the report"}}},
+				Args: map[string]any{"agent": "summarizer", "prompt": "finish the report"}}},
 			{Usage: &scripted.UsageEvent{InputTokens: 30, OutputTokens: 10}},
 			{Finish: "tool_use"},
 		}},
@@ -98,7 +98,7 @@ func TestHandoffFailureContinuesRun(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "h1", Name: "handoff_agent",
-				Args: map[string]any{"agent": "nobody", "task": "anything"}}},
+				Args: map[string]any{"agent": "nobody", "prompt": "anything"}}},
 			{Finish: "tool_use"},
 		}},
 		// The parent reacts to the error and finishes normally.
@@ -133,7 +133,7 @@ func TestBlackboardCollaboration(t *testing.T) {
 		// Parent turn 2: spawn the child (non-blocking, handle pairs now).
 		{Respond: []scripted.Event{
 			{ToolCall: &scripted.ToolCallEvent{CallID: "s1", Name: "spawn_agent",
-				Args: map[string]any{"agent": "summarizer", "task": "ACK-THE-PLAN please"}}},
+				Args: map[string]any{"agent": "summarizer", "prompt": "ACK-THE-PLAN please"}}},
 			{Finish: "tool_use"},
 		}},
 		// Handle-ack turn (only reached when the receipt has not landed yet).

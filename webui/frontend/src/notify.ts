@@ -34,7 +34,7 @@ export function notifySessionChanges(prev: Session[], next: Session[], currentSi
     const p = prevStatus.get(s.id);
     if (p === undefined) continue; // brand-new session: don't announce it here
     if (active(p) && !active(s.status) && s.id !== currentSid) {
-      notify("Task finished", `${s.title || s.id} · ${s.status}`);
+      notify("Session finished", `${s.title || s.id} · ${s.status}`);
     }
   }
 }

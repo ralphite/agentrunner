@@ -82,7 +82,7 @@ func TestDaemonHostsRunAndAttachReplays(t *testing.T) {
 	broker := daemon.NewApprovalBroker()
 	srv := &daemon.Server{
 		SocketPath: sock,
-		NewID:      func(task string) string { return runtime.NewSessionID(time.Now(), task) },
+		NewID:      func(prompt string) string { return runtime.NewSessionID(time.Now(), prompt) },
 		Run:        hostRunFunc("test", &errOut, broker),
 		Approvals:  broker,
 		Replay: func(sessionID string, sink protocol.Sink) error {
@@ -106,7 +106,7 @@ func TestDaemonHostsRunAndAttachReplays(t *testing.T) {
 	// session never "ends" — followers detach at idle).
 	var live []protocol.Event
 	if err := daemon.DialUntil(sock, daemon.Command{
-		Cmd: "run", SpecPath: specPath, Task: "wave", Workspace: t.TempDir(),
+		Cmd: "run", SpecPath: specPath, Prompt: "wave", Workspace: t.TempDir(),
 	}, func(e protocol.Event) bool {
 		live = append(live, e)
 		return e.Kind != protocol.KindIdle
@@ -298,7 +298,7 @@ func TestSubmitReturnsAtStandbyIdle(t *testing.T) {
 	broker := daemon.NewApprovalBroker()
 	srv := &daemon.Server{
 		SocketPath: sock,
-		NewID:      func(task string) string { return runtime.NewSessionID(time.Now(), task) },
+		NewID:      func(prompt string) string { return runtime.NewSessionID(time.Now(), prompt) },
 		Run:        hostRunFunc("test", &errLog, broker),
 		Approvals:  broker,
 	}

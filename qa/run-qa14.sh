@@ -66,13 +66,13 @@ sock="$XDG_DATA_HOME/agentrunner/daemon.sock"
 for i in $(seq 1 100); do [ -S "$sock" ] && break; sleep 0.1; done
 [ -S "$sock" ] || { echo "QA-14: daemon socket never appeared" >&2; cat "$work/daemon.log" >&2; exit 1; }
 
-task="version.go 里的 Compare 函数还没实现(现在直接 panic),version_test.go 的测试全挂。请完成它:
+prompt="version.go 里的 Compare 函数还没实现(现在直接 panic),version_test.go 的测试全挂。请完成它:
 1. 先用 grep/glob/read_file 看清测试到底期望怎样的排序。
 2. semver 的 pre-release 优先级规则很微妙、容易搞错——用 web_fetch 抓取 $url 查准确规则,不要凭记忆。
 3. 动手写 pre-release 比较之前,先用 ask_user 把你的实现方案简述给我确认。
 4. 实现 Compare,用 bash 跑 go test ./... 验证,全绿才算完成,如实汇报测试结果。"
 
-sid="$("$AR" new --detach --workspace "$ws" "$work/coder.yaml" "$task" 2>>"$work/err.log")"
+sid="$("$AR" new --detach --workspace "$ws" "$work/coder.yaml" "$prompt" 2>>"$work/err.log")"
 [ -n "$sid" ] || { echo "QA-14: no session id" >&2; cat "$work/err.log" "$work/daemon.log" >&2; exit 1; }
 echo "session $sid"
 sdir="$XDG_DATA_HOME/agentrunner/sessions/$sid"

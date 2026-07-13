@@ -57,7 +57,7 @@ function loadCollapsedProjects(): Set<string> {
   }
 }
 
-// Primary-nav destinations (New task / Scheduled). Kept as a small table
+// Primary-nav destinations (New session / Scheduled). Kept as a small table
 // rendered in a map so adding a destination is one row here + a page dispatch
 // in App.tsx — no per-button JSX duplication. The Scheduled row alone carries
 // the live activity dot, keyed off `key === "scheduled"`.
@@ -65,7 +65,7 @@ function loadCollapsedProjects(): Set<string> {
 // shortcuts.ts, so the badge and the Settings → Keyboard shortcuts table can
 // never disagree about what the app binds.
 const NAV_DESTINATIONS: { key: Page; label: string; icon: Icon; keys?: string[] }[] = [
-  { key: "home", label: "New task", icon: NotePencil, keys: ["mod", "alt", "N"] },
+  { key: "home", label: "New session", icon: NotePencil, keys: ["mod", "alt", "N"] },
   { key: "scheduled", label: "Scheduled", icon: Clock },
 ];
 
@@ -112,9 +112,8 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
   // "show every project" escape hatch.
   const [collapsed, setCollapsed] = useState<Set<string>>(loadCollapsedProjects);
   const [showAllProjects, setShowAllProjects] = useState(false);
-  // SB-13: the flat `Tasks` section's own show-all toggle (same cap language as
-  // a project group's — it must not dump every workspace-less task at once).
-  const [showAllTasks, setShowAllTasks] = useState(false);
+  // The flat Sessions section has its own show-all toggle.
+  const [showAllSessions, setShowAllSessions] = useState(false);
   const [ctx, setCtx] = useState<SidebarContext | null>(null);
   const [hoverPreview, setHoverPreview] = useState<{ sid: string; top: number } | null>(null);
   const [branchByWorkspace, setBranchByWorkspace] = useState<Record<string, string>>({});
@@ -140,9 +139,9 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
     () => [
       ...model.pinned.map((session) => session.id),
       ...model.projects.flatMap((project) => project.sessions.map((session) => session.id)),
-      // SB-13: the flat Tasks section is part of the rail, so it is part of the
+      // The flat Sessions section is part of the rail, so it is part of the
       // rail's keyboard order too — it sits last, exactly where it renders.
-      ...model.tasks.map((session) => session.id),
+      ...model.workspaceLessSessions.map((session) => session.id),
     ],
     [model],
   );
@@ -157,30 +156,27 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
   useEffect(() => {
     if (!currentSid) return;
     const frame = requestAnimationFrame(() => {
-      const row = document.querySelector<HTMLElement>(".project-task-wrap.current");
+      const row = document.querySelector<HTMLElement>(".project-session-wrap.current");
       row?.scrollIntoView?.({ block: "nearest" });
     });
     return () => cancelAnimationFrame(frame);
   }, [currentSid, sessionsReady, orderedIds]);
 
   // SB-4: the Projects section renders the 8 most recent groups (plus, always,
-  // the group holding the open task) — the rest hide behind one Show more row.
+  // the group holding the open session) — the rest hide behind Show more.
   const { groups: shownProjects, hidden: hiddenProjects } = useMemo(
     () => visibleProjectGroups(model.projects, { expanded: showAllProjects, current: currentSid || undefined }),
     [model.projects, showAllProjects, currentSid],
   );
 
-  // SB-13 · The flat `Tasks` section: tasks with no workspace. Codex's rail puts
-  // these under a plain heading with no folder, no caret and no indent — because
-  // there is no folder to open. Capping reuses `visibleProjectSessions` (a
-  // synthetic group), so the section inherits its cap *and* its invariant: the
-  // task you have open is always on the rail, cap or no cap.
-  const shownTasks = useMemo(
+  // Workspace-less sessions use a plain heading with no folder, caret or indent.
+  // Capping reuses visibleProjectSessions so the current session remains visible.
+  const shownSessions = useMemo(
     () => visibleProjectSessions(
-      { key: "__tasks__", label: "Tasks", sessions: model.tasks },
-      { expanded: showAllTasks, current: currentSid || undefined },
+      { key: "__sessions__", label: "Sessions", sessions: model.workspaceLessSessions },
+      { expanded: showAllSessions, current: currentSid || undefined },
     ),
-    [model.tasks, showAllTasks, currentSid],
+    [model.workspaceLessSessions, showAllSessions, currentSid],
   );
 
   // Fold a group both locally (instant, survives refresh) and in the server
@@ -210,7 +206,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
     }
   };
 
-  const previewTask = (session: (typeof sessions)[number], top: number) => {
+  const previewSession = (session: (typeof sessions)[number], top: number) => {
     // The hover preview and the right-click context menu are mutually
     // exclusive floating layers — while a menu is open, suppress the preview
     // so the two never stack and fight for the same corner (R3-1).
@@ -227,7 +223,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
       .catch(() => setBranchByWorkspace((current) => ({ ...current, [workspace]: "Local workspace" })));
   };
 
-  const renderTask = (session: (typeof sessions)[number], nested = false) => {
+  const renderSession = (session: (typeof sessions)[number], nested = false) => {
     const active = session.id === currentSid;
     const status = friendlyStatus(session.status);
     const isUnread = unread.includes(session.id);
@@ -243,16 +239,16 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
     return (
       <div
         key={session.id}
-        className={`project-task-wrap${nested ? " nested" : ""}${active ? " current" : ""}${isUnread ? " unread" : ""}${archived.includes(session.id) ? " archived" : ""}`}
+        className={`project-session-wrap${nested ? " nested" : ""}${active ? " current" : ""}${isUnread ? " unread" : ""}${archived.includes(session.id) ? " archived" : ""}`}
         onContextMenu={(event) => {
           event.preventDefault();
           openContext(event.clientX, event.clientY);
         }}
-        onMouseEnter={(event) => previewTask(session, event.currentTarget.getBoundingClientRect().top)}
+        onMouseEnter={(event) => previewSession(session, event.currentTarget.getBoundingClientRect().top)}
         onMouseLeave={() => setHoverPreview((current) => current?.sid === session.id ? null : current)}
       >
         <button
-          className="project-task"
+          className="project-session"
           onClick={() => {
             select(session.id);
             onNavigate?.();
@@ -267,17 +263,17 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
           title={`${session.title || title}\n${status.text}${when ? ` · started ${when}` : ""}\n${session.id}`}
           aria-label={`${title} · ${isUnread ? "New activity" : status.text}${when ? ` · ${when}` : ""}`}
         >
-          <span className="project-task-title">{title}</span>
+          <span className="project-session-title">{title}</span>
           {(isUnread || ["run", "appr", "stranded", "crash"].includes(status.cls)) && (
             <span className={`status-dot ${isUnread ? "unread" : status.cls}`} title={isUnread ? "New activity" : status.text} />
           )}
-          <ArrowSquareOut className="task-open" size={13} />
+          <ArrowSquareOut className="session-open" size={13} />
         </button>
         <button
-          className={`task-pin${isPinned ? " active" : ""}`}
+          className={`session-pin${isPinned ? " active" : ""}`}
           tabIndex={-1}
-          title={isPinned ? "Unpin task" : "Pin task"}
-          aria-label={isPinned ? "Unpin task" : "Pin task"}
+          title={isPinned ? "Unpin session" : "Pin session"}
+          aria-label={isPinned ? "Unpin session" : "Pin session"}
           onClick={(event) => {
             event.stopPropagation();
             togglePin(session.id);
@@ -286,10 +282,10 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
           <PushPin size={13} weight={isPinned ? "fill" : "regular"} />
         </button>
         <button
-          className="task-archive"
+          className="session-archive"
           tabIndex={-1}
-          title={archived.includes(session.id) ? "Unarchive task" : "Archive task"}
-          aria-label={archived.includes(session.id) ? "Unarchive task" : "Archive task"}
+          title={archived.includes(session.id) ? "Unarchive session" : "Archive session"}
+          aria-label={archived.includes(session.id) ? "Unarchive session" : "Archive session"}
           onClick={(event) => {
             event.stopPropagation();
             toggleArchive(session.id);
@@ -305,14 +301,14 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
 
   return (
     <aside className="sidebar">
-      {/* SB-10: 64px of chrome around a 30px wordmark cost a whole task row of
+      {/* SB-10: 64px of chrome around a 30px wordmark cost a whole session row of
           rail. 6px above/below a 30px content row → a 44px well (Codex ~38px).
           SB-13: the 26px black rounded tile that used to sit here was the
           darkest block on the whole screen — maximum ink spent on a decoration
           that navigates nowhere new (the wordmark next to it already goes
           home). Codex's rail opens with a plain "ChatGPT Codex" wordmark and
           nothing else. Same here: text only, so the first thing the eye lands
-          on is a task, not a logo. */}
+          on is a session, not a logo. */}
       <div className="flex items-center justify-between min-h-[44px] pt-[6px] pr-[14px] pb-[6px] pl-[16px]">
         <button className="brand-main" onClick={() => { showPage("home"); onNavigate?.(); }} aria-label="AgentRunner home">
           <span className="text-[16px] font-[650] tracking-[-0.2px]">AgentRunner</span>
@@ -321,8 +317,8 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
           <button
             className="w-[30px] h-[30px] grid place-items-center p-0 border-0 bg-transparent text-ink-2 rounded-[8px] hover:text-ink hover:bg-[color-mix(in_srgb,var(--ink)_6%,transparent)]"
             onClick={onOpenPalette}
-            title={`Search tasks (${keyLabel("mod")}K)`}
-            aria-label="Search tasks"
+            title={`Search sessions (${keyLabel("mod")}K)`}
+            aria-label="Search sessions"
           >
             <MagnifyingGlass size={16} />
           </button>
@@ -358,25 +354,25 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
         {model.pinned.length > 0 && (
           <section className="sidebar-section pinned-section">
             <div className="section-label"><PushPin size={12} weight="fill" /> Pinned</div>
-            {model.pinned.map((session) => renderTask(session))}
+            {model.pinned.map((session) => renderSession(session))}
           </section>
         )}
 
         {/* Loading and empty are rail-level states, not Projects-level ones:
             with SB-13 the rail has three sections, so "nothing here" means all
-            three are empty — and a rail that *does* hold tasks must never paint
-            "No tasks yet" under a heading. */}
+            three are empty — and a rail that *does* hold sessions must never paint
+            "No sessions yet" under a heading. */}
         {!sessionsReady ? (
-          <div className="sidebar-loading" role="status" aria-label="Loading tasks">
+          <div className="sidebar-loading" role="status" aria-label="Loading sessions">
             <span />
             <span />
             <span />
           </div>
-        ) : model.projects.length === 0 && model.tasks.length === 0 && model.pinned.length === 0 ? (
+        ) : model.projects.length === 0 && model.workspaceLessSessions.length === 0 && model.pinned.length === 0 ? (
           <div className="sidebar-empty">
             <Tray size={22} />
-            <b>No tasks yet</b>
-            <span>Start a task to see it here.</span>
+            <b>No sessions yet</b>
+            <span>Start a session to see it here.</span>
           </div>
         ) : null}
 
@@ -392,7 +388,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             // SB-4: the fold reads from the server overlay when it has one for
             // this key, else from the localStorage mirror (which is what the
             // very first paint has to go on).
-            // SB-1: the group holding the current task renders as unfolded even
+            // SB-1: the group holding the current session renders as unfolded even
             // when the persisted overlay says folded — the fold is a preference
             // and is left untouched on the server, it just cannot hide the row
             // the user is looking at (heading icon and Show more follow suit).
@@ -427,7 +423,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
                       collapse control, and Codex's group rows say so.
                       SB-6 · caret and folder share one absolutely-positioned
                       slot in the left gutter (see tw.css) so the group
-                      name's text lands on the same column as the task titles
+                      name's text lands on the same column as the session titles
                       nested under it; the folder rests there and the caret
                       takes the slot on hover/focus. */}
                   <CaretRight className={`proj-caret${!folded ? " open" : ""}`} size={11} weight="bold" aria-hidden="true" />
@@ -435,7 +431,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
                   <span>{name}</span>
                   {project.hint && <span className="project-hint">{project.hint}</span>}
                 </button>
-                {shown.map((session) => renderTask(session, true))}
+                {shown.map((session) => renderSession(session, true))}
                 {!folded && !showAll && project.sessions.length > shown.length && (
                   <button className="show-more" onClick={() => setExpanded((current) => new Set(current).add(project.key))}>
                     Show more
@@ -458,7 +454,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
           })}
           {/* SB-4 · section-level Show more. Same row language as the per-group
               one (`.show-more`), one level out: it governs how many *projects*
-              the section renders, not how many tasks a project renders. */}
+              the section renders, not how many sessions a project renders. */}
           {hiddenProjects > 0 && (
             <button
               className="show-more projects-show-more"
@@ -480,21 +476,21 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
         </section>
         )}
 
-        {/* SB-13 · Tasks — the ones that belong to no project. Flat rows at the
+        {/* SB-13 · Sessions — the ones that belong to no project. Flat rows at the
             Pinned indent: no folder, no caret, nothing claiming a directory
-            these tasks do not have. Renders only when it has something to say;
+            these sessions do not have. Renders only when it has something to say;
             an empty heading is worse than no heading. */}
-        {model.tasks.length > 0 && (
-          <section className="sidebar-section tasks-section">
-            <div className="section-label">Tasks</div>
-            {shownTasks.map((session) => renderTask(session))}
-            {!showAllTasks && model.tasks.length > shownTasks.length && (
-              <button className="show-more" onClick={() => setShowAllTasks(true)}>
-                Show more · {model.tasks.length - shownTasks.length}
+        {model.workspaceLessSessions.length > 0 && (
+          <section className="sidebar-section sessions-section">
+            <div className="section-label">Sessions</div>
+            {shownSessions.map((session) => renderSession(session))}
+            {!showAllSessions && model.workspaceLessSessions.length > shownSessions.length && (
+              <button className="show-more" onClick={() => setShowAllSessions(true)}>
+                Show more · {model.workspaceLessSessions.length - shownSessions.length}
               </button>
             )}
-            {showAllTasks && model.tasks.length > 6 && (
-              <button className="show-more" onClick={() => setShowAllTasks(false)}>
+            {showAllSessions && model.workspaceLessSessions.length > 6 && (
+              <button className="show-more" onClick={() => setShowAllSessions(false)}>
                 Show less
               </button>
             )}
@@ -502,7 +498,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
         )}
 
         {sessionsLoadingOlder && (
-          <div className="sidebar-history-loading" role="status">Loading older tasks…</div>
+          <div className="sidebar-history-loading" role="status">Loading older sessions…</div>
         )}
         {archivedCount > 0 && (
           <button className="archive-toggle" onClick={toggleShowArchived}>
@@ -562,7 +558,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             account row spending a third of it on chrome nobody clicks in a
             session. Codex's bottom bar is identity only: avatar, name, presence
             dot. Ours keeps the identity and folds the three into one `…` menu
-            (the same Menu the task header uses), so every action survives with
+            (the same Menu the session header uses), so every action survives with
             its shortcut and its title — they just stop shouting. */}
         <Menu label={<DotsThree size={18} weight="bold" />} ariaLabel="More options">
           {onOpenSettings && (
@@ -588,8 +584,8 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
         const branch = workspace ? branchByWorkspace[workspace] : "";
         const when = relTimeAgo(sessionDate(session.id));
         return (
-          <div className="task-preview" style={{ top: hoverPreview.top }} aria-hidden="true">
-            <div className="task-preview-head"><b>{title}</b>{when && <span>{when}</span>}</div>
+          <div className="session-preview" style={{ top: hoverPreview.top }} aria-hidden="true">
+            <div className="session-preview-head"><b>{title}</b>{when && <span>{when}</span>}</div>
             {/* SB-13: no workspace ⇒ no project, and the preview says so
                 plainly rather than inventing an "Other sessions" folder. */}
             <div><Folder size={15} /><span>{projectLabel(workspace) || "No project"}</span></div>
@@ -608,7 +604,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
           <MenuItem onClick={() => toggleArchive(ctx.sid)}>{archived.includes(ctx.sid) ? "Unarchive" : "Archive"}</MenuItem>
           <MenuLabel>Copy</MenuLabel>
           <MenuItem onClick={() => { copyText(ctx.sid); toast("copied session id", "info"); }}>Session ID</MenuItem>
-          <MenuItem onClick={() => { copyText(`${location.origin}/#${ctx.sid}`); toast("copied link", "info"); }}>Task link</MenuItem>
+          <MenuItem onClick={() => { copyText(`${location.origin}/#${ctx.sid}`); toast("copied link", "info"); }}>Session link</MenuItem>
         </ContextMenu>
       )}
       {ctx?.kind === "project" && (() => {
@@ -647,7 +643,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             {overlay?.displayName && <MenuItem onClick={() => setProjectName(menuKey, "")}>Reset to default name</MenuItem>}
             {menuWorkspace && <MenuItem onClick={() => { copyText(menuWorkspace); toast("copied project path", "info"); }}>Copy project path</MenuItem>}
             <MenuItem onClick={() => ctx.ids.filter((id) => unread.includes(id)).forEach(markRead)}>Mark all as read</MenuItem>
-            <MenuItem onClick={() => ctx.ids.filter((id) => !archived.includes(id)).forEach(toggleArchive)}>Archive all tasks</MenuItem>
+            <MenuItem onClick={() => ctx.ids.filter((id) => !archived.includes(id)).forEach(toggleArchive)}>Archive all sessions</MenuItem>
           </ContextMenu>
         );
       })()}

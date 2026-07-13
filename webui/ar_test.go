@@ -26,9 +26,9 @@ func TestParseSessionID(t *testing.T) {
 			name: "new: id on stderr",
 			res: arResult{
 				Stdout: "\n[gen-step 1]\n收到，请指示。\n",
-				Stderr: "session 20260708-230920-task-5913\n(session 20260708-230920-task-5913 is waiting — continue: ...)\n",
+				Stderr: "session 20260708-230920-delegation-5913\n(session 20260708-230920-delegation-5913 is waiting — continue: ...)\n",
 			},
-			want: "20260708-230920-task-5913",
+			want: "20260708-230920-delegation-5913",
 		},
 		{
 			name: "fork: id on stdout",
@@ -47,8 +47,8 @@ func TestParseSessionID(t *testing.T) {
 		},
 		{
 			name: "bare id anywhere",
-			res:  arResult{Stderr: "created 20260708-010203-task-0001 ok"},
-			want: "20260708-010203-task-0001",
+			res:  arResult{Stderr: "created 20260708-010203-delegation-0001 ok"},
+			want: "20260708-010203-delegation-0001",
 		},
 		{
 			name: "none",
@@ -91,7 +91,7 @@ func TestDaemonUnreachable(t *testing.T) {
 func TestValidID(t *testing.T) {
 	// The "#<n>" collision-suffixed approval id must pass — a worker's
 	// suffixed ask was un-answerable from the UI otherwise (QA Round4 F-K1).
-	ok := []string{"20260708-230920-task-5913", "call_1_0", "bar-final", "a.b_c-1", "apr-eff-tool-call_1_0#2"}
+	ok := []string{"20260708-230920-delegation-5913", "call_1_0", "bar-final", "a.b_c-1", "apr-eff-tool-call_1_0#2"}
 	for _, s := range ok {
 		if !validID(s) {
 			t.Errorf("expected valid: %q", s)
@@ -137,6 +137,29 @@ func TestHandleSessionsPaginationForwardsBoundedCLIArgs(t *testing.T) {
 	}
 }
 
+func TestHandlePSEmptyBackgroundWork(t *testing.T) {
+	dir := t.TempDir()
+	arPath := filepath.Join(dir, "ar")
+	if err := os.WriteFile(arPath, []byte("#!/bin/sh\nprintf 'no background work in flight\\n'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	s := &server{arPath: arPath}
+	req := httptest.NewRequest("GET", "/api/sessions/sess-1/ps", nil)
+	req.SetPathValue("sid", "sess-1")
+	rec := httptest.NewRecorder()
+	s.handlePS(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var got []map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("background work = %#v, want empty", got)
+	}
+}
+
 func TestParseBarrierID(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{"barrier bar-m37\nsnapshot 1a2b3c4\n", "bar-m37"},
@@ -153,21 +176,21 @@ func TestParseBarrierID(t *testing.T) {
 func TestMetaStoreMergeHydratesJournalMetadataWithoutReplacingTitle(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "meta.json")
 	store := newMetaStore(path)
-	store.set("s1", "", "My renamed task")
+	store.set("s1", "", "My renamed prompt")
 	store.merge(map[string]sessionMeta{
-		"s1": {Workspace: "/tmp/project", Title: "Journal opening task"},
-		"s2": {Workspace: "/tmp/other", Title: "External task"},
+		"s1": {Workspace: "/tmp/project", Title: "Journal opening prompt"},
+		"s2": {Workspace: "/tmp/other", Title: "External prompt"},
 	})
 
-	if got := store.get("s1"); got.Workspace != "/tmp/project" || got.Title != "My renamed task" {
+	if got := store.get("s1"); got.Workspace != "/tmp/project" || got.Title != "My renamed prompt" {
 		t.Fatalf("s1 metadata = %+v", got)
 	}
-	if got := store.get("s2"); got.Workspace != "/tmp/other" || got.Title != "External task" {
+	if got := store.get("s2"); got.Workspace != "/tmp/other" || got.Title != "External prompt" {
 		t.Fatalf("s2 metadata = %+v", got)
 	}
 
 	reloaded := newMetaStore(path)
-	if got := reloaded.get("s2"); got.Workspace != "/tmp/other" || got.Title != "External task" {
+	if got := reloaded.get("s2"); got.Workspace != "/tmp/other" || got.Title != "External prompt" {
 		t.Fatalf("reloaded metadata = %+v", got)
 	}
 }
@@ -178,7 +201,7 @@ func TestMetaStoreMergeHydratesJournalMetadataWithoutReplacingTitle(t *testing.T
 func TestMetaStoreProjectOverlayRoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "meta.json")
 	store := newMetaStore(path)
-	store.set("s1", "/repo/app", "Opening task") // session cache coexists
+	store.set("s1", "/repo/app", "Opening prompt") // session cache coexists
 
 	name := "My App"
 	folded := true
@@ -186,7 +209,7 @@ func TestMetaStoreProjectOverlayRoundTrip(t *testing.T) {
 	store.touchProject("/repo/app")
 
 	reloaded := newMetaStore(path)
-	if got := reloaded.get("s1"); got.Workspace != "/repo/app" || got.Title != "Opening task" {
+	if got := reloaded.get("s1"); got.Workspace != "/repo/app" || got.Title != "Opening prompt" {
 		t.Fatalf("session cache disturbed by overlay: %+v", got)
 	}
 	p := reloaded.allProjects()["/repo/app"]
@@ -263,10 +286,10 @@ func TestHandleDiffNestedWorkspace(t *testing.T) {
 	}
 
 	s := &server{meta: newMetaStore(filepath.Join(t.TempDir(), "meta.json"))}
-	s.meta.set("20260710-000000-task-0001", ws, "t")
+	s.meta.set("20260710-000000-delegation-0001", ws, "t")
 
 	req := httptest.NewRequest("GET", "/api/sessions/x/diff", nil)
-	req.SetPathValue("sid", "20260710-000000-task-0001")
+	req.SetPathValue("sid", "20260710-000000-delegation-0001")
 	rec := httptest.NewRecorder()
 	s.handleDiff(rec, req)
 
@@ -302,7 +325,7 @@ func TestHandleDiffNestedWorkspace(t *testing.T) {
 	}
 	rec2 := httptest.NewRecorder()
 	req2 := httptest.NewRequest("GET", "/api/sessions/x/diff", nil)
-	req2.SetPathValue("sid", "20260710-000000-task-0001")
+	req2.SetPathValue("sid", "20260710-000000-delegation-0001")
 	s.handleDiff(rec2, req2)
 	var resp2 struct {
 		IsRepo          bool   `json:"isRepo"`
@@ -335,7 +358,7 @@ exit 2
 	}
 	s := &server{arPath: bin}
 	req := httptest.NewRequest("GET", "/api/sessions/x/diff?scope=last-turn", nil)
-	req.SetPathValue("sid", "20260711-000000-task-0001")
+	req.SetPathValue("sid", "20260711-000000-delegation-0001")
 	rec := httptest.NewRecorder()
 	s.handleDiff(rec, req)
 	if rec.Code != http.StatusOK {
@@ -354,7 +377,7 @@ exit 2
 	}
 
 	bad := httptest.NewRequest("GET", "/api/sessions/x/diff?scope=commit", nil)
-	bad.SetPathValue("sid", "20260711-000000-task-0001")
+	bad.SetPathValue("sid", "20260711-000000-delegation-0001")
 	badRec := httptest.NewRecorder()
 	s.handleDiff(badRec, bad)
 	if badRec.Code != http.StatusBadRequest {
@@ -378,7 +401,7 @@ func TestHandleSessionFileDownloadConfinesWorkspace(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	const id = "20260710-000000-task-0001"
+	const id = "20260710-000000-delegation-0001"
 	s := &server{meta: newMetaStore("")}
 	s.meta.set(id, ws, "download")
 

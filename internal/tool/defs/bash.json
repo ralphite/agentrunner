@@ -11,12 +11,12 @@
       },
       "background": {
         "type": "boolean",
-        "description": "Run the command as a background task: returns a task handle immediately; the result arrives as a message when it finishes."
+        "description": "Run the command in the background: returns a work handle immediately; the result arrives as a message when it finishes."
       },
       "notify": {
         "type": "string",
         "enum": ["always", "on_fail", "none"],
-        "description": "For background tasks only: when the finished task's outcome flows back to you as a message. 'always' (default), 'on_fail' (only when it fails), or 'none' (fire-and-forget: no message, the result is not retrievable — use only for tasks whose outcome you genuinely do not need)."
+        "description": "For background work only: when its outcome flows back to you as a message. 'always' (default), 'on_fail' (only when it fails), or 'none' (fire-and-forget: no message, the result is not retrievable — use only when you genuinely do not need the outcome)."
       }
     },
     "required": [

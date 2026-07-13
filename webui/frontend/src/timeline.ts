@@ -757,7 +757,7 @@ export function foldEvents(events: Envelope[]): Folded {
             args: p.args,
             background: !!p.background,
             status: "running",
-            statusText: p.background ? "task" : "running",
+            statusText: p.background ? "background work" : "running",
           };
           toolByActivity.set(p.activity_id, t);
           push(t);
@@ -826,7 +826,7 @@ export function foldEvents(events: Envelope[]): Folded {
       case "spawn_requested":
         workChip(
           seq,
-          `Subagent started · ${p.agent} · ${p.task ? p.task.slice(0, 80) : ""}`,
+          `Subagent started · ${p.agent} · ${p.session ? p.session.slice(0, 80) : ""}`,
           "",
           p.child_session,
         );
@@ -925,8 +925,6 @@ export function foldEvents(events: Envelope[]): Folded {
         const kinds: Record<string, [string, string]> = {
           input: ["waiting: input", "idle"],
           approval: ["waiting: approval", "appr"],
-          tasks: ["waiting: tasks", "run"],
-          timer: ["waiting: timer", "run"],
         };
         const [txt, cls] = kinds[p.kind] || [p.kind, ""];
         status = { text: txt, cls };
@@ -938,10 +936,6 @@ export function foldEvents(events: Envelope[]): Folded {
       case "session_closed":
         chip(seq, `session ${p.reason || "closed"}`);
         status = { text: p.reason === "killed" ? "killed" : "closed", cls: "closed" };
-        break;
-      case "task_completed":
-        chip(seq, "task completed · " + (p.reason || ""));
-        status = { text: "completed", cls: "closed" };
         break;
       case "actor_crashed":
         chip(seq, `crashed ${p.actor}: ${p.error}`, "bad");
@@ -1293,7 +1287,7 @@ export function toolLabel(name: string, args: unknown): StepLabel {
     case "web_fetch":
       return { verb: "fetch", body: str("url"), mono: true };
     case "spawn_agent":
-      return { verb: "spawn sub-agent", body: str("agent") || a.role?.name || str("task"), mono: false };
+      return { verb: "spawn sub-agent", body: str("agent") || a.role?.name || str("prompt"), mono: false };
     case "handoff_agent":
       return { verb: "hand off to", body: str("agent"), mono: false };
     case "send_message":
@@ -1325,10 +1319,9 @@ export function toolLabel(name: string, args: unknown): StepLabel {
     case "finish_series":
       return { verb: "finish series", body: str("reason"), mono: false };
     case "output":
-      return { verb: "read task output", body: str("handle"), mono: true };
+      return { verb: "read background output", body: str("handle"), mono: true };
     case "kill":
-    case "task_kill":
-      return { verb: "kill task", body: str("handle"), mono: true };
+      return { verb: "stop background work", body: str("handle"), mono: true };
     default:
       return { verb: "Ran a tool", body: "", mono: false };
   }
@@ -1485,7 +1478,7 @@ export function semanticDetail(args: any, result: any): SemanticDetail {
 
 export interface SpawnDetail {
   agent: string;
-  task: string;
+  prompt: string;
   childSession?: string;
   reason?: string;
   report?: string;
@@ -1495,7 +1488,7 @@ export function spawnDetail(args: any, result: any): SpawnDetail {
   const r = parseMaybeJSON(result) || {};
   return {
     agent: a.agent || a.role?.name || r.agent || "",
-    task: a.task || "",
+    prompt: a.prompt || "",
     childSession: r.child_session,
     reason: r.reason,
     report: typeof r.report === "string" ? r.report : undefined,

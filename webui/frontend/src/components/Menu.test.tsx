@@ -23,16 +23,16 @@ function measure(anchor: { left: number; right: number; top: number; bottom: num
 }
 
 describe("Menu viewport placement", () => {
-  it("drops a task-topbar menu down inside a phone viewport", () => {
+  it("drops a session-topbar menu down inside a phone viewport", () => {
     const changes = vi.fn();
     render(
-      <Menu label="More" ariaLabel="More task actions">
+      <Menu label="More" ariaLabel="More session actions">
         <MenuItem onClick={changes}>Changes</MenuItem>
       </Menu>,
     );
     measure({ left: 350, right: 382, top: 8, bottom: 40 });
 
-    fireEvent.click(screen.getByRole("button", { name: "More task actions" }));
+    fireEvent.click(screen.getByRole("button", { name: "More session actions" }));
     const panel = document.querySelector(".menu-pop") as HTMLElement;
     expect(panel.style.position).toBe("fixed");
     expect(panel.style.top).toBe("48px");

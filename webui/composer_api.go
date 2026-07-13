@@ -301,7 +301,7 @@ func (s *server) handleGitBranches(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleGitCheckout switches the workspace to a branch (optionally creating it),
-// so a new task can start on the branch the user picked — the desktop-Codex
+// so a new session can start on the branch the user picked — the desktop-Codex
 // "branch" affordance. Write path, so it does its own git exec (git() is
 // read-only-by-convention and swallows errors).
 func (s *server) handleGitCheckout(w http.ResponseWriter, r *http.Request) {

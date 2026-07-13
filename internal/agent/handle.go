@@ -16,7 +16,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/tool"
 )
 
-// bgOutcome is one background task's terminal report, produced on the task
+// bgOutcome is one background work's terminal report, produced on the worker
 // goroutine and SETTLED (journaled) only on the drive goroutine — the fold
 // stays single-writer; the channel is the sole crossing point (S6.1).
 type bgOutcome struct {
@@ -33,8 +33,8 @@ type bgOutcome struct {
 	usage    *provider.Usage
 }
 
-// bgRuntime is the loop's ephemeral background-task machinery. Runtime
-// state only: the DURABLE truth is the tasks sub-state folded from
+// bgRuntime is the loop's ephemeral background-work machinery. Runtime
+// state only: the DURABLE truth is the handles sub-state folded from
 // ActivityStarted{Background} and the terminal events. Cancels carry a
 // CAUSE (决策 #30): an explicit kill records who asked (errs.KilledError),
 // so a killed child journals its mark; teardown cancels carry none.
@@ -50,7 +50,7 @@ func (l *Loop) ensureBackground() {
 	}
 }
 
-// isBackgroundCall reports whether a tool call asks for task-style
+// isBackgroundCall reports whether a tool call asks for background
 // execution (S6.1): bash with args.background == true. Only bash supports
 // it today — the schema advertises the flag there and nowhere else.
 func isBackgroundCall(name string, rawArgs json.RawMessage) bool {
@@ -65,7 +65,7 @@ func isBackgroundCall(name string, rawArgs json.RawMessage) bool {
 }
 
 // launchBackground journals ActivityStarted{Background} (the fold pairs the
-// call with its handle and adds the task) and starts the task goroutine.
+// call with its handle and adds the work item) and starts its goroutine.
 // Runs on the drive goroutine; appendE may be the batch-serialized appender.
 func (l *Loop) launchBackground(ctx context.Context, appendE AppendFunc,
 	callID, name string, args json.RawMessage) error {
@@ -79,23 +79,23 @@ func (l *Loop) launchBackground(ctx context.Context, appendE AppendFunc,
 	}); err != nil {
 		return err
 	}
-	taskCtx, cancel := context.WithCancelCause(ctx)
+	workCtx, cancel := context.WithCancelCause(ctx)
 	l.bg.mu.Lock()
 	l.bg.cancel[callID] = cancel
 	l.bg.mu.Unlock()
 
 	go func() {
-		res := l.Exec.Execute(taskCtx, name, args)
+		res := l.Exec.Execute(workCtx, name, args)
 		l.bg.done <- bgOutcome{
 			handle: callID, activityID: activityID,
 			result: res.Payload, isError: res.IsError,
-			canceled: taskCtx.Err() != nil,
+			canceled: workCtx.Err() != nil,
 		}
 	}()
 	return nil
 }
 
-// drainBackground settles every already-finished task without blocking.
+// drainBackground settles every already-finished work without blocking.
 // Drive-goroutine only.
 func (l *Loop) drainBackground(appendE AppendFunc) error {
 	if l.bg == nil {
@@ -113,8 +113,8 @@ func (l *Loop) drainBackground(appendE AppendFunc) error {
 	}
 }
 
-// settleBackground journals a finished task's terminal event; the fold
-// removes it from tasks and renders the outcome as a user-role input.
+// settleBackground journals a finished work's terminal event; the fold
+// removes it from the live handle set and renders the outcome as a user-role input.
 func (l *Loop) settleBackground(appendE AppendFunc, out bgOutcome) error {
 	l.bg.mu.Lock()
 	delete(l.bg.cancel, out.handle)
@@ -198,8 +198,8 @@ func reviveConsumedMailbox(out bgOutcome) bool {
 }
 
 // drainCancels non-blockingly fires the cancel for every handle requested on
-// the Cancels channel (v2 M3.2). An unknown handle is a no-op (the task may
-// have already settled). The cancelled child/task settles through bg.done.
+// the Cancels channel (v2 M3.2). An unknown handle is a no-op (the work may
+// have already settled). The cancelled child/background work settles through bg.done.
 func (l *Loop) drainCancels(ds *driveState, appendE AppendFunc) error {
 	if l.Cancels == nil && l.CommandCancels == nil {
 		return nil
@@ -261,7 +261,7 @@ func (l *Loop) cancelHandle(appendE AppendFunc, handle string) error {
 	return nil
 }
 
-// cancelAllBackground fires every live task's cancel with the given cause
+// cancelAllBackground fires every live background work's cancel with the given cause
 // (nil = teardown, no mark); terminals settle through the done channel.
 func (l *Loop) cancelAllBackground(cause error) {
 	if l.bg == nil {
@@ -278,7 +278,7 @@ func (l *Loop) cancelAllBackground(cause error) {
 // close, kill, teardown or harness error: cancel everything (no kill
 // cause: the dying run tears down, it does not kill on anyone's behalf)
 // and drain the terminals so the journal never ends with orphans. The
-// drain counts LIVE tasks (the cancel registry), not the fold's handle
+// drain counts LIVE background work (the cancel registry), not the fold's handle
 // set: a handle whose goroutine never started (a failed revive, a crash
 // artifact awaiting settle-from-child-fold) must not wedge the drain.
 // Best effort by nature: journal failures stop the drain, nothing more
@@ -302,27 +302,27 @@ func (l *Loop) settleOnAbort(ctx context.Context, ds *driveState, appendE Append
 }
 
 // runHandleTool executes output / kill against a fold snapshot of
-// the task set (taken on the drive goroutine — the closure runs on an
+// the handle set (taken on the drive goroutine — the closure runs on an
 // activity goroutine). Model-visible in every failure mode.
-func (l *Loop) runHandleTool(tasks state.Handles, name string, rawArgs json.RawMessage) tool.Result {
+func (l *Loop) runHandleTool(handles state.Handles, name string, rawArgs json.RawMessage) tool.Result {
 	var args struct {
 		Handle string `json:"handle"`
 	}
 	if err := json.Unmarshal(rawArgs, &args); err != nil || args.Handle == "" {
 		return errorResult(name + ": invalid args: need {\"handle\"}")
 	}
-	if _, running := tasks[args.Handle]; !running {
-		return errorResult(name + ": no running task " + args.Handle +
-			" (a finished task's result arrived as a message)")
+	if _, running := handles[args.Handle]; !running {
+		return errorResult(name + ": no running background work " + args.Handle +
+			" (a finished result arrived as a message)")
 	}
 	switch name {
 	case "output":
 		// v0: bash collects output at completion — the honest answer for a
-		// running task is its status. A live tail arrives with streaming
+		// running work is its status. A live tail arrives with streaming
 		// tools (记档: 2.10 进度通道对 bash 未接).
 		payload, _ := json.Marshal(map[string]string{
 			"handle": args.Handle, "status": "running",
-			"note": "output arrives as a message when the task finishes",
+			"note": "output arrives as a message when the work finishes",
 		})
 		return tool.Result{Payload: payload}
 	case "kill":
@@ -341,11 +341,11 @@ func (l *Loop) runHandleTool(tasks state.Handles, name string, rawArgs json.RawM
 		})
 		return tool.Result{Payload: payload}
 	default:
-		return errorResult("unknown task tool " + name)
+		return errorResult("unknown background-work tool " + name)
 	}
 }
 
-// isHandleTool reports the task-management tools (advertised alongside bash).
+// isHandleTool reports background-work management tools.
 func isHandleTool(name string) bool {
 	return name == "output" || name == "kill"
 }
