@@ -1369,5 +1369,6 @@ daemon/webui，in-app Browser 验收。证据归档
 uploads 仅增加该 1 份，10 MiB+1 请求为 413；trailing JSON 为 400，
 `../` CLI 解析 exit 2。浏览器打开并 reload 真实三 worker session，主答案与
 ready 状态保留、无横向 overflow、console warning/error=0。`check.sh` 从 clean
-依赖/产物起全绿（48 frontend files / 546 tests、installer 5 场景）；race 3 轮、
+依赖/产物起全绿；rebase 最新 main 后 55 frontend files / 564 tests 与 installer
+5 场景全绿；race 3 轮、
 两套 `govulncheck` 与 `npm audit` 均为 0 可达漏洞。

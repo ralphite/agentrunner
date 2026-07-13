@@ -71,8 +71,8 @@ runtime 模型或分发目标；安全 patch gate 防止 build provenance 把标
 
 ## 结果
 
-PASS（2026-07-13）。`check.sh` 全绿（Go 全包、frontend 48 files / 546 tests、
-installer 5 场景）；核心并发/取消 `-race -count=3` 全绿；根与 WebUI
+PASS（2026-07-13）。`check.sh` 全绿（Go 全包、rebase 最新 main 后 frontend
+55 files / 564 tests、installer 5 场景）；核心并发/取消 `-race -count=3` 全绿；根与 WebUI
 `govulncheck` 无可达漏洞、`npm audit` 0。共享 584-session store 与真实 8809
 WebUI 完成 list/detail/deep-link/reload、上传边界、JSON/path 拒绝及重启验收，
 证据在 `qa/runs/2026-07-13-INC67/`，数据保留。
