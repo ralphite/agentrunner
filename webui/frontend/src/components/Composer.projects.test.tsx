@@ -40,6 +40,11 @@ import { useStore } from "../store";
 window.matchMedia = ((q: string) =>
   ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} }) as unknown as MediaQueryList) as typeof window.matchMedia;
 
+const setNarrowViewport = (matches: boolean) => {
+  window.matchMedia = ((q: string) =>
+    ({ matches: matches && q === "(max-width: 480px)", media: q, addEventListener() {}, removeEventListener() {} }) as unknown as MediaQueryList) as typeof window.matchMedia;
+};
+
 // Ten distinct projects, oldest id first. Session ids are creation stamps, so
 // "newest first" is a descending id sort: proj10 is the most recent, proj1 the
 // oldest — i.e. proj6..proj1 all sit *outside* the 5-row idle window.
@@ -74,6 +79,7 @@ const type = (q: string) => fireEvent.change(search(), { target: { value: q } })
 beforeEach(() => {
   localStorage.clear();
   mocks.gitBranches.mockClear();
+  setNarrowViewport(false);
 });
 afterEach(cleanup);
 
@@ -84,6 +90,40 @@ describe("project picker searches every project (HM-9)", () => {
 
     expect(projectChip.parentElement?.classList.contains("cx-env-project-wrap")).toBe(true);
     expect(projectChip.parentElement?.parentElement?.classList.contains("cx-env-strip")).toBe(true);
+  });
+
+  it("keeps a long mobile branch in the second environment row", () => {
+    setNarrowViewport(true);
+    const { container } = mount();
+    const branch = container.querySelector<HTMLButtonElement>(".cx-env-control.branch")!;
+
+    expect(branch.parentElement?.classList.contains("flex-1")).toBe(true);
+    expect(branch.classList.contains("w-full")).toBe(true);
+  });
+
+  it("reveals the action row when a focused short-phone composer is clipped", () => {
+    setNarrowViewport(true);
+    const scrollIntoView = vi.fn();
+    const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      callback(0);
+      return 1;
+    });
+    Object.defineProperty(Element.prototype, "scrollIntoView", { value: scrollIntoView, configurable: true });
+    const rect = vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function () {
+      return { bottom: this.classList.contains("cx-card") ? 569 : 0 } as DOMRect;
+    });
+    const innerHeight = window.innerHeight;
+    Object.defineProperty(window, "innerHeight", { value: 500, configurable: true });
+
+    try {
+      mount();
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "end", inline: "nearest" });
+    } finally {
+      Object.defineProperty(window, "innerHeight", { value: innerHeight, configurable: true });
+      rect.mockRestore();
+      raf.mockRestore();
+      Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+    }
   });
 
   it("idle: lists only the 5 most recent — opening it doesn't dump the whole store", () => {

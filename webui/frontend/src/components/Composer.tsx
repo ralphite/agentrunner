@@ -977,6 +977,20 @@ export function Composer(props: ComposerProps) {
     el.style.height = Math.min(el.scrollHeight, 220) + "px";
   };
 
+  // On short phones the focused input can be visible while the action row is
+  // just below the viewport. Keep Codex's single composer card intact and
+  // reveal its bottom edge only when it is actually clipped.
+  const revealMobileActions = () => {
+    if (isSession || !narrow) return;
+    requestAnimationFrame(() => {
+      const card = taRef.current?.closest<HTMLElement>(".cx-card");
+      const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+      if (card && card.getBoundingClientRect().bottom > viewportHeight) {
+        card.scrollIntoView({ block: "end", inline: "nearest" });
+      }
+    });
+  };
+
   // Match Codex's quiet primary prompts exactly. Slash commands remain
   // discoverable by typing `/`; the placeholder should describe the user's
   // job, not advertise implementation mechanics.
@@ -1186,6 +1200,7 @@ export function Composer(props: ComposerProps) {
 
           <Popover
             align="left"
+            wrapClass={narrow ? "min-w-0 flex-1" : ""}
             panelClass="cx-branch-popover"
             onOpen={() => {
               setBranchQuery("");
@@ -1195,7 +1210,7 @@ export function Composer(props: ComposerProps) {
               }).catch(() => {});
             }}
             trigger={(open, toggle) => (
-              <button className={"cx-env-control branch" + (open ? " active" : "")} onClick={toggle} title={branchInfo?.isRepo ? "Choose starting branch" : "No Git branch available"} disabled={!branchInfo?.isRepo} aria-haspopup="menu" aria-expanded={open}>
+              <button className={"cx-env-control branch" + (narrow ? " w-full" : "") + (open ? " active" : "")} onClick={toggle} title={branchInfo?.isRepo ? "Choose starting branch" : "No Git branch available"} disabled={!branchInfo?.isRepo} aria-haspopup="menu" aria-expanded={open}>
                 <BranchIcon />
                 <span className="cx-env-value min-w-0 overflow-hidden text-ellipsis">{branchLabel}</span>
               </button>
@@ -1271,6 +1286,7 @@ export function Composer(props: ComposerProps) {
               setText(e.target.value);
               grow(e.target);
             }}
+            onFocus={revealMobileActions}
             onKeyDown={onKey}
             onPaste={onPaste}
             rows={1}
