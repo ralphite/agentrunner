@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import type { Icon } from "@phosphor-icons/react";
 import { CalendarDots, Plus, MagnifyingGlass, Check, CaretDown, Crosshair, ArrowsClockwise, Stack, Play, Bell, Notebook, FileMagnifyingGlass, Circle, PlayCircle, PauseCircle, CheckCircle, WarningCircle, DotsThree, PushPin } from "@phosphor-icons/react";
 import { useStore } from "../store";
@@ -82,6 +82,7 @@ export const SUGGESTIONS: Suggestion[] = [
 // is not lost: one-shot runs stay reachable from ⌘K and their session lands in
 // the sidebar like any other session.
 const RHYTHMIC = new Set(["interval", "cron", "self_paced"]);
+const SUGGESTION_INSERT_AFTER = 2;
 
 export function hasRhythm(c: Cadence): boolean {
   // A computed future tick is proof of a rhythm on its own; the server only
@@ -467,6 +468,48 @@ export function Scheduled() {
     },
   };
 
+  // With real shared data this list can be several screens tall. Codex places
+  // Suggestions after the small set of immediately relevant rows; preserve that
+  // balance by keeping the two newest rows first, then exposing the templates
+  // before the rest. Search and filtered views stay uninterrupted.
+  const suggestionsInline = filter === "all" && !ql && filtered.length > SUGGESTION_INSERT_AFTER;
+  const suggestions = (
+    <div className="sched-suggestions" data-testid="scheduled-suggestions">
+      <div className="sched-suggestions-title">Suggestions</div>
+      {SUGGESTIONS.map((s) => {
+        const Ic = s.icon;
+        return (
+          <button
+            key={s.title}
+            className="sched-suggest"
+            // SC-18: the rhythm rides along with the prompt, so the modal
+            // opens on the cadence this card just promised.
+            onClick={() => openModal({ kind: "run", preset: "repeating", prompt: s.desc, cadence: s.cadence })}
+          >
+            <span className="sched-suggest-icon">
+              <Ic size={22} color={s.color} />
+            </span>
+            <span
+              className="sched-suggest-body flex min-w-0 flex-1 flex-col gap-1"
+              style={{ display: "flex", flexDirection: "column", gap: 4 }}
+            >
+              <span
+                className="sched-suggest-head flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5"
+                style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", columnGap: 8, rowGap: 2 }}
+              >
+                <b className="sched-suggest-title">{s.title}</b>
+                {/* SC-18: rendered from the spec above — never a second,
+                    hand-written copy of it. */}
+                <span className="sched-suggest-cadence">{cadenceText(s.cadence)}</span>
+              </span>
+              <span className="sched-suggest-desc block" style={{ display: "block" }}>{s.desc}</span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
   return (
     <div className="scheduled-page">
       <div className="page-heading">
@@ -559,11 +602,12 @@ export function Scheduled() {
             </span>
           </div>
         ) : (
-          filtered.map((r) => {
+          filtered.map((r, index) => {
             const isPinned = pinned.includes(r.id);
             const isArchived = archived.includes(r.id);
             const openMenu = (x: number, y: number) => setCtx({ x, y, key: r.key });
             return (
+            <Fragment key={r.key}>
             <div
               className={
                 "scheduled-row-wrap" +
@@ -571,7 +615,6 @@ export function Scheduled() {
                 (isArchived ? " is-archived" : "") +
                 (ctx?.key === r.key ? " menu-open" : "")
               }
-              key={r.key}
               onContextMenu={(e) => {
                 e.preventDefault();
                 openMenu(e.clientX, e.clientY);
@@ -678,6 +721,8 @@ export function Scheduled() {
               <DotsThree size={18} weight="bold" />
             </button>
             </div>
+            {suggestionsInline && index === SUGGESTION_INSERT_AFTER - 1 && suggestions}
+            </Fragment>
             );
           })
         )}
@@ -734,34 +779,7 @@ export function Scheduled() {
         </ContextMenu>
       )}
 
-      <div className="sched-suggestions">
-        <div className="sched-suggestions-title">Suggestions</div>
-        {SUGGESTIONS.map((s) => {
-          const Ic = s.icon;
-          return (
-            <button
-              key={s.title}
-              className="sched-suggest"
-              // SC-18: the rhythm rides along with the prompt, so the modal
-              // opens on the cadence this card just promised.
-              onClick={() => openModal({ kind: "run", preset: "repeating", prompt: s.desc, cadence: s.cadence })}
-            >
-              <span className="sched-suggest-icon">
-                <Ic size={22} color={s.color} />
-              </span>
-              <span className="sched-suggest-body">
-                <span className="sched-suggest-head">
-                  <b className="sched-suggest-title">{s.title}</b>
-                  {/* SC-18: rendered from the spec above — never a second,
-                      hand-written copy of it. */}
-                  <span className="sched-suggest-cadence">{cadenceText(s.cadence)}</span>
-                </span>
-                <span className="sched-suggest-desc">{s.desc}</span>
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      {!suggestionsInline && suggestions}
     </div>
   );
 }
