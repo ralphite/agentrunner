@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { useState } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { Popover, PopItem } from "./Popover";
 
@@ -179,6 +180,31 @@ describe("Popover follows or lets go when the page moves", () => {
 });
 
 describe("Popover plumbing survives the reposition", () => {
+  it("lets onOpen update its parent without updating during Popover's state updater", () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    function Parent() {
+      const [opens, setOpens] = useState(0);
+      return (
+        <>
+          <span data-testid="opens">{opens}</span>
+          <Popover
+            onOpen={() => setOpens((value) => value + 1)}
+            trigger={(_open, toggle) => <button onClick={toggle}>Open menu</button>}
+          >
+            {() => <PopItem title="Item" onClick={() => {}} />}
+          </Popover>
+        </>
+      );
+    }
+
+    render(<Parent />);
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+
+    expect(screen.getByTestId("opens").textContent).toBe("1");
+    expect(errors.mock.calls.flat().join(" ")).not.toContain("Cannot update a component");
+    errors.mockRestore();
+  });
+
   it("still closes on Escape, on outside click, and not on a click inside itself", () => {
     renderInScrollingCard({ left: 1196, right: 1420, top: 285, bottom: 313 });
 

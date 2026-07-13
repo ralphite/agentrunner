@@ -35,12 +35,14 @@ export function Popover({
   children,
   align = "left",
   panelClass = "",
+  wrapClass = "",
   onOpen,
 }: {
   trigger: (open: boolean, toggle: () => void) => React.ReactNode;
   children: (close: () => void) => React.ReactNode;
   align?: "left" | "right";
   panelClass?: string;
+  wrapClass?: string;
   onOpen?: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -118,11 +120,10 @@ export function Popover({
     };
   }, [open, position]);
 
-  const toggle = () =>
-    setOpen((v) => {
-      if (!v) onOpen?.();
-      return !v;
-    });
+  const toggle = () => {
+    if (!open) onOpen?.();
+    setOpen((value) => !value);
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -171,7 +172,7 @@ export function Popover({
   };
 
   return (
-    <div className="pop-wrap" ref={wrapRef} onKeyDownCapture={onKeyDownCapture}>
+    <div className={`pop-wrap${wrapClass ? ` ${wrapClass}` : ""}`} ref={wrapRef} onKeyDownCapture={onKeyDownCapture}>
       {trigger(open, toggle)}
       {open && (
         <div

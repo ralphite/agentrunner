@@ -329,6 +329,9 @@
   .cx-session .cx-card { @apply max-w-[660px]; }
   .cx-card.dropping { @apply border-blue bg-blue-soft; }
   .cx-env-strip { @apply flex min-w-0 gap-[4px] border-b border-line px-[10px] py-[8px]; }
+  .cx-env-strip > .pop-wrap { @apply min-w-0; }
+  .cx-env-project-wrap { @apply flex-1; }
+  .cx-env-project-wrap .cx-env-control { @apply w-full; }
   .cx-env-control, .cx-pill, .cx-deliv {
     @apply inline-flex min-w-0 items-center gap-[6px] whitespace-nowrap rounded-full border border-line bg-panel px-[10px] py-[5px] text-[12px] text-ink-2 hover:bg-panel-2 hover:text-ink;
   }
@@ -699,7 +702,7 @@
     .msg.user .msg-col { @apply max-w-[90%]; }
     .cx-env-strip { @apply flex-wrap px-2 py-[7px]; }
     .cx-env-control { @apply max-w-full; }
-    .cx-env-control.project { @apply flex-[1_1_100%]; }
+    .cx-env-project-wrap { @apply flex-[1_1_100%]; }
     .cx-env-control.branch:disabled { @apply hidden; }
     .cx-bar { @apply gap-1 px-2; }
     .cx-pill { @apply max-w-[126px] overflow-hidden px-2 text-[11px]; }

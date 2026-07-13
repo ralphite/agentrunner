@@ -78,6 +78,14 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("project picker searches every project (HM-9)", () => {
+  it("gives the project popover a shrinkable wrapper for long mobile project names", () => {
+    const { container } = mount();
+    const projectChip = chip(container);
+
+    expect(projectChip.parentElement?.classList.contains("cx-env-project-wrap")).toBe(true);
+    expect(projectChip.parentElement?.parentElement?.classList.contains("cx-env-strip")).toBe(true);
+  });
+
   it("idle: lists only the 5 most recent — opening it doesn't dump the whole store", () => {
     const { container } = mount();
     fireEvent.click(chip(container));

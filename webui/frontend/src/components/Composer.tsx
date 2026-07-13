@@ -1088,6 +1088,7 @@ export function Composer(props: ComposerProps) {
           <div className="cx-env-strip">
           <Popover
             align="left"
+            wrapClass="cx-env-project-wrap"
             trigger={(open, toggle) => (
               <button className={"cx-env-control project" + (open ? " active" : "")} onClick={toggle} title="Select project" aria-haspopup="menu" aria-expanded={open}>
                 <FolderIcon />
