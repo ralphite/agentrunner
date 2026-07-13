@@ -592,6 +592,7 @@ func TestDecideConversationalBudget(t *testing.T) {
 		s := state.New()
 		s.Session.Status = state.StatusRunning
 		s.Session.GenStep = turn
+		s.Session.LastAssistantGenStep = turn
 		s.Session.LastInputGenStep = lastInput
 		var msgs []provider.Message
 		msgs = append(msgs, provider.Message{Role: provider.RoleUser,
@@ -634,6 +635,29 @@ func TestDecideConversationalBudget(t *testing.T) {
 				t.Fatalf("reason = %q, want %q", act.reason, c.wantReason)
 			}
 		})
+	}
+}
+
+// A denied LLM step leaves a generation number with no assistant message.
+// Once a later generation does produce one, decide must inspect that exact
+// step, not compare GenStep with the total assistant-message count.
+func TestDecideUsesAssistantGenerationNotMessageCount(t *testing.T) {
+	s := state.New()
+	s.Session.Status = state.StatusRunning
+	s.Session.GenStep = 7
+	s.Session.LastAssistantGenStep = 7
+	for i := 1; i <= 5; i++ {
+		s.Conversation.Messages = append(s.Conversation.Messages, provider.Message{
+			Role: provider.RoleAssistant, Parts: []provider.Part{{Kind: provider.PartText, Text: "old"}},
+		})
+	}
+	s.Conversation.Messages = append(s.Conversation.Messages, provider.Message{
+		Role:  provider.RoleAssistant,
+		Parts: []provider.Part{{Kind: provider.PartToolCall, CallID: "call-7", ToolName: "read_file"}},
+	})
+	act := decide(s, 20)
+	if act.kind != doTool || len(act.calls) != 1 || act.calls[0].CallID != "call-7" {
+		t.Fatalf("decide = %+v, want current generation's tool call", act)
 	}
 }
 

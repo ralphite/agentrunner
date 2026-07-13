@@ -25,7 +25,7 @@ func SubStateVersions() map[string]int {
 		"activities":   1,
 		"waiting":      1,
 		"timers":       1,
-		"session":      2, // 2: 静止模型(决策 #31)——终态字段让位标记(Closed)与截断记账
+		"session":      3, // INC-66: LastAssistantGenStep prevents gap-driven duplicate generations
 		"effects":      1, // S3.2 (declared in the 2.4 table as an S3 addition)
 		"mode":         1, // S3.6a
 		"budget":       1, // S3.7a (reservations; settled usage lives in run)
@@ -427,6 +427,10 @@ type Session struct {
 	Prompt   string `json:"opening_prompt,omitempty"`
 	Version  string `json:"version,omitempty"`
 	GenStep  int    `json:"gen_step"`
+	// LastAssistantGenStep records whether the current generation already
+	// produced an assistant message. GenStep can have gaps after a denied LLM
+	// effect, so message count is not a valid completion test.
+	LastAssistantGenStep int `json:"last_assistant_gen_step,omitempty"`
 	// Closed is the close/kill mark (决策 #30): set by SessionClosed,
 	// cleared by the next GenerationStarted (a lawful reopen). Automatic
 	// paths CHECK it (timer/boot sweep skip marked sessions; a user-killed
@@ -646,6 +650,9 @@ func Apply(s State, env event.Envelope) (State, error) {
 
 	case *event.AssistantMessage:
 		s.Conversation = s.Conversation.withMessage(p.Message)
+		if p.GenStep > s.Session.LastAssistantGenStep {
+			s.Session.LastAssistantGenStep = p.GenStep
+		}
 		turnID := p.TurnID
 		if turnID == "" {
 			turnID = s.Interactions.ActiveTurnID

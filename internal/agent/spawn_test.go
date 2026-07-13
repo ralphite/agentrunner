@@ -487,6 +487,33 @@ func TestSpawnBudgetMinAggregation(t *testing.T) {
 	}
 }
 
+func TestSpawnAllowanceFairSharesBatch(t *testing.T) {
+	l := &Loop{Spec: &AgentSpec{Budget: BudgetSpec{MaxTotalTokens: 300}}}
+	s := state.New()
+	unlimited := &AgentSpec{}
+	if got := l.spawnAllowance(s, unlimited, 3); got != 100 {
+		t.Fatalf("first allowance = %d, want 100", got)
+	}
+	s.Budget.Reserved["first"] = 100
+	if got := l.spawnAllowance(s, unlimited, 2); got != 100 {
+		t.Fatalf("second allowance = %d, want 100", got)
+	}
+	s.Budget.Reserved["second"] = 100
+	if got := l.spawnAllowance(s, unlimited, 1); got != 100 {
+		t.Fatalf("last allowance = %d, want 100", got)
+	}
+
+	s = state.New()
+	capped := &AgentSpec{Budget: BudgetSpec{MaxTotalTokens: 50}}
+	if got := l.spawnAllowance(s, capped, 3); got != 50 {
+		t.Fatalf("capped allowance = %d, want 50", got)
+	}
+	s.Budget.Reserved["small"] = 50
+	if got := l.spawnAllowance(s, unlimited, 2); got != 125 {
+		t.Fatalf("unused share was not redistributed: %d, want 125", got)
+	}
+}
+
 // S5.3 caps: depth and fan-out deny via the pipeline (model-visible), never
 // crash. Depth: a run already at the cap cannot spawn. Fan-out: the second
 // spawn of one turn sees the first's in-batch count.

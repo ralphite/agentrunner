@@ -572,9 +572,11 @@ type ModeChanged struct {
 // LimitExceeded records a resource-budget breach (3.7c): the run then
 // ends gracefully through the epilogue, never mid-effect.
 type LimitExceeded struct {
-	Kind  string `json:"kind"` // tokens
-	Limit int    `json:"limit"`
-	Used  int    `json:"used"`
+	Kind     string `json:"kind"` // tokens
+	Limit    int    `json:"limit"`
+	Used     int    `json:"used"` // settled + outstanding reservations
+	Settled  int    `json:"settled,omitempty"`
+	Reserved int    `json:"reserved,omitempty"`
 }
 
 // GenerationDiscarded marks an LLM turn whose partial stream was thrown away

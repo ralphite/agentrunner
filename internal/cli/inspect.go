@@ -223,6 +223,7 @@ func buildInspectTree(dir string) (inspectReport, error) {
 			if cerr != nil {
 				continue // a broken child journal must not sink the parent's view
 			}
+			settleChildReport(&childReport, sub.Reason)
 			report.Children = append(report.Children, childReportRef{
 				CallID: sub.CallID, Agent: sub.Agent, Session: sub.ChildSession,
 				Reason: sub.Reason, Report: childReport,
@@ -281,12 +282,35 @@ func buildDriverInspectTree(dir string, events []event.Envelope) (inspectReport,
 		if childErr != nil {
 			continue
 		}
+		settleChildReport(&childReport, it.ChildReason)
 		report.Children = append(report.Children, childReportRef{
 			CallID: fmt.Sprintf("iteration-%d", it.N), Agent: "iteration",
 			Session: it.ChildSession, Reason: it.ChildReason, Report: childReport,
 		})
 	}
 	return report, nil
+}
+
+// settleChildReport applies the parent's durable settlement to the nested
+// projection. A canceled/error child can end with a mid-activity run fold, and
+// a completed child can leave model-maintained progress rows unfinished; none
+// of those may still be reported as running after settlement.
+func settleChildReport(report *inspectReport, reason string) {
+	switch reason {
+	case "canceled", "killed", "stopped":
+		report.Status = "canceled"
+		report.Reason = reason
+	case "error", "child_failed":
+		report.Status = "failed"
+		if report.Reason == "" {
+			report.Reason = reason
+		}
+	}
+	for i := range report.Progress {
+		if report.Progress[i].Status == "running" || report.Progress[i].Status == "pending" {
+			report.Progress[i].Status = "failed"
+		}
+	}
 }
 
 // childDirFor maps a SubagentCompleted to its journal dir: the child
@@ -482,6 +506,7 @@ type toolStat struct {
 
 func buildStats(events []event.Envelope) *statsReport {
 	st := &statsReport{Tools: map[string]*toolStat{}}
+	callNames := map[string]string{}
 	type open struct {
 		started *event.ActivityStarted
 		ts      time.Time
@@ -535,6 +560,29 @@ func buildStats(events []event.Envelope) *statsReport {
 			continue
 		}
 		switch p := dec.(type) {
+		case *event.AssistantMessage:
+			for _, part := range p.Message.Parts {
+				if part.Kind == provider.PartToolCall && part.CallID != "" {
+					callNames[part.CallID] = part.ToolName
+				}
+			}
+		case *event.EffectResolved:
+			if p.CallID == "" || p.Verdict != event.VerdictDeny {
+				break
+			}
+			name := callNames[p.CallID]
+			if name == "" {
+				name = "unknown"
+			}
+			ts := st.Tools[name]
+			if ts == nil {
+				ts = &toolStat{}
+				st.Tools[name] = ts
+			}
+			ts.Calls++
+			ts.Fail++
+			st.ToolCalls++
+			st.ToolFailures++
 		case *event.ActivityStarted:
 			inflight[p.ActivityID] = open{started: p, ts: env.TS}
 		case *event.ActivityCompleted:

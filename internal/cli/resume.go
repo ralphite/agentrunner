@@ -338,7 +338,12 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 				if s.Session.Closed != nil {
 					r.Status = s.Session.Closed.Reason
 				} else if q, reason := state.Quiescence(s); q {
-					r.Status = reason
+					// A conversational session whose final generation is quiet is
+					// ready for another message, not a completed unit of work. Preserve
+					// its durable input wait; abnormal/goal terminal reasons still win.
+					if s.Waiting == nil || s.Waiting.Kind != event.WaitInput || reason != "completed" {
+						r.Status = reason
+					}
 				}
 				// A "running" session (mid-turn, not waiting/closed/quiescent)
 				// whose host process is gone is STRANDED, not running: the

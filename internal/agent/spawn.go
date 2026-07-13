@@ -158,16 +158,17 @@ func renderAgentsDirectory(names []string, dynamic bool, resolve SubSpecResolver
 }
 
 // spawnAllowance is the min-aggregated child budget (S5.3): the child may
-// spend at most min(parent remaining, child spec cap); zero means unlimited
-// on that side. The result is both the effect's reservation (the whole
-// allowance reserves up front, settling to actual on completion) and the
-// child's own budget cap.
-func (l *Loop) spawnAllowance(s state.State, childSpec *AgentSpec) int {
+// spend at most min(a fair share of parent remaining, child spec cap); zero
+// means unlimited on that side. A small child cap leaves its unused share for
+// later siblings in the same assistant batch.
+func (l *Loop) spawnAllowance(s state.State, childSpec *AgentSpec, remainingLaunches int) int {
 	parentRemaining := 0
 	if l.Spec.Budget.MaxTotalTokens > 0 {
 		parentRemaining = l.Spec.Budget.MaxTotalTokens - s.Session.Usage.Billed() - s.Budget.ReservedTotal()
 		if parentRemaining < 1 {
 			parentRemaining = 1 // exhausted: reserve something so the gate denies
+		} else if remainingLaunches > 1 {
+			parentRemaining /= remainingLaunches
 		}
 	}
 	child := childSpec.Budget.MaxTotalTokens

@@ -1348,13 +1348,16 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 				// terminal: the fact lands, the turn ends here, the session
 				// idles — reopenable as ever (the gate will speak again).
 				if gate := denyingGate(outcome); gate == "budget" {
-					used := ds.s.Session.Usage.Billed()
+					settled := ds.s.Session.Usage.Billed()
+					reserved := ds.s.Budget.ReservedTotal()
 					if _, err := appendE(event.TypeLimitExceeded, &event.LimitExceeded{
-						Kind: "tokens", Limit: l.Spec.Budget.MaxTotalTokens, Used: used,
+						Kind: "tokens", Limit: l.Spec.Budget.MaxTotalTokens,
+						Used: settled + reserved, Settled: settled, Reserved: reserved,
 					}); err != nil {
 						return RunResult{}, abort(act.turn, err)
 					}
-					slog.Debug("token budget exhausted; truncating turn", "limit", l.Spec.Budget.MaxTotalTokens, "used", used)
+					slog.Debug("token budget exhausted; truncating turn", "limit", l.Spec.Budget.MaxTotalTokens,
+						"settled", settled, "reserved", reserved)
 					l.emit(protocol.Event{Kind: protocol.KindError, N: act.turn,
 						Text: "token budget exhausted; turn truncated, session is idle"})
 					continue
@@ -1699,6 +1702,15 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 	// would otherwise execute concurrently).
 	batchSpawns := 0
 	handoffAllowed := false
+	remainingLaunches := 0
+	for _, call := range act.calls {
+		if !isAgentLaunch(call.Name) {
+			continue
+		}
+		if _, _, _, problem := l.resolveSpawnTarget(call.Name, call.Args); problem == "" {
+			remainingLaunches++
+		}
+	}
 	for _, call := range act.calls {
 		l.emit(protocol.Event{Kind: protocol.KindToolCall, N: act.turn,
 			Tool: call.Name, CallID: call.CallID, Args: compact(call.Args)})
@@ -1733,7 +1745,8 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 			eff.HandoffPending = handoffAllowed
 			if _, _, resolved, problem := l.resolveSpawnTarget(call.Name, call.Args); problem == "" {
 				childSpec = resolved
-				allowance = l.spawnAllowance(ds.s, childSpec)
+				allowance = l.spawnAllowance(ds.s, childSpec, remainingLaunches)
+				remainingLaunches--
 				eff.EstTokens = allowance
 				if childSpec.Escalate {
 					eff.ApprovalReason = escalationApprovalReason(childSpec)
@@ -2252,8 +2265,11 @@ func decide(s state.State, maxGenerationSteps int) action {
 	if turn == 0 {
 		return action{kind: doTurn, turn: 1}
 	}
+	if s.Session.LastAssistantGenStep < turn {
+		return action{kind: doLLM, turn: turn}
+	}
 	assistants := assistantMessages(s)
-	if len(assistants) < turn {
+	if len(assistants) == 0 {
 		return action{kind: doLLM, turn: turn}
 	}
 	last := assistants[len(assistants)-1]

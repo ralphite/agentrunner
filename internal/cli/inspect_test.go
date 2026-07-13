@@ -229,3 +229,21 @@ func TestRenderInspect(t *testing.T) {
 		}
 	}
 }
+
+func TestSettleChildReportRemovesRunningProjection(t *testing.T) {
+	report := inspectReport{
+		Status: "running",
+		Progress: []event.ProgressItem{
+			{ID: "a", Status: "done"},
+			{ID: "b", Status: "running"},
+			{ID: "c", Status: "pending"},
+		},
+	}
+	settleChildReport(&report, "canceled")
+	if report.Status != "canceled" || report.Reason != "canceled" {
+		t.Fatalf("terminal status = %q/%q", report.Status, report.Reason)
+	}
+	if report.Progress[1].Status != "failed" || report.Progress[2].Status != "failed" {
+		t.Fatalf("terminal progress = %+v", report.Progress)
+	}
+}

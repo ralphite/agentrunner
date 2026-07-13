@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/provider"
 )
 
 // statsEnv builds a journaled envelope with an explicit timestamp — the
@@ -73,5 +74,23 @@ func TestBuildStatsEmptyAndNoTS(t *testing.T) {
 	st := buildStats(evs)
 	if st == nil || st.ToolCalls != 1 || st.ActiveSeconds != 0 {
 		t.Fatalf("no-TS journal: %+v", st)
+	}
+}
+
+func TestBuildStatsCountsDeniedCallsAsFailures(t *testing.T) {
+	msg := &event.AssistantMessage{Message: provider.Message{Role: provider.RoleAssistant,
+		Parts: []provider.Part{{Kind: provider.PartToolCall, CallID: "deny-1", ToolName: "spawn_agent"}}}}
+	evs := []event.Envelope{
+		statsEnv(t, time.Time{}, event.TypeAssistantMessage, msg),
+		statsEnv(t, time.Time{}, event.TypeEffectResolved, &event.EffectResolved{
+			EffectID: "eff-tool-deny-1", CallID: "deny-1", Verdict: event.VerdictDeny,
+		}),
+	}
+	st := buildStats(evs)
+	if st == nil || st.ToolCalls != 1 || st.ToolFailures != 1 {
+		t.Fatalf("denied call stats = %+v", st)
+	}
+	if got := st.Tools["spawn_agent"]; got == nil || got.Calls != 1 || got.Fail != 1 {
+		t.Fatalf("spawn_agent stats = %+v", got)
 	}
 }
