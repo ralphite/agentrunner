@@ -731,18 +731,18 @@ export function SessionView({ sid }: { sid: string }) {
         </div>
         <span className="spacer" />
         {!isSub && running && (
-          <button className="topbar-tool stop" onClick={act.interrupt} title="Stop the active turn">
-            <Stop size={14} weight="fill" /> Stop
+          <button className="topbar-tool stop" onClick={act.interrupt} title="Stop the active turn" aria-label="Stop active turn">
+            <Stop size={14} weight="fill" /> <span className="topbar-tool-label">Stop</span>
           </button>
         )}
         {!isSub && needsRecovery && (
-          <button className="topbar-tool recovery" onClick={act.resume} title="Resume this task from its last durable checkpoint">
-            <ArrowClockwise size={15} /> Resume
+          <button className="topbar-tool recovery" onClick={act.resume} title="Resume this task from its last durable checkpoint" aria-label="Resume task">
+            <ArrowClockwise size={15} /> <span className="topbar-tool-label">Resume</span>
           </button>
         )}
         {!isSub && canRetry && (
-          <button className="topbar-tool" onClick={act.retry} title="Re-send your last message as a new turn; double-clicks are idempotent">
-            <ArrowClockwise size={15} /> Retry
+          <button className="topbar-tool" onClick={act.retry} title="Re-send your last message as a new turn; double-clicks are idempotent" aria-label="Retry task">
+            <ArrowClockwise size={15} /> <span className="topbar-tool-label">Retry</span>
           </button>
         )}
         {canForkFromCheckpoint && (
@@ -769,8 +769,9 @@ export function SessionView({ sid }: { sid: string }) {
         <button className={`topbar-tool${showSupervision ? " active" : ""}`} onClick={() => {
           if (view === "diff") setView("chat");
           setSupervision(!showSupervision);
-        }} title={showSupervision ? "Hide the Environment rail" : "Show the Environment rail — workspace changes, worktree, git, goal"}>
-          <SlidersHorizontal size={16} /> Environment
+        }} title={showSupervision ? "Hide the Environment rail" : "Show the Environment rail — workspace changes, worktree, git, goal"}
+          aria-label="Environment">
+          <SlidersHorizontal size={16} /> <span className="topbar-tool-label">Environment</span>
           {attentionCount > 0 && <span className="topbar-attention">{attentionCount}</span>}
         </button>
         <Menu label={<DotsThree size={18} weight="bold" />} ariaLabel="More task actions">

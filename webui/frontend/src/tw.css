@@ -439,7 +439,7 @@
   .tt-left { @apply min-w-0; }
   .tt-title { @apply truncate text-[13px] font-medium text-ink; }
   .readonly-tag { @apply ml-2 rounded-full border border-line bg-panel-2 px-2 py-[2px] text-[11px] text-dim; }
-  .topbar-tool { @apply h-8 min-w-8 px-2; }
+  .topbar-tool { @apply relative inline-flex h-8 min-w-8 items-center gap-[6px] px-2; }
   .topbar-tool.active { @apply bg-blue-soft text-blue; }
   .topbar-tool.stop, .stop { @apply text-red; }
   .topbar-attention { @apply ml-1 rounded-full bg-amber px-[5px] text-[10px] text-white; }
@@ -471,6 +471,9 @@
   .chip, .step, .worked-row, .act-group, .runtime-event, .system-events-notice, .driver-note {
     @apply my-2 rounded-[12px] border border-line bg-panel px-3 py-2 text-[13px] text-ink-2;
   }
+  .run-status-line { @apply my-2 flex min-w-0 items-center justify-between gap-3 text-[12px] text-dim; }
+  .run-status-line > span:first-child { @apply min-w-0 font-medium text-ink-2; }
+  .run-status-line > span:last-child { @apply shrink-0; }
   .chip.warn, .run-status-line.warn, .terminal-alert.warn { @apply border-amber bg-amber-soft text-amber; }
   .chip.err, .run-status-line.err, .terminal-alert.err { @apply border-red bg-red-soft text-red; }
   .worked-row { @apply flex items-start gap-2; }
@@ -703,6 +706,11 @@
     .home-empty-repo { @apply max-w-[18ch]; }
     .tl-inner { @apply px-4; }
     .msg.user .msg-col { @apply max-w-[90%]; }
+    .task-topbar { @apply gap-1 px-3; }
+    .topbar-tool { @apply w-8 min-w-8 justify-center gap-0 px-0; }
+    .topbar-tool-label { @apply hidden; }
+    .topbar-attention { @apply absolute -right-1 -top-1 m-0 min-w-[16px] px-1 leading-4; }
+    .cx-session { @apply px-2 pb-2; }
     .cx-env-strip { @apply flex-wrap px-2 py-[7px]; }
     .cx-env-control { @apply max-w-full; }
     .cx-env-project-wrap { @apply flex-[1_1_100%]; }

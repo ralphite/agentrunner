@@ -151,6 +151,9 @@ describe("TH-15 · one rail, one name, one door", () => {
     await waitFor(() => expect(container.querySelector(".task-topbar")).not.toBeNull());
     const tools = [...container.querySelectorAll(".task-topbar .topbar-tool")].map((b) => b.textContent!.trim());
     expect(tools).toEqual(["Environment"]);
+    const environment = container.querySelector(".task-topbar .topbar-tool")!;
+    expect(environment.querySelector(".topbar-tool-label")!.textContent).toBe("Environment");
+    expect(environment.getAttribute("aria-label")).toMatch(/Environment/);
     // The word the pill used to say — and the second door it used to sit next to.
     expect(tools).not.toContain("Supervision");
     expect(tools).not.toContain("Changes");
