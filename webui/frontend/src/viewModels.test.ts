@@ -154,6 +154,14 @@ describe("project sidebar model", () => {
     expect(projectLabel("/tmp/ws-20260710-221530")).toBe("Scratch");
   });
 
+  it("collapses managed fork chains to the root project name", () => {
+    const managed = "/Users/me/.local/share/agentrunner/worktrees/rt1-ws-main-20260712-133500-main-20260712-170909";
+    expect(projectLabel(managed)).toBe("rt1-ws");
+    // Timestamp-shaped real repository names outside the managed worktree root
+    // are user content and remain untouched.
+    expect(projectLabel("/repos/rt1-ws-main-20260712-133500")).toBe("rt1-ws-main-20260712-133500");
+  });
+
   // SB-13 · "no workspace" is the absence of a project, not a project named
   // "Other sessions". The empty string is falsy, so the `{hint && …}` and
   // `.filter(Boolean)` guards at the call sites drop it instead of painting a
@@ -173,6 +181,16 @@ describe("project sidebar model", () => {
 });
 
 describe("project name disambiguation (W4)", () => {
+  it("distinguishes managed fork generations without exposing the chain", () => {
+    const root = "/Users/me/.local/share/agentrunner/worktrees/rt1-ws";
+    const first = `${root}-main-20260712-133500`;
+    const latest = `${first}-main-20260712-170909`;
+    const subs = projectSubtitles([root, first, latest]);
+    expect(subs.get(root)).toBe("Root");
+    expect(subs.get(first)).toBe("07-12 13:35");
+    expect(subs.get(latest)).toBe("07-12 17:09");
+  });
+
   it("de-noises timestamped parent dirs while keeping rows distinct", () => {
     const subs = projectSubtitles([
       "/x/qa39-20260710-004434/ws",

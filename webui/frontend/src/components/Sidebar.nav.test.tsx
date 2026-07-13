@@ -27,6 +27,15 @@ describe("sidebar search entry point (RH-5)", () => {
   });
 });
 
+describe("mobile sidebar dismissal", () => {
+  it("offers a direct close control in addition to the outside scrim", () => {
+    const onHide = vi.fn();
+    render(<Sidebar onHide={onHide} />);
+    fireEvent.click(screen.getByRole("button", { name: "Close sidebar" }));
+    expect(onHide).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("current task visibility (SB-1)", () => {
   // Ten tasks in one project: with cap=6, s3…s9 (ids sort newest-first) fall
   // behind "Show more". Opening one of them must still put it on the rail.

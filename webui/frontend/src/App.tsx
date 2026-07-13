@@ -17,6 +17,8 @@ import { applyAppearance, loadAppearance } from "./theme";
 import { normalizeRoute } from "./routeHash";
 import { SidebarSimple } from "@phosphor-icons/react";
 
+const MOBILE_NAV_QUERY = "(max-width: 900px)";
+
 export function App() {
   const { currentSid, currentRunId, currentPage, refreshHealth, refreshSessions, refreshRuns, refreshProjects, select, selectRun, showPage } =
     useStore();
@@ -34,7 +36,7 @@ export function App() {
   const settingsOpenRef = useRef(false);
   const settingsReturnFocusRef = useRef<HTMLElement | null>(null);
   settingsOpenRef.current = settingsOpen;
-  const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 680px)").matches);
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia(MOBILE_NAV_QUERY).matches);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const openPalette = () => {
@@ -54,7 +56,7 @@ export function App() {
   const openSettings = () => {
     const active = document.activeElement;
     settingsReturnFocusRef.current = active instanceof HTMLElement ? active : null;
-    if (window.matchMedia("(max-width: 680px)").matches) setMobileSidebarOpen(false);
+    if (window.matchMedia(MOBILE_NAV_QUERY).matches) setMobileSidebarOpen(false);
     setSettingsOpen(true);
   };
   const closeSettings = () => {
@@ -74,7 +76,7 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    const query = window.matchMedia("(max-width: 680px)");
+    const query = window.matchMedia(MOBILE_NAV_QUERY);
     const sync = () => {
       setIsMobile(query.matches);
       if (query.matches) setMobileSidebarOpen(false);
@@ -155,7 +157,7 @@ export function App() {
       // ⌘B / Ctrl-B shows or hides the sidebar (Codex's Toggle sidebar).
       if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "b") {
         e.preventDefault();
-        if (window.matchMedia("(max-width: 680px)").matches) setMobileSidebarOpen((open) => !open);
+        if (window.matchMedia(MOBILE_NAV_QUERY).matches) setMobileSidebarOpen((open) => !open);
         else useStore.getState().toggleSidebar();
         return;
       }

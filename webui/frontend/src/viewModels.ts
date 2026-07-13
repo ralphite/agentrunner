@@ -97,6 +97,28 @@ export function scratchLabel(base: string): string {
   return "";
 }
 
+// AgentRunner forks append one `-branch-YYYYMMDD-HHMMSS` segment per hop to
+// the original workspace basename. The full chain is useful on disk but is not
+// a project name: keep the stable root in the rail and use the latest hop as a
+// short disambiguator. Restrict this to AgentRunner's managed worktree root so
+// a real repository with a timestamped name is never rewritten.
+function managedWorktreeLineage(workspace: string): { label: string; detail: string } | null {
+  const clean = workspace.trim().replace(/\/+$/, "");
+  if (!clean.includes("/agentrunner/worktrees/")) return null;
+  const base = clean.split("/").filter(Boolean).pop() || "";
+  const hops = [...base.matchAll(/-([^-]+)-(20\d{6})-(\d{6})/g)];
+  if (hops.length === 0) return null;
+  const first = hops[0].index ?? -1;
+  if (first <= 0 || hops.map((hop) => hop[0]).join("") !== base.slice(first)) return null;
+  const latest = hops[hops.length - 1];
+  const date = latest[2];
+  const time = latest[3];
+  return {
+    label: base.slice(0, first),
+    detail: `${date.slice(4, 6)}-${date.slice(6, 8)} ${time.slice(0, 2)}:${time.slice(2, 4)}`,
+  };
+}
+
 // projectLabel names the project a workspace path belongs to — and says nothing
 // when there is no workspace.
 //
@@ -111,6 +133,8 @@ export function projectLabel(workspace?: string): string {
   if (!clean) return "";
   const parts = clean.split("/").filter(Boolean);
   const base = parts[parts.length - 1] || "";
+  const lineage = managedWorktreeLineage(clean);
+  if (lineage) return lineage.label;
   return scratchLabel(base) ? "Scratch" : base;
 }
 
@@ -136,6 +160,9 @@ export function projectSubtitle(workspace: string, siblings: string[]): string {
   const clean = (path?: string) => (path || "").trim().replace(/\/+$/, "");
   const ws = clean(workspace);
   const base = ws.split("/").filter(Boolean).pop() || "";
+  const lineage = managedWorktreeLineage(ws);
+  if (lineage) return lineage.detail;
+  if (siblings.some((sibling) => managedWorktreeLineage(clean(sibling))?.label === base)) return "Root";
   const scratch = scratchLabel(base);
   if (scratch) return scratch.replace(/^Scratch · /, "");
   const parents = (path: string) => clean(path).split("/").filter(Boolean).slice(0, -1);

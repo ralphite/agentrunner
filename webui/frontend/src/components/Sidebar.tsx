@@ -21,6 +21,7 @@ import {
   Sun,
   Terminal,
   Tray,
+  X,
 } from "@phosphor-icons/react";
 import { useStore, type Page } from "../store";
 import { AR } from "../api";
@@ -68,7 +69,7 @@ const NAV_DESTINATIONS: { key: Page; label: string; icon: Icon; keys?: string[] 
   { key: "scheduled", label: "Scheduled", icon: Clock },
 ];
 
-export function Sidebar({ onNavigate, onOpenPalette, onOpenSettings }: {
+export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
   onHide?: () => void;
   onNavigate?: () => void;
   onOpenPalette?: () => void;
@@ -324,6 +325,9 @@ export function Sidebar({ onNavigate, onOpenPalette, onOpenSettings }: {
             aria-label="Search tasks"
           >
             <MagnifyingGlass size={16} />
+          </button>
+          <button className="sidebar-close" onClick={onHide} title="Close sidebar" aria-label="Close sidebar">
+            <X size={17} />
           </button>
         </div>
       </div>
