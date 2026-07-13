@@ -248,7 +248,7 @@ func buildDriverInspectTree(dir string, events []event.Envelope) (inspectReport,
 	}
 	report := inspectReport{
 		Kind: "driver", Status: string(s.Status), Reason: s.Reason,
-		GenSteps: len(s.Iterations), Usage: usageReport{Billed: s.SpentTokens},
+		GenSteps: len(s.Iterations), Usage: driverUsageReport(s),
 	}
 	for _, env := range events {
 		if env.Type == event.TypeDriverStarted {
@@ -289,6 +289,37 @@ func buildDriverInspectTree(dir string, events []event.Envelope) (inspectReport,
 		})
 	}
 	return report, nil
+}
+
+func driverUsageReport(s driver.State) usageReport {
+	var total provider.Usage
+	for _, it := range s.Iterations {
+		if it.Completed {
+			total = addProviderUsage(total, it.Usage)
+			continue
+		}
+		// A retry attempt can have settled before its logical iteration does.
+		// Show that real spend immediately without double-counting completed
+		// iterations, whose Usage already contains every attempt.
+		for _, attempt := range it.Attempts {
+			if attempt.Completed {
+				total = addProviderUsage(total, attempt.Usage)
+			}
+		}
+	}
+	return usageReport{
+		InputTokens: total.InputTokens, OutputTokens: total.OutputTokens,
+		CacheRead: total.CacheReadTokens, CacheWrite: total.CacheWriteTokens,
+		Billed: total.Billed(),
+	}
+}
+
+func addProviderUsage(a, b provider.Usage) provider.Usage {
+	a.InputTokens += b.InputTokens
+	a.OutputTokens += b.OutputTokens
+	a.CacheReadTokens += b.CacheReadTokens
+	a.CacheWriteTokens += b.CacheWriteTokens
+	return a
 }
 
 // settleChildReport applies the parent's durable settlement to the nested

@@ -31,6 +31,7 @@ type Iteration struct {
 	Completed    bool                   `json:"completed,omitempty"`
 	Skipped      bool                   `json:"skipped,omitempty"`
 	Verdict      event.IterationVerdict `json:"verdict,omitzero"`
+	Usage        provider.Usage         `json:"usage,omitzero"`
 	CarryRef     string                 `json:"carry_ref,omitempty"`
 	// BaseRef is the parallel attempt's worktree base (S7 best-of-N,
 	// additive — same fold version discipline as run sub-states).
@@ -149,6 +150,7 @@ func (s *State) apply(p any) {
 		it.Completed = true
 		it.ChildReason = v.ChildReason
 		it.Verdict = v.Verdict
+		it.Usage = v.Usage
 		it.CarryRef = v.CarryRef
 		if s.BestIter == 0 || v.Verdict.Score > s.Iterations[s.BestIter-1].Verdict.Score {
 			s.BestIter = v.Iter

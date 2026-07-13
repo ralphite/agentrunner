@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ralphite/agentrunner/internal/driver"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/state"
@@ -189,7 +190,7 @@ func TestBuildInspectTreeUsesDriverFold(t *testing.T) {
 		{event.TypeDriverStarted, &event.DriverStarted{DriverID: "drv", SpecName: "nightly", FoldVersion: 1}},
 		{event.TypeIterationScheduled, &event.IterationScheduled{DriverID: "drv", Iter: 1}},
 		{event.TypeIterationLaunched, &event.IterationLaunched{DriverID: "drv", Iter: 1, ChildSession: "drv-i1"}},
-		{event.TypeIterationCompleted, &event.IterationCompleted{DriverID: "drv", Iter: 1, ChildSession: "drv-i1", ChildReason: "completed", Verdict: event.IterationVerdict{Pass: true, Score: 1}}},
+		{event.TypeIterationCompleted, &event.IterationCompleted{DriverID: "drv", Iter: 1, ChildSession: "drv-i1", ChildReason: "completed", Verdict: event.IterationVerdict{Pass: true, Score: 1}, Usage: provider.Usage{InputTokens: 100, OutputTokens: 50, CacheReadTokens: 20, CacheWriteTokens: 5}}},
 		{event.TypeDriverCompleted, &event.DriverCompleted{DriverID: "drv", Reason: "satisfied", Iterations: 1, BestIter: 1}},
 	} {
 		env := mkEnv(t, item.typ, item.v)
@@ -207,6 +208,21 @@ func TestBuildInspectTreeUsesDriverFold(t *testing.T) {
 	if report.Kind != "driver" || report.Spec != "nightly" || report.Status != "ended" ||
 		report.Reason != "satisfied" || report.GenSteps != 1 || len(report.Entries) != 1 {
 		t.Fatalf("driver report = %+v", report)
+	}
+	if report.Usage.InputTokens != 100 || report.Usage.OutputTokens != 50 ||
+		report.Usage.CacheRead != 20 || report.Usage.CacheWrite != 5 || report.Usage.Billed != 130 {
+		t.Fatalf("driver usage = %+v", report.Usage)
+	}
+}
+
+func TestDriverUsageReportIncludesSettledRetryBeforeIterationCompletion(t *testing.T) {
+	s := driver.State{Iterations: []driver.Iteration{{Attempts: []driver.Attempt{
+		{Completed: true, Usage: provider.Usage{InputTokens: 60, OutputTokens: 40}},
+		{Started: true},
+	}}}}
+	got := driverUsageReport(s)
+	if got.InputTokens != 60 || got.OutputTokens != 40 || got.Billed != 100 {
+		t.Fatalf("driver usage = %+v", got)
 	}
 }
 
