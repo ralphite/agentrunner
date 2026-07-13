@@ -109,7 +109,7 @@ func goalBudgetOr(b *event.GoalBudget) event.GoalBudget {
 // goal text in the fold is already redacted.
 func goalReinject(ds *driveState, appendE AppendFunc, lead string) error {
 	g := ds.s.Goal
-	if g == nil {
+	if g == nil || g.Exhausted {
 		return nil
 	}
 	text := lead + "\n<goal>\n" + g.Goal + "\n</goal>"
@@ -153,7 +153,7 @@ func (l *Loop) goalRecover(ds *driveState, appendE AppendFunc) error {
 		})
 		return err
 	case g.Checks >= goalMaxChecks(g):
-		_, err := appendE(event.TypeGoalAchieved, &event.GoalAchieved{
+		_, err := appendE(event.TypeGoalExhausted, &event.GoalExhausted{
 			GoalID: g.GoalID, Reason: "budget", Checks: g.Checks,
 		})
 		return err
@@ -178,7 +178,7 @@ func (l *Loop) goalRecover(ds *driveState, appendE AppendFunc) error {
 // flow the boundary just checkpointed this gen step, so this is a no-op.
 func (l *Loop) goalResumeCheck(ctx context.Context, ds *driveState, appendE AppendFunc) error {
 	g := ds.s.Goal
-	if g == nil || g.Paused || ds.s.Session.GenStep == 0 ||
+	if g == nil || g.Paused || g.Exhausted || ds.s.Session.GenStep == 0 ||
 		g.CheckpointedGenStep == ds.s.Session.GenStep || hasInputAfterLastAssistant(ds.s) {
 		return nil
 	}
@@ -519,7 +519,7 @@ func (l *Loop) runGoalTool(g *state.Goal, name string, args json.RawMessage, app
 		}
 		p, _ := json.Marshal(map[string]any{
 			"goal": g.Goal, "checks_used": g.Checks, "max_checks": goalMaxChecks(g),
-			"paused": g.Paused, "claim_pending": g.Claimed,
+			"paused": g.Paused, "exhausted": g.Exhausted, "claim_pending": g.Claimed,
 			"verifiers": len(g.Verifiers), "adjudication": adjudication,
 			"self_certified": !verifiersHaveCommand(g.Verifiers) && !verifiersHaveLLMJudge(g.Verifiers),
 		})
@@ -527,6 +527,9 @@ func (l *Loop) runGoalTool(g *state.Goal, name string, args json.RawMessage, app
 	case "goal_complete":
 		if g == nil {
 			return errRes("no active goal to complete")
+		}
+		if g.Exhausted {
+			return errRes("goal check budget exhausted; update the goal or its budget before completing it")
 		}
 		var in struct {
 			Summary string `json:"summary"`
@@ -585,13 +588,13 @@ func goalContinuation(g *state.Goal, check int, detail string) string {
 //   - miss+budget  → GoalCheckpoint + a program-source InputReceived re-injects
 //     the feedback so the SAME thread continues in-context (ds.goalContinue
 //     tells idleOrReturn not to idle; decide sees the input → next turn).
-//   - miss+spent   → GoalCheckpoint + GoalAchieved{budget} = visible truncation
-//     (决策 #31), detach, idle.
+//   - miss+spent   → GoalCheckpoint + GoalExhausted{budget}; retain it for an
+//     explicit update, and idle with a non-success terminal receipt.
 //
 // It NEVER hijacks a generation step — the check lives only at turn close.
 func goalCheckpoint(ctx context.Context, l *Loop, ds *driveState, appendE AppendFunc, reason *string) error {
 	g := ds.s.Goal
-	if g == nil || g.Paused {
+	if g == nil || g.Paused || g.Exhausted {
 		return nil
 	}
 	// Only a graceful ending checks the goal; a dying/transferred turn does not.
@@ -673,11 +676,10 @@ func goalCheckpoint(ctx context.Context, l *Loop, ds *driveState, appendE Append
 		})
 		return err
 	case budgetSpent:
-		// Goal-level budget exhausted = visible truncation (决策 #31); detach,
-		// no re-injection, session idles reopenable.
+		// Retain the unmet goal. GoalUpdated clears Exhausted and re-arms it.
 		l.emit(protocol.Event{Kind: protocol.KindError, Text: fmt.Sprintf(
 			"goal not met after %d checks (budget spent) — truncating", check)})
-		_, err := appendE(event.TypeGoalAchieved, &event.GoalAchieved{
+		_, err := appendE(event.TypeGoalExhausted, &event.GoalExhausted{
 			GoalID: g.GoalID, Reason: "budget", Checks: check,
 		})
 		return err

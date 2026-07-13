@@ -1020,6 +1020,9 @@ export function foldEvents(events: Envelope[]): Folded {
           chip(seq, `Goal achieved · ${p.reason || "satisfied"} (${p.checks} check${p.checks === 1 ? "" : "s"})`, "good");
         }
         break;
+      case "goal_exhausted":
+        echoChip(seq, `goal stopped: check budget exhausted after ${p.checks} check(s) — not verified as achieved`, "bad", "goal");
+        break;
       case "limit_exceeded":
         // A user interrupt is modeled as limit_exceeded{kind:interrupted} —
         // don't dress it up as a budget overrun.
@@ -1127,7 +1130,13 @@ export function deriveGoalState(events: Envelope[]): GoalDerived | null {
         };
         break;
       case "goal_updated":
-        if (state && p.goal) state.goal = p.goal;
+        if (state) {
+          if (p.goal) state.goal = p.goal;
+          state.phase = "active";
+          state.endedAt = undefined;
+          state.elapsedMs = undefined;
+          if (typeof p.budget?.max_checks === "number") state.maxChecks = p.budget.max_checks;
+        }
         break;
       case "goal_paused":
         if (state && !isGoalTerminal(state.phase)) state.phase = "paused";
@@ -1151,6 +1160,13 @@ export function deriveGoalState(events: Envelope[]): GoalDerived | null {
           // reason=budget is a visible STOP (budget ran out, not verified);
           // reason=cancelled is a detach; anything else is a real success.
           state.phase = p.reason === "budget" ? "stopped" : p.reason === "cancelled" ? "cancelled" : "achieved";
+          if (typeof p.checks === "number") state.checks = p.checks;
+          state.endedAt = asMs(env.ts);
+        }
+        break;
+      case "goal_exhausted":
+        if (state) {
+          state.phase = "stopped";
           if (typeof p.checks === "number") state.checks = p.checks;
           state.endedAt = asMs(env.ts);
         }

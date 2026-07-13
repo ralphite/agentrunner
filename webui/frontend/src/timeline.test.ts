@@ -420,10 +420,21 @@ describe("deriveGoalState (goal banner projection, W6)", () => {
   it("marks a budget-exhausted goal as stopped, not achieved", () => {
     const g = deriveGoalState([
       attach("2026-07-10T06:00:00Z"),
-      { seq: 9, type: "goal_achieved", ts: "2026-07-10T06:10:00Z", payload: { reason: "budget", checks: 10 } },
+      { seq: 9, type: "goal_exhausted", ts: "2026-07-10T06:10:00Z", payload: { reason: "budget", checks: 10 } },
     ]);
     expect(g).toMatchObject({ phase: "stopped", checks: 10 });
     expect(g!.elapsedMs).toBe(600000);
+  });
+
+  it("re-activates an exhausted goal after a goal update", () => {
+    const g = deriveGoalState([
+      attach("2026-07-10T06:00:00Z"),
+      { seq: 9, type: "goal_exhausted", ts: "2026-07-10T06:10:00Z", payload: { checks: 10 } },
+      { seq: 10, type: "goal_updated", ts: "2026-07-10T06:11:00Z", payload: { budget: { max_checks: 20 } } },
+    ]);
+    expect(g).toMatchObject({ phase: "active", checks: 10, maxChecks: 20 });
+    expect(g!.endedAt).toBeUndefined();
+    expect(g!.elapsedMs).toBeUndefined();
   });
 
   it("treats an explicit cancel and a cancelled-detach as cancelled", () => {

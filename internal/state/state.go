@@ -25,14 +25,14 @@ func SubStateVersions() map[string]int {
 		"activities":   1,
 		"waiting":      1,
 		"timers":       1,
-		"session":      3, // INC-66: LastAssistantGenStep prevents gap-driven duplicate generations
+		"session":      4, // INC-66: durable generation and goal outcome receipts
 		"effects":      1, // S3.2 (declared in the 2.4 table as an S3 addition)
 		"mode":         1, // S3.6a
 		"budget":       1, // S3.7a (reservations; settled usage lives in run)
 		"compaction":   1, // S4.5 (context-compaction view)
 		"handles":      1, // S6.1 (background work set)
 		"barriers":     1, // S7.2 (checkpoint barriers — fork/rewind targets)
-		"goal":         1, // INC-D1 (in-session goal — G23/UJ-22)
+		"goal":         2, // INC-66: budget exhaustion is retained and recoverable
 		"interactions": 1, // INC-11.5 (Turn/Item typed interaction projection)
 		"team":         1, // INC-11.6 durable delegation/DAG/lease/workspace projection
 	}
@@ -244,7 +244,7 @@ func (x Interactions) withToolResult(started event.ActivityStarted, activityID s
 
 // Goal is the folded in-session goal (INC-D1). change-as-event (决策 #32):
 // Attached sets it, Updated mutates it, Paused/Resumed flip Paused, Checkpoint
-// counts a check, Cancelled/Achieved clear it.
+// counts a check, Exhausted retains it, and Cancelled/Achieved clear it.
 type Goal struct {
 	GoalID    string               `json:"goal_id"`
 	Goal      string               `json:"goal"`
@@ -252,11 +252,12 @@ type Goal struct {
 	Budget    event.GoalBudget     `json:"budget"`
 	Checks    int                  `json:"checks"`
 	Paused    bool                 `json:"paused,omitempty"`
+	Exhausted bool                 `json:"exhausted,omitempty"`
 	// CheckpointedGenStep + LastPass + LastFeedback are the crash-recovery guard
 	// (INC-D1 R1/R2): if a resume re-runs the goal_verify hook at a gen step
 	// already checkpointed, it recovers the recorded verdict instead of
 	// re-running the verifier — LastPass → re-emit GoalAchieved{satisfied},
-	// budget-spent → GoalAchieved{budget}, else re-inject LastFeedback iff
+	// budget-spent → GoalExhausted{budget}, else re-inject LastFeedback iff
 	// absent. So a crash between the checkpoint and the achieved/re-inject event
 	// neither re-runs the verifier, double-injects, nor drops the receipt.
 	CheckpointedGenStep int    `json:"checkpointed_gen_step,omitempty"`
@@ -431,6 +432,11 @@ type Session struct {
 	// produced an assistant message. GenStep can have gaps after a denied LLM
 	// effect, so message count is not a valid completion test.
 	LastAssistantGenStep int `json:"last_assistant_gen_step,omitempty"`
+	// GoalOutcome is the terminal receipt for the current generation. It makes
+	// goal settlement explicit even when a generation-step limit would
+	// otherwise leave a resolved-tool-call shape that looks non-quiescent.
+	GoalOutcome        string `json:"goal_outcome,omitempty"`
+	GoalOutcomeGenStep int    `json:"goal_outcome_gen_step,omitempty"`
 	// Closed is the close/kill mark (决策 #30): set by SessionClosed,
 	// cleared by the next GenerationStarted (a lawful reopen). Automatic
 	// paths CHECK it (timer/boot sweep skip marked sessions; a user-killed
@@ -593,6 +599,8 @@ func Apply(s State, env event.Envelope) (State, error) {
 			s.Session.ConsumedInputSeq = p.DeliverySeq
 		}
 		if p.Source != "interrupt" && p.Source != "control" {
+			s.Session.GoalOutcome = ""
+			s.Session.GoalOutcomeGenStep = 0
 			parts := append([]provider.Part(nil), p.Content...)
 			if len(parts) == 0 {
 				parts = []provider.Part{{Kind: provider.PartText, Text: p.Text}}
@@ -1093,6 +1101,8 @@ func Apply(s State, env event.Envelope) (State, error) {
 	// ---- INC-D1: in-session goal (G23/UJ-22) ----
 	case *event.GoalAttached:
 		s.Goal = &Goal{GoalID: p.GoalID, Goal: p.Goal, Verifiers: p.Verifiers, Budget: p.Budget}
+		s.Session.GoalOutcome = ""
+		s.Session.GoalOutcomeGenStep = 0
 
 	// The goal cases below are copy-on-write like every other sub-state
 	// (INC-10 review): s.Goal is a pointer shared with the caller's previous
@@ -1113,7 +1123,13 @@ func Apply(s State, env event.Envelope) (State, error) {
 			// claim no longer speaks for it (INC-10).
 			g.Claimed = false
 			g.ClaimSummary = ""
+			g.Exhausted = false
+			g.CheckpointedGenStep = 0
+			g.LastPass = false
+			g.LastFeedback = ""
 			s.Goal = &g
+			s.Session.GoalOutcome = ""
+			s.Session.GoalOutcomeGenStep = 0
 		}
 
 	case *event.GoalPaused:
@@ -1149,17 +1165,29 @@ func Apply(s State, env event.Envelope) (State, error) {
 	case *event.GoalCancelled:
 		if s.Goal != nil && s.Goal.GoalID == p.GoalID {
 			s.Goal = nil
+			s.Session.GoalOutcome = ""
+			s.Session.GoalOutcomeGenStep = 0
 		}
 
 	case *event.GoalAchieved:
 		if s.Goal != nil && s.Goal.GoalID == p.GoalID {
 			s.Goal = nil
 		}
-		if p.Reason == "satisfied" {
-			s.Session.TruncatedAtGenStep = 0
-			s.Session.TruncatedKind = ""
-			s.Session.TruncatedMsgCount = 0
+		s.Session.GoalOutcome = "satisfied"
+		s.Session.GoalOutcomeGenStep = s.Session.GenStep
+		s.Session.TruncatedAtGenStep = 0
+		s.Session.TruncatedKind = ""
+		s.Session.TruncatedMsgCount = 0
+
+	case *event.GoalExhausted:
+		if s.Goal != nil && s.Goal.GoalID == p.GoalID {
+			g := *s.Goal
+			g.Checks = p.Checks
+			g.Exhausted = true
+			s.Goal = &g
 		}
+		s.Session.GoalOutcome = "budget_exhausted"
+		s.Session.GoalOutcomeGenStep = s.Session.GenStep
 
 	case *event.GoalCompletionClaimed:
 		if s.Goal != nil && s.Goal.GoalID == p.GoalID {
@@ -1473,6 +1501,14 @@ func Quiescence(s State) (quiescent bool, reason string) {
 			return true, "failed:" + s.Session.Failure.Class
 		}
 		return true, "failed"
+	}
+	if s.Session.GoalOutcomeGenStep == s.Session.GenStep {
+		switch s.Session.GoalOutcome {
+		case "satisfied":
+			return true, "goal_satisfied"
+		case "budget_exhausted":
+			return true, "goal_budget_exhausted"
+		}
 	}
 	if s.Waiting != nil && s.Waiting.Kind != event.WaitInput {
 		return false, "" // waiting on an approval/settlement: work in flight

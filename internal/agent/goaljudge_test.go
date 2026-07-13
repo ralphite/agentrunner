@@ -225,7 +225,7 @@ func TestGoalLLMJudgeClaimGatedNoCall(t *testing.T) {
 		Verifiers: []event.GoalVerifier{{Kind: "llm_judge", Rubric: "done?"}},
 		Budget:    &event.GoalBudget{MaxChecks: 3},
 	}}
-	waitForEvent(t, es, event.TypeGoalAchieved, 1)
+	waitForEvent(t, es, event.TypeGoalExhausted, 1)
 	close(inbox)
 	if err := <-done; err != nil {
 		t.Fatal(err)
@@ -233,7 +233,7 @@ func TestGoalLLMJudgeClaimGatedNoCall(t *testing.T) {
 	if n := judgeActivityCount(t, es.Dir()); n != 0 {
 		t.Fatalf("judge activity count = %d, want 0 (claim-gated: no claim, no judge call)", n)
 	}
-	if ach := decodeGoalAchieved(t, es.Dir()); ach.Reason != "budget" {
-		t.Fatalf("GoalAchieved.Reason = %q, want budget (max_checks truncation)", ach.Reason)
+	if exhausted := decodeGoalExhausted(t, es.Dir()); exhausted.Reason != "budget" {
+		t.Fatalf("GoalExhausted.Reason = %q, want budget (max_checks truncation)", exhausted.Reason)
 	}
 }

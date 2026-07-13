@@ -521,6 +521,7 @@ func pendingCommandsInDir(dir string) ([]protocol.SessionCommand, error) {
 		case event.TypeInputReceived, event.TypeContextCompacted,
 			event.TypeGoalAttached, event.TypeGoalUpdated, event.TypeGoalPaused,
 			event.TypeGoalResumed, event.TypeGoalCancelled, event.TypeGoalAchieved,
+			event.TypeGoalExhausted,
 			event.TypeSessionClosed, event.TypeLimitExceeded,
 			event.TypeApprovalResponded, event.TypeCommandHandled:
 			handled[env.CommandID] = true

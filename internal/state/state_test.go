@@ -542,7 +542,43 @@ func TestGoalSatisfiedClearsGenerationStepTruncation(t *testing.T) {
 	if s.Session.TruncatedAtGenStep != 0 || s.Session.TruncatedKind != "" {
 		t.Fatalf("truncation not cleared: %+v", s.Session)
 	}
-	if q, reason := Quiescence(s); q && reason == "max_generation_steps" {
-		t.Fatal("satisfied goal still reports max_generation_steps")
+	if q, reason := Quiescence(s); !q || reason != "goal_satisfied" {
+		t.Fatalf("satisfied goal quiescence = %v %q, want goal_satisfied", q, reason)
+	}
+}
+
+func TestGoalExhaustionRetainsGoalAndUpdateRearmsIt(t *testing.T) {
+	s := New()
+	var err error
+	s.Session.GenStep = 2
+	if s, err = Apply(s, env(t, event.TypeGoalAttached, &event.GoalAttached{
+		GoalID: "goal", Goal: "ship it", Budget: event.GoalBudget{MaxChecks: 2},
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if s, err = Apply(s, env(t, event.TypeGoalCheckpoint, &event.GoalCheckpoint{
+		GoalID: "goal", GenStep: 2, Check: 2,
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if s, err = Apply(s, env(t, event.TypeGoalExhausted, &event.GoalExhausted{
+		GoalID: "goal", Reason: "budget", Checks: 2,
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if s.Goal == nil || !s.Goal.Exhausted {
+		t.Fatalf("exhausted goal was not retained: %+v", s.Goal)
+	}
+	if q, reason := Quiescence(s); !q || reason != "goal_budget_exhausted" {
+		t.Fatalf("exhausted quiescence = %v %q", q, reason)
+	}
+	budget := event.GoalBudget{MaxChecks: 4}
+	if s, err = Apply(s, env(t, event.TypeGoalUpdated, &event.GoalUpdated{
+		GoalID: "goal", Budget: &budget,
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if s.Goal.Exhausted || s.Goal.CheckpointedGenStep != 0 || s.Session.GoalOutcome != "" {
+		t.Fatalf("goal update did not re-arm: goal=%+v session=%+v", s.Goal, s.Session)
 	}
 }

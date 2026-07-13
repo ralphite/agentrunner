@@ -90,6 +90,7 @@ const (
 	TypeGoalCancelled         = "goal_cancelled"
 	TypeGoalCheckpoint        = "goal_checkpoint"
 	TypeGoalAchieved          = "goal_achieved"
+	TypeGoalExhausted         = "goal_exhausted"
 	TypeGoalCompletionClaimed = "goal_completion_claimed"
 	TypeCommandHandled        = "command_handled"
 
@@ -437,11 +438,18 @@ type GoalCheckpoint struct {
 	Feedback string `json:"feedback,omitempty"` // re-injected on a miss; kept for recovery
 }
 
-// GoalAchieved detaches the goal: reason satisfied (verifier passed), budget
-// (checks exhausted → visible truncation), or cancelled.
+// GoalAchieved detaches a goal only after its verifier has passed.
 type GoalAchieved struct {
 	GoalID string `json:"goal_id"`
-	Reason string `json:"reason"` // satisfied | budget | cancelled
+	Reason string `json:"reason"` // satisfied
+	Checks int    `json:"checks"`
+}
+
+// GoalExhausted retains the unmet goal in a recoverable state. A later
+// GoalUpdated can raise its budget or change its requirements and re-arm it.
+type GoalExhausted struct {
+	GoalID string `json:"goal_id"`
+	Reason string `json:"reason"` // budget
 	Checks int    `json:"checks"`
 }
 
@@ -1017,6 +1025,7 @@ var Registry = map[string]func() any{
 	TypeGoalCancelled:         func() any { return &GoalCancelled{} },
 	TypeGoalCheckpoint:        func() any { return &GoalCheckpoint{} },
 	TypeGoalAchieved:          func() any { return &GoalAchieved{} },
+	TypeGoalExhausted:         func() any { return &GoalExhausted{} },
 	TypeGoalCompletionClaimed: func() any { return &GoalCompletionClaimed{} },
 	TypeCommandHandled:        func() any { return &CommandHandled{} },
 

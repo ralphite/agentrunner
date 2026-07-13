@@ -182,8 +182,8 @@ func readEvents(t *testing.T, dir string) []event.Envelope {
 }
 
 // TestInSessionGoalBudgetTruncation: a verifier that never passes stops at the
-// budget (max_checks) with GoalAchieved{budget} — a visible truncation — and
-// does NOT re-inject forever.
+// budget (max_checks) with GoalExhausted{budget}; the unmet goal remains
+// available for update and does NOT re-inject forever.
 func TestInSessionGoalBudgetTruncation(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{{Text: "turn 1"}, {Finish: "end_turn"}}},
@@ -200,7 +200,7 @@ func TestInSessionGoalBudgetTruncation(t *testing.T) {
 		Verifiers: []event.GoalVerifier{{Kind: "command", Command: "test -f never.txt"}},
 		Budget:    &event.GoalBudget{MaxChecks: 2},
 	}}
-	waitForEvent(t, es, event.TypeGoalAchieved, 1)
+	waitForEvent(t, es, event.TypeGoalExhausted, 1)
 	close(inbox)
 	if err := <-done; err != nil {
 		t.Fatal(err)
@@ -214,8 +214,50 @@ func TestInSessionGoalBudgetTruncation(t *testing.T) {
 			t.Fatal("a checkpoint passed; the verifier should never pass")
 		}
 	}
-	if ach := decodeGoalAchieved(t, es.Dir()); ach.Reason != "budget" {
-		t.Fatalf("GoalAchieved.Reason = %q, want budget", ach.Reason)
+	if exhausted := decodeGoalExhausted(t, es.Dir()); exhausted.Reason != "budget" {
+		t.Fatalf("GoalExhausted.Reason = %q, want budget", exhausted.Reason)
+	}
+}
+
+func TestGoalUpdateRecoversExhaustedGoal(t *testing.T) {
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: "starting"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "not done yet"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{
+			{ToolCall: &scripted.ToolCallEvent{CallID: "recover", Name: "bash", Args: map[string]any{"command": "touch recovered.txt"}}},
+			{Finish: "tool_use"},
+		}},
+		{Respond: []scripted.Event{{Text: "done after budget update"}, {Finish: "end_turn"}}},
+	}}
+	es, inbox, controls, done := controlLoop(t, fix, 10)
+	waitForEvent(t, es, event.TypeAssistantMessage, 1)
+	controls <- protocol.Control{Kind: protocol.ControlGoalAttach, Goal: &protocol.GoalControl{
+		GoalID: "goal", Goal: "create recovered.txt",
+		Verifiers: []event.GoalVerifier{{Kind: "command", Command: "test -f recovered.txt"}},
+		Budget:    &event.GoalBudget{MaxChecks: 1},
+	}}
+	waitForEvent(t, es, event.TypeGoalExhausted, 1)
+	controls <- protocol.Control{Kind: protocol.ControlGoalUpdate, Goal: &protocol.GoalControl{
+		Budget: &event.GoalBudget{MaxChecks: 3},
+	}}
+	waitForEvent(t, es, event.TypeGoalAchieved, 1)
+	close(inbox)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	events, err := store.ReadEvents(es.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	fold, err := state.Fold(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fold.Goal != nil {
+		t.Fatalf("goal still attached after recovery: %+v", fold.Goal)
+	}
+	if fold.Session.GoalOutcome != "satisfied" {
+		t.Fatalf("recovered goal outcome = %q, want satisfied", fold.Session.GoalOutcome)
 	}
 }
 
@@ -301,14 +343,17 @@ func TestGoalRecover(t *testing.T) {
 		}
 	})
 
-	t.Run("budget-spent re-emits achieved{budget}", func(t *testing.T) {
+	t.Run("budget-spent re-emits exhausted{budget}", func(t *testing.T) {
 		l, ds, es := newLoop(t, &state.Goal{GoalID: "goal", Goal: "x",
 			Budget: event.GoalBudget{MaxChecks: 2}, Checks: 2, CheckpointedGenStep: 3})
 		if err := l.goalRecover(ds, l.appender(ds)); err != nil {
 			t.Fatal(err)
 		}
-		if ach := decodeGoalAchieved(t, es.Dir()); ach.Reason != "budget" {
-			t.Fatalf("recovered achieved reason = %q, want budget", ach.Reason)
+		if exhausted := decodeGoalExhausted(t, es.Dir()); exhausted.Reason != "budget" {
+			t.Fatalf("recovered exhausted reason = %q, want budget", exhausted.Reason)
+		}
+		if ds.s.Goal == nil || !ds.s.Goal.Exhausted {
+			t.Fatal("budget exhaustion did not retain the goal")
 		}
 	})
 }
@@ -397,7 +442,7 @@ func TestInSessionGoalClaimDoesNotOverrideVerifier(t *testing.T) {
 		Verifiers: []event.GoalVerifier{{Kind: "command", Command: "test -f never.txt"}},
 		Budget:    &event.GoalBudget{MaxChecks: 2},
 	}}
-	waitForEvent(t, es, event.TypeGoalAchieved, 1)
+	waitForEvent(t, es, event.TypeGoalExhausted, 1)
 	close(inbox)
 	if err := <-done; err != nil {
 		t.Fatal(err)
@@ -414,8 +459,8 @@ func TestInSessionGoalClaimDoesNotOverrideVerifier(t *testing.T) {
 	if !strings.Contains(checks[0].Detail, "completion claim rejected") {
 		t.Fatalf("first miss detail = %q, want the claim-rejected annotation", checks[0].Detail)
 	}
-	if ach := decodeGoalAchieved(t, es.Dir()); ach.Reason != "budget" {
-		t.Fatalf("GoalAchieved.Reason = %q, want budget", ach.Reason)
+	if exhausted := decodeGoalExhausted(t, es.Dir()); exhausted.Reason != "budget" {
+		t.Fatalf("GoalExhausted.Reason = %q, want budget", exhausted.Reason)
 	}
 }
 
@@ -473,7 +518,7 @@ func TestInSessionGoalNoVerifierBudget(t *testing.T) {
 		GoalID: "goal", Goal: "a goal never claimed done",
 		Budget: &event.GoalBudget{MaxChecks: 2},
 	}}
-	waitForEvent(t, es, event.TypeGoalAchieved, 1)
+	waitForEvent(t, es, event.TypeGoalExhausted, 1)
 	close(inbox)
 	if err := <-done; err != nil {
 		t.Fatal(err)
@@ -481,8 +526,8 @@ func TestInSessionGoalNoVerifierBudget(t *testing.T) {
 	if n := countEvents(t, es.Dir(), event.TypeGoalCompletionClaimed); n != 0 {
 		t.Fatalf("GoalCompletionClaimed = %d, want 0", n)
 	}
-	if ach := decodeGoalAchieved(t, es.Dir()); ach.Reason != "budget" {
-		t.Fatalf("GoalAchieved.Reason = %q, want budget", ach.Reason)
+	if exhausted := decodeGoalExhausted(t, es.Dir()); exhausted.Reason != "budget" {
+		t.Fatalf("GoalExhausted.Reason = %q, want budget", exhausted.Reason)
 	}
 }
 
@@ -575,5 +620,18 @@ func decodeGoalAchieved(t *testing.T, dir string) *event.GoalAchieved {
 		}
 	}
 	t.Fatal("no GoalAchieved event")
+	return nil
+}
+
+func decodeGoalExhausted(t *testing.T, dir string) *event.GoalExhausted {
+	t.Helper()
+	evs, _ := store.ReadEvents(dir)
+	for _, e := range evs {
+		if e.Type == event.TypeGoalExhausted {
+			p, _ := event.DecodePayload(e)
+			return p.(*event.GoalExhausted)
+		}
+	}
+	t.Fatal("no GoalExhausted event")
 	return nil
 }
