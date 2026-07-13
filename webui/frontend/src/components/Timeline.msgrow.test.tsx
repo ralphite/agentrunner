@@ -84,6 +84,19 @@ describe("TH-21 — only the last assistant answer keeps its action row at rest"
     const mid = container.querySelectorAll(".msg.assistant")[0];
     expect(mid.querySelectorAll("button.msg-copy").length).toBeGreaterThanOrEqual(2);
   });
+
+  it("lets a touch user focus a middle message to reveal its hidden actions", () => {
+    const { container } = thread();
+    const mid = container.querySelectorAll<HTMLElement>(".msg.assistant")[0];
+
+    // The CSS reveal is driven by :focus-within. A focusable message is the
+    // missing touch bridge: phones have no hover, but tapping the message can
+    // now reveal the existing row without making it persistent at rest.
+    expect(mid.tabIndex).toBe(0);
+    mid.focus();
+    expect(document.activeElement).toBe(mid);
+    expect(mid.querySelector(".msg-actions")).not.toBeNull();
+  });
 });
 
 describe("TH-21 — no message shows a persistent timestamp", () => {

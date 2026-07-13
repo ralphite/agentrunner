@@ -847,7 +847,7 @@ function Item({ it, sentImages, onContinue, goalVerdict, last }: { it: TimelineI
         <div className="imgnote"><ImageSquare size={13} /> ×{it.images} attached</div>
       ) : null;
       return (
-        <div className={"msg user" + (peer ? " peer" : "")} title={absTime(it.ts)}>
+        <div className={"msg user" + (peer ? " peer" : "")} title={absTime(it.ts)} tabIndex={0}>
           <div className="msg-col user">
             <div className="bubble">
               {hasText ? (
@@ -882,7 +882,11 @@ function Item({ it, sentImages, onContinue, goalVerdict, last }: { it: TimelineI
       // — both in tw.css. The absolute time stays on every `.msg`'s
       // `title`, so hovering a message still tells you when it landed.
       return (
-        <div className={"msg assistant" + (last ? " msg-last" : "")} title={absTime(it.ts)}>
+        <div
+          className={"msg assistant" + (last ? " msg-last" : "")}
+          title={absTime(it.ts)}
+          tabIndex={last ? undefined : 0}
+        >
           <div className="msg-col">
             <div className="bubble">
               <Markdown text={it.text} />
