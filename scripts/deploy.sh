@@ -19,20 +19,25 @@
 # Usage:
 #   scripts/deploy.sh                      # build + install + restart daemon + webui@8809
 #   scripts/deploy.sh --addr 127.0.0.1:8809
+#   scripts/deploy.sh --runtime ~/.local/share/agentrunner/webui
 #   scripts/deploy.sh --no-restart         # build + install only, print next steps
 #   scripts/deploy.sh --force              # restart daemon even with a running turn (dangerous)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 REPO="$(pwd)"
 
+scripts/check-go-toolchain.sh
+
 ADDR="127.0.0.1:8809"
 ENV_FILE="$REPO/.env"
+RUNTIME_DIR=""
 DO_RESTART=1
 FORCE=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --addr) ADDR="$2"; shift 2 ;;
     --env-file) ENV_FILE="$2"; shift 2 ;;
+    --runtime) RUNTIME_DIR="$2"; shift 2 ;;
     --no-restart) DO_RESTART=0; shift ;;
     --force) FORCE=1; shift ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
@@ -145,8 +150,10 @@ else
   sleep 1
   # --no-daemon: the daemon we just started owns the shared socket; webui must
   # not try to spawn/manage its own.
-  nohup "$WEBUI_OUT" --addr "$ADDR" --ar "$AR_OUT" --no-daemon \
-    ${ENV_FILE:+--env-file "$ENV_FILE"} >/dev/null 2>&1 &
+  webui_args=(--addr "$ADDR" --ar "$AR_OUT" --no-daemon)
+  if [[ -n "$ENV_FILE" ]]; then webui_args+=(--env-file "$ENV_FILE"); fi
+  if [[ -n "$RUNTIME_DIR" ]]; then webui_args+=(--runtime "$RUNTIME_DIR"); fi
+  nohup "$WEBUI_OUT" "${webui_args[@]}" >/dev/null 2>&1 &
 fi
 echo
 echo "==> health check"

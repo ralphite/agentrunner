@@ -25,7 +25,7 @@ tag 的环境)。
 从源码构建:
 
 ```sh
-go build -o ar ./cmd/agentrunner    # Go 1.23+
+go build -o ar ./cmd/agentrunner    # Go 1.25.12+ / 1.26.5+ / newer stable
 export GEMINI_API_KEY=...           # 或 ANTHROPIC_API_KEY(见 spec 的 model.provider)
 ```
 

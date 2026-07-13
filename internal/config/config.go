@@ -14,6 +14,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/fileutil"
 	"github.com/ralphite/agentrunner/internal/hook"
 	"github.com/ralphite/agentrunner/internal/pipeline"
 )
@@ -140,27 +141,32 @@ func mergeLifecycle(dst *Hooks, src map[string][]string) {
 // and preserves the file's other settings (it reloads, appends, re-marshals).
 // The file is created if absent. Returns whether a rule was actually added.
 func AppendRule(path string, rule pipeline.PermissionRule) (bool, error) {
-	s, err := LoadFile(path)
-	if err != nil {
-		return false, err
-	}
-	for _, existing := range s.Permissions {
-		if existing == rule {
-			return false, nil // already remembered
+	added := false
+	err := fileutil.WithLock(path, func() error {
+		s, err := LoadFile(path)
+		if err != nil {
+			return err
 		}
-	}
-	s.Permissions = append(s.Permissions, rule)
-	raw, err := yaml.Marshal(s)
-	if err != nil {
-		return false, fmt.Errorf("settings %s: %w", path, err)
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return false, fmt.Errorf("settings %s: %w", path, err)
-	}
-	if err := os.WriteFile(path, raw, 0o600); err != nil {
-		return false, fmt.Errorf("settings %s: %w", path, err)
-	}
-	return true, nil
+		for _, existing := range s.Permissions {
+			if existing == rule {
+				return nil // already remembered
+			}
+		}
+		s.Permissions = append(s.Permissions, rule)
+		raw, err := yaml.Marshal(s)
+		if err != nil {
+			return fmt.Errorf("settings %s: %w", path, err)
+		}
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			return fmt.Errorf("settings %s: %w", path, err)
+		}
+		if err := fileutil.AtomicWrite(path, raw, 0o600); err != nil {
+			return fmt.Errorf("settings %s: %w", path, err)
+		}
+		added = true
+		return nil
+	})
+	return added, err
 }
 
 // --- trust registry ---
@@ -231,25 +237,37 @@ func Trust(dataDir, wsRoot string) (string, error) {
 	if !st.IsDir() {
 		return "", fmt.Errorf("trust: %s is not a directory", resolved)
 	}
-	if ok, err := IsTrusted(dataDir, wsRoot); err != nil {
-		return "", err
-	} else if ok {
-		return resolved, nil
-	}
-	var tf trustFile
-	if raw, err := os.ReadFile(trustPath(dataDir)); err == nil {
-		_ = yaml.Unmarshal(raw, &tf)
-	}
-	tf.Trusted = append(tf.Trusted, resolved)
-	raw, err := yaml.Marshal(tf)
+	path := trustPath(dataDir)
+	err = fileutil.WithLock(path, func() error {
+		var tf trustFile
+		raw, readErr := os.ReadFile(path)
+		if readErr == nil {
+			if err := yaml.Unmarshal(raw, &tf); err != nil {
+				return fmt.Errorf("trust: %s: %w", path, err)
+			}
+		} else if !os.IsNotExist(readErr) {
+			return fmt.Errorf("trust: %w", readErr)
+		}
+		for _, dir := range tf.Trusted {
+			if dir == resolved {
+				return nil
+			}
+		}
+		tf.Trusted = append(tf.Trusted, resolved)
+		raw, err := yaml.Marshal(tf)
+		if err != nil {
+			return fmt.Errorf("trust: %w", err)
+		}
+		if err := os.MkdirAll(dataDir, 0o700); err != nil {
+			return fmt.Errorf("trust: %w", err)
+		}
+		if err := fileutil.AtomicWrite(path, raw, 0o600); err != nil {
+			return fmt.Errorf("trust: %w", err)
+		}
+		return nil
+	})
 	if err != nil {
-		return "", fmt.Errorf("trust: %w", err)
-	}
-	if err := os.MkdirAll(dataDir, 0o700); err != nil {
-		return "", fmt.Errorf("trust: %w", err)
-	}
-	if err := os.WriteFile(trustPath(dataDir), raw, 0o600); err != nil {
-		return "", fmt.Errorf("trust: %w", err)
+		return "", err
 	}
 	return resolved, nil
 }

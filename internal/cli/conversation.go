@@ -657,6 +657,9 @@ func dialUntilStart(sock string, cmd daemon.Command) (string, error) {
 			return e.Session, nil // detach: defer closes the conn
 		}
 	}
+	if err := sc.Err(); err != nil {
+		return "", fmt.Errorf("daemon: read event: %w", err)
+	}
 	return "", fmt.Errorf("session did not start")
 }
 

@@ -254,3 +254,30 @@ func TestResolveSessionDirRejectsEmptyJournalDirectory(t *testing.T) {
 		t.Fatalf("sessions exit=%d out=%s err=%s", code, out.String(), errOut.String())
 	}
 }
+
+func TestResolveSessionDirRejectsTraversalAndSymlinkEscape(t *testing.T) {
+	data := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", data)
+	root := filepath.Join(data, "agentrunner", "sessions")
+	outside := filepath.Join(data, "outside")
+	es, err := store.OpenEventStore(outside)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := es.Append(mkEnv(t, event.TypeSessionStarted, &event.SessionStarted{})); err != nil {
+		t.Fatal(err)
+	}
+	_ = es.Close()
+	if _, err := resolveSessionDir("../../outside"); err == nil || !strings.Contains(err.Error(), "invalid session") {
+		t.Fatalf("traversal error = %v", err)
+	}
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(root, "escaped-session")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := resolveSessionDir("escaped-session"); err == nil {
+		t.Fatal("symlinked session escaped the shared store")
+	}
+}

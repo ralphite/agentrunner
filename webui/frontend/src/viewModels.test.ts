@@ -327,6 +327,7 @@ describe("session titles", () => {
 
   it("turns metadata-less durable ids into readable fallback titles", () => {
     expect(titleFromSessionId("20260710-053059-review-auth-boundary-6a2b")).toBe("review auth boundary");
+    expect(titleFromSessionId("20260710-053059-review-auth-boundary-0123456789abcdef")).toBe("review auth boundary");
     expect(displayTitle({}, "20260710-053059-review-auth-boundary-6a2b")).not.toContain("20260710");
   });
 

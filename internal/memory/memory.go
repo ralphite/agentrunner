@@ -11,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/ralphite/agentrunner/internal/fileutil"
 )
 
 // File is one discovered memory file.
@@ -78,36 +80,40 @@ func Append(root, note string) error {
 		return fmt.Errorf("memory: %w", err)
 	}
 	path := filepath.Join(abs, "CLAUDE.md")
-	existing, err := os.ReadFile(path)
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("memory: %w", err)
-	}
-	// Idempotent: if this exact note is already remembered, do nothing. This
-	// makes the write safe to replay — a durable `remember` command that
-	// crashes after the file write but before its journal receipt re-runs on
-	// resume and must not double-write (INC-14 correctness).
-	if strings.Contains(string(existing), "- "+note+"\n") {
-		return nil
-	}
-	var b strings.Builder
-	b.Write(existing)
-	if len(existing) > 0 && !strings.HasSuffix(string(existing), "\n") {
-		b.WriteString("\n")
-	}
-	// Open the section once; later appends just add a bullet under it.
-	if !strings.Contains(string(existing), "## Remembered") {
-		if len(existing) > 0 {
+	return fileutil.WithLock(path, func() error {
+		existing, err := os.ReadFile(path)
+		if err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("memory: %w", err)
+		}
+		// Idempotent: if this exact note is already remembered, do nothing.
+		// The check and replacement share one cross-process lock so two live
+		// sessions cannot both read the same old file and lose one note.
+		if strings.Contains(string(existing), "- "+note+"\n") {
+			return nil
+		}
+		var b strings.Builder
+		b.Write(existing)
+		if len(existing) > 0 && !strings.HasSuffix(string(existing), "\n") {
 			b.WriteString("\n")
 		}
-		b.WriteString("## Remembered\n")
-	}
-	b.WriteString("- ")
-	b.WriteString(note)
-	b.WriteString("\n")
-	if err := os.WriteFile(path, []byte(b.String()), 0o644); err != nil {
-		return fmt.Errorf("memory: %w", err)
-	}
-	return nil
+		if !strings.Contains(string(existing), "## Remembered") {
+			if len(existing) > 0 {
+				b.WriteString("\n")
+			}
+			b.WriteString("## Remembered\n")
+		}
+		b.WriteString("- ")
+		b.WriteString(note)
+		b.WriteString("\n")
+		perm := os.FileMode(0o644)
+		if info, statErr := os.Stat(path); statErr == nil {
+			perm = info.Mode().Perm()
+		}
+		if err := fileutil.AtomicWrite(path, []byte(b.String()), perm); err != nil {
+			return fmt.Errorf("memory: %w", err)
+		}
+		return nil
+	})
 }
 
 // Render merges collected files into one byte-stable memory block, each

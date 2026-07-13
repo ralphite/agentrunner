@@ -1546,7 +1546,7 @@ limits:
 
 | # | 决策点 | 选择 | 理由 |
 |---|--------|------|------|
-| 1 | 语言 | Go 1.23+ | goroutine/channel 与 actor/mailbox 天然同构；单静态 binary 跨平台分发；Gemini/Anthropic/MCP 官方 Go SDK 齐备；编译期检查利于迭代。 |
+| 1 | 语言 | Go 1.25+，且使用官方仍支持分支的最新安全 patch（截至 2026-07-12：1.25.12+ / 1.26.5+） | goroutine/channel 与 actor/mailbox 天然同构；单静态 binary 跨平台分发；Gemini/Anthropic/MCP 官方 Go SDK 齐备；MCP SDK v1.6.1 已要求 Go 1.25，构建产物又继承标准库漏洞，故 gate 拒绝已知不安全 patch。 |
 | 2 | 进程模型 | 单进程，in-memory bus | 原型简单；边界清晰，分布式化是换 transport。 |
 | 3 | 持久状态 | event log + workspace + 接口后的 ref-addressed blob store（SnapshotStore/ArtifactStore/任务日志共用 CAS 模块）；bus/delta ephemeral | fold 永不读 store；event 只引用 ref，blob 先于引用它的 event 落盘；"什么会丢"一目了然。 |
 | 4 | 输入语义 | 一切外部输入先 journal 成 event 再消费 | 审批/steering 不丢、可审计；bus 才允许 ephemeral。 |

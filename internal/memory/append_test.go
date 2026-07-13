@@ -1,9 +1,11 @@
 package memory
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -66,6 +68,33 @@ func TestMemoryAppendPreservesHandwritten(t *testing.T) {
 func TestMemoryAppendRejectsEmpty(t *testing.T) {
 	if err := Append(t.TempDir(), "   "); err == nil {
 		t.Error("empty note should error")
+	}
+}
+
+func TestMemoryAppendConcurrentWritersLoseNoNotes(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	dir := t.TempDir()
+	const writers = 32
+	var wg sync.WaitGroup
+	for i := 0; i < writers; i++ {
+		note := fmt.Sprintf("parallel note %02d", i)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := Append(dir, note); err != nil {
+				t.Errorf("Append(%q): %v", note, err)
+			}
+		}()
+	}
+	wg.Wait()
+	got := readFile(t, filepath.Join(dir, "CLAUDE.md"))
+	for i := 0; i < writers; i++ {
+		if note := fmt.Sprintf("- parallel note %02d\n", i); !strings.Contains(got, note) {
+			t.Errorf("missing %q in %q", note, got)
+		}
+	}
+	if strings.Count(got, "## Remembered") != 1 {
+		t.Fatalf("remembered section count = %d", strings.Count(got, "## Remembered"))
 	}
 }
 

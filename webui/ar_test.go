@@ -549,6 +549,37 @@ func TestHandleWorktreeStartsAtSelectedRef(t *testing.T) {
 	}
 }
 
+func TestHandleWorktreeAcceptsSlashNamedBranch(t *testing.T) {
+	repo := t.TempDir()
+	mustGit := func(args ...string) string {
+		t.Helper()
+		out, err := exec.Command("git", append([]string{"-C", repo}, args...)...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	mustGit("init", "-q", "-b", "main")
+	mustGit("config", "user.name", "QA")
+	mustGit("config", "user.email", "qa@example.invalid")
+	if err := os.WriteFile(filepath.Join(repo, "proof.txt"), []byte("main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mustGit("add", "proof.txt")
+	mustGit("commit", "-q", "-m", "main")
+
+	s := &server{runtimeDir: t.TempDir(), worktreeDir: t.TempDir()}
+	body := bytes.NewBufferString(`{"repo":` + strconv.Quote(repo) + `,"branch":"feature/proof"}`)
+	req := httptest.NewRequest("POST", "/api/worktree", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	s.handleWorktree(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	mustGit("show-ref", "--verify", "refs/heads/feature/proof")
+}
+
 func TestVersionMatch(t *testing.T) {
 	// Same commit stamp on both binaries: ar's "agentrunner <stamp> (go...)"
 	// contains webui's bare stamp.

@@ -20,6 +20,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+scripts/check-go-toolchain.sh
+
 ALL_TARGETS=(linux-x86_64 linux-arm64 macos-arm64 macos-x86_64)
 if [[ $# -gt 0 ]]; then TARGETS=("$@"); else TARGETS=("${ALL_TARGETS[@]}"); fi
 

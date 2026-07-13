@@ -5,6 +5,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+scripts/check-go-toolchain.sh
+
 # gofmt only what the repo tracks — runtime/ workspaces hold agent-written
 # .go files from QA sessions that must never fail the gate.
 unformatted=$(git ls-files '*.go' | xargs gofmt -l)
@@ -30,13 +32,14 @@ scripts/lint-wiring.sh
 
 go test $packages
 
-(cd webui && go vet ./... && go test ./...)
-
+# Build the embedded SPA before running the WebUI Go tests: embed_test calls
+# staticHandler, whose production contract intentionally panics when dist is
+# absent. A clean checkout has no gitignored dist directory.
 (
   cd webui/frontend
-  node_major=$(node -p 'Number(process.versions.node.split(".")[0])')
-  if (( node_major < 18 )); then
-    echo "webui: Node.js 18+ required (found $(node --version))" >&2
+  node_ok=$(node -p 'const [a,b]=process.versions.node.split(".").map(Number); Number((a===20&&b>=19)||(a===22&&b>=12)||a>22)')
+  if (( ! node_ok )); then
+    echo "webui: Node.js ^20.19 or >=22.12 required (found $(node --version))" >&2
     exit 1
   fi
   if [[ ! -d node_modules ]]; then
@@ -45,6 +48,8 @@ go test $packages
   npm run test
   npm run build
 )
+
+(cd webui && go vet ./... && go test ./...)
 
 # 安装器孪生:真 install.sh 打 file:// stub 产物(离线,INC-63 gate A)。
 scripts/test-install.sh

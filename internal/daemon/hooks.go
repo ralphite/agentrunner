@@ -18,6 +18,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/ralphite/agentrunner/internal/fileutil"
 )
 
 // Hook is one registered ingress capability.
@@ -96,11 +98,13 @@ func CreateHook(path, session, name string) (Hook, string, error) {
 		TokenSHA256: hex.EncodeToString(sum[:]),
 		CreatedAt:   time.Now().UTC().Format(time.RFC3339),
 	}
-	hooks, err := LoadHooks(path)
-	if err != nil {
-		return Hook{}, "", err
-	}
-	if err := writeHooks(path, append(hooks, h)); err != nil {
+	if err := fileutil.WithLock(path, func() error {
+		hooks, err := LoadHooks(path)
+		if err != nil {
+			return err
+		}
+		return writeHooks(path, append(hooks, h))
+	}); err != nil {
 		return Hook{}, "", err
 	}
 	return h, token, nil
@@ -108,23 +112,26 @@ func CreateHook(path, session, name string) (Hook, string, error) {
 
 // RevokeHook removes a hook by id; reports whether it existed.
 func RevokeHook(path, id string) (bool, error) {
-	hooks, err := LoadHooks(path)
-	if err != nil {
-		return false, err
-	}
-	kept := hooks[:0]
 	found := false
-	for _, h := range hooks {
-		if h.ID == id {
-			found = true
-			continue
+	err := fileutil.WithLock(path, func() error {
+		hooks, err := LoadHooks(path)
+		if err != nil {
+			return err
 		}
-		kept = append(kept, h)
-	}
-	if !found {
-		return false, nil
-	}
-	return true, writeHooks(path, kept)
+		kept := hooks[:0]
+		for _, h := range hooks {
+			if h.ID == id {
+				found = true
+				continue
+			}
+			kept = append(kept, h)
+		}
+		if !found {
+			return nil
+		}
+		return writeHooks(path, kept)
+	})
+	return found, err
 }
 
 // writeHooks persists the registry atomically (temp + rename), owner-only:
@@ -137,11 +144,7 @@ func writeHooks(path string, hooks []Hook) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, raw, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
+	return fileutil.AtomicWrite(path, raw, 0o600)
 }
 
 func randomHex(n int) (string, error) {

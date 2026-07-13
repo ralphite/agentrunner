@@ -29,6 +29,9 @@ func DataDir() (string, error) {
 
 // SessionDir returns (and creates, 0700) the directory for one session.
 func SessionDir(sessionID string) (string, error) {
+	if !ValidSessionID(sessionID) {
+		return "", fmt.Errorf("session dir: invalid session id %q", sessionID)
+	}
 	data, err := DataDir()
 	if err != nil {
 		return "", err
@@ -38,6 +41,24 @@ func SessionDir(sessionID string) (string, error) {
 		return "", fmt.Errorf("session dir: %w", err)
 	}
 	return dir, nil
+}
+
+// ValidSessionID accepts the basename alphabet used by top-level session ids,
+// child tree addresses, and user-entered unique prefixes. In particular it
+// excludes path syntax: session lookup must never become arbitrary filesystem
+// lookup under a user-controlled ../ or absolute path.
+func ValidSessionID(id string) bool {
+	if id == "" || len(id) > 512 {
+		return false
+	}
+	for _, r := range id {
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' ||
+			r >= '0' && r <= '9' || r == '-' || r == '_' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 // UserConfigPath locates user-level settings.
@@ -80,12 +101,16 @@ func ProjectToolsDir(workspaceRoot string) string {
 }
 
 // NewSessionID builds the sortable session id:
-// YYYYMMDD-HHMMSS-<slug>-<4hex> (slug = first 30 bytes of the prompt,
+// YYYYMMDD-HHMMSS-<slug>-<16hex> (slug = first 30 bytes of the prompt,
 // lowercased; the random suffix prevents same-second collisions from
 // interleaving two runs into one journal).
 func NewSessionID(now time.Time, prompt string) string {
-	var b [2]byte
-	_, _ = rand.Read(b[:])
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		// A predictable fallback would recreate the exact collision this suffix
+		// exists to prevent. Match event.NewCommandID: entropy failure is fatal.
+		panic(fmt.Sprintf("session id: crypto/rand unavailable: %v", err))
+	}
 	return now.UTC().Format("20060102-150405") + "-" + slugify(prompt, 30) + "-" + hex.EncodeToString(b[:])
 }
 

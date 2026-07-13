@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -62,6 +63,17 @@ func TestDaemonPing(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].Text != "pong" {
 		t.Fatalf("ping → %+v", got)
+	}
+}
+
+func TestDaemonSocketIsOwnerOnly(t *testing.T) {
+	sock, _ := startServer(t, nil, nil)
+	info, err := os.Stat(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("socket mode = %o, want 0600", got)
 	}
 }
 

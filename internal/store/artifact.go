@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/ralphite/agentrunner/internal/fileutil"
 )
 
 // ArtifactStore is the content-addressed deliverable store (S5.5) — the
@@ -91,28 +93,31 @@ func (a *ArtifactStore) Publish(stream string, content []byte) (ArtifactVersion,
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	m, err := a.readManifest()
-	if err != nil {
-		return ArtifactVersion{}, err
-	}
-	// Same content at the chain tip republishes the SAME version (S5 review):
-	// a crash between manifest write and journal append re-publishes on
-	// resume — without this, the manifest would grow a duplicate version the
-	// journal never knew about.
-	if chain := m.Streams[stream]; len(chain) > 0 && chain[len(chain)-1].Ref == ref {
-		return chain[len(chain)-1], nil
-	}
-	v := ArtifactVersion{Stream: stream, Version: len(m.Streams[stream]) + 1,
-		Ref: ref, Bytes: len(content)}
-	m.Streams[stream] = append(m.Streams[stream], v)
-	raw, err := json.MarshalIndent(m, "", "  ")
-	if err != nil {
-		return ArtifactVersion{}, fmt.Errorf("artifacts: %w", err)
-	}
-	if err := atomicWrite(filepath.Join(a.root, "manifest.json"), raw); err != nil {
-		return ArtifactVersion{}, fmt.Errorf("artifacts: %w", err)
-	}
-	return v, nil
+	var published ArtifactVersion
+	manifestPath := filepath.Join(a.root, "manifest.json")
+	err = fileutil.WithLock(manifestPath, func() error {
+		m, err := a.readManifest()
+		if err != nil {
+			return err
+		}
+		// Same content at the chain tip republishes the SAME version.
+		if chain := m.Streams[stream]; len(chain) > 0 && chain[len(chain)-1].Ref == ref {
+			published = chain[len(chain)-1]
+			return nil
+		}
+		published = ArtifactVersion{Stream: stream, Version: len(m.Streams[stream]) + 1,
+			Ref: ref, Bytes: len(content)}
+		m.Streams[stream] = append(m.Streams[stream], published)
+		raw, err := json.MarshalIndent(m, "", "  ")
+		if err != nil {
+			return fmt.Errorf("artifacts: %w", err)
+		}
+		if err := atomicWrite(manifestPath, raw); err != nil {
+			return fmt.Errorf("artifacts: %w", err)
+		}
+		return nil
+	})
+	return published, err
 }
 
 // Latest returns a stream's newest version.
@@ -163,25 +168,5 @@ func (a *ArtifactStore) readManifest() (manifest, error) {
 // The tmp name is unique per call — a FIXED tmp path would let two
 // concurrent writers truncate each other mid-write and promote a torn file.
 func atomicWrite(final string, data []byte) error {
-	f, err := os.CreateTemp(filepath.Dir(final), filepath.Base(final)+".tmp*")
-	if err != nil {
-		return err
-	}
-	tmp := f.Name()
-	if err := f.Chmod(0o600); err != nil {
-		_ = f.Close()
-		return err
-	}
-	if _, err := f.Write(data); err != nil {
-		_ = f.Close()
-		return err
-	}
-	if err := f.Sync(); err != nil {
-		_ = f.Close()
-		return err
-	}
-	if err := f.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp, final)
+	return fileutil.AtomicWrite(final, data, 0o600)
 }

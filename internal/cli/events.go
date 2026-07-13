@@ -140,13 +140,15 @@ func resolveSessionDir(idOrPrefix string) (string, error) {
 		// internal-path error (QA Round4 F-J4).
 		return "", fmt.Errorf("no session given — pass a session id or unique prefix (see agentrunner sessions)")
 	}
+	if !runtime.ValidSessionID(idOrPrefix) {
+		return "", fmt.Errorf("invalid session id or prefix %q", idOrPrefix)
+	}
 	data, err := runtime.DataDir()
 	if err != nil {
 		return "", err
 	}
 	root := filepath.Join(data, "sessions")
-	if st, serr := os.Stat(filepath.Join(root, idOrPrefix)); serr == nil && st.IsDir() {
-		dir := filepath.Join(root, idOrPrefix)
+	if dir := filepath.Join(root, idOrPrefix); safeSessionDir(root, dir) {
 		if !validSessionDir(dir) {
 			return "", fmt.Errorf("session %q is incomplete (no journal genesis); start a new session", idOrPrefix)
 		}
@@ -155,7 +157,7 @@ func resolveSessionDir(idOrPrefix string) (string, error) {
 	for i := strings.LastIndex(idOrPrefix, "-sub-"); i >= 0; i = strings.LastIndex(idOrPrefix[:i], "-sub-") {
 		parent, rest := idOrPrefix[:i], idOrPrefix[i+len("-sub-"):]
 		dir := filepath.Join(root, parent, "sub", strings.ReplaceAll(rest, "-sub-", "/sub/"))
-		if st, serr := os.Stat(dir); serr == nil && st.IsDir() {
+		if safeSessionDir(root, dir) {
 			if !validSessionDir(dir) {
 				return "", fmt.Errorf("session %q is incomplete (no journal genesis); start a new session", idOrPrefix)
 			}
@@ -202,6 +204,31 @@ func resolveSessionDir(idOrPrefix string) (string, error) {
 		}
 		return "", fmt.Errorf("session prefix %q is ambiguous: %s", idOrPrefix, strings.Join(matches, ", "))
 	}
+}
+
+// safeSessionDir proves that a constructed session path names the same real
+// directory beneath the shared store. Lstat rejects a final symlink; comparing
+// logical and real relative paths also rejects an intermediate symlink alias or
+// escape while tolerating platform aliases in the root itself (/tmp on macOS).
+func safeSessionDir(root, dir string) bool {
+	st, err := os.Lstat(dir)
+	if err != nil || !st.IsDir() {
+		return false
+	}
+	realRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return false
+	}
+	realDir, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return false
+	}
+	want, err := filepath.Rel(filepath.Clean(root), filepath.Clean(dir))
+	if err != nil || want == "." || want == ".." || strings.HasPrefix(want, ".."+string(filepath.Separator)) {
+		return false
+	}
+	got, err := filepath.Rel(realRoot, realDir)
+	return err == nil && got == want
 }
 
 func validSessionDir(dir string) bool {

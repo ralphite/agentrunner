@@ -439,6 +439,10 @@ func TestCrashResumeReattachesApprovalWaitingChild(t *testing.T) {
 		}}},
 		scripted.RoutePair{Key: "", Fixture: scripted.Fixture{Steps: []scripted.Step{
 			{Respond: []scripted.Event{{Text: "parent received recovered child"}, {Finish: "end_turn"}}},
+			// The reattached child runs concurrently. Under -race the parent may
+			// legitimately finish one turn before the child receipt wakes a second;
+			// without -race the receipt commonly wins and only step 1 is consumed.
+			{Respond: []scripted.Event{{Text: "parent received recovered child"}, {Finish: "end_turn"}}},
 		}}},
 	)
 	parentSpec := inDoubtSpec()

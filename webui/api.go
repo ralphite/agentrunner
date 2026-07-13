@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,6 +19,12 @@ import (
 )
 
 const oneShotTimeout = 60 * time.Second
+
+const (
+	maxJSONBodyBytes      = 4 << 20
+	maxUploadBytes        = 10 << 20
+	maxUploadRequestBytes = maxUploadBytes + (1 << 20) // multipart headers/boundaries
+)
 
 func (s *server) routes() *http.ServeMux {
 	mux := http.NewServeMux()
@@ -209,8 +216,28 @@ func readBody(w http.ResponseWriter, r *http.Request, v any) bool {
 		badRequest(w, "Content-Type must be application/json")
 		return false
 	}
-	if err := json.NewDecoder(io.LimitReader(r.Body, 4<<20)).Decode(v); err != nil {
+	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodyBytes)
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(v); err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "JSON body is larger than 4 MiB"})
+			return false
+		}
 		badRequest(w, "bad JSON body: "+err.Error())
+		return false
+	}
+	// One request carries exactly one JSON value. Without this check a valid
+	// first object followed by garbage or a second command was silently
+	// accepted, and bytes beyond the old LimitReader cap were ignored.
+	var trailing any
+	if err := dec.Decode(&trailing); err != io.EOF {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "JSON body is larger than 4 MiB"})
+			return false
+		}
+		badRequest(w, "bad JSON body: trailing data")
 		return false
 	}
 	return true
@@ -627,7 +654,7 @@ func (s *server) handleWorktree(w http.ResponseWriter, r *http.Request) {
 	dir := s.newWorktreeDir(repo, label)
 	args := []string{"worktree", "add"}
 	if branch != "" {
-		if !validID(branch) {
+		if !validBranchName(branch) {
 			badRequest(w, "invalid branch name")
 			return
 		}
@@ -652,9 +679,18 @@ func (s *server) handleWorktree(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseMultipartForm(10 << 20); err != nil {
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadRequestBytes)
+	if err := r.ParseMultipartForm(maxUploadBytes); err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "File is larger than 10 MiB"})
+			return
+		}
 		badRequest(w, "multipart parse: "+err.Error())
 		return
+	}
+	if r.MultipartForm != nil {
+		defer func() { _ = r.MultipartForm.RemoveAll() }()
 	}
 	f, hdr, err := r.FormFile("file")
 	if err != nil {
@@ -668,17 +704,36 @@ func (s *server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		}
 		return '_'
 	}, filepath.Base(hdr.Filename))
+	if name == "" || name == "." || name == ".." {
+		name = "upload"
+	}
 	dst := filepath.Join(s.runtimeDir, "uploads", fmt.Sprintf("%d-%s", time.Now().UnixNano(), name))
-	out, err := os.Create(dst)
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 	defer func() { _ = out.Close() }()
-	if _, err := io.Copy(out, io.LimitReader(f, 10<<20)); err != nil {
+	keep := false
+	defer func() {
+		if !keep {
+			_ = os.Remove(dst)
+		}
+	}()
+	n, err := io.Copy(out, io.LimitReader(f, maxUploadBytes+1))
+	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
+	if n > maxUploadBytes {
+		writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "File is larger than 10 MiB"})
+		return
+	}
+	if err := out.Close(); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	keep = true
 	writeJSON(w, http.StatusOK, map[string]string{"path": dst, "name": name})
 }
 
@@ -971,14 +1026,28 @@ func (s *server) handleStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Accel-Buffering", "no")
 	fl.Flush()
 
-	lines := make(chan string)
+	type scanResult struct {
+		line string
+		err  error
+	}
+	lines := make(chan scanResult)
 	go func() {
+		defer close(lines)
 		sc := bufio.NewScanner(stdout)
 		sc.Buffer(make([]byte, 0, 64*1024), 4<<20)
 		for sc.Scan() {
-			lines <- sc.Text()
+			select {
+			case lines <- scanResult{line: sc.Text()}:
+			case <-r.Context().Done():
+				return
+			}
 		}
-		close(lines)
+		if err := sc.Err(); err != nil {
+			select {
+			case lines <- scanResult{err: err}:
+			case <-r.Context().Done():
+			}
+		}
 	}()
 	ping := time.NewTicker(15 * time.Second)
 	defer ping.Stop()
@@ -989,13 +1058,19 @@ func (s *server) handleStream(w http.ResponseWriter, r *http.Request) {
 		case <-ping.C:
 			_, _ = io.WriteString(w, ": ping\n\n")
 			fl.Flush()
-		case line, more := <-lines:
+		case result, more := <-lines:
 			if !more {
 				_, _ = io.WriteString(w, "event: end\ndata: {\"reason\":\"attach-exited\"}\n\n")
 				fl.Flush()
 				return
 			}
-			_, _ = io.WriteString(w, "data: "+line+"\n\n")
+			if result.err != nil {
+				payload, _ := json.Marshal(map[string]string{"error": "read attach stream: " + result.err.Error()})
+				_, _ = fmt.Fprintf(w, "event: error\ndata: %s\n\n", payload)
+				fl.Flush()
+				return
+			}
+			_, _ = io.WriteString(w, "data: "+result.line+"\n\n")
 			fl.Flush()
 		}
 	}

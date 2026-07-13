@@ -8,10 +8,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -267,6 +269,27 @@ func TestHookRegistryHashesAndRevokes(t *testing.T) {
 	}
 	if found, _ := RevokeHook(path, hk.ID); found {
 		t.Fatal("double revoke reported a hit")
+	}
+}
+
+func TestHookRegistryConcurrentCreatesLoseNoHooks(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	path := filepath.Join(shortTempDir(t), "hooks.json")
+	const writers = 24
+	var wg sync.WaitGroup
+	for i := 0; i < writers; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			if _, _, err := CreateHook(path, "sess", fmt.Sprintf("hook-%02d", i)); err != nil {
+				t.Errorf("CreateHook: %v", err)
+			}
+		}(i)
+	}
+	wg.Wait()
+	hooks, err := LoadHooks(path)
+	if err != nil || len(hooks) != writers {
+		t.Fatalf("hooks = %d, err = %v; want %d", len(hooks), err, writers)
 	}
 }
 

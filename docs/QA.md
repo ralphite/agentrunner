@@ -1346,3 +1346,22 @@ health 与浏览器截图归档 `qa/runs/2026-07-13-INC66/`。
 孪生并通过真实环境验收。B 闸额外发现并修复：deploy 对 session 文本误判 running、
 旧 launchd webui 被自动拉起导致假部署成功、daemon `nohup` 被调用方清理但
 sessions 命令造成假存活、driver 终态只显示 billed 而 raw usage 为 0。
+
+---
+
+## QA-67 设计契约加固（INC-67，G37）
+
+**环境**：live `http://127.0.0.1:8809` + 共享
+`~/.local/share/agentrunner/` daemon/store；以 Go 1.26.5 构建并重启真实
+daemon/webui，in-app Browser 验收。证据归档
+`qa/runs/2026-07-12-INC67/`，测试数据不清理。
+
+| # | 真实动作 | 硬断言 |
+|---|---|---|
+| 1 | 部署前读结构化 sessions status，再安全重启 daemon/webui | running=0 才重启；health daemonUp/versionMatch=true，版本使用无已知漏洞 Go patch |
+| 2 | 共享 store session list/detail/deep link + 浏览器 console | 既有 session 数量不降，真实历史可打开；console error/warning=0 |
+| 3 | multipart 上传小文件与 10 MiB+1 文件 | 小文件逐字保留；超限返回 413，uploads 不新增 partial/truncated 文件 |
+| 4 | JSON 后附第二个 value、非法 session path/prefix | API 返回 400；CLI 明确拒绝 `../`，不解析 store 外 journal |
+| 5 | clean dist 全量 gate、race、`govulncheck`、`npm audit` | `check.sh` 从仅 `.gitkeep` 起全绿；多 writer race 5 轮绿；可达 Go 漏洞 0；npm 漏洞 0 |
+
+**结果**：待执行。

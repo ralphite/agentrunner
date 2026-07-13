@@ -627,7 +627,11 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	// Owner-only, explicitly: anyone who can connect can submit runs and
 	// answer approvals, so the socket must not lean on the umask or the
 	// parent dir alone (S6 review).
-	_ = os.Chmod(s.SocketPath, 0o600)
+	if err := os.Chmod(s.SocketPath, 0o600); err != nil {
+		_ = ln.Close()
+		_ = os.Remove(s.SocketPath)
+		return fmt.Errorf("daemon: secure socket permissions: %w", err)
+	}
 	s.ln = ln
 	go func() {
 		<-ctx.Done()
@@ -810,6 +814,9 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 	// well past the practical screenshot size instead of the event-line 1MB.
 	sc.Buffer(make([]byte, 0, 64*1024), 32*1024*1024)
 	if !sc.Scan() {
+		if err := sc.Err(); err != nil {
+			_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "read command: " + err.Error()})
+		}
 		return
 	}
 	if err := json.Unmarshal(sc.Bytes(), &cmd); err != nil {

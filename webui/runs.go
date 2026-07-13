@@ -243,11 +243,20 @@ func (rr *runRegistry) start(arPath, kind, label, workspace string, args []strin
 				}
 			}
 		}
+		scanErr := sc.Err()
+		if scanErr != nil {
+			// Stop a child that may otherwise remain blocked writing the pipe
+			// after Scanner rejects an oversized line.
+			cancel()
+			r.append(fmt.Sprintf(`{"kind":"error","text":%q}`, "read run output: "+scanErr.Error()))
+		}
 		err := cmd.Wait()
 		r.mu.Lock()
 		r.done = true
 		if r.Status == "running" {
-			if ctx.Err() != nil {
+			if scanErr != nil {
+				r.Status = "failed"
+			} else if ctx.Err() != nil {
 				r.Status = "stopped"
 			} else if err != nil {
 				r.Status = "failed"

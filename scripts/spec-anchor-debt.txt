@@ -8,14 +8,12 @@ Web UI progressive-disclosure composer
 Web UI 用户消息折叠（>10 渲染行钳 10lh + Show more/less；按渲染高度测量故 wrap 长行也折叠、ResizeObserver 随宽重测；含 pending 队列气泡；纯前端态、copy 恒全文）
 attach/detach（journal 补读 + live 订阅）
 best-of-N（隔离 worktree、per-attempt 判定、胜者留盘）
-daemon 托管（socket、run idem_key + session command_id 幂等、优雅停机）
 driver-goal（批式/headless，verifier 三态、停滞检测、carry；fresh child run）
 fork（单创世、处置向量落实、随行库复制、独立 worktree）
 handoff（`handoff_agent`）/ blackboard（`publish_note`/`read_notes`）
 hooks（pre/post，observe+block）
 memory 文件读侧注入（CLAUDE.md 层级合并）
 notifier（生命周期通知、跨重启去重）
-publish_artifact（`outputs:` contract、审批载荷）
 rewind（fork 后显式切换）
 rules（tool/path/command/network + realpath 归一）
 schedule_next / finish_series（loop 自定步调）

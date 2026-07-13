@@ -1,9 +1,11 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/ralphite/agentrunner/internal/pipeline"
@@ -145,5 +147,51 @@ func TestTrustCanonicalizesAndRequiresDir(t *testing.T) {
 	}
 	if _, err := Trust(dataDir, f); err == nil {
 		t.Fatal("trusting a plain file must fail")
+	}
+}
+
+func TestSharedConfigWritersLoseNoRulesOrTrustEntries(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	root := t.TempDir()
+	settings := filepath.Join(root, "settings.yaml")
+	const writers = 24
+	var wg sync.WaitGroup
+	for i := 0; i < writers; i++ {
+		i := i
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			rule := pipeline.PermissionRule{Tool: "bash", Command: fmt.Sprintf("cmd-%02d", i), Action: "allow"}
+			if _, err := AppendRule(settings, rule); err != nil {
+				t.Errorf("AppendRule: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+	s, err := LoadFile(settings)
+	if err != nil || len(s.Permissions) != writers {
+		t.Fatalf("permissions = %d, err = %v; want %d", len(s.Permissions), err, writers)
+	}
+
+	data := filepath.Join(root, "data")
+	workspaces := make([]string, writers)
+	for i := range workspaces {
+		workspaces[i] = filepath.Join(root, fmt.Sprintf("ws-%02d", i))
+		if err := os.Mkdir(workspaces[i], 0o700); err != nil {
+			t.Fatal(err)
+		}
+		wg.Add(1)
+		go func(ws string) {
+			defer wg.Done()
+			if _, err := Trust(data, ws); err != nil {
+				t.Errorf("Trust: %v", err)
+			}
+		}(workspaces[i])
+	}
+	wg.Wait()
+	for _, ws := range workspaces {
+		if ok, err := IsTrusted(data, ws); err != nil || !ok {
+			t.Errorf("IsTrusted(%s) = %v, %v", ws, ok, err)
+		}
 	}
 }

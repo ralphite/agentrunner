@@ -221,7 +221,7 @@ func (s *metaStore) touchProject(key string) {
 // titleFromID recovers a readable title from a session id when arwebui has no
 // recorded metadata (the session was created via the CLI, not this UI — UX-03).
 // Ids look like "20260709-071306-find-the-function-that-disable-39bd": strip the
-// leading date-time and the trailing 4-hex suffix, de-slugify the rest.
+// leading date-time and the trailing entropy suffix, de-slugify the rest.
 func titleFromID(id string) string {
 	parts := strings.Split(id, "-")
 	// Drop leading date + time segments (all-digit) …
@@ -229,8 +229,11 @@ func titleFromID(id string) string {
 		parts = parts[1:]
 	}
 	// … and a trailing short hex suffix (the uniquifier).
-	if n := len(parts); n > 1 && len(parts[n-1]) <= 4 && isHex(parts[n-1]) {
-		parts = parts[:n-1]
+	if n := len(parts); n > 1 {
+		suffixLen := len(parts[n-1])
+		if (suffixLen == 4 || suffixLen == 16) && isHex(parts[n-1]) {
+			parts = parts[:n-1]
+		}
 	}
 	if len(parts) == 0 {
 		return id

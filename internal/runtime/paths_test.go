@@ -45,6 +45,19 @@ func TestSessionDirCreated0700(t *testing.T) {
 	}
 }
 
+func TestSessionDirRejectsUnsafeID(t *testing.T) {
+	base := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", base)
+	for _, id := range []string{"", ".", "..", "../escape", "a/b", `/absolute`, `a\\b`, "a.b"} {
+		if dir, err := SessionDir(id); err == nil {
+			t.Errorf("SessionDir(%q) = %q, want error", id, dir)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(base, "escape")); !os.IsNotExist(err) {
+		t.Fatalf("unsafe id created outside session root: %v", err)
+	}
+}
+
 func TestNewSessionID(t *testing.T) {
 	at := time.Date(2026, 7, 3, 12, 30, 45, 0, time.UTC)
 	cases := []struct{ prompt, wantPrefix string }{
@@ -55,8 +68,8 @@ func TestNewSessionID(t *testing.T) {
 	}
 	for _, tc := range cases {
 		got := NewSessionID(at, tc.prompt)
-		if !strings.HasPrefix(got, tc.wantPrefix) || len(got) != len(tc.wantPrefix)+4 {
-			t.Errorf("NewSessionID(%q) = %q, want prefix %q + 4 hex", tc.prompt, got, tc.wantPrefix)
+		if !strings.HasPrefix(got, tc.wantPrefix) || len(got) != len(tc.wantPrefix)+16 {
+			t.Errorf("NewSessionID(%q) = %q, want prefix %q + 16 hex", tc.prompt, got, tc.wantPrefix)
 		}
 	}
 	first := NewSessionID(at, "same")

@@ -2,7 +2,9 @@ package store
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -89,5 +91,35 @@ func TestArtifactEmptyStreamRejected(t *testing.T) {
 	a, _ := OpenArtifactStore(t.TempDir())
 	if _, err := a.Publish("", []byte("x")); err == nil {
 		t.Error("empty stream must be rejected")
+	}
+}
+
+func TestArtifactPublishSerializesAcrossStoreInstances(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	root := t.TempDir()
+	const writers = 24
+	stores := make([]*ArtifactStore, writers)
+	for i := range stores {
+		var err error
+		stores[i], err = OpenArtifactStore(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	var wg sync.WaitGroup
+	for i := range stores {
+		i := i
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := stores[i].Publish("report", []byte(fmt.Sprintf("version-%02d", i))); err != nil {
+				t.Errorf("Publish: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+	streams, err := stores[0].Streams()
+	if err != nil || len(streams["report"]) != writers {
+		t.Fatalf("versions = %d, err = %v; want %d", len(streams["report"]), err, writers)
 	}
 }

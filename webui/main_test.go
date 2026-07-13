@@ -6,6 +6,17 @@ import (
 	"testing"
 )
 
+func TestTitleFromIDStripsLegacyAndCurrentEntropySuffix(t *testing.T) {
+	for _, id := range []string{
+		"20260712-120000-fix-upload-abcd",
+		"20260712-120000-fix-upload-0123456789abcdef",
+	} {
+		if got := titleFromID(id); got != "fix upload" {
+			t.Errorf("titleFromID(%q) = %q", id, got)
+		}
+	}
+}
+
 func TestResolveARPathExplicitWins(t *testing.T) {
 	// An explicit -ar is always returned verbatim, sibling or not.
 	if got := resolveARPath("/custom/ar", true); got != "/custom/ar" {
