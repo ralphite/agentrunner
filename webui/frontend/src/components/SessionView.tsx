@@ -718,6 +718,9 @@ export function SessionView({ sid }: { sid: string }) {
     <div className="session-view">
       <DaemonAlert />
       <header className="session-topbar">
+        {/* Mobile navigation is an overlay owned by App. Reserve its 36px slot
+            so it cannot cover the beginning of the session title. */}
+        {!wideViewport && <span className="session-topbar-nav-slot h-9 w-9 shrink-0" aria-hidden="true" />}
         {isSub && (
           <button className="topbar-icon" onClick={() => select(sid.slice(0, sid.lastIndexOf(subMarker)))} title="Back to parent session">
             <ArrowLeft size={16} />
@@ -740,12 +743,12 @@ export function SessionView({ sid }: { sid: string }) {
             <ArrowClockwise size={15} /> <span className="topbar-tool-label">Resume</span>
           </button>
         )}
-        {!isSub && canRetry && (
+        {!isSub && canRetry && (wideViewport || !needsRecovery) && (
           <button className="topbar-tool" onClick={act.retry} title="Re-send your last message as a new turn; double-clicks are idempotent" aria-label="Retry session">
             <ArrowClockwise size={15} /> <span className="topbar-tool-label">Retry</span>
           </button>
         )}
-        {canForkFromCheckpoint && (
+        {canForkFromCheckpoint && wideViewport && (
           <button
             className="topbar-icon"
             onClick={() => openModal({ kind: "fork", sid })}
@@ -837,6 +840,7 @@ export function SessionView({ sid }: { sid: string }) {
                 <Robot size={16} />Switch agent…
               </MenuItem>
               <MenuLabel>Lifecycle</MenuLabel>
+              {canRetry && !wideViewport && <MenuItem onClick={act.retry}><ArrowClockwise size={16} />Retry last message</MenuItem>}
               {needsRecovery && <MenuItem onClick={act.resume}><ArrowClockwise size={16} />Resume session</MenuItem>}
               {running && <MenuItem onClick={act.stop}><Stop size={16} />Stop active run</MenuItem>}
               <MenuItem

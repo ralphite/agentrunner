@@ -188,6 +188,48 @@ describe("TH-15 · one rail, one name, one door", () => {
   });
 });
 
+describe("mobile session topbar", () => {
+  it("reserves the sidebar slot and keeps secondary recovery actions in the menu", async () => {
+    (window as any).innerWidth = 390;
+    arMock.events = async (_sid: string, after: number) =>
+      after
+        ? []
+        : [
+            { seq: 1, type: "input_received", payload: { source: "cli", text: "hi" } },
+            { seq: 2, type: "checkpoint_barrier", payload: { barrier_id: "bar-mobile" } },
+          ];
+    useStore.setState({
+      sessions: [{ id: SID, title: "深度黑盒 QA 任务 2026-07-12-A", status: "interrupted", workspace: "/tmp/wt-th14" } as any],
+    });
+
+    const { container } = render(<SessionView sid={SID} />);
+    await waitFor(() => expect(container.querySelector(".session-topbar")).not.toBeNull());
+
+    const topbar = container.querySelector(".session-topbar")!;
+    const navSlot = topbar.querySelector(".session-topbar-nav-slot")!;
+    expect(navSlot).toBe(topbar.firstElementChild);
+    expect(navSlot.classList.contains("h-9")).toBe(true);
+    expect(navSlot.classList.contains("w-9")).toBe(true);
+    expect(topbar.querySelector(".tt-title")!.textContent).toBe("深度黑盒 QA 任务 2026-07-12-A");
+
+    // Recovery is the current-state action. Retry and fork remain reachable
+    // without competing with the title as two more unlabeled mobile icons.
+    expect(topbar.querySelector('button[aria-label="Resume session"]')).not.toBeNull();
+    expect(topbar.querySelector('button[aria-label="Retry session"]')).toBeNull();
+    expect(topbar.querySelector('button[aria-label="Fork session from checkpoint"]')).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "More session actions" }));
+    expect(screen.getByRole("menuitem", { name: "Retry last message" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Continue in new session…" })).toBeTruthy();
+  });
+
+  it("does not spend title width on a navigation slot in desktop chrome", async () => {
+    const { container } = render(<SessionView sid={SID} />);
+    await waitFor(() => expect(container.querySelector(".session-topbar")).not.toBeNull());
+
+    expect(container.querySelector(".session-topbar-nav-slot")).toBeNull();
+  });
+});
+
 describe("fork button", () => {
   it("shows a topbar fork button only after the journal has a checkpoint", async () => {
     arMock.events = async (_sid: string, after: number) =>
