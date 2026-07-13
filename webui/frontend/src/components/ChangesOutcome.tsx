@@ -310,9 +310,9 @@ function PlusMinusSquare({ size = 18 }: { size?: number }) {
 // 64px box in every phase and the thread never reflows underneath (INC-41 TH-7).
 function ChangesShell({ children }: { children: ReactNode }) {
   return (
-    <section className="changes-outcome" aria-label="Workspace changes">
-      <header>
-        <span className="changes-outcome-icon"><PlusMinusSquare /></span>
+    <section className="changes-outcome overflow-hidden" aria-label="Workspace changes">
+      <header className="flex min-w-0 items-center gap-[11px]">
+        <span className="changes-outcome-icon grid h-[38px] w-[38px] shrink-0 place-items-center rounded-[10px] bg-panel-2 text-ink-2"><PlusMinusSquare /></span>
         {children}
       </header>
     </section>
@@ -433,34 +433,36 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
     <>
       <ImageArtifacts sid={sid} files={summary.files} />
       <ArtifactChips sid={sid} files={summary.files} />
-      <section className="changes-outcome" aria-label="Workspace changes">
-        <header>
-          <span className="changes-outcome-icon"><PlusMinusSquare /></span>
-          <div className="changes-outcome-title">
-            <b>Edited {summary.files.length} file{summary.files.length === 1 ? "" : "s"}</b>
-            <span>
+      <section className="changes-outcome overflow-hidden" aria-label="Workspace changes">
+        <header className="flex min-w-0 items-center gap-[11px]">
+          <span className="changes-outcome-icon grid h-[38px] w-[38px] shrink-0 place-items-center rounded-[10px] bg-panel-2 text-ink-2"><PlusMinusSquare /></span>
+          <div className="changes-outcome-title grid min-w-0 flex-1 gap-[2px] text-[15px] leading-tight">
+            <b className="overflow-hidden text-ellipsis whitespace-nowrap">Edited {summary.files.length} file{summary.files.length === 1 ? "" : "s"}</b>
+            <span className="flex items-center gap-[7px] overflow-hidden whitespace-nowrap text-[13px]">
               {countedFiles > 0 && (
                 <>
-                  <em className="add">+{summary.totalAdd}</em>
-                  <em className="del">−{summary.totalDel}</em>
+                  <em className="add not-italic text-green">+{summary.totalAdd}</em>
+                  <em className="del not-italic text-red">−{summary.totalDel}</em>
                 </>
               )}
               {newFiles > 0 && (
-                <em className="dim">{countedFiles > 0 ? "· " : ""}{newFiles} new</em>
+                <em className="dim not-italic text-dim">{countedFiles > 0 ? "· " : ""}{newFiles} new</em>
               )}
             </span>
           </div>
-          <button
-            type="button"
-            className="inline-flex items-center gap-[5px] bg-transparent border-0 text-ink-2 hover:text-ink"
-            onClick={undo}
-            title="Discard all these changes (git checkout . + remove new files)"
-          >
-            Undo <ArrowCounterClockwise size={13} />
-          </button>
-          <button type="button" onClick={onReview}>Review</button>
+          <div className="changes-outcome-actions ml-auto flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              className="inline-flex shrink-0 items-center gap-[5px] border-0 bg-transparent px-2 text-ink-2 hover:text-ink"
+              onClick={undo}
+              title="Discard all these changes (git checkout . + remove new files)"
+            >
+              Undo <ArrowCounterClockwise size={13} />
+            </button>
+            <button type="button" className="shrink-0 px-[10px]" onClick={onReview}>Review</button>
+          </div>
         </header>
-        <div className="changes-outcome-files">
+        <div className="changes-outcome-files -mx-3 -mb-3 mt-3 grid gap-0 overflow-hidden border-t border-line-2">
           {shown.map((file) => {
             const { dir, base } = splitPath(file.path);
             // INC-41 TH-5 — the file row is NAVIGATION, not a label. Codex's
@@ -481,7 +483,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
                 key={file.path}
                 role="button"
                 tabIndex={0}
-                className="cursor-pointer hover:bg-panel-2"
+                className="flex min-h-[38px] min-w-0 cursor-pointer items-center gap-2 px-[14px] py-[7px] text-[13px] text-ink-2 hover:bg-panel-2"
                 aria-label={`Review changes to ${base}`}
                 onClick={open}
                 onKeyDown={(e) => {
@@ -491,17 +493,17 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
                   }
                 }}
               >
-                <span title={file.path}>
+                <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap" title={file.path}>
                   {dir && <span style={{ color: "var(--dim)" }}>{dir}</span>}
                   <b style={{ fontWeight: 600, color: "var(--ink)" }}>{base}</b>
                 </span>
                 {file.countsKnown && (
-                  <small>
-                    <em className="add">+{file.add}</em>
-                    <em className="del">−{file.del}</em>
+                  <small className="flex shrink-0 items-center gap-[7px] text-[13px]">
+                    <em className="add not-italic">+{file.add}</em>
+                    <em className="del not-italic">−{file.del}</em>
                   </small>
                 )}
-                {!file.countsKnown && <small className="dim">new</small>}
+                {!file.countsKnown && <small className="dim shrink-0 text-[13px] text-dim">new</small>}
               </div>
             );
           })}
@@ -510,7 +512,11 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
             // gives it the file row's height and left inset, and the full row as
             // hit target), so it carries no inline layout of its own. And it
             // counts: 4 files behind a cap of 3 used to read "Show 1 more files".
-            <button type="button" onClick={() => setExpanded((e) => !e)}>
+            <button
+              type="button"
+              className="flex min-h-[38px] w-full items-center gap-[5px] rounded-none border-0 bg-transparent px-[14px] py-[7px] text-left text-[13px] text-dim hover:bg-panel-2 hover:text-ink-2"
+              onClick={() => setExpanded((e) => !e)}
+            >
               {expanded ? "Show less" : `Show ${hidden} more file${hidden === 1 ? "" : "s"}`}
               {expanded ? <CaretUp size={13} /> : <CaretDown size={13} />}
             </button>

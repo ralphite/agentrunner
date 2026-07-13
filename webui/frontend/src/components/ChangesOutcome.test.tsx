@@ -280,3 +280,60 @@ describe("ChangesOutcome preview cap (INC-41 TH-8)", () => {
     expect(screen.getByRole("button", { name: /Show 2 more files$/ })).toBeTruthy();
   });
 });
+
+describe("ChangesOutcome mobile layout parity (INC-48)", () => {
+  beforeEach(() => {
+    Object.defineProperty(window, "innerWidth", { value: 390, configurable: true });
+    Object.defineProperty(window, "innerHeight", { value: 844, configurable: true });
+  });
+
+  it("keeps the icon, two-line summary, and trailing actions in one horizontal header", async () => {
+    diffMock.mockResolvedValue(okDiff(5));
+    const { container } = renderCard();
+    await screen.findByText("Edited 5 files");
+
+    const card = screen.getByLabelText("Workspace changes");
+    const header = card.querySelector(":scope > header")!;
+    const title = header.querySelector(".changes-outcome-title")!;
+    const actions = header.querySelector(".changes-outcome-actions")!;
+
+    expect(card.className).toMatch(/overflow-hidden/);
+    expect(header.className).toMatch(/flex min-w-0 items-center/);
+    expect(header.children).toHaveLength(3);
+    expect(title.className).toMatch(/grid min-w-0 flex-1/);
+    expect(title.children).toHaveLength(2);
+    expect(actions.className).toMatch(/ml-auto flex shrink-0/);
+    expect(actions.querySelectorAll("button")).toHaveLength(2);
+    expect(container.querySelector(".changes-outcome-icon")!.className).toMatch(/h-\[38px\].*w-\[38px\].*shrink-0/);
+  });
+
+  it("gives a long path the shrinking column and keeps counts in a separate fixed column", async () => {
+    const path = "src/features/changes/mobile/an-extremely-long-file-name-that-must-truncate.ts";
+    diffMock.mockResolvedValue({
+      workspace: "/w",
+      known: true,
+      isRepo: true,
+      diff: [
+        `diff --git a/${path} b/${path}`,
+        "@@ -1,2 +1,3 @@",
+        " keep",
+        "-gone",
+        "+new one",
+        "+new two",
+      ].join("\n"),
+      untracked: [],
+    });
+    renderCard();
+    await screen.findByText("Edited 1 file");
+
+    const row = screen.getByRole("button", { name: "Review changes to an-extremely-long-file-name-that-must-truncate.ts" });
+    const pathColumn = row.children[0] as HTMLElement;
+    const countColumn = row.children[1] as HTMLElement;
+
+    expect(row.className).toMatch(/flex min-h-\[38px\] min-w-0/);
+    expect(pathColumn.title).toBe(path);
+    expect(pathColumn.className).toMatch(/min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap/);
+    expect(countColumn.className).toMatch(/flex shrink-0/);
+    expect(countColumn.textContent).toBe("+2−1");
+  });
+});
