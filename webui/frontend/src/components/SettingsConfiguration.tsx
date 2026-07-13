@@ -35,11 +35,14 @@ export function SettingsConfiguration({ query }: { query: string }) {
       {rows.length === 0 && !showPolicy && <div className="rs-noresults">No configuration matches “{query}”.</div>}
 
       {rows.length > 0 && (
-        <dl className="rs-kv">
+        <dl className="rs-kv min-w-0">
           {rows.map((r) => (
-            <div className="rs-kv-row" key={r.label}>
-              <dt>{r.label}</dt>
-              <dd className="mono" title={r.value}>
+            <div className="rs-kv-row min-w-0 flex-col items-start gap-1 sm:flex-row sm:items-baseline sm:gap-3" key={r.label}>
+              <dt className="shrink-0 text-dim sm:text-ink">{r.label}</dt>
+              <dd
+                className="mono m-0 min-w-0 max-w-full select-text whitespace-normal text-left leading-5 [overflow-wrap:anywhere] sm:ml-auto sm:max-w-[70%] sm:text-right"
+                title={r.value}
+              >
                 {r.value}
               </dd>
             </div>
@@ -48,12 +51,13 @@ export function SettingsConfiguration({ query }: { query: string }) {
       )}
 
       {showPolicy && (
-        <section className="rs-row rs-row-block">
-          <div className="rs-row-head">
-            <div className="rs-row-label">
-              Approval policy &amp; sandbox <span className="rs-todo">Not surfaced</span>
+        <section className="rs-row rs-row-block min-w-0">
+          <div className="min-w-0">
+            <div className="rs-row-label flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+              <span>Approval policy &amp; sandbox</span>
+              <span className="rs-todo">Not surfaced</span>
             </div>
-            <div className="rs-row-desc">
+            <div className="rs-row-desc mt-1.5 max-w-[620px] break-words leading-5">
               Per-session approval mode is chosen when starting a session; the daemon doesn’t expose a global policy to read here yet.
             </div>
           </div>
