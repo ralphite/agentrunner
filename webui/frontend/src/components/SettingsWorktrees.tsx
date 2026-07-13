@@ -23,26 +23,26 @@ export function SettingsWorktrees({ query }: { query: string }) {
   const filtered = all.filter(([ws, sessions]) => matchesQuery(query, ws + " " + sessions.map((t) => t.title).join(" ")));
 
   return (
-    <div className="rs-panel">
+    <div className="rs-panel min-w-0">
       <h2 className="rs-panel-title">Worktrees</h2>
-      <p className="rs-panel-sub">Workspaces backing your sessions, with the conversations linked to each. Read-only — pruning needs a daemon API that isn’t available yet.</p>
+      <p className="rs-panel-sub break-words">Workspaces backing your sessions, with the conversations linked to each. Read-only — pruning needs a daemon API that isn’t available yet.</p>
 
       {all.length === 0 && <div className="rs-noresults">No session workspaces yet.</div>}
       {all.length > 0 && filtered.length === 0 && <div className="rs-noresults">No worktrees match “{query}”.</div>}
 
       {filtered.map(([ws, sessions]) => (
-        <section className="rs-wt-card" key={ws}>
-          <div className="rs-wt-head">
-            <span className="rs-wt-path mono" title={ws}>
+        <section className="rs-wt-card min-w-0 overflow-hidden max-[500px]:rounded-[8px] max-[500px]:p-2.5" key={ws}>
+          <div className="rs-wt-head min-w-0 max-[500px]:flex-col max-[500px]:items-start max-[500px]:gap-1">
+            <span className="rs-wt-path mono min-w-0 max-w-full flex-1 whitespace-normal [overflow-wrap:anywhere]" title={ws}>
               {ws}
             </span>
-            <span className="rs-wt-count">{sessions.length} conversation{sessions.length === 1 ? "" : "s"}</span>
+            <span className="rs-wt-count shrink-0 whitespace-nowrap">{sessions.length} conversation{sessions.length === 1 ? "" : "s"}</span>
           </div>
-          <div className="rs-wt-sessions">
+          <div className="rs-wt-sessions min-w-0">
             {sessions.map((t) => (
               <button
                 key={t.id}
-                className="rs-wt-session"
+                className="rs-wt-session min-w-0 max-w-full w-full whitespace-normal break-words [overflow-wrap:anywhere] text-left"
                 onClick={() => useStore.getState().select(t.id)}
                 title="Open this session"
               >
