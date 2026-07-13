@@ -616,7 +616,7 @@ export function Scheduled() {
                 {/* SC-19: 16px — the gold standard's ring is 13.5px of ink. */}
                 {glyphFor(r)}
               </span>
-              <span className="scheduled-copy">
+              <span className="scheduled-copy flex flex-col">
                 <b>{r.title}</b>
                 <span className="sched-sub">
                   <span className="sched-cadence">{r.cadence}</span>

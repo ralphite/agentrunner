@@ -316,6 +316,23 @@ describe("every row wears its state on its left (SCH-ICON)", () => {
   });
 });
 
+describe("scheduled row hierarchy on narrow screens", () => {
+  it("stacks the title above cadence and status instead of joining them inline", () => {
+    const { container } = mountSeries();
+    const row = screen.getByText("Healthy: watch the queue").closest(".scheduled-row")!;
+    const copy = row.querySelector(".scheduled-copy")!;
+
+    // Codex keeps the name on the first line and cadence / next-run facts on the
+    // second. The explicit column layout prevents those spans from gluing
+    // together when the row narrows to a phone viewport.
+    expect(copy.classList).toContain("flex");
+    expect(copy.classList).toContain("flex-col");
+    expect(copy.firstElementChild?.tagName).toBe("B");
+    expect(copy.lastElementChild?.classList).toContain("sched-sub");
+    expect(container.querySelector(".sched-sub")?.textContent).toContain("Every 30m");
+  });
+});
+
 // SC-12 / SC-13 / SC-14 — one driver session (the thing most rows are) and one
 // interval RUN, both titled the way real ones are: with the prompt that made
 // them.
