@@ -194,6 +194,7 @@ export function Popover({
             top: place?.drop === "down" ? place.top : "auto",
             bottom: place?.drop === "up" ? place.bottom : "auto",
             maxHeight: place?.maxH,
+            maxWidth: `calc(100vw - ${PAD * 2}px)`,
             visibility: place ? undefined : "hidden",
           }}
         >

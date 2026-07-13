@@ -90,6 +90,7 @@ describe("Popover panel escapes its ancestors' overflow", () => {
     // `position: fixed` is the whole fix: the containing block is the viewport,
     // so the card's `overflow: auto` has nothing to clip.
     expect(panel().style.position).toBe("fixed");
+    expect(panel().style.maxWidth).toBe("calc(100vw - 16px)");
 
     // 8px under the trigger, in viewport coordinates — the card's bottom edge is
     // no longer part of the conversation.
