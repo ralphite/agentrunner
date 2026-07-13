@@ -172,7 +172,7 @@ export function Home() {
         {/* Codex's compact composer keeps the primary mobile action row to
             add/access/model/mic/send. Once a starter fills our draft, the
             desktop-only optimize shortcut otherwise pushes Send off-screen. */}
-        <div className="home-composer w-full max-[480px]:[&_.cx-optimize]:hidden max-[680px]:[@media(max-height:560px)]:[&_.cx-env-strip]:flex-nowrap max-[680px]:[@media(max-height:560px)]:[&_.cx-env-project-wrap]:flex-[1_1_0%] max-[680px]:[@media(max-height:560px)]:[&_.cx-input-wrap]:pt-1.5 max-[680px]:[@media(max-height:560px)]:[&_.cx-input-wrap_textarea]:min-h-8">
+        <div className="home-composer w-full max-[480px]:[&_.cx-optimize]:hidden max-[680px]:[@media(max-height:560px)]:[&_.cx-input-wrap]:pt-1.5 max-[680px]:[@media(max-height:560px)]:[&_.cx-input-wrap_textarea]:min-h-8">
           <Composer variant="home" onError={(m) => toast(m)} onProjectChange={setProject} />
         </div>
       </div>

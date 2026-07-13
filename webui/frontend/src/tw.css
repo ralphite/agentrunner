@@ -343,6 +343,7 @@
   .cx-env-strip > .pop-wrap { @apply min-w-0; }
   .cx-env-project-wrap { @apply flex-1; }
   .cx-env-project-wrap .cx-env-control { @apply w-full; }
+  .cx-env-control.environment { @apply shrink-0; }
   .cx-env-control, .cx-pill, .cx-deliv {
     @apply inline-flex min-w-0 items-center gap-[6px] whitespace-nowrap rounded-full border border-line bg-panel px-[10px] py-[5px] text-[12px] text-ink-2 hover:bg-panel-2 hover:text-ink;
   }
@@ -356,6 +357,9 @@
   .cx-bar { @apply flex min-w-0 items-center gap-[6px] px-[10px] py-[9px]; }
   .cx-icon { @apply h-8 w-8 shrink-0; }
   .cx-icon.active, .cx-icon.listening, .cx-icon.working { @apply bg-panel-2 text-blue; }
+  .cx-delivery { @apply flex shrink-0 items-center gap-1; }
+  .cx-deliv { @apply h-8 shrink-0 py-0; }
+  .cx-deliv-label { @apply min-w-0; }
   .cx-send { @apply grid h-8 w-8 shrink-0 place-items-center rounded-full border-accent bg-accent p-0 text-accent-ink hover:bg-accent; }
   .cx-send:disabled { @apply opacity-40; }
   .cx-stop { @apply border-red bg-red text-white; }
@@ -376,6 +380,7 @@
   .cx-slash-name { @apply min-w-0 truncate text-ink; }
   .cx-slash-desc, .cx-slash-hint, .cx-at-empty, .pop-desc, .pop-empty, .cx-pop-note { @apply text-[12px] text-dim; }
   .cx-menu { @apply min-w-[240px] p-1; }
+  .cx-pop-codex, .cx-add-menu, .cx-model-menu { width: min(360px, calc(100vw - 32px)); }
   .cx-project-popover { @apply w-[360px]; }
   .cx-menu.wide { @apply min-w-[320px]; }
   .cx-project-search { @apply m-1 flex items-center gap-2 rounded-[8px] border border-line bg-panel px-2 py-[6px] text-dim; }
@@ -782,15 +787,31 @@
     .topbar-tool-label { @apply hidden; }
     .topbar-attention { @apply absolute -right-1 -top-1 m-0 min-w-[16px] px-1 leading-4; }
     .cx-session { @apply px-2 pb-2; }
-    .cx-env-strip { @apply flex-wrap px-2 py-[7px]; }
-    .cx-env-control { @apply max-w-full; }
-    .cx-env-project-wrap { @apply flex-[1_1_100%]; }
-    .cx-env-control.branch:disabled { @apply hidden; }
+    .cx-env-strip {
+      @apply flex-nowrap overflow-x-auto px-2 py-[7px] overscroll-x-contain;
+      scrollbar-width: none;
+    }
+    .cx-env-strip::-webkit-scrollbar { display: none; }
+    .cx-env-control { @apply max-w-[164px] shrink-0; }
+    .cx-env-control.environment { @apply max-w-none; }
+    .cx-env-project-wrap { @apply flex-none; }
+    .cx-env-project-wrap .cx-env-control { @apply max-w-[170px]; }
     .cx-bar { @apply gap-1 px-2; }
     .cx-pill { @apply max-w-[126px] overflow-hidden px-2 text-[11px]; }
     .cx-mode { @apply max-w-[134px]; }
     .cx-model { @apply max-w-[116px]; }
     .cx-icon, .cx-send { @apply h-8 w-8; }
+    .cx-optimize { @apply hidden; }
+    .cx-delivery { @apply gap-[2px]; }
+    .cx-deliv { @apply h-8 w-8 justify-center px-0; }
+    .cx-deliv-label { @apply hidden; }
+    .cx-pop-codex {
+      width: calc(100vw - 24px) !important;
+      max-width: calc(100vw - 24px) !important;
+      max-height: min(72dvh, 520px) !important;
+    }
+    .cx-add-menu .pop-item,
+    .cx-model-menu .pop-item { @apply min-h-11; }
     .scheduled-page { @apply px-4; }
     .daemon-alert { @apply flex-col gap-3; }
     .daemon-alert-retry { @apply min-h-11 w-full self-stretch; }

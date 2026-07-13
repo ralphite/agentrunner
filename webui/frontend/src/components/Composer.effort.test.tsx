@@ -65,7 +65,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Composer model / effort menu mobile hierarchy", () => {
-  it("opens a compact bounded root with Model, Effort, and Advanced only", () => {
+  it("opens a compact bounded root with Model, Effort, Speed, and Advanced only", () => {
     const { container, onSubmit } = mount();
     expect(pill(container).type).toBe("button");
 
@@ -73,10 +73,11 @@ describe("Composer model / effort menu mobile hierarchy", () => {
     const menu = container.querySelector<HTMLElement>(".cx-model-menu")!;
     expect(menu.style.width).toBe("320px");
     expect(menu.style.maxWidth).toBe("calc(100vw - 32px)");
-    expect([...menu.querySelectorAll(".pop-title")].map((node) => node.textContent)).toEqual(["Model", "Effort", "Advanced"]);
+    expect([...menu.querySelectorAll(".pop-title")].map((node) => node.textContent)).toEqual(["Model", "Effort", "Speed", "Advanced"]);
     expect(menu.querySelector('[role="slider"]')).toBeNull();
     expect(item("Model").querySelector(".pop-right")?.textContent).toContain("Gemini Flash");
     expect(item("Effort").querySelector(".pop-right")?.textContent).toContain("Off");
+    expect(item("Speed").querySelector(".pop-right")?.textContent).toContain("Standard");
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
@@ -120,7 +121,19 @@ describe("Composer model / effort menu mobile hierarchy", () => {
     fireEvent.click(screen.getByRole("button", { name: "Back to model menu" }));
     expect(item("Model")).toBeTruthy();
     expect(item("Effort")).toBeTruthy();
+    expect(item("Speed")).toBeTruthy();
     expect(item("Advanced")).toBeTruthy();
+  });
+
+  it("keeps Speed as a returnable Standard page", () => {
+    const { container } = mount();
+    openMenu(container);
+    fireEvent.click(item("Speed"));
+
+    expect(screen.getByRole("button", { name: "Back to model menu" })).toBeTruthy();
+    expect(item("Standard").querySelector(".pop-check")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Back to model menu" }));
+    expect(item("Speed").querySelector(".pop-right")?.textContent).toContain("Standard");
   });
 
   it("does not submit a draft while navigating or choosing an effort", () => {

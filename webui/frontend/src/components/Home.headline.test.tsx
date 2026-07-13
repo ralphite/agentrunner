@@ -29,8 +29,6 @@ describe("home greeting structure", () => {
   });
 
   it("fits the empty composer inside a 390x500 viewport without changing normal-height mobile", () => {
-    expect(src).toContain("max-[680px]:[@media(max-height:560px)]:[&_.cx-env-strip]:flex-nowrap");
-    expect(src).toContain("max-[680px]:[@media(max-height:560px)]:[&_.cx-env-project-wrap]:flex-[1_1_0%]");
     expect(src).toContain("max-[680px]:[@media(max-height:560px)]:[&_.cx-input-wrap]:pt-1.5");
     expect(src).toContain("max-[680px]:[@media(max-height:560px)]:[&_.cx-input-wrap_textarea]:min-h-8");
   });

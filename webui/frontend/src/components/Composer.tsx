@@ -177,12 +177,12 @@ export function Composer(props: ComposerProps) {
   // The compact root mirrors Codex's Model / Effort / Advanced summary. Each
   // dimension swaps to its own page, so short phones never have to scroll past
   // the full model list just to reach effort or advanced settings.
-  const [modelMenuPage, setModelMenuPage] = useState<"root" | "model" | "effort" | "advanced">("root");
+  const [modelMenuPage, setModelMenuPage] = useState<"root" | "model" | "effort" | "speed" | "advanced">("root");
   // The `+` menu is a small drawer, not a settings panel (INC-41 CP-1). Its root
   // page stays ≤7 single-line rows; the five agent personas (and the raw YAML
   // editor, which is the same subject) live one level down, reusing the model
   // menu's page-swap pattern.
-  const [addMenuPage, setAddMenuPage] = useState<"root" | "agent">("root");
+  const [addMenuPage, setAddMenuPage] = useState<"root" | "advanced" | "agent">("root");
   // The home composer remembers the last chosen access level (W15); session
   // composers show the session's fixed posture instead and never read this.
   const [access, setAccessState] = useState<AccessId>(() => {
@@ -1083,19 +1083,10 @@ export function Composer(props: ComposerProps) {
         onDragLeave={onDragLeave}
         onDrop={onDrop}
       >
-        {/* Codex exposes project, run location and branch as three separate
-            controls. They share submit state, but never share a menu: each
-            choice has one meaning and remains scannable before typing. A fourth
-            chip ("No environment") used to sit here (INC-41 HM-4): its popover
-            held exactly one hard-coded, already-active item, so clicking it
-            could only close itself — zero choices for the widest chip in the
-            row (145px at 1440, ~20% of the strip). Real environments need a
-            backend that doesn't exist; until it does, the chip is a lie that
-            costs project/branch their width, so it's gone. The chip row is the
-            top of ONE composer card (P2): the card owns the
-            chip row is the top of ONE composer card (P2): the card owns the
-            single outer border + shadow; the strip only draws a hairline divider
-            down to the input, so there's no double-rounded seam. */}
+        {/* Codex exposes project, worktree, environment and branch as separate
+            chips. Environment is still a state-only chip here (no backend yet),
+            but keeping it visible makes the rail match the Codex mental model
+            and prevents "worktree" from being mistaken for environment. */}
         {!isSession && (
           <div className="cx-env-strip">
           <Popover
@@ -1195,6 +1186,11 @@ export function Composer(props: ComposerProps) {
               </div>
             )}
           </Popover>
+
+          <button type="button" className="cx-env-control environment" aria-disabled="true" title="No environment configured">
+            <Desktop size={17} />
+            <span className="cx-env-value">No environment</span>
+          </button>
 
           <Popover
             align="left"
@@ -1331,22 +1327,9 @@ export function Composer(props: ComposerProps) {
 
         {/* ---- control bar ---- */}
         <div className="cx-bar">
-          {/* The Codex-style `+` menu (C1 / INC-41 CP-1). `+` is "reach for
-              something mid-thought", not a settings panel: it must not blanket
-              the screen. It used to be 12 two-line rows / 798px tall — 89% of a
-              900px viewport, burying the suggestion cards and the thread behind
-              it. It is now a small drawer:
-                · Add — ONE "Files and folders" row. `pick()` already routes by
-                  mime (image → --image, everything else → --file), so the old
-                  Images/Files split bought nothing and cost a row.
-                · Advanced — Goal / Loop / Best of N / Plan mode, plus the
-                  Background-run toggle moved out of the run-location
-                  chip (checked = headless; unchecked = interactive session, and
-                  the chip names whichever is on).
-                · Agent — one drill-in row showing the current persona; the five
-                  personas and the raw-YAML editor live on the second page.
-              Titles and their gray descriptions share ONE line through the
-              menu-scoped descendant utilities below. */}
+          {/* Codex-style `+`: root stays about adding context or switching the
+              immediate mode. AgentRunner-specific automation remains available,
+              but one level down so the first screen matches Codex's Add menu. */}
           <Popover
             align="left"
             panelClass="cx-pop-codex"
@@ -1370,37 +1353,64 @@ export function Composer(props: ComposerProps) {
                 {addMenuPage === "root" ? (
                   <>
                     <PopSection label="Add">
-                      <PopItem icon={<Paperclip size={16} />} title="Files and folders" desc="Images, PDFs, any file" onClick={() => { close(); anyRef.current?.click(); }} />
-                    </PopSection>
-                    <PopSection label="Advanced">
-                      <PopItem icon={<GoalIcon />} title="Goal" desc="Keep working until it's met" onClick={() => { close(); setLauncher({ mode: "goal", prompt: text.trim() }); }} />
-                      <PopItem icon={<LoopIcon />} title="Loop" desc="Repeat on a cadence" onClick={() => { close(); setLauncher({ mode: "loop", prompt: text.trim() }); }} />
-                      <PopItem icon={<BestIcon />} title="Best of N" desc="Keep the best of N tries" onClick={() => { close(); setLauncher({ mode: "best", prompt: text.trim() }); }} />
-                      {!isSession && <PopItem icon={<PlanIcon />} title="Plan mode" desc="Read-only planning" active={access === "plan"} onClick={() => { close(); setAccess("plan"); }} />}
-                      {!isSession && (
-                        <PopItem
-                          icon={<Lightning size={16} />}
-                          title="Background run"
-                          desc="Run headless, no chat"
-                          active={kind === "background"}
-                          onClick={() => { setKind(kind === "background" ? "chat" : "background"); close(); }}
-                        />
-                      )}
-                    </PopSection>
-                    <PopSection label="Agent">
+                      <PopItem icon={<Paperclip size={16} />} title="Files and folders" onClick={() => { close(); anyRef.current?.click(); }} />
+                      <PopItem icon={<FolderIcon />} title="Attach Finder" onClick={() => { close(); anyRef.current?.click(); }} />
+                      <PopItem icon={<GoalIcon />} title="Goal" desc="Set a goal to keep pursuing" onClick={() => { close(); setLauncher({ mode: "goal", prompt: text.trim() }); }} />
                       <PopItem
-                        icon={<PersonaIcon />}
-                        title="Agent"
-                        desc={personaById(persona).label}
-                        right={<span aria-hidden>›</span>}
-                        onClick={() => setAddMenuPage("agent")}
+                        icon={<PlanIcon />}
+                        title="Plan mode"
+                        desc="Turn plan mode on"
+                        active={!isSession && access === "plan"}
+                        disabled={isSession}
+                        onClick={!isSession ? () => { close(); setAccess("plan"); } : undefined}
                       />
                     </PopSection>
+                    <PopSection label="Plugins">
+                      <PopItem icon={<File size={16} />} title="Documents" desc="Create and edit document artifacts" disabled />
+                      <PopItem icon={<File size={16} />} title="PDF" desc="Read, create, and verify PDF files" disabled />
+                      <PopItem icon={<ChartBar size={16} />} title="Spreadsheets" desc="Create and edit spreadsheet files" disabled />
+                      <PopItem icon={<Desktop size={16} />} title="Presentations" desc="Create and edit presentations" disabled />
+                      <PopItem icon={<Sparkle size={16} />} title="Template Creator" desc="Create or update templates" disabled />
+                    </PopSection>
+                    <PopSection label="Advanced">
+                      <PopItem
+                        icon={<Lightning size={16} />}
+                        title="Automation"
+                        desc={kind === "background" ? "Background run" : personaById(persona).label}
+                        right={<span aria-hidden>›</span>}
+                        onClick={() => setAddMenuPage("advanced")}
+                      />
+                    </PopSection>
+                  </>
+                ) : addMenuPage === "advanced" ? (
+                  <>
+                    <div className="pop-menu-title">
+                      <button className="pop-back" onClick={() => setAddMenuPage("root")} aria-label="Back to add menu">‹</button>
+                      <b>Automation</b>
+                    </div>
+                    <PopItem icon={<LoopIcon />} title="Loop" desc="Repeat on a cadence" onClick={() => { close(); setLauncher({ mode: "loop", prompt: text.trim() }); }} />
+                    <PopItem icon={<BestIcon />} title="Best of N" desc="Keep the best of N tries" onClick={() => { close(); setLauncher({ mode: "best", prompt: text.trim() }); }} />
+                    {!isSession && (
+                      <PopItem
+                        icon={<Lightning size={16} />}
+                        title="Background run"
+                        desc="Run headless, no chat"
+                        active={kind === "background"}
+                        onClick={() => { setKind(kind === "background" ? "chat" : "background"); close(); }}
+                      />
+                    )}
+                    <PopItem
+                      icon={<PersonaIcon />}
+                      title="Agent"
+                      desc={personaById(persona).label}
+                      right={<span aria-hidden>›</span>}
+                      onClick={() => setAddMenuPage("agent")}
+                    />
                   </>
                 ) : (
                   <>
                     <div className="pop-menu-title">
-                      <button className="pop-back" onClick={() => setAddMenuPage("root")} aria-label="Back to add menu">‹</button>
+                      <button className="pop-back" onClick={() => setAddMenuPage("advanced")} aria-label="Back to automation menu">‹</button>
                       <b>Agent</b>
                     </div>
                     {PERSONAS.map((item) => (
@@ -1543,8 +1553,13 @@ export function Composer(props: ComposerProps) {
                       right={<span className="inline-flex max-w-[210px] items-center gap-2"><span className="truncate">{budgetOverride ? "Custom" : effortLevel.label}</span><span aria-hidden>›</span></span>}
                       onClick={() => setModelMenuPage("effort")}
                     />
+                    <PopItem
+                      title="Speed"
+                      right={<span className="inline-flex max-w-[210px] items-center gap-2"><span className="truncate">Standard</span><span aria-hidden>›</span></span>}
+                      onClick={() => setModelMenuPage("speed")}
+                    />
                     <div className="cx-model-advanced">
-                      <PopItem title="Advanced" right={<span aria-hidden>›</span>} onClick={() => setModelMenuPage("advanced")} />
+                      <PopItem title="Advanced" right={<CaretDown size={14} className="cx-model-adv-chev open" aria-hidden="true" />} onClick={() => setModelMenuPage("advanced")} />
                     </div>
                   </>
                 ) : modelMenuPage === "model" ? (
@@ -1581,6 +1596,14 @@ export function Composer(props: ComposerProps) {
                         onClick={() => { chooseEffort(level.id); close(); }}
                       />
                     ))}
+                  </>
+                ) : modelMenuPage === "speed" ? (
+                  <>
+                    <div className="pop-menu-title">
+                      <button type="button" className="pop-back" onClick={() => setModelMenuPage("root")} aria-label="Back to model menu">‹</button>
+                      <b>Speed</b>
+                    </div>
+                    <PopItem title="Standard" desc="Balanced response speed" active onClick={close} />
                   </>
                 ) : (
                   <>
@@ -1669,7 +1692,8 @@ export function Composer(props: ComposerProps) {
                 onClick={() => setDeliveryMode("queue")}
                 title="Queue: deliver after the current turn ends (⌘⏎ to steer this one)"
               >
-                Queue
+                <ListChecks size={14} />
+                <span className="cx-deliv-label">Queue</span>
               </button>
               <button
                 type="button"
@@ -1677,7 +1701,8 @@ export function Composer(props: ComposerProps) {
                 onClick={() => setDeliveryMode("steer")}
                 title="Steer: fold into the current turn at its next safe boundary (⌘⏎ to queue this one)"
               >
-                Steer
+                <Lightning size={14} />
+                <span className="cx-deliv-label">Steer</span>
               </button>
             </div>
           )}
