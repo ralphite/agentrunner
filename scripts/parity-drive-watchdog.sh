@@ -18,7 +18,13 @@ LOCK=/tmp/parity-drive.lock
 ts()  { date "+%Y-%m-%d %H:%M:%S"; }
 log() { echo "[$(ts)] $*" >> "$LOG"; }
 
-# 1) 清陈锁(>60min)。锁是目录(mkdir 原子锁),用 find -mmin 判龄。
+# 1) 清陈锁。优先清 pid 已死的锁;否则清 >60min 的锁。锁是目录(mkdir 原子锁)。
+if [ -f "$LOCK/pid" ]; then
+  LOCKPID=$(cat "$LOCK/pid" 2>/dev/null || echo "")
+  if [[ "$LOCKPID" == <-> ]] && ! kill -0 "$LOCKPID" 2>/dev/null; then
+    rm -rf "$LOCK" && log "cleared dead lock pid=$LOCKPID"
+  fi
+fi
 if [ -d "$LOCK" ] && [ -n "$(find "$LOCK" -maxdepth 0 -mmin +60 2>/dev/null)" ]; then
   rm -rf "$LOCK" && log "cleared stale lock (>60min)"
 fi

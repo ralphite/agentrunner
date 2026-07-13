@@ -35,8 +35,14 @@ run_round() {
   if mkdir "$LOCK" 2>/dev/null; then
     echo "$$" > "$LOCK/pid"
   else
+    local LOCKPID=""
+    [ -f "$LOCK/pid" ] && LOCKPID=$(cat "$LOCK/pid" 2>/dev/null || echo "")
+    if [[ "$LOCKPID" == <-> ]] && ! kill -0 "$LOCKPID" 2>/dev/null; then
+      log "dead lock pid=$LOCKPID — stealing"
+      rm -rf "$LOCK"; mkdir "$LOCK" 2>/dev/null || { log "dead-lock steal failed, skip"; return; }
+      echo "$$" > "$LOCK/pid"
     # 陈锁(>45min)判上一轮崩死:清掉重占;否则让路(交互 session 正在跑)
-    if [ -n "$(find "$LOCK" -maxdepth 0 -mmin +45 2>/dev/null)" ]; then
+    elif [ -n "$(find "$LOCK" -maxdepth 0 -mmin +45 2>/dev/null)" ]; then
       log "stale lock (>45min) — stealing"
       rm -rf "$LOCK"; mkdir "$LOCK" 2>/dev/null || { log "steal failed, skip"; return; }
       echo "$$" > "$LOCK/pid"
