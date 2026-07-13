@@ -93,16 +93,26 @@ function Modal({
     };
   }, []);
   return (
-    <div className="backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal" ref={modalRef} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1}>
-        <div className="mhead">
-          <span>{title}</span>
-          <button className="ghost" onClick={onClose} aria-label="Close dialog">
+    <div
+      className="backdrop bottom-auto h-[var(--app-vvh,100dvh)] overflow-hidden max-[640px]:p-2"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div
+        className="modal mx-auto flex max-h-[calc(var(--app-vvh,100dvh)-16vh)] min-h-0 flex-col max-[640px]:max-h-[calc(var(--app-vvh,100dvh)-1rem)]"
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        tabIndex={-1}
+      >
+        <div className="mhead shrink-0">
+          <span className="min-w-0 truncate">{title}</span>
+          <button className="ghost -m-2 grid h-11 w-11 shrink-0 place-items-center p-0" onClick={onClose} aria-label="Close dialog">
             <X size={16} />
           </button>
         </div>
-        <div className="mbody">{children}</div>
-        {footer && <div className="mfoot">{footer}</div>}
+        <div className="mbody min-h-0 flex-1 overflow-y-auto overscroll-contain">{children}</div>
+        {footer && <div className="mfoot shrink-0 max-[640px]:flex-wrap max-[640px]:justify-end">{footer}</div>}
       </div>
     </div>
   );
