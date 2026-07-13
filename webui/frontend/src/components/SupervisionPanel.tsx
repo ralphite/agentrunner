@@ -246,9 +246,9 @@ export function SupervisionPanel({
           workspace-less session — a panel you couldn't close would be a worse
           bug than the one we're fixing. Height 0 ⇒ Environment gains the whole
           40px back; sticky ⇒ ✕ stays reachable in a long, scrolled panel. */}
-      <div className="supervision-close-slot">
+      <div className="supervision-close-slot sticky top-0 z-10 flex h-0 justify-end">
         <button
-          className="supervision-close"
+          className="supervision-close icon-only h-6 w-6 shrink-0"
           onClick={onClose}
           title="Hide Environment"
           aria-label="Hide Environment"

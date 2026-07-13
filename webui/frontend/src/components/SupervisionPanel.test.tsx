@@ -147,8 +147,18 @@ describe("DF-D4 · no title bar that repeats the topbar pill", () => {
     const slot = container.querySelector(".supervision-close-slot")!;
     expect(slot).toBeTruthy();
     expect(slot).toBe(container.querySelector("aside.supervision-panel")!.firstElementChild);
+    expect(slot.classList).toContain("sticky");
+    expect(slot.classList).toContain("h-0");
+    expect(slot.classList).toContain("justify-end");
 
-    fireEvent.click(screen.getByRole("button", { name: /hide environment/i }));
+    // Mobile: the close control shares the first section's heading line at the
+    // panel's right edge instead of consuming a blank 40px row on the left.
+    const close = screen.getByRole("button", { name: /hide environment/i });
+    expect(close.classList).toContain("icon-only");
+    expect(close.classList).toContain("h-6");
+    expect(close.classList).toContain("w-6");
+
+    fireEvent.click(close);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
