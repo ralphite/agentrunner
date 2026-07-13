@@ -31,6 +31,16 @@ const rows = () => Array.from(screen.getByRole("listbox").querySelectorAll(".cmd
 
 afterEach(cleanup);
 
+describe("CommandPalette mobile dismissal", () => {
+  it("offers a direct close control and requests focus restoration", () => {
+    const onClose = vi.fn();
+    useStore.setState({ sessions: [], runs: [], archived: [], unread: [], renames: {} });
+    render(<CommandPalette onClose={onClose} />);
+    fireEvent.click(screen.getByRole("button", { name: "Close command palette" }));
+    expect(onClose).toHaveBeenCalledWith(true);
+  });
+});
+
 describe("CommandPalette session groups (RH-3)", () => {
   it("shows a Sessions group whose nine rows each carry a ⌘-digit badge", () => {
     open(allAttention);

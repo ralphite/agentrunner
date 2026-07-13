@@ -1,3 +1,4 @@
+import { X } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
 import { nextTheme } from "../theme";
@@ -180,17 +181,22 @@ export function CommandPalette({ onClose, onOpenSettings }: {
   return (
     <div className="backdrop cmdk-back" onMouseDown={(e) => e.target === e.currentTarget && onClose(true)}>
       <div className="cmdk" onKeyDown={onKey} role="dialog" aria-modal="true" aria-label="Command palette">
-        <input
-          ref={inputRef}
-          className="cmdk-input"
-          placeholder="Search sessions or run a command"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          role="combobox"
-          aria-controls="command-palette-results"
-          aria-expanded="true"
-          aria-activedescendant={items[idx]?.id}
-        />
+        <div className="cmdk-search">
+          <input
+            ref={inputRef}
+            className="cmdk-input"
+            placeholder="Search sessions or run a command"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            role="combobox"
+            aria-controls="command-palette-results"
+            aria-expanded="true"
+            aria-activedescendant={items[idx]?.id}
+          />
+          <button type="button" className="cmdk-close" onClick={() => onClose(true)} title="Close" aria-label="Close command palette">
+            <X size={18} />
+          </button>
+        </div>
         <div
           className="cmdk-list"
           id="command-palette-results"
