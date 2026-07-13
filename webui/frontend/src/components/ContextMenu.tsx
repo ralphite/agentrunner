@@ -1,4 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+
+const VIEWPORT_GUTTER = 8;
 
 // ContextMenu is a cursor-anchored popup (Codex's right-click chat menu). Unlike
 // Menu (which hangs off a trigger button), this renders at fixed (x, y) and
@@ -15,6 +17,38 @@ export function ContextMenu({
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({
+    left: Math.max(VIEWPORT_GUTTER, x),
+    top: Math.max(VIEWPORT_GUTTER, y),
+  });
+
+  useLayoutEffect(() => {
+    const panel = ref.current;
+    if (!panel) return;
+
+    const place = () => {
+      const { width, height } = panel.getBoundingClientRect();
+      const left = Math.min(
+        Math.max(VIEWPORT_GUTTER, x),
+        Math.max(VIEWPORT_GUTTER, window.innerWidth - width - VIEWPORT_GUTTER),
+      );
+      const top = Math.min(
+        Math.max(VIEWPORT_GUTTER, y),
+        Math.max(VIEWPORT_GUTTER, window.innerHeight - height - VIEWPORT_GUTTER),
+      );
+      setPosition((current) => current.left === left && current.top === top ? current : { left, top });
+    };
+
+    place();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(place);
+    observer?.observe(panel);
+    window.addEventListener("resize", place);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", place);
+    };
+  }, [x, y]);
+
   useEffect(() => {
     requestAnimationFrame(() => ref.current?.querySelector<HTMLElement>("[role='menuitem']")?.focus());
     const onDoc = (e: MouseEvent) => {
@@ -45,13 +79,14 @@ export function ContextMenu({
     };
   }, [onClose]);
 
-  // Clamp so the menu stays on-screen near the edges.
-  const style: React.CSSProperties = {
-    left: Math.min(x, window.innerWidth - 220),
-    top: Math.min(y, window.innerHeight - 250),
-  };
   return (
-    <div className="ctx-menu" ref={ref} style={style} role="menu" onClick={onClose}>
+    <div
+      className="ctx-menu"
+      ref={ref}
+      style={position}
+      role="menu"
+      onClick={onClose}
+    >
       {children}
     </div>
   );

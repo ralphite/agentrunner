@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CaretLeft, CaretRight, DownloadSimple, MagnifyingGlassMinus, MagnifyingGlassPlus, X } from "@phosphor-icons/react";
 import { uploadURL } from "../api";
@@ -38,6 +38,10 @@ export function Lightbox({
   const multi = images.length > 1;
   const src = images[index] ? resolve(images[index]) : "";
   const name = images[index] ? basename(images[index]) : "image";
+  const imageStyle = {
+    "--lb-mobile-width": `${zoom}%`,
+    "--lb-scale": zoom / 100,
+  } as CSSProperties;
 
   const zoomBy = (delta: number) => setZoom((z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z + delta)));
   const go = (delta: number) => {
@@ -108,30 +112,35 @@ export function Lightbox({
         </button>
       </div>
 
-      {multi && (
-        <button className="lb-nav prev" onClick={(e) => { e.stopPropagation(); go(-1); }} title="Previous (←)" aria-label="Previous image">
-          <CaretLeft size={26} />
-        </button>
-      )}
-
       <div className="lb-stage" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-        <img className="lb-img" src={src} alt={name} style={{ transform: `scale(${zoom / 100})` }} />
+        <img
+          className={`lb-img ${zoom > 100 ? "is-zoomed" : ""}`}
+          src={src}
+          alt={name}
+          style={imageStyle}
+        />
       </div>
 
-      {multi && (
-        <button className="lb-nav next" onClick={(e) => { e.stopPropagation(); go(1); }} title="Next (→)" aria-label="Next image">
-          <CaretRight size={26} />
-        </button>
-      )}
-
-      <div className="lb-zoom" onClick={(e) => e.stopPropagation()}>
-        <button className="lb-btn" onClick={() => zoomBy(-ZOOM_STEP)} disabled={zoom <= ZOOM_MIN} title="Zoom out" aria-label="Zoom out">
-          <MagnifyingGlassMinus size={17} />
-        </button>
-        <span className="lb-pct" aria-live="polite">{zoom}%</span>
-        <button className="lb-btn" onClick={() => zoomBy(ZOOM_STEP)} disabled={zoom >= ZOOM_MAX} title="Zoom in" aria-label="Zoom in">
-          <MagnifyingGlassPlus size={17} />
-        </button>
+      <div className="lb-controls" onClick={(e) => e.stopPropagation()}>
+        {multi ? (
+          <button className="lb-nav prev" onClick={() => go(-1)} title="Previous (←)" aria-label="Previous image">
+            <CaretLeft size={26} />
+          </button>
+        ) : <span />}
+        <div className="lb-zoom-center">
+          <button className="lb-btn" onClick={() => zoomBy(-ZOOM_STEP)} disabled={zoom <= ZOOM_MIN} title="Zoom out" aria-label="Zoom out">
+            <MagnifyingGlassMinus size={17} />
+          </button>
+          <span className="lb-pct" aria-live="polite">{zoom}%</span>
+          <button className="lb-btn" onClick={() => zoomBy(ZOOM_STEP)} disabled={zoom >= ZOOM_MAX} title="Zoom in" aria-label="Zoom in">
+            <MagnifyingGlassPlus size={17} />
+          </button>
+        </div>
+        {multi ? (
+          <button className="lb-nav next" onClick={() => go(1)} title="Next (→)" aria-label="Next image">
+            <CaretRight size={26} />
+          </button>
+        ) : <span />}
       </div>
     </div>,
     document.body,

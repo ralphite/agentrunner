@@ -409,6 +409,14 @@
   .pop-panel, .menu-pop, .ctx-menu {
     @apply z-50 min-w-[220px] overflow-auto rounded-[12px] border border-line bg-panel p-1 text-[13px] shadow-lg;
   }
+  .ctx-menu {
+    @apply fixed max-h-[calc(100dvh-16px)] w-[220px] min-w-0 max-w-[calc(100vw-16px)];
+  }
+  .ctx-menu .menu-item,
+  .ctx-menu .menu-label,
+  .ctx-menu .menu-item > * {
+    @apply min-w-0 overflow-hidden text-ellipsis whitespace-nowrap;
+  }
   .menu-pop { @apply absolute bottom-[calc(100%+8px)] right-0; }
   .menu-trigger { @apply grid h-8 w-8 place-items-center rounded-[8px] border-0 bg-transparent p-0 text-ink-2 hover:bg-panel-2 hover:text-ink; }
   .menu-item, .pop-item {
@@ -524,6 +532,13 @@
     @apply flex items-start gap-3;
   }
   .approval-icon, .daemon-alert-ic, .turn-error-ic, .terminal-alert-ic, .gbar-ico { @apply shrink-0 text-blue; }
+  .daemon-alert-main { @apply flex min-w-0 flex-1 items-start gap-3; }
+  .daemon-alert-text { @apply flex min-w-0 flex-1 flex-col gap-1; }
+  .daemon-alert-text b { @apply leading-5; }
+  .daemon-alert-text span { @apply leading-5 text-dim; }
+  .daemon-alert-retry {
+    @apply flex shrink-0 items-center justify-center gap-1.5 self-start rounded-[8px] border border-line px-3 py-1.5 text-[13px] font-medium;
+  }
   .approval-kicker, .gbar-label { @apply text-[11px] font-medium uppercase tracking-[0.06em] text-dim; }
   .approval-description, .approval-agent, .approval-shortcut, .approval-scope, .turn-error-hint, .terminal-alert-meta, .gbar-meta, .gbar-sub {
     @apply text-[12px] text-dim;
@@ -640,16 +655,42 @@
   }
   .fb-count { @apply w-[48px] shrink-0 whitespace-nowrap text-right text-[11px] tabular-nums text-dim; }
 
-  .lightbox { @apply fixed inset-0 z-[70] flex flex-col bg-black/85 text-white; }
-  .lb-top { @apply flex items-center gap-2 p-3; }
-  .lb-stage { @apply grid min-h-0 flex-1 place-items-center overflow-auto p-4; }
-  .lb-img { @apply max-h-full max-w-full object-contain; }
-  .lb-btn, .lb-nav { @apply border-white/20 bg-white/10 text-white hover:bg-white/20; }
+  .toast-stack {
+    @apply fixed z-[60] flex w-[min(440px,calc(100vw-32px))] flex-col gap-2;
+    right: max(16px, env(safe-area-inset-right));
+    bottom: max(16px, env(safe-area-inset-bottom));
+  }
+  .toast-card {
+    @apply flex cursor-pointer items-start gap-2 rounded-app px-[14px] py-[10px] text-[13px] shadow-[0_6px_24px_rgba(0,0,0,0.28)];
+  }
+  .toast-card.info { @apply bg-accent text-accent-ink; }
+  .toast-card.err { background: #7f1d1d; color: white; }
+  .toast-ic { @apply mt-[1px] shrink-0; }
+  .toast-text {
+    @apply min-w-0 flex-1 whitespace-pre-wrap overflow-y-auto overscroll-contain;
+    max-height: 8rem;
+    overflow-wrap: anywhere;
+  }
+  .toast-close {
+    @apply -mr-1 grid h-8 w-8 shrink-0 place-items-center rounded border-0 bg-transparent p-0 opacity-80 hover:opacity-100;
+  }
+
+  .lightbox { @apply fixed inset-0 z-[70] flex flex-col overflow-hidden bg-black/85 text-white; }
+  .lb-top { @apply flex shrink-0 items-center gap-2 p-3; }
+  .lb-stage { @apply grid min-h-0 flex-1 place-items-center overflow-auto overscroll-contain p-4; }
+  .lb-img {
+    @apply block max-h-full max-w-full object-contain;
+    transform: scale(var(--lb-scale, 1));
+    transform-origin: center;
+  }
+  .lb-btn, .lb-nav { @apply grid place-items-center border-white/20 bg-white/10 p-0 text-white hover:bg-white/20; }
+  .lb-btn { @apply h-8 w-8 shrink-0; }
   .lb-nav { @apply absolute top-1/2 h-10 w-10 -translate-y-1/2 rounded-full; }
   .lb-nav.prev { @apply left-3; }
   .lb-nav.next { @apply right-3; }
-  .lb-zoom { @apply flex items-center justify-center gap-2 p-3; }
-  .lb-pct, .lb-count { @apply text-[12px] text-white/80; }
+  .lb-controls { @apply flex shrink-0 items-center justify-center gap-2 p-3; }
+  .lb-zoom-center { @apply flex items-center justify-center gap-2; }
+  .lb-pct, .lb-count { @apply min-w-12 text-center text-[12px] text-white/80; }
 
   .rs-panel { @apply mx-auto max-w-[760px]; }
   .rs-panel-title { @apply m-0 text-[22px] font-semibold; }
@@ -751,5 +792,41 @@
     .cx-model { @apply max-w-[116px]; }
     .cx-icon, .cx-send { @apply h-8 w-8; }
     .scheduled-page { @apply px-4; }
+    .daemon-alert { @apply flex-col gap-3; }
+    .daemon-alert-retry { @apply min-h-11 w-full self-stretch; }
+    .toast-stack {
+      @apply w-auto overflow-y-auto overscroll-contain;
+      top: max(12px, env(safe-area-inset-top));
+      right: max(12px, env(safe-area-inset-right));
+      bottom: auto;
+      left: max(12px, env(safe-area-inset-left));
+      max-height: min(50dvh, 360px);
+    }
+    .toast-close { @apply -my-1.5 h-11 w-11; }
+    .lightbox { @apply bg-black/90; }
+    .lb-top {
+      padding-top: max(0.75rem, env(safe-area-inset-top));
+      padding-right: max(0.75rem, env(safe-area-inset-right));
+      padding-bottom: 0.5rem;
+      padding-left: max(0.75rem, env(safe-area-inset-left));
+    }
+    .lb-btn { @apply h-10 w-10; }
+    .lb-stage {
+      @apply flex items-start justify-start p-0;
+      touch-action: pan-x pan-y;
+    }
+    .lb-img {
+      @apply m-auto h-auto shrink-0;
+      width: var(--lb-mobile-width, 100%);
+      transform: none;
+    }
+    .lb-img.is-zoomed { @apply max-h-none max-w-none; }
+    .lb-controls {
+      @apply grid shrink-0 grid-cols-[2.5rem_1fr_2.5rem] pt-2;
+      padding-right: max(0.75rem, env(safe-area-inset-right));
+      padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+      padding-left: max(0.75rem, env(safe-area-inset-left));
+    }
+    .lb-nav { @apply static translate-y-0; }
   }
 }
