@@ -20,4 +20,9 @@ describe("home greeting structure", () => {
     expect(src).toContain('className="home-empty-card"');
     expect(src).toContain('className="home-empty-repo"');
   });
+
+  it("keeps the send action on-screen after a starter fills the mobile composer", () => {
+    expect(src).toContain('className="home-composer w-full max-[480px]:[&_.cx-optimize]:hidden"');
+    expect(src).toContain('<Composer variant="home"');
+  });
 });

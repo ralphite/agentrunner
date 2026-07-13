@@ -164,7 +164,12 @@ export function Home() {
           </div>
         </div>
         <DaemonAlert />
-        <Composer variant="home" onError={(m) => toast(m)} onProjectChange={setProject} />
+        {/* Codex's compact composer keeps the primary mobile action row to
+            add/access/model/mic/send. Once a starter fills our draft, the
+            desktop-only optimize shortcut otherwise pushes Send off-screen. */}
+        <div className="home-composer w-full max-[480px]:[&_.cx-optimize]:hidden">
+          <Composer variant="home" onError={(m) => toast(m)} onProjectChange={setProject} />
+        </div>
       </div>
     </div>
   );
