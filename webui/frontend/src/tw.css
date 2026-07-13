@@ -309,17 +309,17 @@
   .hero { @apply mx-auto flex w-full max-w-[760px] flex-1 flex-col items-center justify-center gap-5 px-6 py-8; }
   .home-empty { @apply flex w-full flex-col items-center gap-4 text-center; }
   .home-hero-icon { @apply grid h-[48px] w-[48px] place-items-center rounded-full text-dim; }
-  .home-empty-headline { @apply m-0 text-[23px] font-normal leading-tight text-ink; }
-  .home-empty-repo { @apply font-medium; }
-  .home-empty-cards { @apply grid w-full max-w-[588px] grid-cols-2 gap-3; }
+  .home-empty-headline { @apply m-0 max-w-[760px] text-[23px] font-normal leading-tight text-ink; }
+  .home-empty-repo { @apply inline-block max-w-[32ch] overflow-hidden text-ellipsis whitespace-nowrap align-bottom font-medium; }
+  .home-empty-cards { @apply grid w-full max-w-[690px] grid-cols-4 gap-3; }
   .home-empty-card {
-    @apply flex min-h-[84px] items-center gap-3 rounded-[12px] border border-line bg-panel px-4 py-3 text-left text-[13px] shadow-sm hover:border-dim hover:bg-panel-2;
+    @apply flex min-h-[116px] flex-col items-start justify-between gap-3 rounded-[13px] border border-line bg-panel px-4 py-4 text-left text-[14px] shadow-sm hover:border-dim hover:bg-panel-2;
   }
-  .home-empty-card-icon { @apply grid h-[30px] w-[30px] shrink-0 place-items-center rounded-full bg-blue-soft text-blue; }
-  .home-empty-card-icon.teal { color: var(--teal); background: color-mix(in srgb, var(--teal) 14%, transparent); }
-  .home-empty-card-icon.violet { @apply bg-violet-soft text-violet; }
-  .home-empty-card-icon.green { @apply bg-green-soft text-green; }
-  .home-empty-card-icon.orange { color: var(--orange); background: color-mix(in srgb, var(--orange) 14%, transparent); }
+  .home-empty-card-icon { @apply grid h-[26px] w-[26px] shrink-0 place-items-center text-blue; }
+  .home-empty-card-icon.teal { color: var(--teal); }
+  .home-empty-card-icon.violet { @apply text-violet; }
+  .home-empty-card-icon.green { @apply text-green; }
+  .home-empty-card-icon.orange { color: var(--orange); }
   .home-empty-card-label { @apply leading-snug text-ink; }
 
   .cx { @apply relative w-full; }
@@ -330,7 +330,7 @@
   .cx-card.dropping { @apply border-blue bg-blue-soft; }
   .cx-env-strip { @apply flex min-w-0 gap-[4px] border-b border-line px-[10px] py-[8px]; }
   .cx-env-control, .cx-pill, .cx-deliv {
-    @apply inline-flex min-w-0 items-center gap-[6px] rounded-full border border-line bg-panel px-[10px] py-[5px] text-[12px] text-ink-2 hover:bg-panel-2 hover:text-ink;
+    @apply inline-flex min-w-0 items-center gap-[6px] whitespace-nowrap rounded-full border border-line bg-panel px-[10px] py-[5px] text-[12px] text-ink-2 hover:bg-panel-2 hover:text-ink;
   }
   .cx-env-control.active, .cx-pill.active, .cx-deliv.on { @apply border-blue bg-blue-soft text-ink; }
   .cx-env-control:disabled { @apply opacity-50; }
@@ -689,11 +689,23 @@
   }
   @media (max-width: 680px) {
     .hero { @apply justify-start px-4 py-6; }
-    .home-empty-cards { @apply grid-cols-1; }
+    .home-empty { @apply gap-3; }
+    .home-empty-cards { @apply grid-cols-2 gap-2; }
+    .home-empty-card { @apply min-h-[94px] px-3 py-3 text-[12px]; }
+    .home-empty-card-icon { @apply h-[22px] w-[22px]; }
     .home-empty-headline { @apply text-[20px]; }
+    .home-empty-repo { @apply max-w-[18ch]; }
     .tl-inner { @apply px-4; }
     .msg.user .msg-col { @apply max-w-[90%]; }
-    .cx-env-strip { @apply flex-wrap; }
+    .cx-env-strip { @apply flex-wrap px-2 py-[7px]; }
+    .cx-env-control { @apply max-w-full; }
+    .cx-env-control.project { @apply flex-[1_1_100%]; }
+    .cx-env-control.branch:disabled { @apply hidden; }
+    .cx-bar { @apply gap-1 px-2; }
+    .cx-pill { @apply max-w-[126px] overflow-hidden px-2 text-[11px]; }
+    .cx-mode { @apply max-w-[134px]; }
+    .cx-model { @apply max-w-[116px]; }
+    .cx-icon, .cx-send { @apply h-8 w-8; }
     .scheduled-page { @apply px-4; }
   }
 }
