@@ -218,6 +218,42 @@ describe("TH-3 · groups with content are untouched", () => {
   });
 });
 
+describe("artifact cards · mobile hierarchy and reachability", () => {
+  it("shows the real plan artifact as name, type/version metadata, and a fixed Open action", () => {
+    const { container } = renderPanel({ artifacts: [{ stream: "plan", version: 1 }] });
+
+    const card = screen.getByRole("button", { name: "Open plan version 1" });
+    expect(card.classList).toContain("w-full");
+    expect(container.querySelector(".artifact-name")?.textContent).toBe("plan");
+    expect(container.querySelector(".artifact-meta")?.textContent).toBe("Artifact · v1");
+    expect(container.querySelector(".artifact-open")?.textContent).toBe("Open");
+    expect(container.querySelector(".artifact-open")?.classList).toContain("shrink-0");
+  });
+
+  it("ellipsizes only the long filename and keeps the whole card clickable", () => {
+    const stream =
+      "reports/INC-50-environment-panel-artifact-card-with-a-very-long-file-name.md";
+    const onOpenArtifact = vi.fn();
+    const { container } = renderPanel({
+      artifacts: [{ stream, version: 12 }],
+      onOpenArtifact,
+    });
+
+    const card = screen.getByRole("button", { name: `Open ${stream} version 12` });
+    const copy = container.querySelector(".artifact-copy")!;
+    const name = container.querySelector(".artifact-name")!;
+    expect(copy.classList).toContain("min-w-0");
+    expect(copy.classList).toContain("flex-1");
+    expect(name.classList).toContain("truncate");
+    expect(name.getAttribute("title")).toBe(stream);
+    expect(name.textContent).toBe("INC-50-environment-panel-artifact-card-with-a-very-long-file-name.md");
+    expect(container.querySelector(".artifact-meta")?.textContent).toBe("Document · MD · v12");
+
+    fireEvent.click(card);
+    expect(onOpenArtifact).toHaveBeenCalledWith(stream, 12);
+  });
+});
+
 // ===== INC-41 RD-A / RD-D / RD-E · the Environment block =====
 // A dirty tree: 2 tracked files (+3 / −1) AND 2 untracked files — the ordinary
 // case for a coding turn, and the one the old row got wrong (it printed "+3 −1"

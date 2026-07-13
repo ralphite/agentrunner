@@ -69,6 +69,25 @@ const GOAL_PANEL_LABEL: Record<string, string> = {
   cancelled: "Cancelled",
 };
 
+function artifactDisplayName(stream: string): string {
+  return stream.replace(/\\/g, "/").split("/").pop() || stream;
+}
+
+function artifactType(stream: string): string {
+  const name = artifactDisplayName(stream);
+  const dot = name.lastIndexOf(".");
+  if (dot <= 0 || dot === name.length - 1) return "Artifact";
+
+  const extension = name.slice(dot + 1).toUpperCase();
+  if (["PNG", "JPG", "JPEG", "GIF", "WEBP", "AVIF", "SVG"].includes(extension)) {
+    return `Image · ${extension}`;
+  }
+  if (["MD", "MDX", "TXT", "PDF", "DOC", "DOCX", "RTF"].includes(extension)) {
+    return `Document · ${extension}`;
+  }
+  return `File · ${extension}`;
+}
+
 // useSettledGoal recovers a *finished* goal for the GOAL section (R1-4). The
 // live `goal` prop comes from inspect, which drops a goal the moment it settles
 // — so an achieved goal would collapse the panel to "No active goal" while the
@@ -395,14 +414,22 @@ export function SupervisionPanel({
             {artifacts.map((a) => (
               <button
                 type="button"
-                className="artifact-row"
+                className="artifact-row w-full text-left"
                 key={a.stream}
                 title={`Read ${a.stream} (latest v${a.version})`}
+                aria-label={`Open ${a.stream} version ${a.version}`}
                 onClick={() => onOpenArtifact(a.stream, a.version)}
               >
-                <FileText size={13} />
-                <span className="artifact-stream">{a.stream}</span>
-                <span className="artifact-version">v{a.version}</span>
+                <FileText size={15} className="shrink-0" />
+                <span className="artifact-copy min-w-0 flex-1 text-left">
+                  <span className="artifact-name block truncate text-[13px] text-ink" title={a.stream}>
+                    {artifactDisplayName(a.stream)}
+                  </span>
+                  <span className="artifact-meta mt-0.5 block truncate text-[11px] text-dim">
+                    {artifactType(a.stream)} · v{a.version}
+                  </span>
+                </span>
+                <span className="artifact-open shrink-0 text-[12px] font-medium text-ink">Open</span>
               </button>
             ))}
           </div>
