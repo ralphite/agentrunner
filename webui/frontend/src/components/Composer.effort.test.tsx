@@ -1,15 +1,8 @@
 // @vitest-environment jsdom
 //
-// INC-41 CP-3 — the model menu's root page IS the effort slider.
-//
-// The regression these tests lock down: reasoning effort used to live behind a
-// drill-in page (pill → "Effort" row → level = 3 clicks), because we had taken
-// Codex's *Advanced* page for its root. Codex opens straight onto a dot slider:
-// pill → dot = 2 clicks, and the pill then names the level ("5.6 Sol Extra
-// High"). So we assert three things end to end:
-//   1. one click on the pill puts every level on screen (no drill-in row),
-//   2. one click on a dot moves the level and the pill's suffix follows,
-//   3. that level reaches the *spec* — the thinking budget `ar new` is handed.
+// Mobile model-menu parity: the root stays compact and each dimension swaps to
+// a dedicated page. This keeps Effort and Advanced reachable on short phones,
+// preserves the selected state, and never submits a surrounding form.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
@@ -32,11 +25,10 @@ import { Composer } from "./Composer";
 import { EFFORT_LEVELS, effortById } from "../specs";
 import { useStore } from "../store";
 
-// jsdom ships no matchMedia; the composer asks it for the ≤480px placeholder.
 window.matchMedia = ((q: string) =>
-  ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} }) as unknown as MediaQueryList) as typeof window.matchMedia;
+  ({ matches: q === "(max-width: 480px)", media: q, addEventListener() {}, removeEventListener() {} }) as unknown as MediaQueryList) as typeof window.matchMedia;
 
-const mount = () => {
+const mount = (onSubmit = vi.fn()) => {
   useStore.setState({
     sessions: [],
     sessionsReady: true,
@@ -44,11 +36,27 @@ const mount = () => {
     select: vi.fn(),
     toast: vi.fn(),
   } as any);
-  return render(<Composer variant="home" onError={() => {}} />);
+  return {
+    onSubmit,
+    ...render(
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSubmit(event);
+        }}
+      >
+        <Composer variant="home" onError={() => {}} />
+      </form>,
+    ),
+  };
 };
 
-const pill = (c: HTMLElement) => c.querySelector<HTMLButtonElement>(".cx-model")!;
-const dot = (label: string) => screen.getByRole("button", { name: label });
+const pill = (container: HTMLElement) => container.querySelector<HTMLButtonElement>(".cx-model")!;
+const item = (title: string) =>
+  [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find(
+    (button) => button.querySelector(".pop-title")?.textContent === title,
+  )!;
+const openMenu = (container: HTMLElement) => fireEvent.click(pill(container));
 
 beforeEach(() => {
   localStorage.clear();
@@ -56,78 +64,94 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe("model menu root = effort slider (CP-3)", () => {
-  it("one click on the pill lands on the slider — every level is reachable, no drill-in", () => {
-    const { container } = mount();
-    fireEvent.click(pill(container));
+describe("Composer model / effort menu mobile hierarchy", () => {
+  it("opens a compact bounded root with Model, Effort, and Advanced only", () => {
+    const { container, onSubmit } = mount();
+    expect(pill(container).type).toBe("button");
 
-    // The slider itself: one track, one stop per EFFORT_LEVELS entry.
-    const slider = container.querySelector('[role="slider"]')!;
-    expect(slider).not.toBeNull();
-    const stops = [...slider.querySelectorAll(".cx-effort-stop")].map((s) => s.getAttribute("data-effort"));
-    expect(stops).toEqual(EFFORT_LEVELS.map((e) => e.id));
-
-    // Models stay one click away too, and the old "drill into Effort" row is gone.
-    expect(screen.getByRole("menuitem", { name: /Gemini Pro/ })).toBeTruthy();
-    expect(container.querySelector(".cx-model-row")).toBeNull();
-    // Advanced survives, but as a secondary collapsible (thinking-budget override).
-    expect(screen.getByRole("button", { name: "Advanced" })).toBeTruthy();
+    openMenu(container);
+    const menu = container.querySelector<HTMLElement>(".cx-model-menu")!;
+    expect(menu.style.width).toBe("320px");
+    expect(menu.style.maxWidth).toBe("calc(100vw - 32px)");
+    expect([...menu.querySelectorAll(".pop-title")].map((node) => node.textContent)).toEqual(["Model", "Effort", "Advanced"]);
+    expect(menu.querySelector('[role="slider"]')).toBeNull();
+    expect(item("Model").querySelector(".pop-right")?.textContent).toContain("Gemini Flash");
+    expect(item("Effort").querySelector(".pop-right")?.textContent).toContain("Off");
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it("clicking a dot moves the level in ONE click and the pill names it", () => {
+  it("swaps between pages and restores the selected Model and Effort state", () => {
     const { container } = mount();
-    // Default effort is Off, which the pill deliberately leaves unwritten.
-    expect(pill(container).textContent).toContain("Gemini Flash");
-    expect(container.querySelector(".cx-pill-sub")).toBeNull();
+    openMenu(container);
 
-    fireEvent.click(pill(container)); // click 1: open
-    fireEvent.click(dot("High")); // click 2: choose — no third click
+    fireEvent.click(item("Model"));
+    expect(screen.getByRole("button", { name: "Back to model menu" })).toBeTruthy();
+    expect(item("Gemini Flash").querySelector(".pop-check")).toBeTruthy();
+    fireEvent.click(item("Gemini Pro"));
 
-    expect(container.querySelector(".cx-pill-sub")!.textContent).toBe("High");
-    const slider = container.querySelector('[role="slider"]')!;
-    expect(slider.getAttribute("aria-valuetext")).toBe("High");
-    expect(slider.getAttribute("aria-valuenow")).toBe(String(EFFORT_LEVELS.findIndex((e) => e.id === "high")));
-    // The chosen dot is the lit one; the lower levels read as passed.
-    expect(slider.querySelector(".cx-effort-stop.on")!.getAttribute("data-effort")).toBe("high");
-    expect([...slider.querySelectorAll(".cx-effort-stop.done")].map((s) => s.getAttribute("data-effort"))).toEqual([
-      "off",
-      "light",
-      "medium",
-    ]);
+    openMenu(container);
+    expect(item("Model").querySelector(".pop-right")?.textContent).toContain("Gemini Pro");
+    fireEvent.click(item("Effort"));
+    expect([...document.querySelectorAll(".cx-model-menu .pop-title")].map((node) => node.textContent)).toEqual(
+      EFFORT_LEVELS.map((level) => level.label),
+    );
+    expect(item("Off").querySelector(".pop-check")).toBeTruthy();
+    fireEvent.click(item("Extra High"));
+
+    expect(pill(container).textContent).toContain("Gemini Pro");
+    expect(pill(container).textContent).toContain("Extra High");
+    openMenu(container);
+    expect(item("Effort").querySelector(".pop-right")?.textContent).toContain("Extra High");
+    fireEvent.click(item("Effort"));
+    expect(item("Extra High").querySelector(".pop-check")).toBeTruthy();
   });
 
-  it("←/→ on the focused track move one level at a time", () => {
+  it("keeps Advanced on its own returnable page", () => {
     const { container } = mount();
-    fireEvent.click(pill(container));
-    const slider = container.querySelector('[role="slider"]')!;
+    openMenu(container);
+    fireEvent.click(item("Advanced"));
 
-    fireEvent.keyDown(slider, { key: "ArrowRight" }); // off → light
-    expect(container.querySelector(".cx-pill-sub")!.textContent).toBe("Light");
-    fireEvent.keyDown(slider, { key: "ArrowRight" }); // light → medium
-    expect(container.querySelector(".cx-pill-sub")!.textContent).toBe("Medium");
-    fireEvent.keyDown(slider, { key: "ArrowLeft" }); // back to light
-    expect(container.querySelector(".cx-pill-sub")!.textContent).toBe("Light");
+    expect(screen.getByRole("button", { name: "Back to model menu" })).toBeTruthy();
+    expect(item("Custom model id…")).toBeTruthy();
+    expect(item("Thinking budget override…")).toBeTruthy();
+    expect(item("Model")).toBeFalsy();
+    expect(item("Effort")).toBeFalsy();
 
-    // Clamped at the ends: ArrowLeft at "off" stays "off" (pill drops the suffix).
-    fireEvent.keyDown(slider, { key: "ArrowLeft" });
-    expect(container.querySelector(".cx-pill-sub")).toBeNull();
-    fireEvent.keyDown(slider, { key: "ArrowLeft" });
-    expect(container.querySelector(".cx-pill-sub")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Back to model menu" }));
+    expect(item("Model")).toBeTruthy();
+    expect(item("Effort")).toBeTruthy();
+    expect(item("Advanced")).toBeTruthy();
   });
 
-  it("the dot's level reaches the spec: `ar new` gets that level's thinking budget", async () => {
+  it("does not submit a draft while navigating or choosing an effort", () => {
+    const { container, onSubmit } = mount();
+    const textarea = screen.getByPlaceholderText("Do anything");
+    fireEvent.change(textarea, { target: { value: "keep this draft" } });
+
+    openMenu(container);
+    fireEvent.click(item("Effort"));
+    fireEvent.click(screen.getByRole("button", { name: "Back to model menu" }));
+    fireEvent.click(item("Effort"));
+    fireEvent.click(item("High"));
+
+    expect((textarea as HTMLTextAreaElement).value).toBe("keep this draft");
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(mocks.newSession).not.toHaveBeenCalled();
+  });
+
+  it("sends the selected effort's thinking budget in the spec", async () => {
     const { container } = mount();
-    fireEvent.click(pill(container));
-    fireEvent.click(dot("Extra High"));
+    openMenu(container);
+    fireEvent.click(item("Effort"));
+    fireEvent.click(item("Extra High"));
 
     fireEvent.change(screen.getByPlaceholderText("Do anything"), { target: { value: "ship it" } });
     fireEvent.keyDown(screen.getByPlaceholderText("Do anything"), { key: "Enter" });
 
     await vi.waitFor(() => expect(mocks.newSession).toHaveBeenCalled());
     const spec: string = mocks.newSession.mock.calls[0][0].spec;
-    const budget = effortById("xhigh").budget; // 24576
+    const budget = effortById("xhigh").budget;
     expect(spec).toContain(`thinking: { enabled: true, budget_tokens: ${budget} }`);
-    // max_tokens = answer room + budget, so thinking can't starve the answer.
     expect(spec).toContain(`max_tokens: ${4096 + budget}`);
   });
 });
