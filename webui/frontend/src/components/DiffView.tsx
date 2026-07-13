@@ -203,6 +203,17 @@ const saveScope = (s: DiffScope) => {
 // walking the bar back over its own edge.
 const BAR_TIGHT_PX = 640;
 
+// A phone review has no width to spend framing code inside another card. Codex
+// lets file sections run edge-to-edge in the review rail; dropping our 12px
+// card margins gives a 390px phone 24px more path/code width while the top and
+// bottom borders still separate adjacent files. Use the viewport signal, not
+// barTight: an ordinary desktop split rail is also narrower than 640px and must
+// keep the card shape.
+const fileCardClass = (edgeToEdge: boolean, untracked = false) =>
+  "filediff" +
+  (untracked ? " filediff-untracked" : "") +
+  (edgeToEdge ? " !m-0 !rounded-none !border-x-0" : "");
+
 // FileHead is the one file header in the review — Codex has exactly one kind of
 // changed-file card, and after DF-3 so do we: tracked edits and untracked new
 // files render through this same summary (caret + M/A/D glyph + path + `+x −y`
@@ -1207,6 +1218,7 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
               // already refused — and reports back what it learns itself.
               knownBinary={e.binary}
               onFact={reportFact}
+              edgeToEdge={narrow}
             />
           );
         const f = e.file;
@@ -1219,7 +1231,7 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
         const open = isOpen(f.path);
         return (
           <details
-            className="filediff"
+            className={fileCardClass(narrow)}
             key={fileKey(f.path)}
             open={open}
             ref={f.path === focusPath ? focusRef : undefined}
@@ -1307,6 +1319,7 @@ function UntrackedFile({
   detailsRef,
   knownBinary,
   onFact,
+  edgeToEdge,
 }: {
   sid: string;
   path: string;
@@ -1316,6 +1329,7 @@ function UntrackedFile({
   detailsRef?: (el: HTMLDetailsElement | null) => void;
   knownBinary?: boolean;
   onFact?: (path: string, fact: UntrackedFact) => void;
+  edgeToEdge: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const [lines, setLines] = useState<string[] | null>(null);
@@ -1367,7 +1381,7 @@ function UntrackedFile({
 
   return (
     <details
-      className="filediff filediff-untracked"
+      className={fileCardClass(edgeToEdge, true)}
       open={open}
       ref={detailsRef}
       onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}

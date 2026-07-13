@@ -330,3 +330,43 @@ describe("the ✕ never leaves the panel (INC-41 RD-8)", () => {
     expect(screen.getByLabelText("Close changes")).toBeTruthy();
   });
 });
+
+describe("narrow reviews use the full code width", () => {
+  it("runs tracked and untracked file sections edge-to-edge at 390px", async () => {
+    barWidth(390);
+    (window as any).matchMedia = (query: string) => ({
+      matches: query === "(max-width: 900px)",
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    });
+    localStorage.setItem("ar.diff.scope", "working-tree");
+    arMock.diff = () => Promise.resolve(baseDiff({ untracked: ["assets/logo.png"] }));
+    const { container } = render(<DiffView sid="mobile-edge" />);
+
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+    const cards = [...container.querySelectorAll("details.filediff")];
+    expect(cards).toHaveLength(2);
+    expect(cards.some((card) => card.classList.contains("filediff-untracked"))).toBe(true);
+    for (const card of cards) {
+      expect(card.className).toContain("!m-0");
+      expect(card.className).toContain("!rounded-none");
+      expect(card.className).toContain("!border-x-0");
+    }
+  });
+
+  it("keeps desktop cards framed when the split review rail is 604px", async () => {
+    barWidth(604);
+    localStorage.setItem("ar.diff.scope", "working-tree");
+    arMock.diff = () => Promise.resolve(baseDiff({ untracked: ["assets/logo.png"] }));
+    const { container } = render(<DiffView sid="desktop-card" />);
+
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+    const cards = [...container.querySelectorAll("details.filediff")];
+    expect(cards).toHaveLength(2);
+    for (const card of cards) {
+      expect(card.className).not.toContain("!m-0");
+      expect(card.className).not.toContain("!rounded-none");
+      expect(card.className).not.toContain("!border-x-0");
+    }
+  });
+});
