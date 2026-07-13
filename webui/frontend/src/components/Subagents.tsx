@@ -30,8 +30,9 @@ function tokens(n?: number): string {
 export function Subagents({ nodes, onOpen, depth = 0 }: { nodes: InspectNode[]; onOpen: (sid: string) => void; depth?: number }) {
   if (!nodes?.length) return null;
   const uniqueNodes = dedupeInspectNodes(nodes);
+  const indent = depth ? ["ml-3", "ml-6", "ml-9", "ml-12"][Math.min(depth, 4) - 1] : "";
   return (
-    <div className={"subagents" + (depth ? " nested" : "")}>
+    <div className={depth ? "subagents nested contents" : "subagents"}>
       {depth === 0 && (
         <h4>
           Subagents · {uniqueNodes.length}
@@ -46,23 +47,27 @@ export function Subagents({ nodes, onOpen, depth = 0 }: { nodes: InspectNode[]; 
         const clickable = !!c.session;
         const row = (
           <>
-            <span className={"sa-dot " + st.cls} />
-            <span className="sa-name">{c.agent || "worker"}</span>
-            <span className="sa-status">{st.text}</span>
-            <span className="sa-spacer" />
-            {rep.gen_steps ? <span className="sa-meta">{rep.gen_steps} steps</span> : null}
-            {tok ? <span className="sa-meta">{tokens(tok)} tok</span> : null}
-            {clickable && <span className="sa-open">open <ArrowSquareOut size={12} /></span>}
+            <span className="flex min-w-0 flex-1 items-center gap-2 max-[520px]:col-span-3">
+              <span className={"sa-dot shrink-0 " + st.cls} aria-hidden="true" />
+              <span className="sa-name">{c.agent || "worker"}</span>
+              <span className="sa-status min-w-0 truncate max-[520px]:flex-1 max-[520px]:basis-0">{st.text}</span>
+            </span>
+            <span className="sa-spacer max-[520px]:hidden" />
+            <span className="flex shrink-0 items-center gap-2 max-[520px]:col-span-3 max-[520px]:justify-end">
+              {rep.gen_steps ? <span className="sa-meta">{rep.gen_steps} steps</span> : null}
+              {tok ? <span className="sa-meta">{tokens(tok)} tok</span> : null}
+              {clickable && <span className="sa-open inline-flex items-center gap-1">open <ArrowSquareOut size={12} /></span>}
+            </span>
           </>
         );
         return (
-          <div key={c.call_id || c.session || i}>
+          <div key={c.call_id || c.session || i} className={depth ? `${indent} border-l border-line pl-2` : ""} data-depth={depth}>
             {clickable ? (
-              <button className="sa-row clickable" type="button" onClick={() => onOpen(c.session!)} title={c.session}>
+              <button className="sa-row clickable max-[520px]:grid max-[520px]:grid-cols-[auto_minmax(0,1fr)_auto] max-[520px]:gap-x-2 max-[520px]:gap-y-1" type="button" onClick={() => onOpen(c.session!)} title={c.session}>
                 {row}
               </button>
             ) : (
-              <div className="sa-row">{row}</div>
+              <div className="sa-row max-[520px]:grid max-[520px]:grid-cols-[auto_minmax(0,1fr)_auto] max-[520px]:gap-x-2 max-[520px]:gap-y-1">{row}</div>
             )}
             {kids.length > 0 && <Subagents nodes={kids} onOpen={onOpen} depth={depth + 1} />}
           </div>
