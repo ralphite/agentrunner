@@ -19,22 +19,23 @@ export function SettingsGit({ query }: { query: string }) {
   const any = show("commit message template default") || show("branch prefix") || show("pull request merge method squash");
 
   return (
-    <div className="rs-panel">
+    <div className="rs-panel min-w-0">
       <h2 className="rs-panel-title">Git</h2>
-      <p className="rs-panel-sub">Defaults for committing and branching from a session’s workspace.</p>
+      <p className="rs-panel-sub leading-[1.5]">Defaults for committing and branching from a session’s workspace.</p>
 
       {!any && <div className="rs-noresults">No Git settings match “{query}”.</div>}
 
       {show("commit message template default") && (
-        <section className="rs-row rs-row-block">
-          <div className="rs-row-head">
-            <div className="rs-row-label">
-              Commit message template <span className="rs-wired">Wired</span>
+        <section className="rs-row rs-row-block min-w-0 max-[500px]:rounded-[8px] max-[500px]:p-2.5">
+          <div className="rs-row-head min-w-0 max-[500px]:flex-col max-[500px]:items-stretch max-[500px]:gap-1">
+            <div className="rs-row-label flex min-w-0 flex-wrap items-center gap-1.5">
+              <span>Commit message template</span>
+              <StatusBadge wired />
             </div>
-            <div className="rs-row-desc">Pre-fills the message when you commit a session’s changes from the Changes view.</div>
+            <div className="rs-row-desc max-w-[430px] min-w-0 leading-[1.5] max-[500px]:max-w-none">Pre-fills commit messages in Changes.</div>
           </div>
           <textarea
-            className="rs-textarea"
+            className="rs-textarea mt-3 min-w-0 max-w-full resize-y"
             rows={2}
             value={g.commitTemplate}
             placeholder="changes from agent session"
@@ -44,15 +45,16 @@ export function SettingsGit({ query }: { query: string }) {
       )}
 
       {show("branch prefix") && (
-        <section className="rs-row rs-row-block">
-          <div className="rs-row-head">
-            <div className="rs-row-label">
-              Branch prefix <span className="rs-todo">Not wired yet</span>
+        <section className="rs-row rs-row-block min-w-0 max-[500px]:rounded-[8px] max-[500px]:p-2.5">
+          <div className="rs-row-head min-w-0 max-[500px]:flex-col max-[500px]:items-stretch max-[500px]:gap-1">
+            <div className="rs-row-label flex min-w-0 flex-wrap items-center gap-1.5">
+              <span>Branch prefix</span>
+              <StatusBadge />
             </div>
-            <div className="rs-row-desc">Prefix for new worktree branches (e.g. <code>codex/</code>). Recorded now; the worktree flow will read it.</div>
+            <div className="rs-row-desc max-w-[430px] min-w-0 leading-[1.5] max-[500px]:max-w-none">Saved for future worktree branches (for example, <code>codex/</code>).</div>
           </div>
           <input
-            className="rs-input"
+            className="rs-input mt-3 min-w-0 max-w-full"
             value={g.branchPrefix}
             placeholder="e.g. agent/"
             onChange={(e) => patch({ branchPrefix: e.target.value })}
@@ -61,16 +63,17 @@ export function SettingsGit({ query }: { query: string }) {
       )}
 
       {show("pull request merge method squash") && (
-        <section className="rs-row">
-          <div className="rs-row-head">
-            <div className="rs-row-label">
-              PR merge method <span className="rs-todo">Not wired yet</span>
+        <section className="rs-row min-w-0 max-[500px]:rounded-[8px] max-[500px]:p-2.5">
+          <div className="rs-row-head min-w-0 max-[500px]:flex-col max-[500px]:items-stretch max-[500px]:gap-1">
+            <div className="rs-row-label flex min-w-0 flex-wrap items-center gap-1.5">
+              <span>PR merge method</span>
+              <StatusBadge />
             </div>
-            <div className="rs-row-desc">Preferred merge strategy once GitHub integration lands.</div>
+            <div className="rs-row-desc max-w-[430px] min-w-0 leading-[1.5] max-[500px]:max-w-none">Saved for the future GitHub integration.</div>
           </div>
-          <div className="rs-seg">
+          <div className="rs-seg mt-3 max-[500px]:flex max-[500px]:w-full">
             {(["merge", "squash"] as const).map((m) => (
-              <button key={m} className={"rs-seg-btn" + (g.prMergeMethod === m ? " sel" : "")} onClick={() => patch({ prMergeMethod: m })}>
+              <button key={m} className={"rs-seg-btn max-[500px]:min-w-0 max-[500px]:flex-1" + (g.prMergeMethod === m ? " on" : "")} onClick={() => patch({ prMergeMethod: m })}>
                 {m === "merge" ? "Merge" : "Squash"}
               </button>
             ))}
@@ -78,5 +81,18 @@ export function SettingsGit({ query }: { query: string }) {
         </section>
       )}
     </div>
+  );
+}
+
+function StatusBadge({ wired = false }: { wired?: boolean }) {
+  return (
+    <span
+      className={
+        "shrink-0 whitespace-nowrap rounded-full border px-1.5 py-0.5 text-[10px] font-normal leading-none " +
+        (wired ? "border-green/30 bg-green/10 text-green" : "border-line bg-panel-2 text-dim")
+      }
+    >
+      {wired ? "Wired" : "Not wired"}
+    </span>
   );
 }
