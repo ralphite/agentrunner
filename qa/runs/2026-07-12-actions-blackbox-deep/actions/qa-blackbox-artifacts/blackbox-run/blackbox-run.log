@@ -1,0 +1,23 @@
+
+#### context: phone 390x844
+== phone:home
+== phone:sidebar-toggle
+== phone:settings-search
+== phone:scheduled-modal-bad-workspace
+== phone:create-task
+   session: 20260712-235632-1-1-cc03
+== phone:first-turn-completes
+== phone:follow-up-turn
+== phone:diff-view
+
+#### context: desktop 1280x800
+== desktop:home
+== desktop:sidebar-toggle
+== desktop:create-task
+   session: 20260712-235636-1-1-96b6
+== desktop:first-turn-completes
+== desktop:follow-up-turn
+== desktop:diff-view
+== daemon-down-friendly
+
+==== 0 finding(s) ====
