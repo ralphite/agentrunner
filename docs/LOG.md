@@ -3975,3 +3975,19 @@ actions/cache 延续 scratch store。
 为确保手机访问链接始终跑最新主线代码，`actions/checkout` 明确 `ref: main`；
 定时 run 无 `workflow_dispatch` inputs 时，非 smoke 步骤照常执行，默认 keepalive
 取 35 分钟覆盖半小时刷新间隔。此变更只调整 CI 运维入口，不改产品三层语义。
+
+## 2026-07-13 · INC-66 Runtime 状态正确性收口
+
+两个独立 Agent 复核探索性黑盒 finding 后，按用户要求排除 #11 Ctrl-C，关闭其余
+19 条正常路径状态缺陷：generation effect 去重、sibling tree budget 公平 reservation、
+child terminal/progress/stats 投影、Goal exhausted/update 恢复语义、driver fixed-rate
+overlap/attempt/failure/retry/nextRunAt、空 journal genesis、shadow repo 跨进程 writer
+flock，以及 settled+reserved usage。
+
+共享真实环境用 Gemini 复跑 Goal fail→exhausted→update→pass、三 Agent 同 batch、
+slow interval skip 与 Scheduled Retry；重启 daemon/webui 后用浏览器复查 Goal、
+multi-agent、Scheduled 与 `#run:run1` deep link。真实 B 闸又抓出并修复四条状态问题：
+deploy 用 session 文本误判 running、旧 launchd webui 自动复活造成假成功、`nohup`
+daemon 被调用方清理而 sessions 读取 journal 造成假存活、driver inspect 丢 raw/cache
+usage。最终 health `daemonUp/versionMatch=true`，浏览器 warning/error=0；证据保留在
+`qa/runs/2026-07-13-INC66/`。
