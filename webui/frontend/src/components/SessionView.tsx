@@ -989,7 +989,6 @@ export function SessionView({ sid }: { sid: string }) {
                     </span>
                   )}
                   <button type="button" className="terminal-alert-action" onClick={runTerminalAction}>
-                    {terminalNotice.action === "resume" && <ArrowClockwise size={14} />}
                     {terminalNotice.actionLabel}
                   </button>
                 </div>
