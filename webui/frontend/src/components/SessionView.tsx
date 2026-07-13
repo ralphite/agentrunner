@@ -68,7 +68,7 @@ function fmtTokens(n: number): string {
   return (n / 1_000_000).toFixed(1) + "M";
 }
 
-export function SessionView({ sid }: { sid: string }) {
+export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string; mobileNavigationOpen?: boolean }) {
   const { select, openModal, toast, showSys, toggleSys, sessions, archived, toggleArchive, pinned, togglePin, renames } =
     useStore();
   // A real sub-agent session id is `<parent>-sub-call_<callId>-<suffix>` — the
@@ -92,6 +92,10 @@ export function SessionView({ sid }: { sid: string }) {
   const [backgroundWork, setBackgroundWork] = useState<BackgroundWork[]>([]);
   const [usage, setUsage] = useState<{ billed: number; steps: number } | null>(null);
   const [children, setChildren] = useState<InspectNode[]>([]);
+  // Child journals deliberately inherit the parent's durable title. Inspect
+  // carries the actual agent spec, which is the label a person needs when
+  // moving between three otherwise indistinguishable worker sessions.
+  const [subAgentName, setSubAgentName] = useState<string | undefined>();
   const [inspectReady, setInspectReady] = useState(false);
   // The first events fetch for this sid hasn't returned yet (INC-41 L1) — the
   // timeline is UNKNOWN, not empty. Flips on the first settled poll (success or
@@ -163,6 +167,13 @@ export function SessionView({ sid }: { sid: string }) {
     return () => window.removeEventListener("resize", syncViewport);
   }, []);
 
+  // Mobile navigation and Environment are both full-height overlays. Opening
+  // the navigation drawer must make it the sole active layer, otherwise its
+  // scrim traps a second drawer (and a second close button) underneath it.
+  useEffect(() => {
+    if (mobileNavigationOpen && !wideViewport) setSupervisionOpen(false);
+  }, [mobileNavigationOpen, wideViewport]);
+
   // ⌘F / Ctrl-F opens the in-chat Find bar (Codex's Search chat). We take over
   // the browser's native find since Find operates on the rendered timeline.
   useEffect(() => {
@@ -232,6 +243,7 @@ export function SessionView({ sid }: { sid: string }) {
       const u = ins?.usage;
       if (u) setUsage({ billed: u.billed ?? (u.input_tokens || 0) + (u.output_tokens || 0), steps: ins.gen_steps || 0 });
       setChildren(Array.isArray(ins?.children) ? ins.children : []);
+      if (isSub && typeof ins?.spec === "string" && ins.spec.trim()) setSubAgentName(ins.spec.trim());
       setGoal(ins?.goal || null);
       setProgress(Array.isArray(ins?.progress) ? ins.progress : []);
       if (typeof ins?.mode === "string" && ins.mode) setLiveMode(ins.mode);
@@ -268,7 +280,7 @@ export function SessionView({ sid }: { sid: string }) {
     } catch {
       setQueued([]);
     }
-  }, [sid]);
+  }, [sid, isSub]);
 
   const answerAsk = async (specs: string[]) => {
     try {
@@ -320,6 +332,7 @@ export function SessionView({ sid }: { sid: string }) {
     setResolvedLocal(new Set());
     setUsage(null);
     setChildren([]);
+    setSubAgentName(undefined);
     setGoal(null);
     setGoalPendingUpdate(null);
     setGoalDismissedAt(null);
@@ -618,7 +631,11 @@ export function SessionView({ sid }: { sid: string }) {
       .finally(() => setFailureRetrying(false));
   };
 
-  const terminalNotice = live ? null : terminalNoticeFor(listStatus || folded.status.text, isDriver);
+  // The folded failure card has the provider-specific explanation, details,
+  // and retry action. A generic "Session failed" terminal card below it says
+  // the same fact with less help, so it is only a fallback when no detailed
+  // failure was recovered from the journal.
+  const terminalNotice = live || failure ? null : terminalNoticeFor(listStatus || folded.status.text, isDriver);
   const runTerminalAction = () => {
     if (!terminalNotice) return;
     if (terminalNotice.action === "continue") {
@@ -672,8 +689,8 @@ export function SessionView({ sid }: { sid: string }) {
     // `goalLive` (not `goalBannerShown`): whether the goal rides in its own bar
     // or inside the terminal alert, the chrome above the composer has said it —
     // so the thread must not echo it a third time.
-    () => suppressEchoedChips(folded.items, { goalBanner: goalLive, terminalAlert: !!terminalNotice }),
-    [folded.items, goalLive, terminalNotice],
+    () => suppressEchoedChips(folded.items, { goalBanner: goalLive, terminalAlert: !!terminalNotice || !!failure }),
+    [folded.items, goalLive, terminalNotice, failure],
   );
 
   // The inline approval card is the primary action. On roomy desktop layouts
@@ -695,6 +712,7 @@ export function SessionView({ sid }: { sid: string }) {
   }, [hasApprovals, view, wideViewport]);
 
   const showSupervision = supervisionOpen && view === "chat";
+  const visibleTitle = isSub && subAgentName ? subAgentName : title;
 
   // INC-41 L2 · The daemon knows no such session: everything below (timeline,
   // composer, Supervision) would be a working-looking shell over nothing. Every
@@ -729,7 +747,7 @@ export function SessionView({ sid }: { sid: string }) {
         <div className="tt-left">
           {/* N-parity: the session title is prose, no leading file icon (weight
               change is handled in tw.css). */}
-          <div className="tt-title" title={`${sessions.find((s) => s.id === sid)?.title || title}\n${sid}`}>{title}</div>
+          <div className="tt-title" title={`${visibleTitle}${visibleTitle !== title ? `\n${title}` : ""}\n${sid}`}>{visibleTitle}</div>
           {isSub && <span className="readonly-tag">Read-only sub-agent</span>}
         </div>
         <span className="spacer" />
@@ -974,8 +992,9 @@ export function SessionView({ sid }: { sid: string }) {
                   <span className="terminal-alert-ic">
                     {terminalNotice.tone === "danger" ? <XCircle size={17} weight="fill" /> : <WarningCircle size={17} weight="fill" />}
                   </span>
-                  {/* TH-11: title + body on one line; the body ellipsizes at the
-                      column edge, so the full sentence lives on the tooltip. */}
+                  {/* Stack the title and recovery guidance inside one compact
+                      card. On a phone, concatenating them reads as one broken
+                      sentence and hides the useful part. */}
                   <div className="terminal-alert-text" title={`${terminalNotice.title} — ${terminalNotice.body}`}>
                     <b>{terminalNotice.title}</b>
                     <span>{terminalNotice.body}</span>

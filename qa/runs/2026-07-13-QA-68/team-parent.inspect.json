@@ -1,0 +1,399 @@
+{
+  "kind": "run",
+  "spec": "inc66-budget-lead",
+  "model": "gemini-flash-latest",
+  "mode": "default",
+  "status": "quiescent",
+  "reason": "completed",
+  "gen_steps": 4,
+  "entries": [
+    {
+      "gen_step": 1,
+      "kind": "llm",
+      "name": "complete",
+      "verdict": "allow",
+      "gate": "budget",
+      "input_tokens": 3242,
+      "output_tokens": 160
+    },
+    {
+      "gen_step": 1,
+      "kind": "tool",
+      "name": "progress_update",
+      "call_id": "call_1_0",
+      "verdict": "allow",
+      "gate": "budget"
+    },
+    {
+      "gen_step": 2,
+      "kind": "llm",
+      "name": "complete",
+      "verdict": "allow",
+      "gate": "budget",
+      "input_tokens": 3487,
+      "output_tokens": 73
+    },
+    {
+      "gen_step": 2,
+      "kind": "tool",
+      "name": "spawn_agent",
+      "call_id": "call_1_1",
+      "verdict": "allow",
+      "gate": "budget",
+      "input_tokens": 1042,
+      "output_tokens": 3
+    },
+    {
+      "gen_step": 2,
+      "kind": "tool",
+      "name": "spawn_agent",
+      "call_id": "call_1_2",
+      "verdict": "allow",
+      "gate": "budget",
+      "input_tokens": 1042,
+      "output_tokens": 8
+    },
+    {
+      "gen_step": 2,
+      "kind": "tool",
+      "name": "spawn_agent",
+      "call_id": "call_1_3",
+      "verdict": "allow",
+      "gate": "budget",
+      "input_tokens": 1042,
+      "output_tokens": 3
+    },
+    {
+      "gen_step": 2,
+      "kind": "tool",
+      "name": "progress_update",
+      "call_id": "call_2_0",
+      "verdict": "allow",
+      "gate": "budget"
+    },
+    {
+      "gen_step": 3,
+      "kind": "llm",
+      "name": "complete",
+      "verdict": "allow",
+      "gate": "budget",
+      "input_tokens": 4175,
+      "output_tokens": 73
+    },
+    {
+      "gen_step": 3,
+      "kind": "tool",
+      "name": "progress_update",
+      "call_id": "call_3_0",
+      "verdict": "allow",
+      "gate": "budget"
+    },
+    {
+      "gen_step": 4,
+      "kind": "llm",
+      "name": "complete",
+      "verdict": "allow",
+      "gate": "budget",
+      "input_tokens": 4267,
+      "output_tokens": 68,
+      "cache_read": 1980
+    }
+  ],
+  "usage": {
+    "input_tokens": 18297,
+    "output_tokens": 388,
+    "cache_read": 1980,
+    "cache_write": 0,
+    "billed": 16705
+  },
+  "children": [
+    {
+      "call_id": "call_1_1",
+      "agent": "worker_a",
+      "session": "20260713-070914-run-the-three-worker-qa-delega-3dcf-sub-call_1_1-a1",
+      "reason": "completed",
+      "report": {
+        "kind": "run",
+        "spec": "worker_a",
+        "model": "gemini-flash-latest",
+        "mode": "default",
+        "status": "quiescent",
+        "reason": "completed",
+        "gen_steps": 1,
+        "entries": [
+          {
+            "gen_step": 1,
+            "kind": "llm",
+            "name": "complete",
+            "verdict": "allow",
+            "gate": "budget",
+            "input_tokens": 1042,
+            "output_tokens": 3
+          }
+        ],
+        "usage": {
+          "input_tokens": 1042,
+          "output_tokens": 3,
+          "cache_read": 0,
+          "cache_write": 0,
+          "billed": 1045
+        },
+        "stats": {
+          "tool_calls": 0,
+          "tool_failures": 0,
+          "lines_added": 0,
+          "lines_removed": 0,
+          "active_seconds": 0.668
+        },
+        "turns": 1,
+        "items": 2,
+        "provider_capabilities": {
+          "schema_version": 1,
+          "provider": "gemini",
+          "model": "gemini-flash-latest",
+          "streaming": true,
+          "tool_calls": true,
+          "input_modalities": [
+            "text",
+            "image",
+            "file"
+          ],
+          "capabilities": {
+            "thinking": true,
+            "prompt_caching": true,
+            "parallel_tools": true,
+            "images": true,
+            "files": true,
+            "structured_output": true
+          }
+        }
+      }
+    },
+    {
+      "call_id": "call_1_2",
+      "agent": "worker_b",
+      "session": "20260713-070914-run-the-three-worker-qa-delega-3dcf-sub-call_1_2-a1",
+      "reason": "completed",
+      "report": {
+        "kind": "run",
+        "spec": "worker_b",
+        "model": "gemini-flash-latest",
+        "mode": "default",
+        "status": "quiescent",
+        "reason": "completed",
+        "gen_steps": 1,
+        "entries": [
+          {
+            "gen_step": 1,
+            "kind": "llm",
+            "name": "complete",
+            "verdict": "allow",
+            "gate": "budget",
+            "input_tokens": 1042,
+            "output_tokens": 8
+          }
+        ],
+        "usage": {
+          "input_tokens": 1042,
+          "output_tokens": 8,
+          "cache_read": 0,
+          "cache_write": 0,
+          "billed": 1050
+        },
+        "stats": {
+          "tool_calls": 0,
+          "tool_failures": 0,
+          "lines_added": 0,
+          "lines_removed": 0,
+          "active_seconds": 0.89
+        },
+        "turns": 1,
+        "items": 2,
+        "provider_capabilities": {
+          "schema_version": 1,
+          "provider": "gemini",
+          "model": "gemini-flash-latest",
+          "streaming": true,
+          "tool_calls": true,
+          "input_modalities": [
+            "text",
+            "image",
+            "file"
+          ],
+          "capabilities": {
+            "thinking": true,
+            "prompt_caching": true,
+            "parallel_tools": true,
+            "images": true,
+            "files": true,
+            "structured_output": true
+          }
+        }
+      }
+    },
+    {
+      "call_id": "call_1_3",
+      "agent": "worker_c",
+      "session": "20260713-070914-run-the-three-worker-qa-delega-3dcf-sub-call_1_3-a1",
+      "reason": "completed",
+      "report": {
+        "kind": "run",
+        "spec": "worker_c",
+        "model": "gemini-flash-latest",
+        "mode": "default",
+        "status": "quiescent",
+        "reason": "completed",
+        "gen_steps": 1,
+        "entries": [
+          {
+            "gen_step": 1,
+            "kind": "llm",
+            "name": "complete",
+            "verdict": "allow",
+            "gate": "budget",
+            "input_tokens": 1042,
+            "output_tokens": 3
+          }
+        ],
+        "usage": {
+          "input_tokens": 1042,
+          "output_tokens": 3,
+          "cache_read": 0,
+          "cache_write": 0,
+          "billed": 1045
+        },
+        "stats": {
+          "tool_calls": 0,
+          "tool_failures": 0,
+          "lines_added": 0,
+          "lines_removed": 0,
+          "active_seconds": 0.918
+        },
+        "turns": 1,
+        "items": 2,
+        "provider_capabilities": {
+          "schema_version": 1,
+          "provider": "gemini",
+          "model": "gemini-flash-latest",
+          "streaming": true,
+          "tool_calls": true,
+          "input_modalities": [
+            "text",
+            "image",
+            "file"
+          ],
+          "capabilities": {
+            "thinking": true,
+            "prompt_caching": true,
+            "parallel_tools": true,
+            "images": true,
+            "files": true,
+            "structured_output": true
+          }
+        }
+      }
+    }
+  ],
+  "progress": [
+    {
+      "id": "spawn_workers",
+      "title": "Spawn worker_a, worker_b, and worker_c in parallel",
+      "status": "done"
+    },
+    {
+      "id": "collect_results",
+      "title": "Collect and report the three exact names",
+      "status": "done"
+    }
+  ],
+  "stats": {
+    "tools": {
+      "progress_update": {
+        "calls": 3,
+        "success": 3,
+        "fail": 0,
+        "duration_ms": 38
+      },
+      "spawn_agent": {
+        "calls": 3,
+        "success": 3,
+        "fail": 0,
+        "duration_ms": 3758
+      }
+    },
+    "tool_calls": 6,
+    "tool_failures": 0,
+    "lines_added": 0,
+    "lines_removed": 0,
+    "active_seconds": 5.18
+  },
+  "turns": 1,
+  "items": 17,
+  "provider_capabilities": {
+    "schema_version": 1,
+    "provider": "gemini",
+    "model": "gemini-flash-latest",
+    "streaming": true,
+    "tool_calls": true,
+    "input_modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "capabilities": {
+      "thinking": true,
+      "prompt_caching": true,
+      "parallel_tools": true,
+      "images": true,
+      "files": true,
+      "structured_output": true
+    }
+  },
+  "delegations": [
+    {
+      "delegation_id": "delegation-call_1_1",
+      "call_id": "call_1_1",
+      "description": "Please return your own name.",
+      "assigned_to": "20260713-070914-run-the-three-worker-qa-delega-3dcf-sub-call_1_1-a1",
+      "workspace": {
+        "mode": "isolated",
+        "path": "/Users/yadong/.local/share/agentrunner/sessions/20260713-070914-run-the-three-worker-qa-delega-3dcf/sub/call_1_1-a1/worktree",
+        "base_ref": "05ba394ce187a908634bf63cfdac0bdabe4141a0"
+      },
+      "status": "quiescent",
+      "last_reason": "completed",
+      "settlements": 1
+    },
+    {
+      "delegation_id": "delegation-call_1_2",
+      "call_id": "call_1_2",
+      "description": "Please return your own name.",
+      "assigned_to": "20260713-070914-run-the-three-worker-qa-delega-3dcf-sub-call_1_2-a1",
+      "workspace": {
+        "mode": "isolated",
+        "path": "/Users/yadong/.local/share/agentrunner/sessions/20260713-070914-run-the-three-worker-qa-delega-3dcf/sub/call_1_2-a1/worktree",
+        "base_ref": "05ba394ce187a908634bf63cfdac0bdabe4141a0"
+      },
+      "status": "quiescent",
+      "last_reason": "completed",
+      "settlements": 1
+    },
+    {
+      "delegation_id": "delegation-call_1_3",
+      "call_id": "call_1_3",
+      "description": "Please return your own name.",
+      "assigned_to": "20260713-070914-run-the-three-worker-qa-delega-3dcf-sub-call_1_3-a1",
+      "workspace": {
+        "mode": "isolated",
+        "path": "/Users/yadong/.local/share/agentrunner/sessions/20260713-070914-run-the-three-worker-qa-delega-3dcf/sub/call_1_3-a1/worktree",
+        "base_ref": "05ba394ce187a908634bf63cfdac0bdabe4141a0"
+      },
+      "status": "quiescent",
+      "last_reason": "completed",
+      "settlements": 1
+    }
+  ],
+  "waiting": {
+    "kind": "input"
+  }
+}

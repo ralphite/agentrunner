@@ -717,7 +717,7 @@ function ActivityGroup({ run, sentImages }: { run: FoldRun; sentImages?: Map<num
         <span className="act-ic"><CaretRight size={12} className="act-caret" /></span>
         <span className="act-cat"><CategoryIcon cat={groupIcon(tools)} /></span>
         <span className="act-label">{groupLabel(tools)}</span>
-        <span className="act-count">{tools.length}</span>
+        <span className="act-count" aria-label={`${tools.length} activities`}>×{tools.length}</span>
       </summary>
       <div className="act-body">
         {members.map((m) => (

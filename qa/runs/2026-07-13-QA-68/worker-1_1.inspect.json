@@ -1,0 +1,56 @@
+{
+  "kind": "run",
+  "spec": "worker_a",
+  "model": "gemini-flash-latest",
+  "mode": "default",
+  "status": "quiescent",
+  "reason": "completed",
+  "gen_steps": 1,
+  "entries": [
+    {
+      "gen_step": 1,
+      "kind": "llm",
+      "name": "complete",
+      "verdict": "allow",
+      "gate": "budget",
+      "input_tokens": 1042,
+      "output_tokens": 3
+    }
+  ],
+  "usage": {
+    "input_tokens": 1042,
+    "output_tokens": 3,
+    "cache_read": 0,
+    "cache_write": 0,
+    "billed": 1045
+  },
+  "stats": {
+    "tool_calls": 0,
+    "tool_failures": 0,
+    "lines_added": 0,
+    "lines_removed": 0,
+    "active_seconds": 0.668
+  },
+  "turns": 1,
+  "items": 2,
+  "provider_capabilities": {
+    "schema_version": 1,
+    "provider": "gemini",
+    "model": "gemini-flash-latest",
+    "streaming": true,
+    "tool_calls": true,
+    "input_modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "capabilities": {
+      "thinking": true,
+      "prompt_caching": true,
+      "parallel_tools": true,
+      "images": true,
+      "files": true,
+      "structured_output": true
+    }
+  }
+}

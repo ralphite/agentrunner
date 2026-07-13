@@ -502,8 +502,15 @@
   .run-status-line > span:last-child { @apply shrink-0; }
   .chip.warn, .run-status-line.warn, .terminal-alert.warn { @apply border-amber bg-amber-soft text-amber; }
   .chip.err, .run-status-line.err, .terminal-alert.err { @apply border-red bg-red-soft text-red; }
+  .chip { @apply flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1; }
+  .chip > span:first-child { @apply min-w-0 flex-1; }
+  .chip > a { @apply inline-flex shrink-0 items-center gap-1 text-blue; }
   .worked-row { @apply flex items-start gap-2; }
   .worked-body, .act-body, .runtime-event-body { @apply min-w-0 flex-1; }
+  .act-group > summary { @apply flex min-w-0 items-start gap-2; list-style: none; }
+  .act-group > summary::-webkit-details-marker { display: none; }
+  .act-label { @apply min-w-0 flex-1; }
+  .act-count { @apply ml-auto shrink-0; }
   .act-ic, .step-ic, .cx-activity-ic { @apply mt-[2px] text-dim; }
   .act-count, .step-tag, .step-tok { @apply rounded-full bg-panel-2 px-[6px] py-[1px] text-[11px] text-dim; }
   .tl-empty { @apply mx-auto mt-16 max-w-[420px] text-center text-dim; }
@@ -557,6 +564,9 @@
   .gbar.paused { @apply opacity-75; }
   .terminal-alert.ok, .gbar.achieved { @apply border-green bg-green-soft text-green; }
   .terminal-alert.blocked, .gbar.blocked { @apply border-amber bg-amber-soft text-amber; }
+  .turn-error-body, .terminal-alert-text { @apply min-w-0 flex-1; }
+  .turn-error-body > b, .terminal-alert-text > b { @apply block leading-5; }
+  .turn-error-hint, .terminal-alert-text > span { @apply mt-1 block leading-[1.5]; }
 
   .changes-panel, .session-side { @apply min-h-0 border-l border-line bg-panel; }
   .session-view .changes-panel.session-side { @apply flex min-w-0 flex-col overflow-hidden; }

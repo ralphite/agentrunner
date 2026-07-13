@@ -271,7 +271,11 @@ export function App() {
           {currentRunId ? (
             <RunView runId={currentRunId} />
           ) : currentSid ? (
-            <SessionView sid={currentSid} key={currentSid} />
+            <SessionView
+              sid={currentSid}
+              key={currentSid}
+              mobileNavigationOpen={isMobile && mobileSidebarOpen}
+            />
           ) : currentPage === "scheduled" ? (
             <Scheduled />
           ) : (

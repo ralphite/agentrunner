@@ -1,0 +1,18 @@
+[
+  {
+    "id": "20260713-082616-session-6d0d93bfcf9daa38",
+    "status": "waiting:input",
+    "turns": 1,
+    "workspace": "/Users/yadong/dev2/agentrunner/webui/runtime/ws/ws-20260713-012616",
+    "title": "Building an Agent Runtime",
+    "kind": "session"
+  },
+  {
+    "id": "20260713-070914-run-the-three-worker-qa-delega-3dcf",
+    "status": "waiting:input",
+    "turns": 1,
+    "workspace": "/Users/yadong/dev2/agentrunner/qa/runs/2026-07-13-INC66/workspace",
+    "title": "Run the three-worker QA delegation now.",
+    "kind": "session"
+  }
+]

@@ -46,6 +46,8 @@ export function displayTitle(
 // row. Keep the header human-readable instead of leaking the full durable id.
 export function titleFromSessionId(sid: string): string {
   const withoutStamp = sid.replace(/^\d{8}-\d{6}-/, "");
+  const child = withoutStamp.match(/-sub-(call_\d+(?:_\d+)*)-[a-z0-9]+$/i);
+  if (child) return `Sub-agent · ${child[1].replace(/_/g, " ")}`;
   const withoutSuffix = withoutStamp.replace(/-(?:[a-f0-9]{4}|[a-f0-9]{16})$/i, "");
   const label = withoutSuffix
     .replace(/-sub-[^-]+-\d+(?:_\d+)*-/i, " · ")

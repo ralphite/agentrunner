@@ -41,6 +41,7 @@
 | `increments/INC-19-webui-product-rebuild.md` | Codex 母版 + AgentRunner Supervision 的 Web UI 产品化重构工作纸；活定义已并入三层文档与 QA |
 | `increments/INC-29-webui-ux-round3.md` | 结构化 Run details、concise title 与统一状态语义；活定义已并入 SPEC/QA/GAPS/LOG |
 | `increments/INC-38-codex-result-closure.md` | truthful hydration、Worked/Changes 收尾、环境条与 sidebar hover；活定义已并入三层文档与 QA-41 |
+| `increments/INC-68-webui-mobile-session-polish.md` | iOS session 双 overlay、重复 failure、activity/child link 与子 agent 标题收口；活定义已并入 SPEC/QA/GAPS/LOG |
 
 ## 归档纪律
 

@@ -1,8 +1,15 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 import { TimelineView, mergeAdjacentChips } from "./Timeline";
-import type { BubbleItem, ChipItem, CompactItem, TimelineItem } from "../timeline";
+import type { BubbleItem, ChipItem, CompactItem, TimelineItem, ToolItem } from "../timeline";
+
+class NoopResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+(globalThis as any).ResizeObserver ??= NoopResizeObserver;
 
 afterEach(cleanup);
 
@@ -52,6 +59,43 @@ describe("compact divider", () => {
     expect(div).not.toBeNull();
     expect(div.textContent).toContain("Context compacted");
     expect(container.querySelector(".chip")).toBeNull();
+  });
+});
+
+describe("mobile activity disclosure", () => {
+  it("shows an explicit multiplication count and keeps child navigation separate", () => {
+    const tool = (key: string): ToolItem => ({
+      kind: "tool",
+      key,
+      name: "spawn_agent",
+      args: { agent: key },
+      background: false,
+      status: "done",
+      statusText: "done",
+    });
+    const { container } = render(
+      <TimelineView
+        items={[
+          { kind: "user", key: "u1", text: "delegate", source: "you" },
+          tool("worker-a"),
+          tool("worker-b"),
+          assistant("a1"),
+          chip("c1", "Started sub-agent worker_c", { childSession: "child-session-1" }),
+        ]}
+        pending={[]}
+        typing=""
+        showSys={false}
+      />,
+    );
+
+    fireEvent.click(container.querySelector("button.worked-row") as HTMLElement);
+    const count = container.querySelector(".act-count")!;
+    expect(count.textContent).toBe("×2");
+    expect(count.getAttribute("aria-label")).toBe("2 activities");
+
+    const linkedChip = container.querySelector('.chip a[href="#child-session-1"]')!;
+    expect(linkedChip.textContent).toContain("open sub-session");
+    expect(linkedChip.parentElement?.children).toHaveLength(2);
   });
 });
 

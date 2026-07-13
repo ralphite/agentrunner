@@ -189,6 +189,18 @@ describe("TH-15 · one rail, one name, one door", () => {
 });
 
 describe("mobile session topbar", () => {
+  it("closes Environment when the mobile navigation drawer opens", async () => {
+    (window as any).innerWidth = 390;
+    const { container, rerender } = render(<SessionView sid={SID} mobileNavigationOpen={false} />);
+    await waitFor(() => expect(container.querySelector(".session-topbar")).not.toBeNull());
+
+    fireEvent.click(screen.getByRole("button", { name: "Environment" }));
+    await waitFor(() => expect(container.querySelector("aside.supervision-panel")).not.toBeNull());
+
+    rerender(<SessionView sid={SID} mobileNavigationOpen />);
+    await waitFor(() => expect(container.querySelector("aside.supervision-panel")).toBeNull());
+  });
+
   it("reserves the sidebar slot and keeps secondary recovery actions in the menu", async () => {
     (window as any).innerWidth = 390;
     arMock.resume = vi.fn(async () => {});
@@ -238,6 +250,53 @@ describe("mobile session topbar", () => {
     await waitFor(() => expect(container.querySelector(".session-topbar")).not.toBeNull());
 
     expect(container.querySelector(".session-topbar-nav-slot")).toBeNull();
+  });
+});
+
+describe("session failure chrome", () => {
+  it("prefers the detailed provider failure over the generic failed terminal alert", async () => {
+    arMock.events = async (_sid: string, after: number) =>
+      after
+        ? []
+        : [
+            { seq: 1, type: "input_received", payload: { source: "cli", text: "check health" } },
+            { seq: 2, type: "activity_started", payload: { activity_id: "llm-t1", kind: "llm", name: "complete", attempt: 1 } },
+            {
+              seq: 3,
+              type: "activity_failed",
+              payload: {
+                activity_id: "llm-t1",
+                attempt: 1,
+                error: { class: "provider_server", message: "500 internal", retryable: true },
+              },
+            },
+          ];
+    useStore.setState({
+      sessions: [{ id: SID, title: "failed session", status: "failed", workspace: "/tmp/wt-th14" } as any],
+    });
+
+    const { container } = render(<SessionView sid={SID} />);
+    await waitFor(() => expect(container.querySelector(".turn-error")).not.toBeNull());
+    expect(container.querySelectorAll(".turn-error")).toHaveLength(1);
+    expect(container.querySelector(".terminal-alert")).toBeNull();
+    expect(screen.getByText("The model provider had a server error")).toBeTruthy();
+    expect(screen.queryByText("Session failed")).toBeNull();
+  });
+});
+
+describe("sub-agent session identity", () => {
+  it("uses inspect's agent spec as the child header title", async () => {
+    const childSid = `${SID}-sub-call_1_2-a1`;
+    arMock.inspect = async () => ({ spec: "worker_b", goal: null, children: [], progress: [], artifacts: [] });
+    useStore.setState({
+      currentSid: childSid,
+      sessions: [{ id: childSid, title: "Run the three-worker QA delegation now.", status: "completed", workspace: "/tmp/wt-th14" } as any],
+    });
+
+    const { container } = render(<SessionView sid={childSid} />);
+    await waitFor(() => expect(container.querySelector(".tt-title")?.textContent).toBe("worker_b"));
+    expect(container.querySelector(".readonly-tag")?.textContent).toContain("Read-only sub-agent");
+    expect(container.querySelector(".tt-title")?.getAttribute("title")).toContain("Run the three-worker QA delegation now.");
   });
 });
 
