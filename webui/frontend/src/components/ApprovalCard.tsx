@@ -44,29 +44,45 @@ export function ApprovalCard({
   };
 
   return (
-    <section className="approval-card" aria-label="Approval required">
-      <div className="approval-heading">
-        <span className="approval-icon"><ShieldCheck size={15} weight="duotone" /></span>
-        <div>
-          <span className="approval-kicker">Approval required</span>
-          <h3>{presentation.title}</h3>
+    <section className="approval-card min-w-0 overflow-hidden rounded-[8px] shadow-none" aria-label="Approval required">
+      <div className="approval-heading min-w-0 flex-wrap gap-2">
+        <span className="approval-icon mt-0.5"><ShieldCheck size={15} weight="duotone" /></span>
+        <div className="min-w-0 flex-1">
+          <span className="approval-kicker block">Approval required</span>
+          <h3 className="m-0 mt-0.5 text-[13px] font-medium leading-[1.4]">{presentation.title}</h3>
         </div>
-        {approval.agent && <span className="approval-agent">Requested by {approval.agent}</span>}
+        {approval.agent && (
+          <span className="approval-agent max-w-[45%] shrink-0 text-right [overflow-wrap:anywhere]">
+            Requested by {approval.agent}
+          </span>
+        )}
       </div>
 
-      <p className="approval-description">{presentation.description}</p>
-      <div className="approval-subject">
-        <TerminalWindow size={15} />
-        <code>{presentation.subject}</code>
+      <p className="approval-description my-2 leading-[1.4]">{presentation.description}</p>
+      <div className="approval-subject flex min-w-0 items-start gap-2 overflow-hidden">
+        <TerminalWindow className="mt-px shrink-0" size={15} />
+        <code className="min-w-0 flex-1 whitespace-pre-wrap leading-[1.4] [overflow-wrap:anywhere]">
+          {presentation.subject}
+        </code>
       </div>
-      <div className="approval-scope" title={workspace || undefined}>
-        <WarningCircle size={14} /> {presentation.scope}
-        {workspaceName && presentation.scope === "Current workspace" && <code className="approval-ws">{workspaceName}</code>}
+      <div
+        className="approval-scope mt-2 flex min-w-0 flex-wrap items-start gap-x-1.5 gap-y-1 leading-[1.4]"
+        title={workspace || undefined}
+      >
+        <WarningCircle className="mt-px shrink-0" size={14} />
+        <span>{presentation.scope}</span>
+        {workspaceName && presentation.scope === "Current workspace" && (
+          <code className="approval-ws m-0 min-w-0 max-w-full basis-full whitespace-normal p-1.5 leading-[1.35] [overflow-wrap:anywhere] sm:basis-auto sm:flex-1">
+            {workspaceName}
+          </code>
+        )}
       </div>
 
-      <details className="approval-details">
-        <summary><CaretRight size={12} /> Details</summary>
-        <pre>{pretty(approval.args)}</pre>
+      <details className="approval-details mt-2 min-w-0 border-t border-line pt-2">
+        <summary className="inline-flex items-center gap-1 text-[12px] text-ink-2"><CaretRight size={12} /> Details</summary>
+        <pre className="m-0 mt-2 max-h-48 max-w-full overflow-auto whitespace-pre-wrap rounded-[8px] bg-panel-2 p-2 text-[11px] [overflow-wrap:anywhere]">
+          {pretty(approval.args)}
+        </pre>
         {approval.gates.length > 0 && (
           <div className="approval-gates">
             {approval.gates.map((gate, index) => (
@@ -79,26 +95,40 @@ export function ApprovalCard({
       {readonly ? (
         <div className="approval-readonly">Review this request in the parent session.</div>
       ) : (
-        <div className="approval-actions">
+        <div className="approval-actions min-w-0">
           {denying ? (
-            <div className="deny-reason">
-              <input autoFocus value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Reason (optional)" />
-              <button disabled={busy} onClick={() => setDenying(false)}>Cancel</button>
-              <button className="danger" disabled={busy} onClick={() => decide("deny")}>Deny</button>
+            <div className="deny-reason w-full min-w-0 flex-col sm:flex-row">
+              <input
+                className="w-full min-w-0"
+                autoFocus
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                placeholder="Reason (optional)"
+              />
+              <div className="flex shrink-0 justify-end gap-2">
+                <button className="min-h-9 flex-1 sm:flex-none" disabled={busy} onClick={() => setDenying(false)}>Cancel</button>
+                <button className="danger min-h-9 flex-1 sm:flex-none" disabled={busy} onClick={() => decide("deny")}>Deny</button>
+              </div>
             </div>
           ) : (
             <>
-              <button disabled={busy} onClick={() => setDenying(true)}>Deny</button>
               <button
-                className="subtle"
+                className="primary min-h-9 flex-[1_1_100%] sm:flex-initial"
+                disabled={busy}
+                onClick={() => decide("approve")}
+              >
+                Approve once
+              </button>
+              <button
+                className="subtle min-h-9 flex-1 sm:flex-initial"
                 disabled={busy}
                 title="Approve AND save an exact allow rule to your user config, so this same call never asks again (any session)"
                 onClick={() => decide("approve", true)}
               >
                 Always allow
               </button>
-              <button className="primary" disabled={busy} onClick={() => decide("approve")}>Approve once</button>
-              <span className="approval-shortcut">⌘↵ approve · ⌘⌫ deny</span>
+              <button className="min-h-9 flex-1 sm:flex-initial" disabled={busy} onClick={() => setDenying(true)}>Deny</button>
+              <span className="approval-shortcut ml-auto max-[680px]:hidden">⌘↵ approve · ⌘⌫ deny</span>
             </>
           )}
         </div>
