@@ -109,7 +109,7 @@ describe("project picker searches every project (HM-9)", () => {
       return 1;
     });
     Object.defineProperty(Element.prototype, "scrollIntoView", { value: scrollIntoView, configurable: true });
-    const rect = vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function () {
+    const rect = vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
       return { bottom: this.classList.contains("cx-card") ? 569 : 0 } as DOMRect;
     });
     const innerHeight = window.innerHeight;
