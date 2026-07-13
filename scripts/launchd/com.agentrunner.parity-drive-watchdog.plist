@@ -10,7 +10,7 @@
     <string>/Users/yadong/dev2/agentrunner/scripts/parity-drive-watchdog.sh</string>
   </array>
   <key>StartInterval</key>
-  <integer>600</integer>
+  <integer>300</integer>
   <key>RunAtLoad</key>
   <true/>
   <key>ThrottleInterval</key>

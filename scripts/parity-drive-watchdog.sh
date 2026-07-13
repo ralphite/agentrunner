@@ -1,6 +1,6 @@
 #!/bin/zsh
-# parity-drive-watchdog.sh — 每 ~10min 由 launchd(StartInterval=600)触发。
-# 职责:保证 parity-drive 30 分钟循环【永远活着】,不参与任何业务。
+# parity-drive-watchdog.sh — 每 ~5min 由 launchd(StartInterval=300)触发。
+# 职责:保证 parity-drive 连续循环【永远活着】,不参与任何业务。
 #   1) 清陈锁(>60min):某轮崩死后残留的 /tmp/parity-drive.lock 会把后续所有
 #      轮永久挡住——清掉它。
 #   2) 若 plist 被改名成 .stopped(旧的自杀行为),恢复回来。

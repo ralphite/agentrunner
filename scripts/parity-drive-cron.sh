@@ -1,8 +1,8 @@
 #!/bin/zsh
 # parity-drive-cron.sh — 【连续】跑 /parity-drive(headless)。一轮结束立刻起下一轮。
-# velocity 硬规则(2026-07-11 用户裁决):**idle 即失败**。没有 30 分钟 sleep,只有
-#   秒级 guard 防热转。launchd 只负责把本脚本【永远保活】(KeepAlive);本脚本自身
-#   是 while-true 连续循环,一轮完立即进下一轮。
+# velocity 硬规则(2026-07-11 用户裁决):**idle 即失败**。正常状态没有 30 分钟
+#   sleep,只有秒级 guard 防热转。若上游明确返回 usage/weekly/rate limit,释放锁后
+#   退避 5 分钟再探测,避免无产出的 8 秒热循环刷屏。
 # 设计意图:永不停的持续改进循环。脚本自身绝不 bootout/unload、绝不重命名/删除 plist。
 # 安装:~/Library/LaunchAgents/com.agentrunner.parity-drive.plist(直接跑本脚本 + KeepAlive)
 # 只应由真人手动停:launchctl bootout gui/$UID/com.agentrunner.parity-drive + mv plist 为 .stopped
@@ -14,7 +14,8 @@ LOCK=/tmp/parity-drive.lock
 LOG=$HOME/Library/Logs/parity-drive.log
 PLIST="$HOME/Library/LaunchAgents/com.agentrunner.parity-drive.plist"
 ROUND_TIMEOUT=3300   # 55min 硬顶 watchdog per round:杀超时轮,循环照进下一轮
-STALL_TIMEOUT=900    # 15min 停滞 watchdog:log + 主/子 agent transcript 全都 >15min 没动=挂了
+STALL_TIMEOUT=300    # 5min 停滞 watchdog:log + 主/子 agent transcript 全都 >5min 没动=挂了
+USAGE_BACKOFF=300    # usage-limit 外部阻塞:释放锁后每 5min 探测一次
 GUARD=8              # 轮间只睡这几秒防热转——绝不是 30min heartbeat
 # 活性信号扫这些 transcript(主轮 + worktree 子 agent 都算,子 agent 在跑就不判挂):
 TXGLOB="$HOME/.claude/projects/*agentrunner*/*.jsonl"
@@ -50,11 +51,13 @@ run_round() {
   fi
 
   log "=== round start (headless) ==="
+  local ROUND_OUT
+  ROUND_OUT=$(mktemp /tmp/parity-drive-round.XXXXXX 2>/dev/null || echo "")
   # env -i 白名单环境:隔离宿主泄漏的 ANTHROPIC_*/CLAUDE_*(会把 CLI 指到内部代理→401)
   env -i HOME="$HOME" USER="$USER" LOGNAME="$USER" SHELL=/bin/zsh \
     PATH="$PATH" LANG=en_US.UTF-8 TMPDIR="${TMPDIR:-/tmp}" \
     PARITY_DRIVE_HEADLESS=1 \
-    claude -p "/parity-drive" --permission-mode bypassPermissions >> "$LOG" 2>&1 &
+    claude -p "/parity-drive" --permission-mode bypassPermissions >> "${ROUND_OUT:-$LOG}" 2>&1 &
   local CPID=$!
 
   # (a) 硬顶 watchdog:55min 无论如何杀
@@ -108,8 +111,20 @@ run_round() {
 
   wait "$CPID"; local RC=$?
   kill "$WPID" "$SPID" "$BPID" 2>/dev/null
+  local USAGE_LIMITED=0
+  if [ -n "$ROUND_OUT" ] && [ -s "$ROUND_OUT" ]; then
+    cat "$ROUND_OUT" >> "$LOG"
+    if grep -Eiq "hit your .*limit|usage limit|weekly limit|rate limit" "$ROUND_OUT"; then
+      USAGE_LIMITED=1
+    fi
+  fi
   rm -rf "$LOCK"
   log "=== round end rc=$RC ==="
+  if [ "$USAGE_LIMITED" -eq 1 ]; then
+    log "usage limit detected — workflow healthy, next probe in ${USAGE_BACKOFF}s"
+    sleep "$USAGE_BACKOFF"
+  fi
+  [ -n "$ROUND_OUT" ] && rm -f "$ROUND_OUT"
 }
 
 # ---- 连续循环:一轮完立即下一轮,只隔 GUARD 秒。绝无长 sleep。 ----
