@@ -38,6 +38,16 @@ function openFind(): { trigger: HTMLElement; input: HTMLElement } {
 afterEach(cleanup);
 
 describe("FindBar focus return (A11Y-3)", () => {
+  it("keeps the input and controls in one compact utility surface", () => {
+    render(<FindBar scope={() => null} onClose={() => {}} />);
+    const input = screen.getByPlaceholderText("Search chat…");
+    const bar = input.closest(".findbar");
+
+    expect(input.parentElement).toBe(bar);
+    expect(screen.getByTitle("Previous (⇧Enter)").closest(".fb-nav")?.parentElement).toBe(bar);
+    expect(screen.getByLabelText("Close find").parentElement).toBe(bar);
+  });
+
   it("returns focus to the pre-open element on Escape", () => {
     const { trigger, input } = openFind();
     fireEvent.keyDown(input, { key: "Escape" });

@@ -153,30 +153,28 @@ export function FindBar({ scope, onClose }: { scope: () => HTMLElement | null; o
 
   return (
     <div className="findbar" onKeyDown={onKey}>
-      <div className="fb-row">
-        <span className="fb-ico" aria-hidden="true"><MagnifyingGlass size={14} /></span>
-        <input
-          ref={inputRef}
-          className="fb-input"
-          placeholder="Search chat…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-        <button className="fb-x" title="Close (Esc)" aria-label="Close find" onClick={onClose}>
-          <X size={14} />
-        </button>
-      </div>
-      <div className="fb-row fb-nav">
+      <span className="fb-ico" aria-hidden="true"><MagnifyingGlass size={14} /></span>
+      <input
+        ref={inputRef}
+        className="fb-input"
+        placeholder="Search chat…"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+      />
+      <span className="fb-count" title={unsupported ? "Find unsupported" : undefined}>
+        {unsupported ? "N/A" : q ? (count ? `${cur + 1} / ${count}` : "0 / 0") : ""}
+      </span>
+      <div className="fb-nav">
         <button className="fb-arrow" title="Previous (⇧Enter)" disabled={count === 0} onClick={() => step(-1)}>
           <ArrowUp size={14} />
         </button>
         <button className="fb-arrow" title="Next (Enter)" disabled={count === 0} onClick={() => step(1)}>
           <ArrowDown size={14} />
         </button>
-        <span className="fb-count">
-          {unsupported ? "find unsupported" : q ? (count ? `${cur + 1} / ${count} results` : "no results") : ""}
-        </span>
       </div>
+      <button className="fb-x" title="Close (Esc)" aria-label="Close find" onClick={onClose}>
+        <X size={14} />
+      </button>
     </div>
   );
 }

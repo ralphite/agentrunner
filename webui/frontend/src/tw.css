@@ -618,10 +618,17 @@
   .rd-grid, .session-grid { @apply grid gap-3; }
   .rd-section, .session-card, .advanced-settings { @apply rounded-[12px] border border-line bg-panel p-3; }
 
-  .findbar { @apply absolute right-3 top-[56px] z-30 flex items-center gap-1 rounded-[10px] border border-line bg-panel p-1 shadow-lg; }
-  .fb-input { @apply w-[220px] border-0 bg-transparent px-2 py-1; }
-  .fb-nav, .fb-x { @apply h-7 w-7 p-0; }
-  .fb-count { @apply px-1 text-[12px] text-dim; }
+  .findbar {
+    @apply absolute right-3 top-[56px] z-30 flex h-10 items-center gap-1 rounded-[10px] border border-line bg-panel p-1 shadow-lg;
+    width: min(366px, calc(100vw - 24px));
+  }
+  .fb-ico { @apply grid h-7 w-6 shrink-0 place-items-center text-dim; }
+  .fb-input { @apply h-8 min-w-0 flex-1 border-0 bg-transparent px-1 py-1; }
+  .fb-nav { @apply flex shrink-0 items-center; }
+  .fb-arrow, .fb-x {
+    @apply grid h-7 w-7 shrink-0 place-items-center border-transparent bg-transparent p-0 text-ink-2 hover:border-line hover:bg-panel-2 hover:text-ink;
+  }
+  .fb-count { @apply w-[48px] shrink-0 whitespace-nowrap text-right text-[11px] tabular-nums text-dim; }
 
   .lightbox { @apply fixed inset-0 z-[70] flex flex-col bg-black/85 text-white; }
   .lb-top { @apply flex items-center gap-2 p-3; }
