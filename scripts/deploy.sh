@@ -76,19 +76,36 @@ EOF
   exit 0
 fi
 
+replace_live_link() {
+  local link="$1"
+  local target="$2"
+  local next="${link}.next.$$"
+  rm -f "$next"
+  ln -s "$target" "$next"
+  mv -f "$next" "$link"
+}
+
 # ---- daemon restart (durable, but guard against a live turn) --------------
 echo
 echo "==> checking for running turns before restarting the daemon"
-SESS="$("$AR_OUT" sessions 2>/dev/null || true)"
-if echo "$SESS" | grep -qiE '\b(running|working|executing|thinking)\b'; then
+SESS_JSON="$("$AR_OUT" sessions --json 2>/dev/null || true)"
+# Inspect only the structured status value. Session ids/titles are free text
+# and commonly contain words such as "running" in QA prompts.
+if echo "$SESS_JSON" | grep -qE '"status"[[:space:]]*:[[:space:]]*"running"'; then
   echo "!! a session has a RUNNING turn:" >&2
-  echo "$SESS" | grep -iE 'running|working|executing|thinking' >&2
+  echo "$SESS_JSON" >&2
   if [[ $FORCE -eq 0 ]]; then
     echo "!! refusing to restart the daemon (would kill the turn). Re-run with --force to override, or wait." >&2
     exit 1
   fi
   echo "!! --force given: restarting anyway" >&2
 fi
+
+# Keep the canonical paths used by the user's shell and LaunchAgent on the
+# exact binaries being deployed. Replacing a symlink is atomic and leaves any
+# process mapped to the previous inode untouched until it is restarted below.
+replace_live_link "$BINDIR/ar-live" "$AR_OUT"
+replace_live_link "$BINDIR/arwebui-live" "$WEBUI_OUT"
 
 echo "==> restarting global daemon on new binary (durable store survives)"
 # SIGTERM the old daemon(s); the store at ~/.local/share/agentrunner survives.
@@ -109,15 +126,35 @@ echo "   daemon up: $("$AR_OUT" --version)"
 
 # ---- webui restart on new binary ------------------------------------------
 echo "==> restarting webui on $ADDR"
-pkill -f "arwebui.*--addr[= ]$ADDR" 2>/dev/null || true
-sleep 1
-# --no-daemon: the daemon we just started owns the shared socket; webui must not
-# try to spawn/manage its own.
-nohup "$WEBUI_OUT" --addr "$ADDR" --ar "$AR_OUT" --no-daemon \
-  ${ENV_FILE:+--env-file "$ENV_FILE"} >/dev/null 2>&1 &
-sleep 2
+WEBUI_LABEL="com.agentrunner.webui8809"
+WEBUI_DOMAIN="gui/$(id -u)"
+if [[ "$ADDR" == "127.0.0.1:8809" ]] && \
+    launchctl print "$WEBUI_DOMAIN/$WEBUI_LABEL" >/dev/null 2>&1; then
+  # This service has KeepAlive enabled. Killing it and starting a second copy
+  # races launchd, so switch the canonical links above and ask launchd to reload.
+  launchctl kickstart -k "$WEBUI_DOMAIN/$WEBUI_LABEL"
+else
+  pkill -f "arwebui.*--addr[= ]$ADDR" 2>/dev/null || true
+  sleep 1
+  # --no-daemon: the daemon we just started owns the shared socket; webui must
+  # not try to spawn/manage its own.
+  nohup "$WEBUI_OUT" --addr "$ADDR" --ar "$AR_OUT" --no-daemon \
+    ${ENV_FILE:+--env-file "$ENV_FILE"} >/dev/null 2>&1 &
+fi
 echo
 echo "==> health check"
-curl -fsS "http://$ADDR/api/health" || { echo "!! webui health failed" >&2; exit 1; }
+HEALTH=""
+for _ in $(seq 1 20); do
+  HEALTH="$(curl -fsS "http://$ADDR/api/health" 2>/dev/null || true)"
+  if [[ "$HEALTH" == *"\"webuiVersion\":\"$STAMP\""* ]]; then break; fi
+  sleep 0.5
+done
+echo "$HEALTH"
+if [[ "$HEALTH" != *"\"webuiVersion\":\"$STAMP\""* ]] ||
+   [[ "$HEALTH" != *"\"version\":\"agentrunner $STAMP "* ]] ||
+   [[ "$HEALTH" != *"\"versionMatch\":true"* ]]; then
+  echo "!! webui is reachable but does not run the deployed $STAMP binaries" >&2
+  exit 1
+fi
 echo
 echo "deploy done — ar & webui both stamped $STAMP"

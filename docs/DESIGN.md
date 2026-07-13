@@ -813,6 +813,9 @@ user]` 的 error 结果;对待命处 = no-op(裁决 #11)。**已配对的后台
   `git reset` 也打不断快照链。备选 backend：archive copy；`none`
   （rewind/fork 优雅不可用，其余功能不受影响）。git 只是默认实现，
   不是设计依赖。
+- **shadow writer 单写纪律**：同一 shadow `GIT_DIR` 的 init、index/HEAD
+  snapshot mutation 与 ref push 受 repo-path advisory `flock` 串行，跨 session、
+  goroutine 和进程均成立；Diff 使用 private index，仍可并发只读。
 - **排除策略显式化**：harness 级 exclude 列表（node_modules/venv/build
   类 + 凭据文件硬排除表），被排除的路径文档化为 rewind 范围外。
 - **IndexStore（第四类状态）**：可从 workspace 随时重建的
@@ -1413,9 +1416,12 @@ limits:
   command verifier 还必须经过强制 OS workspace sandbox，containment evidence
   与 gate verdict 同写 `EffectResolved`；能力缺失不启动 Activity。花费计入
   迭代 usage、verdict journal 进 IterationCompleted。
-- **统一事件族**：`IterationScheduled / Launched / Completed`、
+- **统一事件族**：`IterationScheduled / Launched / AttemptStarted /
+  AttemptCompleted / Completed`、
   `DriverCompleted{reason: satisfied|stalled|max_iterations|budget|
   stopped|child_failed}`。launch 遵循 journal-before-send；崩溃后的
+  policy retry 的每个 attempt 都在 parent stream 独立记录 start/completed
+  与 usage，逻辑 iteration 仍只在 `IterationCompleted` 结算一次总 usage。
   重发幂等由**纯 fold 检查（st.at(n) 已在 journal 则不重发）+ 确定性
   child 目录（sub/iter-N，已静止则从其 fold 结算）**保证。
 - **Goal 有两种形态（INC-D1，决策 #21 修订）**：
@@ -1428,7 +1434,7 @@ limits:
   - **in-session goal**（会话内、context 延续，G23/UJ-22）= 挂在
     conversational `agent.Loop` 上的一个 **Goal 子状态**（事件族
     `GoalAttached/Updated/Paused/Resumed/Cancelled/Checkpoint/Achieved/
-    CompletionClaimed`，change-as-event 同决策 #32 族，故 goal 参数是
+    Exhausted/CompletionClaimed`，change-as-event 同决策 #32 族，故 goal 参数是
     **可变 session 状态**而非冻结 spec）。**完成裁决是静止序列（决策
     #24）在 exchange 边界的一格**（`goal_verify`，在 auto-publish/barrier
     同一序列里、只在 final generation 收尾跑，**绝不**挟持 generation
@@ -1451,8 +1457,11 @@ limits:
     continuation 反馈（objective 重述 + 反缩水条款 + 完成路径 + 预算报告）
     作为 **`program` 源 `InputReceived` 回灌进同一 fold**
     （`hasInputAfterLastAssistant` → 下一 turn 同上下文续跑）；miss
-    （goal 级预算 `max_checks` 尽）→ `GoalAchieved{budget}` = 可见截断
-    （决策 #31，自证 goal 无声明时每边界同样计 check，故仍有界）。
+    （goal 级预算 `max_checks` 尽）→ `GoalExhausted{budget}`：明确表示
+    **未达成**，保留 goal 并停止自动 continuation；用户可 `goal update`
+    提高预算或修改要求，清除 exhausted 后在同一 context 继续。只有 verifier
+    pass 才写 `GoalAchieved{satisfied}` 并摘 goal；自证 goal 无声明时每边界
+    同样计 check，故仍有界（INC-66）。
     模型工具面只有 `goal_status`（读）与 `goal_complete`（声明），
     **不含任何生命周期或 verifier 设置路径**；这只缩小攻击面，不构成
     verifier 绕过治理的理由。command verifier 与普通 bash 共用
@@ -1480,7 +1489,9 @@ limits:
   （过管线 → scheduler journal durable timer，min/max 钳位 +
   `on_no_intent` 兜底）与 `finish_series`（"自称完成"由 human
   verifier 把关，不另设 confirm 机制）。`overlap: skip|coalesce|
-  interrupt`；跳过是 `IterationSkipped` event，不是沉默。
+  interrupt`；跳过是 `IterationSkipped` event，不是沉默。interval 与 cron
+  都使用 durable fixed-rate absolute tick；iteration 跑过 tick 时按
+  skip/coalesce 消费错过的 slot，不从 completion 时刻重新 fixed-delay。
 - **预算与失败策略共享**：driver 是树预算的根，reserve-at-launch /
   settle-at-completion；`on_reserve_failure: skip|stop`、
   `on_child_failure: stop|surface|retry{max, backoff}`——对**终态**
@@ -1576,6 +1587,7 @@ limits:
 | 37 | 记忆写回（INC-14,2026-07-09,取 A,G9） | `remember` control（durable command，与 compact/clear 同族）append 到 **workspace-root CLAUDE.md**（append-only、`## Remembered` 段、同 note 幂等去重）+ 追加一条 program-source `InputReceived`（本会话即遵循，触发确认续跑，同 goal 回灌）。文件供**下次** session start 冻结进 prefix。**取 A（不动 prefix→不触不变量）**；取 B（MemoryChanged 重冻本 run 立即换代）留待需求出现。 | 写侧闭合 read 侧注入（S5.2）；memory 是 workspace 内容、非 journaled fold，rewind 不 un-write（接受项，同 harness-config 排除）；写文件副作用靠 Append 幂等吸收 durable-command 崩溃重放。 |
 | 38 | 审批"允许且不再问"（INC-17,2026-07-09,取 A,G5；**2026-07-12 INC-62 扩展**,G35） | `approve --always`（`ApprovalDecision.Remember` 贯穿 CLI→protocol→daemon→agent）在 approve 时，从被审批 effect 提取**精确**判据（bash=确切命令、edit/write=确切路径、**spawn_agent=tool 级**（INC-62 补，PermissionRule 无 agent 维度且用户意图即"别再为起子 agent 问"），**不宽通配**）→ ① 判据作为 `ApprovalResponded.Standing` 随应答事实落 journal，fold 进 `Effects.Standing`——**本 session 内**后续同判据 ask 由常设应答自动作答 approve（standing approval，见 §5），不落 ApprovalRequested、不进 WAITING；② `config.AppendRule` 写 **user 配置**为一条 allow（幂等去重、保留既有、best-effort）供**下次** session 拼 PermissionLayers 读到。两侧共用**同一个**提取函数（`standingCriterion`），结构性防歧义。不动冻结 layers。**写 user 层**（非 project）：project allow 未 trust 时降级为 ask（决策 #19），写 project 会静默失效。 | 冻结于 SessionStarted 的 PermissionLayers 不可本 run 改（取 B 触不变量，仍推迟）；INC-62 走的是 D5 未摆出的第三条路——不动 permission 层，在**审批层**记住常设应答（"ApprovalResponded 一旦成事实即权威"教义的顺延），同 session 生效为用户裁定的硬性 UX 需求（G35）；常设应答住各 session 自己的 fold，父的应答不放行子的 ask（树约束无恙）；rewind 越过 barrier 自然失效。精确匹配把 user 层"全局"超范围降到最小；写文件副作用幂等吸收重放。 |
 | 39 | 机器发送方/webhook ingress（INC-50,2026-07-11,G14/UJ-12） | daemon 可选 `--http` 起单端点 ingress `POST /hooks/<id>`（默认关）→ 同一条 durable send 通道投递。per-hook capability（不可猜 id+token，落盘仅哈希、不进 journal）；未鉴权限流+body 上限；载荷 `source:"machine"`+`trust:"untrusted"`+`principal:"hook:<n>"`；**untrusted 驱动 loop 侧隔离框定**（模型可见前缀、trust 钳制、不做宏展开）；machine 非 user-class，不越 close/kill 标记（对 marked session 410）；`X-Command-Id` 幂等重投。 | 外部事件唤醒是"输入投递"的第三个发送方（§2 三类归一），不另起通道；注入防御必须落在模型可见面（仅元数据=纸面防御）；越标记特权是用户手势的专属（决策 #30），机器只享 parked-unmarked revive。窄切片：HTTP/WS 壳仍 backlog。 |
+| 40 | Goal 终态与恢复（INC-66,2026-07-13，决策 #21 修订） | `GoalAchieved` **只**表示 verifier pass/satisfied 并摘 goal；check budget 用尽写 `GoalExhausted{budget}`，保留 unmet goal、停止自动 continuation。`GoalUpdated` 清 exhausted/recovery checkpoint，允许提高预算或修改要求后在同一 context 继续。当前 generation 的 `goal_satisfied|goal_budget_exhausted` 是明确静止收据。 | 旧 `GoalAchieved{budget}` 把 verifier fail 表示成成功并删除恢复目标，既语义矛盾又使 update 假成功；新事件仍由同一 journal+fold 恢复，不引入第二套机制，也不放宽 verifier。 |
 
 ---
 

@@ -13,7 +13,6 @@ driver-goal（批式/headless，verifier 三态、停滞检测、carry；fresh c
 fork（单创世、处置向量落实、随行库复制、独立 worktree）
 handoff（`handoff_agent`）/ blackboard（`publish_note`/`read_notes`）
 hooks（pre/post，observe+block）
-loop mode（interval/cron/self_paced、overlap skip/coalesce）
 memory 文件读侧注入（CLAUDE.md 层级合并）
 notifier（生命周期通知、跨重启去重）
 publish_artifact（`outputs:` contract、审批载荷）
