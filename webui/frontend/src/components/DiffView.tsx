@@ -545,7 +545,7 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
       panelClass="diff-scope-menu"
       trigger={(open, toggle) => (
         <button
-          className={"diff-scope-trigger" + (open ? " active" : "")}
+          className={"diff-scope-trigger inline-flex shrink-0 items-center gap-1 whitespace-nowrap" + (open ? " active" : "")}
           onClick={toggle}
           aria-label="Change diff scope"
           aria-haspopup="menu"

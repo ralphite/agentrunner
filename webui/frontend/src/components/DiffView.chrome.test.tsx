@@ -134,6 +134,32 @@ describe("Changes toolbar (INC-41 RV-1)", () => {
     fireEvent.click(screen.getByLabelText("Close changes"));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps the mobile scope on one line beside stats and primary review actions", async () => {
+    (window as any).matchMedia = (query: string) => ({
+      matches: query === "(max-width: 900px)" || query === "(max-width: 1400px)",
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    });
+    arMock.diff = () => Promise.resolve(baseDiff({ diff: editDiff + newFileDiff }));
+    const { container } = render(<DiffView sid="mobile-header" onClose={() => {}} />);
+
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+    const bar = container.querySelector(".diffbar")!;
+    const scope = screen.getByLabelText("Change diff scope");
+
+    // Phosphor SVGs are display:block under Tailwind's preflight. Without this
+    // flex/nowrap contract the caret drops below "Working tree" / "Last turn",
+    // turning the 390px review header into a visually broken second line.
+    for (const cls of ["inline-flex", "shrink-0", "items-center", "gap-1", "whitespace-nowrap"])
+      expect(scope.classList.contains(cls)).toBe(true);
+    expect(scope.querySelector("svg")).toBeTruthy();
+
+    expect(bar.contains(container.querySelector(".diff-summary"))).toBe(true);
+    expect(bar.contains(screen.getByLabelText("Changed files"))).toBe(true);
+    expect(bar.contains(screen.getByLabelText("Commit or push"))).toBe(true);
+    expect(bar.contains(screen.getByLabelText("Close changes"))).toBe(true);
+  });
 });
 
 describe("File headers (INC-41 RV-3 / RV-5)", () => {
