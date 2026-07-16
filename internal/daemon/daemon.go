@@ -122,6 +122,7 @@ type RunRequest struct {
 	Prompt            string
 	Workspace         string
 	Mode              string
+	InitialInput      *protocol.UserInput
 	Inbox             <-chan protocol.UserInput
 	Interrupts        <-chan struct{}
 	Cancels           <-chan string
@@ -1485,6 +1486,14 @@ func (s *Server) reviveAndAnswer(ctx context.Context, session, approvalID string
 // handleRun hosts a new run and streams its events to the submitting client
 // until the run ends. The run belongs to the DAEMON's lifetime, not the
 // connection's: a client that disconnects mid-run only stops watching.
+func openingInput(cmd Command) *protocol.UserInput {
+	if len(cmd.Images) == 0 && len(cmd.Files) == 0 && len(cmd.Content) == 0 {
+		return nil
+	}
+	return &protocol.UserInput{Text: cmd.Prompt, Images: cmd.Images, Files: cmd.Files, Content: cmd.Content,
+		Principal: "local-user", Source: "cli", Trust: "local", CommandID: cmd.CommandID}
+}
+
 func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) {
 	if s.Run == nil {
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "daemon has no runner configured"})
@@ -1548,7 +1557,8 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 		if err := s.Run(runCtx, RunRequest{
 			SessionID: id, SpecPath: cmd.SpecPath, Prompt: cmd.Prompt,
 			Workspace: cmd.Workspace, Mode: cmd.Mode,
-			Inbox: hub.inbox, Interrupts: hub.interrupts, Cancels: hub.cancels,
+			InitialInput: openingInput(cmd),
+			Inbox:        hub.inbox, Interrupts: hub.interrupts, Cancels: hub.cancels,
 			Controls: hub.controls, CommandInterrupts: hub.commandInterrupts,
 			CommandCancels: hub.commandCancels, Revokes: hub.revokes, Answers: hub.answers,
 		}, hub); err != nil {

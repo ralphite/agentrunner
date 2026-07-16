@@ -481,6 +481,8 @@ func (s *server) handleNewSession(w http.ResponseWriter, r *http.Request) {
 		Workspace  string     `json:"workspace"`
 		Message    string     `json:"message"`
 		Mode       string     `json:"mode"`
+		Images     []string   `json:"images"`
+		Files      []string   `json:"files"`
 	}
 	if !readBody(w, r, &req) {
 		return
@@ -508,6 +510,20 @@ func (s *server) handleNewSession(w http.ResponseWriter, r *http.Request) {
 	args := []string{"new", "--detach", "--workspace", ws}
 	if req.Mode != "" {
 		args = append(args, "--mode", req.Mode)
+	}
+	for _, img := range req.Images {
+		if st, err := os.Stat(img); err != nil || st.IsDir() {
+			badRequest(w, "image not readable: "+img)
+			return
+		}
+		args = append(args, "--image", img)
+	}
+	for _, f := range req.Files {
+		if st, err := os.Stat(f); err != nil || st.IsDir() {
+			badRequest(w, "file not readable: "+f)
+			return
+		}
+		args = append(args, "--file", f)
 	}
 	args = append(args, basePath, req.Message)
 	res := s.runAR(r.Context(), oneShotTimeout, args...)

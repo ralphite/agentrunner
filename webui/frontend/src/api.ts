@@ -126,6 +126,8 @@ export const AR = {
     workspace: string;
     message: string;
     mode: string;
+    images?: string[];
+    files?: string[];
   }) => post<{ sid: string }>("/sessions", b),
   makeWorkspace: () => post<{ path: string }>("/workspace"),
   makeWorktree: (repo: string, branch: string, ref = "") =>
