@@ -6,6 +6,7 @@ import { AR } from "../api";
 import { copyText } from "../clipboard";
 import { useStore } from "../store";
 import { Lightbox } from "./Lightbox";
+import { MermaidBlock } from "./Mermaid";
 import { rehypeHighlight } from "./highlight";
 
 // Markdown renders assistant/runtime message bodies with react-markdown. It
@@ -87,11 +88,15 @@ function preRenderer(props: { children?: ReactNode; node?: unknown }): ReactNode
   // Raw source for the Copy button: walk the hast <pre> node's text so we copy
   // the verbatim code, not the tokenised spans.
   const raw = hastText(props.node).replace(/\n$/, "");
-  return (
+  const block = (
     <CodeBlock raw={raw} lang={lang} className={cls}>
       {cp.children}
     </CodeBlock>
   );
+  // A mermaid fence renders as a diagram (lazy-loaded chunk); the code block
+  // stays its loading/failure fallback so the source is never invisible.
+  if (lang === "mermaid") return <MermaidBlock raw={raw} fallback={block} />;
+  return block;
 }
 
 // hastText collects the concatenated text of a hast node subtree.

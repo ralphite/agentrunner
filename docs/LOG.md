@@ -4124,3 +4124,13 @@ working,缺 backend 时明示 execute-class fail closed)。
 SettingsConfiguration.mobile.test 3 例(真值渲染/无 todo/fail-closed
 文案)。B6 代码已随 c4d9876 上 main;本条与 BACKLOG 勾选因执行目录
 失误漏提交,补于随后 commit(check.sh 于补交前全量重验)。
+
+## 2026-07-17 · audit-0717.B7:mermaid 懒加载(INC-51 余项)
+
+```mermaid 围栏渲染为图。懒加载是要点:动态 import 为 Vite code-split
+缝,mermaid.core 单独 chunk(~623KB/149KB gzip)首个 mermaid 块才拉,
+主包零增重(build 实测)。安全:SVG 经 dangerouslySetInnerHTML 注入
+是对 INC-51 无 raw-HTML 红线的**有界例外**——标记由 mermaid 从图源
+生成(非作者 HTML 透传),securityLevel strict 转义标签/禁 click;
+解析失败或流中半截围栏一律回退普通代码块,线程不破。
+锚:Markdown.mermaid.test 3 例(渲染/失败回退/普通围栏零触发)。
