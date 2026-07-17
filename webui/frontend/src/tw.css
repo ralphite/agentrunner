@@ -844,7 +844,7 @@
       padding-bottom: 0.5rem;
       padding-left: max(0.75rem, env(safe-area-inset-left));
     }
-    .lb-btn { @apply h-10 w-10; }
+    .lb-btn { @apply h-11 w-11; }
     .lb-stage {
       @apply flex items-start justify-start p-0;
       touch-action: pan-x pan-y;
