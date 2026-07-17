@@ -43,6 +43,14 @@ func retryCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 		return ExitRun
 	}
+	// A driver series is not a conversation: its journal carries driver event
+	// types the agent fold rejects, so folding one crashed retry with a raw
+	// "fold: state: registered event type has no decoder" (QA Wave2 erin-02).
+	// Refuse it cleanly and point at the right command.
+	if isDriverJournal(events) {
+		fmt.Fprintf(stderr, "agentrunner: %s is a driver series, not a conversation — retry applies to conversational sessions; start a new series with `agentrunner drive <driver.yaml>`\n", filepath.Base(dir))
+		return ExitUsage
+	}
 	s, err := state.Fold(events)
 	if err != nil {
 		fmt.Fprintf(stderr, "agentrunner: fold: %v\n", err)
