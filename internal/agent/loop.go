@@ -1203,6 +1203,15 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 		slog.Warn("provider lacks thinking; downgrading (request will omit thinking config)",
 			"provider", l.Spec.Model.Provider)
 	}
+	// Same discipline for native structured output (QA Wave4 karl-02): a
+	// spec-level output_schema on a provider without StructuredOutput is
+	// dropped below, so the reply is NOT schema-constrained. Say so once
+	// instead of silently pretending to enforce it — the spec path has no
+	// validate/retry fallback (that is the CLI --json-schema path's job).
+	if len(l.Spec.OutputSchema) > 0 && !caps.StructuredOutput {
+		slog.Warn("provider lacks native structured output; spec output_schema is NOT enforced (reply is not schema-constrained) — use a provider with native support (e.g. gemini), or `agentrunner new --json-schema` for validate-and-retry",
+			"provider", l.Spec.Model.Provider)
+	}
 
 	// quiesced tracks whether the current finished-turn shape already ran
 	// its quiescent actions (决策 #24: outputs → barrier). Reset when a new
