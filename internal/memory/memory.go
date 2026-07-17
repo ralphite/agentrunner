@@ -85,10 +85,15 @@ func Append(root, note string) error {
 		if err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("memory: %w", err)
 		}
+		// A multi-line note must render as ONE list item: indent continuation
+		// lines two spaces so they stay part of the bullet instead of breaking
+		// out into top-level paragraphs that corrupt the section (QA Wave2
+		// frank-10). The same formatted item drives the idempotency check.
+		item := "- " + strings.ReplaceAll(note, "\n", "\n  ") + "\n"
 		// Idempotent: if this exact note is already remembered, do nothing.
 		// The check and replacement share one cross-process lock so two live
 		// sessions cannot both read the same old file and lose one note.
-		if strings.Contains(string(existing), "- "+note+"\n") {
+		if strings.Contains(string(existing), item) {
 			return nil
 		}
 		var b strings.Builder
@@ -102,9 +107,7 @@ func Append(root, note string) error {
 			}
 			b.WriteString("## Remembered\n")
 		}
-		b.WriteString("- ")
-		b.WriteString(note)
-		b.WriteString("\n")
+		b.WriteString(item)
 		perm := os.FileMode(0o644)
 		if info, statErr := os.Stat(path); statErr == nil {
 			perm = info.Mode().Perm()
