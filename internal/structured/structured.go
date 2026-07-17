@@ -26,6 +26,17 @@ func Compile(raw []byte) (*Validator, error) {
 	if len(strings.TrimSpace(string(raw))) == 0 {
 		return nil, errors.New("empty schema")
 	}
+	// A JSON Schema must be a JSON object. A bare array/number/string/bool
+	// otherwise fails deep inside the struct unmarshal below, spilling the
+	// entire jsonschema.Schema Go type into the message (QA Wave2 frank-03).
+	// Catch it up front with an actionable error.
+	var top any
+	if err := json.Unmarshal(raw, &top); err != nil {
+		return nil, fmt.Errorf("schema is not valid JSON: %w", err)
+	}
+	if _, ok := top.(map[string]any); !ok {
+		return nil, errors.New(`schema must be a JSON object, e.g. {"type":"object","properties":{...}}`)
+	}
 	var schema jsonschema.Schema
 	if err := json.Unmarshal(raw, &schema); err != nil {
 		return nil, fmt.Errorf("parse schema: %w", err)
