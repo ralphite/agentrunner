@@ -124,6 +124,20 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+// firstMeaningfulLine returns the first non-empty line of a CLI diagnostic,
+// stripped of the "agentrunner: " prefix, so the UI headline is the reason the
+// tool actually reported rather than a bare exit status.
+func firstMeaningfulLine(detail string) string {
+	for _, ln := range strings.Split(detail, "\n") {
+		ln = strings.TrimSpace(ln)
+		ln = strings.TrimPrefix(ln, "agentrunner: ")
+		if ln != "" {
+			return ln
+		}
+	}
+	return ""
+}
+
 // arNotFound classifies a failed ar invocation as "that session id does not
 // exist". The CLI has no exit-code vocabulary for it, so a string match on its
 // verdict is unavoidable — but it belongs HERE, in the server that ships from
@@ -138,10 +152,6 @@ func arNotFound(detail string) bool {
 // {error, stderr} so the UI can show the real failure — except an unknown
 // session id, which is a real 404 carrying code=session_not_found.
 func arFail(w http.ResponseWriter, what string, res arResult) {
-	msg := what + " failed"
-	if res.Err != nil {
-		msg = fmt.Sprintf("%s: %v", what, res.Err)
-	}
 	// Some subcommands (notably `ar new`) print the actionable diagnostic to
 	// stdout while stderr only carries the session id — surface both so the
 	// UI toast shows the real reason.
@@ -151,6 +161,14 @@ func arFail(w http.ResponseWriter, what string, res arResult) {
 			detail += "\n"
 		}
 		detail += out
+	}
+	// The user-facing headline is the tool's OWN first message, not the raw
+	// "ar <cmd>: exit status N" — leaking the exit status as the error is
+	// noise the user can't act on (QA Wave2 grace-05 / carol-03). Fall back to
+	// a plain "<what> failed" only when the CLI said nothing.
+	msg := what + " failed"
+	if headline := firstMeaningfulLine(detail); headline != "" {
+		msg = headline
 	}
 	// Stale-binary self-diagnosis: Go's flag package prints "flag provided but
 	// not defined: -X" (exit 2) when webui passes an argument the `ar` binary is
