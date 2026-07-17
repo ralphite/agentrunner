@@ -433,7 +433,7 @@
   }
   .menu-item.danger, .pop-item.danger { @apply text-red; }
   .menu-label, .pop-menu-title { @apply flex items-center gap-2 px-2 py-[6px] text-[12px] font-medium text-dim; }
-  .pop-back { @apply h-6 w-6 rounded-[6px] border-0 bg-transparent p-0 text-[18px]; }
+  .pop-back { @apply h-10 w-10 rounded-[6px] border-0 bg-transparent p-0 text-[18px] transition-colors duration-100 hover:bg-panel-2; }
   .pop-body { @apply flex min-w-0 flex-1 flex-col; }
   .pop-title { @apply min-w-0 truncate; }
   .pop-ico { @apply shrink-0; }
