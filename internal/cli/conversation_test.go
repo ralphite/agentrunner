@@ -291,3 +291,72 @@ func waitDaemon(t *testing.T, sock string) {
 	}
 	t.Fatal("daemon did not come up")
 }
+
+func TestNewOpeningAttachmentsAreJournaled(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	dir := t.TempDir()
+	specPath := writeSpec(t, dir)
+	fixture := `steps:
+  - respond: [ { text: "saw attachment" }, { finish: end_turn } ]
+`
+	fixPath := filepath.Join(dir, "fix.yaml")
+	if err := os.WriteFile(fixPath, []byte(fixture), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("AGENTRUNNER_SCRIPTED_FIXTURE", fixPath)
+	imgPath := filepath.Join(dir, "tiny.gif")
+	if err := os.WriteFile(imgPath, []byte("GIF89a"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	sock, err := socketPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var errLog bytes.Buffer
+	broker := daemon.NewApprovalBroker()
+	srv := &daemon.Server{
+		SocketPath:   sock,
+		NewID:        func(prompt string) string { return runtime.NewSessionID(time.Now(), prompt) },
+		Run:          hostRunFunc("test", &errLog, broker),
+		Approvals:    broker,
+		PersistInput: persistInputFunc(),
+	}
+	go func() { _ = srv.ListenAndServe(ctx) }()
+	waitDaemon(t, sock)
+
+	var out, errOut bytes.Buffer
+	if code := newCmd([]string{"--detach", "--workspace", t.TempDir(), "--image", imgPath, specPath, "describe image"}, &out, &errOut); code != ExitOK {
+		t.Fatalf("new --image: exit %d\nstdout: %s\nstderr: %s\nlog: %s", code, out.String(), errOut.String(), errLog.String())
+	}
+	sid := strings.TrimSpace(out.String())
+	sdir, err := runtime.SessionDir(sid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		evs, err := store.ReadEvents(sdir)
+		if err == nil {
+			for _, env := range evs {
+				if env.Type != event.TypeInputReceived {
+					continue
+				}
+				dec, err := event.DecodePayload(env)
+				if err != nil {
+					t.Fatal(err)
+				}
+				in := dec.(*event.InputReceived)
+				if len(in.Images) == 1 && len(in.Content) == 2 {
+					return
+				}
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("opening attachment was not journaled\nlog: %s", errLog.String())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}

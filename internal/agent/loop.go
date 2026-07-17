@@ -148,6 +148,9 @@ type Loop struct {
 	// first turn (S5.8): journaled into SessionStarted, written by an idempotent
 	// materialize activity. Set by a spawning parent (or a future CLI flag).
 	Inputs []event.ArtifactInput
+	// InitialInput carries optional attachments for the opening user message.
+	// Empty means the legacy text-only prompt path.
+	InitialInput *protocol.UserInput
 	// Snapshots is the workspace SnapshotStore (S7.2): barriers are taken
 	// only when it is present AND a snapshot succeeds — no ref, no barrier
 	// (backend=none degrades to zero barriers, nothing else changes).
@@ -434,13 +437,34 @@ func (l *Loop) Run(ctx context.Context, prompt string) (RunResult, error) {
 	}
 	l.fireLifecycle(ctx, hook.EventSessionStart,
 		map[string]string{"spec": l.Spec.Name, "prompt": prompt}, false)
-	input, err := runtime.IngestInput(l.Store, l.SessionID, prompt, "cli")
-	if err != nil {
-		return RunResult{}, err
-	}
-	ds.lastID = input.ID
-	if ds.s, err = state.Apply(ds.s, input); err != nil {
-		return RunResult{}, err
+	if l.InitialInput != nil {
+		in := *l.InitialInput
+		in.Text = prompt
+		if in.Principal == "" {
+			in.Principal = "local-user"
+		}
+		if in.Source == "" {
+			in.Source = "cli"
+		}
+		if in.Trust == "" {
+			in.Trust = "local"
+		}
+		if in.CommandID == "" {
+			in.CommandID = event.NewCommandID()
+		}
+		in.TurnID, in.ItemID = "turn-"+in.CommandID, "item-"+in.CommandID
+		if err := l.journalInput(ds, appendE, in); err != nil {
+			return RunResult{}, err
+		}
+	} else {
+		input, err := runtime.IngestInput(l.Store, l.SessionID, prompt, "cli")
+		if err != nil {
+			return RunResult{}, err
+		}
+		ds.lastID = input.ID
+		if ds.s, err = state.Apply(ds.s, input); err != nil {
+			return RunResult{}, err
+		}
 	}
 	if l.Mode != "" && l.Mode != pipeline.ModeDefault {
 		if !pipeline.ValidMode(l.Mode) {

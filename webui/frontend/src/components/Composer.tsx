@@ -551,8 +551,10 @@ export function Composer(props: ComposerProps) {
   // opposite (INC-43): ⌘⏎ sends with the opposite delivery mode for one message
   // (Codex parity). Only meaningful for a running session; ignored otherwise.
   const doSubmit = async (opposite = false) => {
-    const t = text.trim();
-    if (!t || busy) return;
+    let t = text.trim();
+    const hasAttachments = atts.length > 0;
+    if ((!t && !hasAttachments) || busy) return;
+    if (!t && hasAttachments) t = "Please review the attached file(s).";
 
     // Slash command? Run it instead of sending.
     const cmd = parseSlash(t, props.variant);
@@ -584,6 +586,8 @@ export function Composer(props: ComposerProps) {
           workspace,
           message: t,
           mode: accessById(access).mode,
+          images: imgs,
+          files,
         });
         rememberSpec(r.sid, spec);
         rememberAccess(r.sid, access);
@@ -1721,7 +1725,7 @@ export function Composer(props: ComposerProps) {
             <button
               className="cx-send"
               onClick={() => doSubmit()}
-              disabled={busy || !text.trim()}
+              disabled={busy || (!text.trim() && atts.length === 0)}
               title={running ? `Send · ${deliveryMode} (⌘⏎ to ${deliveryMode === "queue" ? "steer" : "queue"})` : "Send (Enter)"}
             >
               <ArrowUp />

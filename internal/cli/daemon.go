@@ -419,6 +419,7 @@ func hostRunFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker
 			SpecPath:          req.SpecPath,
 			Snapshots:         snapshotStoreFor(ws, stderr),
 			UserInputs:        req.Inbox,
+			InitialInput:      req.InitialInput,
 			Interrupts:        req.Interrupts,
 			Cancels:           req.Cancels,
 			Controls:          req.Controls,
