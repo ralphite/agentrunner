@@ -272,7 +272,7 @@
   .project-session-wrap.current { @apply bg-panel-2; }
   .project-session-wrap.unread .project-session-title { @apply font-semibold text-ink; }
   .project-session {
-    @apply flex h-[32px] min-w-0 flex-1 items-center gap-[6px] rounded-[8px] border-0 bg-transparent px-2 py-0 text-left text-[13px] text-ink-2 hover:bg-panel-2 hover:text-ink;
+    @apply flex h-[32px] min-w-0 flex-1 items-center gap-[6px] rounded-[8px] border-0 bg-transparent px-2 py-0 text-left text-[13px] text-ink-2 transition-colors duration-100 hover:bg-panel-2 hover:text-ink;
   }
   .project-session-title { @apply min-w-0 flex-1 truncate; }
   .session-open, .session-pin, .session-archive {
