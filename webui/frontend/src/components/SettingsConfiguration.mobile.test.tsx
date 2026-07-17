@@ -15,6 +15,8 @@ describe("SettingsConfiguration mobile layout", () => {
         manageRequested: false,
         runtimeDir: "/Users/example/.local/share/agentrunner/runtime-with-a-long-unbroken-segment",
         daemonLogPath: "/Users/example/.local/share/agentrunner/log/agentrunner-daemon.log",
+        sandboxBackend: "seatbelt",
+        sandboxDetected: true,
       },
     });
   });
@@ -31,6 +33,20 @@ describe("SettingsConfiguration mobile layout", () => {
 
     const policy = screen.getByText("Approval policy & sandbox");
     expect(policy.parentElement?.className).toContain("gap-x-2");
-    expect(screen.getByText(/Per-session approval mode/).className).toContain("mt-1.5");
+    expect(screen.getByText(/Approval mode is per-session/).className).toContain("mt-1.5");
+  });
+
+  it("surfaces the real sandbox backend state instead of a todo", () => {
+    render(<SettingsConfiguration query="" />);
+    expect(screen.getByText(/seatbelt — detected/)).toBeTruthy();
+    expect(screen.queryByText("Not surfaced")).toBeNull();
+  });
+
+  it("states fail-closed when the backend is missing", () => {
+    useStore.setState((s) => ({
+      health: { ...s.health!, sandboxBackend: "bubblewrap", sandboxDetected: false },
+    }));
+    render(<SettingsConfiguration query="" />);
+    expect(screen.getByText(/bubblewrap — not detected; execute-class commands fail closed/)).toBeTruthy();
   });
 });

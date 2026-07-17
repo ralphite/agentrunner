@@ -3,8 +3,9 @@ import { matchesQuery } from "./SettingsSearch";
 
 // SettingsConfiguration is Codex's Settings → Configuration (INC-41 H5),
 // read-only. Everything here comes from the /health payload we already poll —
-// version, runtime dir, daemon topology, log path. Approval policy / sandbox
-// aren't surfaced by the backend, so they're noted, not invented.
+// version, runtime dir, daemon topology, log path, sandbox backend. Approval
+// mode is truthfully per-session (there is no daemon-global policy), so the
+// policy row states that instead of inventing one.
 export function SettingsConfiguration({ query }: { query: string }) {
   const health = useStore((s) => s.health);
 
@@ -55,10 +56,14 @@ export function SettingsConfiguration({ query }: { query: string }) {
           <div className="min-w-0">
             <div className="rs-row-label flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
               <span>Approval policy &amp; sandbox</span>
-              <span className="rs-todo">Not surfaced</span>
             </div>
             <div className="rs-row-desc mt-1.5 max-w-[620px] break-words leading-5">
-              Per-session approval mode is chosen when starting a session; the daemon doesn’t expose a global policy to read here yet.
+              Approval mode is per-session, chosen when each session starts (New session default: Ask). OS sandbox:{" "}
+              {!health || !health.sandboxBackend
+                ? "unknown on this platform — execute-class commands fail closed without one."
+                : health.sandboxDetected
+                  ? `${health.sandboxBackend} — detected.`
+                  : `${health.sandboxBackend} — not detected; execute-class commands fail closed.`}
             </div>
           </div>
         </section>

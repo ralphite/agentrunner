@@ -66,6 +66,8 @@ export interface Health {
   manageRequested: boolean;
   daemonLogPath: string;
   runtimeDir: string;
+  sandboxBackend?: string;
+  sandboxDetected?: boolean;
 }
 
 export interface BackgroundWork {

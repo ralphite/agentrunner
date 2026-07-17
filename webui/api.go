@@ -280,6 +280,7 @@ func (s *server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		ver = "unknown"
 	}
 	managed, reachable, external := s.daemonStatus(r.Context())
+	sbName, sbDetected := sandboxBackend()
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":              true,
 		"ar":              s.arPath,
@@ -292,6 +293,8 @@ func (s *server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"runtimeDir":      s.runtimeDir,
 		"daemonLogPath":   filepath.Join(s.runtimeDir, "daemon.log"),
 		"manageRequested": s.daemonManage,
+		"sandboxBackend":  sbName,
+		"sandboxDetected": sbDetected,
 	})
 }
 
