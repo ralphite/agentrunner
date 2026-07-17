@@ -52,7 +52,7 @@ func TestWebFetchPlainText(t *testing.T) {
 	if isErr {
 		t.Fatalf("errored: %v", m)
 	}
-	if m["content"] != "plain body here" || m["status"].(float64) != 200 {
+	if m["content"] != webContentBegin+"plain body here"+webContentEnd || m["status"].(float64) != 200 {
 		t.Fatalf("unexpected payload: %v", m)
 	}
 	if m["untrusted_content"] != true {
@@ -87,7 +87,7 @@ func TestWebFetchFollowsRedirects(t *testing.T) {
 	if isErr {
 		t.Fatalf("errored: %v", m)
 	}
-	if m["content"] != "plain body here" {
+	if m["content"] != webContentBegin+"plain body here"+webContentEnd {
 		t.Fatalf("redirect not followed: %v", m)
 	}
 	if got := m["url"].(string); !strings.HasSuffix(got, "/plain") {
@@ -124,7 +124,8 @@ func TestWebFetchTruncatesOversizedBody(t *testing.T) {
 	if m["truncated"] != true {
 		t.Fatalf("want truncated=true, got %v", m)
 	}
-	if len(m["content"].(string)) > webFetchOutputBytes {
+	// The cap bounds the fetched content; the BEGIN/END frame is added after.
+	if len(m["content"].(string)) > webFetchOutputBytes+len(webContentBegin)+len(webContentEnd) {
 		t.Fatalf("content over output cap: %d bytes", len(m["content"].(string)))
 	}
 }

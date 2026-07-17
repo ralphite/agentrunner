@@ -4067,3 +4067,12 @@ DESIGN §5 新增"prompt injection 威胁模型"条款:四级来源分级
 门、INC-5 egress 硬控),无行为变更,故不触 PROCESS §四(未动任何
 既有不变量,只把散落语义收拢成文)。GAPS G16 回标"条款已成文",
 余项 BEGIN/END 定界符(BACKLOG B2)与 host allowlist(B5)仍开。
+
+## 2026-07-17 · audit-0717.B2:web_fetch 定界符入文本(G16 余项)
+
+`untrusted_content` 此前只是 JSON 兄弟布尔——provider 把 tool result
+拍平成文本后边界即丢失。现 content 字段自身携带 BEGIN/END EXTERNAL
+WEB CONTENT 定界(输出 cap 作用于抓取内容,框在其后加),note 同步
+指向标记。软标记定位不变:只降服从注入概率,不计入安全预算(硬防线
+仍是 egress/收容,DESIGN §5 条款)。A 闸:TestWebFetch* 三处断言更新;
+B 闸:变更为纯文本形状,随下次 QA-13/14 复跑一并覆盖,记档。
