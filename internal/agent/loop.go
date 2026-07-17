@@ -2376,7 +2376,12 @@ func (l *Loop) takeBarrier(ctx context.Context, ds *driveState, appendE AppendFu
 		if errors.Is(err, snapshot.ErrUnavailable) {
 			return nil // degraded backend: run on, without barriers
 		}
-		slog.Warn("barrier skipped: snapshot failed", "barrier", barrierID, "err", err)
+		// A skipped barrier is best-effort and non-fatal (fork/rewind just
+		// isn't available for this turn) — e.g. a nested git repo in the
+		// workspace defeats the shadow snapshot. Log at Debug, not Warn: a
+		// WARN here leaks internal snapshot plumbing into the user-facing run
+		// output for a condition the user can do nothing about (QA Wave2 bob-04).
+		slog.Debug("barrier skipped: snapshot failed", "barrier", barrierID, "err", err)
 		return nil
 	}
 	vector := map[string]int64{".": l.Store.LastSeq()}
