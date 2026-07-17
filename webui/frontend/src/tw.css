@@ -7,12 +7,12 @@
   --bg: #ffffff;
   --sidebar: #f7f7f8;
   --panel: #ffffff;
-  --panel-2: #f4f4f4;
-  --line: #e7e7e7;
+  --panel-2: #eeeeee;
+  --line: #dcdcdc;
   --line-2: #efefef;
   --ink: #0d0d0d;
   --ink-2: #606060;
-  --dim: #6e6e6e;
+  --dim: #555555;
   --accent: #0b0b0b;
   --accent-ink: #ffffff;
   --blue: #0169cc;
@@ -52,11 +52,11 @@
     --bg: #0f0f11;
     --sidebar: #141416;
     --panel: #17171a;
-    --panel-2: #1c1c20;
-    --line: #2a2a30;
+    --panel-2: #1f1f24;
+    --line: #3a3a42;
     --line-2: #232329;
     --ink: #ececf1;
-    --ink-2: #b4b4c0;
+    --ink-2: #d0d0db;
     --dim: #a0a0ad;
     --accent: #ececf1;
     --accent-ink: #17171a;
@@ -87,11 +87,11 @@
   --bg: #0f0f11;
   --sidebar: #141416;
   --panel: #17171a;
-  --panel-2: #1c1c20;
-  --line: #2a2a30;
+  --panel-2: #1f1f24;
+  --line: #3a3a42;
   --line-2: #232329;
   --ink: #ececf1;
-  --ink-2: #b4b4c0;
+  --ink-2: #d0d0db;
   --dim: #a0a0ad;
   --accent: #ececf1;
   --accent-ink: #17171a;
@@ -235,7 +235,7 @@
   .skip-link {
     @apply fixed left-3 top-3 z-[80] -translate-y-16 rounded-[8px] bg-accent px-3 py-2 text-accent-ink focus:translate-y-0;
   }
-  .app { @apply grid h-full min-h-0 bg-bg text-ink; grid-template-columns: 248px minmax(0, 1fr); }
+  .app { @apply grid h-full min-h-0 bg-bg text-ink; grid-template-columns: 260px minmax(0, 1fr); }
   .app.collapsed { grid-template-columns: minmax(0, 1fr); }
   .app.collapsed .sidebar { @apply hidden; }
   .main { @apply relative flex min-h-0 min-w-0 flex-col bg-bg outline-none; }
