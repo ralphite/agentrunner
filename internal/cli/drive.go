@@ -235,12 +235,18 @@ func driveAgent(opts driveOptions) int {
 		fmt.Fprintf(opts.stderr, "drive failed: %v\n", runErr)
 		return ExitRun
 	}
-	fmt.Fprintf(opts.stderr, "driver %s: %d iterations (best %d)\n",
-		res.Reason, res.Iterations, res.BestIter)
-	if !driveSucceeded(spec, res.Reason) {
-		return ExitRun
+	// "(best N)" only means something when an iteration actually met the bar:
+	// the best-picker seeds on iteration 1, so a series where every iteration
+	// scored 0 would otherwise brag "(best 1)" (QA Wave2 erin-03). Report the
+	// winner only on success; on failure say plainly that none passed.
+	if driveSucceeded(spec, res.Reason) {
+		fmt.Fprintf(opts.stderr, "driver %s: %d iterations (best %d)\n",
+			res.Reason, res.Iterations, res.BestIter)
+		return ExitOK
 	}
-	return ExitOK
+	fmt.Fprintf(opts.stderr, "driver %s: %d iterations (no iteration met the bar)\n",
+		res.Reason, res.Iterations)
+	return ExitRun
 }
 
 func absolutePath(path string) string {
