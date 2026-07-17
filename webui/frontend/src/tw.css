@@ -203,6 +203,9 @@
   :where(button, a, input, textarea, select, [tabindex]):focus-visible {
     @apply outline outline-2 outline-offset-2 outline-blue;
   }
+  .icon-only:focus, .topbar-icon:focus, .topbar-tool:focus, .gbar-btn:focus, .diff-iconbtn:focus, .cx-icon:focus, .lb-btn:focus {
+    @apply outline outline-2 outline-offset-2 outline-blue;
+  }
   a { @apply cursor-pointer text-blue no-underline hover:underline; }
   summary { @apply cursor-pointer list-none; }
   details > summary::-webkit-details-marker { display: none; }
