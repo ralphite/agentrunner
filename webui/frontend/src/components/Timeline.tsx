@@ -52,7 +52,6 @@ import { Markdown } from "./Markdown";
 import { copyText } from "../clipboard";
 import { sessionImageURL, uploadURL } from "../api";
 import { Lightbox } from "./Lightbox";
-import "../styles.conv.css";
 
 // absTime renders an event timestamp for hover titles: local, second-precise.
 function absTime(ts?: string): string | undefined {

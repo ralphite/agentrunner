@@ -28,7 +28,6 @@ import {
   WarningCircle,
   X,
 } from "@phosphor-icons/react";
-import "../styles.composer.css";
 import { AR, uploadURL } from "../api";
 import { useStore } from "../store";
 import {

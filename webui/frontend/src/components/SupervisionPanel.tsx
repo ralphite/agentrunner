@@ -82,22 +82,10 @@ const GOAL_OUTCOME_TONE: Record<string, string> = {
 const GOAL_OUTCOME_NEUTRAL = "text-ink-2 border-line-2 bg-panel-2";
 
 // Shared utility strings (the old .supervision-section / .supervision-label /
-// .env-row family from styles.css + styles.nav.css + styles.panel.css).
+// .goal family from styles.css + styles.nav.css + styles.panel.css).
 const SECTION = "supervision-section py-3.5 px-[15px]";
 const LABEL = "supervision-label flex items-center gap-1.5 mb-[9px] text-dim text-[11px] font-medium";
 const QUIET = "supervision-quiet flex items-center gap-[7px] min-h-6 py-1 px-[15px] text-dim text-xs";
-const ENV_ROW =
-  "flex items-center gap-[9px] w-full min-h-7 py-1 px-1.5 border-0 rounded-lg text-[12.5px] text-left cursor-pointer transition-colors " +
-  "[&>svg]:flex-none [&>svg]:text-dim enabled:hover:bg-[color-mix(in_srgb,var(--ink)_5%,transparent)] enabled:hover:text-ink [&:hover:enabled>svg]:text-ink-2 " +
-  "disabled:opacity-55 disabled:cursor-default [&:disabled>.env-row-label]:text-dim [&:disabled>.env-row-label]:font-normal";
-const ENV_ROW_REST = "bg-transparent text-dim";
-const ENV_ROW_HELD = "bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] text-ink";
-const ENV_ROW_LABEL = "env-row-label flex-none min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-ink font-[450]";
-const ENV_ROW_VAL = "env-row-val flex-[0_1_auto] min-w-0 ml-auto inline-flex items-center gap-1.5 text-xs tabular-nums";
-const ENV_ROW_NAME = "env-row-name inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap align-bottom";
-const ENV_WT_ACTION =
-  "flex items-center gap-[9px] w-full min-h-[26px] py-1 px-1.5 border-0 rounded-lg bg-transparent text-[12.5px] font-[450] text-left cursor-pointer transition-colors " +
-  "disabled:opacity-55 disabled:cursor-default disabled:font-normal disabled:text-dim [&>svg]:flex-none";
 const GOAL_COPY = "goal-copy text-ink text-[12.5px] leading-[1.5]";
 const GOAL_META = "goal-meta flex flex-wrap gap-1.5 mt-[9px]";
 const GOAL_PILL = "py-0.5 px-2 rounded-full bg-panel-2 border border-line-2 text-dim text-[10.5px] tabular-nums";

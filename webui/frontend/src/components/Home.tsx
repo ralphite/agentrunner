@@ -1,4 +1,3 @@
-import "../styles.home.css";
 import { useState } from "react";
 import { ArrowsClockwise, Bug, Hammer } from "@phosphor-icons/react";
 import { useStore } from "../store";

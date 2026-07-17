@@ -6,9 +6,7 @@ import { useStore } from "../store";
 // Shared J5 notification strip. It is intentionally driven by the same health
 // record as the sidebar footer, so Home and an open task never disagree about
 // whether actions are currently available.
-// `home` swaps the session-view margins (old `.daemon-alert` base rule) for the
-// Home hero's flush left-aligned placement (old `.home .daemon-alert` rule).
-export function DaemonAlert({ home = false }: { home?: boolean }) {
+export function DaemonAlert() {
   const health = useStore((state) => state.health);
   const refreshHealth = useStore((state) => state.refreshHealth);
   const toast = useStore((state) => state.toast);

@@ -31,7 +31,6 @@ import type { DiffResp, DiffScope } from "../types";
 import { parseFileDiff, defaultOpenByPath, splitDiff, splitPath, splitRows, highlightLine, hunkGaps, trailingGapKey, langFromPath, type ContextGap, type DiffRow, type FileDiffSummary, type FileStatus, type ParsedFileDiff } from "../diffSummary";
 import { Popover, PopItem, PopSection } from "./Popover";
 import { useWorktreeActions } from "./worktreeActions";
-import "../styles.diff.css";
 
 // renderCode turns one diff line into syntax-highlighted spans (INC-41 D3).
 // Tokens are dependency-free and byte-exact, so `white-space: pre` alignment is
