@@ -37,7 +37,16 @@ DESIGN §17 偏差登记逐条对代码；②SPEC 🟡/❌ 全量 + GAPS §2 开
 6. **环境事实**（本容器）：预装 go1.25.0 被 repo 自己的
    `scripts/check-go-toolchain.sh` 拒绝（要求 1.25.12+/1.26.5+）；
    golangci-lint 2.5.0（go1.25 构建）无法分析 go1.26 stdlib——
-   本环境跑 `check.sh` 须 `GOTOOLCHAIN=go1.25.12`。
+   已把 go1.25.12 装为系统 Go（`/usr/local/go` symlink）。注意
+   `GOTOOLCHAIN=go1.25.12` 环境变量会渗入沙箱内子进程的 `go test`，
+   断网沙箱下载 toolchain 必败——须用原生匹配版本而非 env 切换。
+7. **测试平台假设缺口（本次修复）**：`TestBashFilesystemSandbox`
+   断言钉死 "Operation not permitted"（macOS Seatbelt errno 措辞）；
+   Linux bwrap 后端用 tmpfs//dev/null 掩蔽，读拒绝表现为 ENOENT/
+   EACCES，测试必败。CI 因 runner 无 bwrap 一直 `t.Skipf` 跳过，
+   掩盖了这一点——Linux 沙箱面从未被该测试真正回归过。已改为
+   平台无关的"读被拒绝"断言（`internal/tool/exec_test.go:425`），
+   泄漏检查（OUTSIDE/INSIDE-SECRET/ENV-SECRET 不出现）原样保留。
 
 ## 二、开放待办全量（按处置类别）
 

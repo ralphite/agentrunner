@@ -422,7 +422,15 @@ func TestBashFilesystemSandbox(t *testing.T) {
 	}
 	cmd := fmt.Sprintf("cat ok.txt; echo changed > made.txt; cat %q; cat .env; printf -- \"$INC11_API_KEY\"", outside)
 	out, isErr := run(t, e, "bash", fmt.Sprintf(`{"command":%q}`, cmd))
-	if !isErr && !strings.Contains(out["stderr"].(string), "Operation not permitted") {
+	// Denial surfaces per backend: Seatbelt reports EPERM ("Operation not
+	// permitted"); bwrap masks paths via tmpfs / /dev/null binds, so reads
+	// fail with ENOENT or EACCES instead. The invariant is that the reads
+	// are denied — the errno wording is backend-specific.
+	stderr, _ := out["stderr"].(string)
+	deniedRead := strings.Contains(stderr, "Operation not permitted") ||
+		strings.Contains(stderr, "Permission denied") ||
+		strings.Contains(stderr, "No such file or directory")
+	if !isErr && !deniedRead {
 		t.Fatalf("sandbox did not report denied reads: %v", out)
 	}
 	if !strings.Contains(out["stdout"].(string), "inside") {

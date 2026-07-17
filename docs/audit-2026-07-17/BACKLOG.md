@@ -102,3 +102,6 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
 ---
 
 **进度日志**（loop 每迭代追加一行：日期 · 项 · commit · 状态）
+
+- 2026-07-17 · 前置 · TestBashFilesystemSandbox 平台无关断言修复
+  （Linux bwrap 语义，REVIEW.md 发现 #7）· 基线全绿后随修复 commit。
