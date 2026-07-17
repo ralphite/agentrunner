@@ -618,7 +618,7 @@
   .diff-viewtoggle .sel, .diff-iconbtn.active { @apply bg-panel text-ink shadow-sm; }
   .diff-hidden-note { @apply px-3 py-2 text-[12px] text-dim; }
   .diff-filelist { @apply max-h-[320px] overflow-y-auto p-1; }
-  .diff-fileitem { @apply flex w-full items-center gap-2 rounded-[8px] border-0 bg-transparent px-2 py-[6px] text-left hover:bg-panel-2; }
+  .diff-fileitem { @apply flex w-full items-center gap-2 rounded-[8px] border-0 bg-transparent px-2 py-[6px] text-left transition-colors duration-100 hover:bg-panel-2; }
   .diff-fileitem-path, .fd-path { @apply min-w-0 flex-1 truncate; }
   .filediff { @apply m-3 overflow-hidden rounded-[10px] border border-line bg-panel; }
   .fd-head { @apply flex min-w-0 items-center gap-2 bg-panel px-3 py-2 text-[12px]; }
