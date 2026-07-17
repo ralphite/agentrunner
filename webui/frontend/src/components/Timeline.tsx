@@ -114,11 +114,11 @@ function Thumbs({ paths, fallback }: { paths: string[]; fallback?: ReactNode }) 
   const ok = paths.filter((_, i) => !broken.has(i));
   if (paths.length > 0 && ok.length === 0) return <>{fallback ?? null}</>;
   return (
-    <div className="thumbs">
+    <div className="thumbs flex flex-wrap gap-[6px] mt-[7px]">
       {paths.map((p, i) =>
         broken.has(i) ? null : (
           <img
-            className="thumb"
+            className="thumb block max-w-[220px] max-h-[180px] rounded-lg border border-line cursor-zoom-in focus-visible:outline-2 focus-visible:outline-violet focus-visible:outline-offset-2"
             key={i}
             src={uploadURL(p)}
             alt=""
@@ -160,16 +160,28 @@ function Thumbs({ paths, fallback }: { paths: string[]; fallback?: ReactNode }) 
 // So one row shape is rendered for every message and the sheet decides what of
 // it is visible where — no branchy JSX, and the tier ladder (shortTime) keeps
 // producing a real label on the rows that do show one (the hover-revealed ones).
+// One shared utility string per action icon: quiet at rest (opacity .5), full
+// strength when the pointer is over the message (`group/msg`) or focus lands
+// inside the row (`group/acts`). Only opacity animates (TH-1: no reflow).
+const MSG_COPY_CLS =
+  "msg-copy icon-only grid place-items-center w-[22px] p-[2px] border-none bg-transparent text-dim rounded-md " +
+  "opacity-50 transition-opacity duration-[120ms] hover:bg-panel-2 hover:text-ink " +
+  "group-hover/msg:opacity-100 group-focus-within/acts:opacity-100";
+
 function MsgActions({
   text,
   ts,
   onContinue,
   goalVerdict,
+  persist = false,
 }: {
   text: string;
   ts?: string;
   onContinue?: () => void;
   goalVerdict?: { elapsed: string } | null;
+  /** TH-21: the thread's final assistant answer keeps its row at rest; every
+   *  other message reveals it on hover/focus and shows the timestamp there. */
+  persist?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const [shared, setShared] = useState(false);
@@ -188,15 +200,22 @@ function MsgActions({
   };
   const time = shortTime(ts);
   return (
-    <div className="msg-actions">
-      <button className="msg-copy icon-only" onClick={copy} title="Copy message" aria-label="Copy message">
+    <div
+      className={
+        "msg-actions group/acts flex gap-[2px] mt-[3px] mr-[2px] transition-opacity duration-[120ms] " +
+        (persist
+          ? "opacity-100"
+          : "opacity-0 pointer-events-none group-hover/msg:opacity-100 group-hover/msg:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto")
+      }
+    >
+      <button className={MSG_COPY_CLS} onClick={copy} title="Copy message" aria-label="Copy message">
         {copied ? <Check size={15} /> : <Copy size={15} />}
       </button>
-      <button className="msg-copy icon-only" onClick={share} title="Copy link to this task" aria-label="Copy link to this task">
+      <button className={MSG_COPY_CLS} onClick={share} title="Copy link to this task" aria-label="Copy link to this task">
         {shared ? <Check size={15} /> : <Share size={15} />}
       </button>
       {onContinue && (
-        <button className="msg-copy icon-only" onClick={onContinue} title="Continue in new task" aria-label="Continue in new task">
+        <button className={MSG_COPY_CLS} onClick={onContinue} title="Continue in new task" aria-label="Continue in new task">
           <ArrowSquareOut size={15} />
         </button>
       )}
@@ -206,22 +225,27 @@ function MsgActions({
               answer's action row. The divider is styled in styles.conv.css (NOT
               inline): at rest the icons are hidden, and a separator with nothing
               to separate must collapse with them (TH-1). */}
-          <span className="msg-actions-div" aria-hidden="true" />
+          <span className="msg-actions-div w-px self-stretch bg-current opacity-[0.22]" aria-hidden="true" />
           <span className="msg-goal-verdict">
             <CheckCircle size={15} weight="fill" /> Goal achieved in {goalVerdict.elapsed}
           </span>
         </>
       )}
-      {time && <span className="msg-time" title={absTime(ts)}>{time}</span>}
+      {time && (
+        <span className={"msg-time self-center text-dim text-[11px]" + (persist ? " hidden" : "")} title={absTime(ts)}>
+          {time}
+        </span>
+      )}
     </div>
   );
 }
 
+const STEP_IC_CLS = "step-ic w-[15px] shrink-0 text-center text-[11px]";
 function StepIcon({ status }: { status: ToolItem["status"] }) {
-  if (status === "running") return <span className="step-ic spin" />;
-  if (status === "done") return <span className="step-ic ok"><Check size={12} /></span>;
-  if (status === "cancelled") return <span className="step-ic warn"><Circle size={8} /></span>;
-  return <span className="step-ic err"><X size={11} /></span>;
+  if (status === "running") return <span className="step-ic spin text-dim" />;
+  if (status === "done") return <span className={STEP_IC_CLS + " ok text-green"}><Check size={12} /></span>;
+  if (status === "cancelled") return <span className={STEP_IC_CLS + " warn text-amber"}><Circle size={8} /></span>;
+  return <span className={STEP_IC_CLS + " err text-red"}><X size={11} /></span>;
 }
 
 // ShellDetail renders a bash activity as a Codex-style Shell block:

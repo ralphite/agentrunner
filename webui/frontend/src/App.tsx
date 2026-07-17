@@ -235,7 +235,7 @@ export function App() {
           ~94% of the app's tab stops, so without this a keyboard user never
           reaches the conversation or composer. */}
       <a
-        className="skip-link fixed top-[10px] left-[10px] z-[1000] px-[14px] py-[9px] border border-line rounded-[9px] bg-panel text-ink text-[13px] font-medium no-underline translate-y-[calc(-100%-20px)] focus:translate-y-0"
+        className="skip-link fixed top-[10px] left-[10px] z-[1000] px-[14px] py-[9px] border border-line rounded-[9px] bg-panel text-ink text-[13px] font-medium no-underline translate-y-[calc(-100%_-_20px)] focus:translate-y-0"
         href="#main"
         onClick={(e) => {
           // location.hash is the router's ("#<sid>" / "#scheduled"), so the

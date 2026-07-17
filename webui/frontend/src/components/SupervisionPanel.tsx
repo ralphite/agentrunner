@@ -71,6 +71,38 @@ const GOAL_PANEL_LABEL: Record<string, string> = {
   cancelled: "Cancelled",
 };
 
+// Colour channel for a settled goal's outcome pill, per terminal phase
+// (was .goal-outcome.achieved/.stopped in styles.css/styles.panel.css).
+const GOAL_OUTCOME_TONE: Record<string, string> = {
+  achieved:
+    "text-green border-[color-mix(in_srgb,var(--green)_34%,var(--line-2))] bg-[color-mix(in_srgb,var(--green)_9%,var(--panel-2))]",
+  stopped:
+    "text-amber border-[color-mix(in_srgb,var(--amber)_34%,var(--line-2))] bg-[color-mix(in_srgb,var(--amber)_9%,var(--panel-2))]",
+};
+const GOAL_OUTCOME_NEUTRAL = "text-ink-2 border-line-2 bg-panel-2";
+
+// Shared utility strings (the old .supervision-section / .supervision-label /
+// .env-row family from styles.css + styles.nav.css + styles.panel.css).
+const SECTION = "supervision-section py-3.5 px-[15px]";
+const LABEL = "supervision-label flex items-center gap-1.5 mb-[9px] text-dim text-[11px] font-medium";
+const QUIET = "supervision-quiet flex items-center gap-[7px] min-h-6 py-1 px-[15px] text-dim text-xs";
+const ENV_ROW =
+  "flex items-center gap-[9px] w-full min-h-7 py-1 px-1.5 border-0 rounded-lg text-[12.5px] text-left cursor-pointer transition-colors " +
+  "[&>svg]:flex-none [&>svg]:text-dim enabled:hover:bg-[color-mix(in_srgb,var(--ink)_5%,transparent)] enabled:hover:text-ink [&:hover:enabled>svg]:text-ink-2 " +
+  "disabled:opacity-55 disabled:cursor-default [&:disabled>.env-row-label]:text-dim [&:disabled>.env-row-label]:font-normal";
+const ENV_ROW_REST = "bg-transparent text-dim";
+const ENV_ROW_HELD = "bg-[color-mix(in_srgb,var(--ink)_6%,transparent)] text-ink";
+const ENV_ROW_LABEL = "env-row-label flex-none min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-ink font-[450]";
+const ENV_ROW_VAL = "env-row-val flex-[0_1_auto] min-w-0 ml-auto inline-flex items-center gap-1.5 text-xs tabular-nums";
+const ENV_ROW_NAME = "env-row-name inline-block max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap align-bottom";
+const ENV_WT_ACTION =
+  "flex items-center gap-[9px] w-full min-h-[26px] py-1 px-1.5 border-0 rounded-lg bg-transparent text-[12.5px] font-[450] text-left cursor-pointer transition-colors " +
+  "disabled:opacity-55 disabled:cursor-default disabled:font-normal disabled:text-dim [&>svg]:flex-none";
+const GOAL_COPY = "goal-copy text-ink text-[12.5px] leading-[1.5]";
+const GOAL_META = "goal-meta flex flex-wrap gap-1.5 mt-[9px]";
+const GOAL_PILL = "py-0.5 px-2 rounded-full bg-panel-2 border border-line-2 text-dim text-[10.5px] tabular-nums";
+const GOAL_BTN = "py-[3px] px-[7px] border border-transparent bg-transparent rounded-[7px] text-[11px] hover:border-line hover:bg-panel-2";
+
 // useSettledGoal recovers a *finished* goal for the GOAL section (R1-4). The
 // live `goal` prop comes from inspect, which drops a goal the moment it settles
 // — so an achieved goal would collapse the panel to "No active goal" while the
@@ -119,17 +151,20 @@ function attentionRows(
   sessionIdle: boolean,
 ): React.ReactNode[] {
   const rows: React.ReactNode[] = [];
+  const ROW = "attention-row flex items-start gap-[9px] min-h-[26px] text-ink text-[12.5px] leading-[1.45]";
+  const DOT =
+    "attention-dot w-[7px] h-[7px] mt-[5px] flex-none rounded-full bg-status-attention shadow-[0_0_0_3px_color-mix(in_srgb,var(--status-attention)_22%,transparent)]";
   if (approvals > 0) {
     rows.push(
-      <div className="attention-row" key="appr">
-        <span className="attention-dot" /> Approval requested <b>{approvals}</b>
+      <div className={ROW} key="appr">
+        <span className={DOT} /> Approval requested <b className="ml-auto text-status-attention tabular-nums">{approvals}</b>
       </div>,
     );
   }
   if (recovery) {
     rows.push(
-      <div className="attention-row" key="recovery">
-        <span className="attention-dot" /> Task needs recovery
+      <div className={ROW} key="recovery">
+        <span className={DOT} /> Task needs recovery
       </div>,
     );
   }
@@ -137,16 +172,16 @@ function attentionRows(
     const st = friendlyStatus(node.reason || node.report?.reason || node.report?.status || "");
     if (st.cls === "crash" || st.cls === "stranded") {
       rows.push(
-        <div className="attention-row" key={"agent-" + (node.call_id || node.session)}>
-          <span className="attention-dot" /> {node.agent || "agent"} — {st.text}
+        <div className={ROW} key={"agent-" + (node.call_id || node.session)}>
+          <span className={DOT} /> {node.agent || "agent"} — {st.text}
         </div>,
       );
     }
   }
   if (tasks.length > 0 && sessionIdle) {
     rows.push(
-      <div className="attention-row" key="bg-idle">
-        <span className="attention-dot" /> Background work still running — it keeps
+      <div className={ROW} key="bg-idle">
+        <span className={DOT} /> Background work still running — it keeps
         spending tokens; stop it below if it's no longer needed
       </div>,
     );
@@ -234,7 +269,15 @@ export function SupervisionPanel({
     // TH-15 · the rail is named `Environment` — in the topbar pill that opens it,
     // in its first section's label, and here in its accessible name. It used to
     // answer to "Supervision" from the outside and "Environment" from the inside.
-    <aside className="supervision-panel session-side" aria-label="Environment">
+    <aside
+      className={
+        "supervision-panel session-side absolute z-[25] top-[56px] right-3 w-[clamp(216px,calc((100%-684px)/2),244px)] max-w-[calc(100%-24px)] " +
+        "h-auto max-h-[calc(100%-96px)] min-w-0 min-h-0 overflow-auto m-0 border border-line rounded-2xl bg-panel " +
+        "shadow-[0_1px_2px_rgba(0,0,0,0.06),0_12px_34px_rgba(0,0,0,0.16)] flex flex-col " +
+        "max-[900px]:top-0 max-[900px]:right-0 max-[900px]:m-3 max-[900px]:w-[min(340px,calc(100%-24px))] max-[900px]:max-h-[calc(100%-24px)]"
+      }
+      aria-label="Environment"
+    >
       {/* INC-41 DF-D4 · the `Supervision` title bar is gone. It was a 40px strip
           whose icon+label were a word-for-word second copy of the topbar pill
           that *opens this very panel* — the pill sat 54px above it, always on
@@ -248,9 +291,13 @@ export function SupervisionPanel({
           workspace-less session — a panel you couldn't close would be a worse
           bug than the one we're fixing. Height 0 ⇒ Environment gains the whole
           40px back; sticky ⇒ ✕ stays reachable in a long, scrolled panel. */}
-      <div className="supervision-close-slot">
+      <div className="supervision-close-slot sticky top-0 z-[3] flex justify-end h-0 overflow-visible">
         <button
-          className="supervision-close"
+          className={
+            "supervision-close grid place-items-center w-6 h-6 mt-[9px] mr-[9px] p-0 border-0 rounded-[7px] " +
+            "bg-[color-mix(in_srgb,var(--panel)_88%,transparent)] backdrop-saturate-[1.4] backdrop-blur-[6px] text-dim " +
+            "hover:bg-panel-2 hover:text-ink"
+          }
           onClick={onClose}
           title="Hide Environment"
           aria-label="Hide Environment"
@@ -269,13 +316,17 @@ export function SupervisionPanel({
           second, right beneath the Environment rows, for the same reason: what's
           running *right now* outranks the standing description of the run. */}
       {tasks.length > 0 && (
-        <section className="supervision-section">
-          <div className="supervision-label">Background work</div>
+        <section className={SECTION}>
+          <div className={LABEL}>Background work</div>
           {tasks.map((task) => (
-            <div className="background-row" key={task.handle}>
-              <span className="status-dot run" />
-              <span title={task.detail || task.handle}>{backgroundLabel(task)}</span>
-              <button title="Stop this background work (ar kill)" onClick={() => onKillTask(task.handle)}><X size={13} /></button>
+            <div className="background-row flex items-center gap-[9px] min-h-[26px] text-[12.5px]" key={task.handle}>
+              <span className="status-dot run w-[7px] h-[7px] rounded-full flex-none bg-status-running animate-[nr-pulse_1.5s_ease-in-out_infinite]" />
+              <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap" title={task.detail || task.handle}>{backgroundLabel(task)}</span>
+              <button
+                className="w-7 h-7 grid place-items-center p-0 border-0 bg-transparent text-dim hover:bg-panel-2 hover:text-ink"
+                title="Stop this background work (ar kill)"
+                onClick={() => onKillTask(task.handle)}
+              ><X size={13} /></button>
             </div>
           ))}
         </section>
@@ -285,8 +336,8 @@ export function SupervisionPanel({
           "Checking…" blocks that then collapse into nothing (TH-3): the panel
           keeps the same height from load to rest, so it never flashes a hole. */}
       {loading && (
-        <div className="supervision-quiet supervision-loading">
-          <Hourglass size={14} className="spin" /> Checking…
+        <div className={`${QUIET} supervision-loading`}>
+          <Hourglass size={14} className="spin flex-none text-dim" /> Checking…
         </div>
       )}
 
@@ -296,45 +347,47 @@ export function SupervisionPanel({
           is the thing the rail can add (the banner has no room for it), so that's
           what the line carries, behind the phase chip. */}
       {!loading && !goal && settledGoal && goalEchoed && (
-        <section className="supervision-section">
-          <div className="goal-settled-line" title={settledGoal.goal}>
-            <span className={"goal-outcome " + settledGoal.phase}>
+        <section className={SECTION}>
+          <div className="goal-settled-line flex items-center gap-[7px] min-w-0 text-[12.5px]" title={settledGoal.goal}>
+            <span
+              className={`goal-outcome ${settledGoal.phase} flex-none py-0.5 px-1.5 border rounded-full text-[10.5px] font-semibold ${GOAL_OUTCOME_TONE[settledGoal.phase] ?? GOAL_OUTCOME_NEUTRAL}`}
+            >
               {GOAL_PANEL_LABEL[settledGoal.phase] || "Ended"}
             </span>
-            <span className="goal-settled-copy">{settledGoal.goal}</span>
+            <span className="goal-settled-copy flex-auto min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-ink-2">{settledGoal.goal}</span>
           </div>
         </section>
       )}
 
       {!loading && hasGoal && !(!goal && settledGoal && goalEchoed) && (
-      <section className="supervision-section">
-        <div className="supervision-label">Goal</div>
+      <section className={`${SECTION} group`}>
+        <div className={LABEL}>Goal</div>
         {goal ? (
           <>
             {goalEdit === null ? (
-              <div className="goal-copy">{goal.goal}</div>
+              <div className={GOAL_COPY}>{goal.goal}</div>
             ) : (
-              <input className="goal-input" autoFocus value={goalEdit} onChange={(event) => onGoalEdit(event.target.value)} onKeyDown={(event) => {
+              <input className="goal-input w-full text-[12.5px]" autoFocus value={goalEdit} onChange={(event) => onGoalEdit(event.target.value)} onKeyDown={(event) => {
                 if (event.key === "Enter") onGoalSave();
                 if (event.key === "Escape") onGoalDiscard();
               }} />
             )}
-            <div className="goal-meta">
-              <span>{goal.checks}{goal.max_checks ? `/${goal.max_checks}` : ""} checks</span>
-              {goal.paused && <span>Paused</span>}
-              {goal.verifiers === 0 && <span>Self-certified</span>}
+            <div className={GOAL_META}>
+              <span className={GOAL_PILL}>{goal.checks}{goal.max_checks ? `/${goal.max_checks}` : ""} checks</span>
+              {goal.paused && <span className={GOAL_PILL}>Paused</span>}
+              {goal.verifiers === 0 && <span className={GOAL_PILL}>Self-certified</span>}
             </div>
-            <div className="goal-actions">
+            <div className={`goal-actions flex gap-[5px] mt-2.5 transition-opacity duration-[120ms] ${goalEdit === null ? "opacity-0 group-hover:opacity-100" : "opacity-100"}`}>
               {goalEdit === null ? (
                 <>
-                  <button onClick={() => onGoalEdit(goal.goal)}>Edit</button>
-                  <button onClick={() => onGoalAction(goal.paused ? "resume" : "pause")}>{goal.paused ? "Resume" : "Pause"}</button>
-                  <button className="danger" onClick={() => onGoalAction("cancel")}>Cancel</button>
+                  <button className={GOAL_BTN} onClick={() => onGoalEdit(goal.goal)}>Edit</button>
+                  <button className={GOAL_BTN} onClick={() => onGoalAction(goal.paused ? "resume" : "pause")}>{goal.paused ? "Resume" : "Pause"}</button>
+                  <button className={`danger ${GOAL_BTN}`} onClick={() => onGoalAction("cancel")}>Cancel</button>
                 </>
               ) : (
                 <>
-                  <button className="primary" onClick={onGoalSave}>Save</button>
-                  <button onClick={onGoalDiscard}>Discard</button>
+                  <button className="primary rounded-[7px] py-[3px] px-[7px] text-[11px]" onClick={onGoalSave}>Save</button>
+                  <button className={GOAL_BTN} onClick={onGoalDiscard}>Discard</button>
                 </>
               )}
             </div>
@@ -344,13 +397,15 @@ export function SupervisionPanel({
           // outcome (Completed · elapsed · N checks) so the panel agrees with
           // the composer's goal banner instead of going silent.
           <>
-            <div className="goal-copy">{settledGoal.goal}</div>
-            <div className="goal-meta goal-meta-settled">
-              <span className={"goal-outcome " + settledGoal.phase}>
+            <div className={GOAL_COPY}>{settledGoal.goal}</div>
+            <div className={`${GOAL_META} goal-meta-settled`}>
+              <span
+                className={`goal-outcome ${settledGoal.phase} py-0.5 px-2 border rounded-full text-[10.5px] font-semibold tabular-nums ${GOAL_OUTCOME_TONE[settledGoal.phase] ?? GOAL_OUTCOME_NEUTRAL}`}
+              >
                 {GOAL_PANEL_LABEL[settledGoal.phase] || "Ended"}
               </span>
-              {settledGoal.elapsedMs !== undefined && <span>{formatElapsed(settledGoal.elapsedMs)}</span>}
-              <span>{settledGoal.checks} check{settledGoal.checks === 1 ? "" : "s"}</span>
+              {settledGoal.elapsedMs !== undefined && <span className={GOAL_PILL}>{formatElapsed(settledGoal.elapsedMs)}</span>}
+              <span className={GOAL_PILL}>{settledGoal.checks} check{settledGoal.checks === 1 ? "" : "s"}</span>
             </div>
           </>
         ) : null}
