@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ralphite/agentrunner/internal/crash"
 	"github.com/ralphite/agentrunner/internal/event"
@@ -106,6 +107,15 @@ func (l *Loop) buildPublishRun(call provider.ToolCall, res *tool.Result,
 		}
 		if err := json.Unmarshal(call.Args, &args); err != nil || args.Stream == "" || args.Content == "" {
 			*res = errorResult("publish_artifact: invalid args: need {\"stream\", \"content\"}")
+			return res.Payload, nil, true, nil
+		}
+		// A stream is a bare name, not a path — reject separators and traversal
+		// up front, the same discipline the skill tool applies (QA Wave3
+		// ivan-06). The CAS abstracts storage so nothing escaped, but a
+		// "../../x" stream name is confusing and asymmetric with skill's strict
+		// check; refuse it explicitly.
+		if strings.ContainsAny(args.Stream, "/\\") || strings.Contains(args.Stream, "..") {
+			*res = errorResult(fmt.Sprintf("publish_artifact: invalid stream %q: use a bare name (no / \\ or ..)", args.Stream))
 			return res.Payload, nil, true, nil
 		}
 		if l.Artifacts == nil {
