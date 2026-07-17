@@ -558,6 +558,13 @@ func buildStats(events []event.Envelope) *statsReport {
 			return
 		}
 		name := o.started.Name
+		// Goal verifier checks are journaled as KindTool activities but are NOT
+		// model tool calls: a command verifier's exit 1 means "goal not yet
+		// met" (normal), so tallying it as a failed tool call misreads the run
+		// (QA Wave3 ivan-04). The goal section reports check counts separately.
+		if strings.HasPrefix(name, "verifier:") {
+			return
+		}
 		ts := st.Tools[name]
 		if ts == nil {
 			ts = &toolStat{}
