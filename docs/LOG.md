@@ -4111,3 +4111,16 @@ execute 审批+审批面 URL 可见是可辩护弱替代,spec 级 host allowlist
 故 B5 不实现(避免推翻在案裁决),仅把 SPEC/GAPS 措辞对齐至裁定;
 G16 随之收口(条款成文+定界符+allowlist 已裁三件齐)。allowlist
 本体在 G11 云形态增量里重新立项。
+
+## 2026-07-17 · audit-0717.B6:Settings "Not surfaced" 占位接线
+
+webui Settings→Configuration 的 "Approval policy & sandbox" 占位换成
+真实事实:approval 行如实陈述 per-session(无 daemon 全局策略可读,
+New session 默认 Ask);sandbox 行从 `/health` 新增的
+`sandboxBackend`/`sandboxDetected` 渲染(webui 零依赖 module,探测
+走 schedule.go 同款 stdlib 镜像——LookPath 只报 detected 不报
+working,缺 backend 时明示 execute-class fail closed)。
+锚:TestSandboxBackendDetection(Go,PATH 注入)+
+SettingsConfiguration.mobile.test 3 例(真值渲染/无 todo/fail-closed
+文案)。B6 代码已随 c4d9876 上 main;本条与 BACKLOG 勾选因执行目录
+失误漏提交,补于随后 commit(check.sh 于补交前全量重验)。
