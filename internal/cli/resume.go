@@ -56,6 +56,19 @@ func resumeCmd(args []string, version string, stdout, stderr io.Writer) int {
 		return ExitUsage
 	}
 
+	// A session with a live writer is hosted by the running daemon — it is
+	// NOT stranded, so there is nothing to resume, and opening the event store
+	// here would only collide with the daemon's lock and surface a scary
+	// "session locked: held by pid N" (QA Wave1 alice-08/dave-05). Point the
+	// user at the gestures that actually continue a live session instead.
+	if store.HasLiveWriter(dir) {
+		fmt.Fprintf(stderr, "session %s is live under the running daemon — it isn't stranded, so there is nothing to resume.\n", sessionID)
+		fmt.Fprintf(stderr, "  continue it:  agentrunner send %s \"<message>\"\n", sessionID)
+		fmt.Fprintf(stderr, "  watch it:     agentrunner attach %s\n", sessionID)
+		fmt.Fprintln(stderr, "resume recovers sessions stranded by a daemon crash or restart (status 'stranded' in `agentrunner sessions`).")
+		return ExitUsage
+	}
+
 	started, err := readSessionStarted(dir)
 	if err != nil {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)

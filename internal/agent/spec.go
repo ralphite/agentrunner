@@ -285,6 +285,22 @@ func (s *AgentSpec) validate(path string) error {
 	if s.Budget.MaxTotalTokens < 0 {
 		return fail("budget.max_total_tokens", "must be non-negative")
 	}
+	// A total budget below the per-turn output cap can never run a single turn:
+	// the pre-flight gate reserves the full max_tokens, so every turn is refused
+	// with used:0 and the session is silently bricked (QA Wave1 dave-07). Reject
+	// the combination at parse time with an actionable message instead. (Defaults
+	// aren't applied yet here, so mirror the effective max_tokens.)
+	if s.Budget.MaxTotalTokens > 0 {
+		effMaxTokens := s.Model.MaxTokens
+		if effMaxTokens == 0 {
+			effMaxTokens = DefaultMaxTokens
+		}
+		if s.Budget.MaxTotalTokens < effMaxTokens {
+			return fail("budget.max_total_tokens", fmt.Sprintf(
+				"%d is below the per-turn output cap model.max_tokens (%d), so every turn would be refused before it runs; raise budget.max_total_tokens to at least %d, or lower model.max_tokens to fit the budget",
+				s.Budget.MaxTotalTokens, effMaxTokens, effMaxTokens))
+		}
+	}
 	if s.Mode != "" && !pipeline.ValidMode(s.Mode) {
 		return fail("mode", fmt.Sprintf("unknown mode %q (known: default, plan, acceptEdits, bypass)", s.Mode))
 	}
