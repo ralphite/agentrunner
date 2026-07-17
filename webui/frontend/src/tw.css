@@ -468,7 +468,7 @@
   .session-topbar, .topbar { @apply flex h-[48px] shrink-0 items-center gap-2 border-b border-line bg-panel px-3; }
   .tt-left { @apply min-w-0; }
   .tt-title { @apply truncate text-[13px] font-medium text-ink; }
-  .readonly-tag { @apply ml-2 rounded-full border border-line bg-panel-2 px-2 py-[2px] text-[11px] text-dim; }
+  .readonly-tag { @apply ml-2 rounded-full border border-line bg-panel-2 px-2 py-[2px] text-[11px] text-dim font-medium; }
   .topbar-tool { @apply relative inline-flex h-8 min-w-8 items-center gap-[6px] px-2; }
   .topbar-tool.active { @apply bg-blue-soft text-blue; }
   .topbar-tool.stop, .stop { @apply text-red; }
