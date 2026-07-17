@@ -476,6 +476,7 @@
   .topbar-attention { @apply ml-1 rounded-full bg-amber px-[5px] text-[10px] text-white; }
   .session-layout { @apply grid min-h-0 flex-1; grid-template-columns: minmax(0, 1fr); }
   .session-layout.changes { grid-template-columns: minmax(0, 1fr) minmax(320px, 42vw); }
+  .session-layout.environment { grid-template-columns: minmax(0, 1fr) minmax(300px, 360px); }
   .session-primary { @apply flex min-h-0 min-w-0 flex-col; }
   .timeline { @apply min-h-0 flex-1 overflow-y-auto; }
   .tl-inner { @apply mx-auto flex w-full max-w-[720px] flex-col px-[30px] py-6; }
@@ -593,11 +594,7 @@
   .changes-panel, .session-side { @apply min-h-0 border-l border-line bg-panel; }
   .session-view .changes-panel.session-side { @apply flex min-w-0 flex-col overflow-hidden; }
   .supervision-panel { @apply min-h-0 overflow-y-auto border-l border-line bg-panel p-3; }
-  .session-view .supervision-panel.session-side {
-    @apply absolute right-3 top-[60px] z-[25] block rounded-[16px] border border-line shadow-lg;
-    width: min(340px, calc(100% - 24px));
-    max-height: calc(100% - 72px);
-  }
+  .session-view .supervision-panel.session-side { @apply flex min-w-0 flex-col overflow-hidden; }
   .supervision-head { @apply mb-3 flex items-center justify-between; }
   .supervision-label { @apply text-[12px] font-medium uppercase tracking-[0.06em] text-dim; }
   .supervision-section { @apply mb-4; }
@@ -841,13 +838,14 @@
     .app.collapsed .sidebar { @apply hidden; }
     .sidebar-close { @apply grid; }
     .session-layout.changes { grid-template-columns: minmax(0, 1fr); }
+    .session-layout.environment { grid-template-columns: minmax(0, 1fr); }
     .session-view .changes-panel.session-side {
       @apply absolute inset-3 z-[26] m-0 flex rounded-[16px] border border-line shadow-lg;
     }
     .session-view .supervision-panel.session-side {
-      @apply absolute right-0 top-0 z-[25] block rounded-[16px] border border-line shadow-lg;
+      @apply absolute right-3 top-[60px] z-[25] block overflow-hidden rounded-[16px] border border-line shadow-lg;
       width: min(340px, calc(100% - 24px));
-      max-height: calc(100% - 24px);
+      max-height: calc(100% - 72px);
     }
   }
   @media (max-width: 680px) {

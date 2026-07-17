@@ -882,7 +882,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
           the user was mid-sentence in 144px to the left. Changes (`view==="diff"`)
           is untouched: a review surface genuinely needs half the window, and gets
           it via the `.changes` track. */}
-      <div className={`session-layout${view === "diff" ? " changes" : " single"}`}>
+      <div className={`session-layout${view === "diff" ? " changes" : " single"}${showSupervision ? " environment" : ""}`}>
         <main className="session-primary">
           {/* The conversation stays mounted even while Changes is open — Codex
               shows the diff as a right-side split, not a full takeover (R1-2). */}
