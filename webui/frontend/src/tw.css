@@ -188,12 +188,12 @@
     line-height: 1.6;
   }
   button {
-    @apply rounded-[8px] border border-line bg-panel px-[11px] py-[5px] text-ink transition-colors duration-100;
+    @apply rounded-[8px] border border-line bg-panel px-[11px] py-[5px] text-ink transition-all duration-100;
     font: inherit;
     cursor: pointer;
   }
-  button:hover { @apply border-dim bg-panel-2; }
-  button:active { @apply bg-panel border-dim; }
+  button:hover { @apply border-dim bg-panel-2 shadow-sm; }
+  button:active { @apply scale-95; }
   button:disabled { @apply cursor-default opacity-45; }
   input, textarea, select {
     @apply rounded-[8px] border border-line bg-panel px-[9px] py-[7px] text-ink transition-colors duration-100;
