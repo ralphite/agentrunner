@@ -203,6 +203,19 @@ func (l *Loop) resolveSpawnTargetFull(toolName string, rawArgs json.RawMessage) 
 	if err := json.Unmarshal(rawArgs, &args); err != nil || args.Prompt == "" || (args.Agent == "") == (args.Role == nil) {
 		return "", "", nil, nil, toolName + ": invalid args: need prompt and exactly one of agent or role"
 	}
+	// A child's workspace is fixed by the sub-agent spec's agent_workspace
+	// field (isolated|shared); passing it as a spawn arg used to be dropped
+	// silently, so a model trying to place the child never learned why nothing
+	// changed (QA Wave2 erin-01). Tell it where the control actually lives
+	// instead of ignoring the intent.
+	var probe map[string]json.RawMessage
+	if json.Unmarshal(rawArgs, &probe) == nil {
+		for _, k := range []string{"workspace", "agent_workspace", "shared", "isolated", "workspace_mode"} {
+			if _, ok := probe[k]; ok {
+				return "", "", nil, nil, fmt.Sprintf("%s: %q is not a spawn arg — a child's workspace is fixed by the sub-agent spec's agent_workspace (isolated|shared), set it there, not per spawn", toolName, k)
+			}
+		}
+	}
 	if args.Role != nil {
 		if toolName != "spawn_agent" {
 			return "", "", nil, nil, toolName + ": inline roles are only supported by spawn_agent"
