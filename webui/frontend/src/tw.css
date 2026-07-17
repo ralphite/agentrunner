@@ -242,7 +242,7 @@
   .app.collapsed { grid-template-columns: minmax(0, 1fr); }
   .app.collapsed .sidebar { @apply hidden; }
   .main { @apply relative flex min-h-0 min-w-0 flex-col bg-bg outline-none; }
-  .sidebar-show { @apply absolute left-3 top-3 z-20 h-9 w-9 rounded-[8px] bg-panel shadow-lg; }
+  .sidebar-show { @apply absolute left-3 top-3 z-20 h-11 w-11 rounded-[8px] bg-panel shadow-lg transition-all duration-100 hover:shadow-xl; }
   .sidebar-scrim { @apply fixed inset-0 z-30 border-0 bg-black/30 p-0; }
 
   .sidebar { @apply flex min-h-0 flex-col border-r border-line bg-sidebar; }
