@@ -184,8 +184,8 @@
   html, body, #root { @apply m-0 h-full; }
   body {
     @apply bg-bg text-ink font-sans antialiased;
-    font-size: var(--ui-font-size);
-    line-height: 1.55;
+    font-size: 15px;
+    line-height: 1.6;
   }
   button {
     @apply rounded-[8px] border border-line bg-panel px-[11px] py-[5px] text-ink transition-colors duration-[120ms];
@@ -241,7 +241,7 @@
   .sidebar-show { @apply absolute left-3 top-3 z-20 h-9 w-9 rounded-[8px] bg-panel shadow-lg; }
   .sidebar-scrim { @apply fixed inset-0 z-30 border-0 bg-black/30 p-0; }
 
-  .sidebar { @apply flex min-h-0 flex-col border-r border-line bg-panel; }
+  .sidebar { @apply flex min-h-0 flex-col border-r border-line bg-sidebar; }
   .brand-main { @apply min-w-0 border-0 bg-transparent p-0 text-left hover:bg-transparent; }
   .sidebar-close { @apply hidden h-[30px] w-[30px] place-items-center rounded-[8px] border-0 bg-transparent p-0 text-ink-2 hover:bg-panel-2 hover:text-ink; }
   .primary-nav { @apply flex flex-col gap-[2px] px-2 pb-2; }
@@ -790,7 +790,7 @@
     .home-empty-card-icon { @apply h-[24px] w-[24px]; }
     .home-empty-headline { @apply text-[24px] font-semibold; }
     .home-empty-repo { @apply max-w-[18ch]; }
-    .tl-inner { @apply px-4; }
+    .tl-inner { @apply px-5; }
     .msg.user .msg-col { @apply max-w-[90%]; }
     .session-topbar { @apply gap-1 px-3; }
     .topbar-tool { @apply w-8 min-w-8 justify-center gap-0 px-0; }
