@@ -75,6 +75,19 @@ func (r *textRenderer) Emit(e protocol.Event) {
 		fmt.Fprint(r.out, e.Text)
 		r.inDelta = true
 		r.sawDelta = true
+	case protocol.KindUserInput:
+		// The user's own half of the conversation. Emitted only by the replay
+		// projection (attach 补读) so a rejoining watcher sees what was asked,
+		// not just the assistant's answers (QA Wave1 cli-life-02). A source tag
+		// is shown for non-user (machine/hook) inputs.
+		label := "you"
+		if e.Tool != "" { // reuse Tool as the source tag for non-user inputs
+			label = e.Tool
+		}
+		for _, line := range strings.Split(strings.TrimRight(e.Text, "\n"), "\n") {
+			fmt.Fprintf(r.out, "▸ %s: %s\n", label, line)
+			label = strings.Repeat(" ", len(label)) // align continuation lines
+		}
 	case protocol.KindMessage:
 		// Deltas take precedence: any provider that streamed this turn's
 		// text already put it on screen — printing the assembled message

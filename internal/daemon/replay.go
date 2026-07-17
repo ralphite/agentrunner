@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
@@ -35,6 +36,27 @@ func ReplayJournal(sessionDir string, sink protocol.Sink) error {
 		switch p := decoded.(type) {
 		case *event.SessionStarted:
 			sink.Emit(protocol.Event{Kind: protocol.KindSessionStart})
+		case *event.InputReceived:
+			// The user's half of the conversation. Without this, replay shows
+			// only assistant/tool output and a rejoining watcher can't see what
+			// was asked (QA Wave1 cli-life-02). Prefer the Text projection; fall
+			// back to the typed Content parts for journals that only carry those.
+			text := p.Text
+			if text == "" {
+				text = textFromParts(p.Content)
+			}
+			if text == "" && (len(p.Images) > 0 || len(p.Files) > 0) {
+				text = fmt.Sprintf("[%d image(s), %d file(s)]", len(p.Images), len(p.Files))
+			}
+			// Tag non-user (machine/hook) inputs by source; the renderer uses
+			// the Tool field as that tag.
+			src := ""
+			switch p.Source {
+			case "", "cli", "user", "local-user":
+			default:
+				src = p.Source
+			}
+			sink.Emit(protocol.Event{Kind: protocol.KindUserInput, N: turn, Text: text, Tool: src})
 		case *event.GenerationStarted:
 			turn = p.GenStep
 			sink.Emit(protocol.Event{Kind: protocol.KindGenerationStart, N: p.GenStep})
@@ -106,6 +128,18 @@ func ReplayJournal(sessionDir string, sink protocol.Sink) error {
 		}
 	}
 	return nil
+}
+
+// textFromParts joins the text parts of a typed content slice (used when an
+// InputReceived carries Content but no flattened Text projection).
+func textFromParts(parts []provider.Part) string {
+	var b []string
+	for _, part := range parts {
+		if part.Kind == provider.PartText && part.Text != "" {
+			b = append(b, part.Text)
+		}
+	}
+	return strings.Join(b, "\n")
 }
 
 // askReason picks the human-facing reason to show with a pending approval:
