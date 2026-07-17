@@ -339,15 +339,22 @@ func (s *server) handleGitCheckout(w http.ResponseWriter, r *http.Request) {
 		// plumbing prose (phone report class).
 		raw := strings.TrimSpace(string(out))
 		msg := "Couldn’t switch branch."
+		// A user-actionable git refusal is a 4xx, not a 502 — 502 (Bad Gateway)
+		// wrongly reads as a server/upstream fault for a plain "no such branch"
+		// (QA Wave2 grace-04). Only an unclassified git failure stays 502.
+		status := http.StatusBadGateway
 		switch {
 		case strings.Contains(raw, "already exists"):
 			msg = "A branch named “" + req.Branch + "” already exists — pick it from the list instead of creating it."
+			status = http.StatusConflict
 		case strings.Contains(raw, "would be overwritten") || strings.Contains(raw, "Please commit your changes") || strings.Contains(raw, "local changes"):
 			msg = "You have uncommitted changes — commit or discard them before switching branch."
+			status = http.StatusConflict
 		case strings.Contains(raw, "did not match") || strings.Contains(raw, "invalid reference") || strings.Contains(raw, "pathspec"):
 			msg = "No branch named “" + req.Branch + "”."
+			status = http.StatusNotFound
 		}
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": msg, "stderr": raw})
+		writeJSON(w, status, map[string]string{"error": msg, "stderr": raw})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": strings.TrimSpace(string(out)), "branch": req.Branch})
