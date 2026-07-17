@@ -246,7 +246,7 @@
   .sidebar-close { @apply hidden h-[30px] w-[30px] place-items-center rounded-[8px] border-0 bg-transparent p-0 text-ink-2 hover:bg-panel-2 hover:text-ink; }
   .primary-nav { @apply flex flex-col gap-[2px] px-2 pb-2; }
   .primary-nav button, .nav-row {
-    @apply flex h-[40px] items-center gap-2 rounded-[8px] border-0 bg-transparent px-3 text-left text-[15px] font-500 text-ink-2 hover:bg-panel-2 hover:text-ink;
+    @apply flex h-[40px] items-center gap-2 rounded-[8px] border-0 bg-transparent px-3 text-left text-[15px] font-medium text-ink-2 hover:bg-panel-2 hover:text-ink;
   }
   .primary-nav button.active { @apply bg-panel-2 text-ink; }
   .nav-kbd, .menu-kbd { @apply ml-auto rounded-[5px] border border-line px-[5px] py-[1px] text-[10.5px] text-dim; }
@@ -320,7 +320,7 @@
   .hero { @apply mx-auto flex w-full max-w-[760px] flex-1 flex-col items-center justify-center gap-5 px-6 py-8; }
   .home-empty { @apply flex w-full flex-col items-center gap-4 text-center; }
   .home-hero-icon { @apply grid h-[48px] w-[48px] place-items-center rounded-full text-dim; }
-  .home-empty-headline { @apply m-0 max-w-[760px] text-[28px] font-600 leading-tight text-ink; }
+  .home-empty-headline { @apply m-0 max-w-[760px] text-[28px] font-semibold leading-tight text-ink; }
   .home-empty-repo { @apply inline-block max-w-[32ch] overflow-hidden text-ellipsis whitespace-nowrap align-bottom font-medium border-b border-dotted; }
   .home-empty-cards { @apply grid w-full max-w-[690px] grid-cols-4 gap-4; }
   .home-empty-card {
@@ -788,7 +788,7 @@
     .home-empty-cards { @apply grid-cols-1 gap-3; }
     .home-empty-card { @apply min-h-[100px] px-4 py-3 text-[13px]; }
     .home-empty-card-icon { @apply h-[24px] w-[24px]; }
-    .home-empty-headline { @apply text-[24px] font-600; }
+    .home-empty-headline { @apply text-[24px] font-semibold; }
     .home-empty-repo { @apply max-w-[18ch]; }
     .tl-inner { @apply px-4; }
     .msg.user .msg-col { @apply max-w-[90%]; }
