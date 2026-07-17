@@ -160,7 +160,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | memory 文件读侧注入（CLAUDE.md 层级合并） | ✅ | UJ-09 | S3 |
 | 记忆写回（`ar remember`，append 项目 CLAUDE.md；取 A：追加 program 输入本会话即遵循，文件供下次 session 冻结；并发 session 跨进程单写 + 原子替换） | ✅ | UJ-09 | INC-14+INC-67 · TestMemoryAppend*/TestMemoryAppendConcurrentWritersLoseNoNotes/TestRememberControl* · QA-23 |
 | 自定义命令 / slash 面 | ✅ | UJ-19 | INC-8 · TestExpand*/TestDiscover · 真实 API（`.claude/commands/*.md` 的 `/name` 在 new+send 两路展开进 journal） |
-| 自定义 command tools（manifest = name/description/command/timeout/params；user 层 `~/.config/agentrunner/tools` 恒载 + project 层 `<ws>/.claude/tools` 需 trust（决策 #19 同 hooks 门）；冻结进 `SessionStarted.command_tools`（resume 从 fold 重建）；撞内置拒载/user 压 project/`mcp__` 前缀拒载；每次调用 = execute-class command effect（`eff.Command`=固定命令过全管线，execute 默认 ask）+ 决策 #34 OS sandbox，args JSON 走 stdin） | ✅ | UJ-19 | INC-55（HANDA #4，决策 #19/#34）· commandtool.TestParseAndResolve/TestDiscover{UserLayer,ProjectTrustGate,BuiltinCollisionRejected,UserBeatsProject} · pipeline.TestCommandToolEffectAdjudication · tool.TestRunCommandTool{Stdin,FailsClosedWithoutSandbox,ExitCode} · agent.TestCommandTool{EndToEnd,ProjectTrustGate,FoldHelpers} · QA-59（真 Gemini，待验） |
+| 自定义 command tools（manifest = name/description/command/timeout/params；user 层 `~/.config/agentrunner/tools` 恒载 + project 层 `<ws>/.claude/tools` 需 trust（决策 #19 同 hooks 门）；冻结进 `SessionStarted.command_tools`（resume 从 fold 重建）；撞内置拒载/user 压 project/`mcp__` 前缀拒载；每次调用 = execute-class command effect（`eff.Command`=固定命令过全管线，execute 默认 ask）+ 决策 #34 OS sandbox，args JSON 走 stdin） | ✅ | UJ-19 | INC-55（HANDA #4，决策 #19/#34）· commandtool.TestParseAndResolve/TestDiscover{UserLayer,ProjectTrustGate,BuiltinCollisionRejected,UserBeatsProject} · pipeline.TestCommandToolEffectAdjudication · tool.TestRunCommandTool{Stdin,FailsClosedWithoutSandbox,ExitCode} · agent.TestCommandTool{EndToEnd,ProjectTrustGate,FoldHelpers} · QA-59（真 Gemini PASS 2026-07-11，qa/runs/2026-07-11-INC55） |
 
 ## I · 观察与远程面
 
@@ -205,20 +205,31 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 
 ---
 
-## 附录 · 代码事实对照（2026-07-05 盘点）
+## 附录 · 代码事实对照（2026-07-17 盘点，审计 audit-2026-07-17）
 
 **CLI 子命令**（`internal/cli/cli.go`）：
 `run` `drive` `submit` `resume` `new` `send` `close` `interrupt`
 `stop`（INC-4）`compact`（INC-6）`clear`（INC-6）`remember`（INC-14）`kill` `agent`（决策 #32）`ps` `approve` `fork` `barrier`
 `sessions` `trust` `attach` `daemon` `events` `inspect` `accept`
 `record-fixture` `version` `help` `init`（INC-2）
+`diff` `artifacts`（INC-40）`retry`（INC-45）`queue` `unqueue`（INC-46）
+`hook`（INC-50）`answer`（INC-47）`mode`（INC-42）`goal`（INC-10）
+`dictate`（INC-56）`optimize`（INC-56）
 
 **daemon 线协议命令**（`internal/daemon/daemon.go`）：
 `ping` `run` `drive` `attach` `approve` `send` `close` `interrupt`
 `stop`（INC-4）`compact`（INC-6）`clear`（INC-6）`remember`（INC-14）`kill` `agent`
+`mode`（INC-42）`unqueue`（INC-46）`answer`（INC-47）
+`goal-attach` `goal-pause` `goal-resume` `goal-update` `goal-cancel`（INC-10）
+（注：`dictate`/`optimize` 是前台一次性 CLI 不经 daemon；`hook` 走
+HTTP ingress（INC-50），均非 wire 命令。）
 
-**内置 tool 定义**（`internal/tool/defs/*.json`）：
+**内置 tool 定义**（`internal/tool/defs/*.json`，26 个）：
 `read_file` `write_file` `edit_file` `bash` `output` `kill`
 `spawn_agent` `handoff_agent` `publish_artifact` `publish_note`
 `read_notes` `semantic_search` `grep`（INC-3）`glob`（INC-3）`skill`（INC-20）
 `exit_plan_mode` `schedule_next` `finish_series`
+`ask_user`（INC-5）`web_fetch`（INC-5）`progress_update`（INC-37）
+`send_message`（INC-12）`artifacts_list` `artifacts_read`（INC-40）
+`goal_complete` `goal_status`（INC-10）
+（注：`escalate` 无独立 def，提权走 spawn 路径强制人审。）

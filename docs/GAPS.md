@@ -417,8 +417,10 @@ crash → `ActorCrashed` 标 dead（kernel 明确 no auto-restart），无
 
 ### 其他
 
-**G4 并发子 agent 确定性测试基建（routing scripted provider） — 🔧 · 中**
-→ 多 agent 类 e2e 测试的前提。
+**G4 并发子 agent 确定性测试基建（routing scripted provider） — ✅ 已关闭（审计 2026-07-17 对账）**
+routing provider 在用（`internal/provider/scripted/router.go`），C3–C7
+孪生以其驱动（SPEC B 表"并发子 agent 确定性测试基建"行早注"GAPS G4
+关闭事实"）。本条此前漏回标，与 SPEC 冲突，按 PROCESS §一当场修。
 
 **G28 树预算下无 cap 子 agent 的预留串行化 — ✅ 已关闭（INC-66，2026-07-13）**
 （编号更正:本条曾误编 G25,与已关闭的"弃子回收"重号;2026-07-10 更正为
@@ -497,7 +499,11 @@ xcodebuild（fs event stream / result bundle 均被沙箱拒,rc=72）;
 （如 PATH 截击 shim 直指 toolchain git、host 侧 git 代理）触
 sandbox env/PATH 语义,须走增量流程另行设计。→ UJ-10/20
 
-**G33 共享环境跑陈旧二进制致新功能假失败 — 🟡 部署/验收流程缺口 · 中（2026-07-10 登记，第二次栽）**
+**G33 共享环境跑陈旧二进制致新功能假失败 — ✅ 已关闭（机械加固全落地；审计 2026-07-17 对账回标）**
+四项加固均在案：`scripts/deploy.sh` 版本化安装、`-X main.version`
+commit 戳、webui `/api/health` 版本一致性核对、stale-binary toast；
+锚 `webui/ar_test.go` TestVersionMatch/TestArFailFlagsStaleBinary。
+流程侧"收口须部署回共享环境"已入纪律。原文留档：
 增量在私有 daemon + 私有新二进制上验（QA 纪律要求隔离新 daemon-path
 功能），但**收口未把新二进制部署回用户日常共享环境并复验**——共享的
 `ar`/daemon/webui 服务端仍是旧二进制。表现:webui 前端 dist 是新的

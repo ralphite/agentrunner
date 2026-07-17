@@ -20,18 +20,18 @@
 
 ## 第 0 批 · 纯文档修正（a 类）
 
-- [ ] **A1** SPEC 附录"代码事实对照"补登（S）：CLI +11（`diff`
+- [x] **A1** SPEC 附录"代码事实对照"补登（S）：CLI +11（`diff`
   `artifacts` `retry` `queue` `unqueue` `hook` `answer` `mode`
   `goal` `dictate` `optimize`）；daemon +8（`mode` `unqueue`
   `answer` `goal-attach/pause/resume/update/cancel`）；tool defs
   +8（`ask_user` `web_fetch` `progress_update` `send_message`
   `artifacts_list` `artifacts_read` `goal_complete` `goal_status`）；
   更新盘点日期；顺带订正 daemon.go:876 unknown-command 错误串漏项。
-- [ ] **A2** SPEC.md:163 "QA-59 待验"改为已 PASS（QA.md:911-913，
+- [x] **A2** SPEC.md:163 "QA-59 待验"改为已 PASS（QA.md:911-913，
   2026-07-11）（S）。
-- [ ] **A3** GAPS G4 与 SPEC.md:71 冲突当场修：G4 标关闭或写明差异
+- [x] **A3** GAPS G4 与 SPEC.md:71 冲突当场修：G4 标关闭或写明差异
   （PROCESS §一"两活文档冲突=缺陷"）（S）。
-- [ ] **A4** G33 现状核实并回标（机械加固已落地，GAPS.md:500-517）
+- [x] **A4** G33 现状核实并回标（机械加固已落地，GAPS.md:500-517）
   （S）。
 
 ## 第 1 批 · 小代码改动（b 类，各一个小增量）
@@ -104,4 +104,6 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
 **进度日志**（loop 每迭代追加一行：日期 · 项 · commit · 状态）
 
 - 2026-07-17 · 前置 · TestBashFilesystemSandbox 平台无关断言修复
-  （Linux bwrap 语义，REVIEW.md 发现 #7）· 基线全绿后随修复 commit。
+  （Linux bwrap 语义，REVIEW.md 发现 #7）· 4bf220b · 完成。
+- 2026-07-17 · A1–A4 · SPEC 附录补登 27 项 + daemon 错误串订正 +
+  QA-59 回标 PASS + GAPS G4/G33 回标关闭 + LOG 台账 · 本 commit · 完成。

@@ -4031,3 +4031,29 @@ QA-68 同视口 before/after、deep link/reload、1280×900 回归、health 与 
 dev logs 全绿：三个 child 标题 `worker_a/b/c`，横向 overflow=0，warning/error=0；
 frontend 572 tests 通过。session/journal/workspace/diff 全部保留，证据在
 `qa/runs/2026-07-13-QA-68/`。
+
+## 2026-07-17 · 审计:design↔代码一致性 review + 登记簿对账(audit-2026-07-17)
+
+全量核对三层文档与代码事实,报告与实施 BACKLOG 落
+`docs/audit-2026-07-17/`(REVIEW.md 七项发现 + 分批待办清单),后续
+增量按 BACKLOG 顺序燃尽。本条对应第 0 批纯文档对账,当场修四处:
+
+- SPEC 附录"代码事实对照"自 2026-07-05 盘点后整体滞后:CLI 补登 11
+  命令(diff/artifacts/retry/queue/unqueue/hook/answer/mode/goal/
+  dictate/optimize)、daemon 线协议补登 8(mode/unqueue/answer/
+  goal-*),并注明 dictate/optimize/hook 非 wire 命令;tool defs 补登
+  8(ask_user/web_fetch/progress_update/send_message/artifacts_list/
+  artifacts_read/goal_complete/goal_status)。daemon unknown-command
+  错误串同步补全漏项(daemon.go)。
+- SPEC command tools 行"QA-59 待验"改为 PASS(QA.md 已记
+  2026-07-11,qa/runs/2026-07-11-INC55)——活文档冲突当场修。
+- GAPS G4 回标关闭(routing provider 在用,SPEC 早注"关闭事实",
+  GAPS 漏回标)。
+- GAPS G33 回标关闭(四项机械加固全落地有锚,
+  TestVersionMatch/TestArFailFlagsStaleBinary)。
+
+审计还发现并已修(前一 commit 4bf220b):TestBashFilesystemSandbox
+断言钉死 Seatbelt errno 措辞,Linux bwrap 后端(tmpfs//dev/null 掩蔽
+→ ENOENT/EACCES)必败;CI runner 无 bwrap 一直 skip 掩盖——Linux
+沙箱面此前从未被该测试真正回归。断言改钉"读被拒绝"不变量,泄漏
+检查原样保留。验收锚抽样(10 具名测试)与 DESIGN §17 均未见漂移。

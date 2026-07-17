@@ -873,7 +873,7 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		s.handleAgent(cmd, enc)
 	default:
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
-			Text: fmt.Sprintf("unknown command %q (known: ping, run, drive, attach, approve, send, close, interrupt, stop, compact, clear, remember, goal-*, kill, agent)", cmd.Cmd)})
+			Text: fmt.Sprintf("unknown command %q (known: ping, run, drive, attach, approve, send, close, interrupt, stop, compact, clear, remember, mode, goal-attach, goal-pause, goal-resume, goal-update, goal-cancel, kill, unqueue, answer, agent)", cmd.Cmd)})
 	}
 }
 
