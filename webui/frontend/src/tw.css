@@ -258,7 +258,7 @@
   .project-list { @apply min-h-0 flex-1 overflow-y-auto px-2 pb-2; }
   .sidebar-section { @apply mb-3; }
   .section-label, .project-heading {
-    @apply flex min-w-0 items-center gap-[7px] px-2 py-[6px] text-[12px] font-semibold uppercase tracking-[0.08em] text-dim;
+    @apply flex min-w-0 items-center gap-[7px] px-2 py-[6px] text-[11px] font-bold uppercase tracking-[0.1em] text-dim;
   }
   .project-heading {
     @apply w-full rounded-[7px] border-0 bg-transparent normal-case tracking-normal text-ink-2 transition-colors duration-100 hover:bg-panel-2 hover:text-ink;
