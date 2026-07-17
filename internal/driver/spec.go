@@ -164,17 +164,27 @@ const driverSpecFields = "name, schedule, agent_spec, interval, cron, overlap, "
 // decodeHint rewrites a yaml decode error for a user who has never seen the
 // Go structs behind the spec (same courtesy as agent.LoadSpec — QA Round2
 // F-E3: it used to leak "type driver.DriverSpec" and name no valid fields).
+const verifierSpecFields = "kind, command, metric_regex, threshold, rubric"
+
 func decodeHint(err error) string {
 	msg := err.Error()
-	unknown := strings.Contains(msg, "not found in type")
-	msg = typeNameRe.ReplaceAllString(msg, `unknown field "$1"`)
-	if unknown {
-		msg += fmt.Sprintf("\n  valid top-level driver fields: %s", driverSpecFields)
+	// Capture BOTH the field and the type it wasn't found in, so a stray key
+	// inside a verifiers[] item names verifier fields, not the top-level driver
+	// fields (QA Wave2 erin-04). The type name is stripped from the surfaced
+	// text either way.
+	if m := typeNameRe.FindStringSubmatch(msg); m != nil {
+		fields := driverSpecFields
+		where := "top-level driver"
+		if strings.Contains(m[2], "VerifierSpec") {
+			fields, where = verifierSpecFields, "verifier item"
+		}
+		msg = typeNameRe.ReplaceAllString(msg, `unknown field "$1"`)
+		msg += fmt.Sprintf("\n  valid %s fields: %s", where, fields)
 	}
 	return msg
 }
 
-var typeNameRe = regexp.MustCompile(`field (\S+) not found in type \S+`)
+var typeNameRe = regexp.MustCompile(`field (\S+) not found in type (\S+)`)
 
 // LoadSpec reads and validates a driver spec, resolving agent_spec into
 // Agent (relative paths anchor at the driver spec's directory). Error format
