@@ -121,7 +121,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | 显式重开（send 对任何 session 成立，含带标记的；自动路径受标记约束） | ✅ | UJ-09/03 | TestSendReopensMarkedSession · TestAutomaticResumeSkipsMarkedSession · TestSendRevivalDiesWithDaemon |
 | 恢复单一自愈（in-doubt 处置后渲染 interrupted-by-crash,session 继续） | ✅ | 不变量 | QA-08 · 决策 #29(2026-07-05 单一化) |
 | workspace 快照（shadow repo、排除表、pinned） | ✅ | UJ-15 | S2/S7 |
-| daemon kill -9 后孤儿 bash 子进程清扫（pgid） | 🟡 | — | 记档观察项（DESIGN §17） |
+| daemon kill -9 后孤儿 bash 子进程清扫（pgid） | ✅ | — | audit-0717 B3 · daemon boot sweep（标记+init-parent 双证据）· TestSweepOrphanSessionProcessesKillsStrayGroup/TestParseProcStat/TestParsePSTableKeepsOnlyInitParented |
 | shadow repo 并发 flock（同 GIT_DIR 的 init/Snapshot/ref push 跨 session/goroutine/process 单写，Diff private index 仍并发只读） | ✅ | UJ-15/16 | INC-66 · TestShadowRepoSerializesConcurrentInitAndSnapshots |
 | session genesis 守卫（空/无 `SessionStarted|DriverStarted|ForkedFrom+SessionStarted` journal 不可 resolve/list/send/resume） | ✅ | 不变量 | INC-66 · TestResolveSessionDirRejectsEmptyJournalDirectory |
 

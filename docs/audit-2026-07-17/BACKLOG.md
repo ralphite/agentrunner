@@ -41,7 +41,7 @@
   BEGIN/END 定界符改动另拆（见 B2）。
 - [x] **B2** G16 定界符（S）：不可信内容注入用 BEGIN/END 文本定界
   （现为 JSON 兄弟布尔）。
-- [ ] **B3** G22c daemon kill -9 孤儿 bash pgid 清扫（S，
+- [x] **B3** G22c daemon kill -9 孤儿 bash pgid 清扫（S，
   SPEC.md:124、DESIGN §17 #6）。
 - [ ] **B4** G26 `ar inspect` children 按 call_id 去重（S，
   GAPS.md:459-461；webui 已做，收 CLI/契约侧）。
@@ -110,4 +110,6 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
 - 2026-07-17 · B1 · G16 统一信任分级条款成文 DESIGN §5,GAPS/SPEC 同步
   · 8d5d952 · 完成。
 - 2026-07-17 · B2 · web_fetch content BEGIN/END 定界符(软标记入文本)
-  · 本 commit · 完成。
+  · f516993 · 完成。
+- 2026-07-17 · B3 · daemon boot 孤儿 bash 进程组清扫(标记+init-parent
+  双证据,Linux/darwin) · 本 commit · 完成。

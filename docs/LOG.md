@@ -4076,3 +4076,19 @@ WEB CONTENT 定界(输出 cap 作用于抓取内容,框在其后加),note 同步
 指向标记。软标记定位不变:只降服从注入概率,不计入安全预算(硬防线
 仍是 egress/收容,DESIGN §5 条款)。A 闸:TestWebFetch* 三处断言更新;
 B 闸:变更为纯文本形状,随下次 QA-13/14 复跑一并覆盖,记档。
+
+## 2026-07-17 · audit-0717.B3:daemon boot 孤儿 bash 进程组清扫(G22c)
+
+daemon kill -9 后在飞 bash 进程组孤儿存活,DESIGN §17 记为"pgid 清扫
+未做"。落法:不 journal pid(fork/rewind 不应携带、且有复用误杀风险),
+而是 boot 时按**现场双证据**扫——进程 env 带 `AGENTRUNNER_SESSION`
+标记(2.12 本就为清扫而设)且已 reparent 到 init(ppid==1),对每个
+命中的进程组走既有 killGroup(TERM→宽限→KILL)。Linux 走 /proc,
+darwin 走 ps -axo + -E(仅同 uid 可见,恰是清扫范围);其余平台与
+subreaper 环境诚实欠收、绝不误杀(正证据才动手)。会话侧结算不变:
+决策 #29 in-doubt 自愈独立发生,sweep 只负责止住失控副作用。
+锚:TestSweepOrphanSessionProcessesKillsStrayGroup(真孤儿组端到端,
+subreaper 环境自动 skip)/TestParseProcStat/TestParsePSTable。
+deadcode 基线 +1(`internal/tool/orphan.go parsePSTable`):解析器放
+平台无关文件为让测试在 CI(Linux)常跑,调用方 orphan_darwin.go 仅
+darwin 构建可达——linux whole-program 视角误报,非死码。

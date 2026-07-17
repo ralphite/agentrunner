@@ -16,3 +16,4 @@ internal/mcp/mcp.go NewConn
 internal/notify/notify.go Notifier.Seen
 internal/provider/scripted/router.go NewRouter
 internal/provider/scripted/scripted.go New
+internal/tool/orphan.go parsePSTable

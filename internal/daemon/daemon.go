@@ -23,6 +23,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
+	"github.com/ralphite/agentrunner/internal/tool"
 )
 
 // Command is one client→server line.
@@ -652,6 +653,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	if s.ScanDrives != nil && s.ResumeDrive != nil {
 		go s.bootSweepDrives(ctx)
 	}
+	go s.bootSweepOrphanProcesses()
 	slog.Info("daemon listening", "socket", s.SocketPath)
 
 	for {
@@ -683,6 +685,18 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 			defer s.wg.Done()
 			s.serveConn(ctx, conn)
 		}()
+	}
+}
+
+// bootSweepOrphanProcesses is the process half of the boot sweep (G22c): a
+// daemon killed with -9 orphans its in-flight bash process groups. Their
+// SessionEnvVar tag plus init-parentage is current-truth evidence read at
+// sweep time, so PID reuse cannot misfire. One shot, outcome log-only —
+// each session journals its own interrupted-by-crash settlement on resume
+// (决策 #29); the sweep only stops runaway side effects.
+func (s *Server) bootSweepOrphanProcesses() {
+	if killed := tool.SweepOrphanSessionProcesses(); len(killed) > 0 {
+		slog.Info("daemon: swept orphaned session process groups", "pgids", killed)
 	}
 }
 

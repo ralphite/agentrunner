@@ -1680,8 +1680,11 @@ mapping，代码与文档同名）。
   不是第二条 spawn 路径）;driver 子系统仍独立,收敛挂 UJ-22/G23。
 - **WAITING_APPROVAL 挂起期间**消息只排队不唤醒（审批答复才解栈，
   唤醒语义待定，见 GAPS G3 余项）。
-- **daemon kill -9 孤儿化在飞 bash 的子进程**：sleep 类自然退出，
-  长驻型需重启后 pgid 清扫——收口观察项，未做。
+- **daemon kill -9 孤儿化在飞 bash 的子进程**：已收（audit-0717 B3，
+  2026-07-17）——daemon boot sweep 按"SessionEnvVar 标记 + 已 reparent
+  到 init"双证据清扫孤儿进程组（现场真读取，无 PID 复用风险；Linux
+  procfs / darwin ps，两者皆缺时诚实 no-op；subreaper 环境只欠收、
+  绝不误杀）。
 
 ---
 

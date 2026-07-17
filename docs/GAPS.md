@@ -85,8 +85,8 @@ ActivityStarted{Background} 立即配 handle)、SubagentCompleted 先于
 activity 终态、tool `kill`/`ar kill` 双入口(kill 有 InputReceived
 {control} 起源)、崩溃 settle-from-child-fold(M5.1)。闸门：QA-04/05/
 08/09 真实 API PASS。**余项**：barrier 对在飞 child/background work 的处置
-语义(fork/rewind 扩展层连带);daemon kill -9 孤儿化在飞 bash 子进程
-(重启后 pgid 清扫未做)。原文:
+语义(fork/rewind 扩展层连带);~~daemon kill -9 孤儿化在飞 bash 子进程~~
+(✅ 已收 audit-0717 B3:daemon boot sweep 双证据 pgid 清扫)。原文:
 L1 一句承诺（bash/spawn_agent 支持 background:true）；bash 侧机制完整，
 spawn 侧未定：SpawnRequested/SubagentCompleted 与后台终态的事件序、
 usage 结算时点、kill 子 run 的终态与部分产出归属、父崩溃时
