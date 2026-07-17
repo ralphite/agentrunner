@@ -110,6 +110,14 @@ func ReplayJournal(sessionDir string, sink protocol.Sink) error {
 			sink.Emit(protocol.Event{Kind: protocol.KindApprovalRequest, N: turn,
 				CallID: p.CallID, ApprovalID: p.ApprovalID,
 				Tool: meta.tool, Args: meta.args, Text: askReason(p.GateResults)})
+		case *event.LimitExceeded:
+			// A budget-truncated turn otherwise replays as an empty
+			// [gen-step N] with no explanation (QA Wave2 heidi-05 / carol-06):
+			// surface the reason so a rejoining watcher understands why the
+			// turn produced nothing.
+			sink.Emit(protocol.Event{Kind: protocol.KindError, N: turn,
+				Text: fmt.Sprintf("%s budget exhausted; turn truncated (limit %d, used %d)",
+					p.Kind, p.Limit, p.Used)})
 		case *event.GenerationDiscarded:
 			sink.Emit(protocol.Event{Kind: protocol.KindDiscard, N: p.GenStep, Text: p.Reason})
 		case *event.SpecChanged:

@@ -25,7 +25,7 @@ func summarizerSpec() *AgentSpec {
 		Description:        "condenses findings into a short report",
 		Model:              ModelSpec{Provider: "scripted", ID: "m", MaxTokens: 100},
 		SystemPrompt:       "you summarize",
-		Tools:              []string{"read_file", "edit_file", "bash"},
+		Tools:              []string{"read_file", "write_file", "edit_file", "bash"},
 		MaxGenerationSteps: 3,
 	}
 }

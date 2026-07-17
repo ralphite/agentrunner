@@ -124,6 +124,13 @@ type Loop struct {
 	// CommandTools (so resume gets the identical face). Per-Loop, never shared
 	// across children, so lookups need no lock. nil until drive() runs.
 	commandTools map[string]event.CommandToolDef
+	// advertisedTools is the set of tool names actually exposed to the model
+	// this run (spec.Tools + MCP + command tools + auto-added faces). Rebuilt in
+	// drive() each turn from the same toolDefs the provider receives, and used
+	// to refuse a dispatch to any tool the model was never shown — the spec's
+	// tools: face used to be advisory-only (QA Wave2 bob-01/heidi-03). Per-Loop
+	// (each tree member has its own face), so the shared Executor stays neutral.
+	advertisedTools map[string]bool
 	// SubSpecs resolves the spec.Agents whitelist to child specs (S5.3);
 	// nil = spawning unavailable. Depth is this run's position in the agent
 	// tree (0 = root); the spawn gate caps it.
@@ -1148,6 +1155,15 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			}
 			toolDefs = append(toolDefs, extraDefs...)
 		}
+	}
+	// Snapshot the advertised tool face for the dispatch-time allowlist gate:
+	// exactly the names the provider is handed this turn, so a correct model
+	// never trips it and only a call to a never-advertised tool is refused
+	// (QA Wave2 bob-01/heidi-03). Rebuilt identically on resume from the same
+	// folded facts, so the gate is deterministic.
+	l.advertisedTools = make(map[string]bool, len(toolDefs))
+	for _, d := range toolDefs {
+		l.advertisedTools[d.Name] = true
 	}
 	// abort is every dying execution's exit ramp. There is NO terminal
 	// event (决策 #30/#31): an explicit kill leaves its SessionClosed
@@ -2197,6 +2213,18 @@ func (l *Loop) buildToolRun(call provider.ToolCall, res *tool.Result) func(conte
 	if ct, ok := l.commandTools[call.Name]; ok {
 		return func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
 			*res = l.Exec.RunCommandTool(ctx, ct.Command, call.Args)
+			return res.Payload, nil, res.IsError, nil
+		}
+	}
+	// Allowlist gate (defense-in-depth): a plain tool call must be one the
+	// model was actually shown this run. Command tools and agent-launch tools
+	// are dispatched above and excluded from this path; MCP tools are handled
+	// by their own runner too, so only registry tools reach here. A call to a
+	// tool the spec never enabled is refused with a model-visible error instead
+	// of being executed (QA Wave2 bob-01/heidi-03).
+	if l.advertisedTools != nil && !l.advertisedTools[call.Name] {
+		return func(context.Context) (json.RawMessage, *provider.Usage, bool, error) {
+			*res = tool.DisabledToolResult(call.Name)
 			return res.Payload, nil, res.IsError, nil
 		}
 	}

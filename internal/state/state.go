@@ -657,6 +657,20 @@ func Apply(s State, env event.Envelope) (State, error) {
 		s.Session.MalformedRetries = 0
 
 	case *event.AssistantMessage:
+		// A successful assistant message resolves any prior non-tool failure
+		// mark. GenerationStarted normally clears Failure, but when a failed
+		// LLM generation is RETRIED to success without advancing gen_step (no
+		// new GenerationStarted fires), the mark would otherwise linger and the
+		// session keep reporting failed:provider_* through this entire
+		// successful turn, self-correcting only on the next turn (QA Wave2
+		// heidi-01 / alice-07 / dave-04). A produced assistant message means the
+		// generation succeeded, so clear the failure here too.
+		if s.Session.Failure != nil {
+			s.Session.Failure = nil
+			if s.Session.Status == StatusFailed {
+				s.Session.Status = StatusRunning
+			}
+		}
 		s.Conversation = s.Conversation.withMessage(p.Message)
 		if p.GenStep > s.Session.LastAssistantGenStep {
 			s.Session.LastAssistantGenStep = p.GenStep
