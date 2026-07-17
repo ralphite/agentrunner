@@ -1730,6 +1730,16 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 	for _, call := range act.calls {
 		l.emit(protocol.Event{Kind: protocol.KindToolCall, N: act.turn,
 			Tool: call.Name, CallID: call.CallID, Args: compact(call.Args)})
+		// Allowlist gate runs BEFORE the permission gate: a tool the model was
+		// never shown can never execute, so adjudicating it would only pause
+		// the turn for an approval that can't help — hanging `ar new`/`send`
+		// until the approval times out (QA Wave2 judy-07). Refuse it here and
+		// let Phase 2's buildRunner render the model-visible "not enabled"
+		// result; skip adjudication entirely.
+		if l.advertisedTools != nil && !l.advertisedTools[call.Name] {
+			allowed = append(allowed, pending{call: call, res: new(tool.Result)})
+			continue
+		}
 		class := toolClassIn(ds.s, call.Name)
 		eff := pipeline.Effect{
 			ID: toolEffectID(call.CallID), Kind: "tool_call",
