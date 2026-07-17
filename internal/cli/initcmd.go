@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 )
 
 // specTemplate is the commented example spec `agentrunner init` writes
@@ -126,6 +127,10 @@ func initCmd(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		if errors.Is(err, os.ErrExist) {
 			fmt.Fprintf(stderr, "agentrunner: %s already exists — not overwriting\n", path)
+		} else if errors.Is(err, os.ErrNotExist) {
+			// A path in a missing directory otherwise leaks a raw
+			// "open …: no such file or directory" (QA Wave1 alice-05).
+			fmt.Fprintf(stderr, "agentrunner: cannot write %s — the directory %s does not exist (create it first, or pass a path in an existing directory)\n", path, filepath.Dir(path))
 		} else {
 			fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 		}
