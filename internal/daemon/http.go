@@ -132,7 +132,14 @@ func (s *Server) handleHook(ctx context.Context, limiter *failLimiter, w http.Re
 		writeHookJSON(w, http.StatusInternalServerError, map[string]any{"error": "hook registry unreadable"})
 		return
 	}
-	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	// Require the documented "Bearer <token>" scheme. TrimPrefix used to leave
+	// a bare, scheme-less token intact and accept it — looser than documented
+	// (QA Wave3 judy-05). Only take the token when the Bearer prefix is
+	// actually present; otherwise it stays empty and is rejected below.
+	token := ""
+	if after, found := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); found {
+		token = after
+	}
 	// Unknown hook and bad token answer identically — status, body AND
 	// hashing cost (a dummy verify keeps the timing flat; P2-1): no
 	// existence oracle.
