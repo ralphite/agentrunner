@@ -200,6 +200,7 @@
     font: inherit;
   }
   input:focus, textarea:focus, select:focus { @apply border-blue outline-none ring-2 ring-blue/30 ring-offset-0; }
+  input:disabled, textarea:disabled, select:disabled { @apply cursor-not-allowed bg-panel-2 opacity-50 text-ink-2; }
   :where(button, a, input, textarea, select, [tabindex]):focus-visible {
     @apply outline outline-2 outline-offset-2 outline-blue;
   }
