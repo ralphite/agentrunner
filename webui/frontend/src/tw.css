@@ -708,7 +708,7 @@
     overflow-wrap: anywhere;
   }
   .toast-close {
-    @apply -mr-1 grid h-8 w-8 shrink-0 place-items-center rounded border-0 bg-transparent p-0 opacity-80 hover:opacity-100;
+    @apply -mr-1 grid h-8 w-8 shrink-0 place-items-center rounded border-0 bg-transparent p-0 opacity-80 transition-opacity duration-100 hover:opacity-100;
   }
 
   .lightbox { @apply fixed inset-0 z-[70] flex flex-col overflow-hidden bg-black/85 text-white; }
