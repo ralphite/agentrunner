@@ -196,10 +196,10 @@
   button:active { @apply scale-95; }
   button:disabled { @apply cursor-default opacity-45; }
   input, textarea, select {
-    @apply rounded-[8px] border border-line bg-panel px-[9px] py-[7px] text-ink transition-colors duration-100;
+    @apply rounded-[8px] border border-line bg-panel px-[9px] py-[7px] text-ink transition-all duration-100;
     font: inherit;
   }
-  input:focus, textarea:focus, select:focus { @apply border-blue outline-none ring-1 ring-blue ring-offset-0; }
+  input:focus, textarea:focus, select:focus { @apply border-blue outline-none ring-2 ring-blue/30 ring-offset-0; }
   :where(button, a, input, textarea, select, [tabindex]):focus-visible {
     @apply outline outline-2 outline-offset-2 outline-blue;
   }
