@@ -523,7 +523,24 @@
   .thumb, .imgchip { @apply h-[84px] w-[120px] overflow-hidden rounded-[10px] border border-line bg-panel-2 object-cover; }
   .shell, .cx-code, .cx-minidiff { @apply overflow-hidden rounded-[12px] border border-line bg-panel-2 font-mono text-[12px]; }
   .shell-hd, .cx-code-hd { @apply flex items-center justify-between border-b border-line bg-panel px-3 py-2 text-dim; }
-  .shell-out, .cx-code-body { @apply overflow-x-auto p-3; }
+  .shell-out, .cx-code-body {
+    @apply overflow-x-auto p-3;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line) var(--panel-2);
+  }
+  .shell-out::-webkit-scrollbar, .cx-code-body::-webkit-scrollbar {
+    height: 8px;
+  }
+  .shell-out::-webkit-scrollbar-track, .cx-code-body::-webkit-scrollbar-track {
+    background-color: var(--panel-2);
+  }
+  .shell-out::-webkit-scrollbar-thumb, .cx-code-body::-webkit-scrollbar-thumb {
+    background-color: var(--line);
+    border-radius: 4px;
+  }
+  .shell-out::-webkit-scrollbar-thumb:hover, .cx-code-body::-webkit-scrollbar-thumb:hover {
+    background-color: var(--line-2);
+  }
   .md, .cx-md { @apply max-w-none text-[14px] leading-[1.6] text-ink; }
   .md-p { @apply my-2; }
   .md-list { @apply my-2 pl-5; }
