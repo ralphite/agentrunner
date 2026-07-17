@@ -93,6 +93,17 @@ func (s *Server) serveHTTP(ctx context.Context) error {
 	mux.HandleFunc("POST /hooks/{id}", func(w http.ResponseWriter, r *http.Request) {
 		s.handleHook(ctx, limiter, w, r)
 	})
+	// A wrong method on the hook path, or any other path, otherwise falls to
+	// Go's default 405/404 which are PLAIN TEXT — inconsistent with the JSON
+	// {"error":...} the auth/body errors return (QA Wave3 judy-03). Answer both
+	// in JSON so a machine caller parses one shape.
+	mux.HandleFunc("/hooks/{id}", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Allow", "POST")
+		writeHookJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "method not allowed; POST /hooks/<id>"})
+	})
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		writeHookJSON(w, http.StatusNotFound, map[string]any{"error": "not found; the only endpoint is POST /hooks/<id>"})
+	})
 	// Full read/write/idle timeouts (安全 review P1-1): ReadHeaderTimeout
 	// alone leaves the BODY read unbounded — a slow-body client could pin
 	// goroutines forever (slowloris).
