@@ -4057,3 +4057,13 @@ frontend 572 tests 通过。session/journal/workspace/diff 全部保留，证据
 → ENOENT/EACCES)必败;CI runner 无 bwrap 一直 skip 掩盖——Linux
 沙箱面此前从未被该测试真正回归。断言改钉"读被拒绝"不变量,泄漏
 检查原样保留。验收锚抽样(10 具名测试)与 DESIGN §17 均未见漂移。
+
+## 2026-07-17 · audit-0717.B1:G16 统一信任分级条款成文
+
+DESIGN §5 新增"prompt injection 威胁模型"条款:四级来源分级
+(user/machine/workspace 内容/外部抓取)、硬防线与软标记不得混记、
+"权限判定看 principal 不看内容措辞、不可信内容不能经模型转述提权"
+红线。纯成文——逐条锚定既有决策(§2 machine 钳制、决策 #19 trust
+门、INC-5 egress 硬控),无行为变更,故不触 PROCESS §四(未动任何
+既有不变量,只把散落语义收拢成文)。GAPS G16 回标"条款已成文",
+余项 BEGIN/END 定界符(BACKLOG B2)与 host allowlist(B5)仍开。

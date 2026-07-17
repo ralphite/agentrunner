@@ -190,8 +190,11 @@ consult memory"洞我们天然规避（memory 冻结在 prefix，compact 只动
 boundary 后消息，memory 永在——比对方强，记档）。
 → UJ-09
 
-**G16 prompt injection 威胁模型成文 — ⚠️ 设计欠定 · 中(web_fetch 面部分收口)**
-硬防线（沙箱/凭据/权限）✅;"workspace 内容不可信"的信任分级未成文。
+**G16 prompt injection 威胁模型成文 — 🟡 条款已成文(2026-07-17)，余项定界符/allowlist**
+统一信任分级条款已成文 DESIGN §5"prompt injection 威胁模型"（四级
+来源分级 + 硬防线/软标记不得混记 + "内容说了算不存在"红线；纯成文
+无行为变更，audit-2026-07-17 BACKLOG B1）。
+硬防线（沙箱/凭据/权限）✅。原登记：
 **web_fetch 面已落硬控(INC-5 安全 review)**:egress 需审批(execute-class,
 不静默出网)、link-local/metadata 封禁堵 exfil-to-metadata、重定向逐跳
 egress 守卫;`untrusted_content` 软标记降低服从注入概率(不计入 exfil
