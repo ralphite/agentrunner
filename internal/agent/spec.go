@@ -189,6 +189,10 @@ func LoadSpec(path string) (*AgentSpec, error) {
 		return nil, fmt.Errorf("spec %s: %w", path, err)
 	}
 
+	if len(bytes.TrimSpace(raw)) == 0 {
+		// An empty file decodes to a bare "EOF" — unhelpful (QA Wave1 alice-03).
+		return nil, fmt.Errorf("spec %s is empty — run `agentrunner init` for a commented example spec", path)
+	}
 	var spec AgentSpec
 	dec := yaml.NewDecoder(bytes.NewReader(raw))
 	dec.KnownFields(true)
