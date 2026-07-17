@@ -1288,6 +1288,7 @@ function DiffSkeleton() {
             <div className="dsk-body">
               {f.rows.map((w, r) => (
                 <div className="dsk-row" key={r}>
+                  <span className="dsk-bar dsk-marker" />
                   <span className="dsk-bar dsk-no" />
                   <span className="dsk-bar dsk-code" style={{ width: w + "%" }} />
                 </div>
@@ -1576,6 +1577,7 @@ function FileBody({
             ) : null
           ) : (
             <div className="dls" key={i}>
+              <span className={"dls-marker" + (sr.left?.kind === "add" || sr.right?.kind === "add" ? " add" : sr.left?.kind === "del" || sr.right?.kind === "del" ? " del" : "")} />
               <span className="dl-no">{sr.left?.oldNo ?? ""}</span>
               <span className={"dls-half " + halfKind(sr.left, "left")}>
                 <span className="dl-sign">{rowSign(sr.left)}</span>
@@ -1595,6 +1597,7 @@ function FileBody({
 
   const ctxRow = (r: DiffRow, key: string) => (
     <div className="dl" key={key}>
+      <span className="dl-marker" />
       <span className="dl-no">{r.newNo ?? ""}</span>
       <span className="dl-text">
         <span className="dl-sign"> </span>
@@ -1626,6 +1629,7 @@ function FileBody({
         }
         return (
           <div className={"dl " + (r.kind === "ctx" ? "" : r.kind)} key={i}>
+            <span className={"dl-marker" + (r.kind === "ctx" ? "" : " " + r.kind)} />
             <span className="dl-no">{(r.kind === "del" ? r.oldNo : r.newNo) ?? ""}</span>
             <span className="dl-text">
               <span className="dl-sign">{rowSign(r)}</span>

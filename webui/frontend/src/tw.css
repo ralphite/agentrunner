@@ -611,16 +611,33 @@
 
   .diffwrap { @apply flex min-h-0 flex-1 flex-col bg-bg; }
   .diffbar { @apply sticky top-0 z-10 flex min-h-[44px] shrink-0 items-center gap-2 border-b border-line bg-panel px-3; }
+  .diffbar-state { @apply flex w-full shrink-0 items-center gap-2; }
   .diff-summary, .fd-counts { @apply inline-flex items-center gap-[6px] text-[12px] font-medium; }
   .diff-summary .add, .fd-counts .add, .changes-outcome-files .add { @apply text-green; }
   .diff-summary .del, .fd-counts .del, .changes-outcome-files .del { @apply text-red; }
   .diff-empty { @apply m-auto grid max-w-[360px] place-items-center gap-2 p-8 text-center text-dim; }
+
+  /* Diff toolbar controls */
+  .diff-scope-trigger { @apply rounded-[6px] border border-line bg-panel-2 px-2 py-1 text-[12px] transition-colors duration-100 hover:bg-panel text-ink; }
+  .diff-scope-trigger.active { @apply bg-panel text-ink shadow-sm; }
+  .diff-scope-menu { @apply min-w-[200px] text-[12px]; }
+  .diff-commit-btn { @apply shrink-0 rounded-[6px] border border-line bg-panel-2 px-2 py-1 text-[12px] transition-colors duration-100 hover:bg-panel text-ink; }
+  .diff-commit-btn:active { @apply bg-panel-2; }
+  .diff-commit-compact { @apply inline-flex items-center gap-1 whitespace-nowrap; }
+  .diff-commit-caret { @apply transition-transform; }
+  .diff-closebtn { @apply shrink-0 rounded-[4px] p-1 transition-colors duration-100 hover:bg-panel-2; }
+  .diff-more-menu, .diff-files-menu { @apply min-w-[220px] text-[12px]; }
+  .diff-wrap-btn { @apply rounded-[6px] border border-line bg-panel-2 px-2 py-1 text-[12px] transition-colors duration-100; }
+  .diff-wrap-btn.active { @apply bg-blue-soft text-blue; }
+
   .diff-viewtoggle { @apply flex rounded-[8px] border border-line bg-panel-2 p-[2px]; }
   .diff-viewtoggle .sel, .diff-iconbtn.active { @apply bg-panel text-ink shadow-sm; }
   .diff-hidden-note { @apply px-3 py-2 text-[12px] text-dim; }
   .diff-filelist { @apply max-h-[320px] overflow-y-auto p-1; }
+  .diff-filelist-empty { @apply px-3 py-2 text-center text-[12px] text-dim; }
   .diff-fileitem { @apply flex w-full items-center gap-2 rounded-[8px] border-0 bg-transparent px-2 py-[6px] text-left transition-colors duration-100 hover:bg-panel-2; }
   .diff-fileitem-path, .fd-path { @apply min-w-0 flex-1 truncate; }
+
   .filediff { @apply m-3 overflow-hidden rounded-[10px] border border-line bg-panel; }
   .fd-head { @apply flex min-w-0 items-center gap-2 bg-panel px-3 py-2 text-[12px]; }
   .fd-caret { @apply transition-transform; }
@@ -631,20 +648,52 @@
   .fd-glyph-modified, .fd-glyph-renamed, .fd-glyph-copied { @apply bg-blue-soft text-blue; }
   .fd-dir { @apply text-dim; }
   .fd-badge { @apply rounded-full border border-line bg-panel-2 px-[6px] py-[1px] text-[11px] text-dim; }
+  .fd-spacer { @apply flex-1; }
   .fd-body { @apply overflow-x-auto border-t border-line bg-panel font-mono; font-size: var(--code-font-size); }
-  .dl { @apply grid min-w-max; grid-template-columns: 5ch minmax(0, 1fr); }
-  .dl-no { @apply select-none border-r border-line bg-panel-2 px-2 text-right text-dim; }
-  .dl-text, .dls-half { @apply whitespace-pre px-2; }
-  .dl.add .dl-text, .dls-half.add { @apply bg-green-soft text-green; }
-  .dl.del .dl-text, .dls-half.del { @apply bg-red-soft text-red; }
+
+  /* Core diff row grid: marker(18px) + line-number(5ch) + code(flex). The marker is a solid bar for adds, striped for dels */
+  .dl { @apply grid min-w-max; grid-template-columns: 18px 5ch minmax(0, 1fr); }
+  .dl-marker { @apply select-none bg-green; }
+  .dl.del .dl-marker { background: repeating-linear-gradient(45deg, var(--red), var(--red) 2px, transparent 2px, transparent 4px); }
+  .dl-no { @apply select-none border-r border-line bg-panel-2 px-2 text-right text-dim text-[11px]; }
+  .dl-text, .dls-half { @apply whitespace-pre px-2 text-ink; }
+  .dl.add .dl-text, .dls-half.add { @apply bg-green-soft; }
+  .dl.del .dl-text, .dls-half.del { @apply bg-red-soft; }
+  .dl-sign { @apply select-none text-[11px] text-dim px-[3px]; }
   .dl-hunk { @apply border-y border-line bg-blue-soft px-3 py-1 text-blue; }
-  .fd-split .dls { @apply grid min-w-max; grid-template-columns: 5ch minmax(0, 1fr) 5ch minmax(0, 1fr); }
+
+  /* Split-view diff rows: marker + left-line-num + left-code + right-line-num + right-code */
+  .fd-split .dls { @apply grid min-w-max; grid-template-columns: 18px 5ch minmax(0, 1fr) 5ch minmax(0, 1fr); }
+  .fd-split .dls-marker { @apply select-none; }
+  .fd-split .dls-marker.add { @apply bg-green; }
+  .fd-split .dls-marker.del { background: repeating-linear-gradient(45deg, var(--red), var(--red) 2px, transparent 2px, transparent 4px); }
+
+  /* Context gap band: aligns to the diff row grid (marker + number + code) */
+  .fd-gap { @apply grid w-full min-w-max items-center border-0 border-t border-line bg-panel-2 text-[12px] text-dim; grid-template-columns: 18px 5ch minmax(0, 1fr); }
+  .fd-gap:hover { @apply bg-panel-2; }
+  .fd-gap-caret { @apply select-none flex items-center justify-center text-ink font-medium transition-transform; width: 18px; height: 100%; }
+  .fd-gap-label { @apply cursor-pointer px-2 py-2 hover:text-ink; }
+
   .fd-nobody { @apply p-4 text-center text-dim; }
-  .fd-gap { @apply flex w-full items-center gap-2 border-0 border-t border-line bg-panel-2 px-3 py-2 text-[12px] text-dim hover:bg-panel-2; }
+
+  /* Diff skeleton: shimmer placeholders matching the file card and row structure */
   .diff-skeleton { @apply grid gap-3 p-3; }
   .dsk-file { @apply rounded-[10px] border border-line p-3; }
-  .dsk-head, .dsk-row { @apply flex items-center gap-2; }
-  .dsk-bar { @apply h-3; }
+  .dsk-head { @apply flex items-center gap-2; }
+  .dsk-body { @apply mt-2 space-y-1; }
+  .dsk-row { @apply flex items-center gap-2; }
+  .dsk-bar { @apply h-3 animate-pulse bg-line rounded-[2px]; }
+  .dsk-glyph { @apply w-[18px] shrink-0 rounded-[5px]; }
+  .dsk-marker { @apply w-[18px]; }
+  .dsk-path { @apply flex-1; max-width: 60%; }
+  .dsk-counts { @apply w-[60px]; }
+  .dsk-no { @apply w-[4ch]; }
+  .dsk-code { @apply flex-1; }
+
+  /* Line-wrap descendant: when wrap is on, change code from pre-formatted to word-wrapping */
+  .diff-wrap .dl-text, .diff-wrap .dls-half { @apply whitespace-normal; word-break: break-word; }
+
+  .fd-split .fd-nobody { @apply p-4 text-center text-dim; }
 
   .changes-outcome { @apply my-3 rounded-[14px] border border-line bg-panel p-3 text-[13px]; }
   .changes-outcome-title { @apply font-medium; }
