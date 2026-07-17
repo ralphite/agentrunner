@@ -780,6 +780,7 @@
     }
   }
   @media (max-width: 680px) {
+    .menu-trigger { @apply h-11 w-11; }
     .cmdk-back { @apply p-3; padding-top: max(12px, env(safe-area-inset-top)); }
     .cmdk-list { max-height: calc(100dvh - 96px); }
     .cmdk-input { @apply pr-12 text-[16px]; }
