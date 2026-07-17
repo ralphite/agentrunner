@@ -285,11 +285,27 @@ func (r *repeatedFlag) Set(v string) error {
 	return nil
 }
 
+// maxAttachmentBytes caps a single --image/--file attachment. Base64 inflates
+// bytes ~4/3 and every byte is billed as input tokens, so a large file
+// silently balloons cost and can blow the provider's request limit (QA Wave2
+// frank-02). 5 MiB is comfortably above real screenshots/PDFs while refusing
+// an accidental multi-hundred-MB attach up front with a clear message.
+const maxAttachmentBytes = 5 << 20
+
+// readAttachment reads one attachment file, enforcing the size cap.
+func readAttachment(path string) ([]byte, error) {
+	if fi, err := os.Stat(path); err == nil && fi.Size() > maxAttachmentBytes {
+		return nil, fmt.Errorf("%s is %d bytes, over the %d-byte (%d MiB) attachment limit — shrink or split it",
+			path, fi.Size(), int64(maxAttachmentBytes), maxAttachmentBytes>>20)
+	}
+	return os.ReadFile(path)
+}
+
 // loadImageAttachments reads each image file and sniffs its media type.
 func loadImageAttachments(paths []string) ([]protocol.ImageAttachment, error) {
 	var out []protocol.ImageAttachment
 	for _, path := range paths {
-		data, err := os.ReadFile(path)
+		data, err := readAttachment(path)
 		if err != nil {
 			return nil, err
 		}
@@ -309,7 +325,7 @@ func loadImageAttachments(paths []string) ([]protocol.ImageAttachment, error) {
 func loadFileAttachments(paths []string) ([]protocol.FileAttachment, error) {
 	var out []protocol.FileAttachment
 	for _, path := range paths {
-		data, err := os.ReadFile(path)
+		data, err := readAttachment(path)
 		if err != nil {
 			return nil, err
 		}
