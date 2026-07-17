@@ -247,9 +247,9 @@
   .sidebar-close { @apply hidden h-[30px] w-[30px] place-items-center rounded-[8px] border-0 bg-transparent p-0 text-ink-2 hover:bg-panel-2 hover:text-ink; }
   .primary-nav { @apply flex flex-col gap-[2px] px-2 pb-2; }
   .primary-nav button, .nav-row {
-    @apply flex h-[40px] items-center gap-2 rounded-[8px] border-0 bg-transparent px-3 text-left text-[15px] font-medium text-ink-2 transition-colors duration-100 hover:bg-panel-2 hover:text-ink;
+    @apply flex h-[40px] items-center gap-2 rounded-[8px] border-0 bg-transparent px-3 text-left text-[15px] font-medium text-ink-2 transition-all duration-100 hover:bg-panel-2 hover:text-ink;
   }
-  .primary-nav button.active { @apply bg-panel-2 text-ink font-semibold; }
+  .primary-nav button.active { @apply bg-panel-2 text-ink font-semibold shadow-sm; }
   .nav-kbd, .menu-kbd { @apply ml-auto rounded-[5px] border border-line px-[5px] py-[1px] text-[10.5px] text-dim; }
   .nav-notice, .sched-unread {
     @apply ml-auto h-[7px] w-[7px] rounded-full bg-status-running;
