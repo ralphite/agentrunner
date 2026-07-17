@@ -65,7 +65,15 @@ func hookCreateCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, `usage: agentrunner hook create <session-id-or-prefix> [--name ci]`)
 		return ExitUsage
 	}
-	session := resolvePrefixLenient(rest[0])
+	// Validate the session exists BEFORE minting a hook: a lenient resolve
+	// would happily create a hook bound to a nonexistent session, which then
+	// fails delivery with a misleading 502 "could not be resumed" (QA Wave3
+	// judy-02). Refuse up front with the canonical not-found.
+	session, aerr := resolveAddress(rest[0])
+	if aerr != nil {
+		fmt.Fprintf(stderr, "agentrunner: %v\n", aerr)
+		return ExitUsage
+	}
 	hk, token, err := daemon.CreateHook(hooksPath(), session, *name)
 	if err != nil {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
