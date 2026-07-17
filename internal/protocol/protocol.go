@@ -20,6 +20,7 @@ const (
 	KindGenerationStart Kind = "generation_start"
 	KindTextDelta       Kind = "text_delta" // ephemeral: streamed assistant text
 	KindMessage         Kind = "message"    // durable: the assembled assistant text
+	KindUserInput       Kind = "user_input" // durable: a user/inbound message (shown in replay so history has both halves)
 	KindToolCall        Kind = "tool_call"
 	KindToolResult      Kind = "tool_result"
 	KindApprovalRequest Kind = "approval_request"
