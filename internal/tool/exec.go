@@ -50,6 +50,14 @@ func errResult(format string, args ...any) Result {
 	return Result{Payload: msg, IsError: true}
 }
 
+// DisabledToolResult is the model-visible error for a tool call whose name the
+// agent's spec never enabled. The spec's tools: face was advisory-only —
+// dispatch ran any registered tool regardless (QA Wave2 bob-01/heidi-03) — so
+// the loop uses this to refuse an un-advertised call as defense-in-depth.
+func DisabledToolResult(name string) Result {
+	return errResult("tool %q is not enabled for this agent (add it to the spec's tools: to allow it)", name)
+}
+
 func okResult(v any) Result {
 	payload, _ := json.Marshal(v)
 	return Result{Payload: payload}
