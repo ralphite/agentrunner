@@ -107,9 +107,16 @@ func artifactsList(s state.State, as *store.ArtifactStore, jsonOut bool, stdout 
 func artifactsRead(s state.State, as *store.ArtifactStore, spec string, stdout, stderr io.Writer) int {
 	stream, version := spec, 0
 	if at := strings.LastIndex(spec, "@v"); at > 0 {
-		if n, err := strconv.Atoi(spec[at+2:]); err == nil {
-			stream, version = spec[:at], n
+		// Parse the version strictly and consistently: a non-numeric (@vabc),
+		// zero (@v0), or negative (@v-1) suffix used to each behave differently
+		// — literal stream name, silent latest, and range error respectively
+		// (QA Wave3 ivan-03). All are now one clear error; omit @vN for latest.
+		n, err := strconv.Atoi(spec[at+2:])
+		if err != nil || n < 1 {
+			fmt.Fprintf(stderr, "agentrunner: bad version in %q — use <stream>@vN with N ≥ 1, or omit @vN for the latest\n", spec)
+			return ExitUsage
 		}
+		stream, version = spec[:at], n
 	}
 	latest, ok := s.Session.Published[stream]
 	if !ok {
