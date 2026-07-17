@@ -196,7 +196,7 @@
   button:active { @apply scale-95; }
   button:disabled { @apply cursor-default opacity-50 text-ink-2; }
   input, textarea, select {
-    @apply rounded-[8px] border border-line bg-panel px-[9px] py-[7px] text-ink transition-all duration-100;
+    @apply rounded-[8px] border border-line bg-panel px-[9px] py-[7px] text-ink transition-all duration-100 hover:border-dim;
     font: inherit;
   }
   input:focus, textarea:focus, select:focus { @apply border-blue outline-none ring-2 ring-blue/30 ring-offset-0; }
