@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 import { TimelineView, mergeAdjacentChips } from "./Timeline";
-import type { BubbleItem, ChipItem, TimelineItem } from "../timeline";
+import type { BubbleItem, TimelineItem } from "../timeline";
 
 afterEach(cleanup);
 
@@ -11,13 +11,6 @@ const assistant = (key: string, text = "Done."): BubbleItem => ({
   key,
   text,
   ts: "2026-07-11T18:35:00Z",
-});
-const chip = (key: string, text: string, over: Partial<ChipItem> = {}): ChipItem => ({
-  kind: "chip",
-  key,
-  text,
-  tone: "",
-  ...over,
 });
 
 describe("Timeline — layout invariants (Tailwind migration)", () => {
