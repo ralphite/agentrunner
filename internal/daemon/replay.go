@@ -45,8 +45,15 @@ func ReplayJournal(sessionDir string, sink protocol.Sink) error {
 			if text == "" {
 				text = textFromParts(p.Content)
 			}
-			if text == "" && (len(p.Images) > 0 || len(p.Files) > 0) {
-				text = fmt.Sprintf("[%d image(s), %d file(s)]", len(p.Images), len(p.Files))
+			// Always surface attachments — a message with both a caption and an
+			// image otherwise hid the attachment entirely (QA Wave3 frank-01).
+			if n := len(p.Images) + len(p.Files); n > 0 {
+				tag := fmt.Sprintf("[+%d image(s), %d file(s)]", len(p.Images), len(p.Files))
+				if text == "" {
+					text = tag
+				} else {
+					text += " " + tag
+				}
 			}
 			// Tag non-user (machine/hook) inputs by source; the renderer uses
 			// the Tool field as that tag.
