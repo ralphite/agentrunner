@@ -99,6 +99,18 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /api/runs/{rid}/stream", s.handleRunStream)
 	mux.HandleFunc("POST /api/runs/{rid}/stop", s.handleRunStop)
 
+	// Unknown /api/* paths (or a known path hit with the wrong method) must
+	// NOT fall through to the SPA catch-all below — returning 200 text/html for
+	// an API call silently masks client bugs (QA Wave1 carol-01/dave-08). This
+	// subtree handler is more specific than "/", so it only fires when no exact
+	// API route matched; answer with a JSON 404 the frontend can act on.
+	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusNotFound, map[string]string{
+			"error": fmt.Sprintf("no such API endpoint: %s %s", r.Method, r.URL.Path),
+			"code":  "unknown_endpoint",
+		})
+	})
+
 	// ---- static SPA ----
 	mux.Handle("/", staticHandler())
 	return mux

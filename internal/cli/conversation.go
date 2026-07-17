@@ -49,7 +49,7 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, `usage: agentrunner new [flags] <spec.yaml> "opening message"  (message may be piped via stdin)`)
 		return ExitUsage
 	}
-	if rest[1] == "" {
+	if strings.TrimSpace(rest[1]) == "" {
 		fmt.Fprintln(stderr, "agentrunner: new needs a non-empty opening message")
 		return ExitUsage
 	}
@@ -67,8 +67,17 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 	// run: with --detach the client leaves at RunStart, so a daemon-side
 	// early failure would otherwise mint a session id for a run that never
 	// lands on disk — a ghost session (QA Round1 F-A02).
-	if _, err := agent.LoadSpec(specPath); err != nil {
+	loadedSpec, err := agent.LoadSpec(specPath)
+	if err != nil {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+		return ExitUsage
+	}
+	// Reject an unknown provider up front, exactly like `ar run` does: otherwise
+	// the daemon mints a session id, prints it, then fails at provider
+	// construction — a phantom session plus a misleading exit 0 (QA Wave1
+	// dave-01). Validating here keeps the spec-error contract (exit 2, no ghost).
+	if !knownProviderName(loadedSpec.Model.Provider) {
+		fmt.Fprintf(stderr, "agentrunner: unknown provider %q (available: gemini, anthropic, scripted)\n", loadedSpec.Model.Provider)
 		return ExitUsage
 	}
 	if st, err := os.Stat(wsAbs); err != nil || !st.IsDir() {
@@ -237,7 +246,19 @@ func sendCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 		return ExitUsage
 	}
-	cmd := daemon.Command{Cmd: "send", Session: resolvePrefixLenient(rest[0]),
+	if strings.TrimSpace(rest[1]) == "" && len(images) == 0 && len(files) == 0 {
+		// Reject a whitespace-only message the same way `new` rejects an empty
+		// opening message (QA Wave1 alice-01): a blank send would otherwise burn
+		// a real turn on empty content. Attachments make a blank caption fine.
+		fmt.Fprintln(stderr, "agentrunner: send needs a non-empty message (or an --image/--file attachment)")
+		return ExitUsage
+	}
+	addr, aerr := resolveAddress(rest[0])
+	if aerr != nil {
+		fmt.Fprintf(stderr, "agentrunner: %v\n", aerr)
+		return ExitUsage
+	}
+	cmd := daemon.Command{Cmd: "send", Session: addr,
 		Text: rest[1], Images: images, Files: files, CommandID: event.NewCommandID(),
 		Principal: "local-user", Source: "cli", Trust: "local"}
 	if *steer {
@@ -335,7 +356,12 @@ func stopCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "usage: agentrunner stop <session-id-or-prefix>")
 		return ExitUsage
 	}
-	code := oneShot(stderr, daemon.Command{Cmd: "stop", Session: resolvePrefixLenient(args[0])}, stdout)
+	addr, aerr := resolveAddress(args[0])
+	if aerr != nil {
+		fmt.Fprintf(stderr, "agentrunner: %v\n", aerr)
+		return ExitUsage
+	}
+	code := oneShot(stderr, daemon.Command{Cmd: "stop", Session: addr}, stdout)
 	if code != ExitOK {
 		stuckHint(stderr, args[0])
 	}
@@ -599,6 +625,27 @@ func resolvePrefixLenient(prefix string) string {
 		return filepath.Base(dir)
 	}
 	return prefix
+}
+
+// resolveAddress resolves a session prefix to its full address, erroring when
+// nothing on disk matches. Unlike resolvePrefixLenient it does NOT pass an
+// unknown prefix through to the daemon — a send/stop to a session that has no
+// journal is a "no session matches" not-found (canonical wording, so the webui
+// maps it to a 404 like inspect/close do — QA Wave1 carol-02/dave-09), not a
+// daemon-side revive failure surfaced as a 502. A session that exists on disk
+// but isn't hosted still resolves here, so the daemon-restart revive path is
+// unaffected.
+func resolveAddress(prefix string) (string, error) {
+	dir, err := resolveSessionDir(prefix)
+	if err != nil {
+		return "", err
+	}
+	// A child (tree) address must pass through verbatim — its dir basename is
+	// only the last hop (mirrors resolvePrefixLenient).
+	if filepath.Base(filepath.Dir(dir)) == "sub" {
+		return prefix, nil
+	}
+	return filepath.Base(dir), nil
 }
 
 // oneShot sends a request/reply command and prints the daemon's single reply.

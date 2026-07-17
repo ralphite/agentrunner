@@ -35,6 +35,18 @@ type providerFactory func(ctx context.Context, name string) (provider.Provider, 
 // provider construction failure (exit 1, e.g. missing credentials).
 var errUnknownProvider = errors.New("unknown provider")
 
+// knownProviderName reports whether name is a provider the CLI can construct.
+// Kept in lock-step with defaultProviderFactory's switch so callers (e.g.
+// `ar new`) can reject an unknown provider before minting a session.
+func knownProviderName(name string) bool {
+	switch name {
+	case "gemini", "anthropic", "scripted":
+		return true
+	default:
+		return false
+	}
+}
+
 func defaultProviderFactory(ctx context.Context, name string) (provider.Provider, error) {
 	switch name {
 	case "gemini":
