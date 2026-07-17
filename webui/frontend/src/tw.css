@@ -188,17 +188,18 @@
     line-height: 1.6;
   }
   button {
-    @apply rounded-[8px] border border-line bg-panel px-[11px] py-[5px] text-ink transition-colors duration-[120ms];
+    @apply rounded-[8px] border border-line bg-panel px-[11px] py-[5px] text-ink transition-colors duration-100;
     font: inherit;
     cursor: pointer;
   }
   button:hover { @apply border-dim bg-panel-2; }
+  button:active { @apply bg-panel border-dim; }
   button:disabled { @apply cursor-default opacity-45; }
   input, textarea, select {
-    @apply rounded-[8px] border border-line bg-panel px-[9px] py-[7px] text-ink;
+    @apply rounded-[8px] border border-line bg-panel px-[9px] py-[7px] text-ink transition-colors duration-100;
     font: inherit;
   }
-  input:focus, textarea:focus, select:focus { @apply border-blue outline-none; }
+  input:focus, textarea:focus, select:focus { @apply border-blue outline-none ring-1 ring-blue ring-offset-0; }
   :where(button, a, input, textarea, select, [tabindex]):focus-visible {
     @apply outline outline-2 outline-offset-2 outline-blue;
   }
@@ -246,9 +247,9 @@
   .sidebar-close { @apply hidden h-[30px] w-[30px] place-items-center rounded-[8px] border-0 bg-transparent p-0 text-ink-2 hover:bg-panel-2 hover:text-ink; }
   .primary-nav { @apply flex flex-col gap-[2px] px-2 pb-2; }
   .primary-nav button, .nav-row {
-    @apply flex h-[40px] items-center gap-2 rounded-[8px] border-0 bg-transparent px-3 text-left text-[15px] font-medium text-ink-2 hover:bg-panel-2 hover:text-ink;
+    @apply flex h-[40px] items-center gap-2 rounded-[8px] border-0 bg-transparent px-3 text-left text-[15px] font-medium text-ink-2 transition-colors duration-100 hover:bg-panel-2 hover:text-ink;
   }
-  .primary-nav button.active { @apply bg-panel-2 text-ink; }
+  .primary-nav button.active { @apply bg-panel-2 text-ink font-semibold; }
   .nav-kbd, .menu-kbd { @apply ml-auto rounded-[5px] border border-line px-[5px] py-[1px] text-[10.5px] text-dim; }
   .nav-notice, .sched-unread {
     @apply ml-auto h-[7px] w-[7px] rounded-full bg-status-running;
