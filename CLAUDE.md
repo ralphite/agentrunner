@@ -56,6 +56,71 @@
   主 provider Gemini、次 Anthropic。
 - 一步完成的标准：`./scripts/check.sh` 全绿 + 相关文档行齐活。
 
+## 测试环境与 CI/CD
+
+### GitHub Actions 预置环境（推荐用于黑盒测试）
+
+**优势**：GitHub Actions runners 上已配置 GEMINI_API_KEY 和 ANTHROPIC_API_KEY，
+无需本地 .env 配置，直接可运行包含 agent turn 的真实功能测试。
+
+**可用 Workflows**（repo Settings → Actions 查看或从代码 dispatch）：
+
+1. **qa-blackbox** — 黑盒 UI 测试（推荐用于 Tailwind 迁移/UI parity 验证）
+   - 路径：`.github/workflows/qa-blackbox.yml`
+   - 启动方式：GitHub Actions → qa-blackbox → Run workflow
+   - 功能：真浏览器驱动真 webui，真 Gemini turn，验收标准：无 console 错误、无内部错误、无横向溢出，全程截图
+   - 输出：artifacts/blackbox-run/（findings.json + 截图 + 日志）
+   - 时长：~30 分钟
+   - 环境变量：自动加载 GEMINI_API_KEY（secrets）
+
+2. **phone-webui** — 移动端远程驾驶（Tailscale 穿透）
+   - 路径：`.github/workflows/phone-webui.yml`
+   - 启动：Actions → phone-webui → Run workflow，或自动每 30 分钟启动一次
+   - 功能：启动 arwebui，通过 Tailscale 暴露给手机/Mac，会话数据跨 run 延续
+   - 入参：minutes（30-340），smoke（仅构建+健康检查）
+   - 所需 secrets：TS_AUTHKEY（可选），GEMINI_API_KEY/ANTHROPIC_API_KEY
+   - 用例：长时间交互式测试，无需本地 API key
+
+3. **release** — 生产构建 + smoke 测试
+   - 路径：`.github/workflows/release.yml`
+   - 触发：push tag v*（自动），或 Actions 手动 dispatch
+   - 功能：跨平台打包（linux-x86_64/arm64、macos-arm64/x86_64）+ 安装脚本验证
+   - 输出：GitHub Release assets + installer 验证
+
+### 如何启用 Secrets（一次性配置）
+
+1. repo 主页 → Settings → Secrets and variables → Actions
+2. 新增 secrets：
+   - `GEMINI_API_KEY`：从 Google AI Studio 获取（首选 provider）
+   - `ANTHROPIC_API_KEY`：Anthropic console（备用 provider）
+   - `TS_AUTHKEY`：Tailscale admin console → Settings → Keys（phone-webui 远程用）
+3. 保存后 workflows 自动可访问，不会在日志中泄漏
+
+### 与本地开发的协作模式
+
+| 场景 | 推荐做法 |
+|------|--------|
+| 快速原型 + 单元测试 | 本地开发（`npm run dev` + `go run`） |
+| UI parity 验证（Tailwind 迁移等） | **GitHub Actions qa-blackbox**（真浏览器 + 真 API） |
+| 长交互式会话验证 | **phone-webui**（Tailscale 穿透到手机） |
+| 集成测试 + agent turn | **GitHub Actions qa-blackbox** 或本地 + GEMINI_API_KEY |
+| 发布前全量验证 | **release workflow**（smoke 三腿） |
+
+### 本地快速启动模板
+
+若本地有 GEMINI_API_KEY，启动完整栈：
+```bash
+# 1. 构建
+go build -o bin/ar ./cmd/agentrunner
+(cd webui/frontend && npm ci && npm run build)
+(cd webui && go build -o ../bin/arwebui .)
+
+# 2. 启动
+export GEMINI_API_KEY="$(cat ~/.env | grep GEMINI_API_KEY | cut -d= -f2)"
+./bin/arwebui -ar "$PWD/bin/ar" -addr 127.0.0.1:8788
+# 访问 http://localhost:8788
+```
+
 ## 历史归档
 
 - `docs/archive/` 存已完成计划（v1 S1–S7、v2 M1–M5）与旧审查件，
