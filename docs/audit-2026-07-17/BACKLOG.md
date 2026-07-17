@@ -45,8 +45,9 @@
   SPEC.md:124、DESIGN §17 #6）。
 - [x] **B4** G26 `ar inspect` children 按 call_id 去重（S，
   GAPS.md:459-461；webui 已做，收 CLI/契约侧）。
-- [ ] **B5** web_fetch host allowlist（S，SPEC.md:89 "S1 待裁"，
-  GAPS.md:283——若裁决需用户输入则 BLOCKED 记录裁点）。
+- [x] **B5** web_fetch host allowlist——核查发现 S1 **已有在案裁定**
+  （LOG 2026-07-09:backlog,留待 G11 云形态),不实现,仅对齐 SPEC/
+  GAPS 过时"待裁"措辞;allowlist 本体随 E2(G11) 重新立项。
 - [ ] **B6** webui SettingsConfiguration "Not surfaced" 接线（S-M）：
   daemon/webui `/health`（或专用只读端点）暴露 approval policy 与
   sandbox 现状，前端渲染真实值（SettingsConfiguration.tsx:57-62）。
@@ -114,4 +115,6 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
 - 2026-07-17 · B3 · daemon boot 孤儿 bash 进程组清扫(标记+init-parent
   双证据,Linux/darwin) · 9b10ccc(经 rebase,原 9610ff5) · 完成。
 - 2026-07-17 · B4 · inspect children 源头按 session/call_id 去重取最新,
-  G26 关闭 · 本 commit · 完成。
+  G26 关闭 · c5de9c1 · 完成。
+- 2026-07-17 · B5 · host allowlist 裁决对账(已裁 backlog,不实现),
+  SPEC/GAPS 措辞对齐,G16 收口 · 本 commit · 完成。

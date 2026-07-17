@@ -190,12 +190,13 @@ consult memory"洞我们天然规避（memory 冻结在 prefix，compact 只动
 boundary 后消息，memory 永在——比对方强，记档）。
 → UJ-09
 
-**G16 prompt injection 威胁模型成文 — 🟡 条款已成文(2026-07-17)，余项 host allowlist**
+**G16 prompt injection 威胁模型成文 — ✅ 已收(2026-07-17):条款成文+定界符落地;allowlist 已裁 backlog**
 统一信任分级条款已成文 DESIGN §5"prompt injection 威胁模型"（四级
 来源分级 + 硬防线/软标记不得混记 + "内容说了算不存在"红线；纯成文
 无行为变更，audit-2026-07-17 BACKLOG B1）。BEGIN/END 定界符已落
 web_fetch content 文本内（B2，TestWebFetch* 锚；软标记，不计安全
-预算）。
+预算）。host allowlist 非开放项——LOG 2026-07-09 INC-5 安全 review
+S1 已裁定 backlog（留待 G11 云形态需求），SPEC 措辞已对齐。
 硬防线（沙箱/凭据/权限）✅。原登记：
 **web_fetch 面已落硬控(INC-5 安全 review)**:egress 需审批(execute-class,
 不静默出网)、link-local/metadata 封禁堵 exfil-to-metadata、重定向逐跳

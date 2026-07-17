@@ -4101,3 +4101,13 @@ session(缺则 call_id)去重、首现保位、最新 settlement 胜——与 we
 dedupeInspectNodes 完全同契约,前端去重退化为保险。journal 本身不变
 (每次 settlement 一条事件是对的,那是审计事实;去重是"视图"义务)。
 锚:TestInspectChildrenDedupedAcrossRevive。
+
+## 2026-07-17 · audit-0717.B5:host allowlist 裁决对账(非实现)
+
+BACKLOG B5 核查发现 SPEC.md web_fetch 行"S1 待裁/backlog"措辞过时:
+LOG 2026-07-09(INC-5 安全 review)已裁定——单机 dev 威胁模型下
+execute 审批+审批面 URL 可见是可辩护弱替代,spec 级 host allowlist
+记 backlog、与 PermissionRule.Host/私网开关一并留待 G11 云形态需求。
+故 B5 不实现(避免推翻在案裁决),仅把 SPEC/GAPS 措辞对齐至裁定;
+G16 随之收口(条款成文+定界符+allowlist 已裁三件齐)。allowlist
+本体在 G11 云形态增量里重新立项。
