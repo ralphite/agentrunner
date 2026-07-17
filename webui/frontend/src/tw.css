@@ -675,6 +675,7 @@
   .field input, .field textarea, .field select { @apply w-full; }
   .pill { @apply inline-flex items-center rounded-full border border-line bg-panel-2 px-2 py-[2px] text-[11px] text-dim; }
   .seg { @apply flex rounded-[8px] border border-line bg-panel-2 p-[2px]; }
+  .seg button { @apply transition-all duration-100; }
   .seg button.on { @apply bg-panel text-ink shadow-sm; }
   .rd-grid, .session-grid { @apply grid gap-3; }
   .rd-section, .session-card, .advanced-settings { @apply rounded-[12px] border border-line bg-panel p-3; }
