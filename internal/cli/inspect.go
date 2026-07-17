@@ -230,7 +230,36 @@ func buildInspectTree(dir string) (inspectReport, error) {
 			})
 		}
 	}
+	report.Children = dedupeChildren(report.Children)
 	return report, nil
+}
+
+// dedupeChildren keeps one entry per child, keyed by session (else call_id):
+// a revived child journals one SubagentCompleted per settlement, so the same
+// child shows up once per revival. First appearance keeps its position, the
+// LATEST settlement wins the content — the freshest status is the true one
+// (G26; the same contract as webui dedupeInspectNodes).
+func dedupeChildren(refs []childReportRef) []childReportRef {
+	order := make([]string, 0, len(refs))
+	latest := make(map[string]childReportRef, len(refs))
+	for i, ref := range refs {
+		key := ref.Session
+		if key == "" {
+			key = ref.CallID
+		}
+		if key == "" {
+			key = fmt.Sprintf("anonymous-%d", i)
+		}
+		if _, seen := latest[key]; !seen {
+			order = append(order, key)
+		}
+		latest[key] = ref
+	}
+	out := make([]childReportRef, 0, len(order))
+	for _, key := range order {
+		out = append(out, latest[key])
+	}
+	return out
 }
 
 func isDriverJournal(events []event.Envelope) bool {

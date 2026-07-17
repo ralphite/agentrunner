@@ -43,7 +43,7 @@
   （现为 JSON 兄弟布尔）。
 - [x] **B3** G22c daemon kill -9 孤儿 bash pgid 清扫（S，
   SPEC.md:124、DESIGN §17 #6）。
-- [ ] **B4** G26 `ar inspect` children 按 call_id 去重（S，
+- [x] **B4** G26 `ar inspect` children 按 call_id 去重（S，
   GAPS.md:459-461；webui 已做，收 CLI/契约侧）。
 - [ ] **B5** web_fetch host allowlist（S，SPEC.md:89 "S1 待裁"，
   GAPS.md:283——若裁决需用户输入则 BLOCKED 记录裁点）。
@@ -112,4 +112,6 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
 - 2026-07-17 · B2 · web_fetch content BEGIN/END 定界符(软标记入文本)
   · f516993 · 完成。
 - 2026-07-17 · B3 · daemon boot 孤儿 bash 进程组清扫(标记+init-parent
-  双证据,Linux/darwin) · 本 commit · 完成。
+  双证据,Linux/darwin) · 9b10ccc(经 rebase,原 9610ff5) · 完成。
+- 2026-07-17 · B4 · inspect children 源头按 session/call_id 去重取最新,
+  G26 关闭 · 本 commit · 完成。

@@ -4092,3 +4092,12 @@ subreaper 环境自动 skip)/TestParseProcStat/TestParsePSTable。
 deadcode 基线 +1(`internal/tool/orphan.go parsePSTable`):解析器放
 平台无关文件为让测试在 CI(Linux)常跑,调用方 orphan_darwin.go 仅
 darwin 构建可达——linux whole-program 视角误报,非死码。
+
+## 2026-07-17 · audit-0717.B4:inspect children 源头去重(G26 关闭)
+
+revive 的 child 每次 settlement 都 journal 一条 SubagentCompleted,
+`ar inspect` 树把同一 child 显示多次。收口在 buildInspectTree:按
+session(缺则 call_id)去重、首现保位、最新 settlement 胜——与 webui
+dedupeInspectNodes 完全同契约,前端去重退化为保险。journal 本身不变
+(每次 settlement 一条事件是对的,那是审计事实;去重是"视图"义务)。
+锚:TestInspectChildrenDedupedAcrossRevive。

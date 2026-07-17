@@ -177,6 +177,55 @@ func TestBuildInspectTree(t *testing.T) {
 	}
 }
 
+// TestInspectChildrenDedupedAcrossRevive nails G26: a revived child journals
+// one SubagentCompleted per settlement; inspect must show that child ONCE,
+// with the latest settlement's status (same contract as webui).
+func TestInspectChildrenDedupedAcrossRevive(t *testing.T) {
+	dir := t.TempDir()
+	write := func(sub string, evs []event.Envelope) {
+		t.Helper()
+		d := dir
+		if sub != "" {
+			d = filepath.Join(dir, "sub", sub)
+		}
+		es, err := store.OpenEventStore(d)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = es.Close() }()
+		for _, e := range evs {
+			if _, err := es.Append(e); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	write("", []event.Envelope{
+		mkEnv(t, event.TypeSessionStarted, &event.SessionStarted{SpecName: "lead",
+			SubStateVersions: state.SubStateVersions()}),
+		mkEnv(t, event.TypeSubagentCompleted, &event.SubagentCompleted{
+			CallID: "s1", Agent: "worker", ChildSession: "lead-sub-s1-a1",
+			Reason: "killed", GenSteps: 1}),
+		mkEnv(t, event.TypeSubagentCompleted, &event.SubagentCompleted{
+			CallID: "s1", Agent: "worker", ChildSession: "lead-sub-s1-a1",
+			Reason: "completed", GenSteps: 3}),
+	})
+	write("s1-a1", []event.Envelope{
+		mkEnv(t, event.TypeSessionStarted, &event.SessionStarted{SpecName: "worker",
+			SubStateVersions: state.SubStateVersions()}),
+	})
+
+	report, err := buildInspectTree(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Children) != 1 {
+		t.Fatalf("children = %d, want 1 after dedupe: %+v", len(report.Children), report.Children)
+	}
+	if got := report.Children[0].Reason; got != "completed" {
+		t.Errorf("reason = %q, want the LATEST settlement %q", got, "completed")
+	}
+}
+
 func TestBuildInspectTreeUsesDriverFold(t *testing.T) {
 	dir := t.TempDir()
 	es, err := store.OpenEventStore(dir)

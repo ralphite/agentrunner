@@ -463,9 +463,12 @@ TestSpawnReplacesCancelsPredecessor/TestSpawnReplacesUnknownHandleIsNoop
 子合法长跑无法与空转区分，须新不变量——留待真实需求）。原文（历史）
 见上段描述。→ UJ-23/18
 
-**G26 `ar inspect` children 含重复条目 — 🟡 实现瑕疵 · 低（INC-23 走查）**
-被 revive 的 child 每次完成都追加一条 children 记录（同一 call_6_0
-出现两次），下游须按 call_id 去重取最新（webui 已做）。→ UJ-23
+**G26 `ar inspect` children 含重复条目 — ✅ 已关闭（audit-0717 B4，2026-07-17）**
+源头收口:`buildInspectTree` 按 session/call_id 去重、保首位、取最新
+settlement(与 webui dedupeInspectNodes 同契约,后者退化为保险)。
+锚 TestInspectChildrenDedupedAcrossRevive。原文:被 revive 的 child
+每次完成都追加一条 children 记录（同一 call_6_0 出现两次），下游须
+按 call_id 去重取最新（webui 已做）。→ UJ-23
 
 **G30 SPEC 弱锚存量燃尽 — 🟡 登记簿债务 · 中（2026-07-10 登记）**
 `scripts/lint-docs.sh` 落地时,存量 31 行 ✅ 功能点的验收锚只写档期名
