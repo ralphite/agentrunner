@@ -96,6 +96,15 @@ func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, err)
 		return ExitRun
 	}
+	// A live daemon already owns the socket: a second foreground start would
+	// only collide on the store/notifier lock and surface a cryptic
+	// "notifier: session locked: held by pid N" (QA Wave3 judy-06). Report it
+	// plainly instead, mirroring --detach's idempotent probe.
+	if conn, derr := net.Dial("unix", sock); derr == nil {
+		_ = conn.Close()
+		fmt.Fprintf(stderr, "daemon already running on %s\n", sock)
+		return ExitOK
+	}
 	broker := daemon.NewApprovalBroker()
 	notifier, notifyTee, err := buildNotifier(ctx, stderr)
 	if err != nil {
