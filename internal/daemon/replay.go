@@ -96,6 +96,17 @@ func ReplayJournal(sessionDir string, sink protocol.Sink) error {
 				sink.Emit(protocol.Event{Kind: protocol.KindToolResult, N: turn,
 					Tool: started.Name, CallID: started.CallID,
 					Result: p.Error.Message, IsError: true})
+			} else if p.Final {
+				// A final NON-tool failure (e.g. the LLM call after retries
+				// exhaust) otherwise replays as silence — attach shows only
+				// generation_start and a reconnecting watcher never learns the
+				// turn failed (QA Wave1 carol-04, Wave2 carol-07/grace-03).
+				// Surface it as an error event, mirroring the live stream.
+				msg := p.Error.Message
+				if p.Error.Class != "" {
+					msg = string(p.Error.Class) + ": " + msg
+				}
+				sink.Emit(protocol.Event{Kind: protocol.KindError, N: turn, Text: msg})
 			}
 		case *event.ActivityCancelled:
 			if started, ok := toolByActivity[p.ActivityID]; ok {
