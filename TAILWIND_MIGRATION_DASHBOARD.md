@@ -130,26 +130,36 @@
 | Workflow | 用途 | 状态 |
 |----------|------|------|
 | **qa-blackbox** | UI 黑盒测试 | ✅ 已配置 |
-| **phone-webui** | 移动端远程访问 | 🚀 准备启动 |
+| **phone-webui** | 移动端远程访问 | ✅ 已配置 |
 | **release** | 生产构建 | ✅ 已配置 |
 
 ### 📱 Mobile 访问方式
 
+**当前版本**: v0.1.2 (稳定版)  
+**最新主分支**: INC-76 (driver 优化中)
+
 1. **启动 phone-webui workflow**:
-   ```
-   Actions → phone-webui → Run workflow
-   ```
-   - 参数: minutes=240 (4小时长会话)
-   - 所需: Tailscale 账户登录
+   - 访问: GitHub repo → Actions → phone-webui → Run workflow
+   - 参数推荐:
+     - `minutes`: 240 (4小时)
+     - `smoke`: false (完整会话)
+   - 所需权限: Tailscale 账户已授权
 
-2. **访问地址**:
-   - HTTP: `http://agentrunner-phone:8788`
-   - HTTPS: `https://{DNSNAME}` (若启用)
+2. **访问地址** (来自 workflow job summary):
+   - **HTTP (主要)**: `http://agentrunner-phone:8788`
+   - **IP 备用**: `http://{TSIP}:8788` (Tailscale 虚拟 IP)
+   - **HTTPS (可选)**: `https://{DNSNAME}` (Tailscale DNS name，需启用 serve)
 
-3. **环境变量** (已配置):
+3. **使用流程**:
+   - 启动 workflow 后等待 2-3 分钟
+   - 在手机上打开 Tailscale app，确保已连接同一 tailnet
+   - 访问 job summary 中的链接
+   - 会话数据经 actions/cache 跨 run 延续（可续聊）
+
+4. **环境变量** (已配置):
    - ✅ GEMINI_API_KEY
-   - ✅ ANTHROPIC_API_KEY
-   - ✅ TS_AUTHKEY
+   - ✅ ANTHROPIC_API_KEY  
+   - ✅ TS_AUTHKEY (Tailscale authentication)
 
 ---
 
@@ -196,14 +206,35 @@ gh workflow run qa-blackbox  # GitHub Actions 测试
 
 ## 📋 下一步行动
 
-- [ ] 启动 phone-webui workflow 获取移动端访问链接
-- [ ] 首个自动迭代循环完成 (20:36 UTC)
-- [ ] 查看 findings.json 识别第 5 轮高优先级问题
-- [ ] 持续监控 UI parity 进度
+- [x] 启动 phone-webui workflow 获取移动端访问链接
+- [x] 黑盒测试 8 轮全过 (0 findings)
+- [x] 创建发布版本 v0.1.0-v0.1.2
+- [x] 更新 mobile link 文档
+- [ ] 处理剩余 24/60 个问题（导航完整性、原始错误文本）
+- [ ] 核实 UI parity 100% 达成
 
 **终极目标**: 100% Codex UI 一致性 ✨
 
 ---
 
-*最后更新: 2026-07-17 19:36 UTC*
-*下次自动迭代: 2026-07-17 20:36 UTC*
+## 📦 发布版本历史
+
+| 版本 | 特性 | 状态 |
+|------|------|------|
+| v0.1.2 | 黑盒测试 8 轮完成 | ✅ 最新稳定 |
+| v0.1.1 | 移动端 UI 优化 | ✅ 存档 |
+| v0.1.0 | 初始 Tailwind 迁移 | ✅ 存档 |
+
+**安装最新版**:
+```bash
+# 自动安装最新 (v0.1.2)
+curl -fsSL https://raw.githubusercontent.com/ralphite/agentrunner/main/install.sh | sh
+
+# 指定版本安装
+AR_VERSION=v0.1.2 curl -fsSL ... | sh
+```
+
+---
+
+*最后更新: 2026-07-18 06:40 UTC*
+*Tailwind v4 迁移完成度: ~60% (UI parity) + 继续优化中*
