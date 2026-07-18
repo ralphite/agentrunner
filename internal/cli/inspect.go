@@ -413,17 +413,22 @@ func buildInspectReport(events []event.Envelope, s state.State) inspectReport {
 	// Status/Reason are read off the SHAPE (决策 #31): explicit marks and
 	// final provider failures are visible terminal shapes; otherwise
 	// quiescence names the finish.
+	// Check the close/stop MARK before a failure, matching state.Quiescence
+	// (what `ar sessions` uses): a close/stop is a terminal user action, so
+	// an in-flight activity that fails while settling AFTER the close must not
+	// flip the terminal status back to "failed" — that made inspect disagree
+	// with `ar sessions` (QA Wave5 liam-02).
 	status, reason := s.Session.Status, ""
-	if s.Session.Failure != nil {
+	if s.Session.Closed != nil {
+		status, reason = "marked", s.Session.Closed.Reason
+		if s.Session.Closed.Reason == "stopped" {
+			status, reason = "stopped", ""
+		}
+	} else if s.Session.Failure != nil {
 		status = "failed"
 		reason = s.Session.Failure.Class
 		if s.Session.Failure.Message != "" {
 			reason = strings.TrimSpace(reason + ": " + s.Session.Failure.Message)
-		}
-	} else if s.Session.Closed != nil {
-		status, reason = "marked", s.Session.Closed.Reason
-		if s.Session.Closed.Reason == "stopped" {
-			status, reason = "stopped", ""
 		}
 	} else if q, r := state.Quiescence(s); q {
 		if strings.HasPrefix(r, "failed:") {
