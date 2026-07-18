@@ -222,6 +222,12 @@ func (l *Loop) journalInput(ds *driveState, appendE AppendFunc, in protocol.User
 		TurnID: turnID, ItemID: itemID, Content: content, Images: images, Files: files,
 		DeliverySeq: in.DeliverySeq,
 	})
+	if err == nil && in.DeliverySeq > 0 {
+		// This input was consumed into the conversation: the next
+		// generation_start names it, so a concurrent follower scoped on this
+		// seq recognizes the turn as its own (INC-73).
+		ds.pendingInputSeqs = append(ds.pendingInputSeqs, in.DeliverySeq)
+	}
 	return err
 }
 

@@ -229,6 +229,12 @@ type driveState struct {
 	// keeps ConsumedInputSeq monotonic. In-memory only: a crash re-delivers them
 	// from the durable mailbox (they are un-consumed), so nothing is lost.
 	deferredInputs []protocol.UserInput
+	// pendingInputSeqs collects the DeliverySeqs of user inputs journaled since
+	// the last generation_start emit, so the NEXT KindGenerationStart names the
+	// inputs its turn consumes — the anchor a concurrent follower scopes on
+	// (INC-73). Cleared when emitted; a tool-loop continuation gen-step (no new
+	// input) therefore carries none, and the turn's owner set carries over.
+	pendingInputSeqs []int64
 }
 
 // compact renders raw JSON on one line, dropping surrounding whitespace.
@@ -1362,7 +1368,17 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			if err != nil {
 				return RunResult{}, abort(act.turn, err)
 			}
-			l.emit(protocol.Event{Kind: protocol.KindGenerationStart, N: act.turn})
+			// Name the inputs this generation consumes so a concurrent follower
+			// renders only its own turn (INC-73). Empty on a tool-loop
+			// continuation gen-step — the turn's owner set carries over. The
+			// journaled GenerationStarted stays byte-identical (replay is a
+			// single reader that needs no scoping).
+			var turnSeqs []int64
+			if len(ds.pendingInputSeqs) > 0 {
+				turnSeqs = ds.pendingInputSeqs
+				ds.pendingInputSeqs = nil
+			}
+			l.emit(protocol.Event{Kind: protocol.KindGenerationStart, N: act.turn, InputSeqs: turnSeqs})
 			// GenStep boundary: serialize the fold (2.13). The snapshot is an
 			// optimization — losing it costs a longer fold, nothing else.
 			if err := store.WriteSnapshot(l.Store.Dir(), appended.Seq,

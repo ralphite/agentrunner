@@ -182,3 +182,58 @@ func TestGenerationDiscardedOnPartialStreamRetry(t *testing.T) {
 		t.Fatalf("final message = %q", last.Parts[0].Text)
 	}
 }
+
+// TestGenerationStartCarriesInputSeqs pins the INC-73 anchor: the live
+// KindGenerationStart of a turn names the input DeliverySeqs it consumed, and a
+// tool-loop continuation step carries none (its owner carries over). This is
+// what lets a concurrent follower render only its own turn.
+func TestGenerationStartCarriesInputSeqs(t *testing.T) {
+	// Turn 1 answers the opening prompt (seq 0) with a read_file tool loop (so
+	// it spans two gen-steps in ONE turn); turn 2 answers a second input seq 7.
+	if err := os.WriteFile(filepath.Join(t.TempDir(), "unused"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "f.txt"), []byte("hi"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{
+			{ToolCall: &scripted.ToolCallEvent{Name: "read_file", Args: map[string]any{"path": "f.txt"}}},
+			{Finish: "tool_use"}}},
+		{Respond: []scripted.Event{{Text: "reply one"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "reply two"}, {Finish: "end_turn"}}},
+	}}
+	inputs := make(chan protocol.UserInput)
+	l := testLoop(t, fix, root)
+	l.UserInputs = inputs
+	sink := &captureSink{}
+	l.Out = sink
+	go func() {
+		waitAnswers(t, l.Store.Dir(), 2) // turn 1 (2 gen-steps) done
+		inputs <- protocol.UserInput{Text: "second", DeliverySeq: 7}
+		waitAnswers(t, l.Store.Dir(), 3)
+		close(inputs)
+	}()
+	if _, err := l.Run(context.Background(), "first"); err != nil {
+		t.Fatal(err)
+	}
+
+	var starts [][]int64
+	for _, e := range sink.events {
+		if e.Kind == protocol.KindGenerationStart {
+			starts = append(starts, e.InputSeqs)
+		}
+	}
+	// Three gen-steps: turn1 step1 (opening prompt seq 0 → none), turn1 step2
+	// (tool-loop continuation → none), turn2 (seq 7).
+	if len(starts) != 3 {
+		t.Fatalf("gen-starts = %d, want 3: %v", len(starts), starts)
+	}
+	if len(starts[0]) != 0 || len(starts[1]) != 0 {
+		t.Fatalf("turn-1 steps should carry no input seqs: %v", starts[:2])
+	}
+	if len(starts[2]) != 1 || starts[2][0] != 7 {
+		t.Fatalf("turn-2 gen-start InputSeqs = %v, want [7]", starts[2])
+	}
+}
