@@ -71,6 +71,8 @@ for name in lint wiring gotest fe-test webui install; do
     fail=1
     echo "check.sh: $name FAILED — full log:" >&2
     cat "$logdir/$name.log" >&2
+    # 瞬时红也要可追:红腿日志留档到 /tmp(logdir 本身随 trap 清理)。
+    cp "$logdir/$name.log" "/tmp/check-last-red-$name.log" 2>/dev/null || true
   fi
 done
 if (( fail )); then

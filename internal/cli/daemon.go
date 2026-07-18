@@ -21,6 +21,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/config"
 	"github.com/ralphite/agentrunner/internal/daemon"
 	"github.com/ralphite/agentrunner/internal/driver"
+	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/hook"
 	"github.com/ralphite/agentrunner/internal/notify"
@@ -87,8 +88,19 @@ func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 		// the runtime outlives this terminal.
 		return daemonDetach(*httpAddr, stdout, stderr)
 	}
-	ctx, _, stop := signalContext()
+	sigCtx, _, stop := signalContext()
 	defer stop()
+	// A SIGTERM/second-Ctrl-C here is a GRACEFUL HOST SHUTDOWN, not a user
+	// stopping any particular work: re-cancel with the ErrHostShutdown cause
+	// (INC-72, G22b) so loop-mode drivers end without a terminal and the next
+	// boot's drive sweep revives them. The cause rides the ctx tree into
+	// every hosted run.
+	ctx, cancel := context.WithCancelCause(context.Background())
+	defer cancel(nil)
+	go func() {
+		<-sigCtx.Done()
+		cancel(errs.ErrHostShutdown)
+	}()
 	loadDotEnv(".env")
 
 	sock, err := socketPath()

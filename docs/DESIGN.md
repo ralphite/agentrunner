@@ -1450,7 +1450,12 @@ limits:
 - **统一事件族**：`IterationScheduled / Launched / AttemptStarted /
   AttemptCompleted / Completed`、
   `DriverCompleted{reason: satisfied|stalled|max_iterations|budget|
-  stopped|child_failed}`。launch 遵循 journal-before-send；崩溃后的
+  stopped|child_failed}`。**终态的产生者(INC-72,G22b 不变量修订)**:
+  loop-mode(interval/cron/self_paced)系列的终态只由用户显式 stop 或
+  自然终点产生;优雅停机(cause=`ErrHostShutdown`)是无终态
+  teardown——journal 与 crash 同形,boot sweep 经 Driver.Resume 幂等
+  重挂、按 overlap 补跑;bounded(immediate/parallel)系列 shutdown
+  仍落 stopped(无人重挂,记档)。launch 遵循 journal-before-send；崩溃后的
   policy retry 的每个 attempt 都在 parent stream 独立记录 start/completed
   与 usage，逻辑 iteration 仍只在 `IterationCompleted` 结算一次总 usage。
   重发幂等由**纯 fold 检查（st.at(n) 已在 journal 则不重发）+ 确定性

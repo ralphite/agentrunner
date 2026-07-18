@@ -4266,3 +4266,17 @@ ScanStranded(cli 侧判据:SessionStarted 头/尾非 closed/fold==running/
 (stranded 命中,parked/closed/driver 跳过)。B 闸随下次真实 daemon
 重启 QA 集中验,记档。GAPS G22 注 a 关闭(G22 仅余注 b 优雅停机,
 即 BACKLOG D5)。
+
+## 2026-07-18 · INC-72:优雅停机保活 cron(D5,G22b,不变量修订走 §四)
+
+工作纸 archive/increments/INC-72(旧原文/为何动/新表述/波及面/契约
+review 单独成文)。旧语义倒挂:优雅 SIGTERM 让 loop 系列落
+DriverCompleted{stopped} 永久死,kill -9 反而能复活。新不变量:
+loop-mode 终态只由用户 stop 或自然终点产生;shutdown(新 sentinel
+errs.ErrHostShutdown 作 cancel cause,daemonCmd 接线,cause 沿 ctx 树
+传播)是无终态 teardown,与 crash 同形,复用 INC-54 已验重挂/补跑;
+bounded 系列 shutdown 仍落终态(无人重挂,记档)。driver 六个取消
+站点收敛为 cancelTerminal(cause+schedule 判定)。
+锚:TestDriverShutdownCutLeavesNoTerminal(无终态+fold 非 Ended)/
+TestDriverUserStopStillWritesTerminal/TestDriverGoalShutdownStillWritesTerminal;
+既有 boot sweep/补跑测试锚定重挂半边。G22 三注全收,整条关闭。

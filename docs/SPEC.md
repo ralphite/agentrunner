@@ -136,7 +136,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | best-of-N（隔离 worktree、per-attempt 判定、胜者留盘） | ✅ | UJ-16 | S7 · TestDriverParallelBestOfN/TestDriverParallelWorktreeLostFailsAttempt（G30 还锚 audit-0717 C1） |
 | overlap: interrupt | 🧊 | UJ-14 | backlog（与顺序执行同理推迟） |
 | 胜者晋升（fork / apply diff） | 🧊 | UJ-16 | GAPS G15（v0 用户手动晋升，记档） |
-| cron 跨重启唤醒（daemon **crash** 重启：boot sweep 重挂 running loop drive，missed cron slot 按 overlap 恰好补跑一次；durable tick + Driver.Resume backfill，幂等） | ✅ | UJ-14 | INC-54 · TestDriverCronResumeBackfillsMissedTicks/TestDriverCronResumeCoalescesMissedTicks/TestDriverCronResumeIsIdempotent · TestBootSweepResumesPendingDrives/TestBootSweepSkipsMarkedDrive/TestBootSweepSkipsHostedDrive · TestScanDriveSessionsGate · QA(B闸真实 daemon 重启，集中验) · 优雅停机保活 cron 未做（见 GAPS G22 注） |
+| cron 跨重启唤醒（daemon **crash** 重启：boot sweep 重挂 running loop drive，missed cron slot 按 overlap 恰好补跑一次；durable tick + Driver.Resume backfill，幂等） | ✅ | UJ-14 | INC-54 · TestDriverCronResumeBackfillsMissedTicks/TestDriverCronResumeCoalescesMissedTicks/TestDriverCronResumeIsIdempotent · TestBootSweepResumesPendingDrives/TestBootSweepSkipsMarkedDrive/TestBootSweepSkipsHostedDrive · TestScanDriveSessionsGate · QA(B闸真实 daemon 重启，集中验) · 优雅停机保活 cron 已收(INC-72:shutdown cause 无终态 teardown,boot sweep 重挂;TestDriverShutdownCutLeavesNoTerminal/TestDriverUserStopStillWritesTerminal) |
 
 ## G · 时间旅行（barrier / fork / rewind）
 

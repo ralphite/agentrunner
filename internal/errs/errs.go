@@ -47,6 +47,13 @@ var ErrUserInterrupt = New(Canceled, "user interrupt")
 // restartable SessionClosed{stopped} mark instead of looking stranded.
 var ErrSessionStopped = errors.New("session stopped")
 
+// ErrHostShutdown is the cancellation CAUSE for a graceful daemon shutdown
+// (INC-72, G22b): the host is going away, nobody asked the work to end. A
+// loop-mode driver seeing this cause ends WITHOUT a terminal — the same
+// journal shape as a crash — so the next boot's drive sweep re-hosts it; a
+// user stop (ErrSessionStopped) still writes the stopped terminal.
+var ErrHostShutdown = errors.New("host shutting down")
+
 // KilledError is the cancellation CAUSE of an explicit kill (决策 #30): it
 // records WHO asked ("user" via ar kill / the surface, "parent" via the
 // parent model's kill tool), so the dying child journals a

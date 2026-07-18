@@ -3,6 +3,7 @@ package driver
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/agent"
 	"github.com/ralphite/agentrunner/internal/clock"
 	"github.com/ralphite/agentrunner/internal/cron"
+	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/protocol"
@@ -341,7 +343,7 @@ func (d *Driver) drive(ctx context.Context, st *State, appendE appendFunc, start
 	maxIter := d.Spec.maxIterations()
 	for n := startN; ; n++ {
 		if err := ctx.Err(); err != nil {
-			return d.finish(appendE, st, "stopped", n-1)
+			return d.cancelTerminal(ctx, appendE, st, n-1)
 		}
 		if n > maxIter {
 			slog.Debug("driver hit max_iterations", "driver", d.DriverID, "max", maxIter)
@@ -357,7 +359,7 @@ func (d *Driver) drive(ctx context.Context, st *State, appendE appendFunc, start
 			run, terr := d.awaitTick(ctx, appendE, n, n == 1)
 			if terr != nil {
 				if ctx.Err() != nil {
-					return d.finish(appendE, st, "stopped", n-1)
+					return d.cancelTerminal(ctx, appendE, st, n-1)
 				}
 				return Result{}, terr
 			}
@@ -407,7 +409,7 @@ func (d *Driver) drive(ctx context.Context, st *State, appendE appendFunc, start
 				}); err != nil {
 					return Result{}, err
 				}
-				return d.finish(appendE, st, "stopped", n)
+				return d.cancelTerminal(ctx, appendE, st, n)
 			}
 			// The child run failed on its own merits (retries, if any, are
 			// already exhausted inside runIteration). Record the failure as the
@@ -500,7 +502,7 @@ func (d *Driver) driveParallel(ctx context.Context, st *State, appendE appendFun
 	}
 	for n := startN; n <= total; n++ {
 		if err := ctx.Err(); err != nil {
-			return d.finish(appendE, st, "stopped", n-1)
+			return d.cancelTerminal(ctx, appendE, st, n-1)
 		}
 		allowance, ok := d.reserve(st)
 		if !ok {
@@ -560,7 +562,7 @@ func (d *Driver) driveParallel(ctx context.Context, st *State, appendE appendFun
 				return Result{}, err
 			}
 			if ctx.Err() != nil {
-				return d.finish(appendE, st, "stopped", n)
+				return d.cancelTerminal(ctx, appendE, st, n)
 			}
 			continue // a failed attempt is one spent slot; the round goes on
 		}
@@ -865,6 +867,22 @@ func (d *Driver) awaitTick(ctx context.Context, appendE appendFunc, n int, first
 	default:
 		return false, fmt.Errorf("driver: schedule %q has no cadence", d.Spec.schedule())
 	}
+}
+
+// cancelTerminal ends a cancelled series. A graceful host shutdown
+// (cause errs.ErrHostShutdown, INC-72/G22b) ends a loop-mode series WITHOUT
+// a terminal — the journal keeps the crash shape and the next boot's drive
+// sweep re-hosts it. Every other cancel (user stop, agent switch) and every
+// bounded schedule (immediate/parallel — nothing re-hosts those) still
+// writes the stopped terminal.
+func (d *Driver) cancelTerminal(ctx context.Context, appendE appendFunc, st *State, n int) (Result, error) {
+	if errors.Is(context.Cause(ctx), errs.ErrHostShutdown) {
+		switch d.Spec.schedule() {
+		case ScheduleInterval, ScheduleCron, ScheduleSelfPaced:
+			return Result{Reason: "shutdown", Iterations: n, BestIter: st.BestIter}, nil
+		}
+	}
+	return d.finish(appendE, st, "stopped", n)
 }
 
 // finish journals the terminal DriverCompleted and returns the Result. The

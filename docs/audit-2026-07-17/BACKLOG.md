@@ -79,8 +79,8 @@
   复制裁决),对账关闭。
 - [x] **D4** G22a boot 自动接续:INC-71 落地(第三类 boot sweep,
   决策 #29/#30 复用),孪生 4 例,工作纸归档。
-- [ ] **D5** G22b 优雅停机保活 cron（M，**明确走 DESIGN §四不变量
-  变更流程**：driver 终态语义区分 shutdown-teardown 与用户 stop）。
+- [x] **D5** G22b 优雅停机保活 cron:INC-72 落地(§四流程,cause 区分
+  +loop-mode 无终态 teardown),G22 整条关闭。
 - [ ] **D6** G15 best-of-N 胜者晋升（M：fork / apply diff 二选一
   设计 + 冲突处理）。
 - [ ] **D7** G13 SCM/PR 工作流一等公民化（M-L：diff 审阅门→PR→
@@ -145,4 +145,6 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
 - 2026-07-18 · D2+D3 · 均为文档滞后,SPEC/GAPS 对账关闭(无代码) ·
   567020b · 完成。
 - 2026-07-18 · D4/INC-71 · stranded session boot 自动接续,G22a 关闭 ·
-  本 commit · 完成。
+  a287b78 · 完成。
+- 2026-07-18 · D5/INC-72 · 优雅停机保活 cron(§四 不变量修订),G22
+  整条关闭 · 本 commit · 完成。
