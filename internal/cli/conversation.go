@@ -674,11 +674,21 @@ func oneShot(stderr io.Writer, cmd daemon.Command, stdout io.Writer) int {
 		fmt.Fprintln(stderr, err)
 		return ExitRun
 	}
-	var replied, ok bool
+	var replied, ok, notFound bool
 	err = daemon.Dial(sock, cmd, func(e protocol.Event) {
 		replied = true
 		if e.Kind == protocol.KindError {
 			fmt.Fprintf(stderr, "agentrunner: %s\n", e.Text)
+			// A "no session / no live session" verdict is a usage error (a bad
+			// session argument), so exit 2 — consistent with inspect/attach/
+			// resume, which resolve locally. Without this, daemon-routed
+			// commands (close/interrupt/stop/kill/compact/clear/…) exited 1 for
+			// the same condition (QA Wave1 alice-10/cli-life-06).
+			if strings.Contains(e.Text, "no session matches") ||
+				strings.Contains(e.Text, "no live session") ||
+				strings.Contains(e.Text, "could not be resumed") {
+				notFound = true
+			}
 			return
 		}
 		ok = true
@@ -687,6 +697,9 @@ func oneShot(stderr io.Writer, cmd daemon.Command, stdout io.Writer) int {
 	if err != nil {
 		daemonDialErr(stderr, err)
 		return ExitRun
+	}
+	if notFound {
+		return ExitUsage
 	}
 	if !replied || !ok {
 		return ExitRun
