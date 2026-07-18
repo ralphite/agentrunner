@@ -4240,3 +4240,18 @@ INC-70(docs/increments/,未归档=未落地)给出三选项:A 维持在案定案
 user-class 消息 deny 挂起审批+同边界消费,machine/untrusted 不触发,
 WaitRules 增 denied_by_steer);C 并行转向(违 in-doubt 教义,不推荐)。
 推翻 INC-D2/INC-50 定案属人裁,loop 标 BLOCKED 跳过,继续 D2。
+
+## 2026-07-18 · audit-0717.D2+D3:两项"余项"实为文档滞后,对账关闭
+
+核查发现 G2 余项(barrier 对在飞 work 处置)与 G1 余项(blob 归属)
+都在登记之后被实现超越而未回标:
+- D2:DESIGN §13 成文"在飞后台工作处置向量,v0 一律 cancel_at_fork,
+  fork 复制时落实、fold 无 in-doubt",实现 loop.go(全类 handle 记录)
+  + fork.go(合成收尾),锚 TestBarrierRecordsLiveWork/
+  TestCutAppliesCancelAtFork/TestBarrierVectorIncludesChildStreams,
+  revive 侧另有 fork isolation guard(INC-12 review P1)。
+- D3:DESIGN §13 "artifacts CAS 作为随行库 verbatim 复制,超出切面
+  部分是无害 provenance,排除路径天然缺席"即归属语义裁决;输入附件
+  与 artifact 同走 session artifacts store,fork.go:125-128 一并复制,
+  锚 TestCutCopiesBarrierSlice。
+两行 SPEC 🟡→✅ 挂真锚,GAPS G1/G2 余项划掉。无代码改动。

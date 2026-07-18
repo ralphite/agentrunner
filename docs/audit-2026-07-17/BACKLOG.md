@@ -73,9 +73,10 @@
   解栈"的推翻属人裁] G3 唤醒语义:工作纸已备
   `docs/increments/INC-70-approval-park-wake.md`(A 维持记档 / B
   消息=转向式拒批(推荐) / C 不推荐),选定后按纸实施。
-- [ ] **D2** G2 barrier 对在飞 background/child work 的处置语义
-  （M，时间旅行扩展层）。
-- [ ] **D3** G1 多模态 blob 在 fork/rewind 下的归属语义（M）。
+- [x] **D2** G2 barrier 在飞处置——核查为文档滞后(DESIGN §13+S7
+  review P1 已落),对账关闭,无代码改动。
+- [x] **D3** G1 blob 归属——同为文档滞后(DESIGN §13 随行库 verbatim
+  复制裁决),对账关闭。
 - [ ] **D4** G22a 中途崩溃 agent session 自动接续（M，受决策 #30
   标记约束）。
 - [ ] **D5** G22b 优雅停机保活 cron（M，**明确走 DESIGN §四不变量
@@ -140,4 +141,6 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
 - 2026-07-18 · D0/INC-69 · waiting 注册表接线+Discover 删除,G31 关闭
   · e3d74b5 · 完成。
 - 2026-07-18 · D1 · BLOCKED:INC-70 工作纸落草案(A/B/C 选项),等
-  用户裁决 · 本 commit · 跳过继续。
+  用户裁决 · 53be817 · 跳过继续。
+- 2026-07-18 · D2+D3 · 均为文档滞后,SPEC/GAPS 对账关闭(无代码) ·
+  本 commit · 完成。

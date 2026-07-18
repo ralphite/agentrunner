@@ -145,8 +145,8 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | CheckpointBarrier（安全边界/turn 收尾/手动，向量+快照 ref） | ✅ | UJ-15 | S7 · TestBarrierPerTurnAndTerminal/TestBarrierVectorIncludesChildStreams（G30 还锚 audit-0717 C1） |
 | fork（单创世、处置向量落实、随行库复制、独立 worktree） | ✅ | UJ-15 | S7 收口 review 修复 + fork-of-fork 测试 · TestCutOfForkKeepsSingleGenesis/TestCutAppliesCancelAtFork/TestCLIForkRewindsAndContinues（G30 还锚 audit-0717 C1） |
 | rewind（fork 后显式切换） | ✅ | UJ-15 | S7 · TestCLIForkRewindsAndContinues（G30 还锚 audit-0717 C1） |
-| 多模态 blob 在 fork/rewind 下的归属语义 | 🟡 | — | GAPS G1 余项 |
-| barrier 对在飞 background work 的处置语义 | 🟡 | — | GAPS G2 余项 |
+| 多模态 blob 在 fork/rewind 下的归属语义 | ✅ | — | 文档对账(audit-0717 D3):DESIGN §13 早有裁决——artifacts CAS(含输入附件,同一 session store)随行库 verbatim 复制、fork 物理独立、排除路径天然缺席;锚 TestCutCopiesBarrierSlice(Side stores traveled verbatim) |
+| barrier 对在飞 background work 的处置语义 | ✅ | — | 文档对账(audit-0717 D2):DESIGN §13 成文 v0 处置向量=cancel_at_fork、fork 复制时落实、fold 无 in-doubt(S7 出口 review P1 落地);锚 TestBarrierRecordsLiveWork/TestCutAppliesCancelAtFork/TestBarrierVectorIncludesChildStreams |
 
 ## H · 生态接入
 
