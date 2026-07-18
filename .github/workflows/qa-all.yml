@@ -42,13 +42,10 @@ jobs:
           cache: npm
           cache-dependency-path: webui/frontend/package-lock.json
 
-      # bash 工具的 OS 沙箱：bwrap 缺失即 fail-closed，装上并放开
-      # Ubuntu 24 对非特权 userns 的 AppArmor 限制。
-      - name: Install bubblewrap
-        run: |
-          sudo apt-get update -q && sudo apt-get install -y -q bubblewrap
-          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
-          bwrap --version
+      # bash 工具的 OS 沙箱（决策 #34 fail-closed）：一行接入统一配方
+      # （装 bubblewrap + AppArmor userns 放开 + 真实 probe，INC-75）。
+      - name: Setup AgentRunner environment (sandbox deps)
+        uses: ./.github/actions/setup-ar
 
       - name: Build ar + arwebui + frontend
         run: |

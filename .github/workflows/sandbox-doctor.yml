@@ -1,0 +1,36 @@
+# INC-75 gate B（QA-75）：证明 GitHub Actions 环境对 ar 真实可用——
+# setup-ar 一行接入装好 OS 沙箱依赖后，构建 ar 并跑 `ar doctor`：
+# 两档 probe（network=all / network=none）全 OK、退出码 0 才绿。
+# 用途：新环境/镜像升级后的沙箱依赖回归，也是 setup-ar action 的自检。
+name: sandbox-doctor
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  doctor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup AgentRunner environment (sandbox deps)
+        uses: ./.github/actions/setup-ar
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.12"
+          cache: true
+
+      - name: Build ar
+        run: go build -buildvcs=false -o bin/ar ./cmd/agentrunner
+
+      - name: ar doctor
+        run: |
+          bin/ar doctor
+          echo "doctor exit code: $? — sandbox ready for bash/command tools"

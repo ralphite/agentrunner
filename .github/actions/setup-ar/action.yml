@@ -1,0 +1,57 @@
+# INC-75: AgentRunner 环境一行接入。ar 的 bash/command tools 依赖 OS
+# sandbox（决策 #34，fail-closed）——Linux runner 上装 bubblewrap、放开
+# Ubuntu 23.10+ 对非特权 userns 的 AppArmor 限制，并用与
+# internal/tool/sandbox_linux.go 相同的真实 probe 验证。macOS runner
+# 无需动作（Seatbelt 随系统）。可选地经 install.sh 装 ar 本体。
+#
+# 用法（任意 workflow 一行）：
+#   - uses: ralphite/agentrunner/.github/actions/setup-ar@main
+# 或本仓库内：
+#   - uses: ./.github/actions/setup-ar
+name: Setup AgentRunner environment
+description: >-
+  Install and verify the OS sandbox dependency (bubblewrap) required by
+  AgentRunner's bash/command tools; optionally install ar from a release.
+inputs:
+  ar-version:
+    description: >-
+      Release tag to install via install.sh ("" = skip installing ar —
+      e.g. the workflow builds from source; "latest" or a tag like v0.1.0)
+    required: false
+    default: ""
+runs:
+  using: composite
+  steps:
+    - name: Install and verify the OS sandbox (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        if ! command -v bwrap >/dev/null 2>&1; then
+          sudo apt-get update -q
+          sudo apt-get install -y -q bubblewrap
+        fi
+        # Ubuntu 23.10+ images restrict unprivileged user namespaces via
+        # AppArmor; harmless no-op elsewhere.
+        sudo sysctl -qw kernel.apparmor_restrict_unprivileged_userns=0 || true
+        bwrap --version
+        # The exact probe internal/tool/sandbox_linux.go runs (network=none
+        # adds --unshare-net) — PATH presence alone proves nothing.
+        bwrap --ro-bind / / --proc /proc --dev /dev --unshare-pid /bin/true
+        bwrap --ro-bind / / --proc /proc --dev /dev --unshare-pid --unshare-net /bin/true
+        echo "OS sandbox probe OK (network=all + network=none)"
+    - name: Install ar from release
+      if: inputs.ar-version != ''
+      shell: bash
+      env:
+        AR_VERSION: ${{ inputs.ar-version }}
+        AR_REQUIRE_SANDBOX: "1"
+      run: |
+        # Prefer the installer shipped with this action's checkout (repo
+        # root, three levels up); fall back to raw.githubusercontent.com.
+        installer="${GITHUB_ACTION_PATH}/../../../install.sh"
+        if [ -f "$installer" ]; then
+          sh "$installer"
+        else
+          curl -fsSL https://raw.githubusercontent.com/ralphite/agentrunner/main/install.sh | sh
+        fi
+        echo "$HOME/.local/bin" >>"$GITHUB_PATH"

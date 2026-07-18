@@ -14,14 +14,11 @@ jobs:
         with:
           go-version: "1.25.12"
           cache: true
-      - name: Install sandbox backend (bubblewrap)
-        # run #2 教训:runner 无 bwrap → execute-class fail-closed,bash 根本
-        # 不会跑。ubuntu-24.04 另有 apparmor 非特权 userns 限制,先放开再探针。
-        run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq bubblewrap
-          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
-          bwrap --ro-bind / / --proc /proc --dev /dev --unshare-pid /bin/true
-          echo "bwrap probe ok"
+      # run #2 教训:runner 无 bwrap → execute-class fail-closed,bash 根本
+      # 不会跑。统一配方一行接入(INC-75):装 bubblewrap + AppArmor userns
+      # 放开 + 真实 probe。
+      - name: Setup AgentRunner environment (sandbox deps)
+        uses: ./.github/actions/setup-ar
       - name: Build ar
         run: go build -o bin/ar ./cmd/agentrunner
       - name: Run QA-70
