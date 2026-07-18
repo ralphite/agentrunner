@@ -951,3 +951,25 @@ func TestHandleArtifactNotFound(t *testing.T) {
 		t.Fatalf("code=%q, want artifact_not_found", body["code"])
 	}
 }
+
+// TestHandleStreamNotFound pins that the SSE stream endpoint 404s a nonexistent
+// session instead of opening a 200 stream that ends with attach-exited (QA
+// Wave7 pat-02).
+func TestHandleStreamNotFound(t *testing.T) {
+	dir := t.TempDir()
+	arPath := filepath.Join(dir, "ar")
+	// `ar ps <id>` prints "no session matches" for an unknown id (sessionExists
+	// reads that from stderr).
+	script := "#!/bin/sh\nprintf 'agentrunner: no session matches \"%s\"\\n' \"$2\" >&2\nexit 2\n"
+	if err := os.WriteFile(arPath, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	s := &server{arPath: arPath}
+	req := httptest.NewRequest("GET", "/api/sessions/nope-1/stream", nil)
+	req.SetPathValue("sid", "nope-1")
+	rec := httptest.NewRecorder()
+	s.handleStream(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status=%d body=%s, want 404", rec.Code, rec.Body.String())
+	}
+}

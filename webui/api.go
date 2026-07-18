@@ -1055,6 +1055,15 @@ func (s *server) handleStream(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// A nonexistent session must 404 like /inspect and /events, not open a 200
+	// SSE stream that immediately ends with attach-exited — indistinguishable
+	// from a real idle session (QA Wave7 pat-02). Probe before the SSE headers
+	// are written (after which the status is locked to 200).
+	if !s.sessionExists(r.Context(), id) {
+		writeJSON(w, http.StatusNotFound, map[string]string{
+			"error": "session not found: " + id, "code": "session_not_found"})
+		return
+	}
 	fl, canFlush := w.(http.Flusher)
 	if !canFlush {
 		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
