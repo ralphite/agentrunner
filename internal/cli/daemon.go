@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -1199,7 +1200,17 @@ func approveCmd(args []string, stdout, stderr io.Writer) int {
 		Decision: decision, Reason: reason, Remember: remember, CommandID: event.NewCommandID(),
 	}, func(e protocol.Event) {
 		if e.Kind == protocol.KindError {
-			code = ExitRun
+			// A wrong or already-answered approval id, or a session not live to
+			// accept approvals, is a CLIENT error — the UI asked to resolve
+			// something that isn't pending — not a run failure. Exit 2 (usage)
+			// so the webui returns 400 instead of a 502 Bad Gateway (QA Wave6,
+			// re-approve-answered / unknown-id), matching oneShot's yardstick.
+			if strings.Contains(e.Text, "no pending approval") ||
+				strings.Contains(e.Text, "no live session") {
+				code = ExitUsage
+			} else {
+				code = ExitRun
+			}
 		}
 		fmt.Fprintln(stdout, e.Text)
 	})
