@@ -921,3 +921,33 @@ func TestSanitizeStagedPaths(t *testing.T) {
 		t.Fatalf("sibling name lost: %q", got.Stdout)
 	}
 }
+
+// TestHandleArtifactNotFound pins that a missing artifact stream/version is a
+// 404 (resource not found), not the 400 an exit-2 usage error would map to —
+// matching the missing-session 404 (QA Wave7 pat-01).
+func TestHandleArtifactNotFound(t *testing.T) {
+	dir := t.TempDir()
+	arPath := filepath.Join(dir, "ar")
+	// Emit the CLI's stream-not-found error on stderr and exit 2.
+	script := "#!/bin/sh\n" +
+		"printf 'agentrunner: no published artifact stream \"nope\" (try: artifacts list)\\n' >&2\n" +
+		"exit 2\n"
+	if err := os.WriteFile(arPath, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	s := &server{arPath: arPath}
+	req := httptest.NewRequest("GET", "/api/sessions/sess-1/artifact?stream=nope", nil)
+	req.SetPathValue("sid", "sess-1")
+	rec := httptest.NewRecorder()
+	s.handleArtifact(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status=%d body=%s, want 404", rec.Code, rec.Body.String())
+	}
+	var body map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["code"] != "artifact_not_found" {
+		t.Fatalf("code=%q, want artifact_not_found", body["code"])
+	}
+}

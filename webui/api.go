@@ -942,6 +942,17 @@ func (s *server) handleArtifact(w http.ResponseWriter, r *http.Request) {
 	}
 	res := s.runAR(r.Context(), 30*time.Second, "artifacts", id, "read", spec)
 	if res.Err != nil {
+		// A missing stream or version is a resource-not-found (404), like a
+		// missing session — not the 400 arFail would give an exit-2 usage error
+		// (the version format is already validated above) (QA Wave7 pat-01).
+		detail := strings.TrimSpace(res.Stderr)
+		if strings.Contains(detail, "no published artifact stream") ||
+			strings.Contains(detail, "has versions") ||
+			strings.Contains(detail, "is not in the store") {
+			writeJSON(w, http.StatusNotFound, map[string]string{
+				"error": firstMeaningfulLine(detail), "code": "artifact_not_found"})
+			return
+		}
 		arFail(w, "ar artifacts read", res)
 		return
 	}
