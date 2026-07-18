@@ -164,9 +164,12 @@ jobs:
           } > qa/remote-env-url.txt
           git add qa/remote-env-url.txt
           git commit -m "ci: remote-qa-env run ${{ github.run_id }} 隧道 URL [skip ci]"
+          # --autostash:runner 工作区被 npm install/build 弄脏(lock 文件、
+          # dist),裸 rebase 会拒绝并因 bash -e 杀掉整步(QA-0718 run
+          # 29661951206 实翻);|| true 兜底网络抖动,重试循环消化。
           for i in 1 2 3 4 5; do
             git push origin HEAD:main && break
-            git pull --rebase origin main
+            git pull --rebase --autostash origin main || true
             sleep 2
           done
         env:

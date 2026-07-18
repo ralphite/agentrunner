@@ -4740,3 +4740,10 @@ permission gate 判 ask "execute requires approval")+
 G39 改标"已定因,待立 INC";修复面(child 审批浮出/child 可检视/父
 turn 结束后 settle 语义)需 DESIGN 裁决。诊断链路(顶 run→always()
 转储→release asset)全程 ~2 分钟,已成熟可复用。
+
+## 2026-07-18 · QA-0718 第八轮:remote-qa-env URL 发布竞态修复
+
+run 29661951206 在 URL 发布步 fail:push 被并发 main 推进拒绝后,重试
+`git pull --rebase` 因 build 弄脏的工作区(npm lock/dist)拒绝 rebase,
+`bash -e` 直接杀步,driver 从未启动。修:`--autostash` + `|| true`,
+冲突消化交给重试循环。
