@@ -4232,3 +4232,11 @@ Test*/QA-n 形态),用户消息折叠的折叠行为 jsdom 无布局测不了、
   parseFrontmatter/Command/frontmatter(唯一接线前提"列 slash 命令"
   CLI 面无 journey 锚,未来立项按 skill.Discover 活模板重建)。
 - deadcode 基线 16→12,余项全为注记测试基座,G31 关闭。
+
+## 2026-07-18 · audit-0717.D1:G3 唤醒语义工作纸落草案,BLOCKED 待裁
+
+INC-70(docs/increments/,未归档=未落地)给出三选项:A 维持在案定案
+(排队不解栈,SPEC 行转 🧊 记档关闭);B 消息=转向式拒批(推荐:
+user-class 消息 deny 挂起审批+同边界消费,machine/untrusted 不触发,
+WaitRules 增 denied_by_steer);C 并行转向(违 in-doubt 教义,不推荐)。
+推翻 INC-D2/INC-50 定案属人裁,loop 标 BLOCKED 跳过,继续 D2。

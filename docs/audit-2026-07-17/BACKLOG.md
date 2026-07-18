@@ -69,8 +69,10 @@
 
 - [x] **D0** G31-unwired 三件套:INC-69 落地——注册表接线(5 站点
   改读 WaitRules)+ 脚手架/死码删 4,G31 关闭(工作纸已归档)。
-- [ ] **D1** G3 WAITING_APPROVAL 挂起期间消息唤醒语义（M，可能触
-  park/唤醒不变量——工作纸里显式判定，触则走 PROCESS §四）。
+- [ ] **D1** [BLOCKED: 需用户裁决——INC-D2/INC-50 在案定案"排队不
+  解栈"的推翻属人裁] G3 唤醒语义:工作纸已备
+  `docs/increments/INC-70-approval-park-wake.md`(A 维持记档 / B
+  消息=转向式拒批(推荐) / C 不推荐),选定后按纸实施。
 - [ ] **D2** G2 barrier 对在飞 background/child work 的处置语义
   （M，时间旅行扩展层）。
 - [ ] **D3** G1 多模态 blob 在 fork/rewind 下的归属语义（M）。
@@ -136,4 +138,6 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
 - 2026-07-18 · C2 · deadcode 17 项甄别(删 2/注记 10/unwired 3→D0)
   · 9cd689b · 完成。
 - 2026-07-18 · D0/INC-69 · waiting 注册表接线+Discover 删除,G31 关闭
-  · 本 commit · 完成。
+  · e3d74b5 · 完成。
+- 2026-07-18 · D1 · BLOCKED:INC-70 工作纸落草案(A/B/C 选项),等
+  用户裁决 · 本 commit · 跳过继续。
