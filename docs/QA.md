@@ -1394,3 +1394,17 @@ Go 1.26.5 candidate；in-app Browser 390×844 与 1280×900。证据归档
 **结果**：PASS。五枚 finding 全有 before/after，16 张 after 截图；定向 24/24、
 frontend 58 files / 572 tests 全绿。literal session metadata 中 `ios` 匹配为 0，
 因此 `iOS` 作为 390×844 设备视口验收；真实 parent 的三个 child 已全部打开。
+
+---
+
+## QA-69 webui 双锚真浏览器验收（G30 收尾,audit-0717 F1,UJ-04/24）
+
+**状态**:PASS(2026-07-18,脚本 `qa/run-qa69.sh`,证据
+`qa/runs/2026-07-18-QA69/`——截图×3+日志)。
+**环境**:真 Chromium(playwright)+ 真 arwebui + 真 daemon(scripted
+provider——本场景验的是渲染红线,无模型面)。
+**红线**:A. >10 渲染行 user 消息真布局下钳高(.utext.clamped,实测
+220px)、Show more 展开(694px)、Show less 复钳;B. composer Add 菜单
+呈 Add/Plugins/Advanced 三组、根动作 ≥5(实测 10)。
+**为何此前无锚**:折叠判定依赖真实 scrollHeight,jsdom 无布局——
+这正是这两行 SPEC 长期只有档期名锚的原因。

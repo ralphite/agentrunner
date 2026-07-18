@@ -20,7 +20,9 @@ awk -F'|' '/^\|/ && NF>=6 && $3 ~ /✅/ {
   }
 }' docs/SPEC.md | sort >"$tmp/weak"
 
-grep -v '^#' scripts/spec-anchor-debt.txt | grep -v '^[[:space:]]*$' | sort >"$tmp/debt"
+# `|| true`: 基线燃尽到只剩注释时(2026-07-18 G30 清零)grep 空输出
+# 不是错误——pipefail 下没有它,债清零反而炸门。
+{ grep -v '^#' scripts/spec-anchor-debt.txt | grep -v '^[[:space:]]*$' | sort >"$tmp/debt"; } || true
 
 if comm -23 "$tmp/weak" "$tmp/debt" | grep .; then
   echo "lint-docs: SPEC 新增 ✅ 行无可执行锚(Test*/QA-n)——上列各行要么补真锚,要么如实降级状态并挂 GAPS(PROCESS §五)" >&2

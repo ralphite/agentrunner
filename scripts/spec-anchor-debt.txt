@@ -1,4 +1,3 @@
 # lint-docs.sh 基线:SPEC ✅ 行中验收锚未点名 Test*/QA-n 的存量(G30 燃尽,只减不增)。
 # 键 = SPEC 表格行首列全文(trim 后 byte-exact)。每还一行 = 找到真锚或如实降级状态+挂 GAP。
-Web UI progressive-disclosure composer
-Web UI 用户消息折叠（>10 渲染行钳 10lh + Show more/less；按渲染高度测量故 wrap 长行也折叠、ResizeObserver 随宽重测；含 pending 队列气泡；纯前端态、copy 恒全文）
+# 2026-07-18 QA-69 收掉最后两行——存量清零(G30 关闭),本文件仅防回归。

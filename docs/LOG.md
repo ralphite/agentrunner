@@ -4295,3 +4295,14 @@ TestDriverUserStopStillWritesTerminal/TestDriverGoalShutdownStillWritesTerminal;
 - 另:D1(G3 唤醒语义)工作纸 INC-70 三选项仍待裁。
 本轮 audit loop 至此:26 项处置完毕——15 实施落地、4 文档对账关闭、
 1 撤项、6 BLOCKED(其中 5 项列明裁决点等用户,1 项等平台)。
+
+## 2026-07-18 · audit-0717.F1/QA-69:G30 弱锚债清零
+
+新 QA-69(qa/run-qa69.sh + qa69-assert.mjs):真 Chromium + 真 arwebui
++ 真 daemon(scripted provider——渲染红线与模型无关,离线可跑)。
+A 折叠:24 行消息真布局钳高 220px→Show more 694px→Show less 复钳;
+B composer:Add 菜单三组(Add/Plugins/Advanced)10 根动作。踩坑记档:
+①`ar new` 需 daemon;②无 key 时 gemini spec 在 genesis 前失败(journal
+不落),scripted provider 是正解;③SPA 有 SSE 长连,playwright 等
+domcontentloaded 而非 networkidle。SPEC 两行还 QA-69 锚,
+spec-anchor-debt 清零,G30 关闭。

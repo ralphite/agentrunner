@@ -114,10 +114,8 @@
 
 ## 第 5 批 · 续作（用户 2026-07-18 指示:非裁决项持续推进）
 
-- [ ] **F1** G30 残余 2 弱锚收口:新 QA 场景(真浏览器 playwright,
-  容器内可跑)断言 composer progressive-disclosure 菜单与用户消息
-  折叠(>10 行钳高+Show more)——一个脚本双锚,QA.md 登记 QA 号,
-  SPEC 两行还锚,债清零。
+- [x] **F1** QA-69 落地 PASS(真浏览器双锚),SPEC 还锚,
+  spec-anchor-debt 清零,G30 关闭。
 - [ ] **F2** INC-71/72 B 闸:容器内真实 daemon 生命周期 QA——
   mid-turn kill -9 → 重启 boot 自动接续(INC-71);运行中 cron 系列
   SIGTERM 优雅停机 → 重启复活(INC-72);证据归档 qa/runs/。
@@ -176,5 +174,7 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
 - 2026-07-18 · D6 撤项(🧊 在案)/D7 D8 E1 E2 BLOCKED(裁决点已列)/
   D9 BLOCKED(平台不可验证) · d73c5ad · loop 收口。
 - 2026-07-18 · 用户指示:裁决项集中登记(DECISIONS-PENDING.md),
-  非裁决项持续推进——E1 恢复可做,新增第 5 批 F1-F3 · 本 commit ·
+  非裁决项持续推进——E1 恢复可做,新增第 5 批 F1-F3 · 2eccea1 ·
   loop 重启。
+- 2026-07-18 · F1/QA-69 · 真浏览器双锚 PASS,G30 债清零 · 本 commit ·
+  完成。
