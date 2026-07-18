@@ -1,0 +1,1 @@
+spec testdata/spec_errors/missing_agent.yaml: field agents[0]: sub-agent "ghostworker" not found (expected testdata/spec_errors/ghostworker.yaml)

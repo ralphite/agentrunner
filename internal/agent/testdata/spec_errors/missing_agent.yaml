@@ -1,0 +1,5 @@
+name: parent
+model: { provider: gemini, id: gemini-flash-latest }
+system_prompt: coordinate
+tools: [spawn_agent]
+agents: [ghostworker]

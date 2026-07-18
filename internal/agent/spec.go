@@ -226,6 +226,22 @@ func LoadSpec(path string) (*AgentSpec, error) {
 	if spec.AgentWorkspace == "" {
 		spec.AgentWorkspace = "isolated"
 	}
+	// Fail fast on a declared sub-agent whose spec file is missing, instead of
+	// letting the broken reference surface only at spawn time mid-session, after
+	// the config was already accepted and turns spent (QA Wave5 liam-06). Mirror
+	// siblingSpecResolver: a builtin name resolves in-process; otherwise the
+	// child spec must sit next to this one as <name>.yaml.
+	specDir := filepath.Dir(path)
+	for i, name := range spec.Agents {
+		if _, ok := BuiltinSpec(name); ok {
+			continue
+		}
+		sib := filepath.Join(specDir, name+".yaml")
+		if _, err := os.Stat(sib); err != nil {
+			return nil, fmt.Errorf("spec %s: field agents[%d]: sub-agent %q not found (expected %s)",
+				path, i, name, sib)
+		}
+	}
 	return &spec, nil
 }
 
