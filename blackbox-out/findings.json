@@ -1,9 +1,2019 @@
 [
   {
+    "sev": "med",
+    "step": "phone:phone:create-session",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:create-session",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:create-session",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:create-session",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
     "sev": "high",
     "step": "phone:first-turn-completes",
     "what": "step threw",
     "detail": "page.waitForFunction: Timeout 30000ms exceeded."
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "phone:phone:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
   },
   {
     "sev": "high",
@@ -18,10 +2028,1342 @@
     "detail": ""
   },
   {
+    "sev": "med",
+    "step": "desktop:desktop:create-session",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:create-session",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:create-session",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:create-session",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:create-session",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:first-turn-completes",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
     "sev": "high",
     "step": "desktop:first-turn-completes",
     "what": "step threw",
     "detail": "page.waitForFunction: Timeout 30000ms exceeded."
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:follow-up-turn",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
   },
   {
     "sev": "med",
@@ -718,5 +4060,11 @@
     "step": "desktop:diff-view",
     "what": "new session has no retained workspace for Changes QA",
     "detail": ""
+  },
+  {
+    "sev": "med",
+    "step": "desktop:desktop:diff-view",
+    "what": "console.error",
+    "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
   }
 ]
