@@ -1786,4 +1786,14 @@ func TestLoadSpecVerifierKindDefaultsAndValidates(t *testing.T) {
 	if err == nil || strings.Contains(err.Error(), "driver.DriverSpec") || !strings.Contains(err.Error(), "valid top-level driver fields") {
 		t.Fatalf("unknown field error = %v", err)
 	}
+
+	// A negative max_iterations is rejected; 0 (sentinel) and a positive value
+	// both load (QA Wave7 olive-02).
+	_, err = driver.LoadSpec(write("name: d\nprompt: t\nagent_spec: agent.yaml\nmax_iterations: -3\n"))
+	if err == nil || !strings.Contains(err.Error(), "max_iterations") {
+		t.Fatalf("negative max_iterations error = %v", err)
+	}
+	if _, err := driver.LoadSpec(write("name: d\nprompt: t\nagent_spec: agent.yaml\nmax_iterations: 0\n")); err != nil {
+		t.Fatalf("max_iterations 0 (sentinel) should load: %v", err)
+	}
 }

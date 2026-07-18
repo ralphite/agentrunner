@@ -212,6 +212,13 @@ func LoadSpec(path string) (*DriverSpec, error) {
 	if spec.AgentSpecPath == "" {
 		return nil, fail("agent_spec", "required")
 	}
+	// A negative max_iterations is a user error, not a budget: 0 is the
+	// documented "use DefaultMaxIterations" sentinel, but a negative value used
+	// to be silently coerced to the default too (QA Wave7 olive-02) — reject it
+	// like agent.LoadSpec rejects a negative max_generation_steps.
+	if spec.MaxIterations < 0 {
+		return nil, fail("max_iterations", fmt.Sprintf("must be >= 0 (0 = default %d; got %d)", DefaultMaxIterations, spec.MaxIterations))
+	}
 	// Verifier kinds resolve at PARSE time (QA Round2 F-E1: an empty kind
 	// used to fail every check at runtime with the reason buried in
 	// verdict.detail — the loop burned all its iterations in silence). A
