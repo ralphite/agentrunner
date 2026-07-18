@@ -1796,4 +1796,14 @@ func TestLoadSpecVerifierKindDefaultsAndValidates(t *testing.T) {
 	if _, err := driver.LoadSpec(write("name: d\nprompt: t\nagent_spec: agent.yaml\nmax_iterations: 0\n")); err != nil {
 		t.Fatalf("max_iterations 0 (sentinel) should load: %v", err)
 	}
+
+	// n only applies to schedule: parallel — setting it elsewhere is rejected,
+	// not silently ignored (QA Wave8 ravi-04).
+	_, err = driver.LoadSpec(write("name: d\nprompt: t\nagent_spec: agent.yaml\nn: 3\n"))
+	if err == nil || !strings.Contains(err.Error(), "schedule: parallel") {
+		t.Fatalf("n without parallel error = %v", err)
+	}
+	if _, err := driver.LoadSpec(write("name: d\nprompt: t\nagent_spec: agent.yaml\nschedule: parallel\nn: 3\nverifiers:\n  - command: \"true\"\n")); err != nil {
+		t.Fatalf("parallel + n:3 should load: %v", err)
+	}
 }

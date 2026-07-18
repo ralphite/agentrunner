@@ -219,6 +219,13 @@ func LoadSpec(path string) (*DriverSpec, error) {
 	if spec.MaxIterations < 0 {
 		return nil, fail("max_iterations", fmt.Sprintf("must be >= 0 (0 = default %d; got %d)", DefaultMaxIterations, spec.MaxIterations))
 	}
+	// n only means anything under schedule: parallel (best-of-N). Setting it on
+	// any other schedule used to silently run the default loop, ignoring n with
+	// no diagnostic — the reverse (parallel without n>=2) already errors, so the
+	// validation was one-directional (QA Wave8 ravi-04).
+	if spec.N != 0 && spec.schedule() != ScheduleParallel {
+		return nil, fail("n", fmt.Sprintf("only applies to schedule: parallel (best-of-N); schedule is %q — set schedule: parallel or remove n", spec.schedule()))
+	}
 	// Verifier kinds resolve at PARSE time (QA Round2 F-E1: an empty kind
 	// used to fail every check at runtime with the reason buried in
 	// verdict.detail — the loop burned all its iterations in silence). A
