@@ -299,11 +299,14 @@ jobs:
               const comments = await allComments();
               for (const c of comments) {
                 if (c.user?.login !== OWNER_LOGIN) continue;
-                let b = (c.body || "").trim();
-                b = b.replace(/^```(json)?\s*/i, "").replace(/```\s*$/, "").trim();
-                if (!b.startsWith("{")) continue;
+                // 评论可能带 code fence 和客户端自动附加的尾注——取首个 { 到
+                // 最后一个 } 的子串再 parse,而不是整体严格 parse。
+                const b = (c.body || "").trim();
+                const start = b.indexOf("{");
+                const end = b.lastIndexOf("}");
+                if (start === -1 || end <= start) continue;
                 try {
-                  const j = JSON.parse(b);
+                  const j = JSON.parse(b.slice(start, end + 1));
                   if (typeof j.n === "number" && j.n > lastN && Array.isArray(j.steps)) cmds.push(j);
                 } catch {}
               }
