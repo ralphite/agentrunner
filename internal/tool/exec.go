@@ -746,9 +746,21 @@ func (e *Executor) editFile(rawArgs json.RawMessage) Result {
 		Path string `json:"path"`
 		Old  string `json:"old"`
 		New  string `json:"new"`
+		// Accept the Claude-Code Edit convention (old_string/new_string) as
+		// aliases: a model with that muscle memory otherwise had its field
+		// silently dropped, leaving old="" — which edit_file treats as a file
+		// CREATE, not the intended replacement (QA Wave6 mia-02).
+		OldString string `json:"old_string"`
+		NewString string `json:"new_string"`
 	}
 	if err := json.Unmarshal(rawArgs, &args); err != nil || args.Path == "" {
 		return errResult("edit_file: invalid args: need {\"path\", \"old\", \"new\"}")
+	}
+	if args.Old == "" && args.OldString != "" {
+		args.Old = args.OldString
+	}
+	if args.New == "" && args.NewString != "" {
+		args.New = args.NewString
 	}
 	path, err := e.WS.Resolve(args.Path)
 	if err != nil {
