@@ -189,9 +189,10 @@ type Revoke struct {
 // or Goal* event) is what lands in the journal.
 type Control struct {
 	CommandRef
-	Kind      string       `json:"kind"`                // compact | clear | goal_*
-	Directive string       `json:"directive,omitempty"` // optional focus for a compact
-	Goal      *GoalControl `json:"goal,omitempty"`      // payload for goal_attach / goal_update
+	Kind      string           `json:"kind"`                // compact | clear | goal_* | schedule_*
+	Directive string           `json:"directive,omitempty"` // optional focus for a compact
+	Goal      *GoalControl     `json:"goal,omitempty"`      // payload for goal_attach / goal_update
+	Schedule  *ScheduleControl `json:"schedule,omitempty"`  // payload for schedule_attach
 }
 
 // GoalControl carries the parameters of an in-session goal control (INC-D1).
@@ -204,16 +205,30 @@ type GoalControl struct {
 	Budget    *event.GoalBudget    `json:"budget,omitempty"`
 }
 
+// ScheduleControl carries the parameters of an in-session schedule attach
+// (INC-74, E1①): exactly one of Interval (Go duration) or Cron (5-field).
+type ScheduleControl struct {
+	ScheduleID string `json:"schedule_id"`
+	Interval   string `json:"interval,omitempty"`
+	Cron       string `json:"cron,omitempty"`
+	Prompt     string `json:"prompt,omitempty"`
+	MaxWakes   int    `json:"max_wakes,omitempty"` // 0 = unbounded
+}
+
 // Control kinds.
 const (
-	ControlCompact    = "compact"
-	ControlClear      = "clear"
-	ControlRemember   = "remember"
-	ControlMode       = "mode"
-	ControlGoalAttach = "goal_attach"
-	ControlGoalPause  = "goal_pause"
-	ControlGoalResume = "goal_resume"
-	ControlGoalUpdate = "goal_update"
-	ControlGoalCancel = "goal_cancel"
-	ControlClose      = "close"
+	ControlCompact        = "compact"
+	ControlClear          = "clear"
+	ControlRemember       = "remember"
+	ControlMode           = "mode"
+	ControlGoalAttach     = "goal_attach"
+	ControlGoalPause      = "goal_pause"
+	ControlGoalResume     = "goal_resume"
+	ControlGoalUpdate     = "goal_update"
+	ControlGoalCancel     = "goal_cancel"
+	ControlScheduleAttach = "schedule_attach"
+	ControlSchedulePause  = "schedule_pause"
+	ControlScheduleResume = "schedule_resume"
+	ControlScheduleCancel = "schedule_cancel"
+	ControlClose          = "close"
 )

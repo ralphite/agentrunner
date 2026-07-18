@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/ralphite/agentrunner/internal/command"
@@ -424,8 +425,33 @@ func (l *Loop) awaitInput(ctx context.Context, ds *driveState, appendE AppendFun
 		return true, resolve("closed")
 	}
 	l.emit(protocol.Event{Kind: protocol.KindIdle, N: turn})
+	// A pending schedule timer (INC-74) must wake this park even while the
+	// session stays hosted — the daemon timer sweep only resumes UNHOSTED
+	// sessions. Wait on the earliest schedule-purpose timer via the loop
+	// clock; on expiry journal TimerFired and resolve so the safe-point
+	// checkSchedule serves the tick. Activity-timeout timers are never fired
+	// from here — they belong to their live executors.
+	var scheduleFired <-chan struct{}
+	var scheduleTimerID string
+	if tm, ok := earliestScheduleTimer(ds.s); ok {
+		ch := make(chan struct{})
+		waitCtx, cancelWait := context.WithCancel(ctx)
+		defer cancelWait()
+		go func(at time.Time) {
+			if l.Clock.WaitUntil(waitCtx, at) == nil {
+				close(ch)
+			}
+		}(tm.FireAt)
+		scheduleFired = ch
+		scheduleTimerID = tm.TimerID
+	}
 	for {
 		select {
+		case <-scheduleFired:
+			if _, err := appendE(event.TypeTimerFired, &event.TimerFired{TimerID: scheduleTimerID}); err != nil {
+				return false, err
+			}
+			return false, resolve("timer_fired")
 		case in, ok := <-l.UserInputs: // nil channel blocks — settlements still wake
 			if !ok {
 				// Channel closed = the user is done: graceful close.

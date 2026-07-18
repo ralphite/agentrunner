@@ -154,6 +154,14 @@ func TestSendReopensMarkedSession(t *testing.T) {
 	if reply, isErr := sendCmdTo(t, sock, "closed-sess", "hi"); isErr {
 		t.Fatalf("send to marked session refused: %q", reply)
 	}
+	// The hosted resume runs on its own goroutine; under the parallel check
+	// gate it can lag the delivery ack by whole scheduler quanta (audit-0717
+	// F3 discipline: bound the wait, don't turn host contention into a false
+	// product failure).
+	deadline := time.Now().Add(10 * time.Second)
+	for resumed.Load() == 0 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
 	if resumed.Load() == 0 {
 		t.Fatal("marked session was not reopened by the explicit send")
 	}

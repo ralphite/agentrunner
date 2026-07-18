@@ -309,6 +309,13 @@ func (l *Loop) drainControls(ctx context.Context, ds *driveState, appendE Append
 			if err := l.applyGoalControl(ds, ctlAppend, ctl); err != nil {
 				return err
 			}
+		case protocol.ControlScheduleAttach, protocol.ControlSchedulePause,
+			protocol.ControlScheduleResume, protocol.ControlScheduleCancel:
+			// Schedule controls (INC-74): record the change-as-event facts;
+			// checkSchedule right after this drain arms/serves in the same pass.
+			if err := l.applyScheduleControl(ds, ctlAppend, ctl); err != nil {
+				return err
+			}
 		case protocol.ControlClear, protocol.ControlCompact:
 			// Nothing new since the last boundary → the op is a no-op (avoids a
 			// degenerate empty compaction on an idle or freshly-cleared session).

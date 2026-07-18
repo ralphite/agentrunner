@@ -429,7 +429,11 @@ type ScheduleAttached struct {
 	Cron       string `json:"cron,omitempty"`
 	Prompt     string `json:"prompt"`
 	MaxWakes   int    `json:"max_wakes,omitempty"` // 0 = unbounded
-	Source     string `json:"source"`              // user
+	// Base anchors the cadence: the first tick is the first slot after Base.
+	// Stamped from the loop clock (the fold never reads the envelope's
+	// wall-clock TS — 关卡代码绝不读墙钟).
+	Base   time.Time `json:"base,omitzero"`
+	Source string    `json:"source"` // user
 }
 
 type SchedulePaused struct {
@@ -439,7 +443,10 @@ type SchedulePaused struct {
 
 type ScheduleResumed struct {
 	ScheduleID string `json:"schedule_id"`
-	Source     string `json:"source"`
+	// Base re-anchors the cadence at resume time: slots missed while paused
+	// are NOT compensated (pausing was an explicit choice, unlike a crash).
+	Base   time.Time `json:"base,omitzero"`
+	Source string    `json:"source"`
 }
 
 type ScheduleCancelled struct {

@@ -1318,6 +1318,14 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 		if err := l.goalResumeCheck(ctx, ds, appendE); err != nil {
 			return RunResult{}, abort(ds.s.Session.GenStep, err)
 		}
+		// In-session schedule (INC-74): serve a due tick here at the safe
+		// point — wake journal + program reinject when free, a skipped-wake
+		// fact when a turn is running — and keep the next durable timer
+		// armed. Runs after drainControls so an attach/resume in this batch
+		// arms its first timer in the same pass.
+		if err := l.checkSchedule(ds, appendE); err != nil {
+			return RunResult{}, abort(ds.s.Session.GenStep, err)
+		}
 		// Auto session title (INC-52, HANDA-PARITY #14): once the opening turn's
 		// assistant message has landed (so the opening reply is never delayed),
 		// distil the opening message into a short SessionTitled{auto}. Cosmetic —

@@ -71,11 +71,34 @@ cron → 两次自主唤醒各完成一 turn → pause 后不再醒)随实施登
 
 ## 实施步骤
 
-1. INC-74.1:事件族 + fold 子状态 + round-trip 守卫(纯数据层)。
-2. INC-74.2:loop 安全点的 schedule 检查(到期判定/Wake journal/
+1. ✅ INC-74.1:事件族 + fold 子状态 + round-trip 守卫(纯数据层)。
+2. ✅ INC-74.2:loop 安全点的 schedule 检查(到期判定/Wake journal/
    reinject/下一 TimerSet)+ 孪生。
 3. INC-74.3:CLI `ar schedule` + daemon wire `schedule-*` + 幂等
    重放 + 孪生;SPEC/DESIGN/GAPS/LOG 收口 + QA 场景 + B 闸。
+
+## 74.2 实施中固化的设计判定
+
+- **cadence 基准入事件,不入 envelope TS**:`ScheduleAttached.Base` /
+  `ScheduleResumed.Base` 由 loop clock 盖章(关卡代码绝不读墙钟);
+  fold 以 Base 初始化/重锚 `LastTick`,重放在任意时钟下纯。
+- **resume 重锚,不补 paused 期间的 slot**:暂停是显式选择(区别于
+  crash),恢复后第一个 tick = resume 时刻 + 周期;crash 漏 slot 仍按
+  INC-54 教义折成恰好一次 catch-up wake(取最新到期 slot)。
+- **timer 是唤醒提示,不是事实源**:到期判定每次安全点从 `LastTick`
+  重推;timer 丢失/重复不丢 slot、不重复 wake(armScheduleTimer 收敛
+  到恰好一个 pending timer,TimerID 由 slot 决定,重挂幂等)。
+- **忙判定用对话形态,不用 Quiescence**:带 pending schedule timer 的
+  session 永不静止(这语义上正确——它确实还会自己醒),故 overlap 判
+  定镜像 decide() 的形态读取(pending input / 未解析 call / 欠下一步
+  生成 = busy → `ScheduleWake{skipped}`,绝不中turn注入)。
+- **close 撤 timer、留 schedule**(决策 #30):close 标记停自动路径,
+  pending timer 一并撤销(否则关闭的会话因 timer 永不静止);schedule
+  本体越标记存活,显式 send 重开后安全点自动重挂。
+- **两条唤醒路径**:hosted 空闲 park(awaitInput 以 loop clock
+  WaitUntil 等最早 schedule timer,到点 journal TimerFired 再走安全
+  点)+ unhosted 由 daemon timer sweep hostResume(已有机制,74.3 接
+  真线)。activity-timeout timer 永不从 idle 触发(归属 live executor)。
 
 ## review 裁决
 

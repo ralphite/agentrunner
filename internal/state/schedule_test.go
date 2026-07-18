@@ -23,9 +23,12 @@ func TestScheduleFoldLifecycle(t *testing.T) {
 		return next
 	}
 	s := New()
+	base := time.Date(2026, 7, 18, 5, 30, 0, 0, time.UTC)
 	s = apply(s, event.TypeScheduleAttached, &event.ScheduleAttached{
-		ScheduleID: "sch-1", Interval: "30m", Prompt: "巡检", MaxWakes: 5, Source: "user"})
-	if s.Schedule == nil || s.Schedule.Interval != "30m" || s.Schedule.Wakes != 0 {
+		ScheduleID: "sch-1", Interval: "30m", Prompt: "巡检", MaxWakes: 5,
+		Base: base, Source: "user"})
+	if s.Schedule == nil || s.Schedule.Interval != "30m" || s.Schedule.Wakes != 0 ||
+		!s.Schedule.LastTick.Equal(base) {
 		t.Fatalf("after attach: %+v", s.Schedule)
 	}
 
@@ -50,9 +53,13 @@ func TestScheduleFoldLifecycle(t *testing.T) {
 	if !s.Schedule.Paused {
 		t.Fatal("pause did not set Paused")
 	}
-	s = apply(s, event.TypeScheduleResumed, &event.ScheduleResumed{ScheduleID: "sch-1", Source: "user"})
-	if s.Schedule.Paused {
-		t.Fatal("resume did not clear Paused")
+	// Resume re-anchors LastTick to its Base: slots missed while paused are
+	// not compensated (pausing was an explicit choice).
+	rebase := tick2.Add(3 * time.Hour)
+	s = apply(s, event.TypeScheduleResumed, &event.ScheduleResumed{
+		ScheduleID: "sch-1", Base: rebase, Source: "user"})
+	if s.Schedule.Paused || !s.Schedule.LastTick.Equal(rebase) {
+		t.Fatalf("after resume: %+v", s.Schedule)
 	}
 
 	// Events for a different schedule id are ignored (stale control no-op).

@@ -1144,8 +1144,11 @@ func Apply(s State, env event.Envelope) (State, error) {
 
 	// ---- INC-74: in-session schedule (E1①) ----
 	case *event.ScheduleAttached:
+		// LastTick starts at the attach-time base: the first tick is the first
+		// slot after it (the event carries the base so the fold never reads the
+		// envelope's wall-clock TS — replay-pure under any clock).
 		s.Schedule = &Schedule{ScheduleID: p.ScheduleID, Interval: p.Interval,
-			Cron: p.Cron, Prompt: p.Prompt, MaxWakes: p.MaxWakes}
+			Cron: p.Cron, Prompt: p.Prompt, MaxWakes: p.MaxWakes, LastTick: p.Base}
 
 	// Copy-on-write like the goal cases below: the pointer is shared with the
 	// caller's previous State value (Apply purity).
@@ -1160,6 +1163,11 @@ func Apply(s State, env event.Envelope) (State, error) {
 		if s.Schedule != nil && s.Schedule.ScheduleID == p.ScheduleID {
 			sc := *s.Schedule
 			sc.Paused = false
+			// Resume re-anchors the cadence: slots missed while paused are not
+			// compensated (pausing was an explicit choice, unlike a crash).
+			if !p.Base.IsZero() {
+				sc.LastTick = p.Base
+			}
 			s.Schedule = &sc
 		}
 

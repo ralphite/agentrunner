@@ -147,6 +147,14 @@ func (l *Loop) closeSession(ctx context.Context, ds *driveState, appendE AppendF
 	turns int) (RunResult, error) {
 
 	l.settleOnAbort(ctx, ds, appendE)
+	// A pending schedule timer (INC-74) would keep the closed session
+	// non-quiescent forever (Quiescence counts pending timers before the
+	// close mark). The close mark stops automatic paths (决策 #30), so the
+	// timers go; the schedule itself survives — an explicit reopen re-arms
+	// it at the safe point.
+	if err := cancelScheduleTimers(ds, appendE); err != nil {
+		return RunResult{}, err
+	}
 	crash.Point(crash.PointBeforeCloseMark)
 	if _, err := appendE(event.TypeSessionClosed, &event.SessionClosed{
 		Reason: "closed", Source: "user", GenSteps: turns, Usage: ds.s.Session.Usage,

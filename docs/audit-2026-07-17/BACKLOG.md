@@ -185,5 +185,9 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
   (copy-on-write)+ SubStateVersions "schedule":1 + round-trip 样本 +
   生命周期孪生 · 7aa8e20 · 完成(74.2 安全点唤醒 next)。
 - 2026-07-18 · F2 收口 · QA-70 run#3 SUCCESS(真 Gemini:A 零 send
-  自动接续 / B 优雅停机无终态复活),QA.md 登记+SPEC 挂锚 · 本 commit
+  自动接续 / B 优雅停机无终态复活),QA.md 登记+SPEC 挂锚 · 87461a9
   · 完成。
+- 2026-07-18 · INC-74.2 · 安全点 schedule 检查:控制面四 kind +
+  checkSchedule(到期重推/catch-up 折一/busy skip/幂等挂 timer)+
+  awaitInput schedule-timer 唤醒 + close 撤 timer + 孪生六件 · 本
+  commit · 完成(74.3 CLI/daemon wire + 文档收口 next)。
