@@ -153,7 +153,7 @@ func (g *PermissionGate) matchOneCommand(eff Effect, relPath string, args toolAr
 	// Rules FIRST: a deny/ask rule must beat the read-only set — an explicit
 	// `deny cat *` outranks cat's read-only status (SECURITY: relaxation
 	// never overrides an operator's explicit restriction).
-	for i, rule := range g.Rules {
+	for _, rule := range g.Rules {
 		// Try the command as written AND wrapper-stripped: a rule may target
 		// either the bare command or the wrapped form.
 		matched := rule.matches(eff.ToolName, relPath, args.Path, command, eff.Network) ||
@@ -168,11 +168,15 @@ func (g *PermissionGate) matchOneCommand(eff Effect, relPath string, args toolAr
 		case event.VerdictAllow:
 			return Allow, true
 		case event.VerdictAsk:
-			return Ask(fmt.Sprintf("rule %d: %s", i+1, rule.describe())), true
+			// Identify the rule by its CONTENT, not a positional index: the
+			// index counts the merged user-config/project/spec layers, so
+			// "rule 3" never maps to what the user sees in their spec (QA Wave1
+			// bob-12). describe() names the tool/path/command/action instead.
+			return Ask("matched rule [" + rule.describe() + "]"), true
 		case event.VerdictDeny:
-			return Deny(fmt.Sprintf("rule %d: %s", i+1, rule.describe())), true
+			return Deny("matched rule [" + rule.describe() + "]"), true
 		default:
-			return Deny(fmt.Sprintf("rule %d has invalid action %q", i+1, rule.Action)), true
+			return Deny(fmt.Sprintf("rule [%s] has invalid action %q", rule.describe(), rule.Action)), true
 		}
 	}
 	// No rule matched: a read-only builtin is safe without one (INC-16), so
