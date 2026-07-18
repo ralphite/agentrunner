@@ -101,11 +101,11 @@
 
 ## 第 4 批 · 大型（设计先行，每迭代一个可合并步骤）
 
-- [ ] **E1** driver 收敛为递归 session(L;方向在 DESIGN §17 在案,
-  用户 2026-07-18 授权"非裁决项持续推进"——恢复为可做,逐步立 INC):
-  ①loop-mode 挂 session(事件族对齐 in-session goal);②iteration
-  child 统一走 spawn_agent;③stream 合流(触 §3 教义,须 §四 工作纸);
-  ④CLI `ar drive` 兼容层。每步独立可合并,从 ① 起。
+- [ ] **E1** driver 收敛为递归 session(L,四步;进行中):
+  ①loop-mode 挂 session——**INC-74 工作纸已落**
+  (docs/increments/INC-74-session-schedule.md,三小步:事件族→
+  安全点唤醒→CLI/wire),实施中;②iteration child 统一走 spawn_agent;
+  ③stream 合流(触 §3 教义,须 §四);④CLI 兼容层。
 - [ ] **E2** [BLOCKED: L 级产品形态,设计需用户共创] G11 云
   workspace。核心裁决点:①环境模型(容器 per-session vs 长驻 pool);
   ②secrets 注入面(env 白名单 vs vault 引用);③store 外置
@@ -177,4 +177,7 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
   loop 重启。
 - 2026-07-18 · F1/QA-69 · 真浏览器双锚 PASS,G30 债清零 · f7a7818 ·
   完成。
-- 2026-07-18 · F2 QA-70 就位 + F3 瞬时红修复 · 本 commit · 完成。
+- 2026-07-18 · F2 QA-70 就位 + F3 瞬时红修复 · 22dc6db+8a8b7dc · 完成。
+- 2026-07-18 · F2 追踪:run#1 误 kill 于 LLM 阶段(已证 INC-71 sweep
+  真工作)、run#2 runner 缺 bwrap(workflow 已补装)、run#3 排队中。
+- 2026-07-18 · E1① · INC-74 工作纸落盘,开始实施 · 本 commit · 进行中。
