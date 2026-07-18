@@ -101,21 +101,30 @@
 
 ## 第 4 批 · 大型（设计先行，每迭代一个可合并步骤）
 
-- [ ] **E1** [BLOCKED: L 级架构收敛,拆步方向需用户确认后逐步实施]
-  driver 收敛为递归 session。已知半程:in-session goal(INC-D1/10/48/
-  66)已把 goal 形态挂上 conversational session;剩 loop/cron/best-of-N
-  三形态。建议拆步:①loop-mode 复用 in-session goal 的事件族挂
-  session(schedule 成 session 状态);②iteration child 统一走
-  spawn_agent 机制(替代 driver 私有 runIteration);③driver stream
-  与 run stream 合流(schema 迁移,触 §3"一套机制"教义,须 §四);
-  ④CLI `ar drive` 兼容层。每步独立可合并。确认方向后逐步立 INC。
+- [ ] **E1** driver 收敛为递归 session(L;方向在 DESIGN §17 在案,
+  用户 2026-07-18 授权"非裁决项持续推进"——恢复为可做,逐步立 INC):
+  ①loop-mode 挂 session(事件族对齐 in-session goal);②iteration
+  child 统一走 spawn_agent;③stream 合流(触 §3 教义,须 §四 工作纸);
+  ④CLI `ar drive` 兼容层。每步独立可合并,从 ① 起。
 - [ ] **E2** [BLOCKED: L 级产品形态,设计需用户共创] G11 云
   workspace。核心裁决点:①环境模型(容器 per-session vs 长驻 pool);
   ②secrets 注入面(env 白名单 vs vault 引用);③store 外置
   (journal/CAS 挪对象存储?)④回收重建语义(workspace 可再生 vs
   持久卷)。每一项都是产品选择,建议专门 session 逐项裁决。
 
-## 附 · 显式不做（🧊 记档，loop 跳过）
+## 第 5 批 · 续作（用户 2026-07-18 指示:非裁决项持续推进）
+
+- [ ] **F1** G30 残余 2 弱锚收口:新 QA 场景(真浏览器 playwright,
+  容器内可跑)断言 composer progressive-disclosure 菜单与用户消息
+  折叠(>10 行钳高+Show more)——一个脚本双锚,QA.md 登记 QA 号,
+  SPEC 两行还锚,债清零。
+- [ ] **F2** INC-71/72 B 闸:容器内真实 daemon 生命周期 QA——
+  mid-turn kill -9 → 重启 boot 自动接续(INC-71);运行中 cron 系列
+  SIGTERM 优雅停机 → 重启复活(INC-72);证据归档 qa/runs/。
+- [ ] **F3** 瞬时红追踪:check.sh 红腿留档已布,复现即定位修复
+  (无复现则在下次出现时处理,不占迭代)。
+
+## 附 · 显式不做（🧊 记档，loop 跳过）+ 待裁决(见 DECISIONS-PENDING.md)
 
 `ar new` 开场折叠/带图 · `finish` 工具 · overlap:interrupt ·
 MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
@@ -165,4 +174,7 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
 - 2026-07-18 · D5/INC-72 · 优雅停机保活 cron(§四 不变量修订),G22
   整条关闭 · 27ef6d1 · 完成。
 - 2026-07-18 · D6 撤项(🧊 在案)/D7 D8 E1 E2 BLOCKED(裁决点已列)/
-  D9 BLOCKED(平台不可验证) · 本 commit · loop 收口。
+  D9 BLOCKED(平台不可验证) · d73c5ad · loop 收口。
+- 2026-07-18 · 用户指示:裁决项集中登记(DECISIONS-PENDING.md),
+  非裁决项持续推进——E1 恢复可做,新增第 5 批 F1-F3 · 本 commit ·
+  loop 重启。
