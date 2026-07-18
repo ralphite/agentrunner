@@ -325,3 +325,21 @@ func waitDaemon(t *testing.T, sock string) {
 	}
 	t.Fatal("daemon did not come up")
 }
+
+// TestGoalMaxChecksValidation pins that a non-positive --max-checks is rejected
+// at parse time (before any daemon round-trip), while an unset flag is left to
+// the attach default / an update's existing budget (QA Wave7 olive-02).
+func TestGoalMaxChecksValidation(t *testing.T) {
+	for _, sub := range []string{"attach", "update"} {
+		for _, bad := range []string{"0", "-3"} {
+			var out, errOut bytes.Buffer
+			code := goalCmd([]string{"somesession", sub, "do the thing", "--verify", "true", "--max-checks", bad}, &out, &errOut)
+			if code != ExitUsage {
+				t.Errorf("goal %s --max-checks %s: code = %d, want ExitUsage", sub, bad, code)
+			}
+			if !strings.Contains(errOut.String(), "must be a positive integer") {
+				t.Errorf("goal %s --max-checks %s: stderr = %q, want the positive-integer error", sub, bad, errOut.String())
+			}
+		}
+	}
+}

@@ -553,6 +553,21 @@ func goalCmd(args []string, stdout, stderr io.Writer) int {
 		if err := fs.Parse(reorderFlags(fs, rest)); err != nil {
 			return ExitUsage
 		}
+		// A non-positive --max-checks is a user error, not a budget: without this
+		// an explicit 0 silently became the default (10) and a negative value ran
+		// a nonsensical budget (QA Wave7 olive-02). Distinguish "unset" (use the
+		// attach default / leave an update's budget alone) from an explicit bad
+		// value via fs.Visit — only a value the user actually typed is validated.
+		maxChecksSet := false
+		fs.Visit(func(f *flag.Flag) {
+			if f.Name == "max-checks" {
+				maxChecksSet = true
+			}
+		})
+		if maxChecksSet && *maxChecks < 1 {
+			fmt.Fprintf(stderr, "goal %s: --max-checks must be a positive integer (got %d)\n", sub, *maxChecks)
+			return ExitUsage
+		}
 		gc := &protocol.GoalControl{GoalID: "goal", Goal: strings.Join(fs.Args(), " ")}
 		for _, v := range verifiers {
 			gc.Verifiers = append(gc.Verifiers, event.GoalVerifier{Kind: "command", Command: v})
