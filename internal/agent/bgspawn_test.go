@@ -236,7 +236,12 @@ func TestBackgroundSpawnUserKill(t *testing.T) {
 
 	go func() {
 		// Once the slow child's bash is running, kill it by handle "slow".
-		deadline := time.Now().Add(6 * time.Second)
+		// The deadline is give-up time, not expected latency: on a loaded
+		// machine (check.sh 六腿并行) the child can take >6s to reach its
+		// bash, and giving up early means the kill never fires and the
+		// child settles "completed" — the exact flake this guards against.
+		// Normal runs exit this loop on the both-settled check below.
+		deadline := time.Now().Add(60 * time.Second)
 		killed := false
 		for time.Now().Before(deadline) {
 			evs, _ := store.ReadEvents(l.Store.Dir() + "/sub/slow-a1")
