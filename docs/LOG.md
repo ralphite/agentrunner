@@ -4663,3 +4663,15 @@ console error 全程 0,document 级横向溢出 0。
 **闸门**:frontend tsc + vitest 336/336 + build 绿(check.sh 前端腿按
 脚本注释手跑;本容器 go1.25.0 被 check-go-toolchain.sh 拒,属既有环境
 限制,Go 面零改动)。
+
+## 2026-07-18 · QA-0718 第二/三轮:三修复真机验证 + bash 真执行打通 + Run details 样式补齐
+
+第二轮(run 29656649795)在真环境逐项验证第一轮三修复:approval 提示
+`Ctrl↵ approve · Ctrl⌫ deny` ✓;Changes 行 `2 files +106`(gap 6px)✓;
+上滚后发送 `nearBottom=true` 重新吸底 ✓。store 经 actions/cache 跨 run
+延续,旧会话完整。第三轮(run 29656821617)bwrap+userns 修复后 bash
+真跑通:`ls -la src/` 真输出、`✓ $ ls -la src/` 命令 chip、Worked fold
+展开正常;Run details modal 数据齐但 `.rd-hero/.rd-kicker/.rd-metrics/
+.rd-tools/.rd-tags/.rd-raw` 迁移丢样式("Current run**dev**"、
+"**42.8K**Billed tokens" 挤行)——本 commit 在 tw.css 补齐整组 rd-*。
+frontend build + Modals 测试绿。

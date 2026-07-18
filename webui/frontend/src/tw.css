@@ -738,6 +738,26 @@
   .seg button.on { @apply bg-panel text-ink shadow-sm; }
   .rd-grid, .session-grid { @apply grid gap-3; }
   .rd-section, .session-card, .advanced-settings { @apply rounded-[12px] border border-line bg-panel p-3; }
+  /* Run details 的 hero/metrics/tools 在迁移中丢了样式(QA-0718 实测
+     "Current run**dev**"、"**42.8K**Billed tokens" 挤成一行)。 */
+  .run-details { @apply grid gap-3; }
+  .rd-hero { @apply flex items-center justify-between gap-3; }
+  .rd-kicker { @apply block text-[12px] text-dim; }
+  .rd-hero strong { @apply block text-[16px] font-semibold; }
+  .rd-metrics { @apply flex flex-wrap gap-x-8 gap-y-2; }
+  .rd-metrics > div { @apply grid gap-0.5; }
+  .rd-metrics strong { @apply text-[15px] font-semibold; }
+  .rd-metrics span { @apply text-[12px] text-dim; }
+  .rd-summary { @apply text-[13px] text-dim; }
+  .rd-attention { @apply grid gap-1 rounded-[10px] border border-line bg-bg p-2 text-[13px]; }
+  .rd-tools { @apply grid gap-1.5; }
+  .rd-tools > div { @apply flex min-w-0 items-baseline gap-2 text-[13px]; }
+  .rd-tools > div > code { @apply min-w-0 truncate text-[12px] text-dim; }
+  .rd-tools > div.blocked > span { @apply text-red; }
+  .rd-tags { @apply flex flex-wrap gap-1.5; }
+  .rd-tags > span { @apply rounded-full border border-line bg-bg px-2 py-0.5 text-[12px] text-dim; }
+  .rd-raw > summary { @apply cursor-pointer text-[13px] text-dim; }
+  .rd-raw > pre { @apply mt-2 max-h-[300px] overflow-auto rounded-[10px] border border-line bg-bg p-2 text-[12px]; }
 
   .findbar {
     @apply absolute right-3 top-[56px] z-30 flex h-10 items-center gap-1 rounded-[10px] border border-line bg-panel p-1 shadow-lg;
