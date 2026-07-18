@@ -252,7 +252,7 @@
   .app.collapsed { grid-template-columns: minmax(0, 1fr); }
   .app.collapsed .sidebar { @apply hidden; }
   .main { @apply relative flex min-h-0 min-w-0 flex-col bg-bg outline-none; }
-  .sidebar-show { @apply absolute left-3 top-3 z-20 h-11 w-11 rounded-[8px] bg-panel shadow-lg transition-all duration-100 hover:shadow-xl; }
+  .sidebar-show { @apply fixed left-3 top-3 z-20 h-11 w-11 rounded-[8px] bg-panel shadow-lg transition-all duration-100 hover:shadow-xl; }
   .sidebar-scrim { @apply fixed inset-0 z-30 border-0 bg-black/30 p-0; }
 
   .sidebar { @apply flex min-h-0 flex-col border-r border-line bg-sidebar; }
@@ -491,11 +491,11 @@
   .tl-inner { @apply mx-auto flex w-full max-w-[720px] flex-col px-[30px] py-6; }
   .turn-sep { @apply my-[22px] h-px bg-line; }
   .msg { @apply relative flex gap-3 py-2; }
-  .msg.user { @apply justify-end; }
+  .msg.user { @apply flex-col items-end gap-1; }
   .avatar { @apply mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-panel-2 text-[12px] text-dim; }
   .msg-col { @apply min-w-0 max-w-full flex-1; }
   .msg.user .msg-col { @apply max-w-[78%] flex-none; }
-  .bubble { @apply rounded-[14px] border border-line bg-panel px-3 py-2 text-[14px] leading-[1.55]; }
+  .bubble { @apply rounded-[14px] border border-line bg-panel px-3 py-2 text-[14px] leading-[1.55] break-words overflow-hidden; }
   .msg.user .bubble { @apply bg-panel-2; }
   .msg.assistant .bubble { @apply border-transparent bg-transparent px-0; }
   .msg-actions { @apply mt-1 flex items-center gap-[6px] text-[12px] text-dim transition-opacity; }

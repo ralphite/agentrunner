@@ -1732,8 +1732,6 @@ export function Composer(props: ComposerProps) {
 
       </div>
 
-      {isSession && <div className="cx-status">{(props as any).running ? "running…" : "ready"}</div>}
-
       {/* hidden file input — ONE picker for everything (CP-1). Multi-select
           (mirrors the drag-drop loop) and mime-routed: images ride --image,
           everything else --file, exactly like paste and drop. The old

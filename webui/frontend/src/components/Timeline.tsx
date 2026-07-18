@@ -895,6 +895,9 @@ function Item({ it, sentImages, onContinue, goalVerdict, last }: { it: TimelineI
       ) : null;
       return (
         <div className={"msg user" + (peer ? " peer" : "")} title={absTime(it.ts)} tabIndex={0}>
+          <span className="who">
+            {peer ? <>from {it.source} · <a href={"#" + it.peerSession}>open</a></> : it.source || "you"}
+          </span>
           <div className="msg-col user">
             <div className="bubble">
               {hasText ? (
@@ -913,9 +916,6 @@ function Item({ it, sentImages, onContinue, goalVerdict, last }: { it: TimelineI
             )}
             <MsgActions text={it.text} ts={it.ts} />
           </div>
-          <span className="who">
-            {peer ? <>from {it.source} · <a href={"#" + it.peerSession}>open</a></> : it.source || "you"}
-          </span>
         </div>
       );
     }
