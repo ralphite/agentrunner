@@ -104,6 +104,15 @@ func TestRunCmdUsageErrors(t *testing.T) {
 	if code := runCmd([]string{"s.yaml", "prompt"}, true, "dev", &out, &errOut); code != ExitUsage {
 		t.Errorf("record-fixture without -o: exit = %d", code)
 	}
+	// A whitespace-only prompt is rejected like an empty one — it must not
+	// create a junk session (QA Wave1 cli-life-09).
+	for _, p := range []string{"", "   ", "\t\n"} {
+		out.Reset()
+		errOut.Reset()
+		if code := runCmd([]string{"s.yaml", p}, false, "dev", &out, &errOut); code != ExitUsage {
+			t.Errorf("blank prompt %q: exit = %d, want ExitUsage", p, code)
+		}
+	}
 }
 
 func TestLoadDotEnv(t *testing.T) {

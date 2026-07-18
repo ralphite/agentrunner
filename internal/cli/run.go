@@ -125,9 +125,10 @@ func runCmd(args []string, recordMode bool, version string, stdout, stderr io.Wr
 		fmt.Fprintf(stderr, "usage: agentrunner %s [flags] <spec.yaml> \"prompt\"  (prompt may be piped: echo prompt | agentrunner %s spec.yaml)\n", name, name)
 		return ExitUsage
 	}
-	if rest[1] == "" {
-		// Catch it here like `send` does — an empty prompt otherwise reaches
-		// the provider and dies as a raw 400 (QA Round1 F-A05).
+	if strings.TrimSpace(rest[1]) == "" {
+		// Catch empty AND whitespace-only here like `new`/`send` do — otherwise a
+		// blank prompt reaches the provider as a raw 400, or (whitespace-only)
+		// silently creates a junk session (QA Round1 F-A05, Wave1 cli-life-09).
 		fmt.Fprintf(stderr, "agentrunner: %s needs a non-empty prompt\n", name)
 		return ExitUsage
 	}
