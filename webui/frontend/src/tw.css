@@ -710,7 +710,19 @@
   .changes-outcome-files { @apply mt-2 grid gap-1; }
 
   .scheduled-page { @apply mx-auto w-full max-w-[760px] px-6 py-6; }
-  .page-heading { @apply mb-4 text-[22px] font-semibold; }
+  /* Scheduled 页骨架(QA-0718 实测整页丢样式:副标题级联成大标题、
+     Create 按钮碎裂、empty-state 挤行)。page-heading 是"标题行容器"
+     (h2+p 左、动作按钮右),不是文字类。 */
+  .scheduled-page { @apply mx-auto w-full max-w-[860px] px-6 py-6 max-[680px]:px-4; }
+  .page-heading { @apply mb-4 flex items-start justify-between gap-3; }
+  .page-heading h2 { @apply text-[22px] font-semibold; }
+  .page-heading p { @apply mt-0.5 text-[13px] font-normal text-dim; }
+  .page-action { @apply inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[10px] border border-line bg-panel px-3 text-[13px] font-medium hover:bg-panel-2; }
+  .scheduled-list { @apply grid gap-2; }
+  .empty-state { @apply grid justify-items-center gap-1.5 rounded-[12px] border border-line bg-panel px-4 py-8 text-center text-[13px] text-dim; }
+  .empty-state b { @apply text-[14px] text-ink; }
+  .sched-suggestions-title { @apply mt-6 mb-2 text-[12px] font-semibold tracking-[0.04em] text-dim uppercase; }
+  .sched-suggest-title { @apply text-[14px] font-semibold; }
   .sched-toolbar { @apply mb-4 flex flex-wrap items-center gap-2; }
   .sched-search { @apply min-w-[220px] flex-1; }
   .sched-tabs, .sched-filters { @apply flex flex-wrap gap-2; }

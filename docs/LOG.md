@@ -4675,3 +4675,14 @@ console error 全程 0,document 级横向溢出 0。
 .rd-tools/.rd-tags/.rd-raw` 迁移丢样式("Current run**dev**"、
 "**42.8K**Billed tokens" 挤行)——本 commit 在 tw.css 补齐整组 rd-*。
 frontend build + Modals 测试绿。
+
+## 2026-07-18 · QA-0718 第三轮续:Scheduled 页整组样式补齐
+
+远程真机跑到 Scheduled 页发现整页迁移丢样式:`.page-heading` 被写成
+纯文字类(22px semibold 级联把副标题 p 也放大成标题)、`.page-action`
+(Create 菜单触发)/.empty-state/.scheduled-page/.scheduled-list/
+`.sched-suggestions-title`/`.sched-suggest-title` 全无定义——图标、标题、
+正文挤成一行。tw.css 补齐整组:page-heading 改为标题行容器(h2+p 左、
+动作右),empty-state 居中卡片,页面 max-w 860px 居中。cmdk palette
+(搜索过滤+项目 chip)与 Scheduled 建议卡实测正常。
+frontend build + vitest 336/336 绿。
