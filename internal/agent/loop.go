@@ -1161,10 +1161,15 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 	// never trips it and only a call to a never-advertised tool is refused
 	// (QA Wave2 bob-01/heidi-03). Rebuilt identically on resume from the same
 	// folded facts, so the gate is deterministic.
-	l.advertisedTools = make(map[string]bool, len(toolDefs))
+	l.advertisedTools = make(map[string]bool, len(toolDefs)+1)
 	for _, d := range toolDefs {
 		l.advertisedTools[d.Name] = true
 	}
+	// exit_plan_mode is a harness-level transition dispatched specially (it is
+	// not a registry tool in toolDefs, so it isn't in the loop above) — it is
+	// always a legitimate call and must never be refused by the allowlist gate;
+	// buildRunner owns the plan-mode semantics.
+	l.advertisedTools["exit_plan_mode"] = true
 	// abort is every dying execution's exit ramp. There is NO terminal
 	// event (决策 #30/#31): an explicit kill leaves its SessionClosed
 	// {killed, source} mark; teardown (daemon shutdown, deploy) and genuine
