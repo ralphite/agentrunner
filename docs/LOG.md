@@ -4714,3 +4714,16 @@ work still running — keeps spending tokens"、PROGRESS 卡 1/2、Changes
 journal 定因);remote-qa-env 增 post-driver 诊断转储步骤(ar sessions/
 ar events/daemon.log → release asset)供下轮下钻。/file 端点对已写入
 文件也 404,探针记录在案(端点语义待查,未据此下结论)。
+
+## 2026-07-18 · QA-0718 第六轮:G39 定因推进——不可见审批死锁假说成立(待实证)
+
+诊断链:顶掉 run 触发 always() 转储 → 下载 diag(run 29658309926)。
+父 journal:19:13:54 `spawn_requested`×2 + `activity_started{Background}`
+后**零终态事件**,turn 直接 waiting:input;模型自把 progress 标 done 并
+宣称已 spawn。daemon 重启 + replay 后 rail 仍 "still running" → running
+态是 journal 悬挂配对,非前端。代码对读 spawn.go:child 审批经
+`l.Approvals` 汇入同一 seam,但 webui 只读父会话流;child 的
+waiting:approval 落在 sub-store,无人可见。假说:child 卡 Write-file
+审批 → 不可见审批死锁。转储扩为含 sub-store journal(redaction 已在
+落盘前完成,可入公开 asset),下轮重现实证。修复面涉及 DESIGN 裁决
+(child 审批如何浮出、child 可检视性),按 PROCESS 立 INC。

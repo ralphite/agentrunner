@@ -379,6 +379,11 @@ jobs:
           for sid in $(./bin/ar sessions 2>/dev/null | grep -oE '20[0-9]{6}-[0-9]{6}-[a-z0-9-]+' | sort -u); do
             ./bin/ar events "$sid" > "diag/events-$sid.txt" 2>&1 || true
           done
+          # 子 agent 的 store 住在 <session-store>/sub/<callid>-a1/,不入
+          # `ar sessions`——G39 定因需要它们的 journal(child 是否卡在
+          # waiting:approval)。journal 落盘前已过 redaction,可入公开 asset。
+          find ~/.local/share/agentrunner -path '*/sub/*' -name '*.jsonl' \
+            -exec sh -c 'mkdir -p diag/sub && cp "$1" "diag/sub/$(echo "$1" | tr / _)"' _ {} \; 2>/dev/null || true
           cp ~/.local/share/agentrunner/daemon.log diag/daemon.log 2>/dev/null || true
           cp webui.log diag/webui.log 2>/dev/null || true
           tar czf qa-diagnostics.tar.gz diag
