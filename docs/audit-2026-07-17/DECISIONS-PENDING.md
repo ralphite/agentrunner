@@ -30,3 +30,9 @@ SPEC 🧊 在案记档"v0 用户手动晋升"。如要做,请明确解冻并选:
 ## 6. G32 Xcode.app 沙箱 git（非裁决,环境依赖）
 需真 macOS + Xcode.app 机器开发验证(Linux 容器无法验 Seatbelt);
 建议在你 mac 上开 session 做,方案已记 GAPS(PATH 截击/host git 代理)。
+
+## 7. E1③ stream 合流方案(FYI,已按在案方向推进,可推翻)
+INC-77 工作纸(§四)已裁方案 A:驱动 = **程序驱动的父 session**
+(模型不在环,调度确定性/纯 fold 判定/重发幂等全保留,轮次事实换
+spawn 事实族户口);方案 B(模型在环引导 spawn)因确定性失守否决。
+依你"非裁决项持续推进"的指示按 A 实施中;如另有裁夺以你为准。
