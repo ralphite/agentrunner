@@ -1524,6 +1524,14 @@ func Quiescence(s State) (quiescent bool, reason string) {
 			return true, "goal_budget_exhausted"
 		}
 	}
+	// A goal stuck in the EXHAUSTED state keeps that status across later turns
+	// until the user updates or resumes it (both clear Exhausted). Without
+	// this, a message after exhaustion flipped the status back to "completed"
+	// and the failure signal vanished from inspect/sessions (QA Wave3 ivan-08).
+	// Satisfied/cancelled clear the goal entirely, so only exhaustion persists.
+	if s.Goal != nil && s.Goal.Exhausted {
+		return true, "goal_budget_exhausted"
+	}
 	if s.Waiting != nil && s.Waiting.Kind != event.WaitInput {
 		return false, "" // waiting on an approval/settlement: work in flight
 	}
