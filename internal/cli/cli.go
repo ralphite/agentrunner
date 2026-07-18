@@ -42,6 +42,15 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "agentrunner %s (%s)\n", version, runtime.Version())
 		return ExitOK
 	case "--help", "-h", "help":
+		// `help <command>` shows that command's usage instead of silently
+		// dumping the global help and ignoring the argument (QA Wave1
+		// cli-life-05). A command with no dedicated blurb falls back to global.
+		if args[0] == "help" && len(args) > 1 {
+			if h := commandHelp(args[1]); h != "" {
+				fmt.Fprint(stdout, h)
+				return ExitOK
+			}
+		}
 		fmt.Fprint(stdout, helpText())
 		return ExitOK
 	case "init":

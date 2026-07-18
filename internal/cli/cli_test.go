@@ -87,3 +87,26 @@ func TestPositionalCommandsHonorHelpFlag(t *testing.T) {
 		t.Fatal("init -h wrote a file named -h")
 	}
 }
+
+// TestHelpSubcommand pins that `help <command>` prints that command's usage,
+// not the global help, and that an unknown command falls back to global (QA
+// Wave1 cli-life-05).
+func TestHelpSubcommand(t *testing.T) {
+	for _, cmd := range []string{"sessions", "goal", "resume", "approve", "mode"} {
+		var out, errOut bytes.Buffer
+		if code := Run([]string{"help", cmd}, "test", &out, &errOut); code != ExitOK {
+			t.Fatalf("help %s: exit %d", cmd, code)
+		}
+		if !strings.Contains(out.String(), "usage: agentrunner "+cmd) {
+			t.Errorf("help %s: stdout missing that command's usage:\n%s", cmd, out.String())
+		}
+	}
+	// Unknown command → global help (not an error, not silence).
+	var out, errOut bytes.Buffer
+	if code := Run([]string{"help", "nosuchcmd"}, "test", &out, &errOut); code != ExitOK {
+		t.Fatalf("help nosuchcmd: exit %d", code)
+	}
+	if !strings.Contains(out.String(), "declarative LLM agents") {
+		t.Errorf("help nosuchcmd should fall back to global help:\n%s", out.String())
+	}
+}
