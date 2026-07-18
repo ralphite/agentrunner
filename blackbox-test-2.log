@@ -1,0 +1,20 @@
+
+#### context: phone 390x844
+== phone:home
+  !! [high] step threw — page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:8788/
+Call log:
+[2m  - navigating to "http://127.0.0.1:8788/", waiting until "domcontentloaded"[22m
+
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+page.evaluate: Execution context was destroyed, most likely because of a navigation
+    at checkInvariants (/home/user/agentrunner/qa/blackbox/drive.mjs:76:24)
+    at step (/home/user/agentrunner/qa/blackbox/drive.mjs:104:9)
+    at async file:///home/user/agentrunner/qa/blackbox/drive.mjs:134:3 {
+  log: [],
+  name: 'Error'
+}
+
+Node.js v22.22.2

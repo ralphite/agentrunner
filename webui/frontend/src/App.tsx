@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useStore } from "./store";
+import { useBreakpoint } from "./hooks/useBreakpoint";
 import { Sidebar } from "./components/Sidebar";
 import { SessionView } from "./components/SessionView";
 import { RunView } from "./components/RunView";
@@ -16,8 +17,6 @@ import { quickSwitchSessions } from "./viewModels";
 import { applyAppearance, loadAppearance } from "./theme";
 import { normalizeRoute } from "./routeHash";
 import { SidebarSimple } from "@phosphor-icons/react";
-
-const MOBILE_NAV_QUERY = "(max-width: 900px)";
 
 export function App() {
   const { currentSid, currentRunId, currentPage, refreshHealth, refreshSessions, refreshRuns, refreshProjects, select, selectRun, showPage } =
@@ -36,7 +35,8 @@ export function App() {
   const settingsOpenRef = useRef(false);
   const settingsReturnFocusRef = useRef<HTMLElement | null>(null);
   settingsOpenRef.current = settingsOpen;
-  const [isMobile, setIsMobile] = useState(() => window.matchMedia(MOBILE_NAV_QUERY).matches);
+  const bp = useBreakpoint();
+  const isMobile = bp.compact || bp.tablet;
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const openPalette = () => {
@@ -56,7 +56,7 @@ export function App() {
   const openSettings = () => {
     const active = document.activeElement;
     settingsReturnFocusRef.current = active instanceof HTMLElement ? active : null;
-    if (window.matchMedia(MOBILE_NAV_QUERY).matches) setMobileSidebarOpen(false);
+    if (isMobile) setMobileSidebarOpen(false);
     setSettingsOpen(true);
   };
   const closeSettings = () => {
@@ -76,14 +76,8 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    const query = window.matchMedia(MOBILE_NAV_QUERY);
-    const sync = () => {
-      setIsMobile(query.matches);
-      if (query.matches) setMobileSidebarOpen(false);
-    };
-    query.addEventListener("change", sync);
-    return () => query.removeEventListener("change", sync);
-  }, []);
+    if (isMobile) setMobileSidebarOpen(false);
+  }, [isMobile]);
 
   useEffect(() => {
     document.title = unread.length > 0 ? `(${unread.length}) AgentRunner` : "AgentRunner";
@@ -157,7 +151,7 @@ export function App() {
       // ⌘B / Ctrl-B shows or hides the sidebar (Codex's Toggle sidebar).
       if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "b") {
         e.preventDefault();
-        if (window.matchMedia(MOBILE_NAV_QUERY).matches) setMobileSidebarOpen((open) => !open);
+        if (isMobile) setMobileSidebarOpen((open) => !open);
         else useStore.getState().toggleSidebar();
         return;
       }
