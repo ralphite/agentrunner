@@ -243,8 +243,16 @@ func decodeHint(err error) string {
 	msg := err.Error()
 	unknown := strings.Contains(msg, "not found in type")
 	msg = typeNameRe.ReplaceAllString(msg, `unknown field "$1"`)
+	// A type mismatch (a scalar where an object/list is expected) leaks the Go
+	// type name, e.g. "cannot unmarshal !!str `x` into agent.SandboxSpec" (QA
+	// Wave5 liam-05). Strip the yaml tag and the Go type, leaving an
+	// actionable "wrong type" message.
+	mismatch := strings.Contains(msg, "cannot unmarshal")
+	msg = mismatchRe.ReplaceAllString(msg, "this field has the wrong type (got a $1 where a different shape is expected)")
 	if unknown {
 		msg += fmt.Sprintf("\n  valid top-level fields: %s\n  (run `agentrunner init` for a commented example spec)", specFields)
+	} else if mismatch {
+		msg += "\n  (run `agentrunner init` for a commented example spec)"
 	}
 	return msg
 }
@@ -252,6 +260,12 @@ func decodeHint(err error) string {
 // typeNameRe matches yaml.v3's KnownFields error phrase, e.g.
 // "field prompt not found in type agent.AgentSpec".
 var typeNameRe = regexp.MustCompile(`field (\S+) not found in type \S+`)
+
+// mismatchRe matches yaml.v3's type-mismatch phrase, e.g.
+// "cannot unmarshal !!str `foo` into agent.SandboxSpec" — capturing the yaml
+// tag word (str/map/seq/int/bool) so the reworded message names what was got
+// without leaking the Go type.
+var mismatchRe = regexp.MustCompile("cannot unmarshal !!(\\w+) [^ ]+ into \\S+")
 
 func (s *AgentSpec) validate(path string) error {
 	fail := func(field, problem string) error {
