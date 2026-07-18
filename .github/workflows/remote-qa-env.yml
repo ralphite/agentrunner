@@ -89,8 +89,12 @@ jobs:
           go build -buildvcs=false -o bin/ar ./cmd/agentrunner
           (cd webui && go build -buildvcs=false -o ../bin/arwebui .)
 
-      - name: Install driver deps (playwright-core)
-        run: (cd qa/blackbox && npm install --silent)
+      - name: Install driver deps (playwright-core + bubblewrap)
+        run: |
+          (cd qa/blackbox && npm install --silent)
+          # bwrap 是 ar 执行 bash 命令的硬前置(QA-0718 实测缺它时所有
+          # shell 步骤 denied),装上才能测真实的命令执行/diff 场景。
+          sudo apt-get install -y -q bubblewrap
 
       - name: Restore store from previous run
         uses: actions/cache/restore@v4

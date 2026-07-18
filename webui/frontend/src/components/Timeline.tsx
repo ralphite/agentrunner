@@ -1102,6 +1102,21 @@ export function TimelineView({
     if (el && stick.current) el.scrollTop = el.scrollHeight;
   });
 
+  // QA-0718: sending re-sticks the feed. Codex jumps to your own new message
+  // even when you had scrolled up into history; without this the send lands
+  // below the fold and the thread looks unresponsive.
+  const pendingCount = pending.length;
+  const prevPendingCount = useRef(pendingCount);
+  useEffect(() => {
+    if (pendingCount > prevPendingCount.current) {
+      stick.current = true;
+      setShowJump(false);
+      const el = ref.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    }
+    prevPendingCount.current = pendingCount;
+  }, [pendingCount]);
+
   const onScroll = () => {
     const el = ref.current;
     if (!el) return;

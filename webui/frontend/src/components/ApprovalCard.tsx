@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { CaretRight, ShieldCheck, TerminalWindow, WarningCircle } from "@phosphor-icons/react";
 import type { ApprovalRef } from "../timeline";
 import { compactWorkspaceName, describeApproval } from "../approvalPresentation";
+import { modLabel } from "../shortcuts";
 
 function pretty(raw: unknown): string {
   if (raw == null) return "";
@@ -128,7 +129,9 @@ export function ApprovalCard({
                 Always allow
               </button>
               <button className="min-h-9 flex-1 sm:flex-initial" disabled={busy} onClick={() => setDenying(true)}>Deny</button>
-              <span className="approval-shortcut ml-auto max-[680px]:hidden">⌘↵ approve · ⌘⌫ deny</span>
+              {/* 平台感知:mac 显示 ⌘,其余显示 Ctrl(QA-0718 实测 Linux 上显示 ⌘,与
+                  sidebar 的 CtrlAltN 提示不一致)。 */}
+              <span className="approval-shortcut ml-auto max-[680px]:hidden">{modLabel}↵ approve · {modLabel}⌫ deny</span>
             </>
           )}
         </div>

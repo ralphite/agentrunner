@@ -613,7 +613,10 @@
   }
   .progress-list, .supervision-agents, .env-rows, .artifact-list { @apply grid gap-2; }
   .env-row-name, .sa-name, .progress-title, .artifact-version { @apply min-w-0 flex-1 truncate; }
+  /* env-row-val 是多枚 chip(`2 files` `+106` `−0`)的容器——QA-0718 实测无
+     gap 时渲染成 "2 files+106"。与 .diff-summary 同用 6px gap。 */
   .env-row-val, .sa-meta, .progress-count, .artifact-stream { @apply text-[12px] text-dim; }
+  .env-row-val { @apply inline-flex items-center gap-[6px]; }
 
   .diffwrap { @apply flex min-h-0 flex-1 flex-col bg-bg; }
   .diffbar { @apply sticky top-0 z-10 flex min-h-[44px] shrink-0 items-center gap-2 border-b border-line bg-panel px-3; }

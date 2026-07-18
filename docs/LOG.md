@@ -4625,3 +4625,41 @@ TestBashCredentialWithholdingExplicitAndPassthrough(tool,末者真
 bwrap 端到端);TestHookEnvPassthroughAndExplicitWithholding(hook);
 TestLoadSpecSandboxEnvPassthrough(spec)。`ar init` 模板增 sandbox
 段注释。DESIGN §Activity、SPEC #凭据行同步。
+
+## 2026-07-18 · QA-0718 远程 agent-driven 探索测试(第一轮)+ 三处前端修复
+
+**测试形态(新,记档可复用)**:Claude 沙箱 egress 白名单只放行 GitHub
+系域名,一切隧道服务(trycloudflare/ngrok/loca.lt/bore/serveo)403。
+`remote-qa-env` workflow 在 Actions runner 起真 webui(secrets 真 API
+key)+ 真浏览器 executor;指令下行 = owner 在 `qa-driver <run_id>`
+issue 发 JSON comment,结果上行 = 结果 JSON 回帖 + 截图传 release
+asset(`qa-driver-<run_id>`),外部 agent 逐步看图决策。每步延迟
+~1-2 分钟,真实跑通 13 条指令:建会话→真 Gemini 富内容 turn(代码块/
+表格/bash)→多轮→写文件双审批→diff 面板→移动端。隧道 URL 仍 commit 到
+`qa/remote-env-url.txt` 供人直连。
+
+**实测通过面**:home/会话双栏/三栏布局、代码块(语法高亮+Wrap/Copy+
+横向滚动)、markdown 表格(移动端 overflow-x 正常)、审批卡(文件 chip/
+workspace chip/三按钮/快捷键提示)、Edited N files 卡(Undo/Review/
+per-file ±)、diff 面板(A 徽章/±统计/diff 内高亮/fd-body 横向滚动)、
+移动端全屏 diff、双会话 sidebar、bash 沙箱缺失时错误经 agent 转述不裸奔。
+console error 全程 0,document 级横向溢出 0。
+
+**修复(本 commit)**:
+1. ApprovalCard 快捷键提示硬编码 ⌘——Linux 上与 sidebar 的 CtrlAltN
+   不一致;改用 shortcuts.modLabel 平台感知。
+2. `.env-row-val` 无 gap,Changes 行渲染成 "2 files+106";补 6px gap
+   (与 .diff-summary 同规格)。
+3. Timeline 发送不重新吸底:从历史位置发消息,自己的消息落在视口外;
+   pending 增长时恢复 stick 并滚底(Codex 行为)。
+4. remote-qa-env 装 bubblewrap(runner 缺 bwrap 时 agent bash 全 denied,
+   测不了命令执行/真 diff 场景)。
+
+**登记**:G38 数学公式不渲染(LaTeX 原样露出,补齐走增量流程)。
+**余项(下轮)**:env rail 开启态在视口变窄后成遮挡 overlay(建议窄断点
+自动收起);Queue/Steer 运行中交互、Run details、cmdk、Scheduled 页
+尚未在远程真环境过一遍。
+
+**闸门**:frontend tsc + vitest 336/336 + build 绿(check.sh 前端腿按
+脚本注释手跑;本容器 go1.25.0 被 check-go-toolchain.sh 拒,属既有环境
+限制,Go 面零改动)。

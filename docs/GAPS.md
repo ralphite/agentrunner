@@ -670,6 +670,14 @@ TERM-resistant 孙进程可变孤儿。统一 advisory flock + unique temp fsync
 针对性 race 与全量 gate 通过；共享 store/Web UI 重启验收见 QA-67。
 → UJ-01/04/09/17/18/24
 
+**G38 markdown 数学公式不渲染（LaTeX 原样露出） — 开放（QA-0718 实测）**
+真实 Gemini turn 里模型自然输出 `$\mathcal{O}(\log n)$` 级 inline math
+（复杂度表格是高频场景），webui 的 react-markdown + remark-gfm 无 math
+插件，桌面与移动端均原样露出 LaTeX 源码；Codex（ChatGPT 面）用 KaTeX
+渲染。补齐需 remark-math + rehype-katex + KaTeX 字体（bundle 增量可观），
+属新功能，按 PROCESS 增量流程立项后再动，不在 Tailwind 迁移轮内顺手做。
+→ UJ-01/UJ-24（webui 产品面阅读体验）
+
 ---
 
 ## §3 已确认覆盖（防重复登记）
