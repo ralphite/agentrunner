@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"mime"
 	"net/http"
 	"os"
@@ -97,13 +98,17 @@ func (s *metaStore) persistLocked() {
 	}
 	b, err := json.MarshalIndent(metaFile{Sessions: s.m, Projects: s.projects}, "", " ")
 	if err != nil {
+		log.Printf("ERROR: failed to marshal metadata: %v", err)
 		return
 	}
 	tmp := s.path + ".tmp"
 	if err := os.WriteFile(tmp, b, 0o644); err != nil {
+		log.Printf("ERROR: failed to write metadata file %q: %v", tmp, err)
 		return
 	}
-	_ = os.Rename(tmp, s.path)
+	if err := os.Rename(tmp, s.path); err != nil {
+		log.Printf("ERROR: failed to rename metadata file from %q to %q: %v", tmp, s.path, err)
+	}
 }
 
 func (s *metaStore) set(sid, ws, title string) {

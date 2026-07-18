@@ -568,6 +568,11 @@ func (s *server) handleNewSession(w http.ResponseWriter, r *http.Request) {
 	// --detach prints an id and exits 0 even when the daemon then rejects the
 	// spec (bad tool/model) — the session never registers. Confirm it actually
 	// exists so a bad spec is a clear error, not a phantom the UI opens into.
+	// Save metadata immediately after ar succeeds (before verification), since
+	// the id is already allocated. Verification may fail due to timing, but
+	// metadata must be persisted to avoid workspace loss (INC-73 race condition).
+	s.meta.set(id, ws, req.Message)
+
 	exists := false
 	for i := 0; i < 5; i++ {
 		if s.sessionExists(r.Context(), id) {
@@ -583,7 +588,6 @@ func (s *server) handleNewSession(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	s.meta.set(id, ws, req.Message)
 	writeJSON(w, http.StatusOK, map[string]string{"sid": id, "specDir": specDir, "workspace": ws})
 }
 
