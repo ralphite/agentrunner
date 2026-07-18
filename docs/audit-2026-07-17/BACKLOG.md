@@ -102,10 +102,10 @@
 ## 第 4 批 · 大型（设计先行，每迭代一个可合并步骤）
 
 - [ ] **E1** driver 收敛为递归 session(L,四步;进行中):
-  ①loop-mode 挂 session——**INC-74 三小步全落**(74.1 事件族 7aa8e20 /
-  74.2 安全点唤醒 bf37a1b / 74.3 CLI+wire+文档收口),**B 闸
-  qa-session-schedule Actions 真跑中,PASS 后归档工作纸**;
-  ②iteration child 统一走 spawn_agent;
+  ①✅ loop-mode 挂 session——**INC-74 完成**(74.1 事件族 7aa8e20 /
+  74.2 安全点唤醒 bf37a1b / 74.3 CLI+wire+文档收口 23f39d9;B 闸
+  QA-74 PASS,run 29634255244,工作纸已归档);
+  ②iteration child 统一走 spawn_agent(下一步,需工作纸);
   ③stream 合流(触 §3 教义,须 §四);④CLI 兼容层。
 - [ ] **E2** [BLOCKED: L 级产品形态,设计需用户共创] G11 云
   workspace。核心裁决点:①环境模型(容器 per-session vs 长驻 pool);
@@ -196,3 +196,7 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
   resume/cancel,前置校验)+ daemon `schedule-*` wire(revive 同
   goal-*)+ SPEC A 表行/F 表注/DESIGN §13 两形态镜像+§17 E1① 注/
   GAPS/QA-74 登记 · 本 commit · 代码+文档完成,B 闸 Actions 真跑中。
+- 2026-07-18 · E1① 收口 · QA-74 PASS(run 29634255244,真 Gemini:
+  零 send 自主唤醒 → 跨 daemon 重启 sweep 唤醒 → pause 不再醒,三断言
+  逐条核对)· QA/SPEC 登记,INC-74 工作纸归档 · 本 commit · E1① 完成
+  (② iteration child 走 spawn_agent next,需工作纸)。

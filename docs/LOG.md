@@ -4480,3 +4480,15 @@ check.sh 六腿并行负载下命中：kill 观察协程 6s 内未见 child 的 
 ActivityStarted 即放弃，kill 永不发出，slow child 睡满后以 completed
 收场断言红。deadline 是放弃时刻不是期望时延——放宽到 60s，正常路径由
 "双子已收敛即退出"保证不变。隔离复跑 5/5 绿 + 全闸门绿（warm 68s）。
+
+## 2026-07-18 · QA-74 PASS:INC-74 B 闸收口,E1① 完成
+
+GitHub Actions `qa-session-schedule` run #1(29634255244,证据
+artifact qa74-evidence):真 Gemini + 真 daemon,三条红线逐条核对
+日志——(1) attach 1 分钟 cron 后 ≤1 slot 内**零 send** 自主唤醒并
+完成真 turn;(2) SIGTERM 重启后 session 未托管,timer sweep 到点
+hostResume → 第二次自主唤醒仍完成真 turn(唤醒跨重启存活);
+(3) pause 后静置整 slot,wakes=2 不再增长,status 呈现 paused。
+E1①(loop-mode 挂 conversational session)三小步至此双闸门齐:
+INC-74 工作纸归档 archive/increments/。E1 下一步:② iteration child
+统一走 spawn_agent(需新工作纸)。

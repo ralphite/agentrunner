@@ -77,8 +77,9 @@ cron → 两次自主唤醒各完成一 turn → pause 后不再醒)随实施登
 3. ✅ INC-74.3:CLI `ar schedule` + daemon wire `schedule-*` + 幂等
    重放(schedule 控制骑既有 durable Control 通道,command-id 幂等与
    CommandHandled no_op 回执免费获得)+ 孪生;SPEC/DESIGN/GAPS/LOG
-   收口 + QA-74 场景登记。**B 闸:qa-session-schedule workflow
-   Actions 真跑,PASS 后本工作纸归档。**
+   收口 + QA-74 场景登记。**B 闸 PASS**(2026-07-18,
+   qa-session-schedule run #1 = 29634255244,三断言逐条核对,见
+   QA.md QA-74 条)——工作纸就此归档。
 
 ## 74.2 实施中固化的设计判定
 
