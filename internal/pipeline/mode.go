@@ -1,5 +1,7 @@
 package pipeline
 
+import "github.com/ralphite/agentrunner/internal/event"
+
 // Mode data model (3.6a): a mode is a tool-face filter plus per-class
 // defaults (permission.go) plus a prompt suffix (owned by the agent
 // layer). Everything here is a pure table.
@@ -32,6 +34,17 @@ func ValidTransition(from, to string) bool {
 func ValidMode(mode string) bool {
 	switch mode {
 	case ModeDefault, ModePlan, ModeAcceptEdits, ModeBypass:
+		return true
+	}
+	return false
+}
+
+// ValidAction reports whether a permission rule's action is one the gate
+// understands. Used to reject a typo (e.g. "alow") at spec-load instead of
+// silently at dispatch (QA Wave2 bob-05).
+func ValidAction(action string) bool {
+	switch action {
+	case event.VerdictAllow, event.VerdictAsk, event.VerdictDeny:
 		return true
 	}
 	return false

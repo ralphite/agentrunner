@@ -313,6 +313,15 @@ func (s *AgentSpec) validate(path string) error {
 		// workstation via --mode, never from a spec shipped in a repo.
 		return fail("mode", "bypass cannot be set from a spec; use --mode bypass on the command line")
 	}
+	// Catch a mistyped permission action at parse time — otherwise a rule like
+	// {tool: bash, action: alow} loads fine and only fails (silently, if the
+	// rule never matches) at dispatch (QA Wave2 bob-05).
+	for i, rule := range s.Permissions {
+		if !pipeline.ValidAction(rule.Action) {
+			return fail(fmt.Sprintf("permissions[%d].action", i),
+				fmt.Sprintf("unknown action %q (valid: allow, ask, deny)", rule.Action))
+		}
+	}
 	if s.Escalate && len(s.Permissions) == 0 {
 		return fail("escalate", "requires at least one explicit permission rule")
 	}
