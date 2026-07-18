@@ -539,6 +539,12 @@ func goalCmd(args []string, stdout, stderr io.Writer) int {
 		if g.Paused {
 			fmt.Fprintln(stdout, "paused    yes (goal resume to continue)")
 		}
+		// An exhausted goal (budget spent, not met) is a terminal state `ar
+		// inspect` already surfaces as goal_budget_exhausted — `ar goal status`
+		// used to render it identically to a healthy goal (QA Wave7 olive-03).
+		if g.Exhausted {
+			fmt.Fprintln(stdout, "status    exhausted — check budget spent, goal not met (raise it with `goal update --max-checks N`, or `goal resume`)")
+		}
 		return ExitOK
 	case "pause", "resume", "cancel":
 		return oneShot(stderr, daemon.Command{Cmd: "goal-" + sub, Session: session}, stdout)
