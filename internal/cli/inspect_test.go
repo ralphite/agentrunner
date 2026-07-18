@@ -110,6 +110,37 @@ func TestInspectReportSurfacesFailedAndStopped(t *testing.T) {
 	}
 }
 
+// TestInspectIdleConversationMatchesSessions pins that an idle post-turn
+// conversational session (quiescent "completed" but parked on a durable input
+// wait) reports "waiting:input" from inspect — the same label `ar sessions`
+// and the web list already use. inspect used to render "quiescent (completed)"
+// while the list said "waiting:input", so the two primary observability
+// surfaces disagreed on the identical state (QA Wave6 mia-04).
+func TestInspectIdleConversationMatchesSessions(t *testing.T) {
+	events := []event.Envelope{
+		mkEnv(t, event.TypeSessionStarted, &event.SessionStarted{SpecName: "demo", SubStateVersions: state.SubStateVersions()}),
+		mkEnv(t, event.TypeInputReceived, &event.InputReceived{Text: "hi", Source: "cli"}),
+		mkEnv(t, event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}),
+		mkEnv(t, event.TypeAssistantMessage, &event.AssistantMessage{
+			GenStep: 1, Message: provider.Message{Role: provider.RoleAssistant, Parts: []provider.Part{
+				{Kind: provider.PartText, Text: "hello"}}}}),
+		mkEnv(t, event.TypeWaitingEntered, &event.WaitingEntered{Kind: event.WaitInput}),
+	}
+	s, err := state.Fold(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Precondition: the fold IS quiescent "completed" — the divergence is purely
+	// in how each surface labels that same shape.
+	if q, reason := state.Quiescence(s); !q || reason != "completed" {
+		t.Fatalf("precondition: quiescent=%v reason=%q, want true/completed", q, reason)
+	}
+	r := buildInspectReport(events, s)
+	if r.Status != "waiting:input" {
+		t.Fatalf("idle conversation status = %q (reason %q), want waiting:input to match ar sessions", r.Status, r.Reason)
+	}
+}
+
 // S5.9: the tree report recurses into child journals under sub/, and the
 // artifacts section lists published versions.
 func TestBuildInspectTree(t *testing.T) {

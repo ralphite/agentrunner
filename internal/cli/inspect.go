@@ -433,6 +433,14 @@ func buildInspectReport(events []event.Envelope, s state.State) inspectReport {
 	} else if q, r := state.Quiescence(s); q {
 		if strings.HasPrefix(r, "failed:") {
 			status, reason = "failed", strings.TrimPrefix(r, "failed:")
+		} else if r == "completed" && s.Waiting != nil && s.Waiting.Kind == event.WaitInput {
+			// A conversational session whose final generation is quiet is ready
+			// for another message, not a finished unit of work. `ar sessions`
+			// and the web list both label this "waiting:input" (resume.go's
+			// "preserve the durable input wait"); inspect used to say "quiescent
+			// (completed)", so the two primary observability surfaces disagreed
+			// on the identical idle state (QA Wave6 mia-04).
+			status, reason = "waiting:"+s.Waiting.Kind, ""
 		} else {
 			status, reason = "quiescent", r
 		}
