@@ -605,7 +605,9 @@
   .supervision-panel { @apply min-h-0 overflow-y-auto border-l border-line bg-panel p-3; }
   .session-view .supervision-panel.session-side { @apply flex min-w-0 flex-col overflow-hidden; }
   .supervision-head { @apply mb-3 flex items-center justify-between; }
-  .supervision-label { @apply text-[12px] font-medium uppercase tracking-[0.06em] text-dim; }
+  /* label 内可带计数 span(Progress 1/2)——flex+gap,否则挤成 PROGRESS1/2
+     (QA-0718 实测)。 */
+  .supervision-label { @apply flex items-baseline gap-1.5 text-[12px] font-medium uppercase tracking-[0.06em] text-dim; }
   .supervision-section { @apply mb-4; }
   .supervision-quiet, .supervision-empty, .supervision-loading { @apply text-[12px] text-dim; }
   .attention-row, .background-row, .progress-row, .sa-row, .env-row, .artifact-row, .goal-outcome, .goal-meta, .goal-settled-line {

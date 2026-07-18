@@ -4694,3 +4694,12 @@ SUGGESTIONS 分节标签/860px 布局)✓;Run details modal("Current run/dev"
 分行、Ready pill 右置、Overview 栅格)✓。传输层备忘:MCP 发 issue
 comment 会把含 `#fragment` 的 URL 连同后文包进反引号(#N 被当 issue
 引用处理),指令里避免 `#`——改用 eval 设 location.hash。
+
+## 2026-07-18 · QA-0718 第四轮续:多 subagent 场景真机验证 + Progress 计数间距修复
+
+真机跑通"多个 Agent"场景(用户点名):spawn 双 worker → "Start agent"
+审批卡(worker/Current session/Details,Ctrl 提示 ✓)→ BACKGROUND WORK
+双行(绿点+描述+停止按钮)、PROGRESS 打勾清单、ATTENTION "Background
+work still running" 警示——监督面板整链路渲染正常。发现并修
+`.supervision-label` 无 gap 导致 "PROGRESS1/2" 挤行(与 env-row-val
+同类,QA-0718 第三处):flex+gap-1.5。build + SupervisionPanel 23 测试绿。
