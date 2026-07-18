@@ -257,7 +257,11 @@ const specFields = "name, model, system_prompt, system_prompt_file, tools, " +
 // commented example.
 func decodeHint(err error) string {
 	msg := err.Error()
-	unknown := strings.Contains(msg, "not found in type")
+	// Capture the CONTAINING type so a field nested under model/budget/sandbox/
+	// outputs names the right scope, not the top-level one — matching the driver
+	// validator's behavior (QA Wave8 ravi-02).
+	m := typeNameRe.FindStringSubmatch(msg)
+	unknown := m != nil
 	msg = typeNameRe.ReplaceAllString(msg, `unknown field "$1"`)
 	// A type mismatch (a scalar where an object/list is expected) leaks the Go
 	// type name, e.g. "cannot unmarshal !!str `x` into agent.SandboxSpec" (QA
@@ -266,16 +270,39 @@ func decodeHint(err error) string {
 	mismatch := strings.Contains(msg, "cannot unmarshal")
 	msg = mismatchRe.ReplaceAllString(msg, "this field has the wrong type (got a $1 where a different shape is expected)")
 	if unknown {
-		msg += fmt.Sprintf("\n  valid top-level fields: %s\n  (run `agentrunner init` for a commented example spec)", specFields)
+		scope, fields := specScope(m[2])
+		msg += fmt.Sprintf("\n  valid %s fields: %s\n  (run `agentrunner init` for a commented example spec)", scope, fields)
 	} else if mismatch {
 		msg += "\n  (run `agentrunner init` for a commented example spec)"
 	}
 	return msg
 }
 
+// specScope maps a spec sub-struct's Go type (as it appears in yaml.v3's
+// KnownFields error) to the human scope label and valid field list, so an
+// unknown field names the shape it actually sits in. Keep in sync with the
+// struct tags.
+func specScope(goType string) (scope, fields string) {
+	switch {
+	case strings.Contains(goType, "ModelSpec"):
+		return "model", "provider, id, max_tokens, compact_at_tokens, microcompact_at_tokens, thinking"
+	case strings.Contains(goType, "ThinkingSpec"):
+		return "model.thinking", "enabled, budget_tokens"
+	case strings.Contains(goType, "SandboxSpec"):
+		return "sandbox", "network"
+	case strings.Contains(goType, "BudgetSpec"):
+		return "budget", "max_total_tokens"
+	case strings.Contains(goType, "OutputSpec"):
+		return "outputs[] item", "name, path, required"
+	default:
+		return "top-level", specFields
+	}
+}
+
 // typeNameRe matches yaml.v3's KnownFields error phrase, e.g.
-// "field prompt not found in type agent.AgentSpec".
-var typeNameRe = regexp.MustCompile(`field (\S+) not found in type \S+`)
+// "field prompt not found in type agent.AgentSpec", capturing both the field
+// and the containing type.
+var typeNameRe = regexp.MustCompile(`field (\S+) not found in type (\S+)`)
 
 // mismatchRe matches yaml.v3's type-mismatch phrase, e.g.
 // "cannot unmarshal !!str `foo` into agent.SandboxSpec" — capturing the yaml

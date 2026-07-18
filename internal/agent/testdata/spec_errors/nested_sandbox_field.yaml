@@ -1,0 +1,5 @@
+name: t
+model: { provider: gemini, id: gemini-flash-latest }
+system_prompt: p
+sandbox:
+  bogus_sandbox_field: 1
