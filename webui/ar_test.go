@@ -995,3 +995,21 @@ func TestContentTypeCaseInsensitive(t *testing.T) {
 	check("application/JSON; charset=utf-8", true)
 	check("text/plain", false)
 }
+
+// TestSendDeliveryValidation pins that the send endpoint rejects an unknown
+// delivery mode instead of silently queueing it (QA Wave2 carol-09).
+func TestSendDeliveryValidation(t *testing.T) {
+	s := &server{arPath: "/nonexistent-ar"}
+	body := `{"text":"hi","delivery":"steal"}`
+	req := httptest.NewRequest("POST", "/api/sessions/s1/send", strings.NewReader(body))
+	req.SetPathValue("sid", "s1")
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	s.handleSend(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("unknown delivery: status=%d body=%s, want 400", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "delivery must be") {
+		t.Fatalf("body=%s, want a delivery error", rec.Body.String())
+	}
+}

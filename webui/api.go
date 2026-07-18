@@ -1165,6 +1165,16 @@ func (s *server) handleSend(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, "text is required")
 		return
 	}
+	// Validate the delivery mode instead of silently queueing an unknown value —
+	// a typo like "steal" used to be accepted and quietly downgraded to queue,
+	// so the caller never learned their mid-turn steer didn't happen (QA Wave2
+	// carol-09). "" defaults to queue.
+	switch req.Delivery {
+	case "", "queue", "steer":
+	default:
+		badRequest(w, `delivery must be "steer" or "queue"`)
+		return
+	}
 	// --detach: deliver and return; the reply and any approval land in the
 	// journal, which the UI already polls. Blocking would re-introduce the
 	// orphaned-approval failure on follow-up turns (same as `ar new`).
