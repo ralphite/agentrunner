@@ -1,0 +1,138 @@
+# Remote QA Environment — 在 GitHub Actions runner 上起 arwebui（带 secrets
+# 里的真实 API key），并通过 Cloudflare quick tunnel 暴露一个公网 URL。
+# 不需要 Tailscale：任何能上网的地方（包括 Claude 的远程执行沙箱）都能
+# 直接访问，用于 agent-driven exploratory QA。
+#
+# 用法：
+#   1. Actions → remote-qa-env → Run workflow（或由 agent 通过 API dispatch）。
+#   2. 运行日志 "Expose via cloudflared" 步骤和 job summary 里有
+#      https://xxx.trycloudflare.com 的 URL。
+#   3. agent 从沙箱里直接访问该 URL 做真实的多轮会话测试。
+#   4. 提前停：Cancel workflow run。
+#
+# 会话数据经 actions/cache 跨 run 延续（与 phone-webui 相同机制、独立 key）。
+name: remote-qa-env
+
+on:
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: "Keep the environment up for this many minutes (max 340)"
+        default: "60"
+        type: string
+
+permissions:
+  contents: read
+
+# 同时只保留一个实例。
+concurrency:
+  group: remote-qa-env
+  cancel-in-progress: true
+
+jobs:
+  serve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: main
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: webui/frontend/package-lock.json
+
+      - name: Build frontend
+        run: |
+          cd webui/frontend
+          npm ci
+          npm run build
+
+      - name: Build ar + arwebui
+        run: |
+          go build -buildvcs=false -o bin/ar ./cmd/agentrunner
+          (cd webui && go build -buildvcs=false -o ../bin/arwebui .)
+
+      - name: Restore store from previous run
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.local/share/agentrunner
+            runtime
+          key: agentrunner-qa-store-${{ github.run_id }}
+          restore-keys: |
+            agentrunner-qa-store-
+
+      - name: Start Web UI
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          nohup ./bin/arwebui -ar "$PWD/bin/ar" -addr 127.0.0.1:8788 > webui.log 2>&1 &
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8788/api/health > /dev/null 2>&1; then
+              echo "web UI is up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "web UI did not come up:" >&2
+          tail -50 webui.log >&2
+          exit 1
+
+      - name: Expose via cloudflared
+        run: |
+          curl -fsSL -o cloudflared \
+            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          chmod +x cloudflared
+          nohup ./cloudflared tunnel --no-autoupdate --url http://127.0.0.1:8788 > tunnel.log 2>&1 &
+          # quick tunnel 的 URL 会打进日志；等它出现
+          URL=""
+          for _ in $(seq 1 60); do
+            URL=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' tunnel.log | head -1 || true)
+            [ -n "$URL" ] && break
+            sleep 1
+          done
+          if [ -z "$URL" ]; then
+            echo "cloudflared tunnel did not come up:" >&2
+            cat tunnel.log >&2
+            exit 1
+          fi
+          # 打进日志（agent 抓 job log 提取）+ job summary（人看）
+          echo "TUNNEL_URL=$URL"
+          echo "::notice title=Remote QA env::$URL"
+          {
+            echo "## Remote QA environment is up"
+            echo ""
+            echo "**URL: $URL**"
+            echo "- Up for ${MINUTES_IN} minutes — cancel this run to stop earlier."
+          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          MINUTES_IN: ${{ inputs.minutes }}
+
+      - name: Keep alive
+        run: |
+          MINUTES=$(printf '%s' "$MINUTES_IN" | tr -dc '0-9')
+          MINUTES=${MINUTES:-60}
+          [ "$MINUTES" -gt 340 ] && MINUTES=340
+          echo "serving for $MINUTES minutes…"
+          sleep $(( MINUTES * 60 ))
+        env:
+          MINUTES_IN: ${{ inputs.minutes }}
+
+      - name: Save store for next run
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.local/share/agentrunner
+            runtime
+          key: agentrunner-qa-store-${{ github.run_id }}
