@@ -4785,3 +4785,17 @@ remote env(run 29663834074)真机走通本地 commit 全链路:env rail
 eval 切换/双视口/新会话首聊断言无 Edited 卡/有内容 diff 必开含 modify
 型)。QA 环境用 eval 设 `arwebui.theme` + `data-theme` 即可切深色,
 无需改 executor。
+
+## 2026-07-18 · QA-0718 第九轮终验:实机三问题修复真机全过
+
+带修复 build 的远程环境(run 29664731344,深色+390 视口)硬断言:
+1. sidebar-show vs 标题:btnRight 48 < titleLeft 52,overlap=false ✓
+2. modify diff:fd-gap "27 unmodified lines" 单行两列(71px/271px)✓;
+   hunk heading bg panel-2 + 11px(蓝底移除)✓;del gutter 纯色
+   rgb(240,147,140)、backgroundImage none(斜纹移除)✓;目检整体
+   已达 Codex 形态。
+3. last-turn 卡边界:daemon 重启后基线不在,历史 turn 不再渲染
+   Edited 卡(变更仍在 rail/Changes working-tree 处可见)——语义符合
+   "卡=本 turn 编辑",记录为已接受行为。
+余项:composer 静默带上 lastProject 的可发现性(pill 有显示但易被
+忽略)——产品层裁决,留 GAPS 视角后续评估。
