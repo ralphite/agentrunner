@@ -2218,10 +2218,18 @@ func (l *Loop) buildToolRun(call provider.ToolCall, res *tool.Result) func(conte
 		return func(ctx context.Context) (json.RawMessage, *provider.Usage, bool, error) {
 			payload, isErr, err := l.MCP.Call(ctx, call.Name, call.Args)
 			if err != nil {
-				payload, _ = json.Marshal(map[string]any{
-					"error": err.Error(), "outcome_unknown": true,
-					"reconnect": "the next MCP operation will create a fresh session; do not repeat a side-effecting call without confirmation",
-				})
+				if errors.Is(err, mcp.ErrNotDispatched) {
+					// The call never reached the server (allowed_tools block,
+					// bad name, no connection): the outcome is KNOWN — nothing
+					// ran, no side effect — so report a plain error, not the
+					// scary "outcome_unknown / do not repeat" (QA Wave4 karl-01).
+					payload, _ = json.Marshal(map[string]any{"error": err.Error()})
+				} else {
+					payload, _ = json.Marshal(map[string]any{
+						"error": err.Error(), "outcome_unknown": true,
+						"reconnect": "the next MCP operation will create a fresh session; do not repeat a side-effecting call without confirmation",
+					})
+				}
 				*res = tool.Result{Payload: payload, IsError: true}
 				return res.Payload, nil, true, nil
 			}

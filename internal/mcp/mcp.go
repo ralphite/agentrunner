@@ -538,17 +538,23 @@ func (m *Manager) Servers() []string {
 	return out
 }
 
+// ErrNotDispatched marks a Call that never reached the server — blocked by
+// allowed_tools, a malformed name, or no connection. Its outcome is KNOWN
+// (nothing ran, no side effect), so the caller must NOT frame it as an
+// unknown outcome (QA Wave4 karl-01).
+var ErrNotDispatched = errors.New("mcp: call not dispatched")
+
 func (m *Manager) Call(ctx context.Context, qualified string, args json.RawMessage) (json.RawMessage, bool, error) {
 	if !m.isAllowed(qualified) {
-		return nil, false, fmt.Errorf("mcp: tool %q not permitted", qualified)
+		return nil, false, fmt.Errorf("%w: tool %q not permitted (not in this agent's allowed_tools)", ErrNotDispatched, qualified)
 	}
 	server, tool, ok := SplitName(qualified)
 	if !ok {
-		return nil, false, fmt.Errorf("mcp: %q is not a fully-qualified mcp tool name", qualified)
+		return nil, false, fmt.Errorf("%w: %q is not a fully-qualified mcp tool name", ErrNotDispatched, qualified)
 	}
 	conn, ok := m.conns[server]
 	if !ok {
-		return nil, false, fmt.Errorf("mcp: no connected server %q", server)
+		return nil, false, fmt.Errorf("%w: no connected server %q", ErrNotDispatched, server)
 	}
 	return conn.Call(ctx, tool, args)
 }
