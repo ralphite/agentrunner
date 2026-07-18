@@ -929,7 +929,7 @@ func (d *Driver) runIteration(ctx context.Context, st *State, appendE appendFunc
 		if recorded, ok := st.attempt(n, a); ok && recorded.Completed {
 			spent = addUsage(spent, recorded.Usage)
 			res = agent.RunResult{Reason: recorded.Reason, Usage: recorded.Usage}
-			if done, settled := settledChild(childDir); done {
+			if done, settled := agent.SettledChild(childDir); done {
 				res = settled
 			}
 			if recorded.Reason != "error" && recorded.Reason != "canceled" &&
@@ -964,7 +964,7 @@ func (d *Driver) runIteration(ctx context.Context, st *State, appendE appendFunc
 			return err
 		}
 
-		childStore, err := store.OpenEventStore(childDir)
+		cr, err := agent.OpenChildRun(childDir)
 		if err != nil {
 			rerr = fmt.Errorf("driver: open child store: %w", err)
 			if aerr := completeAttempt("error", provider.Usage{}, rerr); aerr != nil {
@@ -975,40 +975,39 @@ func (d *Driver) runIteration(ctx context.Context, st *State, appendE appendFunc
 			}
 			return agent.RunResult{}, childDir, spent, rerr
 		}
-		// A pre-existing journal means the driver crashed with this child
-		// in-flight. If that child already reached a terminal state, settle
-		// from its fold — an error/canceled ending settles as a FAILURE so the
-		// on_child_failure policy applies identically across the crash (S6
-		// review); otherwise resume it (its own in-doubt discipline guards
-		// correctness) rather than duplicating a fresh run.
-		if childStore.LastSeq() > 0 {
-			child := newChild(childStore, session)
-			if done, dres := settledChild(childDir); done {
-				_ = childStore.Close()
-				attemptUsage := dres.Usage
-				spent = addUsage(spent, attemptUsage)
-				if dres.Reason == "error" || dres.Reason == "canceled" || strings.HasPrefix(dres.Reason, "failed") {
-					res, rerr = dres, fmt.Errorf("child ended %s (settled from journal)", dres.Reason)
-					if err := completeAttempt(failReason(ctx), attemptUsage, rerr); err != nil {
-						return res, childDir, spent, err
-					}
-					if ctx.Err() != nil {
-						return res, childDir, spent, rerr
-					}
-					continue
+		// A pre-existing SETTLED journal means the driver crashed after this
+		// child quiesced: settle from its fold — an error/canceled ending
+		// settles as a FAILURE so the on_child_failure policy applies
+		// identically across the crash (S6 review). The check stays explicit
+		// here (not inside ChildRun.Run) because the driver classifies a
+		// settled failure by its REASON, where a live run classifies by the
+		// run error — merging them would misread a settled failure as success.
+		if done, dres := agent.SettledChild(childDir); done {
+			cr.Close()
+			attemptUsage := dres.Usage
+			spent = addUsage(spent, attemptUsage)
+			if dres.Reason == "error" || dres.Reason == "canceled" || strings.HasPrefix(dres.Reason, "failed") {
+				res, rerr = dres, fmt.Errorf("child ended %s (settled from journal)", dres.Reason)
+				if err := completeAttempt(failReason(ctx), attemptUsage, rerr); err != nil {
+					return res, childDir, spent, err
 				}
-				if err := completeAttempt(dres.Reason, attemptUsage, nil); err != nil {
-					return dres, childDir, spent, err
+				if ctx.Err() != nil {
+					return res, childDir, spent, rerr
 				}
-				return dres, childDir, spent, nil
+				continue
 			}
-			res, rerr = child.Resume(ctx)
-		} else {
-			child := newChild(childStore, session)
-			res, rerr = child.Run(ctx, d.buildPrompt())
+			if err := completeAttempt(dres.Reason, attemptUsage, nil); err != nil {
+				return dres, childDir, spent, err
+			}
+			return dres, childDir, spent, nil
 		}
-		_ = childStore.Close()
-		attemptUsage := childSpent(childDir)
+		// Not settled: the substrate resumes a non-empty journal (the driver
+		// crashed with the child in-flight; its own in-doubt discipline
+		// guards correctness) or runs a fresh one, and settles spend from
+		// the child fold either way (INC-76 基座).
+		var attemptUsage provider.Usage
+		res, attemptUsage, rerr = cr.Run(ctx, newChild(cr.Store(), session), d.buildPrompt())
+		cr.Close()
 		spent = addUsage(spent, attemptUsage)
 		reason := res.Reason
 		if rerr != nil {
@@ -1043,26 +1042,9 @@ func addUsage(a, b provider.Usage) provider.Usage {
 	}
 }
 
-// settledChild reports whether a child journal is already QUIESCENT (决策
-// #31 — the driver settles from the shape, no receipt event exists) and,
-// if so, its result folded from that journal — the recovery path for a
-// crash between the child quiescing and the driver recording
-// IterationCompleted.
-func settledChild(childDir string) (bool, agent.RunResult) {
-	events, err := store.ReadEvents(childDir)
-	if err != nil {
-		return false, agent.RunResult{}
-	}
-	s, err := state.Fold(events)
-	if err != nil {
-		return false, agent.RunResult{}
-	}
-	quiescent, reason := state.Quiescence(s)
-	if !quiescent {
-		return false, agent.RunResult{}
-	}
-	return true, agent.RunResult{Reason: reason, GenSteps: s.Session.GenStep, Usage: s.Session.Usage}
-}
+// The settled-from-shape read lives in the shared child-run substrate now
+// (agent.SettledChild, INC-76): the driver and the spawn paths converge on
+// one implementation of 决策 #31's "settle from the quiescent shape".
 
 // seriesMemoryMaxBytes caps the injected series memory: the authority
 // boundary is AT injection (DESIGN: 权威边界在注入时截断) — an agent that
@@ -1488,23 +1470,16 @@ func (d *Driver) publishCarry(text string) string {
 	return v.Ref
 }
 
-// childSpent folds the child journal for its settled usage — the truth even
-// when the child aborted (RunResult carries zero on error paths), so a failed
-// child's spend still counts against the tree budget.
-func childSpent(childDir string) provider.Usage {
-	events, err := store.ReadEvents(childDir)
-	if err != nil {
-		return provider.Usage{}
-	}
-	s, err := state.Fold(events)
-	if err != nil {
-		return provider.Usage{}
-	}
-	return s.Session.Usage
-}
+// The fold-usage settle lives in the shared child-run substrate now
+// (ChildRun.Run returns it, INC-76): a failed child's spend still counts
+// against the tree budget, implemented once.
 
 // childReport extracts the child's final assistant text from its journal —
-// the carry excerpt a later iteration (and inspect) sees.
+// the carry excerpt a later iteration (and inspect) sees. NOTE (INC-76 记档):
+// this deliberately stays SEPARATE from agent.childReport — this one takes
+// the last non-empty text part across the whole conversation (carry
+// excerpt), agent's takes the last message's first text part (spawn
+// report); different consumers, both definitions sound.
 func childReport(childDir string) string {
 	events, err := store.ReadEvents(childDir)
 	if err != nil {

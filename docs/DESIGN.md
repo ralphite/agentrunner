@@ -1750,8 +1750,11 @@ mapping，代码与文档同名）。
   零 legacy——spawn 一律非阻塞;handoff 的同步执行是控制移交语义,
   不是第二条 spawn 路径）;driver 子系统仍独立,收敛挂 UJ-22/G23,
   按 E1 四步走：**步骤①已落（INC-74 in-session schedule,loop-mode
-  的会话内形态,driver loop 并存维持）**,②iteration child 统一走
-  spawn_agent、③stream 合流（触 §3 教义,须 §四）、④CLI 兼容层待续。
+  的会话内形态,driver loop 并存维持）;步骤②已落（INC-76 子执行
+  基座统一：agent.ChildRun 是"跑 child 到静止并结算"的唯一实现,
+  spawn 双路径/审批重挂/driver.runIteration 全部改走;Loop 构造与
+  事实流合一显式留 ③④）**,③stream 合流（触 §3 教义,须 §四）、
+  ④CLI 兼容层待续。
 - **WAITING_APPROVAL 挂起期间**消息只排队不唤醒（审批答复才解栈，
   唤醒语义待定，见 GAPS G3 余项）。
 - **daemon kill -9 孤儿化在飞 bash 的子进程**：已收（audit-0717 B3，

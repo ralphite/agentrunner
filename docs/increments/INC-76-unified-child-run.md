@@ -94,9 +94,14 @@ B 闸:纯重构无新行为,以 QA-70(daemon 生命周期,覆盖 driver crash
    非静止→Resume/已静止→零 provider 调用零新事件)+
    TestChildRunSettlesUsageOnError;spawn/bgspawn/recovery/driver
    全套既有孪生不改断言全绿。
-2. INC-76.2:driver.runIteration 改走基座(retry/事实/命名不变),
-   删 driver 侧 settledChild/childSpent 重复实现;driver 孪生全绿。
-3. INC-76.3:文档收口(§17/SPEC F 注/LOG)+ QA-70 回归 dispatch。
+2. ✅ INC-76.2:driver.runIteration 改走基座(ChildRun/SettledChild
+   导出;settled 捷径留在 driver——settled 失败按 reason 分类重试、
+   live 失败按 run error 分类,合并会把 settled 失败误读为成功,
+   故基座外显式保留;retry/事实/命名不变),删 driver 侧
+   settledChild/childSpent 重复实现;driver 孪生不改断言全绿。
+3. ✅ INC-76.3:文档收口(§17 步骤② 已落注 / SPEC F 表 driver-goal
+   行注+孪生锚 / LOG)+ QA-70 回归 dispatch(结果见 QA.md/LOG,
+   PASS 后归档本纸)。
 
 ## 实施中发现的语义分歧(76.1 记档)
 

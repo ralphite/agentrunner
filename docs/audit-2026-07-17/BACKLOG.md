@@ -209,3 +209,7 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
   结算),spawn 双路径+recovery reattach 三站点改走;childReport 语义
   分歧记档(报告读取不并入基座)· 本 commit · 完成(76.2 driver 改走
   next)。
+- 2026-07-18 · INC-76.2+76.3 · driver.runIteration 改走基座(settled
+  捷径留 driver:分类语义不同,合并会误读 settled 失败为成功——记档),
+  删 settledChild/childSpent 重复;§17 步骤② 注/SPEC F 注收口;QA-70
+  回归 dispatch · 本 commit · 完成(回归 PASS 后归档工作纸)。

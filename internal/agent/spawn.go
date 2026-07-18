@@ -439,11 +439,11 @@ func (l *Loop) buildHandoffRun(call provider.ToolCall, res *tool.Result,
 		l.replacePredecessor(coordination.Replaces)
 
 		childDir := filepath.Join(l.Store.Dir(), "sub", fmt.Sprintf("%s-a%d", call.CallID, attempt))
-		cr, err := openChildRun(childDir)
+		cr, err := OpenChildRun(childDir)
 		if err != nil {
 			return nil, nil, false, fmt.Errorf("spawn %s: %w", agentName, err)
 		}
-		defer cr.close()
+		defer cr.Close()
 		childSession := fmt.Sprintf("%s-sub-%s-a%d", l.SessionID, call.CallID, attempt)
 		childExec, workspaceAssignment, err := l.prepareChildExecutor(ctx, childDir, childSession)
 		if err != nil {
@@ -466,9 +466,9 @@ func (l *Loop) buildHandoffRun(call provider.ToolCall, res *tool.Result,
 		l.fireLifecycle(ctx, hook.EventSubagentStart,
 			map[string]string{"agent": agentName, "child_session": childSession}, false)
 
-		child := l.childLoopWithExec(childSpec, cr.store(), childSession, allowance, parentMode, childExec)
+		child := l.childLoopWithExec(childSpec, cr.Store(), childSession, allowance, parentMode, childExec)
 		child.Inputs = inputs
-		cres, spent, cerr := cr.run(ctx, child, isolatedPrompt(workspaceAssignment, prompt))
+		cres, spent, cerr := cr.Run(ctx, child, isolatedPrompt(workspaceAssignment, prompt))
 		if cerr != nil {
 			// spent is the child fold's settled spend (childRun reads it) —
 			// the truth even though RunResult is zero on aborts (S5 review:
@@ -568,7 +568,7 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 	l.replacePredecessor(coordination.Replaces)
 
 	childDir := filepath.Join(l.Store.Dir(), "sub", fmt.Sprintf("%s-a1", call.CallID))
-	cr, err := openChildRun(childDir)
+	cr, err := OpenChildRun(childDir)
 	if err != nil {
 		return fmt.Errorf("spawn %s: %w", agentName, err)
 	}
@@ -576,7 +576,7 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 	activityID := "tool-" + call.CallID
 	childExec, workspaceAssignment, err := l.prepareChildExecutor(ctx, childDir, childSession)
 	if err != nil {
-		cr.close()
+		cr.Close()
 		payload, _ := json.Marshal(map[string]any{"error": fmt.Sprintf("spawn %s: %v", agentName, err)})
 		if _, aerr := appendE(event.TypeActivityStarted, &event.ActivityStarted{
 			ActivityID: activityID, Kind: event.KindTool, Name: call.Name,
@@ -600,7 +600,7 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 		LeaseID: "lease-" + call.CallID + "-a1", Workspace: workspaceAssignment,
 		Replaces: coordination.Replaces,
 	}); err != nil {
-		cr.close()
+		cr.Close()
 		return err
 	}
 	l.fireLifecycle(ctx, hook.EventSubagentStart,
@@ -610,7 +610,7 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 		Args: redact.FromEnv().JSON(call.Args), CallID: call.CallID,
 		Attempt: 1, Background: true, Notice: escalationNotice(childSpec, escalationFallback),
 	}); err != nil {
-		cr.close()
+		cr.Close()
 		return err
 	}
 
@@ -621,11 +621,11 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 
 	// The Loop is built HERE, on the drive goroutine (it reads parent
 	// state); only the run itself moves to the background goroutine.
-	child := l.childLoopWithExec(childSpec, cr.store(), childSession, allowance, parentMode, childExec)
+	child := l.childLoopWithExec(childSpec, cr.Store(), childSession, allowance, parentMode, childExec)
 	child.Inputs = inputs
 	go func() {
-		defer cr.close()
-		cres, spent, cerr := cr.run(workCtx, child, isolatedPrompt(workspaceAssignment, prompt))
+		defer cr.Close()
+		cres, spent, cerr := cr.Run(workCtx, child, isolatedPrompt(workspaceAssignment, prompt))
 		reason := cres.Reason
 		canceled := workCtx.Err() != nil
 		if cerr != nil {

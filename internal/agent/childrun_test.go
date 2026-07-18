@@ -16,7 +16,7 @@ import (
 
 // childRunLoop builds a minimal child Loop over the childRun's store — the
 // caller-builds-the-Loop contract of the substrate.
-func childRunLoop(t *testing.T, cr *childRun, fix scripted.Fixture) *Loop {
+func childRunLoop(t *testing.T, cr *ChildRun, fix scripted.Fixture) *Loop {
 	t.Helper()
 	ws, err := workspace.New(t.TempDir())
 	if err != nil {
@@ -30,7 +30,7 @@ func childRunLoop(t *testing.T, cr *childRun, fix scripted.Fixture) *Loop {
 		},
 		Provider:  scripted.New(fix),
 		Exec:      &tool.Executor{WS: ws},
-		Store:     cr.store(),
+		Store:     cr.Store(),
 		Clock:     clock.NewFake(time.Date(2026, 7, 18, 0, 0, 0, 0, time.UTC)),
 		SessionID: "childrun-sess",
 	}
@@ -43,15 +43,15 @@ func TestChildRunThreeWayDecision(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "child")
 
 	// (a) fresh journal → Run.
-	cr, err := openChildRun(dir)
+	cr, err := OpenChildRun(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
 	}}
-	res, spent, rerr := cr.run(context.Background(), childRunLoop(t, cr, fix), "do the thing")
-	cr.close()
+	res, spent, rerr := cr.Run(context.Background(), childRunLoop(t, cr, fix), "do the thing")
+	cr.Close()
 	if rerr != nil || res.Reason != "completed" {
 		t.Fatalf("fresh run: res=%+v err=%v, want completed", res, rerr)
 	}
@@ -70,12 +70,12 @@ func TestChildRunThreeWayDecision(t *testing.T) {
 	// (c) already-quiescent journal → settle from the shape, no provider
 	// call and no new events. The empty fixture would ERROR if consulted —
 	// its absence of steps is the guard.
-	cr2, err := openChildRun(dir)
+	cr2, err := OpenChildRun(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	res2, spent2, rerr2 := cr2.run(context.Background(), childRunLoop(t, cr2, scripted.Fixture{}), "ignored")
-	cr2.close()
+	res2, spent2, rerr2 := cr2.Run(context.Background(), childRunLoop(t, cr2, scripted.Fixture{}), "ignored")
+	cr2.Close()
 	if rerr2 != nil || res2.Reason != "completed" {
 		t.Fatalf("settled run: res=%+v err=%v, want completed from the shape", res2, rerr2)
 	}
@@ -105,15 +105,15 @@ func TestChildRunThreeWayDecision(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = seed.Close()
-	cr3, err := openChildRun(dir2)
+	cr3, err := OpenChildRun(dir2)
 	if err != nil {
 		t.Fatal(err)
 	}
 	fix3 := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{{Text: "resumed"}, {Finish: "end_turn"}}},
 	}}
-	res3, _, rerr3 := cr3.run(context.Background(), childRunLoop(t, cr3, fix3), "ignored — resume path")
-	cr3.close()
+	res3, _, rerr3 := cr3.Run(context.Background(), childRunLoop(t, cr3, fix3), "ignored — resume path")
+	cr3.Close()
 	if rerr3 != nil || res3.Reason != "completed" {
 		t.Fatalf("resume run: res=%+v err=%v, want completed via Resume", res3, rerr3)
 	}
@@ -126,14 +126,14 @@ func TestChildRunThreeWayDecision(t *testing.T) {
 // (zeroed) RunResult (S5/S6 review; the substrate's single settle point).
 func TestChildRunSettlesUsageOnError(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "child")
-	cr, err := openChildRun(dir)
+	cr, err := OpenChildRun(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cr.close()
+	defer cr.Close()
 	// An empty fixture makes the very first provider call fail: the run
 	// errors after journaling its opening facts.
-	_, spent, rerr := cr.run(context.Background(), childRunLoop(t, cr, scripted.Fixture{}), "will fail")
+	_, spent, rerr := cr.Run(context.Background(), childRunLoop(t, cr, scripted.Fixture{}), "will fail")
 	if rerr == nil {
 		t.Fatal("run with an empty fixture should error")
 	}

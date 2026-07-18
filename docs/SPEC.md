@@ -130,7 +130,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 
 | 功能点 | 状态 | Journey | 验收锚 / 备注 |
 |---|---|---|---|
-| driver-goal（批式/headless，verifier 三态、停滞检测、carry；fresh child run） | ✅ | UJ-15 | S6 · TestDriverGoalSatisfied/TestDriverGoalStalled/TestDriverCarryToArtifactStore（G30 还锚 audit-0717 C1） |
+| driver-goal（批式/headless，verifier 三态、停滞检测、carry；fresh child run；**子执行基座统一 INC-76：runIteration 与 spawn 路径同走 agent.ChildRun**） | ✅ | UJ-15 | S6 · TestDriverGoalSatisfied/TestDriverGoalStalled/TestDriverCarryToArtifactStore（G30 还锚 audit-0717 C1）· TestChildRunThreeWayDecision/TestChildRunSettlesUsageOnError（INC-76） |
 | **in-session goal（会话内，context 延续；command/llm_judge/self-cert 三种裁决；只有 pass=`GoalAchieved{satisfied}`；`max_checks` miss=`GoalExhausted{budget}`，goal 保留、update 可扩预算后同 context 继续；step-limit pass 有明确 `goal_satisfied` 收据）** | ✅ | UJ-22 | INC-D1+INC-10+INC-48+INC-66 · 决策 #21/#34/#40 · TestGoalUpdateRecoversExhaustedGoal/TestGoalExhaustionRetainsGoalAndUpdateRearmsIt + 既有 Goal suites |
 | loop mode（interval fixed-rate/cron/self_paced、durable absolute tick、overlap skip/coalesce；每个 retry attempt parent-journaled；全 child error=`child_failed`；**session 内形态见 A 表(INC-74),driver 形态维持至 E1 收敛完成**） | ✅ | UJ-14 | S6+INC-66 · TestDriverIntervalOverlapPolicies/TestDriverChildFailRetryRecovers/TestDriverChildFailSurface |
 | verifier 管线化（in-session/driver 均 journaled effect + Activity bracket + containment evidence；driver-trust 规则层） | ✅ | UJ-15/22 | S7 · INC-11.3 · TestVerifierActivityTrace |

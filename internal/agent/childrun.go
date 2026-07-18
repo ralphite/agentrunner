@@ -17,30 +17,32 @@ import (
 // The Loop itself is built by the CALLER and passed in: construction reads
 // parent state (pipeline gates, mode, allowance) and must happen on the
 // caller's goroutine; only the run is background-safe.
-type childRun struct {
+type ChildRun struct {
 	dir string
 	cs  *store.EventStore
 }
 
-// openChildRun opens the attempt's store. Callers keep their existing
+// OpenChildRun opens the attempt's store. Callers keep their existing
 // open-position in the sequence (before any journal fact referencing the
 // child) so failure shapes are unchanged.
-func openChildRun(dir string) (*childRun, error) {
+func OpenChildRun(dir string) (*ChildRun, error) {
 	cs, err := store.OpenEventStore(dir)
 	if err != nil {
 		return nil, err
 	}
-	return &childRun{dir: dir, cs: cs}, nil
+	return &ChildRun{dir: dir, cs: cs}, nil
 }
 
-func (c *childRun) store() *store.EventStore { return c.cs }
-func (c *childRun) close()                   { _ = c.cs.Close() }
+func (c *ChildRun) Store() *store.EventStore { return c.cs }
+func (c *ChildRun) Close()                   { _ = c.cs.Close() }
 
-// settled reports whether the child journal is already QUIESCENT, and if
-// so its result folded from that shape (决策 #31 — no receipt event
-// exists; the shape is the truth).
-func (c *childRun) settled() (bool, RunResult) {
-	events, err := store.ReadEvents(c.dir)
+// SettledChild reports whether the child journal at dir is already
+// QUIESCENT, and if so its result folded from that shape (决策 #31 — no
+// receipt event exists; the shape is the truth). Exposed for callers whose
+// settled-path handling differs from a live run's (driver retry
+// classification) — the substrate's Run uses the same check internally.
+func SettledChild(dir string) (bool, RunResult) {
+	events, err := store.ReadEvents(dir)
 	if err != nil {
 		return false, RunResult{}
 	}
@@ -54,6 +56,8 @@ func (c *childRun) settled() (bool, RunResult) {
 	}
 	return true, RunResult{Reason: reason, GenSteps: s.Session.GenStep, Usage: s.Session.Usage}
 }
+
+func (c *ChildRun) settled() (bool, RunResult) { return SettledChild(c.dir) }
 
 // run drives the attempt to quiescence with the three-way decision:
 //
@@ -69,7 +73,7 @@ func (c *childRun) settled() (bool, RunResult) {
 // child would let a re-spawn over-grant against the tree cap). It is the
 // CUMULATIVE fold usage; callers that need a delta (revive baseline)
 // subtract at their site.
-func (c *childRun) run(ctx context.Context, child *Loop, prompt string) (RunResult, provider.Usage, error) {
+func (c *ChildRun) Run(ctx context.Context, child *Loop, prompt string) (RunResult, provider.Usage, error) {
 	if c.cs.LastSeq() > 0 {
 		if done, sres := c.settled(); done {
 			return sres, sres.Usage, nil

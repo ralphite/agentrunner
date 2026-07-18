@@ -4505,3 +4505,16 @@ Children(revive baseline 减法留调用方)。发现并记档 childReport
 语义分歧(agent=末条消息首 part,driver=全对话末段文本;消费者
 不同各自合理,报告读取不并入基座)。孪生两件 + 全套既有孪生不改
 断言全绿。76.2(driver.runIteration 改走)next。
+
+## 2026-07-18 · INC-76.2/76.3:driver 改走 child-run 基座 + 收口(E1② 完成落码)
+
+ChildRun/SettledChild 导出;driver.runIteration 的 settled/Resume/Run
+三态与 childSpent 替换为基座调用。**设计判定记档**:settled 捷径留在
+driver 而不并入基座——driver 对 settled 失败按 reason 字符串分类
+(error/canceled/failed:*→ 重试),对 live 失败按 run error 分类;
+基座合并两者会把"settled 失败"误读为成功,故 SettledChild 单独导出、
+基座 Run 内部同一检查只服务 spawn 路径的幂等窗。删 driver 侧
+settledChild/childSpent 两份重复;childReport 语义分歧保持分离并
+双侧注释互指。§17 步骤② 已落注、SPEC F 表 driver-goal 行挂 INC-76
+孪生锚。B 闸:QA-70 回归 dispatch(它走被改写的 runIteration 路径),
+PASS 后归档工作纸。E1 剩 ③(stream 合流,须 §四)④(CLI 兼容层)。
