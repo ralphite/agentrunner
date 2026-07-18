@@ -186,3 +186,71 @@ func TestAnswerCommandPairsAcrossRestart(t *testing.T) {
 		t.Fatalf("the call must pair with the typed result: %+v", tr)
 	}
 }
+
+// TestDecodeAskOptions covers both option encodings a model may emit for the
+// single-question shorthand (QA Wave6 mia-03): a plain string list and the
+// structured {label,description} list.
+func TestDecodeAskOptions(t *testing.T) {
+	strs, err := decodeAskOptions(json.RawMessage(`["yes","no","later"]`))
+	if err != nil || len(strs) != 3 || strs[0].Label != "yes" || strs[2].Label != "later" {
+		t.Fatalf("string options = %+v, err=%v", strs, err)
+	}
+	objs, err := decodeAskOptions(json.RawMessage(`[{"label":"Ship","description":"deploy now"},{"label":"Wait"}]`))
+	if err != nil || len(objs) != 2 || objs[0].Label != "Ship" || objs[0].Description != "deploy now" {
+		t.Fatalf("object options = %+v, err=%v", objs, err)
+	}
+	if _, err := decodeAskOptions(json.RawMessage(`"nope"`)); err == nil {
+		t.Fatal("a non-list options value should be rejected")
+	}
+}
+
+// askShorthand drives a turn whose ask_user uses the top-level
+// {question, options} shorthand (no questions[]).
+func askShorthand() scripted.Fixture {
+	return scripted.Fixture{Steps: []scripted.Step{
+		{
+			Expect: scripted.Expect{},
+			Respond: []scripted.Event{
+				{ToolCall: &scripted.ToolCallEvent{Name: "ask_user", Args: map[string]any{
+					"question": "Deploy now?", "options": []any{"yes", "no", "later"}}}},
+				{Finish: "tool_use"},
+			},
+		},
+	}}
+}
+
+// TestAskUserOptionsShorthandPromoted pins that {question, options} (the shape
+// a Claude-Code-class model reaches for) parks as a STRUCTURED question whose
+// options survive — answerable via `ar answer` — rather than silently dropping
+// the options into a free-text-only park (QA Wave6 mia-03).
+func TestAskUserOptionsShorthandPromoted(t *testing.T) {
+	root := t.TempDir()
+	es, err := store.OpenEventStore(filepath.Join(t.TempDir(), "sess"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = es.Close() }()
+
+	l := newAskLoop(t, askShorthand(), root, es)
+	res, err := l.Run(context.Background(), "deploy?")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "waiting_input" {
+		t.Fatalf("res = %+v, want a park", res)
+	}
+	s := foldOf(t, l.Store.Dir())
+	if s.Waiting == nil || s.Waiting.Kind != event.WaitInput {
+		t.Fatalf("no input park: %+v", s.Waiting)
+	}
+	var d struct {
+		Questions []event.AskQuestion `json:"questions"`
+	}
+	if err := json.Unmarshal(s.Waiting.Detail, &d); err != nil {
+		t.Fatal(err)
+	}
+	if len(d.Questions) != 1 || len(d.Questions[0].Options) != 3 ||
+		d.Questions[0].Options[0].Label != "yes" || d.Questions[0].Options[2].Label != "later" {
+		t.Fatalf("shorthand not promoted to a structured question with 3 options: %+v", d.Questions)
+	}
+}

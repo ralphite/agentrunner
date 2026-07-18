@@ -69,6 +69,12 @@ func inspectCmd(args []string, stdout, stderr io.Writer) int {
 		report.Waiting.AnswerWith = fmt.Sprintf("agentrunner approve %s %s approve|deny",
 			filepath.Base(dir), report.Waiting.ApprovalID)
 	}
+	// A structured ask_user park is answerable via `ar answer` — surface the
+	// exact command so inspect points the way instead of showing a bare
+	// "waiting input" (QA Wave6 mia-03).
+	if report.Waiting != nil && report.Waiting.Kind == event.WaitInput && len(report.Waiting.AskQuestions) > 0 {
+		report.Waiting.AnswerWith = fmt.Sprintf("agentrunner answer %s 1:<option#>", filepath.Base(dir))
+	}
 	if *asJSON {
 		raw, err := json.MarshalIndent(report, "", "  ")
 		if err != nil {
@@ -861,6 +867,29 @@ func renderInspectIndent(w io.Writer, r inspectReport, pad string) {
 			if r.Waiting.AnswerWith != "" {
 				fmt.Fprintf(w, "%s        answer with: %s\n", pad, r.Waiting.AnswerWith)
 			}
+		} else if r.Waiting.Kind == event.WaitInput && len(r.Waiting.AskQuestions) > 0 {
+			// A structured ask_user park: show each question, its numbered
+			// options, and how to answer — the CLI parity of the web form
+			// (QA Wave6 mia-03).
+			for qi, q := range r.Waiting.AskQuestions {
+				fmt.Fprintf(w, "%swaiting answer — Q%d: %s\n", pad, qi+1, q.Question)
+				for oi, o := range q.Options {
+					line := fmt.Sprintf("%s        %d) %s", pad, oi+1, o.Label)
+					if o.Description != "" {
+						line += " — " + o.Description
+					}
+					fmt.Fprintln(w, line)
+				}
+				if q.AllowFreeText {
+					fmt.Fprintf(w, "%s        or free text\n", pad)
+				}
+			}
+			if r.Waiting.AnswerWith != "" {
+				fmt.Fprintf(w, "%s        answer with: %s\n", pad, r.Waiting.AnswerWith)
+			}
+		} else if r.Waiting.Kind == event.WaitInput && r.Waiting.Question != "" {
+			fmt.Fprintf(w, "%swaiting for your answer: %s\n", pad, r.Waiting.Question)
+			fmt.Fprintf(w, "%s        answer with: agentrunner send <session> \"...\"\n", pad)
 		} else {
 			fmt.Fprintf(w, "%swaiting %s\n", pad, r.Waiting.Kind)
 		}

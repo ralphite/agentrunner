@@ -2110,10 +2110,30 @@ func (l *Loop) journalAskResolved(appendE AppendFunc, turn int, callID, resoluti
 // so a resumed run re-parks on the same pending call.
 func (l *Loop) parkOnAsk(appendE AppendFunc, turn int, call provider.ToolCall) error {
 	var q struct {
-		Question  string              `json:"question"`
-		Questions []event.AskQuestion `json:"questions"`
+		Question      string              `json:"question"`
+		Questions     []event.AskQuestion `json:"questions"`
+		Options       json.RawMessage     `json:"options"`
+		MultiSelect   bool                `json:"multi_select"`
+		AllowFreeText bool                `json:"allow_free_text"`
 	}
 	_ = json.Unmarshal(call.Args, &q)
+	// Shorthand promotion (QA Wave6 mia-03): a model that puts options directly
+	// beside a top-level `question` — the shape Claude-Code-class ask tools take
+	// — means a single structured question. Promote it to questions[] instead of
+	// silently dropping the options and stranding the user on a free-text-only
+	// park that `ar answer` then refuses. The promoted question flows through the
+	// same validateAskQuestions gate below.
+	if len(q.Questions) == 0 && len(q.Options) > 0 && strings.TrimSpace(q.Question) != "" {
+		opts, oerr := decodeAskOptions(q.Options)
+		if oerr != nil {
+			return l.journalAskResolved(appendE, turn, call.CallID, "rejected", oerr.Error(), nil, 0)
+		}
+		q.Questions = []event.AskQuestion{{
+			Question: q.Question, Options: opts,
+			MultiSelect: q.MultiSelect, AllowFreeText: q.AllowFreeText,
+		}}
+		q.Question = ""
+	}
 	// Structured form validation (INC-47): a malformed questions[] is a
 	// model-visible rejection, never a park the user cannot answer.
 	if len(q.Questions) > 0 {
@@ -2140,9 +2160,57 @@ func (l *Loop) parkOnAsk(appendE AppendFunc, turn int, call provider.ToolCall) e
 	}); err != nil {
 		return err
 	}
-	l.emit(protocol.Event{Kind: protocol.KindMessage, N: turn,
-		Text: "waiting for your answer: " + summary})
+	// Surface the choices and the answer syntax inline: a structured ask whose
+	// options never reach the live view leaves a CLI user guessing how to reply
+	// (QA Wave6 mia-03). A plain question keeps the one-line prompt.
+	text := "waiting for your answer: " + summary
+	if len(q.Questions) > 0 && questionsHaveOptions(q.Questions) {
+		var b strings.Builder
+		b.WriteString("waiting for your answer:")
+		for qi, qq := range q.Questions {
+			fmt.Fprintf(&b, "\n  Q%d: %s", qi+1, qq.Question)
+			for oi, o := range qq.Options {
+				fmt.Fprintf(&b, "\n    %d) %s", oi+1, o.Label)
+				if o.Description != "" {
+					b.WriteString(" — " + o.Description)
+				}
+			}
+		}
+		b.WriteString("\n  answer with: agentrunner answer <session> 1:<option#>")
+		text = b.String()
+	}
+	l.emit(protocol.Event{Kind: protocol.KindMessage, N: turn, Text: text})
 	return nil
+}
+
+// questionsHaveOptions reports whether any question carries selectable options,
+// so the prompt knows to render a numbered form rather than a one-liner.
+func questionsHaveOptions(qs []event.AskQuestion) bool {
+	for _, q := range qs {
+		if len(q.Options) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// decodeAskOptions accepts a question's options in either the structured
+// [{"label","description"}] form or the string shorthand ["yes","no"] a model
+// naturally reaches for. A shape that is neither is a model-visible rejection.
+func decodeAskOptions(raw json.RawMessage) ([]event.AskOption, error) {
+	var objs []event.AskOption
+	if err := json.Unmarshal(raw, &objs); err == nil {
+		return objs, nil
+	}
+	var strs []string
+	if err := json.Unmarshal(raw, &strs); err != nil {
+		return nil, fmt.Errorf("ask_user: options must be a list of strings or {label,description} objects")
+	}
+	out := make([]event.AskOption, 0, len(strs))
+	for _, s := range strs {
+		out = append(out, event.AskOption{Label: s})
+	}
+	return out, nil
 }
 
 // validateAskQuestions enforces the structured-ask shape (INC-47): 1–4

@@ -7,7 +7,22 @@
     "properties": {
       "question": {
         "type": "string",
-        "description": "The question to put to the user. Be specific and self-contained."
+        "description": "The question to put to the user. Be specific and self-contained. Pair it with the sibling options[] for a single multiple-choice question, or leave options[] empty for a free-text ask."
+      },
+      "options": {
+        "type": "array",
+        "description": "Single-question shorthand: 2–4 choices for the top-level question (strings or {label,description} objects). Equivalent to a one-element questions[]; do not combine with questions[].",
+        "items": {
+          "type": "string"
+        }
+      },
+      "multi_select": {
+        "type": "boolean",
+        "description": "With the options[] shorthand, allow selecting several options."
+      },
+      "allow_free_text": {
+        "type": "boolean",
+        "description": "With the options[] shorthand, also accept a typed answer besides the options."
       },
       "questions": {
         "type": "array",
