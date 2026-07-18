@@ -1,16 +1,38 @@
 # Remote QA Environment — 在 GitHub Actions runner 上起 arwebui（带 secrets
-# 里的真实 API key），并通过 Cloudflare quick tunnel 暴露一个公网 URL。
-# 不需要 Tailscale：任何能上网的地方（包括 Claude 的远程执行沙箱）都能
-# 直接访问，用于 agent-driven exploratory QA。
+# 里的真实 API key）+ 一个真浏览器 executor，供外部 agent 做逐步决策的
+# exploratory QA（agent 看上一步截图/状态 → 决定下一步 → 发指令）。
 #
-# 用法：
-#   1. Actions → remote-qa-env → Run workflow（或由 agent 通过 API dispatch）。
-#   2. 拿 URL：workflow 起好隧道后会把 URL commit 到 main 的
-#      qa/remote-env-url.txt（job 运行中日志/annotation 都读不到，这是
-#      运行中唯一可靠的带外通道）。`git pull` 后读该文件即可。
-#      job summary 里也有同一 URL（人看）。
-#   3. agent 从沙箱里直接访问该 URL 做真实的多轮会话测试。
-#   4. 提前停：Cancel workflow run。
+# 为什么长这样：Claude 远程沙箱的 egress 白名单只放行 GitHub 系域名
+# （github.com / api.github.com / objects.githubusercontent.com…），一切
+# 隧道服务（trycloudflare/ngrok/loca.lt/bore/serveo）全被 403。所以指令
+# 与结果全部走 GitHub 自身：
+#   指令下行:  repo owner 在 driver issue 上发 JSON comment
+#   结果上行:  runner 执行后把结果 JSON 回帖、截图上传为 release asset
+#              （agent 经 github.com/…/releases/download/ 下载，可达）
+# cloudflared 隧道仍然会起（URL commit 到 main 的 qa/remote-env-url.txt +
+# job summary），给"人"用手机/Mac 直接看同一环境——但 agent 不依赖它。
+#
+# 用法（agent 视角）：
+#   1. dispatch 本 workflow（minutes 入参 = 存活时长）。
+#   2. 轮询 issues 列表，找到标题 "qa-driver <run_id>" 的 issue（runner
+#      建好后会带一条 "driver ready" 评论）。
+#   3. 以 repo owner 身份发 comment 下指令（见下方 PROTOCOL），等 runner
+#      回帖结果 JSON，从 release qa-driver-<run_id> 下载截图看图，决定
+#      下一步。发 {"op":"end"} 或到时结束。
+#
+# PROTOCOL（issue comment，JSON，可包 ```json 围栏）：
+#   {"n": <递增序号>, "steps": [
+#     {"op":"viewport","w":390,"h":844}
+#     {"op":"goto","url":"http://127.0.0.1:8788/"}
+#     {"op":"click","selector":"text=New session"}
+#     {"op":"fill","selector":"textarea","text":"..."}
+#     {"op":"press","key":"Enter"}  {"op":"type","text":"..."}
+#     {"op":"waitMs","ms":2000}  {"op":"waitSel","selector":".timeline"}
+#     {"op":"waitText","text":"...","timeout":120000}
+#     {"op":"eval","js":"document.title"}  {"op":"shot","name":"..."}
+#     {"op":"scroll","y":600}  {"op":"reload"}  {"op":"end"}
+#   ]}
+#   安全：只接受 repo owner（ALLOWED_AUTHOR）的评论，其他人一律忽略。
 #
 # 会话数据经 actions/cache 跨 run 延续（与 phone-webui 相同机制、独立 key）。
 name: remote-qa-env
@@ -23,9 +45,11 @@ on:
         default: "60"
         type: string
 
-# contents: write——workflow 需要把隧道 URL commit 回 main（带外发布）。
+# contents: write——commit 隧道 URL 回 main + 建 release 传截图；
+# issues: write——建 driver issue、回帖结果。
 permissions:
   contents: write
+  issues: write
 
 # 同时只保留一个实例。
 concurrency:
@@ -65,6 +89,9 @@ jobs:
           go build -buildvcs=false -o bin/ar ./cmd/agentrunner
           (cd webui && go build -buildvcs=false -o ../bin/arwebui .)
 
+      - name: Install driver deps (playwright-core)
+        run: (cd qa/blackbox && npm install --silent)
+
       - name: Restore store from previous run
         uses: actions/cache/restore@v4
         with:
@@ -92,25 +119,24 @@ jobs:
           tail -50 webui.log >&2
           exit 1
 
-      - name: Expose via cloudflared
+      - name: Expose via cloudflared (for humans)
         run: |
           curl -fsSL -o cloudflared \
             https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
           chmod +x cloudflared
           nohup ./cloudflared tunnel --no-autoupdate --url http://127.0.0.1:8788 > tunnel.log 2>&1 &
-          # quick tunnel 的 URL 会打进日志；等它出现
           URL=""
           for _ in $(seq 1 60); do
             URL=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' tunnel.log | head -1 || true)
             [ -n "$URL" ] && break
             sleep 1
           done
+          # 隧道拿不到也不挡 driver（agent 不依赖隧道）。
           if [ -z "$URL" ]; then
-            echo "cloudflared tunnel did not come up:" >&2
+            echo "cloudflared tunnel did not come up (non-fatal):" >&2
             cat tunnel.log >&2
-            exit 1
+            exit 0
           fi
-          # 打进日志 + job summary（人看）
           echo "TUNNEL_URL=$URL"
           echo "::notice title=Remote QA env::$URL"
           {
@@ -120,7 +146,7 @@ jobs:
             echo "- Up for ${MINUTES_IN} minutes — cancel this run to stop earlier."
           } >> "$GITHUB_STEP_SUMMARY"
           # 带外发布：job 运行期间日志和 annotation 外部都读不到（404/空），
-          # commit 回 main 是外部 agent 运行中拿 URL 的唯一可靠通道。
+          # commit 回 main 是外部读者运行中拿 URL 的唯一可靠通道。
           git config user.name "remote-qa-env"
           git config user.email "actions@github.com"
           {
@@ -139,15 +165,195 @@ jobs:
         env:
           MINUTES_IN: ${{ inputs.minutes }}
 
-      - name: Keep alive
-        run: |
-          MINUTES=$(printf '%s' "$MINUTES_IN" | tr -dc '0-9')
-          MINUTES=${MINUTES:-60}
-          [ "$MINUTES" -gt 340 ] && MINUTES=340
-          echo "serving for $MINUTES minutes…"
-          sleep $(( MINUTES * 60 ))
+      - name: Remote driver loop
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: qa-driver-${{ github.run_id }}
+          ALLOWED_AUTHOR: ${{ github.repository_owner }}
           MINUTES_IN: ${{ inputs.minutes }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          MINUTES=$(printf '%s' "$MINUTES_IN" | tr -dc '0-9'); MINUTES=${MINUTES:-60}
+          [ "$MINUTES" -gt 340 ] && MINUTES=340
+          export MINUTES
+
+          gh release create "$RELEASE_TAG" --prerelease \
+            --title "$RELEASE_TAG" \
+            --notes "remote QA driver session for run $RUN_ID — screenshots land here as assets" \
+            --repo "$GH_REPO"
+
+          ISSUE_URL=$(gh issue create --repo "$GH_REPO" \
+            --title "qa-driver $RUN_ID" \
+            --body "Remote QA driver channel for run $RUN_ID. Post JSON commands as comments (owner only). Screenshots: release $RELEASE_TAG. Protocol: see .github/workflows/remote-qa-env.yml header.")
+          export ISSUE_NUMBER="${ISSUE_URL##*/}"
+          echo "driver issue: $ISSUE_URL (#$ISSUE_NUMBER)"
+
+          # 通用 browser executor：турn-based,每条指令都由外部 agent 逐步下发。
+          # 运行期生成、不入库——这不是测试脚本,是纯传输/执行层。
+          cat > qa/blackbox/qa-remote-executor.mjs <<'EXECUTOR_EOF'
+          import { execFileSync } from "node:child_process";
+          import { chromium } from "playwright-core";
+
+          const TOKEN = process.env.GH_TOKEN;
+          const REPO = process.env.GH_REPO;
+          const ISSUE = process.env.ISSUE_NUMBER;
+          const TAG = process.env.RELEASE_TAG;
+          const OWNER_LOGIN = process.env.ALLOWED_AUTHOR;
+          const DEADLINE = Date.now() + parseInt(process.env.MINUTES, 10) * 60 * 1000;
+          const API = "https://api.github.com";
+          const H = {
+            authorization: `Bearer ${TOKEN}`,
+            accept: "application/vnd.github+json",
+            "user-agent": "qa-remote-driver",
+          };
+
+          const log = (m) => console.log(`[driver] ${m}`);
+
+          async function postComment(body) {
+            await fetch(`${API}/repos/${REPO}/issues/${ISSUE}/comments`, {
+              method: "POST",
+              headers: { ...H, "content-type": "application/json" },
+              body: JSON.stringify({ body }),
+            });
+          }
+
+          async function allComments() {
+            const out = [];
+            for (let p = 1; p < 20; p++) {
+              const r = await fetch(`${API}/repos/${REPO}/issues/${ISSUE}/comments?per_page=100&page=${p}`, { headers: H });
+              const batch = await r.json();
+              if (!Array.isArray(batch) || batch.length === 0) break;
+              out.push(...batch);
+              if (batch.length < 100) break;
+            }
+            return out;
+          }
+
+          const browser = await chromium.launch({
+            executablePath: process.env.CHROME_PATH || "/usr/bin/google-chrome",
+            args: ["--no-sandbox", "--disable-gpu"],
+          });
+          const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+          const page = await ctx.newPage();
+          const consoleErrs = [];
+          page.on("console", (m) => { if (m.type() === "error") consoleErrs.push(m.text().slice(0, 300)); });
+          page.on("pageerror", (e) => consoleErrs.push("pageerror: " + String(e).slice(0, 300)));
+
+          let shotIdx = 0;
+          let shots = [];
+          async function snap(name) {
+            shotIdx++;
+            const f = `shot-${String(shotIdx).padStart(3, "0")}-${String(name).replace(/[^a-z0-9-]/gi, "-").slice(0, 40)}.jpg`;
+            try {
+              await page.screenshot({ path: f, fullPage: true, type: "jpeg", quality: 60 });
+              shots.push(f);
+            } catch (e) {
+              consoleErrs.push("screenshot failed: " + e.message);
+            }
+            return f;
+          }
+
+          async function digest() {
+            try {
+              return await page.evaluate(() => ({
+                url: location.href,
+                title: document.title,
+                text: document.body ? document.body.innerText.slice(0, 3500) : "",
+                scrollW: document.documentElement.scrollWidth,
+                winW: innerWidth,
+              }));
+            } catch (e) {
+              return { error: String(e) };
+            }
+          }
+
+          async function runStep(s) {
+            switch (s.op) {
+              case "viewport": await page.setViewportSize({ width: s.w, height: s.h }); return;
+              case "goto": await page.goto(s.url, { waitUntil: "domcontentloaded", timeout: s.timeout || 20000 }); return;
+              case "click": await page.locator(s.selector).first().click({ timeout: s.timeout || 8000 }); return;
+              case "fill": await page.locator(s.selector).first().fill(s.text, { timeout: s.timeout || 8000 }); return;
+              case "press": await page.keyboard.press(s.key); return;
+              case "type": await page.keyboard.type(s.text, { delay: 15 }); return;
+              case "waitMs": await new Promise((r) => setTimeout(r, s.ms)); return;
+              case "waitSel": await page.waitForSelector(s.selector, { timeout: s.timeout || 30000 }); return;
+              case "waitText": await page.waitForFunction((t) => document.body.innerText.includes(t), s.text, { timeout: s.timeout || 120000 }); return;
+              case "eval": return await page.evaluate(s.js);
+              case "shot": await snap(s.name || "step"); return;
+              case "scroll": await page.evaluate((y) => window.scrollBy(0, y), s.y ?? 600); return;
+              case "reload": await page.reload({ waitUntil: "domcontentloaded" }); return;
+              case "end": return "END";
+              default: throw new Error("unknown op: " + s.op);
+            }
+          }
+
+          let lastN = 0;
+          let ended = false;
+          await postComment(`driver ready — run ${process.env.RUN_ID}, release \`${TAG}\`, deadline in ${process.env.MINUTES} min. Post commands as owner-authored JSON comments.`);
+          log("ready, polling for commands");
+
+          while (!ended && Date.now() < DEADLINE) {
+            let cmds = [];
+            try {
+              const comments = await allComments();
+              for (const c of comments) {
+                if (c.user?.login !== OWNER_LOGIN) continue;
+                let b = (c.body || "").trim();
+                b = b.replace(/^```(json)?\s*/i, "").replace(/```\s*$/, "").trim();
+                if (!b.startsWith("{")) continue;
+                try {
+                  const j = JSON.parse(b);
+                  if (typeof j.n === "number" && j.n > lastN && Array.isArray(j.steps)) cmds.push(j);
+                } catch {}
+              }
+            } catch (e) {
+              log("poll error: " + e.message);
+            }
+            cmds.sort((a, b) => a.n - b.n);
+
+            for (const cmd of cmds) {
+              lastN = cmd.n;
+              shots = [];
+              consoleErrs.length = 0;
+              const evalResults = [];
+              let error = null;
+              log(`executing command n=${cmd.n} (${cmd.steps.length} steps)`);
+              for (const s of cmd.steps) {
+                try {
+                  const r = await runStep(s);
+                  if (r === "END") { ended = true; break; }
+                  if (s.op === "eval") evalResults.push({ js: String(s.js).slice(0, 80), result: r });
+                } catch (e) {
+                  error = `step ${s.op}: ${String(e.message || e).slice(0, 500)}`;
+                  break;
+                }
+              }
+              await snap("final");
+              const d = await digest();
+              for (const f of shots) {
+                try {
+                  execFileSync("gh", ["release", "upload", TAG, f, "--clobber", "--repo", REPO], { stdio: "inherit" });
+                } catch (e) {
+                  log("asset upload failed: " + e.message);
+                }
+              }
+              const result = { n: cmd.n, ok: !error, error, evalResults, consoleErrors: consoleErrs.slice(0, 10), shots, page: d };
+              await postComment("```json\n" + JSON.stringify(result, null, 1).slice(0, 60000) + "\n```");
+              if (ended) break;
+            }
+
+            if (!ended) await new Promise((r) => setTimeout(r, 3000));
+          }
+
+          log("driver loop done (ended=" + ended + ")");
+          await browser.close();
+          EXECUTOR_EOF
+
+          (cd qa/blackbox && node qa-remote-executor.mjs)
+
+          gh issue close "$ISSUE_NUMBER" --repo "$GH_REPO" \
+            --comment "driver session over (run $RUN_ID)." || true
 
       - name: Save store for next run
         if: always()
