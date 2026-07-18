@@ -4280,3 +4280,18 @@ bounded 系列 shutdown 仍落终态(无人重挂,记档)。driver 六个取消
 锚:TestDriverShutdownCutLeavesNoTerminal(无终态+fold 非 Ended)/
 TestDriverUserStopStillWritesTerminal/TestDriverGoalShutdownStillWritesTerminal;
 既有 boot sweep/补跑测试锚定重挂半边。G22 三注全收,整条关闭。
+
+## 2026-07-18 · audit-0717 loop 收口:D6 撤项,D7/D8/D9/E1/E2 BLOCKED
+
+- D6(胜者晋升)撤项:SPEC 早有 🧊 在案记档(v0 手动晋升),审计
+  BACKLOG 当初重复列入;推翻显式推迟属人裁,不自作主张。
+- D7(SCM/PR)、D8(web search)、E2(云 workspace):产品面/选型/
+  凭据裁决点已逐项列在 BACKLOG,等用户选定后立 INC。
+- D9(Xcode 沙箱 git):Linux 容器无法验证 Seatbelt,B 闸不可行,
+  留待 macOS 环境。
+- E1(driver 收敛):四步拆步建议已列(①loop 挂 session ②iteration
+  走 spawn ③stream 合流(触 §3 教义须 §四) ④CLI 兼容层),方向
+  确认后逐步立 INC。
+- 另:D1(G3 唤醒语义)工作纸 INC-70 三选项仍待裁。
+本轮 audit loop 至此:26 项处置完毕——15 实施落地、4 文档对账关闭、
+1 撤项、6 BLOCKED(其中 5 项列明裁决点等用户,1 项等平台)。

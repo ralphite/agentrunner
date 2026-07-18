@@ -50,7 +50,7 @@ func loopDriverForCancel(t *testing.T, schedule string) (*driver.Driver, *store.
 		spec.Verifiers = []driver.VerifierSpec{{Kind: driver.VerifierCommand, Command: "true"}}
 	}
 	d := &driver.Driver{
-		Spec: spec,
+		Spec:  spec,
 		Store: dStore, Clock: clk, DriverID: "drv-shutdown", Exec: exec,
 		NewChild: func(cs *store.EventStore, session string, iter, budget int) *agent.Loop {
 			return &agent.Loop{Spec: childSpec, Provider: scripted.New(fix),

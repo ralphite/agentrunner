@@ -81,23 +81,39 @@
   决策 #29/#30 复用),孪生 4 例,工作纸归档。
 - [x] **D5** G22b 优雅停机保活 cron:INC-72 落地(§四流程,cause 区分
   +loop-mode 无终态 teardown),G22 整条关闭。
-- [ ] **D6** G15 best-of-N 胜者晋升（M：fork / apply diff 二选一
-  设计 + 冲突处理）。
-- [ ] **D7** G13 SCM/PR 工作流一等公民化（M-L：diff 审阅门→PR→
-  元数据回填；顺带兑现 webui SettingsGit "Not wired" 两项）。
-- [ ] **D8** web search 工具（M-L，G18 主项：搜索后端选型/凭据面/
-  provider 服务端工具例外类别——选型若需用户裁决则先出工作纸再
-  BLOCKED 等输入）。
-- [ ] **D9** G32 Xcode.app 机器沙箱内 git 可用性（M，触 sandbox
-  env/PATH 语义）。
+- [x] **D6** 撤项:胜者晋升在 SPEC 已有 🧊 在案记档(v0 用户手动
+  晋升,GAPS G15 显式推迟)且本文件附录亦列入"显式不做"——当初列入
+  D 批系审计汇总重复,推翻 🧊 记档属人裁;如需做请在 G15 重新立项。
+- [ ] **D7** [BLOCKED: 需用户裁决产品面] G13 SCM/PR 工作流(M-L)。
+  裁决点:①平台绑定(GitHub 专属 vs 通用 SCM 抽象);②审阅门形态
+  (webui Changes→Approve→push,或 PR 草稿先行);③"审阅通过才
+  push"约束落 rules 还是新 gate。选定后出工作纸实施(顺带兑现
+  SettingsGit 两项 Not wired)。
+- [ ] **D8** [BLOCKED: 需用户选型+凭据] web search(M-L,G18)。
+  裁决点:①后端(Brave/Tavily/SearXNG 自托管/provider 服务端工具
+  (Gemini grounding——需破"客户端执行"例外并入 DESIGN 例外类别));
+  ②凭据来源与红线(API key 放 env,与 GEMINI_API_KEY 同法);
+  ③egress 语义(web_fetch 同款 execute-class+审批?)。选定后出工作纸。
+- [ ] **D9** [BLOCKED: 本环境(Linux 容器)无法验证 macOS Seatbelt
+  行为,双闸门 B 闸不可行] G32(M)。产品侧方案在 GAPS 有记
+  (PATH 截击/host git 代理),需在真 macOS + Xcode.app 机器上开发
+  验证——建议在用户 mac 上的 session 做。
 
 ## 第 4 批 · 大型（设计先行，每迭代一个可合并步骤）
 
-- [ ] **E1** driver 子系统收敛为递归 session（L，SPEC.md:70、
-  DESIGN §17 #4、UJ-22/G23：先工作纸拆步）。
-- [ ] **E2** G11 云 workspace 生命周期（L，GAPS.md:299-304 ⚠️高：
-  环境配置模型/setup 信任/secrets 注入/镜像缓存/per-env 网络/
-  store 外置/回收重建语义；先工作纸拆步）。
+- [ ] **E1** [BLOCKED: L 级架构收敛,拆步方向需用户确认后逐步实施]
+  driver 收敛为递归 session。已知半程:in-session goal(INC-D1/10/48/
+  66)已把 goal 形态挂上 conversational session;剩 loop/cron/best-of-N
+  三形态。建议拆步:①loop-mode 复用 in-session goal 的事件族挂
+  session(schedule 成 session 状态);②iteration child 统一走
+  spawn_agent 机制(替代 driver 私有 runIteration);③driver stream
+  与 run stream 合流(schema 迁移,触 §3"一套机制"教义,须 §四);
+  ④CLI `ar drive` 兼容层。每步独立可合并。确认方向后逐步立 INC。
+- [ ] **E2** [BLOCKED: L 级产品形态,设计需用户共创] G11 云
+  workspace。核心裁决点:①环境模型(容器 per-session vs 长驻 pool);
+  ②secrets 注入面(env 白名单 vs vault 引用);③store 外置
+  (journal/CAS 挪对象存储?)④回收重建语义(workspace 可再生 vs
+  持久卷)。每一项都是产品选择,建议专门 session 逐项裁决。
 
 ## 附 · 显式不做（🧊 记档，loop 跳过）
 
@@ -147,4 +163,6 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
 - 2026-07-18 · D4/INC-71 · stranded session boot 自动接续,G22a 关闭 ·
   a287b78 · 完成。
 - 2026-07-18 · D5/INC-72 · 优雅停机保活 cron(§四 不变量修订),G22
-  整条关闭 · 本 commit · 完成。
+  整条关闭 · 27ef6d1 · 完成。
+- 2026-07-18 · D6 撤项(🧊 在案)/D7 D8 E1 E2 BLOCKED(裁决点已列)/
+  D9 BLOCKED(平台不可验证) · 本 commit · loop 收口。
