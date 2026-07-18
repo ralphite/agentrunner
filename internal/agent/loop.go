@@ -1878,7 +1878,7 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 			}
 			if tr, ok := ds.s.Conversation.ToolResults[p.call.CallID]; ok {
 				l.emit(protocol.Event{Kind: protocol.KindToolResult, N: act.turn,
-					Tool: p.call.Name, CallID: p.call.CallID, Result: compact(tr.Result)})
+					Tool: p.call.Name, CallID: p.call.CallID, Result: compact(tr.Result), IsError: tr.IsError})
 			}
 			continue
 		}
@@ -1894,7 +1894,7 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 			}
 			if tr, ok := ds.s.Conversation.ToolResults[p.call.CallID]; ok {
 				l.emit(protocol.Event{Kind: protocol.KindToolResult, N: act.turn,
-					Tool: p.call.Name, CallID: p.call.CallID, Result: compact(tr.Result)})
+					Tool: p.call.Name, CallID: p.call.CallID, Result: compact(tr.Result), IsError: tr.IsError})
 			}
 			continue
 		}
@@ -2008,6 +2008,13 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 	for i, p := range allowed {
 		if p.call.Name == "ask_user" {
 			continue // resolved out-of-band: rejected above, or parked/interrupted below
+		}
+		// spawn_agent and background calls were launched AND emitted in the
+		// launch phase above (they never join the concurrent batch), so their
+		// p.res is the empty placeholder — re-emitting it here produced a
+		// spurious empty "← ok" second result (QA Wave2 dave-11). Skip them.
+		if p.call.Name == "spawn_agent" || isBackgroundCall(p.call.Name, p.call.Args) {
+			continue
 		}
 		err := errsOut[i]
 		if err == nil {
