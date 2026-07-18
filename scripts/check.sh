@@ -33,14 +33,31 @@ if (( ! node_ok )); then
   echo "webui: Node.js ^20.19 or >=22.12 required (found $(node --version))" >&2
   exit 1
 fi
-if [[ ! -d webui/frontend/node_modules ]]; then
-  (cd webui/frontend && npm ci)
+# 目录存在 ≠ 依赖就绪:package-lock.json 变了(如新增 mermaid)而
+# node_modules 未刷新,fe-test/webui 腿会以令人困惑的模块缺失红掉。
+# npm 无稳定的一致性戳,自己盖:npm ci 成功后把锁文件快照进
+# node_modules,下次比对不一致才重装。
+if [[ ! -d webui/frontend/node_modules ]] \
+  || ! cmp -s webui/frontend/package-lock.json webui/frontend/node_modules/.check-lock-stamp; then
+  (cd webui/frontend && npm ci && cp package-lock.json node_modules/.check-lock-stamp)
 fi
 
 # QA sessions write throwaway Go files under gitignored runtime/ workspaces;
 # ./... walks in regardless of .gitignore and a broken demo package would
 # fail the gate — scope the toolchain to the repo's real packages.
 packages=$(go list ./... 2>/dev/null | grep -v "/runtime/")
+
+# 预热共享 go build cache(串行,warm ≈0.3s)。不做这步,冷缓存下
+# lint/gotest/webui 三条腿各自并发全量编译同一依赖图,在小核机器上
+# 互相踩踏——首跑 50s 档能恶化到 10 分钟级。冷时慢会集中显示在这一行
+# 的耗时里,而不是黑盒的并行等待。
+t0=$SECONDS
+# e2e 之类 test-only 包 go build 会报 "no non-test Go files",过滤掉;
+# 它们的编译由 gotest 腿覆盖。
+go build $(go list -f '{{if .GoFiles}}{{.ImportPath}}{{end}}' ./... 2>/dev/null | grep -v "/runtime/")
+if (( SECONDS - t0 > 5 )); then
+  echo "check.sh: prewarm $((SECONDS - t0))s (cold build cache — 并行腿已可复用)"
+fi
 
 # ---- 并行腿 ----
 # 各腿独立:失败互不掩盖,日志各自落盘,谁红打谁的全量输出。
@@ -51,7 +68,9 @@ trap 'rm -rf "$logdir"' EXIT
 declare -A pids legnames
 run_leg() { # run_leg <name> <cmd...>
   local name="$1"; shift
-  ( "$@" ) > "$logdir/$name.log" 2>&1 &
+  # 腿内自报耗时(慢腿可见,PROCESS 一步纪律的可观测性)。
+  ( s=$(date +%s); "$@"; rc=$?; echo $(( $(date +%s) - s )) > "$logdir/$name.time"; exit $rc ) \
+    > "$logdir/$name.log" 2>&1 &
   pids[$name]=$!
 }
 
@@ -66,7 +85,7 @@ run_leg install scripts/test-install.sh             # 安装器孪生(离线,INC
 fail=0
 for name in lint wiring gotest fe-test webui install; do
   if wait "${pids[$name]}"; then
-    echo "check.sh: $name ok"
+    echo "check.sh: $name ok ($(cat "$logdir/$name.time" 2>/dev/null || echo '?')s)"
   else
     fail=1
     echo "check.sh: $name FAILED — full log:" >&2
