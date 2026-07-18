@@ -3,6 +3,18 @@
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 
+@layer base {
+  /* QA-0718 用户 iPhone 实机:本文件不引 Tailwind preflight,全项目因此
+     没有任何 -webkit-text-size-adjust 声明——iOS Safari 对宽横向滚动
+     容器(diff/代码块)执行 text autosizing:部分行被放大、行高重算后
+     文件头被上一卡内容叠压、gutter 错位、首字符裁切。真机专属,桌面
+     Chrome 模拟视口测不出。只补这一条 reset,不引整个 preflight。 */
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+}
+
 :root {
   --bg: #ffffff;
   --sidebar: #f7f7f8;
