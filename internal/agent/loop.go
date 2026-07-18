@@ -1479,6 +1479,17 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 					continue
 				}
 				stopInt()
+				// A permanent turn failure (a provider error that outlasts the
+				// retries) must reach LIVE watchers, not only the journal: without
+				// this the stream went silent after generation_start and a
+				// reconnecting UI never learned the turn failed — the replay path
+				// already surfaces it (QA Wave6, SSE-silent-on-failed-turn). Kill
+				// and stop have their own terminal rendering (abort journals the
+				// close mark), so skip the error line on those.
+				if errs.KillSource(ctx) == "" && !errors.Is(context.Cause(ctx), errs.ErrSessionStopped) {
+					l.emit(protocol.Event{Kind: protocol.KindError, N: act.turn,
+						Text: redact.FromEnv().String(err.Error())})
+				}
 				return RunResult{}, abort(act.turn, fmt.Errorf("turn %d: %w", act.turn, err))
 			}
 			stopInt()

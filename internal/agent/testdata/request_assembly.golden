@@ -71,6 +71,7 @@
             "tool_name": "read_file",
             "result": {
               "content": "just notes",
+              "total_lines": 1,
               "truncated": false
             }
           },

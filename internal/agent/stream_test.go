@@ -100,6 +100,43 @@ func (p *retryStreamProvider) Complete(_ context.Context, _ provider.CompleteReq
 	}
 }
 
+// alwaysErrProvider fails every attempt with a non-retryable class, so the
+// turn fails immediately (no backoff) — modeling a provider error that
+// outlasts the retries.
+type alwaysErrProvider struct{}
+
+func (p *alwaysErrProvider) Capabilities() provider.Capabilities { return provider.Capabilities{} }
+func (p *alwaysErrProvider) Complete(_ context.Context, _ provider.CompleteRequest) iter.Seq2[provider.StreamEvent, error] {
+	return func(yield func(provider.StreamEvent, error) bool) {
+		yield(provider.StreamEvent{}, errs.New(errs.ProviderInvalid, "bad model"))
+	}
+}
+
+// TestFailedTurnEmitsLiveError pins that a permanent turn failure reaches LIVE
+// watchers as an error event, not just the journal: the stream used to go
+// silent after generation_start and a reconnecting UI never learned the turn
+// failed (QA Wave6, SSE-silent-on-failed-turn).
+func TestFailedTurnEmitsLiveError(t *testing.T) {
+	root := t.TempDir()
+	l := testLoop(t, scripted.Fixture{}, root)
+	l.Provider = &alwaysErrProvider{}
+	sink := &captureSink{}
+	l.Out = sink
+
+	if _, err := l.Run(context.Background(), "do it"); err == nil {
+		t.Fatal("expected a run error on a permanently failing turn")
+	}
+	var sawError bool
+	for _, e := range sink.events {
+		if e.Kind == protocol.KindError && strings.Contains(e.Text, "bad model") {
+			sawError = true
+		}
+	}
+	if !sawError {
+		t.Fatalf("no live error event for the failed turn; kinds = %s", strings.Join(sink.kinds(), ","))
+	}
+}
+
 // S4.1: an LLM retry after deltas already streamed emits a GenerationDiscarded
 // event (durable) and a discard protocol event (surface reopen signal).
 func TestGenerationDiscardedOnPartialStreamRetry(t *testing.T) {
