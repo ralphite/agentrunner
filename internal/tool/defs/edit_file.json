@@ -1,13 +1,14 @@
 {
   "name": "edit_file",
-  "description": "Edit a file by exact string replacement. The string `old` must appear exactly once in the file; it is replaced with `new`. To create a new file, use an empty `old` on a non-existing path.",
+  "description": "Edit a file by exact string replacement. The string `old` must appear exactly once in the file (unless replace_all is set); it is replaced with `new`. To create a new file, use an empty `old` on a non-existing path.",
   "class": "edit",
   "input_schema": {
     "type": "object",
     "properties": {
       "path": { "type": "string", "description": "File path relative to the workspace root." },
-      "old":  { "type": "string", "description": "Exact text to replace; must match exactly once. Empty to create a new file." },
-      "new":  { "type": "string", "description": "Replacement text (the full file content when creating)." }
+      "old":  { "type": "string", "description": "Exact text to replace; must match exactly once unless replace_all is set. Empty to create a new file." },
+      "new":  { "type": "string", "description": "Replacement text (the full file content when creating)." },
+      "replace_all": { "type": "boolean", "description": "Replace every occurrence of `old` instead of requiring a unique match. Use for renaming a variable or repeated token." }
     },
     "required": ["path", "old", "new"]
   }

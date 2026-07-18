@@ -752,6 +752,12 @@ func (e *Executor) editFile(rawArgs json.RawMessage) Result {
 		// CREATE, not the intended replacement (QA Wave6 mia-02).
 		OldString string `json:"old_string"`
 		NewString string `json:"new_string"`
+		// ReplaceAll (Claude-Code parity, QA Wave6 mia-04): replace EVERY
+		// occurrence rather than requiring the old string to be unique. `all`
+		// is accepted as an alias. Without it a string appearing more than once
+		// can never be edited in one call.
+		ReplaceAll bool `json:"replace_all"`
+		All        bool `json:"all"`
 	}
 	if err := json.Unmarshal(rawArgs, &args); err != nil || args.Path == "" {
 		return errResult("edit_file: invalid args: need {\"path\", \"old\", \"new\"}")
@@ -762,6 +768,7 @@ func (e *Executor) editFile(rawArgs json.RawMessage) Result {
 	if args.New == "" && args.NewString != "" {
 		args.New = args.NewString
 	}
+	replaceAll := args.ReplaceAll || args.All
 	path, err := e.WS.Resolve(args.Path)
 	if err != nil {
 		return errResult("edit_file: %v", err)
@@ -794,23 +801,31 @@ func (e *Executor) editFile(rawArgs json.RawMessage) Result {
 		return errResult("edit_file: %v", err)
 	}
 	content := string(raw)
-	switch n := strings.Count(content, args.Old); n {
-	case 1:
-		// fallthrough to replace
-	case 0:
-		return errResult("edit_file: old string not found in %s (0 matches, need exactly 1)", args.Path)
-	default:
-		return errResult("edit_file: old string matches %d times in %s, need exactly 1", n, args.Path)
+	n := strings.Count(content, args.Old)
+	if n == 0 {
+		return errResult("edit_file: old string not found in %s (0 matches)", args.Path)
 	}
-	content = strings.Replace(content, args.Old, args.New, 1)
+	if n > 1 && !replaceAll {
+		return errResult("edit_file: old string matches %d times in %s, need exactly 1 (pass replace_all to edit every occurrence)", n, args.Path)
+	}
+	reps := 1
+	if replaceAll {
+		reps = n
+	}
+	content = strings.Replace(content, args.Old, args.New, reps)
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		return errResult("edit_file: %v", err)
 	}
 	// Replacement delta counts the edited span's lines (INC-43): the old
 	// snippet's lines out, the new snippet's lines in — a one-line tweak
-	// reads as 1/1, not a whole-file diff.
-	return okResult(map[string]any{"output": fmt.Sprintf("edited %s", args.Path),
-		"lines_added": countLines(args.New), "lines_removed": countLines(args.Old)})
+	// reads as 1/1, not a whole-file diff. replace_all scales the delta by the
+	// number of occurrences edited.
+	verb := "edited"
+	if replaceAll && reps > 1 {
+		verb = fmt.Sprintf("edited %d occurrences in", reps)
+	}
+	return okResult(map[string]any{"output": fmt.Sprintf("%s %s", verb, args.Path),
+		"lines_added": countLines(args.New) * reps, "lines_removed": countLines(args.Old) * reps})
 }
 
 // countLines counts content lines for the INC-43 delta accounting: empty

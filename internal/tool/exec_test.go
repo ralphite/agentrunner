@@ -122,6 +122,20 @@ func TestEditFile(t *testing.T) {
 	if !isErr || !strings.Contains(m["error"].(string), "2 times") {
 		t.Errorf("multi-match error = %v", m)
 	}
+
+	// replace_all edits every occurrence (Claude-Code parity, mia-04).
+	m, isErr = run(t, e, "edit_file", `{"path":"code.go","old":"aaa","new":"q","replace_all":true}`)
+	if isErr {
+		t.Fatalf("replace_all should succeed on multiple matches: %v", m)
+	}
+	content, _ = os.ReadFile(path)
+	if string(content) != "q XXX q" {
+		t.Fatalf("replace_all content = %q, want %q", content, "q XXX q")
+	}
+	// lines_removed/added scale by occurrence count (2 here).
+	if lr, _ := m["lines_removed"].(float64); lr != 2 {
+		t.Errorf("lines_removed = %v, want 2", m["lines_removed"])
+	}
 }
 
 func TestEditFileCreate(t *testing.T) {
