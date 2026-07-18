@@ -4755,3 +4755,33 @@ remote env(run 29663834074)真机走通本地 commit 全链路:env rail
 (标题/预填 message "changes from agent session"/Cancel/Commit)→ 提交
 成功 → Changes 行清零、"Commit or push" 置灰、toast "committed"。
 无 console error,无裸错误文本。PROGRESS 1/2 间距修复在真机截图再确认。
+
+## 2026-07-18 · QA-0718 第九轮:用户 iPhone 实机三问题——复盘、修复、覆盖清单固化
+
+**为什么八轮 QA 没测到(复盘)**:每轮都测浅色+桌面(或 Chrome 模拟
+390 视口)+复用同一批老会话;三个翻车条件——深色模式、真机 header
+遮挡、新会话首聊——一个都不在路径上。且此前所有 diff 场景都是**新增
+文件**(无 fold band、无 hunk heading、无删除行),"modify 型 diff" 的
+渲染路径从未走过。
+
+**三问题根因与修复**:
+1. 左上角 icon 盖标题:`.sidebar-show` 44px fixed 与 header 内 36px
+   nav-slot 尺寸/坐标两套系统,轻则擦边重则压字(iPhone safe-area 更糟)。
+   修:按钮对齐 36px、top max(6px, safe-area),桌面折叠态经
+   `:has` 给 session-topbar 让位。
+2. 新 project 出现莫名 diff:composer 以 localStorage
+   `arwebui.lastProject` 静默复用上一个 workspace;timeline "Edited N
+   files" 卡用无参 diff(working-tree 全量),把 workspace 历史未提交
+   改动全算成本 turn 编辑。修:卡切 `scope=last-turn`(shadow snapshot
+   基线);Undo 弹窗先查 working-tree 真实计数并明示"含本 turn 之前
+   改动",堵卡显示 last-turn/revert 吞全量的语义失配。
+3. diff 渲染完全错(modify 型):`.fd-gap` 三列 grid 配两个 children,
+   label 挤进 5ch 列竖排破碎;hunk heading 整行 bg-blue-soft 读作高亮
+   正文;删除行 gutter 红斜纹刺眼。修:band 改两列(gutter 宽 + 1fr)、
+   heading 弱化为小字 dim、del gutter 纯色 bg-red。
+   DiffView 63 测试绿,build 绿。
+
+**覆盖清单固化**:remote-qa-env.yml 头部新增每轮硬性覆盖(双主题
+eval 切换/双视口/新会话首聊断言无 Edited 卡/有内容 diff 必开含 modify
+型)。QA 环境用 eval 设 `arwebui.theme` + `data-theme` 即可切深色,
+无需改 executor。
