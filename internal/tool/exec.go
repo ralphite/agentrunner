@@ -650,9 +650,17 @@ func (e *Executor) finishSeries(rawArgs json.RawMessage) Result {
 func (e *Executor) readFile(rawArgs json.RawMessage) Result {
 	var args struct {
 		Path string `json:"path"`
+		// Offset/Limit page a large file (Claude-Code Read parity): offset is
+		// the 1-based line to start at, limit the max lines to return. Without
+		// them a file past the readMaxLines cap could never be read in full.
+		Offset int `json:"offset"`
+		Limit  int `json:"limit"`
 	}
 	if err := json.Unmarshal(rawArgs, &args); err != nil || args.Path == "" {
 		return errResult("read_file: invalid args: need {\"path\": string}")
+	}
+	if args.Offset < 0 || args.Limit < 0 {
+		return errResult("read_file: offset and limit must be non-negative")
 	}
 	path, err := e.WS.Resolve(args.Path)
 	if err != nil {
@@ -691,21 +699,52 @@ func (e *Executor) readFile(rawArgs json.RawMessage) Result {
 		})
 	}
 
-	content := string(raw)
+	lines := strings.Split(string(raw), "\n")
+	total := len(lines)
+	// Page to the requested window (offset is 1-based; 0/1 both start at the
+	// top). An offset past the end yields an empty window, not an error — the
+	// total_lines field tells the model where the file ends.
+	start := 0
+	if args.Offset > 1 {
+		start = args.Offset - 1
+	}
+	if start > total {
+		start = total
+	}
+	window := lines[start:]
 	truncated := false
+	// An explicit limit caps the window; otherwise the default readMaxLines
+	// guard keeps an unbounded read from flooding the context.
+	lineCap := readMaxLines
+	if args.Limit > 0 && args.Limit < lineCap {
+		lineCap = args.Limit
+	}
+	if len(window) > lineCap {
+		window = window[:lineCap]
+		truncated = true
+	}
+	content := strings.Join(window, "\n")
+	shown := start + len(window)
 	if len(content) > readMaxBytes {
 		content = trimToValidUTF8(content[:readMaxBytes])
 		truncated = true
+		// The byte cap can cut the window short; recompute the continuation
+		// point from the lines that actually fit so the next offset neither
+		// skips lines nor (on a single over-long line) re-reads forever.
+		fit := strings.Count(content, "\n")
+		if fit < 1 {
+			fit = 1
+		}
+		shown = start + fit
 	}
-	if lines := strings.Split(content, "\n"); len(lines) > readMaxLines {
-		content = strings.Join(lines[:readMaxLines], "\n")
+	if shown < total {
 		truncated = true
 	}
 	if truncated {
-		content += fmt.Sprintf("\n[truncated: file is %d bytes, showing at most %d lines / %d bytes]",
-			len(raw), readMaxLines, readMaxBytes)
+		content += fmt.Sprintf("\n[truncated: file has %d lines; showing lines %d–%d — read more with offset=%d]",
+			total, start+1, shown, shown+1)
 	}
-	return okResult(map[string]any{"content": content, "truncated": truncated})
+	return okResult(map[string]any{"content": content, "truncated": truncated, "total_lines": total})
 }
 
 // writeFile creates or fully overwrites one file inside the workspace

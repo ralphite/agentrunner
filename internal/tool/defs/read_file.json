@@ -1,6 +1,6 @@
 {
   "name": "read_file",
-  "description": "Read a file from the workspace. Returns the file content, truncated if very large. Images (png/jpeg/gif/webp) and PDFs are supported: their content is attached to the conversation so you can see and analyze it directly (capped at 5MB).",
+  "description": "Read a file from the workspace. Returns the file content, truncated if very large; the result reports total_lines and, when truncated, the offset to continue from. Use offset/limit to page through a file larger than the line cap. Images (png/jpeg/gif/webp) and PDFs are supported: their content is attached to the conversation so you can see and analyze it directly (capped at 5MB).",
   "class": "read",
   "input_schema": {
     "type": "object",
@@ -8,6 +8,14 @@
       "path": {
         "type": "string",
         "description": "File path relative to the workspace root."
+      },
+      "offset": {
+        "type": "integer",
+        "description": "1-based line number to start reading from. Omit to start at the top."
+      },
+      "limit": {
+        "type": "integer",
+        "description": "Maximum number of lines to return from the offset. Omit for the default cap."
       }
     },
     "required": [

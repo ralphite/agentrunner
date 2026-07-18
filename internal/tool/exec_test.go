@@ -95,6 +95,49 @@ func TestReadFileTruncation(t *testing.T) {
 	if !strings.Contains(m["content"].(string), "[truncated:") {
 		t.Error("truncation marker missing")
 	}
+	if tl, _ := m["total_lines"].(float64); tl != 3001 {
+		t.Errorf("total_lines = %v, want 3001", m["total_lines"])
+	}
+}
+
+// TestReadFilePaging pins offset/limit (Claude-Code Read parity): a file past
+// the line cap can be paged in full, and the truncation note points at the
+// next offset (QA Wave6, read_file offset/limit ignored).
+func TestReadFilePaging(t *testing.T) {
+	e, root := newExec(t)
+	var b strings.Builder
+	for i := 1; i <= 5000; i++ {
+		fmt.Fprintf(&b, "L%d\n", i)
+	}
+	if err := os.WriteFile(filepath.Join(root, "big.txt"), []byte(b.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// A limited window returns exactly the requested lines and flags more.
+	m, isErr := run(t, e, "read_file", `{"path":"big.txt","offset":1,"limit":3}`)
+	if isErr {
+		t.Fatalf("paged read errored: %v", m)
+	}
+	got := m["content"].(string)
+	if !strings.HasPrefix(got, "L1\nL2\nL3\n") {
+		t.Fatalf("window head = %q, want L1..L3", got)
+	}
+	if !strings.Contains(got, "offset=4") {
+		t.Errorf("note should point at offset=4: %q", got)
+	}
+
+	// Paging past the default 2000-line cap reaches the tail — impossible before.
+	m, isErr = run(t, e, "read_file", `{"path":"big.txt","offset":4999,"limit":10}`)
+	if isErr {
+		t.Fatalf("tail read errored: %v", m)
+	}
+	tail := m["content"].(string)
+	if !strings.Contains(tail, "L5000") {
+		t.Fatalf("tail window missing last line: %q", tail)
+	}
+	if m["truncated"] == true {
+		t.Errorf("a window reaching EOF should not be truncated: %q", tail)
+	}
 }
 
 func TestEditFile(t *testing.T) {
