@@ -121,4 +121,6 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
 - 2026-07-17 · B6 · Settings approval/sandbox 占位接线(/health 增
   sandboxBackend/Detected,前端真值渲染) · c4d9876+22cf7a1 · 完成。
 - 2026-07-17 · B7 · mermaid 围栏懒加载渲染(单独 chunk,strict,回退
-  代码块) · 本 commit · 完成。
+  代码块) · fb66858 · 完成。
+- 2026-07-18 · B7.1 · embed 测试 helper 改取最大 js(code-split 小
+  chunk 无 gz 变体致间歇红),fix-forward · 本 commit · 完成。

@@ -4134,3 +4134,12 @@ SettingsConfiguration.mobile.test 3 例(真值渲染/无 todo/fail-closed
 生成(非作者 HTML 透传),securityLevel strict 转义标签/禁 click;
 解析失败或流中半截围栏一律回退普通代码块,线程不破。
 锚:Markdown.mermaid.test 3 例(渲染/失败回退/普通围栏零触发)。
+
+## 2026-07-18 · audit-0717.B7.1:embed 测试 helper 修复(B7 连带)
+
+B7 引入首个 code-split 点后 Vite 产出 <1KB glue chunk,embed_test 的
+hashedAssetPath 从 map 随机取首个 assets/*.js——取到小 chunk 时无 gz
+变体(1KB gzip 地板),TestStaticGzipNegotiation 间歇失败。helper 改取
+**最大** js(恒为主包,确定性)。教训记档:B7 的 commit fb66858 在
+check 红时被误推(&& 链未门控 exit),本条为 fix-forward;后续迭代
+一律以显式 CHECK-GREEN 标记门控提交。

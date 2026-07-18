@@ -10,17 +10,23 @@ import (
 	"testing"
 )
 
-// hashedAssetPath returns the URL of one Vite-built /assets/* file from the
-// embedded dist, so the tests never hard-code a content hash.
+// hashedAssetPath returns the URL of the LARGEST Vite-built /assets/*.js from
+// the embedded dist, so the tests never hard-code a content hash. Largest, not
+// first: code-splitting (mermaid lazy chunk, INC-51 余项) added glue chunks
+// under the 1KB gzip floor, and map order once handed those to the gzip
+// negotiation test — the main bundle is always big enough to have a gz form.
 func hashedAssetPath(t *testing.T) string {
 	t.Helper()
-	for p := range assets() {
-		if strings.HasPrefix(p, "assets/") && strings.HasSuffix(p, ".js") {
-			return "/" + p
+	best, size := "", -1
+	for p, a := range assets() {
+		if strings.HasPrefix(p, "assets/") && strings.HasSuffix(p, ".js") && len(a.raw) > size {
+			best, size = "/"+p, len(a.raw)
 		}
 	}
-	t.Skip("embedded dist has no built assets/*.js (placeholder dist?)")
-	return ""
+	if best == "" {
+		t.Skip("embedded dist has no built assets/*.js (placeholder dist?)")
+	}
+	return best
 }
 
 func get(t *testing.T, url string, header map[string]string) *http.Response {
