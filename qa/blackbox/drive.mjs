@@ -269,6 +269,40 @@ for (const [ctxName, viewport] of [
       );
     });
 
+    await S("complex-multiturn-chat", async () => {
+      // Test realistic multi-turn conversation with longer content
+      const before = await page.evaluate(() => (document.querySelector(".timeline")?.innerText || "").length);
+      const box = page.locator(".cx-card textarea, .composer textarea, textarea").last();
+      await box.fill("Write a simple JavaScript function that calculates the factorial of a number. Include error handling for negative numbers.");
+      await page.keyboard.press("Enter");
+      // Wait for response with code content
+      await page.waitForFunction(
+        (n) => {
+          const t = document.querySelector(".timeline")?.innerText || "";
+          return t.length > n && /function|factorial|return/.test(t);
+        },
+        before,
+        { timeout: 180000 },
+      );
+    });
+
+    await S("code-review-turn", async () => {
+      // Test code-related conversation
+      const before = await page.evaluate(() => (document.querySelector(".timeline")?.innerText || "").length);
+      const box = page.locator(".cx-card textarea, .composer textarea, textarea").last();
+      await box.fill("Can you review the code you just wrote and suggest improvements? Focus on edge cases and performance.");
+      await page.keyboard.press("Enter");
+      // Wait for review response
+      await page.waitForFunction(
+        (n) => {
+          const t = document.querySelector(".timeline")?.innerText || "";
+          return t.length > n && (/(improvement|edge case|performance|suggest|could|should)/i.test(t));
+        },
+        before,
+        { timeout: 180000 },
+      );
+    });
+
     await S("diff-view", async () => {
       const sessions = await fetch(`${BASE}/api/sessions?limit=200`).then((r) => r.json());
       const current = sessions.find((session) => session.id === sid);
