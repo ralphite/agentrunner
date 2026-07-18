@@ -116,7 +116,19 @@ func resumeCmd(args []string, version string, stdout, stderr io.Writer) int {
 	}
 	defer func() { _ = events.Close() }()
 
-	fmt.Fprintf(stderr, "resuming session %s\n", sessionID)
+	// Don't announce "resuming" for a session that is already terminal — the
+	// resume below immediately reports its closed/stopped result, and a leading
+	// "resuming session …" before "session is closed" reads as a lie (QA Wave7
+	// nate-05). A resumable (waiting/stranded) session still gets the notice.
+	resumable := true
+	if evs, ferr := store.ReadEvents(dir); ferr == nil {
+		if s, serr := state.Fold(evs); serr == nil && s.Session.Closed != nil {
+			resumable = false
+		}
+	}
+	if resumable {
+		fmt.Fprintf(stderr, "resuming session %s\n", sessionID)
+	}
 	// The live mode comes from the fold; spec.Mode is only the gate's
 	// static fallback. Journaled permission layers (S6) are the run's frozen
 	// effective rules — a child session resumed standalone keeps its
