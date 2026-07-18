@@ -146,7 +146,7 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 func followTurn(sock string, cmd daemon.Command, ackText string, stdout, stderr io.Writer) int {
 	render := newTextRenderer(stdout)
 	sid := cmd.Session // send knows it already; new learns it from SessionStart
-	var sawIdle, sawErr, acked, announced bool
+	var sawIdle, sawErr, acked, announced, sawApproval bool
 	err := daemon.DialUntil(sock, cmd, func(e protocol.Event) bool {
 		if e.Session != "" && sid == "" {
 			sid = e.Session
@@ -172,6 +172,13 @@ func followTurn(sock string, cmd daemon.Command, ackText string, stdout, stderr 
 				acked = true // the request/reply ack, not the model speaking
 				return true
 			}
+		case protocol.KindApprovalRequest:
+			// The anchored turn is parked on an approval — nothing more streams
+			// until the user answers with `ar approve`, so follow to idle would
+			// hang forever (QA Wave5 liam-01). Render the ask and DETACH.
+			render.Emit(e)
+			sawApproval = true
+			return false
 		case protocol.KindIdle:
 			sawIdle = true
 			return false // turn done: detach, the session keeps running
@@ -193,6 +200,12 @@ func followTurn(sock string, cmd daemon.Command, ackText string, stdout, stderr 
 	switch {
 	case sawErr:
 		return ExitRun
+	case sawApproval:
+		// The ask itself (id + how to answer) was just rendered; point at
+		// the approve command and detach — the session stays parked.
+		fmt.Fprintf(stderr, "(session %s is waiting for your approval — answer with `agentrunner approve %s <id> approve|deny`, then `agentrunner attach %s` to see the reply)\n",
+			sid, sid, sid)
+		return ExitOK
 	case sawIdle:
 		fmt.Fprintf(stderr, "(session %s is waiting — continue: agentrunner send %s \"...\"  history: agentrunner attach %s)\n",
 			sid, sid, sid)
