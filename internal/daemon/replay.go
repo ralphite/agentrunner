@@ -129,6 +129,14 @@ func ReplayJournal(sessionDir string, sink protocol.Sink) error {
 				CallID: p.CallID, ApprovalID: p.ApprovalID,
 				Tool: meta.tool, Args: meta.args, Text: askReason(p.GateResults)})
 		case *event.LimitExceeded:
+			// An interrupt is journaled as a LimitExceeded of kind "interrupted"
+			// (a limit of 0), NOT a budget failure — render it exactly like the
+			// live stream's "↺ interrupted by user", not the budget-exhaustion
+			// template (QA Wave6 mia-01, a regression from the heidi-05 fix).
+			if p.Kind == "interrupted" {
+				sink.Emit(protocol.Event{Kind: protocol.KindDiscard, N: turn, Text: "interrupted by user"})
+				break
+			}
 			// A budget-truncated turn otherwise replays as an empty
 			// [gen-step N] with no explanation (QA Wave2 heidi-05 / carol-06):
 			// surface the reason so a rejoining watcher understands why the

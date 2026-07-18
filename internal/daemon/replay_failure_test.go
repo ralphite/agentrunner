@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ralphite/agentrunner/internal/event"
@@ -96,6 +97,34 @@ func TestReplayProjectsNonToolFailure(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("non-tool failure did not project an error event; got %+v", sink.events)
+	}
+}
+
+// TestReplayProjectsInterruptNotBudget pins that an interrupt (journaled as a
+// LimitExceeded of kind "interrupted") replays as a discard "interrupted by
+// user", NOT the budget-exhaustion template (QA Wave6 mia-01).
+func TestReplayProjectsInterruptNotBudget(t *testing.T) {
+	dir := journalFor(t,
+		struct {
+			typ string
+			p   any
+		}{event.TypeSessionStarted, &event.SessionStarted{}},
+		struct {
+			typ string
+			p   any
+		}{event.TypeLimitExceeded, &event.LimitExceeded{Kind: "interrupted", Limit: 0, Used: 1}},
+	)
+	sink := &captureSink{}
+	if err := ReplayJournal(dir, sink); err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range sink.events {
+		if e.Kind == protocol.KindError {
+			t.Fatalf("interrupt projected as an error/budget event: %q", e.Text)
+		}
+		if e.Kind == protocol.KindDiscard && !strings.Contains(e.Text, "interrupted") {
+			t.Fatalf("discard text = %q, want it to mention interrupted", e.Text)
+		}
 	}
 }
 
