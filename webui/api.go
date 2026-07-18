@@ -199,6 +199,14 @@ func arFail(w http.ResponseWriter, what string, res arResult) {
 		writeJSON(w, http.StatusNotFound, body)
 		return
 	}
+	// ar exits 2 for a usage/client error (bad args, invalid session state,
+	// an action that doesn't apply). That is a 4xx, not a 502 — 502 (Bad
+	// Gateway) wrongly reads as a server/upstream fault (QA Wave1 carol-12).
+	// A run failure (exit 1) or spawn failure stays 502.
+	if res.exitCode() == 2 {
+		writeJSON(w, http.StatusBadRequest, body)
+		return
+	}
 	writeJSON(w, http.StatusBadGateway, body)
 }
 

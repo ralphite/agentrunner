@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"regexp"
@@ -15,6 +16,17 @@ type arResult struct {
 	Stdout string
 	Stderr string
 	Err    error // non-nil on non-zero exit or spawn failure
+}
+
+// exitCode returns the process exit code (ar uses 2 = usage/client error,
+// 1 = run failure), or -1 for a spawn failure / clean exit. Lets the HTTP
+// layer map a client-side usage error to a 4xx instead of a 502.
+func (r arResult) exitCode() int {
+	var ee *exec.ExitError
+	if errors.As(r.Err, &ee) {
+		return ee.ExitCode()
+	}
+	return -1
 }
 
 // runAR executes one ar subcommand with a timeout. Direct argv, no shell.
