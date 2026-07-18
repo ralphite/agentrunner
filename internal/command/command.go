@@ -17,10 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
-
-	"gopkg.in/yaml.v3"
 )
 
 // nameRE bounds a command name to a safe basename — no path separators or
@@ -33,53 +30,6 @@ type Command struct {
 	Description string `json:"description,omitempty"`
 	// Path is the .md location relative to the workspace root.
 	Path string `json:"path"`
-}
-
-type frontmatter struct {
-	Description string `yaml:"description"`
-}
-
-// Discover lists <root>/.claude/commands/*.md, one command per file named by
-// basename. A missing directory is not an error. Used for help/UX listing;
-// expansion itself does not depend on it.
-func Discover(root string) ([]Command, error) {
-	if root == "" {
-		return nil, nil
-	}
-	dir := filepath.Join(root, ".claude", "commands")
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	var out []Command
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
-			continue
-		}
-		name := strings.TrimSuffix(e.Name(), ".md")
-		if !nameRE.MatchString(name) {
-			continue
-		}
-		mdPath := filepath.Join(dir, e.Name())
-		raw, err := os.ReadFile(mdPath)
-		if err != nil {
-			continue
-		}
-		desc := ""
-		if fm, ok := parseFrontmatter(raw); ok {
-			desc = fm.Description
-		}
-		rel, err := filepath.Rel(root, mdPath)
-		if err != nil {
-			rel = mdPath
-		}
-		out = append(out, Command{Name: name, Description: desc, Path: rel})
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
-	return out, nil
 }
 
 // Expand resolves a leading-slash command macro. When the first token of
@@ -118,24 +68,6 @@ func Expand(root, text string) (string, bool) {
 		return tmpl + "\n\n" + args, true
 	}
 	return tmpl, true
-}
-
-// parseFrontmatter extracts an optional leading YAML block (--- fences).
-func parseFrontmatter(raw []byte) (frontmatter, bool) {
-	s := string(raw)
-	if !strings.HasPrefix(s, "---\n") && !strings.HasPrefix(s, "---\r\n") {
-		return frontmatter{}, false
-	}
-	rest := s[strings.Index(s, "\n")+1:]
-	end := strings.Index(rest, "\n---")
-	if end < 0 {
-		return frontmatter{}, false
-	}
-	var fm frontmatter
-	if err := yaml.Unmarshal([]byte(rest[:end]), &fm); err != nil {
-		return frontmatter{}, false
-	}
-	return fm, true
 }
 
 // stripFrontmatter drops an optional leading YAML block so it does not end up

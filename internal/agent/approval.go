@@ -282,7 +282,7 @@ func (l *Loop) awaitApproval(ctx context.Context, ds *driveState, appendE Append
 			return false, "", err
 		}
 		if _, err := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
-			Kind: event.WaitApproval, Resolution: "denied_by_interrupt",
+			Kind: event.WaitApproval, Resolution: WaitRules[event.WaitApproval].OnInterrupt,
 		}); err != nil {
 			return false, "", err
 		}
@@ -306,7 +306,7 @@ func (l *Loop) awaitApproval(ctx context.Context, ds *driveState, appendE Append
 			return false, "", err
 		}
 		if _, err := cmdAppend(event.TypeWaitingResolved, &event.WaitingResolved{
-			Kind: event.WaitApproval, Resolution: "denied_by_interrupt",
+			Kind: event.WaitApproval, Resolution: WaitRules[event.WaitApproval].OnInterrupt,
 		}); err != nil {
 			return false, "", err
 		}

@@ -490,17 +490,19 @@ INC-36 真浏览器断言归档 qa/runs/2026-07-10-INC36,无 QA-n 号)——
 找到真锚,或如实降级状态并挂 GAP。
 → 横切（登记簿本身）
 
-**G31 deadcode 存货甄别 — 🟡 甄别完成，余 3 项 unwired 待裁（audit-0717 C2，2026-07-18）**
+**G31 deadcode 存货甄别 — ✅ 已关闭（audit-0717 C2 + INC-69，2026-07-18）**
 17 项逐一甄别落 LOG:10 项 test-infra 注记留基线(clock.Fake 全组/
 scripted.New·NewRouter/mcp.NewConn/notify.Seen/persistInputFunc[daemon
 明文 legacy seam]/orphan.parsePSTable);2 项纯死码已删
 (errs.Retryable 自由函数——生产用 class.Retryable() 方法;
-blackboard.Board.Topics——仅自测);3 项 **unwired(G29 同类,设计了
-未接线)**待工作纸裁决(audit BACKLOG D0):command.Discover/
-parseFrontmatter(孪生 skill.Discover 已接线,它没有——接线需先有
-CLI"列 slash 命令"面)、agent.CanProduce + ResolveWaitingOnInterrupt
-(waiting 注册表本应是中断决议唯一入口,生产各路径却内联手搓等价
-字面量——恰是注册表要防的 ad-hoc 表)。原登记:
+blackboard.Board.Topics——仅自测);3 项 unwired 已由 INC-69 收口:
+waiting 注册表**接线**(生产 5 处中断决议站点改读
+WaitRules[kind].OnInterrupt,字面量单一来源;dev 期脚手架
+CanProduce/ProducibleStage 与形状不匹配任何生产站点的
+ResolveWaitingOnInterrupt 删除,测试迁移为 TestWaitRulesAreResolutionSource);
+command.Discover/parseFrontmatter **删除**(接线前提"列 slash 命令"
+CLI 面无 journey 锚,记档:未来立项按 skill.Discover 模式重建,活模板
+assembly.go)。基线余 12 项全为注记的测试基座。原登记:
 `scripts/lint-wiring.sh`（deadcode,main 可达性）基线里 19 个不可达导出
 待逐项甄别:`clock.Fake*`/`scripted.New*` 类疑似测试基建（合理,注记后留
 基线）;但 `command.Discover`/`parseFrontmatter`、`driver.Resume`、

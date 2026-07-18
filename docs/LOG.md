@@ -4216,3 +4216,19 @@ Test*/QA-n 形态),用户消息折叠的折叠行为 jsdom 无布局测不了、
   denied_by_interrupt 等价逻辑——G29 式"设计了未接线",收敛属行为
   中性重构但需调和内联差异,单独工作纸)。
 基线相应重写(分类注记入文件头),lint-wiring 绿。
+
+## 2026-07-18 · INC-69:waiting 注册表接线 + command.Discover 裁决(D0,G31 关闭)
+
+工作纸 docs/archive/increments/INC-69(单步小增量,裁掉三视角 review)。
+- **接线**:conversation.go×3 + approval.go×2 的中断决议不再硬编码
+  superseded_by_interrupt/denied_by_interrupt,改读
+  WaitRules[kind].OnInterrupt——注册表从声明性文档变为载荷真相源,
+  正是 2.14 注册表设防的 ad-hoc 内联表被收编。行为零变化(字面量
+  值相同),TestWaitRulesAreResolutionSource 钉住 wire contract。
+- **删**:CanProduce/ProducibleStage(dev 阶段守门,全部 stage 交付后
+  无运行时语义)、ResolveWaitingOnInterrupt(整体形状——自带
+  InputReceived、无 cmdAppend/AskResolved 交错——与任何生产站点
+  不匹配;idle interrupt 依裁决 #11 本就是 no-op)、command.Discover/
+  parseFrontmatter/Command/frontmatter(唯一接线前提"列 slash 命令"
+  CLI 面无 journey 锚,未来立项按 skill.Discover 活模板重建)。
+- deadcode 基线 16→12,余项全为注记测试基座,G31 关闭。

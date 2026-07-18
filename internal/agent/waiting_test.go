@@ -10,18 +10,20 @@ import (
 	"github.com/ralphite/agentrunner/internal/store"
 )
 
-// The registry is complete from S2 on: every kind has a row, and the
-// producibility column matches the stage plan.
-func TestWaitRegistryTable(t *testing.T) {
+// The registry is the single source of interrupt-resolution literals
+// (INC-69): production sites in conversation.go/approval.go read
+// WaitRules[kind].OnInterrupt instead of hardcoding the strings, so these
+// pinned values ARE the wire contract — change them and the journaled
+// resolutions change with them.
+func TestWaitRulesAreResolutionSource(t *testing.T) {
 	cases := []struct {
 		kind          string
-		producible    int
 		interruptible bool
 		onInterrupt   string
 		resolvedBy    string
 	}{
-		{event.WaitInput, 4, true, "superseded_by_interrupt", "input"},
-		{event.WaitApproval, 3, true, "denied_by_interrupt", "approval_response"},
+		{event.WaitInput, true, "superseded_by_interrupt", "input"},
+		{event.WaitApproval, true, "denied_by_interrupt", "approval_response"},
 	}
 	if len(cases) != len(WaitRules) {
 		t.Fatalf("registry has %d rows, table pins %d", len(WaitRules), len(cases))
@@ -32,84 +34,10 @@ func TestWaitRegistryTable(t *testing.T) {
 			t.Errorf("kind %q missing from registry", tc.kind)
 			continue
 		}
-		if rule.ProducibleStage != tc.producible || rule.Interruptible != tc.interruptible ||
+		if rule.Interruptible != tc.interruptible ||
 			rule.OnInterrupt != tc.onInterrupt || rule.ResolvedBy != tc.resolvedBy {
 			t.Errorf("row %q = %+v, want %+v", tc.kind, rule, tc)
 		}
-		// S2 may produce none of them.
-		if CanProduce(tc.kind, 2) {
-			t.Errorf("kind %q must not be producible in S2", tc.kind)
-		}
-		if !CanProduce(tc.kind, tc.producible) {
-			t.Errorf("kind %q must be producible from stage %d", tc.kind, tc.producible)
-		}
-	}
-}
-
-// Every cell of the interrupt column, driven with synthetic WaitingEntered
-// events (nothing can produce them yet — that is the point).
-func TestInterruptResolvesEveryKind(t *testing.T) {
-	for kind, rule := range WaitRules {
-		t.Run(kind, func(t *testing.T) {
-			m := &memAppend{}
-			s := state.New()
-			entered, err := event.New(event.TypeWaitingEntered, &event.WaitingEntered{Kind: kind})
-			if err != nil {
-				t.Fatal(err)
-			}
-			entered.Seq = 1
-			if s, err = state.Apply(s, entered); err != nil {
-				t.Fatal(err)
-			}
-
-			appendE := func(typ string, payload any) (event.Envelope, error) {
-				env, aerr := m.append(typ, payload)
-				if aerr != nil {
-					return env, aerr
-				}
-				s, aerr = state.Apply(s, env)
-				return env, aerr
-			}
-			if err := ResolveWaitingOnInterrupt(s, appendE); err != nil {
-				t.Fatal(err)
-			}
-
-			// journal-inputs-first: the interrupt lands BEFORE the resolution.
-			want := []string{"input_received", "waiting_resolved"}
-			if got := m.types(); !equal(got, want) {
-				t.Fatalf("events = %v, want %v", got, want)
-			}
-			var resolved event.WaitingResolved
-			_ = json.Unmarshal(m.events[1].Payload, &resolved)
-			if resolved.Kind != kind || resolved.Resolution != rule.OnInterrupt {
-				t.Errorf("resolved = %+v", resolved)
-			}
-			if s.Waiting != nil || s.Session.Status != state.StatusRunning {
-				t.Errorf("state after interrupt: waiting=%+v status=%s", s.Waiting, s.Session.Status)
-			}
-			// Control input must not pollute the transcript.
-			if len(s.Conversation.Messages) != 0 {
-				t.Errorf("interrupt leaked into conversation: %+v", s.Conversation.Messages)
-			}
-		})
-	}
-}
-
-func TestInterruptOnNonWaitingIsNoop(t *testing.T) {
-	m := &memAppend{}
-	if err := ResolveWaitingOnInterrupt(state.New(), m.append); err != nil {
-		t.Fatal(err)
-	}
-	if len(m.events) != 0 {
-		t.Errorf("events = %v, want none", m.types())
-	}
-}
-
-func TestInterruptUnknownKindErrors(t *testing.T) {
-	s := state.New()
-	s.Waiting = &state.Waiting{Kind: "seance"}
-	if err := ResolveWaitingOnInterrupt(s, (&memAppend{}).append); err == nil {
-		t.Fatal("unknown waiting kind must error")
 	}
 }
 

@@ -1,19 +1,16 @@
 package agent
 
 import (
-	"fmt"
-
 	"github.com/ralphite/agentrunner/internal/event"
-	"github.com/ralphite/agentrunner/internal/state"
 )
 
-// WaitRule is one row of the waiting-state registry (2.14). All four
-// variants are defined NOW so later stages slot into an existing table
-// instead of growing an ad-hoc one; ProducibleStage says which stage may
-// first journal a WaitingEntered of this kind.
+// WaitRule is one row of the waiting-state registry (2.14). The registry is
+// the single source of each wait kind's interrupt semantics — production
+// resolution paths read their WaitingResolved.Resolution literal FROM here
+// (INC-69 wired the sites; hardcoding the strings again is the ad-hoc table
+// this registry exists to prevent).
 type WaitRule struct {
-	Kind            string
-	ProducibleStage int
+	Kind string
 	// Interruptible: a user interrupt may resolve this wait.
 	Interruptible bool
 	// OnInterrupt is the WaitingResolved.Resolution an interrupt produces.
@@ -28,45 +25,13 @@ type WaitRule struct {
 // timers belong to the daemon sweep.
 var WaitRules = map[string]WaitRule{
 	event.WaitInput: {
-		Kind: event.WaitInput, ProducibleStage: 4, Interruptible: true,
+		Kind: event.WaitInput, Interruptible: true,
 		OnInterrupt: "superseded_by_interrupt", ResolvedBy: "input",
 	},
 	event.WaitApproval: {
-		Kind: event.WaitApproval, ProducibleStage: 3, Interruptible: true,
+		Kind: event.WaitApproval, Interruptible: true,
 		// 3.5 denied-by-interrupt: the approval resolves as a denial and
 		// the call renders "[interrupted by user]".
 		OnInterrupt: "denied_by_interrupt", ResolvedBy: "approval_response",
 	},
-}
-
-// CanProduce reports whether a stage may journal WaitingEntered of kind.
-func CanProduce(kind string, stage int) bool {
-	rule, ok := WaitRules[kind]
-	return ok && stage >= rule.ProducibleStage
-}
-
-// ResolveWaitingOnInterrupt handles a user interrupt against a idle run:
-// the interrupt is journaled FIRST (journal-inputs-first), then the wait
-// resolves per its registry row. A nil Waiting is a no-op; an unknown kind
-// is corruption and errors loudly.
-func ResolveWaitingOnInterrupt(s state.State, appendE AppendFunc) error {
-	if s.Waiting == nil {
-		return nil
-	}
-	rule, ok := WaitRules[s.Waiting.Kind]
-	if !ok {
-		return fmt.Errorf("waiting: unknown kind %q", s.Waiting.Kind)
-	}
-	if !rule.Interruptible {
-		return fmt.Errorf("waiting: kind %q is not interruptible", s.Waiting.Kind)
-	}
-	if _, err := appendE(event.TypeInputReceived, &event.InputReceived{
-		Text: "[interrupt]", Source: "interrupt",
-	}); err != nil {
-		return err
-	}
-	_, err := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
-		Kind: s.Waiting.Kind, Resolution: rule.OnInterrupt,
-	})
-	return err
 }

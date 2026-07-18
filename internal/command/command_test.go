@@ -84,34 +84,3 @@ func TestExpandEmptyRoot(t *testing.T) {
 		t.Fatalf("empty root should pass through: %q ok=%v", got, ok)
 	}
 }
-
-func TestDiscover(t *testing.T) {
-	root := t.TempDir()
-	writeCmd(t, root, "beta", "---\ndescription: second\n---\nb")
-	writeCmd(t, root, "alpha", "a")    // no frontmatter is fine
-	writeCmd(t, root, "bad name", "x") // invalid name → skipped
-	if err := os.WriteFile(filepath.Join(root, ".claude", "commands", "notes.txt"), []byte("x"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	cmds, err := Discover(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(cmds) != 2 {
-		t.Fatalf("want 2 commands, got %d: %+v", len(cmds), cmds)
-	}
-	if cmds[0].Name != "alpha" || cmds[1].Name != "beta" || cmds[1].Description != "second" {
-		t.Fatalf("discover wrong: %+v", cmds)
-	}
-	if cmds[0].Path != filepath.Join(".claude", "commands", "alpha.md") {
-		t.Fatalf("path not workspace-relative: %q", cmds[0].Path)
-	}
-}
-
-func TestDiscoverMissingDir(t *testing.T) {
-	cmds, err := Discover(t.TempDir())
-	if err != nil || cmds != nil {
-		t.Fatalf("missing commands dir should be (nil,nil): %+v %v", cmds, err)
-	}
-}

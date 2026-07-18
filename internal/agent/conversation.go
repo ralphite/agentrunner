@@ -555,7 +555,7 @@ func (l *Loop) awaitAnswer(ctx context.Context, ds *driveState, appendE AppendFu
 					return RunResult{}, true, err
 				}
 				if _, err := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
-					Kind: event.WaitInput, Resolution: "superseded_by_interrupt",
+					Kind: event.WaitInput, Resolution: WaitRules[event.WaitInput].OnInterrupt,
 				}); err != nil {
 					return RunResult{}, true, err
 				}
@@ -640,7 +640,7 @@ func (l *Loop) awaitAnswer(ctx context.Context, ds *driveState, appendE AppendFu
 				return RunResult{}, true, err
 			}
 			if _, err := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
-				Kind: event.WaitInput, Resolution: "superseded_by_interrupt",
+				Kind: event.WaitInput, Resolution: WaitRules[event.WaitInput].OnInterrupt,
 			}); err != nil {
 				return RunResult{}, true, err
 			}
@@ -659,7 +659,7 @@ func (l *Loop) awaitAnswer(ctx context.Context, ds *driveState, appendE AppendFu
 				return RunResult{}, true, err
 			}
 			if _, err := cmdAppend(event.TypeWaitingResolved, &event.WaitingResolved{
-				Kind: event.WaitInput, Resolution: "superseded_by_interrupt",
+				Kind: event.WaitInput, Resolution: WaitRules[event.WaitInput].OnInterrupt,
 			}); err != nil {
 				return RunResult{}, true, err
 			}

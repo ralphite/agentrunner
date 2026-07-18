@@ -67,10 +67,8 @@
 
 ## 第 3 批 · 中型增量（c 类，先工作纸后实施）
 
-- [ ] **D0** G31-unwired 三件套处置工作纸（S-M）：①waiting 注册表
-  接线(CanProduce/ResolveWaitingOnInterrupt 收敛生产内联,行为中性
-  重构);②command.Discover 裁决(CLI"列 slash 命令"面立项接线,或
-  删除并记档)。
+- [x] **D0** G31-unwired 三件套:INC-69 落地——注册表接线(5 站点
+  改读 WaitRules)+ 脚手架/死码删 4,G31 关闭(工作纸已归档)。
 - [ ] **D1** G3 WAITING_APPROVAL 挂起期间消息唤醒语义（M，可能触
   park/唤醒不变量——工作纸里显式判定，触则走 PROCESS §四）。
 - [ ] **D2** G2 barrier 对在飞 background/child work 的处置语义
@@ -136,4 +134,6 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
 - 2026-07-18 · C1 · G30 弱锚燃尽 24/26(债 31→2,留 2 行有因) ·
   17ab2ff · 完成。
 - 2026-07-18 · C2 · deadcode 17 项甄别(删 2/注记 10/unwired 3→D0)
+  · 9cd689b · 完成。
+- 2026-07-18 · D0/INC-69 · waiting 注册表接线+Discover 删除,G31 关闭
   · 本 commit · 完成。

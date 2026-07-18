@@ -1,17 +1,13 @@
 # lint-wiring.sh 基线:main 不可达的导出(deadcode@v0.48.0,双 main:cmd/agentrunner + webui)。
-# 只应变短;增行须在 LOG 给理由。存量甄别已完成(audit-0717 C2,2026-07-18,逐项 LOG):
-# [test-infra] = 测试基座,合理留基线;[unwired] = 设计了未接线(G29 同类),
-# 处置随 audit BACKLOG D0 工作纸裁决(接线或删除),在此之前留基线。
-internal/agent/waiting.go CanProduce
-internal/agent/waiting.go ResolveWaitingOnInterrupt
+# 只应变短;增行须在 LOG 给理由。存量甄别已完成(audit-0717 C2/INC-69,逐项 LOG):
+# 余下全部为 [test-infra] 测试基座,注记留基线(unwired 三件套已由
+# INC-69 处置:注册表接线 2 删 2)。
 internal/cli/daemon.go persistInputFunc
 internal/clock/clock.go Fake.Advance
 internal/clock/clock.go Fake.Now
 internal/clock/clock.go Fake.WaitUntil
 internal/clock/clock.go Fake.Waiters
 internal/clock/clock.go NewFake
-internal/command/command.go Discover
-internal/command/command.go parseFrontmatter
 internal/mcp/mcp.go NewConn
 internal/notify/notify.go Notifier.Seen
 internal/provider/scripted/router.go NewRouter
