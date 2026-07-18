@@ -11,10 +11,18 @@ import (
 	"sort"
 )
 
+// The probe error is the operator's only clue in a fresh environment (a CI
+// runner, a new machine), so it must carry the fix, not just the failure
+// (INC-75). Two failure shapes, two distinct remedies.
+const (
+	bwrapMissingHint = "fix: install the distro bubblewrap package (e.g. `sudo apt-get install -y bubblewrap`); `ar doctor` verifies"
+	bwrapProbeHint   = "fix: a userns/permission denial here usually means the kernel restricts unprivileged user namespaces (Ubuntu 23.10+ AppArmor) — install the distro bubblewrap package (its AppArmor profile covers /usr/bin/bwrap) or `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0`; `ar doctor` verifies"
+)
+
 func platformSandboxProbe(networkNone bool) (string, error) {
 	bin, err := exec.LookPath("bwrap")
 	if err != nil {
-		return "bwrap", fmt.Errorf("bubblewrap unavailable: %w", err)
+		return "bwrap", fmt.Errorf("bubblewrap unavailable: %w — %s", err, bwrapMissingHint)
 	}
 	args := []string{"--ro-bind", "/", "/", "--proc", "/proc", "--dev", "/dev", "--unshare-pid"}
 	if networkNone {
@@ -22,7 +30,7 @@ func platformSandboxProbe(networkNone bool) (string, error) {
 	}
 	args = append(args, "/bin/true")
 	if out, err := exec.Command(bin, args...).CombinedOutput(); err != nil {
-		return "bwrap", fmt.Errorf("bubblewrap probe: %v: %s", err, bytes.TrimSpace(out))
+		return "bwrap", fmt.Errorf("bubblewrap probe: %v: %s — %s", err, bytes.TrimSpace(out), bwrapProbeHint)
 	}
 	return "bwrap", nil
 }

@@ -61,6 +61,18 @@ func (e *Executor) SandboxInfo() (SandboxInfo, error) {
 	return info, err
 }
 
+// DoctorSandbox probes the platform OS sandbox backend for both network
+// modes without needing a workspace-backed Executor. It powers `ar doctor`
+// (INC-75): the containment gates stay fail-closed (决策 #34) — this is the
+// preflight that tells an operator, before any agent runs, whether bash and
+// command tools will execute in this environment and how to fix it when
+// they won't.
+func DoctorSandbox() (backend string, openErr, restrictedErr error) {
+	backend, openErr = platformSandboxProbe(false)
+	_, restrictedErr = platformSandboxProbe(true)
+	return backend, openErr, restrictedErr
+}
+
 // sandboxedBash constructs the mandatory OS-contained command and an isolated
 // HOME/TMP. Capability absence fails before any user command starts.
 func (e *Executor) sandboxedBash(command string) (*exec.Cmd, func(), error) {

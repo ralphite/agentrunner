@@ -125,6 +125,8 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 		return sessionsCmd(args[1:], stdout, stderr)
 	case "trust":
 		return trustCmd(args[1:], stdout, stderr)
+	case "doctor":
+		return doctorCmd(args[1:], stdout, stderr)
 	case "dictate":
 		return dictateCmd(args[1:], stdout, stderr)
 	case "optimize":
@@ -175,6 +177,8 @@ func commandHelp(cmd string) string {
 		return "usage: agentrunner sessions [list] [--json] [--limit N] [--offset N]\n\nList sessions and their status. JSON includes workspace and title.\n"
 	case "trust":
 		return "usage: agentrunner trust <dir>\n\nMark a workspace directory as trusted on this machine.\n"
+	case "doctor":
+		return "usage: agentrunner doctor\n\nPreflight this environment: probe the OS sandbox backend (bubblewrap\non Linux, Seatbelt on macOS) that bash and command tools require\n(fail-closed). Prints the fix when a probe fails; exit 0 = ready.\n"
 	case "remember":
 		return "usage: agentrunner remember <session-id-or-prefix> \"note\"\n\nSave a durable note to the workspace's project CLAUDE.md; future\nsessions in that workspace see it in their prompt prefix, and the\ntarget session honors it from now on.\n"
 	case "hook":
@@ -234,6 +238,8 @@ Background work (daemon):
   resume <session>            resume an interrupted or crashed session
 
 Observe:
+  doctor                      preflight this machine: is the OS sandbox that
+                              bash/command tools require actually available?
   sessions                    list sessions and their status
   ps <session>                in-flight background work of a session
   inspect <session>           session facts: status, turns, token usage, budget
