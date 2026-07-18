@@ -31,6 +31,7 @@ import type { DiffResp, DiffScope } from "../types";
 import { parseFileDiff, defaultOpenByPath, splitDiff, splitPath, splitRows, highlightLine, hunkGaps, trailingGapKey, langFromPath, type ContextGap, type DiffRow, type FileDiffSummary, type FileStatus, type ParsedFileDiff } from "../diffSummary";
 import { Popover, PopItem, PopSection } from "./Popover";
 import { useWorktreeActions } from "./worktreeActions";
+import { useBreakpoint } from "../hooks/useBreakpoint";
 
 // renderCode turns one diff line into syntax-highlighted spans (INC-41 D3).
 // Tokens are dependency-free and byte-exact, so `white-space: pre` alignment is
@@ -350,13 +351,8 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
       return { ...prev, [path]: next };
     });
   }, []);
-  const [narrow, setNarrow] = useState(() => window.matchMedia("(max-width: 900px)").matches);
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 900px)");
-    const sync = () => setNarrow(mq.matches);
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
-  }, []);
+  const bp = useBreakpoint();
+  const narrow = bp.compact || bp.tablet;
   // DIFF-CP · what the bar actually measures (see BAR_TIGHT_PX). A stable
   // callback ref, because the bar only exists once the diff has landed — a `[]`
   // effect would run against the skeleton and find nothing to observe. The
@@ -383,13 +379,7 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
   // neighbours — see .diffwrap .diffbar in tw.css), and here it stops being
   // a half-word clipped mid-glyph and becomes an honest icon-only chip; the full
   // "worktree of <repo> · <branch>" stays one hover away in its title.
-  const [chipCompact, setChipCompact] = useState(() => window.matchMedia("(max-width: 1400px)").matches);
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 1400px)");
-    const sync = () => setChipCompact(mq.matches);
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
-  }, []);
+  const chipCompact = bp.compact || bp.tablet || bp.desktop;
 
   const load = () => {
     const currentRequest = ++requestID.current;

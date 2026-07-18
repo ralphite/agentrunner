@@ -1,0 +1,38 @@
+[
+  {
+    "sev": "high",
+    "step": "phone:first-turn-completes",
+    "what": "step threw",
+    "detail": "page.waitForFunction: Timeout 30000ms exceeded."
+  },
+  {
+    "sev": "high",
+    "step": "phone:follow-up-turn",
+    "what": "step threw",
+    "detail": "page.waitForFunction: Timeout 120000ms exceeded."
+  },
+  {
+    "sev": "high",
+    "step": "phone:diff-view",
+    "what": "new session has no retained workspace for Changes QA",
+    "detail": ""
+  },
+  {
+    "sev": "high",
+    "step": "desktop:first-turn-completes",
+    "what": "step threw",
+    "detail": "page.waitForFunction: Timeout 30000ms exceeded."
+  },
+  {
+    "sev": "high",
+    "step": "desktop:follow-up-turn",
+    "what": "step threw",
+    "detail": "page.waitForFunction: Timeout 120000ms exceeded."
+  },
+  {
+    "sev": "high",
+    "step": "desktop:diff-view",
+    "what": "new session has no retained workspace for Changes QA",
+    "detail": ""
+  }
+]

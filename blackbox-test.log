@@ -1,0 +1,11 @@
+
+#### context: phone 390x844
+== phone:home
+== phone:sidebar-toggle
+== phone:settings-search
+== phone:scheduled-modal-bad-workspace
+== phone:create-session
+   session: 20260718-015941-1-1-b0d58f90fc5a21c7
+== phone:first-turn-completes
+  !! [high] step threw — page.waitForFunction: Timeout 30000ms exceeded.
+== phone:follow-up-turn

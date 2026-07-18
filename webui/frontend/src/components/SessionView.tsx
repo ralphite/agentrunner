@@ -19,6 +19,7 @@ import { dedupeInspectNodes } from "../viewModels";
 import { ChangesOutcome } from "./ChangesOutcome";
 import { DaemonAlert } from "./DaemonAlert";
 import { SessionNotFound } from "./NotFound";
+import { useBreakpoint } from "../hooks/useBreakpoint";
 
 interface SSEApproval {
   id: string;
@@ -136,14 +137,14 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   const [failureRawOpen, setFailureRawOpen] = useState(false);
   const [failureRetrying, setFailureRetrying] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
-  const [wideViewport, setWideViewport] = useState(() => window.innerWidth > 900);
+  const bp = useBreakpoint();
   // Supervision starts CLOSED and remembers the user's choice (W5): an empty
   // panel taking a third of the screen on every session was the single most
   // asked-about annoyance. A pending approval force-opens it (see below).
   // Codex shows the right context panel by default on a wide screen (R1-3);
   // open it unless the user has explicitly closed it before ("0"). Narrow
   // screens stay collapsed so the conversation isn't squeezed.
-  const [supervisionOpen, setSupervisionOpen] = useState(() => window.innerWidth > 1100 && localStorage.getItem("arwebui.supervision") !== "0");
+  const [supervisionOpen, setSupervisionOpen] = useState(() => (bp.desktop || bp.wide) && localStorage.getItem("arwebui.supervision") !== "0");
   const setSupervision = (open: boolean) => {
     setSupervisionOpen(open);
     try {
@@ -161,18 +162,12 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   const sentImages = useRef(new Map<number, string[]>());
   const approvalAutoOpenedSupervision = useRef(false);
 
-  useEffect(() => {
-    const syncViewport = () => setWideViewport(window.innerWidth > 900);
-    window.addEventListener("resize", syncViewport);
-    return () => window.removeEventListener("resize", syncViewport);
-  }, []);
-
   // Mobile navigation and Environment are both full-height overlays. Opening
   // the navigation drawer must make it the sole active layer, otherwise its
   // scrim traps a second drawer (and a second close button) underneath it.
   useEffect(() => {
-    if (mobileNavigationOpen && !wideViewport) setSupervisionOpen(false);
-  }, [mobileNavigationOpen, wideViewport]);
+    if (mobileNavigationOpen && (bp.compact || bp.tablet)) setSupervisionOpen(false);
+  }, [mobileNavigationOpen, bp.compact, bp.tablet]);
 
   // ⌘F / Ctrl-F opens the in-chat Find bar (Codex's Search chat). We take over
   // the browser's native find since Find operates on the rendered timeline.
@@ -698,7 +693,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   // auto-open overlay. If we opened the panel, close it when attention clears.
   const hasApprovals = openApprovals.length > 0;
   useEffect(() => {
-    if (hasApprovals && view === "chat" && wideViewport) {
+    if (hasApprovals && view === "chat" && (bp.desktop || bp.wide)) {
       if (!supervisionOpen) {
         approvalAutoOpenedSupervision.current = true;
         setSupervisionOpen(true);
@@ -709,7 +704,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
       approvalAutoOpenedSupervision.current = false;
       setSupervisionOpen(false);
     }
-  }, [hasApprovals, view, wideViewport]);
+  }, [hasApprovals, view, bp.desktop, bp.wide]);
 
   const showSupervision = supervisionOpen && view === "chat";
   const visibleTitle = isSub && subAgentName ? subAgentName : title;
@@ -738,7 +733,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
       <header className="session-topbar">
         {/* Mobile navigation is an overlay owned by App. Reserve its 36px slot
             so it cannot cover the beginning of the session title. */}
-        {!wideViewport && <span className="session-topbar-nav-slot h-9 w-9 shrink-0" aria-hidden="true" />}
+        {(bp.compact || bp.tablet) && <span className="session-topbar-nav-slot h-9 w-9 shrink-0" aria-hidden="true" />}
         {isSub && (
           <button className="topbar-icon" onClick={() => select(sid.slice(0, sid.lastIndexOf(subMarker)))} title="Back to parent session">
             <ArrowLeft size={16} />
@@ -761,12 +756,12 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
             <ArrowClockwise size={15} /> <span className="topbar-tool-label">Resume</span>
           </button>
         )}
-        {!isSub && canRetry && (wideViewport || !needsRecovery) && (
+        {!isSub && canRetry && ((bp.desktop || bp.wide) || !needsRecovery) && (
           <button className="topbar-tool" onClick={act.retry} title="Re-send your last message as a new turn; double-clicks are idempotent" aria-label="Retry session">
             <ArrowClockwise size={15} /> <span className="topbar-tool-label">Retry</span>
           </button>
         )}
-        {canForkFromCheckpoint && wideViewport && (
+        {canForkFromCheckpoint && (bp.desktop || bp.wide) && (
           <button
             className="topbar-icon"
             onClick={() => openModal({ kind: "fork", sid })}
@@ -858,7 +853,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
                 <Robot size={16} />Switch agent…
               </MenuItem>
               <MenuLabel>Lifecycle</MenuLabel>
-              {canRetry && !wideViewport && <MenuItem onClick={act.retry}><ArrowClockwise size={16} />Retry last message</MenuItem>}
+              {canRetry && (bp.compact || bp.tablet) && <MenuItem onClick={act.retry}><ArrowClockwise size={16} />Retry last message</MenuItem>}
               {needsRecovery && <MenuItem onClick={act.resume}><ArrowClockwise size={16} />Resume session</MenuItem>}
               {running && <MenuItem onClick={act.stop}><Stop size={16} />Stop active run</MenuItem>}
               <MenuItem
