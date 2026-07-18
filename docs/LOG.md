@@ -4166,3 +4166,22 @@ output_tail+bytes_total(再过一遍 redact),def 文案同步。journal 教义
 不动:tail 是 ephemeral,durable 真相恒为完成结果消息。
 锚:TestBackgroundOutputTailWhileRunning(scripted 端到端,file-sync
 定序免竞态)+ TestRunSandboxedTeesLiveOutput(tee 字节保真)。
+
+## 2026-07-18 · check.sh 提速改造(用户指令:门太慢拖垮迭代效率)
+
+实测分阶段耗时(热缓存):前端 vitest 37.8s + vite build 28.0s 恒定
+不缓存,deadcode 6.7s,其余秒级;冷缓存下 golangci/go test 各数分钟。
+旧结构 11 阶段**严格串行**,墙钟=求和(实测 6-8 分钟/次);且
+standalone `go vet` 与 golangci-lint standard 预设内置的 govet 重复
+(全仓库类型检查做两遍,root+webui 各一)。
+
+改造(覆盖面逐项不减):秒级前置(toolchain/gofmt/lint-docs/
+lint-terms/node 版本/npm ci)串行,之后六腿并行——lint(golangci,含
+govet)/wiring(deadcode)/gotest/fe-test(vitest)/webui(build→vet→
+go test,embed 依赖内序)/install(孪生)。各腿日志独立落盘,红腿打
+全量日志,任一红则 RED exit 1(失败路径已验)。go build/golangci
+cache 并发安全,共享无碍。删除的唯一东西是重复的 root `go vet`——
+其覆盖由 golangci govet 完全承担。
+
+实测:全绿墙钟 52.8s(user 2m50s,多核并行生效),约为旧结构 1/9;
+冷缓存墙钟从"求和"变"最长单腿"。

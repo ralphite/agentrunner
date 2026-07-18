@@ -127,4 +127,6 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
 - 2026-07-18 · B8 · schedule 内联校验(modal+launcher)+ toast Details
   披露(四类站点) · cb647ae · 完成。
 - 2026-07-18 · B9 · bash 后台进度 tail(live tee+bgLog+bg_output
-  ephemeral+output 工具 tail),G10 全关 · 本 commit · 完成。
+  ephemeral+output 工具 tail),G10 全关 · 321c683 · 完成。
+- 2026-07-18 · 插入(用户指令) · check.sh 并行化提速:8min→53s,
+  覆盖不减,重复 go vet 去除 · 本 commit · 完成。
