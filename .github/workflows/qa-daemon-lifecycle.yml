@@ -1,0 +1,30 @@
+# QA-70 (INC-71/72 B 闸): daemon 生命周期真实 API 验收。
+# 手动 dispatch;GEMINI_API_KEY 走 repo secrets(本地容器无 key 时的
+# 指定跑法,见 CLAUDE.md 测试环境节)。
+name: qa-daemon-lifecycle
+on:
+  workflow_dispatch: {}
+jobs:
+  qa70:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.12"
+          cache: true
+      - name: Build ar
+        run: go build -o bin/ar ./cmd/agentrunner
+      - name: Run QA-70
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          EVIDENCE_DIR: ${{ github.workspace }}/qa70-evidence
+        run: bash qa/run-qa70.sh bin/ar
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa70-evidence
+          path: qa70-evidence/
+          if-no-files-found: warn
