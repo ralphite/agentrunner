@@ -670,7 +670,17 @@ TERM-resistant 孙进程可变孤儿。统一 advisory flock + unique temp fsync
 针对性 race 与全量 gate 通过；共享 store/Web UI 重启验收见 QA-67。
 → UJ-01/04/09/17/18/24
 
-**G39 spawn 子 agent 后台工作无终态呈现/不可检视 — 开放（QA-0718 真机复现）**
+**G39 spawn 子 agent 卡不可见审批死锁 — 已定因,待立 INC（QA-0718 真机复现+实证）**
+**根因(第七轮实证,证据链闭环)**:child journal(diag run
+29660213352,sub-store call_13_0/13_1)末两事件均为
+`approval_requested`(bash `mkdir -p docs`,permission gate 判 ask
+"execute requires approval")+ `waiting_entered{kind:approval}`,此后
+零事件——child 的审批经 `l.Approvals` 汇入同一 seam,但 webui 只订阅
+父会话事件流,child 审批在任何 UI 上不存在 → **不可见审批死锁**。
+父面呈现为 "Background work still running… keeps spending tokens"
+(实际并不在花 token)+ PROGRESS 悬挂,跨 daemon 重启 replay 后依旧。
+修复需 DESIGN 裁决(child 审批浮出到父 ATTENTION?child 可检视/可进入?
+父 turn 结束后 settle 语义?),立 INC 处理;原始三问与首轮证据如下。
 真机(remote-qa-env run 29657111612,会话 20260718-183310-write-a-
 typescript-…)spawn 两个 worker 双双获批后:`/api/sessions` 显示父会话
 `waiting:input`(turn 已结束、无 summarize 消息),但 rail 持续显示

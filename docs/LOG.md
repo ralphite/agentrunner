@@ -4727,3 +4727,16 @@ waiting:approval 落在 sub-store,无人可见。假说:child 卡 Write-file
 审批 → 不可见审批死锁。转储扩为含 sub-store journal(redaction 已在
 落盘前完成,可入公开 asset),下轮重现实证。修复面涉及 DESIGN 裁决
 (child 审批如何浮出、child 可检视性),按 PROCESS 立 INC。
+
+## 2026-07-18 · QA-0718 第七轮:G39 实证闭环——不可见审批死锁确认
+
+sub-store journal 转储(diag run 29660213352)实证:两个 worker child
+的 journal 末两事件均为 `approval_requested`(bash `mkdir -p docs`,
+permission gate 判 ask "execute requires approval")+
+`waiting_entered{kind:approval}`,此后零事件。证据链闭环:父 journal
+悬挂配对(第六轮)+ child 卡审批(本轮)+ 代码 seam 对读(webui 只订阅
+父流,child 审批无 UI 呈现)= **不可见审批死锁**。附带修正一处 UI 文案
+问题:ATTENTION 说 "keeps spending tokens" 而 child 实际零消耗地干等。
+G39 改标"已定因,待立 INC";修复面(child 审批浮出/child 可检视/父
+turn 结束后 settle 语义)需 DESIGN 裁决。诊断链路(顶 run→always()
+转储→release asset)全程 ~2 分钟,已成熟可复用。
