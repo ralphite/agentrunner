@@ -21,6 +21,16 @@ set -eu
 #   AR_BIN_DIR    where to link binaries (default: ~/.local/bin)
 #   AR_ASSET_URL  direct tarball URL (skips GitHub entirely; for tests/mirrors.
 #                 sha256 is fetched from $AR_ASSET_URL.sha256)
+#
+# OS sandbox dependency (INC-75): on Linux, ar's bash/command tools require
+# bubblewrap (fail-closed, 决策 #34). After installing the binaries this
+# script probes for it and — when missing and running as root (or with
+# passwordless sudo) — installs the distro package and clears the Ubuntu
+# 23.10+ AppArmor userns restriction. macOS needs nothing (Seatbelt ships
+# with the OS).
+#   AR_SKIP_SANDBOX_DEPS=1  skip the sandbox dependency step entirely
+#   AR_REQUIRE_SANDBOX=1    exit non-zero if the sandbox probe still fails
+#                           (recommended for CI)
 
 REPO="${AR_REPO:-ralphite/agentrunner}"
 VERSION="${AR_VERSION:-latest}"
@@ -145,6 +155,79 @@ for bin in ar arwebui; do
   ln -sf "$dest/$bin" "$BIN_DIR/.$bin.new-$$"
   mv "$BIN_DIR/.$bin.new-$$" "$BIN_DIR/$bin"
 done
+
+# --- OS sandbox dependency (Linux: bubblewrap, INC-75) -----------------------
+# ar's bash/command tools refuse to run without the OS sandbox (fail-closed,
+# 决策 #34); an install that leaves bwrap missing is an install of a product
+# whose core tool cannot execute. Probe for real (run bwrap, not just PATH),
+# auto-install when we have the privilege to, and say exactly what to do
+# when we don't.
+
+sandbox_probe() { # mirrors internal/tool/sandbox_linux.go platformSandboxProbe
+  bwrap --ro-bind / / --proc /proc --dev /dev --unshare-pid /bin/true >/dev/null 2>&1
+}
+
+# as_root <cmd...> — run via direct root or passwordless sudo; fails otherwise.
+as_root() {
+  if [ "$(id -u)" = 0 ]; then "$@"
+  elif command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then sudo -n "$@"
+  else return 1
+  fi
+}
+
+install_bwrap_pkg() {
+  if command -v apt-get >/dev/null 2>&1; then
+    as_root sh -c 'apt-get update -q && apt-get install -y -q bubblewrap'
+  elif command -v dnf >/dev/null 2>&1; then as_root dnf install -y -q bubblewrap
+  elif command -v yum >/dev/null 2>&1; then as_root yum install -y -q bubblewrap
+  elif command -v pacman >/dev/null 2>&1; then as_root pacman -S --noconfirm --quiet bubblewrap
+  elif command -v zypper >/dev/null 2>&1; then as_root zypper --non-interactive install bubblewrap
+  elif command -v apk >/dev/null 2>&1; then as_root apk add --quiet bubblewrap
+  else return 1
+  fi
+}
+
+sandbox_status=ok
+if [ "$os" = Linux ] && [ "${AR_SKIP_SANDBOX_DEPS:-}" != 1 ]; then
+  echo
+  echo "Checking the OS sandbox dependency (bubblewrap)..."
+  if ! command -v bwrap >/dev/null 2>&1; then
+    if install_bwrap_pkg; then
+      echo "  installed bubblewrap via the system package manager"
+    else
+      sandbox_status=missing
+    fi
+  fi
+  if [ "$sandbox_status" = ok ] && ! sandbox_probe; then
+    # Present but not runnable — typically the Ubuntu 23.10+ AppArmor
+    # restriction on unprivileged user namespaces.
+    if as_root sysctl -qw kernel.apparmor_restrict_unprivileged_userns=0 2>/dev/null && sandbox_probe; then
+      echo "  cleared kernel.apparmor_restrict_unprivileged_userns (this boot;"
+      echo "  persist via /etc/sysctl.d/ if needed)"
+    else
+      sandbox_status=broken
+    fi
+  fi
+  case "$sandbox_status" in
+    ok) echo "  sandbox OK — bash/command tools will run OS-contained" ;;
+    missing)
+      echo "warning: bubblewrap is not installed and this shell cannot install it (no root/sudo)." >&2
+      echo "  ar's bash/command tools will REFUSE to run until it is (fail-closed)." >&2
+      echo "  Fix: sudo apt-get install -y bubblewrap   (dnf/pacman/zypper/apk ship it too)" >&2
+      echo "  Then verify with: ar doctor" >&2
+      ;;
+    broken)
+      echo "warning: bubblewrap is installed but the sandbox probe fails." >&2
+      echo "  Likely the kernel restricts unprivileged user namespaces (Ubuntu 23.10+):" >&2
+      echo "  sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0" >&2
+      echo "  Then verify with: ar doctor" >&2
+      ;;
+  esac
+  if [ "$sandbox_status" != ok ] && [ "${AR_REQUIRE_SANDBOX:-}" = 1 ]; then
+    echo "error: AR_REQUIRE_SANDBOX=1 and the OS sandbox is unavailable — failing the install." >&2
+    exit 1
+  fi
+fi
 
 echo
 echo "AgentRunner $version installed."
