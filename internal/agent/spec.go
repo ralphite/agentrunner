@@ -308,7 +308,7 @@ var typeNameRe = regexp.MustCompile(`field (\S+) not found in type (\S+)`)
 // "cannot unmarshal !!str `foo` into agent.SandboxSpec" — capturing the yaml
 // tag word (str/map/seq/int/bool) so the reworded message names what was got
 // without leaking the Go type.
-var mismatchRe = regexp.MustCompile("cannot unmarshal !!(\\w+) [^ ]+ into \\S+")
+var mismatchRe = regexp.MustCompile(`cannot unmarshal !!(\w+) [^ ]+ into \S+`)
 
 func (s *AgentSpec) validate(path string) error {
 	fail := func(field, problem string) error {

@@ -62,8 +62,18 @@ beforeEach(() => {
     disconnect() {}
   };
   (window.HTMLElement.prototype as any).scrollIntoView = () => {};
-  (window as any).matchMedia = () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} });
-  (window as any).innerWidth = 1400;
+  // Query-aware stub driven by innerWidth: useBreakpoint now reads
+  // matchMedia (the CSS seam), and these specs express viewport as
+  // innerWidth — keep one truth by deriving matches from it.
+  (window as any).matchMedia = (q: string) => ({
+    matches: (() => {
+      const m = /max-width:\s*(\d+)px/.exec(q);
+      return m ? window.innerWidth <= Number(m[1]) : false;
+    })(),
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  });
+  (window as any).innerWidth = 1401;
   localStorage.clear();
   arMock.events = async (_sid: string, after: number) => (after ? [] : EVENTS);
   arMock.rawEvents = async () => EVENTS;

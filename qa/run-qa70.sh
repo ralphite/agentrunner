@@ -52,14 +52,17 @@ sid="$("$AR" new --detach --workspace "$work/ws" "$work/base.yaml" \
   '请立刻用 bash 运行这条命令(不要改动它): sleep 25 && echo QA70_A_DONE ,然后一句话确认。')"
 [ -n "$sid" ] || { echo "$QA FAIL(A): no sid" >&2; exit 1; }
 ev="$XDG_DATA_HOME/agentrunner/sessions/$sid/events.jsonl"
-echo "A: session $sid — waiting for the bash to be in flight"
+echo "A: session $sid — waiting for the bash EXECUTE activity to be in flight"
+# Run#1 教训:两个独立 grep 在 LLM 阶段就误判(用户消息本身含 sleep 25),
+# kill 落在 LLM 在飞 → in-doubt 处置是"重发"而非 interrupted-by-crash。
+# 等 bash 的 activity_started(同一 envelope 行),再留 1.5s 落盘。
 inflight=0
-for i in $(seq 1 300); do
-  if grep -q '"activity_started"' "$ev" 2>/dev/null && grep -q 'sleep 25' "$ev" 2>/dev/null; then inflight=1; break; fi
+for i in $(seq 1 400); do
+  if grep -q '"type":"activity_started".*"name":"bash"' "$ev" 2>/dev/null; then inflight=1; break; fi
   sleep 0.2
 done
-[ "$inflight" = 1 ] || { echo "$QA FAIL(A): bash never started" >&2; exit 1; }
-sleep 1
+[ "$inflight" = 1 ] || { echo "$QA FAIL(A): bash execute activity never started" >&2; tail -5 "$ev" >&2; exit 1; }
+sleep 1.5
 echo "A: kill -9 daemon mid-turn"
 kill -9 "$DPID" 2>/dev/null; sleep 1
 parks_before="$(count "$ev" waiting_entered)"

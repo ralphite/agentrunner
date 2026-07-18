@@ -4332,3 +4332,16 @@ spec-anchor-debt 清零,G30 关闭。
   依调度而变,turn 数是伴生量非红线——fixture 增 2 步容错,结构
   断言(oldReason/newReason)仍是唯一红线。
 - waitForEvent 界 10s→30s(并行门四核共享下 10s 去调度真实存在)。
+
+## 2026-07-18 · fix-forward:断点迁移(d8ebfc8)破坏的 6 例前端测试 + staticcheck
+
+并发 UI 迁移把 useBreakpoint 建立在 window.innerWidth 上,而 DiffView
+三例以 matchMedia stub 表达视口(jsdom innerWidth 恒 1024),另三例
+(App 契约测试钉旧 MOBILE_NAV_QUERY 源码、SessionView 以 innerWidth
+表达但 stub matchMedia 恒 false)。修:①useBreakpoint 改以 matchMedia
+为主(与 CSS 同真相源,zoom/旋转也有通知)、innerWidth 兜底;②App
+契约测试改钉新缝(BREAKPOINTS.tablet===900 + bp.compact||bp.tablet);
+③SessionView stub 升级为 query-感知(由 innerWidth 派生)。另修
+spec.go staticcheck(regexp 原始串)。附带:QA-70 场景 A 等待条件
+修正(等 bash execute activity 而非 LLM 阶段误判——run #1 揭示
+INC-71 boot sweep 实际工作,parks 0→1,零 send)。

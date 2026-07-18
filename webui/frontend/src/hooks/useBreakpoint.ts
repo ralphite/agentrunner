@@ -15,9 +15,15 @@ export const BREAKPOINTS = {
  * useBreakpoint returns which breakpoint tier the current viewport matches.
  * Replaces ad-hoc matchMedia/ResizeObserver calls across SessionView/DiffView.
  *
+ * Measurement goes through matchMedia (the SAME source CSS media queries use,
+ * and the seam existing tests mock with per-query granularity — reading
+ * window.innerWidth here broke three DiffView specs whose viewport is a
+ * matchMedia stub, jsdom's innerWidth being a constant 1024). innerWidth is
+ * only the fallback where matchMedia is absent.
+ *
  * @example
  * const bp = useBreakpoint();
- * if (bp.tablet) { ... }  // true if > 900px
+ * if (bp.tablet) { ... }  // true if 680–900px
  */
 export function useBreakpoint() {
   const [bp, setBp] = useState(() => measureBreakpoint());
@@ -25,18 +31,38 @@ export function useBreakpoint() {
   useEffect(() => {
     const measure = () => setBp(measureBreakpoint());
     window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
+    // Real matchMedia also notifies on zoom/rotation without a resize event.
+    const queries: MediaQueryList[] = [];
+    if (typeof window.matchMedia === "function") {
+      for (const px of Object.values(BREAKPOINTS)) {
+        const mq = window.matchMedia(`(max-width: ${px}px)`);
+        if (mq.addEventListener) {
+          mq.addEventListener("change", measure);
+          queries.push(mq);
+        }
+      }
+    }
+    return () => {
+      window.removeEventListener("resize", measure);
+      for (const mq of queries) {
+        mq.removeEventListener("change", measure);
+      }
+    };
   }, []);
 
   return bp;
 }
 
 function measureBreakpoint() {
-  const w = window.innerWidth;
-  return {
-    compact: w <= BREAKPOINTS.compact,      // ≤ 680px
-    tablet: w > BREAKPOINTS.compact && w <= BREAKPOINTS.tablet,    // 680–900px
-    desktop: w > BREAKPOINTS.tablet && w <= BREAKPOINTS.wide,      // 900–1400px
-    wide: w > BREAKPOINTS.wide,             // > 1400px
-  } as const;
+  let atMost: (px: number) => boolean;
+  if (typeof window.matchMedia === "function") {
+    atMost = (px) => window.matchMedia(`(max-width: ${px}px)`).matches;
+  } else {
+    const w = window.innerWidth;
+    atMost = (px) => w <= px;
+  }
+  const compact = atMost(BREAKPOINTS.compact); //        ≤ 680px
+  const tablet = !compact && atMost(BREAKPOINTS.tablet); // 680–900px
+  const desktop = !compact && !tablet && atMost(BREAKPOINTS.wide); // 900–1400px
+  return { compact, tablet, desktop, wide: !compact && !tablet && !desktop } as const;
 }
