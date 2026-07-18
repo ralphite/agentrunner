@@ -16,6 +16,16 @@ curl -fsSL https://raw.githubusercontent.com/ralphite/agentrunner/main/install.s
 链接进 `~/.local/bin`。装完起 Web UI:`arwebui`(默认 127.0.0.1:8788,
 `-addr 0.0.0.0:8788` 可让局域网设备访问)。
 
+**运行时依赖(Linux)**:bash/command 工具强制跑在 OS 沙箱里
+(fail-closed),Linux 后端是 [bubblewrap](https://github.com/containers/bubblewrap)。
+install.sh 会检测并在有 root/sudo 时自动安装(含放开 Ubuntu 23.10+ 的
+AppArmor userns 限制);装完可用 `ar doctor` 自检环境。macOS 无需额外
+安装(Seatbelt 随系统)。GitHub Actions 里一行接入:
+
+```yaml
+- uses: ralphite/agentrunner/.github/actions/setup-ar@main
+```
+
 私有 fork/镜像才需要 `export GITHUB_TOKEN=...`(install.sh 自动识别并
 改走 API 资产下载)。可调环境变量见 install.sh 头部注释;发布产物由
 `scripts/package-release.sh` + release workflow 构建(打 `v*` tag,或

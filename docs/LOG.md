@@ -4392,3 +4392,30 @@ A. 真 Gemini bash 在飞 kill -9 → 重启零 send,interrupted-by-crash
 settle + park(INC-71);B. drive crash → boot sweep 收编 → SIGTERM
 优雅停机 → 无 driver_completed → 重启复活(INC-72)。双闸门至此两腿
 齐。三次 run 的跑法教训已记 QA.md(LLM 阶段误判/runner 缺 bwrap)。
+
+## 2026-07-18 · INC-75 OS 沙箱依赖交付（bubblewrap 检测/安装/一行接入）
+
+现场事故：GitHub Actions 启动的环境里跑 ar，bash 第一条命令即
+`denied: required OS sandbox unavailable: bubblewrap unavailable`。
+fail-closed（决策 #34）不动，补齐交付面四件：(1) probe 报错自带修复
+指引（缺失→装发行版包；probe 失败→Ubuntu 23.10+ AppArmor userns
+sysctl），报错即 runbook；(2) `ar doctor` 环境预检（backend +
+network=all/none 双档真实 probe，失败非零退出），把"第一条 bash 才炸"
+前移到环境准备期；(3) install.sh 装完二进制后检测/自动安装/真实 probe
+验证（有 root/sudo 时装包 + sysctl；`AR_SKIP_SANDBOX_DEPS=1` 跳过、
+`AR_REQUIRE_SANDBOX=1` CI 硬失败）；(4) composite action
+`.github/actions/setup-ar` 供任意 workflow 一行接入，qa-all 与
+qa-daemon-lifecycle 的手抄配方一并收编。**显式取舍：不打包 static
+bwrap**——AppArmor 按发行版 profile 路径（/usr/bin/bwrap）放行非特权
+userns，自带二进制在最需要它的场景恰好无效、仍需 root；另有 LGPL
+再分发与 per-arch 维护成本（详见 DESIGN 分发与安装节）。
+
+编号注：开发期间与并发 audit-0717 session 撞号（其 INC-69/QA-69 先落
+main），本增量重编号 INC-75/QA-75。顺带：TestBashFilesystemSandbox 的
+平台无关拒读断言两个 session 各自独立修出等价实现，rebase 取 main 版。
+
+闸门 A（check.sh 全绿）：TestDoctor*（探针注入双路径）、
+TestLinuxSandboxHint*（缺失/probe 失败）、安装器孪生 8 场景（新增
+6–8：stub bwrap/sysctl 离线无副作用）。另在本容器真装 bubblewrap 后
+`ar doctor` 双档 OK / 空 PATH 下 FAIL 带指引，双路径实测。
+闸门 B（QA-75）：sandbox-doctor workflow 真跑，run 链接见下条补记。

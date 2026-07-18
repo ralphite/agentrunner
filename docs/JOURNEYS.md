@@ -361,6 +361,10 @@ GAPS.md，本文件只回答"产品要做什么"。
    把两个命令链接进 `~/.local/bin`；PATH 缺失时给出提示。
 3. 用户 `ar init && ar run spec.yaml "…"` 即进入 UJ-01…的任何 journey；
    `arwebui` 直接可起（UJ-24）。
+3a. 安装完成即代表 bash 工具可用（INC-75）：Linux 上安装器检测/自动
+   安装 OS 沙箱依赖 bubblewrap（无权限时给出精确手工指令），
+   `ar doctor` 可随时预检；CI（GitHub Actions）用
+   `.github/actions/setup-ar` 一行接入同一配方。
 4. 新版本发布后重跑同一条命令即升级：新版本目录 + symlink 切换，
    **永不原地覆盖运行中的二进制**；损坏下载（sha256 不符）硬失败且
    不动既有安装。

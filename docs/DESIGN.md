@@ -1440,6 +1440,20 @@ limits:
 - **显式裁掉**：Windows 产物（daemon 走 unix socket，Windows 形态
   未验证，不发布"能装不能跑"的产物）；macOS 签名/公证（curl 下载
   不打 quarantine xattr，原型阶段接受）。
+- **OS 沙箱依赖交付（INC-75）**：bwrap 是 Linux 运行时硬依赖（决策
+  #34 fail-closed 原文不动），交付面三层补齐——(1) probe 报错自带
+  修复指引（缺失→装包；probe 失败→Ubuntu 23.10+ AppArmor userns
+  sysctl），报错即 runbook；(2) `ar doctor` 环境预检（两档 network
+  probe，失败非零退出），把"第一条 bash 才炸"前移到环境准备期；
+  (3) install.sh 检测/自动安装（有 root/sudo 时装发行版包 + sysctl，
+  真实 probe 验证；`AR_SKIP_SANDBOX_DEPS` 跳过、`AR_REQUIRE_SANDBOX=1`
+  CI 硬失败），composite action `.github/actions/setup-ar` 供任意
+  workflow 一行接入（qa-all 复用，配方唯一化）。**显式取舍：不打包
+  static bwrap**——Ubuntu 23.10+ 的 AppArmor 按发行版 profile 路径
+  （`/usr/bin/bwrap`）放行非特权 userns，自带二进制照样被拦、仍需
+  root，打包在最需要它的场景恰好无效；另有 LGPL 再分发与 per-arch
+  维护成本。macOS 零依赖（Seatbelt 随系统）。
+
 
 ---
 
