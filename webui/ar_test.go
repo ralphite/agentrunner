@@ -973,3 +973,25 @@ func TestHandleStreamNotFound(t *testing.T) {
 		t.Fatalf("status=%d body=%s, want 404", rec.Code, rec.Body.String())
 	}
 }
+
+// TestContentTypeCaseInsensitive pins that a case-variant application/json
+// Content-Type is accepted (RFC 7231 media types are case-insensitive) while a
+// non-JSON type is still rejected (QA Wave2 carol-10).
+func TestContentTypeCaseInsensitive(t *testing.T) {
+	check := func(ct string, wantOK bool) {
+		req := httptest.NewRequest("POST", "/x", strings.NewReader(`{"a":1}`))
+		if ct != "" {
+			req.Header.Set("Content-Type", ct)
+		}
+		rec := httptest.NewRecorder()
+		var v map[string]any
+		ok := readBody(rec, req, &v)
+		if ok != wantOK {
+			t.Fatalf("Content-Type %q: readBody ok=%v, want %v (status %d)", ct, ok, wantOK, rec.Code)
+		}
+	}
+	check("application/json", true)
+	check("Application/JSON", true)
+	check("application/JSON; charset=utf-8", true)
+	check("text/plain", false)
+}

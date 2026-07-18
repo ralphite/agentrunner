@@ -250,7 +250,11 @@ func readBody(w http.ResponseWriter, r *http.Request, v any) bool {
 	// goal whose verifier runs a shell command). Requiring application/json
 	// forces a preflight the no-CORS server never answers, so the browser blocks
 	// it — hardening every JSON endpoint (send/goal/git/…), not just this one.
-	if ct := r.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+	// Media types are case-insensitive (RFC 7231 §3.1.1.1): accept
+	// "Application/JSON" et al. The security intent — force a CORS preflight the
+	// no-CORS server never answers — holds regardless of case, since only the
+	// lowercase simple-request types skip preflight (QA Wave2 carol-10).
+	if ct := r.Header.Get("Content-Type"); !strings.HasPrefix(strings.ToLower(ct), "application/json") {
 		badRequest(w, "Content-Type must be application/json")
 		return false
 	}
