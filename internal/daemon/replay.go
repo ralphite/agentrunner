@@ -192,7 +192,13 @@ func askReason(gates []event.GateResult) string {
 	return fallback
 }
 
-// compactJSON renders raw JSON on one line (mirrors the live emit path).
+// compactJSON renders raw JSON on one line (mirrors the live emit path),
+// undoing the journal encoder's HTML escaping (< > & → < > &) so a
+// replayed tool-call args line reads verbatim — the same display the live
+// stream now produces (QA Wave1 dave-10). Display only; the journal is
+// untouched. Order-preserving.
+var replayHTMLUnescaper = strings.NewReplacer("\\u003c", "<", "\\u003e", ">", "\\u0026", "&")
+
 func compactJSON(raw []byte) string {
 	if len(raw) == 0 {
 		return ""
@@ -201,5 +207,5 @@ func compactJSON(raw []byte) string {
 	if err := json.Compact(&buf, raw); err != nil {
 		return string(raw)
 	}
-	return buf.String()
+	return replayHTMLUnescaper.Replace(buf.String())
 }

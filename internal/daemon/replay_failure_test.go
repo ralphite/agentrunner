@@ -7,6 +7,7 @@ import (
 
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
+	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/store"
 )
 
@@ -153,5 +154,46 @@ func TestReplayProjectsBudgetDenial(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("budget denial did not project a reason; got %+v", sink.events)
+	}
+}
+
+// TestReplayUnescapesToolArgsForDisplay pins that a tool-call whose args carry
+// HTML metacharacters (< > &) replays verbatim, not with the journal encoder's
+// </>/& escaping leaking into the human-readable line (QA Wave1
+// dave-10).
+func TestReplayUnescapesToolArgsForDisplay(t *testing.T) {
+	dir := journalFor(t,
+		struct {
+			typ string
+			p   any
+		}{event.TypeSessionStarted, &event.SessionStarted{}},
+		struct {
+			typ string
+			p   any
+		}{event.TypeAssistantMessage, &event.AssistantMessage{
+			GenStep: 1, Message: provider.Message{Role: provider.RoleAssistant, Parts: []provider.Part{
+				{Kind: provider.PartToolCall, CallID: "c1", ToolName: "bash",
+					// The journal encoder stores the HTML-escaped form: the six
+					// literal bytes > for '>', < for '<', & for '&'.
+					Args: []byte("{\"command\":\"echo a \\u003e f.txt \\u0026\\u0026 cat \\u003c f.txt\"}")}}}}},
+	)
+	sink := &captureSink{}
+	if err := ReplayJournal(dir, sink); err != nil {
+		t.Fatal(err)
+	}
+	var toolCall *protocol.Event
+	for i := range sink.events {
+		if sink.events[i].Kind == protocol.KindToolCall {
+			toolCall = &sink.events[i]
+		}
+	}
+	if toolCall == nil {
+		t.Fatal("no tool_call event projected")
+	}
+	if strings.Contains(toolCall.Args, "\\u003e") || strings.Contains(toolCall.Args, "\\u0026") || strings.Contains(toolCall.Args, "\\u003c") {
+		t.Fatalf("args leak HTML escaping: %q", toolCall.Args)
+	}
+	if !strings.Contains(toolCall.Args, "echo a > f.txt && cat < f.txt") {
+		t.Fatalf("args not rendered verbatim: %q", toolCall.Args)
 	}
 }

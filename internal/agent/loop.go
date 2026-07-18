@@ -237,8 +237,19 @@ func compact(raw json.RawMessage) string {
 	if err := json.Compact(&buf, raw); err != nil {
 		return string(raw)
 	}
-	return buf.String()
+	return displayUnescapeHTML(buf.String())
 }
+
+// displayUnescapeHTML undoes Go's default HTML escaping (the six-byte
+// sequences < > & that the journal encoder bakes into stored
+// JSON for < > &), so a tool-call args line a user watches shows
+// `echo a > f.txt`, not `echo a > f.txt` — the verbatim command
+// `ar inspect` already displays (QA Wave1 dave-10). Display only: the durable
+// journal keeps its canonical escaped form. Order-preserving (no
+// decode/re-encode), so args keys stay in the model's order.
+var htmlDisplayUnescaper = strings.NewReplacer("\\u003c", "<", "\\u003e", ">", "\\u0026", "&")
+
+func displayUnescapeHTML(s string) string { return htmlDisplayUnescaper.Replace(s) }
 
 // emit sends an output event to the surface (nil-safe).
 func (l *Loop) emit(e protocol.Event) {
