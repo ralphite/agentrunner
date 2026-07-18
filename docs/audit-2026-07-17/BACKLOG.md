@@ -223,3 +223,8 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
   取最早/SpentTokens billed 和/LastTick 补跑锚/重复 N 原位覆盖)+
   SubStateVersions "series":1 + round-trip 样本 + 生命周期孪生 · 本
   commit · 完成(77.2 series runner next)。
+- 2026-07-18 · INC-77.2 · series runner 落码:程序驱动 parent 写
+  session journal(spawn 事实×ChildRun 基座,verifier 机制直接复用,
+  series_tick durable timer 括等待,INC-72 优雅停机语义承接);
+  self_paced/parallel/retry 显式拒绝记档 · 本 commit · 完成(77.3
+  daemon 宿主+B 闸 next)。

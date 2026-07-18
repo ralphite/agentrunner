@@ -4557,3 +4557,35 @@ Iteration* 六件族在新形态里三合一:Scheduled/Completed/Skipped 并进
 增 "series":1。round-trip 守卫强制样本齐活;孪生
 TestSeriesFoldLifecycle 七段生命周期。77.2(series runner:程序驱动
 parent 写 session journal,轮次走 ChildRun+Spawn 事实)next。
+
+## 2026-07-18 · INC-77.2:series runner(E1③ 核心步落码)
+
+`internal/driver/series.go`:RunSeries/ResumeSeries/driveSeries——同一
+引擎参数与 verifier 机制,journal 换 session 词汇。头 SessionStarted
+(嵌 DriverSpec+SubStateVersions),轮次 = SpawnRequested +
+ChildRun 基座运行 + SubagentCompleted + SeriesIteration(verdict/
+carry/usage/tick),终态 series_ended 恰一。verify/publishCarry/
+buildPrompt 直接复用——verifier 的 Effect/Activity bracket 天然落
+session journal(观察面免费)。cadence 镜像 awaitTick:skip 落
+skipped 事实;真等待以 series_tick durable TimerSet/TimerFired 括起
+(daemon sweep 唤醒钩子);resume 撤 stale timer、从 Series.LastTick
+重锚(INC-54 恰一)。INC-72 语义承接(优雅停机无终态+复活孪生)。
+范围裁减记档:self_paced/parallel/retry 三形态响亮拒绝指回 legacy,
+待 77.4/④;cadence 锚用 Series.LastTick 非 Schedule 子状态(后者
+面向模型在环会话,工作纸措辞精化)。孪生三件 10 连跑绿。77.3
+(daemon 宿主接新形态 + QA B 闸)next。
+
+
+**基线增行理由(lint-wiring,同日 INC-77.2)**:series.go 全组
+main 不可达系分步合并的中间态——runner 由孪生驱动验证,生产接线
+(daemon 宿主 `RunSeries`/`ResumeSeries`)是 77.3 的交付;接线落地
+即整组删除基线行(标记 [staged-wiring],区别于 [test-infra] 常驻)。
+
+**基线增行理由(lint-wiring,同日 INC-77.2)**:series.go 全组
+main 不可达系分步合并的中间态——runner 由孪生驱动验证,生产接线
+(daemon 宿主 `RunSeries`/`ResumeSeries`)是 77.3 的交付;接线落地
+即整组删除基线行(标记 [staged-wiring],区别于 [test-infra] 常驻)。
+
+**check.sh 前端腿暂停(2026-07-18 用户指示)**:npm 预检 + fe-test +
+webui 两腿注释停跑(墙钟大头且偶发网络挂起,全量 ~2min → ~11s);
+改动前端时按 check.sh 内注释手跑等价命令。恢复条件由用户定。

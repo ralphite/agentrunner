@@ -88,9 +88,27 @@ E1 四步的第三步。①(INC-74 in-session schedule)②(INC-76 子执行
    tick(INC-54 补跑锚);重复 N 重放原位覆盖不分叉;wrong-ID no-op;
    copy-on-write(Iterations 背板克隆)。SubStateVersions "series":1。
    孪生 TestSeriesFoldLifecycle。
-2. INC-77.2:series runner(程序驱动 parent:写 session journal,
-   轮次走 ChildRun+Spawn 事实,判定/stall/carry 折 Series)+ 孪生
-   (one-shot/loop/goal 三形态各一,fake clock)。
+2. ✅ INC-77.2:series runner(`internal/driver/series.go`:
+   RunSeries/ResumeSeries/driveSeries——程序驱动 parent 写 session
+   journal,头 SessionStarted、轮次 SpawnRequested/SubagentCompleted
+   (child 走 ChildRun 基座+SettledChild 捷径)、判定/stall/carry 折
+   Series 子状态;verify/publishCarry/buildPrompt 直接复用 Driver 既有
+   机制——verifier 的 Effect/Activity 事实天然落 session journal)。
+   cadence:awaitSeriesTick 镜像 awaitTick(skip 落
+   `SeriesIteration{skipped}`,等待以 `series_tick:` durable timer
+   括起——TimerSet/TimerFired 对,daemon sweep 的唤醒钩子;resume 撤
+   stale timer 后从 Series.LastTick 重锚,INC-54 补跑恰一)。INC-72
+   语义承接:优雅停机无终态、resume 复活、恰一 series_ended。孪生:
+   TestSeriesGoalSatisfied(session 头/spawn 事实×3/零 legacy 事件/
+   fold 终态/ended-resume 不重跑)/ TestSeriesIntervalOverlapSkip
+   (skip 事实+timer 对称+终局无 pending timer)/
+   TestSeriesShutdownLeavesNoTerminalAndResumes。
+   **范围裁减记档**:self_paced / parallel(best-of-N)/
+   on_child_failure=retry 三形态 prepareSeries **显式拒绝**(响亮报错
+   指回 legacy driver),留待 77.4/④ 依次收——静默改语义不做;
+   cadence 用 Series.LastTick 而非 Schedule 子状态(①的 checkSchedule
+   注入 program input 面向模型在环会话,程序 parent 无此需要;同一
+   INC-54 教义,工作纸"cadence=schedule 子状态"措辞据此精化)。
 3. INC-77.3:daemon 宿主接新形态(session 侧 sweep 复用)+ QA
    场景 B 闸(真 Gemini 新形态两轮 + 重启复活)。
 4. INC-77.4:观察面收口(inspect/sessions/webui 新形态单路径)+

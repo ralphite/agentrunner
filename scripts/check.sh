@@ -27,20 +27,19 @@ fi
 scripts/lint-docs.sh
 scripts/lint-product-terms.sh
 
-# Node 版本与 node_modules 就绪须先于并行腿(vitest 与 build 都要)。
-node_ok=$(node -p 'const [a,b]=process.versions.node.split(".").map(Number); Number((a===20&&b>=19)||(a===22&&b>=12)||a>22)')
-if (( ! node_ok )); then
-  echo "webui: Node.js ^20.19 or >=22.12 required (found $(node --version))" >&2
-  exit 1
-fi
-# 目录存在 ≠ 依赖就绪:package-lock.json 变了(如新增 mermaid)而
-# node_modules 未刷新,fe-test/webui 腿会以令人困惑的模块缺失红掉。
-# npm 无稳定的一致性戳,自己盖:npm ci 成功后把锁文件快照进
-# node_modules,下次比对不一致才重装。
-if [[ ! -d webui/frontend/node_modules ]] \
-  || ! cmp -s webui/frontend/package-lock.json webui/frontend/node_modules/.check-lock-stamp; then
-  (cd webui/frontend && npm ci && cp package-lock.json node_modules/.check-lock-stamp)
-fi
+# 前端预检与两条前端腿暂时停跑(2026-07-18 用户指示:npm/vitest/build
+# 是墙钟大头且偶发网络挂起)。改动前端时手跑:
+#   cd webui/frontend && npm ci && npm run test && npm run build
+#   cd webui && go vet ./... && go test ./...
+# node_ok=$(node -p 'const [a,b]=process.versions.node.split(".").map(Number); Number((a===20&&b>=19)||(a===22&&b>=12)||a>22)')
+# if (( ! node_ok )); then
+#   echo "webui: Node.js ^20.19 or >=22.12 required (found $(node --version))" >&2
+#   exit 1
+# fi
+# if [[ ! -d webui/frontend/node_modules ]] \
+#   || ! cmp -s webui/frontend/package-lock.json webui/frontend/node_modules/.check-lock-stamp; then
+#   (cd webui/frontend && npm ci && cp package-lock.json node_modules/.check-lock-stamp)
+# fi
 
 # QA sessions write throwaway Go files under gitignored runtime/ workspaces;
 # ./... walks in regardless of .gitignore and a broken demo package would
@@ -77,13 +76,12 @@ run_leg() { # run_leg <name> <cmd...>
 run_leg lint golangci-lint run                      # 含 govet(standard 预设)
 run_leg wiring scripts/lint-wiring.sh               # 接线审计:deadcode vs 基线(PROCESS §五)
 run_leg gotest go test $packages
-run_leg fe-test bash -c 'cd webui/frontend && npm run test'
-# webui Go tests embed the SPA — build must precede them, inside one leg.
-run_leg webui bash -c 'cd webui/frontend && npm run build && cd .. && go vet ./... && go test ./...'
+# run_leg fe-test bash -c 'cd webui/frontend && npm run test'   # 暂停(见上)
+# run_leg webui bash -c 'cd webui/frontend && npm run build && cd .. && go vet ./... && go test ./...'  # 暂停(见上)
 run_leg install scripts/test-install.sh             # 安装器孪生(离线,INC-63 gate A)
 
 fail=0
-for name in lint wiring gotest fe-test webui install; do
+for name in lint wiring gotest install; do
   if wait "${pids[$name]}"; then
     echo "check.sh: $name ok ($(cat "$logdir/$name.time" 2>/dev/null || echo '?')s)"
   else
