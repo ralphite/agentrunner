@@ -1,9 +1,26 @@
 package cli
 
 import (
+	"errors"
 	"flag"
 	"strings"
 )
+
+// parseFlags runs fs.Parse (with flag reordering) and reports whether the
+// caller should proceed, plus the exit code to use if not. An explicit
+// -h/--help is a SUCCESS: the flag package already printed the help, so the
+// command exits 0 rather than the usage-error code 2 (QA Wave1 alice-06/
+// alice-14). Any other parse error is a usage error (exit 2).
+func parseFlags(fs *flag.FlagSet, args []string) (proceed bool, code int) {
+	err := fs.Parse(reorderFlags(fs, args))
+	if err == nil {
+		return true, ExitOK
+	}
+	if errors.Is(err, flag.ErrHelp) {
+		return false, ExitOK
+	}
+	return false, ExitUsage
+}
 
 // reorderFlags moves flags (and, for non-bool flags, their values) ahead of
 // the positional args so a user can write flags in the natural place — after

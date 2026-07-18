@@ -19,8 +19,8 @@ func acceptCmd(args []string, stdout, stderr io.Writer) int {
 	stage := fs.Int("stage", 0, "stage number to accept")
 	plain := fs.Bool("plain", false, "force plain output (no TUI)")
 	report := fs.String("report", "acceptance-report.json", "JSON report path")
-	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
-		return ExitUsage
+	if ok, code := parseFlags(fs, args); !ok {
+		return code
 	}
 	if *stage <= 0 {
 		fmt.Fprintln(stderr, "usage: agentrunner accept --stage <n> [--plain]")

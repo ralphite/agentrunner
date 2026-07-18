@@ -23,8 +23,8 @@ func artifactsCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("artifacts", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	jsonOut := fs.Bool("json", false, "list as JSON")
-	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
-		return ExitUsage
+	if ok, code := parseFlags(fs, args); !ok {
+		return code
 	}
 	rest := fs.Args()
 	if len(rest) < 1 {

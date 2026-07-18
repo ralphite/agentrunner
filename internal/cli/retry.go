@@ -25,8 +25,8 @@ func retryCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("retry", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	detach := fs.Bool("detach", false, "deliver the retry and exit without waiting for the reply")
-	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
-		return ExitUsage
+	if ok, code := parseFlags(fs, args); !ok {
+		return code
 	}
 	rest := fs.Args()
 	if len(rest) != 1 {

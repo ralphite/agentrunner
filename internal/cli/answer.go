@@ -27,8 +27,8 @@ func answerCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("answer", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	skip := fs.Bool("skip", false, "skip the question(s): the model is told the user declined to answer")
-	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
-		return ExitUsage
+	if ok, code := parseFlags(fs, args); !ok {
+		return code
 	}
 	rest := fs.Args()
 	if len(rest) < 1 || (!*skip && len(rest) < 2) {

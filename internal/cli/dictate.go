@@ -60,8 +60,8 @@ func dictateCmd(args []string, stdout, stderr io.Writer) int {
 	contextHint := fs.String("context", "", "optional context to disambiguate proper nouns / mixed-language terms")
 	mime := fs.String("mime", "", "audio MIME type (inferred from the file extension otherwise)")
 	maxBytes := fs.Int64("max-bytes", defaultDictateMaxBytes, "reject audio larger than this many bytes")
-	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
-		return ExitUsage
+	if ok, code := parseFlags(fs, args); !ok {
+		return code
 	}
 	rest := fs.Args()
 	if len(rest) != 1 || strings.TrimSpace(rest[0]) == "" {

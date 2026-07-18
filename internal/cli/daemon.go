@@ -74,8 +74,8 @@ func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	detach := fs.Bool("detach", false, "start the daemon in the background, detached from this terminal, then return")
 	httpAddr := fs.String("http", "", "enable the webhook ingress on this TCP address (INC-50, e.g. 127.0.0.1:4177); empty = off")
-	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
-		return ExitUsage
+	if ok, code := parseFlags(fs, args); !ok {
+		return code
 	}
 	if len(fs.Args()) != 0 {
 		fmt.Fprintln(stderr, "usage: agentrunner daemon [--detach] [--http addr]")
@@ -815,8 +815,8 @@ func attachCmd(args []string, stdout, stderr io.Writer) int {
 	jsonOut := fs.Bool("json", false, "emit the event stream as JSON lines instead of rendered text")
 	replayOnly := fs.Bool("replay-only", false, "replay the recorded history and exit, without following live output")
 	fs.BoolVar(replayOnly, "no-follow", false, "alias for --replay-only")
-	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
-		return ExitUsage
+	if ok, code := parseFlags(fs, args); !ok {
+		return code
 	}
 	rest := fs.Args()
 	if len(rest) != 1 {
@@ -1229,8 +1229,8 @@ func submitCmd(args []string, stdout, stderr io.Writer) int {
 	jsonOut := fs.Bool("json", false, "emit the event stream as JSON lines")
 	drive := fs.Bool("drive", false, "submit a driver spec (prompt lives in the spec)")
 	idem := fs.String("idem", "", "idempotency key: a retried submit with the same key reattaches instead of starting a duplicate")
-	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
-		return ExitUsage
+	if ok, code := parseFlags(fs, args); !ok {
+		return code
 	}
 	rest := fs.Args()
 	if (*drive && len(rest) != 1) || (!*drive && len(rest) != 2) {

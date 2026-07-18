@@ -37,8 +37,8 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 	detach := fs.Bool("detach", false, "print the session id and exit without waiting for the reply")
 	jsonSchema := fs.String("json-schema", "", "path to a JSON Schema; the reply must be JSON matching it (validated, retried) — INC-26 #91")
 	jsonSchemaRetries := fs.Int("json-schema-max-retries", 2, "extra re-prompts to coax a conforming reply when --json-schema is set")
-	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
-		return ExitUsage
+	if ok, code := parseFlags(fs, args); !ok {
+		return code
 	}
 	rest, terr := completeTextArg(fs.Args(), 2)
 	if terr != nil {
@@ -224,8 +224,8 @@ func sendCmd(args []string, stdout, stderr io.Writer) int {
 	fs.Var(&filePaths, "file", "attach a file of any type — PDF, etc. (repeatable, INC-9)")
 	detach := fs.Bool("detach", false, "deliver the message and exit without waiting for the reply")
 	steer := fs.Bool("steer", false, "steer: deliver into the CURRENT turn at its next safe boundary (default: queue to the next turn) — INC-43")
-	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
-		return ExitUsage
+	if ok, code := parseFlags(fs, args); !ok {
+		return code
 	}
 	rest, terr := completeTextArg(fs.Args(), 2)
 	if terr != nil {

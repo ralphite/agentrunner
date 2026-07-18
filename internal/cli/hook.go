@@ -57,8 +57,8 @@ func hookCreateCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("hook create", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	name := fs.String("name", "", "a short sender label; deliveries journal as principal \"hook:<name>\"")
-	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
-		return ExitUsage
+	if ok, code := parseFlags(fs, args); !ok {
+		return code
 	}
 	rest := fs.Args()
 	if len(rest) != 1 {
@@ -93,8 +93,8 @@ func hookCreateCmd(args []string, stdout, stderr io.Writer) int {
 func hookListCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("hook list", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
-		return ExitUsage
+	if ok, code := parseFlags(fs, args); !ok {
+		return code
 	}
 	rest := fs.Args()
 	if len(rest) > 1 {

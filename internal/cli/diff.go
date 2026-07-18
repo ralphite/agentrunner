@@ -84,8 +84,8 @@ func diffCmd(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	scope := fs.String("scope", "last-turn", "diff scope (last-turn)")
 	jsonOutput := fs.Bool("json", false, "print structured JSON")
-	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
-		return ExitUsage
+	if ok, code := parseFlags(fs, args); !ok {
+		return code
 	}
 	rest := fs.Args()
 	if len(rest) != 1 || *scope != "last-turn" {

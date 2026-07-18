@@ -21,8 +21,8 @@ func queueCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("queue", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	jsonOut := fs.Bool("json", false, "emit the queue as JSON (for tooling / the web UI)")
-	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
-		return ExitUsage
+	if ok, code := parseFlags(fs, args); !ok {
+		return code
 	}
 	rest := fs.Args()
 	if len(rest) != 1 {
@@ -111,8 +111,8 @@ func pendingQueue(dir string) ([]protocol.UserInput, map[string]bool, error) {
 func unqueueCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("unqueue", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
-		return ExitUsage
+	if ok, code := parseFlags(fs, args); !ok {
+		return code
 	}
 	rest := fs.Args()
 	if len(rest) != 2 {

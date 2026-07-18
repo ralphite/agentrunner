@@ -113,8 +113,8 @@ func runCmd(args []string, recordMode bool, version string, stdout, stderr io.Wr
 	mode := fs.String("mode", "", "run mode: default|plan|acceptEdits|bypass (overrides spec)")
 	jsonOut := fs.Bool("json", false, "emit the output event stream as JSON lines")
 	fixtureOut := fs.String("o", "", "fixture output path (record-fixture only)")
-	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
-		return ExitUsage
+	if ok, code := parseFlags(fs, args); !ok {
+		return code
 	}
 	rest, terr := completeTextArg(fs.Args(), 2)
 	if terr != nil {

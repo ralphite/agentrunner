@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -34,6 +35,10 @@ func inspectCmd(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	if err := fs.Parse(append(flagArgs, positional...)); err != nil {
+		// -h/--help is a clean exit (0), not a usage error (QA Wave1 alice-14).
+		if errors.Is(err, flag.ErrHelp) {
+			return ExitOK
+		}
 		return ExitUsage
 	}
 	if fs.NArg() != 1 {

@@ -40,8 +40,8 @@ func optimizeCmd(args []string, stdout, stderr io.Writer) int {
 	model := fs.String("model", defaultHelperModel, "model id")
 	prov := fs.String("provider", defaultHelperProvider, "provider name")
 	contextHint := fs.String("context", "", "optional context to resolve ambiguous references in the draft")
-	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
-		return ExitUsage
+	if ok, code := parseFlags(fs, args); !ok {
+		return code
 	}
 	rest, terr := completeTextArg(fs.Args(), 1)
 	if terr != nil {

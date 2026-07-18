@@ -40,8 +40,8 @@ func driveCmd(args []string, version string, stdout, stderr io.Writer) int {
 	workspaceDir := fs.String("workspace", ".", "workspace root (default: current directory)")
 	jsonOut := fs.Bool("json", false, "emit the child runs' output event stream as JSON lines")
 	retry := fs.String("retry", "", "start a new driver series from a prior driver session")
-	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
-		return ExitUsage
+	if ok, code := parseFlags(fs, args); !ok {
+		return code
 	}
 	rest := fs.Args()
 	if (*retry == "" && len(rest) != 1) || (*retry != "" && len(rest) != 0) {

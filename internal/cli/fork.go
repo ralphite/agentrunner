@@ -29,8 +29,8 @@ func forkCmd(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	workspaceDir := fs.String("workspace", "", "fork worktree dir (default: <parent-workspace>-fork-<id>; must be empty)")
 	list := fs.Bool("list", false, "list the session's barriers and exit")
-	if err := fs.Parse(reorderFlags(fs, args)); err != nil {
-		return ExitUsage
+	if ok, code := parseFlags(fs, args); !ok {
+		return code
 	}
 	rest := fs.Args()
 	listing := *list && len(rest) == 1
