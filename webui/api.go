@@ -1444,10 +1444,39 @@ func (s *server) handleAgentSwitch(w http.ResponseWriter, r *http.Request) {
 	}
 	res := s.runAR(r.Context(), oneShotTimeout, "agent", id, basePath)
 	if res.Err != nil {
+		// The spec arrived as CONTENT, not a path — a spec-load error must not
+		// leak our internal staging location (runtime/specs/s<rand>/base.yaml)
+		// or anchor the message to it (QA Wave7 pat-04). Rewrite the staged
+		// paths to a neutral "spec" so the error reads about what the user
+		// submitted, not the server's filesystem.
+		res = sanitizeStagedPaths(res, basePath)
 		arFail(w, "ar agent", res)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": strings.TrimSpace(res.Stdout)})
+}
+
+// sanitizeStagedPaths rewrites the internal spec-staging paths out of an ar
+// result's output so a content-submitted spec's error never exposes the
+// server's staging directory. The base file becomes "spec"; sibling references
+// under the staging dir lose the dir prefix (keeping "<name>.yaml").
+func sanitizeStagedPaths(res arResult, basePath string) arResult {
+	dir := filepath.Dir(basePath)
+	clean := func(s string) string {
+		// Drop LoadSpec's "spec <staged path>: " anchor entirely so the message
+		// reads "field <x>: <problem>" about the submitted content.
+		s = strings.ReplaceAll(s, "spec "+basePath+": ", "")
+		// Any remaining reference to the base file or a sibling under the staging
+		// dir loses the internal path.
+		s = strings.ReplaceAll(s, basePath, "spec")
+		if dir != "" && dir != "." && dir != "/" {
+			s = strings.ReplaceAll(s, dir+string(filepath.Separator), "")
+		}
+		return s
+	}
+	res.Stdout = clean(res.Stdout)
+	res.Stderr = clean(res.Stderr)
+	return res
 }
 
 // handleFork branches a session at a barrier into a new session.

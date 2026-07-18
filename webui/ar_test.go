@@ -898,3 +898,26 @@ func TestDiffReportsWorktreeMeta(t *testing.T) {
 		t.Fatalf("main checkout should report worktree:false, got %v", mainResp["worktree"])
 	}
 }
+
+// TestSanitizeStagedPaths pins that a spec-load error from a content-submitted
+// agent switch never leaks the internal staging path (QA Wave7 pat-04).
+func TestSanitizeStagedPaths(t *testing.T) {
+	base := "/home/user/agentrunner/runtime/specs/s4242/base.yaml"
+	res := arResult{
+		Stderr: "agentrunner: spec " + base + ": field tools: unknown tool \"flibber\"",
+		Stdout: "see " + base + " and /home/user/agentrunner/runtime/specs/s4242/worker.yaml",
+	}
+	got := sanitizeStagedPaths(res, base)
+	for _, s := range []string{got.Stderr, got.Stdout} {
+		if strings.Contains(s, "runtime/specs") || strings.Contains(s, base) {
+			t.Fatalf("staging path leaked: %q", s)
+		}
+	}
+	if !strings.Contains(got.Stderr, "field tools: unknown tool") {
+		t.Fatalf("stderr lost its actionable content: %q", got.Stderr)
+	}
+	// A sibling reference keeps its bare filename.
+	if !strings.Contains(got.Stdout, "worker.yaml") {
+		t.Fatalf("sibling name lost: %q", got.Stdout)
+	}
+}
