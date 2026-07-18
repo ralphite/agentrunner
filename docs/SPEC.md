@@ -21,7 +21,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 
 | 功能点 | 状态 | Journey | 验收锚 / 备注 |
 |---|---|---|---|
-| 续聊（答完待命；close = 标记） | ✅ | UJ-01/03/09 | QA-01 · C1 · 孪生（见 e2e） |
+| 续聊（答完待命；close = 标记；**任何显式重开——send 或 compact/clear 复活——清标记，状态回 waiting:input，不残留 closed**，INC-74） | ✅ | UJ-01/03/09 | QA-01 · C1 · 孪生（见 e2e）· TestReopenAfterCloseClearsMark |
 | 回复就地可见（`new`/`send` 默认跟随本轮渲染正文至 idle，尾行提示 send/attach；`--detach` 恢复异步；**并发同会话 send 各自只渲染自己那一轮**，INC-73） | ✅ | UJ-01/03 | INC-2/INC-73 · TestNewAndSendRenderReply/Detach · TestSendScope/TestGenerationStartCarriesInputSeqs |
 | 忙时投递排队（安全边界按序消费，不丢不乱序；默认 queue=下个 turn，steer 在 turn 内安全边界即消费——INC-43） | ✅ | UJ-07 | QA-02/06 · C2 |
 | 运行中发消息投递模式（per-message `Delivery`：steer=当前 turn 下个安全边界注入 / queue=下个 turn，默认 queue；CLI `ar send --steer`、webui composer Queue\|Steer 切换 + ⌘⏎ 反选，对标 Codex） | ✅ | UJ-07 | INC-43 · TestSteerDeliversMidTurn/TestQueueDefersToTurnEnd/TestSteerFlushesQueuedBacklog/TestInboxDeliveryModeIsPartOfPayload · QA-45 |

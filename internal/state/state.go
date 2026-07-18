@@ -974,6 +974,15 @@ func Apply(s State, env event.Envelope) (State, error) {
 	case *event.WaitingEntered:
 		s.Waiting = &Waiting{Kind: p.Kind, Detail: p.Detail, Since: env.Seq}
 		s.Session.Status = StatusWaiting
+		// A wait entered AFTER a close/stop mark is a lawful reopen: an explicit
+		// user gesture (compact/clear/revive) crossed the mark and the loop is
+		// live again, parking for input — so the mark is superseded and the
+		// status must stop saying "closed" (QA Wave8 quinn-02). This mirrors the
+		// send path, where GenerationStarted clears the mark (决策 #30). A normal
+		// park's WaitingEntered precedes its close, so Closed is nil here and this
+		// is a no-op. Only Closed is cleared: Failure/Truncated are other marks,
+		// cleared by their own reopen signals (AssistantMessage/GenerationStarted).
+		s.Session.Closed = nil
 
 	case *event.WaitingResolved:
 		s.Waiting = nil

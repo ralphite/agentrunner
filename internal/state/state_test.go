@@ -484,6 +484,44 @@ func TestFinalLLMFailureMarksSessionFailed(t *testing.T) {
 	}
 }
 
+// TestReopenAfterCloseClearsMark pins that a WaitingEntered AFTER a close mark
+// (an explicit compact/clear revival, no new generation) clears the mark so the
+// status is honest — waiting:input, not stale "closed" (QA Wave8 quinn-02).
+// This mirrors the send path where GenerationStarted clears it.
+func TestReopenAfterCloseClearsMark(t *testing.T) {
+	s := New()
+	var err error
+	seq := []struct {
+		typ string
+		p   any
+	}{
+		{event.TypeSessionStarted, &event.SessionStarted{}},
+		{event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}},
+		{event.TypeAssistantMessage, &event.AssistantMessage{GenStep: 1, Message: provider.Message{
+			Role: provider.RoleAssistant, Parts: []provider.Part{{Kind: provider.PartText, Text: "hi"}}}}},
+		{event.TypeWaitingEntered, &event.WaitingEntered{Kind: event.WaitInput}},
+		{event.TypeWaitingResolved, &event.WaitingResolved{Kind: event.WaitInput}},
+		{event.TypeSessionClosed, &event.SessionClosed{Reason: "closed", Source: "user"}},
+		// The compact revival: no generation, just re-parks for input.
+		{event.TypeContextCompacted, &event.ContextCompacted{Summary: "s", UptoGenStep: 1}},
+		{event.TypeWaitingEntered, &event.WaitingEntered{Kind: event.WaitInput}},
+	}
+	for _, e := range seq {
+		if s, err = Apply(s, env(t, e.typ, e.p)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if s.Session.Closed != nil {
+		t.Fatalf("reopen must clear the close mark, got %+v", s.Session.Closed)
+	}
+	if q, reason := Quiescence(s); !q || reason != "completed" {
+		t.Fatalf("quiescence = %v %q, want completed", q, reason)
+	}
+	if s.Waiting == nil || s.Waiting.Kind != event.WaitInput {
+		t.Fatalf("reopened session should be waiting on input, got %+v", s.Waiting)
+	}
+}
+
 func TestSessionClosedOverridesWaitingAndInFlightState(t *testing.T) {
 	s := New()
 	var err error

@@ -4365,3 +4365,22 @@ turn 两 follower 同见一条回复=正确(一轮只有一条回复)。
 TestGenerationStartCarriesInputSeqs);DESIGN §常驻 runtime 加"每命令
 输出定界(INC-73)"条;裁掉并发 daemon 集成测试(时序易 flaky,以
 sendScope 单测全边界 + loop InputSeqs 单测 + 三场景实测覆盖)。
+
+## INC-74 非-generation 重开也清 close 标记（2026-07-18）
+
+**增量**:关闭的 session 被 `compact`/`clear` **显式复活**后
+(journal:session_closed → context_compacted → waiting_entered{input},
+send 确能继续),`ar inspect`/`ar sessions` 仍报 closed——状态撒谎
+(quinn-02)。根因:send 复活经 GenerationStarted 清 close 标记
+(决策 #30,state.go),compact 复活无 generation,靠 WaitingEntered
+重新待命,而 fold 的 WaitingEntered 未清标记。修:**WaitingEntered
+也清 Closed**(与 GenerationStarted 对称——两者都是合法重开信号)。
+正常关闭序列 WaitingEntered 在 close 之前(Closed nil),清除是 no-op;
+唯 close **之后**的 WaitingEntered(=复活)才实际清标记。仅清 Closed,
+Failure/Truncated 由各自信号清(避免误清失败后 idle 的会话失败态)。
+
+**裁决**:quinn-01(compact/remember 复活关闭会话)= **by-design**——
+DESIGN §恢复"标记只约束自动路径,send/显式命令越标记复活"原样成立,
+compact/remember 是显式用户命令,非自动路径,允许复活。不改不变量,
+只补齐状态派生的对称性。记档:SPEC 生命周期注 + DESIGN §恢复 INC-74
+条 + 单测 TestReopenAfterCloseClearsMark;裁 review(纯 fold 补齐)。

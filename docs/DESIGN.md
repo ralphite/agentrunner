@@ -806,7 +806,11 @@ user]` 的 error 结果;对待命处 = no-op(裁决 #11)。**已配对的后台
   原样在盘上。下一条 `send` 即接续，**续聊天然恢复**。`send` 是用户的
   **显式重开手势，对任何 session 成立**（含带 close 标记的——标记只
   约束自动路径，见 §12 静止模型）；自动路径（timer sweep、boot
-  sweep）绝不越过标记。
+  sweep）绝不越过标记。**任何显式重开都清 close/stop 标记（INC-74）**：
+  两个对称信号——`GenerationStarted`（send 起新 turn）与 `WaitingEntered`
+  （compact/clear/revive 无 turn 直接重新待命）——都清标记,故复活后状态
+  一律回到 `waiting:input`,不残留 "closed"（quinn-02）。仅清 `Closed`;
+  `Failure`/`Truncated*` 由各自重开信号清。
 - **turn 中途崩溃**：in-doubt 纪律（见上），**单一自愈语义**
   （决策 #29）：处置后渲染 `[interrupted by crash]`，session 继续。
   进了副作用关卡没 `EffectResolved` 的仍上浮（hooks 可能半跑）。
