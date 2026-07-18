@@ -4703,3 +4703,14 @@ comment 会把含 `#fragment` 的 URL 连同后文包进反引号(#N 被当 issu
 work still running" 警示——监督面板整链路渲染正常。发现并修
 `.supervision-label` 无 gap 导致 "PROGRESS1/2" 挤行(与 env-row-val
 同类,QA-0718 第三处):flex+gap-1.5。build + SupervisionPanel 23 测试绿。
+
+## 2026-07-18 · QA-0718 第五轮:G39 登记——spawn 后台工作无终态呈现/不可检视
+
+跨层探针(页面内 fetch 打 webui API)对照 UI:`/api/sessions` 父会话
+`waiting:input`(turn 已结束、无 summarize),rail 却持续 "Background
+work still running — keeps spending tokens"、PROGRESS 卡 1/2、Changes
+恒 3 files 约 30 分钟;background 行不可点、child 不入 sidebar,用户
+无从判断 child 死活/是否卡不可见审批。登记 G39(journey 级,需 daemon
+journal 定因);remote-qa-env 增 post-driver 诊断转储步骤(ar sessions/
+ar events/daemon.log → release asset)供下轮下钻。/file 端点对已写入
+文件也 404,探针记录在案(端点语义待查,未据此下结论)。

@@ -670,6 +670,20 @@ TERM-resistant 孙进程可变孤儿。统一 advisory flock + unique temp fsync
 针对性 race 与全量 gate 通过；共享 store/Web UI 重启验收见 QA-67。
 → UJ-01/04/09/17/18/24
 
+**G39 spawn 子 agent 后台工作无终态呈现/不可检视 — 开放（QA-0718 真机复现）**
+真机(remote-qa-env run 29657111612,会话 20260718-183310-write-a-
+typescript-…)spawn 两个 worker 双双获批后:`/api/sessions` 显示父会话
+`waiting:input`(turn 已结束、无 summarize 消息),但 rail 持续显示
+BACKGROUND WORK 双行 + ATTENTION "Background work still running — it
+keeps spending tokens",PROGRESS 卡 1/2,约 30 分钟无 diff 增量
+(Changes 恒 3 files)、无错误浮出;background 行不可点击、child 不入
+sidebar,用户无从检视 child 是死是活是卡审批。三问待查(需 daemon
+journal):child 是否真在跑/是否卡在不可见审批/rail 的 running 态与
+daemon 真相是否脱节。证据:issue #9 n=4–n=10 轨迹 + release
+qa-driver-29657111612 截图。workflow 已加 post-driver 诊断转储
+(`ar sessions`/`ar events` 上传 release asset)供下轮下钻。
+→ UJ-多agent监督(webui 产品面)
+
 **G38 markdown 数学公式不渲染（LaTeX 原样露出） — 开放（QA-0718 实测）**
 真实 Gemini turn 里模型自然输出 `$\mathcal{O}(\log n)$` 级 inline math
 （复杂度表格是高频场景），webui 的 react-markdown + remark-gfm 无 math

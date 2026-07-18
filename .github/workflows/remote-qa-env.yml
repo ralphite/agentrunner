@@ -365,6 +365,25 @@ jobs:
           gh issue close "$ISSUE_NUMBER" --repo "$GH_REPO" \
             --comment "driver session over (run $RUN_ID)." || true
 
+      # 诊断转储:QA-0718 G39(子 agent 后台工作无终态)只有 daemon 侧
+      # 数据能解释。driver 结束后把会话清单、逐会话 events 导出与 daemon
+      # log 传成 release asset,外部 agent 可下载下钻。
+      - name: Dump daemon diagnostics
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: qa-driver-${{ github.run_id }}
+        run: |
+          mkdir -p diag
+          ./bin/ar sessions > diag/sessions.txt 2>&1 || true
+          for sid in $(./bin/ar sessions 2>/dev/null | grep -oE '20[0-9]{6}-[0-9]{6}-[a-z0-9-]+' | sort -u); do
+            ./bin/ar events "$sid" > "diag/events-$sid.txt" 2>&1 || true
+          done
+          cp ~/.local/share/agentrunner/daemon.log diag/daemon.log 2>/dev/null || true
+          cp webui.log diag/webui.log 2>/dev/null || true
+          tar czf qa-diagnostics.tar.gz diag
+          gh release upload "$RELEASE_TAG" qa-diagnostics.tar.gz --clobber --repo "${{ github.repository }}" || true
+
       - name: Save store for next run
         if: always()
         uses: actions/cache/save@v4
