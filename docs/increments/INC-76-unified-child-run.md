@@ -85,11 +85,28 @@ B 闸:纯重构无新行为,以 QA-70(daemon 生命周期,覆盖 driver crash
 
 ## 实施步骤
 
-1. INC-76.1:基座落 `internal/agent`(三态 + 结算 + 报告/用量读取
-   合一),spawn 两路径改走;spawn/bgspawn/recovery 孪生全绿。
+1. ✅ INC-76.1:基座落 `internal/agent/childrun.go`(openChildRun/
+   store/close + settled + run 三态,spent 一律 fold 读);**三个**
+   agent 侧站点改走:buildHandoffRun、launchBackgroundSpawn(Loop
+   构造留在 drive goroutine——它读父状态,基座只收"跑到静止")、
+   recovery.reattachWaitingChildren(revive baseline 减法留调用方,
+   基座返回 fold 累计值)。孪生 TestChildRunThreeWayDecision(空→Run/
+   非静止→Resume/已静止→零 provider 调用零新事件)+
+   TestChildRunSettlesUsageOnError;spawn/bgspawn/recovery/driver
+   全套既有孪生不改断言全绿。
 2. INC-76.2:driver.runIteration 改走基座(retry/事实/命名不变),
    删 driver 侧 settledChild/childSpent 重复实现;driver 孪生全绿。
 3. INC-76.3:文档收口(§17/SPEC F 注/LOG)+ QA-70 回归 dispatch。
+
+## 实施中发现的语义分歧(76.1 记档)
+
+`childReport` 两份实现**语义不同**,按本纸条款记档、不静默择一:
+agent 版取**末条 assistant 消息的首个 text part**(spawn 报告——
+"最后一轮说了什么");driver 版取**全对话最后一个非空 text part**
+(carry excerpt——"最后一段产出文本",跨消息兜底)。消费者不同、
+两个定义各自合理:**报告读取不并入基座**,76.2 driver 改走基座时
+保留 driver 版 childReport 原样。若 ③ 事实流合一时要统一,届时以
+"parent 可见报告"语义单独裁。
 
 ## review 裁决
 

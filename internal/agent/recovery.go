@@ -56,7 +56,7 @@ func (l *Loop) reattachWaitingChildren(ctx context.Context, ds *driveState,
 			remaining = append(remaining, act)
 			continue
 		}
-		childStore, err := store.OpenEventStore(childDir)
+		cr, err := openChildRun(childDir)
 		if err != nil {
 			slog.Warn("resume: approval-waiting child store unavailable; crash-settling",
 				"child", childSession, "err", err)
@@ -67,7 +67,7 @@ func (l *Loop) reattachWaitingChildren(ctx context.Context, ds *driveState,
 		// The child must inherit the root's tree router before its Resume starts;
 		// drive() normally creates it later, after crash reconciliation.
 		l.ensureRouter()
-		child := l.childLoopWithExec(childSpec, childStore, childSession,
+		child := l.childLoopWithExec(childSpec, cr.store(), childSession,
 			childSpec.Budget.MaxTotalTokens, ds.s.CurrentMode(), childExec)
 		l.ensureBackground()
 		workCtx, cancel := context.WithCancelCause(ctx)
@@ -88,9 +88,12 @@ func (l *Loop) reattachWaitingChildren(ctx context.Context, ds *driveState,
 			}
 		}
 		go func(act event.ActivityStarted) {
-			defer func() { _ = childStore.Close() }()
-			cres, cerr := child.Resume(workCtx)
-			total := childFoldUsage(childDir)
+			defer cr.close()
+			// The journal is non-empty and approval-parked (not quiescent),
+			// so childRun's three-way decision lands on Resume — the same
+			// substrate as a fresh spawn. total is the fold's CUMULATIVE
+			// spend; the revive baseline is subtracted here at the caller.
+			cres, total, cerr := cr.run(workCtx, child, "")
 			spent := subUsage(total, baseline)
 			reason := cres.Reason
 			if cerr != nil && reason == "" {

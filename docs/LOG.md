@@ -4492,3 +4492,16 @@ hostResume → 第二次自主唤醒仍完成真 turn(唤醒跨重启存活);
 E1①(loop-mode 挂 conversational session)三小步至此双闸门齐:
 INC-74 工作纸归档 archive/increments/。E1 下一步:② iteration child
 统一走 spawn_agent(需新工作纸)。
+
+## 2026-07-18 · INC-76.1:child-run 基座 + agent 侧三站点改走(E1② 第一小步)
+
+`internal/agent/childrun.go`:openChildRun 拥有 store 生命周期,
+run 三态(已静止→形状结算不重跑,决策 #29/#31;非空未静止→Resume;
+空→Run)+ spent 一律从 child fold 读(S5/S6 预算诚实条款的单点
+实现)。Loop 构造留在调用方 goroutine(childLoopWithExec 读父状态,
+不能进后台 goroutine)——基座只收"跑到静止拿结果"。改走:
+buildHandoffRun / launchBackgroundSpawn / recovery.reattachWaiting
+Children(revive baseline 减法留调用方)。发现并记档 childReport
+语义分歧(agent=末条消息首 part,driver=全对话末段文本;消费者
+不同各自合理,报告读取不并入基座)。孪生两件 + 全套既有孪生不改
+断言全绿。76.2(driver.runIteration 改走)next。

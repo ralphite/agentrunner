@@ -439,11 +439,11 @@ func (l *Loop) buildHandoffRun(call provider.ToolCall, res *tool.Result,
 		l.replacePredecessor(coordination.Replaces)
 
 		childDir := filepath.Join(l.Store.Dir(), "sub", fmt.Sprintf("%s-a%d", call.CallID, attempt))
-		childStore, err := store.OpenEventStore(childDir)
+		cr, err := openChildRun(childDir)
 		if err != nil {
 			return nil, nil, false, fmt.Errorf("spawn %s: %w", agentName, err)
 		}
-		defer func() { _ = childStore.Close() }()
+		defer cr.close()
 		childSession := fmt.Sprintf("%s-sub-%s-a%d", l.SessionID, call.CallID, attempt)
 		childExec, workspaceAssignment, err := l.prepareChildExecutor(ctx, childDir, childSession)
 		if err != nil {
@@ -466,15 +466,14 @@ func (l *Loop) buildHandoffRun(call provider.ToolCall, res *tool.Result,
 		l.fireLifecycle(ctx, hook.EventSubagentStart,
 			map[string]string{"agent": agentName, "child_session": childSession}, false)
 
-		child := l.childLoopWithExec(childSpec, childStore, childSession, allowance, parentMode, childExec)
+		child := l.childLoopWithExec(childSpec, cr.store(), childSession, allowance, parentMode, childExec)
 		child.Inputs = inputs
-		cres, cerr := child.Run(ctx, isolatedPrompt(workspaceAssignment, prompt))
+		cres, spent, cerr := cr.run(ctx, child, isolatedPrompt(workspaceAssignment, prompt))
 		if cerr != nil {
-			// The child journaled real spend before dying — RunResult is
-			// zero on aborts, so settle from the child's own fold (S5
-			// review: an unsettled failed child would let a re-spawn
-			// over-grant against the tree cap).
-			spent := childFoldUsage(childDir)
+			// spent is the child fold's settled spend (childRun reads it) —
+			// the truth even though RunResult is zero on aborts (S5 review:
+			// an unsettled failed child would let a re-spawn over-grant
+			// against the tree cap).
 			if ctx.Err() != nil {
 				// Cancellation: the parent's cancel path owns the terminal
 				// event; the usage rides ActivityCancelled and settles.
@@ -569,7 +568,7 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 	l.replacePredecessor(coordination.Replaces)
 
 	childDir := filepath.Join(l.Store.Dir(), "sub", fmt.Sprintf("%s-a1", call.CallID))
-	childStore, err := store.OpenEventStore(childDir)
+	cr, err := openChildRun(childDir)
 	if err != nil {
 		return fmt.Errorf("spawn %s: %w", agentName, err)
 	}
@@ -577,7 +576,7 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 	activityID := "tool-" + call.CallID
 	childExec, workspaceAssignment, err := l.prepareChildExecutor(ctx, childDir, childSession)
 	if err != nil {
-		_ = childStore.Close()
+		cr.close()
 		payload, _ := json.Marshal(map[string]any{"error": fmt.Sprintf("spawn %s: %v", agentName, err)})
 		if _, aerr := appendE(event.TypeActivityStarted, &event.ActivityStarted{
 			ActivityID: activityID, Kind: event.KindTool, Name: call.Name,
@@ -601,7 +600,7 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 		LeaseID: "lease-" + call.CallID + "-a1", Workspace: workspaceAssignment,
 		Replaces: coordination.Replaces,
 	}); err != nil {
-		_ = childStore.Close()
+		cr.close()
 		return err
 	}
 	l.fireLifecycle(ctx, hook.EventSubagentStart,
@@ -611,7 +610,7 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 		Args: redact.FromEnv().JSON(call.Args), CallID: call.CallID,
 		Attempt: 1, Background: true, Notice: escalationNotice(childSpec, escalationFallback),
 	}); err != nil {
-		_ = childStore.Close()
+		cr.close()
 		return err
 	}
 
@@ -620,18 +619,18 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 	l.bg.cancel[call.CallID] = cancel
 	l.bg.mu.Unlock()
 
-	child := l.childLoopWithExec(childSpec, childStore, childSession, allowance, parentMode, childExec)
+	// The Loop is built HERE, on the drive goroutine (it reads parent
+	// state); only the run itself moves to the background goroutine.
+	child := l.childLoopWithExec(childSpec, cr.store(), childSession, allowance, parentMode, childExec)
 	child.Inputs = inputs
 	go func() {
-		defer func() { _ = childStore.Close() }()
-		cres, cerr := child.Run(workCtx, isolatedPrompt(workspaceAssignment, prompt))
-		spent := cres.Usage
+		defer cr.close()
+		cres, spent, cerr := cr.run(workCtx, child, isolatedPrompt(workspaceAssignment, prompt))
 		reason := cres.Reason
 		canceled := workCtx.Err() != nil
 		if cerr != nil {
-			// The child journaled real spend before dying; settle from its
-			// own fold so the tree cap stays honest (S5 review).
-			spent = childFoldUsage(childDir)
+			// spent is the child fold's settled spend (childRun reads it) —
+			// the tree cap stays honest across aborts (S5 review).
 			if canceled {
 				reason = "canceled"
 			} else if reason == "" {

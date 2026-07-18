@@ -205,3 +205,7 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
 - 2026-07-18 · E1② · INC-76 工作纸落盘(子执行基座统一:spawn/driver
   两份"跑 child 到静止并结算"实现合一;Loop 构造与事实流合一显式留
   ③④)· 本 commit · 进行中(76.1 基座+spawn 改走 next)。
+- 2026-07-18 · INC-76.1 · child-run 基座落 internal/agent(三态+fold
+  结算),spawn 双路径+recovery reattach 三站点改走;childReport 语义
+  分歧记档(报告读取不并入基座)· 本 commit · 完成(76.2 driver 改走
+  next)。
