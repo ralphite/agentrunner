@@ -95,6 +95,9 @@ jobs:
           # bwrap 是 ar 执行 bash 命令的硬前置(QA-0718 实测缺它时所有
           # shell 步骤 denied),装上才能测真实的命令执行/diff 场景。
           sudo apt-get install -y -q bubblewrap
+          # Ubuntu 24 runner 的 AppArmor 默认禁非特权 userns,bwrap 装了
+          # 也起不来(QA-0718 第二轮实测);放开限制 bash 步骤才真能跑。
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
 
       - name: Restore store from previous run
         uses: actions/cache/restore@v4
