@@ -4686,3 +4686,11 @@ frontend build + Modals 测试绿。
 动作右),empty-state 居中卡片,页面 max-w 860px 居中。cmdk palette
 (搜索过滤+项目 chip)与 Scheduled 建议卡实测正常。
 frontend build + vitest 336/336 绿。
+
+## 2026-07-18 · QA-0718 第四轮:两组样式修复真机验证通过
+
+run 29657111612 真机验证:Scheduled 页(标题行/小副标题/空态居中卡片/
+SUGGESTIONS 分节标签/860px 布局)✓;Run details modal("Current run/dev"
+分行、Ready pill 右置、Overview 栅格)✓。传输层备忘:MCP 发 issue
+comment 会把含 `#fragment` 的 URL 连同后文包进反引号(#N 被当 issue
+引用处理),指令里避免 `#`——改用 eval 设 location.hash。
