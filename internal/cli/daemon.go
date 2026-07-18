@@ -1255,8 +1255,16 @@ func submitCmd(args []string, stdout, stderr io.Writer) int {
 	// error event, but validating here fails fast and never mints a session
 	// for a run that cannot start (QA Round1 F-A02).
 	if !*drive {
-		if _, err := agent.LoadSpec(specPath); err != nil {
+		loaded, err := agent.LoadSpec(specPath)
+		if err != nil {
 			fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+			return ExitUsage
+		}
+		// Validate the provider up front too, like `new` does — otherwise an
+		// unknown provider mints a session that fails at runtime (QA Wave1
+		// alice-04 / dave-01).
+		if !knownProviderName(loaded.Model.Provider) {
+			fmt.Fprintf(stderr, "agentrunner: unknown provider %q (available: gemini, anthropic, scripted)\n", loaded.Model.Provider)
 			return ExitUsage
 		}
 	}
