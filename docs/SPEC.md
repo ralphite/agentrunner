@@ -117,7 +117,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | journal + 纯 fold + indexed snapshot-resume（offset/hash 校验、真尾读；索引可重建） | ✅ | 不变量 | INC-11.7 · TestIndexedCursorReadsOnlyTailAndRejectsMismatch/TestSnapshotTailEquivalence |
 | schema 兼容 reader（additive/旧 namespace 子集；缺新投影的旧 snapshot 自动全量 fold；破坏性冲突拒绝且不改源） | ✅ | 不变量 | INC-11.7 · TestSchemaGuardAcceptsOlderNamespaceSubset/TestResumeFullFoldsLegacySnapshotMissingNewProjection |
 | in-doubt 按类别处置（LLM 重发/只读重跑/执行不重跑） | ✅ | 不变量 | S2 · QA-08(b) |
-| crash 矩阵三态复活（idle/在飞 bash/在飞子 agent） | ✅ | UJ-09 | QA-08 · C10 |
+| crash 矩阵三态复活（idle/在飞 bash/在飞子 agent；**boot 自动接续**：daemon 启动扫 mid-turn stranded session 自动 resume,标记不越(决策 #30)、已托管跳过、parked 不扰——INC-71,G22a） | ✅ | UJ-09/21 | QA-08 · C10 · TestBootSweepResumesStrandedSessions/TestBootSweepStrandedSkipsMarked/TestScanStrandedSessions |
 | 显式重开（send 对任何 session 成立，含带标记的；自动路径受标记约束） | ✅ | UJ-09/03 | TestSendReopensMarkedSession · TestAutomaticResumeSkipsMarkedSession · TestSendRevivalDiesWithDaemon |
 | 恢复单一自愈（in-doubt 处置后渲染 interrupted-by-crash,session 继续） | ✅ | 不变量 | QA-08 · 决策 #29(2026-07-05 单一化) |
 | workspace 快照（shadow repo、排除表、pinned） | ✅ | UJ-15 | S2/S7 · TestSnapshotAndMaterialize/TestSnapshotHardExcludes/TestShadowRepoDiffAgainstSnapshot（G30 还锚 audit-0717 C1） |

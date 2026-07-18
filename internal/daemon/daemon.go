@@ -228,7 +228,15 @@ type Server struct {
 	// behavior).
 	ScanDrives  func() ([]string, error)
 	ResumeDrive func(ctx context.Context, req DriveRequest, sink protocol.Sink) error
-	Clock       clock.Clock
+	// ScanStranded lists mid-turn stranded agent sessions for the boot sweep
+	// (INC-71, G22a): journal shows running, no live writer — the previous
+	// host died mid-turn and nothing will advance them until a resume. The
+	// sweep re-hosts each via the NORMAL hostResume(explicit=false) path, so
+	// 决策 #30 (marks stop automatic revival) and the already-hosted guard
+	// apply unchanged; the resume itself settles in-doubt work per 决策 #29.
+	// nil = stranded sessions wait for an explicit send (pre-INC-71).
+	ScanStranded func() ([]string, error)
+	Clock        clock.Clock
 	// Approvals is the cross-process ask rendezvous: hosted runs idle here
 	// (the CLI's resolver adapter calls Ask) and `approve` commands answer.
 	// nil = the approve command is refused.
@@ -653,6 +661,9 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	if s.ScanDrives != nil && s.ResumeDrive != nil {
 		go s.bootSweepDrives(ctx)
 	}
+	if s.ScanStranded != nil && s.Resume != nil {
+		go s.bootSweepStranded(ctx)
+	}
 	go s.bootSweepOrphanProcesses()
 	slog.Info("daemon listening", "socket", s.SocketPath)
 
@@ -727,6 +738,23 @@ func (s *Server) bootSweepDrives(ctx context.Context) {
 	}
 	for _, id := range ids {
 		s.hostResumeDrive(ctx, id)
+	}
+}
+
+// bootSweepStranded is the agent-session half of the boot sweep (INC-71,
+// G22a): a daemon that died mid-turn leaves sessions running-with-no-host —
+// visible as "stranded" in inspect, advancing only when a human sends. The
+// sweep resumes each through hostResume's automatic path: marks are not
+// crossed (决策 #30), an already-hosted session is left alone, and the resume
+// settles its in-doubt work per 决策 #29 then continues the turn.
+func (s *Server) bootSweepStranded(ctx context.Context) {
+	ids, err := s.ScanStranded()
+	if err != nil {
+		slog.Warn("daemon: stranded session scan failed", "err", err)
+		return
+	}
+	for _, id := range ids {
+		s.hostResume(ctx, id, false)
 	}
 }
 

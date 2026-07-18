@@ -127,6 +127,7 @@ func daemonCmd(args []string, version string, stdout, stderr io.Writer) int {
 		ScanTimers:                 scanSessionTimers,
 		Resume:                     hostResumeFunc(version, stderr, broker),
 		ScanDrives:                 scanDriveSessions,
+		ScanStranded:               scanStrandedSessions,
 		ResumeDrive:                hostResumeDriveFunc(version, stderr, broker),
 		PersistCommand:             persistCommandFunc(),
 		PendingCommands:            pendingCommands,
@@ -1092,6 +1093,50 @@ func scanDriveSessions() ([]string, error) {
 		st, err := driver.Fold(events)
 		if err != nil || st.Status == driver.StatusEnded {
 			continue // ended = the drive's explicit-end mark (决策 #30)
+		}
+		out = append(out, e.Name())
+	}
+	return out, nil
+}
+
+// scanStrandedSessions derives the stranded-session boot-sweep index
+// (INC-71, G22a): top-level agent sessions whose journal folds to RUNNING
+// with no live writer — the previous host died mid-turn. Cleanly parked
+// (waiting) sessions are NOT stranded: nothing was in flight, an input will
+// revive them. Marks are re-checked by hostResume's automatic path (决策
+// #30); unreadable or non-agent journals are skipped — the sweep must not
+// die on one bad log.
+func scanStrandedSessions() ([]string, error) {
+	data, err := runtime.DataDir()
+	if err != nil {
+		return nil, err
+	}
+	entries, err := os.ReadDir(filepath.Join(data, "sessions"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var out []string
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		dir := filepath.Join(data, "sessions", e.Name())
+		events, err := store.ReadEvents(dir)
+		if err != nil || len(events) == 0 || events[0].Type != event.TypeSessionStarted {
+			continue // unreadable, empty, or a driver stream
+		}
+		if events[len(events)-1].Type == event.TypeSessionClosed {
+			continue // terminal — cheap skip before folding
+		}
+		st, err := state.Fold(events)
+		if err != nil || st.Session.Status != state.StatusRunning {
+			continue // parked (waiting) or terminal: not stranded
+		}
+		if store.HasLiveWriter(dir) {
+			continue // another host is live — not ours to touch
 		}
 		out = append(out, e.Name())
 	}

@@ -77,8 +77,8 @@
   review P1 已落),对账关闭,无代码改动。
 - [x] **D3** G1 blob 归属——同为文档滞后(DESIGN §13 随行库 verbatim
   复制裁决),对账关闭。
-- [ ] **D4** G22a 中途崩溃 agent session 自动接续（M，受决策 #30
-  标记约束）。
+- [x] **D4** G22a boot 自动接续:INC-71 落地(第三类 boot sweep,
+  决策 #29/#30 复用),孪生 4 例,工作纸归档。
 - [ ] **D5** G22b 优雅停机保活 cron（M，**明确走 DESIGN §四不变量
   变更流程**：driver 终态语义区分 shutdown-teardown 与用户 stop）。
 - [ ] **D6** G15 best-of-N 胜者晋升（M：fork / apply diff 二选一
@@ -143,4 +143,6 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
 - 2026-07-18 · D1 · BLOCKED:INC-70 工作纸落草案(A/B/C 选项),等
   用户裁决 · 53be817 · 跳过继续。
 - 2026-07-18 · D2+D3 · 均为文档滞后,SPEC/GAPS 对账关闭(无代码) ·
+  567020b · 完成。
+- 2026-07-18 · D4/INC-71 · stranded session boot 自动接续,G22a 关闭 ·
   本 commit · 完成。

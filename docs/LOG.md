@@ -4255,3 +4255,14 @@ WaitRules 增 denied_by_steer);C 并行转向(违 in-doubt 教义,不推荐)。
   与 artifact 同走 session artifacts store,fork.go:125-128 一并复制,
   锚 TestCutCopiesBarrierSlice。
 两行 SPEC 🟡→✅ 挂真锚,GAPS G1/G2 余项划掉。无代码改动。
+
+## 2026-07-18 · INC-71:mid-turn 崩溃 session 的 boot 自动接续(D4,G22a 关闭)
+
+工作纸 docs/archive/increments/INC-71。daemon 增第三类 boot sweep:
+ScanStranded(cli 侧判据:SessionStarted 头/尾非 closed/fold==running/
+无 live writer)→ hostResume(explicit=false)——决策 #30 标记门、
+已托管幂等、决策 #29 in-doubt 自愈全部复用,新增只是触发者。
+孪生:daemon 3 例(resume/marked 门/hosted 幂等)+ cli 判据 1 例
+(stranded 命中,parked/closed/driver 跳过)。B 闸随下次真实 daemon
+重启 QA 集中验,记档。GAPS G22 注 a 关闭(G22 仅余注 b 优雅停机,
+即 BACKLOG D5)。

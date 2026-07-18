@@ -811,6 +811,11 @@ user]` 的 error 结果;对待命处 = no-op(裁决 #11)。**已配对的后台
   （决策 #29）：处置后渲染 `[interrupted by crash]`，session 继续。
   进了副作用关卡没 `EffectResolved` 的仍上浮（hooks 可能半跑）。
 - **在飞子 session**：§3 的 settle-from-child-fold。
+- **boot 自动接续（INC-71,G22a）**：daemon 启动时的第三类 boot
+  sweep——mid-turn stranded（journal 折出 running 且无 live writer）的
+  顶层 agent session 经 hostResume 自动路径接续:标记不越（决策
+  #30）、已托管跳过、干净 park（waiting）不扰;resume 内即决策 #29
+  的 in-doubt 自愈。
 - **崩溃恢复绝不碰文件系统。** 单进程下崩溃时文件系统本来就活着、
   已在 head 附近；恢复只重建对话 state。回滚文件系统是 rewind 的
   用户主动行为，不是恢复的一部分。
