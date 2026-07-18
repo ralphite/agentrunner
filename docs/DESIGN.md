@@ -766,6 +766,20 @@ user]` 的 error 结果;对待命处 = no-op(裁决 #11)。**已配对的后台
   兜底，属文档化残余风险。log 文件权限 0600，永不入 git。落盘路径预留
   （当前为恒等的）**scrub 阶段**；`EventStore` 接口预留 at-rest 加密位
   ——fold 完整性堵死事后擦除，唯一自洽的擦除点在写入之前。
+  **plausibility 门（audit-0718 P0-1，owner 拍板）**：只登记
+  `redact.Plausible` 的值——长度 ≥8 且非常见占位串。短值/占位值做
+  子串替换必然碎裂无关文本（`*_TOKEN=test` 曾把所有输出面打花），且
+  它们不是真凭据；<8 字符的真 secret 不再被值替换，属**已裁决的残余
+  风险**（journal/fixture 双面同一规则）。
+- **凭据环境剔除是显式的、root spec 可放行的**（audit-0718 P0-2/P0-3，
+  owner 拍板）：bash/command-tool 沙箱与 hooks 默认剔除
+  `*_API_KEY/_TOKEN/_SECRET` 环境变量，但（1）剔除**必须显式回报**——
+  bash result 带 `credential_env_withheld`（只报名字，绝不报值），
+  hook 失败 note 附剔除名单，静默失败违反本条；（2）root session spec
+  的 `sandbox.env_passthrough` 可按名放行——**首封生效（seal）**：root
+  loop 在任何 child 存在前封印共享 executor 与 hook runner，child/
+  模型起草的 inline role spec 永远不能放宽此面；放行的值仍过全部
+  journal redaction（放宽的是子进程可见性，不是落盘面）。
 - **at-least-once + in-doubt 检测**：崩溃发生在"执行后、落盘前"时，
   恢复看到有 `Started` 无 `Completed` → in-doubt。崩溃几乎必然砸中
   in-flight activity（agent 的墙钟全在 LLM 调用和 bash 里），所以

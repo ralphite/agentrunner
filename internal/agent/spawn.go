@@ -401,6 +401,11 @@ func (l *Loop) prepareChildExecutor(ctx context.Context, childDir, childSession 
 		if l.Exec.NetworkContained() {
 			exec.ContainNetwork()
 		}
+		// A fresh child executor inherits the parent's env passthrough SEAL:
+		// the child's own spec must never re-decide the credential face.
+		if names, sealed := l.Exec.EnvPassthroughSeal(); sealed {
+			exec.SealEnvPassthrough(names)
+		}
 	}
 	return exec, &event.TeamWorkspace{Mode: "isolated", Path: root, BaseRef: baseRef}, nil
 }

@@ -16,10 +16,8 @@ import (
 
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
+	"github.com/ralphite/agentrunner/internal/redact"
 )
-
-// redactEnvSuffixes marks env vars whose values must never reach a fixture.
-var redactEnvSuffixes = []string{"_API_KEY", "_TOKEN", "_SECRET"}
 
 // Recorder is a pass-through Provider that accumulates fixture steps.
 type Recorder struct {
@@ -32,18 +30,20 @@ type Recorder struct {
 }
 
 // New wraps inner, harvesting credential values from the environment for
-// redaction (S1 执行包: fixtures pass through redaction).
+// redaction (S1 执行包: fixtures pass through redaction). Suffix and
+// plausibility rules are shared with the journal redactor — a short or
+// placeholder value must not shred fixture text (audit-0718 P0-1).
 func New(inner provider.Provider) *Recorder {
-	redact := map[string]string{}
+	rd := map[string]string{}
 	for _, kv := range os.Environ() {
 		k, v, _ := strings.Cut(kv, "=")
-		for _, suffix := range redactEnvSuffixes {
-			if strings.HasSuffix(k, suffix) && v != "" {
-				redact[v] = "[REDACTED:" + k + "]"
+		for _, suffix := range redact.Suffixes {
+			if strings.HasSuffix(k, suffix) && redact.Plausible(v) {
+				rd[v] = "[REDACTED:" + k + "]"
 			}
 		}
 	}
-	return &Recorder{inner: inner, redact: redact}
+	return &Recorder{inner: inner, redact: rd}
 }
 
 // Capabilities delegates to the wrapped provider.

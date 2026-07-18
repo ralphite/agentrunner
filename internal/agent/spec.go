@@ -167,6 +167,13 @@ type AgentSpec struct {
 // SandboxSpec declares OS-level containment for executions.
 type SandboxSpec struct {
 	Network string `yaml:"network,omitempty"` // "" | all | none
+	// EnvPassthrough names credential env vars (exact match) the sandbox
+	// passes through to bash/command-tool/hook subprocesses instead of
+	// withholding (audit-0718 P0-2). Only the ROOT session spec's list
+	// applies — the executor seals it before any child runs, so a child or
+	// model-drafted spec can never widen it. Passed-through VALUES are still
+	// redacted on every journaled surface.
+	EnvPassthrough []string `yaml:"env_passthrough,omitempty"`
 }
 
 // OutputSpec is one declared deliverable (DESIGN: name, path, required).
@@ -289,7 +296,7 @@ func specScope(goType string) (scope, fields string) {
 	case strings.Contains(goType, "ThinkingSpec"):
 		return "model.thinking", "enabled, budget_tokens"
 	case strings.Contains(goType, "SandboxSpec"):
-		return "sandbox", "network"
+		return "sandbox", "network, env_passthrough"
 	case strings.Contains(goType, "BudgetSpec"):
 		return "budget", "max_total_tokens"
 	case strings.Contains(goType, "OutputSpec"):
@@ -400,6 +407,18 @@ func (s *AgentSpec) validate(path string) error {
 	case "", "all", "none":
 	default:
 		return fail("sandbox.network", fmt.Sprintf("unknown value %q (known: all, none)", s.Sandbox.Network))
+	}
+	for i, name := range s.Sandbox.EnvPassthrough {
+		if strings.TrimSpace(name) == "" {
+			return fail(fmt.Sprintf("sandbox.env_passthrough[%d]", i), "must be a non-empty env var name")
+		}
+		// Sandbox-critical vars are always replaced by the isolated HOME/TMP —
+		// passthrough must not pretend otherwise.
+		if name == "HOME" || name == "TMPDIR" || name == "TMP" || name == "TEMP" ||
+			strings.HasPrefix(name, "XDG_") || name == tool.SessionEnvVar {
+			return fail(fmt.Sprintf("sandbox.env_passthrough[%d]", i),
+				fmt.Sprintf("%q is sandbox-critical and cannot be passed through", name))
+		}
 	}
 	if err := mcp.ValidateConfigs(s.MCP); err != nil {
 		return fail("mcp", err.Error())

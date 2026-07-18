@@ -50,6 +50,11 @@ permissions:
 # agents: [worker]              # sibling worker.yaml specs allowed to spawn
 # agents_dynamic: true          # also allow inline role definitions
 # agent_workspace: isolated     # isolated (default) | shared
+# sandbox:
+#   network: none               # remove bash egress (a ratchet: children can never widen it)
+#   env_passthrough: [GEMINI_API_KEY]  # credential env vars bash/hooks may see
+#                               # (default: every *_API_KEY/_TOKEN/_SECRET is withheld;
+#                               #  the tool result lists what was withheld by name)
 
 # MCP servers are connected automatically in run/resume/daemon/driver paths.
 # Secrets are referenced by environment-variable NAME, never embedded here.

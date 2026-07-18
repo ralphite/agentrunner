@@ -1,4 +1,4 @@
 spec testdata/spec_errors/nested_sandbox_field.yaml: yaml: unmarshal errors:
   line 5: unknown field "bogus_sandbox_field"
-  valid sandbox fields: network
+  valid sandbox fields: network, env_passthrough
   (run `agentrunner init` for a commented example spec)

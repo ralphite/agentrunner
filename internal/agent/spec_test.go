@@ -97,6 +97,32 @@ mcp:
 	}
 }
 
+// sandbox.env_passthrough parses, and sandbox-critical names are rejected
+// at load time (audit-0718 P0-2).
+func TestLoadSpecSandboxEnvPassthrough(t *testing.T) {
+	write := func(body string) (*AgentSpec, error) {
+		path := filepath.Join(t.TempDir(), "spec.yaml")
+		raw := "name: sbx\nmodel: {provider: scripted, id: m}\nsystem_prompt: test\n" + body
+		if err := os.WriteFile(path, []byte(raw), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return LoadSpec(path)
+	}
+	spec, err := write("sandbox: {env_passthrough: [GEMINI_API_KEY, MY_TOKEN]}\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(spec.Sandbox.EnvPassthrough) != 2 || spec.Sandbox.EnvPassthrough[0] != "GEMINI_API_KEY" {
+		t.Fatalf("env_passthrough = %v", spec.Sandbox.EnvPassthrough)
+	}
+	for _, bad := range []string{"HOME", "XDG_DATA_HOME", "TMPDIR"} {
+		if _, err := write("sandbox: {env_passthrough: [" + bad + "]}\n"); err == nil ||
+			!strings.Contains(err.Error(), "sandbox-critical") {
+			t.Fatalf("%s accepted or wrong error: %v", bad, err)
+		}
+	}
+}
+
 func TestLoadSpecPromptFile(t *testing.T) {
 	spec, err := LoadSpec("testdata/valid_file.yaml")
 	if err != nil {

@@ -2830,10 +2830,22 @@ func (l *Loop) containmentError(eff pipeline.Effect) error {
 
 // applySandbox ratchets the shared executor per this loop's spec (S7 模块
 // 5); Run and Resume both pass through here, and children re-apply their
-// own spec on entry — tightening only, the ratchet never widens.
+// own spec on entry — tightening only, the ratchet never widens. The
+// credential env passthrough (audit-0718 P0-2) seals FIRST-WINS on the same
+// principle: the root loop passes here before any child exists, so a child
+// spec — including a model-drafted inline role — can never widen it.
 func (l *Loop) applySandbox() {
-	if l.Spec != nil && l.Spec.Sandbox.Network == "none" && l.Exec != nil {
+	if l.Spec == nil {
+		return
+	}
+	if l.Spec.Sandbox.Network == "none" && l.Exec != nil {
 		l.Exec.ContainNetwork()
+	}
+	if l.Exec != nil {
+		l.Exec.SealEnvPassthrough(l.Spec.Sandbox.EnvPassthrough)
+	}
+	if l.Hooks != nil {
+		l.Hooks.SealEnvPassthrough(l.Spec.Sandbox.EnvPassthrough)
 	}
 }
 

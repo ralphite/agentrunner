@@ -101,6 +101,45 @@ type Executor struct {
 	// ProbeSandbox injects a backend capability failure after the real
 	// platform probe (tests only).
 	ProbeSandbox func(networkNone bool) error
+	// Credential env passthrough (audit-0718 P0-2): the sandbox withholds
+	// *_API_KEY/_TOKEN/_SECRET vars from bash/command-tool children unless
+	// the ROOT spec's sandbox.env_passthrough names them. Sealed first-wins:
+	// the root loop seals before any child runs, so a child spec — including
+	// a model-drafted inline role — can never widen the face.
+	envMu          sync.Mutex
+	envPassthrough []string
+	envSealed      bool
+}
+
+// SealEnvPassthrough fixes the credential env passthrough list. The first
+// seal wins; later calls (child loops re-applying their own specs on the
+// shared executor) are no-ops. Values passed through are still value-redacted
+// on every journaled surface — passthrough widens what a child PROCESS sees,
+// never what the journal stores.
+func (e *Executor) SealEnvPassthrough(names []string) {
+	e.envMu.Lock()
+	defer e.envMu.Unlock()
+	if e.envSealed {
+		return
+	}
+	e.envSealed = true
+	e.envPassthrough = append([]string(nil), names...)
+}
+
+// EnvPassthrough returns the sealed passthrough list (nil when unsealed).
+func (e *Executor) EnvPassthrough() []string {
+	e.envMu.Lock()
+	defer e.envMu.Unlock()
+	return e.envPassthrough
+}
+
+// EnvPassthroughSeal exposes the seal state so a fresh child executor
+// inherits the parent's (spawn/revive) instead of letting the child spec
+// re-decide it.
+func (e *Executor) EnvPassthroughSeal() (names []string, sealed bool) {
+	e.envMu.Lock()
+	defer e.envMu.Unlock()
+	return e.envPassthrough, e.envSealed
 }
 
 // ContainNetwork ratchets bash executions into a fresh network namespace
@@ -887,12 +926,12 @@ func (e *Executor) bash(ctx context.Context, rawArgs json.RawMessage) Result {
 	if err := json.Unmarshal(rawArgs, &args); err != nil || args.Command == "" {
 		return errResult("bash: invalid args: need {\"command\": string}")
 	}
-	cmd, cleanup, err := e.sandboxedBash(args.Command)
+	cmd, cleanup, withheld, err := e.sandboxedBash(args.Command)
 	if err != nil {
 		return errResult("bash: required OS sandbox unavailable (%v) — refusing to run", err)
 	}
 	defer cleanup()
-	return e.runSandboxed(ctx, cmd, nil)
+	return e.runSandboxed(ctx, cmd, nil, withheld)
 }
 
 // RunCommandTool executes a user-defined command tool (INC-55, HANDA-PARITY
@@ -905,7 +944,7 @@ func (e *Executor) bash(ctx context.Context, rawArgs json.RawMessage) Result {
 // The loop adjudicates the fixed command through the full pipeline (execute-
 // class command effect) before this ever runs.
 func (e *Executor) RunCommandTool(ctx context.Context, command string, argsJSON json.RawMessage) Result {
-	cmd, cleanup, err := e.sandboxedBash(command)
+	cmd, cleanup, withheld, err := e.sandboxedBash(command)
 	if err != nil {
 		return errResult("command tool: required OS sandbox unavailable (%v) — refusing to run", err)
 	}
@@ -914,15 +953,17 @@ func (e *Executor) RunCommandTool(ctx context.Context, command string, argsJSON 
 	if len(bytes.TrimSpace(stdin)) == 0 {
 		stdin = []byte("{}") // a parameterless call still gets a valid JSON object
 	}
-	return e.runSandboxed(ctx, cmd, stdin)
+	return e.runSandboxed(ctx, cmd, stdin, withheld)
 }
 
 // runSandboxed runs a prepared sandboxed command, optionally feeding stdin,
 // and renders the standard {stdout,stderr,exit_code[,timed_out|canceled]}
 // result shared by bash and command tools. Wall-clock is owned by the durable
 // timer (2.11): a ctx cancel caused by ErrActivityTimeout renders timed_out,
-// any other cancellation renders canceled.
-func (e *Executor) runSandboxed(ctx context.Context, cmd *exec.Cmd, stdin []byte) Result {
+// any other cancellation renders canceled. withheld lists credential env var
+// names the sandbox stripped — surfaced on the result so a command that
+// needed one fails explicably instead of mysteriously (audit-0718 P0-3).
+func (e *Executor) runSandboxed(ctx context.Context, cmd *exec.Cmd, stdin []byte, withheld []string) Result {
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -982,6 +1023,11 @@ func (e *Executor) runSandboxed(ctx context.Context, cmd *exec.Cmd, stdin []byte
 		"stdout":    truncateHeadTail(stdout.String(), bashOutputBytes/2),
 		"stderr":    truncateHeadTail(stderr.String(), bashOutputBytes/2),
 		"exit_code": cmd.ProcessState.ExitCode(),
+	}
+	if len(withheld) > 0 {
+		// Explicit, not silent (audit-0718 P0-3): names only, never values.
+		// spec sandbox.env_passthrough lists the ones a command may see.
+		out["credential_env_withheld"] = withheld
 	}
 	switch {
 	case timedOut:

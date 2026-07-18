@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/ralphite/agentrunner/internal/index"
@@ -74,25 +75,26 @@ func DoctorSandbox() (backend string, openErr, restrictedErr error) {
 }
 
 // sandboxedBash constructs the mandatory OS-contained command and an isolated
-// HOME/TMP. Capability absence fails before any user command starts.
-func (e *Executor) sandboxedBash(command string) (*exec.Cmd, func(), error) {
+// HOME/TMP. Capability absence fails before any user command starts. The
+// third return lists credential env var names withheld from the child.
+func (e *Executor) sandboxedBash(command string) (*exec.Cmd, func(), []string, error) {
 	info, err := e.SandboxInfo()
 	if err != nil {
-		return nil, func() {}, err
+		return nil, func() {}, nil, err
 	}
 	root, err := filepath.EvalSymlinks(e.WS.Root())
 	if err != nil {
-		return nil, func() {}, fmt.Errorf("resolve workspace: %w", err)
+		return nil, func() {}, nil, fmt.Errorf("resolve workspace: %w", err)
 	}
 	tmp, err := os.MkdirTemp("", "agentrunner-sandbox-")
 	if err != nil {
-		return nil, func() {}, fmt.Errorf("create sandbox temp: %w", err)
+		return nil, func() {}, nil, fmt.Errorf("create sandbox temp: %w", err)
 	}
 	cleanup := func() { _ = os.RemoveAll(tmp) }
 	resolvedTmp, err := filepath.EvalSymlinks(tmp)
 	if err != nil {
 		cleanup()
-		return nil, func() {}, fmt.Errorf("resolve sandbox temp: %w", err)
+		return nil, func() {}, nil, fmt.Errorf("resolve sandbox temp: %w", err)
 	}
 	writable := []string{root, resolvedTmp}
 	writable = append(writable, gitMetadataPaths(root)...)
@@ -100,16 +102,32 @@ func (e *Executor) sandboxedBash(command string) (*exec.Cmd, func(), error) {
 	cmd, err := platformSandboxCommand(root, command, writable, denied, info.Network == "none")
 	if err != nil {
 		cleanup()
-		return nil, func() {}, err
+		return nil, func() {}, nil, err
 	}
-	cmd.Env = sandboxEnvironment(resolvedTmp, e.Session)
-	return cmd, cleanup, nil
+	env, withheld := sandboxEnvironment(resolvedTmp, e.Session, e.EnvPassthrough())
+	cmd.Env = env
+	return cmd, cleanup, withheld, nil
 }
 
-func sandboxEnvironment(home, session string) []string {
-	out := make([]string, 0, len(os.Environ())+6)
+// sandboxEnvironment is the parent environment with HOME/TMP isolated to the
+// sandbox temp and credential variables withheld — unless the root spec's
+// sandbox.env_passthrough names them (audit-0718 P0-2). It also returns the
+// NAMES withheld so the tool result can say so instead of the command
+// failing mysteriously (P0-3); names are not secrets, values are.
+func sandboxEnvironment(home, session string, passthrough []string) (env, withheld []string) {
+	allow := map[string]bool{}
+	for _, name := range passthrough {
+		allow[name] = true
+	}
+	env = make([]string, 0, len(os.Environ())+6)
 	for _, kv := range os.Environ() {
 		key, _, _ := strings.Cut(kv, "=")
+		// Sandbox-critical vars are always replaced below — passthrough can
+		// never rescue them (spec validation also rejects those names).
+		if key == "HOME" || key == "TMPDIR" || key == "TMP" || key == "TEMP" ||
+			strings.HasPrefix(key, "XDG_") || key == SessionEnvVar {
+			continue
+		}
 		upper := strings.ToUpper(key)
 		secret := false
 		for _, suffix := range []string{"_API_KEY", "_TOKEN", "_SECRET"} {
@@ -118,18 +136,19 @@ func sandboxEnvironment(home, session string) []string {
 				break
 			}
 		}
-		if secret || key == "HOME" || key == "TMPDIR" || key == "TMP" || key == "TEMP" ||
-			strings.HasPrefix(key, "XDG_") || key == SessionEnvVar {
+		if secret && !allow[key] {
+			withheld = append(withheld, key)
 			continue
 		}
-		out = append(out, kv)
+		env = append(env, kv)
 	}
-	out = append(out, "HOME="+home, "TMPDIR="+home, "TMP="+home, "TEMP="+home,
+	env = append(env, "HOME="+home, "TMPDIR="+home, "TMP="+home, "TEMP="+home,
 		"XDG_CACHE_HOME="+filepath.Join(home, "cache"))
 	if session != "" {
-		out = append(out, SessionEnvVar+"="+session)
+		env = append(env, SessionEnvVar+"="+session)
 	}
-	return out
+	sort.Strings(withheld)
+	return env, withheld
 }
 
 func credentialPaths(root string) []sandboxDeny {
