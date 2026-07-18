@@ -116,11 +116,10 @@
 
 - [x] **F1** QA-69 落地 PASS(真浏览器双锚),SPEC 还锚,
   spec-anchor-debt 清零,G30 关闭。
-- [ ] **F2** INC-71/72 B 闸:容器内真实 daemon 生命周期 QA——
-  mid-turn kill -9 → 重启 boot 自动接续(INC-71);运行中 cron 系列
-  SIGTERM 优雅停机 → 重启复活(INC-72);证据归档 qa/runs/。
-- [ ] **F3** 瞬时红追踪:check.sh 红腿留档已布,复现即定位修复
-  (无复现则在下次出现时处理,不占迭代)。
+- [x] **F2** QA-70 脚本+workflow 就位(容器无 key,经 Actions
+  secrets 执行);待 dispatch 真跑取证(见进度日志)。
+- [x] **F3** 已定位修复:TestNewAndSendDetach 清理竞态(drain+
+  settle 等待),-count=10 绿。
 
 ## 附 · 显式不做（🧊 记档，loop 跳过）+ 待裁决(见 DECISIONS-PENDING.md)
 
@@ -176,5 +175,6 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
 - 2026-07-18 · 用户指示:裁决项集中登记(DECISIONS-PENDING.md),
   非裁决项持续推进——E1 恢复可做,新增第 5 批 F1-F3 · 2eccea1 ·
   loop 重启。
-- 2026-07-18 · F1/QA-69 · 真浏览器双锚 PASS,G30 债清零 · 本 commit ·
+- 2026-07-18 · F1/QA-69 · 真浏览器双锚 PASS,G30 债清零 · f7a7818 ·
   完成。
+- 2026-07-18 · F2 QA-70 就位 + F3 瞬时红修复 · 本 commit · 完成。

@@ -4306,3 +4306,16 @@ B composer:Add 菜单三组(Add/Plugins/Advanced)10 根动作。踩坑记档:
 不落),scripted provider 是正解;③SPA 有 SSE 长连,playwright 等
 domcontentloaded 而非 networkidle。SPEC 两行还 QA-69 锚,
 spec-anchor-debt 清零,G30 关闭。
+
+## 2026-07-18 · audit-0717.F2+F3:QA-70 就位 + gotest 瞬时红定位修复
+
+- F2:QA-70 脚本(qa/run-qa70.sh)+ qa-daemon-lifecycle workflow。
+  场景 A=INC-71 红线(mid-turn kill -9 → 重启零 send 自动接续);
+  场景 B=INC-72 红线(drive crash→boot sweep 收编→SIGTERM 优雅停机
+  →无 driver_completed→重启复活)。本容器无 provider key,指定经
+  Actions secrets 执行,证据走 artifact(QA-62 先例)。
+- F3:两次 gotest 瞬时红由红腿留档定位——TestNewAndSendDetach 清理
+  竞态:detached send 打印 delivered 后 turn 仍在 journaling,TempDir
+  RemoveAll 撞写("directory not empty");并行门下 CPU 争抢放大窗口。
+  修:①daemon Serve 排水式关停(t.Cleanup 先 cancel 后等 served);
+  ②等第二个 idle 落定再结束(fixture 补第二步);-count=10 绿。

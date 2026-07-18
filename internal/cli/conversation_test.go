@@ -219,6 +219,7 @@ func TestNewAndSendDetach(t *testing.T) {
 	specPath := writeSpec(t, dir)
 	fixture := `steps:
   - respond: [ { text: "hi" }, { finish: end_turn } ]
+  - respond: [ { text: "ok" }, { finish: end_turn } ]
 `
 	fixPath := filepath.Join(dir, "fix.yaml")
 	if err := os.WriteFile(fixPath, []byte(fixture), 0o644); err != nil {
@@ -240,7 +241,19 @@ func TestNewAndSendDetach(t *testing.T) {
 		Approvals:    broker,
 		PersistInput: persistInputFunc(),
 	}
-	go func() { _ = srv.ListenAndServe(ctx) }()
+	served := make(chan struct{})
+	go func() { _ = srv.ListenAndServe(ctx); close(served) }()
+	// Drain BEFORE the TempDirs vanish (cleanups run LIFO, this one is
+	// registered after them): a detached send's turn keeps journaling after
+	// "delivered", and TempDir RemoveAll racing those writes was a real
+	// gotest flake (audit-0717 F3, "directory not empty").
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-served:
+		case <-time.After(5 * time.Second):
+		}
+	})
 	waitDaemon(t, sock)
 
 	ws := t.TempDir()
@@ -277,6 +290,27 @@ func TestNewAndSendDetach(t *testing.T) {
 	}
 	if strings.TrimSpace(out.String()) != "delivered" {
 		t.Fatalf("send --detach stdout = %q, want delivered", out.String())
+	}
+	// Wait for the detached turn to SETTLE (second idle) so nothing is still
+	// writing when the temp dirs are torn down.
+	deadline = time.Now().Add(5 * time.Second)
+	for {
+		evs, err := store.ReadEvents(sdir)
+		idles := 0
+		if err == nil {
+			for _, e := range evs {
+				if e.Type == event.TypeWaitingEntered {
+					idles++
+				}
+			}
+		}
+		if idles >= 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("detached send turn never settled\nlog: %s", errLog.String())
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 
