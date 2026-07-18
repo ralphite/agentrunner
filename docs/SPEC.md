@@ -41,9 +41,9 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | provider capability envelope（版本、provider/model、modalities、stream/tools/thinking/cache/parallel） | ✅ | 不变量 | INC-11.5 · TestCapabilitiesMatrix；SessionStarted 冻结、inspect 可见 |
 | WAITING_APPROVAL 挂起期间消息唤醒 | 🟡 | UJ-07 | 只排队不唤醒；GAPS G3 余项 |
 | 手动 compact（带指示）/ clear | ✅ | UJ-09 | INC-6 · TestManualCompact/Clear/EmptySummarySkipped · TestHandleCompactForwardsDirective · QA-12（真实 API：compact 带指示落非空 summary、clear 落 cleared） |
-| 自动 compaction（阈值触发） | ✅ | UJ-09 | S3 |
+| 自动 compaction（阈值触发） | ✅ | UJ-09 | S3 · TestCompactionTriggeredInLoop（G30 还锚 audit-0717 C1） |
 | microcompact（assembly 把久远可重算 read-class 工具结果渲染为占位符；不调 LLM；单调 micro boundary；先于 autocompact） | ✅ | UJ-09 | INC-13 · TestMicrocompact{AssemblyView,MonotonicFold,TriggeredInLoop,DisabledNoop} · QA-22（真 Gemini：micro 触发、无 compact、模型重跑工具复原被清结果） |
-| 手动 barrier 打点（`ar barrier`，非运行中 session） | ✅ | UJ-15 | fork 全链路测试（S7 收口） |
+| 手动 barrier 打点（`ar barrier`，非运行中 session） | ✅ | UJ-15 | fork 全链路测试（S7 收口） · TestCLIManualBarrierThenFork/TestParseBarrierID（G30 还锚 audit-0717 C1） |
 | stdin 管道文本（`run/new/send` 文本参数缺省且 stdin 为管道时读取，显式 `-` 占位；非管道下 `-` 报错不阻塞；仅尾部换行 trim；附件 flags 不受影响） | ✅ | UJ-01/02 | INC-28（HANDA #32）· TestCompleteTextArg*/TestRunCmdPipedPromptSkipsUsage · 真验 2026-07-10（真 Gemini：管道开场+`-` 多行续聊，qa/runs/2026-07-10-INC28） |
 | retry（conversation：`ar retry <sid>`/webui 重发最后一条 user-class 输入为新 turn，payload 纯函数重组、派生 command_id 幂等；driver：Scheduled Retry 从旧 `DriverStarted` 的 spec/workspace/spec_path **新建 series**，绝不向 driver journal 注入聊天消息） | ✅ | UJ-02/14/24 | INC-45+INC-66 · TestPlanRetryTargetsLastUserInput/TestRetryAttachmentsRoundTripCAS/TestParseDriverRetryInfo/TestCLIResumeDriverReportsDomainError |
 | 服务端语音听写（`ar dictate <audio>`：provider `PartAudio` → Gemini inline_data 转写；`--context` 消歧专有名词/中英混合；`--max-bytes` 上限；webui 薄壳录音上传经 ar、SpeechRecognition fallback；**文本便利非模型 audio 模态**——loop 不组装 audio part、`InputModalities` 不含 audio） | ✅ | UJ-01/04 | INC-56（HANDA #18）· TestToPartAudio/TestDictateEncodesAudioPartAndContext/TestDictateRejectsOversizeAudio/TestHandleDictateRejectsNonUploadPath · 双闸门绿：A 闸孪生 + QA-57 真 Gemini（say 合成音频转写保留 kubelet/Artemis/rebase） |
@@ -60,7 +60,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | 完整编排七步（多输入+并行+杀+回灌+续聊+恢复） | ✅ | UJ-18 | QA-09 · C7 |
 | 父崩溃 settle-from-child-fold | ✅ | 不变量 | QA-08(c) · C10(c) |
 | spawn 一律非阻塞（阻塞路径已删除,零 legacy） | ✅ | UJ-18 | 2026-07-08 落码(D3a) · TestSpawnEndToEnd(后台形态) · s5 场景 routes 化 |
-| handoff（`handoff_agent`）/ blackboard（`publish_note`/`read_notes`） | ✅ | UJ-18 | S4 |
+| handoff（`handoff_agent`）/ blackboard（`publish_note`/`read_notes`） | ✅ | UJ-18 | S4 · TestHandoffEndsParentRun/TestPublishReadOrder/TestPublishMirror（G30 还锚 audit-0717 C1） |
 | 树预算 / 权限默认不超父（冻结交集） / 深度扇出上限 | ✅ | UJ-18/20/23 | S4 · INC-12.5 · TestEscalationApproval（预算/上限/收容无例外） |
 | 子提权申请通道（`escalate` 强制人审；批准用 child rules，拒绝/interrupt 降级交集） | ✅ | UJ-23 | INC-12.5 · TestEscalationApproval |
 | 动态角色（`agents_dynamic` + inline role；冻结 RoleSpec；无 hooks/MCP/skills，工具仅父子集） | ✅ | UJ-23 | INC-12.4 · TestSpawnDynamicRole |
@@ -68,7 +68,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | durable delegation/DAG/lease + workspace assignment（生产默认隔离 worktree，显式 shared；revive 复用；isolated 快照语义入工具契约+子 session 注入，`spawn_agent.replaces` 显式回收前任，INC-30） | ✅ | UJ-16/18/23 | INC-11.6 · TestIsolatedTeamWorkspaceSurvivesRevive/TestDelegationDependencyPlan · INC-30 · TestIsolatedChildPromptCarriesSnapshotNotice/TestSpawnReplacesCancelsPredecessor · QA-INC30（真 Gemini 三场景） |
 | 子 agent 实时进度镜像（成员事件带 session 标签入树根 hub;`ar attach <child-sid>` live 过滤;webui 子会话 SSE;CLI 前台锚定折叠）/ 子审批根宿主路由与 crash 重挂接 | ✅ | UJ-18/23 | INC-12.6 · TestDaemonAttachChildFiltersLive/TestCrashResumeReattachesApprovalWaitingChild · QA-20(G10 关闭) |
 | 子执行收敛为递归 session | 🟡 | — | 阻塞路径已删(D3a);driver 独立待收敛,挂 UJ-22/G23（DESIGN §17） |
-| 并发子 agent 确定性测试基建（routing provider） | ✅ | — | C3–C7 孪生在用（GAPS G4 关闭事实） |
+| 并发子 agent 确定性测试基建（routing provider） | ✅ | — | C3–C7 孪生在用（GAPS G4 关闭事实） · TestBackgroundSpawnParallelAndSettle/TestSteerChangesOrchestration（G30 还锚 audit-0717 C1） |
 | 内置只读 agent 库（explore/plan 随发行 embed;spec `agents:` 列名即 spawn 无需自带 spec;内置优先同名 sibling;model 继承父） | ✅ | UJ-18 | INC-25 · #78 · TestBuiltinSpecLoads/TestResolverPrefersBuiltinAndInheritsModel/TestResolverBuiltinShadowsSiblingFile · QA-32（真机 spawn 内置 explore、只读面、返值）;默认全自动可用拆 #16b |
 
 ## C · 工具面
@@ -78,11 +78,11 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | read_file / write_file / edit_file（read_file 支持读图/PDF：media envelope+CAS ref,assembly 注入 image/file part,journal 恒 byte-free;5MB 上限;文本路径零变化；write/edit result 带 lines_added/removed 行统计,INC-43） | ✅ | UJ-02/05 | S1 · QA-03（write_file）· INC-33（TestReadFileImage*/TestReadFileImageEndToEnd · QA-38 真机:模型从像素读出截图内容） |
 | bash 前台+后台（`output`/`kill` 凭 handle；SIGTERM→宽限→SIGKILL，以进程组实际消失而非 wrapper reaped 为取消终态；**后台进度 tail**：running handle 的 `output` 回有界 output_tail、chunk 级 redact、ephemeral `bg_output` 镜像——audit-0717 B9，G10 全关） | ✅ | UJ-02/18 | S1/S3+INC-67 · TestBashCancelLeavesNoSessionOrphans/TestBashCancelKillsTermResistantGrandchild/TestBackgroundOutputTailWhileRunning/TestRunSandboxedTeesLiveOutput · QA-05/67 |
 | 后台任务 notify 门（`notify: always\|on_fail\|none`；fold 从 journaled args 读门、resume 重放同裁决；none=终态只摘 handle 不回流（fire-and-forget）、on_fail=仅 IsError 回流；Cancelled 不过门；非法值宽容回退 always） | ✅ | UJ-18 | INC-39（HANDA #10 缩水版，唤醒与结构化载荷经勘误已存在）· TestBackgroundNotifyGate（10 例矩阵）· 真验 2026-07-10（真 Gemini 双场景：none 零回流零多余 turn / on_fail 回流+模型复述 exit 3，qa/runs/2026-07-10-INC39） |
-| semantic_search（IndexStore，BM25） | ✅ | UJ-01 | S7 |
+| semantic_search（IndexStore，BM25） | ✅ | UJ-01 | S7 · TestSearchFindsRelevantChunk/TestSearchRanksDenserFileHigher（G30 还锚 audit-0717 C1） |
 | publish_artifact（`outputs:` contract、审批载荷；manifest 跨 store instance/process 单写 + 原子替换，不丢并发版本） | ✅ | UJ-06/18 | S5+INC-67 · TestArtifactPublishSerializesAcrossStoreInstances |
 | artifact 消费面（模型侧 artifacts_list/read：loop 内部 read 工具、fold `Published` 为真相（orphan blob 不可寻址）、read 分页 offset/max_bytes+next_offset+UTF-8 边界不切、二进制回 metadata、@version 历史寻址；CLI `ar artifacts <sid> list\|read <stream>[@vN]`；webui Supervision Artifacts 区+点击查看器） | ✅ | UJ-06/18/24 | INC-40（HANDA #11）· TestArtifactsList*/TestArtifactsRead*（分页重组/边界/orphan 不漏）· 真验 2026-07-11（真 Gemini publish→list→read 全链 READBACK 逐字命中+CLI+webui 查看器，qa/runs/2026-07-11-INC40） |
 | exit_plan_mode（plan mode 跃迁） | ✅ | UJ-06/11 | S2/S3 · TestPlanApprovalFullFlow/TestPlanModeFullFlow/TestExitPlanModeDeniedStaysInPlan |
-| schedule_next / finish_series（loop 自定步调） | ✅ | UJ-14 | S6 |
+| schedule_next / finish_series（loop 自定步调） | ✅ | UJ-14 | S6 · TestDriverSelfPaced/TestDriverSelfPacedNoIntentFinish/TestDriverSelfPacedClamp（G30 还锚 audit-0717 C1） |
 | progress_update（模型整表维护会话 checklist；loop 内部工具不过管线；status 归一 pending/running/done/failed、≤50 条/字段 clamp/redact；result 只回计数；`ProgressUpdated` 纯 fold 出 `state.Session.Progress`，`ar inspect` 文本+JSON 与 webui Supervision Progress 区消费） | ✅ | UJ-18/22/24 | INC-37（HANDA #9）· TestProgressTool*/TestProgressFoldReplacesWholesale + event 全类型 round-trip 守卫 · 真验 2026-07-10（真 Gemini 7 次自发调用+webui DOM 断言，qa/runs/2026-07-10-INC37） |
 | grep / glob 独立工具 | ✅ | UJ-01 | INC-3 · TestGrep*/TestGlob* · QA-11（真实 API：模型自发调用 grep+glob，凭据红线守住） |
 | grep 参数增强（case_insensitive、glob 文件过滤、output_mode: content/files_with_matches/count；-A/-B/-C context lines；multiline 跨行 regex；默认=旧行为） | ✅ | UJ-01 | INC-22（case/glob/output_mode·QA-30）+ INC-24（-A/-B/-C context·QA-31）+ INC-27（multiline (?sm) 整文件匹配·QA-35）· TestGrepCaseInsensitive/GlobFilter/OutputModes/ContextLines/Multiline |
@@ -90,21 +90,21 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | web search | ❌ | UJ-01 | GAPS G18 余项（搜索后端选型 / provider 服务端工具例外类别，单独成增量） |
 | ask_user（wait-class 提问：park WAITING_INPUT，应答走 inbox→配对 tool result，同 session 续跑；一批限一问、interrupt/crash/headless 全覆盖；**结构化形态**：questions[]≤4 问×2–4 选项/multi_select/allow_free_text，park detail 携带结构，`AskResolved.Answers` typed，`ar answer <sid> <q>:<n>`/`--skip`（cancelled 非错）+ daemon `answer` 通道，free-text send 兼容保留，crash 重放配对 pending answer；**webui 分步表单卡**（inspect.waiting.ask_questions 暴露结构，AskForm 单/多选+free-text，POST /answer 构 1-based specs，--skip）+ **queued 撤回按钮**（GET /queue+POST /unqueue）） | ✅ | UJ-06/24 | INC-5 · TestAskUser* · QA-13 · INC-47.1（步1，Test{ValidateAskQuestions,ValidateAskAnswers,AnswerCommandPairsAcrossRestart,ParseAnswerSpecs}）+ INC-47.2（步2 webui）· 真验 2026-07-11（真 Gemini：CLI typed 复述+skip（qa/runs/2026-07-11-INC47）；webui 表单点选 Banana/Dinner→choice.txt+queued 撤回端点（qa/runs/2026-07-11-INC47.2）） |
 | finish（结束 turn 让 session 待命） | 🧊 | UJ-06 | 记档不预做（DESIGN §17：待命本身就是待命） |
-| tool 输出截断（per-tool 上限） | ✅ | 不变量 | S3 |
+| tool 输出截断（per-tool 上限） | ✅ | 不变量 | S3 · TestReadFileTruncation/TestBashOutputTruncation/TestGrepTruncates（G30 还锚 audit-0717 C1） |
 
 ## D · 权限与安全
 
 | 功能点 | 状态 | Journey | 验收锚 / 备注 |
 |---|---|---|---|
-| rules（tool/path/command/network + realpath 归一） | ✅ | UJ-08/20 | S2 · S7（network） |
+| rules（tool/path/command/network + realpath 归一） | ✅ | UJ-08/20 | S2 · S7（network） · TestPermissionRulesTable/TestNetworkRuleMatchesEgressScope/TestRootSymlinkResolves（G30 还锚 audit-0717 C1） |
 | bash 命令粒度匹配（复合命令逐段聚合取最严 + wrapper 剥离 + 只读集免提示；显式 deny 先于只读集；fail-safe 退整体） | ✅ | UJ-08 | INC-16 · TestSplitCompound/TestStripWrappers/TestIsReadOnlyCommand/TestCompound*/TestReadonlySetYieldsToExplicitRule · QA-25（真机：victim 存活证逐段 deny） |
 | protected paths 写保护（acceptEdits 下 .git/.claude/rc/.mcp.json 等敏感写需审批；只收紧 mode default 自动放行，bypass/显式规则/hardFloor 不变；.claude/worktrees carve-out） | ✅ | UJ-08 | INC-18 · TestIsProtectedWritePath/TestAcceptEditsProtectedRequiresApproval/TestBypassIgnoresProtected/TestExplicitAllowOverridesProtected/TestProtectedWorktreeCarveout · QA-28（真机：.mcp.json 需审批且 pending 时未改写） |
 | modes——面过滤/mode 默认/prompt 注入/plan→default 跃迁（default/plan/acceptEdits + bypass 不跳 hooks） | ✅ | UJ-06/11 | S2/S3 · TestAdvertisedToolsByMode/TestPermissionModeDefaults/TestPlanModeFullFlow/TestBypassRunsHooksButSkipsPermission |
 | mode 运行中切换（default↔acceptEdits 用户命令；`ar mode`/webui `/mode` + pill 点击切换（选择器：Ask↔Auto-accept 可点，Full/Plan disabled 带原因）；plan 退出仍归 exit_plan_mode 审批、bypass 仅启动时；非法目标显式 rejected receipt；子 agent frozen-at-spawn 不变） | ✅ | UJ-06 | INC-42（G29 关闭）+ INC-58（pill 点击入口，原占 INC-54 撞号让号）· TestModeControlSwitchesToAcceptEdits/SwitchBack/RejectsInvalid/IdempotentReplay/TestReplayProjectsModeChanged + runtimeModeTarget 单测 · QA-44 + QA-51（真机 pill 点击切换六红线+webui playwright 真用户流） |
-| 审批流（ask → WAITING_APPROVAL → 应答/拒绝理由回灌） | ✅ | UJ-08 | S2 · 远程审批 S6 |
-| hooks（pre/post，observe+block） | ✅ | UJ-19 | S2 |
+| 审批流（ask → WAITING_APPROVAL → 应答/拒绝理由回灌） | ✅ | UJ-08 | S2 · 远程审批 S6 · TestApprovalApprovePath/TestWaitingTransitions/TestReplayApprovalCarriesToolAndReason（G30 还锚 audit-0717 C1） |
+| hooks（pre/post，observe+block） | ✅ | UJ-19 | S2 · TestPreHookProtocol/TestPostHookNotes · QA-24（G30 还锚 audit-0717 C1） |
 | OS 沙箱（bash/verifier 默认 filesystem=workspace；Seatbelt/Bubblewrap；network none 棘轮；能力缺失 fail-closed） | ✅ | UJ-20 | INC-11.3 · TestBashFilesystemSandbox/TestBashNetworkContainment/TestSandboxCapabilityMissingDeniesBeforeActivity |
-| 凭据 redaction + 硬排除表（含 .netrc/.npmrc 等） | ✅ | UJ-20 | S2/S7 收口 |
+| 凭据 redaction + 硬排除表（含 .netrc/.npmrc 等） | ✅ | UJ-20 | S2/S7 收口 · TestActivityRedaction/TestPromptCredentialRedactedEverywhere/TestSnapshotHardExcludes（G30 还锚 audit-0717 C1） |
 | 信任模型（project 层 hooks 与 command tools 需显式 trust，`ar trust`；决策 #19 范畴不变量） | ✅ | UJ-20 | S2 · INC-55（command tools 同门）· TestTrustRegistry/TestMergeUntrustedProjectTightens/TestDiscoverProjectTrustGate/TestCommandToolProjectTrustGate |
 | 审批"允许且不再问"：常设应答 + 规则写回（INC-62：同 session 内同判据 ask 由 journal 常设应答自动作答，不触层冻结；跨 session 走 user 层精确 allow 写回（取 A）；spawn_agent 为 tool 级判据入两侧；判据提取两侧共用 `standingCriterion`） | ✅ | UJ-08/18 | INC-17/INC-62 · TestStandingApprovalSameSession/TestStandingApprovalSpawnAgent/TestStandingApprovalSurvivesResume/TestPlainApproveDoesNotStand/TestRememberRuleFromEffect/TestAppendRuleIdempotentAndPreserving/TestRememberedRuleAllowsNextSession · QA-26（真机 bash 面）· QA-62（真 Gemini @ Actions run #2，2026-07-12：3 spawn 恰 1 ask + standing 判词在案 + 写回规则 + 新 session 零 ask，5/5；证据 artifact qa62-run）——G35 已关闭 |
 | prompt injection 威胁模型成文 | 🟡 | UJ-20 | GAPS G16：统一信任分级条款已成文（DESIGN §5）+ web_fetch BEGIN/END 定界符落文本内（TestWebFetchPlainText/FollowsRedirects/TruncatesOversizedBody）；余项 host allowlist |
@@ -120,7 +120,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | crash 矩阵三态复活（idle/在飞 bash/在飞子 agent） | ✅ | UJ-09 | QA-08 · C10 |
 | 显式重开（send 对任何 session 成立，含带标记的；自动路径受标记约束） | ✅ | UJ-09/03 | TestSendReopensMarkedSession · TestAutomaticResumeSkipsMarkedSession · TestSendRevivalDiesWithDaemon |
 | 恢复单一自愈（in-doubt 处置后渲染 interrupted-by-crash,session 继续） | ✅ | 不变量 | QA-08 · 决策 #29(2026-07-05 单一化) |
-| workspace 快照（shadow repo、排除表、pinned） | ✅ | UJ-15 | S2/S7 |
+| workspace 快照（shadow repo、排除表、pinned） | ✅ | UJ-15 | S2/S7 · TestSnapshotAndMaterialize/TestSnapshotHardExcludes/TestShadowRepoDiffAgainstSnapshot（G30 还锚 audit-0717 C1） |
 | daemon kill -9 后孤儿 bash 子进程清扫（pgid） | ✅ | — | audit-0717 B3 · daemon boot sweep（标记+init-parent 双证据）· TestSweepOrphanSessionProcessesKillsStrayGroup/TestParseProcStat/TestParsePSTableKeepsOnlyInitParented |
 | shadow repo 并发 flock（同 GIT_DIR 的 init/Snapshot/ref push 跨 session/goroutine/process 单写，Diff private index 仍并发只读） | ✅ | UJ-15/16 | INC-66 · TestShadowRepoSerializesConcurrentInitAndSnapshots |
 | session genesis 守卫（空/无 `SessionStarted|DriverStarted|ForkedFrom+SessionStarted` journal 不可 resolve/list/send/resume） | ✅ | 不变量 | INC-66 · TestResolveSessionDirRejectsEmptyJournalDirectory |
@@ -129,11 +129,11 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 
 | 功能点 | 状态 | Journey | 验收锚 / 备注 |
 |---|---|---|---|
-| driver-goal（批式/headless，verifier 三态、停滞检测、carry；fresh child run） | ✅ | UJ-15 | S6 |
+| driver-goal（批式/headless，verifier 三态、停滞检测、carry；fresh child run） | ✅ | UJ-15 | S6 · TestDriverGoalSatisfied/TestDriverGoalStalled/TestDriverCarryToArtifactStore（G30 还锚 audit-0717 C1） |
 | **in-session goal（会话内，context 延续；command/llm_judge/self-cert 三种裁决；只有 pass=`GoalAchieved{satisfied}`；`max_checks` miss=`GoalExhausted{budget}`，goal 保留、update 可扩预算后同 context 继续；step-limit pass 有明确 `goal_satisfied` 收据）** | ✅ | UJ-22 | INC-D1+INC-10+INC-48+INC-66 · 决策 #21/#34/#40 · TestGoalUpdateRecoversExhaustedGoal/TestGoalExhaustionRetainsGoalAndUpdateRearmsIt + 既有 Goal suites |
 | loop mode（interval fixed-rate/cron/self_paced、durable absolute tick、overlap skip/coalesce；每个 retry attempt parent-journaled；全 child error=`child_failed`） | ✅ | UJ-14 | S6+INC-66 · TestDriverIntervalOverlapPolicies/TestDriverChildFailRetryRecovers/TestDriverChildFailSurface |
 | verifier 管线化（in-session/driver 均 journaled effect + Activity bracket + containment evidence；driver-trust 规则层） | ✅ | UJ-15/22 | S7 · INC-11.3 · TestVerifierActivityTrace |
-| best-of-N（隔离 worktree、per-attempt 判定、胜者留盘） | ✅ | UJ-16 | S7 |
+| best-of-N（隔离 worktree、per-attempt 判定、胜者留盘） | ✅ | UJ-16 | S7 · TestDriverParallelBestOfN/TestDriverParallelWorktreeLostFailsAttempt（G30 还锚 audit-0717 C1） |
 | overlap: interrupt | 🧊 | UJ-14 | backlog（与顺序执行同理推迟） |
 | 胜者晋升（fork / apply diff） | 🧊 | UJ-16 | GAPS G15（v0 用户手动晋升，记档） |
 | cron 跨重启唤醒（daemon **crash** 重启：boot sweep 重挂 running loop drive，missed cron slot 按 overlap 恰好补跑一次；durable tick + Driver.Resume backfill，幂等） | ✅ | UJ-14 | INC-54 · TestDriverCronResumeBackfillsMissedTicks/TestDriverCronResumeCoalescesMissedTicks/TestDriverCronResumeIsIdempotent · TestBootSweepResumesPendingDrives/TestBootSweepSkipsMarkedDrive/TestBootSweepSkipsHostedDrive · TestScanDriveSessionsGate · QA(B闸真实 daemon 重启，集中验) · 优雅停机保活 cron 未做（见 GAPS G22 注） |
@@ -142,9 +142,9 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 
 | 功能点 | 状态 | Journey | 验收锚 / 备注 |
 |---|---|---|---|
-| CheckpointBarrier（安全边界/turn 收尾/手动，向量+快照 ref） | ✅ | UJ-15 | S7 |
-| fork（单创世、处置向量落实、随行库复制、独立 worktree） | ✅ | UJ-15 | S7 收口 review 修复 + fork-of-fork 测试 |
-| rewind（fork 后显式切换） | ✅ | UJ-15 | S7 |
+| CheckpointBarrier（安全边界/turn 收尾/手动，向量+快照 ref） | ✅ | UJ-15 | S7 · TestBarrierPerTurnAndTerminal/TestBarrierVectorIncludesChildStreams（G30 还锚 audit-0717 C1） |
+| fork（单创世、处置向量落实、随行库复制、独立 worktree） | ✅ | UJ-15 | S7 收口 review 修复 + fork-of-fork 测试 · TestCutOfForkKeepsSingleGenesis/TestCutAppliesCancelAtFork/TestCLIForkRewindsAndContinues（G30 还锚 audit-0717 C1） |
+| rewind（fork 后显式切换） | ✅ | UJ-15 | S7 · TestCLIForkRewindsAndContinues（G30 还锚 audit-0717 C1） |
 | 多模态 blob 在 fork/rewind 下的归属语义 | 🟡 | — | GAPS G1 余项 |
 | barrier 对在飞 background work 的处置语义 | 🟡 | — | GAPS G2 余项 |
 
@@ -152,12 +152,12 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 
 | 功能点 | 状态 | Journey | 验收锚 / 备注 |
 |---|---|---|---|
-| MCP（stdio/streamable HTTP、schema/list_changed、断连恢复、写审批） | ✅ | UJ-19 | INC-11.4；spec→所有 Loop 生产入口自动接线 |
-| MCP resources/prompts、structured/multimodal result | ✅ | UJ-19 | INC-11.4；namespaced protocol tools，内容块保真 |
-| MCP HTTP OAuth bearer（env 引用） | ✅ | UJ-19 | INC-11.4；token 不进 spec/journal |
+| MCP（stdio/streamable HTTP、schema/list_changed、断连恢复、写审批） | ✅ | UJ-19 | INC-11.4；spec→所有 Loop 生产入口自动接线 · TestConnectStdioPreservesRichResultsResourcesAndPrompts/TestConnectHTTPAuthListChangedAndReconnect（写审批走通用审批流锚）（G30 还锚 audit-0717 C1） |
+| MCP resources/prompts、structured/multimodal result | ✅ | UJ-19 | INC-11.4；namespaced protocol tools，内容块保真 · TestConnectStdioPreservesRichResultsResourcesAndPrompts（G30 还锚 audit-0717 C1） |
+| MCP HTTP OAuth bearer（env 引用） | ✅ | UJ-19 | INC-11.4；token 不进 spec/journal · TestConnectHTTPAuthListChangedAndReconnect（Bearer 头+AccessTokenEnv）（G30 还锚 audit-0717 C1） |
 | MCP 交互 OAuth 登录 / refresh-token 持久化 | 🧊 | UJ-19 | 凭据 UX；runtime 不持久化 secret |
 | skills（Claude Code 约定：读侧目录注入 + 模型侧 invoke + context:fork 一次性子 agent 执行） | ✅ | UJ-19 | S5 · INC-20（`skill` 工具按 name 返回正文,去 frontmatter,WS 边界+防遍历;QA-29 真机）· INC-31（context:fork ingest 展开为 spawn_agent{role},动态角色全链复用,agents_dynamic 门控;TestForkSkill* · QA-37 真机七红线） |
-| memory 文件读侧注入（CLAUDE.md 层级合并） | ✅ | UJ-09 | S3 |
+| memory 文件读侧注入（CLAUDE.md 层级合并） | ✅ | UJ-09 | S3 · TestCollectHierarchyOrder/TestCollectNoRepoStopsAtRoot · QA-23（G30 还锚 audit-0717 C1） |
 | 记忆写回（`ar remember`，append 项目 CLAUDE.md；取 A：追加 program 输入本会话即遵循，文件供下次 session 冻结；并发 session 跨进程单写 + 原子替换） | ✅ | UJ-09 | INC-14+INC-67 · TestMemoryAppend*/TestMemoryAppendConcurrentWritersLoseNoNotes/TestRememberControl* · QA-23 |
 | 自定义命令 / slash 面 | ✅ | UJ-19 | INC-8 · TestExpand*/TestDiscover · 真实 API（`.claude/commands/*.md` 的 `/name` 在 new+send 两路展开进 journal） |
 | 自定义 command tools（manifest = name/description/command/timeout/params；user 层 `~/.config/agentrunner/tools` 恒载 + project 层 `<ws>/.claude/tools` 需 trust（决策 #19 同 hooks 门）；冻结进 `SessionStarted.command_tools`（resume 从 fold 重建）；撞内置拒载/user 压 project/`mcp__` 前缀拒载；每次调用 = execute-class command effect（`eff.Command`=固定命令过全管线，execute 默认 ask）+ 决策 #34 OS sandbox，args JSON 走 stdin） | ✅ | UJ-19 | INC-55（HANDA #4，决策 #19/#34）· commandtool.TestParseAndResolve/TestDiscover{UserLayer,ProjectTrustGate,BuiltinCollisionRejected,UserBeatsProject} · pipeline.TestCommandToolEffectAdjudication · tool.TestRunCommandTool{Stdin,FailsClosedWithoutSandbox,ExitCode} · agent.TestCommandTool{EndToEnd,ProjectTrustGate,FoldHelpers} · QA-59（真 Gemini PASS 2026-07-11，qa/runs/2026-07-11-INC55） |
@@ -168,9 +168,9 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 |---|---|---|---|
 | events / inspect（时间线、判定、子树、用量；**stats**：per-tool calls/success/fail/duration_ms、files lines_added/removed（自 write/edit result 载荷求和）、active_seconds（活动区间合并的墙钟，待命/审批挂起不计）——envelope TS 报表投影非核心 fold，文本+--json 两面） | ✅ | UJ-17 | S3/S6;INC-43（HANDA #31,TestBuildStatsAggregates/TestLineDeltaAccounting,真验 qa/runs/2026-07-11-INC43:+6/−1 与实际操作吻合）;INC-11.1 按 stream header 分派 run fold / driver fold，旧 goal/loop journal 可读并展开 iteration 子树；子会话寻址(child_session 全 id,`-sub-` 分段映射 `sub/` 目录,任意深度)INC-1 |
 | `ar ps`（fold 的在飞 background work 列表，无 daemon 可用） | ✅ | UJ-18 | QA-05/09 实测 |
-| attach/detach（journal 补读 + live 订阅） | ✅ | UJ-17 | S6 |
-| 远程审批（daemon approve） | ✅ | UJ-17 | S6 |
-| notifier（生命周期通知、跨重启去重） | ✅ | UJ-14 | S6 |
+| attach/detach（journal 补读 + live 订阅） | ✅ | UJ-17 | S6 · TestDaemonAttachReplaysFinishedSession/TestDaemonAttachFollowsLiveRun（G30 还锚 audit-0717 C1） |
+| 远程审批（daemon approve） | ✅ | UJ-17 | S6 · TestDaemonApprovalRoundTrip/TestApproveRevivesApprovalLostToRestart（G30 还锚 audit-0717 C1） |
+| notifier（生命周期通知、跨重启去重） | ✅ | UJ-14 | S6 · TestNotifyDedupAcrossReopen（G30 还锚 audit-0717 C1） |
 | 远程 stop command | ✅ | UJ-17 | INC-4 · TestStop*（daemon 孪生）· 手验（真 daemon：stop 拆 run、无标记、send 复活）；drive 系列亦可 stop（handleDrive 加 per-run cancel） |
 | Web UI 产品面：New session/Scheduled runs/Pinned/Projects→sessions、单一 thread、Changes、deep link、responsive sidebar；首次 session readiness 不投影假空态/raw id；共享大历史首 40 条立即 ready、后台 80/页补齐且 refresh 不重入；session hover pin/archive+project/branch/status；自动标题去同质指令前缀 | ✅ | UJ-24 | INC-19/23/29/38/40/41/60/65 · conciseTitle/frontend view-model/timeline/store session tests · QA-27/34/36/41/42/43/61 |
 | journal-backed session metadata（`sessions list --json` 输出 workspace/title/kind/schedule，Web UI cache 非真相源；title 优先 `RawTitle` 投影、回退首行；可选 `--limit/--offset` 先按 journal mtime 排候选再仅 fold 请求页，无 flag 仍全量兼容） | ✅ | UJ-24 | INC-19/23/52/60 · TestCLIResumeAfterCrash · TestCLISessionsJSONProjectsDriverMetadata · TestCLISessionsJSONSurfacesAutoTitle · TestCLISessionsPaginationNewestFirst · TestMetaStoreMerge* · QA-61 |

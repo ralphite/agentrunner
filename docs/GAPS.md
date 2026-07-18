@@ -477,7 +477,12 @@ settlement(与 webui dedupeInspectNodes 同契约,后者退化为保险)。
 每次完成都追加一条 children 记录（同一 call_6_0 出现两次），下游须
 按 call_id 去重取最新（webui 已做）。→ UJ-23
 
-**G30 SPEC 弱锚存量燃尽 — 🟡 登记簿债务 · 中（2026-07-10 登记）**
+**G30 SPEC 弱锚存量燃尽 — 🟡 已燃 24/26（audit-0717 C1，2026-07-18）**
+剩 2 行留债有因:progressive-disclosure composer(仅前端 vitest it 名,
+非 Test*/QA-n 可锚形态)与用户消息折叠(jsdom 无布局,唯一证据是
+INC-36 真浏览器断言归档 qa/runs/2026-07-10-INC36,无 QA-n 号)——
+两者的正道是补 QA-n 场景或抽出可单测的折叠判定,随后续增量收。
+原登记:
 `scripts/lint-docs.sh` 落地时,存量 31 行 ✅ 功能点的验收锚只写档期名
 （S2/S3/S6/S7 等）,不点名 Test/QA——这是 G29 类缺口的温床:部分交付可以
 躲在档期名后面记 ✅。基线 `scripts/spec-anchor-debt.txt` 只减不增

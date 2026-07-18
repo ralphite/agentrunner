@@ -1,28 +1,4 @@
 # lint-docs.sh 基线:SPEC ✅ 行中验收锚未点名 Test*/QA-n 的存量(G30 燃尽,只减不增)。
 # 键 = SPEC 表格行首列全文(trim 后 byte-exact)。每还一行 = 找到真锚或如实降级状态+挂 GAP。
-CheckpointBarrier（安全边界/turn 收尾/手动，向量+快照 ref）
-MCP HTTP OAuth bearer（env 引用）
-MCP resources/prompts、structured/multimodal result
-MCP（stdio/streamable HTTP、schema/list_changed、断连恢复、写审批）
 Web UI progressive-disclosure composer
 Web UI 用户消息折叠（>10 渲染行钳 10lh + Show more/less；按渲染高度测量故 wrap 长行也折叠、ResizeObserver 随宽重测；含 pending 队列气泡；纯前端态、copy 恒全文）
-attach/detach（journal 补读 + live 订阅）
-best-of-N（隔离 worktree、per-attempt 判定、胜者留盘）
-driver-goal（批式/headless，verifier 三态、停滞检测、carry；fresh child run）
-fork（单创世、处置向量落实、随行库复制、独立 worktree）
-handoff（`handoff_agent`）/ blackboard（`publish_note`/`read_notes`）
-hooks（pre/post，observe+block）
-memory 文件读侧注入（CLAUDE.md 层级合并）
-notifier（生命周期通知、跨重启去重）
-rewind（fork 后显式切换）
-rules（tool/path/command/network + realpath 归一）
-schedule_next / finish_series（loop 自定步调）
-semantic_search（IndexStore，BM25）
-tool 输出截断（per-tool 上限）
-workspace 快照（shadow repo、排除表、pinned）
-凭据 redaction + 硬排除表（含 .netrc/.npmrc 等）
-审批流（ask → WAITING_APPROVAL → 应答/拒绝理由回灌）
-并发子 agent 确定性测试基建（routing provider）
-手动 barrier 打点（`ar barrier`，非运行中 session）
-自动 compaction（阈值触发）
-远程审批（daemon approve）

@@ -4185,3 +4185,12 @@ cache 并发安全,共享无碍。删除的唯一东西是重复的 root `go vet
 
 实测:全绿墙钟 52.8s(user 2m50s,多核并行生效),约为旧结构 1/9;
 冷缓存墙钟从"求和"变"最长单腿"。
+
+## 2026-07-18 · audit-0717.C1:G30 弱锚燃尽 24/26
+
+spec-anchor-debt.txt 31→2:24 行 ✅ 功能点逐行找到真实具名测试锚
+(grep 验证定义处,lint-docs 幻影锚校验通过)并落 SPEC 锚列;两行留债
+有因——progressive-disclosure composer 只有前端 vitest it 名(非
+Test*/QA-n 形态),用户消息折叠的折叠行为 jsdom 无布局测不了、唯一
+证据是 INC-36 真浏览器断言归档(无 QA-n 号)。两者后续以"补 QA-n
+场景或抽可单测判定"收尾。GAPS G30 更新为 24/26。

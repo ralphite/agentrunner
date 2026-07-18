@@ -59,9 +59,8 @@
 
 ## 第 2 批 · 登记簿工程债
 
-- [ ] **C1** G30 弱锚燃尽（M，可分多迭代）：
-  `scripts/spec-anchor-debt.txt` 31 行逐行还真锚或如实降级挂 GAP；
-  每迭代至少清 8 行并在此记进度。
+- [x] **C1** G30 弱锚燃尽:31→2(24 行还真锚,2 行留债有因——
+  composer 前端 it 名/用户消息折叠 jsdom 测不了,见 GAPS G30 注)。
 - [ ] **C2** G31 deadcode 甄别（M，可分多迭代）：
   `scripts/deadcode-baseline.txt` 19 个不可达导出逐项三选一
   （接线/删除/LOG 注记理由），基线只减不增。
@@ -129,4 +128,6 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
 - 2026-07-18 · B9 · bash 后台进度 tail(live tee+bgLog+bg_output
   ephemeral+output 工具 tail),G10 全关 · 321c683 · 完成。
 - 2026-07-18 · 插入(用户指令) · check.sh 并行化提速:8min→53s,
-  覆盖不减,重复 go vet 去除 · 本 commit · 完成。
+  覆盖不减,重复 go vet 去除 · 0d3cd33 · 完成。
+- 2026-07-18 · C1 · G30 弱锚燃尽 24/26(债 31→2,留 2 行有因) ·
+  本 commit · 完成。
