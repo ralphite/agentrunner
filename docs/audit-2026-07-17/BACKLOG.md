@@ -105,9 +105,9 @@
   ①✅ loop-mode 挂 session——**INC-74 完成**(74.1 事件族 7aa8e20 /
   74.2 安全点唤醒 bf37a1b / 74.3 CLI+wire+文档收口 23f39d9;B 闸
   QA-74 PASS,run 29634255244,工作纸已归档);
-  ②iteration child 统一走 spawn_agent——**INC-76 工作纸已落**
-  (docs/increments/INC-76-unified-child-run.md:子执行基座统一,
-  三小步:基座+spawn 改走→driver 改走→收口+QA-70 回归),实施中;
+  ②✅ iteration child 子执行基座统一——**INC-76 完成**(76.1 基座+
+  agent 三站点 2261111 / 76.2+76.3 driver 改走+收口 89aa694;B 闸
+  QA-70 回归 run#4 = 29635596395 PASS,工作纸已归档);
   ③stream 合流(触 §3 教义,须 §四);④CLI 兼容层。
 - [ ] **E2** [BLOCKED: L 级产品形态,设计需用户共创] G11 云
   workspace。核心裁决点:①环境模型(容器 per-session vs 长驻 pool);
@@ -213,3 +213,6 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
   捷径留 driver:分类语义不同,合并会误读 settled 失败为成功——记档),
   删 settledChild/childSpent 重复;§17 步骤② 注/SPEC F 注收口;QA-70
   回归 dispatch · 本 commit · 完成(回归 PASS 后归档工作纸)。
+- 2026-07-18 · E1② 收口 · QA-70 回归 run#4(29635596395)PASS——改写
+  后 runIteration 路径真 Gemini 三断言核对无回归;INC-76 工作纸归档 ·
+  本 commit · E1② 完成(③ stream 合流 next,触 §3 教义须 §四)。

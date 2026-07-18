@@ -4518,3 +4518,14 @@ settledChild/childSpent 两份重复;childReport 语义分歧保持分离并
 双侧注释互指。§17 步骤② 已落注、SPEC F 表 driver-goal 行挂 INC-76
 孪生锚。B 闸:QA-70 回归 dispatch(它走被改写的 runIteration 路径),
 PASS 后归档工作纸。E1 剩 ③(stream 合流,须 §四)④(CLI 兼容层)。
+
+## 2026-07-18 · QA-70 回归 PASS:INC-76 B 闸收口,E1② 完成
+
+qa-daemon-lifecycle run #4(29635596395,head=89aa694,证据 artifact
+qa70-evidence)在改写后的 runIteration 路径上三断言逐条核对全过:
+A. bash 在飞 kill -9 → 零 send interrupted-by-crash settle + park;
+B1. 优雅停机无 driver_completed 终态;B2. 重启系列复活。子执行基座
+统一(agent.ChildRun)经真实 API 回归验证无行为漂移。INC-76 工作纸
+归档 archive/increments/。E1 剩 ③ stream 合流(触 §3"一套机制"教义
+本文,须 PROCESS §四不变量流程——工作纸须含旧文/冲突/新文/爆炸半径,
+单独 review)与 ④ CLI 兼容层。
