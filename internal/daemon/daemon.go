@@ -1350,7 +1350,10 @@ func (s *Server) handleSend(ctx context.Context, cmd Command, enc *json.Encoder)
 			Text: fmt.Sprintf("session %s is not accepting input (shutting down)", cmd.Session)})
 		return
 	}
-	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Text: "delivered", Session: cmd.Session})
+	// Echo the follower's own input seq on the ack so a blocking send can scope
+	// its rendering to the turn that consumes THIS input (INC-73); 0 (no
+	// durability) makes the follower fall back to render-all.
+	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage, Text: "delivered", Session: cmd.Session, Seq: in.DeliverySeq})
 	if follow == nil {
 		return
 	}

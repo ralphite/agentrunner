@@ -54,6 +54,16 @@ type Event struct {
 	// rendering leaves it empty; the daemon (S6) sets it on every forwarded
 	// event so a multiplexed client can tell streams apart.
 	Session string `json:"session,omitempty"`
+	// Seq is the follower's OWN input DeliverySeq, echoed on the daemon's
+	// "delivered" ack so a blocking send/new knows which input it is — the
+	// anchor for per-command output scoping (INC-73). 0 = not scoped (an older
+	// daemon, or `new`): the follower falls back to render-all/detach-at-idle.
+	Seq int64 `json:"seq,omitempty"`
+	// InputSeqs names the input DeliverySeqs a generation just consumed
+	// (KindGenerationStart only). Empty on tool-loop continuation gen-steps —
+	// their owner carries over from the turn's first step. Lets a follower
+	// render only its own turn under concurrent same-session sends (INC-73).
+	InputSeqs []int64 `json:"input_seqs,omitempty"`
 }
 
 // Sink receives output events. Implementations must be safe for calls from
