@@ -180,4 +180,7 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
 - 2026-07-18 · F2 QA-70 就位 + F3 瞬时红修复 · 22dc6db+8a8b7dc · 完成。
 - 2026-07-18 · F2 追踪:run#1 误 kill 于 LLM 阶段(已证 INC-71 sweep
   真工作)、run#2 runner 缺 bwrap(workflow 已补装)、run#3 排队中。
-- 2026-07-18 · E1① · INC-74 工作纸落盘,开始实施 · 本 commit · 进行中。
+- 2026-07-18 · E1① · INC-74 工作纸落盘,开始实施 · e2a57e0 · 进行中。
+- 2026-07-18 · INC-74.1 · schedule 事件族(5 类)+ fold 子状态
+  (copy-on-write)+ SubStateVersions "schedule":1 + round-trip 样本 +
+  生命周期孪生 · 本 commit · 完成(74.2 安全点唤醒 next)。

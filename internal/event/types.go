@@ -94,7 +94,17 @@ const (
 	TypeGoalAchieved          = "goal_achieved"
 	TypeGoalExhausted         = "goal_exhausted"
 	TypeGoalCompletionClaimed = "goal_completion_claimed"
-	TypeCommandHandled        = "command_handled"
+
+	// Schedule events (INC-74, E1①): loop-mode hung on a conversational
+	// session — the in-session mirror of the driver's interval/cron cadence.
+	// Run-fold events (a Schedule sub-state), NOT the driver stream; control
+	// rides the goal-* out-of-band template.
+	TypeScheduleAttached  = "schedule_attached"
+	TypeSchedulePaused    = "schedule_paused"
+	TypeScheduleResumed   = "schedule_resumed"
+	TypeScheduleCancelled = "schedule_cancelled"
+	TypeScheduleWake      = "schedule_wake"
+	TypeCommandHandled    = "command_handled"
 
 	// INC-52 (HANDA-PARITY #14): journal-backed auto session title. Additive —
 	// legacy journals carry none and the title projection falls back to the
@@ -408,6 +418,45 @@ type GoalUpdated struct {
 	Verifiers []GoalVerifier `json:"verifiers,omitempty"`
 	Budget    *GoalBudget    `json:"budget,omitempty"`
 	Source    string         `json:"source"`
+}
+
+// ScheduleAttached hangs a recurring self-wake cadence on the session
+// (INC-74, E1①). Exactly one of Interval (Go duration) or Cron (5-field) is
+// set. change-as-event, 决策 #32 家族.
+type ScheduleAttached struct {
+	ScheduleID string `json:"schedule_id"`
+	Interval   string `json:"interval,omitempty"`
+	Cron       string `json:"cron,omitempty"`
+	Prompt     string `json:"prompt"`
+	MaxWakes   int    `json:"max_wakes,omitempty"` // 0 = unbounded
+	Source     string `json:"source"`              // user
+}
+
+type SchedulePaused struct {
+	ScheduleID string `json:"schedule_id"`
+	Source     string `json:"source"`
+}
+
+type ScheduleResumed struct {
+	ScheduleID string `json:"schedule_id"`
+	Source     string `json:"source"`
+}
+
+type ScheduleCancelled struct {
+	ScheduleID string `json:"schedule_id"`
+	Reason     string `json:"reason,omitempty"`
+	Source     string `json:"source"`
+}
+
+// ScheduleWake is one wake fact: N is monotonic per schedule, Tick the
+// absolute slot this wake served — lastTick is re-derived from these facts
+// on resume (INC-54 教义: journal, never memory). Skipped marks an
+// overlap-skip (the session was busy at the tick).
+type ScheduleWake struct {
+	ScheduleID string    `json:"schedule_id"`
+	N          int       `json:"n"`
+	Tick       time.Time `json:"tick"`
+	Skipped    bool      `json:"skipped,omitempty"`
 }
 
 type GoalPaused struct {
@@ -1044,6 +1093,11 @@ var Registry = map[string]func() any{
 	TypeAskResolved:       func() any { return &AskResolved{} },
 
 	TypeGoalAttached:          func() any { return &GoalAttached{} },
+	TypeScheduleAttached:      func() any { return &ScheduleAttached{} },
+	TypeSchedulePaused:        func() any { return &SchedulePaused{} },
+	TypeScheduleResumed:       func() any { return &ScheduleResumed{} },
+	TypeScheduleCancelled:     func() any { return &ScheduleCancelled{} },
+	TypeScheduleWake:          func() any { return &ScheduleWake{} },
 	TypeGoalUpdated:           func() any { return &GoalUpdated{} },
 	TypeGoalPaused:            func() any { return &GoalPaused{} },
 	TypeGoalResumed:           func() any { return &GoalResumed{} },

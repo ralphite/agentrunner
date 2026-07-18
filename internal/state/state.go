@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
@@ -35,6 +36,7 @@ func SubStateVersions() map[string]int {
 		"goal":         2, // INC-66: budget exhaustion is retained and recoverable
 		"interactions": 1, // INC-11.5 (Turn/Item typed interaction projection)
 		"team":         1, // INC-11.6 durable delegation/DAG/lease/workspace projection
+		"schedule":     1, // INC-74 in-session schedule (E1① loop-mode 挂会话)
 	}
 }
 
@@ -81,6 +83,8 @@ type State struct {
 	// nil = none. Its verifier runs at the exchange boundary (epilogue) and a
 	// miss re-injects a program-source input so the thread continues.
 	Goal *Goal `json:"goal,omitempty"`
+	// Schedule is the folded in-session recurring wake cadence (INC-74).
+	Schedule *Schedule `json:"schedule,omitempty"`
 	// Interactions is the durable Turn/Item projection. Conversation remains
 	// the provider-compatible view; both are folded from the same events.
 	Interactions Interactions `json:"interactions"`
@@ -268,6 +272,23 @@ type Goal struct {
 	// consumes the claim; a GoalUpdated voids it (the objective changed).
 	Claimed      bool   `json:"claimed,omitempty"`
 	ClaimSummary string `json:"claim_summary,omitempty"`
+}
+
+// Schedule is the folded in-session recurring wake cadence (INC-74, E1①).
+// change-as-event: Attached sets it (replacing any prior), Paused/Resumed
+// flip Paused, Wake advances the monotonic counter and LastTick (the resume
+// path re-derives cadence position from these facts, INC-54 教义), and
+// Cancelled clears it.
+type Schedule struct {
+	ScheduleID string    `json:"schedule_id"`
+	Interval   string    `json:"interval,omitempty"`
+	Cron       string    `json:"cron,omitempty"`
+	Prompt     string    `json:"prompt"`
+	MaxWakes   int       `json:"max_wakes,omitempty"`
+	Wakes      int       `json:"wakes"` // served (non-skipped) wakes
+	LastWakeN  int       `json:"last_wake_n,omitempty"`
+	LastTick   time.Time `json:"last_tick,omitempty"`
+	Paused     bool      `json:"paused,omitempty"`
 }
 
 // Compaction is the folded result of ContextCompacted (S4.5): messages
@@ -1120,6 +1141,43 @@ func Apply(s State, env event.Envelope) (State, error) {
 		s.Effects.Pending = map[string]event.EffectRequested{}
 		s.Effects.Allowed = map[string]bool{}
 		s.Budget.Reserved = map[string]int{}
+
+	// ---- INC-74: in-session schedule (E1①) ----
+	case *event.ScheduleAttached:
+		s.Schedule = &Schedule{ScheduleID: p.ScheduleID, Interval: p.Interval,
+			Cron: p.Cron, Prompt: p.Prompt, MaxWakes: p.MaxWakes}
+
+	// Copy-on-write like the goal cases below: the pointer is shared with the
+	// caller's previous State value (Apply purity).
+	case *event.SchedulePaused:
+		if s.Schedule != nil && s.Schedule.ScheduleID == p.ScheduleID {
+			sc := *s.Schedule
+			sc.Paused = true
+			s.Schedule = &sc
+		}
+
+	case *event.ScheduleResumed:
+		if s.Schedule != nil && s.Schedule.ScheduleID == p.ScheduleID {
+			sc := *s.Schedule
+			sc.Paused = false
+			s.Schedule = &sc
+		}
+
+	case *event.ScheduleWake:
+		if s.Schedule != nil && s.Schedule.ScheduleID == p.ScheduleID {
+			sc := *s.Schedule
+			sc.LastWakeN = p.N
+			sc.LastTick = p.Tick
+			if !p.Skipped {
+				sc.Wakes++
+			}
+			s.Schedule = &sc
+		}
+
+	case *event.ScheduleCancelled:
+		if s.Schedule != nil && s.Schedule.ScheduleID == p.ScheduleID {
+			s.Schedule = nil
+		}
 
 	// ---- INC-D1: in-session goal (G23/UJ-22) ----
 	case *event.GoalAttached:

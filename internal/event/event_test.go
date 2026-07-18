@@ -116,6 +116,13 @@ var samples = map[string]any{
 	TypeCommandHandled: &CommandHandled{CommandID: "cmd-1", CommandSeq: 7,
 		Kind: "compact", Result: "no_op"},
 	TypeSessionTitled: &SessionTitled{Title: "Fix the auth boundary", Source: TitleSourceAuto},
+	TypeScheduleAttached: &ScheduleAttached{ScheduleID: "sch-1", Interval: "30m",
+		Prompt: "巡检一次构建状态", MaxWakes: 8, Source: "user"},
+	TypeSchedulePaused:    &SchedulePaused{ScheduleID: "sch-1", Source: "user"},
+	TypeScheduleResumed:   &ScheduleResumed{ScheduleID: "sch-1", Source: "user"},
+	TypeScheduleCancelled: &ScheduleCancelled{ScheduleID: "sch-1", Reason: "user", Source: "user"},
+	TypeScheduleWake: &ScheduleWake{ScheduleID: "sch-1", N: 3,
+		Tick: time.Date(2026, 7, 18, 6, 30, 0, 0, time.UTC), Skipped: true},
 }
 
 func TestRoundTripAllTypes(t *testing.T) {
