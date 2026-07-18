@@ -4345,3 +4345,23 @@ spec-anchor-debt 清零,G30 关闭。
 spec.go staticcheck(regexp 原始串)。附带:QA-70 场景 A 等待条件
 修正(等 bash execute activity 而非 LLM 阶段误判——run #1 揭示
 INC-71 boot sweep 实际工作,parks 0→1,零 send)。
+
+## INC-73 并发 send 每命令输出定界（2026-07-18）
+
+**增量**：并发同会话 `ar send`/`ar new` 时,跟随者 stdout 曾串入别人那一
+轮的输出(QA dave-06/heidi-02/cli-life-01/nate-03；journal 归属始终
+正确,纯 live 渲染缺陷)。定界锚:`Event.Seq`(daemon delivered ack 回传
+follower 自己的 DeliverySeq)+ `Event.InputSeqs`(loop 在
+KindGenerationStart 带该 generation 消费的 input seq 集,续跑步为空)+
+CLI `sendScope` 状态机(只渲染归属自己 seq 的那一轮,自己那轮 idle 才
+脱离;合并 turn 由多 follower 共享)。**Seq==0 回退**到旧的"渲染全部/首
+idle 脱离",版本错配绝不退化成挂起。journal 不带这两字段(replay 单读者)。
+
+**决策/偏差**：定界放 CLI 侧(daemon 转发不变),波及面最小;不触任何
+不变量(崩溃不丢输入、journal-first 均不涉——归属本就正确)。coalesced
+turn 两 follower 同见一条回复=正确(一轮只有一条回复)。
+
+**记档**:SPEC 会话对话行补注 + 验收锚(TestSendScope/
+TestGenerationStartCarriesInputSeqs);DESIGN §常驻 runtime 加"每命令
+输出定界(INC-73)"条;裁掉并发 daemon 集成测试(时序易 flaky,以
+sendScope 单测全边界 + loop InputSeqs 单测 + 三场景实测覆盖)。

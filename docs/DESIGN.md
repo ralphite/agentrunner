@@ -1351,6 +1351,17 @@ limits:
   **先订阅 hub 后投递**（回复事件不可能漏在订阅前）；ack 只表示 durable
   accepted，不表示 loop 已处理，随后转发 live 事件直到客户端断开。`--detach` 恢复纯异步
   （只回 id / ack）。订阅仍不改结果。
+  - **每命令输出定界（INC-73）**：hub 向所有订阅者广播全部事件，故
+    并发同会话 send 时,一个跟随者的 stdout 曾串入别人那一轮的输出
+    (journal 归属始终正确——纯 live 渲染缺陷)。定界锚：daemon 在
+    "delivered" ack 回传本 follower 的 `DeliverySeq`（`Event.Seq`），
+    loop 在 `KindGenerationStart` 带该 generation 消费的 input seq 集
+    (`Event.InputSeqs`；tool-loop 续跑步为空,归属沿用)。CLI 只渲染
+    归属自己 seq 的那一轮(合并 turn 被多条 input 的 follower 共享),
+    在**自己**那一轮的 idle 才 detach(别人的 idle 不算——否则"没回复
+    就退出"）。`Seq==0`（旧 daemon 或 `new`）回退到"渲染全部 / 首个
+    idle 脱离",版本错配绝不退化成挂起。journal 不带这两字段(replay
+    是单读者,无需定界)。
 - **常驻 runtime 也是 durable timer 的触发者**：维护 timer 的派生索引，
   到期 journal `TimerFired` 并发起 resume——timeout/cron/审批过期的
   "等几天成本相同"由它兑现；CLI-only 部署显式降级为"下次 resume 补火"。
