@@ -105,7 +105,9 @@
   ①✅ loop-mode 挂 session——**INC-74 完成**(74.1 事件族 7aa8e20 /
   74.2 安全点唤醒 bf37a1b / 74.3 CLI+wire+文档收口 23f39d9;B 闸
   QA-74 PASS,run 29634255244,工作纸已归档);
-  ②iteration child 统一走 spawn_agent(下一步,需工作纸);
+  ②iteration child 统一走 spawn_agent——**INC-76 工作纸已落**
+  (docs/increments/INC-76-unified-child-run.md:子执行基座统一,
+  三小步:基座+spawn 改走→driver 改走→收口+QA-70 回归),实施中;
   ③stream 合流(触 §3 教义,须 §四);④CLI 兼容层。
 - [ ] **E2** [BLOCKED: L 级产品形态,设计需用户共创] G11 云
   workspace。核心裁决点:①环境模型(容器 per-session vs 长驻 pool);
@@ -200,3 +202,6 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
   零 send 自主唤醒 → 跨 daemon 重启 sweep 唤醒 → pause 不再醒,三断言
   逐条核对)· QA/SPEC 登记,INC-74 工作纸归档 · 本 commit · E1① 完成
   (② iteration child 走 spawn_agent next,需工作纸)。
+- 2026-07-18 · E1② · INC-76 工作纸落盘(子执行基座统一:spawn/driver
+  两份"跑 child 到静止并结算"实现合一;Loop 构造与事实流合一显式留
+  ③④)· 本 commit · 进行中(76.1 基座+spawn 改走 next)。
