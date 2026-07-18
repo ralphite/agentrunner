@@ -147,6 +147,13 @@ func followTurn(sock string, cmd daemon.Command, ackText string, stdout, stderr 
 	render := newTextRenderer(stdout)
 	sid := cmd.Session // send knows it already; new learns it from SessionStart
 	var sawIdle, sawErr, acked, announced, sawApproval bool
+	// INC-73 per-command output scoping: under concurrent same-session sends the
+	// shared stream carries every client's turns. Scope this follow to the turn
+	// that consumes OUR input (learned from the "delivered" ack), so we render
+	// only our own reply. An older daemon (or `new`, which carries no seq) leaves
+	// the scope unscoped and we keep the original render-all / detach-at-first-
+	// idle behavior — never a hang.
+	scope := newSendScope()
 	err := daemon.DialUntil(sock, cmd, func(e protocol.Event) bool {
 		if e.Session != "" && sid == "" {
 			sid = e.Session
@@ -170,9 +177,20 @@ func followTurn(sock string, cmd daemon.Command, ackText string, stdout, stderr 
 		case protocol.KindMessage:
 			if ackText != "" && !acked && e.Text == ackText {
 				acked = true // the request/reply ack, not the model speaking
+				scope.onAck(e.Seq)
 				return true
 			}
+		case protocol.KindGenerationStart:
+			if scope.onGenStart(e.InputSeqs) {
+				return false // our turn already ran; a later, different turn began
+			}
+			if scope.suppress() {
+				return true // another turn's gen-start
+			}
 		case protocol.KindApprovalRequest:
+			if scope.suppress() {
+				return true // another turn's approval, not ours
+			}
 			// The anchored turn is parked on an approval — nothing more streams
 			// until the user answers with `ar approve`, so follow to idle would
 			// hang forever (QA Wave5 liam-01). Render the ask and DETACH.
@@ -180,15 +198,25 @@ func followTurn(sock string, cmd daemon.Command, ackText string, stdout, stderr 
 			sawApproval = true
 			return false
 		case protocol.KindIdle:
+			if !scope.idleDetaches() {
+				return true // another client's turn idled before ours started
+			}
 			sawIdle = true
 			return false // turn done: detach, the session keeps running
 		case protocol.KindError:
+			if scope.suppress() {
+				return true // another turn's failure, not ours
+			}
 			sawErr = true
 		case protocol.KindRunEnd:
-			// The session ended instead of idling (failure or close).
+			// The session ended instead of idling (failure or close). This is
+			// session-level (not turn-scoped): detach regardless.
 			sawErr = e.Reason != "completed" && e.Reason != "closed"
 			render.Emit(e)
 			return false
+		}
+		if scope.suppress() {
+			return true // suppress turn-content that isn't ours
 		}
 		render.Emit(e)
 		return true
@@ -220,6 +248,63 @@ func followTurn(sock string, cmd daemon.Command, ackText string, stdout, stderr 
 		fmt.Fprintln(stderr, "agentrunner: stream ended before the reply")
 		return ExitRun
 	}
+}
+
+// sendScope is the INC-73 per-command output-scoping state machine for a
+// followed send. Unscoped (mySeq 0 — an older daemon, or `new`) it degrades to
+// the original render-all / detach-at-first-idle behavior, so version skew can
+// never turn cross-render into a hang.
+type sendScope struct {
+	mySeq  int64
+	scoped bool
+	mine   bool // is the CURRENT turn ours?
+	seen   bool // has our turn started yet?
+}
+
+func newSendScope() *sendScope { return &sendScope{mine: true} }
+
+// onAck records the follower's own input seq from the "delivered" ack.
+func (s *sendScope) onAck(seq int64) {
+	if seq > 0 {
+		s.mySeq, s.scoped, s.mine, s.seen = seq, true, false, false
+	}
+}
+
+// onGenStart updates ownership at a generation boundary; detach=true means our
+// turn already ran and a later, different turn is starting — stop following.
+func (s *sendScope) onGenStart(inputSeqs []int64) (detach bool) {
+	if !s.scoped {
+		return false
+	}
+	if len(inputSeqs) > 0 { // a fresh user turn begins
+		s.mine = containsSeq(inputSeqs, s.mySeq)
+		if s.mine {
+			s.seen = true
+		} else if s.seen {
+			return true
+		}
+	}
+	// A tool-loop continuation step (empty inputSeqs) keeps the current owner.
+	return false
+}
+
+// suppress reports whether a turn-content event belongs to another turn.
+func (s *sendScope) suppress() bool { return s.scoped && !s.mine }
+
+// idleDetaches reports whether a KindIdle should end our follow: unscoped it
+// always does; scoped, only once our own turn has run (else another client's
+// turn idled before ours started — the cli-life-01 "no reply" trap).
+func (s *sendScope) idleDetaches() bool { return !s.scoped || s.seen }
+
+// containsSeq reports whether a generation's consumed-input set includes this
+// follower's own seq (INC-73) — true means the turn is ours to render.
+func containsSeq(seqs []int64, mine int64) bool {
+	for _, s := range seqs {
+		if s == mine {
+			return true
+		}
+	}
+	return false
 }
 
 // sendCmd delivers a user message to a live conversational session (v2 M1.2):
