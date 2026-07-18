@@ -4319,3 +4319,16 @@ spec-anchor-debt 清零,G30 关闭。
   RemoveAll 撞写("directory not empty");并行门下 CPU 争抢放大窗口。
   修:①daemon Serve 排水式关停(t.Cleanup 先 cancel 后等 served);
   ②等第二个 idle 落定再结束(fixture 补第二步);-count=10 绿。
+
+## 2026-07-18 · audit-0717.F3 追加:goal pause/cancel 竞态与 steer 回执分界 flake 根治
+
+红腿留档 + 超时事件序列转储(waitForEvent 失败路径现在打印 journal
+类型序列,留作常驻诊断)把两个并行门 flake 钉死:
+- TestInSessionGoalPauseCancel:pause 控制与 goal miss 反馈重注是
+  固有并发竞态——pause 晚到时 goal 合法再转一轮,而 fixture 只有
+  2 步,枯竭令 run 挂死、cancel 无处 drain(30s 超时的真相,非负载)。
+  修:fixture 增 3 步容错;40 连跑 2.9s 全绿。
+- TestSteerChangesOrchestration:kill 回执与 NEW 完成回执落界分合
+  依调度而变,turn 数是伴生量非红线——fixture 增 2 步容错,结构
+  断言(oldReason/newReason)仍是唯一红线。
+- waitForEvent 界 10s→30s(并行门四核共享下 10s 去调度真实存在)。

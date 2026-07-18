@@ -59,7 +59,10 @@ func waitForEvent(t *testing.T, es *store.EventStore, typ string, min int) {
 	// package run the verifier and journal goroutines can legitimately be
 	// descheduled for several seconds. Keep the bound finite, but do not turn
 	// host contention into a false product failure.
-	deadline := time.Now().Add(10 * time.Second)
+	// 30s, not 10: the parallel check gate shares 4 cores with vitest/vite
+	// and golangci — 10s of descheduling is a real occurrence, not a product
+	// signal (audit-0717 F3, goal_cancelled timed out at 10.19s).
+	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
 		evs, _ := store.ReadEvents(es.Dir())
 		n := 0
@@ -73,6 +76,12 @@ func waitForEvent(t *testing.T, es *store.EventStore, typ string, min int) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
+	evs, _ := store.ReadEvents(es.Dir())
+	types := make([]string, 0, len(evs))
+	for _, e := range evs {
+		types = append(types, e.Type)
+	}
+	t.Logf("journal types at timeout: %v", types)
 	t.Fatalf("timed out waiting for %d %s events", min, typ)
 }
 

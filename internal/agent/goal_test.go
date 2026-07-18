@@ -267,6 +267,15 @@ func TestInSessionGoalPauseCancel(t *testing.T) {
 	fix := scripted.Fixture{Steps: []scripted.Step{
 		{Respond: []scripted.Event{{Text: "turn 1"}, {Finish: "end_turn"}}},
 		{Respond: []scripted.Event{{Text: "on the goal"}, {Finish: "end_turn"}}},
+		// The pause/cancel controls race the goal's own miss-feedback
+		// reinjection (inherent concurrency, audit-0717 F3): when a control
+		// lands AFTER a miss re-armed the next turn, the goal legitimately
+		// spins one more turn before the boundary drains the control. An
+		// exhausted fixture turned that schedule into a dead run and a lost
+		// cancel — tolerate a few extra goal turns instead.
+		{Respond: []scripted.Event{{Text: "still on it"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "still on it"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "still on it"}, {Finish: "end_turn"}}},
 	}}
 	es, inbox, controls, done := controlLoop(t, fix, 10)
 	waitForEvent(t, es, event.TypeAssistantMessage, 1)

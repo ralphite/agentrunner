@@ -426,6 +426,13 @@ func TestSteerChangesOrchestration(t *testing.T) {
 			{Respond: []scripted.Event{{Text: "reoriented"}, {Finish: "end_turn"}}},
 			{Respond: []scripted.Event{{Text: "new done"}, {Finish: "end_turn"}}},
 			{Respond: []scripted.Event{{Text: "still here"}, {Finish: "end_turn"}}},
+			// Receipt boundaries are scheduling-dependent under host
+			// contention: the kill receipt and NEW's completion can land in
+			// one wake or two (audit-0717 F3 flake). The turn COUNT is
+			// incidental — the structural asserts below are the red lines —
+			// so keep two tolerant fillers for the split case.
+			{Respond: []scripted.Event{{Text: "noted"}, {Finish: "end_turn"}}},
+			{Respond: []scripted.Event{{Text: "noted"}, {Finish: "end_turn"}}},
 		}}},
 		scripted.RoutePair{Key: "OLDTOPIC", Fixture: scripted.Fixture{Steps: []scripted.Step{
 			{Respond: []scripted.Event{
