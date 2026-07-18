@@ -5,8 +5,10 @@
 #
 # 用法：
 #   1. Actions → remote-qa-env → Run workflow（或由 agent 通过 API dispatch）。
-#   2. 运行日志 "Expose via cloudflared" 步骤和 job summary 里有
-#      https://xxx.trycloudflare.com 的 URL。
+#   2. 拿 URL：workflow 起好隧道后会把 URL commit 到 main 的
+#      qa/remote-env-url.txt（job 运行中日志/annotation 都读不到，这是
+#      运行中唯一可靠的带外通道）。`git pull` 后读该文件即可。
+#      job summary 里也有同一 URL（人看）。
 #   3. agent 从沙箱里直接访问该 URL 做真实的多轮会话测试。
 #   4. 提前停：Cancel workflow run。
 #
@@ -21,8 +23,9 @@ on:
         default: "60"
         type: string
 
+# contents: write——workflow 需要把隧道 URL commit 回 main（带外发布）。
 permissions:
-  contents: read
+  contents: write
 
 # 同时只保留一个实例。
 concurrency:
@@ -36,7 +39,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          persist-credentials: false
+          # 保留 GITHUB_TOKEN 凭据：发布 URL 那步要 push 回 main。
+          persist-credentials: true
           ref: main
 
       - uses: actions/setup-go@v5
@@ -106,7 +110,7 @@ jobs:
             cat tunnel.log >&2
             exit 1
           fi
-          # 打进日志（agent 抓 job log 提取）+ job summary（人看）
+          # 打进日志 + job summary（人看）
           echo "TUNNEL_URL=$URL"
           echo "::notice title=Remote QA env::$URL"
           {
@@ -115,6 +119,23 @@ jobs:
             echo "**URL: $URL**"
             echo "- Up for ${MINUTES_IN} minutes — cancel this run to stop earlier."
           } >> "$GITHUB_STEP_SUMMARY"
+          # 带外发布：job 运行期间日志和 annotation 外部都读不到（404/空），
+          # commit 回 main 是外部 agent 运行中拿 URL 的唯一可靠通道。
+          git config user.name "remote-qa-env"
+          git config user.email "actions@github.com"
+          {
+            echo "url: $URL"
+            echo "run_id: ${{ github.run_id }}"
+            echo "started_at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "minutes: ${MINUTES_IN}"
+          } > qa/remote-env-url.txt
+          git add qa/remote-env-url.txt
+          git commit -m "ci: remote-qa-env run ${{ github.run_id }} 隧道 URL [skip ci]"
+          for i in 1 2 3 4 5; do
+            git push origin HEAD:main && break
+            git pull --rebase origin main
+            sleep 2
+          done
         env:
           MINUTES_IN: ${{ inputs.minutes }}
 
