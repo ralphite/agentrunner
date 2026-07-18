@@ -502,7 +502,9 @@ generation step 预算（从最后一条输入起算,防单 turn runaway）。
   在安全边界以**新的 user-role 消息**进入对话（与 steering 同路）。
   `output`（读 log，read-class）/ `kill`（协作取消，
   execute-class）是普通数据定义 tool；进度 tail 走 ephemeral topic
-  （与 token delta 同 doctrine）。
+  （与 token delta 同 doctrine）——已落地（audit-0717 B9）：running
+  handle 的 `output` 回有界 tail，chunk 同时镜像为 ephemeral
+  `bg_output` 事件，journal 恒以完成结果为 durable 真相。
 
 ---
 

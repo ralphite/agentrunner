@@ -4153,3 +4153,16 @@ check 红时被误推(&& 链未门控 exit),本条为 fix-forward;后续迭代
 了披露面:toast 内 Details 折叠(stopPropagation 防误关),RunModal/
 worktreeActions/DiffView/store 四类站点接线。锚:scheduleValidate.test
 6 例 + Toasts.details.test 2 例。G36 仍开的只剩黑盒覆盖扩充。
+
+## 2026-07-18 · audit-0717.B9:bash 后台进度 tail(2.10 进度通道,G10 全关)
+
+机制:沙箱执行 ctx 可携带 live tee(tool.WithLiveOutput,stdout/stderr
+copier 双 goroutine 安全,buffer 仍是完成真相的字节级同体);agent 侧
+launchBackground 注入 tee→有界 bgLog(16KB ring,settle 即删)+
+每 chunk 先 redact 再镜像为 ephemeral `bg_output` 事件(新增 protocol
+Kind,CallID=handle,CLI/webui 未知 kind 自然忽略,附加式演进)。
+`output` 工具对 running handle 从"只报 running"升级为
+output_tail+bytes_total(再过一遍 redact),def 文案同步。journal 教义
+不动:tail 是 ephemeral,durable 真相恒为完成结果消息。
+锚:TestBackgroundOutputTailWhileRunning(scripted 端到端,file-sync
+定序免竞态)+ TestRunSandboxedTeesLiveOutput(tee 字节保真)。

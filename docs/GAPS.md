@@ -294,8 +294,14 @@ provider 服务端工具例外类别,单独成增量);host allowlist(S1)= backlo
 daemon hub 保留非空标签；`ar attach <child-sid>` = 成员 journal replay +
 树根 hub 按标签过滤 live；webui 子会话视图接 SSE（按标签隔离打字流,
 成员审批全树上浮）;CLI 前台渲染锚定主 session、成员事件折叠。闸门：
-TestDaemonAttachChildFiltersLive + QA-20 真实团队会话手验。**余项**：
-bash 后台任务的进度 tail（2.10 进度通道,backlog 不变）。原文:
+TestDaemonAttachChildFiltersLive + QA-20 真实团队会话手验。
+**余项已收（audit-0717 B9，2026-07-18）**：bash 后台进度 tail 落地——
+沙箱执行 ctx 携带 live tee（chunk 级 redact），`output` 对 running
+handle 返回有界 output_tail+bytes_total（bounded 16KB ring，journal
+不变仍以完成结果为 durable 真相），并镜像为 ephemeral `bg_output`
+事件（同 token delta 教义，CallID=handle）；锚
+TestBackgroundOutputTailWhileRunning/TestRunSandboxedTeesLiveOutput。
+本条全关。原文:
 协议列了"后台任务进度 topic"；2.10 进度通道对 bash 未接（已记
 backlog）；子 agent 的 turn 级进度镜像无统一设计。
 → UJ-18

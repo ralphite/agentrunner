@@ -852,6 +852,12 @@ func (e *Executor) runSandboxed(ctx context.Context, cmd *exec.Cmd, stdin []byte
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
+	if fn := liveOutput(ctx); fn != nil {
+		// Progress tail (B9): mirror chunks out as they arrive. The buffers
+		// stay the completion truth; the tee is bytes-for-bytes the same.
+		cmd.Stdout = teeWriter{dst: &stdout, fn: fn}
+		cmd.Stderr = teeWriter{dst: &stderr, fn: fn}
+	}
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)
 	}

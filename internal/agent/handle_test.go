@@ -94,6 +94,77 @@ func TestBackgroundWorkHandleAndOutcome(t *testing.T) {
 	}
 }
 
+// 2.10 进度 tail (audit-0717 B9): `output` on a RUNNING background work
+// returns the live tail of its stdout so far, not just "running". The bg
+// command prints BEFORE touching the sync file, so by the time the foreground
+// bash has seen the file and two more scripted steps have run, the tee has
+// long since delivered the chunk.
+func TestBackgroundOutputTailWhileRunning(t *testing.T) {
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{
+			{ToolCall: &scripted.ToolCallEvent{CallID: "bg1", Name: "bash",
+				Args: map[string]any{"command": "echo progress-beacon; echo ok > prog.txt; sleep 30", "background": true}}},
+			{Finish: "tool_use"},
+		}},
+		// Block until the bg work has definitely produced its output.
+		{
+			Expect: scripted.Expect{LastMessageContains: "handle"},
+			Respond: []scripted.Event{
+				{ToolCall: &scripted.ToolCallEvent{CallID: "sync1", Name: "bash",
+					Args: map[string]any{"command": "while [ ! -s prog.txt ]; do sleep 0.05; done; echo synced"}}},
+				{Finish: "tool_use"},
+			},
+		},
+		{
+			Expect: scripted.Expect{LastMessageContains: "synced"},
+			Respond: []scripted.Event{
+				{ToolCall: &scripted.ToolCallEvent{CallID: "peek", Name: "output",
+					Args: map[string]any{"handle": "bg1"}}},
+				{Finish: "tool_use"},
+			},
+		},
+		// The tail carries the beacon; wind down by killing the sleeper.
+		{
+			Expect: scripted.Expect{LastMessageContains: "progress-beacon"},
+			Respond: []scripted.Event{
+				{ToolCall: &scripted.ToolCallEvent{CallID: "k1", Name: "kill",
+					Args: map[string]any{"handle": "bg1"}}},
+				{Finish: "tool_use"},
+			},
+		},
+		{
+			Expect:  scripted.Expect{LastMessageContains: "cancelling"},
+			Respond: []scripted.Event{{Text: "saw progress, killed it"}, {Finish: "end_turn"}},
+		},
+		{
+			Expect:  scripted.Expect{LastMessageContains: "bg1"},
+			Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}},
+		},
+	}}
+	l := testLoop(t, fix, t.TempDir())
+
+	res, err := l.Run(context.Background(), "run a background job and watch it")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "completed" {
+		t.Fatalf("res = %+v", res)
+	}
+	events, err := store.ReadEvents(l.Store.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	fold, err := state.Fold(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	peek := fold.Conversation.ToolResults["peek"]
+	if !strings.Contains(string(peek.Result), "progress-beacon") ||
+		!strings.Contains(string(peek.Result), "output_tail") {
+		t.Fatalf("output result lacks live tail: %s", peek.Result)
+	}
+}
+
 // S6.1: kill cancels running background work; the cancellation lands as a
 // message and the handle set empties.
 func TestBackgroundWorkKill(t *testing.T) {

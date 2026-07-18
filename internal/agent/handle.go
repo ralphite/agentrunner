@@ -41,13 +41,42 @@ type bgOutcome struct {
 type bgRuntime struct {
 	mu     sync.Mutex
 	cancel map[string]context.CancelCauseFunc
+	logs   map[string]*bgLog
 	done   chan bgOutcome
 }
 
 func (l *Loop) ensureBackground() {
 	if l.bg == nil {
-		l.bg = &bgRuntime{cancel: map[string]context.CancelCauseFunc{}, done: make(chan bgOutcome, 64)}
+		l.bg = &bgRuntime{cancel: map[string]context.CancelCauseFunc{}, logs: map[string]*bgLog{}, done: make(chan bgOutcome, 64)}
 	}
+}
+
+// bgLog is a running background work's live output tail (2.10 进度通道,
+// audit-0717 B9). Bounded and ephemeral by design: the journal's durable
+// record stays the completion result; this exists so `output` can answer a
+// running handle with real progress instead of only "running".
+type bgLog struct {
+	mu    sync.Mutex
+	tail  []byte
+	total int
+}
+
+const bgLogTailCap = 16 * 1024
+
+func (b *bgLog) append(chunk []byte) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.total += len(chunk)
+	b.tail = append(b.tail, chunk...)
+	if over := len(b.tail) - bgLogTailCap; over > 0 {
+		b.tail = append(b.tail[:0:0], b.tail[over:]...)
+	}
+}
+
+func (b *bgLog) snapshot() (tail string, total int) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return string(b.tail), b.total
 }
 
 // isBackgroundCall reports whether a tool call asks for background
@@ -80,9 +109,21 @@ func (l *Loop) launchBackground(ctx context.Context, appendE AppendFunc,
 		return err
 	}
 	workCtx, cancel := context.WithCancelCause(ctx)
+	log := &bgLog{}
 	l.bg.mu.Lock()
 	l.bg.cancel[callID] = cancel
+	l.bg.logs[callID] = log
 	l.bg.mu.Unlock()
+
+	// Progress tail (B9): chunks land in the bounded live log for `output`
+	// and mirror to the surface as ephemeral bg_output events — the same
+	// journal-free doctrine as token deltas. Redaction runs per chunk: the
+	// live path must never show what the completion result would redact.
+	workCtx = tool.WithLiveOutput(workCtx, func(chunk []byte) {
+		log.append(chunk)
+		l.emit(protocol.Event{Kind: protocol.KindBgOutput, CallID: callID,
+			Text: redact.FromEnv().String(string(chunk))})
+	})
 
 	go func() {
 		res := l.Exec.Execute(workCtx, name, args)
@@ -118,6 +159,7 @@ func (l *Loop) drainBackground(appendE AppendFunc) error {
 func (l *Loop) settleBackground(appendE AppendFunc, out bgOutcome) error {
 	l.bg.mu.Lock()
 	delete(l.bg.cancel, out.handle)
+	delete(l.bg.logs, out.handle) // the completion result supersedes the live tail
 	l.bg.mu.Unlock()
 
 	// A background spawn also journals SubagentCompleted (v2 M3.1): tree-budget
@@ -317,13 +359,23 @@ func (l *Loop) runHandleTool(handles state.Handles, name string, rawArgs json.Ra
 	}
 	switch name {
 	case "output":
-		// v0: bash collects output at completion — the honest answer for a
-		// running work is its status. A live tail arrives with streaming
-		// tools (记档: 2.10 进度通道对 bash 未接).
-		payload, _ := json.Marshal(map[string]string{
+		// Progress tail (2.10 进度通道, audit-0717 B9): a running work
+		// answers with its live output so far — bounded, already redacted
+		// chunk-wise on the way in. The completion message stays the full,
+		// durable record.
+		out := map[string]any{
 			"handle": args.Handle, "status": "running",
-			"note": "output arrives as a message when the work finishes",
-		})
+			"note": "tail of the output so far; the full result arrives as a message when the work finishes",
+		}
+		l.bg.mu.Lock()
+		log := l.bg.logs[args.Handle]
+		l.bg.mu.Unlock()
+		if log != nil {
+			tail, total := log.snapshot()
+			out["output_tail"] = redact.FromEnv().String(tail)
+			out["output_bytes_total"] = total
+		}
+		payload, _ := json.Marshal(out)
 		return tool.Result{Payload: payload}
 	case "kill":
 		l.bg.mu.Lock()

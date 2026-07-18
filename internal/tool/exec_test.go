@@ -30,7 +30,12 @@ func newExec(t *testing.T) (*Executor, string) {
 
 func run(t *testing.T, e *Executor, name, args string) (map[string]any, bool) {
 	t.Helper()
-	res := e.Execute(context.Background(), name, json.RawMessage(args))
+	return runCtx(t, context.Background(), e, name, args)
+}
+
+func runCtx(t *testing.T, ctx context.Context, e *Executor, name, args string) (map[string]any, bool) {
+	t.Helper()
+	res := e.Execute(ctx, name, json.RawMessage(args))
 	var m map[string]any
 	if err := json.Unmarshal(res.Payload, &m); err != nil {
 		t.Fatalf("payload not JSON: %s", res.Payload)
