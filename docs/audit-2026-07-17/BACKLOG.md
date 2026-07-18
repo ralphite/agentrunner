@@ -183,4 +183,7 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
 - 2026-07-18 · E1① · INC-74 工作纸落盘,开始实施 · e2a57e0 · 进行中。
 - 2026-07-18 · INC-74.1 · schedule 事件族(5 类)+ fold 子状态
   (copy-on-write)+ SubStateVersions "schedule":1 + round-trip 样本 +
-  生命周期孪生 · 本 commit · 完成(74.2 安全点唤醒 next)。
+  生命周期孪生 · 7aa8e20 · 完成(74.2 安全点唤醒 next)。
+- 2026-07-18 · F2 收口 · QA-70 run#3 SUCCESS(真 Gemini:A 零 send
+  自动接续 / B 优雅停机无终态复活),QA.md 登记+SPEC 挂锚 · 本 commit
+  · 完成。

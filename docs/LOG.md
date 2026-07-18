@@ -4384,3 +4384,11 @@ DESIGN §恢复"标记只约束自动路径,send/显式命令越标记复活"原
 compact/remember 是显式用户命令,非自动路径,允许复活。不改不变量,
 只补齐状态派生的对称性。记档:SPEC 生命周期注 + DESIGN §恢复 INC-74
 条 + 单测 TestReopenAfterCloseClearsMark;裁 review(纯 fold 补齐)。
+
+## 2026-07-18 · QA-70 PASS:INC-71/72 B 闸收口(F2 完成)
+
+GitHub Actions run #3(29632900834,证据 artifact qa70-evidence):
+A. 真 Gemini bash 在飞 kill -9 → 重启零 send,interrupted-by-crash
+settle + park(INC-71);B. drive crash → boot sweep 收编 → SIGTERM
+优雅停机 → 无 driver_completed → 重启复活(INC-72)。双闸门至此两腿
+齐。三次 run 的跑法教训已记 QA.md(LLM 阶段误判/runner 缺 bwrap)。

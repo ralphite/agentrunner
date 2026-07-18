@@ -1408,3 +1408,21 @@ provider——本场景验的是渲染红线,无模型面)。
 呈 Add/Plugins/Advanced 三组、根动作 ≥5(实测 10)。
 **为何此前无锚**:折叠判定依赖真实 scrollHeight,jsdom 无布局——
 这正是这两行 SPEC 长期只有档期名锚的原因。
+
+---
+
+## QA-70 daemon 生命周期(INC-71 stranded 自动接续 + INC-72 优雅停机保活 cron,UJ-14/21)
+
+**状态**:PASS(2026-07-18,脚本 `qa/run-qa70.sh`,GitHub Actions
+`qa-daemon-lifecycle` run #3(29632900834),证据 artifact
+`qa70-evidence`——daemon/drive 日志 + 全部 events.jsonl)。
+**环境**:真 Gemini + 真 daemon(ubuntu runner + bubblewrap;本地容器
+无 key 时的指定跑法)。
+**红线**:A. bash execute 在飞时 kill -9 daemon → 重启后**零 send**:
+in-doubt 渲染 interrupted-by-crash、turn 继续、session park(INC-71
+boot sweep);B. 本地 drive crash → boot sweep 收编为 daemon 托管 →
+SIGTERM 优雅停机 → journal **无 driver_completed 终态** → 再次重启
+系列复活(新 iteration 事实出现)(INC-72)。
+**跑法教训记档**:run#1 等待条件在 LLM 阶段误判(须等 bash execute
+activity 同行匹配);run#2 runner 缺 bwrap 致 execute fail-closed
+(workflow 现自装+userns 放开+探针)。
