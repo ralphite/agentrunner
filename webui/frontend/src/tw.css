@@ -252,7 +252,12 @@
   .app.collapsed { grid-template-columns: minmax(0, 1fr); }
   .app.collapsed .sidebar { @apply hidden; }
   .main { @apply relative flex min-h-0 min-w-0 flex-col bg-bg outline-none; }
-  .sidebar-show { @apply fixed left-3 top-3 z-20 h-11 w-11 rounded-[8px] bg-panel shadow-lg transition-all duration-100 hover:shadow-xl; }
+  /* QA-0718 用户实机(iPhone/深色):44px fixed 按钮与 header 里 36px 的
+     nav-slot 尺寸/坐标不对齐,盖住会话标题首字符。对齐 slot(36px)并
+     垂直居中 48px header(top 6px + safe-area);桌面(>900 无 slot)
+     collapsed 时由下面的 :has 规则给 topbar 让位。 */
+  .sidebar-show { @apply fixed left-3 z-20 h-9 w-9 rounded-[8px] bg-panel shadow-lg transition-all duration-100 hover:shadow-xl; top: max(6px, env(safe-area-inset-top)); }
+  .main:has(> .sidebar-show) .session-topbar { @apply min-[901px]:pl-[60px]; }
   .sidebar-scrim { @apply fixed inset-0 z-30 border-0 bg-black/30 p-0; }
 
   .sidebar { @apply flex min-h-0 flex-col border-r border-line bg-sidebar; }

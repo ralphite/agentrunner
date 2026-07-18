@@ -34,6 +34,20 @@
 #   ]}
 #   安全：只接受 repo owner（ALLOWED_AUTHOR）的评论，其他人一律忽略。
 #
+# ── QA 每轮硬性覆盖清单（QA-0718 复盘:用户 iPhone 实机翻车的三个问题
+#    ——深色模式、移动 header 遮挡、新会话幽灵 diff——此前八轮全没测到,
+#    因为每轮都只测浅色+桌面+复用老会话。驱动测试的 agent 每轮 MUST:）
+#   1. 双主题:被测视图深/浅各截一次。切深色用
+#      eval: localStorage.setItem('arwebui.theme','dark');
+#            document.documentElement.setAttribute('data-theme','dark')
+#   2. 双视口:1280×800 与 390×844;fixed 定位元素(sidebar-show 等)与
+#      header 的对齐要专门看(safe-area 意识)。
+#   3. 首次路径:每轮至少开一个全新会话(新 project/无 project),断言
+#      首条回复下 /Edited \d+ file/ 不出现(幽灵 diff 回归锚,G-lastturn)。
+#   4. diff/commit 必须在**有真实变更**时打开看(含 scope 菜单两档与
+#      文件展开),只截空态不算覆盖。
+#   5. 每处发现先看截图再下结论;console error 与横向溢出每步随手断言。
+#
 # 会话数据经 actions/cache 跨 run 延续（与 phone-webui 相同机制、独立 key）。
 name: remote-qa-env
 

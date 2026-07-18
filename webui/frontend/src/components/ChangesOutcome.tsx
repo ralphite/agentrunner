@@ -350,7 +350,12 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
       setPhase("loading");
       setSummary(null);
     }
-    AR.diff(sid)
+    // QA-0718 用户实机:无参 diff = working-tree 全量,新会话接手一个带
+    // 历史未提交改动的 workspace(composer 记住上个 project)时,旧脏货
+    // 全被当成"这个 turn 编辑的文件"挂在首条回复下。这张卡的语义是
+    // "本 turn 编辑了什么"——用 last-turn scope(基线 = 最近一次人类
+    // turn 开始时的 shadow snapshot),session 外的历史改动不再入卡。
+    AR.diff(sid, "last-turn")
       .then((data) => {
         if (!alive) return;
         if (!data.known || !data.isRepo || data.nested) setSummary(null);
@@ -370,12 +375,23 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
   };
 
   // Undo ↺ — discard the whole change set back to HEAD (destructive; confirmed).
-  const undo = () => {
-    const n = summary?.files.length ?? 0;
+  // 卡显示的是 last-turn,而 revert 吞的是整个 working tree——两者可能不同
+  // (workspace 带着本 turn 之前的未提交改动)。确认弹窗必须报 revert 的
+  // 真实范围,所以先取 working-tree 计数;超出卡集合时明说(QA-0718)。
+  const undo = async () => {
+    const cardN = summary?.files.length ?? 0;
+    let n = cardN;
+    try {
+      const wt = await AR.diff(sid, "working-tree");
+      if (wt.known && wt.isRepo && !wt.nested) n = summarizeChanges(wt).files.length;
+    } catch {
+      /* fall back to the card count */
+    }
+    const beyond = n > cardN ? ` — including ${n - cardN} file${n - cardN === 1 ? "" : "s"} changed before this turn` : "";
     openModal({
       kind: "confirm",
       title: "Undo all changes?",
-      body: `Discards all ${n} changed file${n === 1 ? "" : "s"} in the workspace back to the last commit and deletes any new files the agent created. This can't be undone.`,
+      body: `Discards all ${n} uncommitted file${n === 1 ? "" : "s"} in the workspace back to the last commit and deletes any new files${beyond}. This can't be undone.`,
       confirmLabel: "Undo changes",
       danger: true,
       onConfirm: async () => {
