@@ -25,9 +25,6 @@ func TestPublishReadOrder(t *testing.T) {
 	if got := b.Read("empty"); len(got) != 0 {
 		t.Errorf("empty topic = %+v", got)
 	}
-	if topics := b.Topics(); len(topics) != 2 || topics[0] != "findings" {
-		t.Errorf("topics = %v", topics)
-	}
 }
 
 // The mirror sees every publish, in order, outside the lock — re-reading

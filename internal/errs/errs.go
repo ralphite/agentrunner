@@ -111,9 +111,6 @@ func ClassOf(err error) Class {
 	return Internal
 }
 
-// Retryable reports whether the error's class permits a retry.
-func Retryable(err error) bool { return ClassOf(err).Retryable() }
-
 // FromHTTPStatus maps a provider HTTP status to a class (Gemini and
 // Anthropic both follow these conventions).
 func FromHTTPStatus(code int) Class {

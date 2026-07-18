@@ -61,12 +61,16 @@
 
 - [x] **C1** G30 弱锚燃尽:31→2(24 行还真锚,2 行留债有因——
   composer 前端 it 名/用户消息折叠 jsdom 测不了,见 GAPS G30 注)。
-- [ ] **C2** G31 deadcode 甄别（M，可分多迭代）：
-  `scripts/deadcode-baseline.txt` 19 个不可达导出逐项三选一
-  （接线/删除/LOG 注记理由），基线只减不增。
+- [x] **C2** G31 deadcode 甄别:17 项逐一落档——删 2(errs.Retryable
+  自由函数/blackboard.Topics)、test-infra 注记 10、unwired 3 项转
+  D0 工作纸(见 LOG 2026-07-18)。
 
 ## 第 3 批 · 中型增量（c 类，先工作纸后实施）
 
+- [ ] **D0** G31-unwired 三件套处置工作纸（S-M）：①waiting 注册表
+  接线(CanProduce/ResolveWaitingOnInterrupt 收敛生产内联,行为中性
+  重构);②command.Discover 裁决(CLI"列 slash 命令"面立项接线,或
+  删除并记档)。
 - [ ] **D1** G3 WAITING_APPROVAL 挂起期间消息唤醒语义（M，可能触
   park/唤醒不变量——工作纸里显式判定，触则走 PROCESS §四）。
 - [ ] **D2** G2 barrier 对在飞 background/child work 的处置语义
@@ -130,4 +134,6 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
 - 2026-07-18 · 插入(用户指令) · check.sh 并行化提速:8min→53s,
   覆盖不减,重复 go vet 去除 · 0d3cd33 · 完成。
 - 2026-07-18 · C1 · G30 弱锚燃尽 24/26(债 31→2,留 2 行有因) ·
-  本 commit · 完成。
+  17ab2ff · 完成。
+- 2026-07-18 · C2 · deadcode 17 项甄别(删 2/注记 10/unwired 3→D0)
+  · 本 commit · 完成。

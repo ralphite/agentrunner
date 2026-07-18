@@ -80,7 +80,7 @@ func TestErrorFormatAndUnwrap(t *testing.T) {
 	if got := e.Error(); got != "gemini [provider_server]: boom" {
 		t.Errorf("Error() = %q", got)
 	}
-	if !Retryable(e) {
+	if !ClassOf(e).Retryable() {
 		t.Error("wrapped provider_server must be retryable")
 	}
 }

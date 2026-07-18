@@ -14,7 +14,6 @@
 package blackboard
 
 import (
-	"sort"
 	"sync"
 )
 
@@ -67,17 +66,5 @@ func (b *Board) Read(topic string) []Note {
 	notes := b.topics[topic]
 	out := make([]Note, len(notes))
 	copy(out, notes)
-	return out
-}
-
-// Topics lists topics with at least one note, sorted.
-func (b *Board) Topics() []string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	out := make([]string, 0, len(b.topics))
-	for t := range b.topics {
-		out = append(out, t)
-	}
-	sort.Strings(out)
 	return out
 }
