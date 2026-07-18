@@ -219,3 +219,7 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
 - 2026-07-18 · E1③ · INC-77 §四工作纸落盘(旧文×5/动因/新表述
   方案 A=程序驱动父 session(B 否决记档)/波及面 13 文件清单/五步
   实施/契约自查)· 本 commit · 进行中(77.1 Series 子状态 next)。
+- 2026-07-18 · INC-77.1 · Series 事件三件+子状态 fold(BestIter 平分
+  取最早/SpentTokens billed 和/LastTick 补跑锚/重复 N 原位覆盖)+
+  SubStateVersions "series":1 + round-trip 样本 + 生命周期孪生 · 本
+  commit · 完成(77.2 series runner next)。

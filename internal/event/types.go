@@ -106,6 +106,17 @@ const (
 	TypeScheduleWake      = "schedule_wake"
 	TypeCommandHandled    = "command_handled"
 
+	// Series events (INC-77, E1③ stream 合流): a drive series recorded IN
+	// the session journal — the program-driven parent session form. The
+	// iteration CHILDREN are ordinary spawn facts (SpawnRequested /
+	// SubagentCompleted); this family carries only what spawn facts don't:
+	// series identity/bounds, per-iteration verdict/carry/skip, and the
+	// terminal. The legacy driver stream (DriverStarted/Iteration*) stays
+	// readable but is deprecated for WRITE in the merged form.
+	TypeSeriesStarted   = "series_started"
+	TypeSeriesIteration = "series_iteration"
+	TypeSeriesEnded     = "series_ended"
+
 	// INC-52 (HANDA-PARITY #14): journal-backed auto session title. Additive —
 	// legacy journals carry none and the title projection falls back to the
 	// opening prompt's first line.
@@ -464,6 +475,51 @@ type ScheduleWake struct {
 	N          int       `json:"n"`
 	Tick       time.Time `json:"tick"`
 	Skipped    bool      `json:"skipped,omitempty"`
+}
+
+// SeriesStarted opens a drive series in the SESSION journal (INC-77, E1③):
+// identity plus the fold-decidable bounds. Cadence lives in the Schedule
+// sub-state (INC-74); child mechanics live in spawn facts.
+type SeriesStarted struct {
+	SeriesID string `json:"series_id"`
+	// Kind names the series shape: once | goal | loop | best_of_n.
+	Kind          string `json:"kind"`
+	MaxIterations int    `json:"max_iterations,omitempty"` // 0 = unbounded
+	// Patience bounds stall detection (goal series): consecutive
+	// no-improvement iterations before the series stalls. 0 = disabled.
+	Patience int    `json:"patience,omitempty"`
+	Overlap  string `json:"overlap,omitempty"` // skip | coalesce ("" = skip)
+	Source   string `json:"source"`
+}
+
+// SeriesIteration records one settled (or overlap-skipped) iteration: the
+// spawn linkage (CallID/ChildSession), the child's terminal reason, the
+// verdict, and the carry ref — the merged-stream analog of
+// IterationCompleted (+Scheduled/Skipped folded into one fact). Tick is the
+// consumed cadence slot (zero for immediate series); Usage is this
+// iteration's settled spend (settle-at-completion, pure fold).
+type SeriesIteration struct {
+	SeriesID     string           `json:"series_id"`
+	N            int              `json:"n"` // 1-based, monotonic
+	CallID       string           `json:"call_id,omitempty"`
+	ChildSession string           `json:"child_session,omitempty"`
+	Reason       string           `json:"reason,omitempty"`
+	Verdict      IterationVerdict `json:"verdict,omitzero"`
+	CarryRef     string           `json:"carry_ref,omitempty"`
+	Carry        string           `json:"carry,omitempty"` // short inline excerpt
+	Skipped      bool             `json:"skipped,omitempty"`
+	Tick         time.Time        `json:"tick,omitzero"`
+	Usage        provider.Usage   `json:"usage,omitzero"`
+}
+
+// SeriesEnded is the series terminal (the DriverCompleted analog). Like
+// every session fact it is not a session terminal — the session itself
+// stays reopenable (决策 #30).
+type SeriesEnded struct {
+	SeriesID   string `json:"series_id"`
+	Reason     string `json:"reason"`
+	Iterations int    `json:"iterations"`
+	BestIter   int    `json:"best_iter,omitempty"`
 }
 
 type GoalPaused struct {
@@ -1105,6 +1161,9 @@ var Registry = map[string]func() any{
 	TypeScheduleResumed:       func() any { return &ScheduleResumed{} },
 	TypeScheduleCancelled:     func() any { return &ScheduleCancelled{} },
 	TypeScheduleWake:          func() any { return &ScheduleWake{} },
+	TypeSeriesStarted:         func() any { return &SeriesStarted{} },
+	TypeSeriesIteration:       func() any { return &SeriesIteration{} },
+	TypeSeriesEnded:           func() any { return &SeriesEnded{} },
 	TypeGoalUpdated:           func() any { return &GoalUpdated{} },
 	TypeGoalPaused:            func() any { return &GoalPaused{} },
 	TypeGoalResumed:           func() any { return &GoalResumed{} },

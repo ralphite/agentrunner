@@ -37,6 +37,7 @@ func SubStateVersions() map[string]int {
 		"interactions": 1, // INC-11.5 (Turn/Item typed interaction projection)
 		"team":         1, // INC-11.6 durable delegation/DAG/lease/workspace projection
 		"schedule":     1, // INC-74 in-session schedule (E1① loop-mode 挂会话)
+		"series":       1, // INC-77 drive series in the session journal (E1③ stream 合流)
 	}
 }
 
@@ -85,6 +86,8 @@ type State struct {
 	Goal *Goal `json:"goal,omitempty"`
 	// Schedule is the folded in-session recurring wake cadence (INC-74).
 	Schedule *Schedule `json:"schedule,omitempty"`
+	// Series is the folded in-session drive series (INC-77, E1③).
+	Series *Series `json:"series,omitempty"`
 	// Interactions is the durable Turn/Item projection. Conversation remains
 	// the provider-compatible view; both are folded from the same events.
 	Interactions Interactions `json:"interactions"`
@@ -289,6 +292,46 @@ type Schedule struct {
 	LastWakeN  int       `json:"last_wake_n,omitempty"`
 	LastTick   time.Time `json:"last_tick,omitempty"`
 	Paused     bool      `json:"paused,omitempty"`
+}
+
+// SeriesIterationRec is one folded iteration of an in-session drive series
+// (INC-77). The spawn linkage points at ordinary spawn facts; verdict/carry
+// live only here.
+type SeriesIterationRec struct {
+	N            int                    `json:"n"`
+	CallID       string                 `json:"call_id,omitempty"`
+	ChildSession string                 `json:"child_session,omitempty"`
+	Reason       string                 `json:"reason,omitempty"`
+	Verdict      event.IterationVerdict `json:"verdict,omitzero"`
+	CarryRef     string                 `json:"carry_ref,omitempty"`
+	Carry        string                 `json:"carry,omitempty"`
+	Skipped      bool                   `json:"skipped,omitempty"`
+	Tick         time.Time              `json:"tick,omitzero"`
+	Usage        provider.Usage         `json:"usage,omitzero"`
+}
+
+// Series is the folded in-session drive series (INC-77, E1③): the
+// program-driven parent session's sole working memory — the series runner
+// re-derives its whole position (next N, budget, best, stall) from this
+// fold on every resume (journal, never memory; the driver.State mirror).
+type Series struct {
+	SeriesID      string               `json:"series_id"`
+	Kind          string               `json:"kind"`
+	MaxIterations int                  `json:"max_iterations,omitempty"`
+	Patience      int                  `json:"patience,omitempty"`
+	Overlap       string               `json:"overlap,omitempty"`
+	Iterations    []SeriesIterationRec `json:"iterations,omitempty"`
+	// BestIter is the 1-based iteration with the highest verdict score so
+	// far (ties keep the earliest); 0 means none completed yet.
+	BestIter int `json:"best_iter,omitempty"`
+	// SpentTokens sums every settled iteration's billed usage
+	// (settle-at-completion): the series budget position, pure fold.
+	SpentTokens int `json:"spent_tokens,omitempty"`
+	// LastTick is the latest consumed cadence slot (max over iteration
+	// Ticks) — the INC-54 catch-up anchor for cron/interval series.
+	LastTick  time.Time `json:"last_tick,omitzero"`
+	Ended     bool      `json:"ended,omitempty"`
+	EndReason string    `json:"end_reason,omitempty"`
 }
 
 // Compaction is the folded result of ContextCompacted (S4.5): messages
@@ -1186,6 +1229,65 @@ func Apply(s State, env event.Envelope) (State, error) {
 		if s.Schedule != nil && s.Schedule.ScheduleID == p.ScheduleID {
 			s.Schedule = nil
 		}
+
+	// ---- INC-77: in-session drive series (E1③ stream 合流) ----
+	// Copy-on-write like the schedule/goal families: the pointer and the
+	// Iterations backing array are shared with the caller's previous State
+	// value (Apply purity), so every mutation clones first.
+	case *event.SeriesStarted:
+		s.Series = &Series{SeriesID: p.SeriesID, Kind: p.Kind,
+			MaxIterations: p.MaxIterations, Patience: p.Patience, Overlap: p.Overlap}
+
+	case *event.SeriesIteration:
+		if s.Series == nil || s.Series.SeriesID != p.SeriesID || p.N < 1 {
+			break
+		}
+		sc := *s.Series
+		sc.Iterations = append([]SeriesIterationRec(nil), sc.Iterations...)
+		rec := SeriesIterationRec{N: p.N, CallID: p.CallID, ChildSession: p.ChildSession,
+			Reason: p.Reason, Verdict: p.Verdict, CarryRef: p.CarryRef, Carry: p.Carry,
+			Skipped: p.Skipped, Tick: p.Tick, Usage: p.Usage}
+		// The runner never re-appends a recorded N (fold-checked before
+		// journaling, driver 教义); a crash-replay duplicate overwrites in
+		// place instead of forking the list.
+		replaced := false
+		for i := range sc.Iterations {
+			if sc.Iterations[i].N == p.N {
+				sc.Iterations[i] = rec
+				replaced = true
+				break
+			}
+		}
+		if !replaced {
+			sc.Iterations = append(sc.Iterations, rec)
+		}
+		if !p.Skipped {
+			sc.SpentTokens = 0
+			bestScore := 0.0
+			sc.BestIter = 0
+			for _, it := range sc.Iterations {
+				if it.Skipped {
+					continue
+				}
+				sc.SpentTokens += it.Usage.Billed()
+				// Highest score wins; ties keep the EARLIEST iteration.
+				if sc.BestIter == 0 || it.Verdict.Score > bestScore {
+					sc.BestIter, bestScore = it.N, it.Verdict.Score
+				}
+			}
+		}
+		if p.Tick.After(sc.LastTick) {
+			sc.LastTick = p.Tick
+		}
+		s.Series = &sc
+
+	case *event.SeriesEnded:
+		if s.Series == nil || s.Series.SeriesID != p.SeriesID {
+			break
+		}
+		sc := *s.Series
+		sc.Ended, sc.EndReason = true, p.Reason
+		s.Series = &sc
 
 	// ---- INC-D1: in-session goal (G23/UJ-22) ----
 	case *event.GoalAttached:

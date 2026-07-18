@@ -125,6 +125,16 @@ var samples = map[string]any{
 	TypeScheduleCancelled: &ScheduleCancelled{ScheduleID: "sch-1", Reason: "user", Source: "user"},
 	TypeScheduleWake: &ScheduleWake{ScheduleID: "sch-1", N: 3,
 		Tick: time.Date(2026, 7, 18, 6, 30, 0, 0, time.UTC), Skipped: true},
+	TypeSeriesStarted: &SeriesStarted{SeriesID: "ser-1", Kind: "goal",
+		MaxIterations: 8, Patience: 3, Overlap: "skip", Source: "user"},
+	TypeSeriesIteration: &SeriesIteration{SeriesID: "ser-1", N: 2, CallID: "call-7",
+		ChildSession: "s-sub-call-7-a1", Reason: "completed",
+		Verdict:  IterationVerdict{Pass: true, Score: 0.9, Verifier: "command"},
+		CarryRef: "carry@v2", Carry: "两条断言修复",
+		Tick:  time.Date(2026, 7, 18, 14, 30, 0, 0, time.UTC),
+		Usage: provider.Usage{InputTokens: 100, OutputTokens: 50}},
+	TypeSeriesEnded: &SeriesEnded{SeriesID: "ser-1", Reason: "goal_satisfied",
+		Iterations: 2, BestIter: 2},
 }
 
 func TestRoundTripAllTypes(t *testing.T) {

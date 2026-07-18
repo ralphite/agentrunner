@@ -77,8 +77,17 @@ E1 四步的第三步。①(INC-74 in-session schedule)②(INC-76 子执行
 
 ## 五、实施步骤(每步可合并、可回退)
 
-1. INC-77.1:Series 子状态 + 事件族 + fold + round-trip 守卫
-   (纯数据层,session 侧)。
+1. ✅ INC-77.1:Series 子状态 + 事件族 + fold + round-trip 守卫
+   (纯数据层,session 侧)。事件三件:`SeriesStarted{kind,
+   max_iterations, patience, overlap}` / `SeriesIteration{n, call_id,
+   child_session, reason, verdict, carry_ref, carry, skipped, tick,
+   usage}`(IterationScheduled+Completed+Skipped 三合一,verdict 复用
+   event.IterationVerdict)/ `SeriesEnded{reason, iterations,
+   best_iter}`。fold:BestIter 最高分、平分取最早;SpentTokens =
+   非 skip 迭代 billed 和(settle-at-completion);LastTick 取最大
+   tick(INC-54 补跑锚);重复 N 重放原位覆盖不分叉;wrong-ID no-op;
+   copy-on-write(Iterations 背板克隆)。SubStateVersions "series":1。
+   孪生 TestSeriesFoldLifecycle。
 2. INC-77.2:series runner(程序驱动 parent:写 session journal,
    轮次走 ChildRun+Spawn 事实,判定/stall/carry 折 Series)+ 孪生
    (one-shot/loop/goal 三形态各一,fake clock)。
