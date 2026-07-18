@@ -1,4 +1,5 @@
 runs/
+qa/blackbox-out*/
 .env
 acceptance-report.json
 /agentrunner
@@ -13,6 +14,6 @@ webui/frontend/dist/*
 !webui/frontend/dist/.gitkeep
 
 # Codex golden reference screenshots are intentionally TRACKED (parity ground truth;
-# the ephemeral qa/runs/ captures are the ignored ones).
+# the ephemeral qa/runs/ and qa/blackbox-out/ captures are the ignored ones).
 !qa/codex-reference/*.jpg
 !qa/codex-reference/*.png
