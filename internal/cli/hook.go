@@ -85,7 +85,14 @@ func hookCreateCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "deliver: curl -X POST http://%s/hooks/%s -H 'Authorization: Bearer <token>' -d '<event text>'\n",
 			strings.TrimSpace(string(addr)), hk.ID)
 	} else {
-		fmt.Fprintf(stdout, "deliver: POST /hooks/%s with 'Authorization: Bearer <token>' — start the ingress with: agentrunner daemon --http 127.0.0.1:4177\n", hk.ID)
+		// The ingress is a boot-time choice: a second `daemon --http` can't add
+		// it to an already-running daemon (it refuses on the store lock), so the
+		// old "start the ingress with: daemon --http" hint dead-ended (QA Wave3
+		// judy-01). Tell the user the honest path: the running daemon must be
+		// restarted WITH --http for this hook to be deliverable.
+		fmt.Fprintf(stdout, "deliver: POST /hooks/%s with 'Authorization: Bearer <token>'\n", hk.ID)
+		fmt.Fprintln(stdout, "  note: the daemon is running WITHOUT the ingress. Enabling it is a boot-time choice —")
+		fmt.Fprintln(stdout, "  restart the daemon with --http (e.g. stop it, then `agentrunner daemon --detach --http 127.0.0.1:4177`).")
 	}
 	return ExitOK
 }
