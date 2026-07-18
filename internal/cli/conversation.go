@@ -13,8 +13,10 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ralphite/agentrunner/internal/agent"
+	"github.com/ralphite/agentrunner/internal/cron"
 	"github.com/ralphite/agentrunner/internal/daemon"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
@@ -686,6 +688,118 @@ func goalCmd(args []string, stdout, stderr io.Writer) int {
 		return oneShot(stderr, daemon.Command{Cmd: "goal-" + sub, Session: session, Goal: gc}, stdout)
 	default:
 		fmt.Fprintf(stderr, "goal: unknown subcommand %q (attach|update|pause|resume|cancel)\n", sub)
+		return ExitUsage
+	}
+}
+
+// scheduleCmd drives an in-session schedule (INC-74, UJ-14/UJ-22 — the
+// loop-mode-on-a-conversation form):
+//
+//	agentrunner schedule <session> attach --every 30m|--cron "…" [--max-wakes N] "<prompt>"
+//	agentrunner schedule <session> status|pause|resume|cancel
+//
+// The schedule hangs on the conversational session: at each tick the session
+// wakes itself, runs one normal turn on the standing prompt (context
+// continues), and re-arms. One schedule per session (id "schedule"); attach
+// replaces any existing one. pause stops wakes without compensation; resume
+// re-anchors the cadence at resume time.
+func scheduleCmd(args []string, stdout, stderr io.Writer) int {
+	if len(args) < 2 {
+		fmt.Fprintln(stderr, "usage: agentrunner schedule <session-id-or-prefix> <attach|status|pause|resume|cancel> [flags]")
+		return ExitUsage
+	}
+	session := resolvePrefixLenient(args[0])
+	sub, rest := args[1], args[2:]
+	switch sub {
+	case "status":
+		// Journal fold, no daemon round-trip — works on idle and stopped
+		// sessions alike (the goal-status precedent).
+		dir, err := resolveSessionDir(session)
+		if err != nil {
+			fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+			return ExitUsage
+		}
+		events, err := store.ReadEvents(dir)
+		if err != nil {
+			fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+			return ExitRun
+		}
+		fold, err := state.Fold(events)
+		if err != nil {
+			fmt.Fprintf(stderr, "agentrunner: fold: %v\n", err)
+			return ExitRun
+		}
+		sc := fold.Schedule
+		if sc == nil {
+			fmt.Fprintln(stdout, "no active schedule")
+			return ExitOK
+		}
+		if sc.Interval != "" {
+			fmt.Fprintf(stdout, "cadence   every %s\n", sc.Interval)
+		} else {
+			fmt.Fprintf(stdout, "cadence   cron %s\n", sc.Cron)
+		}
+		fmt.Fprintf(stdout, "prompt    %s\n", sc.Prompt)
+		if sc.MaxWakes > 0 {
+			fmt.Fprintf(stdout, "wakes     %d/%d\n", sc.Wakes, sc.MaxWakes)
+		} else {
+			fmt.Fprintf(stdout, "wakes     %d\n", sc.Wakes)
+		}
+		if !sc.LastTick.IsZero() {
+			fmt.Fprintf(stdout, "last tick %s\n", sc.LastTick.Format(time.RFC3339))
+		}
+		if sc.Paused {
+			fmt.Fprintln(stdout, "paused    yes (schedule resume re-anchors the cadence)")
+		}
+		return ExitOK
+	case "pause", "resume", "cancel":
+		return oneShot(stderr, daemon.Command{Cmd: "schedule-" + sub, Session: session}, stdout)
+	case "attach":
+		fs := flag.NewFlagSet("schedule attach", flag.ContinueOnError)
+		fs.SetOutput(stderr)
+		every := fs.String("every", "", "wake interval as a Go duration (e.g. 30m, 2h); exactly one of --every/--cron")
+		cronExpr := fs.String("cron", "", "wake cadence as a 5-field cron expression; exactly one of --every/--cron")
+		maxWakes := fs.Int("max-wakes", 0, "detach after N served wakes (0 = unbounded)")
+		if err := fs.Parse(reorderFlags(fs, rest)); err != nil {
+			return ExitUsage
+		}
+		// Fail fast on an unusable cadence — the loop-side applier re-checks,
+		// but a typo should not cost a daemon round-trip to find out.
+		switch {
+		case *every != "" && *cronExpr != "":
+			fmt.Fprintln(stderr, "schedule attach: set --every or --cron, not both")
+			return ExitUsage
+		case *every == "" && *cronExpr == "":
+			fmt.Fprintln(stderr, "schedule attach: a cadence is required (--every 30m or --cron \"*/5 * * * *\")")
+			return ExitUsage
+		case *every != "":
+			d, err := time.ParseDuration(*every)
+			if err != nil || d < time.Second {
+				fmt.Fprintf(stderr, "schedule attach: --every %q is not a duration of at least 1s\n", *every)
+				return ExitUsage
+			}
+		default:
+			if _, err := cron.Parse(*cronExpr); err != nil {
+				fmt.Fprintf(stderr, "schedule attach: %v\n", err)
+				return ExitUsage
+			}
+		}
+		if *maxWakes < 0 {
+			fmt.Fprintf(stderr, "schedule attach: --max-wakes must be non-negative (got %d)\n", *maxWakes)
+			return ExitUsage
+		}
+		prompt := strings.Join(fs.Args(), " ")
+		if strings.TrimSpace(prompt) == "" {
+			fmt.Fprintln(stderr, "schedule attach: a standing prompt is required (what each wake should do)")
+			return ExitUsage
+		}
+		sc := &protocol.ScheduleControl{
+			ScheduleID: "schedule", Interval: *every, Cron: *cronExpr,
+			Prompt: prompt, MaxWakes: *maxWakes,
+		}
+		return oneShot(stderr, daemon.Command{Cmd: "schedule-attach", Session: session, Schedule: sc}, stdout)
+	default:
+		fmt.Fprintf(stderr, "schedule: unknown subcommand %q (attach|status|pause|resume|cancel)\n", sub)
 		return ExitUsage
 	}
 }

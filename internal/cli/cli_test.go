@@ -69,7 +69,7 @@ func TestPositionalCommandsHonorHelpFlag(t *testing.T) {
 	t.Chdir(dir)
 	for _, cmd := range []string{
 		"init", "resume", "close", "interrupt", "stop", "compact", "clear",
-		"goal", "agent", "kill", "ps", "approve", "barrier", "sessions", "trust",
+		"goal", "schedule", "agent", "kill", "ps", "approve", "barrier", "sessions", "trust",
 	} {
 		for _, h := range []string{"-h", "--help"} {
 			var out, errOut bytes.Buffer
@@ -92,7 +92,7 @@ func TestPositionalCommandsHonorHelpFlag(t *testing.T) {
 // not the global help, and that an unknown command falls back to global (QA
 // Wave1 cli-life-05).
 func TestHelpSubcommand(t *testing.T) {
-	for _, cmd := range []string{"sessions", "goal", "resume", "approve", "mode"} {
+	for _, cmd := range []string{"sessions", "goal", "schedule", "resume", "approve", "mode"} {
 		var out, errOut bytes.Buffer
 		if code := Run([]string{"help", cmd}, "test", &out, &errOut); code != ExitOK {
 			t.Fatalf("help %s: exit %d", cmd, code)

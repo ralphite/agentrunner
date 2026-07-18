@@ -41,7 +41,7 @@
 | UJ-11 代码评审员 | ✅ | 只读约束、角色切换、续聊均已覆盖（G8/G6 关闭） |
 | UJ-12 PR 保姆 | 🟡 | G14 外部事件唤醒 ✅（INC-50 webhook ingress）；GitHub 具体集成（PR 评论/CI 状态归一）借 bash+gh 可走 |
 | UJ-13 手机派活 | ❌ | 环境生命周期 G11、diff 审阅门 G13、follow-up G6；HTTP 壳 🔧backlog |
-| UJ-14 定时值守 | ✅ | cron/interval fixed-rate、overlap、carry、通知、fail-closed、跨重启唤醒全通 |
+| UJ-14 定时值守 | ✅ | cron/interval fixed-rate、overlap、carry、通知、fail-closed、跨重启唤醒全通;session 内形态(loop-mode 挂会话,context 延续)INC-74 已落 |
 | UJ-15 通宵冲目标 | ✅ | goal/verifier/停滞/预算/时间线/rewind 全通（最强区） |
 | UJ-16 三路并击 | 🟡 | 并行隔离+选优 ✅；胜者晋升 G15 |
 | UJ-17 远程驾驶舱 | ✅ | attach/远程审批/用量/stop/steer 全通；Web UI 产品面见 UJ-24 |

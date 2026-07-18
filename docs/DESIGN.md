@@ -1557,6 +1557,36 @@ limits:
   interrupt`；跳过是 `IterationSkipped` event，不是沉默。interval 与 cron
   都使用 durable fixed-rate absolute tick；iteration 跑过 tick 时按
   skip/coalesce 消费错过的 slot，不从 completion 时刻重新 fixed-delay。
+- **Loop 也有两种形态（INC-74，E1①——goal 两形态的镜像）**：
+  - **driver loop**（批式/fresh-child）= 上面的 schedule 教义，维持至
+    E1 收敛完成。
+  - **in-session schedule**（会话内、context 延续，UJ-14/22）= 挂在
+    conversational `agent.Loop` 上的 **Schedule 子状态**（事件族
+    `ScheduleAttached/Paused/Resumed/Cancelled/Wake`，change-as-event
+    同决策 #32 族）。**唤醒是 drive-loop 安全点的一格**（`checkSchedule`）：
+    到期判定每个安全点从 `LastTick`（attach/resume 的 `Base` 或最近
+    `ScheduleWake` 的 tick——**基准入事件、由 loop clock 盖章，fold 绝
+    不读 envelope 墙钟 TS**）重推——durable timer 只是**唤醒提示**，丢
+    失/重复不丢 slot、不重复 wake（`armScheduleTimer` 收敛到恰好一个
+    pending timer，TimerID 由 slot 决定、重挂幂等）。due → journal
+    `ScheduleWake` + standing prompt 以 `program` 源 `InputReceived`
+    回灌（goal reinject 同模板）→ 正常 turn → 幂等挂下一 tick 的
+    `TimerSet{purpose:"schedule_wake:<id>"}`。漏 slot 折**恰好一次**
+    catch-up（INC-54 教义）；busy（对话形态判定，镜像 decide()——带
+    pending schedule timer 的会话 `Quiescence` 恒 false 系有意语义、
+    不可用作忙判定）→ `ScheduleWake{skipped}`，绝不中 turn 注入。
+    唤醒双路径：hosted 空闲 park 在 awaitInput 以 loop clock
+    `WaitUntil` 等最早 schedule timer（journal `TimerFired` 后走安全
+    点）；unhosted 由 daemon timer sweep（§12）hostResume（automatic
+    路径，决策 #30 标记门生效）。pause 撤 pending timer、不补偿；
+    resume 以 `Base` 重锚 cadence（暂停是显式选择，区别于 crash）。
+    close 撤 pending timer（否则关闭会话因 timer 永不静止）但
+    schedule 本体越标记存活——显式重开后安全点自动重挂。`max_wakes`
+    只计 served（非 skipped）wake，尽则 `ScheduleCancelled{max_wakes}`
+    自动摘除。控制面 `ar schedule attach|status|pause|resume|cancel`
+    走 goal-* 同款 out-of-band control 通道与非 hosted revive。与
+    in-session goal 允许并存（schedule 唤醒的 turn 同样受 goal verify
+    支配），互不引用。
 - **预算与失败策略共享**：driver 是树预算的根，reserve-at-launch /
   settle-at-completion；`on_reserve_failure: skip|stop`、
   `on_child_failure: stop|surface|retry{max, backoff}`——对**终态**
@@ -1718,7 +1748,10 @@ mapping，代码与文档同名）。
   事件形状是否字面统一待真实压力再决。
 - **§3 "一套机制取代三套"收敛进度**：阻塞 spawn 已删除（2026-07-08,
   零 legacy——spawn 一律非阻塞;handoff 的同步执行是控制移交语义,
-  不是第二条 spawn 路径）;driver 子系统仍独立,收敛挂 UJ-22/G23。
+  不是第二条 spawn 路径）;driver 子系统仍独立,收敛挂 UJ-22/G23,
+  按 E1 四步走：**步骤①已落（INC-74 in-session schedule,loop-mode
+  的会话内形态,driver loop 并存维持）**,②iteration child 统一走
+  spawn_agent、③stream 合流（触 §3 教义,须 §四）、④CLI 兼容层待续。
 - **WAITING_APPROVAL 挂起期间**消息只排队不唤醒（审批答复才解栈，
   唤醒语义待定，见 GAPS G3 余项）。
 - **daemon kill -9 孤儿化在飞 bash 的子进程**：已收（audit-0717 B3，

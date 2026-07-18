@@ -109,6 +109,8 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 		return modeCmd(args[1:], stdout, stderr)
 	case "goal":
 		return goalCmd(args[1:], stdout, stderr)
+	case "schedule":
+		return scheduleCmd(args[1:], stdout, stderr)
 	case "agent":
 		return agentCmd(args[1:], stdout, stderr)
 	case "kill":
@@ -163,6 +165,8 @@ func commandHelp(cmd string) string {
 		return "usage: agentrunner clear <session-id-or-prefix>\n\nDrop the session's context prefix (the journal keeps everything).\n"
 	case "goal":
 		return "usage: agentrunner goal <session-id-or-prefix> <attach|update|status|pause|resume|cancel> [flags]\n\nAttach a goal to the session (it keeps working until the goal is\nmet), or manage the one it has. status shows the active goal and\nits check budget. attach/update take the goal text and optional\n--verify \"<cmd>\" / --max-checks N.\n"
+	case "schedule":
+		return "usage: agentrunner schedule <session-id-or-prefix> <attach|status|pause|resume|cancel> [flags]\n\nAttach a recurring self-wake cadence to the session: at each tick it\nwakes, runs one turn on the standing prompt (context continues), and\nre-arms — even across daemon restarts. attach takes the prompt plus\n--every <duration> or --cron \"<5-field>\" and optional --max-wakes N.\npause stops wakes (no catch-up); resume re-anchors the cadence.\n"
 	case "agent":
 		return "usage: agentrunner agent <session-id-or-prefix> <spec.yaml>\n\nSwitch the session's agent spec; the conversation continues with\nthe new agent from the next message.\n"
 	case "kill":
@@ -229,6 +233,9 @@ Conversations (need the daemon):
                               next safe boundary; plan/bypass are start-time only
   goal <session> attach "…"   attach a goal the session keeps working toward
                               (also: goal <session> update|pause|resume|cancel)
+  schedule <session> attach --every 30m "…"   the session wakes itself on a
+                              cadence and runs the standing prompt each round
+                              (also: --cron "…"; schedule status|pause|resume|cancel)
   hook create <session>       mint a webhook URL+token for external events
                               (daemon --http <addr> serves POST /hooks/<id>;
                               also: hook list, hook revoke <id>)

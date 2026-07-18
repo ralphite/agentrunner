@@ -4443,3 +4443,21 @@ schedule timer;close 撤 pending timer(否则永不静止)、留 schedule 本
 clock 盖章,fold 不读 envelope 墙钟 TS——重放在 fake clock 下纯。孪生
 六件:attach 唤醒/pause 不补偿+resume 重锚/cancel 清场/busy skip 折一/
 重启 catch-up 恰一/close 静止。74.3(CLI+daemon wire+文档收口)next。
+
+## 2026-07-18 · INC-74.3:CLI + daemon wire + 文档收口(E1① 第三小步)
+
+`ar schedule <sid> attach --every|--cron [--max-wakes] "<prompt>"` +
+`status|pause|resume|cancel`(status 直读 journal fold,goal-status
+同款;attach 前置校验 both/neither/坏 duration/坏 cron/负 max-wakes/
+空 prompt 全 ExitUsage,不花 daemon 往返)。daemon `schedule-*` 四
+wire 命令走 handleControl 同一条 durable Control 通道——幂等重放
+(command-id 去重、CommandHandled no_op 回执)与非 hosted revive
+(goal-* 同款)免费获得,孪生 TestScheduleAttachRevivesSession/
+TestScheduleAttachValidation 钉住。unhosted 唤醒无需新代码:
+scanSessionTimers(INC-54 派生索引)+ sweepTimers hostResume 已覆盖
+schedule timer,标记门在扫描与 resume 两处生效。文档:SPEC A 表新行
++F 表 loop 行注 +CLI/wire 命令清单;DESIGN §13 "Loop 也有两种形态"
+(goal 两形态镜像)+§17 E1 四步进度;GAPS UJ-14 行注;QA-74 场景登记
+(qa/run-qa74.sh + qa-session-schedule workflow:真 Gemini 自主唤醒
+×2 跨 daemon 重启 + pause 不再醒)。B 闸 Actions 真跑 PASS 后归档
+INC-74 工作纸。

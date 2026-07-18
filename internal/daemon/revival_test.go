@@ -135,6 +135,43 @@ func TestGoalAttachRevivesSession(t *testing.T) {
 	}
 }
 
+// INC-74.3: a schedule control to a non-hosted session revives it like a
+// goal control does — `ar schedule <sid> attach` after a daemon restart must
+// work without a priming send, delivering the control to the revived loop.
+func TestScheduleAttachRevivesSession(t *testing.T) {
+	var resumed atomic.Int32
+	resume := func(ctx context.Context, req ResumeRequest, sink protocol.Sink) error {
+		resumed.Add(1)
+		if req.Controls == nil {
+			t.Error("revive must wire a controls channel")
+		}
+		<-ctx.Done()
+		return nil
+	}
+	marked := func(string) (bool, error) { return false, nil }
+	sock, cancel, _ := revivalHarness(t, resume, marked)
+	defer cancel()
+
+	var reply string
+	var isErr bool
+	err := Dial(sock, Command{Cmd: "schedule-attach", Session: "idle-sess",
+		Schedule: &protocol.ScheduleControl{ScheduleID: "schedule", Interval: "30m", Prompt: "巡检一轮"}},
+		func(e protocol.Event) { reply, isErr = e.Text, e.Kind == protocol.KindError })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if isErr {
+		t.Fatalf("schedule-attach to a non-hosted session refused: %q", reply)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for resumed.Load() == 0 && time.Now().Before(deadline) {
+		time.Sleep(2 * time.Millisecond)
+	}
+	if resumed.Load() == 0 {
+		t.Fatal("schedule-attach did not revive the session")
+	}
+}
+
 // 决策 #30: an explicit send REOPENS a marked session (close/kill marks
 // gate automatic paths only; there is no session a send cannot continue).
 func TestSendReopensMarkedSession(t *testing.T) {

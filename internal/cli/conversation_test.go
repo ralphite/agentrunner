@@ -326,6 +326,35 @@ func waitDaemon(t *testing.T, sock string) {
 	t.Fatal("daemon did not come up")
 }
 
+// TestScheduleAttachValidation pins that an unusable cadence is rejected at
+// parse time, before any daemon round-trip (INC-74.3): both/neither of
+// --every/--cron, an under-1s or unparseable duration, a bad cron expression,
+// a negative --max-wakes, and a missing standing prompt are all usage errors.
+func TestScheduleAttachValidation(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"both cadences", []string{"s", "attach", "p", "--every", "30m", "--cron", "* * * * *"}, "not both"},
+		{"no cadence", []string{"s", "attach", "p"}, "a cadence is required"},
+		{"bad duration", []string{"s", "attach", "p", "--every", "banana"}, "not a duration"},
+		{"sub-second", []string{"s", "attach", "p", "--every", "500ms"}, "not a duration of at least 1s"},
+		{"bad cron", []string{"s", "attach", "p", "--cron", "* * *"}, "want 5 fields"},
+		{"negative max-wakes", []string{"s", "attach", "p", "--every", "30m", "--max-wakes", "-1"}, "non-negative"},
+		{"no prompt", []string{"s", "attach", "--every", "30m"}, "standing prompt is required"},
+	}
+	for _, tc := range cases {
+		var out, errOut bytes.Buffer
+		if code := scheduleCmd(tc.args, &out, &errOut); code != ExitUsage {
+			t.Errorf("%s: code = %d, want ExitUsage (stderr: %s)", tc.name, code, errOut.String())
+		}
+		if !strings.Contains(errOut.String(), tc.want) {
+			t.Errorf("%s: stderr = %q, want it to contain %q", tc.name, errOut.String(), tc.want)
+		}
+	}
+}
+
 // TestGoalMaxChecksValidation pins that a non-positive --max-checks is rejected
 // at parse time (before any daemon round-trip), while an unset flag is left to
 // the attach default / an update's existing budget (QA Wave7 olive-02).

@@ -28,6 +28,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | durable CommandLog（send/control/close/interrupt/approval/kill/**revoke**；command_id 幂等；principal/source/trust；确认即 accepted，跨 restart 自动重放；revoke 语义见 §2 撤回条款） | ✅ | 不变量 | INC-11.2/11.5 · TestInboxCommandIdempotency/TestInboxAppendRead/TestStartupResumesAndReplaysPendingDurableCommand（DESIGN §2）· INC-46 |
 | 排队消息撤销（`ar queue` 列 pending+revoked 态 / `ar unqueue <sid> <cmd-id>` / daemon `unqueue`；live=revoke 通道+revoked 集+journalInput 消费前查集，resume=重放读全量 CommandLog 先跳被撤；`InputRevoked{target,delivery_seq}` 推 high-water（AskResolved 同模板）；迟到 no-op；仅 input 可撤；CLI 前置校验=UX 早拒非安全边界） | ✅ | UJ-07/24 | INC-46（HANDA #29，INC-44 §A rev1）· TestRevokedInputSkippedOnResume/TestLiveRevokeConsumesQueuedInput · 真验 2026-07-11（真 Gemini：忙时排队撤回+kill -9 重放不翻案 KEPT×4/DROPPED×0，qa/runs/2026-07-11-INC46）；webui 撤回按钮拆余项随 #7 |
 | 外部事件唤醒/webhook ingress（`ar daemon --http <addr>` 起 `POST /hooks/<id>`（默认关，绑定地址落 `<data>/daemon.http`）；`ar hook create <sid> [--name]`/`list`/`revoke`——per-hook id+token，token 一次性打印仅哈希落盘不进 journal；载荷 source:"machine"+trust:"untrusted"+principal:"hook:<n>" 走同一条 durable send 通道；loop 侧强制隔离框定+trust 钳制+不做宏展开；未鉴权限流 429/body 上限 413/无存在性 oracle；machine 不越 close/kill 标记（410）、unmarked parked 正常 revive；`X-Command-Id` 幂等重投） | ✅ | UJ-12/13 | INC-50（HANDA #E2，G14，决策 #39，兑现 INC-D2）· TestHookIngress{DeliversMachineInput,AuthAndRateLimit,CannotReviveMarkedSession,BodyCap,IdempotentRedelivery}/TestHookRegistryHashesAndRevokes/TestMachineInputFramedAndTrustClamped · QA-50 |
+| **session 内 schedule（loop-mode 挂会话，INC-74/E1①）**：`ar schedule <sid> attach --every 30m\|--cron "…" [--max-wakes N] "<standing prompt>"` + `status\|pause\|resume\|cancel`——session 每 tick 自主唤醒(零 send)、以 program input 注入 standing prompt 跑一个正常 turn(context 延续)、幂等重挂下一 durable timer;唤醒双路径(hosted 空闲 park 等 timer / unhosted 由 daemon timer sweep hostResume);漏 slot 折恰好一次 catch-up(INC-54 教义),busy 时 `ScheduleWake{skipped}` 绝不中 turn 注入;pause 撤 timer 不补偿、resume 重锚 cadence;close 撤 timer 但 schedule 越标记存活(决策 #30,显式重开自动重挂);`max_wakes` 尽自动摘除;cadence 基准 `Base` 入事件由 loop clock 盖章,fold 不读墙钟 | ✅ | UJ-14/22 | INC-74 · TestScheduleAttachWakesAndReinjects/TestSchedulePauseSkipsWakeAndResumeRebases/TestScheduleCancelStopsTimers/TestScheduleOverlapSkipsBusySession/TestScheduleSurvivesRestartServesMissedSlotOnce/TestScheduleCloseCancelsTimersReachesQuiescence · TestScheduleAttachRevivesSession/TestScheduleAttachValidation/TestScheduleFoldLifecycle · QA-74(B 闸:真 Gemini 自主唤醒×2 跨 daemon 重启 + pause 不再醒) |
 | Turn/Item 交互投影（message/tool_call/tool_result；旧 Message/GenStep 日志兼容补投影） | ✅ | 不变量 | INC-11.5 · TestTurnItemProjectionPreservesTypedIngressAndToolItems/TestLegacyMessagesSynthesizeStableTurnItemsWithoutMutatingPriorState |
 | typed ingress（text/image/file + principal/source/trust，CAS 后 ref-only 入 journal） | ✅ | UJ-01/04/12 | INC-11.5 · TestJournalInputPreservesTypedContentAndProvenance；`inspect --json` 暴露 turns/items/provider envelope |
 | session 标识与 store 边界（64-bit 随机后缀、熵源失败 fail closed；CLI 只解析合法 basename/prefix，拒绝 `..`、final/intermediate symlink 越界；旧 4-hex ID 仍可读） | ✅ | UJ-01/17/24 | INC-67 · TestNewSessionID/TestSessionDirRejectsUnsafeID/TestResolveSessionDirRejectsTraversalAndSymlinkEscape · QA-67 |
@@ -131,7 +132,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 |---|---|---|---|
 | driver-goal（批式/headless，verifier 三态、停滞检测、carry；fresh child run） | ✅ | UJ-15 | S6 · TestDriverGoalSatisfied/TestDriverGoalStalled/TestDriverCarryToArtifactStore（G30 还锚 audit-0717 C1） |
 | **in-session goal（会话内，context 延续；command/llm_judge/self-cert 三种裁决；只有 pass=`GoalAchieved{satisfied}`；`max_checks` miss=`GoalExhausted{budget}`，goal 保留、update 可扩预算后同 context 继续；step-limit pass 有明确 `goal_satisfied` 收据）** | ✅ | UJ-22 | INC-D1+INC-10+INC-48+INC-66 · 决策 #21/#34/#40 · TestGoalUpdateRecoversExhaustedGoal/TestGoalExhaustionRetainsGoalAndUpdateRearmsIt + 既有 Goal suites |
-| loop mode（interval fixed-rate/cron/self_paced、durable absolute tick、overlap skip/coalesce；每个 retry attempt parent-journaled；全 child error=`child_failed`） | ✅ | UJ-14 | S6+INC-66 · TestDriverIntervalOverlapPolicies/TestDriverChildFailRetryRecovers/TestDriverChildFailSurface |
+| loop mode（interval fixed-rate/cron/self_paced、durable absolute tick、overlap skip/coalesce；每个 retry attempt parent-journaled；全 child error=`child_failed`；**session 内形态见 A 表(INC-74),driver 形态维持至 E1 收敛完成**） | ✅ | UJ-14 | S6+INC-66 · TestDriverIntervalOverlapPolicies/TestDriverChildFailRetryRecovers/TestDriverChildFailSurface |
 | verifier 管线化（in-session/driver 均 journaled effect + Activity bracket + containment evidence；driver-trust 规则层） | ✅ | UJ-15/22 | S7 · INC-11.3 · TestVerifierActivityTrace |
 | best-of-N（隔离 worktree、per-attempt 判定、胜者留盘） | ✅ | UJ-16 | S7 · TestDriverParallelBestOfN/TestDriverParallelWorktreeLostFailsAttempt（G30 还锚 audit-0717 C1） |
 | overlap: interrupt | 🧊 | UJ-14 | backlog（与顺序执行同理推迟） |
@@ -215,13 +216,14 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 `record-fixture` `version` `help` `init`（INC-2）
 `diff` `artifacts`（INC-40）`retry`（INC-45）`queue` `unqueue`（INC-46）
 `hook`（INC-50）`answer`（INC-47）`mode`（INC-42）`goal`（INC-10）
-`dictate`（INC-56）`optimize`（INC-56）
+`schedule`（INC-74）`dictate`（INC-56）`optimize`（INC-56）
 
 **daemon 线协议命令**（`internal/daemon/daemon.go`）：
 `ping` `run` `drive` `attach` `approve` `send` `close` `interrupt`
 `stop`（INC-4）`compact`（INC-6）`clear`（INC-6）`remember`（INC-14）`kill` `agent`
 `mode`（INC-42）`unqueue`（INC-46）`answer`（INC-47）
 `goal-attach` `goal-pause` `goal-resume` `goal-update` `goal-cancel`（INC-10）
+`schedule-attach` `schedule-pause` `schedule-resume` `schedule-cancel`（INC-74）
 （注：`dictate`/`optimize` 是前台一次性 CLI 不经 daemon；`hook` 走
 HTTP ingress（INC-50），均非 wire 命令。）
 

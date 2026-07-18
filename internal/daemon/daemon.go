@@ -67,6 +67,9 @@ type Command struct {
 	// Goal carries the parameters of a goal-attach / goal-update control
 	// (INC-D1). pause/resume/cancel need only the command verb.
 	Goal *protocol.GoalControl `json:"goal,omitempty"`
+	// Schedule carries the parameters of a schedule-attach control (INC-74).
+	// pause/resume/cancel need only the command verb.
+	Schedule *protocol.ScheduleControl `json:"schedule,omitempty"`
 	// Follow keeps the send connection open after the "delivered" ack,
 	// streaming the session's live events until the client disconnects
 	// (INC-2: the reply becomes visible on the send itself). Subscribe
@@ -905,6 +908,16 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlGoalUpdate, Goal: cmd.Goal}, "goal update requested (a no-op unless a goal is attached)", enc)
 	case "goal-cancel":
 		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlGoalCancel}, "goal cancel requested — applies at the session's next boundary (interrupt cuts the current turn); a no-op unless a goal is attached", enc)
+	// schedule-* controls (INC-74) ride the same durable control path as
+	// goal-*: revive a non-hosted session, apply at the next safe boundary.
+	case "schedule-attach":
+		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlScheduleAttach, Schedule: cmd.Schedule}, "schedule attached — the session wakes itself on the cadence from its next safe boundary", enc)
+	case "schedule-pause":
+		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlSchedulePause}, "schedule pause requested (a no-op unless a schedule is attached)", enc)
+	case "schedule-resume":
+		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlScheduleResume}, "schedule resume requested — the cadence re-anchors at resume time (a no-op unless a schedule is paused)", enc)
+	case "schedule-cancel":
+		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlScheduleCancel}, "schedule cancel requested (a no-op unless a schedule is attached)", enc)
 	case "kill":
 		s.handleKill(ctx, cmd, enc)
 	case "unqueue":
@@ -915,7 +928,7 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		s.handleAgent(cmd, enc)
 	default:
 		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
-			Text: fmt.Sprintf("unknown command %q (known: ping, run, drive, attach, approve, send, close, interrupt, stop, compact, clear, remember, mode, goal-attach, goal-pause, goal-resume, goal-update, goal-cancel, kill, unqueue, answer, agent)", cmd.Cmd)})
+			Text: fmt.Sprintf("unknown command %q (known: ping, run, drive, attach, approve, send, close, interrupt, stop, compact, clear, remember, mode, goal-attach, goal-pause, goal-resume, goal-update, goal-cancel, schedule-attach, schedule-pause, schedule-resume, schedule-cancel, kill, unqueue, answer, agent)", cmd.Cmd)})
 	}
 }
 
