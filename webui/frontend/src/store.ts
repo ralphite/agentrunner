@@ -39,6 +39,9 @@ interface ToastMsg {
   id: number;
   text: string;
   kind: "error" | "info";
+  // Raw CLI/git stderr for an optional "Details" disclosure (G36 余项): the
+  // toast sentence stays friendly, the scary blob is one tap away, on demand.
+  details?: string;
 }
 
 // The full-window destinations reachable from the sidebar's primary nav
@@ -114,7 +117,7 @@ interface AppState {
   showPage: (page: Page) => void;
   openModal: (m: ModalKind) => void;
   openPrompt: (p: PromptState | null) => void;
-  toast: (text: string, kind?: "error" | "info") => void;
+  toast: (text: string, kind?: "error" | "info", details?: string) => void;
   dismissToast: (id: number) => void;
 }
 
@@ -290,7 +293,7 @@ export const useStore = create<AppState>((set, get) => ({
     try {
       set({ projects: await AR.updateProject(key, { displayName: name }) });
     } catch (error: any) {
-      get().toast(error.message);
+      get().toast(error.message, "error", error.details);
     }
   },
   toggleProjectFolded: async (key, folded) => {
@@ -309,7 +312,7 @@ export const useStore = create<AppState>((set, get) => ({
       await AR.openIn(workspace, app);
       get().refreshProjects(); // pick up the new last_opened
     } catch (error: any) {
-      get().toast(error.message);
+      get().toast(error.message, "error", error.details);
     }
   },
 
@@ -430,9 +433,9 @@ export const useStore = create<AppState>((set, get) => ({
   },
   openModal: (m) => set({ modal: m }),
   openPrompt: (p) => set({ prompt: p }),
-  toast: (text, kind = "error") => {
+  toast: (text, kind = "error", details) => {
     const id = ++toastSeq;
-    set({ toasts: [...get().toasts, { id, text, kind }] });
+    set({ toasts: [...get().toasts, { id, text, kind, details }] });
     // Errors persist until tapped — a long message on a phone must not vanish
     // before it can be read (phone report). Info toasts still auto-dismiss.
     if (kind !== "error") setTimeout(() => get().dismissToast(id), 5000);

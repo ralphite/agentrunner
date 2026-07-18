@@ -52,7 +52,7 @@
   daemon/webui `/health`（或专用只读端点）暴露 approval policy 与
   sandbox 现状，前端渲染真实值（SettingsConfiguration.tsx:57-62）。
 - [x] **B7** webui mermaid 懒加载（S，SPEC.md:189 余项）。
-- [ ] **B8** G36 余项（S）：Scheduled 表单 interval/cron 内联校验 +
+- [x] **B8** G36 余项（S）：Scheduled 表单 interval/cron 内联校验 +
   错误 `.details` 披露 UI（GAPS.md:604-606）。
 - [ ] **B9** G10 bash 后台任务进度 tail（S-M，GAPS.md:291-294：
   复用 2.10 进度通道到后台 bash handle）。
@@ -123,4 +123,6 @@ MCP 交互 OAuth · HTTP/WS 全 API 壳 · IDE 集成 · --add-dir 多根。
 - 2026-07-17 · B7 · mermaid 围栏懒加载渲染(单独 chunk,strict,回退
   代码块) · fb66858 · 完成。
 - 2026-07-18 · B7.1 · embed 测试 helper 改取最大 js(code-split 小
-  chunk 无 gz 变体致间歇红),fix-forward · 本 commit · 完成。
+  chunk 无 gz 变体致间歇红),fix-forward · b5a9107 · 完成。
+- 2026-07-18 · B8 · schedule 内联校验(modal+launcher)+ toast Details
+  披露(四类站点) · 本 commit · 完成。

@@ -4143,3 +4143,13 @@ hashedAssetPath 从 map 随机取首个 assets/*.js——取到小 chunk 时无 
 **最大** js(恒为主包,确定性)。教训记档:B7 的 commit fb66858 在
 check 红时被误推(&& 链未门控 exit),本条为 fix-forward;后续迭代
 一律以显式 CHECK-GREEN 标记门控提交。
+
+## 2026-07-18 · audit-0717.B8:G36 余项两件——schedule 内联校验 + 错误 Details 披露
+
+①内联校验:`scheduleValidate.ts`(Go duration/5 字段 cron 的前端镜像,
+后端仍是真裁判)接进 Schedule modal 与 composer Loop launcher——字段
+旁 role=alert 红字 + Start 禁用;空值安静(必填由按钮管,不对空字段
+唠叨)。②`ApiError.details`(INC-41 L5 早已保留的 raw stderr)终于有
+了披露面:toast 内 Details 折叠(stopPropagation 防误关),RunModal/
+worktreeActions/DiffView/store 四类站点接线。锚:scheduleValidate.test
+6 例 + Toasts.details.test 2 例。G36 仍开的只剩黑盒覆盖扩充。

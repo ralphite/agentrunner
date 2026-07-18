@@ -3,6 +3,7 @@ import { X } from "@phosphor-icons/react";
 import { AR } from "../api";
 import { useStore, type ModalKind } from "../store";
 import { cadenceText, runFormDefaults, type CadenceSpec, type RunPreset, type ScheduleKind } from "../runPreset";
+import { scheduleFieldError } from "../scheduleValidate";
 import type { SpecFile } from "../types";
 import { DEFAULT_DRIVER, DEFAULT_DRIVER_AGENT, DEFAULT_SPEC, DEFAULT_WORKER } from "../specs";
 import { displayTitle } from "../title";
@@ -429,18 +430,30 @@ function RunModal({
       await refreshRuns();
       selectRun(r.runId);
     } catch (e: any) {
-      toast(e.message);
+      toast(e.message, "error", e.details);
     } finally {
       setBusy(false);
     }
   };
+
+  // Inline schedule validation (G36 余项): a mistyped cadence is caught next
+  // to its field, and Start stays disabled until the cadence parses.
+  const scheduleError =
+    kind !== "drive"
+      ? ""
+      : schedule === "interval"
+        ? scheduleFieldError("interval", interval) || (interval.trim() ? "" : " ")
+        : schedule === "cron"
+          ? scheduleFieldError("cron", cron) || (cron.trim() ? "" : " ")
+          : "";
+  const scheduleBlocked = scheduleError !== "";
 
   return (
     <Modal
       title={kind === "submit" ? "Start a run" : schedule === "immediate" ? "Set a goal" : schedule === "parallel" ? "Best of N" : "Schedule a run"}
       onClose={close}
       footer={
-        <button className="primary" disabled={busy || !prompt.trim()} onClick={start}>
+        <button className="primary" disabled={busy || !prompt.trim() || scheduleBlocked} onClick={start}>
           {kind === "submit" ? "Start run" : "Start schedule"}
         </button>
       }
@@ -519,6 +532,11 @@ function RunModal({
               />
             )}
           </div>
+          {scheduleError.trim() !== "" && (
+            <div className="mt-1 text-[12px] leading-5 text-red" role="alert">
+              {scheduleError}
+            </div>
+          )}
           {/* SC-18 — the rhythm, in the words the Scheduled row will use for it.
               `0 8 * * 1-5` is not something anyone can proofread; the phrase
               rendered from it is. Same renderer as the suggestion cards and the

@@ -480,7 +480,7 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
       }
       load();
     } catch (e: any) {
-      toast(e.message);
+      toast(e.message, "error", e.details);
     } finally {
       setBusy(false);
     }
@@ -495,7 +495,7 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
       toast(r.branch ? `pushed ${r.branch}` : "pushed", "info");
       load();
     } catch (e: any) {
-      toast(e.message);
+      toast(e.message, "error", e.details);
     } finally {
       setBusy(false);
     }
@@ -518,7 +518,7 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
       toast("workspace is now a git repository — future changes will show here", "info");
       load();
     } catch (e: any) {
-      toast(e.message);
+      toast(e.message, "error", e.details);
     } finally {
       setBusy(false);
     }
@@ -1490,7 +1490,7 @@ function FileBody({
         const r = await AR.blob(sid, path);
         setBlob(r.lines);
       } catch (e: any) {
-        toast(e.message);
+        toast(e.message, "error", e.details);
         setBlobFailed(true);
         setLoadingIdx(null);
         return;

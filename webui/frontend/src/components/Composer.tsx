@@ -29,6 +29,7 @@ import {
   X,
 } from "@phosphor-icons/react";
 import { AR, uploadURL } from "../api";
+import { scheduleFieldError } from "../scheduleValidate";
 import { useStore } from "../store";
 import {
   ACCESS_LEVELS,
@@ -1758,6 +1759,8 @@ function GoalLoopLauncher({
 }) {
   const [prompt, setPrompt] = useState(initialPrompt);
   const [second, setSecond] = useState(mode === "loop" ? "5m" : ""); // interval | verifier
+  // Inline cadence validation (G36 余项): same mirror as the Schedule modal.
+  const intervalError = mode === "loop" ? scheduleFieldError("interval", second) : "";
   const [iters, setIters] = useState(mode === "goal" ? 10 : mode === "loop" ? 5 : 3); // rounds | attempts
   const meta = {
     goal: { icon: <GoalIcon />, label: "Goal", hint: "iterate until the goal is met", start: "Start goal" },
@@ -1790,10 +1793,19 @@ function GoalLoopLauncher({
           <span>{mode === "best" ? "Attempts" : "Max rounds"}</span>
           <input type="number" min={mode === "best" ? 2 : 1} value={iters} onChange={(e) => setIters(Math.max(mode === "best" ? 2 : 1, Number(e.target.value) || 1))} />
         </label>
-        <button className="primary cx-launcher-go" disabled={busy || !prompt.trim() || (mode === "loop" && !second.trim())} onClick={() => onStart(prompt.trim(), second.trim(), iters)}>
+        <button
+          className="primary cx-launcher-go"
+          disabled={busy || !prompt.trim() || (mode === "loop" && (!second.trim() || intervalError !== ""))}
+          onClick={() => onStart(prompt.trim(), second.trim(), iters)}
+        >
           {meta.start}
         </button>
       </div>
+      {intervalError !== "" && (
+        <div className="mt-1 text-[12px] leading-5 text-red" role="alert">
+          {intervalError}
+        </div>
+      )}
     </div>
   );
 }

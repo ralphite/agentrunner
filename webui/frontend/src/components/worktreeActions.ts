@@ -57,7 +57,7 @@ export function useWorktreeActions({ sid, onDone, setBusy }: WorktreeActionsOpts
           toast(r.applied ? "applied to project — review the changes there" : "no changes to apply", "info");
           done();
         } catch (e: any) {
-          toast(e.message);
+          toast(e.message, "error", e.details);
         } finally {
           busy(false);
         }
@@ -75,7 +75,7 @@ export function useWorktreeActions({ sid, onDone, setBusy }: WorktreeActionsOpts
       toast("worktree removed", "info");
       done();
     } catch (e: any) {
-      toast(e.message);
+      toast(e.message, "error", e.details);
     } finally {
       busy(false);
     }
@@ -111,7 +111,7 @@ export function useWorktreeActions({ sid, onDone, setBusy }: WorktreeActionsOpts
               0,
             );
           } else {
-            toast(e.message);
+            toast(e.message, "error", e.details);
           }
         } finally {
           busy(false);
