@@ -4919,3 +4919,11 @@ openDiff(hint),DiffView 新增 initialScope(一次性入口提示,不持久化,
 workspace"= 上一会话的 worktree 路径,新会话再从它派生 worktree →
 路径 hop 无限堆叠(ws-…-master-233751-master-014018);lineage 折叠让
 label 稳定,但种子应否指向 project 根待裁决。
+
+## 2026-07-19 · 第十四轮修复远程红→绿复验通过(run 29669200568)
+
+新 remote-qa-env(6c84db6 构建,store 跨 run 恢复,session 014018 健在)
+重演入口:卡 "Changes in workspace" → Review → 面板 scope 落
+"Working tree"、approved.txt 直接可见、无 "No changes this turn"、零
+console error/溢出。同场景旧构建在 issue #15 n=7 实录为红(面板首屏
+"No changes this turn"),判定修复生效。
