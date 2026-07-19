@@ -114,8 +114,9 @@
       TestMaintenanceAfterCloseKeepsMark；DESIGN §12/§恢复、SPEC:24 改写。
 
 ### Phase 5 · 减法与碎屑（每项独立一轮）
-- [ ] 5.1 占位 UI 移除：Plugins 五件套、Environment chip、Settings 的
-      Branch prefix / PR merge method（Not wired）。
+- [x] 5.1 占位 UI 移除——2026-07-19:Plugins 五件套、Environment chip、
+      Settings Branch prefix/PR merge method(含 GitPrefs 瘦身)全删;
+      测试/QA-69/SPEC/FEATURES 锚同步。原则:UI 只承诺已接线的能力。
 - [ ] 5.2 semantic_search 改名 keyword_search（description 如实；含
       defs/迁移与测试）。
 - [ ] 5.3 lease/DAG/depends_on/逐层 relay：先消费方评估，零消费则砍

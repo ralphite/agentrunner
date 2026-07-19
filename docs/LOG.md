@@ -5337,3 +5337,15 @@ resume.go,诚实性不靠清标记)。send 越标记特权(决策 #30)不动。
 TestReopenAfterCloseClearsMark → TestMaintenanceAfterCloseKeepsMark
 (compact 后标记仍在、Quiescence 报 closed、send 后清)。SPEC:24 行改写
 +换锚,DESIGN §恢复条款重写,quinn-01 裁决反转记档。
+
+## PLAN 5.1 占位 UI 移除（2026-07-19）
+
+**减法**:webui 三处"承诺了不存在能力"的占位面删除——(1) Composer
+`+` 菜单 Plugins 组五件套(Documents/PDF/Spreadsheets/Presentations/
+Template Creator,全 disabled);(2) New session 上缘 Environment chip
+("No environment",aria-disabled 无后端);(3) Settings→Git 的 Branch
+prefix 与 PR merge method(Not wired 徽标,记录但零消费,GitPrefs 类型
+同步瘦身,localStorage 旧键无害残留)。原则:UI 只承诺已接线的能力;
+将来某能力真出现时随其流程重加。锚更新:Composer.addMenu.test
+两组五动作、Settings.test 跨面板行过滤改锚 Theme、qa69-assert 两组、
+SPEC composer 行注记。vitest/前端构建/check.sh 全绿。

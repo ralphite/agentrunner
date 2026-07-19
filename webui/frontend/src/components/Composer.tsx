@@ -1107,10 +1107,9 @@ export function Composer(props: ComposerProps) {
         onDragLeave={onDragLeave}
         onDrop={onDrop}
       >
-        {/* Codex exposes project, worktree, environment and branch as separate
-            chips. Environment is still a state-only chip here (no backend yet),
-            but keeping it visible makes the rail match the Codex mental model
-            and prevents "worktree" from being mistaken for environment. */}
+        {/* Project, run-location and branch chips. (A Codex-style environment
+            chip was a disabled placeholder with no backend and was removed —
+            re-add one only when an environment concept actually exists.) */}
         {!isSession && (
           <div className="cx-env-strip">
           <Popover
@@ -1210,11 +1209,6 @@ export function Composer(props: ComposerProps) {
               </div>
             )}
           </Popover>
-
-          <button type="button" className="cx-env-control environment" aria-disabled="true" title="No environment configured">
-            <Desktop size={17} />
-            <span className="cx-env-value">No environment</span>
-          </button>
 
           <Popover
             align="left"
@@ -1388,13 +1382,6 @@ export function Composer(props: ComposerProps) {
                         disabled={isSession}
                         onClick={!isSession ? () => { close(); setAccess("plan"); } : undefined}
                       />
-                    </PopSection>
-                    <PopSection label="Plugins">
-                      <PopItem icon={<File size={16} />} title="Documents" desc="Create and edit document artifacts" disabled />
-                      <PopItem icon={<File size={16} />} title="PDF" desc="Read, create, and verify PDF files" disabled />
-                      <PopItem icon={<ChartBar size={16} />} title="Spreadsheets" desc="Create and edit spreadsheet files" disabled />
-                      <PopItem icon={<Desktop size={16} />} title="Presentations" desc="Create and edit presentations" disabled />
-                      <PopItem icon={<Sparkle size={16} />} title="Template Creator" desc="Create or update templates" disabled />
                     </PopSection>
                     <PopSection label="Advanced">
                       <PopItem

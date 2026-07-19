@@ -303,8 +303,7 @@
 - Model pill：模型（4 个 Gemini + Claude Sonnet 5）/ Effort 五档 / Speed 子菜单 / 自定义 model id / thinking budget 覆盖。
 - `+` 菜单：附件、Goal、Plan mode、Automation（Loop/Best-of-N/Background run/Agent persona 五选 + YAML 编辑）。
 - Goal/Loop/Best-of-N launcher：prompt + 验证命令/interval（内联 cadence 校验）+ 轮数/尝试数。
-- ⚠ Environment chip 是无后端的占位（禁用态）。
-- ⚠ Plugins 组（Documents/PDF/Spreadsheets 等）全部是 disabled 占位。
+- ~~Environment chip / Plugins 组占位~~（2026-07-19 PLAN 5.1 已移除）。
 
 ### 11.3 Composer 交互
 - 附件：文件选择、粘贴图片、拖拽（前端 10MB 本地拦截不上传，服务端 413 兜底不留半文件）、缩略图管理。
@@ -361,7 +360,7 @@
 - 系统 launcher：Open in VS Code/Finder/Terminal（app 白名单 + workspace 白名单双门禁、不过 shell）。
 - 主题 system/light/dark、移动端抽屉/scrim/键盘避让、桌面通知、未读数入 title、Toast/ErrorBoundary。
 - 健康面：/api/health 报版本一致性/daemon 状态/sandbox 后端，DaemonAlert 离线红条一键重启。
-- ⚠ Settings 里 Branch prefix 和 PR merge method 是 Not wired 的摆设。
+- ~~Settings Branch prefix / PR merge method（Not wired 摆设）~~（2026-07-19 PLAN 5.1 已移除）。
 - ⚠ webui 的 schedule 投影是 internal/driver cadence 逻辑的手工 stdlib 镜像（双实现漂移风险，设计上有意为之）。
 
 ## 12. 安装分发与运维

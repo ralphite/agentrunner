@@ -60,17 +60,12 @@ describe("Composer add and advanced menu", () => {
     expect(menu.style.maxWidth).toBe("calc(100vw - 32px)");
     expect(menu.classList.contains("[&_.pop-body]:flex-row")).toBe(true);
     expect(menu.classList.contains("[&_.pop-desc]:truncate")).toBe(true);
-    expect([...menu.querySelectorAll(".pop-section-label")].map((label) => label.textContent)).toEqual(["Add", "Plugins", "Advanced"]);
+    expect([...menu.querySelectorAll(".pop-section-label")].map((label) => label.textContent)).toEqual(["Add", "Advanced"]);
     expect([...menu.querySelectorAll("[role=menuitem] .pop-title")].map((item) => item.textContent)).toEqual([
       "Files and folders",
       "Attach Finder",
       "Goal",
       "Plan mode",
-      "Documents",
-      "PDF",
-      "Spreadsheets",
-      "Presentations",
-      "Template Creator",
       "Automation",
     ]);
   });

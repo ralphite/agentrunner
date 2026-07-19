@@ -1405,7 +1405,7 @@ frontend 58 files / 572 tests 全绿。literal session metadata 中 `ios` 匹配
 provider——本场景验的是渲染红线,无模型面)。
 **红线**:A. >10 渲染行 user 消息真布局下钳高(.utext.clamped,实测
 220px)、Show more 展开(694px)、Show less 复钳;B. composer Add 菜单
-呈 Add/Plugins/Advanced 三组、根动作 ≥5(实测 10)。
+呈 Add/Advanced 两组、根动作 ≥5(Plugins 占位组已随 PLAN 5.1 移除)。
 **为何此前无锚**:折叠判定依赖真实 scrollHeight,jsdom 无布局——
 这正是这两行 SPEC 长期只有档期名锚的原因。
 

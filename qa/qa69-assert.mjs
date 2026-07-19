@@ -50,7 +50,7 @@ await add.click();
 const menu = page.locator(".cx-add-menu");
 await menu.waitFor({ timeout: 5000 });
 const labels = await menu.locator(".pop-section-label").allTextContents();
-const want = ["Add", "Plugins", "Advanced"];
+const want = ["Add", "Advanced"];
 if (JSON.stringify(labels) !== JSON.stringify(want)) {
   fail(`add-menu groups = ${JSON.stringify(labels)}, want ${JSON.stringify(want)}`);
 }

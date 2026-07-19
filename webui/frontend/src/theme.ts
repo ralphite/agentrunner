@@ -148,22 +148,17 @@ export function applyAppearance(a: Appearance) {
 
 // ============================================================================
 // INC-41 H4 · Git preferences
-// Only commitTemplate has a wired effect today (it seeds the DiffView commit
-// prompt). branchPrefix / prMergeMethod are recorded but not yet consumed —
-// the worktree/PR flows that would read them live outside this slice (marked
-// "not wired yet" in the Settings › Git panel rather than faked).
+// commitTemplate seeds the DiffView commit prompt. Prefs exist here only
+// when a flow actually reads them (stale keys in previously stored JSON are
+// harmless — nothing consumes them).
 // ============================================================================
 
 export interface GitPrefs {
   commitTemplate: string;
-  branchPrefix: string;
-  prMergeMethod: "merge" | "squash";
 }
 
 export const GIT_DEFAULTS: GitPrefs = {
   commitTemplate: "changes from agent session",
-  branchPrefix: "",
-  prMergeMethod: "squash",
 };
 
 const GIT_KEY = "arwebui.git";

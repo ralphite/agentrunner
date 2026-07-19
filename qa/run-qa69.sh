@@ -3,7 +3,7 @@
 #  A. 用户消息折叠(INC-36):>10 渲染行的 user 消息在真布局下钳高
 #     (.utext.clamped)+ Show more/less 往返;
 #  B. composer progressive-disclosure(INC-19/23/38/40/65):Add 菜单
-#     开启后呈 Add/Plugins/Advanced 三组根动作。
+#     开启后呈 Add/Advanced 两组根动作(Plugins 占位组已随 PLAN 5.1 移除)。
 # 无需 provider key:消息在 provider 调用前已入 journal,turn 失败不
 # 影响时间线渲染——断言只钉 runtime 红线,不钉模型输出。
 set -euo pipefail

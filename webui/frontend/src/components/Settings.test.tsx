@@ -26,7 +26,7 @@ describe("Settings search", () => {
     });
 
     expect(screen.getByText("Commit message template")).toBeTruthy();
-    expect(screen.queryByText("Branch prefix")).toBeNull();
+    expect(screen.queryByText("Theme")).toBeNull();
   });
 });
 
