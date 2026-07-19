@@ -132,8 +132,9 @@
 - [x] 5.5 `ar new` 开场附件——2026-07-19:--image/--file 全链(CLI→
       daemon→Loop.ingestOpening,blob-before-event 同形);钉子
       TestOpeningImageAttachmentEndToEnd;超长开场折叠仍记档推迟。
-- [ ] 5.6 webui manual rename 落 journal（SessionTitled{manual}），删
-      localStorage 层。
+- [x] 5.6 manual rename 落 journal——2026-07-19:durable control `title`+
+      `ar title` CLI+webui /rename 端点;前端 localStorage 层退役(在飞
+      乐观 overlay+旧 key 一次性迁移);钉子 TestManualTitleControl。
 - [ ] 5.7 结构化输出合并：spec output_schema 单入口，--json-schema 客户端
       校验降为无原生能力时的内部 fallback。
 - [ ] 5.8 best-of-N 胜者晋升：复用 INC-49 Apply-to-project 补

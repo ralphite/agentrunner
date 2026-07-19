@@ -105,6 +105,8 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 		return clearCmd(args[1:], stdout, stderr)
 	case "remember":
 		return rememberCmd(args[1:], stdout, stderr)
+	case "title":
+		return titleCmd(args[1:], stdout, stderr)
 	case "mode":
 		return modeCmd(args[1:], stdout, stderr)
 	case "goal":
@@ -163,6 +165,8 @@ func commandHelp(cmd string) string {
 		return "usage: agentrunner compact <session-id-or-prefix> [focus directive]\n\nSummarize the session's context now. The optional focus directive\ntells the summarizer what to preserve.\n"
 	case "clear":
 		return "usage: agentrunner clear <session-id-or-prefix>\n\nDrop the session's context prefix (the journal keeps everything).\n"
+	case "title":
+		return "usage: agentrunner title <session-id-or-prefix> <new title>\n\nRename the session. The title is journaled and shown everywhere.\n"
 	case "goal":
 		return "usage: agentrunner goal <session-id-or-prefix> <attach|update|status|pause|resume|cancel> [flags]\n\nAttach a goal to the session (it keeps working until the goal is\nmet), or manage the one it has. status shows the active goal and\nits check budget. attach/update take the goal text and optional\n--verify \"<cmd>\" / --max-checks N.\n"
 	case "schedule":
@@ -227,6 +231,7 @@ Conversations (need the daemon):
   compact <session> [focus]   summarize the context now (optional focus directive)
   clear <session>             drop the context prefix (keep the full journal)
   remember <session> "note"   save a durable note to the project CLAUDE.md
+  title <session> "name"      rename the session (journaled, shown everywhere)
                               (injected into future sessions in this workspace)
   mode <session> <mode>       switch permission mode (default|acceptEdits) at the
                               next safe boundary; plan/bypass are start-time only

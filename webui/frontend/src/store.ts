@@ -150,14 +150,38 @@ function loadPinned(): string[] {
   }
 }
 
+// Manual renames are a JOURNAL fact since PLAN 5.6 (`ar title` →
+// SessionTitled{manual}); the store keeps only a transient optimistic
+// overlay while the server round-trip is in flight. RENAME_KEY is the
+// retired localStorage layer — migrateRenames pushes any leftover entries
+// to the server once, then removes the key.
 const RENAME_KEY = "arwebui.renames";
-function loadRenames(): Record<string, string> {
+function migrateRenames(rename: (id: string, title: string) => Promise<unknown>) {
+  let stale: Record<string, string> = {};
   try {
     const v = JSON.parse(localStorage.getItem(RENAME_KEY) || "{}");
-    return v && typeof v === "object" ? v : {};
+    if (v && typeof v === "object") stale = v;
   } catch {
-    return {};
+    /* corrupt: drop below */
   }
+  const entries = Object.entries(stale).filter(([, t]) => typeof t === "string" && t.trim());
+  if (!entries.length) {
+    try {
+      localStorage.removeItem(RENAME_KEY);
+    } catch {
+      /* ignore */
+    }
+    return;
+  }
+  Promise.allSettled(entries.map(([id, t]) => rename(id, t.trim()))).then((results) => {
+    if (results.every((r) => r.status === "fulfilled")) {
+      try {
+        localStorage.removeItem(RENAME_KEY);
+      } catch {
+        /* ignore */
+      }
+    }
+  });
 }
 
 const SIDEBAR_KEY = "arwebui.sidebar";
@@ -250,18 +274,20 @@ export const useStore = create<AppState>((set, get) => ({
     }
     set({ pinned: next });
   },
-  renames: loadRenames(),
+  renames: {},
   setRename: (id, title) => {
-    const next = { ...get().renames };
     const t = title.trim();
-    if (t) next[id] = t;
-    else delete next[id]; // empty title clears the rename (revert to derived)
-    try {
-      localStorage.setItem(RENAME_KEY, JSON.stringify(next));
-    } catch {
-      /* ignore quota */
-    }
-    set({ renames: next });
+    if (!t) return; // journal titles don't "clear"; blank input is a no-op
+    // Optimistic overlay now; the journal fact arrives with the next
+    // sessions refresh (s.title), at which point the overlay is redundant.
+    set({ renames: { ...get().renames, [id]: t } });
+    AR.rename(id, t)
+      .then(() => get().refreshSessions())
+      .catch(() => {
+        const next = { ...get().renames };
+        delete next[id];
+        set({ renames: next });
+      });
   },
   sidebarCollapsed: loadSidebarCollapsed(),
   toggleSidebar: () => {
@@ -454,3 +480,6 @@ export const useStore = create<AppState>((set, get) => ({
   },
   dismissToast: (id) => set({ toasts: get().toasts.filter((t) => t.id !== id) }),
 }));
+
+// One-shot migration of the retired localStorage rename layer (PLAN 5.6).
+migrateRenames((id, t) => AR.rename(id, t));

@@ -11,6 +11,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
+	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
 	"github.com/ralphite/agentrunner/internal/tool"
 	"github.com/ralphite/agentrunner/internal/workspace"
@@ -126,6 +127,49 @@ func TestManualCompactControl(t *testing.T) {
 	}
 	if gens != 1 {
 		t.Fatalf("generation_started = %d, want 1 (compact must not start a turn)", gens)
+	}
+}
+
+// PLAN 5.6: a manual rename rides the durable control path and journals
+// SessionTitled{manual}; a later auto pass must not override it, and the
+// fold's RawTitle/TitleSource carry the fact for every projection.
+func TestManualTitleControl(t *testing.T) {
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: "answer one"}, {Finish: "end_turn"}}},
+	}}
+	es, inbox, controls, done := controlLoop(t, fix, 5)
+
+	waitForEvent(t, es, event.TypeAssistantMessage, 1)
+	controls <- protocol.Control{Kind: protocol.ControlTitle, Directive: "  我的重命名  "}
+	waitForEvent(t, es, event.TypeSessionTitled, 1)
+
+	close(inbox)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	evs, _ := store.ReadEvents(es.Dir())
+	fold, err := state.Fold(evs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fold.Session.RawTitle != "我的重命名" || fold.Session.TitleSource != event.TitleSourceManual {
+		t.Fatalf("title projection = %q (%s), want trimmed manual title",
+			fold.Session.RawTitle, fold.Session.TitleSource)
+	}
+	// A later auto title never overrides the manual one (INC-52 fold rule):
+	// re-apply an auto event over the folded state and expect no change.
+	autoEnv, err := event.New(event.TypeSessionTitled,
+		&event.SessionTitled{Title: "auto distilled", Source: event.TitleSourceAuto})
+	if err != nil {
+		t.Fatal(err)
+	}
+	autoEnv.Seq = evs[len(evs)-1].Seq + 1
+	after, err := state.Apply(fold, autoEnv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Session.RawTitle != "我的重命名" {
+		t.Fatalf("auto overrode manual: %q", after.Session.RawTitle)
 	}
 }
 

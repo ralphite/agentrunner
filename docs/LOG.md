@@ -5412,3 +5412,16 @@ check.sh(PLAN 5.5 轮)偶发红:slow child 的 bash 被 allowlist 拒
 commit(514a78e);本轮 3 连跑绿,失败面与 5.5 改动(opening ingest)
 无交集。与 TestSteerChangesOrchestration 同挂 flake 立项待单独排查
 (疑 advertisedTools 构建与子 loop 启动竞态)。
+
+## PLAN 5.6 manual rename 落 journal（2026-07-19）
+
+**增量**:重命名从 localStorage 偏好升格为 journal 事实。全链:新
+durable control `title`(protocol.ControlTitle)→ loop drainControls 落
+`SessionTitled{manual}`(空 directive=no_op 回执;fold 既有"auto 不
+覆盖 manual"不变量原样生效)→ `ar title <sid> "<name>"` CLI(镜像
+remember)→ webui `POST /sessions/{sid}/rename` 转发(thin-shell)。
+前端:store.renames 退化为在飞乐观 overlay(失败回滚),RENAME_KEY
+一次性迁移(逐条推服务端,全成才删 key——用户旧标题不丢);Rename
+modal 空输入改 no-op(journal 标题无"清除"语义)。钉子
+TestManualTitleControl(trim+manual 投影+auto 不覆盖)。DESIGN §12
+两处条款改写(rename 移出 localStorage 保留清单,注明迁移例外)。

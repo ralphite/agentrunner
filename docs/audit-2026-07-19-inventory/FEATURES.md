@@ -289,7 +289,7 @@
 ### 11.1 信息架构与侧栏
 - Projects → sessions 分组：按 workspace 分组、折叠态双写（localStorage + 服务端 overlay）、Scratch 归组、Pinned 独立区、另有无 workspace 会话的扁平 Sessions 区。
 - 会话行：状态点（未读/运行/审批/搁浅/崩溃）、hover 预览卡（项目/分支/状态）、pin/archive 快捷钮。
-- 会话行菜单：Pin / Rename / Mark read / Archive / Copy session ID / Copy link。
+- 会话行菜单：Pin / Rename（2026-07-19 PLAN 5.6 起落 journal `SessionTitled{manual}`,不再 localStorage）/ Mark read / Archive / Copy session ID / Copy link。
 - Project 组菜单：Open in VS Code/Finder/Terminal、Rename project、Copy path、Mark all read、Archive all。
 - 大历史渐进加载：首 40 条立即可操作、后台 80/页补齐、refresh 不重入。
 - 归档：Show/Hide archived 切换 + Settings 里按项目浏览归档会话。

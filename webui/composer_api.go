@@ -37,6 +37,34 @@ func (s *server) handleCompact(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": strings.TrimSpace(res.Stdout)})
 }
 
+// handleRename journals a manual session title (PLAN 5.6): `ar title <sid>
+// <name>`. The rename is a session fact — the fold keeps manual over auto —
+// so every surface (sessions list, other browsers) sees it; the frontend
+// keeps no localStorage layer anymore.
+func (s *server) handleRename(w http.ResponseWriter, r *http.Request) {
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Title string `json:"title"`
+	}
+	if !readBody(w, r, &req) {
+		return
+	}
+	title := strings.TrimSpace(req.Title)
+	if title == "" {
+		http.Error(w, "title must be non-empty", http.StatusBadRequest)
+		return
+	}
+	res := s.runAR(r.Context(), oneShotTimeout, "title", id, title)
+	if res.Err != nil {
+		arFail(w, "ar title", res)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": strings.TrimSpace(res.Stdout)})
+}
+
 // handleClear drops the session's context prefix (G7 · INC-6):
 // `ar clear <sid>`. Exposed to the composer as the /clear slash command.
 func (s *server) handleClear(w http.ResponseWriter, r *http.Request) {

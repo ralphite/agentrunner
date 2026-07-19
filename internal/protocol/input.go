@@ -221,6 +221,7 @@ const (
 	ControlClear          = "clear"
 	ControlRemember       = "remember"
 	ControlMode           = "mode"
+	ControlTitle          = "title"
 	ControlGoalAttach     = "goal_attach"
 	ControlGoalPause      = "goal_pause"
 	ControlGoalResume     = "goal_resume"

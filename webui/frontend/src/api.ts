@@ -220,6 +220,7 @@ export const AR = {
     post(`/sessions/${sid}/compact`, directive.trim() ? { directive } : {}),
   clear: (sid: string) => post(`/sessions/${sid}/clear`),
   mode: (sid: string, mode: "default" | "acceptEdits") => post(`/sessions/${sid}/mode`, { mode }),
+  rename: (sid: string, title: string) => post(`/sessions/${sid}/rename`, { title }),
   goal: (sid: string, b: { action: "attach" | "update" | "pause" | "resume" | "cancel"; goal?: string; verifier?: string; maxChecks?: number }) =>
     post(`/sessions/${sid}/goal`, b),
   kill: (sid: string, handle: string) => post(`/sessions/${sid}/kill`, { handle }),

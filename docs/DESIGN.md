@@ -1301,9 +1301,11 @@ limits:
   `SessionTitled{source:auto}`。source 分立 **auto / manual / fork**，
   **auto 绝不覆盖 manual 或 fork**（不变量编码在 fold）。事件 additive：旧
   journal 无此事件时 `RawTitle` 空、回退开场首行。`sessions list --json` 的
-  title 优先取 `RawTitle`；webui 的 manual rename 仍是 localStorage 偏好
-  （见本节末粗体条款），在 displayTitle 层胜过任何 auto 值——服务端 manual
-  rename 若要做单独立项走 §四。
+  title 优先取 `RawTitle`。**manual rename 也是 journal 事实（PLAN 5.6）**：
+  `ar title <sid> "<name>"` 走 durable control 路径落
+  `SessionTitled{manual}`（webui rename 经 `/rename` 端点转发，thin-shell
+  教义不破）；前端不再持久化 localStorage rename 层，仅保留请求在飞时的
+  乐观 overlay，旧 key 一次性迁移入 journal 后移除。
 - session list 首个 page 成功返回前，空数组只代表 **not loaded**；sidebar
   必须显示 loading。成功返回后才可投影真实空态。deep-link header 不等待
   全量/命中页：先从 durable id 派生短 fallback title，journal metadata 到达后
@@ -1347,8 +1349,10 @@ limits:
 - recovery 与 approval 共用 Attention；stranded/interrupted 在 session header 直接
   暴露 Resume，但 UI 不自动 resume、不代审批。生命周期菜单只显示当前状态
   语义成立的操作。
-- pin/archive/rename/theme/sidebar/unread 等现有 localStorage key 原样保留；
-  UI 重构不迁移或删除用户本地偏好、session、workspace 与 QA 数据。
+- pin/archive/theme/sidebar/unread 等现有 localStorage key 原样保留；UI
+  重构不迁移或删除用户本地偏好、session、workspace 与 QA 数据。（例外：
+  rename 已按 PLAN 5.6 升格为 journal 事实——旧 key 的值一次性推送服务端
+  后移除，用户标题不丢。）
 - **project overlay + 系统 launcher（INC-53，additive）**：`webui-meta.json`
   在 session cache 之外再存一个 **workspace-keyed overlay**（自定义显示名 /
   折叠态 / last_opened），是**装饰性偏好**——project grouping 仍以 workspace

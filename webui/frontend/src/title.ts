@@ -31,7 +31,8 @@ export function conciseTitle(raw: string): string {
 
 // displayTitle resolves the label shown for a session: a user rename wins over
 // the concise auto-derived title, which wins over the raw id. Renames are a
-// local preference (localStorage), mirroring pinned/archived.
+// journal fact (SessionTitled{manual}, PLAN 5.6); the renames map is only
+// the in-flight optimistic overlay.
 export function displayTitle(
   renames: Record<string, string>,
   sid: string,

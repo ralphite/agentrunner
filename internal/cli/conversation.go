@@ -550,6 +550,24 @@ func rememberCmd(args []string, stdout, stderr io.Writer) int {
 	return code
 }
 
+// titleCmd renames a session (PLAN 5.6): `agentrunner title <session>
+// "<new title>"` journals SessionTitled{manual} via the durable control
+// path — the rename is a session fact every surface (sessions/webui)
+// projects, not a client-side preference.
+func titleCmd(args []string, stdout, stderr io.Writer) int {
+	if len(args) < 2 || strings.TrimSpace(strings.Join(args[1:], " ")) == "" {
+		fmt.Fprintln(stderr, "usage: agentrunner title <session-id-or-prefix> <new title>")
+		return ExitUsage
+	}
+	cmd := daemon.Command{Cmd: "title", Session: resolvePrefixLenient(args[0]),
+		Directive: strings.Join(args[1:], " ")}
+	code := oneShot(stderr, cmd, stdout)
+	if code != ExitOK {
+		stuckHint(stderr, args[0])
+	}
+	return code
+}
+
 // modeCmd switches a session's permission mode at its next safe boundary
 // (INC-42, G29): `agentrunner mode <session> <default|acceptEdits>`. Runtime
 // switching covers the user-sovereignty pair only — plan exits via the

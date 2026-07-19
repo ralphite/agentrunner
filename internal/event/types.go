@@ -124,8 +124,9 @@ const (
 )
 
 // SessionTitled sources (INC-52). auto is the harness-generated short title;
-// manual/fork are reserved for a future server-side rename / fork-derived
-// title. The fold rule keeps auto from ever overriding a manual or fork title.
+// manual is a user rename (`ar title`, PLAN 5.6); fork is reserved for a
+// fork-derived title. The fold rule keeps auto from ever overriding a manual
+// or fork title.
 const (
 	TitleSourceAuto   = "auto"
 	TitleSourceManual = "manual"
@@ -136,10 +137,8 @@ const (
 // HANDA-PARITY #14): the harness distills the opening user message into a
 // short title once, asynchronously to the opening turn, and folds it into a
 // RawTitle layer the surfaces read. It is ADDITIVE — an old journal has no
-// such event and the fold falls back to the opening prompt's first line; the
-// webui's manual rename stays a localStorage preference (DESIGN §12) and wins
-// over this at the display layer. Source keeps an auto pass from overriding a
-// deliberate manual/fork title.
+// such event and the fold falls back to the opening prompt's first line.
+// Source keeps an auto pass from overriding a deliberate manual/fork title.
 type SessionTitled struct {
 	Title  string `json:"title"`
 	Source string `json:"source"` // auto | manual | fork

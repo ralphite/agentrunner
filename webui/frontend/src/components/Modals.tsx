@@ -763,9 +763,13 @@ function RenameModal({ sid }: { sid: string }) {
   const [name, setName] = useState(() => displayTitle(renames, sid, raw));
   const close = () => openModal(null);
   const save = () => {
+    if (!name.trim()) {
+      close();
+      return; // titles are journal facts now — blank input is a no-op
+    }
     setRename(sid, name);
     close();
-    toast(name.trim() ? "renamed" : "rename cleared", "info");
+    toast("renamed", "info");
   };
   return (
     <Modal
@@ -793,7 +797,7 @@ function RenameModal({ sid }: { sid: string }) {
           if (e.key === "Enter") save();
           else if (e.key === "Escape") close();
         }}
-        placeholder="Session name (leave blank to reset)"
+        placeholder="Session name"
       />
     </Modal>
   );

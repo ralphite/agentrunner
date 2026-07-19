@@ -334,6 +334,17 @@ func (l *Loop) drainControls(ctx context.Context, ds *driveState, appendE Append
 			if err := l.remember(ds, ctlAppend, ctl.Directive); err != nil {
 				return err
 			}
+		case protocol.ControlTitle:
+			// Manual rename (PLAN 5.6): the title is a journal fact, not a
+			// client-side preference. Fold keeps manual over any later auto
+			// pass. An empty directive appends nothing → no_op receipt below.
+			if title := strings.TrimSpace(ctl.Directive); title != "" {
+				if _, err := ctlAppend(event.TypeSessionTitled, &event.SessionTitled{
+					Title: title, Source: event.TitleSourceManual,
+				}); err != nil {
+					return err
+				}
+			}
 		case protocol.ControlMode:
 			if err := l.applyModeControl(ds, ctlAppend, ctl); err != nil {
 				return err
