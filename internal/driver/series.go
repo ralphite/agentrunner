@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -37,16 +38,16 @@ import (
 const seriesTickPurpose = "series_tick:"
 
 // SupportsSeries reports whether this spec runs in the merged-stream form:
-// goal-with-verifiers / interval / cron, retry included (INC-80.2b step 1).
-// self_paced / parallel stay on the legacy stream until the runner grows
-// them — dispatchers use this to route.
+// goal-with-verifiers / interval / cron / self_paced, retry included
+// (INC-80.2b steps 1-2). parallel stays on the legacy stream until the
+// runner grows it — dispatchers use this to route.
 func (d *Driver) SupportsSeries() bool {
 	switch d.Spec.schedule() {
 	case ScheduleImmediate:
 		if len(d.Spec.Verifiers) == 0 {
 			return false
 		}
-	case ScheduleInterval, ScheduleCron:
+	case ScheduleInterval, ScheduleCron, ScheduleSelfPaced:
 	default:
 		return false
 	}
@@ -54,8 +55,8 @@ func (d *Driver) SupportsSeries() bool {
 }
 
 // prepareSeries validates the spec subset the merged form supports.
-// self_paced / parallel stay on the legacy stream for now (记档 INC-80
-// 工作纸): refusing loudly beats silently changing their semantics.
+// parallel stays on the legacy stream for now (记档 INC-80 工作纸):
+// refusing loudly beats silently changing its semantics.
 func (d *Driver) prepareSeries() error {
 	if d.Clock == nil {
 		d.Clock = clock.Real{}
@@ -75,6 +76,27 @@ func (d *Driver) prepareSeries() error {
 			return fmt.Errorf("series: %w", err)
 		}
 		d.cronSched = sched
+	case ScheduleSelfPaced:
+		if _, _, err := d.Spec.paceBounds(); err != nil {
+			return fmt.Errorf("series: %w", err)
+		}
+		switch d.Spec.OnNoIntent {
+		case "", NoIntentFinish:
+		case NoIntentContinue:
+			if d.Spec.PaceMin == "" {
+				return fmt.Errorf("series: on_no_intent=continue requires pace_min — a forgetful child must not spin the series")
+			}
+		default:
+			return fmt.Errorf("series: on_no_intent %q unknown (known: finish, continue)", d.Spec.OnNoIntent)
+		}
+		// The child paces the series: put the pace tools on its face.
+		if d.Spec.Agent != nil {
+			for _, name := range []string{"schedule_next", "finish_series"} {
+				if !slices.Contains(d.Spec.Agent.Tools, name) {
+					d.Spec.Agent.Tools = append(d.Spec.Agent.Tools, name)
+				}
+			}
+		}
 	default:
 		return fmt.Errorf("series: schedule %q not yet available in the merged-stream form (use the legacy driver)", d.Spec.schedule())
 	}
@@ -211,6 +233,25 @@ func (d *Driver) ResumeSeries(ctx context.Context) (Result, error) {
 			startN = it.N + 1
 		}
 	}
+	// self_paced pace is runner memory — re-derive it from the last
+	// completed child's journal so a resumed series honors the declared
+	// pace instead of firing immediately (legacy Resume contract).
+	if d.Spec.schedule() == ScheduleSelfPaced && startN > 1 {
+		if last, ok := lastSeriesCompleted(sr); ok {
+			floor, ceil, _ := d.Spec.paceBounds()
+			tail := last.ChildSession
+			if i := strings.LastIndex(tail, "-sub-"); i >= 0 {
+				tail = tail[i+len("-sub-"):]
+			}
+			intent := childIntent(filepath.Join(d.Store.Dir(), "sub", tail))
+			switch {
+			case intent.has && !intent.finish:
+				d.nextPace = clampPace(intent.after, floor, ceil)
+			default:
+				d.nextPace = floor
+			}
+		}
+	}
 	return d.driveSeries(ctx, &ss, appendE, startN)
 }
 
@@ -312,6 +353,44 @@ func (d *Driver) driveSeries(ctx context.Context, ss *state.State, appendE appen
 				return d.finishSeries(appendE, ss.Series, "stalled", n)
 			}
 		}
+		if d.Spec.schedule() == ScheduleSelfPaced {
+			done, res, err := d.applySeriesPaceIntent(ctx, appendE, ss, n, childDir)
+			if err != nil {
+				return Result{}, err
+			}
+			if done {
+				return res, nil
+			}
+		}
+	}
+}
+
+// applySeriesPaceIntent consumes the child's declared pace (INC-80.2b②) —
+// the merged-stream mirror of applyPaceIntent: finish_series goes through
+// the human gate (approve → satisfied, deny → floor pace and the series
+// continues); schedule_next clamps into [pace_min, pace_max]; no intent
+// follows on_no_intent.
+func (d *Driver) applySeriesPaceIntent(ctx context.Context, appendE appendFunc, ss *state.State, n int, childDir string) (bool, Result, error) {
+	intent := childIntent(childDir)
+	floor, ceil, _ := d.Spec.paceBounds() // validated in prepare
+	switch {
+	case intent.finish:
+		if d.confirmFinish(ctx, n, childDir) {
+			res, err := d.finishSeries(appendE, ss.Series, "satisfied", n)
+			return true, res, err
+		}
+		d.nextPace = floor
+		return false, Result{}, nil
+	case intent.has:
+		d.nextPace = clampPace(intent.after, floor, ceil)
+		return false, Result{}, nil
+	default:
+		if d.Spec.OnNoIntent == NoIntentContinue {
+			d.nextPace = floor
+			return false, Result{}, nil
+		}
+		res, err := d.finishSeries(appendE, ss.Series, "satisfied", n)
+		return true, res, err
 	}
 }
 
@@ -487,6 +566,19 @@ func (d *Driver) awaitSeriesTick(ctx context.Context, ss *state.State, appendE a
 		}
 		d.lastTick = next
 		return true, next, nil
+	case ScheduleSelfPaced:
+		// The child's own schedule_next intent paces the series (legacy
+		// 语义): nextPace is runner memory, re-derived on resume from the
+		// last child's journal. The durable timer is only a daemon wake
+		// hint; the returned tick stays zero — self-paced series have no
+		// absolute timeline (state.Series.LastTick contract).
+		if first || d.nextPace <= 0 {
+			return true, time.Time{}, nil
+		}
+		if err := wait(now.Add(d.nextPace)); err != nil {
+			return false, time.Time{}, err
+		}
+		return true, time.Time{}, nil
 	}
 	return false, time.Time{}, fmt.Errorf("series: schedule %q has no cadence", d.Spec.schedule())
 }
@@ -498,7 +590,9 @@ func (d *Driver) awaitSeriesTick(ctx context.Context, ss *state.State, appendE a
 func (d *Driver) seriesCancelTerminal(ctx context.Context, appendE appendFunc, sr *state.Series, n int) (Result, error) {
 	if errors.Is(context.Cause(ctx), errs.ErrHostShutdown) {
 		switch d.Spec.schedule() {
-		case ScheduleInterval, ScheduleCron:
+		case ScheduleInterval, ScheduleCron, ScheduleSelfPaced:
+			// A graceful host shutdown leaves NO terminal — the next boot's
+			// drive sweep revives the series (INC-72 semantics).
 			return Result{Reason: "shutdown", Iterations: n, BestIter: sr.BestIter}, nil
 		}
 	}

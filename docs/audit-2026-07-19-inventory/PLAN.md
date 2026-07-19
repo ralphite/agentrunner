@@ -69,8 +69,11 @@
       TestDriveRetryReadsSeriesHead。
 - [ ] 2.2b series runner 补三形态（分三 commit：①retry ✅ 2026-07-19
       ——runSeriesIteration attempt 循环、per-attempt spawn 词汇
-      `iter-N-aM`、spend 全和、settled 失败重分类；②self_paced 待做
-      ——pace 工具装配/awaitSeriesTick 分支/ResumeSeries pace 再推导；
+      `iter-N-aM`、spend 全和、settled 失败重分类；②self_paced ✅
+      2026-07-19——pace 工具装配、awaitSeriesTick 分支（durable timer
+      仅 wake hint、tick 恒零）、applySeriesPaceIntent（finish 人审/
+      clamp/on_no_intent）、ResumeSeries pace 再推导、shutdown 免终态
+      名单收编；三孪生绿；
       ③parallel 待做——SeriesIteration.BaseRef+series 版本 bump 1→2、
       driveSeriesParallel、SeriesEnded.BestIter 权威），全落后 legacy
       写侧退休。

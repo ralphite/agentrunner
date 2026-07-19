@@ -385,3 +385,101 @@ func TestSeriesChildFailRetryExhausts(t *testing.T) {
 		}
 	}
 }
+
+// INC-80.2b②: self_paced in the merged stream — iteration 1 declares
+// schedule_next{1m} (the runner idles on it), iteration 2's approved
+// finish_series ends the series satisfied; the journal is a session stream.
+func TestSeriesSelfPaced(t *testing.T) {
+	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
+	d, dStore := selfPacedHarness(t, &driver.DriverSpec{
+		Name: "series", Schedule: driver.ScheduleSelfPaced, Prompt: "keep up", MaxIterations: 5,
+	}, clk, func(call int) scripted.Fixture {
+		if call == 1 {
+			return paceFixture("1m")
+		}
+		return finishFixture()
+	})
+	d.Approvals = stubResolver{approve: true}
+
+	resCh := make(chan driver.Result, 1)
+	go func() {
+		res, rerr := d.RunSeries(context.Background())
+		if rerr != nil {
+			t.Errorf("series run: %v", rerr)
+		}
+		resCh <- res
+	}()
+
+	waitIdle(t, clk) // idle on the declared 1m pace
+	clk.Advance(time.Minute)
+
+	res := <-resCh
+	if res.Reason != "satisfied" || res.Iterations != 2 {
+		t.Fatalf("res = %+v, want satisfied at 2 (approved finish_series)", res)
+	}
+	events, err := store.ReadEvents(dStore.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if events[0].Type != event.TypeSessionStarted {
+		t.Fatalf("head = %s, want session_started", events[0].Type)
+	}
+	ss, err := state.Fold(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ss.Series == nil || !ss.Series.Ended || ss.Series.EndReason != "satisfied" ||
+		len(ss.Series.Iterations) != 2 {
+		t.Fatalf("series fold = %+v", ss.Series)
+	}
+}
+
+// self_paced no-intent default (finish): a child with no declaration ends
+// the merged-stream series satisfied after its iteration.
+func TestSeriesSelfPacedNoIntentFinish(t *testing.T) {
+	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
+	d, _ := selfPacedHarness(t, &driver.DriverSpec{
+		Name: "series", Schedule: driver.ScheduleSelfPaced, Prompt: "one shot", MaxIterations: 5,
+	}, clk, func(int) scripted.Fixture {
+		return scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{{Text: "did the pass"}, {Finish: "end_turn"}}},
+		}}
+	})
+	res, err := d.RunSeries(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "satisfied" || res.Iterations != 1 {
+		t.Fatalf("res = %+v, want satisfied at 1 (on_no_intent=finish)", res)
+	}
+}
+
+// self_paced denied finish: the human gate rejects the claim — the series
+// continues at floor pace instead of ending.
+func TestSeriesSelfPacedFinishDenied(t *testing.T) {
+	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
+	d, _ := selfPacedHarness(t, &driver.DriverSpec{
+		Name: "series", Schedule: driver.ScheduleSelfPaced, Prompt: "keep going",
+		MaxIterations: 2, PaceMin: "30s",
+	}, clk, func(call int) scripted.Fixture {
+		return finishFixture()
+	})
+	d.Approvals = stubResolver{approve: false}
+
+	resCh := make(chan driver.Result, 1)
+	go func() {
+		res, rerr := d.RunSeries(context.Background())
+		if rerr != nil {
+			t.Errorf("series run: %v", rerr)
+		}
+		resCh <- res
+	}()
+	waitIdle(t, clk) // denied finish → floor pace idle
+	clk.Advance(30 * time.Second)
+	res := <-resCh
+	// Both iterations claimed finish and were denied; the bounded series
+	// ends at max_iterations, never satisfied.
+	if res.Reason != "max_iterations" || res.Iterations != 2 {
+		t.Fatalf("res = %+v, want max_iterations at 2 (denied finish keeps going)", res)
+	}
+}
