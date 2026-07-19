@@ -22,6 +22,7 @@
 - 失败标记：provider 类干净失败记为可见可重启的 FailureMark，不会被误当成崩溃。
 - 会话内换 agent：`ar agent` 运行中切换 spec（SpecChanged 事件），下条消息生效，session 不绑定 agent。
 - session ID：64-bit 随机后缀、CLI 支持唯一前缀寻址、子会话按 `-sub-` 全 id 结构化寻址、路径遍历/symlink 逃逸被拒。
+- 交付契约 outputs：spec 声明的产物（name/path/required）在会话收尾未显式 publish 时自动从 workspace 文件 publish，required 缺失把结局降级为 contract_violation。
 
 ### 1.2 消息投递
 - 忙时排队：运行中发消息默认排队（queue），在安全边界按序消费，不丢不乱序。
@@ -50,6 +51,7 @@
 - LLM 自动标题：托管 session 开局后异步蒸馏 3–6 词标题（auto 永不覆盖 manual/fork 标题，失败回退首行）。
 - 记忆注入：CLAUDE.md 从 workspace 向上到 git root 层级合并，冻结进 session 前缀。
 - 记忆写回：`ar remember` 追加到项目 CLAUDE.md 的 Remembered 段，并同时作为 program 输入让当前会话立即遵守。
+- spec 调参面：`model.thinking{enabled,budget_tokens}`、`compact_at_tokens`、`microcompact_at_tokens`、`max_tokens` 都是 spec 作者可调项。
 
 ### 1.5 会话内自主形态
 - in-session goal：`ar goal attach` 给正在聊的 session 挂目标，miss 时程序回灌反馈在**同一上下文**续跑（不起新 session）。
@@ -60,7 +62,7 @@
 - schedule 语义：漏 slot 折恰好一次 catch-up、busy 时记 skip 不打断、pause 不补偿、close 撤 timer 但 schedule 越标记存活、max-wakes 到期自动摘除。
 - webhook 唤醒：`ar hook create` 铸造 per-session 的 HTTP ingress URL+token，外部事件经 `POST /hooks/<id>` 作为机器输入唤醒会话。
 
-## 2. CLI 面（35 个子命令）
+## 2. CLI 面（40 个子命令 + version/help）
 
 ### 2.1 运行与会话
 - `ar run <spec> "prompt"`：前台一次性跑到终止（--workspace/--mode/--max-generation-steps/--json）。
@@ -98,7 +100,7 @@
 - `ar record-fixture / ar accept`：开发者命令——录制真实 provider 交互为 fixture / 跑验收场景出 JSON 报告。
 
 ### 2.4 CLI 横切行为
-- flag 重排：已定义 flag 可后置于位置参数（`send sid "msg" --image x.png`），`--` 终止扫描。
+- flag 重排：已定义 flag 可后置于位置参数（`send sid "msg" --image x.png`），`--` 终止扫描；例外：inspect/events/sessions 是手写 `-` 前缀分拣，不识别 `--`。
 - 退出码约定：0 完成 / 1 运行失败 / 2 用法或 spec 错误；`-h/--help` 算成功退出 0。
 - .env 自动加载：run/drive/daemon/resume/dictate/optimize 从 cwd（部分还从 workspace 根）读 .env 补缺失环境变量，从不覆盖。
 - 信号语义：前台第一次 Ctrl-C = steering interrupt，第二次或 SIGTERM = 硬取消；daemon SIGTERM = 优雅停机（loop driver 无终态、boot sweep 复活）。
@@ -108,6 +110,8 @@
 - socket 回退：数据目录路径过长时 unix socket 自动落到 `$TMPDIR/ar-<hash>.sock`。
 - ⚠ `sessions` 的 flags 是手写解析器（非 flag 包），行为与其它命令不一致。
 - ⚠ `run -o` flag 被静默忽略（仅 record-fixture 有意义）。
+- flag 补遗：submit 另有 --workspace/--mode/--json；drive 另有 --workspace/--json；dictate/optimize 各有 --model/--provider；queue --json；retry --detach；hook create --name、hook list 可按 session 过滤；accept --stage/--plain/--report。
+- ⚠ `ar goal --max-checks` 的 CLI help 写默认 10，实际兜底 20（陈旧文案待修）。
 
 ## 3. 模型工具面（26 个内置工具）
 
@@ -115,7 +119,7 @@
 - read_file：读 workspace 文件，offset/limit 分页，默认 2000 行 / 50KB 截断并给续读提示。
 - read_file 读媒体：按内容 sniff 识别图片/PDF，字节入 CAS、模型收到真实像素/文档 part（5MB 上限）。
 - write_file：整文件创建或覆盖（连父目录一起建），返回 lines_added/removed 行统计。
-- edit_file：精确唯一字符串替换（replace_all 可多处；空 old + 不存在路径 = 建新文件）。
+- edit_file：精确唯一字符串替换（replace_all 可多处；空 old + 不存在路径 = 建新文件），同样返回 lines_added/removed。
 - edit_file 隐藏别名：接受 Claude Code 习惯的 `old_string`/`new_string`/`all` 字段，防静默误创建。
 
 ### 3.2 执行
@@ -128,9 +132,9 @@
 - kill：按 handle 取消后台工作或子 agent。
 
 ### 3.3 搜索
-- grep：RE2 正则搜内容，支持 case_insensitive / glob 过滤 / output_mode(content|files|count) / -A/-B/-C 上下文 / multiline 跨行。
-- glob：按 glob 模式列文件（`**` 跨目录且可匹配零段），上限 1000 条。
-- semantic_search：BM25 词法相关性搜索（identifier-aware 分词），惰性建全树共享内存索引。
+- grep：RE2 正则搜内容，支持 path 子目录限定 / case_insensitive / glob 过滤 / output_mode(content|files_with_matches|count) / -A/-B/-C 上下文 / multiline 跨行 / max_results（默认 100、上限 200）。
+- glob：按 glob 模式列文件（`**` 跨目录且可匹配零段，path 可限定子目录），上限 1000 条。
+- semantic_search：BM25 词法相关性搜索（identifier-aware 分词），惰性建全树共享内存索引（max_results 默认 8、上限 20）。
 - 搜索横切：三者共享凭据文件/vendored 树排除表，snippet 全过 redaction。
 
 ### 3.4 网络
@@ -145,10 +149,10 @@
 - send_message：树内 durable 消息（发 parent / 兄弟 / 自己的 handle），空闲的收件方被唤醒。
 - publish_note / read_notes：共享 blackboard 按 topic 发/按序读便签（跨父子可见）。
 - publish_artifact：发布版本化 artifact（同 stream 累积版本，CAS ref）。
-- artifacts_list / artifacts_read：列/读本 session 已发布 artifacts（分页、@version 寻址、二进制只回元数据）。
+- artifacts_list / artifacts_read：列/读本 session 已发布 artifacts（分页、整数 version 参数寻址历史版本——`@vN` 语法仅 CLI 有、二进制只回元数据）。
 
 ### 3.6 交互与控制流
-- ask_user：wait-class 提问 park 会话等回答（自由文本 / 2–4 选项 / multi_select / 结构化 questions[] ≤4 问）。
+- ask_user：wait-class 提问 park 会话等回答（自由文本 / 2–4 选项 / multi_select / allow_free_text 选项外兼收自由文本 / 结构化 questions[] ≤4 问）。
 - exit_plan_mode：提交 plan 摘要请求离开只读规划模式（需用户批准）。
 - progress_update：整表替换会话进度 checklist（≤50 条，pending/running/done/failed），inspect 与 webui 消费。
 - goal_complete / goal_status：声明目标达成（边界裁决、verifier 优先于声明）/ 查询当前 goal 状态。
@@ -228,9 +232,8 @@
 - crash 恢复：resume 单一自愈——execute 类效果绝不重跑、渲染 interrupted-by-crash，只读类可重跑，session 继续。
 - boot sweep 四路：daemon 启动自动接续 mid-turn stranded 会话、重挂 loop drive 并补漏 slot、复活有 pending 命令的会话、按 pgid 清扫孤儿 bash 进程。
 - 显式重开 vs 自动路径：send 对任何 session 成立（含带标记的），自动路径永不越 close/kill 标记。
-- 屡崩升级：同因连续 crash 按 retry{max,backoff} 升级为失败回执投给父，不无限拉起。
 - shadow repo 并发 flock：同 GIT_DIR 的快照操作跨进程单写，diff 用私有 index 并发只读。
-- crash 注入 harness：`AGENTRUNNER_CRASH=after:<type>:<n>` 命名注入点，供崩溃矩阵测试。
+- crash 注入 harness：`AGENTRUNNER_CRASH=after:<EventType>:<n>` 与 `point:<name>[:<n>]` 两种注入形式，供崩溃矩阵测试。
 
 ## 7. Workspace 与时间旅行
 
@@ -251,9 +254,9 @@
 - driver-goal：批式 headless 目标驱动——每轮 fresh child run + verifier 三态打分 + 停滞检测（patience）+ carry 传递。
 - driver-loop：interval 固定节奏 / cron / self_paced 三种 cadence，durable absolute tick，跑到 max_iterations/预算/取消。
 - best-of-N：N 个隔离 worktree 从同一 base 快照并行尝试、各自树内评分、pass 优先选优、败者留档。
-- verifier 四态：command（exit 0 = pass）/ llm_judge（rubric 严格评分）/ human（走 ask 路径）/ 自证，聚合取最弱。
+- verifier 四态：command（exit 0 = pass，另可配 metric_regex 捕获组 + threshold 变打分制）/ llm_judge（rubric 严格评分）/ human（走 ask 路径）/ 自证，聚合取最弱。
 - overlap 策略：撞 tick 按 skip（留痕跳过）或 coalesce（折成一次 catch-up）处置。
-- 失败处置：on_child_failure retry（独立子库重试）或 surface（算作 spent iteration 继续），重试花费计入预算。
+- 失败处置：on_child_failure 三态 stop（默认，结束系列）/ surface（算作 spent iteration 继续）/ retry（独立子库立即重试、无 backoff），重试花费计入预算。
 - cron 跨重启：daemon 崩溃/优雅停机都不写终态，boot sweep 重挂并按 overlap 策略恰好补跑一次漏 slot。
 - series memory：迭代结论文件注入下一轮 prompt（8KiB 注入时截断）。
 - Scheduled Retry：从旧 DriverStarted 的 spec 新建 series，绝不向旧 journal 注入消息。
@@ -284,7 +287,7 @@
 ## 11. Web UI
 
 ### 11.1 信息架构与侧栏
-- Projects → sessions 分组：按 workspace 分组、折叠态双写（localStorage + 服务端 overlay）、Scratch 归组、Pinned 独立区。
+- Projects → sessions 分组：按 workspace 分组、折叠态双写（localStorage + 服务端 overlay）、Scratch 归组、Pinned 独立区、另有无 workspace 会话的扁平 Sessions 区。
 - 会话行：状态点（未读/运行/审批/搁浅/崩溃）、hover 预览卡（项目/分支/状态）、pin/archive 快捷钮。
 - 会话行菜单：Pin / Rename / Mark read / Archive / Copy session ID / Copy link。
 - Project 组菜单：Open in VS Code/Finder/Terminal、Rename project、Copy path、Mark all read、Archive all。
@@ -297,14 +300,14 @@
 - Project chip：搜索历史工作区、最近 5 个、New project（scratch 或已有目录）、不选项目。
 - Start-in chip：Local 或 New worktree（尊重所选 ref）；Branch chip 可搜索、local 模式真实 checkout。
 - Access pill：Full access / Ask to approve / Auto-accept edits / Plan，记忆上次选择。
-- Model pill：模型（Gemini 系 + Claude Sonnet）/ Effort 五档 / 自定义 model id / thinking budget 覆盖。
+- Model pill：模型（4 个 Gemini + Claude Sonnet 5）/ Effort 五档 / Speed 子菜单 / 自定义 model id / thinking budget 覆盖。
 - `+` 菜单：附件、Goal、Plan mode、Automation（Loop/Best-of-N/Background run/Agent persona 五选 + YAML 编辑）。
 - Goal/Loop/Best-of-N launcher：prompt + 验证命令/interval（内联 cadence 校验）+ 轮数/尝试数。
 - ⚠ Environment chip 是无后端的占位（禁用态）。
 - ⚠ Plugins 组（Documents/PDF/Spreadsheets 等）全部是 disabled 占位。
 
 ### 11.3 Composer 交互
-- 附件：文件选择、粘贴图片、拖拽（≤10MiB，超限 413 不留半文件）、缩略图管理。
+- 附件：文件选择、粘贴图片、拖拽（前端 10MB 本地拦截不上传，服务端 413 兜底不留半文件）、缩略图管理。
 - @-mention：`@query` 检索工作区文件名插入引用。
 - 语音听写：服务端 ar dictate 优先、浏览器 SpeechRecognition 回退。
 - Optimize：Sparkles 按钮 LLM 改写草稿，单步 undo 保留原稿。
@@ -343,7 +346,7 @@
 - `…` 菜单：Pin/Rename/Archive/Copy link/View 切换/Create checkpoint/Continue in new session/Switch agent/Close session。
 - 失败 banner（Technical details + Retry）、terminal 提示、GoalBanner 实时时钟。
 - deep link：`#<sid>` / `#run:<id>` / `#scheduled` hash 路由，重启后同链接直达；非法 sid 立即 Not found。
-- FindBar：⌘F 会话内查找接管浏览器搜索。
+- FindBar：⌘F 会话内查找接管浏览器搜索（↑/↓、Enter/⇧Enter 匹配导航 + N/M 计数）。
 
 ### 11.9 Scheduled 与后台 runs
 - Scheduled 页：全部 driver/schedule 会话列表——cadence 人话（Every 30m / Saturdays at 4:00 AM）+ next run 推算、All/Active/Finished 过滤、搜索、行级操作菜单。
@@ -352,8 +355,8 @@
 - RunView：后台 run 的 SSE 日志流、iteration 分隔、终局判决、Stop。
 
 ### 11.10 全局设施
-- Settings：Appearance（主题/字号/对比度/diff 标记/动效/语法高亮）、快捷键表、Git 模板、Worktrees 清单、Configuration、Archived。
-- Command Palette（⌘K）：会话模糊搜索 + 命令（新建/Scheduled/Settings/Trust/主题等），⌘1–9 跳会话。
+- Settings：General（daemon 状态 + 重置默认）、Appearance（主题/字号/对比度/diff 标记/动效/语法高亮）、快捷键表、Git 模板、Worktrees 清单、Configuration、Archived。
+- Command Palette（⌘K）：会话模糊搜索 + 命令（新建 session/New run/Scheduled/Settings/Trust/切主题/Toggle archived 等），⌘1–9 跳会话。
 - 快捷键：⌘⌥N 新会话、⌘B 侧栏、⌘,、⌘F、⌘⌥↑/↓ 切会话、? 帮助。
 - 系统 launcher：Open in VS Code/Finder/Terminal（app 白名单 + workspace 白名单双门禁、不过 shell）。
 - 主题 system/light/dark、移动端抽屉/scrim/键盘避让、桌面通知、未读数入 title、Toast/ErrorBoundary。
@@ -382,6 +385,7 @@
 ## 14. 显式未实现 / 裁掉（防止误当遗漏）
 
 - web search 工具（G18，搜索后端未选型）。
+- 屡崩升级策略（同因连续 crash 的 retry{max,backoff} 升级为失败回执）——UJ-21 愿景未落地，kernel crash 只标 dead 不自动重启（GAPS G22②）。
 - HTTP/WS 全 API 壳（仅 webhook ingress 单端点已做）。
 - 云 workspace 生命周期 / IDE 集成（G11 裁掉待重启）。
 - 多根 workspace（G17）。
