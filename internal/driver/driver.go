@@ -104,8 +104,8 @@ type Driver struct {
 	// resumed loop must RUN it — never write it off as a missed slot
 	// (INC-80 review P1-1). 0 = none.
 	resumeInFlightN int
-	lastTick  time.Time
-	nextPace  time.Duration
+	lastTick        time.Time
+	nextPace        time.Duration
 }
 
 // Result summarizes a finished driver run.
