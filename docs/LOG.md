@@ -5309,3 +5309,13 @@ drive/submit --series flag help 与注释更新为"默认+insist"语义、前端
 CommandPalette/RunView/Scheduled 三处 driver 词清除。另记：
 TestSteerChangesOrchestration 偶发 flaky（steer 取消×子完成竞态，
 5 连跑绿），既有问题非 INC-80 引入，待单独立项。
+
+## 2026-07-19 · PLAN 4.1：stop 语义文实对账
+
+矛盾（双盲评审交集 #3 的文档面）：DESIGN §12 写 stop =
+"teardown-no-mark"、SPEC I 表写"无标记"，而实现（loop.go abort 路径）
+一直写可复活的 `SessionClosed{stopped}` 标记，CLI help 与 daemon 注释
+亦如此。裁决：**代码为真相**——stopped 标记语义正确（用户显式停下的
+run 不该被 boot sweep 悄悄拉起，标记挡自动路径、send 复活），修订
+DESIGN §12 与 SPEC 表述对齐，锚 TestStop*。动词面收敛（stop 并入
+close、compact/clear 不清标记等产品级改动）单列 4.2 走增量流程。

@@ -101,8 +101,10 @@
       run 的 YAML 本地 cadence 暂存至 2.3 撤 runs 面。
 
 ### Phase 4 · "停"动词收敛
-- [ ] 4.1 修文实矛盾：DESIGN §12 "stop teardown-no-mark" vs 实现/CLI help
-      "stopped 标记"——先对齐文档与代码。
+- [x] 4.1 修文实矛盾：DESIGN §12 "stop teardown-no-mark" vs 实现/CLI help
+      "stopped 标记"——2026-07-19：裁决代码为真相（loop.go abort 路径落
+      可复活 SessionClosed{stopped} 标记），DESIGN §12/SPEC stop 行改写为
+      "落可复活 stopped 标记，自动路径不越、send 复活"，LOG 记档；docs-only。
 - [ ] 4.2 动词面收敛：目标两个用户概念（打断 / 关闭且不被 compact/clear
       复活），stop 并入；涉及不变量变更流程。
 
