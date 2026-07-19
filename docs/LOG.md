@@ -4839,3 +4839,10 @@ deadline 60s 修复后全闸门负载下仍偶发（0.19s 即 completed——非
 语义);为空则查 working-tree,有变更 → 标题 "Changes in workspace"
 (如实呈现工作区现状,不谎称本 turn 编辑)。幽灵 diff 场景下新会话
 首聊也会看到这张卡,但说的是真话且可 Review/commit。tsc+20 测试绿。
+
+## 2026-07-19 · QA-0718 第十二轮:回退卡真机验证通过
+
+新 QA 环境(run 29667244873,c9f2cc8 build,restore 脏 store = daemon
+重启场景)断言:hasWorkspaceCard=true、hasEdited=false——"Changes in
+workspace +6 −1"(README.md +5/binarySearch.ts +1−1)带 Undo/Review
+完整呈现。用户第三张截图的"真写盘但卡消失"闭环。console error 0。
