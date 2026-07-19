@@ -13,6 +13,7 @@
 //   node check.mjs <webui-base> <ar-bin> <workspace-dir> fresh      # S1+S2,输出 SID_B=
 //   (workflow 重启 daemon+webui)
 //   SID_B=<sid> node check.mjs <webui-base> <ar-bin> <workspace-dir> restarted  # S3+S4
+//   node check.mjs <webui-base> <ar-bin> <workspace-dir> approval   # S7(需 ../ask.yaml)
 // 前置:workspace 已 git init + 空提交;arwebui 已起;GEMINI_API_KEY 可用;
 // spec 位于 <workspace-dir>/../base.yaml。
 import { execFileSync, execSync } from "node:child_process";
@@ -20,8 +21,8 @@ import fs from "node:fs";
 import path from "node:path";
 
 const [BASE, AR, WS, PHASE] = process.argv.slice(2);
-if (!BASE || !AR || !WS || !["fresh", "restarted"].includes(PHASE)) {
-  console.error("usage: check.mjs <webui-base> <ar-bin> <workspace-dir> fresh|restarted");
+if (!BASE || !AR || !WS || !["fresh", "restarted", "approval"].includes(PHASE)) {
+  console.error("usage: check.mjs <webui-base> <ar-bin> <workspace-dir> fresh|restarted|approval");
   process.exit(2);
 }
 const findings = [];
@@ -52,26 +53,81 @@ const diffFiles = async (sid, scope) => {
 const eq = (a, b) => a.size === b.size && [...a].every((x) => b.has(x));
 const show = (s) => (s.size ? [...s].sort().join(",") : "∅");
 
-const newSession = (prompt) => {
-  const out = execFileSync(AR, ["new", "--detach", "--workspace", WS, path.join(WS, "..", "base.yaml"), prompt], { encoding: "utf8" });
+const newSession = (prompt, spec = "base.yaml") => {
+  const out = execFileSync(AR, ["new", "--detach", "--workspace", WS, path.join(WS, "..", spec), prompt], { encoding: "utf8" });
   const sid = out.trim().split("\n").pop().trim();
   if (!/^20\d{6}-/.test(sid)) throw new Error("ar new: no sid in output: " + out);
   return sid;
 };
-const waitIdle = async (sid, ms = 150000) => {
+const waitStatus = async (sid, prefix, ms = 150000) => {
   const t0 = Date.now();
   while (Date.now() - t0 < ms) {
     const ss = await api("/api/sessions");
     const s = ss.find((x) => x.id === sid);
-    if (s && s.status.startsWith("waiting:input")) return;
+    if (s && s.status.startsWith(prefix)) return;
     await new Promise((r) => setTimeout(r, 1500));
   }
-  throw new Error(`session ${sid} not idle after ${ms}ms`);
+  throw new Error(`session ${sid} not ${prefix} after ${ms}ms`);
 };
+const waitIdle = (sid, ms) => waitStatus(sid, "waiting:input", ms);
 
-let sidA = "", sidB = process.env.SID_B || "";
+let sidA = "", sidB = process.env.SID_B || "", sidC = "";
 
-if (PHASE === "fresh") {
+if (PHASE === "approval") {
+  // ---- S7 审批语义对账(QA-0719 第十四轮远程首验的自动化孪生) ----
+  // 声明侧:status pill(waiting:approval)与 diff API;真相侧:journal
+  // approval_requested/responded + git。Approve ⇒ 命令真执行;Deny ⇒
+  // 真未执行。spec 用 <ws>/../ask.yaml(bash: action ask)。
+  const send = async (sid, text) => {
+    const r = await fetch(`${BASE}/api/sessions/${sid}/send`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }),
+    });
+    if (!r.ok) throw new Error(`send -> ${r.status}`);
+  };
+  const openApproval = async (sid) => {
+    const evs = await api(`/api/sessions/${sid}/events`);
+    const responded = new Set(
+      evs.filter((e) => e.type === "approval_responded").map((e) => e.payload.approval_id),
+    );
+    const open = evs.filter((e) => e.type === "approval_requested" && !responded.has(e.payload.approval_id));
+    return open.length ? open[open.length - 1].payload.approval_id : null;
+  };
+  const decide = async (sid, approvalId, decision, reason = "") => {
+    const r = await fetch(`${BASE}/api/sessions/${sid}/approve`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ approvalId, decision, reason }),
+    });
+    if (!r.ok) throw new Error(`approve -> ${r.status}`);
+  };
+
+  sidC = newSession("Use the bash tool to run exactly this command: touch s7-approved.txt — then reply with the single word done.", "ask.yaml");
+  await waitStatus(sidC, "waiting:approval");
+  note("ok", "S7 审批声明=真相:status waiting:approval", sidC.slice(0, 15));
+  let ap = await openApproval(sidC);
+  if (!ap) note("mismatch", "S7 journal 无未决 approval_requested", "status 声明待批而真相侧无记录");
+  else {
+    await decide(sidC, ap, "approve");
+    await waitIdle(sidC);
+    const git = gitFiles();
+    const wt = await diffFiles(sidC, "working-tree");
+    if (!git.has("s7-approved.txt")) note("mismatch", "S7 approve 后命令未真执行", `git=${show(git)}`);
+    else if (wt.unknown || !wt.files.has("s7-approved.txt")) note("mismatch", "S7 approve 后声明侧缺文件", `api=${wt.unknown ? "unknown" : show(wt.files)}`);
+    else note("ok", "S7 approve ⇒ 命令真执行(git+API 双侧)", "s7-approved.txt");
+  }
+
+  await send(sidC, "Now use the bash tool to run exactly this command: touch s7-denied.txt — nothing else.");
+  await waitStatus(sidC, "waiting:approval");
+  ap = await openApproval(sidC);
+  if (!ap) note("mismatch", "S7 deny 腿 approval_requested 缺失", "");
+  else {
+    await decide(sidC, ap, "deny", "QA S7 deny leg");
+    await waitIdle(sidC);
+    const git = gitFiles();
+    const wt = await diffFiles(sidC, "working-tree");
+    if (git.has("s7-denied.txt") || (!wt.unknown && wt.files.has("s7-denied.txt")))
+      note("mismatch", "S7 deny 后命令仍执行了", `git=${show(git)} api=${wt.unknown ? "unknown" : show(wt.files)}`);
+    else note("ok", "S7 deny ⇒ 命令真未执行(双侧无痕)", "");
+  }
+} else if (PHASE === "fresh") {
   // ---- S1 写盘对账:turn 后外部写入,working-tree 声明必须 == git ----
   sidA = newSession("Reply with exactly the word hi. Do not use any tools.");
   await waitIdle(sidA);
@@ -130,7 +186,7 @@ if (PHASE === "fresh") {
 
 const outDir = process.env.OUT_DIR || ".";
 fs.mkdirSync(outDir, { recursive: true });
-fs.writeFileSync(path.join(outDir, `consistency-${PHASE}.json`), JSON.stringify({ findings, sidA, sidB }, null, 2));
+fs.writeFileSync(path.join(outDir, `consistency-${PHASE}.json`), JSON.stringify({ findings, sidA, sidB, sidC }, null, 2));
 if (PHASE === "fresh") console.log(`\nSID_A=${sidA}\nSID_B=${sidB}`);
 const bad = findings.filter((f) => f.kind === "mismatch");
 console.log(`\n${PHASE}: ${bad.length} mismatch / ${findings.length} checks`);

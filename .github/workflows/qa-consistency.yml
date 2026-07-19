@@ -60,6 +60,16 @@ jobs:
           permissions:
             - { action: allow }
           YAML
+          cat > qa-run/ask.yaml <<'YAML'
+          name: dev
+          model: { provider: gemini, id: gemini-flash-latest, max_tokens: 2048 }
+          system_prompt: |
+            You are a terse assistant. Use tools exactly as instructed.
+          tools: [read_file, bash]
+          permissions:
+            - { tool: read_file, action: allow }
+            - { tool: bash, action: ask }
+          YAML
 
       - name: Start webui
         env:
@@ -100,6 +110,12 @@ jobs:
           SID_B: ${{ steps.fresh.outputs.sid_b }}
           OUT_DIR: qa-run/out
         run: node qa/consistency/check.mjs http://127.0.0.1:8788 "$PWD/bin/ar" "$PWD/qa-run/ws" restarted
+
+      - name: Phase approval (S7 审批语义对账:approve 真执行/deny 真不执行)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OUT_DIR: qa-run/out
+        run: node qa/consistency/check.mjs http://127.0.0.1:8788 "$PWD/bin/ar" "$PWD/qa-run/ws" approval
 
       - name: Upload findings
         if: always()
