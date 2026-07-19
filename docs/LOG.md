@@ -4839,4 +4839,3 @@ deadline 60s 修复后全闸门负载下仍偶发（0.19s 即 completed——非
 语义);为空则查 working-tree,有变更 → 标题 "Changes in workspace"
 (如实呈现工作区现状,不谎称本 turn 编辑)。幽灵 diff 场景下新会话
 首聊也会看到这张卡,但说的是真话且可 Review/commit。tsc+20 测试绿。
->>>>>>> 489784a (fix: Edited 卡两级回退——last-turn 基线丢失(daemon 重启/子 agent 写盘)时回退 working-tree 并改题 'Changes in workspace',真实写盘的变更不再失踪)
