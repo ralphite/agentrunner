@@ -1262,29 +1262,50 @@ type driverRetryInfo struct {
 }
 
 func parseDriverRetryInfo(stdout string) (driverRetryInfo, bool) {
+	// Either journal form seeds a driver retry (INC-80.2c): a legacy stream
+	// carries the spec on driver_started; a merged-stream series carries it
+	// on the session_started HEAD, marked by a series_started fact.
+	var head json.RawMessage
+	hasSeries := false
 	for _, line := range strings.Split(stdout, "\n") {
 		var env struct {
 			Type    string          `json:"type"`
 			Payload json.RawMessage `json:"payload"`
 		}
-		if json.Unmarshal([]byte(strings.TrimSpace(line)), &env) != nil || env.Type != "driver_started" {
+		if json.Unmarshal([]byte(strings.TrimSpace(line)), &env) != nil {
 			continue
 		}
-		var started struct {
-			SpecName      string          `json:"spec_name"`
-			WorkspaceRoot string          `json:"workspace_root"`
-			Spec          json.RawMessage `json:"spec"`
+		switch env.Type {
+		case "driver_started":
+			return decodeRetryHead(env.Payload), true
+		case "session_started":
+			if head == nil {
+				head = env.Payload
+			}
+		case "series_started":
+			hasSeries = true
 		}
-		if json.Unmarshal(env.Payload, &started) != nil {
-			return driverRetryInfo{}, true
-		}
-		var spec driverSpec
-		if len(started.Spec) > 0 {
-			_ = json.Unmarshal(started.Spec, &spec)
-		}
-		return driverRetryInfo{name: started.SpecName, workspace: started.WorkspaceRoot, spec: &spec}, true
+	}
+	if hasSeries && head != nil {
+		return decodeRetryHead(head), true
 	}
 	return driverRetryInfo{}, false
+}
+
+func decodeRetryHead(payload json.RawMessage) driverRetryInfo {
+	var started struct {
+		SpecName      string          `json:"spec_name"`
+		WorkspaceRoot string          `json:"workspace_root"`
+		Spec          json.RawMessage `json:"spec"`
+	}
+	if json.Unmarshal(payload, &started) != nil {
+		return driverRetryInfo{}
+	}
+	var spec driverSpec
+	if len(started.Spec) > 0 {
+		_ = json.Unmarshal(started.Spec, &spec)
+	}
+	return driverRetryInfo{name: started.SpecName, workspace: started.WorkspaceRoot, spec: &spec}
 }
 
 // handleClose ends a session for good (ar close); handleStop tears down its

@@ -60,8 +60,13 @@
       hostResumeDrive/boot-sweep 按 journal 头双分派（readSeriesSpec）；
       scanDriveSessions 收编 series 会话、scanStrandedSessions 排除；
       `ar resume` 拒绝并指路。四孪生锚入 SPEC F 表。
-- [ ] 2.2c 翻默认：3.1 的 cadence 投影就绪后，eligible 三类默认走
-      series，webui drive 路径随之；legacy 仅剩 bestof/retry/self_paced。
+- [x] 2.2c 翻默认——2026-07-19：eligible 三类（goal/interval/cron 无
+      retry）默认走 RunSeries（CLI 前台 + daemon host 双路径），--series
+      变"强制并校验"；retry 双头（CLI drive --retry 读 series 头、webui
+      parseDriverRetryInfo 识别 session_started+series_started）；legacy
+      写侧仅剩 bestof/retry/self_paced。钉子：
+      TestDriveDefaultsToMergedStreamForEligibleSpec/
+      TestDriveRetryReadsSeriesHead。
 - [ ] 2.2b series runner 补 parallel(best-of-N)/retry/self_paced，
       legacy 写侧全退休。
 - [ ] 2.3 撤 webui 的 driver/run 概念面：Scheduled 页 = 带 schedule/goal

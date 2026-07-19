@@ -883,11 +883,13 @@ func hostDriveFunc(version string, stderr io.Writer, broker *daemon.ApprovalBrok
 			return err
 		}
 		defer cleanup()
+		// Merged-stream by default for supported shapes (INC-80.2c flip);
+		// req.Series insists and errors instead of silently falling back.
 		var runErr error
-		if req.Series {
-			if !d.SupportsSeries() {
-				return fmt.Errorf("series form supports goal (with verifiers) / interval / cron without on_child_failure=retry")
-			}
+		if req.Series && !d.SupportsSeries() {
+			return fmt.Errorf("series form supports goal (with verifiers) / interval / cron without on_child_failure=retry")
+		}
+		if d.SupportsSeries() {
 			_, runErr = d.RunSeries(ctx)
 		} else {
 			_, runErr = d.Run(ctx)

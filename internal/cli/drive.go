@@ -77,23 +77,35 @@ func driveCmd(args []string, version string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 			return ExitUsage
 		}
-		started, err := readDriverStarted(dir)
-		if err != nil {
-			fmt.Fprintf(stderr, "agentrunner: %v\n", err)
-			return ExitUsage
+		// Either journal form seeds a retry (INC-80.2c): a merged-stream
+		// series carries the spec on its SessionStarted head, a legacy
+		// stream on DriverStarted.
+		if spec, wsRoot, ok := readSeriesSpec(dir); ok {
+			if spec.Agent == nil {
+				fmt.Fprintln(stderr, "agentrunner: prior series has no reusable embedded agent spec")
+				return ExitRun
+			}
+			opts.spec = spec
+			opts.workspace = wsRoot
+		} else {
+			started, err := readDriverStarted(dir)
+			if err != nil {
+				fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+				return ExitUsage
+			}
+			var spec driver.DriverSpec
+			if err := json.Unmarshal(started.Spec, &spec); err != nil {
+				fmt.Fprintf(stderr, "agentrunner: prior driver has no reusable spec: %v\n", err)
+				return ExitRun
+			}
+			if spec.Agent == nil {
+				fmt.Fprintln(stderr, "agentrunner: prior driver has no reusable embedded agent spec")
+				return ExitRun
+			}
+			opts.spec = &spec
+			opts.specPath = started.SpecPath
+			opts.workspace = started.WorkspaceRoot
 		}
-		var spec driver.DriverSpec
-		if err := json.Unmarshal(started.Spec, &spec); err != nil {
-			fmt.Fprintf(stderr, "agentrunner: prior driver has no reusable spec: %v\n", err)
-			return ExitRun
-		}
-		if spec.Agent == nil {
-			fmt.Fprintln(stderr, "agentrunner: prior driver has no reusable embedded agent spec")
-			return ExitRun
-		}
-		opts.spec = &spec
-		opts.specPath = started.SpecPath
-		opts.workspace = started.WorkspaceRoot
 	}
 	return driveAgent(opts)
 }
@@ -237,13 +249,18 @@ func driveAgent(opts driveOptions) int {
 		},
 	}
 
+	// Merged-stream is the DEFAULT for the shapes the series runner carries
+	// (INC-80.2c flip; opt-in period was 2.2a, the webui cadence projection
+	// now reads both forms). self_paced / parallel / retry stay on the
+	// legacy stream until the runner grows them; --series insists and errors
+	// instead of silently falling back.
 	var res driver.Result
 	var runErr error
-	if opts.series {
-		if !d.SupportsSeries() {
-			fmt.Fprintln(opts.stderr, "agentrunner: --series supports goal (with verifiers) / interval / cron without on_child_failure=retry; run this spec without --series")
-			return ExitUsage
-		}
+	if opts.series && !d.SupportsSeries() {
+		fmt.Fprintln(opts.stderr, "agentrunner: --series supports goal (with verifiers) / interval / cron without on_child_failure=retry; run this spec without --series")
+		return ExitUsage
+	}
+	if d.SupportsSeries() {
 		res, runErr = d.RunSeries(ctx)
 	} else {
 		res, runErr = d.Run(ctx)

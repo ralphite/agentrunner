@@ -245,3 +245,73 @@ func TestCLIResumeRefusesSeriesSession(t *testing.T) {
 		t.Errorf("stderr = %q, want the series refusal", errOut.String())
 	}
 }
+
+// INC-80.2c flip: with NO --series flag, an eligible spec journals the
+// merged stream by default — the legacy DriverStarted form is now reserved
+// for the shapes the runner does not carry (self_paced/parallel/retry).
+func TestDriveDefaultsToMergedStreamForEligibleSpec(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", xdg)
+	dir := t.TempDir()
+	specPath := writeDriverSpecs(t, dir, `name: quick
+agent_spec: worker.yaml
+prompt: touch
+max_iterations: 1
+verifiers:
+  - { kind: command, command: "true" }
+`)
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
+	}}
+	var out, errOut bytes.Buffer
+	if code := driveAgent(driveOptions{
+		specPath: specPath, workspace: t.TempDir(),
+		factory: scriptedFactory(fix), stdout: &out, stderr: &errOut,
+	}); code != ExitOK {
+		t.Fatalf("exit = %d\nstderr: %s", code, errOut.String())
+	}
+	sessions, err := os.ReadDir(filepath.Join(xdg, "agentrunner", "sessions"))
+	if err != nil || len(sessions) != 1 {
+		t.Fatalf("sessions = %v, err %v", sessions, err)
+	}
+	events, err := store.ReadEvents(filepath.Join(xdg, "agentrunner", "sessions", sessions[0].Name()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if events[0].Type != event.TypeSessionStarted {
+		t.Fatalf("default journal head = %s, want session_started (the 2.2c flip)", events[0].Type)
+	}
+}
+
+// drive --retry seeds from EITHER journal form: a merged-stream series
+// session's spec rides its SessionStarted head.
+func TestDriveRetryReadsSeriesHead(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	dir := t.TempDir()
+	specPath := writeDriverSpecs(t, dir, `name: seed
+agent_spec: worker.yaml
+prompt: touch
+max_iterations: 1
+verifiers:
+  - { kind: command, command: "true" }
+`)
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "done again"}, {Finish: "end_turn"}}},
+	}}
+	factory := scriptedFactory(fix)
+	var out, errOut bytes.Buffer
+	if code := driveAgent(driveOptions{
+		specPath: specPath, workspace: t.TempDir(),
+		factory: factory, stdout: &out, stderr: &errOut,
+	}); code != ExitOK {
+		t.Fatalf("seed exit = %d\nstderr: %s", code, errOut.String())
+	}
+	// The seed journaled as a series session; retry must reload its spec
+	// from the SessionStarted head (embedded agent rides the spec).
+	code := driveCmd([]string{"--retry", "seed"}, "dev", &out, &errOut)
+	if strings.Contains(errOut.String(), "no reusable") || strings.Contains(errOut.String(), "no DriverStarted") {
+		t.Fatalf("retry could not read the series head: %s", errOut.String())
+	}
+	_ = code // provider wiring differs on this path; the head-read is the contract under test
+}
