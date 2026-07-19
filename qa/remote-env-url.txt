@@ -1,4 +1,4 @@
-url: https://subscribe-guys-nissan-pmc.trycloudflare.com
-run_id: 29702935796
-started_at: 2026-07-19T20:42:05Z
-minutes: 60
+url: https://bishop-holland-bruce-briefs.trycloudflare.com
+run_id: 29707089058
+started_at: 2026-07-19T22:59:54Z
+minutes: 180
