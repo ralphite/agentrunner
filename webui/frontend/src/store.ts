@@ -109,6 +109,15 @@ interface AppState {
   focusDiffFile: (path: string) => void;
   clearDiffFocus: () => void;
 
+  // QA-0719 · git-fact surfaces (the changes card, the rail's Environment
+  // rows) re-read on session events — but Undo/commit/push/git-init are
+  // UI-side mutations that emit no event, so the surfaces kept stating stale
+  // facts (rail said "Changes · 1 file" after Undo emptied the tree). Every
+  // UI action that mutates the workspace bumps this; consumers fold it into
+  // their refreshKey.
+  workspaceEpoch: number;
+  bumpWorkspaceEpoch: () => void;
+
   refreshHealth: () => Promise<void>;
   refreshSessions: () => Promise<void>;
   refreshRuns: () => Promise<void>;
@@ -321,6 +330,9 @@ export const useStore = create<AppState>((set, get) => ({
   clearDiffFocus: () => {
     if (get().diffFocusPath !== null) set({ diffFocusPath: null });
   },
+
+  workspaceEpoch: 0,
+  bumpWorkspaceEpoch: () => set((s) => ({ workspaceEpoch: s.workspaceEpoch + 1 })),
 
   refreshHealth: async () => {
     try {

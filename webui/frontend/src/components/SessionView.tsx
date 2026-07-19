@@ -136,6 +136,10 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   // title names a scope), cleared by every entry that makes no scope claim, so
   // the panel always opens on the scope its entry point advertised.
   const [diffScopeHint, setDiffScopeHint] = useState<"working-tree" | "last-turn" | null>(null);
+  // QA-0719 · UI-side workspace mutations (Undo/commit/push) emit no session
+  // event, so event-driven git surfaces went stale; the epoch rides along in
+  // their refreshKey.
+  const workspaceEpoch = useStore((s) => s.workspaceEpoch);
   const openDiff = (hint: "working-tree" | "last-turn" | null = null) => {
     setDiffScopeHint(hint);
     setView("diff");
@@ -930,7 +934,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
                 onContinue={() => openModal({ kind: "fork", sid })}
                 goalVerdict={goalVerdict}
                 outcomeSlot={folded.items.some((item) => item.kind === "assistant") ? (
-                  <ChangesOutcome sid={sid} refreshKey={events.length} onReview={(scope) => openDiff(scope === "workspace" ? "working-tree" : "last-turn")} />
+                  <ChangesOutcome sid={sid} refreshKey={events.length + workspaceEpoch} onReview={(scope) => openDiff(scope === "workspace" ? "working-tree" : "last-turn")} />
                 ) : undefined}
               />
               {failure && (
@@ -1097,8 +1101,9 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
             // (`refreshKey={events.length}`, :890). The rail's git rows read once
             // on mount and then went blind — it could sit next to a card saying
             // "Edited 12 files" while still showing a clean tree. Now the stream
-            // drives both.
-            refreshKey={events.length}
+            // drives both. workspaceEpoch adds the UI-side mutations the stream
+            // can't see (Undo/commit/push — QA-0719).
+            refreshKey={events.length + workspaceEpoch}
             // TH-15 · the rail's Changes row used to open the diff by synthesising
             // a click on the topbar's Changes pill. That pill is gone, so the row
             // drives the view directly — which is what it should always have done.

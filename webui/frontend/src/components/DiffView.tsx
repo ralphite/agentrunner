@@ -287,6 +287,7 @@ function FileHead({
 // it never persists, and entries that make no claim pass nothing.
 export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?: () => void; initialScope?: DiffScope | null }) {
   const { toast, openPrompt } = useStore();
+  const bumpWorkspaceEpoch = useStore((s) => s.bumpWorkspaceEpoch);
   // INC-41 TH-5 · a file the thread's change card asked us to open. It is a
   // one-shot request: we take it into local state (so the file stays open once
   // the user reads it), clear it from the store, and let the file's own card key
@@ -480,6 +481,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
         toast("committed", "info");
       }
       load();
+      bumpWorkspaceEpoch();
     } catch (e: any) {
       toast(e.message, "error", e.details);
     } finally {
@@ -495,6 +497,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
       const r = await AR.push(sid);
       toast(r.branch ? `pushed ${r.branch}` : "pushed", "info");
       load();
+      bumpWorkspaceEpoch();
     } catch (e: any) {
       toast(e.message, "error", e.details);
     } finally {
@@ -508,7 +511,14 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
   // confirmations, same toasts — now in `worktreeActions`, which that rail calls
   // too. This panel's behaviour is unchanged, down to the busy flag and the
   // reload on success.
-  const { applyBack, removeWorktree } = useWorktreeActions({ sid, onDone: load, setBusy });
+  const { applyBack, removeWorktree } = useWorktreeActions({
+    sid,
+    onDone: () => {
+      load();
+      bumpWorkspaceEpoch();
+    },
+    setBusy,
+  });
 
   // Turn the workspace into its own repo, then re-load — offered from the
   // non-repo / nested empty states so "no diff" is always actionable.
@@ -518,6 +528,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
       await AR.gitInit(sid);
       toast("workspace is now a git repository — future changes will show here", "info");
       load();
+      bumpWorkspaceEpoch();
     } catch (e: any) {
       toast(e.message, "error", e.details);
     } finally {

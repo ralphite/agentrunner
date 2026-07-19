@@ -535,6 +535,7 @@ function EnvironmentSection({
   const sid = useStore((s) => s.currentSid);
   const openPrompt = useStore((s) => s.openPrompt);
   const toast = useStore((s) => s.toast);
+  const bumpWorkspaceEpoch = useStore((s) => s.bumpWorkspaceEpoch);
   // INC-41 RD-C · "open this directory in a system app" already exists, whole:
   // the sidebar's project menu has offered VS Code / Finder / Terminal on a
   // workspace path since INC-53, error handling and last-opened bookkeeping
@@ -646,6 +647,7 @@ function EnvironmentSection({
         toast("committed", "info");
       }
       load();
+      bumpWorkspaceEpoch();
     } catch (e: any) {
       toast(e.message);
     } finally {
@@ -669,6 +671,7 @@ function EnvironmentSection({
       const r = await AR.push(sid);
       toast(r.branch ? `pushed ${r.branch}` : "pushed", "info");
       load();
+      bumpWorkspaceEpoch();
     } catch (e: any) {
       toast(e.message);
     } finally {
@@ -710,7 +713,14 @@ function EnvironmentSection({
   // DiffView, confirmation modals and all (see worktreeActions.ts). It shares
   // this section's busy flag and re-reads the rows on success, exactly as the
   // commit/branch rows above already do.
-  const { applyBack, removeWorktree } = useWorktreeActions({ sid: sid || "", onDone: load, setBusy });
+  const { applyBack, removeWorktree } = useWorktreeActions({
+    sid: sid || "",
+    onDone: () => {
+      load();
+      bumpWorkspaceEpoch();
+    },
+    setBusy,
+  });
 
   if (!env || !env.known || !env.isRepo || env.nested) return null;
 

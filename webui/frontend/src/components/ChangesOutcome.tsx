@@ -329,6 +329,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
   const openModal = useStore((s) => s.openModal);
   const toast = useStore((s) => s.toast);
   const focusDiffFile = useStore((s) => s.focusDiffFile);
+  const bumpWorkspaceEpoch = useStore((s) => s.bumpWorkspaceEpoch);
   const [summary, setSummary] = useState<ChangesSummary | null>(null);
   // INC-41 TH-7. The fetch used to have two outcomes — a summary, or null — so a
   // failed request was indistinguishable from "this turn changed nothing": one
@@ -421,6 +422,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
           await AR.revert(sid);
           toast("changes reverted", "info");
           setBump((b) => b + 1);
+          bumpWorkspaceEpoch(); // the rail's git rows state the same facts
         } catch (e: any) {
           toast(e.message);
         }
