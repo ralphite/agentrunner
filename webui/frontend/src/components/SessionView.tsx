@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Archive, ArrowClockwise, ArrowLeft, ChatCircle, CheckCircle, Code, Crosshair, DotsThree, Files, Flag, GitFork, LinkSimple, Pause, PencilSimple, Play, Prohibit, PushPin, Robot, SidebarSimple, SlidersHorizontal, Stop, Trash, WarningCircle, X, XCircle } from "@phosphor-icons/react";
+import { Archive, ArrowClockwise, ArrowLeft, ChatCircle, CheckCircle, ClockCountdown, Code, Crosshair, DotsThree, Files, Flag, GitFork, LinkSimple, Pause, PencilSimple, Play, Prohibit, PushPin, Robot, SidebarSimple, SlidersHorizontal, Stop, Trash, WarningCircle, X, XCircle } from "@phosphor-icons/react";
 import { AR } from "../api";
 import { useStore } from "../store";
 import type { BackgroundWork, Envelope } from "../types";
@@ -1044,7 +1044,9 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
                 <div className="queued-list">
                   {queued.filter((m) => !m.revoked).map((m) => (
                     <div className="queued-row" key={m.command_id}>
-                      <span className="queued-text" title={m.text}>queued: {m.text}</span>
+                      <ClockCountdown size={15} className="queued-ic" aria-hidden="true" />
+                      <span className="queued-kicker">Queued</span>
+                      <span className="queued-text" title={m.text}>{m.text}</span>
                       <button className="queued-drop" onClick={() => withdrawQueued(m.command_id)} title="Withdraw this queued message before it runs">
                         Withdraw
                       </button>

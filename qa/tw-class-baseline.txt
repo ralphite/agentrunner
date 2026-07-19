@@ -100,10 +100,6 @@ project
 project-group
 project-menu
 projects-section
-queued-drop
-queued-list
-queued-row
-queued-text
 recovery
 rk
 row-flex

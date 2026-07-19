@@ -5044,3 +5044,31 @@ observation 是否翻为真实文件集(结果待查)。
 - run 29673667172(S7 自动化首跑):fresh/restarted/approval 三 phase
   全绿——S7 的 status⇔journal 对账、approve 真执行(git+API 双侧)、
   deny 真不执行,全部通过。qa-consistency 定时门自此覆盖 S1–S4+S7。
+
+## 2026-07-19 · QA-0719:排队消息 UI 重做 + "整块裸奔功能"聚簇审计(用户 iPhone 实撞)
+
+用户实机截图:queued 消息以裸文本满屏铺开("queued: [message from
+Architect (…sub-call_3_0-a1)] …"全文 + 悬空 Withdraw 按钮)。审计
+结论:**queue 机制有行为级 QA(INC-43/QA-45 Queue|Steer 切换、pending
+bubble),但展示 UI 从未测过**——`.queued-list/row/text/drop` 四类全在
+tw-class-baseline(零样式),渲染即裸奔;远程 QA 各轮也从未驱动过
+queue 场景(盲区:所有轮次都等 turn 结束再发言,从不在 running 中排队)。
+修复:queued 行加入 approval/ask/terminal-alert 同族 footer 卡系
+(660px 列、单行 clamp + title 全文、Queued kicker + 时钟图标、ghost
+Withdraw),四类样式落地并从 baseline 删除(163→159)。
+
+**同级别问题聚簇审计**(lint-tw-classes baseline 按前缀聚簇 + 组件
+核对):整块 UI 无正式实现的功能簇,按面积排序——
+1. Timeline 工具详情展开(cx-td-* 11 类 + cx-grep-* 6 + cx-dl-* 3):
+   read/edit/grep 结果的展开明细全裸;
+2. AskForm(ask_user 结构化提问,INC-47.2):ask-q/ask-opts/
+   ask-opt-label/desc/copy/free 7 类全裸——**交互功能**,同 queue 级;
+3. Settings 归档区(rs-archive-* 5)与 rs-* 杂项(themecard/slider/tp);
+4. goal 进度 step-*(4)与 goal-*/gbar-checks;
+5. SupervisionPanel artifact-*(4)行;
+6. approval Details 折叠内部(approval-details/gates/readonly);
+7. env-wt-*/env-detail/env-path(环境 rail worktree 明细);
+8. Scheduled run 明细(runline/runlog/run-iter/run-verdict);
+9. 其余为语义锚/父选择器覆盖的良性项,须逐簇核对。
+纪律:后续轮次按上序消化,每簇=一轮(样式落地+从 baseline 删行+
+远程截图验收);"满屏裸文本"形态(无 clamp/max-height)与 queue 同判。

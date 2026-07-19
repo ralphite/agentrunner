@@ -586,6 +586,17 @@
   .md-img-fallback { @apply inline-flex items-center gap-1 rounded-[8px] border border-line px-2 py-1 text-[12px]; }
 
   .approval-stack { @apply mx-auto w-full max-w-[660px] px-4; }
+
+  /* Queued messages (INC-43 queue delivery) — same footer-card family as the
+     approval/ask/terminal cards: bounded 660px column, one compact row per
+     pending message, text clamped to a single line (full text in the title
+     tooltip), never a full-screen raw dump (QA-0719 iPhone screenshot). */
+  .queued-list { @apply mx-auto mb-1 mt-2 flex w-full max-w-[660px] flex-col gap-1.5 px-4; }
+  .queued-row { @apply flex min-w-0 items-center gap-2.5 rounded-[12px] border border-line bg-panel px-3 py-2 text-[13px] shadow-sm; }
+  .queued-ic { @apply shrink-0 text-blue; }
+  .queued-kicker { @apply shrink-0 text-[11px] font-medium uppercase tracking-[0.06em] text-dim; }
+  .queued-text { @apply min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-ink-2; }
+  .queued-drop { @apply min-h-7 shrink-0 rounded-[8px] border border-line bg-transparent px-2.5 py-1 text-[12px] font-medium text-dim hover:text-ink; }
   .approval-card, .ask-form, .daemon-alert, .turn-error, .terminal-alert, .gbar {
     @apply mx-auto my-3 w-full max-w-[660px] rounded-[14px] border border-line bg-panel p-3 text-[13px] shadow-sm;
   }
