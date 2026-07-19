@@ -35,11 +35,17 @@ func bgSpawnLoop(t *testing.T, router *scripted.Router, agents []string) *Loop {
 	t.Cleanup(func() { _ = es.Close() })
 	specs := map[string]*AgentSpec{
 		"worker": {
-			Name:               "worker",
-			Description:        "investigates a delegated topic and reports",
-			Model:              ModelSpec{Provider: "scripted", ID: "m", MaxTokens: 100},
-			SystemPrompt:       "you investigate",
-			Tools:              []string{"read_file"},
+			Name:         "worker",
+			Description:  "investigates a delegated topic and reports",
+			Model:        ModelSpec{Provider: "scripted", ID: "m", MaxTokens: 100},
+			SystemPrompt: "you investigate",
+			// bash is in the CHILD face: TestBackgroundSpawnUserKill's slow
+			// worker must genuinely run its sleep. For years-in-model-time it
+			// was only on the PARENT spec — the child's bash was refused by
+			// the allowlist gate instantly, and the kill assertion passed
+			// only when the killer goroutine won a 10ms race against the
+			// instant refusal (the recurring flake, root-caused 2026-07-19).
+			Tools:              []string{"read_file", "bash"},
 			MaxGenerationSteps: 3,
 		},
 	}
@@ -228,7 +234,6 @@ func TestBackgroundSpawnUserKill(t *testing.T) {
 		}}},
 	)
 	l := bgSpawnLoop(t, router, []string{"worker"})
-	l.Spec.Tools = []string{"read_file", "bash"} // worker needs bash for the sleep
 	cancels := make(chan string, 1)
 	inputs := make(chan protocol.UserInput)
 	l.UserInputs = inputs

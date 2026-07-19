@@ -1134,7 +1134,7 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 	// turn tool-less so the provider can constrain generation. An output_schema
 	// spec that ALSO lists explicit tools is self-contradictory (it cannot both
 	// act and be JSON-constrained in one turn); the explicit tools stand and
-	// those turns fall back to the CLI validate/retry path (INC-26).
+	// those turns rely on the CLI validate/retry fallback (INC-26/PLAN 5.7).
 	structuredOnly := len(l.Spec.OutputSchema) > 0
 	// The multi-agent face (S5.3/S5.4): spawn/handoff advertise whenever
 	// the spec whitelists agents; the blackboard tools whenever the run is
@@ -1267,11 +1267,12 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 	}
 	// Same discipline for native structured output (QA Wave4 karl-02): a
 	// spec-level output_schema on a provider without StructuredOutput is
-	// dropped below, so the reply is NOT schema-constrained. Say so once
-	// instead of silently pretending to enforce it — the spec path has no
-	// validate/retry fallback (that is the CLI --json-schema path's job).
+	// dropped below, so THIS loop's reply is not schema-constrained. Say so
+	// once instead of silently pretending to enforce it. `ar new` engages
+	// the client validate-and-retry fallback automatically for such specs
+	// (PLAN 5.7); other surfaces (send/webui turns) run unconstrained.
 	if len(l.Spec.OutputSchema) > 0 && !caps.StructuredOutput {
-		slog.Warn("provider lacks native structured output; spec output_schema is NOT enforced (reply is not schema-constrained) — use a provider with native support (e.g. gemini), or `agentrunner new --json-schema` for validate-and-retry",
+		slog.Warn("provider lacks native structured output; this turn is not schema-constrained (loop-side) — `agentrunner new` applies the validate-and-retry fallback automatically; other surfaces run unconstrained",
 			"provider", l.Spec.Model.Provider)
 	}
 
@@ -1502,9 +1503,10 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 						req.Thinking = provider.ThinkingConfig{}
 					}
 					// Native structured output downgrade (INC-35): a provider
-					// without StructuredOutput never sees the schema — the CLI
-					// --json-schema validate/retry path (INC-26) remains the
-					// fallback rather than a silent "pretended to constrain".
+					// without StructuredOutput never sees the schema — `ar new`
+					// applies the INC-26 validate/retry machinery as the
+					// automatic fallback (PLAN 5.7) rather than a silent
+					// "pretended to constrain".
 					if !caps.StructuredOutput {
 						req.ResponseSchema = nil
 					}

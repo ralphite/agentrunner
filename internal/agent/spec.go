@@ -118,11 +118,12 @@ type AgentSpec struct {
 	// when it appears as a spawnable sub-agent (S5.3).
 	Description string `yaml:"description,omitempty"`
 	// OutputSchema constrains the model's generation to JSON matching this
-	// schema, natively, on tool-less turns (INC-35, #91). A provider with the
-	// StructuredOutput capability applies it; others drop it (the CLI
-	// --json-schema validate/retry path, INC-26, stays the universal
-	// fallback). Empty = unconstrained. Authored in YAML in a spec file but
-	// carried as JSON bytes (SchemaJSON bridges the two).
+	// schema — the SINGLE structured-output entry (PLAN 5.7). A provider
+	// with the StructuredOutput capability applies it natively on tool-less
+	// turns (INC-35, #91); for any other provider `ar new` engages the
+	// INC-26 client validate-and-retry machinery as the internal fallback.
+	// Empty = unconstrained. Authored in YAML in a spec file but carried as
+	// JSON bytes (SchemaJSON bridges the two).
 	OutputSchema SchemaJSON `yaml:"output_schema,omitempty" json:"output_schema,omitempty"`
 	// Agents whitelists the sub-agent specs this agent may spawn (S5.3).
 	// The model only sees — and can only spawn — what is listed here.

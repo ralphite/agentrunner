@@ -20,7 +20,7 @@ type Validator struct {
 }
 
 // Compile parses and resolves a JSON Schema. A malformed schema is reported
-// here — before any run starts — so a bad --json-schema fails fast rather than
+// here — before any run starts — so a bad output_schema fails fast rather than
 // after burning a model turn.
 func Compile(raw []byte) (*Validator, error) {
 	if len(strings.TrimSpace(string(raw))) == 0 {

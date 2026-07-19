@@ -20,6 +20,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/daemon"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
+	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
 	"github.com/ralphite/agentrunner/internal/structured"
@@ -41,8 +42,6 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 	fs.Var(&imagePaths, "image", "attach an image file to the opening message (repeatable)")
 	var filePaths repeatedFlag
 	fs.Var(&filePaths, "file", "attach a file of any type to the opening message (repeatable)")
-	jsonSchema := fs.String("json-schema", "", "path to a JSON Schema; the reply must be JSON matching it (validated, retried) — INC-26 #91")
-	jsonSchemaRetries := fs.Int("json-schema-max-retries", 2, "extra re-prompts to coax a conforming reply when --json-schema is set")
 	if ok, code := parseFlags(fs, args); !ok {
 		return code
 	}
@@ -90,26 +89,21 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "agentrunner: workspace root %s is not a directory\n", wsAbs)
 		return ExitUsage
 	}
-	// --json-schema needs the reply, so it cannot be fire-and-forget; compile
-	// the schema BEFORE dialing so a bad schema fails fast (no ghost session).
+	// Structured output has ONE entry: the spec's output_schema (PLAN 5.7).
+	// A provider with native support constrains generation server-side
+	// (INC-35) and needs nothing here. For any other provider the INC-26
+	// client validate-and-retry machinery kicks in as the INTERNAL fallback
+	// — compiled up front so a bad schema fails fast (no ghost session), and
+	// incompatible with --detach because it must see the reply.
 	var validator *structured.Validator
-	if *jsonSchema != "" {
+	if len(loadedSpec.OutputSchema) > 0 && !provider.NativeStructuredOutput(loadedSpec.Model.Provider) {
 		if *detach {
-			fmt.Fprintln(stderr, "agentrunner: --json-schema cannot be combined with --detach (it must wait for the reply)")
+			fmt.Fprintf(stderr, "agentrunner: spec output_schema on provider %q needs the validate-and-retry fallback, which must wait for the reply — drop --detach or use a provider with native structured output\n", loadedSpec.Model.Provider)
 			return ExitUsage
 		}
-		if *jsonSchemaRetries < 0 {
-			fmt.Fprintln(stderr, "agentrunner: --json-schema-max-retries must be >= 0")
-			return ExitUsage
-		}
-		raw, rerr := os.ReadFile(*jsonSchema)
-		if rerr != nil {
-			fmt.Fprintf(stderr, "agentrunner: read --json-schema: %v\n", rerr)
-			return ExitUsage
-		}
-		validator, err = structured.Compile(raw)
+		validator, err = structured.Compile([]byte(loadedSpec.OutputSchema))
 		if err != nil {
-			fmt.Fprintf(stderr, "agentrunner: invalid --json-schema: %v\n", err)
+			fmt.Fprintf(stderr, "agentrunner: spec output_schema: %v\n", err)
 			return ExitUsage
 		}
 	}
@@ -150,7 +144,7 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 		return ExitOK
 	}
 	if validator != nil {
-		return runStructured(sock, cmd, validator, *jsonSchemaRetries, stdout, stderr)
+		return runStructured(sock, cmd, validator, structuredFallbackRetries, stdout, stderr)
 	}
 	return followTurn(sock, cmd, "", stdout, stderr)
 }

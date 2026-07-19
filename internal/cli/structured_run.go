@@ -17,6 +17,10 @@ import (
 // it prints the canonical (compact, key-sorted) JSON to stdout — that is the
 // structured_output — and returns ExitOK. This lives entirely in the CLI: the
 // loop, journal, and providers are untouched; a retry is an ordinary `send`.
+// structuredFallbackRetries bounds the internal validate-and-retry fallback
+// (PLAN 5.7): 1 opening attempt + this many correction re-prompts.
+const structuredFallbackRetries = 2
+
 func runStructured(sock string, runCmd daemon.Command, v *structured.Validator, maxRetries int, stdout, stderr io.Writer) int {
 	cmd := runCmd
 	ack := "" // run streams natively; a send retry acks "delivered"

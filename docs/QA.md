@@ -598,21 +598,24 @@ lint-docs 幻影锚检查抓出,见 LOG 2026-07-10 复盘条目。）
 
 **结果**：PASS（LOG INC-25 条目）。
 
-## QA-33 结构化输出 CLI 端到端（INC-26,#91,UJ-01）
+## QA-33 结构化输出 fallback 端到端（INC-26 #91→PLAN 5.7 重裁,UJ-01）
 
-（补登 2026-07-10：场景于 INC-26 收口时真机执行并记 LOG,菜单当时漏登——
-lint-docs 幻影锚检查抓出。）
+（补登 2026-07-10;2026-07-19 PLAN 5.7 重裁:--json-schema flag 退役,
+spec output_schema 成为单入口——本场景改测**非原生 provider(anthropic)
+上 spec output_schema 自动触发客户端 validate-and-retry fallback**。
+gemini 原生路径由 QA-39 覆盖。旧版 PASS(2026-07-10,LOG INC-26)对应
+旧 flag 形态,重裁后待真机复验。）
 
-**环境**：真实 Gemini；workspace 放 7 行 `sample.txt`；schema 约束
-`{lines:int, name:string}`。
+**环境**：真实 Anthropic(claude-haiku);workspace 放 7 行 `sample.txt`;
+spec 内 output_schema 约束 `{lines:int, name:string}`。
 
 | # | 动作 | 验证 |
 |---|---|---|
-| 1 | `ar new --json-schema <path>` 让模型数行 | 回复为符合 schema 的 JSON,客户端校验通过 |
+| 1 | `ar new`(无任何 schema flag)让模型数行 | fallback 自动接管:回复为符合 schema 的 JSON,客户端校验通过 |
 | 2 | 输出 | canonical structured_output 打印 `{"lines":7,"name":"sample.txt"}` |
 | 3 | 独立复核 | python 独立确认 schema 符合且值合理（name~sample、lines=7） |
 
-**结果**：PASS 首验通过（LOG INC-26 条目）。
+**结果**：重裁后待跑（闸门 B 挂账）。
 
 ## QA-35 grep multiline（INC-27,#35 余项,UJ-01）
 

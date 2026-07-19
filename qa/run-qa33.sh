@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
-# QA-33 real-API gate (INC-26, #91): headless structured output —
-# `ar new --json-schema` runs a live Gemini turn and the CLIENT validates the
-# reply against a JSON Schema, re-prompting on a miss, then prints the
-# canonical structured_output to stdout. Red lines:
-#   1. `ar new --json-schema` exits 0 (a conforming reply was obtained);
+# QA-33 real-API gate (INC-26 #91, re-scoped by PLAN 5.7): structured output
+# via the SPEC's output_schema on a provider WITHOUT native structured output
+# (anthropic) — `ar new` engages the internal validate-and-retry fallback
+# automatically (the retired --json-schema flag is gone; the spec is the
+# single entry). Red lines:
+#   1. `ar new` exits 0 (a conforming reply was obtained);
 #   2. stdout is a single JSON value that MATCHES the schema (name:string,
 #      lines:integer, no extras) — validated independently by python;
 #   3. the value is plausible (name mentions the file; lines is the real count).
 #
-# The --json-schema orchestration is CLIENT-side (validate + re-send), so any
+# The fallback orchestration is CLIENT-side (validate + re-send), so any
 # daemon works; we still use a private daemon on an isolated root running THIS
-# binary for a controlled GEMINI_API_KEY + fresh build, then copy the session
-# into the shared store for visibility (mirrors QA-32).
+# binary for a controlled ANTHROPIC_API_KEY + fresh build, then copy the
+# session into the shared store for visibility (mirrors QA-32).
 #
 #   qa/run-qa33.sh <ar-binary>
 set -euo pipefail
@@ -20,11 +21,11 @@ AR="${1:?usage: run-qa33.sh <ar-binary>}"
 here="$(cd "$(dirname "$0")" && pwd)"
 
 [ -f "$here/../.env" ] && { set -a; . "$here/../.env"; set +a; }
-if [ -z "${GEMINI_API_KEY:-}" ]; then
+if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
   main_root="$(cd "$here/.." && dirname "$(git rev-parse --git-common-dir)")"
   [ -f "$main_root/.env" ] && { set -a; . "$main_root/.env"; set +a; }
 fi
-[ -n "${GEMINI_API_KEY:-}" ] || { echo "$QA: GEMINI_API_KEY unset" >&2; exit 2; }
+[ -n "${ANTHROPIC_API_KEY:-}" ] || { echo "$QA: ANTHROPIC_API_KEY unset" >&2; exit 2; }
 
 stamp="$(date +%Y%m%d-%H%M%S)"
 work="${QA33_WORK:-/tmp/qa33-$stamp}"
@@ -43,26 +44,23 @@ golf
 TXT
 WANT_LINES=7
 
-cat > "$work/schema.json" <<'JSON'
-{
-  "type": "object",
-  "properties": {
-    "name": {"type": "string"},
-    "lines": {"type": "integer"}
-  },
-  "required": ["name", "lines"],
-  "additionalProperties": false
-}
-JSON
-
+# Schema lives IN the spec (PLAN 5.7 single entry); provider anthropic has
+# no native structured output, so the client fallback must engage.
 cat > "$work/spec.yaml" <<'YAML'
 name: qa33
-model: { provider: gemini, id: gemini-flash-latest, max_tokens: 512 }
+model: { provider: anthropic, id: claude-haiku-4-5-20251001, max_tokens: 512 }
 system_prompt: |
   你可以用 read_file 读取工作区文件。按用户要求返回结果。
 tools: [read_file]
 permissions:
   - { action: allow }
+output_schema:
+  type: object
+  properties:
+    name: { type: string }
+    lines: { type: integer }
+  required: [name, lines]
+  additionalProperties: false
 YAML
 
 # Private daemon on the isolated root, running THIS binary.
@@ -73,9 +71,9 @@ for i in $(seq 1 100); do [ -S "$sock" ] && break; sleep 0.1; done
 [ -S "$sock" ] || { echo "$QA: daemon socket never appeared" >&2; cat "$work/daemon.log" >&2; exit 1; }
 trap 'kill "$DPID" 2>/dev/null || true' EXIT
 
-# Foreground run WITH --json-schema; capture the structured stdout.
+# Foreground run — the spec's output_schema alone must trigger the fallback.
 set +e
-"$AR" new --workspace "$work/ws" --json-schema "$work/schema.json" "$work/spec.yaml" \
+"$AR" new --workspace "$work/ws" "$work/spec.yaml" \
   "读取 sample.txt,数出它有多少行,然后以 JSON 返回一个对象:name 为文件名字符串、lines 为行数整数。" \
   >"$work/out.json" 2>"$work/run.err"
 code=$?
@@ -88,7 +86,7 @@ fail=0
 note() { echo "$QA: $*"; }
 
 # Red line 1: the run succeeded (a conforming reply was obtained).
-if [ "$code" -eq 0 ]; then note "PASS  ar new --json-schema exited 0"; else note "FAIL  exit=$code (no conforming reply)"; fail=1; fi
+if [ "$code" -eq 0 ]; then note "PASS  ar new (spec output_schema fallback) exited 0"; else note "FAIL  exit=$code (no conforming reply)"; fail=1; fi
 
 # Red line 2: stdout is a JSON value matching the schema (independent check).
 py="$(command -v python3 || command -v python || true)"
@@ -122,7 +120,7 @@ if [ -n "${sid:-}" ]; then
   mkdir -p "$run_dir"
   "$AR" events "$sid" > "$run_dir/events.export.jsonl" 2>/dev/null || cp "$XDG_DATA_HOME/agentrunner/sessions/$sid/events.jsonl" "$run_dir/events.export.jsonl" 2>/dev/null || true
   cp "$work/out.json" "$run_dir/structured-output.json" 2>/dev/null || true
-  { echo "$QA structured output (--json-schema) — $(date)"; echo "session: $sid"; echo "workspace: $work/ws"; } > "$run_dir/notes.md"
+  { echo "$QA structured output (spec output_schema fallback) — $(date)"; echo "session: $sid"; echo "workspace: $work/ws"; } > "$run_dir/notes.md"
 fi
 
 if [ "$fail" -eq 0 ]; then note "all green. session copied to shared store; export archived at ${run_dir:-<none>}"; else note "one or more red lines FAILED (kept at $work)"; exit 1; fi

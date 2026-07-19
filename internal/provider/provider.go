@@ -196,6 +196,16 @@ type CapabilityEnvelope struct {
 }
 
 // Envelope freezes one provider/model's normalized capability contract.
+// NativeStructuredOutput reports whether the NAMED provider constrains a
+// tool-less completion to a response schema natively. It is the static
+// mirror of that provider's Capabilities().StructuredOutput for callers
+// that must decide BEFORE constructing a provider (no credentials at hand)
+// — e.g. the CLI choosing the spec output_schema fallback (PLAN 5.7). Keep
+// in lockstep with the per-provider Capabilities methods.
+func NativeStructuredOutput(providerName string) bool {
+	return providerName == "gemini"
+}
+
 func Envelope(providerName, model string, caps Capabilities) CapabilityEnvelope {
 	modalities := []PartKind{PartText}
 	if caps.Images {

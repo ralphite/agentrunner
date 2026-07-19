@@ -46,7 +46,7 @@
 - 手动 compact：`ar compact <sid> [focus]` 立即压缩且可带保留指示。
 - clear：`ar clear` 丢弃上下文前缀（journal 保留全量）。
 - microcompact：不调 LLM，把久远可重算的 read-class 工具结果在装配视图渲染为占位符，先于 autocompact 生效。
-- 结构化输出（客户端）：`ar new --json-schema <path>` 校验回复 JSON、失败重发纠正、`--json-schema-max-retries` 限次。
+- 结构化输出（客户端 fallback）：spec output_schema 在非原生 provider 上由 `ar new` 自动引客户端校验+重发纠正（2026-07-19 PLAN 5.7 合并单入口,--json-schema flags 退役）。
 - 结构化输出（原生）：spec `output_schema` 走 Gemini 原生 response_schema（仅 tool-less 轮），Anthropic 显式降级。
 - LLM 自动标题：托管 session 开局后异步蒸馏 3–6 词标题（auto 永不覆盖 manual/fork 标题，失败回退首行）。
 - 记忆注入：CLAUDE.md 从 workspace 向上到 git root 层级合并，冻结进 session 前缀。
@@ -66,7 +66,7 @@
 
 ### 2.1 运行与会话
 - `ar run <spec> "prompt"`：前台一次性跑到终止（--workspace/--mode/--max-generation-steps/--json）。
-- `ar new <spec> "msg"`：起 daemon 托管的对话 session 并跟随首轮（--detach/--json-schema/--mode/--workspace）。
+- `ar new <spec> "msg"`：起 daemon 托管的对话 session 并跟随首轮（--detach/--mode/--workspace/--image/--file）。
 - `ar send <sid> "msg"`：向 session 投消息（--image/--file/--steer/--detach）。
 - `ar resume <sid>`：前台进程内恢复被打断/崩溃的 session（spec 从 journal 来，无需参数）。
 - `ar submit <spec> "prompt"`：把一次性 run 或 --drive 系列交 daemon 托管，--idem 幂等键重连不重开。

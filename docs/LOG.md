@@ -5425,3 +5425,29 @@ remember)→ webui `POST /sessions/{sid}/rename` 转发(thin-shell)。
 modal 空输入改 no-op(journal 标题无"清除"语义)。钉子
 TestManualTitleControl(trim+manual 投影+auto 不覆盖)。DESIGN §12
 两处条款改写(rename 移出 localStorage 保留清单,注明迁移例外)。
+
+## PLAN 5.7 结构化输出合并:spec output_schema 单入口（2026-07-19）
+
+**增量**:两套结构化输出入口(INC-35 spec 原生 / INC-26 CLI
+--json-schema 客户端)合并——spec `output_schema` 是唯一入口。原生
+provider(gemini,provider.NativeStructuredOutput 静态表)照旧约束
+生成;非原生 provider 上 `ar new` **自动**引 INC-26 validate-and-retry
+机器作为内部 fallback(重试上限常量 2;与 --detach 互斥 fail-fast;
+schema 编译失败无 ghost session)。`--json-schema`/
+`--json-schema-max-retries` flags 退役。loop 的非原生 WARN 改为如实
+表述(`ar new` 自动 fallback,send/webui 面 turn 不约束——原状记档)。
+钉子:TestSpecSchemaFallback{RetriesThenValidates,ExhaustsRetries,
+UsageErrors}(scripted 全链)。QA-33 重裁为 anthropic fallback 场景
+(旧 flag 形态 PASS 归档,重裁后挂闸门 B 待真机)。
+
+## 2026-07-19 · TestBackgroundSpawnUserKill flake 根因修复
+
+实证根因(临时 DIAG 打点):**测试 bug,非产品竞态**——worker 子 spec
+的 Tools 从来只有 read_file,bash 写在了父 spec 上("worker needs
+bash" 注释系误解:子面来自子 spec,不继承父 tools);子的 bash 调用
+一直被 allowlist 门禁瞬间拒绝(DisabledToolResult),ActivityStarted
+{bash} 仍会落 journal,killer goroutine 的 10ms 轮询若抢在瞬时完成前
+看到它就 kill "成功"——测试多年靠赢这场竞速通过,负载高时输掉即红。
+修:bash 移入 worker 子 spec,sleep 真跑、kill 确定性落地;撤父 spec
+误导性 mutation。10 连跑绿。此前两次记档的"既有 flake"就此销案
+(TestSteerChangesOrchestration flake 仍另案挂账)。
