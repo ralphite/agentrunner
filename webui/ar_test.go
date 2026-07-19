@@ -345,6 +345,70 @@ func TestHandleDiffNestedWorkspace(t *testing.T) {
 	}
 }
 
+// Staged changes are workspace changes: after `git add` the file left BOTH
+// surfaces — bare `git diff` (unstaged only) and the `?? ` untracked scan —
+// so the rail said "Nothing to commit" while `git commit` would have
+// committed it (QA-0719 091500 真机实测,恰发生在 unborn HEAD 的 scratch
+// repo 上). Pins both shapes: unborn HEAD (index vs empty tree) and a
+// commit-carrying repo (`git diff HEAD`).
+func TestHandleDiffSurfacesStagedChanges(t *testing.T) {
+	ws := t.TempDir()
+	mustGit := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", ws}, args...)...)
+		cmd.Env = append(os.Environ(),
+			"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t",
+			"GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	mustGit("init", "-q")
+	if err := os.WriteFile(filepath.Join(ws, "staged.md"), []byte("hello\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mustGit("add", "staged.md")
+
+	s := &server{meta: newMetaStore(filepath.Join(t.TempDir(), "meta.json"))}
+	s.meta.set("20260719-000000-staged-0001", ws, "t")
+	fetch := func() (diff string, untracked []string) {
+		t.Helper()
+		req := httptest.NewRequest("GET", "/api/sessions/x/diff", nil)
+		req.SetPathValue("sid", "20260719-000000-staged-0001")
+		rec := httptest.NewRecorder()
+		s.handleDiff(rec, req)
+		var resp struct {
+			Diff      string   `json:"diff"`
+			Untracked []string `json:"untracked"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("bad json: %v\n%s", err, rec.Body.String())
+		}
+		return resp.Diff, resp.Untracked
+	}
+
+	// Unborn HEAD (no commit yet): the staged file must appear in the diff.
+	diff, untracked := fetch()
+	if !strings.Contains(diff, "staged.md") {
+		t.Fatalf("staged file invisible on unborn HEAD: diff=%q untracked=%v", diff, untracked)
+	}
+
+	// With a commit: stage an edit AND leave an unstaged edit on top — both
+	// must surface via `git diff HEAD`.
+	mustGit("commit", "-qm", "base")
+	if err := os.WriteFile(filepath.Join(ws, "staged.md"), []byte("hello\nstaged-edit\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mustGit("add", "staged.md")
+	if err := os.WriteFile(filepath.Join(ws, "staged.md"), []byte("hello\nstaged-edit\nunstaged-edit\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	diff, _ = fetch()
+	if !strings.Contains(diff, "staged-edit") || !strings.Contains(diff, "unstaged-edit") {
+		t.Fatalf("diff HEAD must cover staged and unstaged edits, got: %q", diff)
+	}
+}
+
 func TestHandleDiffLastTurn(t *testing.T) {
 	// A real repo root: the handler enriches the CLI passthrough with
 	// isRepo/nested (the CLI JSON has no repo fields, and the changes card

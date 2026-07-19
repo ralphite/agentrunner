@@ -287,6 +287,21 @@ func git(ctx context.Context, dir string, args ...string) (string, bool) {
 	return out.String(), true
 }
 
+// joinDiffText concatenates two diff (or numstat) outputs, skipping empties —
+// used on an unborn branch where staged and unstaged changes need two git
+// invocations (`--cached` vs plain) to cover.
+func joinDiffText(a, b string) string {
+	a, b = strings.TrimRight(a, "\n"), strings.TrimRight(b, "\n")
+	switch {
+	case a == "":
+		return b
+	case b == "":
+		return a
+	default:
+		return a + "\n" + b
+	}
+}
+
 // handleFiles lists workspace files for the composer's @-mention picker
 // (Codex's file references). Case-insensitive substring filter via ?q=, capped
 // scan so a huge tree can't wedge the request; dot-dirs and dependency dirs
@@ -510,8 +525,28 @@ func (s *server) handleDiff(w http.ResponseWriter, r *http.Request) {
 		resp["mainRepo"] = mainRepo
 		resp["branch"] = branch
 	}
-	diff, _ := git(r.Context(), meta.Workspace, "diff")
-	numstat, _ := git(r.Context(), meta.Workspace, "diff", "--numstat")
+	// Staged changes are workspace changes. Bare `git diff` sees only
+	// unstaged edits, and the untracked scan below only `?? ` lines — so a
+	// staged file (porcelain `A `/`M `) vanished from the WHOLE surface:
+	// rail said "Nothing to commit" while `git commit` would have committed
+	// it (QA-0719 091500 用户真机实测:git add 4 文件后 Changes 全空、
+	// Commit or push 灰死)。`git diff HEAD` covers staged+unstaged in one
+	// pass; on an unborn branch (a scratch repo before its first commit —
+	// exactly the 091500 case) HEAD is invalid, so fall back to
+	// `git diff --cached` (index vs the empty tree) joined with the
+	// unstaged diff.
+	var diff, numstat string
+	if _, hasHead := git(r.Context(), meta.Workspace, "rev-parse", "--verify", "-q", "HEAD"); hasHead {
+		diff, _ = git(r.Context(), meta.Workspace, "diff", "HEAD")
+		numstat, _ = git(r.Context(), meta.Workspace, "diff", "HEAD", "--numstat")
+	} else {
+		staged, _ := git(r.Context(), meta.Workspace, "diff", "--cached")
+		unstaged, _ := git(r.Context(), meta.Workspace, "diff")
+		diff = joinDiffText(staged, unstaged)
+		stagedNum, _ := git(r.Context(), meta.Workspace, "diff", "--cached", "--numstat")
+		unstagedNum, _ := git(r.Context(), meta.Workspace, "diff", "--numstat")
+		numstat = joinDiffText(stagedNum, unstagedNum)
+	}
 	resp["diff"] = diff
 	resp["numstat"] = numstat
 	if porcelain, ok := git(r.Context(), meta.Workspace, "status", "--porcelain", "--untracked-files=all"); ok {
