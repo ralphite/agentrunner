@@ -57,7 +57,14 @@ export function Subagents({ nodes, onOpen, depth = 0 }: { nodes: InspectNode[]; 
         const clickable = !!c.session;
         const row = (
           <>
-            <span className="flex min-w-0 flex-1 items-center gap-2 max-[520px]:col-span-3">
+            {/* QA-0719 S4 二修 · identity is flex-none, not flex-1: with basis
+                0 the trailing meta group claimed its full auto basis first and
+                identity only got the leftover grow — the deficit landed on the
+                one shrinkable child (status), clipping "Completed" to "Co…"
+                while the metas' own truncation never fired. Content-sized and
+                unshrinkable, identity always renders whole; sa-spacer (flex-1)
+                takes the slack and the meta group is where tight rows give. */}
+            <span className="flex min-w-0 flex-none items-center gap-2 max-[520px]:col-span-3">
               <span className={"sa-dot shrink-0 " + st.cls} aria-hidden="true" />
               <span className="sa-name">{c.agent || "worker"}</span>
               <span className="sa-status min-w-0 truncate max-[520px]:flex-1 max-[520px]:basis-0">{st.text}</span>

@@ -1181,7 +1181,14 @@
      46%"= 一两个字母(QA-0719 S4 实测 "w…")。改绝对上限:名字在
      9rem 内永远完整,超长自身截断;status 拿左团剩余、meta 让位。 */
   .sa-name { @apply max-w-[9rem] flex-none shrink-0 truncate font-medium; }
-  .sa-status { @apply shrink-[0.5]; }
+  /* QA-0719 S4 二修:status 桌面上永不收缩。identity 组曾是 flex-1
+     (basis 0),flex 解析先让 trailing meta 组按内容拿满,identity 只分
+     到剩余 grow——缺口全压给唯一可缩的 status,"Completed" 视觉截成
+     "Co…"(statusW 38px,scrollWidth>clientWidth 实测),而 trailing 的
+     min-w-0 shrink 因从未被压到 basis 以下永不触发。identity 组现改
+     flex-none(Subagents.tsx),sa-spacer(flex-1)吸收富余,收缩真正
+     落到 meta 列;status 作为身份列 shrink-0 兜底。 */
+  .sa-status { @apply shrink-0; }
 }
 
 /* 批次 2 尾件:最后两个纯包装节点,布局归位后全库真裸元素清零 */
