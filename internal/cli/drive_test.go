@@ -206,16 +206,18 @@ verifiers:
 }
 
 // drive --series refuses the spec shapes the merged form does not carry yet
-// (self_paced / parallel / retry) instead of silently changing semantics.
+// (parallel, since 2.2b①② collected retry and self_paced) instead of
+// silently changing semantics.
 func TestDriveSeriesRefusesUnsupportedSpec(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	dir := t.TempDir()
-	specPath := writeDriverSpecs(t, dir, `name: paced
+	specPath := writeDriverSpecs(t, dir, `name: bestof
 agent_spec: worker.yaml
 prompt: go
-schedule: self_paced
-pace_min: 1s
-pace_max: 10s
+schedule: parallel
+n: 3
+verifiers:
+  - { kind: command, command: "true" }
 `)
 	var out, errOut bytes.Buffer
 	code := driveAgent(driveOptions{
