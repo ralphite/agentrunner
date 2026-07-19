@@ -458,6 +458,23 @@ func (s *server) handleDiff(w http.ResponseWriter, r *http.Request) {
 		workspace, _ := resp["workspace"].(string)
 		resp["known"] = workspace != ""
 		resp["untracked"] = []string{}
+		// `ar diff --json` carries no repo fields, but every consumer of this
+		// endpoint gates on isRepo/nested (the changes card's turn/workspace
+		// split, qa/consistency). Leaving them absent made every last-turn
+		// response read as "not a repo", so the Edited-N-files card silently
+		// fell back to "Changes in workspace" on all turn edits (QA-0719).
+		resp["isRepo"] = false
+		resp["nested"] = false
+		if workspace != "" {
+			if top, insideRepo := git(r.Context(), workspace, "rev-parse", "--show-toplevel"); insideRepo {
+				if root := strings.TrimSpace(top); samePath(root, workspace) {
+					resp["isRepo"] = true
+				} else {
+					resp["nested"] = true
+					resp["repoRoot"] = root
+				}
+			}
+		}
 		writeJSON(w, http.StatusOK, resp)
 		return
 	}

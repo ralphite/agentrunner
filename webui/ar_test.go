@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -345,10 +346,17 @@ func TestHandleDiffNestedWorkspace(t *testing.T) {
 }
 
 func TestHandleDiffLastTurn(t *testing.T) {
+	// A real repo root: the handler enriches the CLI passthrough with
+	// isRepo/nested (the CLI JSON has no repo fields, and the changes card
+	// gates its Edited-N-files path on isRepo — QA-0719).
+	repo := t.TempDir()
+	if _, ok := git(context.Background(), repo, "init"); !ok {
+		t.Skip("git unavailable")
+	}
 	bin := filepath.Join(t.TempDir(), "fake-ar")
 	script := `#!/bin/sh
 if [ "$1" = "diff" ] && [ "$3" = "--scope" ] && [ "$4" = "last-turn" ] && [ "$5" = "--json" ]; then
-  printf '%s\n' '{"scope":"last-turn","available":true,"workspace":"/tmp/project","input_seq":4,"barrier_seq":6,"barrier_id":"bar-t2","diff":"diff --git a/a.txt b/a.txt\\n+a","numstat":"1\\t0\\ta.txt"}'
+  printf '%s\n' '{"scope":"last-turn","available":true,"workspace":"` + repo + `","input_seq":4,"barrier_seq":6,"barrier_id":"bar-t2","diff":"diff --git a/a.txt b/a.txt\\n+a","numstat":"1\\t0\\ta.txt"}'
   exit 0
 fi
 exit 2
@@ -374,6 +382,9 @@ exit 2
 	}
 	if untracked, ok := resp["untracked"].([]any); !ok || len(untracked) != 0 {
 		t.Fatalf("untracked must be a stable empty array: %#v", resp["untracked"])
+	}
+	if resp["isRepo"] != true || resp["nested"] != false {
+		t.Fatalf("last-turn response must carry repo facts (isRepo/nested): %#v", resp)
 	}
 
 	bad := httptest.NewRequest("GET", "/api/sessions/x/diff?scope=commit", nil)
