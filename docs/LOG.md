@@ -5247,3 +5247,18 @@ help 撤除（flag 兼容保留）；`ar drive` 降为 webui 薄壳的 transport
 命令（物理保留因 thin-shell 教义要求某个 CLI 谓词承载 daemon drive
 提交——删除它需先给 webui 另一条数据面，属 HTTP 壳 backlog 范畴）。
 SPEC 附录命令表加注。INC-80 工作纸随三视角 review 后归档。
+
+## 2026-07-19 · INC-80 三视角 review（安全视角）结果与修复
+
+P1（已修）：merged-stream 写路径 `seriesAppendFunc` 未做整体 redact，
+`SessionStarted.Prompt` 与 series 侧 `SpawnRequested.Prompt`（含
+series-memory 拼接）原文入盘——镜像 agent appender 的 blanket
+`r.JSON(env.Payload)` 一次封死，断言测试
+TestSeriesJournalRedactsCredentialInPrompt。顺手 hardening（P2-1）：
+parallel resume 的 journal BaseRef 过 `isPlainObjectID` 才进 git argv。
+登记不修（接受）：P2-2 self_paced pace 再推导的 ChildSession→路径无
+ValidSessionID 过滤（同 G39 childDirForSession 模式，同本地信任域，
+一致性债）；P2-3 NewChildAt worktree 失败静默回退共享 ws（INC-80 前
+既有，几乎不可达，正确修法=fail attempt，随 parallel 真实使用再动）；
+P2-4 webui queued kicker 正文可冒名（UI 噪音级）。其余审查点干净
+（Verdict/carry redact、路径安全、权限面等价、verifier 收容、信息面）。

@@ -645,3 +645,27 @@ func TestSeriesParallelWorktreeLostFailsAttempt(t *testing.T) {
 		t.Fatalf("attempt 1 not failed as worktree-lost: %+v", ss.Series.Iterations)
 	}
 }
+
+// INC-80 安全 review P1: the merged-stream appender blanket-redacts EVERY
+// journaled payload — a credential value pasted into the prompt must never
+// reach the series journal (SessionStarted.Prompt and SpawnRequested.Prompt
+// were the exposed carriers).
+func TestSeriesJournalRedactsCredentialInPrompt(t *testing.T) {
+	t.Setenv("LEAKY_API_KEY", "supersecretvalue123")
+	d, dStore := harness(t, &driver.DriverSpec{
+		Name: "goal", Prompt: "use key supersecretvalue123 to fetch", MaxIterations: 1,
+		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierCommand, Command: "true"}},
+	})
+	if _, err := d.RunSeries(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	events, err := store.ReadEvents(dStore.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range events {
+		if strings.Contains(string(e.Payload), "supersecretvalue123") {
+			t.Fatalf("credential value journaled in %s: %s", e.Type, e.Payload)
+		}
+	}
+}

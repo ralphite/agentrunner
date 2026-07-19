@@ -135,11 +135,17 @@ func (d *Driver) prepareSeries() error {
 // seriesAppendFunc is the single write path of the merged stream: append,
 // fold into the session state, tee lifecycle events to watchers.
 func (d *Driver) seriesAppendFunc(ss *state.State) appendFunc {
+	r := redact.FromEnv()
 	return func(typ string, payload any) (event.Envelope, error) {
 		env, err := event.New(typ, payload)
 		if err != nil {
 			return env, err
 		}
+		// Blanket credential redaction on EVERY journaled payload — the
+		// same invariant the agent appender enforces (loop.go): prompts and
+		// series-memory excerpts ride SessionStarted/SpawnRequested here,
+		// and the harness never journals a credential (INC-80 安全 review P1).
+		env.Payload = r.JSON(env.Payload)
 		env.CorrelationID = d.DriverID
 		appended, err := d.Store.Append(env)
 		if err != nil {
@@ -442,6 +448,12 @@ func (d *Driver) driveSeriesParallel(ctx context.Context, ss *state.State, appen
 	if baseRef == "" {
 		return Result{}, fmt.Errorf("series: parallel round has no pinned base snapshot")
 	}
+	// The ref crosses journal→git argv (Materialize): only a plain object
+	// id may pass — a tampered journal value must not become a git option
+	// (安全 review P2-1 hardening).
+	if !isPlainObjectID(baseRef) {
+		return Result{}, fmt.Errorf("series: journaled base ref %q is not a plain object id", baseRef)
+	}
 	for n := startN; n <= total; n++ {
 		if ctx.Err() != nil {
 			return d.seriesCancelTerminal(ctx, appendE, ss.Series, n-1)
@@ -564,6 +576,20 @@ func (d *Driver) driveSeriesParallel(ctx context.Context, ss *state.State, appen
 		return Result{}, err
 	}
 	return Result{Reason: reason, Iterations: total, BestIter: best}, nil
+}
+
+// isPlainObjectID accepts only a bare lowercase-hex git object id (40-64
+// chars) — the shape ShadowRepo.Snapshot returns.
+func isPlainObjectID(ref string) bool {
+	if n := len(ref); n < 40 || n > 64 {
+		return false
+	}
+	for _, c := range ref {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 // seriesAllChildrenFailed reports whether every non-skipped iteration's
