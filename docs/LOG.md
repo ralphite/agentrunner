@@ -4894,3 +4894,28 @@ S1 working-tree==git(a.txt)、S2 新会话 last-turn 空(幽灵 diff 锚绿)
 回退卡逻辑(空/unknown 均走 working-tree)已覆盖该形态,但"unknown vs
 空"的产品语义仍待裁决(QA.md QA-76 S1 已登记)。findings JSON 存 run
 artifact consistency-findings。定时(6h)已生效,后续红即语义回归。
+
+## 2026-07-19 · QA-0718 第十四轮:审批链路语义对账 + Review 入口 scope 配对修复
+
+远程 agent 驱动(issue #15,run 29667244873),按 QA-76 方法对账**审批
+声明**:新会话(ask 模式)请求 bash `touch approved.txt` → 卡出现时
+`/api/sessions` status=waiting:approval、ATTENTION "Approval requested 1"
+一致;Approve once 后文件真落盘(working-tree 与 last-turn diff 均含
+approved.txt)、时间线 "Approved · bash" 审计线、ATTENTION 清零——全部
+对账绿。Deny 路径:`touch denied.txt` 拒绝后文件确未创建、状态回
+waiting:input、"Denied · bash" 审计 chip 在 "Worked for 2s" 折叠内存在。
+审批语义(执行/不执行 × UI 声明)双向一致。
+
+**抓到并修复一个声明-视图脱节(正是 QA-76 目标类)**:回退形态的
+"Changes in workspace +1" 卡点 Review,打开的 DiffView 仍按 RVW-4 默认
+last-turn scope → 首屏 "No changes this turn",与卡的声明矛盾。修复:
+ChangesOutcome 的 onReview/文件行把卡当前 scope 传给 SessionView 的
+openDiff(hint),DiffView 新增 initialScope(一次性入口提示,不持久化,
+无声明的入口传 null 走原偏好);面板常驻时再点卡片也响应(effect)。
+回归测试 2 条(scope 配对:turn 卡 → 'turn',workspace 回退卡 →
+'workspace',Review 按钮与文件行同断言)。前端 587 test + build 绿。
+
+观察(产品语义,不擅改):home composer 的 RH-1 seed 取"最新非 Scratch
+workspace"= 上一会话的 worktree 路径,新会话再从它派生 worktree →
+路径 hop 无限堆叠(ws-…-master-233751-master-014018);lineage 折叠让
+label 稳定,但种子应否指向 project 根待裁决。

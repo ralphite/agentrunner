@@ -321,7 +321,11 @@ function ChangesShell({ children }: { children: ReactNode }) {
 
 type Phase = "loading" | "ready" | "error";
 
-export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; refreshKey: number; onReview: () => void }) {
+// onReview carries the card's current scope so the diff panel opens on the
+// scope this card is claiming — a "Changes in workspace" card must not link
+// into a panel that answers "No changes this turn" (QA-0719: the workspace
+// fallback broke RVW-4's card-scope/panel-scope pairing).
+export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; refreshKey: number; onReview: (scope: "turn" | "workspace") => void }) {
   const openModal = useStore((s) => s.openModal);
   const toast = useStore((s) => s.toast);
   const focusDiffFile = useStore((s) => s.focusDiffFile);
@@ -493,7 +497,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
             >
               Undo <ArrowCounterClockwise size={13} />
             </button>
-            <button type="button" className="shrink-0 px-[10px]" onClick={onReview}>Review</button>
+            <button type="button" className="shrink-0 px-[10px]" onClick={() => onReview(scope)}>Review</button>
           </div>
         </header>
         <div className="changes-outcome-files -mx-3 -mb-3 mt-3 grid gap-0 overflow-hidden border-t border-line-2">
@@ -510,7 +514,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
             // and `> button` is already spoken for by the "Show N more" row.
             const open = () => {
               focusDiffFile(file.path); // DiffView expands + scrolls to it
-              onReview(); // …in the panel the Review button already opens
+              onReview(scope); // …in the panel the Review button already opens
             };
             return (
               <div

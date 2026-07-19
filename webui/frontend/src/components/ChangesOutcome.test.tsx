@@ -337,3 +337,31 @@ describe("ChangesOutcome mobile layout parity (INC-48)", () => {
     expect(countColumn.textContent).toBe("+2−1");
   });
 });
+
+describe("ChangesOutcome scope pairing (QA-0719)", () => {
+  // The card's title names a scope; the Review link must carry that same scope
+  // into the diff panel. A "Changes in workspace" card whose Review opened a
+  // "No changes this turn" panel is the claim/view mismatch QA-76 exists for.
+  const emptyDiff = { workspace: "/w", known: true, isRepo: true, diff: "", untracked: [] };
+
+  it("reports scope 'turn' from an Edited-N-files card", async () => {
+    diffMock.mockImplementation((_sid: string, scope: string) =>
+      Promise.resolve(scope === "last-turn" ? okDiff(1) : emptyDiff));
+    const onReview = vi.fn();
+    render(<ChangesOutcome sid="s1" refreshKey={0} onReview={onReview} />);
+    fireEvent.click(await screen.findByText("Review"));
+    expect(onReview).toHaveBeenCalledWith("turn");
+  });
+
+  it("reports scope 'workspace' from the workspace-fallback card — Review button and file rows alike", async () => {
+    diffMock.mockImplementation((_sid: string, scope: string) =>
+      Promise.resolve(scope === "last-turn" ? emptyDiff : okDiff(1)));
+    const onReview = vi.fn();
+    render(<ChangesOutcome sid="s1" refreshKey={0} onReview={onReview} />);
+    await screen.findByText("Changes in workspace");
+    fireEvent.click(screen.getByText("Review"));
+    expect(onReview).toHaveBeenCalledWith("workspace");
+    fireEvent.click(screen.getByLabelText("Review changes to mod0.ts"));
+    expect(onReview).toHaveBeenLastCalledWith("workspace");
+  });
+});

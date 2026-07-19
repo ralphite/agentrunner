@@ -279,7 +279,13 @@ function FileHead({
   );
 }
 
-export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }) {
+// `initialScope` is the entry point's claim: the changes card names a scope in
+// its title ("Edited N files" = last turn, "Changes in workspace" = working
+// tree), and the panel it links to must open on that same scope — RVW-4's own
+// rationale, which the card's workspace fallback otherwise inverts (card says
+// "+1", panel says "No changes this turn"). It is a hint, not a preference:
+// it never persists, and entries that make no claim pass nothing.
+export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?: () => void; initialScope?: DiffScope | null }) {
   const { toast, openPrompt } = useStore();
   // INC-41 TH-5 · a file the thread's change card asked us to open. It is a
   // one-shot request: we take it into local state (so the file stays open once
@@ -293,7 +299,12 @@ export function DiffView({ sid, onClose }: { sid: string; onClose?: () => void }
   const [data, setData] = useState<DiffResp | null>(null);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
-  const [scope, setScope] = useState<DiffScope>(loadScope);
+  const [scope, setScope] = useState<DiffScope>(() => initialScope ?? loadScope());
+  // The panel stays mounted while the timeline's changes card is still
+  // clickable beside it — a later card click must still land on its scope.
+  useEffect(() => {
+    if (initialScope) setScope(initialScope);
+  }, [initialScope]);
   // Did the *user* choose this scope, here, in this panel? Only then is "Last
   // turn unavailable" an answer worth showing: a scope we picked for them (the
   // RVW-4 default) failing on a session with no durable baseline is our problem,

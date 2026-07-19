@@ -132,6 +132,14 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   const [goalEditSrc, setGoalEditSrc] = useState<"banner" | "panel">("banner");
   const [goalPendingUpdate, setGoalPendingUpdate] = useState<string | null>(null);
   const [view, setView] = useState<"chat" | "diff">("chat");
+  // One-shot scope hint for the diff panel: set only by the changes card (whose
+  // title names a scope), cleared by every entry that makes no scope claim, so
+  // the panel always opens on the scope its entry point advertised.
+  const [diffScopeHint, setDiffScopeHint] = useState<"working-tree" | "last-turn" | null>(null);
+  const openDiff = (hint: "working-tree" | "last-turn" | null = null) => {
+    setDiffScopeHint(hint);
+    setView("diff");
+  };
   // RT-5 · The failure banner's "technical details" fold is closed by default:
   // the raw provider string is available, never in your face.
   const [failureRawOpen, setFailureRawOpen] = useState(false);
@@ -823,7 +831,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
 
           <MenuLabel>View</MenuLabel>
           <MenuItem onClick={() => setView("chat")}><ChatCircle size={16} />Conversation</MenuItem>
-          <MenuItem onClick={() => setView("diff")}><Files size={16} />Changes</MenuItem>
+          <MenuItem onClick={() => openDiff()}><Files size={16} />Changes</MenuItem>
           <MenuItem onClick={() => setSupervision(!supervisionOpen)}><SidebarSimple size={16} />{supervisionOpen ? "Hide" : "Show"} Environment</MenuItem>
           <MenuItem
             title="also show low-level system events (mode changes, effects, barriers…) inline in the timeline"
@@ -922,7 +930,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
                 onContinue={() => openModal({ kind: "fork", sid })}
                 goalVerdict={goalVerdict}
                 outcomeSlot={folded.items.some((item) => item.kind === "assistant") ? (
-                  <ChangesOutcome sid={sid} refreshKey={events.length} onReview={() => setView("diff")} />
+                  <ChangesOutcome sid={sid} refreshKey={events.length} onReview={(scope) => openDiff(scope === "workspace" ? "working-tree" : "last-turn")} />
                 ) : undefined}
               />
               {failure && (
@@ -1051,7 +1059,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
                   onError={(message) => toast(message)}
                   actions={{
                     interrupt: act.interrupt,
-                    showDiff: () => setView("diff"),
+                    showDiff: () => openDiff(),
                     fork: () => openModal({ kind: "fork", sid }),
                     switchAgentAdvanced: () => openModal({ kind: "agent", sid }),
                     resume: act.resume,
@@ -1066,7 +1074,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
                 rail 48px above a toolbar that could already wrap to two rows.
                 Codex opens straight onto the diff under one toolbar; the ✕ moved
                 into it (DiffView's `onClose`). */}
-            <DiffView sid={sid} onClose={() => setView("chat")} />
+            <DiffView sid={sid} onClose={() => setView("chat")} initialScope={diffScopeHint} />
           </aside>
         ) : showSupervision ? (
           <SupervisionPanel
@@ -1094,7 +1102,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
             // TH-15 · the rail's Changes row used to open the diff by synthesising
             // a click on the topbar's Changes pill. That pill is gone, so the row
             // drives the view directly — which is what it should always have done.
-            onOpenChanges={() => setView("diff")}
+            onOpenChanges={() => openDiff()}
             onGoalEdit={(text) => { setGoalEditSrc("panel"); setGoalEdit(text); }}
             onGoalSave={saveGoalEdit}
             onGoalDiscard={() => setGoalEdit(null)}
