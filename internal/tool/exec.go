@@ -87,7 +87,7 @@ type Executor struct {
 	// same tree-root store — first set wins, later sets are no-ops.
 	blobsMu sync.Mutex
 	blobs   BlobStore
-	// index is the lazily-built IndexStore for semantic_search (S7 模块 4):
+	// index is the lazily-built IndexStore for keyword_search (S7 模块 4):
 	// in-memory, derived, rebuilt per process — the executor is shared down
 	// the agent tree, so the whole tree shares one index per workspace.
 	indexOnce sync.Once
@@ -182,8 +182,8 @@ func (e *Executor) Execute(ctx context.Context, name string, args json.RawMessag
 		return e.scheduleNext(args)
 	case "finish_series":
 		return e.finishSeries(args)
-	case "semantic_search":
-		return e.semanticSearch(args)
+	case "keyword_search", "semantic_search": // legacy name: replayed old calls
+		return e.keywordSearch(args)
 	case "grep":
 		return e.grep(args)
 	case "glob":
@@ -257,7 +257,7 @@ func stripFrontmatter(s string) string {
 
 // grep/glob limits (INC-3). Both are read-class content-surfacing tools:
 // they walk the workspace with the SAME credential/vendored-tree exclusion
-// as semantic_search (index.SkipDir/SkipFile) so no credential line ever
+// as keyword_search (index.SkipDir/SkipFile) so no credential line ever
 // lands in the journal, and they cap output like every other tool.
 const (
 	grepMaxMatches   = 200
@@ -626,25 +626,25 @@ func globToRegexp(pat string) (*regexp.Regexp, error) {
 	return regexp.Compile(b.String())
 }
 
-// semanticSearch queries the workspace's IndexStore (S7 模块 4). The
+// keywordSearch queries the workspace's IndexStore (S7 模块 4). The
 // indexer builds lazily on first use — the index is the fourth state class
 // (derived, rebuildable, disposable), so there is nothing to wire up or
 // persist; snippets pass the same redaction as every journaled output.
-func (e *Executor) semanticSearch(args json.RawMessage) Result {
+func (e *Executor) keywordSearch(args json.RawMessage) Result {
 	var in struct {
 		Query      string `json:"query"`
 		MaxResults int    `json:"max_results"`
 	}
 	if err := json.Unmarshal(args, &in); err != nil || strings.TrimSpace(in.Query) == "" {
-		return errResult("semantic_search: invalid args: need {\"query\": string}")
+		return errResult("keyword_search: invalid args: need {\"query\": string}")
 	}
 	if e.WS == nil {
-		return errResult("semantic_search: no workspace")
+		return errResult("keyword_search: no workspace")
 	}
 	e.indexOnce.Do(func() { e.index = index.New(e.WS.Root()) })
 	hits, files, err := e.index.Search(in.Query, in.MaxResults)
 	if err != nil {
-		return errResult("semantic_search: %v", err)
+		return errResult("keyword_search: %v", err)
 	}
 	r := redact.FromEnv()
 	for i := range hits {

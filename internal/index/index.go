@@ -59,7 +59,7 @@ func skipFile(name string) bool {
 
 // SkipFile reports whether a file name is credential-shaped and must never
 // have its content surface in a journaled tool result. Exported so the grep
-// tool stays in GENUINE lockstep with semantic_search (both land verbatim
+// tool stays in GENUINE lockstep with keyword_search (both land verbatim
 // content in the journal) rather than copy-pasting the exclusion set.
 func SkipFile(name string) bool { return skipFile(name) }
 

@@ -381,7 +381,7 @@ func TestBashSessionMarkerSet(t *testing.T) {
 	}
 }
 
-// semantic_search (S7 模块 4): the executor lazily builds the derived
+// keyword_search (S7 模块 4): the executor lazily builds the derived
 // index and returns ranked hits; snippets are redacted like every output.
 func TestSemanticSearch(t *testing.T) {
 	e, root := newExec(t)
@@ -394,7 +394,7 @@ func TestSemanticSearch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, isErr := run(t, e, "semantic_search", `{"query":"token check"}`)
+	out, isErr := run(t, e, "keyword_search", `{"query":"token check"}`)
 	if isErr {
 		t.Fatalf("unexpected error: %v", out)
 	}
@@ -419,12 +419,12 @@ func TestSemanticSearch(t *testing.T) {
 	if err := os.Chtimes(filepath.Join(root, "auth.go"), future, future); err != nil {
 		t.Fatal(err)
 	}
-	out, _ = run(t, e, "semantic_search", `{"query":"CheckToken"}`)
+	out, _ = run(t, e, "keyword_search", `{"query":"CheckToken"}`)
 	if hits := out["hits"].([]any); len(hits) != 0 {
 		t.Errorf("stale hits = %#v", hits)
 	}
 
-	if out, isErr := run(t, e, "semantic_search", `{"query":""}`); !isErr {
+	if out, isErr := run(t, e, "keyword_search", `{"query":""}`); !isErr {
 		t.Errorf("empty query accepted: %v", out)
 	}
 }

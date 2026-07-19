@@ -144,8 +144,8 @@ if [ -n "$child_dir" ]; then
   else
     note "PASS  child never invoked a write tool (read-only face held)"
   fi
-  check "child used a read tool (read_file/grep/glob/semantic_search)" \
-    'grep -qE "\"name\":\"(read_file|grep|glob|semantic_search)\"" "$CEV"'
+  check "child used a read tool (read_file/grep/glob/keyword_search)" \
+    'grep -qE "\"name\":\"(read_file|grep|glob|keyword_search|semantic_search)\"" "$CEV"'
   check "child ran the explore system prompt (exactly one SessionStarted)" \
     '[ "$(count_type session_started "$CEV")" -eq 1 ]'
 fi

@@ -54,7 +54,7 @@ system_prompt: |
   - 关键设计决策(容易搞错的算法)动手前先用 ask_user 与用户对齐方案。
   - 改完必须用 bash 跑测试验证;测试不全绿就不算完成,继续修。
   - 如实汇报:做了什么、测试证据、失败也照说,不粉饰。
-tools: [read_file, write_file, edit_file, bash, grep, glob, semantic_search, web_fetch, ask_user]
+tools: [read_file, write_file, edit_file, bash, grep, glob, keyword_search, web_fetch, ask_user]
 permissions:
   - { action: allow }
 max_generation_steps: 60

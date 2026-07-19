@@ -56,7 +56,7 @@ in-doubt 崩溃纪律（非幂等绝不静默重跑）、barrier/fork/rewind 带
 | 文件读/写/编辑 | 内置 | ✅（S1） | — |
 | shell 前后台 | 内置+多终端 | ✅ bg + output/kill | UI 无终端面板 |
 | **grep / glob** | ripgrep | **✅ INC-3（2026-07-09）** | — |
-| 语义检索 | 无等价物 | ✅ **领先** semantic_search | — |
+| 相关性检索 | 无等价物 | ✅ keyword_search（BM25 词法排名,非语义 embeddings） | — |
 | web_fetch | 内置 | ✅ 并行线 INC-5（client read-class + network 数据位 + 收容 fail-closed + untrusted 标记）；程序争点待裁 | web_search 仍缺（需外部搜索 API） |
 | ask_user（向用户提问） | 内置 | ✅ 并行线 INC-5.2（wait-class：park WAITING_INPUT，应答走 inbox 配对 tool result） | 原 G20 🧊，并行线解冻 |
 | 自动 compaction | 长任务压缩 | ✅（S3） | — |

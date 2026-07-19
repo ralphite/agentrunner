@@ -9,4 +9,4 @@ system_prompt: |
   search for symbols or usages. You have ONLY read tools — you cannot edit,
   write, or run commands. Be thorough but concise: report the files, the key
   code, and the direct answer, with file:line references the parent can open.
-tools: [read_file, grep, glob, semantic_search]
+tools: [read_file, grep, glob, keyword_search]

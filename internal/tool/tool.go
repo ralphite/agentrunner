@@ -43,6 +43,23 @@ type Def struct {
 
 var registry = mustLoad()
 
+// legacyNames maps retired tool names to their canonical successor so specs
+// and journals written before a rename keep working: validation and def
+// lookup accept the old name, while the def rendered to the model always
+// carries the canonical one (PLAN 5.2: semantic_search was lexical ranking,
+// not embeddings — renamed to what it actually does).
+var legacyNames = map[string]string{
+	"semantic_search": "keyword_search",
+}
+
+// Canonical resolves a possibly-legacy tool name to its registry name.
+func Canonical(name string) string {
+	if c, ok := legacyNames[name]; ok {
+		return c
+	}
+	return name
+}
+
 func mustLoad() map[string]Def {
 	entries, err := defsFS.ReadDir("defs")
 	if err != nil {
@@ -69,9 +86,10 @@ func mustLoad() map[string]Def {
 	return reg
 }
 
-// Get returns a tool definition by name.
+// Get returns a tool definition by name (legacy names resolve to their
+// canonical definition).
 func Get(name string) (Def, bool) {
-	def, ok := registry[name]
+	def, ok := registry[Canonical(name)]
 	return def, ok
 }
 
@@ -90,7 +108,7 @@ func Names() []string {
 func ProviderDefs(names []string) ([]provider.ToolDef, error) {
 	defs := make([]provider.ToolDef, 0, len(names))
 	for _, name := range names {
-		def, ok := registry[name]
+		def, ok := registry[Canonical(name)]
 		if !ok {
 			return nil, fmt.Errorf("unknown tool %q", name)
 		}

@@ -117,8 +117,11 @@
 - [x] 5.1 占位 UI 移除——2026-07-19:Plugins 五件套、Environment chip、
       Settings Branch prefix/PR merge method(含 GitPrefs 瘦身)全删;
       测试/QA-69/SPEC/FEATURES 锚同步。原则:UI 只承诺已接线的能力。
-- [ ] 5.2 semantic_search 改名 keyword_search（description 如实；含
-      defs/迁移与测试）。
+- [x] 5.2 semantic_search 改名 keyword_search——2026-07-19:defs 改名+
+      description 如实(BM25 lexical,not embeddings);tool.Canonical 别名
+      迁移(旧 spec/journal/中途 resume 全兼容);builtin specs/init 模板/
+      QA 脚本/webui timeline 双 case/SPEC/DESIGN/parity 文档同步;钉子
+      TestKeywordSearchToolEndToEnd(spec 故意用旧名钉 alias 全链)。
 - [ ] 5.3 lease/DAG/depends_on/逐层 relay：先消费方评估，零消费则砍
       （保留 spawn/receipt/kill/直接子 revive）。
 - [ ] 5.4 CLI 碎屑批修：sessions 迁回 flag 包、run -o 显式报错、

@@ -134,7 +134,7 @@
 ### 3.3 搜索
 - grep：RE2 正则搜内容，支持 path 子目录限定 / case_insensitive / glob 过滤 / output_mode(content|files_with_matches|count) / -A/-B/-C 上下文 / multiline 跨行 / max_results（默认 100、上限 200）。
 - glob：按 glob 模式列文件（`**` 跨目录且可匹配零段，path 可限定子目录），上限 1000 条。
-- semantic_search：BM25 词法相关性搜索（identifier-aware 分词），惰性建全树共享内存索引（max_results 默认 8、上限 20）。
+- keyword_search（原 semantic_search,2026-07-19 PLAN 5.2 如实改名）：BM25 词法相关性搜索（identifier-aware 分词），惰性建全树共享内存索引（max_results 默认 8、上限 20）。
 - 搜索横切：三者共享凭据文件/vendored 树排除表，snippet 全过 redaction。
 
 ### 3.4 网络

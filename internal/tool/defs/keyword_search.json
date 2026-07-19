@@ -1,0 +1,13 @@
+{
+  "name": "keyword_search",
+  "description": "Keyword search over the workspace: identifier-aware lexical (BM25) ranking, not embeddings. Returns the best-matching code/text chunks with path, line and snippet. Use for 'where is X handled' questions; use read_file to see full context.",
+  "class": "read",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "query": { "type": "string", "description": "What to look for — keywords or identifiers." },
+      "max_results": { "type": "integer", "description": "Maximum hits to return (default 8, cap 20)." }
+    },
+    "required": ["query"]
+  }
+}

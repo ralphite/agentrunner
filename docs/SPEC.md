@@ -79,7 +79,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | read_file / write_file / edit_file（read_file 支持读图/PDF：media envelope+CAS ref,assembly 注入 image/file part,journal 恒 byte-free;5MB 上限;文本路径零变化；write/edit result 带 lines_added/removed 行统计,INC-43） | ✅ | UJ-02/05 | S1 · QA-03（write_file）· INC-33（TestReadFileImage*/TestReadFileImageEndToEnd · QA-38 真机:模型从像素读出截图内容） |
 | bash 前台+后台（`output`/`kill` 凭 handle；SIGTERM→宽限→SIGKILL，以进程组实际消失而非 wrapper reaped 为取消终态；**后台进度 tail**：running handle 的 `output` 回有界 output_tail、chunk 级 redact、ephemeral `bg_output` 镜像——audit-0717 B9，G10 全关） | ✅ | UJ-02/18 | S1/S3+INC-67 · TestBashCancelLeavesNoSessionOrphans/TestBashCancelKillsTermResistantGrandchild/TestBackgroundOutputTailWhileRunning/TestRunSandboxedTeesLiveOutput · QA-05/67 |
 | 后台任务 notify 门（`notify: always\|on_fail\|none`；fold 从 journaled args 读门、resume 重放同裁决；none=终态只摘 handle 不回流（fire-and-forget）、on_fail=仅 IsError 回流；Cancelled 不过门；非法值宽容回退 always） | ✅ | UJ-18 | INC-39（HANDA #10 缩水版，唤醒与结构化载荷经勘误已存在）· TestBackgroundNotifyGate（10 例矩阵）· 真验 2026-07-10（真 Gemini 双场景：none 零回流零多余 turn / on_fail 回流+模型复述 exit 3，qa/runs/2026-07-10-INC39） |
-| semantic_search（IndexStore，BM25） | ✅ | UJ-01 | S7 · TestSearchFindsRelevantChunk/TestSearchRanksDenserFileHigher（G30 还锚 audit-0717 C1） |
+| keyword_search（IndexStore，BM25 词法排名;原名 semantic_search,PLAN 5.2 如实改名,旧名 spec/journal 经 tool.Canonical 兼容） | ✅ | UJ-01 | S7 · TestSearchFindsRelevantChunk/TestSearchRanksDenserFileHigher（G30 还锚 audit-0717 C1）· TestKeywordSearchToolEndToEnd |
 | publish_artifact（`outputs:` contract、审批载荷；manifest 跨 store instance/process 单写 + 原子替换，不丢并发版本） | ✅ | UJ-06/18 | S5+INC-67 · TestArtifactPublishSerializesAcrossStoreInstances |
 | artifact 消费面（模型侧 artifacts_list/read：loop 内部 read 工具、fold `Published` 为真相（orphan blob 不可寻址）、read 分页 offset/max_bytes+next_offset+UTF-8 边界不切、二进制回 metadata、@version 历史寻址；CLI `ar artifacts <sid> list\|read <stream>[@vN]`；webui Supervision Artifacts 区+点击查看器） | ✅ | UJ-06/18/24 | INC-40（HANDA #11）· TestArtifactsList*/TestArtifactsRead*（分页重组/边界/orphan 不漏）· 真验 2026-07-11（真 Gemini publish→list→read 全链 READBACK 逐字命中+CLI+webui 查看器，qa/runs/2026-07-11-INC40） |
 | exit_plan_mode（plan mode 跃迁） | ✅ | UJ-06/11 | S2/S3 · TestPlanApprovalFullFlow/TestPlanModeFullFlow/TestExitPlanModeDeniedStaysInPlan |
@@ -230,7 +230,7 @@ HTTP ingress（INC-50），均非 wire 命令。）
 **内置 tool 定义**（`internal/tool/defs/*.json`，26 个）：
 `read_file` `write_file` `edit_file` `bash` `output` `kill`
 `spawn_agent` `handoff_agent` `publish_artifact` `publish_note`
-`read_notes` `semantic_search` `grep`（INC-3）`glob`（INC-3）`skill`（INC-20）
+`read_notes` `keyword_search` `grep`（INC-3）`glob`（INC-3）`skill`（INC-20）
 `exit_plan_mode` `schedule_next` `finish_series`
 `ask_user`（INC-5）`web_fetch`（INC-5）`progress_update`（INC-37）
 `send_message`（INC-12）`artifacts_list` `artifacts_read`（INC-40）

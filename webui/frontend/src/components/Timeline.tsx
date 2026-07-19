@@ -331,7 +331,8 @@ const STRUCTURED_TOOLS = new Set([
   "edit_file",
   "grep",
   "glob",
-  "semantic_search",
+  "keyword_search",
+  "semantic_search", // legacy journals (pre-rename)
   "spawn_agent",
   "web_fetch",
   "ask_user",
@@ -560,7 +561,8 @@ function ToolDetail({ t, body }: { t: ToolItem; body: string }) {
     case "glob":
       view = <GlobDetailView t={t} />;
       break;
-    case "semantic_search":
+    case "keyword_search":
+    case "semantic_search": // legacy journals (pre-rename)
       view = <SemanticDetailView t={t} />;
       break;
     case "spawn_agent":
@@ -645,7 +647,8 @@ export function groupLabel(tools: ToolItem[]): string {
         break;
       case "grep":
       case "glob":
-      case "semantic_search":
+      case "keyword_search":
+      case "semantic_search": // legacy journals (pre-rename)
         add("searched files");
         break;
       case "write_file":

@@ -1800,7 +1800,9 @@ func (l *Loop) doTools(ctx context.Context, ds *driveState, appendE AppendFunc,
 		// until the approval times out (QA Wave2 judy-07). Refuse it here and
 		// let Phase 2's buildRunner render the model-visible "not enabled"
 		// result; skip adjudication entirely.
-		if l.advertisedTools != nil && !l.advertisedTools[call.Name] {
+		// Canonical: a legacy-named call (a replayed pre-rename journal entry)
+		// matches its canonical advertised def.
+		if l.advertisedTools != nil && !l.advertisedTools[tool.Canonical(call.Name)] {
 			allowed = append(allowed, pending{call: call, res: new(tool.Result)})
 			continue
 		}
@@ -2379,7 +2381,7 @@ func (l *Loop) buildToolRun(call provider.ToolCall, res *tool.Result) func(conte
 	// by their own runner too, so only registry tools reach here. A call to a
 	// tool the spec never enabled is refused with a model-visible error instead
 	// of being executed (QA Wave2 bob-01/heidi-03).
-	if l.advertisedTools != nil && !l.advertisedTools[call.Name] {
+	if l.advertisedTools != nil && !l.advertisedTools[tool.Canonical(call.Name)] {
 		return func(context.Context) (json.RawMessage, *provider.Usage, bool, error) {
 			*res = tool.DisabledToolResult(call.Name)
 			return res.Payload, nil, res.IsError, nil

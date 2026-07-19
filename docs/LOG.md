@@ -5349,3 +5349,17 @@ prefix 与 PR merge method(Not wired 徽标,记录但零消费,GitPrefs 类型
 将来某能力真出现时随其流程重加。锚更新:Composer.addMenu.test
 两组五动作、Settings.test 跨面板行过滤改锚 Theme、qa69-assert 两组、
 SPEC composer 行注记。vitest/前端构建/check.sh 全绿。
+
+## PLAN 5.2 semantic_search 如实改名 keyword_search（2026-07-19）
+
+**增量**:工具实为 BM25 词法排名(identifier-aware 分词),无 embeddings,
+名字与 description 却暗示语义检索——如实改名 keyword_search,description
+明说 "lexical (BM25) ranking, not embeddings"。**迁移**:tool.Canonical
+legacy 别名表(semantic_search→keyword_search)——旧 spec(文件/journal
+SessionStarted.Spec)经 Get/ProviderDefs 照常校验,模型永远只见 canonical
+名;loop 两处 allowlist 门禁走 Canonical(兼容 pre-rename journal 中途
+resume 重放旧名调用);exec dispatch 双 case。builtin explore/plan spec、
+init 模板、qa14/qa32 脚本、webui timeline(新旧名双 case 渲染历史
+journal)、SPEC/DESIGN/两份 parity 文档(顺手把"语义检索领先"改为如实的
+BM25 表述)同步。钉子:TestKeywordSearchToolEndToEnd(spec 故意用旧名,
+钉 alias 全链)。

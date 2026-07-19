@@ -1232,7 +1232,8 @@ export function toolCategory(name: string): ActivityCategory {
       return "read";
     case "grep":
     case "glob":
-    case "semantic_search":
+    case "keyword_search":
+    case "semantic_search": // legacy journals (pre-rename)
       return "search";
     case "write_file":
     case "edit_file":
@@ -1298,7 +1299,8 @@ export function toolLabel(name: string, args: unknown): StepLabel {
       return { verb: "search", body: str("pattern"), mono: true };
     case "glob":
       return { verb: "find files", body: str("pattern"), mono: true };
-    case "semantic_search":
+    case "keyword_search":
+    case "semantic_search": // legacy journals (pre-rename)
       return { verb: "search", body: str("query"), mono: false };
     case "web_fetch":
       return { verb: "fetch", body: str("url"), mono: true };

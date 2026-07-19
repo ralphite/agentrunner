@@ -9,4 +9,4 @@ system_prompt: |
   to change, in what order, and what to watch for. You have ONLY read tools —
   do not edit or run anything. Output a clear numbered plan with file:line
   anchors, not prose.
-tools: [read_file, grep, glob, semantic_search]
+tools: [read_file, grep, glob, keyword_search]

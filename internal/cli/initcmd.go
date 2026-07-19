@@ -29,7 +29,7 @@ system_prompt: >
 # system_prompt_file: prompt.md   # or load the prompt from a file (not both)
 
 # Tools the agent may use; omit for a chat-only agent.
-tools: [read_file, write_file, edit_file, bash, grep, glob, semantic_search]
+tools: [read_file, write_file, edit_file, bash, grep, glob, keyword_search]
 
 # Heads-up: with NO permissions block below, edits (write_file/edit_file)
 # and shell commands (bash) PAUSE for your approval every time — reads are
