@@ -4,7 +4,10 @@ qa/blackbox-out*/
 acceptance-report.json
 /agentrunner
 /dist/
-.claude/
+# .claude 本地态(settings.local 等)不入库,但项目共享的 skills 要入库
+# (QA-0719:qa-remote-loop 流程沉淀,团队/future session 复用)。
+.claude/*
+!.claude/skills/
 /runtime/
 /ar
 /bin/

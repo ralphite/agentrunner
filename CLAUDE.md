@@ -58,6 +58,14 @@
 
 ## 测试环境与 CI/CD
 
+### 探索性 QA 标准流程（QA-0719 沉淀）
+
+**`.claude/skills/qa-remote-loop/SKILL.md`** —— agent 亲自驱动远程
+真机的 QA 循环(GitHub-transport driver + 证据先行纪律 + 三方对账
+oracle + 修复红转绿闭环)。做 webui/runtime 探索性 QA、bug 定性、
+修复验证时先读它;确定性管道脚本在 `qa/driver/`(起环境/下载截图)。
+硬性:禁止写伪探索 MJS driver,探索由 agent 逐步判断驱动。
+
 ### GitHub Actions 预置环境（推荐用于黑盒测试）
 
 **优势**：GitHub Actions runners 上已配置 GEMINI_API_KEY 和 ANTHROPIC_API_KEY，
