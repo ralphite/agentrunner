@@ -914,11 +914,17 @@ export function foldEvents(events: Envelope[]): Folded {
         // between two subagent rows reads as noise — the reader can't tell
         // WHAT was approved without opening the journal.
         const toolTag = a && a.tool && !a.tool.startsWith("call_") ? " · " + a.tool : "";
-        workChip(
-          seq,
-          `${p.decision === "approve" ? "Approved" : "Denied"}${toolTag}${p.reason ? " · " + guiReason(p.reason) : ""}`,
-          p.decision === "approve" ? "good" : "warn",
-        );
+        const auditText = `${p.decision === "approve" ? "Approved" : "Denied"}${toolTag}${p.reason ? " · " + guiReason(p.reason) : ""}`;
+        // QA-0719 S1: an APPROVED call leaves a visible trace on its own — the
+        // command runs and renders a shell/tool card in the main thread — so its
+        // audit chip folds into the Worked group as quiet corroboration. A
+        // DENIED call runs nothing, so folding its chip too left the denial with
+        // NO visible trace in the thread: the user who blocked a command saw the
+        // approval card vanish and the feed jump straight to the agent's next
+        // message. Surface the denial inline (Codex shows denied tool calls in
+        // place), so "I blocked that" is a first-class, unfolded beat.
+        if (p.decision === "deny") chip(seq, auditText, "warn");
+        else workChip(seq, auditText, "good");
         break;
       }
       case "waiting_entered": {

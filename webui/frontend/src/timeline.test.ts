@@ -272,6 +272,21 @@ describe("foldWork (Codex-style Worked fold, W2/W3)", () => {
     expect((byKey.get("c3") as any).fold).toBeUndefined();
     expect(byKey.get("c4")?.kind).toBe("compact");
   });
+
+  it("surfaces a DENIED approval inline — an approved call's command card is its trace, a denied call has none (QA-0719 S1)", () => {
+    const folded = foldEvents([
+      { seq: 1, type: "approval_responded", payload: { approval_id: "a", decision: "approve", tool: "bash" } },
+      { seq: 2, type: "approval_responded", payload: { approval_id: "d", decision: "deny", tool: "bash" } },
+    ]);
+    const byKey = new Map(folded.items.map((i) => [i.key, i]));
+    // Approved audit chip folds (the executed command shows separately)…
+    expect((byKey.get("c1") as any).fold).toBe(true);
+    expect((byKey.get("c1") as any).text).toMatch(/^Approved/);
+    // …the denied one is a first-class, unfolded beat so the block is visible.
+    expect((byKey.get("c2") as any).fold).toBeUndefined();
+    expect((byKey.get("c2") as any).text).toMatch(/^Denied/);
+    expect((byKey.get("c2") as any).tone).toBe("warn");
+  });
 });
 
 // TH-16 · the thread's top level belongs to answers and products. Run plumbing
