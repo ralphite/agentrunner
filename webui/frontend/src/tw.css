@@ -1180,6 +1180,12 @@
   /* 46% 上限在满配行(steps+tok+open 曾 shrink-0 吃宽)下是"零头的
      46%"= 一两个字母(QA-0719 S4 实测 "w…")。改绝对上限:名字在
      9rem 内永远完整,超长自身截断;status 拿左团剩余、meta 让位。 */
+  /* .sa-row is a BUTTON — width:auto = fit-content, so rows sat at ragged
+     content widths (obvious on the 390px rail's two-line grid: cards ~2/3
+     wide, unequal, unlike the full-width Changes/PROGRESS rows around them.
+     QA-0719 移动端实测). Full width like every other rail row; the flex
+     spacer absorbs the slack on desktop. */
+  .sa-row { @apply w-full; }
   .sa-name { @apply max-w-[9rem] flex-none shrink-0 truncate font-medium; }
   /* QA-0719 S4 二修:status 桌面上永不收缩。identity 组曾是 flex-1
      (basis 0),flex 解析先让 trailing meta 组按内容拿满,identity 只分
