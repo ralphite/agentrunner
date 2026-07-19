@@ -1,16 +1,15 @@
-# QA-0718 层 1 审计 baseline:迁移遗留的无样式类 backlog。
-# 修复(在 tw.css 定义)后从本表删除;新增无样式类会被 lint 直接拒绝。
-# 生成:scripts/lint-tw-classes.mjs 首建 2026-07-19。
+# lint-tw-classes 存量登记(INC-79 审计后重组,2026-07-19)。
+# 以下条目已逐一核对:元素同时携带完整 utility 样式或由父/子选择器
+# 承担布局,kebab 类仅为语义锚(anchor-only)——不是样式债,保留供
+# 语义定位与测试选择器使用。真裸元素已于 INC-79 批次 1/2 清零;
+# 新增无样式类仍然直接 fail(见 scripts/lint-tw-classes.mjs)。
 a
 actions
 approval-details
-approval-gates
-approval-readonly
 artifact-copy
 artifact-meta
 artifact-name
 artifact-open
-ask-free
 ask-opt-copy
 ask-opt-desc
 ask-opt-label
@@ -21,8 +20,6 @@ branch
 branch-menu
 changes-outcome-actions
 clickable
-code
-confirm-copy
 cx-access-menu
 cx-at
 cx-att-codex
@@ -40,7 +37,6 @@ dl-hunk-blank
 dl-hunk-span
 env-row-action
 fd-glyph-
-fork-empty
 goal-meta-settled
 home-composer
 home-empty-state
@@ -50,22 +46,15 @@ md-hljs
 md-mermaid
 pending
 pinned-section
-pop-section
-proj-folder
 project
-project-group
 project-menu
 projects-section
 recovery
 rk
-row-flex
-rs-archive-empty
 rs-archive-group
-rs-archive-note
 rs-archive-open
 rs-archive-restore
 rs-archived
-rs-sc-grouptitle
 rs-slider-val
 rs-step
 rs-themecard-name
@@ -81,11 +70,7 @@ runlog
 sa-dot
 sa-open
 sa-status
-sc-group
-sched-pinned
-sched-project-chip
 sched-suggest-head
-scheduled-create
 session-topbar-nav-slot
 sessions-section
 shell-cmd
@@ -97,17 +82,6 @@ step-detail
 step-verb
 supervision-close
 supervision-close-slot
-supervision-details
-supervision-details-caret
-supervision-details-label
 supervision-env
-sys
-terminal-alert-action
 text
 tl-notfound
-tl-notfound-id
-turn
-turn-error-action
-turn-error-toggle
-worked
-worked-caret

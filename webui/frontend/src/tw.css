@@ -1103,3 +1103,63 @@
   .tam-label { @apply font-medium text-ink-2; }
   .gbar-checks { @apply font-medium; }
 }
+
+/* ── INC-79 · 勾销批次 2:P0 余项 + P2 全部(Modals/approval Details/
+   Scheduled/Settings/杂项)。 ── */
+@layer components {
+  /* Modals 内部排版 */
+  .confirm-copy { @apply m-0 text-[13.5px] leading-6 text-ink-2 [overflow-wrap:anywhere]; }
+  .row-flex { @apply flex flex-wrap items-center gap-2; }
+  .row-flex > input, .row-flex > select { @apply min-w-0 flex-1; }
+  textarea.code { @apply w-full font-mono text-[12px] leading-[1.55]; }
+  .fork-empty { @apply flex flex-wrap items-center justify-between gap-2 rounded-[8px] border border-dashed border-line bg-panel-2 p-3 text-[12.5px] text-dim; }
+
+  /* approval Details 内部:gate 判定行与只读提示 */
+  .approval-gates { @apply mt-2 flex flex-col gap-0.5 text-[11.5px] text-dim; }
+  .approval-gates > span { @apply font-mono; }
+  .approval-readonly { @apply mt-2 rounded-[8px] bg-panel-2 p-2 text-[12.5px] text-dim; }
+
+  /* AskForm 自由文本输入(全局 input 基线之上补布局) */
+  .ask-free { @apply mt-1 w-full; }
+
+  /* 错误卡/终态条动作:开关走文字链,主动作加重 */
+  .turn-error-toggle { @apply self-start border-0 bg-transparent p-0 text-[12px] text-blue shadow-none hover:border-0 hover:bg-transparent hover:underline hover:shadow-none; }
+  .turn-error-action, .terminal-alert-action { @apply shrink-0 font-medium; }
+
+  /* Worked 折叠 caret 旋转(此前永不旋转) */
+  .worked-caret { @apply ml-auto shrink-0 text-dim transition-transform; }
+  .worked.open .worked-caret { @apply rotate-90; }
+
+  /* dev 视图 turn 分隔与 sys 行 */
+  .turn { @apply my-1 text-center text-[11px] uppercase tracking-[0.08em] text-dim; }
+  .sys { @apply font-mono text-[11.5px] leading-5 text-dim [overflow-wrap:anywhere]; }
+
+  /* Scheduled:项目命中 chip 与 pinned 图钉 */
+  .sched-project-chip { @apply ml-1 inline-flex max-w-[180px] shrink-0 items-center gap-1 truncate rounded-full border border-line px-2 py-0.5 text-[11px] text-dim; }
+  .sched-pinned { @apply shrink-0 text-dim; }
+
+  /* Settings:归档空态/脚注、快捷键组标题 */
+  .rs-archive-empty { @apply flex flex-col items-center gap-1.5 rounded-[12px] border border-dashed border-line px-4 py-8 text-center text-dim; }
+  .rs-archive-empty b { @apply text-ink-2; }
+  .rs-archive-empty span { @apply text-[12.5px]; }
+  .rs-archive-note { @apply mt-3 text-[12px] text-dim; }
+  .rs-sc-grouptitle { @apply mb-1 mt-4 text-[11px] font-medium uppercase tracking-[0.06em] text-dim; }
+  .sc-group { @apply mb-2; }
+
+  /* supervision 折叠明细头 */
+  .supervision-details { @apply mt-2 border-t border-line pt-2; }
+  .supervision-details-label { @apply inline-flex cursor-pointer items-center gap-1 text-[12px] text-dim; }
+  .supervision-details-caret { @apply transition-transform; }
+  .supervision-details[open] .supervision-details-caret { @apply rotate-90; }
+
+  /* 会话 404 的 id 行、popover 分区、侧栏文件夹图标 */
+  .tl-notfound-id { @apply mt-1 font-mono text-[12px] text-dim; }
+  .pop-section { @apply flex flex-col py-0.5; }
+  .proj-folder { @apply shrink-0 text-dim; }
+}
+
+/* 批次 2 尾件:最后两个纯包装节点,布局归位后全库真裸元素清零 */
+@layer components {
+  .scheduled-create { @apply shrink-0 self-start; }
+  .project-group { @apply flex min-w-0 flex-col; }
+}
