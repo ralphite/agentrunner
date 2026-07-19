@@ -100,3 +100,17 @@ CLI 入口（2.4）。
 
 里程碑级：INC-80.4 收口时做三视角对抗 review（正确性/并发、安全、
 契约——契约基准 = DESIGN + QA）。
+
+## 计划变更记录（2026-07-19，三视角 review 契约 P1-4 对账）
+
+- 步骤 4 原文"删 `ar drive`/`submit --drive`"落地为**降级 transport +
+  help 撤宣传**（物理保留）：thin-shell 教义要求某个 CLI 谓词承载
+  webui 的 drive 提交；物理删除的前置条件是给 webui 另一条数据面
+  （HTTP 壳 backlog）。决策 #41 与 LOG 记档一致，此处补工作纸对账。
+- 步骤 3"前端无 driver/run 概念词"残余（RunView 兜底流、RunModal
+  高级表单）已在收口 sweep 清除用户可见 driver 词；组件的存废随
+  runs 面退役（同上 backlog）。
+- E1④ 中"新建禁走 driver 流写侧"达成度：全形态默认 merged-stream，
+  唯 parallel×retry 组合仍写 legacy 流（SPEC/DESIGN 显式声明），
+  该组合补齐后 legacy 写侧全退休。
+- 闸门 B 场景登记为 QA-77（五场景），真机轮跑后 GAPS 相关注记关闭。

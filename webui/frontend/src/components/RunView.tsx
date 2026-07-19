@@ -160,7 +160,7 @@ export function RunView({ runId }: { runId: string }) {
               {l.iter !== undefined && <div className="run-iter py-2 text-[11px] font-medium text-dim">iteration {l.iter}</div>}
               {l.verdict ? (
                 <div className={"run-verdict py-2 font-medium" + (l.verdict.ok ? " ok text-green" : " warn text-amber")}>
-                  ■ driver {l.verdict.reason} · {l.verdict.n} iteration{l.verdict.n === 1 ? "" : "s"}
+                  ■ series {l.verdict.reason} · {l.verdict.n} iteration{l.verdict.n === 1 ? "" : "s"}
                 </div>
               ) : (
                 <div className="runline grid min-w-0 grid-cols-[104px_minmax(0,1fr)] gap-3 py-[5px]">

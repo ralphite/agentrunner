@@ -1561,7 +1561,8 @@ limits:
     exit code 兜底误读为 pass，INC-48）。claim 由
     checkpoint fold 消费、GoalUpdated 作废。
 - **Best-of-N** = `schedule: parallel{n}`：N 个隔离 worktree 的并行
-  尝试（从同一个 base snapshot 物化，base ref 钉在每条
+  尝试（从同一个 base snapshot 物化——merged-stream 默认形态 pin 在
+  `SeriesStarted.BaseRef`（open 前快照，INC-80.2b③）,legacy 流钉在每条
   `IterationScheduled.BaseRef`），选择即 verifier（human / llm_judge /
   command——机检 command 也是合法选择闸），胜者晋升（fork 或 apply
   diff）。（注：v0 顺序执行 N 次尝试——隔离是语义、墙钟并发是优化；

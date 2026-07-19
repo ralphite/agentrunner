@@ -116,7 +116,7 @@ func initCmd(args []string, stdout, stderr io.Writer) int {
 	}
 	args = rest
 	if len(args) > 1 {
-		fmt.Fprintln(stderr, "usage: agentrunner init [--driver] [path]")
+		fmt.Fprintln(stderr, "usage: agentrunner init [path]")
 		return ExitUsage
 	}
 	path := "spec.yaml"

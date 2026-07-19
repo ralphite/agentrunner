@@ -1335,7 +1335,7 @@ func submitCmd(args []string, stdout, stderr io.Writer) int {
 	mode := fs.String("mode", "", "run mode: default|plan|acceptEdits (overrides spec)")
 	jsonOut := fs.Bool("json", false, "emit the event stream as JSON lines")
 	drive := fs.Bool("drive", false, "submit a driver spec (prompt lives in the spec)")
-	series := fs.Bool("series", false, "with --drive: journal as a session-form series (goal/interval/cron only)")
+	series := fs.Bool("series", false, "with --drive: insist on the session-form series (already the default; errors on unsupported shapes)")
 	idem := fs.String("idem", "", "idempotency key: a retried submit with the same key reattaches instead of starting a duplicate")
 	if ok, code := parseFlags(fs, args); !ok {
 		return code

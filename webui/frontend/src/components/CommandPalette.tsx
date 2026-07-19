@@ -69,7 +69,7 @@ export function CommandPalette({ onClose, onOpenSettings }: {
     };
     const cmds: Item[] = [
       { id: "c-new", label: "New session", group: "Commands", run: go(() => showPage("home")) },
-      { id: "c-run", label: "New run…", hint: "submit / drive", group: "Commands", run: go(() => openModal({ kind: "run" })) },
+      { id: "c-run", label: "New run…", hint: "one-shot / scheduled", group: "Commands", run: go(() => openModal({ kind: "run" })) },
       // CP-8: Scheduled is the app's other top-level destination and Settings is
       // a whole page (⌘,) — ⌘K could reach neither, so the palette was a
       // session switcher pretending to be a command palette.

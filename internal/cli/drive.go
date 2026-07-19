@@ -30,10 +30,9 @@ type driveOptions struct {
 	stdout    io.Writer
 	stderr    io.Writer
 	sink      protocol.Sink
-	// series opts into the merged-stream session form (INC-80.2a): the
-	// series journals as a SESSION (SessionStarted+SeriesStarted head), not
-	// a DriverStarted stream. Opt-in until the webui cadence projection
-	// reads both forms (PROCESS 回归红线: behavior changes land opt-in).
+	// series INSISTS on the merged-stream session form (INC-80.2c: it is
+	// already the default for every supported shape) — an unsupported spec
+	// errors instead of silently falling back to the legacy stream.
 	series bool
 }
 
@@ -45,7 +44,7 @@ func driveCmd(args []string, version string, stdout, stderr io.Writer) int {
 	workspaceDir := fs.String("workspace", ".", "workspace root (default: current directory)")
 	jsonOut := fs.Bool("json", false, "emit the child runs' output event stream as JSON lines")
 	retry := fs.String("retry", "", "start a new driver series from a prior driver session")
-	series := fs.Bool("series", false, "journal as a session-form series (merged stream; goal/interval/cron only)")
+	series := fs.Bool("series", false, "insist on the session-form series (the default for every shape except parallel with on_child_failure=retry)")
 	if ok, code := parseFlags(fs, args); !ok {
 		return code
 	}

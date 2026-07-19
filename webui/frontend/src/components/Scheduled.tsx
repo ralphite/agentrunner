@@ -444,7 +444,7 @@ export function Scheduled() {
     retry: async (sid: string) => {
       try {
         await AR.retry(sid);
-		toast("starting a new driver series", "info");
+		toast("starting a new scheduled series", "info");
         setTimeout(refreshSessions, 800);
       } catch (e: any) {
         toast(e.message);
