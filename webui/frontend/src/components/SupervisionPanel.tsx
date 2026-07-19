@@ -740,9 +740,14 @@ function EnvironmentSection({
 
   const hasChanges = env.add > 0 || env.del > 0 || env.untracked > 0;
   const workspace = env.workspace || "";
-  // A sub-agent session shares its parent's workspace and must not commit on
-  // its own — so the commit row stays visible (Codex never hides it) but says
-  // why it can't act, exactly like the nothing-to-commit case.
+  // A sub-agent must not commit on its own, in either workspace mode the
+  // spec can pick (spawn.go): a SHARED child would be committing the
+  // parent's workspace out from under it, and an ISOLATED child commits
+  // only its throwaway snapshot — changes flow back via apply, never via
+  // git (QA-0719 091500 深审:此注释曾断言 sub 一律 shared,与 spawn 的
+  // isolationNotice 直接矛盾;行为本就两种模式都对,错的是理由). The row
+  // stays visible (Codex never hides it) but says why it can't act,
+  // exactly like the nothing-to-commit case.
   const canCommit = hasChanges && !isSub;
   const commitBlockedWhy = isSub ? "Sub-agent" : "Nothing to commit";
   return (
