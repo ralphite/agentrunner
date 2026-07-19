@@ -5238,3 +5238,12 @@ worktree 物化/丢失拒判/选择规则；SeriesEnded.BestIter 成 fold 权威
 SupportsSeries 现收编全形态，唯 parallel×retry 组合留 legacy（无真实
 需求前不移）。每步孪生齐（retry×2、self_paced×3、parallel×3）。
 E1③ 至此实质完成：新建 drive 除一个组合外全走 session 形态。
+
+## 2026-07-19 · INC-80.4：driver 去 user-facing 收口——决策 #41 落表
+
+DESIGN §15 决策 #41：driver/series 是内部实现抽象、无 user-facing 面；
+§17 E1 四步全落。CLI 面：顶层 help 撤 `drive` 行、`init --driver` 从
+help 撤除（flag 兼容保留）；`ar drive` 降为 webui 薄壳的 transport
+命令（物理保留因 thin-shell 教义要求某个 CLI 谓词承载 daemon drive
+提交——删除它需先给 webui 另一条数据面，属 HTTP 壳 backlog 范畴）。
+SPEC 附录命令表加注。INC-80 工作纸随三视角 review 后归档。

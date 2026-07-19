@@ -210,7 +210,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 ## 附录 · 代码事实对照（2026-07-17 盘点，审计 audit-2026-07-17）
 
 **CLI 子命令**（`internal/cli/cli.go`）：
-`run` `drive` `submit` `resume` `new` `send` `close` `interrupt`
+`run` `drive`（transport-only，help 不宣传——决策 #41）`submit` `resume` `new` `send` `close` `interrupt`
 `stop`（INC-4）`compact`（INC-6）`clear`（INC-6）`remember`（INC-14）`kill` `agent`（决策 #32）`ps` `approve` `fork` `barrier`
 `sessions` `trust` `attach` `daemon` `events` `inspect` `accept`
 `record-fixture` `version` `help` `init`（INC-2）

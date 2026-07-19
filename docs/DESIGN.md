@@ -1700,6 +1700,7 @@ limits:
 | 38 | 审批"允许且不再问"（INC-17,2026-07-09,取 A,G5；**2026-07-12 INC-62 扩展**,G35） | `approve --always`（`ApprovalDecision.Remember` 贯穿 CLI→protocol→daemon→agent）在 approve 时，从被审批 effect 提取**精确**判据（bash=确切命令、edit/write=确切路径、**spawn_agent=tool 级**（INC-62 补，PermissionRule 无 agent 维度且用户意图即"别再为起子 agent 问"），**不宽通配**）→ ① 判据作为 `ApprovalResponded.Standing` 随应答事实落 journal，fold 进 `Effects.Standing`——**本 session 内**后续同判据 ask 由常设应答自动作答 approve（standing approval，见 §5），不落 ApprovalRequested、不进 WAITING；② `config.AppendRule` 写 **user 配置**为一条 allow（幂等去重、保留既有、best-effort）供**下次** session 拼 PermissionLayers 读到。两侧共用**同一个**提取函数（`standingCriterion`），结构性防歧义。不动冻结 layers。**写 user 层**（非 project）：project allow 未 trust 时降级为 ask（决策 #19），写 project 会静默失效。 | 冻结于 SessionStarted 的 PermissionLayers 不可本 run 改（取 B 触不变量，仍推迟）；INC-62 走的是 D5 未摆出的第三条路——不动 permission 层，在**审批层**记住常设应答（"ApprovalResponded 一旦成事实即权威"教义的顺延），同 session 生效为用户裁定的硬性 UX 需求（G35）；常设应答住各 session 自己的 fold，父的应答不放行子的 ask（树约束无恙）；rewind 越过 barrier 自然失效。精确匹配把 user 层"全局"超范围降到最小；写文件副作用幂等吸收重放。 |
 | 39 | 机器发送方/webhook ingress（INC-50,2026-07-11,G14/UJ-12） | daemon 可选 `--http` 起单端点 ingress `POST /hooks/<id>`（默认关）→ 同一条 durable send 通道投递。per-hook capability（不可猜 id+token，落盘仅哈希、不进 journal）；未鉴权限流+body 上限；载荷 `source:"machine"`+`trust:"untrusted"`+`principal:"hook:<n>"`；**untrusted 驱动 loop 侧隔离框定**（模型可见前缀、trust 钳制、不做宏展开）；machine 非 user-class，不越 close/kill 标记（对 marked session 410）；`X-Command-Id` 幂等重投。 | 外部事件唤醒是"输入投递"的第三个发送方（§2 三类归一），不另起通道；注入防御必须落在模型可见面（仅元数据=纸面防御）；越标记特权是用户手势的专属（决策 #30），机器只享 parked-unmarked revive。窄切片：HTTP/WS 壳仍 backlog。 |
 | 40 | Goal 终态与恢复（INC-66,2026-07-13，决策 #21 修订） | `GoalAchieved` **只**表示 verifier pass/satisfied 并摘 goal；check budget 用尽写 `GoalExhausted{budget}`，保留 unmet goal、停止自动 continuation。`GoalUpdated` 清 exhausted/recovery checkpoint，允许提高预算或修改要求后在同一 context 继续。当前 generation 的 `goal_satisfied|goal_budget_exhausted` 是明确静止收据。 | 旧 `GoalAchieved{budget}` 把 verifier fail 表示成成功并删除恢复目标，既语义矛盾又使 update 假成功；新事件仍由同一 journal+fold 恢复，不引入第二套机制，也不放宽 verifier。 |
+| 41 | driver 无 user-facing 面（INC-80，用户裁决 2026-07-19） | driver/series 是 loop-mode 与目标模式的**内部实现抽象**，不是产品概念：用户面只有「会话 + 挂在会话上的 goal / repeating(schedule) / best-of-N」。新建 drive 默认走 merged-stream series 会话形态（SessionStarted+SeriesStarted 头，唯 parallel×retry 组合留 legacy 流）；`ar drive` 降为 webui 薄壳的 transport 命令（help 不再宣传），Scheduled 面以 series SESSION 行为 canonical；旧 DriverStarted journal 永远只读可查。 | 双基座并存是概念面爆炸与双实现漂移的共同根源（2026-07-19 双盲评审交集 #1）；收敛进 session journal 后调度/目标/并击共享同一 fold、同一恢复、同一投影，webui 不再手工镜像。 |
 
 ---
 
@@ -1766,12 +1767,13 @@ mapping，代码与文档同名）。
 - **§3 "一套机制取代三套"收敛进度**：阻塞 spawn 已删除（2026-07-08,
   零 legacy——spawn 一律非阻塞;handoff 的同步执行是控制移交语义,
   不是第二条 spawn 路径）;driver 子系统仍独立,收敛挂 UJ-22/G23,
-  按 E1 四步走：**步骤①已落（INC-74 in-session schedule,loop-mode
-  的会话内形态,driver loop 并存维持）;步骤②已落（INC-76 子执行
-  基座统一：agent.ChildRun 是"跑 child 到静止并结算"的唯一实现,
-  spawn 双路径/审批重挂/driver.runIteration 全部改走;Loop 构造与
-  事实流合一显式留 ③④）**,③stream 合流（触 §3 教义,须 §四）、
-  ④CLI 兼容层待续。
+  按 E1 四步走：**①已落（INC-74 in-session schedule）;②已落
+  （INC-76 agent.ChildRun 子执行基座统一）;③已落（INC-80.2a-c,
+  2026-07-19：series runner 收编全形态——retry/self_paced/parallel,
+  merged-stream 为新建默认,resume/boot-sweep 双头分派,唯
+  parallel×retry 组合留 legacy 流）;④已落（INC-80.4：`ar drive`
+  降为 webui transport 命令、help 不宣传,旧 DriverStarted journal
+  只读兼容永续）**。决策 #41 为本收敛的产品面裁决。
 - **WAITING_APPROVAL 挂起期间**user-class 消息=转向式拒批（INC-70
   Option B，2026-07-19 落码）：pending ask 以 `denied_by_steer` 拒决、
   工具不执行，deferred 邮件按 seq 先 flush、消息同边界入 context；

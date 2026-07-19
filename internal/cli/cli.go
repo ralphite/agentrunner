@@ -150,7 +150,7 @@ func usage() string {
 func commandHelp(cmd string) string {
 	switch cmd {
 	case "init":
-		return "usage: agentrunner init [--driver] [path]\n\nWrite a commented example agent spec (default: spec.yaml).\n--driver writes an iteration-driver spec instead (default:\ndriver.yaml, for `agentrunner drive`). Refuses to overwrite.\n"
+		return "usage: agentrunner init [path]\n\nWrite a commented example agent spec (default: spec.yaml).\nRefuses to overwrite. Scheduled work (goals, repeating runs,\nbest-of-N) attaches to a session: see `agentrunner goal` and\n`agentrunner schedule`, or the web UI's Scheduled page.\n"
 	case "resume":
 		return "usage: agentrunner resume <session-id-or-prefix>\n\nResume an interrupted or crashed session in the foreground.\n"
 	case "close":
@@ -208,7 +208,6 @@ Quick start:
 
 One-shot runs (no daemon needed):
   run <spec.yaml> "prompt"      run to completion in the foreground
-  drive <driver.yaml>         run an iteration-driver series (plan/verify loop)
   dictate <audio-file>        transcribe an audio recording to text (prints the transcript)
   optimize "draft"            rewrite a draft prompt into a clearer instruction
 
