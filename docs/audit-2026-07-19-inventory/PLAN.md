@@ -85,7 +85,13 @@
       会话（run 流仅 sid 未知时兜底）；用户可见 "driver" 文案清除
       （RunModal 两处 tooltip）。残余（RunView 兜底流与 RunModal 高级
       表单的存废）并入 2.4 与 CLI 传输决策一起裁。
-- [ ] 2.4 删 `ar drive`/`ar submit --drive`（2.2/2.3 确认等价后）。
+- [x] 2.4 CLI 入口处置——2026-07-19：`ar drive` 降为 webui transport
+      （help 撤宣传、物理保留因 thin-shell 教义，删除挂 HTTP 壳
+      backlog）；决策 #41 落 DESIGN §15、§17 E1 四步全落。**INC-80
+      三视角对抗 review 完成**：正确性 P0×2+P1（sweep 收编/错形态复活
+      /in-flight skip）、安全 P1（journal 脱敏）、契约 P1×4（版本兼容
+      /SPEC 矛盾/QA 登记/工作纸对账）全修并推 main；P2 批记档。闸门 B
+      = QA-77 五场景已登记待真机轮。
 
 ### Phase 3 · webui 双实现拆弹
 - [x] 3.1 `ar sessions --json` 长出 cadence/next_run_at——2026-07-19：
