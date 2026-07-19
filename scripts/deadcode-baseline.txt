@@ -15,17 +15,3 @@ internal/provider/scripted/scripted.go New
 internal/tool/orphan.go parsePSTable
 # [staged-wiring] INC-77.2 series runner(E1③ 合流引擎):生产接线在
 # 77.3(daemon 宿主),接线后本组整体删除(LOG 2026-07-18 INC-77.2 条)。
-internal/driver/series.go Driver.ResumeSeries
-internal/driver/series.go Driver.RunSeries
-internal/driver/series.go Driver.awaitSeriesTick
-internal/driver/series.go Driver.driveSeries
-internal/driver/series.go Driver.finishSeries
-internal/driver/series.go Driver.prepareSeries
-internal/driver/series.go Driver.reserveSeries
-internal/driver/series.go Driver.runSeriesChild
-internal/driver/series.go Driver.seriesAppendFunc
-internal/driver/series.go Driver.seriesCancelTerminal
-internal/driver/series.go agentNameOf
-internal/driver/series.go lastSeriesCompleted
-internal/driver/series.go seriesLimitReason
-internal/driver/series.go seriesStalled
