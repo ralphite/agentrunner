@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 import { ArrowClockwise, ArrowCounterClockwise, ArrowSquareOut, CaretDown, CaretUp, DownloadSimple, FilePdf, FileText, ImageBroken } from "@phosphor-icons/react";
 import { AR } from "../api";
 import { useStore } from "../store";
-import { splitPath, summarizeChanges, type ChangesSummary, type FileDiffSummary } from "../diffSummary";
+import { dropGeneratedFiles, splitPath, summarizeChanges, type ChangesSummary, type FileDiffSummary } from "../diffSummary";
 import { Lightbox } from "./Lightbox";
 import { inlinedImagePaths, inlinedImagesVersion, subscribeInlinedImages } from "./Markdown";
 
@@ -371,7 +371,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
     AR.diff(sid, "last-turn")
       .then(async (data) => {
         if (!alive) return;
-        const turnSummary = !data.known || !data.isRepo || data.nested ? null : summarizeChanges(data);
+        const turnSummary = !data.known || !data.isRepo || data.nested ? null : dropGeneratedFiles(summarizeChanges(data));
         if (turnSummary?.files.length) {
           setScope("turn");
           setSummary(turnSummary);
@@ -380,7 +380,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
         }
         const wt = await AR.diff(sid, "working-tree");
         if (!alive) return;
-        const wtSummary = !wt.known || !wt.isRepo || wt.nested ? null : summarizeChanges(wt);
+        const wtSummary = !wt.known || !wt.isRepo || wt.nested ? null : dropGeneratedFiles(summarizeChanges(wt));
         setScope("workspace");
         setSummary(wtSummary?.files.length ? wtSummary : null);
         setPhase("ready");

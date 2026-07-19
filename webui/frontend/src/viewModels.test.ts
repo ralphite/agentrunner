@@ -218,10 +218,15 @@ describe("project name disambiguation (W4)", () => {
     expect(subs.size).toBe(0);
   });
 
-  it("distinguishes two Scratch workspaces by their creation time", () => {
+  it("distinguishes two Scratch workspaces by their creation time — down to the second", () => {
+    // INC-78 gave scratch group labels the minute already; the hint must add
+    // information, and two dirs created within the same minute (QA-0719 review
+    // #8: twin "Scratch · 07-13 21:23" groups) are only told apart by seconds.
     const subs = projectSubtitles(["/tmp/ws-20260710-221530", "/tmp/ws-20260709-100000"]);
-    expect(subs.get("/tmp/ws-20260710-221530")).toBe("07-10 22:15");
-    expect(subs.get("/tmp/ws-20260709-100000")).toBe("07-09 10:00");
+    expect(subs.get("/tmp/ws-20260710-221530")).toBe("07-10 22:15:30");
+    expect(subs.get("/tmp/ws-20260709-100000")).toBe("07-09 10:00:00");
+    const twins = projectSubtitles(["/tmp/ws-20260713-212300", "/tmp/ws-20260713-212347"]);
+    expect(twins.get("/tmp/ws-20260713-212300")).not.toBe(twins.get("/tmp/ws-20260713-212347"));
   });
 
   it("walks deeper up the path when the nearest parent still collides", () => {

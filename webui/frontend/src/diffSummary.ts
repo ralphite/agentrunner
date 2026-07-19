@@ -500,12 +500,30 @@ export const MAX_INLINE_GENERATED_LINES = 20;
 // entries and binary-ish files whose lines we never parsed.
 export function isGeneratedPath(path: string): boolean {
   return (
-    /(^|\/)(dist|build|out|vendor|node_modules)\//.test(path) ||
+    /(^|\/)(dist|build|out|vendor|node_modules|__pycache__)\//.test(path) ||
+    /\.(pyc|pyo)$/.test(path) ||
     /\.min\.(js|css)$/.test(path) ||
     /-lock\.(json|yaml|yml)$/.test(path) ||
     /(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|go\.sum|Cargo\.lock)$/.test(path) ||
     /\/assets\/index-[A-Za-z0-9_-]+\.(js|css)$/.test(path)
   );
+}
+
+// dropGeneratedFiles: the changes CARD names what the agent meaningfully
+// edited — compiled artifacts (__pycache__/*.pyc rows on the user's phone,
+// QA-0719 review #7) are noise there, the same judgement DiffView already
+// applies to its inline budget. Returns null when nothing but generated files
+// changed: the card must not claim reviewable edits it wouldn't show.
+export function dropGeneratedFiles(summary: ChangesSummary | null): ChangesSummary | null {
+  if (!summary) return null;
+  const kept = summary.files.filter((file) => !isGeneratedPath(file.path));
+  if (kept.length === summary.files.length) return summary;
+  if (!kept.length) return null;
+  return {
+    files: kept,
+    totalAdd: kept.reduce((total, file) => total + file.add, 0),
+    totalDel: kept.reduce((total, file) => total + file.del, 0),
+  };
 }
 
 // longestContentLine: widest diff body line (the leading +/-/space marker does

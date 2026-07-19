@@ -162,7 +162,15 @@ export function projectSubtitle(workspace: string, siblings: string[]): string {
   if (lineage) return lineage.detail;
   if (siblings.some((sibling) => managedWorktreeLineage(clean(sibling))?.label === base)) return "Root";
   const scratch = scratchLabel(base);
-  if (scratch) return scratch.replace(/^Scratch · /, "");
+  if (scratch) {
+    // INC-78 后 scratch 组的 label 自带分钟级时间;孪生消歧 hint 若再给
+    // 同一个分钟就是三重复读且零区分度(QA-0719 审查 #8:两个
+    // "Scratch · 07-13 21:23" 并排)。带上秒位——同秒建目录名必不同,
+    // 秒级时间足以把孪生分开。
+    const detail = scratch.replace(/^Scratch · /, "");
+    const seconds = /^(?:ws|wt)-\d{8}-\d{4}(\d{2})/.exec(base);
+    return seconds ? `${detail}:${seconds[1]}` : detail;
+  }
   const parents = (path: string) => clean(path).split("/").filter(Boolean).slice(0, -1);
   const mine = parents(ws);
   const others = siblings.map(clean).filter((other) => other !== ws).map(parents);

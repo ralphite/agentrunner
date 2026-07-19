@@ -5149,3 +5149,21 @@ machine/untrusted 只 defer（G16）、revoked 按撤回消费（INC-46）、树
 后续 flush 时撞 ConsumedInputSeq 高水位被静默丢弃——故 supersede 必须
 连带按序 flush（孪生 TestApprovalParkMachineInputOnlyQueues 钉住）。
 闸门 A 绿（三 park 孪生+WaitRules）；闸门 B 真机复验挂 G3 注记。
+
+## 2026-07-19 · 审查清单 #6/#7/#8 落地(sa-name/生成物过滤/scratch 孪生消歧)
+
+- #6 Subagents 成员名挤没:`.sa-name` 共享组的 flex-1 在窄 rail 被
+  按内容占位的邻居分到 0 剩余宽——改 flex-none + max-w-[46%] +
+  font-medium,名字成为行主键不参与收缩,超长自身截断。
+- #7 变更卡收编编译产物:isGeneratedPath 补 __pycache__//*.pyc(.pyo),
+  新增 dropGeneratedFiles——卡的文件列表与 ± 合计剔除生成物,全为
+  生成物时卡不出现(不声称有可审阅变更);DiffView 的生成物预算判定
+  同步受益。rail 计数(#12)另行。
+- #8 scratch 孪生组消歧:projectSubtitle scratch 分支带秒位
+  ("07-13 21:23:47"),同分钟孪生可区分,hint 不再复读 label;测试
+  改断言+补孪生场景。
+前端 589 测试绿、build 绿、lint 零新增。#1–#5/#9–#12 待立项:
+#1(重试打转+running 失真)、#2/#10(child 终态两面矛盾)、#3(failed
+会话排队消息挂死)、#5(活跃会话折叠态被轮询重置)属 daemon/inspect
+契约面,走 INC;#9(queued 前缀人话化)、#11(Create branch chip)、
+#12(rail 计数生成物)排下轮。

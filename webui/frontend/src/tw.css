@@ -1156,6 +1156,12 @@
   .tl-notfound-id { @apply mt-1 font-mono text-[12px] text-dim; }
   .pop-section { @apply flex flex-col py-0.5; }
   .proj-folder { @apply shrink-0 text-dim; }
+
+  /* Subagents 行:成员名优先于 status/meta——共享组给的 flex-1 在窄
+     rail 里会被按内容占位的邻居分到 0 剩余宽(QA-0719 实测 sa-name
+     宽 3px/0px,"Reviewer" 只剩 "I")。名字是行的主键:不参与收缩,
+     超长时自身截断;status 已带 truncate,让位。 */
+  .sa-name { @apply max-w-[46%] flex-none shrink-0 font-medium; }
 }
 
 /* 批次 2 尾件:最后两个纯包装节点,布局归位后全库真裸元素清零 */
