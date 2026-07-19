@@ -105,8 +105,13 @@
       "stopped 标记"——2026-07-19：裁决代码为真相（loop.go abort 路径落
       可复活 SessionClosed{stopped} 标记），DESIGN §12/SPEC stop 行改写为
       "落可复活 stopped 标记，自动路径不越、send 复活"，LOG 记档；docs-only。
-- [ ] 4.2 动词面收敛：目标两个用户概念（打断 / 关闭且不被 compact/clear
-      复活），stop 并入；涉及不变量变更流程。
+- [x] 4.2 动词面收敛——2026-07-19 INC-82（不变量变更单独成文）：收回
+      INC-74 "WaitingEntered 清标记"条款，重开信号只剩 GenerationStarted
+      （真实输入起 turn）；compact/clear=维护手势，closed 会话上照常执行
+      但不复活（标记存活、状态诚实报 closed，send 随时续）；动词模型收敛
+      为两概念：打断（interrupt 无标记）/关闭（close/stop/kill 同族标记
+      同规则），stop=打断+标记组合。钉子
+      TestMaintenanceAfterCloseKeepsMark；DESIGN §12/§恢复、SPEC:24 改写。
 
 ### Phase 5 · 减法与碎屑（每项独立一轮）
 - [ ] 5.1 占位 UI 移除：Plugins 五件套、Environment chip、Settings 的

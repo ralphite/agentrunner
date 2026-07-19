@@ -820,11 +820,13 @@ user]` 的 error 结果;对待命处 = no-op(裁决 #11)。**已配对的后台
   原样在盘上。下一条 `send` 即接续，**续聊天然恢复**。`send` 是用户的
   **显式重开手势，对任何 session 成立**（含带 close 标记的——标记只
   约束自动路径，见 §12 静止模型）；自动路径（timer sweep、boot
-  sweep）绝不越过标记。**任何显式重开都清 close/stop 标记（INC-74）**：
-  两个对称信号——`GenerationStarted`（send 起新 turn）与 `WaitingEntered`
-  （compact/clear/revive 无 turn 直接重新待命）——都清标记,故复活后状态
-  一律回到 `waiting:input`,不残留 "closed"（quinn-02）。仅清 `Closed`;
-  `Failure`/`Truncated*` 由各自重开信号清。
+  sweep）绝不越过标记。**清 close/stop 标记的重开信号只有
+  `GenerationStarted`（INC-82，收回 INC-74 的对称条款）**：真实输入起了
+  新 turn（send / schedule tick / revive 邮件，殊途同归）才算重开。
+  compact/clear 是**维护手势**——在 closed 会话上照常执行、重新待命，
+  但**标记存活、会话仍 closed**（status 派生里标记优先于 waiting，报
+  "closed" 是真话；send 随时可复活）。仅 `GenerationStarted` 清
+  `Closed`；`Failure`/`Truncated*` 由各自重开信号清。
 - **turn 中途崩溃**：in-doubt 纪律（见上），**单一自愈语义**
   （决策 #29）：处置后渲染 `[interrupted by crash]`，session 继续。
   进了副作用关卡没 `EffectResolved` 的仍上浮（hooks 可能半跑）。
@@ -1268,10 +1270,14 @@ limits:
   `stop` 命令远程硬取消一个托管 run（ctx cancel teardown），loop 落
   **可复活的 `SessionClosed{stopped}` 标记**（与 close/kill 同族、
   reason 分立）：自动路径不得越过标记，显式 `send` 合法复活——用户
-  显式停下的东西不被系统悄悄拉起。与 `interrupt`（只打断当前 turn 的
-  活动、待命处 no-op）、`close`（graceful 结束）、`kill`（带来源取消）
-  语义分立。drive 系列亦可 stop。旧文"teardown-no-mark"为陈旧表述，
-  由本条修订（loop.go abort 路径 + TestStop* 为锚）。
+  显式停下的东西不被系统悄悄拉起。**动词模型只有两个用户概念
+  （INC-82）**：**打断**（`interrupt`——取消当前 turn 的活动、不留标记、
+  待命处 no-op）与**关闭**（落 `SessionClosed` 标记——`close` graceful、
+  `stop` 硬取消、`kill` 带来源，reason 分立但同族同规则：仅
+  `GenerationStarted` 清标记，compact/clear 维护手势不复活）。`stop`
+  不是第三个概念，是"打断+关闭标记"的组合动词。drive 系列亦可 stop。
+  旧文"teardown-no-mark"为陈旧表述，由本条修订（loop.go abort 路径 +
+  TestStop* 为锚）。
 - 协议预留（尚未实现）：slash command 调用（GAPS G21）。
 
 ### Web UI 产品 surface（INC-19/23）

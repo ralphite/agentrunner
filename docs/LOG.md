@@ -5319,3 +5319,21 @@ TestSteerChangesOrchestration 偶发 flaky（steer 取消×子完成竞态，
 run 不该被 boot sweep 悄悄拉起，标记挡自动路径、send 复活），修订
 DESIGN §12 与 SPEC 表述对齐，锚 TestStop*。动词面收敛（stop 并入
 close、compact/clear 不清标记等产品级改动）单列 4.2 走增量流程。
+
+## INC-82 动词面收敛第一刀:维护手势不复活 close 标记（2026-07-19）
+
+**不变量变更**（PROCESS §四,工作纸 docs/increments/
+INC-82-close-verbs-maintenance-no-revive.md 单独成文):收回 INC-74 的
+"WaitingEntered 也清 close 标记"对称条款。新表述:**清标记的重开信号
+只有 GenerationStarted**(真实输入起 turn——send/schedule tick/revive
+邮件);compact/clear 是维护手势,closed 会话上照常执行但**不复活**——
+标记存活、状态仍报 closed(status 派生里标记本就优先于 waiting,
+resume.go,诚实性不靠清标记)。send 越标记特权(决策 #30)不动。
+
+来源:评审收口 PLAN 4.2(用户裁决:用户面只有"打断/关闭"两个动词,
+关闭不被 compact/clear 复活)。波及面核对:checkSchedule 已有 Closed
+守卫(标记在则撤 timer);hook/boot/timer sweep 本就不越标记;子 revive
+经子 journal GenerationStarted 清——均无需改。钉子改写:
+TestReopenAfterCloseClearsMark → TestMaintenanceAfterCloseKeepsMark
+(compact 后标记仍在、Quiescence 报 closed、send 后清)。SPEC:24 行改写
++换锚,DESIGN §恢复条款重写,quinn-01 裁决反转记档。

@@ -484,11 +484,12 @@ func TestFinalLLMFailureMarksSessionFailed(t *testing.T) {
 	}
 }
 
-// TestReopenAfterCloseClearsMark pins that a WaitingEntered AFTER a close mark
-// (an explicit compact/clear revival, no new generation) clears the mark so the
-// status is honest — waiting:input, not stale "closed" (QA Wave8 quinn-02).
-// This mirrors the send path where GenerationStarted clears it.
-func TestReopenAfterCloseClearsMark(t *testing.T) {
+// TestMaintenanceAfterCloseKeepsMark pins the INC-82 verb model: a
+// WaitingEntered AFTER a close mark (compact/clear on a closed session —
+// maintenance, no new generation) does NOT clear the mark. The session stays
+// closed and Quiescence honestly says so. Only real input starting a turn
+// (GenerationStarted — the send path, 决策 #30) reopens and clears the mark.
+func TestMaintenanceAfterCloseKeepsMark(t *testing.T) {
 	s := New()
 	var err error
 	seq := []struct {
@@ -502,7 +503,7 @@ func TestReopenAfterCloseClearsMark(t *testing.T) {
 		{event.TypeWaitingEntered, &event.WaitingEntered{Kind: event.WaitInput}},
 		{event.TypeWaitingResolved, &event.WaitingResolved{Kind: event.WaitInput}},
 		{event.TypeSessionClosed, &event.SessionClosed{Reason: "closed", Source: "user"}},
-		// The compact revival: no generation, just re-parks for input.
+		// Maintenance on a closed session: compact runs, then re-parks.
 		{event.TypeContextCompacted, &event.ContextCompacted{Summary: "s", UptoGenStep: 1}},
 		{event.TypeWaitingEntered, &event.WaitingEntered{Kind: event.WaitInput}},
 	}
@@ -511,14 +512,21 @@ func TestReopenAfterCloseClearsMark(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if s.Session.Closed == nil || s.Session.Closed.Reason != "closed" {
+		t.Fatalf("maintenance must keep the close mark, got %+v", s.Session.Closed)
+	}
+	if q, reason := Quiescence(s); !q || reason != "closed" {
+		t.Fatalf("quiescence = %v %q, want closed", q, reason)
+	}
+	// send reopens: real input starts a turn and GenerationStarted clears it.
+	if s, err = Apply(s, env(t, event.TypeInputReceived, &event.InputReceived{Text: "hi again", Source: "cli"})); err != nil {
+		t.Fatal(err)
+	}
+	if s, err = Apply(s, env(t, event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 2})); err != nil {
+		t.Fatal(err)
+	}
 	if s.Session.Closed != nil {
-		t.Fatalf("reopen must clear the close mark, got %+v", s.Session.Closed)
-	}
-	if q, reason := Quiescence(s); !q || reason != "completed" {
-		t.Fatalf("quiescence = %v %q, want completed", q, reason)
-	}
-	if s.Waiting == nil || s.Waiting.Kind != event.WaitInput {
-		t.Fatalf("reopened session should be waiting on input, got %+v", s.Waiting)
+		t.Fatalf("send reopen must clear the close mark, got %+v", s.Session.Closed)
 	}
 }
 
