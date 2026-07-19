@@ -4846,3 +4846,12 @@ deadline 60s 修复后全闸门负载下仍偶发（0.19s 即 completed——非
 重启场景)断言:hasWorkspaceCard=true、hasEdited=false——"Changes in
 workspace +6 −1"(README.md +5/binarySearch.ts +1−1)带 Undo/Review
 完整呈现。用户第三张截图的"真写盘但卡消失"闭环。console error 0。
+
+## 2026-07-19 · qa-prompt workflow：任意 prompt 真实 API 冒烟（INC-75 复验）
+
+用户在新 session 复验诉求：用同样的消息真跑一遍。新增可复用
+workflow_dispatch `qa-prompt.yml`：setup-ar → 构建 ar → `ar doctor`
+预检 → 真 Gemini 一次性 session（动态 spawn + bash 预放行，默认
+prompt 即现场事故会话的开场消息）。硬断言只钉 runtime 红线——事件流
+"required OS sandbox unavailable" =0 且至少一次 bash exit_code（bash
+真在沙箱执行）；events 与日志上传 artifact。

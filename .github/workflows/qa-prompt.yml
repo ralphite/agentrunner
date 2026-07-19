@@ -1,0 +1,88 @@
+# 任意 prompt 的真实 API 冒烟（INC-75 现场复验用，可复用）。
+# dispatch 一条 prompt，在干净 ubuntu runner 上 setup-ar（装 OS 沙箱
+# 依赖）→ 构建 ar → 真 Gemini 跑一个一次性 session（允许动态 spawn
+# worker、bash 预放行）。硬断言只钉 runtime 红线：
+#   1. 事件流里 "required OS sandbox unavailable" 出现次数 = 0；
+#   2. 至少一次 bash tool_result 带 exit_code（bash 真的在沙箱里跑了）。
+# 模型措辞/产出质量不做断言。events 导出 + 运行日志上传为 artifact。
+name: qa-prompt
+
+on:
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: "Prompt for the real one-shot session"
+        default: "我们创建一个工程团队，合作写一个 agent runtime 吧，看看能不能做到。这个 runtime 需要支持 session state、transfer to agent 等功能"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # bash 工具的 OS 沙箱（决策 #34 fail-closed）：统一配方一行接入。
+      - name: Setup AgentRunner environment (sandbox deps)
+        uses: ./.github/actions/setup-ar
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.12"
+          cache: true
+
+      - name: Build ar
+        run: go build -buildvcs=false -o bin/ar ./cmd/agentrunner
+
+      - name: Sandbox preflight (ar doctor)
+        run: bin/ar doctor
+
+      - name: Run the real session
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PROMPT: ${{ inputs.prompt }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/ws" evidence
+          cat > "$RUNNER_TEMP/ws/spec.yaml" <<'EOF'
+          name: qa-prompt-agent
+          model:
+            provider: gemini
+            id: gemini-flash-latest
+          system_prompt: >
+            You are a coding agent working in a scratch workspace. When the
+            task involves writing code, actually create the files with your
+            tools and verify them by running commands (e.g. run the tests)
+            with bash.
+          tools: [read_file, write_file, edit_file, bash, grep, glob]
+          agents_dynamic: true
+          permissions:
+            - { action: allow }
+          EOF
+          cd "$RUNNER_TEMP/ws"
+          "$GITHUB_WORKSPACE/bin/ar" run spec.yaml "$PROMPT" 2>&1 | tee "$GITHUB_WORKSPACE/evidence/run.log"
+
+      - name: Export events and assert runtime red lines
+        run: |
+          sid=$(bin/ar sessions --json --limit 1 | python3 -c "import json,sys; print(json.load(sys.stdin)[0]['id'])")
+          echo "session: $sid"
+          bin/ar events "$sid" > "evidence/$sid.events.jsonl" || true
+          denied=$(grep -c "required OS sandbox unavailable" evidence/*.events.jsonl evidence/run.log || true)
+          bash_runs=$(grep -c '"exit_code"' evidence/*.events.jsonl || true)
+          echo "sandbox-denied occurrences: $denied"
+          echo "bash tool results with exit_code: $bash_runs"
+          test "$(echo "$denied" | awk -F: '{s+=$NF} END {print s+0}')" = 0 || { echo "RED: sandbox denied seen" >&2; exit 1; }
+          test "$(echo "$bash_runs" | awk -F: '{s+=$NF} END {print s+0}')" -ge 1 || { echo "RED: no bash execution evidence" >&2; exit 1; }
+          echo "GREEN: bash executed OS-contained, zero sandbox denials"
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-prompt-evidence
+          path: evidence/
+          if-no-files-found: warn
