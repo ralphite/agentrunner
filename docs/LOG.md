@@ -5550,3 +5550,19 @@ Edited 卡、吃光 1MB 内联预算、pip 的 LICENSE.txt 冒充产物卡);
 探针误读(小文本文件按设计内联进 diff 文本而非 untracked 数组),
 登记待核不采信。另记:多模态输入侧(真图 vision/PDF/听写)仍未覆盖,
 需预置文件或 driver 加 setInputFiles;"Attach Finder" Linux 措辞。
+
+## 2026-07-19 · S9(worktree/checkpoint/fork)完成:fork 回滚正确性 PASS,修抽屉溢出
+
+S9 实测:fork 从 checkpoint 回滚内容正确(checkpoint 版非脏版,原会话
+脏改动保留)、worktree 三方路径一致、主 repo 零污染、fork modal 与
+选择性恢复终态对账正确。发现:
+- [MEDIUM→已修 7490fb7] Worktree 抽屉长路径把 grid 轨道撑爆(grid
+  子项 min-width:auto),truncate/flex-wrap 失效、Remove 按钮
+  right=1384 出视口。修:.env-rows 等四个 grid 容器子项统一 min-w-0。
+  待下一环境视觉复验。
+- [MEDIUM 登记] fork 新会话开局顶 "previous host stopped" recovery
+  横幅(fork 初态=stranded 形态,文案失真)——区分 stranded 来源,走
+  INC;checkpoint 双轨(agent git commit vs native barrier 无映射、
+  时间线无标记)——产品语义,走 INC。
+- [LOW 登记] fork 会话 diff 元数据 worktree:false 待核;branch chip
+  基线分支 vs detached 实态。UI 无文件级 revert——产品取舍登记。
