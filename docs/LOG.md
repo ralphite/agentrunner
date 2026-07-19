@@ -5121,3 +5121,14 @@ rotate=90deg 生效(首测断言误用 transform 属性,Tailwind v4 rotate-*
 走 rotate 属性);tl-jump absolute+圆角生效;桌面零横向溢出、零
 console error。遗留:Scheduled @390 深色 document 溢出 3px,登记
 INC-79 待追查(元素级探针被 SVG pre-clip 几何干扰,需逐容器探针)。
+
+## 2026-07-19 · 用户指定会话全面审查(20260719-050838 多 agent 会话,QA env 借 phone store)
+
+remote-qa-env 新增 store_prefix 入参(1e684c3)加载 phone 存档,只读
+驱动该会话全部按钮/链接(不触 Withdraw/Undo/Stop/Retry)。发现 13 项,
+清单见同日汇报;要点:sa-name 实测宽 3px/0px/0px(成员名挤没)、
+running→failed:provider_rate_limit 期间声明失真+重试打转、child
+Failed 而自视图 4/4 全勾+Nothing needs you(S5 族)、queued 消息在
+failed 会话挂死无提示、Edited 卡收编 __pycache__ 产物、同秒 Scratch
+组同名+hint 三重冗余(INC-78 消歧回归)、活跃会话 Worked 折叠展开被
+轮询重置。修复待逐项立项,证据截图在 release qa-driver-29675916453。
