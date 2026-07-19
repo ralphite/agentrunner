@@ -664,7 +664,14 @@
   .env-row-val, .sa-meta, .progress-count, .artifact-stream { @apply text-[12px] text-dim; }
   .env-row-val { @apply inline-flex items-center gap-[6px]; }
 
-  .diffwrap { @apply flex min-h-0 flex-1 flex-col bg-bg; }
+  /* QA-0719 diff 全线不可用实测:.diffwrap 是 flex 列却没有 overflow-y,
+     外层 .changes-panel 又是 overflow-hidden 定高框——装不下时浏览器按
+     flex-shrink 压扁全部子卡(.filediff 自带 overflow-hidden ⇒ 自动最小
+     尺寸为 0),collapsed 卡被压成几像素"横条"、大文件被裁剪、整个
+     review 无法竖向滚动(实测 190px 内容压到 8-15px)。.diffbar 的
+     sticky top-0 本就假定 .diffwrap 是滚动容器——补上它,并让文件卡
+     拒绝收缩(shrink-0),内容自然溢出、滚动条回归。 */
+  .diffwrap { @apply flex min-h-0 flex-1 flex-col overflow-y-auto bg-bg; }
   .diffbar { @apply sticky top-0 z-10 flex min-h-[44px] shrink-0 items-center gap-2 border-b border-line bg-panel px-3; }
   .diffbar-state { @apply flex w-full shrink-0 items-center gap-2; }
   .diff-summary, .fd-counts { @apply inline-flex items-center gap-[6px] text-[12px] font-medium; }
@@ -693,7 +700,7 @@
   .diff-fileitem { @apply flex w-full items-center gap-2 rounded-[8px] border-0 bg-transparent px-2 py-[6px] text-left transition-colors duration-100 hover:bg-panel-2; }
   .diff-fileitem-path, .fd-path { @apply min-w-0 flex-1 truncate; }
 
-  .filediff { @apply m-3 overflow-hidden rounded-[10px] border border-line bg-panel; }
+  .filediff { @apply m-3 shrink-0 overflow-hidden rounded-[10px] border border-line bg-panel; }
   .fd-head { @apply flex min-w-0 items-center gap-2 bg-panel px-3 py-2 text-[12px]; }
   .fd-caret { @apply transition-transform; }
   details[open] > .fd-head .fd-caret { @apply rotate-90; }
@@ -722,8 +729,15 @@
      heading 只留低调小字。 */
   .dl-hunk { @apply border-y border-line bg-panel-2 px-3 py-0.5 text-[11px] text-dim; }
 
-  /* Split-view diff rows: marker + left-line-num + left-code + right-line-num + right-code */
-  .fd-split .dls { @apply grid min-w-max; grid-template-columns: 18px 5ch minmax(0, 1fr) 5ch minmax(0, 1fr); }
+  /* Split-view diff rows: marker + left-line-num + left-code + right-line-num + right-code.
+     QA-0719 实测:每行各自开 grid + min-w-max 时,列宽按"本行内容"独立
+     解析——短行半列 344px、长行 946px,右列起始 x 逐行漂移,长行的代码
+     被推到卡片可视区外,看起来像"隔行消失"。列轨必须全文件共享:
+     .fd-split 是唯一的 grid(max-content 宽,横向随 .fd-body 滚动),
+     行盒 display:contents 让五个单元格直接落进共享列轨。 */
+  .fd-split { @apply grid content-start; grid-template-columns: 18px 5ch minmax(0, 1fr) 5ch minmax(0, 1fr); width: max-content; min-width: 100%; }
+  .fd-split .dls { display: contents; }
+  .fd-split .dl-hunk-span { grid-column: 1 / -1; }
   .fd-split .dls-marker { @apply select-none; }
   .fd-split .dls-marker.add { @apply bg-green; }
   .fd-split .dls-marker.del { background: repeating-linear-gradient(45deg, var(--red), var(--red) 2px, transparent 2px, transparent 4px); }
@@ -754,8 +768,15 @@
   .dsk-no { @apply w-[4ch]; }
   .dsk-code { @apply flex-1; }
 
-  /* Line-wrap descendant: when wrap is on, change code from pre-formatted to word-wrapping */
+  /* Line-wrap descendant: when wrap is on, change code from pre-formatted to word-wrapping.
+     QA-0719 实测:只改 whitespace 不够——.dl/.dls 行容器带 min-w-max,
+     而 max-content 从不考虑软换行机会,行仍按完整行宽撑开、照旧横向
+     溢出,Wrap 开关等于没接线。wrap 模式下行容器必须放弃 max-content
+     最小宽,让 minmax(0,1fr) 的代码列真正收窄并换行。 */
   .diff-wrap .dl-text, .diff-wrap .dls-half { @apply whitespace-normal; word-break: break-word; }
+  .diff-wrap .dl, .diff-wrap .fd-gap { @apply min-w-0; }
+  /* wrap 下 split 网格回到容器宽,半列在自己的轨里换行。 */
+  .diff-wrap .fd-split { width: auto; }
 
   .fd-split .fd-nobody { @apply p-4 text-center text-dim; }
 

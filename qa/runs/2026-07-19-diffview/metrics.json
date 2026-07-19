@@ -1,0 +1,16 @@
+{
+  "red": {
+    "phone-390x844": { "diffwrap": { "clientH": 818, "scrollH": 818, "overflowY": "visible", "canScroll": false },
+      "squashedCards": [ {"path":"README.md","clientH":15,"scrollH":190}, {"path":"src/newfile1.py","clientH":6,"scrollH":75}, {"path":"src/bigmodule.py","clientH":628,"scrollH":7711} ] },
+    "desktop-1280x800": { "diffwrap": { "clientH": 752, "scrollH": 752, "overflowY": "visible", "canScroll": false },
+      "squashedCards": [ {"path":"README.md","clientH":8,"scrollH":190}, {"path":"src/newfile1.py","clientH":3,"scrollH":75} ] },
+    "wrapToggle": { "wrapClass": true, "stillOverflowing": true },
+    "splitView": { "note": "per-row grids: def-row halves 344px, return-row halves 946px — right column x drifts per row" }
+  },
+  "green": {
+    "phone-390x844": { "diffwrap": { "clientH": 818, "scrollH": 9252, "overflowY": "auto", "canScroll": true }, "squashedCards": 0,
+      "bottomReachable": true, "stickyBarVisible": true, "perFileHScroll": { "scrollW": 1029, "clientW": 364, "canScrollX": true } },
+    "wrapToggle": { "wrapClass": true, "stillOverflowing": false },
+    "splitView": { "bigmodule": "all 400 rows, halves uniform 975px", "consoleErrors": 0 }
+  }
+}
