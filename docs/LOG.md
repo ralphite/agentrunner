@@ -4975,3 +4975,12 @@ qa-consistency S1 的 "last-turn=unknown" observation——不是产品语义
 isRepo/nested(+repoRoot);TestHandleDiffLastTurn 改用真实 repo 断言
 isRepo=true 落地。webui go test 绿。远程红→绿复验待下一环境(红已
 实录于 #17 n=1:turn 编辑却渲染 "Changes in workspace")。
+
+## 2026-07-19 · 第十五轮收尾:isRepo 修复远程红→绿复验通过(run 29671085509)
+
+新环境(da2bab5 构建,issue #18)审批 touch turncard.txt 后:last-turn
+API 带 isRepo:true/nested:false、diff 含目标文件,卡片首次以
+**"Edited 1 file"** 渲染(文件行可见,零 console error)。旧构建同
+场景实录为 workspace 回退(#17 n=1)。至此 "Edited N files" 主路径
+恢复;S2 幽灵 diff 锚与 qa-consistency 定时跑继续守回归,S1 的
+last-turn observation 预期翻为真实文件集(下次 cron 验证)。
