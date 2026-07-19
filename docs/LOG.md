@@ -5223,3 +5223,18 @@ SessionStarted 头取 spec（series_started 为形态标记）。既有 drive
 测试在新默认下不改断言全绿（Result 语义等价）；新钉子two枚。legacy
 DriverStarted 写侧从此仅剩 self_paced/parallel/retry 三形态，挂
 INC-80.2b 补齐后全退休。
+
+## 2026-07-19 · INC-80.2b 完成：series runner 三形态齐活
+
+三步三 commit：①retry（runSeriesIteration attempt 循环、per-attempt
+spawn 词汇 `iter-N-aM`、spend 全和、settled 失败跨 crash 重分类）；
+②self_paced（pace 工具装配、awaitSeriesTick 分支——durable timer 仅
+wake hint、tick 恒零，applySeriesPaceIntent 含 finish 人审/clamp/
+on_no_intent，ResumeSeries pace 再推导，shutdown 免终态收编）；
+③parallel/best-of-N（**base ref pin 在 SeriesStarted**——open 前快照，
+凡晚于它的 crash 都复现同一棵树，优于调查案的 SeriesIteration 载体；
+series sub-state 版本 bump 1→2；driveSeriesParallel 镜像 legacy 的
+worktree 物化/丢失拒判/选择规则；SeriesEnded.BestIter 成 fold 权威）。
+SupportsSeries 现收编全形态，唯 parallel×retry 组合留 legacy（无真实
+需求前不移）。每步孪生齐（retry×2、self_paced×3、parallel×3）。
+E1③ 至此实质完成：新建 drive 除一个组合外全走 session 形态。

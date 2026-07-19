@@ -67,16 +67,18 @@
       写侧仅剩 bestof/retry/self_paced。钉子：
       TestDriveDefaultsToMergedStreamForEligibleSpec/
       TestDriveRetryReadsSeriesHead。
-- [ ] 2.2b series runner 补三形态（分三 commit：①retry ✅ 2026-07-19
+- [x] 2.2b series runner 补三形态（分三 commit：①retry ✅ 2026-07-19
       ——runSeriesIteration attempt 循环、per-attempt spawn 词汇
       `iter-N-aM`、spend 全和、settled 失败重分类；②self_paced ✅
       2026-07-19——pace 工具装配、awaitSeriesTick 分支（durable timer
       仅 wake hint、tick 恒零）、applySeriesPaceIntent（finish 人审/
       clamp/on_no_intent）、ResumeSeries pace 再推导、shutdown 免终态
       名单收编；三孪生绿；
-      ③parallel 待做——SeriesIteration.BaseRef+series 版本 bump 1→2、
-      driveSeriesParallel、SeriesEnded.BestIter 权威），全落后 legacy
-      写侧退休。
+      ③parallel ✅ 2026-07-19——base ref pin 在 **SeriesStarted**（open
+      前快照，优于原案的 SeriesIteration 载体）、series 版本 bump 1→2、
+      driveSeriesParallel（worktree 物化/丢失拒判/pass 压 score 选择）、
+      SeriesEnded.BestIter 为 fold 权威、parallel×retry 组合留 legacy；
+      三孪生绿）。legacy 写侧仅剩 parallel×retry 一个组合。
 - [ ] 2.3 撤 webui 的 driver/run 概念面：Scheduled 页 = 带 schedule/goal
       的会话视图；新建一律走 in-session 形态。
 - [ ] 2.4 删 `ar drive`/`ar submit --drive`（2.2/2.3 确认等价后）。

@@ -490,6 +490,11 @@ type SeriesStarted struct {
 	Patience int    `json:"patience,omitempty"`
 	Overlap  string `json:"overlap,omitempty"` // skip | coalesce ("" = skip)
 	Source   string `json:"source"`
+	// BaseRef pins a best_of_n round's shared base snapshot (INC-80.2b③):
+	// taken BEFORE this fact journals (blob-before-event), so every attempt
+	// — including one resumed after a crash — materializes the SAME tree,
+	// never the drifted workspace. Empty for every other kind.
+	BaseRef string `json:"base_ref,omitempty"`
 }
 
 // SeriesIteration records one settled (or overlap-skipped) iteration: the

@@ -2,7 +2,9 @@ package driver_test
 
 import (
 	"context"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -481,5 +483,165 @@ func TestSeriesSelfPacedFinishDenied(t *testing.T) {
 	// ends at max_iterations, never satisfied.
 	if res.Reason != "max_iterations" || res.Iterations != 2 {
 		t.Fatalf("res = %+v, want max_iterations at 2 (denied finish keeps going)", res)
+	}
+}
+
+// INC-80.2b③: best-of-N in the merged stream — two attempts from one base
+// snapshot (pinned on SeriesStarted), each judged in its own worktree; the
+// selection rides SeriesEnded.BestIter and the fold applies it; the main
+// workspace is never touched.
+func TestSeriesParallelBestOfN(t *testing.T) {
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{
+			{ToolCall: &scripted.ToolCallEvent{CallID: "c1", Name: "bash",
+				Args: map[string]any{"command": "echo wrong > answer.txt"}}},
+			{Finish: "tool_use"},
+		}},
+		{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{
+			{ToolCall: &scripted.ToolCallEvent{CallID: "c1", Name: "bash",
+				Args: map[string]any{"command": "echo right > answer.txt"}}},
+			{Finish: "tool_use"},
+		}},
+		{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
+	}}
+	d, dStore, root := parallelHarness(t, &driver.DriverSpec{
+		Name: "pick", Schedule: driver.ScheduleParallel, N: 2,
+		Prompt: "write the right answer",
+		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierCommand,
+			Command: "test -f base.txt && grep -qx right answer.txt"}},
+	}, fix)
+
+	res, err := d.RunSeries(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "satisfied" || res.BestIter != 2 || res.Iterations != 2 {
+		t.Fatalf("res = %+v, want satisfied best=2 of 2", res)
+	}
+	// Isolation: per-attempt answers, base materialized, main untouched.
+	for n, want := range map[int]string{1: "wrong", 2: "right"} {
+		wt := filepath.Join(dStore.Dir(), "wt", "att-"+string(rune('0'+n)))
+		if got, rerr := os.ReadFile(filepath.Join(wt, "answer.txt")); rerr != nil || strings.TrimSpace(string(got)) != want {
+			t.Errorf("attempt %d answer = %q err=%v, want %s", n, got, rerr, want)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(root, "answer.txt")); !os.IsNotExist(err) {
+		t.Error("main workspace was touched by an attempt")
+	}
+	events, err := store.ReadEvents(dStore.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if events[0].Type != event.TypeSessionStarted {
+		t.Fatalf("head = %s, want session_started", events[0].Type)
+	}
+	ss, err := state.Fold(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sr := ss.Series
+	if sr == nil || sr.Kind != "best_of_n" || sr.BaseRef == "" {
+		t.Fatalf("series fold = %+v, want best_of_n with a pinned base ref", sr)
+	}
+	// The fold applies the terminal's selection: attempt 2 passed, and the
+	// authority is SeriesEnded.BestIter (not the max-score default).
+	if !sr.Ended || sr.EndReason != "satisfied" || sr.BestIter != 2 {
+		t.Fatalf("series terminal = ended=%v reason=%q best=%d, want satisfied best=2",
+			sr.Ended, sr.EndReason, sr.BestIter)
+	}
+}
+
+// No attempt passes: the merged-stream round ends stalled; every attempt
+// journaled, the best score's attempt is the recorded BestIter.
+func TestSeriesParallelAllFailStalls(t *testing.T) {
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: "pass 1"}, {Finish: "end_turn"}}},
+		{Respond: []scripted.Event{{Text: "pass 2"}, {Finish: "end_turn"}}},
+	}}
+	d, _, _ := parallelHarness(t, &driver.DriverSpec{
+		Name: "never", Schedule: driver.ScheduleParallel, N: 2,
+		Prompt: "try", Verifiers: []driver.VerifierSpec{{
+			Kind: driver.VerifierCommand, Command: "false"}},
+	}, fix)
+	res, err := d.RunSeries(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "stalled" || res.Iterations != 2 {
+		t.Fatalf("res = %+v, want stalled after 2 attempts", res)
+	}
+}
+
+// A worktree lost across a restart fails its attempt instead of judging a
+// rolled-back tree (S7 出口 review P1, merged-stream mirror).
+func TestSeriesParallelWorktreeLostFailsAttempt(t *testing.T) {
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		// Only attempt 2's script exists — attempt 1 must NOT reach the
+		// provider (it is failed on the worktree-lost guard).
+		{Respond: []scripted.Event{
+			{ToolCall: &scripted.ToolCallEvent{CallID: "c1", Name: "bash",
+				Args: map[string]any{"command": "echo right > answer.txt"}}},
+			{Finish: "tool_use"},
+		}},
+		{Respond: []scripted.Event{{Text: "done"}, {Finish: "end_turn"}}},
+	}}
+	d, dStore, _ := parallelHarness(t, &driver.DriverSpec{
+		Name: "pick", Schedule: driver.ScheduleParallel, N: 2,
+		Prompt: "write the right answer",
+		Verifiers: []driver.VerifierSpec{{Kind: driver.VerifierCommand,
+			Command: "grep -qx right answer.txt"}},
+	}, fix)
+
+	// Crash aftermath: the series opened with a pinned base and attempt 1
+	// left a child journal, but its worktree is gone.
+	ref, err := d.Snapshots.Snapshot(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	seed := func(typ string, payload any) {
+		t.Helper()
+		env, eerr := event.New(typ, payload)
+		if eerr != nil {
+			t.Fatal(eerr)
+		}
+		if _, aerr := dStore.Append(env); aerr != nil {
+			t.Fatal(aerr)
+		}
+	}
+	seed(event.TypeSessionStarted, &event.SessionStarted{SpecName: "pick",
+		SubStateVersions: state.SubStateVersions()})
+	seed(event.TypeSeriesStarted, &event.SeriesStarted{SeriesID: "drv-1",
+		Kind: "best_of_n", MaxIterations: 2, Source: "user", BaseRef: ref})
+	childStore, err := store.OpenEventStore(filepath.Join(dStore.Dir(), "sub", "att-1-a1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	env, _ := event.New(event.TypeSessionStarted, &event.SessionStarted{SpecName: "worker"})
+	if _, err := childStore.Append(env); err != nil {
+		t.Fatal(err)
+	}
+	_ = childStore.Close()
+
+	res, err := d.ResumeSeries(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "satisfied" || res.BestIter != 2 {
+		t.Fatalf("res = %+v, want attempt 2 to win after attempt 1 fails on the guard", res)
+	}
+	events, _ := store.ReadEvents(dStore.Dir())
+	ss, err := state.Fold(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var lostDetail bool
+	for _, it := range ss.Series.Iterations {
+		if it.N == 1 && strings.Contains(it.Verdict.Detail, "worktree lost") {
+			lostDetail = true
+		}
+	}
+	if !lostDetail {
+		t.Fatalf("attempt 1 not failed as worktree-lost: %+v", ss.Series.Iterations)
 	}
 }

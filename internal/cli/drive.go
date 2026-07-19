@@ -257,7 +257,7 @@ func driveAgent(opts driveOptions) int {
 	var res driver.Result
 	var runErr error
 	if opts.series && !d.SupportsSeries() {
-		fmt.Fprintln(opts.stderr, "agentrunner: --series supports goal (with verifiers) / interval / cron; self_paced and parallel stay on the legacy stream — run this spec without --series")
+		fmt.Fprintln(opts.stderr, "agentrunner: --series carries every shape except parallel with on_child_failure=retry — run this spec without --series")
 		return ExitUsage
 	}
 	if d.SupportsSeries() {

@@ -205,9 +205,9 @@ verifiers:
 	}
 }
 
-// drive --series refuses the spec shapes the merged form does not carry yet
-// (parallel, since 2.2b①② collected retry and self_paced) instead of
-// silently changing semantics.
+// drive --series refuses the one spec shape the merged form does not carry
+// (parallel × on_child_failure=retry) instead of silently changing
+// semantics.
 func TestDriveSeriesRefusesUnsupportedSpec(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	dir := t.TempDir()
@@ -216,6 +216,7 @@ agent_spec: worker.yaml
 prompt: go
 schedule: parallel
 n: 3
+on_child_failure: { mode: retry, max: 1 }
 verifiers:
   - { kind: command, command: "true" }
 `)
@@ -228,7 +229,7 @@ verifiers:
 	if code != ExitUsage {
 		t.Fatalf("exit = %d, want usage refusal\nstderr: %s", code, errOut.String())
 	}
-	if !strings.Contains(errOut.String(), "--series supports") {
+	if !strings.Contains(errOut.String(), "--series carries") {
 		t.Errorf("stderr = %q, want the routing hint", errOut.String())
 	}
 }

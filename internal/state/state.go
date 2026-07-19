@@ -37,7 +37,7 @@ func SubStateVersions() map[string]int {
 		"interactions": 1, // INC-11.5 (Turn/Item typed interaction projection)
 		"team":         1, // INC-11.6 durable delegation/DAG/lease/workspace projection
 		"schedule":     1, // INC-74 in-session schedule (E1① loop-mode 挂会话)
-		"series":       1, // INC-77 drive series in the session journal (E1③ stream 合流)
+		"series":       2, // INC-80.2b③: BaseRef pin + SeriesEnded BestIter authority
 	}
 }
 
@@ -332,6 +332,9 @@ type Series struct {
 	LastTick  time.Time `json:"last_tick,omitzero"`
 	Ended     bool      `json:"ended,omitempty"`
 	EndReason string    `json:"end_reason,omitempty"`
+	// BaseRef is a best_of_n round's shared base snapshot (from
+	// SeriesStarted): every attempt materializes this exact tree.
+	BaseRef string `json:"base_ref,omitempty"`
 }
 
 // Compaction is the folded result of ContextCompacted (S4.5): messages
@@ -1236,7 +1239,8 @@ func Apply(s State, env event.Envelope) (State, error) {
 	// value (Apply purity), so every mutation clones first.
 	case *event.SeriesStarted:
 		s.Series = &Series{SeriesID: p.SeriesID, Kind: p.Kind,
-			MaxIterations: p.MaxIterations, Patience: p.Patience, Overlap: p.Overlap}
+			MaxIterations: p.MaxIterations, Patience: p.Patience, Overlap: p.Overlap,
+			BaseRef: p.BaseRef}
 
 	case *event.SeriesIteration:
 		if s.Series == nil || s.Series.SeriesID != p.SeriesID || p.N < 1 {
@@ -1287,6 +1291,11 @@ func Apply(s State, env event.Envelope) (State, error) {
 		}
 		sc := *s.Series
 		sc.Ended, sc.EndReason = true, p.Reason
+		// A best_of_n terminal carries the SELECTION (pass beats score) —
+		// it overrides the fold's max-score BestIter (INC-80.2b③).
+		if p.BestIter > 0 {
+			sc.BestIter = p.BestIter
+		}
 		s.Series = &sc
 
 	// ---- INC-D1: in-session goal (G23/UJ-22) ----

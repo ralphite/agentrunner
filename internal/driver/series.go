@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -38,9 +39,9 @@ import (
 const seriesTickPurpose = "series_tick:"
 
 // SupportsSeries reports whether this spec runs in the merged-stream form:
-// goal-with-verifiers / interval / cron / self_paced, retry included
-// (INC-80.2b steps 1-2). parallel stays on the legacy stream until the
-// runner grows it — dispatchers use this to route.
+// every legacy shape (INC-80.2b complete) except the parallel×retry combo,
+// which keeps its legacy semantics until someone actually needs it —
+// dispatchers use this to route.
 func (d *Driver) SupportsSeries() bool {
 	switch d.Spec.schedule() {
 	case ScheduleImmediate:
@@ -48,15 +49,17 @@ func (d *Driver) SupportsSeries() bool {
 			return false
 		}
 	case ScheduleInterval, ScheduleCron, ScheduleSelfPaced:
+	case ScheduleParallel:
+		return d.Spec.OnChildFailure.Mode != OnFailRetry
 	default:
 		return false
 	}
 	return true
 }
 
-// prepareSeries validates the spec subset the merged form supports.
-// parallel stays on the legacy stream for now (记档 INC-80 工作纸):
-// refusing loudly beats silently changing its semantics.
+// prepareSeries validates the spec the merged form carries — every legacy
+// shape except parallel×retry (记档 INC-80 工作纸): refusing loudly beats
+// silently changing its semantics.
 func (d *Driver) prepareSeries() error {
 	if d.Clock == nil {
 		d.Clock = clock.Real{}
@@ -96,6 +99,21 @@ func (d *Driver) prepareSeries() error {
 					d.Spec.Agent.Tools = append(d.Spec.Agent.Tools, name)
 				}
 			}
+		}
+	case ScheduleParallel:
+		// Best-of-N: the verifiers ARE the selection; isolation needs the
+		// snapshot store and a worktree-aware child factory.
+		if d.Spec.N < 2 {
+			return fmt.Errorf("series: schedule parallel requires n >= 2 (got %d)", d.Spec.N)
+		}
+		if len(d.Spec.Verifiers) == 0 {
+			return fmt.Errorf("series: schedule parallel requires verifiers — they select the winner")
+		}
+		if d.Snapshots == nil || d.NewChildAt == nil {
+			return fmt.Errorf("series: schedule parallel requires a snapshot store and a worktree child factory")
+		}
+		if d.Spec.OnChildFailure.Mode == OnFailRetry {
+			return fmt.Errorf("series: parallel with on_child_failure=retry stays on the legacy stream")
 		}
 	default:
 		return fmt.Errorf("series: schedule %q not yet available in the merged-stream form (use the legacy driver)", d.Spec.schedule())
@@ -167,12 +185,28 @@ func (d *Driver) RunSeries(ctx context.Context) (Result, error) {
 	}); err != nil {
 		return Result{}, err
 	}
+	kind := d.Spec.schedule()
+	baseRef := ""
+	if kind == ScheduleParallel {
+		// The round's shared base pins BEFORE the series opens
+		// (blob-before-event): any crash after this point re-materializes
+		// the SAME tree for every remaining attempt.
+		kind = "best_of_n"
+		ref, err := d.Snapshots.Snapshot(ctx)
+		if err != nil {
+			return Result{}, fmt.Errorf("series: base snapshot for parallel round: %w", err)
+		}
+		baseRef = ref
+	}
 	if _, err := appendE(event.TypeSeriesStarted, &event.SeriesStarted{
-		SeriesID: d.DriverID, Kind: d.Spec.schedule(),
+		SeriesID: d.DriverID, Kind: kind,
 		MaxIterations: d.Spec.maxIterations(), Patience: d.Spec.Patience,
-		Overlap: d.Spec.Overlap, Source: "user",
+		Overlap: d.Spec.Overlap, Source: "user", BaseRef: baseRef,
 	}); err != nil {
 		return Result{}, err
+	}
+	if d.Spec.schedule() == ScheduleParallel {
+		return d.driveSeriesParallel(ctx, &ss, appendE, 1)
 	}
 	return d.driveSeries(ctx, &ss, appendE, 1)
 }
@@ -251,6 +285,9 @@ func (d *Driver) ResumeSeries(ctx context.Context) (Result, error) {
 				d.nextPace = floor
 			}
 		}
+	}
+	if d.Spec.schedule() == ScheduleParallel {
+		return d.driveSeriesParallel(ctx, &ss, appendE, startN)
 	}
 	return d.driveSeries(ctx, &ss, appendE, startN)
 }
@@ -392,6 +429,172 @@ func (d *Driver) applySeriesPaceIntent(ctx context.Context, appendE appendFunc, 
 		res, err := d.finishSeries(appendE, ss.Series, "satisfied", n)
 		return true, res, err
 	}
+}
+
+// driveSeriesParallel is the best-of-N round in the merged stream
+// (INC-80.2b③) — the driveParallel mirror: every attempt materializes the
+// SAME base snapshot (pinned on SeriesStarted) into its own worktree, is
+// judged in its own tree, and the selection (pass beats score, ties keep
+// the earliest) rides SeriesEnded.BestIter as the fold authority.
+func (d *Driver) driveSeriesParallel(ctx context.Context, ss *state.State, appendE appendFunc, startN int) (Result, error) {
+	total := d.Spec.N
+	baseRef := ss.Series.BaseRef
+	if baseRef == "" {
+		return Result{}, fmt.Errorf("series: parallel round has no pinned base snapshot")
+	}
+	for n := startN; n <= total; n++ {
+		if ctx.Err() != nil {
+			return d.seriesCancelTerminal(ctx, appendE, ss.Series, n-1)
+		}
+		allowance, ok := d.reserveSeries(ss.Series)
+		if !ok {
+			return d.finishSeries(appendE, ss.Series, "budget", n-1)
+		}
+		callID := fmt.Sprintf("att-%d", n)
+		childSession := fmt.Sprintf("%s-sub-%s-a1", d.DriverID, callID)
+		childDir := filepath.Join(d.Store.Dir(), "sub", callID+"-a1")
+		worktree := filepath.Join(d.Store.Dir(), "wt", fmt.Sprintf("att-%d", n))
+		if _, serr := os.Stat(worktree); os.IsNotExist(serr) {
+			// Materialize is atomic (temp + rename): an existing dir IS a
+			// complete tree, so existence doubles as the resume marker.
+			if err := d.Snapshots.Materialize(ctx, baseRef, worktree); err != nil {
+				return Result{}, fmt.Errorf("series: materialize attempt %d worktree: %w", n, err)
+			}
+			// A child journal without its worktree = the tree was lost
+			// across a restart. Judging (or resuming) it on the fresh BASE
+			// would silently roll back its own edits — fail the attempt
+			// instead (S7 出口 review P1).
+			if evs, rerr := store.ReadEvents(childDir); rerr == nil && len(evs) > 0 {
+				if _, err := appendE(event.TypeSeriesIteration, &event.SeriesIteration{
+					SeriesID: d.DriverID, N: n, CallID: callID, ChildSession: childSession,
+					Reason:  "error",
+					Verdict: event.IterationVerdict{Detail: "attempt worktree lost across restart; refusing to judge a rolled-back tree"},
+				}); err != nil {
+					return Result{}, err
+				}
+				continue
+			}
+		}
+		if _, err := appendE(event.TypeSpawnRequested, &event.SpawnRequested{
+			CallID: callID, Agent: agentNameOf(d.Spec), Prompt: d.buildPrompt(),
+			ChildSession: childSession, Depth: 1, BudgetTokens: allowance,
+			LeaseID: "lease-" + callID + "-a1",
+		}); err != nil {
+			return Result{}, err
+		}
+		childRes, spent, cerr := d.runSeriesChildAt(ctx, childDir, childSession, allowance, worktree)
+		if cerr == nil && (childRes.Reason == "error" || childRes.Reason == "canceled" ||
+			strings.HasPrefix(childRes.Reason, "failed")) {
+			cerr = fmt.Errorf("child ended %s (settled from journal)", childRes.Reason)
+		}
+		reason := childRes.Reason
+		if cerr != nil {
+			if ctx.Err() != nil {
+				reason = "canceled"
+			} else if reason == "" {
+				reason = "error"
+			}
+		} else if reason == "" {
+			reason = "completed"
+		}
+		if _, err := appendE(event.TypeSubagentCompleted, &event.SubagentCompleted{
+			CallID: callID, Agent: agentNameOf(d.Spec), ChildSession: childSession,
+			Reason: reason, GenSteps: childRes.GenSteps, Usage: spent,
+		}); err != nil {
+			return Result{}, err
+		}
+		if cerr != nil {
+			if _, err := appendE(event.TypeSeriesIteration, &event.SeriesIteration{
+				SeriesID: d.DriverID, N: n, CallID: callID, ChildSession: childSession,
+				Reason: reason, Usage: spent,
+				Verdict: event.IterationVerdict{Detail: "attempt failed: " + redact.FromEnv().String(cerr.Error())},
+			}); err != nil {
+				return Result{}, err
+			}
+			if ctx.Err() != nil {
+				return d.seriesCancelTerminal(ctx, appendE, ss.Series, n)
+			}
+			continue // a failed attempt is one spent slot; the round goes on
+		}
+		wtExec, werr := worktreeExecutor(worktree, childSession)
+		if werr != nil {
+			return Result{}, werr
+		}
+		verdict, judgeUsage := d.verify(ctx, appendE, n, childDir, wtExec)
+		spent = addUsage(spent, judgeUsage)
+		carryText := childReport(childDir)
+		if _, err := appendE(event.TypeSeriesIteration, &event.SeriesIteration{
+			SeriesID: d.DriverID, N: n, CallID: callID, ChildSession: childSession,
+			Reason: reason, Verdict: verdict, Usage: spent,
+			CarryRef: d.publishCarry(carryText), Carry: excerpt(carryText),
+		}); err != nil {
+			return Result{}, err
+		}
+	}
+	// Selection: pass beats any score; among equals the higher score wins;
+	// ties keep the earliest. The choice rides SeriesEnded.BestIter — the
+	// fold applies it as the authority over its max-score default.
+	best, bestPass, bestScore := 0, false, 0.0
+	for _, it := range ss.Series.Iterations {
+		if it.Skipped {
+			continue
+		}
+		v := it.Verdict
+		better := best == 0 ||
+			(v.Pass && !bestPass) ||
+			(v.Pass == bestPass && v.Score > bestScore)
+		if better {
+			best, bestPass, bestScore = it.N, v.Pass, v.Score
+		}
+	}
+	reason := "stalled"
+	if bestPass {
+		reason = "satisfied"
+	} else if seriesAllChildrenFailed(ss.Series) {
+		reason = "child_failed"
+	}
+	if best > 0 {
+		d.emit(protocol.Event{Kind: protocol.KindNote,
+			Text: fmt.Sprintf("best-of-%d winner: attempt %d (worktree %s)",
+				total, best, filepath.Join(d.Store.Dir(), "wt", fmt.Sprintf("att-%d", best)))})
+	}
+	if _, err := appendE(event.TypeSeriesEnded, &event.SeriesEnded{
+		SeriesID: d.DriverID, Reason: reason, Iterations: total, BestIter: best,
+	}); err != nil {
+		return Result{}, err
+	}
+	return Result{Reason: reason, Iterations: total, BestIter: best}, nil
+}
+
+// seriesAllChildrenFailed reports whether every non-skipped iteration's
+// child ended in error — the round's child_failed terminal condition.
+func seriesAllChildrenFailed(sr *state.Series) bool {
+	seen := false
+	for _, it := range sr.Iterations {
+		if it.Skipped {
+			continue
+		}
+		seen = true
+		if it.Reason != "error" && it.Reason != "canceled" {
+			return false
+		}
+	}
+	return seen
+}
+
+// runSeriesChildAt is runSeriesChild bound to an attempt worktree — the
+// child's whole face (executor and permission paths) lives in its own tree.
+func (d *Driver) runSeriesChildAt(ctx context.Context, childDir, childSession string, allowance int, worktree string) (agent.RunResult, provider.Usage, error) {
+	cr, err := agent.OpenChildRun(childDir)
+	if err != nil {
+		return agent.RunResult{}, provider.Usage{}, err
+	}
+	defer cr.Close()
+	if done, dres := agent.SettledChild(childDir); done {
+		return dres, dres.Usage, nil
+	}
+	child := d.NewChildAt(cr.Store(), childSession, 0, allowance, worktree)
+	return cr.Run(ctx, child, d.buildPrompt())
 }
 
 // runSeriesIteration runs iteration n through its attempt loop (INC-80.2b):
