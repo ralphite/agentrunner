@@ -1455,3 +1455,51 @@ pause 时 wakes=2 且此后不再增长)。
 | 1 | `ar schedule <sid> attach --cron "* * * * *" "<prompt>"` | `schedule_attached`+`timer_set` 落 journal;≤1 个 cron slot 内 session **零 send 自主唤醒**:`schedule_wake` + assistant_message 增长(真 turn) |
 | 2 | SIGTERM 优雅停机 → 重启 daemon(session 未托管) | timer sweep 到点 hostResume → 第二次自主唤醒仍完成真 turn——唤醒跨 daemon 重启存活 |
 | 3 | `ar schedule <sid> pause` 后静置一个完整 slot | `schedule_paused` 落账;wake 计数不动;`schedule status` 呈现 paused |
+
+## QA-76 UI 事实声明 × 系统真相对账（QA-0718 复盘产物,UJ-04/14/18/24）
+
+**这是什么**:webui 每一条"事实声明"(Edited N files / Changes 计数 /
+Background running / PROGRESS x/y / token 数 / 状态 pill)背后都有一个
+可独立求证的权威真相源;QA-0718 用户实机连撞的三类核心 bug(幽灵
+diff、真写盘卡消失、child 卡死却报 running+spending)全是**声明与真相
+脱节**。本场景组把"对账"固化为常设回归:每个语义状态下同时读 UI
+API 声明与真相源,自动断言一致。**新增任何 UI 事实声明,必须同步在
+下表登记真相源并加对账场景——否则不算 work(执行纪律同 PROCESS
+双闸门)。**
+
+### 声明 ↔ 真相源清单(inventory,持续维护)
+
+| UI 声明 | 权威真相源 | 对账场景 |
+|---|---|---|
+| timeline "Edited N files"(last-turn) | `ar diff --scope last-turn` 文件集 | S1 |
+| timeline "Changes in workspace"(回退) | `git status --porcelain`(workspace) | S2/S3 |
+| rail "Changes N files ±"(working-tree) | 同上 | S1–S4 |
+| commit 后 Changes 清零 | git status 为空 | S4 |
+| BACKGROUND WORK 行 "running" | child sub-store journal 末事件非终态 | S5 |
+| ATTENTION "keeps spending tokens" | child journal usage 增量 > 0 | S5(G39 红锚) |
+| child 审批可见性 | child journal `waiting_entered{approval}` ⇒ 父面 ATTENTION 必须呈现 | S5b(G39 红锚) |
+| PROGRESS x/y 终态完成性 | 会话终态时 x=y 或有 error 事实 | S5 |
+| 会话状态 pill | `/api/sessions[].status` | S1–S5 |
+| Run details token 数 | journal usage 累计 | S6(待补) |
+
+### 场景(qa/consistency/check.mjs 逐条执行,CI: qa-consistency.yml)
+
+- **S1 写盘对账**:blank workspace 新会话(full access),指令式 prompt
+  写死"创建 a.txt 内容 hello,不做别的"。turn 完:last-turn 文件集 ==
+  working-tree 文件集 == git status == {a.txt};会话 status 回
+  waiting:input。
+- **S2 脏接手不谎报**:同 workspace 再开会话,prompt "只回复 hi,不碰
+  文件"。turn 完:last-turn 为空(UI 不得声明 Edited);working-tree
+  仍 == {a.txt}(rail 如实)。
+- **S3 重启后不失踪**:重启 daemon+webui(journal replay)。两个 scope
+  再对账:last-turn 允许为空,working-tree 必须仍 == git status(
+  "Changes in workspace" 回退卡的数据面)。
+- **S4 commit 清零**:经 API 提交,git status 空 == diff 两 scope 均空。
+- **S5 子 agent 终态对账**:full access 会话 spawn 1 个 worker 写文件。
+  终态:child journal 末事件为终态(SubagentCompleted 配对),文件落盘
+  入 git status;父 status 回 waiting:input 且无悬挂 background 声明。
+- **S5b(G39 红锚,expected-fail)**:ask 模式 spawn,child 卡
+  `waiting_entered{approval}`——断言"父面可见该审批"。当前必红;
+  G39 修复合入之日转绿,此行改为常设绿门。
+- 通过标准:findings.json 无 `mismatch`;S5b 单列 expected-fail 通道,
+  转绿需人工把它提级为硬门(防悄悄退化)。

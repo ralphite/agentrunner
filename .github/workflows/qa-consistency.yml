@@ -1,0 +1,115 @@
+# QA-76 · UI 事实声明 × 系统真相对账(docs/QA.md QA-76)。
+# 抓的是 QA-0718 用户实机连撞的那类核心语义 bug:UI 声明(Edited 卡/
+# Changes 计数/running 状态)与权威真相(git/journal/daemon)脱节。
+# 两阶段夹一次 daemon 重启:fresh(S1 写盘对账 + S2 幽灵 diff 锚)→
+# restart → restarted(S3 重启存续 + S4 commit 清零)。
+# 任何 mismatch = 红。S5/S5b(子 agent 终态、G39 不可见审批红锚)待
+# G39 INC 后接入(见 QA.md 登记)。
+name: qa-consistency
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 */6 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qa-consistency
+  cancel-in-progress: true
+
+jobs:
+  consistency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: main
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build ar + arwebui
+        run: |
+          go build -buildvcs=false -o bin/ar ./cmd/agentrunner
+          (cd webui/frontend && npm ci --silent && npm run build)
+          (cd webui && go build -buildvcs=false -o ../bin/arwebui .)
+
+      - uses: ./.github/actions/setup-ar
+
+      - name: Prepare workspace + spec
+        run: |
+          mkdir -p qa-run/ws
+          git -C qa-run/ws init -q
+          git -C qa-run/ws -c user.email=qa@local -c user.name=qa commit -q --allow-empty -m init
+          cat > qa-run/base.yaml <<'YAML'
+          name: dev
+          model: { provider: gemini, id: gemini-flash-latest, max_tokens: 2048 }
+          system_prompt: |
+            You are a terse assistant. Answer with the minimum text asked for.
+          tools: [read_file, bash]
+          permissions:
+            - { action: allow }
+          YAML
+
+      - name: Start webui
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          nohup ./bin/arwebui -ar "$PWD/bin/ar" -addr 127.0.0.1:8788 > webui.log 2>&1 &
+          for _ in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8788/api/health >/dev/null 2>&1 && break
+            sleep 1
+          done
+
+      - name: Phase fresh (S1 写盘对账 + S2 幽灵 diff 锚)
+        id: fresh
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OUT_DIR: qa-run/out
+        run: |
+          node qa/consistency/check.mjs http://127.0.0.1:8788 "$PWD/bin/ar" "$PWD/qa-run/ws" fresh | tee fresh.log
+          sid_b=$(grep -oE '^SID_B=.*' fresh.log | cut -d= -f2)
+          echo "sid_b=$sid_b" >> "$GITHUB_OUTPUT"
+
+      - name: Restart daemon + webui (S3 前置:journal replay)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          pkill -f arwebui || true
+          pkill -x ar || true
+          sleep 2
+          nohup ./bin/arwebui -ar "$PWD/bin/ar" -addr 127.0.0.1:8788 > webui2.log 2>&1 &
+          for _ in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8788/api/health >/dev/null 2>&1 && break
+            sleep 1
+          done
+
+      - name: Phase restarted (S3 重启存续 + S4 commit 清零)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SID_B: ${{ steps.fresh.outputs.sid_b }}
+          OUT_DIR: qa-run/out
+        run: node qa/consistency/check.mjs http://127.0.0.1:8788 "$PWD/bin/ar" "$PWD/qa-run/ws" restarted
+
+      - name: Upload findings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: consistency-findings
+          path: |
+            qa-run/out/
+            fresh.log
+            webui.log
+            webui2.log
+          if-no-files-found: warn
+          retention-days: 30

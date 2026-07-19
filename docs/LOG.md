@@ -4855,3 +4855,22 @@ workflow_dispatch `qa-prompt.yml`：setup-ar → 构建 ar → `ar doctor`
 prompt 即现场事故会话的开场消息）。硬断言只钉 runtime 红线——事件流
 "required OS sandbox unavailable" =0 且至少一次 bash exit_code（bash
 真在沙箱执行）；events 与日志上传 artifact。
+
+## 2026-07-19 · QA-0718 第十三轮:QA-76 一致性对账流程落地(用户指示:系统性抓核心语义 bug)
+
+用户裁定关注点:不是 UI 样式,而是 "workspace changes" 这类**UI 事实
+声明与系统真相脱节**的核心问题(幽灵 diff/卡消失/child 卡死却报
+running)。设计并落地三件套:
+1. **inventory(QA.md QA-76)**:枚举 webui 每条事实声明 ↔ 权威真相源
+   (git/journal/sub-store/api),并立执行纪律——新增声明必须同步登记
+   真相源+对账场景。
+2. **对账器 qa/consistency/check.mjs**(确定性 oracle,非场景探索):
+   两阶段夹 daemon 重启,S1 写盘对账、S2 幽灵 diff 回归锚、S3 重启
+   存续、S4 commit 清零;声明侧走 webui diff API(与 UI 同源),真相
+   侧走 git;mismatch 即红。S1 的"turn 后外部写入是否计入 last-turn"
+   记 observation 待产品裁决。
+3. **workflow qa-consistency.yml**:dispatch + 每 6h 定时;S5/S5b(子
+   agent 终态、G39 不可见审批红锚)登记在 QA.md,待 G39 INC 后接入并
+   转硬门。
+另:层1 样式审计(lint-tw-classes,dist 对账 + baseline 163)已并入
+上一 commit,定位为辅助件。
