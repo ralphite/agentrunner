@@ -37,8 +37,9 @@
 ### Phase 0 · 布防
 - [x] 0.1 FEATURES.md 纠错应用（屡崩升级移入 §14、补 outputs 契约/spec
       调参面/枚举修正等 ~25 处）——2026-07-19 本 commit。
-- [ ] 0.2 DESIGN/LOG 登记裁决："driver 是实现抽象、无 user-facing 面"
-      （后续 driver 改动的依据；走不变量变更流程）。
+- [x] 0.2 DESIGN/LOG 登记裁决："driver 是实现抽象、无 user-facing 面"
+      ——2026-07-19：工作纸 INC-80 立项（不变量变更单独成文）+ LOG 记档；
+      DESIGN §15 决策落表按 PROCESS 与实现同 commit（INC-80.4）。
 
 ### Phase 1 · 用户可感的洞
 - [ ] 1.1 G39 子审批不可见死锁：child 审批上浮父会话 Attention

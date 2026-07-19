@@ -5085,3 +5085,17 @@ tl-skeleton/changes-outcome-skel(此前加载期白板)、滚底浮钮 tl-jump
 shell-status 徽标、活动行等。前端 587 测试绿,lint 无新增裸类。
 诊断与流程修正(停用 parity% 话术、lint 升级为登记簿、每轮消化配额)
 记入 INC-79 文档。
+
+## 2026-07-19 · 裁决：driver 无 user-facing 面（INC-80 立项）+ 盘点/双盲评审收口
+
+用户裁决（原话要旨）：driver 最初只是 loop/goal 模式的实现抽象，是
+后台设计方式，与 user-facing feature 无关；从未认可任何 user-facing
+的 Driver 功能。目标态 = 用户面只有「会话 + 挂在会话上的 goal /
+loop(schedule) / best-of-N」。工作纸 INC-80（E1 ③④ 收编，触不变量
+走 PROCESS §四）；执行队列 docs/audit-2026-07-19-inventory/PLAN.md。
+同批用户裁决：dictate/optimize 保留不动；phone-webui workflow 保留
+不动；QA 共享 store 政策维持现状。
+背景件：audit-2026-07-19-inventory/FEATURES.md（全量功能盘点 + 纠错
+v1.1）；双盲评审交集 11 条（report 在会话内，未落盘）——头部共识：
+driver 双基座、webui schedule 镜像双实现、close/stop/interrupt/kill
+动词面；单方但证据确凿：G39 子审批不可见死锁、G3 审批挂起不唤醒。
