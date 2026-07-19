@@ -5536,3 +5536,17 @@ interrupt 后会话完好(status=interrupted、部分产物 1 个 .bak、直发
 - [LOW] steering… 待发标记未肉眼实证(2.5s 内被消费),登记。
 - 消息库改进:S7 msg1 "每建 5 个停下来汇报" 歧义致 running 窗口过短,
   定稿时改为"不要停不要问"。
+
+## 2026-07-19 · S8(多模态·呈现侧)完成:venv 噪声三连根修
+
+S8 实测:图片 artifact 卡+lightbox(缩放/下载/Escape)全链路 PASS、
+错字容错(chrat→chart)PASS、代码块与落盘逐字一致、cx-table 两次
+回归 PASS、清单对账零编造(唯漏 3 个中间脚本,"准确不完整")。
+**根修 venv 噪声**(S4 997/66 与 S8 655/84 两案同源):server
+hiddenUntrackedPath 补裸 venv/site-packages/.tox/.eggs 与
+.dist-info/.egg-info(此前 655 个 pip 文件被内联成合成 diff,撑爆
+Edited 卡、吃光 1MB 内联预算、pip 的 LICENSE.txt 冒充产物卡);
+前端 isGeneratedPath 同步。".py 从 untracked 漏表"判定为子 Agent
+探针误读(小文本文件按设计内联进 diff 文本而非 untracked 数组),
+登记待核不采信。另记:多模态输入侧(真图 vision/PDF/听写)仍未覆盖,
+需预置文件或 driver 加 setInputFiles;"Attach Finder" Linux 措辞。

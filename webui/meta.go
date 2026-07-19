@@ -567,7 +567,14 @@ func (s *server) handleDiff(w http.ResponseWriter, r *http.Request) {
 func hiddenUntrackedPath(path string) bool {
 	for _, part := range strings.Split(filepath.ToSlash(path), "/") {
 		switch part {
-		case ".git", ".venv", ".cache", ".next", ".turbo", ".gradle", "node_modules", "vendor", "dist", "build", "out", "target", "coverage", "__pycache__":
+		// "venv" (no dot) and site-packages: QA-0719 S8 — an agent-created
+		// bare `venv/` slipped past this filter and 655 pip files were inlined
+		// as synthetic diffs, exploding the Edited card, eating the 1MB inline
+		// budget, and rendering LICENSE.txt/AUTHORS.txt as artifact cards.
+		case ".git", ".venv", "venv", "site-packages", ".tox", ".eggs", ".cache", ".next", ".turbo", ".gradle", "node_modules", "vendor", "dist", "build", "out", "target", "coverage", "__pycache__":
+			return true
+		}
+		if strings.HasSuffix(part, ".dist-info") || strings.HasSuffix(part, ".egg-info") {
 			return true
 		}
 	}

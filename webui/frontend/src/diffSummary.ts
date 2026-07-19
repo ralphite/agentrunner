@@ -500,7 +500,8 @@ export const MAX_INLINE_GENERATED_LINES = 20;
 // entries and binary-ish files whose lines we never parsed.
 export function isGeneratedPath(path: string): boolean {
   return (
-    /(^|\/)(dist|build|out|vendor|node_modules|__pycache__)\//.test(path) ||
+    /(^|\/)(dist|build|out|vendor|node_modules|__pycache__|\.?venv|site-packages|\.tox|\.eggs)\//.test(path) ||
+    /\.(dist-info|egg-info)\//.test(path) ||
     /\.(pyc|pyo)$/.test(path) ||
     /\.min\.(js|css)$/.test(path) ||
     /-lock\.(json|yaml|yml)$/.test(path) ||
