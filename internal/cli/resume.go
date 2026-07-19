@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ralphite/agentrunner/internal/agent"
 	"github.com/ralphite/agentrunner/internal/clock"
@@ -301,8 +302,15 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 		Title     string `json:"title,omitempty"`
 		Kind      string `json:"kind"`
 		Schedule  string `json:"schedule,omitempty"`
+		// Cadence/NextRunAt are the engine-computed schedule projection
+		// (PLAN 3.1): the human phrase ("Every 30m") and the RFC3339 next
+		// tick — only when a live series can actually fire again. webui
+		// consumes these verbatim instead of re-deriving them.
+		Cadence   string `json:"cadence,omitempty"`
+		NextRunAt string `json:"next_run_at,omitempty"`
 		mtime     int64
 	}
+	now := time.Now()
 	type candidate struct {
 		entry os.DirEntry
 		mtime int64
@@ -345,6 +353,8 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 		if events, err := store.ReadEvents(filepath.Join(root, e.Name())); err == nil {
 			if isDriverJournal(events) {
 				r.Kind = "driver"
+				live := false
+				lastTick := time.Time{}
 				if s, derr := driver.Fold(events); derr == nil {
 					r.Status = string(s.Status)
 					if s.Status == driver.StatusEnded && s.Reason != "" {
@@ -354,16 +364,15 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 						r.Status = "stranded"
 					}
 					r.Turns = len(s.Iterations)
+					live = s.Status != driver.StatusEnded
+					lastTick = s.LastTick
 				}
 				if len(events) > 0 && events[0].Type == event.TypeDriverStarted {
 					if decoded, derr := event.DecodePayload(events[0]); derr == nil {
 						started := decoded.(*event.DriverStarted)
 						r.Workspace = started.WorkspaceRoot
 						r.Title = started.SpecName
-						var spec struct {
-							Schedule string
-							Prompt   string
-						}
+						var spec driver.DriverSpec
 						if json.Unmarshal(started.Spec, &spec) == nil {
 							r.Schedule = spec.Schedule
 							if r.Schedule == "" {
@@ -371,6 +380,12 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 							}
 							if prompt := strings.TrimSpace(strings.SplitN(spec.Prompt, "\n", 2)[0]); prompt != "" {
 								r.Title = prompt
+							}
+							r.Cadence = spec.Cadence()
+							if live {
+								if t, ok := spec.NextRunAt(lastTick, now); ok {
+									r.NextRunAt = t.Format(time.RFC3339)
+								}
 							}
 						}
 					}
@@ -414,6 +429,25 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 				// when present. Fallback stays the first line for legacy journals.
 				if s.Session.RawTitle != "" {
 					r.Title = s.Session.RawTitle
+				}
+				// A merged-stream series session (INC-80.2a) projects like a
+				// driver row: same kind, schedule and engine-computed cadence
+				// — the UI keys Scheduled rows off these fields.
+				if s.Series != nil {
+					r.Kind = "driver"
+					r.Schedule = s.Series.Kind
+					r.Turns = len(s.Series.Iterations)
+					if s.Series.Ended && s.Series.EndReason != "" {
+						r.Status = s.Series.EndReason
+					}
+					if spec, _, ok := readSeriesSpec(filepath.Join(root, e.Name())); ok {
+						r.Cadence = spec.Cadence()
+						if !s.Series.Ended {
+							if t, ok := spec.NextRunAt(s.Series.LastTick, now); ok {
+								r.NextRunAt = t.Format(time.RFC3339)
+							}
+						}
+					}
 				}
 			}
 		}

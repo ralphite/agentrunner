@@ -20,13 +20,10 @@ package main
 // straight off internal/cron — then this file shrinks to reading them.
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -442,106 +439,4 @@ func yamlScalar(src, key string) string {
 		return strings.Trim(v, `"'`)
 	}
 	return ""
-}
-
-// ---- driver sessions (the persistent rows on the Scheduled page) ----
-
-// driverInfoTTL bounds how stale a LIVE driver's last-iteration anchor may get
-// before we re-read its journal. A finished driver is cached indefinitely: its
-// journal cannot change and it has no next run.
-const driverInfoTTL = 15 * time.Second
-
-type driverInfo struct {
-	spec     *driverSpec
-	lastIter time.Time // newest iteration_scheduled/launched event time
-	fetched  time.Time
-}
-
-// driverCache memoises the journal read behind /api/sessions. The zero value is
-// ready to use.
-type driverCache struct {
-	mu sync.Mutex
-	m  map[string]driverInfo
-}
-
-func (c *driverCache) get(sid string) (driverInfo, bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	info, ok := c.m[sid]
-	return info, ok
-}
-
-func (c *driverCache) put(sid string, info driverInfo) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.m == nil {
-		c.m = map[string]driverInfo{}
-	}
-	c.m[sid] = info
-}
-
-// driverLive reports whether a driver session can still fire another
-// iteration. `ar sessions list` reports a terminal reason (satisfied, stalled,
-// max_iterations, stopped, child_failed…) or "stranded" for a driver whose host
-// process is gone — only a plain "running" one has a next tick.
-func driverLive(status string) bool { return status == "running" }
-
-// driverSchedule returns the cadence view for one driver session, reading its
-// spec + iteration anchor out of the journal via the public CLI (cached).
-func (s *server) driverSchedule(ctx context.Context, sid, status string, now time.Time) scheduleView {
-	live := driverLive(status)
-	info, ok := s.drivers.get(sid)
-	if !ok || (live && now.Sub(info.fetched) > driverInfoTTL) {
-		res := s.runAR(ctx, 10*time.Second, "events", sid, "--json")
-		if res.Err != nil {
-			return scheduleView{}
-		}
-		fresh := parseDriverJournal(res.Stdout)
-		if fresh.spec == nil {
-			return scheduleView{}
-		}
-		fresh.fetched = now
-		s.drivers.put(sid, fresh)
-		info = fresh
-	}
-	return scheduleFor(info.spec, info.lastIter, live, now)
-}
-
-// parseDriverJournal pulls the spec (driver_started) and the newest iteration
-// timestamp (the interval anchor) out of `ar events --json` output.
-func parseDriverJournal(stdout string) driverInfo {
-	var info driverInfo
-	for _, line := range strings.Split(stdout, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		var env struct {
-			Type    string    `json:"type"`
-			TS      time.Time `json:"ts"`
-			Payload struct {
-				Spec json.RawMessage `json:"spec"`
-				Tick time.Time       `json:"tick"`
-			} `json:"payload"`
-		}
-		if json.Unmarshal([]byte(line), &env) != nil {
-			continue
-		}
-		switch env.Type {
-		case "driver_started":
-			var spec driverSpec
-			if len(env.Payload.Spec) > 0 && json.Unmarshal(env.Payload.Spec, &spec) == nil {
-				info.spec = &spec
-			}
-		case "iteration_scheduled", "iteration_launched", "iteration_skipped":
-			anchor := env.Payload.Tick
-			if anchor.IsZero() {
-				anchor = env.TS
-			}
-			if anchor.After(info.lastIter) {
-				info.lastIter = anchor
-			}
-		}
-	}
-	return info
 }

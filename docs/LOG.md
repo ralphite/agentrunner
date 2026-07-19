@@ -5200,3 +5200,14 @@ PLAN 2.2c，先决条件是 webui cadence 投影改读 `ar sessions --json`
 Architect",内部 session id 只留 tooltip);#12 rail Changes 计数与
 untracked 同用 isGeneratedPath 过滤(与变更卡同判)。
 前端 589 测试绿、build 绿、lint 零新增。
+
+## 2026-07-19 · PLAN 3.1：cadence 投影收权——webui journal 镜像拆除
+
+engine 单一权威：`internal/driver/cadence.go`（`Cadence()`/`NextRunAt()`）
++ `internal/cron.Phrase`（cron 人话，同包读 mask），随
+`ar sessions --json` 输出 `cadence`/`next_run_at`——legacy DriverStarted
+与 merged-stream series 双形态、终态不给 next run。webui 删除
+`driverSchedule`/`parseDriverJournal`/自研五字段 cron 引擎/15s TTL
+缓存与 sessions 页的 per-row `ar events` 扇出（547→~440 行，仅剩瞬态
+run 的 YAML 本地 cadence，随 INC-80.3 撤 runs 面一并清除）。双盲评审
+交集 #2（webui 双实现漂移）的主体就此拆除；2.2c 翻默认的先决条件就绪。

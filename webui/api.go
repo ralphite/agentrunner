@@ -14,7 +14,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -393,11 +392,14 @@ func (s *server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		Kind      string `json:"kind"`
 		Schedule  string `json:"schedule,omitempty"`
 		// Cadence / NextRunAt are the Scheduled page's reason to exist (CX-3):
-		// what rhythm this driver runs on and when it fires next. `ar sessions
-		// list` only names the schedule KIND, so we read the rhythm out of the
-		// driver's journaled spec (schedule.go, cached).
-		Cadence   string `json:"cadence,omitempty"`
-		NextRunAt string `json:"nextRunAt,omitempty"`
+		// what rhythm this driver runs on and when it fires next. Both are
+		// engine-computed and ride `ar sessions --json` (PLAN 3.1) — the
+		// webui no longer re-derives them from the journal.
+		Cadence string `json:"cadence,omitempty"`
+		// NextRunAtCLI receives the CLI's snake_case key; the response keeps
+		// the frontend's camelCase contract via NextRunAt below.
+		NextRunAtCLI string `json:"next_run_at,omitempty"`
+		NextRunAt    string `json:"nextRunAt,omitempty"`
 	}
 	// Runtime metadata is authoritative for every session, including sessions
 	// created by the CLI or another UI. The local meta store remains a fallback
@@ -444,30 +446,11 @@ func (s *server) handleSessions(w http.ResponseWriter, r *http.Request) {
 				rows[i].Workspace = meta.Workspace
 			}
 		}
-		// Cadence enrichment for the driver rows only (a page holds a handful):
-		// one `ar events` read each, memoised — a finished driver's journal is
-		// immutable, a live one refreshes on a short TTL. Distinct indices, so
-		// the parallel writes never touch the same element.
-		now := time.Now()
-		var wg sync.WaitGroup
-		gate := make(chan struct{}, 4)
+		// Cadence/next-run ride the CLI rows themselves (PLAN 3.1); only the
+		// key casing is remapped for the frontend contract.
 		for i := range rows {
-			if rows[i].Kind != "driver" {
-				continue
-			}
-			wg.Add(1)
-			go func(i int) {
-				defer wg.Done()
-				gate <- struct{}{}
-				defer func() { <-gate }()
-				v := s.driverSchedule(r.Context(), rows[i].ID, rows[i].Status, now)
-				if v.Schedule != "" {
-					rows[i].Schedule = v.Schedule
-				}
-				rows[i].Cadence, rows[i].NextRunAt = v.Cadence, v.NextRunAt
-			}(i)
+			rows[i].NextRunAt, rows[i].NextRunAtCLI = rows[i].NextRunAtCLI, ""
 		}
-		wg.Wait()
 		writeJSON(w, http.StatusOK, rows)
 		return
 	}

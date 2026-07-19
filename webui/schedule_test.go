@@ -115,29 +115,6 @@ verifiers:
 	}
 }
 
-// The journaled spec is the Go struct marshalled with FIELD names; the newest
-// iteration event is the interval anchor.
-func TestParseDriverJournal(t *testing.T) {
-	journal := `{"seq":1,"type":"driver_started","payload":{"driver_id":"d1","spec_name":"loop","spec":{"Name":"loop","Schedule":"interval","Interval":"30m","Cron":"","N":0}},"ts":"2026-07-08T10:00:00Z"}
-{"seq":2,"type":"iteration_scheduled","payload":{"iter":1},"ts":"2026-07-08T10:00:01Z"}
-{"seq":3,"type":"iteration_launched","payload":{"iter":1},"ts":"2026-07-08T10:00:02Z"}
-not json at all
-{"seq":4,"type":"iteration_scheduled","payload":{"iter":2},"ts":"2026-07-08T10:30:01Z"}
-`
-	info := parseDriverJournal(journal)
-	if info.spec == nil || info.spec.Schedule != "interval" || info.spec.Interval != "30m" {
-		t.Fatalf("spec = %+v", info.spec)
-	}
-	want := time.Date(2026, 7, 8, 10, 30, 1, 0, time.UTC)
-	if !info.lastIter.Equal(want) {
-		t.Fatalf("lastIter = %s, want %s", info.lastIter, want)
-	}
-	// A non-driver journal yields no spec — the row simply shows no cadence.
-	if got := parseDriverJournal(`{"seq":1,"type":"session_started","payload":{}}`); got.spec != nil {
-		t.Fatalf("session journal produced a spec: %+v", got.spec)
-	}
-}
-
 func TestParseDriverRetryInfo(t *testing.T) {
 	journal := `{"seq":1,"type":"driver_started","payload":{"spec_name":"nightly","workspace_root":"/work","spec":{"Name":"nightly","Schedule":"interval","Interval":"15m"}}}`
 	info, ok := parseDriverRetryInfo(journal)

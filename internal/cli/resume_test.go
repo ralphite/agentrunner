@@ -357,3 +357,83 @@ func TestCLITrust(t *testing.T) {
 		t.Fatalf("no-arg exit = %d", code)
 	}
 }
+
+// PLAN 3.1: `sessions --json` carries the ENGINE-computed cadence and next
+// run — the webui consumes these fields verbatim instead of re-deriving
+// them from the journal. A live interval driver gets both; a live series
+// session (merged stream) gets the same projection; a terminal driver keeps
+// its cadence but never a next run.
+func TestCLISessionsJSONProjectsCadenceAndNextRun(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", xdg)
+	// Live legacy interval driver.
+	{
+		dir := filepath.Join(xdg, "agentrunner", "sessions", "loop-live")
+		es, err := store.OpenEventStore(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		spec, _ := json.Marshal(map[string]any{"Name": "loop", "Schedule": "interval", "Interval": "30m"})
+		if _, err := es.Append(mkEnv(t, event.TypeDriverStarted, &event.DriverStarted{
+			DriverID: "loop-live", SpecName: "loop", Spec: spec, FoldVersion: 1})); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := es.Append(mkEnv(t, event.TypeIterationScheduled, &event.IterationScheduled{
+			DriverID: "loop-live", Iter: 1, Tick: time.Now().Add(-time.Minute)})); err != nil {
+			t.Fatal(err)
+		}
+		_ = es.Close()
+	}
+	// Live merged-stream series session (cron).
+	writeSeriesJournal(t, "series-live", "cron", false)
+	// Terminal driver: cadence yes, next run never.
+	{
+		dir := filepath.Join(xdg, "agentrunner", "sessions", "loop-done")
+		es, err := store.OpenEventStore(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		spec, _ := json.Marshal(map[string]any{"Name": "done", "Schedule": "interval", "Interval": "30m"})
+		if _, err := es.Append(mkEnv(t, event.TypeDriverStarted, &event.DriverStarted{
+			DriverID: "loop-done", SpecName: "done", Spec: spec, FoldVersion: 1})); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := es.Append(mkEnv(t, event.TypeDriverCompleted, &event.DriverCompleted{
+			DriverID: "loop-done", Reason: "max_iterations", Iterations: 1})); err != nil {
+			t.Fatal(err)
+		}
+		_ = es.Close()
+	}
+
+	var out, errOut bytes.Buffer
+	if code := Run([]string{"sessions", "--json"}, "dev", &out, &errOut); code != ExitOK {
+		t.Fatalf("sessions exit=%d stderr=%s", code, errOut.String())
+	}
+	var rows []struct {
+		ID        string `json:"id"`
+		Kind      string `json:"kind"`
+		Schedule  string `json:"schedule"`
+		Cadence   string `json:"cadence"`
+		NextRunAt string `json:"next_run_at"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &rows); err != nil {
+		t.Fatalf("decode: %v\n%s", err, out.String())
+	}
+	byID := map[string]int{}
+	for i, r := range rows {
+		byID[r.ID] = i
+	}
+	live := rows[byID["loop-live"]]
+	if live.Cadence != "Every 30m" || live.NextRunAt == "" {
+		t.Fatalf("live driver row = %+v, want cadence+next run", live)
+	}
+	series := rows[byID["series-live"]]
+	if series.Kind != "driver" || series.Schedule != "cron" ||
+		series.Cadence != "Hourly at :00" || series.NextRunAt == "" {
+		t.Fatalf("series row = %+v, want driver kind + cron cadence + next run", series)
+	}
+	done := rows[byID["loop-done"]]
+	if done.Cadence != "Every 30m" || done.NextRunAt != "" {
+		t.Fatalf("terminal driver row = %+v, want cadence and NO next run", done)
+	}
+}

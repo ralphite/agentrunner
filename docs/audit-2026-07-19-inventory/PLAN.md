@@ -69,8 +69,11 @@
 - [ ] 2.4 删 `ar drive`/`ar submit --drive`（2.2/2.3 确认等价后）。
 
 ### Phase 3 · webui 双实现拆弹
-- [ ] 3.1 `ar sessions --json` 长出 cadence/nextRun 字段；删
-      webui/schedule.go 手工镜像（Phase 2 完成后做，面更小）。
+- [x] 3.1 `ar sessions --json` 长出 cadence/next_run_at——2026-07-19：
+      engine 权威实现落 internal/driver/cadence.go + internal/cron.Phrase，
+      legacy 与 series 双形态投影，webui 删 driverSchedule/
+      parseDriverJournal/自研 cron 引擎/TTL 缓存（仅换键名转发）；瞬态
+      run 的 YAML 本地 cadence 暂存至 2.3 撤 runs 面。
 
 ### Phase 4 · "停"动词收敛
 - [ ] 4.1 修文实矛盾：DESIGN §12 "stop teardown-no-mark" vs 实现/CLI help
