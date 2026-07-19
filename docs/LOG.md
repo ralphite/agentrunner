@@ -5012,3 +5012,13 @@ project 标题行加触屏 ⋯ 菜单(≤900px 显示,复用 session 行既有 M
 两个入口永不漂移。Rename project/Open in/Copy path/Mark all read/
 Archive all 全部触屏可达。前端 587 test + build + lint-tw-classes 绿。
 闸 B 远程验收待新环境(现存环境构建不含 INC-78)。
+
+## 2026-07-19 · INC-78 收口:闸 B 远程验收全绿,工作纸归档
+
+用户裁决方案 A 后闸 B 验收(run 29672007663,0d699c9 构建,issue #19):
+①分组——3 个 scratch 会话各居其组("Scratch · 07-18 22:51/18:43/
+18:33"),旧聚合组 0 残留;②触屏改名——390×844 下 project 标题行 ⋯
+菜单可点,Rename 对话框改 "Binary Search Lab" 即时生效、旧默认名消失;
+③持久——reload 后组名保持(overlay 落盘),零溢出零 console error。
+SPEC UJ-24 行补 INC-78;工作纸归档 archive/increments/(含考古记录与
+B/C 方向的裁决台账:用户选 A,B/C 不做)。
