@@ -30,6 +30,12 @@ runs:
           sudo apt-get update -q
           sudo apt-get install -y -q bubblewrap
         fi
+        # headless Chromium 默认无中文字体,QA 截图里 CJK 文本全渲染成
+        # 豆腐块(▢),中文产品的截图无法目测(QA-0719 实测)。装 Noto CJK。
+        if ! fc-list 2>/dev/null | grep -qi "noto.*cjk"; then
+          sudo apt-get update -q
+          sudo apt-get install -y -q fonts-noto-cjk
+        fi
         # Ubuntu 23.10+ images restrict unprivileged user namespaces via
         # AppArmor; harmless no-op elsewhere.
         sudo sysctl -qw kernel.apparmor_restrict_unprivileged_userns=0 || true
