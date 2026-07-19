@@ -29,6 +29,11 @@ jobs:
           go-version: "1.25"
           cache: true
 
+      # bash 工具的 OS 沙箱（决策 #34 fail-closed）：统一配方一行接入
+      # （装 bubblewrap + AppArmor userns 放开 + 真实 probe，INC-75）。
+      - name: Setup AgentRunner environment (sandbox deps)
+        uses: ./.github/actions/setup-ar
+
       - name: Build ar
         run: go build -buildvcs=false -o bin/ar ./cmd/agentrunner
 

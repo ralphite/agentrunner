@@ -77,10 +77,13 @@ jobs:
         shell: bash
         run: |
           tarball="$(ls "$PWD"/dist/agentrunner-*-linux-x86_64.tar.gz)"
+          # AR_REQUIRE_SANDBOX=1:装完即沙箱可用是发布断言（INC-75）——
+          # install.sh 现场装 bubblewrap+userns 放开并真实 probe，失败即红。
           AR_ASSET_URL="file://$tarball" AR_HOME="$RUNNER_TEMP/ar-home" \
-            AR_BIN_DIR="$RUNNER_TEMP/ar-bin" sh install.sh
+            AR_BIN_DIR="$RUNNER_TEMP/ar-bin" AR_REQUIRE_SANDBOX=1 sh install.sh
           "$RUNNER_TEMP/ar-bin/ar" --version
           "$RUNNER_TEMP/ar-bin/arwebui" -version
+          "$RUNNER_TEMP/ar-bin/ar" doctor
 
       - name: Installer twin (upgrade / reinstall / sha256 / platform)
         shell: bash

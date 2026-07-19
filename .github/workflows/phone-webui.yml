@@ -57,6 +57,12 @@ jobs:
           go-version: "1.25"
           cache: true
 
+      # bash 工具的 OS 沙箱（决策 #34 fail-closed）：不装 bubblewrap，
+      # 手机上发的任何 agent turn 一碰 bash 就 denied（INC-75 现场事故
+      # 正是本 workflow 的环境）。
+      - name: Setup AgentRunner environment (sandbox deps)
+        uses: ./.github/actions/setup-ar
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"

@@ -4811,3 +4811,13 @@ text autosizing,放大部分行并连锁打乱行高/卡片布局。真机专属
 盲区:iOS 独有渲染行为需真机复验。修:base 层补
 `html { -webkit-text-size-adjust: 100% }` 单条 reset(不引整个
 preflight,避免大范围回归)。build+测试绿。
+
+## 2026-07-18 · INC-75 补漏：phone-webui 等 4 个 workflow 收编 setup-ar
+
+用户手机现场（phone-webui 环境）复现 bubblewrap denied——INC-75 收口
+时只收编了 qa-all 与 qa-daemon-lifecycle，漏了同样会跑 agent turn 的
+phone-webui（正是现场事故环境）、qa-blackbox、qa-inc62、
+qa-session-schedule。全部改为 `uses: ./.github/actions/setup-ar` 一行
+接入；release smoke 加 `AR_REQUIRE_SANDBOX=1` + 装后 `ar doctor`——
+"装完即沙箱可用"成为发布硬断言。phone-webui 用 `ref: main` 且每半小时
+自动刷新，本次直接 dispatch 立即生效。
