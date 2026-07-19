@@ -1161,7 +1161,11 @@
      rail 里会被按内容占位的邻居分到 0 剩余宽(QA-0719 实测 sa-name
      宽 3px/0px,"Reviewer" 只剩 "I")。名字是行的主键:不参与收缩,
      超长时自身截断;status 已带 truncate,让位。 */
-  .sa-name { @apply max-w-[46%] flex-none shrink-0 font-medium; }
+  /* 46% 上限在满配行(steps+tok+open 曾 shrink-0 吃宽)下是"零头的
+     46%"= 一两个字母(QA-0719 S4 实测 "w…")。改绝对上限:名字在
+     9rem 内永远完整,超长自身截断;status 拿左团剩余、meta 让位。 */
+  .sa-name { @apply max-w-[9rem] flex-none shrink-0 truncate font-medium; }
+  .sa-status { @apply shrink-[0.5]; }
 }
 
 /* 批次 2 尾件:最后两个纯包装节点,布局归位后全库真裸元素清零 */

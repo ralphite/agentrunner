@@ -63,10 +63,16 @@ export function Subagents({ nodes, onOpen, depth = 0 }: { nodes: InspectNode[]; 
               <span className="sa-status min-w-0 truncate max-[520px]:flex-1 max-[520px]:basis-0">{st.text}</span>
             </span>
             <span className="sa-spacer max-[520px]:hidden" />
-            <span className="flex shrink-0 items-center gap-2 max-[520px]:col-span-3 max-[520px]:justify-end">
-              {rep.gen_steps ? <span className="sa-meta">{rep.gen_steps} steps</span> : null}
-              {tok ? <span className="sa-meta">{tokens(tok)} tok</span> : null}
-              {clickable && <span className="sa-open inline-flex items-center gap-1">open <ArrowSquareOut size={12} /></span>}
+            {/* QA-0719 S4: this trailing group was shrink-0, so with a full
+                payload ("24 steps · 103k tok · open") it ate the row and the
+                IDENTITY columns collapsed to "w…"/"C…" — Completed and
+                Cancelled became indistinguishable. Identity outranks
+                decoration: steps/tok may shrink and truncate, the open
+                affordance stays whole. */}
+            <span className="flex min-w-0 shrink items-center gap-2 max-[520px]:col-span-3 max-[520px]:justify-end">
+              {rep.gen_steps ? <span className="sa-meta min-w-0 truncate">{rep.gen_steps} steps</span> : null}
+              {tok ? <span className="sa-meta min-w-0 truncate">{tokens(tok)} tok</span> : null}
+              {clickable && <span className="sa-open inline-flex shrink-0 items-center gap-1">open <ArrowSquareOut size={12} /></span>}
             </span>
           </>
         );

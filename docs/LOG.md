@@ -5474,3 +5474,28 @@ timeline.test series 渲染两场景。SPEC F 表/GAPS G15/UJ-16 收口。
 无迁移),fork 对 barrier 在飞 handle **一律**取消并合成收尾;DESIGN
 §13 两处条款+词表瘦身,SPEC 两行改写。锚不变
 (TestCutAppliesCancelAtFork 语义如旧)。
+
+## 2026-07-19 · 串行场景测试 S1–S4 完成(子 Agent 逐条真跑用户消息)
+
+用户裁定流程:每场景一个子 Agent、严格串行、每场景完列问题。S1–S4
+已跑(env #22,issue 22,全部真 Gemini):
+- S1(修 bug 日常):发现 Deny 审计埋折叠——已修 c749fb3(deny 转
+  主流程可见 chip,approve 保持折叠因命令卡自证);对账修复全部在
+  25min 长会话中成立;审批闸门连续拦下 agent 越权 commit/push。
+- S2(从零起项目):cx-table 表格修复实证通过(HTML table+边框+
+  theme-aware+移动横滚);"深色半染"为**误报**(截图肉眼核对推翻
+  computed-style 推断);registered:git 结果 UI 不可观测、New
+  session 继承 lastProject 的直觉冲突。
+- S3(审批流):Deny 折叠复现(修复前构建);msg5 "说别问但闸门仍拦"
+  PASS(不假称已写);网络走 bash 审批(curl,属预期);"侧栏深色白底"
+  为**第二次误报**(截图推翻)。纪律固化:颜色/主题只信截图。
+- S4(多 agent 团队):**CRITICAL 父子终态三方矛盾实证**(父面
+  Cancelled ↔ 子会话 bash·running+keeps spending tokens+2/3 ↔
+  journal waiting_entered:input);HIGH:ATTENTION 烧 token 文案对
+  已停成员失真、PROGRESS 把 Cancelled 项打勾、Edited 997 vs rail
+  66+434new 口径打架(vendored _pytest 入卡)、sa 行满配数据下仍
+  截断(46% 上限=零头的46%,根因=右团 shrink-0 身份让位装饰,已修:
+  name 绝对 9rem 上限+meta 可收缩截断+open 保全);MEDIUM:lead 编造
+  式汇报、成员全名 worker、黑板 UI 不可见。
+父子终态/文案失真/PROGRESS/计数口径属 inspect/语义契约面,待立 INC
+(部分与并发 INC-81 child 可见性工作重叠,协调后立项)。
