@@ -641,9 +641,18 @@
   .supervision-label { @apply flex items-baseline gap-1.5 text-[12px] font-medium uppercase tracking-[0.06em] text-dim; }
   .supervision-section { @apply mb-4; }
   .supervision-quiet, .supervision-empty, .supervision-loading { @apply text-[12px] text-dim; }
-  .attention-row, .background-row, .progress-row, .sa-row, .env-row, .artifact-row, .goal-outcome, .goal-meta, .goal-settled-line {
+  .attention-row, .background-row, .progress-row, .sa-row, .env-row, .artifact-row, .goal-meta, .goal-settled-line {
     @apply flex min-w-0 items-center gap-2 rounded-[10px] border border-line bg-panel px-3 py-2 text-[13px];
   }
+  /* QA-0719 S5 · the goal phase (`Stopped` / `Cancelled` / `Satisfied`) is a
+     compact status pill, NOT a full-width row. It used to share the heavy row
+     rule above, which handed it `min-w-0` + the flex default `shrink:1`; as a
+     flex child beside the goal copy it collapsed to near-zero width while its
+     single word never wrapped or clipped, so the label spilled *over* the copy
+     (settled goal card: "Stopped" printed on top of the objective text). It now
+     follows the same pill convention as `.pill`/`.readonly-tag` and never
+     shrinks. */
+  .goal-outcome { @apply inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-line bg-panel-2 px-2 py-[2px] text-[11px] font-medium text-dim; }
   .progress-list, .supervision-agents, .env-rows, .artifact-list { @apply grid gap-2; }
   /* grid 子项默认 min-width:auto——worktree 长路径会把 .env-detail 轨道
      撑爆,truncate/flex-wrap 在被撑宽的容器里永不触发,按钮被顶出视口
