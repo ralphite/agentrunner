@@ -4927,3 +4927,14 @@ label 稳定,但种子应否指向 project 根待裁决。
 "Working tree"、approved.txt 直接可见、无 "No changes this turn"、零
 console error/溢出。同场景旧构建在 issue #15 n=7 实录为红(面板首屏
 "No changes this turn"),判定修复生效。
+
+## 2026-07-19 · phone-webui 可用性排障：cron 静默 2h + 定时班 35min→90min
+
+用户报手机入口疑似断。核查：workflow state=active，最后一班（01:18
+dispatch）每步全绿（sandbox/Tailscale/publish/store 保存），机制没坏；
+断因是 GitHub schedule best-effort——实测 cron "17,47" 只以 ~1 次/小时
+兑现，且 00:12 后整整 2 小时未投递，01:50 上一班下班后无人接班。
+结构性修缮：定时班 keep-alive 35→90 分钟，相邻 tick 互相衔接（旧班被
+concurrency 顶掉时新班已就位，不再有每小时 ~25 分钟的空洞）；repo 已
+公开，Actions 分钟免费，dispatch 输入描述同步更正。现场恢复：dispatch
+340 分钟长班。

@@ -18,12 +18,14 @@ name: phone-webui
 
 on:
   schedule:
-    # Every 30 minutes; offset avoids GitHub Actions' busiest top-of-hour slots.
+    # Every 30 minutes nominal — GitHub delivers schedule best-effort（实测常
+    # 退化到 ~1 次/小时，且可整小时静默）。定时班 keep-alive 90min（下方
+    # MINUTES_IN fallback）让相邻 tick 互相衔接不留空洞；offset 避开整点高峰。
     - cron: "17,47 * * * *"
   workflow_dispatch:
     inputs:
       minutes:
-        description: "Keep the Web UI up for this many minutes (max 340; private repo burns Actions quota)"
+        description: "Keep the Web UI up for this many minutes (max 340; public repo — Actions minutes are free)"
         default: "30"
         type: string
       smoke:
@@ -148,14 +150,14 @@ jobs:
             cat serve.err >&2 || true
           fi
         env:
-          MINUTES_IN: ${{ github.event_name == 'workflow_dispatch' && inputs.minutes || '35' }}
+          MINUTES_IN: ${{ github.event_name == 'workflow_dispatch' && inputs.minutes || '90' }}
           GEMINI_SET: ${{ secrets.GEMINI_API_KEY && '1' || '' }}
           ANTHROPIC_SET: ${{ secrets.ANTHROPIC_API_KEY && '1' || '' }}
 
       - name: Keep alive
         if: ${{ github.event_name != 'workflow_dispatch' || !inputs.smoke }}
         env:
-          MINUTES_IN: ${{ github.event_name == 'workflow_dispatch' && inputs.minutes || '35' }}
+          MINUTES_IN: ${{ github.event_name == 'workflow_dispatch' && inputs.minutes || '90' }}
         run: |
           MINUTES=$(printf '%s' "$MINUTES_IN" | tr -dc '0-9')
           MINUTES=${MINUTES:-180}
