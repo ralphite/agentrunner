@@ -86,6 +86,7 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/sessions/{sid}/clear", s.handleClear)
 	mux.HandleFunc("POST /api/sessions/{sid}/mode", s.handleMode)
 	mux.HandleFunc("POST /api/sessions/{sid}/rename", s.handleRename)
+	mux.HandleFunc("POST /api/sessions/{sid}/promote", s.handlePromote)
 	mux.HandleFunc("POST /api/sessions/{sid}/goal", s.handleGoal)
 
 	// ---- workspace git (branch picker; cockpit-level, operates on the

@@ -704,3 +704,37 @@ describe("TH-12 · duplicate terminal chrome suppression", () => {
     expect(chip.text.length).toBeLessThanOrEqual("goal attached · ".length + 32);
   });
 });
+
+// PLAN 5.8: merged-stream series events render like their legacy driver
+// twins, and a finished best-of-N round surfaces its winner (bestIter) for
+// the Apply-winner action.
+describe("merged-stream series rendering", () => {
+  const seriesEvents = [
+    { seq: 1, type: "session_started", payload: { spec_name: "t" } },
+    { seq: 2, type: "series_started", payload: { series_id: "s", kind: "best_of_n" } },
+    { seq: 3, type: "series_iteration", payload: { n: 1, reason: "completed", verdict: { pass: false, score: 0.2 } } },
+    { seq: 4, type: "series_iteration", payload: { n: 2, reason: "completed", verdict: { pass: true, score: 0.9 } } },
+    { seq: 5, type: "series_ended", payload: { reason: "satisfied", iterations: 2, best_iter: 2 } },
+  ];
+
+  it("marks the session as a driver, chips iterations, and exposes bestIter", () => {
+    const model = foldEvents(seriesEvents);
+    expect(model.isDriver).toBe(true);
+    expect(model.bestIter).toBe(2);
+    expect(model.status.text).toBe("satisfied");
+    const texts = model.items.filter((i) => i.kind === "chip").map((i: any) => i.text);
+    expect(texts.some((t: string) => /Scheduled series started/.test(t))).toBe(true);
+    expect(texts.some((t: string) => /Iteration 2/.test(t))).toBe(true);
+    expect(texts.some((t: string) => /best #2/.test(t))).toBe(true);
+  });
+
+  it("leaves bestIter unset for a loop-mode series without a winner", () => {
+    const model = foldEvents([
+      { seq: 1, type: "session_started", payload: {} },
+      { seq: 2, type: "series_started", payload: { series_id: "s", kind: "interval" } },
+      { seq: 3, type: "series_ended", payload: { reason: "stopped", iterations: 3 } },
+    ]);
+    expect(model.isDriver).toBe(true);
+    expect(model.bestIter).toBeUndefined();
+  });
+});

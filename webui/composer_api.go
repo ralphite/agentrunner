@@ -65,6 +65,12 @@ func (s *server) handleRename(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": strings.TrimSpace(res.Stdout)})
 }
 
+// handlePromote applies a finished best-of-N round's winner onto the project
+// workspace (PLAN 5.8): `ar promote <sid>` — clean-or-nothing, unstaged.
+func (s *server) handlePromote(w http.ResponseWriter, r *http.Request) {
+	s.oneShotHandler("ar promote", func(id string) []string { return []string{"promote", id} })(w, r)
+}
+
 // handleClear drops the session's context prefix (G7 · INC-6):
 // `ar clear <sid>`. Exposed to the composer as the /clear slash command.
 func (s *server) handleClear(w http.ResponseWriter, r *http.Request) {

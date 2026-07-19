@@ -1055,6 +1055,25 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
                 />
               )}
               {isDriver && <div className="driver-note">This scheduled run manages its own iterations and does not accept follow-up messages.</div>}
+              {!live && folded.bestIter ? (
+                <div className="driver-note">
+                  Best-of-N winner: attempt #{folded.bestIter}.{" "}
+                  <button
+                    className="ghost"
+                    onClick={async () => {
+                      try {
+                        const r = await AR.promote(sid);
+                        toast(r.status || "winner applied", "info");
+                      } catch (e: any) {
+                        toast(String(e?.message || e), "error");
+                      }
+                    }}
+                    title="Apply the winning attempt's changes onto the project workspace (clean-or-nothing, lands unstaged)"
+                  >
+                    Apply winner
+                  </button>
+                </div>
+              ) : null}
               {!isSub && !isDriver && isClosed && (
                 <div className="driver-note">This conversation is closed — sending a message will reopen it.</div>
               )}

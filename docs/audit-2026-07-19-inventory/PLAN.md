@@ -138,8 +138,10 @@
 - [x] 5.7 结构化输出合并——2026-07-19:spec output_schema 单入口;非原生
       provider 自动引 INC-26 客户端校验为内部 fallback(--json-schema
       flags 退役);钉子 TestSpecSchemaFallback*;QA-33 重裁挂闸门 B。
-- [ ] 5.8 best-of-N 胜者晋升：复用 INC-49 Apply-to-project 补
-      "Apply winner"（以会话形态呈现）。
+- [x] 5.8 best-of-N 胜者晋升——2026-07-19:`ar promote`+webui Apply
+      winner(shadow repo base→winner patch,clean-or-nothing 不 staged);
+      顺手补 timeline series 事件渲染;G15 消解;钉子
+      TestPromoteWinner*+timeline series 测试。
 - [ ] 5.9（可裁）时间旅行减负：处置向量写死 cancel_at_fork、DESIGN 条款
       瘦身。
 

@@ -578,9 +578,13 @@ export interface Folded {
   // otherwise dangle at "running" forever — callers use !active to correct that.
   active: boolean;
   // isDriver = this session is an iteration driver (drive), not a conversation.
-  // Its journal is driver_* / iteration_* events and it does NOT accept input,
-  // so the UI renders those events and hides the composer.
+  // Its journal is driver_* / iteration_* events (legacy) or series_* events
+  // (merged-stream, INC-80) and it does NOT accept input, so the UI renders
+  // those events and hides the composer.
   isDriver: boolean;
+  // bestIter = a FINISHED best-of-N round's winning attempt (series_ended
+  // best_iter). Non-zero enables the "Apply winner" action (PLAN 5.8).
+  bestIter?: number;
   // RT-5 · The most recent model-call failure that the runtime did NOT recover
   // from (no later attempt of that activity completed). This is the one the
   // view raises as an inline banner with a Retry action. Undefined when the
@@ -657,6 +661,7 @@ export function foldEvents(events: Envelope[]): Folded {
   let status = { text: "—", cls: "" };
   let lastType = "";
   let isDriver = false;
+  let bestIter = 0;
 
   // RT-5 · model-call (non-tool) failures, by activity_id: the chip we pushed
   // for each one is kept live so a later successful attempt of the SAME
@@ -892,6 +897,34 @@ export function foldEvents(events: Envelope[]): Folded {
         );
         status = { text: p.reason === "satisfied" ? "satisfied" : "done", cls: "closed" };
         break;
+      // ---- merged-stream series events (INC-80 E1③) ----
+      case "series_started":
+        isDriver = true;
+        chip(seq, `Scheduled series started · ${p.kind || ""}`);
+        status = { text: "running", cls: "run" };
+        break;
+      case "series_iteration":
+        isDriver = true;
+        chip(
+          seq,
+          `Iteration ${p.n}${p.skipped ? " skipped" : ` · ${friendlyStatus(p.reason || "completed").text}`}${
+            p.verdict && !p.skipped ? " · " + verdictLabel(p.verdict) : ""
+          }`,
+          p.skipped || (p.verdict && p.verdict.pass === false) ? "warn" : "good",
+        );
+        break;
+      case "series_ended":
+        isDriver = true;
+        chip(
+          seq,
+          `Series finished · ${friendlyStatus(p.reason || "done").text} · ${p.iterations || 0} iteration${
+            (p.iterations || 0) === 1 ? "" : "s"
+          }${p.best_iter ? " · best #" + p.best_iter : ""}`,
+          p.reason === "satisfied" ? "good" : "warn",
+        );
+        if (p.best_iter) bestIter = p.best_iter;
+        status = { text: p.reason === "satisfied" ? "satisfied" : "done", cls: "closed" };
+        break;
       case "approval_requested": {
         const known = callArgs.get(p.call_id);
         approvals.set(p.approval_id, {
@@ -1081,7 +1114,7 @@ export function foldEvents(events: Envelope[]): Folded {
     if (!failure || notice.seq > failure.seq) failure = notice;
   }
 
-  return { items, approvals, callArgs, status, lastGen, active, isDriver, failure };
+  return { items, approvals, callArgs, status, lastGen, active, isDriver, bestIter: bestIter || undefined, failure };
 }
 
 // ---- goal lifecycle projection (W6) -----------------------------------------

@@ -246,7 +246,7 @@
 - diff：基于 barrier 快照对比的只读评审面（working-tree / last-turn 两个 scope）。
 - webui scratch workspace：不选项目时自动创建一次性 scratch 工作区目录，侧栏把这类会话归组显示为 "Scratch"。
 - ⚠ Claude Code 式 scratchpad 辅助目录（workspace 外草稿区）没有实现，仅归档评审文档列为对标空白。
-- ⚠ best-of-N 胜者晋升（自动 apply diff/fork 接管）没有实现，v0 靠用户手动（G15）。
+- best-of-N 胜者晋升:`ar promote`/webui Apply winner(2026-07-19 PLAN 5.8 落地,clean-or-nothing 落 workspace)。
 - ⚠ 多根 workspace（--add-dir 类）没有实现（G17）。
 
 ## 8. 驱动形态（driver）
@@ -388,7 +388,7 @@
 - HTTP/WS 全 API 壳（仅 webhook ingress 单端点已做）。
 - 云 workspace 生命周期 / IDE 集成（G11 裁掉待重启）。
 - 多根 workspace（G17）。
-- best-of-N 胜者自动晋升（G15，手动）。
+- ~~best-of-N 胜者晋升~~（2026-07-19 PLAN 5.8 已落地 ar promote/Apply winner）。
 - scratchpad 辅助草稿目录（对标空白，零实现）。
 - MCP 交互式 OAuth / refresh token 持久化。
 - finish 工具、overlap:interrupt、`ar new` 超长开场折叠（均显式记档;开场附件已于 PLAN 5.5 补齐）。
