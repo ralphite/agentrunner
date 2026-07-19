@@ -107,7 +107,7 @@ var samples = map[string]any{
 		Session: "sess-1", Text: "run completed", Channel: "command"},
 	TypeCheckpointBarrier: &CheckpointBarrier{BarrierID: "bar-t3", GenStep: 3,
 		Vector: map[string]int64{".": 41, "sub/s1-a1": 12}, SnapshotRef: "0badc0de",
-		Handles: []BarrierHandle{{Handle: "bg1", Policy: "cancel_at_fork"}}},
+		Handles: []BarrierHandle{{Handle: "bg1"}}},
 	TypeForkedFrom: &ForkedFrom{ParentSession: "20260703-120000-fix-abcd",
 		BarrierID: "bar-t3", SnapshotRef: "0badc0de", WorkspaceRoot: "/w-fork"},
 	TypeSpecChanged: &SpecChanged{SpecName: "reviewer", Model: "gemini-x",

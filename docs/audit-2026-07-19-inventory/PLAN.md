@@ -142,8 +142,9 @@
       winner(shadow repo base→winner patch,clean-or-nothing 不 staged);
       顺手补 timeline series 事件渲染;G15 消解;钉子
       TestPromoteWinner*+timeline series 测试。
-- [ ] 5.9（可裁）时间旅行减负：处置向量写死 cancel_at_fork、DESIGN 条款
-      瘦身。
+- [x] 5.9 时间旅行减负——2026-07-19:BarrierHandle.Policy 字段裁除(从未
+      有第二个值),fork 一律取消在飞 handle;DESIGN §13/词表/SPEC 瘦身;
+      旧 journal 字段 decode 忽略无迁移。**队列至此清空。**
 
 ### 明确不做
 - dictate/optimize 降级（用户否决）。

@@ -1242,15 +1242,15 @@ limits:
   当前 workspace 状态切 barrier）；**不要求全树静默**。barrier event
   记录：{stream → seq} 向量（"." 为自身，`sub/<dir>` 为已完成子
   stream 的 final seq）+ workspace snapshot ref + **在飞后台工作
-  的处置向量**（v0 一律 `cancel_at_fork`：fork 出的 session 不复活它们，
-  handle 已在对话里，fork 后模型可自行重启）。无 snapshot
-  （backend=none / git 缺失 / 快照失败）则**不落 barrier**——不承诺
-  无法兑现的 rewind。
+  handle 清单**（fork 一律取消它们并合成收尾——handle 已在对话里，
+  fork 后模型可自行重启;PLAN 5.9 裁掉每-handle policy 向量,唯一值
+  写死）。无 snapshot（backend=none / git 缺失 / 快照失败）则**不落
+  barrier**——不承诺无法兑现的 rewind。
 - **fork** = 在新 id 下复制该切面内的 events，以
   `ForkedFrom{run, barrier}` 为创世 event（原 id 作为 provenance
   保留；fork journal 恒只有**一个**创世——父自身的创世不复制，血统
-  经父 journal 链回溯），handles 处置向量在复制时**落实**（cancel_at_fork
-  的工作获得合成收尾，fork 的 fold 无 in-doubt 活动）；`sub/` 子 journal
+  经父 journal 链回溯），在飞 handles 在复制时**一律取消**（合成收尾，
+  fork 的 fold 无 in-doubt 活动）；`sub/` 子 journal
   与 artifacts CAS 作为随行库 verbatim 复制（超出切面的部分是无害
   provenance——事件切面本身仍以 barrier 为界）。并从 snapshot 物化
   **自己的** worktree——fork 与原 session 不共享目录；rewind = fork 后
@@ -1934,7 +1934,7 @@ event sourcing 的闭环：**执行产生事件，事件重建状态，状态驱
 
 | 术语 | 定义 |
 |---|---|
-| **CheckpointBarrier** | fork/rewind 唯一合法目标：{stream→seq} 向量 + workspace snapshot ref + 在飞 handle 处置向量；无 snapshot 不落 barrier。 |
+| **CheckpointBarrier** | fork/rewind 唯一合法目标：{stream→seq} 向量 + workspace snapshot ref + 在飞 handle 清单（fork 一律取消）；无 snapshot 不落 barrier。 |
 | **fork / rewind** | 新 id 复制切面 events（单创世 `ForkedFrom`）+ 物化独立 worktree / fork 后显式切换弃原。 |
 | **IterationDriver** | best-of-N / 批式 loop / one-shot / driver-goal 的同一 driver actor（fresh-child-run）。**goal 另有会话内形态**（in-session goal，挂 `agent.Loop`、context 延续，INC-D1）——见 §13、决策 #21。 |
 | **iteration** | driver 的一轮 = 一个 fresh child session（静止即结算）。**第三个计数词**：iteration（driver 轮）⊃ turn（对话段）⊃ generation step（模型调用），三者不混。 |

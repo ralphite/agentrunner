@@ -154,9 +154,11 @@ func remap(e event.Envelope, parentSession, newSession string, shift int64) even
 }
 
 // cancelAtFork folds the copied cut and appends one ActivityCancelled per
-// barrier handle whose policy is cancel_at_fork — the work's process never
-// existed in the fork, and the fold renders the cancellation as the
-// model-visible outcome ("fork 后模型可自行重启", DESIGN §fork/rewind).
+// barrier handle — the work's process never existed in the fork, and the
+// fold renders the cancellation as the model-visible outcome ("fork 后模型
+// 可自行重启", DESIGN §fork/rewind). This is the ONLY disposition (PLAN
+// 5.9): the per-handle policy vector was speculative and never grew a
+// second value.
 func cancelAtFork(lines []event.Envelope, opts Options) ([]event.Envelope, error) {
 	if len(opts.Barrier.Handles) == 0 {
 		return nil, nil
@@ -168,16 +170,13 @@ func cancelAtFork(lines []event.Envelope, opts Options) ([]event.Envelope, error
 	seq := lines[len(lines)-1].Seq
 	var out []event.Envelope
 	for _, work := range opts.Barrier.Handles {
-		if work.Policy != "cancel_at_fork" {
-			continue // unknown policies stay untouched; the fold will refuse resume loudly
-		}
 		started, ok := folded.Handles[work.Handle]
 		if !ok {
 			continue // already settled inside the cut
 		}
 		env, err := event.New(event.TypeActivityCancelled, &event.ActivityCancelled{
 			ActivityID:    started.ActivityID,
-			PartialOutput: "cancelled at fork (policy cancel_at_fork): the background process belongs to the original run",
+			PartialOutput: "cancelled at fork: the background process belongs to the original run",
 		})
 		if err != nil {
 			return nil, err

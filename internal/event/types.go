@@ -1038,15 +1038,16 @@ type CheckpointBarrier struct {
 	// SnapshotRef is the workspace snapshot (SnapshotStore-opaque). A
 	// barrier is only taken when a snapshot succeeded — no ref, no barrier.
 	SnapshotRef string `json:"snapshot_ref"`
-	// Handles is the weakened-semantics vector: background work in flight
-	// at the cut and how a fork disposes of it.
+	// Handles is the background work in flight at the cut. A fork ALWAYS
+	// renders each as cancelled (PLAN 5.9 hardcoded the once-per-handle
+	// "policy" vector — cancel_at_fork was its only value ever; old journals
+	// carrying the retired policy field decode fine, the field is ignored).
 	Handles []BarrierHandle `json:"handles,omitempty"`
 }
 
-// BarrierHandle is one in-flight handle's fork-time disposition.
+// BarrierHandle is one in-flight handle at a barrier cut; a fork cancels it.
 type BarrierHandle struct {
 	Handle string `json:"handle"`
-	Policy string `json:"policy"` // v0: cancel_at_fork — the fork renders it cancelled
 }
 
 // ForkedFrom is a forked session's genesis event (S7 模块 3, DESIGN

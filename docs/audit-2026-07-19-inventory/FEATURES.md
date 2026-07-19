@@ -241,7 +241,7 @@
 - shadow repo 快照：独立 GIT_DIR 对用户 repo 和 agent 双向不可见，相同树去重，无 git 时优雅降级。
 - worktree 物化：fork/best-of-N/isolated child 各得 `git archive` 原子解包的独立 worktree。
 - CheckpointBarrier：安全边界/turn 收尾自动 + `ar barrier` 手动打点，记跨流向量 + 快照 ref + 在飞工作处置。
-- fork：`ar fork` 从 barrier 切分复制成新 session（单创世、随行 CAS verbatim 复制、独立 worktree、in-flight 按 cancel_at_fork 落实）。
+- fork：`ar fork` 从 barrier 切分复制成新 session（单创世、随行 CAS verbatim 复制、独立 worktree、in-flight 一律取消合成收尾——2026-07-19 PLAN 5.9 裁掉 policy 向量）。
 - rewind：fork 后显式切换到新分支继续（旧分支保留）。
 - diff：基于 barrier 快照对比的只读评审面（working-tree / last-turn 两个 scope）。
 - webui scratch workspace：不选项目时自动创建一次性 scratch 工作区目录，侧栏把这类会话归组显示为 "Scratch"。

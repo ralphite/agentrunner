@@ -2585,7 +2585,7 @@ func (l *Loop) takeBarrier(ctx context.Context, ds *driveState, appendE AppendFu
 	}
 	var handles []event.BarrierHandle
 	for id := range ds.s.Handles {
-		handles = append(handles, event.BarrierHandle{Handle: id, Policy: "cancel_at_fork"})
+		handles = append(handles, event.BarrierHandle{Handle: id})
 	}
 	sort.Slice(handles, func(i, j int) bool { return handles[i].Handle < handles[j].Handle })
 	_, err = appendE(event.TypeCheckpointBarrier, &event.CheckpointBarrier{

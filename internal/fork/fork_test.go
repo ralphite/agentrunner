@@ -265,7 +265,7 @@ func TestCutAppliesCancelAtFork(t *testing.T) {
 	appendT(event.TypeCheckpointBarrier, &event.CheckpointBarrier{
 		BarrierID: "bar-t2", GenStep: 2, Vector: map[string]int64{".": 3},
 		SnapshotRef: "ref-live",
-		Handles:     []event.BarrierHandle{{Handle: "bg1", Policy: "cancel_at_fork"}}})
+		Handles:     []event.BarrierHandle{{Handle: "bg1"}}})
 
 	events, _ := store.ReadEvents(dir)
 	fold, err := state.Fold(events)

@@ -192,8 +192,8 @@ func TestBarrierRecordsLiveWork(t *testing.T) {
 		t.Fatalf("barriers = %v, want [bar-t1 bar-t2 bar-t3 bar-final]", ids)
 	}
 	t2 := barriers[1]
-	if len(t2.Handles) != 1 || t2.Handles[0].Handle != "bg1" || t2.Handles[0].Policy != "cancel_at_fork" {
-		t.Errorf("bar-t2 handles = %+v, want [{bg1 cancel_at_fork}]", t2.Handles)
+	if len(t2.Handles) != 1 || t2.Handles[0].Handle != "bg1" {
+		t.Errorf("bar-t2 handles = %+v, want [{bg1}] (fork cancels it — PLAN 5.9)", t2.Handles)
 	}
 	final := barriers[len(barriers)-1]
 	if len(final.Handles) != 0 {
