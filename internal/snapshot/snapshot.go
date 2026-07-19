@@ -176,7 +176,12 @@ func (s *ShadowRepo) git(ctx context.Context, args ...string) (string, error) {
 }
 
 func (s *ShadowRepo) gitWithEnv(ctx context.Context, extraEnv []string, args ...string) (string, error) {
-	full := append([]string{"--git-dir=" + s.gitDir, "--work-tree=" + s.work}, args...)
+	// core.quotePath=false: without it git octal-escapes non-ASCII path bytes
+	// in diff/numstat headers (`"a/\345\233\276.md"`), so the Last-turn review
+	// card renders CJK filenames as garbage. The working-tree diff path already
+	// pins this (webui meta.go git()); the shadow snapshot backend that feeds
+	// `ar diff --scope last-turn` needs the same pin (QA-0719 t11 真机实证).
+	full := append([]string{"--git-dir=" + s.gitDir, "--work-tree=" + s.work, "-c", "core.quotePath=false"}, args...)
 	cmd := exec.CommandContext(ctx, "git", full...)
 	cmd.Env = append(os.Environ(),
 		"GIT_AUTHOR_NAME=agentrunner", "GIT_AUTHOR_EMAIL=snapshot@agentrunner",

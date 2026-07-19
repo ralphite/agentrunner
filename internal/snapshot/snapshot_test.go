@@ -177,6 +177,34 @@ func TestShadowRepoDiffAgainstSnapshot(t *testing.T) {
 	}
 }
 
+// A CJK (non-ASCII) filename must appear literally in the diff header, not
+// octal-escaped (`"a/\345\233\276.md"`). The Last-turn review card renders this
+// diff text verbatim, so an escaped path shows the user garbage. QA-0719 t11
+// caught this on a real turn (图表说明.md) after the working-tree path was
+// already fixed; the shadow backend needed the same core.quotePath=false pin.
+func TestShadowRepoDiffKeepsUnicodePathsUnescaped(t *testing.T) {
+	ws := t.TempDir()
+	write(t, ws, "seed.txt", "seed\n")
+	s := newStore(t, ws)
+	ctx := context.Background()
+	ref, err := s.Snapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const cjkName = "图表说明.md"
+	write(t, ws, cjkName, "这是柱状图的说明文档\n")
+	got, err := s.Diff(ctx, ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got.Diff, cjkName) {
+		t.Errorf("diff missing literal CJK filename %q:\n%s", cjkName, got.Diff)
+	}
+	if strings.Contains(got.Diff, `\345`) || strings.Contains(got.Numstat, `\345`) {
+		t.Errorf("diff/numstat octal-escaped the CJK path (want quotePath=false):\ndiff=%s\nnumstat=%s", got.Diff, got.Numstat)
+	}
+}
+
 func TestShadowRepoDiffRejectsInvalidRef(t *testing.T) {
 	s := newStore(t, t.TempDir())
 	for _, ref := range []string{"", "HEAD", "-p", strings.Repeat("a", 39), strings.Repeat("A", 40), strings.Repeat("a", 65)} {
