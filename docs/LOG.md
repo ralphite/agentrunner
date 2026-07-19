@@ -4883,3 +4883,14 @@ doctor` 预检绿；session 20260719-005109-session-da8786804904f7b2 用
 unavailable" =0；bash tool_result 带 exit_code ×6（bash 全部在 bwrap
 沙箱内真实执行）。evidence（events 导出+run.log）在 run artifact
 qa-prompt-evidence。
+
+## 2026-07-19 · qa-consistency 首跑绿:S1–S4 全部零 mismatch(run 29667772901)
+
+首次执行(dispatch,~7min):fresh 0/4、restarted 0/4 mismatch。逐项:
+S1 working-tree==git(a.txt)、S2 新会话 last-turn 空(幽灵 diff 锚绿)
++working-tree==git、S3 重启后会话在列且两 scope 对账绿、S4 commit 后
+声明侧清零。observation:S1 turn 结束后外部写入时 last-turn 返回
+**unknown**(非空集)——即 daemon 对该 scope 直接报不可知而非空 diff;
+回退卡逻辑(空/unknown 均走 working-tree)已覆盖该形态,但"unknown vs
+空"的产品语义仍待裁决(QA.md QA-76 S1 已登记)。findings JSON 存 run
+artifact consistency-findings。定时(6h)已生效,后续红即语义回归。
