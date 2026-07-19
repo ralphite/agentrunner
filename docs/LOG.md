@@ -4821,3 +4821,11 @@ qa-session-schedule。全部改为 `uses: ./.github/actions/setup-ar` 一行
 接入；release smoke 加 `AR_REQUIRE_SANDBOX=1` + 装后 `ar doctor`——
 "装完即沙箱可用"成为发布硬断言。phone-webui 用 `ref: main` 且每半小时
 自动刷新，本次直接 dispatch 立即生效。
+
+## 2026-07-19 · TestBackgroundSpawnUserKill 二次 flake：固化失败诊断
+
+deadline 60s 修复后全闸门负载下仍偶发（0.19s 即 completed——非等待
+超时，slow child 的 bash 疑似被负载下瞬时失败 errResult 掉、scripted
+下一步直接 end_turn）。定向 45 次（e2e/driver 并发加压 + GOMAXPROCS=2）
+未复现。不猜改产品：在断言失败路径固化 t.Logf 全量 child 事件转储，
+下次命中即自证根因。check.sh 连跑 3 轮全绿。

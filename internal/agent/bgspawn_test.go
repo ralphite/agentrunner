@@ -296,6 +296,10 @@ func TestBackgroundSpawnUserKill(t *testing.T) {
 	}
 	// The killed child settled as canceled/error; the survivor completed.
 	if slowReason == "" || slowReason == "completed" {
+		cevs, _ := store.ReadEvents(l.Store.Dir() + "/sub/slow-a1")
+		for _, e := range cevs {
+			t.Logf("slow child event %s: %.300s", e.Type, e.Payload)
+		}
 		t.Errorf("slow child reason = %q, want a cancellation (not completed)", slowReason)
 	}
 	if fastReason != "completed" {
