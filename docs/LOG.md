@@ -5522,3 +5522,17 @@ S6 实测:长贴折叠(220px clamp+Show more,12KB 不破布局)、/compact
 - [MEDIUM] LaTeX 露源码 = G38 第二次实证,优先级建议上调;
 - [LOW→已修 539c4c9] 用户气泡粘贴多行日志换行被折叠:.utext 补
   whitespace-pre-wrap + overflow-wrap:anywhere。
+
+## 2026-07-19 · S7(queue/steer/interrupt)完成:投递语义三重点全 PASS,修 interrupt 误报 recovery
+
+S7 实测:queue 真等 turn 结束(queued… 气泡+QUEUED 待发条+index.md
+末位生成)、steer 真 turn 内生效(去序号即刻生效并回溯改写已建文件)、
+interrupt 后会话完好(status=interrupted、部分产物 1 个 .bak、直发
+消息自动续跑、清理对账过)。发现并修复:
+- [MEDIUM→已修] 用户主动 Stop 被 needsRecovery 归入 stranded 同类,
+  弹 "Session needs recovery / previous host stopped" 横幅+Resume——
+  把主动行为呈现成宕机。修:needsRecovery 只认 strand;interrupted
+  保留 Retry 与常规 composer;测试夹具同步改 stranded。
+- [LOW] steering… 待发标记未肉眼实证(2.5s 内被消费),登记。
+- 消息库改进:S7 msg1 "每建 5 个停下来汇报" 歧义致 running 窗口过短,
+  定稿时改为"不要停不要问"。

@@ -501,7 +501,13 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   const isDriver = folded.isDriver;
   const canForkFromCheckpoint =
     !isSub && !isDriver && events.some((e) => e.type === "checkpoint_barrier" && e.payload?.barrier_id);
-  const needsRecovery = !live && /strand|interrupt/i.test(listStatus || "");
+  // QA-0719 S7: a user-initiated interrupt is NOT a stranded session. The
+  // thread already says "Stopped — you interrupted this turn" and the very
+  // next send resumes it — painting it with the recovery banner ("The
+  // previous host stopped…" + Resume) misreads a deliberate act as a crash.
+  // Recovery is for stranded sessions; interrupted keeps Retry (canRetry
+  // below still matches it) and the ordinary composer.
+  const needsRecovery = !live && /strand/i.test(listStatus || "");
   // Retry (INC-44 §B) re-sends the last user message as a NEW turn — offered
   // wherever the last one plausibly went wrong: crashed/failed/interrupted/
   // stranded, but never mid-run or while a wait wants its answer.

@@ -222,7 +222,9 @@ describe("mobile session topbar", () => {
             { seq: 2, type: "checkpoint_barrier", payload: { barrier_id: "bar-mobile" } },
           ];
     useStore.setState({
-      sessions: [{ id: SID, title: "深度黑盒 QA 任务 2026-07-12-A", status: "interrupted", workspace: "/tmp/wt-th14" } as any],
+      // QA-0719 S7: "interrupted" (a deliberate user stop) no longer raises
+      // the recovery banner — only a genuinely stranded session does.
+      sessions: [{ id: SID, title: "深度黑盒 QA 任务 2026-07-12-A", status: "stranded", workspace: "/tmp/wt-th14" } as any],
     });
 
     const { container } = render(<SessionView sid={SID} />);
