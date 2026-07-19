@@ -4874,3 +4874,12 @@ running)。设计并落地三件套:
    转硬门。
 另:层1 样式审计(lint-tw-classes,dist 对账 + baseline 163)已并入
 上一 commit,定位为辅助件。
+
+## 2026-07-19 · qa-prompt 真跑绿：同消息真实 session 复验通过
+
+run 29667597820（~20min，真 Gemini flash）：setup-ar 沙箱步 + `ar
+doctor` 预检绿；session 20260719-005109-session-da8786804904f7b2 用
+现场事故同一开场消息跑完。断言：事件流+日志 "required OS sandbox
+unavailable" =0；bash tool_result 带 exit_code ×6（bash 全部在 bwrap
+沙箱内真实执行）。evidence（events 导出+run.log）在 run artifact
+qa-prompt-evidence。
