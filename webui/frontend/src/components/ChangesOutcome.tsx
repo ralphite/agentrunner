@@ -334,6 +334,9 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
   // shell and offers Retry, and only a backend that actually says "no changed
   // files" renders nothing.
   const [phase, setPhase] = useState<Phase>("loading");
+  // "turn" = last-turn 快照有内容(标题 Edited N files);"workspace" =
+  // 回退到 working-tree(标题 Changes in workspace,不谎称本 turn 编辑)。
+  const [scope, setScope] = useState<"turn" | "workspace">("turn");
   const [expanded, setExpanded] = useState(false);
   // Local bump re-fetches the summary after an Undo (or a Retry) without needing
   // the parent to change refreshKey (a reverted card should collapse to nothing).
@@ -350,16 +353,31 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
       setPhase("loading");
       setSummary(null);
     }
-    // QA-0718 用户实机:无参 diff = working-tree 全量,新会话接手一个带
-    // 历史未提交改动的 workspace(composer 记住上个 project)时,旧脏货
-    // 全被当成"这个 turn 编辑的文件"挂在首条回复下。这张卡的语义是
-    // "本 turn 编辑了什么"——用 last-turn scope(基线 = 最近一次人类
-    // turn 开始时的 shadow snapshot),session 外的历史改动不再入卡。
+    // QA-0718 用户实机(两张截图,两个方向的错):
+    // 1. 无参 diff = working-tree 全量——新会话接手带历史未提交改动的
+    //    workspace 时,旧脏货被谎称成"这个 turn 编辑的文件"。→ 先查
+    //    last-turn scope(基线 = 最近一次人类 turn 开始时的 shadow
+    //    snapshot),标题 "Edited N files" 只在它有内容时使用。
+    // 2. 但 last-turn 基线并不总在:daemon 重启后丢失、子 agent 写盘
+    //    可能不入父 turn 快照——文件明明写了,卡却整个消失(第二张
+    //    截图)。→ last-turn 空时回退 working-tree,有变更则以
+    //    "Changes in workspace" 呈现:不谎称本 turn 编辑,但工作区
+    //    现状(可 Review/commit)不失踪。
     AR.diff(sid, "last-turn")
-      .then((data) => {
+      .then(async (data) => {
         if (!alive) return;
-        if (!data.known || !data.isRepo || data.nested) setSummary(null);
-        else setSummary(summarizeChanges(data));
+        const turnSummary = !data.known || !data.isRepo || data.nested ? null : summarizeChanges(data);
+        if (turnSummary?.files.length) {
+          setScope("turn");
+          setSummary(turnSummary);
+          setPhase("ready");
+          return;
+        }
+        const wt = await AR.diff(sid, "working-tree");
+        if (!alive) return;
+        const wtSummary = !wt.known || !wt.isRepo || wt.nested ? null : summarizeChanges(wt);
+        setScope("workspace");
+        setSummary(wtSummary?.files.length ? wtSummary : null);
         setPhase("ready");
       })
       .catch(() => {
@@ -453,7 +471,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
         <header className="flex min-w-0 items-center gap-[11px]">
           <span className="changes-outcome-icon grid h-[38px] w-[38px] shrink-0 place-items-center rounded-[10px] bg-panel-2 text-ink-2"><PlusMinusSquare /></span>
           <div className="changes-outcome-title grid min-w-0 flex-1 gap-[2px] text-[15px] leading-tight">
-            <b className="overflow-hidden text-ellipsis whitespace-nowrap">Edited {summary.files.length} file{summary.files.length === 1 ? "" : "s"}</b>
+            <b className="overflow-hidden text-ellipsis whitespace-nowrap">{scope === "turn" ? `Edited ${summary.files.length} file${summary.files.length === 1 ? "" : "s"}` : "Changes in workspace"}</b>
             <span className="flex items-center gap-[7px] overflow-hidden whitespace-nowrap text-[13px]">
               {countedFiles > 0 && (
                 <>

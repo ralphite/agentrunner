@@ -4829,3 +4829,14 @@ deadline 60s 修复后全闸门负载下仍偶发（0.19s 即 completed——非
 下一步直接 end_turn）。定向 45 次（e2e/driver 并发加压 + GOMAXPROCS=2）
 未复现。不猜改产品：在断言失败路径固化 t.Logf 全量 child 事件转储，
 下次命中即自证根因。check.sh 连跑 3 轮全绿。
+
+## 2026-07-19 · QA-0718 第十一轮:Edited 卡两级回退——真写盘但基线丢时卡消失(用户实机第三张截图)
+
+用户实机:多 agent 协作会话真实写盘一批文件,最后回复下却无 changes
+卡。原因:第九轮把卡切 last-turn 后,基线不在(daemon 重启/子 agent
+写盘不入父 turn 快照)时直接不渲染——此前记为"可接受边界",用户实撞,
+判断作废。修:两级回退——last-turn 有内容 → "Edited N files"(本 turn
+语义);为空则查 working-tree,有变更 → 标题 "Changes in workspace"
+(如实呈现工作区现状,不谎称本 turn 编辑)。幽灵 diff 场景下新会话
+首聊也会看到这张卡,但说的是真话且可 Review/commit。tsc+20 测试绿。
+>>>>>>> 489784a (fix: Edited 卡两级回退——last-turn 基线丢失(daemon 重启/子 agent 写盘)时回退 working-tree 并改题 'Changes in workspace',真实写盘的变更不再失踪)
