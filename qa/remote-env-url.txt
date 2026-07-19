@@ -1,4 +1,4 @@
-url: https://ads-wars-dose-incoming.trycloudflare.com
-run_id: 29693247725
-started_at: 2026-07-19T15:40:40Z
+url: https://bald-minus-statistics-invest.trycloudflare.com
+run_id: 29696113272
+started_at: 2026-07-19T17:06:51Z
 minutes: 180
