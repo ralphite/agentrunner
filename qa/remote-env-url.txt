@@ -1,4 +1,4 @@
-url: https://wins-extra-steel-secrets.trycloudflare.com
-run_id: 29701725585
-started_at: 2026-07-19T20:03:58Z
-minutes: 340
+url: https://subscribe-guys-nissan-pmc.trycloudflare.com
+run_id: 29702935796
+started_at: 2026-07-19T20:42:05Z
+minutes: 60
