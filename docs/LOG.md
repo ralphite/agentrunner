@@ -5132,3 +5132,20 @@ Failed 而自视图 4/4 全勾+Nothing needs you(S5 族)、queued 消息在
 failed 会话挂死无提示、Edited 卡收编 __pycache__ 产物、同秒 Scratch
 组同名+hint 三重冗余(INC-78 消歧回归)、活跃会话 Worked 折叠展开被
 轮询重置。修复待逐项立项,证据截图在 release qa-driver-29675916453。
+
+## 2026-07-19 · INC-70 落地：审批 park 中消息唤醒（Option B，推翻"排队不解栈"）
+
+裁决：用户在 2026-07-19 修复 plan（audit-2026-07-19-inventory/PLAN.md
+1.2）确认"审批挂起期间新输入至少触发一次模型可见的重裁决/审批被
+supersede"——即 INC-70 在案推荐 Option B，推翻 INC-D2/INC-50 的
+"排队不解栈"旧定案（该项此前 BLOCKED 等人裁，DECISIONS-PENDING）。
+落码：`awaitApproval` select 改 for-loop 增 UserInputs arm——user-class
+消息=转向式拒批（inputs-first：deferred 邮件按 seq 先 flush 防高水位
+乱序丢失、消息同边界入 context、`ApprovalResponded{deny,superseded}`+
+`WaitingResolved{denied_by_steer}`+EffectResolved{deny}，工具不执行）；
+machine/untrusted 只 defer（G16）、revoked 按撤回消费（INC-46）、树邮件
+转发、close 置 inboxClosed 继续等。WaitRules 增 OnSteer 字面量。
+实现中发现并修正的坑：park 中乱序消费会让 deferred 的更早 seq 输入在
+后续 flush 时撞 ConsumedInputSeq 高水位被静默丢弃——故 supersede 必须
+连带按序 flush（孪生 TestApprovalParkMachineInputOnlyQueues 钉住）。
+闸门 A 绿（三 park 孪生+WaitRules）；闸门 B 真机复验挂 G3 注记。

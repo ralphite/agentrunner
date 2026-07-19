@@ -221,97 +221,168 @@ func (l *Loop) awaitApproval(ctx context.Context, ds *driveState, appendE Append
 		ch <- outcome{d, err}
 	}()
 
-	select {
-	case out := <-ch:
-		if out.err != nil {
-			return false, "", fmt.Errorf("approval %s: %w", req.ApprovalID, out.err)
-		}
-		decision := "deny"
-		resolution := "denied"
-		if out.d.Approve {
-			decision = "approve"
-			resolution = "approved"
-		}
-		responseAppend := appendE
-		if out.d.CommandID != "" {
-			responseAppend = l.commandAppender(ds, out.d.CommandID)
-		}
-		// "Allow and don't ask again" (INC-62): the standing criterion rides
-		// the response FACT itself, so the fold — and any resume — knows this
-		// session's later identical asks are already answered.
-		var standing *event.StandingRule
-		if out.d.Approve && out.d.Remember {
-			if c, ok := standingCriterion(req.ToolName, req.Args); ok {
-				standing = &c
+	for {
+		select {
+		case out := <-ch:
+			if out.err != nil {
+				return false, "", fmt.Errorf("approval %s: %w", req.ApprovalID, out.err)
 			}
-		}
-		if _, err := responseAppend(event.TypeApprovalResponded, &event.ApprovalResponded{
-			ApprovalID: req.ApprovalID, Decision: decision,
-			Reason: out.d.Reason, Source: out.d.Source, Standing: standing,
-		}); err != nil {
-			return false, "", err
-		}
-		if _, err := responseAppend(event.TypeWaitingResolved, &event.WaitingResolved{
-			Kind: event.WaitApproval, Resolution: resolution,
-		}); err != nil {
-			return false, "", err
-		}
-		// "Allow and don't ask again" (INC-17, G5): persist an exact allow rule
-		// to the USER config so the NEXT session no longer asks. Best effort —
-		// a writeback failure must never fail the approval (the user already
-		// approved this call); it just does not persist.
-		if out.d.Approve && out.d.Remember {
-			l.rememberApproval(req)
-		}
-		ok, err := l.resolveEffectAfterApproval(ds, responseAppend, req, out.d.Approve, out.d.Reason)
-		return ok, out.d.Reason, err
+			decision := "deny"
+			resolution := "denied"
+			if out.d.Approve {
+				decision = "approve"
+				resolution = "approved"
+			}
+			responseAppend := appendE
+			if out.d.CommandID != "" {
+				responseAppend = l.commandAppender(ds, out.d.CommandID)
+			}
+			// "Allow and don't ask again" (INC-62): the standing criterion rides
+			// the response FACT itself, so the fold — and any resume — knows this
+			// session's later identical asks are already answered.
+			var standing *event.StandingRule
+			if out.d.Approve && out.d.Remember {
+				if c, ok := standingCriterion(req.ToolName, req.Args); ok {
+					standing = &c
+				}
+			}
+			if _, err := responseAppend(event.TypeApprovalResponded, &event.ApprovalResponded{
+				ApprovalID: req.ApprovalID, Decision: decision,
+				Reason: out.d.Reason, Source: out.d.Source, Standing: standing,
+			}); err != nil {
+				return false, "", err
+			}
+			if _, err := responseAppend(event.TypeWaitingResolved, &event.WaitingResolved{
+				Kind: event.WaitApproval, Resolution: resolution,
+			}); err != nil {
+				return false, "", err
+			}
+			// "Allow and don't ask again" (INC-17, G5): persist an exact allow rule
+			// to the USER config so the NEXT session no longer asks. Best effort —
+			// a writeback failure must never fail the approval (the user already
+			// approved this call); it just does not persist.
+			if out.d.Approve && out.d.Remember {
+				l.rememberApproval(req)
+			}
+			ok, err := l.resolveEffectAfterApproval(ds, responseAppend, req, out.d.Approve, out.d.Reason)
+			return ok, out.d.Reason, err
 
-	case <-l.Interrupts:
-		// Denied-by-interrupt (3.5): journal the interrupt (inputs first),
-		// resolve the approval as a denial, render the call as interrupted,
-		// and the loop CONTINUES — an interrupt is guidance, not shutdown.
-		if _, err := appendE(event.TypeInputReceived, &event.InputReceived{
-			Text: "[interrupt]", Source: "interrupt",
-		}); err != nil {
-			return false, "", err
-		}
-		if _, err := appendE(event.TypeApprovalResponded, &event.ApprovalResponded{
-			ApprovalID: req.ApprovalID, Decision: "deny",
-			Reason: "[interrupted by user]", Source: "interrupt",
-		}); err != nil {
-			return false, "", err
-		}
-		if _, err := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
-			Kind: event.WaitApproval, Resolution: WaitRules[event.WaitApproval].OnInterrupt,
-		}); err != nil {
-			return false, "", err
-		}
-		ok, err := l.resolveEffectAfterApproval(ds, appendE, req, false, "[interrupted by user]")
-		return ok, "[interrupted by user]", err
+		case <-l.Interrupts:
+			// Denied-by-interrupt (3.5): journal the interrupt (inputs first),
+			// resolve the approval as a denial, render the call as interrupted,
+			// and the loop CONTINUES — an interrupt is guidance, not shutdown.
+			if _, err := appendE(event.TypeInputReceived, &event.InputReceived{
+				Text: "[interrupt]", Source: "interrupt",
+			}); err != nil {
+				return false, "", err
+			}
+			if _, err := appendE(event.TypeApprovalResponded, &event.ApprovalResponded{
+				ApprovalID: req.ApprovalID, Decision: "deny",
+				Reason: "[interrupted by user]", Source: "interrupt",
+			}); err != nil {
+				return false, "", err
+			}
+			if _, err := appendE(event.TypeWaitingResolved, &event.WaitingResolved{
+				Kind: event.WaitApproval, Resolution: WaitRules[event.WaitApproval].OnInterrupt,
+			}); err != nil {
+				return false, "", err
+			}
+			ok, err := l.resolveEffectAfterApproval(ds, appendE, req, false, "[interrupted by user]")
+			return ok, "[interrupted by user]", err
 
-	case ref := <-l.CommandInterrupts:
-		cmdAppend := appendE
-		if ref.CommandID != "" {
-			cmdAppend = l.commandAppender(ds, ref.CommandID)
+		case ref := <-l.CommandInterrupts:
+			cmdAppend := appendE
+			if ref.CommandID != "" {
+				cmdAppend = l.commandAppender(ds, ref.CommandID)
+			}
+			if _, err := cmdAppend(event.TypeInputReceived, &event.InputReceived{
+				Text: "[interrupt]", Source: "interrupt",
+			}); err != nil {
+				return false, "", err
+			}
+			if _, err := cmdAppend(event.TypeApprovalResponded, &event.ApprovalResponded{
+				ApprovalID: req.ApprovalID, Decision: "deny",
+				Reason: "[interrupted by user]", Source: "interrupt",
+			}); err != nil {
+				return false, "", err
+			}
+			if _, err := cmdAppend(event.TypeWaitingResolved, &event.WaitingResolved{
+				Kind: event.WaitApproval, Resolution: WaitRules[event.WaitApproval].OnInterrupt,
+			}); err != nil {
+				return false, "", err
+			}
+			ok, err := l.resolveEffectAfterApproval(ds, cmdAppend, req, false, "[interrupted by user]")
+			return ok, "[interrupted by user]", err
+
+		case in, open := <-l.UserInputs:
+			// INC-70 Option B (G3 余项): a user-class message arriving at an
+			// approval park is steering — the pending ask is superseded. Deny
+			// it (the tool never runs) and feed the message at this SAME
+			// boundary so the model turns with the user's words in context.
+			// Everything else keeps waiting: machine/untrusted mail defers to
+			// the turn end (G16 — untrusted content never drives an approval),
+			// a revoked input is consumed AS revoked (INC-46), tree mail is
+			// forwarded. The resolver goroutine stays alive across iterations.
+			if !open {
+				l.inboxClosed = true
+				l.UserInputs = nil
+				continue
+			}
+			l.drainRevokes()
+			if in.CommandID != "" && l.revokedTargets[in.CommandID] {
+				if err := l.journalInput(ds, appendE, in); err != nil {
+					return false, "", err
+				}
+				continue
+			}
+			if in.DeliverySeq > 0 && in.DeliverySeq <= ds.s.Session.ConsumedInputSeq {
+				continue // already-consumed replay
+			}
+			if in.Target != "" && in.Target != l.SessionID {
+				if err := l.journalInput(ds, appendE, in); err != nil {
+					return false, "", err
+				}
+				continue
+			}
+			if !protocol.UserClassSource(in.Source) {
+				ds.deferredInputs = append(ds.deferredInputs, in)
+				continue
+			}
+			cmdAppend := appendE
+			if in.CommandID != "" {
+				cmdAppend = l.commandAppender(ds, in.CommandID)
+			}
+			// Inputs first (the interrupt arm's doctrine) — and deferred
+			// mail BEFORE this message: the delivery high-water is
+			// monotonic, so a deferred earlier-seq input flushed after a
+			// later-seq consume would be silently dropped as already
+			// consumed. Same flush shape as drainSteer: a steer releases
+			// the queue it jumped over.
+			flush := ds.deferredInputs
+			ds.deferredInputs = nil
+			for _, fin := range flush {
+				if err := l.journalInput(ds, appendE, fin); err != nil {
+					return false, "", err
+				}
+			}
+			if err := l.journalInput(ds, cmdAppend, in); err != nil {
+				return false, "", err
+			}
+			const superseded = "[superseded by user message]"
+			if _, err := cmdAppend(event.TypeApprovalResponded, &event.ApprovalResponded{
+				ApprovalID: req.ApprovalID, Decision: "deny",
+				Reason: superseded, Source: "user",
+			}); err != nil {
+				return false, "", err
+			}
+			if _, err := cmdAppend(event.TypeWaitingResolved, &event.WaitingResolved{
+				Kind: event.WaitApproval, Resolution: WaitRules[event.WaitApproval].OnSteer,
+			}); err != nil {
+				return false, "", err
+			}
+			allowed, err := l.resolveEffectAfterApproval(ds, cmdAppend, req, false, superseded)
+			return allowed, superseded, err
 		}
-		if _, err := cmdAppend(event.TypeInputReceived, &event.InputReceived{
-			Text: "[interrupt]", Source: "interrupt",
-		}); err != nil {
-			return false, "", err
-		}
-		if _, err := cmdAppend(event.TypeApprovalResponded, &event.ApprovalResponded{
-			ApprovalID: req.ApprovalID, Decision: "deny",
-			Reason: "[interrupted by user]", Source: "interrupt",
-		}); err != nil {
-			return false, "", err
-		}
-		if _, err := cmdAppend(event.TypeWaitingResolved, &event.WaitingResolved{
-			Kind: event.WaitApproval, Resolution: WaitRules[event.WaitApproval].OnInterrupt,
-		}); err != nil {
-			return false, "", err
-		}
-		ok, err := l.resolveEffectAfterApproval(ds, cmdAppend, req, false, "[interrupted by user]")
-		return ok, "[interrupted by user]", err
 	}
 }
 

@@ -46,8 +46,10 @@
       ——2026-07-19 INC-81.1：复核=approve 路由本已通、缺口纯可发现性；
       inspect 树递归 in-flight child + answer_with，webui approval stack
       /Attention 持久浮出；闸门 A 两侧孪生绿，闸门 B 挂 G39 待真机复验。
-- [ ] 1.2 G3 审批挂起期间消息只排队不唤醒：新输入至少触发一次模型可见
-      的重裁决（或审批渲染为被新输入 supersede）。
+- [x] 1.2 G3 审批挂起期间消息只排队不唤醒——2026-07-19 INC-70 Option B
+      落码：park 中 user-class 消息=转向式拒批（denied_by_steer+保序
+      flush+同边界入 context），machine/revoked 不触发；闸门 A 三孪生绿，
+      闸门 B 挂 G3 注记待真机。
 
 ### Phase 2 · Driver 去 user-facing（核心，拆多轮）
 - [ ] 2.1 盘点 driver 暴露面全集并映射 in-session 等价物：`ar drive`、

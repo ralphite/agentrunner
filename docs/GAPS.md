@@ -103,9 +103,12 @@ in-flight 子 run 的 settle-from-child-fold、barrier 对在飞 child run
 INC-11.2 已把 control/close/interrupt/approval/kill 同收编) + FIFO wake +
 忙时排队边界生效 + interrupt 分立
 (闸门 QA-02/06/08 真实 API PASS)。子 agent 不可 steer(v0 明确否,
-父 kill+re-spawn 代替)。**余项**：WAITING_APPROVAL
-park 期间消息只排队不唤醒(审批答复才解栈；INC-D2/INC-50 定案为
-"排队不解栈")。机器发送方已由 INC-50 关闭(G14)。原文:
+父 kill+re-spawn 代替)。**余项已收（INC-70 Option B，2026-07-19，
+闸门 A 绿）**：park 中 user-class 消息=转向式拒批（deny
+`denied_by_steer`+deferred 按 seq 先 flush+消息同边界入 context），
+machine/untrusted 只 defer、revoked 不触发；推翻 INC-D2/INC-50
+"排队不解栈"旧定案的裁决=用户 2026-07-19 修复 plan 确认（LOG 记档）；
+闸门 B 真机复验后此注记清除。机器发送方已由 INC-50 关闭(G14)。原文:
 目标有、消费点提了一句、机制全缺：传输通道（daemon 线协议无
 steer/input command）、park（WAITING_INPUT/APPROVAL）被消息唤醒、
 type-ahead 队列语义、steer 与 interrupt 的组合手势、子 agent 是否可

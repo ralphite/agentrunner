@@ -15,6 +15,11 @@ type WaitRule struct {
 	Interruptible bool
 	// OnInterrupt is the WaitingResolved.Resolution an interrupt produces.
 	OnInterrupt string
+	// OnSteer is the WaitingResolved.Resolution a user-class message
+	// arriving AT this park produces (INC-70 Option B, G3 余项): the
+	// message supersedes the pending ask. Empty = messages queue without
+	// resolving this wait.
+	OnSteer string
 	// ResolvedBy names the non-interrupt resolution source.
 	ResolvedBy string
 }
@@ -32,6 +37,10 @@ var WaitRules = map[string]WaitRule{
 		Kind: event.WaitApproval, Interruptible: true,
 		// 3.5 denied-by-interrupt: the approval resolves as a denial and
 		// the call renders "[interrupted by user]".
-		OnInterrupt: "denied_by_interrupt", ResolvedBy: "approval_response",
+		OnInterrupt: "denied_by_interrupt",
+		// INC-70 Option B: a user message at an approval park supersedes
+		// the pending ask — deny and feed the message at the same boundary.
+		OnSteer:    "denied_by_steer",
+		ResolvedBy: "approval_response",
 	},
 }

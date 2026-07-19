@@ -1772,8 +1772,12 @@ mapping，代码与文档同名）。
   spawn 双路径/审批重挂/driver.runIteration 全部改走;Loop 构造与
   事实流合一显式留 ③④）**,③stream 合流（触 §3 教义,须 §四）、
   ④CLI 兼容层待续。
-- **WAITING_APPROVAL 挂起期间**消息只排队不唤醒（审批答复才解栈，
-  唤醒语义待定，见 GAPS G3 余项）。
+- **WAITING_APPROVAL 挂起期间**user-class 消息=转向式拒批（INC-70
+  Option B，2026-07-19 落码）：pending ask 以 `denied_by_steer` 拒决、
+  工具不执行，deferred 邮件按 seq 先 flush、消息同边界入 context；
+  machine/untrusted 只 defer 不解栈（G16 钳制），revoked 输入按撤回
+  消费不触发（INC-46）。旧"排队不解栈"定案（INC-D2/INC-50）由用户
+  2026-07-19 裁决推翻，LOG 记档。
 - **daemon kill -9 孤儿化在飞 bash 的子进程**：已收（audit-0717 B3，
   2026-07-17）——daemon boot sweep 按"SessionEnvVar 标记 + 已 reparent
   到 init"双证据清扫孤儿进程组（现场真读取，无 PID 复用风险；Linux

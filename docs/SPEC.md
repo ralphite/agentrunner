@@ -40,7 +40,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | `ar new` 开场消息折叠/带图（与 send 对称） | 🧊 | UJ-04 | 不对称记档（DESIGN §17），待真实使用反馈 |
 | PDF/任意文件附件（`ar send --file`，sniff MIME、CAS ref、组装 inflate；Gemini inline_data / Anthropic document block） | ✅ | UJ-04 | INC-9 · TestConversationalFileInputEndToEnd/TestToPartFilePDF/TestUserBlocksFilePDF · QA-15（真实 Gemini 读 PDF 关键词） |
 | provider capability envelope（版本、provider/model、modalities、stream/tools/thinking/cache/parallel） | ✅ | 不变量 | INC-11.5 · TestCapabilitiesMatrix；SessionStarted 冻结、inspect 可见 |
-| WAITING_APPROVAL 挂起期间消息唤醒 | 🟡 | UJ-07 | 只排队不唤醒；GAPS G3 余项 |
+| WAITING_APPROVAL 挂起期间消息唤醒（INC-70 Option B：park 中 user-class 消息=转向式拒批——deny `denied_by_steer` + deferred 邮件按 seq 先 flush + 消息同边界入 context，工具不执行；machine/untrusted 只 defer 不解栈（G16）、revoked 输入按撤回消费不触发（INC-46）） | ✅ | UJ-07 | INC-70 · TestApprovalParkUserMessageSupersedes/TestApprovalParkMachineInputOnlyQueues/TestApprovalParkRevokedInputDoesNotDeny · TestWaitRulesAreResolutionSource（OnSteer）· 闸门 B 真机复验挂 G3 余项注记 |
 | 手动 compact（带指示）/ clear | ✅ | UJ-09 | INC-6 · TestManualCompact/Clear/EmptySummarySkipped · TestHandleCompactForwardsDirective · QA-12（真实 API：compact 带指示落非空 summary、clear 落 cleared） |
 | 自动 compaction（阈值触发） | ✅ | UJ-09 | S3 · TestCompactionTriggeredInLoop（G30 还锚 audit-0717 C1） |
 | microcompact（assembly 把久远可重算 read-class 工具结果渲染为占位符；不调 LLM；单调 micro boundary；先于 autocompact） | ✅ | UJ-09 | INC-13 · TestMicrocompact{AssemblyView,MonotonicFold,TriggeredInLoop,DisabledNoop} · QA-22（真 Gemini：micro 触发、无 compact、模型重跑工具复原被清结果） |

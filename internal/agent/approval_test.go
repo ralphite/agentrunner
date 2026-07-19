@@ -560,3 +560,205 @@ func (m mustNotAskResolver) Resolve(context.Context, ApprovalRequest) (ApprovalD
 	m.t.Fatal("resolver consulted on resume — the durable decision was re-asked")
 	return ApprovalDecision{}, nil
 }
+
+// injectingApprover parks the ask (blocks until ctx cancel) and fires `send`
+// once the park is established — the deterministic stand-in for "the user
+// speaks WHILE the session waits on an approval" (INC-70). Inputs pushed
+// before the turn would be drained at an earlier safe boundary instead.
+type injectingApprover struct{ send func() }
+
+func (a injectingApprover) Resolve(ctx context.Context, _ ApprovalRequest) (ApprovalDecision, error) {
+	if a.send != nil {
+		a.send()
+	}
+	<-ctx.Done()
+	return ApprovalDecision{}, ctx.Err()
+}
+
+// INC-70 Option B (G3 余项): a user-class message arriving while the session
+// is parked on an approval SUPERSEDES the pending ask — the approval resolves
+// as a denial (denied_by_steer), the tool never runs, and the message enters
+// the same boundary so the model turns with the user's words in context.
+func TestApprovalParkUserMessageSupersedes(t *testing.T) {
+	root := t.TempDir()
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{
+			{ToolCall: &scripted.ToolCallEvent{Name: "edit_file", Args: map[string]any{
+				"path": "note.txt", "old": "", "new": "hello"}}},
+			{Finish: "tool_use"},
+		}},
+		{Respond: []scripted.Event{{Text: "ok, turning"}, {Finish: "end_turn"}}},
+	}}
+	l := testLoop(t, fix, root)
+	l.Pipeline = askEverything
+	inputs := make(chan protocol.UserInput, 1)
+	l.UserInputs = inputs
+	l.Approvals = injectingApprover{send: func() {
+		inputs <- protocol.UserInput{Text: "stop — use plan B instead", Source: "user",
+			CommandID: "cmd-steer-1", DeliverySeq: 1}
+		close(inputs)
+	}}
+
+	if _, err := l.Run(context.Background(), "write a note"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "note.txt")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("superseded effect executed — note.txt exists")
+	}
+	events, err := store.ReadEvents(l.Store.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sawDeny, sawSteerResolution, sawMessage bool
+	for _, env := range events {
+		switch env.Type {
+		case event.TypeApprovalResponded:
+			var p event.ApprovalResponded
+			_ = json.Unmarshal(env.Payload, &p)
+			if p.Decision != "deny" || !strings.Contains(p.Reason, "superseded") {
+				t.Fatalf("approval_responded = %+v, want deny/superseded", p)
+			}
+			if env.CommandID != "cmd-steer-1" {
+				t.Fatalf("deny receipt = %q, want the steering message's command id", env.CommandID)
+			}
+			sawDeny = true
+		case event.TypeWaitingResolved:
+			if strings.Contains(string(env.Payload), "denied_by_steer") {
+				sawSteerResolution = true
+			}
+		case event.TypeInputReceived:
+			if strings.Contains(string(env.Payload), "plan B") {
+				sawMessage = true
+			}
+		}
+	}
+	if !sawDeny || !sawSteerResolution || !sawMessage {
+		t.Fatalf("deny=%v steerResolution=%v message=%v — want all three journaled",
+			sawDeny, sawSteerResolution, sawMessage)
+	}
+}
+
+// Machine/untrusted mail must never drive an approval (G16): at the park it
+// defers, and only a later user-class message resolves the ask — at which
+// point the deferred mail flushes FIRST in seq order (the delivery
+// high-water is monotonic; consuming out of order would silently drop it).
+func TestApprovalParkMachineInputOnlyQueues(t *testing.T) {
+	root := t.TempDir()
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{
+			{ToolCall: &scripted.ToolCallEvent{Name: "edit_file", Args: map[string]any{
+				"path": "note.txt", "old": "", "new": "hello"}}},
+			{Finish: "tool_use"},
+		}},
+		{Respond: []scripted.Event{{Text: "turning"}, {Finish: "end_turn"}}},
+	}}
+	l := testLoop(t, fix, root)
+	l.Pipeline = askEverything
+	inputs := make(chan protocol.UserInput, 2)
+	l.UserInputs = inputs
+	l.Approvals = injectingApprover{send: func() {
+		inputs <- protocol.UserInput{Text: "ci run 42 failed", Source: protocol.SourceMachine,
+			Trust: "untrusted", Principal: "hook:ci", CommandID: "cmd-m1", DeliverySeq: 1}
+		inputs <- protocol.UserInput{Text: "actually skip that edit", Source: "user",
+			CommandID: "cmd-u2", DeliverySeq: 2}
+		close(inputs)
+	}}
+
+	if _, err := l.Run(context.Background(), "write a note"); err != nil {
+		t.Fatal(err)
+	}
+	events, err := store.ReadEvents(l.Store.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	denials := 0
+	var denyReceipt string
+	machineIdx, userIdx, denyIdx := -1, -1, -1
+	for i, env := range events {
+		switch env.Type {
+		case event.TypeApprovalResponded:
+			denials++
+			denyReceipt = env.CommandID
+			denyIdx = i
+		case event.TypeInputReceived:
+			if strings.Contains(string(env.Payload), "ci run 42") {
+				machineIdx = i
+				if !strings.Contains(string(env.Payload), "unverified machine input") {
+					t.Fatal("machine input journaled without its isolation frame")
+				}
+			}
+			if strings.Contains(string(env.Payload), "skip that edit") {
+				userIdx = i
+			}
+		}
+	}
+	if denials != 1 || denyReceipt != "cmd-u2" {
+		t.Fatalf("denials=%d receipt=%q — the USER message alone must supersede the ask",
+			denials, denyReceipt)
+	}
+	if machineIdx < 0 || userIdx < 0 {
+		t.Fatalf("machineIdx=%d userIdx=%d — both inputs must journal at the park", machineIdx, userIdx)
+	}
+	if machineIdx > userIdx {
+		t.Fatalf("machine input journaled at %d AFTER the user steer at %d — flush must keep seq order",
+			machineIdx, userIdx)
+	}
+	if denyIdx < userIdx {
+		t.Fatalf("denial at %d before inputs at %d — inputs journal first", denyIdx, userIdx)
+	}
+}
+
+// A revoked queued input must not steer anything (INC-46 × INC-70): at the
+// park it is consumed AS revoked and the ask stays pending until a live
+// user-class message arrives.
+func TestApprovalParkRevokedInputDoesNotDeny(t *testing.T) {
+	root := t.TempDir()
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{
+			{ToolCall: &scripted.ToolCallEvent{Name: "edit_file", Args: map[string]any{
+				"path": "note.txt", "old": "", "new": "hello"}}},
+			{Finish: "tool_use"},
+		}},
+		{Respond: []scripted.Event{{Text: "turning"}, {Finish: "end_turn"}}},
+	}}
+	l := testLoop(t, fix, root)
+	l.Pipeline = askEverything
+	revokes := make(chan protocol.Revoke, 1)
+	l.Revokes = revokes
+	inputs := make(chan protocol.UserInput, 2)
+	l.UserInputs = inputs
+	l.Approvals = injectingApprover{send: func() {
+		revokes <- protocol.Revoke{TargetCommandID: "cmd-r1"}
+		inputs <- protocol.UserInput{Text: "old queued message", Source: "user",
+			CommandID: "cmd-r1", DeliverySeq: 1}
+		inputs <- protocol.UserInput{Text: "the real steer", Source: "user",
+			CommandID: "cmd-u2", DeliverySeq: 2}
+		close(inputs)
+	}}
+
+	if _, err := l.Run(context.Background(), "write a note"); err != nil {
+		t.Fatal(err)
+	}
+	events, err := store.ReadEvents(l.Store.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var revoked bool
+	var denyReceipt string
+	for _, env := range events {
+		switch env.Type {
+		case event.TypeInputRevoked:
+			if strings.Contains(string(env.Payload), "cmd-r1") {
+				revoked = true
+			}
+		case event.TypeApprovalResponded:
+			denyReceipt = env.CommandID
+		}
+	}
+	if !revoked {
+		t.Fatal("revoked input was not consumed as revoked at the park")
+	}
+	if denyReceipt != "cmd-u2" {
+		t.Fatalf("deny receipt = %q — a REVOKED input must not supersede the ask", denyReceipt)
+	}
+}

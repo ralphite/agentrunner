@@ -20,10 +20,13 @@ func TestWaitRulesAreResolutionSource(t *testing.T) {
 		kind          string
 		interruptible bool
 		onInterrupt   string
+		onSteer       string
 		resolvedBy    string
 	}{
-		{event.WaitInput, true, "superseded_by_interrupt", "input"},
-		{event.WaitApproval, true, "denied_by_interrupt", "approval_response"},
+		{event.WaitInput, true, "superseded_by_interrupt", "", "input"},
+		// INC-70 Option B: a user-class message at the approval park
+		// supersedes the pending ask (denied_by_steer).
+		{event.WaitApproval, true, "denied_by_interrupt", "denied_by_steer", "approval_response"},
 	}
 	if len(cases) != len(WaitRules) {
 		t.Fatalf("registry has %d rows, table pins %d", len(WaitRules), len(cases))
@@ -35,7 +38,8 @@ func TestWaitRulesAreResolutionSource(t *testing.T) {
 			continue
 		}
 		if rule.Interruptible != tc.interruptible ||
-			rule.OnInterrupt != tc.onInterrupt || rule.ResolvedBy != tc.resolvedBy {
+			rule.OnInterrupt != tc.onInterrupt || rule.OnSteer != tc.onSteer ||
+			rule.ResolvedBy != tc.resolvedBy {
 			t.Errorf("row %q = %+v, want %+v", tc.kind, rule, tc)
 		}
 	}
