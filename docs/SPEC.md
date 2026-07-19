@@ -37,7 +37,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | interrupt 永不结束 session（待命处 = no-op；close 是独立命令） | ✅ | UJ-03/07 | 裁决 #11 · 2026-07-08 落码(D2) · TestIdleInterruptIsNoOp |
 | 图片输入（`ar send --image`，CAS ref、组装 inflate） | ✅ | UJ-04 | QA-07/03 · C9 · TestConversationalImageInputEndToEnd |
 | 长贴折叠（>10KB 转 file part） | ✅ | UJ-04 | TestLongPasteFoldsToFilePart |
-| `ar new` 开场消息折叠/带图（与 send 对称） | 🧊 | UJ-04 | 不对称记档（DESIGN §17），待真实使用反馈 |
+| `ar new` 开场附件（`--image`/`--file`,与 send 对称;PLAN 5.5） | ✅ | UJ-04 | TestOpeningImageAttachmentEndToEnd（CAS ref 入开场 InputReceived,首个 provider 请求 inflate）;超长开场折叠仍 🧊（DESIGN §17 残余不对称记档） |
 | PDF/任意文件附件（`ar send --file`，sniff MIME、CAS ref、组装 inflate；Gemini inline_data / Anthropic document block） | ✅ | UJ-04 | INC-9 · TestConversationalFileInputEndToEnd/TestToPartFilePDF/TestUserBlocksFilePDF · QA-15（真实 Gemini 读 PDF 关键词） |
 | provider capability envelope（版本、provider/model、modalities、stream/tools/thinking/cache/parallel） | ✅ | 不变量 | INC-11.5 · TestCapabilitiesMatrix；SessionStarted 冻结、inspect 可见 |
 | WAITING_APPROVAL 挂起期间消息唤醒（INC-70 Option B：park 中 user-class 消息=转向式拒批——deny `denied_by_steer` + deferred 邮件按 seq 先 flush + 消息同边界入 context，工具不执行；machine/untrusted 只 defer 不解栈（G16）、revoked 输入按撤回消费不触发（INC-46）） | ✅ | UJ-07 | INC-70 · TestApprovalParkUserMessageSupersedes/TestApprovalParkMachineInputOnlyQueues/TestApprovalParkRevokedInputDoesNotDeny · TestWaitRulesAreResolutionSource（OnSteer）· 闸门 B 真机复验挂 G3 余项注记 |

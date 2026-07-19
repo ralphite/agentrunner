@@ -1762,12 +1762,12 @@ mapping，代码与文档同名）。
   `WaitingResolved` 自愈;headless(无 live input source)→run 返回、
   park 留在 journal、`ar send` resume 应答。`finish` 仍未实现（记档:
   待命本身就是"待命"，增量价值待真实反馈)。`write_file` 已一等化。
-- **附件/长贴折叠只在 send 路径**：`ar send` 支持 `--image`（图片）与
-  `--file`（任意类型，INC-9：sniff MIME → file part，Gemini inline_data /
-  Anthropic document block），长贴 >10KB 也折叠为 file part。`ar new` 的
-  开场消息走 `SessionStarted.Prompt` → IngestInput，超长开场不折叠、也不带
-  --image/--file；不对称记档，待真实使用反馈再决定是否统一（驾驶舱侧
-  以"建会话→立即跟一条带附件的 send"补齐首条消息附件体验）。
+- **附件双路径对称,长贴折叠仍 send 独有**：`ar send` 与 `ar new`
+  （PLAN 5.5）都支持 `--image`（图片）与 `--file`（任意类型，INC-9：
+  sniff MIME → file part，Gemini inline_data / Anthropic document
+  block）——开场附件经 `ingestOpening` 走同一 blob-before-event 路径
+  （CAS ref 入开场 InputReceived）。残余不对称:长贴 >10KB 折叠仍只在
+  send（超长开场不折叠）,记档待真实使用反馈。
 - **§2 inbox 字面统一度**：`user_message` 与 `control{kill}` 已按
   字面 journal 为 `InputReceived`（后者 source=control，不进对话）。
   子回执/后台结果语义上是 inbox 输入，机制上由 background activity

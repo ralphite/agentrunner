@@ -20,6 +20,32 @@ func IngestInput(s *store.EventStore, correlationID, text, source string) (event
 	}, commandID)
 }
 
+// IngestOpeningInput journals an opening prompt WITH pre-materialized
+// attachment parts (PLAN 5.5: `new --image/--file`, symmetric with send).
+// Binary parts must already be CAS refs (blob-before-event); the text part
+// leads the content exactly like journalInput's assembly.
+func IngestOpeningInput(s *store.EventStore, correlationID, text, source string,
+	content []provider.Part, images, files []event.AttachmentRef) (event.Envelope, error) {
+	commandID := event.NewCommandID()
+	env, err := event.New(event.TypeInputReceived, &event.InputReceived{
+		Text: text, Source: source, TurnID: "turn-" + commandID, ItemID: "item-" + commandID,
+		Principal: "local-user", Trust: "local",
+		Content: content, Images: images, Files: files,
+	})
+	if err != nil {
+		return event.Envelope{}, err
+	}
+	env.CausationID = commandID
+	env.CorrelationID = correlationID
+	env.Sender = source
+	appended, err := s.Append(env)
+	if err != nil {
+		return event.Envelope{}, err
+	}
+	crash.Point(crash.PointAfterJournalInput)
+	return appended, nil
+}
+
 // IngestUserInput persists a fully attributed typed input. Binary parts must
 // already be CAS refs; the opening-prompt path uses text only, while daemon
 // inputs are materialized by agent.journalInput.

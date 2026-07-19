@@ -5393,3 +5393,22 @@ FEATURES 台账同步。
 `--`、任意 `-` 开头 token 被误吸的偏差);(3) `run -o` 从静默忽略改
 显式 usage 报错并指路 record-fixture(补钉子);(4) `goal --max-checks`
 help 陈旧文案 10→实际兜底 20(goal.go DefaultGoalMaxChecks)。
+
+## PLAN 5.5 `ar new` 开场附件（2026-07-19）
+
+**增量**:`new --image/--file`(repeatable)与 send 对称——CLI 复用
+loadImage/FileAttachments(同 10MB 上限),daemon Command.Images/Files →
+RunRequest → Loop.OpeningImages/OpeningFiles;loop.ingestOpening 在
+SessionStarted 后 CAS 存 blob(blob-before-event)、runtime.
+IngestOpeningInput 落带 ref 的开场 InputReceived(Content 文本部前置,
+与 journalInput 装配同形)。钉子 TestOpeningImageAttachmentEndToEnd
+(ref-only journal+CAS 取回+首请求 inflate)。残余不对称:超长开场
+折叠仍 send 独有,DESIGN §17 记档保留。SPEC:40 🧊→✅。
+
+## 2026-07-19 · TestBackgroundSpawnUserKill flake 复现记档
+
+check.sh(PLAN 5.5 轮)偶发红:slow child 的 bash 被 allowlist 拒
+("not enabled"),child spec 明明 Tools:["bash"]。既往已有诊断固化
+commit(514a78e);本轮 3 连跑绿,失败面与 5.5 改动(opening ingest)
+无交集。与 TestSteerChangesOrchestration 同挂 flake 立项待单独排查
+(疑 advertisedTools 构建与子 loop 启动竞态)。

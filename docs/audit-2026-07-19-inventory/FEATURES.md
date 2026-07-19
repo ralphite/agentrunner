@@ -39,7 +39,7 @@
 - 长贴折叠：>10KB 的粘贴文本自动转为 file part，不撑爆上下文。
 - 语音听写：`ar dictate <audio>` 一次性 provider 调用转写音频（--context 消歧、--mime、--max-bytes），不建 session。
 - Prompt 优化：`ar optimize "draft"` 一次性 LLM 改写草稿（--context 解析指代），不碰 daemon/journal。
-- ⚠ `ar new` 开场消息不支持附件/折叠（与 send 不对称，显式记档推迟）。
+- `ar new --image/--file` 开场附件（2026-07-19 PLAN 5.5 补齐;超长开场折叠仍记档推迟）。
 
 ### 1.4 上下文管理
 - 自动 compaction：上下文超阈值自动触发摘要压缩，摘要空则拒绝落盘（不静默丢史）。
@@ -391,4 +391,4 @@
 - best-of-N 胜者自动晋升（G15，手动）。
 - scratchpad 辅助草稿目录（对标空白，零实现）。
 - MCP 交互式 OAuth / refresh token 持久化。
-- finish 工具、overlap:interrupt、`ar new` 开场附件（均显式记档）。
+- finish 工具、overlap:interrupt、`ar new` 超长开场折叠（均显式记档;开场附件已于 PLAN 5.5 补齐）。

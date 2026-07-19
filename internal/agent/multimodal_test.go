@@ -100,6 +100,63 @@ func TestInflateBlobsCopiesNotMutates(t *testing.T) {
 	}
 }
 
+// PLAN 5.5 twin: an image attached to the OPENING message (`new --image`
+// symmetry with send) takes the same blob-before-event path — CAS ref in the
+// opening InputReceived, no raw bytes in the journal, inflated bytes on the
+// FIRST provider request.
+func TestOpeningImageAttachmentEndToEnd(t *testing.T) {
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{{Text: "看到开场截图了"}, {Finish: "end_turn"}}},
+	}}
+	cap := &capturingProvider{inner: scripted.New(fix)}
+	l := testLoop(t, fix, t.TempDir())
+	l.Provider = cap
+	png := []byte("\x89PNG opening bytes")
+	l.OpeningImages = []protocol.ImageAttachment{{MediaType: "image/png", Data: png}}
+	if _, err := l.Run(context.Background(), "这是开场截图"); err != nil {
+		t.Fatal(err)
+	}
+	evs, _ := store.ReadEvents(l.Store.Dir())
+	var ref string
+	for _, e := range evs {
+		if e.Type != event.TypeInputReceived {
+			continue
+		}
+		dec, _ := event.DecodePayload(e)
+		in := dec.(*event.InputReceived)
+		if len(in.Images) > 0 {
+			ref = in.Images[0].Ref
+			if in.Images[0].MediaType != "image/png" {
+				t.Errorf("media type = %q", in.Images[0].MediaType)
+			}
+		}
+	}
+	if ref == "" {
+		t.Fatal("opening InputReceived carries no image ref")
+	}
+	b64 := base64.StdEncoding.EncodeToString(png)
+	for _, e := range evs {
+		if bytes.Contains(e.Payload, png) || bytes.Contains(e.Payload, []byte(b64)) {
+			t.Error("journal contains opening image bytes; must be ref-only")
+		}
+	}
+	if got, err := l.Artifacts.Get(ref); err != nil || !bytes.Equal(got, png) {
+		t.Fatalf("CAS blob = %v, %v", got, err)
+	}
+	requests := cap.Requests()
+	var sawInflated bool
+	for _, m := range requests[0].Messages {
+		for _, p := range m.Parts {
+			if p.Kind == provider.PartImage && bytes.Equal(p.Data, png) && p.Ref == ref {
+				sawInflated = true
+			}
+		}
+	}
+	if !sawInflated {
+		t.Error("first provider request lacks the inflated opening image part")
+	}
+}
+
 // v2 M4 (C9 twin): an image attached to a conversational input flows end to
 // end — CAS blob before the event, ref-only journal, inflated bytes on the
 // provider request — and the model's answer lands normally.

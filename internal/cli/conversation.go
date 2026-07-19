@@ -37,6 +37,10 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 	workspaceDir := fs.String("workspace", ".", "workspace root")
 	mode := fs.String("mode", "", "run mode: default|plan|acceptEdits")
 	detach := fs.Bool("detach", false, "print the session id and exit without waiting for the reply")
+	var imagePaths repeatedFlag
+	fs.Var(&imagePaths, "image", "attach an image file to the opening message (repeatable)")
+	var filePaths repeatedFlag
+	fs.Var(&filePaths, "file", "attach a file of any type to the opening message (repeatable)")
 	jsonSchema := fs.String("json-schema", "", "path to a JSON Schema; the reply must be JSON matching it (validated, retried) — INC-26 #91")
 	jsonSchemaRetries := fs.Int("json-schema-max-retries", 2, "extra re-prompts to coax a conforming reply when --json-schema is set")
 	if ok, code := parseFlags(fs, args); !ok {
@@ -109,6 +113,16 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 			return ExitUsage
 		}
 	}
+	images, err := loadImageAttachments(imagePaths)
+	if err != nil {
+		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+		return ExitUsage
+	}
+	files, err := loadFileAttachments(filePaths)
+	if err != nil {
+		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
+		return ExitUsage
+	}
 	sock, err := socketPath()
 	if err != nil {
 		fmt.Fprintln(stderr, err)
@@ -117,6 +131,7 @@ func newCmd(args []string, stdout, stderr io.Writer) int {
 	cmd := daemon.Command{
 		Cmd: "run", SpecPath: specPath, Prompt: rest[1],
 		Workspace: wsAbs, Mode: *mode,
+		Images: images, Files: files,
 	}
 	if *detach {
 		// Detach after RunStart: read just the id and leave; the session

@@ -155,6 +155,11 @@ type Loop struct {
 	// first turn (S5.8): journaled into SessionStarted, written by an idempotent
 	// materialize activity. Set by a spawning parent (or a future CLI flag).
 	Inputs []event.ArtifactInput
+	// OpeningImages/OpeningFiles are attachments riding the OPENING prompt
+	// (PLAN 5.5: `new --image/--file`, symmetric with send): CAS-stored
+	// before the InputReceived journals, exactly like a delivered input.
+	OpeningImages []protocol.ImageAttachment
+	OpeningFiles  []protocol.FileAttachment
 	// Snapshots is the workspace SnapshotStore (S7.2): barriers are taken
 	// only when it is present AND a snapshot succeeds — no ref, no barrier
 	// (backend=none degrades to zero barriers, nothing else changes).
@@ -458,7 +463,7 @@ func (l *Loop) Run(ctx context.Context, prompt string) (RunResult, error) {
 	}
 	l.fireLifecycle(ctx, hook.EventSessionStart,
 		map[string]string{"spec": l.Spec.Name, "prompt": prompt}, false)
-	input, err := runtime.IngestInput(l.Store, l.SessionID, prompt, "cli")
+	input, err := l.ingestOpening(prompt)
 	if err != nil {
 		return RunResult{}, err
 	}
@@ -485,6 +490,37 @@ func (l *Loop) Run(ctx context.Context, prompt string) (RunResult, error) {
 	l.emit(protocol.Event{Kind: protocol.KindSessionStart, Mode: ds.s.CurrentMode()})
 
 	return l.drive(ctx, ds, appendE)
+}
+
+// ingestOpening journals the opening prompt, CAS-storing any opening
+// attachments first (blob-before-event) so the InputReceived carries only
+// refs — the same shape journalInput gives a delivered input (PLAN 5.5).
+func (l *Loop) ingestOpening(prompt string) (event.Envelope, error) {
+	if len(l.OpeningImages) == 0 && len(l.OpeningFiles) == 0 {
+		return runtime.IngestInput(l.Store, l.SessionID, prompt, "cli")
+	}
+	if err := l.ensureArtifacts(); err != nil {
+		return event.Envelope{}, err
+	}
+	content := []provider.Part{{Kind: provider.PartText, Text: prompt}}
+	var images, files []event.AttachmentRef
+	for _, img := range l.OpeningImages {
+		ref, err := l.Artifacts.Put(img.Data)
+		if err != nil {
+			return event.Envelope{}, err
+		}
+		images = append(images, event.AttachmentRef{Ref: ref, MediaType: img.MediaType})
+		content = append(content, provider.Part{Kind: provider.PartImage, Ref: ref, MediaType: img.MediaType})
+	}
+	for _, f := range l.OpeningFiles {
+		ref, err := l.Artifacts.Put(f.Data)
+		if err != nil {
+			return event.Envelope{}, err
+		}
+		files = append(files, event.AttachmentRef{Ref: ref, MediaType: f.MediaType})
+		content = append(content, provider.Part{Kind: provider.PartFile, Ref: ref, MediaType: f.MediaType})
+	}
+	return runtime.IngestOpeningInput(l.Store, l.SessionID, prompt, "cli", content, images, files)
 }
 
 // discoverCommandTools loads and trust-gates the user-defined command tools

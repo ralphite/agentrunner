@@ -123,11 +123,16 @@ func attributedCommand(cmd Command, command protocol.SessionCommand) protocol.Se
 // Inbox delivers user inputs — the runner wires it to the Loop's
 // UserInputs; closing it is the close gesture.
 type RunRequest struct {
-	SessionID         string
-	SpecPath          string
-	Prompt            string
-	Workspace         string
-	Mode              string
+	SessionID string
+	SpecPath  string
+	Prompt    string
+	Workspace string
+	Mode      string
+	// Images/Files ride the OPENING prompt (PLAN 5.5, `new --image/--file`):
+	// same wire shape as a send's attachments, CAS-stored by the loop before
+	// the opening InputReceived journals.
+	Images            []protocol.ImageAttachment
+	Files             []protocol.FileAttachment
 	Inbox             <-chan protocol.UserInput
 	Interrupts        <-chan struct{}
 	Cancels           <-chan string
@@ -1611,6 +1616,7 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 		if err := s.Run(runCtx, RunRequest{
 			SessionID: id, SpecPath: cmd.SpecPath, Prompt: cmd.Prompt,
 			Workspace: cmd.Workspace, Mode: cmd.Mode,
+			Images: cmd.Images, Files: cmd.Files,
 			Inbox: hub.inbox, Interrupts: hub.interrupts, Cancels: hub.cancels,
 			Controls: hub.controls, CommandInterrupts: hub.commandInterrupts,
 			CommandCancels: hub.commandCancels, Revokes: hub.revokes, Answers: hub.answers,
