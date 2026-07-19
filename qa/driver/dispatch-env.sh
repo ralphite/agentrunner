@@ -11,6 +11,18 @@ PREFIX="${2:-}"
 API="https://api.github.com/repos/$REPO"
 AUTH=(-H "Authorization: Bearer ${GITHUB_TOKEN:?GITHUB_TOKEN required}")
 
+# 并发护栏(QA-0719 实测险情):workflow 是 cancel-in-progress,dispatch
+# 会杀掉当前活着的 env——而那个 env 可能是并发 session 正在驱动的
+# (driver issue 几十条评论的活跃工作)。有 in_progress run 时拒绝,
+# 除非 FORCE=1(明知要抢占)。
+LIVE=$(curl -sf "${AUTH[@]}" "$API/actions/workflows/remote-qa-env.yml/runs?status=in_progress&per_page=1" |
+  python3 -c "import sys,json; rs=json.load(sys.stdin)['workflow_runs']; print(rs[0]['id'] if rs else '')")
+if [ -n "$LIVE" ] && [ "${FORCE:-0}" != "1" ]; then
+  echo "REFUSED: run $LIVE is in_progress — dispatch would cancel it (可能是并发 session 的活跃 env)." >&2
+  echo "确认无人在用后 FORCE=1 重试,或直接复用它的 driver issue(注意 n 计数器归属)." >&2
+  exit 2
+fi
+
 inputs="{\"minutes\": \"$MINUTES\"}"
 [ -n "$PREFIX" ] && inputs="{\"minutes\": \"$MINUTES\", \"store_prefix\": \"$PREFIX\"}"
 curl -sf "${AUTH[@]}" -X POST "$API/actions/workflows/remote-qa-env.yml/dispatches" \

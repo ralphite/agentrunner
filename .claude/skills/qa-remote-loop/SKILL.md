@@ -41,6 +41,10 @@ octal、staged 全盲、sa-status 截断×2、goal pill 溢出、sa-row 参差),
   之后一律 `eval location.assign('/#...')` 导航。
 - 每条 comment 的 `n` 全局递增,乱序会被拒。
 - env 有 deadline,发指令前先想"这个 env 还剩几分钟"。
+- **dispatch 前查并发**(dispatch-env.sh 已内建护栏):cancel-in-progress
+  会杀当前活着的 env,而它可能是**并发 session 正在驱动的**(driver
+  issue 几十条评论=活跃工作)。有 in_progress run 时默认拒绝;也不要
+  往别人的 driver issue 插指令(n 计数器会撞)。等它结束或协调。
 
 ## 三、驱动纪律(每条都是踩过的坑)
 
