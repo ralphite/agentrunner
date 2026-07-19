@@ -126,8 +126,9 @@
       调度)与 lease_id(零读者)砍,team fold v2;**逐层 relay 复核有真实
       消费方(孙辈 durable mail 承重件)保留**;delegation 本体/workspace/
       replaces 保留。评估全文见 LOG。
-- [ ] 5.4 CLI 碎屑批修：sessions 迁回 flag 包、run -o 显式报错、
-      inspect/events 解析统一、goal help 默认值 10→20 陈旧文案。
+- [x] 5.4 CLI 碎屑批修——2026-07-19:sessions/inspect/events 统一
+      parseFlags(撤两处手写分拣),run -o 显式报错指路 record-fixture
+      (补钉子),goal --max-checks help 10→20。
 - [ ] 5.5 `ar new` 补开场附件（与 send 对称）。
 - [ ] 5.6 webui manual rename 落 journal（SessionTitled{manual}），删
       localStorage 层。

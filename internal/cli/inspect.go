@@ -2,7 +2,6 @@ package cli
 
 import (
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -26,20 +25,10 @@ func inspectCmd(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("inspect", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	asJSON := fs.Bool("json", false, "emit the report as JSON")
-	var flagArgs, positional []string
-	for _, a := range args {
-		if strings.HasPrefix(a, "-") {
-			flagArgs = append(flagArgs, a)
-		} else {
-			positional = append(positional, a)
-		}
-	}
-	if err := fs.Parse(append(flagArgs, positional...)); err != nil {
-		// -h/--help is a clean exit (0), not a usage error (QA Wave1 alice-14).
-		if errors.Is(err, flag.ErrHelp) {
-			return ExitOK
-		}
-		return ExitUsage
+	// Same flag discipline as every other command (PLAN 5.4): parseFlags
+	// reorders defined flags ahead of positionals and honors a literal "--".
+	if ok, code := parseFlags(fs, args); !ok {
+		return code
 	}
 	if fs.NArg() != 1 {
 		fmt.Fprintln(stderr, "usage: agentrunner inspect <session-id-or-prefix> [--json]")

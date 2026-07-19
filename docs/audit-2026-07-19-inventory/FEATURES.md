@@ -100,7 +100,7 @@
 - `ar record-fixture / ar accept`：开发者命令——录制真实 provider 交互为 fixture / 跑验收场景出 JSON 报告。
 
 ### 2.4 CLI 横切行为
-- flag 重排：已定义 flag 可后置于位置参数（`send sid "msg" --image x.png`），`--` 终止扫描；例外：inspect/events/sessions 是手写 `-` 前缀分拣，不识别 `--`。
+- flag 重排：已定义 flag 可后置于位置参数（`send sid "msg" --image x.png`），`--` 终止扫描（2026-07-19 PLAN 5.4 起 inspect/events/sessions 同一纪律,手写分拣已除）。
 - 退出码约定：0 完成 / 1 运行失败 / 2 用法或 spec 错误；`-h/--help` 算成功退出 0。
 - .env 自动加载：run/drive/daemon/resume/dictate/optimize 从 cwd（部分还从 workspace 根）读 .env 补缺失环境变量，从不覆盖。
 - 信号语义：前台第一次 Ctrl-C = steering interrupt，第二次或 SIGTERM = 硬取消；daemon SIGTERM = 优雅停机（loop driver 无终态、boot sweep 复活）。
@@ -108,10 +108,10 @@
 - daemon 缺失统一提示 `agentrunner daemon --detach` 启动指引。
 - 隐藏开关：`AGENTRUNNER_DEBUG=1` 开 debug 日志；`AGENTRUNNER_SCRIPTED_FIXTURE` 指定 scripted provider 的 fixture。
 - socket 回退：数据目录路径过长时 unix socket 自动落到 `$TMPDIR/ar-<hash>.sock`。
-- ⚠ `sessions` 的 flags 是手写解析器（非 flag 包），行为与其它命令不一致。
-- ⚠ `run -o` flag 被静默忽略（仅 record-fixture 有意义）。
+- ~~sessions 手写解析器~~（2026-07-19 PLAN 5.4 迁 flag 包+parseFlags）。
+- ~~run -o 静默忽略~~（2026-07-19 PLAN 5.4 改显式报错并指路 record-fixture）。
 - flag 补遗：submit 另有 --workspace/--mode/--json；drive 另有 --workspace/--json；dictate/optimize 各有 --model/--provider；queue --json；retry --detach；hook create --name、hook list 可按 session 过滤；accept --stage/--plain/--report。
-- ⚠ `ar goal --max-checks` 的 CLI help 写默认 10，实际兜底 20（陈旧文案待修）。
+- ~~goal --max-checks help 写 10 实际 20~~（2026-07-19 PLAN 5.4 文案改 20）。
 
 ## 3. 模型工具面（26 个内置工具）
 

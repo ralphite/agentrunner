@@ -136,8 +136,11 @@ func runCmd(args []string, recordMode bool, version string, stdout, stderr io.Wr
 		fmt.Fprintf(stderr, "record-fixture: -o <file> is required\n")
 		return ExitUsage
 	}
-	if !recordMode {
-		*fixtureOut = ""
+	if !recordMode && *fixtureOut != "" {
+		// Refuse loudly instead of silently ignoring it (PLAN 5.4): the user
+		// asked for a fixture and `run` does not record one.
+		fmt.Fprintf(stderr, "run: -o records nothing here — use `agentrunner record-fixture -o %s <spec.yaml> \"prompt\"`\n", *fixtureOut)
+		return ExitUsage
 	}
 
 	var sink protocol.Sink

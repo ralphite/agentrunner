@@ -3,12 +3,12 @@ package cli
 import (
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -244,41 +244,27 @@ func sessionStartedFromEvents(events []event.Envelope) (*event.SessionStarted, e
 // the folded status. Bare `sessions` lists too — it is every first-timer's
 // first guess (INC-2).
 func sessionsCmd(args []string, stdout, stderr io.Writer) int {
-	jsonOutput := false
-	seenList := false
-	limit, offset := 0, 0
+	fs := flag.NewFlagSet("sessions", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	jsonFlag := fs.Bool("json", false, "emit rows as JSON (includes workspace and title)")
+	limitFlag := fs.Int("limit", 0, "maximum rows to print (0 = all)")
+	offsetFlag := fs.Int("offset", 0, "rows to skip before printing")
 	usage := func() int {
 		fmt.Fprintln(stderr, "usage: agentrunner sessions [list] [--json] [--limit N] [--offset N]")
 		return ExitUsage
 	}
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		switch arg {
-		case "list":
-			if seenList {
-				return usage()
-			}
-			seenList = true
-		case "--json":
-			jsonOutput = true
-		case "--limit", "--offset":
-			if i+1 >= len(args) {
-				return usage()
-			}
-			n, err := strconv.Atoi(args[i+1])
-			if err != nil || n < 0 {
-				return usage()
-			}
-			if arg == "--limit" {
-				limit = n
-			} else {
-				offset = n
-			}
-			i++
-		default:
-			return usage()
-		}
+	if ok, code := parseFlags(fs, args); !ok {
+		return code
 	}
+	// The only positional accepted is a single optional "list".
+	if fs.NArg() > 1 || (fs.NArg() == 1 && fs.Arg(0) != "list") {
+		return usage()
+	}
+	if *limitFlag < 0 || *offsetFlag < 0 {
+		return usage()
+	}
+	jsonOutput := *jsonFlag
+	limit, offset := *limitFlag, *offsetFlag
 	data, err := runtime.DataDir()
 	if err != nil {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)

@@ -5384,3 +5384,12 @@ depends_on/lease_id 字段(旧 journal 未知字段 decode 忽略,无迁移);
 state.Delegation 瘦身,team sub-state 版本 1→2(checkVersions 接受旧
 版);TestDelegationDependencyPlan 删除;SPEC B 行/DESIGN 词表/
 FEATURES 台账同步。
+
+## PLAN 5.4 CLI 碎屑批修（2026-07-19）
+
+四项:(1) `sessions` 手写解析器迁 flag 包+parseFlags(负值/缺值/多余
+位置参数仍 usage,`--`/flag 后置与全家一致,既有分页钉子不动);(2)
+`inspect`/`events` 撤手写 `-` 前缀分拣,统一 parseFlags(修复不识别
+`--`、任意 `-` 开头 token 被误吸的偏差);(3) `run -o` 从静默忽略改
+显式 usage 报错并指路 record-fixture(补钉子);(4) `goal --max-checks`
+help 陈旧文案 10→实际兜底 20(goal.go DefaultGoalMaxChecks)。

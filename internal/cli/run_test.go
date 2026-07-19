@@ -104,6 +104,14 @@ func TestRunCmdUsageErrors(t *testing.T) {
 	if code := runCmd([]string{"s.yaml", "prompt"}, true, "dev", &out, &errOut); code != ExitUsage {
 		t.Errorf("record-fixture without -o: exit = %d", code)
 	}
+	// `run -o` is refused loudly instead of silently ignored (PLAN 5.4).
+	errOut.Reset()
+	if code := runCmd([]string{"-o", "f.json", "s.yaml", "prompt"}, false, "dev", &out, &errOut); code != ExitUsage {
+		t.Errorf("run with -o: exit = %d, want ExitUsage", code)
+	}
+	if !strings.Contains(errOut.String(), "record-fixture") {
+		t.Errorf("run -o refusal should point at record-fixture, got %q", errOut.String())
+	}
 	// A whitespace-only prompt is rejected like an empty one — it must not
 	// create a junk session (QA Wave1 cli-life-09).
 	for _, p := range []string{"", "   ", "\t\n"} {

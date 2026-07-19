@@ -25,18 +25,9 @@ func eventsCmd(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	dumpState := fs.Bool("state", false, "print the folded state instead of the event list")
 	asJSON := fs.Bool("json", false, "raw JSONL output (with --state: indented state JSON)")
-	// All events flags are bool, so flags-after-positional can be supported
-	// by partitioning before Parse (stdlib flag stops at the first non-flag).
-	var flagArgs, positional []string
-	for _, a := range args {
-		if strings.HasPrefix(a, "-") {
-			flagArgs = append(flagArgs, a)
-		} else {
-			positional = append(positional, a)
-		}
-	}
-	if err := fs.Parse(append(flagArgs, positional...)); err != nil {
-		return ExitUsage
+	// Same flag discipline as every other command (PLAN 5.4).
+	if ok, code := parseFlags(fs, args); !ok {
+		return code
 	}
 	if fs.NArg() != 1 {
 		fmt.Fprintln(stderr, "usage: agentrunner events <session-id-or-prefix> [--state] [--json]")

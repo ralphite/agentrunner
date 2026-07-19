@@ -642,7 +642,7 @@ func goalCmd(args []string, stdout, stderr io.Writer) int {
 		fs.Var(&verifiers, "verify", "a command verifier — exit 0 = pass (repeatable); omit for a self-certified goal (the model claims completion via goal_complete)")
 		var llmVerifiers repeatedFlag
 		fs.Var(&llmVerifiers, "verify-llm", "an llm_judge verifier — a rubric an independent LLM scores the model's goal_complete claim against (INC-48); claim-gated")
-		maxChecks := fs.Int("max-checks", 0, "goal-level budget: max verifier checks before a visible truncation (attach default 10)")
+		maxChecks := fs.Int("max-checks", 0, "goal-level budget: max verifier checks before a visible truncation (attach default 20)")
 		if err := fs.Parse(reorderFlags(fs, rest)); err != nil {
 			return ExitUsage
 		}
