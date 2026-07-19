@@ -1,4 +1,4 @@
-url: https://mass-myers-ate-terrorism.trycloudflare.com
-run_id: 29689266946
-started_at: 2026-07-19T13:40:12Z
-minutes: 120
+url: https://ads-wars-dose-incoming.trycloudflare.com
+run_id: 29693247725
+started_at: 2026-07-19T15:40:40Z
+minutes: 180
