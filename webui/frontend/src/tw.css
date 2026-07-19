@@ -1021,3 +1021,85 @@
     .lb-nav { @apply static translate-y-0; }
   }
 }
+
+/* ── INC-79 · 勾销批次 1(P1 高频可见面):此前编译产物零规则的元素。
+   登记簿 docs/increments/INC-79-ui-polish-audit.md;每条落地即从
+   qa/tw-class-baseline.txt 删行。 ── */
+@layer components {
+  /* assistant 回答里的 markdown 表格(外层已有 border+overflow 容器) */
+  .cx-table { @apply w-full border-collapse text-[13px]; }
+  .cx-table th { @apply border-b border-line bg-panel-2 px-3 py-1.5 text-left font-semibold; }
+  .cx-table td { @apply border-b border-line-2 px-3 py-1.5 align-top; }
+  .cx-table tr:last-child td { @apply border-b-0; }
+
+  /* ATTENTION 行的状态点:琥珀 = 有事需要人 */
+  .attention-dot { @apply inline-block h-[7px] w-[7px] shrink-0 rounded-full bg-amber; }
+
+  /* 时间线/变更卡加载骨架——加载期不能是白板 */
+  .tl-skeleton { @apply mx-auto flex w-full max-w-[760px] flex-col gap-3 px-4 py-6; }
+  .tl-skel-row { @apply h-12 animate-pulse rounded-[12px] bg-panel-2; }
+  .tl-skel-row.user { @apply ml-auto w-3/5; }
+  .changes-outcome-skel { @apply flex flex-col gap-2 py-1; }
+  .changes-outcome-skel span { @apply block h-3 animate-pulse rounded-[6px] bg-panel-2; }
+  .changes-outcome-skel span + span { @apply w-2/3; }
+
+  /* 滚底浮钮(Timeline 根为该按钮与滚动区的共同父级) */
+  .tl-jump { @apply absolute bottom-5 left-1/2 z-10 flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full p-0 shadow-md; }
+
+  /* 工具明细展开(read/edit/grep/glob/spawn):mono 路径、dim 元信息 */
+  .cx-td-head { @apply flex min-w-0 flex-wrap items-center gap-2 text-ink-2; }
+  .cx-td-ic { @apply shrink-0 text-dim; }
+  .cx-td-path { @apply min-w-0 truncate font-mono text-[12px] text-ink; }
+  .cx-td-meta { @apply shrink-0 text-[11.5px] text-dim; }
+  .cx-td-pattern { @apply rounded-[6px] bg-panel-2 px-1.5 py-0.5 font-mono text-[12px]; }
+  .cx-td-link { @apply text-[12px]; }
+  .cx-td-prompt { @apply mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded-[8px] bg-panel-2 p-2 text-[12px] leading-[1.5] text-ink-2; }
+  .cx-td-sub { @apply mt-1 flex min-w-0 flex-wrap items-center gap-2 text-[12px] text-dim; }
+  .cx-td-tag { @apply rounded-full border border-line px-2 py-0.5 text-[11px] text-dim; }
+  .cx-td-tag.warn { @apply border-amber text-amber; }
+  .cx-td-err { @apply mt-1 whitespace-pre-wrap rounded-[8px] bg-red-soft p-2 font-mono text-[12px] text-red; }
+  .cx-td-partial { @apply text-[11.5px] italic text-dim; }
+  .cx-grep-files { @apply flex min-w-0 flex-col gap-1.5; }
+  .cx-grep-file { @apply min-w-0; }
+  .cx-grep-fname { @apply truncate font-mono text-[12px] font-medium text-ink-2; }
+  .cx-grep-hit { @apply flex min-w-0 items-baseline gap-2 pl-3; }
+  .cx-grep-ln { @apply w-8 shrink-0 text-right font-mono text-[11px] text-dim; }
+  .cx-grep-tx { @apply min-w-0 truncate font-mono text-[12px] text-ink-2; }
+  .cx-path-list { @apply flex min-w-0 flex-col gap-0.5; }
+  .cx-path { @apply truncate font-mono text-[12px] text-ink-2; }
+  .cx-dl { @apply flex min-w-0 items-baseline gap-1.5 font-mono text-[12px] leading-[1.5]; }
+  .cx-dl-sign { @apply w-3 shrink-0 text-center text-dim; }
+  .cx-dl.add .cx-dl-sign, .cx-dl.add .cx-dl-text { @apply text-green; }
+  .cx-dl.del .cx-dl-sign, .cx-dl.del .cx-dl-text { @apply text-red; }
+  .cx-dl-text { @apply min-w-0 flex-1 truncate; }
+  .cx-dl-more { @apply pl-4 text-[11.5px] text-dim; }
+
+  /* 活动行(compaction 等)与活动分组头补件 */
+  .cx-activity-row { @apply flex items-center gap-2 px-1 py-0.5 text-[12.5px] text-dim; }
+  .cx-activity-label { @apply min-w-0 truncate; }
+  .act-caret { @apply transition-transform duration-100; }
+  details[open] > summary .act-caret { @apply rotate-90; }
+  .act-cat { @apply shrink-0 text-dim; }
+
+  /* shell 块结果徽标 */
+  .shell-status { @apply mt-1 inline-flex items-center gap-1 text-[11.5px] text-dim; }
+  .shell-status.bad { @apply text-red; }
+
+  /* ENVIRONMENT rail:行标签、worktree 路径明细与动作组 */
+  .env-row-label { @apply min-w-0 truncate; }
+  .env-detail { @apply mt-1 rounded-[8px] bg-panel-2 p-2; }
+  .env-detail-path { @apply flex min-w-0 items-center gap-2; }
+  .env-path { @apply min-w-0 flex-1 truncate font-mono text-[11.5px] text-dim; }
+  .env-path-copy { @apply shrink-0 px-2 py-1 text-[12px]; }
+  .env-wt-actions { @apply mt-2 flex flex-wrap gap-1.5; }
+  .env-wt-action { @apply px-2.5 py-1 text-[12px]; }
+  .env-wt-danger { @apply border-red text-red hover:bg-red-soft; }
+
+  /* goal 文案与杂项标签 */
+  .goal-copy, .goal-settled-copy { @apply text-[12.5px] leading-5 text-ink-2 [overflow-wrap:anywhere]; }
+  .msg-goal-verdict { @apply inline-flex items-center gap-1 text-[12px] text-green; }
+  .cx-goal-note { @apply text-[12px] italic text-dim; }
+  .imgnote { @apply mt-1 inline-flex items-center gap-1 text-[12px] text-dim; }
+  .tam-label { @apply font-medium text-ink-2; }
+  .gbar-checks { @apply font-medium; }
+}

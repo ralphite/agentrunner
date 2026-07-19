@@ -5072,3 +5072,16 @@ Withdraw),四类样式落地并从 baseline 删除(163→159)。
 9. 其余为语义锚/父选择器覆盖的良性项,须逐簇核对。
 纪律:后续轮次按上序消化,每簇=一轮(样式落地+从 baseline 删行+
 远程截图验收);"满屏裸文本"形态(无 clamp/max-height)与 queue 同判。
+
+## 2026-07-19 · INC-79 批次 1:49 类样式落地(163→110),tam/terminal 等杂项同批
+
+INC-79 登记簿(全审计:131 真裸元素,判据=元素上无任何 token 有编译
+规则)建立后首批勾销:Timeline 工具明细全家(cx-td/cx-grep/cx-dl/
+cx-path,~45 处——mono 路径/dim 元信息/grep 行号列/mini-diff ± 着色)、
+markdown 表格 cx-table(assistant 回答内表格此前零样式)、ATTENTION
+状态点 attention-dot(此前渲染为空,注意力行无色彩信号)、加载骨架
+tl-skeleton/changes-outcome-skel(此前加载期白板)、滚底浮钮 tl-jump
+定位、ENVIRONMENT 路径明细与 worktree 动作组(env-*)、goal 文案、
+shell-status 徽标、活动行等。前端 587 测试绿,lint 无新增裸类。
+诊断与流程修正(停用 parity% 话术、lint 升级为登记簿、每轮消化配额)
+记入 INC-79 文档。
