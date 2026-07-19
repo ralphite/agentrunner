@@ -548,6 +548,9 @@
   .tl-empty { @apply mx-auto mt-16 max-w-[420px] text-center text-dim; }
   .tl-empty-cta { @apply mt-4; }
   .typing { @apply text-dim; }
+  /* 用户消息按原样保留换行(QA-0719 S6:粘贴的 traceback 各行被折叠成
+     一片流式文本);pre-wrap + anywhere 换行,长 token 不产生横向溢出。 */
+  .utext { @apply whitespace-pre-wrap [overflow-wrap:anywhere]; }
   .utext.clamped { @apply max-h-[220px] overflow-hidden; }
   .ushow { @apply mt-1 border-0 bg-transparent p-0 text-[12px] text-blue; }
   .thumbs, .imgchips { @apply mt-2 flex flex-wrap gap-2; }
