@@ -58,6 +58,10 @@ on:
         description: "Keep the environment up for this many minutes (max 340)"
         default: "60"
         type: string
+      store_prefix:
+        description: "store cache restore 前缀。默认 QA 自己的存档;传 agentrunner-store- 可加载 phone-webui 环境的会话来复现/审查(只读借用:保存仍走 QA 前缀,不污染 phone 存档)"
+        default: "agentrunner-qa-store-"
+        type: string
 
 # contents: write——commit 隧道 URL 回 main + 建 release 传截图；
 # issues: write——建 driver issue、回帖结果。
@@ -121,7 +125,7 @@ jobs:
             runtime
           key: agentrunner-qa-store-${{ github.run_id }}
           restore-keys: |
-            agentrunner-qa-store-
+            ${{ inputs.store_prefix || 'agentrunner-qa-store-' }}
 
       - name: Start Web UI
         env:
