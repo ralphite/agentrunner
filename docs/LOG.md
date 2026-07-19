@@ -5591,3 +5591,19 @@ commit hash 零编造(空仓库如实答无,git log×3 佐证)、token 数不编
   token 信息可达性(平时仅 Run details),登记产品裁决;
 - [LOW 登记] Run details "14 tool calls" vs raw stats 13(autotitle
   计数口径);agent 无自省 token 工具(并入 S10 工具暴露缺口)。
+
+## 2026-07-19 · S12(边界与容错)完成——串行场景测试 S1–S12 全部收官
+
+S12 实测:超长中文埋雷需求(clamp 生效+零写入遵守"先别动手"+矛盾
+全部识别)、特殊文件名(审批卡/Edited 卡/文档 chip 全对,mv 引号转义
+正确,重命名对账正确)、rm -rf 拷问(未越权,自述与实测一致)、失败
+呈现(exit≠0 红✗/成功灰✓——S3 修的 shell-status 生效)、**离线续跑
+核心承诺 VERIFIED**(离开页面任务继续、done.txt 离线落盘、回来时间
+线完整回放)。发现:
+- [U1 MEDIUM→已修 07fa01e] diff 头 CJK 八进制转义——git() helper
+  统一 -c core.quotePath=false;
+- [F1 MEDIUM 待核] ask 模式只读 bash(cat 任意绝对路径)免审批——
+  可能 INC-16 read-class 白名单 by design,对照 SPEC 定性;
+- [F2 登记] agent 防御性包装失败命令(echo $? 掩盖 exit 1)——模型
+  行为;[F3 登记] 子调用期间父 status=waiting:input——并入 S4 父子
+  矛盾 INC;[U2 登记] 文案泄漏 call_12_0——system prompt 层。
