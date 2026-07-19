@@ -47,11 +47,6 @@
           ]
         }
       },
-      "depends_on": {
-        "type": "array",
-        "description": "Durable delegation ids or prior spawn handles that must be quiescent before this delegation starts. Ordering only: it does not copy a dependency's isolated file changes into the new member's snapshot — pass content via inputs or prompt.",
-        "items": {"type": "string"}
-      },
       "replaces": {
         "type": "string",
         "description": "Handle of a still-running sub-agent this delegation supersedes: it is cancelled before the new one starts, so it stops spending the shared budget. A finished or unknown handle is silently ignored (idempotent)."

@@ -5363,3 +5363,24 @@ init 模板、qa14/qa32 脚本、webui timeline(新旧名双 case 渲染历史
 journal)、SPEC/DESIGN/两份 parity 文档(顺手把"语义检索领先"改为如实的
 BM25 表述)同步。钉子:TestKeywordSearchToolEndToEnd(spec 故意用旧名,
 钉 alias 全链)。
+
+## PLAN 5.3 lease/DAG 消费方评估与砍除（2026-07-19）
+
+**评估结论**（先评估再砍,按默认裁决）：
+- `depends_on`(DAG):唯一行为=planSpawn 的"依赖须已静止"校验——无
+  调度、无 defer、无 barrier;模型不用它也能靠回执自行排序。低消费,砍。
+- `lease_id`:spawn/series 写入、fold 记账,**零读者**(唯 inspect 原样
+  转储)。纯记账戏,砍。Delegation.Status 词汇 "leased"→"working"
+  (fold 派生纯投影,journal 不载)。
+- **逐层 relay(revive 接力):有真实消费方,保留**——crash 后孙辈
+  durable mail 只能经中间父 scanPendingChildMail 接力唤醒,是"durable
+  truth outlives dropped wake"不变量的承重件(send_message/ar send
+  --target 都依赖)。
+- Team/delegation 本体、workspace assignment、replaces:真实消费方
+  (recovery.go workspace 复原、INC-30 replaces 取消前任),保留。
+
+**实施**:spawn_agent def 撤 depends_on 参数;SpawnRequested 撤
+depends_on/lease_id 字段(旧 journal 未知字段 decode 忽略,无迁移);
+state.Delegation 瘦身,team sub-state 版本 1→2(checkVersions 接受旧
+版);TestDelegationDependencyPlan 删除;SPEC B 行/DESIGN 词表/
+FEATURES 台账同步。

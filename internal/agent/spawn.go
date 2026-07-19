@@ -43,7 +43,6 @@ type InlineRole struct {
 
 type spawnPlan struct {
 	DelegationID string
-	DependsOn    []string
 	// Replaces retires a predecessor handle before the successor starts
 	// (INC-30, G25): the same cancel the kill tool fires, so an abandoned
 	// member stops spending the shared budget. Unknown/settled handles are
@@ -55,33 +54,12 @@ type spawnPlan struct {
 func planSpawn(team map[string]state.Delegation, call provider.ToolCall) spawnPlan {
 	plan := spawnPlan{DelegationID: "delegation-" + call.CallID}
 	var args struct {
-		DependsOn []string `json:"depends_on"`
-		Replaces  string   `json:"replaces"`
+		Replaces string `json:"replaces"`
 	}
 	if err := json.Unmarshal(call.Args, &args); err != nil {
 		return plan
 	}
 	plan.Replaces = strings.TrimSpace(args.Replaces)
-	seen := map[string]bool{}
-	for _, raw := range args.DependsOn {
-		id := raw
-		if _, ok := team[id]; !ok {
-			if _, ok := team["delegation-"+raw]; ok {
-				id = "delegation-" + raw
-			} else {
-				plan.Problem = fmt.Sprintf("dependency %q does not name a durable delegation", raw)
-				return plan
-			}
-		}
-		if team[id].Status != "quiescent" {
-			plan.Problem = fmt.Sprintf("dependency %q is %s, not quiescent", id, team[id].Status)
-			return plan
-		}
-		if !seen[id] {
-			seen[id] = true
-			plan.DependsOn = append(plan.DependsOn, id)
-		}
-	}
 	return plan
 }
 
@@ -462,8 +440,7 @@ func (l *Loop) buildHandoffRun(call provider.ToolCall, res *tool.Result,
 			RoleSpec:  dynamicRoleJSON(call.Args, childSpec),
 			Escalated: childSpec.EscalationApproved, Escalation: escalationOutcome(childSpec),
 			EscalationReason: escalationFallback,
-			DelegationID:     coordination.DelegationID, DependsOn: coordination.DependsOn,
-			LeaseID: fmt.Sprintf("lease-%s-a%d", call.CallID, attempt), Workspace: workspaceAssignment,
+			DelegationID:     coordination.DelegationID, Workspace: workspaceAssignment,
 			Replaces: coordination.Replaces,
 		}); err != nil {
 			return nil, nil, false, err
@@ -601,8 +578,7 @@ func (l *Loop) launchBackgroundSpawn(ctx context.Context, appendE AppendFunc,
 		RoleSpec:  dynamicRoleJSON(call.Args, childSpec),
 		Escalated: childSpec.EscalationApproved, Escalation: escalationOutcome(childSpec),
 		EscalationReason: escalationFallback,
-		DelegationID:     coordination.DelegationID, DependsOn: coordination.DependsOn,
-		LeaseID: "lease-" + call.CallID + "-a1", Workspace: workspaceAssignment,
+		DelegationID:     coordination.DelegationID, Workspace: workspaceAssignment,
 		Replaces: coordination.Replaces,
 	}); err != nil {
 		cr.Close()

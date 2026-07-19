@@ -546,7 +546,6 @@ func (d *Driver) driveSeriesParallel(ctx context.Context, ss *state.State, appen
 		if _, err := appendE(event.TypeSpawnRequested, &event.SpawnRequested{
 			CallID: callID, Agent: agentNameOf(d.Spec), Prompt: d.buildPrompt(),
 			ChildSession: childSession, Depth: 1, BudgetTokens: allowance,
-			LeaseID: "lease-" + callID + "-a1",
 		}); err != nil {
 			return Result{}, err
 		}
@@ -702,13 +701,12 @@ func (d *Driver) runSeriesIteration(ctx context.Context, appendE appendFunc, n, 
 		suffix := fmt.Sprintf("-a%d", a)
 		session = fmt.Sprintf("%s-sub-%s%s", d.DriverID, callID, suffix)
 		childDir = filepath.Join(d.Store.Dir(), "sub", callID+suffix)
-		// Idempotent across a crash: the delegation fact re-records the same
-		// lease (fold replaces by id), and a recorded SeriesIteration N never
-		// reaches this point (startN skips it).
+		// Idempotent across a crash: the delegation fact re-records under the
+		// same id (fold replaces by id), and a recorded SeriesIteration N
+		// never reaches this point (startN skips it).
 		if _, err := appendE(event.TypeSpawnRequested, &event.SpawnRequested{
 			CallID: callID, Agent: agentNameOf(d.Spec), Prompt: d.buildPrompt(),
 			ChildSession: session, Depth: 1, BudgetTokens: allowance,
-			LeaseID: "lease-" + callID + suffix,
 		}); err != nil {
 			return res, childDir, session, spent, err
 		}

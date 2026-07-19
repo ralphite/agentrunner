@@ -2,7 +2,6 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,7 +12,6 @@ import (
 	"github.com/ralphite/agentrunner/internal/hook"
 	"github.com/ralphite/agentrunner/internal/pipeline"
 	"github.com/ralphite/agentrunner/internal/protocol"
-	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
 	"github.com/ralphite/agentrunner/internal/snapshot"
 	"github.com/ralphite/agentrunner/internal/state"
@@ -84,7 +82,7 @@ func TestIsolatedTeamWorkspaceSurvivesRevive(t *testing.T) {
 		t.Fatal(err)
 	}
 	delegation := fold.Team["delegation-iso"]
-	if delegation.Status != "quiescent" || delegation.Settlements != 2 || delegation.LeaseID != "" ||
+	if delegation.Status != "quiescent" || delegation.Settlements != 2 ||
 		delegation.Workspace == nil || delegation.Workspace.Mode != "isolated" || delegation.Workspace.BaseRef == "" {
 		t.Fatalf("durable delegation = %+v", delegation)
 	}
@@ -93,21 +91,6 @@ func TestIsolatedTeamWorkspaceSurvivesRevive(t *testing.T) {
 	canonicalWorktree, _ := filepath.EvalSymlinks(worktree)
 	if started.(*event.SessionStarted).WorkspaceRoot != canonicalWorktree {
 		t.Fatalf("child workspace root = %q, want %q", started.(*event.SessionStarted).WorkspaceRoot, canonicalWorktree)
-	}
-}
-
-func TestDelegationDependencyPlan(t *testing.T) {
-	team := map[string]state.Delegation{
-		"delegation-a": {DelegationID: "delegation-a", CallID: "a", Status: "quiescent"},
-		"delegation-b": {DelegationID: "delegation-b", CallID: "b", Status: "leased"},
-	}
-	call := provider.ToolCall{CallID: "c", Args: json.RawMessage(`{"depends_on":["a"]}`)}
-	if plan := planSpawn(team, call); plan.Problem != "" || len(plan.DependsOn) != 1 || plan.DependsOn[0] != "delegation-a" {
-		t.Fatalf("ready dependency plan = %+v", plan)
-	}
-	call.Args = json.RawMessage(`{"depends_on":["b"]}`)
-	if plan := planSpawn(team, call); !strings.Contains(plan.Problem, "not quiescent") {
-		t.Fatalf("leased dependency plan = %+v", plan)
 	}
 }
 

@@ -821,11 +821,10 @@ type SpawnRequested struct {
 	// uses the child's declared permission rules; denied keeps parent∩child.
 	Escalation       string `json:"escalation,omitempty"`
 	EscalationReason string `json:"escalation_reason,omitempty"`
-	// Coordinator identity: DelegationID is stable for the logical delegation,
-	// DependsOn forms its DAG edges, and LeaseID names the active assignment.
+	// Coordinator identity: DelegationID is stable for the logical
+	// delegation. (depends_on/lease_id existed here pre-PLAN-5.3; old
+	// journals carrying them decode fine — unknown fields are ignored.)
 	DelegationID string         `json:"delegation_id,omitempty"`
-	DependsOn    []string       `json:"depends_on,omitempty"`
-	LeaseID      string         `json:"lease_id,omitempty"`
 	Workspace    *TeamWorkspace `json:"workspace,omitempty"`
 	// Replaces records the predecessor handle this delegation retired
 	// (spawn_agent.replaces, INC-30): audit-only — the cancel itself settles

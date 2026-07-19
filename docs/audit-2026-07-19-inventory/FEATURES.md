@@ -144,7 +144,7 @@
 
 ### 3.5 编排与协作
 - spawn_agent：非阻塞派生子 agent 拿 handle（目录 agent 名或 inline role 二选一）。
-- spawn_agent 参数：inputs 把 artifact 落进子 workspace、depends_on 声明 DAG 依赖、replaces 显式退休前任。
+- spawn_agent 参数：inputs 把 artifact 落进子 workspace、replaces 显式退休前任（~~depends_on~~ 2026-07-19 PLAN 5.3 砍除）。
 - handoff_agent：交棒给另一 agent 并结束本 run（承接权限与剩余预算）。
 - send_message：树内 durable 消息（发 parent / 兄弟 / 自己的 handle），空闲的收件方被唤醒。
 - publish_note / read_notes：共享 blackboard 按 topic 发/按序读便签（跨父子可见）。
@@ -179,7 +179,7 @@
 - 动态角色：`agents_dynamic` 开启后模型可 inline 起草角色（name/instructions/tools/permissions），不得声明 hooks/MCP/预算。
 - 内置 agent 库：explore/plan 只读 agent 随发行 embed，spec 列名即可 spawn，内置优先同名文件。
 - workspace 隔离：子默认拿 spawn 时快照物化的独立 worktree（注入隔离须知），显式 shared 才共享目录。
-- durable delegation：DAG 依赖（依赖须静止）、lease、delegation-id 跨 revive 复用。
+- durable delegation：delegation-id 跨 revive 复用、workspace assignment、settlement 状态（~~DAG/lease~~ 2026-07-19 PLAN 5.3 砍除:零消费）。
 - 静止子唤醒：send_message 唤醒静止的子，同 journal 同 context 延续，绝不另起炉灶。
 - 用户直达子：`ar send <child-sid>` / webui 点进成员直接指挥任一子 agent。
 - 子进度镜像：成员事件带标签入树根 hub，CLI attach 可过滤、webui 子会话实时 SSE。

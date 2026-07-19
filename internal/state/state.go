@@ -35,7 +35,7 @@ func SubStateVersions() map[string]int {
 		"barriers":     1, // S7.2 (checkpoint barriers — fork/rewind targets)
 		"goal":         2, // INC-66: budget exhaustion is retained and recoverable
 		"interactions": 1, // INC-11.5 (Turn/Item typed interaction projection)
-		"team":         1, // INC-11.6 durable delegation/DAG/lease/workspace projection
+		"team":         2, // INC-11.6 delegation/workspace projection;v2 PLAN 5.3 砍 DAG/lease(零消费)
 		"schedule":     1, // INC-74 in-session schedule (E1① loop-mode 挂会话)
 		"series":       2, // INC-80.2b③: BaseRef pin + SeriesEnded BestIter authority
 	}
@@ -91,8 +91,9 @@ type State struct {
 	// Interactions is the durable Turn/Item projection. Conversation remains
 	// the provider-compatible view; both are folded from the same events.
 	Interactions Interactions `json:"interactions"`
-	// Team is the durable coordinator view: logical delegation → DAG,
-	// active lease, assigned member, workspace and last settlement.
+	// Team is the durable coordinator view: logical delegation → assigned
+	// member, workspace and last settlement. (The speculative DAG/lease
+	// bookkeeping was cut in PLAN 5.3 — zero consumers.)
 	Team map[string]Delegation `json:"team,omitempty"`
 }
 
@@ -100,11 +101,9 @@ type Delegation struct {
 	DelegationID string               `json:"delegation_id"`
 	CallID       string               `json:"call_id"`
 	Description  string               `json:"description"`
-	DependsOn    []string             `json:"depends_on,omitempty"`
-	LeaseID      string               `json:"lease_id,omitempty"`
 	AssignedTo   string               `json:"assigned_to,omitempty"`
 	Workspace    *event.TeamWorkspace `json:"workspace,omitempty"`
-	Status       string               `json:"status"` // leased | quiescent | failed | cancelled
+	Status       string               `json:"status"` // working | quiescent | failed | cancelled
 	LastReason   string               `json:"last_reason,omitempty"`
 	Settlements  int                  `json:"settlements,omitempty"`
 }
@@ -131,18 +130,17 @@ func delegationSettle(in map[string]Delegation, callID, reason string) map[strin
 			}
 			delegation.LastReason = reason
 			delegation.Settlements++
-			delegation.LeaseID = ""
 		}
 		out[id] = delegation
 	}
 	return out
 }
 
-func delegationRevive(in map[string]Delegation, callID, leaseID string) map[string]Delegation {
+func delegationRevive(in map[string]Delegation, callID string) map[string]Delegation {
 	out := make(map[string]Delegation, len(in))
 	for id, delegation := range in {
 		if delegation.CallID == callID {
-			delegation.Status, delegation.LeaseID = "leased", leaseID
+			delegation.Status = "working"
 		}
 		out[id] = delegation
 	}
@@ -781,9 +779,8 @@ func Apply(s State, env event.Envelope) (State, error) {
 			delegationID = "delegation-" + p.CallID
 		}
 		s.Team = delegationWith(s.Team, Delegation{DelegationID: delegationID, CallID: p.CallID,
-			Description: p.Prompt, DependsOn: append([]string(nil), p.DependsOn...),
-			LeaseID: p.LeaseID, AssignedTo: p.ChildSession, Workspace: p.Workspace,
-			Status: "leased"})
+			Description: p.Prompt, AssignedTo: p.ChildSession, Workspace: p.Workspace,
+			Status: "working"})
 
 	case *event.CheckpointBarrier:
 		// Copy-on-write: barriers append into a fresh slice.
@@ -836,7 +833,7 @@ func Apply(s State, env event.Envelope) (State, error) {
 			// terminal releases.
 			s.Budget = s.Budget.withReservation(effectIDFor(started, p.ActivityID), p.BudgetTokens)
 		}
-		s.Team = delegationRevive(s.Team, p.CallID, p.ActivityID)
+		s.Team = delegationRevive(s.Team, p.CallID)
 
 	case *event.ArtifactPublished:
 		// Copy-on-write: Apply is pure, the input map must not mutate.

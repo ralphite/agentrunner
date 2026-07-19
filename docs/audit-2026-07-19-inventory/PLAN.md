@@ -122,8 +122,10 @@
       迁移(旧 spec/journal/中途 resume 全兼容);builtin specs/init 模板/
       QA 脚本/webui timeline 双 case/SPEC/DESIGN/parity 文档同步;钉子
       TestKeywordSearchToolEndToEnd(spec 故意用旧名钉 alias 全链)。
-- [ ] 5.3 lease/DAG/depends_on/逐层 relay：先消费方评估，零消费则砍
-      （保留 spawn/receipt/kill/直接子 revive）。
+- [x] 5.3 lease/DAG 评估后砍除——2026-07-19:depends_on(仅静止校验无
+      调度)与 lease_id(零读者)砍,team fold v2;**逐层 relay 复核有真实
+      消费方(孙辈 durable mail 承重件)保留**;delegation 本体/workspace/
+      replaces 保留。评估全文见 LOG。
 - [ ] 5.4 CLI 碎屑批修：sessions 迁回 flag 包、run -o 显式报错、
       inspect/events 解析统一、goal help 默认值 10→20 陈旧文案。
 - [ ] 5.5 `ar new` 补开场附件（与 send 对称）。
