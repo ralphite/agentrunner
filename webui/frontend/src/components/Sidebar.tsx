@@ -236,6 +236,48 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
     </>
   );
 
+  // One source for the project group's actions: the desktop right-click
+  // ContextMenu and the touch ⋯ Menu on the heading row (INC-78.2) render the
+  // same items, so the two entrances can never drift apart.
+  const renderProjectActions = (key: string, label: string, workspace: string | undefined, ids: string[]) => {
+    const overlay = projects[key];
+    const lastOpened = overlay?.lastOpened ? relTimeAgo(new Date(overlay.lastOpened)) : "";
+    return (
+      <>
+        <MenuLabel>{label}{lastOpened ? ` · opened ${lastOpened}` : ""}</MenuLabel>
+        {workspace && (
+          <>
+            <MenuLabel>Open in</MenuLabel>
+            <MenuItem onClick={() => openProjectIn(workspace, "vscode")}>
+              <span className="inline-flex items-center gap-[8px]"><Code size={14} /> VS Code</span>
+            </MenuItem>
+            <MenuItem onClick={() => openProjectIn(workspace, "finder")}>
+              <span className="inline-flex items-center gap-[8px]"><FolderOpen size={14} /> Finder</span>
+            </MenuItem>
+            <MenuItem onClick={() => openProjectIn(workspace, "terminal")}>
+              <span className="inline-flex items-center gap-[8px]"><Terminal size={14} /> Terminal</span>
+            </MenuItem>
+          </>
+        )}
+        <MenuLabel>Project</MenuLabel>
+        <MenuItem onClick={() => openPrompt({
+          title: "Rename project",
+          label: "Display name",
+          initial: overlay?.displayName || "",
+          placeholder: label,
+          submitLabel: "Rename",
+          onSubmit: (value) => setProjectName(key, value),
+        })}>
+          <span className="inline-flex items-center gap-[8px]"><PencilSimple size={14} /> Rename project…</span>
+        </MenuItem>
+        {overlay?.displayName && <MenuItem onClick={() => setProjectName(key, "")}>Reset to default name</MenuItem>}
+        {workspace && <MenuItem onClick={() => { copyText(workspace); toast("copied project path", "info"); }}>Copy project path</MenuItem>}
+        <MenuItem onClick={() => ids.filter((id) => unread.includes(id)).forEach(markRead)}>Mark all as read</MenuItem>
+        <MenuItem onClick={() => ids.filter((id) => !archived.includes(id)).forEach(toggleArchive)}>Archive all sessions</MenuItem>
+      </>
+    );
+  };
+
   const renderSession = (session: (typeof sessions)[number], nested = false) => {
     const active = session.id === currentSid;
     const status = friendlyStatus(session.status);
@@ -427,8 +469,9 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             };
             return (
               <div className="project-group" key={project.key}>
+                <div className="flex min-w-0 items-center">
                 <button
-                  className="project-heading"
+                  className="project-heading min-w-0 flex-1"
                   onClick={() => setProjectCollapsed(project.key, !persistedFold)}
                   title={project.workspace || name}
                   aria-expanded={!folded}
@@ -455,6 +498,19 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
                   <span>{name}</span>
                   {project.hint && <span className="project-hint">{project.hint}</span>}
                 </button>
+                {/* Touch layouts have no hover and no reliable right-click, so
+                    the project menu (rename, open-in, archive-all) was
+                    unreachable there — same pattern as the session rows' ⋯
+                    (INC-78.2). Desktop keeps the denser context-menu path. */}
+                <span className="hidden shrink-0 max-[900px]:inline-flex">
+                  <Menu
+                    label={<DotsThree size={18} weight="bold" />}
+                    ariaLabel={`More actions for ${name}`}
+                  >
+                    {renderProjectActions(project.key, name, project.workspace, project.sessions.map((session) => session.id))}
+                  </Menu>
+                </span>
+                </div>
                 {shown.map((session) => renderSession(session, true))}
                 {!folded && !showAll && project.sessions.length > shown.length && (
                   <button className="show-more" onClick={() => setExpanded((current) => new Set(current).add(project.key))}>
@@ -628,46 +684,11 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
           {renderSessionActions(ctx.sid)}
         </ContextMenu>
       )}
-      {ctx?.kind === "project" && (() => {
-        const overlay = projects[ctx.key];
-        const lastOpened = overlay?.lastOpened ? relTimeAgo(new Date(overlay.lastOpened)) : "";
-        const menuKey = ctx.key;
-        const menuWorkspace = ctx.workspace;
-        return (
-          <ContextMenu x={ctx.x} y={ctx.y} onClose={() => setCtx(null)}>
-            <MenuLabel>{ctx.label}{lastOpened ? ` · opened ${lastOpened}` : ""}</MenuLabel>
-            {menuWorkspace && (
-              <>
-                <MenuLabel>Open in</MenuLabel>
-                <MenuItem onClick={() => openProjectIn(menuWorkspace, "vscode")}>
-                  <span className="inline-flex items-center gap-[8px]"><Code size={14} /> VS Code</span>
-                </MenuItem>
-                <MenuItem onClick={() => openProjectIn(menuWorkspace, "finder")}>
-                  <span className="inline-flex items-center gap-[8px]"><FolderOpen size={14} /> Finder</span>
-                </MenuItem>
-                <MenuItem onClick={() => openProjectIn(menuWorkspace, "terminal")}>
-                  <span className="inline-flex items-center gap-[8px]"><Terminal size={14} /> Terminal</span>
-                </MenuItem>
-              </>
-            )}
-            <MenuLabel>Project</MenuLabel>
-            <MenuItem onClick={() => openPrompt({
-              title: "Rename project",
-              label: "Display name",
-              initial: overlay?.displayName || "",
-              placeholder: ctx.label,
-              submitLabel: "Rename",
-              onSubmit: (value) => setProjectName(menuKey, value),
-            })}>
-              <span className="inline-flex items-center gap-[8px]"><PencilSimple size={14} /> Rename project…</span>
-            </MenuItem>
-            {overlay?.displayName && <MenuItem onClick={() => setProjectName(menuKey, "")}>Reset to default name</MenuItem>}
-            {menuWorkspace && <MenuItem onClick={() => { copyText(menuWorkspace); toast("copied project path", "info"); }}>Copy project path</MenuItem>}
-            <MenuItem onClick={() => ctx.ids.filter((id) => unread.includes(id)).forEach(markRead)}>Mark all as read</MenuItem>
-            <MenuItem onClick={() => ctx.ids.filter((id) => !archived.includes(id)).forEach(toggleArchive)}>Archive all sessions</MenuItem>
-          </ContextMenu>
-        );
-      })()}
+      {ctx?.kind === "project" && (
+        <ContextMenu x={ctx.x} y={ctx.y} onClose={() => setCtx(null)}>
+          {renderProjectActions(ctx.key, ctx.label, ctx.workspace, ctx.ids)}
+        </ContextMenu>
+      )}
     </aside>
   );
 }

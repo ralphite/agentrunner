@@ -5004,3 +5004,11 @@ JOURNEYS UJ-24 步1 与 DESIGN L1322-1324 同 commit 修订;viewModels 测试
 修订+断言组键=真实路径。方案 B(完全平铺)/C(砍静默铸造桥接)已在
 工作纸登记待用户裁决。旧 `__scratch__` overlay 记录成为孤儿(装饰性,
 显式接受)。步2(触屏 ⋯ 菜单)与闸 B 远程验收待做。
+
+## 2026-07-19 · INC-78.2:project 菜单触屏可达
+
+project 标题行加触屏 ⋯ 菜单(≤900px 显示,复用 session 行既有 Menu
+模式);菜单内容与桌面右键 ContextMenu 同源抽取(renderProjectActions),
+两个入口永不漂移。Rename project/Open in/Copy path/Mark all read/
+Archive all 全部触屏可达。前端 587 test + build + lint-tw-classes 绿。
+闸 B 远程验收待新环境(现存环境构建不含 INC-78)。
