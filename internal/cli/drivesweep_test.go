@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ralphite/agentrunner/internal/driver"
 	"github.com/ralphite/agentrunner/internal/event"
@@ -157,6 +158,51 @@ func TestScanDriveSessionsIncludesSeriesForm(t *testing.T) {
 	for _, id := range stranded {
 		if strings.HasPrefix(id, "series-") {
 			t.Errorf("stranded sweep picked up series session %s — it belongs to the drive sweep", id)
+		}
+	}
+}
+
+// INC-80 review P0-1/P0-2: the drive sweep collects a merged-stream
+// self_paced series (its graceful shutdown leaves no terminal on exactly
+// this promise), and the TIMER sweep never offers a series session to the
+// agent-resume seam — its series_tick timers are ResumeDrive wake hints.
+func TestSweepsRouteSeriesSessionsToDriveSweepOnly(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	writeSeriesJournal(t, "series-selfpaced", driver.ScheduleSelfPaced, false)
+	// Arm a pending series_tick timer on it (the crash left it unfired).
+	dir, err := runtime.SessionDir("series-selfpaced")
+	if err != nil {
+		t.Fatal(err)
+	}
+	es, err := store.OpenEventStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendDriveEv(t, es, event.TypeTimerSet, &event.TimerSet{
+		TimerID: "series:series-selfpaced:1", FireAt: time.Now().Add(-time.Minute),
+		Purpose: "series_tick:series-selfpaced"})
+	_ = es.Close()
+
+	ids, err := scanDriveSessions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, id := range ids {
+		if id == "series-selfpaced" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("self_paced series missing from the drive sweep: %v (P0-1)", ids)
+	}
+	timers, err := scanSessionTimers()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tm := range timers {
+		if tm.SessionID == "series-selfpaced" {
+			t.Fatal("timer sweep offered a series session to the agent-resume seam (P0-2)")
 		}
 	}
 }

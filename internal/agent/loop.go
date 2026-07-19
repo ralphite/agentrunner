@@ -1039,8 +1039,12 @@ func checkVersions(got map[string]int) error {
 		if !ok {
 			return fmt.Errorf("resume: journaled sub-state %q is unknown to this binary %v", name, want)
 		}
-		if wv != v {
-			return fmt.Errorf("resume: sub-state %q version %d does not match binary version %d",
+		// OLDER journal versions are accepted (决策 #18: additive-optional
+		// changes are read by the compatible reader — new fields simply fold
+		// from their zero values). Only a journal written by a NEWER binary
+		// is refused: it may carry shapes this fold cannot interpret.
+		if v > wv {
+			return fmt.Errorf("resume: sub-state %q version %d is newer than binary version %d",
 				name, v, wv)
 		}
 	}

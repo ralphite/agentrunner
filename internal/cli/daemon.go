@@ -704,6 +704,13 @@ func scanSessionTimers() ([]daemon.SessionTimer, error) {
 		if err != nil || s.Session.Closed != nil || len(s.Timers) == 0 {
 			continue
 		}
+		if s.Series != nil {
+			// A merged-stream series belongs to the DRIVE sweep — its
+			// series_tick timers are wake hints for ResumeDrive, never for
+			// an agent-loop resume (INC-80 review P0-2: resuming a
+			// program-driven journal as an agent session corrupts it).
+			continue
+		}
 		var earliest time.Time
 		for _, tm := range s.Timers {
 			if earliest.IsZero() || tm.FireAt.Before(earliest) {
@@ -722,6 +729,14 @@ func hostResumeFunc(version string, stderr io.Writer, broker *daemon.ApprovalBro
 	return func(ctx context.Context, req daemon.ResumeRequest, sink protocol.Sink) error {
 		sessionID := req.SessionID
 		dir, err := resolveSessionDir(sessionID)
+		if err == nil {
+			// Defense in depth (INC-80 review P0-2): a merged-stream series
+			// must never be revived through the AGENT resume seam — its
+			// journal is program-driven (no LLM generation, 决策 #21).
+			if _, _, ok := readSeriesSpec(dir); ok {
+				return fmt.Errorf("session %s is a series journal; the drive sweep owns its revival", sessionID)
+			}
+		}
 		if err != nil {
 			return err
 		}
@@ -1149,7 +1164,10 @@ func scanDriveSessions() ([]string, error) {
 		if events[0].Type == event.TypeSessionStarted {
 			if spec, _, ok := readSeriesSpec(dir); ok {
 				switch spec.Schedule {
-				case driver.ScheduleInterval, driver.ScheduleCron:
+				case driver.ScheduleInterval, driver.ScheduleCron, driver.ScheduleSelfPaced:
+					// self_paced included (INC-80 review P0-1): its graceful
+					// shutdown leaves no terminal on the promise that THIS
+					// sweep revives it.
 				default:
 					continue
 				}

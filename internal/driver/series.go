@@ -295,7 +295,52 @@ func (d *Driver) ResumeSeries(ctx context.Context) (Result, error) {
 	if d.Spec.schedule() == ScheduleParallel {
 		return d.driveSeriesParallel(ctx, &ss, appendE, startN)
 	}
+	// A crashed iteration left its child journal without a SeriesIteration:
+	// its slot was consumed at spawn — run it, never skip it (P1-1).
+	if hasSeriesChildJournal(d.Store.Dir(), startN) {
+		d.resumeInFlightN = startN
+	}
 	return d.driveSeries(ctx, &ss, appendE, startN)
+}
+
+// hasSeriesChildJournal reports whether iteration n spawned any attempt
+// (sub/iter-N-a* exists) — the resume marker for an in-flight iteration.
+func hasSeriesChildJournal(dir string, n int) bool {
+	entries, err := os.ReadDir(filepath.Join(dir, "sub"))
+	if err != nil {
+		return false
+	}
+	prefix := fmt.Sprintf("iter-%d-a", n)
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// consumedSlotAfter names the cadence slot the in-flight iteration consumed
+// at spawn time — the tick its SeriesIteration should carry on resume.
+func (d *Driver) consumedSlotAfter() time.Time {
+	switch d.Spec.schedule() {
+	case ScheduleInterval:
+		every, _ := d.Spec.interval()
+		if every <= 0 || d.lastTick.IsZero() {
+			return d.Clock.Now()
+		}
+		return d.lastTick.Add(every)
+	case ScheduleCron:
+		base := d.lastTick
+		if base.IsZero() {
+			base = d.Clock.Now().Add(-time.Minute)
+		}
+		if next, ok := d.cronSched.Next(base); ok {
+			return next
+		}
+	case ScheduleSelfPaced:
+		return time.Time{} // no absolute timeline
+	}
+	return d.Clock.Now()
 }
 
 // driveSeries is the merged-stream drive loop — the drive() mirror over the
@@ -313,17 +358,28 @@ func (d *Driver) driveSeries(ctx context.Context, ss *state.State, appendE appen
 		}
 		var tick time.Time
 		if loopMode {
-			run, t, terr := d.awaitSeriesTick(ctx, ss, appendE, n, n == 1)
-			if terr != nil {
-				if ctx.Err() != nil {
-					return d.seriesCancelTerminal(ctx, appendE, ss.Series, n-1)
+			if n == d.resumeInFlightN {
+				// This iteration already consumed its slot at spawn time —
+				// resume it now (the substrate settles the child from its
+				// journal); skipping it would orphan real work and spend
+				// (INC-80 review P1-1).
+				tick = d.consumedSlotAfter()
+				if !tick.IsZero() {
+					d.lastTick = tick
 				}
-				return Result{}, terr
+			} else {
+				run, t, terr := d.awaitSeriesTick(ctx, ss, appendE, n, n == 1)
+				if terr != nil {
+					if ctx.Err() != nil {
+						return d.seriesCancelTerminal(ctx, appendE, ss.Series, n-1)
+					}
+					return Result{}, terr
+				}
+				if !run {
+					continue // overlap=skip consumed n as a skipped iteration
+				}
+				tick = t
 			}
-			if !run {
-				continue // overlap=skip consumed n as a skipped iteration
-			}
-			tick = t
 		}
 		sr = ss.Series
 		allowance, ok := d.reserveSeries(sr)

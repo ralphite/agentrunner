@@ -319,3 +319,19 @@ func helperCrashRun(t *testing.T) {
 	fmt.Println("UNREACHABLE: predicate did not fire")
 	os.Exit(0)
 }
+
+// 决策 #18 (INC-80 契约 review P1): an OLDER sub-state version is a
+// compatible additive predecessor — the reader accepts it (new fields fold
+// from zero values); only a NEWER-than-binary version refuses.
+func TestSchemaGuardAcceptsOlderSubStateVersion(t *testing.T) {
+	older := state.SubStateVersions()
+	older["series"] = 1 // the pre-INC-80.2b③ window (07-18..07-19) wrote v1
+	if err := checkVersions(older); err != nil {
+		t.Fatalf("older additive version refused: %v", err)
+	}
+	newer := state.SubStateVersions()
+	newer["series"]++
+	if err := checkVersions(newer); err == nil {
+		t.Fatal("a journal from a NEWER binary must fail closed")
+	}
+}

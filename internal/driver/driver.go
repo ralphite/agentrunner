@@ -98,6 +98,12 @@ type Driver struct {
 	// resetting to now; the self_paced pace re-derives from the last child
 	// journal.
 	cronSched *cron.Schedule
+	// resumeInFlightN marks the iteration a ResumeSeries found already
+	// SPAWNED (child journal exists) but not yet settled into a
+	// SeriesIteration: its cadence slot was consumed at spawn time, so the
+	// resumed loop must RUN it — never write it off as a missed slot
+	// (INC-80 review P1-1). 0 = none.
+	resumeInFlightN int
 	lastTick  time.Time
 	nextPace  time.Duration
 }

@@ -669,3 +669,107 @@ func TestSeriesJournalRedactsCredentialInPrompt(t *testing.T) {
 		}
 	}
 }
+
+// INC-80 review P1-1: a hard crash mid-iteration (child spawned, no
+// SeriesIteration yet) must RESUME that iteration — its cadence slot was
+// consumed at spawn — never write it off as an overlap-skip. The orphaned
+// child's completed work and spend settle into the series.
+func TestSeriesIntervalCrashMidIterationResumesInFlightChild(t *testing.T) {
+	root := t.TempDir()
+	ws, err := workspace.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dStore, err := store.OpenEventStore(filepath.Join(root, "series"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = dStore.Close() })
+	clk := clock.NewFake(time.Date(2026, 7, 19, 0, 10, 0, 0, time.UTC))
+	childSpec := &agent.AgentSpec{
+		Name: "worker", Model: agent.ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
+		SystemPrompt: "tick", MaxGenerationSteps: 5,
+	}
+	// Pre-crash journal: series opened (interval 1m, overlap=skip default),
+	// iteration 1 spawned; the crash hit before its SeriesIteration.
+	seed := func(typ string, payload any) {
+		t.Helper()
+		env, eerr := event.New(typ, payload)
+		if eerr != nil {
+			t.Fatal(eerr)
+		}
+		if _, aerr := dStore.Append(env); aerr != nil {
+			t.Fatal(aerr)
+		}
+	}
+	seed(event.TypeSessionStarted, &event.SessionStarted{SpecName: "loop",
+		SubStateVersions: state.SubStateVersions()})
+	seed(event.TypeSeriesStarted, &event.SeriesStarted{SeriesID: "ser-1",
+		Kind: driver.ScheduleInterval, MaxIterations: 2, Source: "user"})
+	seed(event.TypeSpawnRequested, &event.SpawnRequested{CallID: "iter-1",
+		Agent: "worker", ChildSession: "ser-1-sub-iter-1-a1", Depth: 1})
+	// The orphaned child: run it to quiescence exactly as the pre-crash
+	// runner would have, so the journal is a real settled child.
+	{
+		cr, err := agent.OpenChildRun(filepath.Join(dStore.Dir(), "sub", "iter-1-a1"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		fix := scripted.Fixture{Steps: []scripted.Step{
+			{Respond: []scripted.Event{{Text: "crashed-iteration work"},
+				{Usage: &scripted.UsageEvent{InputTokens: 100, OutputTokens: 50}},
+				{Finish: "end_turn"}}},
+		}}
+		child := &agent.Loop{Spec: childSpec, Provider: scripted.New(fix),
+			Exec: &tool.Executor{WS: ws}, Store: cr.Store(), Clock: clk,
+			SessionID: "ser-1-sub-iter-1-a1"}
+		if _, _, err := cr.Run(context.Background(), child, "tick"); err != nil {
+			t.Fatal(err)
+		}
+		cr.Close()
+	}
+
+	calls := 0
+	d := &driver.Driver{
+		Spec: &driver.DriverSpec{Name: "loop", Schedule: driver.ScheduleInterval,
+			Interval: "1m", Prompt: "tick", MaxIterations: 2, Agent: childSpec},
+		Store: dStore, Clock: clk, DriverID: "ser-1", Exec: &tool.Executor{WS: ws},
+		NewChild: func(cs *store.EventStore, session string, iter, budget int) *agent.Loop {
+			calls++
+			fix := scripted.Fixture{Steps: []scripted.Step{
+				{Respond: []scripted.Event{{Text: "iteration 2"}, {Finish: "end_turn"}}},
+			}}
+			return &agent.Loop{Spec: childSpec, Provider: scripted.New(fix),
+				Exec: &tool.Executor{WS: ws}, Store: cs, Clock: clk, SessionID: session}
+		},
+	}
+	resCh := make(chan driver.Result, 1)
+	go func() {
+		res, rerr := d.ResumeSeries(context.Background())
+		if rerr != nil {
+			t.Errorf("resume: %v", rerr)
+		}
+		resCh <- res
+	}()
+	waitIdle(t, clk) // iteration 2 waits on the next interval slot
+	clk.Advance(time.Minute)
+	res := <-resCh
+	if res.Reason != "max_iterations" || res.Iterations != 2 {
+		t.Fatalf("res = %+v, want the series to finish both iterations", res)
+	}
+	if calls != 1 {
+		t.Fatalf("fresh children built = %d, want 1 (iteration 1 settles from its journal)", calls)
+	}
+	events, _ := store.ReadEvents(dStore.Dir())
+	ss, err := state.Fold(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	it1 := ss.Series.Iterations[0]
+	if it1.N != 1 || it1.Skipped || it1.Reason != "completed" {
+		t.Fatalf("iteration 1 = %+v, want the crashed iteration RESUMED (not skipped)", it1)
+	}
+	if it1.Usage.Billed() == 0 {
+		t.Fatal("iteration 1 spend vanished — the orphaned child's usage must settle")
+	}
+}
