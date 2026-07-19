@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/ralphite/agentrunner/internal/agent"
@@ -34,10 +36,10 @@ import (
 // series off them, exactly like schedule_wake timers.
 const seriesTickPurpose = "series_tick:"
 
-// SupportsSeries reports whether this spec runs in the merged-stream form
-// (INC-80.2a opt-in): goal-with-verifiers / interval / cron, without
-// on_child_failure=retry. self_paced / parallel / retry stay on the legacy
-// stream until the runner grows them — dispatchers use this to route.
+// SupportsSeries reports whether this spec runs in the merged-stream form:
+// goal-with-verifiers / interval / cron, retry included (INC-80.2b step 1).
+// self_paced / parallel stay on the legacy stream until the runner grows
+// them — dispatchers use this to route.
 func (d *Driver) SupportsSeries() bool {
 	switch d.Spec.schedule() {
 	case ScheduleImmediate:
@@ -48,13 +50,12 @@ func (d *Driver) SupportsSeries() bool {
 	default:
 		return false
 	}
-	return d.Spec.OnChildFailure.Mode != OnFailRetry
+	return true
 }
 
 // prepareSeries validates the spec subset the merged form supports.
-// self_paced / parallel / on_child_failure=retry stay on the legacy stream
-// for now (记档 INC-77 工作纸): refusing loudly beats silently changing
-// their semantics.
+// self_paced / parallel stay on the legacy stream for now (记档 INC-80
+// 工作纸): refusing loudly beats silently changing their semantics.
 func (d *Driver) prepareSeries() error {
 	if d.Clock == nil {
 		d.Clock = clock.Real{}
@@ -82,8 +83,8 @@ func (d *Driver) prepareSeries() error {
 	default:
 		return fmt.Errorf("series: overlap %q unknown (known: skip, coalesce)", d.Spec.Overlap)
 	}
-	if d.Spec.OnChildFailure.Mode == OnFailRetry {
-		return fmt.Errorf("series: on_child_failure=retry not yet available in the merged-stream form (use the legacy driver)")
+	if d.Spec.OnChildFailure.Mode == OnFailRetry && d.Spec.OnChildFailure.Max < 0 {
+		return fmt.Errorf("series: on_child_failure.max must be >= 0")
 	}
 	if d.NewChild == nil {
 		return fmt.Errorf("series: NewChild factory is required")
@@ -247,20 +248,7 @@ func (d *Driver) driveSeries(ctx context.Context, ss *state.State, appendE appen
 		}
 
 		callID := fmt.Sprintf("iter-%d", n)
-		childSession := fmt.Sprintf("%s-sub-%s-a1", d.DriverID, callID)
-		childDir := filepath.Join(d.Store.Dir(), "sub", callID+"-a1")
-		// Idempotent across a crash: the delegation fact re-records the same
-		// lease (fold replaces by id), and a recorded SeriesIteration N never
-		// reaches this point (startN skips it).
-		if _, err := appendE(event.TypeSpawnRequested, &event.SpawnRequested{
-			CallID: callID, Agent: agentNameOf(d.Spec), Prompt: d.buildPrompt(),
-			ChildSession: childSession, Depth: 1, BudgetTokens: allowance,
-			LeaseID: "lease-" + callID + "-a1",
-		}); err != nil {
-			return Result{}, err
-		}
-
-		childRes, spent, cerr := d.runSeriesChild(ctx, childDir, childSession, allowance)
+		childRes, childDir, childSession, spent, cerr := d.runSeriesIteration(ctx, appendE, n, allowance)
 		reason := childRes.Reason
 		if cerr != nil {
 			if ctx.Err() != nil {
@@ -270,12 +258,6 @@ func (d *Driver) driveSeries(ctx context.Context, ss *state.State, appendE appen
 			}
 		} else if reason == "" {
 			reason = "completed"
-		}
-		if _, err := appendE(event.TypeSubagentCompleted, &event.SubagentCompleted{
-			CallID: callID, Agent: agentNameOf(d.Spec), ChildSession: childSession,
-			Reason: reason, GenSteps: childRes.GenSteps, Usage: spent,
-		}); err != nil {
-			return Result{}, err
 		}
 
 		if cerr != nil && ctx.Err() != nil {
@@ -289,9 +271,9 @@ func (d *Driver) driveSeries(ctx context.Context, ss *state.State, appendE appen
 			return d.seriesCancelTerminal(ctx, appendE, ss.Series, n)
 		}
 		if cerr != nil {
-			// on_child_failure: surface keeps the series alive (a failed
-			// child is a spent iteration); stop ends it. retry was refused
-			// at prepare.
+			// on_child_failure (retry already exhausted its attempts inside
+			// runSeriesIteration): surface keeps the series alive (a failed
+			// child is a spent iteration); stop ends it.
 			if _, err := appendE(event.TypeSeriesIteration, &event.SeriesIteration{
 				SeriesID: d.DriverID, N: n, CallID: callID, ChildSession: childSession,
 				Reason: "error", Usage: spent, Tick: tick,
@@ -331,6 +313,79 @@ func (d *Driver) driveSeries(ctx context.Context, ss *state.State, appendE appen
 			}
 		}
 	}
+}
+
+// runSeriesIteration runs iteration n through its attempt loop (INC-80.2b):
+// each attempt is its own spawn fact pair (SpawnRequested/SubagentCompleted)
+// with its own child journal `sub/iter-N-aM`, and the returned spend SUMS
+// every attempt — a failed retry burned real tokens, the budget position
+// must say so (same doctrine as the legacy stream). Returns the LAST
+// attempt's dir/session for verify/carry.
+func (d *Driver) runSeriesIteration(ctx context.Context, appendE appendFunc, n, allowance int) (agent.RunResult, string, string, provider.Usage, error) {
+	attempts := 1
+	if d.Spec.OnChildFailure.Mode == OnFailRetry && d.Spec.OnChildFailure.Max > 0 {
+		attempts += d.Spec.OnChildFailure.Max
+	}
+	callID := fmt.Sprintf("iter-%d", n)
+	var (
+		res      agent.RunResult
+		childDir string
+		session  string
+		spent    provider.Usage
+		rerr     error
+	)
+	for a := 1; a <= attempts; a++ {
+		suffix := fmt.Sprintf("-a%d", a)
+		session = fmt.Sprintf("%s-sub-%s%s", d.DriverID, callID, suffix)
+		childDir = filepath.Join(d.Store.Dir(), "sub", callID+suffix)
+		// Idempotent across a crash: the delegation fact re-records the same
+		// lease (fold replaces by id), and a recorded SeriesIteration N never
+		// reaches this point (startN skips it).
+		if _, err := appendE(event.TypeSpawnRequested, &event.SpawnRequested{
+			CallID: callID, Agent: agentNameOf(d.Spec), Prompt: d.buildPrompt(),
+			ChildSession: session, Depth: 1, BudgetTokens: allowance,
+			LeaseID: "lease-" + callID + suffix,
+		}); err != nil {
+			return res, childDir, session, spent, err
+		}
+		var attemptUsage provider.Usage
+		res, attemptUsage, rerr = d.runSeriesChild(ctx, childDir, session, allowance)
+		spent = addUsage(spent, attemptUsage)
+		// A SETTLED failure (the runner crashed after the child quiesced in
+		// error) must count as a failed attempt, not a success — same
+		// classification the legacy stream applies across a crash.
+		if rerr == nil && (res.Reason == "error" || res.Reason == "canceled" ||
+			strings.HasPrefix(res.Reason, "failed")) {
+			rerr = fmt.Errorf("child ended %s (settled from journal)", res.Reason)
+		}
+		reason := res.Reason
+		if rerr != nil {
+			if ctx.Err() != nil {
+				reason = "canceled"
+			} else if reason == "" {
+				reason = "error"
+			}
+		} else if reason == "" {
+			reason = "completed"
+		}
+		if _, err := appendE(event.TypeSubagentCompleted, &event.SubagentCompleted{
+			CallID: callID, Agent: agentNameOf(d.Spec), ChildSession: session,
+			Reason: reason, GenSteps: res.GenSteps, Usage: attemptUsage,
+		}); err != nil {
+			return res, childDir, session, spent, err
+		}
+		if rerr == nil {
+			return res, childDir, session, spent, nil
+		}
+		if ctx.Err() != nil {
+			return res, childDir, session, spent, rerr // cancel is not retryable
+		}
+		if a < attempts {
+			slog.Warn("driver: series child attempt failed, retrying",
+				"driver", d.DriverID, "iter", n, "attempt", a, "err", rerr)
+		}
+	}
+	return res, childDir, session, spent, rerr
 }
 
 // runSeriesChild runs one iteration's child through the ChildRun substrate

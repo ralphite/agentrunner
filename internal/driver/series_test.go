@@ -246,3 +246,142 @@ func TestSeriesShutdownLeavesNoTerminalAndResumes(t *testing.T) {
 		t.Fatalf("series_ended count = %d, want exactly 1", terminals)
 	}
 }
+
+// INC-80.2b step 1: on_child_failure=retry in the merged stream — each
+// attempt is its own spawn fact pair with its own child journal
+// `sub/iter-N-aM`, spend SUMS every attempt, and a recovered retry
+// satisfies the goal on iteration 1.
+func TestSeriesChildFailRetryRecovers(t *testing.T) {
+	root := t.TempDir()
+	ws, err := workspace.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exec := &tool.Executor{WS: ws}
+	dStore, err := store.OpenEventStore(filepath.Join(root, "driver"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = dStore.Close() })
+	childSpec := &agent.AgentSpec{
+		Name: "worker", Model: agent.ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
+		SystemPrompt: "work", Tools: []string{"bash"}, MaxGenerationSteps: 5,
+	}
+	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
+	calls := 0
+	d := &driver.Driver{
+		Spec: &driver.DriverSpec{
+			Name: "goal", Prompt: "work", MaxIterations: 5, Agent: childSpec,
+			OnChildFailure: driver.FailurePolicy{Mode: driver.OnFailRetry, Max: 2},
+			Verifiers:      []driver.VerifierSpec{{Kind: driver.VerifierCommand, Command: "test -f progress.txt"}},
+		},
+		Store: dStore, Clock: clk, DriverID: "drv-1", Exec: exec,
+		NewChild: func(cs *store.EventStore, session string, iter, budget int) *agent.Loop {
+			calls++
+			fix := scripted.Fixture{} // attempts 1-2 fail (provider exhausts)
+			if calls >= 3 {
+				fix = workFixture()
+			}
+			return &agent.Loop{Spec: childSpec, Provider: scripted.New(fix),
+				Exec: exec, Store: cs, Clock: clk, SessionID: session}
+		},
+	}
+
+	res, err := d.RunSeries(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "satisfied" || res.Iterations != 1 {
+		t.Fatalf("res = %+v, want satisfied at 1 (retry recovered)", res)
+	}
+	if calls != 3 {
+		t.Errorf("child built %d times, want 3 (2 failures + 1 success)", calls)
+	}
+	// All three attempt journals exist, one per attempt suffix.
+	for _, sub := range []string{"iter-1-a1", "iter-1-a2", "iter-1-a3"} {
+		if _, err := store.ReadEvents(filepath.Join(dStore.Dir(), "sub", sub)); err != nil {
+			t.Errorf("attempt journal %s missing: %v", sub, err)
+		}
+	}
+	events, err := store.ReadEvents(dStore.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	spawns, completions := 0, 0
+	var failedAttempts int
+	for _, e := range events {
+		switch e.Type {
+		case event.TypeSpawnRequested:
+			spawns++
+		case event.TypeSubagentCompleted:
+			completions++
+			if dec, derr := event.DecodePayload(e); derr == nil {
+				if dec.(*event.SubagentCompleted).Reason == "error" {
+					failedAttempts++
+				}
+			}
+		}
+	}
+	if spawns != 3 || completions != 3 || failedAttempts != 2 {
+		t.Fatalf("spawn facts = %d/%d (failed %d), want 3/3 with 2 failed attempts", spawns, completions, failedAttempts)
+	}
+	ss, err := state.Fold(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ss.Series == nil || !ss.Series.Ended || ss.Series.EndReason != "satisfied" {
+		t.Fatalf("series fold = %+v", ss.Series)
+	}
+	// Spend doctrine: the iteration's usage SUMS all attempts. The failed
+	// fixtures here exhaust before billing (0 tokens each), so the sum is
+	// exactly the successful attempt's 150 — the point is that nothing
+	// billed goes missing across attempts.
+	if got := ss.Series.Iterations[0].Usage.Billed(); got != 150 {
+		t.Fatalf("iteration usage = %d, want 150 (all attempts' spend summed)", got)
+	}
+}
+
+// on_child_failure=retry that never recovers exhausts its attempts and ends
+// the series child_failed — with every attempt journaled.
+func TestSeriesChildFailRetryExhausts(t *testing.T) {
+	root := t.TempDir()
+	ws, err := workspace.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exec := &tool.Executor{WS: ws}
+	dStore, err := store.OpenEventStore(filepath.Join(root, "driver"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = dStore.Close() })
+	childSpec := &agent.AgentSpec{
+		Name: "worker", Model: agent.ModelSpec{Provider: "scripted", ID: "x", MaxTokens: 100},
+		SystemPrompt: "work", Tools: []string{"bash"}, MaxGenerationSteps: 5,
+	}
+	clk := clock.NewFake(time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC))
+	d := &driver.Driver{
+		Spec: &driver.DriverSpec{
+			Name: "goal", Prompt: "work", MaxIterations: 3, Agent: childSpec,
+			OnChildFailure: driver.FailurePolicy{Mode: driver.OnFailRetry, Max: 1},
+			Verifiers:      []driver.VerifierSpec{{Kind: driver.VerifierCommand, Command: "test -f progress.txt"}},
+		},
+		Store: dStore, Clock: clk, DriverID: "drv-1", Exec: exec,
+		NewChild: func(cs *store.EventStore, session string, iter, budget int) *agent.Loop {
+			return &agent.Loop{Spec: childSpec, Provider: scripted.New(scripted.Fixture{}),
+				Exec: exec, Store: cs, Clock: clk, SessionID: session}
+		},
+	}
+	res, err := d.RunSeries(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "child_failed" {
+		t.Fatalf("res = %+v, want child_failed after retry exhaustion", res)
+	}
+	for _, sub := range []string{"iter-1-a1", "iter-1-a2"} {
+		if _, err := store.ReadEvents(filepath.Join(dStore.Dir(), "sub", sub)); err != nil {
+			t.Errorf("attempt journal %s missing: %v", sub, err)
+		}
+	}
+}

@@ -887,7 +887,7 @@ func hostDriveFunc(version string, stderr io.Writer, broker *daemon.ApprovalBrok
 		// req.Series insists and errors instead of silently falling back.
 		var runErr error
 		if req.Series && !d.SupportsSeries() {
-			return fmt.Errorf("series form supports goal (with verifiers) / interval / cron without on_child_failure=retry")
+			return fmt.Errorf("series form supports goal (with verifiers) / interval / cron; self_paced and parallel stay on the legacy stream")
 		}
 		if d.SupportsSeries() {
 			_, runErr = d.RunSeries(ctx)
