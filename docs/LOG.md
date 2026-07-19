@@ -5033,3 +5033,14 @@ deny → 双侧无痕。workflow 补 ask.yaml spec 与 Phase approval 步
 (S4 commit 后工作区净,S7 独立成腿)。QA.md S7 行改"已自动化"。
 另 dispatch 了一次 qa-consistency 验证 isRepo 修复后 S1 last-turn
 observation 是否翻为真实文件集(结果待查)。
+
+## 2026-07-19 · 第十六轮收尾:S7 自动化首跑绿 + S1 observation 翻转确认
+
+- run 29673588135(isRepo 修复后首次全流程):S1–S4 零 mismatch,且
+  S1 observation 从 "unknown" 翻为真实文件集 a.txt——isRepo 修复在
+  API 消费面传导正确。**同时坐实语义灰区**:turn 结束后的外部写入
+  确实计入 last-turn(scope 字面语义"自最近人类 turn 开始"),是否
+  应有 turn-end 上界仍待产品裁决(QA-76 S1 登记维持)。
+- run 29673667172(S7 自动化首跑):fresh/restarted/approval 三 phase
+  全绿——S7 的 status⇔journal 对账、approve 真执行(git+API 双侧)、
+  deny 真不执行,全部通过。qa-consistency 定时门自此覆盖 S1–S4+S7。
