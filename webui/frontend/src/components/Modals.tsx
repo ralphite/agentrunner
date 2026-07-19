@@ -463,7 +463,7 @@ function RunModal({
         <button aria-pressed={kind === "submit"} className={kind === "submit" ? "on" : ""} onClick={() => setKind("submit")} title="one-shot run: a fresh session executes the prompt once">
           One-time
         </button>
-        <button aria-pressed={kind === "drive"} className={kind === "drive" ? "on" : ""} onClick={() => setKind("drive")} title="iterative driver: child runs repeat per driver.yaml (goal / loop / best-of-N)">
+        <button aria-pressed={kind === "drive"} className={kind === "drive" ? "on" : ""} onClick={() => setKind("drive")} title="scheduled work: child runs repeat on a goal / repeating / best-of-N schedule">
           Goal or repeating
         </button>
       </div>
@@ -528,7 +528,7 @@ function RunModal({
                 min={2}
                 value={nAttempts}
                 onChange={(e) => setNAttempts(Math.max(2, Number(e.target.value) || 2))}
-                title="how many isolated attempts to run; the driver's verifiers judge the best"
+                title="how many isolated attempts to run; the verifiers judge the best"
               />
             )}
           </div>

@@ -81,6 +81,10 @@ export interface Run extends Cadence {
   kind: "submit" | "drive";
   label: string;
   workspace: string;
+  // sessionId is the daemon-assigned session the run created (once known).
+  // A drive run's SESSION is the canonical user-facing object (INC-80.3) —
+  // surfaces prefer it over the transient run row.
+  sessionId?: string;
   status: "running" | "done" | "failed" | "stopped";
   startedAt: string;
 }

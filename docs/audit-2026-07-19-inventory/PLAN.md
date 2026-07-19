@@ -79,8 +79,12 @@
       driveSeriesParallel（worktree 物化/丢失拒判/pass 压 score 选择）、
       SeriesEnded.BestIter 为 fold 权威、parallel×retry 组合留 legacy；
       三孪生绿）。legacy 写侧仅剩 parallel×retry 一个组合。
-- [ ] 2.3 撤 webui 的 driver/run 概念面：Scheduled 页 = 带 schedule/goal
-      的会话视图；新建一律走 in-session 形态。
+- [x] 2.3 撤 webui 的 driver/run 概念面——2026-07-19 主体落地：series
+      SESSION 行成为 Scheduled 的 canonical（run 行在 session 落列表后
+      让位，两 vitest 钉住）；/loop、/bestof 启动后 landInSeries 直接落
+      会话（run 流仅 sid 未知时兜底）；用户可见 "driver" 文案清除
+      （RunModal 两处 tooltip）。残余（RunView 兜底流与 RunModal 高级
+      表单的存废）并入 2.4 与 CLI 传输决策一起裁。
 - [ ] 2.4 删 `ar drive`/`ar submit --drive`（2.2/2.3 确认等价后）。
 
 ### Phase 3 · webui 双实现拆弹

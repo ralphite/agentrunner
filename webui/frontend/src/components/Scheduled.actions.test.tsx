@@ -117,3 +117,42 @@ describe("the row menu can act on the schedule, not just tidy it (SC-17)", () =>
     expect(closeSession).toHaveBeenCalledWith("20250101-090000-running");
   });
 });
+
+describe("INC-80.3 · the series SESSION row is canonical", () => {
+  it("hides a drive run row once its session landed in the sessions list", () => {
+    useStore.setState({
+      runs: [
+        {
+          id: "run7", kind: "drive", label: "drive: nightly", workspace: "/repo/app",
+          sessionId: "20250101-090000-running", status: "running",
+          startedAt: "2025-01-01T09:00:00Z", schedule: "cron", cadence: "Daily at 6:00 AM",
+        } as any,
+      ],
+      sessions,
+      sessionsReady: true,
+      unread: [], archived: [], pinned: [], renames: {}, modal: null,
+    });
+    render(<Scheduled />);
+    // Exactly one row for the cron series: the session's title, not the
+    // run label — one piece of scheduled work, one row.
+    expect(screen.getByText("Live: an iteration is executing")).toBeTruthy();
+    expect(screen.queryByText("drive: nightly")).toBeNull();
+  });
+
+  it("keeps the run row while the session id is still unknown", () => {
+    useStore.setState({
+      runs: [
+        {
+          id: "run8", kind: "drive", label: "drive: warming-up", workspace: "/repo/app",
+          status: "running", startedAt: "2025-01-01T09:00:00Z",
+          schedule: "interval", cadence: "Every 30m",
+        } as any,
+      ],
+      sessions: [],
+      sessionsReady: true,
+      unread: [], archived: [], pinned: [], renames: {}, modal: null,
+    });
+    render(<Scheduled />);
+    expect(screen.getByText("drive: warming-up")).toBeTruthy();
+  });
+});

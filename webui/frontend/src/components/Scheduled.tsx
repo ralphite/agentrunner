@@ -301,6 +301,10 @@ export function Scheduled() {
     };
     for (const run of runs) {
       if (!hasRhythm(run)) continue; // SC-1: one-shot / best-of-N is not scheduled work
+      // The series SESSION is the canonical row (INC-80.3): once the run's
+      // session landed in the sessions list, the transient run row bows out
+      // — one piece of scheduled work, one row.
+      if (run.sessionId && sessions.some((s) => s.id === run.sessionId)) continue;
       const status = friendlyStatus(run.status);
       const ts = Date.parse(run.startedAt);
       const started = isNaN(ts) ? null : new Date(ts);

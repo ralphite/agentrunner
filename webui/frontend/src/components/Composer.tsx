@@ -732,6 +732,27 @@ export function Composer(props: ComposerProps) {
     }
   };
 
+  // A drive run's user-facing object is its series SESSION (INC-80.3):
+  // land there as soon as the daemon assigns it; the transient run stream
+  // is only the fallback while the id is still unknown.
+  const landInSeries = async (runId: string) => {
+    for (let i = 0; i < 10; i++) {
+      try {
+        const rs = await AR.runs();
+        const sid = rs.find((x) => x.id === runId)?.sessionId;
+        if (sid) {
+          await refreshSessions();
+          select(sid);
+          return;
+        }
+      } catch {
+        /* transient — keep polling */
+      }
+      await new Promise((res) => setTimeout(res, 300));
+    }
+    selectRun(runId);
+  };
+
   const startLoop = async (prompt: string, interval: string, iterations: number) => {
     const workspace = isSession ? (props as any).workspace || (await ensureWs()) : await ensureWs();
     if (!workspace) return props.onError("a workspace is required to start a loop");
@@ -749,7 +770,7 @@ export function Composer(props: ComposerProps) {
       setLauncher(null);
       resetInput();
       await refreshRuns();
-      selectRun(r.runId);
+      await landInSeries(r.runId);
     } catch (e: any) {
       props.onError(e.message);
     } finally {
@@ -776,7 +797,7 @@ export function Composer(props: ComposerProps) {
       setLauncher(null);
       resetInput();
       await refreshRuns();
-      selectRun(r.runId);
+      await landInSeries(r.runId);
     } catch (e: any) {
       props.onError(e.message);
     } finally {
