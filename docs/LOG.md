@@ -5511,3 +5511,14 @@ satisfied 时 drop goal、在 exhausted/stopped 时仍返回 goal 对象,
 前端把它当活 goal。修复:journal 终态裁决优先——goalTerminal 时强制
 goal=null 走 settled 卡路径(SessionView 一行)。594 测试绿。
 另记:goal check "failed" chip 的视觉呈现本轮未观测到(如实登记)。
+
+## 2026-07-19 · S6(长对话/compact/clear)完成:三重点全 PASS,修用户气泡换行
+
+S6 实测:长贴折叠(220px clamp+Show more,12KB 不破布局)、/compact
+记忆质量(postmortem 准确复述两次报错演进)、/clear 语义(清模型上下文
+留 UI 历史+事件对账一致)——全部 PASS。发现:
+- [MEDIUM] NL compact/clear 意图被静默忽略(只走 slash,agent 不执行
+  也不提示)——产品裁决项,登记待用户定;
+- [MEDIUM] LaTeX 露源码 = G38 第二次实证,优先级建议上调;
+- [LOW→已修 539c4c9] 用户气泡粘贴多行日志换行被折叠:.utext 补
+  whitespace-pre-wrap + overflow-wrap:anywhere。
