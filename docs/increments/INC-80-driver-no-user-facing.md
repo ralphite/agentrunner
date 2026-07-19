@@ -51,12 +51,43 @@ E1 收敛（DESIGN §17）只走到②就两边并行加功能。
 - 闸门 B：QA 场景——cron 会话值守跨 daemon 重启（对齐 QA-74）、
   best-of-N 会话形态真跑、旧 driver session 在新版本下可查看。
 
+## INC-80.1 盘点结论（2026-07-19 完成）
+
+**暴露面全集**：CLI `ar drive`（drive.go:233 走 legacy `d.Run`）、
+`ar submit --drive`（daemon.go:886 hostDrive 同）、`ar init --driver`、
+inspect/events 的 driver/iteration 展示词；webui `POST /api/runs` drive
+分支（runs.go:290）、RunModal drive 表单、Scheduled run 行 +
+schedule.go 的 driver-journal 投影（491-547）、RunView、`/loop`/`/bestof`
+slash → `buildLoopDriver/buildBestOfNDriver` → `{kind:"drive"}`、
+GoalLoopLauncher、runPreset。`/goal` 已是 in-session（非 driver）。
+
+**E1 现状**：series runner（INC-77，driver/series.go RunSeries/
+ResumeSeries，session journal 形态、不写 DriverStarted、fresh-child 走
+agent.OpenChildRun）**代码+fold+测试齐备但零生产接线**——调用方只有
+测试；今天一切入口仍写 DriverStarted（driver.go:235）。"写侧弃用"是
+文档愿望非代码事实。runner 显式拒绝 self_paced/parallel/
+on_child_failure=retry（series.go:61/69）。
+
+**能力对照**：cron/interval/overlap/goal 三裁决/once headless ✅ 有
+in-session 等价；❌ 缺 best-of-N（硬阻塞 `/bestof`）、retry、
+self_paced、verifier metric_regex+human 两形态、loop fresh-child 隔离
+（唯一实现即未接线 runner）。
+
+**依赖序**：2.2a（goal/interval/cron 三类接线 merged stream + 观察面
+收口）不被阻塞可先做 → 承接 `/loop` fresh-child 形态 → 2.2b runner 补
+parallel/retry/self_paced → 撤 `/bestof` 与 webui 概念面（2.3）→ 删
+CLI 入口（2.4）。
+
 ## 实施步骤（= audit PLAN Phase 2/3，一步一提交）
 
-1. INC-80.1 盘点与映射：driver 暴露面全集 → in-session 等价表；核实
-   in-session series（INC-77）真实完成度。完成标志：映射表入本文件。
-2. INC-80.2 E1 ③④：stream 合流 + 兼容读；新建路径全部走 session 形态。
-   完成标志：写侧无新 DriverStarted、旧 journal 读侧回归绿。
+1. ~~INC-80.1 盘点与映射~~ ✅ 2026-07-19，结论见上节。
+2. INC-80.2 E1 ③ 分两步：
+   2a. goal/interval/cron 三类的写侧切 RunSeries/ResumeSeries（drive.go
+       `d.Run`、daemon hostDrive/hostResumeDrive、boot sweep 兼容两种头）
+       + inspect/events 对 series 会话单路径渲染（INC-77.4）；
+       self_paced/parallel/retry 三类暂留 legacy（runner 未支持）。
+   2b. runner 补 parallel(best-of-N)/retry/self_paced，legacy 写侧全退休。
+   完成标志：2a 后三类新建不再写 DriverStarted；2b 后全类。
 3. INC-80.3 webui 撤 driver 概念面：Scheduled = 带 schedule/goal 的
    会话视图；RunModal drive 分支移除。完成标志：前端无 driver/run 概念
    词、vitest 绿。

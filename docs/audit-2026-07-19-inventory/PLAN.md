@@ -52,12 +52,14 @@
       闸门 B 挂 G3 注记待真机。
 
 ### Phase 2 · Driver 去 user-facing（核心，拆多轮）
-- [ ] 2.1 盘点 driver 暴露面全集并映射 in-session 等价物：`ar drive`、
-      `ar submit --drive`、webui Scheduled run 投影、RunModal drive 分支、
-      `/loop /bestof` slash 落点；核实 in-session series（INC-77）真实
-      完成度。
-- [ ] 2.2 完成 E1 ③④（stream 合流 + CLI 兼容层），旧 driver journal
-      只读可看。
+- [x] 2.1 盘点 driver 暴露面全集并映射 in-session 等价物——2026-07-19
+      结论入 INC-80.1：series runner 齐备但零接线，goal/interval/cron
+      可先合流，best-of-N/retry/self_paced 是硬缺口（/bestof 被硬阻塞）。
+- [ ] 2.2a E1③ 第一步：goal/interval/cron 写侧切 RunSeries（3 个调用点
+      + boot sweep 双头兼容 + inspect/events 观察面收口），其余三类暂留
+      legacy。
+- [ ] 2.2b series runner 补 parallel(best-of-N)/retry/self_paced，
+      legacy 写侧全退休。
 - [ ] 2.3 撤 webui 的 driver/run 概念面：Scheduled 页 = 带 schedule/goal
       的会话视图；新建一律走 in-session 形态。
 - [ ] 2.4 删 `ar drive`/`ar submit --drive`（2.2/2.3 确认等价后）。
