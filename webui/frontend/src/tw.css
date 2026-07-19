@@ -645,6 +645,10 @@
     @apply flex min-w-0 items-center gap-2 rounded-[10px] border border-line bg-panel px-3 py-2 text-[13px];
   }
   .progress-list, .supervision-agents, .env-rows, .artifact-list { @apply grid gap-2; }
+  /* grid 子项默认 min-width:auto——worktree 长路径会把 .env-detail 轨道
+     撑爆,truncate/flex-wrap 在被撑宽的容器里永不触发,按钮被顶出视口
+     (QA-0719 S9 实测 Remove right=1384)。给全部行子项收缩许可。 */
+  .progress-list > *, .supervision-agents > *, .env-rows > *, .artifact-list > * { @apply min-w-0; }
   .env-row-name, .sa-name, .progress-title, .artifact-version { @apply min-w-0 flex-1 truncate; }
   /* env-row-val 是多枚 chip(`2 files` `+106` `−0`)的容器——QA-0718 实测无
      gap 时渲染成 "2 files+106"。与 .diff-summary 同用 6px gap。 */
