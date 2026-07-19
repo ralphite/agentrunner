@@ -42,8 +42,10 @@
       DESIGN §15 决策落表按 PROCESS 与实现同 commit（INC-80.4）。
 
 ### Phase 1 · 用户可感的洞
-- [ ] 1.1 G39 子审批不可见死锁：child 审批上浮父会话 Attention
-      （先复现，GAPS.md:682-706 有既往证据链）。
+- [x] 1.1 G39 子审批不可见死锁：child 审批上浮父会话 Attention
+      ——2026-07-19 INC-81.1：复核=approve 路由本已通、缺口纯可发现性；
+      inspect 树递归 in-flight child + answer_with，webui approval stack
+      /Attention 持久浮出；闸门 A 两侧孪生绿，闸门 B 挂 G39 待真机复验。
 - [ ] 1.2 G3 审批挂起期间消息只排队不唤醒：新输入至少触发一次模型可见
       的重裁决（或审批渲染为被新输入 supersede）。
 

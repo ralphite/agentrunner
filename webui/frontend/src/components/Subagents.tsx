@@ -15,6 +15,16 @@ export interface InspectNode {
   usage?: { input_tokens?: number; output_tokens?: number; billed?: number };
   report?: InspectNode;
   children?: InspectNode[];
+  // A parked wait on this node (G39): a child stuck on an approval carries
+  // kind:"approval" + the pending ask, so parent surfaces can show and
+  // answer it (the child journal is the only durable home of that ask).
+  waiting?: {
+    kind?: string;
+    approval_id?: string;
+    tool?: string;
+    args?: string;
+    answer_with?: string;
+  };
 }
 
 function tokens(n?: number): string {

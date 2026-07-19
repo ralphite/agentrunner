@@ -670,7 +670,15 @@ TERM-resistant 孙进程可变孤儿。统一 advisory flock + unique temp fsync
 针对性 race 与全量 gate 通过；共享 store/Web UI 重启验收见 QA-67。
 → UJ-01/04/09/17/18/24
 
-**G39 spawn 子 agent 卡不可见审批死锁 — 已定因,待立 INC（QA-0718 真机复现+实证）**
+**G39 spawn 子 agent 卡不可见审批死锁 — 🟡 修复落地（INC-81，2026-07-19，闸门 A 绿；闸门 B 真机复验后关闭）**
+**修复（INC-81）**：approve 路由经代码对读证实**本已通**（child 审批以
+child sid 注册 root broker，`ar approve <child-sid>` 经 `-sub-` 寻址精确
+送达）；缺口纯属可发现性。落地：`buildInspectTree` 递归 in-flight child
+（spawn_requested ∪ SubagentCompleted，settled 去重）、child waiting 带
+`answer_with` 精确命令（TestBuildInspectTreeSurfacesInFlightChildApproval）；
+webui 从 inspect 树把 child waiting:approval 提升进 approval stack（刷新
+后仍在，decide 定向 child sid）+ Attention 具名成员行（SupervisionPanel
+G39 tests）。原始定因记录如下。
 **根因(第七轮实证,证据链闭环)**:child journal(diag run
 29660213352,sub-store call_13_0/13_1)末两事件均为
 `approval_requested`(bash `mkdir -p docs`,permission gate 判 ask

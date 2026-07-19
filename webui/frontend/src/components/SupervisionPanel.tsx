@@ -159,6 +159,17 @@ function attentionRows(
         </div>,
       );
     }
+    // G39: a child parked on an approval is the invisible-approval deadlock —
+    // name the member so the human knows WHO is waiting (the approval card
+    // itself renders in the thread's approval stack).
+    if (node.report?.waiting?.kind === "approval") {
+      rows.push(
+        <div className="attention-row" key={"child-appr-" + (node.session || node.call_id)}>
+          <span className="attention-dot" /> {node.agent || "agent"} — waiting for approval
+          {node.report.waiting.tool ? ` (${node.report.waiting.tool})` : ""}
+        </div>,
+      );
+    }
   }
   if (backgroundWork.length > 0 && sessionIdle) {
     rows.push(

@@ -519,3 +519,33 @@ describe("RD-C · the worktree's actions live where the worktree is shown", () =
     expect(screen.getByRole("button", { name: /open in vs code/i })).toBeTruthy();
   });
 });
+
+describe("G39 · a child parked on an approval surfaces in Attention", () => {
+  afterEach(cleanup);
+
+  it("names the waiting member and its tool", () => {
+    const children: InspectNode[] = [
+      {
+        call_id: "s1",
+        agent: "worker",
+        session: "lead-sub-s1-a1",
+        report: {
+          status: "waiting",
+          waiting: { kind: "approval", approval_id: "apr-1", tool: "bash" },
+        },
+      },
+    ];
+    render(panelTree({ children, sessionIdle: true }));
+    // The member is named — the invisible-approval deadlock was exactly this
+    // ask existing nowhere a human could see it.
+    expect(screen.getByText(/worker — waiting for approval \(bash\)/i)).toBeTruthy();
+  });
+
+  it("a settled child adds no approval row", () => {
+    const children: InspectNode[] = [
+      { call_id: "s1", agent: "worker", session: "lead-sub-s1-a1", reason: "completed", report: { status: "marked" } },
+    ];
+    render(panelTree({ children }));
+    expect(screen.queryByText(/waiting for approval/i)).toBeNull();
+  });
+});

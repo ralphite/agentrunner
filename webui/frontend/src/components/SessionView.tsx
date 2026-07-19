@@ -456,6 +456,27 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     if (folded.approvals.has(s.id) || resolvedLocal.has(s.id)) continue;
     openApprovals.push({ id: s.id, tool: s.tool, args: s.args, gates: [], agent: s.agent, viaSSE: true, session: s.session });
   }
+  // G39: a child parked on an approval lives only in its own sub-journal —
+  // the SSE ask above is live-only and vanishes on refresh. The inspect tree
+  // now carries each child's waiting:approval durably; promote those into the
+  // approval stack (decide targets the child session — routing already works).
+  {
+    const walk = (nodes: InspectNode[]) => {
+      for (const node of dedupeInspectNodes(nodes)) {
+        const w = node.report?.waiting;
+        if (w?.kind === "approval" && w.approval_id &&
+            !folded.approvals.has(w.approval_id) && !resolvedLocal.has(w.approval_id) &&
+            !openApprovals.some((a) => a.id === w.approval_id)) {
+          openApprovals.push({
+            id: w.approval_id, tool: w.tool || "", args: w.args || "", gates: [],
+            agent: node.agent, session: node.session,
+          });
+        }
+        if (node.report?.children) walk(node.report.children);
+      }
+    };
+    walk(children);
+  }
 
   // Status precedence: a live turn (tool running / step in flight / a pending
   // approval) wins — it's the most current. Otherwise the daemon's session

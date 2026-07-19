@@ -241,8 +241,66 @@ func buildInspectTree(dir string) (inspectReport, error) {
 			})
 		}
 	}
+	// G39 (INC-81): a spawned child that has NOT settled yet writes no
+	// SubagentCompleted, so the loop above never reaches it — a child parked
+	// on an approval was invisible on every surface (the invisible-approval
+	// deadlock). Walk the spawn facts and recurse into any child journal
+	// without a settlement; the child's own fold tells the truth (running /
+	// waiting:approval / …). A revived child keeps its settled entry (G26
+	// latest-settlement contract) — that entry already recurses the journal.
+	settled := make(map[string]bool, len(report.Children))
+	for _, ref := range report.Children {
+		settled[ref.Session] = true
+	}
+	for _, e := range events {
+		if e.Type != event.TypeSpawnRequested {
+			continue
+		}
+		dec, derr := event.DecodePayload(e)
+		if derr != nil {
+			continue
+		}
+		sp := dec.(*event.SpawnRequested)
+		if sp.ChildSession == "" || settled[sp.ChildSession] {
+			continue
+		}
+		settled[sp.ChildSession] = true
+		childDir := childDirForSession(dir, sp.CallID, sp.ChildSession)
+		if childDir == "" {
+			continue
+		}
+		childReport, cerr := buildInspectTree(childDir)
+		if cerr != nil {
+			continue // spawn journaled but child journal absent/broken — skip
+		}
+		report.Children = append(report.Children, childReportRef{
+			CallID: sp.CallID, Agent: sp.Agent, Session: sp.ChildSession,
+			Report: childReport,
+		})
+	}
 	report.Children = dedupeChildren(report.Children)
+	for i := range report.Children {
+		annotateChildAnswerWith(&report.Children[i])
+	}
 	return report, nil
+}
+
+// annotateChildAnswerWith mirrors the top-level AnswerWith hint onto a child
+// wait: a child parked on an approval (or a structured ask) is answerable by
+// its FULL child session id today (`approve`/`answer` resolve `-sub-`
+// addresses) — say so exactly, or the park stays undiscoverable (G39).
+func annotateChildAnswerWith(ref *childReportRef) {
+	w := ref.Report.Waiting
+	if w == nil || ref.Session == "" {
+		return
+	}
+	switch {
+	case w.ApprovalID != "":
+		w.AnswerWith = fmt.Sprintf("agentrunner approve %s %s approve|deny",
+			ref.Session, w.ApprovalID)
+	case w.Kind == event.WaitInput && len(w.AskQuestions) > 0:
+		w.AnswerWith = fmt.Sprintf("agentrunner answer %s 1:<option#>", ref.Session)
+	}
 }
 
 // dedupeChildren keeps one entry per child, keyed by session (else call_id):
@@ -387,11 +445,17 @@ func settleChildReport(report *inspectReport, reason string) {
 // childDirFor maps a SubagentCompleted to its journal dir: the child
 // session suffix "-a<n>" names <dir>/sub/<call_id>-a<n>.
 func childDirFor(dir string, sub *event.SubagentCompleted) string {
-	i := strings.LastIndex(sub.ChildSession, "-a")
+	return childDirForSession(dir, sub.CallID, sub.ChildSession)
+}
+
+// childDirForSession is the same "-a<n>" suffix contract keyed by the raw
+// (call id, child session) pair, usable from spawn facts too (G39).
+func childDirForSession(dir, callID, childSession string) string {
+	i := strings.LastIndex(childSession, "-a")
 	if i < 0 {
 		return ""
 	}
-	return filepath.Join(dir, "sub", sub.CallID+sub.ChildSession[i:])
+	return filepath.Join(dir, "sub", callID+childSession[i:])
 }
 
 func buildInspectReport(events []event.Envelope, s state.State) inspectReport {

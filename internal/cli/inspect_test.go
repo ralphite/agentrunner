@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -205,6 +206,79 @@ func TestBuildInspectTree(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("render missing %q:\n%s", want, out)
 		}
+	}
+}
+
+// TestBuildInspectTreeSurfacesInFlightChildApproval nails G39: a spawned
+// child with NO settlement yet (no SubagentCompleted) must still enter the
+// tree, carry its waiting:approval, and name the exact answer command — a
+// child parked on an approval used to be invisible on every surface.
+func TestBuildInspectTreeSurfacesInFlightChildApproval(t *testing.T) {
+	dir := t.TempDir()
+	write := func(sub string, evs []event.Envelope) {
+		t.Helper()
+		d := dir
+		if sub != "" {
+			d = filepath.Join(dir, "sub", sub)
+		}
+		es, err := store.OpenEventStore(d)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = es.Close() }()
+		for _, e := range evs {
+			if _, err := es.Append(e); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	write("", []event.Envelope{
+		mkEnv(t, event.TypeSessionStarted, &event.SessionStarted{SpecName: "lead",
+			SubStateVersions: state.SubStateVersions()}),
+		mkEnv(t, event.TypeSpawnRequested, &event.SpawnRequested{
+			CallID: "s1", Agent: "worker", ChildSession: "lead-sub-s1-a1", Depth: 1}),
+	})
+	detail, err := json.Marshal(&event.ApprovalRequested{
+		ApprovalID: "apr-1", ToolName: "bash",
+		Args: json.RawMessage(`{"command":"mkdir -p docs"}`)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	write("s1-a1", []event.Envelope{
+		mkEnv(t, event.TypeSessionStarted, &event.SessionStarted{SpecName: "worker",
+			SubStateVersions: state.SubStateVersions()}),
+		mkEnv(t, event.TypeApprovalRequested, &event.ApprovalRequested{
+			ApprovalID: "apr-1", ToolName: "bash",
+			Args: json.RawMessage(`{"command":"mkdir -p docs"}`)}),
+		mkEnv(t, event.TypeWaitingEntered, &event.WaitingEntered{
+			Kind: event.WaitApproval, Detail: detail}),
+	})
+
+	report, err := buildInspectTree(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Children) != 1 {
+		t.Fatalf("children = %d, want the in-flight child in the tree: %+v",
+			len(report.Children), report.Children)
+	}
+	child := report.Children[0]
+	if child.Agent != "worker" || child.Session != "lead-sub-s1-a1" {
+		t.Fatalf("child ref = %+v", child)
+	}
+	w := child.Report.Waiting
+	if w == nil || w.Kind != event.WaitApproval || w.ApprovalID != "apr-1" || w.Tool != "bash" {
+		t.Fatalf("child waiting = %+v, want the parked approval surfaced", w)
+	}
+	if want := "agentrunner approve lead-sub-s1-a1 apr-1 approve|deny"; w.AnswerWith != want {
+		t.Errorf("answer_with = %q, want %q", w.AnswerWith, want)
+	}
+	// The text render must show the child's wait too (discoverability is the
+	// whole point) — renderInspect prints Waiting on every node.
+	var sb strings.Builder
+	renderInspect(&sb, report)
+	if out := sb.String(); !strings.Contains(out, "apr-1") {
+		t.Errorf("render missing the child approval id:\n%s", out)
 	}
 }
 
