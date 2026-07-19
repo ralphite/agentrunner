@@ -7,7 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
+	"github.com/ralphite/agentrunner/internal/store"
 )
 
 func writeDriverSpecs(t *testing.T, dir, driverYAML string) string {
@@ -145,5 +147,101 @@ func TestDriveSpecErrors(t *testing.T) {
 	})
 	if code != ExitUsage || !strings.Contains(errOut.String(), "agent_spec") {
 		t.Fatalf("exit = %d, stderr = %q — want usage error naming agent_spec", code, errOut.String())
+	}
+}
+
+// drive --series (INC-80.2a opt-in): the SAME goal series journals as a
+// SESSION — head SessionStarted + SeriesStarted, terminal SeriesEnded, no
+// DriverStarted anywhere — and still reaches satisfied through the CLI seam.
+func TestDriveSeriesGoalJournalsMergedStream(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", xdg)
+	dir := t.TempDir()
+	ws := t.TempDir()
+	specPath := writeDriverSpecs(t, dir, `name: fill-progress
+agent_spec: worker.yaml
+prompt: add a line
+max_iterations: 3
+verifiers:
+  - { kind: command, command: "test $(wc -l < progress.txt) -ge 1" }
+`)
+	fix := scripted.Fixture{Steps: []scripted.Step{
+		{Respond: []scripted.Event{
+			{ToolCall: &scripted.ToolCallEvent{Name: "bash",
+				Args: map[string]any{"command": "echo tick >> progress.txt"}}},
+			{Finish: "tool_use"},
+		}},
+		{Respond: []scripted.Event{{Text: "one line in"}, {Finish: "end_turn"}}},
+	}}
+	var out, errOut bytes.Buffer
+	code := driveAgent(driveOptions{
+		specPath: specPath, workspace: ws,
+		factory: scriptedFactory(fix), stdout: &out, stderr: &errOut,
+		series: true,
+	})
+	if code != ExitOK {
+		t.Fatalf("exit = %d\nstderr: %s", code, errOut.String())
+	}
+	sessions, err := os.ReadDir(filepath.Join(xdg, "agentrunner", "sessions"))
+	if err != nil || len(sessions) != 1 {
+		t.Fatalf("sessions = %v, err %v", sessions, err)
+	}
+	events, err := store.ReadEvents(filepath.Join(xdg, "agentrunner", "sessions", sessions[0].Name()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if events[0].Type != event.TypeSessionStarted {
+		t.Fatalf("journal head = %s, want session_started (merged stream)", events[0].Type)
+	}
+	seen := map[string]bool{}
+	for _, e := range events {
+		seen[e.Type] = true
+	}
+	if !seen[event.TypeSeriesStarted] || !seen[event.TypeSeriesEnded] {
+		t.Fatalf("series facts missing: started=%v ended=%v", seen[event.TypeSeriesStarted], seen[event.TypeSeriesEnded])
+	}
+	if seen[event.TypeDriverStarted] {
+		t.Fatal("merged-stream series journaled a DriverStarted — legacy stream leaked")
+	}
+}
+
+// drive --series refuses the spec shapes the merged form does not carry yet
+// (self_paced / parallel / retry) instead of silently changing semantics.
+func TestDriveSeriesRefusesUnsupportedSpec(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	dir := t.TempDir()
+	specPath := writeDriverSpecs(t, dir, `name: paced
+agent_spec: worker.yaml
+prompt: go
+schedule: self_paced
+pace_min: 1s
+pace_max: 10s
+`)
+	var out, errOut bytes.Buffer
+	code := driveAgent(driveOptions{
+		specPath: specPath, workspace: t.TempDir(),
+		factory: scriptedFactory(scripted.Fixture{}), stdout: &out, stderr: &errOut,
+		series: true,
+	})
+	if code != ExitUsage {
+		t.Fatalf("exit = %d, want usage refusal\nstderr: %s", code, errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "--series supports") {
+		t.Errorf("stderr = %q, want the routing hint", errOut.String())
+	}
+}
+
+// A merged-stream series session refuses the conversational resume path —
+// the daemon's drive sweep owns it (INC-80.2a).
+func TestCLIResumeRefusesSeriesSession(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	writeSeriesJournal(t, "series-conv-guard", "interval", false)
+	var out, errOut bytes.Buffer
+	code := resumeCmd([]string{"series-conv-guard"}, "test", &out, &errOut)
+	if code != ExitUsage {
+		t.Fatalf("exit = %d, want usage refusal\nstderr: %s", code, errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "series session") {
+		t.Errorf("stderr = %q, want the series refusal", errOut.String())
 	}
 }

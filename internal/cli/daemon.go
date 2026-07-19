@@ -883,7 +883,15 @@ func hostDriveFunc(version string, stderr io.Writer, broker *daemon.ApprovalBrok
 			return err
 		}
 		defer cleanup()
-		_, runErr := d.Run(ctx)
+		var runErr error
+		if req.Series {
+			if !d.SupportsSeries() {
+				return fmt.Errorf("series form supports goal (with verifiers) / interval / cron without on_child_failure=retry")
+			}
+			_, runErr = d.RunSeries(ctx)
+		} else {
+			_, runErr = d.Run(ctx)
+		}
 		return runErr
 	}
 }
@@ -899,6 +907,19 @@ func hostResumeDriveFunc(version string, stderr io.Writer, broker *daemon.Approv
 		sessionDir, err := runtime.SessionDir(req.SessionID)
 		if err != nil {
 			return err
+		}
+		// The journal head decides the form (INC-80.2a): a merged-stream
+		// series carries its spec on SessionStarted and resumes via
+		// ResumeSeries; a legacy stream keeps the DriverStarted path.
+		if spec, wsRoot, ok := readSeriesSpec(sessionDir); ok {
+			d, cleanup, err := assembleHostedDriver(ctx, version, "", spec,
+				wsRoot, req.SessionID, broker, sink, stderr)
+			if err != nil {
+				return err
+			}
+			defer cleanup()
+			_, runErr := d.ResumeSeries(ctx)
+			return runErr
 		}
 		started, err := readDriverStarted(sessionDir)
 		if err != nil {
@@ -920,6 +941,36 @@ func hostResumeDriveFunc(version string, stderr io.Writer, broker *daemon.Approv
 		_, runErr := d.Resume(ctx)
 		return runErr
 	}
+}
+
+// readSeriesSpec detects a merged-stream series journal (INC-80.2a): head
+// SessionStarted followed by SeriesStarted, spec embedded on the head.
+// Returns ok=false for agent sessions and legacy driver streams.
+func readSeriesSpec(dir string) (*driver.DriverSpec, string, bool) {
+	events, err := store.ReadEvents(dir)
+	if err != nil || len(events) == 0 || events[0].Type != event.TypeSessionStarted {
+		return nil, "", false
+	}
+	hasSeries := false
+	for _, e := range events {
+		if e.Type == event.TypeSeriesStarted {
+			hasSeries = true
+			break
+		}
+	}
+	if !hasSeries {
+		return nil, "", false
+	}
+	dec, err := event.DecodePayload(events[0])
+	if err != nil {
+		return nil, "", false
+	}
+	head := dec.(*event.SessionStarted)
+	var spec driver.DriverSpec
+	if err := json.Unmarshal(head.Spec, &spec); err != nil {
+		return nil, "", false
+	}
+	return &spec, head.WorkspaceRoot, true
 }
 
 // assembleHostedDriver builds the daemon's IterationDriver over an already
@@ -1087,8 +1138,29 @@ func scanDriveSessions() ([]string, error) {
 		}
 		dir := filepath.Join(data, "sessions", e.Name())
 		events, err := store.ReadEvents(dir)
-		if err != nil || len(events) == 0 || events[0].Type != event.TypeDriverStarted {
-			continue // unreadable, empty, or an agent session (SessionStarted header)
+		if err != nil || len(events) == 0 {
+			continue
+		}
+		// Merged-stream series (INC-80.2a): a SessionStarted head whose
+		// journal carries SeriesStarted. Same sweep contract — loop-mode
+		// cadence, not yet ended.
+		if events[0].Type == event.TypeSessionStarted {
+			if spec, _, ok := readSeriesSpec(dir); ok {
+				switch spec.Schedule {
+				case driver.ScheduleInterval, driver.ScheduleCron:
+				default:
+					continue
+				}
+				st, ferr := state.Fold(events)
+				if ferr != nil || st.Series == nil || st.Series.Ended {
+					continue
+				}
+				out = append(out, e.Name())
+			}
+			continue
+		}
+		if events[0].Type != event.TypeDriverStarted {
+			continue // unreadable or a non-drive session
 		}
 		started, err := readDriverStarted(dir)
 		if err != nil {
@@ -1147,6 +1219,10 @@ func scanStrandedSessions() ([]string, error) {
 		st, err := state.Fold(events)
 		if err != nil || st.Session.Status != state.StatusRunning {
 			continue // parked (waiting) or terminal: not stranded
+		}
+		if st.Series != nil {
+			continue // a merged-stream series belongs to the DRIVE sweep,
+			// never to an agent-loop resume (INC-80.2a)
 		}
 		if store.HasLiveWriter(dir) {
 			continue // another host is live — not ours to touch
@@ -1239,6 +1315,7 @@ func submitCmd(args []string, stdout, stderr io.Writer) int {
 	mode := fs.String("mode", "", "run mode: default|plan|acceptEdits (overrides spec)")
 	jsonOut := fs.Bool("json", false, "emit the event stream as JSON lines")
 	drive := fs.Bool("drive", false, "submit a driver spec (prompt lives in the spec)")
+	series := fs.Bool("series", false, "with --drive: journal as a session-form series (goal/interval/cron only)")
 	idem := fs.String("idem", "", "idempotency key: a retried submit with the same key reattaches instead of starting a duplicate")
 	if ok, code := parseFlags(fs, args); !ok {
 		return code
@@ -1300,7 +1377,7 @@ func submitCmd(args []string, stdout, stderr io.Writer) int {
 	sid := ""
 	cmd := daemon.Command{Cmd: "run", SpecPath: specPath, Workspace: wsAbs, Mode: *mode, IdemKey: *idem}
 	if *drive {
-		cmd = daemon.Command{Cmd: "drive", SpecPath: specPath, Workspace: wsAbs, IdemKey: *idem}
+		cmd = daemon.Command{Cmd: "drive", SpecPath: specPath, Workspace: wsAbs, IdemKey: *idem, Series: *series}
 	} else {
 		cmd.Prompt = rest[1]
 	}

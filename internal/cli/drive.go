@@ -30,6 +30,11 @@ type driveOptions struct {
 	stdout    io.Writer
 	stderr    io.Writer
 	sink      protocol.Sink
+	// series opts into the merged-stream session form (INC-80.2a): the
+	// series journals as a SESSION (SessionStarted+SeriesStarted head), not
+	// a DriverStarted stream. Opt-in until the webui cadence projection
+	// reads both forms (PROCESS 回归红线: behavior changes land opt-in).
+	series bool
 }
 
 // driveCmd parses `drive` args and runs an IterationDriver to its terminal
@@ -40,6 +45,7 @@ func driveCmd(args []string, version string, stdout, stderr io.Writer) int {
 	workspaceDir := fs.String("workspace", ".", "workspace root (default: current directory)")
 	jsonOut := fs.Bool("json", false, "emit the child runs' output event stream as JSON lines")
 	retry := fs.String("retry", "", "start a new driver series from a prior driver session")
+	series := fs.Bool("series", false, "journal as a session-form series (merged stream; goal/interval/cron only)")
 	if ok, code := parseFlags(fs, args); !ok {
 		return code
 	}
@@ -61,6 +67,7 @@ func driveCmd(args []string, version string, stdout, stderr io.Writer) int {
 		stdout:    stdout,
 		stderr:    stderr,
 		sink:      sink,
+		series:    *series,
 	}
 	if *retry == "" {
 		opts.specPath = rest[0]
@@ -230,7 +237,17 @@ func driveAgent(opts driveOptions) int {
 		},
 	}
 
-	res, runErr := d.Run(ctx)
+	var res driver.Result
+	var runErr error
+	if opts.series {
+		if !d.SupportsSeries() {
+			fmt.Fprintln(opts.stderr, "agentrunner: --series supports goal (with verifiers) / interval / cron without on_child_failure=retry; run this spec without --series")
+			return ExitUsage
+		}
+		res, runErr = d.RunSeries(ctx)
+	} else {
+		res, runErr = d.Run(ctx)
+	}
 	if runErr != nil {
 		fmt.Fprintf(opts.stderr, "drive failed: %v\n", runErr)
 		return ExitRun

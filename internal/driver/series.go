@@ -34,6 +34,23 @@ import (
 // series off them, exactly like schedule_wake timers.
 const seriesTickPurpose = "series_tick:"
 
+// SupportsSeries reports whether this spec runs in the merged-stream form
+// (INC-80.2a opt-in): goal-with-verifiers / interval / cron, without
+// on_child_failure=retry. self_paced / parallel / retry stay on the legacy
+// stream until the runner grows them — dispatchers use this to route.
+func (d *Driver) SupportsSeries() bool {
+	switch d.Spec.schedule() {
+	case ScheduleImmediate:
+		if len(d.Spec.Verifiers) == 0 {
+			return false
+		}
+	case ScheduleInterval, ScheduleCron:
+	default:
+		return false
+	}
+	return d.Spec.OnChildFailure.Mode != OnFailRetry
+}
+
 // prepareSeries validates the spec subset the merged form supports.
 // self_paced / parallel / on_child_failure=retry stay on the legacy stream
 // for now (记档 INC-77 工作纸): refusing loudly beats silently changing

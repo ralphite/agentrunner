@@ -38,6 +38,8 @@ type Command struct {
 	Prompt    string `json:"prompt,omitempty"`
 	Workspace string `json:"workspace,omitempty"`
 	Mode      string `json:"mode,omitempty"`
+	// Series opts a drive into the merged-stream session form (INC-80.2a).
+	Series bool `json:"series,omitempty"`
 
 	// attach / approve / send
 	Session string `json:"session,omitempty"`
@@ -161,6 +163,9 @@ type DriveRequest struct {
 	SessionID string
 	SpecPath  string
 	Workspace string
+	// Series opts the drive into the merged-stream session form (INC-80.2a);
+	// the resume path ignores it (journal head decides the form there).
+	Series bool
 }
 
 // NewSessionID mints a session id for a hosted run; injected for
@@ -1676,6 +1681,7 @@ func (s *Server) handleDrive(ctx context.Context, cmd Command, enc *json.Encoder
 		defer hub.finish()
 		if err := s.Drive(runCtx, DriveRequest{
 			SessionID: id, SpecPath: cmd.SpecPath, Workspace: cmd.Workspace,
+			Series: cmd.Series,
 		}, hub); err != nil {
 			hub.Emit(protocol.Event{Kind: protocol.KindError, Text: "drive failed: " + err.Error()})
 		}

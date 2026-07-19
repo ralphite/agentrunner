@@ -2,11 +2,13 @@ package cli
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/ralphite/agentrunner/internal/driver"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/runtime"
+	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
 )
 
@@ -90,5 +92,71 @@ func TestScanDriveSessionsGate(t *testing.T) {
 	}
 	if len(ids) != 3 {
 		t.Errorf("scanDriveSessions = %v, want exactly the 3 running loop drives", ids)
+	}
+}
+
+// writeSeriesJournal seeds a merged-stream series session (INC-80.2a): head
+// SessionStarted carrying the driver spec + SeriesStarted (+ SeriesEnded).
+func writeSeriesJournal(t *testing.T, id, schedule string, ended bool) {
+	t.Helper()
+	dir, err := runtime.SessionDir(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	es, err := store.OpenEventStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = es.Close() }()
+	spec := driver.DriverSpec{Name: id, Schedule: schedule, Interval: "30m", Cron: "0 * * * *"}
+	raw, err := json.Marshal(spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendDriveEv(t, es, event.TypeSessionStarted, &event.SessionStarted{
+		SpecName: id, Spec: raw, SubStateVersions: state.SubStateVersions()})
+	appendDriveEv(t, es, event.TypeSeriesStarted, &event.SeriesStarted{
+		SeriesID: id, Kind: schedule, Source: "user"})
+	if ended {
+		appendDriveEv(t, es, event.TypeSeriesEnded, &event.SeriesEnded{
+			SeriesID: id, Reason: "max_iterations"})
+	}
+}
+
+// INC-80.2a: the sweep index also carries merged-stream series sessions —
+// loop-mode cadence, not yet ended — and the STRANDED sweep never touches
+// them (a series is program-driven; an agent-loop resume would misread it).
+func TestScanDriveSessionsIncludesSeriesForm(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	writeSeriesJournal(t, "series-interval", driver.ScheduleInterval, false)
+	writeSeriesJournal(t, "series-cron", driver.ScheduleCron, false)
+	writeSeriesJournal(t, "series-ended", driver.ScheduleInterval, true)
+	writeDriveJournal(t, "legacy-interval", driver.ScheduleInterval, false)
+
+	ids, err := scanDriveSessions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, id := range ids {
+		got[id] = true
+	}
+	for _, want := range []string{"series-interval", "series-cron", "legacy-interval"} {
+		if !got[want] {
+			t.Errorf("%s missing from the sweep index: %v", want, ids)
+		}
+	}
+	if got["series-ended"] {
+		t.Errorf("series-ended must be excluded (SeriesEnded is the explicit-end mark): %v", ids)
+	}
+
+	stranded, err := scanStrandedSessions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range stranded {
+		if strings.HasPrefix(id, "series-") {
+			t.Errorf("stranded sweep picked up series session %s — it belongs to the drive sweep", id)
+		}
 	}
 }

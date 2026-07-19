@@ -55,9 +55,13 @@
 - [x] 2.1 盘点 driver 暴露面全集并映射 in-session 等价物——2026-07-19
       结论入 INC-80.1：series runner 齐备但零接线，goal/interval/cron
       可先合流，best-of-N/retry/self_paced 是硬缺口（/bestof 被硬阻塞）。
-- [ ] 2.2a E1③ 第一步：goal/interval/cron 写侧切 RunSeries（3 个调用点
-      + boot sweep 双头兼容 + inspect/events 观察面收口），其余三类暂留
-      legacy。
+- [x] 2.2a E1③ 第一步（opt-in）——2026-07-19 落码：`drive/submit
+      --series` 走 RunSeries（SupportsSeries 路由，不支持形态响亮拒绝）；
+      hostResumeDrive/boot-sweep 按 journal 头双分派（readSeriesSpec）；
+      scanDriveSessions 收编 series 会话、scanStrandedSessions 排除；
+      `ar resume` 拒绝并指路。四孪生锚入 SPEC F 表。
+- [ ] 2.2c 翻默认：3.1 的 cadence 投影就绪后，eligible 三类默认走
+      series，webui drive 路径随之；legacy 仅剩 bestof/retry/self_paced。
 - [ ] 2.2b series runner 补 parallel(best-of-N)/retry/self_paced，
       legacy 写侧全退休。
 - [ ] 2.3 撤 webui 的 driver/run 概念面：Scheduled 页 = 带 schedule/goal

@@ -42,6 +42,13 @@ func resumeCmd(args []string, version string, stdout, stderr io.Writer) int {
 		return ExitUsage
 	}
 	sessionID := filepath.Base(dir)
+	// A merged-stream series session (INC-80.2a) is program-driven — an
+	// agent-loop resume would misinterpret it. Same refusal as the legacy
+	// driver stream: the daemon's drive sweep recovers it.
+	if _, _, ok := readSeriesSpec(dir); ok {
+		fmt.Fprintf(stderr, "agentrunner: %s is a scheduled series session, not a conversation; the daemon recovers live series automatically, or use `agentrunner drive --retry %s` to start a new series\n", sessionID, sessionID)
+		return ExitUsage
+	}
 	if events, rerr := store.ReadEvents(dir); rerr == nil && len(events) > 0 && events[0].Type == event.TypeDriverStarted {
 		folded, ferr := driver.Fold(events)
 		if ferr != nil {

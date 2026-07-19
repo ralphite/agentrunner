@@ -5167,3 +5167,17 @@ machine/untrusted 只 defer（G16）、revoked 按撤回消费（INC-46）、树
 会话排队消息挂死)、#5(活跃会话折叠态被轮询重置)属 daemon/inspect
 契约面,走 INC;#9(queued 前缀人话化)、#11(Create branch chip)、
 #12(rail 计数生成物)排下轮。
+
+## 2026-07-19 · INC-80.2a：E1③ merged-stream 接线（opt-in）
+
+`ar drive --series` / `ar submit --drive --series`（daemon wire 增
+`series` 位）把 goal/interval/cron 三类 drive 切到 RunSeries 会话形态
+（SessionStarted+SeriesStarted 头、child 走 spawn 事实、零
+DriverStarted）；`SupportsSeries` 路由，self_paced/parallel/retry 响亮
+拒绝留 legacy。恢复面：hostResumeDrive 按 journal 头双分派
+（readSeriesSpec→ResumeSeries / DriverStarted→Resume）、
+scanDriveSessions 收编未完 series 会话、scanStrandedSessions 排除
+series（防 agent-loop 误 resume 程序驱动会话）、`ar resume` 拒绝并指
+retry。opt-in 是 PROCESS 回归红线（行为变化 opt-in 落地）——翻默认挂
+PLAN 2.2c，先决条件是 webui cadence 投影改读 `ar sessions --json`
+（PLAN 3.1）。四孪生锚入 SPEC F 表。
