@@ -246,11 +246,16 @@ export function quickSwitchSessions(sessions: Session[], opts: { archived?: stri
 // workspace-less sessions never become a group at all (SB-13, see below).
 function projectIdentity(clean: string): Pick<ProjectGroup, "key" | "label" | "workspace"> {
   const label = projectLabel(clean);
-  // Auto-created WebUI workspaces use opaque timestamp names. Treat them as
-  // one product-level Scratch project instead of leaking implementation ids.
-  // (These *do* have a directory on disk, so the folder icon stays honest.)
+  // Auto-created WebUI workspaces use opaque timestamp names. They used to be
+  // pooled into one "__scratch__" aggregate, which mixed unrelated projects in
+  // a single folder and made them impossible to tell apart or rename
+  // individually (INC-78, user adjudication 2026-07-19). Each is its own
+  // project now, keyed on its real workspace like every other group — the
+  // label still hides the implementation id behind "Scratch · <created>", and
+  // the INC-53 overlay rename gives it a proper name.
   if (label === "Scratch") {
-    return { key: "__scratch__", label: "Scratch", workspace: undefined };
+    const base = clean.split("/").filter(Boolean).pop() || "";
+    return { key: clean, label: scratchLabel(base) || "Scratch", workspace: clean };
   }
   return { key: clean, label, workspace: clean };
 }

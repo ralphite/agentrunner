@@ -1320,8 +1320,11 @@ limits:
   scope，raw args/gates 折入 Details。UI 只提供当前已实现的 Approve once /
   Deny，不用文案暗示本次会改变冻结 permission layers。
 - project grouping 以 workspace 为键；未知 workspace 进 `Other sessions`，
-  自动生成的 `ws<timestamp>` / `wt<timestamp>` workspace 投影为单一 Scratch，
-  不泄漏实现 id、不隐藏 session。driver 只进 Scheduled，不在 Projects 重复；
+  自动生成的 `ws<timestamp>` / `wt<timestamp>` workspace 各自成组，默认名
+  投影为 `Scratch · MM-DD HH:MM`（不泄漏实现 id、不隐藏 session、不互相
+  合并——INC-78 撤销了早期"单一 Scratch 聚合"，它把无关工程混进一个假
+  文件夹）；组名经 project overlay（INC-53，workspace 为键）可改。driver
+  只进 Scheduled，不在 Projects 重复；
   Scheduled 的持久列表来自 journal-backed sessions，进程内 `runRegistry`
   只补充当前 one-time run，不得作为 restart 后真相。成员按 child session id
   去重，点入成员只读 timeline；

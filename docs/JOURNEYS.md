@@ -320,7 +320,8 @@ GAPS.md，本文件只回答"产品要做什么"。
 1. 左栏按 Projects → sessions 展示全部真实 session；共享历史很大时先在首屏取回
    最近一页并立即可操作，再后台顺序补齐全部历史，不以全量 journal fold 阻塞
    入口；session 是完整键盘可达操作，
-   Pinned 单列且不重复；自动 workspace 合并为 Scratch；CLI 创建、metadata
+   Pinned 单列且不重复；自动 workspace 各自成组（默认名 Scratch · 创建
+   时间，不互相混合，组名可编辑，INC-78）；CLI 创建、metadata
    不完整、父/子 session 都能直接打开和 deep link；hover 同屏提供 pin /
    archive 与 project/branch/status 预览，键盘 context menu 保持等价。
 2. New session 只出现一个 composer；默认只露输入、附件、access、model、

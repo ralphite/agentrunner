@@ -25,10 +25,21 @@ describe("project sidebar model", () => {
       titleOf: (session) => session.title || session.id,
     });
     expect(model.pinned.map((session) => session.id)).toEqual(["s2"]);
-    // Newest-first everywhere (W8): ids sort descending, so Scratch leads.
-    // SB-13: no "Other sessions" group — s3 has no workspace, so it is not in a
-    // project at all; it comes back in the flat `sessions` list instead.
-    expect(model.projects.map((project) => project.label)).toEqual(["Scratch", "agentrunner"]);
+    // Newest-first everywhere (W8): ids sort descending, so the scratch groups
+    // lead. INC-78: each auto-created workspace is its own project — two
+    // scratch sessions in two directories are two groups, not one pooled
+    // "Scratch" folder mixing unrelated work.
+    expect(model.projects.map((project) => project.label)).toEqual([
+      expect.stringMatching(/^Scratch · \d{2}-\d{2} \d{2}:\d{2}$/),
+      expect.stringMatching(/^Scratch · \d{2}-\d{2} \d{2}:\d{2}$/),
+      "agentrunner",
+    ]);
+    // Groups are keyed on the real workspace (renames/folds land per directory).
+    expect(model.projects.map((project) => project.key)).toEqual([
+      "/tmp/wt1783658717524713999",
+      "/tmp/ws1783658717524713000",
+      "/Users/me/dev/agentrunner",
+    ]);
     expect(model.projects.flatMap((project) => project.sessions.map((session) => session.id))).toEqual(["scratch-2", "scratch-1", "s1"]);
     expect(model.workspaceLessSessions.map((session) => session.id)).toEqual(["s3"]);
     expect(model.projects.flatMap((project) => project.sessions.map((session) => session.id))).not.toContain("driver");

@@ -4984,3 +4984,23 @@ API 带 isRepo:true/nested:false、diff 含目标文件,卡片首次以
 场景实录为 workspace 回退(#17 n=1)。至此 "Edited N files" 主路径
 恢复;S2 幽灵 diff 锚与 qa-consistency 定时跑继续守回归,S1 的
 last-turn observation 预期翻为真实文件集(下次 cron 验证)。
+
+## 2026-07-19 · Scratch 概念考古(用户质询)+ INC-78.1:Scratch 聚合拆分
+
+用户质询 "Scratch" 目录从何而来("我根本没有指明指定这样一个功能")。
+考古结论:①根源是 UI 对齐 Codex 的 "Don't work in a project" 入口——
+AgentRunner session 契约必须有 workspace,webui 桥接为静默
+`POST /api/workspace` 铸造 `ws-<ts>` 目录(INC-19/40 时代);②"Scratch"
+标签与"合并为单一文件夹"是 INC-41 parity 冲刺轮内部的顺手决定(代码
+注释 "Treat them as one product-level Scratch project",无用户裁决
+记录可考,git 历史在 d9031c1 已 squash),事后钉进 DESIGN L1322 与
+UJ-24;③问题实质:无关工程被一个合成假文件夹声称相关,且合成键
+`__scratch__` 令 per-project 改名/Open in 全部错位——用户直觉正确。
+
+INC-78.1 落地(方案 A,呈现层、可逆):projectIdentity 不再聚合——每个
+自动 workspace 以真实路径为键独立成组,默认名 `Scratch · MM-DD HH:MM`
+(仍不泄漏 ws<ts> 裸名);改名经既有 INC-53 overlay 落到具体 workspace。
+JOURNEYS UJ-24 步1 与 DESIGN L1322-1324 同 commit 修订;viewModels 测试
+修订+断言组键=真实路径。方案 B(完全平铺)/C(砍静默铸造桥接)已在
+工作纸登记待用户裁决。旧 `__scratch__` overlay 记录成为孤儿(装饰性,
+显式接受)。步2(触屏 ⋯ 菜单)与闸 B 远程验收待做。
