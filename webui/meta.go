@@ -275,7 +275,10 @@ func isHex(s string) bool {
 func git(ctx context.Context, dir string, args ...string) (string, bool) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir, "--no-pager"}, args...)...)
+	// core.quotePath=false: git otherwise octal-escapes non-ASCII path bytes
+	// ("设计 稿.md" → "\350\256\276..." in diff headers), which the UI then
+	// shows verbatim (QA-0719 S12 U1). The API is JSON — raw UTF-8 is safe.
+	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir, "--no-pager", "-c", "core.quotePath=false"}, args...)...)
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errb
 	if err := cmd.Run(); err != nil {
