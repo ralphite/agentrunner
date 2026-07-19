@@ -5499,3 +5499,15 @@ timeline.test series 渲染两场景。SPEC F 表/GAPS G15/UJ-16 收口。
   式汇报、成员全名 worker、黑板 UI 不可见。
 父子终态/文案失真/PROGRESS/计数口径属 inspect/语义契约面,待立 INC
 (部分与并发 INC-81 child 可见性工作重叠,协调后立项)。
+
+## 2026-07-19 · S5(goal 模式)完成:终态右栏不刷新 bug 修复
+
+S5 实测(两个 goal 会话,第二个用恒失败 done-when 拖住以测运行中行为):
+发起入口("+"菜单 Goal launcher)/Steer 注入/Pause 真止损(checks 冻结+
+落 idle)/Edit 改目标/Resume 不清零/satisfied 终态三方一致——全部 PASS。
+**唯一 bug**:budget_exhausted/stopped 终态时右栏 GOAL 面板不切终态,
+仍挂 Edit/Pause/Cancel 活控件(reload 依旧);根因:inspect 在
+satisfied 时 drop goal、在 exhausted/stopped 时仍返回 goal 对象,
+前端把它当活 goal。修复:journal 终态裁决优先——goalTerminal 时强制
+goal=null 走 settled 卡路径(SessionView 一行)。594 测试绿。
+另记:goal check "failed" chip 的视觉呈现本轮未观测到(如实登记)。

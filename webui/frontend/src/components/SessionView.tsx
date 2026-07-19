@@ -1134,7 +1134,12 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
         ) : showSupervision ? (
           <SupervisionPanel
             loading={!inspectReady}
-            goal={goal && goalPendingUpdate ? { ...goal, goal: goalPendingUpdate } : goal}
+            // QA-0719 S5: on budget-exhausted/stopped goals inspect keeps
+            // returning the goal object (unlike `satisfied`, which drops it),
+            // so the rail kept LIVE controls — Edit/Pause/Cancel on a goal
+            // that already ended, surviving reload. The journal's terminal
+            // verdict outranks inspect's projection: force the settled path.
+            goal={goalTerminal ? null : goal && goalPendingUpdate ? { ...goal, goal: goalPendingUpdate } : goal}
             goalEdit={goalEditSrc === "panel" ? goalEdit : null}
             progress={progress}
             artifacts={artifacts}
