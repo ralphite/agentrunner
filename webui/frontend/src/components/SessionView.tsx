@@ -1063,16 +1063,25 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
               )}
               {!isSub && queued.filter((m) => !m.revoked).length > 0 && (
                 <div className="queued-list">
-                  {queued.filter((m) => !m.revoked).map((m) => (
-                    <div className="queued-row" key={m.command_id}>
-                      <ClockCountdown size={15} className="queued-ic" aria-hidden="true" />
-                      <span className="queued-kicker">Queued</span>
-                      <span className="queued-text" title={m.text}>{m.text}</span>
-                      <button className="queued-drop" onClick={() => withdrawQueued(m.command_id)} title="Withdraw this queued message before it runs">
-                        Withdraw
-                      </button>
-                    </div>
-                  ))}
+                  {queued.filter((m) => !m.revoked).map((m) => {
+                    // A child→parent mail arrives framed as
+                    // "[message from <agent> (<child session id>)] body…" — the
+                    // sender matters to a human, the internal session id does
+                    // not (QA-0719 review #9). Named senders get a "from X"
+                    // kicker; the raw frame stays in the title tooltip.
+                    const framed = /^\[message from ([^\s(]+)[^\]]*\]\s*/.exec(m.text);
+                    const body = framed ? m.text.slice(framed[0].length) : m.text;
+                    return (
+                      <div className="queued-row" key={m.command_id}>
+                        <ClockCountdown size={15} className="queued-ic" aria-hidden="true" />
+                        <span className="queued-kicker">{framed ? `Queued · from ${framed[1]}` : "Queued"}</span>
+                        <span className="queued-text" title={m.text}>{body}</span>
+                        <button className="queued-drop" onClick={() => withdrawQueued(m.command_id)} title="Withdraw this queued message before it runs">
+                          Withdraw
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
               {!isSub && !isDriver && (

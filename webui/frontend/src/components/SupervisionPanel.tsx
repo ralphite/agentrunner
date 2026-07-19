@@ -21,7 +21,7 @@ import { AR } from "../api";
 import { useStore } from "../store";
 import { copyText } from "../clipboard";
 import { loadGitPrefs } from "../theme";
-import { splitDiff } from "../diffSummary";
+import { isGeneratedPath, splitDiff } from "../diffSummary";
 import { Popover, PopItem, PopSection } from "./Popover";
 import { useWorktreeActions } from "./worktreeActions";
 import { deriveGoalState, formatElapsed, isGoalTerminal, type GoalDerived } from "../timeline";
@@ -584,7 +584,10 @@ function EnvironmentSection({
     AR.diff(sid)
       .then((d) => {
         if (!fresh()) return;
-        const files = splitDiff(d.diff || "");
+        // The rail states the same "what changed" fact as the changes card —
+        // compiled artifacts are excluded from both (QA-0719 review #12), or
+        // the two surfaces disagree about the same workspace.
+        const files = splitDiff(d.diff || "").filter((f) => !isGeneratedPath(f.path));
         setEnv({
           workspace: d.workspace,
           known: d.known,
@@ -593,7 +596,7 @@ function EnvironmentSection({
           add: files.reduce((n, f) => n + f.add, 0),
           del: files.reduce((n, f) => n + f.del, 0),
           files: files.length,
-          untracked: (d.untracked || []).length,
+          untracked: (d.untracked || []).filter((p) => !isGeneratedPath(p)).length,
           worktree: !!d.worktree,
           mainRepo: d.mainRepo || "",
         });

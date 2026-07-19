@@ -133,7 +133,19 @@ export function projectLabel(workspace?: string): string {
   const base = parts[parts.length - 1] || "";
   const lineage = managedWorktreeLineage(clean);
   if (lineage) return lineage.label;
-  return scratchLabel(base) ? "Scratch" : base;
+  // INC-78: an auto-created workspace is its own project everywhere — the
+  // palette hint, Scheduled chips, and the rail must name the SAME group
+  // ("Scratch · 07-18 18:33"), not collapse some surfaces back to a bare
+  // "Scratch" that no longer exists as a group (QA-0719 review #14).
+  return scratchLabel(base) || base;
+}
+
+// isScratchWorkspace: does this path name an auto-created scratch dir? The
+// seed/filter call sites need the judgement, not the label's exact string.
+export function isScratchWorkspace(workspace?: string): boolean {
+  const clean = (workspace || "").trim().replace(/\/+$/, "");
+  const base = clean.split("/").filter(Boolean).pop() || "";
+  return !!scratchLabel(base);
 }
 
 // deNoiseSegment strips a YYYYMMDD date token from a path segment while
@@ -165,11 +177,15 @@ export function projectSubtitle(workspace: string, siblings: string[]): string {
   if (scratch) {
     // INC-78 后 scratch 组的 label 自带分钟级时间;孪生消歧 hint 若再给
     // 同一个分钟就是三重复读且零区分度(QA-0719 审查 #8:两个
-    // "Scratch · 07-13 21:23" 并排)。带上秒位——同秒建目录名必不同,
-    // 秒级时间足以把孪生分开。
-    const detail = scratch.replace(/^Scratch · /, "");
+    // "Scratch · 07-13 21:23" 并排)。带秒位分开同分钟孪生;fork 目录
+    // 继承原时间戳(ws-…-212334 vs ws-…-212334-fork-61de 连秒都同,
+    // QA-0719 审查 #17),fork 段是它唯一的身份,必须进 hint。
+    let detail = scratch.replace(/^Scratch · /, "");
     const seconds = /^(?:ws|wt)-\d{8}-\d{4}(\d{2})/.exec(base);
-    return seconds ? `${detail}:${seconds[1]}` : detail;
+    if (seconds) detail += `:${seconds[1]}`;
+    const fork = /-fork-(\w+)/.exec(base);
+    if (fork) detail += ` · fork ${fork[1]}`;
+    return detail;
   }
   const parents = (path: string) => clean(path).split("/").filter(Boolean).slice(0, -1);
   const mine = parents(ws);
@@ -253,19 +269,13 @@ export function quickSwitchSessions(sessions: Session[], opts: { archived?: stri
 // projectIdentity is only ever called with a *real* (non-empty) workspace —
 // workspace-less sessions never become a group at all (SB-13, see below).
 function projectIdentity(clean: string): Pick<ProjectGroup, "key" | "label" | "workspace"> {
-  const label = projectLabel(clean);
-  // Auto-created WebUI workspaces use opaque timestamp names. They used to be
-  // pooled into one "__scratch__" aggregate, which mixed unrelated projects in
-  // a single folder and made them impossible to tell apart or rename
-  // individually (INC-78, user adjudication 2026-07-19). Each is its own
-  // project now, keyed on its real workspace like every other group — the
-  // label still hides the implementation id behind "Scratch · <created>", and
-  // the INC-53 overlay rename gives it a proper name.
-  if (label === "Scratch") {
-    const base = clean.split("/").filter(Boolean).pop() || "";
-    return { key: clean, label: scratchLabel(base) || "Scratch", workspace: clean };
-  }
-  return { key: clean, label, workspace: clean };
+  // Auto-created WebUI workspaces used to be pooled into one "__scratch__"
+  // aggregate, which mixed unrelated projects in a single folder (INC-78,
+  // user adjudication 2026-07-19). Every workspace is its own project now,
+  // keyed on its real path; projectLabel already hides the implementation id
+  // behind "Scratch · <created>", and the INC-53 overlay rename gives it a
+  // proper name.
+  return { key: clean, label: projectLabel(clean), workspace: clean };
 }
 
 export function buildSidebarModel(

@@ -128,7 +128,7 @@ describe("project sidebar model", () => {
     expect(scratchLabel("wt-20260710-221530")).toBe("Scratch · 07-10 22:15");
     expect(scratchLabel("ws1783659626368076000")).toMatch(/^Scratch · \d{2}-\d{2} \d{2}:\d{2}$/);
     expect(scratchLabel("agentrunner")).toBe("");
-    expect(projectLabel("/x/y/ws-20260710-221530")).toBe("Scratch");
+    expect(projectLabel("/x/y/ws-20260710-221530")).toBe("Scratch · 07-10 22:15");
   });
 
   it("renders team mail as a peer message, not something you typed (W19)", () => {
@@ -160,9 +160,9 @@ describe("project sidebar model", () => {
 
   it("derives a stable label from a trailing-slash path", () => {
     expect(projectLabel("/tmp/work/repo/")).toBe("repo");
-    expect(projectLabel("/tmp/ws1783658717524713000")).toBe("Scratch");
-    expect(projectLabel("/tmp/wt1783658717524713999-fork-1234")).toBe("Scratch");
-    expect(projectLabel("/tmp/ws-20260710-221530")).toBe("Scratch");
+    expect(projectLabel("/tmp/ws1783658717524713000")).toMatch(/^Scratch · /);
+    expect(projectLabel("/tmp/wt1783658717524713999-fork-1234")).toMatch(/^Scratch · /);
+    expect(projectLabel("/tmp/ws-20260710-221530")).toBe("Scratch · 07-10 22:15");
   });
 
   it("collapses managed fork chains to the root project name", () => {
@@ -218,15 +218,21 @@ describe("project name disambiguation (W4)", () => {
     expect(subs.size).toBe(0);
   });
 
-  it("distinguishes two Scratch workspaces by their creation time — down to the second", () => {
-    // INC-78 gave scratch group labels the minute already; the hint must add
-    // information, and two dirs created within the same minute (QA-0719 review
-    // #8: twin "Scratch · 07-13 21:23" groups) are only told apart by seconds.
-    const subs = projectSubtitles(["/tmp/ws-20260710-221530", "/tmp/ws-20260709-100000"]);
-    expect(subs.get("/tmp/ws-20260710-221530")).toBe("07-10 22:15:30");
-    expect(subs.get("/tmp/ws-20260709-100000")).toBe("07-09 10:00:00");
+  it("distinguishes same-minute Scratch twins by seconds, and stays quiet otherwise", () => {
+    // INC-78 gave every scratch group a minute-level label of its own, so
+    // different-minute groups need no hint at all; only dirs created within
+    // the same minute (QA-0719 review #8: twin "Scratch · 07-13 21:23"
+    // groups) collide, and their hint carries the seconds that tell them apart.
+    const distinct = projectSubtitles(["/tmp/ws-20260710-221530", "/tmp/ws-20260709-100000"]);
+    expect(distinct.size).toBe(0);
     const twins = projectSubtitles(["/tmp/ws-20260713-212300", "/tmp/ws-20260713-212347"]);
-    expect(twins.get("/tmp/ws-20260713-212300")).not.toBe(twins.get("/tmp/ws-20260713-212347"));
+    expect(twins.get("/tmp/ws-20260713-212300")).toBe("07-13 21:23:00");
+    expect(twins.get("/tmp/ws-20260713-212347")).toBe("07-13 21:23:47");
+    // A fork dir inherits the source timestamp to the second (QA-0719 #17) —
+    // only its fork segment tells the two apart.
+    const forks = projectSubtitles(["/w/ws-20260713-212334", "/w/ws-20260713-212334-fork-61de"]);
+    expect(forks.get("/w/ws-20260713-212334")).toBe("07-13 21:23:34");
+    expect(forks.get("/w/ws-20260713-212334-fork-61de")).toBe("07-13 21:23:34 · fork 61de");
   });
 
   it("walks deeper up the path when the nearest parent still collides", () => {

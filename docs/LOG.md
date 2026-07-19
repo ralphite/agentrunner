@@ -5181,3 +5181,22 @@ series（防 agent-loop 误 resume 程序驱动会话）、`ar resume` 拒绝并
 retry。opt-in 是 PROCESS 回归红线（行为变化 opt-in 落地）——翻默认挂
 PLAN 2.2c，先决条件是 webui cadence 投影改读 `ar sessions --json`
 （PLAN 3.1）。四孪生锚入 SPEC F 表。
+
+## 2026-07-19 · QA 续挖(palette/Settings 面)+ 审查 #9/#12/#14/#17 落地
+
+继续在借档环境驱动未覆盖面,新发现:
+- #14 ⌘K palette 的 project 标注全是裸 "Scratch"(palette/Scheduled
+  chips 仍用旧 projectLabel 聚合语义,与 INC-78 后侧栏脱节)。修复:
+  projectLabel 本身改为返回 per-workspace "Scratch · 时间",
+  projectIdentity 去特例;Composer seed 过滤改用新 isScratchWorkspace
+  判据(防 seed 误选 scratch);palette/Scheduled 自动跟随。
+- #17 Worktrees 页实证:两个同名组的真身是 ws-20260713-212334 与其
+  fork ws-…-212334-fork-61de——fork 继承源时间戳到秒,#8 的秒级消歧
+  失效。补:hint 纳入 fork 段("07-13 21:23:34 · fork 61de")。
+- #18 palette 首行 "Start each weekday with…" 确认为用户从 Daily
+  brief suggestion 创建的会话,标题=整句描述——SC-21 已裁项(数据层
+  无短名),登记不另修。
+同轮落地审查遗留:#9 queued 邮件框定前缀人话化("Queued · from
+Architect",内部 session id 只留 tooltip);#12 rail Changes 计数与
+untracked 同用 isGeneratedPath 过滤(与变更卡同判)。
+前端 589 测试绿、build 绿、lint 零新增。

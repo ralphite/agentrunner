@@ -63,7 +63,7 @@ import { useDictation } from "./useDictation";
 import { helperContext, runOptimize, undoOptimize } from "./composerOptimize";
 import { parseSlash, SLASH, type SlashCmd } from "./slash";
 import { recallAccess, recallDraft, recallSpec, rememberAccess, rememberDraft, rememberSpec } from "./sessionSpecs";
-import { projectLabel, projectSubtitles } from "../viewModels";
+import { isScratchWorkspace, projectLabel, projectSubtitles } from "../viewModels";
 
 // Actions the session variant wires in so slash commands can reach SessionView
 // state (view switches, interrupt, fork…) that lives above the composer.
@@ -329,7 +329,9 @@ export function Composer(props: ComposerProps) {
     if (isSession || seeded.current || recallProject() !== null) return;
     const candidate = allWorkspaces.find((w) => {
       const label = projectLabel(w);
-      return label !== "Scratch" && label !== "Other sessions";
+      // Scratch dirs never seed the composer (their label is per-workspace
+      // since INC-78, so test the judgement, not the old aggregate string).
+      return !isScratchWorkspace(w) && label !== "Other sessions";
     });
     if (!candidate) return; // sessions may still be loading — try again when they land
     seeded.current = true;
