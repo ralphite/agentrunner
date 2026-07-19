@@ -5112,3 +5112,12 @@ tl-notfound-id、pop-section、proj-folder、以及最后两个纯包装
 token)复扫全库 0 命中**;qa/tw-class-baseline.txt 重组为 anchor-only
 注释登记簿(82 语义锚,逐一核对),新增无样式类仍直接 fail。
 前端 587 测试绿。INC-79 剩余工作转入主观 polish 比对(对金标逐屏)。
+
+## 2026-07-19 · INC-79 批次 1+2 远程验收:关键面核看绿,遗留一项 3px 溢出
+
+验收环境 run 29675251366(bd88d0c 构建,issue #20):Scheduled 桌面
+浅色成型(空态卡/建议卡/ghost Create);Worked caret 展开旋转
+rotate=90deg 生效(首测断言误用 transform 属性,Tailwind v4 rotate-*
+走 rotate 属性);tl-jump absolute+圆角生效;桌面零横向溢出、零
+console error。遗留:Scheduled @390 深色 document 溢出 3px,登记
+INC-79 待追查(元素级探针被 SVG pre-clip 几何干扰,需逐容器探针)。
