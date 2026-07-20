@@ -1,4 +1,4 @@
-url: https://bishop-holland-bruce-briefs.trycloudflare.com
-run_id: 29707089058
-started_at: 2026-07-19T22:59:54Z
-minutes: 180
+url: https://confidence-minutes-bath-mechanics.trycloudflare.com
+run_id: 29710233373
+started_at: 2026-07-20T01:00:57Z
+minutes: 150
