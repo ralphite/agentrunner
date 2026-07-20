@@ -34,7 +34,7 @@
 - steer 投递：`ar send --steer` / webui 切换，把消息注入当前轮的下一个安全边界，本轮内即生效。
 - 排队列表：`ar queue` 列出尚未消费的排队输入（含 command-id 与 revoked 态）。
 - 排队撤回：`ar unqueue <sid> <cmd-id>` 撤回一条未消费的排队消息，迟到撤回是 no-op。
-- retry：`ar retry` 把最后一条用户输入作为新 turn 幂等重发（附件从 CAS 读回）。
+- retry：`ar retry` 把最后一条用户输入作为新 turn 幂等重发（附件从 CAS 读回）;webui 上呈现为**原位替换失败块**（失败尝试折叠成一行可展开,INC-84）。
 - stdin 管道：run/new/send/optimize 的文本参数可由管道 stdin 提供，`-` 显式占位，tty 下 `-` 报错不阻塞。
 - 回复就地可见：new/send 默认跟随本轮渲染到 idle 再脱离，`--detach` 恢复异步，并发 send 各自只渲染自己那一轮。
 

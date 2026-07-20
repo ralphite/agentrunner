@@ -236,7 +236,18 @@ export interface ApprovalRef {
   resolved?: { decision: string; reason?: string; source?: string };
 }
 
-export type TimelineItem = ToolItem | BubbleItem | TurnItem | ChipItem | CompactItem | SysItem | RuntimeItem;
+// RetriedItem (INC-84): the block a user's Retry superseded — the original
+// message and its failed turn — collapsed into one expandable row. The
+// journal stays append-only; only the PRESENTATION folds, so the thread
+// reads "question → (failed attempt · retried) → answer" instead of the
+// same question pasted twice around dead output.
+export interface RetriedItem {
+  kind: "retried";
+  key: string;
+  children: TimelineItem[];
+}
+
+export type TimelineItem = ToolItem | BubbleItem | TurnItem | ChipItem | CompactItem | SysItem | RuntimeItem | RetriedItem;
 
 export function formatWorkDuration(ms: number): string {
   const seconds = Math.max(1, Math.floor(ms / 1000));
@@ -667,6 +678,9 @@ export function foldEvents(events: Envelope[]): Folded {
   // for each one is kept live so a later successful attempt of the SAME
   // activity can downgrade it from "this broke" to "we hiccuped and retried".
   const llmFailures = new Map<string, { notice: FailureNotice; chip: ChipItem }>();
+  // INC-84 · retry lineage: every human input item by its command id, so a
+  // later "retry:<id>" input can fold the superseded block in place.
+  const userItemByCommand = new Map<string, BubbleItem>();
 
   const push = (it: TimelineItem) => items.push(it);
   const chip = (
@@ -720,7 +734,31 @@ export function foldEvents(events: Envelope[]): Folded {
           break;
         }
         const refs = imageRefs(p.images);
-        push({
+        // INC-84 · a Retry supersedes its original attempt: fold everything
+        // from the original message onward into one "Failed attempt" row,
+        // then render the retried message normally in its place. Chains
+        // flatten (retrying a retry swallows the earlier fold), and every
+        // failure the fold buries counts as addressed — the user visibly
+        // retried past it, so no standing banner.
+        const cmd = env.command_id || "";
+        if (!peer && cmd.startsWith("retry:")) {
+          const orig = userItemByCommand.get(cmd.slice("retry:".length));
+          let idx = orig ? items.indexOf(orig) : -1;
+          // A chain: the fold from the PREVIOUS retry sits right before the
+          // message being retried — absorb it so the thread keeps one fold.
+          if (idx > 0 && items[idx - 1].kind === "retried") idx--;
+          if (idx >= 0) {
+            let superseded = items.splice(idx);
+            if (superseded[0] && superseded[0].kind === "retried") {
+              superseded = [...(superseded[0] as RetriedItem).children, ...superseded.slice(1)];
+            }
+            items.push({ kind: "retried", key: "rt" + seq, children: superseded });
+            for (const f of llmFailures.values()) {
+              if (f.notice.seq < seq) f.notice.recovered = true;
+            }
+          }
+        }
+        const userItem: BubbleItem = {
           kind: "user",
           key: "u" + seq,
           seq,
@@ -733,7 +771,9 @@ export function foldEvents(events: Envelope[]): Folded {
           images: p.images && p.images.length ? p.images.length : undefined,
           imageRefs: refs.length ? refs : undefined,
           sessionId: refs.length ? correlationSession(env) : undefined,
-        });
+        };
+        push(userItem);
+        if (!peer && cmd) userItemByCommand.set(cmd, userItem);
         break;
       }
       case "generation_started":

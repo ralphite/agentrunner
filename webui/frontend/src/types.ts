@@ -5,6 +5,10 @@ export interface Envelope {
   type: string;
   payload?: any;
   ts?: string; // RFC3339 event time, recorded by the daemon
+  // Durable-command receipt (journal `command_id`). The timeline uses the
+  // retry lineage encoded here ("retry:<orig-id>") to collapse a failed,
+  // retried block into one row (INC-84 UX).
+  command_id?: string;
 }
 
 // The cadence contract every scheduled thing carries (CX-3): what rhythm it

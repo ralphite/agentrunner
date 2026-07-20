@@ -5993,3 +5993,16 @@ UJ-18 kill 步骤改模型侧、UJ-21 kill/close 复活条款清词。FEATURES
 v1.3:close/stop 划线拆除、Stop 唯一手势、kill 纪律内部化、CLI/菜单/
 Background 区/Scheduled 行五处同步。**Phase 6 队列清空**:用户面自此
 没有 close/stop/kill/"活着/关闭"概念——会话只有"在干活/在等你"。
+
+## INC-84 retry UX:原位替换失败块（2026-07-19,用户裁决）
+
+**问题**(用户):retry 的 UX 差——预期是"从最后失败的那一块开始重试",
+实际是同一问题贴两遍夹着死输出。**裁决**:journal append-only 不动,
+只改呈现层。**实现**:retry 的 command 血统(`retry:<orig-id>`)本就在
+envelope 里;timeline foldEvents 据此把被重试的整块(原消息+失败 turn)
+splice 成一行可展开的 `retried` fold("Failed attempt · retried",复用
+worked 折叠 chrome,sys/turn 杂项展开也不显示);链式重试吸收前一个
+fold 保持单层;被折叠范围内的 llm 失败标记 recovered——重试即消解,
+不再挂终局横幅;问题气泡只渲染一次。仅 command 血统触发(手动重发同文
+不折)。Envelope 前端类型补 command_id。钉子:timeline.test 三场景。
+CLI attach 终端回放保持线性(终端本性)。

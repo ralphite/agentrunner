@@ -738,3 +738,57 @@ describe("merged-stream series rendering", () => {
     expect(model.bestIter).toBeUndefined();
   });
 });
+
+// INC-84: a Retry supersedes its failed attempt IN PLACE — the journal stays
+// append-only, but the thread folds the buried block into one expandable row
+// instead of pasting the same question twice around dead output.
+describe("retry supersedes the failed block (INC-84)", () => {
+  const failedThenRetried = [
+    { seq: 1, type: "session_started", payload: { spec_name: "t" } },
+    { seq: 2, type: "input_received", payload: { text: "do the thing", source: "cli" }, command_id: "cmd-1" },
+    { seq: 3, type: "generation_started", payload: { gen_step: 1 } },
+    { seq: 4, type: "assistant_message", payload: { message: { parts: [{ text: "half an answer…" }] } } },
+    { seq: 5, type: "input_received", payload: { text: "do the thing", source: "cli" }, command_id: "retry:cmd-1" },
+    { seq: 6, type: "generation_started", payload: { gen_step: 2 } },
+    { seq: 7, type: "assistant_message", payload: { message: { parts: [{ text: "the real answer" }] } } },
+  ];
+
+  it("folds the original attempt into one 'retried' row and keeps a single visible question", () => {
+    const model = foldEvents(failedThenRetried as any);
+    const kinds = model.items.map((i) => i.kind);
+    const users = model.items.filter((i) => i.kind === "user");
+    expect(users).toHaveLength(1); // the retried question renders once
+    const grp = model.items.find((i) => i.kind === "retried") as any;
+    expect(grp).toBeTruthy();
+    expect(grp.children.some((c: any) => c.kind === "user" && c.text === "do the thing")).toBe(true);
+    expect(grp.children.some((c: any) => c.kind === "assistant" && /half an answer/.test(c.text))).toBe(true);
+    // The fold sits before the retried question.
+    expect(kinds.indexOf("retried")).toBeLessThan(model.items.findIndex((i) => i.kind === "user"));
+  });
+
+  it("flattens a retry-of-a-retry into a single fold", () => {
+    const chained = [
+      ...failedThenRetried,
+      { seq: 8, type: "input_received", payload: { text: "do the thing", source: "cli" }, command_id: "retry:retry:cmd-1" },
+      { seq: 9, type: "generation_started", payload: { gen_step: 3 } },
+      { seq: 10, type: "assistant_message", payload: { message: { parts: [{ text: "third time lucky" }] } } },
+    ];
+    const model = foldEvents(chained as any);
+    const groups = model.items.filter((i) => i.kind === "retried");
+    expect(groups).toHaveLength(1); // chains collapse into one fold, not nesting
+    expect(model.items.filter((i) => i.kind === "user")).toHaveLength(1);
+    expect((groups[0] as any).children.filter((c: any) => c.kind === "user")).toHaveLength(2);
+  });
+
+  it("leaves unrelated sends alone — only command lineage folds", () => {
+    const twoQuestions = [
+      { seq: 1, type: "session_started", payload: {} },
+      { seq: 2, type: "input_received", payload: { text: "q1", source: "cli" }, command_id: "cmd-1" },
+      { seq: 3, type: "assistant_message", payload: { message: { parts: [{ text: "a1" }] } } },
+      { seq: 4, type: "input_received", payload: { text: "q2", source: "cli" }, command_id: "cmd-2" },
+    ];
+    const model = foldEvents(twoQuestions as any);
+    expect(model.items.filter((i) => i.kind === "retried")).toHaveLength(0);
+    expect(model.items.filter((i) => i.kind === "user")).toHaveLength(2);
+  });
+});

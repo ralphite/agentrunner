@@ -31,6 +31,7 @@ import {
   editDetail,
   foldRuns,
   foldWork,
+  type RetriedItem,
   formatWorkDuration,
   globDetail,
   grepDetail,
@@ -824,6 +825,40 @@ function WorkedFold({
   );
 }
 
+// RetriedFold (INC-84): the block a Retry superseded — original message plus
+// its failed turn — as one collapsed, expandable row. Mirrors WorkedFold's
+// chrome; sys/turn markers inside the buried block stay hidden even expanded
+// (they are journal plumbing, not content).
+function RetriedFold({
+  fold,
+  sentImages,
+  open,
+  onToggle,
+}: {
+  fold: RetriedItem;
+  sentImages?: Map<number, string[]>;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const children = fold.children.filter((c) => c.kind !== "sys" && c.kind !== "turn");
+  if (!children.length) return null;
+  return (
+    <div className={"worked retried" + (open ? " open" : "")}>
+      <button type="button" className="worked-row" onClick={onToggle} aria-expanded={open} title="This attempt failed and was retried; the journal keeps it — expand to review.">
+        Failed attempt · retried
+        <CaretRight size={15} className="worked-caret" />
+      </button>
+      {open && (
+        <div className="worked-body">
+          {children.map((m) => (
+            <Item it={m} sentImages={sentImages} key={m.key} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function pretty(raw: any): string {
   if (raw == null) return "";
   try {
@@ -1184,6 +1219,17 @@ export function TimelineView({
           // first user message opens nothing, so it gets no rule.
           const sep = it.kind === "user" && seenUser;
           if (it.kind === "user") seenUser = true;
+          if (it.kind === "retried") {
+            return (
+              <RetriedFold
+                fold={it}
+                sentImages={sentImages}
+                open={openFolds.has(it.key)}
+                onToggle={() => toggleFold(it.key)}
+                key={it.key}
+              />
+            );
+          }
           if (it.kind === "fold") {
             const foldId = it.children[0]?.key ?? it.key;
             return (
