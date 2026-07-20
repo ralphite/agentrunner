@@ -5935,3 +5935,13 @@ inspect 分类、Scheduled SETTLED_STATUS 双词并存;friendlyStatus 已有
 cancel→Cancelled 映射)。钉子 TestSeriesUserCancelWritesCancelledTerminal
 (域终态+无 SessionClosed+sweep 不复活)。legacy driver 流(parallel×
 retry 残余)的 stopped 不动。
+
+## PLAN 6.2 CLI 撤出 close/stop/kill,interrupt=唯一手势（2026-07-19,INC-83）
+
+命令面收敛:`ar help` 与 commandHelp 不再宣传 close/stop/kill;三者
+物理保留为**内部 transport**(webui thin-shell 仍经 CLI;-h 安全性质
+保留——极简 usage 注明 internal,不宣传概念;6.3 webui 迁移后 close/
+kill 可全删,stop 留作 series-cancel transport)。interrupt help 改写:
+"Stop what it's doing right now (a no-op at idle). Nothing is ever
+closed"。指路文案清词:stuckHint 不再说 ended/close,barrier 锁提示
+不再指 `ar stop`。TestPositionalCommandsHonorHelpFlag 钉住 -h 安全。

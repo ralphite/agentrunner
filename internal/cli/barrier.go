@@ -35,7 +35,7 @@ func barrierCmd(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		// Name the way out, not just the lock (QA Round1 F-B5): the flow is
 		// stop → barrier → fork, and nothing else surfaces it.
-		fmt.Fprintf(stderr, "agentrunner: %v (a live session cannot be barriered externally — quiesce it first: agentrunner stop %s)\n", err, session)
+		fmt.Fprintf(stderr, "agentrunner: %v (a live session cannot be barriered externally — interrupt it and wait for its host to release the journal, or create the checkpoint from the web UI)\n", err)
 		return ExitRun
 	}
 	defer func() { _ = es.Close() }()

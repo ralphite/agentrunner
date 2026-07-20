@@ -869,11 +869,11 @@ func stuckHint(stderr io.Writer, sessionArg string) {
 	}
 	switch {
 	case s.Session.Closed != nil:
-		fmt.Fprintf(stderr, "  (%s already ended: %s — nothing to stop)\n", id, s.Session.Closed.Reason)
+		fmt.Fprintf(stderr, "  (%s is idle — nothing in flight; send a message to continue it)\n", id)
 	case store.HasLiveWriter(dir):
-		fmt.Fprintf(stderr, "  (%s is hosted by a foreground run/resume, not the daemon — stop it there with Ctrl-C)\n", id)
+		fmt.Fprintf(stderr, "  (%s is hosted by a foreground run/resume, not the daemon — interrupt it there with Ctrl-C)\n", id)
 	default:
-		fmt.Fprintf(stderr, "  (%s has no live host — recover it in-process: agentrunner resume %s ; then end it: agentrunner close %s)\n", id, id, id)
+		fmt.Fprintf(stderr, "  (%s has no live host — recover it in-process: agentrunner resume %s)\n", id, id)
 	}
 }
 

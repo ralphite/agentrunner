@@ -94,10 +94,14 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 	case "answer":
 		return answerCmd(args[1:], stdout, stderr)
 	case "close":
+		// Undocumented webui transport (INC-83): the lifecycle verb is gone
+		// from the product face; the route dies with the webui migration.
 		return closeCmd(args[1:], stdout, stderr)
 	case "interrupt":
 		return interruptCmd(args[1:], stdout, stderr)
 	case "stop":
+		// Undocumented transport for cancelling a running series (INC-83):
+		// the domain terminal is SeriesEnded{cancelled}, not a session mark.
 		return stopCmd(args[1:], stdout, stderr)
 	case "compact":
 		return compactCmd(args[1:], stdout, stderr)
@@ -118,6 +122,8 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 	case "agent":
 		return agentCmd(args[1:], stdout, stderr)
 	case "kill":
+		// Undocumented webui transport (INC-83): kill is the MODEL's tool for
+		// its own background work; the user face is gone.
 		return killCmd(args[1:], stdout, stderr)
 	case "ps":
 		return psCmd(args[1:], stdout, stderr)
@@ -157,12 +163,14 @@ func commandHelp(cmd string) string {
 		return "usage: agentrunner init [path]\n\nWrite a commented example agent spec (default: spec.yaml).\nRefuses to overwrite. Scheduled work (goals, repeating runs,\nbest-of-N) attaches to a session: see `agentrunner goal` and\n`agentrunner schedule`, or the web UI's Scheduled page.\n"
 	case "resume":
 		return "usage: agentrunner resume <session-id-or-prefix>\n\nResume an interrupted or crashed session in the foreground.\n"
-	case "close":
-		return "usage: agentrunner close <session-id-or-prefix>\n\nEnd a session gracefully. A later `send` revives it.\n"
 	case "interrupt":
-		return "usage: agentrunner interrupt <session-id-or-prefix>\n\nInterrupt the session's current turn (a no-op at idle).\nUnlike a queued message, this cancels in-flight work now.\n"
+		return "usage: agentrunner interrupt <session-id-or-prefix>\n\nStop what the session is doing right now (a no-op at idle).\nNothing is ever \"closed\": the conversation stays continuable —\njust send the next message when you want more.\n"
+	case "close":
+		return "usage: agentrunner close <session-id-or-prefix>\n\n(internal web-UI transport — not part of the command set)\n"
 	case "stop":
-		return "usage: agentrunner stop <session-id-or-prefix>\n\nStop a hosted run: mark it stopped; `send` revives it.\n"
+		return "usage: agentrunner stop <session-id-or-prefix>\n\n(internal transport: cancels a running scheduled series —\nthe series records its own cancelled terminal)\n"
+	case "kill":
+		return "usage: agentrunner kill <session-id-or-prefix> <handle>\n\n(internal web-UI transport — the model manages its own\nbackground work)\n"
 	case "compact":
 		return "usage: agentrunner compact <session-id-or-prefix> [focus directive]\n\nSummarize the session's context now. The optional focus directive\ntells the summarizer what to preserve.\n"
 	case "clear":
@@ -177,8 +185,6 @@ func commandHelp(cmd string) string {
 		return "usage: agentrunner schedule <session-id-or-prefix> <attach|status|pause|resume|cancel> [flags]\n\nAttach a recurring self-wake cadence to the session: at each tick it\nwakes, runs one turn on the standing prompt (context continues), and\nre-arms — even across daemon restarts. attach takes the prompt plus\n--every <duration> or --cron \"<5-field>\" and optional --max-wakes N.\npause stops wakes (no catch-up); resume re-anchors the cadence.\n"
 	case "agent":
 		return "usage: agentrunner agent <session-id-or-prefix> <spec.yaml>\n\nSwitch the session's agent spec; the conversation continues with\nthe new agent from the next message.\n"
-	case "kill":
-		return "usage: agentrunner kill <session-id-or-prefix> <handle>\n\nCancel one background handle (sub-agent or tool); `ps` lists them.\n"
 	case "ps":
 		return "usage: agentrunner ps <session-id-or-prefix>\n\nList the session's in-flight background work (sub-agents and tools).\n"
 	case "approve":
@@ -229,9 +235,7 @@ Conversations (need the daemon):
   answer <session> <q>:<n>... answer a structured question (--skip to decline)
   attach <session>            replay the whole conversation, then follow live (Ctrl-C detaches;
                               the session keeps running; --replay-only prints history and exits)
-  close <session>             end a session gracefully
-  interrupt <session>         interrupt the current turn (a no-op at idle; close is separate)
-  stop <session>              stop a hosted run: mark it stopped; send revives it
+  interrupt <session>         stop what it's doing now (a no-op at idle)
   compact <session> [focus]   summarize the context now (optional focus directive)
   clear <session>             drop the context prefix (keep the full journal)
   remember <session> "note"   save a durable note to the project CLAUDE.md
@@ -265,7 +269,6 @@ Observe:
 
 Control:
   approve <session> <id> approve|deny   answer a pending permission ask
-  kill <session> <handle>               cancel one background handle
   agent <session> <spec.yaml>           switch the session's agent (决策 #32)
   fork <session> <barrier>    branch a session at a barrier into a new one (--list shows barriers)
   trust <dir>                 mark a workspace as trusted

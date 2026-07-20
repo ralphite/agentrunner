@@ -167,10 +167,10 @@
       SeriesEnded,无 SessionClosed,sweep 跳过 Ended);词汇 stopped→
       **cancelled**(读侧双词兼容旧 journal);钉子
       TestSeriesUserCancelWritesCancelledTerminal。
-- [ ] 6.2 CLI 删除:`ar close`/`ar stop`/`ar kill` 撤出命令面与 help;
-      interrupt 保留但 help 措辞改为"stop what it's doing now"(唯一
-      手势);daemon wire close/stop/kill 命令与 handleClose/handleStop
-      /handleKill 相应收敛(webui transport 需要的保留为内部)。
+- [x] 6.2 CLI 撤出——2026-07-19:help/命令表不再宣传 close/stop/kill
+      (物理保留为内部 transport,-h 安全性质保留);interrupt help=唯一
+      手势措辞;stuckHint/barrier 指路清词。webui 迁移(6.3)后 close/
+      kill 全删、stop 留 series-cancel transport(并入 6.5 收敛)。
 - [ ] 6.3 webui 删除:Close session 菜单项、Background work 区 kill
       按钮、closed/stopped/killed 状态词汇(列表/会话页/终局提示);
       Stop 按钮=打断当前生成(已有语义,文案统一)。
