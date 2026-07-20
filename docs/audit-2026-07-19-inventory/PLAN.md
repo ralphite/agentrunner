@@ -184,8 +184,9 @@
       删除;revive 门收窄只认 killed;CloseMark/SessionClosed/abort 注释
       改"内部机制";close wire 保留为托管 run unhost 机制(全删挂账
       idle-驱逐设计),stop wire=series cancel transport。
-- [ ] 6.6 文档全链:DESIGN 决策 #30/§12 重裁、SPEC/JOURNEYS/QA 清词、
-      FEATURES v1.3、GAPS 记档;LOG 追加。
+- [x] 6.6 文档全链——2026-07-19:DESIGN 七处重写(§12 标记条款/停止面
+      /恢复/schedule/词表×2/决策 #30)、SPEC 四行、JOURNEYS 三处、
+      FEATURES v1.3。**Phase 6 队列清空。**
 
 ### 明确不做
 - dictate/optimize 降级（用户否决）。

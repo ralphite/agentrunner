@@ -5981,3 +5981,15 @@ loop abort 注释改为"内部机制,INC-83 后无用户动词写入,投影 idle
 机制(全删需先设计 hosted-run idle 驱逐,挂账);stop wire=series
 cancel transport;loop 的 stopped/closed 标记写侧=内部 teardown 记录
 (投影 idle、门已废,词汇不达用户)。四包测试全绿。
+
+## PLAN 6.6 文档全链清词——Phase 6 收官（2026-07-19,INC-83）
+
+DESIGN:§12 标记条款重写("标记是内部机制,不是产品概念")、"远程
+stop"条款重写为"停止面(INC-83 收敛)"、§恢复清词、schedule close 条款
+改口、词表 kill/显式重开两行、决策 #30 重裁(INC-83 注记:用户面无
+任何生命周期动词,每个停的需求都有域内归属)。SPEC:续聊行/杀子行/
+停止面行/interrupt 行四处改写。JOURNEYS:UJ-17 点 stop→点 Stop 打断、
+UJ-18 kill 步骤改模型侧、UJ-21 kill/close 复活条款清词。FEATURES
+v1.3:close/stop 划线拆除、Stop 唯一手势、kill 纪律内部化、CLI/菜单/
+Background 区/Scheduled 行五处同步。**Phase 6 队列清空**:用户面自此
+没有 close/stop/kill/"活着/关闭"概念——会话只有"在干活/在等你"。

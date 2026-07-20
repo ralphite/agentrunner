@@ -817,16 +817,12 @@ user]` 的 error 结果;对待命处 = no-op(裁决 #11)。**已配对的后台
 进程重启 → 对每个 session 读 journal + fold →
 
 - **待命中的 session**：无事可做——待命跨进程存活，journal 与上下文
-  原样在盘上。下一条 `send` 即接续，**续聊天然恢复**。`send` 是用户的
-  **显式重开手势，对任何 session 成立**（含带 close 标记的——标记只
-  约束自动路径，见 §12 静止模型）；自动路径（timer sweep、boot
-  sweep）绝不越过标记。**清 close/stop 标记的重开信号只有
-  `GenerationStarted`（INC-82，收回 INC-74 的对称条款）**：真实输入起了
-  新 turn（send / schedule tick / revive 邮件，殊途同归）才算重开。
-  compact/clear 是**维护手势**——在 closed 会话上照常执行、重新待命，
-  但**标记存活、会话仍 closed**（status 派生里标记优先于 waiting，报
-  "closed" 是真话；send 随时可复活）。仅 `GenerationStarted` 清
-  `Closed`；`Failure`/`Truncated*` 由各自重开信号清。
+  原样在盘上。下一条 `send` 即接续，**续聊天然恢复**。`send` 对任何
+  session 成立（含带内部标记的——kill 纪律之外标记无门,见 §12）；
+  自动路径只被 **kill 标记**挡（INC-83 收窄）。清标记的信号只有
+  `GenerationStarted`（INC-82）：真实输入起了新 turn 才算重开;
+  compact/clear 是维护手势,不清标记（带 legacy 标记的会话投影
+  "idle",照常可续）。`Failure`/`Truncated*` 由各自重开信号清。
 - **turn 中途崩溃**：in-doubt 纪律（见上），**单一自愈语义**
   （决策 #29）：处置后渲染 `[interrupted by crash]`，session 继续。
   进了副作用关卡没 `EffectResolved` 的仍上浮（hooks 可能半跑）。
@@ -1227,12 +1223,14 @@ limits:
   SubagentCompleted——不是新事件）；顶层 session 无 parent，无回执,
   观察者（CLI/driver）直接读静止形状取结论与退出码。
   静止可发生多次：session 被再次唤醒、再次静止，动作再次执行。
-- **标记（mark），不是终止**：用户显式 close/kill 只留一条标记
-  （`SessionClosed`、取消事实,含**来源**:user/parent）。标记只被
-  **检查**引用——自动路径（timer/boot sweep）不唤醒带 close 标记的
-  session;用户 kill 的子 session 只有用户能复活,parent kill 的
-  parent 可复活（裁决二 C）。标记不挡用户显式 send:任何 session
-  随时可以继续发消息、继续执行。**"终止/terminal"词族废除**。
+- **标记（mark）是内部机制,不是产品概念（INC-83）**：用户面**没有**
+  close/stop/kill 生命周期动词——会话只有"在干活/在等你",唯一手势是
+  Stop（打断当前轮,无标记）。`SessionClosed` 标记仅由内部路径写入
+  （agent kill 工具对子会话、托管 run teardown、legacy journal），
+  投影一律折为中性 "idle";唯一有门的是 **kill 纪律**:用户 kill 的
+  子 session 只有用户能复活,parent kill 的可复活（裁决二 C）。标记
+  不挡 send:任何 session 随时可以继续。**"终止/terminal"与
+  "关闭/closed"词族在用户面废除**。
 
 ### Fork / Rewind（时间旅行，扩展层）
 
@@ -1266,18 +1264,15 @@ limits:
   topic。CLI 先做 turn 粒度渲染，token streaming 是纯增量，协议不变。
 - `ApprovalRequested` 携带 `payload_ref` 时，frontend 渲染对应 artifact
   ——审批对象是一份版本化文档，不只是 tool call 参数。
-- 远程 stop（INC-4，G12；2026-07-19 文实对账修订——代码为真相）：
-  `stop` 命令远程硬取消一个托管 run（ctx cancel teardown），loop 落
-  **可复活的 `SessionClosed{stopped}` 标记**（与 close/kill 同族、
-  reason 分立）：自动路径不得越过标记，显式 `send` 合法复活——用户
-  显式停下的东西不被系统悄悄拉起。**动词模型只有两个用户概念
-  （INC-82）**：**打断**（`interrupt`——取消当前 turn 的活动、不留标记、
-  待命处 no-op）与**关闭**（落 `SessionClosed` 标记——`close` graceful、
-  `stop` 硬取消、`kill` 带来源，reason 分立但同族同规则：仅
-  `GenerationStarted` 清标记，compact/clear 维护手势不复活）。`stop`
-  不是第三个概念，是"打断+关闭标记"的组合动词。drive 系列亦可 stop。
-  旧文"teardown-no-mark"为陈旧表述，由本条修订（loop.go abort 路径 +
-  TestStop* 为锚）。
+- **停止面（INC-83 收敛）**：用户手势只有 **Stop**（`interrupt`——
+  取消当前 turn 的活动、无标记、待命处 no-op）。运行中的 loop/
+  best-of-N 系列由**系列自己的域内终态**取消（`SeriesEnded{cancelled}`,
+  经内部 stop transport 触达）;goal/schedule/hook 各用自己的领域动词
+  （cancel/revoke）。close/stop/kill 生命周期动词已从 CLI/webui 用户面
+  拆除（wire close 暂留为托管 run 的内部 unhost 机制,挂账 idle 驱逐
+  设计;wire stop=series cancel transport;kill 全删,模型工具除外）。
+  内部 teardown 仍落 `SessionClosed{stopped}` 标记——投影 idle、除
+  kill 纪律外无门、仅 `GenerationStarted` 清,是实现细节不是概念。
 - 协议预留（尚未实现）：slash command 调用（GAPS G21）。
 
 ### Web UI 产品 surface（INC-19/23）
@@ -1611,8 +1606,9 @@ limits:
     点）；unhosted 由 daemon timer sweep（§12）hostResume（automatic
     路径，决策 #30 标记门生效）。pause 撤 pending timer、不补偿；
     resume 以 `Base` 重锚 cadence（暂停是显式选择，区别于 crash）。
-    close 撤 pending timer（否则关闭会话因 timer 永不静止）但
-    schedule 本体越标记存活——显式重开后安全点自动重挂。`max_wakes`
+    带标记的会话撤 pending timer（legacy close/内部 teardown——否则
+    因 timer 永不静止）但 schedule 本体存活——重开后安全点自动重挂;
+    用户停节奏的动词是 `schedule cancel` 本身（INC-83）。`max_wakes`
     只计 served（非 skipped）wake，尽则 `ScheduleCancelled{max_wakes}`
     自动摘除。控制面 `ar schedule attach|status|pause|resume|cancel`
     走 goal-* 同款 out-of-band control 通道与非 hosted revive。与
@@ -1703,7 +1699,7 @@ limits:
 | 27 | 子 agent（v2） | 递归 Session；background spawn 拿 handle 即返回，完成回执是父 inbox 输入；杀死 = control 输入 | 一套机制取代三套"子执行"；编排智能在模型，runtime 只供原语。 |
 | 28 | 多模态（v2） | 消息 = parts（含 image/file）；字节走 CAS、journal 只存 ref、组装时 inflate；长贴超阈值折叠为 file part | fold 永不读 store 的纪律下引入多模态；上下文不被长贴撑爆。 |
 | 29 | 恢复语义（2026-07-05 单一化） | 一切 session 崩溃自愈：in-doubt 按类别处置后渲染 [interrupted by crash]，session 回到待命/继续；无第二种恢复形态 | 只有一种 session（决策 #31），恢复自然只有一种。 |
-| 30 | 标记+检查（2026-07-05 修订） | close/kill 是**标记**（含来源 user/parent），只被检查引用：自动路径不唤醒、用户 kill 的子仅用户可复活；不挡用户显式 send。无终止状态、无 session-completed 事件 | "终止"无真实需求；标记+检查覆盖全部场景（裁决 #13/#11/二）。 |
+| 30 | 标记+检查（2026-07-05;INC-83 重裁 2026-07-19） | `SessionClosed` 是**内部标记**（仅 agent kill 工具/托管 teardown/legacy journal 写入,含来源 user/parent），唯一有门的检查是 kill 纪律（用户 kill 的子仅用户可复活）;投影一律 "idle",不挡 send。无终止状态、无 session-completed 事件;**用户面无任何生命周期动词**（唯一手势 Stop=打断;自动源用各自领域动词终止） | "终止"无真实需求;生命周期概念族更无真实需求——每个"停"的需求都有域内归属（INC-83 工作纸对照表）。 |
 | 31 | 静止模型（2026-07-05） | 只有一种 durable session，不存在第二种会话实体。静止=形状（无在飞工作+无定时自触发+turn 已收尾）；静止时 outputs→barrier→parent 回执（既有子回执）；`ar run` = 开 session+发消息+等静止+读结果 | 双实体模型与 session/turn 大量重复且定义不清（开发者裁定）；driver/headless 的需求由"静止+回执"完全覆盖。 |
 | 32 | 换 agent 与提权（2026-07-05） | session 内可换 agent（`SpecChanged` 事件，prefix 显式换代），用户切换免确认；子 agent 默认权限不超父，请求超父必须用户 approve | 用户动作即意图，再确认是冗余；提权审批只存在于 agent 提权自己的子。 |
 | 33 | egress 类统一 fail-closed（INC-5,2026-07-09,**不变量升级**,走 §4） | 收容棘轮从"bash fail-closed"升级为"**所有 egress 类 tool 统一 fail-closed under containment**"。带网 in-process 工具(`web_fetch`)= **execute-class**（default 需审批,不静默出网）+ `def.network` 数据位（network 规则可治理）+ **link-local/metadata 无条件封禁**（作用于已解析 IP,覆盖重定向每跳）;class 翻转同步 `containment()` 守卫（def.network 非空 → 记账缺席,自我拒跑非 netns） | in-process `net/http` 出口不被 `unshare -n` 覆盖(netns 只包 bash 子进程),只保"bash fail-closed"会让 web_fetch 在 `network=none` 下**静默违反"收容=全树无出口"**;execute-class 买回 default 审批检查点(read-class 静默放行);metadata 封禁堵云 IAM 凭据窃取。安全 review 详见 LOG 2026-07-09 条 |
@@ -1911,7 +1907,7 @@ event sourcing 的闭环：**执行产生事件，事件重建状态，状态驱
 | **delegation** | 每次委派折叠为稳定 `delegation_id`、assigned member、workspace、settlement 状态；`inspect` 可直接查看，不依赖内存队列。（DAG/lease 记账在 PLAN 5.3 消费方评估后砍除:无调度行为、零读者。） |
 | **child workspace** | `agent_workspace: isolated`（生产默认）从父的 shadow snapshot 物化独立 worktree，路径/base ref 随 SpawnRequested 持久化；revive/crash 恢复重开同一路径（含原内容,成员半成品跨 revive 保持）。**isolated 子的文件改动不自动回流父 workspace**——产出经 report/消息/`publish_artifact`→`inputs` 或父转运落地（INC-30 澄清:语义从未含 sync-back,快照语义此前对模型不可见曾致成员空转整份预算,G24）;isolated 子的 opening prompt 前注入 `[workspace note]` 机制说明。`shared` 仅在 spec 显式声明时使用父 workspace——协作型团队（Team Lead）用它。 |
 | **child_result** | 子静止/失败/被杀的回执（event `SubagentCompleted`,非新事件——静止回执复用它,决策 #31）,投父 inbox 触发新 turn;先回先处理,可多次发生。 |
-| **kill** | 工具 `kill{handle}`：协作取消，与后台 bash 共用原语；标记记来源（user/parent）；用户侧 `ar kill`。 |
+| **kill** | 模型工具 `kill{handle}`：agent 协作取消自己的后台工作，与后台 bash 共用原语；子会话标记记来源（user/parent），kill 纪律是唯一有门的标记（INC-83:无用户侧动词）。 |
 | **权限冻结交集 / 提权例外** | spawn 默认按父当时有效权限冻结下传；child 不能自行放宽。唯一例外是显式 `escalate` 经人批准后使用 child 声明 rules；拒绝/interrupt 回退交集。预算、树上限、工具子集、收容棘轮永不随审批放宽。 |
 | **settle-from-child-fold** | 父恢复时对每个在飞 handle 读子 journal：已静止则结算真实回执；正等待审批的子在根宿主重挂接原 wait；其余在飞状态按 crash 取消，绝不静默重放未知 effect。子审批 CommandLog 由根启动扫描重放。 |
 | **handoff / blackboard** | 移交后退出（`handoff_agent`）/ 树内共享笔记（`publish_note`/`read_notes`）。 |
@@ -1926,7 +1922,7 @@ event sourcing 的闭环：**执行产生事件，事件重建状态，状态驱
 |---|---|
 | **等待注册表** | WAITING_INPUT（待命,settle 亦在此唤醒）/ WAITING_APPROVAL——同一等待事件的两个 reason（决策 #31 清理额外 work/timer 等待种类）,配可中断性表。 |
 | **resume** | **唯一**恢复机制：snapshot + fold(seq>N) + 继续 loop；restart = resume（无 supervision 自动重启）。 |
-| **显式重开** | `send` 是用户的显式手势，对**任何** session 成立（含带 close 标记的）——同一上下文接续。自动路径受标记约束。 |
+| **显式重开** | `send` 对**任何** session 成立（含带内部标记的）——同一上下文接续。自动路径只被 kill 标记约束（INC-83）。 |
 | **crash vs kill** | 判别器 = journal 里的**标记**：显式 kill/close 留标记（含来源），自动路径不唤醒、用户 kill 的子仅用户可复活；crash 什么都没留 → 有恢复资格。（决策 #30） |
 | **静止动作** | session 静止时固定顺序：auto-publish outputs → barrier → 向 parent 投回执；可重复发生（决策 #24/#31）。 |
 

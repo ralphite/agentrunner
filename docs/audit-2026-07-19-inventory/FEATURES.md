@@ -1,15 +1,14 @@
-# AgentRunner 全量功能清单（2026-07-19 盘点 · v1.2）
+# AgentRunner 全量功能清单（2026-07-19 盘点 · v1.3）
 
 **这是什么**：对 origin/main 代码事实的地毯式功能盘点——四路并行
 读码（CLI / 工具面 / Web UI / 内核）+ SPEC/JOURNEYS 交叉核对。分级组织，
 叶子节点一句话。与 SPEC.md 的区别：SPEC 是验收登记簿，本文是"用户视角
 能摸到的每一个功能"的展平清单，含 SPEC 未列的小能力与隐藏行为。
 
-**版本**：v1.0 = edd29e6 首次盘点;v1.1 = 评审纠错 ~25 处;
-**v1.2 = 2026-07-19 修复队列（PLAN 4.1–5.9 + Phase 0–3）收口后的全面
-对账**——driver 去 user-facing、动词面收敛（INC-82）、占位 UI 清除、
-keyword_search 改名、DAG/lease 砍除、CLI 批修、开场附件、rename 落
-journal、结构化输出单入口、胜者晋升、policy 向量裁除全部反映在案。
+**版本**：v1.0 = edd29e6 首次盘点;v1.1 = 评审纠错;v1.2 = PLAN
+4.1–5.9 收口对账;**v1.3 = Phase 6（INC-83 生命周期动词拆除）收口**——
+用户面不再有 close/stop/kill 概念,唯一手势 Stop(打断),自动源各用
+领域动词终止,标记降为内部机制。
 
 **审阅提示**：`⚠` = 仍待处理的可疑设计;`~~划线~~` = 本轮已处理。
 
@@ -20,10 +19,10 @@ journal、结构化输出单入口、胜者晋升、policy 向量裁除全部反
 ### 1.1 会话形态
 - 静止模型：session 没有终态状态机，"结束"是从 journal 形状推导出的静止（quiescence），任何 session 随时可续。
 - 续聊：agent 答完进入待命，同一 session 无限追问，上下文完整延续。
-- close：`ar close` 只写一个"关闭标记";**只有真实输入起 turn（send）才复活**，compact/clear 是维护手势、在关闭会话上照常执行但不复活（2026-07-19 INC-82 收回 INC-74 宽口径）。
-- stop：`ar stop` 远程拆掉托管中的 run 并写"stopped 可复活"标记;动词模型收敛为两个用户概念——**打断**（interrupt，无标记）与**关闭**（close/stop/kill 同族标记同规则），stop=打断+标记的组合动词（2026-07-19 PLAN 4.1/4.2）。
-- interrupt：`ar interrupt` / Esc 只打断当前轮的活动（idle 时是 no-op），永不结束 session、不丢历史。
-- kill 标记语义：被用户 kill 的会话/子 agent 记录来源，自动恢复路径永不越过标记，只有用户显式操作能复活。
+- ~~close~~（INC-83 拆除:没有"关闭会话"概念。wire close 暂留为托管 run 的内部 unhost 机制,挂账 idle 驱逐设计;legacy 标记投影 "idle",send 随时续）。
+- ~~stop~~（INC-83 拆除:唯一手势=Stop(interrupt 打断当前轮);运行中 loop/best-of-N 的取消=系列自己的 `SeriesEnded{cancelled}` 域内终态,wire stop 仅为其 transport）。
+- **Stop（唯一停止手势）**：`ar interrupt` / Esc / webui Stop 打断当前轮的活动（idle 时 no-op），永不"结束" session——没有结束这回事,继续发消息即可。
+- kill 纪律（内部,唯一有门的标记）：被 kill 的子 agent 记录来源(user/parent)，自动路径不复活,用户 kill 的仅用户可复活;`ar kill` 用户动词已删(INC-83),kill 是模型自管后台工作的工具。
 - 可见截断：token/步数预算耗尽以可见截断收场，session 转 idle、补预算后可继续。
 - 失败标记：provider 类干净失败记为可见可重启的 FailureMark，不会被误当成崩溃。
 - 会话内换 agent：`ar agent` 运行中切换 spec（SpecChanged 事件），下条消息生效，session 不绑定 agent。
@@ -78,7 +77,7 @@ journal、结构化输出单入口、胜者晋升、policy 向量裁除全部反
 - `ar resume <sid>`：前台进程内恢复被打断/崩溃的 session（spec 从 journal 来，无需参数）。
 - `ar submit <spec> "prompt"`：把一次性 run 或 --drive 系列交 daemon 托管，--idem 幂等键重连不重开。
 - `ar drive <driver.yaml>`：webui 的内部 transport（help 已撤宣传,物理保留因 thin-shell 教义）;--retry 从旧系列会话新起同 spec 系列。**driver 不是产品概念**——用户面只有会话+挂在会话上的 goal/loop/best-of-N（2026-07-19 决策 #41）。
-- `ar close / interrupt / stop`：三种停法（标记关闭 / 打断当前轮 / 拆托管 run）。
+- `ar interrupt`：唯一停止手势(打断当前轮;INC-83 起 close/stop/kill 不再是命令面成员,close/stop 仅存内部 transport)。
 - `ar retry / queue / unqueue / answer`：重发最后输入 / 列排队 / 撤回排队 / 回答结构化提问（`q:n`、`q:1,3`、`q:text=`、--skip）。
 - `ar compact / clear / remember / mode / agent / title`：压缩 / 清空 / 写记忆 / 切权限模式 / 换 agent spec / 改名（2026-07-19 新增,落 journal）。
 - `ar goal <sid> attach|update|status|pause|resume|cancel`：目标管理（--verify/--verify-llm/--max-checks）。
@@ -178,7 +177,7 @@ journal、结构化输出单入口、胜者晋升、policy 向量裁除全部反
 
 - 后台 spawn：全部非阻塞（阻塞路径已删除），子跑在 goroutine、结果作消息回灌父。
 - 静止回执：子静止时父 turn 被激活处理回执（先回先处理、可多次），receipts 投递模式 steer/turn_end 可配。
-- 杀子 agent 的全部路径：`kill` 工具 / `ar kill` CLI / spawn `replaces` / webui Background 区 kill 按钮 / 父被 stop 级联 / interrupt steer 后模型主动杀。
+- 杀子 agent 的路径（全部模型侧,INC-83）：`kill` 工具 / spawn `replaces` / 打断后吩咐模型杀;`ar kill` CLI 与 webui kill 按钮已删。
 - kill 来源标记：用户 kill 的子只有用户可复活，parent kill 的父可复活。
 - 树预算：子预算 = min(父剩余公平份额, 子 cap)，reserve-then-settle 防并发超卖，整树总花费受控。
 - 深度/扇出上限：默认 spawn 深度 ≤2、单会话 spawn ≤8，超限是模型可见的 DENY 非崩溃。
@@ -297,7 +296,7 @@ journal、结构化输出单入口、胜者晋升、policy 向量裁除全部反
 ### 11.1 信息架构与侧栏
 - Projects → sessions 分组：按 workspace 分组、折叠态双写（localStorage + 服务端 overlay）、Scratch 归组、Pinned 独立区、另有无 workspace 会话的扁平 Sessions 区。
 - 会话行：状态点（未读/运行/审批/搁浅/崩溃）、hover 预览卡（项目/分支/状态）、pin/archive 快捷钮。
-- 会话行菜单：Pin / Rename（2026-07-19 PLAN 5.6 起落 journal `SessionTitled{manual}`,不再 localStorage）/ Mark read / Archive / Copy session ID / Copy link。
+- 会话行菜单：Pin / Rename（journal `SessionTitled{manual}`）/ Mark read / Archive / Copy session ID / Copy link（无任何生命周期项,INC-83）。
 - Project 组菜单：Open in VS Code/Finder/Terminal、Rename project、Copy path、Mark all read、Archive all。
 - 大历史渐进加载：首 40 条立即可操作、后台 80/页补齐、refresh 不重入。
 - 归档：Show/Hide archived 切换 + Settings 里按项目浏览归档会话。
@@ -346,18 +345,18 @@ journal、结构化输出单入口、胜者晋升、policy 向量裁除全部反
 
 ### 11.7 Supervision（环境栏）
 - Environment 区：Changes 概览、Worktree 行（路径/Apply/Open/Remove）、Create branch、Commit or push。
-- Goal 区（编辑/暂停/恢复/取消 + 实时判决）、Progress checklist（N/M）、Background work（逐条 kill）、Artifacts 查看器、Agents 子树（递归、状态点、点开成员完整时间线）、Attention 汇总（审批 + recovery）。
+- Goal 区（编辑/暂停/恢复/取消 + 实时判决）、Progress checklist（N/M）、Background work（只读展示;kill 按钮已删,INC-83——打断后吩咐 agent 收拾）、Artifacts 查看器、Agents 子树（递归、状态点、点开成员完整时间线）、Attention 汇总（审批 + recovery）。
 - Run details：inspect 全量投影（usage/billed、per-tool 统计、provider capabilities、raw JSON）。
 
 ### 11.8 会话操作与导航
 - 顶栏：返回父会话、Stop/Resume/Retry、Fork from checkpoint、Environment 开关。
-- `…` 菜单：Pin/Rename/Archive/Copy link/View 切换/Create checkpoint/Continue in new session/Switch agent/Close session。
+- `…` 菜单：Pin/Rename/Archive/Copy link/View 切换/Create checkpoint/Continue in new session/Switch agent/Stop(打断;Close session 已删,INC-83)。
 - 失败 banner（Technical details + Retry）、terminal 提示、GoalBanner 实时时钟。
 - deep link：`#<sid>` / `#run:<id>` / `#scheduled` hash 路由，重启后同链接直达；非法 sid 立即 Not found。
 - FindBar：⌘F 会话内查找接管浏览器搜索（↑/↓、Enter/⇧Enter 匹配导航 + N/M 计数）。
 
 ### 11.9 Scheduled 与后台 runs
-- Scheduled 页：series SESSION 行是 canonical（run 行在会话落列表后让位）——cadence 人话与 next run 均消费 `ar sessions --json` 的 engine 权威投影、All/Active/Finished 过滤、搜索、行级操作菜单（2026-07-19 PLAN 2.3/3.1）。
+- Scheduled 页：series SESSION 行是 canonical（run 行在会话落列表后让位）——cadence 人话与 next run 均消费 `ar sessions --json` 的 engine 权威投影、All/Active/Finished 过滤、搜索、行级操作菜单（Resume/Retry/Cancel series…——系列域内动词,无生命周期项;PLAN 2.3/3.1/6.3）。
 - Create 菜单：One-time run / Goal / Repeating / Best of N 四种建法 + 三张 suggestion 卡。
 - RunModal：submit 或 drive 的全参数表单（interval/cron/best-of-N、YAML 高级编辑、内联校验）。
 - RunView：后台 run 的 SSE 日志流、iteration 分隔、终局判决、Stop（仅 sid 未知时的兜底流;/loop、/bestof 启动后直接落会话）。

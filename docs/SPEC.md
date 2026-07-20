@@ -21,7 +21,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 
 | 功能点 | 状态 | Journey | 验收锚 / 备注 |
 |---|---|---|---|
-| 续聊（答完待命；close = 标记；**重开=真实输入起 turn（GenerationStarted 清标记）；compact/clear 是维护手势，closed 会话上照常执行但不复活——标记存活、状态仍 closed，send 随时可续**，INC-82 收回 INC-74 对称条款） | ✅ | UJ-01/03/09 | QA-01 · C1 · 孪生（见 e2e）· TestMaintenanceAfterCloseKeepsMark |
+| 续聊（答完待命,**无生命周期概念**——会话只有在干活/在等你,INC-83;内部标记投影 "idle"、重开=真实输入起 turn（GenerationStarted 清,INC-82）,compact/clear 维护手势不清,send 随时可续） | ✅ | UJ-01/03/09 | QA-01 · C1 · 孪生（见 e2e）· TestMaintenanceAfterCloseKeepsMark |
 | 回复就地可见（`new`/`send` 默认跟随本轮渲染正文至 idle，尾行提示 send/attach；`--detach` 恢复异步；**并发同会话 send 各自只渲染自己那一轮**，INC-73） | ✅ | UJ-01/03 | INC-2/INC-73 · TestNewAndSendRenderReply/Detach · TestSendScope/TestGenerationStartCarriesInputSeqs |
 | 忙时投递排队（安全边界按序消费，不丢不乱序；默认 queue=下个 turn，steer 在 turn 内安全边界即消费——INC-43） | ✅ | UJ-07 | QA-02/06 · C2 |
 | 运行中发消息投递模式（per-message `Delivery`：steer=当前 turn 下个安全边界注入 / queue=下个 turn，默认 queue；CLI `ar send --steer`、webui composer Queue\|Steer 切换 + ⌘⏎ 反选，对标 Codex） | ✅ | UJ-07 | INC-43 · TestSteerDeliversMidTurn/TestQueueDefersToTurnEnd/TestSteerFlushesQueuedBacklog/TestInboxDeliveryModeIsPartOfPayload · QA-45 |
@@ -34,7 +34,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | session 标识与 store 边界（64-bit 随机后缀、熵源失败 fail closed；CLI 只解析合法 basename/prefix，拒绝 `..`、final/intermediate symlink 越界；旧 4-hex ID 仍可读） | ✅ | UJ-01/17/24 | INC-67 · TestNewSessionID/TestSessionDirRejectsUnsafeID/TestResolveSessionDirRejectsTraversalAndSymlinkEscape · QA-67 |
 | 静止模型（唯一 session 形态；静止=形状 `state.Quiescence`；静止动作 outputs→barrier→parent 回执；close/kill=标记+检查；预算耗尽=可见截断） | ✅ | 不变量 | 决策 #30/#31 · 2026-07-08 落码(D2) · TestResumeQuiescentIsLawful/TestQuiescentSequenceOrder/TestBackgroundWorkSettlesBeforeQuiescence |
 | interrupt 与输入分立（Esc 杀活动 / 消息追加） | ✅ | UJ-07 | QA-02/06 · C8 · S3 |
-| interrupt 永不结束 session（待命处 = no-op；close 是独立命令） | ✅ | UJ-03/07 | 裁决 #11 · 2026-07-08 落码(D2) · TestIdleInterruptIsNoOp |
+| interrupt=唯一停止手势,永不结束 session（待命处 = no-op;没有"结束"这回事,INC-83） | ✅ | UJ-03/07 | 裁决 #11 · 2026-07-08 落码(D2) · TestIdleInterruptIsNoOp |
 | 图片输入（`ar send --image`，CAS ref、组装 inflate） | ✅ | UJ-04 | QA-07/03 · C9 · TestConversationalImageInputEndToEnd |
 | 长贴折叠（>10KB 转 file part） | ✅ | UJ-04 | TestLongPasteFoldsToFilePart |
 | `ar new` 开场附件（`--image`/`--file`,与 send 对称;PLAN 5.5） | ✅ | UJ-04 | TestOpeningImageAttachmentEndToEnd（CAS ref 入开场 InputReceived,首个 provider 请求 inflate）;超长开场折叠仍 🧊（DESIGN §17 残余不对称记档） |
@@ -56,7 +56,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 |---|---|---|---|
 | 后台 spawn（非阻塞拿 handle，`spawn_agent{background}`） | ✅ | UJ-18 | QA-04 · C3 |
 | 静止回执激活父 turn（先回先处理,可多次;投递模式 receipts: steer 默认/turn_end,spec 层） | ✅ | UJ-18 | QA-04/05 · C4 · 裁决 #15 · TestReceiptsModeControlsSettlementTiming |
-| 杀死子 agent（`kill` 工具 / `ar kill`,标记记来源 user/parent;用户 kill 的仅用户可复活） | ✅ | UJ-18 | QA-05/09 · C5 · 裁决二 C · TestKillLeavesSourcedMark |
+| 杀死子 agent（模型 `kill` 工具,标记记来源 user/parent;用户 kill 的仅用户可复活。**INC-83:`ar kill` 用户动词已删**——agent 自管后台工作,用户打断后吩咐即可） | ✅ | UJ-18 | QA-05/09 · C5 · 裁决二 C · TestKillLeavesSourcedMark |
 | steer 改变编排（杀一个、起一个） | ✅ | UJ-07/18 | QA-06/09 · C6 |
 | 完整编排七步（多输入+并行+杀+回灌+续聊+恢复） | ✅ | UJ-18 | QA-09 · C7 |
 | 父崩溃 settle-from-child-fold | ✅ | 不变量 | QA-08(c) · C10(c) |
@@ -172,7 +172,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | attach/detach（journal 补读 + live 订阅） | ✅ | UJ-17 | S6 · TestDaemonAttachReplaysFinishedSession/TestDaemonAttachFollowsLiveRun（G30 还锚 audit-0717 C1） |
 | 远程审批（daemon approve） | ✅ | UJ-17 | S6 · TestDaemonApprovalRoundTrip/TestApproveRevivesApprovalLostToRestart（G30 还锚 audit-0717 C1） |
 | notifier（生命周期通知、跨重启去重） | ✅ | UJ-14 | S6 · TestNotifyDedupAcrossReopen（G30 还锚 audit-0717 C1） |
-| 远程 stop command | ✅ | UJ-17 | INC-4 · TestStop*（daemon 孪生）· 手验（真 daemon：stop 拆 run、落可复活 stopped 标记、send 复活——2026-07-19 文实对账，旧文"无标记"陈旧）；drive 系列亦可 stop（handleDrive 加 per-run cancel） |
+| 停止面（INC-83 收敛:唯一手势 Stop=interrupt;系列取消=SeriesEnded{cancelled} 域内终态,wire stop 仅为其 transport;close/kill 用户动词已删,wire close 暂留内部 unhost 机制挂账 idle 驱逐） | ✅ | UJ-17 | INC-83 工作纸 · TestSeriesUserCancelWritesCancelledTerminal · TestStop*（daemon 孪生,transport 层） |
 | Web UI 产品面：New session/Scheduled runs/Pinned/Projects→sessions、单一 thread、Changes、deep link、responsive sidebar；首次 session readiness 不投影假空态/raw id；共享大历史首 40 条立即 ready、后台 80/页补齐且 refresh 不重入；session hover pin/archive+project/branch/status；自动标题去同质指令前缀；自动 workspace 各自成组（默认名 `Scratch · 创建时间`，组键=真实路径，不聚合混合；INC-78 撤销单一 Scratch 聚合）；project 菜单触屏可达（标题行 ⋯，与右键同源 renderProjectActions） | ✅ | UJ-24 | INC-19/23/29/38/40/41/60/65/78 · conciseTitle/frontend view-model/timeline/store session tests · viewModels buildSidebarModel scratch-split 断言 · QA-27/34/36/41/42/43/61 + INC-78 闸B(run 29672007663:分组/触屏改名/刷新持久) |
 | journal-backed session metadata（`sessions list --json` 输出 workspace/title/kind/schedule，Web UI cache 非真相源；title 优先 `RawTitle` 投影、回退首行；可选 `--limit/--offset` 先按 journal mtime 排候选再仅 fold 请求页，无 flag 仍全量兼容） | ✅ | UJ-24 | INC-19/23/52/60 · TestCLIResumeAfterCrash · TestCLISessionsJSONProjectsDriverMetadata · TestCLISessionsJSONSurfacesAutoTitle · TestCLISessionsPaginationNewestFirst · TestMetaStoreMerge* · QA-61 |
 | LLM 自动会话标题（HANDA #14）：开局后异步一次 `llm_call` 维护调用把首条消息精简为短标题，落 `SessionTitled{source:auto}` journal 事件、fold `RawTitle` 投影；source 分立 auto/manual/fork，**auto 绝不覆盖 manual/fork**；不阻塞开局 turn、崩溃重放不重复生成、失败回退首行；`AutoTitle` 仅顶层托管 session（daemon）启用；manual rename 落 journal（PLAN 5.6：`ar title`/webui `/rename` → durable control → `SessionTitled{manual}`,localStorage 层退役、旧 key 一次性迁移） | ✅ | UJ-24 | INC-52（缩水版 B3）· TestSessionTitledFoldProjection · TestAutoTitleGeneratesOnceAndFoldsProjection · TestAutoTitleDoesNotOverrideManual · TestAutoTitleReusesRecordedResultOnReplay · TestManualTitleControl · viewModels.test.ts（auto title/manual 胜出）· QA-53（真机 PASS：精简 auto title+SessionTitled{auto}+坏 key fail-closed） |
