@@ -1,11 +1,17 @@
-# AgentRunner 全量功能清单（2026-07-19 盘点）
+# AgentRunner 全量功能清单（2026-07-19 盘点 · v1.2）
 
-**这是什么**：对 origin/main（edd29e6）代码事实的地毯式功能盘点——四路并行
+**这是什么**：对 origin/main 代码事实的地毯式功能盘点——四路并行
 读码（CLI / 工具面 / Web UI / 内核）+ SPEC/JOURNEYS 交叉核对。分级组织，
 叶子节点一句话。与 SPEC.md 的区别：SPEC 是验收登记簿，本文是"用户视角
 能摸到的每一个功能"的展平清单，含 SPEC 未列的小能力与隐藏行为。
 
-**审阅提示**：`⚠` = 盘点中注意到的可疑/易踩坑设计，供后续逐项 review。
+**版本**：v1.0 = edd29e6 首次盘点;v1.1 = 评审纠错 ~25 处;
+**v1.2 = 2026-07-19 修复队列（PLAN 4.1–5.9 + Phase 0–3）收口后的全面
+对账**——driver 去 user-facing、动词面收敛（INC-82）、占位 UI 清除、
+keyword_search 改名、DAG/lease 砍除、CLI 批修、开场附件、rename 落
+journal、结构化输出单入口、胜者晋升、policy 向量裁除全部反映在案。
+
+**审阅提示**：`⚠` = 仍待处理的可疑设计;`~~划线~~` = 本轮已处理。
 
 ---
 
@@ -14,8 +20,8 @@
 ### 1.1 会话形态
 - 静止模型：session 没有终态状态机，"结束"是从 journal 形状推导出的静止（quiescence），任何 session 随时可续。
 - 续聊：agent 答完进入待命，同一 session 无限追问，上下文完整延续。
-- close：`ar close` 只写一个"关闭标记"，任何显式 send / compact / clear 都会清标记复活会话。
-- stop：`ar stop` 远程拆掉托管中的 run 并写"stopped 可复活"标记（区别于 interrupt 和 close）。
+- close：`ar close` 只写一个"关闭标记";**只有真实输入起 turn（send）才复活**，compact/clear 是维护手势、在关闭会话上照常执行但不复活（2026-07-19 INC-82 收回 INC-74 宽口径）。
+- stop：`ar stop` 远程拆掉托管中的 run 并写"stopped 可复活"标记;动词模型收敛为两个用户概念——**打断**（interrupt，无标记）与**关闭**（close/stop/kill 同族标记同规则），stop=打断+标记的组合动词（2026-07-19 PLAN 4.1/4.2）。
 - interrupt：`ar interrupt` / Esc 只打断当前轮的活动（idle 时是 no-op），永不结束 session、不丢历史。
 - kill 标记语义：被用户 kill 的会话/子 agent 记录来源，自动恢复路径永不越过标记，只有用户显式操作能复活。
 - 可见截断：token/步数预算耗尽以可见截断收场，session 转 idle、补预算后可继续。
@@ -49,6 +55,7 @@
 - 结构化输出（客户端 fallback）：spec output_schema 在非原生 provider 上由 `ar new` 自动引客户端校验+重发纠正（2026-07-19 PLAN 5.7 合并单入口,--json-schema flags 退役）。
 - 结构化输出（原生）：spec `output_schema` 走 Gemini 原生 response_schema（仅 tool-less 轮），Anthropic 显式降级。
 - LLM 自动标题：托管 session 开局后异步蒸馏 3–6 词标题（auto 永不覆盖 manual/fork 标题，失败回退首行）。
+- 手动改名：`ar title <sid> "<name>"` 落 journal `SessionTitled{manual}`（durable control,webui Rename 同路,2026-07-19 PLAN 5.6）。
 - 记忆注入：CLAUDE.md 从 workspace 向上到 git root 层级合并，冻结进 session 前缀。
 - 记忆写回：`ar remember` 追加到项目 CLAUDE.md 的 Remembered 段，并同时作为 program 输入让当前会话立即遵守。
 - spec 调参面：`model.thinking{enabled,budget_tokens}`、`compact_at_tokens`、`microcompact_at_tokens`、`max_tokens` 都是 spec 作者可调项。
@@ -62,7 +69,7 @@
 - schedule 语义：漏 slot 折恰好一次 catch-up、busy 时记 skip 不打断、pause 不补偿、close 撤 timer 但 schedule 越标记存活、max-wakes 到期自动摘除。
 - webhook 唤醒：`ar hook create` 铸造 per-session 的 HTTP ingress URL+token，外部事件经 `POST /hooks/<id>` 作为机器输入唤醒会话。
 
-## 2. CLI 面（40 个子命令 + version/help）
+## 2. CLI 面（42 个子命令 + version/help）
 
 ### 2.1 运行与会话
 - `ar run <spec> "prompt"`：前台一次性跑到终止（--workspace/--mode/--max-generation-steps/--json）。
@@ -70,15 +77,15 @@
 - `ar send <sid> "msg"`：向 session 投消息（--image/--file/--steer/--detach）。
 - `ar resume <sid>`：前台进程内恢复被打断/崩溃的 session（spec 从 journal 来，无需参数）。
 - `ar submit <spec> "prompt"`：把一次性 run 或 --drive 系列交 daemon 托管，--idem 幂等键重连不重开。
-- `ar drive <driver.yaml>`：前台跑 IterationDriver 系列，--retry 从旧 driver 会话新起同 spec 系列。
+- `ar drive <driver.yaml>`：webui 的内部 transport（help 已撤宣传,物理保留因 thin-shell 教义）;--retry 从旧系列会话新起同 spec 系列。**driver 不是产品概念**——用户面只有会话+挂在会话上的 goal/loop/best-of-N（2026-07-19 决策 #41）。
 - `ar close / interrupt / stop`：三种停法（标记关闭 / 打断当前轮 / 拆托管 run）。
 - `ar retry / queue / unqueue / answer`：重发最后输入 / 列排队 / 撤回排队 / 回答结构化提问（`q:n`、`q:1,3`、`q:text=`、--skip）。
-- `ar compact / clear / remember / mode / agent`：压缩 / 清空 / 写记忆 / 切权限模式 / 换 agent spec。
+- `ar compact / clear / remember / mode / agent / title`：压缩 / 清空 / 写记忆 / 切权限模式 / 换 agent spec / 改名（2026-07-19 新增,落 journal）。
 - `ar goal <sid> attach|update|status|pause|resume|cancel`：目标管理（--verify/--verify-llm/--max-checks）。
 - `ar schedule <sid> attach|status|pause|resume|cancel`：周期唤醒管理（--every/--cron/--max-wakes）。
 
 ### 2.2 观察与控制
-- `ar sessions [list]`：列全部 session 及状态形状（--json 带 workspace/title/kind/schedule，--limit/--offset 分页）。
+- `ar sessions [list]`：列全部 session 及状态形状（--json 带 workspace/title/kind/schedule/**cadence/next_run_at**——engine 权威调度投影,webui 只转发,2026-07-19 PLAN 3.1;--limit/--offset 分页）。
 - `ar inspect <sid>`：全量事实报告——timeline、每次调用裁决、usage、stats、goal、progress、artifacts、子树递归（--json）。
 - `ar events <sid>`：dump 原始事件日志或 --state 的 folded state（--json）。
 - `ar ps <sid>`：列在飞后台工作（纯 journal 读，无需 daemon）。
@@ -86,6 +93,7 @@
 - `ar approve <sid> <id> approve|deny [reason]`：应答待批审批，--always 同时把 allow 规则写回用户配置。
 - `ar kill <sid> <handle>`：取消一个后台 handle（子 agent 或后台 bash）。
 - `ar diff <sid>`：显示自最近人类轮以来的工作区改动（--scope last-turn/--json）。
+- `ar promote <sid>`：把已结束 best-of-N 轮的胜者改动 clean-or-nothing 落到项目 workspace（2026-07-19 新增,PLAN 5.8）。
 - `ar artifacts <sid> list|read <stream>[@vN]`：列/读已发布 artifacts（版本寻址、--json）。
 
 ### 2.3 环境与基建
@@ -183,7 +191,7 @@
 - 静止子唤醒：send_message 唤醒静止的子，同 journal 同 context 延续，绝不另起炉灶。
 - 用户直达子：`ar send <child-sid>` / webui 点进成员直接指挥任一子 agent。
 - 子进度镜像：成员事件带标签入树根 hub，CLI attach 可过滤、webui 子会话实时 SSE。
-- 子审批路由：子的审批上浮到根宿主，crash 后重挂接（等审批的子不重放工作）。
+- 子审批路由：子的审批上浮到根宿主，crash 后重挂接（等审批的子不重放工作）;inspect 树递归 in-flight child + webui approval stack/Attention 持久浮出（2026-07-19 INC-81 补可发现性）。
 - handoff：一 turn 只允许转控一次，成功后本 agent 停止行动。
 - 父崩溃结算：从子 fold 结算（子已静止交付真实回执，子随进程死记 crash cancellation 带真实花费）。
 
@@ -204,7 +212,7 @@
 - 常设审批：同 session 内"允许且不再问"对精确同判据的后续 ask 自动作答。
 - 规则写回：`--always` / webui Always allow 把精确 allow 规则写回 user 配置，下个 session 生效。
 - 远程审批：daemon 托管的审批可从 CLI/webui 异地应答，crash 后审批可复活。
-- ⚠ WAITING_APPROVAL 挂起期间来消息只排队不唤醒（G3 余项）。
+- ~~审批挂起期间消息只排队不唤醒~~（2026-07-19 INC-70:park 中 user-class 消息=转向式拒批 denied_by_steer,保序 flush 同边界入 context;machine/revoked 不触发）。
 
 ### 5.3 hooks
 - pre/post tool hooks：pre exit 2 阻塞（stderr 作为模型可见理由），post stdout 成 activity note，超时按进程组收割。
@@ -231,7 +239,7 @@
 - genesis 守卫：无合法创世事件的 journal 不可 resolve/list/send/resume。
 - crash 恢复：resume 单一自愈——execute 类效果绝不重跑、渲染 interrupted-by-crash，只读类可重跑，session 继续。
 - boot sweep 四路：daemon 启动自动接续 mid-turn stranded 会话、重挂 loop drive 并补漏 slot、复活有 pending 命令的会话、按 pgid 清扫孤儿 bash 进程。
-- 显式重开 vs 自动路径：send 对任何 session 成立（含带标记的），自动路径永不越 close/kill 标记。
+- 显式重开 vs 自动路径：send 对任何 session 成立（含带标记的），自动路径永不越 close/kill 标记;清标记的重开信号只有 GenerationStarted（真实输入起 turn）——compact/clear 维护手势不复活（INC-82）。
 - shadow repo 并发 flock：同 GIT_DIR 的快照操作跨进程单写，diff 用私有 index 并发只读。
 - crash 注入 harness：`AGENTRUNNER_CRASH=after:<EventType>:<n>` 与 `point:<name>[:<n>]` 两种注入形式，供崩溃矩阵测试。
 
@@ -249,18 +257,18 @@
 - best-of-N 胜者晋升:`ar promote`/webui Apply winner(2026-07-19 PLAN 5.8 落地,clean-or-nothing 落 workspace)。
 - ⚠ 多根 workspace（--add-dir 类）没有实现（G17）。
 
-## 8. 驱动形态（driver）
+## 8. 批式驱动（内部实现;用户面 = 会话上的 goal/loop/best-of-N）
 
-- driver-goal：批式 headless 目标驱动——每轮 fresh child run + verifier 三态打分 + 停滞检测（patience）+ carry 传递。
-- driver-loop：interval 固定节奏 / cron / self_paced 三种 cadence，durable absolute tick，跑到 max_iterations/预算/取消。
-- best-of-N：N 个隔离 worktree 从同一 base 快照并行尝试、各自树内评分、pass 优先选优、败者留档。
+- **E1 收敛已完成**（2026-07-19 Phase 2）:goal/interval/cron/self_paced/best-of-N 默认全走 **merged-stream series**（SESSION journal:series_started 头、迭代 spawn 词汇、series_ended 终态）;legacy driver 流写侧仅剩 parallel×retry 一个组合,旧 driver journal 永远只读可查。
+- 批式 goal：每轮 fresh child run + verifier 三态打分 + 停滞检测（patience）+ carry 传递。
+- loop cadence：interval 固定节奏 / cron / self_paced 三种，durable absolute tick，跑到 max_iterations/预算/取消。
+- best-of-N：N 个隔离 worktree 从同一 base 快照（SeriesStarted 钉 BaseRef）并行尝试、各自树内评分、pass 优先选优、败者留档;**胜者 `ar promote`/Apply winner 一键晋升**（PLAN 5.8）。
 - verifier 四态：command（exit 0 = pass，另可配 metric_regex 捕获组 + threshold 变打分制）/ llm_judge（rubric 严格评分）/ human（走 ask 路径）/ 自证，聚合取最弱。
 - overlap 策略：撞 tick 按 skip（留痕跳过）或 coalesce（折成一次 catch-up）处置。
 - 失败处置：on_child_failure 三态 stop（默认，结束系列）/ surface（算作 spent iteration 继续）/ retry（独立子库立即重试、无 backoff），重试花费计入预算。
-- cron 跨重启：daemon 崩溃/优雅停机都不写终态，boot sweep 重挂并按 overlap 策略恰好补跑一次漏 slot。
+- cron 跨重启：daemon 崩溃/优雅停机都不写终态，boot sweep 重挂并按 overlap 策略恰好补跑一次漏 slot（series 会话由 drive sweep 收编,timer/stranded sweep 显式排除）。
 - series memory：迭代结论文件注入下一轮 prompt（8KiB 注入时截断）。
-- Scheduled Retry：从旧 DriverStarted 的 spec 新建 series，绝不向旧 journal 注入消息。
-- ⚠ driver 子执行与递归 session 的收敛还没完成（driver 形态与 in-session 形态并存，E1 进行中）。
+- Scheduled Retry：从旧系列 spec 新建 series 会话（首事件 session_started），绝不向旧 journal 注入消息。
 - ⚠ overlap:interrupt 策略显式推迟。
 
 ## 9. 生态接入
@@ -282,7 +290,7 @@
 - webhook ingress：`--http` 开 `POST /hooks/<id>`——bearer token 常量时间比对、未鉴权限流 429、body 上限 413、无存在性 oracle、机器输入不能复活带标记会话（410）、X-Command-Id 幂等重投。
 - attach 直播：先补读 journal 历史再订阅实时，成员事件折叠为一行 announcement，成员审批仍上浮。
 - 远程审批/远程 stop：daemon approve/stop 通道，approve 可跨 crash 复活审批。
-- wire 协议命令面：ping/run/drive/attach/approve/send/close/interrupt/stop/compact/clear/remember/kill/agent/mode/unqueue/answer/goal-*/schedule-*。
+- wire 协议命令面：ping/run/drive/attach/approve/send/close/interrupt/stop/compact/clear/remember/**title**/kill/agent/mode/unqueue/answer/goal-*/schedule-*。
 
 ## 11. Web UI
 
@@ -323,6 +331,7 @@
 - 轮辅助行：Copy、Share 深链、Continue in new session、Worked duration、goal 判决。
 - 系统事件：program/control 输入默认藏进 system events 开发者视图，绝不冒充用户消息。
 - pending 气泡（queued/steering）、typing 指示、jump-to-bottom、compaction 分隔线。
+- series 事件渲染：merged-stream 的 series_started/iteration/ended 与 legacy driver 事件同等成 chips;终局 best_iter 驱动会话页 **Apply winner** 按钮（2026-07-19 PLAN 5.8 补齐）。
 
 ### 11.5 审批与提问
 - 内联审批卡：人类摘要 + Details 折叠原始 args/gates + Approve once / Always allow / Deny（可附理由），⌘↵/⌘⌫ 快捷键。
@@ -348,10 +357,10 @@
 - FindBar：⌘F 会话内查找接管浏览器搜索（↑/↓、Enter/⇧Enter 匹配导航 + N/M 计数）。
 
 ### 11.9 Scheduled 与后台 runs
-- Scheduled 页：全部 driver/schedule 会话列表——cadence 人话（Every 30m / Saturdays at 4:00 AM）+ next run 推算、All/Active/Finished 过滤、搜索、行级操作菜单。
+- Scheduled 页：series SESSION 行是 canonical（run 行在会话落列表后让位）——cadence 人话与 next run 均消费 `ar sessions --json` 的 engine 权威投影、All/Active/Finished 过滤、搜索、行级操作菜单（2026-07-19 PLAN 2.3/3.1）。
 - Create 菜单：One-time run / Goal / Repeating / Best of N 四种建法 + 三张 suggestion 卡。
 - RunModal：submit 或 drive 的全参数表单（interval/cron/best-of-N、YAML 高级编辑、内联校验）。
-- RunView：后台 run 的 SSE 日志流、iteration 分隔、终局判决、Stop。
+- RunView：后台 run 的 SSE 日志流、iteration 分隔、终局判决、Stop（仅 sid 未知时的兜底流;/loop、/bestof 启动后直接落会话）。
 
 ### 11.10 全局设施
 - Settings：General（daemon 状态 + 重置默认）、Appearance（主题/字号/对比度/diff 标记/动效/语法高亮）、快捷键表、Git 模板、Worktrees 清单、Configuration、Archived。
@@ -361,7 +370,7 @@
 - 主题 system/light/dark、移动端抽屉/scrim/键盘避让、桌面通知、未读数入 title、Toast/ErrorBoundary。
 - 健康面：/api/health 报版本一致性/daemon 状态/sandbox 后端，DaemonAlert 离线红条一键重启。
 - ~~Settings Branch prefix / PR merge method（Not wired 摆设）~~（2026-07-19 PLAN 5.1 已移除）。
-- ⚠ webui 的 schedule 投影是 internal/driver cadence 逻辑的手工 stdlib 镜像（双实现漂移风险，设计上有意为之）。
+- ~~webui schedule 投影手工镜像~~（2026-07-19 PLAN 3.1:自研 cron 引擎/driverSchedule/TTL 缓存删除,engine 权威 cadence/next_run_at 只换键名转发）。
 
 ## 12. 安装分发与运维
 
