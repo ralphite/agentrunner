@@ -30,7 +30,7 @@
 - 交付契约 outputs：spec 声明的产物（name/path/required）在会话收尾未显式 publish 时自动从 workspace 文件 publish，required 缺失把结局降级为 contract_violation。
 
 ### 1.2 消息投递
-- 忙时排队：运行中发消息默认排队（queue），在安全边界按序消费，不丢不乱序。
+- 忙时排队：运行中发消息默认排队（queue），**当前 turn 跑完进入 idle 时一次性按序消费——全部排队消息进同一个 next turn**，不丢不乱序（"安全边界即时消费"是 steer 的语义，不是 queue；钉子 TestQueueDefersToTurnEnd）。
 - steer 投递：`ar send --steer` / webui 切换，把消息注入当前轮的下一个安全边界，本轮内即生效。
 - 排队列表：`ar queue` 列出尚未消费的排队输入（含 command-id 与 revoked 态）。
 - 排队撤回：`ar unqueue <sid> <cmd-id>` 撤回一条未消费的排队消息，迟到撤回是 no-op。
