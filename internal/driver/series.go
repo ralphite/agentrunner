@@ -879,7 +879,10 @@ func (d *Driver) seriesCancelTerminal(ctx context.Context, appendE appendFunc, s
 			return Result{Reason: "shutdown", Iterations: n, BestIter: sr.BestIter}, nil
 		}
 	}
-	return d.finishSeries(appendE, sr, "stopped", n)
+	// A user cancel is a DOMAIN terminal on the series itself (INC-83, PLAN
+	// 6.1): the loop/round is cancelled — the session carries no lifecycle
+	// mark and remains an ordinary continuable conversation.
+	return d.finishSeries(appendE, sr, "cancelled", n)
 }
 
 func (d *Driver) finishSeries(appendE appendFunc, sr *state.Series, reason string, iterations int) (Result, error) {

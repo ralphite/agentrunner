@@ -5924,3 +5924,14 @@ series 渲染+Apply winner、Scheduled canonical 行、schedule 双实现镜像
 goal/schedule/series/hook 各用领域动词终止;标记降为内部机制、旧
 journal 兼容读。工作纸 docs/increments/INC-83-no-lifecycle-verbs.md
 单独成文(PROCESS §四),实施按 PLAN 6.1–6.6 分轮。
+
+## PLAN 6.1 series 用户取消=域内 cancelled 终态（2026-07-19,INC-83 第一刀）
+
+**复核发现**:机制早已存在——用户 stop 运行中系列本就经 ctx cancel 落
+`SeriesEnded`(seriesCancelTerminal→finishSeries),series 会话从不落
+SessionClosed;drive sweep 本就跳过 Ended 系列。本轮把词汇从生命周期词
+"stopped"改为域内词 **"cancelled"**(旧 journal 的 stopped 读侧兼容:
+inspect 分类、Scheduled SETTLED_STATUS 双词并存;friendlyStatus 已有
+cancel→Cancelled 映射)。钉子 TestSeriesUserCancelWritesCancelledTerminal
+(域终态+无 SessionClosed+sweep 不复活)。legacy driver 流(parallel×
+retry 残余)的 stopped 不动。

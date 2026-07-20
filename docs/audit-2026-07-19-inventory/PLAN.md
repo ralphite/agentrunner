@@ -163,9 +163,10 @@
       INC-83-no-lifecycle-verbs.md):旧不变量(决策 #30 用户面部分)、
       "每个停的需求的正确归属"对照表、新表述、波及面→6.1–6.6 映射、
       契约自审(旧 journal 兼容读、thin-shell 不破、#31 不动)。
-- [ ] 6.1 series cancel 落地:运行中 series 的用户停止=SeriesEnded
-      {cancelled}(替代 ar stop 对系列的作用);drive sweep 不再复活
-      cancelled 系列;webui Scheduled 行操作改指此。
+- [x] 6.1 series cancel——2026-07-19:复核发现机制已在(ctx cancel→
+      SeriesEnded,无 SessionClosed,sweep 跳过 Ended);词汇 stopped→
+      **cancelled**(读侧双词兼容旧 journal);钉子
+      TestSeriesUserCancelWritesCancelledTerminal。
 - [ ] 6.2 CLI 删除:`ar close`/`ar stop`/`ar kill` 撤出命令面与 help;
       interrupt 保留但 help 措辞改为"stop what it's doing now"(唯一
       手势);daemon wire close/stop/kill 命令与 handleClose/handleStop

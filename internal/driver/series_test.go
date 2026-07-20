@@ -188,6 +188,37 @@ func TestSeriesIntervalOverlapSkip(t *testing.T) {
 	}
 }
 
+// INC-83 (PLAN 6.1): a USER cancel of a running series lands the DOMAIN
+// terminal SeriesEnded{cancelled} — the loop/round itself is over; the
+// session carries no lifecycle mark (no SessionClosed) and the sweep never
+// revives an ended series.
+func TestSeriesUserCancelWritesCancelledTerminal(t *testing.T) {
+	d, dStore, clk := seriesLoopHarness(t, driver.OverlapCoalesce, 3)
+	ctx, cancel := context.WithCancelCause(context.Background())
+	resCh := make(chan driver.Result, 1)
+	go func() {
+		res, _ := d.RunSeries(ctx)
+		resCh <- res
+	}()
+	waitIdle(t, clk)
+	cancel(errs.ErrSessionStopped)
+	res := <-resCh
+	if res.Reason != "cancelled" {
+		t.Fatalf("cancel result = %+v, want reason cancelled", res)
+	}
+	events, _ := store.ReadEvents(dStore.Dir())
+	ss, err := state.Fold(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ss.Series == nil || !ss.Series.Ended || ss.Series.EndReason != "cancelled" {
+		t.Fatalf("series fold = %+v, want Ended cancelled", ss.Series)
+	}
+	if ss.Session.Closed != nil {
+		t.Fatalf("user cancel left a session lifecycle mark: %+v — the terminal belongs to the SERIES", ss.Session.Closed)
+	}
+}
+
 // INC-77.2 INC-72 semantics carried over: a graceful host shutdown ends a
 // cadenced series WITHOUT a terminal, and ResumeSeries continues it — the
 // pending tick timer is cancelled (a wake hint, not a fact source) and the

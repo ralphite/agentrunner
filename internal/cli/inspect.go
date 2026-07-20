@@ -415,7 +415,7 @@ func addProviderUsage(a, b provider.Usage) provider.Usage {
 // of those may still be reported as running after settlement.
 func settleChildReport(report *inspectReport, reason string) {
 	switch reason {
-	case "canceled", "killed", "stopped":
+	case "canceled", "cancelled", "killed", "stopped":
 		report.Status = "canceled"
 		report.Reason = reason
 	case "error", "child_failed":

@@ -95,7 +95,7 @@ export function hasRhythm(c: Cadence): boolean {
 // as gray noise on every completed row (review sw-d-11). Drop the dot for these
 // (a blank keeps the columns aligned); attention/running/unread still badge.
 // Same semantics as the sidebar's W10 rule.
-const SETTLED_STATUS = new Set(["done", "closed", "stopped"]);
+const SETTLED_STATUS = new Set(["done", "closed", "stopped", "cancelled"]);
 
 // SC-10 — a BROKEN series must not look like a healthy one. `crash` ("Failed")
 // and `stranded` ("Needs recovery") used to render as the same gray Circle as an
