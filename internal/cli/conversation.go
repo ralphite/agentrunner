@@ -445,18 +445,6 @@ func loadFileAttachments(paths []string) ([]protocol.FileAttachment, error) {
 
 // killCmd cancels one running child/background work by handle (v2 M3.2):
 // `agentrunner kill <session-id-or-prefix> <handle>`.
-func killCmd(args []string, stdout, stderr io.Writer) int {
-	if len(args) != 2 {
-		fmt.Fprintln(stderr, "usage: agentrunner kill <session-id-or-prefix> <handle>")
-		return ExitUsage
-	}
-	code := oneShot(stderr, daemon.Command{Cmd: "kill", Session: resolvePrefixLenient(args[0]), Handle: args[1]}, stdout)
-	if code != ExitOK {
-		stuckHint(stderr, args[0])
-	}
-	return code
-}
-
 // interruptCmd delivers an out-of-band interrupt to a live session (v2
 // M2.3): `agentrunner interrupt <session-id-or-prefix>` — steers a running
 // turn; at idle it is a no-op (裁决 #11: interrupt never ends a session,

@@ -180,9 +180,10 @@
       (sessions/inspect/webui Ready 桶);sessionMarked 三门收窄只认
       killed(内部 kill 纪律);hook 410 去生命周期措辞;Quiescence
       本体不动(内部读数)。
-- [ ] 6.5 内核收敛:SessionClosed 用户写侧全删(interrupt 不落标记;
-      agent kill 工具的 parent-kill 子会话标记保留为内部);INC-82 的
-      fold 规则随之简化;child revive 门只剩内部 kill 语义。
+- [x] 6.5 内核收敛——2026-07-19:`ar kill`+wire kill+handleKill 物理
+      删除;revive 门收窄只认 killed;CloseMark/SessionClosed/abort 注释
+      改"内部机制";close wire 保留为托管 run unhost 机制(全删挂账
+      idle-驱逐设计),stop wire=series cancel transport。
 - [ ] 6.6 文档全链:DESIGN 决策 #30/§12 重裁、SPEC/JOURNEYS/QA 清词、
       FEATURES v1.3、GAPS 记档;LOG 追加。
 

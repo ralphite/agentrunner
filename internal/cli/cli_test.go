@@ -69,7 +69,7 @@ func TestPositionalCommandsHonorHelpFlag(t *testing.T) {
 	t.Chdir(dir)
 	for _, cmd := range []string{
 		"init", "resume", "close", "interrupt", "stop", "compact", "clear",
-		"goal", "schedule", "agent", "kill", "ps", "approve", "barrier", "sessions", "trust",
+		"goal", "schedule", "agent", "ps", "approve", "barrier", "sessions", "trust",
 	} {
 		for _, h := range []string{"-h", "--help"} {
 			var out, errOut bytes.Buffer

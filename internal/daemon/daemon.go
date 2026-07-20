@@ -531,11 +531,6 @@ func (h *hostedRun) stopHosting() bool {
 	return true
 }
 
-// killHandle requests cancellation of one running child/background work by handle.
-func (h *hostedRun) killHandle(cmd protocol.SessionCommand) bool {
-	return h.postCommand(cmd)
-}
-
 // postControl queues a compact/clear control behind earlier commands.
 func (h *hostedRun) postControl(cmd protocol.SessionCommand) bool {
 	return h.postCommand(cmd)
@@ -968,8 +963,6 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlScheduleResume}, "schedule resume requested — the cadence re-anchors at resume time (a no-op unless a schedule is paused)", enc)
 	case "schedule-cancel":
 		s.handleControl(ctx, cmd, protocol.Control{Kind: protocol.ControlScheduleCancel}, "schedule cancel requested (a no-op unless a schedule is attached)", enc)
-	case "kill":
-		s.handleKill(ctx, cmd, enc)
 	case "unqueue":
 		s.handleUnqueue(ctx, cmd, enc)
 	case "answer":
@@ -1083,29 +1076,6 @@ func (s *Server) acceptedDelivery(ctx context.Context, session string, hub *host
 		return true
 	}
 	return false
-}
-
-// handleKill cancels one running child/background work by handle (v2 M3.2): the user's
-// direct kill path, distinct from the model calling kill.
-func (s *Server) handleKill(ctx context.Context, cmd Command, enc *json.Encoder) {
-	if cmd.Session == "" || cmd.Handle == "" {
-		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "kill needs session and handle"})
-		return
-	}
-	_, delivered, err := s.acceptAndDeliver(ctx, cmd.Session, cmd.CommandID, attributedCommand(cmd, protocol.SessionCommand{
-		Kind: protocol.CommandKill, Handle: cmd.Handle,
-	}), func(h *hostedRun, accepted protocol.SessionCommand) bool { return h.killHandle(accepted) })
-	if err != nil {
-		_ = enc.Encode(protocol.Event{Kind: protocol.KindError, Text: "kill not accepted: " + err.Error()})
-		return
-	}
-	if !delivered {
-		_ = enc.Encode(protocol.Event{Kind: protocol.KindError,
-			Text: fmt.Sprintf("no live session %s accepting kills", cmd.Session)})
-		return
-	}
-	_ = enc.Encode(protocol.Event{Kind: protocol.KindMessage,
-		Text: "kill requested for " + cmd.Handle + " (a no-op if the handle is done or unknown)", Session: cmd.Session})
 }
 
 // handleUnqueue withdraws a QUEUED conversational input (INC-46, §2 rev1).

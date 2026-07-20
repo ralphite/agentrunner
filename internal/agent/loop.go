@@ -1228,8 +1228,10 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 	// buildRunner owns the plan-mode semantics.
 	l.advertisedTools["exit_plan_mode"] = true
 	// abort is every dying execution's exit ramp. There is NO terminal
-	// event (决策 #30/#31): an explicit kill leaves its SessionClosed
-	// {killed, source} mark; teardown (daemon shutdown, deploy) and genuine
+	// event (决策 #30/#31): a kill leaves its SessionClosed{killed, source}
+	// mark and a stop-cause teardown its {stopped} mark — both INTERNAL
+	// mechanics since INC-83 (projected as idle, gating nothing but the
+	// kill discipline); teardown (daemon shutdown, deploy) and genuine
 	// errors leave nothing — Resume re-enters the turn later, the same
 	// discipline as a crash. In-flight background work is settled
 	// best-effort either way so the journal never ends with orphans.

@@ -160,15 +160,16 @@ func (l *Loop) reviveChild(ctx context.Context, ds *driveState, appendE AppendFu
 		return nil // consumed meanwhile (or unreadable): nothing to do
 	}
 
-	// Marks gate the automatic path (决策 #30). For a RELAY parent, ANY
-	// close/kill mark blocks the automatic hop: a descendant's mail cannot
-	// resurrect an explicitly-terminated intermediate parent — the mail
-	// stays durable until CHILD is reopened by an explicit send, whose own
-	// scan then carries it on. For the DIRECT recipient, user-kill only
-	// yields to user-class mail (the explicit reopen gesture).
-	if mark := st.Session.Closed; mark != nil {
+	// Since INC-83 the only mark that gates the automatic path is a KILL
+	// (internal tree discipline — legacy closed/stopped marks are just idle
+	// conversations). For a RELAY parent, a kill mark blocks the automatic
+	// hop: a descendant's mail cannot resurrect a killed intermediate parent
+	// — the mail stays durable until CHILD is reopened by an explicit send,
+	// whose own scan then carries it on. For the DIRECT recipient, user-kill
+	// only yields to user-class mail (the explicit reopen gesture).
+	if mark := st.Session.Closed; mark != nil && mark.Reason == "killed" {
 		if relay {
-			slog.Warn("revive skipped: relay parent is marked; descendant mail stays durable",
+			slog.Warn("revive skipped: relay parent is kill-marked; descendant mail stays durable",
 				"relay", child, "recipient", sid)
 			return nil
 		}

@@ -121,10 +121,6 @@ func Run(args []string, version string, stdout, stderr io.Writer) int {
 		return scheduleCmd(args[1:], stdout, stderr)
 	case "agent":
 		return agentCmd(args[1:], stdout, stderr)
-	case "kill":
-		// Undocumented webui transport (INC-83): kill is the MODEL's tool for
-		// its own background work; the user face is gone.
-		return killCmd(args[1:], stdout, stderr)
 	case "ps":
 		return psCmd(args[1:], stdout, stderr)
 	case "approve":
@@ -169,8 +165,6 @@ func commandHelp(cmd string) string {
 		return "usage: agentrunner close <session-id-or-prefix>\n\n(internal web-UI transport — not part of the command set)\n"
 	case "stop":
 		return "usage: agentrunner stop <session-id-or-prefix>\n\n(internal transport: cancels a running scheduled series —\nthe series records its own cancelled terminal)\n"
-	case "kill":
-		return "usage: agentrunner kill <session-id-or-prefix> <handle>\n\n(internal web-UI transport — the model manages its own\nbackground work)\n"
 	case "compact":
 		return "usage: agentrunner compact <session-id-or-prefix> [focus directive]\n\nSummarize the session's context now. The optional focus directive\ntells the summarizer what to preserve.\n"
 	case "clear":

@@ -5969,3 +5969,15 @@ Idle)。门:sessionMarked(供 timer sweep/drive resume/hook ingress 三
 legacy closed/stopped 不再挡机器唤醒;hook 410 文案去生命周期措辞
 (指路 hook revoke)。Quiescence 本体不动(内部形状读数,决策 #31)。
 inspect 三断言改 idle;vitest 599/check 全绿。
+
+## PLAN 6.5 内核写侧收敛（2026-07-19,INC-83）
+
+**物理删除**:`ar kill` CLI+daemon wire kill+handleKill(零消费方;
+模型 kill 工具不受影响;CommandKill 重放机保留兼容旧 CommandLog)。
+**收窄**:revive.go 子唤醒门只认 killed 标记(legacy closed/stopped
+子会话的 durable mail 不再被困)。**改注**:CloseMark/SessionClosed/
+loop abort 注释改为"内部机制,INC-83 后无用户动词写入,投影 idle,
+仅 kill 纪律有门"。**保留并记档**:close wire=托管 run 唯一 unhost
+机制(全删需先设计 hosted-run idle 驱逐,挂账);stop wire=series
+cancel transport;loop 的 stopped/closed 标记写侧=内部 teardown 记录
+(投影 idle、门已废,词汇不达用户)。四包测试全绿。

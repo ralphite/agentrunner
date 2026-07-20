@@ -502,7 +502,9 @@ type Session struct {
 	// otherwise leave a resolved-tool-call shape that looks non-quiescent.
 	GoalOutcome        string `json:"goal_outcome,omitempty"`
 	GoalOutcomeGenStep int    `json:"goal_outcome_gen_step,omitempty"`
-	// Closed is the close/kill mark (决策 #30): set by SessionClosed,
+	// Closed is an INTERNAL mark (INC-83: no user verb writes it — it
+	// arises from the agent kill tool on children, hosted-run teardown, and
+	// legacy journals): set by SessionClosed,
 	// cleared by the next GenerationStarted (a lawful reopen). Automatic
 	// paths CHECK it (timer/boot sweep skip marked sessions; a user-killed
 	// child revives only for the user); it never blocks an explicit send.
@@ -1172,9 +1174,10 @@ func Apply(s State, env event.Envelope) (State, error) {
 		s.Session.LastCrash = p.Actor + ": " + p.Error
 
 	case *event.SessionClosed:
-		// A close/kill MARK, not a state transition (决策 #30): liveness
-		// fields stay untouched; automatic paths check the mark, the next
-		// GenerationStarted clears it.
+		// An INTERNAL mark, not a state transition (决策 #30/INC-83): liveness
+		// fields stay untouched; only kill marks gate automatic paths, every
+		// mark projects as plain "idle", and the next GenerationStarted
+		// clears it. No user verb writes this event since INC-83.
 		s.Session.Closed = &CloseMark{Reason: p.Reason, Source: p.Source}
 		s.Waiting = nil
 		s.Activities = Activities{}
