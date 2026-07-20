@@ -385,7 +385,10 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 					r.Status = "waiting:" + s.Waiting.Kind
 				}
 				if s.Session.Closed != nil {
-					r.Status = s.Session.Closed.Reason
+					// Legacy lifecycle marks (INC-83): no closed/stopped
+					// vocabulary reaches the user — the session is simply
+					// idle and continuable.
+					r.Status = "idle"
 				} else if q, reason := state.Quiescence(s); q {
 					// A conversational session whose final generation is quiet is
 					// ready for another message, not a completed unit of work. Preserve

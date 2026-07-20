@@ -479,10 +479,9 @@ func buildInspectReport(events []event.Envelope, s state.State) inspectReport {
 	// with `ar sessions` (QA Wave5 liam-02).
 	status, reason := s.Session.Status, ""
 	if s.Session.Closed != nil {
-		status, reason = "marked", s.Session.Closed.Reason
-		if s.Session.Closed.Reason == "stopped" {
-			status, reason = "stopped", ""
-		}
+		// Legacy lifecycle marks project as plain idle (INC-83) — the
+		// conversation is continuable; no closed/stopped vocabulary.
+		status, reason = "idle", ""
 	} else if s.Session.Failure != nil {
 		status = "failed"
 		reason = s.Session.Failure.Class

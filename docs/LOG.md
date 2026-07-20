@@ -5958,3 +5958,14 @@ AR client 删 closeSession/kill;webui 后端删 /close /kill 路由与
 handler(/stop 保留为 series-cancel transport 并改注)。四个钉旧菜单
 的 vitest 改写(Cancel 经 confirm 模态),599 全绿。ar close/ar kill
 自此零消费方,全删并入 6.5。
+
+## PLAN 6.4 状态投影清词 + 自动路径门收窄（2026-07-19,INC-83）
+
+投影:`ar sessions`/`ar inspect` 对带 legacy 生命周期标记的会话统一折
+为中性 **"idle"**(不再输出 closed/stopped/marked 词汇;webui
+friendlyStatus 让 idle 落入既有 Ready 桶,legacy "closed" 字串仍映射
+Idle)。门:sessionMarked(供 timer sweep/drive resume/hook ingress 三
+个自动路径共用)收窄为**只认 killed 标记**——内部 kill 纪律保留,
+legacy closed/stopped 不再挡机器唤醒;hook 410 文案去生命周期措辞
+(指路 hook revoke)。Quiescence 本体不动(内部形状读数,决策 #31)。
+inspect 三断言改 idle;vitest 599/check 全绿。

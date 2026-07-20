@@ -42,7 +42,9 @@ export function friendlyStatus(raw: string): { text: string; cls: string } {
   if (s.includes("strand") || s.includes("interrupt")) return { text: "Needs recovery", cls: "stranded" };
   if (s.includes("approval")) return { text: "Needs approval", cls: "appr" };
   if (s.includes("run") || s.includes("busy")) return { text: "Running", cls: "run" };
-  if (s.includes("clos")) return { text: "Closed", cls: "closed" };
+  // "idle" (a legacy lifecycle mark folded neutral, INC-83) falls through to
+  // the Ready bucket below — an idle conversation is just ready for input.
+  if (s.includes("clos")) return { text: "Idle", cls: "closed" }; // legacy journals
   if (s.includes("satisfied")) return { text: "Completed", cls: "closed" };
   if (s.includes("limit_exceeded")) return { text: "Budget limit reached", cls: "stranded" };
   if (s.includes("complete") || s.includes("done") || s.includes("end"))

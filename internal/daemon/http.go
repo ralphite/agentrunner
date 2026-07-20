@@ -184,7 +184,7 @@ func (s *Server) handleHook(ctx context.Context, limiter *failLimiter, w http.Re
 	if !hosted && s.SessionMarked != nil {
 		if marked, merr := s.SessionMarked(host); merr == nil && marked {
 			writeHookJSON(w, http.StatusGone,
-				map[string]any{"error": "session was closed or killed by its user; a machine sender cannot revive it"})
+				map[string]any{"error": "session is not reachable by machine senders; revoke the hook if it should stop firing"})
 			return
 		}
 	}

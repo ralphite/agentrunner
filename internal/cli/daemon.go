@@ -632,6 +632,11 @@ func scanPendingCommandSessions() ([]string, error) {
 // sessionMarked reports whether a session's journal carries a close/kill
 // mark (决策 #30): automatic revival paths check it; explicit sends never
 // ask.
+// sessionMarked gates the daemon's AUTOMATIC paths (timer sweep, drive
+// resume, machine ingress). Since INC-83 the only mark that blocks them is
+// a KILL (internal tree discipline: a killed child is not auto-revived) —
+// legacy closed/stopped marks in old journals no longer gate anything; the
+// session is just an idle conversation.
 func sessionMarked(sessionID string) (bool, error) {
 	dir, err := resolveSessionDir(sessionID)
 	if err != nil {
@@ -645,7 +650,7 @@ func sessionMarked(sessionID string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return s.Session.Closed != nil, nil
+	return s.Session.Closed != nil && s.Session.Closed.Reason == "killed", nil
 }
 
 // pendingApproval reports the approval id a session's journal shows it idle on

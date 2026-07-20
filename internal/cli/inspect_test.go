@@ -55,7 +55,7 @@ func TestBuildInspectReport(t *testing.T) {
 	}
 	r := buildInspectReport(events, s)
 
-	if r.Spec != "demo" || r.Model != "gemini-x" || r.Status != "marked" {
+	if r.Spec != "demo" || r.Model != "gemini-x" || r.Status != "idle" {
 		t.Fatalf("meta = %+v", r)
 	}
 	if r.Turns != 1 || r.Items != 2 {
@@ -79,7 +79,7 @@ func TestBuildInspectReport(t *testing.T) {
 	}
 }
 
-func TestInspectReportSurfacesFailedAndStopped(t *testing.T) {
+func TestInspectReportSurfacesFailedAndIdleMark(t *testing.T) {
 	failEvents := []event.Envelope{
 		mkEnv(t, event.TypeSessionStarted, &event.SessionStarted{SpecName: "demo", SubStateVersions: state.SubStateVersions()}),
 		mkEnv(t, event.TypeInputReceived, &event.InputReceived{Text: "go", Source: "cli"}),
@@ -106,7 +106,7 @@ func TestInspectReportSurfacesFailedAndStopped(t *testing.T) {
 		t.Fatal(err)
 	}
 	r = buildInspectReport(stopEvents, s)
-	if r.Status != "stopped" {
+	if r.Status != "idle" {
 		t.Fatalf("stopped report = %+v", r)
 	}
 }
@@ -191,7 +191,7 @@ func TestBuildInspectTree(t *testing.T) {
 	}
 	child := report.Children[0]
 	if child.Agent != "researcher" || child.Report.Spec != "researcher" ||
-		child.Report.Status != "marked" {
+		child.Report.Status != "idle" {
 		t.Errorf("child = %+v", child)
 	}
 	if len(report.Artifacts) != 1 || report.Artifacts[0].Stream != "report" {

@@ -176,10 +176,10 @@
       "Cancel series…"(域内终态,不再 running 限定);/close /kill 路由
       与 AR client 方法删;closed 提示语改中性;vitest 599 绿。状态
       词汇(closed/stopped)的投影清词归 6.4。
-- [ ] 6.4 状态投影清词:sessions/inspect 不再输出 closed/stopped/
-      killed(旧 journal 的标记折出统一的中性形态,如 waiting:input);
-      Quiescence reason 词汇同步;hook ingress 410 门重裁(hook revoke
-      即停,不再看会话标记)。
+- [x] 6.4 投影清词+门收窄——2026-07-19:legacy 标记统一折 "idle"
+      (sessions/inspect/webui Ready 桶);sessionMarked 三门收窄只认
+      killed(内部 kill 纪律);hook 410 去生命周期措辞;Quiescence
+      本体不动(内部读数)。
 - [ ] 6.5 内核收敛:SessionClosed 用户写侧全删(interrupt 不落标记;
       agent kill 工具的 parent-kill 子会话标记保留为内部);INC-82 的
       fold 规则随之简化;child revive 门只剩内部 kill 语义。

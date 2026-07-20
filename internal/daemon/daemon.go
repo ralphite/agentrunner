@@ -215,10 +215,11 @@ type Server struct {
 	// receipts versus journal Envelope.CommandID facts.
 	PendingCommands            func(sessionID string) ([]protocol.SessionCommand, error)
 	ScanPendingCommandSessions func() ([]string, error)
-	// SessionMarked reports whether a session's journal carries a
-	// close/kill mark (决策 #30). AUTOMATIC revival (timer sweep) checks it
-	// and skips marked sessions; an explicit send never does — any session
-	// lawfully continues on a user's gesture. nil = never marked (tests).
+	// SessionMarked reports whether a session's journal carries a mark that
+	// blocks AUTOMATIC revival (timer sweep, drive resume, machine ingress).
+	// Since INC-83 the injected implementation answers true only for KILL
+	// marks (internal tree discipline); an explicit send never checks — any
+	// session lawfully continues on a user's gesture. nil = never (tests).
 	SessionMarked func(sessionID string) (marked bool, err error)
 	// PendingApproval reports the approval id a session's journal shows it
 	// idle on (waiting:approval), if any. handleApprove uses it to tell a
