@@ -146,6 +146,43 @@
       有第二个值),fork 一律取消在飞 handle;DESIGN §13/词表/SPEC 瘦身;
       旧 journal 字段 decode 忽略无迁移。**队列至此清空。**
 
+### Phase 6 · 生命周期动词全面拆除（2026-07-19 用户裁决:全删）
+
+**用户裁决（硬约束,推翻 Phase 4 的"两概念收敛"方向）**:产品里根本
+没有"活着/关闭"这些概念——静止模型下会话只有"在干活/在等你",永远
+可续。close/stop/kill/interrupt 这一族生命周期动词**全部从用户面删除**
+(尤其 UI);它们不是用户引入的设计。Phase 4 把它打磨成"打断/关闭"
+两概念是方向性错误,本 Phase 拆除。
+
+**默认裁决（已向用户声明,可改口）**:(a) "Stop 当前生成"手势保留
+(Esc/按钮——affordance 不是概念;CLI interrupt 仅作 transport);
+(b) 停运行中的 loop/best-of-N=对系列落 cancelled 终态(领域内事实),
+不给会话盖章;(c) kill 只留模型内部工具,agent 自管子任务。
+
+- [ ] 6.0 INC-83 工作纸:不变量变更成文——决策 #30 的 close/kill 标记
+      重裁为纯内部机制(旧 journal 兼容读),用户面无生命周期词汇;
+      各自动唤醒源的"停"归位到源头(goal/schedule cancel、hook revoke、
+      series cancelled 终态)。
+- [ ] 6.1 series cancel 落地:运行中 series 的用户停止=SeriesEnded
+      {cancelled}(替代 ar stop 对系列的作用);drive sweep 不再复活
+      cancelled 系列;webui Scheduled 行操作改指此。
+- [ ] 6.2 CLI 删除:`ar close`/`ar stop`/`ar kill` 撤出命令面与 help;
+      interrupt 保留但 help 措辞改为"stop what it's doing now"(唯一
+      手势);daemon wire close/stop/kill 命令与 handleClose/handleStop
+      /handleKill 相应收敛(webui transport 需要的保留为内部)。
+- [ ] 6.3 webui 删除:Close session 菜单项、Background work 区 kill
+      按钮、closed/stopped/killed 状态词汇(列表/会话页/终局提示);
+      Stop 按钮=打断当前生成(已有语义,文案统一)。
+- [ ] 6.4 状态投影清词:sessions/inspect 不再输出 closed/stopped/
+      killed(旧 journal 的标记折出统一的中性形态,如 waiting:input);
+      Quiescence reason 词汇同步;hook ingress 410 门重裁(hook revoke
+      即停,不再看会话标记)。
+- [ ] 6.5 内核收敛:SessionClosed 用户写侧全删(interrupt 不落标记;
+      agent kill 工具的 parent-kill 子会话标记保留为内部);INC-82 的
+      fold 规则随之简化;child revive 门只剩内部 kill 语义。
+- [ ] 6.6 文档全链:DESIGN 决策 #30/§12 重裁、SPEC/JOURNEYS/QA 清词、
+      FEATURES v1.3、GAPS 记档;LOG 追加。
+
 ### 明确不做
 - dictate/optimize 降级（用户否决）。
 - phone-webui cron 移除（用户在用）。
