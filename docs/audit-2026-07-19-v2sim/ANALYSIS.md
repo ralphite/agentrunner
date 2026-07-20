@@ -49,7 +49,7 @@ cloudflared 1101),见 §六。
 
 ### L2 · 异步派活(base `20260719-205428-go-…`,A/B/C 三 worktree 会话)
 
-- **L2-I1(P2,指令静默丢失/竞态)** 对"刚完成 turn 进入 idle"的
+- **L2-I1(P2→已修 `65f8131`,定性修正:与 steer 无关,是 host 收尾竞态吞消息;详见附录 A 与 LOG 2026-07-20 条)** 对"刚完成 turn 进入 idle"的
   session 发 `delivery=steer`,API 返回 `delivered`,但消息被静默
   丢弃:不入 queue、无 input_received 事件、不起 turn、无任何 ack
   (仅 UI 未读徽标)。用户的"砍掉这一路"在竞态下丢失且零反馈。
