@@ -23,6 +23,14 @@ export function friendlyStatus(raw: string): { text: string; cls: string } {
     return { text: "Step limit reached", cls: "stranded" };
   if (s.includes("max_iterations"))
     return { text: "Iteration limit reached", cls: "stranded" };
+  // Goal-scoped endings come through Quiescence verbatim ("goal_budget_
+  // exhausted" persists across later turns by design, QA Wave3 ivan-08).
+  // They are about the GOAL, not the session: the conversation is still
+  // open for input. Matching the bare "budget" bucket below branded a
+  // perfectly continuable session "Budget limit reached" (QA v2sim).
+  if (s.includes("goal_budget_exhausted"))
+    return { text: "Goal stopped — check budget", cls: "stranded" };
+  if (s.includes("goal_satisfied")) return { text: "Goal completed", cls: "closed" };
   if (s.includes("budget") || s.includes("max_tokens") || s.includes("token limit"))
     return { text: "Budget limit reached", cls: "stranded" };
   if (s.includes("kill")) return { text: "Stopped by parent", cls: "closed" };
@@ -57,6 +65,14 @@ export interface TerminalNotice {
 // purchasable credits, or a retry that the runtime cannot actually perform.
 export function terminalNoticeFor(raw: string, driver = false): TerminalNotice | null {
   const s = (raw || "").toLowerCase();
+  // A goal ending is not a session ending. Quiescence keeps "goal_budget_
+  // exhausted" (and "goal_satisfied") as the durable status so the signal
+  // survives later turns, but the session itself stays open — the GoalBanner
+  // owns that story (label + checks + dismiss). Substring-matching "budget"
+  // below used to pin a false "Budget limit reached · Continue in new
+  // session" terminal card over a waiting session, and the fork it advertised
+  // inherited the exhausted goal, reproducing the same dead end (QA v2sim).
+  if (s.includes("goal_")) return null;
   if (s.includes("limit_exceeded") || s.includes("budget") || s.includes("max_tokens") || s.includes("token limit")) {
     return {
       title: "Budget limit reached",

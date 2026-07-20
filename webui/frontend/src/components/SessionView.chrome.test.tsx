@@ -120,6 +120,11 @@ describe("TH-14 · one terminal banner above the composer", () => {
     expect(meta).not.toBeNull();
     expect(meta.textContent).toContain("Goal cancelled");
     expect(meta.textContent).toContain("00:34");
+
+    // Responsive regression anchor (QA v2sim): the continue/inspect variant
+    // must use the same stacking grid as the resume variant — the old flex row
+    // crushed the text column to 4px on a 390px phone.
+    expect(container.querySelector(".terminal-alert")!.className).toContain("grid");
     // The goal text has no room on the row, so it stays one hover away.
     expect(meta.getAttribute("title")).toBe(GOAL);
     // The tail belongs to the alert — not to a sibling banner.

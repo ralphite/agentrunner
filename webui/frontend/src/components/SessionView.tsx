@@ -1022,26 +1022,35 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
                 </div>
               )}
               {terminalNotice && terminalNotice.action !== "resume" && (
-                <div className={`terminal-alert ${terminalNotice.tone}`} role="alert">
+                /* Same responsive grid as the resume variant above: icon + text
+                   columns, the action full-width on its own row below sm. The
+                   old flex row let the intrinsic-width button (+ meta tail)
+                   crush the text column to 4px on a 390px phone — one word per
+                   line, title bleeding under the meta (QA v2sim). */
+                <div
+                  className={`terminal-alert ${terminalNotice.tone} grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]`}
+                  role="alert"
+                >
                   <span className="terminal-alert-ic">
                     {terminalNotice.tone === "danger" ? <XCircle size={17} weight="fill" /> : <WarningCircle size={17} weight="fill" />}
                   </span>
-                  {/* Stack the title and recovery guidance inside one compact
-                      card. On a phone, concatenating them reads as one broken
-                      sentence and hides the useful part. */}
                   <div className="terminal-alert-text" title={`${terminalNotice.title} — ${terminalNotice.body}`}>
                     <b>{terminalNotice.title}</b>
                     <span>{terminalNotice.body}</span>
+                    {/* TH-14: the goal's ending rides HERE — inside the card, as
+                        a meta tail — instead of as a second pinned bar. */}
+                    {goalAlertMeta && (
+                      <span className="terminal-alert-meta mt-2 flex gap-2" title={goalAlertMeta.goal}>
+                        <span className="tam-label">{goalAlertMeta.label}</span>
+                        {goalAlertMeta.elapsedMs !== undefined && <span>{formatElapsed(goalAlertMeta.elapsedMs)}</span>}
+                      </span>
+                    )}
                   </div>
-                  {/* TH-14: the goal's ending rides HERE — the same row, as a meta
-                      tail — instead of as a second pinned bar underneath. */}
-                  {goalAlertMeta && (
-                    <span className="terminal-alert-meta" title={goalAlertMeta.goal}>
-                      <span className="tam-label">{goalAlertMeta.label}</span>
-                      {goalAlertMeta.elapsedMs !== undefined && <span>{formatElapsed(goalAlertMeta.elapsedMs)}</span>}
-                    </span>
-                  )}
-                  <button type="button" className="terminal-alert-action" onClick={runTerminalAction}>
+                  <button
+                    type="button"
+                    className="terminal-alert-action col-span-2 flex w-full items-center justify-center gap-2 sm:col-span-1 sm:col-start-3 sm:row-start-1 sm:self-center sm:w-auto"
+                    onClick={runTerminalAction}
+                  >
                     {terminalNotice.actionLabel}
                   </button>
                 </div>
