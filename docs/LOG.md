@@ -5915,3 +5915,12 @@ CLI 命令(计数 40→42)、sessions cadence 投影、drive 降级 transport、
 G3/G39 修复划账、§8 重写为"批式驱动=内部实现"(E1 收敛完成)、timeline
 series 渲染+Apply winner、Scheduled canonical 行、schedule 双实现镜像
 销案、显式重开信号收敛。版本注记入 header。
+
+## INC-83 立项:生命周期动词全面拆除（2026-07-19,PLAN 6.0）
+
+用户裁决推翻 Phase 4 两概念收敛方向:close/stop/kill/interrupt 概念族
+全部撤出用户面——静止模型下会话没有生命周期,"每个停的需求都有比给
+会话盖章更对的归属"(工作纸 §三 对照表)。唯一手势=Stop 当前生成;
+goal/schedule/series/hook 各用领域动词终止;标记降为内部机制、旧
+journal 兼容读。工作纸 docs/increments/INC-83-no-lifecycle-verbs.md
+单独成文(PROCESS §四),实施按 PLAN 6.1–6.6 分轮。

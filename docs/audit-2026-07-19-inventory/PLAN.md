@@ -159,10 +159,10 @@
 (b) 停运行中的 loop/best-of-N=对系列落 cancelled 终态(领域内事实),
 不给会话盖章;(c) kill 只留模型内部工具,agent 自管子任务。
 
-- [ ] 6.0 INC-83 工作纸:不变量变更成文——决策 #30 的 close/kill 标记
-      重裁为纯内部机制(旧 journal 兼容读),用户面无生命周期词汇;
-      各自动唤醒源的"停"归位到源头(goal/schedule cancel、hook revoke、
-      series cancelled 终态)。
+- [x] 6.0 INC-83 工作纸——2026-07-19 成文(docs/increments/
+      INC-83-no-lifecycle-verbs.md):旧不变量(决策 #30 用户面部分)、
+      "每个停的需求的正确归属"对照表、新表述、波及面→6.1–6.6 映射、
+      契约自审(旧 journal 兼容读、thin-shell 不破、#31 不动)。
 - [ ] 6.1 series cancel 落地:运行中 series 的用户停止=SeriesEnded
       {cancelled}(替代 ar stop 对系列的作用);drive sweep 不再复活
       cancelled 系列;webui Scheduled 行操作改指此。
