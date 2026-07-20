@@ -735,6 +735,42 @@ func (s *Server) resumePendingCommandSessions(ctx context.Context) {
 	}
 }
 
+// rehostIfPendingInput closes the accept-vs-consume teardown gap (QA v2sim
+// L2-I1): an input accepted while its host was tearing down is pump-fed into
+// an inbox nobody reads again — the ack said "delivered", the command log
+// holds it durably, but no turn ever starts and nothing surfaces it until the
+// next daemon boot's pending-command sweep. A user's message must simply
+// become the next turn, so every host deregistration re-checks the session's
+// pending suffix and re-hosts iff an unconsumed user input is still there.
+// Only CommandInput triggers a re-host: an undeliverable approval answer or
+// stale control must not resurrect a session in a loop. Explicitness follows
+// the dangling input's own source class (决策 #30), so automatic mail still
+// cannot reopen a close-marked session, and a prior failed resume
+// (s.failed) stops retry storms.
+func (s *Server) rehostIfPendingInput(ctx context.Context, id string) {
+	if ctx.Err() != nil || s.PendingCommands == nil || s.Resume == nil {
+		return
+	}
+	s.mu.Lock()
+	skip := s.stopping || s.failed[id]
+	s.mu.Unlock()
+	if skip {
+		return
+	}
+	pending, err := s.PendingCommands(id)
+	if err != nil {
+		return
+	}
+	for _, cmd := range pending {
+		if cmd.Kind == protocol.CommandInput && cmd.Input != nil {
+			slog.Info("daemon: rehosting session for input accepted during teardown",
+				"session", id, "command_id", cmd.CommandID)
+			s.hostResume(ctx, id, protocol.UserClassSource(cmd.Input.Source))
+			return
+		}
+	}
+}
+
 // bootSweepDrives is the drive half of the boot sweep (INC-54, G22): a
 // one-shot startup pass that re-hosts every loop-mode drive the last daemon
 // left running, so cron/interval series survive a restart instead of dying
@@ -805,6 +841,7 @@ func (s *Server) hostResumeDrive(ctx context.Context, id string) {
 			s.mu.Lock()
 			delete(s.runs, id)
 			s.mu.Unlock()
+			s.rehostIfPendingInput(ctx, id)
 		}()
 		defer hub.finish()
 		if err := s.ResumeDrive(runCtx, DriveRequest{SessionID: id}, hub); err != nil {
@@ -1613,6 +1650,7 @@ func (s *Server) handleRun(ctx context.Context, cmd Command, enc *json.Encoder) 
 			s.mu.Lock()
 			delete(s.runs, id)
 			s.mu.Unlock()
+			s.rehostIfPendingInput(ctx, id)
 		}()
 		defer hub.finish()
 		if err := s.Run(runCtx, RunRequest{
@@ -1685,6 +1723,7 @@ func (s *Server) handleDrive(ctx context.Context, cmd Command, enc *json.Encoder
 			s.mu.Lock()
 			delete(s.runs, id)
 			s.mu.Unlock()
+			s.rehostIfPendingInput(ctx, id)
 		}()
 		defer hub.finish()
 		if err := s.Drive(runCtx, DriveRequest{

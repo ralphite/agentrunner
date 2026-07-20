@@ -113,6 +113,7 @@ func (s *Server) hostResumeCommandLocked(ctx context.Context, id string, explici
 			s.mu.Lock()
 			delete(s.runs, id)
 			s.mu.Unlock()
+			s.rehostIfPendingInput(ctx, id)
 		}()
 		defer hub.finish()
 		if err := s.Resume(runCtx, ResumeRequest{
