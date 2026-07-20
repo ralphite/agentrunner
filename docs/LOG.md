@@ -5945,3 +5945,16 @@ kill 可全删,stop 留作 series-cancel transport)。interrupt help 改写:
 "Stop what it's doing right now (a no-op at idle). Nothing is ever
 closed"。指路文案清词:stuckHint 不再说 ended/close,barrier 锁提示
 不再指 `ar stop`。TestPositionalCommandsHonorHelpFlag 钉住 -h 安全。
+
+## PLAN 6.3 webui 概念面清除（2026-07-19,INC-83）
+
+删除:SessionView `…` 菜单 "Close session…"、"Stop active run"(改为
+唯一手势 Stop=interrupt)、"Lifecycle" 菜单组改 "Run";closed 提示语
+改"idle — send a message to continue";SupervisionPanel Background
+kill 按钮与 onKillWork prop;Scheduled 行菜单 Close…/running-gated
+Stop 合并为 "Cancel series…"(确认弹窗→stop transport→系列自己的
+cancelled 终态,不再 running 限定——idle-between-ticks 也可取消)。
+AR client 删 closeSession/kill;webui 后端删 /close /kill 路由与
+handler(/stop 保留为 series-cancel transport 并改注)。四个钉旧菜单
+的 vitest 改写(Cancel 经 confirm 模态),599 全绿。ar close/ar kill
+自此零消费方,全删并入 6.5。

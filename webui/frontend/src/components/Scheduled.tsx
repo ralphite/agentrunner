@@ -423,7 +423,7 @@ export function Scheduled() {
   // schedule ("Needs recovery", in amber, since SC-10) and then do nothing about
   // it: every item in the row menu was housekeeping (pin / rename / archive /
   // copy). The daemon calls that fix a series already exist and SessionView
-  // already makes them (AR.resume / retry / stopSession / closeSession); they
+  // already makes them (AR.resume / retry / stopSession); they
   // were simply unreachable from the one screen that names the problem. Same call
   // shapes as SessionView.tsx's `act`, plus a list refresh so the row's state
   // catches up with what you just did to it.
@@ -450,25 +450,16 @@ export function Scheduled() {
         toast(e.message);
       }
     },
-    stop: async (sid: string) => {
-      try {
-        await AR.stopSession(sid);
-        toast("stop requested", "info");
-        setTimeout(refreshSessions, 800);
-      } catch (e: any) {
-        toast(e.message);
-      }
-    },
-    close: (sid: string) => {
+    cancel: (sid: string) => {
       openModal({
         kind: "confirm",
-        title: "Close session?",
-        body: "This ends the schedule's conversation and marks it closed. Sending a new message later will reopen it.",
-        confirmLabel: "Close session",
+        title: "Cancel this series?",
+        body: "No more iterations will run. The series records its own cancelled terminal; the work already done stays on disk.",
+        confirmLabel: "Cancel series",
         danger: true,
         onConfirm: async () => {
-          await AR.closeSession(sid);
-          toast("session closed", "info");
+          await AR.stopSession(sid);
+          toast("cancelling the series", "info");
           setTimeout(refreshSessions, 800);
         },
       });
@@ -757,22 +748,19 @@ export function Scheduled() {
               a menu of no-ops is worse than no menu. */}
           {menuRow.kind === "session" ? (
             <>
-              {/* SC-17 — the actions that act on the SCHEDULE itself, above the
-                  housekeeping. Each one is offered only where it means something:
-                  Resume only to a series that is actually broken (a limit-reached
-                  row is finished, not stranded — SC-16), Stop only to one that is
-                  executing this second, Retry / Close only while there is still a
-                  live conversation to retry or close. */}
+              {/* SC-17/INC-83 — the actions act on the SERIES itself, above the
+                  housekeeping: Resume only for a genuinely broken series,
+                  Retry while there is a live series to retry, and Cancel — the
+                  series' own domain terminal, not a session lifecycle verb. */}
               {menuRow.recover && <MenuItem onClick={() => void act.resume(menuRow.id)}>Resume</MenuItem>}
-              {menuRow.running && <MenuItem onClick={() => void act.stop(menuRow.id)}>Stop</MenuItem>}
               {!menuRow.settled && <MenuItem onClick={() => void act.retry(menuRow.id)}>Retry</MenuItem>}
               {!menuRow.settled && (
                 <MenuItem
                   danger
-                  title="end this schedule's conversation and mark it closed; a later send reopens it"
-                  onClick={() => act.close(menuRow.id)}
+                  title="no more iterations; the series records its cancelled terminal"
+                  onClick={() => act.cancel(menuRow.id)}
                 >
-                  Close…
+                  Cancel series…
                 </MenuItem>
               )}
               <MenuLabel>Organize</MenuLabel>

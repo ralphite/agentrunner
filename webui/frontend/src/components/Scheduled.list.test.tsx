@@ -426,12 +426,12 @@ describe("a scheduled row can be acted on (SC-12)", () => {
     const menu = container.querySelector(".ctx-menu")!;
     expect(menu).toBeTruthy();
     const items = [...menu.querySelectorAll("[role='menuitem']")].map((e) => e.textContent);
-    // SC-17: the schedule's own lifecycle leads; the housekeeping follows. This
-    // row is healthy and idle between ticks, so there is nothing to resume and
-    // nothing to stop — but it can still be retried or closed.
+    // SC-17/INC-83: the series' own actions lead; the housekeeping follows.
+    // This row is healthy and idle between ticks, so there is nothing to
+    // resume — but it can still be retried or cancelled (its own terminal).
     expect(items).toEqual([
       "Retry",
-      "Close…",
+      "Cancel series…",
       "Pin",
       "Rename…",
       "Mark as unread",
@@ -614,15 +614,15 @@ describe("a configured limit is a finish, not a failure (SC-16)", () => {
     fireEvent.contextMenu(screen.getByText("Ran its configured 20 iterations").closest(".scheduled-row-wrap")!);
     let items = [...container.querySelectorAll(".ctx-menu [role='menuitem']")].map((e) => e.textContent);
     expect(items).not.toContain("Resume");
-    // A terminal row has no live conversation to retry or close either.
+    // A terminal row has no live series to retry or cancel either.
     expect(items).not.toContain("Retry");
-    expect(items).not.toContain("Close…");
+    expect(items).not.toContain("Cancel series…");
 
     // The broken one does (SC-17).
     fireEvent.keyDown(document.body, { key: "Escape" });
     fireEvent.contextMenu(screen.getByText("Genuinely broken: host died").closest(".scheduled-row-wrap")!);
     items = [...container.querySelectorAll(".ctx-menu [role='menuitem']")].map((e) => e.textContent);
-    expect(items.slice(0, 3)).toEqual(["Resume", "Retry", "Close…"]);
+    expect(items.slice(0, 3)).toEqual(["Resume", "Retry", "Cancel series…"]);
   });
 });
 

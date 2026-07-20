@@ -593,34 +593,6 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
         toast(e.message);
       }
     },
-    stop: async () => {
-      try {
-        await AR.stopSession(sid);
-        toast("session stopped — send a message to revive it", "info");
-      } catch (e: any) {
-        toast(e.message);
-      }
-    },
-    close: async () => {
-      openModal({
-        kind: "confirm",
-        title: "Close session?",
-        body: "This ends the current conversation and marks it closed. Sending a new message later will reopen it.",
-        confirmLabel: "Close session",
-        danger: true,
-        onConfirm: async () => {
-          await AR.closeSession(sid);
-          toast("session closed", "info");
-        },
-      });
-    },
-    kill: async (handle: string) => {
-      try {
-        await AR.kill(sid, handle);
-      } catch (e: any) {
-        toast(e.message);
-      }
-    },
     barrier: async () => {
       try {
         const r = await AR.barrier(sid);
@@ -891,17 +863,10 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
               >
                 <Robot size={16} />Switch agent…
               </MenuItem>
-              <MenuLabel>Lifecycle</MenuLabel>
+              <MenuLabel>Run</MenuLabel>
               {canRetry && (bp.compact || bp.tablet) && <MenuItem onClick={act.retry}><ArrowClockwise size={16} />Retry last message</MenuItem>}
               {needsRecovery && <MenuItem onClick={act.resume}><ArrowClockwise size={16} />Resume session</MenuItem>}
-              {running && <MenuItem onClick={act.stop}><Stop size={16} />Stop active run</MenuItem>}
-              <MenuItem
-                danger
-                title="gracefully end the conversation and mark it closed (ar close); a later send reopens it"
-                onClick={act.close}
-              >
-                <XCircle size={16} />Close session…
-              </MenuItem>
+              {running && <MenuItem onClick={act.interrupt}><Stop size={16} />Stop</MenuItem>}
             </>
           )}
         </Menu>
@@ -1090,7 +1055,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
                 </div>
               ) : null}
               {!isSub && !isDriver && isClosed && (
-                <div className="driver-note">This conversation is closed — sending a message will reopen it.</div>
+                <div className="driver-note">This conversation is idle — send a message to continue it.</div>
               )}
               {!isSub && askQuestions.length > 0 && (
                 <AskForm questions={askQuestions} onSubmit={answerAsk} onSkip={skipAsk} />
@@ -1188,7 +1153,6 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
                 .catch((error) => toast(error.message))}
             onGoalAction={(action) => AR.goal(sid, { action }).then(() => pollInspect()).catch((error) => toast(error.message))}
             onOpenChild={(childSid) => select(childSid)}
-            onKillWork={act.kill}
             onInspect={() => AR.inspect(sid).then((data) => openModal({
               kind: "inspect",
               data,

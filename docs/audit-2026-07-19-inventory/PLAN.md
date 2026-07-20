@@ -171,9 +171,11 @@
       (物理保留为内部 transport,-h 安全性质保留);interrupt help=唯一
       手势措辞;stuckHint/barrier 指路清词。webui 迁移(6.3)后 close/
       kill 全删、stop 留 series-cancel transport(并入 6.5 收敛)。
-- [ ] 6.3 webui 删除:Close session 菜单项、Background work 区 kill
-      按钮、closed/stopped/killed 状态词汇(列表/会话页/终局提示);
-      Stop 按钮=打断当前生成(已有语义,文案统一)。
+- [x] 6.3 webui 概念面清除——2026-07-19:Close session 菜单/Background
+      kill 按钮删,菜单 Stop=interrupt 唯一手势,Scheduled 行动词=
+      "Cancel series…"(域内终态,不再 running 限定);/close /kill 路由
+      与 AR client 方法删;closed 提示语改中性;vitest 599 绿。状态
+      词汇(closed/stopped)的投影清词归 6.4。
 - [ ] 6.4 状态投影清词:sessions/inspect 不再输出 closed/stopped/
       killed(旧 journal 的标记折出统一的中性形态,如 waiting:input);
       Quiescence reason 词汇同步;hook ingress 410 门重裁(hook revoke

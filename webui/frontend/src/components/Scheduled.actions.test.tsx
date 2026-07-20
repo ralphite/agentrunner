@@ -11,17 +11,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 // vi.mock is hoisted above the imports, so the spies have to be too.
-const { resume, retry, stopSession, closeSession, stopRun } = vi.hoisted(() => ({
+const { resume, retry, stopSession, stopRun } = vi.hoisted(() => ({
   resume: vi.fn(async () => ({})),
   retry: vi.fn(async () => ({})),
   stopSession: vi.fn(async () => ({})),
-  closeSession: vi.fn(async () => ({})),
   stopRun: vi.fn(async () => ({})),
 }));
 
 vi.mock("../api", async () => ({
   ...(await vi.importActual<typeof import("../api")>("../api")),
-  AR: { resume, retry, stopSession, closeSession, stopRun },
+  AR: { resume, retry, stopSession, stopRun },
 }));
 
 import { Scheduled } from "./Scheduled";
@@ -30,7 +29,7 @@ import type { Session } from "../types";
 
 afterEach(cleanup);
 beforeEach(() => {
-  [resume, retry, stopSession, closeSession, stopRun].forEach((f) => f.mockClear());
+  [resume, retry, stopSession, stopRun].forEach((f) => f.mockClear());
 });
 
 const sessions: Session[] = [
@@ -89,32 +88,21 @@ describe("the row menu can act on the schedule, not just tidy it (SC-17)", () =>
     expect(retry).toHaveBeenCalledWith("20250101-100000-stranded");
   });
 
-  it("stops the series that is actually executing — and only that one", () => {
+  it("cancels a live series through the confirm modal — the series' own domain terminal (INC-83)", async () => {
     const { container } = mount();
-    menuFor("Broken: the host died mid-tick");
-    let items = [...container.querySelectorAll(".ctx-menu [role='menuitem']")].map((e) => e.textContent);
-    expect(items).not.toContain("Stop"); // nothing is running on a dead series
-
-    fireEvent.keyDown(document.body, { key: "Escape" });
     menuFor("Live: an iteration is executing");
-    items = [...container.querySelectorAll(".ctx-menu [role='menuitem']")].map((e) => e.textContent);
-    expect(items).not.toContain("Resume"); // …and a healthy running series has nothing to recover
-    fireEvent.click(screen.getByRole("menuitem", { name: "Stop" }));
-    expect(stopSession).toHaveBeenCalledWith("20250101-090000-running");
-  });
+    const items = [...container.querySelectorAll(".ctx-menu [role='menuitem']")].map((e) => e.textContent);
+    expect(items).not.toContain("Resume"); // a healthy running series has nothing to recover
+    expect(items).not.toContain("Close…"); // no session lifecycle verbs on this page
+    fireEvent.click(screen.getByRole("menuitem", { name: "Cancel series…" }));
 
-  it("asks before closing — Close is destructive, so it goes through the confirm modal", async () => {
-    mount();
-    menuFor("Live: an iteration is executing");
-    fireEvent.click(screen.getByRole("menuitem", { name: "Close…" }));
-
-    // Nothing is closed yet: the modal is.
-    expect(closeSession).not.toHaveBeenCalled();
+    // Nothing is cancelled yet: the modal is up.
+    expect(stopSession).not.toHaveBeenCalled();
     const modal = useStore.getState().modal;
     expect(modal?.kind).toBe("confirm");
 
     await (modal as { onConfirm: () => Promise<void> }).onConfirm();
-    expect(closeSession).toHaveBeenCalledWith("20250101-090000-running");
+    expect(stopSession).toHaveBeenCalledWith("20250101-090000-running");
   });
 });
 

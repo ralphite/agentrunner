@@ -214,7 +214,8 @@ export const AR = {
   // Queued-message management (INC-46/47.2).
   queue: (sid: string) => api<{ command_id: string; text: string; revoked: boolean }[]>(`/sessions/${sid}/queue`),
   unqueue: (sid: string, commandId: string) => post(`/sessions/${sid}/unqueue`, { commandId }),
-  closeSession: (sid: string) => post(`/sessions/${sid}/close`),
+  // stopSession is the series-cancel transport (INC-83): the running series
+  // lands its own SeriesEnded{cancelled} terminal; no session lifecycle verb.
   stopSession: (sid: string) => post(`/sessions/${sid}/stop`),
   compact: (sid: string, directive = "") =>
     post(`/sessions/${sid}/compact`, directive.trim() ? { directive } : {}),
@@ -224,7 +225,6 @@ export const AR = {
   promote: (sid: string) => post<{ status: string }>(`/sessions/${sid}/promote`),
   goal: (sid: string, b: { action: "attach" | "update" | "pause" | "resume" | "cancel"; goal?: string; verifier?: string; maxChecks?: number }) =>
     post(`/sessions/${sid}/goal`, b),
-  kill: (sid: string, handle: string) => post(`/sessions/${sid}/kill`, { handle }),
   approve: (sid: string, approvalId: string, decision: "approve" | "deny", reason: string, always = false) =>
     post(`/sessions/${sid}/approve`, { approvalId, decision, reason, always }),
   switchAgent: (sid: string, spec: string, extraSpecs: SpecFile[]) =>

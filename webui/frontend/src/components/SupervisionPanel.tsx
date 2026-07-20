@@ -202,7 +202,6 @@ export function SupervisionPanel({
   onGoalAction,
   onOpenArtifact,
   onOpenChild,
-  onKillWork,
   onInspect,
   onClose,
 }: {
@@ -240,7 +239,6 @@ export function SupervisionPanel({
   onGoalAction: (action: "pause" | "resume" | "cancel") => void;
   onOpenArtifact: (stream: string, version: number) => void;
   onOpenChild: (sid: string) => void;
-  onKillWork: (handle: string) => void;
   onInspect: () => void;
   onClose: () => void;
 }) {
@@ -303,7 +301,7 @@ export function SupervisionPanel({
             <div className="background-row" key={work.handle}>
               <span className="status-dot run" />
               <span title={work.detail || work.handle}>{backgroundLabel(work)}</span>
-              <button title="Stop this background work (ar kill)" onClick={() => onKillWork(work.handle)}><X size={13} /></button>
+
             </div>
           ))}
         </section>

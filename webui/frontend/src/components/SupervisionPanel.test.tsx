@@ -55,7 +55,6 @@ function panelTree(over: Partial<React.ComponentProps<typeof SupervisionPanel>> 
         onGoalAction={noop}
         onOpenArtifact={noop}
         onOpenChild={noop}
-        onKillWork={noop}
         onInspect={noop}
         onClose={noop}
         {...over}

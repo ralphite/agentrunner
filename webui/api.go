@@ -76,9 +76,9 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/sessions/{sid}/answer", s.handleAnswer)
 	mux.HandleFunc("GET /api/sessions/{sid}/queue", s.handleQueue)
 	mux.HandleFunc("POST /api/sessions/{sid}/unqueue", s.handleUnqueue)
-	mux.HandleFunc("POST /api/sessions/{sid}/close", s.handleClose)
+	// INC-83: /stop is the series-cancel transport; /close and /kill died
+	// with the lifecycle-verb face.
 	mux.HandleFunc("POST /api/sessions/{sid}/stop", s.handleStop)
-	mux.HandleFunc("POST /api/sessions/{sid}/kill", s.handleKill)
 	mux.HandleFunc("POST /api/sessions/{sid}/approve", s.handleApprove)
 	mux.HandleFunc("POST /api/sessions/{sid}/agent", s.handleAgentSwitch)
 	mux.HandleFunc("POST /api/sessions/{sid}/fork", s.handleFork)
@@ -1310,37 +1310,11 @@ func decodeRetryHead(payload json.RawMessage) driverRetryInfo {
 	return driverRetryInfo{name: started.SpecName, workspace: started.WorkspaceRoot, spec: &spec}
 }
 
-// handleClose ends a session for good (ar close); handleStop tears down its
-// hosted run but keeps it revivable — a later send brings it back (ar stop).
-func (s *server) handleClose(w http.ResponseWriter, r *http.Request) {
-	s.oneShotHandler("ar close", func(id string) []string { return []string{"close", id} })(w, r)
-}
-
+// handleStop cancels a running scheduled series (INC-83): the hosted series
+// tears down and records its own SeriesEnded{cancelled} domain terminal —
+// there is no session lifecycle verb behind this.
 func (s *server) handleStop(w http.ResponseWriter, r *http.Request) {
 	s.oneShotHandler("ar stop", func(id string) []string { return []string{"stop", id} })(w, r)
-}
-
-func (s *server) handleKill(w http.ResponseWriter, r *http.Request) {
-	id, ok := sid(w, r)
-	if !ok {
-		return
-	}
-	var req struct {
-		Handle string `json:"handle"`
-	}
-	if !readBody(w, r, &req) {
-		return
-	}
-	if !validID(req.Handle) {
-		badRequest(w, "invalid handle")
-		return
-	}
-	res := s.runAR(r.Context(), oneShotTimeout, "kill", id, req.Handle)
-	if res.Err != nil {
-		arFail(w, "ar kill", res)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": strings.TrimSpace(res.Stdout)})
 }
 
 func (s *server) handleApprove(w http.ResponseWriter, r *http.Request) {
