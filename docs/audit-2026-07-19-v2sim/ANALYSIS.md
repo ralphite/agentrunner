@@ -257,3 +257,57 @@ Code 的两处形态差距。
   daemon/webui log+sub journal)会自动传到 release,供 events 级
   深挖。
 - 驱动过程报告:本目录 L1/L2/L2b/L3/L4/L5-report.md。
+
+---
+
+## 附录 A · 探索轮(2026-07-20,用户 iPhone 实测触发)
+
+用户随手点开 anchor 会话即命中一个 v2sim 剧本没写到的死局,由此追加
+的主动探索轮(qa-remote-loop 纪律,issue #31/#32):
+
+### 新发现与修复
+
+- **X-1(P1,已修 `0c359d9`)goal 耗尽假冒会话终态**:list 状态
+  `goal_budget_exhausted`(Quiescence ivan-08 有意持久化)被前端子串
+  匹配 "budget" 误标为 "Budget limit reached" 会话终态卡——而
+  `/state` 是 `waiting:input`,会话完全可聊。修:goal_* 不产
+  terminal notice,GoalBanner stopped 相接手;pill 改标
+  "Goal stopped — check budget"。红转绿(run 29710233373):同一
+  会话 terminalAlert=null、gbar 整行、composer 可用、真消息续聊成功
+  (gen93 正常回复,状态回 waiting:input)。
+- **X-2(P1,登记 INC-84)"Continue in new session" 复制死局**:
+  fork 全量继承 exhausted goal,子会话立即恢复病态 verify 循环
+  (实测两个 fork 子会话 running、烧真 token),并顶同样假终态——
+  逃生口原地生成同一死局。子会话已 interrupt 止血。
+- **X-3(P2,已修同 commit)非 resume 终态卡移动端塌陷**:flex 行
+  内 intrinsic 宽按钮+meta 把正文列压到实测 **4px**(一词一行、
+  标题叠 meta);统一为 resume 变体响应式 grid。
+- **X-4(P1 候选,登记 INC-84)goal 类 one-shot HTTP 挂死**:
+  approve goal-verify(L1-I5)与 goal cancel(本轮 n5)两次独立
+  把无超时客户端卡死——60s ctx 超时未兑现,根因待查,是 QA 通道
+  两次 stall 的真凶。
+- **X-5(定性修正)**:L4-I3 的 "no-op unless a goal is attached"
+  实为 daemon 固定回执文案,不反映 pause 真实结果;真缺陷是
+  **pause 不可观测且不跨 daemon 重启**(00:13 verify re-fire 铁证)。
+
+### 38 会话全量对账(list ↔ state,修复版环境)
+
+- goal 家族:`goal_budget_exhausted`×2(anchor 与 07-19 早
+  `…095036`——老数据同踩,证明陷阱非本轮特例)、`goal_satisfied`×3,
+  state 均 waiting:input——修复后 UI 标签已诚实。
+- **X-6(P2,登记)状态双推导不一致**:`…113408-fork-bar-t10`
+  list=stranded↔state=running;`20260715-…fork-bar-final`
+  list=completed↔state=running;`…053844-progress-loop`
+  list=running 而 state 返回异常。共性=journal 中断(run 取消时
+  kill)后 list 侧(registry/sweep)与 state 侧(fold)口径分叉,
+  与 L3-I2 同族,归 M5 可观测性批。
+- **X-7(P2,登记)孤儿审批**:`…081316` waiting:approval 挂
+  17h+ 无人接——审批无超时/无提醒面。
+- 其余 31 会话 list=state=waiting:input,一致。
+
+### 对 QA 方法论的修正(为什么剧本轮没抓到 X-1)
+
+v2sim 只跑了剧本内交互,收尾时没有"以小白视角把每个会话再点开一遍"
+的巡检步。已沉淀为规则:**每轮 QA 收尾必做全会话 list↔state 对账 +
+逐会话 UI 打开抽查(含移动视口)**——本次 38 会话对账即该规则的
+首次执行,一次就多抓 X-6/X-7。
