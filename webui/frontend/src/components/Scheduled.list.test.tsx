@@ -10,6 +10,7 @@ vi.mock("../api", async () => ({
 }));
 
 import { Scheduled, hasRhythm, isLimitStatus } from "./Scheduled";
+import { scheduledTitle } from "../scheduledTitle";
 import { useStore } from "../store";
 import type { Run, Session } from "../types";
 
@@ -406,14 +407,23 @@ const mountRich = (over: Partial<StoreState> = {}) => {
   return render(<Scheduled />);
 };
 
-describe("a row title uses available mobile width before truncating", () => {
-  it("renders the full source title and lets the two-line layout clamp it responsively", () => {
+describe("a row shows the derived name on one line (SC-13), not the raw prompt", () => {
+  it("renders the short scheduledTitle name, single-line, never the whole paragraph", () => {
     const { container } = mountRich();
     const row = container.querySelector(".scheduled-row")!;
-    const shown = row.querySelector(".scheduled-copy b")!.textContent!;
+    const b = row.querySelector(".scheduled-copy b")!;
+    const shown = b.textContent!;
 
-    expect(shown).toBe(promptTitled[0].title);
-    expect(row.querySelector(".scheduled-copy b")?.getAttribute("style")).toContain("line-clamp: 2");
+    // The row SHOWS the derived NAME — first clause, tooling tail stripped — the
+    // way Codex names its rows in a few words, not the whole instruction prompt.
+    expect(shown).toBe(scheduledTitle(promptTitled[0].title!, promptTitled[0].id));
+    expect(shown).not.toBe(promptTitled[0].title);
+    expect(shown).not.toContain("(use write_file or bash)");
+
+    // One line — clamped by `truncate` (ellipsis), never the two-line paragraph
+    // wall SC-13 exists to prevent.
+    expect(b.className).toContain("truncate");
+    expect(b.getAttribute("style") || "").not.toContain("line-clamp");
 
     // Nothing is hidden: the raw prompt is the row's tooltip…
     expect(row.getAttribute("title")).toContain("(use write_file or bash)");

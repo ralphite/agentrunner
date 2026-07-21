@@ -142,8 +142,7 @@ interface SchedRow {
   key: string;
   id: string; // the store id this row is about (session id / run id)
   kind: "session" | "run"; // which of the two things it is — decides its actions (SC-12)
-  title: string; // SC-13: the derived NAME (short, scannable); never the whole prompt
-  displayTitle: string; // responsive row copy; unlike the menu name, it is not pre-truncated
+  title: string; // SC-13: the derived NAME (short, scannable); never the whole prompt — this is what the row SHOWS
   full: string; // the raw label/prompt — the tooltip, and what search reads
   cadence: string; // the rhythm: "Every 30m" / "Saturdays at 4:00 AM" / "Self-paced"
   when: string; // "Next run in 12m" when known, else the honest "Ran 1d ago"
@@ -258,7 +257,7 @@ export function Scheduled() {
     const row = (
       base: Omit<
         SchedRow,
-        "when" | "isNext" | "meta" | "active" | "alert" | "title" | "displayTitle" | "running" | "settled" | "recover"
+        "when" | "isNext" | "meta" | "active" | "alert" | "title" | "running" | "settled" | "recover"
       >,
       nextRunAt: string | undefined,
       lastRan: Date | null,
@@ -278,11 +277,9 @@ export function Scheduled() {
       // raw text survives in `full`: it is the tooltip, and it is what search
       // reads, so shortening the label makes nothing unfindable.
       const custom = (renames[base.id] || "").trim();
-      const full = base.full.replace(/\s+/g, " ").trim();
       return {
         ...base,
         title: custom || scheduledTitle(base.full, base.id),
-        displayTitle: custom || full || base.id,
         when,
         isNext: !!next,
         alert,
@@ -662,17 +659,15 @@ export function Scheduled() {
                 {glyphFor(r)}
               </span>
               <span className="scheduled-copy flex min-w-0 flex-col gap-0.5">
-                <b
-                  className="min-w-0 break-words leading-5 font-semibold"
-                  style={{
-                    display: "-webkit-box",
-                    WebkitBoxOrient: "vertical",
-                    WebkitLineClamp: 2,
-                    overflow: "hidden",
-                  }}
-                >
-                  {r.displayTitle}
-                </b>
+                {/* SC-13 — the row shows the derived NAME (short, scannable), one
+                    line, exactly as its own title= comment and scheduledTitle.ts
+                    promise. Codex names rows in 2–4 words on a single line; the
+                    raw prompt stays one hover away (title=) and fully searchable.
+                    A brief detour rendered the un-truncated prompt across two
+                    clamped lines ("use available mobile width"), which reproduced
+                    the very paragraph-wall SC-13 was built to prevent — near-
+                    identical rows could not be told apart at a glance. */}
+                <b className="min-w-0 truncate leading-5 font-semibold">{r.title}</b>
                 <span
                   className="sched-sub block min-w-0 truncate leading-4"
                   title={[r.cadence, r.alert || r.when].filter(Boolean).join(" · ")}
