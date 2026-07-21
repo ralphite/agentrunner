@@ -545,7 +545,14 @@
   .act-count { @apply ml-auto shrink-0; }
   .act-ic, .step-ic, .cx-activity-ic { @apply mt-[2px] text-dim; }
   .act-count, .step-tag, .step-tok { @apply rounded-full bg-panel-2 px-[6px] py-[1px] text-[11px] text-dim; }
-  .tl-empty { @apply mx-auto mt-16 max-w-[420px] text-center text-dim; }
+  /* R41 EMPTY-STACK: this used to be `text-center` only — no flex/grid — so its
+     icon · <b> title · <span> sub · action ran together on one inline line
+     ("Session not foundNo session matches…" with the CTA jammed mid-sentence).
+     Mirror the proven-good sibling `.empty-state` (grid · justify-items-center ·
+     gap) so both the timeline-empty and the session-not-found states stack as
+     Codex's empty states do. `.tl-empty b` darkens the title like `.empty-state b`. */
+  .tl-empty { @apply mx-auto mt-16 grid max-w-[420px] justify-items-center gap-1.5 text-center text-dim; }
+  .tl-empty b { @apply text-[14px] text-ink; }
   .tl-empty-cta { @apply mt-4; }
   .typing { @apply text-dim; }
   /* 用户消息按原样保留换行(QA-0719 S6:粘贴的 traceback 各行被折叠成
@@ -804,11 +811,18 @@
   .empty-state b { @apply text-[14px] text-ink; }
   .sched-suggestions-title { @apply mt-6 mb-2 text-[12px] font-semibold tracking-[0.04em] text-dim uppercase; }
   .sched-suggest-title { @apply text-[14px] font-semibold; }
-  .sched-toolbar { @apply mb-4 flex flex-wrap items-center gap-2; }
-  .sched-search { @apply min-w-[220px] flex-1; }
-  .sched-tabs, .sched-filters { @apply flex flex-wrap gap-2; }
-  .sched-tab { @apply rounded-full border border-line bg-panel px-3 py-[6px] text-[12px]; }
-  .sched-tab.on { @apply border-blue bg-blue-soft text-blue; }
+  /* R41 SCHED-TABS: match Codex's Scheduled toolbar. Codex stacks the search on
+     its own full-width row, then a filters row with the text tabs left and
+     "Mark all as read" right (was: one flex-wrap row, search flex-1, tabs to
+     its right). The tabs themselves were loud bordered pills with a blue active
+     fill; Codex uses plain text tabs — inactive is muted, active is a soft
+     neutral (panel-2) pill with ink text, no border, no blue. */
+  .sched-toolbar { @apply mb-4 flex flex-col gap-3; }
+  .sched-search { @apply w-full min-w-[220px]; }
+  .sched-filters { @apply flex items-center justify-between gap-2; }
+  .sched-tabs { @apply flex items-center gap-1; }
+  .sched-tab { @apply rounded-md border-0 bg-transparent px-2.5 py-1 text-[13px] font-normal text-ink-2 shadow-none transition-colors duration-100 hover:bg-panel-2 hover:text-ink hover:shadow-none; }
+  .sched-tab.on { @apply bg-panel-2 font-medium text-ink hover:bg-panel-2; }
   .scheduled-list, .sched-suggestions { @apply flex flex-col; }
   /* Codex parity: rows are a compact, flat, divided list — no per-row card
      (border/rounded/bg dropped), rows split by a 1px rule, tighter padding,
@@ -821,7 +835,10 @@
   .scheduled-copy, .sched-suggest-body { @apply min-w-0 flex-1; }
   .sched-sub, .sched-trail, .sched-cadence, .sched-suggest-desc, .sched-suggest-cadence, .sched-warn { @apply text-[12px] text-dim; }
   .sched-unread { @apply bg-blue; }
-  .sched-markread, .sched-more { @apply shrink-0; }
+  .sched-more { @apply shrink-0; }
+  /* R41: Codex renders "✓ Mark all as read" as plain muted text, not a button
+     pill — strip the base button chrome (border/bg/shadow). */
+  .sched-markread { @apply flex shrink-0 items-center gap-1 border-0 bg-transparent px-1 py-1 text-[13px] text-dim shadow-none transition-colors duration-100 hover:bg-transparent hover:text-ink hover:shadow-none; }
 
   .modal { @apply w-full max-w-[560px] overflow-hidden rounded-[14px] border border-line bg-panel shadow-lg; }
   .mhead, .mfoot { @apply flex items-center justify-between gap-2 border-b border-line px-4 py-3; }
