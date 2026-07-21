@@ -240,10 +240,10 @@ export const AR = {
     post<{ status: string; branch: string }>(`/git/checkout`, { dir, branch, create }),
 
   // Project overlay + system launcher (INC-53, HANDA #24). projects returns the
-  // workspace-keyed cosmetic overlay; updateProject patches display name/fold;
+  // workspace-keyed cosmetic overlay; updateProject patches presentation;
   // openIn launches a whitelisted system app on a known workspace directory.
   projects: () => api<Record<string, ProjectMeta>>("/projects"),
-  updateProject: (workspace: string, patch: { displayName?: string; folded?: boolean }) =>
+  updateProject: (workspace: string, patch: { displayName?: string; folded?: boolean; pinned?: boolean; removed?: boolean }) =>
     post<Record<string, ProjectMeta>>("/projects", { workspace, ...patch }),
   openIn: (workspace: string, app: LauncherApp) =>
     post<{ status: string }>("/open", { workspace, app }),

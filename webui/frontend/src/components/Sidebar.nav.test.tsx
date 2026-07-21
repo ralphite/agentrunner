@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 // The sidebar hits /health and /git on mount; nothing here depends on those, so
 // stub the module with never-settling promises (same pattern as loadingStates).
@@ -304,6 +304,102 @@ describe("project group icon is always a closed folder (SIDEBAR-FOLDER-ICON)", (
     expect(expanded.querySelector(".proj-caret.open")).toBeTruthy();
     expect(collapsed.querySelector(".proj-caret.open")).toBeNull();
     expect(collapsed.querySelector(".proj-caret")).toBeTruthy();
+  });
+});
+
+describe("project hover and management controls (INC-87)", () => {
+  const projectSessions = [
+    { id: "20260721-120000-app", status: "idle", turns: 2, title: "App chat", workspace: "/repo/app" },
+    { id: "20260720-120000-app", status: "idle", turns: 1, title: "Older app chat", workspace: "/repo/app" },
+    { id: "20260719-120000-lib", status: "idle", turns: 1, title: "Lib chat", workspace: "/repo/lib" },
+  ];
+
+  const mount = (over: Record<string, any> = {}) => {
+    useStore.setState({
+      sessions: projectSessions as any,
+      sessionsReady: true,
+      currentSid: null,
+      archived: [],
+      pinned: [],
+      unread: [],
+      renames: {},
+      projects: {},
+      modal: null,
+      prompt: null,
+      toggleProjectFolded: vi.fn(),
+      toggleProjectPinned: vi.fn(),
+      setProjectRemoved: vi.fn(),
+      openModal: (modal: any) => useStore.setState({ modal }),
+      openPrompt: (prompt: any) => useStore.setState({ prompt }),
+      ...over,
+    });
+    return render(<Sidebar />);
+  };
+
+  afterEach(() => localStorage.clear());
+
+  it("shows project summary plus menu and rename controls on the heading row", () => {
+    const { container } = mount();
+    const app = [...container.querySelectorAll(".project-group")].find((group) => group.textContent?.includes("App chat"))!;
+    fireEvent.mouseEnter(app.querySelector(".project-heading-row")!);
+
+    const preview = container.querySelector(".project-preview")!;
+    expect(preview.textContent).toContain("app");
+    expect(preview.textContent).toContain("2 chats");
+    expect(preview.textContent).toContain("/repo/app");
+    expect(screen.getByRole("button", { name: "More actions for app" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Rename project app" })).toBeTruthy();
+  });
+
+  it("renders the six requested project actions from the visible menu trigger", () => {
+    mount();
+    fireEvent.click(screen.getByRole("button", { name: "More actions for app" }));
+    expect(screen.getAllByRole("menuitem").map((item) => item.textContent?.trim())).toEqual([
+      "Pin project",
+      "Reveal in Finder",
+      "Create permanent worktree",
+      "Rename project",
+      "Archive chats",
+      "Remove",
+    ]);
+  });
+
+  it("keeps pinned projects first while preserving recency inside each partition", () => {
+    const { container } = mount({ projects: { "/repo/lib": { pinned: true } } });
+    const headings = [...container.querySelectorAll(".project-heading")].map((heading) => heading.textContent?.trim());
+    expect(headings).toEqual(["lib", "app"]);
+  });
+
+  it("removes only the rail projection and offers an explicit restore path", async () => {
+    const setProjectRemoved = vi.fn(async (key: string, removed: boolean) => {
+      const current = useStore.getState().projects;
+      useStore.setState({ projects: { ...current, [key]: { ...current[key], removed } } });
+    });
+    const { container } = mount({ setProjectRemoved });
+    fireEvent.click(screen.getByRole("button", { name: "More actions for app" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Remove" }));
+
+    const modal = useStore.getState().modal;
+    expect(modal?.kind).toBe("confirm");
+    if (modal?.kind !== "confirm") throw new Error("confirm modal not opened");
+    expect(modal.body).toContain("chats, journal, and files stay intact");
+    await act(async () => { await modal.onConfirm(); });
+
+    expect(container.textContent).not.toContain("App chat");
+    expect(useStore.getState().sessions).toHaveLength(3);
+    fireEvent.click(screen.getByRole("button", { name: /Show removed projects/ }));
+    expect(container.textContent).toContain("App chat");
+    expect(screen.getByRole("button", { name: "More actions for app" })).toBeTruthy();
+  });
+
+  it("opens the existing worktree and rename prompt flows", () => {
+    mount();
+    fireEvent.click(screen.getByRole("button", { name: "More actions for app" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Create permanent worktree" }));
+    expect(useStore.getState().prompt?.title).toBe("Create permanent worktree");
+
+    fireEvent.click(screen.getByRole("button", { name: "Rename project app" }));
+    expect(useStore.getState().prompt?.title).toBe("Rename project");
   });
 });
 

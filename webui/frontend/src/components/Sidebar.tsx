@@ -3,13 +3,14 @@ import {
   Archive as ArchiveBox,
   ArrowSquareOut,
   CaretRight,
+  ChatCircle,
   Clock,
-  Code,
   DotsThree,
   Folder,
   FolderOpen,
   GearSix,
   GitBranch,
+  GitFork,
   type Icon,
   MagnifyingGlass,
   Monitor,
@@ -19,7 +20,6 @@ import {
   PushPin,
   Question,
   Sun,
-  Terminal,
   Tray,
   X,
 } from "@phosphor-icons/react";
@@ -38,6 +38,10 @@ import { keyLabel } from "../shortcuts";
 type SidebarContext =
   | { kind: "session"; x: number; y: number; sid: string }
   | { kind: "project"; x: number; y: number; key: string; label: string; workspace?: string; ids: string[] };
+
+type SidebarHover =
+  | { kind: "session"; sid: string; top: number }
+  | { kind: "project"; key: string; top: number };
 
 // SB-4 · Collapsed project groups, mirrored into localStorage.
 //
@@ -103,8 +107,11 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
     openHelp,
     projects,
     toggleProjectFolded,
+    toggleProjectPinned,
+    setProjectRemoved,
     openProjectIn,
     setProjectName,
+    openModal,
     openPrompt,
   } = useStore();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -112,10 +119,11 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
   // "show every project" escape hatch.
   const [collapsed, setCollapsed] = useState<Set<string>>(loadCollapsedProjects);
   const [showAllProjects, setShowAllProjects] = useState(false);
+  const [showRemovedProjects, setShowRemovedProjects] = useState(false);
   // The flat Sessions section has its own show-all toggle.
   const [showAllSessions, setShowAllSessions] = useState(false);
   const [ctx, setCtx] = useState<SidebarContext | null>(null);
-  const [hoverPreview, setHoverPreview] = useState<{ sid: string; top: number } | null>(null);
+  const [hoverPreview, setHoverPreview] = useState<SidebarHover | null>(null);
   const [branchByWorkspace, setBranchByWorkspace] = useState<Record<string, string>>({});
 
   // RH-5: the sidebar no longer filters itself. Search is the ⌘K palette —
@@ -135,15 +143,25 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
   const archivedCount = sessions.filter((session) => archived.includes(session.id)).length;
   const runningRuns = runs.filter((run) => run.status === "running").length;
   const schedUnread = scheduledUnread(sessions, unread);
+  // Pinning is a stable presentation sort within Projects. Removed projects
+  // stay in the journal-derived model (and in search) but leave this rail until
+  // the explicit recovery row reveals them.
+  const orderedProjects = useMemo(() => {
+    const visible = model.projects.filter((project) => showRemovedProjects || !projects[project.key]?.removed);
+    return [...visible].sort(
+      (a, b) => Number(!!projects[b.key]?.pinned) - Number(!!projects[a.key]?.pinned),
+    );
+  }, [model.projects, projects, showRemovedProjects]);
+  const removedProjectCount = model.projects.filter((project) => projects[project.key]?.removed).length;
   const orderedIds = useMemo(
     () => [
       ...model.pinned.map((session) => session.id),
-      ...model.projects.flatMap((project) => project.sessions.map((session) => session.id)),
+      ...orderedProjects.flatMap((project) => project.sessions.map((session) => session.id)),
       // The flat Sessions section is part of the rail, so it is part of the
       // rail's keyboard order too — it sits last, exactly where it renders.
       ...model.workspaceLessSessions.map((session) => session.id),
     ],
-    [model],
+    [model.pinned, model.workspaceLessSessions, orderedProjects],
   );
   useEffect(() => setVisibleOrder(orderedIds), [orderedIds, setVisibleOrder]);
 
@@ -165,8 +183,8 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
   // SB-4: the Projects section renders the 8 most recent groups (plus, always,
   // the group holding the open session) — the rest hide behind Show more.
   const { groups: shownProjects, hidden: hiddenProjects } = useMemo(
-    () => visibleProjectGroups(model.projects, { expanded: showAllProjects, current: currentSid || undefined }),
-    [model.projects, showAllProjects, currentSid],
+    () => visibleProjectGroups(orderedProjects, { expanded: showAllProjects, current: currentSid || undefined }),
+    [orderedProjects, showAllProjects, currentSid],
   );
 
   // Workspace-less sessions use a plain heading with no folder, caret or indent.
@@ -211,7 +229,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
     // exclusive floating layers — while a menu is open, suppress the preview
     // so the two never stack and fight for the same corner (R3-1).
     if (ctx) return;
-    setHoverPreview({ sid: session.id, top: Math.max(10, Math.min(top - 6, window.innerHeight - 154)) });
+    setHoverPreview({ kind: "session", sid: session.id, top: Math.max(10, Math.min(top - 6, window.innerHeight - 154)) });
     const workspace = session.workspace;
     if (!workspace || Object.prototype.hasOwnProperty.call(branchByWorkspace, workspace)) return;
     setBranchByWorkspace((current) => ({ ...current, [workspace]: "" }));
@@ -241,25 +259,31 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
   // same items, so the two entrances can never drift apart.
   const renderProjectActions = (key: string, label: string, workspace: string | undefined, ids: string[]) => {
     const overlay = projects[key];
-    const lastOpened = overlay?.lastOpened ? relTimeAgo(new Date(overlay.lastOpened)) : "";
     return (
       <>
-        <MenuLabel>{label}{lastOpened ? ` · opened ${lastOpened}` : ""}</MenuLabel>
+        <MenuItem onClick={() => void toggleProjectPinned(key, !overlay?.pinned)}>
+          <PushPin size={16} weight={overlay?.pinned ? "fill" : "regular"} /> {overlay?.pinned ? "Unpin project" : "Pin project"}
+        </MenuItem>
         {workspace && (
-          <>
-            <MenuLabel>Open in</MenuLabel>
-            <MenuItem onClick={() => openProjectIn(workspace, "vscode")}>
-              <span className="inline-flex items-center gap-[8px]"><Code size={14} /> VS Code</span>
-            </MenuItem>
-            <MenuItem onClick={() => openProjectIn(workspace, "finder")}>
-              <span className="inline-flex items-center gap-[8px]"><FolderOpen size={14} /> Finder</span>
-            </MenuItem>
-            <MenuItem onClick={() => openProjectIn(workspace, "terminal")}>
-              <span className="inline-flex items-center gap-[8px]"><Terminal size={14} /> Terminal</span>
-            </MenuItem>
-          </>
+          <MenuItem onClick={() => openProjectIn(workspace, "finder")}>
+            <FolderOpen size={16} /> Reveal in Finder
+          </MenuItem>
         )}
-        <MenuLabel>Project</MenuLabel>
+        {workspace && (
+          <MenuItem onClick={() => openPrompt({
+            title: "Create permanent worktree",
+            label: "New branch name",
+            placeholder: "feature/my-work",
+            submitLabel: "Create",
+            onSubmit: (branch) => {
+              void AR.makeWorktree(workspace, branch.trim())
+                .then((result) => toast(`worktree created · ${result.path}`, "info"))
+                .catch((error: any) => toast(error.message, "error", error.details));
+            },
+          })}>
+            <GitFork size={16} /> Create permanent worktree
+          </MenuItem>
+        )}
         <MenuItem onClick={() => openPrompt({
           title: "Rename project",
           label: "Display name",
@@ -268,12 +292,30 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
           submitLabel: "Rename",
           onSubmit: (value) => setProjectName(key, value),
         })}>
-          <span className="inline-flex items-center gap-[8px]"><PencilSimple size={14} /> Rename project…</span>
+          <PencilSimple size={16} /> Rename project
         </MenuItem>
-        {overlay?.displayName && <MenuItem onClick={() => setProjectName(key, "")}>Reset to default name</MenuItem>}
-        {workspace && <MenuItem onClick={() => { copyText(workspace); toast("copied project path", "info"); }}>Copy project path</MenuItem>}
-        <MenuItem onClick={() => ids.filter((id) => unread.includes(id)).forEach(markRead)}>Mark all as read</MenuItem>
-        <MenuItem onClick={() => ids.filter((id) => !archived.includes(id)).forEach(toggleArchive)}>Archive all sessions</MenuItem>
+        <MenuItem onClick={() => ids.filter((id) => !archived.includes(id)).forEach(toggleArchive)}>
+          <ArchiveBox size={16} /> Archive chats
+        </MenuItem>
+        <MenuItem
+          danger={!overlay?.removed}
+          onClick={() => {
+            if (overlay?.removed) {
+              void setProjectRemoved(key, false);
+              return;
+            }
+            openModal({
+              kind: "confirm",
+              title: "Remove project from sidebar?",
+              body: `${label} will be hidden from Projects. Its chats, journal, and files stay intact, and you can restore it from Show removed projects.`,
+              confirmLabel: "Remove",
+              danger: true,
+              onConfirm: () => setProjectRemoved(key, true),
+            });
+          }}
+        >
+          <X size={16} /> {overlay?.removed ? "Restore project" : "Remove"}
+        </MenuItem>
       </>
     );
   };
@@ -300,7 +342,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
           openContext(event.clientX, event.clientY);
         }}
         onMouseEnter={(event) => previewSession(session, event.currentTarget.getBoundingClientRect().top)}
-        onMouseLeave={() => setHoverPreview((current) => current?.sid === session.id ? null : current)}
+        onMouseLeave={() => setHoverPreview((current) => current?.kind === "session" && current.sid === session.id ? null : current)}
       >
         <button
           className="project-session"
@@ -466,7 +508,15 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             };
             return (
               <div className="project-group" key={project.key}>
-                <div className="flex min-w-0 items-center">
+                <div
+                  className="project-heading-row"
+                  onMouseEnter={(event) => {
+                    if (ctx) return;
+                    const top = event.currentTarget.getBoundingClientRect().top;
+                    setHoverPreview({ kind: "project", key: project.key, top: Math.max(10, Math.min(top - 6, window.innerHeight - 132)) });
+                  }}
+                  onMouseLeave={() => setHoverPreview((current) => current?.kind === "project" && current.key === project.key ? null : current)}
+                >
                 <button
                   className="project-heading min-w-0 flex-1"
                   onClick={() => setProjectCollapsed(project.key, !persistedFold)}
@@ -513,17 +563,31 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
                     {project.hint && <span className="project-hint">{project.hint}</span>}
                   </span>
                 </button>
-                {/* Touch layouts have no hover and no reliable right-click, so
-                    the project menu (rename, open-in, archive-all) was
-                    unreachable there — same pattern as the session rows' ⋯
-                    (INC-78.2). Desktop keeps the denser context-menu path. */}
-                <span className="hidden shrink-0 max-[900px]:inline-flex">
+                {/* Desktop reveals the two quiet controls on row hover/focus;
+                    touch keeps the menu permanently reachable. The quick
+                    pencil and the menu call the same rename/action sources. */}
+                <span className="project-heading-actions" onClick={() => setHoverPreview(null)}>
                   <Menu
                     label={<DotsThree size={18} weight="bold" />}
                     ariaLabel={`More actions for ${name}`}
                   >
                     {renderProjectActions(project.key, name, project.workspace, project.sessions.map((session) => session.id))}
                   </Menu>
+                  <button
+                    className="project-quick-action max-[900px]:hidden!"
+                    aria-label={`Rename project ${name}`}
+                    title="Rename project"
+                    onClick={() => openPrompt({
+                      title: "Rename project",
+                      label: "Display name",
+                      initial: overlay?.displayName || "",
+                      placeholder: name,
+                      submitLabel: "Rename",
+                      onSubmit: (value) => setProjectName(project.key, value),
+                    })}
+                  >
+                    <PencilSimple size={16} />
+                  </button>
                 </span>
                 </div>
                 {shown.map((session) => renderSession(session, true))}
@@ -554,12 +618,12 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             <button
               className="show-more projects-show-more"
               onClick={() => setShowAllProjects(true)}
-              aria-label={`Show all ${model.projects.length} projects`}
+              aria-label={`Show all ${orderedProjects.length} projects`}
             >
               Show more · {hiddenProjects}
             </button>
           )}
-          {showAllProjects && model.projects.length > PROJECT_GROUP_LIMIT && (
+          {showAllProjects && orderedProjects.length > PROJECT_GROUP_LIMIT && (
             <button
               className="show-more projects-show-more"
               onClick={() => setShowAllProjects(false)}
@@ -569,6 +633,16 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             </button>
           )}
         </section>
+        )}
+
+        {removedProjectCount > 0 && (
+          <button
+            className="archive-toggle removed-projects-toggle"
+            onClick={() => setShowRemovedProjects((showing) => !showing)}
+            aria-expanded={showRemovedProjects}
+          >
+            <X size={14} /> {showRemovedProjects ? "Hide" : "Show"} removed projects · {removedProjectCount}
+          </button>
         )}
 
         {/* SB-13 · Sessions — the ones that belong to no project. Flat rows at the
@@ -675,6 +749,23 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
       </div>
 
       {hoverPreview && (() => {
+        if (hoverPreview.kind === "project") {
+          const project = model.projects.find((item) => item.key === hoverPreview.key);
+          if (!project) return null;
+          const overlay = projects[project.key];
+          const name = projectDisplayName(project, overlay);
+          return (
+            <div className="project-preview" style={{ top: hoverPreview.top }} aria-hidden="true">
+              <div className="project-preview-head">
+                <Folder size={18} />
+                <b>{name}</b>
+                <PushPin size={16} weight={overlay?.pinned ? "fill" : "regular"} />
+              </div>
+              <div><ChatCircle size={16} /><span>{project.sessions.length} {project.sessions.length === 1 ? "chat" : "chats"}</span></div>
+              <div className="project-preview-path"><FolderOpen size={16} /><span>{project.workspace || "No workspace"}</span></div>
+            </div>
+          );
+        }
         const session = sessions.find((item) => item.id === hoverPreview.sid);
         if (!session) return null;
         const title = displayTitle(renames, session.id, session.title);

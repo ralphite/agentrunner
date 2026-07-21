@@ -316,6 +316,14 @@
   .project-heading {
     @apply w-full rounded-[7px] border-0 bg-transparent text-[13px] font-medium normal-case tracking-normal text-ink transition-colors duration-100 hover:bg-panel-2 hover:text-ink;
   }
+  .project-heading-row { @apply flex min-w-0 items-center rounded-[8px]; }
+  .project-heading-actions { @apply hidden shrink-0 items-center gap-[1px] pr-1; }
+  .project-heading-row:hover .project-heading-actions,
+  .project-heading-row:focus-within .project-heading-actions { @apply flex; }
+  .project-heading-actions .menu-trigger,
+  .project-quick-action {
+    @apply grid h-6 w-6 shrink-0 place-items-center rounded-[6px] border-0 bg-transparent p-0 text-dim hover:bg-panel hover:text-ink;
+  }
   /* SIDE-SECTION-LABEL (r47) · Codex renders the sidebar section dividers
      ("Pinned" / "Projects") in a quiet title-case label — regular weight, no
      wide tracking, dim — not the shouty all-caps bold we shared with the repo
@@ -379,10 +387,20 @@
   .connecting .account-presence { @apply bg-dim; }
   .account-meta { @apply min-w-0 truncate text-[12px] text-ink-2; }
   .session-preview {
-    @apply fixed left-[252px] z-40 w-[260px] rounded-[10px] border border-line bg-panel p-3 text-[12px] text-ink shadow-lg;
+    @apply fixed z-40 w-[260px] rounded-[10px] border border-line bg-panel p-3 text-[12px] text-ink shadow-lg;
+    left: calc(var(--sidebar-width, 260px) - 8px);
   }
   .session-preview > div { @apply flex min-w-0 items-center gap-2 py-[2px] text-ink-2; }
   .session-preview-head { @apply justify-between text-ink; }
+  .project-preview {
+    @apply fixed z-40 w-[320px] rounded-[12px] border border-line bg-panel p-3 text-[13px] text-ink shadow-lg;
+    left: calc(var(--sidebar-width, 260px) - 8px);
+  }
+  .project-preview > div { @apply flex min-w-0 items-center gap-2 py-[3px] text-ink-2; }
+  .project-preview-head { @apply text-[15px] text-ink; }
+  .project-preview-head b { @apply min-w-0 flex-1 truncate font-semibold; }
+  .project-preview-path { @apply mt-2 border-t border-line pt-3!; }
+  .project-preview-path span { @apply min-w-0 truncate; }
 
   .home { @apply flex min-h-0 flex-1 flex-col; }
   .hero { @apply mx-auto flex w-full max-w-[760px] flex-1 flex-col items-center justify-center gap-5 px-6 py-8; }
@@ -1192,6 +1210,8 @@
     .sidebar { @apply fixed inset-y-0 left-0 z-40 shadow-lg; width: min(320px, calc(100vw - 48px)); }
     .app.collapsed .sidebar { @apply hidden; }
     .sidebar-close { @apply grid; }
+    .project-heading-actions { @apply flex; }
+    .session-preview, .project-preview { @apply hidden; }
     .session-layout.changes { grid-template-columns: minmax(0, 1fr); }
     .session-layout.environment { grid-template-columns: minmax(0, 1fr); }
     .session-view .changes-panel.session-side {

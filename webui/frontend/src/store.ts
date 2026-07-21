@@ -97,6 +97,8 @@ interface AppState {
   refreshProjects: () => Promise<void>;
   setProjectName: (key: string, name: string) => Promise<void>;
   toggleProjectFolded: (key: string, folded: boolean) => Promise<void>;
+  toggleProjectPinned: (key: string, pinned: boolean) => Promise<void>;
+  setProjectRemoved: (key: string, removed: boolean) => Promise<void>;
   openProjectIn: (workspace: string, app: LauncherApp) => Promise<void>;
 
   // INC-41 TH-5 · pending "open the review AT this file". The thread's "Edited N
@@ -340,6 +342,26 @@ export const useStore = create<AppState>((set, get) => ({
       set({ projects: await AR.updateProject(key, { folded }) });
     } catch {
       get().refreshProjects();
+    }
+  },
+  toggleProjectPinned: async (key, pinned) => {
+    const prev = get().projects;
+    set({ projects: { ...prev, [key]: { ...prev[key], pinned } } });
+    try {
+      set({ projects: await AR.updateProject(key, { pinned }) });
+    } catch (error: any) {
+      set({ projects: prev });
+      get().toast(error.message, "error", error.details);
+    }
+  },
+  setProjectRemoved: async (key, removed) => {
+    const prev = get().projects;
+    set({ projects: { ...prev, [key]: { ...prev[key], removed } } });
+    try {
+      set({ projects: await AR.updateProject(key, { removed }) });
+    } catch (error: any) {
+      set({ projects: prev });
+      get().toast(error.message, "error", error.details);
     }
   },
   openProjectIn: async (workspace, app) => {

@@ -106,6 +106,10 @@ export interface SpecFile {
 export interface ProjectMeta {
   displayName?: string;
   folded?: boolean;
+  pinned?: boolean;
+  // Sidebar-only removal preference. Sessions/journals/workspace remain intact
+  // and continue to be reachable from search; the rail exposes Restore.
+  removed?: boolean;
   lastOpened?: number; // unix millis; absent = never opened via the launcher
 }
 
