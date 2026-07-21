@@ -495,7 +495,7 @@ export function Scheduled() {
                 className="sched-suggest-head flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5"
                 style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", columnGap: 8, rowGap: 2 }}
               >
-                <b className="sched-suggest-title">{s.title}</b>
+                <b className="sched-suggest-title font-semibold">{s.title}</b>
                 {/* SC-18: rendered from the spec above — never a second,
                     hand-written copy of it. */}
                 <span className="sched-suggest-cadence">{cadenceText(s.cadence)}</span>
@@ -659,7 +659,7 @@ export function Scheduled() {
               </span>
               <span className="scheduled-copy flex min-w-0 flex-col gap-0.5">
                 <b
-                  className="min-w-0 break-words leading-5"
+                  className="min-w-0 break-words leading-5 font-semibold"
                   style={{
                     display: "-webkit-box",
                     WebkitBoxOrient: "vertical",
