@@ -331,6 +331,33 @@ describe("New session shortcut discoverability (RH-4)", () => {
   });
 });
 
+describe("New session is chromeless on the home landing (NAV-NEWSESSION-ACTIVE-FILL)", () => {
+  const navButton = (container: HTMLElement, label: string) =>
+    Array.from(
+      container.querySelectorAll<HTMLButtonElement>(".primary-nav button"),
+    ).find((b) => b.textContent?.includes(label))!;
+
+  it("does not paint the New session row active on the home page — only real pages get the fill", () => {
+    // Home is the New-session landing, not a selected destination: Codex keeps
+    // its "New task" chromeless there, so ours must carry no resting `active` fill.
+    useStore.setState({ sessions: [], currentSid: null, currentPage: "home" });
+    const { container } = render(<Sidebar />);
+
+    const newSession = navButton(container, "New session");
+    expect(newSession).toBeTruthy();
+    expect(newSession.className).not.toContain("active");
+  });
+
+  it("keeps the fill for a real destination like Scheduled", () => {
+    useStore.setState({ sessions: [], currentSid: null, currentPage: "scheduled" });
+    const { container } = render(<Sidebar />);
+
+    const scheduled = navButton(container, "Scheduled");
+    expect(scheduled).toBeTruthy();
+    expect(scheduled.className).toContain("active");
+  });
+});
+
 describe("footer says the product name once (SB-12)", () => {
   it("the account badge carries daemon status only — the wordmark owns the name", () => {
     useStore.setState({ sessions: [], health: { daemonUp: true, version: "ar 1.2.3" } as any });
