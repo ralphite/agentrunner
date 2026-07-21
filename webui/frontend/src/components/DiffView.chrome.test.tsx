@@ -209,7 +209,7 @@ describe("Untracked files are ordinary file cards (INC-41 DF-3)", () => {
     expect(head.querySelector(".fd-path")!.textContent).toBe("assets/note.txt");
     // Counts: a new file is all additions (prefetched from the workspace blob).
     await waitFor(() => expect(head.querySelector(".fd-counts .add")!.textContent).toBe("+3"));
-    expect(head.querySelector(".fd-counts .del")!.textContent).toBe("−0");
+    expect(head.querySelector(".fd-counts .del")!.textContent).toBe("-0");
 
     // Expandable: Expand-all opens it and the body is the file, as added lines.
     fireEvent.click(screen.getByLabelText("More changes actions"));
@@ -361,7 +361,7 @@ Binary files /dev/null and b/bin/ar differ
     const head = container.querySelector("summary.fd-head")!;
     // DF-D3 · no fabricated +0 −0 — the badge is the whole statement.
     expect(head.querySelector(".fd-counts")).toBeNull();
-    expect(head.textContent).not.toMatch(/[+−]0/);
+    expect(head.textContent).not.toMatch(/[-+]0/);
     const badge = head.querySelector(".fd-badge")!;
     expect(badge.textContent).toBe("binary");
     // DF-D6 · badge before the elastic gap, i.e. it travels with the filename
@@ -377,7 +377,7 @@ Binary files /dev/null and b/bin/ar differ
     await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
     const head = container.querySelector("summary.fd-head")!;
     expect(head.querySelector(".fd-counts .add")!.textContent).toBe("+1");
-    expect(head.querySelector(".fd-counts .del")!.textContent).toBe("−1");
+    expect(head.querySelector(".fd-counts .del")!.textContent).toBe("-1");
   });
 });
 
@@ -438,16 +438,16 @@ describe("Changed-files list (INC-41 RD-12)", () => {
     expect(rows()[2].querySelector(".fd-glyph")!.className).toMatch(/fd-glyph-added/);
     // …and each file's own `+N −M` (app.ts: one line replaced).
     expect(rows()[0].querySelector(".fd-counts .add")!.textContent).toBe("+1");
-    expect(rows()[0].querySelector(".fd-counts .del")!.textContent).toBe("−1");
+    expect(rows()[0].querySelector(".fd-counts .del")!.textContent).toBe("-1");
     expect(rows()[2].querySelector(".fd-counts .add")!.textContent).toBe("+1");
-    expect(rows()[2].querySelector(".fd-counts .del")!.textContent).toBe("−0");
+    expect(rows()[2].querySelector(".fd-counts .del")!.textContent).toBe("-0");
     // A binary blob has no lines to count, so it states none — exactly as its
     // header does (DF-D3).
     expect(rows()[3].querySelector(".fd-counts")).toBeNull();
     // RVW-BINCOUNT · and an untracked *text* blob states the count its card read
     // from the workspace, not a `+…` placeholder the list can never resolve.
     await waitFor(() => expect(rows()[1].querySelector(".fd-counts .add")!.textContent).toBe("+2"));
-    expect(rows()[1].querySelector(".fd-counts .del")!.textContent).toBe("−0");
+    expect(rows()[1].querySelector(".fd-counts .del")!.textContent).toBe("-0");
   });
 
   it("walks the review to the file that was clicked", async () => {
@@ -606,11 +606,11 @@ describe("Toolbar counts always show both halves (INC-41 DF-6)", () => {
     await waitFor(() => expect(screen.getByText("notes.md")).toBeTruthy());
     const summary = container.querySelector(".diffbar .diff-summary")!;
     expect(summary.querySelector(".add")!.textContent).toBe("+1");
-    expect(summary.querySelector(".del")!.textContent).toBe("−0");
+    expect(summary.querySelector(".del")!.textContent).toBe("-0");
     // …and it agrees, digit for digit, with the file header underneath it.
     const head = container.querySelector("summary.fd-head")!;
     expect(head.querySelector(".fd-counts .add")!.textContent).toBe("+1");
-    expect(head.querySelector(".fd-counts .del")!.textContent).toBe("−0");
+    expect(head.querySelector(".fd-counts .del")!.textContent).toBe("-0");
   });
 
   it("renders +0 when the change is a pure deletion", async () => {
@@ -628,7 +628,7 @@ deleted file mode 100644
     await waitFor(() => expect(screen.getByText("gone.ts")).toBeTruthy());
     const summary = container.querySelector(".diffbar .diff-summary")!;
     expect(summary.querySelector(".add")!.textContent).toBe("+0");
-    expect(summary.querySelector(".del")!.textContent).toBe("−2");
+    expect(summary.querySelector(".del")!.textContent).toBe("-2");
   });
 });
 

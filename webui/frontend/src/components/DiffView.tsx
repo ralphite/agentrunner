@@ -123,7 +123,7 @@ interface UntrackedFact {
 const cmpReviewFile = (a: ReviewFile, b: ReviewFile) =>
   a.binary !== b.binary ? (a.binary ? 1 : -1) : a.path < b.path ? -1 : a.path > b.path ? 1 : 0;
 
-const rowSign = (r?: DiffRow) => (!r ? "" : r.kind === "add" ? "+" : r.kind === "del" ? "−" : " ");
+const rowSign = (r?: DiffRow) => (!r ? "" : r.kind === "add" ? "+" : r.kind === "del" ? "-" : " ");
 const halfKind = (r: DiffRow | undefined, side: "left" | "right") =>
   !r ? "empty" : side === "left" && r.kind === "del" ? "del" : side === "right" && r.kind === "add" ? "add" : "";
 
@@ -266,7 +266,7 @@ function FileHead({
       {!binary && (
         <span className="fd-counts">
           <span className="add">+{add === null ? "…" : add}</span>
-          <span className="del">−{del}</span>
+          <span className="del">-{del}</span>
         </span>
       )}
       {/* INC-41 DF-D6 · badges are a property of *this file*, so they travel with
@@ -810,7 +810,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
         {!empty && (
           <span className="diff-summary">
             <span className="add">+{totalAdd}</span>
-            <span className="del">−{totalDel}</span>
+            <span className="del">-{totalDel}</span>
           </span>
         )}
         {data.worktree && (
@@ -1053,7 +1053,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
                             {!f.binary && (
                               <span className="fd-counts">
                                 <span className="add">+{f.add === null ? "…" : f.add}</span>
-                                <span className="del">−{f.del}</span>
+                                <span className="del">-{f.del}</span>
                               </span>
                             )}
                           </button>
