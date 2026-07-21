@@ -275,7 +275,7 @@
   .skip-link {
     @apply fixed left-3 top-3 z-[80] -translate-y-16 rounded-[8px] bg-accent px-3 py-2 text-accent-ink focus:translate-y-0;
   }
-  .app { @apply grid h-full min-h-0 bg-bg text-ink; grid-template-columns: 260px minmax(0, 1fr); }
+  .app { @apply grid h-full min-h-0 bg-bg text-ink; grid-template-columns: var(--sidebar-width, 260px) minmax(0, 1fr); }
   .app.collapsed { grid-template-columns: minmax(0, 1fr); }
   .app.collapsed .sidebar { @apply hidden; }
   .main { @apply relative flex min-h-0 min-w-0 flex-col bg-bg outline-none; }
@@ -287,7 +287,18 @@
   .main:has(> .sidebar-show) .session-topbar { @apply min-[901px]:pl-[60px]; }
   .sidebar-scrim { @apply fixed inset-0 z-30 border-0 bg-black/30 p-0; }
 
-  .sidebar { @apply flex min-h-0 flex-col border-r border-line bg-sidebar; }
+  .sidebar { @apply relative flex min-h-0 flex-col border-r border-line bg-sidebar; }
+  .sidebar-resize-handle {
+    @apply absolute inset-y-0 right-[-4px] z-30 w-[8px] cursor-col-resize outline-none;
+  }
+  .sidebar-resize-handle::after {
+    content: "";
+    @apply absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-transparent transition-colors duration-100;
+  }
+  .sidebar-resize-handle:hover::after,
+  .sidebar-resize-handle:focus-visible::after,
+  body.sidebar-resizing .sidebar-resize-handle::after { @apply bg-blue; }
+  body.sidebar-resizing { @apply cursor-col-resize select-none; }
   .brand-main { @apply min-w-0 border-0 bg-transparent p-0 text-left hover:bg-transparent; }
   .sidebar-close { @apply hidden h-11 w-11 place-items-center rounded-[8px] border-0 bg-transparent p-0 text-ink-2 transition-colors duration-100 hover:bg-panel-2 hover:text-ink; }
   .primary-nav { @apply flex flex-col gap-2 px-2 pb-2; }
@@ -334,6 +345,9 @@
   .section-label {
     @apply text-[12px] font-normal normal-case tracking-normal;
   }
+  .section-toggle { @apply w-full rounded-[7px] border-0 bg-transparent text-left hover:bg-panel-2 hover:text-ink; }
+  .section-caret { @apply transition-transform; }
+  .section-caret.open { @apply rotate-90; }
   /* SIDE-SUBTITLE · repo name + optional worktree-lineage hint stack in one
      min-w-0 flex column so the name gets the full text width and the hint
      rides a subordinate second line instead of stealing name space. */
@@ -1210,6 +1224,7 @@
     .sidebar { @apply fixed inset-y-0 left-0 z-40 shadow-lg; width: min(320px, calc(100vw - 48px)); }
     .app.collapsed .sidebar { @apply hidden; }
     .sidebar-close { @apply grid; }
+    .sidebar-resize-handle { @apply hidden; }
     .project-heading-actions { @apply flex; }
     .session-preview, .project-preview { @apply hidden; }
     .session-layout.changes { grid-template-columns: minmax(0, 1fr); }

@@ -11,7 +11,13 @@ vi.mock("../api", async () => ({
 
 import { Sidebar } from "./Sidebar";
 import { SHORTCUT_GROUPS, keyLabel } from "../shortcuts";
-import { useStore } from "../store";
+import {
+  clampSidebarWidth,
+  SIDEBAR_DEFAULT_WIDTH,
+  SIDEBAR_MAX_WIDTH,
+  SIDEBAR_MIN_WIDTH,
+  useStore,
+} from "../store";
 
 afterEach(cleanup);
 
@@ -400,6 +406,96 @@ describe("project hover and management controls (INC-87)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Rename project app" }));
     expect(useStore.getState().prompt?.title).toBe("Rename project");
+  });
+});
+
+describe("sidebar section folding and resize (INC-87)", () => {
+  const sessions = [
+    { id: "20260721-130000-pinned", status: "idle", turns: 1, title: "Pinned chat", workspace: "/repo/app" },
+    { id: "20260721-120000-project", status: "idle", turns: 1, title: "Project chat", workspace: "/repo/app" },
+  ];
+
+  const mount = () => {
+    useStore.setState({
+      sessions: sessions as any,
+      sessionsReady: true,
+      currentSid: null,
+      archived: [],
+      pinned: [sessions[0].id],
+      unread: [],
+      renames: {},
+      projects: {},
+      sidebarWidth: SIDEBAR_DEFAULT_WIDTH,
+      setSidebarWidth: (width: number) => {
+        const next = clampSidebarWidth(width);
+        localStorage.setItem("arwebui.sidebarWidth", String(next));
+        useStore.setState({ sidebarWidth: next });
+      },
+      toggleProjectFolded: vi.fn(),
+    });
+    return render(<Sidebar />);
+  };
+
+  afterEach(() => {
+    localStorage.clear();
+    document.body.classList.remove("sidebar-resizing");
+  });
+
+  it("folds Pinned and Projects independently and restores both folds after remount", () => {
+    localStorage.clear();
+    const { container } = mount();
+    const pinnedToggle = screen.getByRole("button", { name: "Pinned" });
+    const projectsToggle = screen.getByRole("button", { name: "Projects" });
+    expect(pinnedToggle.getAttribute("aria-expanded")).toBe("true");
+    expect(projectsToggle.getAttribute("aria-expanded")).toBe("true");
+
+    fireEvent.click(pinnedToggle);
+    expect(container.querySelector(".pinned-section .project-session-wrap")).toBeNull();
+    expect(container.querySelector(".projects-section .project-session-wrap")).toBeTruthy();
+    fireEvent.click(projectsToggle);
+    expect(container.querySelector(".projects-section .project-group")).toBeNull();
+    expect(JSON.parse(localStorage.getItem("ar.sidebar.foldedSections")!)).toEqual(["pinned", "projects"]);
+
+    cleanup();
+    const remounted = mount().container;
+    expect(remounted.querySelector(".pinned-section .project-session-wrap")).toBeNull();
+    expect(remounted.querySelector(".projects-section .project-group")).toBeNull();
+  });
+
+  it("supports pointer, keyboard and reset resizing with hard clamps", () => {
+    localStorage.clear();
+    mount();
+    const handle = screen.getByRole("separator", { name: "Resize sidebar" });
+    expect(handle.className).toContain("max-[900px]:hidden!");
+
+    const pointer = (type: string, clientX: number) => {
+      const event = new Event(type, { bubbles: true });
+      Object.defineProperties(event, {
+        button: { value: 0 },
+        clientX: { value: clientX },
+      });
+      return event;
+    };
+    fireEvent(handle, pointer("pointerdown", SIDEBAR_DEFAULT_WIDTH));
+    fireEvent(window, pointer("pointermove", 999));
+    fireEvent(window, pointer("pointerup", 999));
+    expect(useStore.getState().sidebarWidth).toBe(SIDEBAR_MAX_WIDTH);
+    expect(localStorage.getItem("arwebui.sidebarWidth")).toBe(String(SIDEBAR_MAX_WIDTH));
+
+    fireEvent.keyDown(handle, { key: "Home" });
+    expect(useStore.getState().sidebarWidth).toBe(SIDEBAR_MIN_WIDTH);
+    fireEvent.keyDown(handle, { key: "ArrowRight" });
+    expect(useStore.getState().sidebarWidth).toBe(SIDEBAR_MIN_WIDTH + 16);
+    fireEvent.keyDown(handle, { key: "End" });
+    expect(useStore.getState().sidebarWidth).toBe(SIDEBAR_MAX_WIDTH);
+    fireEvent.doubleClick(handle);
+    expect(useStore.getState().sidebarWidth).toBe(SIDEBAR_DEFAULT_WIDTH);
+  });
+
+  it("clamps invalid and out-of-range persisted values", () => {
+    expect(clampSidebarWidth(Number.NaN)).toBe(SIDEBAR_DEFAULT_WIDTH);
+    expect(clampSidebarWidth(40)).toBe(SIDEBAR_MIN_WIDTH);
+    expect(clampSidebarWidth(900)).toBe(SIDEBAR_MAX_WIDTH);
   });
 });
 

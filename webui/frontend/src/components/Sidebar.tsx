@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import {
   Archive as ArchiveBox,
   ArrowSquareOut,
@@ -23,7 +23,13 @@ import {
   Tray,
   X,
 } from "@phosphor-icons/react";
-import { useStore, type Page } from "../store";
+import {
+  SIDEBAR_DEFAULT_WIDTH,
+  SIDEBAR_MAX_WIDTH,
+  SIDEBAR_MIN_WIDTH,
+  useStore,
+  type Page,
+} from "../store";
 import { AR } from "../api";
 import { friendlyStatus } from "./pill";
 import { displayTitle } from "../title";
@@ -51,11 +57,26 @@ type SidebarHover =
 // mirror makes the fold survive a refresh *synchronously*; the overlay wins
 // whenever it actually carries a fold for that key.
 const COLLAPSED_KEY = "ar.sidebar.collapsedProjects";
+const SECTION_FOLDS_KEY = "ar.sidebar.foldedSections";
+type FoldableSection = "pinned" | "projects";
 
 function loadCollapsedProjects(): Set<string> {
   try {
     const raw = JSON.parse(localStorage.getItem(COLLAPSED_KEY) || "[]");
     return new Set(Array.isArray(raw) ? raw.filter((key): key is string => typeof key === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function loadFoldedSections(): Set<FoldableSection> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SECTION_FOLDS_KEY) || "[]");
+    return new Set(
+      Array.isArray(raw)
+        ? raw.filter((section): section is FoldableSection => section === "pinned" || section === "projects")
+        : [],
+    );
   } catch {
     return new Set();
   }
@@ -113,6 +134,8 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
     setProjectName,
     openModal,
     openPrompt,
+    sidebarWidth,
+    setSidebarWidth,
   } = useStore();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   // SB-4: locally-collapsed groups (localStorage-backed) + the section-level
@@ -120,11 +143,55 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
   const [collapsed, setCollapsed] = useState<Set<string>>(loadCollapsedProjects);
   const [showAllProjects, setShowAllProjects] = useState(false);
   const [showRemovedProjects, setShowRemovedProjects] = useState(false);
+  const [foldedSections, setFoldedSections] = useState<Set<FoldableSection>>(loadFoldedSections);
   // The flat Sessions section has its own show-all toggle.
   const [showAllSessions, setShowAllSessions] = useState(false);
   const [ctx, setCtx] = useState<SidebarContext | null>(null);
   const [hoverPreview, setHoverPreview] = useState<SidebarHover | null>(null);
   const [branchByWorkspace, setBranchByWorkspace] = useState<Record<string, string>>({});
+
+  const toggleSection = (section: FoldableSection) => {
+    setFoldedSections((current) => {
+      const next = new Set(current);
+      if (next.has(section)) next.delete(section);
+      else next.add(section);
+      try {
+        localStorage.setItem(SECTION_FOLDS_KEY, JSON.stringify([...next]));
+      } catch {
+        /* private mode / quota */
+      }
+      return next;
+    });
+  };
+
+  const startSidebarResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = sidebarWidth;
+    document.body.classList.add("sidebar-resizing");
+    const move = (moveEvent: PointerEvent) => setSidebarWidth(startWidth + moveEvent.clientX - startX);
+    const stop = () => {
+      document.body.classList.remove("sidebar-resizing");
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
+    window.addEventListener("pointercancel", stop);
+  };
+
+  const resizeWithKeyboard = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    let next: number | null = null;
+    if (event.key === "ArrowLeft") next = sidebarWidth - 16;
+    else if (event.key === "ArrowRight") next = sidebarWidth + 16;
+    else if (event.key === "Home") next = SIDEBAR_MIN_WIDTH;
+    else if (event.key === "End") next = SIDEBAR_MAX_WIDTH;
+    if (next === null) return;
+    event.preventDefault();
+    setSidebarWidth(next);
+  };
 
   // RH-5: the sidebar no longer filters itself. Search is the ⌘K palette —
   // one entry point, reachable from the magnifier or the key — so this model is
@@ -155,13 +222,13 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
   const removedProjectCount = model.projects.filter((project) => projects[project.key]?.removed).length;
   const orderedIds = useMemo(
     () => [
-      ...model.pinned.map((session) => session.id),
-      ...orderedProjects.flatMap((project) => project.sessions.map((session) => session.id)),
+      ...(foldedSections.has("pinned") ? [] : model.pinned.map((session) => session.id)),
+      ...(foldedSections.has("projects") ? [] : orderedProjects.flatMap((project) => project.sessions.map((session) => session.id))),
       // The flat Sessions section is part of the rail, so it is part of the
       // rail's keyboard order too — it sits last, exactly where it renders.
       ...model.workspaceLessSessions.map((session) => session.id),
     ],
-    [model.pinned, model.workspaceLessSessions, orderedProjects],
+    [foldedSections, model.pinned, model.workspaceLessSessions, orderedProjects],
   );
   useEffect(() => setVisibleOrder(orderedIds), [orderedIds, setVisibleOrder]);
 
@@ -409,6 +476,20 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
 
   return (
     <aside className="sidebar">
+      <div
+        className="sidebar-resize-handle max-[900px]:hidden!"
+        role="separator"
+        aria-label="Resize sidebar"
+        aria-orientation="vertical"
+        aria-valuemin={SIDEBAR_MIN_WIDTH}
+        aria-valuemax={SIDEBAR_MAX_WIDTH}
+        aria-valuenow={sidebarWidth}
+        tabIndex={0}
+        title="Drag to resize sidebar · double-click to reset"
+        onPointerDown={startSidebarResize}
+        onKeyDown={resizeWithKeyboard}
+        onDoubleClick={() => setSidebarWidth(SIDEBAR_DEFAULT_WIDTH)}
+      />
       {/* SB-10: 64px of chrome around a 30px wordmark cost a whole session row of
           rail. 6px above/below a 30px content row → a 44px well (Codex ~38px).
           SB-13: the 26px black rounded tile that used to sit here was the
@@ -458,8 +539,15 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
       <div className="project-list">
         {model.pinned.length > 0 && (
           <section className="sidebar-section pinned-section">
-            <div className="section-label"><PushPin size={12} weight="fill" /> Pinned</div>
-            {model.pinned.map((session) => renderSession(session))}
+            <button
+              className="section-label section-toggle"
+              onClick={() => toggleSection("pinned")}
+              aria-expanded={!foldedSections.has("pinned")}
+            >
+              <CaretRight className={`section-caret${foldedSections.has("pinned") ? "" : " open"}`} size={10} weight="bold" />
+              <PushPin size={12} weight="fill" /> Pinned
+            </button>
+            {!foldedSections.has("pinned") && model.pinned.map((session) => renderSession(session))}
           </section>
         )}
 
@@ -483,7 +571,15 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
 
         {model.projects.length > 0 && (
         <section className="sidebar-section projects-section">
-          <div className="section-label">Projects</div>
+          <button
+            className="section-label section-toggle"
+            onClick={() => toggleSection("projects")}
+            aria-expanded={!foldedSections.has("projects")}
+          >
+            <CaretRight className={`section-caret${foldedSections.has("projects") ? "" : " open"}`} size={10} weight="bold" />
+            Projects
+          </button>
+          {!foldedSections.has("projects") && (<>
           {shownProjects.map((project) => {
             const overlay = projects[project.key];
             const name = projectDisplayName(project, overlay);
@@ -632,6 +728,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
               Show less
             </button>
           )}
+          </>)}
         </section>
         )}
 

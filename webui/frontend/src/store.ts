@@ -82,6 +82,8 @@ interface AppState {
   setRename: (id: string, title: string) => void;
   sidebarCollapsed: boolean; // hide the sidebar for a full-width conversation (localStorage-backed)
   toggleSidebar: () => void;
+  sidebarWidth: number; // desktop rail width in px (localStorage-backed)
+  setSidebarWidth: (width: number) => void;
   unread: string[]; // sids with new activity you haven't opened (localStorage-backed)
   markUnread: (id: string) => void;
   markRead: (id: string) => void;
@@ -195,6 +197,25 @@ function loadSidebarCollapsed(): boolean {
   }
 }
 
+export const SIDEBAR_MIN_WIDTH = 220;
+export const SIDEBAR_MAX_WIDTH = 480;
+export const SIDEBAR_DEFAULT_WIDTH = 260;
+const SIDEBAR_WIDTH_KEY = "arwebui.sidebarWidth";
+
+export function clampSidebarWidth(width: number): number {
+  if (!Number.isFinite(width)) return SIDEBAR_DEFAULT_WIDTH;
+  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(width)));
+}
+
+function loadSidebarWidth(): number {
+  try {
+    const raw = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY));
+    return raw ? clampSidebarWidth(raw) : SIDEBAR_DEFAULT_WIDTH;
+  } catch {
+    return SIDEBAR_DEFAULT_WIDTH;
+  }
+}
+
 const UNREAD_KEY = "arwebui.unread";
 function loadUnread(): string[] {
   try {
@@ -300,6 +321,16 @@ export const useStore = create<AppState>((set, get) => ({
       /* ignore quota */
     }
     set({ sidebarCollapsed: next });
+  },
+  sidebarWidth: loadSidebarWidth(),
+  setSidebarWidth: (width) => {
+    const next = clampSidebarWidth(width);
+    try {
+      localStorage.setItem(SIDEBAR_WIDTH_KEY, String(next));
+    } catch {
+      /* private mode / quota */
+    }
+    set({ sidebarWidth: next });
   },
   unread: loadUnread(),
   markUnread: (id) => {

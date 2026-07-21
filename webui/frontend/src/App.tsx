@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { useStore } from "./store";
 import { useBreakpoint } from "./hooks/useBreakpoint";
 import { Sidebar } from "./components/Sidebar";
@@ -26,6 +26,7 @@ export function App() {
   const closeHelp = useStore((s) => s.closeHelp);
   const sidebarCollapsed = useStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useStore((s) => s.toggleSidebar);
+  const sidebarWidth = useStore((s) => s.sidebarWidth);
   const unread = useStore((s) => s.unread);
   const [palette, setPalette] = useState(false);
   const paletteOpenRef = useRef(false);
@@ -218,7 +219,10 @@ export function App() {
   };
 
   return (
-    <div className={"app" + (effectiveCollapsed ? " collapsed" : "")}>
+    <div
+      className={"app" + (effectiveCollapsed ? " collapsed" : "")}
+      style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}
+    >
       {/* A11Y-1 · Must be the first focusable node in the DOM: the sidebar holds
           ~94% of the app's tab stops, so without this a keyboard user never
           reaches the conversation or composer. */}
