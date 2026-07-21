@@ -509,6 +509,7 @@
   .risk-dot.low { @apply bg-green; }
   .risk-dot.med { @apply bg-amber; }
   .risk-dot.high { @apply bg-red; }
+  .risk-dot.unknown { @apply bg-dim; }
   .cx-access-ico { @apply grid h-6 w-6 place-items-center rounded-full bg-panel-2; }
   .cx-access-ico.low { @apply text-green; }
   .cx-access-ico.med { @apply text-amber; }
@@ -594,6 +595,7 @@
   .timeline .tl-inner .msg:not(.msg-last):focus-within .msg-actions { @apply pointer-events-auto opacity-100; }
   .timeline .tl-inner .msg.msg-last .msg-col .msg-actions .msg-time { @apply hidden; }
   .msg-copy { @apply grid h-6 w-6 place-items-center rounded-[6px] border-0 bg-transparent p-0 text-dim opacity-60 hover:bg-panel-2 hover:text-ink hover:opacity-100; }
+  .msg.msg-last .msg-copy { @apply opacity-100; }
   .msg-actions-div { @apply h-4 w-px bg-line; }
   .msg-time, .who { @apply text-[11px] text-dim; }
   .compact-divider { @apply my-5 flex items-center gap-2 text-[12px] text-dim; }
