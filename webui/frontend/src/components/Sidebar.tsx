@@ -493,8 +493,10 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
                       name's text lands on the same column as the session titles
                       nested under it; the folder rests there and the caret
                       takes the slot on hover/focus. */}
-                  <CaretRight className={`proj-caret${!folded ? " open" : ""}`} size={11} weight="bold" aria-hidden="true" />
-                  {!folded ? <FolderOpen className="proj-folder" size={16} /> : <Folder className="proj-folder" size={16} />}
+                  <span className="proj-icon-slot">
+                    <CaretRight className={`proj-caret${!folded ? " open" : ""}`} size={11} weight="bold" aria-hidden="true" />
+                    {!folded ? <FolderOpen className="proj-folder" size={16} /> : <Folder className="proj-folder" size={16} />}
+                  </span>
                   {/* SIDE-SUBTITLE · the disambiguating worktree lineage
                       (project.hint) drops to a subordinate second line under
                       the repo name instead of stealing name width on the same

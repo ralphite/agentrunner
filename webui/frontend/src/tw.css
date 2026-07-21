@@ -1317,6 +1317,24 @@
   .tl-notfound-id { @apply mt-1 font-mono text-[12px] text-dim; }
   .pop-section { @apply flex flex-col py-0.5; }
   .proj-folder { @apply shrink-0 text-dim; }
+  /* SIDE-PROJECT-CARET · a group row shows only its folder icon at rest; the
+     collapse caret appears on hover/focus in the SAME gutter slot (folder
+     hides) so the repo-name text column never shifts and stays aligned with
+     the nested session titles (SB-6). Caret + folder are stacked
+     absolutely-centered in a fixed 16px slot and we cross-fade opacity — no
+     layout gap, no left/right jump from the size mismatch (caret 11 /
+     folder 16). The caret keeps its .open rotate. Works in both themes. */
+  .proj-icon-slot { @apply relative shrink-0; width: 16px; height: 16px; }
+  .proj-icon-slot .proj-caret,
+  .proj-icon-slot .proj-folder {
+    @apply absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 transition;
+  }
+  .proj-icon-slot .proj-caret { @apply opacity-0; }
+  .proj-icon-slot .proj-folder { @apply opacity-100; }
+  .project-heading:hover .proj-caret,
+  .project-heading:focus-visible .proj-caret { @apply opacity-100; }
+  .project-heading:hover .proj-folder,
+  .project-heading:focus-visible .proj-folder { @apply opacity-0; }
 
   /* Subagents 行:成员名优先于 status/meta——共享组给的 flex-1 在窄
      rail 里会被按内容占位的邻居分到 0 剩余宽(QA-0719 实测 sa-name
