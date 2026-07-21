@@ -3521,3 +3521,20 @@ approval 会话里同一位置就正常写着 `Goal`。金标 Environment 面板
   加双类覆盖 `.menu-trigger.page-action { w-auto }` → 变回正常 `+ Create ⌄` pill(贴 Codex)。派工 1(inline,仅 tw.css);
   push `b4b03b22`;live=`index-DUF3e1iO.js`;复验 scheduled × light/dark console error+warning = **0**。
   截图 before `qa/runs/2026-07-21-r40/live/sched-header-crop.png`、after `qa/runs/2026-07-21-r40/after/sched-header-crop-light.png`。
+
+- 2026-07-21 00:42 轮41:比对 4 屏(home/scheduled/rich/diff × light/dark × 1440)+ Codex 金标裁剪对齐。
+  关差距 **EMPTY-STACK(P0 可见故障)**:`.tl-empty`(NotFound + timeline "No messages yet" 两个真实空态共用)
+  只有 `text-center`、无 flex/grid → icon·`<b>`标题·`<span>`正文·CTA 全部 inline 流式排,渲染成
+  "Session not foundNo session matches…"、Back 按钮嵌在句子中间(看着像坏了)。镜像已验证正确的兄弟
+  `.empty-state`(`grid justify-items-center gap-1.5`)+ 加 `.tl-empty b {text-ink}` 深化标题 →
+  两个空态都变干净竖排栈,贴 Codex。
+  关差距 **SCHED-TABS(P1 Codex parity)**:Scheduled filter tab 是重蓝描边 pill(蓝字+蓝底+蓝边框),
+  Codex 是纯文本 tab(inactive 灰字无边框、active 柔和中性 `panel-2` pill+深字);且 Codex 搜索占整行、
+  tabs 在下一行(左 tabs·右 Mark-all)。改 `.sched-toolbar` flex-col 两行 + `.sched-filters` justify-between +
+  `.sched-tab`/`.on` 去蓝改中性 + `.sched-markread` 去按钮 chrome 成纯灰文本。
+  派工 1(inline,仅 tw.css,串行两条——共享文件单 implementer 规则);**让路** 并发 session(INC-85)未提交的
+  specs.ts/Go 脏文件(其 specs.ts:243 反引号未转义炸 vitest transform)——只推我的 tw.css,用 origin/main 干净
+  worktree 验证:vitest **602 全绿** + build 绿;push `d77ba3ab`;live=`index-B-munzsx.js`;
+  复验 scheduled(tabs 已对齐)+ session-not-found(已竖排)× light/dark,scheduled/home 单屏 console = **0**
+  (notfound 屏的 1 个 404 是故意导航不存在会话触发的 API 404,预期非回归)。
+  截图 before `qa/runs/2026-07-21-r41/live/{scheduled,diff,rich}-light.png`、after `qa/runs/2026-07-21-r41/after/{scheduled,notfound}-{light,dark}.png`。
