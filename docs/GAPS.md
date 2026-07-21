@@ -677,6 +677,18 @@ TERM-resistant 孙进程可变孤儿。统一 advisory flock + unique temp fsync
 针对性 race 与全量 gate 通过；共享 store/Web UI 重启验收见 QA-67。
 → UJ-01/04/09/17/18/24
 
+**G40 子 agent 编排契约未进模型可见面 → 弱模型 busy-wait — ✅ 已关闭（INC-85，2026-07-21，DESIGN「编排智能在模型」注记 + 工具描述）**
+现场（session 20260721-070616，dev persona，gemini-flash-latest）：主 agent 派完
+3 个 worker 后连续 4 分钟 `output` 轮询 + `bash sleep` 自旋（9 次 sleep、~25 轮
+空转 generation）等待子 agent，期间从不 idle，把 fire-and-yield 自动唤醒路径
+（DESIGN 静止子唤醒 §、`awaitInput` 的 `case <-l.bg.done`、decide 的
+hasInputAfterLastAssistant→doTurn）彻底架空。runtime 机制齐全并早已关闭（G2）；
+缺口纯在**契约从没进模型可见面**：`spawn_agent`/`output` 只承诺结果 "arrives as
+a message"，从没告诉模型"派完可结束 turn、完成会自动唤醒你、无需轮询/sleep"。
+强模型自推该推论，弱模型（默认 Flash）退回人类直觉忙等。关闭：4 处模型可见
+文本补 fire-and-yield 契约（spawn_agent/output 描述 + handle.go note + dev prompt）+
+存在性回归测试。QA-0721 A/B 真 Flash：同任务 output 轮询 13（旧）→0（新）。→ UJ-18
+
 **G39 spawn 子 agent 卡不可见审批死锁 — 🟡 修复落地（INC-81，2026-07-19，闸门 A 绿；闸门 B 真机复验后关闭）**
 **修复（INC-81）**：approve 路由经代码对读证实**本已通**（child 审批以
 child sid 注册 root broker，`ar approve <child-sid>` 经 `-sub-` 寻址精确

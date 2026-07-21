@@ -128,7 +128,12 @@ turn**（跑一遍 agentic loop）：
 - **消息改变编排**：用户 steer 消息进父 inbox → 模型看到它
   （投递时机见下「投递模式」）→ 模型自己决定发 `kill(h2)` +
   `spawn_agent(...)` 工具调用。编排的智能在模型，runtime 只提供
-  "随时能投、随时能杀、随时能起"的原语。
+  "随时能投、随时能杀、随时能起"的原语。**这份编排智能要落地,模型可见面
+  必须把 fire-and-yield 契约讲明:`spawn_agent`/`output` 的描述显式声明「派完
+  可结束 turn、完成作为消息自动唤醒、无需轮询/sleep」——否则弱模型会把 `output`
+  轮询 + `bash sleep` 当"等待"手段自旋空转,架空自动唤醒路径(INC-85,gemini-
+  flash 现场;QA-0721 A/B:同任务 output 轮询 13→0)。此为契约的可见性要求,非
+  不变量。**
 - **投递模式（steer|queue，per-message，INC-43，对标 Codex）**：用户消息带
   `UserInput.Delivery` 字段决定消费时机——`queue`（默认，空值即此）追加进
   inbox、idle（turn 末）消费，进**下个 turn**（type-ahead，历史唯一行为）；

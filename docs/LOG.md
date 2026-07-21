@@ -6036,3 +6036,35 @@ idle);§7 diff(仅 last-turn 基于 barrier 快照,working-tree=webui 原生
 git);§8 loop cadence(self_paced 无 absolute tick)、best-of-N(顺序执行
 非并行)、verifier 三态非四态(自证是 in-session goal 机制);§10 wire 命令
 面去 kill;SPEC 删过时的 🧊 胜者晋升行(PLAN 5.8 已 ✅)。check 全绿。
+
+---
+
+## 2026-07-21 · INC-85 子 agent 编排契约进模型可见面(消除 fire-and-yield 缺口)
+
+**背景**:用户翻查 webui session `20260721-070616`(dev persona,gemini-flash-
+latest)发现主 agent 派完 3 个 worker 后,连续 4 分钟用 `output` 轮询 + `bash
+sleep`(9 次 sleep、~25 轮空转 generation)自旋等待子 agent,期间从不 idle。
+
+**定性**:非内核 bug。runtime 的 fire-and-yield 早已齐全——`spawn_agent` 非
+阻塞、子 agent 完成作为 user-role 消息进父对话并自动唤醒(DESIGN 静止子唤醒、
+`awaitInput` 的 `case <-l.bg.done`、`loop.go` decide 的 hasInputAfterLastAssistant
+→ doTurn)。缺口在**契约从没进模型可见面**:工具描述只讲"结果作为消息到达",
+没讲"所以派完可结束 turn、会自动唤醒、无需轮询/sleep"。强模型自推,弱模型
+(默认 Flash)退回忙等。派子 agent 独立读内核复核,结论一致。
+
+**动作(4 处模型可见文本 + 1 测试)**:`spawn_agent.json`/`output.json` 描述、
+`handle.go` output note、webui `specs.ts` dev prompt 各补 fire-and-yield 契约;
+补 `TestSpawnAndOutputCarryFireAndYieldContract` 存在性回归(无 golden 锚)。
+不触任何不变量;DESIGN「编排智能在模型」一句补非不变量注记。裁三视角
+review(改动面=模型可见字符串,零控制流/状态机/并发)。
+
+**验收**:闸门 A green。闸门 B(QA-0721,真 Gemini Flash,A/B 同任务同 workspace):
+对照(旧 ar-live+旧 prompt)稳定复现 13 次 `output` 轮询;修复(新二进制+新 prompt)
+**0 次轮询 / 0 sleep**——派完写一句"正在等待"即结束 turn,3 个完成消息各自
+自动唤醒,gen-step 6 综合出完整报告。证据 `qa/runs/2026-07-21-QA-0721/`
+(两 session 保留共享 store)。GAPS G40 关闭。
+
+**环境注记(非本增量,记档备后)**:本机默认 `go1.26.4` 低于仓库安全底线
+1.26.5(check-go-toolchain 拒),且无 bash4(check.sh 并行编排 `declare -A` 挂);
+本次以 `GOTOOLCHAIN=local` 手跑各腿全绿。lint-wiring 报 `parsePSTable` 基线
+漂移系既有(平台/toolchain 敏感,与本增量无关,纯净树同样复现)。

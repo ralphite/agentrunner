@@ -27,6 +27,27 @@ func TestRegistryLoads(t *testing.T) {
 	}
 }
 
+// TestSpawnAndOutputCarryFireAndYieldContract guards INC-85: the sub-agent
+// orchestration contract (spawn is fire-and-yield; a finished result wakes you
+// as a message; no polling or sleeping to wait) must stay surfaced in the
+// model-facing tool descriptions, or weak models regress to output+sleep
+// busy-waiting (session 20260721-070616, gemini-flash-latest).
+func TestSpawnAndOutputCarryFireAndYieldContract(t *testing.T) {
+	for _, name := range []string{"spawn_agent", "output"} {
+		def, ok := Get(name)
+		if !ok {
+			t.Fatalf("%s not registered", name)
+		}
+		d := strings.ToLower(def.Description)
+		if !strings.Contains(d, "sleep") {
+			t.Errorf("%s description dropped the anti-sleep guidance: %q", name, def.Description)
+		}
+		if !strings.Contains(d, "wake") && !strings.Contains(d, "end your turn") {
+			t.Errorf("%s description dropped the auto-wake / end-your-turn contract: %q", name, def.Description)
+		}
+	}
+}
+
 func TestProviderDefs(t *testing.T) {
 	defs, err := ProviderDefs([]string{"read_file", "bash"})
 	if err != nil {

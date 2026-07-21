@@ -61,6 +61,7 @@ acceptance 26 场景（e2e/，按阶段）；具名测试 = Go 测试名。
 | 完整编排七步（多输入+并行+杀+回灌+续聊+恢复） | ✅ | UJ-18 | QA-09 · C7 |
 | 父崩溃 settle-from-child-fold | ✅ | 不变量 | QA-08(c) · C10(c) |
 | spawn 一律非阻塞（阻塞路径已删除,零 legacy） | ✅ | UJ-18 | 2026-07-08 落码(D3a) · TestSpawnEndToEnd(后台形态) · s5 场景 routes 化 |
+| 编排契约进模型可见面（fire-and-yield 不 busy-wait：`spawn_agent`/`output` 描述显式声明「派完可结束 turn、完成作为消息自动唤醒、无需轮询/sleep」；默认 dev prompt 同义补句） | ✅ | UJ-18 | INC-85 · TestSpawnAndOutputCarryFireAndYieldContract · QA-0721 PASS（真 Gemini Flash A/B：output 轮询 13→0） |
 | handoff（`handoff_agent`）/ blackboard（`publish_note`/`read_notes`） | ✅ | UJ-18 | S4 · TestHandoffEndsParentRun/TestPublishReadOrder/TestPublishMirror（G30 还锚 audit-0717 C1） |
 | 树预算 / 权限默认不超父（冻结交集） / 深度扇出上限 | ✅ | UJ-18/20/23 | S4 · INC-12.5 · TestEscalationApproval（预算/上限/收容无例外） |
 | 子提权申请通道（`escalate` 强制人审；批准用 child rules，拒绝/interrupt 降级交集） | ✅ | UJ-23 | INC-12.5 · TestEscalationApproval |

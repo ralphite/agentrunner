@@ -365,7 +365,7 @@ func (l *Loop) runHandleTool(handles state.Handles, name string, rawArgs json.Ra
 		// durable record.
 		out := map[string]any{
 			"handle": args.Handle, "status": "running",
-			"note": "tail of the output so far; the full result arrives as a message when the work finishes",
+			"note": "tail of the output so far; the full result arrives as a message that wakes you when the work finishes — no need to poll again or sleep, just end your turn",
 		}
 		l.bg.mu.Lock()
 		log := l.bg.logs[args.Handle]

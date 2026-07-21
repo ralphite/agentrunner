@@ -1,6 +1,6 @@
 {
   "name": "output",
-  "description": "Check background work progress. For a running work it returns status plus the tail of its stdout/stderr so far (output_tail, bounded); the full result still arrives as a message when it finishes.",
+  "description": "Check background work progress. For a running work it returns status plus the tail of its stdout/stderr so far (output_tail, bounded); the full result still arrives as a message when it finishes. This is for an occasional peek only — do NOT call it in a loop and do NOT run `sleep` to wait for completion. Ending your turn is safe: the finished result arrives as a message that automatically wakes you.",
   "class": "read",
   "input_schema": {
     "type": "object",
