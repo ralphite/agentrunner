@@ -247,7 +247,7 @@ function ArtifactChips({ sid, files }: { sid: string; files: FileDiffSummary[] }
   const shown = expanded ? docs : docs.slice(0, ARTIFACT_CAP);
   const hidden = docs.length - shown.length;
   return (
-    <div className="flex flex-col mt-[12px] mb-[8px] border border-line rounded-[8px] bg-panel overflow-hidden" aria-label="Documents produced this turn">
+    <div className="flex flex-col mt-[12px] mb-[8px] border border-line rounded-[14px] bg-panel overflow-hidden" aria-label="Documents produced this turn">
       {shown.map(({ file, ext, label }, i) => (
         <ArtifactRow key={file.path} sid={sid} file={file} ext={ext} label={label} divider={i > 0} />
       ))}
@@ -494,7 +494,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
           <div className="changes-outcome-actions ml-auto flex shrink-0 items-center gap-1">
             <button
               type="button"
-              className="inline-flex shrink-0 items-center gap-[5px] border-0 bg-transparent px-2 text-ink-2 hover:text-ink"
+              className="inline-flex shrink-0 items-center gap-[5px] border-0 bg-transparent px-2 text-ink hover:text-ink"
               onClick={undo}
               title="Discard all these changes (git checkout . + remove new files)"
             >
