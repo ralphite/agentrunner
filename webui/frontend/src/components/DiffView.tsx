@@ -780,6 +780,26 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
   return (
     <div className={"diffwrap" + (wrap ? " diff-wrap" : "")}>
       <div className="diffbar" ref={barRef}>
+        {/* DIFF-REVIEW-LABEL · a compact, non-interactive marker that this panel
+            *is* the review surface. Codex's diff header opens with a `Review`
+            pill; ours opened straight onto `Last Turn ▾ +932 −0 …` with nothing
+            naming the mode, so a user who clicked into changes had no cue they
+            were in "review". It is the first thing on the bar — and the *first*
+            to stand down when the bar goes tight (barTight): the ✕ and the
+            working controls own the width of a narrow panel (DF-1 / RD-8 / RV-1),
+            so the label only shows where there is room to spare (the ~658px 1440
+            panel), hidden entirely — never shrunk — below BAR_TIGHT_PX. `shrink-0`
+            so it never compresses the scope chip / counts beside it, and it sits
+            before {scopeControl} so it can give way without ever costing the ✕
+            its 28px. Mirrors the worktree chip's subtle pill (bg-panel-2 / border)
+            but reads in `text-ink` — it names the panel, so it carries a touch
+            more weight — and coordinates in both themes via the same tokens. */}
+        {!barTight && (
+          <span className="diff-review-label inline-flex shrink-0 items-center gap-[4px] whitespace-nowrap rounded-[5px] border border-line-2 bg-panel-2 px-[7px] py-[2px] text-[12px] font-medium text-ink">
+            <FileMagnifyingGlass size={13} weight="bold" className="shrink-0" />
+            Review
+          </span>
+        )}
         {scopeControl}
         {/* DF-6 · both numbers, always — Codex's toolbar reads `+649 -57`, and a
             review with nothing deleted reads `+1 −0`, not a lone `+1`. The old
