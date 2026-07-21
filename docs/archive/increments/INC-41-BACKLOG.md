@@ -3503,3 +3503,13 @@ approval 会话里同一位置就正常写着 `Goal`。金标 Environment 面板
   吃了 UA 默认的 `buttonface` 底色),改一个 class 就能修,是目前已知最严重的可见故障;并行可打 **ENV-CLIP(P1)**(Environment 面板
   `overflow:auto` 把自己的 `Commit or push` 菜单裁掉 56%,`Commit & push`/`Push` 两个 git 写动作**点不到**)与 **HM-9(P1)**
   (项目搜索框只认 5/202 个 workspace,搜不到侧栏上明明看得见的项目)—— 三条 touches 两两不重叠。
+
+- 2026-07-21 轮39:比对 home/thread/diff/scheduled × Codex 金标(重建 live=index-CR_T__Jw.js 后逐屏并排);
+  关差距 **HOME-REPOBOX(P1)** home hero 里 repo 名的幽灵点线矩形框根除(`.home-empty-repo` 的 `border-b border-dotted`
+  会把四边都设 dotted、只有底边有显式 1px 宽、其余三边回退 UA `medium`=3px 成框;加 `border-0` 后只剩底部 1px 点线下划线,
+  三边 0px,贴 Codex 纯文本 repo 名)、**SCHED-DENSITY(P2)** Scheduled 行从「重边框大卡片(~100px、一屏 ~5 条)」变
+  「紧凑分隔清单(59px、细底分隔线、无卡片边框/圆角、透明底、glyph 32→28px,一屏 ~9 条)」贴 Codex 紧凑列表(`⋯`菜单/
+  未读点/cadence 全保);派工 1(单 implementer,worktree 隔离,自验自推,仅动 tw.css);push `9e89fd6c`;
+  live=`index-CR_T__Jw.js`;全景 console error+warning = **0**(home/scheduled × light/dark)。
+  截图 `qa/runs/2026-07-20-r39/{live,after-live}/`。**注**:INC-41-BACKLOG.md 已随 INC-65.2 顺带归档至 docs/archive/,
+  旧 backlog 条目多经 348 commit(含 Tailwind 迁移)洗牌,本轮以 live 重截图为准、未沿用旧条目。
