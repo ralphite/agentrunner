@@ -276,3 +276,91 @@ describe("THREAD-2 — workedLabel prefers the real work-span", () => {
     expect(workedLabel(fold({ startMs: 5000, endMs: 5000 }))).toBe("Worked · 1 step");
   });
 });
+
+// ---------------------------------------------------------------------------
+// THREAD-2-SINGLESTEP — a single-step interrupted turn dates from the tool's
+// OWN lifecycle (activity_started → activity_completed), so its fold head reads
+// the real elapsed even when the terminal chip that carried the end instant was
+// suppressed before it ever reached the fold.
+//
+// The live failure (session 297d): a step-limit-cut turn's tail fold held ONE
+// bash tool. Its activity_started (ts) was on the ToolItem, but the only mark of
+// when it ENDED was the `limit_exceeded` echoChip (ts = +2m) — which SessionView
+// deletes via suppressEchoedChips({terminalAlert:true}) before foldWork runs,
+// because the "Step limit reached" banner is already on screen. foldWork then saw
+// a single dated instant: startMs == endMs == the tool's start, span 0, so the
+// head degraded to "Worked · 1 step".
+//
+// The fix carries the tool's END instant on the ToolItem itself (endTs, written
+// from activity_completed/failed/cancelled), and foldSpanMs (branch ③) counts
+// BOTH the tool's ts and its endTs. So the span self-recovers from the tool's own
+// life, with NO dependence on the suppressed chip.
+//
+// These tests deliberately DO NOT include the terminal chip and set
+// startMs == endMs == the tool start — reproducing the exact live pipeline where
+// the chip is already gone and branch ② collapses to 0. The flip must come purely
+// from the tool's ts/endTs, which is the guarantee the earlier "green" unit tests
+// (which fed a dated chip straight into foldWork, un-suppressed) never proved.
+// ---------------------------------------------------------------------------
+describe("THREAD-2-SINGLESTEP — a lone tool dates the head from its own lifecycle", () => {
+  const START = "2026-07-11T07:40:19Z";
+  const END = "2026-07-11T07:42:19Z"; // +2m — the real bash runtime
+  const startMs = new Date(START).getTime();
+
+  // A tool carrying both its start (ts) and end (endTs) instants.
+  const spannedTool = (key: string): ToolItem => ({
+    ...tool(key),
+    ts: START,
+    endTs: END,
+  });
+
+  const fold = (over: Partial<WorkFold>): WorkFold => ({
+    kind: "fold",
+    key: "f",
+    children: [spannedTool("t1")],
+    ...over,
+  });
+
+  it("flips 'Worked · 1 step' → the real 'Worked for 2m' off the tool's ts/endTs alone", () => {
+    // The live shape: no durationMs (never settled), the terminal chip already
+    // suppressed (absent here), and branch ②'s window collapsed to zero because
+    // foldWork only ever noted the tool's START instant.
+    const f = fold({ startMs, endMs: startMs });
+    expect(f.durationMs).toBeUndefined();
+    expect(f.startMs).toBe(f.endMs); // branch ② yields 0 — cannot fire
+    expect(workedLabel(f)).toBe("Worked for 2m");
+  });
+
+  it("recovers the span even with NO startMs/endMs on the fold at all (pure branch ③)", () => {
+    const f = fold({}); // only the tool's own ts/endTs are dated
+    expect(f.startMs).toBeUndefined();
+    expect(f.endMs).toBeUndefined();
+    expect(workedLabel(f)).toBe("Worked for 2m");
+  });
+
+  it("a lone tool with ONLY a start ts (no endTs) still degrades to a step count", () => {
+    // Guards against fabricating a span from a single instant: this is the
+    // pre-fix live state, and without an end instant there is genuinely nothing
+    // to measure — the head must honestly say "1 step", not "Worked for 0s".
+    const f = fold({ children: [{ ...tool("t1"), ts: START }], startMs, endMs: startMs });
+    expect(workedLabel(f)).toBe("Worked · 1 step");
+  });
+
+  // ---- zero-regression: the other three branches are untouched ----
+  it("no regression — a settled turn still prefers its stored durationMs (branch ①)", () => {
+    // Even with a spanned tool present, a real durationMs wins.
+    expect(workedLabel(fold({ durationMs: 30000 }))).toBe("Worked for 30s");
+  });
+
+  it("no regression — a multi-step interrupted turn still reads its startMs..endMs (branch ②)", () => {
+    // Two bare tools (no ts), a real 34s window: branch ② fires exactly as before.
+    const f = fold({ children: [tool("t1"), tool("t2")], startMs: 1_000_000, endMs: 1_034_000 });
+    expect(workedLabel(f)).toBe("Worked for 34s");
+  });
+
+  it("no regression — a fold with no dated child anywhere still falls back to steps", () => {
+    const f = fold({ children: [tool("t1"), tool("t2")] });
+    expect(f.startMs).toBeUndefined();
+    expect(workedLabel(f)).toBe("Worked · 2 steps");
+  });
+});

@@ -730,13 +730,20 @@ function ActivityGroup({ run, sentImages }: { run: FoldRun; sentImages?: Map<num
 function foldSpanMs(fold: WorkFold): number | undefined {
   let lo = Infinity;
   let hi = -Infinity;
-  for (const c of fold.children) {
-    const ts = (c as { ts?: string }).ts;
-    if (!ts) continue;
-    const at = new Date(ts).getTime();
-    if (!Number.isFinite(at)) continue;
+  const take = (raw?: string) => {
+    if (!raw) return;
+    const at = new Date(raw).getTime();
+    if (!Number.isFinite(at)) return;
     if (at < lo) lo = at;
     if (at > hi) hi = at;
+  };
+  for (const c of fold.children) {
+    take((c as { ts?: string }).ts);
+    // THREAD-2-SINGLESTEP · a tool also carries its END instant (endTs). A
+    // single-step interrupted turn holds ONE tool: its start `ts` and its
+    // completion `endTs` are the only dated instants, so both must count or
+    // the span collapses to 0 and the head degrades to "Worked · 1 step".
+    if (c.kind === "tool") take((c as { endTs?: string }).endTs);
   }
   const span = hi - lo;
   return Number.isFinite(span) && span > 0 ? span : undefined;

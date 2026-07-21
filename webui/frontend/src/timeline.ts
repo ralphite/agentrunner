@@ -49,6 +49,14 @@ export interface ToolItem {
   // ran. Carried so a pure-tool interrupted turn (no assistant bubble) can still
   // date its work-span for the fold head, instead of degrading to a step count.
   ts?: string;
+  // THREAD-2-SINGLESTEP · the activity_completed/failed/cancelled envelope time —
+  // the moment this tool's work actually ENDED. `ts` is the span start,
+  // `endTs` the span end. A single-step interrupted turn (one tool, terminal
+  // chip suppressed by the on-screen "Step limit reached" banner before it
+  // reaches the fold) has only this one activity to date from: with both its
+  // start and end the fold recovers the real ~2m span instead of a 0-width one
+  // instant that degrades the head to "Worked · 1 step".
+  endTs?: string;
 }
 
 export interface BubbleItem {
@@ -930,6 +938,7 @@ export function foldEvents(events: Envelope[]): Folded {
           if (p.usage) t.usage = p.usage;
           if (p.result !== undefined) t.result = p.result;
           if (p.is_error) t.errorMsg = t.errorMsg || "";
+          if (env.ts) t.endTs = env.ts;
         } else {
           push({ kind: "sys", key: "s" + seq, text: `#${seq} activity_completed ${p.activity_id}` });
         }
@@ -942,6 +951,7 @@ export function foldEvents(events: Envelope[]): Folded {
           t.status = "failed";
           t.statusText = "failed" + (p.final ? " (final)" : ` (retry ${p.attempt})`);
           t.errorMsg = msg;
+          if (env.ts) t.endTs = env.ts;
         } else {
           // RT-5 · A failed MODEL call (activity kind=llm — it has no tool card
           // to hang off). Never paste the raw taxonomy string at the user: say
@@ -970,6 +980,7 @@ export function foldEvents(events: Envelope[]): Folded {
           t.status = "cancelled";
           t.statusText = "cancelled";
           if (p.partial_output) t.partial = p.partial_output;
+          if (env.ts) t.endTs = env.ts;
         } else {
           workChip(seq, "Wake-up cancelled", "warn");
         }

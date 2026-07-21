@@ -984,4 +984,54 @@ describe("THREAD-2-SINGLESTEP — interrupted single-step turn dates its fold he
     expect(fold.endMs).toBe(T0 + 34000); // extended to the cancellation instant
     expect(workedLabel(fold)).toBe("Worked for 33s");
   });
+
+  // THE LIVE FAILURE, reproduced through the REAL suppress pipeline.
+  //
+  // Every test above feeds the terminal chip STRAIGHT into foldWork — but that is
+  // NOT what the view does. SessionView runs suppressEchoedChips({terminalAlert:true})
+  // FIRST (the "Step limit reached" banner is already on screen), which DELETES the
+  // limit_exceeded echoChip — the only thing that carried the turn's END instant —
+  // before foldWork ever sees it. Session 297d's tail fold then held ONE bash tool
+  // whose activity_completed (+2m) was never on any item, so startMs == endMs ==
+  // the tool's start and the head degraded to "Worked · 1 step". The earlier fix
+  // (chip.ts → noteTs) was dead-on-arrival precisely because the chip was gone.
+  //
+  // This test carries the tool's end on the ToolItem itself (endTs, from
+  // activity_completed) and mirrors the real pipeline: suppress THEN fold. The flip
+  // to the real elapsed must come purely from the tool's ts→endTs, with the chip
+  // already deleted. This is the assertion the false-green unit tests never made.
+  const foldOfSuppressed = (events: any[]): WorkFold => {
+    const { items } = foldEvents(events as any);
+    // The live chrome: the step-limit banner is up, so terminalAlert chips are
+    // suppressed (exactly what SessionView does before folding).
+    const shown = suppressEchoedChips(items, { goalBanner: false, terminalAlert: true });
+    // Prove the terminal chip really is gone — otherwise this test would be as
+    // hollow as the ones that fed it in un-suppressed.
+    expect(shown.some((it) => it.kind === "chip" && (it as any).echo === "limit")).toBe(false);
+    const durations = completedTurnDurations(shown, false);
+    const nodes = foldWork(shown, durations, false);
+    const fold = nodes.find((n) => n.kind === "fold") as WorkFold | undefined;
+    expect(fold).toBeDefined();
+    return fold!;
+  };
+
+  it("flips a single-step step-limit turn to real elapsed even after the limit chip is SUPPRESSED", () => {
+    const fold = foldOfSuppressed([
+      { seq: 1, type: "input_received", ts: iso(T0), payload: { source: "cli", text: "keep going" } },
+      { seq: 2, type: "generation_started", payload: { gen_step: 1 } }, // driver shape: NO ts
+      { seq: 3, type: "activity_started", ts: iso(T0), payload: { kind: "tool", activity_id: "a1", name: "bash", args: {} } },
+      // the bash ran for 2 minutes; activity_completed carries the END instant
+      { seq: 4, type: "activity_completed", ts: iso(T0 + 120000), payload: { activity_id: "a1" } },
+      // the ONLY other bearer of the end instant — deleted by suppressEchoedChips
+      { seq: 5, type: "limit_exceeded", ts: iso(T0 + 120000), payload: { kind: "steps", limit: 1 } },
+    ]);
+    expect(fold.durationMs).toBeUndefined(); // never settled
+    // branch ② collapses: the only dated item foldWork noted is the tool's START,
+    // so the fold's window is zero-width — the exact live degradation.
+    expect(fold.startMs).toBe(T0);
+    expect(fold.endMs).toBe(T0);
+    // yet the head reads the real 2 minutes, recovered from the tool's own
+    // ts→endTs by foldSpanMs (branch ③). NOT "Worked · 1 step".
+    expect(workedLabel(fold)).toBe("Worked for 2m");
+  });
 });
