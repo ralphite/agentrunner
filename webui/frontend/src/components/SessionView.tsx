@@ -923,7 +923,11 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
                   </div>
                 ) : undefined}
                 active={running}
-                onContinue={() => openModal({ kind: "fork", sid })}
+                // Thread-1 dedup (extends TH-12/TH-14): when the terminal banner
+                // already carries the labelled "Continue in new session" action,
+                // suppress Timeline's tail-row continue icon so the same run-level
+                // action doesn't appear twice on screen.
+                onContinue={terminalNotice?.action === "continue" ? undefined : () => openModal({ kind: "fork", sid })}
                 goalVerdict={goalVerdict}
                 outcomeSlot={folded.items.some((item) => item.kind === "assistant") ? (
                   <ChangesOutcome sid={sid} refreshKey={events.length + workspaceEpoch} onReview={(scope) => openDiff(scope === "workspace" ? "working-tree" : "last-turn")} />
