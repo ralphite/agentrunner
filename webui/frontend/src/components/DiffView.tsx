@@ -132,12 +132,19 @@ const halfKind = (r: DiffRow | undefined, side: "left" | "right") =>
 // holds dozens of unrelated blocks; a review is one surface, so one switch).
 // Kept in localStorage rather than the store: a display preference the user sets
 // once, not session state — and the store is off this change's touch list.
+// DIFF-WRAP-DEFAULT-ON · default *on* when the user hasn't set a preference: a
+// review is one surface whose whole job is to show the changed characters, so
+// soft-wrap by default means a long line is never clipped by the panel edge
+// (Codex-parity: the diff stays readable inside its column). Only an explicit
+// "0" — the user reaching for the toolbar / `…` switch to turn wrap off — turns
+// it off; that choice still persists exactly as before. Absent key → wrap on.
 const WRAP_KEY = "ar.diff.wrap";
 const loadWrap = (): boolean => {
   try {
-    return localStorage.getItem(WRAP_KEY) === "1";
+    const v = localStorage.getItem(WRAP_KEY);
+    return v === null ? true : v === "1"; // unset → default on; explicit "0" → off
   } catch {
-    return false; // private mode / storage disabled: wrap simply doesn't persist
+    return true; // private mode / storage disabled: keep the default "nothing clipped" stance
   }
 };
 const saveWrap = (on: boolean) => {

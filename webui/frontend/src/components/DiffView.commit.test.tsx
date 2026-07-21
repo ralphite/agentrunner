@@ -276,6 +276,7 @@ describe("the ✕ never leaves the panel (INC-41 RD-8)", () => {
   it("demotes Copy and Wrap into … on a tight bar — and keeps the ✕ last", async () => {
     barWidth(520); // below BAR_TIGHT_PX
     localStorage.setItem("ar.diff.scope", "working-tree");
+    localStorage.setItem("ar.diff.wrap", "0"); // this test is about demotion, not the default-on state
     arMock.diff = () => Promise.resolve(baseDiff());
     const { container } = render(<DiffView sid="rd8a" onClose={() => {}} />);
 
@@ -298,6 +299,7 @@ describe("the ✕ never leaves the panel (INC-41 RD-8)", () => {
   it("the demoted Wrap is the same switch, not a second one", async () => {
     barWidth(520);
     localStorage.setItem("ar.diff.scope", "working-tree");
+    localStorage.setItem("ar.diff.wrap", "0"); // start off so we exercise the flip-to-on path
     arMock.diff = () => Promise.resolve(baseDiff());
     const { container } = render(<DiffView sid="rd8b" onClose={() => {}} />);
 

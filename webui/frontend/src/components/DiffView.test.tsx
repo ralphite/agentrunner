@@ -176,36 +176,57 @@ describe("Changes toolbar fits its panel (INC-41 DF-1)", () => {
 describe("Diff line wrap (INC-41 DF-4)", () => {
   beforeEach(() => localStorage.clear());
 
-  it("wraps every diff surface when the toolbar's Wrap switch is on", async () => {
+  it("wraps every diff surface, and the toolbar's Wrap switch toggles it off", async () => {
     arMock.diff = () => Promise.resolve(worktreeDiff());
     const { container } = render(<DiffView sid="w1" onClose={() => {}} />);
 
     await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
     const wrapBtn = screen.getByLabelText("Wrap long lines");
     expect(container.querySelector(".diffbar")!.contains(wrapBtn)).toBe(true);
-    // Off by default — Codex's own default is a single non-wrapping code surface.
-    expect(wrapBtn.getAttribute("aria-pressed")).toBe("false");
-    expect(container.querySelector(".diffwrap")!.className).not.toMatch(/diff-wrap\b/);
-
-    fireEvent.click(wrapBtn);
-    expect(screen.getByLabelText("Wrap long lines").getAttribute("aria-pressed")).toBe("true");
+    // DIFF-WRAP-DEFAULT-ON — a review's whole job is to show the changed
+    // characters, so with no saved preference we soft-wrap (nothing clips).
+    expect(wrapBtn.getAttribute("aria-pressed")).toBe("true");
     expect(container.querySelector(".diffwrap")!.className).toMatch(/diff-wrap\b/);
 
-    fireEvent.click(screen.getByLabelText("Wrap long lines"));
+    fireEvent.click(wrapBtn);
+    expect(screen.getByLabelText("Wrap long lines").getAttribute("aria-pressed")).toBe("false");
     expect(container.querySelector(".diffwrap")!.className).not.toMatch(/diff-wrap\b/);
+
+    fireEvent.click(screen.getByLabelText("Wrap long lines"));
+    expect(container.querySelector(".diffwrap")!.className).toMatch(/diff-wrap\b/);
+  });
+
+  // DIFF-WRAP-DEFAULT-ON — absent preference wraps (nothing clipped); a user who
+  // explicitly turned wrap off ("0") still gets it off. Only "1"/unset wrap on.
+  it("defaults wrap on when unset, respects an explicit off preference", async () => {
+    arMock.diff = () => Promise.resolve(worktreeDiff());
+
+    // Unset key → wrap on.
+    const first = render(<DiffView sid="w4" onClose={() => {}} />);
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+    expect(first.container.querySelector(".diffwrap")!.className).toMatch(/diff-wrap\b/);
+    first.unmount();
+
+    // Explicit "0" (user turned it off) → wrap off, honoured on the next mount.
+    localStorage.setItem("ar.diff.wrap", "0");
+    const { container } = render(<DiffView sid="w5" onClose={() => {}} />);
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+    expect(container.querySelector(".diffwrap")!.className).not.toMatch(/diff-wrap\b/);
+    expect(screen.getByLabelText("Wrap long lines").getAttribute("aria-pressed")).toBe("false");
   });
 
   it("remembers the preference across mounts (one switch for the whole review)", async () => {
     arMock.diff = () => Promise.resolve(worktreeDiff());
     const first = render(<DiffView sid="w2" onClose={() => {}} />);
     await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+    // Default is on; turning it off is the preference we persist here.
     fireEvent.click(screen.getByLabelText("Wrap long lines"));
-    expect(localStorage.getItem("ar.diff.wrap")).toBe("1");
+    expect(localStorage.getItem("ar.diff.wrap")).toBe("0");
     first.unmount();
 
     const { container } = render(<DiffView sid="w3" onClose={() => {}} />);
     await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
-    expect(container.querySelector(".diffwrap")!.className).toMatch(/diff-wrap\b/);
-    expect(screen.getByLabelText("Wrap long lines").getAttribute("aria-pressed")).toBe("true");
+    expect(container.querySelector(".diffwrap")!.className).not.toMatch(/diff-wrap\b/);
+    expect(screen.getByLabelText("Wrap long lines").getAttribute("aria-pressed")).toBe("false");
   });
 });
