@@ -39,6 +39,13 @@
   --red-soft: #fdeceb;
   --teal: #0d9488;
   --orange: #c2560f;
+  /* RVW-MARKER: diff row tints — dedicated tokens so the diff/review screen
+     can use a much subtler wash than the shared --green-soft/--red-soft
+     (which glyphs/avatars/danger buttons rely on). Light mirrors the soft
+     observation; dark stays close to --bg so an all-added file no longer
+     reads as a saturated green/red wall. */
+  --diff-add-bg: #e7f6ec;
+  --diff-del-bg: #fdeceb;
   --status-running: var(--green);
   --status-ready: var(--blue);
   --status-attention: var(--amber);
@@ -93,6 +100,10 @@
     --red-soft: #3a1a18;
     --teal: #4fccbb;
     --orange: #f0975a;
+    /* RVW-MARKER: subtle diff-row tints, kept close to --bg (#0f0f11) so an
+       all-added or all-deleted file reads as a faint wash, not a wall. */
+    --diff-add-bg: #12211a;
+    --diff-del-bg: #241514;
     --rs-accent: #4c9be6;
     --rs-accent-soft: #16283c;
     --hl-kw: #c792ea;
@@ -128,6 +139,10 @@
   --red-soft: #3a1a18;
   --teal: #4fccbb;
   --orange: #f0975a;
+  /* RVW-MARKER: subtle diff-row tints, kept close to --bg (#0f0f11) so an
+     all-added or all-deleted file reads as a faint wash, not a wall. */
+  --diff-add-bg: #12211a;
+  --diff-del-bg: #241514;
   --rs-accent: #4c9be6;
   --rs-accent-soft: #16283c;
   --hl-kw: #c792ea;
@@ -724,16 +739,18 @@
   .fd-spacer { @apply flex-1; }
   .fd-body { @apply overflow-x-auto border-t border-line bg-panel font-mono; font-size: var(--code-font-size); }
 
-  /* Core diff row grid: marker(18px) + line-number(5ch) + code(flex). The marker is a solid bar for adds, striped for dels */
+  /* Core diff row grid: marker(18px) + line-number(5ch) + code(flex).
+     RVW-MARKER: the 18px marker column keeps its width for alignment, but the
+     fill is a thin ~3px left accent bar (Codex form) instead of a solid block. */
   .dl { @apply grid min-w-max; grid-template-columns: 18px 5ch minmax(0, 1fr); }
-  .dl-marker { @apply select-none bg-green; }
+  .dl-marker { @apply select-none; background: linear-gradient(to right, var(--green) 3px, transparent 3px); }
   /* QA-0718 用户实机:删除行 gutter 曾用红色斜纹 repeating-gradient,
-     深色下极刺眼且非 Codex 形态——Codex 是纯色 gutter。 */
-  .dl.del .dl-marker { @apply bg-red; }
+     深色下极刺眼且非 Codex 形态——Codex 是极细纯色 accent 条。 */
+  .dl.del .dl-marker { background: linear-gradient(to right, var(--red) 3px, transparent 3px); }
   .dl-no { @apply select-none border-r border-line bg-panel-2 px-2 text-right text-dim text-[11px]; }
   .dl-text, .dls-half { @apply whitespace-pre px-2 text-ink; }
-  .dl.add .dl-text, .dls-half.add { @apply bg-green-soft; }
-  .dl.del .dl-text, .dls-half.del { @apply bg-red-soft; }
+  .dl.add .dl-text, .dls-half.add { background-color: var(--diff-add-bg); }
+  .dl.del .dl-text, .dls-half.del { background-color: var(--diff-del-bg); }
   .dl-sign { @apply select-none text-[11px] text-dim px-[3px]; }
   /* QA-0718 用户实机:hunk heading(git @@ 行的 section 文本)曾整行
      bg-blue-soft,读起来像一段被高亮的正文代码。fold band 已表达折叠,
@@ -750,8 +767,9 @@
   .fd-split .dls { display: contents; }
   .fd-split .dl-hunk-span { grid-column: 1 / -1; }
   .fd-split .dls-marker { @apply select-none; }
-  .fd-split .dls-marker.add { @apply bg-green; }
-  .fd-split .dls-marker.del { background: repeating-linear-gradient(45deg, var(--red), var(--red) 2px, transparent 2px, transparent 4px); }
+  /* RVW-MARKER: thin ~3px left accent bar, matching the inline view. */
+  .fd-split .dls-marker.add { background: linear-gradient(to right, var(--green) 3px, transparent 3px); }
+  .fd-split .dls-marker.del { background: linear-gradient(to right, var(--red) 3px, transparent 3px); }
 
   /* Context gap band: aligns to the diff row grid (marker + number + code) */
   /* QA-0718 用户实机:band 曾写成三列(18px/5ch/1fr)而 children 只有
