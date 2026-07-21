@@ -12,6 +12,7 @@ import {
   File,
   Folder,
   GitBranch,
+  GitFork,
   Lightning,
   ListChecks,
   LockOpen,
@@ -1189,7 +1190,7 @@ export function Composer(props: ComposerProps) {
             align="left"
             trigger={(open, toggle) => (
               <button className={"cx-env-control" + (open ? " active" : "")} onClick={toggle} title={kind === "background" ? "Runs in the background — choose where it runs" : "Choose where this session runs"} aria-haspopup="menu" aria-expanded={open}>
-                {kind === "background" ? <Lightning size={17} /> : runLocation === "local" ? <Desktop size={17} /> : <GitBranch size={17} />}
+                {kind === "background" ? <Lightning size={17} /> : runLocation === "local" ? <Desktop size={17} /> : <GitFork size={17} />}
                 <span className="cx-env-value min-w-0 overflow-hidden text-ellipsis">
                   {(kind === "background" ? "Background · " : "") + (runLocation === "local" ? "Local" : "New worktree")}
                 </span>
@@ -1465,7 +1466,6 @@ export function Composer(props: ComposerProps) {
                 >
                   {riskGlyph(sessionAccess?.risk || "unknown")}
                   {sessionAccess?.label || "Access: set by agent spec"}
-                  <Caret />
                 </button>
               )}
             >
@@ -1505,7 +1505,6 @@ export function Composer(props: ComposerProps) {
                 <button className={"cx-pill cx-mode " + (accessLevel?.risk || "low") + (open ? " active" : "")} onClick={toggle} title="How the agent's actions are approved" aria-haspopup="menu" aria-expanded={open}>
                   {riskGlyph(accessLevel?.risk || "low")}
                   {accessLevel?.label}
-                  <Caret />
                 </button>
               )}
             >
