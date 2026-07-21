@@ -21,9 +21,29 @@ describe("timeline input projection", () => {
     expect(folded.items.some((item) => item.kind === "user")).toBe(false);
   });
 
-  it("projects a user mode switch as a timeline chip (INC-42)", () => {
+  it("projects a user mode switch as a foldable system chip in human vocabulary (INC-42 / TH-16)", () => {
     const folded = foldEvents([{ seq: 1, type: "mode_changed", payload: { to: "acceptEdits", cause: "user" } }]);
-    expect(folded.items).toContainEqual(expect.objectContaining({ kind: "chip", text: "Mode changed · acceptEdits (user)" }));
+    // Human access vocabulary (not the raw `acceptEdits` enum / bare `(user)`),
+    // and a system chip that folds into its turn rather than shattering it.
+    expect(folded.items).toContainEqual(expect.objectContaining({
+      kind: "chip", text: "Mode changed · Auto-accept edits · by you", fold: true, system: true,
+    }));
+    const chip = folded.items.find((it: any) => it.kind === "chip" && /^Mode changed/.test(it.text)) as any;
+    expect(chip.text).not.toContain("acceptEdits");
+    expect(chip.text).not.toContain("(user)");
+  });
+
+  it("maps mode enums and non-user causes to human labels", () => {
+    const cases: [string, string, string][] = [
+      ["default", "user", "Mode changed · Ask · by you"],
+      ["plan", "startup", "Mode changed · Plan · read-only · automatic"],
+      ["bypass", "user", "Mode changed · Full access · by you"],
+      ["default", "exit_plan_mode approved", "Mode changed · Ask · automatic"],
+    ];
+    for (const [to, cause, text] of cases) {
+      const folded = foldEvents([{ seq: 1, type: "mode_changed", payload: { to, cause } }]);
+      expect(folded.items).toContainEqual(expect.objectContaining({ kind: "chip", text, fold: true, system: true }));
+    }
   });
 });
 
@@ -347,6 +367,31 @@ describe("TH-16 · system chips never render at the top level", () => {
     expect(nodes.map((n: any) => n.kind)).toEqual(["user", "fold", "assistant"]);
     expect(topChips(nodes)).toEqual([]);
     expect((nodes[1] as any).children.map((c: any) => c.key)).toEqual(["t1", "c2", "t3"]);
+  });
+
+  it("keeps a turn with a mid-turn mode change as ONE fold carrying the turn duration (not split)", () => {
+    // Regression: mode_changed used to emit a BARE chip, which flushed the open
+    // work fold mid-turn — one turn shattered into two folds ("Worked · 5 steps"
+    // then "Worked for 6m 52s"), the first losing its duration to a step-count
+    // fallback. As a system chip it folds in place: one turn ⇒ one fold.
+    const items = [
+      user("u1", "2026-07-10T05:00:00Z"),
+      tool("t1"),
+      sys("c2", "Mode changed · Auto-accept edits · by you"),
+      tool("t3"),
+      asst("a1", "2026-07-10T05:06:52Z"),
+    ];
+    const nodes = run(items);
+    expect(nodes.map((n: any) => n.kind)).toEqual(["user", "fold", "assistant"]); // ONE fold
+    expect(topChips(nodes)).toEqual([]); // the mode chip never floats to the top
+    const fold = nodes[1] as any;
+    expect(fold.durationMs).toBe(412000); // real turn duration, not a step-count fallback
+    expect(fold.children.map((c: any) => c.key)).toEqual(["t1", "c2", "t3"]);
+    // the mode chip inside speaks human vocabulary, never the raw enum
+    const modeChip = fold.children.find((c: any) => /^Mode changed/.test(c.text));
+    expect(modeChip.text).toBe("Mode changed · Auto-accept edits · by you");
+    expect(modeChip.text).not.toContain("acceptEdits");
+    expect(modeChip.text).not.toContain("(user)");
   });
 
   it("opens a fold of its own for trailing plumbing with no turn to ride into", () => {

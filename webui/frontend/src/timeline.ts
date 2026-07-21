@@ -325,6 +325,27 @@ function isSystemChip(it: TimelineItem): boolean {
   return it.kind === "chip" && !!it.system;
 }
 
+// Human-friendly name for a run mode, mirroring the app-wide access vocabulary
+// (composer pill / inspect panel: specs.ts ACCESS_LEVELS, inspectPresentation
+// modeLabel). The thread must never leak the raw enum (`acceptEdits`, `bypass`)
+// — a mode chip reads "Auto-accept edits", not "acceptEdits".
+function modeChipLabel(mode: unknown): string {
+  switch (String(mode || "default").toLowerCase()) {
+    case "acceptedits":
+    case "accept_edits": return "Auto-accept edits";
+    case "bypass":
+    case "full": return "Full access";
+    case "plan": return "Plan · read-only";
+    default: return "Ask"; // `default` mode is ask-first (specs.ts W15)
+  }
+}
+
+// Human-friendly attribution for a mode change's cause. A user-driven switch
+// reads "by you"; startup / exit_plan_mode / any non-user origin is "automatic".
+function modeCauseLabel(cause: unknown): string {
+  return String(cause || "").toLowerCase() === "user" ? "by you" : "automatic";
+}
+
 // foldWork regroups the flat item list into render nodes: for every completed
 // human turn, the work between the user message and the final assistant
 // answer collapses into a WorkFold carrying that turn's duration. The active
@@ -1021,7 +1042,12 @@ export function foldEvents(events: Envelope[]): Folded {
         status = { text: "crashed", cls: "crash" };
         break;
       case "mode_changed":
-        chip(seq, `Mode changed · ${p.to} (${p.cause})`);
+        // TH-16: a mode switch is a step inside the turn it happened in, not a
+        // beat of the conversation. It rides in that turn's activity fold as a
+        // system chip (like spec_changed) instead of surfacing bare at the top
+        // level and shattering the turn's single "Worked for …" fold. The chip
+        // speaks the app-wide access vocabulary, never the raw enum.
+        sysChip(seq, `Mode changed · ${modeChipLabel(p.to)} · ${modeCauseLabel(p.cause)}`);
         break;
       case "spec_changed":
         // TH-16: which agent/model the run switched to is plumbing for the turn
