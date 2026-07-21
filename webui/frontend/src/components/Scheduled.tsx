@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState } from "react";
 import type { Icon } from "@phosphor-icons/react";
-import { CalendarDots, Plus, MagnifyingGlass, Check, CaretDown, Crosshair, ArrowsClockwise, Stack, Play, Bell, Notebook, FileMagnifyingGlass, Circle, PlayCircle, PauseCircle, CheckCircle, WarningCircle, DotsThree, PushPin } from "@phosphor-icons/react";
+import { CalendarDots, MagnifyingGlass, Check, CaretDown, Crosshair, ArrowsClockwise, Stack, Play, Bell, Notebook, FileMagnifyingGlass, Circle, PlayCircle, PauseCircle, CheckCircle, WarningCircle, DotsThree, PushPin } from "@phosphor-icons/react";
 import { useStore } from "../store";
 import { AR } from "../api";
 import { friendlyStatus } from "./pill";
@@ -515,7 +515,7 @@ export function Scheduled() {
           <Menu
             ariaLabel="Create scheduled work"
             triggerClassName="page-action"
-            label={<><Plus size={15} /> Create <CaretDown size={13} /></>}
+            label={<>Create <CaretDown size={13} /></>}
           >
             <MenuLabel>Create</MenuLabel>
             <MenuItem onClick={() => openModal({ kind: "run", preset: "one-time" })}>
