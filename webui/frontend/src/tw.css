@@ -293,8 +293,12 @@
   .project-heading {
     @apply w-full rounded-[7px] border-0 bg-transparent normal-case tracking-normal text-ink-2 transition-colors duration-100 hover:bg-panel-2 hover:text-ink;
   }
-  .project-heading span:first-of-type { @apply min-w-0 truncate; }
-  .project-hint { @apply ml-auto text-[11px] text-dim; }
+  /* SIDE-SUBTITLE · repo name + optional worktree-lineage hint stack in one
+     min-w-0 flex column so the name gets the full text width and the hint
+     rides a subordinate second line instead of stealing name space. */
+  .proj-heading-text { @apply flex min-w-0 flex-1 flex-col; }
+  .proj-heading-name { @apply min-w-0 truncate; }
+  .project-hint { @apply min-w-0 truncate text-[10px] font-normal leading-tight text-dim; }
   .proj-caret { @apply transition-transform; }
   .proj-caret.open { @apply rotate-90; }
   .project-session-wrap { @apply relative flex min-w-0 items-center rounded-[8px]; }

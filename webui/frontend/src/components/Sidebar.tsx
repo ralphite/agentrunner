@@ -495,8 +495,18 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
                       takes the slot on hover/focus. */}
                   <CaretRight className={`proj-caret${!folded ? " open" : ""}`} size={11} weight="bold" aria-hidden="true" />
                   {!folded ? <FolderOpen className="proj-folder" size={16} /> : <Folder className="proj-folder" size={16} />}
-                  <span>{name}</span>
-                  {project.hint && <span className="project-hint">{project.hint}</span>}
+                  {/* SIDE-SUBTITLE · the disambiguating worktree lineage
+                      (project.hint) drops to a subordinate second line under
+                      the repo name instead of stealing name width on the same
+                      row. The text column stays aligned with the nested
+                      session titles (SB-6); the hint indents to the name's
+                      column, dim and one size smaller, truncating on its own
+                      row and never wrapping or shrinking the name. Groups with
+                      no hint stay single-line. */}
+                  <span className="proj-heading-text">
+                    <span className="proj-heading-name">{name}</span>
+                    {project.hint && <span className="project-hint">{project.hint}</span>}
+                  </span>
                 </button>
                 {/* Touch layouts have no hover and no reliable right-click, so
                     the project menu (rename, open-in, archive-all) was
