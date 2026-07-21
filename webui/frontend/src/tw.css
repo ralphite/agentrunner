@@ -296,7 +296,7 @@
   /* SIDE-SUBTITLE · repo name + optional worktree-lineage hint stack in one
      min-w-0 flex column so the name gets the full text width and the hint
      rides a subordinate second line instead of stealing name space. */
-  .proj-heading-text { @apply flex min-w-0 flex-1 flex-col; }
+  .proj-heading-text { @apply flex min-w-0 flex-1 flex-col text-left; }
   .proj-heading-name { @apply min-w-0 truncate; }
   .project-hint { @apply min-w-0 truncate text-[10px] font-normal leading-tight text-dim; }
   .proj-caret { @apply transition-transform; }
