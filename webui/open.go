@@ -150,14 +150,14 @@ func (s *server) handleOpen(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleProjectsList returns the workspace-keyed overlay (INC-53): custom
-// display names, folded state, and last-opened times the sidebar renders on top
-// of the journal-derived project groups.
+// display names, folded/pinned/removed state, and last-opened times the sidebar
+// renders on top of the journal-derived project groups.
 func (s *server) handleProjectsList(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.meta.allProjects())
 }
 
 // handleProjectUpdate applies a partial overlay update for one project group
-// (INC-53): a custom display name and/or folded state. The key is the project
+// (INC-53/INC-87): a custom display name and/or folded/pinned/removed state. The key is the project
 // group's identity (a workspace path, or the "__scratch__" aggregate) — purely
 // cosmetic metadata, so it is length-capped but not required to be a known
 // workspace (folding the Scratch aggregate must work, and toggling must be
@@ -167,6 +167,8 @@ func (s *server) handleProjectUpdate(w http.ResponseWriter, r *http.Request) {
 		Workspace   string  `json:"workspace"`
 		DisplayName *string `json:"displayName"`
 		Folded      *bool   `json:"folded"`
+		Pinned      *bool   `json:"pinned"`
+		Removed     *bool   `json:"removed"`
 	}
 	if !readBody(w, r, &req) {
 		return
@@ -184,6 +186,6 @@ func (s *server) handleProjectUpdate(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, "display name too long")
 		return
 	}
-	s.meta.setProject(key, req.DisplayName, req.Folded)
+	s.meta.setProject(key, req.DisplayName, req.Folded, req.Pinned, req.Removed)
 	writeJSON(w, http.StatusOK, s.meta.allProjects())
 }

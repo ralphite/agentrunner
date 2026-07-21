@@ -465,7 +465,7 @@ export function Scheduled() {
   // Suggestions are a terminal block: every real scheduled run renders first,
   // and the canned templates always close the list at the very bottom, with
   // nothing after them (Codex parity — the gold reference only *looks* like a
-  // mid-list split because it happens to carry two real tasks; it never carves
+  // mid-list split because it happens to carry two real runs; it never carves
   // the list apart). This holds for any number of real rows.
   const suggestions = (
     <div className="sched-suggestions" data-testid="scheduled-suggestions">

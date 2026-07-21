@@ -110,6 +110,41 @@ func postOpen(t *testing.T, s *server, workspace, app string) *httptest.Response
 	return rec
 }
 
+// TestProjectUpdatePinnedRemoved pins INC-87's partial overlay contract: the
+// two new presentation flags can be set independently and false clears them
+// without disturbing an existing custom name.
+func TestProjectUpdatePinnedRemoved(t *testing.T) {
+	s := &server{meta: newMetaStore(filepath.Join(t.TempDir(), "meta.json"))}
+	name := "My Project"
+	s.meta.setProject("/repo/app", &name, nil, nil, nil)
+
+	body := `{"workspace":"/repo/app","pinned":true,"removed":true}`
+	req := httptest.NewRequest("POST", "/api/projects", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	s.handleProjectUpdate(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body: %s)", rec.Code, rec.Body.String())
+	}
+	got := s.meta.allProjects()["/repo/app"]
+	if got.DisplayName != name || !got.Pinned || !got.Removed {
+		t.Fatalf("partial update = %+v", got)
+	}
+
+	body = `{"workspace":"/repo/app","pinned":false,"removed":false}`
+	req = httptest.NewRequest("POST", "/api/projects", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	s.handleProjectUpdate(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("clear status = %d, want 200 (body: %s)", rec.Code, rec.Body.String())
+	}
+	got = s.meta.allProjects()["/repo/app"]
+	if got.DisplayName != name || got.Pinned || got.Removed {
+		t.Fatalf("clear disturbed overlay = %+v", got)
+	}
+}
+
 // TestOpenRejectsUnknownApp: a non-whitelisted app token is refused and nothing
 // is executed, even for a known workspace.
 func TestOpenRejectsUnknownApp(t *testing.T) {

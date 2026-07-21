@@ -197,7 +197,7 @@ func TestMetaStoreMergeHydratesJournalMetadataWithoutReplacingTitle(t *testing.T
 }
 
 // TestMetaStoreProjectOverlayRoundTrip pins INC-53: the workspace-keyed overlay
-// (custom name / folded / last_opened) persists and reloads, and does not
+// (custom name / folded / pinned / removed / last_opened) persists and reloads, and does not
 // disturb the session cache. An emptied overlay entry is dropped.
 func TestMetaStoreProjectOverlayRoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "meta.json")
@@ -206,7 +206,9 @@ func TestMetaStoreProjectOverlayRoundTrip(t *testing.T) {
 
 	name := "My App"
 	folded := true
-	store.setProject("/repo/app", &name, &folded)
+	pinned := true
+	removed := true
+	store.setProject("/repo/app", &name, &folded, &pinned, &removed)
 	store.touchProject("/repo/app")
 
 	reloaded := newMetaStore(path)
@@ -214,7 +216,7 @@ func TestMetaStoreProjectOverlayRoundTrip(t *testing.T) {
 		t.Fatalf("session cache disturbed by overlay: %+v", got)
 	}
 	p := reloaded.allProjects()["/repo/app"]
-	if p.DisplayName != "My App" || !p.Folded || p.LastOpened == 0 {
+	if p.DisplayName != "My App" || !p.Folded || !p.Pinned || !p.Removed || p.LastOpened == 0 {
 		t.Fatalf("overlay did not round-trip: %+v", p)
 	}
 
@@ -223,17 +225,19 @@ func TestMetaStoreProjectOverlayRoundTrip(t *testing.T) {
 	// empty overlay entry is dropped.
 	empty := ""
 	unfold := false
+	unpin := false
+	restore := false
 	store2 := newMetaStore(path)
-	store2.setProject("/repo/app", &empty, &unfold)
+	store2.setProject("/repo/app", &empty, &unfold, &unpin, &restore)
 	got := store2.allProjects()["/repo/app"]
-	if got.DisplayName != "" || got.Folded {
-		t.Fatalf("clear did not revert name/fold: %+v", got)
+	if got.DisplayName != "" || got.Folded || got.Pinned || got.Removed {
+		t.Fatalf("clear did not revert project presentation: %+v", got)
 	}
 	// last_opened remains (it is a separate concern); a brand-new key that is
 	// set then cleared should not linger.
 	blank := ""
 	no := false
-	store2.setProject("/never/set", &blank, &no)
+	store2.setProject("/never/set", &blank, &no, &no, &no)
 	if _, ok := store2.allProjects()["/never/set"]; ok {
 		t.Fatalf("all-default overlay entry should be dropped")
 	}
@@ -257,7 +261,7 @@ func TestMetaStoreLoadsLegacyFlatFile(t *testing.T) {
 		t.Fatalf("legacy flat file not read: %+v", got)
 	}
 	name := "Renamed"
-	store.setProject("/repo/app", &name, nil) // triggers a wrapper re-persist
+	store.setProject("/repo/app", &name, nil, nil, nil) // triggers a wrapper re-persist
 
 	reloaded := newMetaStore(path)
 	if got := reloaded.get("20260709-071306-find-fn-39bd"); got.Title != "Legacy title" {

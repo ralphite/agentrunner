@@ -64,13 +64,15 @@ fi
 logdir=$(mktemp -d)
 trap 'rm -rf "$logdir"' EXIT
 
-declare -A pids legnames
+pids=()
+legnames=()
 run_leg() { # run_leg <name> <cmd...>
   local name="$1"; shift
   # 腿内自报耗时(慢腿可见,PROCESS 一步纪律的可观测性)。
   ( s=$(date +%s); "$@"; rc=$?; echo $(( $(date +%s) - s )) > "$logdir/$name.time"; exit $rc ) \
     > "$logdir/$name.log" 2>&1 &
-  pids[$name]=$!
+  pids+=("$!")
+  legnames+=("$name")
 }
 
 run_leg lint golangci-lint run                      # 含 govet(standard 预设)
@@ -81,8 +83,9 @@ run_leg gotest go test $packages
 run_leg install scripts/test-install.sh             # 安装器孪生(离线,INC-63 gate A)
 
 fail=0
-for name in lint wiring gotest install; do
-  if wait "${pids[$name]}"; then
+for i in "${!pids[@]}"; do
+  name="${legnames[$i]}"
+  if wait "${pids[$i]}"; then
     echo "check.sh: $name ok ($(cat "$logdir/$name.time" 2>/dev/null || echo '?')s)"
   else
     fail=1

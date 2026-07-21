@@ -391,7 +391,7 @@
   .home-empty-headline { @apply m-0 max-w-[760px] text-[28px] font-normal leading-tight text-ink; }
   .home-empty-repo { @apply inline-block max-w-[32ch] overflow-hidden text-ellipsis whitespace-nowrap align-bottom font-normal; }
   .home-empty-cards { @apply grid w-full max-w-[720px] grid-cols-4 gap-4; }
-  /* HOME-CARD-WRAP (R52): Codex new-task cards (codex-new-task-home.jpg) use a
+  /* HOME-CARD-WRAP (R52): Codex new-session cards (reference home capture) use a
      compact ~13px label so every suggestion reads as a tidy 2-line card. At
      15px our 3rd/longest card ("Build a new feature, app, or tool") ragged-
      wrapped to 3 lines while its neighbors stayed 2, breaking the even grid.
@@ -413,7 +413,7 @@
   .cx-session .cx-card { @apply max-w-[660px]; }
   .cx-card.dropping { @apply border-blue bg-blue-soft; }
   /* HOME-CHIP-FLAT (R46): composer env/model/mode chips are borderless flat
-     buttons (Codex codex-new-task-home.jpg) — the top env strip drops its
+     buttons (Codex reference home capture) — the top env strip drops its
      bottom hairline and the chips shed their pill border + panel fill, showing
      only on hover. The Queue/Steer delivery toggle (.cx-deliv) stays a bordered
      segmented control so its two options still read as segments. */
@@ -560,11 +560,11 @@
   .cmdk-empty { @apply px-3 py-8 text-center text-dim; }
   /* CMDK-SECTION-CASE (R77): command-palette section labels match the .menu-label
      style used by the add/context menus (Title-case, 12px, no uppercase/tracking) —
-     Codex golden (codex-crop-command-palette.jpg "Tasks"/"Unread tasks") is Title-case
+     Codex golden command-palette section labels are Title-case
      regular, and our own menus already are; the shouty uppercase here was a one-off. */
   .cmdk-group { @apply px-2 py-[6px] text-[12px] font-medium text-dim; }
   /* CMDK-ROW-DENSITY (R78): roomier rows to match Codex golden
-     (codex-crop-command-palette.jpg), whose task rows read ~44px tall at ~15px
+     (codex-crop-command-palette.jpg), whose session rows read ~44px tall at ~15px
      text — a calm, scannable list level with the 15px search input. Ours were
      cramped at 13px/py-8px (~37px). Bumped to 14px text + py-[10px] so the list
      breathes like Codex instead of feeling like a dense dropdown. */
@@ -975,7 +975,7 @@
   .page-heading { @apply mb-4 flex items-start justify-between gap-3; }
   /* R80 SCHED-TITLE-SIZE: the Scheduled page title is our own big-heading
      system — Home's `.home-empty-headline` is 28px/400/leading-tight and
-     Codex's "Scheduled tasks" golden is likewise ~28px lightweight. This h2
+     Codex's Scheduled golden is likewise ~28px lightweight. This h2
      used to render 22px/600, the ONLY page in the big-heading family that
      came out smaller AND heavier than Home (`.page-heading` is used solely by
      Scheduled.tsx — no cross-page fallout). Unify to 28px/normal (24px on
@@ -1020,7 +1020,7 @@
   /* Codex parity: rows are a compact, flat, UNDIVIDED list — no per-row card
      (border/rounded/bg dropped), hover lights the whole row. R68 SCHED-BORDER-B:
      the Codex gold (qa/codex-reference/codex-crop-scheduled-list.jpg /
-     codex-scheduled.jpg) separates real task rows with pure whitespace + hover
+     codex-scheduled.jpg) separates real scheduled rows with pure whitespace + hover
      highlight and shows NO per-row 1px rule — the earlier "rows split by a 1px
      rule" note was simply wrong, so the border-b is removed. Real rows carry a
      touch more vertical padding (py-3) so the un-ruled list reads airy, not

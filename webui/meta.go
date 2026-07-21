@@ -25,14 +25,17 @@ type sessionMeta struct {
 }
 
 // projectMeta is the workspace-keyed overlay added by INC-53 (HANDA #24): a
-// user's cosmetic preferences for one project group — a custom display name, a
-// folded (collapsed) state, and when it was last opened in a system app via
-// the launcher. It is DECORATIVE ONLY: project grouping still derives from the
-// journal workspace (DESIGN §12 invariant), and an empty DisplayName falls back
-// to the derived label. The overlay never decides group membership.
+// user's cosmetic preferences for one project group — a custom display name,
+// folded/pinned/removed presentation state, and when it was last opened in a
+// system app via the launcher. It is DECORATIVE ONLY: project grouping still
+// derives from the journal workspace (DESIGN §12 invariant), and an empty
+// DisplayName falls back to the derived label. Removed hides only the sidebar
+// projection; it never deletes or reassigns sessions, journals, or workspaces.
 type projectMeta struct {
 	DisplayName string `json:"displayName,omitempty"`
 	Folded      bool   `json:"folded,omitempty"`
+	Pinned      bool   `json:"pinned,omitempty"`
+	Removed     bool   `json:"removed,omitempty"`
 	LastOpened  int64  `json:"lastOpened,omitempty"` // unix millis; 0 = never
 }
 
@@ -179,12 +182,13 @@ func (s *metaStore) allProjects() map[string]projectMeta {
 	return out
 }
 
-// setProject applies a partial update to one project's overlay entry (INC-53):
+// setProject applies a partial update to one project's overlay entry (INC-53,
+// extended by INC-87):
 // a nil pointer means "leave unchanged". An empty display name clears the
 // override (the group reverts to its derived label), mirroring the session
 // rename semantics. An entry that ends up entirely default is dropped so the
 // file doesn't accrete empty overlays. Persists on any change.
-func (s *metaStore) setProject(key string, displayName *string, folded *bool) {
+func (s *metaStore) setProject(key string, displayName *string, folded, pinned, removed *bool) {
 	if key == "" {
 		return
 	}
@@ -197,6 +201,12 @@ func (s *metaStore) setProject(key string, displayName *string, folded *bool) {
 	}
 	if folded != nil {
 		cur.Folded = *folded
+	}
+	if pinned != nil {
+		cur.Pinned = *pinned
+	}
+	if removed != nil {
+		cur.Removed = *removed
 	}
 	if cur == before {
 		return

@@ -339,7 +339,7 @@ describe("New session is chromeless on the home landing (NAV-NEWSESSION-ACTIVE-F
 
   it("does not paint the New session row active on the home page — only real pages get the fill", () => {
     // Home is the New-session landing, not a selected destination: Codex keeps
-    // its "New task" chromeless there, so ours must carry no resting `active` fill.
+    // its new-session action chromeless there, so ours must carry no resting `active` fill.
     useStore.setState({ sessions: [], currentSid: null, currentPage: "home" });
     const { container } = render(<Sidebar />);
 
