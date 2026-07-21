@@ -88,7 +88,7 @@ export function modelById(provider: string, id: string): ModelChoice | undefined
 // so enabling thinking with a small cap starves the answer to empty — the
 // "会话死亡" empty-message defect. We therefore size max_tokens = ANSWER_ROOM +
 // budget, guaranteeing the answer always has ANSWER_ROOM left after thinking.
-export type EffortId = "off" | "light" | "medium" | "high" | "xhigh";
+export type EffortId = "light" | "medium" | "high" | "xhigh";
 
 export interface EffortLevel {
   id: EffortId;
@@ -97,22 +97,23 @@ export interface EffortLevel {
   budget: number; // thinking budget tokens (0 ⇒ thinking off)
 }
 
+// No "off"/budget:0 level: gemini-flash-latest now rejects thinkingBudget:0 with
+// INVALID_ARGUMENT (2026-07-21), so every session must think at least a little.
 export const EFFORT_LEVELS: EffortLevel[] = [
-  { id: "off", label: "Off", desc: "No extended thinking — fastest replies", budget: 0 },
   { id: "light", label: "Light", desc: "A little reasoning before answering", budget: 2048 },
   { id: "medium", label: "Medium", desc: "Balanced reasoning on most sessions", budget: 6144 },
   { id: "high", label: "High", desc: "Thorough reasoning on hard problems", budget: 12288 },
   { id: "xhigh", label: "Extra High", desc: "Maximum reasoning — slower, spends more tokens", budget: 24576 },
 ];
 
-export const DEFAULT_EFFORT: EffortId = "off";
+export const DEFAULT_EFFORT: EffortId = "medium";
 
 // Answer capacity reserved on top of the thinking budget. Matches the historical
 // 4096 max_tokens so "Off" behaves exactly as before.
 const ANSWER_ROOM = 4096;
 
 export function effortById(id: string): EffortLevel {
-  return EFFORT_LEVELS.find((e) => e.id === id) || EFFORT_LEVELS[0];
+  return EFFORT_LEVELS.find((e) => e.id === id) || EFFORT_LEVELS.find((e) => e.id === DEFAULT_EFFORT) || EFFORT_LEVELS[0];
 }
 
 // modelBlock renders the spec's `model:` line for a provider/model/effort. When
@@ -121,10 +122,10 @@ export function effortById(id: string): EffortLevel {
 // budget override) wins over the effort preset when it is a positive number,
 // letting power users dial an exact budget the presets don't cover.
 function modelBlock(provider: string, model: string, effort: EffortId, budgetOverride?: number | null): string {
-  const budget = budgetOverride != null && budgetOverride > 0 ? Math.floor(budgetOverride) : effortById(effort).budget;
-  if (budget <= 0) {
-    return `model: { provider: ${provider}, id: ${model}, max_tokens: ${ANSWER_ROOM} }`;
-  }
+  let budget = budgetOverride != null && budgetOverride > 0 ? Math.floor(budgetOverride) : effortById(effort).budget;
+  // Never emit a no-thinking block: gemini-flash-latest rejects thinkingBudget:0
+  // (INVALID_ARGUMENT, 2026-07-21). Floor any non-positive budget to the default.
+  if (budget <= 0) budget = effortById(DEFAULT_EFFORT).budget;
   const max = ANSWER_ROOM + budget;
   return `model: { provider: ${provider}, id: ${model}, max_tokens: ${max}, thinking: { enabled: true, budget_tokens: ${budget} } }`;
 }
@@ -133,10 +134,10 @@ function modelBlock(provider: string, model: string, effort: EffortId, budgetOve
 // level for a session we built. A spec with no thinking block reads as "off".
 export function effortFromSpec(spec: string): EffortId {
   const m = spec.match(/budget_tokens:\s*(\d+)/);
-  if (!m) return "off";
+  if (!m) return DEFAULT_EFFORT; // legacy no-thinking spec → show the default (no "off" level anymore)
   const b = Number(m[1]);
   const lvl = EFFORT_LEVELS.find((e) => e.budget === b);
-  return lvl ? lvl.id : "off";
+  return lvl ? lvl.id : DEFAULT_EFFORT;
 }
 
 // permissionsBlock returns the YAML `permissions:` list for an access level.
@@ -250,7 +251,7 @@ agents: [worker]`;
 
 // buildSpec produces the main agent spec (base.yaml) for the chosen persona +
 // model + access level + reasoning effort. Defaults mirror the old DEFAULT_SPEC
-// so behavior is unchanged when nothing is picked (effort "off").
+// so behavior is unchanged when nothing is picked (effort defaults to medium).
 export function buildSpec(opts: { provider: string; model: string; access: AccessId; persona?: string; effort?: EffortId; budgetOverride?: number | null }): string {
   const persona = opts.persona && PERSONAS.some((p) => p.id === opts.persona) ? opts.persona : DEFAULT_PERSONA;
   return `name: ${persona}
@@ -288,7 +289,7 @@ export function modelFromSpec(spec: string): { provider: string; id: string } | 
 // delegated errand and halves the burn of an abandoned member.
 export const DEFAULT_WORKER = `name: worker
 description: carries out investigation/edit sessions assigned by the parent and reports back
-model: { provider: gemini, id: gemini-flash-latest, max_tokens: 4096 }
+model: { provider: gemini, id: gemini-flash-latest, max_tokens: 10240, thinking: { enabled: true, budget_tokens: 6144 } }
 system_prompt: When the assigned work is done, report your conclusions as concise bullet points. If something you need is missing (a file, an answer), report that promptly instead of retrying.
 tools: [read_file, bash]
 max_generation_steps: 24
@@ -304,7 +305,7 @@ export const DEFAULT_SPEC = buildSpec({ provider: "gemini", model: "gemini-flash
 // (agent.yaml sibling) and carries the loop's prompt / schedule / verifiers.
 
 export const DEFAULT_DRIVER_AGENT = `name: worker
-model: { provider: gemini, id: gemini-flash-latest, max_tokens: 2048 }
+model: { provider: gemini, id: gemini-flash-latest, max_tokens: 10240, thinking: { enabled: true, budget_tokens: 6144 } }
 system_prompt: You work in an iteration loop; each round advance the goal one small step, self-check, and report concisely what you did this round.
 tools: [read_file, write_file, bash]
 permissions:
@@ -356,7 +357,7 @@ ${verifiers}
 // buildDriverAgent produces the per-iteration child agent for the chosen model.
 export function buildDriverAgent(opts: { provider: string; model: string }): string {
   return `name: worker
-model: { provider: ${opts.provider}, id: ${opts.model}, max_tokens: 2048 }
+${modelBlock(opts.provider, opts.model, DEFAULT_EFFORT)}
 system_prompt: You work in an iteration loop; each round advance the goal one small step, self-check, and report concisely what you did this round.
 tools: [read_file, write_file, bash]
 permissions:

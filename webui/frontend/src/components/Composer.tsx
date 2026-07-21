@@ -865,7 +865,7 @@ export function Composer(props: ComposerProps) {
       }
       case "reasoning": {
         const q = rest.trim().toLowerCase().replace(/\s+/g, "");
-        const aliases: Record<string, EffortId> = { off: "off", none: "off", low: "light", light: "light", medium: "medium", med: "medium", high: "high", xhigh: "xhigh", extrahigh: "xhigh", max: "xhigh" };
+        const aliases: Record<string, EffortId> = { off: "light", none: "light", low: "light", light: "light", medium: "medium", med: "medium", high: "high", xhigh: "xhigh", extrahigh: "xhigh", max: "xhigh" };
         const eff = aliases[q];
         setText("");
         if (eff) await chooseEffort(eff);
@@ -1539,7 +1539,7 @@ export function Composer(props: ComposerProps) {
             trigger={(open, toggle) => (
               <button type="button" className={"cx-pill cx-model" + (open ? " active" : "")} onClick={toggle} title="Model & effort" aria-haspopup="menu" aria-expanded={open}>
                 <span className="cx-model-name">{modelLabel}</span>
-                {(budgetOverride || effort !== "off") && <span className="cx-pill-sub">{budgetOverride ? "Custom" : effortLevel.label}</span>}
+                <span className="cx-pill-sub">{budgetOverride ? "Custom" : effortLevel.label}</span>
                 <Caret />
               </button>
             )}

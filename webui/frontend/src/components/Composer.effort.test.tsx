@@ -76,7 +76,7 @@ describe("Composer model / effort menu mobile hierarchy", () => {
     expect([...menu.querySelectorAll(".pop-title")].map((node) => node.textContent)).toEqual(["Model", "Effort", "Speed", "Advanced"]);
     expect(menu.querySelector('[role="slider"]')).toBeNull();
     expect(item("Model").querySelector(".pop-right")?.textContent).toContain("Gemini Flash");
-    expect(item("Effort").querySelector(".pop-right")?.textContent).toContain("Off");
+    expect(item("Effort").querySelector(".pop-right")?.textContent).toContain("Medium");
     expect(item("Speed").querySelector(".pop-right")?.textContent).toContain("Standard");
     expect(onSubmit).not.toHaveBeenCalled();
   });
@@ -96,7 +96,7 @@ describe("Composer model / effort menu mobile hierarchy", () => {
     expect([...document.querySelectorAll(".cx-model-menu .pop-title")].map((node) => node.textContent)).toEqual(
       EFFORT_LEVELS.map((level) => level.label),
     );
-    expect(item("Off").querySelector(".pop-check")).toBeTruthy();
+    expect(item("Medium").querySelector(".pop-check")).toBeTruthy();
     fireEvent.click(item("Extra High"));
 
     expect(pill(container).textContent).toContain("Gemini Pro");
