@@ -139,36 +139,44 @@ export function Home() {
   return (
     <div className="home home-welcome home-empty-state">
       <div className="hero max-[680px]:[@media(max-height:560px)]:py-2">
-        <div className="home-empty">
-          <div className="home-hero-icon" aria-hidden>
-            <CloudMark size={35} />
+        {/* Codex's landing is a pinned-composer chat layout: the hero (mark +
+            headline + cards) sits centered-ish in the upper space while the
+            composer docks to the bottom of the viewport, with clear whitespace
+            between. This flex-1 wrapper claims the vertical slack and centers
+            the hero within it, pushing the composer — the .hero's last child —
+            to the bottom on both desktop and mobile (HOME-COMPOSER-DOCK). */}
+        <div className="flex w-full min-h-0 flex-1 flex-col items-center justify-center gap-5">
+          <div className="home-empty">
+            <div className="home-hero-icon" aria-hidden>
+              <CloudMark size={35} />
+            </div>
+            <h2 className="home-empty-headline">
+              {project ? (
+                <>
+                  What should we build in <span className="home-empty-repo">{project}</span>?
+                </>
+              ) : (
+                <>What should we build?</>
+              )}
+            </h2>
+            <div className="home-empty-cards max-[680px]:gap-1.5">
+              {SUGGESTIONS.map((s) => (
+                <button
+                  key={s.key}
+                  type="button"
+                  className="home-empty-card max-[680px]:min-h-[76px] max-[680px]:gap-1 max-[680px]:px-2.5 max-[680px]:py-2"
+                  onClick={() => prefillComposer(s.prompt)}
+                >
+                  <span className={"home-empty-card-icon " + s.tone} aria-hidden>
+                    {s.icon}
+                  </span>
+                  <span className="home-empty-card-label">{s.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
-          <h2 className="home-empty-headline">
-            {project ? (
-              <>
-                What should we build in <span className="home-empty-repo">{project}</span>?
-              </>
-            ) : (
-              <>What should we build?</>
-            )}
-          </h2>
-          <div className="home-empty-cards max-[680px]:gap-1.5">
-            {SUGGESTIONS.map((s) => (
-              <button
-                key={s.key}
-                type="button"
-                className="home-empty-card max-[680px]:min-h-[76px] max-[680px]:gap-1 max-[680px]:px-2.5 max-[680px]:py-2"
-                onClick={() => prefillComposer(s.prompt)}
-              >
-                <span className={"home-empty-card-icon " + s.tone} aria-hidden>
-                  {s.icon}
-                </span>
-                <span className="home-empty-card-label">{s.label}</span>
-              </button>
-            ))}
-          </div>
+          <DaemonAlert />
         </div>
-        <DaemonAlert />
         {/* Codex's compact composer keeps the primary mobile action row to
             add/access/model/mic/send. Once a starter fills our draft, the
             desktop-only optimize shortcut otherwise pushes Send off-screen. */}
