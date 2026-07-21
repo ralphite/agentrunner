@@ -153,7 +153,7 @@ export function Home() {
             <h2 className="home-empty-headline">
               {project ? (
                 <>
-                  What should we build in <span className="home-empty-repo">{project}</span>?
+                  What should we build in <span className="home-empty-repo underline decoration-dotted decoration-dim underline-offset-4">{project}</span>?
                 </>
               ) : (
                 <>What should we build?</>
