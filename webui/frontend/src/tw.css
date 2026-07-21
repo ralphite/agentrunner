@@ -734,9 +734,10 @@
   /* label 内可带计数 span(Progress 1/2)——flex+gap,否则挤成 PROGRESS1/2
      (QA-0718 实测)。 */
   .supervision-label { @apply flex items-baseline gap-1.5 text-[12px] font-medium text-dim; }
-  /* RVW: 发丝分隔分组(Codex 一张卡内扁平清单),末节不加线。 */
-  .supervision-section { @apply mb-3 border-b border-line pb-3; }
-  .supervision-section:last-child { @apply mb-0 border-b-0 pb-0; }
+  /* RVW: 与 Codex 一致——一张卡内扁平清单,无 hairline 横线,纯留白 + dim
+     分组标签分隔。保留分组下间距维持节奏,末节收掉间距。 */
+  .supervision-section { @apply mb-3 pb-0; }
+  .supervision-section:last-child { @apply mb-0 pb-0; }
   .supervision-quiet, .supervision-empty, .supervision-loading { @apply text-[12px] text-dim; }
   /* RVW: 无边框透明扁平行(Codex)。base button{} 给 <button> 型行默认
      border+bg,故须显式 border-0 bg-transparent 覆盖。 */
@@ -824,7 +825,7 @@
   .fd-glyph { @apply inline-flex items-center shrink-0 text-[11px] font-bold; }
   .fd-glyph-added { @apply text-green; }
   .fd-glyph-deleted { @apply text-red; }
-  .fd-glyph-modified, .fd-glyph-renamed, .fd-glyph-copied { @apply text-blue; }
+  .fd-glyph-modified, .fd-glyph-renamed, .fd-glyph-copied { @apply text-ink-2; }
   .fd-dir { @apply text-dim; }
   .fd-badge { @apply rounded-full border border-line bg-panel-2 px-[6px] py-[1px] text-[11px] text-dim; }
   .fd-spacer { @apply flex-1; }
@@ -1382,7 +1383,7 @@
   .sc-group { @apply mb-2; }
 
   /* supervision 折叠明细头 */
-  .supervision-details { @apply mt-2 flex items-center justify-start gap-1 border-0 border-t border-line bg-transparent px-3 pt-2; }
+  .supervision-details { @apply mt-2 flex items-center justify-start gap-1 border-0 bg-transparent px-3 pt-2; }
   .supervision-details-label { @apply inline-flex cursor-pointer items-center gap-1 text-[12px] text-dim; }
   .supervision-details-caret { @apply transition-transform; }
   .supervision-details[open] .supervision-details-caret { @apply rotate-90; }
