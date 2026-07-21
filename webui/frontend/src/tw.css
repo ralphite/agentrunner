@@ -379,8 +379,8 @@
   .hero { @apply mx-auto flex w-full max-w-[760px] flex-1 flex-col items-center justify-center gap-5 px-6 py-8; }
   .home-empty { @apply flex w-full flex-col items-center gap-4 text-center; }
   .home-hero-icon { @apply grid h-[48px] w-[48px] place-items-center rounded-full text-dim; }
-  .home-empty-headline { @apply m-0 max-w-[760px] text-[28px] font-semibold leading-tight text-ink; }
-  .home-empty-repo { @apply inline-block max-w-[32ch] overflow-hidden text-ellipsis whitespace-nowrap align-bottom font-medium; }
+  .home-empty-headline { @apply m-0 max-w-[760px] text-[28px] font-normal leading-tight text-ink; }
+  .home-empty-repo { @apply inline-block max-w-[32ch] overflow-hidden text-ellipsis whitespace-nowrap align-bottom font-normal; }
   .home-empty-cards { @apply grid w-full max-w-[720px] grid-cols-4 gap-4; }
   /* HOME-CARD-WRAP (R52): Codex new-task cards (codex-new-task-home.jpg) use a
      compact ~13px label so every suggestion reads as a tidy 2-line card. At
@@ -945,7 +945,18 @@
   .scheduled-copy, .sched-suggest-body { @apply min-w-0 flex-1; }
   .sched-sub, .sched-trail, .sched-cadence, .sched-suggest-desc, .sched-suggest-cadence, .sched-warn { @apply text-[12px] text-dim; }
   .sched-unread { @apply bg-blue; }
-  .sched-more { @apply shrink-0; }
+  /* SCHED-MORE-HOVER (R64): restore hover-reveal lost in the Tailwind migration
+     (68a8a69b). Scheduled.tsx documents the row action as "invisible at rest,
+     appears on hover/focus"; Codex keeps rows clean with only the unread dot at
+     rest. Hidden at rest; revealed on row hover, keyboard focus-within, or when
+     its menu is open. Touch devices (no hover) keep it always visible. */
+  .sched-more { @apply shrink-0 opacity-0 transition-opacity; }
+  .scheduled-row-wrap:hover .sched-more,
+  .scheduled-row-wrap:focus-within .sched-more,
+  .scheduled-row-wrap.menu-open .sched-more { @apply opacity-100; }
+  @media (hover: none) {
+    .sched-more { @apply opacity-100; }
+  }
   /* R41: Codex renders "✓ Mark all as read" as plain muted text, not a button
      pill — strip the base button chrome (border/bg/shadow). */
   .sched-markread { @apply flex shrink-0 items-center gap-1 border-0 bg-transparent px-1 py-1 text-[13px] text-dim shadow-none transition-colors duration-100 hover:bg-transparent hover:text-ink hover:shadow-none; }
@@ -1121,7 +1132,7 @@
     .home-empty-cards { @apply grid-cols-1 gap-3; }
     .home-empty-card { @apply min-h-[100px] px-4 py-3 text-[13px]; }
     .home-empty-card-icon { @apply h-[24px] w-[24px]; }
-    .home-empty-headline { @apply text-[24px] font-semibold; }
+    .home-empty-headline { @apply text-[24px] font-normal; }
     .home-empty-repo { @apply max-w-[18ch]; }
     .tl-inner { @apply px-5; }
     .msg.user .msg-col { @apply max-w-[90%]; }
