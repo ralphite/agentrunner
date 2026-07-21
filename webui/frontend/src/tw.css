@@ -371,10 +371,10 @@
   .home-empty { @apply flex w-full flex-col items-center gap-4 text-center; }
   .home-hero-icon { @apply grid h-[48px] w-[48px] place-items-center rounded-full text-dim; }
   .home-empty-headline { @apply m-0 max-w-[760px] text-[28px] font-semibold leading-tight text-ink; }
-  .home-empty-repo { @apply inline-block max-w-[32ch] overflow-hidden text-ellipsis whitespace-nowrap align-bottom font-medium border-0 border-b border-dotted; }
-  .home-empty-cards { @apply grid w-full max-w-[690px] grid-cols-4 gap-4; }
+  .home-empty-repo { @apply inline-block max-w-[32ch] overflow-hidden text-ellipsis whitespace-nowrap align-bottom font-medium; }
+  .home-empty-cards { @apply grid w-full max-w-[720px] grid-cols-4 gap-4; }
   .home-empty-card {
-    @apply flex min-h-[120px] flex-col items-start justify-between gap-3 rounded-[12px] border border-line bg-panel px-5 py-5 text-left text-[15px] font-medium shadow-md transition-all duration-100 hover:border-dim hover:bg-panel-2 hover:shadow-lg;
+    @apply flex min-h-[76px] flex-col items-start justify-start gap-2.5 rounded-[12px] border border-line bg-panel px-4 py-3.5 text-left text-[15px] font-medium shadow-md transition-all duration-100 hover:border-dim hover:bg-panel-2 hover:shadow-lg;
   }
   .home-empty-card-icon { @apply grid h-[28px] w-[28px] shrink-0 place-items-center text-blue; }
   .home-empty-card-icon.teal { color: var(--teal); }
@@ -755,10 +755,12 @@
   /* QA-0718 用户实机:删除行 gutter 曾用红色斜纹 repeating-gradient,
      深色下极刺眼且非 Codex 形态——Codex 是极细纯色 accent 条。 */
   .dl.del .dl-marker { background: linear-gradient(to right, var(--red) 3px, transparent 3px); }
-  .dl-no { @apply select-none border-r border-line bg-panel-2 px-2 text-right text-dim text-[11px]; }
+  .dl-no { @apply select-none bg-transparent px-2 text-right text-dim text-[11px]; }
   .dl-text, .dls-half { @apply whitespace-pre px-2 text-ink; }
   .dl.add .dl-text, .dls-half.add { background-color: var(--diff-add-bg); }
   .dl.del .dl-text, .dls-half.del { background-color: var(--diff-del-bg); }
+  .dl.add .dl-no { background-color: var(--diff-add-bg); }
+  .dl.del .dl-no { background-color: var(--diff-del-bg); }
   .dl-sign { @apply select-none text-[11px] text-dim px-[3px]; }
   /* QA-0718 用户实机:hunk heading(git @@ 行的 section 文本)曾整行
      bg-blue-soft,读起来像一段被高亮的正文代码。fold band 已表达折叠,
