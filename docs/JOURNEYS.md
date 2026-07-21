@@ -315,7 +315,7 @@ GAPS.md，本文件只回答"产品要做什么"。
 
 **覆盖功能**：`动态角色 spawn(inline role)` `子提权用户审批(escalate)` `树内消息(send_message,兄弟直发)` `静止子唤醒(revive,context 延续)` `多次回执` `用户直达成员(ar send 子会话)` `子会话 live 镜像` `团队面板` `树级预算/审计`（底座复用 UJ-18 全部机制）
 
-### UJ-24 Web UI 驾驶 AgentRunner `基础` `✅ INC-19/23/40/60（2026-07-11）`
+### UJ-24 Web UI 驾驶 AgentRunner `基础` `✅ INC-19/23/40/60/87（2026-07-21）`
 
 **场景**：用户从项目/session 层进入一个真实 AgentRunner
 会话，并在同一工作台完成派活、续聊、监督、审批与改动审阅。
@@ -325,8 +325,11 @@ GAPS.md，本文件只回答"产品要做什么"。
    入口；session 是完整键盘可达操作，
    Pinned 单列且不重复；自动 workspace 各自成组（默认名 Scratch · 创建
    时间，不互相混合，组名可编辑，INC-78）；CLI 创建、metadata
-   不完整、父/子 session 都能直接打开和 deep link；hover 同屏提供 pin /
-   archive 与 project/branch/status 预览，键盘 context menu 保持等价。
+   不完整、父/子 session 都能直接打开和 deep link；session hover 同屏提供 pin /
+   archive 与 project/branch/status 预览；project hover/focus 提供摘要、`…` 与改名
+   快捷入口，菜单集中 Pin / Finder / permanent worktree / rename / archive chats /
+   safe Remove（只隐藏 rail projection，数据不删且可恢复）。Pinned 与 Projects
+   section 可独立收展；键盘 context menu 保持等价。
 2. New session 只出现一个 composer；默认只露输入、附件、access、model、
    send；上缘严格按 Codex 拆成 Project、Local/New worktree、Local
    environment、Branch 四个独立控件，Project/Branch 可搜索且 worktree
@@ -345,12 +348,14 @@ GAPS.md，本文件只回答"产品要做什么"。
    只读子会话；审批只在宽屏自动打开 Supervision，窄屏进入/resize 都撤回
    自动面板，仍可由用户手动打开，且 Changes 永不被 Supervision 覆盖。
 6. Web UI 重启后同一 deep link、共享 store 历史、Goal/Repeating/Scheduled
-   driver 和本地 pin/archive/theme 设置仍在；UI 只是公开 CLI/journal/
+   driver 和本地 pin/archive/theme、project pin/remove、sidebar width/section fold
+   设置仍在；desktop sidebar 可在 220–480px 拖拽或键盘调整，mobile 仍为固定
+   drawer；UI 只是公开 CLI/journal/
    inspect/ps/diff 的 projection；首次 session page 成功前显示 loading，不用
    空数组伪造 `No sessions yet`；deep link 在所在页到达前从 durable id 派生可读
    fallback，journal title 到达后替换，不把完整 raw id 或长期 loading 当标题。
 
-**覆盖功能**：`Projects→sessions 信息架构` `单一 session thread` `环境上下文 composer` `Worked/Changes turn 收尾` `渐进披露 composer` `内联人类可读审批` `Changes 审阅` `Supervision(goal/agent/attention/background/recovery)` `restart-safe Scheduled runs` `键盘/移动端导航` `子会话导航` `deep link/restart` `共享真实 session` `Web UI 产品面`
+**覆盖功能**：`Projects→sessions 信息架构` `project hover/menu/safe remove` `resizable sidebar` `Pinned/Projects section fold` `单一 session thread` `环境上下文 composer` `Worked/Changes turn 收尾` `渐进披露 composer` `内联人类可读审批` `Changes 审阅` `Supervision(goal/agent/attention/background/recovery)` `restart-safe Scheduled runs` `键盘/移动端导航` `子会话导航` `deep link/restart` `共享真实 session` `Web UI 产品面`
 
 ### UJ-25 一行安装与升级 `基础` `✅ INC-63（2026-07-12，v0.1.0 公网真装验证）`
 

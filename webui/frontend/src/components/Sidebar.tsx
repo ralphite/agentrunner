@@ -322,7 +322,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
   );
 
   // One source for the project group's actions: the desktop right-click
-  // ContextMenu and the touch ⋯ Menu on the heading row (INC-78.2) render the
+  // ContextMenu and the touch ⋯ Menu on the heading row (INC-87.2) render the
   // same items, so the two entrances can never drift apart.
   const renderProjectActions = (key: string, label: string, workspace: string | undefined, ids: string[]) => {
     const overlay = projects[key];

@@ -1566,3 +1566,23 @@ medium thinking + 移除 no-thinking。断言只钉 runtime 红线(是否 400 / 
 | 1（对照/修前） | 旧默认(effort off),真浏览器 `/loop` | 第 1 轮 child 即 `INVALID_ARGUMENT`,series `child_failed`(20260721-162833) |
 | 2（修复/修后） | INC-86 部署后,真浏览器 `/loop`(editable_mermaid2,30s,3 轮) | **零 INVALID_ARGUMENT**;Iter 1/2 Completed、Iter 3 overlap-skip、`max_iterations` 收尾;真项目 REVIEW_NOTES.md 累积 2 条真实审查发现(20260721-165144) |
 
+## QA-78 Sidebar project controls（INC-87，UJ-24）
+
+**状态**：PASS（2026-07-21，真实 `http://127.0.0.1:8809/` + 共享
+`~/.local/share/agentrunner/`；证据
+`qa/runs/2026-07-21-QA78-sidebar-project-controls/`）。测试项目为 `mt-test`
+与 `agentrunner dev2`；结束时 project pin、Projects fold、desktop width 均恢复
+原偏好，测试 worktree 按 QA 纪律保留。
+
+| # | 真实动作 | 硬断言 |
+|---|---|---|
+| 1 | desktop project row 键盘 focus → `…` 菜单 | 快捷操作可见；菜单严格为 Pin project / Reveal in Finder / Create permanent worktree / Rename project / Archive chats / Remove；pin 刷新后变 Unpin，再恢复未置顶 |
+| 2 | separator 260→480，刷新；Projects fold，刷新 | width=480 与 `aria-expanded=false` 均跨刷新；双击/点击分别恢复 260 与展开；console error/warn=0 |
+| 3 | `agentrunner dev2` → Create permanent worktree，branch=`qa/inc87-sidebar-controls-20260721` | 创建于共享 store；`git worktree list --porcelain` 可见，working tree clean；worktree 保留 |
+| 4 | viewport 390×844，打开 sidebar 与 project menu | sidebar 是 drawer；无 resize separator；六项 project menu 仍可达；viewport 最后 reset |
+
+**非破坏边界**：未对共享历史实际执行 Archive chats 或确认 Remove；六项入口、
+Remove 的“不删 chats/journal/files”确认文案、rail-only 隐藏、session collection
+不变与 Restore 由 `Sidebar.nav.test.tsx` 常绿断言。pointer hover preview 同样由
+component mouse-enter 测试覆盖；真浏览器验证了等价的 focus-visible controls。
+本 QA 不创建 session，故无适用的 `ar events`；worktree status 单独归档。

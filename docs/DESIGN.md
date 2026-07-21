@@ -1344,18 +1344,24 @@ limits:
   journal/timeline，但默认只在 system-events developer view 中出现，不能画成
   用户气泡。inspect 首次成功前 Supervision 显示 loading，不投影伪空态。
 - responsive 只改可见性：Supervision 默认关闭并记住用户选择；有待审批时
-  自动亮起；`<=680px` sidebar 默认关闭，以 scrim overlay 打开且导航后自动
-  收起。状态、deep link 与 command 均不因 viewport 改变。
+  自动亮起；desktop sidebar 宽度是 220–480px 的 browser-local preference，
+  pointer/keyboard 均可调整；`<=680px` sidebar 默认关闭，以固定宽度 scrim
+  overlay 打开且导航后自动收起，不继承 desktop width。状态、deep link 与
+  command 均不因 viewport 改变。
 - recovery 与 approval 共用 Attention；stranded/interrupted 在 session header 直接
   暴露 Resume，但 UI 不自动 resume、不代审批。生命周期菜单只显示当前状态
   语义成立的操作。
-- pin/archive/theme/sidebar/unread 等现有 localStorage key 原样保留；UI
+- pin/archive/theme/sidebar/unread 等现有 localStorage key 原样保留；Pinned /
+  Projects section fold 与 sidebar width 同属 browser-local UI preference；UI
   重构不迁移或删除用户本地偏好、session、workspace 与 QA 数据。（例外：
   rename 已按 PLAN 5.6 升格为 journal 事实——旧 key 的值一次性推送服务端
   后移除，用户标题不丢。）
-- **project overlay + 系统 launcher（INC-53，additive）**：`webui-meta.json`
+- **project overlay + 系统 launcher（INC-53/87，additive）**：`webui-meta.json`
   在 session cache 之外再存一个 **workspace-keyed overlay**（自定义显示名 /
-  折叠态 / last_opened），是**装饰性偏好**——project grouping 仍以 workspace
+  折叠态 / pinned / removed / last_opened），是**装饰性偏好**——project pin 仅
+  改变 Projects 内排序，removed 仅隐藏 sidebar projection 且有显式 Restore；
+  两者都不删除或改写 session/journal/workspace，command palette 与 durable
+  session 仍完整可达。project grouping 仍以 workspace
   为键从 journal 派生，overlay 缺省回落派生 label，绝不成为分组归属来源
   （守上「grouping 以 workspace 为键 / metadata 非唯一来源」不变量）。overlay
   读写原子（temp+rename）、容忍文件不存在、向后兼容旧 flat 格式（顶层探测

@@ -90,6 +90,26 @@ session、workspace，只隐藏一个 rail projection，并有恢复入口。永
 3. frontend sidebar controls + tests：width resize、section folds、responsive/a11y。
 4. A/B 双闸；并回三层/QA/GAPS/LOG；工作纸归档；commit 并 push `origin/main`。
 
+## 实施与验收结果
+
+- overlay contract 已扩为 `pinned` / `removed` optional fields；partial update 与
+  atomic persistence 由 Go tests 钉住。Remove 只影响 rail projection，Show
+  removed 可恢复，session collection 不变。
+- project hover/focus preview、快捷 `…`/rename、六项菜单、project pin 排序、
+  permanent worktree 入口均落地；菜单与右键继续由 `renderProjectActions` 同源。
+- desktop sidebar width=220–480，pointer/keyboard/double-click reset 齐；Pinned /
+  Projects 独立收展；width/folds 跨刷新；mobile 不渲染 resize handle。
+- A 闸：frontend vitest 653/653、build、webui Go tests、全树
+  `./scripts/check.sh` 均绿。为使 main 在本机 macOS Bash 3 与当前 deadcode 真值下
+  可跑，顺手把 check runner 的 Bash 4 associative array 改为 indexed array，
+  并清掉 stale `parsePSTable` baseline；不改变产品语义。
+- B 闸：QA-78 在真实 `:8809`、共享 store 完成 desktop persistence、390px
+  mobile、console 0 error/warn 与真实 permanent worktree 创建；证据见
+  `qa/runs/2026-07-21-QA78-sidebar-project-controls/`。破坏性 Archive/confirmed
+  Remove 未作用于共享历史，由 component tests 钉安全语义。
+- GAPS 对账：本次是新增 UJ-24 产品能力，不关闭或新开既有架构缺口；无
+  `docs/GAPS.md` delta。
+
 ## review 裁决
 
 小型 Web UI 增量，不触不变量，裁掉里程碑级三视角对抗 review。数据安全风险
