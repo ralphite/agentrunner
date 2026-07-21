@@ -434,6 +434,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
     return (
       <ChangesShell>
         <div className="changes-outcome-skel" aria-label="Loading changes" role="status">
+          <div className="text-[12px] text-dim">Loading changes…</div>
           <span />
           <span />
         </div>
