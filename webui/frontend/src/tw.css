@@ -306,7 +306,7 @@
     @apply flex min-w-0 items-center gap-[7px] px-2 py-[6px] text-[11px] font-bold uppercase tracking-[0.1em] text-dim;
   }
   .project-heading {
-    @apply w-full rounded-[7px] border-0 bg-transparent normal-case tracking-normal text-ink-2 transition-colors duration-100 hover:bg-panel-2 hover:text-ink;
+    @apply w-full rounded-[7px] border-0 bg-transparent normal-case tracking-normal text-ink transition-colors duration-100 hover:bg-panel-2 hover:text-ink;
   }
   /* SIDE-SECTION-LABEL (r47) · Codex renders the sidebar section dividers
      ("Pinned" / "Projects") in a quiet title-case label — regular weight, no
@@ -330,7 +330,7 @@
   .project-session-wrap.current { @apply bg-panel-2; }
   .project-session-wrap.unread .project-session-title { @apply font-semibold text-ink; }
   .project-session {
-    @apply flex h-[32px] min-w-0 flex-1 items-center gap-[6px] rounded-[8px] border-0 bg-transparent px-2 py-0 text-left text-[13px] text-ink-2 transition-colors duration-100 hover:bg-panel-2 hover:text-ink;
+    @apply flex h-[32px] min-w-0 flex-1 items-center gap-[6px] rounded-[8px] border-0 bg-transparent px-2 py-0 text-left text-[13px] text-ink transition-colors duration-100 hover:bg-panel-2 hover:text-ink;
   }
   .project-session-title { @apply min-w-0 flex-1 truncate; }
   .session-open, .session-pin, .session-archive {
@@ -423,11 +423,16 @@
   .cx-env-control.active, .cx-pill.active { @apply bg-blue-soft text-ink; }
   .cx-deliv.on { @apply border-blue bg-blue-soft text-ink; }
   .cx-env-control:disabled { @apply opacity-50; }
-  .cx-env-value { @apply min-w-0 truncate; }
+  /* CHIP-INK: env chip label (agentrunner / worktree / environment / branch)
+     rides near-black ink to match Codex (codex-crop-composer.jpg), while its
+     leading icon stays text-ink-2 for a two-tone read. Scoped to the value
+     span only — the shared .cx-env-control/.cx-pill base stays text-ink-2 so
+     the neutral access pill ("Ask to approve") is unaffected. */
+  .cx-env-value { @apply min-w-0 truncate text-ink; }
   /* COMPOSER-MODEL-PILL-WEIGHT: model name is the pill's subject — near-black
      ink + semibold; the effort suffix dims to a regular-weight grey. Scoped to
      the model-pill spans only; the shared .cx-pill base stays flat/regular so
-     access/env chips are unaffected. */
+     the access pill is unaffected. */
   .cx-model-name { @apply font-semibold text-ink; }
   .cx-pill-sub { @apply min-w-0 truncate text-dim; }
   .cx-input-wrap { @apply px-[14px] pt-[12px]; }
