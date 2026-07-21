@@ -274,8 +274,16 @@ export function formatWorkDuration(ms: number): string {
   const seconds = Math.max(1, Math.floor(ms / 1000));
   if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);
-  const rest = seconds % 60;
-  return `${minutes}m${rest ? ` ${rest}s` : ""}`;
+  const secRest = seconds % 60;
+  // An hour or more rolls minutes up into hours so a long turn reads
+  // "Worked for 1h 56m 23s" (Codex's coarse "1h 37m 40s" head) instead of an
+  // unbounded "116m 23s". Seconds keep the same drop-when-zero rule as below.
+  if (minutes >= 60) {
+    const h = Math.floor(minutes / 60);
+    const minRest = minutes % 60;
+    return `${h}h ${minRest}m${secRest ? ` ${secRest}s` : ""}`;
+  }
+  return `${minutes}m${secRest ? ` ${secRest}s` : ""}`;
 }
 
 // One row per completed human turn, attached to the final assistant answer in
@@ -1382,10 +1390,17 @@ export function deriveGoalState(events: Envelope[]): GoalDerived | null {
 }
 
 // formatElapsed renders a goal's running/total time. Under an hour it's mm:ss
-// (00:00 padded); an hour or more switches to "Xh Ym" (Codex's coarse form).
+// (00:00 padded); an hour or more switches to "Xh Ym" (Codex's coarse form); a
+// day or more rolls hours up into days ("10d 12h") so a long-lived goal reads
+// cleanly instead of an unbounded "252h 13m".
 export function formatElapsed(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
   const h = Math.floor(total / 3600);
+  if (h >= 24) {
+    const d = Math.floor(h / 24);
+    const hRest = h % 24;
+    return `${d}d ${hRest}h`;
+  }
   if (h >= 1) {
     const m = Math.floor((total % 3600) / 60);
     return `${h}h ${m}m`;

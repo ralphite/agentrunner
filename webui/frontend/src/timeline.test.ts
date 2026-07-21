@@ -617,6 +617,27 @@ describe("deriveGoalState (goal banner projection, W6)", () => {
     expect(formatElapsed(3_660_000)).toBe("1h 1m");
     expect(formatElapsed(7_200_000)).toBe("2h 0m");
   });
+
+  it("rolls elapsed hours up into days beyond 24h (no unbounded '252h 13m')", () => {
+    // 252h 13m worth of ms → "10d 12h", not "252h 13m".
+    expect(formatElapsed((252 * 3600 + 13 * 60) * 1000)).toBe("10d 12h");
+    // seeded canonical: 249h 58m → "10d 9h".
+    expect(formatElapsed((249 * 3600 + 58 * 60) * 1000)).toBe("10d 9h");
+    // exactly 24h rolls to "1d 0h"; 23h59m stays hours-only.
+    expect(formatElapsed(24 * 3600 * 1000)).toBe("1d 0h");
+    expect(formatElapsed((23 * 3600 + 59 * 60) * 1000)).toBe("23h 59m");
+  });
+
+  it("rolls work-duration minutes up into hours beyond 60m (no unbounded '116m 23s')", () => {
+    // 116m 23s → "1h 56m 23s" (Codex's coarse "1h 37m 40s" head), not "116m 23s".
+    expect(formatWorkDuration((116 * 60 + 23) * 1000)).toBe("1h 56m 23s");
+    // exactly on the hour drops the trailing seconds like the minute form does.
+    expect(formatWorkDuration(3600 * 1000)).toBe("1h 0m");
+    // 59m59s stays in the minute form.
+    expect(formatWorkDuration((59 * 60 + 59) * 1000)).toBe("59m 59s");
+    // multi-hour with zero seconds.
+    expect(formatWorkDuration(2 * 3600 * 1000)).toBe("2h 0m");
+  });
 });
 
 // ---- INC-41 RT-5 · provider failures in human words -------------------------
