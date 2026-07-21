@@ -775,10 +775,15 @@
      matching the split view (.dls-marker). A green base leaked onto every
      context row, so an inline diff read as fully-added. */
   .dl-marker { @apply select-none; background: transparent; }
-  .dl.add .dl-marker { background: linear-gradient(to right, var(--green) 3px, transparent 3px); }
+  /* R50 DIFF-MARKER-NOTCH: the 18px marker cell paints a 3px accent bar; the
+     remaining ~15px must carry the same row tint as .dl-no/.dl-text, not
+     transparent — otherwise a white channel splits the accent bar from the
+     tinted number/code field and every changed row reads as fragmented
+     (Codex renders one continuous tint with the bar embedded). */
+  .dl.add .dl-marker { background: linear-gradient(to right, var(--green) 3px, var(--diff-add-bg) 3px); }
   /* QA-0718 用户实机:删除行 gutter 曾用红色斜纹 repeating-gradient,
      深色下极刺眼且非 Codex 形态——Codex 是极细纯色 accent 条。 */
-  .dl.del .dl-marker { background: linear-gradient(to right, var(--red) 3px, transparent 3px); }
+  .dl.del .dl-marker { background: linear-gradient(to right, var(--red) 3px, var(--diff-del-bg) 3px); }
   .dl-no { @apply select-none bg-transparent px-2 text-right text-dim text-[11px]; }
   .dl-text, .dls-half { @apply whitespace-pre px-2 text-ink; }
   .dl.add .dl-text, .dls-half.add { background-color: var(--diff-add-bg); }
@@ -801,9 +806,11 @@
   .fd-split .dls { display: contents; }
   .fd-split .dl-hunk-span { grid-column: 1 / -1; }
   .fd-split .dls-marker { @apply select-none; }
-  /* RVW-MARKER: thin ~3px left accent bar, matching the inline view. */
-  .fd-split .dls-marker.add { background: linear-gradient(to right, var(--green) 3px, transparent 3px); }
-  .fd-split .dls-marker.del { background: linear-gradient(to right, var(--red) 3px, transparent 3px); }
+  /* RVW-MARKER: thin ~3px left accent bar, matching the inline view.
+     R50 DIFF-MARKER-NOTCH: fill the rest of the cell with the row tint (not
+     transparent) so the accent bar reads as embedded in a continuous field. */
+  .fd-split .dls-marker.add { background: linear-gradient(to right, var(--green) 3px, var(--diff-add-bg) 3px); }
+  .fd-split .dls-marker.del { background: linear-gradient(to right, var(--red) 3px, var(--diff-del-bg) 3px); }
 
   /* Context gap band: aligns to the diff row grid (marker + number + code) */
   /* QA-0718 用户实机:band 曾写成三列(18px/5ch/1fr)而 children 只有
