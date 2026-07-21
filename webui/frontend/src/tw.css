@@ -444,7 +444,15 @@
   .cx-slash {
     @apply absolute bottom-[54px] left-3 right-3 z-20 max-h-[260px] overflow-y-auto rounded-[12px] border border-line bg-panel p-1 shadow-lg;
   }
-  .cx-slash-hd, .pop-section-label { @apply px-2 py-[6px] text-[11px] font-medium uppercase tracking-[0.06em] text-dim; }
+  .cx-slash-hd { @apply px-2 py-[6px] text-[11px] font-medium uppercase tracking-[0.06em] text-dim; }
+  /* R53 MENU-SECTION-LABEL-CASE: the composer "+" / env-chip menu section
+     headers ("Add", "Advanced", "Start in" …) were the same shouty
+     uppercase+tracking that R47/R48 already quieted for the sidebar section
+     labels and Scheduled "Suggestions". Codex (codex-crop-add-menu) renders
+     them as calm title-case — quiet them here too so the app's section
+     labels read as one system (the slash/@ menu `.cx-slash-hd` keeps its own
+     treatment above). */
+  .pop-section-label { @apply px-2 py-[6px] text-[12px] font-medium normal-case tracking-normal text-dim; }
   .cx-slash-item {
     @apply flex w-full items-center justify-between gap-3 rounded-[8px] border-0 bg-transparent px-2 py-[7px] text-left text-[13px] hover:bg-panel-2;
   }
@@ -568,18 +576,27 @@
   .compact-divider { @apply my-5 flex items-center gap-2 text-[12px] text-dim; }
   .compact-divider::before, .compact-divider::after { content: ""; @apply h-px flex-1 bg-line; }
   .compact-divider-label { @apply inline-flex items-center gap-1 whitespace-nowrap; }
-  .chip, .step, .worked-row, .act-group, .runtime-event, .system-events-notice, .driver-note {
+  .step, .act-group, .runtime-event, .system-events-notice, .driver-note {
     @apply my-2 rounded-[12px] border border-line bg-panel px-3 py-2 text-[13px] text-ink-2;
   }
+  /* R53 GAP-WORKED-BORDER: the collapsed "Worked · N steps" fold header and
+     neutral status chips ("Mode changed …") used to inherit the bordered
+     card chrome above — a long thread then read as a *stack of cards* whose
+     visual weight drowned the answer prose. Codex renders these as quiet
+     borderless gray text lines (the caret/label are markers, not cards), so
+     the eye rests on content. Neutral tone → quiet line; warn/err chips keep
+     the colored card chrome below (those are alerts — Codex boxes them too). */
+  .chip, .worked-row { @apply my-2 text-[13px] text-dim; }
   .run-status-line { @apply my-2 flex min-w-0 items-center justify-between gap-3 text-[12px] text-dim; }
   .run-status-line > span:first-child { @apply min-w-0 font-medium text-ink-2; }
   .run-status-line > span:last-child { @apply shrink-0; }
+  .chip.warn, .chip.err { @apply rounded-[12px] border px-3 py-2; }
   .chip.warn, .run-status-line.warn, .terminal-alert.warn { @apply border-amber bg-amber-soft text-amber; }
   .chip.err, .run-status-line.err, .terminal-alert.err { @apply border-red bg-red-soft text-red; }
   .chip { @apply flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1; }
   .chip > span:first-child { @apply min-w-0 flex-1; }
   .chip > a { @apply inline-flex shrink-0 items-center gap-1 text-blue; }
-  .worked-row { @apply flex items-start gap-2; }
+  .worked-row { @apply flex cursor-pointer items-start gap-2 border-0 bg-transparent p-0 text-left; }
   .worked-body, .act-body, .runtime-event-body { @apply min-w-0 flex-1; }
   .act-group > summary { @apply flex min-w-0 items-start gap-2; list-style: none; }
   .act-group > summary::-webkit-details-marker { display: none; }
