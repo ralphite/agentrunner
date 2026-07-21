@@ -3513,3 +3513,11 @@ approval 会话里同一位置就正常写着 `Goal`。金标 Environment 面板
   live=`index-CR_T__Jw.js`;全景 console error+warning = **0**(home/scheduled × light/dark)。
   截图 `qa/runs/2026-07-20-r39/{live,after-live}/`。**注**:INC-41-BACKLOG.md 已随 INC-65.2 顺带归档至 docs/archive/,
   旧 backlog 条目多经 348 commit(含 Tailwind 迁移)洗牌,本轮以 live 重截图为准、未沿用旧条目。
+
+- 2026-07-21 00:27 轮40:比对 4 屏(home/rich/scheduled/diff-review × light/dark × 1440/390)+ Codex 金标裁剪对齐。
+  home 建议卡对 `codex-crop-newtask-emptystate.jpg` 真像素比对 → 尺寸/布局已一致(判 ✂,前几轮误判为差距);
+  关差距 **SCHED-CREATE-BTN**:Scheduled 页 `Create` 按钮渲染畸形——`.menu-trigger` 强制 `w-8`(32px 图标宽),
+  `.page-action` 只覆盖高/内边距不覆盖宽,故 pill 被钳到 32px、`Create` 文案连同 Plus/CaretDown 溢出边框外(看着像坏了)。
+  加双类覆盖 `.menu-trigger.page-action { w-auto }` → 变回正常 `+ Create ⌄` pill(贴 Codex)。派工 1(inline,仅 tw.css);
+  push `b4b03b22`;live=`index-DUF3e1iO.js`;复验 scheduled × light/dark console error+warning = **0**。
+  截图 before `qa/runs/2026-07-21-r40/live/sched-header-crop.png`、after `qa/runs/2026-07-21-r40/after/sched-header-crop-light.png`。
