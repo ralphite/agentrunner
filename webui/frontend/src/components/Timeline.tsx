@@ -1338,7 +1338,7 @@ export function TimelineView({
             {lastAssistant && goalVerdict && <span className="h-4 w-px bg-line" aria-hidden />}
             {goalVerdict && (
               <div className="turn-footer">
-                <CheckCircle size={15} weight="fill" /> Goal achieved in {goalVerdict.elapsed}
+                <CheckCircle size={15} /> Goal achieved in {goalVerdict.elapsed}
               </div>
             )}
           </div>

@@ -1275,7 +1275,7 @@
      card (Codex places the outcome at the very end of the turn, not inside the
      final answer's hover action row). Left-aligned, green accent, with top
      spacing so it reads as the turn's closing line under the changes card. */
-  .turn-footer { @apply mt-3 inline-flex items-center gap-1.5 text-[13px] font-medium text-green; }
+  .turn-footer { @apply mt-3 inline-flex items-center gap-1.5 text-[13px] text-dim; }
   .cx-goal-note { @apply text-[12px] italic text-dim; }
   .imgnote { @apply mt-1 inline-flex items-center gap-1 text-[12px] text-dim; }
   .tam-label { @apply font-medium text-ink-2; }
