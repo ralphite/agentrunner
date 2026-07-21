@@ -3546,3 +3546,18 @@ approval 会话里同一位置就正常写着 `Goal`。金标 Environment 面板
   push `b6591b29`(SIDE-SUBTITLE)、`dd8b1fc2`(build-fix specs.ts)、`9e68095a`(text-left 修回退);vitest **602 全绿** + build 绿;live=`index-CeaFSfIk.js`;复截侧栏 light/dark console error+warning = **0**。
   截图 before `qa/runs/2026-07-21-r42/live/home-{light,dark}.png`、after `qa/runs/2026-07-21-r42/after/sidebar2-{light,dark}.png`。
   **下轮线索**(留给 finder 定性后排):① 富 thread 里 **ChangesOutcome 变更卡渲染成空盒**(只 ± 徽章、无 "Edited N files"/无 +/-/无 Undo·Review,见 `qa/runs/2026-07-21-r42/live/crop-emptybox.png`)——疑 loading skeleton 卡死或 diff 请求失败,非确定性(第二次探测卡消失),需 finder 复现定性(loading-stuck vs data vs 真无变更);② diff/review 分栏屏(最重要屏)因无有效多变更会话本轮仍未可信对标,待 finder 交证。
+
+- 2026-07-21 轮42 finder 收割(diff/review + approval,read-only):
+  - **crop-emptybox 定性 = 加载骨架,非 bug(✂ 勿修主逻辑)**:`.changes-outcome` 是 `ChangesShell` loading 相(± 徽章 + `.changes-outcome-skel` 两条 shimmer,`ChangesOutcome.tsx:433-441`);两次 `/diff` 均 200,该会话 workspace(`editable_mermaid2`)非 git 仓库 → last-turn 只含被丢弃的 node_modules lockfile、working-tree `isRepo:false` → `phase=ready && !files.length → return null`,卡最终正确消失。"空盒"是被截到的 3-4s 过渡骨架。
+  - ☐ **RVW-SKEL(P2)**:加载骨架读起来像"坏掉的空卡"——只有 ± 徽章 + 极淡 shimmer、**无可见 Loading 文案**(只 aria-label);且 `ChangesOutcome` 串行发两次 `/diff`(last-turn→working-tree),last-turn 含 node_modules lockfile 时 fetch+parse 慢,骨架挂 3-4s。动作:骨架加淡色 "Loading changes…" 占位文本或"文件行"形态 shimmer;可选 working-tree 回退只在 last-turn 判空后才发。`ChangesOutcome.tsx:433-441`。
+  - ☐ **RVW-MARKER(P2)**:逐行 diff marker 比 Codex(`codex-crop-diff-rendering.jpg` 细左边条+极淡底色)**更重**——每改动行最左是整行高实心红/绿块;dark 新增行底色**高饱和亮绿**,一屏全绿刺眼。动作:左侧实心块收成细 accent 条 + 降行底色饱和(尤其暗色 diff add/del 背景 token)。截图 `qa/runs/2026-07-21-r42/finder-diff/{edit-diffsplit-light,bar-diffsplit-dark}.png`。
+  - ✂ **DIFF-CP(P2 deliberate)**:1440 默认分栏 diff panel <640px→`barTight`→"Commit or push" 压成无标签 `-○-` 圆图标(`DiffView.tsx:817` 阈值,commit `7075e046`)。Codex 同宽给全标签胶囊,可发现性我方差;若面板可加宽/阈值可放宽建议让标签常驻。`diff-header-crop.png`。
+  - ✂ P3-1 inline/split 切换 1440 默认隐藏(`DiffView.tsx:386/1035`,deliberate);☐ P3-2 改动行单行号列(Codex 旧/新双列);P3 approval 三钮主次层级可再拉开(内部打磨,无 Codex 参照)。
+  - **已达标勿动**:ChangesOutcome 变更卡(`bar-card-light.png` vs `codex-crop-change-card.jpg` 近像素级一致)、语法高亮默认开、"N unmodified lines" 折叠条、逐文件折叠/Expand-all/文件导航/失败保留卡+Retry、approval 屏完成度高。**diff/review + approval 两屏功能层已基本对齐,无 P0。**
+
+- 2026-07-21 轮42 finder 收割(mobile 390 + Settings,read-only):
+  **总体:移动端(390)与 Settings 两条战线基本达 Codex parity,无 P0/P1 功能性回退**(经 40+ 轮 + 大量 mobile 专项提交)。横向溢出:home/富thread(mermaid+多agent)/侧栏抽屉/Settings 7分区处处 `scrollWidth==clientWidth` 无溢出;稳态 console 全 0(light+dark);composer +/model/mode 菜单、侧栏 ⋯ popover 全落视口内不裁;Settings 7 分区移动适配良好、分区 nav sticky;代码块 bordered+圆角+Wrap/Copy 与 Codex 一致。**独立复证空盒=ChangesOutcome loading skeleton 非 bug**(t+2/6/10s 已消失)。建议移动端/Settings 打磨**不排 backlog 前列**。
+  - ☐ **MOB-BRANCHPILL(P3)**:home/composer @390 的 branch pill 用 `text-ellipsis` 头对齐截断(`Composer.tsx:1227`),长分支 `worktree-agent-a6e7…` 显示成 `worktree-a...`,**恰好隐藏区分度最高的尾部 hash**(pill 仅 107px)。Codex 分支名短(`main`)无此问题。动作:该 pill 改中段省略或保尾(`direction:rtl`+前导省略)让唯一后缀可见。`home-390-light.png`。
+  - ☐ **SET-ROWGAP(P3)**:Settings desktop @1440 分区行 label 左/说明右两列,宽屏下相隔~760px(如 Appearance「Theme … Follow the system…」)视线跨度大。动作:说明加 max-width 或左靠。`settings-desktop-light-appearance.png`。
+  - ✂ Home@390 内容顶对齐 + composer 下~180px 死白(commit `d238be5e` 刻意保 composer 可见)、suggestion card 竖排 `min-h-[76px]`(`Home.tsx:160` 刻意 mobile)。
+  截图 `qa/runs/2026-07-21-r42/finder-mobile/`。
