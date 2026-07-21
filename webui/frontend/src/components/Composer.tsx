@@ -1372,7 +1372,6 @@ export function Composer(props: ComposerProps) {
                   <>
                     <PopSection label="Add">
                       <PopItem icon={<Paperclip size={16} />} title="Files and folders" onClick={() => { close(); anyRef.current?.click(); }} />
-                      <PopItem icon={<FolderIcon />} title="Attach Finder" onClick={() => { close(); anyRef.current?.click(); }} />
                       <PopItem icon={<GoalIcon />} title="Goal" desc="Set a goal to keep pursuing" onClick={() => { close(); setLauncher({ mode: "goal", prompt: text.trim() }); }} />
                       <PopItem
                         icon={<PlanIcon />}

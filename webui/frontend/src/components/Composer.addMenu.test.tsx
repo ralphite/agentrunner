@@ -63,7 +63,6 @@ describe("Composer add and advanced menu", () => {
     expect([...menu.querySelectorAll(".pop-section-label")].map((label) => label.textContent)).toEqual(["Add", "Advanced"]);
     expect([...menu.querySelectorAll("[role=menuitem] .pop-title")].map((item) => item.textContent)).toEqual([
       "Files and folders",
-      "Attach Finder",
       "Goal",
       "Plan mode",
       "Automation",
