@@ -306,6 +306,21 @@ describe("every row wears its state on its left (SCH-ICON)", () => {
     }
   });
 
+  it("separates real rows with whitespace, never a per-row divider (SCHED-BORDER-B)", () => {
+    const { container } = mountSeries();
+    // Codex gold splits real task rows with pure whitespace + hover highlight,
+    // NOT a 1px rule. Guard the JSX path so nobody re-adds a per-row divider
+    // utility (border-b / border-line) to the row or its wrapper.
+    for (const row of container.querySelectorAll(".scheduled-row")) {
+      expect(row.className).not.toContain("border-b");
+      expect(row.className).not.toContain("border-line");
+    }
+    for (const wrap of container.querySelectorAll(".scheduled-row-wrap")) {
+      expect(wrap.className).not.toContain("border-b");
+      expect(wrap.className).not.toContain("border-line");
+    }
+  });
+
   it("spends the alert colour on the broken rows and nothing else", () => {
     const { container } = mountSeries();
     // Adding a glyph to every row must not add an alarm to every row: exactly the

@@ -934,13 +934,18 @@
   .sched-tab { @apply rounded-md border-0 bg-transparent px-2.5 py-1 text-[13px] font-normal text-ink-2 shadow-none transition-colors duration-100 hover:bg-panel-2 hover:text-ink hover:shadow-none; }
   .sched-tab.on { @apply bg-panel-2 font-medium text-ink hover:bg-panel-2; }
   .scheduled-list, .sched-suggestions { @apply flex flex-col; }
-  /* Codex parity: rows are a compact, flat, divided list — no per-row card
-     (border/rounded/bg dropped), rows split by a 1px rule, tighter padding,
-     hover lights the whole row. */
+  /* Codex parity: rows are a compact, flat, UNDIVIDED list — no per-row card
+     (border/rounded/bg dropped), hover lights the whole row. R68 SCHED-BORDER-B:
+     the Codex gold (qa/codex-reference/codex-crop-scheduled-list.jpg /
+     codex-scheduled.jpg) separates real task rows with pure whitespace + hover
+     highlight and shows NO per-row 1px rule — the earlier "rows split by a 1px
+     rule" note was simply wrong, so the border-b is removed. Real rows carry a
+     touch more vertical padding (py-3) so the un-ruled list reads airy, not
+     cramped; .sched-suggest keeps its tighter py-2.5. */
   .scheduled-row, .sched-suggest {
     @apply flex min-w-0 items-start gap-3 rounded-none border-0 bg-transparent px-2 py-2.5 text-left hover:bg-panel-2;
   }
-  .scheduled-row { @apply border-b border-line; }
+  .scheduled-row { @apply py-3; }
   .sched-glyph, .sched-suggest-icon { @apply grid h-7 w-7 shrink-0 place-items-center rounded-full text-dim; }
   .scheduled-copy, .sched-suggest-body { @apply min-w-0 flex-1; }
   .sched-sub, .sched-trail, .sched-cadence, .sched-suggest-desc, .sched-suggest-cadence, .sched-warn { @apply text-[12px] text-dim; }
