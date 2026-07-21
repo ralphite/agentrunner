@@ -305,8 +305,16 @@
   .section-label, .project-heading {
     @apply flex min-w-0 items-center gap-[7px] px-2 py-[6px] text-[11px] font-bold uppercase tracking-[0.1em] text-dim;
   }
+  /* R79 SIDE-HEADING-SIZE · the shared base rule above sets text-[11px]; this
+     override changed case/weight/tracking/color but never the size, so repo
+     group names (mt-test/agentrunner) leaked out at 11px — SMALLER than their
+     own 13px .project-session children below (a parent<child hierarchy
+     inversion, ~10px .project-hint-adjacent). Codex golden (codex-crop-sidebar-
+     projects) renders the repo name at the same size as its session rows and
+     leans on the folder icon (not size) for hierarchy — exactly what the r47
+     SIDE-SUBTITLE note above intends. Match the 13px session size. */
   .project-heading {
-    @apply w-full rounded-[7px] border-0 bg-transparent font-medium normal-case tracking-normal text-ink transition-colors duration-100 hover:bg-panel-2 hover:text-ink;
+    @apply w-full rounded-[7px] border-0 bg-transparent text-[13px] font-medium normal-case tracking-normal text-ink transition-colors duration-100 hover:bg-panel-2 hover:text-ink;
   }
   /* SIDE-SECTION-LABEL (r47) · Codex renders the sidebar section dividers
      ("Pinned" / "Projects") in a quiet title-case label — regular weight, no
