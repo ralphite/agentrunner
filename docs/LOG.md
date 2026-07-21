@@ -6068,3 +6068,44 @@ review(改动面=模型可见字符串,零控制流/状态机/并发)。
 1.26.5(check-go-toolchain 拒),且无 bash4(check.sh 并行编排 `declare -A` 挂);
 本次以 `GOTOOLCHAIN=local` 手跑各腿全绿。lint-wiring 报 `parsePSTable` 基线
 漂移系既有(平台/toolchain 敏感,与本增量无关,纯净树同样复现)。
+
+---
+
+## 2026-07-21 · INC-86 默认 medium thinking + 移除 no-thinking(修 gemini-flash-latest 拒绝 thinkingBudget:0)
+
+**背景**:用户要求"用真实例子测 loop mode"。真浏览器 `/loop` 一跑,第 1 轮
+child 即 `gemini INVALID_ARGUMENT (400)`。
+
+**定性(真机真值表,ar-live 稳定复现,每档多次)**:`thinking 禁用
+(thinkingBudget:0)→ ❌ 400`、`thinking 启用 → ✅ OK`,与 max_tokens 无关。
+即 **gemini-flash-latest 当前拒绝 `thinkingBudget:0`**(Gemini 侧模型指针近期
+变更——同二进制几小时前 session 20260721-080739 thinking-off 还好)。我们
+`gemini.go toConfig` 对任何未开 thinking 的 spec 都发 `thinkingBudget:0` 去
+"关思考",正好中招。**爆炸半径不止 loop**:webui 默认 `DEFAULT_EFFORT="off"`
+(budget 0)→ 所有默认 Gemini Flash 会话(含普通聊天)当场 400;
+`buildDriverAgent`/`DEFAULT_WORKER` 无 thinking → 全部 loop/goal/best-of-N +
+spawn 子 agent 也 400。
+
+**用户裁决**:默认 medium thinking + 移除 no-thinking。
+
+**动作(webui/frontend,纯前端 spec 生成层)**:EffortId/EFFORT_LEVELS 删 "off"、
+`DEFAULT_EFFORT` off→medium、effortById/effortFromSpec 回退 medium;`modelBlock`
+永不发无 thinking 块(budget≤0 兜底 medium);`buildDriverAgent`→modelBlock(medium)、
+`DEFAULT_WORKER`/`DEFAULT_DRIVER_AGENT` 补 thinking(budget 6144/max 10240);
+Composer `/reasoning` 别名 off/none→light、pill 恒显 effort 标签;
+Composer.effort.test 默认断言 off→medium。**不触后端不变量**(gemini provider
+budget:0 分支未动)。
+
+**验收**:闸门 A——前端 `npm run build`(tsc+vite)绿 + vitest **630/630** 绿 +
+生成 spec 三处均 budget_tokens:6144。闸门 B(QA-0721b,真浏览器 /loop):部署后
+同路径 /loop 跑通——**零 INVALID_ARGUMENT**,Iter 1/2 Completed、Iter 3
+overlap-skip、max_iterations 收尾,真项目 REVIEW_NOTES.md 累积 2 条真实审查
+发现;对照修前同 /loop 第 1 轮即 child_failed(20260721-162833)。证据
+`qa/runs/2026-07-21-QA-0721b-loopmode/`。
+
+**遗留(GAPS G41)**:后端 provider 未根治——CLI/手写 thinking-off spec 仍会
+400。根治应让 gemini `toConfig` 对拒绝 budget:0 的模型改走最小正 budget/交给
+模型,触及"会话死亡"防御,须走不变量流程单独立项。
+
+**流程注记**:本次因 INC-85 的 specs.ts 反引号未转义打断过 main 的 `npm run
+build`;本增量已改前端**先 build + vitest 再提交**,教训内化。

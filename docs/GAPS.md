@@ -677,6 +677,15 @@ TERM-resistant 孙进程可变孤儿。统一 advisory flock + unique temp fsync
 针对性 race 与全量 gate 通过；共享 store/Web UI 重启验收见 QA-67。
 → UJ-01/04/09/17/18/24
 
+**G41 gemini provider 对拒绝 budget:0 的模型硬发 thinkingBudget:0 → thinking-off spec 400 — 🟡 前端已绕开（INC-86），provider 未根治**
+现场（INC-86，2026-07-21）：gemini-flash-latest 当前拒绝 `thinkingBudget:0`
+（INVALID_ARGUMENT，外部模型指针变更）。gemini `toConfig` 的 `else if !pro`
+分支对任何 thinking-off spec 硬发 budget:0 → 400。INC-86 已从 webui 前端绕开
+（默认 medium、移除 off、buildDriverAgent/DEFAULT_WORKER 补 thinking），但
+**CLI / 手写 thinking-off spec 仍会 400**。根治：让 provider 对拒绝 budget:0
+的模型（flash-latest，同 pro 分支）改走"最小正 budget / 交给模型"路径，而非
+硬发 0。触及"会话死亡"防御逻辑，须走不变量变更流程单独 review。→ UJ-14/18
+
 **G40 子 agent 编排契约未进模型可见面 → 弱模型 busy-wait — ✅ 已关闭（INC-85，2026-07-21，DESIGN「编排智能在模型」注记 + 工具描述）**
 现场（session 20260721-070616，dev persona，gemini-flash-latest）：主 agent 派完
 3 个 worker 后连续 4 分钟 `output` 轮询 + `bash sleep` 自旋（9 次 sleep、~25 轮

@@ -1553,3 +1553,16 @@ runtime 红线(轮询次数),不钉模型措辞。
 | 1（对照/旧） | 旧 `ar-live` + 旧 dev prompt,`ar run` 派 3 worker 审计小 workspace | 稳定复现 busy-wait:`output` 轮询 ≫0（本次 13 次、9 步空转）——阳性对照 |
 | 2（修复/新） | 新二进制（含新描述）+ 新 dev prompt,同任务 | 派完即结束 turn:**`output` 轮询 = 0、`bash sleep` = 0**;3 个完成消息各自自动唤醒主 agent;末轮综合出完整报告 |
 
+## QA-0721b loop mode 真机验收（INC-86，UJ-14）
+
+**状态**:PASS(2026-07-21,真 Gemini Flash,**真浏览器 `/loop`**,证据
+`qa/runs/2026-07-21-QA-0721b-loopmode/`——REVIEW_NOTES 产出 + events + findings)。
+**动机**:gemini-flash-latest 当前拒绝 `thinkingBudget:0`,webui 默认 effort=off +
+driver/worker 无 thinking → loop/goal/best-of-N + 默认聊天全 400。INC-86 改默认
+medium thinking + 移除 no-thinking。断言只钉 runtime 红线(是否 400 / 是否迭代)。
+
+| # | 真实动作 | 硬断言 |
+|---|---|---|
+| 1（对照/修前） | 旧默认(effort off),真浏览器 `/loop` | 第 1 轮 child 即 `INVALID_ARGUMENT`,series `child_failed`(20260721-162833) |
+| 2（修复/修后） | INC-86 部署后,真浏览器 `/loop`(editable_mermaid2,30s,3 轮) | **零 INVALID_ARGUMENT**;Iter 1/2 Completed、Iter 3 overlap-skip、`max_iterations` 收尾;真项目 REVIEW_NOTES.md 累积 2 条真实审查发现(20260721-165144) |
+
