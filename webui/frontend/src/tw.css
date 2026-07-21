@@ -1336,7 +1336,7 @@
   .sc-group { @apply mb-2; }
 
   /* supervision 折叠明细头 */
-  .supervision-details { @apply mt-2 border-0 border-t border-line bg-transparent pt-2; }
+  .supervision-details { @apply mt-2 flex items-center justify-start gap-1 border-0 border-t border-line bg-transparent px-3 pt-2; }
   .supervision-details-label { @apply inline-flex cursor-pointer items-center gap-1 text-[12px] text-dim; }
   .supervision-details-caret { @apply transition-transform; }
   .supervision-details[open] .supervision-details-caret { @apply rotate-90; }
