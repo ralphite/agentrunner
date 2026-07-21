@@ -794,6 +794,12 @@
   .page-heading h2 { @apply text-[22px] font-semibold; }
   .page-heading p { @apply mt-0.5 text-[13px] font-normal text-dim; }
   .page-action { @apply inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[10px] border border-line bg-panel px-3 text-[13px] font-medium hover:bg-panel-2; }
+  /* R40: a labeled Menu trigger (page-action) must not inherit the 32px
+     icon-only width from .menu-trigger — .page-action overrides height/padding
+     but never width, so `w-8` clamped the box and the "Create" label spilled
+     outside its own border. Two-class selector wins over both the desktop
+     (w-8) and mobile (w-11) .menu-trigger widths regardless of order. */
+  .menu-trigger.page-action { @apply w-auto; }
   .empty-state { @apply grid justify-items-center gap-1.5 rounded-[12px] border border-line bg-panel px-4 py-8 text-center text-[13px] text-dim; }
   .empty-state b { @apply text-[14px] text-ink; }
   .sched-suggestions-title { @apply mt-6 mb-2 text-[12px] font-semibold tracking-[0.04em] text-dim uppercase; }
