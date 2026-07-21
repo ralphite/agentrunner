@@ -28,8 +28,8 @@ const chip = (key: string, text: string, over: Partial<ChipItem> = {}): ChipItem
 });
 const compact = (key: string, text = "Context compacted"): CompactItem => ({ kind: "compact", key, text });
 
-describe("TH-10 — the final assistant answer's action row: icons visible at rest", () => {
-  it("renders the row's members: three action buttons, the divider and the verdict — but no time", () => {
+describe("TAIL-ROW — the goal verdict renders as a turn footer, not inside the action row", () => {
+  it("draws the verdict after the turn's content and keeps the last answer's action row (3 icons, no time)", () => {
     const { container } = render(
       <TimelineView
         items={[assistant("a1")]}
@@ -40,11 +40,15 @@ describe("TH-10 — the final assistant answer's action row: icons visible at re
         onContinue={() => {}}
       />,
     );
-    const div = container.querySelector(".msg-actions-div") as HTMLElement;
-    expect(div).not.toBeNull();
-    expect(div.getAttribute("style")).toBeNull();
+    // Verdict now lives at the end of .tl-inner as a turn footer (Codex places
+    // the outcome after the turn's change card, not in the per-message row).
+    const footer = container.querySelector(".turn-footer") as HTMLElement;
+    expect(footer).not.toBeNull();
+    expect(footer.textContent).toContain("Goal achieved in 3h 47m");
+    // The per-message action row no longer carries the verdict or its divider.
     const row = container.querySelector(".msg-actions") as HTMLElement;
-    expect(row.querySelector(".msg-goal-verdict")?.textContent).toContain("Goal achieved in 3h 47m");
+    expect(row.querySelector(".msg-goal-verdict")).toBeNull();
+    expect(container.querySelector(".msg-actions-div")).toBeNull();
     expect(container.querySelector(".msg.msg-last")).not.toBeNull();
     expect(row.querySelectorAll("button.msg-copy")).toHaveLength(3);
   });

@@ -164,12 +164,10 @@ function MsgActions({
   text,
   ts,
   onContinue,
-  goalVerdict,
 }: {
   text: string;
   ts?: string;
   onContinue?: () => void;
-  goalVerdict?: { elapsed: string } | null;
 }) {
   const [copied, setCopied] = useState(false);
   const [shared, setShared] = useState(false);
@@ -199,18 +197,6 @@ function MsgActions({
         <button className="msg-copy icon-only" onClick={onContinue} title="Continue in new session" aria-label="Continue in new session">
           <ArrowSquareOut size={15} />
         </button>
-      )}
-      {goalVerdict && (
-        <>
-          {/* Divider + verdict — Codex appends the goal outcome to the final
-              answer's action row. The divider is styled in tw.css (NOT
-              inline): at rest the icons are hidden, and a separator with nothing
-              to separate must collapse with them (TH-1). */}
-          <span className="msg-actions-div" aria-hidden="true" />
-          <span className="msg-goal-verdict">
-            <CheckCircle size={15} weight="fill" /> Goal achieved in {goalVerdict.elapsed}
-          </span>
-        </>
       )}
       {time && <span className="msg-time" title={absTime(ts)}>{time}</span>}
     </div>
@@ -908,7 +894,7 @@ function CollapsibleUserText({ text }: { text: string }) {
   );
 }
 
-function Item({ it, sentImages, onContinue, goalVerdict, last }: { it: TimelineItem; sentImages?: Map<number, string[]>; onContinue?: () => void; goalVerdict?: { elapsed: string } | null; last?: boolean }) {
+function Item({ it, sentImages, onContinue, last }: { it: TimelineItem; sentImages?: Map<number, string[]>; onContinue?: () => void; last?: boolean }) {
   switch (it.kind) {
     case "turn":
       return <div className="turn">turn {it.gen}</div>;
@@ -976,7 +962,7 @@ function Item({ it, sentImages, onContinue, goalVerdict, last }: { it: TimelineI
             <div className="bubble">
               <Markdown text={it.text} />
             </div>
-            <MsgActions text={it.text} ts={it.ts} onContinue={onContinue} goalVerdict={goalVerdict} />
+            <MsgActions text={it.text} ts={it.ts} onContinue={onContinue} />
           </div>
         </div>
       );
@@ -1252,7 +1238,6 @@ export function TimelineView({
                 it={it}
                 sentImages={sentImages}
                 onContinue={it.kind === "assistant" ? onContinue : undefined}
-                goalVerdict={it.kind === "assistant" && it.key === lastAssistantKey ? goalVerdict : undefined}
                 last={it.kind === "assistant" && it.key === lastAssistantKey}
               />
             </Fragment>
@@ -1277,6 +1262,16 @@ export function TimelineView({
           </div>
         ))}
         {!active && !typing && pending.length === 0 && outcomeSlot}
+        {/* TAIL-ROW: the goal verdict is the turn's footer — Codex draws the
+            outcome AFTER the turn's full content (worked fold, artifacts, the
+            changes card), not inside the final answer's action row. So it
+            renders here at the end of .tl-inner, past outcomeSlot, rather than
+            hanging in the middle of the last turn via MsgActions. */}
+        {!active && !typing && pending.length === 0 && goalVerdict && (
+          <div className="turn-footer">
+            <CheckCircle size={15} weight="fill" /> Goal achieved in {goalVerdict.elapsed}
+          </div>
+        )}
       </div>
       {showJump && (
         <button type="button" className="tl-jump" onClick={jumpToBottom} title="Jump to latest" aria-label="Jump to latest">

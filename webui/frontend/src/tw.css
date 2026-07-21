@@ -1228,6 +1228,11 @@
   /* goal 文案与杂项标签 */
   .goal-copy, .goal-settled-copy { @apply text-[12.5px] leading-5 text-ink-2 [overflow-wrap:anywhere]; }
   .msg-goal-verdict { @apply inline-flex items-center gap-1 text-[12px] text-green; }
+  /* TAIL-ROW: turn footer — the goal verdict rendered AFTER the turn's change
+     card (Codex places the outcome at the very end of the turn, not inside the
+     final answer's hover action row). Left-aligned, green accent, with top
+     spacing so it reads as the turn's closing line under the changes card. */
+  .turn-footer { @apply mt-3 inline-flex items-center gap-1.5 text-[13px] font-medium text-green; }
   .cx-goal-note { @apply text-[12px] italic text-dim; }
   .imgnote { @apply mt-1 inline-flex items-center gap-1 text-[12px] text-dim; }
   .tam-label { @apply font-medium text-ink-2; }
