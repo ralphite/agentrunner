@@ -564,7 +564,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
           aria-expanded={open}
           title="Choose which workspace changes to review"
         >
-          {scope === "working-tree" ? "Working tree" : "Last turn"}
+          {scope === "working-tree" ? "Working Tree" : "Last Turn"}
           <CaretDown size={12} />
         </button>
       )}
@@ -572,7 +572,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
       {(close) => (
         <PopSection label="Compare changes">
           <PopItem
-            title="Working tree"
+            title="Working Tree"
             desc="All uncommitted workspace changes"
             active={scope === "working-tree"}
             onClick={() => {
@@ -581,7 +581,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
             }}
           />
           <PopItem
-            title="Last turn"
+            title="Last Turn"
             desc="Since the latest human turn began"
             active={scope === "last-turn"}
             onClick={() => {

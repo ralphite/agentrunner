@@ -117,7 +117,7 @@ describe("The review opens on the last turn (INC-41 RVW-4)", () => {
 
     await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
     expect(diff).toHaveBeenCalledWith("s1", "last-turn");
-    expect(screen.getByLabelText("Change diff scope").textContent).toContain("Last turn");
+    expect(screen.getByLabelText("Change diff scope").textContent).toContain("Last Turn");
   });
 
   it("falls back to the working tree, silently, when the session has no turn baseline", async () => {
@@ -130,7 +130,7 @@ describe("The review opens on the last turn (INC-41 RVW-4)", () => {
     await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
     expect(screen.queryByText("Last turn unavailable")).toBeNull();
     expect(diff.mock.calls.map((c) => c[1])).toEqual(["last-turn", "working-tree"]);
-    expect(screen.getByLabelText("Change diff scope").textContent).toContain("Working tree");
+    expect(screen.getByLabelText("Change diff scope").textContent).toContain("Working Tree");
     // …and a fallback nobody asked for is not a preference: nothing is persisted.
     expect(localStorage.getItem("ar.diff.scope")).toBeNull();
   });
@@ -142,7 +142,7 @@ describe("The review opens on the last turn (INC-41 RVW-4)", () => {
 
     // The user asks for the turn anyway: now the empty state is the true answer.
     fireEvent.click(screen.getByLabelText("Change diff scope"));
-    fireEvent.click(screen.getByText("Last turn"));
+    fireEvent.click(screen.getByText("Last Turn"));
     await waitFor(() => expect(screen.getByText("Last turn unavailable")).toBeTruthy());
     expect(screen.getByText("no durable baseline")).toBeTruthy();
   });
@@ -154,7 +154,7 @@ describe("The review opens on the last turn (INC-41 RVW-4)", () => {
     await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
 
     fireEvent.click(screen.getByLabelText("Change diff scope"));
-    fireEvent.click(screen.getByText("Working tree"));
+    fireEvent.click(screen.getByText("Working Tree"));
     await waitFor(() => expect(localStorage.getItem("ar.diff.scope")).toBe("working-tree"));
     first.unmount();
 
@@ -162,7 +162,7 @@ describe("The review opens on the last turn (INC-41 RVW-4)", () => {
     render(<DiffView sid="s5" />);
     await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
     expect(diff).toHaveBeenCalledWith("s5", "working-tree");
-    expect(screen.getByLabelText("Change diff scope").textContent).toContain("Working tree");
+    expect(screen.getByLabelText("Change diff scope").textContent).toContain("Working Tree");
   });
 
   it("shrugs off a storage that refuses to answer", async () => {
@@ -180,7 +180,7 @@ describe("The review opens on the last turn (INC-41 RVW-4)", () => {
     expect(diff).toHaveBeenCalledWith("s6", "last-turn");
     // and switching still works — it just doesn't persist.
     fireEvent.click(screen.getByLabelText("Change diff scope"));
-    fireEvent.click(screen.getByText("Working tree"));
+    fireEvent.click(screen.getByText("Working Tree"));
     await waitFor(() => expect(diff).toHaveBeenCalledWith("s6", "working-tree"));
     getItem.mockRestore();
     setItem.mockRestore();

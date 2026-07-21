@@ -117,7 +117,7 @@ describe("Commit or push is the review's resident main action (INC-41 DIFF-CP)",
     // The panel opened on the turn (RVW-4) — the scope that used to have no
     // commit affordance anywhere on screen.
     expect(diff).toHaveBeenCalledWith("cp1", "last-turn");
-    expect(screen.getByLabelText("Change diff scope").textContent).toContain("Last turn");
+    expect(screen.getByLabelText("Change diff scope").textContent).toContain("Last Turn");
 
     const btn = commitBtn();
     expect(container.querySelector(".diffbar")!.contains(btn)).toBe(true);
