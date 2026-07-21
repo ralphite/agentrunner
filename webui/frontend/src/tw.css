@@ -558,7 +558,7 @@
   .topbar-tool.stop, .stop { @apply text-red; }
   .topbar-attention { @apply ml-1 rounded-full bg-amber px-[5px] text-[10px] text-white; }
   .session-layout { @apply grid min-h-0 flex-1; grid-template-columns: minmax(0, 1fr); }
-  .session-layout.changes { grid-template-columns: minmax(0, 1fr) minmax(320px, 42vw); }
+  .session-layout.changes { grid-template-columns: minmax(0, 1fr) minmax(320px, 46vw); }
   .session-layout.environment { grid-template-columns: minmax(0, 1fr) minmax(300px, 360px); }
   .session-primary { @apply flex min-h-0 min-w-0 flex-col; }
   .timeline { @apply min-h-0 flex-1 overflow-y-auto; }
