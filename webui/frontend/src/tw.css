@@ -842,7 +842,11 @@
   .fd-gap { @apply grid w-full min-w-max items-center border-0 border-t border-line bg-panel-2 text-[12px] text-dim; grid-template-columns: calc(5ch + 35px) minmax(0, 1fr); }
   .fd-gap:hover { @apply bg-panel-2; }
   .fd-gap-caret { @apply select-none flex items-center justify-center text-ink font-medium transition-transform; width: 100%; height: 100%; }
-  .fd-gap-label { @apply cursor-pointer px-2 py-2 hover:text-ink; }
+  /* DIFF-GAP-CENTER: .fd-gap 是 <button>(UA text-align:center),label
+     文字会继承居中被推到 1fr code 列正中。Codex(codex-crop-diff-rendering.jpg /
+     codex-diff-review.jpg)把「N unmodified lines」计数左对齐落在 code 列起点,
+     故显式 text-left 覆盖 button 的 UA center;行高/gutter 对齐(px-2 py-2)不变。 */
+  .fd-gap-label { @apply cursor-pointer px-2 py-2 text-left hover:text-ink; }
 
   .fd-nobody { @apply p-4 text-center text-dim; }
 
