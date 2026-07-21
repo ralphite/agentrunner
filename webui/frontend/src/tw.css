@@ -859,7 +859,11 @@
   .menu-trigger.page-action { @apply w-auto; }
   .empty-state { @apply grid justify-items-center gap-1.5 rounded-[12px] border border-line bg-panel px-4 py-8 text-center text-[13px] text-dim; }
   .empty-state b { @apply text-[14px] text-ink; }
-  .sched-suggestions-title { @apply mt-6 mb-2 text-[12px] font-semibold tracking-[0.04em] text-dim uppercase; }
+  /* R48 SCHED-SUGGEST-LABEL: Codex's Scheduled "Suggestions" heading is a calm
+     title-case ~15px medium-weight dim heading, not a shouty uppercase micro-
+     label. Mirror the R47 sidebar section-label quieting (was: text-[12px]
+     font-semibold tracking-[0.04em] uppercase). */
+  .sched-suggestions-title { @apply mt-6 mb-2 text-[15px] font-medium normal-case tracking-normal text-dim; }
   .sched-suggest-title { @apply text-[14px] font-semibold; }
   /* R41 SCHED-TABS: match Codex's Scheduled toolbar. Codex stacks the search on
      its own full-width row, then a filters row with the text tabs left and
