@@ -384,8 +384,14 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
   }, []);
   useEffect(() => () => barObs.current?.disconnect(), []);
   // `narrow` is the window; `barTight` is the panel. Split view needs room in the
-  // box that renders it, and only the second of these can see that.
-  const effView = narrow || barTight ? "inline" : view;
+  // box that renders it, and only `narrow` (window ≤900px) may *refuse* it —
+  // two columns would crush the diff column there. DIFF-SPLIT-TOGGLE-GONE ·
+  // `barTight` (a mid-width panel <640px, e.g. 605px at a 1440 window) must not:
+  // its toggle demotes into `…` (see the tight menu below) instead of vanishing,
+  // so the panel honours the user's explicit `view`. `view` defaults to "inline",
+  // so this only changes rendering once the user actively chooses split — it
+  // never regresses on its own.
+  const effView = narrow ? "inline" : view;
   // DF-1 · the review rail is ~56% of the window, so below ~1400px the worktree
   // chip's text is the first thing with nowhere to go. It shrinks (never its
   // neighbours — see .diffwrap .diffbar in tw.css), and here it stops being
@@ -869,6 +875,28 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
                   onClick={() => {
                     close();
                     void copyDiff();
+                  }}
+                />
+              )}
+              {/* DIFF-SPLIT-TOGGLE-GONE · the inline/split toggle demotes here too,
+                  pointing at the *other* view like the Wrap item points at the
+                  other wrap state — so split stays reachable on the 538–635px
+                  panels every mainstream laptop (1280–1512) renders, instead of
+                  being the one control that silently vanished. Guarded by
+                  `!narrow`, mirroring the resident split button's `disabled={narrow}`:
+                  a ≤900px window has no room for two columns and offers no door. */}
+              {barTight && !empty && !narrow && (
+                <PopItem
+                  icon={effView === "split" ? <Rows size={15} /> : <Columns size={15} />}
+                  title={effView === "split" ? "Inline view" : "Split view"}
+                  desc={
+                    effView === "split"
+                      ? "Show changes in one column"
+                      : "Show old and new side by side"
+                  }
+                  onClick={() => {
+                    close();
+                    setView(effView === "split" ? "inline" : "split");
                   }}
                 />
               )}
