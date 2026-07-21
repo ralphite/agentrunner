@@ -176,11 +176,11 @@ function ArtifactRow({ sid, file, ext, label, divider }: { sid: string; file: Fi
   };
 
   return (
-    <div className={"flex items-center gap-[10px] px-[10px] py-[8px]" + (divider ? " border-t border-line" : "")}>
-      <span className="grid place-items-center w-[32px] h-[32px] shrink-0 rounded-[8px] bg-panel-2 text-ink-2">{ext === "pdf" ? <FilePdf size={18} /> : <FileText size={18} />}</span>
+    <div className={"flex items-center gap-[10px] px-[12px] py-[10px]" + (divider ? " border-t border-line" : "")}>
+      <span className="grid place-items-center w-[38px] h-[38px] shrink-0 rounded-[10px] bg-panel-2 text-ink-2">{ext === "pdf" ? <FilePdf size={20} /> : <FileText size={20} />}</span>
       <div className="flex flex-col gap-[1px] flex-1 min-w-0">
-        <span className="text-[13px] font-[550] text-ink overflow-hidden text-ellipsis whitespace-nowrap" title={file.path}>{base}</span>
-        <span className="text-[11px] text-dim">{label} · {ext.toUpperCase()}</span>
+        <span className="text-[15px] font-[550] text-ink overflow-hidden text-ellipsis whitespace-nowrap" title={file.path}>{base}</span>
+        <span className="text-[13px] text-dim">{label} · {ext.toUpperCase()}</span>
       </div>
       <div className="relative shrink-0">
         <button
