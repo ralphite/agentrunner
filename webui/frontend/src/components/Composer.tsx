@@ -1552,23 +1552,25 @@ export function Composer(props: ComposerProps) {
               >
                 {modelMenuPage === "root" ? (
                   <>
-                    <PopItem
-                      title="Model"
-                      right={<span className="inline-flex max-w-[210px] items-center gap-2"><span className="truncate">{modelLabel}</span><span aria-hidden>›</span></span>}
-                      onClick={() => setModelMenuPage("model")}
-                    />
-                    <PopItem
-                      title="Effort"
-                      right={<span className="inline-flex max-w-[210px] items-center gap-2"><span className="truncate">{budgetOverride ? "Custom" : effortLevel.label}</span><span aria-hidden>›</span></span>}
-                      onClick={() => setModelMenuPage("effort")}
-                    />
-                    <PopItem
-                      title="Speed"
-                      right={<span className="inline-flex max-w-[210px] items-center gap-2"><span className="truncate">Standard</span><span aria-hidden>›</span></span>}
-                      onClick={() => setModelMenuPage("speed")}
-                    />
+                    <div className="cx-model-roots">
+                      <PopItem
+                        title="Model"
+                        right={<span className="inline-flex max-w-[210px] items-center gap-2"><span className="truncate">{modelLabel}</span><span aria-hidden>›</span></span>}
+                        onClick={() => setModelMenuPage("model")}
+                      />
+                      <PopItem
+                        title="Effort"
+                        right={<span className="inline-flex max-w-[210px] items-center gap-2"><span className="truncate">{budgetOverride ? "Custom" : effortLevel.label}</span><span aria-hidden>›</span></span>}
+                        onClick={() => setModelMenuPage("effort")}
+                      />
+                      <PopItem
+                        title="Speed"
+                        right={<span className="inline-flex max-w-[210px] items-center gap-2"><span className="truncate">Standard</span><span aria-hidden>›</span></span>}
+                        onClick={() => setModelMenuPage("speed")}
+                      />
+                    </div>
                     <div className="cx-model-advanced">
-                      <PopItem title="Advanced" right={<CaretDown size={14} className="cx-model-adv-chev open" aria-hidden="true" />} onClick={() => setModelMenuPage("advanced")} />
+                      <PopItem title={<span className="inline-flex items-center gap-1">Advanced <CaretDown size={14} className="cx-model-adv-chev open" aria-hidden="true" /></span>} onClick={() => setModelMenuPage("advanced")} />
                     </div>
                   </>
                 ) : modelMenuPage === "model" ? (

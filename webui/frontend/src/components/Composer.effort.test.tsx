@@ -54,7 +54,7 @@ const mount = (onSubmit = vi.fn()) => {
 const pill = (container: HTMLElement) => container.querySelector<HTMLButtonElement>(".cx-model")!;
 const item = (title: string) =>
   [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find(
-    (button) => button.querySelector(".pop-title")?.textContent === title,
+    (button) => button.querySelector(".pop-title")?.textContent?.trim() === title,
   )!;
 const openMenu = (container: HTMLElement) => fireEvent.click(pill(container));
 
@@ -73,12 +73,31 @@ describe("Composer model / effort menu mobile hierarchy", () => {
     const menu = container.querySelector<HTMLElement>(".cx-model-menu")!;
     expect(menu.style.width).toBe("320px");
     expect(menu.style.maxWidth).toBe("calc(100vw - 32px)");
-    expect([...menu.querySelectorAll(".pop-title")].map((node) => node.textContent)).toEqual(["Model", "Effort", "Speed", "Advanced"]);
+    expect([...menu.querySelectorAll(".pop-title")].map((node) => node.textContent?.trim())).toEqual(["Model", "Effort", "Speed", "Advanced"]);
     expect(menu.querySelector('[role="slider"]')).toBeNull();
     expect(item("Model").querySelector(".pop-right")?.textContent).toContain("Gemini Flash");
     expect(item("Effort").querySelector(".pop-right")?.textContent).toContain("Medium");
     expect(item("Speed").querySelector(".pop-right")?.textContent).toContain("Standard");
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("bolds the Model/Effort/Speed root labels and keeps Advanced out of that group", () => {
+    // MODEL-ROOT-LABEL-WEIGHT: only the three root rows live inside
+    // .cx-model-roots (which the stylesheet renders semibold via
+    // `.cx-model-roots .pop-title`); Advanced stays outside so its label is
+    // not bolded and reads as a secondary action.
+    const { container } = mount();
+    openMenu(container);
+    const menu = container.querySelector<HTMLElement>(".cx-model-menu")!;
+    const roots = menu.querySelector<HTMLElement>(".cx-model-roots")!;
+    expect(roots).toBeTruthy();
+    expect([...roots.querySelectorAll(".pop-title")].map((node) => node.textContent?.trim())).toEqual(["Model", "Effort", "Speed"]);
+    // Advanced's title lives outside .cx-model-roots (so it is not semibold)…
+    expect(item("Advanced").closest(".cx-model-roots")).toBeNull();
+    expect(item("Advanced").closest(".cx-model-advanced")).toBeTruthy();
+    // …and its caret is inline inside the label rather than pushed to .pop-right.
+    expect(item("Advanced").querySelector(".pop-title .cx-model-adv-chev")).toBeTruthy();
+    expect(item("Advanced").querySelector(".pop-right")).toBeNull();
   });
 
   it("swaps between pages and restores the selected Model and Effort state", () => {

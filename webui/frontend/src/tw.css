@@ -489,6 +489,7 @@
   .cx-project-search { @apply m-1 flex items-center gap-2 rounded-[8px] border border-line bg-panel px-2 py-[6px] text-dim; }
   .cx-project-search input { @apply min-w-0 flex-1 border-0 bg-transparent p-0 text-[13px] outline-none; }
   .cx-model-list { @apply grid gap-1; }
+  .cx-model-roots .pop-title { @apply font-semibold; }
   .cx-effort { @apply border-t border-line px-2 py-3; }
   .cx-effort-hd { @apply mb-3 flex items-center justify-between text-[12px]; }
   .cx-effort-value { @apply text-dim; }
