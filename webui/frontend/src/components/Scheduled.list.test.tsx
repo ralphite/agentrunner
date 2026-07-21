@@ -293,6 +293,18 @@ describe("every row wears its state on its left (SCH-ICON)", () => {
     expect(container.querySelector(".sched-blank")).toBeNull();
   });
 
+  it("tops the glyph on the title's first line, not the middle of a two-line title (SCH-ICON-TOP)", () => {
+    const { container } = mountSeries();
+    // The row must NOT items-center: with a clamped two-line title that pins the
+    // glyph to the vertical middle of the block, floating it off the first line.
+    for (const row of container.querySelectorAll(".scheduled-row")) {
+      expect(row.className).toContain("items-start");
+      expect(row.className).not.toContain("items-center");
+      // the glyph carries the optical nudge that re-centres its ring on line one.
+      expect(row.querySelector(".sched-glyph")!.className).toContain("-mt-1");
+    }
+  });
+
   it("spends the alert colour on the broken rows and nothing else", () => {
     const { container } = mountSeries();
     // Adding a glyph to every row must not add an alarm to every row: exactly the

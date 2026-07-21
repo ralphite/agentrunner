@@ -619,7 +619,12 @@ export function Scheduled() {
             >
             <button
               className={
-                "scheduled-row w-full items-center pr-14" +
+                // SCH-ICON-TOP: the leading glyph anchors the row's left column;
+                // it must ride the TITLE'S FIRST LINE (Codex gold), not float to
+                // the vertical middle of a two-line title. items-start tops the
+                // glyph slot with the title; the glyph's own -mt below optically
+                // centres its 28px ring on the 20px first line.
+                "scheduled-row w-full items-start pr-14" +
                 (r.unread ? " is-unread" : "") +
                 // SCH-ICON: settled / dormant rows step back a shade — title
                 // included — so the rows that are still ticking are the ones the
@@ -650,7 +655,7 @@ export function Scheduled() {
                   words next to it. Neutral gray throughout; the alert colour
                   stays scarce and keeps meaning exactly what SC-10 made it mean. */}
               <span
-                className={"sched-glyph" + (r.alert ? ` sched-warn is-${r.status.cls}` : "")}
+                className={"sched-glyph -mt-1" + (r.alert ? ` sched-warn is-${r.status.cls}` : "")}
                 title={r.status.text}
               >
                 {/* SC-19: 16px — the gold standard's ring is 13.5px of ink. */}
