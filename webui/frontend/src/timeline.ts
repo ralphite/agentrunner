@@ -115,6 +115,15 @@ export interface ChipItem {
   // thread) must keep the fact — but a view that DOES render the chrome drops
   // it through suppressEchoedChips so one terminal fact is stated once.
   echo?: "goal" | "limit";
+  // THREAD-2-SINGLESTEP · the RFC3339 instant this chip's event fired. Carried
+  // ONLY by chips that mark the terminal moment of a turn that was cut short
+  // (goal cancelled, step/budget limit hit) so foldWork's `noteTs` can charge
+  // that instant into the turn's work-span. Without it a single-step interrupted
+  // turn's span is genStart..genStart = 0 (tool activity and chips are undated),
+  // so the fold head degrades from "Worked for 34s" to "Worked · 1 step". This
+  // is the SAME ts deriveGoalState already reads to show the terminal banner's
+  // "00:34"; we just also feed it to the fold so head and banner agree.
+  ts?: string;
 }
 
 export interface CompactItem {
@@ -772,12 +781,18 @@ export function foldEvents(events: Envelope[]): Folded {
   const sysChip = (seq: number, text: string, tone: ChipItem["tone"] = "") =>
     push({ kind: "chip", key: "c" + seq, text, tone, fold: true, system: true });
   // TH-12 · a chip whose fact the terminal chrome also states (see ChipItem.echo).
+  // THREAD-2-SINGLESTEP · optional `ts`: the event's instant. Passed by terminal
+  // call sites (goal cancelled, step/budget limit) so an interrupted turn's
+  // work-span reaches its real end — foldWork.noteTs reads chip.ts, extending
+  // spanEnd to this moment, so the fold head reads "Worked for 34s" rather than
+  // "Worked · 1 step". A non-terminal echo (goal paused) passes no ts.
   const echoChip = (
     seq: number,
     text: string,
     tone: ChipItem["tone"],
     echo: NonNullable<ChipItem["echo"]>,
-  ) => push({ kind: "chip", key: "c" + seq, text, tone, echo });
+    ts?: string,
+  ) => push({ kind: "chip", key: "c" + seq, text, tone, echo, ts });
 
   for (const env of events) {
     const p = env.payload || {};
@@ -1155,7 +1170,7 @@ export function foldEvents(events: Envelope[]): Folded {
         chip(seq, "goal resumed");
         break;
       case "goal_cancelled":
-        echoChip(seq, "goal cancelled", "warn", "goal");
+        echoChip(seq, "goal cancelled", "warn", "goal", env.ts);
         break;
       case "goal_checkpoint":
         workChip(seq, `Goal check ${p.check || "?"}${p.pass ? " · passed" : " · not met"}`, p.pass ? "good" : "warn");
@@ -1168,15 +1183,15 @@ export function foldEvents(events: Envelope[]): Folded {
           // stopped · check budget exhausted" + the check count), so the chip
           // is an echo when the banner is on screen — but it stays the ONLY
           // carrier of the fact when it isn't (dismissed banner, sub-agent).
-          echoChip(seq, `goal stopped: check budget exhausted after ${p.checks} check(s) — not verified as achieved`, "bad", "goal");
+          echoChip(seq, `goal stopped: check budget exhausted after ${p.checks} check(s) — not verified as achieved`, "bad", "goal", env.ts);
         } else if (p.reason === "cancelled") {
-          echoChip(seq, "goal detached · cancelled", "warn", "goal");
+          echoChip(seq, "goal detached · cancelled", "warn", "goal", env.ts);
         } else {
           chip(seq, `Goal achieved · ${p.reason || "satisfied"} (${p.checks} check${p.checks === 1 ? "" : "s"})`, "good");
         }
         break;
       case "goal_exhausted":
-        echoChip(seq, `goal stopped: check budget exhausted after ${p.checks} check(s) — not verified as achieved`, "bad", "goal");
+        echoChip(seq, `goal stopped: check budget exhausted after ${p.checks} check(s) — not verified as achieved`, "bad", "goal", env.ts);
         break;
       case "limit_exceeded":
         // A user interrupt is modeled as limit_exceeded{kind:interrupted} —
@@ -1193,7 +1208,7 @@ export function foldEvents(events: Envelope[]): Folded {
           // Step limit reached" + what to do next) with an action button. Two
           // reds for one stop; the chip yields to the actionable banner when
           // that banner is rendered.
-          echoChip(seq, p.limit ? `${lbl} — capped at ${p.limit}` : lbl, "bad", "limit");
+          echoChip(seq, p.limit ? `${lbl} — capped at ${p.limit}` : lbl, "bad", "limit", env.ts);
         }
         break;
       case "generation_discarded":

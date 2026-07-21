@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { clipGoal, completedTurnDurations, deriveGoalState, explainFailure, foldEvents, foldWork, formatElapsed, formatWorkDuration, guiReason, suppressEchoedChips, verdictLabel } from "./timeline";
 import { isSessionNotFound, isValidSessionId } from "./components/SessionView";
+import { workedLabel } from "./components/Timeline";
 import { summarizeChanges } from "./diffSummary";
+import type { WorkFold } from "./timeline";
 
 describe("timeline input projection", () => {
   it("keeps human input as a user message", () => {
@@ -899,5 +901,66 @@ describe("retry supersedes the failed block (INC-84)", () => {
     const model = foldEvents(twoQuestions as any);
     expect(model.items.filter((i) => i.kind === "retried")).toHaveLength(0);
     expect(model.items.filter((i) => i.kind === "user")).toHaveLength(2);
+  });
+});
+
+// THREAD-2-SINGLESTEP — a turn cut short after a single step (step-limit hit or
+// goal cancelled) has no stored durationMs and its one tool step carries no ts,
+// so the ONLY way the fold head can read "Worked for 34s" instead of degrading
+// to "Worked · 1 step" is for the terminal chip to carry its event ts, letting
+// foldWork's noteTs charge the interruption instant into the turn's work-span.
+// This is the same ts the terminal banner shows as "00:34"; head and banner now
+// agree. Regression guards the full projection pipeline (events → fold head).
+describe("THREAD-2-SINGLESTEP — interrupted single-step turn dates its fold head", () => {
+  const T0 = Date.parse("2026-07-21T10:00:00.000Z");
+  const iso = (ms: number) => new Date(ms).toISOString();
+  const foldOf = (events: any[]): WorkFold => {
+    const { items } = foldEvents(events as any);
+    const durations = completedTurnDurations(items, false);
+    const nodes = foldWork(items, durations, false);
+    const fold = nodes.find((n) => n.kind === "fold") as WorkFold | undefined;
+    expect(fold).toBeDefined();
+    return fold!;
+  };
+
+  it("charges the goal_cancelled instant into the work-span (span branch, not step count)", () => {
+    // One generation_started (T0), one undated tool step, then goal cancelled
+    // 34s later. Only the gen marker (start) and the cancelled chip (end) are
+    // dated — exactly the single-step-interrupted shape that used to read "1 step".
+    const fold = foldOf([
+      { seq: 1, type: "input_received", ts: iso(T0), payload: { source: "cli", text: "do the thing" } },
+      { seq: 2, type: "generation_started", ts: iso(T0), payload: { gen_step: 1 } },
+      { seq: 3, type: "activity_started", ts: iso(T0 + 2000), payload: { kind: "tool", activity_id: "a1", name: "read_file", args: {} } },
+      { seq: 4, type: "activity_completed", payload: { activity_id: "a1" } },
+      { seq: 5, type: "goal_cancelled", ts: iso(T0 + 34000), payload: {} },
+    ]);
+    expect(fold.durationMs).toBeUndefined(); // never settled
+    expect(fold.startMs).toBe(T0);
+    expect(fold.endMs).toBe(T0 + 34000); // extended by the terminal chip's ts
+    expect(workedLabel(fold)).toBe("Worked for 34s");
+  });
+
+  it("also dates a step-limit-interrupted turn from the limit_exceeded instant", () => {
+    const fold = foldOf([
+      { seq: 1, type: "input_received", ts: iso(T0), payload: { source: "cli", text: "keep going" } },
+      { seq: 2, type: "generation_started", ts: iso(T0), payload: { gen_step: 1 } },
+      { seq: 3, type: "activity_started", ts: iso(T0 + 1000), payload: { kind: "tool", activity_id: "a1", name: "run", args: {} } },
+      { seq: 4, type: "activity_completed", payload: { activity_id: "a1" } },
+      { seq: 5, type: "limit_exceeded", ts: iso(T0 + 34000), payload: { kind: "steps", limit: 1 } },
+    ]);
+    expect(fold.durationMs).toBeUndefined();
+    expect(workedLabel(fold)).toBe("Worked for 34s");
+  });
+
+  it("leaves a settled final-answer turn on its stored durationMs (no regression)", () => {
+    const fold = foldOf([
+      { seq: 1, type: "input_received", ts: iso(T0), payload: { source: "cli", text: "answer me" } },
+      { seq: 2, type: "generation_started", ts: iso(T0), payload: { gen_step: 1 } },
+      { seq: 3, type: "activity_started", ts: iso(T0 + 2000), payload: { kind: "tool", activity_id: "a1", name: "read_file", args: {} } },
+      { seq: 4, type: "activity_completed", payload: { activity_id: "a1" } },
+      { seq: 5, type: "assistant_message", ts: iso(T0 + 16000), payload: { message: { parts: [{ text: "here you go" }] } } },
+    ]);
+    expect(fold.durationMs).toBe(16000); // settled turn keeps its measured duration
+    expect(workedLabel(fold)).toBe("Worked for 16s");
   });
 });
