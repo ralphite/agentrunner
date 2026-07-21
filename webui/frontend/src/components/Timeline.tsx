@@ -894,7 +894,7 @@ function CollapsibleUserText({ text }: { text: string }) {
   );
 }
 
-function Item({ it, sentImages, onContinue, last }: { it: TimelineItem; sentImages?: Map<number, string[]>; onContinue?: () => void; last?: boolean }) {
+function Item({ it, sentImages, onContinue, last, deferActions }: { it: TimelineItem; sentImages?: Map<number, string[]>; onContinue?: () => void; last?: boolean; deferActions?: boolean }) {
   switch (it.kind) {
     case "turn":
       return <div className="turn">turn {it.gen}</div>;
@@ -962,7 +962,12 @@ function Item({ it, sentImages, onContinue, last }: { it: TimelineItem; sentImag
             <div className="bubble">
               <Markdown text={it.text} />
             </div>
-            <MsgActions text={it.text} ts={it.ts} onContinue={onContinue} />
+            {/* TAIL-ROW: on the thread's last answer, a settled turn hoists this
+                action row out to the bottom of .tl-inner (past the artifact /
+                changes cards) so copy/share/continue sit beside the goal verdict
+                — see the tail row at the end of TimelineView. Middle answers keep
+                their hover-only row inline. */}
+            {!deferActions && <MsgActions text={it.text} ts={it.ts} onContinue={onContinue} />}
           </div>
         </div>
       );
@@ -1114,12 +1119,24 @@ export function TimelineView({
   //
   // TH-21 reuses the same key: the final assistant answer is also the only
   // message that keeps its action row at rest (`.msg-last`).
-  const lastAssistantKey = (() => {
+  const lastAssistant = (() => {
     for (let i = nodes.length - 1; i >= 0; i--) {
-      if (nodes[i].kind === "assistant") return nodes[i].key;
+      const n = nodes[i];
+      if (n.kind === "assistant") return n;
     }
     return undefined;
   })();
+  const lastAssistantKey = lastAssistant?.key;
+
+  // TAIL-ROW: a settled turn (run idle, nothing typing/pending) hoists the final
+  // answer's action row out of the bubble and down past the turn's artifact /
+  // changes cards, so copy/share/continue land on the same bottom row as the
+  // goal verdict — matching Codex, which draws `⧉ … ↗ │ ⊘ Goal achieved in N`
+  // AFTER the turn's full content. While the run is live the row stays inline
+  // and persistent on `.msg-last` (TH-21), because the tail region below is
+  // gated off until the turn settles.
+  const settled = !active && !typing && pending.length === 0;
+  const deferLastActions = settled && !!lastAssistant;
 
   useEffect(() => {
     const el = ref.current;
@@ -1239,6 +1256,7 @@ export function TimelineView({
                 sentImages={sentImages}
                 onContinue={it.kind === "assistant" ? onContinue : undefined}
                 last={it.kind === "assistant" && it.key === lastAssistantKey}
+                deferActions={it.kind === "assistant" && it.key === lastAssistantKey && deferLastActions}
               />
             </Fragment>
           );
@@ -1261,15 +1279,27 @@ export function TimelineView({
             <span className="who">{p.delivery === "steer" ? "steering…" : "queued…"}</span>
           </div>
         ))}
-        {!active && !typing && pending.length === 0 && outcomeSlot}
-        {/* TAIL-ROW: the goal verdict is the turn's footer — Codex draws the
-            outcome AFTER the turn's full content (worked fold, artifacts, the
-            changes card), not inside the final answer's action row. So it
-            renders here at the end of .tl-inner, past outcomeSlot, rather than
-            hanging in the middle of the last turn via MsgActions. */}
-        {!active && !typing && pending.length === 0 && goalVerdict && (
-          <div className="turn-footer">
-            <CheckCircle size={15} weight="fill" /> Goal achieved in {goalVerdict.elapsed}
+        {settled && outcomeSlot}
+        {/* TAIL-ROW: Codex draws the turn's closer AFTER its full content (worked
+            fold, artifacts, the changes card) — not inside the final answer's
+            action row. So the final answer's copy/share/continue row is hoisted
+            out of the bubble (deferLastActions above) and rendered HERE, past
+            outcomeSlot, on the same bottom row as the goal verdict:
+            `⧉ ↗ ⧉ │ ⊘ Goal achieved in N`. The action row carries no timestamp
+            (matching the persistent last row; `ts` is intentionally not passed).
+            If the turn hasn't been judged, the action row still renders here at
+            the bottom, just without the goal badge. */}
+        {settled && (lastAssistant || goalVerdict) && (
+          <div className="tl-tail-row mt-3 flex items-center gap-3 flex-wrap [&_.msg-actions]:mt-0 [&_.turn-footer]:mt-0">
+            {lastAssistant && (
+              <MsgActions text={lastAssistant.text} onContinue={onContinue} />
+            )}
+            {lastAssistant && goalVerdict && <span className="h-4 w-px bg-line" aria-hidden />}
+            {goalVerdict && (
+              <div className="turn-footer">
+                <CheckCircle size={15} weight="fill" /> Goal achieved in {goalVerdict.elapsed}
+              </div>
+            )}
           </div>
         )}
       </div>

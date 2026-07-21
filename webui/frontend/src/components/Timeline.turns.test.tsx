@@ -167,9 +167,17 @@ describe("TR-2 — timestamp date tiers", () => {
   it("renders the dated label on the message action row", () => {
     const ts = at(2026, 6, 8, 22, 14);
     // the component reads the real clock, so assert the shape it must produce
-    // for a timestamp that is definitively old rather than pinning a tier here
+    // for a timestamp that is definitively old rather than pinning a tier here.
+    // a1 is a MIDDLE answer here: the thread's LAST answer deliberately carries
+    // no timestamp (TH-21 / TAIL-ROW), so the dated label is pinned on the
+    // hover-only row of an earlier message, which is where a tier label shows.
     const { container } = render(
-      <TimelineView items={[{ ...assistant("a1"), ts }]} pending={[]} typing="" showSys={false} />,
+      <TimelineView
+        items={[{ ...assistant("a1"), ts }, user("u2"), assistant("a2")]}
+        pending={[]}
+        typing=""
+        showSys={false}
+      />,
     );
     const label = container.querySelector(".msg-time")!.textContent!;
     expect(label).toBe(shortTime(ts)!);
