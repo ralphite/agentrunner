@@ -389,15 +389,24 @@
   }
   .cx-session .cx-card { @apply max-w-[660px]; }
   .cx-card.dropping { @apply border-blue bg-blue-soft; }
-  .cx-env-strip { @apply flex min-w-0 gap-[4px] border-b border-line px-[10px] py-[8px]; }
+  /* HOME-CHIP-FLAT (R46): composer env/model/mode chips are borderless flat
+     buttons (Codex codex-new-task-home.jpg) — the top env strip drops its
+     bottom hairline and the chips shed their pill border + panel fill, showing
+     only on hover. The Queue/Steer delivery toggle (.cx-deliv) stays a bordered
+     segmented control so its two options still read as segments. */
+  .cx-env-strip { @apply flex min-w-0 gap-[4px] px-[10px] py-[8px]; }
   .cx-env-strip > .pop-wrap { @apply min-w-0; }
   .cx-env-project-wrap { @apply flex-1; }
   .cx-env-project-wrap .cx-env-control { @apply w-full; }
   .cx-env-control.environment { @apply shrink-0; }
-  .cx-env-control, .cx-pill, .cx-deliv {
+  .cx-env-control, .cx-pill {
+    @apply inline-flex min-w-0 items-center gap-[6px] whitespace-nowrap rounded-full border-0 bg-transparent px-[9px] py-[5px] text-[12px] text-ink-2 transition-all duration-100 hover:bg-panel-2 hover:text-ink;
+  }
+  .cx-deliv {
     @apply inline-flex min-w-0 items-center gap-[6px] whitespace-nowrap rounded-full border border-line bg-panel px-[10px] py-[5px] text-[12px] text-ink-2 transition-all duration-100 hover:bg-panel-2 hover:text-ink;
   }
-  .cx-env-control.active, .cx-pill.active, .cx-deliv.on { @apply border-blue bg-blue-soft text-ink; }
+  .cx-env-control.active, .cx-pill.active { @apply bg-blue-soft text-ink; }
+  .cx-deliv.on { @apply border-blue bg-blue-soft text-ink; }
   .cx-env-control:disabled { @apply opacity-50; }
   .cx-env-value, .cx-pill-sub { @apply min-w-0 truncate; }
   .cx-input-wrap { @apply px-[14px] pt-[12px]; }
