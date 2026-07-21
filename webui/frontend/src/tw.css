@@ -382,8 +382,13 @@
   .home-empty-headline { @apply m-0 max-w-[760px] text-[28px] font-semibold leading-tight text-ink; }
   .home-empty-repo { @apply inline-block max-w-[32ch] overflow-hidden text-ellipsis whitespace-nowrap align-bottom font-medium; }
   .home-empty-cards { @apply grid w-full max-w-[720px] grid-cols-4 gap-4; }
+  /* HOME-CARD-WRAP (R52): Codex new-task cards (codex-new-task-home.jpg) use a
+     compact ~13px label so every suggestion reads as a tidy 2-line card. At
+     15px our 3rd/longest card ("Build a new feature, app, or tool") ragged-
+     wrapped to 3 lines while its neighbors stayed 2, breaking the even grid.
+     Drop to 13px to match Codex density and even out the wrap. */
   .home-empty-card {
-    @apply flex min-h-[76px] flex-col items-start justify-start gap-2.5 rounded-[12px] border border-line bg-panel px-4 py-3.5 text-left text-[15px] font-medium shadow-md transition-all duration-100 hover:border-dim hover:bg-panel-2 hover:shadow-lg;
+    @apply flex min-h-[76px] flex-col items-start justify-start gap-2.5 rounded-[12px] border border-line bg-panel px-4 py-3.5 text-left text-[13px] font-medium shadow-md transition-all duration-100 hover:border-dim hover:bg-panel-2 hover:shadow-lg;
   }
   .home-empty-card-icon { @apply grid h-[28px] w-[28px] shrink-0 place-items-center text-blue; }
   .home-empty-card-icon.teal { color: var(--teal); }
