@@ -253,6 +253,60 @@ describe("Projects section truncation + group fold (SB-4)", () => {
   });
 });
 
+describe("project group icon is always a closed folder (SIDEBAR-FOLDER-ICON)", () => {
+  // Two real-workspace groups so both render a heading; one is collapsed via
+  // localStorage, the other expanded. Codex's gold keeps the closed Folder on
+  // every group regardless of fold — expanded state rides the caret alone.
+  const twoGroups = [
+    { id: "20260710-000000-a", status: "idle", turns: 1, title: "Session A", workspace: "/repo/aaa" },
+    { id: "20260709-000000-b", status: "idle", turns: 1, title: "Session B", workspace: "/repo/bbb" },
+  ];
+
+  const mount = () => {
+    useStore.setState({
+      sessions: twoGroups as any,
+      sessionsReady: true,
+      currentSid: null,
+      archived: [],
+      pinned: [],
+      unread: [],
+      renames: {},
+      projects: {},
+      toggleProjectFolded: vi.fn(),
+    });
+    return render(<Sidebar />);
+  };
+
+  afterEach(() => localStorage.clear());
+
+  it("renders the identical closed-folder icon whether a group is expanded or collapsed", () => {
+    // Collapse the newest group (/repo/aaa) and leave the other expanded.
+    localStorage.setItem("ar.sidebar.collapsedProjects", JSON.stringify(["/repo/aaa"]));
+    const { container } = mount();
+
+    const groups = [...container.querySelectorAll(".project-group")];
+    expect(groups).toHaveLength(2);
+
+    const collapsed = groups.find((g) => g.querySelectorAll(".project-session-wrap").length === 0)!;
+    const expanded = groups.find((g) => g.querySelectorAll(".project-session-wrap").length > 0)!;
+    expect(collapsed).toBeTruthy();
+    expect(expanded).toBeTruthy();
+
+    const collapsedFolder = collapsed.querySelector(".proj-folder")!;
+    const expandedFolder = expanded.querySelector(".proj-folder")!;
+    expect(collapsedFolder).toBeTruthy();
+    expect(expandedFolder).toBeTruthy();
+    // FolderOpen and Folder differ in their SVG paths, so an identical icon
+    // markup on both states proves we never swap to FolderOpen when expanded.
+    expect(expandedFolder.innerHTML).toBe(collapsedFolder.innerHTML);
+
+    // The fold state is carried by the caret instead: open on the expanded group.
+    expect(expanded.querySelector(".proj-caret.open")).toBeTruthy();
+    expect(collapsed.querySelector(".proj-caret.open")).toBeNull();
+    expect(collapsed.querySelector(".proj-caret")).toBeTruthy();
+  });
+});
+
 describe("New session shortcut discoverability (RH-4)", () => {
   it("keeps nav rows badge-free — the shortcut lives on the row's title, not a resting pill", () => {
     useStore.setState({ sessions: [] });

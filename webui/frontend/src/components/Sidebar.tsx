@@ -492,7 +492,13 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
                       takes the slot on hover/focus. */}
                   <span className="proj-icon-slot">
                     <CaretRight className={`proj-caret${!folded ? " open" : ""}`} size={11} weight="bold" aria-hidden="true" />
-                    {!folded ? <FolderOpen className="proj-folder" size={16} /> : <Folder className="proj-folder" size={16} />}
+                    {/* SIDEBAR-FOLDER-ICON · the group icon is always a closed
+                        Folder, matching Codex's gold (codex-crop-sidebar-projects):
+                        every project group — expanded or not — keeps the same
+                        closed folder so the icon column stays quiet and uniform.
+                        Expanded state is encoded solely by the rotating caret
+                        (.proj-caret.open above), not by swapping to FolderOpen. */}
+                    <Folder className="proj-folder" size={16} />
                   </span>
                   {/* SIDE-SUBTITLE · the disambiguating worktree lineage
                       (project.hint) drops to a subordinate second line under
