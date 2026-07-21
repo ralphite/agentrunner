@@ -253,23 +253,27 @@ describe("Projects section truncation + group fold (SB-4)", () => {
   });
 });
 
-describe("New session shortcut badge (RH-4)", () => {
-  it("badges the New session row with the key the app actually binds", () => {
+describe("New session shortcut discoverability (RH-4)", () => {
+  it("keeps nav rows badge-free — the shortcut lives on the row's title, not a resting pill", () => {
     useStore.setState({ sessions: [] });
     const { container } = render(<Sidebar />);
-    const badge = container.querySelector(".primary-nav .nav-kbd");
-    expect(badge).toBeTruthy();
+    // Golden Codex: every primary-nav row is a clean icon+label with no resting
+    // shortcut badge. The key stays discoverable via title= and the ⌘K palette.
+    expect(container.querySelector(".primary-nav .nav-kbd")).toBeNull();
 
-    // The badge must render the same tokens the shortcut catalog registers for
-    // New session — that catalog is what Settings → Keyboard shortcuts shows, and
+    // The New session row's title must carry the same tokens the shortcut catalog
+    // registers — that catalog is what Settings → Keyboard shortcuts shows, and
     // App.tsx is what actually fires. One string, three surfaces.
     const registered = SHORTCUT_GROUPS.find((g) => g.title === "Global")!.items.find(
       (i) => i.label === "New session",
     );
     expect(registered).toBeTruthy();
-    expect(badge!.textContent).toBe(registered!.keys.map(keyLabel).join(""));
-    // …and it sits on the New session row, not on Scheduled.
-    expect(badge!.closest("button")!.textContent).toContain("New session");
+    const tokens = registered!.keys.map(keyLabel).join("");
+    const newSessionBtn = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(".primary-nav button"),
+    ).find((b) => b.textContent?.includes("New session"));
+    expect(newSessionBtn).toBeTruthy();
+    expect(newSessionBtn!.getAttribute("title")).toContain(tokens);
   });
 });
 

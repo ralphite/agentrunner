@@ -403,9 +403,6 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             title={keys ? `${label} (${keys.map(keyLabel).join("")})` : label}
           >
             <DestIcon size={17} /> <span>{label}</span>
-            {/* RH-4 · resting shortcut badge, Codex-style: the row tells you the
-                key instead of hiding it in Settings. */}
-            {keys && <span className="nav-kbd" aria-hidden="true">{keys.map(keyLabel).join("")}</span>}
             {key === "scheduled" && (schedUnread.length > 0 || runningRuns > 0) && (
               <span
                 className={`nav-notice${schedUnread.length > 0 ? " unread" : " running"}`}

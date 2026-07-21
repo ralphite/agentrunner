@@ -295,7 +295,7 @@
     @apply flex h-[40px] items-center gap-2 rounded-[8px] border-0 bg-transparent px-3 text-left text-[15px] font-medium text-ink-2 transition-all duration-100 hover:bg-panel-2 hover:text-ink;
   }
   .primary-nav button.active { @apply bg-panel-2 text-ink font-semibold shadow-sm; }
-  .nav-kbd, .menu-kbd { @apply ml-auto rounded-[5px] border border-line px-[5px] py-[1px] text-[10.5px] text-dim; }
+  .menu-kbd { @apply ml-auto rounded-[5px] border border-line px-[5px] py-[1px] text-[10.5px] text-dim; }
   .nav-notice, .sched-unread {
     @apply ml-auto h-[7px] w-[7px] rounded-full bg-status-running;
   }
@@ -388,7 +388,7 @@
      wrapped to 3 lines while its neighbors stayed 2, breaking the even grid.
      Drop to 13px to match Codex density and even out the wrap. */
   .home-empty-card {
-    @apply flex min-h-[76px] flex-col items-start justify-between gap-2.5 rounded-[12px] border border-line bg-panel px-4 py-3.5 text-left text-[13px] font-medium shadow-md transition-all duration-100 hover:border-dim hover:bg-panel-2 hover:shadow-lg;
+    @apply flex min-h-[76px] flex-col items-start justify-between gap-2.5 rounded-[12px] border border-line bg-panel px-4 py-3.5 text-left text-[13px] font-medium transition-all duration-100 hover:border-dim hover:bg-panel-2 hover:shadow-sm;
   }
   .home-empty-card-icon { @apply grid h-[28px] w-[28px] shrink-0 place-items-center text-blue; }
   .home-empty-card-icon.teal { color: var(--teal); }
