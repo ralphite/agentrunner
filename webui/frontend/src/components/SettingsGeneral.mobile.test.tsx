@@ -11,10 +11,12 @@ describe("SettingsGeneral mobile layout", () => {
     const onReset = vi.fn();
     render(<SettingsGeneral query="" onReset={onReset} />);
 
-    const statusSection = screen.getByText("Status").closest("section")!;
-    const resetSection = screen.getByText("Reset settings").closest("section")!;
-    expect(statusSection.className).toContain("max-[500px]:flex-col");
-    expect(resetSection.className).toContain("max-[500px]:flex-col");
+    // SETTINGS-GENERAL-CHROME (R81): each row is now an rs-row card; the flex
+    // layout that stacks on mobile moved to the inner .rs-row-head container.
+    const statusHead = screen.getByText("Status").closest(".rs-row-head")!;
+    const resetHead = screen.getByText("Reset settings").closest(".rs-row-head")!;
+    expect(statusHead.className).toContain("max-[500px]:flex-col");
+    expect(resetHead.className).toContain("max-[500px]:flex-col");
 
     fireEvent.click(screen.getByRole("button", { name: "Reset to defaults" }));
     const actions = screen.getByRole("button", { name: "Reset" }).parentElement!;
