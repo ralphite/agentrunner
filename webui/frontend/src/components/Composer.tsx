@@ -1118,7 +1118,7 @@ export function Composer(props: ComposerProps) {
             wrapClass="cx-env-project-wrap"
             trigger={(open, toggle) => (
               <button className={"cx-env-control project" + (open ? " active" : "")} onClick={toggle} title="Select project" aria-haspopup="menu" aria-expanded={open}>
-                <FolderIcon />
+                <FolderIcon size={17} />
                 <span className="cx-env-value min-w-0 overflow-hidden text-ellipsis">{ws ? wsShort : "Select project"}</span>
               </button>
             )}
@@ -1224,7 +1224,7 @@ export function Composer(props: ComposerProps) {
             }}
             trigger={(open, toggle) => (
               <button className={"cx-env-control branch" + (narrow ? " w-full" : "") + (open ? " active" : "")} onClick={toggle} title={branchInfo?.isRepo ? "Choose starting branch" : "No Git branch available"} disabled={!branchInfo?.isRepo} aria-haspopup="menu" aria-expanded={open}>
-                <BranchIcon />
+                <BranchIcon size={17} />
                 <span className="cx-env-value min-w-0 overflow-hidden text-ellipsis [direction:rtl] text-left">{branchLabel}</span>
               </button>
             )}
@@ -1835,8 +1835,8 @@ const UndoIcon = () => <ArrowUUpLeft size={15} />;
 // Provider-aware model glyph: Gemini (primary) gets the sparkle, Anthropic the
 // chip — a quiet family cue in the pill and the model menu.
 const ModelIcon = ({ provider }: { provider?: string }) => (provider === "anthropic" ? <Cpu size={14} /> : <Sparkle size={14} />);
-const FolderIcon = () => <Folder size={13} />;
-const BranchIcon = () => <GitBranch size={13} />;
+const FolderIcon = ({ size = 13 }: { size?: number }) => <Folder size={size} />;
+const BranchIcon = ({ size = 13 }: { size?: number }) => <GitBranch size={size} />;
 const GoalIcon = () => <Target size={14} />;
 const LoopIcon = () => <ArrowClockwise size={14} />;
 const PlanIcon = () => <ListChecks size={14} />;
