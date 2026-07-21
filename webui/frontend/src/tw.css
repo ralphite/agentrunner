@@ -783,8 +783,12 @@
   .diff-empty { @apply m-auto grid max-w-[360px] place-items-center gap-2 p-8 text-center text-dim; }
 
   /* Diff toolbar controls */
-  .diff-scope-trigger { @apply rounded-[6px] border border-line bg-panel-2 px-2 py-1 text-[12px] transition-colors duration-100 hover:bg-panel text-ink; }
-  .diff-scope-trigger.active { @apply bg-panel text-ink shadow-sm; }
+  /* DIFF-SCOPE-CHROMELESS: rest 态裸文字(无 border/fill),读作 'Last Turn ⌄'
+     标题而非盒装按钮,与右侧真盒装的 Commit or push pill 拉开层级。保留
+     px-2 py-1 命中区 + rounded-[6px] 供 hover/active 圆角;hover/active 给微弱
+     bg-panel-2 tint 作为 affordance。 */
+  .diff-scope-trigger { @apply rounded-[6px] px-2 py-1 text-[12px] transition-colors duration-100 hover:bg-panel-2 text-ink; }
+  .diff-scope-trigger.active { @apply bg-panel-2 text-ink; }
   .diff-scope-menu { @apply min-w-[200px] text-[12px]; }
   .diff-commit-btn { @apply shrink-0 rounded-[6px] border border-line bg-panel-2 px-2 py-1 text-[12px] transition-colors duration-100 hover:bg-panel text-ink; }
   .diff-commit-btn:active { @apply bg-panel-2; }
@@ -813,10 +817,13 @@
   .fd-head { @apply flex min-w-0 items-center gap-2 bg-panel px-3 py-2 text-[12px]; }
   .fd-caret { @apply transition-transform; }
   details[open] > .fd-head .fd-caret { @apply rotate-90; }
-  .fd-glyph { @apply grid h-[18px] w-[18px] shrink-0 place-items-center rounded-[5px] text-[10px] font-bold; }
-  .fd-glyph-added { @apply bg-green-soft text-green; }
-  .fd-glyph-deleted { @apply bg-red-soft text-red; }
-  .fd-glyph-modified, .fd-glyph-renamed, .fd-glyph-copied { @apply bg-blue-soft text-blue; }
+  /* DIFF-FD-GLYPH-BARE: 文件头首元素是安静的着色 mono 字母(M/A/D),不再是
+     彩色方块 tile——+8 −4 计数已带增删色信号,tile 是重复着色。去掉盒(h/w/
+     rounded/grid place-items)渲成内联 mono 文字,仅保留 text-*/着色。 */
+  .fd-glyph { @apply inline-flex items-center shrink-0 text-[11px] font-bold; }
+  .fd-glyph-added { @apply text-green; }
+  .fd-glyph-deleted { @apply text-red; }
+  .fd-glyph-modified, .fd-glyph-renamed, .fd-glyph-copied { @apply text-blue; }
   .fd-dir { @apply text-dim; }
   .fd-badge { @apply rounded-full border border-line bg-panel-2 px-[6px] py-[1px] text-[11px] text-dim; }
   .fd-spacer { @apply flex-1; }
@@ -887,12 +894,15 @@
      (18px marker + 5ch 号 + 2×px-2),label 从代码列起。 */
   .fd-gap { @apply grid w-full min-w-max items-center border-0 border-t border-line bg-panel-2 text-[12px] text-dim; grid-template-columns: calc(5ch + 18px) minmax(0, 1fr); }
   .fd-gap:hover { @apply bg-panel-2; }
-  .fd-gap-caret { @apply select-none flex items-center justify-center text-ink font-medium transition-transform; width: 100%; height: 100%; }
+  /* DIFF-FOLD-BAND-WEIGHT: caret 从属、安静(text-dim,去 font-medium);
+     count label 才是信息、可读(见 .fd-gap-label 的 text-ink-2)。修正原先
+     count 最淡 / caret 最重的强调倒置。 */
+  .fd-gap-caret { @apply select-none flex items-center justify-center text-dim transition-transform; width: 100%; height: 100%; }
   /* DIFF-GAP-CENTER: .fd-gap 是 <button>(UA text-align:center),label
      文字会继承居中被推到 1fr code 列正中。Codex(codex-crop-diff-rendering.jpg /
      codex-diff-review.jpg)把「N unmodified lines」计数左对齐落在 code 列起点,
      故显式 text-left 覆盖 button 的 UA center;行高/gutter 对齐(px-2 py-2)不变。 */
-  .fd-gap-label { @apply cursor-pointer px-2 py-2 text-left hover:text-ink; }
+  .fd-gap-label { @apply cursor-pointer px-2 py-2 text-left text-ink-2 hover:text-ink; }
 
   .fd-nobody { @apply p-4 text-center text-dim; }
 
