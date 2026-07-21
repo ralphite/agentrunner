@@ -483,7 +483,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
               {countedFiles > 0 && (
                 <>
                   <em className="add not-italic text-green">+{summary.totalAdd}</em>
-                  <em className="del not-italic text-red">−{summary.totalDel}</em>
+                  <em className="del not-italic text-red">-{summary.totalDel}</em>
                 </>
               )}
               {newFiles > 0 && (
@@ -542,7 +542,7 @@ export function ChangesOutcome({ sid, refreshKey, onReview }: { sid: string; ref
                 {file.countsKnown && (
                   <small className="flex shrink-0 items-center gap-[7px] text-[13px]">
                     <em className="add not-italic">+{file.add}</em>
-                    <em className="del not-italic">−{file.del}</em>
+                    <em className="del not-italic">-{file.del}</em>
                   </small>
                 )}
                 {!file.countsKnown && <small className="dim shrink-0 text-[13px] text-dim">new</small>}

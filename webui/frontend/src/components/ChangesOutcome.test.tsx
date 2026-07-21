@@ -78,7 +78,7 @@ describe("ChangesOutcome phases (INC-41 TH-7)", () => {
     expect(screen.queryByText("Couldn't load changes")).toBeNull();
     // +2/-1 per file × 2 files.
     expect(screen.getByText("+4")).toBeTruthy();
-    expect(screen.getByText("−2")).toBeTruthy();
+    expect(screen.getByText("-2")).toBeTruthy();
   });
 
   it("renders nothing only when the backend really reports no changed files", async () => {
@@ -176,7 +176,7 @@ describe("ChangesOutcome header counts (INC-41 TH-13)", () => {
     await screen.findByText("Edited 2 files");
     expect(screen.getByText("2 new")).toBeTruthy();
     expect(screen.queryByText("+0")).toBeNull();
-    expect(screen.queryByText("−0")).toBeNull();
+    expect(screen.queryByText("-0")).toBeNull();
   });
 
   it("counts only the files git counted, and appends the new ones as a suffix", async () => {
@@ -185,7 +185,7 @@ describe("ChangesOutcome header counts (INC-41 TH-13)", () => {
     await screen.findByText("Edited 3 files");
     // +2/−1 per counted file × 2 — the untracked file adds nothing to the pair.
     expect(screen.getByText("+4")).toBeTruthy();
-    expect(screen.getByText("−2")).toBeTruthy();
+    expect(screen.getByText("-2")).toBeTruthy();
     expect(screen.getByText("· 1 new")).toBeTruthy();
   });
 });
@@ -334,7 +334,7 @@ describe("ChangesOutcome mobile layout parity (INC-48)", () => {
     expect(pathColumn.title).toBe(path);
     expect(pathColumn.className).toMatch(/min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap/);
     expect(countColumn.className).toMatch(/flex shrink-0/);
-    expect(countColumn.textContent).toBe("+2−1");
+    expect(countColumn.textContent).toBe("+2-1");
   });
 });
 

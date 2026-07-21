@@ -786,7 +786,7 @@ function EnvironmentSection({
                 <span className="dim">{env.files} file{env.files === 1 ? "" : "s"}</span>
               )}
               {env.add > 0 && <span className="add">+{env.add}</span>}
-              {env.del > 0 && <span className="del">−{env.del}</span>}
+              {env.del > 0 && <span className="del">-{env.del}</span>}
               {env.untracked > 0 && <span className="dim">· {env.untracked} new</span>}
             </span>
           )}

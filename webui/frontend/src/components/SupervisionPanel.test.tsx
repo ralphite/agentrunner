@@ -362,7 +362,7 @@ describe("RD-D · the Changes row states what it knows", () => {
     // Codex's order: files first, then the lines.
     expect(row.textContent).toContain("2 files");
     expect(row.textContent).toContain("+3");
-    expect(row.textContent).toContain("−1");
+    expect(row.textContent).toContain("-1");
     // The regression this closes: untracked files used to render ONLY when there
     // were no tracked changes at all — so a normal turn (edits + new files) never
     // showed them.
