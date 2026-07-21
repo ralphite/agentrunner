@@ -90,7 +90,7 @@
 - `ar ps <sid>`：列在飞后台工作（纯 journal 读，无需 daemon）。
 - `ar attach <sid>`：补读全部历史再实时跟随，Ctrl-C 脱离（--json/--replay-only，隐藏别名 --no-follow）。
 - `ar approve <sid> <id> approve|deny [reason]`：应答待批审批，--always 同时把 allow 规则写回用户配置。
-- `ar kill <sid> <handle>`：取消一个后台 handle（子 agent 或后台 bash）。
+- ~~`ar kill <sid> <handle>`~~（INC-83 已删:取消后台 handle 现为模型的 `kill` 工具,不是用户 CLI 命令;`ar ps` 仍可列在飞后台工作）。
 - `ar diff <sid>`：显示自最近人类轮以来的工作区改动（--scope last-turn/--json）。
 - `ar promote <sid>`：把已结束 best-of-N 轮的胜者改动 clean-or-nothing 落到项目 workspace（2026-07-19 新增,PLAN 5.8）。
 - `ar artifacts <sid> list|read <stream>[@vN]`：列/读已发布 artifacts（版本寻址、--json）。
@@ -103,7 +103,7 @@
 - `ar hook create|list|revoke`：管理 webhook ingress（token 只显示一次、仅存哈希）。
 - `ar dictate / ar optimize`：语音转写 / 草稿改写（一次性 provider 调用）。
 - `ar fork <sid> <barrier>` / `ar barrier <sid>`：从 barrier 分叉新 session（--list 列 barriers、--workspace 指定 worktree）/ 手动打 barrier 点。
-- `ar version / help`：版本 / 帮助（`help <cmd>` 转发到各命令专用帮助）。
+- `ar version / help`：版本 / 帮助（`help <cmd>`：位置参数类命令转发到专用 blurb;flag-parsed 命令无专用 blurb,`-h` 由 flag 包打印其参数默认,`help <cmd>` 回退全局帮助）。
 - `ar record-fixture / ar accept`：开发者命令——录制真实 provider 交互为 fixture / 跑验收场景出 JSON 报告。
 
 ### 2.4 CLI 横切行为
@@ -238,7 +238,7 @@
 - genesis 守卫：无合法创世事件的 journal 不可 resolve/list/send/resume。
 - crash 恢复：resume 单一自愈——execute 类效果绝不重跑、渲染 interrupted-by-crash，只读类可重跑，session 继续。
 - boot sweep 四路：daemon 启动自动接续 mid-turn stranded 会话、重挂 loop drive 并补漏 slot、复活有 pending 命令的会话、按 pgid 清扫孤儿 bash 进程。
-- 显式重开 vs 自动路径：send 对任何 session 成立（含带标记的），自动路径永不越 close/kill 标记;清标记的重开信号只有 GenerationStarted（真实输入起 turn）——compact/clear 维护手势不复活（INC-82）。
+- 显式重开 vs 自动路径：send 对任何 session 成立（含带标记的）。**自动复活路径(machine ingress/drive resume/stranded resume)只被 kill 标记 gate**（INC-83:close/stopped 投影 idle,不再挡自动复活;timer sweep 对任何带标记会话撤 timer 以达静止、schedule 越标记存活）;清标记的重开信号只有 GenerationStarted（真实输入起 turn）——compact/clear 维护手势不复活（INC-82）。
 - shadow repo 并发 flock：同 GIT_DIR 的快照操作跨进程单写，diff 用私有 index 并发只读。
 - crash 注入 harness：`AGENTRUNNER_CRASH=after:<EventType>:<n>` 与 `point:<name>[:<n>]` 两种注入形式，供崩溃矩阵测试。
 
@@ -250,7 +250,7 @@
 - CheckpointBarrier：安全边界/turn 收尾自动 + `ar barrier` 手动打点，记跨流向量 + 快照 ref + 在飞工作处置。
 - fork：`ar fork` 从 barrier 切分复制成新 session（单创世、随行 CAS verbatim 复制、独立 worktree、in-flight 一律取消合成收尾——2026-07-19 PLAN 5.9 裁掉 policy 向量）。
 - rewind：fork 后显式切换到新分支继续（旧分支保留）。
-- diff：基于 barrier 快照对比的只读评审面（working-tree / last-turn 两个 scope）。
+- diff：只读评审面。**last-turn** scope 基于 barrier 快照(ShadowRepo.Diff 对比 bar-t 快照 ref 与工作区);**working-tree** scope(仅 webui)直接跑工作区原生 `git diff HEAD`+合成 untracked,与 barrier 快照无关。`ar diff` CLI 只接受 `--scope last-turn`。
 - webui scratch workspace：不选项目时自动创建一次性 scratch 工作区目录，侧栏把这类会话归组显示为 "Scratch"。
 - ⚠ Claude Code 式 scratchpad 辅助目录（workspace 外草稿区）没有实现，仅归档评审文档列为对标空白。
 - best-of-N 胜者晋升:`ar promote`/webui Apply winner(2026-07-19 PLAN 5.8 落地,clean-or-nothing 落 workspace)。
@@ -260,9 +260,9 @@
 
 - **E1 收敛已完成**（2026-07-19 Phase 2）:goal/interval/cron/self_paced/best-of-N 默认全走 **merged-stream series**（SESSION journal:series_started 头、迭代 spawn 词汇、series_ended 终态）;legacy driver 流写侧仅剩 parallel×retry 一个组合,旧 driver journal 永远只读可查。
 - 批式 goal：每轮 fresh child run + verifier 三态打分 + 停滞检测（patience）+ carry 传递。
-- loop cadence：interval 固定节奏 / cron / self_paced 三种，durable absolute tick，跑到 max_iterations/预算/取消。
-- best-of-N：N 个隔离 worktree 从同一 base 快照（SeriesStarted 钉 BaseRef）并行尝试、各自树内评分、pass 优先选优、败者留档;**胜者 `ar promote`/Apply winner 一键晋升**（PLAN 5.8）。
-- verifier 四态：command（exit 0 = pass，另可配 metric_regex 捕获组 + threshold 变打分制）/ llm_judge（rubric 严格评分）/ human（走 ask 路径）/ 自证，聚合取最弱。
+- loop cadence：interval 固定节奏 / cron / self_paced 三种。**interval/cron 用 durable absolute tick**;self_paced 无绝对刻度(tick 恒零,durable timer 仅作 wake hint,节奏由 child 的 schedule_next 决定)。跑到 max_iterations/预算/取消。
+- best-of-N：N 个隔离 worktree 从同一 base 快照（SeriesStarted 钉 BaseRef）尝试、各自树内评分、pass 优先选优、败者留档（**v0 顺序执行 N 次——隔离是语义、墙钟并发是优化,DESIGN 已披露**）;**胜者 `ar promote`/Apply winner 一键晋升**（PLAN 5.8）。
+- verifier 三态（批式 driver）：command（exit 0 = pass，另可配 metric_regex 捕获组 + threshold 变打分制）/ llm_judge（rubric 严格评分）/ human（走 ask 路径），聚合取最弱。（"自证/self-cert"是 in-session goal 的机制——无 verifier 时模型 goal_complete 声明被边界接受,不是 driver 的 verifier 形态。）
 - overlap 策略：撞 tick 按 skip（留痕跳过）或 coalesce（折成一次 catch-up）处置。
 - 失败处置：on_child_failure 三态 stop（默认，结束系列）/ surface（算作 spent iteration 继续）/ retry（独立子库立即重试、无 backoff），重试花费计入预算。
 - cron 跨重启：daemon 崩溃/优雅停机都不写终态，boot sweep 重挂并按 overlap 策略恰好补跑一次漏 slot（series 会话由 drive sweep 收编,timer/stranded sweep 显式排除）。
@@ -289,7 +289,7 @@
 - webhook ingress：`--http` 开 `POST /hooks/<id>`——bearer token 常量时间比对、未鉴权限流 429、body 上限 413、无存在性 oracle、机器输入不能复活带标记会话（410）、X-Command-Id 幂等重投。
 - attach 直播：先补读 journal 历史再订阅实时，成员事件折叠为一行 announcement，成员审批仍上浮。
 - 远程审批/远程 stop：daemon approve/stop 通道，approve 可跨 crash 复活审批。
-- wire 协议命令面：ping/run/drive/attach/approve/send/close/interrupt/stop/compact/clear/remember/**title**/kill/agent/mode/unqueue/answer/goal-*/schedule-*。
+- wire 协议命令面：ping/run/drive/attach/approve/send/close/interrupt/stop/compact/clear/remember/**title**/agent/mode/unqueue/answer/goal-*/schedule-*（INC-83:无 kill——handle 取消是模型工具,不是 wire 命令）。
 
 ## 11. Web UI
 

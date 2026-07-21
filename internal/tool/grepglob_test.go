@@ -112,6 +112,34 @@ func TestGrepTruncates(t *testing.T) {
 	}
 }
 
+// Omitting max_results honors the grep.json contract "default 100, cap 200":
+// the default is 100, NOT the 200 hard cap (audit 2026-07-21 caught the code
+// returning up to 200 on omit while the model-facing contract promised 100).
+func TestGrepDefaultLimitIs100NotCap(t *testing.T) {
+	e, root := newExec(t)
+	var b []byte
+	for i := 0; i < 250; i++ { // more than both the default (100) and the cap (200)
+		b = append(b, []byte("match line\n")...)
+	}
+	mkfile(t, root, "big.txt", string(b))
+
+	// Omitted max_results → default 100.
+	m, _ := run(t, e, "grep", `{"pattern":"match"}`)
+	if got := len(grepMatches(t, m)); got != grepDefaultMatches {
+		t.Fatalf("omitted max_results = %d matches, want default %d", got, grepDefaultMatches)
+	}
+	// An explicit request above the default but under the cap is honored.
+	m, _ = run(t, e, "grep", `{"pattern":"match","max_results":150}`)
+	if got := len(grepMatches(t, m)); got != 150 {
+		t.Fatalf("max_results=150 = %d matches, want 150", got)
+	}
+	// An explicit request above the cap is clamped to the cap.
+	m, _ = run(t, e, "grep", `{"pattern":"match","max_results":9999}`)
+	if got := len(grepMatches(t, m)); got != grepMaxMatches {
+		t.Fatalf("max_results=9999 = %d matches, want cap %d", got, grepMaxMatches)
+	}
+}
+
 func TestGrepSkipsBinary(t *testing.T) {
 	e, root := newExec(t)
 	// A NUL byte marks the file binary; its "needle" must not be scanned.

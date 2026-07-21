@@ -443,8 +443,6 @@ func loadFileAttachments(paths []string) ([]protocol.FileAttachment, error) {
 	return out, nil
 }
 
-// killCmd cancels one running child/background work by handle (v2 M3.2):
-// `agentrunner kill <session-id-or-prefix> <handle>`.
 // interruptCmd delivers an out-of-band interrupt to a live session (v2
 // M2.3): `agentrunner interrupt <session-id-or-prefix>` — steers a running
 // turn; at idle it is a no-op (裁决 #11: interrupt never ends a session,

@@ -260,10 +260,11 @@ func stripFrontmatter(s string) string {
 // as keyword_search (index.SkipDir/SkipFile) so no credential line ever
 // lands in the journal, and they cap output like every other tool.
 const (
-	grepMaxMatches   = 200
-	grepMaxLineBytes = 2000    // clamp a single matched line
-	grepScanFileCap  = 1 << 20 // bytes scanned per file (skip the tail of huge files)
-	globMaxResults   = 1000
+	grepDefaultMatches = 100 // max_results omitted → this many (grep.json contract)
+	grepMaxMatches     = 200
+	grepMaxLineBytes   = 2000    // clamp a single matched line
+	grepScanFileCap    = 1 << 20 // bytes scanned per file (skip the tail of huge files)
+	globMaxResults     = 1000
 )
 
 // resolveSearchRoot bounds an optional workspace-relative sub-path to the
@@ -367,7 +368,9 @@ func (e *Executor) grep(rawArgs json.RawMessage) Result {
 		return errResult("grep: %v", err)
 	}
 	limit := in.MaxResults
-	if limit <= 0 || limit > grepMaxMatches {
+	if limit <= 0 {
+		limit = grepDefaultMatches // omitted: default 100, not the 200 hard cap
+	} else if limit > grepMaxMatches {
 		limit = grepMaxMatches
 	}
 	contentMode := in.OutputMode == "" || in.OutputMode == "content"
