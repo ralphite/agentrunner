@@ -3569,3 +3569,15 @@ approval 会话里同一位置就正常写着 `Goal`。金标 Environment 面板
   三者 touches 白名单两两无交集(tw.css / ChangesOutcome.tsx / Composer.tsx);各自 node24 vitest **602 全绿** + build 绿、自 rebase 自推;dist 未提交。部署 8809 `live=index-CRHwC9o2.js`(200);playwright 复验 diff-split × dark/light + mob-home-390 稳态 console error+warning = **0**。
   截图 after `qa/runs/2026-07-21-r43/after/{diffsplit-dark,diffsplit-light,mob-home-390,thread-dark,thread-light}.png`;before 参照 `qa/runs/2026-07-21-r42/finder-diff/bar-diffsplit-dark.png` + Codex `qa/codex-reference/codex-crop-diff-rendering.jpg`。
   BACKLOG 状态:RVW-MARKER ✅、RVW-SKEL ✅、MOB-BRANCHPILL ✅(本轮 finder 收割的三条 P2/P3 关闭)。剩余开放:DIFF-CP(✂ deliberate)、SET-ROWGAP(P3 settings 行间距)、P3-2 双列行号。
+
+- 2026-07-21 01:45 轮44 finder 收割(3 并发 read-only:rich-thread+env / diff-split / home,均以真实 diff 会话 20260711-011831-…297d 单次 goto 对标):
+  **本轮做(implementer A · tw.css only · worktree)**:
+  - ☐→做 **DIFF-MARKER-CTX(P1 回归·最重要屏)**:R43 RVW-MARKER 把 `.dl-marker` 基类默认设成绿渐变(`tw.css:746`),但**漏了把 inline context(无 .add/.del)行 marker 置空**→18 个未改动行左缘全挂绿条,整文件读起来像全新增。split 的 `.dls-marker`(:769-772)写法正确(基类无色、仅 .add/.del 上色)。修:`.dl-marker` 基类背景 transparent + 新增 `.dl.add .dl-marker` 绿细条,保留 `.dl.del` 红。
+  - ☐→做 **ENV-FLAT(P2·最常见屏最大差距)**:Environment/Supervision 面板每行是独立 `rounded-[10px] border bg-panel` 描边盒(共享规则 `tw.css:670-672`)+ `gap-2` + 重 uppercase 标题(:667)+ section `mb-4` 无分隔线 → "一摞断开卡片";Codex 是一张卡内**无边框扁平行 + 发丝分隔线分组**。修(全 tw.css):共享行规则去 border/bg/rounded 改 `border-0 bg-transparent py-1.5 hover:bg-panel-2`(覆盖 base button 边框)、`.supervision-label` 去 uppercase/tracking、`.supervision-section` mb-4→`border-b border-line pb-3`(last 不加线)、`.env-rows/.artifact-list` gap-2→gap-y-0、`.supervision-details`(:1235)加 border-0 bg-transparent。状态靠 `.status-dot` 色不靠 box,扁平化不伤状态。
+  **让路下轮(全在 tw.css,与本轮 A 冲突,按"共享文件一轮一 owner"顺延)**:
+  - ☐ **HOME-CARD-DENSITY(P2)**:home 空态 4 建议卡 `min-h-[120px] px-5 py-5 justify-between`(`tw.css:376-378`)→卡高约 Codex 两倍且中间大空洞;Codex 紧凑卡(icon 左上 + 2 行标签紧贴)。改 min-h≈64、px-4 py-3、去 justify-between。
+  - ☐ **HOME-REPO-UNDERLINE(P3)**:home 标题 repo 名 `.home-empty-repo`(`tw.css:374`)带 `border-b border-dotted` 虚线下划线,像链接/拼写错;Codex 无下划线。删该虚线边。
+  - ☐ **HOME-CHIP-FLAT(P3)**:composer chips `.cx-env-control`(`tw.css:397-398`)是描边胶囊 + `.cx-env-strip`(:392)硬分隔线;Codex 无边框平铺。去 chip border/bg、去 strip border-b、放大 gap。**注意**会波及 session composer,需复验不回退。
+  - ☐ **HOME-CARD-WIDTH(P3)**:`.home-empty-cards max-w-[690px]`(`tw.css:375`)比 composer `.cx-card max-w-[720px]` 窄 30px 不对齐→对齐 720px。
+  - ☐ **DIFF-GUTTER(P3)**:行号 gutter `.dl-no`(`tw.css:750`)`bg-panel-2 + border-r` 灰装订线切断 changed 行底色;Codex 行号与代码同底、红/绿底通铺。去 `.dl-no` 的 bg/border-r 或让 add/del 行号格继承 `--diff-*-bg`。
+  **✂ / 达标勿动**:diff split 视图探针确认无横向溢出、双列正常(44 halves);变更卡/artifact 卡/composer(Undo/Review/Open in/Access/model/mic/send)、model 下拉、add 菜单均已对齐 Codex;Environment 面板功能行(Changes/Worktree/Create branch/Commit or push/Background work=Codex Background processes/Artifacts=Sources)后端支撑齐全,仅视觉差;Codex Browser 行(端口扫描)、账户行改身份(SB-12 deliberate + 尾 sha 是 QA 部署信号)、命令面板 uppercase 标签均 out-of-scope/低价值不做。截图 `qa/runs/2026-07-21-r44/{live,finder-home,finder-thread,finder-diff}/`。
