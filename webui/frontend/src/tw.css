@@ -973,8 +973,16 @@
      (h2+p 左、动作按钮右),不是文字类。 */
   .scheduled-page { @apply mx-auto w-full max-w-[860px] px-6 py-6 max-[680px]:px-4; }
   .page-heading { @apply mb-4 flex items-start justify-between gap-3; }
-  .page-heading h2 { @apply text-[22px] font-semibold; }
-  .page-heading p { @apply mt-0.5 text-[13px] font-normal text-dim; }
+  /* R80 SCHED-TITLE-SIZE: the Scheduled page title is our own big-heading
+     system — Home's `.home-empty-headline` is 28px/400/leading-tight and
+     Codex's "Scheduled tasks" golden is likewise ~28px lightweight. This h2
+     used to render 22px/600, the ONLY page in the big-heading family that
+     came out smaller AND heavier than Home (`.page-heading` is used solely by
+     Scheduled.tsx — no cross-page fallout). Unify to 28px/normal (24px on
+     narrow) and lift the subtitle 13→15px so it stays calm under the larger
+     title, matching Codex's ~15px description line. */
+  .page-heading h2 { @apply text-[28px] font-normal leading-tight max-[680px]:text-[24px]; }
+  .page-heading p { @apply mt-1 text-[15px] font-normal text-dim; }
   .page-action { @apply inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[10px] border border-line bg-panel px-3 text-[13px] font-medium hover:bg-panel-2; }
   /* R40: a labeled Menu trigger (page-action) must not inherit the 32px
      icon-only width from .menu-trigger — .page-action overrides height/padding
