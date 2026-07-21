@@ -688,3 +688,81 @@ describe("Collapse band sits on the code grid (INC-41 DF-5)", () => {
     await waitFor(() => expect(screen.queryByText("l1")).toBeNull());
   });
 });
+
+// RVW-HUNKBAND — a gapped hunk used to stack two `bg-panel-2` bands: the `.fd-gap`
+// collapser, and right under it a `.dl-hunk` (or, when the @@ context was empty
+// and there was more than one hunk, a blank `.dl-hunk-blank`). Codex shows ONE
+// grey band per gap. The @@ context now rides inside the fold band as a dim tail;
+// no separate heading band is emitted when the fold band is present.
+describe("Fold band absorbs the @@ context, no stacked hunk band (RVW-HUNKBAND)", () => {
+  // Leading gap (lines 1–4 hidden) plus an @@ context (the enclosing function).
+  const gappedCtxDiff = `diff --git a/app.ts b/app.ts
+--- a/app.ts
++++ b/app.ts
+@@ -5,2 +5,2 @@ export function render() {
+-const a = 1;
++const a = 2;
+ const b = 3;
+`;
+  // Two hunks; the second one gaps and carries no @@ context — the case that used
+  // to render a blank `.dl-hunk-blank` band right under the fold band.
+  const twoHunkGapDiff = `diff --git a/app.ts b/app.ts
+--- a/app.ts
++++ b/app.ts
+@@ -1,2 +1,2 @@
+-const a = 1;
++const a = 2;
+ const b = 3;
+@@ -10,2 +10,2 @@
+-const y = 8;
++const y = 9;
+ const z = 10;
+`;
+
+  it("renders one band with the @@ context inside it, and no .dl-hunk beside it", async () => {
+    arMock.diff = () => Promise.resolve(baseDiff({ diff: gappedCtxDiff }));
+    arMock.blob = () => Promise.resolve({ lines: ["l1", "l2", "l3", "l4", "const a = 2;", "const b = 3;"] });
+    const { container } = render(<DiffView sid="hb1" />);
+
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+    const band = await waitFor(() => {
+      const b = container.querySelector<HTMLButtonElement>(".fd-body .fd-gap");
+      expect(b).toBeTruthy();
+      return b!;
+    });
+    // Exactly one band, and NO `.dl-hunk`/`.dl-hunk-blank` heading stacked with it.
+    expect(container.querySelectorAll(".fd-body .fd-gap").length).toBe(1);
+    expect(container.querySelector(".fd-body .dl-hunk")).toBeNull();
+    // The @@ context rides inside the fold band as a secondary tail.
+    const ctx = band.querySelector(".fd-gap-context");
+    expect(ctx).toBeTruthy();
+    expect(ctx!.textContent).toBe("export function render() {");
+    expect(band.textContent).toContain("4 unmodified lines");
+    expect(band.textContent).toContain("export function render() {");
+  });
+
+  it("emits no blank hunk band under a gapped hunk that has empty @@ context", async () => {
+    arMock.diff = () => Promise.resolve(baseDiff({ diff: twoHunkGapDiff }));
+    arMock.blob = () =>
+      Promise.resolve({
+        lines: [
+          "const a = 2;", "const b = 3;",
+          "l3", "l4", "l5", "l6", "l7", "l8", "l9",
+          "const y = 9;", "const z = 10;",
+        ],
+      });
+    const { container } = render(<DiffView sid="hb2" />);
+
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+    // The interior gap (between the two hunks) yields a fold band…
+    const gapBand = await waitFor(() => {
+      const b = container.querySelector<HTMLButtonElement>(".fd-body .fd-gap");
+      expect(b).toBeTruthy();
+      return b!;
+    });
+    // …and its own wrapper carries no `.dl-hunk`/`.dl-hunk-blank` stacked with it
+    // (the empty @@ context is dropped, not re-emitted as a second grey band).
+    const wrapper = gapBand.parentElement!;
+    expect(wrapper.querySelector(".dl-hunk")).toBeNull();
+  });
+});

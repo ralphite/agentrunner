@@ -1533,7 +1533,7 @@ function FileBody({
   // thin "collapse" header above the revealed lines. The caret points at the
   // hidden content (RD-4a): up for the leading gap (file start → first hunk),
   // down for the trailing gap (last hunk → EOF), both ways for interior gaps.
-  const band = (idx: number, gap: ContextGap, kind: "leading" | "interior" | "trailing") => {
+  const band = (idx: number, gap: ContextGap, kind: "leading" | "interior" | "trailing", context?: string) => {
     const n = gapLen(gap);
     if (n !== null && n <= 0) return null; // nothing is actually hidden there
     if (n === null && blobFailed) return null; // can't read the file → can't reveal it
@@ -1572,7 +1572,15 @@ function FileBody({
         <span className="fd-gap-caret" aria-hidden="true">
           {caret}
         </span>
-        <span className="fd-gap-label">{label}</span>
+        <span className="fd-gap-label">
+          {label}
+          {context ? (
+            // RVW-HUNKBAND · the @@ context (enclosing function/section) rides
+            // *inside* the fold band as a secondary, dimmer tail — Codex shows one
+            // grey band per gap, not a fold band stacked on a `.dl-hunk` heading.
+            <span className="fd-gap-context ml-2 text-[11px] opacity-70">{context}</span>
+          ) : null}
+        </span>
       </button>
     );
   };
@@ -1630,9 +1638,13 @@ function FileBody({
       {parsed.rows.map((r, i) => {
         if (r.kind === "hunk") {
           const gap = gaps.get(i);
-          const bandEl = gap ? band(i, gap, gap.start === 1 ? "leading" : "interior") : null;
+          // RVW-HUNKBAND · when this hunk has a fold band, the @@ context folds
+          // *into* that band (as a dim tail on the label) — we must not also emit
+          // a `.dl-hunk` heading, or the two `bg-panel-2` bands stack and read as
+          // one duplicated grey band instead of Codex's single collapser.
+          const bandEl = gap ? band(i, gap, gap.start === 1 ? "leading" : "interior", r.text) : null;
           const revealed = gap && open.has(i) ? revealedRows(gap).map((cr, k) => ctxRow(cr, i + ":rv:" + k)) : null;
-          const header = r.text ? (
+          const header = bandEl ? null : r.text ? (
             <div className="dl-hunk" key={i + ":h"}>{r.text}</div>
           ) : hunkCount > 1 ? (
             <div className="dl-hunk dl-hunk-blank" key={i + ":h"} aria-hidden="true" />
