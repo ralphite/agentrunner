@@ -452,7 +452,11 @@
   .cx-deliv { @apply h-8 shrink-0 py-0; }
   .cx-deliv-label { @apply min-w-0; }
   .cx-send { @apply grid h-8 w-8 shrink-0 place-items-center rounded-full border-accent bg-accent p-0 text-accent-ink hover:bg-accent; }
-  .cx-send:disabled { @apply opacity-40; }
+  /* R70 SEND-BTN-DISABLED: 金标 codex-crop-composer.jpg 的禁用送出按钮是
+     浅灰盘 + 清晰可读的灰箭头(读作"未激活但在场")。原先对整个 accent 盘加
+     opacity-40 使盘变中灰、白箭头淡到几乎不可见,affordance 塌掉。改成浅
+     panel-2 盘 + dim 箭头(随主题自适应),去掉整体发虚。 */
+  .cx-send:disabled { @apply border-line bg-panel-2 text-dim opacity-100 hover:bg-panel-2; }
   .cx-stop { @apply border-red bg-red text-white; }
   .cx-status { @apply mx-auto mt-2 max-w-[660px] px-2 text-right text-[11px] text-dim; }
   .cx-att { @apply inline-flex max-w-[220px] cursor-pointer items-center gap-[6px] rounded-full border border-line bg-panel-2 px-[8px] py-[4px] text-[12px]; }
@@ -834,6 +838,19 @@
   .dl.add .dl-no { background-color: var(--diff-add-bg); }
   .dl.del .dl-no { background-color: var(--diff-del-bg); }
   .dl-sign { @apply select-none text-[11px] text-dim px-[3px]; }
+  /* R70 DIFF-GUTTER-COLOR: Codex 金标 codex-crop-diff-rendering.jpg 里 changed
+     行的行号 gutter + 符号随增删染色(删红/增绿·context 灰),形成一条配色脊,
+     一眼扫出哪些行动过。我方原先只染背景、行号/符号恒 text-dim。此处只补
+     文字色,不动背景/marker/尺寸。用与 .dl-marker 同源的 var(--green)/var(--red)。*/
+  .dl.add .dl-no, .dl.add .dl-sign { color: var(--green); }
+  .dl.del .dl-no, .dl.del .dl-sign { color: var(--red); }
+  /* split 视图:符号 .dl-sign 落在带 add/del 的 .dls-half 内,可直接选中;
+     行号 .dl-no 是裸 span 且紧邻对应 .dls-half 之前,用 :has() 按右邻侧染色
+     (左/右行号各自紧邻自己那半 code 列)。context 侧无 add/del,保持灰。 */
+  .fd-split .dls-half.add .dl-sign { color: var(--green); }
+  .fd-split .dls-half.del .dl-sign { color: var(--red); }
+  .fd-split .dl-no:has(+ .dls-half.add) { color: var(--green); }
+  .fd-split .dl-no:has(+ .dls-half.del) { color: var(--red); }
   /* QA-0718 用户实机:hunk heading(git @@ 行的 section 文本)曾整行
      bg-blue-soft,读起来像一段被高亮的正文代码。fold band 已表达折叠,
      heading 只留低调小字。 */
