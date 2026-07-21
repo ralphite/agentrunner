@@ -3,6 +3,7 @@ import {
   ArrowSquareIn,
   CaretDown,
   CaretRight,
+  CaretUp,
   CheckCircle,
   Code,
   Copy,
@@ -804,7 +805,12 @@ function EnvironmentSection({
           <span className="env-row-val">
             <span className="dim env-row-name">{workspace ? workspaceName(workspace) : "—"}</span>
           </span>
-          {workspace && (wtOpen ? <CaretDown size={12} /> : <CaretRight size={12} />)}
+          {/* Down-caret collapsed / up-caret open: the drawer unfolds inline
+              *below* this row (env-detail), so a down-caret ("content opens
+              here") matches the behavior and Codex's Environment panel — a
+              right-caret wrongly signals navigation to a new view. Mirrors the
+              app's own "Show N more" toggle (ChangesOutcome). */}
+          {workspace && (wtOpen ? <CaretUp size={12} /> : <CaretDown size={12} />)}
         </button>
         {/* INC-41 RD-C · the drawer is an action drawer, not a display case.
             It used to open onto a path and a Copy button — a dead end: the user
@@ -909,7 +915,7 @@ function EnvironmentSection({
             panelClass="w-[264px] max-w-[calc(100vw-24px)]"
             trigger={(open, toggle) => (
               <button
-                className={"env-row env-row-action" + (open ? " active" : "")}
+                className={"env-row env-row-action w-full" + (open ? " active" : "")}
                 onClick={toggle}
                 disabled={busy}
                 aria-haspopup="menu"
