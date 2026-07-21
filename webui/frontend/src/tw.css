@@ -294,7 +294,7 @@
   .primary-nav button, .nav-row {
     @apply flex h-[40px] items-center gap-2 rounded-[8px] border-0 bg-transparent px-3 text-left text-[15px] font-medium text-ink-2 transition-all duration-100 hover:bg-panel-2 hover:text-ink;
   }
-  .primary-nav button.active { @apply bg-panel-2 text-ink font-semibold shadow-sm; }
+  .primary-nav button.active { @apply bg-panel-2 text-ink font-semibold; }
   .menu-kbd { @apply ml-auto rounded-[5px] border border-line px-[5px] py-[1px] text-[10.5px] text-dim; }
   .nav-notice, .sched-unread {
     @apply ml-auto h-[7px] w-[7px] rounded-full bg-status-running;
@@ -423,7 +423,13 @@
   .cx-env-control.active, .cx-pill.active { @apply bg-blue-soft text-ink; }
   .cx-deliv.on { @apply border-blue bg-blue-soft text-ink; }
   .cx-env-control:disabled { @apply opacity-50; }
-  .cx-env-value, .cx-pill-sub { @apply min-w-0 truncate; }
+  .cx-env-value { @apply min-w-0 truncate; }
+  /* COMPOSER-MODEL-PILL-WEIGHT: model name is the pill's subject — near-black
+     ink + semibold; the effort suffix dims to a regular-weight grey. Scoped to
+     the model-pill spans only; the shared .cx-pill base stays flat/regular so
+     access/env chips are unaffected. */
+  .cx-model-name { @apply font-semibold text-ink; }
+  .cx-pill-sub { @apply min-w-0 truncate text-dim; }
   .cx-input-wrap { @apply px-[14px] pt-[12px]; }
   .cx-input-wrap textarea {
     @apply max-h-[180px] min-h-[48px] w-full resize-none border-0 bg-transparent p-0 text-[15px] leading-[1.45] outline-none placeholder:text-dim;
@@ -688,9 +694,12 @@
     @apply flex shrink-0 items-center justify-center gap-1.5 self-start rounded-[8px] border border-line px-3 py-1.5 text-[13px] font-medium;
   }
   .approval-kicker, .gbar-label { @apply text-[11px] font-medium uppercase tracking-[0.06em] text-dim; }
-  .approval-description, .approval-agent, .approval-shortcut, .approval-scope, .turn-error-hint, .terminal-alert-meta, .gbar-meta, .gbar-sub {
+  .approval-description, .approval-agent, .approval-shortcut, .approval-scope, .turn-error-hint, .terminal-alert-meta, .gbar-sub {
     @apply text-[12px] text-dim;
   }
+  /* GBAR-META-GAP: the goal banner meta is two bare spans (checks + elapsed);
+     give the row inline-flex + gap so they don't run together ("…checks249h"). */
+  .gbar-meta { @apply inline-flex items-center gap-2 text-[12px] text-dim; }
   .approval-subject, .approval-ws, .turn-error-raw { @apply mt-2 rounded-[8px] bg-panel-2 p-2 font-mono text-[12px]; }
   .approval-actions, .ask-actions, .gbar-actions, .goal-actions { @apply mt-3 flex flex-wrap items-center gap-2; }
   .deny-reason { @apply flex flex-1 gap-2; }

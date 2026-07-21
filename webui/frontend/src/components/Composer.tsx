@@ -1538,7 +1538,7 @@ export function Composer(props: ComposerProps) {
             onOpen={() => setModelMenuPage("root")}
             trigger={(open, toggle) => (
               <button type="button" className={"cx-pill cx-model" + (open ? " active" : "")} onClick={toggle} title="Model & effort" aria-haspopup="menu" aria-expanded={open}>
-                {modelLabel}
+                <span className="cx-model-name">{modelLabel}</span>
                 {(budgetOverride || effort !== "off") && <span className="cx-pill-sub">{budgetOverride ? "Custom" : effortLevel.label}</span>}
                 <Caret />
               </button>
