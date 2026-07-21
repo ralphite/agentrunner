@@ -1609,7 +1609,7 @@ function FileBody({
           ? "unmodified lines to end of file"
           : `${n.toLocaleString()} unmodified line${n === 1 ? "" : "s"}`;
     // DF-5 · the band sits *on* the code grid, not beside it: its first cell is
-    // the line-number gutter (same `calc(5ch + 27px)` as `.dl`, holding the
+    // the line-number gutter (same `calc(5ch + 18px)` as `.dl`, holding the
     // caret the way a row holds its number), and its label starts exactly where
     // the code column does. It used to be a `px-[10px]` flex row aligned with
     // neither, which read as a button bolted onto the diff rather than a fold in

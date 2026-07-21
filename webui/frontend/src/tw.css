@@ -388,7 +388,7 @@
      wrapped to 3 lines while its neighbors stayed 2, breaking the even grid.
      Drop to 13px to match Codex density and even out the wrap. */
   .home-empty-card {
-    @apply flex min-h-[76px] flex-col items-start justify-start gap-2.5 rounded-[12px] border border-line bg-panel px-4 py-3.5 text-left text-[13px] font-medium shadow-md transition-all duration-100 hover:border-dim hover:bg-panel-2 hover:shadow-lg;
+    @apply flex min-h-[76px] flex-col items-start justify-between gap-2.5 rounded-[12px] border border-line bg-panel px-4 py-3.5 text-left text-[13px] font-medium shadow-md transition-all duration-100 hover:border-dim hover:bg-panel-2 hover:shadow-lg;
   }
   .home-empty-card-icon { @apply grid h-[28px] w-[28px] shrink-0 place-items-center text-blue; }
   .home-empty-card-icon.teal { color: var(--teal); }
@@ -846,7 +846,7 @@
      caret+label,label 被塞进 5ch 列竖排破碎("27⏎unmodified⏎lines")。
      设计意图(DF-5 注释)是两列:第一列 = 整个行号 gutter 宽
      (18px marker + 5ch 号 + 2×px-2),label 从代码列起。 */
-  .fd-gap { @apply grid w-full min-w-max items-center border-0 border-t border-line bg-panel-2 text-[12px] text-dim; grid-template-columns: calc(5ch + 35px) minmax(0, 1fr); }
+  .fd-gap { @apply grid w-full min-w-max items-center border-0 border-t border-line bg-panel-2 text-[12px] text-dim; grid-template-columns: calc(5ch + 18px) minmax(0, 1fr); }
   .fd-gap:hover { @apply bg-panel-2; }
   .fd-gap-caret { @apply select-none flex items-center justify-center text-ink font-medium transition-transform; width: 100%; height: 100%; }
   /* DIFF-GAP-CENTER: .fd-gap 是 <button>(UA text-align:center),label
@@ -918,7 +918,8 @@
      fill; Codex uses plain text tabs — inactive is muted, active is a soft
      neutral (panel-2) pill with ink text, no border, no blue. */
   .sched-toolbar { @apply mb-4 flex flex-col gap-3; }
-  .sched-search { @apply w-full min-w-[220px]; }
+  .sched-search { @apply flex w-full min-w-[220px] items-center gap-2 rounded-[10px] border border-line bg-panel px-3 h-9 text-dim focus-within:border-ink-2; }
+  .sched-search input { @apply flex-1 w-full border-0 bg-transparent p-0 text-[13px] text-ink outline-none placeholder:text-dim; }
   .sched-filters { @apply flex items-center justify-between gap-2; }
   .sched-tabs { @apply flex items-center gap-1; }
   .sched-tab { @apply rounded-md border-0 bg-transparent px-2.5 py-1 text-[13px] font-normal text-ink-2 shadow-none transition-colors duration-100 hover:bg-panel-2 hover:text-ink hover:shadow-none; }
