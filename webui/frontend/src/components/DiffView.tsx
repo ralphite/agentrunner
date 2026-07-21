@@ -1577,7 +1577,14 @@ function FileBody({
     );
   };
 
-  if (effView === "split") {
+  // DIFF-SPLIT-ADDED · a purely added or deleted file has no opposite side to
+  // sit beside, so side-by-side split would render one real column next to a
+  // half-width empty one — pushing the actual code past the viewport's right
+  // edge (the added lines only start where the vanished old column ends). Codex
+  // renders single-sided files as one column; we fall back to the inline
+  // (single-column) path below so the content is visible from the left even when
+  // the user has split selected. Modified files still take the split branch.
+  if (effView === "split" && parsed.status !== "added" && parsed.status !== "deleted") {
     return (
       <div className="fd-body fd-split">
         {splitRows(parsed.rows).map((sr, i) =>

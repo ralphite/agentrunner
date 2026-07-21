@@ -42,6 +42,19 @@ const editDiff = `diff --git a/app.ts b/app.ts
  const b = 3;
 `;
 
+// DIFF-SPLIT-ADDED · a purely added file — no old side at all. In split view it
+// used to render as one real column beside a half-width empty one, shoving the
+// new code off the right of the viewport.
+const addedDiff = `diff --git a/newfile.md b/newfile.md
+new file mode 100644
+--- /dev/null
++++ b/newfile.md
+@@ -0,0 +1,3 @@
++first added line
++second added line
++third added line
+`;
+
 const baseDiff = (over: Partial<DiffResp> = {}): DiffResp => ({
   scope: "working-tree",
   workspace: "/tmp/ws",
@@ -184,6 +197,46 @@ describe("The review opens on the last turn (INC-41 RVW-4)", () => {
     await waitFor(() => expect(diff).toHaveBeenCalledWith("s6", "working-tree"));
     getItem.mockRestore();
     setItem.mockRestore();
+  });
+});
+
+// DIFF-SPLIT-ADDED · an added or deleted file has no opposite side to sit
+// beside. Side-by-side split rendered it as one real column next to a half-width
+// empty one, pushing the real code past the right edge of the viewport — the
+// user saw a blank left pane and had to scroll horizontally to reach any new
+// line. Codex renders single-sided files as one column; we fall back to the
+// inline (single-column) path so the content is visible from the left. Modified
+// files, which have two comparable sides, still split.
+describe("Split view falls back to single column for one-sided files (DIFF-SPLIT-ADDED)", () => {
+  it("renders a purely added file as single-column inline rows, not a half-empty split", async () => {
+    arMock.diff = () => Promise.resolve(baseDiff({ diff: addedDiff }));
+    const { container } = render(<DiffView sid="sa1" />);
+
+    await waitFor(() => expect(screen.getByText("newfile.md")).toBeTruthy());
+    // Ask for split explicitly.
+    fireEvent.click(screen.getByTitle("Split view"));
+
+    // No two-column split rows and no empty split halves — the old-code column
+    // that would have pushed the content off-screen is simply not there.
+    expect(container.querySelector(".dls")).toBeNull();
+    expect(container.querySelector(".dls-half")).toBeNull();
+    // The added lines render as single-column `.dl` rows inside the inline body,
+    // visible from the left.
+    expect(container.querySelector(".fd-body")).toBeTruthy();
+    expect(container.querySelectorAll(".dl").length).toBeGreaterThan(0);
+    expect(container.textContent).toContain("first added line");
+  });
+
+  it("still renders a modified file as a two-column split", async () => {
+    arMock.diff = () => Promise.resolve(baseDiff({ diff: editDiff }));
+    const { container } = render(<DiffView sid="sa2" />);
+
+    await waitFor(() => expect(screen.getByText("app.ts")).toBeTruthy());
+    fireEvent.click(screen.getByTitle("Split view"));
+
+    // A file with both sides keeps the side-by-side grid.
+    expect(container.querySelector(".dls")).toBeTruthy();
+    expect(container.querySelector(".dls-half")).toBeTruthy();
   });
 });
 
