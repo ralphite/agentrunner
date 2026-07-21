@@ -306,13 +306,14 @@
     @apply flex min-w-0 items-center gap-[7px] px-2 py-[6px] text-[11px] font-bold uppercase tracking-[0.1em] text-dim;
   }
   .project-heading {
-    @apply w-full rounded-[7px] border-0 bg-transparent normal-case tracking-normal text-ink transition-colors duration-100 hover:bg-panel-2 hover:text-ink;
+    @apply w-full rounded-[7px] border-0 bg-transparent font-medium normal-case tracking-normal text-ink transition-colors duration-100 hover:bg-panel-2 hover:text-ink;
   }
   /* SIDE-SECTION-LABEL (r47) · Codex renders the sidebar section dividers
      ("Pinned" / "Projects") in a quiet title-case label — regular weight, no
      wide tracking, dim — not the shouty all-caps bold we shared with the repo
-     heading base rule. Match that calmer divider; project-heading keeps its own
-     bold repo-name treatment above. Overrides the shared base's case/weight/
+     heading base rule. Match that calmer divider; project-heading uses a
+     medium normal-weight repo-name treatment above (folder icon, not font
+     weight, distinguishes hierarchy). Overrides the shared base's case/weight/
      tracking/size for section-label only (no other selector affected). */
   .section-label {
     @apply text-[12px] font-normal normal-case tracking-normal;
@@ -326,7 +327,7 @@
   .proj-caret { @apply transition-transform; }
   .proj-caret.open { @apply rotate-90; }
   .project-session-wrap { @apply relative flex min-w-0 items-center rounded-[8px]; }
-  .project-session-wrap.nested { @apply ml-4; }
+  .project-session-wrap.nested { @apply ml-[23px]; }
   .project-session-wrap.current { @apply bg-panel-2; }
   .project-session-wrap.unread .project-session-title { @apply font-semibold text-ink; }
   .project-session {
