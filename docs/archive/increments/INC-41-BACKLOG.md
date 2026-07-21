@@ -3538,3 +3538,11 @@ approval 会话里同一位置就正常写着 `Goal`。金标 Environment 面板
   复验 scheduled(tabs 已对齐)+ session-not-found(已竖排)× light/dark,scheduled/home 单屏 console = **0**
   (notfound 屏的 1 个 404 是故意导航不存在会话触发的 API 404,预期非回归)。
   截图 before `qa/runs/2026-07-21-r41/live/{scheduled,diff,rich}-light.png`、after `qa/runs/2026-07-21-r41/after/{scheduled,notfound}-{light,dark}.png`。
+
+- 2026-07-21 01:03 轮42:比对 4 屏(home/rich-thread/scheduled/sidebar-projects × light/dark × 1440)+ Codex 金标裁剪对齐(旧参照会话 ID 全失效,改 UI 点击取有效会话)。
+  关差距 **SIDE-SUBTITLE(P2 主对齐面·每屏可见)**:侧栏 `Projects` 同名 workspace 组头的消歧标签(`projectSubtitle` worktree lineage → `project.hint`)原以 `.project-hint { ml-auto }` 右对齐抢横向空间,把 repo 名挤成 "workspa..." 且 hint 换到第二行右对齐;Codex 组头是纯 repo 名完整突出、次要细节从属(`codex-crop-sidebar-projects.jpg`)。把 name+hint 包进 `.proj-heading-text` flex-col 列:名字第一行完整(不再因 hint 提前截断),hint 降为名字下方 text-[10px] text-dim 从属第二行、自身过长才 truncate、绝不抢名字空间;无 hint 组保持单行不变。**修回退**:两行列 flex-1(186px)宽于短名字,暴露 `<button>` UA 默认 `text-align:center` 致名字全部居中(退步),补 `.proj-heading-text text-left` 归正为 Codex 式左对齐清单。
+  **顺带解 main 阻塞**:并发 INC-85(ae0f8df4)提交的 `specs.ts:242` 未转义反引号 `` `sleep` `` 提前闭合模板串(TS1005),**坏了 main 上所有人的 `npm run build`**——转义两个反引号(输出文本不变),build 恢复。
+  派工 1 implementer(Sidebar.tsx+tw.css,worktree 隔离 clean checkout 自验自推)+ 2 finder 并发(diff/review+approval、mobile390+settings,补下轮 backlog)。
+  push `b6591b29`(SIDE-SUBTITLE)、`dd8b1fc2`(build-fix specs.ts)、`9e68095a`(text-left 修回退);vitest **602 全绿** + build 绿;live=`index-CeaFSfIk.js`;复截侧栏 light/dark console error+warning = **0**。
+  截图 before `qa/runs/2026-07-21-r42/live/home-{light,dark}.png`、after `qa/runs/2026-07-21-r42/after/sidebar2-{light,dark}.png`。
+  **下轮线索**(留给 finder 定性后排):① 富 thread 里 **ChangesOutcome 变更卡渲染成空盒**(只 ± 徽章、无 "Edited N files"/无 +/-/无 Undo·Review,见 `qa/runs/2026-07-21-r42/live/crop-emptybox.png`)——疑 loading skeleton 卡死或 diff 请求失败,非确定性(第二次探测卡消失),需 finder 复现定性(loading-stuck vs data vs 真无变更);② diff/review 分栏屏(最重要屏)因无有效多变更会话本轮仍未可信对标,待 finder 交证。
