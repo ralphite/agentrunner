@@ -556,7 +556,11 @@
      regular, and our own menus already are; the shouty uppercase here was a one-off. */
   .cmdk-group { @apply px-2 py-[6px] text-[12px] font-medium text-dim; }
   .cmdk-item { @apply flex w-full items-center gap-2 rounded-[9px] border-0 bg-transparent px-2 py-[8px] text-left text-[13px] transition-colors duration-100 hover:bg-panel-2; }
-  .cmdk-item.sel { @apply bg-blue-soft; }
+  /* CMDK-SEL-NEUTRAL (R77): keyboard-selected row uses the same neutral grey as
+     hover, not a blue accent — Codex golden (codex-crop-command-palette.jpg) renders
+     the ⌘1 cursor row on a plain light-grey fill (same hue as hover), a quiet cursor
+     rather than a "primary/active" state. bg-blue-soft made every arrowed row flash blue. */
+  .cmdk-item.sel { @apply bg-panel-2; }
   .cmdk-label { @apply min-w-0 flex-1 truncate; }
   .cmdk-hint { @apply ml-auto truncate text-[12px] text-dim; }
   .cmdk-kbd, .kbd, .rs-kbd { @apply rounded-[5px] border border-line bg-panel-2 px-[5px] py-[1px] font-mono text-[11px] text-dim; }
