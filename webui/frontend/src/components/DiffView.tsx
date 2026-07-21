@@ -257,7 +257,7 @@ function FileHead({
       </span>
       <span className="fd-path" title={path}>
         {dir && <span className="fd-dir">{dir}</span>}
-        {base}
+        <b style={{ fontWeight: 600, color: "var(--ink)" }}>{base}</b>
       </span>
       {/* RD-4: counts sit right after the filename (Codex: `docs/DESIGN.md +8 -4`),
           both numbers always rendered — a pure deletion reads "+0 −176", not a
@@ -1048,7 +1048,7 @@ export function DiffView({ sid, onClose, initialScope }: { sid: string; onClose?
                             </span>
                             <span className="diff-fileitem-path">
                               {dir && <span className="fd-dir">{dir}</span>}
-                              {base}
+                              <b style={{ fontWeight: 600, color: "var(--ink)" }}>{base}</b>
                             </span>
                             {!f.binary && (
                               <span className="fd-counts">
