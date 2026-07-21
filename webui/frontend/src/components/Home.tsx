@@ -71,7 +71,7 @@ function CloudMark({ size = 24 }: { size?: number }) {
 // prompt it drops into the composer draft when clicked.
 interface Suggestion {
   key: string;
-  tone: "teal" | "violet" | "green" | "orange";
+  tone: "blue" | "teal" | "violet" | "green" | "orange";
   icon: React.ReactNode;
   label: string;
   prompt: string;
@@ -80,7 +80,7 @@ interface Suggestion {
 const SUGGESTIONS: Suggestion[] = [
   {
     key: "explore",
-    tone: "teal",
+    tone: "blue",
     icon: <Telescope size={16} />,
     label: "Explore and understand code",
     prompt:
