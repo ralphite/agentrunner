@@ -118,6 +118,9 @@ describe("foldWork (Codex-style Worked fold, W2/W3)", () => {
   });
   const chip = (key: string, text: string, fold?: boolean) =>
     ({ kind: "chip" as const, key, text, tone: "" as const, fold });
+  // A hidden generation_started marker — filtered from the reader's feed, but
+  // threaded into foldWork so it can date each turn's work-span (THREAD-2).
+  const turn = (key: string, ts: string) => ({ kind: "turn" as const, key, gen: 1, ts });
 
   it("folds a settled turn's work behind one fold with the turn duration", () => {
     const items = [
@@ -191,6 +194,67 @@ describe("foldWork (Codex-style Worked fold, W2/W3)", () => {
     const nodes = foldWork(items, completedTurnDurations(items, false), false);
     expect(nodes.map((n: any) => n.kind)).toEqual(["user", "fold"]);
     expect((nodes[1] as any).durationMs).toBeUndefined();
+  });
+
+  it("THREAD-2 · dates an interrupted turn's fold from its generation_started markers", () => {
+    // A step-limited / approval-stalled turn: it never reaches a final answer,
+    // so completedTurnDurations records no duration — but the turn's hidden
+    // generation_started markers still fix the real work-span. Here the fold's
+    // tool steps carry no `ts` (they never do), yet the two gen markers span
+    // 34s, exactly what the terminal alert shows as "00:34".
+    const items = [
+      user("u1", "2026-07-11T06:33:00Z"),
+      turn("g1", "2026-07-11T06:33:00Z"), // first gen step: work starts
+      tool("t1"),
+      turn("g2", "2026-07-11T06:33:34Z"), // last gen step before the limit trips
+      tool("t2"),
+    ];
+    const nodes = foldWork(items, completedTurnDurations(items, false), false);
+    expect(nodes.map((n: any) => n.kind)).toEqual(["user", "fold"]); // turn markers never render
+    const fold = nodes[1] as any;
+    expect(fold.durationMs).toBeUndefined(); // never settled
+    expect(fold.startMs).toBe(new Date("2026-07-11T06:33:00Z").getTime());
+    expect(fold.endMs).toBe(new Date("2026-07-11T06:33:34Z").getTime());
+    expect(fold.endMs - fold.startMs).toBe(34000); // the real 00:34 span
+    expect(fold.children.map((c: any) => c.key)).toEqual(["t1", "t2"]); // only the steps
+  });
+
+  it("THREAD-2 · a dated terminal chip closes an interrupted turn's span", () => {
+    // Only one gen step, then an outcome chip (top-level) carrying the cancel
+    // time: the span still resolves from genStart to that chip's ts.
+    const items = [
+      user("u1", "2026-07-11T06:33:00Z"),
+      turn("g1", "2026-07-11T06:33:00Z"),
+      tool("t1"),
+      { ...chip("c1", "Goal cancelled"), ts: "2026-07-11T06:33:34Z" } as any,
+    ];
+    const nodes = foldWork(items, completedTurnDurations(items, false), false);
+    const fold = nodes.find((n: any) => n.kind === "fold") as any;
+    expect(fold.durationMs).toBeUndefined();
+    expect(fold.endMs - fold.startMs).toBe(34000);
+  });
+
+  it("THREAD-2 · a settled turn's fold still carries its real duration, unchanged", () => {
+    // Guard: the new span fields must never displace durationMs on a normal turn.
+    const items = [
+      user("u1", "2026-07-10T05:00:00Z"),
+      turn("g1", "2026-07-10T05:00:00Z"),
+      tool("t1"),
+      asst("a1", "2026-07-10T05:00:30Z"),
+    ];
+    const nodes = foldWork(items, completedTurnDurations(items, false), false);
+    const fold = nodes.find((n: any) => n.kind === "fold") as any;
+    expect(fold.durationMs).toBe(30000); // real settled duration, unchanged
+  });
+
+  it("THREAD-2 · an interrupted turn with no dated activity leaves the span open", () => {
+    // No gen marker, no dated child: startMs/endMs stay undefined so the head
+    // gracefully falls back to a step count rather than fabricating a span.
+    const items = [user("u1", "2026-07-10T05:00:00Z"), tool("t1")];
+    const nodes = foldWork(items, completedTurnDurations(items, false), false);
+    const fold = nodes.find((n: any) => n.kind === "fold") as any;
+    expect(fold.startMs).toBeUndefined();
+    expect(fold.endMs).toBeUndefined();
   });
 
   it("emits an empty non-expandable fold for pure-chat turns (Worked row parity)", () => {

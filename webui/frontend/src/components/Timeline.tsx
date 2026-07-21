@@ -745,8 +745,26 @@ function foldSpanMs(fold: WorkFold): number | undefined {
 // undefined. That used to degrade to a bare "Worked ›" carrying zero
 // information (six of them in a row on an approval-heavy session). Ladder:
 // stored duration → span measured off the fold's own children → step count.
+// THREAD-2 · the real elapsed to show in the head, in priority order:
+//  1. durationMs — a settled turn (user prompt → final answer). Unchanged.
+//  2. startMs..endMs — an interrupted / stalled turn's real work-span, dated
+//     from its first generation_started to its last activity (the same elapsed
+//     the terminal alert shows as "00:34"). This is NOT fabricated: both
+//     bounds are real journal timestamps.
+//  3. foldSpanMs — a last-resort span measured off the fold's own dated
+//     children (planning narration), for folds carrying neither of the above.
+// Only when NONE yields a positive span does the head fall back to a step count.
+function foldElapsedMs(fold: WorkFold): number | undefined {
+  if (fold.durationMs !== undefined) return fold.durationMs;
+  if (fold.startMs !== undefined && fold.endMs !== undefined) {
+    const span = fold.endMs - fold.startMs;
+    if (span > 0) return span;
+  }
+  return foldSpanMs(fold);
+}
+
 export function workedLabel(fold: WorkFold): string {
-  const ms = fold.durationMs ?? foldSpanMs(fold);
+  const ms = foldElapsedMs(fold);
   if (ms !== undefined) return `Worked for ${formatWorkDuration(ms)}`;
   const steps = fold.children.filter((c) => c.kind === "tool").length;
   if (steps > 0) return `Worked · ${steps} step${steps === 1 ? "" : "s"}`;
@@ -1023,8 +1041,17 @@ function Item({ it, sentImages, onContinue, last, deferActions }: { it: Timeline
 export function mergeAdjacentChips(items: TimelineItem[]): TimelineItem[] {
   const out: TimelineItem[] = [];
   let runCount = 0; // how many raw chips the trailing merged chip stands for
+  let lastChip = -1; // index in `out` of that trailing mergeable chip
   for (const it of items) {
-    const prev = out[out.length - 1];
+    // THREAD-2 · a hidden generation_started ("turn") marker is transparent to
+    // a chip run: it is threaded through only so foldWork can date the turn, so
+    // it must not break two identical chips out of their "×N" merge. Pass it
+    // through without disturbing the run state.
+    if (it.kind === "turn") {
+      out.push(it);
+      continue;
+    }
+    const prev = lastChip >= 0 ? out[lastChip] : undefined;
     if (
       it.kind === "chip" &&
       prev &&
@@ -1037,10 +1064,16 @@ export function mergeAdjacentChips(items: TimelineItem[]): TimelineItem[] {
       baseChipText(prev.text) === it.text
     ) {
       runCount += 1;
-      out[out.length - 1] = { ...prev, text: `${it.text} ×${runCount}` };
+      out[lastChip] = { ...prev, text: `${it.text} ×${runCount}` };
       continue;
     }
-    runCount = it.kind === "chip" ? 1 : 0;
+    if (it.kind === "chip") {
+      runCount = 1;
+      lastChip = out.length;
+    } else {
+      runCount = 0;
+      lastChip = -1;
+    }
     out.push(it);
   }
   return out;
@@ -1088,6 +1121,14 @@ export function TimelineView({
   const visible = showSys
     ? items
     : items.filter((it) => it.kind !== "sys" && it.kind !== "turn" && it.kind !== "runtime");
+  // THREAD-2 · foldWork needs the hidden generation_started ("turn") markers to
+  // date each turn's work-span — an interrupted turn has no settled duration,
+  // but its markers still fix when the work started and last ran. foldWork
+  // CONSUMES them (they never reach the rendered output), so keeping them here
+  // does not surface raw system events; runtime/sys stay filtered as before.
+  const foldInput = showSys
+    ? visible
+    : items.filter((it) => it.kind !== "sys" && it.kind !== "runtime");
   const ref = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   // W10: floating jump-to-bottom control once the reader scrolls up (Codex
@@ -1111,7 +1152,7 @@ export function TimelineView({
   // W2: settled turns collapse their work behind "Worked for N ⌄"; the
   // developer (showSys) view stays flat and raw — including chip repeats, which
   // are only aggregated (TH-4) in the reader's view.
-  const nodes: RenderNode[] = showSys ? visible : foldWork(mergeAdjacentChips(visible), durations, active);
+  const nodes: RenderNode[] = showSys ? visible : foldWork(mergeAdjacentChips(foldInput), durations, active);
 
   // The goal verdict rides the FINAL assistant answer only (fix 3) — a settled
   // run's last word. Assistant answers are turn boundaries, so they sit at the

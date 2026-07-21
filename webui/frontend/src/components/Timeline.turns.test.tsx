@@ -2,8 +2,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 
-import { TimelineView, shortTime } from "./Timeline";
-import type { BubbleItem, TimelineItem, ToolItem, TurnItem } from "../timeline";
+import { TimelineView, shortTime, workedLabel } from "./Timeline";
+import type { BubbleItem, TimelineItem, ToolItem, TurnItem, WorkFold } from "../timeline";
 
 // jsdom ships no ResizeObserver, and rendering a USER message mounts
 // CollapsibleUserText, which observes its own box to decide whether to offer a
@@ -228,5 +228,51 @@ describe("TR-6 — empty work folds are dropped", () => {
     // every surviving row is expandable — that is the whole point of TR-6
     expect(row.disabled).toBe(false);
     expect(row.querySelector(".worked-caret")).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// THREAD-2 — an interrupted turn's fold head must show its real work-span.
+//
+// Only a settled turn (user prompt → final answer) carries a durationMs. A turn
+// cut short by a step limit or stalled on an approval never settles, so its head
+// used to degrade to "Worked · N steps" — even though the elapsed was right
+// there on screen ("Goal cancelled 00:34"). foldWork now dates those turns from
+// their generation_started markers (startMs..endMs); workedLabel must surface it.
+// ---------------------------------------------------------------------------
+describe("THREAD-2 — workedLabel prefers the real work-span", () => {
+  const fold = (over: Partial<WorkFold>): WorkFold => ({
+    kind: "fold",
+    key: "f",
+    children: [tool("t1")],
+    ...over,
+  });
+
+  it("shows the settled turn's stored duration unchanged", () => {
+    expect(workedLabel(fold({ durationMs: 30000 }))).toBe("Worked for 30s");
+  });
+
+  it("dates an interrupted turn from its startMs..endMs span (the 00:34 case)", () => {
+    // No durationMs (never settled), tool step carries no ts — yet the span is
+    // real: 34s from the first gen step to the interruption.
+    const f = fold({ startMs: 1_000_000, endMs: 1_034_000 });
+    expect(f.durationMs).toBeUndefined();
+    expect(workedLabel(f)).toBe("Worked for 34s");
+  });
+
+  it("prefers durationMs over the span when both are present (settled, not displaced)", () => {
+    expect(workedLabel(fold({ durationMs: 12000, startMs: 0, endMs: 999_000 }))).toBe("Worked for 12s");
+  });
+
+  it("falls back to a step count when no time data exists at all", () => {
+    const f = fold({ children: [tool("t1"), tool("t2")] });
+    expect(f.durationMs).toBeUndefined();
+    expect(f.startMs).toBeUndefined();
+    expect(workedLabel(f)).toBe("Worked · 2 steps");
+  });
+
+  it("does not fabricate a span from a zero-or-negative window (degrades to steps)", () => {
+    // endMs <= startMs is not a real span; the head must not read "Worked for 0s".
+    expect(workedLabel(fold({ startMs: 5000, endMs: 5000 }))).toBe("Worked · 1 step");
   });
 });

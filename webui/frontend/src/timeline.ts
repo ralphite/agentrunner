@@ -306,6 +306,16 @@ export interface WorkFold {
   kind: "fold";
   key: string;
   durationMs?: number; // undefined when the turn never produced a final answer
+  // THREAD-2 · the REAL work-span of the turn, independent of durationMs.
+  // durationMs is only ever set when a turn reached a settled final answer
+  // (user prompt → answer). A turn cut short by a step limit or stalled on an
+  // approval never settles, so it has no durationMs — yet its work still took
+  // real time on the clock: from the turn's first generation_started (startMs)
+  // to its last activity / interruption (endMs). That span is exactly the
+  // `00:34` the terminal alert already shows; carrying it here lets the fold
+  // head read "Worked for 34s" instead of the timeless "Worked · 1 step".
+  startMs?: number; // first generation_started of the turn's buffered work
+  endMs?: number; // last dated activity of that work (last gen step / answer)
   children: TimelineItem[];
 }
 
@@ -389,6 +399,20 @@ export function foldWork(items: TimelineItem[], durations: Map<string, number>, 
   const out: RenderNode[] = [];
   let buf: TimelineItem[] = [];
   let foldSeq = 0;
+  // THREAD-2 · the real work-span of the work currently buffered in `buf`.
+  // `genStart` is the ms of the turn's FIRST generation_started (a hidden
+  // `turn` marker threaded in only for this — it never renders); `spanEnd` is
+  // the latest dated activity seen since then (a later gen step, the answer, a
+  // dated outcome chip). Both describe `buf` and reset with it on flush, so an
+  // interrupted turn that never settled still carries the elapsed the terminal
+  // alert shows, and the fold head can read "Worked for N" instead of only a
+  // step count.
+  let genStart: number | undefined;
+  let spanEnd: number | undefined;
+  const noteTs = (at: number) => {
+    if (!Number.isFinite(at)) return;
+    spanEnd = spanEnd === undefined ? at : Math.max(spanEnd, at);
+  };
   // answered: we are in the post-answer window — a settled final answer was
   // just emitted and only audit has followed it (goal checks run AFTER the
   // reply). Those chips belong next to the outcome, at top level. Any real work
@@ -421,10 +445,32 @@ export function foldWork(items: TimelineItem[], durations: Map<string, number>, 
   const flush = (durationMs?: number, force = false) => {
     if (buf.length === 0 && durationMs === undefined) return;
     if (durationMs === undefined && !force && buf.length > 0 && buf.every(isSystemChip)) return;
-    out.push({ kind: "fold", key: "fold" + foldSeq++, durationMs, children: buf });
+    out.push({ kind: "fold", key: "fold" + foldSeq++, durationMs, startMs: genStart, endMs: spanEnd, children: buf });
     buf = [];
+    genStart = undefined;
+    spanEnd = undefined;
   };
   items.forEach((it, i) => {
+    // THREAD-2 · the hidden generation_started marker is threaded in ONLY to
+    // date each turn's work-span. It is consumed here — never rendered, never
+    // buffered: the first one of the current work opens the span (genStart),
+    // and every one (multi-step turns fire several) extends its end.
+    if (it.kind === "turn") {
+      const at = it.ts ? new Date(it.ts).getTime() : NaN;
+      if (Number.isFinite(at)) {
+        if (genStart === undefined) genStart = at;
+        noteTs(at);
+      }
+      return;
+    }
+    // Any dated activity of the current turn advances the span end — a later
+    // assistant beat, a dated outcome chip, an interruption notice. The user
+    // message is excluded: it opens the NEXT turn, so its ts must not be
+    // charged to the work that just closed.
+    if (it.kind !== "user") {
+      const ts = (it as { ts?: string }).ts;
+      if (ts) noteTs(new Date(ts).getTime());
+    }
     if (i >= tailStart) {
       // live tail: everything renders flat — EXCEPT plumbing, which has no
       // business at the top level even while a turn is running (TH-16). It
@@ -440,6 +486,10 @@ export function foldWork(items: TimelineItem[], durations: Map<string, number>, 
     }
     if (it.kind === "user" && !it.peerSession) {
       flush(); // dangling work from an interrupted prior turn
+      // A fresh human turn: drop any span leftovers so the next turn dates from
+      // its OWN first generation_started, not the interrupted one before it.
+      genStart = undefined;
+      spanEnd = undefined;
       answered = false; // a new turn starts: nothing is "post-answer" yet
       out.push(it);
     } else if (it.kind === "assistant" && durations.has(it.key)) {
