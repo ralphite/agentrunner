@@ -64,7 +64,7 @@ const manyScheduled: Session[] = [
 }));
 
 describe("SC-18 · clicking a suggestion builds the cadence it advertises", () => {
-  it("keeps the two newest rows primary, then exposes Suggestions without dropping the remaining list", () => {
+  it("renders Suggestions as the terminal block after the full list", () => {
     useStore.setState({
       runs: [],
       sessions: manyScheduled,
@@ -84,15 +84,19 @@ describe("SC-18 · clicking a suggestion builds the cadence it advertises", () =
 
     const list = container.querySelector(".scheduled-list")!;
     const children = [...list.children];
+    // Every real scheduled run renders first, in order, and Suggestions is the
+    // last child of the list with nothing after it (Codex parity).
     expect(children).toHaveLength(5);
     expect(children[0].textContent).toContain("Newest scheduled row");
     expect(children[1].textContent).toContain("Second scheduled row");
-    expect(children[2]).toBe(container.querySelector("[data-testid='scheduled-suggestions']"));
-    expect(children[3].textContent).toContain("Third scheduled row");
-    expect(children[4].textContent).toContain("Oldest scheduled row");
+    expect(children[2].textContent).toContain("Third scheduled row");
+    expect(children[3].textContent).toContain("Oldest scheduled row");
+    const suggestions = container.querySelector("[data-testid='scheduled-suggestions']");
+    expect(children[4]).toBe(suggestions);
+    expect(list.lastElementChild).toBe(suggestions);
     expect(container.querySelectorAll(".scheduled-row")).toHaveLength(4);
 
-    const firstSuggestion = children[2].querySelector(".sched-suggest")!;
+    const firstSuggestion = children[4].querySelector(".sched-suggest")!;
     const body = firstSuggestion.querySelector(".sched-suggest-body")!;
     const head = firstSuggestion.querySelector(".sched-suggest-head")!;
     const description = firstSuggestion.querySelector(".sched-suggest-desc")!;

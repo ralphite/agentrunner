@@ -82,7 +82,6 @@ export const SUGGESTIONS: Suggestion[] = [
 // is not lost: one-shot runs stay reachable from ⌘K and their session lands in
 // the sidebar like any other session.
 const RHYTHMIC = new Set(["interval", "cron", "self_paced"]);
-const SUGGESTION_INSERT_AFTER = 2;
 
 export function hasRhythm(c: Cadence): boolean {
   // A computed future tick is proof of a rhythm on its own; the server only
@@ -466,11 +465,11 @@ export function Scheduled() {
     },
   };
 
-  // With real shared data this list can be several screens tall. Codex places
-  // Suggestions after the small set of immediately relevant rows; preserve that
-  // balance by keeping the two newest rows first, then exposing the templates
-  // before the rest. Search and filtered views stay uninterrupted.
-  const suggestionsInline = filter === "all" && !ql && filtered.length > SUGGESTION_INSERT_AFTER;
+  // Suggestions are a terminal block: every real scheduled run renders first,
+  // and the canned templates always close the list at the very bottom, with
+  // nothing after them (Codex parity — the gold reference only *looks* like a
+  // mid-list split because it happens to carry two real tasks; it never carves
+  // the list apart). This holds for any number of real rows.
   const suggestions = (
     <div className="sched-suggestions" data-testid="scheduled-suggestions">
       <div className="sched-suggestions-title">Suggestions</div>
@@ -600,7 +599,7 @@ export function Scheduled() {
             </span>
           </div>
         ) : (
-          filtered.map((r, index) => {
+          filtered.map((r) => {
             const isPinned = pinned.includes(r.id);
             const isArchived = archived.includes(r.id);
             const openMenu = (x: number, y: number) => setCtx({ x, y, key: r.key });
@@ -732,11 +731,11 @@ export function Scheduled() {
               <DotsThree size={18} weight="bold" />
             </button>
             </div>
-            {suggestionsInline && index === SUGGESTION_INSERT_AFTER - 1 && suggestions}
             </Fragment>
             );
           })
         )}
+        {suggestions}
       </div>
 
       {menuRow && ctx && (
@@ -786,8 +785,6 @@ export function Scheduled() {
           )}
         </ContextMenu>
       )}
-
-      {!suggestionsInline && suggestions}
     </div>
   );
 }
