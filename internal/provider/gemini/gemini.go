@@ -238,39 +238,23 @@ func toConfig(req provider.CompleteRequest) (*genai.GenerateContentConfig, error
 	config := &genai.GenerateContentConfig{
 		MaxOutputTokens: int32(req.MaxTokens),
 	}
-	if req.Thinking.Enabled {
-		// Gemini counts thought tokens against MaxOutputTokens, so an unbounded
-		// (or over-large) budget starves the answer to an empty message (the
-		// 会话死亡 defect). We NEVER fall through to Gemini's dynamic default
-		// (budget nil ⇒ think up to the model's own cap): resolveThinkingBudget
-		// always returns a positive, clamped budget that reserves answer room
-		// within MaxTokens. IncludeThoughts surfaces thought summaries.
-		budget, ok := resolveThinkingBudget(req.MaxTokens, req.Thinking.BudgetTokens)
-		switch {
-		case ok:
-			config.ThinkingConfig = &genai.ThinkingConfig{IncludeThoughts: true, ThinkingBudget: &budget}
-		case strings.Contains(strings.ToLower(req.Model), "pro"):
-			// Pro cannot disable thinking (min budget 128) and the cap is too
-			// small to reserve answer room — leave the model to its floor.
-			config.ThinkingConfig = &genai.ThinkingConfig{IncludeThoughts: true}
-		default:
-			// The cap is too small to afford any thinking without starving the
-			// answer — disable it so the whole cap goes to the answer.
-			var zero int32
-			config.ThinkingConfig = &genai.ThinkingConfig{ThinkingBudget: &zero}
-		}
-	} else if !strings.Contains(strings.ToLower(req.Model), "pro") {
-		// Thinking NOT requested → turn it OFF explicitly. 2.5-era models
-		// (gemini-flash-latest included) think BY DEFAULT, and thought tokens
-		// count against MaxOutputTokens. With a modest cap the thoughts can
-		// consume the whole budget, so the completion arrives with no text and
-		// no tool calls — the empty-message defect that wedges/kills sessions
-		// (root cause behind the 2026-07 会话死亡 bug). A zero budget disables
-		// thinking so the full cap goes to the answer. Pro cannot fully disable
-		// thinking (min budget 128), so we leave it to the model there; callers
-		// who want thoughts set Thinking.Enabled.
-		var zero int32
-		config.ThinkingConfig = &genai.ThinkingConfig{ThinkingBudget: &zero}
+	// gemini-flash-latest (and Pro) now REJECT thinkingBudget:0 with
+	// INVALID_ARGUMENT (2026-07-21 — the "latest" alias moved to a model that
+	// thinks by default and cannot be fully disabled). So we NEVER send a zero
+	// budget. A request that doesn't explicitly enable thinking still gets a
+	// positive, clamped budget (default toward the dynamic cap, reserved against
+	// the answer — the 会话死亡 empty-message defense stays intact via
+	// resolveThinkingBudget); thought SUMMARIES surface only when the caller set
+	// Thinking.Enabled. When the cap is too small for any clamped budget, we
+	// leave the model to its own minimum floor rather than an invalid explicit 0.
+	requested := req.Thinking.BudgetTokens
+	if requested <= 0 {
+		requested = geminiDefaultThinkingBudget
+	}
+	if budget, ok := resolveThinkingBudget(req.MaxTokens, requested); ok {
+		config.ThinkingConfig = &genai.ThinkingConfig{IncludeThoughts: req.Thinking.Enabled, ThinkingBudget: &budget}
+	} else {
+		config.ThinkingConfig = &genai.ThinkingConfig{IncludeThoughts: req.Thinking.Enabled}
 	}
 	if req.System != "" {
 		config.SystemInstruction = &genai.Content{

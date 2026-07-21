@@ -101,24 +101,29 @@ func TestToConfigTools(t *testing.T) {
 	}
 }
 
-// Flash thinks by default and thought tokens eat MaxOutputTokens; with no
-// thinking requested we must turn it OFF (budget 0) so the whole cap goes to
-// the answer — the root-cause fix for the empty-message session-death bug.
+// gemini-flash-latest and Pro now REJECT thinkingBudget:0 (2026-07-21), so an
+// unrequested-thinking call no longer disables thinking — it gets a positive,
+// clamped budget that still reserves answer room (会话死亡 defense), silent
+// (IncludeThoughts off) unless thoughts were requested.
 func TestToConfigDisablesDefaultThinking(t *testing.T) {
 	flash, err := toConfig(provider.CompleteRequest{Model: "gemini-flash-latest", MaxTokens: 2048})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if flash.ThinkingConfig == nil || flash.ThinkingConfig.ThinkingBudget == nil || *flash.ThinkingConfig.ThinkingBudget != 0 {
-		t.Errorf("flash without thinking must force budget 0, got %+v", flash.ThinkingConfig)
+	if flash.ThinkingConfig == nil || flash.ThinkingConfig.ThinkingBudget == nil ||
+		*flash.ThinkingConfig.ThinkingBudget <= 0 || flash.ThinkingConfig.IncludeThoughts {
+		t.Errorf("flash without thinking must get a positive silent budget (never 0), got %+v", flash.ThinkingConfig)
 	}
-	// Pro cannot fully disable thinking (min budget 128) — leave its config alone.
+	if int(*flash.ThinkingConfig.ThinkingBudget) >= 2048 {
+		t.Errorf("budget must reserve answer room within the cap, got %+v", flash.ThinkingConfig)
+	}
+	// Pro also gets a positive clamped budget now — never a rejected explicit 0.
 	pro, err := toConfig(provider.CompleteRequest{Model: "gemini-2.5-pro", MaxTokens: 2048})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if pro.ThinkingConfig != nil {
-		t.Errorf("pro must not get a forced budget, got %+v", pro.ThinkingConfig)
+	if pro.ThinkingConfig == nil || pro.ThinkingConfig.ThinkingBudget == nil || *pro.ThinkingConfig.ThinkingBudget <= 0 {
+		t.Errorf("pro without thinking must get a positive clamped budget, got %+v", pro.ThinkingConfig)
 	}
 	// Requested thinking is honored with thought summaries and the given budget.
 	on, err := toConfig(provider.CompleteRequest{Model: "gemini-flash-latest", MaxTokens: 2048,
@@ -173,17 +178,17 @@ func TestResolveThinkingBudget(t *testing.T) {
 	}
 }
 
-// A too-small cap with thinking enabled must disable thinking on flash (budget
-// 0 → full cap to the answer) rather than send an unbounded/answer-starving
-// request.
-func TestToConfigEnabledTinyCapDisables(t *testing.T) {
+// A too-small cap can't afford any clamped budget; since budget:0 is rejected
+// (2026-07-21), we leave the model to its own minimum floor (ThinkingBudget nil)
+// rather than send an invalid 0 or an answer-starving unbounded request.
+func TestToConfigEnabledTinyCapUsesModelFloor(t *testing.T) {
 	cfg, err := toConfig(provider.CompleteRequest{Model: "gemini-flash-latest", MaxTokens: 1024,
 		Thinking: provider.ThinkingConfig{Enabled: true, BudgetTokens: 4096}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ThinkingConfig == nil || cfg.ThinkingConfig.ThinkingBudget == nil || *cfg.ThinkingConfig.ThinkingBudget != 0 {
-		t.Errorf("tiny cap must disable thinking (budget 0), got %+v", cfg.ThinkingConfig)
+	if cfg.ThinkingConfig == nil || cfg.ThinkingConfig.ThinkingBudget != nil {
+		t.Errorf("tiny cap must leave the model to its floor (nil budget, never 0), got %+v", cfg.ThinkingConfig)
 	}
 }
 

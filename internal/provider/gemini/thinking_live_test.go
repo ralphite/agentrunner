@@ -148,16 +148,12 @@ func TestLiveThinkingStarvation(t *testing.T) {
 			before.thoughtToks, before.answerToks, cap)
 	}
 
-	// (2) EVERYDAY DEFAULT — thinking "off" (budget 0), the exact shape of the
-	// user's failing session (gemini-flash-latest, no thinking). Confirms
-	// budget 0 truly disables thinking on this alias (thoughtToks == 0).
-	off := rawGenerate(t, p.client, model, cap,
-		&genai.ThinkingConfig{ThinkingBudget: budgetPtr(0)}, starvationPrompt)
-	t.Logf("OFF (budget 0): hasAnswer=%v answerToks=%d thoughtToks=%d finish=%s",
-		off.hasAnswer, off.answerToks, off.thoughtToks, off.finish)
-	if off.thoughtToks != 0 {
-		t.Errorf("budget 0 did not disable thinking on %s: thoughtToks=%d", model, off.thoughtToks)
-	}
+	// (2) The old "budget 0 ⇒ thinking off" probe was RETIRED on 2026-07-21:
+	// gemini-flash-latest now REJECTS thinkingBudget:0 with INVALID_ARGUMENT (the
+	// "latest" alias moved to a think-by-default model). The provider no longer
+	// sends 0 anywhere — an unrequested-thinking spec gets a positive clamped
+	// budget instead (toConfig / TestToConfigDisablesDefaultThinking). A raw
+	// budget:0 call here would now 400, so the probe is gone.
 
 	// (3) AFTER — the request the FIXED provider builds for an enabled thinking
 	// spec with the same small cap AND an over-large requested budget. toConfig
