@@ -720,9 +720,13 @@ function ActivityGroup({ run, sentImages }: { run: FoldRun; sentImages?: Map<num
 
 // ---- CX-2: the collapsed head must never be information-free -----------------
 // foldSpanMs measures a fold from its own children when the turn carried no
-// duration (see workedLabel). Only bubbles and runtime injections carry a `ts`
-// — tool activities and chips don't — so this recovers a span for folds that
-// hold planning narration, and returns undefined for pure tool/chip folds.
+// duration (see workedLabel). Bubbles, runtime injections, tool activities
+// (THREAD-2: ToolItem now carries its activity_started `ts`) and dated outcome
+// chips all contribute a `ts`, so this recovers a span for folds that hold
+// planning narration or bare tool work alike; only folds whose children are
+// entirely undated return undefined. In practice branch ② of foldElapsedMs
+// (startMs..endMs) almost always fires first, so this last-resort span is
+// rarely reached — but including tool ts keeps it correct when it is.
 function foldSpanMs(fold: WorkFold): number | undefined {
   let lo = Infinity;
   let hi = -Infinity;

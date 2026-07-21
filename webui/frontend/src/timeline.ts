@@ -45,6 +45,10 @@ export interface ToolItem {
   errorMsg?: string;
   partial?: string;
   usage?: { input_tokens: number; output_tokens: number };
+  // THREAD-2 · the activity_started envelope time — the real moment this tool
+  // ran. Carried so a pure-tool interrupted turn (no assistant bubble) can still
+  // date its work-span for the fold head, instead of degrading to a step count.
+  ts?: string;
 }
 
 export interface BubbleItem {
@@ -476,9 +480,25 @@ export function foldWork(items: TimelineItem[], durations: Map<string, number>, 
     // assistant beat, a dated outcome chip, an interruption notice. The user
     // message is excluded: it opens the NEXT turn, so its ts must not be
     // charged to the work that just closed.
+    //
+    // THREAD-2 · this ALSO opens genStart when no dated `turn` marker did.
+    // GitHub-transport / driver sessions emit generation_started with no
+    // env.ts, so the `turn` branch above never fires and startMs stays unset —
+    // then a single-step interrupted turn (one tool + a dated outcome chip)
+    // falls through to a bare step count. Opening the span off the fold's first
+    // dated child (an assistant planning bubble, or the tool's own ts) restores
+    // the real work-span so the head reads "Worked for N", matching the
+    // terminal alert. The `turn` branch returns before this, so its explicit
+    // genStart logic is untouched.
     if (it.kind !== "user") {
       const ts = (it as { ts?: string }).ts;
-      if (ts) noteTs(new Date(ts).getTime());
+      if (ts) {
+        const at = new Date(ts).getTime();
+        if (Number.isFinite(at)) {
+          if (genStart === undefined) genStart = at;
+          noteTs(at);
+        }
+      }
     }
     if (i >= tailStart) {
       // live tail: everything renders flat — EXCEPT plumbing, which has no
@@ -889,6 +909,7 @@ export function foldEvents(events: Envelope[]): Folded {
             background: !!p.background,
             status: "running",
             statusText: p.background ? "background work" : "running",
+            ts: env.ts,
           };
           toolByActivity.set(p.activity_id, t);
           push(t);

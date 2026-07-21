@@ -963,4 +963,25 @@ describe("THREAD-2-SINGLESTEP — interrupted single-step turn dates its fold he
     expect(fold.durationMs).toBe(16000); // settled turn keeps its measured duration
     expect(workedLabel(fold)).toBe("Worked for 16s");
   });
+
+  // The real-machine (GitHub-transport / driver) shape that passed the tests
+  // above yet stayed RED live: generation_started carries NO ts, so the hidden
+  // `turn` marker never opens genStart. The pure-tool interrupted turn then had
+  // no dated start at all and degraded to "Worked · 1 step" while its own
+  // terminal banner read "Goal cancelled 00:34". The fix opens genStart off the
+  // fold's first dated child — here the tool's own activity_started ts (ToolItem
+  // now carries it) — so the span (tool start → cancelled chip) dates the head.
+  it("dates the head from the tool ts when generation_started has no ts (real-machine shape)", () => {
+    const fold = foldOf([
+      { seq: 1, type: "input_received", ts: iso(T0), payload: { source: "cli", text: "what is the project" } },
+      { seq: 2, type: "generation_started", payload: { gen_step: 1 } }, // NO ts — as the driver emits it
+      { seq: 3, type: "activity_started", ts: iso(T0 + 1000), payload: { kind: "tool", activity_id: "a1", name: "read_file", args: {} } },
+      { seq: 4, type: "activity_completed", payload: { activity_id: "a1" } },
+      { seq: 5, type: "goal_cancelled", ts: iso(T0 + 34000), payload: {} },
+    ]);
+    expect(fold.durationMs).toBeUndefined(); // never settled
+    expect(fold.startMs).toBe(T0 + 1000); // opened by the tool's ts, not the (undated) gen marker
+    expect(fold.endMs).toBe(T0 + 34000); // extended to the cancellation instant
+    expect(workedLabel(fold)).toBe("Worked for 33s");
+  });
 });
