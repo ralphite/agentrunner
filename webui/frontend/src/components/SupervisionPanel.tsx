@@ -13,6 +13,7 @@ import {
   Hourglass,
   Info,
   PlusMinus,
+  Terminal,
   Trash,
   TreeStructure,
   WarningCircle,
@@ -300,7 +301,7 @@ export function SupervisionPanel({
           <div className="supervision-label">Background work</div>
           {backgroundWork.map((work) => (
             <div className="background-row" key={work.handle}>
-              <span className="status-dot run" />
+              <Terminal size={14} />
               <span title={work.detail || work.handle}>{backgroundLabel(work)}</span>
 
             </div>
