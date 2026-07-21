@@ -201,7 +201,7 @@ describe("TH-3 · groups with content are untouched", () => {
     expect(container.querySelector(".attention-row")?.textContent).toContain(
       "Background work still running",
     );
-    expect(screen.getByText("Background work")).toBeTruthy();
+    expect(screen.getByText("Background processes")).toBeTruthy();
     expect(screen.queryByText(/Nothing needs you/i)).toBeNull();
   });
 
@@ -213,7 +213,7 @@ describe("TH-3 · groups with content are untouched", () => {
     // in, and Background work still lists the running session.
     expect(screen.queryByText("Attention")).toBeNull();
     expect(container.querySelectorAll(".supervision-quiet").length).toBe(1);
-    expect(screen.getByText("Background work")).toBeTruthy();
+    expect(screen.getByText("Background processes")).toBeTruthy();
   });
 });
 
@@ -401,10 +401,10 @@ describe("RD-E · Background work rides under Environment", () => {
       (el.textContent || "").trim(),
     );
     expect(labels[0]).toBe("Environment");
-    expect(labels[1]).toBe("Background work");
+    expect(labels[1]).toBe("Background processes");
     // …and it is no longer the last thing on the rail, below everything else.
-    expect(labels.indexOf("Background work")).toBeLessThan(labels.indexOf("Goal"));
-    expect(labels.indexOf("Background work")).toBeLessThan(labels.indexOf("Attention"));
+    expect(labels.indexOf("Background processes")).toBeLessThan(labels.indexOf("Goal"));
+    expect(labels.indexOf("Background processes")).toBeLessThan(labels.indexOf("Attention"));
   });
 });
 

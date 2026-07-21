@@ -298,7 +298,7 @@ export function SupervisionPanel({
           running *right now* outranks the standing description of the run. */}
       {backgroundWork.length > 0 && (
         <section className="supervision-section">
-          <div className="supervision-label">Background work</div>
+          <div className="supervision-label">Background processes</div>
           {backgroundWork.map((work) => (
             <div className="background-row" key={work.handle}>
               <Terminal size={14} />
