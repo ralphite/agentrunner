@@ -1224,7 +1224,7 @@ export function Composer(props: ComposerProps) {
             trigger={(open, toggle) => (
               <button className={"cx-env-control branch" + (narrow ? " w-full" : "") + (open ? " active" : "")} onClick={toggle} title={branchInfo?.isRepo ? "Choose starting branch" : "No Git branch available"} disabled={!branchInfo?.isRepo} aria-haspopup="menu" aria-expanded={open}>
                 <BranchIcon />
-                <span className="cx-env-value min-w-0 overflow-hidden text-ellipsis">{branchLabel}</span>
+                <span className="cx-env-value min-w-0 overflow-hidden text-ellipsis [direction:rtl] text-left">{branchLabel}</span>
               </button>
             )}
           >
