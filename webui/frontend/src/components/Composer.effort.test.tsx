@@ -5,6 +5,11 @@
 // preserves the selected state, and never submits a surrounding form.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+// @ts-ignore -- no @types/node in this project's tsconfig
+import { readFileSync } from "node:fs";
+
+// @ts-ignore -- `process` is a vitest-only reference (vitest runs from webui/frontend)
+const styles: string = readFileSync(`${process.cwd()}/src/tw.css`, "utf8");
 
 const mocks = vi.hoisted(() => ({
   newSession: vi.fn(async (_body: { spec: string }) => ({ sid: "20260711-000000-effort" })),
@@ -65,6 +70,22 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Composer model / effort menu mobile hierarchy", () => {
+  it("lets desktop drafts grow to the CSS-aligned 320px ceiling", () => {
+    mount();
+    const textarea = screen.getByPlaceholderText("Do anything") as HTMLTextAreaElement;
+    Object.defineProperty(textarea, "scrollHeight", { configurable: true, value: 500 });
+
+    fireEvent.change(textarea, { target: { value: "long draft" } });
+
+    expect(textarea.style.height).toBe("320px");
+  });
+
+  it("keeps the smaller mobile cap while giving desktop drafts more viewport-aware depth", () => {
+    expect(styles).toContain("@apply max-h-[180px]");
+    expect(styles).toContain("@media (min-width: 901px)");
+    expect(styles).toContain("max-height: min(320px, 38dvh)");
+  });
+
   it("opens a compact bounded root with only actionable Model, Effort, and Advanced rows", () => {
     const { container, onSubmit } = mount();
     expect(pill(container).type).toBe("button");

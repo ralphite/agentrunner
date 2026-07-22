@@ -1135,7 +1135,7 @@ export function Composer(props: ComposerProps) {
 
   const grow = (el: HTMLTextAreaElement) => {
     el.style.height = "auto";
-    el.style.height = Math.min(el.scrollHeight, 220) + "px";
+    el.style.height = Math.min(el.scrollHeight, 320) + "px";
   };
 
   // On short phones the focused input can be visible while the action row is

@@ -7,6 +7,7 @@ usage() {
   cat <<'EOF'
 usage: qa/capture-codex-ui.sh [--command-palette [--palette-query TEXT] | --surface NAME |
                               --new-chat-control NAME [--control-query TEXT] |
+                              --composer-text TEXT --composer-validate VISIBLE_TEXT |
                               --context-menu VISIBLE_TEXT | --keyboard-context-menu VISIBLE_TEXT |
                               --account-menu | --user-menu]
                               [--settle SECONDS] [--restore-query TEXT] [--output PATH]
@@ -21,6 +22,8 @@ Captures the largest on-screen layer-0 window owned by bundle com.openai.codex.
   model-list, effort, speed,
   starter-explore, starter-build, starter-review, starter-fix
 --control-query enters read-only search text in an opened New chat picker.
+--composer-text fills an unsent New chat draft, captures it, then clears it.
+--composer-validate is a short visible substring required in that draft capture.
 --context-menu OCR-locates visible sidebar text, right-clicks it, captures the menu,
   then dismisses it with Escape. Matches are restricted to the sidebar.
 --keyboard-context-menu focuses visible sidebar text, opens its menu with Shift+F10,
@@ -37,6 +40,8 @@ surface=""
 palette_query=""
 new_chat_control=""
 control_query=""
+composer_text=""
+composer_validate=""
 context_target=""
 restore_query=""
 settle_seconds=1
@@ -80,6 +85,24 @@ while (($#)); do
         exit 2
       fi
       control_query="$2"
+      shift 2
+      ;;
+    --composer-text)
+      if (($# < 2)) || [[ -z "$2" ]]; then
+        echo "capture-codex-ui: --composer-text requires text" >&2
+        exit 2
+      fi
+      composer_text="$2"
+      surface="new-chat"
+      mode="composer-text"
+      shift 2
+      ;;
+    --composer-validate)
+      if (($# < 2)) || [[ -z "$2" ]]; then
+        echo "capture-codex-ui: --composer-validate requires visible text" >&2
+        exit 2
+      fi
+      composer_validate="$2"
       shift 2
       ;;
     --context-menu)
@@ -170,6 +193,14 @@ if [[ -n "$control_query" && "$mode" != "new-chat-control" ]]; then
   echo "capture-codex-ui: --control-query requires --new-chat-control" >&2
   exit 2
 fi
+if [[ -n "$composer_text" && -z "$composer_validate" ]]; then
+  echo "capture-codex-ui: --composer-text requires --composer-validate" >&2
+  exit 2
+fi
+if [[ -n "$composer_validate" && "$mode" != "composer-text" ]]; then
+  echo "capture-codex-ui: --composer-validate requires --composer-text" >&2
+  exit 2
+fi
 if [[ -n "$control_query" && "$new_chat_control" != "project" && "$new_chat_control" != "branch" ]]; then
   echo "capture-codex-ui: --control-query is only supported for project or branch" >&2
   exit 2
@@ -238,6 +269,7 @@ fi
 transient_open=0
 nested_open=0
 starter_seeded=0
+composer_seeded=0
 ocr_capture=""
 send_key() {
   local key_code=$1
@@ -273,6 +305,36 @@ if modifier == 1 {
 }
 down.post(tap: .cghidEventTap)
 up.post(tap: .cghidEventTap)
+SWIFT
+}
+
+clear_focused_text() {
+  swift - "$codex_pid" <<'SWIFT'
+import AppKit
+import CoreGraphics
+import Foundation
+
+guard CommandLine.arguments.count == 2,
+      let pid = Int32(CommandLine.arguments[1]),
+      let app = NSRunningApplication(processIdentifier: pid) else {
+  fputs("invalid Codex clear request\n", stderr)
+  exit(2)
+}
+_ = app.activate(options: [.activateAllWindows])
+usleep(200_000)
+let source = CGEventSource(stateID: .hidSystemState)
+for (keyCode, flags) in [(UInt16(0), CGEventFlags.maskCommand), (UInt16(51), CGEventFlags())] {
+  guard let down = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
+        let up = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false) else {
+    fputs("could not create Codex clear event\n", stderr)
+    exit(1)
+  }
+  down.flags = flags
+  up.flags = flags
+  down.post(tap: .cghidEventTap)
+  up.post(tap: .cghidEventTap)
+  usleep(150_000)
+}
 SWIFT
 }
 
@@ -490,7 +552,7 @@ if [[ -n "$surface" ]]; then
     echo "capture-codex-ui: sidebar surface navigation requires a desktop-width Codex window" >&2
     exit 1
   fi
-  if [[ "$mode" == "new-chat-control" ]]; then
+  if [[ "$mode" == "new-chat-control" || "$mode" == "composer-text" ]]; then
     # Normalize any submenu left by an interrupted/debug capture before the
     # sidebar navigation and fresh control interaction begin.
     send_key 53 >/dev/null 2>&1 || true
@@ -523,6 +585,20 @@ close_transient() {
     send_key 0 1 >/dev/null 2>&1 || true
     send_key 51 >/dev/null 2>&1 || true
     starter_seeded=0
+  fi
+  if ((composer_seeded)); then
+    # Long drafts can push their first line outside the visible OCR region.
+    # Click the stable textarea body near the lower-right, then clear all.
+    composer_x=$(awk -v x="$window_x" -v w="$window_width" 'BEGIN { print x + w * 0.50 }')
+    composer_y=$(awk -v y="$window_y" -v h="$window_height" 'BEGIN { print y + h - 80 }')
+    send_click "$composer_x" "$composer_y"
+    clear_focused_text
+    sleep 1
+    rm -f -- "$ocr_capture"
+    ocr_capture=$(mktemp -t codex-composer-cleanup-validate)
+    screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+    window_text_center "$ocr_capture" "Explore and" "starter" >/dev/null
+    composer_seeded=0
   fi
   if [[ -n "$ocr_capture" && -f "$ocr_capture" ]]; then
     rm -f -- "$ocr_capture"
@@ -657,6 +733,27 @@ if [[ "$mode" == "new-chat-control" ]]; then
     echo "capture-codex-ui: validation frame saved to $validation_debug" >&2
   fi
   window_text_center "$ocr_capture" "$validation_text" "$validation_region" >/dev/null
+fi
+
+if [[ "$mode" == "composer-text" ]]; then
+  if (( ${window_width%.*} < 900 )); then
+    echo "capture-codex-ui: composer text capture requires a desktop-width Codex window" >&2
+    exit 1
+  fi
+  ocr_capture=$(mktemp -t codex-composer-text)
+  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  composer_point=$(window_text_center "$ocr_capture" "Full access" "composer")
+  IFS=$'\t' read -r composer_x composer_y <<<"$composer_point"
+  composer_x=$(awk -v x="$composer_x" 'BEGIN { print x + 250 }')
+  composer_y=$(awk -v y="$composer_y" 'BEGIN { print y - 40 }')
+  send_click "$composer_x" "$composer_y"
+  composer_seeded=1
+  send_text "$composer_text"
+  sleep "$settle_seconds"
+  rm -f -- "$ocr_capture"
+  ocr_capture=$(mktemp -t codex-composer-text-validate)
+  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  window_text_center "$ocr_capture" "$composer_validate" "composer" >/dev/null
 fi
 
 if [[ "$mode" == "context-menu" ]]; then

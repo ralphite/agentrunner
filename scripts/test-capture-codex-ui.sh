@@ -18,6 +18,8 @@ done
 [[ "$help" == *"--account-menu"* ]]
 [[ "$help" == *"--user-menu"* ]]
 [[ "$help" == *"--new-chat-control"* ]]
+[[ "$help" == *"--composer-text"* ]]
+[[ "$help" == *"--composer-validate"* ]]
 for control in project worktree environment branch add access model model-list effort speed starter-explore starter-build starter-review starter-fix; do
   [[ "$help" == *"$control"* ]] || {
     echo "capture driver help is missing New chat control: $control" >&2
@@ -87,6 +89,10 @@ grep -Fq 'case "popover-low"' "$driver"
 # shellcheck disable=SC2016
 grep -Fq 'window_text_center "$ocr_capture" "$validation_text" "$validation_region"' "$driver"
 grep -Fq 'if ((starter_seeded))' "$driver"
+grep -Fq 'if ((composer_seeded))' "$driver"
+# Literal source contract; expansion would weaken the assertion.
+# shellcheck disable=SC2016
+grep -Fq 'window_text_center "$ocr_capture" "Explore and" "starter"' "$driver"
 grep -Fq 'if ((nested_open))' "$driver"
 # Literal source contract; expansion would weaken the assertion.
 # shellcheck disable=SC2016

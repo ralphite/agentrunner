@@ -6499,3 +6499,29 @@ quota/fallback/journal 与 model-specific effort profile，再恢复 Fast/Ultra 
 继续在该 GAP 内取证。capture contract、Composer targeted 6 tests、frontend 67 files/
 686 tests、production build 与 `./scripts/check.sh` 全绿。证据根：
 `qa/runs/2026-07-22-QA88-98.2d-model-access/`；未 Send/创建/关闭/删除/清理 session。
+
+---
+
+## 2026-07-22 · INC-98.2e CJK 长输入同态取证与 desktop composer 深度修复
+
+**真实对标**：capture driver 新增 `--composer-text/--composer-validate`，只在 Codex
+New chat 写入未发送 draft，以 Vision OCR 二次验证可见短串；截图后聚焦 textarea body、
+`Cmd+A/Delete`，再验证 starter placeholder 恢复。4 行与 20 行中英混排均成功复现。
+真实 IME composition 尚未覆盖，因此 NS-05 不升级 PASS。
+
+**发现与修复**：同逻辑 1952×1465、同一 20 行文本下，Codex 约 18 行可见，AgentRunner
+旧 `180px` 上限只见约 8 行。沿用现有 composer，把 `>=901px` textarea 上限改为
+`min(320px, 38dvh)`，autosize 同步封顶 `320px`；窄屏仍为 `180px`。production 复拍
+约 15 行可见，Add/access/model/send 均留在 viewport；`30+32` 合并为 `33` 后逐图验收。
+
+**附件边界与诚实状态**：Computer Use 明确禁止控制宿主 Codex app；原生 Open sheet
+虽能打开，但 panel service 未提供稳定 selection/remove 路径。`02..17` 等校准图全部
+拒收，尝试过的 `--attach-file` 未保留，NS-06 仍为 UNTESTED；不以固定全屏坐标或把路径
+误贴进 composer 来伪造成功。
+
+**验证**：frontend 67 files/688 tests、build、capture contract、shellcheck 与
+`./scripts/check.sh` 全绿。部署 `a7115464-dirty-143927` 到 production `:8809` + shared
+store，health `ok/daemonUp/versionMatch=true`、browser logs=`[]`；恢复空 draft 与默认
+viewport，未 Send/创建/关闭/删除/清理 session。证据根：
+`qa/runs/2026-07-22-QA88-98.2e-input-attachments/`。矩阵仍为 PASS 12/GAP 6/
+INTENTIONAL 4/BLOCKED 1/UNTESTED 56，INC-98/G42/QA-88 继续开放。

@@ -355,7 +355,9 @@ GAPS.md，本文件只回答"产品要做什么"。
    Loop / Best-of-N / background / agent persona 与 YAML spec 收在 Automation 子页。
    Access/model picker 只显示会改变 session spec/runtime 的真实选择；模型与 effort 可切换，
    exact thinking budget 住 Advanced。provider service tier 与 model-specific Ultra preset
-   在 G45 完成前不画只有 `Standard` 或无 runtime 语义的假选项。
+   在 G45 完成前不画只有 `Standard` 或无 runtime 语义的假选项。长 draft 在 desktop
+   可增长到 `min(320px, 38dvh)` 以保留校对上下文，窄屏仍封顶 `180px`，输入区滚动时
+   Add/access/model/send 始终留在 viewport。
 3. 中央 thread 按 journal 投影 user/assistant/tool 事实；program/agent/control
    输入默认只在 system events 中查看，绝不冒充用户；底部 follow-up 延续
    同一 session；每轮最终 answer 显示真实 Worked duration 与 Copy。带 durable

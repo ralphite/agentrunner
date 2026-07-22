@@ -499,6 +499,11 @@
   .cx-input-wrap textarea {
     @apply max-h-[180px] min-h-[48px] w-full resize-none border-0 bg-transparent p-0 text-[15px] leading-[1.45] outline-none placeholder:text-dim;
   }
+  @media (min-width: 901px) {
+    .cx-input-wrap textarea {
+      max-height: min(320px, 38dvh);
+    }
+  }
   /* R56 COMPOSER-FOCUS-SEAMLESS: the global input/textarea :focus rule (line
      ~238) leaks a blue ring-2 box-shadow onto the composer's borderless
      textarea. Codex's composer is a seamless card — no field box on focus. */

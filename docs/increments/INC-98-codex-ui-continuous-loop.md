@@ -62,6 +62,19 @@ INC-98 将该方法固化为持续循环：
   thinking budget 继续满足 power-user 调节，preset 缺口进入 GAPS。Access 的
   Full/Ask/auto-accept/Plan 与 Codex 常用权限姿态语义已覆盖；Codex
   `Custom (config.toml)` 对应本产品 agent/spec，而非再造第二套配置入口。
+- **98.2e input/attachment evidence note**：Computer Use 明确禁止控制宿主 Codex app，
+  因而继续扩展已验证的 CoreGraphics/Vision driver，不借不可审计的固定全屏坐标。
+  `--composer-text` 只向未发送 New chat draft 粘贴指定文本，以独立可见短串二次
+  validation，截图后 `Cmd+A/Delete` 并验证 placeholder 恢复；用于同态 CJK/multiline/
+  overflow，不冒充真实 IME composition。Add→Files and folders 已确认能打开原生 Open
+  sheet，但宿主安全边界与 panel service 使自动选择/移除尚无可靠语义路径；所有校准图
+  拒收，driver 不落半成品 `--attach-file`，NS-06 保持 UNTESTED。后续只用非敏感 fixture，
+  禁止 Send；oversize/error 不触碰用户数据。同逻辑 1952×1465、同一 20 行中英混排 draft
+  对照显示 Codex 可见约 18 行，而 AgentRunner 受 `180px` CSS 上限只见约 8 行；桌面长
+  prompt 的校对上下文不足。沿用现有 composer，不改发送/持久化语义：`>=901px` 时把
+  textarea 上限放宽为 `min(320px, 38dvh)`，JS autosize 同步封顶 `320px`；窄屏仍保持
+  `180px`，避免移动端 composer 挤出 viewport。以同 viewport/state 拼图复验，不把这项
+  可见修复误写成真实 IME 已通过。
 
 ## Spec delta
 

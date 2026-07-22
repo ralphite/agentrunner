@@ -1843,6 +1843,14 @@ shared-store QA data → recapture → 与同 viewport/state 的 AgentRunner 合
 | 产品裁决 | Codex `Fast`/`Ultra` 需要 provider/runtime 能力，记 G45；移除我方只有 `Standard` 且无行为的 Speed 子页，不画假选项；provider-specific model catalog 与 spec-based Custom access 保持本产品语义 |
 | 回归与恢复 | `Composer.effort.test.tsx`、capture-driver contract、frontend/full gate 全绿；production shared store 复拍，恢复 dark theme、默认 viewport、Full access 与空 draft，logs/health 全绿 |
 
+| 98.2e 动作 | 硬断言 |
+|---|---|
+| Codex composer text driver | `--composer-text` 只向 New chat 未发送 draft 粘贴文本，以独立短串 OCR validation；截图后点击稳定 textarea body、`Cmd+A/Delete` 并验证 starter placeholder 恢复；不冒充真实 IME composition |
+| 同状态长文本比较 | 双侧逻辑 1952×1465、同一 20 行 CJK；修前 AgentRunner 约 8 行可见，Codex 约 18 行；修后 AgentRunner 约 15 行且 Add/access/model/send 均保持可见，`33` 合并图已逐图验收 |
+| responsive 裁决 | desktop textarea 上限改为 `min(320px, 38dvh)`，JS autosize 同步 `320px`；窄屏仍为 `180px`，不改变 Send、draft、session 或 backend 语义 |
+| attachment 边界 | Add→Files and folders 能打开原生 Open sheet，但 Computer Use 禁止控制宿主 Codex，panel service 也无稳定 selection/remove 语义；`02..17` 全部拒收，不落半工作 `--attach-file`；NS-06 保持 UNTESTED |
+| 回归与恢复 | frontend 67 files/688 tests、build、capture contract 与 `check.sh` 全绿；production shared store 部署，health `ok/daemonUp/versionMatch=true`、browser logs=`[]`；恢复默认 viewport 与空 draft，未 Send/创建/关闭/删除/清理 session |
+
 **98.1 证据**：`qa/runs/2026-07-22-QA88-codex-ui-continuous-loop/` 保存
 accepted/rejected screenshots、browser logs、driver stderr contract、health 与工作区 diff。
 首批未创建、关闭、删除或清理 AgentRunner session/workspace/journal；后续若产生测试
@@ -1866,3 +1874,8 @@ browser logs、health、gate 与工作区 diff。`02/07..08/11..12/36..38/45..48
 AgentRunner 同逻辑 viewport 的 model root/list、effort、speed、access、Advanced、
 Ask→Full 恢复截图及五组 side-by-side；`06..07/10..14` 的早期 OCR/Advanced 校准图
 明确拒收，不参与 GAP 裁决。
+
+**98.2e 证据**：`qa/runs/2026-07-22-QA88-98.2e-input-attachments/` 保存 Codex
+4/20 行 CJK、AgentRunner 修前/修后与同 viewport 合并图、driver cleanup、health/logs/
+gate。`19/30..33` 为当前 accepted 输入证据；`02..17/22..27` 为原生附件或 cleanup
+校准拒收图，文件名即使含 `attached` 也不代表动作成功。NS-05/06 均继续 UNTESTED。
