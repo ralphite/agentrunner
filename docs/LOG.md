@@ -6595,3 +6595,27 @@ Codex failure/retry 尚无安全可控同态证据，NS-10 继续 UNTESTED，矩
 INTENTIONAL 4/BLOCKED 1/UNTESTED 53。timeline/driver targeted、frontend/build/full gate 与
 production shared-store 复拍通过后提交；证据根：
 `qa/runs/2026-07-22-QA88-98.2h-send-states/`。INC-98/G42/QA-88 继续开放。
+
+---
+
+## 2026-07-22 · INC-98.3a Thread hierarchy / actions / artifact 实证
+
+**真实交互**：在 shared `CODEXVERIFY` session 逐级打开 `Worked for 11s → $ sleep 8 →
+Shell`，DOM 与截图确认 user/assistant/tool 层级、默认 disclosure 和完整 Success result；
+tool Copy clipboard 精确 `$ sleep 8`，final answer Copy 精确 `VERIFYOK`。从 final assistant
+与 opening human 分别执行 message Continue：前者生成含完整 cut 的 dormant child
+`...2d3314b68873e328`，后者生成零 generation、composer 带 recorded draft 的 dormant
+child `...9fb242ce1faa56ec`；`forked_from/checkpoint_barrier/fork_awaiting_input` 在 journal，
+parent 不变，两个 child/workspace 全保留。
+
+**artifact/Changes**：真实历史 goal session 的 `goal-r2.txt` 产物卡 Open menu 同时提供
+New tab/Download，href GET 精确返回 `DONE`；file row Review 打开 Last Turn Changes 并
+focus `goal-r2.txt +1 -0`。与 Codex artifact/message-action reference 合并验图后，Continue
+图形从容易误读为 agent tree 的 `GitFork` 收敛到同库 `ArrowUpRight`；只改图标，不改
+label、API、cut、workspace 或 provenance。
+
+**诚实缺口**：Codex 最终回答动作行的 👍/👎 需要 durable feedback identity/event、
+幂等/撤回、数据/隐私与失败回执，AgentRunner 当前无 backend；新增 G46，禁止先画本地
+toggle 或无回执假按钮。GL-02/TH-01/TH-05 升 PASS，TH-04 记 GAP；矩阵为 `PASS 18 /
+GAP 7 / INTENTIONAL 4 / BLOCKED 1 / UNTESTED 49`。证据根：
+`qa/runs/2026-07-22-QA88-98.3a-thread-actions/`；INC-98/G42/QA-88 继续开放。

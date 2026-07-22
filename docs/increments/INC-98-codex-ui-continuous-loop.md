@@ -105,6 +105,16 @@ INC-98 将该方法固化为持续循环：
   found`，再经 UI 换回 Gemini Flash、Retry 成功，旧失败原位折叠；由此发现通用文案误导
   用户“缩短 conversation”，修为该子型专用“selected model unavailable / choose another
   model, then retry”。Codex 的 failure/retry 尚无安全可控同态路径，NS-10 保持 UNTESTED。
+- **98.3a thread/action design note**：沿用现有“中间消息 hover/focus 才显动作、最终
+  assistant answer 常驻动作行”、`Worked` 两级 disclosure、artifact `Open in` 与 Changes
+  file-row Review；不另造第二套 message toolbar。实窗对照显示 Codex 的分支/续接动作是
+  斜向外箭头，我方 `GitFork` 图形更像 agent tree，和“从此消息打开独立 session”的直接
+  动作不一致；只把图标换成同一 Phosphor 库的 `ArrowUpRight`，label/tooltip/API/fork
+  provenance 全不变。Codex 同排的 👍/👎 不能先画假按钮：AgentRunner 尚无 feedback
+  event/schema、target item identity、持久化/导出、隐私边界与失败回执，登记 G46，backend
+  契约落地前保持 UI 安静。真实 QA 必须分别验证 Copy 内容、Worked/tool 展开、human 前切
+  draft、final assistant 后切、artifact URL、file-scoped Review 与 parent 不变；所有新 child
+  session/workspace/journal 保留，不自动 Send、Download、Undo 或提交。
 
 ## Spec delta
 

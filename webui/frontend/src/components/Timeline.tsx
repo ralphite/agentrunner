@@ -2,6 +2,7 @@ import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ArrowsInLineVertical,
   ArrowSquareOut,
+  ArrowUpRight,
   CaretDown,
   CaretRight,
   ChatCircle,
@@ -11,7 +12,6 @@ import {
   Copy,
   File,
   FileText,
-  GitFork,
   Globe,
   ImageSquare,
   Lightning,
@@ -180,7 +180,7 @@ function MsgActions({ text, ts, onContinue }: { text: string; ts?: string; onCon
           try { await onContinue(); } catch (e: any) { setContinueError(e?.message || "Couldn't continue from this message"); }
           finally { setContinuing(false); }
         }} title="Continue in new session" aria-label="Continue in new session">
-        <GitFork size={15} />
+        <ArrowUpRight size={15} />
       </button>}
       {continueError && <span className="sr-only">{continueError}</span>}
       {time && <span className="msg-time" title={absTime(ts)}>{time}</span>}

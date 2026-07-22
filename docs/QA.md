@@ -1875,6 +1875,15 @@ shared-store QA data → recapture → 与同 viewport/state 的 AgentRunner 合
 | failure→Retry | shared session `20260722-222339-qa-88-failure-retry-test-repl-451f5d8cb2d79f4b` 以 `qa-nonexistent-model-98h` 得到真实 `provider_invalid/model not found`；UI 换 Gemini Flash 后 Retry 成功，旧块折为 `Failed attempt · retried`，answer=`QA88_RETRY_COMPLETE` |
 | 文案修复与边界 | model-not-found 专用提示换模型后 Retry，不再误导缩短 prompt；Codex failure/retry 未获同态证据，NS-10 保持 UNTESTED。3 个 AgentRunner shared session/worktree/journal 与 3 个 Codex test thread 均保留，不 close/delete/cleanup |
 
+| 98.3a 动作 | 硬断言 |
+|---|---|
+| Thread 层级与 disclosure | shared session `20260722-223026-codexverify-reply-exactly-veri-19413427829bd032` 默认只见 user / Worked / final answer；Worked 展开后见 `$ sleep 8`，tool 再展开后见完整 Shell command/result/Success；折叠/展开截图与 DOM 均在案 |
+| Copy | `Copy command and result` clipboard 精确为 `$ sleep 8`；final `Copy message` 精确为 `VERIFYOK`，不是折叠 preview、HTML 或相邻内容 |
+| Continue from final assistant | 从 final answer 建 `20260722-224322-continue-item-assistant-g2-2d3314b68873e328`；cut 含该 answer，status=`quiescent/waiting_input`，显式 Send 前无新 generation；parent route/journal/workspace 不变 |
+| Continue before human | 从 opening human 建 `20260722-224342-continue-item-cmd-a039a122-9fb242ce1faa56ec`；timeline 零 message、composer 预填 recorded prompt 且 focus；inspect `gen_steps=0`，journal 有 `source_side=before_user` + durable draft + checkpoint barrier |
+| Artifact / Review | historical real goal session `20260710-062102-create-a-file-goal-r2-txt-in-t-0d1e`：Open menu 的 New tab/Download 同指 durable file URL，GET 精确 `DONE`；点击 file row 打开 Last Turn Changes 并 focus `goal-r2.txt +1 -0` |
+| parity / gap 裁决 | Codex reference 与 AgentRunner 同一组合输入确认 artifact/changes/action 层级；Continue 图标收敛为 `ArrowUpRight`，语义/API 不变；Codex 👍/👎 需要 backend，记 G46，不画假按钮；TH-01/TH-05 与 GL-02 PASS，TH-04 GAP |
+
 **98.1 证据**：`qa/runs/2026-07-22-QA88-codex-ui-continuous-loop/` 保存
 accepted/rejected screenshots、browser logs、driver stderr contract、health 与工作区 diff。
 首批未创建、关闭、删除或清理 AgentRunner session/workspace/journal；后续若产生测试
@@ -1918,3 +1927,9 @@ drawer、同 viewport 合并图、DOM geometry、logs/health/gate。`16/18` 因 
 submitting/queued/running/completed、invalid-model failure、model fix、Retry success、双侧
 1952×1465 合并图、driver calibration、events/logs/health/gate。`13/14/17` 为早期 OCR
 region/settle 校准拒收或无输出；`19/28/31/33` 与 AgentRunner `01..12b/20..32` 为 accepted。
+
+**98.3a 证据**：`qa/runs/2026-07-22-QA88-98.3a-thread-actions/` 保存 thread/Worked/
+Shell 的三级截图、human-before dormant child、artifact/Changes file focus、两张与 Codex
+reference 的 combined comparison、DOM/action/clipboard/CLI inspect 与 health/logs/gate。
+新增的两个 child session/workspace/journal 与 parent 全部保留；不 Send child、不 Download、
+不 Undo/Commit/Push，不关闭/删除/清理任何 QA 数据。

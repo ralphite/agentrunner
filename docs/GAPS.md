@@ -51,7 +51,7 @@
 | UJ-21 崩溃自愈与重启接续 | 🟡 | 恢复语义✅（resume/in-doubt/终态把关，QA-08）；**自动性缺**：boot sweep、子 crash 自动 resume（G22）（2026-07-05 新增行） |
 | UJ-22 会话内目标 | ✅ | **G23 已关闭（INC-D1）**——in-session goal 挂会话、context 延续；决策 #21 拆两形态 |
 | UJ-23 工程团队模拟 | ✅ | INC-12：动态角色、横向消息、revive、用户直达与子会话 live 全通 |
-| UJ-24 Web UI 驾驶 AgentRunner | ✅ | INC-19/23/29/38/40/41/57/60/91/97：Codex 式信息架构 + truthful progressive hydration + environment composer/worktree + Worked/Changes + hover actions + message-level durable Continue（human-before/final-assistant-after、multimodal draft、atomic/idempotent dormant child）+ 不重排 thread 的 Environment 浮动卡 + 内联审批 + responsive Supervision/recovery/Scheduled/a11y；QA-27/34/36/41/42/43/60/61/82/87 |
+| UJ-24 Web UI 驾驶 AgentRunner | ✅ | INC-19/23/29/38/40/41/57/60/91/97：Codex 式信息架构 + truthful progressive hydration + environment composer/worktree + Worked/Changes + hover actions + message-level durable Continue（human-before/final-assistant-after、multimodal draft、atomic/idempotent dormant child）+ 不重排 thread 的 Environment 浮动卡 + 内联审批 + responsive Supervision/recovery/Scheduled/a11y；QA-27/34/36/41/42/43/60/61/82/87；可选 message feedback telemetry 缺口见 G46（不阻断主 journey） |
 
 **汇总（2026-07-11 更新）**：20 通 · 3 部分 · 1 卡死。G14 已关闭
 （INC-50 webhook ingress），UJ-12 转部分；剩余卡死集中在云环境
@@ -681,6 +681,17 @@ TERM-resistant 孙进程可变孤儿。统一 advisory flock + unique temp fsync
 严格输入 cap/EOF、显式流错误与 64-bit entropy，并按 PGID 确认/升级取消后，
 针对性 race 与全量 gate 通过；共享 store/Web UI 重启验收见 QA-67。
 → UJ-01/04/09/17/18/24
+
+**G46 assistant message feedback（👍/👎）持久化与回执缺失 — ❌ 开放（INC-98.3a 实窗取证，低）**
+Codex Desktop 在最终 assistant answer 的常驻动作行提供 thumbs up/down；AgentRunner 当前
+只有 Copy 与 message-level Continue。该入口不能用本地 toggle 或无回执 POST 冒充：需要
+先定义 target session/item/turn 的 durable identity、feedback event/schema、正负反馈是否
+可撤回/改选、离线与重放幂等、导出/删除/保留期、内容是否随反馈上传、provider/产品归属、
+匿名/账户边界与失败回执；然后接 daemon/API、timeline projection 与按钮 pressed/loading/
+error 状态。未裁决前 UI 保持安静，不收集隐性 telemetry。证据：
+`qa/codex-reference/codex-crop-message-actions.jpg` 与
+`qa/runs/2026-07-22-QA88-98.3a-thread-actions/08-thread-actions-comparison.jpg`。
+→ UJ-24（可选质量反馈，不阻断 coding journey）
 
 **G45 模型执行 tier：Fast service tier / model-specific Ultra 缺失 — ❌ 开放（INC-98.2d 实窗取证，中）**
 Codex Desktop 当前 Model 菜单有 `Speed: Standard/Fast`（Fast 标注 1.5× speed、更多
