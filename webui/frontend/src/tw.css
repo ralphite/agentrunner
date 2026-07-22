@@ -447,6 +447,15 @@
   .home-empty-card-icon.green { @apply text-green; }
   .home-empty-card-icon.orange { color: var(--orange); }
   .home-empty-card-label { @apply leading-snug text-ink; }
+  .home-intent-suggestions {
+    @apply absolute inset-x-0 bottom-0 flex w-full max-w-[720px] flex-col gap-0.5 text-left;
+    margin-inline: auto;
+  }
+  .home-intent-suggestion {
+    @apply flex min-h-9 w-full items-center gap-2 rounded-[8px] border-transparent bg-transparent px-3 py-2 text-left text-[13px] text-ink-2 shadow-none transition-colors hover:border-transparent hover:bg-panel-2 hover:text-ink hover:shadow-none focus-visible:bg-panel-2 focus-visible:text-ink;
+  }
+  .home-intent-icon { @apply grid h-4 w-4 shrink-0 place-items-center text-dim; }
+  .home-intent-icon svg { @apply h-[14px] w-[14px]; }
 
   .cx { @apply relative w-full; }
   .cx-card {
@@ -1273,6 +1282,9 @@
     .home-empty-cards { @apply grid-cols-1 gap-3; }
     .home-empty-card { @apply min-h-[100px] px-4 py-3 text-[13px]; }
     .home-empty-card-icon { @apply h-[24px] w-[24px]; }
+    .home-main.intent-active { @apply justify-between; }
+    .home-intent-suggestions { @apply static max-w-none; }
+    .home-intent-suggestion { @apply min-h-11 px-2; }
     .home-empty-headline { @apply text-[24px] font-normal; }
     .home-empty-repo { @apply max-w-[18ch]; }
     .tl-inner { @apply px-5; }
@@ -1344,6 +1356,11 @@
       padding-left: max(0.75rem, env(safe-area-inset-left));
     }
     .lb-nav { @apply static translate-y-0; }
+  }
+
+  @media (max-height: 700px) {
+    .home-main.intent-active { @apply justify-between; }
+    .home-intent-suggestions { @apply static max-w-none; }
   }
 }
 

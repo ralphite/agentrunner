@@ -29,6 +29,14 @@ describe("home greeting structure", () => {
     expect(src).toContain('variant="home"');
   });
 
+  it("uses Codex's two-stage starter intent instead of keeping cards beside a long canned prompt", () => {
+    expect(src).toContain('seed: "Explore"');
+    expect(src).toContain('"Explore and learn how a feature works"');
+    expect(src).toContain('className="home-intent-suggestion"');
+    expect(src).toContain("const showStarterCards = !draft.trim() && !activeSuggestion");
+    expect(src).toContain("onDraftChange={handleDraftChange}");
+  });
+
   it("fits the empty composer inside a 390x500 viewport without changing normal-height mobile", () => {
     expect(src).toContain("max-[680px]:[@media(max-height:560px)]:[&_.cx-input-wrap]:pt-1.5");
     expect(src).toContain("max-[680px]:[@media(max-height:560px)]:[&_.cx-input-wrap_textarea]:min-h-8");

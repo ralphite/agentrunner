@@ -81,6 +81,7 @@ type ComposerProps =
       variant: "home";
       onError: (m: string) => void;
       onProjectChange?: (label: string | null) => void;
+      onDraftChange?: (draft: string) => void;
       projectSeed?: NewSessionProject;
     }
   | {
@@ -190,6 +191,10 @@ export function Composer(props: ComposerProps) {
   const draftKey = isSession ? ((props as any).sid as string) : "~home";
   const [text, setText] = useState(() => recallDraft(draftKey));
   useEffect(() => rememberDraft(draftKey, text), [draftKey, text]);
+  const onHomeDraftChange = !isSession
+    ? (props as Extract<ComposerProps, { variant: "home" }>).onDraftChange
+    : undefined;
+  useEffect(() => onHomeDraftChange?.(text), [onHomeDraftChange, text]);
   const [atts, setAtts] = useState<Attachment[]>([]);
   const forkSeeded = useRef<string | null>(null);
   const [busy, setBusy] = useState(false);

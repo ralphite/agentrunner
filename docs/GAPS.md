@@ -315,12 +315,17 @@ backlog）；子 agent 的 turn 级进度镜像无统一设计。
 
 ### 云与远程
 
-**G11 云 workspace 生命周期展开 — ⚠️ 设计欠定 · 高（云形态）**
-S7 被裁 cut line，只有一段草图。缺：环境配置模型、setup 脚本信任、
+**G11 Environment / 云 workspace 生命周期展开 — ⚠️ 设计欠定 · 高（云形态）**
+S7 被裁 cut line，只有一段草图。2026-07-22 INC-98.2c 实窗进一步确认：Codex
+New chat 在 project/worktree/branch 之外还有独立 `No environment` picker，空态可
+`Create local environment`，Worktree picker 另有 Cloud/usage；AgentRunner 只有
+Local/New worktree + ref，缺本地可命名环境 profile、setup 生命周期与 Cloud 位置。
+这些不能用前端静态 chip 冒充。仍缺：环境配置模型、setup 脚本信任、
 secrets 注入、镜像/缓存、per-env 网络策略与 sandbox.network 的关系、
 store 外置（journal/CAS 离机）、环境回收后 follow-up 的重建语义、
 并行任务的环境隔离。
-→ UJ-13, UJ-09（跨机续作）
+证据：`qa/runs/2026-07-22-QA88-98.2c-new-session/05..06/21`。
+→ UJ-13, UJ-09（跨机续作）, UJ-24
 
 **G12 托管 run 远程控制面（stop command） — ✅ 已关闭（INC-4，2026-07-09）**
 关闭位置：daemon 线协议加 `stop` 命令 + `ar stop` CLI；stop =

@@ -1825,6 +1825,16 @@ shared-store QA data → recapture → 与同 viewport/state 的 AgentRunner 合
 | shared QA data | 新 session `20260722-194600-for-ui-qa-run-exactly-one-bas-5146c8f0befe143b` 完成 45s bash 后为 `waiting:input`；workspace/journal/spec/截图全部保留，不 close/delete/cleanup |
 | 账户边界 | Codex product switcher + Usage/Pet/Settings/Log out 对比 AgentRunner local single-user Connected/Settings/Shortcuts/Theme；不执行 sign-out；GL-08 记 INTENTIONAL，更新继续由 UJ-25 CLI 承担 |
 
+| 98.2c 动作 | 硬断言 |
+|---|---|
+| Codex New chat 控件 driver | `--new-chat-control` 用无阴影实窗 + Vision OCR 定位 project/worktree/environment/branch/Add/access/model 与四张 starter；popover/card 打开后再做 OCR validation，失配 fail-closed；Project 用原生 autofocus，Branch 显式 OCR 聚焦 search，starter 截图后清空 synthetic draft；debug 可保留 validation frame |
+| Project/Branch 双侧交互 | Project search/no-result/select/clear/Escape focus return 通过；Local/New worktree 与 Branch open/main/no-match/ref 通过；Codex branch no-match 保留空 `Local branches` group，我方显示 `No branches found`，为明确反馈而保留 |
+| starter 修复 | Codex 四卡分别得到 `Explore/Build/Review/Fix` 短 intent + 各四条 suggestion；AgentRunner 从“长 prompt + cards 仍在”改为同样两阶段；suggestion 只替换 draft、不 Send，清空恢复 cards，同一 Composer/project/access/model 不 remount |
+| Add/Automation/Agent | Add root 双侧对标；AgentRunner Automation→Agent→YAML 真实可达且无 session；outside 关闭，Escape 关闭并回 Add opener；NS-07 升 PASS |
+| responsive/输入边界 | 1952×1465 desktop 与 390×844/390×500 下 followups/composer 在 viewport、body 无横溢；1026-char CJK/28 行已证实 textarea 内滚动，但 Codex 同态和真实 IME composition 未测，NS-05 保持 UNTESTED |
+| backend 裁决 | Codex `No environment/Create local environment` 与 Cloud/usage 需要环境配置、setup、secrets/cache/network/store/回收语义；NS-03 记 GAP/G11，不画假入口 |
+| 运行与恢复 | production shared store 部署；health `ok/daemonUp/versionMatch=true`，browser warning/error=`[]`；恢复 dark 主题、desktop viewport、空 draft；未 Send/创建/关闭/删除/清理 session |
+
 **98.1 证据**：`qa/runs/2026-07-22-QA88-codex-ui-continuous-loop/` 保存
 accepted/rejected screenshots、browser logs、driver stderr contract、health 与工作区 diff。
 首批未创建、关闭、删除或清理 AgentRunner session/workspace/journal；后续若产生测试
@@ -1837,3 +1847,9 @@ rejected screenshots、双侧合并比较、DOM geometry、browser logs、health
 Codex screenshots、双侧 project/session 菜单与 sidebar before/after contact sheet、
 AgentRunner fold/overflow/scroll/真实状态行、browser logs、health、gate 与工作区 diff。
 `02..04/07..08` 为 OCR/固定坐标校准拒收图，不能用于 PASS。
+
+**98.2c 证据**：`qa/runs/2026-07-22-QA88-98.2c-new-session/` 保存 Codex/AgentRunner
+accepted 与 rejected calibration 图、四 intent、project/worktree/environment/branch、
+Add/Automation/Agent/YAML、access/model、CJK/overflow、desktop/mobile/短屏、side-by-side、
+browser logs、health、gate 与工作区 diff。`02/07..08/11..12/36..38/45..48/57` 为明确
+拒收/validation debug，不参与 PASS。

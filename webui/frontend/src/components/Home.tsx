@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { ArrowsClockwise, Bug, Hammer } from "@phosphor-icons/react";
 import { useStore } from "../store";
 import { Composer } from "./Composer";
@@ -74,7 +74,8 @@ interface Suggestion {
   tone: "blue" | "teal" | "violet" | "green" | "orange";
   icon: React.ReactNode;
   label: string;
-  prompt: string;
+  seed: string;
+  followups: string[];
 }
 
 const SUGGESTIONS: Suggestion[] = [
@@ -83,29 +84,42 @@ const SUGGESTIONS: Suggestion[] = [
     tone: "blue",
     icon: <Telescope size={16} />,
     label: "Explore and understand code",
-    prompt:
-      "Explore this codebase and help me understand it. Walk me through the overall structure, the main components, and how they fit together.",
+    seed: "Explore",
+    followups: [
+      "Explore and learn how a feature works",
+      "Explore implementation options for a feature",
+      "Explore and compare architectural approaches",
+      "Explore and document an API",
+    ],
   },
   {
     key: "build",
     tone: "violet",
     icon: <Hammer size={16} />,
     label: "Build a new feature, app, or tool",
-    prompt: "Help me build a new feature. Let's scope out what it should do, then implement it step by step.",
+    seed: "Build",
+    followups: ["Build a feature", "Build UI changes", "Build a prototype", "Build an internal tool"],
   },
   {
     key: "review",
     tone: "green",
     icon: <ArrowsClockwise size={16} />,
     label: "Review code and suggest changes",
-    prompt: "Review the recent changes in this project and suggest improvements to correctness, clarity, and structure.",
+    seed: "Review",
+    followups: [
+      "Review my changes",
+      "Review a pull request",
+      "Review test coverage and add missing tests",
+      "Review and refactor my code",
+    ],
   },
   {
     key: "fix",
     tone: "orange",
     icon: <Bug size={16} />,
     label: "Fix issues and failures",
-    prompt: "Investigate the failing tests and errors in this project, find the root cause, and fix them.",
+    seed: "Fix",
+    followups: ["Fix a bug", "Fix failing tests", "Fix failing CI", "Fix merge conflicts"],
   },
 ];
 
@@ -135,6 +149,18 @@ export function Home() {
   // and the session actually ran in a scratch dir. With no project selected the
   // greeting drops the name rather than inventing one (Codex parity).
   const [project, setProject] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+  const [activeIntent, setActiveIntent] = useState<string | null>(null);
+  const handleDraftChange = useCallback((next: string) => {
+    setDraft(next);
+    setActiveIntent((current) => {
+      if (!next.trim()) return null;
+      const intent = SUGGESTIONS.find((suggestion) => suggestion.key === current);
+      return intent && next.trim() === intent.seed ? current : null;
+    });
+  }, []);
+  const activeSuggestion = SUGGESTIONS.find((suggestion) => suggestion.key === activeIntent);
+  const showStarterCards = !draft.trim() && !activeSuggestion;
 
   return (
     <div className="home home-welcome home-empty-state">
@@ -145,7 +171,7 @@ export function Home() {
             between. This flex-1 wrapper claims the vertical slack and centers
             the hero within it, pushing the composer — the .hero's last child —
             to the bottom on both desktop and mobile (HOME-COMPOSER-DOCK). */}
-        <div className="flex w-full min-h-0 flex-1 flex-col items-center justify-center gap-5">
+        <div className={`home-main relative flex w-full min-h-0 flex-1 flex-col items-center justify-center gap-5${activeSuggestion ? " intent-active" : ""}`}>
           <div className="home-empty">
             <div className="home-hero-icon" aria-hidden>
               <CloudMark size={35} />
@@ -159,22 +185,47 @@ export function Home() {
                 <>What should we build?</>
               )}
             </h2>
-            <div className="home-empty-cards max-[680px]:gap-1.5">
-              {SUGGESTIONS.map((s) => (
+            {showStarterCards && (
+              <div className="home-empty-cards max-[680px]:gap-1.5">
+                {SUGGESTIONS.map((s) => (
+                  <button
+                    key={s.key}
+                    type="button"
+                    className="home-empty-card max-[680px]:min-h-[76px] max-[680px]:gap-1 max-[680px]:px-2.5 max-[680px]:py-2"
+                    onClick={() => {
+                      setActiveIntent(s.key);
+                      prefillComposer(s.seed);
+                    }}
+                  >
+                    <span className={"home-empty-card-icon " + s.tone} aria-hidden>
+                      {s.icon}
+                    </span>
+                    <span className="home-empty-card-label">{s.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {activeSuggestion && (
+            <div className="home-intent-suggestions" aria-label={`${activeSuggestion.seed} suggestions`}>
+              {activeSuggestion.followups.map((followup) => (
                 <button
-                  key={s.key}
+                  key={followup}
                   type="button"
-                  className="home-empty-card max-[680px]:min-h-[76px] max-[680px]:gap-1 max-[680px]:px-2.5 max-[680px]:py-2"
-                  onClick={() => prefillComposer(s.prompt)}
+                  className="home-intent-suggestion"
+                  onClick={() => {
+                    setActiveIntent(null);
+                    prefillComposer(followup);
+                  }}
                 >
-                  <span className={"home-empty-card-icon " + s.tone} aria-hidden>
-                    {s.icon}
+                  <span className={"home-intent-icon " + activeSuggestion.tone} aria-hidden>
+                    {activeSuggestion.icon}
                   </span>
-                  <span className="home-empty-card-label">{s.label}</span>
+                  <span>{followup}</span>
                 </button>
               ))}
             </div>
-          </div>
+          )}
           <DaemonAlert />
         </div>
         {/* Codex's compact composer keeps the primary mobile action row to
@@ -184,6 +235,7 @@ export function Home() {
           <Composer
             variant="home"
             onError={(m) => toast(m)}
+            onDraftChange={handleDraftChange}
             onProjectChange={setProject}
             projectSeed={newSessionProject || undefined}
           />

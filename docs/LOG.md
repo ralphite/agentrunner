@@ -6445,3 +6445,34 @@ failed/running/stranded/unread 和 running focus actions。保留 shared session
 GL-07 升 PASS、GL-08 记 INTENTIONAL；GL-05/06 只有我方当前证据，继续 UNTESTED 等
 Codex 同批全态。矩阵更新为 PASS 9/GAP 4/INTENTIONAL 4/BLOCKED 1/UNTESTED 61。
 证据根：`qa/runs/2026-07-22-QA88-98.2b-sidebar/`；INC-98/G42/QA-88 继续开放。
+
+---
+
+## 2026-07-22 · INC-98.2c New session 控件全态与 starter 两阶段修复
+
+**真实对标**：Codex capture driver 新增 `--new-chat-control`，以 Vision OCR 定位并
+验证 project/worktree/environment/branch/Add/access/model 与四张 starter；Project 沿用原生
+autofocus，Branch query 显式二次聚焦 search，避免落入 composer；每张最终图在写出前做 popover/intent
+validation，误点 fail-closed，starter 的 synthetic draft 截图后自动清空。双侧完成 Project
+search/no-result/select/clear、Worktree、Branch main/no-match、Add/Automation/Agent/YAML、
+Access/Model/Effort 与长 CJK composer 的真实交互。
+
+**发现与修复**：Codex 四张 starter 分别只 seed `Explore/Build/Review/Fix`，隐藏 cards，
+再显示四条具体 suggestion；AgentRunner 旧实现直接灌长模板且 cards 留在原位。Home 改为
+受控两阶段，同一 Composer 不 remount；点 suggestion 才替换具体 draft，清空恢复 cards，
+显式 Send 前不创建 session。新增 `onDraftChange`、4 intents/16 suggestions 行为测试；
+1952×1465 desktop 与 390×844/390×500 真机复拍无水平 overflow，短屏 composer/followups
+均在 viewport。side-by-side 无 P0/P1 drift；browser logs 为空。
+
+**能力裁决**：Project picker 与 starter 升 PASS；Add/Automation/Agent/YAML 的 outside/Escape
+及 opener focus return 升 PASS。Local/New worktree/Branch 子路径通过，但 Codex 另有
+`No environment → Create local environment` 与 Cloud/usage；AgentRunner 缺环境 profile、
+setup/secrets/cache/network/store/回收语义，NS-03 记 GAP 并扩写 G11，不画假入口。
+矩阵更新为 PASS 12/GAP 5/INTENTIONAL 4/BLOCKED 1/UNTESTED 57。NS-05 仅有我方 CJK/
+overflow、NS-08 仅有 root/effort 部分证据，继续 UNTESTED。
+
+**证据与边界**：production `:8809` + shared store 部署，health
+`ok/daemonUp/versionMatch=true`；恢复 dark/theme、desktop viewport 与空 draft；未 Send、
+未创建/关闭/删除/清理任何 session。证据根：
+`qa/runs/2026-07-22-QA88-98.2c-new-session/`。INC-98/G42/QA-88 继续开放，下一批继续
+NS-05/06/08..12 与 Thread/composer 全态。

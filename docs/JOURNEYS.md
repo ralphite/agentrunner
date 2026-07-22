@@ -348,7 +348,10 @@ GAPS.md，本文件只回答"产品要做什么"。
 2. New session 只出现一个 composer；默认只露输入、附件、access、model、
    send；未选 Project 时上缘只显示 project picker，选定后才显示
    Local/New worktree 与 Branch 等上下文控件；Project/Branch 可搜索且
-   worktree 从所选 ref 创建；`+` root 为 Files and folders / Goal / Plan mode / Automation，
+   worktree 从所选 ref 创建。四张 starter card 点击后隐藏 cards，只写入
+   `Explore/Build/Review/Fix` 短意图并显示四条具体 follow-up suggestion；点 suggestion
+   才替换为具体 prompt，清空 draft 恢复 cards，全程不在 Send 前创建 session。
+   Codex 式 Local environment/Cloud 生命周期在 G11 完成前不画假入口；`+` root 为 Files and folders / Goal / Plan mode / Automation，
    Loop / Best-of-N / background / agent persona 与 YAML spec 收在 Automation 子页。
 3. 中央 thread 按 journal 投影 user/assistant/tool 事实；program/agent/control
    输入默认只在 system events 中查看，绝不冒充用户；底部 follow-up 延续

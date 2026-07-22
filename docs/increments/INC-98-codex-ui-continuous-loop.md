@@ -41,6 +41,18 @@ INC-98 将该方法固化为持续循环：
   拖回 220px。不增加说明文字或新控件，不改 session/project 数据；主画布
   减少 60px 是可逆取舍，900px 以下仍走原 mobile drawer。会话菜单保留产品
   已定的四项轻表面；不照搬 Codex 的 raw id/deeplink/path，精确 Continue 仍在消息级。
+- **98.2c New session design note**：沿用现有四张 starter card、icon/token、单一
+  Composer 与“显式 Send 才创建 session”的契约；真实 Codex 当前行为是 card click
+  后隐藏 cards、只写入 `Explore/Build/Review/Fix` 短意图，并在 composer 上方显示四条
+  可继续点选的具体 suggestion。我方旧行为直接写入长 prompt 且保留 cards，信息层级和
+  可逆性均有可见 drift。改为受控两阶段：card click 只选择 intent，suggestion click
+  才显式替换为具体 prompt，清空 draft 后恢复 cards；任何自动发送、session 创建、
+  project/worktree/access/model 状态重置都禁止。复用 Home/Composer 现有样式与 draft
+  入口，不新增 route/modal/backend。Codex 的 `No environment/Create local environment`
+  与 Cloud workspace 是环境生命周期能力，不画假控件，引用 G11；本批只判定现有
+  Local/New worktree/Branch 子路径通过。风险集中在用户 draft 被隐式覆盖、mobile
+  composer 被挤出 viewport 与 focus 丢失，分别以仅显式 click 替换、同一 composer
+  不 remount、390×844/短高视口及 Escape/focus 回归约束。
 
 ## Spec delta
 

@@ -17,6 +17,13 @@ done
 [[ "$help" == *"--keyboard-context-menu"* ]]
 [[ "$help" == *"--account-menu"* ]]
 [[ "$help" == *"--user-menu"* ]]
+[[ "$help" == *"--new-chat-control"* ]]
+for control in project worktree environment branch add access model starter-explore starter-build starter-review starter-fix; do
+  [[ "$help" == *"$control"* ]] || {
+    echo "capture driver help is missing New chat control: $control" >&2
+    exit 1
+  }
+done
 
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
@@ -39,6 +46,24 @@ if $driver --palette-query QA >"$tmpdir/palette.out" 2>"$tmpdir/palette.err"; th
 fi
 grep -Fq -- '--palette-query requires --command-palette' "$tmpdir/palette.err"
 
+if $driver --new-chat-control destructive-control >"$tmpdir/control.out" 2>"$tmpdir/control.err"; then
+  echo "capture driver accepted an unknown New chat control" >&2
+  exit 1
+fi
+grep -Fq 'unsupported New chat control: destructive-control' "$tmpdir/control.err"
+
+if $driver --control-query QA >"$tmpdir/control-query.out" 2>"$tmpdir/control-query.err"; then
+  echo "capture driver accepted a control query without New chat control mode" >&2
+  exit 1
+fi
+grep -Fq -- '--control-query requires --new-chat-control' "$tmpdir/control-query.err"
+
+if $driver --new-chat-control access --control-query QA >"$tmpdir/control-query-kind.out" 2>"$tmpdir/control-query-kind.err"; then
+  echo "capture driver accepted a query for a non-searchable New chat control" >&2
+  exit 1
+fi
+grep -Fq -- '--control-query is only supported for project or branch' "$tmpdir/control-query-kind.err"
+
 if $driver --restore-query QA >"$tmpdir/restore.out" 2>"$tmpdir/restore.err"; then
   echo "capture driver accepted restore query without a surface" >&2
   exit 1
@@ -53,6 +78,14 @@ grep -Fq 'defer { restorePasteboard() }' "$driver"
 grep -Fq 'observation.boundingBox.midX < 0.30' "$driver"
 grep -Fq 'screencapture -x -o -t png' "$driver"
 grep -Fq 'send_key 109 2' "$driver"
+grep -Fq 'observation.boundingBox.midX > 0.30 && observation.boundingBox.midY < 0.20' "$driver"
+grep -Fq 'target_text="New worktree"; target_region="composer"' "$driver"
+grep -Fq 'target_text="Explore and"; target_region="starter"' "$driver"
+grep -Fq 'case "popover"' "$driver"
+# Literal source contract; expansion would weaken the assertion.
+# shellcheck disable=SC2016
+grep -Fq 'window_text_center "$ocr_capture" "$validation_text" "$validation_region"' "$driver"
+grep -Fq 'if ((starter_seeded))' "$driver"
 # Literal source contract; expansion would weaken the assertion.
 # shellcheck disable=SC2016
 grep -Fq 'send_click "$point_x" "$point_y" right' "$driver"
