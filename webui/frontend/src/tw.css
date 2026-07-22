@@ -1239,6 +1239,10 @@
     .session-preview, .project-preview { @apply hidden; }
     .session-layout.changes { grid-template-columns: minmax(0, 1fr); }
     .session-layout.environment { grid-template-columns: minmax(0, 1fr); }
+    /* INC-95: Changes is a full-surface mobile overlay with its own close
+       control. Do not leave the underlying sidebar trigger focusable beneath
+       the scope picker — it was visible at z20 but hit-tested the z26 panel. */
+    .main:has(.session-layout.changes) > .sidebar-show { display: none; }
     .session-view .changes-panel.session-side {
       @apply absolute inset-3 z-[26] m-0 flex rounded-[16px] border border-line shadow-lg;
     }

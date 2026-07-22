@@ -1356,7 +1356,8 @@ limits:
   unread / attention 等低噪事实 icon；desktop hover / keyboard focus 只显 Pin / Archive
   quick actions，running spinner 保留。row 不放 `…`，完整 Pin / Rename / read state /
   Archive 菜单由右键、`Shift+F10` / ContextMenu key 与 session title `…` 承担；
-  hover/focus 与 current selection 共用包含尾随 icons 的整行背景（INC-92）。
+  keyboard context menu 的 Escape 关闭后焦点回到调用 row；hover/focus 与 current
+  selection 共用包含尾随 icons 的整行背景（INC-92/95）。
   connected daemon 是静态 status（version 仅 tooltip/
   Settings），offline 才是 Restart button。Settings desktop 只渲染 Done 出口，
   mobile 只渲染 Back 出口。
@@ -1366,7 +1367,10 @@ limits:
   kind / git-branch API，并由同一 composer state 提交。Project picker 负责
   recent/search/new/projectless，Branch picker 负责 ref 搜索；New worktree
   必须把 selected ref 传给后端并在该 ref 上创建 detached worktree，不把
-  branch 混入 Project 菜单。每轮 `Worked` 只由相邻 human input 与该轮最终
+  branch 混入 Project 菜单。`+` menu 的 root 精确为 Files and folders / Goal / Plan mode /
+  Automation；Loop / Best-of-N / background / agent persona 与 YAML spec 只在
+  Automation 子页渐进披露，不用重复或未接线的占位项凑 root 数量。每轮 `Worked`
+  只由相邻 human input 与该轮最终
   assistant message 的 journal timestamp 派生。Changes outcome 只读既有
   diff contract，并只提供真实 `Review`；无 durable feedback/rollback contract
   时不画点赞或 `Undo`。message row 的 `Continue in new session` 只由 durable
@@ -1376,7 +1380,8 @@ limits:
   不另造复制会话语义。
 - Supervision 是 AgentRunner 叠加层：approval 可在宽屏自动展开，但 resize
   到窄屏必须撤回自动面板；用户手动打开仍有效。切到 Changes 时只显示 diff，
-  不允许 Supervision 与 diff 抢占同一主区域。
+  不允许 Supervision 与 diff 抢占同一主区域。`≤900px` 的 Changes 是自带关闭入口的
+  独占 overlay；打开时必须从视觉与 focus tree 同时移除底层 sidebar trigger，关闭后恢复。
 - approval 仍通过 durable `approve` command；卡片默认只投影动作、对象与
   scope，raw args/gates 折入 Details。UI 只提供当前已实现的 Approve once /
   Deny，不用文案暗示本次会改变冻结 permission layers。

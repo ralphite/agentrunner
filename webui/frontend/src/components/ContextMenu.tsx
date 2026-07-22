@@ -17,6 +17,13 @@ export function ContextMenu({
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  // Capture the invoking control before the first menu item takes focus. A
+  // keyboard context menu is a temporary focus excursion: Escape must return
+  // to the row that opened it, while item clicks/outside dismissal are free to
+  // move focus into their resulting action (dialog, navigation, etc.).
+  const returnFocusRef = useRef<HTMLElement | null>(
+    document.activeElement instanceof HTMLElement ? document.activeElement : null,
+  );
   const [position, setPosition] = useState({
     left: Math.max(VIEWPORT_GUTTER, x),
     top: Math.max(VIEWPORT_GUTTER, y),
@@ -58,6 +65,10 @@ export function ContextMenu({
       if (e.key === "Escape") {
         e.preventDefault();
         onClose();
+        const target = returnFocusRef.current;
+        requestAnimationFrame(() => {
+          if (target?.isConnected) target.focus();
+        });
         return;
       }
       if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;

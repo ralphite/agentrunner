@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 // The sidebar hits /health and /git on mount; nothing here depends on those, so
 // stub the module with never-settling promises (same pattern as loadingStates).
@@ -150,7 +150,7 @@ describe("sidebar session row states and hover actions (INC-92)", () => {
     expect(row.querySelector('[aria-label="Session running"]')).toBeTruthy();
   });
 
-  it("opens the same complete menu from right-click and Shift+F10", () => {
+  it("opens the same complete menu from right-click and Shift+F10, then returns focus on Escape", async () => {
     const { container } = mount();
     const row = [...container.querySelectorAll(".project-session-wrap")].find((item) => item.textContent?.includes("Local session"))!;
 
@@ -160,10 +160,15 @@ describe("sidebar session row states and hover actions (INC-92)", () => {
     ]);
     fireEvent.keyDown(document, { key: "Escape" });
 
-    fireEvent.keyDown(row.querySelector(".project-session")!, { key: "F10", shiftKey: true });
+    const opener = row.querySelector<HTMLButtonElement>(".project-session")!;
+    opener.focus();
+    fireEvent.keyDown(opener, { key: "F10", shiftKey: true });
     expect(screen.getAllByRole("menuitem").map((item) => item.textContent?.trim())).toEqual([
       "Pin", "Rename…", "Mark as unread", "Archive",
     ]);
+    await waitFor(() => expect(document.activeElement).toBe(screen.getAllByRole("menuitem")[0]));
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(document.activeElement).toBe(opener));
   });
 });
 
@@ -491,6 +496,17 @@ describe("project hover and management controls (INC-87)", () => {
       "Archive chats",
       "Remove",
     ]);
+  });
+
+  it("returns focus to the project heading after its keyboard context menu closes with Escape", async () => {
+    const { container } = mount();
+    const heading = container.querySelector<HTMLButtonElement>(".project-heading")!;
+    heading.focus();
+
+    fireEvent.keyDown(heading, { key: "F10", shiftKey: true });
+    await waitFor(() => expect(document.activeElement).toBe(screen.getAllByRole("menuitem")[0]));
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(document.activeElement).toBe(heading));
   });
 
   it("keeps pinned projects first while preserving recency inside each partition", () => {

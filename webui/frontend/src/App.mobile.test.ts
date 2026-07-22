@@ -5,6 +5,8 @@ import { readFileSync } from "node:fs";
 
 // @ts-ignore -- vitest runs this contract from webui/frontend
 const src = readFileSync(`${process.cwd()}/src/App.tsx`, "utf8");
+// @ts-ignore -- vitest runs this contract from webui/frontend
+const css = readFileSync(`${process.cwd()}/src/tw.css`, "utf8");
 
 describe("mobile navigation breakpoint", () => {
   it("uses the same 900px boundary as the sidebar drawer CSS", async () => {
@@ -16,5 +18,11 @@ describe("mobile navigation breakpoint", () => {
     expect(src).toContain("useBreakpoint");
     expect(src).toContain("bp.compact || bp.tablet");
     expect(src).not.toContain("max-width: 680px");
+  });
+
+  it("removes the underlying sidebar trigger while the mobile Changes overlay owns the surface", () => {
+    expect(css).toContain(
+      ".main:has(.session-layout.changes) > .sidebar-show { display: none; }",
+    );
   });
 });

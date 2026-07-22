@@ -6323,3 +6323,25 @@ production build、`./scripts/check.sh` 全绿。QA-85 部署 matched dirty buil
 **提交后部署复核**：`5e2b33e3-101703` clean matched build 重启后 health
 `ok/daemonUp/versionMatch=true`；原 deep link、首 project/session、current thread 与
 browser logs `[]` 再次通过，API 612/612 rows 仍有 `updatedAt`。
+
+---
+
+## 2026-07-22 · INC-95 Web UI QA 契约与可访问性收口
+
+**独立复核与裁决**：CI agent 在真实 `:8809` 逐项复现 mobile Changes 底层
+`Show sidebar` 仍在 focus surface、session/project context menu Escape 后焦点落 `body`
+以及 QA-60/69 文档漂移。所谓 stale progress runtime bug 不成立：目标 parent 为可续聊的
+`waiting:input`，1/2 是模型最后一次 whole-table `progress_update`；只有 settled child
+projection 才归一未完成项，产品应保持 truthful projection。
+
+**实现**：mobile Changes 打开时抑制底层 sidebar trigger；`ContextMenu` 只在 Escape
+dismissal 后把焦点还给仍在 DOM 的 opener，click/outside/scroll 不抢焦点。同步修正
+QA-69 真实浏览器断言与 JOURNEYS/SPEC/DESIGN/QA 中 Add、Commit、progress 契约。
+
+**验收**：frontend 65 files / **674/674**、production build、WebUI Go tests、
+`./scripts/check.sh` 全绿。QA-86 部署 `fc1332a3-dirty-103034` 到共享真实环境：390×844
+overlay/hit target、两类 context menu focus return、Add 三层菜单、Last Turn resident
+Commit、`waiting:input` progress、deep-link reload、health/versionMatch 与 browser logs `[]`
+全部通过。三张截图及断言保留在
+`qa/runs/2026-07-22-QA86-webui-qa-corrections/`；未执行 Send/Commit/Archive/Remove，
+未关闭、删除或清理任何 session/workspace/journal。INC-95 不产生新的 GAPS 条目。

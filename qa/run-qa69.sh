@@ -2,8 +2,8 @@
 # QA-69: webui 双锚真浏览器验收(G30 收尾,audit-0717 F1)。
 #  A. 用户消息折叠(INC-36):>10 渲染行的 user 消息在真布局下钳高
 #     (.utext.clamped)+ Show more/less 往返;
-#  B. composer progressive-disclosure(INC-19/23/38/40/65):Add 菜单
-#     开启后呈 Add/Advanced 两组根动作(Plugins 占位组已随 PLAN 5.1 移除)。
+#  B. composer progressive-disclosure(INC-19/23/38/40/65/95):Add 菜单
+#     精确四个 root，Automation/Agent 子页承载 Loop/Best-of-N/spec。
 # 无需 provider key:消息在 provider 调用前已入 journal,turn 失败不
 # 影响时间线渲染——断言只钉 runtime 红线,不钉模型输出。
 set -euo pipefail

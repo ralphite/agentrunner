@@ -54,9 +54,23 @@ const want = ["Add", "Advanced"];
 if (JSON.stringify(labels) !== JSON.stringify(want)) {
   fail(`add-menu groups = ${JSON.stringify(labels)}, want ${JSON.stringify(want)}`);
 }
-const items = await menu.locator("[role=menuitem]").count();
-if (items < 5) fail(`add-menu has only ${items} actions`);
+const rootItems = await menu.locator("[role=menuitem] .pop-title").allTextContents();
+const rootWant = ["Files and folders", "Goal", "Plan mode", "Automation"];
+if (JSON.stringify(rootItems) !== JSON.stringify(rootWant)) {
+  fail(`add-menu root actions = ${JSON.stringify(rootItems)}, want ${JSON.stringify(rootWant)}`);
+}
 await page.screenshot({ path: `${RUNDIR}/b1-composer-menu.png`, fullPage: true });
-console.log(`B. composer disclosure ok (${items} root actions in ${labels.length} groups)`);
+await menu.getByRole("menuitem", { name: /^Automation/ }).click();
+const automationItems = await menu.locator("[role=menuitem] .pop-title").allTextContents();
+const automationWant = ["Loop", "Best of N", "Background run", "Agent"];
+if (JSON.stringify(automationItems) !== JSON.stringify(automationWant)) {
+  fail(`Automation actions = ${JSON.stringify(automationItems)}, want ${JSON.stringify(automationWant)}`);
+}
+await menu.getByRole("menuitem", { name: /^Agent/ }).click();
+if (await menu.getByRole("menuitem", { name: /Edit agent spec \(YAML\)/ }).count() !== 1) {
+  fail("Agent submenu does not expose Edit agent spec (YAML)");
+}
+await page.screenshot({ path: `${RUNDIR}/b2-automation-agent-menu.png`, fullPage: true });
+console.log(`B. composer disclosure ok (${rootItems.length} exact root actions; Automation/Agent nested)`);
 
 await browser.close();

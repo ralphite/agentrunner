@@ -339,13 +339,14 @@ GAPS.md，本文件只回答"产品要做什么"。
    project-scoped New chat 快捷入口（预选 project、聚焦 composer、不提前建
    session），Rename 只留在菜单；菜单集中 Pin / Finder / permanent worktree / rename / archive chats /
    safe Remove（只隐藏 rail projection，数据不删且可恢复）。Pinned 与 Projects
-   section 可独立收展；键盘 context menu 保持等价；button pressed state 不改变
-   控件尺寸。project group fold 始终尊重用户偏好；选中 session 只保证
+   section 可独立收展；键盘 context menu 保持等价，Escape 关闭后焦点回到原 row；
+   button pressed state 不改变控件尺寸。project group fold 始终尊重用户偏好；选中 session 只保证
    所属 project heading 在分组 cap 外仍可见，不强制展开 session rows。
 2. New session 只出现一个 composer；默认只露输入、附件、access、model、
    send；未选 Project 时上缘只显示 project picker，选定后才显示
    Local/New worktree 与 Branch 等上下文控件；Project/Branch 可搜索且
-   worktree 从所选 ref 创建；高级 Goal/Loop/Best-of-N/spec 收在 Advanced。
+   worktree 从所选 ref 创建；`+` root 为 Files and folders / Goal / Plan mode / Automation，
+   Loop / Best-of-N / background / agent persona 与 YAML spec 收在 Automation 子页。
 3. 中央 thread 按 journal 投影 user/assistant/tool 事实；program/agent/control
    输入默认只在 system events 中查看，绝不冒充用户；底部 follow-up 延续
    同一 session；每轮最终 answer 显示真实 Worked duration 与 Copy。带 durable
@@ -357,7 +358,8 @@ GAPS.md，本文件只回答"产品要做什么"。
    有 workspace diff 时内联 Changes 摘要并由 Review 进入固定 diff 审阅；
    Changes 可在 `Working tree`（repo HEAD 至当前）与 `Last turn`（最新 human
    turn 的 `bar-tN` 开工 snapshot 至当前）间切换，缺 durable baseline 时
-   明示 unavailable，不伪造 0 changes。
+   明示 unavailable，不伪造 0 changes；移动端 Changes 独占 overlay 时隐藏底层
+   sidebar trigger，关闭 Changes 后再恢复，不留可聚焦但无法命中的控件。
 4. 待审批 action 以内联卡片出现，先说清“做什么/影响哪里”；raw args/
    gates 折入 Details。Approve once 与 Deny 分立，不暗示未实现的权限。
 5. 宽屏右侧 Supervision 集中 Goal / Agents / Attention / Background work；
