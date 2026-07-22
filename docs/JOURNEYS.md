@@ -315,7 +315,7 @@ GAPS.md，本文件只回答"产品要做什么"。
 
 **覆盖功能**：`动态角色 spawn(inline role)` `子提权用户审批(escalate)` `树内消息(send_message,兄弟直发)` `静止子唤醒(revive,context 延续)` `多次回执` `用户直达成员(ar send 子会话)` `子会话 live 镜像` `团队面板` `树级预算/审计`（底座复用 UJ-18 全部机制）
 
-### UJ-24 Web UI 驾驶 AgentRunner `基础` `✅ INC-19/23/40/60/87/88/89/90/91/92/93/94（2026-07-22）`
+### UJ-24 Web UI 驾驶 AgentRunner `基础` `✅ INC-19/23/40/60/87/88/89/90/91/92/93/94/97（2026-07-22）`
 
 **场景**：用户从项目/session 层进入一个真实 AgentRunner
 会话，并在同一工作台完成派活、续聊、监督、审批与改动审阅。
@@ -362,10 +362,12 @@ GAPS.md，本文件只回答"产品要做什么"。
    sidebar trigger，关闭 Changes 后再恢复，不留可聚焦但无法命中的控件。
 4. 待审批 action 以内联卡片出现，先说清“做什么/影响哪里”；raw args/
    gates 折入 Details。Approve once 与 Deny 分立，不暗示未实现的权限。
-5. 宽屏右侧 Supervision 集中 Goal / Agents / Attention / Background work；
+5. 右上 Environment 浮动卡集中 Goal / Agents / Attention / Background work；
    agent 按 session 去重，审批与 recovery 共用 Attention，点成员进入完整
    只读子会话；审批只在宽屏自动打开 Supervision，窄屏进入/resize 都撤回
-   自动面板，仍可由用户手动打开，且 Changes 永不被 Supervision 覆盖。
+   自动面板，仍可由用户手动打开。浮动卡在所有 viewport 都不改变 thread/composer
+   的位置或宽度，超长内容在 viewport 内独立滚动；Changes 才使用桌面分栏或移动端
+   独占 overlay，且永不与 Environment 同时占据主区域。
    Environment 只投影当前可行动任务：clean tree 不画空 Changes/disabled
    Commit，子 agent 不提供 Commit。
 6. Web UI 重启后同一 deep link、共享 store 历史、Goal/Repeating/Scheduled

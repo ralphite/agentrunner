@@ -26,3 +26,28 @@ describe("mobile navigation breakpoint", () => {
     );
   });
 });
+
+describe("Environment layout contract", () => {
+  it("keeps Environment on one track and implements the rail as one shared floating card rule", () => {
+    expect(css).toContain(
+      ".session-layout.environment { grid-template-columns: minmax(0, 1fr); }",
+    );
+    expect(css).not.toContain(
+      ".session-layout.environment { grid-template-columns: minmax(0, 1fr) minmax(300px, 360px); }",
+    );
+
+    const selector = ".session-view .supervision-panel.session-side {";
+    const ruleStart = css.indexOf(selector);
+    const mobileStart = css.indexOf("@media (max-width: 900px)");
+    expect(ruleStart).toBeGreaterThan(-1);
+    expect(ruleStart).toBeLessThan(mobileStart);
+    expect(css.indexOf(selector, ruleStart + selector.length)).toBe(-1);
+
+    const ruleEnd = css.indexOf("}", ruleStart);
+    const rule = css.slice(ruleStart, ruleEnd);
+    expect(rule).toContain("@apply absolute right-3 top-[60px] z-[25] block");
+    expect(rule).toContain("overflow-y-auto");
+    expect(rule).toContain("width: min(340px, calc(100% - 24px));");
+    expect(rule).toContain("max-height: calc(100% - 72px);");
+  });
+});

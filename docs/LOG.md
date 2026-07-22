@@ -6345,3 +6345,28 @@ Commit、`waiting:input` progress、deep-link reload、health/versionMatch 与 b
 全部通过。三张截图及断言保留在
 `qa/runs/2026-07-22-QA86-webui-qa-corrections/`；未执行 Send/Commit/Archive/Remove，
 未关闭、删除或清理任何 session/workspace/journal。INC-95 不产生新的 GAPS 条目。
+
+---
+
+## 2026-07-22 · INC-97 Codex 实窗对标与 Environment 浮层修正
+
+**对标与裁决**：用 macOS System Events + CGWindow 按 `com.openai.codex` 精确取得当前
+Codex 窗口，并以 `Cmd+K`/`Escape` 做可逆命令面板交互；由此不再依赖过期截图或人工
+转述。与共享 `:8809` 的同尺寸真实 AgentRunner 会话对比后确认：Codex 的 Environment
+是不重排 thread/composer 的右上浮动卡；AgentRunner 源码注释与 component test 虽声明
+相同契约，desktop CSS 却仍分配第二 grid track，是可见 layout drift。
+
+**实现**：`.session-layout.environment` 收敛为单列；Environment 的 base rule 统一为
+viewport-bounded absolute card，超长内容独立滚动，desktop/mobile 不再维护两份布局规则；
+Changes 保持唯一 desktop split / mobile exclusive overlay。`App.mobile.test.ts` 新增 CSS
+geometry contract，防止“class 正确、成品仍分栏”回归。新增 `qa/capture-codex-ui.sh`，
+固化真实 Codex current/command-palette 捕获与恢复流程；同步三层文档、QA 与参考图说明。
+
+**验收**：QA-87 在 1840×1353、1280×720、390×844 实测 Environment 开关前后 primary
+x/width 不变，panel/close 在 viewport、无横向 overflow；Environment → Changes 互斥，
+desktop 真实 Working Tree diff 分栏与 mobile Changes overlay 均通过。新建共享只读 session
+`20260722-181007-qa-87-ui-7a9174ac616dfb29` 并保留；health
+`daemonUp/versionMatch=true`，browser logs=`[]`。frontend 66 files / **681/681**、production
+build、WebUI Go tests、`./scripts/check.sh` 全绿。完整截图/geometry/health/events/diff 在
+`qa/runs/2026-07-22-QA87-codex-live-ui-parity/`，未关闭、删除或清理任何共享测试数据。
+INC-97 不改变 DESIGN 不变量，不产生新的 GAPS 条目。

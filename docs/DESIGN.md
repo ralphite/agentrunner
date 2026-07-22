@@ -1378,10 +1378,13 @@ limits:
   final assistant row 打开空 composer并 focus。legacy/tool/partial/peer row 无入口；
   raw checkpoint 选择仍在 Advanced。实现复用 checkpoint + fork/worktree contract，
   不另造复制会话语义。
-- Supervision 是 AgentRunner 叠加层：approval 可在宽屏自动展开，但 resize
-  到窄屏必须撤回自动面板；用户手动打开仍有效。切到 Changes 时只显示 diff，
-  不允许 Supervision 与 diff 抢占同一主区域。`≤900px` 的 Changes 是自带关闭入口的
-  独占 overlay；打开时必须从视觉与 focus tree 同时移除底层 sidebar trigger，关闭后恢复。
+- Supervision 是 AgentRunner 的 Environment 叠加层：所有 viewport 都使用相对
+  `session-view` 绝对定位的右上浮动卡，开关不改变 thread/composer 的 x 或 width；卡片
+  按内容自然高度、最大高度受 viewport 约束，溢出内容在卡内滚动，关闭入口始终可达。
+  approval 可在宽屏自动展开，但 resize 到窄屏必须撤回自动面板；用户手动打开仍有效。
+  切到 Changes 时移除 Environment 且只显示 diff，不允许两者抢占同一主区域。desktop
+  Changes 才获得第二 grid track；`≤900px` Changes 是自带关闭入口的独占 overlay，打开时
+  必须从视觉与 focus tree 同时移除底层 sidebar trigger，关闭后恢复。
 - approval 仍通过 durable `approve` command；卡片默认只投影动作、对象与
   scope，raw args/gates 折入 Details。UI 只提供当前已实现的 Approve once /
   Deny，不用文案暗示本次会改变冻结 permission layers。

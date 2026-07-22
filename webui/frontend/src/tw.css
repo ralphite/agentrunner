@@ -647,7 +647,10 @@
   .topbar-attention { @apply ml-1 rounded-full bg-amber px-[5px] text-[10px] text-white; }
   .session-layout { @apply grid min-h-0 flex-1; grid-template-columns: minmax(0, 1fr); }
   .session-layout.changes { grid-template-columns: minmax(0, 1fr) minmax(320px, 46vw); }
-  .session-layout.environment { grid-template-columns: minmax(0, 1fr) minmax(300px, 360px); }
+  /* INC-97: Environment is an inspection overlay, not a review workspace.
+     Keep the conversation on the same track while the card is open; Changes
+     remains the only state that earns a second layout column. */
+  .session-layout.environment { grid-template-columns: minmax(0, 1fr); }
   .session-primary { @apply flex min-h-0 min-w-0 flex-col; }
   .timeline { @apply min-h-0 flex-1 overflow-y-auto; }
   .tl-inner { @apply mx-auto flex w-full max-w-[720px] flex-col px-[30px] py-6; }
@@ -799,7 +802,14 @@
   .changes-panel, .session-side { @apply min-h-0 border-l border-line bg-panel; }
   .session-view .changes-panel.session-side { @apply flex min-w-0 flex-col overflow-hidden; }
   .supervision-panel { @apply min-h-0 overflow-y-auto border-l border-line bg-panel p-3; }
-  .session-view .supervision-panel.session-side { @apply flex min-w-0 flex-col overflow-hidden; }
+  /* Codex keeps Environment as a viewport-bounded card at the upper right.
+     This base rule intentionally serves desktop and mobile so the two modes
+     cannot drift back into different layout contracts. */
+  .session-view .supervision-panel.session-side {
+    @apply absolute right-3 top-[60px] z-[25] block min-w-0 overflow-y-auto rounded-[16px] border border-line bg-panel shadow-lg;
+    width: min(340px, calc(100% - 24px));
+    max-height: calc(100% - 72px);
+  }
   .supervision-head { @apply mb-3 flex items-center justify-between; }
   /* label 内可带计数 span(Progress 1/2)——flex+gap,否则挤成 PROGRESS1/2
      (QA-0718 实测)。 */
@@ -1238,18 +1248,12 @@
     .project-heading-actions { @apply flex; }
     .session-preview, .project-preview { @apply hidden; }
     .session-layout.changes { grid-template-columns: minmax(0, 1fr); }
-    .session-layout.environment { grid-template-columns: minmax(0, 1fr); }
     /* INC-95: Changes is a full-surface mobile overlay with its own close
        control. Do not leave the underlying sidebar trigger focusable beneath
        the scope picker — it was visible at z20 but hit-tested the z26 panel. */
     .main:has(.session-layout.changes) > .sidebar-show { display: none; }
     .session-view .changes-panel.session-side {
       @apply absolute inset-3 z-[26] m-0 flex rounded-[16px] border border-line shadow-lg;
-    }
-    .session-view .supervision-panel.session-side {
-      @apply absolute right-3 top-[60px] z-[25] block overflow-hidden rounded-[16px] border border-line shadow-lg;
-      width: min(340px, calc(100% - 24px));
-      max-height: calc(100% - 72px);
     }
   }
   /* Touch target sizing: 44×44px minimum per WCAG AA on any coarse-pointer device.

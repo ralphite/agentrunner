@@ -1764,3 +1764,25 @@ menu 首项分别为 Pin/Pin project，Escape 后 active element 回原 row。Ho
 `20260721-074606-3-agent-3d7b48f9d77cccb6` API 为 `waiting:input`，UI 如实显示 1/2；
 deep-link reload 成功，browser logs=`[]`。frontend 65 files / 674 tests、production build、
 WebUI Go tests 与 `./scripts/check.sh` 全绿；三张截图和完整断言见证据目录。
+
+## QA-87 Codex 实窗对标与 Environment 浮层（INC-97，UJ-24）
+
+**状态**：PASS（2026-07-22；真实 Codex desktop + production
+`http://127.0.0.1:8809/` + 共享 `~/.local/share/agentrunner/`；health
+`ok/daemonUp/versionMatch=true`；测试数据未关闭、删除或清理）。
+
+| # | 真实动作 | 硬断言 |
+|---|---|---|
+| 1 | 按 `com.openai.codex` PID/CGWindow id 捕获真实 Codex current，再用 `Cmd+K`/`Escape` 捕获并恢复 command palette | 两态均为目标 Codex 实窗、非桌面/错窗/黑屏；未发送消息；脚本可重复运行 |
+| 2 | 1840×1353 打开/关闭既有 `QA-FULL-20260722` 的 Environment | `session-primary` 始终 `x=260,width=1580`；浮卡 `x=1488,width=340`，close 可达，全部 rect 在 viewport |
+| 3 | 1280×720 与 390×844 复测 Environment | primary 分别保持 `x=260,width=1020` 与 `x=0,width=390`；panel 分别完整落在 viewport；`scrollWidth==innerWidth`；移动端卡内滚动 |
+| 4 | Environment → Changes；桌面切 Working Tree，移动端开关 Changes | Environment 消失；desktop Changes 获得 46vw split 并显示真实 workspace diff；390px Changes 为 `inset=12px` 独占 overlay、close 可达、无横向 overflow |
+| 5 | 新建只读 plan session `20260722-181007-qa-87-ui-7a9174ac616dfb29` 并 deep-link reload；部署重启后复查 | 只回复 `QA87_DIFF_READY`、无工具/文件修改；session、文档卡、真实 Changes 与共享历史均保留 |
+| 6 | health、browser logs、全量 gates | `daemonUp/versionMatch=true`，warning/error=`[]`；frontend 66 files / 681 tests、production build、WebUI Go tests、`./scripts/check.sh` 全绿 |
+
+**结果**：Codex 的 Environment 是不重排 thread 的右上浮动卡；AgentRunner 修前在
+desktop 误分配 300–360px 第二 grid track，导致 thread/composer 横移和变窄。INC-97 把
+Environment 统一为 viewport-bounded absolute card，Changes 仍是唯一 desktop split，
+并用 CSS contract test 钉住 geometry。两张对比 contact sheet、current/palette/desktop/
+mobile 截图、DOM geometry、health/events/browser logs/workspace diff 全部保留在
+`qa/runs/2026-07-22-QA87-codex-live-ui-parity/`；测试 session、workspace、journal 未清理。

@@ -7,11 +7,17 @@
 
 ## ⚠️ 来源与刷新
 
-- **headless 循环自己截不到 Codex app**(无 GUI / 无 Computer Use / 无录屏权限)。
-  金标图必须**带外捕获**后入库。本批由 Computer Use 交互 session 于 2026-07-11 捕获
-  (full-height 窗口,dark-on-light "Codex" light 主题)。
-- **刷新**:交互 session(或真人)按下方文件名覆盖,`git add qa/codex-reference/*.jpg`
-  提交。图**入库**(参照 ground truth;`qa/runs/` 的临时件才被 gitignore)。
+- **纯 headless 循环仍截不到 Codex app**（无 GUI / 录屏权限）；但有 Screen Recording
+  权限的 macOS 交互 session 可运行 `qa/capture-codex-ui.sh`，脚本按
+  `com.openai.codex` PID 找到真实 layer-0 窗口，不会误截桌面或别的 app。
+- **交互态**：`qa/capture-codex-ui.sh --command-palette --output <path>.png` 会用
+  `Cmd+K` 打开命令面板、截图，再用 `Escape` 恢复；只做可逆 UI 导航，不发送消息。
+- **刷新**：交互 session 先把 current / command-palette / 目标 screen 截到
+  `qa/runs/<日期>-<QA号>/` 并逐张打开验图；确认无错窗/黑屏/裁切后，再按下方文件名
+  覆盖、转成 jpg 并 `git add qa/codex-reference/*.jpg`。金标图入库，`qa/runs/`
+  临时证据继续 gitignore。
+- 2026-07-11 金标由 Computer Use 交互 session 捕获；2026-07-22 QA-87 已用上述
+  系统窗口路径再次验证 current + command-palette 两态。
 
 ## 全屏参照
 
