@@ -8,8 +8,9 @@ composer 控件、空菜单分组、重复 Settings 退出按钮与过密 sideba
 
 目标不是删除底层能力，而是让默认产品面只保留完成真实任务所需的最小入口：
 deep-link 路由继续支持 reload/bookmark；Stop 在有 composer 的 session 只留
-composer、无 composer 的 RunView 仍留 header Stop；Continue/Fork 只留
-Advanced 菜单；内容型 Copy（message/code/command/diff/path）全部保留。
+composer、无 composer 的 RunView 仍留 header Stop；routine Continue/Fork 只留
+Advanced 菜单（终态 recovery 告警的必要续跑动作例外）；内容型 Copy
+（message/code/command/diff/path）全部保留。
 
 ### UI/UX pre-implementation review
 
@@ -36,12 +37,12 @@ Advanced 菜单；内容型 Copy（message/code/command/diff/path）全部保留
 
 1. deep-link 是路由能力，不在普通消息/sidebar/Scheduled 菜单重复提供 link/ID；
 2. 有 composer 的 session 以 composer Stop 为唯一直接停止入口；RunView 例外；
-3. Continue/Fork 只在 Advanced 菜单保留；
+3. routine Continue/Fork 只在 Advanced 菜单保留，终态 recovery 例外；
 4. sidebar session row 只露一个管理菜单；connected daemon 为非按钮状态；
 5. menu label/current view/Environment/composer 控件按动作与前置条件条件渲染；
 6. Settings 退出按 breakpoint 单一化。
 
-验收锚：frontend component tests + QA-79 真实共享产品面。
+验收锚：frontend component tests + QA-80 真实共享产品面。
 
 ## Design delta
 
@@ -69,15 +70,16 @@ Advanced 菜单；内容型 Copy（message/code/command/diff/path）全部保留
 - Settings：desktop 只有 Done，mobile 只有 Back。
 - frontend vitest/build 与 `./scripts/check.sh` 全绿。
 
-### B 闸（QA-79，共享真实环境）
+### B 闸（QA-80，共享真实环境）
 
-1. `http://127.0.0.1:8809/` + `~/.local/share/agentrunner/`：Home、idle/failed/
+1. 当前 worktree 前端 `http://127.0.0.1:5188/` 连接真实
+   `http://127.0.0.1:8809/` + `~/.local/share/agentrunner/`：Home、idle/failed/
    completed session、Scheduled、Settings、desktop sidebar 与 390px mobile 全部可用。
 2. 直接 deep link/reload 仍打开原 session；session row/menu 仍可打开和管理。
 3. 真实 running session 若当前环境已有则验证 composer Stop 唯一；若无，不为截图
    新启昂贵模型任务，改由 component state test 钉住，RunView Stop 另验 DOM。
 4. console error/warning 为 0；截图和 DOM 证据归档到
-   `qa/runs/2026-07-21-QA79-low-value-ui-cleanup/`，不清理共享数据。
+   `qa/runs/2026-07-21-QA80-low-value-ui-cleanup/`，不清理共享数据。
 
 ## 实施步骤
 
@@ -91,3 +93,13 @@ Advanced 菜单；内容型 Copy（message/code/command/diff/path）全部保留
 做一次契约视角收口 review：逐项证明唯一入口仍可达、底层 contract 未删、响应式
 形态没有把仅存入口藏掉。改动不触并发、权限或不可逆数据面，裁掉里程碑级三视角
 review。
+
+## 实施结果
+
+- 代码：12 项全部落地；不变的 router/interrupt/fork/worktree contract 均保留。
+- A 闸：frontend 定向 138/138、全量 vitest 658/658、build 与
+  `./scripts/check.sh` 全绿。
+- B 闸：QA-80 PASS；会话
+  `20260721-221631-say-hi-in-one-word-a4dd080497611f5d` 的 deep-link reload、
+  desktop/mobile/Scheduled/Settings/clean Environment 全部通过，console 0 warning/error。
+- 数据纪律：未创建、关闭、删除或清理共享 session/workspace/journal。

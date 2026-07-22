@@ -1599,3 +1599,24 @@ component mouse-enter 测试覆盖；真浏览器验证了等价的 focus-visibl
 | 2 | 点击铅笔 | 落 Home；headline/project chip=`mt-test`；`Do anything` active；未 Send，session count 605→605 |
 | 3 | reload Home | `mt-test` last-project seed 与输入 focus 仍在；console error/warn=0 |
 | 4 | 点击 project `…` | bounding box 24×24→24×24，无 pressed-state size change；CSS 全局无 active scale 由 `buttonPress.test.js` 锚 |
+
+## QA-80 低价值 UI surface 收敛（INC-88，UJ-24）
+
+**状态**：PASS（2026-07-21，当前 worktree 前端
+`http://127.0.0.1:5188/` 连接真实 `http://127.0.0.1:8809/` + 共享
+`~/.local/share/agentrunner/`；会话
+`20260721-221631-say-hi-in-one-word-a4dd080497611f5d`；证据
+`qa/runs/2026-07-21-QA80-low-value-ui-cleanup/`）。
+
+| # | 真实动作 | 硬断言 |
+|---|---|---|
+| 1 | Home 选择 projectless，再恢复 `mt-test` | projectless 只有 project picker，location/worktree/branch 不渲染 |
+| 2 | 打开 completed session 及菜单 | header 无 Stop/Fork；tail 只有 Copy；菜单无 link/raw ID/current view/empty Run group；Advanced Continue 仍在 |
+| 3 | 原 hash deep-link reload | URL 不变，原 title/timeline 正常恢复 |
+| 4 | 检查 clean Environment 与 Scheduled menu | clean 时无 Changes/Commit；Scheduled 只有真实 Organize 动作，无 link/ID |
+| 5 | desktop Settings → 390×844 mobile Settings | desktop 只有 Done，mobile 只有 Back to app |
+| 6 | 390×844 mobile sidebar/session menu | 每行只有一个 More actions，管理动作集中在菜单；console warning/error=0 |
+
+**边界**：当时无真实 running session，未为截图新启模型任务；composer
+Stop 唯一入口、RunView Stop 例外、dirty parent/sub-agent Environment 由前端
+component tests 常绿锚定。本 QA 未创建/关闭/删除 session，未清理共享数据。

@@ -1314,8 +1314,21 @@ limits:
   Pinned / Projects→sessions，中间单一 thread，固定 Changes 审阅入口，底部 follow-up
   composer。AgentRunner 独有 Goal / agent tree / attention / background
   handles 仅作为同一视觉语言下可收起的 Supervision 次级面板。
+- **默认 surface 收敛（INC-88）**：底层可寻址性不自动获得常驻 UI——
+  deep-link 仍可 reload/bookmark，但普通 message/sidebar/Scheduled 菜单不再
+  重复暴露 Copy link、Session ID 或 Run ID。同一上下文的同一动作只留
+  一个主入口：有 composer 的 session 只在 composer 停止当前 turn，
+  RunView 因无 composer 保留 header Stop；routine Continue/Fork 收入
+  `Advanced → Continue in new session…`，终态 recovery 告警可保留必要续跑动作。
+  menu group 只在至少有一个 action 时渲染，View 只显示另一个可切换面。
+  Environment 只投影可行动状态：clean tree 无 Changes/disabled Commit，
+  子 agent 无 Commit。session row 不放装饰性 open glyph 或单独 pin/archive，只留
+  一个 `…` 管理菜单。connected daemon 是静态 status（version 仅 tooltip/
+  Settings），offline 才是 Restart button。Settings desktop 只渲染 Done 出口，
+  mobile 只渲染 Back 出口。
 - New session 环境条采用四个独立语义控件：Project、Local/New
-  worktree、Local environment、Branch；它们仍只重排既有 workspace / run
+  worktree、Local environment、Branch；未选 Project 时只渲染 project picker，
+  选定后才显示余下上下文控件。它们仍只重排既有 workspace / run
   kind / git-branch API，并由同一 composer state 提交。Project picker 负责
   recent/search/new/projectless，Branch picker 负责 ref 搜索；New worktree
   必须把 selected ref 传给后端并在该 ref 上创建 detached worktree，不把
@@ -1347,7 +1360,8 @@ limits:
   自动亮起；desktop sidebar 宽度是 220–480px 的 browser-local preference，
   pointer/keyboard 均可调整；`<=680px` sidebar 默认关闭，以固定宽度 scrim
   overlay 打开且导航后自动收起，不继承 desktop width。状态、deep link 与
-  command 均不因 viewport 改变。
+  command 均不因 viewport 改变；Settings 退出控件只在 720px breakpoint 交换
+  Done/Back，不在同一 viewport 给出两个等价入口。
 - button pressed state 只用颜色/背景/边框表达，base 与局部 `:active` 均不得
   `scale` 或改变 padding/border width；pointerdown/click 前后 control visual /
   layout size 稳定（INC-89）。

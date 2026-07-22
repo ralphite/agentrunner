@@ -315,7 +315,7 @@ GAPS.md，本文件只回答"产品要做什么"。
 
 **覆盖功能**：`动态角色 spawn(inline role)` `子提权用户审批(escalate)` `树内消息(send_message,兄弟直发)` `静止子唤醒(revive,context 延续)` `多次回执` `用户直达成员(ar send 子会话)` `子会话 live 镜像` `团队面板` `树级预算/审计`（底座复用 UJ-18 全部机制）
 
-### UJ-24 Web UI 驾驶 AgentRunner `基础` `✅ INC-19/23/40/60/87/89（2026-07-21）`
+### UJ-24 Web UI 驾驶 AgentRunner `基础` `✅ INC-19/23/40/60/87/88/89（2026-07-21）`
 
 **场景**：用户从项目/session 层进入一个真实 AgentRunner
 会话，并在同一工作台完成派活、续聊、监督、审批与改动审阅。
@@ -325,20 +325,22 @@ GAPS.md，本文件只回答"产品要做什么"。
    入口；session 是完整键盘可达操作，
    Pinned 单列且不重复；自动 workspace 各自成组（默认名 Scratch · 创建
    时间，不互相混合，组名可编辑，INC-78）；CLI 创建、metadata
-   不完整、父/子 session 都能直接打开和 deep link；session hover 同屏提供 pin /
-   archive 与 project/branch/status 预览；project hover/focus 提供摘要、`…` 与
+   不完整、父/子 session 都能直接打开和 deep link；session row 只露一个
+   `…` 管理菜单（Pin / Rename / read state / Archive），不再常驻 open / pin /
+   archive glyph，也不在普通用户面重复暴露 raw id 或 Copy link；project hover/focus 提供摘要、`…` 与
    project-scoped New chat 快捷入口（预选 project、聚焦 composer、不提前建
    session），Rename 只留在菜单；菜单集中 Pin / Finder / permanent worktree / rename / archive chats /
    safe Remove（只隐藏 rail projection，数据不删且可恢复）。Pinned 与 Projects
    section 可独立收展；键盘 context menu 保持等价；button pressed state 不改变
    控件尺寸。
 2. New session 只出现一个 composer；默认只露输入、附件、access、model、
-   send；上缘严格按 Codex 拆成 Project、Local/New worktree、Local
-   environment、Branch 四个独立控件，Project/Branch 可搜索且 worktree
-   从所选 ref 创建；高级 Goal/Loop/Best-of-N/spec 收在 Advanced。
+   send；未选 Project 时上缘只显示 project picker，选定后才显示
+   Local/New worktree 与 Branch 等上下文控件；Project/Branch 可搜索且
+   worktree 从所选 ref 创建；高级 Goal/Loop/Best-of-N/spec 收在 Advanced。
 3. 中央 thread 按 journal 投影 user/assistant/tool 事实；program/agent/control
    输入默认只在 system events 中查看，绝不冒充用户；底部 follow-up 延续
-   同一 session；每轮最终 answer 显示真实 Worked duration、Copy/Continue，
+   同一 session；每轮最终 answer 显示真实 Worked duration 与 Copy，
+   routine Continue/Fork 收入 `Advanced → Continue in new session…`，仅终态 recovery 告警保留必要续跑动作；
    有 workspace diff 时内联 Changes 摘要并由 Review 进入固定 diff 审阅；
    Changes 可在 `Working tree`（repo HEAD 至当前）与 `Last turn`（最新 human
    turn 的 `bar-tN` 开工 snapshot 至当前）间切换，缺 durable baseline 时
@@ -349,6 +351,8 @@ GAPS.md，本文件只回答"产品要做什么"。
    agent 按 session 去重，审批与 recovery 共用 Attention，点成员进入完整
    只读子会话；审批只在宽屏自动打开 Supervision，窄屏进入/resize 都撤回
    自动面板，仍可由用户手动打开，且 Changes 永不被 Supervision 覆盖。
+   Environment 只投影当前可行动任务：clean tree 不画空 Changes/disabled
+   Commit，子 agent 不提供 Commit。
 6. Web UI 重启后同一 deep link、共享 store 历史、Goal/Repeating/Scheduled
    driver 和本地 pin/archive/theme、project pin/remove、sidebar width/section fold
    设置仍在；desktop sidebar 可在 220–480px 拖拽或键盘调整，mobile 仍为固定
@@ -356,8 +360,10 @@ GAPS.md，本文件只回答"产品要做什么"。
    inspect/ps/diff 的 projection；首次 session page 成功前显示 loading，不用
    空数组伪造 `No sessions yet`；deep link 在所在页到达前从 durable id 派生可读
    fallback，journal title 到达后替换，不把完整 raw id 或长期 loading 当标题。
+   connected daemon 是安静 status（build id 仅 tooltip/Settings），只有 offline 才出现
+   Restart button；Settings desktop 只有 Done，mobile 只有 Back。
 
-**覆盖功能**：`Projects→sessions 信息架构` `project hover/menu/safe remove` `resizable sidebar` `Pinned/Projects section fold` `单一 session thread` `环境上下文 composer` `Worked/Changes turn 收尾` `渐进披露 composer` `内联人类可读审批` `Changes 审阅` `Supervision(goal/agent/attention/background/recovery)` `restart-safe Scheduled runs` `键盘/移动端导航` `子会话导航` `deep link/restart` `共享真实 session` `Web UI 产品面`
+**覆盖功能**：`Projects→sessions 信息架构` `project hover/menu/safe remove` `resizable sidebar` `Pinned/Projects section fold` `单一 session thread` `环境上下文 composer` `Worked/Changes turn 收尾` `渐进披露 composer` `单一动作入口/空面收敛` `内联人类可读审批` `Changes 审阅` `Supervision(goal/agent/attention/background/recovery)` `restart-safe Scheduled runs` `键盘/移动端导航` `子会话导航` `deep link/restart` `共享真实 session` `Web UI 产品面`
 
 ### UJ-25 一行安装与升级 `基础` `✅ INC-63（2026-07-12，v0.1.0 公网真装验证）`
 
