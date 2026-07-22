@@ -6574,3 +6574,24 @@ UNTESTED 53；其余 Settings/zoom/accessibility 细态不连带判绿。theme t
 contract、production build 与 `./scripts/check.sh` 通过后提交；证据根：
 `qa/runs/2026-07-22-QA88-98.2g-responsive-theme/`。未 Send/创建/关闭/删除 session，Codex
 恢复 clean New chat，AgentRunner 恢复 dark/default viewport；INC-98/G42/QA-88 继续开放。
+
+---
+
+## 2026-07-22 · INC-98.2h Send/Failure/Retry 真实链路与错误指引修复
+
+**真实链路**：新增显式 `--composer-send` Codex driver，draft/thread 双 OCR、最长 15 秒
+轮询、创建 thread 后永久保留。Codex 与 AgentRunner 均真实执行 `sleep 8`，以逻辑
+1952×1465 合并验 running/completed/Environment；AgentRunner 另验 empty Enter、提交期间
+draft 保留、queued/Withdraw、Thinking/tool/Stop、Worked/Copy/Continue。
+
+**失败与修复**：shared session `20260722-222339-qa-88-failure-retry-test-repl-451f5d8cb2d79f4b`
+用不存在 model 得到 `provider_invalid: model not found`；UI 换回 Gemini Flash 后 Retry 成功，
+旧失败折为 `Failed attempt · retried`。实测发现旧 failure hint 错把 model-not-found 解释成
+prompt malformed/too large；`explainFailure` 新增该子型，明确选择其他 model 后 Retry，raw
+technical details 仍保留。
+
+**诚实裁决**：3 个 AgentRunner shared QA session 与 3 个 Codex test thread 全部保留；
+Codex failure/retry 尚无安全可控同态证据，NS-10 继续 UNTESTED，矩阵仍为 PASS 15/GAP 6/
+INTENTIONAL 4/BLOCKED 1/UNTESTED 53。timeline/driver targeted、frontend/build/full gate 与
+production shared-store 复拍通过后提交；证据根：
+`qa/runs/2026-07-22-QA88-98.2h-send-states/`。INC-98/G42/QA-88 继续开放。

@@ -8,6 +8,7 @@ usage() {
 usage: qa/capture-codex-ui.sh [--command-palette [--palette-query TEXT] | --surface NAME |
                               --new-chat-control NAME [--control-query TEXT] |
                               --composer-text TEXT --composer-validate VISIBLE_TEXT |
+                              --composer-send TEXT --composer-validate VISIBLE_TEXT |
                               --context-menu VISIBLE_TEXT | --keyboard-context-menu VISIBLE_TEXT |
                               --account-menu | --user-menu]
                               [--settle SECONDS] [--restore-query TEXT] [--output PATH]
@@ -23,7 +24,8 @@ Captures the largest on-screen layer-0 window owned by bundle com.openai.codex.
   starter-explore, starter-build, starter-review, starter-fix
 --control-query enters read-only search text in an opened New chat picker.
 --composer-text fills an unsent New chat draft, captures it, then clears it.
---composer-validate is a short visible substring required in that draft capture.
+--composer-send fills and submits a New chat prompt, then retains the created thread.
+--composer-validate is a short visible substring required in the draft/thread capture.
 --context-menu OCR-locates visible sidebar text, right-clicks it, captures the menu,
   then dismisses it with Escape. Matches are restricted to the sidebar.
 --keyboard-context-menu focuses visible sidebar text, opens its menu with Shift+F10,
@@ -95,6 +97,16 @@ while (($#)); do
       composer_text="$2"
       surface="new-chat"
       mode="composer-text"
+      shift 2
+      ;;
+    --composer-send)
+      if (($# < 2)) || [[ -z "$2" ]]; then
+        echo "capture-codex-ui: --composer-send requires text" >&2
+        exit 2
+      fi
+      composer_text="$2"
+      surface="new-chat"
+      mode="composer-send"
       shift 2
       ;;
     --composer-validate)
@@ -194,11 +206,11 @@ if [[ -n "$control_query" && "$mode" != "new-chat-control" ]]; then
   exit 2
 fi
 if [[ -n "$composer_text" && -z "$composer_validate" ]]; then
-  echo "capture-codex-ui: --composer-text requires --composer-validate" >&2
+  echo "capture-codex-ui: composer text/send requires --composer-validate" >&2
   exit 2
 fi
-if [[ -n "$composer_validate" && "$mode" != "composer-text" ]]; then
-  echo "capture-codex-ui: --composer-validate requires --composer-text" >&2
+if [[ -n "$composer_validate" && "$mode" != "composer-text" && "$mode" != "composer-send" ]]; then
+  echo "capture-codex-ui: --composer-validate requires --composer-text or --composer-send" >&2
   exit 2
 fi
 if [[ -n "$control_query" && "$new_chat_control" != "project" && "$new_chat_control" != "branch" ]]; then
@@ -469,6 +481,8 @@ let matches = (request.results ?? []).compactMap { observation -> (Bool, Float, 
   case "popover-low":
     inRegion = observation.boundingBox.midX > 0.30 &&
       observation.boundingBox.midY > 0.05 && observation.boundingBox.midY < 0.35
+  case "main":
+    inRegion = observation.boundingBox.midX > 0.30 && observation.boundingBox.midY > 0.05
   default:
     inRegion = false
   }
@@ -554,7 +568,7 @@ if [[ -n "$surface" ]]; then
     echo "capture-codex-ui: sidebar surface navigation requires a desktop-width Codex window" >&2
     exit 1
   fi
-  if [[ "$mode" == "new-chat-control" || "$mode" == "composer-text" ]]; then
+  if [[ "$mode" == "new-chat-control" || "$mode" == "composer-text" || "$mode" == "composer-send" ]]; then
     # Normalize any submenu left by an interrupted/debug capture before the
     # sidebar navigation and fresh control interaction begin.
     send_key 53 >/dev/null 2>&1 || true
@@ -822,7 +836,7 @@ if [[ "$mode" == "new-chat-control" ]]; then
   window_text_center "$ocr_capture" "$validation_text" "$validation_region" >/dev/null
 fi
 
-if [[ "$mode" == "composer-text" ]]; then
+if [[ "$mode" == "composer-text" || "$mode" == "composer-send" ]]; then
   if (( ${window_width%.*} < 900 )); then
     echo "capture-codex-ui: composer text capture requires a desktop-width Codex window" >&2
     exit 1
@@ -841,6 +855,26 @@ if [[ "$mode" == "composer-text" ]]; then
   ocr_capture=$(mktemp -t codex-composer-text-validate)
   screencapture -x -o -t png -l "$window_id" "$ocr_capture"
   window_text_center "$ocr_capture" "$composer_validate" "composer" >/dev/null
+  if [[ "$mode" == "composer-send" ]]; then
+    send_key 36
+    composer_seeded=0
+    sleep "$settle_seconds"
+    send_validated=0
+    for _ in {1..15}; do
+      rm -f -- "$ocr_capture"
+      ocr_capture=$(mktemp -t codex-composer-send-validate)
+      screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+      if window_text_center "$ocr_capture" "$composer_validate" "main" >/dev/null 2>&1; then
+        send_validated=1
+        break
+      fi
+      sleep 1
+    done
+    if ((send_validated == 0)); then
+      echo "capture-codex-ui: submitted prompt did not appear in the thread" >&2
+      exit 1
+    fi
+  fi
 fi
 
 if [[ "$mode" == "context-menu" ]]; then

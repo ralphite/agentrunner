@@ -364,6 +364,8 @@ GAPS.md，本文件只回答"产品要做什么"。
 3. 中央 thread 按 journal 投影 user/assistant/tool 事实；program/agent/control
    输入默认只在 system events 中查看，绝不冒充用户；底部 follow-up 延续
    同一 session；每轮最终 answer 显示真实 Worked duration 与 Copy。带 durable
+   provider failure 必须给与 raw class/message 一致的可行动解释；明确的 model-not-found
+   显示“所选模型不可用、换模型后 Retry”，不误导用户缩短本来完全合法的 prompt。
    message anchor 的人类消息和 loop-final assistant answer 在 action row 提供
    `Continue in new session`：前者从消息前切、以完整 recorded multimodal 内容
    预填 composer，后者从回答后切并聚焦空 composer；child 在显式 Send 前保持

@@ -97,6 +97,14 @@ INC-98 将该方法固化为持续循环：
   capture driver 的 Plan 是 sticky preference，旧 cleanup 只点 New chat 并未关闭；driver
   现从 Add 的 `Turn plan mode off` 真正恢复并验证 `Turn plan mode on`，避免后续 baseline
   被污染。CSS build 同时暴露旧注释内 `*/` 提前闭合，已修正，不再吞掉后续 token。
+- **98.2h Send/failure evidence note**：`--composer-send` 只在显式参数下提交 New chat，
+  draft 与 thread 各经独立 Vision OCR，创建的 Codex thread 永久保留；thread 首屏可能
+  在 worktree setup 后才出现，driver 以最多 15 次一秒轮询 fail-closed，不用固定 sleep
+  假定成功。双侧用真实 `sleep 8` 捕获 submitting/running/Stop/completed/Worked，并以逻辑
+  1952×1465 合并验图。AgentRunner 用不存在 model id 真实得到 `provider_invalid/model not
+  found`，再经 UI 换回 Gemini Flash、Retry 成功，旧失败原位折叠；由此发现通用文案误导
+  用户“缩短 conversation”，修为该子型专用“selected model unavailable / choose another
+  model, then retry”。Codex 的 failure/retry 尚无安全可控同态路径，NS-10 保持 UNTESTED。
 
 ## Spec delta
 

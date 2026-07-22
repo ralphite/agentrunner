@@ -1867,6 +1867,14 @@ shared-store QA data → recapture → 与同 viewport/state 的 AgentRunner 合
 | driver/CSS 取证修复 | Plan target 无论初态都先规范化、截图后从 Add 真正关闭并验证 `Turn plan mode on`；CSS 注释内误含 `*/` 导致 optimizer warning，修后 build 无该 warning |
 | 边界与恢复 | 不 Send/创建/关闭/删除 session；Codex 留在 clean New chat；AgentRunner 恢复 dark + 1280×720 + 空 draft；browser logs=`[]`，shared data 全保留 |
 
+| 98.2h 动作 | 硬断言 |
+|---|---|
+| Codex 真 Send driver | `--composer-send` 先在 draft 验证 marker，再 Enter；轮询 thread 主区看到同 marker 才收图，创建 thread 永久保留；`19` 为 accepted running，`15/16/18/27` 为真实 running/completed 辅证 |
+| AgentRunner validation/submit | 空 Enter 保持 `/` 且 Send disabled；有内容点击后 worktree/session 建立期间 draft 保留、Send disabled；导航后出现 durable user message，不丢输入 |
+| running/completed 同态 | 双侧真实执行 `sleep 8`；AgentRunner 显示 queued/Withdraw、Thinking/tool、Stop，完成后 Worked duration、answer、Copy/Continue；`28/31/33` 为逻辑 1952×1465 running/completed/Environment 合并图 |
+| failure→Retry | shared session `20260722-222339-qa-88-failure-retry-test-repl-451f5d8cb2d79f4b` 以 `qa-nonexistent-model-98h` 得到真实 `provider_invalid/model not found`；UI 换 Gemini Flash 后 Retry 成功，旧块折为 `Failed attempt · retried`，answer=`QA88_RETRY_COMPLETE` |
+| 文案修复与边界 | model-not-found 专用提示换模型后 Retry，不再误导缩短 prompt；Codex failure/retry 未获同态证据，NS-10 保持 UNTESTED。3 个 AgentRunner shared session/worktree/journal 与 3 个 Codex test thread 均保留，不 close/delete/cleanup |
+
 **98.1 证据**：`qa/runs/2026-07-22-QA88-codex-ui-continuous-loop/` 保存
 accepted/rejected screenshots、browser logs、driver stderr contract、health 与工作区 diff。
 首批未创建、关闭、删除或清理 AgentRunner session/workspace/journal；后续若产生测试
@@ -1905,3 +1913,8 @@ Loop/Best-of-N/background contact sheet、DOM/logs/health/gate。`08..09/12..24`
 clean New chat/Plan cleanup、AgentRunner desktop/mobile × light/dark/system、Settings/
 drawer、同 viewport 合并图、DOM geometry、logs/health/gate。`16/18` 因 sticky Plan
 污染 baseline 明确拒收；`19/20/21` 是修后 driver on→off 与 clean-state accepted 证据。
+
+**98.2h 证据**：`qa/runs/2026-07-22-QA88-98.2h-send-states/` 保存 empty/ready/
+submitting/queued/running/completed、invalid-model failure、model fix、Retry success、双侧
+1952×1465 合并图、driver calibration、events/logs/health/gate。`13/14/17` 为早期 OCR
+region/settle 校准拒收或无输出；`19/28/31/33` 与 AgentRunner `01..12b/20..32` 为 accepted。

@@ -183,6 +183,12 @@ export function explainFailure(cls: string, message: string): FailureExplained {
       hint: "It ran out of output room before writing anything. Retry the turn — a shorter, more focused message usually gets through.",
     };
   }
+  if (/model (?:not found|is not available|isn't available|does not exist)|unknown model|unsupported model/i.test(msg)) {
+    return {
+      title: "The selected model isn't available",
+      hint: "Choose another model, then retry the turn.",
+    };
+  }
   // Network reachability hides inside `internal` (and sometimes provider_server)
   // rather than having its own class, so it is matched on the message.
   if (/network|connection refused|connection reset|dial |no such host|dns|unreachable|EOF|tls|socket/i.test(msg)) {

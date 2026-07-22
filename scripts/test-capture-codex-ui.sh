@@ -19,6 +19,7 @@ done
 [[ "$help" == *"--user-menu"* ]]
 [[ "$help" == *"--new-chat-control"* ]]
 [[ "$help" == *"--composer-text"* ]]
+[[ "$help" == *"--composer-send"* ]]
 [[ "$help" == *"--composer-validate"* ]]
 for control in project worktree environment branch add goal plan access model model-list effort speed starter-explore starter-build starter-review starter-fix; do
   [[ "$help" == *"$control"* ]] || {
@@ -60,6 +61,12 @@ if $driver --control-query QA >"$tmpdir/control-query.out" 2>"$tmpdir/control-qu
 fi
 grep -Fq -- '--control-query requires --new-chat-control' "$tmpdir/control-query.err"
 
+if $driver --composer-send QA >"$tmpdir/composer-send.out" 2>"$tmpdir/composer-send.err"; then
+  echo "capture driver accepted a send without visual validation" >&2
+  exit 1
+fi
+grep -Fq 'composer text/send requires --composer-validate' "$tmpdir/composer-send.err"
+
 if $driver --new-chat-control access --control-query QA >"$tmpdir/control-query-kind.out" 2>"$tmpdir/control-query-kind.err"; then
   echo "capture driver accepted a query for a non-searchable New chat control" >&2
   exit 1
@@ -90,6 +97,10 @@ grep -Fq 'case "popover-low"' "$driver"
 grep -Fq 'window_text_center "$ocr_capture" "$validation_text" "$validation_region"' "$driver"
 grep -Fq 'if ((starter_seeded))' "$driver"
 grep -Fq 'if ((composer_seeded))' "$driver"
+grep -Fq 'if [[ "$mode" == "composer-send" ]]' "$driver"
+# Literal source contract; expansion would weaken the assertion.
+# shellcheck disable=SC2016
+grep -Fq 'window_text_center "$ocr_capture" "$composer_validate" "main"' "$driver"
 grep -Fq 'if ((plan_enabled))' "$driver"
 grep -Fq 'if ((goal_enabled))' "$driver"
 grep -Fq '"Turn plan mode on" "popover-low"' "$driver"

@@ -754,6 +754,10 @@ describe("model-call failure projection", () => {
     expect(explainFailure("provider_auth", "401 unauthorized")).toMatchObject({
       title: "The model provider rejected our credentials",
     });
+    expect(explainFailure("provider_invalid", "gemini: model not found — use models list")).toEqual({
+      title: "The selected model isn't available",
+      hint: "Choose another model, then retry the turn.",
+    });
     expect(explainFailure("timeout", "activity timeout")).toMatchObject({ title: "The model call timed out" });
     expect(explainFailure("internal", "dial tcp: connection refused")).toMatchObject({
       title: "Couldn't reach the model provider",
