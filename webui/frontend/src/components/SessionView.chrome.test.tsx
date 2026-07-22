@@ -190,16 +190,19 @@ describe("TH-15 · one rail, one name, one door", () => {
     await waitFor(() => expect(container.querySelector(".changes-panel")).not.toBeNull());
   });
 
-  it("keeps Changes reachable from the ··· menu", async () => {
+  it("offers only the other view and omits Copy link", async () => {
     const { container } = render(<SessionView sid={SID} />);
 
     await waitFor(() => expect(container.querySelector(".session-topbar")).not.toBeNull());
     fireEvent.click(screen.getByRole("button", { name: /more session actions/i }));
-    // Scoped to the menu: `Changes` is also the rail's first row (the primary
-    // door) — that's the point of TH-15, so both must exist and neither is the
-    // deleted topbar pill.
+    expect(screen.queryByRole("menuitem", { name: "Conversation" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Copy link" })).toBeNull();
     fireEvent.click(screen.getByRole("menuitem", { name: "Changes" }));
     await waitFor(() => expect(container.querySelector(".changes-panel")).not.toBeNull());
+
+    fireEvent.click(screen.getByRole("button", { name: /more session actions/i }));
+    expect(screen.getByRole("menuitem", { name: "Conversation" })).toBeTruthy();
+    expect(screen.queryByRole("menuitem", { name: "Changes" })).toBeNull();
   });
 });
 
@@ -317,8 +320,8 @@ describe("sub-agent session identity", () => {
   });
 });
 
-describe("fork button", () => {
-  it("shows a topbar fork button only after the journal has a checkpoint", async () => {
+describe("single Continue entry point", () => {
+  it("keeps Continue in Advanced and never adds a topbar fork button", async () => {
     arMock.events = async (_sid: string, after: number) =>
       after
         ? []
@@ -332,17 +335,27 @@ describe("fork button", () => {
 
     const { container } = render(<SessionView sid={SID} />);
     await waitFor(() => expect(container.querySelector(".session-topbar")).not.toBeNull());
-    expect(screen.getByRole("button", { name: /fork session from checkpoint/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /fork session from checkpoint/i })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /more session actions/i }));
+    expect(screen.getByRole("menuitem", { name: "Continue in new session…" })).toBeTruthy();
   });
+});
 
-  it("keeps the fork button out of the topbar before a checkpoint exists", async () => {
+describe("single Stop entry point", () => {
+  it("keeps Stop in the composer, not the session topbar or menu", async () => {
     useStore.setState({
-      sessions: [{ id: SID, title: "not forkable yet", status: "completed", workspace: "/tmp/wt-th14" } as any],
+      sessions: [{ id: SID, title: "running session", status: "running", workspace: "/tmp/wt-th14" } as any],
     });
-
     const { container } = render(<SessionView sid={SID} />);
     await waitFor(() => expect(container.querySelector(".session-topbar")).not.toBeNull());
-    expect(screen.queryByRole("button", { name: /fork session from checkpoint/i })).toBeNull();
+
+    expect(container.querySelector('.session-topbar button[aria-label="Stop active turn"]')).toBeNull();
+    expect(container.querySelector('.cx button[aria-label="Stop active turn"]')).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /more session actions/i }));
+    expect(screen.queryByRole("menuitem", { name: "Stop" })).toBeNull();
+    const labels = [...document.querySelectorAll(".menu-label")].map((label) => label.textContent);
+    expect(labels).not.toContain("Run");
   });
 });
 

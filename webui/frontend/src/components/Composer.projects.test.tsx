@@ -113,13 +113,30 @@ describe("project picker searches every project (HM-9)", () => {
     expect(projectChip.parentElement?.parentElement?.classList.contains("cx-env-strip")).toBe(true);
   });
 
-  it("keeps a long mobile branch in the second environment row", () => {
+  it("keeps a long mobile branch in the second environment row", async () => {
     setNarrowViewport(true);
     const { container } = mount();
+    await vi.waitFor(() => expect(container.querySelector(".cx-env-control.branch")).not.toBeNull());
     const branch = container.querySelector<HTMLButtonElement>(".cx-env-control.branch")!;
 
     expect(branch.parentElement?.classList.contains("flex-1")).toBe(true);
     expect(branch.classList.contains("w-full")).toBe(true);
+  });
+
+  it("shows only Select project until a project is chosen", async () => {
+    localStorage.setItem("arwebui.lastProject", "");
+    const { container } = mount();
+
+    expect(container.querySelectorAll(".cx-env-control")).toHaveLength(1);
+    expect(chip(container).textContent).toContain("Select project");
+    expect(container.querySelector(".cx-env-control.branch")).toBeNull();
+    expect(container.textContent).not.toContain("New worktree");
+    expect(container.textContent).not.toContain("No branch");
+
+    fireEvent.click(chip(container));
+    fireEvent.click(within(list()).getByRole("menuitem", { name: /proj10/ }));
+    await vi.waitFor(() => expect(container.querySelectorAll(".cx-env-control")).toHaveLength(3));
+    expect(container.querySelector(".cx-env-control.branch")).not.toBeNull();
   });
 
   it("reveals the action row when a focused short-phone composer is clipped", () => {

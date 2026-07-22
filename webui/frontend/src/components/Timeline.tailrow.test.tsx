@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 //
 // TAIL-ROW — the thread's LAST assistant answer surrenders its inline action row
-// (copy / share / continue) to the bottom of .tl-inner, PAST the turn's artifact
+// (message Copy) to the bottom of .tl-inner, PAST the turn's artifact
 // / changes cards, where it sits on the same bottom row as the goal verdict.
 //
 // Why this exists (P3): before this change the final answer's action icons
@@ -59,7 +59,6 @@ function settledThread(opts: { goal?: boolean } = {}) {
       pending={[]}
       typing=""
       showSys={false}
-      onContinue={() => {}}
       outcomeSlot={outcomeCard}
       goalVerdict={opts.goal ? { elapsed: "3h 47m 26s" } : null}
     />,
@@ -101,7 +100,7 @@ describe("TAIL-ROW — last answer's action row lands after the turn's cards", (
     expect(mid.classList.contains("msg-last")).toBe(false);
     // its hover-only row is still inline in the bubble column
     expect(mid.querySelector(".msg-actions")).not.toBeNull();
-    expect(mid.querySelectorAll("button.msg-copy").length).toBeGreaterThanOrEqual(2);
+    expect(mid.querySelectorAll("button.msg-copy")).toHaveLength(1);
   });
 
   it("still renders the bottom action row when the turn has no goal verdict", () => {
@@ -127,7 +126,6 @@ describe("TAIL-ROW — a live turn keeps the last answer's row inline", () => {
         typing=""
         showSys={false}
         active
-        onContinue={() => {}}
       />,
     );
     // no bottom tail row while active; the persistent row stays inside .msg-last

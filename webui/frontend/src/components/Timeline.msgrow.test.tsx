@@ -14,8 +14,8 @@
 //
 // What ships, and what is pinned here:
 //   • middle messages  → row at opacity 0, revealed on :hover / :focus-within;
-//   • last assistant   → row persists (Copy / Copy-link / Continue stay usable
-//                        on touch and without a priming hover — TH-10's real win);
+//   • last assistant   → row persists (message Copy stays usable on touch and
+//                        without a priming hover);
 //   • no message       → persistent timestamp; the last row renders none at all.
 //   • TH-1 survives    → hover flips ONLY opacity (+ pointer-events, which has
 //                        no box), so revealing the row cannot reflow the thread.
@@ -59,7 +59,6 @@ function thread() {
       pending={[]}
       typing=""
       showSys={false}
-      onContinue={() => {}}
     />,
   );
 }
@@ -77,12 +76,14 @@ describe("TH-21 — only the last assistant answer keeps its action row at rest"
     expect(assistants[0].classList.contains("msg-last")).toBe(false);
   });
 
-  it("keeps the three action buttons in the DOM (and tab order) on a hidden row", () => {
+  it("keeps only message Copy in the DOM on a hidden row", () => {
     const { container } = thread();
     // the FIRST assistant answer is a middle message: its row is invisible, but
     // it is not absent — hover-only must not mean unreachable
     const mid = container.querySelectorAll(".msg.assistant")[0];
-    expect(mid.querySelectorAll("button.msg-copy").length).toBeGreaterThanOrEqual(2);
+    expect(mid.querySelectorAll("button.msg-copy")).toHaveLength(1);
+    expect(mid.querySelector('button[aria-label="Copy message"]')).not.toBeNull();
+    expect(mid.querySelector('button[aria-label="Copy link to this session"]')).toBeNull();
   });
 
   it("lets a touch user focus a middle message to reveal its hidden actions", () => {

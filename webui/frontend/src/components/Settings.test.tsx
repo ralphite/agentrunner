@@ -39,6 +39,8 @@ describe("Settings mobile shell", () => {
     const navigation = screen.getByRole("navigation");
     const main = screen.getByRole("main");
     const content = main.lastElementChild as HTMLElement;
+    const back = screen.getByRole("button", { name: "Back to app" });
+    const done = screen.getByRole("button", { name: "Close settings" });
 
     expect(dialog.className).toContain("h-[100dvh]");
     expect(dialog.className).toContain("overflow-hidden");
@@ -49,6 +51,9 @@ describe("Settings mobile shell", () => {
     expect(navigation.className).toContain("max-[720px]:overflow-visible");
     expect(navigation.className).not.toContain("max-[720px]:overflow-x-auto");
     expect(main.firstElementChild?.className).toContain("max-[720px]:hidden");
+    expect(back.className).toContain("hidden");
+    expect(back.className).toContain("max-[720px]:inline-flex");
+    expect(done.closest("header")?.className).toContain("max-[720px]:hidden");
     expect(main.className).toContain("min-h-0");
     expect(main.className).toContain("overflow-hidden");
     expect(content.className).toContain("min-h-0");

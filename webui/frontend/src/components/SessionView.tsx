@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Archive, ArrowClockwise, ArrowLeft, ChatCircle, CheckCircle, ClockCountdown, Code, Crosshair, DotsThree, Files, Flag, GitFork, LinkSimple, Pause, PencilSimple, Play, Prohibit, PushPin, Robot, SidebarSimple, SlidersHorizontal, Stop, Trash, WarningCircle, X, XCircle } from "@phosphor-icons/react";
+import { Archive, ArrowClockwise, ArrowLeft, ChatCircle, CheckCircle, ClockCountdown, Code, Crosshair, DotsThree, Files, Flag, GitFork, Pause, PencilSimple, Play, Prohibit, PushPin, Robot, SidebarSimple, SlidersHorizontal, Trash, WarningCircle, X, XCircle } from "@phosphor-icons/react";
 import { AR } from "../api";
 import { useStore } from "../store";
 import type { BackgroundWork, Envelope } from "../types";
@@ -499,8 +499,6 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
           ? { text: "completed", cls: "closed" }
           : folded.status;
   const isDriver = folded.isDriver;
-  const canForkFromCheckpoint =
-    !isSub && !isDriver && events.some((e) => e.type === "checkpoint_barrier" && e.payload?.barrier_id);
   // QA-0719 S7: a user-initiated interrupt is NOT a stranded session. The
   // thread already says "Stopped — you interrupted this turn" and the very
   // next send resumes it — painting it with the recovery banner ("The
@@ -599,17 +597,6 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
         toast(`checkpoint ${r.barrier || "created"} — fork from it anytime`, "info");
       } catch (e: any) {
         toast(e.message);
-      }
-    },
-    // Copy link (J1) hands off a deep link to this session (hash route) — the
-    // Codex `…` menu's "Copy link". No backend: the router keys off the hash.
-    copyLink: async () => {
-      const url = `${location.origin}${location.pathname}#${sid}`;
-      try {
-        await navigator.clipboard.writeText(url);
-        toast("link copied", "info");
-      } catch {
-        toast("couldn't copy link — clipboard blocked");
       }
     },
     view: async (title: string, loader: () => Promise<any>) => {
@@ -757,11 +744,6 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
           {isSub && <span className="readonly-tag">Read-only sub-agent</span>}
         </div>
         <span className="spacer" />
-        {!isSub && running && (
-          <button className="topbar-tool stop" onClick={act.interrupt} title="Stop the active turn" aria-label="Stop active turn">
-            <Stop size={14} weight="fill" /> <span className="topbar-tool-label">Stop</span>
-          </button>
-        )}
         {!isSub && needsRecovery && (
           <button className="topbar-tool recovery" onClick={act.resume} title="Resume this session from its last durable checkpoint" aria-label="Resume session">
             <ArrowClockwise size={15} /> <span className="topbar-tool-label">Resume</span>
@@ -770,16 +752,6 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
         {!isSub && canRetry && ((bp.desktop || bp.wide) || !needsRecovery) && (
           <button className="topbar-tool" onClick={act.retry} title="Re-send your last message as a new turn; double-clicks are idempotent" aria-label="Retry session">
             <ArrowClockwise size={15} /> <span className="topbar-tool-label">Retry</span>
-          </button>
-        )}
-        {canForkFromCheckpoint && (bp.desktop || bp.wide) && (
-          <button
-            className="topbar-icon"
-            onClick={() => openModal({ kind: "fork", sid })}
-            title="Fork this session from an existing checkpoint"
-            aria-label="Fork session from checkpoint"
-          >
-            <GitFork size={16} />
           </button>
         )}
         {/* INC-41 TH-15 · ONE rail, ONE name, ONE door. The topbar used to carry
@@ -802,8 +774,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
           {attentionCount > 0 && <span className="topbar-attention">{attentionCount}</span>}
         </button>
         <Menu label={<DotsThree size={18} weight="bold" />} ariaLabel="More session actions">
-          {/* J1 · Codex `…` header menu: the session-organizing actions lead
-              (Pin / Rename / Archive / Copy link), then our view + dev extras. */}
+          {/* Session organization leads; view and advanced actions follow. */}
           <MenuItem
             title="keep this session in a Pinned section at the top of the sidebar"
             onClick={() => {
@@ -828,13 +799,12 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
           >
             <Archive size={16} />{archived.includes(sid) ? "Unarchive session" : "Archive session"}
           </MenuItem>
-          <MenuItem title="copy a deep link to this session to your clipboard" onClick={act.copyLink}>
-            <LinkSimple size={16} />Copy link
-          </MenuItem>
-
           <MenuLabel>View</MenuLabel>
-          <MenuItem onClick={() => setView("chat")}><ChatCircle size={16} />Conversation</MenuItem>
-          <MenuItem onClick={() => openDiff()}><Files size={16} />Changes</MenuItem>
+          {view === "diff" ? (
+            <MenuItem onClick={() => setView("chat")}><ChatCircle size={16} />Conversation</MenuItem>
+          ) : (
+            <MenuItem onClick={() => openDiff()}><Files size={16} />Changes</MenuItem>
+          )}
           <MenuItem onClick={() => setSupervision(!supervisionOpen)}><SidebarSimple size={16} />{supervisionOpen ? "Hide" : "Show"} Environment</MenuItem>
           <MenuItem
             title="also show low-level system events (mode changes, effects, barriers…) inline in the timeline"
@@ -863,10 +833,13 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
               >
                 <Robot size={16} />Switch agent…
               </MenuItem>
-              <MenuLabel>Run</MenuLabel>
-              {canRetry && (bp.compact || bp.tablet) && <MenuItem onClick={act.retry}><ArrowClockwise size={16} />Retry last message</MenuItem>}
-              {needsRecovery && <MenuItem onClick={act.resume}><ArrowClockwise size={16} />Resume session</MenuItem>}
-              {running && <MenuItem onClick={act.interrupt}><Stop size={16} />Stop</MenuItem>}
+              {((canRetry && (bp.compact || bp.tablet)) || needsRecovery) && (
+                <>
+                  <MenuLabel>Run</MenuLabel>
+                  {canRetry && (bp.compact || bp.tablet) && <MenuItem onClick={act.retry}><ArrowClockwise size={16} />Retry last message</MenuItem>}
+                  {needsRecovery && <MenuItem onClick={act.resume}><ArrowClockwise size={16} />Resume session</MenuItem>}
+                </>
+              )}
             </>
           )}
         </Menu>
@@ -923,11 +896,6 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
                   </div>
                 ) : undefined}
                 active={running}
-                // Thread-1 dedup (extends TH-12/TH-14): when the terminal banner
-                // already carries the labelled "Continue in new session" action,
-                // suppress Timeline's tail-row continue icon so the same run-level
-                // action doesn't appear twice on screen.
-                onContinue={terminalNotice?.action === "continue" ? undefined : () => openModal({ kind: "fork", sid })}
                 goalVerdict={goalVerdict}
                 outcomeSlot={folded.items.some((item) => item.kind === "assistant") ? (
                   <ChangesOutcome sid={sid} refreshKey={events.length + workspaceEpoch} onReview={(scope) => openDiff(scope === "workspace" ? "working-tree" : "last-turn")} />

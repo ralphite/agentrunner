@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import {
   Archive as ArchiveBox,
-  ArrowSquareOut,
   CaretRight,
   ChatCircle,
   Clock,
@@ -35,8 +34,7 @@ import { friendlyStatus } from "./pill";
 import { displayTitle } from "../title";
 import { ContextMenu } from "./ContextMenu";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
-import { copyText } from "../clipboard";
-import { buildSidebarModel, daemonVersionLabel, projectDisplayName, projectLabel, scheduledUnread, visibleProjectSessions } from "../viewModels";
+import { buildSidebarModel, projectDisplayName, projectLabel, scheduledUnread, visibleProjectSessions } from "../viewModels";
 import { PROJECT_GROUP_LIMIT, visibleProjectGroups } from "../viewModels.nav";
 import { relTimeAgo, sessionDate } from "../time";
 import { keyLabel } from "../shortcuts";
@@ -316,9 +314,6 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
       <MenuItem onClick={() => useStore.getState().openModal({ kind: "rename", sid })}>Rename…</MenuItem>
       <MenuItem onClick={() => unread.includes(sid) ? markRead(sid) : markUnread(sid)}>{unread.includes(sid) ? "Mark as read" : "Mark as unread"}</MenuItem>
       <MenuItem onClick={() => toggleArchive(sid)}>{archived.includes(sid) ? "Unarchive" : "Archive"}</MenuItem>
-      <MenuLabel>Copy</MenuLabel>
-      <MenuItem onClick={() => { copyText(sid); toast("copied session id", "info"); }}>Session ID</MenuItem>
-      <MenuItem onClick={() => { copyText(`${location.origin}/#${sid}`); toast("copied link", "info"); }}>Session link</MenuItem>
     </>
   );
 
@@ -392,7 +387,6 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
     const active = session.id === currentSid;
     const status = friendlyStatus(session.status);
     const isUnread = unread.includes(session.id);
-    const isPinned = pinned.includes(session.id);
     const title = displayTitle(renames, session.id, session.title);
     const when = relTimeAgo(sessionDate(session.id));
     const openContext = (x: number, y: number) => {
@@ -432,12 +426,11 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
           {(isUnread || ["run", "appr", "stranded", "crash"].includes(status.cls)) && (
             <span className={`status-dot ${isUnread ? "unread" : status.cls}`} title={isUnread ? "New activity" : status.text} />
           )}
-          <ArrowSquareOut className="session-open max-[900px]:hidden!" size={13} />
         </button>
-        {/* Touch layouts have neither hover nor a reliable right-click gesture.
-            Reuse the viewport-pinned Menu/Popover behind one quiet trailing
-            affordance; desktop keeps its denser hover/context-menu controls. */}
-        <span className="hidden shrink-0 max-[900px]:inline-flex">
+        {/* One management affordance on every viewport: hover/focus reveals it
+            on desktop; touch keeps it visible. Right-click/keyboard context menu
+            and this trigger render the same action source. */}
+        <span className="session-actions">
           <Menu
             label={<DotsThree size={18} weight="bold" />}
             ariaLabel={`More actions for ${title}`}
@@ -445,30 +438,6 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             {renderSessionActions(session.id)}
           </Menu>
         </span>
-        <button
-          className={`session-pin max-[900px]:hidden!${isPinned ? " active" : ""}`}
-          tabIndex={-1}
-          title={isPinned ? "Unpin session" : "Pin session"}
-          aria-label={isPinned ? "Unpin session" : "Pin session"}
-          onClick={(event) => {
-            event.stopPropagation();
-            togglePin(session.id);
-          }}
-        >
-          <PushPin size={13} weight={isPinned ? "fill" : "regular"} />
-        </button>
-        <button
-          className="session-archive max-[900px]:hidden!"
-          tabIndex={-1}
-          title={archived.includes(session.id) ? "Unarchive session" : "Archive session"}
-          aria-label={archived.includes(session.id) ? "Unarchive session" : "Archive session"}
-          onClick={(event) => {
-            event.stopPropagation();
-            toggleArchive(session.id);
-          }}
-        >
-          <ArchiveBox size={13} />
-        </button>
       </div>
     );
   };
@@ -777,47 +746,33 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             offline" made every cold load flash a fake outage (and armed a
             restart click). Unknown is neutral and inert; only a health record
             that actually says daemonUp:false is an outage. */}
-        <button
-          className="account-badge"
-          onClick={() => health && !health.daemonUp && restartDaemon()}
-          title={
-            !health
-              ? "Checking daemon status…"
-              : health.daemonUp
-                ? (health.version || "daemon")
-                : "Daemon offline — click to restart"
-          }
-          aria-label={
-            !health
-              ? "Connecting to daemon"
-              : health.daemonUp
-                ? "Connected to daemon"
-                : "Daemon offline — click to restart"
-          }
-        >
-          <span
-            className={`account-avatar${!health ? " connecting" : health.daemonUp ? " online" : " offline"}`}
-            aria-hidden="true"
+        {health?.daemonUp === false ? (
+          <button
+            className="account-badge"
+            onClick={restartDaemon}
+            title="Daemon offline — click to restart"
+            aria-label="Daemon offline — click to restart"
           >
-            <span className="text-[11px] font-[680] tracking-[0.4px]">AR</span>
-            <span className="account-presence" />
-          </span>
-          {/* SB-12 · The footer used to say "AgentRunner" a second time (the
-              wordmark 20 rows above already said it once) and spent two lines —
-              40px — doing it. The only fact this badge actually carries is
-              whether the daemon answers, which is one line. Product name gone,
-              status line stays (and stays red + clickable when it is an
-              outage). */}
-          <span className="account-meta">
-            <span>
-              {!health
-                ? "Connecting…"
-                : health.daemonUp
-                  ? `Connected · ${daemonVersionLabel(health.version)}`
-                  : "Daemon offline — restart"}
+            <span className="account-avatar offline" aria-hidden="true">
+              <span className="text-[11px] font-[680] tracking-[0.4px]">AR</span>
+              <span className="account-presence" />
             </span>
-          </span>
-        </button>
+            <span className="account-meta"><span>Daemon offline — restart</span></span>
+          </button>
+        ) : (
+          <div
+            className="account-badge"
+            role="status"
+            title={!health ? "Checking daemon status…" : `Connected to daemon · ${health.version || "unknown version"}`}
+            aria-label={!health ? "Connecting to daemon" : "Connected to daemon"}
+          >
+            <span className={`account-avatar${!health ? " connecting" : " online"}`} aria-hidden="true">
+              <span className="text-[11px] font-[680] tracking-[0.4px]">AR</span>
+              <span className="account-presence" />
+            </span>
+            <span className="account-meta"><span>{!health ? "Connecting…" : "Connected"}</span></span>
+          </div>
+        )}
         {/* SB-12 · Three loose icon buttons — Settings, Help, Theme — sat on the
             account row spending a third of it on chrome nobody clicks in a
             session. Codex's bottom bar is identity only: avatar, name, presence

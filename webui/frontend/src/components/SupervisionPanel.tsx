@@ -745,11 +745,9 @@ function EnvironmentSection({
   // parent's workspace out from under it, and an ISOLATED child commits
   // only its throwaway snapshot — changes flow back via apply, never via
   // git (QA-0719 091500 深审:此注释曾断言 sub 一律 shared,与 spawn 的
-  // isolationNotice 直接矛盾;行为本就两种模式都对,错的是理由). The row
-  // stays visible (Codex never hides it) but says why it can't act,
-  // exactly like the nothing-to-commit case.
+  // isolationNotice 直接矛盾;行为本就两种模式都对,错的是理由). An action
+  // that cannot act is omitted instead of becoming a permanent disabled row.
   const canCommit = hasChanges && !isSub;
-  const commitBlockedWhy = isSub ? "Sub-agent" : "Nothing to commit";
   return (
     <section className="supervision-section supervision-env">
       <div className="supervision-label">Environment</div>
@@ -758,14 +756,8 @@ function EnvironmentSection({
             forking arrows read as branch/merge. Codex uses the ± glyph; Phosphor's
             PlusMinus is that glyph (lucide's Diff would mean a new dependency for
             one icon in an all-Phosphor codebase). Size/spacing unchanged. */}
-        {/* INC-41 ENV-3 · a clean tree renders *no* value. The right edge of this
-            panel used to be a column of negations — "No changes" / "No branch yet"
-            / "Nothing to commit" — set in the same 12px --dim as the real numbers,
-            so the loudest reading of the Environment block was three sentences
-            about things that don't exist. Codex's rows simply carry nothing on the
-            right when there's nothing to say. The reason still lives in the row's
-            title/disabled state; only the noise is gone. A row with real state
-            (+12 / −3 / "4 new") is untouched. */}
+        {/* INC-88: a clean tree has no Changes action, so it renders no Changes or
+            Commit row. A row with real state (+12 / −3 / "4 new") is untouched. */}
         {/* INC-41 RD-D · what a changed tree is, in the order Codex says it:
             `Edited 31 files +980 −317` — the file COUNT first, then the lines.
             This row used to print neither. It rendered `+1 −0` and stopped, so a
@@ -775,22 +767,19 @@ function EnvironmentSection({
             creates new ones — silently dropped every new file from the count.
             (Real payload from the live rail: 1 tracked file, +1 line, 13
             untracked… rendered as "+1".) Each of the three now stands on its own:
-            files, lines, untracked — a row states what it knows. A clean tree
-            still says nothing at all (ENV-3). */}
-        <button className="env-row" onClick={goToChanges} title="Review workspace changes">
+            files, lines, untracked — a row states what it knows. */}
+        {hasChanges && <button className="env-row" onClick={goToChanges} title="Review workspace changes">
           <PlusMinus size={14} />
           <span className="env-row-label">Changes</span>
-          {hasChanges && (
-            <span className="env-row-val">
-              {env.files > 0 && (
-                <span className="dim">{env.files} file{env.files === 1 ? "" : "s"}</span>
-              )}
-              {env.add > 0 && <span className="add">+{env.add}</span>}
-              {env.del > 0 && <span className="del">-{env.del}</span>}
-              {env.untracked > 0 && <span className="dim">· {env.untracked} new</span>}
-            </span>
-          )}
-        </button>
+          <span className="env-row-val">
+            {env.files > 0 && (
+              <span className="dim">{env.files} file{env.files === 1 ? "" : "s"}</span>
+            )}
+            {env.add > 0 && <span className="add">+{env.add}</span>}
+            {env.del > 0 && <span className="del">-{env.del}</span>}
+            {env.untracked > 0 && <span className="dim">· {env.untracked} new</span>}
+          </span>
+        </button>}
         {/* Worktree — always listed, so the user can always see (and copy)
             where this session is actually working. Expands to the full path;
             a session with no workspace shows an em dash and can't expand. */}
@@ -909,7 +898,7 @@ function EnvironmentSection({
             </span>
           )}
         </button>
-        {canCommit ? (
+        {canCommit && (
           <div className="w-full [&>.pop-wrap]:w-full">
           <Popover
             align="left"
@@ -959,16 +948,6 @@ function EnvironmentSection({
             )}
           </Popover>
           </div>
-        ) : (
-          // Nothing to commit (or a sub-agent session): the row stays — Codex
-          // never hides it — but goes inert. ENV-3: it no longer *also* prints
-          // "Nothing to commit" on the right; that was the row's own disabled
-          // state said twice, in a colour as loud as the action itself. The
-          // reason survives in the title, one hover away.
-          <button className="env-row env-row-action" disabled title={commitBlockedWhy}>
-            <GitCommit size={14} />
-            <span className="env-row-label">Commit or push</span>
-          </button>
         )}
       </div>
     </section>

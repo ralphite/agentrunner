@@ -19,7 +19,6 @@ import {
   PencilSimple,
   Question,
   Robot,
-  Share,
   Terminal,
   Warning,
   Wrench,
@@ -143,12 +142,9 @@ function Thumbs({ paths, fallback }: { paths: string[]; fallback?: ReactNode }) 
   );
 }
 
-// MsgActions is the action row under a message (Codex puts Copy / reactions
-// there). We ship an icon-only Copy (whole message text), a Share that reuses the
-// copy-link mechanism (the current hash route already deep-links this session), and
-// — on the final assistant answer of a satisfied run — an inline "Goal achieved
-// in N" verdict. Thumbs up/down are deliberately omitted: there is no feedback
-// endpoint to wire them to, so they'd be dead controls (deferred until one lands).
+// MsgActions exposes only the content-level action that belongs to this message:
+// Copy. Session deep links remain a router / browser-bookmark capability, not a
+// repeated action under every message; fork / continue lives in Advanced.
 //
 // TH-21: the row is HOVER-ONLY on every message except the thread's last
 // assistant answer, which keeps it at rest — that is the one row Codex draws
@@ -160,29 +156,13 @@ function Thumbs({ paths, fallback }: { paths: string[]; fallback?: ReactNode }) 
 // So one row shape is rendered for every message and the sheet decides what of
 // it is visible where — no branchy JSX, and the tier ladder (shortTime) keeps
 // producing a real label on the rows that do show one (the hover-revealed ones).
-function MsgActions({
-  text,
-  ts,
-  onContinue,
-}: {
-  text: string;
-  ts?: string;
-  onContinue?: () => void;
-}) {
+function MsgActions({ text, ts }: { text: string; ts?: string }) {
   const [copied, setCopied] = useState(false);
-  const [shared, setShared] = useState(false);
   if (!text) return null;
   const copy = async () => {
     await copyText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
-  };
-  // Share = copy a deep link to this session. The router keys off the URL hash, so
-  // the current location already targets this session — no backend needed.
-  const share = async () => {
-    await copyText(location.href);
-    setShared(true);
-    setTimeout(() => setShared(false), 1200);
   };
   const time = shortTime(ts);
   return (
@@ -190,14 +170,6 @@ function MsgActions({
       <button className="msg-copy icon-only" onClick={copy} title="Copy message" aria-label="Copy message">
         {copied ? <Check size={15} /> : <Copy size={15} />}
       </button>
-      <button className="msg-copy icon-only" onClick={share} title="Copy link to this session" aria-label="Copy link to this session">
-        {shared ? <Check size={15} /> : <Share size={15} />}
-      </button>
-      {onContinue && (
-        <button className="msg-copy icon-only" onClick={onContinue} title="Continue in new session" aria-label="Continue in new session">
-          <ArrowSquareOut size={15} />
-        </button>
-      )}
       {time && <span className="msg-time" title={absTime(ts)}>{time}</span>}
     </div>
   );
@@ -923,7 +895,7 @@ function CollapsibleUserText({ text }: { text: string }) {
   );
 }
 
-function Item({ it, sentImages, onContinue, last, deferActions }: { it: TimelineItem; sentImages?: Map<number, string[]>; onContinue?: () => void; last?: boolean; deferActions?: boolean }) {
+function Item({ it, sentImages, last, deferActions }: { it: TimelineItem; sentImages?: Map<number, string[]>; last?: boolean; deferActions?: boolean }) {
   switch (it.kind) {
     case "turn":
       return <div className="turn">turn {it.gen}</div>;
@@ -993,10 +965,10 @@ function Item({ it, sentImages, onContinue, last, deferActions }: { it: Timeline
             </div>
             {/* TAIL-ROW: on the thread's last answer, a settled turn hoists this
                 action row out to the bottom of .tl-inner (past the artifact /
-                changes cards) so copy/share/continue sit beside the goal verdict
+                changes cards) so Copy sits beside the goal verdict
                 — see the tail row at the end of TimelineView. Middle answers keep
                 their hover-only row inline. */}
-            {!deferActions && <MsgActions text={it.text} ts={it.ts} onContinue={onContinue} />}
+            {!deferActions && <MsgActions text={it.text} ts={it.ts} />}
           </div>
         </div>
       );
@@ -1105,7 +1077,6 @@ export function TimelineView({
   statusLine,
   approvalSlot,
   active = false,
-  onContinue,
   outcomeSlot,
   goalVerdict,
   loading = false,
@@ -1118,7 +1089,6 @@ export function TimelineView({
   statusLine?: ReactNode;
   approvalSlot?: ReactNode;
   active?: boolean;
-  onContinue?: () => void;
   outcomeSlot?: ReactNode;
   /** When the run ended satisfied, the elapsed to show as an inline "Goal
    *  achieved in N" verdict on the final assistant answer's action row (fix 3).
@@ -1182,7 +1152,7 @@ export function TimelineView({
 
   // TAIL-ROW: a settled turn (run idle, nothing typing/pending) hoists the final
   // answer's action row out of the bubble and down past the turn's artifact /
-  // changes cards, so copy/share/continue land on the same bottom row as the
+  // changes cards, so Copy lands on the same bottom row as the
   // goal verdict — matching Codex, which draws `⧉ … ↗ │ ⊘ Goal achieved in N`
   // AFTER the turn's full content. While the run is live the row stays inline
   // and persistent on `.msg-last` (TH-21), because the tail region below is
@@ -1306,7 +1276,6 @@ export function TimelineView({
               <Item
                 it={it}
                 sentImages={sentImages}
-                onContinue={it.kind === "assistant" ? onContinue : undefined}
                 last={it.kind === "assistant" && it.key === lastAssistantKey}
                 deferActions={it.kind === "assistant" && it.key === lastAssistantKey && deferLastActions}
               />
@@ -1332,19 +1301,17 @@ export function TimelineView({
           </div>
         ))}
         {settled && outcomeSlot}
-        {/* TAIL-ROW: Codex draws the turn's closer AFTER its full content (worked
-            fold, artifacts, the changes card) — not inside the final answer's
-            action row. So the final answer's copy/share/continue row is hoisted
-            out of the bubble (deferLastActions above) and rendered HERE, past
+        {/* TAIL-ROW: the final answer's Copy action is hoisted out of the bubble
+            (deferLastActions above) and rendered HERE, past
             outcomeSlot, on the same bottom row as the goal verdict:
-            `⧉ ↗ ⧉ │ ⊘ Goal achieved in N`. The action row carries no timestamp
+            `⧉ │ ⊘ Goal achieved in N`. The action row carries no timestamp
             (matching the persistent last row; `ts` is intentionally not passed).
             If the turn hasn't been judged, the action row still renders here at
             the bottom, just without the goal badge. */}
         {settled && (lastAssistant || goalVerdict) && (
           <div className="tl-tail-row mt-3 flex items-center gap-3 flex-wrap [&_.msg-actions]:mt-0 [&_.turn-footer]:mt-0">
             {lastAssistant && (
-              <MsgActions text={lastAssistant.text} onContinue={onContinue} />
+              <MsgActions text={lastAssistant.text} />
             )}
             {lastAssistant && goalVerdict && <span className="h-4 w-px bg-line" aria-hidden />}
             {goalVerdict && (

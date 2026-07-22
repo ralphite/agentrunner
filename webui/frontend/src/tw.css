@@ -363,16 +363,9 @@
     @apply flex h-[32px] min-w-0 flex-1 items-center gap-[6px] rounded-[8px] border-0 bg-transparent px-2 py-0 text-left text-[13px] text-ink transition-colors duration-100 hover:bg-panel-2 hover:text-ink;
   }
   .project-session-title { @apply min-w-0 flex-1 truncate; }
-  .session-open, .session-pin, .session-archive {
-    @apply hidden h-6 w-6 shrink-0 place-items-center rounded-[6px] border-0 bg-transparent p-0 text-dim hover:bg-panel hover:text-ink;
-  }
-  .project-session-wrap:hover .session-open,
-  .project-session-wrap:hover .session-pin,
-  .project-session-wrap:hover .session-archive,
-  .project-session-wrap:focus-within .session-open,
-  .project-session-wrap:focus-within .session-pin,
-  .project-session-wrap:focus-within .session-archive { @apply grid; }
-  .session-pin.active { @apply grid text-blue; }
+  .session-actions { @apply hidden shrink-0; }
+  .project-session-wrap:hover .session-actions,
+  .project-session-wrap:focus-within .session-actions { @apply inline-flex; }
   .status-dot { @apply inline-block h-[7px] w-[7px] shrink-0 rounded-full bg-status-terminal; }
   .status-dot.run, .status-dot.running, .status-dot.appr { @apply bg-status-running; }
   .status-dot.stranded, .status-dot.attention { @apply bg-status-attention; }
@@ -1225,6 +1218,7 @@
     .sidebar-close { @apply grid; }
     .sidebar-resize-handle { @apply hidden; }
     .project-heading-actions { @apply flex; }
+    .session-actions { @apply inline-flex; }
     .session-preview, .project-preview { @apply hidden; }
     .session-layout.changes { grid-template-columns: minmax(0, 1fr); }
     .session-layout.environment { grid-template-columns: minmax(0, 1fr); }
@@ -1242,7 +1236,6 @@
      (e.g. tablets at 900px). See Problem 5 fix for unified breakpoint system. */
   @media (max-width: 680px) {
     .menu-trigger { @apply h-11 w-11; }
-    .session-open, .session-pin, .session-archive { @apply h-11 w-11; }
     .topbar-tool { @apply h-11 w-11; }
     .cx-icon { @apply h-11 w-11; }
     .cmdk-back { @apply p-3; padding-top: max(12px, env(safe-area-inset-top)); }

@@ -29,7 +29,7 @@ const chip = (key: string, text: string, over: Partial<ChipItem> = {}): ChipItem
 const compact = (key: string, text = "Context compacted"): CompactItem => ({ kind: "compact", key, text });
 
 describe("TAIL-ROW — the goal verdict renders as a turn footer, not inside the action row", () => {
-  it("draws the verdict after the turn's content and keeps the last answer's action row (3 icons, no time)", () => {
+  it("draws the verdict after the turn's content and keeps only message Copy", () => {
     const { container } = render(
       <TimelineView
         items={[assistant("a1")]}
@@ -37,7 +37,6 @@ describe("TAIL-ROW — the goal verdict renders as a turn footer, not inside the
         typing=""
         showSys={false}
         goalVerdict={{ elapsed: "3h 47m" }}
-        onContinue={() => {}}
       />,
     );
     // Verdict now lives at the end of .tl-inner as a turn footer (Codex places
@@ -50,7 +49,8 @@ describe("TAIL-ROW — the goal verdict renders as a turn footer, not inside the
     expect(row.querySelector(".msg-goal-verdict")).toBeNull();
     expect(container.querySelector(".msg-actions-div")).toBeNull();
     expect(container.querySelector(".msg.msg-last")).not.toBeNull();
-    expect(row.querySelectorAll("button.msg-copy")).toHaveLength(3);
+    expect(row.querySelectorAll("button.msg-copy")).toHaveLength(1);
+    expect(row.querySelector('button[aria-label="Copy message"]')).not.toBeNull();
   });
 });
 

@@ -473,8 +473,6 @@ describe("a scheduled row can be acted on (SC-12)", () => {
       "Rename…",
       "Mark as unread",
       "Archive",
-      "Session ID",
-      "Session link",
     ]);
   });
 

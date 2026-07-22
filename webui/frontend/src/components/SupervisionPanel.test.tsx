@@ -379,14 +379,28 @@ describe("RD-D · the Changes row states what it knows", () => {
     expect(row.textContent).not.toContain("+");
   });
 
-  it("says nothing at all on a clean tree (ENV-3)", async () => {
+  it("omits Changes and Commit entirely on a clean tree", async () => {
     stubEnv(dirty("", []));
-    const { container } = renderPanel();
+    renderPanel();
 
     await screen.findByText("Environment");
-    const row = container.querySelectorAll(".env-row")[0];
-    expect(row.querySelector(".env-row-val")).toBeNull();
-    expect(row.textContent).not.toContain("0 files");
+    expect(screen.queryByRole("button", { name: /changes/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /commit or push/i })).toBeNull();
+  });
+
+  it("keeps Review and Commit for a dirty parent, but not Commit for a sub-agent", async () => {
+    stubEnv();
+    const parent = renderPanel();
+    await screen.findByText("2 files");
+    expect(screen.getByRole("button", { name: /changes/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /commit or push/i })).toBeTruthy();
+
+    parent.unmount();
+    useStore.setState({ currentSid: "s1-sub-call_worker-a1" });
+    renderPanel();
+    await screen.findByText("2 files");
+    expect(screen.getByRole("button", { name: /changes/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /commit or push/i })).toBeNull();
   });
 });
 

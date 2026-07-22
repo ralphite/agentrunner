@@ -63,14 +63,16 @@ describe("mobile sidebar dismissal", () => {
     const { container } = render(<Sidebar />);
 
     const actions = screen.getByRole("button", { name: "More actions for Mobile actions" });
-    expect(actions.closest("span")!.className).toContain("max-[900px]:inline-flex");
-    expect(container.querySelector(".session-open")!.getAttribute("class")).toContain("max-[900px]:hidden!");
-    expect(screen.getByRole("button", { name: "Pin session" }).className).toContain("max-[900px]:hidden!");
-    expect(screen.getByRole("button", { name: "Archive session" }).className).toContain("max-[900px]:hidden!");
+    expect(actions.closest("span")!.className).toBe("session-actions");
+    expect(container.querySelector(".session-open")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Pin session" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Archive session" })).toBeNull();
 
     fireEvent.click(actions);
     const labels = screen.getAllByRole("menuitem").map((item) => item.textContent);
     expect(labels).toEqual(expect.arrayContaining(["Pin", "Rename…", "Mark as unread", "Archive"]));
+    expect(labels).not.toContain("Session ID");
+    expect(labels).not.toContain("Session link");
     // Opening management actions must not also navigate into the session.
     expect(select).not.toHaveBeenCalled();
   });
@@ -561,12 +563,16 @@ describe("New session is chromeless on the home landing (NAV-NEWSESSION-ACTIVE-F
 });
 
 describe("footer says the product name once (SB-12)", () => {
-  it("the account badge carries daemon status only — the wordmark owns the name", () => {
+  it("renders connected as inert status and keeps the build only in its tooltip", () => {
     useStore.setState({ sessions: [], health: { daemonUp: true, version: "ar 1.2.3" } as any });
     const { container } = render(<Sidebar />);
 
     const badge = container.querySelector(".account-badge")!;
-    expect(badge.textContent).toMatch(/^AR\s*Connected/);
+    expect(badge.tagName).toBe("DIV");
+    expect(badge.getAttribute("role")).toBe("status");
+    expect(badge.textContent).toMatch(/^AR\s*Connected$/);
+    expect(badge.textContent).not.toContain("1.2.3");
+    expect(badge.getAttribute("title")).toContain("1.2.3");
     // The product name is on the brand row, and only there.
     expect(badge.textContent).not.toContain("AgentRunner");
     expect(container.querySelector(".account-meta b")).toBeNull();
@@ -582,6 +588,7 @@ describe("footer says the product name once (SB-12)", () => {
     // goes silently grey. (The click → restart path is covered in
     // loadingStates.test.tsx.)
     const avatar = container.querySelector(".account-avatar.offline")!;
+    expect(avatar.closest("button")).not.toBeNull();
     expect(avatar.nextElementSibling!.className).toContain("account-meta");
     expect(avatar.nextElementSibling!.textContent).toContain("Daemon offline — restart");
   });

@@ -7,7 +7,6 @@ import { friendlyStatus } from "./pill";
 import { projectLabel, scheduleLabel } from "../viewModels";
 import { scheduledTitle } from "../scheduledTitle";
 import { relTimeAgo, sessionDate } from "../time";
-import { copyText } from "../clipboard";
 import { ContextMenu } from "./ContextMenu";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
 import { cadenceText, type CadenceSpec } from "../runPreset";
@@ -599,6 +598,7 @@ export function Scheduled() {
           filtered.map((r) => {
             const isPinned = pinned.includes(r.id);
             const isArchived = archived.includes(r.id);
+            const hasActions = r.kind === "session" || r.running;
             const openMenu = (x: number, y: number) => setCtx({ x, y, key: r.key });
             return (
             <Fragment key={r.key}>
@@ -610,6 +610,7 @@ export function Scheduled() {
                 (ctx?.key === r.key ? " menu-open" : "")
               }
               onContextMenu={(e) => {
+                if (!hasActions) return;
                 e.preventDefault();
                 openMenu(e.clientX, e.clientY);
               }}
@@ -633,6 +634,7 @@ export function Scheduled() {
                 // Same keyboard affordance the sidebar rows carry: the menu is
                 // reachable without a right mouse button.
                 if (!((e.shiftKey && e.key === "F10") || e.key === "ContextMenu")) return;
+                if (!hasActions) return;
                 e.preventDefault();
                 const rect = e.currentTarget.getBoundingClientRect();
                 openMenu(rect.left + 20, rect.top + rect.height);
@@ -717,7 +719,7 @@ export function Scheduled() {
             {/* SC-12 — the row's actions. The button is invisible at rest and
                 appears on hover/focus, in a lane the row always reserves, so it
                 can never nudge the title or the trail. */}
-            <button
+            {hasActions && <button
               className="sched-more absolute right-1 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-lg border-0 bg-transparent hover:bg-panel-2"
               aria-label={`Actions for ${r.title}`}
               aria-haspopup="menu"
@@ -729,7 +731,7 @@ export function Scheduled() {
               }}
             >
               <DotsThree size={18} weight="bold" />
-            </button>
+            </button>}
             </div>
             </Fragment>
             );
@@ -771,16 +773,10 @@ export function Scheduled() {
               <MenuItem onClick={() => toggleArchive(menuRow.id)}>
                 {archived.includes(menuRow.id) ? "Unarchive" : "Archive"}
               </MenuItem>
-              <MenuLabel>Copy</MenuLabel>
-              <MenuItem onClick={() => { copyText(menuRow.id); toast("copied session id", "info"); }}>Session ID</MenuItem>
-              <MenuItem onClick={() => { copyText(`${location.origin}/#${menuRow.id}`); toast("copied link", "info"); }}>Session link</MenuItem>
             </>
           ) : (
             <>
               {menuRow.running && <MenuItem onClick={() => void stopRun(menuRow.id)}>Stop</MenuItem>}
-              <MenuLabel>Copy</MenuLabel>
-              <MenuItem onClick={() => { copyText(menuRow.id); toast("copied run id", "info"); }}>Run ID</MenuItem>
-              <MenuItem onClick={() => { copyText(`${location.origin}/#run:${menuRow.id}`); toast("copied link", "info"); }}>Run link</MenuItem>
             </>
           )}
         </ContextMenu>

@@ -1202,6 +1202,7 @@ export function Composer(props: ComposerProps) {
             )}
           </Popover>
 
+          {ws && (<>
           {/* Start-in chip (INC-41 CP-4): ONE meaning — where the session runs.
               Run type (interactive vs background) used to ride along in this
               popover, which both broke the one-choice-per-menu rule above and
@@ -1288,6 +1289,7 @@ export function Composer(props: ComposerProps) {
               </div>
             )}
           </Popover>
+          </>)}
         </div>
         )}
 
@@ -1746,6 +1748,7 @@ export function Composer(props: ComposerProps) {
             <button
               className="cx-send cx-stop"
               onClick={() => (props as { actions?: SessionActions }).actions?.interrupt?.()}
+              aria-label="Stop active turn"
               title="Stop the active turn"
             >
               <StopIcon size={15} weight="fill" />
