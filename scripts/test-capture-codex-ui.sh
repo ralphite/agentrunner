@@ -20,8 +20,11 @@ done
 [[ "$help" == *"--new-chat-control"* ]]
 [[ "$help" == *"--composer-text"* ]]
 [[ "$help" == *"--composer-send"* ]]
+[[ "$help" == *"--composer-mode"* ]]
 [[ "$help" == *"--thread-composer-send"* ]]
 [[ "$help" == *"--thread-shortcut"* ]]
+[[ "$help" == *"--thread-disclosure"* ]]
+[[ "$help" == *"--disclosure-validate"* ]]
 [[ "$help" == *"--composer-validate"* ]]
 for control in project worktree environment branch add goal plan access model model-list effort speed starter-explore starter-build starter-review starter-fix; do
   [[ "$help" == *"$control"* ]] || {
@@ -69,6 +72,18 @@ if $driver --composer-send QA >"$tmpdir/composer-send.out" 2>"$tmpdir/composer-s
 fi
 grep -Fq 'composer text/send requires --composer-validate' "$tmpdir/composer-send.err"
 
+if $driver --composer-mode plan >"$tmpdir/composer-mode.out" 2>"$tmpdir/composer-mode.err"; then
+  echo "capture driver accepted Plan mode without composer send" >&2
+  exit 1
+fi
+grep -Fq -- '--composer-mode plan requires --composer-send' "$tmpdir/composer-mode.err"
+
+if $driver --composer-send QA --composer-validate QA --composer-mode destructive >"$tmpdir/composer-mode-kind.out" 2>"$tmpdir/composer-mode-kind.err"; then
+  echo "capture driver accepted an unknown composer mode" >&2
+  exit 1
+fi
+grep -Fq -- '--composer-mode requires default or plan' "$tmpdir/composer-mode-kind.err"
+
 if $driver --thread-composer-send QA >"$tmpdir/thread-send.out" 2>"$tmpdir/thread-send.err"; then
   echo "capture driver accepted a thread send without visual validation" >&2
   exit 1
@@ -80,6 +95,18 @@ if $driver --thread-shortcut cmd-enter >"$tmpdir/thread-shortcut.out" 2>"$tmpdir
   exit 1
 fi
 grep -Fq -- '--thread-shortcut requires --thread-composer-send' "$tmpdir/thread-shortcut.err"
+
+if $driver --thread-disclosure Asked >"$tmpdir/disclosure.out" 2>"$tmpdir/disclosure.err"; then
+  echo "capture driver accepted a disclosure without visual validation" >&2
+  exit 1
+fi
+grep -Fq 'thread disclosure requires --disclosure-validate' "$tmpdir/disclosure.err"
+
+if $driver --disclosure-validate Alpha >"$tmpdir/disclosure-validate.out" 2>"$tmpdir/disclosure-validate.err"; then
+  echo "capture driver accepted disclosure validation without a target" >&2
+  exit 1
+fi
+grep -Fq -- '--disclosure-validate requires --thread-disclosure' "$tmpdir/disclosure-validate.err"
 
 if $driver --new-chat-control access --control-query QA >"$tmpdir/control-query-kind.out" 2>"$tmpdir/control-query-kind.err"; then
   echo "capture driver accepted a query for a non-searchable New chat control" >&2
@@ -113,9 +140,25 @@ grep -Fq 'case "thread-tail"' "$driver"
 grep -Fq 'window_text_center "$ocr_capture" "$validation_text" "$validation_region"' "$driver"
 grep -Fq 'if ((starter_seeded))' "$driver"
 grep -Fq 'if ((composer_seeded))' "$driver"
+# Literal source contract; expansion would weaken the assertion.
+# shellcheck disable=SC2016
 grep -Fq 'if [[ "$mode" == "composer-send" ]]' "$driver"
+# Literal source contract; expansion would weaken the assertion.
+# shellcheck disable=SC2016
+grep -Fq 'if [[ "$mode" == "composer-send" && "$composer_mode" == "plan" ]]' "$driver"
+# Literal source contract; expansion would weaken the assertion.
+# shellcheck disable=SC2016
+grep -Fq 'window_text_center "$ocr_capture" "Turn plan mode off" "popover-low"' "$driver"
+# Literal source contract; expansion would weaken the assertion.
+# shellcheck disable=SC2016
 grep -Fq 'window_text_center "$ocr_capture" "What should we build" "main"' "$driver"
+# Literal source contract; expansion would weaken the assertion.
+# shellcheck disable=SC2016
 grep -Fq 'if [[ "$mode" == "thread-composer-send" ]]' "$driver"
+# Literal source contract; expansion would weaken the assertion.
+# shellcheck disable=SC2016
+grep -Fq 'if [[ "$mode" == "thread-disclosure" ]]' "$driver"
+grep -Fq 'if ((disclosure_open))' "$driver"
 grep -Fq 'if ((thread_composer_seeded))' "$driver"
 grep -Fq 'send_key 36 1' "$driver"
 # Literal source contract; expansion would weaken the assertion.
@@ -137,6 +180,7 @@ if grep -Fq 'System Events' "$driver"; then
   exit 1
 fi
 grep -Fq 'trap close_transient EXIT' "$driver"
+grep -Fq 'trap - EXIT' "$driver"
 # Literal source contract; variable expansion would defeat this assertion.
 # shellcheck disable=SC2016
 grep -Fq 'if [[ -n "$restore_query" && -n "$surface" ]]' "$driver"

@@ -143,6 +143,18 @@ INC-98 将该方法固化为持续循环：
   `Stopped`；`interrupted_by_crash` 等含 crash 复合原因仍走异常恢复，不能用宽泛 substring
   吞掉。Codex 实窗同态显示 `You stopped after Ns` 并保留 PARTIAL-1..N；其 background process
   是否继续是 Codex 自身行为，不反向削弱 AgentRunner 的“interrupt 必须取消进程组”不变量。
+- **98.3e ask_user design note**：structured answer 与兼容 composer answer 共用同一
+  durable ask park，但 receipt 不同：表单走 `/answer`，普通 composer 被 loop 直接配对为
+  `AskResolved{answered,answer}`，不会再落 `InputReceived`。前端 optimistic projection 因此必须
+  同时以 `InputReceived.text` 和 `AskResolved.answer` 消费；否则 agent 已继续并回答后仍残留
+  `queued…` 假气泡直到 reload。Codex Default 明示 request_user_input 不可用；Plan 实窗生成
+  `Asked 1 question` disclosure，但当批 app bridge 记录 `No answer provided`，随后 Alpha 作为
+  普通 follow-up 继续。AgentRunner 对标不照抄该退化：保留 durable structured form、单选/
+  多选/free-text/skip/多问与 reload。另实测 sessions list 只给 `waiting:input`，sidebar 无法区分
+  ordinary idle 与 active ask，错误显示 Ready；backend 需新增 truthful attention projection，记 G48。
+  capture driver 新增 Plan composer send 与 current-thread disclosure；动作均 OCR fail-closed，
+  disclosure 取证后恢复 collapsed；当前 Codex 在 Plan request accepted 后已把 composer 恢复
+  Full access，driver 不在等待卡上再做不安全的固定坐标 cleanup。
 
 ## Spec delta
 

@@ -420,6 +420,43 @@ describe("running Queue projection", () => {
   });
 });
 
+describe("ask_user compatibility answer projection", () => {
+  it("removes the optimistic composer answer on AskResolved instead of leaving queued ghost text", async () => {
+    const text = "Beta";
+    const baseEvents = EVENTS.slice(0, 2);
+    arMock.events = vi.fn(async (_sid: string, after: number) => {
+      if (!after) return baseEvents;
+      if (after === 2) {
+        return [{ seq: 3, type: "ask_resolved", payload: { resolution: "answered", answer: text } }];
+      }
+      return [];
+    });
+    arMock.inspect = async () => ({
+      goal: null,
+      children: [],
+      progress: [],
+      artifacts: [],
+      waiting: {
+        kind: "input",
+        ask_questions: [{ question: "Pick one", options: [{ label: "Alpha" }, { label: "Beta" }] }],
+      },
+    });
+    arMock.send = vi.fn(async () => ({ status: "answered" }));
+    useStore.setState({
+      sessions: [{ id: SID, title: "asking session", status: "waiting:input", workspace: "/tmp/wt-th14" } as any],
+    });
+
+    const { container } = render(<SessionView sid={SID} />);
+    await waitFor(() => expect(screen.getByText("Pick one")).toBeTruthy());
+    fireEvent.change(screen.getByPlaceholderText("Ask for follow-up changes"), { target: { value: text } });
+    fireEvent.click(container.querySelector("button.cx-send:not(.cx-stop)")!);
+
+    await waitFor(() => expect(arMock.send).toHaveBeenCalledWith(SID, text, [], [], undefined, undefined));
+    await waitFor(() => expect(screen.queryByText("queued…")).toBeNull(), { timeout: 3000 });
+    expect(container.querySelector(".bubble.pending")).toBeNull();
+  });
+});
+
 // INC-41 RD-B · the Environment rail is a floating card, not a layout column.
 // It used to be a 288px grid track: opening it re-laid-out the conversation
 // (main 1176→888, the thread's text column sliding 144px left) — a glance at the

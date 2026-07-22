@@ -8,9 +8,11 @@ usage() {
 usage: qa/capture-codex-ui.sh [--command-palette [--palette-query TEXT] | --surface NAME |
                               --new-chat-control NAME [--control-query TEXT] |
                               --composer-text TEXT --composer-validate VISIBLE_TEXT |
-                              --composer-send TEXT --composer-validate VISIBLE_TEXT |
+                              --composer-send TEXT --composer-validate VISIBLE_TEXT
+                                [--composer-mode default|plan] |
                               --thread-composer-send TEXT --composer-validate VISIBLE_TEXT
                                 [--thread-shortcut enter|cmd-enter] |
+                              --thread-disclosure VISIBLE_TEXT --disclosure-validate VISIBLE_TEXT |
                               --context-menu VISIBLE_TEXT | --keyboard-context-menu VISIBLE_TEXT |
                               --account-menu | --user-menu]
                               [--settle SECONDS] [--restore-query TEXT] [--output PATH]
@@ -27,8 +29,13 @@ Captures the largest on-screen layer-0 window owned by bundle com.openai.codex.
 --control-query enters read-only search text in an opened New chat picker.
 --composer-text fills an unsent New chat draft, captures it, then clears it.
 --composer-send fills and submits a New chat prompt, then retains the created thread.
+--composer-mode plan enables sticky Plan mode before --composer-send. It intentionally
+  hands that mode to the created interactive thread; Codex currently restores the
+  composer to Full access after the Plan request is accepted.
 --thread-composer-send submits a follow-up in the currently open thread without navigating away.
 --thread-shortcut chooses Enter or Cmd+Enter for that follow-up (default: enter).
+--thread-disclosure opens one visible disclosure in the current thread, validates its body,
+  captures it, then restores the collapsed state.
 --composer-validate is a short visible substring required in the draft/thread capture.
 --context-menu OCR-locates visible sidebar text, right-clicks it, captures the menu,
   then dismisses it with Escape. Matches are restricted to the sidebar.
@@ -48,8 +55,11 @@ new_chat_control=""
 control_query=""
 composer_text=""
 composer_validate=""
+composer_mode="default"
 thread_shortcut="enter"
 context_target=""
+disclosure_target=""
+disclosure_validate=""
 restore_query=""
 settle_seconds=1
 output=""
@@ -114,6 +124,14 @@ while (($#)); do
       mode="composer-send"
       shift 2
       ;;
+    --composer-mode)
+      if (($# < 2)) || [[ "$2" != "default" && "$2" != "plan" ]]; then
+        echo "capture-codex-ui: --composer-mode requires default or plan" >&2
+        exit 2
+      fi
+      composer_mode="$2"
+      shift 2
+      ;;
     --thread-composer-send)
       if (($# < 2)) || [[ -z "$2" ]]; then
         echo "capture-codex-ui: --thread-composer-send requires text" >&2
@@ -129,6 +147,23 @@ while (($#)); do
         exit 2
       fi
       thread_shortcut="$2"
+      shift 2
+      ;;
+    --thread-disclosure)
+      if (($# < 2)) || [[ -z "$2" ]]; then
+        echo "capture-codex-ui: --thread-disclosure requires visible text" >&2
+        exit 2
+      fi
+      disclosure_target="$2"
+      mode="thread-disclosure"
+      shift 2
+      ;;
+    --disclosure-validate)
+      if (($# < 2)) || [[ -z "$2" ]]; then
+        echo "capture-codex-ui: --disclosure-validate requires visible text" >&2
+        exit 2
+      fi
+      disclosure_validate="$2"
       shift 2
       ;;
     --composer-validate)
@@ -240,6 +275,18 @@ if [[ "$thread_shortcut" != "enter" && "$mode" != "thread-composer-send" ]]; the
   echo "capture-codex-ui: --thread-shortcut requires --thread-composer-send" >&2
   exit 2
 fi
+if [[ -n "$disclosure_target" && -z "$disclosure_validate" ]]; then
+  echo "capture-codex-ui: thread disclosure requires --disclosure-validate" >&2
+  exit 2
+fi
+if [[ -n "$disclosure_validate" && "$mode" != "thread-disclosure" ]]; then
+  echo "capture-codex-ui: --disclosure-validate requires --thread-disclosure" >&2
+  exit 2
+fi
+if [[ "$composer_mode" != "default" && "$mode" != "composer-send" ]]; then
+  echo "capture-codex-ui: --composer-mode plan requires --composer-send" >&2
+  exit 2
+fi
 if [[ -n "$control_query" && "$new_chat_control" != "project" && "$new_chat_control" != "branch" ]]; then
   echo "capture-codex-ui: --control-query is only supported for project or branch" >&2
   exit 2
@@ -312,6 +359,7 @@ composer_seeded=0
 thread_composer_seeded=0
 goal_enabled=0
 plan_enabled=0
+disclosure_open=0
 ocr_capture=""
 send_key() {
   local key_code=$1
@@ -619,6 +667,13 @@ if [[ -n "$surface" ]]; then
 fi
 
 close_transient() {
+  # An assertion inside cleanup must fail once, not recursively re-enter the
+  # EXIT trap forever. The primary interaction error remains the useful one.
+  trap - EXIT
+  if ((disclosure_open)); then
+    send_click "$point_x" "$point_y" >/dev/null 2>&1 || true
+    disclosure_open=0
+  fi
   if ((plan_enabled)); then
     # Plan is a sticky New chat preference: clicking New chat does not clear it.
     # Restore the real off-state through the same Add row and assert the row has
@@ -879,6 +934,49 @@ if [[ "$mode" == "new-chat-control" ]]; then
   window_text_center "$ocr_capture" "$validation_text" "$validation_region" >/dev/null
 fi
 
+if [[ "$mode" == "composer-send" && "$composer_mode" == "plan" ]]; then
+  # Plan-only tools such as request_user_input must be exercised in the real
+  # Codex mode. Normalize a possibly sticky prior state to off, enable Plan,
+  # and prove the menu action flipped before submitting. Once the prompt is
+  # accepted, the interactive thread owns the sticky preference until the QA
+  # caller explicitly normalizes it with --new-chat-control plan.
+  ocr_capture=$(mktemp -t codex-composer-plan-root)
+  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  plan_root_point=$(window_text_center "$ocr_capture" "Full access" "composer")
+  IFS=$'\t' read -r point_x point_y <<<"$plan_root_point"
+  point_x=$(awk -v x="$point_x" 'BEGIN { print x - 45 }')
+  send_click "$point_x" "$point_y"
+  transient_open=1
+  sleep 1
+  rm -f -- "$ocr_capture"
+  ocr_capture=$(mktemp -t codex-composer-plan-menu)
+  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  if active_plan_point=$(window_text_center "$ocr_capture" "Turn plan mode off" "popover-low" 2>/dev/null); then
+    IFS=$'\t' read -r active_plan_x active_plan_y <<<"$active_plan_point"
+    send_click "$active_plan_x" "$active_plan_y"
+    sleep 1
+    send_click "$point_x" "$point_y"
+    sleep 1
+    rm -f -- "$ocr_capture"
+    ocr_capture=$(mktemp -t codex-composer-plan-menu-normalized)
+    screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  fi
+  plan_mode_point=$(window_text_center "$ocr_capture" "Plan mode" "popover-low")
+  IFS=$'\t' read -r plan_mode_x plan_mode_y <<<"$plan_mode_point"
+  send_click "$plan_mode_x" "$plan_mode_y"
+  plan_enabled=1
+  transient_open=0
+  sleep 1
+  send_click "$point_x" "$point_y"
+  sleep 1
+  rm -f -- "$ocr_capture"
+  ocr_capture=$(mktemp -t codex-composer-plan-enabled)
+  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  window_text_center "$ocr_capture" "Turn plan mode off" "popover-low" >/dev/null
+  send_key 53
+  sleep 1
+fi
+
 if [[ "$mode" == "composer-text" || "$mode" == "composer-send" ]]; then
   if (( ${window_width%.*} < 900 )); then
     echo "capture-codex-ui: composer text capture requires a desktop-width Codex window" >&2
@@ -923,6 +1021,12 @@ if [[ "$mode" == "composer-text" || "$mode" == "composer-send" ]]; then
     if ((send_validated == 0)); then
       echo "capture-codex-ui: submitted prompt did not appear in the thread" >&2
       exit 1
+    fi
+    if [[ "$composer_mode" == "plan" ]]; then
+      # The waiting question may replace/reflow the composer, so the EXIT trap
+      # cannot safely reopen Add here. Codex currently restores Full access as
+      # the Plan request is accepted; the captured thread is the authority.
+      plan_enabled=0
     fi
   fi
 fi
@@ -971,6 +1075,20 @@ if [[ "$mode" == "thread-composer-send" ]]; then
     echo "capture-codex-ui: submitted follow-up did not appear in the current thread" >&2
     exit 1
   fi
+fi
+
+if [[ "$mode" == "thread-disclosure" ]]; then
+  ocr_capture=$(mktemp -t codex-thread-disclosure)
+  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  disclosure_point=$(window_text_center "$ocr_capture" "$disclosure_target" "main")
+  IFS=$'\t' read -r point_x point_y <<<"$disclosure_point"
+  send_click "$point_x" "$point_y"
+  disclosure_open=1
+  sleep "$settle_seconds"
+  rm -f -- "$ocr_capture"
+  ocr_capture=$(mktemp -t codex-thread-disclosure-validate)
+  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  window_text_center "$ocr_capture" "$disclosure_validate" "main" >/dev/null
 fi
 
 if [[ "$mode" == "context-menu" ]]; then

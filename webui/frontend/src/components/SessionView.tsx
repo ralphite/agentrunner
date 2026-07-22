@@ -226,8 +226,15 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
         setPending((prev) => {
           let next = prev;
           for (const e of evs) {
-            if (e.type === "input_received") {
-              const t = e.payload?.text;
+            if (e.type === "input_received" ||
+                (e.type === "ask_resolved" && e.payload?.resolution === "answered")) {
+              // A normal follow-up is journaled as InputReceived. While the
+              // session is parked on ask_user, the compatibility composer is
+              // instead consumed directly as AskResolved{answer}; no duplicate
+              // user message is written. Reconcile both durable receipts or
+              // the optimistic answer survives as a false `queued…` bubble
+              // until reload even though the agent already continued.
+              const t = e.type === "ask_resolved" ? e.payload?.answer : e.payload?.text;
               const i = next.findIndex((x) => x.text === t);
               if (i >= 0) {
                 // Hand the pending bubble's thumbnails over to the journal
