@@ -1563,7 +1563,21 @@ export function Composer(props: ComposerProps) {
                       <PopItem key={item.id} icon={<PersonaIcon />} title={item.label} desc={item.desc} active={persona === item.id} onClick={() => { choosePersona(item.id); close(); }} />
                     ))}
                     <PopSection>
-                      <PopItem icon={<Code size={16} />} title="Edit agent spec (YAML)…" onClick={() => { close(); openModal(isSession ? { kind: "agent", sid: (props as any).sid } : { kind: "new", message: text }); }} />
+                      <PopItem
+                        icon={<Code size={16} />}
+                        title="Edit agent spec (YAML)…"
+                        onClick={() => {
+                          close();
+                          openModal(isSession
+                            ? { kind: "agent", sid: (props as any).sid }
+                            : {
+                              kind: "new",
+                              message: text,
+                              spec: buildSpec({ provider, model, access, persona, effort, budgetOverride }),
+                              worker: personaById(persona).withWorker ? DEFAULT_WORKER : "",
+                            });
+                        }}
+                      />
                     </PopSection>
                   </>
                 )}

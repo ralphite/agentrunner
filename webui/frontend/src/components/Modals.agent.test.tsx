@@ -49,4 +49,14 @@ describe("session agent YAML editor", () => {
     );
     expect(recallSpec(sid)).toBe(changed);
   });
+
+  it("uses the composer-selected YAML for a new advanced session", () => {
+    const selected = "name: lead\nmodel: { provider: gemini, id: gemini-flash-latest }\nsystem_prompt: Lead it.\ntools: []\n";
+    useStore.setState({ modal: { kind: "new", spec: selected, worker: "" } });
+
+    const { container } = render(<Modals />);
+    const editors = container.querySelectorAll<HTMLTextAreaElement>("textarea");
+    expect(editors[1].value).toBe(selected);
+    expect(editors[2].value).toBe("");
+  });
 });

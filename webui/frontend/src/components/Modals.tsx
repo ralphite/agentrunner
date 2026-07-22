@@ -132,7 +132,7 @@ export function Modals() {
 function MainModal({ modal }: { modal: NonNullable<ModalKind> }) {
   switch (modal.kind) {
     case "new":
-      return <NewSessionModal initialMessage={modal.message} />;
+      return <NewSessionModal initialMessage={modal.message} initialSpec={modal.spec} initialWorker={modal.worker} />;
     case "run":
       return <RunModal initialPrompt={modal.prompt} preset={modal.preset} cadence={modal.cadence} />;
     case "fork":
@@ -297,13 +297,21 @@ function useWorkspace() {
   return { ws, setWs, mk, ensure, choose, mkWorktree };
 }
 
-function NewSessionModal({ initialMessage }: { initialMessage?: string }) {
+function NewSessionModal({
+  initialMessage,
+  initialSpec,
+  initialWorker,
+}: {
+  initialMessage?: string;
+  initialSpec?: string;
+  initialWorker?: string;
+}) {
   const { openModal, select, refreshSessions, toast } = useStore();
   const { ws, setWs, ensure, choose, mkWorktree } = useWorkspace();
   const [msg, setMsg] = useState(initialMessage || "");
   const [mode, setMode] = useState("");
-  const [spec, setSpec] = useState(DEFAULT_SPEC);
-  const [worker, setWorker] = useState(DEFAULT_WORKER);
+  const [spec, setSpec] = useState(initialSpec || DEFAULT_SPEC);
+  const [worker, setWorker] = useState(initialWorker === undefined ? DEFAULT_WORKER : initialWorker);
   const [busy, setBusy] = useState(false);
   const close = () => openModal(null);
 

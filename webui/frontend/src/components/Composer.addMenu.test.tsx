@@ -85,4 +85,25 @@ describe("Composer add and advanced menu", () => {
     expect(onSubmit).not.toHaveBeenCalled();
     expect(mocks.newSession).not.toHaveBeenCalled();
   });
+
+  it("opens the YAML editor with the persona currently selected in the composer", () => {
+    mount();
+    openAddMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Automation Dev" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Agent Dev" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Team Lead Drafts a team sharing one workspace · for collaboration" }));
+
+    openAddMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Automation Team Lead" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Agent Team Lead" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Edit agent spec (YAML)…" }));
+
+    const openModal = useStore.getState().openModal as ReturnType<typeof vi.fn>;
+    expect(openModal).toHaveBeenCalledOnce();
+    const modal = openModal.mock.calls[0][0];
+    expect(modal.kind).toBe("new");
+    expect(modal.spec).toContain("name: lead\n");
+    expect(modal.spec).toContain("agents_dynamic: true");
+    expect(modal.worker).toBe("");
+  });
 });
