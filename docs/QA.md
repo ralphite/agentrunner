@@ -1620,3 +1620,20 @@ component mouse-enter 测试覆盖；真浏览器验证了等价的 focus-visibl
 **边界**：当时无真实 running session，未为截图新启模型任务；composer
 Stop 唯一入口、RunView Stop 例外、dirty parent/sub-agent Environment 由前端
 component tests 常绿锚定。本 QA 未创建/关闭/删除 session，未清理共享数据。
+
+## QA-81 选中 session 时 project 仍可折叠（INC-90，UJ-24）
+
+**状态**：PASS（2026-07-21，真实 `http://127.0.0.1:8809/` + 共享
+`~/.local/share/agentrunner/`；版本 `de6b3966-214638`；project=`mt-test`；
+session=`20260721-221631-say-hi-in-one-word-a4dd080497611f5d`；证据
+`qa/runs/2026-07-21-QA81-selected-session-project-fold/`）。
+
+| # | 真实动作 | 硬断言 |
+|---|---|---|
+| 1 | 选中 session 时点 `mt-test` heading | 立即 `aria-expanded=false`，session row 消失；central thread/`More session actions`/hash 不变 |
+| 2 | 等待 4.5s sessions refresh | 仍 folded，row count=0，不回弹 |
+| 3 | 整页 reload | 仍 `aria-expanded=false`，row count=0，原 hash/thread 恢复 |
+| 4 | 再点 heading 展开 | 原 row 恢复，class 含 `project-session-wrap nested current`；console warning/error=0 |
+
+**数据纪律**：验收结束时已恢复 `mt-test` expanded，不留测试偏好；
+未创建、关闭、删除或清理 session/workspace/journal。

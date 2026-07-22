@@ -315,7 +315,7 @@ GAPS.md，本文件只回答"产品要做什么"。
 
 **覆盖功能**：`动态角色 spawn(inline role)` `子提权用户审批(escalate)` `树内消息(send_message,兄弟直发)` `静止子唤醒(revive,context 延续)` `多次回执` `用户直达成员(ar send 子会话)` `子会话 live 镜像` `团队面板` `树级预算/审计`（底座复用 UJ-18 全部机制）
 
-### UJ-24 Web UI 驾驶 AgentRunner `基础` `✅ INC-19/23/40/60/87/88/89（2026-07-21）`
+### UJ-24 Web UI 驾驶 AgentRunner `基础` `✅ INC-19/23/40/60/87/88/89/90（2026-07-21）`
 
 **场景**：用户从项目/session 层进入一个真实 AgentRunner
 会话，并在同一工作台完成派活、续聊、监督、审批与改动审阅。
@@ -332,7 +332,8 @@ GAPS.md，本文件只回答"产品要做什么"。
    session），Rename 只留在菜单；菜单集中 Pin / Finder / permanent worktree / rename / archive chats /
    safe Remove（只隐藏 rail projection，数据不删且可恢复）。Pinned 与 Projects
    section 可独立收展；键盘 context menu 保持等价；button pressed state 不改变
-   控件尺寸。
+   控件尺寸。project group fold 始终尊重用户偏好；选中 session 只保证
+   所属 project heading 在分组 cap 外仍可见，不强制展开 session rows。
 2. New session 只出现一个 composer；默认只露输入、附件、access、model、
    send；未选 Project 时上缘只显示 project picker，选定后才显示
    Local/New worktree 与 Branch 等上下文控件；Project/Branch 可搜索且

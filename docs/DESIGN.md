@@ -1370,7 +1370,10 @@ limits:
   语义成立的操作。
 - pin/archive/theme/sidebar/unread 等现有 localStorage key 原样保留；Pinned /
   Projects section fold 与 sidebar width 同属 browser-local UI preference；UI
-  重构不迁移或删除用户本地偏好、session、workspace 与 QA 数据。（例外：
+  选中 session 只保证所属 project heading 在 section cap 外仍可达，不覆盖
+  project group fold；folded group 始终隐藏全部 session rows，重新展开时才
+  恢复 current highlight（INC-90）。UI 重构不迁移或删除用户本地偏好、session、
+  workspace 与 QA 数据。（例外：
   rename 已按 PLAN 5.6 升格为 journal 事实——旧 key 的值一次性推送服务端
   后移除，用户标题不丢。）
 - **project overlay + 系统 launcher（INC-53/87，additive）**：`webui-meta.json`

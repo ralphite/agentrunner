@@ -6200,3 +6200,25 @@ desktop/390px Settings/sidebar，console 0 warning/error；证据
 **工具链**：应用户要求，本机 Homebrew Go 由 1.26.4 升级到项目安全
 底线 1.26.5；升级后系统 `go` 可直接跑绿总闸门，不再依赖临时 toolchain
 path。共享 session/workspace/journal 未创建、删除或清理。
+
+---
+
+## 2026-07-21 · INC-90 选中 session 时 project 仍可折叠
+
+**用户纠正**：当前 session 属于某 project 时，点 project heading 无法
+collapse，是一个令人困惑的无效 affordance，不应引入这种行为。
+
+**根因/裁决**：SB-1 旧逻辑在两层让 active session 覆盖 persisted fold：
+`Sidebar` 的 `persistedFold && !holdsCurrent` 强制展开，
+`visibleProjectSessions` 又让 current row 穿透 folded group。新契约将
+selection 限定为“选中高亮 + 超出 Projects cap 时仍保留 project heading”；
+用户 fold 始终优先，folded group 隐藏全部 rows，central thread 与 selection
+不变。UI/UX review 复用现有 heading/caret/overlay，不增加任何 surface。
+
+**实现/验收**：移除 JSX 强制展开和 pure view-model fold 穿透，重写
+selected/past-cap 回归断言。targeted **92/92**、frontend **659/659**、production
+build、`./scripts/check.sh` 全绿。QA-81 在部署后真实 `:8809` + shared
+store 验证立即 fold、4.5s refresh、reload persistence、re-expand current highlight，
+console 0 warning/error；证据
+`qa/runs/2026-07-21-QA81-selected-session-project-fold/`。结束时恢复原 expanded
+偏好，共享数据未创建/删除/清理。
