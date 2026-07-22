@@ -88,17 +88,31 @@ describe("project sidebar model", () => {
     expect(model.projects[1].sessions.map((session) => session.id)).toEqual(["a1"]);
   });
 
-  it("orders sessions newest-first and groups by their newest session (W8)", () => {
+  it("orders sessions and projects by last update rather than creation id (W8)", () => {
     const model = buildSidebarModel(
       [
-        { id: "20260701-000000-old-1", status: "idle", turns: 1, workspace: "/w/a" },
-        { id: "20260710-090000-new-1", status: "idle", turns: 1, workspace: "/w/b" },
-        { id: "20260709-000000-mid-1", status: "idle", turns: 1, workspace: "/w/a" },
+        { id: "20260701-000000-old-1", status: "idle", turns: 2, workspace: "/w/a", updatedAt: "2026-07-22T12:00:00Z" },
+        { id: "20260710-090000-new-1", status: "idle", turns: 1, workspace: "/w/b", updatedAt: "2026-07-20T12:00:00Z" },
+        { id: "20260709-000000-mid-1", status: "idle", turns: 1, workspace: "/w/a", updatedAt: "2026-07-21T12:00:00Z" },
       ],
       { pinned: [], archived: [], showArchived: false, query: "", titleOf: (s) => s.id },
     );
-    expect(model.projects.map((p) => p.workspace)).toEqual(["/w/b", "/w/a"]);
-    expect(model.projects[1].sessions.map((s) => s.id)).toEqual(["20260709-000000-mid-1", "20260701-000000-old-1"]);
+    expect(model.projects.map((p) => p.workspace)).toEqual(["/w/a", "/w/b"]);
+    expect(model.projects[0].sessions.map((s) => s.id)).toEqual(["20260701-000000-old-1", "20260709-000000-mid-1"]);
+  });
+
+  it("preserves RFC3339 nanosecond update order inside one JavaScript millisecond", () => {
+    const model = buildSidebarModel(
+      [
+        { id: "20260722-120000-newer-id", status: "idle", turns: 1, workspace: "/w/a", updatedAt: "2026-07-22T12:00:00.123100000Z" },
+        { id: "20260701-120000-older-id", status: "idle", turns: 2, workspace: "/w/a", updatedAt: "2026-07-22T12:00:00.123900000Z" },
+      ],
+      { pinned: [], archived: [], showArchived: false, query: "", titleOf: (s) => s.id },
+    );
+    expect(model.projects[0].sessions.map((session) => session.id)).toEqual([
+      "20260701-120000-older-id",
+      "20260722-120000-newer-id",
+    ]);
   });
 
   it("disambiguates same-basename groups with a short de-noised parent hint (W4)", () => {

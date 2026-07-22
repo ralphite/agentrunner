@@ -315,14 +315,16 @@ GAPS.md，本文件只回答"产品要做什么"。
 
 **覆盖功能**：`动态角色 spawn(inline role)` `子提权用户审批(escalate)` `树内消息(send_message,兄弟直发)` `静止子唤醒(revive,context 延续)` `多次回执` `用户直达成员(ar send 子会话)` `子会话 live 镜像` `团队面板` `树级预算/审计`（底座复用 UJ-18 全部机制）
 
-### UJ-24 Web UI 驾驶 AgentRunner `基础` `✅ INC-19/23/40/60/87/88/89/90/91/92/93（2026-07-22）`
+### UJ-24 Web UI 驾驶 AgentRunner `基础` `✅ INC-19/23/40/60/87/88/89/90/91/92/93/94（2026-07-22）`
 
 **场景**：用户从项目/session 层进入一个真实 AgentRunner
 会话，并在同一工作台完成派活、续聊、监督、审批与改动审阅。
 
 1. 左栏按 Projects → sessions 展示全部真实 session；共享历史很大时先在首屏取回
    最近一页并立即可操作，再后台顺序补齐全部历史，不以全量 journal fold 阻塞
-   入口；session 是完整键盘可达操作，
+   入口；session、workspace-less Sessions 与 Pinned sessions 均按 journal last update
+   newest-first，Project 以成员 session 的最大 last update newest-first；project pin
+   仍是显式优先分区且分区内按 update 排序。session 是完整键盘可达操作，
    Pinned 单列且不重复；自动 workspace 各自成组（默认名 Scratch · 创建
    时间，不互相混合，组名可编辑，INC-78）；CLI 创建、metadata
    不完整、父/子 session 都能直接打开和 deep link；session row resting state

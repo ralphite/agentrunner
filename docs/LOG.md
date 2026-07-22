@@ -6298,3 +6298,24 @@ ordered multimodal metadata、sub journal exact cut/staging fsync、opening hook
 `20260722-085822-continue-item-cmd-3300ab9e-804836eab70c1b30`；journal 精确记录
 `text → image → file`、原 filename/media/ref 与 `ForkDraftID/BasedOnItemID`，Gemini 返回
 `QA82_PARENT_READY`。session/workspace/journal 与 events/workspace-diff 导出全部保留，未清理。
+
+---
+
+## 2026-07-22 · INC-94 Sidebar 按 last update 排序
+
+**用户纠正**：左栏 Project 与 session 应按 last update time newest-first；此前 frontend
+把 CLI 已按 journal mtime 返回的 rows 再按 session id（创建时间）重排，旧 session 有
+新活动时不会上浮，其 project 也不会上浮。
+
+**裁决/实现**：CLI 把既有分页权威 journal mtime additive 暴露为 RFC3339
+`updated_at`，WebUI 映射为 `updatedAt`；`buildSidebarModel` 统一以它降序构造 Pinned、
+workspace-less 与 Projects→sessions，project 插入顺序自然等于成员最大 update。
+Project overlay pin 保持显式优先分区，分区内仍按 update。legacy 缺失/非法字段回退
+session id UTC 创建时间；sidebar relative time 同步改读 update，避免排序与文案矛盾。
+
+**验收**：CLI/WebUI contract tests、frontend targeted **98/98**、全量 **672/672**、
+production build、`./scripts/check.sh` 全绿。QA-85 部署 matched dirty build 到真实 `:8809`
++ shared store（612 rows），API 全局 update 降序；浏览器前 8 Projects 与 workspace max
+8/8 一致，首 project 内 sessions 与 API 一致。07-13 创建但 07-22 更新的旧 session
+实际浮至第一且显示 `1m ago`；打开、reload、current/thread 与 logs `[]` 均通过。QA 未
+创建/删除/清理共享数据。INC-94 不产生新的 GAPS 条目。

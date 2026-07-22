@@ -1714,3 +1714,24 @@ ordered manifest 后再次部署；浏览器在 child
 `20260722-085822-continue-item-cmd-3300ab9e-804836eab70c1b30` 原样发送 draft，journal 精确保持
 `text → image → file`、authoritative filename/media/ref 与 fork provenance，Gemini 返回
 `QA82_PARENT_READY`。证据目录同上。
+
+## QA-85 Sidebar 按 last update 排序（INC-94，UJ-24）
+
+**状态**：PASS（2026-07-22，production `http://127.0.0.1:8809/` + 共享
+`~/.local/share/agentrunner/`；版本 `c7a0f746-dirty-100844` matched；证据
+`qa/runs/2026-07-22-QA85-sidebar-last-update-order/`）。
+
+| # | 真实动作 | 硬断言 |
+|---|---|---|
+| 1 | GET `/api/sessions`（612 条既有 shared rows） | 每条都有 RFC3339 `updatedAt`，全局 non-increasing；无 `updated_at` 泄漏 |
+| 2 | 对照 API workspace max 与 sidebar 前 8 Projects | 8/8 顺序完全一致；每个 project 的可见 sessions newest-first |
+| 3 | 打开首项旧 session `20260713-030702-build-a-production-quality-go-e8e7` | 创建于 07-13、journal update 为 07-22，已浮到首 project/首 session；ARIA 显示 `1m ago` 而非创建时间 |
+| 4 | reload 该 deep link | URL、首 project/首 session、current highlight 与非空 thread 恢复；browser logs=`[]` |
+| 5 | deploy/restart health | `ok=true`、`daemonUp=true`、`versionMatch=true`；部署前脚本确认无 running turn |
+
+**自动化**：CLI/WebUI targeted 通过；frontend targeted **98/98**、全量 **672/672**、
+production build、`./scripts/check.sh` 全绿。legacy 缺 `updatedAt`、Pinned/workspace-less、
+project max update 与 tie fallback 均有 pure regression。
+
+**数据纪律**：QA 未新建 session、未执行 Pin/Archive 或改 journal mtime；既有 shared
+数据保持，结束时 count=612，证据与截图保留。

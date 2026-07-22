@@ -21,8 +21,9 @@ describe("sidebar Pinned group (E1)", () => {
 
   it("flattens pinned sessions into one group, drawn from across projects", () => {
     const model = buildSidebarModel(sessions, opts({ pinned: ["a", "b"] }));
-    // Both pinned sessions appear in the flat Pinned list, in pin order.
-    expect(model.pinned.map((s) => s.id)).toEqual(["a", "b"]);
+    // Both pinned sessions appear in the flat Pinned list, newest update first.
+    // With no updatedAt from a legacy backend, the id stamp is the fallback.
+    expect(model.pinned.map((s) => s.id)).toEqual(["b", "a"]);
     // ...and are lifted out of their project groups (no duplicates below).
     const inProjects = model.projects.flatMap((p) => p.sessions.map((s) => s.id));
     expect(inProjects).not.toContain("a");
@@ -48,6 +49,22 @@ describe("sidebar Pinned group (E1)", () => {
     const model = buildSidebarModel(sessions, opts({ pinned: ["a", "ghost"], archived: ["a"] }));
     // "a" is archived and hidden, "ghost" doesn't exist → neither shows.
     expect(model.pinned).toEqual([]);
+  });
+
+  it("orders pinned and workspace-less sessions by last update, not creation id", () => {
+    const sessions: Session[] = [
+      { id: "20260722-120000-newer-created", status: "idle", turns: 1, updatedAt: "2026-07-20T00:00:00Z" },
+      { id: "20260701-120000-recently-active", status: "idle", turns: 2, updatedAt: "2026-07-22T00:00:00Z" },
+      { id: "20260721-120000-middle", status: "idle", turns: 1, updatedAt: "2026-07-21T00:00:00Z" },
+    ];
+    const plain = buildSidebarModel(sessions, opts({}));
+    expect(plain.workspaceLessSessions.map((session) => session.id)).toEqual([
+      "20260701-120000-recently-active",
+      "20260721-120000-middle",
+      "20260722-120000-newer-created",
+    ]);
+    const pinned = buildSidebarModel(sessions, opts({ pinned: sessions.map((session) => session.id) }));
+    expect(pinned.pinned.map((session) => session.id)).toEqual(plain.workspaceLessSessions.map((session) => session.id));
   });
 });
 

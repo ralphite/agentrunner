@@ -1316,6 +1316,10 @@ limits:
   保持全量兼容；`--limit/--offset` 先按 journal mtime 排候选，只 fold 请求页。
   Web UI 首页 40 条即 ready，后台以 80 条/页顺序补齐历史；4s refresh 只更新
   首页并由单一 in-flight chain 串行化，禁止全量 fold 重入把其它 API 饿死。Web UI
+  以同一 journal mtime 的 RFC3339 `updated_at` / `updatedAt` 作为 sidebar recency
+  单一来源：session、workspace-less 与 Pinned rows 降序，project recency =
+  `max(member.updatedAt)`；project overlay pin 只做稳定优先分区，分区内仍降序。
+  legacy/旧 backend 缺字段时回退 session id 创建时间（INC-94）。
   metadata 只缓存已知值以兼容
   旧 session/首屏，不得覆盖 journal 状态，也不得成为 Diff、附件或 project
   grouping 的唯一来源。

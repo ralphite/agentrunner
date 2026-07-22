@@ -408,6 +408,10 @@ func (s *server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		// the frontend's camelCase contract via NextRunAt below.
 		NextRunAtCLI string `json:"next_run_at,omitempty"`
 		NextRunAt    string `json:"nextRunAt,omitempty"`
+		// UpdatedAtCLI receives the journal mtime from the CLI; the frontend
+		// contract uses camelCase below, just like nextRunAt.
+		UpdatedAtCLI string `json:"updated_at,omitempty"`
+		UpdatedAt    string `json:"updatedAt,omitempty"`
 	}
 	// Runtime metadata is authoritative for every session, including sessions
 	// created by the CLI or another UI. The local meta store remains a fallback
@@ -454,10 +458,11 @@ func (s *server) handleSessions(w http.ResponseWriter, r *http.Request) {
 				rows[i].Workspace = meta.Workspace
 			}
 		}
-		// Cadence/next-run ride the CLI rows themselves (PLAN 3.1); only the
-		// key casing is remapped for the frontend contract.
+		// Cadence/next-run and journal activity recency ride the CLI rows
+		// themselves; only key casing is remapped for the frontend contract.
 		for i := range rows {
 			rows[i].NextRunAt, rows[i].NextRunAtCLI = rows[i].NextRunAtCLI, ""
+			rows[i].UpdatedAt, rows[i].UpdatedAtCLI = rows[i].UpdatedAtCLI, ""
 		}
 		writeJSON(w, http.StatusOK, rows)
 		return

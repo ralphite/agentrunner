@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -195,13 +196,19 @@ func TestCLISessionsPaginationNewestFirst(t *testing.T) {
 		t.Fatalf("exit=%d stderr=%s", code, errOut.String())
 	}
 	var rows []struct {
-		ID string `json:"id"`
+		ID        string `json:"id"`
+		UpdatedAt string `json:"updated_at"`
 	}
 	if err := json.Unmarshal(out.Bytes(), &rows); err != nil {
 		t.Fatal(err)
 	}
 	if len(rows) != 1 || rows[0].ID != "middle" {
 		t.Fatalf("rows=%+v, want middle page", rows)
+	}
+	if want := base.Add(time.Minute).UTC(); rows[0].UpdatedAt == "" {
+		t.Fatal("middle row missing updated_at")
+	} else if got, err := time.Parse(time.RFC3339Nano, rows[0].UpdatedAt); err != nil || !got.Equal(want) {
+		t.Fatalf("updated_at=%q (%v), want %s", rows[0].UpdatedAt, err, want)
 	}
 
 	out.Reset()
@@ -210,6 +217,9 @@ func TestCLISessionsPaginationNewestFirst(t *testing.T) {
 	}
 	if err := json.Unmarshal(out.Bytes(), &rows); err != nil || len(rows) != 3 {
 		t.Fatalf("full rows=%+v err=%v", rows, err)
+	}
+	if got := []string{rows[0].ID, rows[1].ID, rows[2].ID}; !reflect.DeepEqual(got, []string{"new", "middle", "old"}) {
+		t.Fatalf("full order=%v, want journal update descending", got)
 	}
 	for _, args := range [][]string{{"sessions", "--limit", "-1"}, {"sessions", "--offset", "x"}, {"sessions", "--limit"}} {
 		out.Reset()

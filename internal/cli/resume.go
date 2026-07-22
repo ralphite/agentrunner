@@ -294,6 +294,10 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 		// consumes these verbatim instead of re-deriving them.
 		Cadence   string `json:"cadence,omitempty"`
 		NextRunAt string `json:"next_run_at,omitempty"`
+		// UpdatedAt is the same journal mtime that orders pagination. Exposing it
+		// lets clients preserve durable activity recency instead of guessing from
+		// the session id's creation stamp.
+		UpdatedAt string `json:"updated_at,omitempty"`
 		mtime     int64
 	}
 	now := time.Now()
@@ -336,6 +340,9 @@ func sessionsCmd(args []string, stdout, stderr io.Writer) int {
 		e := candidate.entry
 		r := row{ID: e.Name(), Status: "unreadable", Kind: "session"}
 		r.mtime = candidate.mtime
+		if candidate.mtime > 0 {
+			r.UpdatedAt = time.Unix(0, candidate.mtime).UTC().Format(time.RFC3339Nano)
+		}
 		if events, err := store.ReadEvents(filepath.Join(root, e.Name())); err == nil {
 			if isDriverJournal(events) {
 				r.Kind = "driver"

@@ -1,5 +1,6 @@
 import type { Session } from "./types";
 import { friendlyStatus } from "./components/pill";
+import { sessionDate } from "./time";
 
 export interface ProjectGroup {
   key: string;
@@ -16,6 +17,34 @@ export interface SidebarModel {
   // Sessions without a workspace are not a project: rendering a folder would
   // incorrectly assert that they live in a directory on disk.
   workspaceLessSessions: Session[];
+}
+
+// sessionUpdatedDate resolves the journal-backed activity time. Older rows
+// from a pre-INC-94 backend lack `updatedAt`, so their UTC creation stamp is a
+// truthful, stable fallback rather than an invented current time.
+export function sessionUpdatedDate(session: Pick<Session, "id" | "updatedAt">): Date | null {
+  if (session.updatedAt) {
+    const updated = new Date(session.updatedAt);
+    if (!isNaN(updated.getTime())) return updated;
+  }
+  return sessionDate(session.id);
+}
+
+function sessionUpdatedNanoKey(session: Pick<Session, "updatedAt">): string | null {
+  // Go emits UTC RFC3339Nano. Normalize the optional fraction to nine digits
+  // so lexicographic order preserves sub-millisecond journal writes that a JS
+  // Date would otherwise collapse onto the same millisecond.
+  const match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,9}))?Z$/.exec(session.updatedAt || "");
+  return match ? `${match[1]}.${(match[2] || "").padEnd(9, "0")}Z` : null;
+}
+
+export function compareSessionsByUpdate(a: Session, b: Session): number {
+  const aNano = sessionUpdatedNanoKey(a);
+  const bNano = sessionUpdatedNanoKey(b);
+  if (aNano && bNano) return bNano.localeCompare(aNano) || b.id.localeCompare(a.id);
+  const aTime = sessionUpdatedDate(a)?.getTime() ?? 0;
+  const bTime = sessionUpdatedDate(b)?.getTime() ?? 0;
+  return bTime - aTime || b.id.localeCompare(a.id);
 }
 
 // ProjectOverlay is the client view of one project's server-side overlay
@@ -308,17 +337,14 @@ export function buildSidebarModel(
     );
   });
 
-  const byId = new Map(visible.map((session) => [session.id, session]));
-  const pinned = options.pinned
-    .map((id) => byId.get(id))
-    .filter((session): session is Session => !!session);
+  // Journal mtime is the durable activity clock behind the paged API. Sorting
+  // every sidebar partition from it makes an old session with a new turn rise
+  // immediately; group insertion order then makes project recency equal the
+  // maximum update time of its member sessions. ID is only a legacy/tie fallback.
+  const ordered = [...visible].sort(compareSessionsByUpdate);
+  const requestedPins = new Set(options.pinned);
+  const pinned = ordered.filter((session) => requestedPins.has(session.id));
   const pinnedIds = new Set(pinned.map((session) => session.id));
-
-  // Stable, predictable order (W8): session ids start with their creation
-  // stamp, so newest-first is a plain reverse lexicographic sort. Groups are
-  // built in that order too — a project group sorts by its newest session —
-  // which keeps the sidebar from reshuffling on every poll.
-  const ordered = [...visible].sort((a, b) => b.id.localeCompare(a.id));
 
   const groups = new Map<string, ProjectGroup>();
   // Workspace-less sessions stay out of the project map entirely. Grouping

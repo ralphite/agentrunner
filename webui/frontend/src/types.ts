@@ -28,6 +28,9 @@ export interface Session extends Cadence {
   id: string;
   status: string;
   turns: number;
+  // RFC3339 journal mtime: the durable source for sidebar activity recency.
+  // Legacy/older backends may omit it; clients fall back to the id stamp.
+  updatedAt?: string;
   title?: string;
   workspace?: string;
   kind?: "session" | "driver";

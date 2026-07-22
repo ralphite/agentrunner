@@ -143,6 +143,31 @@ func TestHandleSessionsPaginationForwardsBoundedCLIArgs(t *testing.T) {
 	}
 }
 
+func TestHandleSessionsMapsJournalUpdatedAt(t *testing.T) {
+	dir := t.TempDir()
+	arPath := filepath.Join(dir, "ar")
+	script := "#!/bin/sh\nprintf '%s\\n' '[{\"id\":\"old-id\",\"status\":\"idle\",\"turns\":2,\"kind\":\"session\",\"updated_at\":\"2026-07-22T08:09:10.123Z\"}]'\n"
+	if err := os.WriteFile(arPath, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	s := &server{arPath: arPath, meta: newMetaStore(filepath.Join(dir, "meta.json"))}
+	rr := httptest.NewRecorder()
+	s.handleSessions(rr, httptest.NewRequest("GET", "/api/sessions", nil))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	var rows []map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &rows); err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0]["updatedAt"] != "2026-07-22T08:09:10.123Z" {
+		t.Fatalf("rows=%v, want camelCase updatedAt", rows)
+	}
+	if _, leaked := rows[0]["updated_at"]; leaked {
+		t.Fatalf("CLI key leaked into frontend response: %v", rows[0])
+	}
+}
+
 func TestHandlePSEmptyBackgroundWork(t *testing.T) {
 	dir := t.TempDir()
 	arPath := filepath.Join(dir, "ar")

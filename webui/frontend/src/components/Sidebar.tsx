@@ -38,9 +38,9 @@ import { friendlyStatus } from "./pill";
 import { displayTitle } from "../title";
 import { ContextMenu } from "./ContextMenu";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
-import { buildSidebarModel, isManagedWorktreeWorkspace, projectDisplayName, projectLabel, scheduledUnread, visibleProjectSessions } from "../viewModels";
+import { buildSidebarModel, isManagedWorktreeWorkspace, projectDisplayName, projectLabel, scheduledUnread, sessionUpdatedDate, visibleProjectSessions } from "../viewModels";
 import { PROJECT_GROUP_LIMIT, visibleProjectGroups } from "../viewModels.nav";
-import { relTimeAgo, sessionDate } from "../time";
+import { relTimeAgo } from "../time";
 import { keyLabel } from "../shortcuts";
 
 type SidebarContext =
@@ -401,7 +401,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
     const status = friendlyStatus(session.status);
     const isUnread = unread.includes(session.id);
     const title = displayTitle(renames, session.id, session.title);
-    const when = relTimeAgo(sessionDate(session.id));
+    const when = relTimeAgo(sessionUpdatedDate(session));
     const isRunning = status.cls === "run";
     const isWorktree = isManagedWorktreeWorkspace(session.workspace);
     const openContext = (x: number, y: number) => {
@@ -856,7 +856,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
         const status = friendlyStatus(session.status);
         const workspace = session.workspace || "";
         const branch = workspace ? branchByWorkspace[workspace] : "";
-        const when = relTimeAgo(sessionDate(session.id));
+        const when = relTimeAgo(sessionUpdatedDate(session));
         return (
           <div className="session-preview" style={{ top: hoverPreview.top }} aria-hidden="true">
             <div className="session-preview-head"><b>{title}</b>{when && <span>{when}</span>}</div>
