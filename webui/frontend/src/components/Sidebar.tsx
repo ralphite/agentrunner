@@ -559,13 +559,11 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
             // SB-4: the fold reads from the server overlay when it has one for
             // this key, else from the localStorage mirror (which is what the
             // very first paint has to go on).
-            // SB-1: the group holding the current session renders as unfolded even
-            // when the persisted overlay says folded — the fold is a preference
-            // and is left untouched on the server, it just cannot hide the row
-            // the user is looking at (heading icon and Show more follow suit).
-            const holdsCurrent = !!currentSid && project.sessions.some((session) => session.id === currentSid);
+            // INC-90: selection may keep this project heading inside the capped
+            // section, but it never overrides the user's explicit fold. A folded
+            // group hides every session row, including the current one.
             const persistedFold = overlay?.folded ?? collapsed.has(project.key);
-            const folded = persistedFold && !holdsCurrent;
+            const folded = persistedFold;
             const showAll = expanded.has(project.key);
             const shown = visibleProjectSessions(project, { folded, expanded: showAll, current: currentSid || undefined });
             const openMenu = (x: number, y: number) => {

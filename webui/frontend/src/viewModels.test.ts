@@ -426,7 +426,7 @@ describe("project overlay (INC-53)", () => {
     expect(visibleProjectSessions(group, { cap: 2 }).map((s) => s.id)).toEqual(["s0", "s1"]);
   });
 
-  it("always renders the current session, past the cap and past a fold (SB-1)", () => {
+  it("keeps the current session past the cap but respects an explicit fold (INC-90)", () => {
     // The 7th session is beyond cap=6 — it still has to appear, or the sidebar
     // shows no trace of the session the user is actually looking at.
     expect(visibleProjectSessions(group, { current: "s6" }).map((s) => s.id))
@@ -434,10 +434,10 @@ describe("project overlay (INC-53)", () => {
     // A current session already inside the cap window is not duplicated.
     expect(visibleProjectSessions(group, { current: "s1" }).map((s) => s.id))
       .toEqual(["s0", "s1", "s2", "s3", "s4", "s5"]);
-    // A folded group holding the current session renders it (fold yields).
+    // A manual fold wins even when this group owns the current session.
     const foldedShown = visibleProjectSessions(group, { folded: true, current: "s7" });
-    expect(foldedShown.map((s) => s.id)).toContain("s7");
-    // …while a folded group without it stays collapsed.
+    expect(foldedShown).toEqual([]);
+    // A folded group without it also stays collapsed.
     expect(visibleProjectSessions(group, { folded: true, current: "elsewhere" })).toEqual([]);
     // A current session from another project never leaks into this group.
     expect(visibleProjectSessions(group, { current: "elsewhere" }).map((s) => s.id))

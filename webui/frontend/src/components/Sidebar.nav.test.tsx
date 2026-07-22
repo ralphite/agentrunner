@@ -125,6 +125,8 @@ describe("current session visibility (SB-1)", () => {
     return render(<Sidebar />);
   };
 
+  afterEach(() => localStorage.clear());
+
   it("renders the current row even when it sits past the cap", () => {
     // Newest-first: session-9 leads, so session-2 is the 8th row — well past cap=6.
     const sid = "20260712-000000-session-2";
@@ -139,13 +141,34 @@ describe("current session visibility (SB-1)", () => {
     expect(container.querySelector(".show-more")).toBeTruthy();
   });
 
-  it("un-folds the group holding the current row without persisting the change", () => {
+  it("keeps a persisted fold even when the group holds the current session", () => {
     const toggleProjectFolded = vi.fn();
     useStore.setState({ toggleProjectFolded });
     const { container } = mount("20260712-000000-session-2", { "/repo/app": { folded: true } });
-    expect(container.querySelector(".project-session-wrap.current")).toBeTruthy();
-    // The fold stays the user's: nothing writes it back.
+    expect(container.querySelector(".project-heading")!.getAttribute("aria-expanded")).toBe("false");
+    expect(container.querySelector(".project-session-wrap.current")).toBeNull();
     expect(toggleProjectFolded).not.toHaveBeenCalled();
+  });
+
+  it("lets the current session's project collapse and expand again", () => {
+    const toggleProjectFolded = vi.fn();
+    useStore.setState({ toggleProjectFolded });
+    const { container } = mount("20260712-000000-session-2");
+    const heading = container.querySelector(".project-heading")!;
+
+    expect(heading.getAttribute("aria-expanded")).toBe("true");
+    expect(container.querySelector(".project-session-wrap.current")).toBeTruthy();
+
+    fireEvent.click(heading);
+    expect(heading.getAttribute("aria-expanded")).toBe("false");
+    expect(container.querySelector(".project-session-wrap.current")).toBeNull();
+    expect(JSON.parse(localStorage.getItem("ar.sidebar.collapsedProjects")!)).toEqual(["/repo/app"]);
+    expect(toggleProjectFolded).toHaveBeenLastCalledWith("/repo/app", true);
+
+    fireEvent.click(heading);
+    expect(heading.getAttribute("aria-expanded")).toBe("true");
+    expect(container.querySelector(".project-session-wrap.current")).toBeTruthy();
+    expect(toggleProjectFolded).toHaveBeenLastCalledWith("/repo/app", false);
   });
 
   it("keeps a folded group collapsed when the current session lives elsewhere", () => {
@@ -243,7 +266,7 @@ describe("Projects section truncation + group fold (SB-4)", () => {
     expect(JSON.parse(localStorage.getItem("ar.sidebar.collapsedProjects")!)).toEqual([]);
   });
 
-  it("keeps the current session's group rendered and expanded even past the limit", () => {
+  it("keeps the current session's project heading rendered past the limit without overriding its fold", () => {
     // p00 is the 12th group — beyond the 8 the section shows — *and* collapsed.
     localStorage.setItem("ar.sidebar.collapsedProjects", JSON.stringify(["/repo/p00"]));
     const { container } = mount({ currentSid: "20260701-000000-session" });
@@ -253,11 +276,15 @@ describe("Projects section truncation + group fold (SB-4)", () => {
     expect(groups).toHaveLength(9);
     expect(headings(container)[8]).toContain("p00");
 
-    // …and its row is on the rail: the fold cannot hide where you are.
-    const current = container.querySelector(".project-session-wrap.current");
+    // The user's fold still wins: only the current project heading is anchored.
+    const heading = groups[8].querySelector(".project-heading")!;
+    expect(heading.getAttribute("aria-expanded")).toBe("false");
+    expect(groups[8].querySelector(".project-session-wrap.current")).toBeNull();
+
+    fireEvent.click(heading);
+    const current = groups[8].querySelector(".project-session-wrap.current");
     expect(current).toBeTruthy();
     expect(current!.textContent).toContain("Session 0");
-    expect(groups[8].contains(current!)).toBe(true);
   });
 });
 

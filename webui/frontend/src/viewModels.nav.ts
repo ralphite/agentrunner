@@ -64,11 +64,10 @@ export interface VisibleProjectGroups {
 // SB-4 invariant (the same one visibleProjectSessions holds one level down):
 // the group holding the session you have open is *always* rendered, even when
 // it sorts past the limit. Truncation is a default view, not a claim that the
-// current session should vanish — without this, deep-linking or ⌘K-jumping into
-// the 40th project would leave the rail with no highlighted row and no trace of
-// where you are, which is strictly worse than the long list we're fixing.
-// The current group is appended at the tail so the first `limit` rows never
-// shuffle under the user.
+// current project should vanish. INC-90 narrows this guarantee to the project
+// heading: an explicit project fold may hide the current session row, but the
+// group itself stays reachable. The current group is appended at the tail so
+// the first `limit` rows never shuffle under the user.
 export function visibleProjectGroups(
   projects: ProjectGroup[],
   opts: { expanded?: boolean; limit?: number; current?: string } = {},

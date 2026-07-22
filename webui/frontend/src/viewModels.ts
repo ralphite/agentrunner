@@ -43,19 +43,18 @@ export function projectDisplayName(project: ProjectGroup, overlay?: ProjectOverl
 // search overrides fold so a match is never hidden. An unfolded group shows all
 // when expanded or searching, otherwise the first `cap`.
 //
-// SB-1 invariant: the session you are looking at is the rail's anchor, so it is
-// *always* in the visible set. Both fold and cap are conveniences (a default
-// view, a browsing limit) and both yield to it — otherwise a deep link, a ⌘K
-// jump, or a refresh into the 7th session of a project leaves the sidebar with no
-// trace of where you are. Nothing is written back: the user's manual fold is a
-// preference, not a claim that the current session should be invisible.
+// INC-90: the current session overrides only the automatic row cap, never the
+// user's explicit project fold. A deep link or ⌘K jump still brings a current
+// row past the six-row cap into view while the group is open. Once the user
+// folds that group, the heading remains the navigation anchor and every row is
+// hidden until they expand it again.
 export function visibleProjectSessions(
   project: ProjectGroup,
   opts: { folded?: boolean; expanded?: boolean; searching?: boolean; cap?: number; current?: string },
 ): Session[] {
   const cap = opts.cap ?? 6;
+  if (opts.folded && !opts.searching) return [];
   const current = opts.current ? project.sessions.find((session) => session.id === opts.current) : undefined;
-  if (opts.folded && !opts.searching && !current) return [];
   if (opts.expanded || opts.searching) return project.sessions;
   const shown = project.sessions.slice(0, cap);
   // Appended at the tail rather than sorted in: the cap window stays exactly
