@@ -24,6 +24,13 @@ describe("abnormal terminal notices", () => {
     });
   });
 
+  it("keeps a deliberate interrupt stopped and continuable, not stranded", () => {
+    expect(friendlyStatus("interrupted")).toEqual({ text: "Stopped", cls: "closed" });
+    expect(terminalNoticeFor("interrupted")).toBeNull();
+    // A composite crash reason is still abnormal; exact matching must not hide it.
+    expect(terminalNoticeFor("interrupted_by_crash")).toMatchObject({ action: "resume" });
+  });
+
   it("does not add noise to normal completed sessions", () => {
     expect(terminalNoticeFor("completed")).toBeNull();
   });

@@ -2,6 +2,7 @@
 export function pillClass(status: string): string {
   const s = status.toLowerCase();
   if (s.includes("crash") || s.includes("error") || s.includes("fail")) return "crash";
+  if (s.trim() === "interrupted") return "closed";
   if (s.includes("strand") || s.includes("interrupt")) return "stranded";
   if (s.includes("approval")) return "appr";
   if (s.includes("run") || s.includes("busy") || s.includes("wait")) return "run";
@@ -36,6 +37,10 @@ export function friendlyStatus(raw: string): { text: string; cls: string } {
   if (s.includes("kill")) return { text: "Stopped by parent", cls: "closed" };
   if (s.includes("cancel")) return { text: "Cancelled", cls: "closed" };
   if (s.includes("crash") || s.includes("error") || s.includes("fail")) return { text: "Failed", cls: "crash" };
+  // A durable, user-requested Stop is complete and immediately continuable.
+  // Composite crash reasons that merely contain "interrupt" have already hit
+  // the crash branch above and must not be softened.
+  if (s.trim() === "interrupted") return { text: "Stopped", cls: "closed" };
   // "stranded" covers both a crashed host AND a fresh fork that was never
   // hosted; both recover by sending a message. Keep it calm and accurate
   // rather than alarming ("host lost").
@@ -104,6 +109,9 @@ export function terminalNoticeFor(raw: string, driver = false): TerminalNotice |
       actionLabel: driver ? "Run details" : "Continue in new session",
     };
   }
+  // A deliberate Stop already has an in-thread terminal chip and a Retry
+  // action. Resume is only for a host/session that actually lost liveness.
+  if (s.trim() === "interrupted") return null;
   if (s.includes("strand") || s.includes("interrupt")) {
     return {
       title: "Session needs recovery",

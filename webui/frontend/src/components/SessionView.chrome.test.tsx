@@ -357,6 +357,19 @@ describe("single Stop entry point", () => {
     const labels = [...document.querySelectorAll(".menu-label")].map((label) => label.textContent);
     expect(labels).not.toContain("Run");
   });
+
+  it("renders a deliberate interrupt as Stopped + Retry, never Resume recovery", async () => {
+    useStore.setState({
+      sessions: [{ id: SID, title: "stopped session", status: "interrupted", workspace: "/tmp/wt-th14" } as any],
+    });
+    const { container } = render(<SessionView sid={SID} />);
+    await waitFor(() => expect(container.querySelector(".session-topbar")).not.toBeNull());
+
+    expect(screen.getByRole("button", { name: "Retry session" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Resume session" })).toBeNull();
+    expect(screen.queryByText("Session needs recovery")).toBeNull();
+    expect(screen.getByPlaceholderText("Ask for follow-up changes")).toBeTruthy();
+  });
 });
 
 describe("running Queue projection", () => {

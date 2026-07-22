@@ -1900,6 +1900,13 @@ shared-store QA data → recapture → 与同 viewport/state 的 AgentRunner 合
 | order / 重排边界 | `/queue` 顺序即 backend `delivery_seq`，UI 不自造 drag reorder；Codex queued→Steer 需要原 command identity/order 的原子 backend verb，我方缺 G47，禁止 `unqueue + resend` 两步竞态 |
 | driver | 新增 `--thread-composer-send` + Enter/Cmd+Enter 白名单；提交前后 OCR fail-closed，拒绝时自动清掉本次 synthetic draft；真实 follow-up 永久保留 |
 
+| 98.3d 动作 | 硬断言 |
+|---|---|
+| 双侧 running Stop | Codex 真 shell 循环运行 44s 后点 Stop，保留 `PARTIAL-1..4` 并显示 `You stopped after 44s`；AgentRunner shared session 真循环运行中点唯一 Stop，journal 依次落 `activity_cancelled`（stdout 仅 `AR2-PARTIAL-1..4`）、interrupt、final barrier、waiting |
+| 进程取消边界 | AgentRunner partial output 不含 `AR2-SHOULD-NOT-PRINT`，证明 Stop 取消在飞进程组；Codex 截图仍列 background process 是对方行为差异，不据此削弱本产品安全不变量 |
+| stopped / recovery 修复 | 修前 shared API/CLI 精确 status=`interrupted`，thread 已显示 `Stopped — you interrupted this turn`，却又叠加 `Session needs recovery / Resume`；修后精确 interrupted 只映射 `Stopped`、topbar `Retry`、普通 composer，`interrupted_by_crash` 等复合异常仍保留 Resume |
+| 普通恢复 | 不点伪 recovery；在同一 stopped session 直接发送无工具 follow-up，得到 `TH07-RECOVERED` 并重新进入 waiting，证明 Stop 后 session 可继续；测试 session/workspace/journal 永久保留 |
+
 **98.1 证据**：`qa/runs/2026-07-22-QA88-codex-ui-continuous-loop/` 保存
 accepted/rejected screenshots、browser logs、driver stderr contract、health 与工作区 diff。
 首批未创建、关闭、删除或清理 AgentRunner session/workspace/journal；后续若产生测试
@@ -1959,3 +1966,8 @@ events/health/logs/gate。两个 source session/workspace/journal 都是既有 s
 running/queued/promoted-steer、AgentRunner 修前重复/Withdraw 幽灵与 clean deployment 修后
 单卡/撤回/steering、双侧同 viewport comparison、events/queue/health/logs/gate。Codex 与
 AgentRunner 测试 thread/session、workspace、journal 全保留；不关闭、不删除、不清理。
+
+**98.3d 证据**：`qa/runs/2026-07-22-QA88-98.3d-stop-recovery/` 保存 Codex
+running/partial/stopped、AgentRunner running/immediate/settled/reload、修后 stopped chrome、
+展开 partial tool result、普通 follow-up 恢复、双侧 comparison、events/health/logs/gate。
+所有 thread/session/workspace/journal 与 partial output 全保留；不关闭、不删除、不清理。

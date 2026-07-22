@@ -299,8 +299,8 @@ GAPS；`INTENTIONAL` 必须说明不属于哪条 journey。
 未稳定的 Pull Requests skeleton，明确拒收；稳定图为 `10`。以下未填证据的行就是
 后续 loop 的执行队列，不能因同组另一行通过而批量判绿。
 
-**98.3c 盘点**：79 行 = `PASS 18 / GAP 8 / INTENTIONAL 4 / BLOCKED 1 /
-UNTESTED 48`。PASS 中 New session/Scheduled/Environment/Thread 各有多行交叉锚，因此它们
+**98.3d 盘点**：79 行 = `PASS 19 / GAP 8 / INTENTIONAL 4 / BLOCKED 1 /
+UNTESTED 47`。PASS 中 New session/Scheduled/Environment/Thread 各有多行交叉锚，因此它们
 不是 7 个完整页面已测完；任何组内仍有 UNTESTED 就继续留在 loop。
 
 ### 7.1 Global shell 与 Codex-only 主入口
@@ -348,7 +348,7 @@ UNTESTED 48`。PASS 中 New session/Scheduled/Environment/Thread 各有多行交
 | TH-04 | Worked duration、Copy、feedback、Open artifact | GAP | 2026-07-22 `QA88-98.3a-thread-actions/01..03/05..08`：Worked/tool 两级展开、message/tool Copy 内容、artifact Open/Download URL 与 file Review 实测通过；Codex 👍/👎 feedback 缺 backend event/identity/privacy/receipt，G46；不画假按钮 |
 | TH-05 | message Continue：human/final/legacy/attachment-only | PASS | QA-82 + 2026-07-22 `QA88-98.3a-thread-actions/04`：human-before 生成零 turn dormant child + recorded draft；final-assistant-after 生成完整 cut dormant child；parent 不变，legacy/非 final/attachment-only 仍由 QA-82 锚 |
 | TH-06 | queue/steer toggle、queued bubbles、⌘⏎、reorder 边界 | GAP | 2026-07-22 `QA88-98.3c-queue-steer/01..08/17..19`：双侧真实 long tool + running follow-up；我方 Queue/Steer toggle、Cmd+Enter opposite mode、durable order/Withdraw 通过，并修 queue optimistic+durable 双影及 Withdraw 幽灵；Codex queued row 可原子 `Steer`，我方 backend 只有 unqueue/send 两条非原子命令，缺 G47，禁止竞态拼接 |
-| TH-07 | running Stop/interrupt、partial output、recovery | UNTESTED | — |
+| TH-07 | running Stop/interrupt、partial output、recovery | PASS | 2026-07-22 `QA88-98.3d-stop-recovery/01..12`：双侧真实长 shell 在运行中 Stop，均保留已产出的 PARTIAL-1..N 与明确 stopped 终态；我方事件精确为 activity cancelled→interrupted→final barrier→waiting，进程组未打印 SHOULD-NOT-PRINT。修复 durable `interrupted` 被宽泛 matcher 误报 `Session needs recovery / Resume` 的回归；修后只显示 Stopped+Retry、普通 composer 可直接恢复并成功回复 `TH07-RECOVERED`。Codex 截图仍列 background process 属其自身行为，我方保留更强的取消不变量 |
 | TH-08 | ask_user waiting、answer、reload、cancel 边界 | UNTESTED | — |
 | TH-09 | approval：details/approve/deny/child approval/reload | UNTESTED | 不替用户决定真实高风险审批；使用 QA spec |
 | TH-10 | provider/network/tool error、Retry 原位替换 | UNTESTED | — |

@@ -135,6 +135,14 @@ INC-98 将该方法固化为持续循环：
   driver 新增白名单 `--thread-composer-send`：只操作当前已打开 thread 的 composer，支持
   Enter/Cmd+Enter，提交前后各以 Vision OCR fail-closed；不搜索历史、不切项目、不关闭 thread，
   真实创建的 follow-up 永久保留。
+- **98.3d stop/recovery design note**：用户点击 Stop 是一个已确认、journal 有
+  `limit_exceeded{interrupted}` + final barrier + waiting 的 durable terminal，不是 host crash。
+  thread 内保留 `Stopped — you interrupted this turn` 与 tool partial output；topbar 提供 Retry，
+  composer 继续可用，不再叠 `Session needs recovery / Resume`。只有真正 `stranded`（含 crash
+  recovery path）才显示 Resume。status matcher 必须只把精确 durable `interrupted` 收敛为中性
+  `Stopped`；`interrupted_by_crash` 等含 crash 复合原因仍走异常恢复，不能用宽泛 substring
+  吞掉。Codex 实窗同态显示 `You stopped after Ns` 并保留 PARTIAL-1..N；其 background process
+  是否继续是 Codex 自身行为，不反向削弱 AgentRunner 的“interrupt 必须取消进程组”不变量。
 
 ## Spec delta
 
