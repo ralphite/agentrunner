@@ -53,6 +53,15 @@ INC-98 将该方法固化为持续循环：
   Local/New worktree/Branch 子路径通过。风险集中在用户 draft 被隐式覆盖、mobile
   composer 被挤出 viewport 与 focus 丢失，分别以仅显式 click 替换、同一 composer
   不 remount、390×844/短高视口及 Escape/focus 回归约束。
+- **98.2d model/access design note**：同逻辑 1952×1465 真机对照确认两侧均采用
+  `Model / Effort / Advanced` 分层；Codex 另有会改变服务 tier 的 `Speed: Fast` 与
+  模型相关的 `Effort: Ultra`。AgentRunner 当前 `Speed` 子页只有唯一 `Standard`，既
+  不能选择也不改变 runtime，是虚假 affordance；在 backend/provider contract 明确
+  service tier、计费/额度、fallback、可用性与 journal 可观测性之前先移除该 root，
+  不增加假 `Fast`。`Ultra` 也不凭空指定跨 Gemini/Anthropic 的预算；高级 exact
+  thinking budget 继续满足 power-user 调节，preset 缺口进入 GAPS。Access 的
+  Full/Ask/auto-accept/Plan 与 Codex 常用权限姿态语义已覆盖；Codex
+  `Custom (config.toml)` 对应本产品 agent/spec，而非再造第二套配置入口。
 
 ## Spec delta
 

@@ -1835,6 +1835,14 @@ shared-store QA data → recapture → 与同 viewport/state 的 AgentRunner 合
 | backend 裁决 | Codex `No environment/Create local environment` 与 Cloud/usage 需要环境配置、setup、secrets/cache/network/store/回收语义；NS-03 记 GAP/G11，不画假入口 |
 | 运行与恢复 | production shared store 部署；health `ok/daemonUp/versionMatch=true`，browser warning/error=`[]`；恢复 dark 主题、desktop viewport、空 draft；未 Send/创建/关闭/删除/清理 session |
 
+| 98.2d 动作 | 硬断言 |
+|---|---|
+| Codex model/access driver | `--new-chat-control model-list/effort/speed` 从 model root 二次 OCR 定位并展开，validation 限定 popover；未知值 fail-closed、双 Escape 收回 nested menu |
+| 同状态视觉比较 | 双侧均为逻辑 1952×1465；逐对合并 root/model list/effort/speed/access 截图后验图，不以单侧 screenshot 判定 |
+| 真实交互 | AgentRunner Model/Effort/Advanced 全部可达；Access `Ask to approve→Full access` 可逆切换并恢复；不 Send、不创建 session |
+| 产品裁决 | Codex `Fast`/`Ultra` 需要 provider/runtime 能力，记 G45；移除我方只有 `Standard` 且无行为的 Speed 子页，不画假选项；provider-specific model catalog 与 spec-based Custom access 保持本产品语义 |
+| 回归与恢复 | `Composer.effort.test.tsx`、capture-driver contract、frontend/full gate 全绿；production shared store 复拍，恢复 dark theme、默认 viewport、Full access 与空 draft，logs/health 全绿 |
+
 **98.1 证据**：`qa/runs/2026-07-22-QA88-codex-ui-continuous-loop/` 保存
 accepted/rejected screenshots、browser logs、driver stderr contract、health 与工作区 diff。
 首批未创建、关闭、删除或清理 AgentRunner session/workspace/journal；后续若产生测试
@@ -1853,3 +1861,8 @@ accepted 与 rejected calibration 图、四 intent、project/worktree/environmen
 Add/Automation/Agent/YAML、access/model、CJK/overflow、desktop/mobile/短屏、side-by-side、
 browser logs、health、gate 与工作区 diff。`02/07..08/11..12/36..38/45..48/57` 为明确
 拒收/validation debug，不参与 PASS。
+
+**98.2d 证据**：`qa/runs/2026-07-22-QA88-98.2d-model-access/` 保存 Codex 与
+AgentRunner 同逻辑 viewport 的 model root/list、effort、speed、access、Advanced、
+Ask→Full 恢复截图及五组 side-by-side；`06..07/10..14` 的早期 OCR/Advanced 校准图
+明确拒收，不参与 GAP 裁决。

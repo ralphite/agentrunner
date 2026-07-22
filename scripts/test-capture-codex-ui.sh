@@ -18,7 +18,7 @@ done
 [[ "$help" == *"--account-menu"* ]]
 [[ "$help" == *"--user-menu"* ]]
 [[ "$help" == *"--new-chat-control"* ]]
-for control in project worktree environment branch add access model starter-explore starter-build starter-review starter-fix; do
+for control in project worktree environment branch add access model model-list effort speed starter-explore starter-build starter-review starter-fix; do
   [[ "$help" == *"$control"* ]] || {
     echo "capture driver help is missing New chat control: $control" >&2
     exit 1
@@ -82,10 +82,12 @@ grep -Fq 'observation.boundingBox.midX > 0.30 && observation.boundingBox.midY < 
 grep -Fq 'target_text="New worktree"; target_region="composer"' "$driver"
 grep -Fq 'target_text="Explore and"; target_region="starter"' "$driver"
 grep -Fq 'case "popover"' "$driver"
+grep -Fq 'case "popover-low"' "$driver"
 # Literal source contract; expansion would weaken the assertion.
 # shellcheck disable=SC2016
 grep -Fq 'window_text_center "$ocr_capture" "$validation_text" "$validation_region"' "$driver"
 grep -Fq 'if ((starter_seeded))' "$driver"
+grep -Fq 'if ((nested_open))' "$driver"
 # Literal source contract; expansion would weaken the assertion.
 # shellcheck disable=SC2016
 grep -Fq 'send_click "$point_x" "$point_y" right' "$driver"

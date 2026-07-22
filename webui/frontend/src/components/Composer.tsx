@@ -216,7 +216,7 @@ export function Composer(props: ComposerProps) {
   // The compact root mirrors Codex's Model / Effort / Advanced summary. Each
   // dimension swaps to its own page, so short phones never have to scroll past
   // the full model list just to reach effort or advanced settings.
-  const [modelMenuPage, setModelMenuPage] = useState<"root" | "model" | "effort" | "speed" | "advanced">("root");
+  const [modelMenuPage, setModelMenuPage] = useState<"root" | "model" | "effort" | "advanced">("root");
   // The `+` menu is a small drawer, not a settings panel (INC-41 CP-1). Its root
   // page stays ≤7 single-line rows; the five agent personas (and the raw YAML
   // editor, which is the same subject) live one level down, reusing the model
@@ -1717,11 +1717,6 @@ export function Composer(props: ComposerProps) {
                         right={<span className="inline-flex max-w-[210px] items-center gap-2"><span className="truncate">{budgetOverride ? "Custom" : effortLevel.label}</span><span aria-hidden>›</span></span>}
                         onClick={() => setModelMenuPage("effort")}
                       />
-                      <PopItem
-                        title="Speed"
-                        right={<span className="inline-flex max-w-[210px] items-center gap-2"><span className="truncate">Standard</span><span aria-hidden>›</span></span>}
-                        onClick={() => setModelMenuPage("speed")}
-                      />
                     </div>
                     <div className="cx-model-advanced">
                       <PopItem title={<span className="inline-flex items-center gap-1">Advanced <CaretDown size={14} className="cx-model-adv-chev open" aria-hidden="true" /></span>} onClick={() => setModelMenuPage("advanced")} />
@@ -1761,14 +1756,6 @@ export function Composer(props: ComposerProps) {
                         onClick={() => { chooseEffort(level.id); close(); }}
                       />
                     ))}
-                  </>
-                ) : modelMenuPage === "speed" ? (
-                  <>
-                    <div className="pop-menu-title">
-                      <button type="button" className="pop-back" onClick={() => setModelMenuPage("root")} aria-label="Back to model menu">‹</button>
-                      <b>Speed</b>
-                    </div>
-                    <PopItem title="Standard" desc="Balanced response speed" active onClick={close} />
                   </>
                 ) : (
                   <>

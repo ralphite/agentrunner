@@ -682,6 +682,18 @@ TERM-resistant 孙进程可变孤儿。统一 advisory flock + unique temp fsync
 针对性 race 与全量 gate 通过；共享 store/Web UI 重启验收见 QA-67。
 → UJ-01/04/09/17/18/24
 
+**G45 模型执行 tier：Fast service tier / model-specific Ultra 缺失 — ❌ 开放（INC-98.2d 实窗取证，中）**
+Codex Desktop 当前 Model 菜单有 `Speed: Standard/Fast`（Fast 标注 1.5× speed、更多
+usage），Effort 有 `Ultra`（更快消耗 usage limits）；AgentRunner spec/runtime 只有
+provider/model、thinking budget 与 max tokens，没有 service tier/priority 字段、provider
+映射、可用性探测、quota/计费提示、fallback 或 journal 可观测性。Effort 现有
+Extra High=24576 tokens，Advanced 可输入 exact budget，但没有可跨 Gemini/Anthropic
+诚实定义的 `Ultra` preset/cap。旧 UI 的 `Speed→Standard` 只有一个选项且不改变 spec，
+INC-98.2d 已移除，禁止用假 `Fast` 恢复。关闭前需先裁决 model/provider capability
+profile、tier/预算持久化、mid-session 生效边界、错误/降级和 usage 呈现，再接 picker 与
+真实 provider QA。证据：`qa/runs/2026-07-22-QA88-98.2d-model-access/32..34`。
+→ UJ-24
+
 **G44 会话全文搜索 backend/index 缺失 — ❌ 开放（INC-98.2 实窗取证，中）**
 Codex command palette 搜索 `QA-87` 可命中消息正文并展示结果 snippet；
 AgentRunner 当前 command palette/sidebar 只在已加载 session 的 title、id、workspace

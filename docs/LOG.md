@@ -6476,3 +6476,26 @@ overflow、NS-08 仅有 root/effort 部分证据，继续 UNTESTED。
 未创建/关闭/删除/清理任何 session。证据根：
 `qa/runs/2026-07-22-QA88-98.2c-new-session/`。INC-98/G42/QA-88 继续开放，下一批继续
 NS-05/06/08..12 与 Thread/composer 全态。
+
+---
+
+## 2026-07-22 · INC-98.2d Model/Access 执行档位取证与假 Speed 入口移除
+
+**真实对标**：capture driver 增加 `model-list/effort/speed` 二级菜单驱动，root 与
+nested popover 都经 Vision OCR 定位和区域 validation，收尾用双 Escape 恢复。Codex
+与 AgentRunner 以逻辑 1952×1465 逐项展开 Model root/list、Effort、Speed、Access，
+生成五组 side-by-side 后验图；AgentRunner 另实测 Ask→Full 可逆切换和 Advanced。
+
+**发现与修复**：Codex `Speed` 有 Standard/Fast 两项，`Fast` 明示 1.5× speed/更多
+usage；我方旧 `Speed→Standard` 只有一个选项且不改变 spec/runtime，是虚假 affordance，
+已从 root 和状态机移除。Codex Effort 另有 `Ultra`；我方 Advanced 已能 exact thinking
+budget，但跨 Gemini/Anthropic 的 Ultra preset/cap 尚无诚实定义，未凭空加选项。
+Model catalog 保持 provider-specific；Access 的 Full/Ask/auto-accept/Plan 与 agent/spec
+Custom 保持本产品边界。
+
+**能力裁决与验证**：新增 G45，要求先补 service tier/provider mapping、availability、
+quota/fallback/journal 与 model-specific effort profile，再恢复 Fast/Ultra 产品面；NS-08
+改记 GAP，矩阵为 PASS 12/GAP 6/INTENTIONAL 4/BLOCKED 1/UNTESTED 56，disabled/error
+继续在该 GAP 内取证。capture contract、Composer targeted 6 tests、frontend 67 files/
+686 tests、production build 与 `./scripts/check.sh` 全绿。证据根：
+`qa/runs/2026-07-22-QA88-98.2d-model-access/`；未 Send/创建/关闭/删除/清理 session。

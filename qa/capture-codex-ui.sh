@@ -18,6 +18,7 @@ Captures the largest on-screen layer-0 window owned by bundle com.openai.codex.
   new-chat, pull-requests, sites, scheduled, plugins
 --new-chat-control opens one reversible New chat control before capture. NAME is one of:
   project, worktree, environment, branch, add, access, model,
+  model-list, effort, speed,
   starter-explore, starter-build, starter-review, starter-fix
 --control-query enters read-only search text in an opened New chat picker.
 --context-menu OCR-locates visible sidebar text, right-clicks it, captures the menu,
@@ -158,7 +159,7 @@ if [[ -n "$palette_query" && "$mode" != "command-palette" ]]; then
 fi
 if [[ -n "$new_chat_control" ]]; then
   case "$new_chat_control" in
-    project|worktree|environment|branch|add|access|model|starter-explore|starter-build|starter-review|starter-fix) ;;
+    project|worktree|environment|branch|add|access|model|model-list|effort|speed|starter-explore|starter-build|starter-review|starter-fix) ;;
     *)
       echo "capture-codex-ui: unsupported New chat control: $new_chat_control" >&2
       exit 2
@@ -235,6 +236,7 @@ if [[ ! "$window_id" =~ ^[0-9]+$ || -z "$window_height" ]]; then
 fi
 
 transient_open=0
+nested_open=0
 starter_seeded=0
 ocr_capture=""
 send_key() {
@@ -400,6 +402,9 @@ let matches = (request.results ?? []).compactMap { observation -> (Bool, Float, 
   case "popover":
     inRegion = observation.boundingBox.midX > 0.30 &&
       observation.boundingBox.midY > 0.15 && observation.boundingBox.midY < 0.50
+  case "popover-low":
+    inRegion = observation.boundingBox.midX > 0.30 &&
+      observation.boundingBox.midY > 0.05 && observation.boundingBox.midY < 0.35
   default:
     inRegion = false
   }
@@ -485,6 +490,11 @@ if [[ -n "$surface" ]]; then
     echo "capture-codex-ui: sidebar surface navigation requires a desktop-width Codex window" >&2
     exit 1
   fi
+  if [[ "$mode" == "new-chat-control" ]]; then
+    # Normalize any submenu left by an interrupted/debug capture before the
+    # sidebar navigation and fresh control interaction begin.
+    send_key 53 >/dev/null 2>&1 || true
+  fi
   case "$surface" in
     new-chat) surface_y=97 ;;
     pull-requests) surface_y=127 ;;
@@ -500,6 +510,10 @@ fi
 close_transient() {
   if ((transient_open)); then
     send_key 53 >/dev/null 2>&1 || true
+    if ((nested_open)); then
+      send_key 53 >/dev/null 2>&1 || true
+      nested_open=0
+    fi
     transient_open=0
   fi
   if ((starter_seeded)); then
@@ -542,7 +556,7 @@ if [[ "$mode" == "new-chat-control" ]]; then
     branch) target_text="main"; target_region="composer" ;;
     add) target_text="Full access"; target_region="composer" ;;
     access) target_text="Full access"; target_region="composer" ;;
-    model) target_text="5.6"; target_region="composer" ;;
+    model|model-list|effort|speed) target_text="5.6"; target_region="composer" ;;
     starter-explore) target_text="Explore and"; target_region="starter" ;;
     starter-build) target_text="Build a new feature"; target_region="starter" ;;
     starter-review) target_text="Review code and"; target_region="starter" ;;
@@ -567,6 +581,25 @@ if [[ "$mode" == "new-chat-control" ]]; then
     *) transient_open=1 ;;
   esac
   sleep 1
+  if [[ "$new_chat_control" == "model-list" || "$new_chat_control" == "effort" ||
+        "$new_chat_control" == "speed" ]]; then
+    rm -f -- "$ocr_capture"
+    ocr_capture=$(mktemp -t codex-new-chat-model-root)
+    screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+    case "$new_chat_control" in
+      model-list) nested_target="Model" ;;
+      effort) nested_target="Effort" ;;
+      speed) nested_target="Speed" ;;
+    esac
+    nested_point=$(window_text_center "$ocr_capture" "$nested_target" "popover-low")
+    IFS=$'\t' read -r nested_x nested_y <<<"$nested_point"
+    if [[ "${CODEX_CAPTURE_DEBUG:-0}" == "1" ]]; then
+      echo "capture-codex-ui: nested OCR '$nested_target' at $nested_x,$nested_y" >&2
+    fi
+    send_click "$nested_x" "$nested_y"
+    nested_open=1
+    sleep 1
+  fi
   if [[ -n "$control_query" ]]; then
     # Project autofocuses its search field; Branch does not. Explicitly locate
     # and focus Branch search so Electron cannot silently drop the query or
@@ -606,9 +639,12 @@ if [[ "$mode" == "new-chat-control" ]]; then
       worktree) validation_text="Work locally" ;;
       environment) validation_text="No environments found" ;;
       branch) validation_text="Search branches" ;;
-      add) validation_text="Files and folders" ;;
-      access) validation_text="Ask for approval" ;;
-      model) validation_text="Advanced" ;;
+      add) validation_text="Files and folders"; validation_region="popover-low" ;;
+      access) validation_text="Ask for approval"; validation_region="popover-low" ;;
+      model) validation_text="Advanced"; validation_region="popover-low" ;;
+      model-list) validation_text="Model"; validation_region="popover-low" ;;
+      effort) validation_text="Extra High"; validation_region="popover-low" ;;
+      speed) validation_text="Standard"; validation_region="popover-low" ;;
       starter-explore) validation_text="Explore"; validation_region="composer" ;;
       starter-build) validation_text="Build"; validation_region="composer" ;;
       starter-review) validation_text="Review"; validation_region="composer" ;;
