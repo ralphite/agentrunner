@@ -8,6 +8,13 @@
 // `ar new` / `ar agent` / `ar drive` exactly as the YAML editor modal does.
 // ---------------------------------------------------------------------------
 
+import auditorSpec from "./agents/auditor.yaml?raw";
+import chatSpec from "./agents/chat.yaml?raw";
+import devSpec from "./agents/dev.yaml?raw";
+import leadSpec from "./agents/lead.yaml?raw";
+import reviewerSpec from "./agents/reviewer.yaml?raw";
+import workerSpec from "./agents/worker.yaml?raw";
+
 export interface ModelChoice {
   provider: string;
   id: string;
@@ -171,14 +178,15 @@ export interface Persona {
   label: string;
   desc: string;
   withWorker: boolean; // dev spawns worker sub-agents; the rest are solo
+  spec: string; // full shipped YAML; model/access are the only picker overrides
 }
 
 export const PERSONAS: Persona[] = [
-  { id: "dev", label: "Dev", desc: "Full tools + isolated worker sub-agents · default", withWorker: true },
-  { id: "lead", label: "Team Lead", desc: "Drafts a team sharing one workspace · for collaboration", withWorker: false },
-  { id: "auditor", label: "Auditor", desc: "Read-only, answers in one stern sentence", withWorker: false },
-  { id: "reviewer", label: "Reviewer", desc: "Read + inspect, structured findings, no writes", withWorker: false },
-  { id: "chat", label: "Chat", desc: "No tools — plain conversation", withWorker: false },
+  { id: "dev", label: "Dev", desc: "Full tools + isolated worker sub-agents · default", withWorker: true, spec: devSpec },
+  { id: "lead", label: "Team Lead", desc: "Drafts a team sharing one workspace · for collaboration", withWorker: false, spec: leadSpec },
+  { id: "auditor", label: "Auditor", desc: "Read-only, answers in one stern sentence", withWorker: false, spec: auditorSpec },
+  { id: "reviewer", label: "Reviewer", desc: "Read + inspect, structured findings, no writes", withWorker: false, spec: reviewerSpec },
+  { id: "chat", label: "Chat", desc: "No tools — plain conversation", withWorker: false, spec: chatSpec },
 ];
 
 export const DEFAULT_PERSONA = "dev";
@@ -195,70 +203,31 @@ export function personaFromSpec(spec: string): string | null {
   return PERSONAS.some((p) => p.id === m[1]) ? m[1] : null;
 }
 
-function personaBody(persona: string): string {
-  switch (persona) {
-    case "lead":
-      // Team Lead (INC-12): drafts team members inline with spawn_agent{role:…}
-      // and coordinates them with send_message. The prompt enforces a
-      // spawn-then-kickoff-broadcast protocol so messages actually flow in all
-      // three directions (lead→member, member↔member, member→parent) from a
-      // one-line goal — models otherwise front-load everything at spawn time
-      // and never message mid-flight. agents_dynamic opens the inline-role
-      // face; agent_workspace: shared lets members collaborate on one tree.
-      return `system_prompt: |
-  你是工程团队 lead,带一支动态团队完成用户目标。**核心纪律:让消息真正
-  在成员间流动,不要把全部指令都塞进 spawn 的 prompt 里。** 严格按此协议:
-
-  1. 规划:据目标定 2-4 个角色(如 PM / 架构师 / SWE / Reviewer)。
-  2. 先建人:对每个角色调 spawn_agent{role:{name,description,instructions}}
-     (动态起草,不要用预定义 agent 名)。此时 instructions 只写"你的职责
-     + 先待命,等 lead 的开工消息",prompt 写一句占位即可。记下每个 spawn
-     返回的 child_session id。
-  3. 开工广播(关键):所有成员建好后,用 send_message 给**每个**成员发一条
-     开工消息,内含 ①它的详细任务;②全体队友的"名字→session_id"花名册;
-     ③明确要求"要对接队友就 send_message(to=<队友的 session_id>) 直接联系,
-     完成或有产出就 send_message(to='parent') 向我汇报"。
-  4. 推进:成员汇报会以消息进入你的对话。评审环节让成员互发消息(例:SWE
-     交付后你 send_message 通知 Reviewer 去评审、Reviewer 把结论 send_message
-     发回 SWE);要某个已静止成员再做一轮时,直接 send_message 给它即可唤醒续做。
-  5. 收尾:全部完成后向用户简洁汇总各成员产出与协作过程。
-tools: [read_file, write_file, edit_file, bash, spawn_agent, kill]
-agents_dynamic: true
-agent_workspace: shared`;
-    case "auditor":
-      return `system_prompt: You are an auditor. Always open with "[AUDITOR]" and answer in one stern sentence.
-tools: [read_file, bash]`;
-    case "reviewer":
-      return `system_prompt: |
-  You are a code reviewer. Read the code, then produce structured findings
-  (severity / file:line / failure scenario). Never modify the workspace.
-tools: [read_file, bash]`;
-    case "chat":
-      return `system_prompt: You are a concise, helpful assistant.
-tools: []`;
-    default: // dev
-      return `system_prompt: |
-  You are a rigorous coding assistant. Follow the user's instructions
-  exactly; when asked to start sub-agents, use the spawn_agent tool with
-  the exact count and division of labor requested; use kill to cancel.
-  After spawning, do NOT poll with output or run \`sleep\` to wait — just
-  end your turn; each sub-agent's report arrives as a message that
-  automatically wakes you to synthesize.
-tools: [read_file, write_file, edit_file, bash, spawn_agent, kill, exit_plan_mode]
-agents: [worker]`;
+// replaceTopLevelBlock edits one YAML top-level field without parsing and
+// re-serializing the user's text. A block field owns its following indented
+// lines; every other top-level line and comment remains byte-for-byte.
+function replaceTopLevelBlock(spec: string, key: string, block: string): string {
+  const lines = spec.replace(/\r\n/g, "\n").trimEnd().split("\n");
+  const start = lines.findIndex((line) => line.startsWith(`${key}:`));
+  if (start < 0) {
+    const name = lines.findIndex((line) => line.startsWith("name:"));
+    const at = name >= 0 ? name + 1 : 0;
+    lines.splice(at, 0, ...block.split("\n"));
+    return `${lines.join("\n")}\n`;
   }
+  let end = start + 1;
+  while (end < lines.length && (lines[end].trim() === "" || /^[ \t]/.test(lines[end]))) end += 1;
+  lines.splice(start, end - start, ...block.split("\n"));
+  return `${lines.join("\n")}\n`;
 }
 
 // buildSpec produces the main agent spec (base.yaml) for the chosen persona +
 // model + access level + reasoning effort. Defaults mirror the old DEFAULT_SPEC
 // so behavior is unchanged when nothing is picked (effort defaults to medium).
 export function buildSpec(opts: { provider: string; model: string; access: AccessId; persona?: string; effort?: EffortId; budgetOverride?: number | null }): string {
-  const persona = opts.persona && PERSONAS.some((p) => p.id === opts.persona) ? opts.persona : DEFAULT_PERSONA;
-  return `name: ${persona}
-${modelBlock(opts.provider, opts.model, opts.effort || DEFAULT_EFFORT, opts.budgetOverride)}
-${personaBody(persona)}
-${permissionsBlock(opts.access)}
-`;
+  const persona = personaById(opts.persona || DEFAULT_PERSONA);
+  const withModel = replaceModel(persona.spec, opts.provider, opts.model, opts.effort || DEFAULT_EFFORT, opts.budgetOverride);
+  return replaceTopLevelBlock(withModel, "permissions", permissionsBlock(opts.access));
 }
 
 // replaceModel swaps the `model:` block of an existing spec (provider/model plus
@@ -266,12 +235,7 @@ ${permissionsBlock(opts.access)}
 // (system_prompt, tools, permissions). Used for mid-session model / effort
 // switches where we keep everything else the session was configured with.
 export function replaceModel(spec: string, provider: string, model: string, effort: EffortId = DEFAULT_EFFORT, budgetOverride?: number | null): string {
-  const block = modelBlock(provider, model, effort, budgetOverride);
-  if (/^model:\s*\{[^}]*\}/m.test(spec)) {
-    return spec.replace(/^model:\s*\{[^}]*\}[^\n]*$/m, block);
-  }
-  // No model line to replace (unusual) — prepend one after the name.
-  return spec.replace(/^(name:.*)$/m, `$1\n${block}`);
+  return replaceTopLevelBlock(spec, "model", modelBlock(provider, model, effort, budgetOverride));
 }
 
 // modelFromSpec reads back the provider/id currently declared in a spec so the
@@ -282,18 +246,9 @@ export function modelFromSpec(spec: string): { provider: string; id: string } | 
   return { provider: m[1], id: m[2] };
 }
 
-// ---- worker sub-agent (unchanged sibling) ----
-// Conservative step limit (INC-30/G25): a worker that loses its way — e.g.
-// searching an isolated snapshot for a file that can never appear — used to
-// spin to the runtime default of 40 steps per hosting; 24 is plenty for a
-// delegated errand and halves the burn of an abandoned member.
-export const DEFAULT_WORKER = `name: worker
-description: carries out investigation/edit sessions assigned by the parent and reports back
-model: { provider: gemini, id: gemini-flash-latest, max_tokens: 10240, thinking: { enabled: true, budget_tokens: 6144 } }
-system_prompt: When the assigned work is done, report your conclusions as concise bullet points. If something you need is missing (a file, an answer), report that promptly instead of retrying.
-tools: [read_file, bash]
-max_generation_steps: 24
-`;
+// Dev's explicit sibling sub-agent spec. Its conservative 24-step limit is the
+// INC-30/G25 guard against an isolated worker spinning on an unavailable file.
+export const DEFAULT_WORKER = workerSpec;
 
 // Legacy export kept for the advanced YAML modal (unchanged escape hatch).
 export const DEFAULT_SPEC = buildSpec({ provider: "gemini", model: "gemini-flash-latest", access: "full" });

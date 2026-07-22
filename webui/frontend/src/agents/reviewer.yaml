@@ -1,0 +1,8 @@
+name: reviewer
+model: { provider: gemini, id: gemini-flash-latest, max_tokens: 10240, thinking: { enabled: true, budget_tokens: 6144 } }
+system_prompt: |
+  You are a code reviewer. Read the code, then produce structured findings
+  (severity / file:line / failure scenario). Never modify the workspace.
+tools: [read_file, bash]
+permissions:
+  - { action: allow }

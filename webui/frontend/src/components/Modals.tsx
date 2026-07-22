@@ -314,6 +314,7 @@ function NewSessionModal({ initialMessage }: { initialMessage?: string }) {
       if (worker.trim()) extraSpecs.push({ name: "worker.yaml", content: worker });
       const workspace = await ensure();
       const r = await AR.newSession({ spec, extraSpecs, workspace, message: msg.trim(), mode });
+      rememberSpec(r.sid, spec);
       close();
       await refreshSessions();
       select(r.sid);
@@ -685,7 +686,7 @@ function ForkModal({ sid }: { sid: string }) {
 
 function AgentModal({ sid }: { sid: string }) {
   const { openModal, toast } = useStore();
-  const [spec, setSpec] = useState(DEFAULT_SPEC);
+  const [spec, setSpec] = useState(() => recallSpec(sid) || DEFAULT_SPEC);
   const [worker, setWorker] = useState(DEFAULT_WORKER);
   const [busy, setBusy] = useState(false);
   const close = () => openModal(null);
@@ -696,6 +697,7 @@ function AgentModal({ sid }: { sid: string }) {
       const extraSpecs: SpecFile[] = [];
       if (worker.trim()) extraSpecs.push({ name: "worker.yaml", content: worker });
       await AR.switchAgent(sid, spec, extraSpecs);
+      rememberSpec(sid, spec);
       close();
       toast("agent spec switched", "info");
     } catch (e: any) {
