@@ -916,7 +916,7 @@
   details[open] > .fd-head .fd-caret { @apply rotate-90; }
   /* DIFF-FD-GLYPH-BARE: 文件头首元素是安静的着色 mono 字母(M/A/D),不再是
      彩色方块 tile——+8 −4 计数已带增删色信号,tile 是重复着色。去掉盒(h/w/
-     rounded/grid place-items)渲成内联 mono 文字,仅保留 text-*/着色。 */
+     rounded/grid place-items)渲成内联 mono 文字,仅保留文字颜色 utility。 */
   .fd-glyph { @apply inline-flex items-center shrink-0 text-[11px] font-bold; }
   .fd-glyph-added { @apply text-green; }
   .fd-glyph-deleted { @apply text-red; }

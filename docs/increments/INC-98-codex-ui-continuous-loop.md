@@ -88,6 +88,15 @@ INC-98 将该方法固化为持续循环：
   popover，Send 才创建/attach；Plan Add row 可逆 on/off、off 恢复进入 Plan 前的 access，
   Plan 时改为任务规划 placeholder。因我方 backend 把 Plan 编码为只读 access posture，
   pill 继续诚实显示 `Plan · read-only`，不照抄 Codex 同屏 `Full access + Plan` 的双语义。
+- **98.2g responsive/theme evidence note**：用真实 New chat 做 Retina 2× Codex 与
+  AgentRunner 逻辑 1952×1465 clean-state 合并比较，另覆盖 1840×1000、1280×720、
+  390×844 的 light/dark home、mobile drawer 与 Appearance；所有 state 均以 UI 切换并
+  reload，不能靠 DOM 强写主题。实测发现显式 dark 只在 `main.tsx` module 执行时恢复，
+  在 system-light 设备存在首 paint 闪白窗口；把极小 `theme-init.js` 作为 head 中的
+  parser-blocking boot restore，并让 `theme-color` 跟随 light/dark/system。比较还暴露
+  capture driver 的 Plan 是 sticky preference，旧 cleanup 只点 New chat 并未关闭；driver
+  现从 Add 的 `Turn plan mode off` 真正恢复并验证 `Turn plan mode on`，避免后续 baseline
+  被污染。CSS build 同时暴露旧注释内 `*/` 提前闭合，已修正，不再吞掉后续 token。
 
 ## Spec delta
 

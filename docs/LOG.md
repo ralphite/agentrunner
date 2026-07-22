@@ -6532,8 +6532,9 @@ INTENTIONAL 4/BLOCKED 1/UNTESTED 56，INC-98/G42/QA-88 继续开放。
 
 **真实 Codex 驱动**：`--new-chat-control goal/plan` 从 Add root 二次 OCR 点击。Goal
 用 composer `Goal` chip 验证；Plan 的 chip 对 Vision 过淡，改为重开 Add 验证语义状态
-`Turn plan mode off`，再 Escape 收回 menu。两者 capture 后都点 sidebar New chat 清理
-unsent mode；早期 `01/03..07/10..11` cleanup/OCR 校准明确拒收。
+`Turn plan mode off`，再 Escape 收回 menu。当批两者 capture 后都点 sidebar New chat；
+98.2g 后续实证发现 Goal 被清掉但 Plan preference sticky，已在后续增量修正 driver。
+早期 `01/03..07/10..11` cleanup/OCR 校准明确拒收。
 
 **发现与修复**：同逻辑 1952×1465 拼图显示 AgentRunner Goal 另叠三字段 launcher，和
 base composer 形成两个输入区；Plan 只替换 access pill、placeholder 仍为 `Do anything`，
@@ -6554,3 +6555,22 @@ BLOCKED 1/UNTESTED 55。
 health `ok/daemonUp/versionMatch=true`、browser logs=`[]`；恢复 Full access、dark theme、
 默认 viewport 与空 draft。证据根：`qa/runs/2026-07-22-QA88-98.2f-goal-automation/`；
 INC-98/G42/QA-88 继续开放。
+
+---
+
+## 2026-07-22 · INC-98.2g 响应式/主题全态与首 paint 修复
+
+**真实对标**：Codex Retina 2× 与 AgentRunner 以逻辑 1952×1465 clean New chat 合并验图；
+AgentRunner 另以真实 UI 覆盖 1840×1000、1280×720、390×844 的 home、drawer、Appearance
+及 light/dark/system reload。全态 body 无横溢，mobile composer/controls/Settings 在 viewport。
+
+**发现与修复**：显式主题此前到 `main.tsx` module 执行才恢复，system-light 下存在首 paint
+闪白；新增 head parser-blocking `theme-init.js` 并同步 `theme-color`。Plan 是 sticky New chat
+preference，旧 Codex driver 的“点 New chat 清理”无效；现从 Add 真正 off 并反向验证。
+另修复 CSS 注释内误含 `*/` 造成 optimizer 将中文残片当 token 的 build warning。
+
+**裁决与验证**：NS-12、ST-02 升 PASS，矩阵为 PASS 15/GAP 6/INTENTIONAL 4/BLOCKED 1/
+UNTESTED 53；其余 Settings/zoom/accessibility 细态不连带判绿。theme targeted test、capture
+contract、production build 与 `./scripts/check.sh` 通过后提交；证据根：
+`qa/runs/2026-07-22-QA88-98.2g-responsive-theme/`。未 Send/创建/关闭/删除 session，Codex
+恢复 clean New chat，AgentRunner 恢复 dark/default viewport；INC-98/G42/QA-88 继续开放。

@@ -572,7 +572,32 @@ if [[ -n "$surface" ]]; then
 fi
 
 close_transient() {
-  if ((goal_enabled || plan_enabled)); then
+  if ((plan_enabled)); then
+    # Plan is a sticky New chat preference: clicking New chat does not clear it.
+    # Restore the real off-state through the same Add row and assert the row has
+    # flipped back before leaving Codex. This keeps later baseline captures from
+    # silently inheriting Plan mode.
+    send_key 53 >/dev/null 2>&1 || true
+    send_click "$point_x" "$point_y"
+    sleep 1
+    rm -f -- "$ocr_capture" 2>/dev/null || true
+    ocr_capture=$(mktemp -t codex-plan-restore)
+    screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+    plan_off_point=$(window_text_center "$ocr_capture" "Turn plan mode off" "popover-low")
+    IFS=$'\t' read -r plan_off_x plan_off_y <<<"$plan_off_point"
+    send_click "$plan_off_x" "$plan_off_y"
+    sleep 1
+    send_click "$point_x" "$point_y"
+    sleep 1
+    rm -f -- "$ocr_capture"
+    ocr_capture=$(mktemp -t codex-plan-restore-validate)
+    screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+    window_text_center "$ocr_capture" "Turn plan mode on" "popover-low" >/dev/null
+    send_key 53
+    plan_enabled=0
+    transient_open=0
+  fi
+  if ((goal_enabled)); then
     rm -f -- "$ocr_capture" 2>/dev/null || true
     ocr_capture=$(mktemp -t codex-mode-restore)
     screencapture -x -o -t png -l "$window_id" "$ocr_capture"
@@ -585,7 +610,6 @@ close_transient() {
     screencapture -x -o -t png -l "$window_id" "$ocr_capture"
     window_text_center "$ocr_capture" "Full access" "composer" >/dev/null
     goal_enabled=0
-    plan_enabled=0
   fi
   if ((transient_open)); then
     send_key 53 >/dev/null 2>&1 || true
@@ -679,6 +703,21 @@ if [[ "$mode" == "new-chat-control" ]]; then
     rm -f -- "$ocr_capture"
     ocr_capture=$(mktemp -t codex-new-chat-add-root)
     screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+    if [[ "$new_chat_control" == "plan" ]]; then
+      # A prior interrupted capture may have left sticky Plan mode enabled.
+      # Normalize to off first so this target always captures the same on-state
+      # and the EXIT trap can deterministically restore off.
+      if active_plan_point=$(window_text_center "$ocr_capture" "Turn plan mode off" "popover-low" 2>/dev/null); then
+        IFS=$'\t' read -r active_plan_x active_plan_y <<<"$active_plan_point"
+        send_click "$active_plan_x" "$active_plan_y"
+        sleep 1
+        send_click "$point_x" "$point_y"
+        sleep 1
+        rm -f -- "$ocr_capture"
+        ocr_capture=$(mktemp -t codex-new-chat-add-root-normalized)
+        screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+      fi
+    fi
     nested_target=$([[ "$new_chat_control" == "goal" ]] && echo "Goal" || echo "Plan mode")
     nested_point=$(window_text_center "$ocr_capture" "$nested_target" "popover-low")
     IFS=$'\t' read -r nested_x nested_y <<<"$nested_point"

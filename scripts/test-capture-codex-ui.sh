@@ -90,7 +90,9 @@ grep -Fq 'case "popover-low"' "$driver"
 grep -Fq 'window_text_center "$ocr_capture" "$validation_text" "$validation_region"' "$driver"
 grep -Fq 'if ((starter_seeded))' "$driver"
 grep -Fq 'if ((composer_seeded))' "$driver"
-grep -Fq 'if ((goal_enabled || plan_enabled))' "$driver"
+grep -Fq 'if ((plan_enabled))' "$driver"
+grep -Fq 'if ((goal_enabled))' "$driver"
+grep -Fq '"Turn plan mode on" "popover-low"' "$driver"
 # Literal source contract; expansion would weaken the assertion.
 # shellcheck disable=SC2016
 grep -Fq 'window_text_center "$ocr_capture" "Explore and" "starter"' "$driver"
