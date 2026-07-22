@@ -280,6 +280,7 @@ export function PopItem({
 }) {
   return (
     <button
+      type="button"
       className={"pop-item" + (danger ? " danger" : "") + (highlight ? " hl" : "") + (disabled ? " disabled" : "")}
       onClick={onClick}
       disabled={disabled}

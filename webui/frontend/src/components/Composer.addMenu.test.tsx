@@ -106,4 +106,39 @@ describe("Composer add and advanced menu", () => {
     expect(modal.spec).toContain("agents_dynamic: true");
     expect(modal.worker).toBe("");
   });
+
+  it("reuses the single composer for Goal and keeps advanced checks behind the Goal chip", () => {
+    mount();
+    openAddMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Goal / }));
+
+    expect(screen.getByPlaceholderText("Describe your goal, define measurable outcomes for best results")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Start goal" })).toBeNull();
+    expect(mocks.newSession).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Goal" }));
+    expect(screen.getByText("Goal options")).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "Done when (command)" })).toBeTruthy();
+    expect((screen.getByRole("spinbutton", { name: "Max rounds" }) as HTMLInputElement).value).toBe("10");
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "Exit Goal mode" }));
+    expect(screen.getByPlaceholderText("Do anything")).toBeTruthy();
+    expect(mocks.newSession).not.toHaveBeenCalled();
+  });
+
+  it("toggles Plan mode off through Add and restores the prior access posture", () => {
+    mount();
+    expect(screen.getByRole("button", { name: "Ask to approve" })).toBeTruthy();
+
+    openAddMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Plan mode Turn plan mode on/ }));
+    expect(screen.getByRole("button", { name: "Plan · read-only" })).toBeTruthy();
+    expect(screen.getByPlaceholderText("Describe what to plan…")).toBeTruthy();
+
+    openAddMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Plan mode Turn plan mode off/ }));
+    expect(screen.getByRole("button", { name: "Ask to approve" })).toBeTruthy();
+    expect(screen.getByPlaceholderText("Do anything")).toBeTruthy();
+    expect(mocks.newSession).not.toHaveBeenCalled();
+  });
 });

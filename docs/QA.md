@@ -1851,6 +1851,14 @@ shared-store QA data → recapture → 与同 viewport/state 的 AgentRunner 合
 | attachment 边界 | Add→Files and folders 能打开原生 Open sheet，但 Computer Use 禁止控制宿主 Codex，panel service 也无稳定 selection/remove 语义；`02..17` 全部拒收，不落半工作 `--attach-file`；NS-06 保持 UNTESTED |
 | 回归与恢复 | frontend 67 files/688 tests、build、capture contract 与 `check.sh` 全绿；production shared store 部署，health `ok/daemonUp/versionMatch=true`、browser logs=`[]`；恢复默认 viewport 与空 draft，未 Send/创建/关闭/删除/清理 session |
 
+| 98.2f 动作 | 硬断言 |
+|---|---|
+| Codex Goal/Plan driver | `--new-chat-control goal/plan` 从 Add root 二次 OCR 点击；Goal 以 composer `Goal` chip 验证，Plan 重开 Add 并验证 `Turn plan mode off` 后收回 menu；退出统一点 New chat 恢复 unsent default，未 Send |
+| Goal 同态修复 | 修前 AgentRunner 另叠三字段 launcher，和 base composer 形成双输入区；修后复用唯一 composer，placeholder/Goal chip 与 Codex 同层，verifier/max rounds 进 chip popover，Escape 收回 options；Send 前 `newSession=0` |
+| Plan 可逆修复 | Codex 显示 plan placeholder + 独立 Plan chip；AgentRunner 因 backend 将 Plan 编码为 read-only access，继续诚实显示 `Plan · read-only`，但补同态 placeholder；Add row 支持 on→off 并恢复进入前 access，不画假 Full access |
+| Automation 启动表面 | Loop/Best-of-N launcher 与 background mode 逐项 DOM+截图；Agent/YAML 复用 98.2c；这些是 UJ-14/18/22 的本产品能力，当前 Codex Add root 无对应项，不删除也不塞进首层；显式 Start 前不创建 session |
+| 回归与恢复 | frontend 67 files/690 tests、build、capture contract、shellcheck 与 `check.sh` 全绿；production shared store 复拍，health `ok/daemonUp/versionMatch=true`、browser logs=`[]`；恢复 Full access、dark theme、默认 viewport 与空 draft，未 Send/创建/关闭/删除/清理 session |
+
 **98.1 证据**：`qa/runs/2026-07-22-QA88-codex-ui-continuous-loop/` 保存
 accepted/rejected screenshots、browser logs、driver stderr contract、health 与工作区 diff。
 首批未创建、关闭、删除或清理 AgentRunner session/workspace/journal；后续若产生测试
@@ -1879,3 +1887,8 @@ Ask→Full 恢复截图及五组 side-by-side；`06..07/10..14` 的早期 OCR/Ad
 4/20 行 CJK、AgentRunner 修前/修后与同 viewport 合并图、driver cleanup、health/logs/
 gate。`19/30..33` 为当前 accepted 输入证据；`02..17/22..27` 为原生附件或 cleanup
 校准拒收图，文件名即使含 `attached` 也不代表动作成功。NS-05/06 均继续 UNTESTED。
+
+**98.2f 证据**：`qa/runs/2026-07-22-QA88-98.2f-goal-automation/` 保存 Codex
+Goal/Plan on-state 与 cleanup、AgentRunner Goal/Plan 修前/修后、四张同 viewport 拼图、
+Loop/Best-of-N/background contact sheet、DOM/logs/health/gate。`08..09/12..24` 为 accepted；
+`01/03..07/10..11` 及所有 `validation-debug` 是 driver cleanup/OCR 校准拒收图。

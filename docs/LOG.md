@@ -6525,3 +6525,32 @@ store，health `ok/daemonUp/versionMatch=true`、browser logs=`[]`；恢复空 d
 viewport，未 Send/创建/关闭/删除/清理 session。证据根：
 `qa/runs/2026-07-22-QA88-98.2e-input-attachments/`。矩阵仍为 PASS 12/GAP 6/
 INTENTIONAL 4/BLOCKED 1/UNTESTED 56，INC-98/G42/QA-88 继续开放。
+
+---
+
+## 2026-07-22 · INC-98.2f Goal/Plan/Automation 启动表面对标与单 composer 修复
+
+**真实 Codex 驱动**：`--new-chat-control goal/plan` 从 Add root 二次 OCR 点击。Goal
+用 composer `Goal` chip 验证；Plan 的 chip 对 Vision 过淡，改为重开 Add 验证语义状态
+`Turn plan mode off`，再 Escape 收回 menu。两者 capture 后都点 sidebar New chat 清理
+unsent mode；早期 `01/03..07/10..11` cleanup/OCR 校准明确拒收。
+
+**发现与修复**：同逻辑 1952×1465 拼图显示 AgentRunner Goal 另叠三字段 launcher，和
+base composer 形成两个输入区；Plan 只替换 access pill、placeholder 仍为 `Do anything`，
+且 Add row 不能原路退出。Goal 现复用唯一 composer，显示同层 Goal chip 与专用 prompt，
+verifier/max rounds 渐进披露进 chip popover，Send 前零 session；Plan Add on→off 恢复
+prior access，并使用规划 prompt。Plan backend 仍是 read-only access posture，故 pill
+诚实保留 `Plan · read-only`，不照抄 Codex 同屏 Full access 的不同语义。顺带给共享
+`PopItem` 补 `type=button`，消除 form 内隐式 submit。
+
+**本产品 Automation 边界**：当前 Codex Add root 没有 Loop/Best-of-N/background；我方
+这些能力由 UJ-14/18/22 要求，继续收在 Automation 子页。真实浏览器逐项打开 Loop、
+Best-of-N、background 与 Goal options，Agent/YAML 复用 98.2c 证据；所有显式 Start 前
+未 Send、未创建 session。NS-09 升 PASS，矩阵为 PASS 13/GAP 6/INTENTIONAL 4/
+BLOCKED 1/UNTESTED 55。
+
+**验证**：frontend 67 files/690 tests、build、capture contract、shellcheck 与
+`./scripts/check.sh` 全绿；production `:8809` + shared store 复拍 Goal/Plan 修后同态图，
+health `ok/daemonUp/versionMatch=true`、browser logs=`[]`；恢复 Full access、dark theme、
+默认 viewport 与空 draft。证据根：`qa/runs/2026-07-22-QA88-98.2f-goal-automation/`；
+INC-98/G42/QA-88 继续开放。

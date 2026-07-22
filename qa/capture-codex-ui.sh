@@ -18,7 +18,7 @@ Captures the largest on-screen layer-0 window owned by bundle com.openai.codex.
 --surface navigates to one read-only sidebar surface before capture. NAME is one of:
   new-chat, pull-requests, sites, scheduled, plugins
 --new-chat-control opens one reversible New chat control before capture. NAME is one of:
-  project, worktree, environment, branch, add, access, model,
+  project, worktree, environment, branch, add, goal, plan, access, model,
   model-list, effort, speed,
   starter-explore, starter-build, starter-review, starter-fix
 --control-query enters read-only search text in an opened New chat picker.
@@ -182,7 +182,7 @@ if [[ -n "$palette_query" && "$mode" != "command-palette" ]]; then
 fi
 if [[ -n "$new_chat_control" ]]; then
   case "$new_chat_control" in
-    project|worktree|environment|branch|add|access|model|model-list|effort|speed|starter-explore|starter-build|starter-review|starter-fix) ;;
+    project|worktree|environment|branch|add|goal|plan|access|model|model-list|effort|speed|starter-explore|starter-build|starter-review|starter-fix) ;;
     *)
       echo "capture-codex-ui: unsupported New chat control: $new_chat_control" >&2
       exit 2
@@ -270,6 +270,8 @@ transient_open=0
 nested_open=0
 starter_seeded=0
 composer_seeded=0
+goal_enabled=0
+plan_enabled=0
 ocr_capture=""
 send_key() {
   local key_code=$1
@@ -570,6 +572,21 @@ if [[ -n "$surface" ]]; then
 fi
 
 close_transient() {
+  if ((goal_enabled || plan_enabled)); then
+    rm -f -- "$ocr_capture" 2>/dev/null || true
+    ocr_capture=$(mktemp -t codex-mode-restore)
+    screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+    new_chat_point=$(sidebar_text_center "$ocr_capture" "New chat")
+    IFS=$'\t' read -r new_chat_x new_chat_y <<<"$new_chat_point"
+    send_click "$new_chat_x" "$new_chat_y"
+    sleep 1
+    rm -f -- "$ocr_capture"
+    ocr_capture=$(mktemp -t codex-mode-restore-validate)
+    screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+    window_text_center "$ocr_capture" "Full access" "composer" >/dev/null
+    goal_enabled=0
+    plan_enabled=0
+  fi
   if ((transient_open)); then
     send_key 53 >/dev/null 2>&1 || true
     if ((nested_open)); then
@@ -630,7 +647,7 @@ if [[ "$mode" == "new-chat-control" ]]; then
     worktree) target_text="New worktree"; target_region="composer" ;;
     environment) target_text="No environment"; target_region="composer" ;;
     branch) target_text="main"; target_region="composer" ;;
-    add) target_text="Full access"; target_region="composer" ;;
+    add|goal|plan) target_text="Full access"; target_region="composer" ;;
     access) target_text="Full access"; target_region="composer" ;;
     model|model-list|effort|speed) target_text="5.6"; target_region="composer" ;;
     starter-explore) target_text="Explore and"; target_region="starter" ;;
@@ -640,7 +657,8 @@ if [[ "$mode" == "new-chat-control" ]]; then
   esac
   point=$(window_text_center "$ocr_capture" "$target_text" "$target_region")
   IFS=$'\t' read -r point_x point_y <<<"$point"
-  if [[ "$new_chat_control" == "add" ]]; then
+  if [[ "$new_chat_control" == "add" || "$new_chat_control" == "goal" ||
+        "$new_chat_control" == "plan" ]]; then
     point_x=$(awk -v x="$point_x" 'BEGIN { print x - 45 }')
   elif [[ "$new_chat_control" == "branch" ]]; then
     # Vision often merges "No environment" and the short branch label into
@@ -657,6 +675,34 @@ if [[ "$mode" == "new-chat-control" ]]; then
     *) transient_open=1 ;;
   esac
   sleep 1
+  if [[ "$new_chat_control" == "goal" || "$new_chat_control" == "plan" ]]; then
+    rm -f -- "$ocr_capture"
+    ocr_capture=$(mktemp -t codex-new-chat-add-root)
+    screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+    nested_target=$([[ "$new_chat_control" == "goal" ]] && echo "Goal" || echo "Plan mode")
+    nested_point=$(window_text_center "$ocr_capture" "$nested_target" "popover-low")
+    IFS=$'\t' read -r nested_x nested_y <<<"$nested_point"
+    send_click "$nested_x" "$nested_y"
+    if [[ "$new_chat_control" == "plan" ]]; then
+      plan_enabled=1
+    else
+      goal_enabled=1
+    fi
+    sleep 1
+    if [[ "$new_chat_control" == "plan" ]]; then
+      # The active Plan chip is too low-contrast for stable Vision OCR. Reopen
+      # Add and assert the action's semantic off-state, then close the menu so
+      # the emitted screenshot still shows the composer mode itself.
+      send_click "$point_x" "$point_y"
+      sleep 1
+      rm -f -- "$ocr_capture"
+      ocr_capture=$(mktemp -t codex-plan-enabled-validate)
+      screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+      window_text_center "$ocr_capture" "Turn plan mode off" "popover-low" >/dev/null
+      send_key 53
+      sleep 1
+    fi
+  fi
   if [[ "$new_chat_control" == "model-list" || "$new_chat_control" == "effort" ||
         "$new_chat_control" == "speed" ]]; then
     rm -f -- "$ocr_capture"
@@ -716,6 +762,8 @@ if [[ "$mode" == "new-chat-control" ]]; then
       environment) validation_text="No environments found" ;;
       branch) validation_text="Search branches" ;;
       add) validation_text="Files and folders"; validation_region="popover-low" ;;
+      goal) validation_text="Goal"; validation_region="composer" ;;
+      plan) validation_text="Full access"; validation_region="composer" ;;
       access) validation_text="Ask for approval"; validation_region="popover-low" ;;
       model) validation_text="Advanced"; validation_region="popover-low" ;;
       model-list) validation_text="Model"; validation_region="popover-low" ;;

@@ -233,7 +233,9 @@ export function Composer(props: ComposerProps) {
     }
     return DEFAULT_ACCESS;
   });
+  const lastNonPlanAccess = useRef<AccessId>(access === "plan" ? DEFAULT_ACCESS : access);
   const setAccess = (a: AccessId) => {
+    if (a !== "plan") lastNonPlanAccess.current = a;
     setAccessState(a);
     try {
       localStorage.setItem("arwebui.lastAccess", a);
@@ -269,6 +271,10 @@ export function Composer(props: ComposerProps) {
 
   // goal / loop / best-of-N launcher panel
   const [launcher, setLauncher] = useState<null | { mode: "goal" | "loop" | "best"; prompt: string }>(null);
+  const [goalVerifier, setGoalVerifier] = useState("");
+  const [goalRounds, setGoalRounds] = useState(10);
+  const goalMode = launcher?.mode === "goal";
+  const togglePlanMode = () => setAccess(access === "plan" ? lastNonPlanAccess.current : "plan");
 
   // slash menu
   const [slashOpen, setSlashOpen] = useState(false);
@@ -659,6 +665,11 @@ export function Composer(props: ComposerProps) {
     const cmd = parseSlash(t, props.variant);
     if (cmd) {
       await runSlash(cmd.cmd, cmd.rest);
+      return;
+    }
+
+    if (goalMode) {
+      await startGoal(t, goalVerifier.trim(), goalRounds);
       return;
     }
 
@@ -1157,11 +1168,15 @@ export function Composer(props: ComposerProps) {
   // job, not advertise implementation mechanics.
   const placeholder = isSession
     ? "Ask for follow-up changes"
-    : kind === "chat"
-      ? "Do anything"
-      : narrow
-        ? "Describe a background run"
-        : "Describe a background run";
+    : goalMode
+      ? "Describe your goal, define measurable outcomes for best results"
+      : access === "plan"
+        ? "Describe what to plan…"
+        : kind === "chat"
+          ? "Do anything"
+          : narrow
+            ? "Describe a background run"
+            : "Describe a background run";
 
   // Pill label: friendly name for a chosen workspace; before one exists, say
   // what will actually happen instead of the ambiguous "auto-created" (W2).
@@ -1227,7 +1242,7 @@ export function Composer(props: ComposerProps) {
 
   return (
     <div className={"cx " + (isSession ? "cx-session" : "cx-home")}>
-      {launcher && (
+      {launcher && launcher.mode !== "goal" && (
         <GoalLoopLauncher
           mode={launcher.mode}
           initialPrompt={launcher.prompt}
@@ -1513,14 +1528,23 @@ export function Composer(props: ComposerProps) {
                   <>
                     <PopSection label="Add">
                       <PopItem icon={<Paperclip size={16} />} title="Files and folders" onClick={() => { close(); anyRef.current?.click(); }} />
-                      <PopItem icon={<GoalIcon />} title="Goal" desc="Set a goal to keep pursuing" onClick={() => { close(); setLauncher({ mode: "goal", prompt: text.trim() }); }} />
+                      <PopItem
+                        icon={<GoalIcon />}
+                        title="Goal"
+                        desc={goalMode ? "Turn goal mode off" : "Set a goal to keep pursuing"}
+                        active={goalMode}
+                        onClick={() => {
+                          close();
+                          setLauncher(goalMode ? null : { mode: "goal", prompt: text.trim() });
+                        }}
+                      />
                       <PopItem
                         icon={<PlanIcon />}
                         title="Plan mode"
-                        desc="Turn plan mode on"
+                        desc={access === "plan" ? "Turn plan mode off" : "Turn plan mode on"}
                         active={!isSession && access === "plan"}
                         disabled={isSession}
-                        onClick={!isSession ? () => { close(); setAccess("plan"); } : undefined}
+                        onClick={!isSession ? () => { close(); togglePlanMode(); } : undefined}
                       />
                     </PopSection>
                     <PopSection label="Advanced">
@@ -1677,6 +1701,45 @@ export function Composer(props: ComposerProps) {
                     ))}
                   </PopSection>
                   <div className="cx-pop-note">Approvals still surface here whenever a gate asks; the posture is fixed once the session starts.</div>
+                </div>
+              )}
+            </Popover>
+          )}
+
+          {goalMode && (
+            <Popover
+              align="left"
+              panelClass="cx-pop-codex"
+              trigger={(open, toggle) => (
+                <button
+                  type="button"
+                  className={"cx-pill cx-goal-mode" + (open ? " active" : "")}
+                  onClick={toggle}
+                  aria-haspopup="menu"
+                  aria-expanded={open}
+                  title="Goal mode — configure completion checks or exit"
+                >
+                  <GoalIcon />
+                  Goal
+                </button>
+              )}
+            >
+              {(close) => (
+                <div className="cx-menu wide cx-goal-options">
+                  <div className="pop-menu-title"><b>Goal options</b></div>
+                  <label className="cx-launcher-field" title="Optional shell command that must exit 0 for the goal to count as met">
+                    <span>Done when (command)</span>
+                    <input
+                      placeholder="e.g. go test ./…  (empty = agent self-certifies)"
+                      value={goalVerifier}
+                      onChange={(event) => setGoalVerifier(event.target.value)}
+                    />
+                  </label>
+                  <label className="cx-launcher-field small" title="Safety cap on iterations">
+                    <span>Max rounds</span>
+                    <input type="number" min={1} value={goalRounds} onChange={(event) => setGoalRounds(Math.max(1, Number(event.target.value) || 1))} />
+                  </label>
+                  <PopItem title="Exit Goal mode" onClick={() => { setLauncher(null); close(); }} />
                 </div>
               )}
             </Popover>

@@ -353,6 +353,9 @@ GAPS.md，本文件只回答"产品要做什么"。
    才替换为具体 prompt，清空 draft 恢复 cards，全程不在 Send 前创建 session。
    Codex 式 Local environment/Cloud 生命周期在 G11 完成前不画假入口；`+` root 为 Files and folders / Goal / Plan mode / Automation，
    Loop / Best-of-N / background / agent persona 与 YAML spec 收在 Automation 子页。
+   Goal 复用唯一 composer，以 Goal chip 渐进披露 verifier/max rounds，显式 Send 才创建
+   或 attach；Plan mode 从 Add 原路可逆，关闭时恢复进入前的 access posture，并用专用
+   placeholder 说明下一条输入会生成 plan。
    Access/model picker 只显示会改变 session spec/runtime 的真实选择；模型与 effort 可切换，
    exact thinking budget 住 Advanced。provider service tier 与 model-specific Ultra preset
    在 G45 完成前不画只有 `Standard` 或无 runtime 语义的假选项。长 draft 在 desktop

@@ -75,6 +75,19 @@ INC-98 将该方法固化为持续循环：
   textarea 上限放宽为 `min(320px, 38dvh)`，JS autosize 同步封顶 `320px`；窄屏仍保持
   `180px`，避免移动端 composer 挤出 viewport。以同 viewport/state 拼图复验，不把这项
   可见修复误写成真实 IME 已通过。
+- **98.2f Goal/Plan/Automation evidence note**：当前 Codex Add root 实窗为 Files and
+  folders / Attach Google Chrome / Work in a project / Goal / Plan mode / plugin artifacts；
+  AgentRunner 不复制浏览器绑定或 artifact plugin，占位能力仍禁止。`Goal` 只打开 launcher
+  后 Escape，不创建 goal/session；`Plan mode` 只做可逆 on→off 并验证恢复 Full access。
+  AgentRunner 的 Loop/Best-of-N/background/Agent→YAML 来自 UJ-14/18/22 的 Automation
+  语义，不因 Codex 当前 root 不同而删除；但每个 launcher 都必须证明显式 Start 前无
+  session、无 Send，close/Escape 回 Add opener，启动后的 shared session/data 永久保留。
+  同态拼图确认两项可见 drift：我方 Goal 另叠一张三字段 card，造成双 composer；Plan
+  只替换 access pill、仍显示通用 placeholder，且 Add row 不能原路关闭。修订为：Goal
+  直接复用唯一 composer，改 placeholder 并显示 Goal chip，verifier/max rounds 收进 chip
+  popover，Send 才创建/attach；Plan Add row 可逆 on/off、off 恢复进入 Plan 前的 access，
+  Plan 时改为任务规划 placeholder。因我方 backend 把 Plan 编码为只读 access posture，
+  pill 继续诚实显示 `Plan · read-only`，不照抄 Codex 同屏 `Full access + Plan` 的双语义。
 
 ## Spec delta
 

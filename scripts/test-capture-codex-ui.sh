@@ -20,7 +20,7 @@ done
 [[ "$help" == *"--new-chat-control"* ]]
 [[ "$help" == *"--composer-text"* ]]
 [[ "$help" == *"--composer-validate"* ]]
-for control in project worktree environment branch add access model model-list effort speed starter-explore starter-build starter-review starter-fix; do
+for control in project worktree environment branch add goal plan access model model-list effort speed starter-explore starter-build starter-review starter-fix; do
   [[ "$help" == *"$control"* ]] || {
     echo "capture driver help is missing New chat control: $control" >&2
     exit 1
@@ -90,6 +90,7 @@ grep -Fq 'case "popover-low"' "$driver"
 grep -Fq 'window_text_center "$ocr_capture" "$validation_text" "$validation_region"' "$driver"
 grep -Fq 'if ((starter_seeded))' "$driver"
 grep -Fq 'if ((composer_seeded))' "$driver"
+grep -Fq 'if ((goal_enabled || plan_enabled))' "$driver"
 # Literal source contract; expansion would weaken the assertion.
 # shellcheck disable=SC2016
 grep -Fq 'window_text_center "$ocr_capture" "Explore and" "starter"' "$driver"
