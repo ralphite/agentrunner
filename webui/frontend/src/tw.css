@@ -274,7 +274,7 @@
   .skip-link {
     @apply fixed left-3 top-3 z-[80] -translate-y-16 rounded-[8px] bg-accent px-3 py-2 text-accent-ink focus:translate-y-0;
   }
-  .app { @apply grid h-full min-h-0 bg-bg text-ink; grid-template-columns: var(--sidebar-width, 260px) minmax(0, 1fr); }
+  .app { @apply grid h-full min-h-0 bg-bg text-ink; grid-template-columns: var(--sidebar-width, 320px) minmax(0, 1fr); }
   .app.collapsed { grid-template-columns: minmax(0, 1fr); }
   .app.collapsed .sidebar { @apply hidden; }
   .main { @apply relative flex min-h-0 min-w-0 flex-col bg-bg outline-none; }
@@ -412,13 +412,13 @@
   .account-meta { @apply min-w-0 truncate text-[12px] text-ink-2; }
   .session-preview {
     @apply fixed z-40 w-[260px] rounded-[10px] border border-line bg-panel p-3 text-[12px] text-ink shadow-lg;
-    left: calc(var(--sidebar-width, 260px) - 8px);
+    left: calc(var(--sidebar-width, 320px) - 8px);
   }
   .session-preview > div { @apply flex min-w-0 items-center gap-2 py-[2px] text-ink-2; }
   .session-preview-head { @apply justify-between text-ink; }
   .project-preview {
     @apply fixed z-40 w-[320px] rounded-[12px] border border-line bg-panel p-3 text-[13px] text-ink shadow-lg;
-    left: calc(var(--sidebar-width, 260px) - 8px);
+    left: calc(var(--sidebar-width, 320px) - 8px);
   }
   .project-preview > div { @apply flex min-w-0 items-center gap-2 py-[3px] text-ink-2; }
   .project-preview-head { @apply text-[15px] text-ink; }

@@ -13,6 +13,10 @@ for surface in new-chat pull-requests sites scheduled plugins; do
     exit 1
   }
 done
+[[ "$help" == *"--context-menu"* ]]
+[[ "$help" == *"--keyboard-context-menu"* ]]
+[[ "$help" == *"--account-menu"* ]]
+[[ "$help" == *"--user-menu"* ]]
 
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
@@ -35,17 +39,29 @@ if $driver --palette-query QA >"$tmpdir/palette.out" 2>"$tmpdir/palette.err"; th
 fi
 grep -Fq -- '--palette-query requires --command-palette' "$tmpdir/palette.err"
 
+if $driver --restore-query QA >"$tmpdir/restore.out" 2>"$tmpdir/restore.err"; then
+  echo "capture driver accepted restore query without a surface" >&2
+  exit 1
+fi
+grep -Fq -- '--restore-query requires --surface' "$tmpdir/restore.err"
+
 # Query entry must be reversible: the driver may borrow the clipboard to paste
 # into Electron, but it has to preserve every original pasteboard item/type.
 grep -Fq 'pasteboard.pasteboardItems' "$driver"
 grep -Fq 'pasteboard.writeObjects(restoredItems)' "$driver"
 grep -Fq 'defer { restorePasteboard() }' "$driver"
+grep -Fq 'observation.boundingBox.midX < 0.30' "$driver"
+grep -Fq 'screencapture -x -o -t png' "$driver"
+grep -Fq 'send_key 109 2' "$driver"
+# Literal source contract; expansion would weaken the assertion.
+# shellcheck disable=SC2016
+grep -Fq 'send_click "$point_x" "$point_y" right' "$driver"
 
 if grep -Fq 'System Events' "$driver"; then
   echo "capture driver must not regress to the blocking System Events path" >&2
   exit 1
 fi
-grep -Fq 'trap close_palette EXIT' "$driver"
+grep -Fq 'trap close_transient EXIT' "$driver"
 # Literal source contract; variable expansion would defeat this assertion.
 # shellcheck disable=SC2016
 grep -Fq 'if [[ -n "$restore_query" && -n "$surface" ]]' "$driver"

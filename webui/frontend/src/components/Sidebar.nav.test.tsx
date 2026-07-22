@@ -636,6 +636,7 @@ describe("sidebar section folding and resize (INC-87)", () => {
   it("supports pointer, keyboard and reset resizing with hard clamps", () => {
     localStorage.clear();
     mount();
+    expect(SIDEBAR_DEFAULT_WIDTH).toBe(320);
     const handle = screen.getByRole("separator", { name: "Resize sidebar" });
     expect(handle.className).toContain("max-[900px]:hidden!");
 

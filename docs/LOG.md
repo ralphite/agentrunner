@@ -6420,3 +6420,28 @@ warning/error=`[]`，恢复 dark 主题与 viewport，未创建/关闭/删除任
 GL-03 升 PASS；Codex 可命中消息正文并显示 snippet，我方只查 title/id/workspace，
 因此 GL-04 记 GAP 并新增 G44，不用假 UI 绕过。证据根：
 `qa/runs/2026-07-22-QA88-98.2-global-new-session/`。INC-98/G42/QA-88 继续开放。
+
+---
+
+## 2026-07-22 · INC-98.2b Sidebar 密度、菜单与真实状态取证
+
+**发现与修复**：真实 Codex desktop rail 约 337px；AgentRunner 旧默认 260px 在共享
+大历史里使 project/session title 过早截断。沿用既有 resize 交互，只把新默认改为
+320px；220–480 clamp、pointer/keyboard、mobile drawer 与既有持久值均不变。
+
+**交互基建**：Codex capture driver 新增 sidebar text OCR 右键、Shift+F10 探测及顶部
+product switcher/底部 user menu 捕获。OCR 使用 `screencapture -o` 排除窗口阴影，匹配
+限制在 sidebar x<30%，精确文字优先；所有 transient menu 用 Escape 收回。误点其他
+project 的 `02..04` 与固定坐标校准图 `07..08` 明确拒收。
+
+**双侧裁决**：project 六项菜单完全同构；session 菜单保留本产品已定的 Pin/Rename/
+read/Archive，不复制 Codex raw id/path/deep-link，精确 Continue 继续在消息级。AgentRunner
+右键与 Shift+F10 同源且 Escape 回 row；Codex Shift+F10 只显示 row focus，未弹菜单。
+Codex account/sign-out/usage 对本地单用户 AgentRunner 为 INTENTIONAL，更新仍走 UJ-25。
+
+**真实环境**：shared store 展开 269 project 并验证滚动/footer；捕获 current/approval/
+failed/running/stranded/unread 和 running focus actions。保留 shared session
+`20260722-194600-for-ui-qa-run-exactly-one-bas-5146c8f0befe143b` 及 workspace/journal。
+GL-07 升 PASS、GL-08 记 INTENTIONAL；GL-05/06 只有我方当前证据，继续 UNTESTED 等
+Codex 同批全态。矩阵更新为 PASS 9/GAP 4/INTENTIONAL 4/BLOCKED 1/UNTESTED 61。
+证据根：`qa/runs/2026-07-22-QA88-98.2b-sidebar/`；INC-98/G42/QA-88 继续开放。

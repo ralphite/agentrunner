@@ -211,7 +211,7 @@ function loadSidebarCollapsed(): boolean {
 
 export const SIDEBAR_MIN_WIDTH = 220;
 export const SIDEBAR_MAX_WIDTH = 480;
-export const SIDEBAR_DEFAULT_WIDTH = 260;
+export const SIDEBAR_DEFAULT_WIDTH = 320;
 const SIDEBAR_WIDTH_KEY = "arwebui.sidebarWidth";
 
 export function clampSidebarWidth(width: number): number {

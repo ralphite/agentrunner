@@ -1816,6 +1816,15 @@ shared-store QA data → recapture → 与同 viewport/state 的 AgentRunner 合
 | 运行与恢复 | production 部署 shared daemon/store；warning/error=`[]`；恢复 dark 主题与 viewport；未创建/关闭/删除 session |
 | 能力裁决 | GL-03 升 PASS；标题/ID/workspace 搜索与 no-match 通过；正文搜索需 backend/index，GL-04 记 GAP/G44，不用全量 journal 下载或假 snippet 绕过 |
 
+| 98.2b 动作 | 硬断言 |
+|---|---|
+| Codex sidebar 菜单 driver | `--context-menu VISIBLE_TEXT` 以无阴影实窗截图 + Vision OCR 定位 sidebar 并右键；`--account-menu/--user-menu` 可逆打开固定 shell 菜单；未知/缺参数 fail-closed，退出统一 Escape 恢复 |
+| project/session 菜单双侧比较 | project 六项逐项同构；AgentRunner session 保留 Pin/Rename/read/Archive，不复制 Codex raw id/path/deep-link；右键与 Shift+F10 同源、Escape 回 opener；Codex Shift+F10 仅得到可见 focus，不弹菜单 |
+| sidebar density/持久化 | 同逻辑 1952×1465 light 下旧默认 260px 过早截断；默认改 320px，220–480 clamp/键盘/拖拽不变，既有持久值不迁移；reload 后仍 320，mobile drawer 不变 |
+| 大 shared store 与 row states | Projects 8→269 后可滚且 footer 固定；current/approval/failed/running/stranded/unread 与 running hover/focus quick actions 均来自共享真实数据，不用静态 mock |
+| shared QA data | 新 session `20260722-194600-for-ui-qa-run-exactly-one-bas-5146c8f0befe143b` 完成 45s bash 后为 `waiting:input`；workspace/journal/spec/截图全部保留，不 close/delete/cleanup |
+| 账户边界 | Codex product switcher + Usage/Pet/Settings/Log out 对比 AgentRunner local single-user Connected/Settings/Shortcuts/Theme；不执行 sign-out；GL-08 记 INTENTIONAL，更新继续由 UJ-25 CLI 承担 |
+
 **98.1 证据**：`qa/runs/2026-07-22-QA88-codex-ui-continuous-loop/` 保存
 accepted/rejected screenshots、browser logs、driver stderr contract、health 与工作区 diff。
 首批未创建、关闭、删除或清理 AgentRunner session/workspace/journal；后续若产生测试
@@ -1823,3 +1832,8 @@ session，继续按共享数据纪律永久保留。
 
 **98.2 证据**：`qa/runs/2026-07-22-QA88-98.2-global-new-session/`保存 accepted/
 rejected screenshots、双侧合并比较、DOM geometry、browser logs、health 与工作区 diff。
+
+**98.2b 证据**：`qa/runs/2026-07-22-QA88-98.2b-sidebar/` 保存 accepted/rejected
+Codex screenshots、双侧 project/session 菜单与 sidebar before/after contact sheet、
+AgentRunner fold/overflow/scroll/真实状态行、browser logs、health、gate 与工作区 diff。
+`02..04/07..08` 为 OCR/固定坐标校准拒收图，不能用于 PASS。

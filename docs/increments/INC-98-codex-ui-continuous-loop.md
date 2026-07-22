@@ -34,6 +34,13 @@ INC-98 将该方法固化为持续循环：
   保留既有九个真实 `⌘1..⌘9` 快捷语义，但把 Commands 移到 attention
   overflow 之前，不让大 shared store 把命令挤出首个 viewport；desktop 收到
   560px/15vh，mobile 继续使用既有 12px inset。正文搜索需 backend，记 G44。
+- **98.2b sidebar design note**：沿用既有 220–480px pointer/keyboard resize、整行
+  hover/focus 和同源 context menu；真实 Codex desktop rail 约 337px，我方旧
+  default 260px 在大 shared store 中使 project/session 名过早截断，改为 320px，
+  与既有 mobile drawer 上限相同；已持久的用户宽度不迁移、不覆盖，仍可随时
+  拖回 220px。不增加说明文字或新控件，不改 session/project 数据；主画布
+  减少 60px 是可逆取舍，900px 以下仍走原 mobile drawer。会话菜单保留产品
+  已定的四项轻表面；不照搬 Codex 的 raw id/deeplink/path，精确 Continue 仍在消息级。
 
 ## Spec delta
 

@@ -5,7 +5,9 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-usage: qa/capture-codex-ui.sh [--command-palette [--palette-query TEXT] | --surface NAME]
+usage: qa/capture-codex-ui.sh [--command-palette [--palette-query TEXT] | --surface NAME |
+                              --context-menu VISIBLE_TEXT | --keyboard-context-menu VISIBLE_TEXT |
+                              --account-menu | --user-menu]
                               [--settle SECONDS] [--restore-query TEXT] [--output PATH]
 
 Captures the largest on-screen layer-0 window owned by bundle com.openai.codex.
@@ -13,6 +15,12 @@ Captures the largest on-screen layer-0 window owned by bundle com.openai.codex.
 --palette-query enters a read-only search in the open command palette before capture.
 --surface navigates to one read-only sidebar surface before capture. NAME is one of:
   new-chat, pull-requests, sites, scheduled, plugins
+--context-menu OCR-locates visible sidebar text, right-clicks it, captures the menu,
+  then dismisses it with Escape. Matches are restricted to the sidebar.
+--keyboard-context-menu focuses visible sidebar text, opens its menu with Shift+F10,
+  captures it, then dismisses it with Escape.
+--account-menu opens the top-left Codex/ChatGPT product switcher.
+--user-menu opens the bottom-left profile/status menu.
 --settle waits for a navigated surface to become visually stable (default: 1 second).
 --restore-query returns to a Codex thread through Cmd+K after a surface capture.
 EOF
@@ -21,6 +29,7 @@ EOF
 mode="current"
 surface=""
 palette_query=""
+context_target=""
 restore_query=""
 settle_seconds=1
 output=""
@@ -46,6 +55,32 @@ while (($#)); do
       fi
       palette_query="$2"
       shift 2
+      ;;
+    --context-menu)
+      if (($# < 2)) || [[ -z "$2" ]]; then
+        echo "capture-codex-ui: --context-menu requires visible text" >&2
+        exit 2
+      fi
+      context_target="$2"
+      mode="context-menu"
+      shift 2
+      ;;
+    --keyboard-context-menu)
+      if (($# < 2)) || [[ -z "$2" ]]; then
+        echo "capture-codex-ui: --keyboard-context-menu requires visible text" >&2
+        exit 2
+      fi
+      context_target="$2"
+      mode="keyboard-context-menu"
+      shift 2
+      ;;
+    --account-menu)
+      mode="account-menu"
+      shift
+      ;;
+    --user-menu)
+      mode="user-menu"
+      shift
       ;;
     --restore-query)
       if (($# < 2)); then
@@ -94,6 +129,10 @@ if [[ -n "$surface" ]]; then
 fi
 if [[ -n "$palette_query" && "$mode" != "command-palette" ]]; then
   echo "capture-codex-ui: --palette-query requires --command-palette" >&2
+  exit 2
+fi
+if [[ -n "$restore_query" && -z "$surface" ]]; then
+  echo "capture-codex-ui: --restore-query requires --surface" >&2
   exit 2
 fi
 
@@ -153,11 +192,12 @@ if [[ ! "$window_id" =~ ^[0-9]+$ || -z "$window_height" ]]; then
   exit 1
 fi
 
-palette_open=0
+transient_open=0
+ocr_capture=""
 send_key() {
   local key_code=$1
-  local command_flag=${2:-0}
-  swift - "$codex_pid" "$key_code" "$command_flag" <<'SWIFT'
+  local modifier=${2:-0}
+  swift - "$codex_pid" "$key_code" "$modifier" <<'SWIFT'
 import AppKit
 import CoreGraphics
 import Foundation
@@ -165,7 +205,7 @@ import Foundation
 guard CommandLine.arguments.count == 4,
       let pid = Int32(CommandLine.arguments[1]),
       let keyCode = UInt16(CommandLine.arguments[2]),
-      let commandFlag = Int(CommandLine.arguments[3]),
+      let modifier = Int(CommandLine.arguments[3]),
       let app = NSRunningApplication(processIdentifier: pid) else {
   fputs("invalid Codex key request\n", stderr)
   exit(2)
@@ -179,9 +219,12 @@ guard let down = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDo
   fputs("could not create keyboard event\n", stderr)
   exit(1)
 }
-if commandFlag == 1 {
+if modifier == 1 {
   down.flags = .maskCommand
   up.flags = .maskCommand
+} else if modifier == 2 {
+  down.flags = .maskShift
+  up.flags = .maskShift
 }
 down.post(tap: .cghidEventTap)
 up.post(tap: .cghidEventTap)
@@ -191,12 +234,13 @@ SWIFT
 send_click() {
   local x=$1
   local y=$2
-  swift - "$codex_pid" "$x" "$y" <<'SWIFT'
+  local button=${3:-left}
+  swift - "$codex_pid" "$x" "$y" "$button" <<'SWIFT'
 import AppKit
 import CoreGraphics
 import Foundation
 
-guard CommandLine.arguments.count == 4,
+guard CommandLine.arguments.count == 5,
       let pid = Int32(CommandLine.arguments[1]),
       let x = Double(CommandLine.arguments[2]),
       let y = Double(CommandLine.arguments[3]),
@@ -209,15 +253,67 @@ _ = app.activate(options: [.activateAllWindows])
 usleep(200_000)
 let source = CGEventSource(stateID: .hidSystemState)
 let point = CGPoint(x: x, y: y)
-guard let down = CGEvent(mouseEventSource: source, mouseType: .leftMouseDown,
-                         mouseCursorPosition: point, mouseButton: .left),
-      let up = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp,
-                       mouseCursorPosition: point, mouseButton: .left) else {
+let right = CommandLine.arguments[4] == "right"
+let mouseButton: CGMouseButton = right ? .right : .left
+let downType: CGEventType = right ? .rightMouseDown : .leftMouseDown
+let upType: CGEventType = right ? .rightMouseUp : .leftMouseUp
+guard let down = CGEvent(mouseEventSource: source, mouseType: downType,
+                         mouseCursorPosition: point, mouseButton: mouseButton),
+      let up = CGEvent(mouseEventSource: source, mouseType: upType,
+                       mouseCursorPosition: point, mouseButton: mouseButton) else {
   fputs("could not create mouse event\n", stderr)
   exit(1)
 }
 down.post(tap: .cghidEventTap)
 up.post(tap: .cghidEventTap)
+SWIFT
+}
+
+sidebar_text_center() {
+  local image=$1
+  local query=$2
+  swift - "$image" "$query" "$window_x" "$window_y" "$window_width" "$window_height" <<'SWIFT'
+import CoreGraphics
+import Foundation
+import ImageIO
+import Vision
+
+guard CommandLine.arguments.count == 7,
+      let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: CommandLine.arguments[1]) as CFURL, nil),
+      let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+      let windowX = Double(CommandLine.arguments[3]),
+      let windowY = Double(CommandLine.arguments[4]),
+      let windowWidth = Double(CommandLine.arguments[5]),
+      let windowHeight = Double(CommandLine.arguments[6]) else {
+  fputs("invalid sidebar OCR request\n", stderr)
+  exit(2)
+}
+
+let query = CommandLine.arguments[2]
+let request = VNRecognizeTextRequest()
+request.recognitionLevel = .accurate
+request.usesLanguageCorrection = true
+request.recognitionLanguages = ["zh-Hans", "en-US"]
+try VNImageRequestHandler(cgImage: image).perform([request])
+let matches = (request.results ?? []).compactMap { observation -> (Bool, Float, CGRect, String)? in
+  guard let candidate = observation.topCandidates(1).first,
+        observation.boundingBox.midX < 0.30 else { return nil }
+  let exact = candidate.string.compare(query, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+  let contains = candidate.string.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+  return (exact || contains) ? (exact, candidate.confidence, observation.boundingBox, candidate.string) : nil
+}
+guard let match = matches.sorted(by: {
+  if $0.0 != $1.0 { return $0.0 && !$1.0 }
+  return $0.1 > $1.1
+}).first else {
+  fputs("sidebar text not found: \(query)\n", stderr)
+  exit(1)
+}
+// The OCR source is captured with `screencapture -o`, so it excludes the
+// asymmetric window shadow and maps exactly to CGWindowBounds.
+let pointX = windowX + Double(match.2.midX) * windowWidth
+let pointY = windowY + (1.0 - Double(match.2.midY)) * windowHeight
+print("\(pointX)\t\(pointY)")
 SWIFT
 }
 
@@ -297,17 +393,21 @@ if [[ -n "$surface" ]]; then
   sleep "$settle_seconds"
 fi
 
-close_palette() {
-  if ((palette_open)); then
+close_transient() {
+  if ((transient_open)); then
     send_key 53 >/dev/null 2>&1 || true
-    palette_open=0
+    transient_open=0
+  fi
+  if [[ -n "$ocr_capture" && -f "$ocr_capture" ]]; then
+    rm -f -- "$ocr_capture"
+    ocr_capture=""
   fi
 }
-trap close_palette EXIT
+trap close_transient EXIT
 
 if [[ "$mode" == "command-palette" ]]; then
   send_key 40 1
-  palette_open=1
+  transient_open=1
   # Codex renders/focuses the palette after its open animation; typing earlier is lost.
   sleep 2
   if [[ -n "$palette_query" ]]; then
@@ -316,11 +416,61 @@ if [[ "$mode" == "command-palette" ]]; then
   fi
 fi
 
+if [[ "$mode" == "context-menu" ]]; then
+  if (( ${window_width%.*} < 900 )); then
+    echo "capture-codex-ui: sidebar context capture requires a desktop-width Codex window" >&2
+    exit 1
+  fi
+  ocr_capture=$(mktemp -t codex-sidebar-context)
+  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  point=$(sidebar_text_center "$ocr_capture" "$context_target")
+  IFS=$'\t' read -r point_x point_y <<<"$point"
+  if [[ "${CODEX_CAPTURE_DEBUG:-0}" == "1" ]]; then
+    echo "capture-codex-ui: OCR '$context_target' at $point_x,$point_y" >&2
+  fi
+  send_click "$point_x" "$point_y" right
+  transient_open=1
+  sleep "$settle_seconds"
+fi
+
+if [[ "$mode" == "keyboard-context-menu" ]]; then
+  if (( ${window_width%.*} < 900 )); then
+    echo "capture-codex-ui: sidebar keyboard context capture requires a desktop-width Codex window" >&2
+    exit 1
+  fi
+  ocr_capture=$(mktemp -t codex-sidebar-keyboard-context)
+  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  point=$(sidebar_text_center "$ocr_capture" "$context_target")
+  IFS=$'\t' read -r point_x point_y <<<"$point"
+  send_click "$point_x" "$point_y"
+  sleep 1
+  send_key 109 2
+  transient_open=1
+  sleep "$settle_seconds"
+fi
+
+if [[ "$mode" == "account-menu" ]]; then
+  # The product switcher label includes a chevron that OCR may merge into the
+  # text, while chat titles can also contain “Codex”. Its geometry is a stable
+  # top-level shell target, like the five fixed primary navigation rows.
+  send_click "$(awk -v x="$window_x" 'BEGIN { print x + 90 }')" \
+    "$(awk -v y="$window_y" 'BEGIN { print y + 63 }')"
+  transient_open=1
+  sleep "$settle_seconds"
+fi
+
+if [[ "$mode" == "user-menu" ]]; then
+  send_click "$(awk -v x="$window_x" 'BEGIN { print x + 30 }')" \
+    "$(awk -v y="$window_y" -v h="$window_height" 'BEGIN { print y + h - 20 }')"
+  transient_open=1
+  sleep "$settle_seconds"
+fi
+
 if ! screencapture -x -l "$window_id" "$output"; then
   echo "capture-codex-ui: capture failed; grant Screen Recording permission to the invoking app" >&2
   exit 1
 fi
-close_palette
+close_transient
 
 if [[ -n "$restore_query" && -n "$surface" ]]; then
   send_key 40 1
