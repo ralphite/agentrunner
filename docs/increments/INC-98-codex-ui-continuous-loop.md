@@ -115,6 +115,14 @@ INC-98 将该方法固化为持续循环：
   契约落地前保持 UI 安静。真实 QA 必须分别验证 Copy 内容、Worked/tool 展开、human 前切
   draft、final assistant 后切、artifact URL、file-scoped Review 与 parent 不变；所有新 child
   session/workspace/journal 保留，不自动 Send、Download、Undo 或提交。
+- **98.3b tool-state design note**：继续复用 `Worked → tool summary → detail` 两级
+  disclosure，不把每次失败升级成独立 error banner；真实 `bash exit 7` 应在展开 detail
+  内同时保留 command、stdout/stderr 与 `Exit 7`，最终 assistant prose 仍解释恢复结果。
+  当前 `Copy command and result` 只复制 command/stdout，遗漏唯一能证明失败的 exit code，
+  与按钮 label 和屏幕可见内容冲突。最小修订只在非成功状态追加可见的 `Exit N`、
+  `Cancelled` 或 `Failed`；成功复制格式保持不变，避免给既有脚本增加噪音。复制仍只落本机
+  clipboard，不改 journal/tool result；long output 继续使用已有 240px 内部滚动与 20k
+  bounded projection，不能把整个 timeline 撑高或伪装未截断内容。
 
 ## Spec delta
 

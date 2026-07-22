@@ -215,8 +215,14 @@ function ShellDetail({ t }: { t: ToolItem }) {
   const exit = r && typeof r === "object" && typeof r.exit_code === "number" ? r.exit_code : undefined;
   const cancelled = t.status === "cancelled";
   const ok = !cancelled && t.status !== "error" && t.status !== "failed" && (exit === undefined || exit === 0);
+  const statusText = ok ? "Success" : cancelled ? "Cancelled" : exit !== undefined && exit !== 0 ? `Exit ${exit}` : "Failed";
   const out = [stdout, stderr].filter(Boolean).join(stdout && stderr ? "\n" : "");
-  const copyBody = [cmd && `$ ${cmd}`, out, t.partial, t.errorMsg].filter(Boolean).join("\n");
+  // A failed command's exit status is part of its result, not decorative UI.
+  // Omitting it from Copy made `exit 7` indistinguishable from a successful
+  // command that printed the same stdout. Keep the established quiet success
+  // payload, but preserve the decisive terminal state for every non-success.
+  const copyOut = !ok ? out.replace(/\n+$/, "") : out;
+  const copyBody = [cmd && `$ ${cmd}`, copyOut, t.partial, t.errorMsg, ok ? "" : statusText].filter(Boolean).join("\n");
   const copy = async () => {
     await copyText(copyBody);
     setCopied(true);
@@ -259,7 +265,7 @@ function ShellDetail({ t }: { t: ToolItem }) {
         </pre>
       )}
       <div className={"shell-status" + (ok ? "" : " bad")}>
-        {ok ? <><Check size={12} /> Success</> : cancelled ? <><Circle size={9} /> Cancelled</> : <><X size={12} /> {exit !== undefined && exit !== 0 ? `Exit ${exit}` : "Failed"}</>}
+        {ok ? <><Check size={12} /> {statusText}</> : cancelled ? <><Circle size={9} /> {statusText}</> : <><X size={12} /> {statusText}</>}
       </div>
     </div>
   );

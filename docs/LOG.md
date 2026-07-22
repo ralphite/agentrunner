@@ -6619,3 +6619,23 @@ label、API、cut、workspace 或 provenance。
 toggle 或无回执假按钮。GL-02/TH-01/TH-05 升 PASS，TH-04 记 GAP；矩阵为 `PASS 18 /
 GAP 7 / INTENTIONAL 4 / BLOCKED 1 / UNTESTED 49`。证据根：
 `qa/runs/2026-07-22-QA88-98.3a-thread-actions/`；INC-98/G42/QA-88 继续开放。
+
+---
+
+## 2026-07-22 · INC-98.3b Tool error / long output 与失败复制真实性
+
+**真实状态**：shared `QA-TOOLFAIL` session 的 `bash` 真实打印 marker 后 `exit 7`；
+reader view 默认折为 `Worked for 1s`，两级展开后同时显示 command/stdout/`Exit 7` 与最终
+解释。另在既有 `what-is-the-project` session 展开 15,393-char `find` stdout：内部输出
+`240px` 高、`scrollHeight=6704`、整卡约 436px、body 横溢=0；Copy 得 15,448 chars，末行
+仍在，证明复制的是完整 bounded projection 而非 viewport。
+
+**发现与修复**：失败 Shell 的 `Copy command and result` 旧 payload 只有 command+stdout，
+把屏幕上唯一的失败判据 `Exit 7` 丢掉，粘贴后可误读为成功。`ShellDetail` 现统一从同一
+`statusText` 渲染/复制：非成功追加 `Exit N / Cancelled / Failed`，并只为该状态去掉 stdout
+尾换行避免双空行；成功 payload 完全不变。`Timeline.toolcards.test.tsx` 新增 Exit 7 回归。
+
+**诚实裁决**：Codex expanded long/error tool 尚无同态实证，TH-02 继续 UNTESTED；本批
+不以单侧通过冒充 parity。targeted 14 tests、frontend 68 files/695 tests、production build 与
+`./scripts/check.sh` 全绿；clean deployment stamp 归档于 evidence `health.json`。证据根：
+`qa/runs/2026-07-22-QA88-98.3b-tool-states/`。INC-98/G42/QA-88 继续开放。

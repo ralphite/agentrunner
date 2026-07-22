@@ -78,4 +78,45 @@ describe("Timeline tool cards on narrow screens", () => {
     await vi.waitFor(() => expect(copyText).toHaveBeenCalledOnce());
     expect(copyText).toHaveBeenCalledWith(`$ ${command}\n${result}`);
   });
+
+  it("includes the decisive exit status when copying a failed command", async () => {
+    const failed: ToolItem = {
+      ...bashTool("echo START; exit 7", "START\n"),
+      status: "failed",
+      statusText: "failed",
+      result: { stdout: "START\n", exit_code: 7 },
+    };
+    const { container, getByRole } = render(
+      <TimelineView items={[failed]} pending={[]} typing="" showSys />,
+    );
+
+    fireEvent.click(container.querySelector("details.step > summary") as HTMLElement);
+    expect(container.querySelector(".shell-status")?.textContent).toContain("Exit 7");
+    fireEvent.click(getByRole("button", { name: "Copy command and result" }));
+
+    await vi.waitFor(() => expect(copyText).toHaveBeenCalledOnce());
+    expect(copyText).toHaveBeenCalledWith("$ echo START; exit 7\nSTART\nExit 7");
+  });
+
+  it.each([
+    ["cancelled", "Cancelled"],
+    ["failed", "Failed"],
+  ] as const)("copies the %s terminal state when no exit code exists", async (status, label) => {
+    const terminal: ToolItem = {
+      ...bashTool("long-running-command", "partial\n"),
+      status,
+      statusText: status,
+      result: { stdout: "partial\n" },
+    };
+    const { container, getByRole } = render(
+      <TimelineView items={[terminal]} pending={[]} typing="" showSys />,
+    );
+
+    fireEvent.click(container.querySelector("details.step > summary") as HTMLElement);
+    expect(container.querySelector(".shell-status")?.textContent).toContain(label);
+    fireEvent.click(getByRole("button", { name: "Copy command and result" }));
+
+    await vi.waitFor(() => expect(copyText).toHaveBeenCalledOnce());
+    expect(copyText).toHaveBeenCalledWith(`$ long-running-command\npartial\n${label}`);
+  });
 });

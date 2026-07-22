@@ -1884,6 +1884,14 @@ shared-store QA data → recapture → 与同 viewport/state 的 AgentRunner 合
 | Artifact / Review | historical real goal session `20260710-062102-create-a-file-goal-r2-txt-in-t-0d1e`：Open menu 的 New tab/Download 同指 durable file URL，GET 精确 `DONE`；点击 file row 打开 Last Turn Changes 并 focus `goal-r2.txt +1 -0` |
 | parity / gap 裁决 | Codex reference 与 AgentRunner 同一组合输入确认 artifact/changes/action 层级；Continue 图标收敛为 `ArrowUpRight`，语义/API 不变；Codex 👍/👎 需要 backend，记 G46，不画假按钮；TH-01/TH-05 与 GL-02 PASS，TH-04 GAP |
 
+| 98.3b 动作 | 硬断言 |
+|---|---|
+| 真实 tool error | shared session `20260713-015208-qa-toolfail-202607-1383`：默认只见 `Worked for 1s`；展开后 summary 为 `echo …; exit 7`；再展开见 command、stdout `LIFECYCLE-TOOLFAIL-START` 与红色 `Exit 7`，final assistant 仍给用户解释 |
+| error Copy 修复 | 修前 clipboard 只有 command+stdout，丢失唯一失败判据；修后精确追加 `Exit 7`。`Cancelled`/无 exit-code error 同一路分别复制 `Cancelled`/`Failed`；成功 payload 不追加 `Success`，保持兼容 |
+| 真实 long output | shared session `20260711-011831-what-is-the-project-297d` 的 `find packages/core/src…` stdout=15,393 chars；展开 detail `clientHeight=240 / scrollHeight=6704 / overflowY=auto`、card≈436px、body 横溢=0 |
+| long Copy | 可见窗口只显示前几行，但 clipboard 长度 15,448，含完整 command 与 stdout 末尾 `policy-engine.ts`；不是只复制 viewport 或 summary |
+| 边界 | TH-02 仍 UNTESTED：Codex Desktop 的 expanded long/error tool 同态尚未安全取得；本批只把 AgentRunner 真实状态与确定性回归钉牢，不连带判绿 |
+
 **98.1 证据**：`qa/runs/2026-07-22-QA88-codex-ui-continuous-loop/` 保存
 accepted/rejected screenshots、browser logs、driver stderr contract、health 与工作区 diff。
 首批未创建、关闭、删除或清理 AgentRunner session/workspace/journal；后续若产生测试
@@ -1933,3 +1941,8 @@ Shell 的三级截图、human-before dormant child、artifact/Changes file focus
 reference 的 combined comparison、DOM/action/clipboard/CLI inspect 与 health/logs/gate。
 新增的两个 child session/workspace/journal 与 parent 全部保留；不 Send child、不 Download、
 不 Undo/Commit/Push，不关闭/删除/清理任何 QA 数据。
+
+**98.3b 证据**：`qa/runs/2026-07-22-QA88-98.3b-tool-states/` 保存真实 Exit 7
+collapsed/Worked/tool 三级截图、15,393-char stdout 内滚动截图、DOM geometry、clipboard、
+events/health/logs/gate。两个 source session/workspace/journal 都是既有 shared data，保持原状；
+未 Send、Retry、Approve/Deny、关闭、删除或清理。

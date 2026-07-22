@@ -343,7 +343,7 @@ UNTESTED 49`。PASS 中 New session/Scheduled/Environment/Thread 各有多行交
 | ID | surface/state/action | 状态 | 最近证据 / 裁决 |
 |---|---|---|---|
 | TH-01 | user/assistant/system/tool 消息层级与 streaming | PASS | 2026-07-22 `QA88-98.2h-send-states/19/20/28/31` + `QA88-98.3a-thread-actions/01..03`：双侧真实 `sleep 8` running/completed；user 右对齐、assistant prose、system 默认隐藏、tool 进 Worked，streaming 不改层级 |
-| TH-02 | thinking/tool call/result：collapsed/expanded/long/error | UNTESTED | — |
+| TH-02 | thinking/tool call/result：collapsed/expanded/long/error | UNTESTED | 2026-07-22 `QA88-98.3b-tool-states/01..04`：AgentRunner 真实 Exit 7 与 15,393-char stdout 的 collapsed/expanded、copy、240px 内滚动、零横溢通过，并修失败复制漏 exit status；Codex expanded long/error 同态尚缺，故不提前判 PASS |
 | TH-03 | Markdown：heading/list/table/code/mermaid/math/link/media | GAP | 基础/mermaid 历史已测；math 缺 G38；其余需当前对标 |
 | TH-04 | Worked duration、Copy、feedback、Open artifact | GAP | 2026-07-22 `QA88-98.3a-thread-actions/01..03/05..08`：Worked/tool 两级展开、message/tool Copy 内容、artifact Open/Download URL 与 file Review 实测通过；Codex 👍/👎 feedback 缺 backend event/identity/privacy/receipt，G46；不画假按钮 |
 | TH-05 | message Continue：human/final/legacy/attachment-only | PASS | QA-82 + 2026-07-22 `QA88-98.3a-thread-actions/04`：human-before 生成零 turn dormant child + recorded draft；final-assistant-after 生成完整 cut dormant child；parent 不变，legacy/非 final/attachment-only 仍由 QA-82 锚 |
