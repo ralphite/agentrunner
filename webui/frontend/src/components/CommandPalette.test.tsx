@@ -81,6 +81,16 @@ describe("CommandPalette session groups (RH-3)", () => {
     ]);
   });
 
+  it("keeps Commands ahead of attention overflow in the default palette", () => {
+    open(allAttention, {}, { onOpenSettings: vi.fn() });
+    const groups = Array.from(screen.getByRole("listbox").querySelectorAll(".cmdk-group"))
+      .map((group) => group.textContent);
+    expect(groups).toEqual(["Sessions", "Commands", "Needs attention"]);
+    const labels = rows().map((row) => row.querySelector(".cmdk-label")!.textContent);
+    expect(labels.indexOf("New session")).toBe(9);
+    expect(labels.indexOf("Session t03")).toBeGreaterThan(labels.indexOf("Keyboard shortcuts"));
+  });
+
   it("omits the Needs attention group when nothing overflows", () => {
     open([session("t02", "idle"), session("t01", "completed")]);
     expect(screen.getByText("Sessions")).toBeTruthy();

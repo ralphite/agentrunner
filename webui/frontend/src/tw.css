@@ -594,7 +594,8 @@
   .pop-item:disabled { @apply opacity-45; }
 
   .backdrop { @apply fixed inset-0 z-50 grid place-items-start bg-black/35 p-[8vh_16px]; }
-  .cmdk { @apply mx-auto flex w-full max-w-[640px] flex-col overflow-hidden rounded-[14px] border border-line bg-panel shadow-lg; }
+  .command-palette-back { padding-top: 15vh; }
+  .cmdk { @apply mx-auto flex w-full max-w-[560px] flex-col overflow-hidden rounded-[14px] border border-line bg-panel shadow-lg; }
   .cmdk-search { @apply relative; }
   .cmdk-input { @apply w-full rounded-none border-0 border-b border-line bg-panel px-4 py-3 text-[15px] outline-none; }
   .cmdk-close { @apply absolute right-2 top-1/2 -translate-y-1/2 hidden h-11 w-11 place-items-center rounded-[8px] border-0 bg-transparent p-0 text-dim hover:bg-panel-2 hover:text-ink; }

@@ -30,6 +30,10 @@ INC-98 将该方法固化为持续循环：
 - **未决问题**：Codex Electron AX tree 当前只暴露顶层 group，系统坐标 click 可造成
   `System Events` 阻塞；首批先把 driver 改为 `lsappinfo + CoreGraphics/CGEvent`，不依赖
   AX element click。未来若 Codex 增加可用 accessibility tree，再切到语义定位。
+- **98.2 裁决**：Codex palette 是窄宽、较低起点的快速导航面；AgentRunner
+  保留既有九个真实 `⌘1..⌘9` 快捷语义，但把 Commands 移到 attention
+  overflow 之前，不让大 shared store 把命令挤出首个 viewport；desktop 收到
+  560px/15vh，mobile 继续使用既有 12px inset。正文搜索需 backend，记 G44。
 
 ## Spec delta
 

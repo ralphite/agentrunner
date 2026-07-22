@@ -677,6 +677,16 @@ TERM-resistant 孙进程可变孤儿。统一 advisory flock + unique temp fsync
 针对性 race 与全量 gate 通过；共享 store/Web UI 重启验收见 QA-67。
 → UJ-01/04/09/17/18/24
 
+**G44 会话全文搜索 backend/index 缺失 — ❌ 开放（INC-98.2 实窗取证，中）**
+Codex command palette 搜索 `QA-87` 可命中消息正文并展示结果 snippet；
+AgentRunner 当前 command palette/sidebar 只在已加载 session 的 title、id、workspace
+上做客户端 substring filter，无法查消息/tool result，也无法在大历史尚未
+hydration 时给完整结果。不能把全量 journal 先拉到 browser 冒充搜索；需要
+daemon 端有界 query API，明确索引/扫描策略、CJK/Unicode 匹配、snippet 与排序、
+archived/project scope、新 journal 可见性、资源上限和敏感 tool payload 披露边界，再接 UI。
+证据：`qa/runs/2026-07-22-QA88-98.2-global-new-session/13-codex-command-palette-final-driver.png`。
+→ UJ-01/UJ-24
+
 **G43 Plugins/Skills 包发现、安装与更新产品面缺失 — ❌ 开放（INC-98.1 实窗取证，中）**
 Codex Desktop 的 Plugins 主面有 Installed、Marketplace 分类/搜索、包详情与
 Install 动作；AgentRunner 已有 skills、MCP、自定义 commands/tools 等独立原语，

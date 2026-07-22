@@ -5,11 +5,12 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-usage: qa/capture-codex-ui.sh [--command-palette | --surface NAME]
+usage: qa/capture-codex-ui.sh [--command-palette [--palette-query TEXT] | --surface NAME]
                               [--settle SECONDS] [--restore-query TEXT] [--output PATH]
 
 Captures the largest on-screen layer-0 window owned by bundle com.openai.codex.
 --command-palette opens Cmd+K, captures it, then restores the prior state with Escape.
+--palette-query enters a read-only search in the open command palette before capture.
 --surface navigates to one read-only sidebar surface before capture. NAME is one of:
   new-chat, pull-requests, sites, scheduled, plugins
 --settle waits for a navigated surface to become visually stable (default: 1 second).
@@ -19,6 +20,7 @@ EOF
 
 mode="current"
 surface=""
+palette_query=""
 restore_query=""
 settle_seconds=1
 output=""
@@ -35,6 +37,14 @@ while (($#)); do
       fi
       surface="$2"
       mode="surface-$surface"
+      shift 2
+      ;;
+    --palette-query)
+      if (($# < 2)); then
+        echo "capture-codex-ui: --palette-query requires text" >&2
+        exit 2
+      fi
+      palette_query="$2"
       shift 2
       ;;
     --restore-query)
@@ -81,6 +91,10 @@ if [[ -n "$surface" ]]; then
       exit 2
       ;;
   esac
+fi
+if [[ -n "$palette_query" && "$mode" != "command-palette" ]]; then
+  echo "capture-codex-ui: --palette-query requires --command-palette" >&2
+  exit 2
 fi
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
@@ -222,20 +236,47 @@ guard CommandLine.arguments.count == 3,
 }
 
 _ = app.activate(options: [.activateAllWindows])
-var units = Array(CommandLine.arguments[2].utf16)
-let source = CGEventSource(stateID: .hidSystemState)
-guard let down = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
-      let up = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false) else {
-  fputs("could not create text event\n", stderr)
+usleep(200_000)
+
+let pasteboard = NSPasteboard.general
+let savedItems: [[(NSPasteboard.PasteboardType, Data)]] =
+  (pasteboard.pasteboardItems ?? []).map { item in
+    item.types.compactMap { type in
+      item.data(forType: type).map { (type, $0) }
+    }
+  }
+func restorePasteboard() {
+  pasteboard.clearContents()
+  let restoredItems = savedItems.map { saved -> NSPasteboardItem in
+    let item = NSPasteboardItem()
+    for (type, data) in saved {
+      item.setData(data, forType: type)
+    }
+    return item
+  }
+  if !restoredItems.isEmpty {
+    _ = pasteboard.writeObjects(restoredItems)
+  }
+}
+// Restore on success and on every guard/exit failure after staging begins.
+defer { restorePasteboard() }
+pasteboard.clearContents()
+guard pasteboard.setString(CommandLine.arguments[2], forType: .string) else {
+  fputs("could not stage text for Codex\n", stderr)
   exit(1)
 }
-units.withUnsafeMutableBufferPointer { buffer in
-  guard let base = buffer.baseAddress else { return }
-  down.keyboardSetUnicodeString(stringLength: buffer.count, unicodeString: base)
-  up.keyboardSetUnicodeString(stringLength: buffer.count, unicodeString: base)
+
+let source = CGEventSource(stateID: .hidSystemState)
+guard let down = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: true),
+      let up = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: false) else {
+  fputs("could not create paste event\n", stderr)
+  exit(1)
 }
+down.flags = .maskCommand
+up.flags = .maskCommand
 down.post(tap: .cghidEventTap)
 up.post(tap: .cghidEventTap)
+usleep(400_000)
 SWIFT
 }
 
@@ -267,7 +308,12 @@ trap close_palette EXIT
 if [[ "$mode" == "command-palette" ]]; then
   send_key 40 1
   palette_open=1
-  sleep 1
+  # Codex renders/focuses the palette after its open animation; typing earlier is lost.
+  sleep 2
+  if [[ -n "$palette_query" ]]; then
+    send_text "$palette_query"
+    sleep "$settle_seconds"
+  fi
 fi
 
 if ! screencapture -x -l "$window_id" "$output"; then

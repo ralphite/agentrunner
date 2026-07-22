@@ -341,7 +341,10 @@ GAPS.md，本文件只回答"产品要做什么"。
    safe Remove（只隐藏 rail projection，数据不删且可恢复）。Pinned 与 Projects
    section 可独立收展；键盘 context menu 保持等价，Escape 关闭后焦点回到原 row；
    button pressed state 不改变控件尺寸。project group fold 始终尊重用户偏好；选中 session 只保证
-   所属 project heading 在分组 cap 外仍可见，不强制展开 session rows。
+   所属 project heading 在分组 cap 外仍可见，不强制展开 session rows。全局
+   command palette 的九个真实 `⌘1..⌘9` 快捷 session 之后立即露出 Commands，
+   attention overflow 不能把命令挤出首个 scroll viewport；搜索可以命中
+   title/id/workspace，消息正文搜索在 G44 完成前必须诚实保持缺失。
 2. New session 只出现一个 composer；默认只露输入、附件、access、model、
    send；未选 Project 时上缘只显示 project picker，选定后才显示
    Local/New worktree 与 Branch 等上下文控件；Project/Branch 可搜索且

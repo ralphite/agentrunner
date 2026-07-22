@@ -29,6 +29,18 @@ if $driver --settle 31 >"$tmpdir/settle.out" 2>"$tmpdir/settle.err"; then
 fi
 grep -Fq 'whole seconds from 0 to 30' "$tmpdir/settle.err"
 
+if $driver --palette-query QA >"$tmpdir/palette.out" 2>"$tmpdir/palette.err"; then
+  echo "capture driver accepted a palette query without palette mode" >&2
+  exit 1
+fi
+grep -Fq -- '--palette-query requires --command-palette' "$tmpdir/palette.err"
+
+# Query entry must be reversible: the driver may borrow the clipboard to paste
+# into Electron, but it has to preserve every original pasteboard item/type.
+grep -Fq 'pasteboard.pasteboardItems' "$driver"
+grep -Fq 'pasteboard.writeObjects(restoredItems)' "$driver"
+grep -Fq 'defer { restorePasteboard() }' "$driver"
+
 if grep -Fq 'System Events' "$driver"; then
   echo "capture driver must not regress to the blocking System Events path" >&2
   exit 1

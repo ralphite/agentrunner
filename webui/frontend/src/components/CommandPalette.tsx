@@ -146,10 +146,21 @@ export function CommandPalette({ onClose, onOpenSettings }: {
         group: "Scheduled",
         run: go(() => selectRun(r.id)),
       }));
-    // Empty query is the session switcher: surface sessions before commands
-    // parity). While typing, commands stay on top so quick actions win the
-    // first Enter.
-    return ql ? [...cmds, ...sess, ...rn] : [...sess, ...cmds, ...rn];
+    // Empty query keeps the nine truthful ⌘-digit rows first, then exposes the
+    // commands before attention overflow. With a large shared store the old
+    // order put up to nine extra attention rows ahead of Commands, pushing the
+    // very actions promised by "run a command" below the first scroll viewport.
+    // Codex likewise shows its short chat switcher before Suggested/Settings;
+    // overflow history belongs after those actions. While typing, commands stay
+    // on top so a matching quick action wins the first Enter.
+    return ql
+      ? [...cmds, ...sess, ...rn]
+      : [
+          ...sess.filter((item) => item.group === "Sessions"),
+          ...cmds,
+          ...sess.filter((item) => item.group === "Needs attention"),
+          ...rn,
+        ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, sessions, runs, archived, unread, theme, renames, onOpenSettings]);
 
@@ -179,7 +190,7 @@ export function CommandPalette({ onClose, onOpenSettings }: {
   };
 
   return (
-    <div className="backdrop cmdk-back" onMouseDown={(e) => e.target === e.currentTarget && onClose(true)}>
+    <div className="backdrop cmdk-back command-palette-back" onMouseDown={(e) => e.target === e.currentTarget && onClose(true)}>
       <div className="cmdk" onKeyDown={onKey} role="dialog" aria-modal="true" aria-label="Command palette">
         <div className="cmdk-search">
           <input

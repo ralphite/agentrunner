@@ -6399,3 +6399,24 @@ Remove/Commit/Push，无新建/关闭/删除/清理 session/workspace/journal。
 
 **边界**：本批完成的是可持续执行基座与主入口基线，不关闭 INC-98/G42/QA-88；下一批
 从 GL-03..08 与 NS-02..12 继续，逐项修或登记，不把矩阵存在本身当完成。
+
+---
+
+## 2026-07-22 · INC-98.2 Command palette 真实交互对标
+
+**发现与修复**：在逻辑 1952×1465/light 下双侧真测 `⌘K` 默认/query 状态。
+AgentRunner 原面板 640px/8vh，且大 shared store 下九个 attention overflow 会继续
+挡在 Commands 前，“run a command”的动作被挤出首屏。改为 560px/15vh，顺序固定为
+九个真实 `⌘1..⌘9` Sessions → Commands → Needs attention；query 仍以 Commands 优先。
+
+**Codex 可重复交互**：原 Unicode CGEvent 不被 Electron 输入框接收，`03/04`
+明确拒收。capture driver 新增 `--palette-query`，保存 NSPasteboard 每个 item/type 后
+短暂借用 `Cmd+V`，400ms 后原样恢复；`05` 真实输入 `QA-87` 并得到 3 条结果。
+contract test 钉非 palette 参数 fail-closed 和 clipboard 恢复路径。
+
+**真机黑盒**：↓ 至第 10 项仍可见；`Go to Scheduled`+Enter、no-match、Escape
+回 Search trigger 全通。390×844 下 palette x/y=12、366×800.6，Close 可见且无溢出。
+warning/error=`[]`，恢复 dark 主题与 viewport，未创建/关闭/删除任何 session。
+GL-03 升 PASS；Codex 可命中消息正文并显示 snippet，我方只查 title/id/workspace，
+因此 GL-04 记 GAP 并新增 G44，不用假 UI 绕过。证据根：
+`qa/runs/2026-07-22-QA88-98.2-global-new-session/`。INC-98/G42/QA-88 继续开放。

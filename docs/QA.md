@@ -1807,7 +1807,19 @@ shared-store QA data → recapture → 与同 viewport/state 的 AgentRunner 合
 | 浏览器/偏好恢复 | warning/error=`[]`；临时切 light 后恢复原 dark；viewport 恢复；未 Send/Approve/Deny/Archive/Commit/Push |
 | 能力裁决 | Pull Requests 引用既有 G13；Plugins 新增 G43；Sites 为 AgentRunner journey 非目标；未实现入口不画占位 |
 
-**首批证据**：`qa/runs/2026-07-22-QA88-codex-ui-continuous-loop/` 保存
+| 98.2 动作 | 硬断言 |
+|---|---|
+| Codex command palette 真实 query | `--palette-query QA-87` 经保存/恢复全部 pasteboard item/type 的 `Cmd+V` 输入；`05/13` 真实展示 3 条含正文 snippet 的结果，`13` 为最终 driver 复验；`03/04` 无输入失败图拒收 |
+| AgentRunner desktop 修前/修后 | 双侧均为逻辑 1952×1465 light；宽度 640→560、顶边 8vh→15vh；Commands 从 attention overflow 之前开始，九个 `⌘1..⌘9` 语义不变 |
+| 真实键盘/空结果/命令 | ↓ 至第 10 项 `New session` 仍在 list viewport；query `Go to Scheduled` + Enter 导航成功；无结果显示 `No matches`；Escape 后 focus 回 `Search sessions` |
+| 390×844 mobile | command palette 位于 x/y=12，366×800.6，right/bottom 在 viewport，Close 可见，无水平 overflow |
+| 运行与恢复 | production 部署 shared daemon/store；warning/error=`[]`；恢复 dark 主题与 viewport；未创建/关闭/删除 session |
+| 能力裁决 | GL-03 升 PASS；标题/ID/workspace 搜索与 no-match 通过；正文搜索需 backend/index，GL-04 记 GAP/G44，不用全量 journal 下载或假 snippet 绕过 |
+
+**98.1 证据**：`qa/runs/2026-07-22-QA88-codex-ui-continuous-loop/` 保存
 accepted/rejected screenshots、browser logs、driver stderr contract、health 与工作区 diff。
 首批未创建、关闭、删除或清理 AgentRunner session/workspace/journal；后续若产生测试
 session，继续按共享数据纪律永久保留。
+
+**98.2 证据**：`qa/runs/2026-07-22-QA88-98.2-global-new-session/`保存 accepted/
+rejected screenshots、双侧合并比较、DOM geometry、browser logs、health 与工作区 diff。
