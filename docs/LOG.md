@@ -6319,3 +6319,7 @@ production build、`./scripts/check.sh` 全绿。QA-85 部署 matched dirty buil
 8/8 一致，首 project 内 sessions 与 API 一致。07-13 创建但 07-22 更新的旧 session
 实际浮至第一且显示 `1m ago`；打开、reload、current/thread 与 logs `[]` 均通过。QA 未
 创建/删除/清理共享数据。INC-94 不产生新的 GAPS 条目。
+
+**提交后部署复核**：`5e2b33e3-101703` clean matched build 重启后 health
+`ok/daemonUp/versionMatch=true`；原 deep link、首 project/session、current thread 与
+browser logs `[]` 再次通过，API 612/612 rows 仍有 `updatedAt`。

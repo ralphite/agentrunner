@@ -1718,7 +1718,8 @@ ordered manifest 后再次部署；浏览器在 child
 ## QA-85 Sidebar 按 last update 排序（INC-94，UJ-24）
 
 **状态**：PASS（2026-07-22，production `http://127.0.0.1:8809/` + 共享
-`~/.local/share/agentrunner/`；版本 `c7a0f746-dirty-100844` matched；证据
+`~/.local/share/agentrunner/`；B 闸版本 `c7a0f746-dirty-100844` matched，提交后
+clean `5e2b33e3-101703` matched reload 复核；证据
 `qa/runs/2026-07-22-QA85-sidebar-last-update-order/`）。
 
 | # | 真实动作 | 硬断言 |
