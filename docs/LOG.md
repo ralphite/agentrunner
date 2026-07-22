@@ -6249,3 +6249,20 @@ running session，未为截图启动模型任务，该态由 component regressio
 
 **数据纪律**：session count 保持 605；未 Archive，未创建、关闭、删除或清理
 session/workspace/journal。INC-92 不产生新的 GAPS 条目。
+
+---
+
+## 2026-07-22 · INC-93 Sidebar project row 整行高亮
+
+**用户纠正**：INC-92 的“hover/focus 背景覆盖名称与尾随 icons”规则也应应用于
+Projects；project heading 之前只给左侧 button 着色，`…` 与 New chat 浮在背景之外。
+
+**裁决/实现**：复用 session row 的 outer-wrapper pattern，将 `bg-panel-2` 从
+`.project-heading:hover` 上移到 `.project-heading-row:hover/:focus-within`；名称、菜单与
+New chat 因而共享一个 8px radius 背景。控件、菜单、数据与持久化语义均不变。
+
+**验收**：targeted **42/42**、frontend **665/665**、production build 通过。QA-84
+在 production `:8809` + shared store 真验 outer row computed background、两枚 actions
+geometry、六项菜单、deep-link reload 与 browser logs `[]`；证据
+`qa/runs/2026-07-22-QA84-sidebar-project-row-highlight/`。只切换并恢复 project fold，
+session count 保持 605；未创建/删除/清理共享数据。INC-93 不产生新的 GAPS 条目。

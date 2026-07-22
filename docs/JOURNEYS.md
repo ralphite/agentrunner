@@ -315,7 +315,7 @@ GAPS.md，本文件只回答"产品要做什么"。
 
 **覆盖功能**：`动态角色 spawn(inline role)` `子提权用户审批(escalate)` `树内消息(send_message,兄弟直发)` `静止子唤醒(revive,context 延续)` `多次回执` `用户直达成员(ar send 子会话)` `子会话 live 镜像` `团队面板` `树级预算/审计`（底座复用 UJ-18 全部机制）
 
-### UJ-24 Web UI 驾驶 AgentRunner `基础` `✅ INC-19/23/40/60/87/88/89/90/92（2026-07-22）`
+### UJ-24 Web UI 驾驶 AgentRunner `基础` `✅ INC-19/23/40/60/87/88/89/90/92/93（2026-07-22）`
 
 **场景**：用户从项目/session 层进入一个真实 AgentRunner
 会话，并在同一工作台完成派活、续聊、监督、审批与改动审阅。
@@ -332,7 +332,8 @@ GAPS.md，本文件只回答"产品要做什么"。
    `Shift+F10` / ContextMenu key 与 session title `…` 承担，也不在普通用户面
    重复暴露 raw id 或 Copy link；hover/focus 与 current selection 使用同一整行背景，
    包含尾随 icons。project heading 允许重名且不显示 path subtitle，完整 workspace
-   只在 tooltip / hover preview 披露；project hover/focus 提供摘要、`…` 与
+   只在 tooltip / hover preview 披露；project hover/focus 的背景覆盖完整 heading
+   row（名称、`…` 与 New chat icons），不让 actions 落在高亮之外；同时提供摘要、`…` 与
    project-scoped New chat 快捷入口（预选 project、聚焦 composer、不提前建
    session），Rename 只留在菜单；菜单集中 Pin / Finder / permanent worktree / rename / archive chats /
    safe Remove（只隐藏 rail projection，数据不删且可恢复）。Pinned 与 Projects

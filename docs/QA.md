@@ -1661,3 +1661,24 @@ regression 锚定。全量 frontend **664/664**、production build 与 webui `go
 
 **数据纪律**：验收前后 session count 均为 605；已恢复 Pin 偏好，未执行 Archive；
 未创建、关闭、删除或清理 session/workspace/journal。
+
+## QA-84 Sidebar project row 整行高亮（INC-93，UJ-24）
+
+**状态**：PASS（2026-07-22，production `http://127.0.0.1:8809/` + 共享
+`~/.local/share/agentrunner/`；project=`mt-test`；session=
+`20260721-074606-3-agent-3d7b48f9d77cccb6`；证据
+`qa/runs/2026-07-22-QA84-sidebar-project-row-highlight/`）。
+
+| # | 真实动作 | 硬断言 |
+|---|---|---|
+| 1 | focus `mt-test` project heading | outer row background=`rgb(31,31,36)`，heading 自身透明；row 8→251px，menu 198px 起、New chat 247px 止，actions 全部位于同一背景内 |
+| 2 | 打开 project `…` | 六项仍为 Pin project / Finder / permanent worktree / Rename / Archive chats / Remove；未执行菜单动作 |
+| 3 | 恢复 `mt-test` expanded 并 reload deep link | hash、project rail、中央 thread 恢复；resting row 透明且 actions 隐藏，不 blank |
+| 4 | browser logs | relevant warning/error=`[]`；production health `ok=true`、`daemonUp=true` |
+
+**自动化**：targeted **42/42**、frontend **665/665**、production build 通过；
+`buttonPress.test.js` 锚 outer-wrapper background，`Sidebar.nav.test.tsx` 锚两枚 actions
+仍在同一 heading row。
+
+**数据纪律**：只切换并恢复 `mt-test` fold，session count 保持 605；未执行 project
+菜单或 New chat，未创建、关闭、删除或清理 session/workspace/journal。

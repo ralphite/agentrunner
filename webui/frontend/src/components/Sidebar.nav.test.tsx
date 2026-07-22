@@ -466,7 +466,8 @@ describe("project hover and management controls (INC-87)", () => {
   it("shows project summary plus menu and new-chat controls on the heading row", () => {
     const { container } = mount();
     const app = [...container.querySelectorAll(".project-group")].find((group) => group.textContent?.includes("App chat"))!;
-    fireEvent.mouseEnter(app.querySelector(".project-heading-row")!);
+    const headingRow = app.querySelector(".project-heading-row")!;
+    fireEvent.mouseEnter(headingRow);
 
     const preview = container.querySelector(".project-preview")!;
     expect(preview.textContent).toContain("app");
@@ -474,6 +475,9 @@ describe("project hover and management controls (INC-87)", () => {
     expect(preview.textContent).toContain("/repo/app");
     expect(screen.getByRole("button", { name: "More actions for app" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "New chat in app" })).toBeTruthy();
+    const actions = headingRow.querySelector(".project-heading-actions")!;
+    expect(actions.contains(screen.getByRole("button", { name: "More actions for app" }))).toBe(true);
+    expect(actions.contains(screen.getByRole("button", { name: "New chat in app" }))).toBe(true);
   });
 
   it("renders the six requested project actions from the visible menu trigger", () => {

@@ -1353,7 +1353,9 @@ limits:
   合并——INC-78 撤销了早期"单一 Scratch 聚合"，它把无关工程混进一个假
   文件夹）；组名经 project overlay（INC-53，workspace 为键）可改。不同 workspace
   的 display label 允许重名，sidebar 不追加常驻 path subtitle；完整 workspace 只在
-  原生 tooltip / hover preview 披露（INC-92）。driver
+  原生 tooltip / hover preview 披露（INC-92）。project heading 的 hover/focus
+  background 由包含 menu / New chat icons 的 outer row wrapper 统一承担，不让 actions
+  浮在高亮之外（INC-93）。driver
   只进 Scheduled，不在 Projects 重复；
   Scheduled 的持久列表来自 journal-backed sessions，进程内 `runRegistry`
   只补充当前 one-time run，不得作为 restart 后真相。成员按 child session id

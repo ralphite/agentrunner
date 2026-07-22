@@ -19,3 +19,13 @@ describe("sidebar session row highlight extent (INC-92)", () => {
     expect(buttonRule).not.toContain("hover:bg-panel-2");
   });
 });
+
+describe("sidebar project row highlight extent (INC-93)", () => {
+  it("paints the complete heading-and-actions wrapper on hover and focus", () => {
+    expect(css).toMatch(
+      /\.project-heading-row:hover,\s*\.project-heading-row:focus-within\s*\{[^}]*bg-panel-2/s,
+    );
+    const headingRule = css.match(/\.project-heading\s*\{([^}]*)\}/s)?.[1] || "";
+    expect(headingRule).not.toContain("hover:bg-panel-2");
+  });
+});

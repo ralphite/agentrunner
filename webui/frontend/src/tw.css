@@ -324,9 +324,13 @@
      leans on the folder icon (not size) for hierarchy — exactly what the r47
      hierarchy. Match the 13px session size. */
   .project-heading {
-    @apply w-full rounded-[7px] border-0 bg-transparent text-[13px] font-medium normal-case tracking-normal text-ink transition-colors duration-100 hover:bg-panel-2 hover:text-ink;
+    @apply w-full rounded-[7px] border-0 bg-transparent text-[13px] font-medium normal-case tracking-normal text-ink transition-colors duration-100 hover:text-ink;
   }
-  .project-heading-row { @apply flex min-w-0 items-center rounded-[8px]; }
+  /* Match session rows: one wrapper paints the heading and both trailing
+     actions, so hover/focus never stops before the icons. */
+  .project-heading-row { @apply flex min-w-0 items-center rounded-[8px] transition-colors duration-100; }
+  .project-heading-row:hover,
+  .project-heading-row:focus-within { @apply bg-panel-2; }
   .project-heading-actions { @apply hidden shrink-0 items-center gap-[1px] pr-1; }
   .project-heading-row:hover .project-heading-actions,
   .project-heading-row:focus-within .project-heading-actions { @apply flex; }
