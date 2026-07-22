@@ -147,6 +147,15 @@ export function isScratchWorkspace(workspace?: string): boolean {
   return !!scratchLabel(base);
 }
 
+// AgentRunner-created worktrees live below the shared data root's
+// `agentrunner/worktrees/` directory. The sidebar needs this cheap, durable
+// identity signal while rendering hundreds of rows; it must not run git once
+// per session or guess from a generic `worktree` basename elsewhere on disk.
+export function isManagedWorktreeWorkspace(workspace?: string): boolean {
+  const clean = (workspace || "").trim().replace(/\\/g, "/").replace(/\/+$/, "");
+  return clean.includes("/agentrunner/worktrees/");
+}
+
 // deNoiseSegment strips a YYYYMMDD date token from a path segment while
 // keeping the distinguishing remainder ("qa39-20260710-004434" →
 // "qa39-004434"). The shared date between sibling QA dirs is pure noise; the

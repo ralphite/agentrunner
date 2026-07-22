@@ -41,7 +41,7 @@ describe("mobile sidebar dismissal", () => {
     expect(onHide).toHaveBeenCalledTimes(1);
   });
 
-  it("exposes session actions without hover or right-click", () => {
+  it("keeps the row menu-free while preserving the complete right-click menu", () => {
     const select = vi.fn();
     useStore.setState({
       sessions: [{
@@ -62,19 +62,108 @@ describe("mobile sidebar dismissal", () => {
     });
     const { container } = render(<Sidebar />);
 
-    const actions = screen.getByRole("button", { name: "More actions for Mobile actions" });
-    expect(actions.closest("span")!.className).toBe("session-actions");
+    const row = container.querySelector(".project-session-wrap")!;
+    expect(row.querySelector(".menu-trigger")).toBeNull();
     expect(container.querySelector(".session-open")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Pin session" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Archive session" })).toBeNull();
+    expect(row.querySelector(".session-quick-actions")).toBeTruthy();
 
-    fireEvent.click(actions);
-    const labels = screen.getAllByRole("menuitem").map((item) => item.textContent);
+    fireEvent.contextMenu(row, { clientX: 20, clientY: 30 });
+    const labels = screen.getAllByRole("menuitem").map((item) => item.textContent?.trim());
     expect(labels).toEqual(expect.arrayContaining(["Pin", "Rename…", "Mark as unread", "Archive"]));
     expect(labels).not.toContain("Session ID");
     expect(labels).not.toContain("Session link");
     // Opening management actions must not also navigate into the session.
     expect(select).not.toHaveBeenCalled();
+  });
+});
+
+describe("sidebar session row states and hover actions (INC-92)", () => {
+  const managed = {
+    id: "20260722-120000-managed",
+    status: "running",
+    turns: 2,
+    title: "Managed worktree session",
+    workspace: "/Users/test/.local/share/agentrunner/worktrees/app-main-20260722-120000",
+  };
+  const local = {
+    id: "20260722-110000-local",
+    status: "waiting:input",
+    turns: 1,
+    title: "Local session",
+    workspace: "/repo/local",
+  };
+
+  const mount = (over: Record<string, any> = {}) => {
+    useStore.setState({
+      sessions: [managed, local] as any,
+      sessionsReady: true,
+      currentSid: managed.id,
+      archived: [],
+      showArchived: true,
+      pinned: [],
+      unread: [],
+      renames: {},
+      projects: {},
+      toggleProjectFolded: vi.fn(),
+      togglePin: (sid: string) => useStore.setState((state) => ({
+        pinned: state.pinned.includes(sid) ? state.pinned.filter((id) => id !== sid) : [...state.pinned, sid],
+      })),
+      toggleArchive: (sid: string) => useStore.setState((state) => ({
+        archived: state.archived.includes(sid) ? state.archived.filter((id) => id !== sid) : [...state.archived, sid],
+      })),
+      ...over,
+    });
+    return render(<Sidebar />);
+  };
+
+  afterEach(() => localStorage.clear());
+
+  it("shows managed-worktree and running state without a row ellipsis", () => {
+    const { container } = mount();
+    const rows = [...container.querySelectorAll(".project-session-wrap")];
+    const worktreeRow = rows.find((row) => row.textContent?.includes("Managed worktree session"))!;
+    const localRow = rows.find((row) => row.textContent?.includes("Local session"))!;
+
+    expect(worktreeRow.classList.contains("current")).toBe(true);
+    expect(worktreeRow.querySelector('[aria-label="Worktree session"]')).toBeTruthy();
+    expect(worktreeRow.querySelector('[aria-label="Session running"]')).toBeTruthy();
+    expect(worktreeRow.querySelector(".session-state-icons.running")).toBeTruthy();
+    expect(localRow.querySelector('[aria-label="Worktree session"]')).toBeNull();
+    expect(localRow.querySelector('[aria-label="Session running"]')).toBeNull();
+    expect(worktreeRow.querySelector(".menu-trigger")).toBeNull();
+    expect(localRow.querySelector(".menu-trigger")).toBeNull();
+  });
+
+  it("switches the reversible hover actions between pin/archive states", () => {
+    const { container } = mount();
+    let row = [...container.querySelectorAll(".project-session-wrap")].find((item) => item.textContent?.includes("Managed worktree session"))!;
+    expect(row.querySelector(".session-quick-actions")).toBeTruthy();
+    fireEvent.mouseEnter(row);
+
+    fireEvent.click(row.querySelector('button[aria-label="Pin Managed worktree session"]')!);
+    row = [...container.querySelectorAll(".project-session-wrap")].find((item) => item.textContent?.includes("Managed worktree session"))!;
+    expect(row.querySelector('button[aria-label="Unpin Managed worktree session"]')).toBeTruthy();
+
+    fireEvent.click(row.querySelector('button[aria-label="Archive Managed worktree session"]')!);
+    row = [...container.querySelectorAll(".project-session-wrap")].find((item) => item.textContent?.includes("Managed worktree session"))!;
+    expect(row.querySelector('button[aria-label="Unarchive Managed worktree session"]')).toBeTruthy();
+    expect(row.querySelector('[aria-label="Session running"]')).toBeTruthy();
+  });
+
+  it("opens the same complete menu from right-click and Shift+F10", () => {
+    const { container } = mount();
+    const row = [...container.querySelectorAll(".project-session-wrap")].find((item) => item.textContent?.includes("Local session"))!;
+
+    fireEvent.contextMenu(row, { clientX: 30, clientY: 40 });
+    expect(screen.getAllByRole("menuitem").map((item) => item.textContent?.trim())).toEqual([
+      "Pin", "Rename…", "Mark as unread", "Archive",
+    ]);
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    fireEvent.keyDown(row.querySelector(".project-session")!, { key: "F10", shiftKey: true });
+    expect(screen.getAllByRole("menuitem").map((item) => item.textContent?.trim())).toEqual([
+      "Pin", "Rename…", "Mark as unread", "Archive",
+    ]);
   });
 });
 
@@ -445,6 +534,29 @@ describe("project hover and management controls (INC-87)", () => {
     fireEvent.click(screen.getByRole("button", { name: "More actions for app" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Create permanent worktree" }));
     expect(useStore.getState().prompt?.title).toBe("Create permanent worktree");
+  });
+
+  it("allows duplicate project names without a resting path subtitle", () => {
+    const duplicateNames = [
+      { id: "20260722-140000-a", status: "idle", turns: 1, title: "Alpha", workspace: "/Users/a/workspace" },
+      { id: "20260722-130000-b", status: "idle", turns: 1, title: "Beta", workspace: "/Users/b/workspace" },
+    ];
+    const { container } = mount({ sessions: duplicateNames });
+    const groups = [...container.querySelectorAll(".project-group")];
+
+    expect(groups).toHaveLength(2);
+    expect(groups.map((group) => group.querySelector(".proj-heading-name")?.textContent)).toEqual(["workspace", "workspace"]);
+    expect(container.querySelector(".project-hint")).toBeNull();
+    expect(groups.map((group) => group.querySelector(".project-heading")?.getAttribute("title"))).toEqual([
+      "/Users/a/workspace",
+      "/Users/b/workspace",
+    ]);
+
+    fireEvent.mouseEnter(groups[0].querySelector(".project-heading-row")!);
+    expect(container.querySelector(".project-preview-path")?.textContent).toContain("/Users/a/workspace");
+    fireEvent.mouseLeave(groups[0].querySelector(".project-heading-row")!);
+    fireEvent.mouseEnter(groups[1].querySelector(".project-heading-row")!);
+    expect(container.querySelector(".project-preview-path")?.textContent).toContain("/Users/b/workspace");
   });
 });
 

@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import {
   Archive as ArchiveBox,
+  ArrowsOutSimple,
   CaretRight,
   ChatCircle,
+  CircleNotch,
   Clock,
   DotsThree,
+  EnvelopeSimple,
+  EnvelopeSimpleOpen,
   Folder,
   FolderOpen,
   GearSix,
@@ -34,7 +38,7 @@ import { friendlyStatus } from "./pill";
 import { displayTitle } from "../title";
 import { ContextMenu } from "./ContextMenu";
 import { Menu, MenuItem, MenuLabel } from "./Menu";
-import { buildSidebarModel, projectDisplayName, projectLabel, scheduledUnread, visibleProjectSessions } from "../viewModels";
+import { buildSidebarModel, isManagedWorktreeWorkspace, projectDisplayName, projectLabel, scheduledUnread, visibleProjectSessions } from "../viewModels";
 import { PROJECT_GROUP_LIMIT, visibleProjectGroups } from "../viewModels.nav";
 import { relTimeAgo, sessionDate } from "../time";
 import { keyLabel } from "../shortcuts";
@@ -310,10 +314,19 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
   const renderSessionActions = (sid: string) => (
     <>
       <MenuLabel>{displayTitle(renames, sid, sessions.find((session) => session.id === sid)?.title)}</MenuLabel>
-      <MenuItem onClick={() => togglePin(sid)}>{pinned.includes(sid) ? "Unpin" : "Pin"}</MenuItem>
-      <MenuItem onClick={() => useStore.getState().openModal({ kind: "rename", sid })}>Rename…</MenuItem>
-      <MenuItem onClick={() => unread.includes(sid) ? markRead(sid) : markUnread(sid)}>{unread.includes(sid) ? "Mark as read" : "Mark as unread"}</MenuItem>
-      <MenuItem onClick={() => toggleArchive(sid)}>{archived.includes(sid) ? "Unarchive" : "Archive"}</MenuItem>
+      <MenuItem onClick={() => togglePin(sid)}>
+        <PushPin size={16} weight={pinned.includes(sid) ? "fill" : "regular"} /> {pinned.includes(sid) ? "Unpin" : "Pin"}
+      </MenuItem>
+      <MenuItem onClick={() => useStore.getState().openModal({ kind: "rename", sid })}>
+        <PencilSimple size={16} /> Rename…
+      </MenuItem>
+      <MenuItem onClick={() => unread.includes(sid) ? markRead(sid) : markUnread(sid)}>
+        {unread.includes(sid) ? <EnvelopeSimpleOpen size={16} /> : <EnvelopeSimple size={16} />}
+        {unread.includes(sid) ? "Mark as read" : "Mark as unread"}
+      </MenuItem>
+      <MenuItem onClick={() => toggleArchive(sid)}>
+        <ArchiveBox size={16} /> {archived.includes(sid) ? "Unarchive" : "Archive"}
+      </MenuItem>
     </>
   );
 
@@ -389,6 +402,8 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
     const isUnread = unread.includes(session.id);
     const title = displayTitle(renames, session.id, session.title);
     const when = relTimeAgo(sessionDate(session.id));
+    const isRunning = status.cls === "run";
+    const isWorktree = isManagedWorktreeWorkspace(session.workspace);
     const openContext = (x: number, y: number) => {
       // Opening a context menu instantly dismisses any hover preview so the
       // two floating layers stay mutually exclusive (R3-1).
@@ -423,20 +438,45 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
           aria-label={`${title} · ${isUnread ? "New activity" : status.text}${when ? ` · ${when}` : ""}`}
         >
           <span className="project-session-title">{title}</span>
-          {(isUnread || ["run", "appr", "stranded", "crash"].includes(status.cls)) && (
+          {(isUnread || ["appr", "stranded", "crash"].includes(status.cls)) && (
             <span className={`status-dot ${isUnread ? "unread" : status.cls}`} title={isUnread ? "New activity" : status.text} />
           )}
         </button>
-        {/* One management affordance on every viewport: hover/focus reveals it
-            on desktop; touch keeps it visible. Right-click/keyboard context menu
-            and this trigger render the same action source. */}
-        <span className="session-actions">
-          <Menu
-            label={<DotsThree size={18} weight="bold" />}
-            ariaLabel={`More actions for ${title}`}
+        {(isWorktree || isRunning) && (
+          <span className={`session-state-icons${isRunning ? " running" : ""}`}>
+            {isWorktree && (
+              <span className="session-worktree-icon" title="Worktree session" aria-label="Worktree session">
+                <ArrowsOutSimple size={17} />
+              </span>
+            )}
+            {isRunning && (
+              <CircleNotch className="session-loading-icon" size={17} role="status" aria-label="Session running" />
+            )}
+          </span>
+        )}
+        {/* The row's complete menu already exists on right-click/Shift+F10 and
+            in the open session title. Hover/focus therefore spends its two quiet
+            slots on the frequent reversible actions instead of another `…`. */}
+        <span
+          className="session-quick-actions"
+          onMouseEnter={() => setHoverPreview(null)}
+        >
+          <button
+            className="session-quick-action"
+            aria-label={`${pinned.includes(session.id) ? "Unpin" : "Pin"} ${title}`}
+            title={pinned.includes(session.id) ? "Unpin" : "Pin"}
+            onClick={() => togglePin(session.id)}
           >
-            {renderSessionActions(session.id)}
-          </Menu>
+            <PushPin size={17} weight={pinned.includes(session.id) ? "fill" : "regular"} />
+          </button>
+          <button
+            className="session-quick-action"
+            aria-label={`${archived.includes(session.id) ? "Unarchive" : "Archive"} ${title}`}
+            title={archived.includes(session.id) ? "Unarchive" : "Archive"}
+            onClick={() => toggleArchive(session.id)}
+          >
+            <ArchiveBox size={17} />
+          </button>
         </span>
       </div>
     );
@@ -614,17 +654,13 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
                         (.proj-caret.open above), not by swapping to FolderOpen. */}
                     <Folder className="proj-folder" size={16} />
                   </span>
-                  {/* SIDE-SUBTITLE · the disambiguating worktree lineage
-                      (project.hint) drops to a subordinate second line under
-                      the repo name instead of stealing name width on the same
-                      row. The text column stays aligned with the nested
-                      session titles (SB-6); the hint indents to the name's
-                      column, dim and one size smaller, truncating on its own
-                      row and never wrapping or shrinking the name. Groups with
-                      no hint stay single-line. */}
+                  {/* Duplicate project labels intentionally remain identical.
+                      The full workspace already lives in this button's title
+                      and hover preview, so a resting path subtitle would spend
+                      a second line on information that is only occasionally
+                      needed. */}
                   <span className="proj-heading-text">
                     <span className="proj-heading-name">{name}</span>
-                    {project.hint && <span className="project-hint">{project.hint}</span>}
                   </span>
                 </button>
                 {/* Desktop reveals the two quiet controls on row hover/focus;

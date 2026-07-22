@@ -6222,3 +6222,30 @@ store 验证立即 fold、4.5s refresh、reload persistence、re-expand current 
 console 0 warning/error；证据
 `qa/runs/2026-07-21-QA81-selected-session-project-fold/`。结束时恢复原 expanded
 偏好，共享数据未创建/删除/清理。
+
+---
+
+## 2026-07-22 · INC-92 Sidebar session row 状态与动作
+
+**用户纠正**：session item 的 resting / hover / selected 状态应像参考图一样清楚：
+worktree、loading 与 attention 是状态；hover/focus 才出现 Pin/Archive；row 不需要
+重复 `…`。右键必须能打开完整菜单，hover 背景要连同尾随 icons 覆盖整行并与
+selected 相同。project 重名无需常驻路径消歧，完整路径放在 hover/tooltip 即可。
+
+**裁决/实现**：复用既有 Phosphor icons、`ContextMenu`、project preview 与
+`bg-panel-2`，不新增视觉或 backend contract。session row resting 显示 managed
+worktree marker、running spinner 与已有 unread/attention；hover/focus 显示
+Pin/Archive quick actions，running spinner 保留；移除 row menu trigger，完整菜单由
+right-click、`Shift+F10` / ContextMenu key 与 session title menu 承担。current、hover
+与 focus 都在 `.project-session-wrap` 着色，因而 title/icons 是一个背景。移除
+`.project-hint`，同名 project 仍按真实 workspace 分组，完整路径留在 title/preview。
+
+**验收**：targeted **80/80**、frontend **664/664**、production build、webui
+`go test ./...` 通过。QA-83 在 production `:8809` + shared store 真验 worktree
+marker、focus quick actions、Pin→Unpin 恢复、right-click/`Shift+F10` 同源菜单、同名
+project、current reload 与 console 0 warning/error；视觉同屏比较无 P0/P1/P2，证据
+`qa/runs/2026-07-22-QA83-sidebar-session-row-states/` 与 `design-qa.md`。共享环境无
+running session，未为截图启动模型任务，该态由 component regression 锚定。
+
+**数据纪律**：session count 保持 605；未 Archive，未创建、关闭、删除或清理
+session/workspace/journal。INC-92 不产生新的 GAPS 条目。

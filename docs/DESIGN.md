@@ -1322,8 +1322,12 @@ limits:
   `Advanced → Continue in new session…`，终态 recovery 告警可保留必要续跑动作。
   menu group 只在至少有一个 action 时渲染，View 只显示另一个可切换面。
   Environment 只投影可行动状态：clean tree 无 Changes/disabled Commit，
-  子 agent 无 Commit。session row 不放装饰性 open glyph 或单独 pin/archive，只留
-  一个 `…` 管理菜单。connected daemon 是静态 status（version 仅 tooltip/
+  子 agent 无 Commit。session row resting state 只投影 managed-worktree、running、
+  unread / attention 等低噪事实 icon；desktop hover / keyboard focus 只显 Pin / Archive
+  quick actions，running spinner 保留。row 不放 `…`，完整 Pin / Rename / read state /
+  Archive 菜单由右键、`Shift+F10` / ContextMenu key 与 session title `…` 承担；
+  hover/focus 与 current selection 共用包含尾随 icons 的整行背景（INC-92）。
+  connected daemon 是静态 status（version 仅 tooltip/
   Settings），offline 才是 Restart button。Settings desktop 只渲染 Done 出口，
   mobile 只渲染 Back 出口。
 - New session 环境条采用四个独立语义控件：Project、Local/New
@@ -1347,7 +1351,9 @@ limits:
   自动生成的 `ws<timestamp>` / `wt<timestamp>` workspace 各自成组，默认名
   投影为 `Scratch · MM-DD HH:MM`（不泄漏实现 id、不隐藏 session、不互相
   合并——INC-78 撤销了早期"单一 Scratch 聚合"，它把无关工程混进一个假
-  文件夹）；组名经 project overlay（INC-53，workspace 为键）可改。driver
+  文件夹）；组名经 project overlay（INC-53，workspace 为键）可改。不同 workspace
+  的 display label 允许重名，sidebar 不追加常驻 path subtitle；完整 workspace 只在
+  原生 tooltip / hover preview 披露（INC-92）。driver
   只进 Scheduled，不在 Projects 重复；
   Scheduled 的持久列表来自 journal-backed sessions，进程内 `runRegistry`
   只补充当前 one-time run，不得作为 restart 后真相。成员按 child session id

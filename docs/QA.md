@@ -1637,3 +1637,27 @@ session=`20260721-221631-say-hi-in-one-word-a4dd080497611f5d`；证据
 
 **数据纪律**：验收结束时已恢复 `mt-test` expanded，不留测试偏好；
 未创建、关闭、删除或清理 session/workspace/journal。
+
+## QA-83 Sidebar session row 状态与动作（INC-92，UJ-24）
+
+**状态**：PASS（2026-07-22，production build 部署于真实
+`http://127.0.0.1:8809/` + 共享 `~/.local/share/agentrunner/`；session=
+`20260721-074606-3-agent-3d7b48f9d77cccb6`；证据
+`qa/runs/2026-07-22-QA83-sidebar-session-row-states/`）。
+
+| # | 真实动作 | 硬断言 |
+|---|---|---|
+| 1 | 检查普通/managed-worktree resting row | worktree row 显示专用 marker；普通 row 无 marker；两者均无 row `…`；resting quick actions 隐藏 |
+| 2 | keyboard focus session row | Pin/Archive 显示；背景覆盖 title 与 icons；其 computed color 与 current row 都是 `rgb(31,31,36)` |
+| 3 | 点击 Pin，再右键 | Pinned section 出现；menu 文案切为 Unpin；随后 Unpin 恢复原偏好 |
+| 4 | 右键与 `Shift+F10` | 两条入口均显示 Pin/Unpin、Rename、read state、Archive，且不导航 |
+| 5 | 选中 session 并整页 reload | hash、thread/timeline、current class 与整行背景恢复，页面不 blank |
+| 6 | 检查两个同名 `workspace` project | heading 均无 path subtitle；原生 title 分别为自己的完整 workspace；console warning/error=0 |
+
+**动态态边界**：共享历史当时无 running/busy session，没有为截图新启模型任务；
+spinner、running 时 spinner 与 quick actions 并存由 `Sidebar.nav.test.tsx` component
+regression 锚定。全量 frontend **664/664**、production build 与 webui `go test ./...`
+通过；视觉同屏比较无 P0/P1/P2，见项目根 `design-qa.md`。
+
+**数据纪律**：验收前后 session count 均为 605；已恢复 Pin 偏好，未执行 Archive；
+未创建、关闭、删除或清理 session/workspace/journal。

@@ -68,3 +68,57 @@ Attention / Background work 作为原生 Supervision 扩展；无阻塞交付的
 
 结论：AgentRunner 品牌、Codex 通用结构与 supervision 扩展仍使用同一视觉
 语言；P0/P1/P2=0，PASS。
+
+---
+
+# INC-92 Design QA
+
+## Evidence
+
+- source visual truth paths:
+  - `/var/folders/pv/h1nh3j1n7k94z_2nvdcz4rfc0000gn/T/codex-clipboard-d9f73125-f4d8-40fe-8b3b-95303d246d5e.png`
+  - `/var/folders/pv/h1nh3j1n7k94z_2nvdcz4rfc0000gn/T/codex-clipboard-7e16d7f8-fb72-4e3c-aeff-8b81d769c7a5.png`
+  - `/var/folders/pv/h1nh3j1n7k94z_2nvdcz4rfc0000gn/T/codex-clipboard-78da0713-a806-4250-99ac-dd17105ab16e.png`
+- implementation screenshot paths:
+  - `qa/runs/2026-07-22-QA83-sidebar-session-row-states/01-focus-full-row.png`
+  - `qa/runs/2026-07-22-QA83-sidebar-session-row-states/03-selected-reload.png`
+  - `qa/runs/2026-07-22-QA83-sidebar-session-row-states/06-worktree-resting.png`
+- viewport: `1280 x 720` CSS px, desktop dark theme, `deviceScaleFactor=2`
+- source pixels: `1284 x 448`, `776 x 581`, `1142 x 402`; implementation pixels:
+  `2560 x 1440`, normalized to the focused comparison width/height before comparison
+- density normalization: browser captures were downsampled from `@2x`; each source and
+  implementation focus crop was normalized to equal pixel dimensions before side-by-side review
+- state: managed-worktree resting, keyboard focus/quick actions, context menu, current after reload
+- full-view comparison evidence: `qa/runs/2026-07-22-QA83-sidebar-session-row-states/01-focus-full-row.png`
+- focused region comparison evidence:
+  - `qa/runs/2026-07-22-QA83-sidebar-session-row-states/04-comparison-states.png`
+  - `qa/runs/2026-07-22-QA83-sidebar-session-row-states/05-comparison-highlight.png`
+
+## Findings
+
+- fonts/typography: product-native typography, row hierarchy, weight and truncation remain
+  consistent; no actionable mismatch.
+- spacing/layout rhythm: 32px row geometry and trailing icon alignment are stable; hover/current
+  background covers the complete title-and-icon row; no actionable mismatch.
+- colors/tokens: hover/focus/current use the same existing `bg-panel-2`; source light/dark variation
+  is an expected theme difference, not a fidelity defect.
+- image quality: no raster product assets were introduced; all state/action icons use the existing
+  Phosphor vector icon library at native size, with no placeholder or handcrafted SVG.
+- copy/content: row ellipsis and duplicate path subtitles are absent; Pin/Archive and the complete
+  context-menu wording match the existing product actions.
+- behavior/accessibility: focus exposes quick actions; right-click and `Shift+F10` expose the same
+  full menu; current state survives reload. Browser console warning/error count is zero.
+- residual test gap: the shared store had no running session, so the live spinner state was not
+  visually captured; component tests cover spinner rendering and coexistence with hover actions.
+- P0/P1/P2: none. P3: none required for acceptance.
+
+## Comparison history
+
+- Iteration 1: reference showed row background stopping before trailing icons and duplicated menu /
+  path surfaces in the earlier implementation. The row background moved to the outer wrapper,
+  session row ellipsis and project path subtitle were removed, and status/quick-action layers were
+  added. Post-fix evidence: `04-comparison-states.png` and `05-comparison-highlight.png`.
+- Post-fix review found no actionable P0/P1/P2 differences. The blue outline in the focus capture is
+  the expected keyboard focus ring; pointer hover shares the same background selector without it.
+
+final result: passed

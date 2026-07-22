@@ -319,10 +319,10 @@
      override changed case/weight/tracking/color but never the size, so repo
      group names (mt-test/agentrunner) leaked out at 11px — SMALLER than their
      own 13px .project-session children below (a parent<child hierarchy
-     inversion, ~10px .project-hint-adjacent). Codex golden (codex-crop-sidebar-
+     inversion. Codex golden (codex-crop-sidebar-
      projects) renders the repo name at the same size as its session rows and
      leans on the folder icon (not size) for hierarchy — exactly what the r47
-     SIDE-SUBTITLE note above intends. Match the 13px session size. */
+     hierarchy. Match the 13px session size. */
   .project-heading {
     @apply w-full rounded-[7px] border-0 bg-transparent text-[13px] font-medium normal-case tracking-normal text-ink transition-colors duration-100 hover:bg-panel-2 hover:text-ink;
   }
@@ -347,25 +347,39 @@
   .section-toggle { @apply w-full rounded-[7px] border-0 bg-transparent text-left hover:bg-panel-2 hover:text-ink; }
   .section-caret { @apply transition-transform; }
   .section-caret.open { @apply rotate-90; }
-  /* SIDE-SUBTITLE · repo name + optional worktree-lineage hint stack in one
-     min-w-0 flex column so the name gets the full text width and the hint
-     rides a subordinate second line instead of stealing name space. */
+  /* Project name owns the full text track. Duplicate labels stay identical;
+     their paths are progressive disclosure in title/hover preview. */
   .proj-heading-text { @apply flex min-w-0 flex-1 flex-col text-left; }
   .proj-heading-name { @apply min-w-0 truncate; }
-  .project-hint { @apply min-w-0 truncate text-[10px] font-normal leading-tight text-dim; }
   .proj-caret { @apply transition-transform; }
   .proj-caret.open { @apply rotate-90; }
   .project-session-wrap { @apply relative flex min-w-0 items-center rounded-[8px]; }
   .project-session-wrap.nested { @apply ml-[23px]; }
-  .project-session-wrap.current { @apply bg-panel-2; }
+  /* Selection and hover/focus paint the same complete row, including trailing
+     worktree/loading/action icons. Painting only `.project-session` left the
+     icons visibly outside the highlight and made hover look narrower than the
+     selected state. */
+  .project-session-wrap.current,
+  .project-session-wrap:hover,
+  .project-session-wrap:focus-within { @apply bg-panel-2; }
   .project-session-wrap.unread .project-session-title { @apply font-semibold text-ink; }
   .project-session {
-    @apply flex h-[32px] min-w-0 flex-1 items-center gap-[6px] rounded-[8px] border-0 bg-transparent px-2 py-0 text-left text-[13px] text-ink transition-colors duration-100 hover:bg-panel-2 hover:text-ink;
+    @apply flex h-[32px] min-w-0 flex-1 items-center gap-[6px] rounded-[8px] border-0 bg-transparent px-2 py-0 text-left text-[13px] text-ink transition-colors duration-100 hover:text-ink;
   }
   .project-session-title { @apply min-w-0 flex-1 truncate; }
-  .session-actions { @apply hidden shrink-0; }
-  .project-session-wrap:hover .session-actions,
-  .project-session-wrap:focus-within .session-actions { @apply inline-flex; }
+  .session-state-icons { @apply inline-flex shrink-0 items-center gap-[3px] pr-2 text-dim; }
+  .session-worktree-icon { @apply inline-grid h-6 w-6 shrink-0 place-items-center; }
+  .session-loading-icon { @apply shrink-0 animate-spin; }
+  .session-quick-actions { @apply hidden shrink-0 items-center gap-[1px] pr-1; }
+  .session-quick-action {
+    @apply grid h-6 w-6 shrink-0 place-items-center rounded-[6px] border-0 bg-transparent p-0 text-dim hover:bg-panel hover:text-ink;
+  }
+  .project-session-wrap:hover .session-quick-actions,
+  .project-session-wrap:focus-within .session-quick-actions { @apply inline-flex; }
+  .project-session-wrap:hover .session-state-icons:not(.running),
+  .project-session-wrap:focus-within .session-state-icons:not(.running),
+  .project-session-wrap:hover .session-worktree-icon,
+  .project-session-wrap:focus-within .session-worktree-icon { @apply hidden; }
   .status-dot { @apply inline-block h-[7px] w-[7px] shrink-0 rounded-full bg-status-terminal; }
   .status-dot.run, .status-dot.running, .status-dot.appr { @apply bg-status-running; }
   .status-dot.stranded, .status-dot.attention { @apply bg-status-attention; }
@@ -1218,7 +1232,6 @@
     .sidebar-close { @apply grid; }
     .sidebar-resize-handle { @apply hidden; }
     .project-heading-actions { @apply flex; }
-    .session-actions { @apply inline-flex; }
     .session-preview, .project-preview { @apply hidden; }
     .session-layout.changes { grid-template-columns: minmax(0, 1fr); }
     .session-layout.environment { grid-template-columns: minmax(0, 1fr); }
