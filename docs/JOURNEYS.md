@@ -379,8 +379,13 @@ GAPS.md，本文件只回答"产品要做什么"。
    fallback，journal title 到达后替换，不把完整 raw id 或长期 loading 当标题。
    connected daemon 是安静 status（build id 仅 tooltip/Settings），只有 offline 才出现
    Restart button；Settings desktop 只有 Done，mobile 只有 Back。
+7. 以真实 Codex Desktop 为参照的全部可见 surface/state 必须登记在
+   `CODEX-PARITY.md §7`；每行只有同时具备当前 Codex 实窗与 AgentRunner
+   shared-store 交互证据才可记 `PASS`。尚未验证记 `UNTESTED`，需要产品/
+   backend 语义记 `GAP` 并引用 GAPS，明确不属于 AgentRunner journey 的入口记
+   `INTENTIONAL`；不能用一次截图或已有 component test 代替全状态结论（INC-98、QA-88）。
 
-**覆盖功能**：`Projects→sessions 信息架构` `project hover/menu/safe remove` `resizable sidebar` `Pinned/Projects section fold` `单一 session thread` `环境上下文 composer` `Worked/Changes turn 收尾` `渐进披露 composer` `单一动作入口/空面收敛` `内联人类可读审批` `Changes 审阅` `Supervision(goal/agent/attention/background/recovery)` `restart-safe Scheduled runs` `键盘/移动端导航` `子会话导航` `deep link/restart` `共享真实 session` `Web UI 产品面`
+**覆盖功能**：`Projects→sessions 信息架构` `project hover/menu/safe remove` `resizable sidebar` `Pinned/Projects section fold` `单一 session thread` `环境上下文 composer` `Worked/Changes turn 收尾` `渐进披露 composer` `单一动作入口/空面收敛` `内联人类可读审批` `Changes 审阅` `Supervision(goal/agent/attention/background/recovery)` `restart-safe Scheduled runs` `键盘/移动端导航` `子会话导航` `deep link/restart` `共享真实 session` `Web UI 产品面` `Codex UI 持续证据矩阵`
 
 ### UJ-25 一行安装与升级 `基础` `✅ INC-63（2026-07-12，v0.1.0 公网真装验证）`
 

@@ -677,6 +677,24 @@ TERM-resistant 孙进程可变孤儿。统一 advisory flock + unique temp fsync
 针对性 race 与全量 gate 通过；共享 store/Web UI 重启验收见 QA-67。
 → UJ-01/04/09/17/18/24
 
+**G43 Plugins/Skills 包发现、安装与更新产品面缺失 — ❌ 开放（INC-98.1 实窗取证，中）**
+Codex Desktop 的 Plugins 主面有 Installed、Marketplace 分类/搜索、包详情与
+Install 动作；AgentRunner 已有 skills、MCP、自定义 commands/tools 等独立原语，
+但没有统一 manifest/catalog、来源与版本、权限/信任预览、install/update/remove
+生命周期，也没有对应 Web UI。该能力不能用静态占位导航伪造：先给 UJ-19 增加
+“本地可信包生命周期”delta，再定 manifest/供应链/权限边界与 backend，最后接 UI。
+证据：`qa/runs/2026-07-22-QA88-codex-ui-continuous-loop/09-codex-plugins.png`。
+→ UJ-19/UJ-24
+
+**G42 Codex UI 全 surface/state 的持续实证覆盖不足 — ⚠️ 开放（INC-98，2026-07-22，中）**
+此前 Web UI QA 能证明单个增量与已知场景，却没有一张长期维护的全集矩阵，无法区分
+“已验证齐平”“尚未测”“需要 backend”“有意不做”。INC-98 以真实 Codex Desktop
+和 AgentRunner shared-store 为双侧证据，在 `CODEX-PARITY.md §7` 登记所有页面、
+popover/modal、loading/empty/error/running/terminal、viewport/theme/keyboard 状态；
+QA-88 按批次 capture→interact→recapture→compare→fix/gap。只有矩阵全部成为当前
+`PASS/GAP/INTENTIONAL` 且有可重复回归锚才可关闭；目前首批仅覆盖主入口基线。
+→ UJ-24
+
 **G41 gemini provider 对拒绝 budget:0 的模型硬发 thinkingBudget:0 → thinking-off spec 400 — ✅ 已关闭（INC-86.3，2026-07-21，provider 根治：toConfig 永不发 budget:0）**
 现场（INC-86，2026-07-21）：gemini-flash-latest 当前拒绝 `thinkingBudget:0`
 （INVALID_ARGUMENT，外部模型指针变更）。gemini `toConfig` 的 `else if !pro`

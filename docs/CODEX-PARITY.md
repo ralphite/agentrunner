@@ -284,3 +284,130 @@ ambient-suggestions / pets / memories_1.sqlite / transcription-history /
 process_manager 等目录（记忆系统对应 G9）。goal 存储已从早期 `goals/`
 目录演进为 `goals_1.sqlite`（thread_id 主键 = 一 thread 一 goal，与我们
 "一 session 一 goal"同构）。
+
+---
+
+## §7 Web UI 全表面持续证据矩阵（INC-98 / QA-88）
+
+**用途**：这是可执行 backlog，不是“看起来差不多”的结论。状态只允许
+`UNTESTED / BLOCKED / GAP / PASS / INTENTIONAL`。`PASS` 必须有同批真实 Codex
+实窗与 AgentRunner shared-store 交互证据；component test 或单侧截图只能作回归锚，
+不能单独升级状态。证据日期过旧或产品变化时退回 `UNTESTED`。`GAP` 必须引用
+GAPS；`INTENTIONAL` 必须说明不属于哪条 journey。
+
+首批证据根：`qa/runs/2026-07-22-QA88-codex-ui-continuous-loop/`。其中 `07` 是
+未稳定的 Pull Requests skeleton，明确拒收；稳定图为 `10`。以下未填证据的行就是
+后续 loop 的执行队列，不能因同组另一行通过而批量判绿。
+
+**98.1 盘点**：79 行 = `PASS 7 / GAP 3 / INTENTIONAL 3 / BLOCKED 1 /
+UNTESTED 65`。PASS 中 New session/Scheduled/Environment 各有多行交叉锚，因此它们
+不是 7 个完整页面已测完；任何组内仍有 UNTESTED 就继续留在 loop。
+
+### 7.1 Global shell 与 Codex-only 主入口
+
+| ID | surface/state/action | 状态 | 最近证据 / 裁决 |
+|---|---|---|---|
+| GL-01 | New chat 默认桌面 shell | PASS | 2026-07-22：Codex `06` ↔ AgentRunner `13`（同为逻辑 1952×1465 light）；同为 sidebar + 单 composer + context strip |
+| GL-02 | 当前 thread/session 桌面 shell | UNTESTED | Codex `01` 已有，缺本批同状态 AgentRunner 合并比较 |
+| GL-03 | command palette：open/search/empty/keyboard/Escape focus return | UNTESTED | Codex `02/04` 已有；AgentRunner 本批未同状态捕获 |
+| GL-04 | sidebar Search：标题/内容/项目/空结果/keyboard | UNTESTED | 待真实双侧查询 |
+| GL-05 | Pinned/Projects 分组、fold、resize、scroll、overflow | UNTESTED | 历史 QA-81/83/84/85 仅作我方候选证据，待当前 Codex 合并对照 |
+| GL-06 | session row hover/focus/current/running/unread/attention | UNTESTED | 待构造真实各态，不以静态 row 代替 |
+| GL-07 | project/session context menu + Escape focus return | UNTESTED | 历史 QA-86 仅作我方候选证据 |
+| GL-08 | user/account menu、update/status、sign-out 边界 | UNTESTED | 只读打开；不执行 sign-out |
+| GL-09 | Pull Requests list/search/filter/detail/loading/empty | GAP | 2026-07-22 Codex `10`；AgentRunner 缺 session→review→PR 产品面，G13；`07` loading 图拒收 |
+| GL-10 | Sites empty/list/create/publish | INTENTIONAL | Codex `08`；网站托管不属于 UJ-01..25，除非另立 journey |
+| GL-11 | Scheduled 主 shell/list/search/filter | PASS | 2026-07-22：Codex `05` ↔ AgentRunner `14`（同为逻辑 1952×1465 light）；只判 shell，细态见 SC 组 |
+| GL-12 | Plugins installed/marketplace/search/install/update | GAP | Codex `09`；统一包生命周期缺失，G43 |
+| GL-13 | 全局 loading/offline/reconnect/version mismatch | UNTESTED | 待不破坏 shared daemon 的可控路径；kill 类操作需单独授权 |
+
+### 7.2 New session 与 composer
+
+| ID | surface/state/action | 状态 | 最近证据 / 裁决 |
+|---|---|---|---|
+| NS-01 | projectless 默认首页、starter cards、首屏 geometry | PASS | 2026-07-22 Codex `06` ↔ AgentRunner `13`；只判同 viewport 默认视觉/层级 |
+| NS-02 | Project picker：搜索/无结果/选择/清除/focus return | UNTESTED | — |
+| NS-03 | Local/New worktree + Branch：展开/搜索/invalid/ref | UNTESTED | — |
+| NS-04 | starter card：点击后仅 seed draft、不提前创建 session | UNTESTED | — |
+| NS-05 | composer textarea：empty/multiline/overflow/IME/CJK | UNTESTED | — |
+| NS-06 | attachment：image/file/PDF/oversize/upload error/remove | UNTESTED | — |
+| NS-07 | Add root + Automation/Agent/YAML 子页、outside/Escape | UNTESTED | — |
+| NS-08 | access/model/thinking picker：搜索/切换/disabled/error | UNTESTED | — |
+| NS-09 | Goal/Plan/Loop/Best-of-N/background 启动表面 | UNTESTED | — |
+| NS-10 | Send：validation/submitting/streaming/failure/retry | UNTESTED | 产生 shared QA session 并永久保留 |
+| NS-11 | voice/dictation | INTENTIONAL | AgentRunner 核心 journey 不要求语音；Web Speech 既有实验入口不作为 parity 承诺 |
+| NS-12 | desktop 1840/1280、mobile 390、light/dark | UNTESTED | `06/11` 只覆盖 1840 light |
+
+### 7.3 Thread、timeline 与运行中协作
+
+| ID | surface/state/action | 状态 | 最近证据 / 裁决 |
+|---|---|---|---|
+| TH-01 | user/assistant/system/tool 消息层级与 streaming | UNTESTED | — |
+| TH-02 | thinking/tool call/result：collapsed/expanded/long/error | UNTESTED | — |
+| TH-03 | Markdown：heading/list/table/code/mermaid/math/link/media | GAP | 基础/mermaid 历史已测；math 缺 G38；其余需当前对标 |
+| TH-04 | Worked duration、Copy、feedback、Open artifact | UNTESTED | — |
+| TH-05 | message Continue：human/final/legacy/attachment-only | UNTESTED | QA-82 为我方候选证据，待当前 Codex 对标 |
+| TH-06 | queue/steer toggle、queued bubbles、⌘⏎、reorder 边界 | UNTESTED | — |
+| TH-07 | running Stop/interrupt、partial output、recovery | UNTESTED | — |
+| TH-08 | ask_user waiting、answer、reload、cancel 边界 | UNTESTED | — |
+| TH-09 | approval：details/approve/deny/child approval/reload | UNTESTED | 不替用户决定真实高风险审批；使用 QA spec |
+| TH-10 | provider/network/tool error、Retry 原位替换 | UNTESTED | — |
+| TH-11 | completed/failed/recovery/continue terminal chrome | UNTESTED | — |
+| TH-12 | long thread hydration/scroll anchor/new message badge | UNTESTED | — |
+| TH-13 | goal banner：active/pause/edit/blocked/budget/complete | UNTESTED | — |
+| TH-14 | plan/progress visibility 与完成真实性 | UNTESTED | Codex 有 update_plan；我方整体表 progress 需逐态比较 |
+
+### 7.4 Environment、Agents 与 Changes
+
+| ID | surface/state/action | 状态 | 最近证据 / 裁决 |
+|---|---|---|---|
+| EV-01 | Environment desktop 浮卡，不重排 thread/composer | PASS | 2026-07-22 QA-87：Codex 实窗 ↔ AgentRunner 1840/1280 |
+| EV-02 | Environment mobile containment/scroll/close | PASS | QA-87 390×844 实窗几何；Codex desktop contract + 我方 mobile 实测 |
+| EV-03 | Goal/Agents/Attention/Background empty/populated/overflow | UNTESTED | — |
+| EV-04 | child member navigation/full timeline/back/reload | UNTESTED | — |
+| EV-05 | child approval/recovery attention 与去重 | UNTESTED | — |
+| EV-06 | Environment↔Changes/sidebar/settings overlay 互斥 | UNTESTED | QA-87/86 为我方候选证据，待全组合 |
+| CH-01 | Changes empty/normal + Working tree/Last turn scopes | UNTESTED | — |
+| CH-02 | added/modified/deleted/renamed/untracked/staged | UNTESTED | — |
+| CH-03 | large/generated/binary/unavailable baseline disclosure | UNTESTED | — |
+| CH-04 | file/hunk expand-collapse、scroll、syntax/CJK/wrap | UNTESTED | — |
+| CH-05 | desktop split/mobile overlay + close/focus return | UNTESTED | QA-87 为我方候选证据，待 Codex 同状态 |
+| CH-06 | Commit or push menu/validation/progress/error/success | UNTESTED | 不执行真实 push；可用专用 shared QA repo 做 commit |
+| CH-07 | Apply to project/Remove worktree/dirty/conflict guards | UNTESTED | AgentRunner 特有强能力，需验证而非强行克隆 Codex |
+
+### 7.5 Scheduled、Settings 与持久化
+
+| ID | surface/state/action | 状态 | 最近证据 / 裁决 |
+|---|---|---|---|
+| SC-01 | Scheduled list/search/filter 主 shell | PASS | 2026-07-22 Codex `05` ↔ AgentRunner `14` |
+| SC-02 | empty/large list/loading/error/pagination/scroll | UNTESTED | `12` 仅大列表静态首屏 |
+| SC-03 | Create：one-shot/repeating/validation/cancel/success | UNTESTED | — |
+| SC-04 | suggestions：launch/prefill/dismiss | UNTESTED | — |
+| SC-05 | active/paused/finished/failed/overlap/retry | UNTESTED | 先对齐两侧状态语义，再判断 All/Active/Paused vs Finished 文案 |
+| SC-06 | run detail/deep link/edit/next run/history | UNTESTED | — |
+| SC-07 | restart 后 cadence/nextRun/status truthful | UNTESTED | shared daemon 安全 restart，不 kill -9 |
+| ST-01 | Settings open/close/general/appearance | UNTESTED | — |
+| ST-02 | theme light/dark/system + persistence/no flash | UNTESTED | 首批只为截图临时切换并恢复 dark，不构成全态通过 |
+| ST-03 | shortcuts/config/worktrees/archived sessions | UNTESTED | — |
+| ST-04 | desktop Done/mobile Back/Escape/outside focus return | UNTESTED | QA-80/86 为我方候选证据 |
+| ST-05 | profile/voice/pets/personalization | INTENTIONAL | 非 AgentRunner runtime journey；若形成工程效益另立产品 delta |
+| PS-01 | deep-link reload/back/forward/current selection | UNTESTED | — |
+| PS-02 | rename/pin/archive/read/remove + persistence | UNTESTED | Archive/Remove 必须用专用 shared QA data，永久保留 journal |
+| PS-03 | legacy/missing/corrupt session 与 projectless rows | UNTESTED | 不伪造 raw id/empty state |
+
+### 7.6 Accessibility、viewport 与 resilience 横切
+
+| ID | surface/state/action | 状态 | 最近证据 / 裁决 |
+|---|---|---|---|
+| AX-01 | 全主流程 keyboard-only、tab order、visible focus | UNTESTED | — |
+| AX-02 | menu/dialog/listbox semantics + focus trap/return | UNTESTED | — |
+| AX-03 | pointer/touch target ≥44px、hover 不作为唯一入口 | UNTESTED | — |
+| AX-04 | text/icon/status contrast，light/dark/error/disabled | UNTESTED | — |
+| AX-05 | 200% zoom/reflow、390×844、1280×720、1840×1353 | UNTESTED | QA-87 只覆盖 Environment/Changes geometry |
+| AX-06 | reduced motion/animation/loading transitions | UNTESTED | — |
+| AX-07 | VoiceOver accessible names/roles/state/announcements | BLOCKED | Codex Electron AX tree 本机仅暴露顶层 group；先用 keyboard/视觉证据，持续探测语义树 |
+| AX-08 | CJK/emoji/long path/long title/RTL | UNTESTED | — |
+| RS-01 | refresh/restart during loading/running/waiting | UNTESTED | destructive daemon kill 需另行授权；普通 restart 可测 |
+| RS-02 | offline→online、API 4xx/5xx、version mismatch | UNTESTED | — |
+| RS-03 | browser console warning/error、layout overflow | UNTESTED | 每批必存；首批 New/Scheduled logs=`[]` |
+| RS-04 | screenshot driver PID/window/target/recovery fail-closed | PASS | 2026-07-22：CGWindow/CGEvent 实跑；`scripts/test-capture-codex-ui.sh` contract |

@@ -26,6 +26,7 @@ fi
 # 登记簿真实性:SPEC 锚判据/幻影锚/GAPS 重号(PROCESS §五,G29 复盘)。
 scripts/lint-docs.sh
 scripts/lint-product-terms.sh
+scripts/test-capture-codex-ui.sh
 
 # 前端预检与两条前端腿暂时停跑(2026-07-18 用户指示:npm/vitest/build
 # 是墙钟大头且偶发网络挂起)。改动前端时手跑:

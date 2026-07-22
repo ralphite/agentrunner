@@ -1786,3 +1786,28 @@ Environment 统一为 viewport-bounded absolute card，Changes 仍是唯一 desk
 并用 CSS contract test 钉住 geometry。两张对比 contact sheet、current/palette/desktop/
 mobile 截图、DOM geometry、health/events/browser logs/workspace diff 全部保留在
 `qa/runs/2026-07-22-QA87-codex-live-ui-parity/`；测试 session、workspace、journal 未清理。
+
+## QA-88 Codex UI 全表面持续对标循环（INC-98，UJ-24）
+
+**状态**：进行中；98.1 主入口基线 PASS（2026-07-22，真实 Codex Desktop +
+production `http://127.0.0.1:8809/` + 共享 `~/.local/share/agentrunner/`）。
+全量完成条件以 `CODEX-PARITY.md §7` 为准，不因首批截图宣告完成。
+
+每批固定协议：capture Codex 实窗 → 逐张打开验图 → 只读交互/必要时使用并保留
+shared-store QA data → recapture → 与同 viewport/state 的 AgentRunner 合并比较 →
+可见差异直接修或登记 GAPS → deep-link/restart/browser logs/health 回归 → 保留全部证据。
+截图本身不等于动作、focus、状态与可访问性通过。
+
+| 98.1 动作 | 硬断言 |
+|---|---|
+| 捕获 current 与 command palette | 按 bundle PID + 最大 layer-0 CGWindow 精确取 Codex；`Cmd+K`/`Escape` 可逆，原 thread/goal 未丢 |
+| 依次打开 New chat/Pull Requests/Sites/Scheduled/Plugins | 白名单窗口相对导航；每次 capture 后经 palette 恢复原 thread；未知 target 与非法 settle fail-closed |
+| Pull Requests 首图仍在 skeleton | 明确拒收 `07`，延长 settle 后重捕获 `10`；不把 loading 当稳定结果 |
+| 同逻辑 1952×1465 light 打开 AgentRunner New session/Scheduled | `13/14` 与 Retina 2× 的 Codex `06/05` 同 viewport；两个已对标入口的 shell/层级/密度无 P0/P1 差异；其余交互状态仍保持 `UNTESTED` |
+| 浏览器/偏好恢复 | warning/error=`[]`；临时切 light 后恢复原 dark；viewport 恢复；未 Send/Approve/Deny/Archive/Commit/Push |
+| 能力裁决 | Pull Requests 引用既有 G13；Plugins 新增 G43；Sites 为 AgentRunner journey 非目标；未实现入口不画占位 |
+
+**首批证据**：`qa/runs/2026-07-22-QA88-codex-ui-continuous-loop/` 保存
+accepted/rejected screenshots、browser logs、driver stderr contract、health 与工作区 diff。
+首批未创建、关闭、删除或清理 AgentRunner session/workspace/journal；后续若产生测试
+session，继续按共享数据纪律永久保留。

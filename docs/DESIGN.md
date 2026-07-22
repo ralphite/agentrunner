@@ -1743,6 +1743,13 @@ limits:
   scratch 目录（默认 `gin-gonic/gin@v1.10.1`，第二档
   `caddyserver/caddy`）；QA 的 workspace 准备见 `qa/ws.sh`（SHA 钉死）。
   testbed 场景不进单测 CI，只挂 acceptance（`requires: [testbed]`）。
+- **Web UI 外部参照证据（INC-98）**：Codex Desktop 只按 bundle PID 与最大
+  on-screen layer-0 `CGWindow` 取窗，交互使用白名单化的窗口相对坐标 +
+  `CGEvent`，不依赖可能阻塞且当前只暴露顶层 group 的 Electron AX tree；
+  palette/navigation 必须有 Escape 或 query restore，未知 surface fail-closed。
+  `CODEX-PARITY.md §7` 是 surface/state 覆盖真相源；截图必须逐张验图并与同
+  viewport/theme 的 AgentRunner shared-store 成品合并比较，不能替代动作、focus、
+  reload/error/accessibility 验证。该 driver 是 QA 基建，不进入产品 runtime。
 - agent 行为变化体现为 event log 的 diff，review 的是决策序列；
   真实 API 断言只钉 runtime 红线（事件序列、文件状态），不钉模型措辞。
 - spec loader 用坏 spec 的错误信息做黄金测试。
