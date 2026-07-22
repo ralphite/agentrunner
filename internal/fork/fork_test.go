@@ -47,15 +47,25 @@ func seedParent(t *testing.T) (string, state.State) {
 	appendT(event.TypeInputReceived, &event.InputReceived{Text: "fix it", Source: "cli"}, "")
 	appendT(event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 1}, "evt-2")
 	appendT(event.TypeCheckpointBarrier, &event.CheckpointBarrier{
-		BarrierID: "bar-t1", GenStep: 1, Vector: map[string]int64{".": 3}, SnapshotRef: "ref-aaa"}, "evt-3")
+		BarrierID: "bar-t1", GenStep: 1, Vector: map[string]int64{".": 3, "sub/s1-a1": 1}, SnapshotRef: "ref-aaa"}, "evt-3")
 	appendT(event.TypeGenerationStarted, &event.GenerationStarted{GenStep: 2}, "evt-4")
 	appendT(event.TypeCheckpointBarrier, &event.CheckpointBarrier{
-		BarrierID: "bar-t2", GenStep: 2, Vector: map[string]int64{".": 5}, SnapshotRef: "ref-bbb"}, "evt-5")
+		BarrierID: "bar-t2", GenStep: 2, Vector: map[string]int64{".": 5, "sub/s1-a1": 1}, SnapshotRef: "ref-bbb"}, "evt-5")
 	appendT(event.TypeAssistantMessage, &event.AssistantMessage{GenStep: 2,
 		Message: provider.Message{Role: provider.RoleAssistant,
 			Parts: []provider.Part{{Kind: provider.PartText, Text: "done"}}}}, "evt-6")
 
-	for _, f := range []string{"sub/s1-a1/events.jsonl", "artifacts/blobs/sha256-xx"} {
+	childDir := filepath.Join(dir, "sub/s1-a1")
+	child, err := store.OpenEventStore(childDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	childGenesis, _ := event.New(event.TypeSessionStarted, &event.SessionStarted{SpecName: "child"})
+	if _, err := child.Append(childGenesis); err != nil {
+		t.Fatal(err)
+	}
+	_ = child.Close()
+	for _, f := range []string{"artifacts/blobs/sha256-xx"} {
 		path := filepath.Join(dir, f)
 		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 			t.Fatal(err)
@@ -148,12 +158,16 @@ func TestCutCopiesBarrierSlice(t *testing.T) {
 		t.Errorf("fork barriers = %+v, want bar-t1 at shifted seq 5", fold2.Barriers)
 	}
 
-	// Side stores traveled verbatim.
-	for _, f := range []string{"sub/s1-a1/events.jsonl", "artifacts/blobs/sha256-xx"} {
-		raw, err := os.ReadFile(filepath.Join(newDir, f))
-		if err != nil || string(raw) != "payload:"+f {
-			t.Errorf("aux file %s: %q err=%v", f, raw, err)
-		}
+	// Child journals travel as the exact vector prefix; immutable artifacts
+	// travel verbatim.
+	childEvents, err := store.ReadEvents(filepath.Join(newDir, "sub/s1-a1"))
+	if err != nil || len(childEvents) != 1 || childEvents[0].Type != event.TypeSessionStarted {
+		t.Fatalf("child cut = %+v err=%v", childEvents, err)
+	}
+	artifact := "artifacts/blobs/sha256-xx"
+	raw, err := os.ReadFile(filepath.Join(newDir, artifact))
+	if err != nil || string(raw) != "payload:"+artifact {
+		t.Errorf("aux file %s: %q err=%v", artifact, raw, err)
 	}
 	// Fold snapshots must NOT travel (they cache parent seqs).
 	if _, ok, _ := store.LatestSnapshot(newDir); ok {
@@ -176,6 +190,18 @@ func TestCutUnknownBarrier(t *testing.T) {
 		NewDir: filepath.Join(t.TempDir(), "x"), NewSession: "s", Barrier: bogus,
 		Now: time.Date(2026, 7, 4, 12, 0, 0, 0, time.UTC)}); err == nil {
 		t.Fatal("a barrier absent from the journal must be refused")
+	}
+}
+
+func TestCutRejectsChildJournalShorterThanBarrierVector(t *testing.T) {
+	parentDir, fold := seedParent(t)
+	barrier := fold.Barriers[0]
+	barrier.Vector["sub/s1-a1"] = 2
+	_, err := Cut(Options{ParentDir: parentDir, ParentSession: parentSession,
+		NewDir: filepath.Join(t.TempDir(), "x"), NewSession: "s", Barrier: barrier,
+		Now: time.Date(2026, 7, 4, 12, 0, 0, 0, time.UTC)})
+	if err == nil || !strings.Contains(err.Error(), "shorter than barrier vector") {
+		t.Fatalf("short child cut err=%v", err)
 	}
 }
 

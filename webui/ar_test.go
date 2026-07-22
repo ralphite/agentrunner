@@ -14,6 +14,11 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/messagefork"
+	"github.com/ralphite/agentrunner/internal/provider"
+	"github.com/ralphite/agentrunner/internal/store"
 )
 
 func TestParseSessionID(t *testing.T) {
@@ -1090,5 +1095,136 @@ func TestSendDeliveryValidation(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "delivery must be") {
 		t.Fatalf("body=%s, want a delivery error", rec.Body.String())
+	}
+}
+
+func TestHandleSendAcceptsAttachmentOnly(t *testing.T) {
+	dir := t.TempDir()
+	image := filepath.Join(dir, "diagram.png")
+	if err := os.WriteFile(image, []byte("image bytes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	argsFile := filepath.Join(dir, "args")
+	s := &server{arPath: writeFakeAR(t, argsFile, "delivered")}
+	body, _ := json.Marshal(map[string]any{"text": "", "images": []string{image}})
+	req := httptest.NewRequest("POST", "/api/sessions/s1/send", bytes.NewReader(body))
+	req.SetPathValue("sid", "s1")
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	s.handleSend(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	args, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"send\n", "--detach\n", "--image\n" + image + "\n", "s1\n"} {
+		if !strings.Contains(string(args), want) {
+			t.Fatalf("args=%q, missing %q", args, want)
+		}
+	}
+}
+
+func TestHandleSendExactDraftUsesOrderedAuthoritativeManifest(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", xdg)
+	sid := "20260722-120000-continue-test-abcd1234"
+	sessionDir := filepath.Join(xdg, "agentrunner", "sessions", sid)
+	artifacts, err := store.OpenArtifactStore(filepath.Join(sessionDir, "artifacts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fileRef, _ := artifacts.Put([]byte("file"))
+	imageRef, _ := artifacts.Put([]byte("\x89PNG\r\n\x1a\n"))
+	draft := &event.ForkDraft{DraftID: "draft-item-u", Text: "caption", Content: []provider.Part{
+		{Kind: provider.PartText, Text: "caption"},
+		{Kind: provider.PartFile, Ref: fileRef, MediaType: "text/plain", Name: "source.txt", PartID: "file-1"},
+		{Kind: provider.PartImage, Ref: imageRef, MediaType: "image/png", Name: "source.png", PartID: "image-1"},
+	}}
+	es, err := store.OpenEventStore(sessionDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendOne := func(typ string, payload any) {
+		env, _ := event.New(typ, payload)
+		if _, err := es.Append(env); err != nil {
+			t.Fatal(err)
+		}
+	}
+	appendOne(event.TypeForkedFrom, &event.ForkedFrom{ParentSession: "parent", SourceItemID: "item-u", Draft: draft})
+	appendOne(event.TypeSessionStarted, &event.SessionStarted{SpecName: "x"})
+	appendOne(event.TypeForkAwaitingInput, &event.ForkAwaitingInput{DraftID: draft.DraftID})
+	_ = es.Close()
+
+	argsFile := filepath.Join(t.TempDir(), "args")
+	s := &server{arPath: writeFakeAR(t, argsFile, "delivered")}
+	body, _ := json.Marshal(map[string]any{"text": "caption", "draft_id": draft.DraftID,
+		"send_request_id": "send_request_1234", "replay_original": true,
+		"draft_parts": []map[string]any{{"kind": "file", "ref": fileRef, "ordinal": 0},
+			{"kind": "image", "ref": imageRef, "ordinal": 1}}})
+	req := httptest.NewRequest("POST", "/api/sessions/"+sid+"/send", bytes.NewReader(body))
+	req.SetPathValue("sid", sid)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	s.handleSend(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	args, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(args)), "\n")
+	manifestRaw := ""
+	for i, line := range lines {
+		if line == "--content-manifest" && i+1 < len(lines) {
+			manifestRaw = lines[i+1]
+		}
+	}
+	var manifest []map[string]string
+	if manifestRaw == "" || json.Unmarshal([]byte(manifestRaw), &manifest) != nil {
+		t.Fatalf("args missing valid manifest: %q", args)
+	}
+	if len(manifest) != 3 || manifest[0]["kind"] != "text" || manifest[1]["kind"] != "file" ||
+		manifest[1]["name"] != "source.txt" || manifest[2]["kind"] != "image" ||
+		manifest[2]["part_id"] != "image-1" {
+		t.Fatalf("manifest = %+v", manifest)
+	}
+}
+
+func TestContinueFromMessageHTTPContract(t *testing.T) {
+	tests := []struct {
+		name   string
+		result messagefork.Result
+		err    error
+		want   int
+	}{
+		{name: "created", result: messagefork.Result{SessionID: "child-1", SourceItemID: "item-1", SourceSide: messagefork.SideBeforeUser, Created: true}, want: http.StatusCreated},
+		{name: "retry", result: messagefork.Result{SessionID: "child-1", SourceItemID: "item-1", SourceSide: messagefork.SideBeforeUser}, want: http.StatusOK},
+		{name: "conflict", err: fmt.Errorf("%w: reused", messagefork.ErrConflict), want: http.StatusConflict},
+		{name: "missing", err: messagefork.ErrNotFound, want: http.StatusNotFound},
+		{name: "invalid", err: messagefork.ErrInvalid, want: http.StatusBadRequest},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var got messagefork.Request
+			s := &server{meta: newMetaStore(filepath.Join(t.TempDir(), "meta.json")), continueMessage: func(_ context.Context, req messagefork.Request) (messagefork.Result, error) {
+				got = req
+				return tc.result, tc.err
+			}}
+			body := `{"item_id":"item-1","request_id":"continue_12345678"}`
+			req := httptest.NewRequest("POST", "/api/sessions/parent-1/continue-from-message", strings.NewReader(body))
+			req.SetPathValue("sid", "parent-1")
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			s.handleContinueFromMessage(rec, req)
+			if rec.Code != tc.want {
+				t.Fatalf("status=%d body=%s, want %d", rec.Code, rec.Body.String(), tc.want)
+			}
+			if got.ParentSession != "parent-1" || got.ItemID != "item-1" || got.RequestID != "continue_12345678" {
+				t.Fatalf("request = %+v", got)
+			}
+		})
 	}
 }

@@ -204,6 +204,37 @@ func TestJournalInputPreservesTypedContentAndProvenance(t *testing.T) {
 	}
 }
 
+func TestJournalAttachmentOnlyOmitsEmptyTextPart(t *testing.T) {
+	l := testLoop(t, scripted.Fixture{}, t.TempDir())
+	ds := &driveState{s: state.New()}
+	appendE := l.appender(ds)
+	if err := l.journalInput(ds, appendE, protocol.UserInput{
+		CommandID: "cmd-attachment-only", DeliverySeq: 1, Source: "cli",
+		Images: []protocol.ImageAttachment{{MediaType: "image/png", Data: []byte("png"), Name: "image.png"}},
+		Files:  []protocol.FileAttachment{{MediaType: "text/plain", Data: []byte("note"), Name: "note.txt"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	events, err := store.ReadEvents(l.Store.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := event.DecodePayload(events[len(events)-1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := decoded.(*event.InputReceived)
+	if in.Text != "" || len(in.Content) != 2 || in.Content[0].Kind != provider.PartImage ||
+		in.Content[1].Kind != provider.PartFile {
+		t.Fatalf("attachment-only canonical content = %+v", in.Content)
+	}
+	for _, part := range in.Content {
+		if part.Kind == provider.PartText {
+			t.Fatal("attachment-only input synthesized an empty text part")
+		}
+	}
+}
+
 // One-shot mode (Conversational=false, the v1 default) is untouched: yield
 // still completes the run — every existing caller keeps its contract.
 func TestOneShotRunEndsOnYield(t *testing.T) {

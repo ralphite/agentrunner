@@ -1253,12 +1253,38 @@ limits:
   `ForkedFrom{run, barrier}` 为创世 event（原 id 作为 provenance
   保留；fork journal 恒只有**一个**创世——父自身的创世不复制，血统
   经父 journal 链回溯），在飞 handles 在复制时**一律取消**（合成收尾，
-  fork 的 fold 无 in-doubt 活动）；`sub/` 子 journal
-  与 artifacts CAS 作为随行库 verbatim 复制（超出切面的部分是无害
-  provenance——事件切面本身仍以 barrier 为界）。并从 snapshot 物化
+  fork 的 fold 无 in-doubt 活动）；`sub/` 子 journal 必须逐 stream 只复制到
+  barrier vector 的 exact prefix（缺失、short 或 torn 都 fail closed），其余
+  sub 辅助文件与 artifacts CAS 作为随行库复制；staging 内所有 file/dir fsync 后
+  才允许 publish。并从 snapshot 物化
   **自己的** worktree——fork 与原 session 不共享目录；rewind = fork 后
   用户显式切换并放弃原 session。被排除的路径（见 §6）在 fork 里天然
   缺席。任意 seq N 处的 fork 不提供——跨 stream 的因果一致切割不值得做。
+- **message continuation（INC-91）不放宽合法 cut**：human `InputReceived`
+  消费前与可见 normal/blocked final `AssistantMessage` 后，runtime best-effort
+  追加带 `MessageAnchor{side,item_id,turn_id}` 的 barrier。snapshot 失败时消息
+  仍正常运行，只是不具备入口。assistant event 先持有 prepared checkpoint
+  receipt；若 crash 切在 assistant/barrier 之间，resume 的第一条 append 必须按
+  该 receipt 修复 barrier，不能重拍 crash 后 workspace。
+- top-level human opening 先在 `SessionStarted` 保存稳定 command/item identity 与
+  ref-only `OpeningContent` recovery manifest，再 append durable mailbox；resume 可从 genesis
+  重建同一 command，且 materialized run inputs 必须先于 before-user snapshot。hook veto 会 durable
+  settle 为 waiting-input，不能以空 conversation 启动 generation。旧 journal 与 synthetic
+  spawned child 继续兼容原 opening path。
+- API 只接受 `parent_session + item_id + request_id`，服务端按 journal 唯一
+  message/anchor 解析 exact barrier seq；request-id registry + payload hash +
+  cross-process lock 保证 response-loss 幂等和异目标冲突。child 在隐藏 staging
+  dir 完成 cut、CAS/refs、timer/handle cancellation、goal/schedule pause 与
+  `ForkAwaitingInput` fold 校验后，整个 session dir atomic rename 才可见；因此
+  半成品不进入 list/resolve。
+- user-message child 的 `ForkedFrom.Draft` 只含已 redacted/journaled 的 ordered content 与
+  child-local CAS refs（含 name/part id），显式 human Send 前 durable park 阻止
+  boot/timer/goal 自动续跑。首次 Web send 以稳定 CommandID 作为
+  `send_request_id`，CommandLog append 同时是该 draft 的单一 claim：exact retry
+  复用 receipt，另一 attempt 409；hook veto/InputRevoked settle 后释放；成功
+  `InputReceived{ForkDraftID,BasedOnItemID}` 消费 draft并解除 park。空文本但有合法
+  attachment 是输入；两者皆空仍拒绝。exact replay 的 attachment request 必须携带来源 ordinal，
+  服务端以 `ordinal + kind + ref` 选取 authoritative metadata，因此重复 ref 也不会发生身份混淆。
 
 ### 交互协议
 
@@ -1339,8 +1365,11 @@ limits:
   branch 混入 Project 菜单。每轮 `Worked` 只由相邻 human input 与该轮最终
   assistant message 的 journal timestamp 派生。Changes outcome 只读既有
   diff contract，并只提供真实 `Review`；无 durable feedback/rollback contract
-  时不画点赞或 `Undo`。`Continue in new session` 复用 checkpoint + fork/worktree
-  contract，不另造复制会话语义。
+  时不画点赞或 `Undo`。message row 的 `Continue in new session` 只由 durable
+  anchor 投影 eligibility，客户端不猜“最后一行”；user row 预填 recorded draft，
+  final assistant row 打开空 composer并 focus。legacy/tool/partial/peer row 无入口；
+  raw checkpoint 选择仍在 Advanced。实现复用 checkpoint + fork/worktree contract，
+  不另造复制会话语义。
 - Supervision 是 AgentRunner 叠加层：approval 可在宽屏自动展开，但 resize
   到窄屏必须撤回自动面板；用户手动打开仍有效。切到 Changes 时只显示 diff，
   不允许 Supervision 与 diff 抢占同一主区域。

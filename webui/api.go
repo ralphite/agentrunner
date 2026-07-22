@@ -15,6 +15,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ralphite/agentrunner/internal/messagefork"
+	"github.com/ralphite/agentrunner/internal/provider"
 )
 
 const oneShotTimeout = 60 * time.Second
@@ -24,6 +27,8 @@ const (
 	maxUploadBytes        = 10 << 20
 	maxUploadRequestBytes = maxUploadBytes + (1 << 20) // multipart headers/boundaries
 )
+
+type continueMessageFunc func(context.Context, messagefork.Request) (messagefork.Result, error)
 
 func (s *server) routes() *http.ServeMux {
 	mux := http.NewServeMux()
@@ -82,6 +87,7 @@ func (s *server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/sessions/{sid}/approve", s.handleApprove)
 	mux.HandleFunc("POST /api/sessions/{sid}/agent", s.handleAgentSwitch)
 	mux.HandleFunc("POST /api/sessions/{sid}/fork", s.handleFork)
+	mux.HandleFunc("POST /api/sessions/{sid}/continue-from-message", s.handleContinueFromMessage)
 	mux.HandleFunc("POST /api/sessions/{sid}/compact", s.handleCompact)
 	mux.HandleFunc("POST /api/sessions/{sid}/clear", s.handleClear)
 	mux.HandleFunc("POST /api/sessions/{sid}/mode", s.handleMode)
@@ -1138,9 +1144,24 @@ func (s *server) handleSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Text   string   `json:"text"`
-		Images []string `json:"images"`
-		Files  []string `json:"files"`
+		Text         string   `json:"text"`
+		Images       []string `json:"images"`
+		Files        []string `json:"files"`
+		ImageRefs    []string `json:"image_refs"`
+		FileRefs     []string `json:"file_refs"`
+		ImageNames   []string `json:"image_names"`
+		FileNames    []string `json:"file_names"`
+		ImagePartIDs []string `json:"image_part_ids"`
+		FilePartIDs  []string `json:"file_part_ids"`
+		DraftParts   []struct {
+			Kind    string `json:"kind"`
+			Ref     string `json:"ref,omitempty"`
+			Path    string `json:"path,omitempty"`
+			Ordinal *int   `json:"ordinal,omitempty"`
+		} `json:"draft_parts"`
+		ReplayOriginal bool   `json:"replay_original"`
+		DraftID        string `json:"draft_id"`
+		SendRequestID  string `json:"send_request_id"`
 		// Delivery is the per-message delivery mode (INC-43): "steer" folds the
 		// message into the running turn at its next safe boundary; "" / "queue"
 		// (default) queues it for the next turn. Only "steer" is honored; any
@@ -1150,8 +1171,109 @@ func (s *server) handleSend(w http.ResponseWriter, r *http.Request) {
 	if !readBody(w, r, &req) {
 		return
 	}
-	if strings.TrimSpace(req.Text) == "" {
-		badRequest(w, "text is required")
+	if strings.TrimSpace(req.Text) == "" && len(req.Images)+len(req.Files)+len(req.ImageRefs)+len(req.FileRefs)+len(req.DraftParts) == 0 {
+		badRequest(w, "text or an attachment is required")
+		return
+	}
+	draftSourceItemID := ""
+	var draftManifest []map[string]string
+	if req.DraftID != "" {
+		if !validCommandID(req.SendRequestID) {
+			badRequest(w, "valid send_request_id is required for a fork draft")
+			return
+		}
+		if (len(req.ImageNames) != 0 && len(req.ImageNames) != len(req.ImageRefs)) ||
+			(len(req.FileNames) != 0 && len(req.FileNames) != len(req.FileRefs)) ||
+			(len(req.ImagePartIDs) != 0 && len(req.ImagePartIDs) != len(req.ImageRefs)) ||
+			(len(req.FilePartIDs) != 0 && len(req.FilePartIDs) != len(req.FileRefs)) {
+			badRequest(w, "draft attachment metadata length mismatch")
+			return
+		}
+		if len(req.DraftParts) == 0 {
+			ordinal := 0
+			for _, ref := range req.ImageRefs {
+				position := ordinal
+				req.DraftParts = append(req.DraftParts, struct {
+					Kind    string `json:"kind"`
+					Ref     string `json:"ref,omitempty"`
+					Path    string `json:"path,omitempty"`
+					Ordinal *int   `json:"ordinal,omitempty"`
+				}{Kind: string(provider.PartImage), Ref: ref, Ordinal: &position})
+				ordinal++
+			}
+			for _, ref := range req.FileRefs {
+				position := ordinal
+				req.DraftParts = append(req.DraftParts, struct {
+					Kind    string `json:"kind"`
+					Ref     string `json:"ref,omitempty"`
+					Path    string `json:"path,omitempty"`
+					Ordinal *int   `json:"ordinal,omitempty"`
+				}{Kind: string(provider.PartFile), Ref: ref, Ordinal: &position})
+				ordinal++
+			}
+		}
+		var requested []messagefork.DraftPartRequest
+		for _, part := range req.DraftParts {
+			if (part.Ref == "") == (part.Path == "") || (part.Kind != string(provider.PartImage) && part.Kind != string(provider.PartFile)) {
+				badRequest(w, "each draft part needs one ref/path and a valid kind")
+				return
+			}
+			if part.Ref != "" {
+				if part.Ordinal == nil {
+					badRequest(w, "draft ref part needs its source ordinal")
+					return
+				}
+				requested = append(requested, messagefork.DraftPartRequest{
+					Kind: provider.PartKind(part.Kind), Ref: part.Ref, Ordinal: *part.Ordinal})
+			}
+		}
+		if req.ReplayOriginal && len(requested) != len(req.DraftParts) {
+			badRequest(w, "exact draft replay cannot include local attachments")
+			return
+		}
+		authorized, sourceItemID, err := messagefork.AuthorizeDraftParts(id, req.DraftID,
+			req.Text, requested, req.ReplayOriginal)
+		if err != nil {
+			if errors.Is(err, messagefork.ErrConflict) {
+				writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error(), "code": "draft_conflict"})
+			} else {
+				badRequest(w, err.Error())
+			}
+			return
+		}
+		if req.ReplayOriginal {
+			for _, part := range authorized {
+				draftManifest = append(draftManifest, map[string]string{"kind": string(part.Kind),
+					"text": part.Text, "path": part.Path, "media_type": part.MediaType,
+					"name": part.Name, "part_id": part.PartID})
+			}
+		} else {
+			if req.Text != "" {
+				draftManifest = append(draftManifest, map[string]string{"kind": string(provider.PartText), "text": req.Text})
+			}
+			authorizedIndex := 0
+			for _, part := range req.DraftParts {
+				if part.Ref != "" {
+					a := authorized[authorizedIndex]
+					authorizedIndex++
+					draftManifest = append(draftManifest, map[string]string{"kind": string(a.Kind),
+						"path": a.Path, "media_type": a.MediaType, "name": a.Name, "part_id": a.PartID})
+					continue
+				}
+				if st, statErr := os.Stat(part.Path); statErr != nil || st.IsDir() {
+					badRequest(w, "draft attachment not readable: "+part.Path)
+					return
+				}
+				draftManifest = append(draftManifest, map[string]string{"kind": part.Kind,
+					"path": part.Path, "name": filepath.Base(part.Path)})
+			}
+		}
+		// Source provenance is authoritative from child genesis, never trusted
+		// from the browser.
+		draftSourceItemID = sourceItemID
+	} else if len(req.ImageRefs)+len(req.FileRefs)+len(req.DraftParts) > 0 ||
+		req.SendRequestID != "" || req.ReplayOriginal {
+		badRequest(w, "draft_id is required for durable draft fields")
 		return
 	}
 	// Validate the delivery mode instead of silently queueing an unknown value —
@@ -1168,26 +1290,73 @@ func (s *server) handleSend(w http.ResponseWriter, r *http.Request) {
 	// journal, which the UI already polls. Blocking would re-introduce the
 	// orphaned-approval failure on follow-up turns (same as `ar new`).
 	args := []string{"send", "--detach"}
+	if req.DraftID != "" {
+		args = append(args, "--command-id", req.SendRequestID,
+			"--fork-draft-id", req.DraftID, "--based-on-item-id", draftSourceItemID)
+		rawManifest, err := json.Marshal(draftManifest)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		args = append(args, "--content-manifest", string(rawManifest))
+	}
 	if req.Delivery == "steer" {
 		args = append(args, "--steer")
 	}
-	for _, img := range req.Images {
+	localImageCount := len(req.Images) - len(req.ImageRefs)
+	if req.DraftID != "" {
+		localImageCount = 0
+		req.Images = nil
+	}
+	for i, img := range req.Images {
 		if st, err := os.Stat(img); err != nil || st.IsDir() {
 			badRequest(w, "image not readable: "+img)
 			return
 		}
 		args = append(args, "--image", img)
+		name, partID := filepath.Base(img), ""
+		if i >= localImageCount {
+			j := i - localImageCount
+			if len(req.ImageNames) != 0 {
+				name = req.ImageNames[j]
+			}
+			if len(req.ImagePartIDs) != 0 {
+				partID = req.ImagePartIDs[j]
+			}
+		}
+		args = append(args, "--image-name", name, "--image-part-id", partID)
 	}
-	for _, f := range req.Files {
+	localFileCount := len(req.Files) - len(req.FileRefs)
+	if req.DraftID != "" {
+		localFileCount = 0
+		req.Files = nil
+	}
+	for i, f := range req.Files {
 		if st, err := os.Stat(f); err != nil || st.IsDir() {
 			badRequest(w, "file not readable: "+f)
 			return
 		}
 		args = append(args, "--file", f)
+		name, partID := filepath.Base(f), ""
+		if i >= localFileCount {
+			j := i - localFileCount
+			if len(req.FileNames) != 0 {
+				name = req.FileNames[j]
+			}
+			if len(req.FilePartIDs) != 0 {
+				partID = req.FilePartIDs[j]
+			}
+		}
+		args = append(args, "--file-name", name, "--file-part-id", partID)
 	}
 	args = append(args, id, req.Text)
 	res := s.runAR(r.Context(), oneShotTimeout, args...)
 	if res.Err != nil {
+		if detail := res.Stderr + "\n" + res.Stdout; strings.Contains(detail, "fork draft") {
+			writeJSON(w, http.StatusConflict, map[string]string{
+				"error": firstMeaningfulLine(detail), "code": "draft_conflict"})
+			return
+		}
 		arFail(w, "ar send", res)
 		return
 	}
@@ -1540,4 +1709,49 @@ func (s *server) handleFork(w http.ResponseWriter, r *http.Request) {
 		s.meta.set(newID, forkWS, title)
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"sid": newID, "status": strings.TrimSpace(res.Stdout + "\n" + res.Stderr)})
+}
+
+func (s *server) handleContinueFromMessage(w http.ResponseWriter, r *http.Request) {
+	id, ok := sid(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		ItemID    string `json:"item_id"`
+		RequestID string `json:"request_id"`
+	}
+	if !readBody(w, r, &req) {
+		return
+	}
+	op := s.continueMessage
+	if op == nil {
+		op = messagefork.Continue
+	}
+	result, err := op(r.Context(), messagefork.Request{
+		ParentSession: id, ItemID: req.ItemID, RequestID: req.RequestID,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, messagefork.ErrConflict):
+			writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error(), "code": "request_conflict"})
+		case errors.Is(err, messagefork.ErrNotFound):
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error(), "code": "message_not_found"})
+		case errors.Is(err, messagefork.ErrInvalid):
+			badRequest(w, err.Error())
+		default:
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error(), "code": "continue_failed"})
+		}
+		return
+	}
+	code := http.StatusOK
+	if result.Created {
+		code = http.StatusCreated
+	}
+	parent := s.meta.get(id)
+	title := parent.Title
+	if title != "" {
+		title += " (continued)"
+	}
+	s.meta.set(result.SessionID, "", title)
+	writeJSON(w, code, result)
 }

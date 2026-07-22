@@ -85,6 +85,10 @@ export interface BubbleItem {
   // goal_attached goal). The view notes "⚡ Sent as goal" under the bubble,
   // Codex-style, instead of a separate "goal attached" chip.
   sentAsGoal?: boolean;
+  itemId?: string;
+  turnId?: string;
+  continueSide?: "before_user" | "after_assistant";
+  files?: number;
 }
 
 export interface TurnItem {
@@ -723,7 +727,7 @@ export interface Folded {
 // Input sources that mean "a human typed this" — regardless of entry point
 // (interactive tty, cli send, or a UI that shells out to the cli). All render
 // as "you"; only program/control sources (tool/parent/control/…) get a label.
-const HUMAN_SOURCES = new Set(["user", "cli", "tty"]);
+const HUMAN_SOURCES = new Set(["user", "cli", "tty", "unix-socket"]);
 
 // imageRefs reads the CAS refs out of an input_received's images[] (RT-6). The
 // journal shape is [{ref, media_type}]; a bare string ref is tolerated so an
@@ -797,6 +801,10 @@ export function foldEvents(events: Envelope[]): Folded {
   // INC-84 · retry lineage: every human input item by its command id, so a
   // later "retry:<id>" input can fold the superseded block in place.
   const userItemByCommand = new Map<string, BubbleItem>();
+  const messageByItem = new Map<string, BubbleItem>();
+  // before_user barriers necessarily precede their InputReceived. Cache the
+  // anchor until its bubble arrives; after_assistant normally binds at once.
+  const anchorByItem = new Map<string, "before_user" | "after_assistant">();
 
   const push = (it: TimelineItem) => items.push(it);
   const chip = (
@@ -842,7 +850,7 @@ export function foldEvents(events: Envelope[]): Folded {
         // Team mail arrives as user-role input prefixed
         // "[message from <agent> (<session>)]" — strip the plumbing and
         // render it as a peer message, not something you typed (W19).
-        const raw = p.text || "(empty)";
+        const raw = p.text || "";
         const peer = /^\[message from ([^ ()]+) \(([^)]+)\)\]\s*/.exec(raw);
         const source = p.source || "user";
         if (!peer && !HUMAN_SOURCES.has(source)) {
@@ -891,10 +899,18 @@ export function foldEvents(events: Envelope[]): Folded {
           source: peer ? peer[1] : undefined,
           peerSession: peer ? peer[2] : undefined,
           images: p.images && p.images.length ? p.images.length : undefined,
+          files: p.files && p.files.length ? p.files.length : undefined,
           imageRefs: refs.length ? refs : undefined,
           sessionId: refs.length ? correlationSession(env) : undefined,
+          itemId: p.item_id || undefined,
+          turnId: p.turn_id || undefined,
         };
         push(userItem);
+        if (!peer && userItem.itemId) {
+          messageByItem.set(userItem.itemId, userItem);
+          const side = anchorByItem.get(userItem.itemId);
+          if (side) userItem.continueSide = side;
+        }
         if (!peer && cmd) userItemByCommand.set(cmd, userItem);
         break;
       }
@@ -912,7 +928,25 @@ export function foldEvents(events: Envelope[]): Folded {
         parts
           .filter((x: any) => x.tool_name)
           .forEach((c: any) => callArgs.set(c.call_id, { name: c.tool_name, args: c.args }));
-        if (text.trim()) push({ kind: "assistant", key: "a" + seq, text, ts: env.ts });
+        if (text.trim()) {
+          const assistant: BubbleItem = { kind: "assistant", key: "a" + seq, text, ts: env.ts,
+            itemId: p.item_id || undefined, turnId: p.turn_id || undefined };
+          push(assistant);
+          if (assistant.itemId) {
+            messageByItem.set(assistant.itemId, assistant);
+            const side = anchorByItem.get(assistant.itemId);
+            if (side) assistant.continueSide = side;
+          }
+        }
+        break;
+      }
+      case "checkpoint_barrier": {
+        const anchor = p.message_anchor;
+        if (anchor?.item_id && (anchor.side === "before_user" || anchor.side === "after_assistant")) {
+          anchorByItem.set(anchor.item_id, anchor.side);
+          const message = messageByItem.get(anchor.item_id);
+          if (message) message.continueSide = anchor.side;
+        }
         break;
       }
       case "activity_started":

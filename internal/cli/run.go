@@ -227,21 +227,22 @@ func runAgent(opts runOptions) int {
 	}
 
 	loop := &agent.Loop{
-		Spec:       spec,
-		Provider:   prov,
-		Exec:       &tool.Executor{WS: ws, Session: sessionID},
-		Store:      events,
-		Clock:      clock.Real{},
-		Out:        opts.sink,
-		SessionID:  sessionID,
-		Version:    opts.version,
-		Interrupts: interrupts,
-		Pipeline:   pipe,
-		Mode:       mode,
-		Hooks:      hooks,
-		Approvals:  approvalResolver(opts.stderr),
-		SubSpecs:   siblingSpecResolver(opts.specPath),
-		Snapshots:  snapshotStoreFor(ws, opts.stderr),
+		Spec:           spec,
+		Provider:       prov,
+		Exec:           &tool.Executor{WS: ws, Session: sessionID},
+		Store:          events,
+		Clock:          clock.Real{},
+		Out:            opts.sink,
+		SessionID:      sessionID,
+		Version:        opts.version,
+		Interrupts:     interrupts,
+		Pipeline:       pipe,
+		Mode:           mode,
+		Hooks:          hooks,
+		Approvals:      approvalResolver(opts.stderr),
+		SubSpecs:       siblingSpecResolver(opts.specPath),
+		Snapshots:      snapshotStoreFor(ws, opts.stderr),
+		DurableOpening: true,
 	}
 	result, runErr := loop.Run(ctx, opts.prompt)
 

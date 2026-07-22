@@ -160,6 +160,10 @@ type Loop struct {
 	// before the InputReceived journals, exactly like a delivered input.
 	OpeningImages []protocol.ImageAttachment
 	OpeningFiles  []protocol.FileAttachment
+	// DurableOpening opts a top-level human-created run into the unified
+	// mailbox intake. Spawned children and driver iterations leave it false:
+	// their synthetic opening assignment is not a human timeline message.
+	DurableOpening bool
 	// Snapshots is the workspace SnapshotStore (S7.2): barriers are taken
 	// only when it is present AND a snapshot succeeds — no ref, no barrier
 	// (backend=none degrades to zero barriers, nothing else changes).
@@ -436,6 +440,21 @@ func (l *Loop) Run(ctx context.Context, prompt string) (RunResult, error) {
 	if expanded, ok := command.Expand(wsRoot, prompt); ok {
 		prompt = redact.FromEnv().String(expanded)
 	}
+	var opening protocol.UserInput
+	var openingRecovery []provider.Part
+	if l.DurableOpening {
+		opening = protocol.UserInput{
+			Text: prompt, Images: l.OpeningImages, Files: l.OpeningFiles,
+			CommandID: event.NewCommandID(), Principal: "local-user",
+			Source: "cli", Trust: "local",
+		}
+		opening.TurnID = "turn-" + opening.CommandID
+		opening.ItemID = "item-" + opening.CommandID
+		openingRecovery, err = l.prepareOpeningRecovery(prompt)
+		if err != nil {
+			return RunResult{}, fmt.Errorf("durable opening recovery: %w", err)
+		}
+	}
 	memoryBlock, skillsBlock := renderContextBlocks(wsRoot)
 	commandTools := l.discoverCommandTools(wsRoot)
 	providerEnvelope := provider.Envelope(l.Spec.Model.Provider, l.Spec.Model.ID, provider.Capabilities{})
@@ -458,18 +477,32 @@ func (l *Loop) Run(ctx context.Context, prompt string) (RunResult, error) {
 		// the same gates without the parent process.
 		PermissionLayers:     marshalPermissionLayers(l.Pipeline),
 		ProviderCapabilities: &providerEnvelope,
+		OpeningCommandID:     opening.CommandID,
+		OpeningItemID:        opening.ItemID,
+		OpeningContent:       openingRecovery,
 	}); err != nil {
 		return RunResult{}, err
 	}
+	// Genesis is now sufficient to recover the opening command. Appending the
+	// durable mailbox second eliminates an eventless session directory while
+	// preserving mailbox-before-InputReceived.
+	if l.DurableOpening {
+		opening, err = store.AppendInbox(l.Store.Dir(), opening)
+		if err != nil {
+			return RunResult{}, fmt.Errorf("durable opening input: %w", err)
+		}
+	}
 	l.fireLifecycle(ctx, hook.EventSessionStart,
 		map[string]string{"spec": l.Spec.Name, "prompt": prompt}, false)
-	input, err := l.ingestOpening(prompt)
-	if err != nil {
-		return RunResult{}, err
-	}
-	ds.lastID = input.ID
-	if ds.s, err = state.Apply(ds.s, input); err != nil {
-		return RunResult{}, err
+	if !l.DurableOpening {
+		input, err := l.ingestOpening(prompt)
+		if err != nil {
+			return RunResult{}, err
+		}
+		ds.lastID = input.ID
+		if ds.s, err = state.Apply(ds.s, input); err != nil {
+			return RunResult{}, err
+		}
 	}
 	if l.Mode != "" && l.Mode != pipeline.ModeDefault {
 		if !pipeline.ValidMode(l.Mode) {
@@ -486,6 +519,15 @@ func (l *Loop) Run(ctx context.Context, prompt string) (RunResult, error) {
 	}
 	if err := l.materializeInputs(ctx, ds, appendE); err != nil {
 		return RunResult{}, err
+	}
+	if l.DurableOpening {
+		if err := l.journalInput(ds, appendE, opening); err != nil {
+			return RunResult{}, err
+		}
+		if _, accepted := ds.s.Interactions.Items[opening.ItemID]; !accepted {
+			return RunResult{Reason: "waiting_input", GenSteps: ds.s.Session.GenStep,
+				Usage: ds.s.Session.Usage}, nil
+		}
 	}
 	l.emit(protocol.Event{Kind: protocol.KindSessionStart, Mode: ds.s.CurrentMode()})
 
@@ -509,18 +551,49 @@ func (l *Loop) ingestOpening(prompt string) (event.Envelope, error) {
 		if err != nil {
 			return event.Envelope{}, err
 		}
-		images = append(images, event.AttachmentRef{Ref: ref, MediaType: img.MediaType})
-		content = append(content, provider.Part{Kind: provider.PartImage, Ref: ref, MediaType: img.MediaType})
+		part := provider.Part{Kind: provider.PartImage, Ref: ref, MediaType: img.MediaType,
+			PartID: img.PartID, Name: cleanAttachmentName(img.Name)}
+		images = append(images, attachmentRef(part))
+		content = append(content, part)
 	}
 	for _, f := range l.OpeningFiles {
 		ref, err := l.Artifacts.Put(f.Data)
 		if err != nil {
 			return event.Envelope{}, err
 		}
-		files = append(files, event.AttachmentRef{Ref: ref, MediaType: f.MediaType})
-		content = append(content, provider.Part{Kind: provider.PartFile, Ref: ref, MediaType: f.MediaType})
+		part := provider.Part{Kind: provider.PartFile, Ref: ref, MediaType: f.MediaType,
+			PartID: f.PartID, Name: cleanAttachmentName(f.Name)}
+		files = append(files, attachmentRef(part))
+		content = append(content, part)
 	}
 	return runtime.IngestOpeningInput(l.Store, l.SessionID, prompt, "cli", content, images, files)
+}
+
+// prepareOpeningRecovery CAS-stores the top-level opening attachments before
+// SessionStarted and returns a ref-only canonical copy. This is bootstrap
+// recovery data, not conversation content; InputReceived remains authoritative.
+func (l *Loop) prepareOpeningRecovery(prompt string) ([]provider.Part, error) {
+	parts := make([]provider.Part, 0, 1+len(l.OpeningImages)+len(l.OpeningFiles))
+	if prompt != "" {
+		parts = append(parts, provider.Part{Kind: provider.PartText, Text: prompt})
+	}
+	for _, img := range l.OpeningImages {
+		ref, err := l.Artifacts.Put(img.Data)
+		if err != nil {
+			return nil, err
+		}
+		parts = append(parts, provider.Part{Kind: provider.PartImage, Ref: ref,
+			MediaType: img.MediaType, PartID: img.PartID, Name: cleanAttachmentName(img.Name)})
+	}
+	for _, f := range l.OpeningFiles {
+		ref, err := l.Artifacts.Put(f.Data)
+		if err != nil {
+			return nil, err
+		}
+		parts = append(parts, provider.Part{Kind: provider.PartFile, Ref: ref,
+			MediaType: f.MediaType, PartID: f.PartID, Name: cleanAttachmentName(f.Name)})
+	}
+	return parts, nil
 }
 
 // discoverCommandTools loads and trust-gates the user-defined command tools
@@ -811,11 +884,19 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 	}
 	ds := &driveState{s: s, lastID: lastID}
 	appendE := l.appender(ds)
+	// Repair a crash that split an eligible assistant message from its
+	// immediate after-message barrier. This must be the first resume append:
+	// no in-doubt settlement, mailbox replay, timer or hook fact may move the
+	// cut past the recorded assistant prefix.
+	if err := l.repairAssistantMessageBarrier(ds, appendE, events); err != nil {
+		return RunResult{}, err
+	}
+	s = ds.s
 
 	// A crash between session_started and input_received leaves the prompt
 	// durable in SessionStarted but never journaled as input — re-ingest it
 	// rather than silently calling the model with an empty conversation.
-	if len(s.Conversation.Messages) == 0 && s.Session.Prompt != "" {
+	if len(s.Conversation.Messages) == 0 && s.Session.Prompt != "" && s.Session.OpeningCommandID == "" {
 		input, err := runtime.IngestInput(l.Store, l.SessionID, s.Session.Prompt, "cli")
 		if err != nil {
 			return RunResult{}, err
@@ -823,6 +904,21 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 		ds.lastID = input.ID
 		if ds.s, err = state.Apply(ds.s, input); err != nil {
 			return RunResult{}, err
+		}
+	}
+	// A marked opening may have crashed after SessionStarted but before its
+	// mailbox append. Rebuild that exact command from ref-only genesis data.
+	// Materialized run inputs must land before the before-user snapshot so the
+	// message cut describes the workspace the user actually started from.
+	if s.Session.OpeningCommandID != "" && s.Session.ForkedFrom == nil {
+		if _, consumed := ds.s.Interactions.Items[s.Session.OpeningItemID]; !consumed {
+			if err := l.ensureOpeningCommand(ds.s.Session); err != nil {
+				return RunResult{}, err
+			}
+			if err := l.materializeInputs(ctx, ds, appendE); err != nil {
+				return RunResult{}, err
+			}
+			s = ds.s
 		}
 	}
 
@@ -944,6 +1040,18 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 			return RunResult{}, err
 		}
 	}
+	if ds.s.Session.OpeningRejected && len(ds.s.Conversation.Messages) == 0 {
+		return RunResult{Reason: "waiting_input", GenSteps: ds.s.Session.GenStep,
+			Usage: ds.s.Session.Usage}, nil
+	}
+	// A message-scoped fork is deliberately dormant. With no successful
+	// human InputReceived in the replay above, do not reconcile timers,
+	// materialize, run hooks, or enter decide(); an explicit Send is the only
+	// authority that clears the dedicated park in the fold.
+	if ds.s.ForkPark != nil {
+		return RunResult{Reason: "waiting_input", GenSteps: ds.s.Session.GenStep,
+			Usage: ds.s.Session.Usage}, nil
+	}
 
 	// MCP re-connect reconciliation (S5.1): the journaled schemas are the
 	// run's tool face; the live face must still honor them. Drift is
@@ -965,6 +1073,40 @@ func (l *Loop) Resume(ctx context.Context) (RunResult, error) {
 	}
 
 	return l.drive(ctx, ds, appendE)
+}
+
+func (l *Loop) ensureOpeningCommand(session state.Session) error {
+	commands, err := store.ReadCommands(l.Store.Dir(), 0)
+	if err != nil {
+		return fmt.Errorf("resume: opening mailbox: %w", err)
+	}
+	for _, cmd := range commands {
+		if cmd.CommandID == session.OpeningCommandID {
+			return nil
+		}
+	}
+	content := make([]protocol.ContentPart, 0, len(session.OpeningContent))
+	for _, part := range session.OpeningContent {
+		in := protocol.ContentPart{Kind: part.Kind, PartID: part.PartID,
+			Name: part.Name, Text: part.Text, MediaType: part.MediaType}
+		if part.Ref != "" {
+			if l.Artifacts == nil {
+				return fmt.Errorf("resume: opening attachment store unavailable")
+			}
+			in.Data, err = l.Artifacts.Get(part.Ref)
+			if err != nil {
+				return fmt.Errorf("resume: opening attachment %s: %w", part.Ref, err)
+			}
+		}
+		content = append(content, in)
+	}
+	opening := protocol.UserInput{Text: session.Prompt, Content: content,
+		CommandID: session.OpeningCommandID, TurnID: "turn-" + session.OpeningCommandID,
+		ItemID: session.OpeningItemID, Principal: "local-user", Source: "cli", Trust: "local"}
+	if _, err := store.AppendInbox(l.Store.Dir(), opening); err != nil {
+		return fmt.Errorf("resume: restore opening command: %w", err)
+	}
+	return nil
 }
 
 // reconcileMCP verifies every journaled MCP tool still exists live with the
@@ -1618,12 +1760,25 @@ func (l *Loop) drive(ctx context.Context, ds *driveState, appendE AppendFunc) (R
 			if blocked {
 				finish = "blocked"
 			}
-			if _, err := appendE(event.TypeAssistantMessage, &event.AssistantMessage{
+			itemID := fmt.Sprintf("item-assistant-g%d", act.turn)
+			turnID := ds.s.Interactions.ActiveTurnID
+			var checkpoint *event.ContinuationCheckpoint
+			if eligibleFinalAssistant(turn) {
+				checkpoint = l.captureContinuationCheckpoint(ctx, ds)
+			}
+			assistantEnv, err := appendE(event.TypeAssistantMessage, &event.AssistantMessage{
 				GenStep: act.turn, Message: turn.Message, Finish: finish,
-				TurnID: ds.s.Interactions.ActiveTurnID,
-				ItemID: fmt.Sprintf("item-assistant-g%d", act.turn),
-			}); err != nil {
+				TurnID: turnID, ItemID: itemID,
+				ContinuationCheckpoint: checkpoint,
+			})
+			if err != nil {
 				return RunResult{}, abort(act.turn, err)
+			}
+			if checkpoint != nil {
+				if err := l.appendCapturedMessageBarrier(ds, appendE, checkpoint,
+					assistantEnv.Seq, "after_assistant", itemID, turnID, act.turn); err != nil {
+					return RunResult{}, abort(act.turn, err)
+				}
 			}
 			if text := assistantText(turn.Message); text != "" {
 				l.emit(protocol.Event{Kind: protocol.KindMessage, N: act.turn, Text: text})
@@ -2556,21 +2711,29 @@ func decide(s state.State, maxGenerationSteps int) action {
 // rewind it cannot deliver.
 func (l *Loop) takeBarrier(ctx context.Context, ds *driveState, appendE AppendFunc,
 	barrierID string, turn int) error {
+	receipt := l.captureContinuationCheckpoint(ctx, ds)
+	if receipt == nil {
+		return nil
+	}
+	_, err := appendE(event.TypeCheckpointBarrier, &event.CheckpointBarrier{
+		BarrierID: barrierID, GenStep: turn, Vector: receipt.Vector,
+		SnapshotRef: receipt.SnapshotRef, Handles: receipt.Handles,
+	})
+	return err
+}
 
+// captureContinuationCheckpoint is the common best-effort snapshot seam for
+// ordinary and message-scoped barriers. Snapshot/backend failure never blocks
+// a conversation; it only removes the Continue capability for that cut.
+func (l *Loop) captureContinuationCheckpoint(ctx context.Context, ds *driveState) *event.ContinuationCheckpoint {
 	if l.Snapshots == nil {
 		return nil
 	}
 	ref, err := l.Snapshots.Snapshot(ctx)
 	if err != nil {
-		if errors.Is(err, snapshot.ErrUnavailable) {
-			return nil // degraded backend: run on, without barriers
+		if !errors.Is(err, snapshot.ErrUnavailable) {
+			slog.Debug("message checkpoint skipped: snapshot failed", "err", err)
 		}
-		// A skipped barrier is best-effort and non-fatal (fork/rewind just
-		// isn't available for this turn) — e.g. a nested git repo in the
-		// workspace defeats the shadow snapshot. Log at Debug, not Warn: a
-		// WARN here leaks internal snapshot plumbing into the user-facing run
-		// output for a condition the user can do nothing about (QA Wave2 bob-04).
-		slog.Debug("barrier skipped: snapshot failed", "barrier", barrierID, "err", err)
 		return nil
 	}
 	vector := map[string]int64{".": l.Store.LastSeq()}
@@ -2590,11 +2753,91 @@ func (l *Loop) takeBarrier(ctx context.Context, ds *driveState, appendE AppendFu
 		handles = append(handles, event.BarrierHandle{Handle: id})
 	}
 	sort.Slice(handles, func(i, j int) bool { return handles[i].Handle < handles[j].Handle })
-	_, err = appendE(event.TypeCheckpointBarrier, &event.CheckpointBarrier{
-		BarrierID: barrierID, GenStep: turn,
-		Vector: vector, SnapshotRef: ref, Handles: handles,
+	return &event.ContinuationCheckpoint{SnapshotRef: ref, Vector: vector, Handles: handles}
+}
+
+func eligibleFinalAssistant(turn provider.GenStep) bool {
+	if len(turn.ToolCalls) > 0 || assistantText(turn.Message) == "" {
+		return false
+	}
+	for _, p := range turn.Message.Parts {
+		if p.Kind == provider.PartToolCall {
+			return false
+		}
+	}
+	switch turn.Finish {
+	case provider.FinishEndTurn, provider.FinishBlocked, provider.FinishOther:
+		return true
+	default:
+		return false
+	}
+}
+
+func messageBarrierID(side, itemID string) string {
+	return "bar-msg-" + side + "-" + itemID
+}
+
+func hasMessageAnchor(s state.State, side, itemID string) bool {
+	for _, b := range s.Barriers {
+		if b.MessageAnchor != nil && b.MessageAnchor.Side == side && b.MessageAnchor.ItemID == itemID {
+			return true
+		}
+	}
+	return false
+}
+
+// ensureMessageBarrier captures a before-user cut once. The barrier is not
+// stamped with the input command id, otherwise a crash after the barrier could
+// be mistaken for a consumed mailbox command.
+func (l *Loop) ensureMessageBarrier(ctx context.Context, ds *driveState,
+	side, itemID, turnID string, turn int) error {
+	if hasMessageAnchor(ds.s, side, itemID) {
+		return nil
+	}
+	receipt := l.captureContinuationCheckpoint(ctx, ds)
+	if receipt == nil {
+		return nil
+	}
+	return l.appendCapturedMessageBarrier(ds, l.appender(ds), receipt,
+		l.Store.LastSeq(), side, itemID, turnID, turn)
+}
+
+func (l *Loop) appendCapturedMessageBarrier(ds *driveState, appendE AppendFunc,
+	receipt *event.ContinuationCheckpoint, mainSeq int64,
+	side, itemID, turnID string, turn int) error {
+	if receipt == nil || hasMessageAnchor(ds.s, side, itemID) {
+		return nil
+	}
+	vector := make(map[string]int64, len(receipt.Vector)+1)
+	for stream, seq := range receipt.Vector {
+		vector[stream] = seq
+	}
+	vector["."] = mainSeq
+	_, err := appendE(event.TypeCheckpointBarrier, &event.CheckpointBarrier{
+		BarrierID: messageBarrierID(side, itemID), GenStep: turn,
+		Vector: vector, SnapshotRef: receipt.SnapshotRef, Handles: receipt.Handles,
+		MessageAnchor: &event.MessageAnchor{Side: side, ItemID: itemID, TurnID: turnID},
 	})
 	return err
+}
+
+func (l *Loop) repairAssistantMessageBarrier(ds *driveState, appendE AppendFunc,
+	events []event.Envelope) error {
+	if len(events) == 0 || events[len(events)-1].Type != event.TypeAssistantMessage {
+		return nil
+	}
+	last := events[len(events)-1]
+	decoded, err := event.DecodePayload(last)
+	if err != nil {
+		return err
+	}
+	msg := decoded.(*event.AssistantMessage)
+	if msg.ContinuationCheckpoint == nil || msg.ItemID == "" ||
+		hasMessageAnchor(ds.s, "after_assistant", msg.ItemID) {
+		return nil
+	}
+	return l.appendCapturedMessageBarrier(ds, appendE, msg.ContinuationCheckpoint,
+		last.Seq, "after_assistant", msg.ItemID, msg.TurnID, msg.GenStep)
 }
 
 // childDirOf maps a child session id back to its journal dir. Child sessions

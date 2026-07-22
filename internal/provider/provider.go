@@ -47,7 +47,12 @@ const (
 // provider-specific payloads (e.g. thought signatures) that must round-trip
 // through the event log byte-identically.
 type Part struct {
-	Kind     PartKind                   `json:"kind"`
+	Kind PartKind `json:"kind"`
+	// PartID and Name preserve a user's attachment identity across durable
+	// drafts. They are display/provenance metadata only; providers may ignore
+	// them. Name is always sanitized at an ingress boundary.
+	PartID   string                     `json:"part_id,omitempty"`
+	Name     string                     `json:"name,omitempty"`
 	Text     string                     `json:"text,omitempty"`
 	CallID   string                     `json:"call_id,omitempty"`
 	ToolName string                     `json:"tool_name,omitempty"`

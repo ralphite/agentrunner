@@ -11,6 +11,7 @@ import {
   Copy,
   File,
   FileText,
+  GitFork,
   Globe,
   ImageSquare,
   Lightning,
@@ -41,6 +42,7 @@ import {
   toolLabel,
   webFetchDetail,
   type ActivityCategory,
+  type BubbleItem,
   type DiffLine,
   type FoldRun,
   type RenderNode,
@@ -156,9 +158,11 @@ function Thumbs({ paths, fallback }: { paths: string[]; fallback?: ReactNode }) 
 // So one row shape is rendered for every message and the sheet decides what of
 // it is visible where — no branchy JSX, and the tier ladder (shortTime) keeps
 // producing a real label on the rows that do show one (the hover-revealed ones).
-function MsgActions({ text, ts }: { text: string; ts?: string }) {
+function MsgActions({ text, ts, onContinue }: { text: string; ts?: string; onContinue?: () => Promise<void> }) {
   const [copied, setCopied] = useState(false);
-  if (!text) return null;
+  const [continuing, setContinuing] = useState(false);
+  const [continueError, setContinueError] = useState("");
+  if (!text && !onContinue) return null;
   const copy = async () => {
     await copyText(text);
     setCopied(true);
@@ -166,10 +170,19 @@ function MsgActions({ text, ts }: { text: string; ts?: string }) {
   };
   const time = shortTime(ts);
   return (
-    <div className="msg-actions">
-      <button className="msg-copy icon-only" onClick={copy} title="Copy message" aria-label="Copy message">
+    <div className="msg-actions" aria-live="polite">
+      {text && <button className="msg-copy icon-only" onClick={copy} title="Copy message" aria-label="Copy message">
         {copied ? <Check size={15} /> : <Copy size={15} />}
-      </button>
+      </button>}
+      {onContinue && <button className="msg-copy icon-only" disabled={continuing}
+        aria-busy={continuing} onClick={async () => {
+          setContinuing(true); setContinueError("");
+          try { await onContinue(); } catch (e: any) { setContinueError(e?.message || "Couldn't continue from this message"); }
+          finally { setContinuing(false); }
+        }} title="Continue in new session" aria-label="Continue in new session">
+        <GitFork size={15} />
+      </button>}
+      {continueError && <span className="sr-only">{continueError}</span>}
       {time && <span className="msg-time" title={absTime(ts)}>{time}</span>}
     </div>
   );
@@ -670,7 +683,7 @@ export function groupLabel(tools: ToolItem[]): string {
 // part of the step list, not separators of it (RT-4) — and so does the planning
 // narration the model spoke while doing this work (FOLD-RUN). The summary counts
 // and labels the TOOLS: "Ran commands ×3", never "×3" over a pile of approvals.
-function ActivityGroup({ run, sentImages }: { run: FoldRun; sentImages?: Map<number, string[]> }) {
+function ActivityGroup({ run, sentImages, onContinue }: { run: FoldRun; sentImages?: Map<number, string[]>; onContinue?: (item: BubbleItem) => Promise<void> }) {
   const { tools, members } = run;
   const failed = tools.some((t) => t.status === "error" || t.status === "failed");
   return (
@@ -683,7 +696,7 @@ function ActivityGroup({ run, sentImages }: { run: FoldRun; sentImages?: Map<num
       </summary>
       <div className="act-body">
         {members.map((m) => (
-          <Item it={m} sentImages={sentImages} key={m.key} />
+          <Item it={m} sentImages={sentImages} onContinue={onContinue} key={m.key} />
         ))}
       </div>
     </details>
@@ -764,11 +777,13 @@ function WorkedFold({
   sentImages,
   open,
   onToggle,
+  onContinue,
 }: {
   fold: WorkFold;
   sentImages?: Map<number, string[]>;
   open: boolean;
   onToggle: () => void;
+  onContinue?: (item: BubbleItem) => Promise<void>;
 }) {
   const expandable = fold.children.length > 0;
   // TR-6: a fold with no children is a dead row — no caret, not clickable, and
@@ -794,9 +809,9 @@ function WorkedFold({
     for (const run of foldRuns(fold.children)) {
       const prose = run.members.some((m) => m.kind === "assistant");
       if (run.tools.length > 1 || (run.tools.length === 1 && prose)) {
-        rows.push(<ActivityGroup run={run} sentImages={sentImages} key={"g" + run.key} />);
+        rows.push(<ActivityGroup run={run} sentImages={sentImages} onContinue={onContinue} key={"g" + run.key} />);
       } else {
-        for (const m of run.members) rows.push(<Item it={m} sentImages={sentImages} key={m.key} />);
+        for (const m of run.members) rows.push(<Item it={m} sentImages={sentImages} onContinue={onContinue} key={m.key} />);
       }
     }
   }
@@ -821,11 +836,13 @@ function RetriedFold({
   sentImages,
   open,
   onToggle,
+  onContinue,
 }: {
   fold: RetriedItem;
   sentImages?: Map<number, string[]>;
   open: boolean;
   onToggle: () => void;
+  onContinue?: (item: BubbleItem) => Promise<void>;
 }) {
   const children = fold.children.filter((c) => c.kind !== "sys" && c.kind !== "turn");
   if (!children.length) return null;
@@ -838,7 +855,7 @@ function RetriedFold({
       {open && (
         <div className="worked-body">
           {children.map((m) => (
-            <Item it={m} sentImages={sentImages} key={m.key} />
+            <Item it={m} sentImages={sentImages} onContinue={onContinue} key={m.key} />
           ))}
         </div>
       )}
@@ -895,7 +912,7 @@ function CollapsibleUserText({ text }: { text: string }) {
   );
 }
 
-function Item({ it, sentImages, last, deferActions }: { it: TimelineItem; sentImages?: Map<number, string[]>; last?: boolean; deferActions?: boolean }) {
+function Item({ it, sentImages, last, deferActions, onContinue }: { it: TimelineItem; sentImages?: Map<number, string[]>; last?: boolean; deferActions?: boolean; onContinue?: (item: BubbleItem) => Promise<void> }) {
   switch (it.kind) {
     case "turn":
       return <div className="turn">turn {it.gen}</div>;
@@ -914,7 +931,7 @@ function Item({ it, sentImages, last, deferActions }: { it: TimelineItem; sentIm
       const thumbs = sent && sent.length ? sent : blobs;
       const peer = !!it.peerSession;
       const hasText = !!it.text.trim();
-      const hasAttach = (thumbs && thumbs.length) || it.images;
+      const hasAttach = (thumbs && thumbs.length) || it.images || it.files;
       const attachNote = it.images ? (
         <div className="imgnote"><ImageSquare size={13} /> ×{it.images} attached</div>
       ) : null;
@@ -933,13 +950,14 @@ function Item({ it, sentImages, last, deferActions }: { it: TimelineItem; sentIm
                 <span className="dim">(empty message)</span>
               ) : null}
               {thumbs && thumbs.length ? <Thumbs paths={thumbs} fallback={attachNote} /> : attachNote}
+              {it.files ? <div className="imgnote"><File size={13} /> ×{it.files} attached</div> : null}
             </div>
             {it.sentAsGoal && (
               <div className="cx-goal-note">
                 <Lightning size={12} weight="fill" /> Sent as goal
               </div>
             )}
-            <MsgActions text={it.text} ts={it.ts} />
+            <MsgActions text={it.text} ts={it.ts} onContinue={it.continueSide && onContinue ? () => onContinue(it) : undefined} />
           </div>
         </div>
       );
@@ -968,7 +986,7 @@ function Item({ it, sentImages, last, deferActions }: { it: TimelineItem; sentIm
                 changes cards) so Copy sits beside the goal verdict
                 — see the tail row at the end of TimelineView. Middle answers keep
                 their hover-only row inline. */}
-            {!deferActions && <MsgActions text={it.text} ts={it.ts} />}
+            {!deferActions && <MsgActions text={it.text} ts={it.ts} onContinue={it.continueSide && onContinue ? () => onContinue(it) : undefined} />}
           </div>
         </div>
       );
@@ -1080,6 +1098,7 @@ export function TimelineView({
   outcomeSlot,
   goalVerdict,
   loading = false,
+  onContinue,
 }: {
   items: TimelineItem[];
   pending: { id: number; text: string; imgs: string[]; files: number; delivery?: "steer" | "queue" }[];
@@ -1096,6 +1115,7 @@ export function TimelineView({
   goalVerdict?: { elapsed: string } | null;
   /** The first events fetch for this session hasn't returned yet (INC-41 L1). */
   loading?: boolean;
+  onContinue?: (item: BubbleItem) => Promise<void>;
 }) {
   // Codex shows a continuous activity feed — no "turn N" dividers, no raw
   // system events. Those stay behind the developer toggle.
@@ -1251,6 +1271,7 @@ export function TimelineView({
                 sentImages={sentImages}
                 open={openFolds.has(it.key)}
                 onToggle={() => toggleFold(it.key)}
+                onContinue={onContinue}
                 key={it.key}
               />
             );
@@ -1263,6 +1284,7 @@ export function TimelineView({
                 sentImages={sentImages}
                 open={openFolds.has(foldId)}
                 onToggle={() => toggleFold(foldId)}
+                onContinue={onContinue}
                 key={it.key}
               />
             );
@@ -1278,6 +1300,7 @@ export function TimelineView({
                 sentImages={sentImages}
                 last={it.kind === "assistant" && it.key === lastAssistantKey}
                 deferActions={it.kind === "assistant" && it.key === lastAssistantKey && deferLastActions}
+                onContinue={onContinue}
               />
             </Fragment>
           );
@@ -1311,7 +1334,7 @@ export function TimelineView({
         {settled && (lastAssistant || goalVerdict) && (
           <div className="tl-tail-row mt-3 flex items-center gap-3 flex-wrap [&_.msg-actions]:mt-0 [&_.turn-footer]:mt-0">
             {lastAssistant && (
-              <MsgActions text={lastAssistant.text} />
+              <MsgActions text={lastAssistant.text} onContinue={lastAssistant.continueSide && onContinue ? () => onContinue(lastAssistant) : undefined} />
             )}
             {lastAssistant && goalVerdict && <span className="h-4 w-px bg-line" aria-hidden />}
             {goalVerdict && (

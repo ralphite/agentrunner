@@ -51,6 +51,9 @@ type server struct {
 	// can capture the argv and inject a known set without launching real apps.
 	launch     func(ctx context.Context, argv []string) error
 	workspaces func(ctx context.Context) map[string]bool
+	// continueMessage is the in-process core seam for message-scoped forks;
+	// tests inject it to validate HTTP mapping without mutating real sessions.
+	continueMessage continueMessageFunc
 }
 
 // resolveARPath picks the agentrunner binary. Unless the user passed -ar

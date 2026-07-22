@@ -203,8 +203,13 @@ export const AR = {
 
   // delivery (INC-43): "steer" folds the message into the running turn at its
   // next safe boundary; "queue"/undefined queues it for the next turn.
-  send: (sid: string, text: string, images: string[], files: string[] = [], delivery?: "steer" | "queue") =>
-    post(`/sessions/${sid}/send`, { text, images, files, ...(delivery ? { delivery } : {}) }),
+  send: (sid: string, text: string, images: string[], files: string[] = [], delivery?: "steer" | "queue",
+    draft?: { draftId: string; sendRequestId: string;
+      parts: Array<{ kind: "image" | "file"; ref?: string; path?: string; ordinal?: number }>;
+      replayOriginal: boolean }) =>
+    post(`/sessions/${sid}/send`, { text, images, files, ...(delivery ? { delivery } : {}),
+      ...(draft ? { draft_id: draft.draftId, send_request_id: draft.sendRequestId,
+        draft_parts: draft.parts, replay_original: draft.replayOriginal } : {}) }),
   interrupt: (sid: string) => post(`/sessions/${sid}/interrupt`),
   resume: (sid: string) => post(`/sessions/${sid}/resume`),
   retry: (sid: string) => post(`/sessions/${sid}/retry`),
@@ -231,6 +236,9 @@ export const AR = {
     post(`/sessions/${sid}/agent`, { spec, extraSpecs }),
   fork: (sid: string, barrier: string, workspace: string) =>
     post<{ sid: string }>(`/sessions/${sid}/fork`, { barrier, workspace }),
+  continueFromMessage: (sid: string, itemId: string, requestId: string) =>
+    post<{ session_id: string; source_item_id: string; source_side: "before_user" | "after_assistant"; draft?: ForkDraft }>(
+      `/sessions/${sid}/continue-from-message`, { item_id: itemId, request_id: requestId }),
 
   gitBranches: (dir: string) =>
     api<{ isRepo: boolean; current: string; branches: string[]; dirty: number; hasCommits?: boolean }>(
@@ -260,6 +268,23 @@ export const AR = {
   }) => post<{ runId: string }>("/runs", b),
   stopRun: (rid: string) => post(`/runs/${rid}/stop`),
 };
+
+export interface ForkDraftPart {
+  kind: "text" | "image" | "file";
+  text?: string;
+  ref?: string;
+  media_type?: string;
+  name?: string;
+  part_id?: string;
+}
+
+export interface ForkDraft {
+  draft_id: string;
+  text?: string;
+  content?: ForkDraftPart[];
+  images?: Array<{ ref: string; media_type: string; name?: string; part_id?: string }>;
+  files?: Array<{ ref: string; media_type: string; name?: string; part_id?: string }>;
+}
 
 // uploadURL maps an upload's server path to its preview URL — a file we just
 // uploaded is previewable from the local uploads dir.

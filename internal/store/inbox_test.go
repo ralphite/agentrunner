@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
 )
 
@@ -113,6 +114,48 @@ func TestInboxDeliveryModeIsPartOfPayload(t *testing.T) {
 	conflict := protocol.UserInput{Text: "act now", CommandID: "cmd-del", Delivery: protocol.DeliveryQueue}
 	if _, err := AppendInbox(dir, conflict); err == nil || !strings.Contains(err.Error(), "different payload") {
 		t.Fatalf("delivery-mode change should conflict on reused command id, got %v", err)
+	}
+}
+
+func TestForkDraftClaimIsSingleWinnerAndReleasesOnRejection(t *testing.T) {
+	dir := t.TempDir()
+	es, err := OpenEventStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = es.Close() }()
+
+	first := protocol.UserInput{Text: "first", CommandID: "send-a", ForkDraftID: "draft-1"}
+	if _, err := AppendInbox(dir, first); err != nil {
+		t.Fatal(err)
+	}
+	if retry, err := AppendInbox(dir, first); err != nil || retry.DeliverySeq != 1 {
+		t.Fatalf("exact retry = %+v, %v", retry, err)
+	}
+	if _, err := AppendInbox(dir, protocol.UserInput{Text: "race", CommandID: "send-b", ForkDraftID: "draft-1"}); err == nil || !strings.Contains(err.Error(), "unsettled") {
+		t.Fatalf("competing attempt = %v", err)
+	}
+
+	rejected, _ := event.New(event.TypeCommandHandled, &event.CommandHandled{
+		CommandID: "send-a", CommandSeq: 1, Kind: protocol.CommandInput, Result: "input_rejected"})
+	rejected.CommandID = "send-a"
+	if _, err := es.Append(rejected); err != nil {
+		t.Fatal(err)
+	}
+	second := protocol.UserInput{Text: "second", CommandID: "send-b", ForkDraftID: "draft-1"}
+	accepted, err := AppendInbox(dir, second)
+	if err != nil || accepted.DeliverySeq != 2 {
+		t.Fatalf("attempt after release = %+v, %v", accepted, err)
+	}
+
+	consumed, _ := event.New(event.TypeInputReceived, &event.InputReceived{
+		Text: "second", Source: "cli", DeliverySeq: 2, ForkDraftID: "draft-1"})
+	consumed.CommandID = "send-b"
+	if _, err := es.Append(consumed); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := AppendInbox(dir, protocol.UserInput{Text: "late", CommandID: "send-c", ForkDraftID: "draft-1"}); err == nil || !strings.Contains(err.Error(), "already consumed") {
+		t.Fatalf("attempt after consumption = %v", err)
 	}
 }
 

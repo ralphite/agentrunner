@@ -66,6 +66,7 @@ const (
 	// S7 additions (world-state lifecycle).
 	TypeCheckpointBarrier = "checkpoint_barrier"
 	TypeForkedFrom        = "forked_from"
+	TypeForkAwaitingInput = "fork_awaiting_input"
 
 	// 决策 #32 (2026-07-05): session 不绑 agent——运行中换 spec。
 	TypeSpecChanged = "spec_changed"
@@ -217,6 +218,15 @@ type SessionStarted struct {
 	// ProviderCapabilities freezes the normalized provider/model contract at
 	// session creation. Empty means a legacy journal predating the envelope.
 	ProviderCapabilities *provider.CapabilityEnvelope `json:"provider_capabilities,omitempty"`
+	// OpeningCommandID/OpeningItemID mark sessions whose executable opening
+	// input lives in the durable command log. Prompt remains a display/title
+	// hint and is never synthesized on resume when this marker is present.
+	OpeningCommandID string `json:"opening_command_id,omitempty"`
+	OpeningItemID    string `json:"opening_item_id,omitempty"`
+	// OpeningContent is the ref-only recovery form of a durable top-level
+	// opening. Blobs are CAS-durable before SessionStarted; if a crash splits
+	// genesis from the mailbox append, Resume can rebuild the same command.
+	OpeningContent []provider.Part `json:"opening_content,omitempty"`
 }
 
 // ArtifactInput is one artifact handed to a run as input (S5.8).
@@ -246,12 +256,19 @@ type InputReceived struct {
 	// 收口); 0 for non-mailbox sources. The fold's high-water mark drives
 	// crash replay of the unconsumed mailbox tail.
 	DeliverySeq int64 `json:"delivery_seq,omitempty"`
+	// Fork provenance is present only on a successful first send from a
+	// message-continuation draft. Its presence consumes the durable draft and
+	// clears ForkAwaitingInput through the ordinary human-input fold.
+	ForkDraftID   string `json:"fork_draft_id,omitempty"`
+	BasedOnItemID string `json:"based_on_item_id,omitempty"`
 }
 
 // AttachmentRef is one attached blob: its CAS ref and media type.
 type AttachmentRef struct {
 	Ref       string `json:"ref"`
 	MediaType string `json:"media_type"`
+	PartID    string `json:"part_id,omitempty"`
+	Name      string `json:"name,omitempty"`
 }
 
 type GenerationStarted struct {
@@ -267,6 +284,27 @@ type AssistantMessage struct {
 	// the audit fact that visibly truncates the turn (决策 #30). Empty on
 	// normal finishes.
 	Finish string `json:"finish,omitempty"`
+	// ContinuationCheckpoint is a crash-repair receipt, not a legal fork
+	// target. The corresponding CheckpointBarrier is appended immediately
+	// after this event; resume repairs that barrier first if a crash split the
+	// pair.
+	ContinuationCheckpoint *ContinuationCheckpoint `json:"continuation_checkpoint,omitempty"`
+}
+
+// MessageAnchor ties a legal checkpoint barrier to one canonical timeline
+// message. Side is before_user or after_assistant.
+type MessageAnchor struct {
+	Side   string `json:"side"`
+	ItemID string `json:"item_id"`
+	TurnID string `json:"turn_id,omitempty"`
+}
+
+// ContinuationCheckpoint carries the already-created workspace snapshot and
+// non-main stream cut captured before an eligible assistant event lands.
+type ContinuationCheckpoint struct {
+	SnapshotRef string           `json:"snapshot_ref"`
+	Vector      map[string]int64 `json:"vector,omitempty"`
+	Handles     []BarrierHandle  `json:"handles,omitempty"`
 }
 
 type ActivityStarted struct {
@@ -1043,6 +1081,8 @@ type CheckpointBarrier struct {
 	// "policy" vector — cancel_at_fork was its only value ever; old journals
 	// carrying the retired policy field decode fine, the field is ignored).
 	Handles []BarrierHandle `json:"handles,omitempty"`
+	// MessageAnchor is absent on legacy/manual/generation barriers.
+	MessageAnchor *MessageAnchor `json:"message_anchor,omitempty"`
 }
 
 // BarrierHandle is one in-flight handle at a barrier cut; a fork cancels it.
@@ -1057,10 +1097,31 @@ type BarrierHandle struct {
 // SnapshotRef — forks never share a directory with the original), and
 // resume prefers it over the copied SessionStarted's stale root.
 type ForkedFrom struct {
-	ParentSession string `json:"parent_session"`
-	BarrierID     string `json:"barrier_id"`
-	SnapshotRef   string `json:"snapshot_ref,omitempty"`
-	WorkspaceRoot string `json:"workspace_root,omitempty"`
+	ParentSession string     `json:"parent_session"`
+	BarrierID     string     `json:"barrier_id"`
+	SnapshotRef   string     `json:"snapshot_ref,omitempty"`
+	WorkspaceRoot string     `json:"workspace_root,omitempty"`
+	RequestID     string     `json:"request_id,omitempty"`
+	SourceItemID  string     `json:"source_item_id,omitempty"`
+	SourceSide    string     `json:"source_side,omitempty"`
+	Draft         *ForkDraft `json:"draft,omitempty"`
+}
+
+// ForkDraft is a durable, ref-only composer seed copied from the source
+// InputReceived. It never contains raw attachment bytes.
+type ForkDraft struct {
+	DraftID string          `json:"draft_id"`
+	Text    string          `json:"text,omitempty"`
+	Content []provider.Part `json:"content,omitempty"`
+	Images  []AttachmentRef `json:"images,omitempty"`
+	Files   []AttachmentRef `json:"files,omitempty"`
+}
+
+// ForkAwaitingInput is a dedicated dormant park for message-scoped forks.
+// It is cleared only by a subsequently journaled human InputReceived.
+type ForkAwaitingInput struct {
+	RequestID string `json:"request_id"`
+	DraftID   string `json:"draft_id,omitempty"`
 }
 
 // NotificationSent is the notifier's dedup fact (S6 模块⑤): one line per
@@ -1156,6 +1217,7 @@ var Registry = map[string]func() any{
 
 	TypeCheckpointBarrier: func() any { return &CheckpointBarrier{} },
 	TypeForkedFrom:        func() any { return &ForkedFrom{} },
+	TypeForkAwaitingInput: func() any { return &ForkAwaitingInput{} },
 	TypeSpecChanged:       func() any { return &SpecChanged{} },
 	TypeAskResolved:       func() any { return &AskResolved{} },
 

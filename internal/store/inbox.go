@@ -13,6 +13,7 @@ import (
 	"bufio"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -36,6 +37,11 @@ type inboxReceipt struct {
 	hash [32]byte
 }
 
+type draftClaim struct {
+	commandID string
+	consumed  bool
+}
+
 // inboxIndex is loaded once per session per process. The old implementation
 // rescanned the whole JSONL on every append, making N deliveries O(N²).
 // A daemon is the sole writer, so an in-process append index is sufficient;
@@ -43,6 +49,7 @@ type inboxReceipt struct {
 type inboxIndex struct {
 	last     int64
 	receipts map[string]inboxReceipt
+	drafts   map[string]draftClaim
 }
 
 // AppendInbox is the compatibility input view over the unified command log.
@@ -90,6 +97,18 @@ func AppendCommand(sessionDir string, cmd protocol.SessionCommand) (protocol.Ses
 		stampInputReceipt(&cmd)
 		return cmd, nil
 	}
+	if cmd.Input != nil && cmd.Input.ForkDraftID != "" {
+		if err := settleDraftClaims(sessionDir, idx); err != nil {
+			return cmd, err
+		}
+		if prior, ok := idx.drafts[cmd.Input.ForkDraftID]; ok && prior.commandID != cmd.CommandID {
+			state := "has an unsettled attempt"
+			if prior.consumed {
+				state = "was already consumed"
+			}
+			return cmd, fmt.Errorf("inbox: fork draft %q %s", cmd.Input.ForkDraftID, state)
+		}
+	}
 	cmd.CommandSeq = idx.last + 1
 	stampInputReceipt(&cmd)
 	line, err := json.Marshal(cmd)
@@ -114,6 +133,9 @@ func AppendCommand(sessionDir string, cmd protocol.SessionCommand) (protocol.Ses
 	}
 	idx.last = cmd.CommandSeq
 	idx.receipts[cmd.CommandID] = inboxReceipt{seq: cmd.CommandSeq, hash: hash}
+	if cmd.Input != nil && cmd.Input.ForkDraftID != "" {
+		idx.drafts[cmd.Input.ForkDraftID] = draftClaim{commandID: cmd.CommandID}
+	}
 	return cmd, nil
 }
 
@@ -162,7 +184,7 @@ func SeedInboxWatermark(sessionDir string, seq int64) error {
 func ReadCommands(sessionDir string, after int64) ([]protocol.SessionCommand, error) {
 	f, err := os.Open(filepath.Join(sessionDir, inboxFile))
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil
 		}
 		return nil, err
@@ -224,7 +246,7 @@ func loadInboxIndex(sessionDir string) (*inboxIndex, error) {
 	if err != nil {
 		return nil, err
 	}
-	idx := &inboxIndex{receipts: map[string]inboxReceipt{}}
+	idx := &inboxIndex{receipts: map[string]inboxReceipt{}, drafts: map[string]draftClaim{}}
 	for _, cmd := range entries {
 		if cmd.CommandSeq > idx.last {
 			idx.last = cmd.CommandSeq
@@ -237,9 +259,72 @@ func loadInboxIndex(sessionDir string) (*inboxIndex, error) {
 			return nil, herr
 		}
 		idx.receipts[cmd.CommandID] = inboxReceipt{seq: cmd.CommandSeq, hash: hash}
+		if cmd.Input != nil && cmd.Input.ForkDraftID != "" {
+			idx.drafts[cmd.Input.ForkDraftID] = draftClaim{commandID: cmd.CommandID}
+		}
+	}
+	if len(idx.drafts) > 0 {
+		if err := settleDraftClaims(sessionDir, idx); err != nil {
+			return nil, err
+		}
 	}
 	inboxCache[sessionDir] = idx
 	return idx, nil
+}
+
+// settleDraftClaims projects the journal receipts that settle a durable
+// first-send claim. A successful InputReceived consumes the draft forever;
+// InputRevoked or a hook-veto CommandHandled releases it for a new attempt.
+// Reading complete event lines is safe beside the journal's single writer.
+func settleDraftClaims(sessionDir string, idx *inboxIndex) error {
+	events, err := ReadEvents(sessionDir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	for _, env := range events {
+		switch env.Type {
+		case event.TypeInputReceived:
+			decoded, err := event.DecodePayload(env)
+			if err != nil {
+				return err
+			}
+			p := decoded.(*event.InputReceived)
+			if claim, ok := idx.drafts[p.ForkDraftID]; p.ForkDraftID != "" && ok &&
+				(env.CommandID == "" || claim.commandID == env.CommandID) {
+				claim.consumed = true
+				idx.drafts[p.ForkDraftID] = claim
+			}
+		case event.TypeInputRevoked:
+			decoded, err := event.DecodePayload(env)
+			if err != nil {
+				return err
+			}
+			target := decoded.(*event.InputRevoked).TargetCommandID
+			for draftID, claim := range idx.drafts {
+				if claim.commandID == target && !claim.consumed {
+					delete(idx.drafts, draftID)
+				}
+			}
+		case event.TypeCommandHandled:
+			decoded, err := event.DecodePayload(env)
+			if err != nil {
+				return err
+			}
+			p := decoded.(*event.CommandHandled)
+			if p.Result != "input_rejected" {
+				continue
+			}
+			for draftID, claim := range idx.drafts {
+				if claim.commandID == env.CommandID && !claim.consumed {
+					delete(idx.drafts, draftID)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func commandPayloadHash(cmd protocol.SessionCommand) ([32]byte, error) {

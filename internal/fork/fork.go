@@ -8,6 +8,7 @@ package fork
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -30,6 +31,9 @@ type Options struct {
 	Barrier       state.Barrier // fork target (from the parent fold's barriers)
 	WorkspaceRoot string        // the fork's own worktree (never the parent's)
 	Now           time.Time     // fork moment (genesis TS)
+	// GenesisMeta adds message-scoped provenance/draft fields. Core fork
+	// identity fields are always overwritten from the authoritative options.
+	GenesisMeta *event.ForkedFrom
 }
 
 // Cut writes the fork's journal — a ForkedFrom genesis followed by the
@@ -67,12 +71,19 @@ func Cut(opts Options) ([]string, error) {
 		shift = 0
 	}
 
-	genesis, err := event.New(event.TypeForkedFrom, &event.ForkedFrom{
+	forked := event.ForkedFrom{
 		ParentSession: opts.ParentSession,
 		BarrierID:     opts.Barrier.BarrierID,
 		SnapshotRef:   opts.Barrier.SnapshotRef,
 		WorkspaceRoot: opts.WorkspaceRoot,
-	})
+	}
+	if opts.GenesisMeta != nil {
+		forked.RequestID = opts.GenesisMeta.RequestID
+		forked.SourceItemID = opts.GenesisMeta.SourceItemID
+		forked.SourceSide = opts.GenesisMeta.SourceSide
+		forked.Draft = opts.GenesisMeta.Draft
+	}
+	genesis, err := event.New(event.TypeForkedFrom, &forked)
 	if err != nil {
 		return nil, err
 	}
@@ -125,16 +136,135 @@ func Cut(opts Options) ([]string, error) {
 	// Child journals and the artifact CAS travel with the cut: copied
 	// conversation references child results and artifact refs, and the
 	// barrier vector's sub/ streams must stay readable from the fork.
-	for _, aux := range []string{"sub", "artifacts"} {
-		src := filepath.Join(opts.ParentDir, aux)
-		if _, err := os.Stat(src); err != nil {
-			continue
+	if err := copySubAtVector(opts.ParentDir, opts.NewDir, opts.Barrier.Vector); err != nil {
+		return nil, err
+	}
+	artifacts := filepath.Join(opts.ParentDir, "artifacts")
+	if _, err := os.Stat(artifacts); err == nil {
+		if err := os.CopyFS(filepath.Join(opts.NewDir, "artifacts"), os.DirFS(artifacts)); err != nil {
+			return nil, fmt.Errorf("fork: copy artifacts: %w", err)
 		}
-		if err := os.CopyFS(filepath.Join(opts.NewDir, aux), os.DirFS(src)); err != nil {
-			return nil, fmt.Errorf("fork: copy %s: %w", aux, err)
-		}
+	} else if !os.IsNotExist(err) {
+		return nil, err
+	}
+	if err := syncTree(opts.NewDir); err != nil {
+		return nil, fmt.Errorf("fork: durable cut: %w", err)
 	}
 	return refs, nil
+}
+
+func copySubAtVector(parentDir, newDir string, vector map[string]int64) error {
+	sourceRoot := filepath.Join(parentDir, "sub")
+	if _, err := os.Stat(sourceRoot); os.IsNotExist(err) {
+		for stream := range vector {
+			if strings.HasPrefix(stream, "sub/") {
+				return fmt.Errorf("fork: barrier references missing child stream %s", stream)
+			}
+		}
+		return nil
+	} else if err != nil {
+		return err
+	}
+	if err := copyTreeSkippingRuntime(sourceRoot, filepath.Join(newDir, "sub")); err != nil {
+		return fmt.Errorf("fork: copy sub auxiliaries: %w", err)
+	}
+	for stream, upto := range vector {
+		if !strings.HasPrefix(stream, "sub/") {
+			continue
+		}
+		if upto < 1 || upto > int64(^uint(0)>>1) {
+			return fmt.Errorf("fork: invalid child vector %s=%d", stream, upto)
+		}
+		srcDir := filepath.Join(parentDir, filepath.FromSlash(stream))
+		events, err := store.ReadEventPrefix(srcDir, int(upto))
+		if err != nil {
+			return fmt.Errorf("fork: read child %s: %w", stream, err)
+		}
+		if len(events) != int(upto) || events[len(events)-1].Seq != upto {
+			return fmt.Errorf("fork: child %s shorter than barrier vector %d", stream, upto)
+		}
+		dstDir := filepath.Join(newDir, filepath.FromSlash(stream))
+		if err := writeJournal(dstDir, events); err != nil {
+			return fmt.Errorf("fork: write child %s: %w", stream, err)
+		}
+	}
+	return nil
+}
+
+func copyTreeSkippingRuntime(srcRoot, dstRoot string) error {
+	return filepath.WalkDir(srcRoot, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		rel, err := filepath.Rel(srcRoot, path)
+		if err != nil {
+			return err
+		}
+		base := d.Name()
+		if d.IsDir() && (base == "snapshots") {
+			return filepath.SkipDir
+		}
+		if !d.IsDir() && (base == "events.jsonl" || base == "events.idx" ||
+			base == "lock" || base == "inbox.jsonl") {
+			return nil
+		}
+		dst := filepath.Join(dstRoot, rel)
+		if d.IsDir() {
+			return os.MkdirAll(dst, 0o700)
+		}
+		in, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = in.Close() }()
+		out, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		if err != nil {
+			return err
+		}
+		if _, err = io.Copy(out, in); err == nil {
+			err = out.Sync()
+		}
+		closeErr := out.Close()
+		if err != nil {
+			return err
+		}
+		return closeErr
+	})
+}
+
+func syncTree(root string) error {
+	var dirs []string
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() {
+			dirs = append(dirs, path)
+			return nil
+		}
+		f, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		err = f.Sync()
+		_ = f.Close()
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	for i := len(dirs) - 1; i >= 0; i-- {
+		f, err := os.Open(dirs[i])
+		if err != nil {
+			return err
+		}
+		err = f.Sync()
+		_ = f.Close()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // remap shifts one parent envelope into the fork's id space: seq/id move by
@@ -239,5 +369,14 @@ func writeJournal(dir string, lines []event.Envelope) error {
 	if err := f.Close(); err != nil {
 		return fmt.Errorf("fork: %w", err)
 	}
-	return os.Rename(tmp, final)
+	if err := os.Rename(tmp, final); err != nil {
+		return err
+	}
+	d, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	err = d.Sync()
+	_ = d.Close()
+	return err
 }

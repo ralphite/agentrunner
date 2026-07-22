@@ -331,8 +331,18 @@ func sendCmd(args []string, stdout, stderr io.Writer) int {
 	fs.Var(&imagePaths, "image", "attach an image file (repeatable)")
 	var filePaths repeatedFlag
 	fs.Var(&filePaths, "file", "attach a file of any type — PDF, etc. (repeatable, INC-9)")
+	var imageNames, fileNames repeatedFlag
+	var imagePartIDs, filePartIDs repeatedFlag
+	fs.Var(&imageNames, "image-name", "display name for each --image (repeatable)")
+	fs.Var(&fileNames, "file-name", "display name for each --file (repeatable)")
+	fs.Var(&imagePartIDs, "image-part-id", "stable part id for each --image (repeatable)")
+	fs.Var(&filePartIDs, "file-part-id", "stable part id for each --file (repeatable)")
 	detach := fs.Bool("detach", false, "deliver the message and exit without waiting for the reply")
 	steer := fs.Bool("steer", false, "steer: deliver into the CURRENT turn at its next safe boundary (default: queue to the next turn) — INC-43")
+	commandID := fs.String("command-id", "", "stable idempotency id (internal/web use)")
+	forkDraftID := fs.String("fork-draft-id", "", "pending continuation draft id (internal/web use)")
+	basedOnItemID := fs.String("based-on-item-id", "", "source message item id (internal/web use)")
+	contentManifest := fs.String("content-manifest", "", "ordered typed content JSON (internal/web use)")
 	if ok, code := parseFlags(fs, args); !ok {
 		return code
 	}
@@ -355,7 +365,27 @@ func sendCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", err)
 		return ExitUsage
 	}
-	if strings.TrimSpace(rest[1]) == "" && len(images) == 0 && len(files) == 0 {
+	if err := applyAttachmentMetadata(images, imageNames, imagePartIDs); err != nil {
+		fmt.Fprintf(stderr, "agentrunner: images: %v\n", err)
+		return ExitUsage
+	}
+	if err := applyAttachmentMetadata(files, fileNames, filePartIDs); err != nil {
+		fmt.Fprintf(stderr, "agentrunner: files: %v\n", err)
+		return ExitUsage
+	}
+	var content []protocol.ContentPart
+	if *contentManifest != "" {
+		if len(images)+len(files) > 0 {
+			fmt.Fprintln(stderr, "agentrunner: --content-manifest cannot be combined with --image/--file")
+			return ExitUsage
+		}
+		content, err = loadContentManifest(*contentManifest)
+		if err != nil {
+			fmt.Fprintf(stderr, "agentrunner: content manifest: %v\n", err)
+			return ExitUsage
+		}
+	}
+	if strings.TrimSpace(rest[1]) == "" && len(images) == 0 && len(files) == 0 && len(content) == 0 {
 		// Reject a whitespace-only message the same way `new` rejects an empty
 		// opening message (QA Wave1 alice-01): a blank send would otherwise burn
 		// a real turn on empty content. Attachments make a blank caption fine.
@@ -367,8 +397,13 @@ func sendCmd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "agentrunner: %v\n", aerr)
 		return ExitUsage
 	}
+	id := *commandID
+	if id == "" {
+		id = event.NewCommandID()
+	}
 	cmd := daemon.Command{Cmd: "send", Session: addr,
-		Text: rest[1], Images: images, Files: files, CommandID: event.NewCommandID(),
+		Text: rest[1], Images: images, Files: files, Content: content, CommandID: id,
+		ForkDraftID: *forkDraftID, BasedOnItemID: *basedOnItemID,
 		Principal: "local-user", Source: "cli", Trust: "local"}
 	if *steer {
 		cmd.Delivery = protocol.DeliverySteer
@@ -385,8 +420,90 @@ func sendCmd(args []string, stdout, stderr io.Writer) int {
 	return followTurn(sock, cmd, "delivered", stdout, stderr)
 }
 
+type contentManifestPart struct {
+	Kind      provider.PartKind `json:"kind"`
+	Text      string            `json:"text,omitempty"`
+	Path      string            `json:"path,omitempty"`
+	MediaType string            `json:"media_type,omitempty"`
+	Name      string            `json:"name,omitempty"`
+	PartID    string            `json:"part_id,omitempty"`
+}
+
+func loadContentManifest(raw string) ([]protocol.ContentPart, error) {
+	var manifest []contentManifestPart
+	if err := json.Unmarshal([]byte(raw), &manifest); err != nil {
+		return nil, err
+	}
+	if len(manifest) == 0 {
+		return nil, fmt.Errorf("empty manifest")
+	}
+	out := make([]protocol.ContentPart, 0, len(manifest))
+	for i, part := range manifest {
+		entry := protocol.ContentPart{Kind: part.Kind, Text: part.Text,
+			MediaType: part.MediaType, Name: part.Name, PartID: part.PartID}
+		switch part.Kind {
+		case provider.PartText:
+			if part.Path != "" {
+				return nil, fmt.Errorf("part %d: text cannot have path", i)
+			}
+		case provider.PartImage, provider.PartFile:
+			if part.Path == "" {
+				return nil, fmt.Errorf("part %d: attachment path is required", i)
+			}
+			data, err := os.ReadFile(part.Path)
+			if err != nil {
+				return nil, fmt.Errorf("part %d: %w", i, err)
+			}
+			detected := http.DetectContentType(data)
+			if part.Kind == provider.PartImage && !strings.HasPrefix(detected, "image/") {
+				return nil, fmt.Errorf("part %d: not an image (detected %s)", i, detected)
+			}
+			entry.Data = data
+			if entry.MediaType == "" {
+				entry.MediaType = detected
+			}
+		default:
+			return nil, fmt.Errorf("part %d: unsupported kind %q", i, part.Kind)
+		}
+		out = append(out, entry)
+	}
+	return out, nil
+}
+
 // repeatedFlag collects a repeatable string flag.
 type repeatedFlag []string
+
+type namedAttachment interface {
+	protocol.ImageAttachment | protocol.FileAttachment
+}
+
+func applyAttachmentMetadata[T namedAttachment](attachments []T, names, partIDs []string) error {
+	if len(names) != 0 && len(names) != len(attachments) {
+		return fmt.Errorf("got %d names for %d attachments", len(names), len(attachments))
+	}
+	if len(partIDs) != 0 && len(partIDs) != len(attachments) {
+		return fmt.Errorf("got %d part ids for %d attachments", len(partIDs), len(attachments))
+	}
+	for i := range attachments {
+		switch p := any(&attachments[i]).(type) {
+		case *protocol.ImageAttachment:
+			if len(names) != 0 {
+				p.Name = names[i]
+			}
+			if len(partIDs) != 0 {
+				p.PartID = partIDs[i]
+			}
+		case *protocol.FileAttachment:
+			if len(names) != 0 {
+				p.Name = names[i]
+			}
+			if len(partIDs) != 0 {
+				p.PartID = partIDs[i]
+			}
+		}
+	}
+	return nil
+}
 
 func (r *repeatedFlag) String() string { return strings.Join(*r, ",") }
 func (r *repeatedFlag) Set(v string) error {
@@ -422,7 +539,7 @@ func loadImageAttachments(paths []string) ([]protocol.ImageAttachment, error) {
 		if !strings.HasPrefix(mt, "image/") {
 			return nil, fmt.Errorf("%s: not an image (detected %s)", path, mt)
 		}
-		out = append(out, protocol.ImageAttachment{MediaType: mt, Data: data})
+		out = append(out, protocol.ImageAttachment{MediaType: mt, Data: data, Name: filepath.Base(path)})
 	}
 	return out, nil
 }
@@ -438,7 +555,7 @@ func loadFileAttachments(paths []string) ([]protocol.FileAttachment, error) {
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, protocol.FileAttachment{MediaType: http.DetectContentType(data), Data: data})
+		out = append(out, protocol.FileAttachment{MediaType: http.DetectContentType(data), Data: data, Name: filepath.Base(path)})
 	}
 	return out, nil
 }

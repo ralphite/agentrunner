@@ -49,6 +49,29 @@ func (l *Loop) journalInput(ds *driveState, appendE AppendFunc, in protocol.User
 	if in.Target != "" && in.Target != l.SessionID {
 		return l.forwardToMember(ds, in)
 	}
+	// Message-scoped continuation needs a stable identity before the cut is
+	// captured. Durable commands reuse these IDs across replay; direct/test
+	// inputs mint them once for this intake.
+	if in.TurnID == "" {
+		seed := in.CommandID
+		if seed == "" {
+			seed = event.NewCommandID()
+		}
+		in.TurnID = "turn-" + seed
+	}
+	if in.ItemID == "" {
+		seed := in.CommandID
+		if seed == "" {
+			seed = event.NewCommandID()
+		}
+		in.ItemID = "item-" + seed
+	}
+	if protocol.UserClassSource(in.Source) {
+		if err := l.ensureMessageBarrier(context.Background(), ds,
+			"before_user", in.ItemID, in.TurnID, ds.s.Session.GenStep); err != nil {
+			return err
+		}
+	}
 	// UserPromptSubmit lifecycle hook (INC-15, G19): fires before the input
 	// lands; exit 2 vetoes it — the prompt never journals and the session
 	// stays as it was. journalInput has no ctx; the hook runs on its own
@@ -57,6 +80,16 @@ func (l *Loop) journalInput(ds *driveState, appendE AppendFunc, in protocol.User
 	if res := l.fireLifecycle(context.Background(), hook.EventUserPromptSubmit,
 		map[string]string{"text": in.Text, "source": in.Source, "principal": in.Principal},
 		true); res.Blocked {
+		// A durable draft attempt is a CommandLog claim. Settle a veto with a
+		// command receipt so daemon replay does not spin and a later attempt may
+		// claim the still-pending draft.
+		if in.CommandID != "" {
+			if _, err := l.commandAppender(ds, in.CommandID)(event.TypeCommandHandled,
+				&event.CommandHandled{CommandID: in.CommandID, CommandSeq: in.DeliverySeq,
+					Kind: protocol.CommandInput, Result: "input_rejected"}); err != nil {
+				return err
+			}
+		}
 		l.emit(protocol.Event{Kind: protocol.KindMessage,
 			Text: "input blocked by user_prompt_submit hook: " + res.Reason})
 		return nil
@@ -76,7 +109,7 @@ func (l *Loop) journalInput(ds *driveState, appendE AppendFunc, in protocol.User
 		}
 	}
 	text := redact.FromEnv().String(raw)
-	putPart := func(kind provider.PartKind, mediaType string, data []byte) (provider.Part, error) {
+	putPart := func(kind provider.PartKind, mediaType, partID, name string, data []byte) (provider.Part, error) {
 		if err := l.ensureArtifacts(); err != nil {
 			return provider.Part{}, err
 		}
@@ -84,7 +117,8 @@ func (l *Loop) journalInput(ds *driveState, appendE AppendFunc, in protocol.User
 		if err != nil {
 			return provider.Part{}, err
 		}
-		return provider.Part{Kind: kind, Ref: ref, MediaType: mediaType}, nil
+		return provider.Part{Kind: kind, Ref: ref, MediaType: mediaType,
+			PartID: partID, Name: cleanAttachmentName(name)}, nil
 	}
 	if len(in.Content) > 0 {
 		var legacyText []string
@@ -93,11 +127,11 @@ func (l *Loop) journalInput(ds *driveState, appendE AppendFunc, in protocol.User
 			case provider.PartText:
 				value := redact.FromEnv().String(part.Text)
 				if len(value) > longPasteThreshold {
-					stored, err := putPart(provider.PartFile, "text/plain", []byte(value))
+					stored, err := putPart(provider.PartFile, "text/plain", part.PartID, part.Name, []byte(value))
 					if err != nil {
 						return err
 					}
-					files = append(files, event.AttachmentRef{Ref: stored.Ref, MediaType: stored.MediaType})
+					files = append(files, attachmentRef(stored))
 					head := value[:512]
 					for len(head) > 0 && !utf8.ValidString(head) {
 						head = head[:len(head)-1]
@@ -110,12 +144,12 @@ func (l *Loop) journalInput(ds *driveState, appendE AppendFunc, in protocol.User
 				legacyText = append(legacyText, value)
 				content = append(content, provider.Part{Kind: provider.PartText, Text: value})
 			case provider.PartImage, provider.PartFile:
-				stored, err := putPart(part.Kind, part.MediaType, part.Data)
+				stored, err := putPart(part.Kind, part.MediaType, part.PartID, part.Name, part.Data)
 				if err != nil {
 					return err
 				}
 				content = append(content, stored)
-				ref := event.AttachmentRef{Ref: stored.Ref, MediaType: stored.MediaType}
+				ref := attachmentRef(stored)
 				if part.Kind == provider.PartImage {
 					images = append(images, ref)
 				} else {
@@ -129,24 +163,29 @@ func (l *Loop) journalInput(ds *driveState, appendE AppendFunc, in protocol.User
 	}
 	if len(in.Content) == 0 {
 		for _, img := range in.Images {
-			stored, err := putPart(provider.PartImage, img.MediaType, img.Data)
+			stored, err := putPart(provider.PartImage, img.MediaType, img.PartID, img.Name, img.Data)
 			if err != nil {
 				return err
 			}
-			images = append(images, event.AttachmentRef{Ref: stored.Ref, MediaType: stored.MediaType})
+			images = append(images, attachmentRef(stored))
 			content = append(content, stored)
 		}
 		// Attached files (INC-9: PDF / any type) take the same blob-before-event
 		// path as images — CAS-put the bytes, journal only the ref + real MIME.
 		for _, f := range in.Files {
-			stored, err := putPart(provider.PartFile, f.MediaType, f.Data)
+			stored, err := putPart(provider.PartFile, f.MediaType, f.PartID, f.Name, f.Data)
 			if err != nil {
 				return err
 			}
-			files = append(files, event.AttachmentRef{Ref: stored.Ref, MediaType: stored.MediaType})
+			files = append(files, attachmentRef(stored))
 			content = append(content, stored)
 		}
-		content = append([]provider.Part{{Kind: provider.PartText, Text: text}}, content...)
+		// Attachment-only is a first-class message. Do not synthesize an empty
+		// text part: Gemini maps it to an uninitialized oneof and rejects the
+		// otherwise valid image/file request.
+		if text != "" {
+			content = append([]provider.Part{{Kind: provider.PartText, Text: text}}, content...)
+		}
 	}
 	// Isolation framing for machine-delivered input (INC-50 hard condition):
 	// the untrusted classification must shape what the model SEES, not ride
@@ -174,7 +213,7 @@ func (l *Loop) journalInput(ds *driveState, appendE AppendFunc, in protocol.User
 		if err != nil {
 			return err
 		}
-		files = append(files, event.AttachmentRef{Ref: ref, MediaType: "text/plain"})
+		files = append(files, event.AttachmentRef{Ref: ref, MediaType: "text/plain", Name: "pasted-text.txt"})
 		head := text[:512]
 		for len(head) > 0 && !utf8.ValidString(head) {
 			head = head[:len(head)-1] // never split a multi-byte rune
@@ -212,16 +251,11 @@ func (l *Loop) journalInput(ds *driveState, appendE AppendFunc, in protocol.User
 		trust = "untrusted"
 	}
 	turnID, itemID := in.TurnID, in.ItemID
-	if turnID == "" {
-		turnID = "turn-" + event.NewCommandID()
-	}
-	if itemID == "" {
-		itemID = "item-" + event.NewCommandID()
-	}
 	_, err := inputAppend(event.TypeInputReceived, &event.InputReceived{
 		Text: text, Source: source, Principal: principal, Trust: trust,
 		TurnID: turnID, ItemID: itemID, Content: content, Images: images, Files: files,
-		DeliverySeq: in.DeliverySeq,
+		DeliverySeq: in.DeliverySeq, ForkDraftID: in.ForkDraftID,
+		BasedOnItemID: in.BasedOnItemID,
 	})
 	if err == nil && in.DeliverySeq > 0 {
 		// This input was consumed into the conversation: the next
@@ -230,6 +264,32 @@ func (l *Loop) journalInput(ds *driveState, appendE AppendFunc, in protocol.User
 		ds.pendingInputSeqs = append(ds.pendingInputSeqs, in.DeliverySeq)
 	}
 	return err
+}
+
+func attachmentRef(part provider.Part) event.AttachmentRef {
+	return event.AttachmentRef{Ref: part.Ref, MediaType: part.MediaType,
+		PartID: part.PartID, Name: part.Name}
+}
+
+func cleanAttachmentName(name string) string {
+	name = strings.ReplaceAll(name, "\\", "/")
+	if i := strings.LastIndex(name, "/"); i >= 0 {
+		name = name[i+1:]
+	}
+	name = strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f {
+			return -1
+		}
+		return r
+	}, name)
+	name = strings.TrimSpace(name)
+	if len(name) > 160 {
+		name = name[:160]
+		for len(name) > 0 && !utf8.ValidString(name) {
+			name = name[:len(name)-1]
+		}
+	}
+	return name
 }
 
 // drainQueued non-blockingly journals every ADDITIONAL input already queued

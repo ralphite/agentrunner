@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Archive, ArrowClockwise, ArrowLeft, ChatCircle, CheckCircle, ClockCountdown, Code, Crosshair, DotsThree, Files, Flag, GitFork, Pause, PencilSimple, Play, Prohibit, PushPin, Robot, SidebarSimple, SlidersHorizontal, Trash, WarningCircle, X, XCircle } from "@phosphor-icons/react";
-import { AR } from "../api";
+import { AR, type ForkDraft } from "../api";
 import { useStore } from "../store";
 import type { BackgroundWork, Envelope } from "../types";
-import { deriveGoalState, foldEvents, formatElapsed, isGoalTerminal, suppressEchoedChips, type ApprovalRef, type GoalDerived } from "../timeline";
+import { deriveGoalState, foldEvents, formatElapsed, isGoalTerminal, suppressEchoedChips, type ApprovalRef, type BubbleItem, type GoalDerived } from "../timeline";
 import { TimelineView } from "./Timeline";
 import { ApprovalCard } from "./ApprovalCard";
 import { Composer } from "./Composer";
@@ -39,6 +39,22 @@ interface SSEApproval {
 const SESSION_ID_RE = /^[A-Za-z0-9._#-]+$/;
 export function isValidSessionId(sid: string): boolean {
   return !!sid && sid.length <= 200 && SESSION_ID_RE.test(sid);
+}
+
+// Persist the idempotency key across a response-loss reload. Keeping the key
+// after success is harmless and guarantees that a later retry of the same row
+// resolves the already-published child instead of creating a sibling.
+function continuationRequestID(sid: string, itemID: string): string {
+  const key = `arwebui.continue.${sid}.${itemID}`;
+  try {
+    const prior = sessionStorage.getItem(key);
+    if (prior) return prior;
+    const id = `continue_${crypto.randomUUID().replaceAll("-", "_")}`;
+    sessionStorage.setItem(key, id);
+    return id;
+  } catch {
+    return `continue_${crypto.randomUUID().replaceAll("-", "_")}`;
+  }
 }
 
 // INC-41 L2/L5/RT-7 · "this id doesn't exist" vs "the fetch happened to fail".
@@ -86,6 +102,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   const title = displayTitle(renames, sid, sessionMeta?.title);
 
   const [events, setEvents] = useState<Envelope[]>([]);
+  const continueRequests = useRef<Map<string, string>>(new Map());
   const [pending, setPending] = useState<{ id: number; text: string; imgs: string[]; files: number; delivery?: "steer" | "queue" }[]>([]);
   const [typing, setTyping] = useState<string>("");
   const [sseApprovals, setSseApprovals] = useState<Map<string, SSEApproval>>(new Map());
@@ -521,16 +538,62 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   }).length;
   const attentionCount = openApprovals.length + (needsRecovery ? 1 : 0) + abnormalAgentCount + (backgroundWork.length > 0 && !running ? 1 : 0);
 
-  const doSend = async (text: string, images: string[], files: string[] = [], delivery?: "steer" | "queue") => {
+  const doSend = async (text: string, images: string[], files: string[] = [], delivery?: "steer" | "queue",
+    draft?: { draftId: string; sendRequestId: string;
+      parts: Array<{ kind: "image" | "file"; ref?: string; path?: string; ordinal?: number }>;
+      replayOriginal: boolean }) => {
     const id = ++pendSeq.current;
     setPending((p) => [...p, { id, text, imgs: images, files: files.length, delivery }]);
     try {
-      await AR.send(sid, text, images, files, delivery);
+      await AR.send(sid, text, images, files, delivery, draft);
     } catch (e: any) {
       toast(e.message);
       setPending((p) => p.filter((x) => x.id !== id));
+      throw e;
     }
   };
+
+  const continueFromMessage = async (item: BubbleItem) => {
+    if (!item.itemId) return;
+    let requestID = continueRequests.current.get(item.itemId);
+    if (!requestID) {
+      requestID = continuationRequestID(sid, item.itemId);
+      continueRequests.current.set(item.itemId, requestID);
+    }
+    const result = await AR.continueFromMessage(sid, item.itemId, requestID);
+    await useStore.getState().refreshSessions();
+    select(result.session_id);
+  };
+
+  const forkDraft = useMemo<ForkDraft | null>(() => {
+    const genesis = events.find((e) => e.type === "forked_from" && e.payload?.draft)?.payload?.draft as ForkDraft | undefined;
+    if (!genesis) return null;
+    let parkSeq = 0;
+    for (const e of events) if (e.type === "fork_awaiting_input") parkSeq = Math.max(parkSeq, e.seq || 0);
+    if (!parkSeq) return null;
+    const consumed = events.some((e) => e.type === "input_received" && (e.seq || 0) > parkSeq &&
+      ["", "user", "cli", "unix-socket", "tty"].includes(e.payload?.source || ""));
+    return consumed ? null : genesis;
+  }, [events]);
+  const forkParked = useMemo(() => {
+    let parkSeq = 0;
+    for (const e of events) if (e.type === "fork_awaiting_input") parkSeq = Math.max(parkSeq, e.seq || 0);
+    if (!parkSeq) return false;
+    return !events.some((e) => e.type === "input_received" && (e.seq || 0) > parkSeq &&
+      ["", "user", "cli", "unix-socket", "tty"].includes(e.payload?.source || ""));
+  }, [events]);
+  const forkSeedReleasedAt = useMemo(() => {
+	let parkSeq = 0;
+	for (const e of events) if (e.type === "fork_awaiting_input") parkSeq = Math.max(parkSeq, e.seq || 0);
+	let released = 0;
+	for (const e of events) {
+		if ((e.seq || 0) <= parkSeq) continue;
+		if ((e.type === "command_handled" && e.payload?.result === "input_rejected") || e.type === "input_revoked") {
+			released = Math.max(released, e.seq || 0);
+		}
+	}
+	return released;
+  }, [events]);
 
   const decideApproval = async (id: string, decision: "approve" | "deny", reason: string, target = sid, always = false) => {
     await AR.approve(target, id, decision, reason, always);
@@ -871,6 +934,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
                 showSys={showSys}
                 loading={!eventsReady}
                 sentImages={sentImages.current}
+                onContinue={continueFromMessage}
                 statusLine={hasApprovals ? (
                   <div className={`run-status-line ${status.cls}`}>
                     <span>{status.text}</span>
@@ -1062,6 +1126,9 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
                   workspace={sessions.find((session) => session.id === sid)?.workspace}
                   mode={liveMode}
                   running={running}
+                  seed={forkDraft}
+				  seedReleasedAt={forkSeedReleasedAt}
+                  focusOnMount={forkParked}
                   onSend={doSend}
                   onError={(message) => toast(message)}
                   actions={{

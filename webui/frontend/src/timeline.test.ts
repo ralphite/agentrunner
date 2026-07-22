@@ -23,6 +23,33 @@ describe("timeline input projection", () => {
     expect(folded.items.some((item) => item.kind === "user")).toBe(false);
   });
 
+  it("derives Continue eligibility only from durable message anchors", () => {
+    const folded = foldEvents([
+      { seq: 1, type: "input_received", payload: { source: "cli", text: "", item_id: "u1", turn_id: "t1",
+        files: [{ ref: "sha256-abc", media_type: "text/plain" }] } },
+      { seq: 2, type: "checkpoint_barrier", payload: { message_anchor: { side: "before_user", item_id: "u1" } } },
+      { seq: 3, type: "assistant_message", payload: { item_id: "a1", turn_id: "t1", message: { parts: [{ text: "done" }] } } },
+      { seq: 4, type: "checkpoint_barrier", payload: { message_anchor: { side: "after_assistant", item_id: "a1" } } },
+      { seq: 5, type: "assistant_message", payload: { item_id: "legacy", message: { parts: [{ text: "legacy" }] } } },
+    ]);
+    expect(folded.items).toContainEqual(expect.objectContaining({ kind: "user", itemId: "u1", text: "", files: 1, continueSide: "before_user" }));
+    expect(folded.items).toContainEqual(expect.objectContaining({ kind: "assistant", itemId: "a1", continueSide: "after_assistant" }));
+    expect((folded.items.find((item: any) => item.itemId === "legacy") as any)?.continueSide).toBeUndefined();
+  });
+
+  it("pairs the before-user anchor that precedes its message", () => {
+    const folded = foldEvents([
+      { seq: 1, type: "checkpoint_barrier", payload: { message_anchor: {
+        side: "before_user", item_id: "u-before", turn_id: "t-before",
+      } } },
+      { seq: 2, type: "input_received", payload: { source: "cli", text: "", item_id: "u-before",
+        turn_id: "t-before", images: [{ ref: "sha256-abc", media_type: "image/png" }] } },
+    ]);
+    expect(folded.items).toContainEqual(expect.objectContaining({
+      kind: "user", itemId: "u-before", images: 1, continueSide: "before_user",
+    }));
+  });
+
   it("projects a user mode switch as a foldable system chip in human vocabulary (INC-42 / TH-16)", () => {
     const folded = foldEvents([{ seq: 1, type: "mode_changed", payload: { to: "acceptEdits", cause: "user" } }]);
     // Human access vocabulary (not the raw `acceptEdits` enum / bare `(user)`),

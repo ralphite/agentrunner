@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -13,6 +14,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/daemon"
 	"github.com/ralphite/agentrunner/internal/event"
 	"github.com/ralphite/agentrunner/internal/protocol"
+	"github.com/ralphite/agentrunner/internal/provider"
 	"github.com/ralphite/agentrunner/internal/runtime"
 	"github.com/ralphite/agentrunner/internal/store"
 )
@@ -370,5 +372,33 @@ func TestGoalMaxChecksValidation(t *testing.T) {
 				t.Errorf("goal %s --max-checks %s: stderr = %q, want the positive-integer error", sub, bad, errOut.String())
 			}
 		}
+	}
+}
+
+func TestLoadContentManifestPreservesTypedOrder(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "note.txt")
+	image := filepath.Join(dir, "pixel.png")
+	if err := os.WriteFile(file, []byte("note"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// http.DetectContentType recognizes the PNG signature without requiring a
+	// complete decodable image.
+	if err := os.WriteFile(image, []byte("\x89PNG\r\n\x1a\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal([]contentManifestPart{
+		{Kind: provider.PartText, Text: "caption"},
+		{Kind: provider.PartFile, Path: file, Name: "source.txt", PartID: "file-1"},
+		{Kind: provider.PartImage, Path: image, Name: "source.png", PartID: "image-1"},
+	})
+	parts, err := loadContentManifest(string(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(parts) != 3 || parts[0].Kind != provider.PartText ||
+		parts[1].Kind != provider.PartFile || parts[1].Name != "source.txt" ||
+		parts[2].Kind != provider.PartImage || parts[2].PartID != "image-1" {
+		t.Fatalf("manifest parts = %+v", parts)
 	}
 }

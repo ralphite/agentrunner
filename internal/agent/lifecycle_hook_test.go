@@ -13,6 +13,7 @@ import (
 	"github.com/ralphite/agentrunner/internal/hook"
 	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider/scripted"
+	"github.com/ralphite/agentrunner/internal/state"
 	"github.com/ralphite/agentrunner/internal/store"
 	"github.com/ralphite/agentrunner/internal/tool"
 	"github.com/ralphite/agentrunner/internal/workspace"
@@ -114,6 +115,49 @@ func TestUserPromptSubmitHookBlocks(t *testing.T) {
 	}
 	if n := countEvents(t, es.Dir(), event.TypeGenerationStarted); n != 1 {
 		t.Fatalf("generation_started = %d, want 1", n)
+	}
+}
+
+func TestDurableOpeningHookVetoDoesNotStartEmptyTurn(t *testing.T) {
+	root := t.TempDir()
+	l := testLoop(t, scripted.Fixture{}, root)
+	l.DurableOpening = true
+	l.Hooks = &hook.Runner{Lifecycle: map[string][]string{
+		hook.EventUserPromptSubmit: {"echo blocked >&2; exit 2"},
+	}, Dir: root}
+	res, err := l.Run(context.Background(), "forbidden opening")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Reason != "waiting_input" {
+		t.Fatalf("result = %+v, want waiting_input", res)
+	}
+	if n := countEvents(t, l.Store.Dir(), event.TypeInputReceived); n != 0 {
+		t.Fatalf("InputReceived = %d, want 0", n)
+	}
+	if n := countEvents(t, l.Store.Dir(), event.TypeGenerationStarted); n != 0 {
+		t.Fatalf("GenerationStarted = %d, want 0", n)
+	}
+	events, err := store.ReadEvents(l.Store.Dir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	folded, err := state.Fold(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if folded.Session.ConsumedInputSeq != 1 {
+		t.Fatalf("consumed input seq = %d, want vetoed command settled", folded.Session.ConsumedInputSeq)
+	}
+	if !folded.Session.OpeningRejected {
+		t.Fatal("opening veto is not durably parked")
+	}
+	res, err = l.Resume(context.Background())
+	if err != nil || res.Reason != "waiting_input" {
+		t.Fatalf("resume after veto = %+v err=%v", res, err)
+	}
+	if n := countEvents(t, l.Store.Dir(), event.TypeGenerationStarted); n != 0 {
+		t.Fatalf("GenerationStarted after resume = %d, want 0", n)
 	}
 }
 

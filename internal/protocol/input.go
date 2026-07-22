@@ -14,6 +14,8 @@ import (
 // journals a ref-only provider.Part.
 type ContentPart struct {
 	Kind      provider.PartKind `json:"kind"`
+	PartID    string            `json:"part_id,omitempty"`
+	Name      string            `json:"name,omitempty"`
 	Text      string            `json:"text,omitempty"`
 	MediaType string            `json:"media_type,omitempty"`
 	Data      []byte            `json:"data,omitempty"`
@@ -24,6 +26,8 @@ type ContentPart struct {
 type ImageAttachment struct {
 	MediaType string `json:"media_type"`
 	Data      []byte `json:"data"`
+	PartID    string `json:"part_id,omitempty"`
+	Name      string `json:"name,omitempty"`
 }
 
 // FileAttachment is one arbitrary-type file attached to a user input (INC-9:
@@ -34,6 +38,8 @@ type ImageAttachment struct {
 type FileAttachment struct {
 	MediaType string `json:"media_type"`
 	Data      []byte `json:"data"`
+	PartID    string `json:"part_id,omitempty"`
+	Name      string `json:"name,omitempty"`
 }
 
 // UserInput is one conversational user message with optional attachments.
@@ -69,6 +75,12 @@ type UserInput struct {
 	// the original DeliverySeq for an exact retry.
 	CommandID   string `json:"command_id,omitempty"`
 	DeliverySeq int64  `json:"delivery_seq,omitempty"`
+	// ForkDraftID marks the first attempted send from a message-continuation
+	// draft. The command log uses it as a single-winner durable claim; exact
+	// CommandID retries reuse the receipt, while a different attempt conflicts
+	// until the first one is explicitly rejected/revoked.
+	ForkDraftID   string `json:"fork_draft_id,omitempty"`
+	BasedOnItemID string `json:"based_on_item_id,omitempty"`
 	// Delivery is the per-message delivery mode for a send to a RUNNING session
 	// (INC-43, Codex parity): "" / "queue" (default) appends to the inbox and is
 	// consumed at the idle — the message enters the NEXT turn (type-ahead);

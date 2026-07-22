@@ -134,3 +134,14 @@ describe("TAIL-ROW — a live turn keeps the last answer's row inline", () => {
     expect(last.querySelector(".msg-actions")).not.toBeNull();
   });
 });
+
+describe("INC-91 — final answer Continue stays in the tail row", () => {
+  it("uses the anchored final assistant item, not merely the last timeline row", () => {
+    const final = { ...assistant("a1"), itemId: "item-a", continueSide: "after_assistant" as const };
+    const { container } = render(<TimelineView items={[user("u1"), final]} pending={[]} typing="" showSys={false}
+      onContinue={async () => {}} />);
+    const tail = container.querySelector(".tl-tail-row")!;
+    expect(tail.querySelector('button[aria-label="Continue in new session"]')).not.toBeNull();
+    expect(container.querySelector(".msg.assistant")!.querySelector(".msg-actions")).toBeNull();
+  });
+});

@@ -1682,3 +1682,35 @@ regression 锚定。全量 frontend **664/664**、production build 与 webui `go
 
 **数据纪律**：只切换并恢复 `mt-test` fold，session count 保持 605；未执行 project
 菜单或 New chat，未创建、关闭、删除或清理 session/workspace/journal。
+
+## QA-82 消息级 Continue 到独立 session（INC-91，UJ-04/24）
+
+**状态**：通过（2026-07-22；真实 `http://127.0.0.1:8809/` + 共享
+`~/.local/share/agentrunner/`；session/workspace/journal 全部保留）。
+
+| # | 真实动作 | 硬断言 |
+|---|---|---|
+| 1 | 创建含 text + image + file 的真实 parent，打开 timeline | human row 有 `Continue in new session`；legacy/non-final row 无入口 |
+| 2 | 从 human row Continue | route 到唯一 top-level child；cut 不含目标 input；独立 workspace；composer 按 recorded name/ref 预填且 focus；parent journal/workspace 不变 |
+| 3 | child reload，再次点击同 parent row/模拟 response retry | draft 仍恢复；同 stable request id 返回同一 child，不产生 sibling |
+| 4 | child attachment-only Send，随后 reload | send 成功并记录 `ForkDraftID/BasedOnItemID`；draft/park 消失；文件名保持；无重复 input |
+| 5 | 从 loop-final assistant row Continue | 新 child cut 包含该 answer，composer 为空且 focus；显式 Send 前无新 generation |
+| 6 | 浏览器 Back、mobile/action keyboard、console | Back 回 parent；action 可达且 pending/error 语义正常；console error/warn=0 |
+
+**证据要求**：`qa/runs/2026-07-22-QA82-message-level-continue/` 保存 API/journal/
+workspace diff、DOM/截图、版本与共享 session ids；测试数据不 close、不删除、不清理。
+
+**实测结果**：parent `20260722-080610-qa-82-parent-inspect-both-att-2c92ac72b517874d`
+含 text + PNG + text file；human 与 loop-final assistant 行均有 action，tool-call assistant
+无 action。human child reload 后仍恢复 filename/ref draft；同 request retry 返回同一 child；
+attachment-only 首次发送只落 image/file parts（无空 text part），`ForkDraftID`/
+`BasedOnItemID` 与名称完整，Gemini 成功消费。assistant child
+`20260722-081752-continue-item-assistant-g2-c943e952fe0488d3` cut 包含最终 answer，末尾仅
+`ForkAwaitingInput`，无新 generation。浏览器 Back 正常，console warning/error=0；desktop
+focus/label 与 mobile/touch discoverability 另由 frontend component tests 常绿覆盖。探索中先发现
+并修复 before-user anchor 投影漏 action 与 attachment-only 空 text provider part 两个缺陷；失败
+child 也按数据纪律保留。实现后 review 修复 opening crash/veto、sub journal cut/fsync 与
+ordered manifest 后再次部署；浏览器在 child
+`20260722-085822-continue-item-cmd-3300ab9e-804836eab70c1b30` 原样发送 draft，journal 精确保持
+`text → image → file`、authoritative filename/media/ref 与 fork provenance，Gemini 返回
+`QA82_PARENT_READY`。证据目录同上。

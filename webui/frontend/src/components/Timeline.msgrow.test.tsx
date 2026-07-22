@@ -20,7 +20,7 @@
 //   • TH-1 survives    → hover flips ONLY opacity (+ pointer-events, which has
 //                        no box), so revealing the row cannot reflow the thread.
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { TimelineView } from "./Timeline";
 import type { BubbleItem } from "../timeline";
 
@@ -109,5 +109,24 @@ describe("TH-21 — no message shows a persistent timestamp", () => {
     const times = container.querySelectorAll(".msg-time");
     expect(times.length).toBeGreaterThan(0);
     for (const t of Array.from(times)) expect(t.closest(".msg-actions")).not.toBeNull();
+  });
+});
+
+describe("INC-91 — anchored message actions", () => {
+  it("shows Continue for an eligible attachment-only user row and invokes its canonical item", async () => {
+    const calls: string[] = [];
+    const item: BubbleItem = { ...user("u-empty", ""), itemId: "item-u", continueSide: "before_user", files: 1 };
+    const { container } = render(<TimelineView items={[item]} pending={[]} typing="" showSys={false}
+      onContinue={async (message) => { calls.push(message.itemId || ""); }} />);
+    expect(container.textContent).toContain("×1 attached");
+    expect(screen.queryByLabelText("Copy message")).toBeNull();
+    fireEvent.click(screen.getByLabelText("Continue in new session"));
+    await waitFor(() => expect(calls).toEqual(["item-u"]));
+  });
+
+  it("does not show Continue for a legacy/non-anchored message", () => {
+    render(<TimelineView items={[user("legacy")]} pending={[]} typing="" showSys={false}
+      onContinue={async () => {}} />);
+    expect(screen.queryByLabelText("Continue in new session")).toBeNull();
   });
 });

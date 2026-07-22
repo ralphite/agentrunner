@@ -315,7 +315,7 @@ GAPS.md，本文件只回答"产品要做什么"。
 
 **覆盖功能**：`动态角色 spawn(inline role)` `子提权用户审批(escalate)` `树内消息(send_message,兄弟直发)` `静止子唤醒(revive,context 延续)` `多次回执` `用户直达成员(ar send 子会话)` `子会话 live 镜像` `团队面板` `树级预算/审计`（底座复用 UJ-18 全部机制）
 
-### UJ-24 Web UI 驾驶 AgentRunner `基础` `✅ INC-19/23/40/60/87/88/89/90/92/93（2026-07-22）`
+### UJ-24 Web UI 驾驶 AgentRunner `基础` `✅ INC-19/23/40/60/87/88/89/90/91/92/93（2026-07-22）`
 
 **场景**：用户从项目/session 层进入一个真实 AgentRunner
 会话，并在同一工作台完成派活、续聊、监督、审批与改动审阅。
@@ -346,8 +346,12 @@ GAPS.md，本文件只回答"产品要做什么"。
    worktree 从所选 ref 创建；高级 Goal/Loop/Best-of-N/spec 收在 Advanced。
 3. 中央 thread 按 journal 投影 user/assistant/tool 事实；program/agent/control
    输入默认只在 system events 中查看，绝不冒充用户；底部 follow-up 延续
-   同一 session；每轮最终 answer 显示真实 Worked duration 与 Copy，
-   routine Continue/Fork 收入 `Advanced → Continue in new session…`，仅终态 recovery 告警保留必要续跑动作；
+   同一 session；每轮最终 answer 显示真实 Worked duration 与 Copy。带 durable
+   message anchor 的人类消息和 loop-final assistant answer 在 action row 提供
+   `Continue in new session`：前者从消息前切、以完整 recorded multimodal 内容
+   预填 composer，后者从回答后切并聚焦空 composer；child 在显式 Send 前保持
+   dormant，parent 不变。legacy/非 final/tool-call row 不伪造入口；Advanced
+   checkpoint fork 仍保留；仅终态 recovery 告警保留必要续跑动作；
    有 workspace diff 时内联 Changes 摘要并由 Review 进入固定 diff 审阅；
    Changes 可在 `Working tree`（repo HEAD 至当前）与 `Last turn`（最新 human
    turn 的 `bar-tN` 开工 snapshot 至当前）间切换，缺 durable baseline 时

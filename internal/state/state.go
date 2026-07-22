@@ -14,6 +14,7 @@ import (
 
 	"github.com/ralphite/agentrunner/internal/errs"
 	"github.com/ralphite/agentrunner/internal/event"
+	"github.com/ralphite/agentrunner/internal/protocol"
 	"github.com/ralphite/agentrunner/internal/provider"
 )
 
@@ -44,12 +45,13 @@ func SubStateVersions() map[string]int {
 // Barrier is one folded checkpoint-barrier record (S7.2): everything a
 // fork/rewind needs to locate the cut without re-reading the raw event.
 type Barrier struct {
-	BarrierID   string                `json:"barrier_id"`
-	Seq         int64                 `json:"seq"` // the barrier event's own seq
-	GenStep     int                   `json:"gen_step,omitempty"`
-	SnapshotRef string                `json:"snapshot_ref"`
-	Vector      map[string]int64      `json:"vector"`
-	Handles     []event.BarrierHandle `json:"handles,omitempty"`
+	BarrierID     string                `json:"barrier_id"`
+	Seq           int64                 `json:"seq"` // the barrier event's own seq
+	GenStep       int                   `json:"gen_step,omitempty"`
+	SnapshotRef   string                `json:"snapshot_ref"`
+	Vector        map[string]int64      `json:"vector"`
+	Handles       []event.BarrierHandle `json:"handles,omitempty"`
+	MessageAnchor *event.MessageAnchor  `json:"message_anchor,omitempty"`
 }
 
 // Session liveness statuses. There is no terminal status (决策 #30/#31):
@@ -75,6 +77,9 @@ type State struct {
 	Handles Handles `json:"handles"`
 	// Barriers are the fork/rewind targets taken so far (S7.2), in order.
 	Barriers []Barrier `json:"barriers,omitempty"`
+	// ForkPark keeps a message-scoped child dormant until an explicit human
+	// input is durably journaled. It is intentionally separate from Waiting.
+	ForkPark *event.ForkAwaitingInput `json:"fork_awaiting_input,omitempty"`
 	// Compaction is the context-compaction view (S4.5): the summary that
 	// replaces the message prefix and the boundary it replaces up to. The
 	// full Conversation.Messages slice is kept intact (the log is truth);
@@ -487,12 +492,16 @@ type Waiting struct {
 }
 
 type Session struct {
-	Status   string `json:"status"`
-	SpecName string `json:"spec_name,omitempty"`
-	Model    string `json:"model,omitempty"`
-	Prompt   string `json:"opening_prompt,omitempty"`
-	Version  string `json:"version,omitempty"`
-	GenStep  int    `json:"gen_step"`
+	Status           string          `json:"status"`
+	SpecName         string          `json:"spec_name,omitempty"`
+	Model            string          `json:"model,omitempty"`
+	Prompt           string          `json:"opening_prompt,omitempty"`
+	Version          string          `json:"version,omitempty"`
+	OpeningCommandID string          `json:"opening_command_id,omitempty"`
+	OpeningItemID    string          `json:"opening_item_id,omitempty"`
+	OpeningContent   []provider.Part `json:"opening_content,omitempty"`
+	OpeningRejected  bool            `json:"opening_rejected,omitempty"`
+	GenStep          int             `json:"gen_step"`
 	// LastAssistantGenStep records whether the current generation already
 	// produced an assistant message. GenStep can have gaps after a denied LLM
 	// effect, so message count is not a valid completion test.
@@ -588,8 +597,12 @@ type Session struct {
 
 // ForkOrigin records where a forked session came from.
 type ForkOrigin struct {
-	ParentSession string `json:"parent_session"`
-	BarrierID     string `json:"barrier_id"`
+	ParentSession string           `json:"parent_session"`
+	BarrierID     string           `json:"barrier_id"`
+	RequestID     string           `json:"request_id,omitempty"`
+	SourceItemID  string           `json:"source_item_id,omitempty"`
+	SourceSide    string           `json:"source_side,omitempty"`
+	Draft         *event.ForkDraft `json:"draft,omitempty"`
 }
 
 // CloseMark is the folded close/kill mark (决策 #30): who marked the
@@ -649,6 +662,8 @@ func Apply(s State, env event.Envelope) (State, error) {
 	case *event.SessionStarted:
 		s.Session.Status = StatusRunning
 		s.Session.SpecName, s.Session.Model, s.Session.Prompt, s.Session.Version = p.SpecName, p.Model, p.Prompt, p.Version
+		s.Session.OpeningCommandID, s.Session.OpeningItemID = p.OpeningCommandID, p.OpeningItemID
+		s.Session.OpeningContent = append([]provider.Part(nil), p.OpeningContent...)
 		s.Session.Env = p.Env
 		s.Session.Memory, s.Session.Skills, s.Session.Agents = p.Memory, p.Skills, p.Agents
 		s.Session.CommandTools = p.CommandTools
@@ -666,6 +681,10 @@ func Apply(s State, env event.Envelope) (State, error) {
 			s.Session.ConsumedInputSeq = p.DeliverySeq
 		}
 		if p.Source != "interrupt" && p.Source != "control" {
+			if protocol.UserClassSource(p.Source) {
+				s.ForkPark = nil
+				s.Session.OpeningRejected = false
+			}
 			s.Session.GoalOutcome = ""
 			s.Session.GoalOutcomeGenStep = 0
 			parts := append([]provider.Part(nil), p.Content...)
@@ -676,11 +695,13 @@ func Apply(s State, env event.Envelope) (State, error) {
 				for _, img := range p.Images {
 					parts = append(parts, provider.Part{
 						Kind: provider.PartImage, Ref: img.Ref, MediaType: img.MediaType,
+						PartID: img.PartID, Name: img.Name,
 					})
 				}
 				for _, f := range p.Files {
 					parts = append(parts, provider.Part{
 						Kind: provider.PartFile, Ref: f.Ref, MediaType: f.MediaType,
+						PartID: f.PartID, Name: f.Name,
 					})
 				}
 			}
@@ -791,12 +812,19 @@ func Apply(s State, env event.Envelope) (State, error) {
 		s.Barriers = append(barriers, Barrier{
 			BarrierID: p.BarrierID, Seq: env.Seq, GenStep: p.GenStep,
 			SnapshotRef: p.SnapshotRef, Vector: p.Vector, Handles: p.Handles,
+			MessageAnchor: p.MessageAnchor,
 		})
 
 	case *event.ForkedFrom:
 		// Genesis of a forked session (S7.3): provenance only — every other
 		// aspect of the state comes from the copied cut that follows.
-		s.Session.ForkedFrom = &ForkOrigin{ParentSession: p.ParentSession, BarrierID: p.BarrierID}
+		s.Session.ForkedFrom = &ForkOrigin{ParentSession: p.ParentSession, BarrierID: p.BarrierID,
+			RequestID: p.RequestID, SourceItemID: p.SourceItemID, SourceSide: p.SourceSide,
+			Draft: p.Draft}
+
+	case *event.ForkAwaitingInput:
+		park := *p
+		s.ForkPark = &park
 
 	case *event.SubagentCompleted:
 		// The parent's accounting settles through the spawn activity's
@@ -1168,7 +1196,16 @@ func Apply(s State, env event.Envelope) (State, error) {
 		// turn never produced a durable assistant_message).
 
 	case *event.CommandHandled:
-		// Durable command receipt only; the domain event carries state.
+		// Durable command receipt only; the domain event carries state. A
+		// rejected conversational input is also a terminal mailbox outcome, so
+		// advance the high-water mark rather than replaying the veto forever.
+		if p.Result == "input_rejected" && p.CommandSeq > s.Session.ConsumedInputSeq {
+			s.Session.ConsumedInputSeq = p.CommandSeq
+		}
+		if p.Result == "input_rejected" && env.CommandID != "" &&
+			env.CommandID == s.Session.OpeningCommandID && len(s.Conversation.Messages) == 0 {
+			s.Session.OpeningRejected = true
+		}
 
 	case *event.ActorCrashed:
 		s.Session.LastCrash = p.Actor + ": " + p.Error
@@ -1680,6 +1717,9 @@ func (t Timers) without(id string) Timers {
 // observers (driver settle, exit codes, sweeps) read it off the shape —
 // quiescence is never an event and never a state machine.
 func Quiescence(s State) (quiescent bool, reason string) {
+	if s.ForkPark != nil {
+		return true, "waiting_input"
+	}
 	if len(s.Activities) > 0 || len(s.Handles) > 0 || len(s.Timers) > 0 {
 		return false, ""
 	}

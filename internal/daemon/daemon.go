@@ -66,6 +66,11 @@ type Command struct {
 	// next turn) or "steer" (current turn's next safe boundary). Threaded onto
 	// the durable UserInput; see protocol.UserInput.Delivery.
 	Delivery string `json:"delivery,omitempty"`
+	// Message-continuation draft claim/provenance. CommandID is the stable
+	// send_request_id; ForkDraftID lets the durable inbox reject a competing
+	// first send from another tab.
+	ForkDraftID   string `json:"fork_draft_id,omitempty"`
+	BasedOnItemID string `json:"based_on_item_id,omitempty"`
 	// Goal carries the parameters of a goal-attach / goal-update control
 	// (INC-D1). pause/resume/cancel need only the command verb.
 	Goal *protocol.GoalControl `json:"goal,omitempty"`
@@ -1314,7 +1319,8 @@ func (s *Server) handleSend(ctx context.Context, cmd Command, enc *json.Encoder)
 	in := protocol.UserInput{Text: cmd.Text, Images: cmd.Images, Files: cmd.Files,
 		Content: cmd.Content, Principal: cmd.Principal, Source: cmd.Source,
 		Trust: cmd.Trust, CommandID: cmd.CommandID, Target: target,
-		Delivery: cmd.Delivery}
+		Delivery: cmd.Delivery, ForkDraftID: cmd.ForkDraftID,
+		BasedOnItemID: cmd.BasedOnItemID}
 	in.TurnID, in.ItemID = "turn-"+cmd.CommandID, "item-"+cmd.CommandID
 	// Normalize the delivery mode at the boundary: only "steer" opts into the
 	// mid-turn safe-boundary drain; anything else is the default next-turn

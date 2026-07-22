@@ -1,7 +1,7 @@
 # INC-91 从任一消息继续到新 session
 
-> 状态：rev2 方案已通过独立 counter-review（Revised Go），尚未实施。本文固定
-> journey/spec/design delta、风险模型与双闸验收；代码阶段需另行启动。
+> 状态：实现完成，闸 A/QA-82 与实现后独立 review 全绿（2026-07-22）。
+> 本文固定 journey/spec/design delta、风险模型与双闸验收。
 
 ## 动机与 journey 锚
 
@@ -511,7 +511,7 @@ message fork 在 copied cut/handle cancellation 后追加 child-only dormant nor
 
 ### B 闸：QA-82，共享真实环境
 
-新增 `qa/run-qa82-message-level-continue.sh`，严格使用
+按以下步骤执行 QA-82，严格使用
 `~/.local/share/agentrunner/` 的全局 daemon/store，测试数据与证据全部保留在
 `qa/runs/<日期>-QA82-message-level-continue/`：
 
@@ -629,3 +629,26 @@ parent/item 进入 payload hash；(2) 完整 `CommandInput` 的 atomic CommandLo
 reviewer 最终裁决 **Revised Go**，无剩余 blocker。
 
 **本文现在可作为实现输入；实施收口仍必须再做一次三视角 review。**
+
+### 实现后独立 review 结果（2026-07-22）
+
+独立只读 reviewer 首轮给出 **No-Go（4 个 P1）**，均按失败场景修复后由同一 reviewer
+逐项复核：
+
+| finding | 修复与执行锚 | 最终状态 |
+|---|---|---|
+| top-level opening 在 genesis/mailbox 窗口 crash 会丢输入或空跑 | `SessionStarted.OpeningContent` 保存 ref-only recovery manifest；resume 重建同一 opening command，materialized inputs 先于 before-user barrier；hook veto durable settle 后保持 waiting-input | CLOSED |
+| draft 不能精确保留 interleaved content/metadata | CLI/Web/runtime 统一 ordered content manifest；exact replay 使用服务端 authoritative metadata；编辑后按 stable attachment ordinal 授权，重复 `kind/ref` 仍可唯一选中 | CLOSED |
+| fork 对 child journal 可能越过 barrier vector，staging durability 不足 | 每个 `sub/*` 只写到 barrier vector 的 exact prefix，short/torn fail closed；所有 staged file/dir fsync 后才 atomic publish，draft CAS ref 再 hash 校验 | CLOSED |
+| opening hook veto 后仍可能启动空 generation | `CommandHandled{input_rejected}` fold 为 durable `OpeningRejected`，Run/Resume 都停在 `waiting_input`，下一条成功 human input 才解除 | CLOSED |
+
+最终复核特别覆盖了 duplicate same-kind/same-ref 但 metadata 不同的场景：请求必须携带来源
+attachment ordinal，服务端校验 `ordinal + kind + ref` 并拒绝重复 ordinal；对应
+`TestAuthorizeDraftPartsPreservesOrderAndAuthoritativeMetadata` 与 Web handler tests 通过。reviewer 最终裁决
+**Go，无剩余 blocker**。
+
+实现后 QA-82 再部署到共享真实环境：child
+`20260722-085822-continue-item-cmd-3300ab9e-804836eab70c1b30` 在浏览器直接发送未编辑 draft，
+journal 精确记录 `text → image → file`、原 filename/media/ref 与
+`ForkDraftID/BasedOnItemID`，Gemini 返回 `QA82_PARENT_READY`。session/workspace/journal 与导出证据
+均保留在 `qa/runs/2026-07-22-QA82-message-level-continue/`。

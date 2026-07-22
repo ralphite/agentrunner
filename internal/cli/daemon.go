@@ -451,6 +451,7 @@ func hostRunFunc(version string, stderr io.Writer, broker *daemon.ApprovalBroker
 			Answers:           req.Answers,
 			OpeningImages:     req.Images,
 			OpeningFiles:      req.Files,
+			DurableOpening:    true,
 			// A top-level hosted session gets the auto session title (INC-52).
 			AutoTitle: true,
 			// Blackboard publishes mirror onto the attach stream (S6 模块⑤

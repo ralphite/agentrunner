@@ -29,7 +29,7 @@ import {
   WarningCircle,
   X,
 } from "@phosphor-icons/react";
-import { AR, uploadURL } from "../api";
+import { AR, sessionImageURL, uploadURL, type ForkDraft } from "../api";
 import { scheduleFieldError } from "../scheduleValidate";
 import { useStore, type NewSessionProject } from "../store";
 import {
@@ -89,7 +89,13 @@ type ComposerProps =
       workspace?: string;
       mode?: string; // the session's LIVE approval mode (SessionView lifts it from inspect; /mode switches it — INC-42)
       running?: boolean;
-      onSend: (text: string, images: string[], files: string[], delivery?: "steer" | "queue") => Promise<void>;
+      seed?: ForkDraft | null;
+      seedReleasedAt?: number;
+      focusOnMount?: boolean;
+      onSend: (text: string, images: string[], files: string[], delivery?: "steer" | "queue",
+        draft?: { draftId: string; sendRequestId: string;
+          parts: Array<{ kind: "image" | "file"; ref?: string; path?: string; ordinal?: number }>;
+          replayOriginal: boolean }) => Promise<void>;
       actions?: SessionActions;
       onError: (m: string) => void;
     };
@@ -98,6 +104,26 @@ interface Attachment {
   path: string;
   name: string;
   isImage: boolean;
+  ref?: string;
+  partId?: string;
+  draftOrdinal?: number;
+}
+
+function forkSendRequestID(sid: string, draftID: string): string {
+  const key = `arwebui.fork-send.${sid}.${draftID}`;
+  try {
+    const prior = sessionStorage.getItem(key);
+    if (prior) return prior;
+    const id = `send_${crypto.randomUUID().replaceAll("-", "_")}`;
+    sessionStorage.setItem(key, id);
+    return id;
+  } catch {
+    return `send_${crypto.randomUUID().replaceAll("-", "_")}`;
+  }
+}
+
+function forgetForkSendRequest(sid: string, draftID: string) {
+  try { sessionStorage.removeItem(`arwebui.fork-send.${sid}.${draftID}`); } catch { /* ignore */ }
 }
 
 // Last project used from the landing composer (RH-1). Codex opens New session with
@@ -165,6 +191,7 @@ export function Composer(props: ComposerProps) {
   const [text, setText] = useState(() => recallDraft(draftKey));
   useEffect(() => rememberDraft(draftKey, text), [draftKey, text]);
   const [atts, setAtts] = useState<Attachment[]>([]);
+  const forkSeeded = useRef<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
   // Delivery mode for a send to a RUNNING session (INC-43, Codex parity):
@@ -252,6 +279,44 @@ export function Composer(props: ComposerProps) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const anyRef = useRef<HTMLInputElement>(null);
   const seeded = useRef(false);
+
+  // A message-fork seed comes from the child journal. Apply it once per
+  // draft id so polling never overwrites the user's edits, and focus only
+  // after the child composer is mounted.
+  const forkSeed = isSession ? (props as Extract<ComposerProps, { variant: "session" }>).seed : null;
+  const forkSeedReleasedAt = isSession ? (props as Extract<ComposerProps, { variant: "session" }>).seedReleasedAt : 0;
+  const handledSeedRelease = useRef(0);
+  useEffect(() => {
+	if (forkSeed && forkSeedReleasedAt && handledSeedRelease.current !== forkSeedReleasedAt) {
+		handledSeedRelease.current = forkSeedReleasedAt;
+		forkSeeded.current = "";
+		forgetForkSendRequest((props as Extract<ComposerProps, { variant: "session" }>).sid, forkSeed.draft_id);
+	}
+    if (!isSession || !forkSeed || forkSeeded.current === forkSeed.draft_id) return;
+    forkSeeded.current = forkSeed.draft_id;
+    setText(forkSeed.text || "");
+    const sid = (props as Extract<ComposerProps, { variant: "session" }>).sid;
+    const ordered = (forkSeed.content || []).filter((part) =>
+      (part.kind === "image" || part.kind === "file") && part.ref).map((part, ordinal) => ({ ...part, draftOrdinal: ordinal }));
+    const legacy = ordered.length > 0 ? ordered : [
+      ...(forkSeed.images || []).map((part) => ({ ...part, kind: "image" as const })),
+      ...(forkSeed.files || []).map((part) => ({ ...part, kind: "file" as const })),
+    ].map((part, ordinal) => ({ ...part, draftOrdinal: ordinal }));
+    setAtts(legacy.map((a) => ({
+      path: a.kind === "image" ? sessionImageURL(sid, a.ref!) : "", ref: a.ref,
+      name: a.name || `${a.kind}-${a.ref!.slice(-8)}`, isImage: a.kind === "image", partId: a.part_id,
+      draftOrdinal: a.draftOrdinal,
+    })));
+    requestAnimationFrame(() => {
+      taRef.current?.focus();
+      if (taRef.current) grow(taRef.current);
+    });
+  }, [isSession, forkSeed, forkSeedReleasedAt, props]);
+  useEffect(() => {
+	if (!isSession || forkSeed || !forkSeeded.current) return;
+	forgetForkSendRequest((props as Extract<ComposerProps, { variant: "session" }>).sid, forkSeeded.current);
+	forkSeeded.current = "";
+  }, [isSession, forkSeed, props]);
 
   // Prompt optimization (INC-56 · HANDA #19): the Sparkles button / `/optimize`
   // slash rewrites the draft via `ar optimize`; the pre-optimize draft is kept
@@ -408,6 +473,11 @@ export function Composer(props: ComposerProps) {
     if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) return;
     taRef.current?.focus();
   }, [isSession]);
+
+  useEffect(() => {
+    if (!isSession || !(props as Extract<ComposerProps, { variant: "session" }>).focusOnMount) return;
+    requestAnimationFrame(() => taRef.current?.focus());
+  }, [isSession, isSession ? (props as Extract<ComposerProps, { variant: "session" }>).sid : ""]);
 
   // Same-basename projects ("ws", "Scratch") get a short disambiguating
   // subtitle in the picker; uniquely-named ones stay clean (W4). Computed over
@@ -578,7 +648,7 @@ export function Composer(props: ComposerProps) {
   // (Codex parity). Only meaningful for a running session; ignored otherwise.
   const doSubmit = async (opposite = false) => {
     const t = text.trim();
-    if (!t || busy) return;
+    if ((!t && atts.length === 0) || busy) return;
 
     // Slash command? Run it instead of sending.
     const cmd = parseSlash(t, props.variant);
@@ -590,15 +660,56 @@ export function Composer(props: ComposerProps) {
     setBusy(true);
     try {
       if (isSession) {
-        const imgs = atts.filter((a) => a.isImage).map((a) => a.path);
-        const files = atts.filter((a) => !a.isImage).map((a) => a.path);
+        const imgs = atts.filter((a) => a.isImage && !a.ref).map((a) => a.path);
+        const files = atts.filter((a) => !a.isImage && !a.ref).map((a) => a.path);
         // Delivery mode only matters while a turn is running; at idle a send just
         // starts the next turn either way, so leave it undefined then.
         const effective: "steer" | "queue" | undefined = running
           ? (opposite ? (deliveryMode === "queue" ? "steer" : "queue") : deliveryMode)
           : undefined;
+        const sessionID = (props as Extract<ComposerProps, { variant: "session" }>).sid;
+        const draftParts: Array<{
+          kind: "image" | "file";
+          ref?: string;
+          path?: string;
+          ordinal?: number;
+        }> = atts.map((a) => ({
+          kind: a.isImage ? "image" : "file",
+          ...(a.ref ? { ref: a.ref, ordinal: a.draftOrdinal } : { path: a.path }),
+        }));
+        const originalParts = forkSeed
+          ? (forkSeed.content || [])
+              .filter((part) => (part.kind === "image" || part.kind === "file") && part.ref)
+              .map((part, ordinal) => ({
+                kind: part.kind as "image" | "file",
+                ref: part.ref!,
+                ordinal,
+              }))
+          : [];
+        const legacyOriginal = forkSeed && originalParts.length === 0
+          ? [
+              ...(forkSeed.images || []).map((part) => ({ kind: "image" as const, ref: part.ref })),
+              ...(forkSeed.files || []).map((part) => ({ kind: "file" as const, ref: part.ref })),
+            ].map((part, ordinal) => ({ ...part, ordinal }))
+          : originalParts;
+        const replayOriginal = !!forkSeed && text === (forkSeed.text || "") &&
+          draftParts.length === legacyOriginal.length && draftParts.every((part, i) =>
+            !!part.ref && part.kind === legacyOriginal[i].kind && part.ref === legacyOriginal[i].ref &&
+            part.ordinal === legacyOriginal[i].ordinal);
+        const draftSend = forkSeed ? {
+          draftId: forkSeed.draft_id,
+          sendRequestId: forkSendRequestID(sessionID, forkSeed.draft_id),
+          parts: draftParts,
+          replayOriginal,
+        } : undefined;
+        await (props as Extract<ComposerProps, { variant: "session" }>).onSend(
+          forkSeed ? text : t,
+          imgs,
+          files,
+          effective,
+          draftSend,
+        );
         resetInput();
-        await (props as Extract<ComposerProps, { variant: "session" }>).onSend(t, imgs, files, effective);
       } else if (kind === "chat") {
         const workspace = await resolveHomeWorkspace();
         const spec = buildSpec({ provider, model, access, persona, effort, budgetOverride });
@@ -994,7 +1105,7 @@ export function Composer(props: ComposerProps) {
     // message (INC-43, Codex parity). Stop it here so it doesn't bubble to the
     // global ⌘↵ = approve handler; an EMPTY composer lets it through to approve.
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-      if (running && text.trim()) {
+      if (running && (text.trim() || atts.length > 0)) {
         e.preventDefault();
         e.stopPropagation();
         doSubmit(true);
@@ -1744,7 +1855,7 @@ export function Composer(props: ComposerProps) {
 
           {/* send — or Stop while a turn is running and nothing is typed
               (W30: stopping shouldn't require finding the topbar button) */}
-          {isSession && (props as { running?: boolean }).running && !text.trim() ? (
+          {isSession && (props as { running?: boolean }).running && !text.trim() && atts.length === 0 ? (
             <button
               className="cx-send cx-stop"
               onClick={() => (props as { actions?: SessionActions }).actions?.interrupt?.()}
@@ -1757,7 +1868,7 @@ export function Composer(props: ComposerProps) {
             <button
               className="cx-send"
               onClick={() => doSubmit()}
-              disabled={busy || !text.trim()}
+              disabled={busy || (!text.trim() && atts.length === 0)}
               title={running ? `Send · ${deliveryMode} (⌘⏎ to ${deliveryMode === "queue" ? "steer" : "queue"})` : "Send (Enter)"}
             >
               <ArrowUp />
