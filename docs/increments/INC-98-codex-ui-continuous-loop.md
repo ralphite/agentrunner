@@ -123,6 +123,18 @@ INC-98 将该方法固化为持续循环：
   `Cancelled` 或 `Failed`；成功复制格式保持不变，避免给既有脚本增加噪音。复制仍只落本机
   clipboard，不改 journal/tool result；long output 继续使用已有 240px 内部滚动与 20k
   bounded projection，不能把整个 timeline 撑高或伪装未截断内容。
+- **98.3c queue/steer design note**：运行中消息只有一个 truthful projection：`steer`
+  在 daemon journal 落 `input_received` 前用 timeline 的 `steering…` optimistic bubble；
+  `queue` 一旦 `send` receipt 成功便已进入 durable queue，应立刻切换成唯一的可撤回
+  Queued card，不能同时保留 timeline `queued…` 副本。实测旧实现把 queue optimistic bubble
+  一直等到未来 `input_received` 才移除，因而正常排队时重复显示；Withdraw 后永远不会有
+  `input_received`，更留下直到 reload 的幽灵消息。最小修复不改 daemon/order/unqueue API：
+  queue receipt 成功后前端立即刷新 `/queue` 并移除对应 optimistic bubble；steer 仍等真实
+  journal receipt，保留其“正在注入当前 turn”的反馈。Queued card 顺序继续严格使用 backend
+  返回顺序，不增加没有 domain contract 的拖拽重排。为取得 Codex 同态 running 交互，capture
+  driver 新增白名单 `--thread-composer-send`：只操作当前已打开 thread 的 composer，支持
+  Enter/Cmd+Enter，提交前后各以 Vision OCR fail-closed；不搜索历史、不切项目、不关闭 thread，
+  真实创建的 follow-up 永久保留。
 
 ## Spec delta
 

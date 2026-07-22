@@ -359,6 +359,54 @@ describe("single Stop entry point", () => {
   });
 });
 
+describe("running Queue projection", () => {
+  it("replaces the optimistic bubble with one withdrawable durable card", async () => {
+    const text = "keep this for the next turn";
+    arMock.send = vi.fn(async () => ({ status: "queued" }));
+    arMock.queue = vi.fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([{ command_id: "cmd-queue-1", text, revoked: false }]);
+    arMock.unqueue = vi.fn(async () => ({ status: "revoked" }));
+    useStore.setState({
+      sessions: [{ id: SID, title: "running session", status: "running", workspace: "/tmp/wt-th14" } as any],
+    });
+
+    const { container } = render(<SessionView sid={SID} />);
+    await waitFor(() => expect(container.querySelector('[role="group"][aria-label="Delivery mode"]')).not.toBeNull());
+
+    fireEvent.change(screen.getByPlaceholderText("Ask for follow-up changes"), { target: { value: text } });
+    fireEvent.click(container.querySelector("button.cx-send:not(.cx-stop)")!);
+
+    await waitFor(() => expect(arMock.send).toHaveBeenCalledWith(SID, text, [], [], "queue", undefined));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Withdraw" })).toBeTruthy());
+    expect(screen.getAllByText(text)).toHaveLength(1);
+    expect(screen.queryByText("queued…")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Withdraw" }));
+    await waitFor(() => expect(arMock.unqueue).toHaveBeenCalledWith(SID, "cmd-queue-1"));
+    await waitFor(() => expect(screen.queryByText(text)).toBeNull());
+  });
+
+  it("uses Cmd+Enter to send one message with the opposite Steer mode", async () => {
+    const text = "steer the current turn";
+    arMock.send = vi.fn(async () => ({ status: "steering" }));
+    useStore.setState({
+      sessions: [{ id: SID, title: "running session", status: "running", workspace: "/tmp/wt-th14" } as any],
+    });
+
+    const { container } = render(<SessionView sid={SID} />);
+    await waitFor(() => expect(container.querySelector('[role="group"][aria-label="Delivery mode"]')).not.toBeNull());
+    const composer = screen.getByPlaceholderText("Ask for follow-up changes");
+    fireEvent.change(composer, { target: { value: text } });
+    fireEvent.keyDown(composer, { key: "Enter", metaKey: true });
+
+    await waitFor(() => expect(arMock.send).toHaveBeenCalledWith(SID, text, [], [], "steer", undefined));
+    expect(screen.getByText(text)).toBeTruthy();
+    expect(screen.getByText("steering…")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Withdraw" })).toBeNull();
+  });
+});
+
 // INC-41 RD-B · the Environment rail is a floating card, not a layout column.
 // It used to be a 288px grid track: opening it re-laid-out the conversation
 // (main 1176→888, the thread's text column sliding 144px left) — a glance at the

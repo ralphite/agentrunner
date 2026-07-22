@@ -546,6 +546,20 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     setPending((p) => [...p, { id, text, imgs: images, files: files.length, delivery }]);
     try {
       await AR.send(sid, text, images, files, delivery, draft);
+      if (delivery === "queue") {
+        // Queue has its own durable, withdrawable projection. Once send has
+        // acknowledged it, keeping the optimistic timeline bubble would show
+        // the same message twice; after Withdraw it would become a ghost
+        // forever because a revoked command never emits input_received.
+        setPending((p) => p.filter((x) => x.id !== id));
+        try {
+          const q = await AR.queue(sid);
+          setQueued(Array.isArray(q) ? q : []);
+        } catch {
+          // The regular poll will recover the durable queue card. Do not put
+          // back a projection that can no longer be withdrawn truthfully.
+        }
+      }
     } catch (e: any) {
       toast(e.message);
       setPending((p) => p.filter((x) => x.id !== id));

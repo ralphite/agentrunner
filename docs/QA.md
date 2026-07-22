@@ -1892,6 +1892,14 @@ shared-store QA data → recapture → 与同 viewport/state 的 AgentRunner 合
 | long Copy | 可见窗口只显示前几行，但 clipboard 长度 15,448，含完整 command 与 stdout 末尾 `policy-engine.ts`；不是只复制 viewport 或 summary |
 | 边界 | TH-02 仍 UNTESTED：Codex Desktop 的 expanded long/error tool 同态尚未安全取得；本批只把 AgentRunner 真实状态与确定性回归钉牢，不连带判绿 |
 
+| 98.3c 动作 | 硬断言 |
+|---|---|
+| Codex running follow-up | capture driver 真实创建 `sleep 90` thread；当前 thread composer 用 Enter 提交 follow-up，出现唯一 queued row（正文、`Steer`、delete/menu）；点击 `Steer` 后 row 立即消失，source thread 保留 |
+| AgentRunner queue/Withdraw | shared `20260713-023816-qa5-queue-test-qa5q193816-use-c6c5` 的真实 `sleep 45` 中 Queue；修前同时显示 timeline `queued…` 与 durable Queued card，Withdraw 后前者成为 reload 前幽灵；修后 receipt 立即切成唯一 durable card，Withdraw 后零残影 |
+| Cmd+Enter / steer | default Queue 时 `⌘⏎` 单次以 Steer 提交；timeline 只在 journal `input_received` 前显示 `steering…`，不生成 Withdraw card；事件 seq 落在当前 turn 的 final/waiting 之前 |
+| order / 重排边界 | `/queue` 顺序即 backend `delivery_seq`，UI 不自造 drag reorder；Codex queued→Steer 需要原 command identity/order 的原子 backend verb，我方缺 G47，禁止 `unqueue + resend` 两步竞态 |
+| driver | 新增 `--thread-composer-send` + Enter/Cmd+Enter 白名单；提交前后 OCR fail-closed，拒绝时自动清掉本次 synthetic draft；真实 follow-up 永久保留 |
+
 **98.1 证据**：`qa/runs/2026-07-22-QA88-codex-ui-continuous-loop/` 保存
 accepted/rejected screenshots、browser logs、driver stderr contract、health 与工作区 diff。
 首批未创建、关闭、删除或清理 AgentRunner session/workspace/journal；后续若产生测试
@@ -1946,3 +1954,8 @@ reference 的 combined comparison、DOM/action/clipboard/CLI inspect 与 health/
 collapsed/Worked/tool 三级截图、15,393-char stdout 内滚动截图、DOM geometry、clipboard、
 events/health/logs/gate。两个 source session/workspace/journal 都是既有 shared data，保持原状；
 未 Send、Retry、Approve/Deny、关闭、删除或清理。
+
+**98.3c 证据**：`qa/runs/2026-07-22-QA88-98.3c-queue-steer/` 保存 Codex
+running/queued/promoted-steer、AgentRunner 修前重复/Withdraw 幽灵与 clean deployment 修后
+单卡/撤回/steering、双侧同 viewport comparison、events/queue/health/logs/gate。Codex 与
+AgentRunner 测试 thread/session、workspace、journal 全保留；不关闭、不删除、不清理。

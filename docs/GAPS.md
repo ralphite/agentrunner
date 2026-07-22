@@ -51,7 +51,7 @@
 | UJ-21 崩溃自愈与重启接续 | 🟡 | 恢复语义✅（resume/in-doubt/终态把关，QA-08）；**自动性缺**：boot sweep、子 crash 自动 resume（G22）（2026-07-05 新增行） |
 | UJ-22 会话内目标 | ✅ | **G23 已关闭（INC-D1）**——in-session goal 挂会话、context 延续；决策 #21 拆两形态 |
 | UJ-23 工程团队模拟 | ✅ | INC-12：动态角色、横向消息、revive、用户直达与子会话 live 全通 |
-| UJ-24 Web UI 驾驶 AgentRunner | ✅ | INC-19/23/29/38/40/41/57/60/91/97：Codex 式信息架构 + truthful progressive hydration + environment composer/worktree + Worked/Changes + hover actions + message-level durable Continue（human-before/final-assistant-after、multimodal draft、atomic/idempotent dormant child）+ 不重排 thread 的 Environment 浮动卡 + 内联审批 + responsive Supervision/recovery/Scheduled/a11y；QA-27/34/36/41/42/43/60/61/82/87；可选 message feedback telemetry 缺口见 G46（不阻断主 journey） |
+| UJ-24 Web UI 驾驶 AgentRunner | ✅ | INC-19/23/29/38/40/41/57/60/91/97：Codex 式信息架构 + truthful progressive hydration + environment composer/worktree + Worked/Changes + hover actions + message-level durable Continue（human-before/final-assistant-after、multimodal draft、atomic/idempotent dormant child）+ 不重排 thread 的 Environment 浮动卡 + 内联审批 + responsive Supervision/recovery/Scheduled/a11y；QA-27/34/36/41/42/43/60/61/82/87；可选 message feedback telemetry 缺 G46、queued→steer 原子提升缺 G47（均不阻断主 journey） |
 
 **汇总（2026-07-11 更新）**：20 通 · 3 部分 · 1 卡死。G14 已关闭
 （INC-50 webhook ingress），UJ-12 转部分；剩余卡死集中在云环境
@@ -681,6 +681,18 @@ TERM-resistant 孙进程可变孤儿。统一 advisory flock + unique temp fsync
 严格输入 cap/EOF、显式流错误与 64-bit entropy，并按 PGID 确认/升级取消后，
 针对性 race 与全量 gate 通过；共享 store/Web UI 重启验收见 QA-67。
 → UJ-01/04/09/17/18/24
+
+**G47 已排队消息原子提升为 Steer 的 backend contract 缺失 — ❌ 开放（INC-98.3c 实窗取证，中）**
+Codex Desktop 在 running turn 的 queued row 上提供 `Steer`，点击后该 row 立即从 queue
+消失，并在当前 turn 的安全边界注入；这不是 composer 下一条消息的模式开关。AgentRunner
+现有 durable 命令只有 `send --steer` 与 `unqueue <command_id>`，没有“以原 command id/
+delivery seq 原子 promote”的 daemon verb/event/API。前端若用 `unqueue` 成功后再 `send
+--steer` 会在两步间遇到 turn settle/restart/network failure，产生丢消息、重复投递、相对
+顺序漂移或幂等身份变化，故不得拼接假实现。关闭前需裁决：promote 的原子 journal event、
+原 command identity/delivery seq 是否保留、与更早 queue 的顺序、高水位、settle/replay、
+并发 Withdraw/consume 的冲突回执，以及 Web UI loading/error/disabled 状态；再补真实 daemon
+重启与双命令竞态 QA。证据：`qa/runs/2026-07-22-QA88-98.3c-queue-steer/18..19`。
+→ UJ-07/UJ-24
 
 **G46 assistant message feedback（👍/👎）持久化与回执缺失 — ❌ 开放（INC-98.3a 实窗取证，低）**
 Codex Desktop 在最终 assistant answer 的常驻动作行提供 thumbs up/down；AgentRunner 当前

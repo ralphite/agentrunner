@@ -9,6 +9,8 @@ usage: qa/capture-codex-ui.sh [--command-palette [--palette-query TEXT] | --surf
                               --new-chat-control NAME [--control-query TEXT] |
                               --composer-text TEXT --composer-validate VISIBLE_TEXT |
                               --composer-send TEXT --composer-validate VISIBLE_TEXT |
+                              --thread-composer-send TEXT --composer-validate VISIBLE_TEXT
+                                [--thread-shortcut enter|cmd-enter] |
                               --context-menu VISIBLE_TEXT | --keyboard-context-menu VISIBLE_TEXT |
                               --account-menu | --user-menu]
                               [--settle SECONDS] [--restore-query TEXT] [--output PATH]
@@ -25,6 +27,8 @@ Captures the largest on-screen layer-0 window owned by bundle com.openai.codex.
 --control-query enters read-only search text in an opened New chat picker.
 --composer-text fills an unsent New chat draft, captures it, then clears it.
 --composer-send fills and submits a New chat prompt, then retains the created thread.
+--thread-composer-send submits a follow-up in the currently open thread without navigating away.
+--thread-shortcut chooses Enter or Cmd+Enter for that follow-up (default: enter).
 --composer-validate is a short visible substring required in the draft/thread capture.
 --context-menu OCR-locates visible sidebar text, right-clicks it, captures the menu,
   then dismisses it with Escape. Matches are restricted to the sidebar.
@@ -44,6 +48,7 @@ new_chat_control=""
 control_query=""
 composer_text=""
 composer_validate=""
+thread_shortcut="enter"
 context_target=""
 restore_query=""
 settle_seconds=1
@@ -107,6 +112,23 @@ while (($#)); do
       composer_text="$2"
       surface="new-chat"
       mode="composer-send"
+      shift 2
+      ;;
+    --thread-composer-send)
+      if (($# < 2)) || [[ -z "$2" ]]; then
+        echo "capture-codex-ui: --thread-composer-send requires text" >&2
+        exit 2
+      fi
+      composer_text="$2"
+      mode="thread-composer-send"
+      shift 2
+      ;;
+    --thread-shortcut)
+      if (($# < 2)) || [[ "$2" != "enter" && "$2" != "cmd-enter" ]]; then
+        echo "capture-codex-ui: --thread-shortcut requires enter or cmd-enter" >&2
+        exit 2
+      fi
+      thread_shortcut="$2"
       shift 2
       ;;
     --composer-validate)
@@ -209,8 +231,13 @@ if [[ -n "$composer_text" && -z "$composer_validate" ]]; then
   echo "capture-codex-ui: composer text/send requires --composer-validate" >&2
   exit 2
 fi
-if [[ -n "$composer_validate" && "$mode" != "composer-text" && "$mode" != "composer-send" ]]; then
-  echo "capture-codex-ui: --composer-validate requires --composer-text or --composer-send" >&2
+if [[ -n "$composer_validate" && "$mode" != "composer-text" && "$mode" != "composer-send" &&
+      "$mode" != "thread-composer-send" ]]; then
+  echo "capture-codex-ui: --composer-validate requires --composer-text, --composer-send, or --thread-composer-send" >&2
+  exit 2
+fi
+if [[ "$thread_shortcut" != "enter" && "$mode" != "thread-composer-send" ]]; then
+  echo "capture-codex-ui: --thread-shortcut requires --thread-composer-send" >&2
   exit 2
 fi
 if [[ -n "$control_query" && "$new_chat_control" != "project" && "$new_chat_control" != "branch" ]]; then
@@ -282,6 +309,7 @@ transient_open=0
 nested_open=0
 starter_seeded=0
 composer_seeded=0
+thread_composer_seeded=0
 goal_enabled=0
 plan_enabled=0
 ocr_capture=""
@@ -483,6 +511,11 @@ let matches = (request.results ?? []).compactMap { observation -> (Bool, Float, 
       observation.boundingBox.midY > 0.05 && observation.boundingBox.midY < 0.35
   case "main":
     inRegion = observation.boundingBox.midX > 0.30 && observation.boundingBox.midY > 0.05
+  case "thread":
+    inRegion = observation.boundingBox.midX > 0.30 && observation.boundingBox.midY > 0.20
+  case "thread-tail":
+    inRegion = observation.boundingBox.midX > 0.30 &&
+      observation.boundingBox.midY > 0.06 && observation.boundingBox.midY < 0.30
   default:
     inRegion = false
   }
@@ -654,6 +687,16 @@ close_transient() {
     screencapture -x -o -t png -l "$window_id" "$ocr_capture"
     window_text_center "$ocr_capture" "Explore and" "starter" >/dev/null
     composer_seeded=0
+  fi
+  if ((thread_composer_seeded)); then
+    # A rejected current-thread interaction must not leave its synthetic draft
+    # in the user's composer. Unlike New chat, do not navigate or expect starter
+    # cards here; only clear the exact lower composer we just seeded.
+    thread_composer_x=$(awk -v x="$window_x" -v w="$window_width" 'BEGIN { print x + w * 0.55 }')
+    thread_composer_y=$(awk -v y="$window_y" -v h="$window_height" 'BEGIN { print y + h - 80 }')
+    send_click "$thread_composer_x" "$thread_composer_y"
+    clear_focused_text
+    thread_composer_seeded=0
   fi
   if [[ -n "$ocr_capture" && -f "$ocr_capture" ]]; then
     rm -f -- "$ocr_capture"
@@ -843,10 +886,12 @@ if [[ "$mode" == "composer-text" || "$mode" == "composer-send" ]]; then
   fi
   ocr_capture=$(mktemp -t codex-composer-text)
   screencapture -x -o -t png -l "$window_id" "$ocr_capture"
-  composer_point=$(window_text_center "$ocr_capture" "Full access" "composer")
-  IFS=$'\t' read -r composer_x composer_y <<<"$composer_point"
-  composer_x=$(awk -v x="$composer_x" 'BEGIN { print x + 250 }')
-  composer_y=$(awk -v y="$composer_y" 'BEGIN { print y - 40 }')
+  # First prove we are on the New chat starter, then click the stable textarea
+  # body. Its low-contrast placeholder is not consistently emitted by Vision;
+  # the old Full-access-relative offset also drifted when the chip row changed.
+  window_text_center "$ocr_capture" "What should we build" "main" >/dev/null
+  composer_x=$(awk -v x="$window_x" -v w="$window_width" 'BEGIN { print x + w * 0.55 }')
+  composer_y=$(awk -v y="$window_y" -v h="$window_height" 'BEGIN { print y + h - 80 }')
   send_click "$composer_x" "$composer_y"
   composer_seeded=1
   send_text "$composer_text"
@@ -854,6 +899,11 @@ if [[ "$mode" == "composer-text" || "$mode" == "composer-send" ]]; then
   rm -f -- "$ocr_capture"
   ocr_capture=$(mktemp -t codex-composer-text-validate)
   screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  if [[ "${CODEX_CAPTURE_DEBUG:-0}" == "1" ]]; then
+    draft_debug="${output%.*}-draft-debug.png"
+    cp -- "$ocr_capture" "$draft_debug"
+    echo "capture-codex-ui: composer draft frame saved to $draft_debug" >&2
+  fi
   window_text_center "$ocr_capture" "$composer_validate" "composer" >/dev/null
   if [[ "$mode" == "composer-send" ]]; then
     send_key 36
@@ -864,7 +914,7 @@ if [[ "$mode" == "composer-text" || "$mode" == "composer-send" ]]; then
       rm -f -- "$ocr_capture"
       ocr_capture=$(mktemp -t codex-composer-send-validate)
       screencapture -x -o -t png -l "$window_id" "$ocr_capture"
-      if window_text_center "$ocr_capture" "$composer_validate" "main" >/dev/null 2>&1; then
+      if window_text_center "$ocr_capture" "$composer_validate" "thread" >/dev/null 2>&1; then
         send_validated=1
         break
       fi
@@ -874,6 +924,52 @@ if [[ "$mode" == "composer-text" || "$mode" == "composer-send" ]]; then
       echo "capture-codex-ui: submitted prompt did not appear in the thread" >&2
       exit 1
     fi
+  fi
+fi
+
+if [[ "$mode" == "thread-composer-send" ]]; then
+  if (( ${window_width%.*} < 900 )); then
+    echo "capture-codex-ui: thread composer send requires a desktop-width Codex window" >&2
+    exit 1
+  fi
+  # Current-thread follow-ups intentionally do not navigate to New chat. Use
+  # the stable lower composer body, then fail closed twice: the draft must be
+  # visible before key submission and the same text must appear in the thread.
+  composer_x=$(awk -v x="$window_x" -v w="$window_width" 'BEGIN { print x + w * 0.55 }')
+  composer_y=$(awk -v y="$window_y" -v h="$window_height" 'BEGIN { print y + h - 80 }')
+  send_click "$composer_x" "$composer_y"
+  send_text "$composer_text"
+  thread_composer_seeded=1
+  sleep "$settle_seconds"
+  rm -f -- "$ocr_capture" 2>/dev/null || true
+  ocr_capture=$(mktemp -t codex-thread-composer-validate)
+  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  # The current thread composer sits partly above Vision's narrow New-chat
+  # composer band once the thread grows. The token is unique and not yet in the
+  # timeline, so the broader main region remains a fail-closed draft check.
+  window_text_center "$ocr_capture" "$composer_validate" "main" >/dev/null
+  if [[ "$thread_shortcut" == "cmd-enter" ]]; then
+    send_key 36 1
+  else
+    send_key 36
+  fi
+  sleep "$settle_seconds"
+  thread_send_validated=0
+  for _ in {1..15}; do
+    rm -f -- "$ocr_capture"
+    ocr_capture=$(mktemp -t codex-thread-send-validate)
+    screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+    if window_text_center "$ocr_capture" "$composer_validate" "thread-tail" >/dev/null 2>&1 ||
+       window_text_center "$ocr_capture" "$composer_validate" "thread" >/dev/null 2>&1; then
+      thread_send_validated=1
+      thread_composer_seeded=0
+      break
+    fi
+    sleep 1
+  done
+  if ((thread_send_validated == 0)); then
+    echo "capture-codex-ui: submitted follow-up did not appear in the current thread" >&2
+    exit 1
   fi
 fi
 

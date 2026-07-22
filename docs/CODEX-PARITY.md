@@ -299,8 +299,8 @@ GAPS；`INTENTIONAL` 必须说明不属于哪条 journey。
 未稳定的 Pull Requests skeleton，明确拒收；稳定图为 `10`。以下未填证据的行就是
 后续 loop 的执行队列，不能因同组另一行通过而批量判绿。
 
-**98.3a 盘点**：79 行 = `PASS 18 / GAP 7 / INTENTIONAL 4 / BLOCKED 1 /
-UNTESTED 49`。PASS 中 New session/Scheduled/Environment/Thread 各有多行交叉锚，因此它们
+**98.3c 盘点**：79 行 = `PASS 18 / GAP 8 / INTENTIONAL 4 / BLOCKED 1 /
+UNTESTED 48`。PASS 中 New session/Scheduled/Environment/Thread 各有多行交叉锚，因此它们
 不是 7 个完整页面已测完；任何组内仍有 UNTESTED 就继续留在 loop。
 
 ### 7.1 Global shell 与 Codex-only 主入口
@@ -347,7 +347,7 @@ UNTESTED 49`。PASS 中 New session/Scheduled/Environment/Thread 各有多行交
 | TH-03 | Markdown：heading/list/table/code/mermaid/math/link/media | GAP | 基础/mermaid 历史已测；math 缺 G38；其余需当前对标 |
 | TH-04 | Worked duration、Copy、feedback、Open artifact | GAP | 2026-07-22 `QA88-98.3a-thread-actions/01..03/05..08`：Worked/tool 两级展开、message/tool Copy 内容、artifact Open/Download URL 与 file Review 实测通过；Codex 👍/👎 feedback 缺 backend event/identity/privacy/receipt，G46；不画假按钮 |
 | TH-05 | message Continue：human/final/legacy/attachment-only | PASS | QA-82 + 2026-07-22 `QA88-98.3a-thread-actions/04`：human-before 生成零 turn dormant child + recorded draft；final-assistant-after 生成完整 cut dormant child；parent 不变，legacy/非 final/attachment-only 仍由 QA-82 锚 |
-| TH-06 | queue/steer toggle、queued bubbles、⌘⏎、reorder 边界 | UNTESTED | — |
+| TH-06 | queue/steer toggle、queued bubbles、⌘⏎、reorder 边界 | GAP | 2026-07-22 `QA88-98.3c-queue-steer/01..08/17..19`：双侧真实 long tool + running follow-up；我方 Queue/Steer toggle、Cmd+Enter opposite mode、durable order/Withdraw 通过，并修 queue optimistic+durable 双影及 Withdraw 幽灵；Codex queued row 可原子 `Steer`，我方 backend 只有 unqueue/send 两条非原子命令，缺 G47，禁止竞态拼接 |
 | TH-07 | running Stop/interrupt、partial output、recovery | UNTESTED | — |
 | TH-08 | ask_user waiting、answer、reload、cancel 边界 | UNTESTED | — |
 | TH-09 | approval：details/approve/deny/child approval/reload | UNTESTED | 不替用户决定真实高风险审批；使用 QA spec |

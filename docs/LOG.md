@@ -6639,3 +6639,26 @@ reader view 默认折为 `Worked for 1s`，两级展开后同时显示 command/s
 不以单侧通过冒充 parity。targeted 14 tests、frontend 68 files/695 tests、production build 与
 `./scripts/check.sh` 全绿；clean deployment stamp 归档于 evidence `health.json`。证据根：
 `qa/runs/2026-07-22-QA88-98.3b-tool-states/`。INC-98/G42/QA-88 继续开放。
+
+---
+
+## 2026-07-22 · INC-98.3c Queue/Steer 单一投影与 Codex current-thread driver
+
+**双侧实证**：Codex 真实 `sleep 90` running thread 中，Enter follow-up 生成底部唯一 queued
+row，带 `Steer`/delete/menu；点击 `Steer` 后 row 立即消失并转入当前 turn。AgentRunner shared
+`QA5 queue` session 在真实 `sleep 45` 中同时出现 timeline `queued…` 与 durable Queued card；
+Withdraw 只撤 card，optimistic bubble 因 revoked command 永无 `input_received` 而成为 reload
+前幽灵。
+
+**修复**：queue `send` receipt 成功后立即移除 optimistic bubble 并刷新 `/queue`；steer 仍
+等 journal `input_received` 才替换，故两种投递各只有一个 truthful projection。新增
+SessionView 回归钉唯一 card、Withdraw 零残影、default Queue 下 Cmd+Enter 单次反选为 Steer。
+capture driver 新增当前 thread follow-up + Enter/Cmd+Enter，并补拒绝清 draft；New chat focus
+改以已验证 starter + 窗口相对 composer body，不依赖会漂的 chip offset/低对比 placeholder。
+
+**gap 裁决**：Codex queued row 的原子 `Steer` 不能用我方现有 `unqueue + send --steer` 两步
+拼接，否则有丢失/重复/顺序/幂等竞态；新增 G47，TH-06 记 GAP。矩阵变为 `PASS 18 /
+GAP 8 / INTENTIONAL 4 / BLOCKED 1 / UNTESTED 48`。targeted 17 tests、frontend 68
+files/697 tests、production build 与 `./scripts/check.sh` 全绿；clean deployment stamp 与
+post-fix shared-browser 证据归档于 evidence。根：`qa/runs/2026-07-22-QA88-98.3c-queue-steer/`。
+INC-98/G42/QA-88 继续开放。
