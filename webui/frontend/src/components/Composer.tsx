@@ -31,7 +31,7 @@ import {
 } from "@phosphor-icons/react";
 import { AR, uploadURL } from "../api";
 import { scheduleFieldError } from "../scheduleValidate";
-import { useStore } from "../store";
+import { useStore, type NewSessionProject } from "../store";
 import {
   ACCESS_LEVELS,
   accessById,
@@ -77,7 +77,12 @@ export interface SessionActions {
 }
 
 type ComposerProps =
-  | { variant: "home"; onError: (m: string) => void; onProjectChange?: (label: string | null) => void }
+  | {
+      variant: "home";
+      onError: (m: string) => void;
+      onProjectChange?: (label: string | null) => void;
+      projectSeed?: NewSessionProject;
+    }
   | {
       variant: "session";
       sid: string;
@@ -246,6 +251,7 @@ export function Composer(props: ComposerProps) {
 
   const taRef = useRef<HTMLTextAreaElement>(null);
   const anyRef = useRef<HTMLInputElement>(null);
+  const seeded = useRef(false);
 
   // Prompt optimization (INC-56 · HANDA #19): the Sparkles button / `/optimize`
   // slash rewrites the draft via `ar optimize`; the pre-optimize draft is kept
@@ -325,7 +331,23 @@ export function Composer(props: ComposerProps) {
   // repo instead of a chip that says "Select project" under a headline that
   // names one (RH-1). Runs at most once, and never when the user has an explicit
   // stored choice — including the explicit "no project" ("").
-  const seeded = useRef(false);
+  // A project-row New chat shortcut changes the Home composer's project in
+  // place. Do not remount: a user already on Home may have a draft, attachments,
+  // model or access choice that must survive the navigation intent.
+  const projectSeed = !isSession ? (props as Extract<ComposerProps, { variant: "home" }>).projectSeed : undefined;
+  useEffect(() => {
+    const workspace = projectSeed?.workspace.trim();
+    const requestId = projectSeed?.requestId;
+    if (isSession || !workspace || requestId === undefined) return;
+    seeded.current = true;
+    setWs(workspace);
+    rememberProject(workspace);
+    setProjectQuery("");
+    setProjectMenuPage("projects");
+    requestAnimationFrame(() => taRef.current?.focus());
+    useStore.getState().consumeNewSessionProject(requestId);
+  }, [isSession, projectSeed?.requestId]);
+
   useEffect(() => {
     if (isSession || seeded.current || recallProject() !== null) return;
     const candidate = allWorkspaces.find((w) => {

@@ -49,6 +49,11 @@ interface ToastMsg {
 // routes to a matching hash (#scheduled).
 export type Page = "home" | "scheduled";
 
+export interface NewSessionProject {
+  workspace: string;
+  requestId: number;
+}
+
 interface AppState {
   health: Health | null;
   sessions: Session[];
@@ -62,6 +67,12 @@ interface AppState {
   currentSid: string | null;
   currentRunId: string | null;
   currentPage: Page;
+  // One-shot intent from a project-row New chat shortcut. The request id lets
+  // an already-mounted Home composer react even when the same project is
+  // chosen twice in a row, without remounting and losing its draft/settings.
+  newSessionProject: NewSessionProject | null;
+  newSessionForProject: (workspace: string) => void;
+  consumeNewSessionProject: (requestId: number) => void;
   modal: ModalKind;
   prompt: PromptState | null;
   toasts: ToastMsg[];
@@ -135,6 +146,7 @@ interface AppState {
 }
 
 let toastSeq = 0;
+let newSessionProjectSeq = 0;
 
 const ARCHIVE_KEY = "arwebui.archived";
 function loadArchived(): string[] {
@@ -259,6 +271,21 @@ export const useStore = create<AppState>((set, get) => ({
   currentSid: null,
   currentRunId: null,
   currentPage: "home",
+  newSessionProject: null,
+  newSessionForProject: (workspace) => {
+    const normalized = workspace.trim().replace(/\/+$/, "");
+    if (!normalized) return;
+    set({
+      currentSid: null,
+      currentRunId: null,
+      currentPage: "home",
+      newSessionProject: { workspace: normalized, requestId: ++newSessionProjectSeq },
+    });
+    location.hash = "";
+  },
+  consumeNewSessionProject: (requestId) => {
+    if (get().newSessionProject?.requestId === requestId) set({ newSessionProject: null });
+  },
   modal: null,
   prompt: null,
   toasts: [],

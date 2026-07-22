@@ -1348,6 +1348,9 @@ limits:
   pointer/keyboard 均可调整；`<=680px` sidebar 默认关闭，以固定宽度 scrim
   overlay 打开且导航后自动收起，不继承 desktop width。状态、deep link 与
   command 均不因 viewport 改变。
+- button pressed state 只用颜色/背景/边框表达，base 与局部 `:active` 均不得
+  `scale` 或改变 padding/border width；pointerdown/click 前后 control visual /
+  layout size 稳定（INC-89）。
 - recovery 与 approval 共用 Attention；stranded/interrupted 在 session header 直接
   暴露 Resume，但 UI 不自动 resume、不代审批。生命周期菜单只显示当前状态
   语义成立的操作。
@@ -1376,6 +1379,11 @@ limits:
   workspace**（EvalSymlinks 规范化后成员校验，fail-closed，拒任意/不存在
   路径）。macOS `open -a`（VS Code/Terminal）/`open`（Finder），Linux `code`/
   `xdg-open`。
+- **project-scoped New chat（INC-89）**：project row 铅笔发出带 request id 的
+  in-memory workspace seed 并切到 Home；Home composer 原地消费 seed、写回既有
+  `arwebui.lastProject`、触发既有 branch discovery/headline/focus。不得 remount
+  composer（draft/attachment/model/access 不丢），也不得在用户 Send 前创建
+  session；Rename 只从 project menu 进入。
 
 ### 运行形态与 background
 

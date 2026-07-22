@@ -335,6 +335,7 @@ describe("project hover and management controls (INC-87)", () => {
       toggleProjectFolded: vi.fn(),
       toggleProjectPinned: vi.fn(),
       setProjectRemoved: vi.fn(),
+      newSessionForProject: vi.fn(),
       openModal: (modal: any) => useStore.setState({ modal }),
       openPrompt: (prompt: any) => useStore.setState({ prompt }),
       ...over,
@@ -344,7 +345,7 @@ describe("project hover and management controls (INC-87)", () => {
 
   afterEach(() => localStorage.clear());
 
-  it("shows project summary plus menu and rename controls on the heading row", () => {
+  it("shows project summary plus menu and new-chat controls on the heading row", () => {
     const { container } = mount();
     const app = [...container.querySelectorAll(".project-group")].find((group) => group.textContent?.includes("App chat"))!;
     fireEvent.mouseEnter(app.querySelector(".project-heading-row")!);
@@ -354,7 +355,7 @@ describe("project hover and management controls (INC-87)", () => {
     expect(preview.textContent).toContain("2 chats");
     expect(preview.textContent).toContain("/repo/app");
     expect(screen.getByRole("button", { name: "More actions for app" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Rename project app" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "New chat in app" })).toBeTruthy();
   });
 
   it("renders the six requested project actions from the visible menu trigger", () => {
@@ -398,14 +399,23 @@ describe("project hover and management controls (INC-87)", () => {
     expect(screen.getByRole("button", { name: "More actions for app" })).toBeTruthy();
   });
 
-  it("opens the existing worktree and rename prompt flows", () => {
+  it("starts a project-scoped chat while rename remains in the menu", () => {
+    const newSessionForProject = vi.fn();
+    mount({ newSessionForProject });
+
+    fireEvent.click(screen.getByRole("button", { name: "New chat in app" }));
+    expect(newSessionForProject).toHaveBeenCalledWith("/repo/app");
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions for app" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Rename project" }));
+    expect(useStore.getState().prompt?.title).toBe("Rename project");
+  });
+
+  it("opens the existing worktree prompt flow", () => {
     mount();
     fireEvent.click(screen.getByRole("button", { name: "More actions for app" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Create permanent worktree" }));
     expect(useStore.getState().prompt?.title).toBe("Create permanent worktree");
-
-    fireEvent.click(screen.getByRole("button", { name: "Rename project app" }));
-    expect(useStore.getState().prompt?.title).toBe("Rename project");
   });
 });
 

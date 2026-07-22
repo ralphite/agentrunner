@@ -126,7 +126,7 @@ function prefillComposer(prompt: string) {
 }
 
 export function Home() {
-  const { toast } = useStore();
+  const { toast, newSessionProject } = useStore();
 
   // The headline names EXACTLY what the composer's project chip has selected —
   // one source of truth, reported up from the composer's `ws` via
@@ -181,7 +181,12 @@ export function Home() {
             add/access/model/mic/send. Once a starter fills our draft, the
             desktop-only optimize shortcut otherwise pushes Send off-screen. */}
         <div className="home-composer w-full max-[480px]:[&_.cx-optimize]:hidden max-[680px]:[@media(max-height:560px)]:[&_.cx-input-wrap]:pt-1.5 max-[680px]:[@media(max-height:560px)]:[&_.cx-input-wrap_textarea]:min-h-8">
-          <Composer variant="home" onError={(m) => toast(m)} onProjectChange={setProject} />
+          <Composer
+            variant="home"
+            onError={(m) => toast(m)}
+            onProjectChange={setProject}
+            projectSeed={newSessionProject || undefined}
+          />
         </div>
       </div>
     </div>

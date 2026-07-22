@@ -6153,3 +6153,22 @@ console error/warn=0；从 `agentrunner dev2` 创建并保留
 `qa/inc87-sidebar-controls-20260721` permanent worktree，`git worktree list` 可见。
 证据 `qa/runs/2026-07-21-QA78-sidebar-project-controls/`。共享历史未执行
 Archive chats/confirmed Remove；其安全语义由常绿 component tests 钉住。
+
+---
+
+## 2026-07-21 · INC-89 Project 铅笔改 New chat + button pressed size 稳定
+
+**用户纠正**：INC-87 把 project row 铅笔误接成 Rename；正确语义是“在此
+project 新建 chat”。用户同时要求所有 button 点击时不改变尺寸。
+
+**裁决/实现**：保留铅笔视觉，accessible name=`New chat in <project>`；点击把
+真实 workspace 作为带 request id 的 in-memory seed 交给现有 Home composer，
+原地更新 project/branch/headline/focus，不 remount、不丢 draft/附件/model/access，
+也不在 Send 前建 session。Rename 只留在同源六项 project menu。删除 base
+`button:active { scale-95 }`，pressed feedback 只保留颜色/背景/边框。
+
+**验收**：targeted 49/49、frontend **656/656**、production build、webui Go tests
+全绿。QA-79 在真实 `:8809` + shared store 的 `mt-test` 验证 New chat 落 Home、
+project/headline/focus、reload persistence、Rename menu、button 24×24 前后稳定、
+session count 605→605、console 0 error/warn。证据
+`qa/runs/2026-07-21-QA79-project-new-chat/`。

@@ -56,7 +56,7 @@ const SESSIONS = PROJECTS.map((workspace, i) => ({
   kind: "session",
 })) as any[];
 
-const mount = (extra: any[] = []) => {
+const mount = (extra: any[] = [], projectSeed?: { workspace: string; requestId: number }) => {
   useStore.setState({
     sessions: [...SESSIONS, ...extra],
     sessionsReady: true,
@@ -65,7 +65,7 @@ const mount = (extra: any[] = []) => {
     toast: vi.fn(),
     openPrompt: vi.fn(),
   } as any);
-  return render(<Composer variant="home" onError={() => {}} />);
+  return render(<Composer variant="home" onError={() => {}} projectSeed={projectSeed} />);
 };
 
 // The project chip; the panel it opens may be portaled, so we reach the list
@@ -84,6 +84,27 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("project picker searches every project (HM-9)", () => {
+  it("applies repeated project-row New chat seeds without remounting or losing the draft", async () => {
+    localStorage.setItem("arwebui.lastProject", "/repos/proj10");
+    const firstSeed = { workspace: "/repos/proj3", requestId: 1 };
+    useStore.setState({ newSessionProject: firstSeed } as any);
+    const { container, rerender } = mount([], firstSeed);
+    const textarea = container.querySelector<HTMLTextAreaElement>("textarea")!;
+
+    await vi.waitFor(() => expect(chip(container).textContent).toContain("proj3"));
+    expect(localStorage.getItem("arwebui.lastProject")).toBe("/repos/proj3");
+    expect(document.activeElement).toBe(textarea);
+    expect(useStore.getState().newSessionProject).toBeNull();
+
+    fireEvent.change(textarea, { target: { value: "keep this draft" } });
+    rerender(<Composer variant="home" onError={() => {}} projectSeed={{ workspace: "/repos/proj2", requestId: 2 }} />);
+
+    await vi.waitFor(() => expect(chip(container).textContent).toContain("proj2"));
+    expect(textarea.value).toBe("keep this draft");
+    expect(localStorage.getItem("arwebui.lastProject")).toBe("/repos/proj2");
+    expect(mocks.gitBranches).toHaveBeenCalledWith("/repos/proj2");
+  });
+
   it("gives the project popover a shrinkable wrapper for long mobile project names", () => {
     const { container } = mount();
     const projectChip = chip(container);

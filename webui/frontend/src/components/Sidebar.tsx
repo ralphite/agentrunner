@@ -132,6 +132,7 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
     setProjectRemoved,
     openProjectIn,
     setProjectName,
+    newSessionForProject,
     openModal,
     openPrompt,
     sidebarWidth,
@@ -660,8 +661,8 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
                   </span>
                 </button>
                 {/* Desktop reveals the two quiet controls on row hover/focus;
-                    touch keeps the menu permanently reachable. The quick
-                    pencil and the menu call the same rename/action sources. */}
+                    touch keeps the menu permanently reachable. The pencil is
+                    New chat for this project; Rename stays in the menu. */}
                 <span className="project-heading-actions" onClick={() => setHoverPreview(null)}>
                   <Menu
                     label={<DotsThree size={18} weight="bold" />}
@@ -671,16 +672,13 @@ export function Sidebar({ onHide, onNavigate, onOpenPalette, onOpenSettings }: {
                   </Menu>
                   <button
                     className="project-quick-action max-[900px]:hidden!"
-                    aria-label={`Rename project ${name}`}
-                    title="Rename project"
-                    onClick={() => openPrompt({
-                      title: "Rename project",
-                      label: "Display name",
-                      initial: overlay?.displayName || "",
-                      placeholder: name,
-                      submitLabel: "Rename",
-                      onSubmit: (value) => setProjectName(project.key, value),
-                    })}
+                    aria-label={`New chat in ${name}`}
+                    title="New chat"
+                    onClick={() => {
+                      if (!project.workspace) return;
+                      newSessionForProject(project.workspace);
+                      onNavigate?.();
+                    }}
                   >
                     <PencilSimple size={16} />
                   </button>

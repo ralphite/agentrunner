@@ -26,7 +26,7 @@ describe("home greeting structure", () => {
 
   it("keeps the send action on-screen after a starter fills the mobile composer", () => {
     expect(src).toContain("max-[480px]:[&_.cx-optimize]:hidden");
-    expect(src).toContain('<Composer variant="home"');
+    expect(src).toContain('variant="home"');
   });
 
   it("fits the empty composer inside a 390x500 viewport without changing normal-height mobile", () => {

@@ -1586,3 +1586,16 @@ Remove 的“不删 chats/journal/files”确认文案、rail-only 隐藏、sess
 不变与 Restore 由 `Sidebar.nav.test.tsx` 常绿断言。pointer hover preview 同样由
 component mouse-enter 测试覆盖；真浏览器验证了等价的 focus-visible controls。
 本 QA 不创建 session，故无适用的 `ar events`；worktree status 单独归档。
+
+## QA-79 Project new-chat shortcut + stable button press（INC-89，UJ-24）
+
+**状态**：PASS（2026-07-21，真实 `http://127.0.0.1:8809/` + 共享
+`~/.local/share/agentrunner/`；project=`mt-test`；证据
+`qa/runs/2026-07-21-QA79-project-new-chat/`）。
+
+| # | 真实动作 | 硬断言 |
+|---|---|---|
+| 1 | focus `mt-test` project row | 铅笔 accessible name=`New chat in mt-test`；`…` menu 仍含 Rename project |
+| 2 | 点击铅笔 | 落 Home；headline/project chip=`mt-test`；`Do anything` active；未 Send，session count 605→605 |
+| 3 | reload Home | `mt-test` last-project seed 与输入 focus 仍在；console error/warn=0 |
+| 4 | 点击 project `…` | bounding box 24×24→24×24，无 pressed-state size change；CSS 全局无 active scale 由 `buttonPress.test.js` 锚 |

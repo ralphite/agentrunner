@@ -315,7 +315,7 @@ GAPS.md，本文件只回答"产品要做什么"。
 
 **覆盖功能**：`动态角色 spawn(inline role)` `子提权用户审批(escalate)` `树内消息(send_message,兄弟直发)` `静止子唤醒(revive,context 延续)` `多次回执` `用户直达成员(ar send 子会话)` `子会话 live 镜像` `团队面板` `树级预算/审计`（底座复用 UJ-18 全部机制）
 
-### UJ-24 Web UI 驾驶 AgentRunner `基础` `✅ INC-19/23/40/60/87（2026-07-21）`
+### UJ-24 Web UI 驾驶 AgentRunner `基础` `✅ INC-19/23/40/60/87/89（2026-07-21）`
 
 **场景**：用户从项目/session 层进入一个真实 AgentRunner
 会话，并在同一工作台完成派活、续聊、监督、审批与改动审阅。
@@ -326,10 +326,12 @@ GAPS.md，本文件只回答"产品要做什么"。
    Pinned 单列且不重复；自动 workspace 各自成组（默认名 Scratch · 创建
    时间，不互相混合，组名可编辑，INC-78）；CLI 创建、metadata
    不完整、父/子 session 都能直接打开和 deep link；session hover 同屏提供 pin /
-   archive 与 project/branch/status 预览；project hover/focus 提供摘要、`…` 与改名
-   快捷入口，菜单集中 Pin / Finder / permanent worktree / rename / archive chats /
+   archive 与 project/branch/status 预览；project hover/focus 提供摘要、`…` 与
+   project-scoped New chat 快捷入口（预选 project、聚焦 composer、不提前建
+   session），Rename 只留在菜单；菜单集中 Pin / Finder / permanent worktree / rename / archive chats /
    safe Remove（只隐藏 rail projection，数据不删且可恢复）。Pinned 与 Projects
-   section 可独立收展；键盘 context menu 保持等价。
+   section 可独立收展；键盘 context menu 保持等价；button pressed state 不改变
+   控件尺寸。
 2. New session 只出现一个 composer；默认只露输入、附件、access、model、
    send；上缘严格按 Codex 拆成 Project、Local/New worktree、Local
    environment、Branch 四个独立控件，Project/Branch 可搜索且 worktree
