@@ -19,7 +19,7 @@ usage: qa/capture-codex-ui.sh [--command-palette [--palette-query TEXT] | --surf
                                 --disclosure-validate VISIBLE_TEXT |
                               --context-menu VISIBLE_TEXT | --keyboard-context-menu VISIBLE_TEXT |
                               --account-menu | --user-menu |
-                              --settings [--settings-tab general|appearance]]
+                              --settings [--settings-tab general|appearance|keyboard-shortcuts|configuration|worktrees|archived]]
                               [--settle SECONDS] [--restore-query TEXT] [--output PATH]
 
 Captures the largest on-screen layer-0 window owned by bundle com.openai.codex.
@@ -251,8 +251,10 @@ while (($#)); do
       shift
       ;;
     --settings-tab)
-      if (($# < 2)) || [[ "$2" != "general" && "$2" != "appearance" ]]; then
-        echo "capture-codex-ui: --settings-tab requires general or appearance" >&2
+      if (($# < 2)) || [[ "$2" != "general" && "$2" != "appearance" &&
+        "$2" != "keyboard-shortcuts" && "$2" != "configuration" &&
+        "$2" != "worktrees" && "$2" != "archived" ]]; then
+        echo "capture-codex-ui: --settings-tab requires general, appearance, keyboard-shortcuts, configuration, worktrees, or archived" >&2
         exit 2
       fi
       settings_tab="$2"
@@ -620,6 +622,7 @@ guard CommandLine.arguments.count == 8,
 let query = CommandLine.arguments[2]
 let region = CommandLine.arguments[3]
 typealias TextMatch = (Bool, Float, CGRect, String)
+var usingSettingsSidebarCrop = false
 func foldedOCRText(_ value: String) -> String {
   let base = value.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
   return String(base.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) })
@@ -631,7 +634,6 @@ func recognizeMatches(_ input: CGImage) throws -> [TextMatch] {
   request.recognitionLanguages = ["zh-Hans", "en-US"]
   try VNImageRequestHandler(cgImage: input).perform([request])
   return (request.results ?? []).compactMap { observation -> TextMatch? in
-    guard let candidate = observation.topCandidates(1).first else { return nil }
     let inRegion: Bool
     switch region {
     case "composer":
@@ -656,21 +658,34 @@ func recognizeMatches(_ input: CGImage) throws -> [TextMatch] {
       inRegion = observation.boundingBox.midX > 0.30 &&
         observation.boundingBox.midY > 0.015 && observation.boundingBox.midY < 0.15
     case "settings-sidebar":
-      inRegion = observation.boundingBox.midX < 0.30 && observation.boundingBox.midY > 0.10
+      // Full-window labels sit near x=0.03; the cropped 16%-wide fallback
+      // normalizes the same glyphs to roughly x=0.2–0.35.
+      let maxX = usingSettingsSidebarCrop ? 0.45 : 0.10
+      inRegion = observation.boundingBox.midX < maxX && observation.boundingBox.midY > 0.10
+    case "settings-main":
+      inRegion = observation.boundingBox.midX > 0.15 && observation.boundingBox.midY > 0.05
     default:
       inRegion = false
     }
     guard inRegion else { return nil }
-    let exact = candidate.string.compare(query, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
-    let contains = candidate.string.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
-    // Vision occasionally joins a low-contrast word boundary ("Ranacommand")
-    // or prefixes one stray glyph. Only use the folded fallback for a
-    // sufficiently long query; region constraints and the normal exact/
-    // contains path remain authoritative for short labels.
-    let foldedQuery = foldedOCRText(query)
-    let foldedCandidate = foldedOCRText(candidate.string)
-    let foldedContains = foldedQuery.count >= 6 && foldedCandidate.contains(foldedQuery)
-    return (exact || contains || foldedContains) ? (exact, candidate.confidence, observation.boundingBox, candidate.string) : nil
+    // Low-contrast sidebar/disclosure labels sometimes put the correct reading
+    // below Vision's first candidate. Keep the same region/query guard while
+    // accepting the best matching candidate from the observation.
+    for candidate in observation.topCandidates(5) {
+      let exact = candidate.string.compare(query, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+      let contains = candidate.string.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+      // Vision occasionally joins a low-contrast word boundary ("Ranacommand")
+      // or prefixes one stray glyph. Only use the folded fallback for a
+      // sufficiently long query; region constraints and the normal exact/
+      // contains path remain authoritative for short labels.
+      let foldedQuery = foldedOCRText(query)
+      let foldedCandidate = foldedOCRText(candidate.string)
+      let foldedContains = foldedQuery.count >= 6 && foldedCandidate.contains(foldedQuery)
+      if exact || contains || foldedContains {
+        return (exact, candidate.confidence, observation.boundingBox, candidate.string)
+      }
+    }
+    return nil
   }
 }
 func doubled(_ input: CGImage) -> CGImage? {
@@ -688,11 +703,36 @@ func doubled(_ input: CGImage) -> CGImage? {
   context.draw(input, in: CGRect(x: 0, y: 0, width: input.width * 2, height: input.height * 2))
   return context.makeImage()
 }
+let settingsSidebarWidthFactor = 0.16
+func magnifiedSettingsSidebar(_ input: CGImage) -> CGImage? {
+  let cropWidth = Int(Double(input.width) * settingsSidebarWidthFactor)
+  guard let crop = input.cropping(to: CGRect(x: 0, y: 0, width: cropWidth, height: input.height)),
+        let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+        let context = CGContext(
+          data: nil,
+          width: crop.width * 4,
+          height: crop.height * 4,
+          bitsPerComponent: 8,
+          bytesPerRow: 0,
+          space: colorSpace,
+          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+  context.setFillColor(CGColor(gray: 1, alpha: 1))
+  context.fill(CGRect(x: 0, y: 0, width: crop.width * 4, height: crop.height * 4))
+  context.interpolationQuality = .none
+  context.draw(crop, in: CGRect(x: 0, y: 0, width: crop.width * 4, height: crop.height * 4))
+  return context.makeImage()
+}
 var matches = try recognizeMatches(image)
+var coordinateWidthFactor = 1.0
 // Low-contrast disclosure labels can fall below Vision's minimum glyph size
 // in a non-Retina capture. Retry only a miss at 2x; normalized boxes still map
 // to the original window and normal successful captures keep their fast path.
-if matches.isEmpty, let doubledImage = doubled(image) {
+if matches.isEmpty, region == "settings-sidebar", let magnifiedSidebar = magnifiedSettingsSidebar(image) {
+  usingSettingsSidebarCrop = true
+  matches = try recognizeMatches(magnifiedSidebar)
+  coordinateWidthFactor = settingsSidebarWidthFactor
+} else if matches.isEmpty, let doubledImage = doubled(image) {
   matches = try recognizeMatches(doubledImage)
 }
 guard let match = matches.sorted(by: {
@@ -702,7 +742,7 @@ guard let match = matches.sorted(by: {
   fputs("window text not found in \(region): \(query)\n", stderr)
   exit(1)
 }
-let pointX = windowX + Double(match.2.midX) * windowWidth
+let pointX = windowX + Double(match.2.midX) * windowWidth * coordinateWidthFactor
 let pointY = windowY + (1.0 - Double(match.2.midY)) * windowHeight
 print("\(pointX)\t\(pointY)")
 SWIFT
@@ -1538,15 +1578,29 @@ if [[ "$mode" == "settings" ]]; then
     echo "capture-codex-ui: settings validation frame saved to $settings_debug" >&2
   fi
   window_text_center "$ocr_capture" "General" "main" >/dev/null
-  if [[ "$settings_tab" == "appearance" ]]; then
-    appearance_point=$(window_text_center "$ocr_capture" "Appearance" "settings-sidebar")
-    IFS=$'\t' read -r appearance_x appearance_y <<<"$appearance_point"
-    send_click "$appearance_x" "$appearance_y"
+  settings_label=""
+  settings_validation_label=""
+  case "$settings_tab" in
+    appearance) settings_label="Appearance"; settings_validation_label="Appearance" ;;
+    keyboard-shortcuts) settings_label="Keyboard shortcuts"; settings_validation_label="Keyboard shortcuts" ;;
+    configuration) settings_label="Configuration"; settings_validation_label="Configuration" ;;
+    worktrees) settings_label="Worktrees"; settings_validation_label="Worktrees" ;;
+    archived) settings_label="Archived chats"; settings_validation_label="Archived chats" ;;
+  esac
+  if [[ -n "$settings_label" ]]; then
+    settings_tab_point=$(window_text_center "$ocr_capture" "$settings_label" "settings-sidebar")
+    IFS=$'\t' read -r settings_tab_x settings_tab_y <<<"$settings_tab_point"
+    send_click "$settings_tab_x" "$settings_tab_y"
     sleep "$settle_seconds"
     rm -f -- "$ocr_capture"
     ocr_capture=$(mktemp -t codex-settings-tab-validate)
     screencapture -x -o -t png -l "$window_id" "$ocr_capture"
-    window_text_center "$ocr_capture" "Appearance" "main" >/dev/null
+    if [[ "${CODEX_CAPTURE_DEBUG:-0}" == "1" ]]; then
+      settings_tab_debug="${output%.*}-tab-validation-debug.png"
+      cp -- "$ocr_capture" "$settings_tab_debug"
+      echo "capture-codex-ui: settings tab validation frame saved to $settings_tab_debug" >&2
+    fi
+    window_text_center "$ocr_capture" "$settings_validation_label" "settings-main" >/dev/null
   fi
 fi
 

@@ -268,6 +268,16 @@ INC-98 将该方法固化为持续循环：
   sidebar 的既有 return target/fallback 不变。shared production 实测 Search autofocus、General
   `aria-current=true`，Done/Escape 均关闭 dialog 并回 `More options`；同 viewport 合并图通过，
   browser logs 为空。ST-01 升 PASS；ST-04 因 mobile Back 的当前双侧证据未齐继续 UNTESTED。
+- **98.3o Settings secondary sections design note**：继续 ST-03，不把 General shell 通过外推到
+  Keyboard shortcuts / Configuration / Worktrees / Archived。先扩展同一 fail-closed Settings
+  driver，以左 rail 语义 OCR 只读切 tab、主区标题复核、capture 后 Escape 恢复原 thread；再对
+  AgentRunner shared production 的对应 tab 做搜索、empty/populated、close/focus 与同 viewport
+  comparison。只修被真交互反证的 UI；Codex 专有 setting 不补占位，若数据/API 缺失再单独登记
+  backend gap。首轮 shared store 还反证 Worktrees 一次渲染 304 workspace / 641 session、scrollHeight
+  49,883px；这不是 backend 缺口，按既有 sidebar progressive disclosure 收敛为首 40 个、显式
+  `Show more` 分页展开，搜索仍对全量集合过滤。快捷键重绑/冲突校验/持久化、worktree registry /
+  自动清理/逐项删除、session 永久删除则分别登记 backend 产品缺口，不画假 control。无 schema/API/
+  invariant 预设变更。
 
 ## Spec delta
 

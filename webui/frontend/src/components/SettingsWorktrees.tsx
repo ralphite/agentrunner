@@ -1,5 +1,8 @@
+import { useEffect, useState } from "react";
 import { useStore } from "../store";
 import { matchesQuery } from "./SettingsSearch";
+
+const PAGE_SIZE = 40;
 
 // SettingsWorktrees is Codex's Settings → Worktrees (INC-41 H5), read-only.
 // We have no worktree-registry API, so the list is derived from the sessions
@@ -9,6 +12,9 @@ import { matchesQuery } from "./SettingsSearch";
 export function SettingsWorktrees({ query }: { query: string }) {
   const sessions = useStore((s) => s.sessions);
   const renames = useStore((s) => s.renames);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  useEffect(() => setVisibleCount(PAGE_SIZE), [query]);
 
   const byWorkspace = new Map<string, { id: string; title: string }[]>();
   for (const s of sessions) {
@@ -21,6 +27,7 @@ export function SettingsWorktrees({ query }: { query: string }) {
   }
   const all = [...byWorkspace.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   const filtered = all.filter(([ws, sessions]) => matchesQuery(query, ws + " " + sessions.map((t) => t.title).join(" ")));
+  const visible = filtered.slice(0, visibleCount);
 
   return (
     <div className="rs-panel min-w-0">
@@ -30,7 +37,7 @@ export function SettingsWorktrees({ query }: { query: string }) {
       {all.length === 0 && <div className="rs-noresults">No session workspaces yet.</div>}
       {all.length > 0 && filtered.length === 0 && <div className="rs-noresults">No worktrees match “{query}”.</div>}
 
-      {filtered.map(([ws, sessions]) => (
+      {visible.map(([ws, sessions]) => (
         <section className="rs-wt-card min-w-0 overflow-hidden max-[500px]:rounded-[8px] max-[500px]:p-2.5" key={ws}>
           <div className="rs-wt-head min-w-0 max-[500px]:flex-col max-[500px]:items-start max-[500px]:gap-1">
             <span className="rs-wt-path mono min-w-0 max-w-full flex-1 whitespace-normal [overflow-wrap:anywhere]" title={ws}>
@@ -52,6 +59,14 @@ export function SettingsWorktrees({ query }: { query: string }) {
           </div>
         </section>
       ))}
+      {visible.length < filtered.length && (
+        <button
+          className="mt-3 w-full rounded-[8px] border border-line bg-panel px-3 py-2 text-[12.5px] text-ink-2 hover:bg-panel-2"
+          onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
+        >
+          Show {Math.min(PAGE_SIZE, filtered.length - visible.length)} more · {filtered.length - visible.length} remaining
+        </button>
+      )}
     </div>
   );
 }

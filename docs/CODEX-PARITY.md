@@ -299,8 +299,8 @@ GAPS；`INTENTIONAL` 必须说明不属于哪条 journey。
 未稳定的 Pull Requests skeleton，明确拒收；稳定图为 `10`。以下未填证据的行就是
 后续 loop 的执行队列，不能因同组另一行通过而批量判绿。
 
-**98.3n 盘点**：79 行 = `PASS 22 / GAP 9 / INTENTIONAL 4 / BLOCKED 1 /
-UNTESTED 43`。PASS 中 New session/Scheduled/Environment/Thread 各有多行交叉锚，因此它们
+**98.3o 盘点**：79 行 = `PASS 22 / GAP 10 / INTENTIONAL 4 / BLOCKED 1 /
+UNTESTED 42`。PASS 中 New session/Scheduled/Environment/Thread 各有多行交叉锚，因此它们
 不是 7 个完整页面已测完；任何组内仍有 UNTESTED 就继续留在 loop。
 
 ### 7.1 Global shell 与 Codex-only 主入口
@@ -388,7 +388,7 @@ UNTESTED 43`。PASS 中 New session/Scheduled/Environment/Thread 各有多行交
 | SC-07 | restart 后 cadence/nextRun/status truthful | UNTESTED | shared daemon 安全 restart，不 kill -9 |
 | ST-01 | Settings open/close/general/appearance | PASS | 2026-07-22 `QA88-98.3n-settings/01..13`：双侧均从真实 profile menu 打开全窗 Settings；Codex General/Appearance 与 AgentRunner 同 viewport 合并图在案。AgentRunner 无定向入口修为 General，Search autofocus；Done/Escape 关闭后均回持久 `More options` opener，logs=`[]` |
 | ST-02 | theme light/dark/system + persistence/no flash | PASS | 2026-07-22 `QA88-98.2g-responsive-theme/01..15/22`：Settings 真实切 light/dark/system，desktop/mobile 截图；三态 reload 持久，System 无 `data-theme` 并跟随 media；新增 parser-blocking `theme-init.js` 在 body/main 首 paint 前恢复显式主题，theme-color 同步；`theme.test.ts` |
-| ST-03 | shortcuts/config/worktrees/archived sessions | UNTESTED | — |
+| ST-03 | shortcuts/config/worktrees/archived sessions | GAP | 2026-07-22 `QA88-98.3o-settings-sections/04..22`：双侧四页同 viewport 合并图；我方 22 个真实 shortcuts + search、live health、shared Worktrees、Archived empty/populated/search/Unarchive/re-Archive 均真测。304 workspaces 全渲染已修为 40/Show more/full search；缺 shortcut override G52、worktree registry/GC G53、永久删除 G54 |
 | ST-04 | desktop Done/mobile Back/Escape/outside focus return | UNTESTED | 2026-07-22 `QA88-98.3n-settings/13` 已真测 desktop Done/Escape 从 sidebar menu 回 `More options`，并修复旧 `BODY` 落点；Codex capture cleanup 以 Escape 恢复原 thread。mobile Back/current dual evidence 尚未补齐；全窗 Settings 无 outside dismissal，不提前判 PASS |
 | ST-05 | profile/voice/pets/personalization | INTENTIONAL | 非 AgentRunner runtime journey；若形成工程效益另立产品 delta |
 | PS-01 | deep-link reload/back/forward/current selection | UNTESTED | — |

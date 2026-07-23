@@ -51,7 +51,7 @@
 | UJ-21 崩溃自愈与重启接续 | 🟡 | 恢复语义✅（resume/in-doubt/终态把关，QA-08）；**自动性缺**：boot sweep、子 crash 自动 resume（G22）（2026-07-05 新增行） |
 | UJ-22 会话内目标 | ✅ | **G23 已关闭（INC-D1）**——in-session goal 挂会话、context 延续；决策 #21 拆两形态 |
 | UJ-23 工程团队模拟 | ✅ | INC-12：动态角色、横向消息、revive、用户直达与子会话 live 全通 |
-| UJ-24 Web UI 驾驶 AgentRunner | ✅ | INC-19/23/29/38/40/41/57/60/91/97：Codex 式信息架构 + truthful progressive hydration + environment composer/worktree + Worked/Changes + hover actions + message-level durable Continue（human-before/final-assistant-after、multimodal draft、atomic/idempotent dormant child）+ 不重排 thread 的 Environment 浮动卡 + 内联审批 + responsive Supervision/recovery/Scheduled/a11y；QA-27/34/36/41/42/43/60/61/82/87；可选 message feedback telemetry 缺 G46、queued→steer 原子提升缺 G47、active ask sidebar attention 投影缺 G48（均不阻断主 journey） |
+| UJ-24 Web UI 驾驶 AgentRunner | ✅ | INC-19/23/29/38/40/41/57/60/91/97：Codex 式信息架构 + truthful progressive hydration + environment composer/worktree + Worked/Changes + hover actions + message-level durable Continue（human-before/final-assistant-after、multimodal draft、atomic/idempotent dormant child）+ 不重排 thread 的 Environment 浮动卡 + 内联审批 + responsive Supervision/recovery/Scheduled/a11y；QA-27/34/36/41/42/43/60/61/82/87；可选 message feedback telemetry 缺 G46、queued→steer 原子提升缺 G47、active ask sidebar attention 投影缺 G48、Settings 快捷键重绑/工作树生命周期/永久删除缺 G52/G53/G54（均不阻断主 journey） |
 
 **汇总（2026-07-11 更新）**：20 通 · 3 部分 · 1 卡死。G14 已关闭
 （INC-50 webhook ingress），UJ-12 转部分；剩余卡死集中在云环境
@@ -738,6 +738,32 @@ thought/text/signature 三边界；shared production 新 session 的 durable ans
 `20260723-023400-reply-with-the-following-media-edd595cb06932ebe`；证据
 `qa/runs/2026-07-22-QA88-98.3h-markdown/23..33`。
 → UJ-01/UJ-24
+
+**G52 Settings 快捷键重绑、冲突校验与持久化缺失 — ❌ 开放（INC-98.3o 实窗取证，低）**
+Codex Keyboard shortcuts 提供每项 edit/delete、Unassigned、Reset all to defaults 与独立搜索；
+AgentRunner 的 `SHORTCUT_GROUPS` 是代码期单一真相，Settings/`?` 只能只读展示 22 个当前 binding。
+若只画铅笔按钮会产生刷新即丢与 handler/catalog 分叉。补齐需要 typed command id、默认/override
+合并、组合键规范化、reserved/duplicate conflict、跨 Settings/command palette/composer 的统一 dispatch，
+以及浏览器持久化/导入重置 contract；未设计前保持 read-only 文案。
+→ UJ-24
+
+**G53 Worktree registry 与自动清理/逐项删除 Settings contract 缺失 — ❌ 开放（INC-98.3o 实窗取证，中）**
+Codex Worktrees 有 worktree root、auto-delete toggle/limit、真实 managed worktree 列表与逐项 Delete；
+AgentRunner Settings 只能从 `/api/sessions` 的 workspace path 反推只读列表，shared store 真机得到
+304 workspace / 641 session，无法区分普通 workspace、外部 linked worktree、仍被 session/child/fork
+引用的 managed worktree，也没有 last-used/dirty/base-ref/owner registry。现有 Changes 的单 worktree
+`Remove worktree` 仅覆盖用户已进入该 session 的显式防呆动作，不能冒充全局 GC。补齐需要 daemon
+registry、引用/dirty/in-flight guard、retention policy、可审计 delete receipt 与 crash-safe prune。
+INC-98.3o 只先把前端全量渲染收敛为 40 条 progressive disclosure。
+→ UJ-10/UJ-16/UJ-18/UJ-24
+
+**G54 Archived session 永久删除/批量删除 contract 缺失 — ❌ 开放（INC-98.3o 实窗取证，低）**
+Codex Archived chats 提供 row trash 与 Delete all；AgentRunner archive/unarchive 是 local preference，
+真机 empty→专用 shared QA session→search/no-match→Unarchive→再次 Archive 均通过，但 UI 明示
+`Permanent session deletion is not available yet`。永久删除不能只移除 sidebar row：需裁决 journal、
+workspace/worktree、blob、artifact、fork/child 引用、审计/恢复窗与批量 partial-failure 语义，并要求
+显式确认和可验证 receipt；设计完成前不提供假 delete control。
+→ UJ-09/UJ-17/UJ-24
 
 **G47 已排队消息原子提升为 Steer 的 backend contract 缺失 — ❌ 开放（INC-98.3c 实窗取证，中）**
 Codex Desktop 在 running turn 的 queued row 上提供 `Steer`，点击后该 row 立即从 queue

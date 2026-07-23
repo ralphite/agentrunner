@@ -39,4 +39,25 @@ describe("SettingsWorktrees mobile layout", () => {
     fireEvent.click(session);
     expect(select).toHaveBeenCalledWith("session-mobile");
   });
+
+  it("progressively reveals a large shared-store workspace list", () => {
+    useStore.setState({
+      sessions: Array.from({ length: 45 }, (_, i) => ({
+        id: `session-${i}`,
+        status: "idle",
+        turns: 1,
+        workspace: `/workspace/${String(i).padStart(2, "0")}`,
+        title: `Session ${i}`,
+      })),
+      renames: {},
+      select,
+    });
+
+    const { container } = render(<SettingsWorktrees query="" />);
+    expect(container.querySelectorAll(".rs-wt-card")).toHaveLength(40);
+
+    fireEvent.click(screen.getByRole("button", { name: "Show 5 more · 5 remaining" }));
+    expect(container.querySelectorAll(".rs-wt-card")).toHaveLength(45);
+    expect(screen.queryByRole("button", { name: /remaining/ })).toBeNull();
+  });
 });
