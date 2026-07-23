@@ -492,6 +492,12 @@ INC-98 将该方法固化为持续循环：
   tab/session 保存仅“离底”位置，reload/切换恢复；显式 Send、滚到底或 Jump 清除位置。
   离底期间已有浮动 Jump 同时显示新增可见 activity 数，不持久化 transcript 或跨设备状态。
   Codex current thread 同尺寸滚动截图由新增只读 driver mode 获取并在 capture 后恢复到底部。
+- **98.4r goal/progress hierarchy**：同为 active goal 的 1100×700 合并图显示 Codex 只在
+  composer 上方保留紧凑 `Pursuing goal` 控制条；我方全宽横条同时重复 Environment 中的
+  objective、checks 与三组动作，挤占主任务宽度。保留 Environment 作为完整 goal/checklist/edit
+  表面，active/paused 横条只显示状态、elapsed、pause/resume、cancel 与进入 Environment；
+  终态、journal、backend 和 shared 数据不变。验证覆盖 running→pause→resume、reload、窄屏及
+  两条入口焦点，不以 active 一张截图外推 blocked/budget/complete。
 
 ## Spec delta
 

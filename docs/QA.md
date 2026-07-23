@@ -2130,3 +2130,10 @@ multi-child command palette 的 1100×700 截图，以及 CLI/API/restart/browse
 
 **98.4q 证据**：`qa/runs/2026-07-23-QA88-98.4q-child-attention/`；retained parent
 `20260723-093034-th-13-complex-qa-start-one-ch-cb40d2f89ab5e14d`。
+
+| 98.4r 动作 | 硬断言 |
+|---|---|
+| Codex 同态对照 | 真实 Codex active native goal 与 AgentRunner shared active goal 均在 1100×700；修前/修后合并图证明主栏由重复全宽 banner 收敛为紧凑 quick bar |
+| 复杂状态链 | shared 真模型 goal 保留四步 progress，执行 active→pause→resume→5-check budget stop→扩预算；Environment 始终显示 objective/checks/progress，未完成项不伪造 done |
+| keyboard/mobile | 390×844 打开 compact bar 详情再关闭，焦点返回 `Open goal details`；`body/documentElement.scrollWidth=390` |
+| evidence/gate | `qa/runs/2026-07-23-QA88-98.4r-goal-progress/` 保存 Codex、AgentRunner active/paused/budget/mobile 与合并图；72 files / 752 frontend tests、production build、`check.sh` 与 browser error/warning=`[]`；retained session/workspace/journal 不清理 |

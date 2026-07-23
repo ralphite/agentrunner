@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Archive, ArrowClockwise, ArrowLeft, ChatCircle, CheckCircle, ClockCountdown, Code, Crosshair, DotsThree, Files, Flag, GitFork, Pause, PencilSimple, Play, Prohibit, PushPin, Robot, SidebarSimple, SlidersHorizontal, Trash, WarningCircle, X, XCircle } from "@phosphor-icons/react";
+import { Archive, ArrowClockwise, ArrowLeft, CaretRight, ChatCircle, CheckCircle, ClockCountdown, Code, Crosshair, DotsThree, Files, Flag, GitFork, Pause, PencilSimple, Play, Prohibit, PushPin, Robot, SidebarSimple, SlidersHorizontal, Trash, WarningCircle, X, XCircle } from "@phosphor-icons/react";
 import { AR, type ForkDraft } from "../api";
 import { useStore } from "../store";
 import type { BackgroundWork, Envelope } from "../types";
@@ -191,6 +191,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
   // open it unless the user has explicitly closed it before ("0"). Narrow
   // screens stay collapsed so the conversation isn't squeezed.
   const [supervisionOpen, setSupervisionOpen] = useState(() => (bp.desktop || bp.wide) && localStorage.getItem("arwebui.supervision") !== "0");
+  const supervisionOpenerRef = useRef<HTMLElement | null>(null);
   const setSupervision = (open: boolean) => {
     setSupervisionOpen(open);
     try {
@@ -198,6 +199,19 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
     } catch {
       /* ignore quota */
     }
+  };
+  const openSupervision = (opener: HTMLElement | null) => {
+    supervisionOpenerRef.current = opener;
+    setSupervision(true);
+  };
+  const closeSupervision = () => {
+    setSupervision(false);
+    requestAnimationFrame(() => {
+      const opener = supervisionOpenerRef.current;
+      const fallback = document.querySelector<HTMLButtonElement>('button[aria-label="Environment"]');
+      (opener?.isConnected ? opener : fallback)?.focus();
+      supervisionOpenerRef.current = null;
+    });
   };
 
   const cursor = useRef(0);
@@ -927,9 +941,10 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
             keyboard-free fallback), and the surviving pill wears the rail's own
             name and icon — click it and the label you land on is the label you
             clicked. */}
-        <button className={`topbar-tool${showSupervision ? " active" : ""}`} onClick={() => {
+        <button className={`topbar-tool${showSupervision ? " active" : ""}`} onClick={(event) => {
           if (view === "diff") setView("chat");
-          setSupervision(!showSupervision);
+          if (showSupervision) closeSupervision();
+          else openSupervision(event.currentTarget);
         }} title={showSupervision ? "Hide the Environment rail" : "Show the Environment rail — workspace changes, worktree, git, goal"}
           aria-label="Environment">
           <SlidersHorizontal size={16} /> <span className="topbar-tool-label">Environment</span>
@@ -967,7 +982,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
           ) : (
             <MenuItem onClick={() => openDiff()}><Files size={16} />Changes</MenuItem>
           )}
-          <MenuItem onClick={() => setSupervision(!supervisionOpen)}><SidebarSimple size={16} />{supervisionOpen ? "Hide" : "Show"} Environment</MenuItem>
+          <MenuItem onClick={() => supervisionOpen ? closeSupervision() : openSupervision(null)}><SidebarSimple size={16} />{supervisionOpen ? "Hide" : "Show"} Environment</MenuItem>
           <MenuItem
             title="also show low-level system events (mode changes, effects, barriers…) inline in the timeline"
             onClick={toggleSys}
@@ -1168,6 +1183,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
                   onSave={saveGoalEdit}
                   onDiscard={() => setGoalEdit(null)}
                   onAction={goalAction}
+                  onOpenDetails={openSupervision}
                   onDismiss={() => setGoalDismissedAt(goalState.endedAt ?? -1)}
                 />
               )}
@@ -1300,7 +1316,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
               data,
               status: sessions.find((session) => session.id === sid)?.status,
             })).catch((error) => toast(error.message))}
-            onClose={() => setSupervision(false)}
+            onClose={closeSupervision}
           />
         ) : null}
       </div>
@@ -1328,6 +1344,7 @@ function GoalBanner({
   onSave,
   onDiscard,
   onAction,
+  onOpenDetails,
   onDismiss,
 }: {
   state: GoalDerived;
@@ -1339,6 +1356,7 @@ function GoalBanner({
   onSave: () => void;
   onDiscard: () => void;
   onAction: (action: "pause" | "resume" | "cancel") => void;
+  onOpenDetails: (opener: HTMLButtonElement) => void;
   onDismiss: () => void;
 }) {
   const terminal = GOAL_TERMINAL_META[state.phase];
@@ -1369,11 +1387,11 @@ function GoalBanner({
 
   const paused = state.phase === "paused";
   return (
-    <div className={`gbar${paused ? " paused" : ""}`} role="status">
+    <div className={`gbar gbar-live${paused ? " paused" : ""}`} role="status">
       <span className="gbar-ico"><Crosshair size={16} /></span>
-      <span className="gbar-label">Goal{paused ? " · paused" : ""}</span>
+      <span className="gbar-label">{updatePending ? "Updating goal" : paused ? "Goal paused" : "Pursuing goal"}</span>
       {editing === null ? (
-        <span className="gbar-text" title={state.goal}>{state.goal}</span>
+        elapsed && <span className="gbar-meta">{elapsed}</span>
       ) : (
         <input
           className="gbar-input"
@@ -1386,22 +1404,6 @@ function GoalBanner({
           }}
         />
       )}
-      {editing === null && (() => {
-        // G3 · show N/M checks (a verifier budget) or the count so far, next to
-        // the live elapsed clock — Codex's goal-banner progress read-out.
-        const showChecks = state.maxChecks !== undefined || state.checks > 0;
-        if (!showChecks && !elapsed && !updatePending) return null;
-        const checksLabel = state.maxChecks !== undefined
-          ? `${state.checks}/${state.maxChecks} checks`
-          : `${state.checks} check${state.checks === 1 ? "" : "s"}`;
-        return (
-          <span className="gbar-meta">
-            {showChecks && <span className="gbar-checks">{checksLabel}</span>}
-            {elapsed && <span>{elapsed}</span>}
-            {updatePending && <span>Update queued</span>}
-          </span>
-        );
-      })()}
       <span className="gbar-actions">
         {editing === null ? (
           <>
@@ -1410,6 +1412,7 @@ function GoalBanner({
               {paused ? <Play size={15} weight="fill" /> : <Pause size={15} weight="fill" />}
             </button>
             <button className="gbar-btn danger" onClick={() => onAction("cancel")} title="Cancel goal" aria-label="Cancel goal"><Trash size={15} /></button>
+            <button className="gbar-btn" onClick={(event) => onOpenDetails(event.currentTarget)} title="Open goal details" aria-label="Open goal details"><CaretRight size={15} /></button>
           </>
         ) : (
           <>

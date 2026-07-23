@@ -199,6 +199,68 @@ describe("TH-14 · one terminal banner above the composer", () => {
   });
 });
 
+describe("TH-13/14 · compact live goal controls", () => {
+  beforeEach(() => {
+    localStorage.setItem("arwebui.supervision", "0");
+    const activeEvents = [
+      { seq: 1, type: "goal_attached", ts: new Date(Date.now() - 65_000).toISOString(), payload: { goal: GOAL, budget: { max_checks: 5 } } },
+    ];
+    arMock.events = async (_sid: string, after: number) => after ? [] : activeEvents;
+    arMock.rawEvents = async () => activeEvents;
+    arMock.inspect = async () => ({
+      goal: { goal: GOAL, checks: 2, max_checks: 5, paused: false, verifiers: 1 },
+      children: [],
+      progress: [
+        { id: "discover", title: "Inspect requirements", status: "done" },
+        { id: "build", title: "Implement release", status: "running" },
+      ],
+      artifacts: [],
+    });
+    arMock.goal = vi.fn(async () => ({}));
+    useStore.setState({
+      sessions: [{ id: SID, title: "release goal", status: "waiting:input", workspace: "/tmp/wt-th14" } as any],
+    });
+  });
+
+  it("keeps objective and checks in Environment instead of repeating them across the composer", async () => {
+    const { container } = render(<SessionView sid={SID} />);
+    await waitFor(() => expect(container.querySelector(".gbar-live")).not.toBeNull());
+
+    const bar = container.querySelector(".gbar-live")!;
+    expect(bar.textContent).toContain("Pursuing goal");
+    expect(bar.textContent).not.toContain(GOAL);
+    expect(bar.textContent).not.toContain("2/5 checks");
+
+    const details = screen.getByRole("button", { name: "Open goal details" });
+    details.focus();
+    fireEvent.click(details);
+    await waitFor(() => expect(screen.getByRole("complementary", { name: "Environment" })).toBeTruthy());
+    const panel = screen.getByRole("complementary", { name: "Environment" });
+    expect(panel.textContent).toContain(GOAL);
+    expect(panel.textContent).toContain("2/5 checks");
+    expect(panel.textContent).toContain("Progress");
+    expect(panel.textContent).toContain("Implement release");
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide Environment" }));
+    await waitFor(() => expect(screen.queryByRole("complementary", { name: "Environment" })).toBeNull());
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(document.activeElement).toBe(details);
+  });
+
+  it("keeps pause and edit as direct quick actions", async () => {
+    const { container } = render(<SessionView sid={SID} />);
+    await waitFor(() => expect(container.querySelector(".gbar-live")).not.toBeNull());
+
+    fireEvent.click(screen.getByRole("button", { name: "Pause goal" }));
+    await waitFor(() => expect(arMock.goal).toHaveBeenCalledWith(SID, { action: "pause" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit goal" }));
+    expect((container.querySelector(".gbar-input") as HTMLInputElement).value).toBe(GOAL);
+    expect(screen.getByRole("button", { name: "Save" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Discard" })).toBeTruthy();
+  });
+});
+
 describe("scheduled selected-iteration semantics", () => {
   const driverSession = () => useStore.setState({
     sessions: [{ id: SID, title: "scheduled series", status: "max_iterations", workspace: "/tmp/wt-th14", kind: "driver" } as any],
