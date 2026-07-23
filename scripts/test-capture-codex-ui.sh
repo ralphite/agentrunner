@@ -21,6 +21,7 @@ done
 [[ "$help" == *"--settings-tab"* ]]
 [[ "$help" == *"--scheduled-search"* ]]
 [[ "$help" == *"--scheduled-filter"* ]]
+[[ "$help" == *"--scheduled-row"* ]]
 [[ "$help" == *"--new-chat-control"* ]]
 [[ "$help" == *"--composer-text"* ]]
 [[ "$help" == *"--composer-send"* ]]
@@ -258,6 +259,8 @@ grep -Fq 'keyboard-shortcuts) settings_label="Keyboard shortcuts"; settings_vali
 grep -Fq 'archived) settings_label="Archived chats"; settings_validation_label="Archived chats"' "$driver"
 grep -Fq 'codex-scheduled-search-validate' "$driver"
 grep -Fq 'codex-scheduled-filter' "$driver"
+grep -Fq 'codex-scheduled-row' "$driver"
+grep -Fq 'codex-scheduled-row-validate' "$driver"
 grep -Fq 'if ((thread_composer_seeded))' "$driver"
 grep -Fq 'send_key 36 1' "$driver"
 # Literal source contract; expansion would weaken the assertion.

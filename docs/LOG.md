@@ -6951,3 +6951,21 @@ workspace/cadence 是安全优势，不向 Codex one-click side effect 对齐。
 SC-04 升 PASS，矩阵为 `PASS 23 / GAP 11 / INTENTIONAL 4 / BLOCKED 1 / UNTESTED 40`。
 targeted 10 tests、frontend 全量/build、capture contract 与 full gate 全绿；production stamp
 `2bdfebaa-dirty-210549`，全部 QA 数据保留。
+
+---
+
+## 2026-07-22 · INC-98.3r Scheduled series detail 与 structured inspect
+
+Codex 已保留的 `Daily brief` row 真点击打开同页 split panel，显示 Active、完整 prompt、Runs in/
+Project、Model/Reasoning、Repeat/At/Notifications 与 pause/close；driver 加 `--scheduled-row`，必须在 click
+后同时 OCR 命中 detail-only `Runs in`/`Frequency`，否则拒收并恢复原 thread。
+
+AgentRunner 既有 shared driver row 真点击进入完整 iteration 1/2 history；`#sid` reload 保持 title/
+history，Back 精确回 `#scheduled`，browser logs=`[]`。同 viewport `04` 证明这是互补而非同态：我方
+durable history 更强，但缺 series config/detail/edit/notification surface，新增 G56，SC-06 从
+UNTESTED 改 GAP；矩阵为 `PASS 23 / GAP 12 / INTENTIONAL 4 / BLOCKED 1 / UNTESTED 39`。
+
+另一个可独立修的 UI 缺陷是 terminal `Run details` 把 inspect JSON 全量铺成 debug wall。现统一走
+已有 structured projection：status、Overview、Usage、Activity 首屏可读，raw 仍在 disclosure；dirty
+production `dee480cd-dirty-211448` 复拍 `05` 与 DOM 均通过。targeted 21 tests、frontend 全量/build、
+capture contract/full gate 全绿；全部数据原样保留。

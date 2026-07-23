@@ -303,6 +303,18 @@ INC-98 将该方法固化为持续循环：
   Codex 的 one-click side effect 对齐。实窗还反证 pointer 打开后 Close 把焦点丢到 `BODY`；只在
   suggestion pointerdown 上显式 focus 当前 card，复用 shared Modal 的既有 restore contract，keyboard
   路径不变。SC-04 以双侧真实差异证据判 PASS。
+- **98.3r Scheduled detail design note**：继续 SC-06，只从已存在并保留的真实 series 进入详情；
+  Codex 使用本轮新 `Daily brief`，AgentRunner 使用既有 shared rhythmic session。覆盖 row click、
+  detail/history/next-run、back/deep-link reload 与只读 action affordance；不触发 Run now/Edit/Delete/
+  Pause/Retry/Cancel。capture driver 必须以 row title OCR 动态定位，进入后用详情独有 heading/fact
+  二次校验，再恢复原 thread；若 Codex row click 本身触发执行或缺乏稳定详情则立即停止并拒收。
+  先做同 viewport combined comparison，只有真实交互反证才改 UI；需要 series-level backend 数据时
+  追加 G55 或新 gap，不用 run/session 猜历史。
+  实测 Codex row click 打开同页 split detail，显示 prompt、project/model/reasoning、frequency/notification
+  与 pause/close；AgentRunner row click 打开可 deep-link/reload/back 的完整 iteration history，但没有
+  series config/edit 投影，登记 G56。点击 terminal `Run details` 还把 inspect 全量 JSON 直接铺进 modal；
+  这不是 backend 缺口，改为复用既有 structured Run details（Overview/Usage/Activity，raw 折到 disclosure）。
+  SC-06 因 G56 判 GAP，不因 history/deep-link 已通过而提前判绿。
 
 ## Spec delta
 

@@ -20,7 +20,8 @@ usage: qa/capture-codex-ui.sh [--command-palette [--palette-query TEXT] | --surf
                               --context-menu VISIBLE_TEXT | --keyboard-context-menu VISIBLE_TEXT |
                               --account-menu | --user-menu |
                               --settings [--settings-tab general|appearance|keyboard-shortcuts|configuration|worktrees|archived]]
-                              [--scheduled-search TEXT | --scheduled-filter all|active|paused]
+                              [--scheduled-search TEXT | --scheduled-filter all|active|paused |
+                               --scheduled-row VISIBLE_TITLE]
                               [--settle SECONDS] [--restore-query TEXT] [--output PATH]
 
 Captures the largest on-screen layer-0 window owned by bundle com.openai.codex.
@@ -61,6 +62,7 @@ Captures the largest on-screen layer-0 window owned by bundle com.openai.codex.
 --settings-tab selects a read-only Settings tab before capture (default: general).
 --scheduled-search types a Scheduled search query for the capture.
 --scheduled-filter selects a Scheduled status filter for the capture.
+--scheduled-row opens an existing Scheduled row for a read-only detail capture.
 --settle waits for a navigated surface to become visually stable (default: 1 second).
 --restore-query returns to a Codex thread through Cmd+K after a surface capture.
 EOF
@@ -283,6 +285,16 @@ while (($#)); do
       fi
       mode="scheduled-filter"
       scheduled_action="filter"
+      scheduled_value="$2"
+      shift 2
+      ;;
+    --scheduled-row)
+      if (($# < 2)) || [[ -z "$2" ]]; then
+        echo "capture-codex-ui: --scheduled-row requires a visible title" >&2
+        exit 2
+      fi
+      mode="scheduled-row"
+      scheduled_action="row"
       scheduled_value="$2"
       shift 2
       ;;
@@ -1662,6 +1674,22 @@ if [[ "$mode" == "scheduled-filter" ]]; then
   IFS=$'\t' read -r scheduled_filter_x scheduled_filter_y <<<"$scheduled_filter_point"
   send_click "$scheduled_filter_x" "$scheduled_filter_y"
   sleep "$settle_seconds"
+fi
+
+if [[ "$mode" == "scheduled-row" ]]; then
+  ocr_capture=$(mktemp -t codex-scheduled-row)
+  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  scheduled_row_point=$(window_text_center "$ocr_capture" "$scheduled_value" "main")
+  IFS=$'\t' read -r scheduled_row_x scheduled_row_y <<<"$scheduled_row_point"
+  send_click "$scheduled_row_x" "$scheduled_row_y"
+  sleep "$settle_seconds"
+  rm -f -- "$ocr_capture"
+  ocr_capture=$(mktemp -t codex-scheduled-row-validate)
+  screencapture -x -o -t png -l "$window_id" "$ocr_capture"
+  # The title also exists in the list. Require two detail-only anchors so a
+  # missed click cannot be accepted as a detail capture.
+  window_text_center "$ocr_capture" "Runs in" "main" >/dev/null
+  window_text_center "$ocr_capture" "Frequency" "main" >/dev/null
 fi
 
 if ! screencapture -x -l "$window_id" "$output"; then

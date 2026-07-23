@@ -30,6 +30,7 @@ vi.mock("../api", async () => ({
 }));
 
 import { SessionView } from "./SessionView";
+import { Modals } from "./Modals";
 import { useStore } from "../store";
 
 const SID = "20260711-011831-what-is-the-project-297d";
@@ -156,6 +157,45 @@ describe("TH-14 · one terminal banner above the composer", () => {
     await waitFor(() => expect(container.querySelector(".gbar")).not.toBeNull());
     expect(container.querySelector(".terminal-alert")).toBeNull();
     expect(screen.getByText("Goal cancelled")).toBeTruthy();
+  });
+
+  it("opens the formatted Run details projection instead of a raw JSON wall", async () => {
+    useStore.setState({
+      sessions: [{
+        id: SID,
+        title: "scheduled series",
+        status: "max_iterations",
+        workspace: "/tmp/wt-th14",
+        kind: "driver",
+      } as any],
+    });
+    arMock.inspect = vi.fn(async () => ({
+      kind: "driver",
+      spec: "loop",
+      status: "ended",
+      reason: "max_iterations",
+      gen_steps: 2,
+      turns: 1,
+      entries: [
+        { gen_step: 1, kind: "iteration", name: "completed", detail: "pass=false score=0" },
+        { gen_step: 2, kind: "iteration", name: "completed", detail: "pass=false score=0" },
+      ],
+      usage: { input_tokens: 5058, output_tokens: 184, billed: 5242 },
+      children: [],
+    }));
+
+    const { container } = render(<><SessionView sid={SID} /><Modals /></>);
+    await waitFor(() => expect(container.querySelector(".terminal-alert")).not.toBeNull());
+    fireEvent.click(container.querySelector(".terminal-alert-action")!);
+
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "Run details" })).toBeTruthy());
+    expect(arMock.inspect).toHaveBeenCalledWith(SID);
+    expect(screen.getByText("Overview")).toBeTruthy();
+    expect(screen.getByText("Usage")).toBeTruthy();
+    expect(screen.getByText("Activity")).toBeTruthy();
+    expect(container.querySelector(".run-details")).not.toBeNull();
+    expect(container.querySelector(".rd-raw summary")?.textContent).toBe("Raw run data");
+    expect(container.querySelector(".viewer-modal")).toBeNull();
   });
 });
 

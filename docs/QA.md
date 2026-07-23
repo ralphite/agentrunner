@@ -2079,3 +2079,16 @@ PASS；本批没有创建、关闭、删除或清理任何 run/session/workspace
 creation、AgentRunner Daily modal、同 viewport interaction comparison、修后 focus return、DOM contract、
 health/logs/gate。Codex 新 `Daily brief` automation 与所有 AgentRunner shared 数据永久保留；本批没有
 提交 AgentRunner modal，也没有创建 AgentRunner run/session。
+
+| 98.3r 动作 | 硬断言 |
+|---|---|
+| Codex series detail | 已保留的真实 `Daily brief` row 经 OCR 唯一定位；click 后必须同时命中 detail-only `Runs in` + `Frequency` 才收图。split panel 可见 Active、完整 prompt、project/model/reasoning、Repeat/At/Notifications 与 pause/close；capture 后恢复原 thread |
+| AgentRunner history | 既有 shared driver `20260709-093136-loop-7315` row click 进入完整 iteration 1/2 history；hash 精确为 sid，reload 后 title/history 保持，Back 回 `#scheduled`；logs=`[]` |
+| same-action compare | `04` 将双侧 row-click 结果置于同一逻辑 1952×1465：Codex 强在 series config，AgentRunner 强在 durable iteration audit。后者不能替代前者，缺口登记 G56 |
+| raw detail 红转绿 | 修前 terminal `Run details` 直接铺完整 inspect JSON；修后复用既有 `kind=inspect` projection，首屏为 status + Overview/Usage/Activity，完整 JSON 只在 `Raw run data` disclosure，截图 `02→05` |
+| backend 边界 | G56 需要 typed series detail/edit/notification projection/API；不从 session list、child iteration 或 inspect 猜 standing prompt/model/reasoning。G55 pause/resume lifecycle 继续独立开放 |
+| Gate B | dirty shared production `dee480cd-dirty-211448` health `daemonUp/versionMatch=true`；browser logs=`[]`；targeted 21 tests、frontend 全量/build、capture contract/full gate 通过；全部既有数据保留 |
+
+**98.3r 证据**：`qa/runs/2026-07-22-QA88-98.3r-scheduled-detail/` 保存 Codex split detail、
+AgentRunner history/raw-before/structured-after、同 viewport comparison、deep-link/reload/back、DOM contract、
+health/logs/gate。未触发 Run now/Edit/Delete/Pause/Retry/Cancel，未创建、关闭、删除或清理任何数据。

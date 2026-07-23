@@ -51,7 +51,7 @@
 | UJ-21 崩溃自愈与重启接续 | 🟡 | 恢复语义✅（resume/in-doubt/终态把关，QA-08）；**自动性缺**：boot sweep、子 crash 自动 resume（G22）（2026-07-05 新增行） |
 | UJ-22 会话内目标 | ✅ | **G23 已关闭（INC-D1）**——in-session goal 挂会话、context 延续；决策 #21 拆两形态 |
 | UJ-23 工程团队模拟 | ✅ | INC-12：动态角色、横向消息、revive、用户直达与子会话 live 全通 |
-| UJ-24 Web UI 驾驶 AgentRunner | ✅ | INC-19/23/29/38/40/41/57/60/91/97：Codex 式信息架构 + truthful progressive hydration + environment composer/worktree + Worked/Changes + hover actions + message-level durable Continue（human-before/final-assistant-after、multimodal draft、atomic/idempotent dormant child）+ 不重排 thread 的 Environment 浮动卡 + 内联审批 + responsive Supervision/recovery/Scheduled/a11y；QA-27/34/36/41/42/43/60/61/82/87；可选 message feedback telemetry 缺 G46、queued→steer 原子提升缺 G47、active ask sidebar attention 投影缺 G48、Settings 快捷键重绑/工作树生命周期/永久删除缺 G52/G53/G54、Scheduled 全局 pause/resume lifecycle 缺 G55（均不阻断主 journey） |
+| UJ-24 Web UI 驾驶 AgentRunner | ✅ | INC-19/23/29/38/40/41/57/60/91/97：Codex 式信息架构 + truthful progressive hydration + environment composer/worktree + Worked/Changes + hover actions + message-level durable Continue（human-before/final-assistant-after、multimodal draft、atomic/idempotent dormant child）+ 不重排 thread 的 Environment 浮动卡 + 内联审批 + responsive Supervision/recovery/Scheduled/a11y；QA-27/34/36/41/42/43/60/61/82/87；可选 message feedback telemetry 缺 G46、queued→steer 原子提升缺 G47、active ask sidebar attention 投影缺 G48、Settings 快捷键重绑/工作树生命周期/永久删除缺 G52/G53/G54、Scheduled 全局 pause/resume lifecycle/detail-edit 缺 G55/G56（均不阻断主 journey） |
 
 **汇总（2026-07-11 更新）**：20 通 · 3 部分 · 1 卡死。G14 已关闭
 （INC-50 webhook ingress），UJ-12 转部分；剩余卡死集中在云环境
@@ -774,6 +774,18 @@ AgentRunner 当前 Scheduled 只能从 driver session 的 `nextRunAt`/terminal s
 iteration 的处理、漏 slot/catch-up、resume cadence base/next-run 重锚与可审计 receipt，再将真实
 paused projection 暴露给 Web UI。此前保持 `Finished` 诚实文案，禁止只改 label 或从“没有 next run”猜
 Paused。
+→ UJ-14/UJ-24
+
+**G56 Scheduled series detail/edit/notification projection 缺失 — ❌ 开放（INC-98.3r 实窗取证，中）**
+Codex 对真实 `Daily brief` row 单击后在同页 split panel 显示完整 prompt、Runs in/Project、Model、
+Reasoning、Repeat/At、Notifications 与 pause/close；AgentRunner row 单击进入的是 driver iteration history，
+该 history 的 hash deep-link/reload/back 与审计细节更强，但没有 series-level configuration surface。
+当前 sessions projection 只有 title/workspace/status/cadence/nextRunAt，无法忠实重建 standing prompt、
+agent/model/reasoning、notification policy 与可编辑 frequency；不能从子 iteration 或 runtime inspect 猜。
+关闭前需要 daemon typed series detail/read-update API、版本/并发冲突、cadence validation/rebase、notification
+policy、edit/pause 与在飞 iteration 边界、durable receipt；Web UI 应保留现有 Open history，同时提供真实
+detail/edit surface。INC-98.3r 已先把 terminal `Run details` 的全量 JSON wall 改为 structured
+Overview/Usage/Activity，raw 数据仍在 disclosure，此 UI 修复不冒充 G56 已关闭。
 → UJ-14/UJ-24
 
 **G47 已排队消息原子提升为 Steer 的 backend contract 缺失 — ❌ 开放（INC-98.3c 实窗取证，中）**

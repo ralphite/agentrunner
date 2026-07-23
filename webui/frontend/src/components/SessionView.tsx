@@ -711,10 +711,14 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
         toast(e.message);
       }
     },
-    view: async (title: string, loader: () => Promise<any>) => {
+    inspect: async () => {
       try {
-        const data = await loader();
-        openModal({ kind: "viewer", title: `${title} · ${sid}`, body: JSON.stringify(data, null, 2) });
+        const data = await AR.inspect(sid);
+        // Reuse the product Run details projection already used elsewhere.
+        // The terminal banner previously dumped the entire inspect JSON as the
+        // modal body, making a two-iteration schedule several screens of debug
+        // text. Raw data remains available behind the existing disclosure.
+        openModal({ kind: "inspect", data, status: listStatus || folded.status.text });
       } catch (e: any) {
         toast(e.message);
       }
@@ -751,7 +755,7 @@ export function SessionView({ sid, mobileNavigationOpen = false }: { sid: string
       void act.resume();
       return;
     }
-    void act.view("Run details", () => AR.inspect(sid));
+    void act.inspect();
   };
 
   // TH-12 · the same terminal fact was landing on screen 3–5 times: a goal
