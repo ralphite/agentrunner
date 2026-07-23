@@ -1912,7 +1912,7 @@ shared-store QA data → recapture → 与同 viewport/state 的 AgentRunner 合
 | Codex mode 边界 | Default 真 thread 明示 `request_user_input` 不可用；Plan 真 thread 生成 `Asked 1 question` disclosure，展开为 `Select a test option / No answer provided`，Alpha 作为普通 follow-up 后模型继续；不能把 Default failure 冒充 Plan 能力 |
 | structured waiting / reload | AgentRunner shared 真 Gemini ask session 显示 Alpha/Beta、free-text、Submit/Skip；reload 后结构、文案、选项与 disabled Submit 完整恢复，未自行回答 |
 | answer 全形态 | 单选 Alpha→`SELECTED=Alpha`；multi Alpha+Beta→`SELECTED=Alpha, Beta`；free-text Gamma→`SELECTED=Gamma`；双问 Red+Large→`ANSWERS=Red,Large`；每个 answer 都经 durable AskResolved 配对后同 session 续跑 |
-| cancel / compatibility | Skip→`SKIPPED` 且非错误；普通 composer Beta 兼容回答→`COMPAT=Beta`。修前后者在 answer 已消费、assistant 已完成后仍残留 `Beta / queued…`，reload 才消失；只加 `AskResolved.answer` poll matching 的 production 复拍仍命中 receipt race，且实际 `send --detach` receipt 是泛型 `delivered`；最终以 durable structured AskForm 可见 context + 成功 receipt 按 optimistic id 清除，journal matching 作 fallback；新加载 production bundle 后无需 reload 即零幽灵 |
+| cancel / compatibility | Skip→`SKIPPED` 且非错误；普通 composer Beta 兼容回答→`COMPAT=Beta`。修前后者在 answer 已消费、assistant 已完成后仍残留 `Beta / queued…`，reload 才消失；只加 `AskResolved.answer` poll matching 的 production 复拍仍命中 receipt race，且实际 `send --detach` receipt 是泛型 `delivered`；最终以 durable structured AskForm 可见 context + 成功 receipt 按 optimistic id 清除，journal matching 作 fallback；部署后必须以 `?v=<health.webuiVersion>` cache-bust 并确认 script hash 与 server `index.html` 一致，新加载 production bundle 后无需 reload 即零幽灵 |
 | attention gap | `/api/sessions` 对 active structured ask 仍只给 `waiting:input`，sidebar 显示 Ready 且无 attention；普通 idle 同 status，前端不能猜，记 G48 backend projection，禁止把全部 waiting 误抬 |
 
 **98.1 证据**：`qa/runs/2026-07-22-QA88-codex-ui-continuous-loop/` 保存
@@ -1983,5 +1983,5 @@ running/partial/stopped、AgentRunner running/immediate/settled/reload、修后 
 **98.3e 证据**：`qa/runs/2026-07-22-QA88-98.3e-ask-user/` 保存 Codex
 Default failure、Plan submit/Asked disclosure/answer，AgentRunner structured waiting/reload、
 single/multi/free-text/two-question/Skip/compat composer 的 before/after、修前 ghost/修后 clean、
-combined comparison、events/inspect/sessions/health/logs/gate。11 个 shared session、workspace、
+combined comparison、events/inspect/sessions/health/logs/gate。13 个 shared session、workspace、
 journal 与 Codex thread 全保留；不 close、不删除、不清理。

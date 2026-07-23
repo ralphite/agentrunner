@@ -6733,3 +6733,16 @@ React 的 pending state commit 前处理 AskResolved；event matching 当时无 
 ask answer。最终裁决改为：当 durable structured AskForm 仍可见时，成功 send receipt 必然由
 当前 ask park 消费，按本次 optimistic id 立即清除；普通 follow-up 仍等待 InputReceived，
 `AskResolved.answer` matching 保留为恢复 fallback。probe/session/journal 永久保留。
+
+---
+
+## 2026-07-22 · INC-98.3e 当前 bundle 复拍通过
+
+第二次“修后失败”又暴露一层 QA 环境事实：webui health 已是新 commit，但已打开的 SPA 仍加载
+旧 `index-L2e2Qdgd.js`；server `index.html` 实际指向 `index-B98dQFeV.js`。因此该次截图不能
+裁决新代码。以 `?v=2516bf18` 强制 navigation，并在 DOM 内核对 script src 后，新 shared
+Gemini session 用普通 composer 回答 Beta，assistant 返回 `CACHEBUST_CLEAN=Beta`，同屏无
+`queued…`、无需 reload、browser logs 为空。另留一个未回答 structured ask 复拍稳定等待态，
+与 Codex disclosure 合成同一 comparison input 后才做视觉裁决。以后 QA-88 每次 deployment
+复拍都必须以 health version cache-bust 并核对当前 bundle，禁止仅凭 health 新版本推断已打开
+tab 运行新前端。13 个 shared session 与全部 journal/截图永久保留；TH-08 仍因 G48 为 GAP。
